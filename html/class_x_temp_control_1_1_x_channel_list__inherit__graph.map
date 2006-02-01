@@ -1,0 +1,4 @@
+base referer
+rect $class_x_custom_type_list_node.html 8,157 248,184
+rect $class_x_list_node_base.html 72,82 184,109
+rect $class_x_node.html 97,8 158,34

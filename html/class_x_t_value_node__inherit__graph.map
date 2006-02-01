@@ -1,0 +1,5 @@
+base referer
+rect $class_x_hex_node.html 7,306 189,333
+rect $class_x_value_node.html 35,157 161,183
+rect $class_x_value_node_base.html 35,82 161,109
+rect $class_x_node.html 67,7 129,34

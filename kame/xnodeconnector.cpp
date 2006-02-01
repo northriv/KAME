@@ -1,0 +1,622 @@
+#include "xnodeconnector.h"
+#include <deque>
+
+#include <kapp.h>
+#include <qbutton.h>
+#include <qlineedit.h>
+#include <kurlrequester.h>
+#include <qcheckbox.h>
+#include <qlistbox.h>
+#include <qcombobox.h>
+#include <kcolorbutton.h>
+#include <kcolorcombo.h>
+#include <qlabel.h>
+#include <kled.h>
+#include <knuminput.h>
+#include <qspinbox.h>
+#include <qlcdnumber.h>
+#include <qtextbrowser.h>
+#include <qstatusbar.h>
+#include <kpassivepopup.h>
+#include <qmainwindow.h>
+#include <kfiledialog.h>
+#include <klocale.h>
+
+#include "icons/icon.h"
+
+std::deque<shared_ptr<XQConnector> > XQConnector::s_thisCreating;
+std::deque<shared_ptr<XStatusPrinter> > XStatusPrinter::s_thisCreating;
+
+//ms
+#define UI_DISP_DELAY 10
+
+void _sharedPtrQDeleter(QObject *obj) {
+    if(isMainThread())
+        delete obj;
+    else
+        obj->deleteLater();
+}
+
+_XQConnectorHolder::_XQConnectorHolder(XQConnector *con) :
+    QObject(0L, "connector_holder") {
+    m_connector = XQConnector::s_thisCreating.back();
+    XQConnector::s_thisCreating.pop_back();
+    connect(con->m_pWidget, SIGNAL( destroyed() ), this, SLOT( destroyed() ) );
+    ASSERT(con->shared_from_this());
+}
+_XQConnectorHolder::~_XQConnectorHolder() {
+    if(m_connector)
+        disconnect(m_connector->m_pWidget, SIGNAL( destroyed() ), this, SLOT( destroyed() ) );
+}
+bool
+_XQConnectorHolder::isAlive() const {
+    return m_connector;
+}
+
+void
+_XQConnectorHolder::destroyed () {
+        disconnect(m_connector->m_pWidget, SIGNAL( destroyed() ), this, SLOT( destroyed() ) );
+        m_connector->m_pWidget = 0L;
+        m_connector.reset();
+}
+
+
+XQConnector::XQConnector(const shared_ptr<XNode> &node, QWidget *item)
+  : QObject(0L, QString("connector node:%1 widget:%2").arg(node->getName()).arg(item->name())), 
+  m_pWidget(item) 
+  {
+    ASSERT(node);
+    ASSERT(item);
+    XQConnector::s_thisCreating.push_back(shared_ptr<XQConnector>(this));
+    m_lsnUIEnabled = node->onUIEnabled().connectWeak
+        (true, shared_from_this(), &XQConnector::onUIEnabled, true, UI_DISP_DELAY);
+    onUIEnabled(node);
+    dbgPrint(QString("connector %1 created., addr=0x%2, size=0x%3")
+            .arg(name())
+            .arg((unsigned int)this, 0, 16)
+            .arg((unsigned int)sizeof(XQConnector), 0, 16));
+#ifdef HAVE_LIBGCCPP
+    GC_gcollect();
+#endif
+  }
+XQConnector::~XQConnector() {
+    if(isItemAlive()) {
+        m_pWidget->setEnabled(false);
+        dbgPrint(QString("connector %1 released., addr=0x%2").arg(name()).arg((unsigned int)this, 0, 16));
+    }
+    else {
+        dbgPrint(QString("connector %1 & widget released., addr=0x%2").arg(name()).arg((unsigned int)this, 0, 16));
+    }
+#ifdef HAVE_LIBGCCPP
+    GC_gcollect();
+#endif
+}
+void
+XQConnector::onUIEnabled(const shared_ptr<XNode> &node) {
+    m_pWidget->setEnabled(node->isUIEnabled());
+}
+
+XQButtonConnector::XQButtonConnector(const shared_ptr<XNode> &node, QButton *item)
+  : XQConnector(node, item),
+  m_node(node), m_pItem(item) 
+  {
+    connect(item, SIGNAL( clicked() ), this, SLOT( onClick() ) );
+    m_lsnTouch = node->onTouch().connectWeak
+        (true, shared_from_this(), &XQButtonConnector::onTouch, false);
+  }
+XQButtonConnector::~XQButtonConnector() {
+}
+void
+XQButtonConnector::onClick() {
+        m_node->touch();
+}
+void
+XQButtonConnector::onTouch(const shared_ptr<XNode> &) {
+}
+
+XValueQConnector::XValueQConnector(const shared_ptr<XValueNodeBase> &node, QWidget *item)
+  : XQConnector(node, item) {
+    m_lsnBeforeValueChanged = node->beforeValueChanged().connectWeak(
+        true, shared_from_this(), &XValueQConnector::beforeValueChanged, true, UI_DISP_DELAY);
+    m_lsnValueChanged = node->onValueChanged().connectWeak(
+        true, shared_from_this(), &XValueQConnector::onValueChanged, true, UI_DISP_DELAY);
+  }
+XValueQConnector::~XValueQConnector() {
+}
+
+XQLineEditConnector::XQLineEditConnector(
+    const shared_ptr<XValueNodeBase> &node, QLineEdit *item, bool forcereturn)
+  : XValueQConnector(node, item),
+  m_node(node), m_pItem(item) {
+    connect(item, SIGNAL( returnPressed() ), this, SLOT( onReturnPressed() ) );
+    connect(item, SIGNAL( lostFocus() ), this, SLOT( onExit() ) );
+    if(!forcereturn)
+      connect(item, SIGNAL( textChanged( const QString &) ),
+              this, SLOT( onTextChanged(const QString &) ) );
+    onValueChanged(node);
+  }
+void
+XQLineEditConnector::onTextChanged(const QString &text) {
+    m_lsnValueChanged->mask();
+    try {
+      m_node->str(text);
+    }
+    catch (XKameError &e) {
+        e.print();
+    }
+    m_lsnValueChanged->unmask();
+}
+void
+XQLineEditConnector::onReturnPressed() {
+    try {
+      m_node->str(m_pItem->text());
+    }
+    catch (XKameError &e) {
+        e.print();
+    }
+}
+void
+XQLineEditConnector::onExit() {
+      m_pItem->blockSignals(true);
+      m_pItem->setText(m_node->to_str());
+      m_pItem->blockSignals(false);
+}
+void
+XQLineEditConnector::onValueChanged(const shared_ptr<XValueNodeBase> &node) {
+  m_pItem->blockSignals(true);
+  m_pItem->setText(node->to_str());
+  m_pItem->blockSignals(false);
+}
+  
+XQSpinBoxConnector::XQSpinBoxConnector(const shared_ptr<XIntNode> &node, QSpinBox *item)
+  : XValueQConnector(node, item),
+  m_iNode(node),
+  m_uINode(),
+  m_pItem(item)
+  {
+    connect(item, SIGNAL( valueChanged(int) ), this, SLOT( onChange(int) ) );
+    onValueChanged(node);
+  }
+XQSpinBoxConnector::XQSpinBoxConnector(const shared_ptr<XUIntNode> &node, QSpinBox *item)
+  : XValueQConnector(node, item),
+  m_iNode(),
+  m_uINode(node),
+  m_pItem(item)
+   {
+    connect(item, SIGNAL( valueChanged(int) ), this, SLOT( onChange(int) ) );
+    onValueChanged(node);
+  }
+void
+XQSpinBoxConnector::onChange(int val) {
+    m_lsnValueChanged->mask();
+    if(m_iNode) {
+      m_iNode->value(val);
+    }
+    if(m_uINode) {
+      m_uINode->value(val);
+    }
+    m_lsnValueChanged->unmask();
+}
+void
+XQSpinBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &node) {
+  m_pItem->blockSignals(true);
+  m_pItem->setValue(node->to_str().toInt());
+  m_pItem->blockSignals(false);
+}
+    
+XKIntNumInputConnector::XKIntNumInputConnector(const shared_ptr<XIntNode> &node, KIntNumInput *item)
+  : XValueQConnector(node, item),
+  m_iNode(node),
+  m_uINode(),
+  m_pItem(item)
+   {
+    connect(item, SIGNAL( valueChanged(int) ), this, SLOT( onChange(int) ) );
+    onValueChanged(node);
+  }
+XKIntNumInputConnector::XKIntNumInputConnector(const shared_ptr<XUIntNode> &node, KIntNumInput *item)
+  : XValueQConnector(node, item),
+  m_iNode(),
+  m_uINode(node),
+  m_pItem(item)
+{
+    connect(item, SIGNAL( valueChanged(int) ), this, SLOT( onChange(int) ) );
+    onValueChanged(node);
+  }
+void
+XKIntNumInputConnector::onChange(int val) {
+    m_lsnValueChanged->mask();
+    if(m_iNode) {
+      m_iNode->value(val);
+    }
+    if(m_uINode) {
+      m_uINode->value(val);
+    }
+    m_lsnValueChanged->unmask();
+}
+void
+XKIntNumInputConnector::onValueChanged(const shared_ptr<XValueNodeBase> &node) {
+  m_pItem->blockSignals(true);
+  m_pItem->setValue(node->to_str().toInt());
+  m_pItem->blockSignals(false);
+}
+
+XKDoubleNumInputConnector::XKDoubleNumInputConnector(const shared_ptr<XDoubleNode> &node, KDoubleNumInput *item)
+  : XValueQConnector(node, item),
+  m_node(node),
+  m_pItem(item)
+   {
+    connect(item, SIGNAL( valueChanged(double) ), this, SLOT( onChange(double) ) );
+    onValueChanged(node);
+  }
+void
+XKDoubleNumInputConnector::onChange(double val) {
+    m_lsnValueChanged->mask();
+      m_node->value(val);
+    m_lsnValueChanged->unmask();
+}
+void
+XKDoubleNumInputConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
+      m_pItem->blockSignals(true);
+      m_pItem->setValue((double)*m_node);
+      m_pItem->blockSignals(false);
+}
+
+
+XKDoubleSpinBoxConnector::XKDoubleSpinBoxConnector(const shared_ptr<XDoubleNode> &node, KDoubleSpinBox *item)
+  : XValueQConnector(node, item),
+  m_node(node),
+  m_pItem(item)
+  {
+    connect(item, SIGNAL( valueChanged(double) ), this, SLOT( onChange(double) ) );
+    onValueChanged(node);
+  }
+void
+XKDoubleSpinBoxConnector::onChange(double val) {
+    m_lsnValueChanged->mask();
+      m_node->value(val);
+    m_lsnValueChanged->unmask();
+}
+void
+XKDoubleSpinBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
+      m_pItem->blockSignals(true);
+      m_pItem->setValue((double)*m_node);
+      m_pItem->blockSignals(false);
+}
+      
+XKURLReqConnector::XKURLReqConnector(const shared_ptr<XStringNode> &node,
+ KURLRequester *item, const char *filter, bool saving)
+  : XValueQConnector(node, item),
+  m_node(node),
+  m_pItem(item)
+ {
+    connect(item, SIGNAL( urlSelected ( const QString& ) ),
+	    this, SLOT( onSelect( const QString& ) ) );
+    m_pItem->button()->setAutoDefault(false);
+    m_pItem->setFilter(filter);
+    if(saving) m_pItem->fileDialog()->setOperationMode( KFileDialog::Saving );
+    onValueChanged(node);
+  }
+void
+XKURLReqConnector::onSelect( const QString& str) {
+    try {
+      m_node->str(str);
+    }
+    catch (XKameError &e) {
+        e.print();
+    }
+}
+
+void
+XKURLReqConnector::onValueChanged(const shared_ptr<XValueNodeBase> &node) {
+      m_pItem->setURL(node->to_str());
+}
+
+XQLabelConnector::XQLabelConnector(const shared_ptr<XValueNodeBase> &node, QLabel *item)
+  : XValueQConnector(node, item),
+  m_node(node), m_pItem(item)
+  {
+    onValueChanged(node);
+  }
+
+void
+XQLabelConnector::onValueChanged(const shared_ptr<XValueNodeBase> &node) {
+  m_pItem->setText(node->to_str());
+}
+
+XQTextBrowserConnector::XQTextBrowserConnector(const shared_ptr<XValueNodeBase> &node, QTextBrowser *item)
+  : XValueQConnector(node, item),
+  m_node(node), m_pItem(item) {
+    onValueChanged(node);
+  }
+void
+XQTextBrowserConnector::onValueChanged(const shared_ptr<XValueNodeBase> &node) {
+  m_pItem->setText(node->to_str());
+}
+  
+XQLCDNumberConnector::XQLCDNumberConnector(const shared_ptr<XDoubleNode> &node, QLCDNumber *item)
+  : XValueQConnector(node, item),
+  m_node(node), m_pItem(item) {
+    onValueChanged(node);
+  }
+
+void
+XQLCDNumberConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
+    m_pItem->display(m_node->to_str());
+}
+  
+XKLedConnector::XKLedConnector(const shared_ptr<XBoolNode> &node, KLed *item)
+  : XValueQConnector(node, item),
+  m_node(node), m_pItem(item) {
+    onValueChanged(node);
+  }
+
+void
+XKLedConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
+      if(*m_node) m_pItem->on(); else m_pItem->off();
+}
+
+XQToggleButtonConnector::XQToggleButtonConnector(const shared_ptr<XBoolNode> &node, QButton *item)
+  : XValueQConnector(node, item),
+  m_node(node), m_pItem(item) {
+    connect(item, SIGNAL( clicked() ), this, SLOT( onClick() ) );
+    onValueChanged(node);
+  }
+
+void
+XQToggleButtonConnector::onClick() {
+    m_node->value(m_pItem->isOn());
+}
+
+void
+XQToggleButtonConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
+      if(((bool)*m_node) ^ m_pItem->isOn()) m_pItem->toggle();
+}
+
+XListQConnector::XListQConnector(const shared_ptr<XListNodeBase> &node, QWidget *item)
+  : XQConnector(node, item) {
+    m_lsnListChanged = node->onListChanged().connectWeak
+        (true, shared_from_this(),
+				     &XListQConnector::onListChanged, false);
+    m_lsnCatch = node->onCatch().connectWeak
+          (true, shared_from_this(), &XListQConnector::onCatch);
+    m_lsnRelease = node->onRelease().connectWeak
+          (true, shared_from_this(), &XListQConnector::onRelease);
+  }
+XListQConnector::~XListQConnector() {
+}
+
+XItemQConnector::XItemQConnector(const shared_ptr<XItemNodeBase> &node, QWidget *item)
+  : XValueQConnector(node, item) {
+    m_lsnListChanged = node->onListChanged().connectWeak
+        (true, shared_from_this(), &XItemQConnector::onListChanged, true, UI_DISP_DELAY);
+  }
+XItemQConnector::~XItemQConnector() {
+}
+
+XQComboBoxConnector::XQComboBoxConnector(const shared_ptr<XItemNodeBase> &node, QComboBox *item)
+  : XItemQConnector(node, item),
+  m_node(node), m_pItem(item) {
+    connect(item, SIGNAL( activated(int) ), this, SLOT( onSelect(int) ) );
+    onListChanged(node);
+  }
+void
+XQComboBoxConnector::onSelect(int ) {
+    try {
+      m_node->str(m_pItem->currentText());
+    }
+    catch (XKameError &e) {
+        e.print();
+    }
+}
+
+int
+XQComboBoxConnector::findItem(const QString &text) {
+      for(int i = 0; i < m_pItem->count(); i++) {
+        if(text == m_pItem->text(i)) {
+            return i;
+        }
+      }
+      return -1;
+}
+
+void
+XQComboBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
+      m_node->listLock();
+      int cnt = m_node->itemCount();
+      m_node->listUnlock();
+      if(!cnt) {
+          return;
+      }
+      
+      m_pItem->blockSignals(true);
+      int idx = findItem(m_node->to_str());
+      if(idx >= 0) {
+          m_pItem->setCurrentItem(idx);
+          int idx1 = findItem(i18n("(UNSEL)"));
+          if(idx1 >= 0) {
+            m_pItem->removeItem(idx1);
+          }
+      }
+      else {
+          int idx1 = findItem(i18n("(UNSEL)"));
+          if(idx1 < 0) {
+            m_pItem->insertItem(i18n("(UNSEL)"));
+          }
+          idx1 = findItem(i18n("(UNSEL)"));
+          ASSERT(idx1 >= 0);
+          m_pItem->setCurrentItem(idx1);
+      }
+      m_pItem->blockSignals(false);
+}
+void
+XQComboBoxConnector::onListChanged(const shared_ptr<XItemNodeBase> &)
+{
+      m_pItem->clear();
+      m_node->listLock();
+      bool exist = false;
+      for(unsigned int i = 0; i < m_node->itemCount(); i++) {
+        QString item = (*m_node)[i];
+        if(!item.isEmpty()) {
+            m_pItem->insertItem(item);
+            exist = true;
+        }
+      }
+      m_node->listUnlock();
+      onValueChanged(m_node);
+}
+
+XQListBoxConnector::XQListBoxConnector(const shared_ptr<XItemNodeBase> &node, QListBox *item)
+  : XItemQConnector(node, item),
+  m_node(node), m_pItem(item) {
+    connect(item, SIGNAL(highlighted(int) ), this, SLOT( onSelect(int) ) );
+    connect(item, SIGNAL(selected(int) ), this, SLOT( onSelect(int) ) );
+    onListChanged(node);
+  }
+void
+XQListBoxConnector::onSelect(int) {
+    try {
+      m_node->str(m_pItem->currentText());
+    }
+    catch (XKameError &e) {
+        e.print();
+    }
+}
+void
+XQListBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
+      m_pItem->blockSignals(true);
+      for(unsigned int i = 0; i < m_pItem->count(); i++) {
+        if(m_node->to_str() == m_pItem->text(i))
+            m_pItem->setCurrentItem(i);
+      }
+      m_pItem->blockSignals(false);
+}
+void
+XQListBoxConnector::onListChanged(const shared_ptr<XItemNodeBase> &)
+{
+      m_pItem->clear();
+      m_node->listLock();
+      for(unsigned int i = 0; i < m_node->itemCount(); i++) {
+        m_pItem->insertItem((*m_node)[i]);}
+      m_node->listUnlock();
+      onValueChanged(m_node);
+}
+
+XKColorButtonConnector::XKColorButtonConnector(const shared_ptr<XHexNode> &node, KColorButton *item)
+  : XValueQConnector(node, item),
+  m_node(node), m_pItem(item) {
+    connect(item, SIGNAL( changed(const QColor &) ), this, SLOT( onClick(const QColor &) ) );
+    onValueChanged(node);
+  }
+void
+XKColorButtonConnector::onClick(const QColor &newColor) {
+      m_node->value(newColor.rgb());
+}
+void
+XKColorButtonConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
+      m_pItem->setColor(QColor((QRgb)(unsigned int)*m_node));
+}
+  
+XKColorComboConnector::XKColorComboConnector(const shared_ptr<XHexNode> &node, KColorCombo *item)
+  : XValueQConnector(node, item),
+  m_node(node), m_pItem(item) {
+    connect(item, SIGNAL( activated(const QColor &) ), this, SLOT( onClick(const QColor &) ) );
+    onValueChanged(node);
+  }
+void
+XKColorComboConnector::onClick(const QColor &newColor) {
+      m_node->value(newColor.rgb());
+}
+void
+XKColorComboConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
+      m_pItem->setColor(QColor((QRgb)(unsigned int)*m_node));
+}
+
+XStatusPrinter::XStatusPrinter(QMainWindow *window) 
+  {
+    if(!window) window = dynamic_cast<QMainWindow*>(g_pFrmMain);
+    m_pWindow = (window);
+    m_pBar = (window->statusBar());
+    m_pPopup  = (new KPassivePopup( window ));
+    XStatusPrinter::s_thisCreating.push_back(shared_ptr<XStatusPrinter>(this));
+	m_pBar->hide();
+	m_lsn = m_tlkTalker.connectWeak(
+        true, shared_from_this(), &XStatusPrinter::print, true, UI_DISP_DELAY);
+}
+XStatusPrinter::~XStatusPrinter() {
+}
+shared_ptr<XStatusPrinter>
+XStatusPrinter::create(QMainWindow *window)
+{
+    new XStatusPrinter(window);
+    shared_ptr<XStatusPrinter> ptr = XStatusPrinter::s_thisCreating.back();
+    XStatusPrinter::s_thisCreating.pop_back();
+    return ptr;
+}
+void
+XStatusPrinter::printMessage(const QString &str, bool popup) {
+tstatus status;
+	status.ms = 3000;
+	status.str = str;
+	status.popup = popup;
+	status.type = tstatus::Normal;
+	m_tlkTalker.talk(status);
+}
+void
+XStatusPrinter::printWarning(const QString &str, bool popup) {
+tstatus status;
+	status.ms = 3000;
+	status.str = i18n("Warning: ") + str;
+	status.popup = popup;
+	status.type = tstatus::Warning;
+    m_tlkTalker.talk(status);
+}
+void
+XStatusPrinter::printError(const QString &str, bool popup) {
+tstatus status;
+	status.ms = 5000;
+	status.str = i18n("Error: ") + str;
+	status.popup = popup;
+	status.type = tstatus::Error;
+    m_tlkTalker.talk(status);
+}
+void
+XStatusPrinter::clear(void) {
+tstatus status;
+	status.ms = 0;
+	status.str = "";
+    m_tlkTalker.talk(status);
+}
+
+void
+XStatusPrinter::print(const tstatus &status) {
+bool popup = status.popup;
+	if(status.ms) {
+		m_pBar->show();
+		m_pBar->message(status.str, status.ms);
+	}
+	else {
+		m_pBar->hide();
+		m_pBar->clear();
+	}
+	if(status.ms && popup) {
+		m_pPopup->hide();
+		m_pPopup->setTimeout(status.ms);
+		QPixmap *icon;
+		switch(status.type) {
+		case tstatus::Normal:
+			icon = g_pIconInfo;
+			break;
+		case tstatus::Warning:
+			icon = g_pIconWarn;
+			break;
+		case tstatus::Error:
+			icon = g_pIconError;
+			break;
+		}
+		m_pPopup->setView(m_pWindow->caption(), status.str, *icon );
+		m_pPopup->show();
+	}
+	else {
+		m_pPopup->hide();
+	}
+}

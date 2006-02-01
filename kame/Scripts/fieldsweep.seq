@@ -1,0 +1,28 @@
+def wait_within(node, val, min_wait, timeout, incr = 1)
+ tstart = Time.now
+ print "Wait for stabilize '#{node.name}' within #{val}"
+ sleep min_wait
+ while tstart + timeout > Time.now
+  if node.get().abs <= val then
+   print "OK. #{Time.now - tstart} sec. lost"  
+   return true
+  end
+  sleep incr
+ end
+ print "Time out #{Time.now - tstart} sec."
+ false
+end
+
+ps = measurement["Drivers"]["PS120"]
+
+def ps.hsweep(target, rate)
+  self["SweepRate"].set(rate)
+  self["TargetField"].set(target)
+  wait_within(self["Stabilized"], 0.0001, 3, 3600*12)
+end
+
+print "start"
+
+#ps["AllowPersistent"].set(false)
+ps.hsweep(0.2, 0.2)
+ps.hsweep(0, 0.6)

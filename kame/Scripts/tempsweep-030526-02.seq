@@ -1,0 +1,71 @@
+def wait_within(node, val, min_wait, timeout, incr = 1)
+ tstart = Time.now
+ print "Wait for stabilize '#{node.name}' within #{val}"
+ sleep min_wait
+ while tstart + timeout > Time.now
+  if node.get().abs <= val then
+   print "OK. #{Time.now - tstart} sec. lost"  
+   return true
+  end
+  sleep incr
+ end
+ print "Time out #{Time.now - tstart} sec."
+ false
+end
+
+ps = measurement["Drivers"]["PS120"]
+tempctl = measurement["Drivers"]["AVS"]
+field = measurement["Analizers"]["PS"]["Field"]["Value"]
+
+def ps.hsweep(target, rate)
+  self["SweepRate"].set(rate)
+  self["TargetField"].set(target)
+  wait_within(self["Stabilized"], 0.0001, 3, 3600*12)
+end
+
+def tempctl.settemp(target)
+  if target > 1.0 then
+    if self["PowerRange"].get != 5 then
+      self["PowerRange"].set(5) #10mW
+    end
+  else
+    if self["PowerRange"].get != 4 then
+      self["PowerRange"].set(4) #1mW
+    end
+  end    
+  p = 50 + 30 * log10(target)
+  p = (p > 10) ? p : 10
+  newp = Integer(p / 5 + 0.5) * 5
+  if self["P"].get != newp then
+    self["P"].set(newp)
+  end
+  self["TargetTemp"].set(target)
+end
+
+def tempctl.tempsweep(start, stop, rate, pollsec = 2)
+  newset = start
+  incr = ((start < stop) ? 1 : -1) * rate.abs / 60 * pollsec
+  timelast = Time.now
+  while (start - newset)*(stop - newset) <= 0 do
+    timelast = timelast + pollsec
+    newset += incr
+    self.settemp(newset)
+    if (timelast - Time.now) > 0 then
+      sleep (timelast - Time.now)
+    end
+  end
+end
+
+print "start"
+
+ps["AllowPersistent"].set(true)
+
+for h in [1, 2, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 8, 9, 10]
+  tempctl.settemp(1.0)
+  ps.hsweep(h, 0.5)
+  wait_within(tempctl["Stabilized"], 0.01, 3, 120)  
+  tempctl.settemp(1.2)
+  wait_within(tempctl["Stabilized"], 0.01, 3, 240)  
+  tempctl.tempsweep(1.2, 0.05, 0.005)
+  wait_within(tempctl["Stabilized"], 0.001, 3, 1800)  
+end

@@ -1,0 +1,605 @@
+#include "graphpainter.h"
+#include "FTGLPixmapFont.h"
+#include "graphwidget.h"
+#include <iconv.h>
+
+using std::min;
+using std::max;
+
+#include<stdio.h>
+#include <qstring.h>
+#include <kstandarddirs.h>
+#include <kapplication.h>
+#include <kconfig.h>
+#include <kconfigbase.h>
+#include <klocale.h>
+#include <locale.h>
+#include <errno.h>
+#define FONT_FILE "mikachan/mikachan.ttf"
+	
+#define DEFAULT_FONT_SIZE 12
+
+#undef USE_ICONV_SRC_UTF8
+#define USE_ICONV_SRC_UCS2
+
+#undef USE_ICONV_WCHART // this is portable, however, it likely depends on the current locale.
+#if defined MACOSX
+    #define USE_ICONV_UCS4_AS_WCHART
+#endif
+#if defined __linux__
+//    #define USE_ICONV_WCHART
+    #define USE_ICONV_UCS4_AS_WCHART
+#endif
+#if defined WINDOWS
+    #define USE_ICONV_UCS2_AS_WCHART
+#endif
+
+static iconv_t s_iconv_cd = (iconv_t)-1;
+
+int XQGraphPainter::s_fontRefCount = 0;
+FTFont *XQGraphPainter::s_pFont = NULL;
+
+void
+XQGraphPainter::openFont()
+{
+	if(s_fontRefCount == 0) {
+  QString filename = ::locate("appdata", FONT_FILE);
+	  if(!filename)
+	    {
+		    gErrPrint(i18n("No Fontfile!!"));
+	    }
+	    fprintf(stderr, filename.ascii() );
+		s_pFont = new FTGLPixmapFont(filename.ascii() );
+		ASSERT(s_pFont->Error() == 0);
+		s_pFont->CharMap(ft_encoding_unicode);
+		
+        setlocale(LC_CTYPE, KApplication::kApplication()->config()->locale().latin1());
+#ifdef USE_ICONV_SRC_UTF8
+    #define ICONV_SRC "UTF-8"
+#endif
+#ifdef USE_ICONV_SRC_UCS2
+    #ifdef __BIG_ENDIAN__
+        #define ICONV_SRC "UCS-2BE"
+    #else
+        #define ICONV_SRC "UCS-2LE"
+    #endif
+#endif
+#ifndef ICONV_SRC
+    #error
+#endif
+#ifdef USE_ICONV_WCHART
+    #define ICONV_DST "WCHAR_T"
+#endif
+#ifdef USE_ICONV_UCS4_AS_WCHART
+    C_ASSERT(sizeof(wchar_t) == 4);
+    #ifdef __BIG_ENDIAN__
+        #define ICONV_DST "UCS-4BE"
+    #else
+        #define ICONV_DST "UCS-4LE"
+    #endif
+#endif
+#ifdef USE_ICONV_UCS2_AS_WCHART
+    C_ASSERT(sizeof(wchar_t) == 2);
+    #ifdef __BIG_ENDIAN__
+        #define ICONV_DST "UCS-2BE"
+    #else
+        #define ICONV_DST "UCS-2LE"
+    #endif
+#endif
+#ifndef ICONV_DST
+    #error
+#endif
+        s_iconv_cd = iconv_open(ICONV_DST, ICONV_SRC);
+		ASSERT(s_iconv_cd != (iconv_t)(-1));
+        /*
+        int arg = 1;
+        if(iconvctl(s_iconv_cd, ICONV_SET_TRANSLITERATE, &arg)) {
+            XKameError::print(i18n("iconv error"), __FILE__, __LINE__, errno);
+        }
+        int arg = 1;
+        if(iconvctl(s_utf8toWCHART, ICONV_SET_DISCARD_ILSEQ, &arg)) {
+            XKameError::print(i18n("iconv error"), __FILE__, __LINE__, errno);
+        }
+        */
+	}
+	s_fontRefCount++;
+}
+
+void
+XQGraphPainter::closeFont()
+{
+	s_fontRefCount--;
+	if(s_fontRefCount == 0) {
+		delete s_pFont;
+		s_pFont = NULL;
+		iconv_close(s_iconv_cd);
+	}
+}
+XQGraphPainter::~XQGraphPainter()
+{
+    m_pItem->makeCurrent();
+    
+    if(m_listplanes) glDeleteLists(m_listplanes, 1);
+    if(m_listgrids) glDeleteLists(m_listgrids, 1);
+    if(m_listaxes) glDeleteLists(m_listaxes, 1);
+    if(m_listpoints) glDeleteLists(m_listpoints, 1);
+    closeFont();
+}
+std::wstring
+XQGraphPainter::qstring2wstring(const QString &str)
+{
+    static wchar_t buf[256];
+    int outsize = 256 * sizeof(wchar_t);
+    char *outp = (char*)buf;
+    errno = 0;
+#ifdef USE_ICONV_SRC_UTF8
+    QCString utf8(str.utf8());
+    const char *inbuf = utf8;
+    int insize = strlen(inbuf);
+#endif //USE_ICONV_SRC_UTF8
+#ifdef USE_ICONV_SRC_UCS2
+    const char *inbuf = reinterpret_cast<const char*>(str.ucs2());
+    int insize = str.length() * sizeof(unsigned short);
+#endif //USE_ICONV_SRC_UCS2
+    //! \todo Linux iconv needs char** instead of const char**
+    size_t ret = iconv(s_iconv_cd, const_cast<char **>(&inbuf), (size_t*)&insize,
+        &outp, (size_t*)&outsize);
+	if(ret == (size_t)(-1)) {
+            XKameError::print(
+                i18n("iconv error, probably locale is not correct."),
+                 __FILE__, __LINE__, errno);
+            iconv(s_iconv_cd, NULL, NULL, NULL, NULL); //reset 
+            return std::wstring(L"iconv-err"); 
+    }
+	*((wchar_t *)outp) = L'\0';
+    return std::wstring(buf); 
+}
+
+int
+XQGraphPainter::windowToScreen(int x, int y, double z, XGraph::ScrPoint *scr)
+{
+GLdouble nx, ny, nz;
+ 	int ret = gluUnProject((double)x, (double)m_viewport[3] - y, z, m_model, m_proj, m_viewport, &nx, &ny, &nz);
+	scr->x = nx;
+	scr->y = ny;
+	scr->z = nz;
+	return (ret != GL_TRUE);
+}
+int
+XQGraphPainter::screenToWindow(const XGraph::ScrPoint &scr, double *x, double *y, double *z)
+{
+GLdouble nx, ny, nz;
+	int ret = gluProject(scr.x, scr.y, scr.z, m_model, m_proj, m_viewport, &nx, &ny, &nz);
+	*x = nx;
+	*y = m_viewport[3] - ny;
+	*z = nz;
+	return (ret != GL_TRUE);
+}
+
+void
+XQGraphPainter::repaintBuffer(int x1, int y1, int x2, int y2)
+{
+	if((x1 != x2) || (y1 != y2)) {
+		m_pItem->updateGL();
+	}
+}
+void
+XQGraphPainter::redrawOffScreen()
+{
+	m_bIsRedrawNeeded = true;
+}
+  
+void
+XQGraphPainter::beginLine(double size)
+{
+	glLineWidth(size);
+    checkGLError(); 
+	glBegin(GL_LINES);
+}
+void
+XQGraphPainter::endLine()
+{
+	glEnd();
+    checkGLError(); 
+}
+
+void
+XQGraphPainter::beginPoint(double size)
+{
+	glPointSize(size);
+    checkGLError(); 
+	glBegin(GL_POINTS);
+}
+void
+XQGraphPainter::endPoint()
+{
+	glEnd();
+    checkGLError(); 
+}
+void
+XQGraphPainter::beginQuad(bool )
+{
+	glBegin(GL_QUADS);
+    checkGLError(); 
+}
+void
+XQGraphPainter::endQuad()
+{
+	glEnd();
+    checkGLError(); 
+}
+
+void
+XQGraphPainter::defaultFont()
+{
+	m_curAlign = 0;
+	m_curFontSize = DEFAULT_FONT_SIZE;
+}
+int
+XQGraphPainter::selectFont(const QString &str, const XGraph::ScrPoint &start, const XGraph::ScrPoint &dir, const XGraph::ScrPoint &swidth, int sizehint)
+{
+	XGraph::ScrPoint d = dir;
+	d.normalize();
+	XGraph::ScrPoint s1 = start;
+	double x, y, z;
+	if(screenToWindow(s1, &x, &y, &z)) return -1;
+	XGraph::ScrPoint s2 = s1;
+	d *= 0.001;
+	s2 += d;
+	double x1, y1, z1;
+	if(screenToWindow(s2, &x1, &y1, &z1)) return -1;
+	XGraph::ScrPoint s3 = s1;
+	XGraph::ScrPoint wo2 = swidth;
+	wo2 *= 0.5;
+	s3 += wo2;
+	double x2, y2, z2;
+	if(screenToWindow(s3, &x2, &y2, &z2)) return -1;	
+	XGraph::ScrPoint s4 = s1;
+	s4 -= wo2;
+	double x3, y3, z3;
+	if(screenToWindow(s4, &x3, &y3, &z3)) return -1;	
+int align = 0;
+// width and height, restrict text
+double w = fabs(x3 - x2), h = fabs(y3 - y2);	
+	if( fabs(x - x1) > fabs( y - y1) ) {
+	//dir is horizontal
+		align |= AlignVCenter;
+		h = min(h, 2 * min(y, m_pItem->height() - y));
+		if( x > x1 ) {
+			align |= AlignRight;
+			w = x;
+		}
+		else {
+			align |= AlignLeft;
+			w = m_pItem->width() - x;
+		}
+	}
+	else {
+	//dir is vertical
+		align |= AlignHCenter;
+		w = min(w, 2 * min(x, m_pItem->width() - x));
+		if( y < y1 ) {
+			align |= AlignTop;
+			h = m_pItem->height() - y;
+		}
+		else {
+			align |= AlignBottom;
+			h = y;
+		}
+	}
+float llx, lly, llz, urx, ury, urz;
+std::wstring wstr = qstring2wstring(str);
+	m_curFontSize = DEFAULT_FONT_SIZE + sizehint;
+	m_curAlign = align;
+    
+	for(;;) {
+ 		s_pFont->FaceSize(m_curFontSize);
+		s_pFont->BBox(wstr.c_str(), llx, lly, llz, urx, ury, urz);
+                if(m_curFontSize < DEFAULT_FONT_SIZE + sizehint - 4) return -1;
+		if((urx < w ) && (ury < h)) break;
+		m_curFontSize--;
+	}
+    checkGLError();
+    
+	return 0;
+}void
+XQGraphPainter::drawText(const XGraph::ScrPoint &p, const QString &str)
+{
+float llx, lly, llz, urx, ury, urz;
+std::wstring wstr = qstring2wstring(str);
+
+	glRasterPos3f(p.x, p.y, p.z);
+    checkGLError();
+
+ 	s_pFont->FaceSize(m_curFontSize);
+	s_pFont->BBox(wstr.c_str(), llx, lly, llz, urx, ury, urz);
+	int w = lrintf(urx);
+	int h = lrintf(ury);
+	
+	float x = 0.0f, y = 0.0f;
+	if( (m_curAlign & AlignVCenter) ) y -= h / 2;
+	if( (m_curAlign & AlignTop) ) y -= h;
+	if( (m_curAlign & AlignHCenter) ) x -= w / 2;
+	if( (m_curAlign & AlignRight) ) x -= w;
+        // Move raster position
+        if((x != 0.0f) || (y != 0.0f))
+		glBitmap( 0, 0, 0.0f, 0.0f, x, y, (const GLubyte*)0);
+	
+ 	s_pFont->Render(wstr.c_str());
+	checkGLError();
+	ASSERT(s_pFont->Error() == 0);
+} 
+
+void
+XQGraphPainter::checkGLError()
+{	
+	GLenum err = glGetError();
+	if(err == GL_NO_ERROR) return;
+	switch(err)
+	{
+	case GL_INVALID_ENUM:
+		dbgPrint("GL_INVALID_ENUM");
+		break;
+	case GL_INVALID_VALUE:
+		dbgPrint("GL_INVALID_VALUE");
+		break;
+	case GL_INVALID_OPERATION:
+		dbgPrint("GL_INVALID_OPERATION");
+		break;
+	case GL_STACK_OVERFLOW:
+		dbgPrint("GL_STACK_OVERFLOW");
+		break;
+	case GL_STACK_UNDERFLOW:
+		dbgPrint("GL_STACK_UNDERFLOW");
+		break;
+	case GL_OUT_OF_MEMORY:
+		dbgPrint("GL_OUT_OF_MEMORY");
+		break;
+	}
+}
+
+#define VIEW_NEAR -1.5
+#define VIEW_FAR 0.5
+
+
+void
+XQGraphPainter::setInitView()
+{
+	glLoadIdentity();
+	glOrtho(0.0,1.0,0.0,1.0,VIEW_NEAR,VIEW_FAR);
+}
+void
+XQGraphPainter::viewRotate(double angle, double x, double y, double z, bool init)
+{
+	m_pItem->makeCurrent();
+    glGetError(); //reset error
+    
+	glMatrixMode(GL_PROJECTION);
+	if(init) {
+		glLoadIdentity();
+		glGetDoublev(GL_PROJECTION_MATRIX, m_proj_rot);	
+		setInitView();
+	}
+	if(angle != 0.0) {
+		glLoadIdentity();
+		glTranslated(0.5, 0.5, 0.5);
+		glRotatef(angle, x, y, z);
+		glTranslated(-0.5, -0.5, -0.5);
+		glMultMatrixd(m_proj_rot);
+		glGetDoublev(GL_PROJECTION_MATRIX, m_proj_rot);
+		setInitView();
+		glMultMatrixd(m_proj_rot);
+	}
+	checkGLError();
+	bool ov = m_bTilted;
+	m_bTilted = !init;
+	if(ov != m_bTilted) m_bIsRedrawNeeded = true;
+	
+	m_bIsAxisRedrawNeeded = true;
+// 	if(m_viewport[3] != height() ) return; //firsttime
+	//save projection matrix
+}
+
+
+#define MAX_SELECTION 100
+
+double
+XQGraphPainter::selectGL(int x, int y, int dx, int dy, GLint list,
+	 XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy )
+{
+      m_pItem->makeCurrent();
+      
+      glGetError(); //reset error
+      
+GLuint selections[MAX_SELECTION];
+      glGetDoublev(GL_PROJECTION_MATRIX, m_proj);
+      glGetDoublev(GL_MODELVIEW_MATRIX, m_model);
+      glGetIntegerv(GL_VIEWPORT, m_viewport);
+      glSelectBuffer(MAX_SELECTION, selections);
+      glRenderMode(GL_SELECT);
+      glInitNames();
+      glPushName((unsigned int)-1);
+      glMatrixMode(GL_PROJECTION);
+      glPushMatrix();
+      //pick up small region
+      glLoadIdentity();
+      gluPickMatrix((double)x, (double)m_viewport[3] - y, (double)dx, (double)dy, m_viewport);
+      glMultMatrixd(m_proj);
+      
+      glEnable(GL_DEPTH_TEST);
+      glLoadName(1);
+      glCallList(list);
+      
+      glMatrixMode(GL_PROJECTION);
+      glPopMatrix();
+      int hits = glRenderMode(GL_RENDER);
+      double zmin = 1.1;
+      double zmax = -0.1;
+      GLuint *ptr = selections;
+      for (int i = 0; i < hits; i++) {
+	double zmin1 = (double)ptr[1] / (double)0xffffffffu;
+	double zmax1  = (double)ptr[2] / (double)0xffffffffu;
+	int n = ptr[0];
+	ptr += 3;
+	for (int j = 0; j < n; j++) {
+	  int k = *(ptr++);
+	  	if(k != -1) {
+			zmin = min(zmin1, zmin);
+			zmax = max(zmax1, zmax);
+		}
+	}
+      }
+     if((zmin < 1.0) && (zmax > 0.0) ) {
+        windowToScreen(x, y, zmin, scr);
+        windowToScreen(x + 1, y, zmin, dsdx);
+        windowToScreen(x, y + 1, zmin, dsdy);
+    }
+    checkGLError();
+    return zmin;
+}
+
+double
+XQGraphPainter::selectPlane(int x, int y, int dx, int dy,
+  	 XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy )
+{
+	return selectGL(x, y, dx, dy, m_listplanes, scr, dsdx, dsdy);
+}
+double
+XQGraphPainter::selectAxis(int x, int y, int dx, int dy,
+  	 XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy )
+{
+	return selectGL(x, y, dx, dy, m_listaxes, scr, dsdx, dsdy);
+}
+double
+XQGraphPainter::selectPoint(int x, int y, int dx, int dy,
+  	 XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy )
+{
+	return selectGL(x, y, dx, dy, m_listpoints, scr, dsdx, dsdy);
+}
+void
+XQGraphPainter::initializeGL ()
+{
+//	m_pItem->makeCurrent();
+	
+//    glClearColor( 1.0, 1.0, 1.0, 1.0 );
+//    glClearDepth( 1.0 );
+    // Set up the rendering context, define display lists etc.:
+    glHint(GL_POINT_SMOOTH_HINT,GL_FASTEST);
+    glHint(GL_LINE_SMOOTH_HINT,GL_FASTEST);
+    glDisable(GL_LINE_SMOOTH);
+    glDisable(GL_POINT_SMOOTH);
+    glEnable(GL_BLEND);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+    if(m_listplanes) glDeleteLists(m_listplanes, 1);
+    if(m_listgrids) glDeleteLists(m_listgrids, 1);
+    if(m_listaxes) glDeleteLists(m_listaxes, 1);
+    if(m_listpoints) glDeleteLists(m_listpoints, 1);
+    m_listplanes = glGenLists(1);
+    m_listgrids = glGenLists(1);
+    m_listaxes = glGenLists(1);
+    m_listpoints = glGenLists(1);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    //save model view matrix
+    viewRotate(0.0, 0.0, 0.0, 0.0, true);
+}
+void
+XQGraphPainter::resizeGL ( int width  , int height )
+{
+//	m_pItem->makeCurrent();
+
+    // setup viewport, projection etc.:
+    glMatrixMode(GL_PROJECTION);
+    glViewport( 0, 0, (GLint)width, (GLint)height ); 
+    m_bIsRedrawNeeded = true;
+//  drawLists();
+}
+void
+XQGraphPainter::paintGL ()
+{
+//	m_pItem->makeCurrent();
+	
+    glGetError(); // flush error
+        
+    glMatrixMode(GL_PROJECTION);
+    glViewport( 0, 0, (GLint)m_pItem->width(), (GLint)m_pItem->height() );
+    glGetDoublev(GL_PROJECTION_MATRIX, m_proj);
+        glGetDoublev(GL_MODELVIEW_MATRIX, m_model);
+    glGetIntegerv(GL_VIEWPORT, m_viewport);
+
+    checkGLError(); 
+        
+    if(m_bIsRedrawNeeded) {
+        drawOffScreenStart();
+        
+        QColor bgc = (QRgb)*m_graph->backGround();
+        glClearColor( bgc.red() /255.0f, bgc.green() /255.0f, bgc.blue() /255.0f, 1.0 );
+        
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        
+        glMatrixMode(GL_MODELVIEW);
+        glEnable(GL_DEPTH_TEST);
+        
+        checkGLError(); 
+
+        glNewList(m_listplanes, GL_COMPILE);
+        drawOffScreenPlanes();
+        glEndList();
+        
+        checkGLError(); 
+
+        glNewList(m_listgrids, GL_COMPILE_AND_EXECUTE);
+        drawOffScreenGrids();
+        glEndList();
+        
+        checkGLError(); 
+
+        glNewList(m_listpoints, GL_COMPILE_AND_EXECUTE);
+        drawOffScreenPoints();
+        glEndList();
+        
+        checkGLError(); 
+
+//      glDisable(GL_DEPTH_TEST);       
+        glNewList(m_listaxes, GL_COMPILE_AND_EXECUTE);
+        drawOffScreenAxes();
+        glEndList();
+        
+        checkGLError(); 
+
+        m_bIsRedrawNeeded = false;
+        m_bIsAxisRedrawNeeded = false;
+    }
+    else {
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        
+        glMatrixMode(GL_MODELVIEW);
+        glEnable(GL_DEPTH_TEST);
+        
+        glCallList(m_listgrids);
+        glCallList(m_listpoints);
+// //       glDisable(GL_DEPTH_TEST);
+        if(m_bIsAxisRedrawNeeded) {
+            glNewList(m_listaxes, GL_COMPILE_AND_EXECUTE);
+            drawOffScreenAxes();
+            glEndList();
+            m_bIsAxisRedrawNeeded = false;
+        }
+        else {
+            glCallList(m_listaxes);
+        }
+    }
+    drawOnScreenObj();
+    
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    setInitView();
+    glGetDoublev(GL_PROJECTION_MATRIX, m_proj);
+    glMatrixMode(GL_MODELVIEW);
+    drawOnScreenViewObj();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+//    glFlush();
+}

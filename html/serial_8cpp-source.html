@@ -1,0 +1,175 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: kame/driver/serial.cpp ソースファイル</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="nav">
+<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000003.html">driver</a></div>
+<h1>serial.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#include "serial.h"</span>
+<a name="l00002"></a>00002 <span class="preprocessor">#include &lt;klocale.h&gt;</span>
+<a name="l00003"></a>00003 
+<a name="l00004"></a>00004 <span class="preprocessor">#if defined WINDOWS || defined __WIN32__</span>
+<a name="l00005"></a>00005 <span class="preprocessor"></span><span class="preprocessor"> #include &lt;windows.h&gt;</span>
+<a name="l00006"></a>00006 <span class="preprocessor">#endif // WINDOWS || __WIN32__</span>
+<a name="l00007"></a>00007 <span class="preprocessor"></span>
+<a name="l00008"></a>00008 <span class="preprocessor">#ifdef SERIAL_POSIX</span>
+<a name="l00009"></a>00009 <span class="preprocessor"></span><span class="preprocessor"> #include &lt;termios.h&gt;</span>
+<a name="l00010"></a>00010 <span class="preprocessor"> #include &lt;unistd.h&gt;</span>
+<a name="l00011"></a>00011 <span class="preprocessor"> #include &lt;fcntl.h&gt;</span>
+<a name="l00012"></a>00012 <span class="preprocessor"> #include &lt;errno.h&gt;</span>
+<a name="l00013"></a>00013  
+<a name="l00014"></a>00014 <span class="preprocessor"> #define MIN_BUFFER_SIZE 1024</span>
+<a name="l00015"></a>00015 <span class="preprocessor"></span>
+<a name="l00016"></a>00016 XPosixSerialPort::XPosixSerialPort(<a class="code" href="class_x_interface.html">XInterface</a> *interface)
+<a name="l00017"></a>00017  : <a class="code" href="class_x_port.html">XPort</a>(interface), m_scifd(-1)
+<a name="l00018"></a>00018 {
+<a name="l00019"></a>00019 
+<a name="l00020"></a>00020 }
+<a name="l00021"></a>00021 XPosixSerialPort::~XPosixSerialPort()
+<a name="l00022"></a>00022 {
+<a name="l00023"></a>00023     <span class="keywordflow">if</span>(m_scifd &gt;= 0) close(m_scifd);
+<a name="l00024"></a>00024 }
+<a name="l00025"></a>00025 <span class="keywordtype">void</span>
+<a name="l00026"></a>00026 XPosixSerialPort::open() throw (<a class="code" href="class_x_interface.html">XInterface</a>::XCommError &amp;)
+<a name="l00027"></a>00027 {
+<a name="l00028"></a>00028   <span class="keyword">struct </span>termios ttyios;
+<a name="l00029"></a>00029   speed_t baudrate;
+<a name="l00030"></a>00030       <span class="keywordflow">if</span>((m_scifd = ::open(m_pInterface-&gt;port()-&gt;to_str().local8Bit(), O_RDWR | O_NOCTTY)) == -1)
+<a name="l00031"></a>00031       {
+<a name="l00032"></a>00032            <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a>(i18n(<span class="stringliteral">"tty open failed"</span>), __FILE__, __LINE__);
+<a name="l00033"></a>00033       }
+<a name="l00034"></a>00034 
+<a name="l00035"></a>00035       tcsetpgrp(m_scifd, getpgrp());
+<a name="l00036"></a>00036       tcgetattr(m_scifd, &amp;ttyios);
+<a name="l00037"></a>00037 
+<a name="l00038"></a>00038       <span class="keywordflow">switch</span>(static_cast&lt;int&gt;(*m_pInterface-&gt;baudrate()))
+<a name="l00039"></a>00039         {
+<a name="l00040"></a>00040         <span class="keywordflow">case</span> 2400: baudrate = B2400; <span class="keywordflow">break</span>;
+<a name="l00041"></a>00041         <span class="keywordflow">case</span> 4800: baudrate = B4800; <span class="keywordflow">break</span>;
+<a name="l00042"></a>00042         <span class="keywordflow">case</span> 9600: baudrate = B9600; <span class="keywordflow">break</span>;
+<a name="l00043"></a>00043         <span class="keywordflow">case</span> 19200: baudrate = B19200; <span class="keywordflow">break</span>;
+<a name="l00044"></a>00044         <span class="keywordflow">case</span> 38400: baudrate = B38400; <span class="keywordflow">break</span>;
+<a name="l00045"></a>00045         <span class="keywordflow">case</span> 57600: baudrate = B57600; <span class="keywordflow">break</span>;
+<a name="l00046"></a>00046         <span class="keywordflow">case</span> 115200: baudrate = B115200; <span class="keywordflow">break</span>;
+<a name="l00047"></a>00047         <span class="keywordflow">case</span> 230400: baudrate = B230400; <span class="keywordflow">break</span>;
+<a name="l00048"></a>00048         <span class="keywordflow">default</span>:
+<a name="l00049"></a>00049             <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a>(i18n(<span class="stringliteral">"Invalid Baudrate"</span>), __FILE__, __LINE__);
+<a name="l00050"></a>00050         }
+<a name="l00051"></a>00051 
+<a name="l00052"></a>00052       cfsetispeed(&amp;ttyios, baudrate);
+<a name="l00053"></a>00053       cfsetospeed(&amp;ttyios, baudrate);
+<a name="l00054"></a>00054       cfmakeraw(&amp;ttyios);
+<a name="l00055"></a>00055       ttyios.c_cflag &amp;= ~(PARENB | CSIZE);
+<a name="l00056"></a>00056       ttyios.c_cflag |= HUPCL | CLOCAL | CSTOPB | CS8 ;
+<a name="l00057"></a>00057       ttyios.c_lflag &amp;= ~ICANON; <span class="comment">//non-canonical mode</span>
+<a name="l00058"></a>00058       ttyios.c_cc[VMIN] = 0; <span class="comment">//no min. size</span>
+<a name="l00059"></a>00059       ttyios.c_cc[VTIME] = 30; <span class="comment">//3sec time-out</span>
+<a name="l00060"></a>00060       <span class="comment">//  ttyios.c_iflag &amp;= ~;</span>
+<a name="l00061"></a>00061       <span class="keywordflow">if</span>(tcsetattr(m_scifd, TCSANOW, &amp;ttyios ) == -1){
+<a name="l00062"></a>00062             <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a>(i18n(<span class="stringliteral">"stty failed"</span>), __FILE__, __LINE__);
+<a name="l00063"></a>00063       }
+<a name="l00064"></a>00064       tcflush(m_scifd, TCIOFLUSH);
+<a name="l00065"></a>00065 }
+<a name="l00066"></a>00066 <span class="keywordtype">void</span>
+<a name="l00067"></a>00067 XPosixSerialPort::send(<span class="keyword">const</span> <span class="keywordtype">char</span> *str) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;)
+<a name="l00068"></a>00068 {
+<a name="l00069"></a>00069      this-&gt;write(str, strlen(str));
+<a name="l00070"></a>00070      <span class="keyword">const</span> <span class="keywordtype">char</span> *eos = m_pInterface-&gt;eos().c_str();
+<a name="l00071"></a>00071      <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> eos_len = m_pInterface-&gt;eos().length();
+<a name="l00072"></a>00072      <span class="keywordflow">if</span>(eos_len) {
+<a name="l00073"></a>00073          this-&gt;write(eos, eos_len);
+<a name="l00074"></a>00074      }
+<a name="l00075"></a>00075 }
+<a name="l00076"></a>00076 <span class="keywordtype">void</span>
+<a name="l00077"></a>00077 XPosixSerialPort::write(<span class="keyword">const</span> <span class="keywordtype">char</span> *sendbuf, <span class="keywordtype">int</span> size) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;)
+<a name="l00078"></a>00078 {
+<a name="l00079"></a>00079     ASSERT(m_pInterface-&gt;isOpened());
+<a name="l00080"></a>00080 
+<a name="l00081"></a>00081       tcflush(m_scifd, TCIFLUSH);
+<a name="l00082"></a>00082       <span class="keywordtype">int</span> wlen = 0;
+<a name="l00083"></a>00083       <span class="keywordflow">do</span> {
+<a name="l00084"></a>00084         <span class="keywordtype">int</span> ret = ::write(m_scifd, sendbuf, size - wlen);
+<a name="l00085"></a>00085         <span class="keywordflow">if</span>(ret &lt; 0) {
+<a name="l00086"></a>00086             <span class="keywordflow">if</span>(errno == EINTR) {
+<a name="l00087"></a>00087                 dbgPrint(<span class="stringliteral">"Serial, EINTR, try to continue."</span>);
+<a name="l00088"></a>00088                 <span class="keywordflow">continue</span>;
+<a name="l00089"></a>00089             }
+<a name="l00090"></a>00090             <span class="keywordflow">else</span>
+<a name="l00091"></a>00091             {
+<a name="l00092"></a>00092                 <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a>(i18n(<span class="stringliteral">"write error"</span>), __FILE__, __LINE__);
+<a name="l00093"></a>00093             }
+<a name="l00094"></a>00094         }
+<a name="l00095"></a>00095         wlen += ret;
+<a name="l00096"></a>00096         sendbuf += ret;
+<a name="l00097"></a>00097       } <span class="keywordflow">while</span> (wlen &lt; size);
+<a name="l00098"></a>00098 }
+<a name="l00099"></a>00099 <span class="keywordtype">void</span>
+<a name="l00100"></a>00100 XPosixSerialPort::receive() throw (<a class="code" href="class_x_interface.html">XInterface</a>::XCommError &amp;)
+<a name="l00101"></a>00101 {
+<a name="l00102"></a>00102     ASSERT(m_pInterface-&gt;isOpened());
+<a name="l00103"></a>00103     
+<a name="l00104"></a>00104    <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> len = 0;
+<a name="l00105"></a>00105    <span class="keywordflow">for</span>(;;)
+<a name="l00106"></a>00106     {
+<a name="l00107"></a>00107       <span class="keywordflow">if</span>(buffer().size() &lt;= len + 1) 
+<a name="l00108"></a>00108             buffer().resize(len + MIN_BUFFER_SIZE);
+<a name="l00109"></a>00109       <span class="keywordtype">int</span> rlen = ::read(m_scifd, &amp;buffer()[len], 1);
+<a name="l00110"></a>00110       <span class="keywordflow">if</span>(rlen == 0)
+<a name="l00111"></a>00111           <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a>(i18n(<span class="stringliteral">"read time-out"</span>), __FILE__, __LINE__);
+<a name="l00112"></a>00112       <span class="keywordflow">if</span>(rlen &lt; 0)
+<a name="l00113"></a>00113       {
+<a name="l00114"></a>00114         <span class="keywordflow">if</span>(errno == EINTR) {
+<a name="l00115"></a>00115             dbgPrint(<span class="stringliteral">"Serial, EINTR, try to continue."</span>);
+<a name="l00116"></a>00116             <span class="keywordflow">continue</span>;
+<a name="l00117"></a>00117         }
+<a name="l00118"></a>00118         <span class="keywordflow">else</span>
+<a name="l00119"></a>00119           <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a>(i18n(<span class="stringliteral">"read error"</span>), __FILE__, __LINE__);
+<a name="l00120"></a>00120       }
+<a name="l00121"></a>00121       len += rlen;
+<a name="l00122"></a>00122       <span class="keyword">const</span> <span class="keywordtype">char</span> *eos = m_pInterface-&gt;eos().c_str();
+<a name="l00123"></a>00123       <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> eos_len = m_pInterface-&gt;eos().length();
+<a name="l00124"></a>00124       <span class="keywordflow">if</span>(len &gt;= eos_len) {
+<a name="l00125"></a>00125           <span class="keywordflow">if</span>(!strncmp(&amp;buffer()[len - eos_len], eos, eos_len))
+<a name="l00126"></a>00126           {
+<a name="l00127"></a>00127                 <span class="keywordflow">break</span>;
+<a name="l00128"></a>00128           }
+<a name="l00129"></a>00129       }
+<a name="l00130"></a>00130     }
+<a name="l00131"></a>00131     
+<a name="l00132"></a>00132    buffer()[len] = <span class="charliteral">'\0'</span>;
+<a name="l00133"></a>00133    buffer().resize(len + 1);
+<a name="l00134"></a>00134 }
+<a name="l00135"></a>00135 <span class="keywordtype">void</span>
+<a name="l00136"></a>00136 XPosixSerialPort::receive(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> length) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;)
+<a name="l00137"></a>00137 {
+<a name="l00138"></a>00138    ASSERT(m_pInterface-&gt;isOpened());
+<a name="l00139"></a>00139     
+<a name="l00140"></a>00140    buffer().resize(length);
+<a name="l00141"></a>00141    <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> len = 0;
+<a name="l00142"></a>00142    <span class="keywordflow">while</span>(len &lt; length)
+<a name="l00143"></a>00143     {
+<a name="l00144"></a>00144       <span class="keywordtype">int</span> rlen = ::read(m_scifd, &amp;buffer()[len], 1);
+<a name="l00145"></a>00145       <span class="keywordflow">if</span>(rlen == 0)
+<a name="l00146"></a>00146           <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a>(i18n(<span class="stringliteral">"read time-out"</span>), __FILE__, __LINE__);
+<a name="l00147"></a>00147       <span class="keywordflow">if</span>(rlen &lt; 0)
+<a name="l00148"></a>00148       {
+<a name="l00149"></a>00149         <span class="keywordflow">if</span>(errno == EINTR) {
+<a name="l00150"></a>00150             dbgPrint(<span class="stringliteral">"Serial, EINTR, try to continue."</span>);
+<a name="l00151"></a>00151             <span class="keywordflow">continue</span>;
+<a name="l00152"></a>00152         }
+<a name="l00153"></a>00153         <span class="keywordflow">else</span>
+<a name="l00154"></a>00154           <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a>(i18n(<span class="stringliteral">"read error"</span>), __FILE__, __LINE__);
+<a name="l00155"></a>00155       }
+<a name="l00156"></a>00156       len += rlen;
+<a name="l00157"></a>00157     }
+<a name="l00158"></a>00158 }    
+<a name="l00159"></a>00159 
+<a name="l00160"></a>00160 
+<a name="l00161"></a>00161 <span class="preprocessor">#endif </span><span class="comment">/*SERIAL_POSIX*/</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:20 2006に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: kame/threadlocal.h ソースファイル</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="nav">
+<a class="el" href="dir_000000.html">kame</a></div>
+<h1>threadlocal.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#ifndef THREADLOCAL_H_</span>
+<a name="l00002"></a>00002 <span class="preprocessor"></span><span class="preprocessor">#define THREADLOCAL_H_</span>
+<a name="l00003"></a>00003 <span class="preprocessor"></span>
+<a name="l00004"></a>00004 <span class="preprocessor">#include "support.h"</span>
+<a name="l00005"></a>00005 
+<a name="l00006"></a>00006 <span class="preprocessor">#undef USE__THREAD_TLS</span>
+<a name="l00007"></a>00007 <span class="preprocessor"></span>
+<a name="l00011"></a>00011 <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
+<a name="l00012"></a><a class="code" href="class_x_thread_local.html">00012</a> <span class="keyword">class </span><a class="code" href="class_x_thread_local.html">XThreadLocal</a>
+<a name="l00013"></a>00013 {
+<a name="l00014"></a>00014 <span class="keyword">public</span>:
+<a name="l00015"></a>00015     <a class="code" href="class_x_thread_local.html#a0">XThreadLocal</a>();
+<a name="l00016"></a>00016     <a class="code" href="class_x_thread_local.html#a1">~XThreadLocal</a>();
+<a name="l00018"></a>00018     T &amp;<a class="code" href="class_x_thread_local.html#a2">operator*</a>() <span class="keyword">const</span>;
+<a name="l00020"></a>00020     T *<a class="code" href="class_x_thread_local.html#a3">operator-&gt;</a>() <span class="keyword">const</span>;
+<a name="l00021"></a>00021 <span class="keyword">private</span>:
+<a name="l00022"></a>00022 <span class="preprocessor">#ifdef USE__THREAD_TLS</span>
+<a name="l00023"></a>00023 <span class="preprocessor"></span>    __thread T m_var;
+<a name="l00024"></a>00024 <span class="preprocessor">#else</span>
+<a name="l00025"></a><a class="code" href="class_x_thread_local.html#r0">00025</a> <span class="preprocessor"></span>    <span class="keyword">mutable</span> pthread_key_t <a class="code" href="class_x_thread_local.html#r0">m_key</a>;
+<a name="l00026"></a>00026     <span class="keyword">static</span> <span class="keywordtype">void</span> <a class="code" href="class_x_thread_local.html#h0">delete_tls</a>(<span class="keywordtype">void</span> *var);
+<a name="l00027"></a>00027 <span class="preprocessor">#endif </span><span class="comment">/*USE__THREAD_TLS*/</span>
+<a name="l00028"></a>00028 };
+<a name="l00029"></a>00029 
+<a name="l00030"></a>00030 <span class="preprocessor">#ifdef USE__THREAD_TLS</span>
+<a name="l00031"></a>00031 <span class="preprocessor"></span>    <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
+<a name="l00032"></a>00032     <a class="code" href="class_x_thread_local.html#a0">XThreadLocal&lt;T&gt;::XThreadLocal</a>() {
+<a name="l00033"></a>00033     }
+<a name="l00034"></a>00034     <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
+<a name="l00035"></a>00035     <a class="code" href="class_x_thread_local.html#a1">XThreadLocal&lt;T&gt;::~XThreadLocal</a>() {
+<a name="l00036"></a>00036     }
+<a name="l00037"></a>00037     <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
+<a name="l00038"></a>00038     T&amp; <a class="code" href="class_x_thread_local.html#a2">XThreadLocal&lt;T&gt;::operator*</a>()<span class="keyword"> const </span>{
+<a name="l00039"></a>00039         <span class="keywordflow">return</span> m_var;
+<a name="l00040"></a>00040     }
+<a name="l00041"></a>00041     <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
+<a name="l00042"></a>00042     T *
+<a name="l00043"></a>00043     <a class="code" href="class_x_thread_local.html#a3">XThreadLocal&lt;T&gt;::operator-&gt;</a>()<span class="keyword"> const </span>{
+<a name="l00044"></a>00044         <span class="keywordflow">return</span> &amp;m_var;
+<a name="l00045"></a>00045     }
+<a name="l00046"></a>00046 <span class="preprocessor">#else</span>
+<a name="l00047"></a>00047 <span class="preprocessor"></span>    <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
+<a name="l00048"></a><a class="code" href="class_x_thread_local.html#a0">00048</a>     <a class="code" href="class_x_thread_local.html#a0">XThreadLocal&lt;T&gt;::XThreadLocal</a>() {
+<a name="l00049"></a>00049         <span class="keywordtype">int</span> ret = pthread_key_create(&amp;<a class="code" href="class_x_thread_local.html#r0">m_key</a>, &amp;<a class="code" href="class_x_thread_local.html">XThreadLocal&lt;T&gt;</a>::<a class="code" href="class_x_thread_local.html#h0">delete_tls</a>);
+<a name="l00050"></a>00050         ASSERT(!ret);
+<a name="l00051"></a>00051     }
+<a name="l00052"></a>00052     <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
+<a name="l00053"></a><a class="code" href="class_x_thread_local.html#a1">00053</a>     <a class="code" href="class_x_thread_local.html#a1">XThreadLocal&lt;T&gt;::~XThreadLocal</a>() {
+<a name="l00054"></a>00054        <span class="comment">// int ret = pthread_key_delete(&amp;m_key);</span>
+<a name="l00055"></a>00055        <span class="comment">// ASSERT(!ret);</span>
+<a name="l00056"></a>00056     }
+<a name="l00057"></a>00057     <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
+<a name="l00058"></a>00058     <span class="keywordtype">void</span>
+<a name="l00059"></a><a class="code" href="class_x_thread_local.html#h0">00059</a>     <a class="code" href="class_x_thread_local.html#h0">XThreadLocal&lt;T&gt;::delete_tls</a>(<span class="keywordtype">void</span> *var) {
+<a name="l00060"></a>00060             <span class="keyword">delete</span> reinterpret_cast&lt;T*&gt;(var);
+<a name="l00061"></a>00061     }
+<a name="l00062"></a>00062     <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
+<a name="l00063"></a><a class="code" href="class_x_thread_local.html#a2">00063</a>     T &amp;<a class="code" href="class_x_thread_local.html#a2">XThreadLocal&lt;T&gt;::operator*</a>()<span class="keyword"> const </span>{
+<a name="l00064"></a>00064         <span class="keywordtype">void</span> *p = pthread_getspecific(<a class="code" href="class_x_thread_local.html#r0">m_key</a>);
+<a name="l00065"></a>00065         <span class="keywordflow">if</span>(p == NULL) {
+<a name="l00066"></a>00066             dbgPrint(QString(<span class="stringliteral">"New TLS."</span>));
+<a name="l00067"></a>00067             <span class="keywordtype">int</span> ret = pthread_setspecific(<a class="code" href="class_x_thread_local.html#r0">m_key</a>, p = 
+<a name="l00068"></a>00068         #ifdef HAVE_LIBGCCPP
+<a name="l00069"></a>00069                 <span class="keyword">new</span> (NoGC) T);
+<a name="l00070"></a>00070 <span class="preprocessor">        #else</span>
+<a name="l00071"></a>00071 <span class="preprocessor"></span>                <span class="keyword">new</span> T);
+<a name="l00072"></a>00072 <span class="preprocessor">        #endif</span>
+<a name="l00073"></a>00073 <span class="preprocessor"></span>            ASSERT(!ret);
+<a name="l00074"></a>00074         }
+<a name="l00075"></a>00075         <span class="keywordflow">return</span> *reinterpret_cast&lt;T*&gt;(p);
+<a name="l00076"></a>00076     }
+<a name="l00077"></a>00077     <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
+<a name="l00078"></a>00078     T *
+<a name="l00079"></a><a class="code" href="class_x_thread_local.html#a3">00079</a>     <a class="code" href="class_x_thread_local.html#a3">XThreadLocal&lt;T&gt;::operator-&gt;</a>()<span class="keyword"> const </span>{
+<a name="l00080"></a>00080         <span class="keywordflow">return</span> &amp;(**this);
+<a name="l00081"></a>00081     }
+<a name="l00082"></a>00082         
+<a name="l00083"></a>00083 <span class="preprocessor">#endif </span><span class="comment">/*USE__THREAD_TLS*/</span>
+<a name="l00084"></a>00084 
+<a name="l00085"></a>00085 <span class="preprocessor">#endif </span><span class="comment">/*THREADLOCAL_H_*/</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:22 2006に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+</body>
+</html>

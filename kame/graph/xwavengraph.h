@@ -1,0 +1,90 @@
+//---------------------------------------------------------------------------
+
+#ifndef xwavengraphH
+#define xwavengraphH
+//---------------------------------------------------------------------------
+
+#include "xnodeconnector.h"
+#include <vector>
+#include "graph.h"
+#include <fstream>
+
+class FrmGraphNURL;
+class XQGraph;
+class KURLRequester;
+class QPushButton;
+class XAxis;
+class XXYPlot;
+
+class XWaveNGraph : public XNode
+{
+ XNODE_OBJECT
+ protected:
+  XWaveNGraph(const char *name, bool runtime, FrmGraphNURL *item);
+  XWaveNGraph(const char *name, bool runtime, 
+        XQGraph *graphwidget, KURLRequester *urlreq, QPushButton *btndump);
+ public:
+  virtual ~XWaveNGraph();
+
+  void setRowCount(unsigned int rowcnt);
+  void setColCount(unsigned int colcnt, const char **lables);
+  void setLabel(unsigned int col, const char *label);
+  void selectAxes(int colx = 0, int coly1 = 1, int coly2 = -1, int colyweight = -1);
+
+  unsigned int rowCount() const;
+  unsigned int colCount() const;
+  double *cols(unsigned int n);
+  
+  //! clear all data points
+  void clear();
+  
+  void readLock() const;
+  void readUnlock() const;
+  //! now allow user to access data
+  void writeLock();
+  //! unlock and update graph
+  void writeUnlock(bool updategraph = true);
+
+  int colX() const;
+  int colY1() const;
+  int colY2() const;
+  int colYWeight() const; 
+
+  const shared_ptr<XGraph> &graph() const {return m_graph;}
+  const shared_ptr<XXYPlot> &plot1() const {return m_plot1;}
+  const shared_ptr<XXYPlot> &plot2() const {return m_plot2;}
+  const shared_ptr<XAxis> &axisy2() const {return m_axisy2;}  
+  const shared_ptr<XNode> &dump() const {return m_dump;}
+  const shared_ptr<XStringNode> &filename() const {return m_filename;}
+ private:
+  XRecursiveRWLock m_mutex;
+  unsigned int m_colcnt;
+  std::vector<std::string> m_labels;
+  std::vector<double> m_cols;
+
+  void init();
+  void drawGraph();
+
+  QPushButton *m_btnDump;
+  
+  shared_ptr<XGraph> m_graph;
+  shared_ptr<XXYPlot> m_plot1, m_plot2;
+  shared_ptr<XAxis> m_axisy2;
+  
+  shared_ptr<XNode> m_dump;
+  shared_ptr<XStringNode> m_filename;
+
+  shared_ptr<XListener> m_lsnOnDumpTouched, m_lsnOnFilenameChanged;
+
+  void onDumpTouched(const shared_ptr<XNode> &);
+  void onFilenameChanged(const shared_ptr<XValueNodeBase> &);
+  
+  std::fstream m_stream;
+  XMutex m_filemutex;
+  
+  xqcon_ptr m_conFilename, m_conDump;
+
+  int m_colx, m_coly1, m_coly2, m_colyweight;
+};
+
+#endif

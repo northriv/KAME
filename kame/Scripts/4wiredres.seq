@@ -1,0 +1,13 @@
+yk = measurement["Drivers"]["YK7651-1"]
+
+while TRUE
+ yk["Value"].set(-yk["Value"].get())
+ sleep(10)
+ x = measurement["Analizers"]["dmm1"]["Value"]["Value"].get()
+ measurement["Analizers"]["dmm1"]["Value"]["Delta"].set(-1)
+ begin
+  sleep(0.1)
+  newx = measurement["Analizers"]["dmm1"]["Value"]["Value"].get()
+ end while x == newx
+ measurement["Analizers"]["dmm1"]["Value"]["Delta"].set(0.0)
+end

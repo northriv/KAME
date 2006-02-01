@@ -1,0 +1,535 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: クラス XDSO</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<h1>クラス XDSO</h1><!-- doxytag: class=<XDSO> --><!-- doxytag: inherits=<XPrimaryDriver> -->Base class for digital storage oscilloscope.  
+<a href="#_details">[詳細]</a>
+<p>
+<code>#include &lt;<a class="el" href="dso_8h-source.html">dso.h</a>&gt;</code>
+<p>
+XDSOに対する継承グラフ<p><center><img src="class_x_d_s_o__inherit__graph.png" border="0" usemap="#_x_d_s_o__inherit__map" alt="Inheritance graph"></center>
+<map name="_x_d_s_o__inherit__map">
+<area href="class_x_t_d_s.html" shape="rect" coords="36,306,94,333" alt="">
+<area href="class_x_primary_driver.html" shape="rect" coords="8,157,122,183" alt="">
+<area href="class_x_driver.html" shape="rect" coords="32,82,98,109" alt="">
+<area href="class_x_node.html" shape="rect" coords="34,7,96,34" alt="">
+</map>
+<center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XDSOのコラボレーション図<p><center><img src="class_x_d_s_o__coll__graph.png" border="0" usemap="#_x_d_s_o__coll__map" alt="Collaboration graph"></center>
+<map name="_x_d_s_o__coll__map">
+<area href="class_x_primary_driver.html" shape="rect" coords="73,8,188,34" alt="">
+<area href="classqshared__ptr.html" shape="rect" coords="46,61,214,88" alt="">
+<area href="class_f_i_r.html" shape="rect" coords="109,125,152,152" alt="">
+<area href="classqshared__ptr.html" shape="rect" coords="9,189,252,216" alt="">
+</map>
+<center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_d_s_o-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
+<tr><td></td></tr>
+<tr><td colspan="2"><br><h2>Public メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a0"></a><!-- doxytag: member=<XDSO::~XDSO> ref=<a0> args=<()> -->
+virtual&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a0">~XDSO</a> ()</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">usually nothing to do. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a1">showForms</a> ()</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">show all forms belonging to driver.  <a href="#a1"></a><br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a2"></a><!-- doxytag: member=<XDSO::average> ref=<a2> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XUIntNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a2">average</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">driver specific part below <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a3"></a><!-- doxytag: member=<XDSO::singleSequence> ref=<a3> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a3">singleSequence</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">If true, pause acquision after averaging count. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a4"></a><!-- doxytag: member=<XDSO::fetch> ref=<a4> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a4">fetch</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a5"></a><!-- doxytag: member=<XDSO::trigPos> ref=<a5> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a5">trigPos</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a6"></a><!-- doxytag: member=<XDSO::timeWidth> ref=<a6> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a6">timeWidth</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a7"></a><!-- doxytag: member=<XDSO::vFullScale1> ref=<a7> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a7">vFullScale1</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a8"></a><!-- doxytag: member=<XDSO::vFullScale2> ref=<a8> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a8">vFullScale2</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a9"></a><!-- doxytag: member=<XDSO::vOffset1> ref=<a9> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a9">vOffset1</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a10"></a><!-- doxytag: member=<XDSO::vOffset2> ref=<a10> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a10">vOffset2</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a11"></a><!-- doxytag: member=<XDSO::recordLength> ref=<a11> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a11">recordLength</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a12"></a><!-- doxytag: member=<XDSO::forceTrigger> ref=<a12> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a12">forceTrigger</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a13"></a><!-- doxytag: member=<XDSO::trace1> ref=<a13> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a13">trace1</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a14"></a><!-- doxytag: member=<XDSO::trace2> ref=<a14> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a14">trace2</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a15"></a><!-- doxytag: member=<XDSO::firEnabled> ref=<a15> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a15">firEnabled</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a16"></a><!-- doxytag: member=<XDSO::firBandWidth> ref=<a16> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a16">firBandWidth</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">[kHz] <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a17"></a><!-- doxytag: member=<XDSO::firCenterFreq> ref=<a17> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a17">firCenterFreq</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">[kHz] <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a18"></a><!-- doxytag: member=<XDSO::firSharpness> ref=<a18> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a18">firSharpness</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a19"></a><!-- doxytag: member=<XDSO::trigPosRecorded> ref=<a19> args=<() const > -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a19">trigPosRecorded</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Records below unit is interval. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a20"></a><!-- doxytag: member=<XDSO::numChannelsRecorded> ref=<a20> args=<() const > -->
+unsigned int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a20">numChannelsRecorded</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a21"></a><!-- doxytag: member=<XDSO::timeIntervalRecorded> ref=<a21> args=<() const > -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a21">timeIntervalRecorded</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a22"></a><!-- doxytag: member=<XDSO::lengthRecorded> ref=<a22> args=<() const > -->
+unsigned int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a22">lengthRecorded</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">[sec] <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a23"></a><!-- doxytag: member=<XDSO::waveRecorded> ref=<a23> args=<(unsigned int ch)> -->
+double *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#a23">waveRecorded</a> (unsigned int ch)</td></tr>
+
+<tr><td colspan="2"><br><h2>Protected メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b0"></a><!-- doxytag: member=<XDSO::XDSO> ref=<b0> args=<(const char *name, bool runtime, const shared_ptr&lt; XScalarEntryList &gt; &amp;scalarentries, const shared_ptr&lt; XInterfaceList &gt; &amp;interfaces, const shared_ptr&lt; XThermometerList &gt; &amp;thermometers, const shared_ptr&lt; XDriverList &gt; &amp;drivers)> -->
+&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#b0">XDSO</a> (const char *name, bool runtime, const shared_ptr&lt; <a class="el" href="class_x_scalar_entry_list.html">XScalarEntryList</a> &gt; &amp;scalarentries, const shared_ptr&lt; <a class="el" href="class_x_interface_list.html">XInterfaceList</a> &gt; &amp;interfaces, const shared_ptr&lt; <a class="el" href="class_x_thermometer_list.html">XThermometerList</a> &gt; &amp;thermometers, const shared_ptr&lt; <a class="el" href="class_x_driver_list.html">XDriverList</a> &gt; &amp;drivers)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b1"></a><!-- doxytag: member=<XDSO::start> ref=<b1> args=<()> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#b1">start</a> ()</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Start up your threads, connect GUI, and activate signals. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#b2">stop</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#b3">analyzeRaw</a> ()=0  throw (XRecordError&amp;)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#b4">visualize</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b5"></a><!-- doxytag: member=<XDSO::onAverageChanged> ref=<b5> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)=0> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><b>onAverageChanged</b> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)=0</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b6"></a><!-- doxytag: member=<XDSO::onSingleChanged> ref=<b6> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)=0> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><b>onSingleChanged</b> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)=0</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b7"></a><!-- doxytag: member=<XDSO::onTrigPosChanged> ref=<b7> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)=0> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><b>onTrigPosChanged</b> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)=0</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b8"></a><!-- doxytag: member=<XDSO::onTimeWidthChanged> ref=<b8> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)=0> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><b>onTimeWidthChanged</b> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)=0</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b9"></a><!-- doxytag: member=<XDSO::onVFullScale1Changed> ref=<b9> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)=0> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><b>onVFullScale1Changed</b> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)=0</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b10"></a><!-- doxytag: member=<XDSO::onVFullScale2Changed> ref=<b10> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)=0> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><b>onVFullScale2Changed</b> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)=0</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b11"></a><!-- doxytag: member=<XDSO::onVOffset1Changed> ref=<b11> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)=0> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><b>onVOffset1Changed</b> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)=0</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b12"></a><!-- doxytag: member=<XDSO::onVOffset2Changed> ref=<b12> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)=0> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><b>onVOffset2Changed</b> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)=0</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b13"></a><!-- doxytag: member=<XDSO::onRecordLengthChanged> ref=<b13> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)=0> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><b>onRecordLengthChanged</b> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)=0</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b14"></a><!-- doxytag: member=<XDSO::onForceTriggerTouched> ref=<b14> args=<(const shared_ptr&lt; XNode &gt; &amp;)=0> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><b>onForceTriggerTouched</b> (const shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt; &amp;)=0</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b15"></a><!-- doxytag: member=<XDSO::afterStart> ref=<b15> args=<()=0> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><b>afterStart</b> ()=0</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b16"></a><!-- doxytag: member=<XDSO::getTimeInterval> ref=<b16> args=<()=0> -->
+virtual double&nbsp;</td><td class="memItemRight" valign="bottom"><b>getTimeInterval</b> ()=0</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b17"></a><!-- doxytag: member=<XDSO::startSequence> ref=<b17> args=<()=0> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#b17">startSequence</a> ()=0</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">clear count or start sequence measurement <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">virtual int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#b18">acqCount</a> (bool *seq_busy)=0</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b19"></a><!-- doxytag: member=<XDSO::getWave> ref=<b19> args=<(std::deque&lt; QString &gt; &amp;channels)=0> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#b19">getWave</a> (std::deque&lt; QString &gt; &amp;channels)=0</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">load waveform and settings from instrument <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b20"></a><!-- doxytag: member=<XDSO::setRecordDim> ref=<b20> args=<(unsigned int channels, double startpos, double interval, unsigned int length)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#b20">setRecordDim</a> (unsigned int channels, double startpos, double interval, unsigned int length)</td></tr>
+
+<tr><td colspan="2"><br><h2>Private メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d0"></a><!-- doxytag: member=<XDSO::waveForm> ref=<d0> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_wave_n_graph.html">XWaveNGraph</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#d0">waveForm</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d1"></a><!-- doxytag: member=<XDSO::onCondChanged> ref=<d1> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#d1">onCondChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d2"></a><!-- doxytag: member=<XDSO::execute> ref=<d2> args=<()> -->
+void *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#d2">execute</a> ()</td></tr>
+
+<tr><td colspan="2"><br><h2>Private 変数</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r0"></a><!-- doxytag: member=<XDSO::m_average> ref=<r0> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_value_node.html">XUIntNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r0">m_average</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r1"></a><!-- doxytag: member=<XDSO::m_singleSequence> ref=<r1> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r1">m_singleSequence</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">If true, pause acquision after averaging count. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r2"></a><!-- doxytag: member=<XDSO::m_fetch> ref=<r2> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r2">m_fetch</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r3"></a><!-- doxytag: member=<XDSO::m_trigPos> ref=<r3> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r3">m_trigPos</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r4"></a><!-- doxytag: member=<XDSO::m_timeWidth> ref=<r4> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r4">m_timeWidth</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r5"></a><!-- doxytag: member=<XDSO::m_vFullScale1> ref=<r5> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r5">m_vFullScale1</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r6"></a><!-- doxytag: member=<XDSO::m_vFullScale2> ref=<r6> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r6">m_vFullScale2</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r7"></a><!-- doxytag: member=<XDSO::m_vOffset1> ref=<r7> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r7">m_vOffset1</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r8"></a><!-- doxytag: member=<XDSO::m_vOffset2> ref=<r8> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r8">m_vOffset2</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r9"></a><!-- doxytag: member=<XDSO::m_recordLength> ref=<r9> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r9">m_recordLength</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r10"></a><!-- doxytag: member=<XDSO::m_forceTrigger> ref=<r10> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r10">m_forceTrigger</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r11"></a><!-- doxytag: member=<XDSO::m_trace1> ref=<r11> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r11">m_trace1</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r12"></a><!-- doxytag: member=<XDSO::m_trace2> ref=<r12> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r12">m_trace2</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r13"></a><!-- doxytag: member=<XDSO::m_firEnabled> ref=<r13> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r13">m_firEnabled</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r14"></a><!-- doxytag: member=<XDSO::m_firBandWidth> ref=<r14> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r14">m_firBandWidth</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">[kHz] <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r15"></a><!-- doxytag: member=<XDSO::m_firCenterFreq> ref=<r15> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r15">m_firCenterFreq</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">[kHz] <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r16"></a><!-- doxytag: member=<XDSO::m_firSharpness> ref=<r16> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r16">m_firSharpness</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r17"></a><!-- doxytag: member=<XDSO::m_form> ref=<r17> args=<> -->
+<a class="el" href="classqshared__ptr.html">qshared_ptr</a>&lt; FrmDSO &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r17">m_form</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r18"></a><!-- doxytag: member=<XDSO::m_waveForm> ref=<r18> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_wave_n_graph.html">XWaveNGraph</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r18">m_waveForm</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r19"></a><!-- doxytag: member=<XDSO::m_trigPosRecorded> ref=<r19> args=<> -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r19">m_trigPosRecorded</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">these are record unit is interval <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r20"></a><!-- doxytag: member=<XDSO::m_numChannelsRecorded> ref=<r20> args=<> -->
+unsigned int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r20">m_numChannelsRecorded</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r21"></a><!-- doxytag: member=<XDSO::m_timeIntervalRecorded> ref=<r21> args=<> -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r21">m_timeIntervalRecorded</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r22"></a><!-- doxytag: member=<XDSO::m_wavesRecorded> ref=<r22> args=<> -->
+std::vector&lt; double &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r22">m_wavesRecorded</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">[sec] <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r23"></a><!-- doxytag: member=<XDSO::m_lsnOnSingleChanged> ref=<r23> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r23">m_lsnOnSingleChanged</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r24"></a><!-- doxytag: member=<XDSO::m_lsnOnAverageChanged> ref=<r24> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r24">m_lsnOnAverageChanged</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r25"></a><!-- doxytag: member=<XDSO::m_lsnOnTrigPosChanged> ref=<r25> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r25">m_lsnOnTrigPosChanged</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r26"></a><!-- doxytag: member=<XDSO::m_lsnOnTimeWidthChanged> ref=<r26> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r26">m_lsnOnTimeWidthChanged</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r27"></a><!-- doxytag: member=<XDSO::m_lsnOnVFullScale1Changed> ref=<r27> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r27">m_lsnOnVFullScale1Changed</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r28"></a><!-- doxytag: member=<XDSO::m_lsnOnVFullScale2Changed> ref=<r28> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r28">m_lsnOnVFullScale2Changed</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r29"></a><!-- doxytag: member=<XDSO::m_lsnOnVOffset1Changed> ref=<r29> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r29">m_lsnOnVOffset1Changed</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r30"></a><!-- doxytag: member=<XDSO::m_lsnOnVOffset2Changed> ref=<r30> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r30">m_lsnOnVOffset2Changed</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r31"></a><!-- doxytag: member=<XDSO::m_lsnOnRecordLengthChanged> ref=<r31> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r31">m_lsnOnRecordLengthChanged</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r32"></a><!-- doxytag: member=<XDSO::m_lsnOnForceTriggerTouched> ref=<r32> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r32">m_lsnOnForceTriggerTouched</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r33"></a><!-- doxytag: member=<XDSO::m_lsnOnCondChanged> ref=<r33> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r33">m_lsnOnCondChanged</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r34"></a><!-- doxytag: member=<XDSO::m_conAverage> ref=<r34> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r34">m_conAverage</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r35"></a><!-- doxytag: member=<XDSO::m_conSingle> ref=<r35> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r35">m_conSingle</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r36"></a><!-- doxytag: member=<XDSO::m_conTrace1> ref=<r36> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r36">m_conTrace1</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r37"></a><!-- doxytag: member=<XDSO::m_conTrace2> ref=<r37> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r37">m_conTrace2</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r38"></a><!-- doxytag: member=<XDSO::m_conFetch> ref=<r38> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r38">m_conFetch</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r39"></a><!-- doxytag: member=<XDSO::m_conTrigPos> ref=<r39> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r39">m_conTrigPos</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r40"></a><!-- doxytag: member=<XDSO::m_conTimeWidth> ref=<r40> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r40">m_conTimeWidth</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r41"></a><!-- doxytag: member=<XDSO::m_conVFullScale1> ref=<r41> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r41">m_conVFullScale1</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r42"></a><!-- doxytag: member=<XDSO::m_conVFullScale2> ref=<r42> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r42">m_conVFullScale2</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r43"></a><!-- doxytag: member=<XDSO::m_conVOffset1> ref=<r43> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r43">m_conVOffset1</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r44"></a><!-- doxytag: member=<XDSO::m_conVOffset2> ref=<r44> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r44">m_conVOffset2</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r45"></a><!-- doxytag: member=<XDSO::m_conForceTrigger> ref=<r45> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r45">m_conForceTrigger</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r46"></a><!-- doxytag: member=<XDSO::m_conRecordLength> ref=<r46> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r46">m_conRecordLength</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r47"></a><!-- doxytag: member=<XDSO::m_conFIREnabled> ref=<r47> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r47">m_conFIREnabled</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r48"></a><!-- doxytag: member=<XDSO::m_conFIRBandWidth> ref=<r48> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r48">m_conFIRBandWidth</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r49"></a><!-- doxytag: member=<XDSO::m_conFIRSharpness> ref=<r49> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r49">m_conFIRSharpness</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r50"></a><!-- doxytag: member=<XDSO::m_conFIRCenterFreq> ref=<r50> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r50">m_conFIRCenterFreq</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r51"></a><!-- doxytag: member=<XDSO::m_thread> ref=<r51> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_thread.html">XThread</a>&lt; <a class="el" href="class_x_d_s_o.html">XDSO</a> &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r51">m_thread</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r52"></a><!-- doxytag: member=<XDSO::m_statusPrinter> ref=<r52> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_status_printer.html">XStatusPrinter</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r52">m_statusPrinter</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r53"></a><!-- doxytag: member=<XDSO::m_fir> ref=<r53> args=<> -->
+<a class="el" href="class_f_i_r.html">FIR</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r53">m_fir</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r54"></a><!-- doxytag: member=<XDSO::m_bTerminated> ref=<r54> args=<> -->
+bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_s_o.html#r54">m_bTerminated</a></td></tr>
+
+</table>
+<hr><a name="_details"></a><h2>説明</h2>
+Base class for digital storage oscilloscope. 
+<p>
+
+<p>
+ <a class="el" href="dso_8h-source.html">dso.h</a> の <a class="el" href="dso_8h-source.html#l00018">18</a> 行で定義されています。<hr><h2>関数</h2>
+<a class="anchor" name="b18"></a><!-- doxytag: member=<XDSO::acqCount> ref=<b18> args=<(bool *seq_busy)=0> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">virtual int XDSO::acqCount           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="md" nowrap valign="top">bool *&nbsp;</td>
+          <td class="mdname1" valign="top" nowrap> <em>seq_busy</em>          </td>
+          <td class="md" valign="top">&nbsp;)&nbsp;</td>
+          <td class="md" nowrap><code> [protected, pure virtual]</code></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+<ul>
+<li>seq_busy true if sequence is not finished</li>
+</ul>
+
+<p>
+<a class="el" href="class_x_t_d_s.html#b16">XTDS</a>で実装されています.
+<p>
+参照元 <a class="el" href="dso_8cpp-source.html#l00186">execute()</a>.    </td>
+  </tr>
+</table>
+<a class="anchor" name="b3"></a><!-- doxytag: member=<XDSO::analyzeRaw> ref=<b3> args=<()=0> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">virtual void XDSO::analyzeRaw           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="mdname1" valign="top" nowrap>          </td>
+          <td class="md" valign="top">&nbsp;)&nbsp;</td>
+          <td class="md" nowrap>  throw (XRecordError&amp;)<code> [protected, pure virtual]</code></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+this is called when raw is written unless dependency is broken convert raw to record 
+<p>
+<a class="el" href="class_x_primary_driver.html#b1">XPrimaryDriver</a>を実装しています.
+<p>
+<a class="el" href="class_x_t_d_s.html#b2">XTDS</a>で実装されています.    </td>
+  </tr>
+</table>
+<a class="anchor" name="a1"></a><!-- doxytag: member=<XDSO::showForms> ref=<a1> args=<()> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">void XDSO::showForms           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="mdname1" valign="top" nowrap>          </td>
+          <td class="md" valign="top">&nbsp;)&nbsp;</td>
+          <td class="md" nowrap><code> [virtual]</code></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+show all forms belonging to driver. 
+<p>
+impliment form-&gt;show() here
+<p>
+<a class="el" href="class_x_primary_driver.html#a1">XPrimaryDriver</a>を実装しています.
+<p>
+ <a class="el" href="dso_8cpp-source.html">dso.cpp</a> の <a class="el" href="dso_8cpp-source.html#l00098">98</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="dso_8h-source.html#l00124">m_form</a>.    </td>
+  </tr>
+</table>
+<a class="anchor" name="b2"></a><!-- doxytag: member=<XDSO::stop> ref=<b2> args=<()> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">void XDSO::stop           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="mdname1" valign="top" nowrap>          </td>
+          <td class="md" valign="top">&nbsp;)&nbsp;</td>
+          <td class="md" nowrap><code> [protected, virtual]</code></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+Shut down your threads, unconnect GUI, and deactivate signals this may be called even if driver has already stopped. 
+<p>
+<a class="el" href="class_x_driver.html#b2">XDriver</a>を実装しています.
+<p>
+ <a class="el" href="dso_8cpp-source.html">dso.cpp</a> の <a class="el" href="dso_8cpp-source.html#l00114">114</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="dso_8h-source.html#l00158">m_bTerminated</a>.    </td>
+  </tr>
+</table>
+<a class="anchor" name="b4"></a><!-- doxytag: member=<XDSO::visualize> ref=<b4> args=<()> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">void XDSO::visualize           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="mdname1" valign="top" nowrap>          </td>
+          <td class="md" valign="top">&nbsp;)&nbsp;</td>
+          <td class="md" nowrap><code> [protected, virtual]</code></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+this is called after analyze() or <a class="el" href="class_x_d_s_o.html#b3">analyzeRaw()</a> record is readLocked 
+<p>
+<a class="el" href="class_x_driver.html#b3">XDriver</a>を実装しています.
+<p>
+ <a class="el" href="dso_8cpp-source.html">dso.cpp</a> の <a class="el" href="dso_8cpp-source.html#l00132">132</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="fir_8cpp-source.html#l00070">FIR::doFIR()</a>, <a class="el" href="dso_8h-source.html#l00067">firBandWidth()</a>, <a class="el" href="dso_8h-source.html#l00068">firCenterFreq()</a>, <a class="el" href="dso_8h-source.html#l00066">firEnabled()</a>, <a class="el" href="dso_8h-source.html#l00069">firSharpness()</a>, <a class="el" href="dso_8cpp-source.html#l00121">lengthRecorded()</a>, <a class="el" href="dso_8h-source.html#l00155">m_fir</a>, <a class="el" href="dso_8h-source.html#l00153">m_statusPrinter</a>, <a class="el" href="dso_8h-source.html#l00125">m_waveForm</a>, <a class="el" href="dso_8h-source.html#l00073">numChannelsRecorded()</a>, <a class="el" href="fir_8cpp-source.html#l00029">FIR::setupBPF()</a>, <a class="el" href="driver_8h-source.html#l00045">XDriver::time()</a>, <a class="el" href="dso_8h-source.html#l00074">timeIntervalRecorded()</a>, <a class="el" href="dso_8h-source.html#l00072">trigPosRecorded()</a>, と <a class="el" href="dso_8cpp-source.html#l00126">waveRecorded()</a>.
+<p>
+参照元 <a class="el" href="dso_8cpp-source.html#l00326">onCondChanged()</a>.    </td>
+  </tr>
+</table>
+<hr>このクラスの説明は次のファイルから生成されました:<ul>
+<li>kame/users/dso/<a class="el" href="dso_8h-source.html">dso.h</a><li>kame/users/dso/<a class="el" href="dso_8cpp-source.html">dso.cpp</a></ul>
+<hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:50 2006に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+</body>
+</html>

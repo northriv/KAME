@@ -1,0 +1,688 @@
+# KAME2 measurement configuration file
+# Automatically created. KAME version. 2.0
+# date: Thu Dec 15 00:05:37 2005 +787ms
+x = Array.new
+x << Measurement
+x << x.last["Thermometers"]
+	x << x.last.create("LakeShore","Cernox CX1050-AA-X11345 LF")
+		x.last["TMin"].value = "1.2906"
+		x.last["TMax"].value = "316.87"
+		x.last["RMin"].value = "47"
+		x.last["RMax"].value = "45000"
+		x << x.last["Zu"]
+			x.last.create("","").value = "4.6532"
+			x.last.create("","").value = "3.0298"
+			x.last.create("","").value = "2.2748"
+		x.pop
+		x << x.last["Zl"]
+			x.last.create("","").value = "3.0314"
+			x.last.create("","").value = "2.2751"
+			x.last.create("","").value = "1.6721"
+		x.pop
+		x << x.last["Ai"]
+			x << x.last.create("","")
+				x.last.create("","").value = "5.20759"
+				x.last.create("","").value = "-5.59749"
+				x.last.create("","").value = "2.26563"
+				x.last.create("","").value = "-0.747735"
+				x.last.create("","").value = "0.201996"
+				x.last.create("","").value = "-0.0437265"
+				x.last.create("","").value = "0.0043652"
+			x.pop
+			x << x.last.create("","")
+				x.last.create("","").value = "40.468"
+				x.last.create("","").value = "-32.266"
+				x.last.create("","").value = "6.7262"
+				x.last.create("","").value = "-0.90156"
+				x.last.create("","").value = "0.10043"
+				x.last.create("","").value = "-0.0055572"
+				x.last.create("","").value = "-0.0010819"
+			x.pop
+			x << x.last.create("","")
+				x.last.create("","").value = "177.98"
+				x.last.create("","").value = "-115.01"
+				x.last.create("","").value = "20.126"
+				x.last.create("","").value = "-3.0567"
+				x.last.create("","").value = "0.57233"
+				x.last.create("","").value = "-0.11296"
+				x.last.create("","").value = "0.027935"
+				x.last.create("","").value = "0.0018494"
+			x.pop
+		x.pop
+	x.pop
+	x << x.last.create("LakeShore","Cernox CX1050-CU-1.4L-X20921 RP")
+		x.last["TMin"].value = "1.4"
+		x.last["TMax"].value = "325"
+		x.last["RMin"].value = "54.31"
+		x.last["RMax"].value = "25600"
+		x << x.last["Zu"]
+			x.last.create("","").value = "4.57928"
+			x.last.create("","").value = "3.04585"
+			x.last.create("","").value = "2.34814"
+		x.pop
+		x << x.last["Zl"]
+			x.last.create("","").value = "2.93045"
+			x.last.create("","").value = "2.24769"
+			x.last.create("","").value = "1.72925"
+		x.pop
+		x << x.last["Ai"]
+			x << x.last.create("","")
+				x.last.create("","").value = "5.53503"
+				x.last.create("","").value = "-6.36183"
+				x.last.create("","").value = "2.79341"
+				x.last.create("","").value = "-1.00232"
+				x.last.create("","").value = "0.295707"
+				x.last.create("","").value = "-0.068265"
+				x.last.create("","").value = "0.009787"
+			x.pop
+			x << x.last.create("","")
+				x.last.create("","").value = "41.8204"
+				x.last.create("","").value = "-37.5164"
+				x.last.create("","").value = "9.02739"
+				x.last.create("","").value = "-1.41962"
+				x.last.create("","").value = "0.183444"
+				x.last.create("","").value = "-0.013341"
+				x.last.create("","").value = "-0.005013"
+			x.pop
+			x << x.last.create("","")
+				x.last.create("","").value = "174.667"
+				x.last.create("","").value = "-125.858"
+				x.last.create("","").value = "24.494"
+				x.last.create("","").value = "-3.97179"
+				x.last.create("","").value = "0.802266"
+				x.last.create("","").value = "-0.179257"
+				x.last.create("","").value = "0.036402"
+				x.last.create("","").value = "-0.011356"
+			x.pop
+		x.pop
+	x.pop
+	x << x.last.create("LakeShore","Cernox CX1050-AA-X23328 saan")
+		x.last["TMin"].value = "1.3195"
+		x.last["TMax"].value = "314.87"
+		x.last["RMin"].value = "46.5"
+		x.last["RMax"].value = "10000"
+		x << x.last["Zu"]
+			x.last.create("","").value = "4"
+			x.last.create("","").value = "2.7283"
+			x.last.create("","").value = "2.1711"
+		x.pop
+		x << x.last["Zl"]
+			x.last.create("","").value = "2.7285"
+			x.last.create("","").value = "2.1714"
+			x.last.create("","").value = "1.6675"
+		x.pop
+		x << x.last["Ai"]
+			x << x.last.create("","")
+				x.last.create("","").value = "5.11749"
+				x.last.create("","").value = "-5.50939"
+				x.last.create("","").value = "2.32197"
+				x.last.create("","").value = "-0.818433"
+				x.last.create("","").value = "0.256483"
+				x.last.create("","").value = "-0.062898"
+				x.last.create("","").value = "0.014277"
+			x.pop
+			x << x.last.create("","")
+				x.last.create("","").value = "40.734"
+				x.last.create("","").value = "-32.256"
+				x.last.create("","").value = "6.235"
+				x.last.create("","").value = "-0.66163"
+				x.last.create("","").value = "0.064852"
+				x.last.create("","").value = "-0.0038196"
+				x.last.create("","").value = "-0.0030576"
+			x.pop
+			x << x.last.create("","")
+				x.last.create("","").value = "178.57"
+				x.last.create("","").value = "-114.87"
+				x.last.create("","").value = "18.411"
+				x.last.create("","").value = "-2.4842"
+				x.last.create("","").value = "0.44574"
+				x.last.create("","").value = "-0.075723"
+				x.last.create("","").value = "0.013453"
+				x.last.create("","").value = "0.0011681"
+			x.pop
+		x.pop
+	x.pop
+	x << x.last.create("LakeShore","Cernox CX1030-SD-0.3L-X14377 robin")
+		x.last["TMin"].value = "0.3"
+		x.last["TMax"].value = "325"
+		x.last["RMin"].value = "36.14"
+		x.last["RMax"].value = "110600"
+		x << x.last["Zu"]
+			x.last.create("","").value = "5.27556"
+			x.last.create("","").value = "2.96757"
+			x.last.create("","").value = "2.34461"
+			x.last.create("","").value = "1.93973"
+		x.pop
+		x << x.last["Zl"]
+			x.last.create("","").value = "2.85096"
+			x.last.create("","").value = "2.28783"
+			x.last.create("","").value = "1.86842"
+			x.last.create("","").value = "1.55374"
+		x.pop
+		x << x.last["Ai"]
+			x << x.last.create("","")
+				x.last.create("","").value = "1.09228"
+				x.last.create("","").value = "-1.2459"
+				x.last.create("","").value = "0.613688"
+				x.last.create("","").value = "-0.272877"
+				x.last.create("","").value = "0.112802"
+				x.last.create("","").value = "-0.044648"
+				x.last.create("","").value = "0.017064"
+				x.last.create("","").value = "-0.006297"
+				x.last.create("","").value = "0.002061"
+				x.last.create("","").value = "-0.000716"
+			x.pop
+			x << x.last.create("","")
+				x.last.create("","").value = "9.40114"
+				x.last.create("","").value = "-9.27489"
+				x.last.create("","").value = "3.13395"
+				x.last.create("","").value = "-0.781475"
+				x.last.create("","").value = "0.132077"
+				x.last.create("","").value = "-0.007481"
+				x.last.create("","").value = "-0.002956"
+			x.pop
+			x << x.last.create("","")
+				x.last.create("","").value = "55.1948"
+				x.last.create("","").value = "-45.2274"
+				x.last.create("","").value = "9.18428"
+				x.last.create("","").value = "-1.1574"
+				x.last.create("","").value = "0.097745"
+				x.last.create("","").value = "0.006633"
+				x.last.create("","").value = "-0.003883"
+			x.pop
+			x << x.last.create("","")
+				x.last.create("","").value = "188.015"
+				x.last.create("","").value = "-119.283"
+				x.last.create("","").value = "19.3702"
+				x.last.create("","").value = "-2.78631"
+				x.last.create("","").value = "0.535679"
+				x.last.create("","").value = "-0.09549"
+				x.last.create("","").value = "0.016253"
+			x.pop
+		x.pop
+	x.pop
+	x << x.last.create("LakeShore","ROX RX-202A-AA-0.05B-U01133 saan")
+		x.last["TMin"].value = "0.05"
+		x.last["TMax"].value = "40"
+		x.last["RMin"].value = "2193"
+		x.last["RMax"].value = "56160"
+		x << x.last["Zu"]
+			x.last.create("","").value = "4.82485"
+			x.last.create("","").value = "3.6765"
+			x.last.create("","").value = "3.43739"
+		x.pop
+		x << x.last["Zl"]
+			x.last.create("","").value = "3.6011"
+			x.last.create("","").value = "3.40892"
+			x.last.create("","").value = "3.33723"
+		x.pop
+		x << x.last["Ai"]
+			x << x.last.create("","")
+				x.last.create("","").value = "0.287532"
+				x.last.create("","").value = "-0.377508"
+				x.last.create("","").value = "0.206183"
+				x.last.create("","").value = "-0.100008"
+				x.last.create("","").value = "0.046252"
+				x.last.create("","").value = "-0.021118"
+				x.last.create("","").value = "0.009233"
+				x.last.create("","").value = "-0.004107"
+				x.last.create("","").value = "0.002141"
+			x.pop
+			x << x.last.create("","")
+				x.last.create("","").value = "2.77996"
+				x.last.create("","").value = "-3.05729"
+				x.last.create("","").value = "1.36109"
+				x.last.create("","").value = "-0.549012"
+				x.last.create("","").value = "0.206822"
+				x.last.create("","").value = "-0.073629"
+				x.last.create("","").value = "0.023933"
+				x.last.create("","").value = "-0.007315"
+			x.pop
+			x << x.last.create("","")
+				x.last.create("","").value = "18.191"
+				x.last.create("","").value = "-18.0422"
+				x.last.create("","").value = "6.31869"
+				x.last.create("","").value = "-1.87373"
+				x.last.create("","").value = "0.533655"
+				x.last.create("","").value = "-0.14589"
+				x.last.create("","").value = "0.040672"
+			x.pop
+		x.pop
+	x.pop
+	x << x.last.create("CryoConcept","RuO2 CryoConcept Mix.")
+		x.last["TMin"].value = "0.003"
+		x.last["TMax"].value = "100"
+		x.last["RMin"].value = "1300"
+		x.last["RMax"].value = "300000"
+		x << x.last["Ai"]
+			x.last.create("","").value = "6454.72"
+			x.last.create("","").value = "-8488.42"
+			x.last.create("","").value = "4469.52"
+			x.last.create("","").value = "-1177.25"
+			x.last.create("","").value = "155.047"
+			x.last.create("","").value = "-8.16679"
+		x.pop
+		x.last["A"].value = "3.66348"
+		x.last["T0"].value = "0.08743"
+		x.last["R0"].value = "832.04"
+		x.last["RCrossover"].value = "7000"
+	x.pop
+	x << x.last.create("ScientificInstruments","SI-RuO2 u-Dilution 2197")
+		x.last["TMin"].value = "0.05"
+		x.last["TMax"].value = "20"
+		x.last["RMin"].value = "1102"
+		x.last["RMax"].value = "55187"
+		x << x.last["ABCDE"]
+			x.last.create("","").value = "0.277936"
+			x.last.create("","").value = "-0.325162"
+			x.last.create("","").value = "-0.0445365"
+			x.last.create("","").value = "0.0261067"
+			x.last.create("","").value = "0.00198329"
+		x.pop
+		x << x.last["ABC"]
+			x.last.create("","").value = "-0.377119"
+			x.last.create("","").value = "2.92569e-05"
+			x.last.create("","").value = "1.65651e-07"
+		x.pop
+		x.last["RCrossover"].value = "1408.3"
+	x.pop
+	x << x.last.create("Raw","Raw")
+		x.last["TMin"].value = "0"
+		x.last["TMax"].value = "10000"
+	x.pop
+x.pop
+x << x.last["ScalarEntries"]
+	# x << x.last.create("","X")
+		# x.last["Delta"]	# .value = "0"
+		# x.last["Store"]	# .value = "false"
+		# x.last["Value"]	# .value = "0"
+		# x.last["StoredValue"]	# .value = "0"
+	# x.pop
+	# x << x.last.create("","Y")
+		# x.last["Delta"]	# .value = "0"
+		# x.last["Store"]	# .value = "false"
+		# x.last["Value"]	# .value = "0"
+		# x.last["StoredValue"]	# .value = "0"
+	# x.pop
+	# x << x.last.create("","X")
+		# x.last["Delta"]	# .value = "0"
+		# x.last["Store"]	# .value = "false"
+		# x.last["Value"]	# .value = "0"
+		# x.last["StoredValue"]	# .value = "0"
+	# x.pop
+	# x << x.last.create("","Y")
+		# x.last["Delta"]	# .value = "0"
+		# x.last["Store"]	# .value = "false"
+		# x.last["Value"]	# .value = "0"
+		# x.last["StoredValue"]	# .value = "0"
+	# x.pop
+x.pop
+x.last["GraphList"]
+x << x.last["ChartList"]
+	# x << x.last.create("","X")
+		# x << x.last["X"]
+			# x.last["Label"]	# .value = "driver1-X"
+			# x << x.last["Axes"]
+				# x << x.last.create("bottom","")
+					# x.last["Label"]	# .value = "Count"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.8"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = ""
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+				# x << x.last.create("left","")
+					# x.last["Label"]	# .value = "driver1-X"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.75"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = ""
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+			# x.pop
+			# x << x.last["Plots"]
+				# x << x.last.create("Chart","driver1-X")
+					# x.last["MaxCount"]	# .value = "300"
+					# x.last["DisplayMajorGrid"]	# .value = "true"
+					# x.last["DisplayMinorGrid"]	# .value = "false"
+					# x.last["DrawLines"]	# .value = "true"
+					# x.last["DrawBars"]	# .value = "false"
+					# x.last["DrawPoints"]	# .value = "true"
+					# x.last["ColorPlot"]	# .value = "false"
+					# x.last["MajorGridColor"]	# .value = "ff00ffff"
+					# x.last["MinorGridColor"]	# .value = "ff808000"
+					# x.last["PointColor"]	# .value = "ffff0000"
+					# x.last["LineColor"]	# .value = "ffff0000"
+					# x.last["BarColor"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+					# x.last["ClearPoints"]
+					# x.last["AxisX"]	# .value = "Count"
+					# x.last["AxisY"]	# .value = "driver1-X"
+					# x.last["AxisZ"]	# .value = "NULL"
+					# x.last["ZwoAxisZ"]	# .value = "0.15"
+					# x.last["Intensity"]	# .value = "1"
+				# x.pop
+			# x.pop
+			# x.last["BackGround"]	# .value = "ffffffff"
+			# x.last["TitleColor"]	# .value = "ff000000"
+		# x.pop
+	# x.pop
+	# x << x.last.create("","Y")
+		# x << x.last["Y"]
+			# x.last["Label"]	# .value = "driver1-Y"
+			# x << x.last["Axes"]
+				# x << x.last.create("bottom","")
+					# x.last["Label"]	# .value = "Count"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.8"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = ""
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+				# x << x.last.create("left","")
+					# x.last["Label"]	# .value = "driver1-Y"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.75"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = ""
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+			# x.pop
+			# x << x.last["Plots"]
+				# x << x.last.create("Chart","driver1-Y")
+					# x.last["MaxCount"]	# .value = "300"
+					# x.last["DisplayMajorGrid"]	# .value = "true"
+					# x.last["DisplayMinorGrid"]	# .value = "false"
+					# x.last["DrawLines"]	# .value = "true"
+					# x.last["DrawBars"]	# .value = "false"
+					# x.last["DrawPoints"]	# .value = "true"
+					# x.last["ColorPlot"]	# .value = "false"
+					# x.last["MajorGridColor"]	# .value = "ff00ffff"
+					# x.last["MinorGridColor"]	# .value = "ff808000"
+					# x.last["PointColor"]	# .value = "ffff0000"
+					# x.last["LineColor"]	# .value = "ffff0000"
+					# x.last["BarColor"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+					# x.last["ClearPoints"]
+					# x.last["AxisX"]	# .value = "Count"
+					# x.last["AxisY"]	# .value = "driver1-Y"
+					# x.last["AxisZ"]	# .value = "NULL"
+					# x.last["ZwoAxisZ"]	# .value = "0.15"
+					# x.last["Intensity"]	# .value = "1"
+				# x.pop
+			# x.pop
+			# x.last["BackGround"]	# .value = "ffffffff"
+			# x.last["TitleColor"]	# .value = "ff000000"
+		# x.pop
+	# x.pop
+	# x << x.last.create("","X")
+		# x << x.last["X"]
+			# x.last["Label"]	# .value = "driver2-X"
+			# x << x.last["Axes"]
+				# x << x.last.create("bottom","")
+					# x.last["Label"]	# .value = "Count"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.8"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = ""
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+				# x << x.last.create("left","")
+					# x.last["Label"]	# .value = "driver2-X"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.75"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = ""
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+			# x.pop
+			# x << x.last["Plots"]
+				# x << x.last.create("Chart","driver2-X")
+					# x.last["MaxCount"]	# .value = "300"
+					# x.last["DisplayMajorGrid"]	# .value = "true"
+					# x.last["DisplayMinorGrid"]	# .value = "false"
+					# x.last["DrawLines"]	# .value = "true"
+					# x.last["DrawBars"]	# .value = "false"
+					# x.last["DrawPoints"]	# .value = "true"
+					# x.last["ColorPlot"]	# .value = "false"
+					# x.last["MajorGridColor"]	# .value = "ff00ffff"
+					# x.last["MinorGridColor"]	# .value = "ff808000"
+					# x.last["PointColor"]	# .value = "ffff0000"
+					# x.last["LineColor"]	# .value = "ffff0000"
+					# x.last["BarColor"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+					# x.last["ClearPoints"]
+					# x.last["AxisX"]	# .value = "Count"
+					# x.last["AxisY"]	# .value = "driver2-X"
+					# x.last["AxisZ"]	# .value = "NULL"
+					# x.last["ZwoAxisZ"]	# .value = "0.15"
+					# x.last["Intensity"]	# .value = "1"
+				# x.pop
+			# x.pop
+			# x.last["BackGround"]	# .value = "ffffffff"
+			# x.last["TitleColor"]	# .value = "ff000000"
+		# x.pop
+	# x.pop
+	# x << x.last.create("","Y")
+		# x << x.last["Y"]
+			# x.last["Label"]	# .value = "driver2-Y"
+			# x << x.last["Axes"]
+				# x << x.last.create("bottom","")
+					# x.last["Label"]	# .value = "Count"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.8"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = ""
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+				# x << x.last.create("left","")
+					# x.last["Label"]	# .value = "driver2-Y"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.75"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = ""
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+			# x.pop
+			# x << x.last["Plots"]
+				# x << x.last.create("Chart","driver2-Y")
+					# x.last["MaxCount"]	# .value = "300"
+					# x.last["DisplayMajorGrid"]	# .value = "true"
+					# x.last["DisplayMinorGrid"]	# .value = "false"
+					# x.last["DrawLines"]	# .value = "true"
+					# x.last["DrawBars"]	# .value = "false"
+					# x.last["DrawPoints"]	# .value = "true"
+					# x.last["ColorPlot"]	# .value = "false"
+					# x.last["MajorGridColor"]	# .value = "ff00ffff"
+					# x.last["MinorGridColor"]	# .value = "ff808000"
+					# x.last["PointColor"]	# .value = "ffff0000"
+					# x.last["LineColor"]	# .value = "ffff0000"
+					# x.last["BarColor"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+					# x.last["ClearPoints"]
+					# x.last["AxisX"]	# .value = "Count"
+					# x.last["AxisY"]	# .value = "driver2-Y"
+					# x.last["AxisZ"]	# .value = "NULL"
+					# x.last["ZwoAxisZ"]	# .value = "0.15"
+					# x.last["Intensity"]	# .value = "1"
+				# x.pop
+			# x.pop
+			# x.last["BackGround"]	# .value = "ffffffff"
+			# x.last["TitleColor"]	# .value = "ff000000"
+		# x.pop
+	# x.pop
+x.pop
+x << x.last["Drivers"]
+	x << x.last.create("Test","driver1")
+		x << x.last["X"]
+			x.last["Delta"].value = "0"
+			x.last["Store"].value = "false"
+			x.last["Value"]	# .value = "0"
+			x.last["StoredValue"]	# .value = "0"
+		x.pop
+		x << x.last["Y"]
+			x.last["Delta"].value = "0"
+			x.last["Store"].value = "false"
+			x.last["Value"]	# .value = "0"
+			x.last["StoredValue"]	# .value = "0"
+		x.pop
+	x.pop
+	x << x.last.create("Test","driver2")
+		x << x.last["X"]
+			x.last["Delta"].value = "0"
+			x.last["Store"].value = "false"
+			x.last["Value"]	# .value = "0"
+			x.last["StoredValue"]	# .value = "0"
+		x.pop
+		x << x.last["Y"]
+			x.last["Delta"].value = "0"
+			x.last["Store"].value = "false"
+			x.last["Value"]	# .value = "0"
+			x.last["StoredValue"]	# .value = "0"
+		x.pop
+	x.pop
+x.pop
+x << x.last["TextWriter"]
+	x.last["Filename"]	# .value = ""
+	x.last["Recording"]	# .value = "false"
+x.pop
+x << x.last["RawStreamRecorder"]
+	x.last["Filename"]	# .value = ""
+	x.last["Recording"]	# .value = "false"
+x.pop
+x << x.last["RawStreamRecordReader"]
+	x.last["Filename"]	# .value = ""
+	x.last["Speed"]	# .value = "Fast"
+	x.last["FastForward"]	# .value = "false"
+	x.last["Rewind"]	# .value = "false"
+	x.last["Stop"]
+	x.last["First"]
+	x.last["Next"]
+	x.last["Back"]
+	x.last["PosString"]	# .value = ""
+x.pop
+x.last["Interfaces"]

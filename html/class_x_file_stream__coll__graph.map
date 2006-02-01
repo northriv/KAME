@@ -1,0 +1,7 @@
+base referer
+rect $class_x_thread_local.html 7,98 381,125
+rect $class_x_recursive_mutex.html 405,98 533,125
+rect $class_x_mutex.html 481,8 547,34
+rect $class_x_talker.html 570,98 821,125
+rect $class___x_talker_base.html 650,8 754,34
+rect $class_x_r_w_lock.html 778,8 861,34

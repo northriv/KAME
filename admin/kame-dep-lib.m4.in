@@ -1,0 +1,55 @@
+##   -*- autoconf -*-
+
+AC_MSG_CHECKING(for freetype2)
+if freetype-config --libs > /dev/null 2>&1; then
+  AC_MSG_RESULT("yes")
+else
+  AC_MSG_ERROR([freetype not installed - please install first])
+fi
+FREETYPE2_LIBS="`freetype-config --libs`"
+FREETYPE2_CFLAGS="`freetype-config --cflags`"
+
+ac_save_LIBS="$LIBS"
+AC_CHECK_LIB(xerces-c, main, xercesc_libs="-lxerces-c",
+  AC_MSG_ERROR([Xerces-C not installed - please install first]))
+XERCESC_LIBS="$XERCESC_LIBS $xercesc_libs"
+LIBS="$ac_save_LIBS"
+
+ac_save_LIBS="$LIBS"
+AC_CHECK_LIB(fftw, main, fftw_libs="-lfftw",
+  AC_MSG_ERROR([fftw not installed - please install first]))
+FFTW_LIBS="$FFTW_LIBS $fftw_libs"
+LIBS="$ac_save_LIBS"
+
+AC_MSG_CHECKING(for gsl)
+if gsl-config --libs > /dev/null 2>&1; then
+  AC_MSG_RESULT("yes")
+else
+  AC_MSG_ERROR([gsl not installed - please install first])
+fi
+GSL_LIBS="`gsl-config --libs`"
+
+ac_save_LIBS="$LIBS"
+AC_CHECK_LIB(ruby, main, ruby_libs="-lruby",
+  AC_MSG_ERROR([ruby not installed - please install first]))
+RUBY_LIBS="$RUBY_LIBS $ruby_libs"
+LIBS="$ac_save_LIBS"
+
+AC_MSG_CHECKING(for linux-gpib)
+if test -f /usr/local/lib/libgpib.so ; then
+  AC_MSG_RESULT("yes")
+else
+  AC_MSG_ERROR([linux-gpib not installed - please install first])
+fi
+LINUXGPIB_LIBS="-L/usr/local/lib -lgpib"
+LINUXGPIB_CFLAGS="-I/usr/local/include/gpib"
+
+AC_SUBST(XERCESC_LIBS)
+AC_SUBST(GSL_LIBS)
+AC_SUBST(FFTW_LIBS)
+AC_SUBST(LINUXGPIB_LIBS)
+AC_SUBST(LINUXGPIB_CFLAGS)
+AC_SUBST(RUBY_LIBS)
+AC_SUBST(RUBY_CFLAGS)
+AC_SUBST(FREETYPE2_LIBS)
+AC_SUBST(FREETYPE2_CFLAGS)

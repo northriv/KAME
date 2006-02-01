@@ -1,0 +1,207 @@
+* Wed Feb 1 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- atomic_queue.h : bug fix. uninitialized counter.
+
+* Tue Jan 31 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- pulserdriver{sh,h8}.cpp : try to continue when turning-on is failed.
+- atomic_smart_ptr.h : atomic_shared_ptr<>.compareAndSwap()
+
+* Mon Jan 30 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0-1.0.2m)
+- atomic_smart_ptr.h : atomic_shared_ptr<>, lock-free scanning without CAS2.
+- entrylistconnector.cpp : fix handling of transaction.
+- analyzer.cpp : bug fix.
+- atomic_queue.h : bug fix.
+
+* Sun Jan 29 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0-1.0.1m)
+- atomic_queue.h : atomic queue, but reserved size is fixed.
+
+* Fri Jan 27 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0-1.0.1m)
+- atomic.h, xtime.cpp : use assembly on powerPC as well.
+
+* Thu Jan 26 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0-1m)
+- The first release of 2.0!
+- Thanks for testers, Y. Ihara and Takeya.
+- (bug) FTGL? : 2byte-chars cause crash.
+
+* Tue Jan 24 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0-0.9.8m)
+- 2.0rc2
+- xsignal.cpp : cease to read std::deque without mutex locking.
+- atomic.h : atomic<>, memory barrierred wrapper to word-size type.
+- todo : use QDeepCopy<QString> properly.
+
+* Sat Jan 21 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- atomic_smart_ptr.h : atomic version of shared_ptr, scoped_ptr.
+- fast_smart_ptr.h : faster version of shared_ptr, weak_ptr etc.
+- xtime.h : timeStampInUsec(), use RDTSC in x86.
+- XTalker<>::empty() : a hint to omit talking.
+
+* Thu Jan 19 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- atomic_prv.h : atomicCompareAndSwap2(), 2 words CAS only for x86.
+- atomic.h : implement wait-free atomic_shared_ptr<>. 2 words CAS is needed to make it wait-free.
+
+* Wed Jan 18 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0-0.9.7m)
+- 2.0rc1
+- driverlistconnector.cpp : onRecordRedirected() is moved to tcons,
+	 because label (a member of tcons) must exist when the function is called. 
+- atomic.h : atomic_scoped_ptr<> which supports atomic swap for destructive reading.
+- atomic_prv.h : memoryBarrier() etc.
+- xsignal.h : apply atomic_scoped_ptr<>, scoped_ptr<>.
+	 Now argument is not shared among thransactions.
+- graphpaintergl.cpp : Use QGLContext instead of QGLWidget.
+
+* Tue Jan 17 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0-0.9.6m)
+- 2.0beta3
+- atomic.h : various atomic operations. atomic_shared_ptr<>.
+- xsignal.h : apply atomic_shared_ptr<>
+- xnode.h : apply atomic_shared_ptr<>
+- thread.h : XScopedLock<>, XScopedReadLock<>, XScopedWriteLock<>.
+	better handlings of muteces.
+- xnodeconnector.cpp : no need of XThreadLocal<> for containing shared_ptr.
+
+* Fri Jan 13 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0-0.9.5m)
+- 2.0beta2
+- xnode.cpp : use typeid() for getTypename()
+- XML : xmlsupport is deprecated.
+- configure : --with-malloc-debug option is added to use MallocDebug.app in MacOS X.
+- kame.cpp : fix terrible memory leak.
+- nmrrelaxfit.cpp : do_nlls(), fix memory leak.
+
+* Thu Jan 12 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0-0.9.4m)
+- gpib.cpp : use wait before read, write.
+- serial.cpp : time-out is enabled (3s).
+- support.cpp : leak detector is enabled when boehm gc and libgccpp are avaliable.
+	use class kame_gc as a base to detect leaks.
+- xnode.cpp : definitions of XValueNode<> stuff is now in source.
+
+* Mon Jan 9 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0-0.9.3m)
+- xnode.h : setValidator(), validator throws exception when input string is ill to convert
+- support.h : formatDoubleValidator(), checks format string
+
+* Sat Jan 7 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0-0.9.2m)
+- nmrfspectrum.cpp : new driver
+- support.cpp: formatDouble(), cease to use qt's conversion from double to QString(),
+	 because some versions of qt is buggy.
+
+* Fri Jan 6 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0-0.9.1m)
+- tools : script to make lite package which does not have NMR stuff.
+- APIs : const modifiers.
+- signalgenerator.cpp : new driver
+
+* Wed Jan 4 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0-0.9m)
+- 2.0beta1
+- graphpaintergl.cpp : use UCS-4 instead of wchar_t for iconv to avoid locale dependency
+- users/lia, users/magnetps, users/tempcontrol, most of users/nmr : ready
+- support.cpp : impliment XKameError, base of exception classes
+- driver : now GUI can create/release drivers
+- interfacelistconnector.cpp : individual RUN/STOP button
+- xwavengraph.cpp : change icon after the first dump.
+- xnodeconnector.cpp : XFileStream is abadoned.
+- i18n : in progress.
+- APIs : fixed, i guess.
+
+* Wed Dec 21 2005 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- 2.0alpha2
+- graph : Remove XChart
+- analyzer, graph : use XDriver::time() as x axis of XValChart
+- support.cpp : impliment formatDouble()
+- XTextWriter : LastLine node
+
+* Tue Dec 20 2005 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- 2.0alpha1
+- API : almost fixed
+- all : revised, rewriten
+- include FTGL tree for convrnience
+- users/dmm, users/dso : ready
+- graphwidget.cpp : TODO, event loop is busy while mouse is moving on
+
+* Fri Oct 7 2005 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (1.9-1m)
+- Makefile.am : fix to be configured under the other dirs
+- *.ui : fix for qt-3.3.5
+- thermometers.{cpp,h} : New thermometer Scientific Instruments
+
+* Wed Oct 5 2005 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (1.8.2-16m)
+- lockinamp : support freq. change
+- AUTOHEADER may be autoheader-2.53 
+
+* Thu Aug 13 2005 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (1.8.2-14m)
+- pulserdriversh.cpp : fix potential deadlock
+
+* Thu Aug 13 2005 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (1.8.2-13m)
+- pulserdriversh.cpp : fix for long period (>60sec)
+- kame : works with Mac OS X
+
+* Thu Jan 22 2005 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (1.8.2-12m)
+- pulserdriver{h8, sh}.cpp : fix gate2 handlings for small tau
+
+* Thu Jan 19 2005 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (1.8.2-11m)
+- usertempcontrol.cpp: new driver: Cryo-con M32
+
+* Thu Dec 13 2004 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (1.8.2-10m)
+- itcp.cpp: improve scheduling
+- graph.cpp: avoid loop of redrawRequest
+
+* Thu Dec 11 2004 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (1.8.2-9m)
+- itcp.cpp: Scheduling changed. Lock until old queue (>90 ms before)  gets cleared
+
+* Thu Dec 11 2004 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (1.8.2-8m)
+- graph: bug fixes
+
+* Thu Dec 10 2004 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (1.8.2-7m)
+- graph: reduce memory usage
+
+* Thu Dec 10 2004 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (1.8.2-6m)
+- magnetps.cpp: PS w/o PCS supported
+- graphpainter.cpp: quick help
+
+* Thu Dec 10 2004 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (1.8.2-5m)
+- Kick out buggy QGLWidget::renderText. Apply FTGLPixmapFont instead.
+- Mikachanfont which has no embeded fixed scale fonts is prefered.
+
+* Thu Dec 6 2004 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (1.8.2-4m)
+- Gzip format is applied for raw stream binary
+
+* Thu Dec 4 2004 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (1.8.2-3m)
+- support selection in 3D plot
+
+* Thu Dec 1 2004 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (1.8.2-2m)
+- 3D plot functionality
+
+* Thu Nov 29 2004 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (1.8.2-1m)
+- 1.8.2
+- support for OpenGL graphs, but still only for 2D plots
+
+* Thu Nov 25 2004 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (1.8-2m)
+- revise spec
+
+* Thu Nov 25 2004 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (1.8-1m)
+- The first release.

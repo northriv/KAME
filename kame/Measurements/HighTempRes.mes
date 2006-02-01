@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<measurement>
+<Drivers>
+<item type="YK7651" name="YK7651-1">
+<Use>1</Use>
+<Device>GPIB</Device>
+<Address>2</Address>
+</item>
+<item type="KE2000" name="KE2001">
+<Function>TEMP</Function>
+<Use>1</Use>
+<Device>GPIB</Device>
+<Address>16</Address>
+</item>
+<item type="KE2000" name="KE2000">
+<Function>VOLT:DC</Function>
+<Use>1</Use>
+<Device>GPIB</Device>
+<Address>17</Address>
+</item>
+</Drivers>
+<Analizers>
+<item type="DMM" name="dmm1">
+<DMM>KE2000</DMM>
+</item>
+<item type="DMM" name="dmm2">
+<DMM>KE2001</DMM>
+</item>
+</Analizers>
+</measurement>

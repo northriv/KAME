@@ -1,0 +1,2471 @@
+# KAME2 measurement configuration file
+# Automatically created. KAME version. 2.0
+# date: Thu Jan  5 22:15:43 2006 +644ms
+x = Array.new
+x << Measurement
+x << x.last["Thermometers"]
+	x << x.last.create("Raw","Raw")
+		x.last["TMin"].value = "0"
+		x.last["TMax"].value = "10000"
+	x.pop
+	x << x.last.create("LakeShore","Cernox CX1050-AA-X11345 LF")
+		x.last["TMin"].value = "1.2906"
+		x.last["TMax"].value = "316.87"
+		x.last["RMin"].value = "47"
+		x.last["RMax"].value = "45000"
+		x << x.last["Zu"]
+			x.last.create("","").value = "4.6532"
+			x.last.create("","").value = "3.0298"
+			x.last.create("","").value = "2.2748"
+		x.pop
+		x << x.last["Zl"]
+			x.last.create("","").value = "3.0314"
+			x.last.create("","").value = "2.2751"
+			x.last.create("","").value = "1.6721"
+		x.pop
+		x << x.last["Ai"]
+			x << x.last.create("","")
+				x.last.create("","").value = "5.20759"
+				x.last.create("","").value = "-5.59749"
+				x.last.create("","").value = "2.26563"
+				x.last.create("","").value = "-0.747735"
+				x.last.create("","").value = "0.201996"
+				x.last.create("","").value = "-0.0437265"
+				x.last.create("","").value = "0.0043652"
+			x.pop
+			x << x.last.create("","")
+				x.last.create("","").value = "40.468"
+				x.last.create("","").value = "-32.266"
+				x.last.create("","").value = "6.7262"
+				x.last.create("","").value = "-0.90156"
+				x.last.create("","").value = "0.10043"
+				x.last.create("","").value = "-0.0055572"
+				x.last.create("","").value = "-0.0010819"
+			x.pop
+			x << x.last.create("","")
+				x.last.create("","").value = "177.98"
+				x.last.create("","").value = "-115.01"
+				x.last.create("","").value = "20.126"
+				x.last.create("","").value = "-3.0567"
+				x.last.create("","").value = "0.57233"
+				x.last.create("","").value = "-0.11296"
+				x.last.create("","").value = "0.027935"
+				x.last.create("","").value = "0.0018494"
+			x.pop
+		x.pop
+	x.pop
+	x << x.last.create("LakeShore","Cernox CX1050-CU-1.4L-X20921 RP")
+		x.last["TMin"].value = "1.4"
+		x.last["TMax"].value = "325"
+		x.last["RMin"].value = "54.31"
+		x.last["RMax"].value = "25600"
+		x << x.last["Zu"]
+			x.last.create("","").value = "4.57928"
+			x.last.create("","").value = "3.04585"
+			x.last.create("","").value = "2.34814"
+		x.pop
+		x << x.last["Zl"]
+			x.last.create("","").value = "2.93045"
+			x.last.create("","").value = "2.24769"
+			x.last.create("","").value = "1.72925"
+		x.pop
+		x << x.last["Ai"]
+			x << x.last.create("","")
+				x.last.create("","").value = "5.53503"
+				x.last.create("","").value = "-6.36183"
+				x.last.create("","").value = "2.79341"
+				x.last.create("","").value = "-1.00232"
+				x.last.create("","").value = "0.295707"
+				x.last.create("","").value = "-0.068265"
+				x.last.create("","").value = "0.009787"
+			x.pop
+			x << x.last.create("","")
+				x.last.create("","").value = "41.8204"
+				x.last.create("","").value = "-37.5164"
+				x.last.create("","").value = "9.02739"
+				x.last.create("","").value = "-1.41962"
+				x.last.create("","").value = "0.183444"
+				x.last.create("","").value = "-0.013341"
+				x.last.create("","").value = "-0.005013"
+			x.pop
+			x << x.last.create("","")
+				x.last.create("","").value = "174.667"
+				x.last.create("","").value = "-125.858"
+				x.last.create("","").value = "24.494"
+				x.last.create("","").value = "-3.97179"
+				x.last.create("","").value = "0.802266"
+				x.last.create("","").value = "-0.179257"
+				x.last.create("","").value = "0.036402"
+				x.last.create("","").value = "-0.011356"
+			x.pop
+		x.pop
+	x.pop
+	x << x.last.create("LakeShore","Cernox CX1050-AA-X23328 saan")
+		x.last["TMin"].value = "1.3195"
+		x.last["TMax"].value = "314.87"
+		x.last["RMin"].value = "46.5"
+		x.last["RMax"].value = "10000"
+		x << x.last["Zu"]
+			x.last.create("","").value = "4"
+			x.last.create("","").value = "2.7283"
+			x.last.create("","").value = "2.1711"
+		x.pop
+		x << x.last["Zl"]
+			x.last.create("","").value = "2.7285"
+			x.last.create("","").value = "2.1714"
+			x.last.create("","").value = "1.6675"
+		x.pop
+		x << x.last["Ai"]
+			x << x.last.create("","")
+				x.last.create("","").value = "5.11749"
+				x.last.create("","").value = "-5.50939"
+				x.last.create("","").value = "2.32197"
+				x.last.create("","").value = "-0.818433"
+				x.last.create("","").value = "0.256483"
+				x.last.create("","").value = "-0.062898"
+				x.last.create("","").value = "0.014277"
+			x.pop
+			x << x.last.create("","")
+				x.last.create("","").value = "40.734"
+				x.last.create("","").value = "-32.256"
+				x.last.create("","").value = "6.235"
+				x.last.create("","").value = "-0.66163"
+				x.last.create("","").value = "0.064852"
+				x.last.create("","").value = "-0.0038196"
+				x.last.create("","").value = "-0.0030576"
+			x.pop
+			x << x.last.create("","")
+				x.last.create("","").value = "178.57"
+				x.last.create("","").value = "-114.87"
+				x.last.create("","").value = "18.411"
+				x.last.create("","").value = "-2.4842"
+				x.last.create("","").value = "0.44574"
+				x.last.create("","").value = "-0.075723"
+				x.last.create("","").value = "0.013453"
+				x.last.create("","").value = "0.0011681"
+			x.pop
+		x.pop
+	x.pop
+	x << x.last.create("LakeShore","Cernox CX1030-SD-0.3L-X14377 robin")
+		x.last["TMin"].value = "0.3"
+		x.last["TMax"].value = "325"
+		x.last["RMin"].value = "36.14"
+		x.last["RMax"].value = "110600"
+		x << x.last["Zu"]
+			x.last.create("","").value = "5.27556"
+			x.last.create("","").value = "2.96757"
+			x.last.create("","").value = "2.34461"
+			x.last.create("","").value = "1.93973"
+		x.pop
+		x << x.last["Zl"]
+			x.last.create("","").value = "2.85096"
+			x.last.create("","").value = "2.28783"
+			x.last.create("","").value = "1.86842"
+			x.last.create("","").value = "1.55374"
+		x.pop
+		x << x.last["Ai"]
+			x << x.last.create("","")
+				x.last.create("","").value = "1.09228"
+				x.last.create("","").value = "-1.2459"
+				x.last.create("","").value = "0.613688"
+				x.last.create("","").value = "-0.272877"
+				x.last.create("","").value = "0.112802"
+				x.last.create("","").value = "-0.044648"
+				x.last.create("","").value = "0.017064"
+				x.last.create("","").value = "-0.006297"
+				x.last.create("","").value = "0.002061"
+				x.last.create("","").value = "-0.000716"
+			x.pop
+			x << x.last.create("","")
+				x.last.create("","").value = "9.40114"
+				x.last.create("","").value = "-9.27489"
+				x.last.create("","").value = "3.13395"
+				x.last.create("","").value = "-0.781475"
+				x.last.create("","").value = "0.132077"
+				x.last.create("","").value = "-0.007481"
+				x.last.create("","").value = "-0.002956"
+			x.pop
+			x << x.last.create("","")
+				x.last.create("","").value = "55.1948"
+				x.last.create("","").value = "-45.2274"
+				x.last.create("","").value = "9.18428"
+				x.last.create("","").value = "-1.1574"
+				x.last.create("","").value = "0.097745"
+				x.last.create("","").value = "0.006633"
+				x.last.create("","").value = "-0.003883"
+			x.pop
+			x << x.last.create("","")
+				x.last.create("","").value = "188.015"
+				x.last.create("","").value = "-119.283"
+				x.last.create("","").value = "19.3702"
+				x.last.create("","").value = "-2.78631"
+				x.last.create("","").value = "0.535679"
+				x.last.create("","").value = "-0.09549"
+				x.last.create("","").value = "0.016253"
+			x.pop
+		x.pop
+	x.pop
+	x << x.last.create("LakeShore","ROX RX-202A-AA-0.05B-U01133 saan")
+		x.last["TMin"].value = "0.05"
+		x.last["TMax"].value = "40"
+		x.last["RMin"].value = "2193"
+		x.last["RMax"].value = "56160"
+		x << x.last["Zu"]
+			x.last.create("","").value = "4.82485"
+			x.last.create("","").value = "3.6765"
+			x.last.create("","").value = "3.43739"
+		x.pop
+		x << x.last["Zl"]
+			x.last.create("","").value = "3.6011"
+			x.last.create("","").value = "3.40892"
+			x.last.create("","").value = "3.33723"
+		x.pop
+		x << x.last["Ai"]
+			x << x.last.create("","")
+				x.last.create("","").value = "0.287532"
+				x.last.create("","").value = "-0.377508"
+				x.last.create("","").value = "0.206183"
+				x.last.create("","").value = "-0.100008"
+				x.last.create("","").value = "0.046252"
+				x.last.create("","").value = "-0.021118"
+				x.last.create("","").value = "0.009233"
+				x.last.create("","").value = "-0.004107"
+				x.last.create("","").value = "0.002141"
+			x.pop
+			x << x.last.create("","")
+				x.last.create("","").value = "2.77996"
+				x.last.create("","").value = "-3.05729"
+				x.last.create("","").value = "1.36109"
+				x.last.create("","").value = "-0.549012"
+				x.last.create("","").value = "0.206822"
+				x.last.create("","").value = "-0.073629"
+				x.last.create("","").value = "0.023933"
+				x.last.create("","").value = "-0.007315"
+			x.pop
+			x << x.last.create("","")
+				x.last.create("","").value = "18.191"
+				x.last.create("","").value = "-18.0422"
+				x.last.create("","").value = "6.31869"
+				x.last.create("","").value = "-1.87373"
+				x.last.create("","").value = "0.533655"
+				x.last.create("","").value = "-0.14589"
+				x.last.create("","").value = "0.040672"
+			x.pop
+		x.pop
+	x.pop
+	x << x.last.create("CryoConcept","RuO2 CryoConcept Mix.")
+		x.last["TMin"].value = "0.003"
+		x.last["TMax"].value = "100"
+		x.last["RMin"].value = "1300"
+		x.last["RMax"].value = "300000"
+		x << x.last["Ai"]
+			x.last.create("","").value = "6454.72"
+			x.last.create("","").value = "-8488.42"
+			x.last.create("","").value = "4469.52"
+			x.last.create("","").value = "-1177.25"
+			x.last.create("","").value = "155.047"
+			x.last.create("","").value = "-8.16679"
+		x.pop
+		x.last["A"].value = "3.66348"
+		x.last["T0"].value = "0.08743"
+		x.last["R0"].value = "832.04"
+		x.last["RCrossover"].value = "7000"
+	x.pop
+	x << x.last.create("ScientificInstruments","SI-RuO2 u-Dilution 2197")
+		x.last["TMin"].value = "0.05"
+		x.last["TMax"].value = "20"
+		x.last["RMin"].value = "1102"
+		x.last["RMax"].value = "55187"
+		x << x.last["ABCDE"]
+			x.last.create("","").value = "0.277936"
+			x.last.create("","").value = "-0.325162"
+			x.last.create("","").value = "-0.0445365"
+			x.last.create("","").value = "0.0261067"
+			x.last.create("","").value = "0.00198329"
+		x.pop
+		x << x.last["ABC"]
+			x.last.create("","").value = "-0.377119"
+			x.last.create("","").value = "2.92569e-05"
+			x.last.create("","").value = "1.65651e-07"
+		x.pop
+		x.last["RCrossover"].value = "1408.3"
+	x.pop
+x.pop
+x << x.last["ScalarEntries"]
+	# x << x.last.create("","Field")
+		# x.last["Delta"]	# .value = "0"
+		# x.last["Store"]	# .value = "false"
+		# x.last["Value"]	# .value = "0"
+		# x.last["StoredValue"]	# .value = "0"
+	# x.pop
+	# x << x.last.create("","Current")
+		# x.last["Delta"]	# .value = "0"
+		# x.last["Store"]	# .value = "false"
+		# x.last["Value"]	# .value = "0"
+		# x.last["StoredValue"]	# .value = "0"
+	# x.pop
+	# x << x.last.create("","CosAv")
+		# x.last["Delta"]	# .value = "0"
+		# x.last["Store"]	# .value = "false"
+		# x.last["Value"]	# .value = "0"
+		# x.last["StoredValue"]	# .value = "0"
+	# x.pop
+	# x << x.last.create("","SinAv")
+		# x.last["Delta"]	# .value = "0"
+		# x.last["Store"]	# .value = "false"
+		# x.last["Value"]	# .value = "0"
+		# x.last["StoredValue"]	# .value = "0"
+	# x.pop
+	# x << x.last.create("","CosAv")
+		# x.last["Delta"]	# .value = "0"
+		# x.last["Store"]	# .value = "false"
+		# x.last["Value"]	# .value = "0"
+		# x.last["StoredValue"]	# .value = "0"
+	# x.pop
+	# x << x.last.create("","SinAv")
+		# x.last["Delta"]	# .value = "0"
+		# x.last["Store"]	# .value = "false"
+		# x.last["Value"]	# .value = "0"
+		# x.last["StoredValue"]	# .value = "0"
+	# x.pop
+	# x << x.last.create("","T1inv")
+		# x.last["Delta"]	# .value = "0"
+		# x.last["Store"]	# .value = "false"
+		# x.last["Value"]	# .value = "0"
+		# x.last["StoredValue"]	# .value = "0"
+	# x.pop
+	# x << x.last.create("","T1invErr")
+		# x.last["Delta"]	# .value = "0"
+		# x.last["Store"]	# .value = "false"
+		# x.last["Value"]	# .value = "0"
+		# x.last["StoredValue"]	# .value = "0"
+	# x.pop
+	# x << x.last.create("","Ch.A")
+		# x.last["Delta"]	# .value = "0"
+		# x.last["Store"]	# .value = "false"
+		# x.last["Value"]	# .value = "0"
+		# x.last["StoredValue"]	# .value = "0"
+	# x.pop
+	# x << x.last.create("","Ch.A.raw")
+		# x.last["Delta"]	# .value = "0"
+		# x.last["Store"]	# .value = "false"
+		# x.last["Value"]	# .value = "0"
+		# x.last["StoredValue"]	# .value = "0"
+	# x.pop
+	# x << x.last.create("","Ch.B")
+		# x.last["Delta"]	# .value = "0"
+		# x.last["Store"]	# .value = "false"
+		# x.last["Value"]	# .value = "0"
+		# x.last["StoredValue"]	# .value = "0"
+	# x.pop
+	# x << x.last.create("","Ch.B.raw")
+		# x.last["Delta"]	# .value = "0"
+		# x.last["Store"]	# .value = "false"
+		# x.last["Value"]	# .value = "0"
+		# x.last["StoredValue"]	# .value = "0"
+	# x.pop
+x.pop
+x.last["GraphList"]
+x << x.last["ChartList"]
+	# x << x.last.create("","Field")
+		# x << x.last["Field"]
+			# x.last["Label"]	# .value = "PS-Field"
+			# x << x.last["Axes"]
+				# x << x.last.create("bottom","")
+					# x.last["Label"]	# .value = "Time"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.8"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = "TIME:%T"
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+				# x << x.last.create("left","")
+					# x.last["Label"]	# .value = "PS-Field"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.75"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = ""
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+			# x.pop
+			# x << x.last["Plots"]
+				# x << x.last.create("XYPlot","PS-Field")
+					# x.last["MaxCount"]	# .value = "300"
+					# x.last["DisplayMajorGrid"]	# .value = "true"
+					# x.last["DisplayMinorGrid"]	# .value = "false"
+					# x.last["DrawLines"]	# .value = "true"
+					# x.last["DrawBars"]	# .value = "false"
+					# x.last["DrawPoints"]	# .value = "true"
+					# x.last["ColorPlot"]	# .value = "false"
+					# x.last["MajorGridColor"]	# .value = "ff00ffff"
+					# x.last["MinorGridColor"]	# .value = "ff808000"
+					# x.last["PointColor"]	# .value = "ffff0000"
+					# x.last["LineColor"]	# .value = "ffff0000"
+					# x.last["BarColor"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+					# x.last["ClearPoints"]
+					# x.last["AxisX"]	# .value = ""
+					# x.last["AxisY"]	# .value = ""
+					# x.last["AxisZ"]	# .value = ""
+					# x.last["ZwoAxisZ"]	# .value = "0.15"
+					# x.last["Intensity"]	# .value = "1.00"
+				# x.pop
+			# x.pop
+			# x.last["BackGround"]	# .value = "ffffffff"
+			# x.last["TitleColor"]	# .value = "ff000000"
+		# x.pop
+	# x.pop
+	# x << x.last.create("","Current")
+		# x << x.last["Current"]
+			# x.last["Label"]	# .value = "PS-Current"
+			# x << x.last["Axes"]
+				# x << x.last.create("bottom","")
+					# x.last["Label"]	# .value = "Time"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.8"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = "TIME:%T"
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+				# x << x.last.create("left","")
+					# x.last["Label"]	# .value = "PS-Current"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.75"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = ""
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+			# x.pop
+			# x << x.last["Plots"]
+				# x << x.last.create("XYPlot","PS-Current")
+					# x.last["MaxCount"]	# .value = "300"
+					# x.last["DisplayMajorGrid"]	# .value = "true"
+					# x.last["DisplayMinorGrid"]	# .value = "false"
+					# x.last["DrawLines"]	# .value = "true"
+					# x.last["DrawBars"]	# .value = "false"
+					# x.last["DrawPoints"]	# .value = "true"
+					# x.last["ColorPlot"]	# .value = "false"
+					# x.last["MajorGridColor"]	# .value = "ff00ffff"
+					# x.last["MinorGridColor"]	# .value = "ff808000"
+					# x.last["PointColor"]	# .value = "ffff0000"
+					# x.last["LineColor"]	# .value = "ffff0000"
+					# x.last["BarColor"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+					# x.last["ClearPoints"]
+					# x.last["AxisX"]	# .value = ""
+					# x.last["AxisY"]	# .value = ""
+					# x.last["AxisZ"]	# .value = ""
+					# x.last["ZwoAxisZ"]	# .value = "0.15"
+					# x.last["Intensity"]	# .value = "1.00"
+				# x.pop
+			# x.pop
+			# x.last["BackGround"]	# .value = "ffffffff"
+			# x.last["TitleColor"]	# .value = "ff000000"
+		# x.pop
+	# x.pop
+	# x << x.last.create("","CosAv")
+		# x << x.last["CosAv"]
+			# x.last["Label"]	# .value = "NMRPulse-CosAv"
+			# x << x.last["Axes"]
+				# x << x.last.create("bottom","")
+					# x.last["Label"]	# .value = "Time"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.8"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = "TIME:%T"
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+				# x << x.last.create("left","")
+					# x.last["Label"]	# .value = "NMRPulse-CosAv"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.75"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = ""
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+			# x.pop
+			# x << x.last["Plots"]
+				# x << x.last.create("XYPlot","NMRPulse-CosAv")
+					# x.last["MaxCount"]	# .value = "300"
+					# x.last["DisplayMajorGrid"]	# .value = "true"
+					# x.last["DisplayMinorGrid"]	# .value = "false"
+					# x.last["DrawLines"]	# .value = "true"
+					# x.last["DrawBars"]	# .value = "false"
+					# x.last["DrawPoints"]	# .value = "true"
+					# x.last["ColorPlot"]	# .value = "false"
+					# x.last["MajorGridColor"]	# .value = "ff00ffff"
+					# x.last["MinorGridColor"]	# .value = "ff808000"
+					# x.last["PointColor"]	# .value = "ffff0000"
+					# x.last["LineColor"]	# .value = "ffff0000"
+					# x.last["BarColor"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+					# x.last["ClearPoints"]
+					# x.last["AxisX"]	# .value = ""
+					# x.last["AxisY"]	# .value = ""
+					# x.last["AxisZ"]	# .value = ""
+					# x.last["ZwoAxisZ"]	# .value = "0.15"
+					# x.last["Intensity"]	# .value = "1.00"
+				# x.pop
+			# x.pop
+			# x.last["BackGround"]	# .value = "ffffffff"
+			# x.last["TitleColor"]	# .value = "ff000000"
+		# x.pop
+	# x.pop
+	# x << x.last.create("","SinAv")
+		# x << x.last["SinAv"]
+			# x.last["Label"]	# .value = "NMRPulse-SinAv"
+			# x << x.last["Axes"]
+				# x << x.last.create("bottom","")
+					# x.last["Label"]	# .value = "Time"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.8"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = "TIME:%T"
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+				# x << x.last.create("left","")
+					# x.last["Label"]	# .value = "NMRPulse-SinAv"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.75"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = ""
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+			# x.pop
+			# x << x.last["Plots"]
+				# x << x.last.create("XYPlot","NMRPulse-SinAv")
+					# x.last["MaxCount"]	# .value = "300"
+					# x.last["DisplayMajorGrid"]	# .value = "true"
+					# x.last["DisplayMinorGrid"]	# .value = "false"
+					# x.last["DrawLines"]	# .value = "true"
+					# x.last["DrawBars"]	# .value = "false"
+					# x.last["DrawPoints"]	# .value = "true"
+					# x.last["ColorPlot"]	# .value = "false"
+					# x.last["MajorGridColor"]	# .value = "ff00ffff"
+					# x.last["MinorGridColor"]	# .value = "ff808000"
+					# x.last["PointColor"]	# .value = "ffff0000"
+					# x.last["LineColor"]	# .value = "ffff0000"
+					# x.last["BarColor"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+					# x.last["ClearPoints"]
+					# x.last["AxisX"]	# .value = ""
+					# x.last["AxisY"]	# .value = ""
+					# x.last["AxisZ"]	# .value = ""
+					# x.last["ZwoAxisZ"]	# .value = "0.15"
+					# x.last["Intensity"]	# .value = "1.00"
+				# x.pop
+			# x.pop
+			# x.last["BackGround"]	# .value = "ffffffff"
+			# x.last["TitleColor"]	# .value = "ff000000"
+		# x.pop
+	# x.pop
+	# x << x.last.create("","CosAv")
+		# x << x.last["CosAv"]
+			# x.last["Label"]	# .value = "NMRPulse2-CosAv"
+			# x << x.last["Axes"]
+				# x << x.last.create("bottom","")
+					# x.last["Label"]	# .value = "Time"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.8"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = "TIME:%T"
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+				# x << x.last.create("left","")
+					# x.last["Label"]	# .value = "NMRPulse2-CosAv"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.75"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = ""
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+			# x.pop
+			# x << x.last["Plots"]
+				# x << x.last.create("XYPlot","NMRPulse2-CosAv")
+					# x.last["MaxCount"]	# .value = "300"
+					# x.last["DisplayMajorGrid"]	# .value = "true"
+					# x.last["DisplayMinorGrid"]	# .value = "false"
+					# x.last["DrawLines"]	# .value = "true"
+					# x.last["DrawBars"]	# .value = "false"
+					# x.last["DrawPoints"]	# .value = "true"
+					# x.last["ColorPlot"]	# .value = "false"
+					# x.last["MajorGridColor"]	# .value = "ff00ffff"
+					# x.last["MinorGridColor"]	# .value = "ff808000"
+					# x.last["PointColor"]	# .value = "ffff0000"
+					# x.last["LineColor"]	# .value = "ffff0000"
+					# x.last["BarColor"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+					# x.last["ClearPoints"]
+					# x.last["AxisX"]	# .value = ""
+					# x.last["AxisY"]	# .value = ""
+					# x.last["AxisZ"]	# .value = ""
+					# x.last["ZwoAxisZ"]	# .value = "0.15"
+					# x.last["Intensity"]	# .value = "1.00"
+				# x.pop
+			# x.pop
+			# x.last["BackGround"]	# .value = "ffffffff"
+			# x.last["TitleColor"]	# .value = "ff000000"
+		# x.pop
+	# x.pop
+	# x << x.last.create("","SinAv")
+		# x << x.last["SinAv"]
+			# x.last["Label"]	# .value = "NMRPulse2-SinAv"
+			# x << x.last["Axes"]
+				# x << x.last.create("bottom","")
+					# x.last["Label"]	# .value = "Time"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.8"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = "TIME:%T"
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+				# x << x.last.create("left","")
+					# x.last["Label"]	# .value = "NMRPulse2-SinAv"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.75"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = ""
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+			# x.pop
+			# x << x.last["Plots"]
+				# x << x.last.create("XYPlot","NMRPulse2-SinAv")
+					# x.last["MaxCount"]	# .value = "300"
+					# x.last["DisplayMajorGrid"]	# .value = "true"
+					# x.last["DisplayMinorGrid"]	# .value = "false"
+					# x.last["DrawLines"]	# .value = "true"
+					# x.last["DrawBars"]	# .value = "false"
+					# x.last["DrawPoints"]	# .value = "true"
+					# x.last["ColorPlot"]	# .value = "false"
+					# x.last["MajorGridColor"]	# .value = "ff00ffff"
+					# x.last["MinorGridColor"]	# .value = "ff808000"
+					# x.last["PointColor"]	# .value = "ffff0000"
+					# x.last["LineColor"]	# .value = "ffff0000"
+					# x.last["BarColor"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+					# x.last["ClearPoints"]
+					# x.last["AxisX"]	# .value = ""
+					# x.last["AxisY"]	# .value = ""
+					# x.last["AxisZ"]	# .value = ""
+					# x.last["ZwoAxisZ"]	# .value = "0.15"
+					# x.last["Intensity"]	# .value = "1.00"
+				# x.pop
+			# x.pop
+			# x.last["BackGround"]	# .value = "ffffffff"
+			# x.last["TitleColor"]	# .value = "ff000000"
+		# x.pop
+	# x.pop
+	# x << x.last.create("","T1inv")
+		# x << x.last["T1inv"]
+			# x.last["Label"]	# .value = "NMRT1-T1inv"
+			# x << x.last["Axes"]
+				# x << x.last.create("bottom","")
+					# x.last["Label"]	# .value = "Time"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.8"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = "TIME:%T"
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+				# x << x.last.create("left","")
+					# x.last["Label"]	# .value = "NMRT1-T1inv"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.75"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = ""
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+			# x.pop
+			# x << x.last["Plots"]
+				# x << x.last.create("XYPlot","NMRT1-T1inv")
+					# x.last["MaxCount"]	# .value = "300"
+					# x.last["DisplayMajorGrid"]	# .value = "true"
+					# x.last["DisplayMinorGrid"]	# .value = "false"
+					# x.last["DrawLines"]	# .value = "true"
+					# x.last["DrawBars"]	# .value = "false"
+					# x.last["DrawPoints"]	# .value = "true"
+					# x.last["ColorPlot"]	# .value = "false"
+					# x.last["MajorGridColor"]	# .value = "ff00ffff"
+					# x.last["MinorGridColor"]	# .value = "ff808000"
+					# x.last["PointColor"]	# .value = "ffff0000"
+					# x.last["LineColor"]	# .value = "ffff0000"
+					# x.last["BarColor"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+					# x.last["ClearPoints"]
+					# x.last["AxisX"]	# .value = ""
+					# x.last["AxisY"]	# .value = ""
+					# x.last["AxisZ"]	# .value = ""
+					# x.last["ZwoAxisZ"]	# .value = "0.15"
+					# x.last["Intensity"]	# .value = "1.00"
+				# x.pop
+			# x.pop
+			# x.last["BackGround"]	# .value = "ffffffff"
+			# x.last["TitleColor"]	# .value = "ff000000"
+		# x.pop
+	# x.pop
+	# x << x.last.create("","T1invErr")
+		# x << x.last["T1invErr"]
+			# x.last["Label"]	# .value = "NMRT1-T1invErr"
+			# x << x.last["Axes"]
+				# x << x.last.create("bottom","")
+					# x.last["Label"]	# .value = "Time"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.8"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = "TIME:%T"
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+				# x << x.last.create("left","")
+					# x.last["Label"]	# .value = "NMRT1-T1invErr"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.75"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = ""
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+			# x.pop
+			# x << x.last["Plots"]
+				# x << x.last.create("XYPlot","NMRT1-T1invErr")
+					# x.last["MaxCount"]	# .value = "300"
+					# x.last["DisplayMajorGrid"]	# .value = "true"
+					# x.last["DisplayMinorGrid"]	# .value = "false"
+					# x.last["DrawLines"]	# .value = "true"
+					# x.last["DrawBars"]	# .value = "false"
+					# x.last["DrawPoints"]	# .value = "true"
+					# x.last["ColorPlot"]	# .value = "false"
+					# x.last["MajorGridColor"]	# .value = "ff00ffff"
+					# x.last["MinorGridColor"]	# .value = "ff808000"
+					# x.last["PointColor"]	# .value = "ffff0000"
+					# x.last["LineColor"]	# .value = "ffff0000"
+					# x.last["BarColor"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+					# x.last["ClearPoints"]
+					# x.last["AxisX"]	# .value = ""
+					# x.last["AxisY"]	# .value = ""
+					# x.last["AxisZ"]	# .value = ""
+					# x.last["ZwoAxisZ"]	# .value = "0.15"
+					# x.last["Intensity"]	# .value = "1.00"
+				# x.pop
+			# x.pop
+			# x.last["BackGround"]	# .value = "ffffffff"
+			# x.last["TitleColor"]	# .value = "ff000000"
+		# x.pop
+	# x.pop
+	# x << x.last.create("","Ch.A")
+		# x << x.last["Ch.A"]
+			# x.last["Label"]	# .value = "temp1-Ch.A"
+			# x << x.last["Axes"]
+				# x << x.last.create("bottom","")
+					# x.last["Label"]	# .value = "Time"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.8"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = "TIME:%T"
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+				# x << x.last.create("left","")
+					# x.last["Label"]	# .value = "temp1-Ch.A"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.75"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = "%.4g"
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+			# x.pop
+			# x << x.last["Plots"]
+				# x << x.last.create("XYPlot","temp1-Ch.A")
+					# x.last["MaxCount"]	# .value = "300"
+					# x.last["DisplayMajorGrid"]	# .value = "true"
+					# x.last["DisplayMinorGrid"]	# .value = "false"
+					# x.last["DrawLines"]	# .value = "true"
+					# x.last["DrawBars"]	# .value = "false"
+					# x.last["DrawPoints"]	# .value = "true"
+					# x.last["ColorPlot"]	# .value = "false"
+					# x.last["MajorGridColor"]	# .value = "ff00ffff"
+					# x.last["MinorGridColor"]	# .value = "ff808000"
+					# x.last["PointColor"]	# .value = "ffff0000"
+					# x.last["LineColor"]	# .value = "ffff0000"
+					# x.last["BarColor"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+					# x.last["ClearPoints"]
+					# x.last["AxisX"]	# .value = ""
+					# x.last["AxisY"]	# .value = ""
+					# x.last["AxisZ"]	# .value = ""
+					# x.last["ZwoAxisZ"]	# .value = "0.15"
+					# x.last["Intensity"]	# .value = "1.00"
+				# x.pop
+			# x.pop
+			# x.last["BackGround"]	# .value = "ffffffff"
+			# x.last["TitleColor"]	# .value = "ff000000"
+		# x.pop
+	# x.pop
+	# x << x.last.create("","Ch.A.raw")
+		# x << x.last["Ch.A.raw"]
+			# x.last["Label"]	# .value = "temp1-Ch.A.raw"
+			# x << x.last["Axes"]
+				# x << x.last.create("bottom","")
+					# x.last["Label"]	# .value = "Time"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.8"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = "TIME:%T"
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+				# x << x.last.create("left","")
+					# x.last["Label"]	# .value = "temp1-Ch.A.raw"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.75"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = "%.4g"
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+			# x.pop
+			# x << x.last["Plots"]
+				# x << x.last.create("XYPlot","temp1-Ch.A.raw")
+					# x.last["MaxCount"]	# .value = "300"
+					# x.last["DisplayMajorGrid"]	# .value = "true"
+					# x.last["DisplayMinorGrid"]	# .value = "false"
+					# x.last["DrawLines"]	# .value = "true"
+					# x.last["DrawBars"]	# .value = "false"
+					# x.last["DrawPoints"]	# .value = "true"
+					# x.last["ColorPlot"]	# .value = "false"
+					# x.last["MajorGridColor"]	# .value = "ff00ffff"
+					# x.last["MinorGridColor"]	# .value = "ff808000"
+					# x.last["PointColor"]	# .value = "ffff0000"
+					# x.last["LineColor"]	# .value = "ffff0000"
+					# x.last["BarColor"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+					# x.last["ClearPoints"]
+					# x.last["AxisX"]	# .value = ""
+					# x.last["AxisY"]	# .value = ""
+					# x.last["AxisZ"]	# .value = ""
+					# x.last["ZwoAxisZ"]	# .value = "0.15"
+					# x.last["Intensity"]	# .value = "1.00"
+				# x.pop
+			# x.pop
+			# x.last["BackGround"]	# .value = "ffffffff"
+			# x.last["TitleColor"]	# .value = "ff000000"
+		# x.pop
+	# x.pop
+	# x << x.last.create("","Ch.B")
+		# x << x.last["Ch.B"]
+			# x.last["Label"]	# .value = "temp1-Ch.B"
+			# x << x.last["Axes"]
+				# x << x.last.create("bottom","")
+					# x.last["Label"]	# .value = "Time"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.8"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = "TIME:%T"
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+				# x << x.last.create("left","")
+					# x.last["Label"]	# .value = "temp1-Ch.B"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.75"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = "%.4g"
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+			# x.pop
+			# x << x.last["Plots"]
+				# x << x.last.create("XYPlot","temp1-Ch.B")
+					# x.last["MaxCount"]	# .value = "300"
+					# x.last["DisplayMajorGrid"]	# .value = "true"
+					# x.last["DisplayMinorGrid"]	# .value = "false"
+					# x.last["DrawLines"]	# .value = "true"
+					# x.last["DrawBars"]	# .value = "false"
+					# x.last["DrawPoints"]	# .value = "true"
+					# x.last["ColorPlot"]	# .value = "false"
+					# x.last["MajorGridColor"]	# .value = "ff00ffff"
+					# x.last["MinorGridColor"]	# .value = "ff808000"
+					# x.last["PointColor"]	# .value = "ffff0000"
+					# x.last["LineColor"]	# .value = "ffff0000"
+					# x.last["BarColor"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+					# x.last["ClearPoints"]
+					# x.last["AxisX"]	# .value = ""
+					# x.last["AxisY"]	# .value = ""
+					# x.last["AxisZ"]	# .value = ""
+					# x.last["ZwoAxisZ"]	# .value = "0.15"
+					# x.last["Intensity"]	# .value = "1.00"
+				# x.pop
+			# x.pop
+			# x.last["BackGround"]	# .value = "ffffffff"
+			# x.last["TitleColor"]	# .value = "ff000000"
+		# x.pop
+	# x.pop
+	# x << x.last.create("","Ch.B.raw")
+		# x << x.last["Ch.B.raw"]
+			# x.last["Label"]	# .value = "temp1-Ch.B.raw"
+			# x << x.last["Axes"]
+				# x << x.last.create("bottom","")
+					# x.last["Label"]	# .value = "Time"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.8"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = "TIME:%T"
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+				# x << x.last.create("left","")
+					# x.last["Label"]	# .value = "temp1-Ch.B.raw"
+					# x.last["X"]	# .value = "0.15"
+					# x.last["Y"]	# .value = "0.15"
+					# x.last["Z"]	# .value = "0.15"
+					# x.last["Length"]	# .value = "0.75"
+					# x.last["MajorTicScale"]	# .value = "10"
+					# x.last["MinorTicScale"]	# .value = "1"
+					# x.last["DisplayMajorTics"]	# .value = "true"
+					# x.last["DisplayMinorTics"]	# .value = "true"
+					# x.last["Max"]	# .value = "0"
+					# x.last["Min"]	# .value = "0"
+					# x.last["RightOrTopSided"]	# .value = "false"
+					# x.last["TicLabelFormat"]	# .value = "%.4g"
+					# x.last["DisplayLabel"]	# .value = "true"
+					# x.last["DisplayTicLabels"]	# .value = "true"
+					# x.last["TicColor"]	# .value = "ff000000"
+					# x.last["LabelColor"]	# .value = "ff000000"
+					# x.last["TicLabelColor"]	# .value = "ff000000"
+					# x.last["AutoFreq"]	# .value = "true"
+					# x.last["AutoScale"]	# .value = "true"
+					# x.last["LogScale"]	# .value = "false"
+				# x.pop
+			# x.pop
+			# x << x.last["Plots"]
+				# x << x.last.create("XYPlot","temp1-Ch.B.raw")
+					# x.last["MaxCount"]	# .value = "300"
+					# x.last["DisplayMajorGrid"]	# .value = "true"
+					# x.last["DisplayMinorGrid"]	# .value = "false"
+					# x.last["DrawLines"]	# .value = "true"
+					# x.last["DrawBars"]	# .value = "false"
+					# x.last["DrawPoints"]	# .value = "true"
+					# x.last["ColorPlot"]	# .value = "false"
+					# x.last["MajorGridColor"]	# .value = "ff00ffff"
+					# x.last["MinorGridColor"]	# .value = "ff808000"
+					# x.last["PointColor"]	# .value = "ffff0000"
+					# x.last["LineColor"]	# .value = "ffff0000"
+					# x.last["BarColor"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+					# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+					# x.last["ClearPoints"]
+					# x.last["AxisX"]	# .value = ""
+					# x.last["AxisY"]	# .value = ""
+					# x.last["AxisZ"]	# .value = ""
+					# x.last["ZwoAxisZ"]	# .value = "0.15"
+					# x.last["Intensity"]	# .value = "1.00"
+				# x.pop
+			# x.pop
+			# x.last["BackGround"]	# .value = "ffffffff"
+			# x.last["TitleColor"]	# .value = "ff000000"
+		# x.pop
+	# x.pop
+x.pop
+x << x.last["Drivers"]
+	x << x.last.create("TDS","DSO")
+		x << x.last["Interface"]
+			# x.last["Device"]	# .value = ""
+			# x.last["Port"]	# .value = ""
+			# x.last["Address"]	# .value = "5"
+			# x.last["BaudRate"]	# .value = "9600"
+			# x.last["Opened"]	# .value = "false"
+		x.pop
+		x.last["Average"].value = "0"
+		x.last["SingleSequence"].value = "true"
+		x.last["Fetch"].value = "true"
+		x.last["TrigPos"]	# .value = "0"
+		x.last["TimeWidth"]	# .value = "0"
+		x.last["VFullScale1"]	# .value = "0"
+		x.last["VFullScale2"]	# .value = "0"
+		x.last["VOffset1"]	# .value = "0"
+		x.last["VOffset2"]	# .value = "0"
+		x.last["RecordLength"]	# .value = ""
+		x.last["ForceTrigger"]
+		x.last["Trace1"].value = ""
+		x.last["Trace2"].value = ""
+		x.last["FIREnabled"].value = "true"
+		x.last["FIRBandWidth"].value = "1000"
+		x.last["FIRCenterFreq"].value = "0"
+		x.last["FIRSharpness"].value = "4.5"
+		x << x.last["WaveForm"]
+			x << x.last["WaveForm"]
+				x.last["Label"]	# .value = "WaveForm"
+				x << x.last["Axes"]
+					# x << x.last.create("bottom","")
+						# x.last["Label"]	# .value = "Time [sec]"
+						# x.last["X"]	# .value = "0.15"
+						# x.last["Y"]	# .value = "0.15"
+						# x.last["Z"]	# .value = "0.15"
+						# x.last["Length"]	# .value = "0.7"
+						# x.last["MajorTicScale"]	# .value = "10"
+						# x.last["MinorTicScale"]	# .value = "1"
+						# x.last["DisplayMajorTics"]	# .value = "true"
+						# x.last["DisplayMinorTics"]	# .value = "true"
+						# x.last["Max"]	# .value = "0"
+						# x.last["Min"]	# .value = "0"
+						# x.last["RightOrTopSided"]	# .value = "false"
+						# x.last["TicLabelFormat"]	# .value = ""
+						# x.last["DisplayLabel"]	# .value = "true"
+						# x.last["DisplayTicLabels"]	# .value = "true"
+						# x.last["TicColor"]	# .value = "ff000000"
+						# x.last["LabelColor"]	# .value = "ff000000"
+						# x.last["TicLabelColor"]	# .value = "ff000000"
+						# x.last["AutoFreq"]	# .value = "true"
+						# x.last["AutoScale"]	# .value = "true"
+						# x.last["LogScale"]	# .value = "false"
+					# x.pop
+					# x << x.last.create("left","")
+						# x.last["Label"]	# .value = "Trace1 [V]"
+						# x.last["X"]	# .value = "0.15"
+						# x.last["Y"]	# .value = "0.15"
+						# x.last["Z"]	# .value = "0.15"
+						# x.last["Length"]	# .value = "0.7"
+						# x.last["MajorTicScale"]	# .value = "10"
+						# x.last["MinorTicScale"]	# .value = "1"
+						# x.last["DisplayMajorTics"]	# .value = "true"
+						# x.last["DisplayMinorTics"]	# .value = "true"
+						# x.last["Max"]	# .value = "0"
+						# x.last["Min"]	# .value = "0"
+						# x.last["RightOrTopSided"]	# .value = "false"
+						# x.last["TicLabelFormat"]	# .value = ""
+						# x.last["DisplayLabel"]	# .value = "true"
+						# x.last["DisplayTicLabels"]	# .value = "true"
+						# x.last["TicColor"]	# .value = "ff000000"
+						# x.last["LabelColor"]	# .value = "ff000000"
+						# x.last["TicLabelColor"]	# .value = "ff000000"
+						# x.last["AutoFreq"]	# .value = "true"
+						# x.last["AutoScale"]	# .value = "true"
+						# x.last["LogScale"]	# .value = "false"
+					# x.pop
+				x.pop
+				x << x.last["Plots"]
+					# x << x.last.create("XYPlot","Plot1")
+						# x.last["MaxCount"]	# .value = "0"
+						# x.last["DisplayMajorGrid"]	# .value = "true"
+						# x.last["DisplayMinorGrid"]	# .value = "false"
+						# x.last["DrawLines"]	# .value = "true"
+						# x.last["DrawBars"]	# .value = "false"
+						# x.last["DrawPoints"]	# .value = "true"
+						# x.last["ColorPlot"]	# .value = "false"
+						# x.last["MajorGridColor"]	# .value = "ff00ffff"
+						# x.last["MinorGridColor"]	# .value = "ff808000"
+						# x.last["PointColor"]	# .value = "ffff0000"
+						# x.last["LineColor"]	# .value = "ffff0000"
+						# x.last["BarColor"]	# .value = "ffff0000"
+						# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+						# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+						# x.last["ClearPoints"]
+						# x.last["AxisX"]	# .value = ""
+						# x.last["AxisY"]	# .value = ""
+						# x.last["AxisZ"]	# .value = ""
+						# x.last["ZwoAxisZ"]	# .value = "0.15"
+						# x.last["Intensity"]	# .value = "1.00"
+					# x.pop
+				x.pop
+				x.last["BackGround"]	# .value = "ffffffff"
+				x.last["TitleColor"]	# .value = "ff000000"
+			x.pop
+			x.last["Dump"]
+			x.last["FileName"]	# .value = ""
+		x.pop
+	x.pop
+	x << x.last.create("SHPulser","Pulser")
+		x << x.last["Interface"]
+			# x.last["Device"]	# .value = ""
+			# x.last["Port"]	# .value = "/dev/ttyUSB0"
+			# x.last["Address"]	# .value = "0"
+			# x.last["BaudRate"]	# .value = "115200"
+			# x.last["Opened"]	# .value = "false"
+		x.pop
+		x.last["Output"]	# .value = "false"
+		x.last["CombMode"].value = "Comb Off"
+		x.last["RTMode"].value = "Fix Rest Time"
+		x.last["NumPhaseCycle"].value = "16"
+		x.last["RT"].value = "100"
+		x.last["Tau"].value = "100"
+		x.last["CombPW"].value = "5"
+		x.last["PW1"].value = "5"
+		x.last["PW2"].value = "10"
+		x.last["CombPT"].value = "20"
+		x.last["CombP1"].value = "0.2"
+		x.last["CombP1Alt"].value = "50"
+		x.last["ASWSetup"].value = "0.02"
+		x.last["ASWHold"].value = "0.23"
+		x.last["ALTSep"].value = "0.25"
+		x.last["Gate2Setup"].value = "5"
+		x.last["CombNum"].value = "1"
+		x.last["EchoNum"].value = "1"
+		x.last["DrivenEquilibrium"].value = "false"
+		x.last["CombOffRes"].value = "0"
+		x.last["CombFunc"].value = "Flat-Top BW=3.2/T"
+		x.last["P1Func"].value = "Kaiser(7.2) BW=2.6/T"
+		x.last["P2Func"].value = "Kaiser(7.2) BW=2.6/T"
+		x.last["CombLevel"].value = "-5"
+		x.last["P1Level"].value = "-5"
+		x.last["P2Level"].value = "-0.5"
+		x.last["MasterLevel"].value = "-10"
+		x.last["ASWFilter"].value = "2MHz"
+		x.last["PortLevel8"].value = "0"
+		x.last["PortLevel9"].value = "0"
+		x.last["PortLevel10"].value = "0"
+		x.last["PortLevel11"].value = "0"
+		x.last["PortLevel12"].value = "0"
+		x.last["PortLevel13"].value = "0"
+		x.last["PortLevel14"].value = "0"
+		x.last["QAMOffset1"].value = "0"
+		x.last["QAMOffset2"].value = "0"
+		x.last["QAMLevel1"].value = "1"
+		x.last["QAMLevel2"].value = "1"
+		x.last["QAMDelay1"].value = "0"
+		x.last["QAMDelay2"].value = "0"
+		x.last["DIFFreq"].value = "0"
+		x.last["MoreConfigShow"]
+	x.pop
+	x << x.last.create("IPS120","PS")
+		x << x.last["Field"]
+			x.last["Delta"].value = "0"
+			x.last["Store"].value = "false"
+			x.last["Value"]	# .value = "0"
+			x.last["StoredValue"]	# .value = "0"
+		x.pop
+		x << x.last["Current"]
+			x.last["Delta"].value = "0"
+			x.last["Store"].value = "false"
+			x.last["Value"]	# .value = "0"
+			x.last["StoredValue"]	# .value = "0"
+		x.pop
+		x.last["TargetField"]	# .value = "0"
+		x.last["SweepRate"]	# .value = "0"
+		x.last["AllowPersistent"]	# .value = "false"
+		x.last["Stabilized"]	# .value = "0"
+		x.last["MagnetField"]	# .value = "0"
+		x.last["OutpuField"]	# .value = "0"
+		x.last["OutputCurrent"]	# .value = "0"
+		x.last["OutputVolt"]	# .value = "0"
+		x.last["PCSHeater"]	# .value = "false"
+		x.last["Persistent"]	# .value = "false"
+		x << x.last["Interface"]
+			# x.last["Device"]	# .value = ""
+			# x.last["Port"]	# .value = "/dev/ttyS0"
+			# x.last["Address"]	# .value = "0"
+			# x.last["BaudRate"]	# .value = "9600"
+			# x.last["Opened"]	# .value = "false"
+		x.pop
+	x.pop
+	x << x.last.create("NMRPulseAnalyzer","NMRPulse")
+		x << x.last["CosAv"]
+			x.last["Delta"].value = "0"
+			x.last["Store"].value = "false"
+			x.last["Value"]	# .value = "0"
+			x.last["StoredValue"]	# .value = "0"
+		x.pop
+		x << x.last["SinAv"]
+			x.last["Delta"].value = "0"
+			x.last["Store"].value = "false"
+			x.last["Value"]	# .value = "0"
+			x.last["StoredValue"]	# .value = "0"
+		x.pop
+		x.last["DSO"].value = "DSO"
+		x.last["FromTrig"].value = "-0.1"
+		x.last["Width"].value = "0.2"
+		x.last["PhaseAdv"].value = "0"
+		x.last["UseDNR"].value = "false"
+		x.last["BGPos"].value = "0.11"
+		x.last["BGWidth"].value = "0.14"
+		x.last["FFTPos"].value = "0.004"
+		x.last["FFTLen"].value = "16384"
+		x.last["WindowFunc"].value = "Rect."
+		x.last["DIFFreq"].value = "0"
+		x.last["ExAvgIncr"].value = "false"
+		x.last["ExtraAvg"].value = "0"
+		x.last["NumEcho"].value = "1"
+		x.last["EchoPeriod"].value = "0"
+		x.last["FFTShow"]
+		x.last["AvgClear"]
+		x << x.last["Wave"]
+			# x << x.last["Wave"]
+				# x.last["Label"]	# .value = "Wave"
+				# x << x.last["Axes"]
+					# x << x.last.create("bottom","")
+						# x.last["Label"]	# .value = "Time [ms]"
+						# x.last["X"]	# .value = "0.15"
+						# x.last["Y"]	# .value = "0.15"
+						# x.last["Z"]	# .value = "0.15"
+						# x.last["Length"]	# .value = "0.7"
+						# x.last["MajorTicScale"]	# .value = "10"
+						# x.last["MinorTicScale"]	# .value = "1"
+						# x.last["DisplayMajorTics"]	# .value = "true"
+						# x.last["DisplayMinorTics"]	# .value = "true"
+						# x.last["Max"]	# .value = "0"
+						# x.last["Min"]	# .value = "0"
+						# x.last["RightOrTopSided"]	# .value = "false"
+						# x.last["TicLabelFormat"]	# .value = ""
+						# x.last["DisplayLabel"]	# .value = "true"
+						# x.last["DisplayTicLabels"]	# .value = "true"
+						# x.last["TicColor"]	# .value = "ff000000"
+						# x.last["LabelColor"]	# .value = "ff000000"
+						# x.last["TicLabelColor"]	# .value = "ff000000"
+						# x.last["AutoFreq"]	# .value = "true"
+						# x.last["AutoScale"]	# .value = "true"
+						# x.last["LogScale"]	# .value = "false"
+					# x.pop
+					# x << x.last.create("left","")
+						# x.last["Label"]	# .value = "Cos [V]"
+						# x.last["X"]	# .value = "0.15"
+						# x.last["Y"]	# .value = "0.15"
+						# x.last["Z"]	# .value = "0.15"
+						# x.last["Length"]	# .value = "0.7"
+						# x.last["MajorTicScale"]	# .value = "10"
+						# x.last["MinorTicScale"]	# .value = "1"
+						# x.last["DisplayMajorTics"]	# .value = "true"
+						# x.last["DisplayMinorTics"]	# .value = "true"
+						# x.last["Max"]	# .value = "0"
+						# x.last["Min"]	# .value = "0"
+						# x.last["RightOrTopSided"]	# .value = "false"
+						# x.last["TicLabelFormat"]	# .value = ""
+						# x.last["DisplayLabel"]	# .value = "true"
+						# x.last["DisplayTicLabels"]	# .value = "true"
+						# x.last["TicColor"]	# .value = "ff000000"
+						# x.last["LabelColor"]	# .value = "ff000000"
+						# x.last["TicLabelColor"]	# .value = "ff000000"
+						# x.last["AutoFreq"]	# .value = "true"
+						# x.last["AutoScale"]	# .value = "true"
+						# x.last["LogScale"]	# .value = "false"
+					# x.pop
+					# x << x.last.create("right","")
+						# x.last["Label"]	# .value = "Sin [V]"
+						# x.last["X"]	# .value = "0.85"
+						# x.last["Y"]	# .value = "0.15"
+						# x.last["Z"]	# .value = "0.15"
+						# x.last["Length"]	# .value = "0.7"
+						# x.last["MajorTicScale"]	# .value = "10"
+						# x.last["MinorTicScale"]	# .value = "1"
+						# x.last["DisplayMajorTics"]	# .value = "true"
+						# x.last["DisplayMinorTics"]	# .value = "true"
+						# x.last["Max"]	# .value = "0"
+						# x.last["Min"]	# .value = "0"
+						# x.last["RightOrTopSided"]	# .value = "true"
+						# x.last["TicLabelFormat"]	# .value = ""
+						# x.last["DisplayLabel"]	# .value = "true"
+						# x.last["DisplayTicLabels"]	# .value = "true"
+						# x.last["TicColor"]	# .value = "ff000000"
+						# x.last["LabelColor"]	# .value = "ff000000"
+						# x.last["TicLabelColor"]	# .value = "ff000000"
+						# x.last["AutoFreq"]	# .value = "true"
+						# x.last["AutoScale"]	# .value = "true"
+						# x.last["LogScale"]	# .value = "false"
+					# x.pop
+				# x.pop
+				# x << x.last["Plots"]
+					# x << x.last.create("XYPlot","Plot1")
+						# x.last["MaxCount"]	# .value = "0"
+						# x.last["DisplayMajorGrid"]	# .value = "true"
+						# x.last["DisplayMinorGrid"]	# .value = "false"
+						# x.last["DrawLines"]	# .value = "true"
+						# x.last["DrawBars"]	# .value = "false"
+						# x.last["DrawPoints"]	# .value = "false"
+						# x.last["ColorPlot"]	# .value = "false"
+						# x.last["MajorGridColor"]	# .value = "ff00ffff"
+						# x.last["MinorGridColor"]	# .value = "ff808000"
+						# x.last["PointColor"]	# .value = "ffff0000"
+						# x.last["LineColor"]	# .value = "ffff0000"
+						# x.last["BarColor"]	# .value = "ffff0000"
+						# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+						# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+						# x.last["ClearPoints"]
+						# x.last["AxisX"]	# .value = ""
+						# x.last["AxisY"]	# .value = ""
+						# x.last["AxisZ"]	# .value = ""
+						# x.last["ZwoAxisZ"]	# .value = "0.15"
+						# x.last["Intensity"]	# .value = "1.00"
+					# x.pop
+					# x << x.last.create("XYPlot","Plot2")
+						# x.last["MaxCount"]	# .value = "0"
+						# x.last["DisplayMajorGrid"]	# .value = "false"
+						# x.last["DisplayMinorGrid"]	# .value = "false"
+						# x.last["DrawLines"]	# .value = "true"
+						# x.last["DrawBars"]	# .value = "false"
+						# x.last["DrawPoints"]	# .value = "false"
+						# x.last["ColorPlot"]	# .value = "false"
+						# x.last["MajorGridColor"]	# .value = "ff00ffff"
+						# x.last["MinorGridColor"]	# .value = "ff808000"
+						# x.last["PointColor"]	# .value = "ff00ff00"
+						# x.last["LineColor"]	# .value = "ff00ff00"
+						# x.last["BarColor"]	# .value = "ff00ff00"
+						# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+						# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+						# x.last["ClearPoints"]
+						# x.last["AxisX"]	# .value = ""
+						# x.last["AxisY"]	# .value = ""
+						# x.last["AxisZ"]	# .value = ""
+						# x.last["ZwoAxisZ"]	# .value = "0.15"
+						# x.last["Intensity"]	# .value = "1.00"
+					# x.pop
+				# x.pop
+				# x.last["BackGround"]	# .value = "ffffffff"
+				# x.last["TitleColor"]	# .value = "ff000000"
+			# x.pop
+			# x.last["Dump"]
+			# x.last["FileName"]	# .value = ""
+		x.pop
+		x << x.last["Spectrum"]
+			# x << x.last["Spectrum"]
+				# x.last["Label"]	# .value = "Spectrum"
+				# x << x.last["Axes"]
+					# x << x.last.create("bottom","")
+						# x.last["Label"]	# .value = "Freq. [kHz]"
+						# x.last["X"]	# .value = "0.15"
+						# x.last["Y"]	# .value = "0.15"
+						# x.last["Z"]	# .value = "0.15"
+						# x.last["Length"]	# .value = "0.7"
+						# x.last["MajorTicScale"]	# .value = "10"
+						# x.last["MinorTicScale"]	# .value = "1"
+						# x.last["DisplayMajorTics"]	# .value = "true"
+						# x.last["DisplayMinorTics"]	# .value = "true"
+						# x.last["Max"]	# .value = "0"
+						# x.last["Min"]	# .value = "0"
+						# x.last["RightOrTopSided"]	# .value = "false"
+						# x.last["TicLabelFormat"]	# .value = ""
+						# x.last["DisplayLabel"]	# .value = "true"
+						# x.last["DisplayTicLabels"]	# .value = "true"
+						# x.last["TicColor"]	# .value = "ff000000"
+						# x.last["LabelColor"]	# .value = "ff000000"
+						# x.last["TicLabelColor"]	# .value = "ff000000"
+						# x.last["AutoFreq"]	# .value = "true"
+						# x.last["AutoScale"]	# .value = "true"
+						# x.last["LogScale"]	# .value = "false"
+					# x.pop
+					# x << x.last.create("left","")
+						# x.last["Label"]	# .value = "Abs. [V]"
+						# x.last["X"]	# .value = "0.15"
+						# x.last["Y"]	# .value = "0.15"
+						# x.last["Z"]	# .value = "0.15"
+						# x.last["Length"]	# .value = "0.7"
+						# x.last["MajorTicScale"]	# .value = "10"
+						# x.last["MinorTicScale"]	# .value = "1"
+						# x.last["DisplayMajorTics"]	# .value = "true"
+						# x.last["DisplayMinorTics"]	# .value = "true"
+						# x.last["Max"]	# .value = "0"
+						# x.last["Min"]	# .value = "0"
+						# x.last["RightOrTopSided"]	# .value = "false"
+						# x.last["TicLabelFormat"]	# .value = ""
+						# x.last["DisplayLabel"]	# .value = "true"
+						# x.last["DisplayTicLabels"]	# .value = "true"
+						# x.last["TicColor"]	# .value = "ff000000"
+						# x.last["LabelColor"]	# .value = "ff000000"
+						# x.last["TicLabelColor"]	# .value = "ff000000"
+						# x.last["AutoFreq"]	# .value = "true"
+						# x.last["AutoScale"]	# .value = "true"
+						# x.last["LogScale"]	# .value = "false"
+					# x.pop
+					# x << x.last.create("right","")
+						# x.last["Label"]	# .value = "Phase [deg]"
+						# x.last["X"]	# .value = "0.85"
+						# x.last["Y"]	# .value = "0.15"
+						# x.last["Z"]	# .value = "0.15"
+						# x.last["Length"]	# .value = "0.7"
+						# x.last["MajorTicScale"]	# .value = "10"
+						# x.last["MinorTicScale"]	# .value = "1"
+						# x.last["DisplayMajorTics"]	# .value = "true"
+						# x.last["DisplayMinorTics"]	# .value = "true"
+						# x.last["Max"]	# .value = "0"
+						# x.last["Min"]	# .value = "0"
+						# x.last["RightOrTopSided"]	# .value = "true"
+						# x.last["TicLabelFormat"]	# .value = ""
+						# x.last["DisplayLabel"]	# .value = "true"
+						# x.last["DisplayTicLabels"]	# .value = "true"
+						# x.last["TicColor"]	# .value = "ff000000"
+						# x.last["LabelColor"]	# .value = "ff000000"
+						# x.last["TicLabelColor"]	# .value = "ff000000"
+						# x.last["AutoFreq"]	# .value = "true"
+						# x.last["AutoScale"]	# .value = "true"
+						# x.last["LogScale"]	# .value = "false"
+					# x.pop
+				# x.pop
+				# x << x.last["Plots"]
+					# x << x.last.create("XYPlot","Plot1")
+						# x.last["MaxCount"]	# .value = "0"
+						# x.last["DisplayMajorGrid"]	# .value = "true"
+						# x.last["DisplayMinorGrid"]	# .value = "false"
+						# x.last["DrawLines"]	# .value = "false"
+						# x.last["DrawBars"]	# .value = "true"
+						# x.last["DrawPoints"]	# .value = "false"
+						# x.last["ColorPlot"]	# .value = "false"
+						# x.last["MajorGridColor"]	# .value = "ff00ffff"
+						# x.last["MinorGridColor"]	# .value = "ff808000"
+						# x.last["PointColor"]	# .value = "ffff0000"
+						# x.last["LineColor"]	# .value = "ffff0000"
+						# x.last["BarColor"]	# .value = "ffff0000"
+						# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+						# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+						# x.last["ClearPoints"]
+						# x.last["AxisX"]	# .value = ""
+						# x.last["AxisY"]	# .value = ""
+						# x.last["AxisZ"]	# .value = ""
+						# x.last["ZwoAxisZ"]	# .value = "0.15"
+						# x.last["Intensity"]	# .value = "1.00"
+					# x.pop
+					# x << x.last.create("XYPlot","Plot2")
+						# x.last["MaxCount"]	# .value = "0"
+						# x.last["DisplayMajorGrid"]	# .value = "false"
+						# x.last["DisplayMinorGrid"]	# .value = "false"
+						# x.last["DrawLines"]	# .value = "true"
+						# x.last["DrawBars"]	# .value = "false"
+						# x.last["DrawPoints"]	# .value = "false"
+						# x.last["ColorPlot"]	# .value = "false"
+						# x.last["MajorGridColor"]	# .value = "ff00ffff"
+						# x.last["MinorGridColor"]	# .value = "ff808000"
+						# x.last["PointColor"]	# .value = "ff00ff00"
+						# x.last["LineColor"]	# .value = "ff00ff00"
+						# x.last["BarColor"]	# .value = "ff00ff00"
+						# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+						# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+						# x.last["ClearPoints"]
+						# x.last["AxisX"]	# .value = ""
+						# x.last["AxisY"]	# .value = ""
+						# x.last["AxisZ"]	# .value = ""
+						# x.last["ZwoAxisZ"]	# .value = "0.15"
+						# x.last["Intensity"]	# .value = "1.00"
+					# x.pop
+				# x.pop
+				# x.last["BackGround"]	# .value = "ffffffff"
+				# x.last["TitleColor"]	# .value = "ff000000"
+			# x.pop
+			# x.last["Dump"]
+			# x.last["FileName"]	# .value = ""
+		x.pop
+	x.pop
+	x << x.last.create("NMRSpectrum","Spectrum")
+		x.last["PulseAnalyzer"].value = "NMRPulse"
+		x.last["MagnetPS"].value = "PS"
+		x.last["CenterFreq"].value = "20"
+		x.last["BandWidth"].value = "50"
+		x.last["Resolution"].value = "0.001"
+		x.last["FieldFactor"].value = "1"
+		x.last["ResidualField"].value = "0"
+		x.last["FieldMin"].value = "0"
+		x.last["FieldMax"].value = "3"
+		x.last["Clear"]
+		x << x.last["Spectrum"]
+			# x << x.last["Spectrum"]
+				# x.last["Label"]	# .value = "Spectrum"
+				# x << x.last["Axes"]
+					# x << x.last.create("bottom","")
+						# x.last["Label"]	# .value = "Field [T]"
+						# x.last["X"]	# .value = "0.15"
+						# x.last["Y"]	# .value = "0.15"
+						# x.last["Z"]	# .value = "0.15"
+						# x.last["Length"]	# .value = "0.7"
+						# x.last["MajorTicScale"]	# .value = "10"
+						# x.last["MinorTicScale"]	# .value = "1"
+						# x.last["DisplayMajorTics"]	# .value = "true"
+						# x.last["DisplayMinorTics"]	# .value = "true"
+						# x.last["Max"]	# .value = "0"
+						# x.last["Min"]	# .value = "0"
+						# x.last["RightOrTopSided"]	# .value = "false"
+						# x.last["TicLabelFormat"]	# .value = ""
+						# x.last["DisplayLabel"]	# .value = "true"
+						# x.last["DisplayTicLabels"]	# .value = "true"
+						# x.last["TicColor"]	# .value = "ff000000"
+						# x.last["LabelColor"]	# .value = "ff000000"
+						# x.last["TicLabelColor"]	# .value = "ff000000"
+						# x.last["AutoFreq"]	# .value = "true"
+						# x.last["AutoScale"]	# .value = "true"
+						# x.last["LogScale"]	# .value = "false"
+					# x.pop
+					# x << x.last.create("left","")
+						# x.last["Label"]	# .value = "Re [V]"
+						# x.last["X"]	# .value = "0.15"
+						# x.last["Y"]	# .value = "0.15"
+						# x.last["Z"]	# .value = "0.15"
+						# x.last["Length"]	# .value = "0.7"
+						# x.last["MajorTicScale"]	# .value = "10"
+						# x.last["MinorTicScale"]	# .value = "1"
+						# x.last["DisplayMajorTics"]	# .value = "true"
+						# x.last["DisplayMinorTics"]	# .value = "true"
+						# x.last["Max"]	# .value = "0"
+						# x.last["Min"]	# .value = "0"
+						# x.last["RightOrTopSided"]	# .value = "false"
+						# x.last["TicLabelFormat"]	# .value = ""
+						# x.last["DisplayLabel"]	# .value = "true"
+						# x.last["DisplayTicLabels"]	# .value = "true"
+						# x.last["TicColor"]	# .value = "ff000000"
+						# x.last["LabelColor"]	# .value = "ff000000"
+						# x.last["TicLabelColor"]	# .value = "ff000000"
+						# x.last["AutoFreq"]	# .value = "true"
+						# x.last["AutoScale"]	# .value = "true"
+						# x.last["LogScale"]	# .value = "false"
+					# x.pop
+					# x << x.last.create("right","")
+						# x.last["Label"]	# .value = "Im [V]"
+						# x.last["X"]	# .value = "0.85"
+						# x.last["Y"]	# .value = "0.15"
+						# x.last["Z"]	# .value = "0.15"
+						# x.last["Length"]	# .value = "0.7"
+						# x.last["MajorTicScale"]	# .value = "10"
+						# x.last["MinorTicScale"]	# .value = "1"
+						# x.last["DisplayMajorTics"]	# .value = "true"
+						# x.last["DisplayMinorTics"]	# .value = "true"
+						# x.last["Max"]	# .value = "0"
+						# x.last["Min"]	# .value = "0"
+						# x.last["RightOrTopSided"]	# .value = "true"
+						# x.last["TicLabelFormat"]	# .value = ""
+						# x.last["DisplayLabel"]	# .value = "true"
+						# x.last["DisplayTicLabels"]	# .value = "true"
+						# x.last["TicColor"]	# .value = "ff000000"
+						# x.last["LabelColor"]	# .value = "ff000000"
+						# x.last["TicLabelColor"]	# .value = "ff000000"
+						# x.last["AutoFreq"]	# .value = "true"
+						# x.last["AutoScale"]	# .value = "true"
+						# x.last["LogScale"]	# .value = "false"
+					# x.pop
+				# x.pop
+				# x << x.last["Plots"]
+					# x << x.last.create("XYPlot","Plot1")
+						# x.last["MaxCount"]	# .value = "0"
+						# x.last["DisplayMajorGrid"]	# .value = "true"
+						# x.last["DisplayMinorGrid"]	# .value = "false"
+						# x.last["DrawLines"]	# .value = "true"
+						# x.last["DrawBars"]	# .value = "false"
+						# x.last["DrawPoints"]	# .value = "false"
+						# x.last["ColorPlot"]	# .value = "false"
+						# x.last["MajorGridColor"]	# .value = "ff00ffff"
+						# x.last["MinorGridColor"]	# .value = "ff808000"
+						# x.last["PointColor"]	# .value = "ffff0000"
+						# x.last["LineColor"]	# .value = "ffff0000"
+						# x.last["BarColor"]	# .value = "ffff0000"
+						# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+						# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+						# x.last["ClearPoints"]
+						# x.last["AxisX"]	# .value = ""
+						# x.last["AxisY"]	# .value = ""
+						# x.last["AxisZ"]	# .value = ""
+						# x.last["ZwoAxisZ"]	# .value = "0.15"
+						# x.last["Intensity"]	# .value = "1.00"
+					# x.pop
+					# x << x.last.create("XYPlot","Plot2")
+						# x.last["MaxCount"]	# .value = "0"
+						# x.last["DisplayMajorGrid"]	# .value = "false"
+						# x.last["DisplayMinorGrid"]	# .value = "false"
+						# x.last["DrawLines"]	# .value = "true"
+						# x.last["DrawBars"]	# .value = "false"
+						# x.last["DrawPoints"]	# .value = "false"
+						# x.last["ColorPlot"]	# .value = "false"
+						# x.last["MajorGridColor"]	# .value = "ff00ffff"
+						# x.last["MinorGridColor"]	# .value = "ff808000"
+						# x.last["PointColor"]	# .value = "ff00ff00"
+						# x.last["LineColor"]	# .value = "ff00ff00"
+						# x.last["BarColor"]	# .value = "ff00ff00"
+						# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+						# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+						# x.last["ClearPoints"]
+						# x.last["AxisX"]	# .value = ""
+						# x.last["AxisY"]	# .value = ""
+						# x.last["AxisZ"]	# .value = ""
+						# x.last["ZwoAxisZ"]	# .value = "0.15"
+						# x.last["Intensity"]	# .value = "1.00"
+					# x.pop
+				# x.pop
+				# x.last["BackGround"]	# .value = "ffffffff"
+				# x.last["TitleColor"]	# .value = "ff000000"
+			# x.pop
+			# x.last["Dump"]
+			# x.last["FileName"]	# .value = ""
+		x.pop
+	x.pop
+	x << x.last.create("NMRPulseAnalyzer","NMRPulse2")
+		x << x.last["CosAv"]
+			x.last["Delta"].value = "0"
+			x.last["Store"].value = "false"
+			x.last["Value"]	# .value = "0"
+			x.last["StoredValue"]	# .value = "0"
+		x.pop
+		x << x.last["SinAv"]
+			x.last["Delta"].value = "0"
+			x.last["Store"].value = "false"
+			x.last["Value"]	# .value = "0"
+			x.last["StoredValue"]	# .value = "0"
+		x.pop
+		x.last["DSO"].value = "DSO"
+		x.last["FromTrig"].value = "1.7"
+		x.last["Width"].value = "0.2"
+		x.last["PhaseAdv"].value = "0"
+		x.last["UseDNR"].value = "false"
+		x.last["BGPos"].value = "1.91"
+		x.last["BGWidth"].value = "0.14"
+		x.last["FFTPos"].value = "0.004"
+		x.last["FFTLen"].value = "16384"
+		x.last["WindowFunc"].value = "Rect."
+		x.last["DIFFreq"].value = "0"
+		x.last["ExAvgIncr"].value = "false"
+		x.last["ExtraAvg"].value = "0"
+		x.last["NumEcho"].value = "1"
+		x.last["EchoPeriod"].value = "0"
+		x.last["FFTShow"]
+		x.last["AvgClear"]
+		x << x.last["Wave"]
+			# x << x.last["Wave"]
+				# x.last["Label"]	# .value = "Wave"
+				# x << x.last["Axes"]
+					# x << x.last.create("bottom","")
+						# x.last["Label"]	# .value = "Time [ms]"
+						# x.last["X"]	# .value = "0.15"
+						# x.last["Y"]	# .value = "0.15"
+						# x.last["Z"]	# .value = "0.15"
+						# x.last["Length"]	# .value = "0.7"
+						# x.last["MajorTicScale"]	# .value = "10"
+						# x.last["MinorTicScale"]	# .value = "1"
+						# x.last["DisplayMajorTics"]	# .value = "true"
+						# x.last["DisplayMinorTics"]	# .value = "true"
+						# x.last["Max"]	# .value = "0"
+						# x.last["Min"]	# .value = "0"
+						# x.last["RightOrTopSided"]	# .value = "false"
+						# x.last["TicLabelFormat"]	# .value = ""
+						# x.last["DisplayLabel"]	# .value = "true"
+						# x.last["DisplayTicLabels"]	# .value = "true"
+						# x.last["TicColor"]	# .value = "ff000000"
+						# x.last["LabelColor"]	# .value = "ff000000"
+						# x.last["TicLabelColor"]	# .value = "ff000000"
+						# x.last["AutoFreq"]	# .value = "true"
+						# x.last["AutoScale"]	# .value = "true"
+						# x.last["LogScale"]	# .value = "false"
+					# x.pop
+					# x << x.last.create("left","")
+						# x.last["Label"]	# .value = "Cos [V]"
+						# x.last["X"]	# .value = "0.15"
+						# x.last["Y"]	# .value = "0.15"
+						# x.last["Z"]	# .value = "0.15"
+						# x.last["Length"]	# .value = "0.7"
+						# x.last["MajorTicScale"]	# .value = "10"
+						# x.last["MinorTicScale"]	# .value = "1"
+						# x.last["DisplayMajorTics"]	# .value = "true"
+						# x.last["DisplayMinorTics"]	# .value = "true"
+						# x.last["Max"]	# .value = "0"
+						# x.last["Min"]	# .value = "0"
+						# x.last["RightOrTopSided"]	# .value = "false"
+						# x.last["TicLabelFormat"]	# .value = ""
+						# x.last["DisplayLabel"]	# .value = "true"
+						# x.last["DisplayTicLabels"]	# .value = "true"
+						# x.last["TicColor"]	# .value = "ff000000"
+						# x.last["LabelColor"]	# .value = "ff000000"
+						# x.last["TicLabelColor"]	# .value = "ff000000"
+						# x.last["AutoFreq"]	# .value = "true"
+						# x.last["AutoScale"]	# .value = "true"
+						# x.last["LogScale"]	# .value = "false"
+					# x.pop
+					# x << x.last.create("right","")
+						# x.last["Label"]	# .value = "Sin [V]"
+						# x.last["X"]	# .value = "0.85"
+						# x.last["Y"]	# .value = "0.15"
+						# x.last["Z"]	# .value = "0.15"
+						# x.last["Length"]	# .value = "0.7"
+						# x.last["MajorTicScale"]	# .value = "10"
+						# x.last["MinorTicScale"]	# .value = "1"
+						# x.last["DisplayMajorTics"]	# .value = "true"
+						# x.last["DisplayMinorTics"]	# .value = "true"
+						# x.last["Max"]	# .value = "0"
+						# x.last["Min"]	# .value = "0"
+						# x.last["RightOrTopSided"]	# .value = "true"
+						# x.last["TicLabelFormat"]	# .value = ""
+						# x.last["DisplayLabel"]	# .value = "true"
+						# x.last["DisplayTicLabels"]	# .value = "true"
+						# x.last["TicColor"]	# .value = "ff000000"
+						# x.last["LabelColor"]	# .value = "ff000000"
+						# x.last["TicLabelColor"]	# .value = "ff000000"
+						# x.last["AutoFreq"]	# .value = "true"
+						# x.last["AutoScale"]	# .value = "true"
+						# x.last["LogScale"]	# .value = "false"
+					# x.pop
+				# x.pop
+				# x << x.last["Plots"]
+					# x << x.last.create("XYPlot","Plot1")
+						# x.last["MaxCount"]	# .value = "0"
+						# x.last["DisplayMajorGrid"]	# .value = "true"
+						# x.last["DisplayMinorGrid"]	# .value = "false"
+						# x.last["DrawLines"]	# .value = "true"
+						# x.last["DrawBars"]	# .value = "false"
+						# x.last["DrawPoints"]	# .value = "false"
+						# x.last["ColorPlot"]	# .value = "false"
+						# x.last["MajorGridColor"]	# .value = "ff00ffff"
+						# x.last["MinorGridColor"]	# .value = "ff808000"
+						# x.last["PointColor"]	# .value = "ffff0000"
+						# x.last["LineColor"]	# .value = "ffff0000"
+						# x.last["BarColor"]	# .value = "ffff0000"
+						# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+						# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+						# x.last["ClearPoints"]
+						# x.last["AxisX"]	# .value = ""
+						# x.last["AxisY"]	# .value = ""
+						# x.last["AxisZ"]	# .value = ""
+						# x.last["ZwoAxisZ"]	# .value = "0.15"
+						# x.last["Intensity"]	# .value = "1.00"
+					# x.pop
+					# x << x.last.create("XYPlot","Plot2")
+						# x.last["MaxCount"]	# .value = "0"
+						# x.last["DisplayMajorGrid"]	# .value = "false"
+						# x.last["DisplayMinorGrid"]	# .value = "false"
+						# x.last["DrawLines"]	# .value = "true"
+						# x.last["DrawBars"]	# .value = "false"
+						# x.last["DrawPoints"]	# .value = "false"
+						# x.last["ColorPlot"]	# .value = "false"
+						# x.last["MajorGridColor"]	# .value = "ff00ffff"
+						# x.last["MinorGridColor"]	# .value = "ff808000"
+						# x.last["PointColor"]	# .value = "ff00ff00"
+						# x.last["LineColor"]	# .value = "ff00ff00"
+						# x.last["BarColor"]	# .value = "ff00ff00"
+						# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+						# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+						# x.last["ClearPoints"]
+						# x.last["AxisX"]	# .value = ""
+						# x.last["AxisY"]	# .value = ""
+						# x.last["AxisZ"]	# .value = ""
+						# x.last["ZwoAxisZ"]	# .value = "0.15"
+						# x.last["Intensity"]	# .value = "1.00"
+					# x.pop
+				# x.pop
+				# x.last["BackGround"]	# .value = "ffffffff"
+				# x.last["TitleColor"]	# .value = "ff000000"
+			# x.pop
+			# x.last["Dump"]
+			# x.last["FileName"]	# .value = ""
+		x.pop
+		x << x.last["Spectrum"]
+			# x << x.last["Spectrum"]
+				# x.last["Label"]	# .value = "Spectrum"
+				# x << x.last["Axes"]
+					# x << x.last.create("bottom","")
+						# x.last["Label"]	# .value = "Freq. [kHz]"
+						# x.last["X"]	# .value = "0.15"
+						# x.last["Y"]	# .value = "0.15"
+						# x.last["Z"]	# .value = "0.15"
+						# x.last["Length"]	# .value = "0.7"
+						# x.last["MajorTicScale"]	# .value = "10"
+						# x.last["MinorTicScale"]	# .value = "1"
+						# x.last["DisplayMajorTics"]	# .value = "true"
+						# x.last["DisplayMinorTics"]	# .value = "true"
+						# x.last["Max"]	# .value = "0"
+						# x.last["Min"]	# .value = "0"
+						# x.last["RightOrTopSided"]	# .value = "false"
+						# x.last["TicLabelFormat"]	# .value = ""
+						# x.last["DisplayLabel"]	# .value = "true"
+						# x.last["DisplayTicLabels"]	# .value = "true"
+						# x.last["TicColor"]	# .value = "ff000000"
+						# x.last["LabelColor"]	# .value = "ff000000"
+						# x.last["TicLabelColor"]	# .value = "ff000000"
+						# x.last["AutoFreq"]	# .value = "true"
+						# x.last["AutoScale"]	# .value = "true"
+						# x.last["LogScale"]	# .value = "false"
+					# x.pop
+					# x << x.last.create("left","")
+						# x.last["Label"]	# .value = "Abs. [V]"
+						# x.last["X"]	# .value = "0.15"
+						# x.last["Y"]	# .value = "0.15"
+						# x.last["Z"]	# .value = "0.15"
+						# x.last["Length"]	# .value = "0.7"
+						# x.last["MajorTicScale"]	# .value = "10"
+						# x.last["MinorTicScale"]	# .value = "1"
+						# x.last["DisplayMajorTics"]	# .value = "true"
+						# x.last["DisplayMinorTics"]	# .value = "true"
+						# x.last["Max"]	# .value = "0"
+						# x.last["Min"]	# .value = "0"
+						# x.last["RightOrTopSided"]	# .value = "false"
+						# x.last["TicLabelFormat"]	# .value = ""
+						# x.last["DisplayLabel"]	# .value = "true"
+						# x.last["DisplayTicLabels"]	# .value = "true"
+						# x.last["TicColor"]	# .value = "ff000000"
+						# x.last["LabelColor"]	# .value = "ff000000"
+						# x.last["TicLabelColor"]	# .value = "ff000000"
+						# x.last["AutoFreq"]	# .value = "true"
+						# x.last["AutoScale"]	# .value = "true"
+						# x.last["LogScale"]	# .value = "false"
+					# x.pop
+					# x << x.last.create("right","")
+						# x.last["Label"]	# .value = "Phase [deg]"
+						# x.last["X"]	# .value = "0.85"
+						# x.last["Y"]	# .value = "0.15"
+						# x.last["Z"]	# .value = "0.15"
+						# x.last["Length"]	# .value = "0.7"
+						# x.last["MajorTicScale"]	# .value = "10"
+						# x.last["MinorTicScale"]	# .value = "1"
+						# x.last["DisplayMajorTics"]	# .value = "true"
+						# x.last["DisplayMinorTics"]	# .value = "true"
+						# x.last["Max"]	# .value = "0"
+						# x.last["Min"]	# .value = "0"
+						# x.last["RightOrTopSided"]	# .value = "true"
+						# x.last["TicLabelFormat"]	# .value = ""
+						# x.last["DisplayLabel"]	# .value = "true"
+						# x.last["DisplayTicLabels"]	# .value = "true"
+						# x.last["TicColor"]	# .value = "ff000000"
+						# x.last["LabelColor"]	# .value = "ff000000"
+						# x.last["TicLabelColor"]	# .value = "ff000000"
+						# x.last["AutoFreq"]	# .value = "true"
+						# x.last["AutoScale"]	# .value = "true"
+						# x.last["LogScale"]	# .value = "false"
+					# x.pop
+				# x.pop
+				# x << x.last["Plots"]
+					# x << x.last.create("XYPlot","Plot1")
+						# x.last["MaxCount"]	# .value = "0"
+						# x.last["DisplayMajorGrid"]	# .value = "true"
+						# x.last["DisplayMinorGrid"]	# .value = "false"
+						# x.last["DrawLines"]	# .value = "false"
+						# x.last["DrawBars"]	# .value = "true"
+						# x.last["DrawPoints"]	# .value = "false"
+						# x.last["ColorPlot"]	# .value = "false"
+						# x.last["MajorGridColor"]	# .value = "ff00ffff"
+						# x.last["MinorGridColor"]	# .value = "ff808000"
+						# x.last["PointColor"]	# .value = "ffff0000"
+						# x.last["LineColor"]	# .value = "ffff0000"
+						# x.last["BarColor"]	# .value = "ffff0000"
+						# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+						# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+						# x.last["ClearPoints"]
+						# x.last["AxisX"]	# .value = ""
+						# x.last["AxisY"]	# .value = ""
+						# x.last["AxisZ"]	# .value = ""
+						# x.last["ZwoAxisZ"]	# .value = "0.15"
+						# x.last["Intensity"]	# .value = "1.00"
+					# x.pop
+					# x << x.last.create("XYPlot","Plot2")
+						# x.last["MaxCount"]	# .value = "0"
+						# x.last["DisplayMajorGrid"]	# .value = "false"
+						# x.last["DisplayMinorGrid"]	# .value = "false"
+						# x.last["DrawLines"]	# .value = "true"
+						# x.last["DrawBars"]	# .value = "false"
+						# x.last["DrawPoints"]	# .value = "false"
+						# x.last["ColorPlot"]	# .value = "false"
+						# x.last["MajorGridColor"]	# .value = "ff00ffff"
+						# x.last["MinorGridColor"]	# .value = "ff808000"
+						# x.last["PointColor"]	# .value = "ff00ff00"
+						# x.last["LineColor"]	# .value = "ff00ff00"
+						# x.last["BarColor"]	# .value = "ff00ff00"
+						# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+						# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+						# x.last["ClearPoints"]
+						# x.last["AxisX"]	# .value = ""
+						# x.last["AxisY"]	# .value = ""
+						# x.last["AxisZ"]	# .value = ""
+						# x.last["ZwoAxisZ"]	# .value = "0.15"
+						# x.last["Intensity"]	# .value = "1.00"
+					# x.pop
+				# x.pop
+				# x.last["BackGround"]	# .value = "ffffffff"
+				# x.last["TitleColor"]	# .value = "ff000000"
+			# x.pop
+			# x.last["Dump"]
+			# x.last["FileName"]	# .value = ""
+		x.pop
+	x.pop
+	x << x.last.create("NMRT1","NMRT1")
+		x << x.last["RelaxFuncs"]
+			# x.last.create("Poly","NQR I=3/2")
+			# x.last.create("Poly","NQR I=5/2 5/2-3/2")
+			# x.last.create("Poly","NQR I=5/2 3/2-1/2")
+			# x.last.create("Poly","NQR I=7/2 7/2-5/2")
+			# x.last.create("Poly","NQR I=7/2 5/2-3/2")
+			# x.last.create("Poly","NQR I=7/2 3/2-2/1")
+			# x.last.create("Poly","NQR I=9/2 9/2-7/2")
+			# x.last.create("Poly","NQR I=9/2 7/2-5/2")
+			# x.last.create("Poly","NQR I=9/2 5/2-3/2")
+			# x.last.create("Poly","NQR I=9/2 3/2-2/1")
+			# x.last.create("Poly","NMR I=1/2")
+			# x.last.create("Poly","NMR I=3/2 center a")
+			# x.last.create("Poly","NMR I=3/2 center b")
+			# x.last.create("Poly","NMR I=3/2 satellite")
+			# x.last.create("Poly","NMR I=5/2 center a")
+			# x.last.create("Poly","NMR I=5/2 center b")
+			# x.last.create("Poly","NMR I=5/2 satellite 3/2-1/2")
+			# x.last.create("Poly","NMR I=5/2 satellite 5/2-3/2")
+			# x.last.create("Poly","NMR I=7/2 center")
+			# x.last.create("Poly","NMR I=7/2 satellite 3/2-1/2")
+			# x.last.create("Sqrt","Random Spins; exp(-sqrt(t/tau))")
+		x.pop
+		x << x.last["T1inv"]
+			x.last["Delta"].value = "0"
+			x.last["Store"].value = "false"
+			x.last["Value"]	# .value = "0"
+			x.last["StoredValue"]	# .value = "0"
+		x.pop
+		x << x.last["T1invErr"]
+			x.last["Delta"].value = "0"
+			x.last["Store"].value = "false"
+			x.last["Value"]	# .value = "0"
+			x.last["StoredValue"]	# .value = "0"
+		x.pop
+		x.last["Pulser"].value = "Pulser"
+		x.last["NMRPulseAnalyzer1"].value = "NMRPulse"
+		x.last["NMRPulseAnalyzer2"].value = "NMRPulse2"
+		x.last["Active"].value = "false"
+		x.last["AutoPhase"].value = "true"
+		x.last["AbsFit"].value = "false"
+		x.last["P1Min"].value = "0.1"
+		x.last["P1Max"].value = "10000"
+		x.last["Phase"].value = "0.00"
+		x.last["Freq"].value = "0"
+		x.last["BandWidth"].value = "20"
+		x.last["T2Mode"].value = "false"
+		x.last["SmoothSamples"].value = "200"
+		x.last["P1Dist"].value = "Log"
+		x.last["IgnoreCount"].value = "0"
+		x.last["ExtraAvg"].value = "0"
+		x.last["RelaxFunc"].value = "NMR I=1/2"
+		x.last["ClearAll"]
+		x.last["ResetFit"]
+		x.last["FitStatus"]	# .value = ""
+		x << x.last["Wave"]
+			# x << x.last["Wave"]
+				# x.last["Label"]	# .value = "Wave"
+				# x << x.last["Axes"]
+					# x << x.last.create("bottom","")
+						# x.last["Label"]	# .value = "P1 [ms] or 2Tau [us]"
+						# x.last["X"]	# .value = "0.15"
+						# x.last["Y"]	# .value = "0.15"
+						# x.last["Z"]	# .value = "0.15"
+						# x.last["Length"]	# .value = "0.7"
+						# x.last["MajorTicScale"]	# .value = "10"
+						# x.last["MinorTicScale"]	# .value = "1"
+						# x.last["DisplayMajorTics"]	# .value = "true"
+						# x.last["DisplayMinorTics"]	# .value = "true"
+						# x.last["Max"]	# .value = "0"
+						# x.last["Min"]	# .value = "0"
+						# x.last["RightOrTopSided"]	# .value = "false"
+						# x.last["TicLabelFormat"]	# .value = ""
+						# x.last["DisplayLabel"]	# .value = "true"
+						# x.last["DisplayTicLabels"]	# .value = "true"
+						# x.last["TicColor"]	# .value = "ff000000"
+						# x.last["LabelColor"]	# .value = "ff000000"
+						# x.last["TicLabelColor"]	# .value = "ff000000"
+						# x.last["AutoFreq"]	# .value = "true"
+						# x.last["AutoScale"]	# .value = "true"
+						# x.last["LogScale"]	# .value = "true"
+					# x.pop
+					# x << x.last.create("left","")
+						# x.last["Label"]	# .value = "Intens [V]"
+						# x.last["X"]	# .value = "0.15"
+						# x.last["Y"]	# .value = "0.15"
+						# x.last["Z"]	# .value = "0.15"
+						# x.last["Length"]	# .value = "0.7"
+						# x.last["MajorTicScale"]	# .value = "10"
+						# x.last["MinorTicScale"]	# .value = "1"
+						# x.last["DisplayMajorTics"]	# .value = "true"
+						# x.last["DisplayMinorTics"]	# .value = "true"
+						# x.last["Max"]	# .value = "0"
+						# x.last["Min"]	# .value = "0"
+						# x.last["RightOrTopSided"]	# .value = "false"
+						# x.last["TicLabelFormat"]	# .value = ""
+						# x.last["DisplayLabel"]	# .value = "true"
+						# x.last["DisplayTicLabels"]	# .value = "true"
+						# x.last["TicColor"]	# .value = "ff000000"
+						# x.last["LabelColor"]	# .value = "ff000000"
+						# x.last["TicLabelColor"]	# .value = "ff000000"
+						# x.last["AutoFreq"]	# .value = "true"
+						# x.last["AutoScale"]	# .value = "true"
+						# x.last["LogScale"]	# .value = "false"
+					# x.pop
+				# x.pop
+				# x << x.last["Plots"]
+					# x << x.last.create("XYPlot","Plot1")
+						# x.last["MaxCount"]	# .value = "0"
+						# x.last["DisplayMajorGrid"]	# .value = "true"
+						# x.last["DisplayMinorGrid"]	# .value = "false"
+						# x.last["DrawLines"]	# .value = "false"
+						# x.last["DrawBars"]	# .value = "false"
+						# x.last["DrawPoints"]	# .value = "true"
+						# x.last["ColorPlot"]	# .value = "false"
+						# x.last["MajorGridColor"]	# .value = "ff00ffff"
+						# x.last["MinorGridColor"]	# .value = "ff808000"
+						# x.last["PointColor"]	# .value = "ffff0000"
+						# x.last["LineColor"]	# .value = "ffff0000"
+						# x.last["BarColor"]	# .value = "ffff0000"
+						# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+						# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+						# x.last["ClearPoints"]
+						# x.last["AxisX"]	# .value = ""
+						# x.last["AxisY"]	# .value = ""
+						# x.last["AxisZ"]	# .value = ""
+						# x.last["ZwoAxisZ"]	# .value = "0.15"
+						# x.last["Intensity"]	# .value = "1.00"
+					# x.pop
+					# x << x.last.create("","FittedCurve")
+						# x.last["MaxCount"]	# .value = "300"
+						# x.last["DisplayMajorGrid"]	# .value = "true"
+						# x.last["DisplayMinorGrid"]	# .value = "false"
+						# x.last["DrawLines"]	# .value = "true"
+						# x.last["DrawBars"]	# .value = "false"
+						# x.last["DrawPoints"]	# .value = "false"
+						# x.last["ColorPlot"]	# .value = "false"
+						# x.last["MajorGridColor"]	# .value = "ff00ffff"
+						# x.last["MinorGridColor"]	# .value = "ff808000"
+						# x.last["PointColor"]	# .value = "ff00ff00"
+						# x.last["LineColor"]	# .value = "ff00ff00"
+						# x.last["BarColor"]	# .value = "ffff0000"
+						# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+						# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+						# x.last["ClearPoints"]
+						# x.last["AxisX"]	# .value = ""
+						# x.last["AxisY"]	# .value = ""
+						# x.last["AxisZ"]	# .value = ""
+						# x.last["ZwoAxisZ"]	# .value = "0.15"
+						# x.last["Intensity"]	# .value = "1.00"
+					# x.pop
+				# x.pop
+				# x.last["BackGround"]	# .value = "ffffffff"
+				# x.last["TitleColor"]	# .value = "ff000000"
+			# x.pop
+			# x.last["Dump"]
+			# x.last["FileName"]	# .value = ""
+		x.pop
+		x << x.last["FittedCurve"]
+			# x.last["MaxCount"]	# .value = "300"
+			# x.last["DisplayMajorGrid"]	# .value = "true"
+			# x.last["DisplayMinorGrid"]	# .value = "false"
+			# x.last["DrawLines"]	# .value = "true"
+			# x.last["DrawBars"]	# .value = "false"
+			# x.last["DrawPoints"]	# .value = "false"
+			# x.last["ColorPlot"]	# .value = "false"
+			# x.last["MajorGridColor"]	# .value = "ff00ffff"
+			# x.last["MinorGridColor"]	# .value = "ff808000"
+			# x.last["PointColor"]	# .value = "ff00ff00"
+			# x.last["LineColor"]	# .value = "ff00ff00"
+			# x.last["BarColor"]	# .value = "ffff0000"
+			# x.last["ColorPlotColorHigh"]	# .value = "ffff0000"
+			# x.last["ColorPlotColorLow"]	# .value = "ff0000ff"
+			# x.last["ClearPoints"]
+			# x.last["AxisX"]	# .value = ""
+			# x.last["AxisY"]	# .value = ""
+			# x.last["AxisZ"]	# .value = ""
+			# x.last["ZwoAxisZ"]	# .value = "0.15"
+			# x.last["Intensity"]	# .value = "1.00"
+		x.pop
+	x.pop
+	x << x.last.create("CryoconM62","temp1")
+		x << x.last["Interface"]
+			# x.last["Device"]	# .value = ""
+			# x.last["Port"]	# .value = ""
+			# x.last["Address"]	# .value = "12"
+			# x.last["BaudRate"]	# .value = "9600"
+			# x.last["Opened"]	# .value = "false"
+		x.pop
+		x << x.last["Channels"]
+			x << x.last.create("","A")
+				x.last["Thermometer"].value = "Raw"
+				x.last["Excitation"].value = ""
+			x.pop
+			x << x.last.create("","B")
+				x.last["Thermometer"].value = "Raw"
+				x.last["Excitation"].value = ""
+			x.pop
+		x.pop
+		x.last["CurrentChannel"]	# .value = ""
+		x.last["SetupChannel"]	# .value = ""
+		x.last["TargetTemp"]	# .value = "0"
+		x.last["ManualPower"]	# .value = "0"
+		x.last["P"].value = "0"
+		x.last["I"].value = "0"
+		x.last["D"].value = "0"
+		x.last["HeaterMode"].value = ""
+		x.last["PowerRange"].value = ""
+		x.last["HeaterPower"].value = "0"
+		x.last["SourceTemp"].value = "0"
+		x.last["Stabilized"]	# .value = "0"
+		x << x.last["Ch.A"]
+			x.last["Delta"].value = "0"
+			x.last["Store"].value = "false"
+			x.last["Value"]	# .value = "0"
+			x.last["StoredValue"]	# .value = "0"
+		x.pop
+		x << x.last["Ch.A.raw"]
+			x.last["Delta"].value = "0"
+			x.last["Store"].value = "false"
+			x.last["Value"]	# .value = "0"
+			x.last["StoredValue"]	# .value = "0"
+		x.pop
+		x << x.last["Ch.B"]
+			x.last["Delta"].value = "0"
+			x.last["Store"].value = "false"
+			x.last["Value"]	# .value = "0"
+			x.last["StoredValue"]	# .value = "0"
+		x.pop
+		x << x.last["Ch.B.raw"]
+			x.last["Delta"].value = "0"
+			x.last["Store"].value = "false"
+			x.last["Value"]	# .value = "0"
+			x.last["StoredValue"]	# .value = "0"
+		x.pop
+	x.pop
+x.pop
+x << x.last["TextWriter"]
+	x.last["Filename"]	# .value = ""
+	x.last["LastLine"]	# .value = ""
+	x.last["Recording"]	# .value = "false"
+x.pop
+x << x.last["RawStreamRecorder"]
+	x.last["Filename"]	# .value = ""
+	x.last["Recording"]	# .value = "false"
+x.pop
+x << x.last["RawStreamRecordReader"]
+	x.last["Filename"]	# .value = ""
+	x.last["Speed"]	# .value = "Fast"
+	x.last["FastForward"]	# .value = "false"
+	x.last["Rewind"]	# .value = "false"
+	x.last["Stop"]
+	x.last["First"]
+	x.last["Next"]
+	x.last["Back"]
+	x.last["PosString"]	# .value = ""
+x.pop

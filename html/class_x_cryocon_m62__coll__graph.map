@@ -1,0 +1,3 @@
+base referer
+rect $class_x_cryocon.html 20,82 102,109
+rect $class_x_temp_control.html 8,8 114,34

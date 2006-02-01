@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<measurement>
+<Drivers>
+<item type="KE2000" name="KE2000-1">
+<Function>VOLT:DC</Function>
+<Use>1</Use>
+<Device>GPIB</Device>
+<Address>16</Address>
+</item>
+<item type="KE2000" name="KE2000-2">
+<Function>VOLT:DC</Function>
+<Use>0</Use>
+<Device>GPIB</Device>
+<Address>9</Address>
+</item>
+<item type="AVS47IB" name="AVS">
+<Device>GPIB</Device>
+<Address>20</Address>
+<Use>0</Use>
+<Channels>
+<item name="0">
+<Thermometer>ROX RX-202A-AA-0.05B-U01133</Thermometer>
+<Excitation>30uV</Excitation>
+</item>
+<item name="1">
+<Thermometer>Cernox CX1050-AA-X23328</Thermometer>
+<Excitation>100uV</Excitation>
+</item>
+</Channels>
+</item>
+<item type="ITC503" name="ITC">
+<Use>0</Use>
+<Device>GPIB</Device>
+<Address>24</Address>
+</item>
+<item type="PS120" name="PS120">
+<Device>SERIAL</Device>
+<Port>/dev/ttyS0</Port>
+<Use>1</Use>
+</item>
+<item type="CryoconM62" name="Cryocon">
+<Use>1</Use>
+<Device>GPIB</Device>
+<Address>12</Address>
+</item>
+<item type="SR830" name="SR830-1">
+<Use>1</Use>
+<Device>GPIB</Device>
+<Address>1</Address>
+</item>
+<item type="SR830" name="SR830-2">
+<Use>0</Use>
+<Device>GPIB</Device>
+<Address>2</Address>
+</item>
+<item type="SR830" name="SR830-3">
+<Use>0</Use>
+<Device>GPIB</Device>
+<Address>3</Address>
+</item>
+</Drivers>
+<Analizers>
+<item type="DMM" name="dmm1">
+<DMM>KE2000-1</DMM>
+</item>
+<item type="DMM" name="dmm2">
+<DMM>KE2000-2</DMM>
+</item>
+<item type="MagnetPS" name="PS">
+<PS>PS120</PS>
+</item>
+<item type="LIA" name="lia1">
+<LIA>SR830-1</LIA>
+</item>
+<item type="LIA" name="lia2">
+<LIA>SR830-2</LIA>
+</item>
+<item type="LIA" name="lia3">
+<LIA>SR830-3</LIA>
+</item>
+<item type="Temp" name="temp1">
+<TempControl>ITC</TempControl>
+</item>
+<item type="Temp" name="temp2">
+<TempControl>Cryocon</TempControl>
+</item>
+</Analizers>
+</measurement>

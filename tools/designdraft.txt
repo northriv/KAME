@@ -1,0 +1,46 @@
+KAME2 design draft
+
+Libraries (C++, C)
+kdelibs >= 3.3
+qt >= 3.3
+fftw >= 2
+gsl
+ftgl >= 2.1.2
+ruby
+linux-gpib
+(xerces-c) backward-compatibility
+boost
+
+シグナル＆スロット
+1対他
+Direct Call or ThreadPool
+ThreadPool 遅延実行／重複禁止
+
+ノード
+スクリプティング用interface
+
+コネクタ
+ノード対GUI
+
+レコード
+RAWはLittleEndian
+RWLockで保護
+TimeStampあり
+
+QStringを使用
+
+命名規則(Hungarian Notation)
+
+class X[A-Z]*
+method [a-z]*
+global g_
+static s_
+メンバ変数　m_
+bool b
+string/QString s
+pointer p
+
+memo
+
+
+

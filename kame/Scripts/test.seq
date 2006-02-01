@@ -1,0 +1,28 @@
+def wait_within(node, val, min_wait, timeout, incr = 1)
+ tstart = Time.now
+ print "Wait for stabilize '#{node.name}' within #{val}"
+ sleep min_wait
+ while tstart + timeout > Time.now
+  if node.get().abs <= val then
+   print "OK. #{Time.now - tstart} sec. lost"  
+   return true
+  end
+  sleep incr
+ end
+ print "Time out #{Time.now - tstart} sec."
+ false
+end
+
+ print "start"
+ p Measurement
+ 
+ 
+ x = Measurement["Drivers"]["driver1"]["X"]["Value"]
+ for i in 1..10000
+   Measurement["Drivers"].each_with_index {|item, index|
+   	item.each_with_index {|item, index|
+	   	 p item["Value"].get, index unless item.name == "Interface"
+	}
+   }
+  sleep 1
+ end

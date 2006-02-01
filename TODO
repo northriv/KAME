@@ -1,0 +1,33 @@
+- Use scoped lock.
+- connectors::onRecord. iterator is not thread-safe.
+
+- KAME 2.1 plan
+	- Mutex free!
+	- All transactions are RCU based.
+	- obsolete;
+		- getChild(i)
+		- count()
+	- use shared_ptr<struct Foo> to hold name, typename, etc..
+	- use shared_ptr<atomic_shared_ptr<T> > to hold nodes.
+	- use copy constructor to take snapshot.
+		
+template <class T>
+struct xnode_ptr : public shared_ptr<atomic_shared_ptr<T> >
+{
+	typedef atomic_shared_ptr<T> snapshot_ptr;
+	typedef shared_ptr<snapshot_ptr> current_ptr;
+
+	xnode_ptr(XNode *parent, bool runtime);
+	template <typename X>
+	xnode_ptr(XNode *parent, bool runtime, X x);
+	
+	bool compareAndSwap(const xnode_ptr& old, xnode_ptr &r) {
+		**this;
+	}
+	
+};
+
+class XNode 
+{
+	atomic_shared_ptr<std::deque<xnode_ptr&> > m_children;
+};

@@ -1,0 +1,12 @@
+# KDE Config File  
+[Desktop Entry]
+Encoding=UTF-8
+Type=Application
+Exec=kame -caption "%c" %i %m  
+Icon=kame.png
+DocPath=kame/index.html
+Comment=
+Comment[de]=
+Terminal=0
+Name=KAME
+Name[de]=KAME

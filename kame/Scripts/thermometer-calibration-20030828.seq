@@ -1,0 +1,54 @@
+def wait_within(node, val, min_wait, timeout, incr = 1)
+ tstart = Time.now
+ print "Wait for stabilize '#{node.name}' within #{val}"
+ sleep min_wait
+ while tstart + timeout > Time.now
+  if node.get().abs <= val then
+   print "OK. #{Time.now - tstart} sec. lost"  
+   return true
+  end
+  sleep incr
+ end
+ print "Time out #{Time.now - tstart} sec."
+ false
+end
+
+ps = measurement["Drivers"]["PS120"]
+tempctl = measurement["Drivers"]["AVS"]
+dcsource = measurement["Drivers"]["YK7651-1"]
+current = dcsource["Value"]
+field = measurement["Analizers"]["PS"]["Field"]["Value"]
+temp = measurement["Analizers"]["temp1"]["Temp"]["Value"]
+
+def ps.hsweep(target, rate)
+  self["SweepRate"].set(rate)
+  self["TargetField"].set(target)
+  wait_within(self["Stabilized"], 0.0001, 3, 3600*12)
+end
+
+print "start"
+
+#pow [uW]
+pow = 200.0
+while pow < 400
+  curr = sqrt(pow / 1e6 / 900)
+  print "Set power #{pow} uW, current #{curr * 1e3} mA"
+  current.set(curr)
+  pow = (pow + 0.7) * 1.2
+
+  terr = (temp.get/10)**2
+  tav = temp.get
+  x = 0.5
+  begin
+    sleep(3)
+    t = temp.get
+    tav = t * x + tav * (1-x)
+    terr = (t - tav)**2 * x + terr * (1-x)
+    print "Temp av. #{tav}, err #{sqrt(terr)}"
+  end while sqrt(terr) > t / 100
+  tempctl["CurrentChannel"].set(2)
+  sleep(120)
+  print "Res #{temp.get}"
+  tempctl["CurrentChannel"].set(1)
+  sleep(60)
+end

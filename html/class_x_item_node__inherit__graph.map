@@ -1,0 +1,5 @@
+base referer
+rect $class_x_pointer_item_node.html 8,231 176,258
+rect $class_x_item_node_base.html 33,157 150,183
+rect $class_x_value_node_base.html 29,82 154,109
+rect $class_x_node.html 61,7 122,34

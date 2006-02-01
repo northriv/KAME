@@ -1,0 +1,643 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: kame/users/nmr/pulserdriver.cpp ソースファイル</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="nav">
+<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000012.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000025.html">nmr</a></div>
+<h1>pulserdriver.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">//---------------------------------------------------------------------------</span>
+<a name="l00002"></a>00002 <span class="preprocessor">#include "pulserdriver.h"</span>
+<a name="l00003"></a>00003 <span class="preprocessor">#include "forms/pulserdriverform.h"</span>
+<a name="l00004"></a>00004 <span class="preprocessor">#include "forms/pulserdrivermoreform.h"</span>
+<a name="l00005"></a>00005 <span class="preprocessor">#include "pulserdriverconnector.h"</span>
+<a name="l00006"></a>00006 <span class="preprocessor">#include "interface.h"</span>
+<a name="l00007"></a>00007 <span class="preprocessor">#include "analyzer.h"</span>
+<a name="l00008"></a>00008 <span class="preprocessor">#include "xnodeconnector.h"</span>
+<a name="l00009"></a>00009 <span class="preprocessor">#include &lt;knuminput.h&gt;</span>
+<a name="l00010"></a>00010 <span class="preprocessor">#include &lt;qpushbutton.h&gt;</span>
+<a name="l00011"></a>00011 <span class="preprocessor">#include &lt;qcheckbox.h&gt;</span>
+<a name="l00012"></a>00012 <span class="preprocessor">#include &lt;qstatusbar.h&gt;</span>
+<a name="l00013"></a>00013 <span class="preprocessor">#include &lt;kapplication.h&gt;</span>
+<a name="l00014"></a>00014 <span class="preprocessor">#include &lt;kiconloader.h&gt;</span>
+<a name="l00015"></a>00015 <span class="preprocessor">#include &lt;klocale.h&gt;</span>
+<a name="l00016"></a>00016 
+<a name="l00017"></a>00017 <span class="preprocessor">#define PULSE_FUNC_RECT "Rect. BW=0.89/T"</span>
+<a name="l00018"></a>00018 <span class="preprocessor"></span><span class="preprocessor">#define PULSE_FUNC_HANNING "Hanning BW=1.44/T"</span>
+<a name="l00019"></a>00019 <span class="preprocessor"></span><span class="preprocessor">#define PULSE_FUNC_HAMMING "Hamming BW=1.30/T"</span>
+<a name="l00020"></a>00020 <span class="preprocessor"></span><span class="preprocessor">#define PULSE_FUNC_FLATTOP "Flat-Top BW=3.2/T"</span>
+<a name="l00021"></a>00021 <span class="preprocessor"></span><span class="preprocessor">#define PULSE_FUNC_FLATTOP_LONG "Flat-Top BW=5.3/T"</span>
+<a name="l00022"></a>00022 <span class="preprocessor"></span><span class="preprocessor">#define PULSE_FUNC_FLATTOP_LONG_LONG "Flat-Top BW=6.8/T"</span>
+<a name="l00023"></a>00023 <span class="preprocessor"></span><span class="preprocessor">#define PULSE_FUNC_BLACKMAN "Blackman BW=1.7/T"</span>
+<a name="l00024"></a>00024 <span class="preprocessor"></span><span class="preprocessor">#define PULSE_FUNC_BLACKMAN_HARRIS "Blackman-Harris BW=1.9/T"</span>
+<a name="l00025"></a>00025 <span class="preprocessor"></span><span class="preprocessor">#define PULSE_FUNC_KAISER_1 "Kaiser(3) BW=1.6/T"</span>
+<a name="l00026"></a>00026 <span class="preprocessor"></span><span class="preprocessor">#define PULSE_FUNC_KAISER_2 "Kaiser(7.2) BW=2.6/T"</span>
+<a name="l00027"></a>00027 <span class="preprocessor"></span><span class="preprocessor">#define PULSE_FUNC_KAISER_3 "Kaiser(15) BW=3.8/T"</span>
+<a name="l00028"></a>00028 <span class="preprocessor"></span>
+<a name="l00029"></a>00029 <span class="preprocessor">#define COMB_MODE_OFF "Comb Off"</span>
+<a name="l00030"></a>00030 <span class="preprocessor"></span><span class="preprocessor">#define COMB_MODE_ON "Comb On"</span>
+<a name="l00031"></a>00031 <span class="preprocessor"></span><span class="preprocessor">#define COMB_MODE_P1_ALT "P1 ALT"</span>
+<a name="l00032"></a>00032 <span class="preprocessor"></span><span class="preprocessor">#define COMB_MODE_COMB_ALT "Comb ALT"</span>
+<a name="l00033"></a>00033 <span class="preprocessor"></span>
+<a name="l00034"></a>00034 <span class="preprocessor">#define RT_MODE_FIXREP "Fix Rep. Time"</span>
+<a name="l00035"></a>00035 <span class="preprocessor"></span><span class="preprocessor">#define RT_MODE_FIXREST "Fix Rest Time"</span>
+<a name="l00036"></a>00036 <span class="preprocessor"></span>
+<a name="l00037"></a>00037 <span class="preprocessor">#include &lt;fftw.h&gt;</span>
+<a name="l00038"></a>00038 
+<a name="l00039"></a>00039 <span class="keywordtype">double</span> bessel_i0(<span class="keywordtype">double</span> x) {
+<a name="l00040"></a>00040 <span class="keywordtype">float</span> y;
+<a name="l00041"></a>00041 <span class="keywordtype">float</span> pow = 1.0;
+<a name="l00042"></a>00042 <span class="keywordtype">int</span> s = 1;
+<a name="l00043"></a>00043 <span class="keywordtype">float</span> z = (x/2)*(x/2);
+<a name="l00044"></a>00044     y = 1.0;
+<a name="l00045"></a>00045     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> k = 1; k &lt; 5; k++) {
+<a name="l00046"></a>00046         s *= k;
+<a name="l00047"></a>00047         pow *= z;
+<a name="l00048"></a>00048         y += pow / (s*s);
+<a name="l00049"></a>00049     }
+<a name="l00050"></a>00050     <span class="keywordflow">return</span> y;
+<a name="l00051"></a>00051 }
+<a name="l00052"></a>00052 
+<a name="l00053"></a><a class="code" href="class_x_pulser.html#f0">00053</a> <span class="keywordtype">double</span> <a class="code" href="class_x_pulser.html#f0">XPulser::pulseFuncRect</a>(<span class="keywordtype">double</span> ) {
+<a name="l00054"></a>00054 <span class="comment">//      return (fabs(x) &lt;= 0.5) ? 1 : 0;</span>
+<a name="l00055"></a>00055         <span class="keywordflow">return</span> 1.0;
+<a name="l00056"></a>00056 }
+<a name="l00057"></a><a class="code" href="class_x_pulser.html#f1">00057</a> <span class="keywordtype">double</span> <a class="code" href="class_x_pulser.html#f1">XPulser::pulseFuncHanning</a>(<span class="keywordtype">double</span> x) {
+<a name="l00058"></a>00058         <span class="keywordflow">return</span> 0.5 + 0.5*cos(2*PI*x);
+<a name="l00059"></a>00059 }
+<a name="l00060"></a><a class="code" href="class_x_pulser.html#f2">00060</a> <span class="keywordtype">double</span> <a class="code" href="class_x_pulser.html#f2">XPulser::pulseFuncHamming</a>(<span class="keywordtype">double</span> x) {
+<a name="l00061"></a>00061         <span class="keywordflow">return</span> 0.54 + 0.46*cos(2*PI*x);
+<a name="l00062"></a>00062 }
+<a name="l00063"></a><a class="code" href="class_x_pulser.html#f3">00063</a> <span class="keywordtype">double</span> <a class="code" href="class_x_pulser.html#f3">XPulser::pulseFuncBlackman</a>(<span class="keywordtype">double</span> x) {
+<a name="l00064"></a>00064         <span class="keywordflow">return</span> 0.42323+0.49755*cos(2*PI*x)+0.07922*cos(4*PI*x);
+<a name="l00065"></a>00065 }
+<a name="l00066"></a><a class="code" href="class_x_pulser.html#f4">00066</a> <span class="keywordtype">double</span> <a class="code" href="class_x_pulser.html#f4">XPulser::pulseFuncBlackmanHarris</a>(<span class="keywordtype">double</span> x) {
+<a name="l00067"></a>00067         <span class="keywordflow">return</span> 0.35875+0.48829*cos(2*PI*x)+0.14128*cos(4*PI*x)+0.01168*cos(6*PI*x);
+<a name="l00068"></a>00068 }
+<a name="l00069"></a><a class="code" href="class_x_pulser.html#f9">00069</a> <span class="keywordtype">double</span> <a class="code" href="class_x_pulser.html#f9">XPulser::pulseFuncFlatTop</a>(<span class="keywordtype">double</span> x) {
+<a name="l00070"></a>00070         <span class="keywordflow">return</span> <a class="code" href="class_x_pulser.html#f2">pulseFuncHamming</a>(x)*((fabs(x) &lt; 1e-4) ? 1 : sin(4*PI*x)/(4*PI*x));
+<a name="l00071"></a>00071 }
+<a name="l00072"></a><a class="code" href="class_x_pulser.html#f10">00072</a> <span class="keywordtype">double</span> <a class="code" href="class_x_pulser.html#f10">XPulser::pulseFuncFlatTopLong</a>(<span class="keywordtype">double</span> x) {
+<a name="l00073"></a>00073         <span class="keywordflow">return</span> <a class="code" href="class_x_pulser.html#f2">pulseFuncHamming</a>(x)*((fabs(x) &lt; 1e-4) ? 1 : sin(6*PI*x)/(6*PI*x));
+<a name="l00074"></a>00074 }
+<a name="l00075"></a><a class="code" href="class_x_pulser.html#f11">00075</a> <span class="keywordtype">double</span> <a class="code" href="class_x_pulser.html#f11">XPulser::pulseFuncFlatTopLongLong</a>(<span class="keywordtype">double</span> x) {
+<a name="l00076"></a>00076         <span class="keywordflow">return</span> <a class="code" href="class_x_pulser.html#f2">pulseFuncHamming</a>(x)*((fabs(x) &lt; 1e-4) ? 1 : sin(8*PI*x)/(8*PI*x));
+<a name="l00077"></a>00077 }
+<a name="l00078"></a><a class="code" href="class_x_pulser.html#f5">00078</a> <span class="keywordtype">double</span> <a class="code" href="class_x_pulser.html#f5">XPulser::pulseFuncKaiser</a>(<span class="keywordtype">double</span> x, <span class="keywordtype">double</span> alpha) {
+<a name="l00079"></a>00079         x = 2*x;
+<a name="l00080"></a>00080         x = sqrt(std::max(1 - x*x, 0.0));       
+<a name="l00081"></a>00081         <span class="keywordflow">return</span> bessel_i0(PI*alpha*x) / bessel_i0(PI*alpha);
+<a name="l00082"></a>00082 }
+<a name="l00083"></a><a class="code" href="class_x_pulser.html#f6">00083</a> <span class="keywordtype">double</span> <a class="code" href="class_x_pulser.html#f6">XPulser::pulseFuncKaiser1</a>(<span class="keywordtype">double</span> x) {
+<a name="l00084"></a>00084         <span class="keywordflow">return</span> <a class="code" href="class_x_pulser.html#f5">pulseFuncKaiser</a>(x, 3.0);
+<a name="l00085"></a>00085 }
+<a name="l00086"></a><a class="code" href="class_x_pulser.html#f7">00086</a> <span class="keywordtype">double</span> <a class="code" href="class_x_pulser.html#f7">XPulser::pulseFuncKaiser2</a>(<span class="keywordtype">double</span> x) {
+<a name="l00087"></a>00087         <span class="keywordflow">return</span> <a class="code" href="class_x_pulser.html#f5">pulseFuncKaiser</a>(x, 7.2);
+<a name="l00088"></a>00088 }
+<a name="l00089"></a><a class="code" href="class_x_pulser.html#f8">00089</a> <span class="keywordtype">double</span> <a class="code" href="class_x_pulser.html#f8">XPulser::pulseFuncKaiser3</a>(<span class="keywordtype">double</span> x) {
+<a name="l00090"></a>00090         <span class="keywordflow">return</span> <a class="code" href="class_x_pulser.html#f5">pulseFuncKaiser</a>(x, 15.0);
+<a name="l00091"></a>00091 }
+<a name="l00092"></a>00092 <a class="code" href="class_x_pulser.html#x2">XPulser::tpulsefunc</a>
+<a name="l00093"></a><a class="code" href="class_x_pulser.html#b11">00093</a> <a class="code" href="class_x_pulser.html#b11">XPulser::pulseFunc</a>(<span class="keyword">const</span> QString &amp;str) {
+<a name="l00094"></a>00094         <span class="keywordflow">if</span>(str == PULSE_FUNC_HANNING) <span class="keywordflow">return</span> &amp;<a class="code" href="class_x_pulser.html#f1">pulseFuncHanning</a>;
+<a name="l00095"></a>00095         <span class="keywordflow">if</span>(str == PULSE_FUNC_HAMMING) <span class="keywordflow">return</span> &amp;<a class="code" href="class_x_pulser.html#f2">pulseFuncHamming</a>;
+<a name="l00096"></a>00096         <span class="keywordflow">if</span>(str == PULSE_FUNC_BLACKMAN) <span class="keywordflow">return</span> &amp;<a class="code" href="class_x_pulser.html#f3">pulseFuncBlackman</a>;
+<a name="l00097"></a>00097         <span class="keywordflow">if</span>(str == PULSE_FUNC_BLACKMAN_HARRIS) <span class="keywordflow">return</span> &amp;<a class="code" href="class_x_pulser.html#f4">pulseFuncBlackmanHarris</a>;
+<a name="l00098"></a>00098         <span class="keywordflow">if</span>(str == PULSE_FUNC_KAISER_1) <span class="keywordflow">return</span> &amp;<a class="code" href="class_x_pulser.html#f6">pulseFuncKaiser1</a>;
+<a name="l00099"></a>00099         <span class="keywordflow">if</span>(str == PULSE_FUNC_KAISER_2) <span class="keywordflow">return</span> &amp;<a class="code" href="class_x_pulser.html#f7">pulseFuncKaiser2</a>;
+<a name="l00100"></a>00100         <span class="keywordflow">if</span>(str == PULSE_FUNC_KAISER_3) <span class="keywordflow">return</span> &amp;<a class="code" href="class_x_pulser.html#f8">pulseFuncKaiser3</a>;
+<a name="l00101"></a>00101         <span class="keywordflow">if</span>(str == PULSE_FUNC_FLATTOP) <span class="keywordflow">return</span> &amp;<a class="code" href="class_x_pulser.html#f9">pulseFuncFlatTop</a>;
+<a name="l00102"></a>00102         <span class="keywordflow">if</span>(str == PULSE_FUNC_FLATTOP_LONG) <span class="keywordflow">return</span> &amp;<a class="code" href="class_x_pulser.html#f10">pulseFuncFlatTopLong</a>;
+<a name="l00103"></a>00103         <span class="keywordflow">if</span>(str == PULSE_FUNC_FLATTOP_LONG_LONG) <span class="keywordflow">return</span> &amp;<a class="code" href="class_x_pulser.html#f11">pulseFuncFlatTopLongLong</a>;
+<a name="l00104"></a>00104         <span class="keywordflow">return</span> &amp;<a class="code" href="class_x_pulser.html#f0">pulseFuncRect</a>;
+<a name="l00105"></a>00105 }
+<a name="l00106"></a>00106 
+<a name="l00107"></a><a class="code" href="class_x_pulser.html#b0">00107</a> <a class="code" href="class_x_pulser.html#b0">XPulser::XPulser</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, 
+<a name="l00108"></a>00108    <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
+<a name="l00109"></a>00109    <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
+<a name="l00110"></a>00110    <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
+<a name="l00111"></a>00111    <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers) :
+<a name="l00112"></a>00112     <a class="code" href="class_x_primary_driver.html">XPrimaryDriver</a>(name, runtime, scalarentries, interfaces, thermometers, drivers),
+<a name="l00113"></a>00113     m_output(create&lt;<a class="code" href="class_x_value_node.html">XBoolNode</a>&gt;(<span class="stringliteral">"Output"</span>, true)),
+<a name="l00114"></a>00114     m_combMode(create&lt;<a class="code" href="class_x_combo_node.html">XComboNode</a>&gt;(<span class="stringliteral">"CombMode"</span>, false)),
+<a name="l00115"></a>00115     m_rtMode(create&lt;<a class="code" href="class_x_combo_node.html">XComboNode</a>&gt;(<span class="stringliteral">"RTMode"</span>, false)),
+<a name="l00116"></a>00116     m_rt(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"RT"</span>, false)),
+<a name="l00117"></a>00117     m_tau(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"Tau"</span>, false)),
+<a name="l00118"></a>00118     m_combPW(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"CombPW"</span>, false)),
+<a name="l00119"></a>00119     m_pw1(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"PW1"</span>, false)),
+<a name="l00120"></a>00120     m_pw2(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"PW2"</span>, false)),
+<a name="l00121"></a>00121     m_combNum(create&lt;<a class="code" href="class_x_value_node.html">XUIntNode</a>&gt;(<span class="stringliteral">"CombNum"</span>, false)),
+<a name="l00122"></a>00122     m_combPT(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"CombPT"</span>, false)),
+<a name="l00123"></a>00123     m_combP1(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"CombP1"</span>, false)),
+<a name="l00124"></a>00124     m_combP1Alt(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"CombP1Alt"</span>, false)),
+<a name="l00125"></a>00125     m_aswSetup(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"ASWSetup"</span>, false)),
+<a name="l00126"></a>00126     m_aswHold(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"ASWHold"</span>, false)),
+<a name="l00127"></a>00127     m_altSep(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"ALTSep"</span>, false)),
+<a name="l00128"></a>00128     m_g2Setup(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"Gate2Setup"</span>, false)),
+<a name="l00129"></a>00129     m_echoNum(create&lt;<a class="code" href="class_x_value_node.html">XUIntNode</a>&gt;(<span class="stringliteral">"EchoNum"</span>, false)),
+<a name="l00130"></a>00130     m_combOffRes(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"CombOffRes"</span>, false)),
+<a name="l00131"></a>00131     m_drivenEquilibrium(create&lt;<a class="code" href="class_x_value_node.html">XBoolNode</a>&gt;(<span class="stringliteral">"DrivenEquilibrium"</span>, false)),
+<a name="l00132"></a>00132     m_numPhaseCycle(create&lt;<a class="code" href="class_x_combo_node.html">XComboNode</a>&gt;(<span class="stringliteral">"NumPhaseCycle"</span>, false)),
+<a name="l00133"></a>00133     m_p1Func(create&lt;<a class="code" href="class_x_combo_node.html">XComboNode</a>&gt;(<span class="stringliteral">"P1Func"</span>, false)),
+<a name="l00134"></a>00134     m_p2Func(create&lt;<a class="code" href="class_x_combo_node.html">XComboNode</a>&gt;(<span class="stringliteral">"P2Func"</span>, false)),
+<a name="l00135"></a>00135     m_combFunc(create&lt;<a class="code" href="class_x_combo_node.html">XComboNode</a>&gt;(<span class="stringliteral">"CombFunc"</span>, false)),
+<a name="l00136"></a>00136     m_p1Level(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"P1Level"</span>, false)),
+<a name="l00137"></a>00137     m_p2Level(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"P2Level"</span>, false)),
+<a name="l00138"></a>00138     m_combLevel(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"CombLevel"</span>, false)),
+<a name="l00139"></a>00139     m_masterLevel(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"MasterLevel"</span>, false)),
+<a name="l00140"></a>00140     m_aswFilter(create&lt;<a class="code" href="class_x_combo_node.html">XComboNode</a>&gt;(<span class="stringliteral">"ASWFilter"</span>, false)), 
+<a name="l00141"></a>00141     m_portLevel8(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"PortLevel8"</span>, false)),
+<a name="l00142"></a>00142     m_portLevel9(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"PortLevel9"</span>, false)),
+<a name="l00143"></a>00143     m_portLevel10(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"PortLevel10"</span>, false)),
+<a name="l00144"></a>00144     m_portLevel11(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"PortLevel11"</span>, false)),
+<a name="l00145"></a>00145     m_portLevel12(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"PortLevel12"</span>, false)),
+<a name="l00146"></a>00146     m_portLevel13(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"PortLevel13"</span>, false)),  
+<a name="l00147"></a>00147     m_portLevel14(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"PortLevel14"</span>, false)),
+<a name="l00148"></a>00148     m_qamOffset1(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"QAMOffset1"</span>, false)),
+<a name="l00149"></a>00149     m_qamOffset2(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"QAMOffset2"</span>, false)),
+<a name="l00150"></a>00150     m_qamLevel1(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"QAMLevel1"</span>, false)),
+<a name="l00151"></a>00151     m_qamLevel2(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"QAMLevel2"</span>, false)),
+<a name="l00152"></a>00152     m_qamDelay1(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"QAMDelay1"</span>, false)),
+<a name="l00153"></a>00153     m_qamDelay2(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"QAMDelay2"</span>, false)),
+<a name="l00154"></a>00154     m_difFreq(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"DIFFreq"</span>, false)),
+<a name="l00155"></a>00155     m_moreConfigShow(create&lt;<a class="code" href="class_x_node.html">XNode</a>&gt;(<span class="stringliteral">"MoreConfigShow"</span>, true)),
+<a name="l00156"></a>00156     m_form(new FrmPulser(g_pFrmMain)),
+<a name="l00157"></a>00157     m_formMore(new FrmPulserMore(g_pFrmMain))
+<a name="l00158"></a>00158 {
+<a name="l00159"></a>00159     <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_btnMoreConfig-&gt;setIconSet(
+<a name="l00160"></a>00160              KApplication::kApplication()-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"configure"</span>, 
+<a name="l00161"></a>00161             KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );     
+<a name="l00162"></a>00162     
+<a name="l00163"></a>00163   <a class="code" href="class_x_pulser.html#a6">rtime</a>()-&gt;value(100.0);
+<a name="l00164"></a>00164   <a class="code" href="class_x_pulser.html#a7">tau</a>()-&gt;value(100.0);
+<a name="l00165"></a>00165   <a class="code" href="class_x_pulser.html#a8">combPW</a>()-&gt;value(5.0);
+<a name="l00166"></a>00166   <a class="code" href="class_x_pulser.html#a9">pw1</a>()-&gt;value(5.0);
+<a name="l00167"></a>00167   <a class="code" href="class_x_pulser.html#a10">pw2</a>()-&gt;value(10.0);
+<a name="l00168"></a>00168   <a class="code" href="class_x_pulser.html#a18">combNum</a>()-&gt;value(1);
+<a name="l00169"></a>00169   <a class="code" href="class_x_pulser.html#a11">combPT</a>()-&gt;value(20.0);
+<a name="l00170"></a>00170   <a class="code" href="class_x_pulser.html#a12">combP1</a>()-&gt;value(0.2);
+<a name="l00171"></a>00171   <a class="code" href="class_x_pulser.html#a13">combP1Alt</a>()-&gt;value(50.0);
+<a name="l00172"></a>00172   <a class="code" href="class_x_pulser.html#a14">aswSetup</a>()-&gt;value(0.02);
+<a name="l00173"></a>00173   <a class="code" href="class_x_pulser.html#a15">aswHold</a>()-&gt;value(0.23);
+<a name="l00174"></a>00174   <a class="code" href="class_x_pulser.html#a16">altSep</a>()-&gt;value(0.25);
+<a name="l00175"></a>00175   <a class="code" href="class_x_pulser.html#a17">g2Setup</a>()-&gt;value(5.0);
+<a name="l00176"></a>00176   <a class="code" href="class_x_pulser.html#a19">echoNum</a>()-&gt;value(1);
+<a name="l00177"></a>00177   <a class="code" href="class_x_pulser.html#a21">combOffRes</a>()-&gt;value(0.0);
+<a name="l00178"></a>00178   <a class="code" href="class_x_pulser.html#a20">drivenEquilibrium</a>()-&gt;value(<span class="keyword">false</span>);
+<a name="l00179"></a>00179   <a class="code" href="class_x_pulser.html#a5">numPhaseCycle</a>()-&gt;add(NUM_PHASE_CYCLE_1);
+<a name="l00180"></a>00180   <a class="code" href="class_x_pulser.html#a5">numPhaseCycle</a>()-&gt;add(NUM_PHASE_CYCLE_2);
+<a name="l00181"></a>00181   <a class="code" href="class_x_pulser.html#a5">numPhaseCycle</a>()-&gt;add(NUM_PHASE_CYCLE_4);
+<a name="l00182"></a>00182   <a class="code" href="class_x_pulser.html#a5">numPhaseCycle</a>()-&gt;add(NUM_PHASE_CYCLE_8);
+<a name="l00183"></a>00183   <a class="code" href="class_x_pulser.html#a5">numPhaseCycle</a>()-&gt;add(NUM_PHASE_CYCLE_16);
+<a name="l00184"></a>00184   <a class="code" href="class_x_pulser.html#a5">numPhaseCycle</a>()-&gt;value(NUM_PHASE_CYCLE_16);
+<a name="l00185"></a>00185   <a class="code" href="class_x_pulser.html#a26">p1Level</a>()-&gt;value(-5.0);
+<a name="l00186"></a>00186   <a class="code" href="class_x_pulser.html#a27">p2Level</a>()-&gt;value(-0.5);
+<a name="l00187"></a>00187   <a class="code" href="class_x_pulser.html#a25">combLevel</a>()-&gt;value(-5.0);
+<a name="l00188"></a>00188   <a class="code" href="class_x_pulser.html#a28">masterLevel</a>()-&gt;value(-10.0);
+<a name="l00189"></a>00189   <a class="code" href="class_x_pulser.html#a39">qamLevel1</a>()-&gt;value(1.0);
+<a name="l00190"></a>00190   <a class="code" href="class_x_pulser.html#a40">qamLevel2</a>()-&gt;value(1.0);
+<a name="l00191"></a>00191  
+<a name="l00192"></a>00192   <a class="code" href="class_x_pulser.html#a3">combMode</a>()-&gt;add(COMB_MODE_OFF);
+<a name="l00193"></a>00193   <a class="code" href="class_x_pulser.html#a3">combMode</a>()-&gt;add(COMB_MODE_ON);
+<a name="l00194"></a>00194   <a class="code" href="class_x_pulser.html#a3">combMode</a>()-&gt;add(COMB_MODE_P1_ALT);
+<a name="l00195"></a>00195   <a class="code" href="class_x_pulser.html#a3">combMode</a>()-&gt;add(COMB_MODE_COMB_ALT);
+<a name="l00196"></a>00196   <a class="code" href="class_x_pulser.html#a3">combMode</a>()-&gt;value(N_COMB_MODE_OFF);
+<a name="l00197"></a>00197   <a class="code" href="class_x_pulser.html#a4">rtMode</a>()-&gt;add(RT_MODE_FIXREP);
+<a name="l00198"></a>00198   <a class="code" href="class_x_pulser.html#a4">rtMode</a>()-&gt;add(RT_MODE_FIXREST);
+<a name="l00199"></a>00199   <a class="code" href="class_x_pulser.html#a4">rtMode</a>()-&gt;value(1);
+<a name="l00200"></a>00200 
+<a name="l00201"></a>00201   <a class="code" href="class_x_pulser.html#a23">p1Func</a>()-&gt;add(PULSE_FUNC_RECT);
+<a name="l00202"></a>00202   <a class="code" href="class_x_pulser.html#a23">p1Func</a>()-&gt;add(PULSE_FUNC_HANNING);
+<a name="l00203"></a>00203   <a class="code" href="class_x_pulser.html#a23">p1Func</a>()-&gt;add(PULSE_FUNC_HAMMING);
+<a name="l00204"></a>00204   <a class="code" href="class_x_pulser.html#a23">p1Func</a>()-&gt;add(PULSE_FUNC_BLACKMAN);
+<a name="l00205"></a>00205   <a class="code" href="class_x_pulser.html#a23">p1Func</a>()-&gt;add(PULSE_FUNC_BLACKMAN_HARRIS);
+<a name="l00206"></a>00206   <a class="code" href="class_x_pulser.html#a23">p1Func</a>()-&gt;add(PULSE_FUNC_FLATTOP);
+<a name="l00207"></a>00207   <a class="code" href="class_x_pulser.html#a23">p1Func</a>()-&gt;add(PULSE_FUNC_FLATTOP_LONG);
+<a name="l00208"></a>00208   <a class="code" href="class_x_pulser.html#a23">p1Func</a>()-&gt;add(PULSE_FUNC_FLATTOP_LONG_LONG);
+<a name="l00209"></a>00209   <a class="code" href="class_x_pulser.html#a23">p1Func</a>()-&gt;add(PULSE_FUNC_KAISER_1);
+<a name="l00210"></a>00210   <a class="code" href="class_x_pulser.html#a23">p1Func</a>()-&gt;add(PULSE_FUNC_KAISER_2);
+<a name="l00211"></a>00211   <a class="code" href="class_x_pulser.html#a23">p1Func</a>()-&gt;add(PULSE_FUNC_KAISER_3);
+<a name="l00212"></a>00212     <a class="code" href="class_x_pulser.html#a24">p2Func</a>()-&gt;add(PULSE_FUNC_RECT);
+<a name="l00213"></a>00213     <a class="code" href="class_x_pulser.html#a24">p2Func</a>()-&gt;add(PULSE_FUNC_HANNING);
+<a name="l00214"></a>00214     <a class="code" href="class_x_pulser.html#a24">p2Func</a>()-&gt;add(PULSE_FUNC_HAMMING);
+<a name="l00215"></a>00215     <a class="code" href="class_x_pulser.html#a24">p2Func</a>()-&gt;add(PULSE_FUNC_BLACKMAN);
+<a name="l00216"></a>00216     <a class="code" href="class_x_pulser.html#a24">p2Func</a>()-&gt;add(PULSE_FUNC_BLACKMAN_HARRIS);
+<a name="l00217"></a>00217     <a class="code" href="class_x_pulser.html#a24">p2Func</a>()-&gt;add(PULSE_FUNC_FLATTOP);
+<a name="l00218"></a>00218     <a class="code" href="class_x_pulser.html#a24">p2Func</a>()-&gt;add(PULSE_FUNC_FLATTOP_LONG);
+<a name="l00219"></a>00219     <a class="code" href="class_x_pulser.html#a24">p2Func</a>()-&gt;add(PULSE_FUNC_FLATTOP_LONG_LONG);
+<a name="l00220"></a>00220     <a class="code" href="class_x_pulser.html#a24">p2Func</a>()-&gt;add(PULSE_FUNC_KAISER_1);
+<a name="l00221"></a>00221     <a class="code" href="class_x_pulser.html#a24">p2Func</a>()-&gt;add(PULSE_FUNC_KAISER_2);
+<a name="l00222"></a>00222     <a class="code" href="class_x_pulser.html#a24">p2Func</a>()-&gt;add(PULSE_FUNC_KAISER_3);
+<a name="l00223"></a>00223   <a class="code" href="class_x_pulser.html#a22">combFunc</a>()-&gt;add(PULSE_FUNC_RECT);
+<a name="l00224"></a>00224   <a class="code" href="class_x_pulser.html#a22">combFunc</a>()-&gt;add(PULSE_FUNC_HANNING);
+<a name="l00225"></a>00225   <a class="code" href="class_x_pulser.html#a22">combFunc</a>()-&gt;add(PULSE_FUNC_HAMMING);
+<a name="l00226"></a>00226   <a class="code" href="class_x_pulser.html#a22">combFunc</a>()-&gt;add(PULSE_FUNC_BLACKMAN);
+<a name="l00227"></a>00227   <a class="code" href="class_x_pulser.html#a22">combFunc</a>()-&gt;add(PULSE_FUNC_BLACKMAN_HARRIS);
+<a name="l00228"></a>00228   <a class="code" href="class_x_pulser.html#a22">combFunc</a>()-&gt;add(PULSE_FUNC_FLATTOP);
+<a name="l00229"></a>00229   <a class="code" href="class_x_pulser.html#a22">combFunc</a>()-&gt;add(PULSE_FUNC_FLATTOP_LONG);
+<a name="l00230"></a>00230   <a class="code" href="class_x_pulser.html#a22">combFunc</a>()-&gt;add(PULSE_FUNC_FLATTOP_LONG_LONG);
+<a name="l00231"></a>00231   <a class="code" href="class_x_pulser.html#a22">combFunc</a>()-&gt;add(PULSE_FUNC_KAISER_1);
+<a name="l00232"></a>00232   <a class="code" href="class_x_pulser.html#a22">combFunc</a>()-&gt;add(PULSE_FUNC_KAISER_2);
+<a name="l00233"></a>00233   <a class="code" href="class_x_pulser.html#a22">combFunc</a>()-&gt;add(PULSE_FUNC_KAISER_3);
+<a name="l00234"></a>00234     
+<a name="l00235"></a>00235   <a class="code" href="class_x_pulser.html#a23">p1Func</a>()-&gt;value(PULSE_FUNC_KAISER_2);
+<a name="l00236"></a>00236   <a class="code" href="class_x_pulser.html#a24">p2Func</a>()-&gt;value(PULSE_FUNC_KAISER_2);
+<a name="l00237"></a>00237   <a class="code" href="class_x_pulser.html#a22">combFunc</a>()-&gt;value(PULSE_FUNC_FLATTOP);
+<a name="l00238"></a>00238   
+<a name="l00239"></a>00239   <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;setCaption(<span class="stringliteral">"Pulser Control - "</span> + <a class="code" href="class_x_node.html#a6">getName</a>() );
+<a name="l00240"></a>00240   <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;setCaption(<span class="stringliteral">"Pulser Control More Config. - "</span> + <a class="code" href="class_x_node.html#a6">getName</a>() );
+<a name="l00241"></a>00241   <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;statusBar()-&gt;hide();
+<a name="l00242"></a>00242 <span class="comment">//  m_formMore-&gt;m_statusBar()-&gt;hide();</span>
+<a name="l00243"></a>00243   <a class="code" href="class_x_pulser.html#r84">m_conMoreConfigShow</a> = xqcon_create&lt;XQButtonConnector&gt;(
+<a name="l00244"></a>00244         <a class="code" href="class_x_pulser.html#r42">m_moreConfigShow</a>, <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_btnMoreConfig);
+<a name="l00245"></a>00245   <a class="code" href="class_x_pulser.html#r87">m_lsnOnMoreConfigShow</a> = m_moreConfigShow-&gt;onTouch().connectWeak(
+<a name="l00246"></a>00246                       <span class="keyword">true</span>, shared_from_this(), &amp;<a class="code" href="class_x_pulser.html#d0">XPulser::onMoreConfigShow</a>, <span class="keyword">true</span>);
+<a name="l00247"></a>00247   
+<a name="l00248"></a>00248   <a class="code" href="class_x_pulser.html#r43">m_conOutput</a> = xqcon_create&lt;XQToggleButtonConnector&gt;(<a class="code" href="class_x_pulser.html#r0">m_output</a>, <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_ckbOutput);
+<a name="l00249"></a>00249   <a class="code" href="class_x_pulser.html#r44">m_conCombMode</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_pulser.html#r1">m_combMode</a>, <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_cmbCombMode);
+<a name="l00250"></a>00250   <a class="code" href="class_x_pulser.html#r45">m_conRTMode</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_pulser.html#r2">m_rtMode</a>, <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_cmbRTMode);
+<a name="l00251"></a>00251   <a class="code" href="class_x_pulser.html#r46">m_conRT</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r4">m_rt</a>, <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_edRT);
+<a name="l00252"></a>00252   <a class="code" href="class_x_pulser.html#r47">m_conTau</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r5">m_tau</a>, <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_edTau);
+<a name="l00253"></a>00253   <a class="code" href="class_x_pulser.html#r48">m_conCombPW</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r6">m_combPW</a>, <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_edCombPW);
+<a name="l00254"></a>00254   <a class="code" href="class_x_pulser.html#r49">m_conPW1</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r7">m_pw1</a>, <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_edPW1);
+<a name="l00255"></a>00255   <a class="code" href="class_x_pulser.html#r50">m_conPW2</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r8">m_pw2</a>, <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_edPW2);
+<a name="l00256"></a>00256   <a class="code" href="class_x_pulser.html#r51">m_conCombNum</a> = xqcon_create&lt;XQSpinBoxConnector&gt;(<a class="code" href="class_x_pulser.html#r16">m_combNum</a>, <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_numCombNum);
+<a name="l00257"></a>00257   <a class="code" href="class_x_pulser.html#r52">m_conCombPT</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r9">m_combPT</a>, <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_edCombPT);
+<a name="l00258"></a>00258   <a class="code" href="class_x_pulser.html#r53">m_conCombP1</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r10">m_combP1</a>, <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_edCombP1);
+<a name="l00259"></a>00259   <a class="code" href="class_x_pulser.html#r54">m_conCombP1Alt</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r11">m_combP1Alt</a>, <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_edCombP1Alt);
+<a name="l00260"></a>00260   <a class="code" href="class_x_pulser.html#r56">m_conASWSetup</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r12">m_aswSetup</a>, <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;m_edASWSetup);
+<a name="l00261"></a>00261   <a class="code" href="class_x_pulser.html#r55">m_conASWHold</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r13">m_aswHold</a>, <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;m_edASWHold);
+<a name="l00262"></a>00262   <a class="code" href="class_x_pulser.html#r57">m_conALTSep</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r14">m_altSep</a>, <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;m_edALTSep);
+<a name="l00263"></a>00263   <a class="code" href="class_x_pulser.html#r58">m_conG2Setup</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r15">m_g2Setup</a>, <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;m_edG2Setup);
+<a name="l00264"></a>00264   <a class="code" href="class_x_pulser.html#r59">m_conEchoNum</a> = xqcon_create&lt;XQSpinBoxConnector&gt;(<a class="code" href="class_x_pulser.html#r17">m_echoNum</a>, <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;m_numEcho);
+<a name="l00265"></a>00265   <a class="code" href="class_x_pulser.html#r60">m_conDrivenEquilibrium</a> = xqcon_create&lt;XQToggleButtonConnector&gt;(<a class="code" href="class_x_pulser.html#r18">m_drivenEquilibrium</a>, <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;m_ckbDrivenEquilibrium);
+<a name="l00266"></a>00266   <a class="code" href="class_x_pulser.html#r61">m_conNumPhaseCycle</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_pulser.html#r3">m_numPhaseCycle</a>, <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;m_cmbPhaseCycle);
+<a name="l00267"></a>00267   <a class="code" href="class_x_pulser.html#r62">m_conCombOffRes</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r19">m_combOffRes</a>, <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_edCombOffRes);
+<a name="l00268"></a>00268   <a class="code" href="class_x_pulser.html#r64">m_conP1Func</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_pulser.html#r21">m_p1Func</a>, <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_cmbP1Func);
+<a name="l00269"></a>00269   <a class="code" href="class_x_pulser.html#r65">m_conP2Func</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_pulser.html#r22">m_p2Func</a>, <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_cmbP2Func);
+<a name="l00270"></a>00270   <a class="code" href="class_x_pulser.html#r63">m_conCombFunc</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_pulser.html#r20">m_combFunc</a>, <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_cmbCombFunc);
+<a name="l00271"></a>00271   <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_dblP1Level-&gt;setRange(-20.0, 3.0, 1.0, <span class="keyword">false</span>);
+<a name="l00272"></a>00272   <a class="code" href="class_x_pulser.html#r67">m_conP1Level</a> = xqcon_create&lt;XKDoubleNumInputConnector&gt;(<a class="code" href="class_x_pulser.html#r24">m_p1Level</a>, <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_dblP1Level);
+<a name="l00273"></a>00273   <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_dblP2Level-&gt;setRange(-20.0, 3.0, 1.0, <span class="keyword">false</span>);
+<a name="l00274"></a>00274   <a class="code" href="class_x_pulser.html#r68">m_conP2Level</a> = xqcon_create&lt;XKDoubleNumInputConnector&gt;(<a class="code" href="class_x_pulser.html#r25">m_p2Level</a>, <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_dblP2Level);
+<a name="l00275"></a>00275   <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_dblCombLevel-&gt;setRange(-20.0, 3.0, 1.0, <span class="keyword">false</span>);
+<a name="l00276"></a>00276   <a class="code" href="class_x_pulser.html#r66">m_conCombLevel</a> = xqcon_create&lt;XKDoubleNumInputConnector&gt;(<a class="code" href="class_x_pulser.html#r23">m_combLevel</a>, <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_dblCombLevel);
+<a name="l00277"></a>00277   <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_dblMasterLevel-&gt;setRange(-30.0, 0.0, 1.0, <span class="keyword">true</span>);
+<a name="l00278"></a>00278   <a class="code" href="class_x_pulser.html#r69">m_conMasterLevel</a> = xqcon_create&lt;XKDoubleNumInputConnector&gt;(<a class="code" href="class_x_pulser.html#r26">m_masterLevel</a>, <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_dblMasterLevel);
+<a name="l00279"></a>00279   <a class="code" href="class_x_pulser.html#r70">m_conASWFilter</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_pulser.html#r27">m_aswFilter</a>, <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;m_cmbASWFilter);
+<a name="l00280"></a>00280   <a class="code" href="class_x_pulser.html#r71">m_conPortLevel8</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r28">m_portLevel8</a>, <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;m_edPortLevel8);  
+<a name="l00281"></a>00281   <a class="code" href="class_x_pulser.html#r72">m_conPortLevel9</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r29">m_portLevel9</a>, <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;m_edPortLevel9);  
+<a name="l00282"></a>00282   <a class="code" href="class_x_pulser.html#r73">m_conPortLevel10</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r30">m_portLevel10</a>, <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;m_edPortLevel10);  
+<a name="l00283"></a>00283   <a class="code" href="class_x_pulser.html#r74">m_conPortLevel11</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r31">m_portLevel11</a>, <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;m_edPortLevel11);  
+<a name="l00284"></a>00284   <a class="code" href="class_x_pulser.html#r75">m_conPortLevel12</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r32">m_portLevel12</a>, <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;m_edPortLevel12);  
+<a name="l00285"></a>00285   <a class="code" href="class_x_pulser.html#r76">m_conPortLevel13</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r33">m_portLevel13</a>, <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;m_edPortLevel13);  
+<a name="l00286"></a>00286   <a class="code" href="class_x_pulser.html#r77">m_conPortLevel14</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r34">m_portLevel14</a>, <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;m_edPortLevel14);  
+<a name="l00287"></a>00287   <a class="code" href="class_x_pulser.html#r78">m_conQAMOffset1</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r35">m_qamOffset1</a>, <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;m_edQAMOffset1);  
+<a name="l00288"></a>00288   <a class="code" href="class_x_pulser.html#r79">m_conQAMOffset2</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r36">m_qamOffset2</a>, <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;m_edQAMOffset2);
+<a name="l00289"></a>00289   <a class="code" href="class_x_pulser.html#r80">m_conQAMLevel1</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r37">m_qamLevel1</a>, <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;m_edQAMLevel1);  
+<a name="l00290"></a>00290   <a class="code" href="class_x_pulser.html#r81">m_conQAMLevel2</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r38">m_qamLevel2</a>, <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;m_edQAMLevel2);
+<a name="l00291"></a>00291   <a class="code" href="class_x_pulser.html#r82">m_conQAMDelay1</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r39">m_qamDelay1</a>, <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;m_edQAMDelay1);  
+<a name="l00292"></a>00292   <a class="code" href="class_x_pulser.html#r83">m_conQAMDelay2</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r40">m_qamDelay2</a>, <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;m_edQAMDelay2);
+<a name="l00293"></a>00293   <a class="code" href="class_x_pulser.html#r85">m_conDIFFreq</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_pulser.html#r41">m_difFreq</a>, <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;m_edDIFFreq);  
+<a name="l00294"></a>00294  
+<a name="l00295"></a>00295   <a class="code" href="class_x_pulser.html#a2">output</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00296"></a>00296   <a class="code" href="class_x_pulser.html#a3">combMode</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00297"></a>00297   <a class="code" href="class_x_pulser.html#a4">rtMode</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00298"></a>00298   <a class="code" href="class_x_pulser.html#a6">rtime</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00299"></a>00299   <a class="code" href="class_x_pulser.html#a7">tau</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00300"></a>00300   <a class="code" href="class_x_pulser.html#a8">combPW</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00301"></a>00301   <a class="code" href="class_x_pulser.html#a9">pw1</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00302"></a>00302   <a class="code" href="class_x_pulser.html#a10">pw2</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00303"></a>00303   <a class="code" href="class_x_pulser.html#a18">combNum</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00304"></a>00304   <a class="code" href="class_x_pulser.html#a11">combPT</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00305"></a>00305   <a class="code" href="class_x_pulser.html#a12">combP1</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00306"></a>00306   <a class="code" href="class_x_pulser.html#a13">combP1Alt</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00307"></a>00307   <a class="code" href="class_x_pulser.html#a14">aswSetup</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00308"></a>00308   <a class="code" href="class_x_pulser.html#a15">aswHold</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00309"></a>00309   <a class="code" href="class_x_pulser.html#a16">altSep</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00310"></a>00310   <a class="code" href="class_x_pulser.html#a17">g2Setup</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00311"></a>00311   <a class="code" href="class_x_pulser.html#a19">echoNum</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00312"></a>00312   <a class="code" href="class_x_pulser.html#a20">drivenEquilibrium</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00313"></a>00313   <a class="code" href="class_x_pulser.html#a5">numPhaseCycle</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00314"></a>00314   <a class="code" href="class_x_pulser.html#a21">combOffRes</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00315"></a>00315   <a class="code" href="class_x_pulser.html#a23">p1Func</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00316"></a>00316   <a class="code" href="class_x_pulser.html#a24">p2Func</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00317"></a>00317   <a class="code" href="class_x_pulser.html#a22">combFunc</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00318"></a>00318   <a class="code" href="class_x_pulser.html#a26">p1Level</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00319"></a>00319   <a class="code" href="class_x_pulser.html#a27">p2Level</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00320"></a>00320   <a class="code" href="class_x_pulser.html#a25">combLevel</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00321"></a>00321   <a class="code" href="class_x_pulser.html#a28">masterLevel</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00322"></a>00322   <a class="code" href="class_x_pulser.html#a29">aswFilter</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00323"></a>00323   <a class="code" href="class_x_pulser.html#a30">portLevel8</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00324"></a>00324   <a class="code" href="class_x_pulser.html#a31">portLevel9</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00325"></a>00325   <a class="code" href="class_x_pulser.html#a32">portLevel10</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00326"></a>00326   <a class="code" href="class_x_pulser.html#a33">portLevel11</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00327"></a>00327   <a class="code" href="class_x_pulser.html#a34">portLevel12</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00328"></a>00328   <a class="code" href="class_x_pulser.html#a35">portLevel13</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00329"></a>00329   <a class="code" href="class_x_pulser.html#a36">portLevel14</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00330"></a>00330   <a class="code" href="class_x_pulser.html#a37">qamOffset1</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00331"></a>00331   <a class="code" href="class_x_pulser.html#a38">qamOffset2</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00332"></a>00332   <a class="code" href="class_x_pulser.html#a39">qamLevel1</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00333"></a>00333   <a class="code" href="class_x_pulser.html#a40">qamLevel2</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00334"></a>00334   <a class="code" href="class_x_pulser.html#a41">qamDelay1</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00335"></a>00335   <a class="code" href="class_x_pulser.html#a42">qamDelay2</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00336"></a>00336   <a class="code" href="class_x_pulser.html#a43">difFreq</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00337"></a>00337   
+<a name="l00338"></a>00338   <a class="code" href="class_x_pulser.html#r90">m_conPulserDriver</a> = xqcon_create&lt;XQPulserDriverConnector&gt;(
+<a name="l00339"></a>00339         dynamic_pointer_cast&lt;XPulser&gt;(shared_from_this()), <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_tblPulse, <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;m_graph);
+<a name="l00340"></a>00340 }
+<a name="l00341"></a>00341 
+<a name="l00342"></a>00342 <span class="keywordtype">void</span>
+<a name="l00343"></a><a class="code" href="class_x_pulser.html#a1">00343</a> <a class="code" href="class_x_pulser.html#a1">XPulser::showForms</a>() {
+<a name="l00345"></a>00345     <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;show();
+<a name="l00346"></a>00346     <a class="code" href="class_x_pulser.html#r88">m_form</a>-&gt;raise();
+<a name="l00347"></a>00347 }
+<a name="l00348"></a>00348 <span class="keywordtype">void</span>
+<a name="l00349"></a><a class="code" href="class_x_pulser.html#d0">00349</a> <a class="code" href="class_x_pulser.html#d0">XPulser::onMoreConfigShow</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;) 
+<a name="l00350"></a>00350 {
+<a name="l00351"></a>00351    <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;show();
+<a name="l00352"></a>00352    <a class="code" href="class_x_pulser.html#r89">m_formMore</a>-&gt;raise();
+<a name="l00353"></a>00353 }
+<a name="l00354"></a>00354 
+<a name="l00355"></a>00355 <span class="keywordtype">void</span>
+<a name="l00356"></a><a class="code" href="class_x_pulser.html#b1">00356</a> <a class="code" href="class_x_pulser.html#b1">XPulser::start</a>()
+<a name="l00357"></a>00357 {
+<a name="l00358"></a>00358   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;open();
+<a name="l00359"></a>00359 
+<a name="l00360"></a>00360   <a class="code" href="class_x_pulser.html#a2">output</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00361"></a>00361   <a class="code" href="class_x_pulser.html#a3">combMode</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00362"></a>00362   <a class="code" href="class_x_pulser.html#a4">rtMode</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00363"></a>00363   <a class="code" href="class_x_pulser.html#a6">rtime</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00364"></a>00364   <a class="code" href="class_x_pulser.html#a7">tau</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00365"></a>00365   <a class="code" href="class_x_pulser.html#a8">combPW</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00366"></a>00366   <a class="code" href="class_x_pulser.html#a9">pw1</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00367"></a>00367   <a class="code" href="class_x_pulser.html#a10">pw2</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00368"></a>00368   <a class="code" href="class_x_pulser.html#a18">combNum</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00369"></a>00369   <a class="code" href="class_x_pulser.html#a11">combPT</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00370"></a>00370   <a class="code" href="class_x_pulser.html#a12">combP1</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00371"></a>00371   <a class="code" href="class_x_pulser.html#a13">combP1Alt</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00372"></a>00372   <a class="code" href="class_x_pulser.html#a14">aswSetup</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00373"></a>00373   <a class="code" href="class_x_pulser.html#a15">aswHold</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00374"></a>00374   <a class="code" href="class_x_pulser.html#a16">altSep</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00375"></a>00375   <a class="code" href="class_x_pulser.html#a17">g2Setup</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00376"></a>00376   <a class="code" href="class_x_pulser.html#a19">echoNum</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00377"></a>00377   <a class="code" href="class_x_pulser.html#a20">drivenEquilibrium</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00378"></a>00378   <a class="code" href="class_x_pulser.html#a5">numPhaseCycle</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00379"></a>00379   <a class="code" href="class_x_pulser.html#a21">combOffRes</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00380"></a>00380   <a class="code" href="class_x_pulser.html#a23">p1Func</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00381"></a>00381   <a class="code" href="class_x_pulser.html#a24">p2Func</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00382"></a>00382   <a class="code" href="class_x_pulser.html#a22">combFunc</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00383"></a>00383   <a class="code" href="class_x_pulser.html#a26">p1Level</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00384"></a>00384   <a class="code" href="class_x_pulser.html#a27">p2Level</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00385"></a>00385   <a class="code" href="class_x_pulser.html#a25">combLevel</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00386"></a>00386   <a class="code" href="class_x_pulser.html#a28">masterLevel</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00387"></a>00387   <a class="code" href="class_x_pulser.html#a29">aswFilter</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00388"></a>00388   <a class="code" href="class_x_pulser.html#a30">portLevel8</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00389"></a>00389   <a class="code" href="class_x_pulser.html#a31">portLevel9</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00390"></a>00390   <a class="code" href="class_x_pulser.html#a32">portLevel10</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00391"></a>00391   <a class="code" href="class_x_pulser.html#a33">portLevel11</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00392"></a>00392   <a class="code" href="class_x_pulser.html#a34">portLevel12</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00393"></a>00393   <a class="code" href="class_x_pulser.html#a35">portLevel13</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00394"></a>00394   <a class="code" href="class_x_pulser.html#a36">portLevel14</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00395"></a>00395   <a class="code" href="class_x_pulser.html#a37">qamOffset1</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00396"></a>00396   <a class="code" href="class_x_pulser.html#a38">qamOffset2</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00397"></a>00397   <a class="code" href="class_x_pulser.html#a39">qamLevel1</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00398"></a>00398   <a class="code" href="class_x_pulser.html#a40">qamLevel2</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00399"></a>00399   <a class="code" href="class_x_pulser.html#a41">qamDelay1</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00400"></a>00400   <a class="code" href="class_x_pulser.html#a42">qamDelay2</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00401"></a>00401   <a class="code" href="class_x_pulser.html#a43">difFreq</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);  
+<a name="l00402"></a>00402 
+<a name="l00403"></a>00403   afterStart();
+<a name="l00404"></a>00404       
+<a name="l00405"></a>00405   <a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a> = <a class="code" href="class_x_pulser.html#a3">combMode</a>()-&gt;onValueChanged().connectWeak(
+<a name="l00406"></a>00406                          <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_pulser.html#d1">XPulser::onPulseChanged</a>);
+<a name="l00407"></a>00407   <a class="code" href="class_x_pulser.html#a6">rtime</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00408"></a>00408   <a class="code" href="class_x_pulser.html#a7">tau</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00409"></a>00409   <a class="code" href="class_x_pulser.html#a8">combPW</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00410"></a>00410   <a class="code" href="class_x_pulser.html#a9">pw1</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00411"></a>00411   <a class="code" href="class_x_pulser.html#a10">pw2</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00412"></a>00412   <a class="code" href="class_x_pulser.html#a18">combNum</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00413"></a>00413   <a class="code" href="class_x_pulser.html#a11">combPT</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00414"></a>00414   <a class="code" href="class_x_pulser.html#a12">combP1</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00415"></a>00415   <a class="code" href="class_x_pulser.html#a13">combP1Alt</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00416"></a>00416   <a class="code" href="class_x_pulser.html#a14">aswSetup</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00417"></a>00417   <a class="code" href="class_x_pulser.html#a15">aswHold</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00418"></a>00418   <a class="code" href="class_x_pulser.html#a16">altSep</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00419"></a>00419   <a class="code" href="class_x_pulser.html#a2">output</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00420"></a>00420   <a class="code" href="class_x_pulser.html#a17">g2Setup</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00421"></a>00421   <a class="code" href="class_x_pulser.html#a19">echoNum</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00422"></a>00422   <a class="code" href="class_x_pulser.html#a20">drivenEquilibrium</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00423"></a>00423   <a class="code" href="class_x_pulser.html#a5">numPhaseCycle</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00424"></a>00424   <a class="code" href="class_x_pulser.html#a21">combOffRes</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00425"></a>00425   <a class="code" href="class_x_pulser.html#a23">p1Func</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00426"></a>00426   <a class="code" href="class_x_pulser.html#a24">p2Func</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00427"></a>00427   <a class="code" href="class_x_pulser.html#a22">combFunc</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00428"></a>00428   <a class="code" href="class_x_pulser.html#a26">p1Level</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00429"></a>00429   <a class="code" href="class_x_pulser.html#a27">p2Level</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00430"></a>00430   <a class="code" href="class_x_pulser.html#a25">combLevel</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00431"></a>00431   <a class="code" href="class_x_pulser.html#a28">masterLevel</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00432"></a>00432   <a class="code" href="class_x_pulser.html#a29">aswFilter</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00433"></a>00433   <a class="code" href="class_x_pulser.html#a30">portLevel8</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00434"></a>00434   <a class="code" href="class_x_pulser.html#a31">portLevel9</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00435"></a>00435   <a class="code" href="class_x_pulser.html#a32">portLevel10</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00436"></a>00436   <a class="code" href="class_x_pulser.html#a33">portLevel11</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00437"></a>00437   <a class="code" href="class_x_pulser.html#a34">portLevel12</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00438"></a>00438   <a class="code" href="class_x_pulser.html#a35">portLevel13</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00439"></a>00439   <a class="code" href="class_x_pulser.html#a36">portLevel14</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00440"></a>00440   <a class="code" href="class_x_pulser.html#a37">qamOffset1</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00441"></a>00441   <a class="code" href="class_x_pulser.html#a38">qamOffset2</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00442"></a>00442   <a class="code" href="class_x_pulser.html#a39">qamLevel1</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00443"></a>00443   <a class="code" href="class_x_pulser.html#a40">qamLevel2</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00444"></a>00444   <a class="code" href="class_x_pulser.html#a41">qamDelay1</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00445"></a>00445   <a class="code" href="class_x_pulser.html#a42">qamDelay2</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);
+<a name="l00446"></a>00446   <a class="code" href="class_x_pulser.html#a43">difFreq</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>);    
+<a name="l00447"></a>00447 
+<a name="l00448"></a>00448 }
+<a name="l00449"></a>00449 <span class="keywordtype">void</span>
+<a name="l00450"></a><a class="code" href="class_x_pulser.html#b2">00450</a> <a class="code" href="class_x_pulser.html#b2">XPulser::stop</a>()
+<a name="l00451"></a>00451 {
+<a name="l00452"></a>00452   <a class="code" href="class_x_pulser.html#r86">m_lsnOnPulseChanged</a>.reset();
+<a name="l00453"></a>00453   
+<a name="l00454"></a>00454   <a class="code" href="class_x_pulser.html#a2">output</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00455"></a>00455   <a class="code" href="class_x_pulser.html#a3">combMode</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00456"></a>00456   <a class="code" href="class_x_pulser.html#a4">rtMode</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00457"></a>00457   <a class="code" href="class_x_pulser.html#a6">rtime</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00458"></a>00458   <a class="code" href="class_x_pulser.html#a7">tau</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00459"></a>00459   <a class="code" href="class_x_pulser.html#a8">combPW</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00460"></a>00460   <a class="code" href="class_x_pulser.html#a9">pw1</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00461"></a>00461   <a class="code" href="class_x_pulser.html#a10">pw2</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00462"></a>00462   <a class="code" href="class_x_pulser.html#a18">combNum</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00463"></a>00463   <a class="code" href="class_x_pulser.html#a11">combPT</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00464"></a>00464   <a class="code" href="class_x_pulser.html#a12">combP1</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00465"></a>00465   <a class="code" href="class_x_pulser.html#a13">combP1Alt</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00466"></a>00466   <a class="code" href="class_x_pulser.html#a14">aswSetup</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00467"></a>00467   <a class="code" href="class_x_pulser.html#a15">aswHold</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00468"></a>00468   <a class="code" href="class_x_pulser.html#a16">altSep</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00469"></a>00469   <a class="code" href="class_x_pulser.html#a17">g2Setup</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00470"></a>00470   <a class="code" href="class_x_pulser.html#a19">echoNum</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00471"></a>00471   <a class="code" href="class_x_pulser.html#a20">drivenEquilibrium</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00472"></a>00472   <a class="code" href="class_x_pulser.html#a5">numPhaseCycle</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00473"></a>00473   <a class="code" href="class_x_pulser.html#a21">combOffRes</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00474"></a>00474   <a class="code" href="class_x_pulser.html#a23">p1Func</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00475"></a>00475   <a class="code" href="class_x_pulser.html#a24">p2Func</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00476"></a>00476   <a class="code" href="class_x_pulser.html#a22">combFunc</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00477"></a>00477   <a class="code" href="class_x_pulser.html#a26">p1Level</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00478"></a>00478   <a class="code" href="class_x_pulser.html#a27">p2Level</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00479"></a>00479   <a class="code" href="class_x_pulser.html#a25">combLevel</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00480"></a>00480   <a class="code" href="class_x_pulser.html#a28">masterLevel</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00481"></a>00481   <a class="code" href="class_x_pulser.html#a29">aswFilter</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00482"></a>00482   <a class="code" href="class_x_pulser.html#a30">portLevel8</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00483"></a>00483   <a class="code" href="class_x_pulser.html#a31">portLevel9</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00484"></a>00484   <a class="code" href="class_x_pulser.html#a32">portLevel10</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00485"></a>00485   <a class="code" href="class_x_pulser.html#a33">portLevel11</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00486"></a>00486   <a class="code" href="class_x_pulser.html#a34">portLevel12</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00487"></a>00487   <a class="code" href="class_x_pulser.html#a35">portLevel13</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00488"></a>00488   <a class="code" href="class_x_pulser.html#a36">portLevel14</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00489"></a>00489   <a class="code" href="class_x_pulser.html#a37">qamOffset1</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00490"></a>00490   <a class="code" href="class_x_pulser.html#a38">qamOffset2</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00491"></a>00491   <a class="code" href="class_x_pulser.html#a39">qamLevel1</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00492"></a>00492   <a class="code" href="class_x_pulser.html#a40">qamLevel2</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00493"></a>00493   <a class="code" href="class_x_pulser.html#a41">qamDelay1</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00494"></a>00494   <a class="code" href="class_x_pulser.html#a42">qamDelay2</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00495"></a>00495   <a class="code" href="class_x_pulser.html#a43">difFreq</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00496"></a>00496   
+<a name="l00497"></a>00497   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;close();
+<a name="l00498"></a>00498 <span class="comment">//    m_thread-&gt;waitFor();</span>
+<a name="l00499"></a>00499 <span class="comment">//  thread must do interface()-&gt;close() at the end</span>
+<a name="l00500"></a>00500 }
+<a name="l00501"></a>00501 
+<a name="l00502"></a>00502 <span class="keywordtype">void</span>
+<a name="l00503"></a><a class="code" href="class_x_pulser.html#b3">00503</a> <a class="code" href="class_x_pulser.html#b3">XPulser::analyzeRaw</a>() throw (XRecordError&amp;)
+<a name="l00504"></a>00504 {
+<a name="l00505"></a>00505     <a class="code" href="class_x_pulser.html#p0">m_combModeRecorded</a> = pop&lt;short&gt;();
+<a name="l00506"></a>00506     pop&lt;short&gt;(); <span class="comment">//reserve</span>
+<a name="l00507"></a>00507     <a class="code" href="class_x_pulser.html#p1">m_rtimeRecorded</a> = pop&lt;double&gt;();
+<a name="l00508"></a>00508     <a class="code" href="class_x_pulser.html#p2">m_tauRecorded</a> = pop&lt;double&gt;();
+<a name="l00509"></a>00509     <a class="code" href="class_x_pulser.html#p3">m_pw1Recorded</a> = pop&lt;double&gt;();
+<a name="l00510"></a>00510     <a class="code" href="class_x_pulser.html#p4">m_pw2Recorded</a> = pop&lt;double&gt;();
+<a name="l00511"></a>00511     <a class="code" href="class_x_pulser.html#p5">m_combP1Recorded</a> = pop&lt;double&gt;();
+<a name="l00512"></a>00512     <a class="code" href="class_x_pulser.html#p6">m_altSepRecorded</a> = pop&lt;double&gt;();
+<a name="l00513"></a>00513     <a class="code" href="class_x_pulser.html#p7">m_combP1AltRecorded</a> = pop&lt;double&gt;();
+<a name="l00514"></a>00514     <a class="code" href="class_x_pulser.html#p8">m_aswSetupRecorded</a> = pop&lt;double&gt;();
+<a name="l00515"></a>00515     <a class="code" href="class_x_pulser.html#p9">m_aswHoldRecorded</a> = pop&lt;double&gt;();
+<a name="l00516"></a>00516     <span class="keywordflow">try</span> {
+<a name="l00518"></a>00518         <a class="code" href="class_x_pulser.html#p10">m_difFreqRecorded</a> = pop&lt;double&gt;();
+<a name="l00519"></a>00519         <a class="code" href="class_x_pulser.html#p11">m_combPWRecorded</a> = pop&lt;double&gt;();
+<a name="l00520"></a>00520         <a class="code" href="class_x_pulser.html#p12">m_combPTRecorded</a> = pop&lt;double&gt;();
+<a name="l00521"></a>00521         <a class="code" href="class_x_pulser.html#p13">m_echoNumRecorded</a> = pop&lt;unsigned short&gt;();
+<a name="l00522"></a>00522         <a class="code" href="class_x_pulser.html#p14">m_combNumRecorded</a> = pop&lt;unsigned short&gt;();
+<a name="l00523"></a>00523         <a class="code" href="class_x_pulser.html#p15">m_rtModeRecorded</a> = pop&lt;short&gt;();
+<a name="l00524"></a>00524         <a class="code" href="class_x_pulser.html#p16">m_numPhaseCycleRecorded</a> = pop&lt;unsigned short&gt;();
+<a name="l00525"></a>00525     }
+<a name="l00526"></a>00526     <span class="keywordflow">catch</span> (XRecordError &amp;) {
+<a name="l00527"></a>00527         <a class="code" href="class_x_pulser.html#p10">m_difFreqRecorded</a> = *<a class="code" href="class_x_pulser.html#a43">difFreq</a>();
+<a name="l00528"></a>00528         <a class="code" href="class_x_pulser.html#p11">m_combPWRecorded</a> = *<a class="code" href="class_x_pulser.html#a8">combPW</a>();
+<a name="l00529"></a>00529         <a class="code" href="class_x_pulser.html#p12">m_combPTRecorded</a> = *<a class="code" href="class_x_pulser.html#a11">combPT</a>();
+<a name="l00530"></a>00530         <a class="code" href="class_x_pulser.html#p13">m_echoNumRecorded</a> = *<a class="code" href="class_x_pulser.html#a19">echoNum</a>();
+<a name="l00531"></a>00531         <a class="code" href="class_x_pulser.html#p14">m_combNumRecorded</a> = *<a class="code" href="class_x_pulser.html#a18">combNum</a>();
+<a name="l00532"></a>00532         <a class="code" href="class_x_pulser.html#p15">m_rtModeRecorded</a> = *<a class="code" href="class_x_pulser.html#a4">rtMode</a>();
+<a name="l00533"></a>00533       <span class="keywordtype">int</span> npat = 16;
+<a name="l00534"></a>00534       <span class="keywordflow">if</span>(<a class="code" href="class_x_pulser.html#a5">numPhaseCycle</a>()-&gt;to_str() == NUM_PHASE_CYCLE_1) npat = 1;
+<a name="l00535"></a>00535       <span class="keywordflow">if</span>(<a class="code" href="class_x_pulser.html#a5">numPhaseCycle</a>()-&gt;to_str() == NUM_PHASE_CYCLE_2) npat = 2;
+<a name="l00536"></a>00536       <span class="keywordflow">if</span>(<a class="code" href="class_x_pulser.html#a5">numPhaseCycle</a>()-&gt;to_str() == NUM_PHASE_CYCLE_4) npat = 4;
+<a name="l00537"></a>00537       <span class="keywordflow">if</span>(<a class="code" href="class_x_pulser.html#a5">numPhaseCycle</a>()-&gt;to_str() == NUM_PHASE_CYCLE_8) npat = 8;
+<a name="l00538"></a>00538       <span class="keywordflow">if</span>(<a class="code" href="class_x_pulser.html#a5">numPhaseCycle</a>()-&gt;to_str() == NUM_PHASE_CYCLE_16) npat = 16;
+<a name="l00539"></a>00539         <a class="code" href="class_x_pulser.html#p16">m_numPhaseCycleRecorded</a> = npat;
+<a name="l00540"></a>00540     }    
+<a name="l00541"></a>00541     <a class="code" href="class_x_pulser.html#b8">rawToRelPat</a>();
+<a name="l00542"></a>00542 }
+<a name="l00543"></a>00543 
+<a name="l00544"></a>00544 <span class="keywordtype">void</span>
+<a name="l00545"></a><a class="code" href="class_x_pulser.html#b4">00545</a> <a class="code" href="class_x_pulser.html#b4">XPulser::visualize</a>()
+<a name="l00546"></a>00546 {
+<a name="l00549"></a>00549   <span class="keywordflow">if</span>(<a class="code" href="class_x_driver.html#a7">time</a>() &amp;&amp; <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;isOpened()) {
+<a name="l00550"></a>00550       <a class="code" href="class_x_pulser.html#b6">createNativePatterns</a>();
+<a name="l00551"></a>00551       <span class="keywordflow">try</span> {
+<a name="l00552"></a>00552           <a class="code" href="class_x_pulser.html#b5">changeOutput</a>(<span class="keyword">true</span>);
+<a name="l00553"></a>00553       }
+<a name="l00554"></a>00554       <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
+<a name="l00555"></a>00555           e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(<a class="code" href="class_x_node.html#a6">getName</a>() + i18n(<span class="stringliteral">"Pulser Turn-On Failed, because"</span>));
+<a name="l00556"></a>00556       } 
+<a name="l00557"></a>00557   }
+<a name="l00558"></a>00558 }
+<a name="l00559"></a>00559 
+<a name="l00560"></a>00560 <span class="keywordtype">void</span>
+<a name="l00561"></a><a class="code" href="class_x_pulser.html#d1">00561</a> <a class="code" href="class_x_pulser.html#d1">XPulser::onPulseChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node)
+<a name="l00562"></a>00562 {
+<a name="l00563"></a>00563   <a class="code" href="class_x_time.html">XTime</a> time_awared = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
+<a name="l00564"></a>00564   
+<a name="l00565"></a>00565   <span class="keywordtype">double</span> _tau = *<a class="code" href="class_x_pulser.html#a7">tau</a>();
+<a name="l00566"></a>00566   <span class="keywordtype">double</span> _asw_setup = *<a class="code" href="class_x_pulser.html#a14">aswSetup</a>();
+<a name="l00567"></a>00567   <span class="keywordtype">double</span> _asw_hold = *<a class="code" href="class_x_pulser.html#a15">aswHold</a>();
+<a name="l00568"></a>00568   <span class="keywordtype">double</span> _alt_sep = *<a class="code" href="class_x_pulser.html#a16">altSep</a>();
+<a name="l00569"></a>00569   <span class="keywordtype">int</span> _echo_num = *<a class="code" href="class_x_pulser.html#a19">echoNum</a>();
+<a name="l00570"></a>00570   <span class="keywordflow">if</span>(_asw_setup &gt; 2.0 * _tau)
+<a name="l00571"></a>00571     <a class="code" href="class_x_pulser.html#a14">aswSetup</a>()-&gt;value(2.0 * _tau);
+<a name="l00572"></a>00572   <span class="keywordflow">if</span>(node != <a class="code" href="class_x_pulser.html#a16">altSep</a>())
+<a name="l00573"></a>00573     <span class="keywordflow">if</span>(_alt_sep != _asw_setup + _asw_hold + (_echo_num - 1) * 2 * _tau/1000)
+<a name="l00574"></a>00574       {
+<a name="l00575"></a>00575             <a class="code" href="class_x_pulser.html#a16">altSep</a>()-&gt;value(_asw_setup + _asw_hold + (_echo_num - 1) * 2 * _tau/1000);
+<a name="l00576"></a>00576         <span class="keywordflow">return</span>;
+<a name="l00577"></a>00577       }
+<a name="l00578"></a>00578 
+<a name="l00579"></a>00579   
+<a name="l00580"></a>00580   <span class="keywordflow">if</span>(!*<a class="code" href="class_x_pulser.html#a2">output</a>())
+<a name="l00581"></a>00581     {
+<a name="l00582"></a>00582       <a class="code" href="class_x_primary_driver.html#b2">startWritingRaw</a>();
+<a name="l00583"></a>00583       <span class="keywordflow">try</span> {
+<a name="l00584"></a>00584           <a class="code" href="class_x_pulser.html#b5">changeOutput</a>(<span class="keyword">false</span>);
+<a name="l00585"></a>00585       }
+<a name="l00586"></a>00586       <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
+<a name="l00587"></a>00587           e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(<a class="code" href="class_x_node.html#a6">getName</a>() + i18n(<span class="stringliteral">"Pulser Turn-Off Failed, because"</span>));
+<a name="l00588"></a>00588       }
+<a name="l00589"></a>00589       <a class="code" href="class_x_primary_driver.html#b3">finishWritingRaw</a>(<a class="code" href="class_x_time.html">XTime</a>(), <a class="code" href="class_x_time.html">XTime</a>(), <span class="keyword">true</span>);
+<a name="l00590"></a>00590       <span class="keywordflow">return</span>;
+<a name="l00591"></a>00591     }
+<a name="l00592"></a>00592 
+<a name="l00593"></a>00593   <span class="keywordflow">try</span> {
+<a name="l00594"></a>00594       <a class="code" href="class_x_pulser.html#b5">changeOutput</a>(<span class="keyword">false</span>);
+<a name="l00595"></a>00595   }
+<a name="l00596"></a>00596   <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
+<a name="l00597"></a>00597       e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(<a class="code" href="class_x_node.html#a6">getName</a>() + i18n(<span class="stringliteral">"Pulser Turn-Off Failed, because"</span>));
+<a name="l00598"></a>00598       <span class="keywordflow">return</span>;
+<a name="l00599"></a>00599   }
+<a name="l00600"></a>00600 
+<a name="l00601"></a>00601   <a class="code" href="class_x_primary_driver.html#b2">startWritingRaw</a>();
+<a name="l00603"></a>00603     push((<span class="keywordtype">short</span>)*<a class="code" href="class_x_pulser.html#a3">combMode</a>());
+<a name="l00604"></a>00604     push((<span class="keywordtype">short</span>)0); <span class="comment">//reserve</span>
+<a name="l00605"></a>00605     push((<span class="keywordtype">double</span>)*<a class="code" href="class_x_pulser.html#a6">rtime</a>());
+<a name="l00606"></a>00606     push((<span class="keywordtype">double</span>)_tau);
+<a name="l00607"></a>00607     push((<span class="keywordtype">double</span>)*<a class="code" href="class_x_pulser.html#a9">pw1</a>());
+<a name="l00608"></a>00608     push((<span class="keywordtype">double</span>)*<a class="code" href="class_x_pulser.html#a10">pw2</a>());
+<a name="l00609"></a>00609     push((<span class="keywordtype">double</span>)*<a class="code" href="class_x_pulser.html#a12">combP1</a>());
+<a name="l00610"></a>00610     push((<span class="keywordtype">double</span>)_alt_sep);
+<a name="l00611"></a>00611     push((<span class="keywordtype">double</span>)*<a class="code" href="class_x_pulser.html#a13">combP1Alt</a>());
+<a name="l00612"></a>00612     push((<span class="keywordtype">double</span>)_asw_setup);
+<a name="l00613"></a>00613     push((<span class="keywordtype">double</span>)_asw_hold);
+<a name="l00615"></a>00615     push((<span class="keywordtype">double</span>)*<a class="code" href="class_x_pulser.html#a43">difFreq</a>());
+<a name="l00616"></a>00616     push((<span class="keywordtype">double</span>)*<a class="code" href="class_x_pulser.html#a8">combPW</a>());
+<a name="l00617"></a>00617     push((<span class="keywordtype">double</span>)*<a class="code" href="class_x_pulser.html#a11">combPT</a>());
+<a name="l00618"></a>00618     push((<span class="keywordtype">unsigned</span> <span class="keywordtype">short</span>)*<a class="code" href="class_x_pulser.html#a19">echoNum</a>());
+<a name="l00619"></a>00619     push((<span class="keywordtype">unsigned</span> <span class="keywordtype">short</span>)*<a class="code" href="class_x_pulser.html#a18">combNum</a>());
+<a name="l00620"></a>00620     push((<span class="keywordtype">short</span>)*<a class="code" href="class_x_pulser.html#a4">rtMode</a>());
+<a name="l00621"></a>00621   <span class="keywordtype">int</span> npat = 16;
+<a name="l00622"></a>00622   <span class="keywordflow">if</span>(<a class="code" href="class_x_pulser.html#a5">numPhaseCycle</a>()-&gt;to_str() == NUM_PHASE_CYCLE_1) npat = 1;
+<a name="l00623"></a>00623   <span class="keywordflow">if</span>(<a class="code" href="class_x_pulser.html#a5">numPhaseCycle</a>()-&gt;to_str() == NUM_PHASE_CYCLE_2) npat = 2;
+<a name="l00624"></a>00624   <span class="keywordflow">if</span>(<a class="code" href="class_x_pulser.html#a5">numPhaseCycle</a>()-&gt;to_str() == NUM_PHASE_CYCLE_4) npat = 4;
+<a name="l00625"></a>00625   <span class="keywordflow">if</span>(<a class="code" href="class_x_pulser.html#a5">numPhaseCycle</a>()-&gt;to_str() == NUM_PHASE_CYCLE_8) npat = 8;
+<a name="l00626"></a>00626   <span class="keywordflow">if</span>(<a class="code" href="class_x_pulser.html#a5">numPhaseCycle</a>()-&gt;to_str() == NUM_PHASE_CYCLE_16) npat = 16;
+<a name="l00627"></a>00627    push((<span class="keywordtype">unsigned</span> <span class="keywordtype">short</span>)npat);
+<a name="l00628"></a>00628 
+<a name="l00629"></a>00629   <a class="code" href="class_x_primary_driver.html#b3">finishWritingRaw</a>(time_awared, <a class="code" href="class_x_time.html#e0">XTime::now</a>(), <span class="keyword">true</span>);
+<a name="l00630"></a>00630 }
+<a name="l00631"></a>00631 <span class="keywordtype">double</span>
+<a name="l00632"></a><a class="code" href="class_x_pulser.html#a61">00632</a> <a class="code" href="class_x_pulser.html#a61">XPulser::periodicTermRecorded</a>()<span class="keyword"> const </span>{
+<a name="l00633"></a>00633     ASSERT(!<a class="code" href="class_x_pulser.html#p17">m_relPatList</a>.empty());
+<a name="l00634"></a>00634     <span class="keywordflow">return</span> <a class="code" href="class_x_pulser.html#p17">m_relPatList</a>.back().time;
+<a name="l00635"></a>00635 }
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:23 2006に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+</body>
+</html>

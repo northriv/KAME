@@ -1,0 +1,120 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: クラス XRecursiveRWLock</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<h1>クラス XRecursiveRWLock</h1><!-- doxytag: class=<XRecursiveRWLock> --><code>#include &lt;<a class="el" href="rwlock_8h-source.html">rwlock.h</a>&gt;</code>
+<p>
+XRecursiveRWLockのコラボレーション図<p><center><img src="class_x_recursive_r_w_lock__coll__graph.png" border="0" usemap="#_x_recursive_r_w_lock__coll__map" alt="Collaboration graph"></center>
+<map name="_x_recursive_r_w_lock__coll__map">
+<area href="class_x_thread_local.html" shape="rect" coords="7,7,205,34" alt="">
+</map>
+<center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_recursive_r_w_lock-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
+<tr><td></td></tr>
+<tr><td colspan="2"><br><h2>Public メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a0"></a><!-- doxytag: member=<XRecursiveRWLock::XRecursiveRWLock> ref=<a0> args=<()> -->
+&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_recursive_r_w_lock.html#a0">XRecursiveRWLock</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a1"></a><!-- doxytag: member=<XRecursiveRWLock::~XRecursiveRWLock> ref=<a1> args=<()> -->
+&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_recursive_r_w_lock.html#a1">~XRecursiveRWLock</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a2"></a><!-- doxytag: member=<XRecursiveRWLock::readLock> ref=<a2> args=<() const > -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_recursive_r_w_lock.html#a2">readLock</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a3"></a><!-- doxytag: member=<XRecursiveRWLock::readUnlock> ref=<a3> args=<() const > -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_recursive_r_w_lock.html#a3">readUnlock</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">must unlock with the locking thread <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a4"></a><!-- doxytag: member=<XRecursiveRWLock::writeLock> ref=<a4> args=<()> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_recursive_r_w_lock.html#a4">writeLock</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_recursive_r_w_lock.html#a5">writeUnlock</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a6"></a><!-- doxytag: member=<XRecursiveRWLock::writeUnlockNReadLock> ref=<a6> args=<()> -->
+bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_recursive_r_w_lock.html#a6">writeUnlockNReadLock</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a7"></a><!-- doxytag: member=<XRecursiveRWLock::isLocked> ref=<a7> args=<() const > -->
+bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_recursive_r_w_lock.html#a7">isLocked</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">ReadLocked or WriteLocked. <br></td></tr>
+<tr><td colspan="2"><br><h2>Private 型</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="y0"></a><!-- doxytag: member=<XRecursiveRWLock::tLockedList> ref=<y0> args=<> -->
+typedef std::deque&lt; const <br>
+<a class="el" href="class_x_recursive_r_w_lock.html">XRecursiveRWLock</a> * &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_recursive_r_w_lock.html#y0">tLockedList</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="y1"></a><!-- doxytag: member=<XRecursiveRWLock::tLockedList_it> ref=<y1> args=<> -->
+typedef tLockedList::iterator&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_recursive_r_w_lock.html#y1">tLockedList_it</a></td></tr>
+
+<tr><td colspan="2"><br><h2>Private 変数</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r0"></a><!-- doxytag: member=<XRecursiveRWLock::m_cond> ref=<r0> args=<> -->
+pthread_cond_t&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_recursive_r_w_lock.html#r0">m_cond</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r1"></a><!-- doxytag: member=<XRecursiveRWLock::m_mutex_write> ref=<r1> args=<> -->
+pthread_mutex_t&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_recursive_r_w_lock.html#r1">m_mutex_write</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">mutex for condition and m_rdlockingcnt <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r2"></a><!-- doxytag: member=<XRecursiveRWLock::m_wrlockwaitingcnt> ref=<r2> args=<> -->
+volatile int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_recursive_r_w_lock.html#r2">m_wrlockwaitingcnt</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r3"></a><!-- doxytag: member=<XRecursiveRWLock::m_rdlockingcnt> ref=<r3> args=<> -->
+volatile int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_recursive_r_w_lock.html#r3">m_rdlockingcnt</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r4"></a><!-- doxytag: member=<XRecursiveRWLock::m_wrlockingcnt> ref=<r4> args=<> -->
+volatile int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_recursive_r_w_lock.html#r4">m_wrlockingcnt</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r5"></a><!-- doxytag: member=<XRecursiveRWLock::m_wrlockingthread> ref=<r5> args=<> -->
+volatile threadid_t&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_recursive_r_w_lock.html#r5">m_wrlockingthread</a></td></tr>
+
+<tr><td colspan="2"><br><h2>Static Private 変数</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="v0"></a><!-- doxytag: member=<XRecursiveRWLock::s_tlRdLockedList> ref=<v0> args=<> -->
+static <a class="el" href="class_x_thread_local.html">XThreadLocal</a>&lt; <a class="el" href="class_x_recursive_r_w_lock.html#y0">tLockedList</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_recursive_r_w_lock.html#v0">s_tlRdLockedList</a></td></tr>
+
+</table>
+<hr><a name="_details"></a><h2>説明</h2>
+fully recursive read-write lock writeLock/Unlock inside readLock/Unlock routine is allowed 
+<p>
+
+<p>
+ <a class="el" href="rwlock_8h-source.html">rwlock.h</a> の <a class="el" href="rwlock_8h-source.html#l00052">52</a> 行で定義されています。<hr><h2>関数</h2>
+<a class="anchor" name="a5"></a><!-- doxytag: member=<XRecursiveRWLock::writeUnlock> ref=<a5> args=<()> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">bool XRecursiveRWLock::writeUnlock           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="mdname1" valign="top" nowrap>          </td>
+          <td class="md" valign="top">&nbsp;)&nbsp;</td>
+          <td class="md" nowrap></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+true if unlocked must unlock with the locking thread 
+<p>
+ <a class="el" href="rwlock_8cpp-source.html">rwlock.cpp</a> の <a class="el" href="rwlock_8cpp-source.html#l00173">173</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="rwlock_8h-source.html#l00070">m_mutex_write</a>, <a class="el" href="rwlock_8h-source.html#l00072">m_wrlockingcnt</a>, と <a class="el" href="rwlock_8h-source.html#l00073">m_wrlockingthread</a>.
+<p>
+参照元 <a class="el" href="xlistnode_8cpp-source.html#l00008">XListNodeBase::clearChildren()</a>, <a class="el" href="xwavengraph_8cpp-source.html#l00151">XWaveNGraph::finishWriting()</a>, <a class="el" href="primarydriver_8cpp-source.html#l00041">XPrimaryDriver::finishWritingRaw()</a>, <a class="el" href="xlistnode_8cpp-source.html#l00030">XListNodeBase::releaseChild()</a>, <a class="el" href="graph_8cpp-source.html#l00096">XGraph::resumeUpdate()</a>, <a class="el" href="xwavengraph_8cpp-source.html#l00064">XWaveNGraph::selectAxes()</a>, <a class="el" href="xwavengraph_8cpp-source.html#l00114">XWaveNGraph::setColCount()</a>, と <a class="el" href="xwavengraph_8cpp-source.html#l00124">XWaveNGraph::setRowCount()</a>.    </td>
+  </tr>
+</table>
+<hr>このクラスの説明は次のファイルから生成されました:<ul>
+<li>kame/<a class="el" href="rwlock_8h-source.html">rwlock.h</a><li>kame/<a class="el" href="rwlock_8cpp-source.html">rwlock.cpp</a></ul>
+<hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:05:49 2006に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+</body>
+</html>

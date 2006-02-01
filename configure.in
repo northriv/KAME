@@ -1,0 +1,213 @@
+dnl =======================================================
+dnl FILE: ./admin/configure.in.min
+dnl =======================================================
+
+dnl    This file is part of the KDE libraries/packages
+dnl    Copyright (C) 2001 Stephan Kulow (coolo@kde.org)
+ 
+dnl    This file is free software; you can redistribute it and/or
+dnl    modify it under the terms of the GNU Library General Public
+dnl    License as published by the Free Software Foundation; either
+dnl    version 2 of the License, or (at your option) any later version.
+ 
+dnl    This library is distributed in the hope that it will be useful,
+dnl    but WITHOUT ANY WARRANTY; without even the implied warranty of
+dnl    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+dnl    Library General Public License for more details.
+ 
+dnl    You should have received a copy of the GNU Library General Public License
+dnl    along with this library; see the file COPYING.LIB.  If not, write to
+dnl    the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+dnl    Boston, MA 02111-1307, USA.
+
+# Original Author was Kalle@kde.org
+# I lifted it in some mater. (Stephan Kulow)
+# I used much code from Janos Farkas
+
+dnl Process this file with autoconf to produce a configure script.
+
+AC_INIT(acinclude.m4) dnl a source file from your sub dir
+
+dnl This is so we can use kde-common
+AC_CONFIG_AUX_DIR(admin)
+
+dnl This ksh/zsh feature conflicts with `cd blah ; pwd`
+unset CDPATH
+
+dnl Checking host/target/build systems, for make, install etc.
+AC_CANONICAL_SYSTEM 
+dnl Perform program name transformation
+AC_ARG_PROGRAM
+
+dnl Automake doc recommends to do this only here. (Janos)
+AM_INIT_AUTOMAKE(kame, 2.0) dnl searches for some needed programs
+
+KDE_SET_PREFIX
+
+dnl generate the config header
+AM_CONFIG_HEADER(config.h) dnl at the distribution this done
+
+dnl Checks for programs.
+AC_CHECK_COMPILERS
+AC_ENABLE_SHARED(yes)
+AC_ENABLE_STATIC(no)
+KDE_PROG_LIBTOOL
+
+dnl for NLS support. Call them in this order!
+dnl WITH_NLS is for the po files
+AM_KDE_WITH_NLS
+
+KDE_USE_QT(3)
+AC_PATH_KDE
+dnl =======================================================
+dnl FILE: configure.in.in
+dnl =======================================================
+
+#MIN_CONFIG(3)
+
+dnl PACKAGE set before
+
+AC_LANG_CPLUSPLUS
+
+dnl CXXFLAGS="$NOOPT_CXXFLAGS" dnl __kdevelop[noopt]__
+dnl CFLAGS="$NOOPT_CFLAGS" dnl __kdevelop[noopt]__
+CXXFLAGS="$CXXFLAGS $USE_EXCEPTIONS" dnl __kdevelop[exc]__
+
+dnl KDE_NEED_FLEX dnl __kdevelop__
+dnl AC_PROG_YACC dnl __kdevelop__
+
+AC_MSG_CHECKING(for freetype2)
+if freetype-config --libs > /dev/null 2>&1; then
+  AC_MSG_RESULT(yes)
+else
+  AC_MSG_ERROR([freetype not installed - please install first])
+fi
+FREETYPE2_LIBS="`freetype-config --libs`"
+FREETYPE2_CFLAGS="`freetype-config --cflags`"
+
+ac_save_LIBS="$LIBS"
+AC_CHECK_LIB(fftw, main, fftw_libs="-lfftw",
+  AC_MSG_ERROR([fftw not installed - please install first]))
+FFTW_LIBS="$FFTW_LIBS $fftw_libs"
+LIBS="$ac_save_LIBS"
+
+AC_MSG_CHECKING(for gsl)
+if gsl-config --libs > /dev/null 2>&1; then
+  AC_MSG_RESULT(yes)
+else
+  AC_MSG_ERROR([gsl not installed - please install first])
+fi
+GSL_LIBS="`gsl-config --libs`"
+
+ac_save_LIBS="$LIBS"
+RUBY_INCLUDE_PATH="`find /usr/lib/ruby -name 'ruby.h'`"
+RUBY_INCLUDES="-I`echo $RUBY_INCLUDE_PATH |sed -e 's/ruby.h//'`"
+AC_CHECK_LIB(ruby, main, ruby_libs="-lruby" ruby_cflags=$RUBY_INCLUDES,
+  AC_MSG_ERROR([ruby not installed - please install first]))
+RUBY_LIBS="$RUBY_LIBS $ruby_libs"
+RUBY_CFLAGS="$RUBY_CFLAGS $ruby_cflags"
+LIBS="$ac_save_LIBS"
+
+AC_MSG_CHECKING(for linux-gpib)
+if test -f /usr/local/lib/libgpib.so ; then
+  AC_MSG_RESULT(yes)
+  AC_DEFINE([HAVE_LINUX_GPIB], 1, [Define if you have 'linux-gpib' library])
+  LINUXGPIB_LIBS="-L/usr/local/lib -lgpib"
+  LINUXGPIB_CFLAGS="-I/usr/local/include/gpib"
+else
+  AC_MSG_RESULT(no)
+fi
+
+AC_ARG_WITH(gc, 
+[  --with-gc         use garbage collector],
+	ac_save_LIBS="$LIBS"
+	AC_CHECK_LIB(gccpp, main, 
+	  gc_libs="-lgccpp -lgc" \
+	  AC_DEFINE([HAVE_LIBGCCPP], 1, [Define if you want to use 'gc, gccpp' library to detect memory leaks]),
+	  AC_MSG_WARN([gc or gccpp is not installed - gc is disabled]), -lgc)
+	GC_LIBS="$GC_LIBS $gc_libs"
+	LIBS="$ac_save_LIBS"
+)
+
+AC_ARG_WITH(malloc-debug, 
+[  --with-malloc-debug         use MallocDebug.app],
+	ac_save_LIBS="$LIBS"
+	AC_CHECK_LIB(MallocDebug, main, 
+	  malloc_debug_libs="-lMallocDebug" \
+	  AC_DEFINE([HAVE_LIBMALLOCDEBUG], 1, [Define if you want to use 'MallocDebug.app']),
+	  AC_MSG_WARN([libMallocDebug.a is not installed - MallocDebug is disabled]), -lMallocDebug)
+	MALLOC_DEBUG_LIBS="$MALLOC_DEBUG_LIBS $malloc_debug_libs"
+	LIBS="$ac_save_LIBS"
+)
+
+AC_C_BIGENDIAN
+AC_CHECK_SIZEOF(float)
+AC_CHECK_SIZEOF(double)
+AC_CHECK_SIZEOF(short)
+AC_CHECK_SIZEOF(int)
+AC_CHECK_SIZEOF(long)
+AC_CHECK_SIZEOF(void *)
+
+AC_SUBST(GSL_LIBS)
+AC_SUBST(FFTW_LIBS)
+AC_SUBST(LINUXGPIB_LIBS)
+AC_SUBST(LINUXGPIB_CFLAGS)
+AC_SUBST(RUBY_LIBS)
+AC_SUBST(RUBY_CFLAGS)
+AC_SUBST(FREETYPE2_LIBS)
+AC_SUBST(FREETYPE2_CFLAGS)
+AC_SUBST(GC_LIBS)
+AC_SUBST(MALLOC_DEBUG_LIBS)
+
+CPPFLAGS="$CPPFLAGS $RUBY_CFLAGS $FREETYPE2_CFLAGS"
+KDE_CREATE_SUBDIRSLIST
+AC_CONFIG_FILES([ Makefile ])
+AC_CONFIG_FILES([ doc/Makefile ])
+AC_CONFIG_FILES([ doc/en/Makefile ])
+AC_CONFIG_FILES([ kame/Makefile ])
+AC_CONFIG_FILES([ kame/Measurements/Makefile ])
+AC_CONFIG_FILES([ kame/Scripts/Makefile ])
+AC_CONFIG_FILES([ kame/analyzer/Makefile ])
+AC_CONFIG_FILES([ kame/analyzer/forms/Makefile ])
+AC_CONFIG_FILES([ kame/driver/Makefile ])
+AC_CONFIG_FILES([ kame/driver/forms/Makefile ])
+AC_CONFIG_FILES([ kame/forms/Makefile ])
+AC_CONFIG_FILES([ kame/graph/Makefile ])
+AC_CONFIG_FILES([ kame/graph/forms/Makefile ])
+AC_CONFIG_FILES([ kame/icons/Makefile ])
+AC_CONFIG_FILES([ kame/mikachanfont/Makefile ])
+AC_CONFIG_FILES([ kame/script/Makefile ])
+AC_CONFIG_FILES([ kame/script/forms/Makefile ])
+AC_CONFIG_FILES([ kame/thermometer/Makefile ])
+AC_CONFIG_FILES([ kame/thermometer/forms/Makefile ])
+AC_CONFIG_FILES([ kame/users/Makefile ])
+AC_CONFIG_FILES([ kame/users/dcsource/Makefile ])
+AC_CONFIG_FILES([ kame/users/dcsource/forms/Makefile ])
+AC_CONFIG_FILES([ kame/users/dmm/Makefile ])
+AC_CONFIG_FILES([ kame/users/dmm/forms/Makefile ])
+AC_CONFIG_FILES([ kame/users/dso/Makefile ])
+AC_CONFIG_FILES([ kame/users/dso/forms/Makefile ])
+AC_CONFIG_FILES([ kame/users/funcsynth/Makefile ])
+AC_CONFIG_FILES([ kame/users/funcsynth/forms/Makefile ])
+AC_CONFIG_FILES([ kame/users/lia/Makefile ])
+AC_CONFIG_FILES([ kame/users/lia/forms/Makefile ])
+AC_CONFIG_FILES([ kame/users/magnetps/Makefile ])
+AC_CONFIG_FILES([ kame/users/magnetps/forms/Makefile ])
+AC_CONFIG_FILES([ kame/users/nmr/Makefile ])
+AC_CONFIG_FILES([ kame/users/nmr/forms/Makefile ])
+AC_CONFIG_FILES([ kame/users/tempcontrol/Makefile ])
+AC_CONFIG_FILES([ kame/users/tempcontrol/forms/Makefile ])
+AC_CONFIG_FILES([ po/Makefile ])
+AC_OUTPUT
+if test "$all_tests" = "bad"; then
+  if test ! "$cache_file" = "/dev/null"; then
+    echo ""    
+    echo "Please remove the file $cache_file after changing your setup"
+    echo "so that configure will find the changes next time."
+    echo ""
+  fi
+else
+  echo ""
+  echo "Good - your configure finished. Start make now"
+  echo ""
+fi

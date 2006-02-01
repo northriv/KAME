@@ -1,0 +1,7 @@
+base referer
+rect $class_x_value_node.html 110,277 254,303
+rect $class_x_value_node_base.html 37,199 162,226
+rect $class_x_node.html 8,98 69,125
+rect $class_x_talker.html 134,98 414,125
+rect $class_x_mutex.html 353,7 420,34
+rect $class_x_recursive_mutex.html 430,149 558,175

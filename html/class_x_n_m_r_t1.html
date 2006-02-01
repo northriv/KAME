@@ -1,0 +1,531 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: クラス XNMRT1</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<h1>クラス XNMRT1</h1><!-- doxytag: class=<XNMRT1> --><!-- doxytag: inherits=<XSecondaryDriver> -->Measure Relaxation Curve.  
+<a href="#_details">[詳細]</a>
+<p>
+<code>#include &lt;<a class="el" href="nmrrelax_8h-source.html">nmrrelax.h</a>&gt;</code>
+<p>
+XNMRT1に対する継承グラフ<p><center><img src="class_x_n_m_r_t1__inherit__graph.png" border="0" usemap="#_x_n_m_r_t1__inherit__map" alt="Inheritance graph"></center>
+<map name="_x_n_m_r_t1__inherit__map">
+<area href="class_x_secondary_driver.html" shape="rect" coords="8,157,138,184" alt="">
+<area href="class_x_driver.html" shape="rect" coords="40,82,106,109" alt="">
+<area href="class_x_node.html" shape="rect" coords="42,8,104,34" alt="">
+</map>
+<center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XNMRT1のコラボレーション図<p><center><img src="class_x_n_m_r_t1__coll__graph.png" border="0" usemap="#_x_n_m_r_t1__coll__map" alt="Collaboration graph"></center>
+<map name="_x_n_m_r_t1__coll__map">
+<area href="class_x_secondary_driver.html" shape="rect" coords="65,10,195,37" alt="">
+<area href="classqshared__ptr.html" shape="rect" coords="38,64,222,90" alt="">
+<area href="classqshared__ptr.html" shape="rect" coords="9,128,251,154" alt="">
+<area href="class_x_time.html" shape="rect" coords="99,192,161,218" alt="">
+</map>
+<center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_n_m_r_t1-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
+<tr><td></td></tr>
+<tr><td colspan="2"><br><h2>Public メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a0"></a><!-- doxytag: member=<XNMRT1::~XNMRT1> ref=<a0> args=<()> -->
+&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#a0">~XNMRT1</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a1"></a><!-- doxytag: member=<XNMRT1::showForms> ref=<a1> args=<()> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#a1">showForms</a> ()</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">show all forms belonging to driver <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a2"></a><!-- doxytag: member=<XNMRT1::t1inv> ref=<a2> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_scalar_entry.html">XScalarEntry</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#a2">t1inv</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Holds 1/T1 or 1/T2 and its std. deviation. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a3"></a><!-- doxytag: member=<XNMRT1::t1invErr> ref=<a3> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_scalar_entry.html">XScalarEntry</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#a3">t1invErr</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a4"></a><!-- doxytag: member=<XNMRT1::pulser> ref=<a4> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_item_node.html">XItemNode</a>&lt;<br>
+ <a class="el" href="class_x_driver_list.html">XDriverList</a>, <a class="el" href="class_x_pulser.html">XPulser</a> &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#a4">pulser</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a5"></a><!-- doxytag: member=<XNMRT1::pulse1> ref=<a5> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_item_node.html">XItemNode</a>&lt;<br>
+ <a class="el" href="class_x_driver_list.html">XDriverList</a>, <a class="el" href="class_x_n_m_r_pulse_analyzer.html">XNMRPulseAnalyzer</a> &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#a5">pulse1</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a6"></a><!-- doxytag: member=<XNMRT1::pulse2> ref=<a6> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_item_node.html">XItemNode</a>&lt;<br>
+ <a class="el" href="class_x_driver_list.html">XDriverList</a>, <a class="el" href="class_x_n_m_r_pulse_analyzer.html">XNMRPulseAnalyzer</a> &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#a6">pulse2</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a7"></a><!-- doxytag: member=<XNMRT1::active> ref=<a7> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#a7">active</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">If active, a control to Pulser is allowed. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a8"></a><!-- doxytag: member=<XNMRT1::autoPhase> ref=<a8> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#a8">autoPhase</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Deduce phase from data. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a9"></a><!-- doxytag: member=<XNMRT1::absFit> ref=<a9> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#a9">absFit</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Use absolute value, ignoring phase. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a10"></a><!-- doxytag: member=<XNMRT1::p1Min> ref=<a10> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#a10">p1Min</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Region of P1 or 2tau for fitting, display, control of pulser [ms]. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a11"></a><!-- doxytag: member=<XNMRT1::p1Max> ref=<a11> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#a11">p1Max</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a12"></a><!-- doxytag: member=<XNMRT1::phase> ref=<a12> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#a12">phase</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">(Deduced) phase of echoes [deg.] <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a13"></a><!-- doxytag: member=<XNMRT1::freq> ref=<a13> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#a13">freq</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Center freq and band width of echoes [kHz]. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a14"></a><!-- doxytag: member=<XNMRT1::bandWidth> ref=<a14> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#a14">bandWidth</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a15"></a><!-- doxytag: member=<XNMRT1::t2Mode> ref=<a15> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#a15">t2Mode</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Do T2 measurement. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a16"></a><!-- doxytag: member=<XNMRT1::smoothSamples> ref=<a16> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XUIntNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#a16">smoothSamples</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight"># of Samples for fitting and display <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a17"></a><!-- doxytag: member=<XNMRT1::p1Dist> ref=<a17> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#a17">p1Dist</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Distribution of P1 or 2tau. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a18"></a><!-- doxytag: member=<XNMRT1::ignoreCount> ref=<a18> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XUIntNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#a18">ignoreCount</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Cycles for stabilize. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a19"></a><!-- doxytag: member=<XNMRT1::extraAvg> ref=<a19> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XUIntNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#a19">extraAvg</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Extra Average. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a20"></a><!-- doxytag: member=<XNMRT1::relaxFunc> ref=<a20> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_item_node.html">XItemNode</a>&lt;<br>
+ <a class="el" href="class_x_relax_func_list.html">XRelaxFuncList</a>, <a class="el" href="class_x_relax_func.html">XRelaxFunc</a> &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#a20">relaxFunc</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Relaxation Function. <br></td></tr>
+<tr><td colspan="2"><br><h2>Protected メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b0"></a><!-- doxytag: member=<XNMRT1::XNMRT1> ref=<b0> args=<(const char *name, bool runtime, const shared_ptr&lt; XScalarEntryList &gt; &amp;scalarentries, const shared_ptr&lt; XInterfaceList &gt; &amp;interfaces, const shared_ptr&lt; XThermometerList &gt; &amp;thermometers, const shared_ptr&lt; XDriverList &gt; &amp;drivers)> -->
+&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#b0">XNMRT1</a> (const char *name, bool runtime, const shared_ptr&lt; <a class="el" href="class_x_scalar_entry_list.html">XScalarEntryList</a> &gt; &amp;scalarentries, const shared_ptr&lt; <a class="el" href="class_x_interface_list.html">XInterfaceList</a> &gt; &amp;interfaces, const shared_ptr&lt; <a class="el" href="class_x_thermometer_list.html">XThermometerList</a> &gt; &amp;thermometers, const shared_ptr&lt; <a class="el" href="class_x_driver_list.html">XDriverList</a> &gt; &amp;drivers)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#b1">analyze</a> (const shared_ptr&lt; <a class="el" href="class_x_driver.html">XDriver</a> &gt; &amp;emitter)  throw (XRecordError&amp;)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#b2">visualize</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">virtual bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#b3">checkDependency</a> (const shared_ptr&lt; <a class="el" href="class_x_driver.html">XDriver</a> &gt; &amp;emitter) const </td></tr>
+
+<tr><td colspan="2"><br><h2>Private メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d0"></a><!-- doxytag: member=<XNMRT1::onClearAll> ref=<d0> args=<(const shared_ptr&lt; XNode &gt; &amp;)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#d0">onClearAll</a> (const shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt; &amp;)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d1"></a><!-- doxytag: member=<XNMRT1::onResetFit> ref=<d1> args=<(const shared_ptr&lt; XNode &gt; &amp;)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#d1">onResetFit</a> (const shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt; &amp;)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d2"></a><!-- doxytag: member=<XNMRT1::onActiveChanged> ref=<d2> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#d2">onActiveChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d3"></a><!-- doxytag: member=<XNMRT1::onCondChanged> ref=<d3> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#d3">onCondChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">QString&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#d4">iterate</a> (shared_ptr&lt; <a class="el" href="class_x_relax_func.html">XRelaxFunc</a> &gt; &amp;relax, int itercnt)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d5"></a><!-- doxytag: member=<XNMRT1::acuSpectrum> ref=<d5> args=<(const std::deque&lt; std::complex&lt; double &gt; &gt; &amp;wave, double df, double cf, double bw)> -->
+std::complex&lt; double &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#d5">acuSpectrum</a> (const std::deque&lt; std::complex&lt; double &gt; &gt; &amp;wave, double df, double cf, double bw)</td></tr>
+
+<tr><td colspan="2"><br><h2>Private 変数</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r0"></a><!-- doxytag: member=<XNMRT1::m_relaxFuncs> ref=<r0> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_relax_func_list.html">XRelaxFuncList</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r0">m_relaxFuncs</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">List of relaxation functions. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r1"></a><!-- doxytag: member=<XNMRT1::m_t1inv> ref=<r1> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_scalar_entry.html">XScalarEntry</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r1">m_t1inv</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Holds 1/T1 or 1/T2 and its std. deviation. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r2"></a><!-- doxytag: member=<XNMRT1::m_t1invErr> ref=<r2> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_scalar_entry.html">XScalarEntry</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r2">m_t1invErr</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r3"></a><!-- doxytag: member=<XNMRT1::m_pulser> ref=<r3> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_item_node.html">XItemNode</a>&lt; <a class="el" href="class_x_driver_list.html">XDriverList</a>,<br>
+ <a class="el" href="class_x_pulser.html">XPulser</a> &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r3">m_pulser</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r4"></a><!-- doxytag: member=<XNMRT1::m_pulse1> ref=<r4> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_item_node.html">XItemNode</a>&lt; <a class="el" href="class_x_driver_list.html">XDriverList</a>,<br>
+ <a class="el" href="class_x_n_m_r_pulse_analyzer.html">XNMRPulseAnalyzer</a> &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r4">m_pulse1</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r5"></a><!-- doxytag: member=<XNMRT1::m_pulse2> ref=<r5> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_item_node.html">XItemNode</a>&lt; <a class="el" href="class_x_driver_list.html">XDriverList</a>,<br>
+ <a class="el" href="class_x_n_m_r_pulse_analyzer.html">XNMRPulseAnalyzer</a> &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r5">m_pulse2</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r6"></a><!-- doxytag: member=<XNMRT1::m_active> ref=<r6> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r6">m_active</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r7"></a><!-- doxytag: member=<XNMRT1::m_autoPhase> ref=<r7> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r7">m_autoPhase</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r8"></a><!-- doxytag: member=<XNMRT1::m_absFit> ref=<r8> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r8">m_absFit</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r9"></a><!-- doxytag: member=<XNMRT1::m_p1Min> ref=<r9> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r9">m_p1Min</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r10"></a><!-- doxytag: member=<XNMRT1::m_p1Max> ref=<r10> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r10">m_p1Max</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r11"></a><!-- doxytag: member=<XNMRT1::m_phase> ref=<r11> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r11">m_phase</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r12"></a><!-- doxytag: member=<XNMRT1::m_freq> ref=<r12> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r12">m_freq</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r13"></a><!-- doxytag: member=<XNMRT1::m_bandWidth> ref=<r13> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r13">m_bandWidth</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r14"></a><!-- doxytag: member=<XNMRT1::m_t2Mode> ref=<r14> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r14">m_t2Mode</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r15"></a><!-- doxytag: member=<XNMRT1::m_smoothSamples> ref=<r15> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_value_node.html">XUIntNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r15">m_smoothSamples</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r16"></a><!-- doxytag: member=<XNMRT1::m_p1Dist> ref=<r16> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r16">m_p1Dist</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r17"></a><!-- doxytag: member=<XNMRT1::m_ignoreCount> ref=<r17> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_value_node.html">XUIntNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r17">m_ignoreCount</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r18"></a><!-- doxytag: member=<XNMRT1::m_extraAvg> ref=<r18> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_value_node.html">XUIntNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r18">m_extraAvg</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r19"></a><!-- doxytag: member=<XNMRT1::m_relaxFunc> ref=<r19> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_item_node.html">XItemNode</a>&lt; <a class="el" href="class_x_relax_func_list.html">XRelaxFuncList</a>,<br>
+ <a class="el" href="class_x_relax_func.html">XRelaxFunc</a> &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r19">m_relaxFunc</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r20"></a><!-- doxytag: member=<XNMRT1::m_clearAll> ref=<r20> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r20">m_clearAll</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r21"></a><!-- doxytag: member=<XNMRT1::m_resetFit> ref=<r21> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r21">m_resetFit</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r22"></a><!-- doxytag: member=<XNMRT1::m_fitStatus> ref=<r22> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_string_node.html">XStringNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r22">m_fitStatus</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r23"></a><!-- doxytag: member=<XNMRT1::m_lsnOnClearAll> ref=<r23> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r23">m_lsnOnClearAll</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r24"></a><!-- doxytag: member=<XNMRT1::m_lsnOnResetFit> ref=<r24> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r24">m_lsnOnResetFit</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r25"></a><!-- doxytag: member=<XNMRT1::m_lsnOnActiveChanged> ref=<r25> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r25">m_lsnOnActiveChanged</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r26"></a><!-- doxytag: member=<XNMRT1::m_lsnOnCondChanged> ref=<r26> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r26">m_lsnOnCondChanged</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r27"></a><!-- doxytag: member=<XNMRT1::m_conP1Min> ref=<r27> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r27">m_conP1Min</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r28"></a><!-- doxytag: member=<XNMRT1::m_conP1Max> ref=<r28> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r28">m_conP1Max</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r29"></a><!-- doxytag: member=<XNMRT1::m_conPhase> ref=<r29> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r29">m_conPhase</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r30"></a><!-- doxytag: member=<XNMRT1::m_conFreq> ref=<r30> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r30">m_conFreq</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r31"></a><!-- doxytag: member=<XNMRT1::m_conBW> ref=<r31> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r31">m_conBW</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r32"></a><!-- doxytag: member=<XNMRT1::m_conSmoothSamples> ref=<r32> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r32">m_conSmoothSamples</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r33"></a><!-- doxytag: member=<XNMRT1::m_conASWClearance> ref=<r33> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r33">m_conASWClearance</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r34"></a><!-- doxytag: member=<XNMRT1::m_conFitStatus> ref=<r34> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r34">m_conFitStatus</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r35"></a><!-- doxytag: member=<XNMRT1::m_conP1Dist> ref=<r35> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r35">m_conP1Dist</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r36"></a><!-- doxytag: member=<XNMRT1::m_conRelaxFunc> ref=<r36> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r36">m_conRelaxFunc</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r37"></a><!-- doxytag: member=<XNMRT1::m_conClearAll> ref=<r37> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r37">m_conClearAll</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r38"></a><!-- doxytag: member=<XNMRT1::m_conResetFit> ref=<r38> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r38">m_conResetFit</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r39"></a><!-- doxytag: member=<XNMRT1::m_conActive> ref=<r39> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r39">m_conActive</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r40"></a><!-- doxytag: member=<XNMRT1::m_conAutoPhase> ref=<r40> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r40">m_conAutoPhase</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r41"></a><!-- doxytag: member=<XNMRT1::m_conAbsFit> ref=<r41> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r41">m_conAbsFit</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r42"></a><!-- doxytag: member=<XNMRT1::m_conIgnoreCount> ref=<r42> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r42">m_conIgnoreCount</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r43"></a><!-- doxytag: member=<XNMRT1::m_conT2Mode> ref=<r43> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r43">m_conT2Mode</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r44"></a><!-- doxytag: member=<XNMRT1::m_conExtraAvg> ref=<r44> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r44">m_conExtraAvg</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r45"></a><!-- doxytag: member=<XNMRT1::m_conPulser> ref=<r45> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r45">m_conPulser</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r46"></a><!-- doxytag: member=<XNMRT1::m_conPulse1> ref=<r46> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r46">m_conPulse1</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r47"></a><!-- doxytag: member=<XNMRT1::m_conPulse2> ref=<r47> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r47">m_conPulse2</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r48"></a><!-- doxytag: member=<XNMRT1::m_pts> ref=<r48> args=<> -->
+std::deque&lt; <a class="el" href="struct_x_n_m_r_t1_1_1_raw_pt.html">RawPt</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r48">m_pts</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Store all measured points. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r49"></a><!-- doxytag: member=<XNMRT1::m_sumpts> ref=<r49> args=<> -->
+std::deque&lt; <a class="el" href="struct_x_n_m_r_t1_1_1_pt.html">Pt</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r49">m_sumpts</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Store reduced points to manage fitting and display. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r50"></a><!-- doxytag: member=<XNMRT1::m_form> ref=<r50> args=<> -->
+<a class="el" href="classqshared__ptr.html">qshared_ptr</a>&lt; FrmNMRT1 &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r50">m_form</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r51"></a><!-- doxytag: member=<XNMRT1::m_statusPrinter> ref=<r51> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_status_printer.html">XStatusPrinter</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r51">m_statusPrinter</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">shared_ptr&lt; <a class="el" href="class_x_wave_n_graph.html">XWaveNGraph</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r52">m_wave</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r53"></a><!-- doxytag: member=<XNMRT1::m_params> ref=<r53> args=<[3]> -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r53">m_params</a> [3]</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">fitting parameters; 1/T1, c, a; ex. f(t) = c*exp(-t/T1) + a <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r54"></a><!-- doxytag: member=<XNMRT1::m_errors> ref=<r54> args=<[3]> -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r54">m_errors</a> [3]</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">std. deviations <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r55"></a><!-- doxytag: member=<XNMRT1::m_avgCount> ref=<r55> args=<> -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r55">m_avgCount</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r56"></a><!-- doxytag: member=<XNMRT1::m_ignoredCount> ref=<r56> args=<> -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r56">m_ignoredCount</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r57"></a><!-- doxytag: member=<XNMRT1::m_timeClearRequested> ref=<r57> args=<> -->
+<a class="el" href="class_x_time.html">XTime</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#r57">m_timeClearRequested</a></td></tr>
+
+<tr><td colspan="2"><br><h2>フレンド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="n0"></a><!-- doxytag: member=<XNMRT1::XRelaxFunc> ref=<n0> args=<> -->
+class&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#n0">XRelaxFunc</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="n1"></a><!-- doxytag: member=<XNMRT1::XRelaxFuncPlot> ref=<n1> args=<> -->
+class&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#n1">XRelaxFuncPlot</a></td></tr>
+
+<tr><td colspan="2"><br><h2>構成</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">struct &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html">NLLS</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">for Non-Lenear-Least-Square fitting  <a href="struct_x_n_m_r_t1_1_1_n_l_l_s.html#_details">[詳細]</a><br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">struct &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_x_n_m_r_t1_1_1_pt.html">Pt</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">For fitting and display.  <a href="struct_x_n_m_r_t1_1_1_pt.html#_details">[詳細]</a><br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">struct &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_x_n_m_r_t1_1_1_raw_pt.html">RawPt</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Raw measured points.  <a href="struct_x_n_m_r_t1_1_1_raw_pt.html#_details">[詳細]</a><br></td></tr>
+</table>
+<hr><a name="_details"></a><h2>説明</h2>
+Measure Relaxation Curve. 
+<p>
+
+<p>
+ <a class="el" href="nmrrelax_8h-source.html">nmrrelax.h</a> の <a class="el" href="nmrrelax_8h-source.html#l00021">21</a> 行で定義されています。<hr><h2>関数</h2>
+<a class="anchor" name="b1"></a><!-- doxytag: member=<XNMRT1::analyze> ref=<b1> args=<(const shared_ptr&lt; XDriver &gt; &amp;emitter)> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">void XNMRT1::analyze           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="md" nowrap valign="top">const shared_ptr&lt; <a class="el" href="class_x_driver.html">XDriver</a> &gt; &amp;&nbsp;</td>
+          <td class="mdname1" valign="top" nowrap> <em>emitter</em>          </td>
+          <td class="md" valign="top">&nbsp;)&nbsp;</td>
+          <td class="md" nowrap>  throw (XRecordError&amp;)<code> [protected, virtual]</code></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+this is called when connected driver emit a signal unless dependency is broken all connected drivers are readLocked 
+<p>
+<a class="el" href="class_x_secondary_driver.html#b3">XSecondaryDriver</a>を実装しています.
+<p>
+ <a class="el" href="nmrrelax_8cpp-source.html">nmrrelax.cpp</a> の <a class="el" href="nmrrelax_8cpp-source.html#l00260">260</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="nmrrelax_8h-source.html#l00120">XNMRT1::Pt::c</a>, <a class="el" href="nmrrelax_8h-source.html#l00151">XNMRT1::RawPt::c</a>, <a class="el" href="nmrrelax_8h-source.html#l00122">XNMRT1::Pt::isigma</a>, <a class="el" href="nmrrelax_8h-source.html#l00153">XNMRT1::RawPt::isigma2</a>, <a class="el" href="nmrrelax_8h-source.html#l00121">XNMRT1::Pt::p1</a>, と <a class="el" href="nmrrelax_8h-source.html#l00152">XNMRT1::RawPt::p1</a>.    </td>
+  </tr>
+</table>
+<a class="anchor" name="b3"></a><!-- doxytag: member=<XNMRT1::checkDependency> ref=<b3> args=<(const shared_ptr&lt; XDriver &gt; &amp;emitter) const > --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">bool XNMRT1::checkDependency           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="md" nowrap valign="top">const shared_ptr&lt; <a class="el" href="class_x_driver.html">XDriver</a> &gt; &amp;&nbsp;</td>
+          <td class="mdname1" valign="top" nowrap> <em>emitter</em>          </td>
+          <td class="md" valign="top">&nbsp;)&nbsp;</td>
+          <td class="md" nowrap> const<code> [protected, virtual]</code></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+check connected drivers have valid time <dl compact><dt><b>戻り値:</b></dt><dd>true if dependency is resolved </dd></dl>
+
+<p>
+<a class="el" href="class_x_secondary_driver.html#b5">XSecondaryDriver</a>を実装しています.
+<p>
+ <a class="el" href="nmrrelax_8cpp-source.html">nmrrelax.cpp</a> の <a class="el" href="nmrrelax_8cpp-source.html#l00250">250</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="nmrrelax_8h-source.html#l00054">pulse1()</a>, <a class="el" href="nmrrelax_8h-source.html#l00055">pulse2()</a>, と <a class="el" href="nmrrelax_8h-source.html#l00053">pulser()</a>.    </td>
+  </tr>
+</table>
+<a class="anchor" name="d4"></a><!-- doxytag: member=<XNMRT1::iterate> ref=<d4> args=<(shared_ptr&lt; XRelaxFunc &gt; &amp;relax, int itercnt)> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">QString XNMRT1::iterate           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="md" nowrap valign="top">shared_ptr&lt; <a class="el" href="class_x_relax_func.html">XRelaxFunc</a> &gt; &amp;&nbsp;</td>
+          <td class="mdname" nowrap> <em>relax</em>, </td>
+        </tr>
+        <tr>
+          <td class="md" nowrap align="right"></td>
+          <td class="md"></td>
+          <td class="md" nowrap>int&nbsp;</td>
+          <td class="mdname" nowrap> <em>itercnt</em></td>
+        </tr>
+        <tr>
+          <td class="md"></td>
+          <td class="md">)&nbsp;</td>
+          <td class="md" colspan="2"><code> [private]</code></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+Do fitting iterations <em>itercnt</em> times <dl compact><dt><b>引数:</b></dt><dd>
+  <table border="0" cellspacing="2" cellpadding="0">
+    <tr><td valign="top"></td><td valign="top"><em>relax</em>&nbsp;</td><td>a pointer to a realaxation function </td></tr>
+    <tr><td valign="top"></td><td valign="top"><em>itercnt</em>&nbsp;</td><td>counts </td></tr>
+    <tr><td valign="top"></td><td valign="top"><em>buf</em>&nbsp;</td><td>a message will be passed </td></tr>
+  </table>
+</dl>
+
+<p>
+ <a class="el" href="nmrrelaxfit_8cpp-source.html">nmrrelaxfit.cpp</a> の <a class="el" href="nmrrelaxfit_8cpp-source.html#l00279">279</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="nmrrelax_8h-source.html#l00167">m_errors</a>, <a class="el" href="nmrrelax_8h-source.html#l00166">m_params</a>, <a class="el" href="nmrrelax_8h-source.html#l00158">m_sumpts</a>, <a class="el" href="xtime_8cpp-source.html#l00015">XTime::now()</a>, <a class="el" href="nmrrelax_8h-source.html#l00065">p1Max()</a>, <a class="el" href="nmrrelax_8h-source.html#l00064">p1Min()</a>, <a class="el" href="nmrrelaxfit_8cpp-source.html#l00227">XRelaxFunc::relax_df()</a>, <a class="el" href="nmrrelaxfit_8cpp-source.html#l00203">XRelaxFunc::relax_f()</a>, <a class="el" href="nmrrelaxfit_8cpp-source.html#l00252">XRelaxFunc::relax_fdf()</a>, と <a class="el" href="nmrrelax_8h-source.html#l00072">t2Mode()</a>.    </td>
+  </tr>
+</table>
+<a class="anchor" name="b2"></a><!-- doxytag: member=<XNMRT1::visualize> ref=<b2> args=<()> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">void XNMRT1::visualize           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="mdname1" valign="top" nowrap>          </td>
+          <td class="md" valign="top">&nbsp;)&nbsp;</td>
+          <td class="md" nowrap><code> [protected, virtual]</code></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+this is called after <a class="el" href="class_x_n_m_r_t1.html#b1">analyze()</a> or analyzeRaw() record is readLocked 
+<p>
+<a class="el" href="class_x_secondary_driver.html#b4">XSecondaryDriver</a>を実装しています.
+<p>
+ <a class="el" href="nmrrelax_8cpp-source.html">nmrrelax.cpp</a> の <a class="el" href="nmrrelax_8cpp-source.html#l00465">465</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="nmrrelax_8h-source.html#l00158">m_sumpts</a>, <a class="el" href="nmrrelax_8h-source.html#l00164">m_wave</a>, と <a class="el" href="nmrrelax_8h-source.html#l00072">t2Mode()</a>.    </td>
+  </tr>
+</table>
+<hr><h2>変数</h2>
+<a class="anchor" name="r52"></a><!-- doxytag: member=<XNMRT1::m_wave> ref=<r52> args=<> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">shared_ptr&lt;<a class="el" href="class_x_wave_n_graph.html">XWaveNGraph</a>&gt; <a class="el" href="class_x_n_m_r_t1.html#r52">XNMRT1::m_wave</a><code> [private]</code>          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+Store reduced points <dl compact><dt><b>参照:</b></dt><dd>m_pt, <a class="el" href="class_x_n_m_r_t1.html#r49">m_sumpts</a> </dd></dl>
+
+<p>
+ <a class="el" href="nmrrelax_8h-source.html">nmrrelax.h</a> の <a class="el" href="nmrrelax_8h-source.html#l00164">164</a> 行で定義されています。
+<p>
+参照元 <a class="el" href="nmrrelax_8cpp-source.html#l00465">visualize()</a>, と <a class="el" href="nmrrelax_8cpp-source.html#l00056">XNMRT1()</a>.    </td>
+  </tr>
+</table>
+<hr>このクラスの説明は次のファイルから生成されました:<ul>
+<li>kame/users/nmr/<a class="el" href="nmrrelax_8h-source.html">nmrrelax.h</a><li>kame/users/nmr/<a class="el" href="nmrrelax_8cpp-source.html">nmrrelax.cpp</a><li>kame/users/nmr/<a class="el" href="nmrrelaxfit_8cpp-source.html">nmrrelaxfit.cpp</a></ul>
+<hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:05:25 2006に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+</body>
+</html>

@@ -1,0 +1,6 @@
+base referer
+rect $class_x_combo_node.html 8,231 112,258
+rect $class_x_pointer_item_node.html 136,231 304,258
+rect $class_x_value_node_base.html 77,82 202,109
+rect $class_x_node.html 109,7 170,34
+rect $class_x_item_node.html 157,306 282,333

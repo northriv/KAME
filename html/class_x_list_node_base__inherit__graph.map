@@ -1,0 +1,15 @@
+base referer
+rect $class_x_alias_list_node.html 336,8 501,34
+rect $class_x_alias_list_node.html 333,58 504,85
+rect $class_x_alias_list_node.html 321,109 516,136
+rect $class_x_alias_list_node.html 314,160 522,186
+rect $class_x_alias_list_node.html 309,210 528,237
+rect $class_x_alias_list_node.html 312,261 525,288
+rect $class_x_alias_list_node.html 321,312 516,338
+rect $class_x_custom_type_list_node.html 313,362 524,389
+rect $class_x_custom_type_list_node.html 305,413 532,440
+rect $class_x_custom_type_list_node.html 284,464 553,490
+rect $class_x_custom_type_list_node.html 296,514 541,541
+rect $class_x_list_node.html 350,565 486,592
+rect $class_x_list_node.html 328,616 509,642
+rect $class_x_node.html 9,312 70,338

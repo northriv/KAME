@@ -1,0 +1,229 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: kame/users/lia/lockinamp.cpp ソースファイル</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="nav">
+<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000012.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000021.html">lia</a></div>
+<h1>lockinamp.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">//---------------------------------------------------------------------------</span>
+<a name="l00002"></a>00002 <span class="preprocessor">#include "forms/lockinampform.h"</span>
+<a name="l00003"></a>00003 <span class="preprocessor">#include "lockinamp.h"</span>
+<a name="l00004"></a>00004 <span class="preprocessor">#include "interface.h"</span>
+<a name="l00005"></a>00005 <span class="preprocessor">#include "analyzer.h"</span>
+<a name="l00006"></a>00006 <span class="preprocessor">#include "xnodeconnector.h"</span>
+<a name="l00007"></a>00007 <span class="preprocessor">#include &lt;qstatusbar.h&gt;</span>
+<a name="l00008"></a>00008 <span class="preprocessor">#include &lt;qpushbutton.h&gt;</span>
+<a name="l00009"></a>00009 <span class="preprocessor">#include &lt;qcheckbox.h&gt;</span>
+<a name="l00010"></a>00010 <span class="preprocessor">#include &lt;klocale.h&gt;</span>
+<a name="l00011"></a>00011 
+<a name="l00012"></a><a class="code" href="class_x_l_i_a.html#b0">00012</a> <a class="code" href="class_x_l_i_a.html#b0">XLIA::XLIA</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, 
+<a name="l00013"></a>00013    <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
+<a name="l00014"></a>00014    <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
+<a name="l00015"></a>00015    <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
+<a name="l00016"></a>00016    <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers) : 
+<a name="l00017"></a>00017     <a class="code" href="class_x_primary_driver.html">XPrimaryDriver</a>(name, runtime, scalarentries, interfaces, thermometers, drivers),
+<a name="l00018"></a>00018     m_valueX(create&lt;<a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>&gt;(<span class="stringliteral">"ValueX"</span>, false, 
+<a name="l00019"></a>00019         dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()))),
+<a name="l00020"></a>00020     m_valueY(create&lt;<a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>&gt;(<span class="stringliteral">"ValueY"</span>, false, 
+<a name="l00021"></a>00021         dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()))),
+<a name="l00022"></a>00022     m_output(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"Output"</span>, false)),
+<a name="l00023"></a>00023     m_frequency(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"Frequency"</span>, false)),
+<a name="l00024"></a>00024     m_sensitivity(create&lt;<a class="code" href="class_x_combo_node.html">XComboNode</a>&gt;(<span class="stringliteral">"Sensitivity"</span>, false)),
+<a name="l00025"></a>00025     m_timeConst(create&lt;<a class="code" href="class_x_combo_node.html">XComboNode</a>&gt;(<span class="stringliteral">"TimeConst"</span>, false)),
+<a name="l00026"></a>00026     m_autoScaleX(create&lt;<a class="code" href="class_x_value_node.html">XBoolNode</a>&gt;(<span class="stringliteral">"AutoScaleX"</span>, false)),
+<a name="l00027"></a>00027     m_autoScaleY(create&lt;<a class="code" href="class_x_value_node.html">XBoolNode</a>&gt;(<span class="stringliteral">"AutoScaleY"</span>, false)),
+<a name="l00028"></a>00028     m_fetchFreq(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"FetchFreq"</span>, false)),
+<a name="l00029"></a>00029     m_form(new FrmLIA(g_pFrmMain))
+<a name="l00030"></a>00030 {
+<a name="l00031"></a>00031   <a class="code" href="class_x_l_i_a.html#b13">fetchFreq</a>()-&gt;value(1);
+<a name="l00032"></a>00032   
+<a name="l00033"></a>00033   scalarentries-&gt;insert(<a class="code" href="class_x_l_i_a.html#r0">m_valueX</a>);
+<a name="l00034"></a>00034   scalarentries-&gt;insert(<a class="code" href="class_x_l_i_a.html#r1">m_valueY</a>);
+<a name="l00035"></a>00035 
+<a name="l00036"></a>00036   <a class="code" href="class_x_l_i_a.html#r21">m_form</a>-&gt;statusBar()-&gt;hide();
+<a name="l00037"></a>00037   <a class="code" href="class_x_l_i_a.html#r21">m_form</a>-&gt;setCaption(i18n(<span class="stringliteral">"Lock-in-Amp - "</span>) + <a class="code" href="class_x_node.html#a6">getName</a>() );
+<a name="l00038"></a>00038 
+<a name="l00039"></a>00039   <a class="code" href="class_x_l_i_a.html#r2">m_output</a>-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00040"></a>00040   <a class="code" href="class_x_l_i_a.html#r3">m_frequency</a>-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00041"></a>00041   <a class="code" href="class_x_l_i_a.html#r4">m_sensitivity</a>-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00042"></a>00042   <a class="code" href="class_x_l_i_a.html#r5">m_timeConst</a>-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00043"></a>00043   <a class="code" href="class_x_l_i_a.html#r6">m_autoScaleX</a>-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00044"></a>00044   <a class="code" href="class_x_l_i_a.html#r7">m_autoScaleY</a>-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00045"></a>00045   <a class="code" href="class_x_l_i_a.html#r8">m_fetchFreq</a>-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00046"></a>00046 
+<a name="l00047"></a>00047   <a class="code" href="class_x_l_i_a.html#r13">m_conSens</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_l_i_a.html#r4">m_sensitivity</a>, <a class="code" href="class_x_l_i_a.html#r21">m_form</a>-&gt;m_cmbSens);
+<a name="l00048"></a>00048   <a class="code" href="class_x_l_i_a.html#r14">m_conTimeConst</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_l_i_a.html#r5">m_timeConst</a>, <a class="code" href="class_x_l_i_a.html#r21">m_form</a>-&gt;m_cmbTimeConst);
+<a name="l00049"></a>00049   <a class="code" href="class_x_l_i_a.html#r16">m_conFreq</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_l_i_a.html#r3">m_frequency</a>, <a class="code" href="class_x_l_i_a.html#r21">m_form</a>-&gt;m_edFreq);
+<a name="l00050"></a>00050   <a class="code" href="class_x_l_i_a.html#r15">m_conOutput</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_l_i_a.html#r2">m_output</a>, <a class="code" href="class_x_l_i_a.html#r21">m_form</a>-&gt;m_edOutput);
+<a name="l00051"></a>00051   <a class="code" href="class_x_l_i_a.html#r17">m_conAutoScaleX</a> = xqcon_create&lt;XQToggleButtonConnector&gt;(<a class="code" href="class_x_l_i_a.html#r6">m_autoScaleX</a>, <a class="code" href="class_x_l_i_a.html#r21">m_form</a>-&gt;m_ckbAutoScaleX);
+<a name="l00052"></a>00052   <a class="code" href="class_x_l_i_a.html#r18">m_conAutoScaleY</a> = xqcon_create&lt;XQToggleButtonConnector&gt;(<a class="code" href="class_x_l_i_a.html#r7">m_autoScaleY</a>, <a class="code" href="class_x_l_i_a.html#r21">m_form</a>-&gt;m_ckbAutoScaleY);
+<a name="l00053"></a>00053   <a class="code" href="class_x_l_i_a.html#r19">m_conFetchFreq</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_l_i_a.html#r8">m_fetchFreq</a>, <a class="code" href="class_x_l_i_a.html#r21">m_form</a>-&gt;m_edFetchFreq);
+<a name="l00054"></a>00054 }
+<a name="l00055"></a>00055 
+<a name="l00056"></a>00056 <span class="keywordtype">void</span>
+<a name="l00057"></a><a class="code" href="class_x_l_i_a.html#a1">00057</a> <a class="code" href="class_x_l_i_a.html#a1">XLIA::showForms</a>() {
+<a name="l00059"></a>00059     <a class="code" href="class_x_l_i_a.html#r21">m_form</a>-&gt;show();
+<a name="l00060"></a>00060     <a class="code" href="class_x_l_i_a.html#r21">m_form</a>-&gt;raise();
+<a name="l00061"></a>00061 }
+<a name="l00062"></a>00062 
+<a name="l00063"></a>00063 <span class="keywordtype">void</span>
+<a name="l00064"></a><a class="code" href="class_x_l_i_a.html#b1">00064</a> <a class="code" href="class_x_l_i_a.html#b1">XLIA::start</a>()
+<a name="l00065"></a>00065 {
+<a name="l00066"></a>00066     <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;open();
+<a name="l00067"></a>00067     
+<a name="l00068"></a>00068     <a class="code" href="class_x_l_i_a.html#r22">m_bTerminated</a> = <span class="keyword">false</span>;
+<a name="l00069"></a>00069     <a class="code" href="class_x_l_i_a.html#r20">m_thread</a>.reset(<span class="keyword">new</span> <a class="code" href="class_x_thread.html">XThread&lt;XLIA&gt;</a>(shared_from_this(), &amp;<a class="code" href="class_x_l_i_a.html#d4">XLIA::execute</a>));
+<a name="l00070"></a>00070     <a class="code" href="class_x_l_i_a.html#r20">m_thread</a>-&gt;resume();
+<a name="l00071"></a>00071 }
+<a name="l00072"></a>00072 <span class="keywordtype">void</span>
+<a name="l00073"></a><a class="code" href="class_x_l_i_a.html#b2">00073</a> <a class="code" href="class_x_l_i_a.html#b2">XLIA::stop</a>()
+<a name="l00074"></a>00074 {  
+<a name="l00075"></a>00075     <a class="code" href="class_x_l_i_a.html#r22">m_bTerminated</a> = <span class="keyword">true</span>;
+<a name="l00076"></a>00076 <span class="comment">//    m_thread-&gt;waitFor();</span>
+<a name="l00077"></a>00077 <span class="comment">//  thread must do interface()-&gt;close() at the end</span>
+<a name="l00078"></a>00078 }
+<a name="l00079"></a>00079 
+<a name="l00080"></a>00080 <span class="keywordtype">void</span>
+<a name="l00081"></a><a class="code" href="class_x_l_i_a.html#b3">00081</a> <a class="code" href="class_x_l_i_a.html#b3">XLIA::analyzeRaw</a>() throw (XRecordError&amp;)
+<a name="l00082"></a>00082 {
+<a name="l00083"></a>00083     <span class="keywordtype">double</span> x, y;
+<a name="l00084"></a>00084     x = pop&lt;double&gt;();
+<a name="l00085"></a>00085     y = pop&lt;double&gt;();
+<a name="l00086"></a>00086     <a class="code" href="class_x_l_i_a.html#r0">m_valueX</a>-&gt;value(x);
+<a name="l00087"></a>00087     <a class="code" href="class_x_l_i_a.html#r1">m_valueY</a>-&gt;value(y);
+<a name="l00088"></a>00088 }
+<a name="l00089"></a>00089 <span class="keywordtype">void</span>
+<a name="l00090"></a><a class="code" href="class_x_l_i_a.html#b4">00090</a> <a class="code" href="class_x_l_i_a.html#b4">XLIA::visualize</a>()
+<a name="l00091"></a>00091 {
+<a name="l00094"></a>00094 }
+<a name="l00095"></a>00095 
+<a name="l00096"></a>00096 <span class="keywordtype">void</span> 
+<a name="l00097"></a><a class="code" href="class_x_l_i_a.html#d0">00097</a> <a class="code" href="class_x_l_i_a.html#d0">XLIA::onOutputChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
+<a name="l00098"></a>00098 {
+<a name="l00099"></a>00099     <span class="keywordflow">try</span> {
+<a name="l00100"></a>00100         changeOutput(*<a class="code" href="class_x_l_i_a.html#b7">output</a>());
+<a name="l00101"></a>00101     }
+<a name="l00102"></a>00102     <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a>&amp; e) {
+<a name="l00103"></a>00103         e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(<a class="code" href="class_x_node.html#a6">getName</a>() + <span class="stringliteral">" "</span> + i18n(<span class="stringliteral">"Error while changing output, "</span>));
+<a name="l00104"></a>00104         <span class="keywordflow">return</span>;
+<a name="l00105"></a>00105     }
+<a name="l00106"></a>00106 }
+<a name="l00107"></a>00107 <span class="keywordtype">void</span> 
+<a name="l00108"></a><a class="code" href="class_x_l_i_a.html#d1">00108</a> <a class="code" href="class_x_l_i_a.html#d1">XLIA::onFreqChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
+<a name="l00109"></a>00109 {
+<a name="l00110"></a>00110     <span class="keywordflow">try</span> {
+<a name="l00111"></a>00111         changeFreq(*<a class="code" href="class_x_l_i_a.html#b8">frequency</a>());
+<a name="l00112"></a>00112     }
+<a name="l00113"></a>00113     <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a>&amp; e) {
+<a name="l00114"></a>00114         e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(<a class="code" href="class_x_node.html#a6">getName</a>() + <span class="stringliteral">" "</span> + i18n(<span class="stringliteral">"Error while changing frequency, "</span>));
+<a name="l00115"></a>00115         <span class="keywordflow">return</span>;
+<a name="l00116"></a>00116     }
+<a name="l00117"></a>00117 }
+<a name="l00118"></a>00118 <span class="keywordtype">void</span> 
+<a name="l00119"></a><a class="code" href="class_x_l_i_a.html#d2">00119</a> <a class="code" href="class_x_l_i_a.html#d2">XLIA::onSensitivityChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
+<a name="l00120"></a>00120 {
+<a name="l00121"></a>00121     <span class="keywordflow">try</span> {
+<a name="l00122"></a>00122         changeSensitivity(*<a class="code" href="class_x_l_i_a.html#b9">sensitivity</a>());
+<a name="l00123"></a>00123     }
+<a name="l00124"></a>00124     <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a>&amp; e) {
+<a name="l00125"></a>00125         e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(<a class="code" href="class_x_node.html#a6">getName</a>() + <span class="stringliteral">" "</span> + i18n(<span class="stringliteral">"Error while changing sensitivity, "</span>));
+<a name="l00126"></a>00126         <span class="keywordflow">return</span>;
+<a name="l00127"></a>00127     }
+<a name="l00128"></a>00128 }
+<a name="l00129"></a>00129 <span class="keywordtype">void</span> 
+<a name="l00130"></a><a class="code" href="class_x_l_i_a.html#d3">00130</a> <a class="code" href="class_x_l_i_a.html#d3">XLIA::onTimeConstChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
+<a name="l00131"></a>00131 {
+<a name="l00132"></a>00132     <span class="keywordflow">try</span> {
+<a name="l00133"></a>00133         changeTimeConst(*<a class="code" href="class_x_l_i_a.html#b10">timeConst</a>());
+<a name="l00134"></a>00134     }
+<a name="l00135"></a>00135     <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a>&amp; e) {
+<a name="l00136"></a>00136         e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(<a class="code" href="class_x_node.html#a6">getName</a>() + <span class="stringliteral">" "</span> + i18n(<span class="stringliteral">"Error while changing time const., "</span>));
+<a name="l00137"></a>00137         <span class="keywordflow">return</span>;
+<a name="l00138"></a>00138     }
+<a name="l00139"></a>00139 }
+<a name="l00140"></a>00140 
+<a name="l00141"></a>00141 
+<a name="l00142"></a>00142 <span class="keywordtype">void</span> *
+<a name="l00143"></a><a class="code" href="class_x_l_i_a.html#d4">00143</a> <a class="code" href="class_x_l_i_a.html#d4">XLIA::execute</a>()
+<a name="l00144"></a>00144 {
+<a name="l00145"></a>00145   <span class="keywordflow">try</span> {
+<a name="l00146"></a>00146       afterStart();
+<a name="l00147"></a>00147   }
+<a name="l00148"></a>00148   <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
+<a name="l00149"></a>00149       e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(<a class="code" href="class_x_node.html#a6">getName</a>() + <span class="stringliteral">" "</span> +  i18n(<span class="stringliteral">"Error while starting, "</span>));
+<a name="l00150"></a>00150       <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;close();
+<a name="l00151"></a>00151       <span class="keywordflow">return</span> NULL;
+<a name="l00152"></a>00152   }
+<a name="l00153"></a>00153 
+<a name="l00154"></a>00154     
+<a name="l00155"></a>00155   <a class="code" href="class_x_l_i_a.html#r2">m_output</a>-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00156"></a>00156   <a class="code" href="class_x_l_i_a.html#r3">m_frequency</a>-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00157"></a>00157   <a class="code" href="class_x_l_i_a.html#r4">m_sensitivity</a>-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00158"></a>00158   <a class="code" href="class_x_l_i_a.html#r5">m_timeConst</a>-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00159"></a>00159   <a class="code" href="class_x_l_i_a.html#r6">m_autoScaleX</a>-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00160"></a>00160   <a class="code" href="class_x_l_i_a.html#r7">m_autoScaleY</a>-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00161"></a>00161   <a class="code" href="class_x_l_i_a.html#r8">m_fetchFreq</a>-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00162"></a>00162         
+<a name="l00163"></a>00163   <a class="code" href="class_x_l_i_a.html#r9">m_lsnOutput</a> = <a class="code" href="class_x_l_i_a.html#b7">output</a>()-&gt;onValueChanged().connectWeak(
+<a name="l00164"></a>00164                           <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_l_i_a.html#d0">XLIA::onOutputChanged</a>);
+<a name="l00165"></a>00165   <a class="code" href="class_x_l_i_a.html#r12">m_lsnFreq</a> = <a class="code" href="class_x_l_i_a.html#b8">frequency</a>()-&gt;onValueChanged().connectWeak(
+<a name="l00166"></a>00166                           <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_l_i_a.html#d1">XLIA::onFreqChanged</a>);
+<a name="l00167"></a>00167   <a class="code" href="class_x_l_i_a.html#r10">m_lsnSens</a> = <a class="code" href="class_x_l_i_a.html#b9">sensitivity</a>()-&gt;onValueChanged().connectWeak(
+<a name="l00168"></a>00168                         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_l_i_a.html#d2">XLIA::onSensitivityChanged</a>);
+<a name="l00169"></a>00169   <a class="code" href="class_x_l_i_a.html#r11">m_lsnTimeConst</a> = <a class="code" href="class_x_l_i_a.html#b10">timeConst</a>()-&gt;onValueChanged().connectWeak(
+<a name="l00170"></a>00170                          <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_l_i_a.html#d3">XLIA::onTimeConstChanged</a>);
+<a name="l00171"></a>00171 
+<a name="l00172"></a>00172   <span class="keywordflow">while</span>(!<a class="code" href="class_x_l_i_a.html#r22">m_bTerminated</a>)
+<a name="l00173"></a>00173     {
+<a name="l00174"></a>00174       <span class="keywordtype">double</span> fetch_freq = *<a class="code" href="class_x_l_i_a.html#b13">fetchFreq</a>();
+<a name="l00175"></a>00175       <span class="keywordtype">double</span> wait = 0;
+<a name="l00176"></a>00176       <span class="keywordflow">if</span>(fetch_freq &gt; 0)
+<a name="l00177"></a>00177           wait = <a class="code" href="class_x_l_i_a.html#b10">timeConst</a>()-&gt;to_str().toDouble() * 1000.0 / fetch_freq;
+<a name="l00178"></a>00178       <span class="keywordflow">if</span>(wait &gt; 0) msecsleep(lrint(wait));
+<a name="l00179"></a>00179       
+<a name="l00180"></a>00180       <span class="keywordtype">double</span> x, y;
+<a name="l00181"></a>00181       <a class="code" href="class_x_time.html">XTime</a> time_awared = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
+<a name="l00182"></a>00182       <span class="comment">// try/catch exception of communication errors</span>
+<a name="l00183"></a>00183       <span class="keywordflow">try</span> {
+<a name="l00184"></a>00184           get(&amp;x, &amp;y);
+<a name="l00185"></a>00185       }
+<a name="l00186"></a>00186       <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
+<a name="l00187"></a>00187           e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(<a class="code" href="class_x_node.html#a6">getName</a>() + <span class="stringliteral">" "</span> + i18n(<span class="stringliteral">"Read Error, "</span>));
+<a name="l00188"></a>00188           <span class="keywordflow">continue</span>;
+<a name="l00189"></a>00189       }
+<a name="l00190"></a>00190       <a class="code" href="class_x_primary_driver.html#b2">startWritingRaw</a>();
+<a name="l00191"></a>00191       push(x);
+<a name="l00192"></a>00192       push(y);
+<a name="l00193"></a>00193       <a class="code" href="class_x_primary_driver.html#b3">finishWritingRaw</a>(time_awared, <a class="code" href="class_x_time.html#e0">XTime::now</a>(), <span class="keyword">true</span>);
+<a name="l00194"></a>00194     }
+<a name="l00195"></a>00195   
+<a name="l00196"></a>00196   <a class="code" href="class_x_l_i_a.html#r9">m_lsnOutput</a>.reset();
+<a name="l00197"></a>00197   <a class="code" href="class_x_l_i_a.html#r12">m_lsnFreq</a>.reset();
+<a name="l00198"></a>00198   <a class="code" href="class_x_l_i_a.html#r10">m_lsnSens</a>.reset();
+<a name="l00199"></a>00199   <a class="code" href="class_x_l_i_a.html#r11">m_lsnTimeConst</a>.reset();
+<a name="l00200"></a>00200   
+<a name="l00201"></a>00201   <a class="code" href="class_x_l_i_a.html#r2">m_output</a>-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00202"></a>00202   <a class="code" href="class_x_l_i_a.html#r3">m_frequency</a>-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00203"></a>00203   <a class="code" href="class_x_l_i_a.html#r4">m_sensitivity</a>-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00204"></a>00204   <a class="code" href="class_x_l_i_a.html#r5">m_timeConst</a>-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00205"></a>00205   <a class="code" href="class_x_l_i_a.html#r6">m_autoScaleX</a>-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00206"></a>00206   <a class="code" href="class_x_l_i_a.html#r7">m_autoScaleY</a>-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00207"></a>00207   <a class="code" href="class_x_l_i_a.html#r8">m_fetchFreq</a>-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00208"></a>00208   
+<a name="l00209"></a>00209   <span class="keywordflow">try</span> {
+<a name="l00210"></a>00210       beforeStop();
+<a name="l00211"></a>00211   }
+<a name="l00212"></a>00212   <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
+<a name="l00213"></a>00213       e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(<a class="code" href="class_x_node.html#a6">getName</a>() + <span class="stringliteral">" "</span> + i18n(<span class="stringliteral">"Error while closing, "</span>));
+<a name="l00214"></a>00214   }
+<a name="l00215"></a>00215     
+<a name="l00216"></a>00216   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;close();
+<a name="l00217"></a>00217   <span class="keywordflow">return</span> NULL;
+<a name="l00218"></a>00218 }
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:22 2006に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+</body>
+</html>

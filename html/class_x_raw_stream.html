@@ -1,0 +1,66 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: クラス XRawStream</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<h1>クラス XRawStream</h1><!-- doxytag: class=<XRawStream> --><!-- doxytag: inherits=<XNode> -->XRawStreamに対する継承グラフ<p><center><img src="class_x_raw_stream__inherit__graph.png" border="0" usemap="#_x_raw_stream__inherit__map" alt="Inheritance graph"></center>
+<map name="_x_raw_stream__inherit__map">
+<area href="class_x_raw_stream_recorder.html" shape="rect" coords="7,157,162,184" alt="">
+<area href="class_x_raw_stream_record_reader.html" shape="rect" coords="186,157,373,184" alt="">
+<area href="class_x_node.html" shape="rect" coords="151,8,213,34" alt="">
+</map>
+<center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XRawStreamのコラボレーション図<p><center><img src="class_x_raw_stream__coll__graph.png" border="0" usemap="#_x_raw_stream__coll__map" alt="Collaboration graph"></center>
+<map name="_x_raw_stream__coll__map">
+<area href="class_x_node.html" shape="rect" coords="502,280,564,306" alt="">
+<area href="class_x_thread_local.html" shape="rect" coords="8,189,346,216" alt="">
+<area href="class_x_talker.html" shape="rect" coords="536,189,752,216" alt="">
+<area href="class___x_talker_base.html" shape="rect" coords="530,98,634,125" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="658,98,882,125" alt="">
+<area href="class_x_light_mutex.html" shape="rect" coords="722,8,818,34" alt="">
+<area href="class_x_mutex.html" shape="rect" coords="908,98,974,125" alt="">
+<area href="class_x_recursive_r_w_lock.html" shape="rect" coords="370,189,512,216" alt="">
+<area href="class_x_thread_local.html" shape="rect" coords="309,98,506,125" alt="">
+</map>
+<center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_raw_stream-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
+<tr><td></td></tr>
+<tr><td colspan="2"><br><h2>Public メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a0"></a><!-- doxytag: member=<XRawStream::~XRawStream> ref=<a0> args=<()> -->
+virtual&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_raw_stream.html#a0">~XRawStream</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a1"></a><!-- doxytag: member=<XRawStream::filename> ref=<a1> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_string_node.html">XStringNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_raw_stream.html#a1">filename</a> () const </td></tr>
+
+<tr><td colspan="2"><br><h2>Protected メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b0"></a><!-- doxytag: member=<XRawStream::XRawStream> ref=<b0> args=<(const char *name, bool runtime, const shared_ptr&lt; XDriverList &gt; &amp;driverlist)> -->
+&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_raw_stream.html#b0">XRawStream</a> (const char *name, bool runtime, const shared_ptr&lt; <a class="el" href="class_x_driver_list.html">XDriverList</a> &gt; &amp;driverlist)</td></tr>
+
+<tr><td colspan="2"><br><h2>Protected 変数</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="p0"></a><!-- doxytag: member=<XRawStream::m_drivers> ref=<p0> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_driver_list.html">XDriverList</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_raw_stream.html#p0">m_drivers</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="p1"></a><!-- doxytag: member=<XRawStream::m_pGFD> ref=<p1> args=<> -->
+void *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_raw_stream.html#p1">m_pGFD</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">file descriptor of GZip <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="p2"></a><!-- doxytag: member=<XRawStream::m_filemutex> ref=<p2> args=<> -->
+<a class="el" href="class_x_mutex.html">XMutex</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_raw_stream.html#p2">m_filemutex</a></td></tr>
+
+<tr><td colspan="2"><br><h2>Private 変数</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r0"></a><!-- doxytag: member=<XRawStream::m_filename> ref=<r0> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_string_node.html">XStringNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_raw_stream.html#r0">m_filename</a></td></tr>
+
+</table>
+<hr><a name="_details"></a><h2>説明</h2>
+
+<p>
+
+<p>
+ <a class="el" href="recorder_8h-source.html">recorder.h</a> の <a class="el" href="recorder_8h-source.html#l00014">14</a> 行で定義されています。<hr>このクラスの説明は次のファイルから生成されました:<ul>
+<li>kame/analyzer/<a class="el" href="recorder_8h-source.html">recorder.h</a><li>kame/analyzer/<a class="el" href="recorder_8cpp-source.html">recorder.cpp</a></ul>
+<hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:05:44 2006に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+</body>
+</html>

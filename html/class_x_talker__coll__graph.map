@@ -1,0 +1,5 @@
+base referer
+rect $class___x_talker_base.html 8,98 112,125
+rect $classatomic__shared__ptr.html 136,98 360,125
+rect $class_x_light_mutex.html 200,8 296,34
+rect $class_x_mutex.html 384,98 450,125

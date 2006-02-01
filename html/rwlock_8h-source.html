@@ -1,0 +1,83 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: kame/rwlock.h ソースファイル</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="nav">
+<a class="el" href="dir_000000.html">kame</a></div>
+<h1>rwlock.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#ifndef RWLOCK_H_</span>
+<a name="l00002"></a>00002 <span class="preprocessor"></span><span class="preprocessor">#define RWLOCK_H_</span>
+<a name="l00003"></a>00003 <span class="preprocessor"></span>
+<a name="l00004"></a>00004 <span class="preprocessor">#include "threadlocal.h"</span>
+<a name="l00005"></a>00005 
+<a name="l00007"></a>00007 <span class="keyword">template</span> &lt;<span class="keyword">class</span> RWLock&gt;
+<a name="l00008"></a><a class="code" href="struct_x_scoped_read_lock.html">00008</a> <span class="keyword">struct </span><a class="code" href="struct_x_scoped_read_lock.html">XScopedReadLock</a>
+<a name="l00009"></a>00009 {
+<a name="l00010"></a><a class="code" href="struct_x_scoped_read_lock.html#a0">00010</a>     <span class="keyword">explicit</span> <a class="code" href="struct_x_scoped_read_lock.html#a0">XScopedReadLock</a>(<span class="keyword">const</span> RWLock &amp;lock) : <a class="code" href="struct_x_scoped_read_lock.html#r0">m_lock</a>(lock) {
+<a name="l00011"></a>00011         <a class="code" href="struct_x_scoped_read_lock.html#r0">m_lock</a>.readLock();
+<a name="l00012"></a>00012     }
+<a name="l00013"></a><a class="code" href="struct_x_scoped_read_lock.html#a1">00013</a>     <a class="code" href="struct_x_scoped_read_lock.html#a1">~XScopedReadLock</a>() {
+<a name="l00014"></a>00014         <a class="code" href="struct_x_scoped_read_lock.html#r0">m_lock</a>.readUnlock();
+<a name="l00015"></a>00015     }
+<a name="l00016"></a>00016 <span class="keyword">private</span>:
+<a name="l00017"></a><a class="code" href="struct_x_scoped_read_lock.html#r0">00017</a>     <span class="keyword">const</span> RWLock &amp;<a class="code" href="struct_x_scoped_read_lock.html#r0">m_lock</a>;
+<a name="l00018"></a>00018 };
+<a name="l00019"></a>00019 
+<a name="l00021"></a>00021 <span class="keyword">template</span> &lt;<span class="keyword">class</span> RWLock&gt;
+<a name="l00022"></a><a class="code" href="struct_x_scoped_write_lock.html">00022</a> <span class="keyword">struct </span><a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock</a>
+<a name="l00023"></a>00023 {
+<a name="l00024"></a><a class="code" href="struct_x_scoped_write_lock.html#a0">00024</a>     <span class="keyword">explicit</span> <a class="code" href="struct_x_scoped_write_lock.html#a0">XScopedWriteLock</a>(RWLock &amp;lock) : <a class="code" href="struct_x_scoped_write_lock.html#r0">m_lock</a>(lock) {
+<a name="l00025"></a>00025         <a class="code" href="struct_x_scoped_write_lock.html#r0">m_lock</a>.writeLock();
+<a name="l00026"></a>00026     }
+<a name="l00027"></a><a class="code" href="struct_x_scoped_write_lock.html#a1">00027</a>     <a class="code" href="struct_x_scoped_write_lock.html#a1">~XScopedWriteLock</a>() {
+<a name="l00028"></a>00028         <a class="code" href="struct_x_scoped_write_lock.html#r0">m_lock</a>.writeUnlock();
+<a name="l00029"></a>00029     }
+<a name="l00030"></a>00030 <span class="keyword">private</span>:
+<a name="l00031"></a><a class="code" href="struct_x_scoped_write_lock.html#r0">00031</a>     RWLock &amp;<a class="code" href="struct_x_scoped_write_lock.html#r0">m_lock</a>;
+<a name="l00032"></a>00032 };
+<a name="l00033"></a>00033 
+<a name="l00034"></a>00034 
+<a name="l00036"></a><a class="code" href="class_x_r_w_lock.html">00036</a> <span class="keyword">class </span><a class="code" href="class_x_r_w_lock.html">XRWLock</a>
+<a name="l00037"></a>00037 {
+<a name="l00038"></a>00038  <span class="keyword">public</span>:
+<a name="l00039"></a>00039   <a class="code" href="class_x_r_w_lock.html#a0">XRWLock</a>();
+<a name="l00040"></a>00040   <a class="code" href="class_x_r_w_lock.html#a1">~XRWLock</a>();
+<a name="l00041"></a>00041   <span class="keywordtype">void</span> <a class="code" href="class_x_r_w_lock.html#a2">readLock</a>() <span class="keyword">const</span>;
+<a name="l00042"></a>00042   <span class="keywordtype">void</span> <a class="code" href="class_x_r_w_lock.html#a3">readUnlock</a>() <span class="keyword">const</span>;
+<a name="l00043"></a>00043   <span class="keywordtype">void</span> <a class="code" href="class_x_r_w_lock.html#a4">writeLock</a>();
+<a name="l00044"></a>00044   <span class="keywordtype">void</span> <a class="code" href="class_x_r_w_lock.html#a5">writeUnlock</a>();
+<a name="l00045"></a>00045  <span class="keyword">private</span>:
+<a name="l00046"></a><a class="code" href="class_x_r_w_lock.html#r0">00046</a>   <span class="keyword">mutable</span> pthread_rwlock_t <a class="code" href="class_x_r_w_lock.html#r0">m_lock</a>;
+<a name="l00047"></a>00047 };
+<a name="l00048"></a>00048 
+<a name="l00049"></a>00049 <span class="preprocessor">#include &lt;deque&gt;</span>
+<a name="l00052"></a><a class="code" href="class_x_recursive_r_w_lock.html">00052</a> <span class="keyword">class </span><a class="code" href="class_x_recursive_r_w_lock.html">XRecursiveRWLock</a>
+<a name="l00053"></a>00053 {
+<a name="l00054"></a>00054  <span class="keyword">public</span>:
+<a name="l00055"></a>00055   <a class="code" href="class_x_recursive_r_w_lock.html#a0">XRecursiveRWLock</a>();
+<a name="l00056"></a>00056   <a class="code" href="class_x_recursive_r_w_lock.html#a1">~XRecursiveRWLock</a>();
+<a name="l00057"></a>00057   <span class="keywordtype">void</span> <a class="code" href="class_x_recursive_r_w_lock.html#a2">readLock</a>() <span class="keyword">const</span>;
+<a name="l00059"></a>00059   <span class="keywordtype">void</span> <a class="code" href="class_x_recursive_r_w_lock.html#a3">readUnlock</a>() <span class="keyword">const</span>;
+<a name="l00060"></a>00060   <span class="keywordtype">void</span> <a class="code" href="class_x_recursive_r_w_lock.html#a4">writeLock</a>();
+<a name="l00063"></a>00063   <span class="keywordtype">bool</span> <a class="code" href="class_x_recursive_r_w_lock.html#a5">writeUnlock</a>();
+<a name="l00064"></a>00064   <span class="keywordtype">bool</span> <a class="code" href="class_x_recursive_r_w_lock.html#a6">writeUnlockNReadLock</a>();
+<a name="l00066"></a>00066   <span class="keywordtype">bool</span> <a class="code" href="class_x_recursive_r_w_lock.html#a7">isLocked</a>() <span class="keyword">const</span>;
+<a name="l00067"></a>00067  <span class="keyword">private</span>:
+<a name="l00068"></a><a class="code" href="class_x_recursive_r_w_lock.html#r0">00068</a>   <span class="keyword">mutable</span> pthread_cond_t <a class="code" href="class_x_recursive_r_w_lock.html#r0">m_cond</a>;
+<a name="l00070"></a><a class="code" href="class_x_recursive_r_w_lock.html#r1">00070</a>   <span class="keyword">mutable</span> pthread_mutex_t <a class="code" href="class_x_recursive_r_w_lock.html#r1">m_mutex_write</a>;
+<a name="l00071"></a><a class="code" href="class_x_recursive_r_w_lock.html#r2">00071</a>   <span class="keyword">mutable</span> <span class="keyword">volatile</span> <span class="keywordtype">int</span> <a class="code" href="class_x_recursive_r_w_lock.html#r2">m_wrlockwaitingcnt</a>;
+<a name="l00072"></a><a class="code" href="class_x_recursive_r_w_lock.html#r4">00072</a>   <span class="keyword">mutable</span> <span class="keyword">volatile</span> <span class="keywordtype">int</span> <a class="code" href="class_x_recursive_r_w_lock.html#r3">m_rdlockingcnt</a>, <a class="code" href="class_x_recursive_r_w_lock.html#r4">m_wrlockingcnt</a>;
+<a name="l00073"></a><a class="code" href="class_x_recursive_r_w_lock.html#r5">00073</a>   <span class="keyword">mutable</span> <span class="keyword">volatile</span> threadid_t <a class="code" href="class_x_recursive_r_w_lock.html#r5">m_wrlockingthread</a>;
+<a name="l00074"></a><a class="code" href="class_x_recursive_r_w_lock.html#y0">00074</a>   <span class="keyword">typedef</span> std::deque&lt;const XRecursiveRWLock*&gt; <a class="code" href="class_x_recursive_r_w_lock.html#y0">tLockedList</a>;
+<a name="l00075"></a><a class="code" href="class_x_recursive_r_w_lock.html#y1">00075</a>   <span class="keyword">typedef</span> tLockedList::iterator <a class="code" href="class_x_recursive_r_w_lock.html#y1">tLockedList_it</a>;
+<a name="l00076"></a>00076   <span class="keyword">static</span> <a class="code" href="class_x_thread_local.html">XThreadLocal&lt;tLockedList&gt;</a> <a class="code" href="class_x_recursive_r_w_lock.html#v0">s_tlRdLockedList</a>;
+<a name="l00077"></a>00077 };
+<a name="l00078"></a>00078 
+<a name="l00079"></a>00079 <span class="preprocessor">#endif </span><span class="comment">/*RWLOCK_H_*/</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:21 2006に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+</body>
+</html>

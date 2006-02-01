@@ -1,0 +1,9 @@
+base referer
+rect $class_x_raw_stream.html 8,266 109,293
+rect $class_x_node.html 265,189 326,216
+rect $class_x_thread_local.html 520,98 858,125
+rect $class_x_talker.html 70,98 286,125
+rect $class_x_mutex.html 50,8 117,34
+rect $class_x_recursive_r_w_lock.html 354,98 496,125
+rect $class_x_condition.html 133,266 221,293
+rect $class_x_time.html 268,266 329,293

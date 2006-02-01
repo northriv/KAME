@@ -1,0 +1,5 @@
+base referer
+rect $struct___x_transaction.html 8,33 117,59
+rect $struct_x_talker_1_1_transaction.html 165,33 357,59
+rect $struct_x_talker_1_1_transaction_allow_dup.html 406,7 654,34
+rect $struct_x_talker_1_1_transaction_avoid_dup.html 406,58 654,85

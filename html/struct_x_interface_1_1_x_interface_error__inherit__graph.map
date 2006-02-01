@@ -1,0 +1,5 @@
+base referer
+rect $struct_x_interface_1_1_x_comm_error.html 7,157 175,184
+rect $struct_x_interface_1_1_x_conv_error.html 199,157 359,184
+rect $struct_x_interface_1_1_x_open_interface_error.html 383,157 597,184
+rect $struct_x_kame_error.html 231,8 327,34

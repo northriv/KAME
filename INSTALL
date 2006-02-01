@@ -1,0 +1,25 @@
+KAME instllation
+
+KAME needs following libraries;
+kdelibs and others which depend on kdelibs
+ruby
+gsl
+fftw
+xerces-c++
+linux-gpib (if you need GPIB)
+gc (with --enable-cplusplus)
+FTGL (included in source tree)
+
+To build FTGL
+in directory FTGL/unix
+./configure --enable-static --disable-shared
+make
+
+To build KAME
+if you use MacOS X (Tiger)
+in directory macosx
+./myconfigure
+make
+
+and install
+make install
