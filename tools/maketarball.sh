@@ -18,7 +18,7 @@ rsync --exclude "linux686" \
 	 --exclude "*.la"  \
 	 --exclude ".libs" \
 	 --exclude "/html" \
-	 --exclue "CVS" \
+	 --exclude "CVS" \
 	 . $dir -av --delete
 cd $dir
 #make distclean
