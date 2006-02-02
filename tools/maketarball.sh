@@ -18,6 +18,7 @@ rsync --exclude "linux686" \
 	 --exclude "*.la"  \
 	 --exclude ".libs" \
 	 --exclude "/html" \
+	 --exclue "CVS" \
 	 . $dir -av --delete
 cd $dir
 #make distclean
@@ -28,5 +29,5 @@ cat ChangeLog >> kame.spec
 cd ..
 tar jcvf $file.tar.bz2 $file
 ln -sf $file.tar.bz2 kame-2.0.tar.bz2
-#rm -fR $file
+rm -fR $file
 #rpmbuild --rcfile=rpmrc -ts $file.tar.bz2
