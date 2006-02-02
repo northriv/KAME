@@ -390,7 +390,7 @@ atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_sh
         }
         if(pref) {
             if(rs_old.split.refcnt)
-                atomicAdd(&pref->refcnt, (unsigned int)rs_old.split.refcnt);
+                atomicAdd(&pref->refcnt, (unsigned int)(rs_old.split.refcnt - 1));
         }
         rs_new.split.refcnt = 0;
         rs_new.split.serial = rs_old.split.serial + 1;
@@ -401,7 +401,7 @@ atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_sh
                     break;
         if(pref) {
             if(rs_old.split.refcnt)
-                atomicAdd((int*)&pref->refcnt, - (int) rs_old.split.refcnt);
+                atomicAdd((int*)&pref->refcnt, - (int)(rs_old.split.refcnt - 1));
             r._leave_scan_(pref, rs_old.split.serial);
         }
     }
