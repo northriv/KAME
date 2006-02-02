@@ -1,4 +1,4 @@
-%define momorel 1.0.2
+%define momorel 1
 %global kamedate kame_date
 %global qtver 3.3
 %global kdever 3.3
@@ -6,7 +6,7 @@
 %global mikachanver 8.9
 
 Name: kame
-Version: 2.0
+Version: 2.0.1
 Release: %{momorel}m
 License: GPL
 Group: Applications/Engineering

@@ -1,6 +1,6 @@
 #!/bin/bash
 kame_date=`date +'%Y%m%d'`
-file=kame-2.0-$kame_date
+file=kame-2.0.1-$kame_date
 dir=../2.0-backups/$file
 mkdir -p $dir
 rsync --exclude "linux686" \
@@ -28,6 +28,6 @@ cat ChangeLog >> kame.spec
 
 cd ..
 tar jcvf $file.tar.bz2 $file
-ln -sf $file.tar.bz2 kame-2.0.tar.bz2
+ln -sf $file.tar.bz2 kame-2.0.1.tar.bz2
 rm -fR $file
 #rpmbuild --rcfile=rpmrc -ts $file.tar.bz2
