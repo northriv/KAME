@@ -321,8 +321,7 @@ atomic_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
         RefcntNSerial rs_old, rs_new;
         pref = r._reserve_scan_(&rs_old);
         if(pref) {
-            if(rs_old.split.refcnt)
-                atomicAdd(&pref->refcnt, (unsigned int)rs_old.split.refcnt);
+            atomicAdd(&pref->refcnt, (unsigned int)(rs_old.split.refcnt - 1));
         }
         rs_new.split.refcnt = 0;
         rs_new.split.serial = rs_old.split.serial + 1;
@@ -333,7 +332,7 @@ atomic_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
                     break;
         if(pref) {
             if(rs_old.split.refcnt)
-                atomicAdd((int*)&pref->refcnt, - (int) rs_old.split.refcnt);
+                atomicAdd((int*)&pref->refcnt, - (int)(rs_old.split.refcnt - 1));
             r._leave_scan_(pref, rs_old.split.serial);
         }
     }
