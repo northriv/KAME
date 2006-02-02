@@ -1,3 +1,7 @@
+* Thu Feb 2 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0-1.0.3m)
+- atomic_smart_fix.h : fix memory leak using CAS2.
+
 * Wed Feb 1 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
 - atomic_queue.h : bug fix. uninitialized counter.
 
