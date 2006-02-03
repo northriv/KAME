@@ -110,6 +110,7 @@ XPulser::XPulser(const char *name, bool runtime,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers) :
     XPrimaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
+    m_phase_xor(0),
     m_output(create<XBoolNode>("Output", true)),
     m_combMode(create<XComboNode>("CombMode", false)),
     m_rtMode(create<XComboNode>("RTMode", false)),
@@ -550,6 +551,7 @@ XPulser::visualize()
       createNativePatterns();
       try {
           changeOutput(true);
+          m_phase_xor++;
       }
       catch (XKameError &e) {
           e.print(getName() + i18n("Pulser Turn-On Failed, because"));

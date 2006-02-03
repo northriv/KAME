@@ -113,6 +113,7 @@ class XPulser : public XPrimaryDriver
     //! periodic term of one cycle [ms]
     double periodicTermRecorded() const;
 
+    void setPhaseCycleOrder(unsigned int x) {m_phase_xor = x;}
  protected:
   //! Start up your threads, connect GUI, and activate signals
   virtual void start();
@@ -190,6 +191,8 @@ class XPulser : public XPrimaryDriver
   static double pulseFuncFlatTop(double x);
   static double pulseFuncFlatTopLong(double x);
   static double pulseFuncFlatTopLongLong(double x);
+  
+  unsigned int m_phase_xor;
  private:
     shared_ptr<XBoolNode> m_output;
     shared_ptr<XComboNode> m_combMode; //!< see above definitions in header file

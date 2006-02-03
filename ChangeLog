@@ -1,3 +1,8 @@
+* Fri Feb 3 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0.2-1m)
+- dso.cpp, pulserdriver.cpp : change phase cycling patterns
+	 and accumulate waves to correct averaging sterategy.
+
 * Thu Feb 2 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
 - (2.0.1-1m)
 - atomic_smart_fix.h : fix memory leak using CAS2.

@@ -191,7 +191,7 @@ XTDS::getWave(std::deque<QString> &channels)
   interface()->unlock();
 }
 void
-XTDS::analyzeRaw() throw (XRecordError&) {
+XTDS::convertRaw() throw (XRecordError&) {
   double xin = 0;
   double yin[256], yoff[256];
   int width = 0;
@@ -276,12 +276,11 @@ XTDS::analyzeRaw() throw (XRecordError&) {
         	{
         	  double val = *((unsigned char *)cp) * 0x100;
         	  val += *((unsigned char *)cp + 1);
-        	  *(wave++) = yin[j] * (val - yoff[j] - 0.5);
-        
+        	  *(wave++) += yin[j] * (val - yoff[j] - 0.5);
         	  cp += 2;
         	}
       for(; i < width; i++) {
       	  *(wave++) = 0.0;
-      }      
-    }
+      }
+    }  
 }

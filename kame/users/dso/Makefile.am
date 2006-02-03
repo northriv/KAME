@@ -6,6 +6,7 @@ INCLUDES = -I$(top_srcdir)/. \
 	-I$(top_srcdir)/kame/graph \
 	-I$(top_srcdir)/kame/analyzer \
 	-I$(top_srcdir)/kame/driver \
+	-I$(top_srcdir)/kame/users/nmr \
 	-I$(top_builddir)/kame/graph/forms \
 	-I$(top_builddir)/kame/users/dso/forms \
 	$(all_includes)

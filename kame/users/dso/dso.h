@@ -13,6 +13,7 @@ class XScalarEntry;
 class FrmDSO;
 class XWaveNGraph;
 class FrmGraphNURL;
+class XPulser;
 
 //! Base class for digital storage oscilloscope.
 class XDSO : public XPrimaryDriver
@@ -35,11 +36,6 @@ class XDSO : public XPrimaryDriver
   //! Shut down your threads, unconnect GUI, and deactivate signals
   //! this may be called even if driver has already stopped.
   virtual void stop();
-  
-  //! this is called when raw is written 
-  //! unless dependency is broken
-  //! convert raw to record
-  virtual void analyzeRaw() throw (XRecordError&) = 0;
   
   //! this is called after analyze() or analyzeRaw()
   //! record is readLocked
@@ -97,6 +93,13 @@ class XDSO : public XPrimaryDriver
 
   //! load waveform and settings from instrument
   virtual void getWave(std::deque<QString> &channels) = 0;
+  //! convert raw to record
+  virtual void convertRaw() throw (XRecordError&) = 0;
+  
+  //! this is called when raw is written 
+  //! unless dependency is broken
+  //! convert raw to record
+  virtual void analyzeRaw() throw (XRecordError&);
   
   void setRecordDim(unsigned int channels, double startpos, double interval, unsigned int length);
  private:
@@ -120,6 +123,11 @@ class XDSO : public XPrimaryDriver
   shared_ptr<XDoubleNode> m_firBandWidth; ///< [kHz]
   shared_ptr<XDoubleNode> m_firCenterFreq; ///< [kHz]
   shared_ptr<XDoubleNode> m_firSharpness;
+
+  shared_ptr<XBoolNode> m_foolAvgEnabled;
+  shared_ptr<XBoolNode> m_foolAvg4x;
+  shared_ptr<XItemNode<XDriverList, XPulser> > m_pulser;
+  unsigned int m_foolavgcnt;
 
   qshared_ptr<FrmDSO> m_form;
   shared_ptr<XWaveNGraph> m_waveForm;
@@ -148,6 +156,7 @@ class XDSO : public XPrimaryDriver
   xqcon_ptr m_conFetch, m_conTrigPos, m_conTimeWidth, m_conVFullScale1, m_conVFullScale2;
   xqcon_ptr m_conVOffset1, m_conVOffset2, m_conForceTrigger, m_conRecordLength;
   xqcon_ptr m_conFIREnabled, m_conFIRBandWidth, m_conFIRSharpness, m_conFIRCenterFreq;
+  xqcon_ptr m_conFoolAvg4x, m_conPulser, m_conFoolAvgEnabled;
  
   shared_ptr<XThread<XDSO> > m_thread;
   shared_ptr<XStatusPrinter> m_statusPrinter;

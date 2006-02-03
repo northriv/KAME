@@ -17,10 +17,8 @@ class XTDS : public XDSO
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers);
   ~XTDS() {}
-  //! this is called when raw is written 
-  //! unless dependency is broken
   //! convert raw to record
-  virtual void analyzeRaw() throw (XRecordError&);
+  virtual void convertRaw() throw (XRecordError&);
  protected:
   virtual void onAverageChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onSingleChanged(const shared_ptr<XValueNodeBase> &);

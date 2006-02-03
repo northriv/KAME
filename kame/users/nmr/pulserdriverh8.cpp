@@ -204,6 +204,7 @@ XH8Pulser::rawToRelPat() throw (XRecordError&)
   int _comb_mode = m_combModeRecorded;
   int _rt_mode = m_rtModeRecorded;
   int _num_phase_cycle = m_numPhaseCycleRecorded;
+  if(_comb_mode == N_COMB_MODE_OFF) _num_phase_cycle = std::min(_num_phase_cycle, 4);
   
   bool comb_mode_alt = ((_comb_mode == N_COMB_MODE_P1_ALT) ||
             (_comb_mode == N_COMB_MODE_COMB_ALT));
@@ -262,7 +263,7 @@ XH8Pulser::rawToRelPat() throw (XRecordError&)
   
   for(int i = 0; i < _num_phase_cycle * (comb_mode_alt ? 2 : 1); i++)
     {
-      int j = i / (comb_mode_alt ? 2 : 1); //index for phase cycling
+      int j = (i / (comb_mode_alt ? 2 : 1) ^ m_phase_xor) % _num_phase_cycle; //index for phase cycling
       former_of_alt = !former_of_alt;
       bool comb_off_res = ((_comb_mode != N_COMB_MODE_COMB_ALT) || former_of_alt) && (comb_rot_num != 0);
             
