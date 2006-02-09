@@ -69,6 +69,14 @@ class XValueNode
 	def value()
 		self.get()
 	end
+	def load(value)
+		begin
+			self.internal_load(value)
+	    rescue RuntimeError
+		     $! = RuntimeError.new("unknown exception raised") unless $!
+		     print_exception($!)
+	 	end
+	end
 end
 
 print "Hello! KAME Ruby support.\n"

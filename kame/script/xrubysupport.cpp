@@ -486,7 +486,7 @@ XRuby::execute(const atomic<bool> &terminated)
       rbClassValueNode = rb_define_class("XValueNode", rbClassNode);
       rb_global_variable(&rbClassValueNode);
       rb_define_method(rbClassValueNode, "set", (fp)rvaluenode_set, 1);
-      rb_define_method(rbClassValueNode, "load", (fp)rvaluenode_load, 1);
+      rb_define_method(rbClassValueNode, "internal_load", (fp)rvaluenode_load, 1);
       rb_define_method(rbClassValueNode, "get", (fp)rvaluenode_get, 0);
       rb_define_method(rbClassValueNode, "to_str", (fp)rvaluenode_to_str, 0);
       rbClassListNode = rb_define_class("XListNode", rbClassNode);
