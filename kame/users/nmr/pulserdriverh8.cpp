@@ -148,6 +148,7 @@ XH8Pulser::changeOutput(bool output)
               interface()->sendf("$pload %x %x", size, pincr);
               interface()->receive();
               interface()->write(">", 1);
+              msecsleep(1);
               for(unsigned int j=0; j < size; j += pincr)
                 {
                   interface()->write(

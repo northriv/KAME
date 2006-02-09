@@ -7,7 +7,7 @@ using std::min;
 
 
 //[ms]
-#define DMA_PERIOD (1.0/(28.64e3/3))
+#define DMA_PERIOD (1.0/(28.64e3/2))
 
 double XSHPulser::resolution() {
      return DMA_PERIOD;
@@ -337,6 +337,9 @@ XSHPulser::changeOutput(bool output)
           try {
               interface()->write("!", 1); //poff
               interface()->receive();
+              char buf[3];
+              if((interface()->scanf("Pulse %3s", buf) != 1) || strncmp(buf, "Off", 3))
+                    throw XInterface::XConvError(__FILE__, __LINE__);
               unsigned int size = m_zippedPatterns.size();
               interface()->sendf("$pload %x", size );
               interface()->receive();
@@ -345,7 +348,7 @@ XSHPulser::changeOutput(bool output)
               for(unsigned int i = 0; i < m_zippedPatterns.size(); i++) {
         	       sum += m_zippedPatterns[i];
               } 
-              
+              msecsleep(1);
               interface()->write((char*)&m_zippedPatterns[0], size);
           
               interface()->receive();
@@ -356,6 +359,8 @@ XSHPulser::changeOutput(bool output)
                     throw XInterface::XInterfaceError(i18n("Pulser Check Sum Error"), __FILE__, __LINE__);
               interface()->send("$pon");
               interface()->receive();
+              if((interface()->scanf("Pulse %2s", buf) != 1) || strncmp(buf, "On", 2))
+                    throw XInterface::XConvError(__FILE__, __LINE__);
           }
           catch (XKameError &e) {
               if(retry > 0) throw e;
