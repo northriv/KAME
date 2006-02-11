@@ -95,8 +95,9 @@ bool g_bLogDbgPrint;
 #include <iostream>
 #include <fstream>
 
-std::ofstream g_debugofs("/tmp/kame.log", std::ios::out);
-
+#include <thread.h>
+static std::ofstream g_debugofs("/tmp/kame.log", std::ios::out);
+static XMutex g_debug_mutex;
 
 double roundlog10(double val)
 {
@@ -116,8 +117,6 @@ double setprec(double val, double prec)
 
 
 //---------------------------------------------------------------------------
-#include <thread.h>
-
 #include "xtime.h"
 
 
@@ -125,6 +124,7 @@ void
 _dbgPrint(const QString &str, const char *file, int line)
 {
   if(!g_bLogDbgPrint) return;
+  XScopedLock<XMutex> lock(g_debug_mutex);
   g_debugofs 
   	<< (const char*)(QString("0x%1:%2:%3:%4 %5")
         .arg((unsigned int)threadID(), 0, 16)
@@ -138,16 +138,19 @@ _dbgPrint(const QString &str, const char *file, int line)
 void
 _gErrPrint(const QString &str, const char *file, int line)
 {
-  g_debugofs 
-    << (const char*)(QString("Err:0x%1:%2:%3:%4 %5")
-        .arg((unsigned int)threadID(), 0, 16)
-        .arg(XTime::now().getTimeStr())
-        .arg(file)
-        .arg(line)
-        .arg(str))
-        .local8Bit()
-    << std::endl;
-  fprintf(stderr, "err:%s:%d %s\n", file, line, (const char*)str.local8Bit());
+   {
+      XScopedLock<XMutex> lock(g_debug_mutex);
+      g_debugofs 
+        << (const char*)(QString("Err:0x%1:%2:%3:%4 %5")
+            .arg((unsigned int)threadID(), 0, 16)
+            .arg(XTime::now().getTimeStr())
+            .arg(file)
+            .arg(line)
+            .arg(str))
+            .local8Bit()
+        << std::endl;
+      fprintf(stderr, "err:%s:%d %s\n", file, line, (const char*)str.local8Bit());
+   }
   shared_ptr<XStatusPrinter> statusprinter = g_statusPrinter;
   if(statusprinter) statusprinter->printError(str);
 }
