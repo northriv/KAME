@@ -16,7 +16,7 @@ double XSHPulser::resolution() {
 //[ms]
 #define MIN_MTU_LEN 100e-3
 //[ms]
-#define MTU_PERIOD (1.0/(28.64e3/4))
+#define MTU_PERIOD (1.0/(28.64e3/1))
 
 
 #define NUM_BANK 2
@@ -298,8 +298,11 @@ XSHPulser::pulseAdd(double msec, uint32_t pattern, bool firsttime)
 	m_dmaTerm = 0.0;
   }
   m_dmaTerm += msec;
-  unsigned short pos = (unsigned short)rint(m_dmaTerm / DMA_PERIOD);
-  unsigned short len = (unsigned short)rint(msec / DMA_PERIOD);
+  unsigned long pos_l = rintl(m_dmaTerm / DMA_PERIOD);
+  if(pos_l >= 0x7000)
+     throw XInterface::XInterfaceError(i18n("Too long DMA."), __FILE__, __LINE__);
+  unsigned short pos = (unsigned short)pos_l;
+  unsigned short len = (unsigned short)rintl(msec / DMA_PERIOD);
   if( ((m_lastPattern & pulsemask)/pulsebit == 0) && ((pattern & pulsemask)/pulsebit > 0) ) {
 	unsigned short word = m_zippedPatterns.size() - m_waveformPos[(pattern & pulsemask)/pulsebit - 1];
 	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_COPY_HBURST);
