@@ -10,6 +10,7 @@
  #include <unistd.h>
  #include <fcntl.h>
  #include <errno.h>
+ #include <sys/ioctl.h>
  
  #define MIN_BUFFER_SIZE 1024
 
@@ -52,8 +53,10 @@ XPosixSerialPort::open() throw (XInterface::XCommError &)
       cfsetispeed(&ttyios, baudrate);
       cfsetospeed(&ttyios, baudrate);
       cfmakeraw(&ttyios);
-      ttyios.c_cflag &= ~(PARENB | CSIZE);
-      ttyios.c_cflag |= HUPCL | CLOCAL | CSTOPB | CS8 ;
+      ttyios.c_cflag |= HUPCL | CLOCAL | CSTOPB  ;
+      ttyios.c_cflag &= ~PARENB;
+//      ttyios.c_cflag &= ~(PARENB | CSIZE);
+//      ttyios.c_cflag |= HUPCL | CLOCAL | CSTOPB | CS8 ;
       ttyios.c_lflag &= ~ICANON; //non-canonical mode
       ttyios.c_cc[VMIN] = 0; //no min. size
       ttyios.c_cc[VTIME] = 30; //3sec time-out
@@ -62,6 +65,18 @@ XPosixSerialPort::open() throw (XInterface::XCommError &)
             throw XInterface::XCommError(i18n("stty failed"), __FILE__, __LINE__);
       }
       tcflush(m_scifd, TCIOFLUSH);
+      msecsleep(10);
+  #ifdef __linux__
+      for(;;) {
+        // Check if read buffer is empty
+        int rdbuf_cnt;
+        ioctl(m_scifd, TIOCINQ, &rdbuf_cnt);
+        if(!rdbuf_cnt) break;
+        std::vector<char> rdbuf(rdbuf_cnt);
+        ::read(m_scifd, &rdbuf[0], rdbuf_cnt);
+        gErrPrint(i18n("Read buffer is not empty after flushing;buf=") + (const char*)&rdbuf[0]);
+      }
+  #endif
 }
 void
 XPosixSerialPort::send(const char *str) throw (XInterface::XCommError &)
@@ -77,8 +92,23 @@ void
 XPosixSerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &)
 {
     ASSERT(m_pInterface->isOpened());
-
-      tcflush(m_scifd, TCIFLUSH);
+      
+  #ifdef __linux__
+      for(;;) {
+        // Check if read buffer is empty
+        int rdbuf_cnt;
+        ioctl(m_scifd, TIOCINQ, &rdbuf_cnt);
+        if(!rdbuf_cnt) break;
+        std::vector<char> rdbuf(rdbuf_cnt);
+        ::read(m_scifd, &rdbuf[0], rdbuf_cnt);
+        gErrPrint(i18n("Read buffer is not empty before writing;buf=") + (const char*)&rdbuf[0]);
+      }
+  #else
+      {
+          tcflush(m_scifd, TCIFLUSH);
+          msecsleep(2); // tcflush may take some time.
+      }
+  #endif
       int wlen = 0;
       do {
         int ret = ::write(m_scifd, sendbuf, size - wlen);
@@ -136,9 +166,13 @@ void
 XPosixSerialPort::receive(unsigned int length) throw (XInterface::XCommError &)
 {
    ASSERT(m_pInterface->isOpened());
-    
+   
    buffer().resize(length);
    unsigned int len = 0;
+   
+   //! waits until finishing writing.
+   tcdrain(m_scifd);
+   
    while(len < length)
     {
       int rlen = ::read(m_scifd, &buffer()[len], 1);
