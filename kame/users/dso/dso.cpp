@@ -297,8 +297,12 @@ XDSO::execute(const atomic<bool> &terminated)
 
       // try/catch exception of communication errors
       try {
-          bool control_pulser = (*m_foolAvgEnabled && pulser &&
+          bool control_pulser = (*m_foolAvgEnabled &&
                  pulser->time() && (pulser->time() < time_awared));
+          if(control_pulser && !pulser) {
+            control_pulser = false;
+            gErrPrint(getName() + ": " + i18n("No Pulser!"));
+          }
           if(control_pulser) {
                 pulser->output()->value(false);
           }
