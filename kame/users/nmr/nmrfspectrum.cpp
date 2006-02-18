@@ -108,9 +108,9 @@ XNMRFSpectrum::onActiveChanged(const shared_ptr<XValueNodeBase> &)
     if(*active())    
     {
         shared_ptr<XSG> _sg1 = *sg1();
-        if(_sg1) _sg1->freq()->value(*centerFreq() - *freqSpan()/2e3 - *sg1FreqOffset());
+        if(_sg1) _sg1->freq()->value(*centerFreq() - *freqSpan()/2e3 + *sg1FreqOffset());
         shared_ptr<XSG> _sg2 = *sg2();
-        if(_sg2) _sg2->freq()->value(*centerFreq() - *freqSpan()/2e3 - *sg2FreqOffset());
+        if(_sg2) _sg2->freq()->value(*centerFreq() - *freqSpan()/2e3 + *sg2FreqOffset());
         m_timeClearRequested = XTime::now();
     }
 }
