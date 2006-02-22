@@ -241,8 +241,6 @@ XTempControl::execute(const atomic<bool> &terminated)
   m_lsnOnCurrentChannelChanged = m_currentChannel->onValueChanged().connectWeak(
                 false, shared_from_this(), &XTempControl::onCurrentChannelChanged);
     
-  m_setupChannel->value(*m_setupChannel);
-      
   while(!terminated)
     {
       msecsleep(10);
@@ -271,7 +269,7 @@ XTempControl::execute(const atomic<bool> &terminated)
                 }
               else
                 {
-                  if(m_multiread) continue;
+                  if(!m_multiread) continue;
                   shared_ptr<XThermometer> thermo = *ch->thermometer();
                   raw = getRaw(ch);
                   temp = (!thermo) ? raw : thermo->getTemp(raw);
