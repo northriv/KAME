@@ -352,7 +352,7 @@ XCryocon::afterStart()
 {
   getChannel();
   interface()->query("HEATER:RANGE?");
-  powerRange()->str(&interface()->buffer()[0]);
+  powerRange()->str(QString(&interface()->buffer()[0]).stripWhiteSpace());
   interface()->query("HEATER:PMAN?");
   manualPower()->str(&interface()->buffer()[0]);
   interface()->query("HEATER:TYPE?");
@@ -363,9 +363,9 @@ XCryocon::afterStart()
   shared_ptr<XChannel> ch0 = (*channels())[0];
   shared_ptr<XChannel> ch1 = (*channels())[1];
   channels()->childUnlock();
-  ch0->excitation()->str(&interface()->buffer()[0]);
+  ch0->excitation()->str(QString(&interface()->buffer()[0]).stripWhiteSpace());
   interface()->query("INPUT B:VBIAS?");
-  ch1->excitation()->str(&interface()->buffer()[0]);
+  ch1->excitation()->str(QString(&interface()->buffer()[0]).stripWhiteSpace());
   interface()->query("HEATER:PGAIN?");
   prop()->str(&interface()->buffer()[0]);
   interface()->query("HEATER:IGAIN?");
