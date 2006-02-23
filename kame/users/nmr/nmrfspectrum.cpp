@@ -160,7 +160,7 @@ XNMRFSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
   bool clear = (m_timeClearRequested > _pulse->timeAwared());
   
   int len = _pulse->ftWave().size();
-  double _df = _pulse->dFreq();
+  double _df = _pulse->dFreq() * 1e-6; //MHz
   if((len == 0) || (_df == 0)) {
     throw XRecordError(i18n("Invalid waveform."), __FILE__, __LINE__);  
   }
@@ -193,11 +193,11 @@ XNMRFSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
   if(emitter != _pulse) throw XSkippedRecordError(__FILE__, __LINE__);
   if(clear) throw XSkippedRecordError(__FILE__, __LINE__);
   
-  int bw = lrint(*bandWidth() * 1000.0 / _df);
+  int bw = lrint(*bandWidth() * 1e-3 / df());
   for(int i = std::max(0, (len - bw) / 2); i < std::min(len, (len + bw) / 2); i++)
     {
-      double f = (i - len/2) * _df;
-        add(freq + f*1e-6, _pulse->ftWave()[i]);
+      double f = (i - len/2) * df(); //MHz
+        add(freq + f, _pulse->ftWave()[i]);
     }
     
      //set new freq
