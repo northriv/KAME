@@ -114,6 +114,7 @@ XTempControl::analyzeRaw() throw (XRecordError&)
             pop<unsigned short>(); //reserve
             float raw = pop<float>();
             float temp = pop<float>();
+            if(!m_multiread) chno = 0;
             if(chno >= m_entry_temps.size()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
             m_entry_temps[chno]->value(temp);
             m_entry_raws[chno]->value(raw);
