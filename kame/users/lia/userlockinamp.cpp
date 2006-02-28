@@ -78,6 +78,8 @@ XSR830::afterStart()
       sensitivity()->value(interface()->toInt());
       interface()->query("SLVL?");
       output()->value(interface()->toDouble());
+      interface()->query("FREQ?");
+      frequency()->value(interface()->toDouble());
 }
 void
 XSR830::beforeStop()
