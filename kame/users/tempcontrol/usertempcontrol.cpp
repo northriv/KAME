@@ -109,18 +109,13 @@ XAVS47IB::XAVS47IB(const char *name, bool runtime,
 double
 XAVS47IB::read(const char *str)
 {
-  std::string fmt(str);
   double x = 0;
-  fmt = fmt + " %lf";
-  for(int i = 0; i < 3; i++)
-    {
-      interface()->query((std::string(str) + "?").c_str());
-      if(interface()->scanf(fmt.c_str(), &x) == 1)
-        	{
-        	  break;
-        	}
-      msecsleep(200);
-    }
+  interface()->queryf("%s?", str);
+  char buf[3];
+  if(interface()->scanf("%3s %lf", buf, &x) != 2)
+    throw XInterface::XConvError(__FILE__, __LINE__);
+  if(strncmp(buf, str, 3))
+    throw XInterface::XConvError(__FILE__, __LINE__);
   return x;
 }
 void
@@ -163,24 +158,20 @@ void
 XAVS47IB::onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &) {
   shared_ptr<XChannel> ch = *currentChannel();
   if(!ch) return;
-  interface()->lock();
-  try {
+  { XScopedLock<XInterface> lock(interface());
       interface()->send("ARN 0;INP 0;ARN 0;RAN 7");
       interface()->sendf("DIS 0;MUX %u;ARN 0", currentChannel()->to_str().toInt());
       if(*ch->excitation() >= 1)
-        interface()->sendf("EXC %u", (int)(*ch->excitation()));
-      msecsleep(3000);
+        interface()->sendf("EXC %u", (unsigned int)(*ch->excitation()));
+      msecsleep(1500);
       interface()->send("ARN 0;INP 1;ARN 0;RAN 6");
       m_autorange_wait = 0;
   }
-  catch (XInterface::XInterfaceError &) {
-  }
-  interface()->unlock();
 }
 void
 XAVS47IB::onExcitationChanged(const shared_ptr<XValueNodeBase> &node) {
       shared_ptr<XComboNode> excitation = dynamic_pointer_cast<XComboNode>(node);
-      interface()->sendf("EXC %u", (int)(*excitation));
+      interface()->sendf("EXC %u", (unsigned int)(*excitation));
       m_autorange_wait = 0;
 }
 
@@ -220,23 +211,16 @@ double
 XAVS47IB::getRes()
 {
   double x;
-  interface()->lock();
-  try {
+  { XScopedLock<XInterface> lock(interface());
       int wait = interface()->gpibWaitBeforeRead();
       interface()->setGPIBWaitBeforeRead(300);
       interface()->query("AVE 1;*OPC?");
       interface()->setGPIBWaitBeforeRead(wait);
       x = read("AVE");
-  }
-  catch (XInterface::XInterfaceError &e) {
-      interface()->unlock();
-      throw e;
-  }
-  interface()->unlock();
-  int range = getRange();
-      
+  }      
   if(m_autorange_wait++ > 10)
   {
+     int range = getRange();
      if(lrint(read("OVL")) == 0)
     	{
     	  if(fabs(x) < 0.1 * pow(10.0, range - 1))
