@@ -172,8 +172,10 @@ XLIA::execute(const atomic<bool> &terminated)
     {
       double fetch_freq = *fetchFreq();
       double wait = 0;
-      if(fetch_freq > 0)
-          wait = timeConst()->to_str().toDouble() * 1000.0 / fetch_freq;
+      if(fetch_freq > 0) {
+         sscanf(timeConst()->to_str().latin1(), "%lf", &wait);
+         wait *= 1000.0 / fetch_freq;
+      }
       if(wait > 0) msecsleep(lrint(wait));
       
       double x, y;
