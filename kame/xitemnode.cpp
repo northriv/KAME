@@ -15,10 +15,6 @@ _xpointeritemnode_throwConversionError() {
 XComboNode::XComboNode(const char *name, bool runtime)
    : XItemNodeBase(name, runtime), m_var(-1) {
 }
-void
-XComboNode::listLock() {m_listmutex.readLock();}
-void
-XComboNode::listUnlock() {m_listmutex.readUnlock();}
 
 void
 XComboNode::_str(const QString &var) throw (XKameError &)

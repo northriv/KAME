@@ -1,4 +1,3 @@
 base referer
-rect $struct_x_talker_1_1_transaction.html 36,176 228,202
-rect $struct___x_transaction.html 77,98 186,125
-rect $class_x_time.html 101,8 162,34
+rect $struct_x_talker_1_1_transaction.html 36,82 228,109
+rect $struct___x_transaction.html 77,8 186,34

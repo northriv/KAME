@@ -74,19 +74,18 @@ XQGraphPainter::findAxis(const XGraph::ScrPoint &s1)
 {
     shared_ptr<XAxis> axis;
     double zmin = 0.1;
-    m_graph->axes()->childLock();
+    XScopedReadLock<XRecursiveRWLock> lock(m_graph->axes()->childMutex());
     for(unsigned int i = 0; i < m_graph->axes()->count(); i++)
     {
-    	XGraph::SFloat z1;
-    	XGraph::ScrPoint s2;
-        (*m_graph->axes())[i]->axisToScreen((*m_graph->axes())[i]->screenToAxis(s1), &s2);
-	z1 = sqrtf(s1.distance2(s2));
-	if(zmin > z1) {
-		zmin = z1;
-		axis = (*m_graph->axes())[i];
-	}
-    }       
-    m_graph->axes()->childUnlock();
+        	XGraph::SFloat z1;
+        	XGraph::ScrPoint s2;
+            (*m_graph->axes())[i]->axisToScreen((*m_graph->axes())[i]->screenToAxis(s1), &s2);
+        	z1 = sqrtf(s1.distance2(s2));
+        	if(zmin > z1) {
+        		zmin = z1;
+        		axis = (*m_graph->axes())[i];
+        	}
+    }
     return axis;
 }
 shared_ptr<XPlot> 
@@ -95,7 +94,7 @@ XQGraphPainter::findPlane(const XGraph::ScrPoint &s1,
 {
   double zmin = 0.1;
   shared_ptr<XPlot> plot_found;
-    m_graph->plots()->childLock();
+    XScopedReadLock<XRecursiveRWLock> lock(m_graph->plots()->childMutex());
     for(unsigned int i = 0; i < m_graph->plots()->count(); i++)
     {
         XGraph::GPoint g1;
@@ -123,7 +122,6 @@ XQGraphPainter::findPlane(const XGraph::ScrPoint &s1,
             	*axis2 = axisy;
         }
     }       
-    m_graph->plots()->childUnlock();
     return plot_found;
 }
 
@@ -232,13 +230,12 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 			m_graph->suspendUpdate();
 			if(!m_foundAxis) {
 				//if no axis, autoscale all axes
-				m_graph->axes()->childLock();
+                XScopedReadLock<XRecursiveRWLock> lock(m_graph->axes()->childMutex());
 				for(unsigned int i = 0; i < m_graph->axes()->count(); i++)
 				{
 					if((*m_graph->axes())[i]->autoScale()->isUIEnabled())
 						(*m_graph->axes())[i]->autoScale()->value(true);
 				}
-				m_graph->axes()->childUnlock();
 			}
 			else {
 				if(m_foundAxis->autoScale()->isUIEnabled()) m_foundAxis->autoScale()->value(true);
@@ -325,13 +322,12 @@ XQGraphPainter::zoom(double zoomscale, int , int )
   XGraph::ScrPoint s1(0.5, 0.5, 0.5);
   
   m_graph->suspendUpdate();
-  m_graph->axes()->childLock();
+  XScopedReadLock<XRecursiveRWLock> lock(m_graph->axes()->childMutex());
   for(unsigned int i = 0; i < m_graph->axes()->count(); i++)
   {
         if((*m_graph->axes())[i]->autoScale()->isUIEnabled())
 		(*m_graph->axes())[i]->autoScale()->value(false);
   }
-  m_graph->axes()->childUnlock();
   m_graph->zoomAxes(resScreen(), zoomscale, s1);
   m_graph->resumeUpdate();
 }
@@ -554,7 +550,7 @@ void
 XQGraphPainter::drawOffScreenPlanes()
 {
 	setColor((QRgb)*m_graph->backGround(), 0.3);
-	m_graph->plots()->childLock();
+    XScopedReadLock<XRecursiveRWLock> lock(m_graph->plots()->childMutex());
 	for(int i = m_graph->plots()->count() - 1; i >= 0; i--)
 	{
 	shared_ptr<XPlot> plot = (*m_graph->plots())[i];
@@ -594,36 +590,32 @@ XQGraphPainter::drawOffScreenPlanes()
 		}
 		endQuad();
 	}
-	m_graph->plots()->childUnlock();
 }
 void
 XQGraphPainter::drawOffScreenGrids()
 {
-	m_graph->plots()->childLock();
+    XScopedReadLock<XRecursiveRWLock> lock(m_graph->plots()->childMutex());
 	for(int i = m_graph->plots()->count() - 1; i >= 0; i--)
 	{
 		(*m_graph->plots())[i]->drawGrid(this, m_bTilted);
 	}
-	m_graph->plots()->childUnlock();
 }
 void
 XQGraphPainter::drawOffScreenPoints()
 {
-	m_graph->plots()->childLock();
+    XScopedReadLock<XRecursiveRWLock> lock(m_graph->plots()->childMutex());
 	for(int i = m_graph->plots()->count() - 1; i >= 0; i--)
 	{
 		(*m_graph->plots())[i]->drawPlot(this);
 	}
-	m_graph->plots()->childUnlock();
 }
 void
 XQGraphPainter::drawOffScreenAxes()
 {
-	m_graph->axes()->childLock();
+    XScopedReadLock<XRecursiveRWLock> lock(m_graph->axes()->childMutex());
 	for(unsigned int i = 0; i < m_graph->axes()->count(); i++)
 	{
 		if(((*m_graph->axes())[i]->direction() != XAxis::DirAxisZ) || m_bTilted)
 			(*m_graph->axes())[i]->drawAxis(this);
 	}
-	m_graph->axes()->childUnlock();	
 }

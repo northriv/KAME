@@ -43,10 +43,10 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, QTa
   labels += i18n("Axis Y");
   labels += i18n("Axis Z");
   m_pItem->setColumnLabels(labels);
-  node->childLock();
-  for(unsigned int i = 0; i < node->count(); i++)
-    onCatch((*node)[i]);
-  node->childUnlock();
+  { XScopedReadLock<XRecursiveRWLock> lock(node->childMutex());
+      for(unsigned int i = 0; i < node->count(); i++)
+        onCatch((*node)[i]);
+  }
   
   m_lsnNewGraph = m_newGraph->onTouch().connectWeak(
         true, shared_from_this(), &XGraphListConnector::onNewGraph);
@@ -68,19 +68,15 @@ static int graphidx = 1;
 void
 XGraphListConnector::onDeleteGraph (const shared_ptr<XNode> &) {
       int n = m_pItem->currentRow();
-      m_graphlist->childLock();
+      XScopedReadLock<XRecursiveRWLock> lock(m_graphlist->childMutex());
       if((n >= 0) && (n < (int)m_graphlist->count())) {
           shared_ptr<XNode> node = (*m_graphlist)[n];
-          m_graphlist->childUnlock();
           m_graphlist->releaseChild(node);
-      }
-      else {
-          m_graphlist->childUnlock();
       }
 }
 void
 XGraphListConnector::clicked ( int row, int col, int, const QPoint& ) {
-      m_graphlist->childLock();
+      XScopedReadLock<XRecursiveRWLock> lock(m_graphlist->childMutex());
       switch(col) {
       case 0:
         if((row >= 0) && (row < (int)m_graphlist->count()))
@@ -89,7 +85,6 @@ XGraphListConnector::clicked ( int row, int col, int, const QPoint& ) {
       default:
         break;
       }
-      m_graphlist->childUnlock();
 }
 void
 XGraphListConnector::onRelease(const shared_ptr<XNode> &node)

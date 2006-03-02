@@ -2,11 +2,20 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/analyzer/graphlistconnector.h ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000001.html">analyzer</a></div>
+<a class="el" href="dir_cbe63f28361eb71291c8905f8fbf16c0.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_882826369888e995e8739fa8b5e8f848.html">analyzer</a></div>
 <h1>graphlistconnector.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00002"></a>00002 
 <a name="l00003"></a>00003 <span class="preprocessor">#ifndef graphlistconnectorH</span>
@@ -24,41 +33,41 @@
 <a name="l00015"></a>00015  Q_OBJECT
 <a name="l00016"></a>00016  XQCON_OBJECT
 <a name="l00017"></a>00017  <span class="keyword">protected</span>:
-<a name="l00018"></a>00018   <a class="code" href="class_x_graph_list_connector.html#b0">XGraphListConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XGraphList&gt; &amp;node, QTable *item,
+<a name="l00018"></a>00018   <a class="code" href="class_x_graph_list_connector.html#eac1c4108a800862655d2d30b81d80a5">XGraphListConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XGraphList&gt; &amp;node, QTable *item,
 <a name="l00019"></a>00019      QPushButton *btnnew, QPushButton *btndelete);
 <a name="l00020"></a>00020  <span class="keyword">public</span>:
-<a name="l00021"></a>00021   <span class="keyword">virtual</span> <a class="code" href="class_x_graph_list_connector.html#a0">~XGraphListConnector</a>();
+<a name="l00021"></a>00021   <span class="keyword">virtual</span> <a class="code" href="class_x_graph_list_connector.html#2ef5011c7f777591a3e60533384c949b">~XGraphListConnector</a>();
 <a name="l00022"></a>00022  <span class="keyword">protected</span>:
-<a name="l00023"></a><a class="code" href="class_x_graph_list_connector.html#b1">00023</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_graph_list_connector.html#b1">onListChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XListNodeBase&gt; &amp;) {}
-<a name="l00024"></a>00024   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_graph_list_connector.html#b2">onCatch</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
-<a name="l00025"></a>00025   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_graph_list_connector.html#b3">onRelease</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
+<a name="l00023"></a><a class="code" href="class_x_graph_list_connector.html#b0b2e570799470477c416e0c13359375">00023</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_graph_list_connector.html#b0b2e570799470477c416e0c13359375">onListChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XListNodeBase&gt; &amp;) {}
+<a name="l00024"></a>00024   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_graph_list_connector.html#4ced60aa4bf6450e721ac585be82bbf1">onCatch</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
+<a name="l00025"></a>00025   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_graph_list_connector.html#43194b7a77350b6b1013d21d970acd32">onRelease</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
 <a name="l00026"></a>00026  <span class="keyword">protected</span> slots:
-<a name="l00027"></a>00027   <span class="keywordtype">void</span> <a class="code" href="class_x_graph_list_connector.html#j0">clicked</a> ( <span class="keywordtype">int</span> row, <span class="keywordtype">int</span> col, <span class="keywordtype">int</span> button, <span class="keyword">const</span> QPoint&amp; );
+<a name="l00027"></a>00027   <span class="keywordtype">void</span> <a class="code" href="class_x_graph_list_connector.html#34fac96dcf5f5cc4c81968d08417b7a3">clicked</a> ( <span class="keywordtype">int</span> row, <span class="keywordtype">int</span> col, <span class="keywordtype">int</span> button, <span class="keyword">const</span> QPoint&amp; );
 <a name="l00028"></a>00028  <span class="keyword">private</span>:
-<a name="l00029"></a><a class="code" href="class_x_graph_list_connector.html#r0">00029</a>   shared_ptr&lt;XGraphList&gt; <a class="code" href="class_x_graph_list_connector.html#r0">m_graphlist</a>;
-<a name="l00030"></a><a class="code" href="class_x_graph_list_connector.html#r1">00030</a>   QTable *<a class="code" href="class_x_graph_list_connector.html#r1">m_pItem</a>;
+<a name="l00029"></a><a class="code" href="class_x_graph_list_connector.html#6dc447f32db2da4fcc63011ac8f23444">00029</a>   shared_ptr&lt;XGraphList&gt; <a class="code" href="class_x_graph_list_connector.html#6dc447f32db2da4fcc63011ac8f23444">m_graphlist</a>;
+<a name="l00030"></a><a class="code" href="class_x_graph_list_connector.html#80d02cbf35c4be295e0c3825fecd63a6">00030</a>   QTable *<a class="code" href="class_x_graph_list_connector.html#80d02cbf35c4be295e0c3825fecd63a6">m_pItem</a>;
 <a name="l00031"></a>00031   
-<a name="l00032"></a><a class="code" href="class_x_graph_list_connector.html#r2">00032</a>   shared_ptr&lt;XNode&gt; <a class="code" href="class_x_graph_list_connector.html#r2">m_newGraph</a>;
-<a name="l00033"></a><a class="code" href="class_x_graph_list_connector.html#r3">00033</a>   shared_ptr&lt;XNode&gt; <a class="code" href="class_x_graph_list_connector.html#r3">m_deleteGraph</a>;
+<a name="l00032"></a><a class="code" href="class_x_graph_list_connector.html#aad53ee7de822c0ae141fc770b1beb98">00032</a>   shared_ptr&lt;XNode&gt; <a class="code" href="class_x_graph_list_connector.html#aad53ee7de822c0ae141fc770b1beb98">m_newGraph</a>;
+<a name="l00033"></a><a class="code" href="class_x_graph_list_connector.html#699370a6ef2bff4f50e6a6c83d3e3a96">00033</a>   shared_ptr&lt;XNode&gt; <a class="code" href="class_x_graph_list_connector.html#699370a6ef2bff4f50e6a6c83d3e3a96">m_deleteGraph</a>;
 <a name="l00034"></a><a class="code" href="struct_x_graph_list_connector_1_1tcons.html">00034</a>   <span class="keyword">struct </span><a class="code" href="struct_x_graph_list_connector_1_1tcons.html">tcons</a> {
-<a name="l00035"></a><a class="code" href="struct_x_graph_list_connector_1_1tcons.html#o2">00035</a>     <a class="code" href="classqshared__ptr.html">xqcon_ptr</a> <a class="code" href="struct_x_graph_list_connector_1_1tcons.html#o0">conx</a>, <a class="code" href="struct_x_graph_list_connector_1_1tcons.html#o1">cony1</a>, <a class="code" href="struct_x_graph_list_connector_1_1tcons.html#o2">conz</a>;
-<a name="l00036"></a><a class="code" href="struct_x_graph_list_connector_1_1tcons.html#o3">00036</a>     shared_ptr&lt;XNode&gt; node;
-<a name="l00037"></a><a class="code" href="struct_x_graph_list_connector_1_1tcons.html#o4">00037</a>     QWidget *<a class="code" href="struct_x_graph_list_connector_1_1tcons.html#o4">widget</a>;
+<a name="l00035"></a><a class="code" href="struct_x_graph_list_connector_1_1tcons.html#c04c6b1ee2f32b0103b10f51fef72cef">00035</a>     <a class="code" href="classqshared__ptr.html">xqcon_ptr</a> <a class="code" href="struct_x_graph_list_connector_1_1tcons.html#3b8217fed44eabc2fbd7bc41755e31f0">conx</a>, <a class="code" href="struct_x_graph_list_connector_1_1tcons.html#f30c9c49324faf72f64645a677df6d0d">cony1</a>, <a class="code" href="struct_x_graph_list_connector_1_1tcons.html#c04c6b1ee2f32b0103b10f51fef72cef">conz</a>;
+<a name="l00036"></a><a class="code" href="struct_x_graph_list_connector_1_1tcons.html#3b1c2c797ec13aa35ba525a5917ba1b9">00036</a>     shared_ptr&lt;XNode&gt; node;
+<a name="l00037"></a><a class="code" href="struct_x_graph_list_connector_1_1tcons.html#4bfb301aee46cb5eb52cf01e1369a9ba">00037</a>     QWidget *<a class="code" href="struct_x_graph_list_connector_1_1tcons.html#4bfb301aee46cb5eb52cf01e1369a9ba">widget</a>;
 <a name="l00038"></a>00038   };
-<a name="l00039"></a><a class="code" href="class_x_graph_list_connector.html#y0">00039</a>   <span class="keyword">typedef</span> std::deque&lt;tcons&gt; <a class="code" href="class_x_graph_list_connector.html#y0">tconslist</a>;
-<a name="l00040"></a><a class="code" href="class_x_graph_list_connector.html#r4">00040</a>   <a class="code" href="class_x_graph_list_connector.html#y0">tconslist</a> <a class="code" href="class_x_graph_list_connector.html#r4">m_cons</a>;
+<a name="l00039"></a><a class="code" href="class_x_graph_list_connector.html#ccd10bfd0045463a33f4e3e32032e9e4">00039</a>   <span class="keyword">typedef</span> std::deque&lt;tcons&gt; <a class="code" href="class_x_graph_list_connector.html#ccd10bfd0045463a33f4e3e32032e9e4">tconslist</a>;
+<a name="l00040"></a><a class="code" href="class_x_graph_list_connector.html#e28978a5a51034b35bd1cb9db992b7f3">00040</a>   <a class="code" href="class_x_graph_list_connector.html#ccd10bfd0045463a33f4e3e32032e9e4">tconslist</a> <a class="code" href="class_x_graph_list_connector.html#e28978a5a51034b35bd1cb9db992b7f3">m_cons</a>;
 <a name="l00041"></a>00041     
 <a name="l00042"></a>00042   
-<a name="l00043"></a><a class="code" href="class_x_graph_list_connector.html#r5">00043</a>   <a class="code" href="classqshared__ptr.html">xqcon_ptr</a> <a class="code" href="class_x_graph_list_connector.html#r5">m_conNewGraph</a>, <a class="code" href="class_x_graph_list_connector.html#r6">m_conDeleteGraph</a>;
-<a name="l00044"></a><a class="code" href="class_x_graph_list_connector.html#r7">00044</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_graph_list_connector.html#r7">m_lsnNewGraph</a>, <a class="code" href="class_x_graph_list_connector.html#r8">m_lsnDeleteGraph</a>;
+<a name="l00043"></a><a class="code" href="class_x_graph_list_connector.html#b4362878519c62c1ed2642b61d2a45da">00043</a>   <a class="code" href="classqshared__ptr.html">xqcon_ptr</a> <a class="code" href="class_x_graph_list_connector.html#b4362878519c62c1ed2642b61d2a45da">m_conNewGraph</a>, <a class="code" href="class_x_graph_list_connector.html#ffcc8c4232ee37dac30d3165997b4eac">m_conDeleteGraph</a>;
+<a name="l00044"></a><a class="code" href="class_x_graph_list_connector.html#c5700befa6aa2d6c9a978f1fc4c113ae">00044</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_graph_list_connector.html#c5700befa6aa2d6c9a978f1fc4c113ae">m_lsnNewGraph</a>, <a class="code" href="class_x_graph_list_connector.html#44e41fd2db40a9123cdcb1503dc9af2b">m_lsnDeleteGraph</a>;
 <a name="l00045"></a>00045   
-<a name="l00046"></a>00046   <span class="keywordtype">void</span> <a class="code" href="class_x_graph_list_connector.html#d0">onNewGraph</a> (<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;);
-<a name="l00047"></a>00047   <span class="keywordtype">void</span> <a class="code" href="class_x_graph_list_connector.html#d1">onDeleteGraph</a> (<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;);
+<a name="l00046"></a>00046   <span class="keywordtype">void</span> <a class="code" href="class_x_graph_list_connector.html#ad1bd2bb4ade7b5ec1fb912ae3f27f3d">onNewGraph</a> (<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;);
+<a name="l00047"></a>00047   <span class="keywordtype">void</span> <a class="code" href="class_x_graph_list_connector.html#4e8e9a4227f2d697e31d19b4c867651d">onDeleteGraph</a> (<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;);
 <a name="l00048"></a>00048 };
 <a name="l00049"></a>00049 
 <a name="l00050"></a>00050 <span class="preprocessor">#endif</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:19 2006に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:43 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
 </html>

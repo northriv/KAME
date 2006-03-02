@@ -165,22 +165,22 @@ XNMRFSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
     throw XRecordError(i18n("Invalid waveform."), __FILE__, __LINE__);  
   }
   
+  double freq_min = cfreq - freq_span/2;
+  double freq_max = cfreq + freq_span/2;
+
   if((df() != _df) || clear)
     {
       m_df = _df;
       m_wave.clear();
       m_counts.clear();
     }
-  double freq_min = cfreq - freq_span/2;
-  double freq_max = cfreq + freq_span/2;
-  if(freq_min < m_fMin) {
+  else {
     for(int i = 0; i < rint(m_fMin / df()) - rint(freq_min / df()); i++) {
          m_wave.push_front(0.0);
          m_counts.push_front(0);
     }
-  }
-  if(freq_min > m_fMin) {
     for(int i = 0; i < rint(freq_min / df()) - rint(m_fMin / df()); i++) {
+         ASSERT(!m_wave.empty());
          m_wave.pop_front();
          m_counts.pop_front();
     }

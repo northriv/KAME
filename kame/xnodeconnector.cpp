@@ -341,7 +341,10 @@ XQLCDNumberConnector::XQLCDNumberConnector(const shared_ptr<XDoubleNode> &node, 
 
 void
 XQLCDNumberConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
-    m_pItem->display(m_node->to_str());
+    QString buf(m_node->to_str());
+    if(buf.length() > m_pItem->numDigits())
+        m_pItem->setNumDigits(buf.length());
+    m_pItem->display(buf);
 }
   
 XKLedConnector::XKLedConnector(const shared_ptr<XBoolNode> &node, KLed *item)
@@ -421,9 +424,9 @@ XQComboBoxConnector::findItem(const QString &text) {
 
 void
 XQComboBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
-      m_node->listLock();
+      XScopedReadLock<XRecursiveRWLock> lock(m_node->listMutex());
       int cnt = m_node->itemCount();
-      m_node->listUnlock();
+
       if(!cnt) {
           return;
       }
@@ -452,16 +455,16 @@ void
 XQComboBoxConnector::onListChanged(const shared_ptr<XItemNodeBase> &)
 {
       m_pItem->clear();
-      m_node->listLock();
-      bool exist = false;
-      for(unsigned int i = 0; i < m_node->itemCount(); i++) {
-        QString item = (*m_node)[i];
-        if(!item.isEmpty()) {
-            m_pItem->insertItem(item);
-            exist = true;
-        }
+      { XScopedReadLock<XRecursiveRWLock> lock(m_node->listMutex());
+          bool exist = false;
+          for(unsigned int i = 0; i < m_node->itemCount(); i++) {
+            QString item = (*m_node)[i];
+            if(!item.isEmpty()) {
+                m_pItem->insertItem(item);
+                exist = true;
+            }
+          }
       }
-      m_node->listUnlock();
       onValueChanged(m_node);
 }
 
@@ -494,10 +497,10 @@ void
 XQListBoxConnector::onListChanged(const shared_ptr<XItemNodeBase> &)
 {
       m_pItem->clear();
-      m_node->listLock();
-      for(unsigned int i = 0; i < m_node->itemCount(); i++) {
-        m_pItem->insertItem((*m_node)[i]);}
-      m_node->listUnlock();
+      { XScopedReadLock<XRecursiveRWLock> lock(m_node->listMutex());
+          for(unsigned int i = 0; i < m_node->itemCount(); i++) {
+            m_pItem->insertItem((*m_node)[i]);}
+      }
       onValueChanged(m_node);
 }
 

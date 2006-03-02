@@ -1,6 +1,9 @@
 //---------------------------------------------------------------------------
 #include <math.h>
+#include <klocale.h>
+
 #include "thermometer.h"
+#include "cspline.h"
 //---------------------------------------------------------------------------
 XThermometerList::XThermometerList(const char *name, bool runtime)
  : XCustomTypeListNode<XThermometer>(name, runtime) {
@@ -13,23 +16,15 @@ REGISTER_TYPE(RawThermometer)
 REGISTER_TYPE(LakeShore)
 REGISTER_TYPE(CryoConcept)
 REGISTER_TYPE(ScientificInstruments)
-/*
-XThermometerList::TypeHolder::Creator<XRawThermometer>
-        g_thermometer_type_raw(XThermometerList::s_types, "Raw");
-XThermometerList::TypeHolder::Creator<XLakeShore>
-        g_thermometer_type_lakeshore(XThermometerList::s_types, "LakeShore");
-XThermometerList::TypeHolder::Creator<XCryoConcept>
-        g_thermometer_type_cryoconcept(XThermometerList::s_types, "CryoConcept");
-XThermometerList::TypeHolder::Creator<XScientificInstruments>
-        g_thermometer_type_si(XThermometerList::s_types, "ScientificInstruments");
-*/
+REGISTER_TYPE(ApproxThermometer)
+
 XThermometer::XThermometer(const char *name, bool runtime) : 
     XNode(name, runtime),
     m_tempMin(create<XDoubleNode>("TMin", false)),
     m_tempMax(create<XDoubleNode>("TMax", false))
   {
-    tempMin()->value(0.0);
-    tempMax()->value(1e4);
+    tempMin()->value(1e-3);
+    tempMax()->value(1e3);
   }
 
 XLakeShore::XLakeShore(const char *name, bool runtime) :
@@ -39,7 +34,7 @@ XLakeShore::XLakeShore(const char *name, bool runtime) :
  m_zu(create<XDoubleListNode>("Zu", false)),
  m_zl(create<XDoubleListNode>("Zl", false)),
  m_ai(create<XDouble2DNode>("Ai", false))
- {
+{
 }
 
 double
@@ -83,25 +78,26 @@ XLakeShore::getTemp(double res) const
   if(res > *resMax()) return *tempMin();
   if(res < *resMin()) return *tempMax();
   z = log10(res);
-  zu()->childLock();
-  zl()->childLock();
   unsigned int n;
-  for(n = 0; n < zu()->count(); n++)
-    {
-      u = (z - *(*zu())[n] + z - *(*zl())[n]) / (*(*zu())[n] - *(*zl())[n]);
-      if((u >= -1) && (u <= 1)) break;
-    }
-  zl()->childUnlock();
-  if(n >= zu()->count()) { zu()->childUnlock(); return 0; }
-  zu()->childUnlock();
-  ai()->childLock();
-  (*ai())[n]->childLock();
-  for(unsigned int i = 0; i < (*ai())[n]->count(); i++)
-    {
-      temp += *(*(*ai())[n])[i] * cos(i * acos(u));
-    }
-  (*ai())[n]->childUnlock();
-  ai()->childUnlock();
+  { XScopedReadLock<XRecursiveRWLock> lock(zu()->childMutex());
+      { XScopedReadLock<XRecursiveRWLock> lock(zl()->childMutex());
+      for(n = 0; n < zu()->count(); n++)
+        {
+          u = (z - *(*zu())[n] + z - *(*zl())[n]) / (*(*zu())[n] - *(*zl())[n]);
+          if((u >= -1) && (u <= 1)) break;
+        }
+      if(n >= zu()->count())
+        return 0;
+      }
+  }
+  { XScopedReadLock<XRecursiveRWLock> lock(ai()->childMutex());
+      { XScopedReadLock<XRecursiveRWLock> lock((*ai())[n]->childMutex());
+          for(unsigned int i = 0; i < (*ai())[n]->count(); i++)
+            {
+              temp += *(*(*ai())[n])[i] * cos(i * acos(u));
+            }
+      }
+  }
   return temp;
 }
 
@@ -159,13 +155,13 @@ XCryoConcept::getTemp(double res) const
     { 
       double y = 0, r = 1.0;
       double x = log10(res);
-      ai()->childLock();
-      for(unsigned int i = 0; i < ai()->count(); i++)
-	{
-	  y += *(*ai())[i] * r;
-	  r *= x;
-	}
-      ai()->childUnlock();
+      { XScopedReadLock<XRecursiveRWLock> lock(ai()->childMutex());
+          for(unsigned int i = 0; i < ai()->count(); i++)
+        	{
+        	  y += *(*ai())[i] * r;
+        	  r *= x;
+        	}
+      }
       return pow(10.0, y);
     }
   else
@@ -229,21 +225,74 @@ XScientificInstruments
   double lx = log(res);
   if(res > *rCrossover())
     { 
-	      abcde()->childLock();
-	      if(abcde()->count() >= 5) {
-	      		y = (*(*abcde())[0] + *(*abcde())[2]*lx + *(*abcde())[4]*lx*lx)
-	      			/ (1.0 + *(*abcde())[1]*lx + *(*abcde())[3]*lx*lx);
-	      }
-	      abcde()->childUnlock();
+          { XScopedReadLock<XRecursiveRWLock> lock(abcde()->childMutex());
+        	      if(abcde()->count() >= 5) {
+        	      		y = (*(*abcde())[0] + *(*abcde())[2]*lx + *(*abcde())[4]*lx*lx)
+        	      			/ (1.0 + *(*abcde())[1]*lx + *(*abcde())[3]*lx*lx);
+        	      }
+          }
 	      return y;
     }
   else
     {
-	      abc()->childLock();
-	      if(abc()->count() >= 3) {
-	      		y = 1.0/(*(*abc())[0] + *(*abc())[1]*res*lx + *(*abc())[2]*res*res);
-	      }
-	      abc()->childUnlock();
+          { XScopedReadLock<XRecursiveRWLock> lock(abc()->childMutex());
+        	      if(abc()->count() >= 3) {
+        	      		y = 1.0/(*(*abc())[0] + *(*abc())[1]*res*lx + *(*abc())[2]*res*res);
+        	      }
+          }
 	      return y;
     }
 }
+
+XApproxThermometer::XApproxThermometer(const char *name, bool runtime) :
+ XThermometer(name, runtime),
+ m_resList(create<XDoubleListNode>("ResList", false)),
+ m_tempList(create<XDoubleListNode>("TempList", false))
+{
+}
+
+double
+XApproxThermometer
+::getTemp(double res) const
+{
+    atomic_shared_ptr<CSplineApprox> approx(m_approx);
+    if(!approx) {
+        std::map<double, double> pts;
+        { XScopedReadLock<XRecursiveRWLock> lock(m_resList->childMutex());
+            { XScopedReadLock<XRecursiveRWLock> lock(m_tempList->childMutex());
+                for(unsigned int i = 0; i < std::min(m_resList->count(), m_tempList->count()); i++) {
+                    pts.insert(std::pair<double, double>(log(*(*m_resList)[i]), log(*(*m_tempList)[i])));
+                }
+            }
+        }
+        if(pts.size() < 4)
+            throw XKameError(
+                i18n("XApproxThermometer, Too small number of points"), __FILE__, __LINE__);
+        approx.reset(new CSplineApprox(pts));
+        m_approx = approx;
+    }
+    return exp(approx->approx(log(res)));
+}
+double
+XApproxThermometer
+::getRawValue(double temp) const
+{
+    atomic_shared_ptr<CSplineApprox> approx(m_approx_inv);
+    if(!approx) {
+        std::map<double, double> pts;
+        { XScopedReadLock<XRecursiveRWLock> lock(m_resList->childMutex());
+            { XScopedReadLock<XRecursiveRWLock> lock(m_tempList->childMutex());
+                for(unsigned int i = 0; i < std::min(m_resList->count(), m_tempList->count()); i++) {
+                    pts.insert(std::pair<double, double>(log(*(*m_tempList)[i]), log(*(*m_resList)[i])));
+                }
+            }
+        }
+        if(pts.size() < 4)
+            throw XKameError(
+                i18n("XApproxThermometer, Too small number of points"), __FILE__, __LINE__);
+        approx.reset(new CSplineApprox(pts));
+        m_approx_inv = approx;
+    }
+    return exp(approx->approx(log(temp)));
+}
+

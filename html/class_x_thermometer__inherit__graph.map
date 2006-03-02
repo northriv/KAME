@@ -1,6 +1,7 @@
 base referer
-rect $class_x_cryo_concept.html 7,157 117,184
-rect $class_x_lake_shore.html 141,157 237,184
-rect $class_x_raw_thermometer.html 261,157 399,184
-rect $class_x_scientific_instruments.html 423,157 581,184
-rect $class_x_node.html 229,8 290,34
+rect $class_x_approx_thermometer.html 8,157 162,184
+rect $class_x_cryo_concept.html 186,157 296,184
+rect $class_x_lake_shore.html 320,157 416,184
+rect $class_x_raw_thermometer.html 440,157 578,184
+rect $class_x_scientific_instruments.html 602,157 760,184
+rect $class_x_node.html 337,8 398,34

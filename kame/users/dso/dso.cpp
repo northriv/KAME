@@ -164,23 +164,9 @@ XDSO::visualize()
               times[i] = (i - trigPosRecorded()) * timeIntervalRecorded();
             }
             
-          if(*firEnabled()) {
-             double  bandwidth = *firBandWidth()*1000.0*timeIntervalRecorded();
-             double fir_sharpness = *firSharpness();
-             if(fir_sharpness < 4.0)
-                m_statusPrinter->printWarning(i18n("Too small number of taps for FIR filter."));
-             int taps = std::min((int)lrint(2 * fir_sharpness / bandwidth), 5000);
-             m_fir.setupBPF(taps, bandwidth, *firCenterFreq() * 1000.0 * timeIntervalRecorded());  
-             for(unsigned int i = 0; i < num_channels; i++) {
-                m_fir.doFIR(waveRecorded(i), 
-                        m_waveForm->cols(i + 1), length);
-             }
-          }
-          else {
-             for(unsigned int i = 0; i < num_channels; i++) {
-                for(unsigned int k = 0; k < length; k++) {
-                    m_waveForm->cols(i + 1)[k] = waveRecorded(i)[k];
-                }
+          for(unsigned int i = 0; i < num_channels; i++) {
+            for(unsigned int k = 0; k < length; k++) {
+                m_waveForm->cols(i + 1)[k] = waveRecorded(i)[k];
             }
           }
       }
@@ -297,12 +283,13 @@ XDSO::execute(const atomic<bool> &terminated)
 
       // try/catch exception of communication errors
       try {
-          bool control_pulser = (*m_foolAvgEnabled &&
-                 pulser->time() && (pulser->time() < time_awared));
+          bool control_pulser = *m_foolAvgEnabled;
           if(control_pulser && !pulser) {
             control_pulser = false;
             gErrPrint(getName() + ": " + i18n("No Pulser!"));
           }
+          if(control_pulser && !(pulser->time() && (pulser->time() < time_awared)))
+            control_pulser = false;
           if(control_pulser) {
                 pulser->output()->value(false);
           }
@@ -381,4 +368,22 @@ XDSO::analyzeRaw() throw (XRecordError&) {
             m_wavesRecorded[i] /= m_foolavgcnt;
     }
     m_foolavgcnt = 0;
+    
+  if(*firEnabled()) {
+     double  bandwidth = *firBandWidth()*1000.0*timeIntervalRecorded();
+     double fir_sharpness = *firSharpness();
+     if(fir_sharpness < 4.0)
+        m_statusPrinter->printWarning(i18n("Too small number of taps for FIR filter."));
+     int taps = std::min((int)lrint(2 * fir_sharpness / bandwidth), 5000);
+     m_fir.setupBPF(taps, bandwidth, *firCenterFreq() * 1000.0 * timeIntervalRecorded());
+     unsigned int num_channels = numChannelsRecorded();
+     unsigned int length = lengthRecorded();
+     std::vector<double> buf(length);
+     for(unsigned int i = 0; i < num_channels; i++) {
+        m_fir.doFIR(waveRecorded(i), 
+                &buf[0], length);
+        for(unsigned int j = 0; j < length; j++)
+             waveRecorded(i)[j] = buf[j];
+     }
+  }
 }

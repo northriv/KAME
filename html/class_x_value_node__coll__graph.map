@@ -1,6 +1,6 @@
 base referer
-rect $class_x_value_node_base.html 37,199 162,226
-rect $class_x_node.html 8,98 69,125
-rect $class_x_talker.html 128,98 408,125
-rect $class_x_mutex.html 348,7 414,34
-rect $class_x_recursive_mutex.html 430,149 558,175
+rect $class_x_value_node_base.html 170,114 296,141
+rect $class_x_node.html 8,8 69,34
+rect $class_x_talker.html 93,8 373,34
+rect $class_x_recursive_mutex.html 348,114 476,141
+rect $class_x_mutex.html 406,8 473,34

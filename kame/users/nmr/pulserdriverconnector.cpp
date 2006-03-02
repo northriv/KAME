@@ -34,10 +34,9 @@ XQPulserDriverConnector::XQPulserDriverConnector(
 
     qgraph->setGraph(m_graph);
     
-    m_graph->axes()->childLock();
+    XScopedReadLock<XRecursiveRWLock> lock(m_graph->axes()->childMutex());
     shared_ptr<XAxis> axisx = (*m_graph->axes())[0];
     shared_ptr<XAxis> axisy = (*m_graph->axes())[1];
-    m_graph->axes()->childUnlock();
 
     axisy->ticLabelFormat()->value("%.0f");
     

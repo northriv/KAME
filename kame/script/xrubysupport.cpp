@@ -71,11 +71,11 @@ XRuby::rnode_child(VALUE self, VALUE var)
       switch (TYPE(var)) {
        int idx;
       case T_FIXNUM:
-        node->childLock();
-        idx = NUM2INT(var);
-        if ((idx >= 0) && (idx < (int)node->count()))
-            child = node->getChild<XNode>(idx);
-        node->childUnlock();
+        { XScopedReadLock<XRecursiveRWLock> lock(node->childMutex());
+            idx = NUM2INT(var);
+            if ((idx >= 0) && (idx < (int)node->count()))
+                child = node->getChild<XNode>(idx);
+        }
         if(! child ) {
           rb_raise(rb_eRuntimeError, "No such node idx:%d on %s\n",
              idx, (const char*)node->getName().utf8());
@@ -132,7 +132,8 @@ XRuby::rlistnode_create_child(VALUE self, VALUE rbtype, VALUE rbname)
                 " name = %s, type = %s\n", (const char*)node->getName().utf8(), name, type);
             return Qnil;
       }
-      child = node->getChild(name);
+      if(strlen(name))
+        child = node->getChild(name);
       /*
       if(type != child->getTypename()) {
           rb_raise(rb_eRuntimeError, "Different type of child exists on %s\n",
@@ -226,9 +227,8 @@ XRuby::rnode_count(VALUE self)
   struct rnode_ptr *st;
   Data_Get_Struct(self, struct rnode_ptr, st);
   if(shared_ptr<XNode> node = st->ptr.lock()) {
-      node->childLock();
+      XScopedReadLock<XRecursiveRWLock> lock(node->childMutex());
       VALUE count = INT2NUM(node->count());
-      node->childUnlock();
       return count;
   }
   else {
@@ -262,6 +262,7 @@ XRuby::rvaluenode_set(VALUE self, VALUE var)
   Data_Get_Struct(self, struct rnode_ptr, st);
   if(shared_ptr<XNode> node = st->ptr.lock()) {
       shared_ptr<XValueNodeBase> vnode = dynamic_pointer_cast<XValueNodeBase>(node);
+      ASSERT(vnode);
       dbgPrint(QString("Ruby, Node %1, setting new value.").arg(node->getName()) );
       if(!node->isUIEnabled() )
       {
@@ -292,6 +293,7 @@ XRuby::rvaluenode_load(VALUE self, VALUE var)
   Data_Get_Struct(self, struct rnode_ptr, st);
   if(shared_ptr<XNode> node = st->ptr.lock()) {
       shared_ptr<XValueNodeBase> vnode = dynamic_pointer_cast<XValueNodeBase>(node);
+      ASSERT(vnode);
       dbgPrint(QString("Ruby, Node %1, loading new value.").arg(node->getName()) );
       if( node->isRunTime() )
       {
@@ -321,6 +323,7 @@ XRuby::rvaluenode_get(VALUE self)
   Data_Get_Struct(self, struct rnode_ptr, st);
   if(shared_ptr<XNode> node = st->ptr.lock()) {
       shared_ptr<XValueNodeBase> vnode = dynamic_pointer_cast<XValueNodeBase>(node);
+      ASSERT(vnode);
       return XRuby::getValueOfNode(vnode);
   }
   else {
@@ -335,6 +338,7 @@ XRuby::rvaluenode_to_str(VALUE self)
   Data_Get_Struct(self, struct rnode_ptr, st);
   if(shared_ptr<XNode> node = st->ptr.lock()) {
       shared_ptr<XValueNodeBase> vnode = dynamic_pointer_cast<XValueNodeBase>(node);
+      ASSERT(vnode);
       return rb_str_new2(vnode->to_str().utf8());
   }
   else {
@@ -440,21 +444,21 @@ XRuby::my_rbdefout(VALUE self, VALUE str, VALUE threadid)
   QString qstr = QString::fromUtf8(STR2CSTR(str));
   struct rnode_ptr *st;
   Data_Get_Struct(self, struct rnode_ptr, st);
-  st->xruby->childLock();
-  shared_ptr<XRubyThread> rubythread;
-  for(unsigned int i = 0; i < st->xruby->count(); i++) {
-    if(id == *(*st->xruby)[i]->threadID())
-        rubythread = (*st->xruby)[i];
+  { XScopedReadLock<XRecursiveRWLock> lock(st->xruby->childMutex());
+      shared_ptr<XRubyThread> rubythread;
+      for(unsigned int i = 0; i < st->xruby->count(); i++) {
+        if(id == *(*st->xruby)[i]->threadID())
+            rubythread = (*st->xruby)[i];
+      }
+      if(rubythread) {
+          shared_ptr<QString> buf(new QString(QDeepCopy<QString>(qstr)));
+          rubythread->onMessageOut().talk(buf);
+          dbgPrint(QString("Ruby [%1]; %2").arg(rubythread->filename()->to_str()).arg(qstr));
+      }
+      else {
+          dbgPrint(QString("Ruby [global]; %1").arg(qstr));
+      }
   }
-  if(rubythread) {
-      shared_ptr<QString> buf(new QString(QDeepCopy<QString>(qstr)));
-      rubythread->onMessageOut().talk(buf);
-      dbgPrint(QString("Ruby [%1]; %2").arg(rubythread->filename()->to_str()).arg(qstr));
-  }
-  else {
-      dbgPrint(QString("Ruby [global]; %1").arg(qstr));
-  }
-  st->xruby->childUnlock();
   return Qnil;
 }
 VALUE

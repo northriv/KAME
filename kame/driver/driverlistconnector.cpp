@@ -40,10 +40,10 @@ XDriverListConnector::XDriverListConnector
   labels += i18n("Type");
   labels += i18n("Recorded Time");
   m_pItem->setColumnLabels(labels);
-  node->childLock();
-  for(unsigned int i = 0; i < node->count(); i++)
-    onCatch((*node)[i]);
-  node->childUnlock();
+  { XScopedReadLock<XRecursiveRWLock> lock(node->childMutex());
+      for(unsigned int i = 0; i < node->count(); i++)
+        onCatch((*node)[i]);
+  }
 
   m_lsnOnCreateTouched = m_create->onTouch().connectWeak(true, shared_from_this(),
     &XDriverListConnector::onCreateTouched);

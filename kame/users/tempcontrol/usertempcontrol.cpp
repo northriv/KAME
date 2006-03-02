@@ -77,7 +77,7 @@ XAVS47IB::XAVS47IB(const char *name, bool runtime,
 {
   const char *channels_create[] = {"0", "1", "2", "3", "4", "5", "6", "7", 0L};
   createChannels(scalarentries, thermometers, false, channels_create);
-  channels()->childLock();
+  { XScopedReadLock<XRecursiveRWLock> lock(channels()->childMutex());
   for(unsigned int i = 0; i < channels()->count(); i++)
     {
       (*channels())[i]->excitation()->add("0");
@@ -89,7 +89,7 @@ XAVS47IB::XAVS47IB(const char *name, bool runtime,
       (*channels())[i]->excitation()->add("1mV");
       (*channels())[i]->excitation()->add("3mV");
     }
-  channels()->childUnlock();
+  }
   
   heaterMode()->add("PID");
   powerRange()->add("0");
@@ -158,7 +158,7 @@ void
 XAVS47IB::onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &) {
   shared_ptr<XChannel> ch = *currentChannel();
   if(!ch) return;
-  { XScopedLock<XInterface> lock(interface());
+  { XScopedLock<XInterface> lock(*interface());
       interface()->send("ARN 0;INP 0;ARN 0;RAN 7");
       interface()->sendf("DIS 0;MUX %u;ARN 0", currentChannel()->to_str().toInt());
       if(*ch->excitation() >= 1)
@@ -211,7 +211,7 @@ double
 XAVS47IB::getRes()
 {
   double x;
-  { XScopedLock<XInterface> lock(interface());
+  { XScopedLock<XInterface> lock(*interface());
       int wait = interface()->gpibWaitBeforeRead();
       interface()->setGPIBWaitBeforeRead(300);
       interface()->query("AVE 1;*OPC?");
@@ -298,7 +298,7 @@ XCryoconM62::XCryoconM62(const char *name, bool runtime,
 {
   const char *channels_create[] = {"A", "B", 0L};
   createChannels(scalarentries, thermometers, true, channels_create);    
-  channels()->childLock();
+  { XScopedReadLock<XRecursiveRWLock> lock(channels()->childMutex());
   for(unsigned int i = 0; i < channels()->count(); i++)
     {
       (*channels())[i]->excitation()->add("10UV");
@@ -308,7 +308,7 @@ XCryoconM62::XCryoconM62(const char *name, bool runtime,
       (*channels())[i]->excitation()->add("1.0MV");
       (*channels())[i]->excitation()->add("3.3MV");
     }
-  channels()->childUnlock();
+  }
 }
 XCryoconM32::XCryoconM32(const char *name, bool runtime,
    const shared_ptr<XScalarEntryList> &scalarentries,
@@ -319,14 +319,14 @@ XCryoconM32::XCryoconM32(const char *name, bool runtime,
 {
   const char *channels_create[] = {"A", "B", 0L};
   createChannels(scalarentries, thermometers, true, channels_create);    
-  channels()->childLock();
+  { XScopedReadLock<XRecursiveRWLock> lock(channels()->childMutex());
   for(unsigned int i = 0; i < channels()->count(); i++)
     {
       (*channels())[i]->excitation()->add("CI");
       (*channels())[i]->excitation()->add("10MV");
       (*channels())[i]->excitation()->add("3MV");
     }
-  channels()->childUnlock();
+  }
   powerRange()->add("HI");
   powerRange()->add("MID");
   powerRange()->add("LOW");
@@ -343,10 +343,11 @@ XCryocon::afterStart()
   QString s(&interface()->buffer()[0]);
   heaterMode()->str(s.stripWhiteSpace());
   interface()->query("INPUT A:VBIAS?");
-  channels()->childLock();
+
+  XScopedReadLock<XRecursiveRWLock> lock(channels()->childMutex());
   shared_ptr<XChannel> ch0 = (*channels())[0];
   shared_ptr<XChannel> ch1 = (*channels())[1];
-  channels()->childUnlock();
+
   ch0->excitation()->str(QString(&interface()->buffer()[0]).stripWhiteSpace());
   interface()->query("INPUT B:VBIAS?");
   ch1->excitation()->str(QString(&interface()->buffer()[0]).stripWhiteSpace());
@@ -413,12 +414,12 @@ XCryocon::onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &) {
 void
 XCryocon::onExcitationChanged(const shared_ptr<XValueNodeBase> &node) {
       shared_ptr<XChannel> ch;
-      channels()->childLock();
-      for(unsigned int i = 0; i < channels()->count(); i++) {
-            if((*channels())[i]->excitation() == node)
-                ch = (*channels())[i];
+      { XScopedReadLock<XRecursiveRWLock> lock(channels()->childMutex());
+          for(unsigned int i = 0; i < channels()->count(); i++) {
+                if((*channels())[i]->excitation() == node)
+                    ch = (*channels())[i];
+          }
       }
-      channels()->childUnlock();
       interface()->send("INPUT " + ch->getName() +
        ":VBIAS " + node->to_str());
 }

@@ -2,11 +2,20 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/xtime.cpp ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a></div>
+<a class="el" href="dir_cbe63f28361eb71291c8905f8fbf16c0.html">kame</a></div>
 <h1>xtime.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#include "xtime.h"</span>
 <a name="l00002"></a>00002 <span class="preprocessor">#include &lt;sys/time.h&gt;</span>
 <a name="l00003"></a>00003 
@@ -20,54 +29,79 @@
 <a name="l00011"></a>00011   <span class="keywordflow">return</span>;
 <a name="l00012"></a>00012 }
 <a name="l00013"></a>00013 
-<a name="l00014"></a>00014 <a class="code" href="class_x_time.html">XTime</a> 
-<a name="l00015"></a><a class="code" href="class_x_time.html#e0">00015</a> <a class="code" href="class_x_time.html#e0">XTime::now</a>() {
-<a name="l00016"></a>00016     timeval tv;
-<a name="l00017"></a>00017     gettimeofday(&amp;tv, NULL);
-<a name="l00018"></a>00018     <span class="keywordflow">return</span> <a class="code" href="class_x_time.html#a0">XTime</a>(tv.tv_sec, tv.tv_usec);
-<a name="l00019"></a>00019 };
-<a name="l00020"></a>00020 
-<a name="l00021"></a>00021 QString
-<a name="l00022"></a><a class="code" href="class_x_time.html#a19">00022</a> <a class="code" href="class_x_time.html#a19">XTime::getTimeStr</a>(<span class="keywordtype">bool</span> subsecond)<span class="keyword"> const</span>
-<a name="l00023"></a>00023 <span class="keyword"></span>{
-<a name="l00024"></a>00024     <span class="keywordflow">if</span>(*this) {
-<a name="l00025"></a>00025       <span class="keywordtype">char</span> str[100];
-<a name="l00026"></a>00026       ctime_r(&amp;<a class="code" href="class_x_time.html#r0">tv_sec</a>, str);
-<a name="l00027"></a>00027       str[strlen(str) - 1] = <span class="charliteral">'\0'</span>;
-<a name="l00028"></a>00028       QString buf;
-<a name="l00029"></a>00029       <span class="keywordflow">if</span>(subsecond)
-<a name="l00030"></a>00030           buf.sprintf(<span class="stringliteral">"%s +%.3dms"</span>, str, (<span class="keywordtype">int</span>)<a class="code" href="class_x_time.html#r1">tv_usec</a>/1000);
-<a name="l00031"></a>00031       <span class="keywordflow">else</span>
-<a name="l00032"></a>00032           buf = str;
-<a name="l00033"></a>00033       <span class="keywordflow">return</span> buf;
-<a name="l00034"></a>00034     }
-<a name="l00035"></a>00035     <span class="keywordflow">else</span> {
-<a name="l00036"></a>00036         <span class="keywordflow">return</span> QString();
-<a name="l00037"></a>00037     }
-<a name="l00038"></a>00038 }
-<a name="l00039"></a>00039 
-<a name="l00040"></a>00040 QString
-<a name="l00041"></a><a class="code" href="class_x_time.html#a20">00041</a> <a class="code" href="class_x_time.html#a20">XTime::getTimeFmtStr</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *fmt, <span class="keywordtype">bool</span> subsecond)<span class="keyword"> const</span>
-<a name="l00042"></a>00042 <span class="keyword"></span>{
-<a name="l00043"></a>00043     <span class="keywordflow">if</span>(*this) {
-<a name="l00044"></a>00044       <span class="keywordtype">char</span> str[100];
-<a name="l00045"></a>00045       <span class="keyword">struct </span>tm time;
-<a name="l00046"></a>00046       localtime_r(&amp;<a class="code" href="class_x_time.html#r0">tv_sec</a>, &amp;time);
-<a name="l00047"></a>00047       strftime(str, 100, fmt, &amp;time);
-<a name="l00048"></a>00048       QString buf;
-<a name="l00049"></a>00049       <span class="keywordflow">if</span>(subsecond)
-<a name="l00050"></a>00050           buf.sprintf(<span class="stringliteral">"%s +%.3f"</span>, str, 1e-6 * <a class="code" href="class_x_time.html#r1">tv_usec</a>);
-<a name="l00051"></a>00051       <span class="keywordflow">else</span>
-<a name="l00052"></a>00052           buf = str;
-<a name="l00053"></a>00053       <span class="keywordflow">return</span> buf;
-<a name="l00054"></a>00054     }
-<a name="l00055"></a>00055     <span class="keywordflow">else</span> {
-<a name="l00056"></a>00056         <span class="keywordflow">return</span> QString();
-<a name="l00057"></a>00057     }
-<a name="l00058"></a>00058 }
-<a name="l00059"></a>00059 
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:24 2006に生成されました。&nbsp;
+<a name="l00014"></a>00014 <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> timeStamp() {
+<a name="l00015"></a>00015 <span class="preprocessor">#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__</span>
+<a name="l00016"></a>00016 <span class="preprocessor"></span>    uint64_t r;
+<a name="l00017"></a>00017     <span class="keyword">asm</span> <span class="keyword">volatile</span>(<span class="stringliteral">"rdtsc"</span> : <span class="stringliteral">"=A"</span> (r));
+<a name="l00018"></a>00018     <span class="keywordflow">return</span> (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)(r / 256u);
+<a name="l00019"></a>00019 <span class="preprocessor">#elif defined __powerpc__ || defined __POWERPC__ || defined __ppc__</span>
+<a name="l00020"></a>00020 <span class="preprocessor"></span>    uint32_t rx, ry, rz;
+<a name="l00021"></a>00021     <span class="keyword">asm</span> <span class="keyword">volatile</span>(<span class="stringliteral">"1: \n"</span>
+<a name="l00022"></a>00022             <span class="stringliteral">"mftbu %[rx]\n"</span>
+<a name="l00023"></a>00023             <span class="stringliteral">"mftb %[ry]\n"</span>
+<a name="l00024"></a>00024             <span class="stringliteral">"mftbu %[rz]\n"</span>
+<a name="l00025"></a>00025             <span class="stringliteral">"cmpw %[rz], %[rx]\n"</span>
+<a name="l00026"></a>00026             <span class="stringliteral">"bne- 1b"</span>
+<a name="l00027"></a>00027             : [rx] <span class="stringliteral">"=&amp;r"</span> (rx), [ry] <span class="stringliteral">"=&amp;r"</span> (ry), [rz] <span class="stringliteral">"=&amp;r"</span> (rz)
+<a name="l00028"></a>00028             :: <span class="stringliteral">"cc"</span>);
+<a name="l00029"></a>00029     uint64_t r = rx;
+<a name="l00030"></a>00030     r = (r &lt;&lt; 32u) + ry;
+<a name="l00031"></a>00031     <span class="keywordflow">return</span> (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)(r);
+<a name="l00032"></a>00032 <span class="preprocessor">#else</span>
+<a name="l00033"></a>00033 <span class="preprocessor"></span>    <a class="code" href="class_x_time.html">XTime</a> time(<a class="code" href="class_x_time.html#c379a0eebc8202c724609985cf7782ac">XTime::now</a>());
+<a name="l00034"></a>00034     <span class="keywordflow">return</span> (<span class="keywordtype">unsigned</span> <span class="keywordtype">long</span>)(time.usec() + time.sec() * 1000000uL);
+<a name="l00035"></a>00035 <span class="preprocessor">#endif</span>
+<a name="l00036"></a>00036 <span class="preprocessor"></span>}
+<a name="l00037"></a>00037 
+<a name="l00038"></a>00038 
+<a name="l00039"></a>00039 <a class="code" href="class_x_time.html">XTime</a> 
+<a name="l00040"></a><a class="code" href="class_x_time.html#c379a0eebc8202c724609985cf7782ac">00040</a> <a class="code" href="class_x_time.html#c379a0eebc8202c724609985cf7782ac">XTime::now</a>() {
+<a name="l00041"></a>00041     timeval tv;
+<a name="l00042"></a>00042     gettimeofday(&amp;tv, NULL);
+<a name="l00043"></a>00043     <span class="keywordflow">return</span> <a class="code" href="class_x_time.html#04e4b340857e5c8922dcb4c3de7ea38f">XTime</a>(tv.tv_sec, tv.tv_usec);
+<a name="l00044"></a>00044 };
+<a name="l00045"></a>00045 
+<a name="l00046"></a>00046 QString
+<a name="l00047"></a><a class="code" href="class_x_time.html#6488487db540996d05fc1f09f7fe047f">00047</a> <a class="code" href="class_x_time.html#6488487db540996d05fc1f09f7fe047f">XTime::getTimeStr</a>(<span class="keywordtype">bool</span> subsecond)<span class="keyword"> const</span>
+<a name="l00048"></a>00048 <span class="keyword"></span>{
+<a name="l00049"></a>00049     <span class="keywordflow">if</span>(*<span class="keyword">this</span>) {
+<a name="l00050"></a>00050       <span class="keywordtype">char</span> str[100];
+<a name="l00051"></a>00051       ctime_r(&amp;<a class="code" href="class_x_time.html#a6ea95dcae162091015aa7599c7832fb">tv_sec</a>, str);
+<a name="l00052"></a>00052       str[strlen(str) - 1] = <span class="charliteral">'\0'</span>;
+<a name="l00053"></a>00053       QString buf;
+<a name="l00054"></a>00054       <span class="keywordflow">if</span>(subsecond)
+<a name="l00055"></a>00055           buf.sprintf(<span class="stringliteral">"%s +%.3dms"</span>, str, (<span class="keywordtype">int</span>)<a class="code" href="class_x_time.html#0a552c77f64a35c1a9e200f779b8bb56">tv_usec</a>/1000);
+<a name="l00056"></a>00056       <span class="keywordflow">else</span>
+<a name="l00057"></a>00057           buf = str;
+<a name="l00058"></a>00058       <span class="keywordflow">return</span> buf;
+<a name="l00059"></a>00059     }
+<a name="l00060"></a>00060     <span class="keywordflow">else</span> {
+<a name="l00061"></a>00061         <span class="keywordflow">return</span> QString();
+<a name="l00062"></a>00062     }
+<a name="l00063"></a>00063 }
+<a name="l00064"></a>00064 
+<a name="l00065"></a>00065 QString
+<a name="l00066"></a><a class="code" href="class_x_time.html#5799bbcf67bf58944c98b72c340f93fe">00066</a> <a class="code" href="class_x_time.html#5799bbcf67bf58944c98b72c340f93fe">XTime::getTimeFmtStr</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *fmt, <span class="keywordtype">bool</span> subsecond)<span class="keyword"> const</span>
+<a name="l00067"></a>00067 <span class="keyword"></span>{
+<a name="l00068"></a>00068     <span class="keywordflow">if</span>(*<span class="keyword">this</span>) {
+<a name="l00069"></a>00069       <span class="keywordtype">char</span> str[100];
+<a name="l00070"></a>00070       <span class="keyword">struct </span>tm time;
+<a name="l00071"></a>00071       localtime_r(&amp;<a class="code" href="class_x_time.html#a6ea95dcae162091015aa7599c7832fb">tv_sec</a>, &amp;time);
+<a name="l00072"></a>00072       strftime(str, 100, fmt, &amp;time);
+<a name="l00073"></a>00073       QString buf;
+<a name="l00074"></a>00074       <span class="keywordflow">if</span>(subsecond)
+<a name="l00075"></a>00075           buf.sprintf(<span class="stringliteral">"%s +%.3f"</span>, str, 1e-6 * <a class="code" href="class_x_time.html#0a552c77f64a35c1a9e200f779b8bb56">tv_usec</a>);
+<a name="l00076"></a>00076       <span class="keywordflow">else</span>
+<a name="l00077"></a>00077           buf = str;
+<a name="l00078"></a>00078       <span class="keywordflow">return</span> buf;
+<a name="l00079"></a>00079     }
+<a name="l00080"></a>00080     <span class="keywordflow">else</span> {
+<a name="l00081"></a>00081         <span class="keywordflow">return</span> QString();
+<a name="l00082"></a>00082     }
+<a name="l00083"></a>00083 }
+<a name="l00084"></a>00084 
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:47 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
 </html>

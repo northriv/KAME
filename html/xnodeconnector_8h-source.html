@@ -2,11 +2,20 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/xnodeconnector.h ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a></div>
+<a class="el" href="dir_cbe63f28361eb71291c8905f8fbf16c0.html">kame</a></div>
 <h1>xnodeconnector.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00002"></a>00002 
 <a name="l00003"></a>00003 <span class="preprocessor">#ifndef xnodeconnectorH</span>
@@ -21,22 +30,22 @@
 <a name="l00013"></a>00013 <span class="keyword">extern</span> QWidget *g_pFrmMain;
 <a name="l00014"></a>00014 
 <a name="l00018"></a><a class="code" href="class_x_q_connector.html">00018</a> <span class="keyword">class </span><a class="code" href="class_x_q_connector.html">XQConnector</a> : <span class="keyword">public</span> QObject,
-<a name="l00019"></a>00019  <span class="keyword">public</span> boost::enable_shared_from_this&lt;XQConnector&gt;
+<a name="l00019"></a>00019  <span class="keyword">public</span> enable_shared_from_this&lt;XQConnector&gt;
 <a name="l00020"></a>00020 {
 <a name="l00022"></a>00022   Q_OBJECT
 <a name="l00024"></a>00024   XQCON_OBJECT
 <a name="l00025"></a>00025  <span class="keyword">protected</span>:
-<a name="l00028"></a>00028   <a class="code" href="class_x_q_connector.html#b0">XQConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node, QWidget *item);
+<a name="l00028"></a>00028   <a class="code" href="class_x_q_connector.html#dc58453f9594a5ec5fca27d07e28c4e2">XQConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node, QWidget *item);
 <a name="l00029"></a>00029  <span class="keyword">public</span>:
-<a name="l00031"></a>00031   <span class="keyword">virtual</span> <a class="code" href="class_x_q_connector.html#a0">~XQConnector</a>();
+<a name="l00031"></a>00031   <span class="keyword">virtual</span> <a class="code" href="class_x_q_connector.html#806a281f5ef8472e99288346710f74b9">~XQConnector</a>();
 <a name="l00032"></a>00032  <span class="keyword">private</span> slots:
 <a name="l00033"></a>00033  <span class="keyword">protected</span> slots:
 <a name="l00034"></a>00034  <span class="keyword">protected</span>:
-<a name="l00035"></a><a class="code" href="class_x_q_connector.html#b1">00035</a>   <span class="keywordtype">bool</span> <a class="code" href="class_x_q_connector.html#b1">isItemAlive</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_q_connector.html#p1">m_pWidget</a>;}
-<a name="l00036"></a><a class="code" href="class_x_q_connector.html#p0">00036</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_q_connector.html#p0">m_lsnUIEnabled</a>;
-<a name="l00037"></a>00037   <span class="keywordtype">void</span> <a class="code" href="class_x_q_connector.html#b2">onUIEnabled</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
-<a name="l00038"></a><a class="code" href="class_x_q_connector.html#p1">00038</a>   QWidget *<a class="code" href="class_x_q_connector.html#p1">m_pWidget</a>;
-<a name="l00039"></a>00039   <span class="keyword">static</span> std::deque&lt;shared_ptr&lt;XQConnector&gt; &gt; <a class="code" href="class_x_q_connector.html#t0">s_thisCreating</a>;
+<a name="l00035"></a><a class="code" href="class_x_q_connector.html#735752c65c24616cc93a75721fd336bf">00035</a>   <span class="keywordtype">bool</span> <a class="code" href="class_x_q_connector.html#735752c65c24616cc93a75721fd336bf">isItemAlive</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_q_connector.html#3e5d10081d6f35b6488d1d6ce5f25d52">m_pWidget</a>;}
+<a name="l00036"></a><a class="code" href="class_x_q_connector.html#807d66fc8b4ff37f4e4c954df68df62b">00036</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_q_connector.html#807d66fc8b4ff37f4e4c954df68df62b">m_lsnUIEnabled</a>;
+<a name="l00037"></a>00037   <span class="keywordtype">void</span> <a class="code" href="class_x_q_connector.html#25cac0b6c408ba4e6818bde65b6cd8d4">onUIEnabled</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
+<a name="l00038"></a><a class="code" href="class_x_q_connector.html#3e5d10081d6f35b6488d1d6ce5f25d52">00038</a>   QWidget *<a class="code" href="class_x_q_connector.html#3e5d10081d6f35b6488d1d6ce5f25d52">m_pWidget</a>;
+<a name="l00039"></a><a class="code" href="class_x_q_connector.html#2bc83295d5cb4de23628527472e6ecfc">00039</a>   <span class="keyword">static</span> std::deque&lt;shared_ptr&lt;XQConnector&gt; &gt; <a class="code" href="class_x_q_connector.html#2bc83295d5cb4de23628527472e6ecfc">s_thisCreating</a>;
 <a name="l00040"></a>00040 };
 <a name="l00041"></a>00041 
 <a name="l00042"></a>00042 <span class="keyword">class </span>QButton;
@@ -46,17 +55,17 @@
 <a name="l00046"></a>00046   Q_OBJECT
 <a name="l00047"></a>00047   XQCON_OBJECT
 <a name="l00048"></a>00048  <span class="keyword">protected</span>:
-<a name="l00049"></a>00049   <a class="code" href="class_x_q_button_connector.html#b0">XQButtonConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node, QButton *item);
+<a name="l00049"></a>00049   <a class="code" href="class_x_q_button_connector.html#2f75ccd2a04504e8cb7973dceaf1bcd9">XQButtonConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node, QButton *item);
 <a name="l00050"></a>00050  <span class="keyword">public</span>:
-<a name="l00051"></a>00051   <span class="keyword">virtual</span> <a class="code" href="class_x_q_button_connector.html#a0">~XQButtonConnector</a>();
+<a name="l00051"></a>00051   <span class="keyword">virtual</span> <a class="code" href="class_x_q_button_connector.html#d3371b50b775d36e6c72bc410fb4c2aa">~XQButtonConnector</a>();
 <a name="l00052"></a>00052  <span class="keyword">private</span> slots:
 <a name="l00053"></a>00053  <span class="keyword">protected</span> slots:
-<a name="l00054"></a>00054   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_button_connector.html#j0">onClick</a>();
+<a name="l00054"></a>00054   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_button_connector.html#8718d2509b816bda6295e874542e1364">onClick</a>();
 <a name="l00055"></a>00055  <span class="keyword">protected</span>:
-<a name="l00056"></a>00056   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_button_connector.html#b1">onTouch</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
-<a name="l00057"></a><a class="code" href="class_x_q_button_connector.html#p0">00057</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_q_button_connector.html#p0">m_lsnTouch</a>;
-<a name="l00058"></a><a class="code" href="class_x_q_button_connector.html#p1">00058</a>   shared_ptr&lt;XNode&gt; <a class="code" href="class_x_q_button_connector.html#p1">m_node</a>;
-<a name="l00059"></a><a class="code" href="class_x_q_button_connector.html#p2">00059</a>   QButton *<a class="code" href="class_x_q_button_connector.html#p2">m_pItem</a>;
+<a name="l00056"></a>00056   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_button_connector.html#6de3d3d1e07adc6bb65ae1659e8415ec">onTouch</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
+<a name="l00057"></a><a class="code" href="class_x_q_button_connector.html#98f78cd68777f672fd6c65a0c3ec8d36">00057</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_q_button_connector.html#98f78cd68777f672fd6c65a0c3ec8d36">m_lsnTouch</a>;
+<a name="l00058"></a><a class="code" href="class_x_q_button_connector.html#1836f7c9a97d249b0338c48be62b04bc">00058</a>   shared_ptr&lt;XNode&gt; <a class="code" href="class_x_q_button_connector.html#1836f7c9a97d249b0338c48be62b04bc">m_node</a>;
+<a name="l00059"></a><a class="code" href="class_x_q_button_connector.html#0e9cd3248d6ccac5f7b34ec58c4c368a">00059</a>   QButton *<a class="code" href="class_x_q_button_connector.html#0e9cd3248d6ccac5f7b34ec58c4c368a">m_pItem</a>;
 <a name="l00060"></a>00060 };
 <a name="l00061"></a>00061 
 <a name="l00062"></a><a class="code" href="class_x_value_q_connector.html">00062</a> <span class="keyword">class </span><a class="code" href="class_x_value_q_connector.html">XValueQConnector</a> : <span class="keyword">public</span> <a class="code" href="class_x_q_connector.html">XQConnector</a>
@@ -64,13 +73,13 @@
 <a name="l00064"></a>00064   Q_OBJECT
 <a name="l00065"></a>00065   XQCON_OBJECT
 <a name="l00066"></a>00066  <span class="keyword">protected</span>:
-<a name="l00067"></a>00067   <a class="code" href="class_x_value_q_connector.html#b0">XValueQConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node, QWidget *item);
+<a name="l00067"></a>00067   <a class="code" href="class_x_value_q_connector.html#7d8b5316094b36dee77ba3d6958baecc">XValueQConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node, QWidget *item);
 <a name="l00068"></a>00068  <span class="keyword">public</span>:
-<a name="l00069"></a>00069   <span class="keyword">virtual</span> <a class="code" href="class_x_value_q_connector.html#a0">~XValueQConnector</a>();
+<a name="l00069"></a>00069   <span class="keyword">virtual</span> <a class="code" href="class_x_value_q_connector.html#106a5c8bf422745185c86f5fa1773a79">~XValueQConnector</a>();
 <a name="l00070"></a>00070  <span class="keyword">private</span> slots:
 <a name="l00071"></a>00071  <span class="keyword">protected</span>:
-<a name="l00072"></a><a class="code" href="class_x_value_q_connector.html#p0">00072</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_value_q_connector.html#p0">m_lsnBeforeValueChanged</a>;
-<a name="l00073"></a><a class="code" href="class_x_value_q_connector.html#p1">00073</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_value_q_connector.html#p1">m_lsnValueChanged</a>;
+<a name="l00072"></a><a class="code" href="class_x_value_q_connector.html#fb6cb07de07cee8a4a04ee7aa045a617">00072</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_value_q_connector.html#fb6cb07de07cee8a4a04ee7aa045a617">m_lsnBeforeValueChanged</a>;
+<a name="l00073"></a><a class="code" href="class_x_value_q_connector.html#c3222a53f628b665f05fa26145a24248">00073</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_value_q_connector.html#c3222a53f628b665f05fa26145a24248">m_lsnValueChanged</a>;
 <a name="l00074"></a>00074   <span class="keyword">virtual</span> <span class="keywordtype">void</span> beforeValueChanged(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node) = 0;
 <a name="l00075"></a>00075   <span class="keyword">virtual</span> <span class="keywordtype">void</span> onValueChanged(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node) = 0;
 <a name="l00076"></a>00076 };
@@ -82,19 +91,19 @@
 <a name="l00082"></a>00082   Q_OBJECT
 <a name="l00083"></a>00083   XQCON_OBJECT
 <a name="l00084"></a>00084  <span class="keyword">protected</span>:
-<a name="l00085"></a>00085   <a class="code" href="class_x_q_line_edit_connector.html#b0">XQLineEditConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node,
+<a name="l00085"></a>00085   <a class="code" href="class_x_q_line_edit_connector.html#1ec7796efc5ae4d2bd63c685d106a41c">XQLineEditConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node,
 <a name="l00086"></a>00086      QLineEdit *item, <span class="keywordtype">bool</span> forcereturn = <span class="keyword">true</span>);
 <a name="l00087"></a>00087  <span class="keyword">public</span>:
-<a name="l00088"></a><a class="code" href="class_x_q_line_edit_connector.html#a0">00088</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_q_line_edit_connector.html#a0">~XQLineEditConnector</a>() {}
+<a name="l00088"></a><a class="code" href="class_x_q_line_edit_connector.html#e75c56f181e8e56befadb8eb7d18b001">00088</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_q_line_edit_connector.html#e75c56f181e8e56befadb8eb7d18b001">~XQLineEditConnector</a>() {}
 <a name="l00089"></a>00089  <span class="keyword">protected</span> slots:
-<a name="l00090"></a>00090   <span class="keywordtype">void</span> <a class="code" href="class_x_q_line_edit_connector.html#j0">onTextChanged</a>(<span class="keyword">const</span> QString &amp;);
-<a name="l00091"></a>00091   <span class="keywordtype">void</span> <a class="code" href="class_x_q_line_edit_connector.html#j1">onReturnPressed</a>();
-<a name="l00092"></a>00092   <span class="keywordtype">void</span> <a class="code" href="class_x_q_line_edit_connector.html#j2">onExit</a>();
+<a name="l00090"></a>00090   <span class="keywordtype">void</span> <a class="code" href="class_x_q_line_edit_connector.html#cf88abc3edb7c7b15fe6ec0158f07daa">onTextChanged</a>(<span class="keyword">const</span> QString &amp;);
+<a name="l00091"></a>00091   <span class="keywordtype">void</span> <a class="code" href="class_x_q_line_edit_connector.html#092cab2a42e7f8ba4476442d78d48ff7">onReturnPressed</a>();
+<a name="l00092"></a>00092   <span class="keywordtype">void</span> <a class="code" href="class_x_q_line_edit_connector.html#e54ffcf4b8cf10b7d49378f3445eecef">onExit</a>();
 <a name="l00093"></a>00093  <span class="keyword">protected</span>:
-<a name="l00094"></a><a class="code" href="class_x_q_line_edit_connector.html#b1">00094</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_line_edit_connector.html#b1">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
-<a name="l00095"></a>00095   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_line_edit_connector.html#b2">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00096"></a><a class="code" href="class_x_q_line_edit_connector.html#p0">00096</a>   shared_ptr&lt;XValueNodeBase&gt; <a class="code" href="class_x_q_line_edit_connector.html#p0">m_node</a>;
-<a name="l00097"></a><a class="code" href="class_x_q_line_edit_connector.html#p1">00097</a>   QLineEdit *<a class="code" href="class_x_q_line_edit_connector.html#p1">m_pItem</a>;
+<a name="l00094"></a><a class="code" href="class_x_q_line_edit_connector.html#2da2a69572fc8bd5ae6635e8a2986dab">00094</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_line_edit_connector.html#2da2a69572fc8bd5ae6635e8a2986dab">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
+<a name="l00095"></a>00095   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_line_edit_connector.html#1a42b5b4e6d8a6647b87c1a34915d8c8">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00096"></a><a class="code" href="class_x_q_line_edit_connector.html#62189df9e48838e06ad1342ded86fc2b">00096</a>   shared_ptr&lt;XValueNodeBase&gt; <a class="code" href="class_x_q_line_edit_connector.html#62189df9e48838e06ad1342ded86fc2b">m_node</a>;
+<a name="l00097"></a><a class="code" href="class_x_q_line_edit_connector.html#ceb033db76a9186cd0d4a186efaa341e">00097</a>   QLineEdit *<a class="code" href="class_x_q_line_edit_connector.html#ceb033db76a9186cd0d4a186efaa341e">m_pItem</a>;
 <a name="l00098"></a>00098 };
 <a name="l00099"></a>00099 
 <a name="l00100"></a>00100 <span class="keyword">class </span>QTextBrowser;
@@ -104,16 +113,16 @@
 <a name="l00104"></a>00104   Q_OBJECT
 <a name="l00105"></a>00105   XQCON_OBJECT
 <a name="l00106"></a>00106  <span class="keyword">protected</span>:
-<a name="l00107"></a>00107   <a class="code" href="class_x_q_text_browser_connector.html#b0">XQTextBrowserConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node,
+<a name="l00107"></a>00107   <a class="code" href="class_x_q_text_browser_connector.html#f407bb9ae9c1c623f9a9ae73064c3242">XQTextBrowserConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node,
 <a name="l00108"></a>00108      QTextBrowser *item);
 <a name="l00109"></a>00109  <span class="keyword">public</span>:
-<a name="l00110"></a><a class="code" href="class_x_q_text_browser_connector.html#a0">00110</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_q_text_browser_connector.html#a0">~XQTextBrowserConnector</a>() {}
+<a name="l00110"></a><a class="code" href="class_x_q_text_browser_connector.html#e15585648e42942ecf1ea96858d570d0">00110</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_q_text_browser_connector.html#e15585648e42942ecf1ea96858d570d0">~XQTextBrowserConnector</a>() {}
 <a name="l00111"></a>00111  <span class="keyword">protected</span> slots:
 <a name="l00112"></a>00112  <span class="keyword">protected</span>:
-<a name="l00113"></a><a class="code" href="class_x_q_text_browser_connector.html#b1">00113</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_text_browser_connector.html#b1">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
-<a name="l00114"></a>00114   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_text_browser_connector.html#b2">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00115"></a><a class="code" href="class_x_q_text_browser_connector.html#p0">00115</a>   shared_ptr&lt;XValueNodeBase&gt; <a class="code" href="class_x_q_text_browser_connector.html#p0">m_node</a>;
-<a name="l00116"></a><a class="code" href="class_x_q_text_browser_connector.html#p1">00116</a>   QTextBrowser *<a class="code" href="class_x_q_text_browser_connector.html#p1">m_pItem</a>;
+<a name="l00113"></a><a class="code" href="class_x_q_text_browser_connector.html#5b04f7af2a7a60145fa303afbae00b67">00113</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_text_browser_connector.html#5b04f7af2a7a60145fa303afbae00b67">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
+<a name="l00114"></a>00114   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_text_browser_connector.html#1126b4e39802255c1d0f0707aaaaf6eb">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00115"></a><a class="code" href="class_x_q_text_browser_connector.html#e50d2cb37a76489052515bac686a191c">00115</a>   shared_ptr&lt;XValueNodeBase&gt; <a class="code" href="class_x_q_text_browser_connector.html#e50d2cb37a76489052515bac686a191c">m_node</a>;
+<a name="l00116"></a><a class="code" href="class_x_q_text_browser_connector.html#74656666f0ff9d55b23bdcce8c791743">00116</a>   QTextBrowser *<a class="code" href="class_x_q_text_browser_connector.html#74656666f0ff9d55b23bdcce8c791743">m_pItem</a>;
 <a name="l00117"></a>00117 };
 <a name="l00118"></a>00118 
 <a name="l00119"></a>00119 <span class="keyword">class </span>KIntNumInput;
@@ -123,20 +132,20 @@
 <a name="l00123"></a>00123   Q_OBJECT
 <a name="l00124"></a>00124   XQCON_OBJECT
 <a name="l00125"></a>00125  <span class="keyword">protected</span>:
-<a name="l00126"></a>00126   <a class="code" href="class_x_k_int_num_input_connector.html#b0">XKIntNumInputConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XIntNode&gt; &amp;node,
+<a name="l00126"></a>00126   <a class="code" href="class_x_k_int_num_input_connector.html#c417eadb2d853af8d9ef8d164a1fa994">XKIntNumInputConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XIntNode&gt; &amp;node,
 <a name="l00127"></a>00127      KIntNumInput *item);
-<a name="l00128"></a>00128   <a class="code" href="class_x_k_int_num_input_connector.html#b0">XKIntNumInputConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XUIntNode&gt; &amp;node,
+<a name="l00128"></a>00128   <a class="code" href="class_x_k_int_num_input_connector.html#c417eadb2d853af8d9ef8d164a1fa994">XKIntNumInputConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XUIntNode&gt; &amp;node,
 <a name="l00129"></a>00129      KIntNumInput *item);
 <a name="l00130"></a>00130  <span class="keyword">public</span>:
-<a name="l00131"></a><a class="code" href="class_x_k_int_num_input_connector.html#a0">00131</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_k_int_num_input_connector.html#a0">~XKIntNumInputConnector</a>() {}
+<a name="l00131"></a><a class="code" href="class_x_k_int_num_input_connector.html#82e0858d8818dc73239f81bfc7be01df">00131</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_k_int_num_input_connector.html#82e0858d8818dc73239f81bfc7be01df">~XKIntNumInputConnector</a>() {}
 <a name="l00132"></a>00132  <span class="keyword">protected</span> slots:
-<a name="l00133"></a>00133   <span class="keywordtype">void</span> <a class="code" href="class_x_k_int_num_input_connector.html#j0">onChange</a>(<span class="keywordtype">int</span> val);
+<a name="l00133"></a>00133   <span class="keywordtype">void</span> <a class="code" href="class_x_k_int_num_input_connector.html#b5b4f2dfcc6680a8ebd68498665e8015">onChange</a>(<span class="keywordtype">int</span> val);
 <a name="l00134"></a>00134  <span class="keyword">protected</span>:
-<a name="l00135"></a><a class="code" href="class_x_k_int_num_input_connector.html#b2">00135</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_int_num_input_connector.html#b2">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
-<a name="l00136"></a>00136   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_int_num_input_connector.html#b3">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
-<a name="l00137"></a><a class="code" href="class_x_k_int_num_input_connector.html#p0">00137</a>   shared_ptr&lt;XIntNode&gt; <a class="code" href="class_x_k_int_num_input_connector.html#p0">m_iNode</a>;
-<a name="l00138"></a><a class="code" href="class_x_k_int_num_input_connector.html#p1">00138</a>   shared_ptr&lt;XUIntNode&gt; <a class="code" href="class_x_k_int_num_input_connector.html#p1">m_uINode</a>;
-<a name="l00139"></a><a class="code" href="class_x_k_int_num_input_connector.html#p2">00139</a>   KIntNumInput *<a class="code" href="class_x_k_int_num_input_connector.html#p2">m_pItem</a>;
+<a name="l00135"></a><a class="code" href="class_x_k_int_num_input_connector.html#0b77faf7a949d2043cf347c1acbaead2">00135</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_int_num_input_connector.html#0b77faf7a949d2043cf347c1acbaead2">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
+<a name="l00136"></a>00136   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_int_num_input_connector.html#c390d32e61bc00e84b71826d99a1817f">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
+<a name="l00137"></a><a class="code" href="class_x_k_int_num_input_connector.html#b2476847ca8531fbf647b27e7f285f1e">00137</a>   shared_ptr&lt;XIntNode&gt; <a class="code" href="class_x_k_int_num_input_connector.html#b2476847ca8531fbf647b27e7f285f1e">m_iNode</a>;
+<a name="l00138"></a><a class="code" href="class_x_k_int_num_input_connector.html#59c17533ee5a6ddcf5c07897644f42ea">00138</a>   shared_ptr&lt;XUIntNode&gt; <a class="code" href="class_x_k_int_num_input_connector.html#59c17533ee5a6ddcf5c07897644f42ea">m_uINode</a>;
+<a name="l00139"></a><a class="code" href="class_x_k_int_num_input_connector.html#c33b2656dd40eb41a4b7486a2dcd2c62">00139</a>   KIntNumInput *<a class="code" href="class_x_k_int_num_input_connector.html#c33b2656dd40eb41a4b7486a2dcd2c62">m_pItem</a>;
 <a name="l00140"></a>00140 };
 <a name="l00141"></a>00141 
 <a name="l00142"></a>00142 <span class="keyword">class </span>QSpinBox;
@@ -146,20 +155,20 @@
 <a name="l00146"></a>00146   Q_OBJECT
 <a name="l00147"></a>00147   XQCON_OBJECT
 <a name="l00148"></a>00148  <span class="keyword">protected</span>:
-<a name="l00149"></a>00149   <a class="code" href="class_x_q_spin_box_connector.html#b0">XQSpinBoxConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XIntNode&gt; &amp;node,
+<a name="l00149"></a>00149   <a class="code" href="class_x_q_spin_box_connector.html#cb6c67d588b24ef0bce89894ac0f9c7e">XQSpinBoxConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XIntNode&gt; &amp;node,
 <a name="l00150"></a>00150     QSpinBox *item);
-<a name="l00151"></a>00151   <a class="code" href="class_x_q_spin_box_connector.html#b0">XQSpinBoxConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XUIntNode&gt; &amp;node,
+<a name="l00151"></a>00151   <a class="code" href="class_x_q_spin_box_connector.html#cb6c67d588b24ef0bce89894ac0f9c7e">XQSpinBoxConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XUIntNode&gt; &amp;node,
 <a name="l00152"></a>00152     QSpinBox *item);
 <a name="l00153"></a>00153  <span class="keyword">public</span>:
-<a name="l00154"></a><a class="code" href="class_x_q_spin_box_connector.html#a0">00154</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_q_spin_box_connector.html#a0">~XQSpinBoxConnector</a>() {}
+<a name="l00154"></a><a class="code" href="class_x_q_spin_box_connector.html#ab3e7166568119229c93fc0e08bf3742">00154</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_q_spin_box_connector.html#ab3e7166568119229c93fc0e08bf3742">~XQSpinBoxConnector</a>() {}
 <a name="l00155"></a>00155  <span class="keyword">protected</span> slots:
-<a name="l00156"></a>00156   <span class="keywordtype">void</span> <a class="code" href="class_x_q_spin_box_connector.html#j0">onChange</a>(<span class="keywordtype">int</span> val);
+<a name="l00156"></a>00156   <span class="keywordtype">void</span> <a class="code" href="class_x_q_spin_box_connector.html#b2f18d604aba59a9a7e749b21a51fed5">onChange</a>(<span class="keywordtype">int</span> val);
 <a name="l00157"></a>00157  <span class="keyword">protected</span>:
-<a name="l00158"></a><a class="code" href="class_x_q_spin_box_connector.html#b2">00158</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_spin_box_connector.html#b2">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
-<a name="l00159"></a>00159   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_spin_box_connector.html#b3">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
-<a name="l00160"></a><a class="code" href="class_x_q_spin_box_connector.html#p0">00160</a>   shared_ptr&lt;XIntNode&gt; <a class="code" href="class_x_q_spin_box_connector.html#p0">m_iNode</a>;
-<a name="l00161"></a><a class="code" href="class_x_q_spin_box_connector.html#p1">00161</a>   shared_ptr&lt;XUIntNode&gt; <a class="code" href="class_x_q_spin_box_connector.html#p1">m_uINode</a>;
-<a name="l00162"></a><a class="code" href="class_x_q_spin_box_connector.html#p2">00162</a>   QSpinBox *<a class="code" href="class_x_q_spin_box_connector.html#p2">m_pItem</a>;
+<a name="l00158"></a><a class="code" href="class_x_q_spin_box_connector.html#b897a94dcca96232af1a0ac2a6a74831">00158</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_spin_box_connector.html#b897a94dcca96232af1a0ac2a6a74831">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
+<a name="l00159"></a>00159   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_spin_box_connector.html#5bad96acef2e244d6661c9a9264505c0">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
+<a name="l00160"></a><a class="code" href="class_x_q_spin_box_connector.html#d14c6ab4451175634bdfb675ce3dc599">00160</a>   shared_ptr&lt;XIntNode&gt; <a class="code" href="class_x_q_spin_box_connector.html#d14c6ab4451175634bdfb675ce3dc599">m_iNode</a>;
+<a name="l00161"></a><a class="code" href="class_x_q_spin_box_connector.html#04d98b7394fd7429c2ec657e0d566a4f">00161</a>   shared_ptr&lt;XUIntNode&gt; <a class="code" href="class_x_q_spin_box_connector.html#04d98b7394fd7429c2ec657e0d566a4f">m_uINode</a>;
+<a name="l00162"></a><a class="code" href="class_x_q_spin_box_connector.html#9201b74aa41776b992977e6462b20727">00162</a>   QSpinBox *<a class="code" href="class_x_q_spin_box_connector.html#9201b74aa41776b992977e6462b20727">m_pItem</a>;
 <a name="l00163"></a>00163 };
 <a name="l00164"></a>00164 
 <a name="l00165"></a>00165 <span class="keyword">class </span>KDoubleNumInput;
@@ -169,17 +178,17 @@
 <a name="l00169"></a>00169   Q_OBJECT
 <a name="l00170"></a>00170   XQCON_OBJECT
 <a name="l00171"></a>00171  <span class="keyword">protected</span>:
-<a name="l00172"></a>00172   <a class="code" href="class_x_k_double_num_input_connector.html#b0">XKDoubleNumInputConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;node, 
+<a name="l00172"></a>00172   <a class="code" href="class_x_k_double_num_input_connector.html#a1e9704c41190e15c131ec2403f0f71b">XKDoubleNumInputConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;node, 
 <a name="l00173"></a>00173     KDoubleNumInput *item);
 <a name="l00174"></a>00174  <span class="keyword">public</span>:
-<a name="l00175"></a><a class="code" href="class_x_k_double_num_input_connector.html#a0">00175</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_k_double_num_input_connector.html#a0">~XKDoubleNumInputConnector</a>() {}
+<a name="l00175"></a><a class="code" href="class_x_k_double_num_input_connector.html#d7428afbed8d77ebf76e0d874b5acd55">00175</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_k_double_num_input_connector.html#d7428afbed8d77ebf76e0d874b5acd55">~XKDoubleNumInputConnector</a>() {}
 <a name="l00176"></a>00176  <span class="keyword">protected</span> slots:
-<a name="l00177"></a>00177   <span class="keywordtype">void</span> <a class="code" href="class_x_k_double_num_input_connector.html#j0">onChange</a>(<span class="keywordtype">double</span> val);
+<a name="l00177"></a>00177   <span class="keywordtype">void</span> <a class="code" href="class_x_k_double_num_input_connector.html#f95d1a5d0e25ac780c0817b3681539a9">onChange</a>(<span class="keywordtype">double</span> val);
 <a name="l00178"></a>00178  <span class="keyword">protected</span>:
-<a name="l00179"></a><a class="code" href="class_x_k_double_num_input_connector.html#b1">00179</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_double_num_input_connector.html#b1">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
-<a name="l00180"></a>00180   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_double_num_input_connector.html#b2">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
-<a name="l00181"></a><a class="code" href="class_x_k_double_num_input_connector.html#p0">00181</a>   shared_ptr&lt;XDoubleNode&gt; <a class="code" href="class_x_k_double_num_input_connector.html#p0">m_node</a>;
-<a name="l00182"></a><a class="code" href="class_x_k_double_num_input_connector.html#p1">00182</a>   KDoubleNumInput *<a class="code" href="class_x_k_double_num_input_connector.html#p1">m_pItem</a>;
+<a name="l00179"></a><a class="code" href="class_x_k_double_num_input_connector.html#b56a47d298c14627ca8269ea85d02c8b">00179</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_double_num_input_connector.html#b56a47d298c14627ca8269ea85d02c8b">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
+<a name="l00180"></a>00180   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_double_num_input_connector.html#7d19e0fa65579bdf0ba505dbda13a6cf">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
+<a name="l00181"></a><a class="code" href="class_x_k_double_num_input_connector.html#86a8b89f4a6b07685ec1e869255d4289">00181</a>   shared_ptr&lt;XDoubleNode&gt; <a class="code" href="class_x_k_double_num_input_connector.html#86a8b89f4a6b07685ec1e869255d4289">m_node</a>;
+<a name="l00182"></a><a class="code" href="class_x_k_double_num_input_connector.html#33e885711f9388e090fb07231c12ef3d">00182</a>   KDoubleNumInput *<a class="code" href="class_x_k_double_num_input_connector.html#33e885711f9388e090fb07231c12ef3d">m_pItem</a>;
 <a name="l00183"></a>00183 };
 <a name="l00184"></a>00184 
 <a name="l00185"></a>00185 <span class="keyword">class </span>KDoubleSpinBox;
@@ -189,17 +198,17 @@
 <a name="l00189"></a>00189   Q_OBJECT
 <a name="l00190"></a>00190   XQCON_OBJECT
 <a name="l00191"></a>00191  <span class="keyword">protected</span>:
-<a name="l00192"></a>00192   <a class="code" href="class_x_k_double_spin_box_connector.html#b0">XKDoubleSpinBoxConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;node,
+<a name="l00192"></a>00192   <a class="code" href="class_x_k_double_spin_box_connector.html#68f63525b451f3e6380958f45355ff6f">XKDoubleSpinBoxConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;node,
 <a name="l00193"></a>00193     KDoubleSpinBox *item);
 <a name="l00194"></a>00194  <span class="keyword">public</span>:
-<a name="l00195"></a><a class="code" href="class_x_k_double_spin_box_connector.html#a0">00195</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_k_double_spin_box_connector.html#a0">~XKDoubleSpinBoxConnector</a>() {}
+<a name="l00195"></a><a class="code" href="class_x_k_double_spin_box_connector.html#44284773848d945c0c39230f6c244531">00195</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_k_double_spin_box_connector.html#44284773848d945c0c39230f6c244531">~XKDoubleSpinBoxConnector</a>() {}
 <a name="l00196"></a>00196  <span class="keyword">protected</span> slots:
-<a name="l00197"></a>00197   <span class="keywordtype">void</span> <a class="code" href="class_x_k_double_spin_box_connector.html#j0">onChange</a>(<span class="keywordtype">double</span> val);
+<a name="l00197"></a>00197   <span class="keywordtype">void</span> <a class="code" href="class_x_k_double_spin_box_connector.html#ef71499b7cdd62b57a8d1d14649e6428">onChange</a>(<span class="keywordtype">double</span> val);
 <a name="l00198"></a>00198  <span class="keyword">protected</span>:
-<a name="l00199"></a><a class="code" href="class_x_k_double_spin_box_connector.html#b1">00199</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_double_spin_box_connector.html#b1">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
-<a name="l00200"></a>00200   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_double_spin_box_connector.html#b2">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
-<a name="l00201"></a><a class="code" href="class_x_k_double_spin_box_connector.html#p0">00201</a>   shared_ptr&lt;XDoubleNode&gt; <a class="code" href="class_x_k_double_spin_box_connector.html#p0">m_node</a>;
-<a name="l00202"></a><a class="code" href="class_x_k_double_spin_box_connector.html#p1">00202</a>   KDoubleSpinBox *<a class="code" href="class_x_k_double_spin_box_connector.html#p1">m_pItem</a>;
+<a name="l00199"></a><a class="code" href="class_x_k_double_spin_box_connector.html#495562e45c0157290c8cd83546658e03">00199</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_double_spin_box_connector.html#495562e45c0157290c8cd83546658e03">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
+<a name="l00200"></a>00200   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_double_spin_box_connector.html#1e2f0b21d91072c037bf318e4b97548b">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
+<a name="l00201"></a><a class="code" href="class_x_k_double_spin_box_connector.html#76d655c0a6cf92d5b6dc8c39c08fc5e2">00201</a>   shared_ptr&lt;XDoubleNode&gt; <a class="code" href="class_x_k_double_spin_box_connector.html#76d655c0a6cf92d5b6dc8c39c08fc5e2">m_node</a>;
+<a name="l00202"></a><a class="code" href="class_x_k_double_spin_box_connector.html#50873e36cc7c8841bb860ba4a8822700">00202</a>   KDoubleSpinBox *<a class="code" href="class_x_k_double_spin_box_connector.html#50873e36cc7c8841bb860ba4a8822700">m_pItem</a>;
 <a name="l00203"></a>00203 };
 <a name="l00204"></a>00204 
 <a name="l00205"></a>00205 <span class="keyword">class </span>KURLRequester;
@@ -209,17 +218,17 @@
 <a name="l00209"></a>00209   Q_OBJECT
 <a name="l00210"></a>00210   XQCON_OBJECT
 <a name="l00211"></a>00211  <span class="keyword">protected</span>:
-<a name="l00212"></a>00212   <a class="code" href="class_x_k_u_r_l_req_connector.html#b0">XKURLReqConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XStringNode&gt; &amp;node, 
+<a name="l00212"></a>00212   <a class="code" href="class_x_k_u_r_l_req_connector.html#337dfaf06f14f62bf5fe0a70a3df8923">XKURLReqConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XStringNode&gt; &amp;node, 
 <a name="l00213"></a>00213     KURLRequester *item, <span class="keyword">const</span> <span class="keywordtype">char</span> *filter, <span class="keywordtype">bool</span> saving);
 <a name="l00214"></a>00214  <span class="keyword">public</span>:
-<a name="l00215"></a><a class="code" href="class_x_k_u_r_l_req_connector.html#a0">00215</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_k_u_r_l_req_connector.html#a0">~XKURLReqConnector</a>() {}
+<a name="l00215"></a><a class="code" href="class_x_k_u_r_l_req_connector.html#e3d64d1eff86fe0573147fe43c018007">00215</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_k_u_r_l_req_connector.html#e3d64d1eff86fe0573147fe43c018007">~XKURLReqConnector</a>() {}
 <a name="l00216"></a>00216  <span class="keyword">protected</span> slots:
-<a name="l00217"></a>00217   <span class="keywordtype">void</span> <a class="code" href="class_x_k_u_r_l_req_connector.html#j0">onSelect</a>( <span class="keyword">const</span> QString&amp; );
+<a name="l00217"></a>00217   <span class="keywordtype">void</span> <a class="code" href="class_x_k_u_r_l_req_connector.html#5a1abe90c10faa7cdb4b4b2171507d33">onSelect</a>( <span class="keyword">const</span> QString&amp; );
 <a name="l00218"></a>00218  <span class="keyword">protected</span>:
-<a name="l00219"></a><a class="code" href="class_x_k_u_r_l_req_connector.html#b1">00219</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_u_r_l_req_connector.html#b1">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
-<a name="l00220"></a>00220   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_u_r_l_req_connector.html#b2">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
-<a name="l00221"></a><a class="code" href="class_x_k_u_r_l_req_connector.html#p0">00221</a>   shared_ptr&lt;XStringNode&gt; <a class="code" href="class_x_k_u_r_l_req_connector.html#p0">m_node</a>;
-<a name="l00222"></a><a class="code" href="class_x_k_u_r_l_req_connector.html#p1">00222</a>   KURLRequester *<a class="code" href="class_x_k_u_r_l_req_connector.html#p1">m_pItem</a>;
+<a name="l00219"></a><a class="code" href="class_x_k_u_r_l_req_connector.html#085cad561c9f4580fb74a10eb1cf5080">00219</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_u_r_l_req_connector.html#085cad561c9f4580fb74a10eb1cf5080">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
+<a name="l00220"></a>00220   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_u_r_l_req_connector.html#58df188f7633ae4a6c823a26f2eda43c">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
+<a name="l00221"></a><a class="code" href="class_x_k_u_r_l_req_connector.html#229bd9f9bf20f77c9a4726c6c0fabdef">00221</a>   shared_ptr&lt;XStringNode&gt; <a class="code" href="class_x_k_u_r_l_req_connector.html#229bd9f9bf20f77c9a4726c6c0fabdef">m_node</a>;
+<a name="l00222"></a><a class="code" href="class_x_k_u_r_l_req_connector.html#f0a76edd1ddb35144817db993b811aea">00222</a>   KURLRequester *<a class="code" href="class_x_k_u_r_l_req_connector.html#f0a76edd1ddb35144817db993b811aea">m_pItem</a>;
 <a name="l00223"></a>00223 };
 <a name="l00224"></a>00224 
 <a name="l00225"></a>00225 <span class="keyword">class </span>QLabel;
@@ -229,16 +238,16 @@
 <a name="l00229"></a>00229   Q_OBJECT
 <a name="l00230"></a>00230   XQCON_OBJECT
 <a name="l00231"></a>00231  <span class="keyword">protected</span>:
-<a name="l00232"></a>00232   <a class="code" href="class_x_q_label_connector.html#b0">XQLabelConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node, 
+<a name="l00232"></a>00232   <a class="code" href="class_x_q_label_connector.html#3484bfc162e1ec9081eefac267bbfc6e">XQLabelConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node, 
 <a name="l00233"></a>00233     QLabel *item);
 <a name="l00234"></a>00234  <span class="keyword">public</span>:
-<a name="l00235"></a><a class="code" href="class_x_q_label_connector.html#a0">00235</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_q_label_connector.html#a0">~XQLabelConnector</a>() {}
+<a name="l00235"></a><a class="code" href="class_x_q_label_connector.html#11dcccbf8905f6767e0a157aa8184b75">00235</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_q_label_connector.html#11dcccbf8905f6767e0a157aa8184b75">~XQLabelConnector</a>() {}
 <a name="l00236"></a>00236  <span class="keyword">protected</span> slots:
 <a name="l00237"></a>00237  <span class="keyword">protected</span>:
-<a name="l00238"></a><a class="code" href="class_x_q_label_connector.html#b1">00238</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_label_connector.html#b1">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
-<a name="l00239"></a>00239   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_label_connector.html#b2">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
-<a name="l00240"></a><a class="code" href="class_x_q_label_connector.html#p0">00240</a>   shared_ptr&lt;XValueNodeBase&gt; <a class="code" href="class_x_q_label_connector.html#p0">m_node</a>;
-<a name="l00241"></a><a class="code" href="class_x_q_label_connector.html#p1">00241</a>   QLabel *<a class="code" href="class_x_q_label_connector.html#p1">m_pItem</a>;
+<a name="l00238"></a><a class="code" href="class_x_q_label_connector.html#a93b12f3ac5900901be66d7830872fec">00238</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_label_connector.html#a93b12f3ac5900901be66d7830872fec">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
+<a name="l00239"></a>00239   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_label_connector.html#4013afa06eab4a89166bd6eb391f0f68">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
+<a name="l00240"></a><a class="code" href="class_x_q_label_connector.html#2c12839e87d7cedb71cdc8abf0aa3182">00240</a>   shared_ptr&lt;XValueNodeBase&gt; <a class="code" href="class_x_q_label_connector.html#2c12839e87d7cedb71cdc8abf0aa3182">m_node</a>;
+<a name="l00241"></a><a class="code" href="class_x_q_label_connector.html#5e7d9aa2eed078f0f25b7de1e257674f">00241</a>   QLabel *<a class="code" href="class_x_q_label_connector.html#5e7d9aa2eed078f0f25b7de1e257674f">m_pItem</a>;
 <a name="l00242"></a>00242 };
 <a name="l00243"></a>00243 
 <a name="l00244"></a>00244 <span class="keyword">class </span>KLed;
@@ -248,16 +257,16 @@
 <a name="l00248"></a>00248   Q_OBJECT
 <a name="l00249"></a>00249   XQCON_OBJECT
 <a name="l00250"></a>00250  <span class="keyword">protected</span>:
-<a name="l00251"></a>00251   <a class="code" href="class_x_k_led_connector.html#b0">XKLedConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; &amp;node,
+<a name="l00251"></a>00251   <a class="code" href="class_x_k_led_connector.html#88777343e8967887c7948145592efb24">XKLedConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; &amp;node,
 <a name="l00252"></a>00252     KLed *item);
 <a name="l00253"></a>00253  <span class="keyword">public</span>:
-<a name="l00254"></a><a class="code" href="class_x_k_led_connector.html#a0">00254</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_k_led_connector.html#a0">~XKLedConnector</a>() {}
+<a name="l00254"></a><a class="code" href="class_x_k_led_connector.html#fbad3b48bad55fd6b41a289563b76cc8">00254</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_k_led_connector.html#fbad3b48bad55fd6b41a289563b76cc8">~XKLedConnector</a>() {}
 <a name="l00255"></a>00255  <span class="keyword">protected</span> slots:
 <a name="l00256"></a>00256  <span class="keyword">protected</span>:
-<a name="l00257"></a><a class="code" href="class_x_k_led_connector.html#b1">00257</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_led_connector.html#b1">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
-<a name="l00258"></a>00258   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_led_connector.html#b2">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
-<a name="l00259"></a><a class="code" href="class_x_k_led_connector.html#p0">00259</a>   shared_ptr&lt;XBoolNode&gt; <a class="code" href="class_x_k_led_connector.html#p0">m_node</a>;
-<a name="l00260"></a><a class="code" href="class_x_k_led_connector.html#p1">00260</a>   KLed *<a class="code" href="class_x_k_led_connector.html#p1">m_pItem</a>;
+<a name="l00257"></a><a class="code" href="class_x_k_led_connector.html#8f768cd20e6d42f7c653e0d85d223304">00257</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_led_connector.html#8f768cd20e6d42f7c653e0d85d223304">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
+<a name="l00258"></a>00258   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_led_connector.html#aec71d3bee4cce18d044c18ee07ff368">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
+<a name="l00259"></a><a class="code" href="class_x_k_led_connector.html#e965e8a5b0aec577f55724fdb5da166a">00259</a>   shared_ptr&lt;XBoolNode&gt; <a class="code" href="class_x_k_led_connector.html#e965e8a5b0aec577f55724fdb5da166a">m_node</a>;
+<a name="l00260"></a><a class="code" href="class_x_k_led_connector.html#0667e93d8e6bb737cbfb1d7308dd01a2">00260</a>   KLed *<a class="code" href="class_x_k_led_connector.html#0667e93d8e6bb737cbfb1d7308dd01a2">m_pItem</a>;
 <a name="l00261"></a>00261 };
 <a name="l00262"></a>00262 
 <a name="l00263"></a>00263 <span class="keyword">class </span>QLCDNumber;
@@ -267,15 +276,15 @@
 <a name="l00267"></a>00267   Q_OBJECT
 <a name="l00268"></a>00268   XQCON_OBJECT
 <a name="l00269"></a>00269  <span class="keyword">protected</span>:
-<a name="l00270"></a>00270   <a class="code" href="class_x_q_l_c_d_number_connector.html#b0">XQLCDNumberConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;node,
+<a name="l00270"></a>00270   <a class="code" href="class_x_q_l_c_d_number_connector.html#39df5fbf4754790d341e14c3ef97e513">XQLCDNumberConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;node,
 <a name="l00271"></a>00271     QLCDNumber *item);
 <a name="l00272"></a>00272  <span class="keyword">public</span>:
-<a name="l00273"></a><a class="code" href="class_x_q_l_c_d_number_connector.html#a0">00273</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_q_l_c_d_number_connector.html#a0">~XQLCDNumberConnector</a>() {}
+<a name="l00273"></a><a class="code" href="class_x_q_l_c_d_number_connector.html#2fbbde54906848823ae4e3a444dd3b01">00273</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_q_l_c_d_number_connector.html#2fbbde54906848823ae4e3a444dd3b01">~XQLCDNumberConnector</a>() {}
 <a name="l00274"></a>00274  <span class="keyword">protected</span>:
-<a name="l00275"></a><a class="code" href="class_x_q_l_c_d_number_connector.html#b1">00275</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_l_c_d_number_connector.html#b1">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
-<a name="l00276"></a>00276   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_l_c_d_number_connector.html#b2">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
-<a name="l00277"></a><a class="code" href="class_x_q_l_c_d_number_connector.html#p0">00277</a>   shared_ptr&lt;XDoubleNode&gt; <a class="code" href="class_x_q_l_c_d_number_connector.html#p0">m_node</a>;
-<a name="l00278"></a><a class="code" href="class_x_q_l_c_d_number_connector.html#p1">00278</a>   QLCDNumber *<a class="code" href="class_x_q_l_c_d_number_connector.html#p1">m_pItem</a>;
+<a name="l00275"></a><a class="code" href="class_x_q_l_c_d_number_connector.html#a127b2627ea3075d86340dfdeccba04c">00275</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_l_c_d_number_connector.html#a127b2627ea3075d86340dfdeccba04c">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
+<a name="l00276"></a>00276   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_l_c_d_number_connector.html#4bd211b3fb5785f33b597c9ee56b8e9d">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
+<a name="l00277"></a><a class="code" href="class_x_q_l_c_d_number_connector.html#ac0cabde91a9da291f417fbee184089b">00277</a>   shared_ptr&lt;XDoubleNode&gt; <a class="code" href="class_x_q_l_c_d_number_connector.html#ac0cabde91a9da291f417fbee184089b">m_node</a>;
+<a name="l00278"></a><a class="code" href="class_x_q_l_c_d_number_connector.html#503d31c9c6f424c7d4fa1db4d526171c">00278</a>   QLCDNumber *<a class="code" href="class_x_q_l_c_d_number_connector.html#503d31c9c6f424c7d4fa1db4d526171c">m_pItem</a>;
 <a name="l00279"></a>00279 };
 <a name="l00280"></a>00280 
 <a name="l00281"></a><a class="code" href="class_x_q_toggle_button_connector.html">00281</a> <span class="keyword">class </span><a class="code" href="class_x_q_toggle_button_connector.html">XQToggleButtonConnector</a> : <span class="keyword">public</span> <a class="code" href="class_x_value_q_connector.html">XValueQConnector</a>
@@ -283,17 +292,17 @@
 <a name="l00283"></a>00283   Q_OBJECT
 <a name="l00284"></a>00284   XQCON_OBJECT
 <a name="l00285"></a>00285  <span class="keyword">protected</span>:
-<a name="l00286"></a>00286   <a class="code" href="class_x_q_toggle_button_connector.html#b0">XQToggleButtonConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; &amp;node,
+<a name="l00286"></a>00286   <a class="code" href="class_x_q_toggle_button_connector.html#fab60e20cac38e45d39e3203e4611c2e">XQToggleButtonConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; &amp;node,
 <a name="l00287"></a>00287     QButton *item);
 <a name="l00288"></a>00288  <span class="keyword">public</span>:
-<a name="l00289"></a><a class="code" href="class_x_q_toggle_button_connector.html#a0">00289</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_q_toggle_button_connector.html#a0">~XQToggleButtonConnector</a>() {}
+<a name="l00289"></a><a class="code" href="class_x_q_toggle_button_connector.html#dfaee8631f8a9f5b6aea608b94f9a968">00289</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_q_toggle_button_connector.html#dfaee8631f8a9f5b6aea608b94f9a968">~XQToggleButtonConnector</a>() {}
 <a name="l00290"></a>00290  <span class="keyword">protected</span> slots:
-<a name="l00291"></a>00291   <span class="keywordtype">void</span> <a class="code" href="class_x_q_toggle_button_connector.html#j0">onClick</a>();
+<a name="l00291"></a>00291   <span class="keywordtype">void</span> <a class="code" href="class_x_q_toggle_button_connector.html#c83b6c5f5d8e4f73413904c46571aa7b">onClick</a>();
 <a name="l00292"></a>00292  <span class="keyword">protected</span>:
-<a name="l00293"></a><a class="code" href="class_x_q_toggle_button_connector.html#b1">00293</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_toggle_button_connector.html#b1">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
-<a name="l00294"></a>00294   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_toggle_button_connector.html#b2">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
-<a name="l00295"></a><a class="code" href="class_x_q_toggle_button_connector.html#p0">00295</a>   shared_ptr&lt;XBoolNode&gt; <a class="code" href="class_x_q_toggle_button_connector.html#p0">m_node</a>;
-<a name="l00296"></a><a class="code" href="class_x_q_toggle_button_connector.html#p1">00296</a>   QButton *<a class="code" href="class_x_q_toggle_button_connector.html#p1">m_pItem</a>;
+<a name="l00293"></a><a class="code" href="class_x_q_toggle_button_connector.html#c6133d3d6bb7d3639915901e0d2e5cc2">00293</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_toggle_button_connector.html#c6133d3d6bb7d3639915901e0d2e5cc2">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
+<a name="l00294"></a>00294   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_toggle_button_connector.html#9d60c1d398fe320d88e58ce12f1959e9">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
+<a name="l00295"></a><a class="code" href="class_x_q_toggle_button_connector.html#b59da58286ba38b9f4db48c7c2eea839">00295</a>   shared_ptr&lt;XBoolNode&gt; <a class="code" href="class_x_q_toggle_button_connector.html#b59da58286ba38b9f4db48c7c2eea839">m_node</a>;
+<a name="l00296"></a><a class="code" href="class_x_q_toggle_button_connector.html#00039888053bd549faa5aad198367039">00296</a>   QButton *<a class="code" href="class_x_q_toggle_button_connector.html#00039888053bd549faa5aad198367039">m_pItem</a>;
 <a name="l00297"></a>00297 };
 <a name="l00298"></a>00298 
 <a name="l00299"></a><a class="code" href="class_x_list_q_connector.html">00299</a> <span class="keyword">class </span><a class="code" href="class_x_list_q_connector.html">XListQConnector</a> : <span class="keyword">public</span> <a class="code" href="class_x_q_connector.html">XQConnector</a>
@@ -301,17 +310,17 @@
 <a name="l00301"></a>00301   Q_OBJECT
 <a name="l00302"></a>00302   XQCON_OBJECT
 <a name="l00303"></a>00303  <span class="keyword">protected</span>:
-<a name="l00304"></a>00304   <a class="code" href="class_x_list_q_connector.html#b0">XListQConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XListNodeBase&gt; &amp;node,
+<a name="l00304"></a>00304   <a class="code" href="class_x_list_q_connector.html#77ba949a5f8c68fd1f88e9803a6e8d8d">XListQConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XListNodeBase&gt; &amp;node,
 <a name="l00305"></a>00305     QWidget *item);
 <a name="l00306"></a>00306  <span class="keyword">public</span>:
-<a name="l00307"></a>00307   <span class="keyword">virtual</span> <a class="code" href="class_x_list_q_connector.html#a0">~XListQConnector</a>();
+<a name="l00307"></a>00307   <span class="keyword">virtual</span> <a class="code" href="class_x_list_q_connector.html#74169300a1df110747852beca002add3">~XListQConnector</a>();
 <a name="l00308"></a>00308  <span class="keyword">private</span> slots:
 <a name="l00309"></a>00309  <span class="keyword">protected</span> slots:
 <a name="l00310"></a>00310  <span class="keyword">protected</span>:
-<a name="l00311"></a><a class="code" href="class_x_list_q_connector.html#p0">00311</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_list_q_connector.html#p0">m_lsnListChanged</a>;
+<a name="l00311"></a><a class="code" href="class_x_list_q_connector.html#6e0d4262ae23f9cd7c5fde595b3270be">00311</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_list_q_connector.html#6e0d4262ae23f9cd7c5fde595b3270be">m_lsnListChanged</a>;
 <a name="l00312"></a>00312   <span class="keyword">virtual</span> <span class="keywordtype">void</span> onListChanged(<span class="keyword">const</span> shared_ptr&lt;XListNodeBase&gt; &amp;node) = 0;
-<a name="l00313"></a><a class="code" href="class_x_list_q_connector.html#p1">00313</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_list_q_connector.html#p1">m_lsnCatch</a>;
-<a name="l00314"></a><a class="code" href="class_x_list_q_connector.html#p2">00314</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_list_q_connector.html#p2">m_lsnRelease</a>;
+<a name="l00313"></a><a class="code" href="class_x_list_q_connector.html#a7909e44dc87080c9db4c788b67d2b7f">00313</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_list_q_connector.html#a7909e44dc87080c9db4c788b67d2b7f">m_lsnCatch</a>;
+<a name="l00314"></a><a class="code" href="class_x_list_q_connector.html#ea9cdb4553ddf4a9a4ba547fd3036c3d">00314</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_list_q_connector.html#ea9cdb4553ddf4a9a4ba547fd3036c3d">m_lsnRelease</a>;
 <a name="l00315"></a>00315   <span class="keyword">virtual</span> <span class="keywordtype">void</span> onCatch(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node) = 0;
 <a name="l00316"></a>00316   <span class="keyword">virtual</span> <span class="keywordtype">void</span> onRelease(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node) = 0;
 <a name="l00317"></a>00317 };
@@ -321,14 +330,14 @@
 <a name="l00321"></a>00321   Q_OBJECT
 <a name="l00322"></a>00322   XQCON_OBJECT
 <a name="l00323"></a>00323  <span class="keyword">protected</span>:
-<a name="l00324"></a>00324   <a class="code" href="class_x_item_q_connector.html#b0">XItemQConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XItemNodeBase&gt; &amp;node,
+<a name="l00324"></a>00324   <a class="code" href="class_x_item_q_connector.html#bca57557018b789fcd8fc53afc5e0423">XItemQConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XItemNodeBase&gt; &amp;node,
 <a name="l00325"></a>00325     QWidget *item);
 <a name="l00326"></a>00326  <span class="keyword">public</span>:
-<a name="l00327"></a>00327   <span class="keyword">virtual</span> <a class="code" href="class_x_item_q_connector.html#a0">~XItemQConnector</a>();
+<a name="l00327"></a>00327   <span class="keyword">virtual</span> <a class="code" href="class_x_item_q_connector.html#aef1a7691eb3d23bd127cb144e300f18">~XItemQConnector</a>();
 <a name="l00328"></a>00328  <span class="keyword">private</span> slots:
 <a name="l00329"></a>00329  <span class="keyword">protected</span> slots:
 <a name="l00330"></a>00330  <span class="keyword">protected</span>:
-<a name="l00331"></a><a class="code" href="class_x_item_q_connector.html#p0">00331</a>   shared_ptr&lt;XListener&gt;  <a class="code" href="class_x_item_q_connector.html#p0">m_lsnListChanged</a>;
+<a name="l00331"></a><a class="code" href="class_x_item_q_connector.html#631963c0ffe940c75f9b68bafab3b291">00331</a>   shared_ptr&lt;XListener&gt;  <a class="code" href="class_x_item_q_connector.html#631963c0ffe940c75f9b68bafab3b291">m_lsnListChanged</a>;
 <a name="l00332"></a>00332   <span class="keyword">virtual</span> <span class="keywordtype">void</span> onListChanged(<span class="keyword">const</span> shared_ptr&lt;XItemNodeBase&gt; &amp;node) = 0;
 <a name="l00333"></a>00333 };
 <a name="l00334"></a>00334 
@@ -339,19 +348,19 @@
 <a name="l00339"></a>00339   Q_OBJECT
 <a name="l00340"></a>00340   XQCON_OBJECT
 <a name="l00341"></a>00341  <span class="keyword">protected</span>:
-<a name="l00342"></a>00342   <a class="code" href="class_x_q_combo_box_connector.html#b0">XQComboBoxConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XItemNodeBase&gt; &amp;node,
+<a name="l00342"></a>00342   <a class="code" href="class_x_q_combo_box_connector.html#f0ae6867e91540b8578ccec22899796b">XQComboBoxConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XItemNodeBase&gt; &amp;node,
 <a name="l00343"></a>00343     QComboBox *item);
 <a name="l00344"></a>00344  <span class="keyword">public</span>:
-<a name="l00345"></a><a class="code" href="class_x_q_combo_box_connector.html#a0">00345</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_q_combo_box_connector.html#a0">~XQComboBoxConnector</a>() {}
+<a name="l00345"></a><a class="code" href="class_x_q_combo_box_connector.html#88c3e0fa780ad050271524302c4e28cc">00345</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_q_combo_box_connector.html#88c3e0fa780ad050271524302c4e28cc">~XQComboBoxConnector</a>() {}
 <a name="l00346"></a>00346  <span class="keyword">protected</span> slots:
-<a name="l00347"></a>00347   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_combo_box_connector.html#j0">onSelect</a>(<span class="keywordtype">int</span> index);
+<a name="l00347"></a>00347   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_combo_box_connector.html#8a637c3860479e8a73cbf3c953c876b3">onSelect</a>(<span class="keywordtype">int</span> index);
 <a name="l00348"></a>00348  <span class="keyword">protected</span>:
-<a name="l00349"></a><a class="code" href="class_x_q_combo_box_connector.html#b1">00349</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_combo_box_connector.html#b1">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
-<a name="l00350"></a>00350   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_combo_box_connector.html#b2">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00351"></a>00351   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_combo_box_connector.html#b3">onListChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XItemNodeBase&gt; &amp;node);
-<a name="l00352"></a><a class="code" href="class_x_q_combo_box_connector.html#p0">00352</a>   shared_ptr&lt;XItemNodeBase&gt; <a class="code" href="class_x_q_combo_box_connector.html#p0">m_node</a>;
-<a name="l00353"></a><a class="code" href="class_x_q_combo_box_connector.html#p1">00353</a>   QComboBox *<a class="code" href="class_x_q_combo_box_connector.html#p1">m_pItem</a>;
-<a name="l00354"></a>00354   <span class="keywordtype">int</span> <a class="code" href="class_x_q_combo_box_connector.html#b4">findItem</a>(<span class="keyword">const</span> QString &amp;);
+<a name="l00349"></a><a class="code" href="class_x_q_combo_box_connector.html#d487bf263d7b3d6c89488c429a5e06c0">00349</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_combo_box_connector.html#d487bf263d7b3d6c89488c429a5e06c0">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
+<a name="l00350"></a>00350   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_combo_box_connector.html#b036fcdf473157421dddb735d1b72787">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00351"></a>00351   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_combo_box_connector.html#fe6500f235d87e7f84194ec05f319e25">onListChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XItemNodeBase&gt; &amp;node);
+<a name="l00352"></a><a class="code" href="class_x_q_combo_box_connector.html#464172bf21639d0a5bc7d755ed6eebc3">00352</a>   shared_ptr&lt;XItemNodeBase&gt; <a class="code" href="class_x_q_combo_box_connector.html#464172bf21639d0a5bc7d755ed6eebc3">m_node</a>;
+<a name="l00353"></a><a class="code" href="class_x_q_combo_box_connector.html#a4d308efc6f13cb836cead3350f6c25c">00353</a>   QComboBox *<a class="code" href="class_x_q_combo_box_connector.html#a4d308efc6f13cb836cead3350f6c25c">m_pItem</a>;
+<a name="l00354"></a>00354   <span class="keywordtype">int</span> <a class="code" href="class_x_q_combo_box_connector.html#43ecafe2c5ab553e8d481d224205feca">findItem</a>(<span class="keyword">const</span> QString &amp;);
 <a name="l00355"></a>00355 };
 <a name="l00356"></a>00356 
 <a name="l00357"></a>00357 <span class="keyword">class </span>QListBox;
@@ -361,18 +370,18 @@
 <a name="l00361"></a>00361   Q_OBJECT
 <a name="l00362"></a>00362   XQCON_OBJECT
 <a name="l00363"></a>00363  <span class="keyword">protected</span>:
-<a name="l00364"></a>00364   <a class="code" href="class_x_q_list_box_connector.html#b0">XQListBoxConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XItemNodeBase&gt; &amp;node,
+<a name="l00364"></a>00364   <a class="code" href="class_x_q_list_box_connector.html#ec041824eaf45722b1c744d6cd7be43f">XQListBoxConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XItemNodeBase&gt; &amp;node,
 <a name="l00365"></a>00365     QListBox *item);
 <a name="l00366"></a>00366  <span class="keyword">public</span>:
-<a name="l00367"></a><a class="code" href="class_x_q_list_box_connector.html#a0">00367</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_q_list_box_connector.html#a0">~XQListBoxConnector</a>() {}
+<a name="l00367"></a><a class="code" href="class_x_q_list_box_connector.html#a025ebe3a8f235cfbeeeb091a45a7c78">00367</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_q_list_box_connector.html#a025ebe3a8f235cfbeeeb091a45a7c78">~XQListBoxConnector</a>() {}
 <a name="l00368"></a>00368  <span class="keyword">protected</span> slots:
-<a name="l00369"></a>00369   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_list_box_connector.html#j0">onSelect</a>(<span class="keywordtype">int</span> index);
+<a name="l00369"></a>00369   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_list_box_connector.html#92d7d07baaeac25ea6c8cfeaa9a2c80a">onSelect</a>(<span class="keywordtype">int</span> index);
 <a name="l00370"></a>00370  <span class="keyword">protected</span>:
-<a name="l00371"></a><a class="code" href="class_x_q_list_box_connector.html#b1">00371</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_list_box_connector.html#b1">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
-<a name="l00372"></a>00372   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_list_box_connector.html#b2">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00373"></a>00373   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_list_box_connector.html#b3">onListChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XItemNodeBase&gt; &amp;);
-<a name="l00374"></a><a class="code" href="class_x_q_list_box_connector.html#p0">00374</a>   shared_ptr&lt;XItemNodeBase&gt; <a class="code" href="class_x_q_list_box_connector.html#p0">m_node</a>;
-<a name="l00375"></a><a class="code" href="class_x_q_list_box_connector.html#p1">00375</a>   QListBox *<a class="code" href="class_x_q_list_box_connector.html#p1">m_pItem</a>;
+<a name="l00371"></a><a class="code" href="class_x_q_list_box_connector.html#10954c74885e1eeea1e1a0045462a6cd">00371</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_list_box_connector.html#10954c74885e1eeea1e1a0045462a6cd">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
+<a name="l00372"></a>00372   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_list_box_connector.html#e0db850d2c69a5e5a4e25cfd298625f3">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00373"></a>00373   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_list_box_connector.html#e9e8bd57e2efdf30e038de554011d2a4">onListChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XItemNodeBase&gt; &amp;);
+<a name="l00374"></a><a class="code" href="class_x_q_list_box_connector.html#9ebed1e26ba620ed69d86d1512feb7d2">00374</a>   shared_ptr&lt;XItemNodeBase&gt; <a class="code" href="class_x_q_list_box_connector.html#9ebed1e26ba620ed69d86d1512feb7d2">m_node</a>;
+<a name="l00375"></a><a class="code" href="class_x_q_list_box_connector.html#54a7915c9d2e8cbe57158a13aef0ef95">00375</a>   QListBox *<a class="code" href="class_x_q_list_box_connector.html#54a7915c9d2e8cbe57158a13aef0ef95">m_pItem</a>;
 <a name="l00376"></a>00376 };
 <a name="l00377"></a>00377 
 <a name="l00378"></a>00378 <span class="keyword">class </span>KColorButton;
@@ -382,17 +391,17 @@
 <a name="l00382"></a>00382   Q_OBJECT
 <a name="l00383"></a>00383   XQCON_OBJECT
 <a name="l00384"></a>00384  <span class="keyword">protected</span>:
-<a name="l00385"></a>00385   <a class="code" href="class_x_k_color_button_connector.html#b0">XKColorButtonConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XHexNode&gt; &amp;node,
+<a name="l00385"></a>00385   <a class="code" href="class_x_k_color_button_connector.html#bae6ce3835f42b6aa4a1c1c0fdd57ecc">XKColorButtonConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XHexNode&gt; &amp;node,
 <a name="l00386"></a>00386     KColorButton *item);
 <a name="l00387"></a>00387  <span class="keyword">public</span>:
-<a name="l00388"></a><a class="code" href="class_x_k_color_button_connector.html#a0">00388</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_k_color_button_connector.html#a0">~XKColorButtonConnector</a>() {}
+<a name="l00388"></a><a class="code" href="class_x_k_color_button_connector.html#8ce7e00c11a4d411037a6c82c64f7d3e">00388</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_k_color_button_connector.html#8ce7e00c11a4d411037a6c82c64f7d3e">~XKColorButtonConnector</a>() {}
 <a name="l00389"></a>00389  <span class="keyword">protected</span> slots:
-<a name="l00390"></a>00390   <span class="keywordtype">void</span> <a class="code" href="class_x_k_color_button_connector.html#j0">onClick</a>(<span class="keyword">const</span> QColor &amp;newColor);
+<a name="l00390"></a>00390   <span class="keywordtype">void</span> <a class="code" href="class_x_k_color_button_connector.html#8c18bb065fb5b8b4d6914c23976f279f">onClick</a>(<span class="keyword">const</span> QColor &amp;newColor);
 <a name="l00391"></a>00391  <span class="keyword">protected</span>:
-<a name="l00392"></a><a class="code" href="class_x_k_color_button_connector.html#b1">00392</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_color_button_connector.html#b1">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
-<a name="l00393"></a>00393   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_color_button_connector.html#b2">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00394"></a><a class="code" href="class_x_k_color_button_connector.html#p0">00394</a>   shared_ptr&lt;XHexNode&gt; <a class="code" href="class_x_k_color_button_connector.html#p0">m_node</a>;
-<a name="l00395"></a><a class="code" href="class_x_k_color_button_connector.html#p1">00395</a>   KColorButton *<a class="code" href="class_x_k_color_button_connector.html#p1">m_pItem</a>;
+<a name="l00392"></a><a class="code" href="class_x_k_color_button_connector.html#dd30e6eb3b66fafc55ced09d176da4b7">00392</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_color_button_connector.html#dd30e6eb3b66fafc55ced09d176da4b7">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
+<a name="l00393"></a>00393   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_color_button_connector.html#0f9f7a92cf3fcdcefc594b657ec9732c">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00394"></a><a class="code" href="class_x_k_color_button_connector.html#14703c955d170d475b4a02a39acbb486">00394</a>   shared_ptr&lt;XHexNode&gt; <a class="code" href="class_x_k_color_button_connector.html#14703c955d170d475b4a02a39acbb486">m_node</a>;
+<a name="l00395"></a><a class="code" href="class_x_k_color_button_connector.html#d90ad2f0b3fae93b77e7912c081aa14a">00395</a>   KColorButton *<a class="code" href="class_x_k_color_button_connector.html#d90ad2f0b3fae93b77e7912c081aa14a">m_pItem</a>;
 <a name="l00396"></a>00396 };
 <a name="l00397"></a>00397 
 <a name="l00398"></a>00398 <span class="keyword">class </span>KColorCombo;
@@ -402,48 +411,48 @@
 <a name="l00402"></a>00402   Q_OBJECT
 <a name="l00403"></a>00403   XQCON_OBJECT
 <a name="l00404"></a>00404  <span class="keyword">protected</span>:
-<a name="l00405"></a>00405   <a class="code" href="class_x_k_color_combo_connector.html#b0">XKColorComboConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XHexNode&gt; &amp;node, 
+<a name="l00405"></a>00405   <a class="code" href="class_x_k_color_combo_connector.html#ceb27c594759eac316f18402c3c6e032">XKColorComboConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XHexNode&gt; &amp;node, 
 <a name="l00406"></a>00406     KColorCombo *item);
 <a name="l00407"></a>00407  <span class="keyword">public</span>:
-<a name="l00408"></a><a class="code" href="class_x_k_color_combo_connector.html#a0">00408</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_k_color_combo_connector.html#a0">~XKColorComboConnector</a>() {}
+<a name="l00408"></a><a class="code" href="class_x_k_color_combo_connector.html#7b8f2009985f330ea52198416bc0ddf2">00408</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_k_color_combo_connector.html#7b8f2009985f330ea52198416bc0ddf2">~XKColorComboConnector</a>() {}
 <a name="l00409"></a>00409  <span class="keyword">protected</span> slots:
-<a name="l00410"></a>00410   <span class="keywordtype">void</span> <a class="code" href="class_x_k_color_combo_connector.html#j0">onClick</a>(<span class="keyword">const</span> QColor &amp;newColor);
+<a name="l00410"></a>00410   <span class="keywordtype">void</span> <a class="code" href="class_x_k_color_combo_connector.html#eab95d5af7892a8f6e8979e64448c150">onClick</a>(<span class="keyword">const</span> QColor &amp;newColor);
 <a name="l00411"></a>00411  <span class="keyword">protected</span>:
-<a name="l00412"></a><a class="code" href="class_x_k_color_combo_connector.html#b1">00412</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_color_combo_connector.html#b1">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
-<a name="l00413"></a>00413   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_color_combo_connector.html#b2">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00414"></a><a class="code" href="class_x_k_color_combo_connector.html#p0">00414</a>   shared_ptr&lt;XHexNode&gt; <a class="code" href="class_x_k_color_combo_connector.html#p0">m_node</a>;
-<a name="l00415"></a><a class="code" href="class_x_k_color_combo_connector.html#p1">00415</a>   KColorCombo *<a class="code" href="class_x_k_color_combo_connector.html#p1">m_pItem</a>;
+<a name="l00412"></a><a class="code" href="class_x_k_color_combo_connector.html#1c1270a680694dc2f064e69f08195e60">00412</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_color_combo_connector.html#1c1270a680694dc2f064e69f08195e60">beforeValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {}
+<a name="l00413"></a>00413   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_k_color_combo_connector.html#e10576a2b26c70cfb7a1a9c6864bb2ea">onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00414"></a><a class="code" href="class_x_k_color_combo_connector.html#a290ab350b0e1dd5f37b2bd7365de3fb">00414</a>   shared_ptr&lt;XHexNode&gt; <a class="code" href="class_x_k_color_combo_connector.html#a290ab350b0e1dd5f37b2bd7365de3fb">m_node</a>;
+<a name="l00415"></a><a class="code" href="class_x_k_color_combo_connector.html#0c7431567e4fe8746ab3eed614c50808">00415</a>   KColorCombo *<a class="code" href="class_x_k_color_combo_connector.html#0c7431567e4fe8746ab3eed614c50808">m_pItem</a>;
 <a name="l00416"></a>00416 };
 <a name="l00417"></a>00417 
 <a name="l00419"></a>00419 <span class="keyword">class </span>QMainWindow;
 <a name="l00420"></a>00420 <span class="keyword">class </span>QStatusBar;
 <a name="l00421"></a>00421 <span class="keyword">class </span>KPassivePopup;
-<a name="l00422"></a><a class="code" href="class_x_status_printer.html">00422</a> <span class="keyword">class </span><a class="code" href="class_x_status_printer.html">XStatusPrinter</a> : <span class="keyword">public</span> boost::enable_shared_from_this&lt;XStatusPrinter&gt;
+<a name="l00422"></a><a class="code" href="class_x_status_printer.html">00422</a> <span class="keyword">class </span><a class="code" href="class_x_status_printer.html">XStatusPrinter</a> : <span class="keyword">public</span> enable_shared_from_this&lt;XStatusPrinter&gt;
 <a name="l00423"></a>00423 {
 <a name="l00424"></a>00424 <span class="keyword">protected</span>:
-<a name="l00425"></a>00425     <span class="keyword">explicit</span> <a class="code" href="class_x_status_printer.html#b0">XStatusPrinter</a>(QMainWindow *window = NULL);
+<a name="l00425"></a>00425     <span class="keyword">explicit</span> <a class="code" href="class_x_status_printer.html#118e346d8af46f83ea046bb375fe57e4">XStatusPrinter</a>(QMainWindow *window = NULL);
 <a name="l00426"></a>00426 <span class="keyword">public</span>:
-<a name="l00427"></a>00427     <span class="keyword">static</span> shared_ptr&lt;XStatusPrinter&gt; <a class="code" href="class_x_status_printer.html#e0">create</a>(QMainWindow *window = NULL);
-<a name="l00428"></a>00428         <a class="code" href="class_x_status_printer.html#a0">~XStatusPrinter</a>();
-<a name="l00429"></a>00429         <span class="keywordtype">void</span> <a class="code" href="class_x_status_printer.html#a1">printMessage</a>(<span class="keyword">const</span> QString &amp;str, <span class="keywordtype">bool</span> popup = <span class="keyword">true</span>);
-<a name="l00430"></a>00430         <span class="keywordtype">void</span> <a class="code" href="class_x_status_printer.html#a2">printWarning</a>(<span class="keyword">const</span> QString &amp;str, <span class="keywordtype">bool</span> popup = <span class="keyword">false</span>);
-<a name="l00431"></a>00431         <span class="keywordtype">void</span> <a class="code" href="class_x_status_printer.html#a3">printError</a>(<span class="keyword">const</span> QString &amp;str, <span class="keywordtype">bool</span> popup = <span class="keyword">true</span>);
-<a name="l00432"></a>00432         <span class="keywordtype">void</span> <a class="code" href="class_x_status_printer.html#a4">clear</a>();
+<a name="l00427"></a>00427     <span class="keyword">static</span> shared_ptr&lt;XStatusPrinter&gt; <a class="code" href="class_x_status_printer.html#8f915276da172b8cc0f1b6d12f8c83df">create</a>(QMainWindow *window = NULL);
+<a name="l00428"></a>00428         <a class="code" href="class_x_status_printer.html#69ee53421ec73da4970ab9ba2f955c81">~XStatusPrinter</a>();
+<a name="l00429"></a>00429         <span class="keywordtype">void</span> <a class="code" href="class_x_status_printer.html#7576ac6eb8c94dbc4db6b5390c270dd3">printMessage</a>(<span class="keyword">const</span> QString &amp;str, <span class="keywordtype">bool</span> popup = <span class="keyword">true</span>);
+<a name="l00430"></a>00430         <span class="keywordtype">void</span> <a class="code" href="class_x_status_printer.html#ebc3eb0781ab80cb5c01e66b4a04d070">printWarning</a>(<span class="keyword">const</span> QString &amp;str, <span class="keywordtype">bool</span> popup = <span class="keyword">false</span>);
+<a name="l00431"></a>00431         <span class="keywordtype">void</span> <a class="code" href="class_x_status_printer.html#6e3327e87f29c7b8696aa877aed22857">printError</a>(<span class="keyword">const</span> QString &amp;str, <span class="keywordtype">bool</span> popup = <span class="keyword">true</span>);
+<a name="l00432"></a>00432         <span class="keywordtype">void</span> <a class="code" href="class_x_status_printer.html#d9955550298315ee603e95432947ae09">clear</a>();
 <a name="l00433"></a>00433 <span class="keyword">private</span>:
-<a name="l00434"></a><a class="code" href="struct_x_status_printer_1_1tstatus.html#o0">00434</a> <span class="keyword">struct </span><a class="code" href="struct_x_status_printer_1_1tstatus.html">tstatus</a> {QString str; <span class="keywordtype">int</span> <a class="code" href="struct_x_status_printer_1_1tstatus.html#o1">ms</a>; <span class="keywordtype">bool</span> <a class="code" href="struct_x_status_printer_1_1tstatus.html#o2">popup</a>; <span class="keyword">enum</span> {Normal, Warning, Error} type;};
-<a name="l00435"></a><a class="code" href="class_x_status_printer.html#r0">00435</a>         <a class="code" href="class_x_talker.html">XTalker&lt;tstatus&gt;</a> <a class="code" href="class_x_status_printer.html#r0">m_tlkTalker</a>;
-<a name="l00436"></a><a class="code" href="class_x_status_printer.html#r1">00436</a>         shared_ptr&lt;XListener&gt; <a class="code" href="class_x_status_printer.html#r1">m_lsn</a>;
-<a name="l00437"></a><a class="code" href="class_x_status_printer.html#r2">00437</a>         QMainWindow *<a class="code" href="class_x_status_printer.html#r2">m_pWindow</a>;
-<a name="l00438"></a><a class="code" href="class_x_status_printer.html#r3">00438</a>         QStatusBar *<a class="code" href="class_x_status_printer.html#r3">m_pBar</a>;
-<a name="l00439"></a><a class="code" href="class_x_status_printer.html#r4">00439</a>         KPassivePopup *<a class="code" href="class_x_status_printer.html#r4">m_pPopup</a>;
-<a name="l00440"></a>00440         <span class="keywordtype">void</span> <a class="code" href="class_x_status_printer.html#d0">print</a>(<span class="keyword">const</span> <a class="code" href="struct_x_status_printer_1_1tstatus.html">tstatus</a> &amp;status);
-<a name="l00441"></a>00441     <span class="keyword">static</span> std::deque&lt;shared_ptr&lt;XStatusPrinter&gt; &gt; <a class="code" href="class_x_status_printer.html#v0">s_thisCreating</a>;
+<a name="l00434"></a><a class="code" href="struct_x_status_printer_1_1tstatus.html#3d2b19cee47e51dd090c63019785c434">00434</a> <span class="keyword">struct </span><a class="code" href="struct_x_status_printer_1_1tstatus.html">tstatus</a> {QString str; <span class="keywordtype">int</span> <a class="code" href="struct_x_status_printer_1_1tstatus.html#173cec7c4c567482c67b0853878a1d70">ms</a>; <span class="keywordtype">bool</span> <a class="code" href="struct_x_status_printer_1_1tstatus.html#03d23e93c1c6ab69dcd0ca57b4ce9547">popup</a>; <span class="keyword">enum</span> {Normal, Warning, Error} type;};
+<a name="l00435"></a><a class="code" href="class_x_status_printer.html#b18fd0984d42be318f646da05945825f">00435</a>         <a class="code" href="class_x_talker.html">XTalker&lt;tstatus&gt;</a> <a class="code" href="class_x_status_printer.html#b18fd0984d42be318f646da05945825f">m_tlkTalker</a>;
+<a name="l00436"></a><a class="code" href="class_x_status_printer.html#e063e34d80c68636da1fe28cb6068000">00436</a>         shared_ptr&lt;XListener&gt; <a class="code" href="class_x_status_printer.html#e063e34d80c68636da1fe28cb6068000">m_lsn</a>;
+<a name="l00437"></a><a class="code" href="class_x_status_printer.html#75ae985159528ba5c2e5386018663bff">00437</a>         QMainWindow *<a class="code" href="class_x_status_printer.html#75ae985159528ba5c2e5386018663bff">m_pWindow</a>;
+<a name="l00438"></a><a class="code" href="class_x_status_printer.html#1a5106b3e195bedac3ae00f4efc0f3de">00438</a>         QStatusBar *<a class="code" href="class_x_status_printer.html#1a5106b3e195bedac3ae00f4efc0f3de">m_pBar</a>;
+<a name="l00439"></a><a class="code" href="class_x_status_printer.html#c5b0bae7c189405c9024fbf2021f6a84">00439</a>         KPassivePopup *<a class="code" href="class_x_status_printer.html#c5b0bae7c189405c9024fbf2021f6a84">m_pPopup</a>;
+<a name="l00440"></a>00440         <span class="keywordtype">void</span> <a class="code" href="class_x_status_printer.html#1f092e65ae38fc42cbbcf8596bfd0739">print</a>(<span class="keyword">const</span> <a class="code" href="struct_x_status_printer_1_1tstatus.html">tstatus</a> &amp;status);
+<a name="l00441"></a><a class="code" href="class_x_status_printer.html#36850b160be078e0423d93d9ea9f8908">00441</a>     <span class="keyword">static</span> std::deque&lt;shared_ptr&lt;XStatusPrinter&gt; &gt; <a class="code" href="class_x_status_printer.html#36850b160be078e0423d93d9ea9f8908">s_thisCreating</a>;
 <a name="l00442"></a>00442 };
 <a name="l00443"></a>00443 
 <a name="l00444"></a>00444 <span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00445"></a>00445 <span class="preprocessor">#endif</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:24 2006に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:46 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
 </html>

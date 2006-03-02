@@ -1,6 +1,6 @@
 <!DOCTYPE UI><UI version="3.3" stdsetdef="1">
 <class>FrmGraph</class>
-<widget class="QDialog">
+<widget class="QMainWindow">
     <property name="name">
         <cstring>FrmGraph</cstring>
     </property>

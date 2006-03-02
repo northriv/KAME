@@ -86,8 +86,6 @@ class XNode : public enable_shared_from_this<XNode>
   //! \sa setUIEnabled
    XTalker<shared_ptr<XNode> > &onUIEnabled() {return m_tlkOnUIEnabled;}
 
-  void childLock() const;
-  void childUnlock() const;
   const XRecursiveRWLock &childMutex() const {return m_childmutex;}
   
   virtual void insert(const shared_ptr<XNode> &ptr);

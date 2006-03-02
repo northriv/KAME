@@ -115,28 +115,27 @@ XGraph::setupRedraw(float resolution)
   
   m_bUpdateScheduled = false;
   
-  axes()->childLock();  
-  for(unsigned int i = 0; i < axes()->count(); i++)
-    {
-        (*axes())[i]->startAutoscale(resolution, *(*axes())[i]->autoScale() );
-    }
-  plots()->childLock();
-  for(unsigned int i = 0; i < plots()->count(); i++)
-    {
-      if(!(*plots())[i]->lockAxesInfo()) continue;
-      (*plots())[i]->snapshot();
-      (*plots())[i]->validateAutoScale();
-      (*plots())[i]->unlockAxesInfo();
-    }
-  plots()->childUnlock();
-  for(unsigned int i = 0; i < axes()->count(); i++)
-    {
-      if(*(*axes())[i]->autoScale())
-		(*axes())[i]->zoom(true, true, UNZOOM_ABIT);
-      (*axes())[i]->fixScale(resolution, true);
-    }
-
-  axes()->childUnlock();
+  { XScopedReadLock<XRecursiveRWLock> lock(axes()->childMutex());
+      for(unsigned int i = 0; i < axes()->count(); i++)
+        {
+            (*axes())[i]->startAutoscale(resolution, *(*axes())[i]->autoScale() );
+        }
+      { XScopedReadLock<XRecursiveRWLock> lock(plots()->childMutex());
+      for(unsigned int i = 0; i < plots()->count(); i++)
+        {
+          if(!(*plots())[i]->lockAxesInfo()) continue;
+          (*plots())[i]->snapshot();
+          (*plots())[i]->validateAutoScale();
+          (*plots())[i]->unlockAxesInfo();
+        }
+      }
+      for(unsigned int i = 0; i < axes()->count(); i++)
+        {
+          if(*(*axes())[i]->autoScale())
+    		(*axes())[i]->zoom(true, true, UNZOOM_ABIT);
+          (*axes())[i]->fixScale(resolution, true);
+        }
+  }
   
   m_graphLock.readUnlock();
 }
@@ -145,7 +144,7 @@ void
 XGraph::zoomAxes(float resolution, 
     XGraph::GFloat scale, const XGraph::ScrPoint &center)
 {
-  axes()->childLock();
+  XScopedReadLock<XRecursiveRWLock> lock(axes()->childMutex());
 
   for(unsigned int i = 0; i < axes()->count(); i++)
     {
@@ -159,8 +158,6 @@ XGraph::zoomAxes(float resolution,
         (*axes())[i]->fixScale(resolution);
     }
   resumeUpdate();
-
-  axes()->childUnlock();
 }
 
 XPlot::XPlot(const char *name, bool runtime, const shared_ptr<XGraph> &graph)
@@ -232,16 +229,16 @@ XPlot::XPlot(const char *name, bool runtime, const shared_ptr<XGraph> &graph)
 bool
 XPlot::lockAxesInfo()
 {
-  axisX()->listLock();
-  axisY()->listLock();
-  axisZ()->listLock();
+  axisX()->listMutex().readLock();
+  axisY()->listMutex().readLock();
+  axisZ()->listMutex().readLock();
   shared_ptr<XAxis> axisx = *axisX();
   shared_ptr<XAxis> axisy = *axisY();
   shared_ptr<XAxis> axisz = *axisZ();
   if(!axisx || !axisy) {
-      axisX()->listUnlock();
-      axisY()->listUnlock();
-      axisZ()->listUnlock();
+      axisX()->listMutex().readUnlock();
+      axisY()->listMutex().readUnlock();
+      axisZ()->listMutex().readUnlock();
       return false;
   }
   m_curAxisX = axisx;
@@ -265,9 +262,9 @@ XPlot::lockAxesInfo()
 void
 XPlot::unlockAxesInfo()
 {
-      axisX()->listUnlock();
-      axisY()->listUnlock();
-      axisZ()->listUnlock();
+      axisX()->listMutex().readUnlock();
+      axisY()->listMutex().readUnlock();
+      axisZ()->listMutex().readUnlock();
 }
 void
 XPlot::screenToGraph(const XGraph::ScrPoint &pt, XGraph::GPoint *g)

@@ -31,10 +31,10 @@ XInterfaceListConnector::XInterfaceListConnector(
   labels += i18n("Port");
   labels += i18n("Addr");
   item->setColumnLabels(labels);
-  node->childLock();
-  for(unsigned int i = 0; i < node->count(); i++)
-    onCatch((*node)[i]);
-  node->childUnlock();
+  { XScopedReadLock<XRecursiveRWLock> lock(node->childMutex());
+      for(unsigned int i = 0; i < node->count(); i++)
+        onCatch((*node)[i]);
+  }
 }
 XInterfaceListConnector::~XInterfaceListConnector() {
     if(isItemAlive()) {

@@ -64,48 +64,50 @@ void
 XWaveNGraph::selectAxes(int x, int y1, int y2, int yweight)
 {
   XScopedWriteLock<XRecursiveRWLock> lock(m_mutex);
+  {  
+      m_colx = x;
+      m_coly1 = y1;
+      m_coly2 = y2;
+      m_colyweight = yweight;
     
-  m_colx = x;
-  m_coly1 = y1;
-  m_coly2 = y2;
-  m_colyweight = yweight;
-
-  m_graph->suspendUpdate();
-  if(m_plot1) m_graph->plots()->releaseChild(m_plot1);
-  if(m_plot2) m_graph->plots()->releaseChild(m_plot2);
-  if(m_axisy2) m_graph->axes()->releaseChild(m_axisy2);
-  m_plot1.reset();
-  m_plot2.reset();
-  m_axisy2.reset();
+      m_graph->suspendUpdate();
+      if(m_plot1) m_graph->plots()->releaseChild(m_plot1);
+      if(m_plot2) m_graph->plots()->releaseChild(m_plot2);
+      if(m_axisy2) m_graph->axes()->releaseChild(m_axisy2);
+      m_plot1.reset();
+      m_plot2.reset();
+      m_axisy2.reset();
+        
+     // m_graph->setName(getName());
+      m_graph->label()->value(getName());
     
- // m_graph->setName(getName());
-  m_graph->label()->value(getName());
-
-  m_plot1 = m_graph->plots()->create<XXYPlot>("Plot1", true, m_graph);
-  m_graph->axes()->childLock();
-  shared_ptr<XAxis> axisx = (*m_graph->axes())[0];
-  shared_ptr<XAxis> axisy = (*m_graph->axes())[1];
-  m_graph->axes()->childUnlock();
-  m_plot1->axisX()->value(axisx);
-  m_plot1->axisY()->value(axisy);
-  m_plot1->maxCount()->value(rowCount());
-  m_plot1->maxCount()->setUIEnabled(false);
-  m_plot1->clearPoints()->setUIEnabled(false);
-  if(m_coly2 >= 0)
-    {
-      m_axisy2 = m_graph->axes()->create<XAxis>("Y2 Axis", true, XAxis::DirAxisY, true, m_graph);
-      m_plot2 = m_graph->plots()->create<XXYPlot>("Plot2", true, m_graph);
-      m_plot2->axisX()->value(axisx);
-      m_plot2->axisY()->value(m_axisy2);
-      m_plot2->pointColor()->value(clGreen);
-      m_plot2->lineColor()->value(clGreen);
-      m_plot2->barColor()->value(clGreen);
-      m_plot2->displayMajorGrid()->value(false);
-      m_plot2->maxCount()->value(rowCount());
-      m_plot2->maxCount()->setUIEnabled(false);
-      m_plot2->clearPoints()->setUIEnabled(false);
-    }
-  m_graph->resumeUpdate();
+      m_plot1 = m_graph->plots()->create<XXYPlot>("Plot1", true, m_graph);
+    
+      XScopedReadLock<XRecursiveRWLock> lock(m_graph->axes()->childMutex());
+      shared_ptr<XAxis> axisx = (*m_graph->axes())[0];
+      shared_ptr<XAxis> axisy = (*m_graph->axes())[1];
+    
+      m_plot1->axisX()->value(axisx);
+      m_plot1->axisY()->value(axisy);
+      m_plot1->maxCount()->value(rowCount());
+      m_plot1->maxCount()->setUIEnabled(false);
+      m_plot1->clearPoints()->setUIEnabled(false);
+      if(m_coly2 >= 0)
+        {
+          m_axisy2 = m_graph->axes()->create<XAxis>("Y2 Axis", true, XAxis::DirAxisY, true, m_graph);
+          m_plot2 = m_graph->plots()->create<XXYPlot>("Plot2", true, m_graph);
+          m_plot2->axisX()->value(axisx);
+          m_plot2->axisY()->value(m_axisy2);
+          m_plot2->pointColor()->value(clGreen);
+          m_plot2->lineColor()->value(clGreen);
+          m_plot2->barColor()->value(clGreen);
+          m_plot2->displayMajorGrid()->value(false);
+          m_plot2->maxCount()->value(rowCount());
+          m_plot2->maxCount()->setUIEnabled(false);
+          m_plot2->clearPoints()->setUIEnabled(false);
+        }
+      m_graph->resumeUpdate();
+  }
 }
 
 void
@@ -244,46 +246,49 @@ void
 XWaveNGraph::drawGraph()
 {
   XScopedReadLock<XRecursiveRWLock> lock(m_mutex);
+  {
 
-  ASSERT(m_plot1);
+      ASSERT(m_plot1);
+        
+      m_graph->suspendUpdate();
+      
+      XScopedReadLock<XRecursiveRWLock> lock(m_graph->axes()->childMutex());
+      shared_ptr<XAxis> axisx = (*m_graph->axes())[0];
+      shared_ptr<XAxis> axisy = (*m_graph->axes())[1];
     
-  m_graph->suspendUpdate();
-  m_graph->axes()->childLock();
-  shared_ptr<XAxis> axisx = (*m_graph->axes())[0];
-  shared_ptr<XAxis> axisy = (*m_graph->axes())[1];
-  m_graph->axes()->childUnlock();
-  axisx->label()->value(QString::fromUtf8(m_labels[m_colx].c_str()));
-  axisy->label()->value(QString::fromUtf8(m_labels[m_coly1].c_str()));
-  if(colY2() > 0)
-    m_axisy2->label()->value(QString::fromUtf8(m_labels[m_coly2].c_str()));
+      axisx->label()->value(QString::fromUtf8(m_labels[m_colx].c_str()));
+      axisy->label()->value(QString::fromUtf8(m_labels[m_coly1].c_str()));
+      if(colY2() > 0)
+        m_axisy2->label()->value(QString::fromUtf8(m_labels[m_coly2].c_str()));
+        
+      int rowcnt = rowCount();
+      double *colx = cols(colX());
+      double *coly1 = cols(colY1());
+      double *coly2 = (colY2() > 0) ? cols(colY2()) : NULL;
+      double *colyweight = (colYWeight() >= 0) ? cols(colYWeight()) : NULL;
     
-  int rowcnt = rowCount();
-  double *colx = cols(colX());
-  double *coly1 = cols(colY1());
-  double *coly2 = (colY2() > 0) ? cols(colY2()) : NULL;
-  double *colyweight = (colYWeight() >= 0) ? cols(colYWeight()) : NULL;
-
-  std::deque<XGraph::ValPoint> &points_plot1(m_plot1->points());
-  points_plot1.clear();
-  for(int i = 0; i < rowcnt; i++)
-    {
-      if(colyweight)
-	       if(colyweight[i] <= 0) continue;
-       points_plot1.push_back( XGraph::ValPoint(colx[i], coly1[i]) );
-    }
-  if(coly2)
-    {
-      std::deque<XGraph::ValPoint> &points_plot2 = m_plot2->points();
-      points_plot2.clear();
+      std::deque<XGraph::ValPoint> &points_plot1(m_plot1->points());
+      points_plot1.clear();
       for(int i = 0; i < rowcnt; i++)
-    	  {
-	    if(colyweight)
-	       if(colyweight[i] <= 0) continue;
-        points_plot2.push_back( XGraph::ValPoint(colx[i], coly2[i]) );
-    	  }
-    }
-  m_graph->requestUpdate();
-  m_graph->resumeUpdate();
+        {
+          if(colyweight)
+    	       if(colyweight[i] <= 0) continue;
+           points_plot1.push_back( XGraph::ValPoint(colx[i], coly1[i]) );
+        }
+      if(coly2)
+        {
+          std::deque<XGraph::ValPoint> &points_plot2 = m_plot2->points();
+          points_plot2.clear();
+          for(int i = 0; i < rowcnt; i++)
+        	  {
+    	    if(colyweight)
+    	       if(colyweight[i] <= 0) continue;
+            points_plot2.push_back( XGraph::ValPoint(colx[i], coly2[i]) );
+        	  }
+        }
+      m_graph->requestUpdate();
+      m_graph->resumeUpdate();
+  }
 }
 
 unsigned int

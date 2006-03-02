@@ -2,11 +2,20 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/xlistnode.h ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a></div>
+<a class="el" href="dir_cbe63f28361eb71291c8905f8fbf16c0.html">kame</a></div>
 <h1>xlistnode.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#ifndef XLISTNODE_H_</span>
 <a name="l00002"></a>00002 <span class="preprocessor"></span><span class="preprocessor">#define XLISTNODE_H_</span>
 <a name="l00003"></a>00003 <span class="preprocessor"></span>
@@ -16,29 +25,29 @@
 <a name="l00007"></a>00007 {
 <a name="l00008"></a>00008  XNODE_OBJECT
 <a name="l00009"></a>00009  <span class="keyword">protected</span>:
-<a name="l00010"></a>00010   <span class="keyword">explicit</span> <a class="code" href="class_x_list_node_base.html#b0">XListNodeBase</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime = <span class="keyword">false</span>);
+<a name="l00010"></a>00010   <span class="keyword">explicit</span> <a class="code" href="class_x_list_node_base.html#a46f6fb37b6a440b4c60ca6fe767896e">XListNodeBase</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime = <span class="keyword">false</span>);
 <a name="l00011"></a>00011  <span class="keyword">public</span>:
-<a name="l00012"></a><a class="code" href="class_x_list_node_base.html#a0">00012</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_list_node_base.html#a0">~XListNodeBase</a>() {}
+<a name="l00012"></a><a class="code" href="class_x_list_node_base.html#3ca0e2420bb7153b114d39119c4573f0">00012</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_list_node_base.html#3ca0e2420bb7153b114d39119c4573f0">~XListNodeBase</a>() {}
 <a name="l00013"></a>00013 
-<a name="l00014"></a>00014   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_list_node_base.html#a1">clearChildren</a>();
-<a name="l00015"></a>00015   <span class="keyword">virtual</span> <span class="keywordtype">int</span> <a class="code" href="class_x_list_node_base.html#a2">releaseChild</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> index);
-<a name="l00016"></a>00016   <span class="keyword">virtual</span> <span class="keywordtype">int</span> <a class="code" href="class_x_list_node_base.html#a2">releaseChild</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
+<a name="l00014"></a>00014   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_list_node_base.html#67cce14194299732e38ee48ba1982723">clearChildren</a>();
+<a name="l00015"></a>00015   <span class="keyword">virtual</span> <span class="keywordtype">int</span> <a class="code" href="class_x_list_node_base.html#6c87e400f763de85dc0923395b997c80">releaseChild</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> index);
+<a name="l00016"></a>00016   <span class="keyword">virtual</span> <span class="keywordtype">int</span> <a class="code" href="class_x_list_node_base.html#6c87e400f763de85dc0923395b997c80">releaseChild</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
 <a name="l00017"></a>00017         
-<a name="l00018"></a><a class="code" href="class_x_list_node_base.html#a4">00018</a>   <span class="keyword">virtual</span> QString <a class="code" href="class_x_list_node_base.html#a4">getItemName</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> index)<span class="keyword"> const </span>{
-<a name="l00019"></a>00019     ASSERT(index &lt; <a class="code" href="class_x_node.html#a14">count</a>());
-<a name="l00020"></a>00020     <span class="keywordflow">return</span> <a class="code" href="class_x_node.html#p0">m_children</a>[index]-&gt;getName();
+<a name="l00018"></a><a class="code" href="class_x_list_node_base.html#88e37ee1a6f159ea1277281716e7d334">00018</a>   <span class="keyword">virtual</span> QString <a class="code" href="class_x_list_node_base.html#88e37ee1a6f159ea1277281716e7d334">getItemName</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> index)<span class="keyword"> const </span>{
+<a name="l00019"></a>00019     ASSERT(index &lt; <a class="code" href="class_x_node.html#1cca054072e12fcac3c0a1ab6bafbf52">count</a>());
+<a name="l00020"></a>00020     <span class="keywordflow">return</span> <a class="code" href="class_x_node.html#4c8f348e723b9013509a2d4463f749da">m_children</a>[index]-&gt;getName();
 <a name="l00021"></a>00021   }
-<a name="l00022"></a><a class="code" href="class_x_list_node_base.html#a5">00022</a>    <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;XListNodeBase&gt;</a> &gt; &amp;<a class="code" href="class_x_list_node_base.html#a5">onListChanged</a>() {<span class="keywordflow">return</span> <a class="code" href="class_x_list_node_base.html#p0">m_tlkOnListChanged</a>;}
-<a name="l00024"></a><a class="code" href="class_x_list_node_base.html#a6">00024</a>    <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;XNode&gt;</a> &gt; &amp;<a class="code" href="class_x_list_node_base.html#a6">onCatch</a>() {<span class="keywordflow">return</span> <a class="code" href="class_x_list_node_base.html#p1">m_tlkOnCatch</a>;}
-<a name="l00026"></a><a class="code" href="class_x_list_node_base.html#a7">00026</a>    <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;XNode&gt;</a> &gt; &amp;<a class="code" href="class_x_list_node_base.html#a7">onRelease</a>() {<span class="keywordflow">return</span> <a class="code" href="class_x_list_node_base.html#p2">m_tlkOnRelease</a>;}
+<a name="l00022"></a><a class="code" href="class_x_list_node_base.html#701dc25a924236c7ee99758f4e631525">00022</a>    <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;XListNodeBase&gt;</a> &gt; &amp;<a class="code" href="class_x_list_node_base.html#701dc25a924236c7ee99758f4e631525">onListChanged</a>() {<span class="keywordflow">return</span> <a class="code" href="class_x_list_node_base.html#a5020145932e0bf4f80784049d39a046">m_tlkOnListChanged</a>;}
+<a name="l00024"></a><a class="code" href="class_x_list_node_base.html#680c0cf8f25755151ebe31a17c79f0b8">00024</a>    <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;XNode&gt;</a> &gt; &amp;<a class="code" href="class_x_list_node_base.html#680c0cf8f25755151ebe31a17c79f0b8">onCatch</a>() {<span class="keywordflow">return</span> <a class="code" href="class_x_list_node_base.html#26e711b0ab596afb45b336f8fe31877b">m_tlkOnCatch</a>;}
+<a name="l00026"></a><a class="code" href="class_x_list_node_base.html#233a21bc48c8e042c91845775f64243c">00026</a>    <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;XNode&gt;</a> &gt; &amp;<a class="code" href="class_x_list_node_base.html#233a21bc48c8e042c91845775f64243c">onRelease</a>() {<span class="keywordflow">return</span> <a class="code" href="class_x_list_node_base.html#454ae4ad0b82823a6d9bd7f2e446731c">m_tlkOnRelease</a>;}
 <a name="l00027"></a>00027   
-<a name="l00028"></a>00028   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_list_node_base.html#a8">insert</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;ptr);
+<a name="l00028"></a>00028   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_list_node_base.html#42d0dd37fb50890e739a6ec2e72a77b2">insert</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;ptr);
 <a name="l00029"></a>00029 
-<a name="l00032"></a>00032   <span class="keyword">virtual</span> shared_ptr&lt;XNode&gt; <a class="code" href="class_x_list_node_base.html#a9">createByTypename</a>(
+<a name="l00032"></a>00032   <span class="keyword">virtual</span> shared_ptr&lt;XNode&gt; <a class="code" href="class_x_list_node_base.html#cdc33cd95b60ae6074d338aba547d9c7">createByTypename</a>(
 <a name="l00033"></a>00033         <span class="keyword">const</span> std::string &amp;type, <span class="keyword">const</span> std::string &amp;name) = 0;        
 <a name="l00034"></a>00034  <span class="keyword">protected</span>:    
-<a name="l00035"></a><a class="code" href="class_x_list_node_base.html#p0">00035</a>   <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;XListNodeBase&gt;</a> &gt; <a class="code" href="class_x_list_node_base.html#p0">m_tlkOnListChanged</a>;
-<a name="l00036"></a><a class="code" href="class_x_list_node_base.html#p2">00036</a>   <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;XNode&gt;</a> &gt; <a class="code" href="class_x_list_node_base.html#p1">m_tlkOnCatch</a>, <a class="code" href="class_x_list_node_base.html#p2">m_tlkOnRelease</a>;
+<a name="l00035"></a><a class="code" href="class_x_list_node_base.html#a5020145932e0bf4f80784049d39a046">00035</a>   <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;XListNodeBase&gt;</a> &gt; <a class="code" href="class_x_list_node_base.html#a5020145932e0bf4f80784049d39a046">m_tlkOnListChanged</a>;
+<a name="l00036"></a><a class="code" href="class_x_list_node_base.html#454ae4ad0b82823a6d9bd7f2e446731c">00036</a>   <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;XNode&gt;</a> &gt; <a class="code" href="class_x_list_node_base.html#26e711b0ab596afb45b336f8fe31877b">m_tlkOnCatch</a>, <a class="code" href="class_x_list_node_base.html#454ae4ad0b82823a6d9bd7f2e446731c">m_tlkOnRelease</a>;
 <a name="l00037"></a>00037 };
 <a name="l00038"></a>00038 
 <a name="l00039"></a>00039 <span class="keyword">template</span> &lt;<span class="keyword">class</span> NT, <span class="keyword">class</span> T = shared_ptr&lt;NT&gt; &gt;
@@ -46,13 +55,13 @@
 <a name="l00041"></a>00041 {
 <a name="l00042"></a>00042  XNODE_OBJECT
 <a name="l00043"></a>00043  <span class="keyword">protected</span>:
-<a name="l00044"></a><a class="code" href="class_x_list_node.html#b0">00044</a>   <span class="keyword">explicit</span> <a class="code" href="class_x_list_node.html#b0">XListNode</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime = <span class="keyword">false</span>)
+<a name="l00044"></a><a class="code" href="class_x_list_node.html#88f3db1043ea592105db858c57512727">00044</a>   <span class="keyword">explicit</span> <a class="code" href="class_x_list_node.html#88f3db1043ea592105db858c57512727">XListNode</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime = <span class="keyword">false</span>)
 <a name="l00045"></a>00045    :  <a class="code" href="class_x_list_node_base.html">XListNodeBase</a>(name, runtime) {}
 <a name="l00046"></a>00046  <span class="keyword">public</span>:
-<a name="l00047"></a><a class="code" href="class_x_list_node.html#a0">00047</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_list_node.html#a0">~XListNode</a>() {}
-<a name="l00048"></a><a class="code" href="class_x_list_node.html#a1">00048</a>   T <a class="code" href="class_x_list_node.html#a1">operator[]</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> index) {<span class="keywordflow">return</span> getChild&lt;NT&gt;(index);}
+<a name="l00047"></a><a class="code" href="class_x_list_node.html#13100ae67ea426bd5ad376c3a5358ad7">00047</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_list_node.html#13100ae67ea426bd5ad376c3a5358ad7">~XListNode</a>() {}
+<a name="l00048"></a><a class="code" href="class_x_list_node.html#0ca2cc995e78aa410cb5e0d7f0f27b26">00048</a>   T <a class="code" href="class_x_list_node.html#0ca2cc995e78aa410cb5e0d7f0f27b26">operator[]</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> index) {<span class="keywordflow">return</span> getChild&lt;NT&gt;(index);}
 <a name="l00049"></a>00049 
-<a name="l00050"></a><a class="code" href="class_x_list_node.html#a2">00050</a>   <span class="keyword">virtual</span> shared_ptr&lt;XNode&gt; <a class="code" href="class_x_list_node.html#a2">createByTypename</a>(
+<a name="l00050"></a><a class="code" href="class_x_list_node.html#331b2d15b3e3b929d9daebdb6d1313d6">00050</a>   <span class="keyword">virtual</span> shared_ptr&lt;XNode&gt; <a class="code" href="class_x_list_node.html#331b2d15b3e3b929d9daebdb6d1313d6">createByTypename</a>(
 <a name="l00051"></a>00051         <span class="keyword">const</span> std::string &amp;, <span class="keyword">const</span> std::string &amp;name) {
 <a name="l00052"></a>00052     <span class="keywordflow">return</span> XNode::create&lt;NT&gt;(name.c_str(), <span class="keyword">false</span>);
 <a name="l00053"></a>00053   }
@@ -63,13 +72,13 @@
 <a name="l00059"></a>00059 {
 <a name="l00060"></a>00060  XNODE_OBJECT
 <a name="l00061"></a>00061  <span class="keyword">protected</span>:
-<a name="l00062"></a><a class="code" href="class_x_alias_list_node.html#b0">00062</a>   <span class="keyword">explicit</span> <a class="code" href="class_x_alias_list_node.html#b0">XAliasListNode</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime = <span class="keyword">false</span>)
+<a name="l00062"></a><a class="code" href="class_x_alias_list_node.html#c01462baf3c7203e6f8ded8e6c27a98f">00062</a>   <span class="keyword">explicit</span> <a class="code" href="class_x_alias_list_node.html#c01462baf3c7203e6f8ded8e6c27a98f">XAliasListNode</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime = <span class="keyword">false</span>)
 <a name="l00063"></a>00063    :  <a class="code" href="class_x_list_node_base.html">XListNodeBase</a>(name, runtime) {}
 <a name="l00064"></a>00064  <span class="keyword">public</span>:
-<a name="l00065"></a><a class="code" href="class_x_alias_list_node.html#a0">00065</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_alias_list_node.html#a0">~XAliasListNode</a>() {}
-<a name="l00066"></a><a class="code" href="class_x_alias_list_node.html#a1">00066</a>   T <a class="code" href="class_x_alias_list_node.html#a1">operator[]</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> index)<span class="keyword"> const </span>{<span class="keywordflow">return</span> getChild&lt;NT&gt;(index);}
+<a name="l00065"></a><a class="code" href="class_x_alias_list_node.html#6146907c8000fda6ff55878c5f319614">00065</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_alias_list_node.html#6146907c8000fda6ff55878c5f319614">~XAliasListNode</a>() {}
+<a name="l00066"></a><a class="code" href="class_x_alias_list_node.html#175e2375ddb468586b3db20914f15c46">00066</a>   T <a class="code" href="class_x_alias_list_node.html#175e2375ddb468586b3db20914f15c46">operator[]</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> index)<span class="keyword"> const </span>{<span class="keywordflow">return</span> getChild&lt;NT&gt;(index);}
 <a name="l00067"></a>00067 
-<a name="l00068"></a><a class="code" href="class_x_alias_list_node.html#a2">00068</a>   <span class="keyword">virtual</span> shared_ptr&lt;XNode&gt; <a class="code" href="class_x_alias_list_node.html#a2">createByTypename</a>(
+<a name="l00068"></a><a class="code" href="class_x_alias_list_node.html#d5b62e513ce4f05cc742d4243c61eed9">00068</a>   <span class="keyword">virtual</span> shared_ptr&lt;XNode&gt; <a class="code" href="class_x_alias_list_node.html#d5b62e513ce4f05cc742d4243c61eed9">createByTypename</a>(
 <a name="l00069"></a>00069         <span class="keyword">const</span> std::string &amp;, <span class="keyword">const</span> std::string &amp;) {
 <a name="l00070"></a>00070     <span class="keywordflow">return</span> shared_ptr&lt;XNode&gt;();
 <a name="l00071"></a>00071   }
@@ -80,13 +89,13 @@
 <a name="l00076"></a>00076 {
 <a name="l00077"></a>00077  XNODE_OBJECT
 <a name="l00078"></a>00078  <span class="keyword">protected</span>:
-<a name="l00079"></a><a class="code" href="class_x_custom_type_list_node.html#b0">00079</a>   <span class="keyword">explicit</span> <a class="code" href="class_x_custom_type_list_node.html#b0">XCustomTypeListNode</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime = <span class="keyword">false</span>)
+<a name="l00079"></a><a class="code" href="class_x_custom_type_list_node.html#df2bd2dbd5d3d4fd2072a2c0c071dc82">00079</a>   <span class="keyword">explicit</span> <a class="code" href="class_x_custom_type_list_node.html#df2bd2dbd5d3d4fd2072a2c0c071dc82">XCustomTypeListNode</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime = <span class="keyword">false</span>)
 <a name="l00080"></a>00080    :  <a class="code" href="class_x_list_node_base.html">XListNodeBase</a>(name, runtime) {}
 <a name="l00081"></a>00081  <span class="keyword">public</span>:
-<a name="l00082"></a><a class="code" href="class_x_custom_type_list_node.html#a0">00082</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_custom_type_list_node.html#a0">~XCustomTypeListNode</a>() {}
-<a name="l00083"></a><a class="code" href="class_x_custom_type_list_node.html#a1">00083</a>   T <a class="code" href="class_x_custom_type_list_node.html#a1">operator[]</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> index)<span class="keyword"> const </span>{<span class="keywordflow">return</span> getChild&lt;NT&gt;(index);}    
+<a name="l00082"></a><a class="code" href="class_x_custom_type_list_node.html#4a13bbc545f3394ee96c408526c47f27">00082</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_custom_type_list_node.html#4a13bbc545f3394ee96c408526c47f27">~XCustomTypeListNode</a>() {}
+<a name="l00083"></a><a class="code" href="class_x_custom_type_list_node.html#9da7938ef752037743ee3d97f40b040b">00083</a>   T <a class="code" href="class_x_custom_type_list_node.html#9da7938ef752037743ee3d97f40b040b">operator[]</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> index)<span class="keyword"> const </span>{<span class="keywordflow">return</span> getChild&lt;NT&gt;(index);}    
 <a name="l00084"></a>00084 
-<a name="l00085"></a>00085   <span class="keyword">virtual</span> shared_ptr&lt;XNode&gt; <a class="code" href="class_x_custom_type_list_node.html#a2">createByTypename</a>(
+<a name="l00085"></a>00085   <span class="keyword">virtual</span> shared_ptr&lt;XNode&gt; <a class="code" href="class_x_custom_type_list_node.html#be307b80cabe2bd7196d5dbce1506292">createByTypename</a>(
 <a name="l00086"></a>00086         <span class="keyword">const</span> std::string &amp;type, <span class="keyword">const</span> std::string &amp;name) = 0;
 <a name="l00087"></a>00087 };  
 <a name="l00088"></a>00088 
@@ -130,24 +139,24 @@
 <a name="l00126"></a>00126 
 <a name="l00131"></a>00131 <span class="keyword">template</span> &lt;<span class="keyword">class </span>tFunc = 
 <a name="l00132"></a>00132     shared_ptr&lt;XNode&gt;(*)(<span class="keyword">const</span> <span class="keywordtype">char</span> *, bool)&gt;
-<a name="l00133"></a><a class="code" href="struct_x_type_holder.html">00133</a> <span class="keyword">struct </span><a class="code" href="struct_x_type_holder.html">XTypeHolder</a>
+<a name="l00133"></a><a class="code" href="struct_x_type_holder.html">00133</a> <span class="keyword">struct</span> <a class="code" href="struct_x_type_holder.html">XTypeHolder</a>
 <a name="l00134"></a>00134 {
-<a name="l00135"></a>00135      <span class="keyword">template</span> &lt;<span class="keyword">class</span> tChild&gt;
-<a name="l00136"></a><a class="code" href="struct_x_type_holder_1_1_creator.html">00136</a>      <span class="keyword">struct </span><a class="code" href="struct_x_type_holder_1_1_creator.html">Creator</a> {
-<a name="l00137"></a><a class="code" href="struct_x_type_holder_1_1_creator.html#a0">00137</a>          <a class="code" href="struct_x_type_holder_1_1_creator.html#a0">Creator</a>(<a class="code" href="struct_x_type_holder.html">XTypeHolder</a> &amp;holder, <span class="keyword">const</span> <span class="keywordtype">char</span> *name) {
+<a name="l00135"></a>00135      template &lt;class tChild&gt;
+<a name="l00136"></a><a class="code" href="struct_x_type_holder_1_1_creator.html">00136</a>      <span class="keyword">struct</span> <a class="code" href="struct_x_type_holder_1_1_creator.html">Creator</a> {
+<a name="l00137"></a><a class="code" href="struct_x_type_holder_1_1_creator.html#0c67643961c14e10be3b6da8bffb9c28">00137</a>          <a class="code" href="struct_x_type_holder_1_1_creator.html">Creator</a>(<a class="code" href="struct_x_type_holder.html">XTypeHolder</a> &amp;holder, <span class="keyword">const</span> <span class="keywordtype">char</span> *name) {
 <a name="l00138"></a>00138             tFunc create_typed = _creator&lt;tChild&gt;;
-<a name="l00139"></a>00139             holder.<a class="code" href="struct_x_type_holder.html#o0">creators</a>.push_back(create_typed);
-<a name="l00140"></a>00140             holder.<a class="code" href="struct_x_type_holder.html#o1">names</a>.push_back(std::string(name));
+<a name="l00139"></a>00139             holder.<a class="code" href="struct_x_type_holder.html#a7107dc26cf9c7d1d3cb868a934bc544">creators</a>.push_back(create_typed);
+<a name="l00140"></a>00140             holder.<a class="code" href="struct_x_type_holder.html#48de0df1794f65ff244e66afe03e01d5">names</a>.push_back(std::string(name));
 <a name="l00141"></a>00141          }
 <a name="l00142"></a>00142      };
-<a name="l00143"></a><a class="code" href="struct_x_type_holder.html#a0">00143</a>      tFunc <a class="code" href="struct_x_type_holder.html#a0">creator</a>(<span class="keyword">const</span> std::string &amp;tp) {
-<a name="l00144"></a>00144          <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="struct_x_type_holder.html#o1">names</a>.size(); i++) {
-<a name="l00145"></a>00145             <span class="keywordflow">if</span>(<a class="code" href="struct_x_type_holder.html#o1">names</a>[i] == tp) <span class="keywordflow">return</span> <a class="code" href="struct_x_type_holder.html#o0">creators</a>[i];
+<a name="l00143"></a><a class="code" href="struct_x_type_holder.html#5aa86bac9e4fb78f988da35e14b63404">00143</a>      tFunc creator(<span class="keyword">const</span> std::string &amp;tp) {
+<a name="l00144"></a>00144          <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; names.size(); i++) {
+<a name="l00145"></a>00145             <span class="keywordflow">if</span>(names[i] == tp) <span class="keywordflow">return</span> creators[i];
 <a name="l00146"></a>00146          }
 <a name="l00147"></a>00147          <span class="keywordflow">return</span> empty_creator;
 <a name="l00148"></a>00148      }
-<a name="l00149"></a><a class="code" href="struct_x_type_holder.html#o0">00149</a>      std::deque&lt;tFunc&gt; <a class="code" href="struct_x_type_holder.html#o0">creators</a>;
-<a name="l00150"></a><a class="code" href="struct_x_type_holder.html#o1">00150</a>      std::deque&lt;std::string&gt; <a class="code" href="struct_x_type_holder.html#o1">names</a>;
+<a name="l00149"></a><a class="code" href="struct_x_type_holder.html#a7107dc26cf9c7d1d3cb868a934bc544">00149</a>      std::deque&lt;tFunc&gt; creators;
+<a name="l00150"></a><a class="code" href="struct_x_type_holder.html#48de0df1794f65ff244e66afe03e01d5">00150</a>      std::deque&lt;std::string&gt; names;
 <a name="l00151"></a>00151 };
 <a name="l00152"></a>00152 
 <a name="l00153"></a>00153 <span class="preprocessor">#define DEFINE_TYPE_HOLDER_W_FUNC(func) \</span>
@@ -187,19 +196,19 @@
 <a name="l00187"></a>00187 <span class="preprocessor"></span><span class="preprocessor">#define REGISTER_TYPE(name) \</span>
 <a name="l00188"></a>00188 <span class="preprocessor">    _REGISTER_TYPE_2(X ## name, name);</span>
 <a name="l00189"></a>00189 <span class="preprocessor"></span>
-<a name="l00190"></a><a class="code" href="class_x_string_list.html">00190</a> <span class="keyword">class </span><a class="code" href="class_x_string_list.html">XStringList</a> : <span class="keyword">public</span>  <a class="code" href="class_x_list_node.html">XListNode</a>&lt;XStringNode&gt;
+<a name="l00190"></a><a class="code" href="class_x_string_list.html">00190</a> <span class="keyword">class </span><a class="code" href="class_x_string_list.html">XStringList</a> : <span class="keyword">public</span>  <a class="code" href="class_x_list_node.html">XListNode&lt;XStringNode&gt;</a>
 <a name="l00191"></a>00191 {
 <a name="l00192"></a>00192  XNODE_OBJECT
 <a name="l00193"></a>00193  <span class="keyword">protected</span>:
-<a name="l00194"></a><a class="code" href="class_x_string_list.html#b0">00194</a>   <span class="keyword">explicit</span> <a class="code" href="class_x_string_list.html#b0">XStringList</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime = <span class="keyword">false</span>)
+<a name="l00194"></a><a class="code" href="class_x_string_list.html#8c402d0cbc9b57c54aedba21b43fd1fe">00194</a>   <span class="keyword">explicit</span> <a class="code" href="class_x_string_list.html">XStringList</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime = <span class="keyword">false</span>)
 <a name="l00195"></a>00195    :  <a class="code" href="class_x_list_node.html">XListNode</a>&lt;<a class="code" href="class_x_string_node.html">XStringNode</a>&gt;(name, runtime) {}
 <a name="l00196"></a>00196  <span class="keyword">public</span>:
-<a name="l00197"></a><a class="code" href="class_x_string_list.html#a0">00197</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_string_list.html#a0">~XStringList</a>() {}
+<a name="l00197"></a><a class="code" href="class_x_string_list.html#e601e5821d834dfb252349920ae2f7f3">00197</a>   <span class="keyword">virtual</span> ~<a class="code" href="class_x_string_list.html">XStringList</a>() {}
 <a name="l00198"></a>00198 };
 <a name="l00199"></a>00199 
 <a name="l00200"></a>00200 <span class="preprocessor">#endif </span><span class="comment">/*XLISTNODE_H_*/</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:24 2006に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:46 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
 </html>

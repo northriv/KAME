@@ -124,6 +124,7 @@ XSHPulser::createNativePatterns()
       
   //dry-run to determin LastPattern, DMATime
   m_dmaTerm = 0.0;
+  m_lastPattern = 0;
   uint32_t pat = 0;
   insertPreamble((unsigned short)pat);
   for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++)
@@ -299,7 +300,7 @@ XSHPulser::pulseAdd(double msec, uint32_t pattern, bool firsttime)
   }
   m_dmaTerm += msec;
   unsigned long pos_l = rintl(m_dmaTerm / DMA_PERIOD);
-  if(pos_l >= 0x7000)
+  if(pos_l >= 0x7000u)
      throw XInterface::XInterfaceError(i18n("Too long DMA."), __FILE__, __LINE__);
   unsigned short pos = (unsigned short)pos_l;
   unsigned short len = (unsigned short)rintl(msec / DMA_PERIOD);
@@ -366,7 +367,7 @@ XSHPulser::changeOutput(bool output)
                     throw XInterface::XConvError(__FILE__, __LINE__);
           }
           catch (XKameError &e) {
-              if(retry > 0) throw e;
+              if(retry > 1) throw e;
               e.print(getName() + ": " + i18n("try to continue") + ", ");
               continue;
           }

@@ -197,7 +197,7 @@ XNIGPIBPort::receive() throw (XInterface::XCommError &) {
          if(buffer().size() < len + MIN_BUF_SIZE)
                 buffer().resize(len + MIN_BUF_SIZE);
          msecsleep(m_pInterface->gpibWaitBeforeRead());
-         int ret = ibrd(m_ud, &buffer()[len], len + MIN_BUF_SIZE);
+         int ret = ibrd(m_ud, &buffer()[len], MIN_BUF_SIZE);
          if(ret & ERR)
          {
              switch(ThreadIberr()) {

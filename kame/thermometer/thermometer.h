@@ -125,5 +125,23 @@ class XScientificInstruments : public XThermometer
   shared_ptr<XDoubleNode> m_rCrossover;    
 };
 
+class CSplineApprox;
+//! Cubic (natural) spline approximation.
+class XApproxThermometer : public XThermometer
+{
+ public:
+  XApproxThermometer(const char *name, bool runtime);
+
+  double getTemp(double res) const;
+  double getRawValue(double temp) const;
+
+  typedef XListNode<XDoubleNode> XDoubleListNode;
+  const shared_ptr<XDoubleListNode> &resList() const {return m_resList;}
+  const shared_ptr<XDoubleListNode> &tempList() const {return m_tempList;}  
+ private:
+  shared_ptr<XDoubleListNode> m_resList, m_tempList;
+  mutable atomic_shared_ptr<CSplineApprox> m_approx, m_approx_inv;
+};
+
 //---------------------------------------------------------------------------
 #endif

@@ -46,7 +46,7 @@ kame_LDADD = $(top_builddir)/kame/forms/libforms.a \
 	$(top_srcdir)/FTGL/unix/src/.libs/libftgl.a -lGLU -lm \
 	$(LIB_KFILE) $(LIB_KDEUI) $(LIB_KDECORE) $(LIB_QT) $(LIBSOCKET) -lkmdi 
 
-SUBDIRS = forms script driver thermometer graph users analyzer icons mikachanfont
+SUBDIRS = forms script driver graph thermometer users analyzer icons mikachanfont
 
 EXTRA_DIST = main.cpp kame.desktop lo32-app-kame.png lo16-app-kame.png
 

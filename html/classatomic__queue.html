@@ -1,0 +1,80 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: クラス テンプレート atomic_queue&lt; T, SIZE &gt;</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li id="current"><a href="classes.html"><span>クラス</span></a></li>
+    <li><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
+<div class="tabs">
+  <ul>
+    <li><a href="classes.html"><span>アルファベット順一覧</span></a></li>
+    <li><a href="annotated.html"><span>構成</span></a></li>
+    <li><a href="hierarchy.html"><span>クラス階層</span></a></li>
+    <li><a href="functions.html"><span>構成メンバ</span></a></li>
+  </ul></div>
+<h1>クラス テンプレート atomic_queue&lt; T, SIZE &gt;</h1><!-- doxytag: class="atomic_queue" -->Atomic FIFO  
+<a href="#_details">[詳細]</a>
+<p>
+<code>#include &lt;<a class="el" href="atomic__queue_8h-source.html">atomic_queue.h</a>&gt;</code>
+<p>
+<a href="classatomic__queue-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
+<tr><td></td></tr>
+<tr><td colspan="2"><br><h2>Public 型</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="9fefba03b34e22aebc04db34b1d4f150"></a><!-- doxytag: member="atomic_queue::nospace_error" ref="9fefba03b34e22aebc04db34b1d4f150" args="" -->
+typedef <a class="el" href="classatomic__pointer__queue.html">atomic_pointer_queue</a>&lt;<br>
+ T, SIZE &gt;::<a class="el" href="structatomic__pointer__queue_1_1nospace__error.html">nospace_error</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="classatomic__queue.html#9fefba03b34e22aebc04db34b1d4f150">nospace_error</a></td></tr>
+
+<tr><td colspan="2"><br><h2>Public メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="ed372aba80b3e7c82800fbc5f2867807"></a><!-- doxytag: member="atomic_queue::atomic_queue" ref="ed372aba80b3e7c82800fbc5f2867807" args="()" -->
+&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="classatomic__queue.html#ed372aba80b3e7c82800fbc5f2867807">atomic_queue</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="40616c79fcff89b0b57d3ed0c4aa0bac"></a><!-- doxytag: member="atomic_queue::~atomic_queue" ref="40616c79fcff89b0b57d3ed0c4aa0bac" args="()" -->
+&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="classatomic__queue.html#40616c79fcff89b0b57d3ed0c4aa0bac">~atomic_queue</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="09f71036494525428fe76180b03c5960"></a><!-- doxytag: member="atomic_queue::push" ref="09f71036494525428fe76180b03c5960" args="(const T &amp;t)" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="classatomic__queue.html#09f71036494525428fe76180b03c5960">push</a> (const T &amp;t)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="fb2c028c609155a2b4665fd7119814b7"></a><!-- doxytag: member="atomic_queue::pop" ref="fb2c028c609155a2b4665fd7119814b7" args="()" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="classatomic__queue.html#fb2c028c609155a2b4665fd7119814b7">pop</a> ()</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">This is not reentrant. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a458809ed04f23bff75a09ad9854f0f7"></a><!-- doxytag: member="atomic_queue::front" ref="a458809ed04f23bff75a09ad9854f0f7" args="()" -->
+T &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="classatomic__queue.html#a458809ed04f23bff75a09ad9854f0f7">front</a> ()</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">This is not reentrant. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="4bfd3c5d5fcaf61d42a61e56c5dbe5a7"></a><!-- doxytag: member="atomic_queue::empty" ref="4bfd3c5d5fcaf61d42a61e56c5dbe5a7" args="() const " -->
+bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="classatomic__queue.html#4bfd3c5d5fcaf61d42a61e56c5dbe5a7">empty</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">This is not reentrant. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="aa71a5b2891e5f63832d7965af31a81a"></a><!-- doxytag: member="atomic_queue::size" ref="aa71a5b2891e5f63832d7965af31a81a" args="() const " -->
+unsigned int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="classatomic__queue.html#aa71a5b2891e5f63832d7965af31a81a">size</a> () const </td></tr>
+
+<tr><td colspan="2"><br><h2>Private 変数</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="06997f4ce6d802d2d8a6aab8d1ba6128"></a><!-- doxytag: member="atomic_queue::m_queue" ref="06997f4ce6d802d2d8a6aab8d1ba6128" args="" -->
+<a class="el" href="classatomic__pointer__queue.html">atomic_pointer_queue</a>&lt; T, SIZE &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="classatomic__queue.html#06997f4ce6d802d2d8a6aab8d1ba6128">m_queue</a></td></tr>
+
+</table>
+<hr><a name="_details"></a><h2>説明</h2>
+<h3>template&lt;typename T, unsigned int SIZE&gt;<br>
+ class atomic_queue&lt; T, SIZE &gt;</h3>
+
+Atomic FIFO 
+<p>
+
+<p>
+ <a class="el" href="atomic__queue_8h-source.html">atomic_queue.h</a> の <a class="el" href="atomic__queue_8h-source.html#l00073">73</a> 行で定義されています。<hr>このクラスの説明は次のファイルから生成されました:<ul>
+<li>kame/<a class="el" href="atomic__queue_8h-source.html">atomic_queue.h</a></ul>
+<hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:47 2006に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
+</body>
+</html>

@@ -1,6 +1,6 @@
 base referer
 rect $class_x_talker.html 245,8 360,34
-rect $class_x_talker.html 234,58 370,85
+rect $class_x_talker.html 192,58 413,85
 rect $class_x_talker.html 177,109 428,136
 rect $class_x_talker.html 192,160 413,186
 rect $class_x_talker.html 190,210 414,237

@@ -31,10 +31,10 @@ XEntryListConnector::XEntryListConnector
   labels += i18n("Store");
   labels += i18n("Delta");
   m_pItem->setColumnLabels(labels);
-  node->childLock();
-  for(unsigned int i = 0; i < node->count(); i++)
-    onCatch((*node)[i]);
-  node->childUnlock();
+  { XScopedReadLock<XRecursiveRWLock> lock(node->childMutex());
+      for(unsigned int i = 0; i < node->count(); i++)
+        onCatch((*node)[i]);
+  }
 }
 XEntryListConnector::~XEntryListConnector()
 {
@@ -66,7 +66,7 @@ XEntryListConnector::tcons::onRecordRedirected(const tlisttext &text)
 
 void
 XEntryListConnector::clicked ( int row, int col, int, const QPoint& ) {
-    m_chartList->childLock();
+   XScopedReadLock<XRecursiveRWLock> lock(m_chartList->childMutex());
       switch(col) {
       case 0:
       case 1:
@@ -76,7 +76,6 @@ XEntryListConnector::clicked ( int row, int col, int, const QPoint& ) {
       default:
         break;
       }
-    m_chartList->childUnlock();
 }
 void
 XEntryListConnector::onRelease(const shared_ptr<XNode> &node)

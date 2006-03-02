@@ -167,18 +167,18 @@ XTextWriter::onRecord(const shared_ptr<XDriver> &driver)
 	    {
             XTime triggered_time;
             std::deque<shared_ptr<XScalarEntry> > locked_entries;
-            m_entries->childLock();
-	        for(unsigned int i = 0; i < m_entries->count(); i++)
-        		{
-                  shared_ptr<XScalarEntry> entry = (*m_entries)[i];
-                  if(!*entry->store()) continue;
-                  shared_ptr<XDriver> d(entry->driver());
-                  if(!d) continue;
-                  locked_entries.push_back(entry);
-                  d->readLockRecord();
-                  if(entry->isTriggered()) triggered_time = entry->driver()->time();
-        		}
-            m_entries->childUnlock();
+            { XScopedReadLock<XRecursiveRWLock> lock(m_entries->childMutex());
+    	        for(unsigned int i = 0; i < m_entries->count(); i++)
+            		{
+                      shared_ptr<XScalarEntry> entry = (*m_entries)[i];
+                      if(!*entry->store()) continue;
+                      shared_ptr<XDriver> d(entry->driver());
+                      if(!d) continue;
+                      locked_entries.push_back(entry);
+                      d->readLockRecord();
+                      if(entry->isTriggered()) triggered_time = entry->driver()->time();
+            		}
+            }
             if(triggered_time) {
                     XRecordDependency dep;
                     for(std::deque<shared_ptr<XScalarEntry> >::iterator it = locked_entries.begin();
@@ -228,16 +228,16 @@ XTextWriter::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
 
      QString buf;
      buf += "#";
-      m_entries->childLock();
-      for(unsigned int i = 0; i < m_entries->count(); i++)
-            {
-              shared_ptr<XScalarEntry> entry = (*m_entries)[i];
-              if(!*entry->store()) continue;
-              buf += entry->getEntryTitle();
-          buf += " ";
-            }
-      buf += "Time";
-      m_entries->childUnlock();
+    { XScopedReadLock<XRecursiveRWLock> lock(m_entries->childMutex());
+          for(unsigned int i = 0; i < m_entries->count(); i++)
+                {
+                  shared_ptr<XScalarEntry> entry = (*m_entries)[i];
+                  if(!*entry->store()) continue;
+                  buf += entry->getEntryTitle();
+              buf += " ";
+                }
+          buf += "Time";
+    }
      
      lastLine()->value(buf);
   }

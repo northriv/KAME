@@ -41,16 +41,6 @@ XNode::insert(const shared_ptr<XNode> &ptr)
     XScopedWriteLock<XRecursiveRWLock> lock(m_childmutex);
     m_children.push_back(ptr);
 }
-void
-XNode::childLock() const
-{
-    m_childmutex.readLock();
-}
-void
-XNode::childUnlock() const
-{
-    m_childmutex.readUnlock();
-}
 
 void
 XNode::setUIEnabled(bool v) {
@@ -101,7 +91,7 @@ shared_ptr<XNode>
 XNode::getChild(const std::string &var) const
 {
   shared_ptr<XNode> node;
-  childLock();
+  { XScopedReadLock<XRecursiveRWLock> lock(childMutex());
   for(unsigned int i = 0; i < count(); i++)
     {
       if(m_children[i]->getName() == QString::fromUtf8(var.c_str()))
@@ -110,7 +100,7 @@ XNode::getChild(const std::string &var) const
             break;
         }
     }
-  childUnlock();
+  }
   return node;
 }
 

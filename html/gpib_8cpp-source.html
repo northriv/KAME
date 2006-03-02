@@ -2,11 +2,20 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/driver/gpib.cpp ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000003.html">driver</a></div>
+<a class="el" href="dir_cbe63f28361eb71291c8905f8fbf16c0.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_aa86fadc39b24329a5ab035c921122f9.html">driver</a></div>
 <h1>gpib.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#include "gpib.h"</span>
 <a name="l00002"></a>00002 
 <a name="l00003"></a>00003 <span class="preprocessor">#include &lt;errno.h&gt;</span>
@@ -90,7 +99,7 @@
 <a name="l00081"></a>00081   }
 <a name="l00082"></a>00082   <span class="keywordflow">return</span> QString(<span class="stringliteral">"GPIB %1: addr %2, sta %3, err %4, cntl %5"</span>)
 <a name="l00083"></a>00083     .arg(msg)
-<a name="l00084"></a>00084     .arg((<span class="keywordtype">int</span>)*<a class="code" href="class_x_port.html#p0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#a4">address</a>())
+<a name="l00084"></a>00084     .arg((<span class="keywordtype">int</span>)*<a class="code" href="class_x_port.html#88da359a4388a42d3f2b2df6cbce27b0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#3eb75381f38a7c57339a88a0de038b76">address</a>())
 <a name="l00085"></a>00085     .arg(sta)
 <a name="l00086"></a>00086     .arg(err)
 <a name="l00087"></a>00087     .arg(cntl);
@@ -118,29 +127,29 @@
 <a name="l00109"></a>00109   s_cntOpened++;
 <a name="l00110"></a>00110   s_lock.unlock();
 <a name="l00111"></a>00111   
-<a name="l00112"></a>00112   <span class="keywordtype">int</span> port = <a class="code" href="class_x_port.html#p0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#a3">port</a>()-&gt;to_str().toInt();
+<a name="l00112"></a>00112   <span class="keywordtype">int</span> port = <a class="code" href="class_x_port.html#88da359a4388a42d3f2b2df6cbce27b0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#e5880f53332fef04b5f9b88550c95975">port</a>()-&gt;to_str().toInt();
 <a name="l00113"></a>00113    
 <a name="l00114"></a>00114   Addr4882_t addrtbl[2];
 <a name="l00115"></a>00115   <span class="keywordtype">int</span> eos = 0;
-<a name="l00116"></a>00116   <span class="keywordflow">if</span>(<a class="code" href="class_x_port.html#p0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#a32">eos</a>().length()) {
-<a name="l00117"></a>00117         eos = 0x1400 + <a class="code" href="class_x_port.html#p0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#a32">eos</a>()[<a class="code" href="class_x_port.html#p0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#a32">eos</a>().length() - 1];
+<a name="l00116"></a>00116   <span class="keywordflow">if</span>(<a class="code" href="class_x_port.html#88da359a4388a42d3f2b2df6cbce27b0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#95965ac9ffc3116ca9eed9b1aa2a964a">eos</a>().length()) {
+<a name="l00117"></a>00117         eos = 0x1400 + <a class="code" href="class_x_port.html#88da359a4388a42d3f2b2df6cbce27b0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#95965ac9ffc3116ca9eed9b1aa2a964a">eos</a>()[<a class="code" href="class_x_port.html#88da359a4388a42d3f2b2df6cbce27b0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#95965ac9ffc3116ca9eed9b1aa2a964a">eos</a>().length() - 1];
 <a name="l00118"></a>00118   }
 <a name="l00119"></a>00119   m_ud = ibdev(port, 
-<a name="l00120"></a>00120         *<a class="code" href="class_x_port.html#p0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#a4">address</a>(), 0, T3s, 1, eos);
+<a name="l00120"></a>00120         *m_pInterface-&gt;address(), 0, T3s, 1, eos);
 <a name="l00121"></a>00121   <span class="keywordflow">if</span>(m_ud &lt; 0) {
 <a name="l00122"></a>00122     <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a>(
 <a name="l00123"></a>00123             gpibStatus(i18n(<span class="stringliteral">"opening gpib device faild"</span>)), __FILE__, __LINE__);
 <a name="l00124"></a>00124   }
 <a name="l00125"></a>00125   ibclr(m_ud);
 <a name="l00126"></a>00126   ibeos(m_ud, eos);
-<a name="l00127"></a>00127   addrtbl[0] = *<a class="code" href="class_x_port.html#p0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#a4">address</a>();
+<a name="l00127"></a>00127   addrtbl[0] = *m_pInterface-&gt;address();
 <a name="l00128"></a>00128   addrtbl[1] = NOADDR;
 <a name="l00129"></a>00129   EnableRemote(port, addrtbl);
 <a name="l00130"></a>00130 }
 <a name="l00131"></a>00131 <span class="keywordtype">void</span>
 <a name="l00132"></a>00132 XNIGPIBPort::gpib_reset() throw (<a class="code" href="class_x_interface.html">XInterface</a>::XCommError &amp;)
 <a name="l00133"></a>00133 {
-<a name="l00134"></a>00134   <span class="keywordtype">int</span> port = <a class="code" href="class_x_port.html#p0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#a3">port</a>()-&gt;to_str().toInt();
+<a name="l00134"></a>00134   <span class="keywordtype">int</span> port = <a class="code" href="class_x_port.html#88da359a4388a42d3f2b2df6cbce27b0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#e5880f53332fef04b5f9b88550c95975">port</a>()-&gt;to_str().toInt();
 <a name="l00135"></a>00135   dbgPrint(i18n(<span class="stringliteral">"GPIB: Sending IFC"</span>));
 <a name="l00136"></a>00136   SendIFC (port);
 <a name="l00137"></a>00137   msecsleep(100);
@@ -197,16 +206,16 @@
 <a name="l00188"></a>00188 }
 <a name="l00189"></a>00189 <span class="keywordtype">void</span>
 <a name="l00190"></a>00190 XNIGPIBPort::receive() throw (<a class="code" href="class_x_interface.html">XInterface</a>::XCommError &amp;) {
-<a name="l00191"></a>00191   ASSERT(<a class="code" href="class_x_port.html#p0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#a39">isOpened</a>());
+<a name="l00191"></a>00191   ASSERT(<a class="code" href="class_x_port.html#88da359a4388a42d3f2b2df6cbce27b0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#f48645b012d09ab01be911d7db60c71b">isOpened</a>());
 <a name="l00192"></a>00192 
 <a name="l00193"></a>00193    gpib_spoll_before_read();
 <a name="l00194"></a>00194    <span class="keywordtype">int</span> len = 0;
 <a name="l00195"></a>00195    <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; ; i++)
 <a name="l00196"></a>00196     {    
-<a name="l00197"></a>00197          <span class="keywordflow">if</span>(<a class="code" href="class_x_port.html#a7">buffer</a>().size() &lt; len + MIN_BUF_SIZE)
-<a name="l00198"></a>00198                 <a class="code" href="class_x_port.html#a7">buffer</a>().resize(len + MIN_BUF_SIZE);
-<a name="l00199"></a>00199          msecsleep(<a class="code" href="class_x_port.html#p0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#a36">gpibWaitBeforeRead</a>());
-<a name="l00200"></a>00200          <span class="keywordtype">int</span> ret = ibrd(m_ud, &amp;<a class="code" href="class_x_port.html#a7">buffer</a>()[len], len + MIN_BUF_SIZE);
+<a name="l00197"></a>00197          <span class="keywordflow">if</span>(<a class="code" href="class_x_port.html#7383e7214c0b10ffb826548ed766b562">buffer</a>().size() &lt; len + MIN_BUF_SIZE)
+<a name="l00198"></a>00198                 <a class="code" href="class_x_port.html#7383e7214c0b10ffb826548ed766b562">buffer</a>().resize(len + MIN_BUF_SIZE);
+<a name="l00199"></a>00199          msecsleep(<a class="code" href="class_x_port.html#88da359a4388a42d3f2b2df6cbce27b0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#139ad73dbc994afebccc7ab738922ffe">gpibWaitBeforeRead</a>());
+<a name="l00200"></a>00200          <span class="keywordtype">int</span> ret = ibrd(m_ud, &amp;<a class="code" href="class_x_port.html#7383e7214c0b10ffb826548ed766b562">buffer</a>()[len], MIN_BUF_SIZE);
 <a name="l00201"></a>00201          <span class="keywordflow">if</span>(ret &amp; ERR)
 <a name="l00202"></a>00202          {
 <a name="l00203"></a>00203              <span class="keywordflow">switch</span>(ThreadIberr()) {
@@ -239,8 +248,8 @@
 <a name="l00230"></a>00230         gErrPrint(gpibStatus(i18n(<span class="stringliteral">"ibrd terminated without END or CMPL "</span>)));
 <a name="l00231"></a>00231     }
 <a name="l00232"></a>00232   
-<a name="l00233"></a>00233   <a class="code" href="class_x_port.html#a7">buffer</a>()[len] = <span class="charliteral">'\0'</span>;
-<a name="l00234"></a>00234   <a class="code" href="class_x_port.html#a7">buffer</a>().resize(len + 1);
+<a name="l00233"></a>00233   buffer()[len] = <span class="charliteral">'\0'</span>;
+<a name="l00234"></a>00234   buffer().resize(len + 1);
 <a name="l00235"></a>00235 }
 <a name="l00236"></a>00236 <span class="keywordtype">void</span>
 <a name="l00237"></a>00237 XNIGPIBPort::receive(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> length) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;)
@@ -287,7 +296,7 @@
 <a name="l00278"></a>00278 <span class="keywordtype">void</span>
 <a name="l00279"></a>00279 XNIGPIBPort::gpib_spoll_before_read() throw (<a class="code" href="class_x_interface.html">XInterface</a>::XCommError &amp;)
 <a name="l00280"></a>00280 {
-<a name="l00281"></a>00281  <span class="keywordflow">if</span>(<a class="code" href="class_x_port.html#p0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#a34">gpibUseSerialPollOnRead</a>())
+<a name="l00281"></a>00281  <span class="keywordflow">if</span>(<a class="code" href="class_x_port.html#88da359a4388a42d3f2b2df6cbce27b0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#6f3284ee3e2eded88a97c567aaf9ee60">gpibUseSerialPollOnRead</a>())
 <a name="l00282"></a>00282     {
 <a name="l00283"></a>00283         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; ; i++)
 <a name="l00284"></a>00284         {
@@ -296,7 +305,7 @@
 <a name="l00287"></a>00287               <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a>(
 <a name="l00288"></a>00288                     gpibStatus(i18n(<span class="stringliteral">"too many spoll timeouts"</span>)), __FILE__, __LINE__);
 <a name="l00289"></a>00289             }
-<a name="l00290"></a>00290           msecsleep(<a class="code" href="class_x_port.html#p0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#a37">gpibWaitBeforeSPoll</a>());
+<a name="l00290"></a>00290           msecsleep(m_pInterface-&gt;gpibWaitBeforeSPoll());
 <a name="l00291"></a>00291           <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> spr;
 <a name="l00292"></a>00292           <span class="keywordtype">int</span> ret = ibrsp(m_ud,(<span class="keywordtype">char</span>*)&amp;spr);
 <a name="l00293"></a>00293           <span class="keywordflow">if</span>(ret &amp; ERR)
@@ -312,7 +321,7 @@
 <a name="l00303"></a>00303               gpib_reset();
 <a name="l00304"></a>00304               <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a>(gpibStatus(i18n(<span class="stringliteral">"ibrsp failed"</span>)), __FILE__, __LINE__);
 <a name="l00305"></a>00305             }
-<a name="l00306"></a>00306             <span class="keywordflow">if</span>((spr &amp; <a class="code" href="class_x_port.html#p0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#a38">gpibMAVbit</a>()) == 0)
+<a name="l00306"></a>00306             <span class="keywordflow">if</span>((spr &amp; m_pInterface-&gt;gpibMAVbit()) == 0)
 <a name="l00307"></a>00307             {
 <a name="l00308"></a>00308               <span class="comment">//MAV isn't detected</span>
 <a name="l00309"></a>00309               msecsleep(10 * i + 10);
@@ -326,7 +335,7 @@
 <a name="l00317"></a>00317 <span class="keywordtype">void</span> 
 <a name="l00318"></a>00318 XNIGPIBPort::gpib_spoll_before_write() throw (<a class="code" href="class_x_interface.html">XInterface</a>::XCommError &amp;)
 <a name="l00319"></a>00319 {
-<a name="l00320"></a>00320   <span class="keywordflow">if</span>(<a class="code" href="class_x_port.html#p0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#a33">gpibUseSerialPollOnWrite</a>())
+<a name="l00320"></a>00320   <span class="keywordflow">if</span>(<a class="code" href="class_x_port.html#88da359a4388a42d3f2b2df6cbce27b0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#eb6db3a1252f8e77ff3187d4fcd3abc4">gpibUseSerialPollOnWrite</a>())
 <a name="l00321"></a>00321   {
 <a name="l00322"></a>00322     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; ; i++)
 <a name="l00323"></a>00323     {
@@ -335,7 +344,7 @@
 <a name="l00326"></a>00326           <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a>(
 <a name="l00327"></a>00327                 gpibStatus(i18n(<span class="stringliteral">"too many spoll timeouts"</span>)), __FILE__, __LINE__);
 <a name="l00328"></a>00328         }
-<a name="l00329"></a>00329       msecsleep(<a class="code" href="class_x_port.html#p0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#a37">gpibWaitBeforeSPoll</a>());
+<a name="l00329"></a>00329       msecsleep(m_pInterface-&gt;gpibWaitBeforeSPoll());
 <a name="l00330"></a>00330       <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> spr;
 <a name="l00331"></a>00331       <span class="keywordtype">int</span> ret = ibrsp(m_ud,(<span class="keywordtype">char</span>*)&amp;spr);
 <a name="l00332"></a>00332       <span class="keywordflow">if</span>(ret &amp; ERR)
@@ -351,7 +360,7 @@
 <a name="l00342"></a>00342           gpib_reset();
 <a name="l00343"></a>00343           <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a>(gpibStatus(i18n(<span class="stringliteral">"ibrsp failed"</span>)), __FILE__, __LINE__);
 <a name="l00344"></a>00344         }
-<a name="l00345"></a>00345       <span class="keywordflow">if</span>((spr &amp; <a class="code" href="class_x_port.html#p0">m_pInterface</a>-&gt;<a class="code" href="class_x_interface.html#a38">gpibMAVbit</a>()))
+<a name="l00345"></a>00345       <span class="keywordflow">if</span>((spr &amp; m_pInterface-&gt;gpibMAVbit()))
 <a name="l00346"></a>00346         {
 <a name="l00347"></a>00347           <span class="comment">//MAV detected</span>
 <a name="l00348"></a>00348           <span class="keywordflow">if</span>(i &lt; 2) {
@@ -361,10 +370,10 @@
 <a name="l00352"></a>00352           gErrPrint(gpibStatus(i18n(<span class="stringliteral">"ibrd before ibwrt asserted"</span>)));
 <a name="l00353"></a>00353           
 <a name="l00354"></a>00354           <span class="comment">// clear device's buffer</span>
-<a name="l00355"></a>00355           <a class="code" href="class_x_port.html#a7">buffer</a>().resize(2048);
+<a name="l00355"></a>00355           buffer().resize(2048);
 <a name="l00356"></a>00356           <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; ; i++)
 <a name="l00357"></a>00357           { 
-<a name="l00358"></a>00358               <span class="keywordtype">int</span> ret = ibrd(m_ud, &amp;<a class="code" href="class_x_port.html#a7">buffer</a>()[0], <a class="code" href="class_x_port.html#a7">buffer</a>().size());
+<a name="l00358"></a>00358               <span class="keywordtype">int</span> ret = ibrd(m_ud, &amp;buffer()[0], buffer().size());
 <a name="l00359"></a>00359               <span class="keywordflow">if</span>(ret &amp; ERR)
 <a name="l00360"></a>00360              {
 <a name="l00361"></a>00361                  <span class="keywordflow">switch</span>(ThreadIberr()) {
@@ -402,8 +411,8 @@
 <a name="l00393"></a>00393 
 <a name="l00394"></a>00394 
 <a name="l00395"></a>00395 <span class="preprocessor">#endif </span><span class="comment">/*GPIB_NI*/</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:19 2006に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:43 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
 </html>

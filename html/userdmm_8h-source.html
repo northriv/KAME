@@ -2,11 +2,20 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/users/dmm/userdmm.h ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000012.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000015.html">dmm</a></div>
+<a class="el" href="dir_cbe63f28361eb71291c8905f8fbf16c0.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_a701587aacfc3d15e8133765935242d4.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_46efeb191547ce1081318b6c7bee2587.html">dmm</a></div>
 <h1>userdmm.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00002"></a>00002 <span class="preprocessor">#ifndef userdmmH</span>
 <a name="l00003"></a>00003 <span class="preprocessor"></span><span class="preprocessor">#define userdmmH</span>
@@ -19,23 +28,23 @@
 <a name="l00010"></a>00010 {
 <a name="l00011"></a>00011  XNODE_OBJECT
 <a name="l00012"></a>00012  <span class="keyword">protected</span>:
-<a name="l00013"></a><a class="code" href="class_x_d_m_m_s_c_p_i.html#b0">00013</a>   <a class="code" href="class_x_d_m_m_s_c_p_i.html#b0">XDMMSCPI</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
+<a name="l00013"></a><a class="code" href="class_x_d_m_m_s_c_p_i.html#f54aa37410f3d1bd9f1194f086795534">00013</a>   <a class="code" href="class_x_d_m_m_s_c_p_i.html#f54aa37410f3d1bd9f1194f086795534">XDMMSCPI</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
 <a name="l00014"></a>00014    <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
 <a name="l00015"></a>00015    <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
 <a name="l00016"></a>00016    <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
 <a name="l00017"></a>00017    <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers) :
 <a name="l00018"></a>00018     <a class="code" href="class_x_d_m_m.html">XDMM</a>(name, runtime, scalarentries, interfaces, thermometers, drivers) {}
 <a name="l00019"></a>00019  <span class="keyword">public</span>:
-<a name="l00020"></a><a class="code" href="class_x_d_m_m_s_c_p_i.html#a0">00020</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_d_m_m_s_c_p_i.html#a0">~XDMMSCPI</a>() {}
+<a name="l00020"></a><a class="code" href="class_x_d_m_m_s_c_p_i.html#1bd8fb176c895ca434c90d0a80992da2">00020</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_d_m_m_s_c_p_i.html#1bd8fb176c895ca434c90d0a80992da2">~XDMMSCPI</a>() {}
 <a name="l00021"></a>00021 
 <a name="l00022"></a>00022   <span class="comment">//requests the latest reading</span>
-<a name="l00023"></a>00023   <span class="keyword">virtual</span> <span class="keywordtype">double</span> <a class="code" href="class_x_d_m_m_s_c_p_i.html#a1">fetch</a>();
+<a name="l00023"></a>00023   <span class="keyword">virtual</span> <span class="keywordtype">double</span> <a class="code" href="class_x_d_m_m_s_c_p_i.html#26965519d72b37251c2457d5e92db1ef">fetch</a>();
 <a name="l00024"></a>00024   <span class="comment">//one-shot reading</span>
-<a name="l00025"></a>00025   <span class="keyword">virtual</span> <span class="keywordtype">double</span> <a class="code" href="class_x_d_m_m_s_c_p_i.html#a2">oneShotRead</a>();
+<a name="l00025"></a>00025   <span class="keyword">virtual</span> <span class="keywordtype">double</span> <a class="code" href="class_x_d_m_m_s_c_p_i.html#ca492b5a2142ad04a85ee7fe20ff8f20">oneShotRead</a>();
 <a name="l00026"></a>00026   <span class="comment">//configure and read</span>
-<a name="l00027"></a>00027   <span class="keyword">virtual</span> <span class="keywordtype">double</span> <a class="code" href="class_x_d_m_m_s_c_p_i.html#a3">measure</a>(<span class="keyword">const</span> QString &amp;func);
+<a name="l00027"></a>00027   <span class="keyword">virtual</span> <span class="keywordtype">double</span> <a class="code" href="class_x_d_m_m_s_c_p_i.html#c25d578d3050a04489417f32e8f38db3">measure</a>(<span class="keyword">const</span> QString &amp;func);
 <a name="l00028"></a>00028  <span class="keyword">protected</span>:
-<a name="l00030"></a>00030   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_d_m_m_s_c_p_i.html#b1">changeFunction</a>();
+<a name="l00030"></a>00030   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_d_m_m_s_c_p_i.html#b1b89e0cc056be47445455f18ab16758">changeFunction</a>();
 <a name="l00031"></a>00031 };
 <a name="l00032"></a>00032 
 <a name="l00033"></a>00033 
@@ -45,15 +54,15 @@
 <a name="l00037"></a>00037 {
 <a name="l00038"></a>00038  XNODE_OBJECT
 <a name="l00039"></a>00039  <span class="keyword">protected</span>:
-<a name="l00040"></a><a class="code" href="class_x_k_e2182.html#b0">00040</a>   <a class="code" href="class_x_k_e2182.html#b0">XKE2182</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
+<a name="l00040"></a><a class="code" href="class_x_k_e2182.html#e80302244a33cf96bbcf3930c2d7335e">00040</a>   <a class="code" href="class_x_k_e2182.html#e80302244a33cf96bbcf3930c2d7335e">XKE2182</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
 <a name="l00041"></a>00041    <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
 <a name="l00042"></a>00042    <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
 <a name="l00043"></a>00043    <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
 <a name="l00044"></a>00044    <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers) :
 <a name="l00045"></a>00045      <a class="code" href="class_x_d_m_m_s_c_p_i.html">XDMMSCPI</a>(name, runtime, scalarentries, interfaces, thermometers, drivers)
 <a name="l00046"></a>00046   {
-<a name="l00047"></a>00047     <a class="code" href="class_x_d_m_m.html#b5">function</a>()-&gt;add(<span class="stringliteral">"VOLT"</span>);
-<a name="l00048"></a>00048     <a class="code" href="class_x_d_m_m.html#b5">function</a>()-&gt;add(<span class="stringliteral">"TEMP"</span>);
+<a name="l00047"></a>00047     <a class="code" href="class_x_d_m_m.html#ab034c68fa9f514fd8f145b6eb61a07d">function</a>()-&gt;add(<span class="stringliteral">"VOLT"</span>);
+<a name="l00048"></a>00048     <a class="code" href="class_x_d_m_m.html#ab034c68fa9f514fd8f145b6eb61a07d">function</a>()-&gt;add(<span class="stringliteral">"TEMP"</span>);
 <a name="l00049"></a>00049   }
 <a name="l00050"></a>00050 };
 <a name="l00051"></a>00051 
@@ -63,26 +72,26 @@
 <a name="l00055"></a>00055 {
 <a name="l00056"></a>00056  XNODE_OBJECT
 <a name="l00057"></a>00057  <span class="keyword">protected</span>:
-<a name="l00058"></a><a class="code" href="class_x_k_e2000.html#b0">00058</a>   <a class="code" href="class_x_k_e2000.html#b0">XKE2000</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
+<a name="l00058"></a><a class="code" href="class_x_k_e2000.html#db5cfda222340a3eb70e47eb602cf164">00058</a>   <a class="code" href="class_x_k_e2000.html#db5cfda222340a3eb70e47eb602cf164">XKE2000</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
 <a name="l00059"></a>00059    <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
 <a name="l00060"></a>00060    <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
 <a name="l00061"></a>00061    <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
 <a name="l00062"></a>00062    <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers) :
 <a name="l00063"></a>00063      <a class="code" href="class_x_d_m_m_s_c_p_i.html">XDMMSCPI</a>(name, runtime, scalarentries, interfaces, thermometers, drivers)
 <a name="l00064"></a>00064 {
-<a name="l00065"></a>00065     <a class="code" href="class_x_d_m_m.html#b5">function</a>()-&gt;add(<span class="stringliteral">"VOLT:DC"</span>);
-<a name="l00066"></a>00066     <a class="code" href="class_x_d_m_m.html#b5">function</a>()-&gt;add(<span class="stringliteral">"VOLT:AC"</span>);
-<a name="l00067"></a>00067     <a class="code" href="class_x_d_m_m.html#b5">function</a>()-&gt;add(<span class="stringliteral">"CURR:DC"</span>);
-<a name="l00068"></a>00068     <a class="code" href="class_x_d_m_m.html#b5">function</a>()-&gt;add(<span class="stringliteral">"CURR:AC"</span>);
-<a name="l00069"></a>00069     <a class="code" href="class_x_d_m_m.html#b5">function</a>()-&gt;add(<span class="stringliteral">"RES"</span>);
-<a name="l00070"></a>00070     <a class="code" href="class_x_d_m_m.html#b5">function</a>()-&gt;add(<span class="stringliteral">"FRES"</span>);
-<a name="l00071"></a>00071     <a class="code" href="class_x_d_m_m.html#b5">function</a>()-&gt;add(<span class="stringliteral">"FREQ"</span>);
-<a name="l00072"></a>00072     <a class="code" href="class_x_d_m_m.html#b5">function</a>()-&gt;add(<span class="stringliteral">"TEMP"</span>);
-<a name="l00073"></a>00073     <a class="code" href="class_x_d_m_m.html#b5">function</a>()-&gt;add(<span class="stringliteral">"PER"</span>);
-<a name="l00074"></a>00074     <a class="code" href="class_x_d_m_m.html#b5">function</a>()-&gt;add(<span class="stringliteral">"DIOD"</span>);
-<a name="l00075"></a>00075     <a class="code" href="class_x_d_m_m.html#b5">function</a>()-&gt;add(<span class="stringliteral">"CONT"</span>);
+<a name="l00065"></a>00065     <a class="code" href="class_x_d_m_m.html#ab034c68fa9f514fd8f145b6eb61a07d">function</a>()-&gt;add(<span class="stringliteral">"VOLT:DC"</span>);
+<a name="l00066"></a>00066     <a class="code" href="class_x_d_m_m.html#ab034c68fa9f514fd8f145b6eb61a07d">function</a>()-&gt;add(<span class="stringliteral">"VOLT:AC"</span>);
+<a name="l00067"></a>00067     <a class="code" href="class_x_d_m_m.html#ab034c68fa9f514fd8f145b6eb61a07d">function</a>()-&gt;add(<span class="stringliteral">"CURR:DC"</span>);
+<a name="l00068"></a>00068     <a class="code" href="class_x_d_m_m.html#ab034c68fa9f514fd8f145b6eb61a07d">function</a>()-&gt;add(<span class="stringliteral">"CURR:AC"</span>);
+<a name="l00069"></a>00069     <a class="code" href="class_x_d_m_m.html#ab034c68fa9f514fd8f145b6eb61a07d">function</a>()-&gt;add(<span class="stringliteral">"RES"</span>);
+<a name="l00070"></a>00070     <a class="code" href="class_x_d_m_m.html#ab034c68fa9f514fd8f145b6eb61a07d">function</a>()-&gt;add(<span class="stringliteral">"FRES"</span>);
+<a name="l00071"></a>00071     <a class="code" href="class_x_d_m_m.html#ab034c68fa9f514fd8f145b6eb61a07d">function</a>()-&gt;add(<span class="stringliteral">"FREQ"</span>);
+<a name="l00072"></a>00072     <a class="code" href="class_x_d_m_m.html#ab034c68fa9f514fd8f145b6eb61a07d">function</a>()-&gt;add(<span class="stringliteral">"TEMP"</span>);
+<a name="l00073"></a>00073     <a class="code" href="class_x_d_m_m.html#ab034c68fa9f514fd8f145b6eb61a07d">function</a>()-&gt;add(<span class="stringliteral">"PER"</span>);
+<a name="l00074"></a>00074     <a class="code" href="class_x_d_m_m.html#ab034c68fa9f514fd8f145b6eb61a07d">function</a>()-&gt;add(<span class="stringliteral">"DIOD"</span>);
+<a name="l00075"></a>00075     <a class="code" href="class_x_d_m_m.html#ab034c68fa9f514fd8f145b6eb61a07d">function</a>()-&gt;add(<span class="stringliteral">"CONT"</span>);
 <a name="l00076"></a>00076 
-<a name="l00077"></a>00077     <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;setGPIBWaitBeforeRead(20);
+<a name="l00077"></a>00077     <a class="code" href="class_x_primary_driver.html#50131048964317ee0a2f909f3ac25e4b">interface</a>()-&gt;setGPIBWaitBeforeRead(20);
 <a name="l00078"></a>00078   }
 <a name="l00079"></a>00079 };
 <a name="l00080"></a>00080 
@@ -91,23 +100,23 @@
 <a name="l00083"></a>00083 {
 <a name="l00084"></a>00084  XNODE_OBJECT
 <a name="l00085"></a>00085  <span class="keyword">protected</span>:
-<a name="l00086"></a><a class="code" href="class_x_h_p34420_a.html#b0">00086</a>   <a class="code" href="class_x_h_p34420_a.html#b0">XHP34420A</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
+<a name="l00086"></a><a class="code" href="class_x_h_p34420_a.html#e21bd54a4d12ba8d29046c73a75cc38c">00086</a>   <a class="code" href="class_x_h_p34420_a.html#e21bd54a4d12ba8d29046c73a75cc38c">XHP34420A</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
 <a name="l00087"></a>00087    <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
 <a name="l00088"></a>00088    <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
 <a name="l00089"></a>00089    <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
 <a name="l00090"></a>00090    <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers) :
 <a name="l00091"></a>00091      <a class="code" href="class_x_d_m_m_s_c_p_i.html">XDMMSCPI</a>(name, runtime, scalarentries, interfaces, thermometers, drivers)
 <a name="l00092"></a>00092   {
-<a name="l00093"></a>00093     <a class="code" href="class_x_d_m_m.html#b5">function</a>()-&gt;add(<span class="stringliteral">"VOLT"</span>);
-<a name="l00094"></a>00094     <a class="code" href="class_x_d_m_m.html#b5">function</a>()-&gt;add(<span class="stringliteral">"CURR"</span>);
-<a name="l00095"></a>00095     <a class="code" href="class_x_d_m_m.html#b5">function</a>()-&gt;add(<span class="stringliteral">"RES"</span>);
-<a name="l00096"></a>00096     <a class="code" href="class_x_d_m_m.html#b5">function</a>()-&gt;add(<span class="stringliteral">"FRES"</span>);
+<a name="l00093"></a>00093     <a class="code" href="class_x_d_m_m.html#ab034c68fa9f514fd8f145b6eb61a07d">function</a>()-&gt;add(<span class="stringliteral">"VOLT"</span>);
+<a name="l00094"></a>00094     <a class="code" href="class_x_d_m_m.html#ab034c68fa9f514fd8f145b6eb61a07d">function</a>()-&gt;add(<span class="stringliteral">"CURR"</span>);
+<a name="l00095"></a>00095     <a class="code" href="class_x_d_m_m.html#ab034c68fa9f514fd8f145b6eb61a07d">function</a>()-&gt;add(<span class="stringliteral">"RES"</span>);
+<a name="l00096"></a>00096     <a class="code" href="class_x_d_m_m.html#ab034c68fa9f514fd8f145b6eb61a07d">function</a>()-&gt;add(<span class="stringliteral">"FRES"</span>);
 <a name="l00097"></a>00097   }
 <a name="l00098"></a>00098 };
 <a name="l00099"></a>00099 
 <a name="l00100"></a>00100 <span class="preprocessor">#endif</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:22 2006に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:45 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
 </html>

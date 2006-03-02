@@ -1,0 +1,44 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: kame/thermometer/cspline.h ソースファイル</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
+<div class="nav">
+<a class="el" href="dir_cbe63f28361eb71291c8905f8fbf16c0.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_20d9c03239dcc0687d24c327fd5cea0f.html">thermometer</a></div>
+<h1>cspline.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#ifndef CSPLINE_H_</span>
+<a name="l00002"></a>00002 <span class="preprocessor"></span><span class="preprocessor">#define CSPLINE_H_</span>
+<a name="l00003"></a>00003 <span class="preprocessor"></span>
+<a name="l00004"></a>00004 <span class="preprocessor">#include "support.h"</span>
+<a name="l00005"></a>00005 
+<a name="l00006"></a>00006 <span class="preprocessor">#include &lt;map&gt;</span>
+<a name="l00007"></a>00007 <span class="preprocessor">#include &lt;gsl/gsl_interp.h&gt;</span>
+<a name="l00008"></a>00008 <span class="preprocessor">#include &lt;gsl/gsl_spline.h&gt;</span>
+<a name="l00009"></a>00009 
+<a name="l00011"></a><a class="code" href="class_c_spline_approx.html">00011</a> <span class="keyword">class </span><a class="code" href="class_c_spline_approx.html">CSplineApprox</a>
+<a name="l00012"></a>00012 {
+<a name="l00013"></a>00013 <span class="keyword">public</span>:
+<a name="l00014"></a>00014     <a class="code" href="class_c_spline_approx.html#358e56b5a78bf7fa24e2cfec6a312f0f">CSplineApprox</a>(<span class="keyword">const</span> std::map&lt;double, double&gt; &amp;pts);
+<a name="l00015"></a>00015     <a class="code" href="class_c_spline_approx.html#21c9341378b3f5dca2e36741f9332bc0">~CSplineApprox</a>();
+<a name="l00017"></a>00017     <span class="keywordtype">double</span> <a class="code" href="class_c_spline_approx.html#857e76de689b6c854b8cfc04a117c343">approx</a>(<span class="keywordtype">double</span> x) <span class="keyword">const</span>;
+<a name="l00018"></a>00018 <span class="keyword">private</span>:
+<a name="l00019"></a><a class="code" href="class_c_spline_approx.html#e1dcf95ce6e5dbf62682a7ba0d4d5445">00019</a>     gsl_interp_accel *<a class="code" href="class_c_spline_approx.html#e1dcf95ce6e5dbf62682a7ba0d4d5445">m_accel</a>;
+<a name="l00020"></a><a class="code" href="class_c_spline_approx.html#79a735acc72f08705cbbfb3ac5ef562c">00020</a>     gsl_spline *<a class="code" href="class_c_spline_approx.html#79a735acc72f08705cbbfb3ac5ef562c">m_spline</a>;
+<a name="l00021"></a>00021 };
+<a name="l00022"></a>00022 
+<a name="l00023"></a>00023 <span class="preprocessor">#endif </span><span class="comment">/*CSPLINE_H_*/</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:45 2006に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
+</body>
+</html>

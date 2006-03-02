@@ -2,11 +2,20 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/script/xrubysupport.cpp ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000008.html">script</a></div>
+<a class="el" href="dir_cbe63f28361eb71291c8905f8fbf16c0.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_7b95ae98a450d5c16106c6cdbaf102ff.html">script</a></div>
 <h1>xrubysupport.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00002"></a>00002 
 <a name="l00003"></a>00003 <span class="preprocessor">#include "xrubysupport.h"</span>
@@ -14,528 +23,534 @@
 <a name="l00005"></a>00005 <span class="keyword">extern</span> <span class="stringliteral">"C"</span> {
 <a name="l00006"></a>00006 <span class="preprocessor">#include &lt;ruby.h&gt;</span>
 <a name="l00007"></a>00007 }
-<a name="l00008"></a>00008 <span class="preprocessor">#include &lt;klocale.h&gt;</span>
-<a name="l00009"></a>00009 <span class="comment">//---------------------------------------------------------------------------</span>
-<a name="l00010"></a>00010 
-<a name="l00011"></a>00011 <span class="preprocessor">#include &lt;math.h&gt;</span>
-<a name="l00012"></a>00012 <span class="preprocessor">#include &lt;kstandarddirs.h&gt;</span>
-<a name="l00013"></a>00013 
-<a name="l00014"></a>00014 <span class="preprocessor">#define XRUBYSUPPORT_RB "xrubysupport.rb"</span>
-<a name="l00015"></a>00015 <span class="preprocessor"></span>
-<a name="l00016"></a><a class="code" href="class_x_ruby.html#b0">00016</a> <a class="code" href="class_x_ruby.html#b0">XRuby::XRuby</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XMeasure&gt; &amp;measure)
-<a name="l00017"></a>00017   : <a class="code" href="class_x_alias_list_node.html">XAliasListNode</a>&lt;<a class="code" href="class_x_ruby_thread.html">XRubyThread</a>&gt;(name, runtime),
-<a name="l00018"></a>00018   m_measure(measure), 
-<a name="l00019"></a>00019   m_thread(shared_from_this(), &amp;<a class="code" href="class_x_ruby.html">XRuby</a>::execute)
-<a name="l00020"></a>00020 {
-<a name="l00021"></a>00021     <a class="code" href="class_x_ruby.html#r4">m_lsnCreateChild</a> = <a class="code" href="class_x_ruby.html#r3">m_tlkCreateChild</a>.<a class="code" href="class_x_talker.html#a3">connectWeak</a>(<span class="keyword">true</span>, shared_from_this(),
-<a name="l00022"></a>00022         &amp;<a class="code" href="class_x_ruby.html#d0">XRuby::onCreateChild</a>);
-<a name="l00023"></a>00023 }
-<a name="l00024"></a><a class="code" href="class_x_ruby.html#a0">00024</a> <a class="code" href="class_x_ruby.html#a0">XRuby::~XRuby</a>()
-<a name="l00025"></a>00025 {
-<a name="l00026"></a>00026 }
-<a name="l00027"></a>00027 <span class="keywordtype">void</span>
-<a name="l00028"></a><a class="code" href="class_x_ruby.html#h0">00028</a> <a class="code" href="class_x_ruby.html#h0">XRuby::rnode_free</a>(<span class="keywordtype">void</span> *rnode)
-<a name="l00029"></a>00029 {
-<a name="l00030"></a>00030     <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>* st = reinterpret_cast&lt;struct rnode_ptr*&gt;(rnode);
-<a name="l00031"></a>00031     <span class="keyword">delete</span> st;
-<a name="l00032"></a>00032 }
-<a name="l00033"></a>00033 
-<a name="l00034"></a>00034 VALUE
-<a name="l00035"></a><a class="code" href="class_x_ruby.html#h5">00035</a> <a class="code" href="class_x_ruby.html#h5">XRuby::rnode_create</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node, <a class="code" href="class_x_ruby.html">XRuby</a> *xruby)
-<a name="l00036"></a>00036 {
-<a name="l00037"></a>00037 
-<a name="l00038"></a>00038   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st
-<a name="l00039"></a>00039      = <span class="keyword">new</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>;
-<a name="l00040"></a>00040 
-<a name="l00041"></a>00041   st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a> = node;
-<a name="l00042"></a>00042   st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o1">xruby</a> = xruby;
-<a name="l00043"></a>00043   VALUE rnew;
-<a name="l00044"></a>00044   shared_ptr&lt;XValueNodeBase&gt; vnode = dynamic_pointer_cast&lt;XValueNodeBase&gt;(node);
-<a name="l00045"></a>00045   <span class="keywordflow">if</span>(vnode)
-<a name="l00046"></a>00046   {
-<a name="l00047"></a>00047       rnew = Data_Wrap_Struct(xruby-&gt;<a class="code" href="class_x_ruby.html#r1">rbClassValueNode</a>, 0, <a class="code" href="class_x_ruby.html#h0">rnode_free</a>, st);
-<a name="l00048"></a>00048   }
-<a name="l00049"></a>00049   <span class="keywordflow">else</span>
-<a name="l00050"></a>00050   {
-<a name="l00051"></a>00051       shared_ptr&lt;XListNodeBase&gt; lnode = dynamic_pointer_cast&lt;XListNodeBase&gt;(node);
-<a name="l00052"></a>00052       <span class="keywordflow">if</span>(lnode)
-<a name="l00053"></a>00053       {
-<a name="l00054"></a>00054           rnew = Data_Wrap_Struct(xruby-&gt;<a class="code" href="class_x_ruby.html#r2">rbClassListNode</a>, 0, <a class="code" href="class_x_ruby.html#h0">rnode_free</a>, st);
-<a name="l00055"></a>00055       }
-<a name="l00056"></a>00056       <span class="keywordflow">else</span>
-<a name="l00057"></a>00057       {
-<a name="l00058"></a>00058           rnew = Data_Wrap_Struct(xruby-&gt;<a class="code" href="class_x_ruby.html#r0">rbClassNode</a>, 0, <a class="code" href="class_x_ruby.html#h0">rnode_free</a>, st);
-<a name="l00059"></a>00059       }
-<a name="l00060"></a>00060   }
-<a name="l00061"></a>00061   <span class="keywordflow">return</span> rnew;
-<a name="l00062"></a>00062 }
-<a name="l00063"></a>00063 VALUE
-<a name="l00064"></a><a class="code" href="class_x_ruby.html#h9">00064</a> <a class="code" href="class_x_ruby.html#h9">XRuby::rnode_child</a>(VALUE <span class="keyword">self</span>, VALUE var)
-<a name="l00065"></a>00065 {
-<a name="l00066"></a>00066   shared_ptr&lt;XNode&gt; child;
-<a name="l00067"></a>00067   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
-<a name="l00068"></a>00068   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00069"></a>00069   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>.lock()) {
-<a name="l00070"></a>00070       <span class="keywordflow">switch</span> (TYPE(var)) {
-<a name="l00071"></a>00071        <span class="keywordtype">int</span> idx;
-<a name="l00072"></a>00072       <span class="keywordflow">case</span> T_FIXNUM:
-<a name="l00073"></a>00073         node-&gt;childLock();
-<a name="l00074"></a>00074         idx = NUM2INT(var);
-<a name="l00075"></a>00075         <span class="keywordflow">if</span> ((idx &gt;= 0) &amp;&amp; (idx &lt; (int)node-&gt;<a class="code" href="class_x_node.html#a14">count</a>()))
-<a name="l00076"></a>00076             child = node-&gt;getChild&lt;<a class="code" href="class_x_node.html">XNode</a>&gt;(idx);
-<a name="l00077"></a>00077         node-&gt;childUnlock();
-<a name="l00078"></a>00078         <span class="keywordflow">if</span>(! child ) {
-<a name="l00079"></a>00079           rb_raise(rb_eRuntimeError, <span class="stringliteral">"No such node idx:%d on %s\n"</span>,
-<a name="l00080"></a>00080              idx, (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
-<a name="l00081"></a>00081           <span class="keywordflow">return</span> Qnil;
-<a name="l00082"></a>00082         }
-<a name="l00083"></a>00083         <span class="keywordflow">break</span>;
-<a name="l00084"></a>00084       <span class="keywordflow">case</span> T_STRING:
-<a name="l00085"></a>00085         {
-<a name="l00086"></a>00086         <span class="keyword">const</span> <span class="keywordtype">char</span> *name = STR2CSTR(var);
-<a name="l00087"></a>00087             child = node-&gt;getChild(name);
-<a name="l00088"></a>00088             <span class="keywordflow">if</span>(! child ) {
-<a name="l00089"></a>00089               rb_raise(rb_eRuntimeError, <span class="stringliteral">"No such node name:%s on %s\n"</span>,
-<a name="l00090"></a>00090                  name, (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
-<a name="l00091"></a>00091               <span class="keywordflow">return</span> Qnil;
-<a name="l00092"></a>00092             }
-<a name="l00093"></a>00093         }
-<a name="l00094"></a>00094         <span class="keywordflow">break</span>;
-<a name="l00095"></a>00095       <span class="keywordflow">default</span>:
-<a name="l00096"></a>00096         rb_raise(rb_eRuntimeError, <span class="stringliteral">"Ill format to find node on %s\n"</span>,
-<a name="l00097"></a>00097           (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
-<a name="l00098"></a>00098         <span class="keywordflow">return</span> Qnil;
-<a name="l00099"></a>00099         <span class="keywordflow">break</span>;
-<a name="l00100"></a>00100       }
-<a name="l00101"></a>00101   }
-<a name="l00102"></a>00102   <span class="keywordflow">else</span> {
-<a name="l00103"></a>00103       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
-<a name="l00104"></a>00104       <span class="keywordflow">return</span> Qnil;
-<a name="l00105"></a>00105   }
-<a name="l00106"></a>00106   <span class="keywordflow">return</span> <a class="code" href="class_x_ruby.html#h5">rnode_create</a>(child, st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o1">xruby</a> );
-<a name="l00107"></a>00107 }
-<a name="l00108"></a>00108 VALUE
-<a name="l00109"></a><a class="code" href="class_x_ruby.html#h14">00109</a> <a class="code" href="class_x_ruby.html#h14">XRuby::rlistnode_create_child</a>(VALUE <span class="keyword">self</span>, VALUE rbtype, VALUE rbname)
-<a name="l00110"></a>00110 {
-<a name="l00111"></a>00111   Check_Type(rbtype, T_STRING);
-<a name="l00112"></a>00112   Check_Type(rbname, T_STRING);
-<a name="l00113"></a>00113   <span class="keywordtype">char</span> *type = STR2CSTR(rbtype);
-<a name="l00114"></a>00114   <span class="keywordtype">char</span> *name = STR2CSTR(rbname);
-<a name="l00115"></a>00115   
-<a name="l00116"></a>00116   shared_ptr&lt;XNode&gt; child;
-<a name="l00117"></a>00117   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
-<a name="l00118"></a>00118   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00119"></a>00119   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>.lock()) {
-<a name="l00120"></a>00120       <span class="keywordflow">if</span>( node-&gt;isRunTime() )
-<a name="l00121"></a>00121       {
-<a name="l00122"></a>00122           rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node %s is run-time node!\n"</span>,
-<a name="l00123"></a>00123              (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
-<a name="l00124"></a>00124           <span class="keywordflow">return</span> Qnil;
-<a name="l00125"></a>00125       }     
-<a name="l00126"></a>00126       shared_ptr&lt;XListNodeBase&gt; lnode =
-<a name="l00127"></a>00127         dynamic_pointer_cast&lt;XListNodeBase&gt;(node);
-<a name="l00128"></a>00128       <span class="keywordflow">if</span>(!lnode)
-<a name="l00129"></a>00129       {
-<a name="l00130"></a>00130            rb_raise(rb_eRuntimeError, <span class="stringliteral">"Error on %s : Not ListNode. Could not make child"</span>
-<a name="l00131"></a>00131                 <span class="stringliteral">" name = %s, type = %s\n"</span>, (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8(), name, type);
-<a name="l00132"></a>00132             <span class="keywordflow">return</span> Qnil;
-<a name="l00133"></a>00133       }
-<a name="l00134"></a>00134       child = node-&gt;getChild(name);
-<a name="l00135"></a>00135       <span class="comment">/*</span>
-<a name="l00136"></a>00136 <span class="comment">      if(type != child-&gt;getTypename()) {</span>
-<a name="l00137"></a>00137 <span class="comment">          rb_raise(rb_eRuntimeError, "Different type of child exists on %s\n",</span>
-<a name="l00138"></a>00138 <span class="comment">             (const char*)node-&gt;getName().utf8());</span>
-<a name="l00139"></a>00139 <span class="comment">          return Qnil;</span>
-<a name="l00140"></a>00140 <span class="comment">      }</span>
-<a name="l00141"></a>00141 <span class="comment">      */</span>
-<a name="l00142"></a>00142       <span class="keywordflow">if</span>(!child) {
-<a name="l00143"></a>00143             shared_ptr&lt;tCreateChild&gt; x(<span class="keyword">new</span> <a class="code" href="struct_x_ruby_1_1t_create_child.html">tCreateChild</a>);
-<a name="l00144"></a>00144             x-&gt;lnode = lnode;
-<a name="l00145"></a>00145             x-&gt;type = type;
-<a name="l00146"></a>00146             x-&gt;name = name;
-<a name="l00147"></a>00147             st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o1">xruby</a>-&gt;<a class="code" href="class_x_ruby.html#r3">m_tlkCreateChild</a>.<a class="code" href="class_x_talker.html#a7">talk</a>(x);
-<a name="l00148"></a>00148             <span class="keywordflow">while</span>(x-&gt;lnode) {
-<a name="l00149"></a>00149                 x-&gt;cond.wait(50000);
-<a name="l00150"></a>00150             }
-<a name="l00151"></a>00151             child = x-&gt;child;
-<a name="l00152"></a>00152       }
-<a name="l00153"></a>00153       <span class="keywordflow">if</span>(!child) {
-<a name="l00154"></a>00154            rb_raise(rb_eRuntimeError, <span class="stringliteral">"Error on %s : Could not make child"</span>
-<a name="l00155"></a>00155                 <span class="stringliteral">" name = %s, type = %s\n"</span>, (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8(), name, type);
-<a name="l00156"></a>00156             <span class="keywordflow">return</span> Qnil;
-<a name="l00157"></a>00157       }
-<a name="l00158"></a>00158   }
-<a name="l00159"></a>00159   <span class="keywordflow">else</span> {
-<a name="l00160"></a>00160       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
-<a name="l00161"></a>00161       <span class="keywordflow">return</span> Qnil;
-<a name="l00162"></a>00162   }
-<a name="l00163"></a>00163   <span class="keywordflow">return</span> <a class="code" href="class_x_ruby.html#h5">rnode_create</a>(child, st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o1">xruby</a> );
-<a name="l00164"></a>00164 }
-<a name="l00165"></a>00165 <span class="keywordtype">void</span>
-<a name="l00166"></a><a class="code" href="class_x_ruby.html#d0">00166</a> <a class="code" href="class_x_ruby.html#d0">XRuby::onCreateChild</a>(<span class="keyword">const</span> shared_ptr&lt;tCreateChild&gt; &amp;x) 
-<a name="l00167"></a>00167 {
-<a name="l00168"></a>00168     x-&gt;child = x-&gt;lnode-&gt;createByTypename(x-&gt;type, x-&gt;name);
-<a name="l00169"></a>00169     x-&gt;lnode.reset();
-<a name="l00170"></a>00170     x-&gt;cond.signal();
-<a name="l00171"></a>00171 }
-<a name="l00172"></a>00172 VALUE
-<a name="l00173"></a><a class="code" href="class_x_ruby.html#h15">00173</a> <a class="code" href="class_x_ruby.html#h15">XRuby::rlistnode_release_child</a>(VALUE <span class="keyword">self</span>, VALUE rbchild)
-<a name="l00174"></a>00174 {
-<a name="l00175"></a>00175   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
-<a name="l00176"></a>00176   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00177"></a>00177   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>.lock()) {
-<a name="l00178"></a>00178       <span class="keywordflow">if</span>(!node-&gt;isUIEnabled() )
-<a name="l00179"></a>00179       {
-<a name="l00180"></a>00180           rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node %s is read-only!\n"</span>,
-<a name="l00181"></a>00181              (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
-<a name="l00182"></a>00182           <span class="keywordflow">return</span> Qnil;
-<a name="l00183"></a>00183       }     
-<a name="l00184"></a>00184       shared_ptr&lt;XListNodeBase&gt; lnode =
-<a name="l00185"></a>00185         dynamic_pointer_cast&lt;XListNodeBase&gt;(node);
-<a name="l00186"></a>00186       <span class="keywordflow">if</span>(!lnode)
-<a name="l00187"></a>00187         {
-<a name="l00188"></a>00188            rb_raise(rb_eRuntimeError, <span class="stringliteral">"Error on %s : Not ListNode. Could not release child\n"</span>
-<a name="l00189"></a>00189                , (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
-<a name="l00190"></a>00190             <span class="keywordflow">return</span> Qnil;
-<a name="l00191"></a>00191         }
-<a name="l00192"></a>00192       <span class="keyword">struct </span>rnode_ptr *st_child;
-<a name="l00193"></a>00193       Data_Get_Struct(rbchild, <span class="keyword">struct</span> rnode_ptr, st_child);
-<a name="l00194"></a>00194       <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; child = st_child-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>.lock()) {
-<a name="l00195"></a>00195             lnode-&gt;releaseChild(child);
-<a name="l00196"></a>00196       }
-<a name="l00197"></a>00197       <span class="keywordflow">else</span> {
-<a name="l00198"></a>00198           rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
-<a name="l00199"></a>00199           <span class="keywordflow">return</span> Qnil;
-<a name="l00200"></a>00200       }
-<a name="l00201"></a>00201   }
-<a name="l00202"></a>00202   <span class="keywordflow">else</span> {
-<a name="l00203"></a>00203       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
-<a name="l00204"></a>00204       <span class="keywordflow">return</span> Qnil;
-<a name="l00205"></a>00205   }
-<a name="l00206"></a>00206   <span class="keywordflow">return</span> <span class="keyword">self</span>;
-<a name="l00207"></a>00207 }
-<a name="l00208"></a>00208 
-<a name="l00209"></a>00209 VALUE
-<a name="l00210"></a><a class="code" href="class_x_ruby.html#h6">00210</a> <a class="code" href="class_x_ruby.html#h6">XRuby::rnode_name</a>(VALUE <span class="keyword">self</span>)
-<a name="l00211"></a>00211 {
-<a name="l00212"></a>00212   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
-<a name="l00213"></a>00213   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00214"></a>00214   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>.lock()) {
-<a name="l00215"></a>00215       <span class="keywordflow">return</span> rb_str_new2(node-&gt;getName().utf8());
-<a name="l00216"></a>00216   }
-<a name="l00217"></a>00217   <span class="keywordflow">else</span> {
-<a name="l00218"></a>00218       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
-<a name="l00219"></a>00219       <span class="keywordflow">return</span> Qnil;
-<a name="l00220"></a>00220   }
-<a name="l00221"></a>00221 }
-<a name="l00222"></a>00222 VALUE
-<a name="l00223"></a><a class="code" href="class_x_ruby.html#h8">00223</a> <a class="code" href="class_x_ruby.html#h8">XRuby::rnode_count</a>(VALUE <span class="keyword">self</span>)
-<a name="l00224"></a>00224 {
-<a name="l00225"></a>00225   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
-<a name="l00226"></a>00226   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00227"></a>00227   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>.lock()) {
-<a name="l00228"></a>00228       node-&gt;childLock();
-<a name="l00229"></a>00229       VALUE <a class="code" href="class_x_node.html#a14">count</a> = INT2NUM(node-&gt;count());
-<a name="l00230"></a>00230       node-&gt;childUnlock();
-<a name="l00231"></a>00231       <span class="keywordflow">return</span> count;
-<a name="l00232"></a>00232   }
-<a name="l00233"></a>00233   <span class="keywordflow">else</span> {
-<a name="l00234"></a>00234       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
-<a name="l00235"></a>00235       <span class="keywordflow">return</span> Qnil;
-<a name="l00236"></a>00236   }
-<a name="l00237"></a>00237 }
-<a name="l00238"></a>00238 VALUE
-<a name="l00239"></a><a class="code" href="class_x_ruby.html#h7">00239</a> <a class="code" href="class_x_ruby.html#h7">XRuby::rnode_touch</a>(VALUE <span class="keyword">self</span>)
-<a name="l00240"></a>00240 {
-<a name="l00241"></a>00241   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
-<a name="l00242"></a>00242   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00243"></a>00243   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>.lock()) {
-<a name="l00244"></a>00244       dbgPrint(QString(<span class="stringliteral">"Ruby, Node %1, touching."</span>));
-<a name="l00245"></a>00245       <span class="keywordflow">if</span>(node-&gt;isUIEnabled() )
-<a name="l00246"></a>00246           node-&gt;touch();
-<a name="l00247"></a>00247       <span class="keywordflow">else</span>
-<a name="l00248"></a>00248           rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node %s is read-only!\n"</span>,
-<a name="l00249"></a>00249              (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
-<a name="l00250"></a>00250       <span class="keywordflow">return</span> Qnil;
-<a name="l00251"></a>00251   }
-<a name="l00252"></a>00252   <span class="keywordflow">else</span> {
-<a name="l00253"></a>00253       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
-<a name="l00254"></a>00254       <span class="keywordflow">return</span> Qnil;
-<a name="l00255"></a>00255   }
-<a name="l00256"></a>00256 }
-<a name="l00257"></a>00257 VALUE
-<a name="l00258"></a><a class="code" href="class_x_ruby.html#h10">00258</a> <a class="code" href="class_x_ruby.html#h10">XRuby::rvaluenode_set</a>(VALUE <span class="keyword">self</span>, VALUE var)
-<a name="l00259"></a>00259 {
-<a name="l00260"></a>00260   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
-<a name="l00261"></a>00261   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00262"></a>00262   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>.lock()) {
-<a name="l00263"></a>00263       shared_ptr&lt;XValueNodeBase&gt; vnode = dynamic_pointer_cast&lt;XValueNodeBase&gt;(node);
-<a name="l00264"></a>00264       dbgPrint(QString(<span class="stringliteral">"Ruby, Node %1, setting new value."</span>).arg(node-&gt;getName()) );
-<a name="l00265"></a>00265       <span class="keywordflow">if</span>(!node-&gt;isUIEnabled() )
-<a name="l00266"></a>00266       {
-<a name="l00267"></a>00267 <span class="comment">//          rb_raise(rb_eRuntimeError, "Node %s is read-only!\n",</span>
-<a name="l00268"></a>00268           rb_warning(<span class="stringliteral">"Node %s is read-only!\n"</span>,
-<a name="l00269"></a>00269              (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
-<a name="l00270"></a>00270           <span class="keywordflow">return</span> Qnil;
-<a name="l00271"></a>00271       }
-<a name="l00272"></a>00272       <span class="keywordflow">if</span>(<a class="code" href="class_x_ruby.html#h3">XRuby::strOnNode</a>(vnode, var))
-<a name="l00273"></a>00273         {
-<a name="l00274"></a>00274           <span class="keywordflow">return</span> Qnil;
-<a name="l00275"></a>00275         }
-<a name="l00276"></a>00276       <span class="keywordflow">else</span>
-<a name="l00277"></a>00277         {
-<a name="l00278"></a>00278           dbgPrint(QString(<span class="stringliteral">"Ruby, Node %1, new value: %2."</span>).arg(node-&gt;getName()).arg(vnode-&gt;to_str()) );
-<a name="l00279"></a>00279           <span class="keywordflow">return</span> <a class="code" href="class_x_ruby.html#h4">XRuby::getValueOfNode</a>(vnode);
-<a name="l00280"></a>00280         }
-<a name="l00281"></a>00281   }
-<a name="l00282"></a>00282   <span class="keywordflow">else</span> {
-<a name="l00283"></a>00283       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
-<a name="l00284"></a>00284       <span class="keywordflow">return</span> Qnil;
-<a name="l00285"></a>00285   }
-<a name="l00286"></a>00286 }
-<a name="l00287"></a>00287 VALUE
-<a name="l00288"></a><a class="code" href="class_x_ruby.html#h11">00288</a> <a class="code" href="class_x_ruby.html#h11">XRuby::rvaluenode_load</a>(VALUE <span class="keyword">self</span>, VALUE var)
-<a name="l00289"></a>00289 {
-<a name="l00290"></a>00290   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
-<a name="l00291"></a>00291   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00292"></a>00292   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>.lock()) {
-<a name="l00293"></a>00293       shared_ptr&lt;XValueNodeBase&gt; vnode = dynamic_pointer_cast&lt;XValueNodeBase&gt;(node);
-<a name="l00294"></a>00294       dbgPrint(QString(<span class="stringliteral">"Ruby, Node %1, loading new value."</span>).arg(node-&gt;getName()) );
-<a name="l00295"></a>00295       <span class="keywordflow">if</span>( node-&gt;isRunTime() )
-<a name="l00296"></a>00296       {
-<a name="l00297"></a>00297           rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node %s is run-time node!\n"</span>,
-<a name="l00298"></a>00298              (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
-<a name="l00299"></a>00299           <span class="keywordflow">return</span> Qnil;
-<a name="l00300"></a>00300       }
-<a name="l00301"></a>00301       <span class="keywordflow">if</span>(<a class="code" href="class_x_ruby.html#h3">XRuby::strOnNode</a>(vnode, var))
-<a name="l00302"></a>00302         {
-<a name="l00303"></a>00303           <span class="keywordflow">return</span> Qnil;
-<a name="l00304"></a>00304         }
-<a name="l00305"></a>00305       <span class="keywordflow">else</span>
-<a name="l00306"></a>00306         {
-<a name="l00307"></a>00307           dbgPrint(QString(<span class="stringliteral">"Ruby, Node %1, new value: %2."</span>).arg(node-&gt;getName()).arg(vnode-&gt;to_str()) );
-<a name="l00308"></a>00308           <span class="keywordflow">return</span> <a class="code" href="class_x_ruby.html#h4">XRuby::getValueOfNode</a>(vnode);
-<a name="l00309"></a>00309         }
-<a name="l00310"></a>00310   }
-<a name="l00311"></a>00311   <span class="keywordflow">else</span> {
-<a name="l00312"></a>00312       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
-<a name="l00313"></a>00313       <span class="keywordflow">return</span> Qnil;
-<a name="l00314"></a>00314   }
-<a name="l00315"></a>00315 }
-<a name="l00316"></a>00316 VALUE
-<a name="l00317"></a><a class="code" href="class_x_ruby.html#h12">00317</a> <a class="code" href="class_x_ruby.html#h12">XRuby::rvaluenode_get</a>(VALUE <span class="keyword">self</span>)
-<a name="l00318"></a>00318 {
-<a name="l00319"></a>00319   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
-<a name="l00320"></a>00320   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00321"></a>00321   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>.lock()) {
-<a name="l00322"></a>00322       shared_ptr&lt;XValueNodeBase&gt; vnode = dynamic_pointer_cast&lt;XValueNodeBase&gt;(node);
-<a name="l00323"></a>00323       <span class="keywordflow">return</span> <a class="code" href="class_x_ruby.html#h4">XRuby::getValueOfNode</a>(vnode);
-<a name="l00324"></a>00324   }
-<a name="l00325"></a>00325   <span class="keywordflow">else</span> {
-<a name="l00326"></a>00326       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
-<a name="l00327"></a>00327       <span class="keywordflow">return</span> Qnil;
+<a name="l00008"></a>00008 <span class="preprocessor">#include &lt;qdeepcopy.h&gt;</span>
+<a name="l00009"></a>00009 <span class="preprocessor">#include &lt;klocale.h&gt;</span>
+<a name="l00010"></a>00010 <span class="comment">//---------------------------------------------------------------------------</span>
+<a name="l00011"></a>00011 
+<a name="l00012"></a>00012 <span class="preprocessor">#include &lt;math.h&gt;</span>
+<a name="l00013"></a>00013 <span class="preprocessor">#include &lt;kstandarddirs.h&gt;</span>
+<a name="l00014"></a>00014 
+<a name="l00015"></a>00015 <span class="preprocessor">#define XRUBYSUPPORT_RB "xrubysupport.rb"</span>
+<a name="l00016"></a>00016 <span class="preprocessor"></span>
+<a name="l00017"></a><a class="code" href="class_x_ruby.html#b5f075c4e2ffa4a03f793406d0d8d69a">00017</a> <a class="code" href="class_x_ruby.html#b5f075c4e2ffa4a03f793406d0d8d69a">XRuby::XRuby</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XMeasure&gt; &amp;measure)
+<a name="l00018"></a>00018   : <a class="code" href="class_x_alias_list_node.html">XAliasListNode</a>&lt;<a class="code" href="class_x_ruby_thread.html">XRubyThread</a>&gt;(name, runtime),
+<a name="l00019"></a>00019   m_measure(measure), 
+<a name="l00020"></a>00020   m_thread(shared_from_this(), &amp;<a class="code" href="class_x_ruby.html">XRuby</a>::execute)
+<a name="l00021"></a>00021 {
+<a name="l00022"></a>00022     <a class="code" href="class_x_ruby.html#3a548f0cd0e1b3b8237161baf54f61db">m_lsnCreateChild</a> = <a class="code" href="class_x_ruby.html#ef8766a174237ea214b9de25f8159b85">m_tlkCreateChild</a>.<a class="code" href="class_x_talker.html#928a9912a65bc6b538e75049ba7e13b5">connectWeak</a>(<span class="keyword">true</span>, shared_from_this(),
+<a name="l00023"></a>00023         &amp;<a class="code" href="class_x_ruby.html#e45f609eb6343047fefdf3dda46c853f">XRuby::onCreateChild</a>);
+<a name="l00024"></a>00024 }
+<a name="l00025"></a><a class="code" href="class_x_ruby.html#4f867a437685db2ed0f7a043d1eb6d5d">00025</a> <a class="code" href="class_x_ruby.html#4f867a437685db2ed0f7a043d1eb6d5d">XRuby::~XRuby</a>()
+<a name="l00026"></a>00026 {
+<a name="l00027"></a>00027 }
+<a name="l00028"></a>00028 <span class="keywordtype">void</span>
+<a name="l00029"></a><a class="code" href="class_x_ruby.html#31dc5e820c15e0c20b94c3cece6635fc">00029</a> <a class="code" href="class_x_ruby.html#31dc5e820c15e0c20b94c3cece6635fc">XRuby::rnode_free</a>(<span class="keywordtype">void</span> *rnode)
+<a name="l00030"></a>00030 {
+<a name="l00031"></a>00031     <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>* st = reinterpret_cast&lt;struct rnode_ptr*&gt;(rnode);
+<a name="l00032"></a>00032     <span class="keyword">delete</span> st;
+<a name="l00033"></a>00033 }
+<a name="l00034"></a>00034 
+<a name="l00035"></a>00035 VALUE
+<a name="l00036"></a><a class="code" href="class_x_ruby.html#801a32a0717d9b4e4e5cab471abd559d">00036</a> <a class="code" href="class_x_ruby.html#801a32a0717d9b4e4e5cab471abd559d">XRuby::rnode_create</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node, <a class="code" href="class_x_ruby.html">XRuby</a> *xruby)
+<a name="l00037"></a>00037 {
+<a name="l00038"></a>00038 
+<a name="l00039"></a>00039   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st
+<a name="l00040"></a>00040      = <span class="keyword">new</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>;
+<a name="l00041"></a>00041 
+<a name="l00042"></a>00042   st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a> = node;
+<a name="l00043"></a>00043   st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#a6769fc6038a89b035ed07b59b7e4122">xruby</a> = xruby;
+<a name="l00044"></a>00044   VALUE rnew;
+<a name="l00045"></a>00045   shared_ptr&lt;XValueNodeBase&gt; vnode = dynamic_pointer_cast&lt;XValueNodeBase&gt;(node);
+<a name="l00046"></a>00046   <span class="keywordflow">if</span>(vnode)
+<a name="l00047"></a>00047   {
+<a name="l00048"></a>00048       rnew = Data_Wrap_Struct(xruby-&gt;<a class="code" href="class_x_ruby.html#357c1deb431b0789d8c792b0126e9be6">rbClassValueNode</a>, 0, <a class="code" href="class_x_ruby.html#31dc5e820c15e0c20b94c3cece6635fc">rnode_free</a>, st);
+<a name="l00049"></a>00049   }
+<a name="l00050"></a>00050   <span class="keywordflow">else</span>
+<a name="l00051"></a>00051   {
+<a name="l00052"></a>00052       shared_ptr&lt;XListNodeBase&gt; lnode = dynamic_pointer_cast&lt;XListNodeBase&gt;(node);
+<a name="l00053"></a>00053       <span class="keywordflow">if</span>(lnode)
+<a name="l00054"></a>00054       {
+<a name="l00055"></a>00055           rnew = Data_Wrap_Struct(xruby-&gt;<a class="code" href="class_x_ruby.html#8fd6a751e2eab65e3ce1c52ae2b74c7d">rbClassListNode</a>, 0, <a class="code" href="class_x_ruby.html#31dc5e820c15e0c20b94c3cece6635fc">rnode_free</a>, st);
+<a name="l00056"></a>00056       }
+<a name="l00057"></a>00057       <span class="keywordflow">else</span>
+<a name="l00058"></a>00058       {
+<a name="l00059"></a>00059           rnew = Data_Wrap_Struct(xruby-&gt;<a class="code" href="class_x_ruby.html#bdcbc675dd343883e27d00dfaa0e8bef">rbClassNode</a>, 0, <a class="code" href="class_x_ruby.html#31dc5e820c15e0c20b94c3cece6635fc">rnode_free</a>, st);
+<a name="l00060"></a>00060       }
+<a name="l00061"></a>00061   }
+<a name="l00062"></a>00062   <span class="keywordflow">return</span> rnew;
+<a name="l00063"></a>00063 }
+<a name="l00064"></a>00064 VALUE
+<a name="l00065"></a><a class="code" href="class_x_ruby.html#5cacdce99649c7077df80222060e6737">00065</a> <a class="code" href="class_x_ruby.html#5cacdce99649c7077df80222060e6737">XRuby::rnode_child</a>(VALUE <span class="keyword">self</span>, VALUE var)
+<a name="l00066"></a>00066 {
+<a name="l00067"></a>00067   shared_ptr&lt;XNode&gt; child;
+<a name="l00068"></a>00068   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
+<a name="l00069"></a>00069   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
+<a name="l00070"></a>00070   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a>.lock()) {
+<a name="l00071"></a>00071       <span class="keywordflow">switch</span> (TYPE(var)) {
+<a name="l00072"></a>00072        <span class="keywordtype">int</span> idx;
+<a name="l00073"></a>00073       <span class="keywordflow">case</span> T_FIXNUM:
+<a name="l00074"></a>00074         { <a class="code" href="struct_x_scoped_read_lock.html">XScopedReadLock&lt;XRecursiveRWLock&gt;</a> lock(node-&gt;childMutex());
+<a name="l00075"></a>00075             idx = NUM2INT(var);
+<a name="l00076"></a>00076             <span class="keywordflow">if</span> ((idx &gt;= 0) &amp;&amp; (idx &lt; (<span class="keywordtype">int</span>)node-&gt;count()))
+<a name="l00077"></a>00077                 child = node-&gt;getChild&lt;<a class="code" href="class_x_node.html">XNode</a>&gt;(idx);
+<a name="l00078"></a>00078         }
+<a name="l00079"></a>00079         <span class="keywordflow">if</span>(! child ) {
+<a name="l00080"></a>00080           rb_raise(rb_eRuntimeError, <span class="stringliteral">"No such node idx:%d on %s\n"</span>,
+<a name="l00081"></a>00081              idx, (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
+<a name="l00082"></a>00082           <span class="keywordflow">return</span> Qnil;
+<a name="l00083"></a>00083         }
+<a name="l00084"></a>00084         <span class="keywordflow">break</span>;
+<a name="l00085"></a>00085       <span class="keywordflow">case</span> T_STRING:
+<a name="l00086"></a>00086         {
+<a name="l00087"></a>00087         <span class="keyword">const</span> <span class="keywordtype">char</span> *name = STR2CSTR(var);
+<a name="l00088"></a>00088             child = node-&gt;getChild(name);
+<a name="l00089"></a>00089             <span class="keywordflow">if</span>(! child ) {
+<a name="l00090"></a>00090               rb_raise(rb_eRuntimeError, <span class="stringliteral">"No such node name:%s on %s\n"</span>,
+<a name="l00091"></a>00091                  name, (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
+<a name="l00092"></a>00092               <span class="keywordflow">return</span> Qnil;
+<a name="l00093"></a>00093             }
+<a name="l00094"></a>00094         }
+<a name="l00095"></a>00095         <span class="keywordflow">break</span>;
+<a name="l00096"></a>00096       <span class="keywordflow">default</span>:
+<a name="l00097"></a>00097         rb_raise(rb_eRuntimeError, <span class="stringliteral">"Ill format to find node on %s\n"</span>,
+<a name="l00098"></a>00098           (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
+<a name="l00099"></a>00099         <span class="keywordflow">return</span> Qnil;
+<a name="l00100"></a>00100         <span class="keywordflow">break</span>;
+<a name="l00101"></a>00101       }
+<a name="l00102"></a>00102   }
+<a name="l00103"></a>00103   <span class="keywordflow">else</span> {
+<a name="l00104"></a>00104       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
+<a name="l00105"></a>00105       <span class="keywordflow">return</span> Qnil;
+<a name="l00106"></a>00106   }
+<a name="l00107"></a>00107   <span class="keywordflow">return</span> rnode_create(child, st-&gt;xruby );
+<a name="l00108"></a>00108 }
+<a name="l00109"></a>00109 VALUE
+<a name="l00110"></a><a class="code" href="class_x_ruby.html#1e242123b8a58268e40e0cd47004be21">00110</a> <a class="code" href="class_x_ruby.html#1e242123b8a58268e40e0cd47004be21">XRuby::rlistnode_create_child</a>(VALUE <span class="keyword">self</span>, VALUE rbtype, VALUE rbname)
+<a name="l00111"></a>00111 {
+<a name="l00112"></a>00112   Check_Type(rbtype, T_STRING);
+<a name="l00113"></a>00113   Check_Type(rbname, T_STRING);
+<a name="l00114"></a>00114   <span class="keywordtype">char</span> *type = STR2CSTR(rbtype);
+<a name="l00115"></a>00115   <span class="keywordtype">char</span> *name = STR2CSTR(rbname);
+<a name="l00116"></a>00116   
+<a name="l00117"></a>00117   shared_ptr&lt;XNode&gt; child;
+<a name="l00118"></a>00118   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
+<a name="l00119"></a>00119   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
+<a name="l00120"></a>00120   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a>.lock()) {
+<a name="l00121"></a>00121       <span class="keywordflow">if</span>( node-&gt;isRunTime() )
+<a name="l00122"></a>00122       {
+<a name="l00123"></a>00123           rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node %s is run-time node!\n"</span>,
+<a name="l00124"></a>00124              (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
+<a name="l00125"></a>00125           <span class="keywordflow">return</span> Qnil;
+<a name="l00126"></a>00126       }     
+<a name="l00127"></a>00127       shared_ptr&lt;XListNodeBase&gt; lnode =
+<a name="l00128"></a>00128         dynamic_pointer_cast&lt;XListNodeBase&gt;(node);
+<a name="l00129"></a>00129       <span class="keywordflow">if</span>(!lnode)
+<a name="l00130"></a>00130       {
+<a name="l00131"></a>00131            rb_raise(rb_eRuntimeError, <span class="stringliteral">"Error on %s : Not ListNode. Could not make child"</span>
+<a name="l00132"></a>00132                 <span class="stringliteral">" name = %s, type = %s\n"</span>, (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8(), name, type);
+<a name="l00133"></a>00133             <span class="keywordflow">return</span> Qnil;
+<a name="l00134"></a>00134       }
+<a name="l00135"></a>00135       <span class="keywordflow">if</span>(strlen(name))
+<a name="l00136"></a>00136         child = node-&gt;getChild(name);
+<a name="l00137"></a>00137       <span class="comment">/*</span>
+<a name="l00138"></a>00138 <span class="comment">      if(type != child-&gt;getTypename()) {</span>
+<a name="l00139"></a>00139 <span class="comment">          rb_raise(rb_eRuntimeError, "Different type of child exists on %s\n",</span>
+<a name="l00140"></a>00140 <span class="comment">             (const char*)node-&gt;getName().utf8());</span>
+<a name="l00141"></a>00141 <span class="comment">          return Qnil;</span>
+<a name="l00142"></a>00142 <span class="comment">      }</span>
+<a name="l00143"></a>00143 <span class="comment">      */</span>
+<a name="l00144"></a>00144       <span class="keywordflow">if</span>(!child) {
+<a name="l00145"></a>00145             shared_ptr&lt;tCreateChild&gt; x(<span class="keyword">new</span> tCreateChild);
+<a name="l00146"></a>00146             x-&gt;lnode = lnode;
+<a name="l00147"></a>00147             x-&gt;type = type;
+<a name="l00148"></a>00148             x-&gt;name = name;
+<a name="l00149"></a>00149             st-&gt;xruby-&gt;m_tlkCreateChild.talk(x);
+<a name="l00150"></a>00150             <span class="keywordflow">while</span>(x-&gt;lnode) {
+<a name="l00151"></a>00151                 x-&gt;cond.wait(50000);
+<a name="l00152"></a>00152             }
+<a name="l00153"></a>00153             child = x-&gt;child;
+<a name="l00154"></a>00154       }
+<a name="l00155"></a>00155       <span class="keywordflow">if</span>(!child) {
+<a name="l00156"></a>00156            rb_raise(rb_eRuntimeError, <span class="stringliteral">"Error on %s : Could not make child"</span>
+<a name="l00157"></a>00157                 <span class="stringliteral">" name = %s, type = %s\n"</span>, (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8(), name, type);
+<a name="l00158"></a>00158             <span class="keywordflow">return</span> Qnil;
+<a name="l00159"></a>00159       }
+<a name="l00160"></a>00160   }
+<a name="l00161"></a>00161   <span class="keywordflow">else</span> {
+<a name="l00162"></a>00162       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
+<a name="l00163"></a>00163       <span class="keywordflow">return</span> Qnil;
+<a name="l00164"></a>00164   }
+<a name="l00165"></a>00165   <span class="keywordflow">return</span> rnode_create(child, st-&gt;xruby );
+<a name="l00166"></a>00166 }
+<a name="l00167"></a>00167 <span class="keywordtype">void</span>
+<a name="l00168"></a><a class="code" href="class_x_ruby.html#e45f609eb6343047fefdf3dda46c853f">00168</a> <a class="code" href="class_x_ruby.html#e45f609eb6343047fefdf3dda46c853f">XRuby::onCreateChild</a>(<span class="keyword">const</span> shared_ptr&lt;tCreateChild&gt; &amp;x) 
+<a name="l00169"></a>00169 {
+<a name="l00170"></a>00170     x-&gt;child = x-&gt;lnode-&gt;createByTypename(x-&gt;type, x-&gt;name);
+<a name="l00171"></a>00171     x-&gt;lnode.reset();
+<a name="l00172"></a>00172     x-&gt;cond.signal();
+<a name="l00173"></a>00173 }
+<a name="l00174"></a>00174 VALUE
+<a name="l00175"></a><a class="code" href="class_x_ruby.html#5ead2fb9d0a9beba729ef63e0b0af341">00175</a> <a class="code" href="class_x_ruby.html#5ead2fb9d0a9beba729ef63e0b0af341">XRuby::rlistnode_release_child</a>(VALUE <span class="keyword">self</span>, VALUE rbchild)
+<a name="l00176"></a>00176 {
+<a name="l00177"></a>00177   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
+<a name="l00178"></a>00178   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
+<a name="l00179"></a>00179   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a>.lock()) {
+<a name="l00180"></a>00180       <span class="keywordflow">if</span>(!node-&gt;isUIEnabled() )
+<a name="l00181"></a>00181       {
+<a name="l00182"></a>00182           rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node %s is read-only!\n"</span>,
+<a name="l00183"></a>00183              (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
+<a name="l00184"></a>00184           <span class="keywordflow">return</span> Qnil;
+<a name="l00185"></a>00185       }     
+<a name="l00186"></a>00186       shared_ptr&lt;XListNodeBase&gt; lnode =
+<a name="l00187"></a>00187         dynamic_pointer_cast&lt;XListNodeBase&gt;(node);
+<a name="l00188"></a>00188       <span class="keywordflow">if</span>(!lnode)
+<a name="l00189"></a>00189         {
+<a name="l00190"></a>00190            rb_raise(rb_eRuntimeError, <span class="stringliteral">"Error on %s : Not ListNode. Could not release child\n"</span>
+<a name="l00191"></a>00191                , (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
+<a name="l00192"></a>00192             <span class="keywordflow">return</span> Qnil;
+<a name="l00193"></a>00193         }
+<a name="l00194"></a>00194       <span class="keyword">struct </span>rnode_ptr *st_child;
+<a name="l00195"></a>00195       Data_Get_Struct(rbchild, <span class="keyword">struct</span> rnode_ptr, st_child);
+<a name="l00196"></a>00196       <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; child = st_child-&gt;ptr.lock()) {
+<a name="l00197"></a>00197             lnode-&gt;releaseChild(child);
+<a name="l00198"></a>00198       }
+<a name="l00199"></a>00199       <span class="keywordflow">else</span> {
+<a name="l00200"></a>00200           rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
+<a name="l00201"></a>00201           <span class="keywordflow">return</span> Qnil;
+<a name="l00202"></a>00202       }
+<a name="l00203"></a>00203   }
+<a name="l00204"></a>00204   <span class="keywordflow">else</span> {
+<a name="l00205"></a>00205       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
+<a name="l00206"></a>00206       <span class="keywordflow">return</span> Qnil;
+<a name="l00207"></a>00207   }
+<a name="l00208"></a>00208   <span class="keywordflow">return</span> <span class="keyword">self</span>;
+<a name="l00209"></a>00209 }
+<a name="l00210"></a>00210 
+<a name="l00211"></a>00211 VALUE
+<a name="l00212"></a><a class="code" href="class_x_ruby.html#8dbb384e96283696098eed3f43db603e">00212</a> <a class="code" href="class_x_ruby.html#8dbb384e96283696098eed3f43db603e">XRuby::rnode_name</a>(VALUE <span class="keyword">self</span>)
+<a name="l00213"></a>00213 {
+<a name="l00214"></a>00214   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
+<a name="l00215"></a>00215   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
+<a name="l00216"></a>00216   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a>.lock()) {
+<a name="l00217"></a>00217       <span class="keywordflow">return</span> rb_str_new2(node-&gt;getName().utf8());
+<a name="l00218"></a>00218   }
+<a name="l00219"></a>00219   <span class="keywordflow">else</span> {
+<a name="l00220"></a>00220       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
+<a name="l00221"></a>00221       <span class="keywordflow">return</span> Qnil;
+<a name="l00222"></a>00222   }
+<a name="l00223"></a>00223 }
+<a name="l00224"></a>00224 VALUE
+<a name="l00225"></a><a class="code" href="class_x_ruby.html#eb206c3ae43aa6fb68ab0aa6ac16f4d4">00225</a> <a class="code" href="class_x_ruby.html#eb206c3ae43aa6fb68ab0aa6ac16f4d4">XRuby::rnode_count</a>(VALUE <span class="keyword">self</span>)
+<a name="l00226"></a>00226 {
+<a name="l00227"></a>00227   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
+<a name="l00228"></a>00228   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
+<a name="l00229"></a>00229   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a>.lock()) {
+<a name="l00230"></a>00230       <a class="code" href="struct_x_scoped_read_lock.html">XScopedReadLock&lt;XRecursiveRWLock&gt;</a> lock(node-&gt;childMutex());
+<a name="l00231"></a>00231       VALUE <a class="code" href="class_x_node.html#1cca054072e12fcac3c0a1ab6bafbf52">count</a> = INT2NUM(node-&gt;count());
+<a name="l00232"></a>00232       <span class="keywordflow">return</span> count;
+<a name="l00233"></a>00233   }
+<a name="l00234"></a>00234   <span class="keywordflow">else</span> {
+<a name="l00235"></a>00235       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
+<a name="l00236"></a>00236       <span class="keywordflow">return</span> Qnil;
+<a name="l00237"></a>00237   }
+<a name="l00238"></a>00238 }
+<a name="l00239"></a>00239 VALUE
+<a name="l00240"></a><a class="code" href="class_x_ruby.html#e7402ab445a84cb6e23b9a9d1e249738">00240</a> <a class="code" href="class_x_ruby.html#e7402ab445a84cb6e23b9a9d1e249738">XRuby::rnode_touch</a>(VALUE <span class="keyword">self</span>)
+<a name="l00241"></a>00241 {
+<a name="l00242"></a>00242   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
+<a name="l00243"></a>00243   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
+<a name="l00244"></a>00244   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a>.lock()) {
+<a name="l00245"></a>00245       dbgPrint(QString(<span class="stringliteral">"Ruby, Node %1, touching."</span>));
+<a name="l00246"></a>00246       <span class="keywordflow">if</span>(node-&gt;isUIEnabled() )
+<a name="l00247"></a>00247           node-&gt;touch();
+<a name="l00248"></a>00248       <span class="keywordflow">else</span>
+<a name="l00249"></a>00249           rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node %s is read-only!\n"</span>,
+<a name="l00250"></a>00250              (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
+<a name="l00251"></a>00251       <span class="keywordflow">return</span> Qnil;
+<a name="l00252"></a>00252   }
+<a name="l00253"></a>00253   <span class="keywordflow">else</span> {
+<a name="l00254"></a>00254       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
+<a name="l00255"></a>00255       <span class="keywordflow">return</span> Qnil;
+<a name="l00256"></a>00256   }
+<a name="l00257"></a>00257 }
+<a name="l00258"></a>00258 VALUE
+<a name="l00259"></a><a class="code" href="class_x_ruby.html#35e2ba22b0573b47e7ef57c202a89eee">00259</a> <a class="code" href="class_x_ruby.html#35e2ba22b0573b47e7ef57c202a89eee">XRuby::rvaluenode_set</a>(VALUE <span class="keyword">self</span>, VALUE var)
+<a name="l00260"></a>00260 {
+<a name="l00261"></a>00261   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
+<a name="l00262"></a>00262   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
+<a name="l00263"></a>00263   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a>.lock()) {
+<a name="l00264"></a>00264       shared_ptr&lt;XValueNodeBase&gt; vnode = dynamic_pointer_cast&lt;XValueNodeBase&gt;(node);
+<a name="l00265"></a>00265       ASSERT(vnode);
+<a name="l00266"></a>00266       dbgPrint(QString(<span class="stringliteral">"Ruby, Node %1, setting new value."</span>).arg(node-&gt;getName()) );
+<a name="l00267"></a>00267       <span class="keywordflow">if</span>(!node-&gt;isUIEnabled() )
+<a name="l00268"></a>00268       {
+<a name="l00269"></a>00269 <span class="comment">//          rb_raise(rb_eRuntimeError, "Node %s is read-only!\n",</span>
+<a name="l00270"></a>00270           rb_warning(<span class="stringliteral">"Node %s is read-only!\n"</span>,
+<a name="l00271"></a>00271              (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
+<a name="l00272"></a>00272           <span class="keywordflow">return</span> Qnil;
+<a name="l00273"></a>00273       }
+<a name="l00274"></a>00274       <span class="keywordflow">if</span>(<a class="code" href="class_x_ruby.html#a818c747cb3fe1976737e7cd14fb1925">XRuby::strOnNode</a>(vnode, var))
+<a name="l00275"></a>00275         {
+<a name="l00276"></a>00276           <span class="keywordflow">return</span> Qnil;
+<a name="l00277"></a>00277         }
+<a name="l00278"></a>00278       <span class="keywordflow">else</span>
+<a name="l00279"></a>00279         {
+<a name="l00280"></a>00280           dbgPrint(QString(<span class="stringliteral">"Ruby, Node %1, new value: %2."</span>).arg(node-&gt;getName()).arg(vnode-&gt;to_str()) );
+<a name="l00281"></a>00281           <span class="keywordflow">return</span> <a class="code" href="class_x_ruby.html#844b796abc9683360227d3cf04ce7c8a">XRuby::getValueOfNode</a>(vnode);
+<a name="l00282"></a>00282         }
+<a name="l00283"></a>00283   }
+<a name="l00284"></a>00284   <span class="keywordflow">else</span> {
+<a name="l00285"></a>00285       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
+<a name="l00286"></a>00286       <span class="keywordflow">return</span> Qnil;
+<a name="l00287"></a>00287   }
+<a name="l00288"></a>00288 }
+<a name="l00289"></a>00289 VALUE
+<a name="l00290"></a><a class="code" href="class_x_ruby.html#37386cf2e6cd84f2811228b0d0a8a0c3">00290</a> <a class="code" href="class_x_ruby.html#37386cf2e6cd84f2811228b0d0a8a0c3">XRuby::rvaluenode_load</a>(VALUE <span class="keyword">self</span>, VALUE var)
+<a name="l00291"></a>00291 {
+<a name="l00292"></a>00292   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
+<a name="l00293"></a>00293   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
+<a name="l00294"></a>00294   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a>.lock()) {
+<a name="l00295"></a>00295       shared_ptr&lt;XValueNodeBase&gt; vnode = dynamic_pointer_cast&lt;XValueNodeBase&gt;(node);
+<a name="l00296"></a>00296       ASSERT(vnode);
+<a name="l00297"></a>00297       dbgPrint(QString(<span class="stringliteral">"Ruby, Node %1, loading new value."</span>).arg(node-&gt;getName()) );
+<a name="l00298"></a>00298       <span class="keywordflow">if</span>( node-&gt;isRunTime() )
+<a name="l00299"></a>00299       {
+<a name="l00300"></a>00300           rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node %s is run-time node!\n"</span>,
+<a name="l00301"></a>00301              (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
+<a name="l00302"></a>00302           <span class="keywordflow">return</span> Qnil;
+<a name="l00303"></a>00303       }
+<a name="l00304"></a>00304       <span class="keywordflow">if</span>(<a class="code" href="class_x_ruby.html#a818c747cb3fe1976737e7cd14fb1925">XRuby::strOnNode</a>(vnode, var))
+<a name="l00305"></a>00305         {
+<a name="l00306"></a>00306           <span class="keywordflow">return</span> Qnil;
+<a name="l00307"></a>00307         }
+<a name="l00308"></a>00308       <span class="keywordflow">else</span>
+<a name="l00309"></a>00309         {
+<a name="l00310"></a>00310           dbgPrint(QString(<span class="stringliteral">"Ruby, Node %1, new value: %2."</span>).arg(node-&gt;getName()).arg(vnode-&gt;to_str()) );
+<a name="l00311"></a>00311           <span class="keywordflow">return</span> <a class="code" href="class_x_ruby.html#844b796abc9683360227d3cf04ce7c8a">XRuby::getValueOfNode</a>(vnode);
+<a name="l00312"></a>00312         }
+<a name="l00313"></a>00313   }
+<a name="l00314"></a>00314   <span class="keywordflow">else</span> {
+<a name="l00315"></a>00315       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
+<a name="l00316"></a>00316       <span class="keywordflow">return</span> Qnil;
+<a name="l00317"></a>00317   }
+<a name="l00318"></a>00318 }
+<a name="l00319"></a>00319 VALUE
+<a name="l00320"></a><a class="code" href="class_x_ruby.html#8d24a142da6d2325f4beaf3d0fc191d2">00320</a> <a class="code" href="class_x_ruby.html#8d24a142da6d2325f4beaf3d0fc191d2">XRuby::rvaluenode_get</a>(VALUE <span class="keyword">self</span>)
+<a name="l00321"></a>00321 {
+<a name="l00322"></a>00322   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
+<a name="l00323"></a>00323   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
+<a name="l00324"></a>00324   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a>.lock()) {
+<a name="l00325"></a>00325       shared_ptr&lt;XValueNodeBase&gt; vnode = dynamic_pointer_cast&lt;XValueNodeBase&gt;(node);
+<a name="l00326"></a>00326       ASSERT(vnode);
+<a name="l00327"></a>00327       <span class="keywordflow">return</span> <a class="code" href="class_x_ruby.html#844b796abc9683360227d3cf04ce7c8a">XRuby::getValueOfNode</a>(vnode);
 <a name="l00328"></a>00328   }
-<a name="l00329"></a>00329 }
-<a name="l00330"></a>00330 VALUE
-<a name="l00331"></a><a class="code" href="class_x_ruby.html#h13">00331</a> <a class="code" href="class_x_ruby.html#h13">XRuby::rvaluenode_to_str</a>(VALUE <span class="keyword">self</span>)
-<a name="l00332"></a>00332 {
-<a name="l00333"></a>00333   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
-<a name="l00334"></a>00334   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00335"></a>00335   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>.lock()) {
-<a name="l00336"></a>00336       shared_ptr&lt;XValueNodeBase&gt; vnode = dynamic_pointer_cast&lt;XValueNodeBase&gt;(node);
-<a name="l00337"></a>00337       <span class="keywordflow">return</span> rb_str_new2(vnode-&gt;to_str().utf8());
-<a name="l00338"></a>00338   }
-<a name="l00339"></a>00339   <span class="keywordflow">else</span> {
-<a name="l00340"></a>00340       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
-<a name="l00341"></a>00341       <span class="keywordflow">return</span> Qnil;
-<a name="l00342"></a>00342   }
-<a name="l00343"></a>00343 }
-<a name="l00344"></a>00344 
-<a name="l00345"></a>00345 <span class="keywordtype">int</span>
-<a name="l00346"></a><a class="code" href="class_x_ruby.html#h3">00346</a> <a class="code" href="class_x_ruby.html#h3">XRuby::strOnNode</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node, VALUE value)
-<a name="l00347"></a>00347 {
-<a name="l00348"></a>00348   <span class="keywordtype">double</span> dbl = 0;
-<a name="l00349"></a>00349   <span class="keywordtype">int</span> integer = 0;
-<a name="l00350"></a>00350 
-<a name="l00351"></a>00351   shared_ptr&lt;XDoubleNode&gt; dnode = dynamic_pointer_cast&lt;XDoubleNode&gt;(node);
-<a name="l00352"></a>00352   shared_ptr&lt;XIntNode&gt; inode = dynamic_pointer_cast&lt;XIntNode&gt;(node);
-<a name="l00353"></a>00353   shared_ptr&lt;XUIntNode&gt; uinode = dynamic_pointer_cast&lt;XUIntNode&gt;(node);
-<a name="l00354"></a>00354   shared_ptr&lt;XBoolNode&gt; bnode = dynamic_pointer_cast&lt;XBoolNode&gt;(node);
-<a name="l00355"></a>00355   
-<a name="l00356"></a>00356   <span class="keywordflow">switch</span> (TYPE(value)) {
-<a name="l00357"></a>00357   <span class="keywordflow">case</span> T_FIXNUM:
-<a name="l00358"></a>00358     integer = NUM2INT(value);
-<a name="l00359"></a>00359     <span class="keywordflow">if</span>(uinode) {
-<a name="l00360"></a>00360         <span class="keywordflow">if</span>(integer &gt;= 0) {
-<a name="l00361"></a>00361               uinode-&gt;value(integer); <span class="keywordflow">return</span> 0;
-<a name="l00362"></a>00362         }
-<a name="l00363"></a>00363         <span class="keywordflow">else</span> {
-<a name="l00364"></a>00364             rb_raise(rb_eRuntimeError, <span class="stringliteral">"Negative FIXNUM on %s\n"</span>
-<a name="l00365"></a>00365                 , (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
-<a name="l00366"></a>00366             <span class="keywordflow">break</span>;
+<a name="l00329"></a>00329   <span class="keywordflow">else</span> {
+<a name="l00330"></a>00330       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
+<a name="l00331"></a>00331       <span class="keywordflow">return</span> Qnil;
+<a name="l00332"></a>00332   }
+<a name="l00333"></a>00333 }
+<a name="l00334"></a>00334 VALUE
+<a name="l00335"></a><a class="code" href="class_x_ruby.html#3fb4003898068bfd83f12a978bb50eac">00335</a> <a class="code" href="class_x_ruby.html#3fb4003898068bfd83f12a978bb50eac">XRuby::rvaluenode_to_str</a>(VALUE <span class="keyword">self</span>)
+<a name="l00336"></a>00336 {
+<a name="l00337"></a>00337   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
+<a name="l00338"></a>00338   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
+<a name="l00339"></a>00339   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a>.lock()) {
+<a name="l00340"></a>00340       shared_ptr&lt;XValueNodeBase&gt; vnode = dynamic_pointer_cast&lt;XValueNodeBase&gt;(node);
+<a name="l00341"></a>00341       ASSERT(vnode);
+<a name="l00342"></a>00342       <span class="keywordflow">return</span> rb_str_new2(vnode-&gt;to_str().utf8());
+<a name="l00343"></a>00343   }
+<a name="l00344"></a>00344   <span class="keywordflow">else</span> {
+<a name="l00345"></a>00345       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
+<a name="l00346"></a>00346       <span class="keywordflow">return</span> Qnil;
+<a name="l00347"></a>00347   }
+<a name="l00348"></a>00348 }
+<a name="l00349"></a>00349 
+<a name="l00350"></a>00350 <span class="keywordtype">int</span>
+<a name="l00351"></a><a class="code" href="class_x_ruby.html#a818c747cb3fe1976737e7cd14fb1925">00351</a> <a class="code" href="class_x_ruby.html#a818c747cb3fe1976737e7cd14fb1925">XRuby::strOnNode</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node, VALUE value)
+<a name="l00352"></a>00352 {
+<a name="l00353"></a>00353   <span class="keywordtype">double</span> dbl = 0;
+<a name="l00354"></a>00354   <span class="keywordtype">int</span> integer = 0;
+<a name="l00355"></a>00355 
+<a name="l00356"></a>00356   shared_ptr&lt;XDoubleNode&gt; dnode = dynamic_pointer_cast&lt;XDoubleNode&gt;(node);
+<a name="l00357"></a>00357   shared_ptr&lt;XIntNode&gt; inode = dynamic_pointer_cast&lt;XIntNode&gt;(node);
+<a name="l00358"></a>00358   shared_ptr&lt;XUIntNode&gt; uinode = dynamic_pointer_cast&lt;XUIntNode&gt;(node);
+<a name="l00359"></a>00359   shared_ptr&lt;XBoolNode&gt; bnode = dynamic_pointer_cast&lt;XBoolNode&gt;(node);
+<a name="l00360"></a>00360   
+<a name="l00361"></a>00361   <span class="keywordflow">switch</span> (TYPE(value)) {
+<a name="l00362"></a>00362   <span class="keywordflow">case</span> T_FIXNUM:
+<a name="l00363"></a>00363     integer = NUM2INT(value);
+<a name="l00364"></a>00364     <span class="keywordflow">if</span>(uinode) {
+<a name="l00365"></a>00365         <span class="keywordflow">if</span>(integer &gt;= 0) {
+<a name="l00366"></a>00366               uinode-&gt;value(integer); <span class="keywordflow">return</span> 0;
 <a name="l00367"></a>00367         }
-<a name="l00368"></a>00368     }
-<a name="l00369"></a>00369     <span class="keywordflow">if</span>(inode) {
-<a name="l00370"></a>00370           inode-&gt;value(integer); <span class="keywordflow">return</span> 0;
-<a name="l00371"></a>00371     }
-<a name="l00372"></a>00372     dbl = integer;
-<a name="l00373"></a>00373     <span class="keywordflow">if</span>(dnode) {dnode-&gt;value(dbl); <span class="keywordflow">return</span> 0;}
-<a name="l00374"></a>00374     rb_raise(rb_eRuntimeError, <span class="stringliteral">"FIXNUM is not appropreate on %s\n"</span>
-<a name="l00375"></a>00375         , (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
-<a name="l00376"></a>00376     <span class="keywordflow">break</span>;
-<a name="l00377"></a>00377   <span class="keywordflow">case</span> T_FLOAT:
-<a name="l00378"></a>00378     dbl = RFLOAT(value)-&gt;value;
-<a name="l00379"></a>00379     <span class="keywordflow">if</span>(dnode) {dnode-&gt;value(dbl); <span class="keywordflow">return</span> 0;}
-<a name="l00380"></a>00380     rb_raise(rb_eRuntimeError, <span class="stringliteral">"FLOAT is not appropreate on %s\n"</span>
-<a name="l00381"></a>00381         , (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
-<a name="l00382"></a>00382     <span class="keywordflow">break</span>;
-<a name="l00383"></a>00383   <span class="keywordflow">case</span> T_BIGNUM:
-<a name="l00384"></a>00384     dbl = NUM2DBL(value);
-<a name="l00385"></a>00385     <span class="keywordflow">if</span>(dnode) {dnode-&gt;value(dbl); <span class="keywordflow">return</span> 0;}
-<a name="l00386"></a>00386     rb_raise(rb_eRuntimeError, <span class="stringliteral">"BIGNUM is not appropreate on %s\n"</span>
-<a name="l00387"></a>00387         , (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
-<a name="l00388"></a>00388 <span class="comment">//    integer = lrint(dbl);</span>
-<a name="l00389"></a>00389 <span class="comment">//    if(inode &amp;&amp; (dbl &lt;= INT_MAX)) {inode-&gt;value(integer); return 0;}</span>
-<a name="l00390"></a>00390     <span class="keywordflow">break</span>;
-<a name="l00391"></a>00391   <span class="keywordflow">case</span> T_STRING:
-<a name="l00392"></a>00392     <span class="keywordflow">try</span> {
-<a name="l00393"></a>00393         QString qstr = QString::fromUtf8(STR2CSTR(value));
-<a name="l00394"></a>00394         node-&gt;str(qstr);
-<a name="l00395"></a>00395     }
-<a name="l00396"></a>00396     <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
-<a name="l00397"></a>00397         rb_raise(rb_eRuntimeError, <span class="stringliteral">"Validation error %s on %s\n"</span>
-<a name="l00398"></a>00398         , (<span class="keyword">const</span> <span class="keywordtype">char</span>*)e.<a class="code" href="struct_x_kame_error.html#a3">msg</a>().utf8(), (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
-<a name="l00399"></a>00399         <span class="keywordflow">return</span> -1;
+<a name="l00368"></a>00368         <span class="keywordflow">else</span> {
+<a name="l00369"></a>00369             rb_raise(rb_eRuntimeError, <span class="stringliteral">"Negative FIXNUM on %s\n"</span>
+<a name="l00370"></a>00370                 , (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
+<a name="l00371"></a>00371             <span class="keywordflow">break</span>;
+<a name="l00372"></a>00372         }
+<a name="l00373"></a>00373     }
+<a name="l00374"></a>00374     <span class="keywordflow">if</span>(inode) {
+<a name="l00375"></a>00375           inode-&gt;value(integer); <span class="keywordflow">return</span> 0;
+<a name="l00376"></a>00376     }
+<a name="l00377"></a>00377     dbl = integer;
+<a name="l00378"></a>00378     <span class="keywordflow">if</span>(dnode) {dnode-&gt;value(dbl); <span class="keywordflow">return</span> 0;}
+<a name="l00379"></a>00379     rb_raise(rb_eRuntimeError, <span class="stringliteral">"FIXNUM is not appropreate on %s\n"</span>
+<a name="l00380"></a>00380         , (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
+<a name="l00381"></a>00381     <span class="keywordflow">break</span>;
+<a name="l00382"></a>00382   <span class="keywordflow">case</span> T_FLOAT:
+<a name="l00383"></a>00383     dbl = RFLOAT(value)-&gt;value;
+<a name="l00384"></a>00384     <span class="keywordflow">if</span>(dnode) {dnode-&gt;value(dbl); <span class="keywordflow">return</span> 0;}
+<a name="l00385"></a>00385     rb_raise(rb_eRuntimeError, <span class="stringliteral">"FLOAT is not appropreate on %s\n"</span>
+<a name="l00386"></a>00386         , (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
+<a name="l00387"></a>00387     <span class="keywordflow">break</span>;
+<a name="l00388"></a>00388   <span class="keywordflow">case</span> T_BIGNUM:
+<a name="l00389"></a>00389     dbl = NUM2DBL(value);
+<a name="l00390"></a>00390     <span class="keywordflow">if</span>(dnode) {dnode-&gt;value(dbl); <span class="keywordflow">return</span> 0;}
+<a name="l00391"></a>00391     rb_raise(rb_eRuntimeError, <span class="stringliteral">"BIGNUM is not appropreate on %s\n"</span>
+<a name="l00392"></a>00392         , (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
+<a name="l00393"></a>00393 <span class="comment">//    integer = lrint(dbl);</span>
+<a name="l00394"></a>00394 <span class="comment">//    if(inode &amp;&amp; (dbl &lt;= INT_MAX)) {inode-&gt;value(integer); return 0;}</span>
+<a name="l00395"></a>00395     <span class="keywordflow">break</span>;
+<a name="l00396"></a>00396   <span class="keywordflow">case</span> T_STRING:
+<a name="l00397"></a>00397     <span class="keywordflow">try</span> {
+<a name="l00398"></a>00398         QString qstr = QString::fromUtf8(STR2CSTR(value));
+<a name="l00399"></a>00399         node-&gt;str(qstr);
 <a name="l00400"></a>00400     }
-<a name="l00401"></a>00401     <span class="keywordflow">return</span> 0;
-<a name="l00402"></a>00402   <span class="keywordflow">case</span> T_TRUE:
-<a name="l00403"></a>00403     <span class="keywordflow">if</span>(bnode) {bnode-&gt;value(<span class="keyword">true</span>); <span class="keywordflow">return</span> 0;}
-<a name="l00404"></a>00404     rb_raise(rb_eRuntimeError, <span class="stringliteral">"TRUE is not appropreate on %s\n"</span>
-<a name="l00405"></a>00405         , (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
-<a name="l00406"></a>00406     <span class="keywordflow">break</span>;
-<a name="l00407"></a>00407   <span class="keywordflow">case</span> T_FALSE:
-<a name="l00408"></a>00408     <span class="keywordflow">if</span>(bnode) {bnode-&gt;value(<span class="keyword">false</span>); <span class="keywordflow">return</span> 0;}
-<a name="l00409"></a>00409     rb_raise(rb_eRuntimeError, <span class="stringliteral">"FALSE is not appropreate on %s\n"</span>
+<a name="l00401"></a>00401     <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
+<a name="l00402"></a>00402         rb_raise(rb_eRuntimeError, <span class="stringliteral">"Validation error %s on %s\n"</span>
+<a name="l00403"></a>00403         , (<span class="keyword">const</span> <span class="keywordtype">char</span>*)e.<a class="code" href="struct_x_kame_error.html#3414b50e288297ba18a61ddd61c8e666">msg</a>().utf8(), (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
+<a name="l00404"></a>00404         <span class="keywordflow">return</span> -1;
+<a name="l00405"></a>00405     }
+<a name="l00406"></a>00406     <span class="keywordflow">return</span> 0;
+<a name="l00407"></a>00407   <span class="keywordflow">case</span> T_TRUE:
+<a name="l00408"></a>00408     <span class="keywordflow">if</span>(bnode) {bnode-&gt;value(<span class="keyword">true</span>); <span class="keywordflow">return</span> 0;}
+<a name="l00409"></a>00409     rb_raise(rb_eRuntimeError, <span class="stringliteral">"TRUE is not appropreate on %s\n"</span>
 <a name="l00410"></a>00410         , (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
 <a name="l00411"></a>00411     <span class="keywordflow">break</span>;
-<a name="l00412"></a>00412   <span class="keywordflow">default</span>:
-<a name="l00413"></a>00413     rb_raise(rb_eRuntimeError, <span class="stringliteral">"UNKNOWN TYPE is not appropreate on %s\n"</span>
-<a name="l00414"></a>00414         , (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
-<a name="l00415"></a>00415     <span class="keywordflow">break</span>;
-<a name="l00416"></a>00416   }
-<a name="l00417"></a>00417   <span class="keywordflow">return</span> -1;
-<a name="l00418"></a>00418 }
-<a name="l00419"></a>00419 VALUE
-<a name="l00420"></a><a class="code" href="class_x_ruby.html#h4">00420</a> <a class="code" href="class_x_ruby.html#h4">XRuby::getValueOfNode</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node)
-<a name="l00421"></a>00421 {
-<a name="l00422"></a>00422   shared_ptr&lt;XDoubleNode&gt; dnode = dynamic_pointer_cast&lt;XDoubleNode&gt;(node);
-<a name="l00423"></a>00423   shared_ptr&lt;XIntNode&gt; inode = dynamic_pointer_cast&lt;XIntNode&gt;(node);
-<a name="l00424"></a>00424   shared_ptr&lt;XUIntNode&gt; uinode = dynamic_pointer_cast&lt;XUIntNode&gt;(node);
-<a name="l00425"></a>00425   shared_ptr&lt;XBoolNode&gt; bnode = dynamic_pointer_cast&lt;XBoolNode&gt;(node);
-<a name="l00426"></a>00426   shared_ptr&lt;XStringNode&gt; snode = dynamic_pointer_cast&lt;XStringNode&gt;(node);
-<a name="l00427"></a>00427   <span class="keywordflow">if</span>(dnode) {<span class="keywordflow">return</span> rb_float_new((<span class="keywordtype">double</span>)*dnode);}
-<a name="l00428"></a>00428   <span class="keywordflow">if</span>(inode) {<span class="keywordflow">return</span> INT2NUM(*inode);}
-<a name="l00429"></a>00429   <span class="keywordflow">if</span>(uinode) {<span class="keywordflow">return</span> UINT2NUM(*uinode);}
-<a name="l00430"></a>00430   <span class="keywordflow">if</span>(bnode) {<span class="keywordflow">return</span> (*bnode) ? Qtrue : Qfalse;}
-<a name="l00431"></a>00431   <span class="keywordflow">if</span>(snode) {<span class="keywordflow">return</span> rb_str_new2(QString(*snode).utf8());}
-<a name="l00432"></a>00432   <span class="keywordflow">return</span> Qnil;
-<a name="l00433"></a>00433 }
-<a name="l00434"></a>00434 
-<a name="l00435"></a>00435 VALUE
-<a name="l00436"></a><a class="code" href="class_x_ruby.html#h1">00436</a> <a class="code" href="class_x_ruby.html#h1">XRuby::my_rbdefout</a>(VALUE <span class="keyword">self</span>, VALUE str, VALUE threadid)
-<a name="l00437"></a>00437 {
-<a name="l00438"></a>00438   <span class="keywordtype">int</span> <span class="keywordtype">id</span> = NUM2INT(threadid);
-<a name="l00439"></a>00439   QString qstr = QString::fromUtf8(STR2CSTR(str));
-<a name="l00440"></a>00440   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
-<a name="l00441"></a>00441   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00442"></a>00442   st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o1">xruby</a>-&gt;<a class="code" href="class_x_node.html#a21">childLock</a>();
-<a name="l00443"></a>00443   shared_ptr&lt;XRubyThread&gt; rubythread;
-<a name="l00444"></a>00444   <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o1">xruby</a>-&gt;<a class="code" href="class_x_node.html#a14">count</a>(); i++) {
-<a name="l00445"></a>00445     <span class="keywordflow">if</span>(<span class="keywordtype">id</span> == *(*st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o1">xruby</a>)[i]-&gt;threadID())
-<a name="l00446"></a>00446         rubythread = (*st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o1">xruby</a>)[i];
-<a name="l00447"></a>00447   }
-<a name="l00448"></a>00448   <span class="keywordflow">if</span>(rubythread) {
-<a name="l00449"></a>00449       rubythread-&gt;onMessageOut().talk(qstr);
-<a name="l00450"></a>00450       dbgPrint(QString(<span class="stringliteral">"Ruby [%1]; %2"</span>).arg(rubythread-&gt;filename()-&gt;to_str()).arg(qstr));
-<a name="l00451"></a>00451   }
-<a name="l00452"></a>00452   <span class="keywordflow">else</span> {
-<a name="l00453"></a>00453       dbgPrint(QString(<span class="stringliteral">"Ruby [global]; %1"</span>).arg(qstr));
-<a name="l00454"></a>00454   }
-<a name="l00455"></a>00455   st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o1">xruby</a>-&gt;<a class="code" href="class_x_node.html#a22">childUnlock</a>();
-<a name="l00456"></a>00456   <span class="keywordflow">return</span> Qnil;
-<a name="l00457"></a>00457 }
-<a name="l00458"></a>00458 VALUE
-<a name="l00459"></a><a class="code" href="class_x_ruby.html#h2">00459</a> <a class="code" href="class_x_ruby.html#h2">XRuby::is_main_terminated</a>(VALUE <span class="keyword">self</span>)
-<a name="l00460"></a>00460 {
-<a name="l00461"></a>00461   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
-<a name="l00462"></a>00462   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00463"></a>00463   <span class="keywordflow">return</span> (st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o1">xruby</a>-&gt;<a class="code" href="class_x_ruby.html#r7">m_bTerminated</a>) ? Qtrue : Qfalse;
-<a name="l00464"></a>00464 }
-<a name="l00465"></a>00465 
-<a name="l00466"></a>00466 <span class="keywordtype">void</span> *
-<a name="l00467"></a><a class="code" href="class_x_ruby.html#b1">00467</a> <a class="code" href="class_x_ruby.html#b1">XRuby::execute</a>()
-<a name="l00468"></a>00468 {
-<a name="l00469"></a>00469     
-<a name="l00470"></a>00470   <span class="keywordflow">while</span> (!<a class="code" href="class_x_ruby.html#r7">m_bTerminated</a>) {
-<a name="l00471"></a>00471       ruby_init();
-<a name="l00472"></a>00472       ruby_script(<span class="stringliteral">"KAME"</span>);
-<a name="l00473"></a>00473       
-<a name="l00474"></a>00474       ruby_init_loadpath();
-<a name="l00475"></a>00475       
-<a name="l00476"></a>00476       <a class="code" href="class_x_ruby.html#r0">rbClassNode</a> = rb_define_class(<span class="stringliteral">"XNode"</span>, rb_cObject);
-<a name="l00477"></a>00477       rb_global_variable(&amp;<a class="code" href="class_x_ruby.html#r0">rbClassNode</a>);
-<a name="l00478"></a>00478       <span class="keyword">typedef</span> VALUE(*fp)(...);
-<a name="l00479"></a>00479       rb_define_method(<a class="code" href="class_x_ruby.html#r0">rbClassNode</a>, <span class="stringliteral">"name"</span>, (fp)<a class="code" href="class_x_ruby.html#h6">rnode_name</a>, 0);
-<a name="l00480"></a>00480       rb_define_method(<a class="code" href="class_x_ruby.html#r0">rbClassNode</a>, <span class="stringliteral">"touch"</span>, (fp)<a class="code" href="class_x_ruby.html#h7">rnode_touch</a>, 0);
-<a name="l00481"></a>00481       rb_define_method(<a class="code" href="class_x_ruby.html#r0">rbClassNode</a>, <span class="stringliteral">"child"</span>, (fp)<a class="code" href="class_x_ruby.html#h9">rnode_child</a>, 1);
-<a name="l00482"></a>00482       rb_define_method(<a class="code" href="class_x_ruby.html#r0">rbClassNode</a>, <span class="stringliteral">"[]"</span>, (fp)rnode_child, 1);
-<a name="l00483"></a>00483       rb_define_method(<a class="code" href="class_x_ruby.html#r0">rbClassNode</a>, <span class="stringliteral">"count"</span>, (fp)<a class="code" href="class_x_ruby.html#h8">rnode_count</a>, 0);
-<a name="l00484"></a>00484       <a class="code" href="class_x_ruby.html#r1">rbClassValueNode</a> = rb_define_class(<span class="stringliteral">"XValueNode"</span>, <a class="code" href="class_x_ruby.html#r0">rbClassNode</a>);
-<a name="l00485"></a>00485       rb_global_variable(&amp;<a class="code" href="class_x_ruby.html#r1">rbClassValueNode</a>);
-<a name="l00486"></a>00486       rb_define_method(<a class="code" href="class_x_ruby.html#r1">rbClassValueNode</a>, <span class="stringliteral">"set"</span>, (fp)<a class="code" href="class_x_ruby.html#h10">rvaluenode_set</a>, 1);
-<a name="l00487"></a>00487       rb_define_method(<a class="code" href="class_x_ruby.html#r1">rbClassValueNode</a>, <span class="stringliteral">"load"</span>, (fp)<a class="code" href="class_x_ruby.html#h11">rvaluenode_load</a>, 1);
-<a name="l00488"></a>00488       rb_define_method(<a class="code" href="class_x_ruby.html#r1">rbClassValueNode</a>, <span class="stringliteral">"get"</span>, (fp)<a class="code" href="class_x_ruby.html#h12">rvaluenode_get</a>, 0);
-<a name="l00489"></a>00489       rb_define_method(<a class="code" href="class_x_ruby.html#r1">rbClassValueNode</a>, <span class="stringliteral">"to_str"</span>, (fp)<a class="code" href="class_x_ruby.html#h13">rvaluenode_to_str</a>, 0);
-<a name="l00490"></a>00490       <a class="code" href="class_x_ruby.html#r2">rbClassListNode</a> = rb_define_class(<span class="stringliteral">"XListNode"</span>, <a class="code" href="class_x_ruby.html#r0">rbClassNode</a>);
-<a name="l00491"></a>00491       rb_global_variable(&amp;<a class="code" href="class_x_ruby.html#r2">rbClassListNode</a>);
-<a name="l00492"></a>00492       rb_define_method(<a class="code" href="class_x_ruby.html#r2">rbClassListNode</a>, <span class="stringliteral">"create"</span>, (fp)<a class="code" href="class_x_ruby.html#h14">rlistnode_create_child</a>, 2);
-<a name="l00493"></a>00493       rb_define_method(<a class="code" href="class_x_ruby.html#r2">rbClassListNode</a>, <span class="stringliteral">"release"</span>, (fp)<a class="code" href="class_x_ruby.html#h15">rlistnode_release_child</a>, 1);
-<a name="l00494"></a>00494       
-<a name="l00495"></a>00495       {
-<a name="l00496"></a>00496           shared_ptr&lt;XMeasure&gt; measure = <a class="code" href="class_x_ruby.html#r5">m_measure</a>.lock();
-<a name="l00497"></a>00497           ASSERT(measure);
-<a name="l00498"></a>00498           QString name = measure-&gt;getName();
-<a name="l00499"></a>00499           name[0] = name[0].upper();
-<a name="l00500"></a>00500           VALUE rbRootNode = <a class="code" href="class_x_ruby.html#h5">rnode_create</a>(measure, <span class="keyword">this</span>);
-<a name="l00501"></a>00501           rb_define_global_const(name.utf8(), rbRootNode);
-<a name="l00502"></a>00502           rb_define_global_const(<span class="stringliteral">"RootNode"</span>, rbRootNode);
-<a name="l00503"></a>00503       }
-<a name="l00504"></a>00504       {
-<a name="l00505"></a>00505           VALUE rbRubyThreads = <a class="code" href="class_x_ruby.html#h5">rnode_create</a>(shared_from_this(), <span class="keyword">this</span>);
-<a name="l00506"></a>00506           rb_define_singleton_method(rbRubyThreads, <span class="stringliteral">"my_rbdefout"</span>, (fp)<a class="code" href="class_x_ruby.html#h1">my_rbdefout</a>, 2);
-<a name="l00507"></a>00507           rb_define_singleton_method(rbRubyThreads, <span class="stringliteral">"is_main_terminated"</span>, (fp)<a class="code" href="class_x_ruby.html#h2">is_main_terminated</a>, 0);
-<a name="l00508"></a>00508           rb_define_global_const(<span class="stringliteral">"XRubyThreads"</span>, rbRubyThreads);
+<a name="l00412"></a>00412   <span class="keywordflow">case</span> T_FALSE:
+<a name="l00413"></a>00413     <span class="keywordflow">if</span>(bnode) {bnode-&gt;value(<span class="keyword">false</span>); <span class="keywordflow">return</span> 0;}
+<a name="l00414"></a>00414     rb_raise(rb_eRuntimeError, <span class="stringliteral">"FALSE is not appropreate on %s\n"</span>
+<a name="l00415"></a>00415         , (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
+<a name="l00416"></a>00416     <span class="keywordflow">break</span>;
+<a name="l00417"></a>00417   <span class="keywordflow">default</span>:
+<a name="l00418"></a>00418     rb_raise(rb_eRuntimeError, <span class="stringliteral">"UNKNOWN TYPE is not appropreate on %s\n"</span>
+<a name="l00419"></a>00419         , (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8());
+<a name="l00420"></a>00420     <span class="keywordflow">break</span>;
+<a name="l00421"></a>00421   }
+<a name="l00422"></a>00422   <span class="keywordflow">return</span> -1;
+<a name="l00423"></a>00423 }
+<a name="l00424"></a>00424 VALUE
+<a name="l00425"></a><a class="code" href="class_x_ruby.html#844b796abc9683360227d3cf04ce7c8a">00425</a> <a class="code" href="class_x_ruby.html#844b796abc9683360227d3cf04ce7c8a">XRuby::getValueOfNode</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node)
+<a name="l00426"></a>00426 {
+<a name="l00427"></a>00427   shared_ptr&lt;XDoubleNode&gt; dnode = dynamic_pointer_cast&lt;XDoubleNode&gt;(node);
+<a name="l00428"></a>00428   shared_ptr&lt;XIntNode&gt; inode = dynamic_pointer_cast&lt;XIntNode&gt;(node);
+<a name="l00429"></a>00429   shared_ptr&lt;XUIntNode&gt; uinode = dynamic_pointer_cast&lt;XUIntNode&gt;(node);
+<a name="l00430"></a>00430   shared_ptr&lt;XBoolNode&gt; bnode = dynamic_pointer_cast&lt;XBoolNode&gt;(node);
+<a name="l00431"></a>00431   shared_ptr&lt;XStringNode&gt; snode = dynamic_pointer_cast&lt;XStringNode&gt;(node);
+<a name="l00432"></a>00432   <span class="keywordflow">if</span>(dnode) {<span class="keywordflow">return</span> rb_float_new((<span class="keywordtype">double</span>)*dnode);}
+<a name="l00433"></a>00433   <span class="keywordflow">if</span>(inode) {<span class="keywordflow">return</span> INT2NUM(*inode);}
+<a name="l00434"></a>00434   <span class="keywordflow">if</span>(uinode) {<span class="keywordflow">return</span> UINT2NUM(*uinode);}
+<a name="l00435"></a>00435   <span class="keywordflow">if</span>(bnode) {<span class="keywordflow">return</span> (*bnode) ? Qtrue : Qfalse;}
+<a name="l00436"></a>00436   <span class="keywordflow">if</span>(snode) {<span class="keywordflow">return</span> rb_str_new2(QString(*snode).utf8());}
+<a name="l00437"></a>00437   <span class="keywordflow">return</span> Qnil;
+<a name="l00438"></a>00438 }
+<a name="l00439"></a>00439 
+<a name="l00440"></a>00440 VALUE
+<a name="l00441"></a><a class="code" href="class_x_ruby.html#0941da058643c7d60b6f99403a8696ec">00441</a> <a class="code" href="class_x_ruby.html#0941da058643c7d60b6f99403a8696ec">XRuby::my_rbdefout</a>(VALUE <span class="keyword">self</span>, VALUE str, VALUE threadid)
+<a name="l00442"></a>00442 {
+<a name="l00443"></a>00443   <span class="keywordtype">int</span> <span class="keywordtype">id</span> = NUM2INT(threadid);
+<a name="l00444"></a>00444   QString qstr = QString::fromUtf8(STR2CSTR(str));
+<a name="l00445"></a>00445   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
+<a name="l00446"></a>00446   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
+<a name="l00447"></a>00447   { <a class="code" href="struct_x_scoped_read_lock.html">XScopedReadLock&lt;XRecursiveRWLock&gt;</a> lock(st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#a6769fc6038a89b035ed07b59b7e4122">xruby</a>-&gt;<a class="code" href="class_x_node.html#868e8d8c49bb7d5f66a3c1980a1da6ca">childMutex</a>());
+<a name="l00448"></a>00448       shared_ptr&lt;XRubyThread&gt; rubythread;
+<a name="l00449"></a>00449       <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#a6769fc6038a89b035ed07b59b7e4122">xruby</a>-&gt;<a class="code" href="class_x_node.html#1cca054072e12fcac3c0a1ab6bafbf52">count</a>(); i++) {
+<a name="l00450"></a>00450         <span class="keywordflow">if</span>(<span class="keywordtype">id</span> == *(*st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#a6769fc6038a89b035ed07b59b7e4122">xruby</a>)[i]-&gt;threadID())
+<a name="l00451"></a>00451             rubythread = (*st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#a6769fc6038a89b035ed07b59b7e4122">xruby</a>)[i];
+<a name="l00452"></a>00452       }
+<a name="l00453"></a>00453       <span class="keywordflow">if</span>(rubythread) {
+<a name="l00454"></a>00454           shared_ptr&lt;QString&gt; buf(<span class="keyword">new</span> QString(QDeepCopy&lt;QString&gt;(qstr)));
+<a name="l00455"></a>00455           rubythread-&gt;onMessageOut().talk(buf);
+<a name="l00456"></a>00456           dbgPrint(QString(<span class="stringliteral">"Ruby [%1]; %2"</span>).arg(rubythread-&gt;filename()-&gt;to_str()).arg(qstr));
+<a name="l00457"></a>00457       }
+<a name="l00458"></a>00458       <span class="keywordflow">else</span> {
+<a name="l00459"></a>00459           dbgPrint(QString(<span class="stringliteral">"Ruby [global]; %1"</span>).arg(qstr));
+<a name="l00460"></a>00460       }
+<a name="l00461"></a>00461   }
+<a name="l00462"></a>00462   <span class="keywordflow">return</span> Qnil;
+<a name="l00463"></a>00463 }
+<a name="l00464"></a>00464 VALUE
+<a name="l00465"></a><a class="code" href="class_x_ruby.html#f8a230dbc73b02508db5b504725c3b61">00465</a> <a class="code" href="class_x_ruby.html#f8a230dbc73b02508db5b504725c3b61">XRuby::is_main_terminated</a>(VALUE <span class="keyword">self</span>)
+<a name="l00466"></a>00466 {
+<a name="l00467"></a>00467   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
+<a name="l00468"></a>00468   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
+<a name="l00469"></a>00469   <span class="keywordflow">return</span> (st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#a6769fc6038a89b035ed07b59b7e4122">xruby</a>-&gt;<a class="code" href="class_x_ruby.html#439ebbf8985c524d1bcb55555910bffc">m_thread</a>.<a class="code" href="class_x_thread.html#1d6be3ec9b5c27920c79b2cf0635b7fa">isTerminated</a>()) ? Qtrue : Qfalse;
+<a name="l00470"></a>00470 }
+<a name="l00471"></a>00471 
+<a name="l00472"></a>00472 <span class="keywordtype">void</span> *
+<a name="l00473"></a><a class="code" href="class_x_ruby.html#764f44fcd9156bb86ce97b8bf1d3c437">00473</a> <a class="code" href="class_x_ruby.html#764f44fcd9156bb86ce97b8bf1d3c437">XRuby::execute</a>(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;terminated)
+<a name="l00474"></a>00474 {
+<a name="l00475"></a>00475     
+<a name="l00476"></a>00476   <span class="keywordflow">while</span> (!terminated) {
+<a name="l00477"></a>00477       ruby_init();
+<a name="l00478"></a>00478       ruby_script(<span class="stringliteral">"KAME"</span>);
+<a name="l00479"></a>00479       
+<a name="l00480"></a>00480       ruby_init_loadpath();
+<a name="l00481"></a>00481       
+<a name="l00482"></a>00482       <a class="code" href="class_x_ruby.html#bdcbc675dd343883e27d00dfaa0e8bef">rbClassNode</a> = rb_define_class(<span class="stringliteral">"XNode"</span>, rb_cObject);
+<a name="l00483"></a>00483       rb_global_variable(&amp;<a class="code" href="class_x_ruby.html#bdcbc675dd343883e27d00dfaa0e8bef">rbClassNode</a>);
+<a name="l00484"></a>00484       <span class="keyword">typedef</span> VALUE(*fp)(...);
+<a name="l00485"></a>00485       rb_define_method(<a class="code" href="class_x_ruby.html#bdcbc675dd343883e27d00dfaa0e8bef">rbClassNode</a>, <span class="stringliteral">"name"</span>, (fp)<a class="code" href="class_x_ruby.html#8dbb384e96283696098eed3f43db603e">rnode_name</a>, 0);
+<a name="l00486"></a>00486       rb_define_method(<a class="code" href="class_x_ruby.html#bdcbc675dd343883e27d00dfaa0e8bef">rbClassNode</a>, <span class="stringliteral">"touch"</span>, (fp)<a class="code" href="class_x_ruby.html#e7402ab445a84cb6e23b9a9d1e249738">rnode_touch</a>, 0);
+<a name="l00487"></a>00487       rb_define_method(<a class="code" href="class_x_ruby.html#bdcbc675dd343883e27d00dfaa0e8bef">rbClassNode</a>, <span class="stringliteral">"child"</span>, (fp)<a class="code" href="class_x_ruby.html#5cacdce99649c7077df80222060e6737">rnode_child</a>, 1);
+<a name="l00488"></a>00488       rb_define_method(<a class="code" href="class_x_ruby.html#bdcbc675dd343883e27d00dfaa0e8bef">rbClassNode</a>, <span class="stringliteral">"[]"</span>, (fp)rnode_child, 1);
+<a name="l00489"></a>00489       rb_define_method(<a class="code" href="class_x_ruby.html#bdcbc675dd343883e27d00dfaa0e8bef">rbClassNode</a>, <span class="stringliteral">"count"</span>, (fp)<a class="code" href="class_x_ruby.html#eb206c3ae43aa6fb68ab0aa6ac16f4d4">rnode_count</a>, 0);
+<a name="l00490"></a>00490       <a class="code" href="class_x_ruby.html#357c1deb431b0789d8c792b0126e9be6">rbClassValueNode</a> = rb_define_class(<span class="stringliteral">"XValueNode"</span>, <a class="code" href="class_x_ruby.html#bdcbc675dd343883e27d00dfaa0e8bef">rbClassNode</a>);
+<a name="l00491"></a>00491       rb_global_variable(&amp;<a class="code" href="class_x_ruby.html#357c1deb431b0789d8c792b0126e9be6">rbClassValueNode</a>);
+<a name="l00492"></a>00492       rb_define_method(<a class="code" href="class_x_ruby.html#357c1deb431b0789d8c792b0126e9be6">rbClassValueNode</a>, <span class="stringliteral">"set"</span>, (fp)<a class="code" href="class_x_ruby.html#35e2ba22b0573b47e7ef57c202a89eee">rvaluenode_set</a>, 1);
+<a name="l00493"></a>00493       rb_define_method(<a class="code" href="class_x_ruby.html#357c1deb431b0789d8c792b0126e9be6">rbClassValueNode</a>, <span class="stringliteral">"internal_load"</span>, (fp)<a class="code" href="class_x_ruby.html#37386cf2e6cd84f2811228b0d0a8a0c3">rvaluenode_load</a>, 1);
+<a name="l00494"></a>00494       rb_define_method(<a class="code" href="class_x_ruby.html#357c1deb431b0789d8c792b0126e9be6">rbClassValueNode</a>, <span class="stringliteral">"get"</span>, (fp)<a class="code" href="class_x_ruby.html#8d24a142da6d2325f4beaf3d0fc191d2">rvaluenode_get</a>, 0);
+<a name="l00495"></a>00495       rb_define_method(<a class="code" href="class_x_ruby.html#357c1deb431b0789d8c792b0126e9be6">rbClassValueNode</a>, <span class="stringliteral">"to_str"</span>, (fp)<a class="code" href="class_x_ruby.html#3fb4003898068bfd83f12a978bb50eac">rvaluenode_to_str</a>, 0);
+<a name="l00496"></a>00496       <a class="code" href="class_x_ruby.html#8fd6a751e2eab65e3ce1c52ae2b74c7d">rbClassListNode</a> = rb_define_class(<span class="stringliteral">"XListNode"</span>, <a class="code" href="class_x_ruby.html#bdcbc675dd343883e27d00dfaa0e8bef">rbClassNode</a>);
+<a name="l00497"></a>00497       rb_global_variable(&amp;<a class="code" href="class_x_ruby.html#8fd6a751e2eab65e3ce1c52ae2b74c7d">rbClassListNode</a>);
+<a name="l00498"></a>00498       rb_define_method(<a class="code" href="class_x_ruby.html#8fd6a751e2eab65e3ce1c52ae2b74c7d">rbClassListNode</a>, <span class="stringliteral">"create"</span>, (fp)<a class="code" href="class_x_ruby.html#1e242123b8a58268e40e0cd47004be21">rlistnode_create_child</a>, 2);
+<a name="l00499"></a>00499       rb_define_method(<a class="code" href="class_x_ruby.html#8fd6a751e2eab65e3ce1c52ae2b74c7d">rbClassListNode</a>, <span class="stringliteral">"release"</span>, (fp)<a class="code" href="class_x_ruby.html#5ead2fb9d0a9beba729ef63e0b0af341">rlistnode_release_child</a>, 1);
+<a name="l00500"></a>00500       
+<a name="l00501"></a>00501       {
+<a name="l00502"></a>00502           shared_ptr&lt;XMeasure&gt; measure = <a class="code" href="class_x_ruby.html#1159ef3611169f65f44692e434f27d07">m_measure</a>.lock();
+<a name="l00503"></a>00503           ASSERT(measure);
+<a name="l00504"></a>00504           QString name = measure-&gt;getName();
+<a name="l00505"></a>00505           name[0] = name[0].upper();
+<a name="l00506"></a>00506           VALUE rbRootNode = <a class="code" href="class_x_ruby.html#801a32a0717d9b4e4e5cab471abd559d">rnode_create</a>(measure, <span class="keyword">this</span>);
+<a name="l00507"></a>00507           rb_define_global_const(name.utf8(), rbRootNode);
+<a name="l00508"></a>00508           rb_define_global_const(<span class="stringliteral">"RootNode"</span>, rbRootNode);
 <a name="l00509"></a>00509       }
-<a name="l00510"></a>00510       
-<a name="l00511"></a>00511       {
-<a name="l00512"></a>00512           <span class="keywordtype">int</span> state;
-<a name="l00513"></a>00513           QString filename = ::locate(<span class="stringliteral">"appdata"</span>, XRUBYSUPPORT_RB);
-<a name="l00514"></a>00514           <span class="keywordflow">if</span>(filename.isEmpty()) {
-<a name="l00515"></a>00515               g_statusPrinter-&gt;printError(<span class="stringliteral">"No KAME ruby support file installed."</span>);
-<a name="l00516"></a>00516           }
-<a name="l00517"></a>00517           <span class="keywordflow">else</span> {
-<a name="l00518"></a>00518               rb_load_protect (rb_str_new2 (filename), 0, &amp;state);
-<a name="l00519"></a>00519           }
-<a name="l00520"></a>00520       }
-<a name="l00521"></a>00521       ruby_finalize();
-<a name="l00522"></a>00522     
-<a name="l00523"></a>00523       fprintf(stderr, <span class="stringliteral">"ruby finished\n"</span>);
-<a name="l00524"></a>00524 
-<a name="l00525"></a>00525   }
-<a name="l00526"></a>00526   <span class="keywordflow">return</span> NULL;
-<a name="l00527"></a>00527 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:21 2006に生成されました。&nbsp;
+<a name="l00510"></a>00510       {
+<a name="l00511"></a>00511           VALUE rbRubyThreads = <a class="code" href="class_x_ruby.html#801a32a0717d9b4e4e5cab471abd559d">rnode_create</a>(shared_from_this(), <span class="keyword">this</span>);
+<a name="l00512"></a>00512           rb_define_singleton_method(rbRubyThreads, <span class="stringliteral">"my_rbdefout"</span>, (fp)<a class="code" href="class_x_ruby.html#0941da058643c7d60b6f99403a8696ec">my_rbdefout</a>, 2);
+<a name="l00513"></a>00513           rb_define_singleton_method(rbRubyThreads, <span class="stringliteral">"is_main_terminated"</span>, (fp)<a class="code" href="class_x_ruby.html#f8a230dbc73b02508db5b504725c3b61">is_main_terminated</a>, 0);
+<a name="l00514"></a>00514           rb_define_global_const(<span class="stringliteral">"XRubyThreads"</span>, rbRubyThreads);
+<a name="l00515"></a>00515       }
+<a name="l00516"></a>00516       
+<a name="l00517"></a>00517       {
+<a name="l00518"></a>00518           <span class="keywordtype">int</span> state;
+<a name="l00519"></a>00519           QString filename = ::locate(<span class="stringliteral">"appdata"</span>, XRUBYSUPPORT_RB);
+<a name="l00520"></a>00520           <span class="keywordflow">if</span>(filename.isEmpty()) {
+<a name="l00521"></a>00521               g_statusPrinter-&gt;printError(<span class="stringliteral">"No KAME ruby support file installed."</span>);
+<a name="l00522"></a>00522           }
+<a name="l00523"></a>00523           <span class="keywordflow">else</span> {
+<a name="l00524"></a>00524               rb_load_protect (rb_str_new2 (filename), 0, &amp;state);
+<a name="l00525"></a>00525           }
+<a name="l00526"></a>00526       }
+<a name="l00527"></a>00527       ruby_finalize();
+<a name="l00528"></a>00528     
+<a name="l00529"></a>00529       fprintf(stderr, <span class="stringliteral">"ruby finished\n"</span>);
+<a name="l00530"></a>00530 
+<a name="l00531"></a>00531   }
+<a name="l00532"></a>00532   <span class="keywordflow">return</span> NULL;
+<a name="l00533"></a>00533 }
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:45 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
 </html>

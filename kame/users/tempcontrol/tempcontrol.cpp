@@ -32,7 +32,7 @@ XTempControl::XTempControl(const char *name, bool runtime,
         (create<XItemNode<XChannelList, XChannel> >("CurrentChannel", true, m_channels)),
     m_setupChannel
         (create<XItemNode<XChannelList, XChannel> >("SetupChannel", true, m_channels)),
-    m_targetTemp(create<XDoubleNode>("TargetTemp", true, "%.6g")),
+    m_targetTemp(create<XDoubleNode>("TargetTemp", true, "%.5g")),
     m_manualPower(create<XDoubleNode>("ManualPower", true, "%.4g")),
     m_prop(create<XDoubleNode>("P", false, "%.4g")),
     m_int(create<XDoubleNode>("I", false, "%.4g")),
@@ -40,7 +40,7 @@ XTempControl::XTempControl(const char *name, bool runtime,
     m_heaterMode(create<XComboNode>("HeaterMode", false)),
     m_powerRange(create<XComboNode>("PowerRange", false)),
     m_heaterPower(create<XDoubleNode>("HeaterPower", false, "%.4g")),
-    m_sourceTemp(create<XDoubleNode>("SourceTemp", false, "%.6g")),
+    m_sourceTemp(create<XDoubleNode>("SourceTemp", false, "%.5g")),
     m_stabilized(create<XDoubleNode>("Stabilized", true, "%g")),
     m_form(new FrmTempControl(g_pFrmMain))
 {
@@ -161,25 +161,24 @@ XTempControl::createChannels(const shared_ptr<XScalarEntryList> &scalarentries,
   }
   if(multiread)
     {
-      m_channels->childLock();
+      XScopedReadLock<XRecursiveRWLock> lock(m_channels->childMutex());
       for(unsigned int i = 0; i < m_channels->count(); i++)
       {
         shared_ptr<XScalarEntry> entry_temp(create<XScalarEntry>(
 		  QString("Ch.%1").arg((*m_channels)[i]->getName()).latin1()
 		  , false,
            dynamic_pointer_cast<XDriver>(shared_from_this())
-          , "%.6g"));
+          , "%.5g"));
         shared_ptr<XScalarEntry> entry_raw(create<XScalarEntry>(
           QString("Ch.%1.raw").arg((*m_channels)[i]->getName()).latin1()
           , false,
            dynamic_pointer_cast<XDriver>(shared_from_this())
-          , "%.6g"));
+          , "%.5g"));
          m_entry_temps.push_back(entry_temp);
          m_entry_raws.push_back(entry_raw);
          entries->insert(entry_temp);
          entries->insert(entry_raw);
       }
-      m_channels->childUnlock();
     }
   else
     {
@@ -187,12 +186,12 @@ XTempControl::createChannels(const shared_ptr<XScalarEntryList> &scalarentries,
           "Temp"
           , false,
            dynamic_pointer_cast<XDriver>(shared_from_this())
-          , "%.6g"));
+          , "%.5g"));
         shared_ptr<XScalarEntry> entry_raw(create<XScalarEntry>(
           "Raw"
           , false,
            dynamic_pointer_cast<XDriver>(shared_from_this())
-          , "%.6g"));
+          , "%.5g"));
          m_entry_temps.push_back(entry_temp);
          m_entry_raws.push_back(entry_raw);
          entries->insert(entry_temp);
@@ -249,7 +248,7 @@ XTempControl::execute(const atomic<bool> &terminated)
       double raw, src_raw = 0, src_temp = 0, temp;
       startWritingRaw();
       XTime time_awared = XTime::now();
-      m_channels->childLock();
+      XScopedReadLock<XRecursiveRWLock> lock(m_channels->childMutex());
       // try/catch exception of communication errors
       try {
           shared_ptr<XChannel> src_ch = *m_currentChannel;
@@ -295,12 +294,10 @@ XTempControl::execute(const atomic<bool> &terminated)
           heaterPower()->value(getHeater());
       }
       catch (XKameError &e) {
-          m_channels->childUnlock();
           finishWritingRaw(XTime(), XTime(), false);
           e.print(getName() + "; ");
           continue;
       }
-      m_channels->childUnlock();
       finishWritingRaw(time_awared, XTime::now(), true);
     }
 

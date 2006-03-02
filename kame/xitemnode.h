@@ -15,8 +15,6 @@ class XItemNodeBase : public XValueNodeBase
   virtual QString operator[](unsigned int index) const = 0;
   virtual unsigned int itemCount() const = 0;
   
-  virtual void listLock() = 0;
-  virtual void listUnlock() = 0;
   virtual const XRecursiveRWLock &listMutex() const = 0;
   
   XTalker<shared_ptr<XItemNodeBase> >  &onListChanged() {return m_tlkOnListChanged;}
@@ -44,8 +42,6 @@ class XPointerItemNode : public XItemNodeBase
     }
  public:
   virtual ~XPointerItemNode() {}
-  virtual void listLock() {m_list->childLock();}
-  virtual void listUnlock() {m_list->childUnlock();}
 
   virtual const XRecursiveRWLock &listMutex() const {return m_list->childMutex();}
 
@@ -137,8 +133,6 @@ class XComboNode : public XItemNodeBase
  public:
   virtual ~XComboNode() {}
 
-  virtual void listLock();
-  virtual void listUnlock();
   virtual const XRecursiveRWLock &listMutex() const {return m_listmutex;}
   
   virtual QString to_str() const;

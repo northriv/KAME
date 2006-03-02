@@ -1,2 +1,9 @@
 base referer
-rect $class_x_d_s_o.html 8,7 66,34
+rect $class_x_d_s_o.html 570,586 629,613
+rect $class_x_primary_driver.html 253,192 368,218
+rect $class_x_driver.html 200,114 266,141
+rect $class_x_time.html 32,8 93,34
+rect $class_x_recursive_r_w_lock.html 224,8 365,34
+rect $classqshared__ptr.html 432,192 600,218
+rect $classqshared__ptr.html 624,192 746,218
+rect $class_f_i_r.html 832,192 874,218

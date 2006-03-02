@@ -2,58 +2,67 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/driver/dummyport.cpp ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000003.html">driver</a></div>
+<a class="el" href="dir_cbe63f28361eb71291c8905f8fbf16c0.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_aa86fadc39b24329a5ab035c921122f9.html">driver</a></div>
 <h1>dummyport.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#include "dummyport.h"</span>
 <a name="l00002"></a>00002 
-<a name="l00003"></a><a class="code" href="class_x_dummy_port.html#a0">00003</a> <a class="code" href="class_x_dummy_port.html#a0">XDummyPort::XDummyPort</a>(<a class="code" href="class_x_interface.html">XInterface</a> *interface) :
+<a name="l00003"></a><a class="code" href="class_x_dummy_port.html#ba8bdf8861ddcdc7ea1e4159cc4e93b7">00003</a> <a class="code" href="class_x_dummy_port.html#ba8bdf8861ddcdc7ea1e4159cc4e93b7">XDummyPort::XDummyPort</a>(<a class="code" href="class_x_interface.html">XInterface</a> *interface) :
 <a name="l00004"></a>00004     <a class="code" href="class_x_port.html">XPort</a>(interface),
 <a name="l00005"></a>00005     m_stream()
 <a name="l00006"></a>00006 {
 <a name="l00007"></a>00007 }
-<a name="l00008"></a><a class="code" href="class_x_dummy_port.html#a1">00008</a> <a class="code" href="class_x_dummy_port.html#a1">XDummyPort::~XDummyPort</a>()
+<a name="l00008"></a><a class="code" href="class_x_dummy_port.html#cb2209295c1d2cc7230310fe053ee645">00008</a> <a class="code" href="class_x_dummy_port.html#cb2209295c1d2cc7230310fe053ee645">XDummyPort::~XDummyPort</a>()
 <a name="l00009"></a>00009 {
-<a name="l00010"></a>00010     <a class="code" href="class_x_dummy_port.html#r0">m_stream</a>.close();
+<a name="l00010"></a>00010     <a class="code" href="class_x_dummy_port.html#1924e3a01c82ce98a3cb80effbe84218">m_stream</a>.close();
 <a name="l00011"></a>00011 }
 <a name="l00012"></a>00012 <span class="keywordtype">void</span>
-<a name="l00013"></a><a class="code" href="class_x_dummy_port.html#a2">00013</a> <a class="code" href="class_x_dummy_port.html#a2">XDummyPort::open</a>() throw (<a class="code" href="class_x_interface.html">XInterface</a>::XCommError &amp;)
+<a name="l00013"></a><a class="code" href="class_x_dummy_port.html#2853716a2027461b9d81e881c0fbf5d0">00013</a> <a class="code" href="class_x_dummy_port.html#2853716a2027461b9d81e881c0fbf5d0">XDummyPort::open</a>() throw (<a class="code" href="class_x_interface.html">XInterface</a>::XCommError &amp;)
 <a name="l00014"></a>00014 {
-<a name="l00015"></a>00015     <a class="code" href="class_x_dummy_port.html#r0">m_stream</a>.open(<span class="stringliteral">"/tmp/kamedummyport.log"</span>, std::ios::out);
+<a name="l00015"></a>00015     <a class="code" href="class_x_dummy_port.html#1924e3a01c82ce98a3cb80effbe84218">m_stream</a>.open(<span class="stringliteral">"/tmp/kamedummyport.log"</span>, std::ios::out);
 <a name="l00016"></a>00016 }
 <a name="l00017"></a>00017 <span class="keywordtype">void</span>
-<a name="l00018"></a><a class="code" href="class_x_dummy_port.html#a3">00018</a> <a class="code" href="class_x_dummy_port.html#a3">XDummyPort::send</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *str) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;)
+<a name="l00018"></a><a class="code" href="class_x_dummy_port.html#5be8dedd517c6608ba0e81ea9f2d93a3">00018</a> <a class="code" href="class_x_dummy_port.html#5be8dedd517c6608ba0e81ea9f2d93a3">XDummyPort::send</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *str) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;)
 <a name="l00019"></a>00019 {
 <a name="l00020"></a>00020     m_stream &lt;&lt; <span class="stringliteral">"send:"</span>
 <a name="l00021"></a>00021         &lt;&lt; str &lt;&lt; std::endl;
 <a name="l00022"></a>00022 }
 <a name="l00023"></a>00023 <span class="keywordtype">void</span>
-<a name="l00024"></a><a class="code" href="class_x_dummy_port.html#a4">00024</a> <a class="code" href="class_x_dummy_port.html#a4">XDummyPort::write</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *sendbuf, <span class="keywordtype">int</span> size) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;)
+<a name="l00024"></a><a class="code" href="class_x_dummy_port.html#87c1e48dd8ce2be9fecddec4b3d54978">00024</a> <a class="code" href="class_x_dummy_port.html#87c1e48dd8ce2be9fecddec4b3d54978">XDummyPort::write</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *sendbuf, <span class="keywordtype">int</span> size) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;)
 <a name="l00025"></a>00025 {
 <a name="l00026"></a>00026     m_stream &lt;&lt; <span class="stringliteral">"write:"</span>;
 <a name="l00027"></a>00027     m_stream.write(sendbuf, size);
 <a name="l00028"></a>00028     m_stream &lt;&lt; std::endl;
 <a name="l00029"></a>00029 }
 <a name="l00030"></a>00030 <span class="keywordtype">void</span>
-<a name="l00031"></a><a class="code" href="class_x_dummy_port.html#a5">00031</a> <a class="code" href="class_x_dummy_port.html#a5">XDummyPort::receive</a>() throw (<a class="code" href="class_x_interface.html">XInterface</a>::XCommError &amp;)
+<a name="l00031"></a><a class="code" href="class_x_dummy_port.html#3f86f21e1af5d609692044baf23a0785">00031</a> <a class="code" href="class_x_dummy_port.html#3f86f21e1af5d609692044baf23a0785">XDummyPort::receive</a>() throw (<a class="code" href="class_x_interface.html">XInterface</a>::XCommError &amp;)
 <a name="l00032"></a>00032 {
-<a name="l00033"></a>00033     <a class="code" href="class_x_dummy_port.html#r0">m_stream</a> &lt;&lt; <span class="stringliteral">"receive:"</span>
+<a name="l00033"></a>00033     <a class="code" href="class_x_dummy_port.html#1924e3a01c82ce98a3cb80effbe84218">m_stream</a> &lt;&lt; <span class="stringliteral">"receive:"</span>
 <a name="l00034"></a>00034          &lt;&lt; std::endl;
-<a name="l00035"></a>00035     <a class="code" href="class_x_port.html#a7">buffer</a>().resize(1);
-<a name="l00036"></a>00036     <a class="code" href="class_x_port.html#a7">buffer</a>()[0] = <span class="charliteral">'\0'</span>;
+<a name="l00035"></a>00035     <a class="code" href="class_x_port.html#7383e7214c0b10ffb826548ed766b562">buffer</a>().resize(1);
+<a name="l00036"></a>00036     <a class="code" href="class_x_port.html#7383e7214c0b10ffb826548ed766b562">buffer</a>()[0] = <span class="charliteral">'\0'</span>;
 <a name="l00037"></a>00037 }
 <a name="l00038"></a>00038 <span class="keywordtype">void</span>
-<a name="l00039"></a><a class="code" href="class_x_dummy_port.html#a6">00039</a> <a class="code" href="class_x_dummy_port.html#a5">XDummyPort::receive</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> length) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;)
+<a name="l00039"></a><a class="code" href="class_x_dummy_port.html#13f929e26acfe81303a8181e7e78f644">00039</a> <a class="code" href="class_x_dummy_port.html#3f86f21e1af5d609692044baf23a0785">XDummyPort::receive</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> length) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;)
 <a name="l00040"></a>00040 {
 <a name="l00041"></a>00041     m_stream &lt;&lt; <span class="stringliteral">"receive length = :"</span>
 <a name="l00042"></a>00042         &lt;&lt; length &lt;&lt; std::endl;
 <a name="l00043"></a>00043     buffer().resize(length);
 <a name="l00044"></a>00044     buffer()[0] = <span class="charliteral">'\0'</span>;
 <a name="l00045"></a>00045 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:19 2006に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:43 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
 </html>

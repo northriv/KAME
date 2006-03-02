@@ -2,25 +2,37 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: クラス XQGraphPainter</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
-<h1>クラス XQGraphPainter</h1><!-- doxytag: class=<XQGraphPainter> --><!-- doxytag: inherits=<XQConnector> --><code>#include &lt;<a class="el" href="graphpainter_8h-source.html">graphpainter.h</a>&gt;</code>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li id="current"><a href="classes.html"><span>クラス</span></a></li>
+    <li><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
+<div class="tabs">
+  <ul>
+    <li><a href="classes.html"><span>アルファベット順一覧</span></a></li>
+    <li><a href="annotated.html"><span>構成</span></a></li>
+    <li><a href="hierarchy.html"><span>クラス階層</span></a></li>
+    <li><a href="functions.html"><span>構成メンバ</span></a></li>
+  </ul></div>
+<h1>クラス XQGraphPainter</h1><!-- doxytag: class="XQGraphPainter" --><code>#include &lt;<a class="el" href="graphpainter_8h-source.html">graphpainter.h</a>&gt;</code>
 <p>
-XQGraphPainterに対する継承グラフ<p><center><img src="class_x_q_graph_painter__inherit__graph.png" border="0" usemap="#_x_q_graph_painter__inherit__map" alt="Inheritance graph"></center>
-<map name="_x_q_graph_painter__inherit__map">
-<area href="class_x_q_connector.html" shape="rect" coords="17,7,121,34" alt="">
-</map>
-<center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XQGraphPainterのコラボレーション図<p><center><img src="class_x_q_graph_painter__coll__graph.png" border="0" usemap="#_x_q_graph_painter__coll__map" alt="Collaboration graph"></center>
+XQGraphPainterのコラボレーション図<p><center><img src="class_x_q_graph_painter__coll__graph.png" border="0" usemap="#_x_q_graph_painter__coll__map" alt="Collaboration graph"></center>
 <map name="_x_q_graph_painter__coll__map">
-<area href="class_x_q_graph.html" shape="rect" coords="89,189,169,216" alt="">
-<area href="class_x_q_connector.html" shape="rect" coords="8,8,112,34" alt="">
-<area href="struct_vector3.html" shape="rect" coords="136,8,264,34" alt="">
+<area href="struct_vector3.html" shape="rect" coords="8,130,106,157" alt="">
+<area href="class_x_q_graph.html" shape="rect" coords="160,130,240,157" alt="">
+<area href="classqshared__ptr.html" shape="rect" coords="138,8,261,34" alt="">
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_q_graph_painter-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
 <tr><td></td></tr>
 <tr><td colspan="2"><br><h2>Public 型</h2></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top">enum &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#w14">SelectionMode</a> { <br>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">enum &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#646fa8a355aacf8d4f5aa6fd638ebe27">SelectionMode</a> { <br>
 &nbsp;&nbsp;<b>SelNone</b>, 
 <b>SelPoint</b>, 
 <b>SelAxis</b>, 
@@ -30,13 +42,13 @@ XQGraphPainterに対する継承グラフ<p><center><img src="class_x_q_graph_painter__in
 <br>
  }</td></tr>
 
-<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Selections. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top">enum &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#w15">SelectionState</a> { <b>SelStart</b>, 
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Selections <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">enum &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#53f0db7fd7dbacc4ce89ef6e9d109b0c">SelectionState</a> { <b>SelStart</b>, 
 <b>SelFinish</b>, 
 <b>Selecting</b>
  }</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top">enum &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#w16">TextFlags</a> { <br>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">enum &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#30484f6f4f66976367349f6ad3483299">TextFlags</a> { <br>
 &nbsp;&nbsp;<b>AlignLeft</b> =  0x0, 
 <b>AlignHCenter</b> =  0x1, 
 <b>AlignRight</b> =  0x2, 
@@ -48,259 +60,258 @@ XQGraphPainterに対する継承グラフ<p><center><img src="class_x_q_graph_painter__in
  }</td></tr>
 
 <tr><td colspan="2"><br><h2>Public メソッド</h2></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a0"></a><!-- doxytag: member=<XQGraphPainter::~XQGraphPainter> ref=<a0> args=<()> -->
-virtual&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a0">~XQGraphPainter</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="5d98a4e8ffa3ccd7509cad5c24b68f6c"></a><!-- doxytag: member="XQGraphPainter::XQGraphPainter" ref="5d98a4e8ffa3ccd7509cad5c24b68f6c" args="(const shared_ptr&lt; XGraph &gt; &amp;graph, XQGraph *item)" -->
+&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#5d98a4e8ffa3ccd7509cad5c24b68f6c">XQGraphPainter</a> (const shared_ptr&lt; <a class="el" href="class_x_graph.html">XGraph</a> &gt; &amp;graph, <a class="el" href="class_x_q_graph.html">XQGraph</a> *item)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a1"></a><!-- doxytag: member=<XQGraphPainter::selectObjs> ref=<a1> args=<(int x, int y, SelectionState state, SelectionMode mode=SelNone)> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a1">selectObjs</a> (int x, int y, <a class="el" href="class_x_q_graph_painter.html#w15">SelectionState</a> state, <a class="el" href="class_x_q_graph_painter.html#w14">SelectionMode</a> mode=SelNone)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="7c78792516fdea65213e5682bb326357"></a><!-- doxytag: member="XQGraphPainter::~XQGraphPainter" ref="7c78792516fdea65213e5682bb326357" args="()" -->
+virtual&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#7c78792516fdea65213e5682bb326357">~XQGraphPainter</a> ()</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a2"></a><!-- doxytag: member=<XQGraphPainter::wheel> ref=<a2> args=<(int x, int y, double deg)> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a2">wheel</a> (int x, int y, double deg)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="588262e38f3204e0b25c56fa4e2cf2b7"></a><!-- doxytag: member="XQGraphPainter::selectObjs" ref="588262e38f3204e0b25c56fa4e2cf2b7" args="(int x, int y, SelectionState state, SelectionMode mode=SelNone)" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#588262e38f3204e0b25c56fa4e2cf2b7">selectObjs</a> (int x, int y, <a class="el" href="class_x_q_graph_painter.html#53f0db7fd7dbacc4ce89ef6e9d109b0c">SelectionState</a> state, <a class="el" href="class_x_q_graph_painter.html#646fa8a355aacf8d4f5aa6fd638ebe27">SelectionMode</a> mode=SelNone)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a3"></a><!-- doxytag: member=<XQGraphPainter::zoom> ref=<a3> args=<(double zoomscale, int x, int y)> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a3">zoom</a> (double zoomscale, int x, int y)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="dd37d1dc2db81bb04d11a2c12c69c5fd"></a><!-- doxytag: member="XQGraphPainter::wheel" ref="dd37d1dc2db81bb04d11a2c12c69c5fd" args="(int x, int y, double deg)" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#dd37d1dc2db81bb04d11a2c12c69c5fd">wheel</a> (int x, int y, double deg)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a4"></a><!-- doxytag: member=<XQGraphPainter::showHelp> ref=<a4> args=<()> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a4">showHelp</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="45dc29e2bb3caf8433b12448c6bc9b4b"></a><!-- doxytag: member="XQGraphPainter::zoom" ref="45dc29e2bb3caf8433b12448c6bc9b4b" args="(double zoomscale, int x, int y)" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#45dc29e2bb3caf8433b12448c6bc9b4b">zoom</a> (double zoomscale, int x, int y)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a5"></a><!-- doxytag: member=<XQGraphPainter::repaintGraph> ref=<a5> args=<(int x1, int y1, int x2, int y2)> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a5">repaintGraph</a> (int x1, int y1, int x2, int y2)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="fecc150fe900949c32ca46579a7ed606"></a><!-- doxytag: member="XQGraphPainter::showHelp" ref="fecc150fe900949c32ca46579a7ed606" args="()" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#fecc150fe900949c32ca46579a7ed606">showHelp</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="5bcd74d98e4f3e61cb72181def88fc54"></a><!-- doxytag: member="XQGraphPainter::repaintGraph" ref="5bcd74d98e4f3e61cb72181def88fc54" args="(int x1, int y1, int x2, int y2)" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#5bcd74d98e4f3e61cb72181def88fc54">repaintGraph</a> (int x1, int y1, int x2, int y2)</td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Repaint Off-screen obj, Paint On-screen obj. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a6">viewRotate</a> (double angle, double x, double y, double z, bool init=false)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#2913aba86517ccb87dd718e00f3e8179">viewRotate</a> (double angle, double x, double y, double z, bool init=false)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a7"></a><!-- doxytag: member=<XQGraphPainter::setColor> ref=<a7> args=<(float r, float g, float b, float a=1.0f)> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a7">setColor</a> (float r, float g, float b, float a=1.0f)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d60e2ccdfd6d81c86786ab32adb9cbc7"></a><!-- doxytag: member="XQGraphPainter::setColor" ref="d60e2ccdfd6d81c86786ab32adb9cbc7" args="(float r, float g, float b, float a=1.0f)" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d60e2ccdfd6d81c86786ab32adb9cbc7">setColor</a> (float r, float g, float b, float a=1.0f)</td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">drawings <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a8"></a><!-- doxytag: member=<XQGraphPainter::setColor> ref=<a8> args=<(unsigned int rgb, float a=1.0f)> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a8">setColor</a> (unsigned int rgb, float a=1.0f)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="778f4729b5b89ef74f3dee7c7165119e"></a><!-- doxytag: member="XQGraphPainter::setColor" ref="778f4729b5b89ef74f3dee7c7165119e" args="(unsigned int rgb, float a=1.0f)" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#778f4729b5b89ef74f3dee7c7165119e">setColor</a> (unsigned int rgb, float a=1.0f)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a9"></a><!-- doxytag: member=<XQGraphPainter::setVertex> ref=<a9> args=<(const XGraph::ScrPoint &amp;p)> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a9">setVertex</a> (const <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;p)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="896577ce4d18b107c33f030ec3441d86"></a><!-- doxytag: member="XQGraphPainter::setVertex" ref="896577ce4d18b107c33f030ec3441d86" args="(const XGraph::ScrPoint &amp;p)" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#896577ce4d18b107c33f030ec3441d86">setVertex</a> (const <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;p)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a10"></a><!-- doxytag: member=<XQGraphPainter::beginLine> ref=<a10> args=<(double size=1.0)> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a10">beginLine</a> (double size=1.0)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b5a85edfdc3621c5ac2df37fd0a1dd12"></a><!-- doxytag: member="XQGraphPainter::beginLine" ref="b5a85edfdc3621c5ac2df37fd0a1dd12" args="(double size=1.0)" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#b5a85edfdc3621c5ac2df37fd0a1dd12">beginLine</a> (double size=1.0)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a11"></a><!-- doxytag: member=<XQGraphPainter::endLine> ref=<a11> args=<()> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a11">endLine</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="55b864cd44a715a947e953217971de83"></a><!-- doxytag: member="XQGraphPainter::endLine" ref="55b864cd44a715a947e953217971de83" args="()" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#55b864cd44a715a947e953217971de83">endLine</a> ()</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a12"></a><!-- doxytag: member=<XQGraphPainter::beginPoint> ref=<a12> args=<(double size=1.0)> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a12">beginPoint</a> (double size=1.0)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="98d09f4a751cc42d0963b594b0b4b41f"></a><!-- doxytag: member="XQGraphPainter::beginPoint" ref="98d09f4a751cc42d0963b594b0b4b41f" args="(double size=1.0)" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#98d09f4a751cc42d0963b594b0b4b41f">beginPoint</a> (double size=1.0)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a13"></a><!-- doxytag: member=<XQGraphPainter::endPoint> ref=<a13> args=<()> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a13">endPoint</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="3eb3b32445fe14a85ab16ee692cb3bde"></a><!-- doxytag: member="XQGraphPainter::endPoint" ref="3eb3b32445fe14a85ab16ee692cb3bde" args="()" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#3eb3b32445fe14a85ab16ee692cb3bde">endPoint</a> ()</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a14"></a><!-- doxytag: member=<XQGraphPainter::beginQuad> ref=<a14> args=<(bool fill=false)> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a14">beginQuad</a> (bool fill=false)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="ffafeb3eeabd0f9aace76165ba691ed3"></a><!-- doxytag: member="XQGraphPainter::beginQuad" ref="ffafeb3eeabd0f9aace76165ba691ed3" args="(bool fill=false)" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#ffafeb3eeabd0f9aace76165ba691ed3">beginQuad</a> (bool fill=false)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a15"></a><!-- doxytag: member=<XQGraphPainter::endQuad> ref=<a15> args=<()> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a15">endQuad</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="89ec5d97d4b5a161d3b1f5d2695c0c93"></a><!-- doxytag: member="XQGraphPainter::endQuad" ref="89ec5d97d4b5a161d3b1f5d2695c0c93" args="()" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#89ec5d97d4b5a161d3b1f5d2695c0c93">endQuad</a> ()</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a16"></a><!-- doxytag: member=<XQGraphPainter::drawText> ref=<a16> args=<(const XGraph::ScrPoint &amp;p, const QString &amp;str)> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a16">drawText</a> (const <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;p, const QString &amp;str)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="5a9142a7aaa58ca2e500a3719d163f6b"></a><!-- doxytag: member="XQGraphPainter::drawText" ref="5a9142a7aaa58ca2e500a3719d163f6b" args="(const XGraph::ScrPoint &amp;p, const QString &amp;str)" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#5a9142a7aaa58ca2e500a3719d163f6b">drawText</a> (const <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;p, const QString &amp;str)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a17">posOffAxis</a> (const <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;dir, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *src, <a class="el" href="class_x_graph.html#w0">XGraph::SFloat</a> offset)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#1a74d394bdb629d62ba73e3077b6c2d9">posOffAxis</a> (const <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;dir, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *src, <a class="el" href="class_x_graph.html#5905cbc16b56c97bbc6ee5b3d83982bc">XGraph::SFloat</a> offset)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a18"></a><!-- doxytag: member=<XQGraphPainter::defaultFont> ref=<a18> args=<()> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a18">defaultFont</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="3e136c272f3075917875891abd75b95e"></a><!-- doxytag: member="XQGraphPainter::defaultFont" ref="3e136c272f3075917875891abd75b95e" args="()" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#3e136c272f3075917875891abd75b95e">defaultFont</a> ()</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top">int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a19">selectFont</a> (const QString &amp;str, const <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;start, const <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;dir, const <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;width, int sizehint=0)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#63d0c36eacacd0727e5e601d93ef3e3e">selectFont</a> (const QString &amp;str, const <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;start, const <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;dir, const <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;width, int sizehint=0)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a20"></a><!-- doxytag: member=<XQGraphPainter::resScreen> ref=<a20> args=<()> -->
-float&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a20">resScreen</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="2b0919935bfbc453af6bf4bc8ec1de1d"></a><!-- doxytag: member="XQGraphPainter::resScreen" ref="2b0919935bfbc453af6bf4bc8ec1de1d" args="()" -->
+float&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#2b0919935bfbc453af6bf4bc8ec1de1d">resScreen</a> ()</td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">minimum resolution of screen coordinate. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a21"></a><!-- doxytag: member=<XQGraphPainter::initializeGL> ref=<a21> args=<()> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a21">initializeGL</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="311ea0746b18f4ed2f963c306dd6ecaa"></a><!-- doxytag: member="XQGraphPainter::initializeGL" ref="311ea0746b18f4ed2f963c306dd6ecaa" args="()" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#311ea0746b18f4ed2f963c306dd6ecaa">initializeGL</a> ()</td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">openGL stuff <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a22"></a><!-- doxytag: member=<XQGraphPainter::resizeGL> ref=<a22> args=<(int width, int height)> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a22">resizeGL</a> (int width, int height)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="725dbac11876022a22ef2071fc74a0b3"></a><!-- doxytag: member="XQGraphPainter::resizeGL" ref="725dbac11876022a22ef2071fc74a0b3" args="(int width, int height)" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#725dbac11876022a22ef2071fc74a0b3">resizeGL</a> (int width, int height)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a23"></a><!-- doxytag: member=<XQGraphPainter::paintGL> ref=<a23> args=<()> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#a23">paintGL</a> ()</td></tr>
-
-<tr><td colspan="2"><br><h2>Protected メソッド</h2></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b0"></a><!-- doxytag: member=<XQGraphPainter::XQGraphPainter> ref=<b0> args=<(const shared_ptr&lt; XGraph &gt; &amp;graph, XQGraph *item)> -->
-&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#b0">XQGraphPainter</a> (const shared_ptr&lt; <a class="el" href="class_x_graph.html">XGraph</a> &gt; &amp;graph, <a class="el" href="class_x_q_graph.html">XQGraph</a> *item)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="4109b85306ca84d0877408c21753a50c"></a><!-- doxytag: member="XQGraphPainter::paintGL" ref="4109b85306ca84d0877408c21753a50c" args="()" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#4109b85306ca84d0877408c21753a50c">paintGL</a> ()</td></tr>
 
 <tr><td colspan="2"><br><h2>Private メソッド</h2></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top">int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d0">windowToScreen</a> (int x, int y, double z, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *scr)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#46e08930fd8784b317e78c5b2dadba1f">windowToScreen</a> (int x, int y, double z, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *scr)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d1"></a><!-- doxytag: member=<XQGraphPainter::screenToWindow> ref=<d1> args=<(const XGraph::ScrPoint &amp;scr, double *x, double *y, double *z)> -->
-int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d1">screenToWindow</a> (const <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;scr, double *x, double *y, double *z)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d1519e1fb11035cdf5f35bf4a5055b7d"></a><!-- doxytag: member="XQGraphPainter::screenToWindow" ref="d1519e1fb11035cdf5f35bf4a5055b7d" args="(const XGraph::ScrPoint &amp;scr, double *x, double *y, double *z)" -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d1519e1fb11035cdf5f35bf4a5055b7d">screenToWindow</a> (const <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;scr, double *x, double *y, double *z)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top">double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d2">selectPlane</a> (int x, int y, int dx, int dy, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *scr, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdx, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdy)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#334b4d4a921a2a5de3212003bb936a06">selectPlane</a> (int x, int y, int dx, int dy, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *scr, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdx, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdy)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d3"></a><!-- doxytag: member=<XQGraphPainter::selectAxis> ref=<d3> args=<(int x, int y, int dx, int dy, XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy)> -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d3">selectAxis</a> (int x, int y, int dx, int dy, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *scr, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdx, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdy)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="ca7d68afc479025abc4b0fb70dce484b"></a><!-- doxytag: member="XQGraphPainter::selectAxis" ref="ca7d68afc479025abc4b0fb70dce484b" args="(int x, int y, int dx, int dy, XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy)" -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#ca7d68afc479025abc4b0fb70dce484b">selectAxis</a> (int x, int y, int dx, int dy, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *scr, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdx, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdy)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d4"></a><!-- doxytag: member=<XQGraphPainter::selectPoint> ref=<d4> args=<(int x, int y, int dx, int dy, XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy)> -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d4">selectPoint</a> (int x, int y, int dx, int dy, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *scr, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdx, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdy)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="ac6070cb0bfdc17eb9db2bbeac50dcdd"></a><!-- doxytag: member="XQGraphPainter::selectPoint" ref="ac6070cb0bfdc17eb9db2bbeac50dcdd" args="(int x, int y, int dx, int dy, XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy)" -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#ac6070cb0bfdc17eb9db2bbeac50dcdd">selectPoint</a> (int x, int y, int dx, int dy, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *scr, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdx, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdy)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d5"></a><!-- doxytag: member=<XQGraphPainter::onRedraw> ref=<d5> args=<(const shared_ptr&lt; XGraph &gt; &amp;)> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d5">onRedraw</a> (const shared_ptr&lt; <a class="el" href="class_x_graph.html">XGraph</a> &gt; &amp;)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="c23c33fd4cedba2ef12c4a1563c7a9d2"></a><!-- doxytag: member="XQGraphPainter::onRedraw" ref="c23c33fd4cedba2ef12c4a1563c7a9d2" args="(const shared_ptr&lt; XGraph &gt; &amp;)" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#c23c33fd4cedba2ef12c4a1563c7a9d2">onRedraw</a> (const shared_ptr&lt; <a class="el" href="class_x_graph.html">XGraph</a> &gt; &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d6"></a><!-- doxytag: member=<XQGraphPainter::repaintBuffer> ref=<d6> args=<(int x1, int y1, int x2, int y2)> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d6">repaintBuffer</a> (int x1, int y1, int x2, int y2)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="9fa73f627d0420615d8e507dec21a977"></a><!-- doxytag: member="XQGraphPainter::repaintBuffer" ref="9fa73f627d0420615d8e507dec21a977" args="(int x1, int y1, int x2, int y2)" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#9fa73f627d0420615d8e507dec21a977">repaintBuffer</a> (int x1, int y1, int x2, int y2)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d7">redrawOffScreen</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#56b197f92f3a91e3a280e10316126309">redrawOffScreen</a> ()</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d8"></a><!-- doxytag: member=<XQGraphPainter::drawOffScreenStart> ref=<d8> args=<()> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d8">drawOffScreenStart</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="dde1e1b8827f9fccc9d282e3ae48862f"></a><!-- doxytag: member="XQGraphPainter::drawOffScreenStart" ref="dde1e1b8827f9fccc9d282e3ae48862f" args="()" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#dde1e1b8827f9fccc9d282e3ae48862f">drawOffScreenStart</a> ()</td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">draw plots, axes. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d9"></a><!-- doxytag: member=<XQGraphPainter::drawOffScreenGrids> ref=<d9> args=<()> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d9">drawOffScreenGrids</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="59924303a22c5c9fef3e05bfced73b2f"></a><!-- doxytag: member="XQGraphPainter::drawOffScreenGrids" ref="59924303a22c5c9fef3e05bfced73b2f" args="()" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#59924303a22c5c9fef3e05bfced73b2f">drawOffScreenGrids</a> ()</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d10"></a><!-- doxytag: member=<XQGraphPainter::drawOffScreenPlanes> ref=<d10> args=<()> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d10">drawOffScreenPlanes</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="6ae1f54abed3b8a5777f47c9703fb650"></a><!-- doxytag: member="XQGraphPainter::drawOffScreenPlanes" ref="6ae1f54abed3b8a5777f47c9703fb650" args="()" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#6ae1f54abed3b8a5777f47c9703fb650">drawOffScreenPlanes</a> ()</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d11"></a><!-- doxytag: member=<XQGraphPainter::drawOffScreenPoints> ref=<d11> args=<()> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d11">drawOffScreenPoints</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="e0528effd0c3e02fb035c5f06379525a"></a><!-- doxytag: member="XQGraphPainter::drawOffScreenPoints" ref="e0528effd0c3e02fb035c5f06379525a" args="()" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#e0528effd0c3e02fb035c5f06379525a">drawOffScreenPoints</a> ()</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d12"></a><!-- doxytag: member=<XQGraphPainter::drawOffScreenAxes> ref=<d12> args=<()> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d12">drawOffScreenAxes</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="665207e16422065a639c8ccf4e04d228"></a><!-- doxytag: member="XQGraphPainter::drawOffScreenAxes" ref="665207e16422065a639c8ccf4e04d228" args="()" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#665207e16422065a639c8ccf4e04d228">drawOffScreenAxes</a> ()</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d13"></a><!-- doxytag: member=<XQGraphPainter::drawOnScreenObj> ref=<d13> args=<()> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d13">drawOnScreenObj</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="f8d28f557c20dc6658260f16c9f02172"></a><!-- doxytag: member="XQGraphPainter::drawOnScreenObj" ref="f8d28f557c20dc6658260f16c9f02172" args="()" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#f8d28f557c20dc6658260f16c9f02172">drawOnScreenObj</a> ()</td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">depends on viewpoint <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d14"></a><!-- doxytag: member=<XQGraphPainter::drawOnScreenViewObj> ref=<d14> args=<()> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d14">drawOnScreenViewObj</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="6b44e2c084bd2e5ee1eb79eab944b960"></a><!-- doxytag: member="XQGraphPainter::drawOnScreenViewObj" ref="6b44e2c084bd2e5ee1eb79eab944b960" args="()" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#6b44e2c084bd2e5ee1eb79eab944b960">drawOnScreenViewObj</a> ()</td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">independent of viewpoint. For coordinate, legend, hints. title,... <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d15"></a><!-- doxytag: member=<XQGraphPainter::drawOnScreenHelp> ref=<d15> args=<()> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d15">drawOnScreenHelp</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="4d723177b5825cb026ccd425e591b8ae"></a><!-- doxytag: member="XQGraphPainter::drawOnScreenHelp" ref="4d723177b5825cb026ccd425e591b8ae" args="()" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#4d723177b5825cb026ccd425e591b8ae">drawOnScreenHelp</a> ()</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d16"></a><!-- doxytag: member=<XQGraphPainter::findAxis> ref=<d16> args=<(const XGraph::ScrPoint &amp;s1)> -->
-shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d16">findAxis</a> (const <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;s1)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="5ce52a27a9ec25d183d28382990e72f4"></a><!-- doxytag: member="XQGraphPainter::findAxis" ref="5ce52a27a9ec25d183d28382990e72f4" args="(const XGraph::ScrPoint &amp;s1)" -->
+shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#5ce52a27a9ec25d183d28382990e72f4">findAxis</a> (const <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;s1)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d17"></a><!-- doxytag: member=<XQGraphPainter::findPlane> ref=<d17> args=<(const XGraph::ScrPoint &amp;s1, shared_ptr&lt; XAxis &gt; *axis1, shared_ptr&lt; XAxis &gt; *axis2)> -->
-shared_ptr&lt; <a class="el" href="class_x_plot.html">XPlot</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d17">findPlane</a> (const <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;s1, shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt; *axis1, shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt; *axis2)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="6bb46ca80e19383d87d3b812d86610c2"></a><!-- doxytag: member="XQGraphPainter::findPlane" ref="6bb46ca80e19383d87d3b812d86610c2" args="(const XGraph::ScrPoint &amp;s1, shared_ptr&lt; XAxis &gt; *axis1, shared_ptr&lt; XAxis &gt; *axis2)" -->
+shared_ptr&lt; <a class="el" href="class_x_plot.html">XPlot</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#6bb46ca80e19383d87d3b812d86610c2">findPlane</a> (const <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;s1, shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt; *axis1, shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt; *axis2)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d18"></a><!-- doxytag: member=<XQGraphPainter::selectGL> ref=<d18> args=<(int x, int y, int dx, int dy, GLint list, XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy)> -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d18">selectGL</a> (int x, int y, int dx, int dy, GLint list, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *scr, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdx, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdy)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="c07388a745020ba3810e7ba278a2128f"></a><!-- doxytag: member="XQGraphPainter::selectGL" ref="c07388a745020ba3810e7ba278a2128f" args="(int x, int y, int dx, int dy, GLint list, XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy)" -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#c07388a745020ba3810e7ba278a2128f">selectGL</a> (int x, int y, int dx, int dy, GLint list, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *scr, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdx, <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdy)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d19"></a><!-- doxytag: member=<XQGraphPainter::setInitView> ref=<d19> args=<()> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d19">setInitView</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="1335a2561120b650b8190f1ac459f49d"></a><!-- doxytag: member="XQGraphPainter::setInitView" ref="1335a2561120b650b8190f1ac459f49d" args="()" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#1335a2561120b650b8190f1ac459f49d">setInitView</a> ()</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d20"></a><!-- doxytag: member=<XQGraphPainter::checkGLError> ref=<d20> args=<()> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d20">checkGLError</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="ea58130342fa777d9c2de0887ab88e32"></a><!-- doxytag: member="XQGraphPainter::checkGLError" ref="ea58130342fa777d9c2de0887ab88e32" args="()" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#ea58130342fa777d9c2de0887ab88e32">checkGLError</a> ()</td></tr>
 
 <tr><td colspan="2"><br><h2>Static Private メソッド</h2></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="h0"></a><!-- doxytag: member=<XQGraphPainter::openFont> ref=<h0> args=<()> -->
-static void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#h0">openFont</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="9cf853795a45039ebda790f3d67f7336"></a><!-- doxytag: member="XQGraphPainter::openFont" ref="9cf853795a45039ebda790f3d67f7336" args="()" -->
+static void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#9cf853795a45039ebda790f3d67f7336">openFont</a> ()</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="h1"></a><!-- doxytag: member=<XQGraphPainter::closeFont> ref=<h1> args=<()> -->
-static void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#h1">closeFont</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="c01d6ac4c490e8d4807e1d29194edd6a"></a><!-- doxytag: member="XQGraphPainter::closeFont" ref="c01d6ac4c490e8d4807e1d29194edd6a" args="()" -->
+static void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#c01d6ac4c490e8d4807e1d29194edd6a">closeFont</a> ()</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top">static std::wstring&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#h2">qstring2wstring</a> (const QString &amp;str)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">static std::wstring&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#995c5ec3dc1cf5501d897a6ea778cdf9">qstring2wstring</a> (const QString &amp;str)</td></tr>
 
 <tr><td colspan="2"><br><h2>Private 変数</h2></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r0"></a><!-- doxytag: member=<XQGraphPainter::m_lsnRedraw> ref=<r0> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r0">m_lsnRedraw</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="9cf40883d4e4e6afca556e4a04c19a5e"></a><!-- doxytag: member="XQGraphPainter::m_lsnRedraw" ref="9cf40883d4e4e6afca556e4a04c19a5e" args="" -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#9cf40883d4e4e6afca556e4a04c19a5e">m_lsnRedraw</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r1"></a><!-- doxytag: member=<XQGraphPainter::m_graph> ref=<r1> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_graph.html">XGraph</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r1">m_graph</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="9da1646caa303037729ef8c722af1810"></a><!-- doxytag: member="XQGraphPainter::m_graph" ref="9da1646caa303037729ef8c722af1810" args="" -->
+shared_ptr&lt; <a class="el" href="class_x_graph.html">XGraph</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#9da1646caa303037729ef8c722af1810">m_graph</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r2"></a><!-- doxytag: member=<XQGraphPainter::m_pItem> ref=<r2> args=<> -->
-<a class="el" href="class_x_q_graph.html">XQGraph</a> *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r2">m_pItem</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="95813e6711c9e019844245f67231483e"></a><!-- doxytag: member="XQGraphPainter::m_pItem" ref="95813e6711c9e019844245f67231483e" args="" -->
+<a class="el" href="class_x_q_graph.html">XQGraph</a> *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#95813e6711c9e019844245f67231483e">m_pItem</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r3"></a><!-- doxytag: member=<XQGraphPainter::m_foundPlane> ref=<r3> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_plot.html">XPlot</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r3">m_foundPlane</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="2e24e5eac149dc454add4c63bcfe2743"></a><!-- doxytag: member="XQGraphPainter::m_foundPlane" ref="2e24e5eac149dc454add4c63bcfe2743" args="" -->
+shared_ptr&lt; <a class="el" href="class_x_plot.html">XPlot</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#2e24e5eac149dc454add4c63bcfe2743">m_foundPlane</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r4"></a><!-- doxytag: member=<XQGraphPainter::m_foundPlaneAxis1> ref=<r4> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r4">m_foundPlaneAxis1</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d464e90af8d4e62b168a110c6edebdac"></a><!-- doxytag: member="XQGraphPainter::m_foundPlaneAxis1" ref="d464e90af8d4e62b168a110c6edebdac" args="" -->
+shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d464e90af8d4e62b168a110c6edebdac">m_foundPlaneAxis1</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r5"></a><!-- doxytag: member=<XQGraphPainter::m_foundPlaneAxis2> ref=<r5> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r5">m_foundPlaneAxis2</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="f1d33749f0634495dd6619f99b8675e0"></a><!-- doxytag: member="XQGraphPainter::m_foundPlaneAxis2" ref="f1d33749f0634495dd6619f99b8675e0" args="" -->
+shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#f1d33749f0634495dd6619f99b8675e0">m_foundPlaneAxis2</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r6"></a><!-- doxytag: member=<XQGraphPainter::m_foundAxis> ref=<r6> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r6">m_foundAxis</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="0454d7b2ea694a8eb0d2d9481173115a"></a><!-- doxytag: member="XQGraphPainter::m_foundAxis" ref="0454d7b2ea694a8eb0d2d9481173115a" args="" -->
+shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#0454d7b2ea694a8eb0d2d9481173115a">m_foundAxis</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r7"></a><!-- doxytag: member=<XQGraphPainter::m_selectionStateNow> ref=<r7> args=<> -->
-<a class="el" href="class_x_q_graph_painter.html#w15">SelectionState</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r7">m_selectionStateNow</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="c8bfe23832908fe34c68e74cb12679e1"></a><!-- doxytag: member="XQGraphPainter::m_selectionStateNow" ref="c8bfe23832908fe34c68e74cb12679e1" args="" -->
+<a class="el" href="class_x_q_graph_painter.html#53f0db7fd7dbacc4ce89ef6e9d109b0c">SelectionState</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#c8bfe23832908fe34c68e74cb12679e1">m_selectionStateNow</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r8"></a><!-- doxytag: member=<XQGraphPainter::m_selectionModeNow> ref=<r8> args=<> -->
-<a class="el" href="class_x_q_graph_painter.html#w14">SelectionMode</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r8">m_selectionModeNow</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="451442377ab7912fb0cf215efea01118"></a><!-- doxytag: member="XQGraphPainter::m_selectionModeNow" ref="451442377ab7912fb0cf215efea01118" args="" -->
+<a class="el" href="class_x_q_graph_painter.html#646fa8a355aacf8d4f5aa6fd638ebe27">SelectionMode</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#451442377ab7912fb0cf215efea01118">m_selectionModeNow</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r9"></a><!-- doxytag: member=<XQGraphPainter::m_startScrPos> ref=<r9> args=<> -->
-<a class="el" href="struct_vector3.html">XGraph::ScrPoint</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r9">m_startScrPos</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="7532145827590585f1ee44b0b967edf8"></a><!-- doxytag: member="XQGraphPainter::m_startScrPos" ref="7532145827590585f1ee44b0b967edf8" args="" -->
+<a class="el" href="struct_vector3.html">XGraph::ScrPoint</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#7532145827590585f1ee44b0b967edf8">m_startScrPos</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r10"></a><!-- doxytag: member=<XQGraphPainter::m_startScrDX> ref=<r10> args=<> -->
-<a class="el" href="struct_vector3.html">XGraph::ScrPoint</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r10">m_startScrDX</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="72798cc42bb2229e8d422d5babe137cc"></a><!-- doxytag: member="XQGraphPainter::m_startScrDX" ref="72798cc42bb2229e8d422d5babe137cc" args="" -->
+<a class="el" href="struct_vector3.html">XGraph::ScrPoint</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#72798cc42bb2229e8d422d5babe137cc">m_startScrDX</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r11"></a><!-- doxytag: member=<XQGraphPainter::m_startScrDY> ref=<r11> args=<> -->
-<a class="el" href="struct_vector3.html">XGraph::ScrPoint</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r11">m_startScrDY</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="8ef884fbdd64d6f0d98d1ce2c6f6c881"></a><!-- doxytag: member="XQGraphPainter::m_startScrDY" ref="8ef884fbdd64d6f0d98d1ce2c6f6c881" args="" -->
+<a class="el" href="struct_vector3.html">XGraph::ScrPoint</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#8ef884fbdd64d6f0d98d1ce2c6f6c881">m_startScrDY</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r12"></a><!-- doxytag: member=<XQGraphPainter::m_finishScrPos> ref=<r12> args=<> -->
-<a class="el" href="struct_vector3.html">XGraph::ScrPoint</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r12">m_finishScrPos</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="58fabd034f48f834df07bb8cf123f735"></a><!-- doxytag: member="XQGraphPainter::m_finishScrPos" ref="58fabd034f48f834df07bb8cf123f735" args="" -->
+<a class="el" href="struct_vector3.html">XGraph::ScrPoint</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#58fabd034f48f834df07bb8cf123f735">m_finishScrPos</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r13"></a><!-- doxytag: member=<XQGraphPainter::m_finishScrDX> ref=<r13> args=<> -->
-<a class="el" href="struct_vector3.html">XGraph::ScrPoint</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r13">m_finishScrDX</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="1a84f9e74641505b374dc4712fecfe91"></a><!-- doxytag: member="XQGraphPainter::m_finishScrDX" ref="1a84f9e74641505b374dc4712fecfe91" args="" -->
+<a class="el" href="struct_vector3.html">XGraph::ScrPoint</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#1a84f9e74641505b374dc4712fecfe91">m_finishScrDX</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r14"></a><!-- doxytag: member=<XQGraphPainter::m_finishScrDY> ref=<r14> args=<> -->
-<a class="el" href="struct_vector3.html">XGraph::ScrPoint</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r14">m_finishScrDY</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="126a056bbcb30e81b1b8d152b7110f44"></a><!-- doxytag: member="XQGraphPainter::m_finishScrDY" ref="126a056bbcb30e81b1b8d152b7110f44" args="" -->
+<a class="el" href="struct_vector3.html">XGraph::ScrPoint</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#126a056bbcb30e81b1b8d152b7110f44">m_finishScrDY</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r15"></a><!-- doxytag: member=<XQGraphPainter::m_onScreenMsg> ref=<r15> args=<> -->
-QString&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r15">m_onScreenMsg</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="16c331210b99fe8d6ec3f37434459eba"></a><!-- doxytag: member="XQGraphPainter::m_onScreenMsg" ref="16c331210b99fe8d6ec3f37434459eba" args="" -->
+QString&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#16c331210b99fe8d6ec3f37434459eba">m_onScreenMsg</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r16"></a><!-- doxytag: member=<XQGraphPainter::m_selStartPos> ref=<r16> args=<[2]> -->
-int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r16">m_selStartPos</a> [2]</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="ad653683d0ecc9ed5a7a2809b090572d"></a><!-- doxytag: member="XQGraphPainter::m_selStartPos" ref="ad653683d0ecc9ed5a7a2809b090572d" args="[2]" -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#ad653683d0ecc9ed5a7a2809b090572d">m_selStartPos</a> [2]</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r17"></a><!-- doxytag: member=<XQGraphPainter::m_tiltLastPos> ref=<r17> args=<[2]> -->
-int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r17">m_tiltLastPos</a> [2]</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="9ad26455c21d31b07af124c452dbe87d"></a><!-- doxytag: member="XQGraphPainter::m_tiltLastPos" ref="9ad26455c21d31b07af124c452dbe87d" args="[2]" -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#9ad26455c21d31b07af124c452dbe87d">m_tiltLastPos</a> [2]</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r18"></a><!-- doxytag: member=<XQGraphPainter::m_listpoints> ref=<r18> args=<> -->
-GLint&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r18">m_listpoints</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="fe19736f946523c5c84ccc4e1f81183d"></a><!-- doxytag: member="XQGraphPainter::m_listpoints" ref="fe19736f946523c5c84ccc4e1f81183d" args="" -->
+GLint&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#fe19736f946523c5c84ccc4e1f81183d">m_listpoints</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r19"></a><!-- doxytag: member=<XQGraphPainter::m_listaxes> ref=<r19> args=<> -->
-GLint&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r19">m_listaxes</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="749a2e1909173f104ebd0734d5f7ed5c"></a><!-- doxytag: member="XQGraphPainter::m_listaxes" ref="749a2e1909173f104ebd0734d5f7ed5c" args="" -->
+GLint&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#749a2e1909173f104ebd0734d5f7ed5c">m_listaxes</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r20"></a><!-- doxytag: member=<XQGraphPainter::m_listgrids> ref=<r20> args=<> -->
-GLint&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r20">m_listgrids</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b8a9f885fc1cbd47e76d91ea2b0b5062"></a><!-- doxytag: member="XQGraphPainter::m_listgrids" ref="b8a9f885fc1cbd47e76d91ea2b0b5062" args="" -->
+GLint&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#b8a9f885fc1cbd47e76d91ea2b0b5062">m_listgrids</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r21"></a><!-- doxytag: member=<XQGraphPainter::m_listplanes> ref=<r21> args=<> -->
-GLint&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r21">m_listplanes</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="8abea2f9b77394975cf4f87d3a3d4dc6"></a><!-- doxytag: member="XQGraphPainter::m_listplanes" ref="8abea2f9b77394975cf4f87d3a3d4dc6" args="" -->
+GLint&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#8abea2f9b77394975cf4f87d3a3d4dc6">m_listplanes</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r22"></a><!-- doxytag: member=<XQGraphPainter::m_bIsRedrawNeeded> ref=<r22> args=<> -->
-bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r22">m_bIsRedrawNeeded</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="aac44430ce37531a93c53c7e900936f9"></a><!-- doxytag: member="XQGraphPainter::m_bIsRedrawNeeded" ref="aac44430ce37531a93c53c7e900936f9" args="" -->
+bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#aac44430ce37531a93c53c7e900936f9">m_bIsRedrawNeeded</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r23"></a><!-- doxytag: member=<XQGraphPainter::m_bIsAxisRedrawNeeded> ref=<r23> args=<> -->
-bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r23">m_bIsAxisRedrawNeeded</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="027f36dbef00f8ad6f9185735550c5e3"></a><!-- doxytag: member="XQGraphPainter::m_bIsAxisRedrawNeeded" ref="027f36dbef00f8ad6f9185735550c5e3" args="" -->
+bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#027f36dbef00f8ad6f9185735550c5e3">m_bIsAxisRedrawNeeded</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r24"></a><!-- doxytag: member=<XQGraphPainter::m_bTilted> ref=<r24> args=<> -->
-bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r24">m_bTilted</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="c65007162bd997f2ec3e511290db4af2"></a><!-- doxytag: member="XQGraphPainter::m_bTilted" ref="c65007162bd997f2ec3e511290db4af2" args="" -->
+bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#c65007162bd997f2ec3e511290db4af2">m_bTilted</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r25"></a><!-- doxytag: member=<XQGraphPainter::m_bReqHelp> ref=<r25> args=<> -->
-bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r25">m_bReqHelp</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="673ab675d38fc3abf0d843542afa0e7d"></a><!-- doxytag: member="XQGraphPainter::m_bReqHelp" ref="673ab675d38fc3abf0d843542afa0e7d" args="" -->
+bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#673ab675d38fc3abf0d843542afa0e7d">m_bReqHelp</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r26"></a><!-- doxytag: member=<XQGraphPainter::m_proj_rot> ref=<r26> args=<[16]> -->
-GLdouble&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r26">m_proj_rot</a> [16]</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d89791f9a543c5076f8829ceb878e3f1"></a><!-- doxytag: member="XQGraphPainter::m_proj_rot" ref="d89791f9a543c5076f8829ceb878e3f1" args="[16]" -->
+GLdouble&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#d89791f9a543c5076f8829ceb878e3f1">m_proj_rot</a> [16]</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r27"></a><!-- doxytag: member=<XQGraphPainter::m_proj> ref=<r27> args=<[16]> -->
-GLdouble&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r27">m_proj</a> [16]</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="189b93fa7a7a76ade4923f93b662467a"></a><!-- doxytag: member="XQGraphPainter::m_proj" ref="189b93fa7a7a76ade4923f93b662467a" args="[16]" -->
+GLdouble&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#189b93fa7a7a76ade4923f93b662467a">m_proj</a> [16]</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r28"></a><!-- doxytag: member=<XQGraphPainter::m_model> ref=<r28> args=<[16]> -->
-GLdouble&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r28">m_model</a> [16]</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="55fb0f148e8247d1ab86cfc08d9b57ea"></a><!-- doxytag: member="XQGraphPainter::m_model" ref="55fb0f148e8247d1ab86cfc08d9b57ea" args="[16]" -->
+GLdouble&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#55fb0f148e8247d1ab86cfc08d9b57ea">m_model</a> [16]</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r29"></a><!-- doxytag: member=<XQGraphPainter::m_viewport> ref=<r29> args=<[4]> -->
-GLint&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r29">m_viewport</a> [4]</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="8349c8a2f73ef8107d1c73928cdfbd8f"></a><!-- doxytag: member="XQGraphPainter::m_viewport" ref="8349c8a2f73ef8107d1c73928cdfbd8f" args="[4]" -->
+GLint&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#8349c8a2f73ef8107d1c73928cdfbd8f">m_viewport</a> [4]</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r30"></a><!-- doxytag: member=<XQGraphPainter::m_curFontSize> ref=<r30> args=<> -->
-int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r30">m_curFontSize</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="8dc435417aaea4c5b2d7006ebe63b6ff"></a><!-- doxytag: member="XQGraphPainter::m_curFontSize" ref="8dc435417aaea4c5b2d7006ebe63b6ff" args="" -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#8dc435417aaea4c5b2d7006ebe63b6ff">m_curFontSize</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r31"></a><!-- doxytag: member=<XQGraphPainter::m_curAlign> ref=<r31> args=<> -->
-int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#r31">m_curAlign</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="6771a5eaabd52883124ac2d973f86b4d"></a><!-- doxytag: member="XQGraphPainter::m_curAlign" ref="6771a5eaabd52883124ac2d973f86b4d" args="" -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#6771a5eaabd52883124ac2d973f86b4d">m_curAlign</a></td></tr>
 
 <tr><td colspan="2"><br><h2>Static Private 変数</h2></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="v0"></a><!-- doxytag: member=<XQGraphPainter::s_fontRefCount> ref=<v0> args=<> -->
-static int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#v0">s_fontRefCount</a> = 0</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="39b8895e04197091b508680b63ef0f70"></a><!-- doxytag: member="XQGraphPainter::s_fontRefCount" ref="39b8895e04197091b508680b63ef0f70" args="" -->
+static int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#39b8895e04197091b508680b63ef0f70">s_fontRefCount</a> = 0</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="v1"></a><!-- doxytag: member=<XQGraphPainter::s_pFont> ref=<v1> args=<> -->
-static FTFont *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#v1">s_pFont</a> = NULL</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="62238b9af1234b71571a1a2512e0689a"></a><!-- doxytag: member="XQGraphPainter::s_pFont" ref="62238b9af1234b71571a1a2512e0689a" args="" -->
+static FTFont *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_q_graph_painter.html#62238b9af1234b71571a1a2512e0689a">s_pFont</a> = NULL</td></tr>
 
 </table>
 <hr><a name="_details"></a><h2>説明</h2>
@@ -308,8 +319,8 @@ A painter which holds off-screen pixmap and provides a way to draw not thread-sa
 <p>
 
 <p>
- <a class="el" href="graphpainter_8h-source.html">graphpainter.h</a> の <a class="el" href="graphpainter_8h-source.html#l00016">16</a> 行で定義されています。<hr><h2>関数</h2>
-<a class="anchor" name="a17"></a><!-- doxytag: member=<XQGraphPainter::posOffAxis> ref=<a17> args=<(const XGraph::ScrPoint &amp;dir, XGraph::ScrPoint *src, XGraph::SFloat offset)> --><p>
+ <a class="el" href="graphpainter_8h-source.html">graphpainter.h</a> の <a class="el" href="graphpainter_8h-source.html#l00014">14</a> 行で定義されています。<hr><h2>関数</h2>
+<a class="anchor" name="1a74d394bdb629d62ba73e3077b6c2d9"></a><!-- doxytag: member="XQGraphPainter::posOffAxis" ref="1a74d394bdb629d62ba73e3077b6c2d9" args="(const XGraph::ScrPoint &amp;dir, XGraph::ScrPoint *src, XGraph::SFloat offset)" --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
     <td class="mdRow">
@@ -329,7 +340,7 @@ A painter which holds off-screen pixmap and provides a way to draw not thread-sa
         <tr>
           <td class="md" nowrap align="right"></td>
           <td class="md"></td>
-          <td class="md" nowrap><a class="el" href="class_x_graph.html#w0">XGraph::SFloat</a>&nbsp;</td>
+          <td class="md" nowrap><a class="el" href="class_x_graph.html#5905cbc16b56c97bbc6ee5b3d83982bc">XGraph::SFloat</a>&nbsp;</td>
           <td class="mdname" nowrap> <em>offset</em></td>
         </tr>
         <tr>
@@ -356,14 +367,14 @@ make point outer perpendicular to <em>dir</em> by offset <dl compact><dt><b>引数
 </dl>
 
 <p>
- <a class="el" href="graphpainter_8cpp-source.html">graphpainter.cpp</a> の <a class="el" href="graphpainter_8cpp-source.html#l00062">62</a> 行で定義されています。
+ <a class="el" href="graphpainter_8cpp-source.html">graphpainter.cpp</a> の <a class="el" href="graphpainter_8cpp-source.html#l00045">45</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="graphpainter_8h-source.html#l00134">m_pItem</a>, <a class="el" href="graph_8h-source.html#l00060">Vector3&lt; T &gt;::normalize()</a>, <a class="el" href="graphpaintergl_8cpp-source.html#l00158">screenToWindow()</a>, <a class="el" href="graph_8h-source.html#l00064">Vector3&lt; T &gt;::vectorProduct()</a>, と <a class="el" href="graphpaintergl_8cpp-source.html#l00148">windowToScreen()</a>.
+参照先 <a class="el" href="graphpainter_8h-source.html#l00129">m_pItem</a>・<a class="el" href="graph_8h-source.html#l00060">Vector3&lt; T &gt;::normalize()</a>・<a class="el" href="graphpaintergl_8cpp-source.html#l00169">screenToWindow()</a>・<a class="el" href="graph_8h-source.html#l00064">Vector3&lt; T &gt;::vectorProduct()</a>・<a class="el" href="graphpaintergl_8cpp-source.html#l00159">windowToScreen()</a>.
 <p>
-参照元 <a class="el" href="graph_8cpp-source.html#l01070">XAxis::drawAxis()</a>, <a class="el" href="graph_8cpp-source.html#l01027">XAxis::drawLabel()</a>, と <a class="el" href="graphpainter_8cpp-source.html#l00362">drawOnScreenObj()</a>.    </td>
+参照元 <a class="el" href="graph_8cpp-source.html#l01067">XAxis::drawAxis()</a>・<a class="el" href="graph_8cpp-source.html#l01024">XAxis::drawLabel()</a>・<a class="el" href="graphpainter_8cpp-source.html#l00341">drawOnScreenObj()</a>.    </td>
   </tr>
 </table>
-<a class="anchor" name="h2"></a><!-- doxytag: member=<XQGraphPainter::qstring2wstring> ref=<h2> args=<(const QString &amp;str)> --><p>
+<a class="anchor" name="995c5ec3dc1cf5501d897a6ea778cdf9"></a><!-- doxytag: member="XQGraphPainter::qstring2wstring" ref="995c5ec3dc1cf5501d897a6ea778cdf9" args="(const QString &amp;str)" --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
     <td class="mdRow">
@@ -391,14 +402,14 @@ make point outer perpendicular to <em>dir</em> by offset <dl compact><dt><b>引数
 <dl compact><dt><b><a class="el" href="todo.html#_todo000001">TODO:</a></b></dt><dd>Linux iconv needs char** instead of const char** </dd></dl>
 
 <p>
- <a class="el" href="graphpaintergl_8cpp-source.html">graphpaintergl.cpp</a> の <a class="el" href="graphpaintergl_8cpp-source.html#l00119">119</a> 行で定義されています。
+ <a class="el" href="graphpaintergl_8cpp-source.html">graphpaintergl.cpp</a> の <a class="el" href="graphpaintergl_8cpp-source.html#l00129">129</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="support_8cpp-source.html#l00068">XKameError::print()</a>.
+参照先 <a class="el" href="support_8cpp-source.html#l00067">XKameError::print()</a>.
 <p>
-参照元 <a class="el" href="graphpaintergl_8cpp-source.html#l00295">drawText()</a>, と <a class="el" href="graphpaintergl_8cpp-source.html#l00228">selectFont()</a>.    </td>
+参照元 <a class="el" href="graphpaintergl_8cpp-source.html#l00306">drawText()</a>・<a class="el" href="graphpaintergl_8cpp-source.html#l00239">selectFont()</a>.    </td>
   </tr>
 </table>
-<a class="anchor" name="d7"></a><!-- doxytag: member=<XQGraphPainter::redrawOffScreen> ref=<d7> args=<()> --><p>
+<a class="anchor" name="56b197f92f3a91e3a280e10316126309"></a><!-- doxytag: member="XQGraphPainter::redrawOffScreen" ref="56b197f92f3a91e3a280e10316126309" args="()" --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
     <td class="mdRow">
@@ -424,14 +435,14 @@ make point outer perpendicular to <em>dir</em> by offset <dl compact><dt><b>引数
 <p>
 do as possible as you can without screen. e.g. compile primitives, or make pixmap. 
 <p>
- <a class="el" href="graphpaintergl_8cpp-source.html">graphpaintergl.cpp</a> の <a class="el" href="graphpaintergl_8cpp-source.html#l00176">176</a> 行で定義されています。
+ <a class="el" href="graphpaintergl_8cpp-source.html">graphpaintergl.cpp</a> の <a class="el" href="graphpaintergl_8cpp-source.html#l00187">187</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="graphpainter_8h-source.html#l00157">m_bIsRedrawNeeded</a>.
+参照先 <a class="el" href="graphpainter_8h-source.html#l00152">m_bIsRedrawNeeded</a>.
 <p>
-参照元 <a class="el" href="graphpainter_8cpp-source.html#l00356">onRedraw()</a>.    </td>
+参照元 <a class="el" href="graphpainter_8cpp-source.html#l00335">onRedraw()</a>.    </td>
   </tr>
 </table>
-<a class="anchor" name="a19"></a><!-- doxytag: member=<XQGraphPainter::selectFont> ref=<a19> args=<(const QString &amp;str, const XGraph::ScrPoint &amp;start, const XGraph::ScrPoint &amp;dir, const XGraph::ScrPoint &amp;width, int sizehint=0)> --><p>
+<a class="anchor" name="63d0c36eacacd0727e5e601d93ef3e3e"></a><!-- doxytag: member="XQGraphPainter::selectFont" ref="63d0c36eacacd0727e5e601d93ef3e3e" args="(const QString &amp;str, const XGraph::ScrPoint &amp;start, const XGraph::ScrPoint &amp;dir, const XGraph::ScrPoint &amp;width, int sizehint=0)" --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
     <td class="mdRow">
@@ -493,14 +504,14 @@ do as possible as you can without screen. e.g. compile primitives, or make pixma
 <dl compact><dt><b>戻り値:</b></dt><dd>return 0 if succeeded </dd></dl>
 
 <p>
- <a class="el" href="graphpaintergl_8cpp-source.html">graphpaintergl.cpp</a> の <a class="el" href="graphpaintergl_8cpp-source.html#l00228">228</a> 行で定義されています。
+ <a class="el" href="graphpaintergl_8cpp-source.html">graphpaintergl.cpp</a> の <a class="el" href="graphpaintergl_8cpp-source.html#l00239">239</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="graphpaintergl_8cpp-source.html#l00323">checkGLError()</a>, <a class="el" href="graphpainter_8h-source.html#l00171">m_curAlign</a>, <a class="el" href="graphpainter_8h-source.html#l00170">m_curFontSize</a>, <a class="el" href="graphpainter_8h-source.html#l00134">m_pItem</a>, <a class="el" href="graph_8h-source.html#l00060">Vector3&lt; T &gt;::normalize()</a>, <a class="el" href="graphpaintergl_8cpp-source.html#l00119">qstring2wstring()</a>, <a class="el" href="graphpaintergl_8cpp-source.html#l00039">s_pFont</a>, と <a class="el" href="graphpaintergl_8cpp-source.html#l00158">screenToWindow()</a>.
+参照先 <a class="el" href="graphpainter_8h-source.html#l00166">m_curAlign</a>・<a class="el" href="graphpainter_8h-source.html#l00165">m_curFontSize</a>・<a class="el" href="graphpainter_8h-source.html#l00129">m_pItem</a>・<a class="el" href="graph_8h-source.html#l00060">Vector3&lt; T &gt;::normalize()</a>・<a class="el" href="graphpaintergl_8cpp-source.html#l00129">qstring2wstring()</a>・<a class="el" href="graphpainter_8h-source.html#l00171">s_pFont</a>・<a class="el" href="graphpaintergl_8cpp-source.html#l00169">screenToWindow()</a>.
 <p>
-参照元 <a class="el" href="graph_8cpp-source.html#l01070">XAxis::drawAxis()</a>, <a class="el" href="graph_8cpp-source.html#l01027">XAxis::drawLabel()</a>, <a class="el" href="graphpainter_8cpp-source.html#l00515">drawOnScreenHelp()</a>, と <a class="el" href="graphpainter_8cpp-source.html#l00497">drawOnScreenViewObj()</a>.    </td>
+参照元 <a class="el" href="graph_8cpp-source.html#l01067">XAxis::drawAxis()</a>・<a class="el" href="graph_8cpp-source.html#l01024">XAxis::drawLabel()</a>・<a class="el" href="graphpainter_8cpp-source.html#l00494">drawOnScreenHelp()</a>・<a class="el" href="graphpainter_8cpp-source.html#l00476">drawOnScreenViewObj()</a>.    </td>
   </tr>
 </table>
-<a class="anchor" name="d2"></a><!-- doxytag: member=<XQGraphPainter::selectPlane> ref=<d2> args=<(int x, int y, int dx, int dy, XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy)> --><p>
+<a class="anchor" name="334b4d4a921a2a5de3212003bb936a06"></a><!-- doxytag: member="XQGraphPainter::selectPlane" ref="334b4d4a921a2a5de3212003bb936a06" args="(int x, int y, int dx, int dy, XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy)" --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
     <td class="mdRow">
@@ -576,14 +587,14 @@ Selections <dl compact><dt><b>引数:</b></dt><dd>
 <dl compact><dt><b>戻り値:</b></dt><dd>found depth </dd></dl>
 
 <p>
- <a class="el" href="graphpaintergl_8cpp-source.html">graphpaintergl.cpp</a> の <a class="el" href="graphpaintergl_8cpp-source.html#l00450">450</a> 行で定義されています。
+ <a class="el" href="graphpaintergl_8cpp-source.html">graphpaintergl.cpp</a> の <a class="el" href="graphpaintergl_8cpp-source.html#l00462">462</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="graphpainter_8h-source.html#l00155">m_listplanes</a>, と <a class="el" href="graphpaintergl_8cpp-source.html#l00396">selectGL()</a>.
+参照先 <a class="el" href="graphpainter_8h-source.html#l00150">m_listplanes</a>・<a class="el" href="graphpaintergl_8cpp-source.html#l00407">selectGL()</a>.
 <p>
-参照元 <a class="el" href="graphpainter_8cpp-source.html#l00148">selectObjs()</a>.    </td>
+参照元 <a class="el" href="graphpainter_8cpp-source.html#l00129">selectObjs()</a>.    </td>
   </tr>
 </table>
-<a class="anchor" name="a6"></a><!-- doxytag: member=<XQGraphPainter::viewRotate> ref=<a6> args=<(double angle, double x, double y, double z, bool init=false)> --><p>
+<a class="anchor" name="2913aba86517ccb87dd718e00f3e8179"></a><!-- doxytag: member="XQGraphPainter::viewRotate" ref="2913aba86517ccb87dd718e00f3e8179" args="(double angle, double x, double y, double z, bool init=false)" --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
     <td class="mdRow">
@@ -644,14 +655,14 @@ view <dl compact><dt><b>引数:</b></dt><dd>
 </dl>
 
 <p>
- <a class="el" href="graphpaintergl_8cpp-source.html">graphpaintergl.cpp</a> の <a class="el" href="graphpaintergl_8cpp-source.html#l00361">361</a> 行で定義されています。
+ <a class="el" href="graphpaintergl_8cpp-source.html">graphpaintergl.cpp</a> の <a class="el" href="graphpaintergl_8cpp-source.html#l00372">372</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="graphpaintergl_8cpp-source.html#l00323">checkGLError()</a>, <a class="el" href="graphpainter_8h-source.html#l00158">m_bIsAxisRedrawNeeded</a>, <a class="el" href="graphpainter_8h-source.html#l00157">m_bIsRedrawNeeded</a>, <a class="el" href="graphpainter_8h-source.html#l00159">m_bTilted</a>, <a class="el" href="graphpainter_8h-source.html#l00134">m_pItem</a>, <a class="el" href="graphpainter_8h-source.html#l00162">m_proj_rot</a>, と <a class="el" href="graphpaintergl_8cpp-source.html#l00355">setInitView()</a>.
+参照先 <a class="el" href="graphpaintergl_8cpp-source.html#l00334">checkGLError()</a>・<a class="el" href="graphpainter_8h-source.html#l00153">m_bIsAxisRedrawNeeded</a>・<a class="el" href="graphpainter_8h-source.html#l00152">m_bIsRedrawNeeded</a>・<a class="el" href="graphpainter_8h-source.html#l00154">m_bTilted</a>・<a class="el" href="graphpainter_8h-source.html#l00129">m_pItem</a>・<a class="el" href="graphpainter_8h-source.html#l00157">m_proj_rot</a>・<a class="el" href="graphpaintergl_8cpp-source.html#l00366">setInitView()</a>.
 <p>
-参照元 <a class="el" href="graphpaintergl_8cpp-source.html#l00469">initializeGL()</a>, <a class="el" href="graphpainter_8cpp-source.html#l00148">selectObjs()</a>, と <a class="el" href="graphpainter_8cpp-source.html#l00322">wheel()</a>.    </td>
+参照元 <a class="el" href="graphpaintergl_8cpp-source.html#l00480">initializeGL()</a>・<a class="el" href="graphpainter_8cpp-source.html#l00129">selectObjs()</a>・<a class="el" href="graphpainter_8cpp-source.html#l00302">wheel()</a>.    </td>
   </tr>
 </table>
-<a class="anchor" name="d0"></a><!-- doxytag: member=<XQGraphPainter::windowToScreen> ref=<d0> args=<(int x, int y, double z, XGraph::ScrPoint *scr)> --><p>
+<a class="anchor" name="46e08930fd8784b317e78c5b2dadba1f"></a><!-- doxytag: member="XQGraphPainter::windowToScreen" ref="46e08930fd8784b317e78c5b2dadba1f" args="(int x, int y, double z, XGraph::ScrPoint *scr)" --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
     <td class="mdRow">
@@ -699,17 +710,17 @@ view <dl compact><dt><b>引数:</b></dt><dd>
 <p>
 coordinate conversions  zero for success 
 <p>
- <a class="el" href="graphpaintergl_8cpp-source.html">graphpaintergl.cpp</a> の <a class="el" href="graphpaintergl_8cpp-source.html#l00148">148</a> 行で定義されています。
+ <a class="el" href="graphpaintergl_8cpp-source.html">graphpaintergl.cpp</a> の <a class="el" href="graphpaintergl_8cpp-source.html#l00159">159</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="graphpainter_8h-source.html#l00164">m_model</a>, <a class="el" href="graphpainter_8h-source.html#l00163">m_proj</a>, <a class="el" href="graphpainter_8h-source.html#l00165">m_viewport</a>, <a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::x</a>, <a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::y</a>, と <a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::z</a>.
+参照先 <a class="el" href="graphpainter_8h-source.html#l00159">m_model</a>・<a class="el" href="graphpainter_8h-source.html#l00158">m_proj</a>・<a class="el" href="graphpainter_8h-source.html#l00160">m_viewport</a>・<a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::x</a>・<a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::y</a>・<a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::z</a>.
 <p>
-参照元 <a class="el" href="graphpainter_8cpp-source.html#l00062">posOffAxis()</a>, と <a class="el" href="graphpaintergl_8cpp-source.html#l00396">selectGL()</a>.    </td>
+参照元 <a class="el" href="graphpainter_8cpp-source.html#l00045">posOffAxis()</a>.    </td>
   </tr>
 </table>
 <hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/graph/<a class="el" href="graphpainter_8h-source.html">graphpainter.h</a><li>kame/graph/<a class="el" href="graphpainter_8cpp-source.html">graphpainter.cpp</a><li>kame/graph/<a class="el" href="graphpaintergl_8cpp-source.html">graphpaintergl.cpp</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:05:38 2006に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:52 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
 </html>

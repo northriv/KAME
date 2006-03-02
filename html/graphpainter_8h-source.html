@@ -2,160 +2,164 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/graph/graphpainter.h ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000006.html">graph</a></div>
+<a class="el" href="dir_cbe63f28361eb71291c8905f8fbf16c0.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_ab866eaf762bb7b5a42055056b132fca.html">graph</a></div>
 <h1>graphpainter.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#ifndef GRAPH_PAINTER_H</span>
 <a name="l00002"></a>00002 <span class="preprocessor"></span><span class="preprocessor">#define GRAPH_PAINTER_H</span>
 <a name="l00003"></a>00003 <span class="preprocessor"></span>
 <a name="l00004"></a>00004 <span class="preprocessor">#include "graph.h"</span>
-<a name="l00005"></a>00005 <span class="preprocessor">#include &lt;iconv.h&gt;</span>
-<a name="l00006"></a>00006 <span class="preprocessor">#include "xnodeconnector.h"</span>
-<a name="l00007"></a>00007 
-<a name="l00008"></a>00008 <span class="keyword">class </span>FTFont;
-<a name="l00009"></a>00009 <span class="keyword">class </span><a class="code" href="class_x_q_graph.html">XQGraph</a>;
+<a name="l00005"></a>00005 
+<a name="l00006"></a>00006 <span class="keyword">class </span>FTFont;
+<a name="l00007"></a>00007 <span class="keyword">class </span><a class="code" href="class_x_q_graph.html">XQGraph</a>;
+<a name="l00008"></a>00008 
+<a name="l00009"></a>00009 <span class="preprocessor">#include &lt;qgl.h&gt;</span>
 <a name="l00010"></a>00010 
-<a name="l00011"></a>00011 <span class="preprocessor">#include &lt;qgl.h&gt;</span>
-<a name="l00012"></a>00012 
-<a name="l00016"></a><a class="code" href="class_x_q_graph_painter.html">00016</a> <span class="keyword">class </span><a class="code" href="class_x_q_graph_painter.html">XQGraphPainter</a> : <span class="keyword">public</span> <a class="code" href="class_x_q_connector.html">XQConnector</a>
-<a name="l00017"></a>00017 {
-<a name="l00018"></a>00018     Q_OBJECT
-<a name="l00019"></a>00019     XQCON_OBJECT
-<a name="l00020"></a>00020 <span class="keyword">protected</span>:
-<a name="l00021"></a>00021   <a class="code" href="class_x_q_graph_painter.html#b0">XQGraphPainter</a>(<span class="keyword">const</span> shared_ptr&lt;XGraph&gt; &amp;graph, <a class="code" href="class_x_q_graph.html">XQGraph</a>* item);
-<a name="l00022"></a>00022 <span class="keyword">public</span>:
-<a name="l00023"></a>00023   <span class="keyword">virtual</span> <a class="code" href="class_x_q_graph_painter.html#a0">~XQGraphPainter</a>();
-<a name="l00024"></a>00024         
-<a name="l00026"></a><a class="code" href="class_x_q_graph_painter.html#w14">00026</a>   <span class="keyword">enum</span> <a class="code" href="class_x_q_graph_painter.html#w14">SelectionMode</a> {SelNone, SelPoint, SelAxis, SelPlane, TiltTracking};
-<a name="l00027"></a><a class="code" href="class_x_q_graph_painter.html#w15">00027</a>   <span class="keyword">enum</span> <a class="code" href="class_x_q_graph_painter.html#w15">SelectionState</a> {SelStart, SelFinish, Selecting};
-<a name="l00028"></a>00028   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#a1">selectObjs</a>(<span class="keywordtype">int</span> x, <span class="keywordtype">int</span> y, <a class="code" href="class_x_q_graph_painter.html#w15">SelectionState</a> state, <a class="code" href="class_x_q_graph_painter.html#w14">SelectionMode</a> mode = SelNone);
-<a name="l00029"></a>00029   
-<a name="l00030"></a>00030   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#a2">wheel</a>(<span class="keywordtype">int</span> x, <span class="keywordtype">int</span> y, <span class="keywordtype">double</span> deg);
-<a name="l00031"></a>00031   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#a3">zoom</a>(<span class="keywordtype">double</span> zoomscale, <span class="keywordtype">int</span> x, <span class="keywordtype">int</span> y);
-<a name="l00032"></a>00032   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#a4">showHelp</a>();
-<a name="l00033"></a>00033   
-<a name="l00035"></a>00035   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#a5">repaintGraph</a>(<span class="keywordtype">int</span> x1, <span class="keywordtype">int</span> y1, <span class="keywordtype">int</span> x2, <span class="keywordtype">int</span> y2);
-<a name="l00036"></a>00036 
-<a name="l00041"></a>00041   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#a6">viewRotate</a>(<span class="keywordtype">double</span> angle, <span class="keywordtype">double</span> x, <span class="keywordtype">double</span> y, <span class="keywordtype">double</span> z, <span class="keywordtype">bool</span> init = <span class="keyword">false</span>);  
-<a name="l00042"></a>00042   
-<a name="l00044"></a>00044         
-<a name="l00045"></a><a class="code" href="class_x_q_graph_painter.html#a7">00045</a>   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#a7">setColor</a>(<span class="keywordtype">float</span> r, <span class="keywordtype">float</span> g, <span class="keywordtype">float</span> b, <span class="keywordtype">float</span> a = 1.0f) {
-<a name="l00046"></a>00046         glColor4f(r, g, b, a );
-<a name="l00047"></a>00047   }
-<a name="l00048"></a><a class="code" href="class_x_q_graph_painter.html#a8">00048</a>   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#a7">setColor</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> rgb, <span class="keywordtype">float</span> a = 1.0f) {
-<a name="l00049"></a>00049   QColor qc = QRgb(rgb);
-<a name="l00050"></a>00050         glColor4f(qc.red() / 256.0, qc.green() / 256.0, qc.blue() / 256.0, a );
-<a name="l00051"></a>00051   }
-<a name="l00052"></a><a class="code" href="class_x_q_graph_painter.html#a9">00052</a>   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#a9">setVertex</a>(<span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;p) {
-<a name="l00053"></a>00053         glVertex3f(p.<a class="code" href="struct_vector3.html#o0">x</a>, p.<a class="code" href="struct_vector3.html#o1">y</a>, p.<a class="code" href="struct_vector3.html#o2">z</a>);
-<a name="l00054"></a>00054   }
-<a name="l00055"></a>00055   
-<a name="l00056"></a>00056   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#a10">beginLine</a>(<span class="keywordtype">double</span> size = 1.0);
-<a name="l00057"></a>00057   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#a11">endLine</a>();
-<a name="l00058"></a>00058   
-<a name="l00059"></a>00059   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#a12">beginPoint</a>(<span class="keywordtype">double</span> size = 1.0);
-<a name="l00060"></a>00060   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#a13">endPoint</a>();
-<a name="l00061"></a>00061   
-<a name="l00062"></a>00062   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#a14">beginQuad</a>(<span class="keywordtype">bool</span> fill = <span class="keyword">false</span>);
-<a name="l00063"></a>00063   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#a15">endQuad</a>();
-<a name="l00064"></a>00064   
-<a name="l00065"></a><a class="code" href="class_x_q_graph_painter.html#w16">00065</a>   <span class="keyword">enum</span> <a class="code" href="class_x_q_graph_painter.html#w16">TextFlags</a> {
-<a name="l00066"></a>00066         AlignLeft = 0x0,
-<a name="l00067"></a>00067         AlignHCenter = 0x1,
-<a name="l00068"></a>00068         AlignRight = 0x2,
-<a name="l00069"></a>00069         AlignBottom = 0x0,
-<a name="l00070"></a>00070         AlignVCenter = 0x10,
-<a name="l00071"></a>00071         AlignTop = 0x20
-<a name="l00072"></a>00072   };
-<a name="l00073"></a>00073   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#a16">drawText</a>(<span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;p, <span class="keyword">const</span> QString &amp;str);
-<a name="l00074"></a>00074   
-<a name="l00077"></a>00077   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#a17">posOffAxis</a>(<span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;dir, <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *src, <a class="code" href="class_x_graph.html#w0">XGraph::SFloat</a> offset);
-<a name="l00078"></a>00078   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#a18">defaultFont</a>();
-<a name="l00083"></a>00083   <span class="keywordtype">int</span> <a class="code" href="class_x_q_graph_painter.html#a19">selectFont</a>(<span class="keyword">const</span> QString &amp;str, <span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;start, 
-<a name="l00084"></a>00084     <span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;dir, <span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;width, <span class="keywordtype">int</span> sizehint = 0);
-<a name="l00085"></a>00085     
-<a name="l00087"></a>00087   <span class="keywordtype">float</span> <a class="code" href="class_x_q_graph_painter.html#a20">resScreen</a>();
-<a name="l00089"></a>00089   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#a21">initializeGL</a> ();
-<a name="l00090"></a>00090   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#a22">resizeGL</a> ( <span class="keywordtype">int</span> width, <span class="keywordtype">int</span> height );
-<a name="l00091"></a>00091   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#a23">paintGL</a> ();
-<a name="l00092"></a>00092 <span class="keyword">private</span>:
-<a name="l00095"></a>00095   <span class="keywordtype">int</span> <a class="code" href="class_x_q_graph_painter.html#d0">windowToScreen</a>(<span class="keywordtype">int</span> x, <span class="keywordtype">int</span> y, <span class="keywordtype">double</span> z, <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *scr);
-<a name="l00096"></a>00096   <span class="keywordtype">int</span> <a class="code" href="class_x_q_graph_painter.html#d1">screenToWindow</a>(<span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;scr, <span class="keywordtype">double</span> *x, <span class="keywordtype">double</span> *y, <span class="keywordtype">double</span> *z);
-<a name="l00097"></a>00097   
-<a name="l00098"></a>00098 
-<a name="l00106"></a>00106   <span class="keywordtype">double</span> <a class="code" href="class_x_q_graph_painter.html#d2">selectPlane</a>(<span class="keywordtype">int</span> x, <span class="keywordtype">int</span> y, <span class="keywordtype">int</span> dx, <span class="keywordtype">int</span> dy,
-<a name="l00107"></a>00107          <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *scr, <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdx, <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdy );
-<a name="l00108"></a>00108   <span class="keywordtype">double</span> <a class="code" href="class_x_q_graph_painter.html#d3">selectAxis</a>(<span class="keywordtype">int</span> x, <span class="keywordtype">int</span> y, <span class="keywordtype">int</span> dx, <span class="keywordtype">int</span> dy,
-<a name="l00109"></a>00109          <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *scr, <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdx, <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdy );
-<a name="l00110"></a>00110   <span class="keywordtype">double</span> <a class="code" href="class_x_q_graph_painter.html#d4">selectPoint</a>(<span class="keywordtype">int</span> x, <span class="keywordtype">int</span> y, <span class="keywordtype">int</span> dx, <span class="keywordtype">int</span> dy,
-<a name="l00111"></a>00111          <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *scr, <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdx, <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdy );
-<a name="l00112"></a>00112   
-<a name="l00113"></a><a class="code" href="class_x_q_graph_painter.html#r0">00113</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_q_graph_painter.html#r0">m_lsnRedraw</a>;
-<a name="l00114"></a>00114   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#d5">onRedraw</a>(<span class="keyword">const</span> shared_ptr&lt;XGraph&gt; &amp;);
+<a name="l00014"></a><a class="code" href="class_x_q_graph_painter.html">00014</a> <span class="keyword">class </span><a class="code" href="class_x_q_graph_painter.html">XQGraphPainter</a> : <span class="keyword">public</span> enable_shared_from_this&lt;XQGraphPainter&gt;
+<a name="l00015"></a>00015 {
+<a name="l00016"></a>00016 <span class="keyword">public</span>:
+<a name="l00017"></a>00017   <a class="code" href="class_x_q_graph_painter.html#5d98a4e8ffa3ccd7509cad5c24b68f6c">XQGraphPainter</a>(<span class="keyword">const</span> shared_ptr&lt;XGraph&gt; &amp;graph, <a class="code" href="class_x_q_graph.html">XQGraph</a>* item);
+<a name="l00018"></a>00018   <span class="keyword">virtual</span> <a class="code" href="class_x_q_graph_painter.html#7c78792516fdea65213e5682bb326357">~XQGraphPainter</a>();
+<a name="l00019"></a>00019         
+<a name="l00021"></a><a class="code" href="class_x_q_graph_painter.html#646fa8a355aacf8d4f5aa6fd638ebe27">00021</a>   <span class="keyword">enum</span> <a class="code" href="class_x_q_graph_painter.html#646fa8a355aacf8d4f5aa6fd638ebe27">SelectionMode</a> {SelNone, SelPoint, SelAxis, SelPlane, TiltTracking};
+<a name="l00022"></a><a class="code" href="class_x_q_graph_painter.html#53f0db7fd7dbacc4ce89ef6e9d109b0c">00022</a>   <span class="keyword">enum</span> <a class="code" href="class_x_q_graph_painter.html#53f0db7fd7dbacc4ce89ef6e9d109b0c">SelectionState</a> {SelStart, SelFinish, Selecting};
+<a name="l00023"></a>00023   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#588262e38f3204e0b25c56fa4e2cf2b7">selectObjs</a>(<span class="keywordtype">int</span> x, <span class="keywordtype">int</span> y, <a class="code" href="class_x_q_graph_painter.html#53f0db7fd7dbacc4ce89ef6e9d109b0c">SelectionState</a> state, <a class="code" href="class_x_q_graph_painter.html#646fa8a355aacf8d4f5aa6fd638ebe27">SelectionMode</a> mode = SelNone);
+<a name="l00024"></a>00024   
+<a name="l00025"></a>00025   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#dd37d1dc2db81bb04d11a2c12c69c5fd">wheel</a>(<span class="keywordtype">int</span> x, <span class="keywordtype">int</span> y, <span class="keywordtype">double</span> deg);
+<a name="l00026"></a>00026   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#45dc29e2bb3caf8433b12448c6bc9b4b">zoom</a>(<span class="keywordtype">double</span> zoomscale, <span class="keywordtype">int</span> x, <span class="keywordtype">int</span> y);
+<a name="l00027"></a>00027   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#fecc150fe900949c32ca46579a7ed606">showHelp</a>();
+<a name="l00028"></a>00028   
+<a name="l00030"></a>00030   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#5bcd74d98e4f3e61cb72181def88fc54">repaintGraph</a>(<span class="keywordtype">int</span> x1, <span class="keywordtype">int</span> y1, <span class="keywordtype">int</span> x2, <span class="keywordtype">int</span> y2);
+<a name="l00031"></a>00031 
+<a name="l00036"></a>00036   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#2913aba86517ccb87dd718e00f3e8179">viewRotate</a>(<span class="keywordtype">double</span> angle, <span class="keywordtype">double</span> x, <span class="keywordtype">double</span> y, <span class="keywordtype">double</span> z, <span class="keywordtype">bool</span> init = <span class="keyword">false</span>);  
+<a name="l00037"></a>00037   
+<a name="l00039"></a>00039         
+<a name="l00040"></a><a class="code" href="class_x_q_graph_painter.html#d60e2ccdfd6d81c86786ab32adb9cbc7">00040</a>   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#d60e2ccdfd6d81c86786ab32adb9cbc7">setColor</a>(<span class="keywordtype">float</span> r, <span class="keywordtype">float</span> g, <span class="keywordtype">float</span> b, <span class="keywordtype">float</span> a = 1.0f) {
+<a name="l00041"></a>00041         glColor4f(r, g, b, a );
+<a name="l00042"></a>00042   }
+<a name="l00043"></a><a class="code" href="class_x_q_graph_painter.html#778f4729b5b89ef74f3dee7c7165119e">00043</a>   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#d60e2ccdfd6d81c86786ab32adb9cbc7">setColor</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> rgb, <span class="keywordtype">float</span> a = 1.0f) {
+<a name="l00044"></a>00044   QColor qc = QRgb(rgb);
+<a name="l00045"></a>00045         glColor4f(qc.red() / 256.0, qc.green() / 256.0, qc.blue() / 256.0, a );
+<a name="l00046"></a>00046   }
+<a name="l00047"></a><a class="code" href="class_x_q_graph_painter.html#896577ce4d18b107c33f030ec3441d86">00047</a>   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#896577ce4d18b107c33f030ec3441d86">setVertex</a>(<span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;p) {
+<a name="l00048"></a>00048         glVertex3f(p.<a class="code" href="struct_vector3.html#1a0f7e168c71ca798099f0ba8a444244">x</a>, p.<a class="code" href="struct_vector3.html#561df88b28e106e337a25bb86554a569">y</a>, p.<a class="code" href="struct_vector3.html#b3e7f5401dd6e951978bfa746809f74f">z</a>);
+<a name="l00049"></a>00049   }
+<a name="l00050"></a>00050   
+<a name="l00051"></a>00051   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#b5a85edfdc3621c5ac2df37fd0a1dd12">beginLine</a>(<span class="keywordtype">double</span> size = 1.0);
+<a name="l00052"></a>00052   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#55b864cd44a715a947e953217971de83">endLine</a>();
+<a name="l00053"></a>00053   
+<a name="l00054"></a>00054   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#98d09f4a751cc42d0963b594b0b4b41f">beginPoint</a>(<span class="keywordtype">double</span> size = 1.0);
+<a name="l00055"></a>00055   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#3eb3b32445fe14a85ab16ee692cb3bde">endPoint</a>();
+<a name="l00056"></a>00056   
+<a name="l00057"></a>00057   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#ffafeb3eeabd0f9aace76165ba691ed3">beginQuad</a>(<span class="keywordtype">bool</span> fill = <span class="keyword">false</span>);
+<a name="l00058"></a>00058   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#89ec5d97d4b5a161d3b1f5d2695c0c93">endQuad</a>();
+<a name="l00059"></a>00059   
+<a name="l00060"></a><a class="code" href="class_x_q_graph_painter.html#30484f6f4f66976367349f6ad3483299">00060</a>   <span class="keyword">enum</span> <a class="code" href="class_x_q_graph_painter.html#30484f6f4f66976367349f6ad3483299">TextFlags</a> {
+<a name="l00061"></a>00061         AlignLeft = 0x0,
+<a name="l00062"></a>00062         AlignHCenter = 0x1,
+<a name="l00063"></a>00063         AlignRight = 0x2,
+<a name="l00064"></a>00064         AlignBottom = 0x0,
+<a name="l00065"></a>00065         AlignVCenter = 0x10,
+<a name="l00066"></a>00066         AlignTop = 0x20
+<a name="l00067"></a>00067   };
+<a name="l00068"></a>00068   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#5a9142a7aaa58ca2e500a3719d163f6b">drawText</a>(<span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;p, <span class="keyword">const</span> QString &amp;str);
+<a name="l00069"></a>00069   
+<a name="l00072"></a>00072   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#1a74d394bdb629d62ba73e3077b6c2d9">posOffAxis</a>(<span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;dir, <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *src, <a class="code" href="class_x_graph.html#5905cbc16b56c97bbc6ee5b3d83982bc">XGraph::SFloat</a> offset);
+<a name="l00073"></a>00073   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#3e136c272f3075917875891abd75b95e">defaultFont</a>();
+<a name="l00078"></a>00078   <span class="keywordtype">int</span> <a class="code" href="class_x_q_graph_painter.html#63d0c36eacacd0727e5e601d93ef3e3e">selectFont</a>(<span class="keyword">const</span> QString &amp;str, <span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;start, 
+<a name="l00079"></a>00079     <span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;dir, <span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;width, <span class="keywordtype">int</span> sizehint = 0);
+<a name="l00080"></a>00080     
+<a name="l00082"></a>00082   <span class="keywordtype">float</span> <a class="code" href="class_x_q_graph_painter.html#2b0919935bfbc453af6bf4bc8ec1de1d">resScreen</a>();
+<a name="l00084"></a>00084   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#311ea0746b18f4ed2f963c306dd6ecaa">initializeGL</a> ();
+<a name="l00085"></a>00085   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#725dbac11876022a22ef2071fc74a0b3">resizeGL</a> ( <span class="keywordtype">int</span> width, <span class="keywordtype">int</span> height );
+<a name="l00086"></a>00086   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#4109b85306ca84d0877408c21753a50c">paintGL</a> ();
+<a name="l00087"></a>00087 <span class="keyword">private</span>:
+<a name="l00090"></a>00090   <span class="keywordtype">int</span> <a class="code" href="class_x_q_graph_painter.html#46e08930fd8784b317e78c5b2dadba1f">windowToScreen</a>(<span class="keywordtype">int</span> x, <span class="keywordtype">int</span> y, <span class="keywordtype">double</span> z, <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *scr);
+<a name="l00091"></a>00091   <span class="keywordtype">int</span> <a class="code" href="class_x_q_graph_painter.html#d1519e1fb11035cdf5f35bf4a5055b7d">screenToWindow</a>(<span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;scr, <span class="keywordtype">double</span> *x, <span class="keywordtype">double</span> *y, <span class="keywordtype">double</span> *z);
+<a name="l00092"></a>00092   
+<a name="l00093"></a>00093 
+<a name="l00101"></a>00101   <span class="keywordtype">double</span> <a class="code" href="class_x_q_graph_painter.html#334b4d4a921a2a5de3212003bb936a06">selectPlane</a>(<span class="keywordtype">int</span> x, <span class="keywordtype">int</span> y, <span class="keywordtype">int</span> dx, <span class="keywordtype">int</span> dy,
+<a name="l00102"></a>00102          <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *scr, <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdx, <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdy );
+<a name="l00103"></a>00103   <span class="keywordtype">double</span> <a class="code" href="class_x_q_graph_painter.html#ca7d68afc479025abc4b0fb70dce484b">selectAxis</a>(<span class="keywordtype">int</span> x, <span class="keywordtype">int</span> y, <span class="keywordtype">int</span> dx, <span class="keywordtype">int</span> dy,
+<a name="l00104"></a>00104          <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *scr, <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdx, <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdy );
+<a name="l00105"></a>00105   <span class="keywordtype">double</span> <a class="code" href="class_x_q_graph_painter.html#ac6070cb0bfdc17eb9db2bbeac50dcdd">selectPoint</a>(<span class="keywordtype">int</span> x, <span class="keywordtype">int</span> y, <span class="keywordtype">int</span> dx, <span class="keywordtype">int</span> dy,
+<a name="l00106"></a>00106          <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *scr, <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdx, <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdy );
+<a name="l00107"></a>00107   
+<a name="l00108"></a><a class="code" href="class_x_q_graph_painter.html#9cf40883d4e4e6afca556e4a04c19a5e">00108</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_q_graph_painter.html#9cf40883d4e4e6afca556e4a04c19a5e">m_lsnRedraw</a>;
+<a name="l00109"></a>00109   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#c23c33fd4cedba2ef12c4a1563c7a9d2">onRedraw</a>(<span class="keyword">const</span> shared_ptr&lt;XGraph&gt; &amp;);
+<a name="l00110"></a>00110   
+<a name="l00111"></a>00111   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#9fa73f627d0420615d8e507dec21a977">repaintBuffer</a>(<span class="keywordtype">int</span> x1, <span class="keywordtype">int</span> y1, <span class="keywordtype">int</span> x2, <span class="keywordtype">int</span> y2);
+<a name="l00114"></a>00114   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#56b197f92f3a91e3a280e10316126309">redrawOffScreen</a>();
 <a name="l00115"></a>00115   
-<a name="l00116"></a>00116   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#d6">repaintBuffer</a>(<span class="keywordtype">int</span> x1, <span class="keywordtype">int</span> y1, <span class="keywordtype">int</span> x2, <span class="keywordtype">int</span> y2);
-<a name="l00119"></a>00119   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#d7">redrawOffScreen</a>();
-<a name="l00120"></a>00120   
-<a name="l00122"></a>00122   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#d8">drawOffScreenStart</a>();
-<a name="l00123"></a>00123   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#d9">drawOffScreenGrids</a>();
-<a name="l00124"></a>00124   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#d10">drawOffScreenPlanes</a>();
-<a name="l00125"></a>00125   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#d11">drawOffScreenPoints</a>();
-<a name="l00126"></a>00126   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#d12">drawOffScreenAxes</a>();
-<a name="l00128"></a>00128   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#d13">drawOnScreenObj</a>();
-<a name="l00130"></a>00130   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#d14">drawOnScreenViewObj</a>();
-<a name="l00131"></a>00131   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#d15">drawOnScreenHelp</a>();
-<a name="l00132"></a>00132   
-<a name="l00133"></a><a class="code" href="class_x_q_graph_painter.html#r1">00133</a>   shared_ptr&lt;XGraph&gt; <a class="code" href="class_x_q_graph_painter.html#r1">m_graph</a>;
-<a name="l00134"></a><a class="code" href="class_x_q_graph_painter.html#r2">00134</a>   <a class="code" href="class_x_q_graph.html">XQGraph</a> *<a class="code" href="class_x_q_graph_painter.html#r2">m_pItem</a>;
-<a name="l00135"></a>00135   
-<a name="l00136"></a><a class="code" href="class_x_q_graph_painter.html#r3">00136</a>   shared_ptr&lt;XPlot&gt; <a class="code" href="class_x_q_graph_painter.html#r3">m_foundPlane</a>;
-<a name="l00137"></a><a class="code" href="class_x_q_graph_painter.html#r5">00137</a>   shared_ptr&lt;XAxis&gt; <a class="code" href="class_x_q_graph_painter.html#r4">m_foundPlaneAxis1</a>, <a class="code" href="class_x_q_graph_painter.html#r5">m_foundPlaneAxis2</a>;
-<a name="l00138"></a><a class="code" href="class_x_q_graph_painter.html#r6">00138</a>   shared_ptr&lt;XAxis&gt; <a class="code" href="class_x_q_graph_painter.html#r6">m_foundAxis</a>;
-<a name="l00139"></a>00139   
-<a name="l00140"></a>00140   shared_ptr&lt;XAxis&gt; <a class="code" href="class_x_q_graph_painter.html#d16">findAxis</a>(<span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;s1);
-<a name="l00141"></a>00141   shared_ptr&lt;XPlot&gt; <a class="code" href="class_x_q_graph_painter.html#d17">findPlane</a>(<span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;s1, 
-<a name="l00142"></a>00142         shared_ptr&lt;XAxis&gt; *axis1, shared_ptr&lt;XAxis&gt; *axis2);
-<a name="l00143"></a><a class="code" href="class_x_q_graph_painter.html#r7">00143</a>   <a class="code" href="class_x_q_graph_painter.html#w15">SelectionState</a> <a class="code" href="class_x_q_graph_painter.html#r7">m_selectionStateNow</a>;
-<a name="l00144"></a><a class="code" href="class_x_q_graph_painter.html#r8">00144</a>   <a class="code" href="class_x_q_graph_painter.html#w14">SelectionMode</a> <a class="code" href="class_x_q_graph_painter.html#r8">m_selectionModeNow</a>;
-<a name="l00145"></a><a class="code" href="class_x_q_graph_painter.html#r9">00145</a>   <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> <a class="code" href="class_x_q_graph_painter.html#r9">m_startScrPos</a>, <a class="code" href="class_x_q_graph_painter.html#r10">m_startScrDX</a>, <a class="code" href="class_x_q_graph_painter.html#r11">m_startScrDY</a>;
-<a name="l00146"></a><a class="code" href="class_x_q_graph_painter.html#r12">00146</a>   <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> <a class="code" href="class_x_q_graph_painter.html#r12">m_finishScrPos</a>, <a class="code" href="class_x_q_graph_painter.html#r13">m_finishScrDX</a>, <a class="code" href="class_x_q_graph_painter.html#r14">m_finishScrDY</a>;
-<a name="l00147"></a><a class="code" href="class_x_q_graph_painter.html#r15">00147</a>   QString <a class="code" href="class_x_q_graph_painter.html#r15">m_onScreenMsg</a>;
-<a name="l00148"></a><a class="code" href="class_x_q_graph_painter.html#r16">00148</a>   <span class="keywordtype">int</span> <a class="code" href="class_x_q_graph_painter.html#r16">m_selStartPos</a>[2];
-<a name="l00149"></a><a class="code" href="class_x_q_graph_painter.html#r17">00149</a>   <span class="keywordtype">int</span> <a class="code" href="class_x_q_graph_painter.html#r17">m_tiltLastPos</a>[2];
-<a name="l00150"></a>00150   
-<a name="l00151"></a>00151   <span class="keywordtype">double</span> <a class="code" href="class_x_q_graph_painter.html#d18">selectGL</a>(<span class="keywordtype">int</span> x, <span class="keywordtype">int</span> y, <span class="keywordtype">int</span> dx, <span class="keywordtype">int</span> dy, GLint list,
-<a name="l00152"></a>00152          <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *scr, <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdx, <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdy );
-<a name="l00153"></a>00153   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#d19">setInitView</a>();
-<a name="l00154"></a>00154   
-<a name="l00155"></a><a class="code" href="class_x_q_graph_painter.html#r18">00155</a>   GLint <a class="code" href="class_x_q_graph_painter.html#r18">m_listpoints</a>, <a class="code" href="class_x_q_graph_painter.html#r19">m_listaxes</a>, <a class="code" href="class_x_q_graph_painter.html#r20">m_listgrids</a>, <a class="code" href="class_x_q_graph_painter.html#r21">m_listplanes</a>;
+<a name="l00117"></a>00117   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#dde1e1b8827f9fccc9d282e3ae48862f">drawOffScreenStart</a>();
+<a name="l00118"></a>00118   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#59924303a22c5c9fef3e05bfced73b2f">drawOffScreenGrids</a>();
+<a name="l00119"></a>00119   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#6ae1f54abed3b8a5777f47c9703fb650">drawOffScreenPlanes</a>();
+<a name="l00120"></a>00120   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#e0528effd0c3e02fb035c5f06379525a">drawOffScreenPoints</a>();
+<a name="l00121"></a>00121   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#665207e16422065a639c8ccf4e04d228">drawOffScreenAxes</a>();
+<a name="l00123"></a>00123   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#f8d28f557c20dc6658260f16c9f02172">drawOnScreenObj</a>();
+<a name="l00125"></a>00125   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#6b44e2c084bd2e5ee1eb79eab944b960">drawOnScreenViewObj</a>();
+<a name="l00126"></a>00126   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#4d723177b5825cb026ccd425e591b8ae">drawOnScreenHelp</a>();
+<a name="l00127"></a>00127   
+<a name="l00128"></a><a class="code" href="class_x_q_graph_painter.html#9da1646caa303037729ef8c722af1810">00128</a>   shared_ptr&lt;XGraph&gt; <a class="code" href="class_x_q_graph_painter.html#9da1646caa303037729ef8c722af1810">m_graph</a>;
+<a name="l00129"></a><a class="code" href="class_x_q_graph_painter.html#95813e6711c9e019844245f67231483e">00129</a>   <a class="code" href="class_x_q_graph.html">XQGraph</a> *<a class="code" href="class_x_q_graph_painter.html#95813e6711c9e019844245f67231483e">m_pItem</a>;
+<a name="l00130"></a>00130     
+<a name="l00131"></a><a class="code" href="class_x_q_graph_painter.html#2e24e5eac149dc454add4c63bcfe2743">00131</a>   shared_ptr&lt;XPlot&gt; <a class="code" href="class_x_q_graph_painter.html#2e24e5eac149dc454add4c63bcfe2743">m_foundPlane</a>;
+<a name="l00132"></a><a class="code" href="class_x_q_graph_painter.html#f1d33749f0634495dd6619f99b8675e0">00132</a>   shared_ptr&lt;XAxis&gt; <a class="code" href="class_x_q_graph_painter.html#d464e90af8d4e62b168a110c6edebdac">m_foundPlaneAxis1</a>, <a class="code" href="class_x_q_graph_painter.html#f1d33749f0634495dd6619f99b8675e0">m_foundPlaneAxis2</a>;
+<a name="l00133"></a><a class="code" href="class_x_q_graph_painter.html#0454d7b2ea694a8eb0d2d9481173115a">00133</a>   shared_ptr&lt;XAxis&gt; <a class="code" href="class_x_q_graph_painter.html#0454d7b2ea694a8eb0d2d9481173115a">m_foundAxis</a>;
+<a name="l00134"></a>00134   
+<a name="l00135"></a>00135   shared_ptr&lt;XAxis&gt; <a class="code" href="class_x_q_graph_painter.html#5ce52a27a9ec25d183d28382990e72f4">findAxis</a>(<span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;s1);
+<a name="l00136"></a>00136   shared_ptr&lt;XPlot&gt; <a class="code" href="class_x_q_graph_painter.html#6bb46ca80e19383d87d3b812d86610c2">findPlane</a>(<span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;s1, 
+<a name="l00137"></a>00137         shared_ptr&lt;XAxis&gt; *axis1, shared_ptr&lt;XAxis&gt; *axis2);
+<a name="l00138"></a><a class="code" href="class_x_q_graph_painter.html#c8bfe23832908fe34c68e74cb12679e1">00138</a>   <a class="code" href="class_x_q_graph_painter.html#53f0db7fd7dbacc4ce89ef6e9d109b0c">SelectionState</a> <a class="code" href="class_x_q_graph_painter.html#c8bfe23832908fe34c68e74cb12679e1">m_selectionStateNow</a>;
+<a name="l00139"></a><a class="code" href="class_x_q_graph_painter.html#451442377ab7912fb0cf215efea01118">00139</a>   <a class="code" href="class_x_q_graph_painter.html#646fa8a355aacf8d4f5aa6fd638ebe27">SelectionMode</a> <a class="code" href="class_x_q_graph_painter.html#451442377ab7912fb0cf215efea01118">m_selectionModeNow</a>;
+<a name="l00140"></a><a class="code" href="class_x_q_graph_painter.html#7532145827590585f1ee44b0b967edf8">00140</a>   <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> <a class="code" href="class_x_q_graph_painter.html#7532145827590585f1ee44b0b967edf8">m_startScrPos</a>, <a class="code" href="class_x_q_graph_painter.html#72798cc42bb2229e8d422d5babe137cc">m_startScrDX</a>, <a class="code" href="class_x_q_graph_painter.html#8ef884fbdd64d6f0d98d1ce2c6f6c881">m_startScrDY</a>;
+<a name="l00141"></a><a class="code" href="class_x_q_graph_painter.html#58fabd034f48f834df07bb8cf123f735">00141</a>   <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> <a class="code" href="class_x_q_graph_painter.html#58fabd034f48f834df07bb8cf123f735">m_finishScrPos</a>, <a class="code" href="class_x_q_graph_painter.html#1a84f9e74641505b374dc4712fecfe91">m_finishScrDX</a>, <a class="code" href="class_x_q_graph_painter.html#126a056bbcb30e81b1b8d152b7110f44">m_finishScrDY</a>;
+<a name="l00142"></a><a class="code" href="class_x_q_graph_painter.html#16c331210b99fe8d6ec3f37434459eba">00142</a>   QString <a class="code" href="class_x_q_graph_painter.html#16c331210b99fe8d6ec3f37434459eba">m_onScreenMsg</a>;
+<a name="l00143"></a><a class="code" href="class_x_q_graph_painter.html#ad653683d0ecc9ed5a7a2809b090572d">00143</a>   <span class="keywordtype">int</span> <a class="code" href="class_x_q_graph_painter.html#ad653683d0ecc9ed5a7a2809b090572d">m_selStartPos</a>[2];
+<a name="l00144"></a><a class="code" href="class_x_q_graph_painter.html#9ad26455c21d31b07af124c452dbe87d">00144</a>   <span class="keywordtype">int</span> <a class="code" href="class_x_q_graph_painter.html#9ad26455c21d31b07af124c452dbe87d">m_tiltLastPos</a>[2];
+<a name="l00145"></a>00145   
+<a name="l00146"></a>00146   <span class="keywordtype">double</span> <a class="code" href="class_x_q_graph_painter.html#c07388a745020ba3810e7ba278a2128f">selectGL</a>(<span class="keywordtype">int</span> x, <span class="keywordtype">int</span> y, <span class="keywordtype">int</span> dx, <span class="keywordtype">int</span> dy, GLint list,
+<a name="l00147"></a>00147          <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *scr, <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdx, <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *dsdy );
+<a name="l00148"></a>00148   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#1335a2561120b650b8190f1ac459f49d">setInitView</a>();
+<a name="l00149"></a>00149   
+<a name="l00150"></a><a class="code" href="class_x_q_graph_painter.html#fe19736f946523c5c84ccc4e1f81183d">00150</a>   GLint <a class="code" href="class_x_q_graph_painter.html#fe19736f946523c5c84ccc4e1f81183d">m_listpoints</a>, <a class="code" href="class_x_q_graph_painter.html#749a2e1909173f104ebd0734d5f7ed5c">m_listaxes</a>, <a class="code" href="class_x_q_graph_painter.html#b8a9f885fc1cbd47e76d91ea2b0b5062">m_listgrids</a>, <a class="code" href="class_x_q_graph_painter.html#8abea2f9b77394975cf4f87d3a3d4dc6">m_listplanes</a>;
+<a name="l00151"></a>00151   
+<a name="l00152"></a><a class="code" href="class_x_q_graph_painter.html#aac44430ce37531a93c53c7e900936f9">00152</a>   <span class="keywordtype">bool</span> <a class="code" href="class_x_q_graph_painter.html#aac44430ce37531a93c53c7e900936f9">m_bIsRedrawNeeded</a>;
+<a name="l00153"></a><a class="code" href="class_x_q_graph_painter.html#027f36dbef00f8ad6f9185735550c5e3">00153</a>   <span class="keywordtype">bool</span> <a class="code" href="class_x_q_graph_painter.html#027f36dbef00f8ad6f9185735550c5e3">m_bIsAxisRedrawNeeded</a>;
+<a name="l00154"></a><a class="code" href="class_x_q_graph_painter.html#c65007162bd997f2ec3e511290db4af2">00154</a>   <span class="keywordtype">bool</span> <a class="code" href="class_x_q_graph_painter.html#c65007162bd997f2ec3e511290db4af2">m_bTilted</a>;
+<a name="l00155"></a><a class="code" href="class_x_q_graph_painter.html#673ab675d38fc3abf0d843542afa0e7d">00155</a>   <span class="keywordtype">bool</span> <a class="code" href="class_x_q_graph_painter.html#673ab675d38fc3abf0d843542afa0e7d">m_bReqHelp</a>;
 <a name="l00156"></a>00156   
-<a name="l00157"></a><a class="code" href="class_x_q_graph_painter.html#r22">00157</a>   <span class="keywordtype">bool</span> <a class="code" href="class_x_q_graph_painter.html#r22">m_bIsRedrawNeeded</a>;
-<a name="l00158"></a><a class="code" href="class_x_q_graph_painter.html#r23">00158</a>   <span class="keywordtype">bool</span> <a class="code" href="class_x_q_graph_painter.html#r23">m_bIsAxisRedrawNeeded</a>;
-<a name="l00159"></a><a class="code" href="class_x_q_graph_painter.html#r24">00159</a>   <span class="keywordtype">bool</span> <a class="code" href="class_x_q_graph_painter.html#r24">m_bTilted</a>;
-<a name="l00160"></a><a class="code" href="class_x_q_graph_painter.html#r25">00160</a>   <span class="keywordtype">bool</span> <a class="code" href="class_x_q_graph_painter.html#r25">m_bReqHelp</a>;
+<a name="l00157"></a><a class="code" href="class_x_q_graph_painter.html#d89791f9a543c5076f8829ceb878e3f1">00157</a>   GLdouble <a class="code" href="class_x_q_graph_painter.html#d89791f9a543c5076f8829ceb878e3f1">m_proj_rot</a>[16]; <span class="comment">// Current Rotation matrix</span>
+<a name="l00158"></a><a class="code" href="class_x_q_graph_painter.html#189b93fa7a7a76ade4923f93b662467a">00158</a>   GLdouble <a class="code" href="class_x_q_graph_painter.html#189b93fa7a7a76ade4923f93b662467a">m_proj</a>[16]; <span class="comment">// Current Projection matrix</span>
+<a name="l00159"></a><a class="code" href="class_x_q_graph_painter.html#55fb0f148e8247d1ab86cfc08d9b57ea">00159</a>   GLdouble <a class="code" href="class_x_q_graph_painter.html#55fb0f148e8247d1ab86cfc08d9b57ea">m_model</a>[16]; <span class="comment">// Current Modelview matrix</span>
+<a name="l00160"></a><a class="code" href="class_x_q_graph_painter.html#8349c8a2f73ef8107d1c73928cdfbd8f">00160</a>   GLint <a class="code" href="class_x_q_graph_painter.html#8349c8a2f73ef8107d1c73928cdfbd8f">m_viewport</a>[4]; <span class="comment">// Current Viewport</span>
 <a name="l00161"></a>00161   
-<a name="l00162"></a><a class="code" href="class_x_q_graph_painter.html#r26">00162</a>   GLdouble <a class="code" href="class_x_q_graph_painter.html#r26">m_proj_rot</a>[16]; <span class="comment">// Current Rotation matrix</span>
-<a name="l00163"></a><a class="code" href="class_x_q_graph_painter.html#r27">00163</a>   GLdouble <a class="code" href="class_x_q_graph_painter.html#r27">m_proj</a>[16]; <span class="comment">// Current Projection matrix</span>
-<a name="l00164"></a><a class="code" href="class_x_q_graph_painter.html#r28">00164</a>   GLdouble <a class="code" href="class_x_q_graph_painter.html#r28">m_model</a>[16]; <span class="comment">// Current Modelview matrix</span>
-<a name="l00165"></a><a class="code" href="class_x_q_graph_painter.html#r29">00165</a>   GLint <a class="code" href="class_x_q_graph_painter.html#r29">m_viewport</a>[4]; <span class="comment">// Current Viewport</span>
-<a name="l00166"></a>00166   
-<a name="l00167"></a>00167   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#d20">checkGLError</a>();
-<a name="l00168"></a>00168   
-<a name="l00169"></a>00169 <span class="comment">//   XGraph::ScrPoint DirProj; //direction vector of z of window coord.</span>
-<a name="l00170"></a><a class="code" href="class_x_q_graph_painter.html#r30">00170</a>   <span class="keywordtype">int</span> <a class="code" href="class_x_q_graph_painter.html#r30">m_curFontSize</a>;
-<a name="l00171"></a><a class="code" href="class_x_q_graph_painter.html#r31">00171</a>   <span class="keywordtype">int</span> <a class="code" href="class_x_q_graph_painter.html#r31">m_curAlign</a>;
-<a name="l00172"></a>00172   <span class="keyword">static</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#h0">openFont</a>();
-<a name="l00173"></a>00173   <span class="keyword">static</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#h1">closeFont</a>();
-<a name="l00174"></a>00174   <span class="keyword">static</span> std::wstring <a class="code" href="class_x_q_graph_painter.html#h2">qstring2wstring</a>(<span class="keyword">const</span> QString &amp;str);
-<a name="l00175"></a>00175   <span class="keyword">static</span> <span class="keywordtype">int</span> <a class="code" href="class_x_q_graph_painter.html#v0">s_fontRefCount</a>;
-<a name="l00176"></a>00176   <span class="keyword">static</span> FTFont *<a class="code" href="class_x_q_graph_painter.html#v1">s_pFont</a>;  
-<a name="l00177"></a>00177 };
-<a name="l00178"></a>00178 
-<a name="l00179"></a>00179 <span class="preprocessor">#endif</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:20 2006に生成されました。&nbsp;
+<a name="l00162"></a>00162   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#ea58130342fa777d9c2de0887ab88e32">checkGLError</a>();
+<a name="l00163"></a>00163   
+<a name="l00164"></a>00164 <span class="comment">//   XGraph::ScrPoint DirProj; //direction vector of z of window coord.</span>
+<a name="l00165"></a><a class="code" href="class_x_q_graph_painter.html#8dc435417aaea4c5b2d7006ebe63b6ff">00165</a>   <span class="keywordtype">int</span> <a class="code" href="class_x_q_graph_painter.html#8dc435417aaea4c5b2d7006ebe63b6ff">m_curFontSize</a>;
+<a name="l00166"></a><a class="code" href="class_x_q_graph_painter.html#6771a5eaabd52883124ac2d973f86b4d">00166</a>   <span class="keywordtype">int</span> <a class="code" href="class_x_q_graph_painter.html#6771a5eaabd52883124ac2d973f86b4d">m_curAlign</a>;
+<a name="l00167"></a>00167   <span class="keyword">static</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#9cf853795a45039ebda790f3d67f7336">openFont</a>();
+<a name="l00168"></a>00168   <span class="keyword">static</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#c01d6ac4c490e8d4807e1d29194edd6a">closeFont</a>();
+<a name="l00169"></a>00169   <span class="keyword">static</span> std::wstring <a class="code" href="class_x_q_graph_painter.html#995c5ec3dc1cf5501d897a6ea778cdf9">qstring2wstring</a>(<span class="keyword">const</span> QString &amp;str);
+<a name="l00170"></a><a class="code" href="class_x_q_graph_painter.html#39b8895e04197091b508680b63ef0f70">00170</a>   <span class="keyword">static</span> <span class="keywordtype">int</span> <a class="code" href="class_x_q_graph_painter.html#39b8895e04197091b508680b63ef0f70">s_fontRefCount</a>;
+<a name="l00171"></a><a class="code" href="class_x_q_graph_painter.html#62238b9af1234b71571a1a2512e0689a">00171</a>   <span class="keyword">static</span> FTFont *<a class="code" href="class_x_q_graph_painter.html#62238b9af1234b71571a1a2512e0689a">s_pFont</a>;  
+<a name="l00172"></a>00172 };
+<a name="l00173"></a>00173 
+<a name="l00174"></a>00174 <span class="preprocessor">#endif</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:44 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
 </html>

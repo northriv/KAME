@@ -159,7 +159,7 @@ QString formatDouble(const char *fmt, double var)
 {
     char cbuf[128];
       if(strlen(fmt) == 0) {
-          snprintf(cbuf, sizeof(cbuf), "%g", var);
+          snprintf(cbuf, sizeof(cbuf), "%.12g", var);
           return QString(cbuf);
       }
       

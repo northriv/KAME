@@ -2,147 +2,154 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/xsignal.cpp ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a></div>
-<h1>xsignal.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">//---------------------------------------------------------------------------</span>
-<a name="l00002"></a>00002 <span class="preprocessor">#include "xsignal.h"</span>
-<a name="l00003"></a>00003 <span class="comment">//---------------------------------------------------------------------------</span>
-<a name="l00004"></a>00004 
-<a name="l00005"></a>00005 shared_ptr&lt;XSignalBuffer&gt; g_signalBuffer;
-<a name="l00006"></a>00006 
-<a name="l00007"></a>00007 threadid_t g_main_thread_id = threadID();
-<a name="l00008"></a>00008 <span class="keywordtype">bool</span> isMainThread() {
-<a name="l00009"></a>00009     <span class="keywordflow">return</span> pthread_equal(threadID(), g_main_thread_id);
-<a name="l00010"></a>00010 }
-<a name="l00011"></a>00011 
-<a name="l00012"></a>00012 <span class="preprocessor">#define MAX_QUEUE 2000</span>
-<a name="l00013"></a>00013 <span class="preprocessor"></span>
-<a name="l00014"></a><a class="code" href="class_x_listener.html#b0">00014</a> <a class="code" href="class_x_listener.html#b0">XListener::XListener</a>(<span class="keywordtype">bool</span> mainthreadcall, <span class="keywordtype">bool</span> avoid_dup, <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> delay_ms) :
-<a name="l00015"></a>00015      m_bMainThreadCall(mainthreadcall),
-<a name="l00016"></a>00016      m_bAvoidDup(avoid_dup), 
-<a name="l00017"></a>00017      m_delay_ms(delay_ms), 
-<a name="l00018"></a>00018      m_bMasked(false) {
-<a name="l00019"></a>00019     <span class="keywordflow">if</span>(avoid_dup) {
-<a name="l00020"></a>00020         ASSERT(mainthreadcall);
+<a class="el" href="dir_cbe63f28361eb71291c8905f8fbf16c0.html">kame</a></div>
+<h1>xsignal.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#include "xsignal.h"</span>
+<a name="l00002"></a>00002 <span class="preprocessor">#include "atomic_queue.h"</span>
+<a name="l00003"></a>00003 
+<a name="l00004"></a>00004 shared_ptr&lt;XSignalBuffer&gt; g_signalBuffer;
+<a name="l00005"></a>00005 
+<a name="l00006"></a>00006 threadid_t g_main_thread_id = threadID();
+<a name="l00007"></a>00007 <span class="keywordtype">bool</span> isMainThread() {
+<a name="l00008"></a>00008     <span class="keywordflow">return</span> pthread_equal(threadID(), g_main_thread_id);
+<a name="l00009"></a>00009 }
+<a name="l00010"></a>00010 
+<a name="l00011"></a><a class="code" href="class_x_listener.html#e17be3d6061f482b72ec328a0964cfaa">00011</a> <a class="code" href="class_x_listener.html#e17be3d6061f482b72ec328a0964cfaa">XListener::XListener</a>(<span class="keywordtype">bool</span> mainthreadcall, <span class="keywordtype">bool</span> avoid_dup, <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> delay_ms) :
+<a name="l00012"></a>00012      m_bMainThreadCall(mainthreadcall),
+<a name="l00013"></a>00013      m_bAvoidDup(avoid_dup), 
+<a name="l00014"></a>00014      m_delay_ms(delay_ms), 
+<a name="l00015"></a>00015      m_bMasked(false) {
+<a name="l00016"></a>00016     <span class="keywordflow">if</span>(avoid_dup) {
+<a name="l00017"></a>00017         ASSERT(mainthreadcall);
+<a name="l00018"></a>00018     }
+<a name="l00019"></a>00019     <span class="keywordflow">if</span>(delay_ms) {
+<a name="l00020"></a>00020         ASSERT(avoid_dup);
 <a name="l00021"></a>00021     }
-<a name="l00022"></a>00022     <span class="keywordflow">if</span>(delay_ms) {
-<a name="l00023"></a>00023         ASSERT(avoid_dup);
-<a name="l00024"></a>00024     }
-<a name="l00025"></a>00025 }
-<a name="l00026"></a><a class="code" href="class_x_listener.html#a0">00026</a> <a class="code" href="class_x_listener.html#a0">XListener::~XListener</a>() {}
-<a name="l00027"></a>00027 <span class="keywordtype">void</span>
-<a name="l00028"></a><a class="code" href="class_x_listener.html#a1">00028</a> <a class="code" href="class_x_listener.html#a1">XListener::mask</a>() {
-<a name="l00029"></a>00029     ASSERT(!<a class="code" href="class_x_listener.html#p3">m_bMasked</a>);
-<a name="l00030"></a>00030     <a class="code" href="class_x_listener.html#p3">m_bMasked</a> = <span class="keyword">true</span>;
-<a name="l00031"></a>00031 }
-<a name="l00032"></a>00032 <span class="keywordtype">void</span>
-<a name="l00033"></a><a class="code" href="class_x_listener.html#a2">00033</a> <a class="code" href="class_x_listener.html#a2">XListener::unmask</a>() {
-<a name="l00034"></a>00034     ASSERT(<a class="code" href="class_x_listener.html#p3">m_bMasked</a>);
-<a name="l00035"></a>00035     <a class="code" href="class_x_listener.html#p3">m_bMasked</a> = <span class="keyword">false</span>;
-<a name="l00036"></a>00036 }
-<a name="l00037"></a>00037 
-<a name="l00038"></a><a class="code" href="class___x_talker_base.html#b0">00038</a> <a class="code" href="class___x_talker_base.html#b0">_XTalkerBase::_XTalkerBase</a>() : m_bMasked(false) {}
-<a name="l00039"></a><a class="code" href="class___x_talker_base.html#a0">00039</a> <a class="code" href="class___x_talker_base.html#a0">_XTalkerBase::~_XTalkerBase</a>() {}
-<a name="l00040"></a>00040 <span class="keywordtype">void</span>
-<a name="l00041"></a><a class="code" href="class___x_talker_base.html#a1">00041</a> <a class="code" href="class___x_talker_base.html#a1">_XTalkerBase::mask</a>() {
-<a name="l00042"></a>00042     ASSERT(!<a class="code" href="class___x_talker_base.html#p0">m_bMasked</a>);
-<a name="l00043"></a>00043     <a class="code" href="class___x_talker_base.html#p0">m_bMasked</a> = <span class="keyword">true</span>;
-<a name="l00044"></a>00044 }
-<a name="l00045"></a>00045 <span class="keywordtype">void</span>
-<a name="l00046"></a><a class="code" href="class___x_talker_base.html#a2">00046</a> <a class="code" href="class___x_talker_base.html#a2">_XTalkerBase::unmask</a>() {
-<a name="l00047"></a>00047     ASSERT(<a class="code" href="class___x_talker_base.html#p0">m_bMasked</a>);
-<a name="l00048"></a>00048     <a class="code" href="class___x_talker_base.html#p0">m_bMasked</a> = <span class="keyword">false</span>;
-<a name="l00049"></a>00049 }
-<a name="l00050"></a>00050 
-<a name="l00051"></a><a class="code" href="struct_x_signal_buffer_1_1_item.html#a0">00051</a> <a class="code" href="struct_x_signal_buffer_1_1_item.html#a0">XSignalBuffer::Item::Item</a>(<span class="keyword">const</span> shared_ptr&lt;_XTransaction::List&gt; &amp;list, <span class="keyword">const</span> <a class="code" href="class_x_time.html">XTime</a> &amp;time) 
-<a name="l00052"></a>00052 : transactions(list), registered_time(time) {}
-<a name="l00053"></a>00053 
-<a name="l00054"></a><a class="code" href="class_x_signal_buffer.html#a0">00054</a> <a class="code" href="class_x_signal_buffer.html#a0">XSignalBuffer::XSignalBuffer</a>() : <a class="code" href="class_x_signal_buffer.html#r2">m_queue_oldest_time_hint</a>(new <a class="code" href="class_x_time.html">XTime</a>())
-<a name="l00055"></a>00055 {
-<a name="l00056"></a>00056 }
-<a name="l00057"></a><a class="code" href="class_x_signal_buffer.html#a1">00057</a> <a class="code" href="class_x_signal_buffer.html#a1">XSignalBuffer::~XSignalBuffer</a>()
-<a name="l00058"></a>00058 {
-<a name="l00059"></a>00059 }
-<a name="l00060"></a>00060 <span class="keywordtype">void</span> 
-<a name="l00061"></a><a class="code" href="class_x_signal_buffer.html#a2">00061</a> <a class="code" href="class_x_signal_buffer.html#a2">XSignalBuffer::registerTransactionList</a>(<span class="keyword">const</span> shared_ptr&lt;_XTransaction::List&gt; &amp;list, <span class="keyword">const</span> <a class="code" href="class_x_time.html">XTime</a> &amp;t)
-<a name="l00062"></a>00062 {
-<a name="l00063"></a>00063     <a class="code" href="class_x_time.html">XTime</a> time(t);
-<a name="l00064"></a>00064     ASSERT(!isMainThread());
-<a name="l00065"></a>00065         <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; 20; i++) {
-<a name="l00066"></a>00066           <span class="keywordtype">double</span> cost = 0.0;
-<a name="l00067"></a>00067           <span class="keywordflow">if</span>(<a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.size()) {
-<a name="l00068"></a>00068         <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;XTime&gt;</a> oldest(<a class="code" href="class_x_signal_buffer.html#r2">m_queue_oldest_time_hint</a>);
-<a name="l00069"></a>00069                   cost += time - *oldest;
-<a name="l00070"></a>00070           }
-<a name="l00071"></a>00071       <span class="keywordflow">if</span>(<a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.size() &gt;= MAX_QUEUE) {
-<a name="l00072"></a>00072         cost = cost * <a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.size() / MAX_QUEUE;
-<a name="l00073"></a>00073       }
-<a name="l00074"></a>00074           <span class="keywordflow">if</span>(cost &lt; 0.05) <span class="keywordflow">break</span>;
-<a name="l00075"></a>00075       <span class="keywordflow">if</span>(cost &gt; 10)
-<a name="l00076"></a>00076             fprintf(stderr, <span class="stringliteral">"Talking cost exceeds 10, "</span> __FILE__ <span class="stringliteral">":%d\n"</span>,__LINE__);
-<a name="l00077"></a>00077           msecsleep((<span class="keywordtype">int</span>)std::min(cost * i, 10.0));
-<a name="l00078"></a>00078       time = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
-<a name="l00079"></a>00079         }  
-<a name="l00080"></a>00080         { <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XLightMutex&gt;</a> lock(<a class="code" href="class_x_signal_buffer.html#r1">m_queue_mutex</a>);
-<a name="l00081"></a>00081         <span class="keywordflow">if</span>(!<a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.size()) <a class="code" href="class_x_signal_buffer.html#r2">m_queue_oldest_time_hint</a>.<a class="code" href="classatomic__shared__ptr.html#a7">reset</a>(<span class="keyword">new</span> <a class="code" href="class_x_time.html">XTime</a>(time));
-<a name="l00082"></a>00082                 <a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.push_back(<a class="code" href="struct_x_signal_buffer_1_1_item.html">Item</a>(list, time));
-<a name="l00083"></a>00083     }
-<a name="l00084"></a>00084 }
-<a name="l00085"></a>00085 <span class="keywordtype">bool</span>
-<a name="l00086"></a><a class="code" href="class_x_signal_buffer.html#a3">00086</a> <a class="code" href="class_x_signal_buffer.html#a3">XSignalBuffer::synchronize</a>()
-<a name="l00087"></a>00087 {
-<a name="l00088"></a>00088   <span class="keywordtype">bool</span> dotalk = <span class="keyword">true</span>;
-<a name="l00089"></a>00089   <a class="code" href="class_x_time.html">XTime</a> tv_start(<a class="code" href="class_x_time.html#e0">XTime::now</a>());
-<a name="l00090"></a>00090   
-<a name="l00091"></a>00091   <span class="keywordflow">for</span>(;;) {
-<a name="l00092"></a>00092         <span class="keywordflow">if</span>(!<a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.size()) {
-<a name="l00093"></a>00093                 dotalk = <span class="keyword">false</span>;
-<a name="l00094"></a>00094                 <span class="keywordflow">break</span>;
-<a name="l00095"></a>00095         }
-<a name="l00096"></a>00096     
-<a name="l00097"></a>00097     shared_ptr&lt;_XTransaction::List&gt; transactions(<a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.front().transactions);
-<a name="l00098"></a>00098     <a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.pop_front();
-<a name="l00099"></a>00099     <span class="keywordflow">if</span>(<a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.size())
-<a name="l00100"></a>00100         <a class="code" href="class_x_signal_buffer.html#r2">m_queue_oldest_time_hint</a>.<a class="code" href="classatomic__shared__ptr.html#a7">reset</a>(<span class="keyword">new</span> <a class="code" href="class_x_time.html">XTime</a>(<a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.front().registered_time));
-<a name="l00101"></a>00101     
-<a name="l00102"></a>00102     <a class="code" href="struct___x_transaction.html">_XTransaction</a> *x;
-<a name="l00103"></a>00103     { <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XLightMutex&gt;</a> lock(transactions-&gt;mutex);
-<a name="l00104"></a>00104         x = transactions-&gt;front();
-<a name="l00105"></a>00105         transactions-&gt;pop_front();
+<a name="l00022"></a>00022 }
+<a name="l00023"></a><a class="code" href="class_x_listener.html#20c34936dcb3e6626b5260f6b0eeaf0d">00023</a> <a class="code" href="class_x_listener.html#20c34936dcb3e6626b5260f6b0eeaf0d">XListener::~XListener</a>() {}
+<a name="l00024"></a>00024 <span class="keywordtype">void</span>
+<a name="l00025"></a><a class="code" href="class_x_listener.html#58154809ed1208fb6620e10d09baae98">00025</a> <a class="code" href="class_x_listener.html#58154809ed1208fb6620e10d09baae98">XListener::mask</a>() {
+<a name="l00026"></a>00026     ASSERT(!<a class="code" href="class_x_listener.html#c26764fe00bb61d7acc3b60d82f04773">m_bMasked</a>);
+<a name="l00027"></a>00027     <a class="code" href="class_x_listener.html#c26764fe00bb61d7acc3b60d82f04773">m_bMasked</a> = <span class="keyword">true</span>;
+<a name="l00028"></a>00028 }
+<a name="l00029"></a>00029 <span class="keywordtype">void</span>
+<a name="l00030"></a><a class="code" href="class_x_listener.html#ef059af08b3c1c4cf53fc4715014b5a4">00030</a> <a class="code" href="class_x_listener.html#ef059af08b3c1c4cf53fc4715014b5a4">XListener::unmask</a>() {
+<a name="l00031"></a>00031     ASSERT(<a class="code" href="class_x_listener.html#c26764fe00bb61d7acc3b60d82f04773">m_bMasked</a>);
+<a name="l00032"></a>00032     <a class="code" href="class_x_listener.html#c26764fe00bb61d7acc3b60d82f04773">m_bMasked</a> = <span class="keyword">false</span>;
+<a name="l00033"></a>00033 }
+<a name="l00034"></a>00034 
+<a name="l00035"></a><a class="code" href="class___x_talker_base.html#06577fe18cc009469085d32d8d70dece">00035</a> <a class="code" href="class___x_talker_base.html#06577fe18cc009469085d32d8d70dece">_XTalkerBase::_XTalkerBase</a>() : m_bMasked(false) {}
+<a name="l00036"></a><a class="code" href="class___x_talker_base.html#f6465b0aad4639cbc1e82bc24ecb923f">00036</a> <a class="code" href="class___x_talker_base.html#f6465b0aad4639cbc1e82bc24ecb923f">_XTalkerBase::~_XTalkerBase</a>() {}
+<a name="l00037"></a>00037 <span class="keywordtype">void</span>
+<a name="l00038"></a><a class="code" href="class___x_talker_base.html#347b128740ff548f0719371c568bbb39">00038</a> <a class="code" href="class___x_talker_base.html#347b128740ff548f0719371c568bbb39">_XTalkerBase::mask</a>() {
+<a name="l00039"></a>00039     ASSERT(!<a class="code" href="class___x_talker_base.html#b83fa13991c8a33c6c3b033c7b9cbb4f">m_bMasked</a>);
+<a name="l00040"></a>00040     <a class="code" href="class___x_talker_base.html#b83fa13991c8a33c6c3b033c7b9cbb4f">m_bMasked</a> = <span class="keyword">true</span>;
+<a name="l00041"></a>00041 }
+<a name="l00042"></a>00042 <span class="keywordtype">void</span>
+<a name="l00043"></a><a class="code" href="class___x_talker_base.html#ed3c8020c34c2fa769ad5bfd3a6b2458">00043</a> <a class="code" href="class___x_talker_base.html#ed3c8020c34c2fa769ad5bfd3a6b2458">_XTalkerBase::unmask</a>() {
+<a name="l00044"></a>00044     ASSERT(<a class="code" href="class___x_talker_base.html#b83fa13991c8a33c6c3b033c7b9cbb4f">m_bMasked</a>);
+<a name="l00045"></a>00045     <a class="code" href="class___x_talker_base.html#b83fa13991c8a33c6c3b033c7b9cbb4f">m_bMasked</a> = <span class="keyword">false</span>;
+<a name="l00046"></a>00046 }
+<a name="l00047"></a>00047 
+<a name="l00048"></a><a class="code" href="class_x_signal_buffer.html#c5bebe8ba742155d29579cb413d0ed9b">00048</a> <a class="code" href="class_x_signal_buffer.html#c5bebe8ba742155d29579cb413d0ed9b">XSignalBuffer::XSignalBuffer</a>()
+<a name="l00049"></a>00049  : m_queue(new <a class="code" href="classatomic__pointer__queue.html">Queue</a>()), m_queue_oldest_timestamp(timeStamp())
+<a name="l00050"></a>00050 {
+<a name="l00051"></a>00051 }
+<a name="l00052"></a><a class="code" href="class_x_signal_buffer.html#65a4a326317ca5ff767e2df21dc99b04">00052</a> <a class="code" href="class_x_signal_buffer.html#65a4a326317ca5ff767e2df21dc99b04">XSignalBuffer::~XSignalBuffer</a>()
+<a name="l00053"></a>00053 {
+<a name="l00054"></a>00054 }
+<a name="l00055"></a>00055 <span class="keywordtype">void</span> 
+<a name="l00056"></a><a class="code" href="class_x_signal_buffer.html#42c236d360a7c6af723384fe11e58b99">00056</a> <a class="code" href="class_x_signal_buffer.html#42c236d360a7c6af723384fe11e58b99">XSignalBuffer::registerTransactionList</a>(<a class="code" href="struct___x_transaction.html">_XTransaction</a> *transaction)
+<a name="l00057"></a>00057 {
+<a name="l00058"></a>00058     <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> time(transaction-&gt;<a class="code" href="struct___x_transaction.html#b75e7d5820cf00853e6c38be8de77405">registered_time</a>);
+<a name="l00059"></a>00059     ASSERT(!isMainThread());
+<a name="l00060"></a>00060     <span class="keywordflow">for</span>(;;) {
+<a name="l00061"></a>00061                 <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; 20; i++) {
+<a name="l00062"></a>00062                   <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> cost = 0;
+<a name="l00063"></a>00063                   <span class="keywordflow">if</span>(!<a class="code" href="class_x_signal_buffer.html#f2bf531eec37ae0637d3e014b5ca32bc">m_queue</a>-&gt;empty()) {
+<a name="l00064"></a>00064                           cost += time - <a class="code" href="class_x_signal_buffer.html#5266ab2e685ad0559c66baf32f1f4439">m_queue_oldest_timestamp</a>;
+<a name="l00065"></a>00065                   }
+<a name="l00066"></a>00066                   <span class="keywordflow">if</span>(cost &lt; 50000uL) {
+<a name="l00067"></a>00067                 <span class="keywordflow">break</span>;
+<a name="l00068"></a>00068           }
+<a name="l00069"></a>00069                   msecsleep(std::min(cost * i / 1000000uL, 10uL));
+<a name="l00070"></a>00070           time = timeStamp();
+<a name="l00071"></a>00071                 }
+<a name="l00072"></a>00072         <span class="keywordflow">try</span> {
+<a name="l00073"></a>00073             <span class="keywordtype">bool</span> empty = m_queue-&gt;empty();
+<a name="l00074"></a>00074             m_queue-&gt;push(transaction);
+<a name="l00075"></a>00075             <span class="keywordflow">if</span>(empty) m_queue_oldest_timestamp = transaction-&gt;registered_time;
+<a name="l00076"></a>00076             <span class="keywordflow">break</span>;
+<a name="l00077"></a>00077         }
+<a name="l00078"></a>00078         <span class="keywordflow">catch</span> (Queue::nospace_error &amp;) {
+<a name="l00079"></a>00079             msecsleep(10);
+<a name="l00080"></a>00080         }
+<a name="l00081"></a>00081     }
+<a name="l00082"></a>00082 }
+<a name="l00083"></a>00083 <span class="keywordtype">bool</span>
+<a name="l00084"></a><a class="code" href="class_x_signal_buffer.html#df85a72ec52a81b7d744810b7fec4689">00084</a> <a class="code" href="class_x_signal_buffer.html#df85a72ec52a81b7d744810b7fec4689">XSignalBuffer::synchronize</a>()
+<a name="l00085"></a>00085 {
+<a name="l00086"></a>00086   <span class="keywordtype">bool</span> dotalk = <span class="keyword">true</span>;
+<a name="l00087"></a>00087   <a class="code" href="class_x_time.html">XTime</a> time_start(<a class="code" href="class_x_time.html#c379a0eebc8202c724609985cf7782ac">XTime::now</a>());
+<a name="l00088"></a>00088   <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> time_stamp_start(timeStamp());
+<a name="l00089"></a>00089   <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> clock_in_ms = 1000;
+<a name="l00090"></a>00090   <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> skipped_cnt = 0;
+<a name="l00091"></a>00091   
+<a name="l00092"></a>00092   <span class="keywordflow">for</span>(;;) {
+<a name="l00093"></a>00093         <span class="keywordflow">if</span>(<a class="code" href="class_x_signal_buffer.html#f2bf531eec37ae0637d3e014b5ca32bc">m_queue</a>-&gt;size() &lt;= skipped_cnt) {
+<a name="l00094"></a>00094                 dotalk = (<a class="code" href="class_x_signal_buffer.html#f2bf531eec37ae0637d3e014b5ca32bc">m_queue</a>-&gt;size() &gt; 0);
+<a name="l00095"></a>00095                 <span class="keywordflow">break</span>;
+<a name="l00096"></a>00096         }
+<a name="l00097"></a>00097     <a class="code" href="struct___x_transaction.html">_XTransaction</a> *transaction;
+<a name="l00098"></a>00098     transaction = m_queue-&gt;front();
+<a name="l00099"></a>00099     
+<a name="l00100"></a>00100     <span class="keywordtype">bool</span> skip = <span class="keyword">false</span>;
+<a name="l00101"></a>00101     <span class="keywordflow">try</span> {
+<a name="l00102"></a>00102         skip = transaction-&gt;<a class="code" href="struct___x_transaction.html#053382edf84821aeaa1c29f74827a22c">talkBuffered</a>();  
+<a name="l00103"></a>00103     }
+<a name="l00104"></a>00104     <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
+<a name="l00105"></a>00105         e.<a class="code" href="struct_x_kame_error.html#9a84ebcb9d45b52654fd1d071450a5ee">print</a>();
 <a name="l00106"></a>00106     }
-<a name="l00107"></a>00107     <span class="keywordtype">bool</span> skip = <span class="keyword">false</span>;
-<a name="l00108"></a>00108     <span class="keywordflow">try</span> {
-<a name="l00109"></a>00109         skip = x-&gt;<a class="code" href="struct___x_transaction.html#a2">talkBuffered</a>();  
-<a name="l00110"></a>00110     }
-<a name="l00111"></a>00111     <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
-<a name="l00112"></a>00112         e.<a class="code" href="struct_x_kame_error.html#a1">print</a>();
-<a name="l00113"></a>00113     }
-<a name="l00114"></a>00114     <span class="keywordflow">catch</span> (...) {
-<a name="l00115"></a>00115         gErrPrint(<span class="stringliteral">"Unhandled Exception Occurs!"</span>);
-<a name="l00116"></a>00116     }    
-<a name="l00117"></a>00117     
-<a name="l00118"></a>00118         <span class="keywordflow">if</span>(skip) {
-<a name="l00119"></a>00119         { <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XLightMutex&gt;</a> lock(transactions-&gt;mutex);
-<a name="l00120"></a>00120             transactions-&gt;push_back(x);
-<a name="l00121"></a>00121         }
-<a name="l00122"></a>00122         { <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XLightMutex&gt;</a> lock(<a class="code" href="class_x_signal_buffer.html#r1">m_queue_mutex</a>);
-<a name="l00123"></a>00123                         <a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.push_back(<a class="code" href="struct_x_signal_buffer_1_1_item.html">Item</a>(transactions, <a class="code" href="class_x_time.html#e0">XTime::now</a>()));
-<a name="l00124"></a>00124         }
-<a name="l00125"></a>00125         <a class="code" href="class_x_signal_buffer.html#r2">m_queue_oldest_time_hint</a>.<a class="code" href="classatomic__shared__ptr.html#a7">reset</a>(<span class="keyword">new</span> <a class="code" href="class_x_time.html">XTime</a>(<a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.front().registered_time));
-<a name="l00126"></a>00126         }
-<a name="l00127"></a>00127     <span class="keywordflow">else</span> {
-<a name="l00128"></a>00128         <span class="keyword">delete</span> x;
-<a name="l00129"></a>00129     }
-<a name="l00130"></a>00130     <span class="keywordflow">if</span>(<a class="code" href="class_x_time.html#e0">XTime::now</a>() - tv_start &gt; 0.03) <span class="keywordflow">break</span>;
-<a name="l00131"></a>00131   }
-<a name="l00132"></a>00132   <span class="keywordflow">return</span> !dotalk;
-<a name="l00133"></a>00133 }
-<a name="l00134"></a>00134 
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:24 2006に生成されました。&nbsp;
+<a name="l00107"></a>00107     <span class="keywordflow">catch</span> (...) {
+<a name="l00108"></a>00108         gErrPrint(<span class="stringliteral">"Unhandled Exception Occurs!"</span>);
+<a name="l00109"></a>00109     }    
+<a name="l00110"></a>00110     
+<a name="l00111"></a>00111         <span class="keywordflow">if</span>(skip) {
+<a name="l00112"></a>00112         <span class="keywordflow">try</span> {
+<a name="l00113"></a>00113                         m_queue-&gt;push(transaction);
+<a name="l00114"></a>00114         }
+<a name="l00115"></a>00115         <span class="keywordflow">catch</span> (Queue::nospace_error &amp;) {
+<a name="l00116"></a>00116             <span class="keywordflow">continue</span>;
+<a name="l00117"></a>00117         }
+<a name="l00118"></a>00118         skipped_cnt++;
+<a name="l00119"></a>00119         }
+<a name="l00120"></a>00120     <span class="keywordflow">else</span> {
+<a name="l00121"></a>00121         <span class="keyword">delete</span> transaction;
+<a name="l00122"></a>00122     }
+<a name="l00123"></a>00123     m_queue-&gt;pop();
+<a name="l00124"></a>00124     <span class="keywordflow">if</span>(!m_queue-&gt;empty()) m_queue_oldest_timestamp = m_queue-&gt;front()-&gt;<a class="code" href="struct___x_transaction.html#b75e7d5820cf00853e6c38be8de77405">registered_time</a>;
+<a name="l00125"></a>00125     <span class="keywordflow">if</span>((timeStamp() - time_stamp_start) / clock_in_ms &gt; 30uL) <span class="keywordflow">break</span>;
+<a name="l00126"></a>00126   }
+<a name="l00127"></a>00127   <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> msec = <a class="code" href="class_x_time.html#c379a0eebc8202c724609985cf7782ac">XTime::now</a>().<a class="code" href="class_x_time.html#166ea1f367b16750cd04f9ce28b2475f">diff_msec</a>(time_start);
+<a name="l00128"></a>00128   <span class="keywordflow">if</span>(msec &gt; 10)
+<a name="l00129"></a>00129       clock_in_ms = (timeStamp() - time_stamp_start) / msec;
+<a name="l00130"></a>00130   <span class="keywordflow">return</span> !dotalk;
+<a name="l00131"></a>00131 }
+<a name="l00132"></a>00132 
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:47 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
 </html>

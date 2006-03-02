@@ -2,11 +2,20 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/script/xrubysupport.h ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000008.html">script</a></div>
+<a class="el" href="dir_cbe63f28361eb71291c8905f8fbf16c0.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_7b95ae98a450d5c16106c6cdbaf102ff.html">script</a></div>
 <h1>xrubysupport.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00002"></a>00002 
 <a name="l00003"></a>00003 <span class="preprocessor">#ifndef xrubysupportH</span>
@@ -23,61 +32,61 @@
 <a name="l00014"></a>00014 {
 <a name="l00015"></a>00015  XNODE_OBJECT
 <a name="l00016"></a>00016  <span class="keyword">protected</span>:
-<a name="l00017"></a>00017   <a class="code" href="class_x_ruby.html#b0">XRuby</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XMeasure&gt; &amp;measure);
+<a name="l00017"></a>00017   <a class="code" href="class_x_ruby.html#b5f075c4e2ffa4a03f793406d0d8d69a">XRuby</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XMeasure&gt; &amp;measure);
 <a name="l00018"></a>00018  <span class="keyword">public</span>:
-<a name="l00019"></a>00019   <span class="keyword">virtual</span> <a class="code" href="class_x_ruby.html#a0">~XRuby</a>();
+<a name="l00019"></a>00019   <span class="keyword">virtual</span> <a class="code" href="class_x_ruby.html#4f867a437685db2ed0f7a043d1eb6d5d">~XRuby</a>();
 <a name="l00020"></a>00020   
-<a name="l00021"></a><a class="code" href="class_x_ruby.html#a1">00021</a>   <span class="keywordtype">void</span> <a class="code" href="class_x_ruby.html#a1">resume</a>() {<a class="code" href="class_x_ruby.html#r7">m_bTerminated</a> = <span class="keyword">false</span>; <a class="code" href="class_x_ruby.html#r6">m_thread</a>.<a class="code" href="class_x_thread.html#a2">resume</a>();}
-<a name="l00022"></a><a class="code" href="class_x_ruby.html#a2">00022</a>   <span class="keywordtype">void</span> <a class="code" href="class_x_ruby.html#a2">terminate</a>() {<a class="code" href="class_x_ruby.html#r7">m_bTerminated</a> = <span class="keyword">true</span>;}
+<a name="l00021"></a><a class="code" href="class_x_ruby.html#107c54934f1f4fd0a8b47d51a770c3ab">00021</a>   <span class="keywordtype">void</span> <a class="code" href="class_x_ruby.html#107c54934f1f4fd0a8b47d51a770c3ab">resume</a>() {<a class="code" href="class_x_ruby.html#439ebbf8985c524d1bcb55555910bffc">m_thread</a>.<a class="code" href="class_x_thread.html#7db6feaa7f3863a1f6f978f442e229cf">resume</a>();}
+<a name="l00022"></a><a class="code" href="class_x_ruby.html#91af15684aa094715f860d46b2c2bbe5">00022</a>   <span class="keywordtype">void</span> <a class="code" href="class_x_ruby.html#91af15684aa094715f860d46b2c2bbe5">terminate</a>() {<a class="code" href="class_x_ruby.html#439ebbf8985c524d1bcb55555910bffc">m_thread</a>.<a class="code" href="class_x_thread.html#f532cf36652f5e85249173c9f623ef0e">terminate</a>();}
 <a name="l00023"></a>00023 
 <a name="l00024"></a>00024  <span class="keyword">protected</span>:
-<a name="l00025"></a>00025   <span class="keyword">virtual</span> <span class="keywordtype">void</span> *<a class="code" href="class_x_ruby.html#b1">execute</a>();
+<a name="l00025"></a>00025   <span class="keyword">virtual</span> <span class="keywordtype">void</span> *<a class="code" href="class_x_ruby.html#764f44fcd9156bb86ce97b8bf1d3c437">execute</a>(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;);
 <a name="l00026"></a>00026  <span class="keyword">private</span>:
 <a name="l00027"></a>00027    
 <a name="l00028"></a><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">00028</a>   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>
 <a name="l00029"></a>00029   {
-<a name="l00030"></a><a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">00030</a>     weak_ptr&lt;XNode&gt; <a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>;
-<a name="l00031"></a><a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o1">00031</a>     <a class="code" href="class_x_ruby.html">XRuby</a> *<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o1">xruby</a>;
+<a name="l00030"></a><a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">00030</a>     weak_ptr&lt;XNode&gt; <a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a>;
+<a name="l00031"></a><a class="code" href="struct_x_ruby_1_1rnode__ptr.html#a6769fc6038a89b035ed07b59b7e4122">00031</a>     <a class="code" href="class_x_ruby.html">XRuby</a> *<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#a6769fc6038a89b035ed07b59b7e4122">xruby</a>;
 <a name="l00032"></a>00032   };
-<a name="l00034"></a><a class="code" href="class_x_ruby.html#r1">00034</a>   VALUE <a class="code" href="class_x_ruby.html#r0">rbClassNode</a>, <a class="code" href="class_x_ruby.html#r1">rbClassValueNode</a>, <a class="code" href="class_x_ruby.html#r2">rbClassListNode</a>;
-<a name="l00036"></a>00036   <span class="keyword">static</span> <span class="keywordtype">void</span> <a class="code" href="class_x_ruby.html#h0">rnode_free</a>(<span class="keywordtype">void</span> *);
-<a name="l00038"></a>00038   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#h1">my_rbdefout</a>(VALUE <span class="keyword">self</span>, VALUE str, VALUE threadid);
-<a name="l00040"></a>00040   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#h2">is_main_terminated</a>(VALUE <span class="keyword">self</span>);
-<a name="l00042"></a>00042   <span class="keyword">static</span> <span class="keywordtype">int</span> <a class="code" href="class_x_ruby.html#h3">strOnNode</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node, VALUE value);
-<a name="l00043"></a>00043   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#h4">getValueOfNode</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
-<a name="l00044"></a>00044   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#h5">rnode_create</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;, <a class="code" href="class_x_ruby.html">XRuby</a> *);
-<a name="l00045"></a>00045   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#h6">rnode_name</a>(VALUE);
-<a name="l00046"></a>00046   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#h7">rnode_touch</a>(VALUE);
-<a name="l00047"></a>00047   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#h8">rnode_count</a>(VALUE);
-<a name="l00048"></a>00048   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#h9">rnode_child</a>(VALUE, VALUE);
-<a name="l00049"></a>00049   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#h10">rvaluenode_set</a>(VALUE, VALUE);
-<a name="l00050"></a>00050   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#h11">rvaluenode_load</a>(VALUE, VALUE);
-<a name="l00051"></a>00051   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#h12">rvaluenode_get</a>(VALUE);
-<a name="l00052"></a>00052   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#h13">rvaluenode_to_str</a>(VALUE);
-<a name="l00053"></a>00053   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#h14">rlistnode_create_child</a>(VALUE, VALUE, VALUE);
-<a name="l00054"></a>00054   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#h15">rlistnode_release_child</a>(VALUE, VALUE);
+<a name="l00034"></a><a class="code" href="class_x_ruby.html#357c1deb431b0789d8c792b0126e9be6">00034</a>   VALUE <a class="code" href="class_x_ruby.html#bdcbc675dd343883e27d00dfaa0e8bef">rbClassNode</a>, <a class="code" href="class_x_ruby.html#357c1deb431b0789d8c792b0126e9be6">rbClassValueNode</a>, <a class="code" href="class_x_ruby.html#8fd6a751e2eab65e3ce1c52ae2b74c7d">rbClassListNode</a>;
+<a name="l00036"></a>00036   <span class="keyword">static</span> <span class="keywordtype">void</span> <a class="code" href="class_x_ruby.html#31dc5e820c15e0c20b94c3cece6635fc">rnode_free</a>(<span class="keywordtype">void</span> *);
+<a name="l00038"></a>00038   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#0941da058643c7d60b6f99403a8696ec">my_rbdefout</a>(VALUE <span class="keyword">self</span>, VALUE str, VALUE threadid);
+<a name="l00040"></a>00040   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#f8a230dbc73b02508db5b504725c3b61">is_main_terminated</a>(VALUE <span class="keyword">self</span>);
+<a name="l00042"></a>00042   <span class="keyword">static</span> <span class="keywordtype">int</span> <a class="code" href="class_x_ruby.html#a818c747cb3fe1976737e7cd14fb1925">strOnNode</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node, VALUE value);
+<a name="l00043"></a>00043   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#844b796abc9683360227d3cf04ce7c8a">getValueOfNode</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
+<a name="l00044"></a>00044   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#801a32a0717d9b4e4e5cab471abd559d">rnode_create</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;, <a class="code" href="class_x_ruby.html">XRuby</a> *);
+<a name="l00045"></a>00045   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#8dbb384e96283696098eed3f43db603e">rnode_name</a>(VALUE);
+<a name="l00046"></a>00046   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#e7402ab445a84cb6e23b9a9d1e249738">rnode_touch</a>(VALUE);
+<a name="l00047"></a>00047   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#eb206c3ae43aa6fb68ab0aa6ac16f4d4">rnode_count</a>(VALUE);
+<a name="l00048"></a>00048   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#5cacdce99649c7077df80222060e6737">rnode_child</a>(VALUE, VALUE);
+<a name="l00049"></a>00049   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#35e2ba22b0573b47e7ef57c202a89eee">rvaluenode_set</a>(VALUE, VALUE);
+<a name="l00050"></a>00050   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#37386cf2e6cd84f2811228b0d0a8a0c3">rvaluenode_load</a>(VALUE, VALUE);
+<a name="l00051"></a>00051   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#8d24a142da6d2325f4beaf3d0fc191d2">rvaluenode_get</a>(VALUE);
+<a name="l00052"></a>00052   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#3fb4003898068bfd83f12a978bb50eac">rvaluenode_to_str</a>(VALUE);
+<a name="l00053"></a>00053   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#1e242123b8a58268e40e0cd47004be21">rlistnode_create_child</a>(VALUE, VALUE, VALUE);
+<a name="l00054"></a>00054   <span class="keyword">static</span> VALUE <a class="code" href="class_x_ruby.html#5ead2fb9d0a9beba729ef63e0b0af341">rlistnode_release_child</a>(VALUE, VALUE);
 <a name="l00055"></a>00055 
 <a name="l00056"></a><a class="code" href="struct_x_ruby_1_1t_create_child.html">00056</a>   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1t_create_child.html">tCreateChild</a>
 <a name="l00057"></a>00057   {
-<a name="l00058"></a><a class="code" href="struct_x_ruby_1_1t_create_child.html#o0">00058</a>     std::string <a class="code" href="struct_x_ruby_1_1t_create_child.html#o0">type</a>;
-<a name="l00059"></a><a class="code" href="struct_x_ruby_1_1t_create_child.html#o1">00059</a>     std::string name;
-<a name="l00060"></a><a class="code" href="struct_x_ruby_1_1t_create_child.html#o2">00060</a>     shared_ptr&lt;XListNodeBase&gt; <a class="code" href="struct_x_ruby_1_1t_create_child.html#o2">lnode</a>;
-<a name="l00061"></a><a class="code" href="struct_x_ruby_1_1t_create_child.html#o3">00061</a>     <a class="code" href="class_x_condition.html">XCondition</a> <a class="code" href="struct_x_ruby_1_1t_create_child.html#o3">cond</a>;
-<a name="l00062"></a><a class="code" href="struct_x_ruby_1_1t_create_child.html#o4">00062</a>     shared_ptr&lt;XNode&gt; <a class="code" href="struct_x_ruby_1_1t_create_child.html#o4">child</a>;
+<a name="l00058"></a><a class="code" href="struct_x_ruby_1_1t_create_child.html#417da742d82a46775b5813c7c5bfc551">00058</a>     std::string <a class="code" href="struct_x_ruby_1_1t_create_child.html#417da742d82a46775b5813c7c5bfc551">type</a>;
+<a name="l00059"></a><a class="code" href="struct_x_ruby_1_1t_create_child.html#7555237f878e1a6c9302d77788d35467">00059</a>     std::string name;
+<a name="l00060"></a><a class="code" href="struct_x_ruby_1_1t_create_child.html#d3e7cf3ad76c353ee4ecd01f064dde38">00060</a>     shared_ptr&lt;XListNodeBase&gt; <a class="code" href="struct_x_ruby_1_1t_create_child.html#d3e7cf3ad76c353ee4ecd01f064dde38">lnode</a>;
+<a name="l00061"></a><a class="code" href="struct_x_ruby_1_1t_create_child.html#7aa0593023166d04f9ac4911e0fb1758">00061</a>     <a class="code" href="class_x_condition.html">XCondition</a> <a class="code" href="struct_x_ruby_1_1t_create_child.html#7aa0593023166d04f9ac4911e0fb1758">cond</a>;
+<a name="l00062"></a><a class="code" href="struct_x_ruby_1_1t_create_child.html#6a49513f7e6257c3024fc15419b63924">00062</a>     shared_ptr&lt;XNode&gt; <a class="code" href="struct_x_ruby_1_1t_create_child.html#6a49513f7e6257c3024fc15419b63924">child</a>;
 <a name="l00063"></a>00063   };
-<a name="l00064"></a><a class="code" href="class_x_ruby.html#r3">00064</a>   <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;tCreateChild&gt;</a> &gt; <a class="code" href="class_x_ruby.html#r3">m_tlkCreateChild</a>;
-<a name="l00065"></a><a class="code" href="class_x_ruby.html#r4">00065</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_ruby.html#r4">m_lsnCreateChild</a>;
-<a name="l00066"></a>00066   <span class="keywordtype">void</span> <a class="code" href="class_x_ruby.html#d0">onCreateChild</a>(<span class="keyword">const</span> shared_ptr&lt;tCreateChild&gt; &amp;x);
+<a name="l00064"></a><a class="code" href="class_x_ruby.html#ef8766a174237ea214b9de25f8159b85">00064</a>   <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;tCreateChild&gt;</a> &gt; <a class="code" href="class_x_ruby.html#ef8766a174237ea214b9de25f8159b85">m_tlkCreateChild</a>;
+<a name="l00065"></a><a class="code" href="class_x_ruby.html#3a548f0cd0e1b3b8237161baf54f61db">00065</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_ruby.html#3a548f0cd0e1b3b8237161baf54f61db">m_lsnCreateChild</a>;
+<a name="l00066"></a>00066   <span class="keywordtype">void</span> <a class="code" href="class_x_ruby.html#e45f609eb6343047fefdf3dda46c853f">onCreateChild</a>(<span class="keyword">const</span> shared_ptr&lt;tCreateChild&gt; &amp;x);
 <a name="l00067"></a>00067   
-<a name="l00068"></a><a class="code" href="class_x_ruby.html#r5">00068</a>   weak_ptr&lt;XMeasure&gt; <a class="code" href="class_x_ruby.html#r5">m_measure</a>;
-<a name="l00069"></a><a class="code" href="class_x_ruby.html#r6">00069</a>   <a class="code" href="class_x_thread.html">XThread&lt;XRuby&gt;</a> <a class="code" href="class_x_ruby.html#r6">m_thread</a>;
-<a name="l00070"></a><a class="code" href="class_x_ruby.html#r7">00070</a>   <span class="keywordtype">bool</span> <a class="code" href="class_x_ruby.html#r7">m_bTerminated</a>;
+<a name="l00068"></a><a class="code" href="class_x_ruby.html#1159ef3611169f65f44692e434f27d07">00068</a>   weak_ptr&lt;XMeasure&gt; <a class="code" href="class_x_ruby.html#1159ef3611169f65f44692e434f27d07">m_measure</a>;
+<a name="l00069"></a><a class="code" href="class_x_ruby.html#439ebbf8985c524d1bcb55555910bffc">00069</a>   <a class="code" href="class_x_thread.html">XThread&lt;XRuby&gt;</a> <a class="code" href="class_x_ruby.html#439ebbf8985c524d1bcb55555910bffc">m_thread</a>;
+<a name="l00070"></a>00070   
 <a name="l00071"></a>00071 };
 <a name="l00072"></a>00072 
 <a name="l00073"></a>00073 <span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00074"></a>00074 <span class="preprocessor">#endif</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:21 2006に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:45 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
 </html>

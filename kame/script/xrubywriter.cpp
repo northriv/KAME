@@ -25,9 +25,9 @@ XRubyWriter::write()
     m_ofs << "x << " 
         << name.utf8()
         << std::endl;
-    m_root->childLock();
-    write(m_root, false, 0);
-    m_root->childUnlock();
+    { XScopedReadLock<XRecursiveRWLock> lock(m_root->childMutex());
+        write(m_root, false, 0);
+    }
 }
 void 
 XRubyWriter::write(const shared_ptr<XNode> &node, bool ghost, int level)
@@ -68,7 +68,8 @@ XRubyWriter::write(const shared_ptr<XNode> &node, bool ghost, int level)
     }
     for(unsigned int i = 0; i < node->count(); i++) {
         shared_ptr<XNode> child = node->getChild<XNode>(i);
-        child->childLock();
+        XScopedReadLock<XRecursiveRWLock> lock(child->childMutex());
+        
         for(int j = 0; j < level; j++) m_ofs << "\t";
         if(ghost)
             m_ofs << "# ";
@@ -105,6 +106,5 @@ XRubyWriter::write(const shared_ptr<XNode> &node, bool ghost, int level)
             m_ofs << "x.pop"
                   << std::endl;
         }
-        child->childUnlock();
     }
 }
