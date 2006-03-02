@@ -2,8 +2,8 @@
 /****************************************************************************
 ** Form implementation generated from reading ui file '../../../../../kame/users/dso/forms/dsoform.ui'
 **
-** Created: 水  2 1 03:46:27 2006
-**      by: The User Interface Compiler ($Id: dsoform.cpp,v 1.1 2006/02/01 18:44:57 northriv Exp $)
+** Created: 木  3 2 16:36:29 2006
+**      by: The User Interface Compiler ($Id: dsoform.cpp,v 1.1.2.1 2006/03/02 09:19:33 northriv Exp $)
 **
 ** WARNING! All changes made in this file will be lost!
 ****************************************************************************/
@@ -12,11 +12,11 @@
 
 #include <qvariant.h>
 #include <qpushbutton.h>
-#include <qgroupbox.h>
-#include <qcombobox.h>
 #include <qlabel.h>
+#include <qcombobox.h>
 #include <qlineedit.h>
 #include <qcheckbox.h>
+#include <qgroupbox.h>
 #include <kurlrequester.h>
 #include <qlayout.h>
 #include <qtooltip.h>
@@ -40,104 +40,6 @@ FrmDSO::FrmDSO( QWidget* parent, const char* name, WFlags fl )
 	setName( "FrmDSO" );
     setCentralWidget( new QWidget( this, "qt_central_widget" ) );
     FrmDSOLayout = new QGridLayout( centralWidget(), 1, 1, 2, 6, "FrmDSOLayout"); 
-
-    groupBox5 = new QGroupBox( centralWidget(), "groupBox5" );
-    groupBox5->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)1, (QSizePolicy::SizeType)5, 0, 0, groupBox5->sizePolicy().hasHeightForWidth() ) );
-    groupBox5->setColumnLayout(0, Qt::Vertical );
-    groupBox5->layout()->setSpacing( 6 );
-    groupBox5->layout()->setMargin( 11 );
-    groupBox5Layout = new QGridLayout( groupBox5->layout() );
-    groupBox5Layout->setAlignment( Qt::AlignTop );
-
-    m_cmbTrace2 = new QComboBox( FALSE, groupBox5, "m_cmbTrace2" );
-    m_cmbTrace2->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, m_cmbTrace2->sizePolicy().hasHeightForWidth() ) );
-
-    groupBox5Layout->addWidget( m_cmbTrace2, 0, 0 );
-
-    layout7_2 = new QVBoxLayout( 0, 0, 6, "layout7_2"); 
-
-    layout5_3 = new QHBoxLayout( 0, 0, 6, "layout5_3"); 
-
-    textLabel1_2_4 = new QLabel( groupBox5, "textLabel1_2_4" );
-    textLabel1_2_4->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, textLabel1_2_4->sizePolicy().hasHeightForWidth() ) );
-    layout5_3->addWidget( textLabel1_2_4 );
-
-    m_edVFullScale2 = new QLineEdit( groupBox5, "m_edVFullScale2" );
-    m_edVFullScale2->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, m_edVFullScale2->sizePolicy().hasHeightForWidth() ) );
-    layout5_3->addWidget( m_edVFullScale2 );
-
-    textLabel1_2_2_3 = new QLabel( groupBox5, "textLabel1_2_2_3" );
-    textLabel1_2_2_3->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, textLabel1_2_2_3->sizePolicy().hasHeightForWidth() ) );
-    layout5_3->addWidget( textLabel1_2_2_3 );
-    layout7_2->addLayout( layout5_3 );
-
-    layout5_2_2 = new QHBoxLayout( 0, 0, 6, "layout5_2_2"); 
-
-    textLabel1_2_3_2 = new QLabel( groupBox5, "textLabel1_2_3_2" );
-    textLabel1_2_3_2->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, textLabel1_2_3_2->sizePolicy().hasHeightForWidth() ) );
-    layout5_2_2->addWidget( textLabel1_2_3_2 );
-
-    m_edVOffset2 = new QLineEdit( groupBox5, "m_edVOffset2" );
-    m_edVOffset2->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, m_edVOffset2->sizePolicy().hasHeightForWidth() ) );
-    layout5_2_2->addWidget( m_edVOffset2 );
-
-    textLabel1_2_2_2_2 = new QLabel( groupBox5, "textLabel1_2_2_2_2" );
-    textLabel1_2_2_2_2->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, textLabel1_2_2_2_2->sizePolicy().hasHeightForWidth() ) );
-    layout5_2_2->addWidget( textLabel1_2_2_2_2 );
-    layout7_2->addLayout( layout5_2_2 );
-
-    groupBox5Layout->addLayout( layout7_2, 1, 0 );
-
-    FrmDSOLayout->addWidget( groupBox5, 8, 0 );
-
-    groupBox4 = new QGroupBox( centralWidget(), "groupBox4" );
-    groupBox4->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)1, (QSizePolicy::SizeType)5, 0, 0, groupBox4->sizePolicy().hasHeightForWidth() ) );
-    groupBox4->setColumnLayout(0, Qt::Vertical );
-    groupBox4->layout()->setSpacing( 6 );
-    groupBox4->layout()->setMargin( 11 );
-    groupBox4Layout = new QGridLayout( groupBox4->layout() );
-    groupBox4Layout->setAlignment( Qt::AlignTop );
-
-    m_cmbTrace1 = new QComboBox( FALSE, groupBox4, "m_cmbTrace1" );
-    m_cmbTrace1->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, m_cmbTrace1->sizePolicy().hasHeightForWidth() ) );
-
-    groupBox4Layout->addWidget( m_cmbTrace1, 0, 0 );
-
-    layout7 = new QVBoxLayout( 0, 0, 6, "layout7"); 
-
-    layout5 = new QHBoxLayout( 0, 0, 6, "layout5"); 
-
-    textLabel1_2 = new QLabel( groupBox4, "textLabel1_2" );
-    textLabel1_2->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, textLabel1_2->sizePolicy().hasHeightForWidth() ) );
-    layout5->addWidget( textLabel1_2 );
-
-    m_edVFullScale1 = new QLineEdit( groupBox4, "m_edVFullScale1" );
-    m_edVFullScale1->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, m_edVFullScale1->sizePolicy().hasHeightForWidth() ) );
-    layout5->addWidget( m_edVFullScale1 );
-
-    textLabel1_2_2 = new QLabel( groupBox4, "textLabel1_2_2" );
-    textLabel1_2_2->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, textLabel1_2_2->sizePolicy().hasHeightForWidth() ) );
-    layout5->addWidget( textLabel1_2_2 );
-    layout7->addLayout( layout5 );
-
-    layout5_2 = new QHBoxLayout( 0, 0, 6, "layout5_2"); 
-
-    textLabel1_2_3 = new QLabel( groupBox4, "textLabel1_2_3" );
-    textLabel1_2_3->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, textLabel1_2_3->sizePolicy().hasHeightForWidth() ) );
-    layout5_2->addWidget( textLabel1_2_3 );
-
-    m_edVOffset1 = new QLineEdit( groupBox4, "m_edVOffset1" );
-    m_edVOffset1->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)4, (QSizePolicy::SizeType)0, 0, 0, m_edVOffset1->sizePolicy().hasHeightForWidth() ) );
-    layout5_2->addWidget( m_edVOffset1 );
-
-    textLabel1_2_2_2 = new QLabel( groupBox4, "textLabel1_2_2_2" );
-    textLabel1_2_2_2->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, textLabel1_2_2_2->sizePolicy().hasHeightForWidth() ) );
-    layout5_2->addWidget( textLabel1_2_2_2 );
-    layout7->addLayout( layout5_2 );
-
-    groupBox4Layout->addLayout( layout7, 1, 0 );
-
-    FrmDSOLayout->addWidget( groupBox4, 7, 0 );
 
     layout2_2_2 = new QHBoxLayout( 0, 0, 6, "layout2_2_2"); 
 
@@ -201,15 +103,142 @@ FrmDSO::FrmDSO( QWidget* parent, const char* name, WFlags fl )
 
     FrmDSOLayout->addWidget( m_ckbFetch, 0, 0 );
 
+    m_btnForceTrigger = new QPushButton( centralWidget(), "m_btnForceTrigger" );
+    m_btnForceTrigger->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)1, (QSizePolicy::SizeType)0, 0, 0, m_btnForceTrigger->sizePolicy().hasHeightForWidth() ) );
+
+    FrmDSOLayout->addWidget( m_btnForceTrigger, 2, 0 );
+
+    groupBox4 = new QGroupBox( centralWidget(), "groupBox4" );
+    groupBox4->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)1, (QSizePolicy::SizeType)5, 0, 0, groupBox4->sizePolicy().hasHeightForWidth() ) );
+    groupBox4->setColumnLayout(0, Qt::Vertical );
+    groupBox4->layout()->setSpacing( 6 );
+    groupBox4->layout()->setMargin( 2 );
+    groupBox4Layout = new QGridLayout( groupBox4->layout() );
+    groupBox4Layout->setAlignment( Qt::AlignTop );
+
+    m_cmbTrace1 = new QComboBox( FALSE, groupBox4, "m_cmbTrace1" );
+    m_cmbTrace1->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, m_cmbTrace1->sizePolicy().hasHeightForWidth() ) );
+
+    groupBox4Layout->addWidget( m_cmbTrace1, 0, 0 );
+
+    layout7 = new QVBoxLayout( 0, 0, 6, "layout7"); 
+
+    layout5 = new QHBoxLayout( 0, 0, 6, "layout5"); 
+
+    textLabel1_2 = new QLabel( groupBox4, "textLabel1_2" );
+    textLabel1_2->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, textLabel1_2->sizePolicy().hasHeightForWidth() ) );
+    layout5->addWidget( textLabel1_2 );
+
+    m_edVFullScale1 = new QLineEdit( groupBox4, "m_edVFullScale1" );
+    m_edVFullScale1->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, m_edVFullScale1->sizePolicy().hasHeightForWidth() ) );
+    layout5->addWidget( m_edVFullScale1 );
+
+    textLabel1_2_2 = new QLabel( groupBox4, "textLabel1_2_2" );
+    textLabel1_2_2->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, textLabel1_2_2->sizePolicy().hasHeightForWidth() ) );
+    layout5->addWidget( textLabel1_2_2 );
+    layout7->addLayout( layout5 );
+
+    layout5_2 = new QHBoxLayout( 0, 0, 6, "layout5_2"); 
+
+    textLabel1_2_3 = new QLabel( groupBox4, "textLabel1_2_3" );
+    textLabel1_2_3->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, textLabel1_2_3->sizePolicy().hasHeightForWidth() ) );
+    layout5_2->addWidget( textLabel1_2_3 );
+
+    m_edVOffset1 = new QLineEdit( groupBox4, "m_edVOffset1" );
+    m_edVOffset1->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)4, (QSizePolicy::SizeType)0, 0, 0, m_edVOffset1->sizePolicy().hasHeightForWidth() ) );
+    layout5_2->addWidget( m_edVOffset1 );
+
+    textLabel1_2_2_2 = new QLabel( groupBox4, "textLabel1_2_2_2" );
+    textLabel1_2_2_2->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, textLabel1_2_2_2->sizePolicy().hasHeightForWidth() ) );
+    layout5_2->addWidget( textLabel1_2_2_2 );
+    layout7->addLayout( layout5_2 );
+
+    groupBox4Layout->addLayout( layout7, 1, 0 );
+
+    FrmDSOLayout->addWidget( groupBox4, 7, 0 );
+
+    groupBox5 = new QGroupBox( centralWidget(), "groupBox5" );
+    groupBox5->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)1, (QSizePolicy::SizeType)5, 0, 0, groupBox5->sizePolicy().hasHeightForWidth() ) );
+    groupBox5->setColumnLayout(0, Qt::Vertical );
+    groupBox5->layout()->setSpacing( 6 );
+    groupBox5->layout()->setMargin( 2 );
+    groupBox5Layout = new QGridLayout( groupBox5->layout() );
+    groupBox5Layout->setAlignment( Qt::AlignTop );
+
+    m_cmbTrace2 = new QComboBox( FALSE, groupBox5, "m_cmbTrace2" );
+    m_cmbTrace2->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, m_cmbTrace2->sizePolicy().hasHeightForWidth() ) );
+
+    groupBox5Layout->addWidget( m_cmbTrace2, 0, 0 );
+
+    layout7_2 = new QVBoxLayout( 0, 0, 6, "layout7_2"); 
+
+    layout5_3 = new QHBoxLayout( 0, 0, 6, "layout5_3"); 
+
+    textLabel1_2_4 = new QLabel( groupBox5, "textLabel1_2_4" );
+    textLabel1_2_4->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, textLabel1_2_4->sizePolicy().hasHeightForWidth() ) );
+    layout5_3->addWidget( textLabel1_2_4 );
+
+    m_edVFullScale2 = new QLineEdit( groupBox5, "m_edVFullScale2" );
+    m_edVFullScale2->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, m_edVFullScale2->sizePolicy().hasHeightForWidth() ) );
+    layout5_3->addWidget( m_edVFullScale2 );
+
+    textLabel1_2_2_3 = new QLabel( groupBox5, "textLabel1_2_2_3" );
+    textLabel1_2_2_3->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, textLabel1_2_2_3->sizePolicy().hasHeightForWidth() ) );
+    layout5_3->addWidget( textLabel1_2_2_3 );
+    layout7_2->addLayout( layout5_3 );
+
+    layout5_2_2 = new QHBoxLayout( 0, 0, 6, "layout5_2_2"); 
+
+    textLabel1_2_3_2 = new QLabel( groupBox5, "textLabel1_2_3_2" );
+    textLabel1_2_3_2->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, textLabel1_2_3_2->sizePolicy().hasHeightForWidth() ) );
+    layout5_2_2->addWidget( textLabel1_2_3_2 );
+
+    m_edVOffset2 = new QLineEdit( groupBox5, "m_edVOffset2" );
+    m_edVOffset2->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, m_edVOffset2->sizePolicy().hasHeightForWidth() ) );
+    layout5_2_2->addWidget( m_edVOffset2 );
+
+    textLabel1_2_2_2_2 = new QLabel( groupBox5, "textLabel1_2_2_2_2" );
+    textLabel1_2_2_2_2->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, textLabel1_2_2_2_2->sizePolicy().hasHeightForWidth() ) );
+    layout5_2_2->addWidget( textLabel1_2_2_2_2 );
+    layout7_2->addLayout( layout5_2_2 );
+
+    groupBox5Layout->addLayout( layout7_2, 1, 0 );
+
+    FrmDSOLayout->addWidget( groupBox5, 8, 0 );
+
     m_ckbSingleSeq = new QCheckBox( centralWidget(), "m_ckbSingleSeq" );
     m_ckbSingleSeq->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)0, 0, 0, m_ckbSingleSeq->sizePolicy().hasHeightForWidth() ) );
 
     FrmDSOLayout->addWidget( m_ckbSingleSeq, 1, 0 );
 
-    m_btnForceTrigger = new QPushButton( centralWidget(), "m_btnForceTrigger" );
-    m_btnForceTrigger->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)1, (QSizePolicy::SizeType)0, 0, 0, m_btnForceTrigger->sizePolicy().hasHeightForWidth() ) );
+    groupBox4_2 = new QGroupBox( centralWidget(), "groupBox4_2" );
+    groupBox4_2->setColumnLayout(0, Qt::Vertical );
+    groupBox4_2->layout()->setSpacing( 6 );
+    groupBox4_2->layout()->setMargin( 2 );
+    groupBox4_2Layout = new QGridLayout( groupBox4_2->layout() );
+    groupBox4_2Layout->setAlignment( Qt::AlignTop );
 
-    FrmDSOLayout->addWidget( m_btnForceTrigger, 2, 0 );
+    m_cmbPulser = new QComboBox( FALSE, groupBox4_2, "m_cmbPulser" );
+    m_cmbPulser->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, m_cmbPulser->sizePolicy().hasHeightForWidth() ) );
+
+    groupBox4_2Layout->addMultiCellWidget( m_cmbPulser, 1, 1, 1, 2 );
+
+    textLabel1_3 = new QLabel( groupBox4_2, "textLabel1_3" );
+    textLabel1_3->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, textLabel1_3->sizePolicy().hasHeightForWidth() ) );
+
+    groupBox4_2Layout->addWidget( textLabel1_3, 1, 0 );
+
+    m_ckb4x = new QCheckBox( groupBox4_2, "m_ckb4x" );
+    m_ckb4x->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)0, 0, 0, m_ckb4x->sizePolicy().hasHeightForWidth() ) );
+
+    groupBox4_2Layout->addWidget( m_ckb4x, 0, 2 );
+
+    m_ckbEnable = new QCheckBox( groupBox4_2, "m_ckbEnable" );
+    m_ckbEnable->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)0, 0, 0, m_ckbEnable->sizePolicy().hasHeightForWidth() ) );
+
+    groupBox4_2Layout->addMultiCellWidget( m_ckbEnable, 0, 0, 0, 1 );
+
+    FrmDSOLayout->addWidget( groupBox4_2, 9, 0 );
 
     layout15 = new QVBoxLayout( 0, 0, 6, "layout15"); 
 
@@ -234,7 +263,7 @@ FrmDSO::FrmDSO( QWidget* parent, const char* name, WFlags fl )
     groupBox1->setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)1, (QSizePolicy::SizeType)5, 0, 0, groupBox1->sizePolicy().hasHeightForWidth() ) );
     groupBox1->setColumnLayout(0, Qt::Vertical );
     groupBox1->layout()->setSpacing( 6 );
-    groupBox1->layout()->setMargin( 11 );
+    groupBox1->layout()->setMargin( 2 );
     groupBox1Layout = new QGridLayout( groupBox1->layout() );
     groupBox1Layout->setAlignment( Qt::AlignTop );
 
@@ -291,12 +320,12 @@ FrmDSO::FrmDSO( QWidget* parent, const char* name, WFlags fl )
     groupBox1Layout->addLayout( layout5_4_3_3, 1, 1 );
     layout15->addWidget( groupBox1 );
 
-    FrmDSOLayout->addMultiCellLayout( layout15, 0, 8, 1, 1 );
+    FrmDSOLayout->addMultiCellLayout( layout15, 0, 9, 1, 1 );
 
     // toolbars
 
     languageChange();
-    resize( QSize(613, 490).expandedTo(minimumSizeHint()) );
+    resize( QSize(477, 501).expandedTo(minimumSizeHint()) );
     clearWState( WState_Polished );
 
     // tab order
@@ -335,16 +364,6 @@ FrmDSO::~FrmDSO()
 void FrmDSO::languageChange()
 {
     setCaption( tr2i18n( "DSO Control" ) );
-    groupBox5->setTitle( tr2i18n( "Trace2" ) );
-    textLabel1_2_4->setText( tr2i18n( "Full Scale" ) );
-    textLabel1_2_2_3->setText( tr2i18n( "Vp-p" ) );
-    textLabel1_2_3_2->setText( tr2i18n( "Offset" ) );
-    textLabel1_2_2_2_2->setText( tr2i18n( "V" ) );
-    groupBox4->setTitle( tr2i18n( "Trace1" ) );
-    textLabel1_2->setText( tr2i18n( "Full Scale" ) );
-    textLabel1_2_2->setText( tr2i18n( "Vp-p" ) );
-    textLabel1_2_3->setText( tr2i18n( "Offset" ) );
-    textLabel1_2_2_2->setText( tr2i18n( "V" ) );
     textLabel2_2_2->setText( tr2i18n( "Record Length" ) );
     textLabel1_2_5_2->setText( tr2i18n( "Trigger Position" ) );
     textLabel1_2_2_4_2->setText( tr2i18n( "%" ) );
@@ -352,8 +371,22 @@ void FrmDSO::languageChange()
     textLabel1_2_2_4->setText( tr2i18n( "sec." ) );
     textLabel1->setText( tr2i18n( "Average" ) );
     m_ckbFetch->setText( tr2i18n( "Fetch Continueous" ) );
-    m_ckbSingleSeq->setText( tr2i18n( "Single Sequence" ) );
     m_btnForceTrigger->setText( tr2i18n( "Force Trigger" ) );
+    groupBox4->setTitle( tr2i18n( "Trace1" ) );
+    textLabel1_2->setText( tr2i18n( "Full Scale" ) );
+    textLabel1_2_2->setText( tr2i18n( "Vp-p" ) );
+    textLabel1_2_3->setText( tr2i18n( "Offset" ) );
+    textLabel1_2_2_2->setText( tr2i18n( "V" ) );
+    groupBox5->setTitle( tr2i18n( "Trace2" ) );
+    textLabel1_2_4->setText( tr2i18n( "Full Scale" ) );
+    textLabel1_2_2_3->setText( tr2i18n( "Vp-p" ) );
+    textLabel1_2_3_2->setText( tr2i18n( "Offset" ) );
+    textLabel1_2_2_2_2->setText( tr2i18n( "V" ) );
+    m_ckbSingleSeq->setText( tr2i18n( "Single Sequence" ) );
+    groupBox4_2->setTitle( tr2i18n( "PhaseCycle Flipping" ) );
+    textLabel1_3->setText( tr2i18n( "Pulser" ) );
+    m_ckb4x->setText( tr2i18n( "4x" ) );
+    m_ckbEnable->setText( tr2i18n( "Enable" ) );
     m_btnDump->setText( tr2i18n( "DUMP" ) );
     groupBox1->setTitle( tr2i18n( "Digital Filter" ) );
     m_ckbFIREnabled->setText( tr2i18n( "FIR filter" ) );

@@ -2,8 +2,8 @@
 /****************************************************************************
 ** Form implementation generated from reading ui file '../../../../../kame/users/dmm/forms/dmmform.ui'
 **
-** Created: 水  2 1 03:46:03 2006
-**      by: The User Interface Compiler ($Id: dmmform.cpp,v 1.1 2006/02/01 18:45:42 northriv Exp $)
+** Created: 木  3 2 16:36:12 2006
+**      by: The User Interface Compiler ($Id: dmmform.cpp,v 1.1.2.1 2006/03/02 09:20:44 northriv Exp $)
 **
 ** WARNING! All changes made in this file will be lost!
 ****************************************************************************/

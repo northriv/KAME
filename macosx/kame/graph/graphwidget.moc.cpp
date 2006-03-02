@@ -1,8 +1,8 @@
 /****************************************************************************
 ** XQGraph meta object code from reading C++ file 'graphwidget.h'
 **
-** Created: Wed Feb 1 03:45:55 2006
-**      by: The Qt MOC ($Id: graphwidget.moc.cpp,v 1.1 2006/02/01 18:45:33 northriv Exp $)
+** Created: Thu Mar 2 16:35:27 2006
+**      by: The Qt MOC ($Id: graphwidget.moc.cpp,v 1.1.2.1 2006/03/02 09:19:20 northriv Exp $)
 **
 ** WARNING! All changes made in this file will be lost!
 *****************************************************************************/

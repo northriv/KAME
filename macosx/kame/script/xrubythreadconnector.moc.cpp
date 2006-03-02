@@ -1,8 +1,8 @@
 /****************************************************************************
 ** XRubyThreadConnector meta object code from reading C++ file 'xrubythreadconnector.h'
 **
-** Created: Wed Feb 1 03:40:04 2006
-**      by: The Qt MOC ($Id: xrubythreadconnector.moc.cpp,v 1.1 2006/02/01 18:44:37 northriv Exp $)
+** Created: Thu Mar 2 16:23:50 2006
+**      by: The Qt MOC ($Id: xrubythreadconnector.moc.cpp,v 1.1.2.1 2006/03/02 09:20:50 northriv Exp $)
 **
 ** WARNING! All changes made in this file will be lost!
 *****************************************************************************/

@@ -2,8 +2,8 @@
 /****************************************************************************
 ** Form implementation generated from reading ui file '../../../../../kame/users/nmr/forms/nmrrelaxform.ui'
 **
-** Created: 水  2 1 03:50:57 2006
-**      by: The User Interface Compiler ($Id: nmrrelaxform.cpp,v 1.1 2006/02/01 18:43:54 northriv Exp $)
+** Created: 木  3 2 16:40:59 2006
+**      by: The User Interface Compiler ($Id: nmrrelaxform.cpp,v 1.1.2.1 2006/03/02 09:19:16 northriv Exp $)
 **
 ** WARNING! All changes made in this file will be lost!
 ****************************************************************************/

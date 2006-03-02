@@ -2,8 +2,8 @@
 /****************************************************************************
 ** Form implementation generated from reading ui file '../../../../kame/graph/forms/graphnurlform.ui'
 **
-** Created: 水  2 1 03:43:16 2006
-**      by: The User Interface Compiler ($Id: graphnurlform.cpp,v 1.1 2006/02/01 18:44:04 northriv Exp $)
+** Created: 木  3 2 16:25:31 2006
+**      by: The User Interface Compiler ($Id: graphnurlform.cpp,v 1.1.2.1 2006/03/02 09:19:26 northriv Exp $)
 **
 ** WARNING! All changes made in this file will be lost!
 ****************************************************************************/

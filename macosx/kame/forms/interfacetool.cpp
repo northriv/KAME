@@ -2,8 +2,8 @@
 /****************************************************************************
 ** Form implementation generated from reading ui file '../../../kame/forms/interfacetool.ui'
 **
-** Created: 水  2 1 03:36:32 2006
-**      by: The User Interface Compiler ($Id: interfacetool.cpp,v 1.1 2006/02/01 18:45:13 northriv Exp $)
+** Created: 木  3 2 16:23:04 2006
+**      by: The User Interface Compiler ($Id: interfacetool.cpp,v 1.1.2.1 2006/03/02 09:19:18 northriv Exp $)
 **
 ** WARNING! All changes made in this file will be lost!
 ****************************************************************************/

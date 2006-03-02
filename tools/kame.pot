@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2006-01-09 22:55+0900\n"
+"POT-Creation-Date: 2006-02-04 22:43+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -20,7 +20,7 @@ msgstr ""
 msgid "Chart - "
 msgstr ""
 
-#: analyzer/analyzer.cpp:252
+#: analyzer/analyzer.cpp:253
 msgid "Graph - "
 msgstr ""
 
@@ -73,28 +73,28 @@ msgstr ""
 msgid "No Driver Error: "
 msgstr ""
 
-#: analyzer/recordreader.cpp:225
+#: analyzer/recordreader.cpp:228
 msgid "Stopped"
 msgstr ""
 
-#: analyzer/recordreader.cpp:242
+#: analyzer/recordreader.cpp:245
 msgid "First"
 msgstr ""
 
-#: analyzer/recordreader.cpp:246 analyzer/recordreader.cpp:262
-#: analyzer/recordreader.cpp:280 analyzer/recordreader.cpp:316
+#: analyzer/recordreader.cpp:249 analyzer/recordreader.cpp:265
+#: analyzer/recordreader.cpp:283 analyzer/recordreader.cpp:319
 msgid "No Record, because "
 msgstr ""
 
-#: analyzer/recordreader.cpp:258
+#: analyzer/recordreader.cpp:261
 msgid "Next"
 msgstr ""
 
-#: analyzer/recordreader.cpp:276
+#: analyzer/recordreader.cpp:279
 msgid "Previous"
 msgstr ""
 
-#: analyzer/recordreader.cpp:305
+#: analyzer/recordreader.cpp:308
 msgid "No such driver :"
 msgstr ""
 
@@ -114,55 +114,58 @@ msgstr ""
 msgid "Recorded Time"
 msgstr ""
 
-#: driver/driverlistconnector.cpp:159
+#: driver/driverlistconnector.cpp:158
 msgid "Driver creation failed"
 msgstr ""
 
-#: driver/gpib.cpp:72
+#: driver/gpib.cpp:123
 msgid "opening gpib device faild"
 msgstr ""
 
-#: driver/gpib.cpp:84
+#: driver/gpib.cpp:135
 msgid "GPIB: Sending IFC"
 msgstr ""
 
-#: driver/gpib.cpp:111
-msgid "ibwrt err"
-msgstr ""
-
-#: driver/gpib.cpp:122 driver/gpib.cpp:162 driver/gpib.cpp:210
+#: driver/gpib.cpp:172 driver/gpib.cpp:212 driver/gpib.cpp:260
+#: driver/gpib.cpp:370
 msgid "too many EDVR/EFSO"
 msgstr ""
 
-#: driver/gpib.cpp:126 driver/gpib.cpp:166 driver/gpib.cpp:214
+#: driver/gpib.cpp:174
+msgid "ibwrt err"
+msgstr ""
+
+#: driver/gpib.cpp:177 driver/gpib.cpp:217 driver/gpib.cpp:265
+#: driver/gpib.cpp:375 users/nmr/pulserdriverh8.cpp:171
+#: users/nmr/pulserdriversh.cpp:362
 msgid "try to continue"
 msgstr ""
 
-#: driver/gpib.cpp:135
+#: driver/gpib.cpp:186
 msgid "ibwrt terminated without CMPL"
 msgstr ""
 
-#: driver/gpib.cpp:151 driver/gpib.cpp:199
+#: driver/gpib.cpp:214 driver/gpib.cpp:262 driver/gpib.cpp:372
 msgid "ibrd err"
 msgstr ""
 
-#: driver/gpib.cpp:179 driver/gpib.cpp:223
+#: driver/gpib.cpp:230 driver/gpib.cpp:274 driver/gpib.cpp:384
 msgid "ibrd terminated without END or CMPL "
 msgstr ""
 
-#: driver/gpib.cpp:237 driver/gpib.cpp:277
+#: driver/gpib.cpp:288 driver/gpib.cpp:327
 msgid "too many spoll timeouts"
 msgstr ""
 
-#: driver/gpib.cpp:244 driver/gpib.cpp:284
+#: driver/gpib.cpp:302 driver/gpib.cpp:341
 msgid "ibrsp err"
 msgstr ""
 
-#: driver/gpib.cpp:254 driver/gpib.cpp:294
+#: driver/gpib.cpp:304 driver/gpib.cpp:343
 msgid "ibrsp failed"
 msgstr ""
 
-#: driver/gpib.cpp:303
+#: driver/gpib.cpp:352
 msgid "ibrd before ibwrt asserted"
 msgstr ""
 
@@ -178,24 +181,28 @@ msgstr ""
 msgid "Open Interface Error"
 msgstr ""
 
-#: driver/interface.cpp:62
+#: driver/interface.cpp:69
 msgid "Port has already opened"
 msgstr ""
 
-#: driver/interface.cpp:65
+#: driver/interface.cpp:72
 msgid ": Starting..."
 msgstr ""
 
-#: driver/interface.cpp:84
+#: driver/interface.cpp:95
 msgid ": Opening port failed, because"
 msgstr ""
 
-#: driver/interface.cpp:152 driver/interface.cpp:191
+#: driver/interface.cpp:163 driver/interface.cpp:202
 msgid " SendError, because "
 msgstr ""
 
-#: driver/interface.cpp:208 driver/interface.cpp:224
+#: driver/interface.cpp:219 driver/interface.cpp:235
 msgid " ReceiveError, because "
+msgstr ""
+
+#: driver/interface.cpp:284 driver/interface.cpp:292
+msgid "Port is not opened."
 msgstr ""
 
 #: driver/interfacelistconnector.cpp:29 users/nmr/forms/nmrpllform.cpp:107
@@ -242,195 +249,207 @@ msgstr ""
 msgid "Invalid Baudrate"
 msgstr ""
 
-#: driver/serial.cpp:59
+#: driver/serial.cpp:64
 msgid "stty failed"
 msgstr ""
 
-#: driver/serial.cpp:87
+#: driver/serial.cpp:94
 msgid "write error"
 msgstr ""
 
-#: driver/serial.cpp:110 driver/serial.cpp:142
+#: driver/serial.cpp:113 driver/serial.cpp:152
+msgid "read time-out"
+msgstr ""
+
+#: driver/serial.cpp:121 driver/serial.cpp:160
 msgid "read error"
 msgstr ""
 
-#: graph/graphpainter.cpp:384
+#: graph/graph.cpp:75
+msgid "X Axis"
+msgstr ""
+
+#: graph/graph.cpp:78
+msgid "Y Axis"
+msgstr ""
+
+#: graph/graphpainter.cpp:367
 msgid "R-DBL-CLICK TO SHOW HELP"
 msgstr ""
 
-#: graph/graphpainter.cpp:537
+#: graph/graphpainter.cpp:520
 msgid "QUICK HELP!"
 msgstr ""
 
-#: graph/graphpainter.cpp:542 graph/graphpainter.cpp:548
+#: graph/graphpainter.cpp:525 graph/graphpainter.cpp:531
 msgid "Single Click Right Button on Axis : Auto-scale"
 msgstr ""
 
-#: graph/graphpainter.cpp:544
+#: graph/graphpainter.cpp:527
 msgid "Press Left Button on Plot : Manual Scale"
 msgstr ""
 
-#: graph/graphpainter.cpp:546
+#: graph/graphpainter.cpp:529
 msgid "Press Right Button along Axis: Manual Scale"
 msgstr ""
 
-#: graph/graphpainter.cpp:550
+#: graph/graphpainter.cpp:533
 msgid "Single Click Right Button elsewhere : Auto-scale all"
 msgstr ""
 
-#: graph/graphpainter.cpp:552
+#: graph/graphpainter.cpp:535
 msgid "Press Middle Button : Tilt plots"
 msgstr ""
 
-#: graph/graphpainter.cpp:554
+#: graph/graphpainter.cpp:537
 msgid "Single Click Middle Button : Reset tilting"
 msgstr ""
 
-#: graph/graphpainter.cpp:556
+#: graph/graphpainter.cpp:539
 msgid "Wheel around Center : (Un)Zoom all Plots"
 msgstr ""
 
-#: graph/graphpainter.cpp:558
+#: graph/graphpainter.cpp:541
 msgid "Wheel at Side : Tilt by 30deg."
 msgstr ""
 
-#: graph/graphpainter.cpp:560
+#: graph/graphpainter.cpp:543
 msgid "Double Click Left Button : Show Dialog"
 msgstr ""
 
-#: graph/graphpainter.cpp:562
+#: graph/graphpainter.cpp:545
 msgid "Double Click Right Button : This Help"
 msgstr ""
 
-#: graph/graphpaintergl.cpp:48
+#: graph/graphpaintergl.cpp:49
 msgid "No Fontfile!!"
 msgstr ""
 
-#: graph/graphpaintergl.cpp:138
+#: graph/graphpaintergl.cpp:149
 msgid "iconv error, probably locale is not correct."
 msgstr ""
 
-#: kame.cpp:175
+#: kame.cpp:174
 msgid "Open"
 msgstr ""
 
-#: kame.cpp:176
+#: kame.cpp:175
 msgid "&Open..."
 msgstr ""
 
-#: kame.cpp:177
+#: kame.cpp:176
 msgid "Ctrl+O"
 msgstr ""
 
-#: kame.cpp:178
+#: kame.cpp:177
 msgid "Save"
 msgstr ""
 
-#: kame.cpp:180
+#: kame.cpp:179
 msgid "Ctrl+S"
 msgstr ""
 
-#: kame.cpp:181
+#: kame.cpp:180
 msgid "Exit"
 msgstr ""
 
-#: kame.cpp:182
+#: kame.cpp:181
 msgid "E&xit"
 msgstr ""
 
-#: kame.cpp:184
+#: kame.cpp:183
 msgid "Contents"
 msgstr ""
 
-#: kame.cpp:185
+#: kame.cpp:184
 msgid "&Contents..."
 msgstr ""
 
-#: kame.cpp:187
+#: kame.cpp:186
 msgid "Index"
 msgstr ""
 
-#: kame.cpp:188
+#: kame.cpp:187
 msgid "&Index..."
 msgstr ""
 
-#: kame.cpp:190
+#: kame.cpp:189
 msgid "About"
 msgstr ""
 
-#: kame.cpp:191
+#: kame.cpp:190
 msgid "&About"
 msgstr ""
 
-#: kame.cpp:193
-msgid "&Log Debugging Info."
+#: kame.cpp:192
+msgid "&Log Debugging Info"
 msgstr ""
 
-#: kame.cpp:195
+#: kame.cpp:194
 msgid "&Stop"
 msgstr ""
 
-#: kame.cpp:196
+#: kame.cpp:195
 msgid "&Run..."
 msgstr ""
 
-#: kame.cpp:197
+#: kame.cpp:196
 msgid "&Graphviz Save .dot..."
 msgstr ""
 
-#: kame.cpp:198
+#: kame.cpp:197
 msgid "Close"
 msgstr ""
 
-#: kame.cpp:199
+#: kame.cpp:198
 msgid "&Close"
 msgstr ""
 
-#: kame.cpp:202
+#: kame.cpp:201
 msgid "&File"
 msgstr ""
 
-#: kame.cpp:204
+#: kame.cpp:203
 msgid "&Measure"
 msgstr ""
 
-#: kame.cpp:206
+#: kame.cpp:205
 msgid "&Script"
 msgstr ""
 
-#: kame.cpp:208
+#: kame.cpp:207
 msgid "&View"
 msgstr ""
 
-#: kame.cpp:210
+#: kame.cpp:209
 msgid "&Window"
 msgstr ""
 
-#: kame.cpp:212 graph/forms/graphdialog.cpp:523
+#: kame.cpp:211 graph/forms/graphdialog.cpp:523
 msgid "&Help"
 msgstr ""
 
-#: kame.cpp:270
+#: kame.cpp:277
 msgid "Stop running first."
 msgstr ""
 
-#: kame.cpp:341
+#: kame.cpp:338
 msgid "Open Measurement File"
 msgstr ""
 
-#: kame.cpp:354
+#: kame.cpp:351
 msgid "Save Measurement File"
 msgstr ""
 
-#: kame.cpp:377
+#: kame.cpp:366
 msgid "K's Adaptive Measurement Engine."
 msgstr ""
 
-#: kame.cpp:419
+#: kame.cpp:408
 msgid "Open Script File"
 msgstr ""
 
-#: kame.cpp:451
+#: kame.cpp:439
 msgid "Save Graphviz dot File"
 msgstr ""
 
@@ -450,20 +469,20 @@ msgstr ""
 msgid "measurement file to open"
 msgstr ""
 
-#: support.cpp:168
+#: support.cpp:191
 #, c-format
 msgid "Illegal Format, too many %s."
 msgstr ""
 
-#: support.cpp:175
+#: support.cpp:198
 msgid "Illegal Format."
 msgstr ""
 
-#: support.cpp:178
+#: support.cpp:201
 msgid "Illegal Format, no float conversion."
 msgstr ""
 
-#: support.cpp:181
+#: support.cpp:204
 msgid "Illegal Format, no %."
 msgstr ""
 
@@ -487,51 +506,55 @@ msgstr ""
 msgid "DMM - "
 msgstr ""
 
-#: users/dmm/dmm.cpp:78 users/dmm/dmm.cpp:89
+#: users/dmm/dmm.cpp:77 users/dmm/dmm.cpp:88
 msgid "DMM Error"
 msgstr ""
 
-#: users/dmm/dmm.cpp:112
+#: users/dmm/dmm.cpp:111
 msgid "DMM Read Error"
 msgstr ""
 
-#: users/dso/dso.cpp:162
+#: users/dso/dso.cpp:171
 msgid "Too small number of taps for FIR filter."
 msgstr ""
 
-#: users/dso/dso.cpp:265
+#: users/dso/dso.cpp:276
 msgid "Select traces!."
+msgstr ""
+
+#: users/funcsynth/funcsynth.cpp:28
+msgid "Func. Synth. - "
 msgstr ""
 
 #: users/lia/lockinamp.cpp:37
 msgid "Lock-in-Amp - "
 msgstr ""
 
-#: users/lia/lockinamp.cpp:103
+#: users/lia/lockinamp.cpp:102
 msgid "Error while changing output, "
 msgstr ""
 
-#: users/lia/lockinamp.cpp:114
+#: users/lia/lockinamp.cpp:113
 msgid "Error while changing frequency, "
 msgstr ""
 
-#: users/lia/lockinamp.cpp:125
+#: users/lia/lockinamp.cpp:124
 msgid "Error while changing sensitivity, "
 msgstr ""
 
-#: users/lia/lockinamp.cpp:136
+#: users/lia/lockinamp.cpp:135
 msgid "Error while changing time const., "
 msgstr ""
 
-#: users/lia/lockinamp.cpp:149
+#: users/lia/lockinamp.cpp:148
 msgid "Error while starting, "
 msgstr ""
 
-#: users/lia/lockinamp.cpp:187
+#: users/lia/lockinamp.cpp:186
 msgid "Read Error, "
 msgstr ""
 
-#: users/lia/lockinamp.cpp:213
+#: users/lia/lockinamp.cpp:212
 msgid "Error while closing, "
 msgstr ""
 
@@ -539,20 +562,16 @@ msgstr ""
 msgid "Operation not supported."
 msgstr ""
 
-#: users/magnetps/magnetps.cpp:224
+#: users/magnetps/magnetps.cpp:223
 msgid "Turning on Perisistent mode."
 msgstr ""
 
-#: users/magnetps/magnetps.cpp:243
+#: users/magnetps/magnetps.cpp:235
 msgid "Non-Perisistent mode."
 msgstr ""
 
-#: users/magnetps/magnetps.cpp:247
+#: users/magnetps/magnetps.cpp:239
 msgid "Huh? Magnet field confusing."
-msgstr ""
-
-#: users/magnetps/magnetps.cpp:258
-msgid "Perisistent mode."
 msgstr ""
 
 #: users/magnetps/usermagnetps.cpp:100
@@ -567,19 +586,19 @@ msgstr ""
 msgid "NMR Spectrum (Freq. Sweep) - "
 msgstr ""
 
-#: users/nmr/nmrfspectrum.cpp:142
+#: users/nmr/nmrfspectrum.cpp:141
 msgid "Conflicting freqs of 2 SGs."
 msgstr ""
 
-#: users/nmr/nmrfspectrum.cpp:155 users/nmr/nmrspectrum.cpp:177
+#: users/nmr/nmrfspectrum.cpp:154 users/nmr/nmrspectrum.cpp:172
 msgid "Invalid center freq."
 msgstr ""
 
-#: users/nmr/nmrfspectrum.cpp:158
+#: users/nmr/nmrfspectrum.cpp:157
 msgid "Too large freq. step."
 msgstr ""
 
-#: users/nmr/nmrfspectrum.cpp:166 users/nmr/nmrspectrum.cpp:172
+#: users/nmr/nmrfspectrum.cpp:165 users/nmr/nmrspectrum.cpp:167
 msgid "Invalid waveform."
 msgstr ""
 
@@ -591,48 +610,48 @@ msgstr ""
 msgid "NMR-FFT - "
 msgstr ""
 
-#: users/nmr/nmrpulse.cpp:409
+#: users/nmr/nmrpulse.cpp:411
 msgid "No record in DSO"
 msgstr ""
 
-#: users/nmr/nmrpulse.cpp:415
+#: users/nmr/nmrpulse.cpp:417
 msgid "Invalid time interval in waveforms."
 msgstr ""
 
-#: users/nmr/nmrpulse.cpp:426 users/nmr/nmrpulse.cpp:429
+#: users/nmr/nmrpulse.cpp:428 users/nmr/nmrpulse.cpp:431
 msgid "Position beyond waveforms."
 msgstr ""
 
-#: users/nmr/nmrpulse.cpp:433 users/nmr/nmrpulse.cpp:436
+#: users/nmr/nmrpulse.cpp:435 users/nmr/nmrpulse.cpp:438
 msgid "Invalid length."
 msgstr ""
 
-#: users/nmr/nmrpulse.cpp:447
+#: users/nmr/nmrpulse.cpp:449
 msgid "FFT length is not a power of 2."
 msgstr ""
 
-#: users/nmr/nmrpulse.cpp:473 users/nmr/nmrpulse.cpp:476
+#: users/nmr/nmrpulse.cpp:475 users/nmr/nmrpulse.cpp:478
 msgid "Position for BG. sub. beyond waveforms."
 msgstr ""
 
-#: users/nmr/nmrpulse.cpp:480 users/nmr/nmrpulse.cpp:483
+#: users/nmr/nmrpulse.cpp:482 users/nmr/nmrpulse.cpp:485
 msgid "Invalid Length for BG. sub."
 msgstr ""
 
-#: users/nmr/nmrpulse.cpp:487
+#: users/nmr/nmrpulse.cpp:489
 msgid "Maybe, length for BG. sub. is too short."
 msgstr ""
 
-#: users/nmr/nmrpulse.cpp:489
+#: users/nmr/nmrpulse.cpp:491
 msgid "Maybe, position for BG. sub. is overrapped against echoes"
 msgstr ""
 
-#: users/nmr/nmrpulse.cpp:497 users/nmr/nmrpulse.cpp:500
-#: users/nmr/nmrpulse.cpp:505 users/nmr/nmrpulse.cpp:508
+#: users/nmr/nmrpulse.cpp:499 users/nmr/nmrpulse.cpp:502
+#: users/nmr/nmrpulse.cpp:507 users/nmr/nmrpulse.cpp:510
 msgid "Invalid Multiecho settings."
 msgstr ""
 
-#: users/nmr/nmrpulse.cpp:581
+#: users/nmr/nmrpulse.cpp:583
 msgid "FFTPos is off-centered for window func."
 msgstr ""
 
@@ -640,51 +659,51 @@ msgstr ""
 msgid "NMR Relax. Meas. - "
 msgstr ""
 
-#: users/nmr/nmrrelax.cpp:214 users/nmr/nmrrelax.cpp:266
+#: users/nmr/nmrrelax.cpp:212 users/nmr/nmrrelax.cpp:264
 msgid "Invalid P1Min or P1Max."
 msgstr ""
 
-#: users/nmr/nmrrelax.cpp:271
+#: users/nmr/nmrrelax.cpp:269
 msgid "Invalid # of Samples."
 msgstr ""
 
-#: users/nmr/nmrrelax.cpp:274
+#: users/nmr/nmrrelax.cpp:272
 msgid "Too many Samples."
 msgstr ""
 
-#: users/nmr/nmrrelax.cpp:294
+#: users/nmr/nmrrelax.cpp:292
 msgid "Ignored"
 msgstr ""
 
-#: users/nmr/nmrrelax.cpp:303
+#: users/nmr/nmrrelax.cpp:301
 msgid "Too small avg. count for phase cycling."
 msgstr ""
 
-#: users/nmr/nmrrelax.cpp:314
+#: users/nmr/nmrrelax.cpp:312
 msgid "Unknown Comb Mode!"
 msgstr ""
 
-#: users/nmr/nmrrelax.cpp:316 users/nmr/nmrrelax.cpp:329
+#: users/nmr/nmrrelax.cpp:314 users/nmr/nmrrelax.cpp:327
 msgid "Do not use T2 mode!"
 msgstr ""
 
-#: users/nmr/nmrrelax.cpp:325 users/nmr/nmrrelax.cpp:342
+#: users/nmr/nmrrelax.cpp:323 users/nmr/nmrrelax.cpp:340
 msgid "2 Pulse Analyzers needed."
 msgstr ""
 
-#: users/nmr/nmrrelax.cpp:352
+#: users/nmr/nmrrelax.cpp:350
 msgid "T2 mode with comb pulse!"
 msgstr ""
 
-#: users/nmr/nmrrelax.cpp:355
+#: users/nmr/nmrrelax.cpp:353
 msgid "Do not use T1 mode! Skipping."
 msgstr ""
 
-#: users/nmr/nmrrelax.cpp:396
+#: users/nmr/nmrrelax.cpp:394
 msgid "Please select relaxation func."
 msgstr ""
 
-#: users/nmr/nmrrelax.cpp:515
+#: users/nmr/nmrrelax.cpp:513
 msgid "No pulser or No NMR Pulse Analyzer."
 msgstr ""
 
@@ -696,27 +715,31 @@ msgstr ""
 msgid "NMR Spectrum - "
 msgstr ""
 
-#: users/nmr/nmrspectrum.cpp:134
+#: users/nmr/nmrspectrum.cpp:133
 msgid "Invalid min. and max."
 msgstr ""
 
-#: users/nmr/nmrspectrum.cpp:138
+#: users/nmr/nmrspectrum.cpp:137
 msgid "Too small resolution."
 msgstr ""
 
-#: users/nmr/pulserdriver.cpp:547
+#: users/nmr/pulserdriver.cpp:557
 msgid "Pulser Turn-On Failed, because"
 msgstr ""
 
-#: users/nmr/pulserdriver.cpp:579 users/nmr/pulserdriver.cpp:589
+#: users/nmr/pulserdriver.cpp:589 users/nmr/pulserdriver.cpp:599
 msgid "Pulser Turn-Off Failed, because"
+msgstr ""
+
+#: users/nmr/pulserdriverconnector.cpp:86
+msgid "Pulse Patterns"
 msgstr ""
 
 #: users/nmr/pulserdriverh8.cpp:140 users/nmr/pulserdriversh.cpp:334
 msgid "Pulser Invalid pattern"
 msgstr ""
 
-#: users/nmr/pulserdriverh8.cpp:166 users/nmr/pulserdriversh.cpp:359
+#: users/nmr/pulserdriverh8.cpp:167 users/nmr/pulserdriversh.cpp:356
 msgid "Pulser Check Sum Error"
 msgstr ""
 
@@ -736,40 +759,40 @@ msgstr ""
 msgid "TempControl - "
 msgstr ""
 
-#: xitemnode.cpp:11 xitemnode.cpp:37
+#: xitemnode.cpp:12 xitemnode.cpp:39
 msgid "No item."
 msgstr ""
 
-#: xnode.cpp:147
+#: xnode.cpp:155
 msgid "Ill string conversion to integer."
 msgstr ""
 
-#: xnode.cpp:155
+#: xnode.cpp:164
 msgid "Ill string conversion to unsigned integer."
 msgstr ""
 
-#: xnode.cpp:167
-msgid "Ill string conversion to boolean."
-msgstr ""
-
-#: xnode.cpp:201
+#: xnode.cpp:173
 msgid "Ill string conversion to hex."
 msgstr ""
 
-#: xnode.cpp:264
+#: xnode.cpp:191
+msgid "Ill string conversion to boolean."
+msgstr ""
+
+#: xnode.cpp:266
 msgid "Ill string conversion to double float."
 msgstr ""
 
-#: xnodeconnector.cpp:428 xnodeconnector.cpp:434 xnodeconnector.cpp:436
-#: xnodeconnector.cpp:438
+#: xnodeconnector.cpp:435 xnodeconnector.cpp:441 xnodeconnector.cpp:443
+#: xnodeconnector.cpp:445
 msgid "(UNSEL)"
 msgstr ""
 
-#: xnodeconnector.cpp:561
+#: xnodeconnector.cpp:568
 msgid "Warning: "
 msgstr ""
 
-#: xnodeconnector.cpp:570
+#: xnodeconnector.cpp:577
 msgid "Error: "
 msgstr ""
 
@@ -987,7 +1010,7 @@ msgstr ""
 msgid "Back Ground Color"
 msgstr ""
 
-#: graph/forms/graphnurlform.cpp:245 users/dso/forms/dsoform.cpp:357
+#: graph/forms/graphnurlform.cpp:245 users/dso/forms/dsoform.cpp:390
 #: users/nmr/forms/nmrfspectrumform.cpp:272
 #: users/nmr/forms/nmrpulseform.cpp:395 users/nmr/forms/nmrrelaxform.cpp:370
 #: users/nmr/forms/nmrspectrumform.cpp:269
@@ -1043,10 +1066,12 @@ msgid "DC Source Settings"
 msgstr ""
 
 #: users/dcsource/forms/dcsourceform.cpp:92 users/dmm/forms/dmmform.cpp:87
+#: users/funcsynth/forms/funcsynthform.cpp:172
 msgid "Function"
 msgstr ""
 
 #: users/dcsource/forms/dcsourceform.cpp:93
+#: users/funcsynth/forms/funcsynthform.cpp:169
 #: users/lia/forms/lockinampform.cpp:134
 #: users/nmr/forms/pulserdriverform.cpp:454
 msgid "Output"
@@ -1064,27 +1089,62 @@ msgstr ""
 msgid " ms"
 msgstr ""
 
-#: users/dso/forms/dsoform.cpp:337
+#: users/dso/forms/dsoform.cpp:366
 msgid "DSO Control"
 msgstr ""
 
-#: users/dso/forms/dsoform.cpp:338
-msgid "Trace2"
+#: users/dso/forms/dsoform.cpp:367
+msgid "Record Length"
 msgstr ""
 
-#: users/dso/forms/dsoform.cpp:339 users/dso/forms/dsoform.cpp:344
+#: users/dso/forms/dsoform.cpp:368
+msgid "Trigger Position"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:369
+msgid "%"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:370
+msgid "Time Width"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:371
+msgid "sec."
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:372
+msgid "Average"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:373
+msgid "Fetch Continueous"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:374
+msgid "Force Trigger"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:375
+msgid "Trace1"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:376 users/dso/forms/dsoform.cpp:381
 msgid "Full Scale"
 msgstr ""
 
-#: users/dso/forms/dsoform.cpp:340 users/dso/forms/dsoform.cpp:345
+#: users/dso/forms/dsoform.cpp:377 users/dso/forms/dsoform.cpp:382
+#: users/funcsynth/forms/funcsynthform.cpp:176
 msgid "Vp-p"
 msgstr ""
 
-#: users/dso/forms/dsoform.cpp:341 users/dso/forms/dsoform.cpp:346
+#: users/dso/forms/dsoform.cpp:378 users/dso/forms/dsoform.cpp:383
+#: users/funcsynth/forms/funcsynthform.cpp:179
 msgid "Offset"
 msgstr ""
 
-#: users/dso/forms/dsoform.cpp:342 users/dso/forms/dsoform.cpp:347
+#: users/dso/forms/dsoform.cpp:379 users/dso/forms/dsoform.cpp:384
+#: users/funcsynth/forms/funcsynthform.cpp:180
 #: users/lia/forms/lockinampform.cpp:135
 #: users/magnetps/forms/magnetpsform.cpp:232
 #: users/nmr/forms/pulserdrivermoreform.cpp:529
@@ -1097,65 +1157,49 @@ msgstr ""
 msgid "V"
 msgstr ""
 
-#: users/dso/forms/dsoform.cpp:343
-msgid "Trace1"
+#: users/dso/forms/dsoform.cpp:380
+msgid "Trace2"
 msgstr ""
 
-#: users/dso/forms/dsoform.cpp:348
-msgid "Record Length"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:349
-msgid "Trigger Position"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:350
-msgid "%"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:351
-msgid "Time Width"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:352
-msgid "sec."
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:353
-msgid "Average"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:354
-msgid "Fetch Continueous"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:355
+#: users/dso/forms/dsoform.cpp:385
 msgid "Single Sequence"
 msgstr ""
 
-#: users/dso/forms/dsoform.cpp:356
-msgid "Force Trigger"
+#: users/dso/forms/dsoform.cpp:386
+msgid "PhaseCycle Flipping"
 msgstr ""
 
-#: users/dso/forms/dsoform.cpp:358
+#: users/dso/forms/dsoform.cpp:387 users/nmr/forms/nmrrelaxform.cpp:382
+msgid "Pulser"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:388
+msgid "4x"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:389
+msgid "Enable"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:391
 msgid "Digital Filter"
 msgstr ""
 
-#: users/dso/forms/dsoform.cpp:359
+#: users/dso/forms/dsoform.cpp:392
 msgid "FIR filter"
 msgstr ""
 
-#: users/dso/forms/dsoform.cpp:360
+#: users/dso/forms/dsoform.cpp:393
 msgid "Sharpness"
 msgstr ""
 
-#: users/dso/forms/dsoform.cpp:361 users/nmr/forms/nmrfspectrumform.cpp:262
+#: users/dso/forms/dsoform.cpp:394 users/nmr/forms/nmrfspectrumform.cpp:262
 #: users/nmr/forms/nmrrelaxform.cpp:389
 #: users/nmr/forms/nmrspectrumform.cpp:281
 msgid "Band Width"
 msgstr ""
 
-#: users/dso/forms/dsoform.cpp:362 users/dso/forms/dsoform.cpp:364
+#: users/dso/forms/dsoform.cpp:395 users/dso/forms/dsoform.cpp:397
 #: users/nmr/forms/nmrfspectrumform.cpp:259
 #: users/nmr/forms/nmrfspectrumform.cpp:261
 #: users/nmr/forms/nmrfspectrumform.cpp:263
@@ -1166,9 +1210,42 @@ msgstr ""
 msgid "kHz"
 msgstr ""
 
-#: users/dso/forms/dsoform.cpp:363 users/nmr/forms/nmrfspectrumform.cpp:256
+#: users/dso/forms/dsoform.cpp:396 users/nmr/forms/nmrfspectrumform.cpp:256
 #: users/nmr/forms/nmrspectrumform.cpp:279
 msgid "Center Freq"
+msgstr ""
+
+#: users/funcsynth/forms/funcsynthform.cpp:168
+msgid "Function Synthesizer Control"
+msgstr ""
+
+#: users/funcsynth/forms/funcsynthform.cpp:170
+msgid "Trigger Burst"
+msgstr ""
+
+#: users/funcsynth/forms/funcsynthform.cpp:171
+msgid "Modulation"
+msgstr ""
+
+#: users/funcsynth/forms/funcsynthform.cpp:173
+msgid "Freq"
+msgstr ""
+
+#: users/funcsynth/forms/funcsynthform.cpp:174
+#: users/lia/forms/lockinampform.cpp:137
+msgid "Hz"
+msgstr ""
+
+#: users/funcsynth/forms/funcsynthform.cpp:175
+msgid "Amp"
+msgstr ""
+
+#: users/funcsynth/forms/funcsynthform.cpp:177
+msgid "Init. Phase"
+msgstr ""
+
+#: users/funcsynth/forms/funcsynthform.cpp:178
+msgid "deg."
 msgstr ""
 
 #: users/lia/forms/lockinampform.cpp:128
@@ -1198,10 +1275,6 @@ msgstr ""
 #: users/lia/forms/lockinampform.cpp:136 users/nmr/forms/nmrrelaxform.cpp:393
 #: users/nmr/forms/signalgeneratorform.cpp:125
 msgid "Frequency"
-msgstr ""
-
-#: users/lia/forms/lockinampform.cpp:137
-msgid "Hz"
 msgstr ""
 
 #: users/magnetps/forms/magnetpsform.cpp:224
@@ -1460,10 +1533,6 @@ msgstr ""
 
 #: users/nmr/forms/nmrrelaxform.cpp:381
 msgid "PulseAnalyzer 2"
-msgstr ""
-
-#: users/nmr/forms/nmrrelaxform.cpp:382
-msgid "Pulser"
 msgstr ""
 
 #: users/nmr/forms/nmrrelaxform.cpp:383

@@ -1,8 +1,8 @@
 /****************************************************************************
 ** Form interface generated from reading ui file '../../../../kame/graph/forms/graphnurlform.ui'
 **
-** Created: 水  2 1 03:43:03 2006
-**      by: The User Interface Compiler ($Id: graphnurlform.h,v 1.1 2006/02/01 18:44:05 northriv Exp $)
+** Created: 木  3 2 16:25:22 2006
+**      by: The User Interface Compiler ($Id: graphnurlform.h,v 1.1.2.1 2006/03/02 09:19:26 northriv Exp $)
 **
 ** WARNING! All changes made in this file will be lost!
 ****************************************************************************/

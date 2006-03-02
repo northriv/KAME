@@ -2,8 +2,8 @@
 /****************************************************************************
 ** Form implementation generated from reading ui file '../../../../kame/graph/forms/graphform.ui'
 **
-** Created: 水  2 1 03:43:08 2006
-**      by: The User Interface Compiler ($Id: graphform.cpp,v 1.1 2006/02/01 18:44:04 northriv Exp $)
+** Created: 木  3 2 16:25:25 2006
+**      by: The User Interface Compiler ($Id: graphform.cpp,v 1.1.2.1 2006/03/02 09:19:26 northriv Exp $)
 **
 ** WARNING! All changes made in this file will be lost!
 ****************************************************************************/
@@ -14,6 +14,10 @@
 #include <qlayout.h>
 #include <qtooltip.h>
 #include <qwhatsthis.h>
+#include <qaction.h>
+#include <qmenubar.h>
+#include <qpopupmenu.h>
+#include <qtoolbar.h>
 #include <qimage.h>
 #include <qpixmap.h>
 
@@ -184,21 +188,21 @@ static const unsigned char img0_graphform[] = {
  *  Constructs a FrmGraph as a child of 'parent', with the
  *  name 'name' and widget flags set to 'f'.
  *
- *  The dialog will by default be modeless, unless you set 'modal' to
- *  TRUE to construct a modal dialog.
  */
-FrmGraph::FrmGraph( QWidget* parent, const char* name, bool modal, WFlags fl )
-    : QDialog( parent, name, modal, fl )
+FrmGraph::FrmGraph( QWidget* parent, const char* name, WFlags fl )
+    : QMainWindow( parent, name, fl )
 {
+    (void)statusBar();
     QImage img;
     img.loadFromData( img0_graphform, sizeof( img0_graphform ), "PNG" );
     image0 = img;
     if ( !name )
 	setName( "FrmGraph" );
     setIcon( image0 );
-    FrmGraphLayout = new QGridLayout( this, 1, 1, 2, 6, "FrmGraphLayout"); 
+    setCentralWidget( new QWidget( this, "qt_central_widget" ) );
+    FrmGraphLayout = new QGridLayout( centralWidget(), 1, 1, 2, 6, "FrmGraphLayout"); 
 
-    m_graphwidget = new XQGraph( this, "m_graphwidget" );
+    m_graphwidget = new XQGraph( centralWidget(), "m_graphwidget" );
 
     FrmGraphLayout->addWidget( m_graphwidget, 0, 0 );
     languageChange();

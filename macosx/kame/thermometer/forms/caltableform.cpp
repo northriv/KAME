@@ -2,8 +2,8 @@
 /****************************************************************************
 ** Form implementation generated from reading ui file '../../../../kame/thermometer/forms/caltableform.ui'
 **
-** Created: 水  2 1 03:42:18 2006
-**      by: The User Interface Compiler ($Id: caltableform.cpp,v 1.1 2006/02/01 18:45:19 northriv Exp $)
+** Created: 木  3 2 16:35:35 2006
+**      by: The User Interface Compiler ($Id: caltableform.cpp,v 1.1.2.1 2006/03/02 09:19:10 northriv Exp $)
 **
 ** WARNING! All changes made in this file will be lost!
 ****************************************************************************/
@@ -32,11 +32,11 @@ FrmCalTable::FrmCalTable( QWidget* parent, const char* name, WFlags fl )
 
     layout8 = new QGridLayout( 0, 1, 1, 0, 6, "layout8"); 
 
-    btnDump = new QPushButton( this, "btnDump" );
-    btnDump->setAcceptDrops( FALSE );
-    btnDump->setAutoDefault( FALSE );
+    btnDisplay = new QPushButton( this, "btnDisplay" );
+    btnDisplay->setAcceptDrops( FALSE );
+    btnDisplay->setAutoDefault( FALSE );
 
-    layout8->addWidget( btnDump, 2, 0 );
+    layout8->addWidget( btnDisplay, 2, 0 );
 
     layout3 = new QVBoxLayout( 0, 0, 6, "layout3"); 
 
@@ -91,7 +91,7 @@ FrmCalTable::FrmCalTable( QWidget* parent, const char* name, WFlags fl )
     // tab order
     setTabOrder( cmbThermometer, edTemp );
     setTabOrder( edTemp, edValue );
-    setTabOrder( edValue, btnDump );
+    setTabOrder( edValue, btnDisplay );
 }
 
 /*
@@ -109,7 +109,7 @@ FrmCalTable::~FrmCalTable()
 void FrmCalTable::languageChange()
 {
     setCaption( tr2i18n( "Calibration Table" ) );
-    btnDump->setText( tr2i18n( "Dump Table" ) );
+    btnDisplay->setText( tr2i18n( "Display" ) );
     textLabel1->setText( tr2i18n( "Thermometer" ) );
     textLabel3->setText( tr2i18n( "Value" ) );
     textLabel2->setText( tr2i18n( "Temp." ) );

@@ -2,8 +2,8 @@
 /****************************************************************************
 ** Form implementation generated from reading ui file '../../../../../kame/users/funcsynth/forms/funcsynthform.ui'
 **
-** Created: 水  2 1 03:49:54 2006
-**      by: The User Interface Compiler ($Id: funcsynthform.cpp,v 1.1 2006/02/01 18:45:30 northriv Exp $)
+** Created: 木  3 2 16:40:10 2006
+**      by: The User Interface Compiler ($Id: funcsynthform.cpp,v 1.1.2.1 2006/03/02 09:19:10 northriv Exp $)
 **
 ** WARNING! All changes made in this file will be lost!
 ****************************************************************************/

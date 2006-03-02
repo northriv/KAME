@@ -2,8 +2,8 @@
 /****************************************************************************
 ** Form implementation generated from reading ui file '../../../../../kame/users/nmr/forms/nmrspectrumform.ui'
 **
-** Created: 水  2 1 03:51:11 2006
-**      by: The User Interface Compiler ($Id: nmrspectrumform.cpp,v 1.1 2006/02/01 18:43:56 northriv Exp $)
+** Created: 木  3 2 16:41:10 2006
+**      by: The User Interface Compiler ($Id: nmrspectrumform.cpp,v 1.1.2.1 2006/03/02 09:19:12 northriv Exp $)
 **
 ** WARNING! All changes made in this file will be lost!
 ****************************************************************************/

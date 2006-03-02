@@ -13,7 +13,7 @@
 #include "support.h"
 
 #include <stdint.h>
-//#define HAVE_CAS_2
+#define HAVE_CAS_2
 inline bool atomicCompareAndSet2(
     uint32_t oldv0, uint32_t oldv1,
     uint32_t newv0, uint32_t newv1, uint32_t *target ) {

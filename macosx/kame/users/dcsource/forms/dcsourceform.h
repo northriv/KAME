@@ -1,8 +1,8 @@
 /****************************************************************************
 ** Form interface generated from reading ui file '../../../../../kame/users/dcsource/forms/dcsourceform.ui'
 **
-** Created: 水  2 1 03:49:37 2006
-**      by: The User Interface Compiler ($Id: dcsourceform.h,v 1.1 2006/02/01 18:45:38 northriv Exp $)
+** Created: 木  3 2 16:39:56 2006
+**      by: The User Interface Compiler ($Id: dcsourceform.h,v 1.1.2.1 2006/03/02 09:20:47 northriv Exp $)
 **
 ** WARNING! All changes made in this file will be lost!
 ****************************************************************************/

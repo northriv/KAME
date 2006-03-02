@@ -1,8 +1,8 @@
 /****************************************************************************
 ** XQGraphDialogConnector meta object code from reading C++ file 'graphdialogconnector.h'
 **
-** Created: Wed Feb 1 03:45:49 2006
-**      by: The Qt MOC ($Id: graphdialogconnector.moc.cpp,v 1.1 2006/02/01 18:45:36 northriv Exp $)
+** Created: Thu Mar 2 16:35:22 2006
+**      by: The Qt MOC ($Id: graphdialogconnector.moc.cpp,v 1.1.2.1 2006/03/02 09:19:19 northriv Exp $)
 **
 ** WARNING! All changes made in this file will be lost!
 *****************************************************************************/

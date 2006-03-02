@@ -1,8 +1,8 @@
 /****************************************************************************
 ** _XQConnectorHolder meta object code from reading C++ file 'xnodeconnector_prv.h'
 **
-** Created: Wed Feb 1 04:04:44 2006
-**      by: The Qt MOC ($Id: xnodeconnector_prv.moc.cpp,v 1.1 2006/02/01 18:44:36 northriv Exp $)
+** Created: Thu Mar 2 16:55:11 2006
+**      by: The Qt MOC ($Id: xnodeconnector_prv.moc.cpp,v 1.1.2.1 2006/03/02 09:20:34 northriv Exp $)
 **
 ** WARNING! All changes made in this file will be lost!
 *****************************************************************************/

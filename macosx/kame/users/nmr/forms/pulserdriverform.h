@@ -1,8 +1,8 @@
 /****************************************************************************
 ** Form interface generated from reading ui file '../../../../../kame/users/nmr/forms/pulserdriverform.ui'
 **
-** Created: 水  2 1 03:50:26 2006
-**      by: The User Interface Compiler ($Id: pulserdriverform.h,v 1.1 2006/02/01 18:43:55 northriv Exp $)
+** Created: 木  3 2 16:40:40 2006
+**      by: The User Interface Compiler ($Id: pulserdriverform.h,v 1.1.2.1 2006/03/02 09:19:16 northriv Exp $)
 **
 ** WARNING! All changes made in this file will be lost!
 ****************************************************************************/

@@ -1,6 +1,37 @@
+* Thu Mar 2 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0.6-1m)
+- support.cpp : FormatDouble, Use "%.12g" as a default.
+- xnode.h : Abondon childLock()/childUnlock().
+- caltable.cpp : Display thermometer.
+
+* Wed Mar 1 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0.5-1m)
+- cspline.cpp : cubic spline approximation.
+- thermometer.cpp : new thermometer XApproxThermometer.
+- xnodeconnector.cpp : fix display LCD.
+- graphform.ui : derived from QMainWidget.
+- xrubysupport.cpp : fix unnamed nodes.
+
+* Tue Feb 28 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0.4-1m)
+- dso.cpp : FIR filter before recording.
+- serial.cpp : change init. seq.
+- userlockinamp.cpp : SR830 read freq on starting.
+- tempcontrol.cpp : make single reading working.
+
+* Sat Feb 11 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0.3-2m)
+- serial.cpp : revise checking of read count.
+- support.cpp : use mutex for debug printings.
+- pulserdriversh.cpp : sync with firm 1.2.
+
+* Wed Feb 8 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0.3-1m)
+- serial.cpp : when read buffer is not empty before writing, throw instead of tcflush().
+
 * Fri Feb 3 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
 - (2.0.2-1m)
-- dso.cpp, pulserdriver.cpp : change phase cycling patterns
+- dso.cpp, pulserdriver.cpp : change phase cycling sequences
 	 and accumulate waves to correct averaging sterategy.
 
 * Thu Feb 2 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
