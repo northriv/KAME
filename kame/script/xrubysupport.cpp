@@ -15,7 +15,7 @@ extern "C" {
 #define XRUBYSUPPORT_RB "xrubysupport.rb"
 
 static inline VALUE QString2RSTRING(const QString &qstr) {
-    if(qstr.isEmpty()) return Qnil;
+    if(qstr.isEmpty()) return rb_str_new2("");
     return rb_str_new2(qstr.utf8());
 }
 

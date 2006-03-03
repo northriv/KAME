@@ -34,6 +34,10 @@ XRubyThreadConnector::XRubyThreadConnector(
     form->m_pbtnKill->setIconSet(
              KApplication::kApplication()->iconLoader()->loadIconSet("stop", 
             KIcon::Toolbar, KIcon::SizeSmall, true ) );  
+            
+    m_pForm->m_ptxtDefout->setMaxLogLines(10000);
+    m_pForm->m_ptxtDefout->setTextFormat(Qt::LogText);    
+    
     m_lsnOnResumeTouched = m_resume->onTouch().connectWeak(
         false, shared_from_this(), &XRubyThreadConnector::onResumeTouched);
     m_lsnOnKillTouched = m_kill->onTouch().connectWeak(

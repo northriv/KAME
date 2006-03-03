@@ -3,27 +3,51 @@
 
 $KCODE = 'UTF8'
 
+require "cgi"
+
 #redirect defout, deferr
 class << $stdout
   def write(str)
-    XRubyThreads.my_rbdefout(str, Thread.current.object_id)
+  	str = CGI.escapeHTML(str)
+  	if /^\s*#/ =~ str then
+  		str.each_line {|line|
+  			line = "<font color=#005500>#{line}"
+	  		begin
+				line["\n"] = "</font>\n"
+			rescue IndexError
+				line = "#{line}</font>"
+			end
+		    XRubyThreads.my_rbdefout(line, Thread.current.object_id)
+  		}
+    else
+	    XRubyThreads.my_rbdefout(str, Thread.current.object_id)
+  	end
   end
 end
 class << $stderr
   def write(str)
-    XRubyThreads.my_rbdefout(str, Thread.current.object_id)
+  	str = CGI.escapeHTML(str)
+  	str.each_line {|line|
+  		line = "<font color=#ff0000>#{line}"
+  		begin
+			line["\n"] = "</font>\n"
+		rescue IndexError
+			line = "#{line}</font>"
+		end
+		XRubyThreads.my_rbdefout(line, Thread.current.object_id)
+    }
   end
 end
 
 #function to dump exception info
 def print_exception(exc)
-	print exc.message, "\n"
+	$stderr.print exc.message, "\n"
 	bt_shown = false
 	exc.backtrace.each {|b|
-		print b, "\n" unless b.include?(__FILE__)
+		$stderr.print b, "\n" unless b.include?(__FILE__)
 		bt_shown = true
 	}
-	print exc.backtrace[0], "\n" unless bt_shown
+	$stderr.print exc.backtrace[0], "\n" unless bt_shown
 end
 
 #useful modules
