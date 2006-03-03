@@ -129,7 +129,7 @@ XDriverListConnector::onRecord(const shared_ptr<XDriver> &driver)
 void
 XDriverListConnector::tcons::onRecordRedirected(const tlisttext &text)
 {
-    text.label->setText(*text.str);
+    text.label->setText(QDeepCopy<QString>(*text.str));
 }
 void
 XDriverListConnector::onCreateTouched(const shared_ptr<XNode> &)

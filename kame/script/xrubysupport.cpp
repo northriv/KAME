@@ -14,6 +14,11 @@ extern "C" {
 
 #define XRUBYSUPPORT_RB "xrubysupport.rb"
 
+static inline VALUE QString2RSTRING(const QString &qstr) {
+    if(qstr.isEmpty()) return Qnil;
+    return rb_str_new2(qstr.utf8());
+}
+
 XRuby::XRuby(const char *name, bool runtime, const shared_ptr<XMeasure> &measure)
   : XAliasListNode<XRubyThread>(name, runtime),
   m_measure(measure), 
@@ -84,7 +89,7 @@ XRuby::rnode_child(VALUE self, VALUE var)
         break;
       case T_STRING:
         {
-        const char *name = STR2CSTR(var);
+        const char *name = RSTRING(var)->ptr;
             child = node->getChild(name);
             if(! child ) {
               rb_raise(rb_eRuntimeError, "No such node name:%s on %s\n",
@@ -110,9 +115,11 @@ VALUE
 XRuby::rlistnode_create_child(VALUE self, VALUE rbtype, VALUE rbname)
 {
   Check_Type(rbtype, T_STRING);
+  if(TYPE(rbtype) != T_STRING) return Qnil;
   Check_Type(rbname, T_STRING);
-  char *type = STR2CSTR(rbtype);
-  char *name = STR2CSTR(rbname);
+  if(TYPE(rbname) != T_STRING) return Qnil;
+  char *type = RSTRING(rbtype)->ptr;
+  char *name = RSTRING(rbname)->ptr;
   
   shared_ptr<XNode> child;
   struct rnode_ptr *st;
@@ -214,7 +221,7 @@ XRuby::rnode_name(VALUE self)
   struct rnode_ptr *st;
   Data_Get_Struct(self, struct rnode_ptr, st);
   if(shared_ptr<XNode> node = st->ptr.lock()) {
-      return rb_str_new2(node->getName().utf8());
+      return QString2RSTRING(node->getName());
   }
   else {
       rb_raise(rb_eRuntimeError, "Node no longer exists\n");
@@ -339,7 +346,7 @@ XRuby::rvaluenode_to_str(VALUE self)
   if(shared_ptr<XNode> node = st->ptr.lock()) {
       shared_ptr<XValueNodeBase> vnode = dynamic_pointer_cast<XValueNodeBase>(node);
       ASSERT(vnode);
-      return rb_str_new2(vnode->to_str().utf8());
+      return QString2RSTRING(vnode->to_str());
   }
   else {
       rb_raise(rb_eRuntimeError, "Node no longer exists\n");
@@ -395,7 +402,7 @@ XRuby::strOnNode(const shared_ptr<XValueNodeBase> &node, VALUE value)
     break;
   case T_STRING:
     try {
-        QString qstr = QString::fromUtf8(STR2CSTR(value));
+        QString qstr = QString::fromUtf8(RSTRING(value)->ptr);
         node->str(qstr);
     }
     catch (XKameError &e) {
@@ -433,7 +440,7 @@ XRuby::getValueOfNode(const shared_ptr<XValueNodeBase> &node)
   if(inode) {return INT2NUM(*inode);}
   if(uinode) {return UINT2NUM(*uinode);}
   if(bnode) {return (*bnode) ? Qtrue : Qfalse;}
-  if(snode) {return rb_str_new2(QString(*snode).utf8());}
+  if(snode) {return QString2RSTRING(*snode);}
   return Qnil;
 }
 
@@ -441,7 +448,7 @@ VALUE
 XRuby::my_rbdefout(VALUE self, VALUE str, VALUE threadid)
 {
   int id = NUM2INT(threadid);
-  QString qstr = QString::fromUtf8(STR2CSTR(str));
+  QString qstr = QString::fromUtf8(RSTRING(str)->ptr);
   struct rnode_ptr *st;
   Data_Get_Struct(self, struct rnode_ptr, st);
   { XScopedReadLock<XRecursiveRWLock> lock(st->xruby->childMutex());
@@ -521,7 +528,7 @@ XRuby::execute(const atomic<bool> &terminated)
               g_statusPrinter->printError("No KAME ruby support file installed.");
           }
           else {
-              rb_load_protect (rb_str_new2 (filename), 0, &state);
+              rb_load_protect (QString2RSTRING(filename), 0, &state);
           }
       }
       ruby_finalize();

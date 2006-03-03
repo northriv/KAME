@@ -7,6 +7,7 @@
 #include "forms/rubythreadtool.h"
 #include "icons/icon.h"
 #include <kapplication.h>
+#include <qdeepcopy.h>
 #include <kiconloader.h>
 
 XRubyThreadConnector::XRubyThreadConnector(
@@ -40,7 +41,7 @@ XRubyThreadConnector::XRubyThreadConnector(
     m_lsnOnDefout = rbthread->onMessageOut().connectWeak(
         true, shared_from_this(), &XRubyThreadConnector::onDefout, false);
     m_lsnOnStatusChanged = rbthread->status()->onValueChanged().connectWeak(
-        true, shared_from_this(), &XRubyThreadConnector::onStatusChanged, true, 10);
+        false, shared_from_this(), &XRubyThreadConnector::onStatusChanged);
         
     form->setIcon(*g_pIconScript);
     form->setCaption(rbthread->getName());
@@ -72,5 +73,5 @@ XRubyThreadConnector::onKillTouched(const shared_ptr<XNode> &) {
 }
 void
 XRubyThreadConnector::onDefout(const shared_ptr<QString> &str) {
-    m_pForm->m_ptxtDefout->append(*str);
+    m_pForm->m_ptxtDefout->append(QDeepCopy<QString>(*str));
 }

@@ -61,7 +61,7 @@ XEntryListConnector::onRecord(const shared_ptr<XDriver> &driver)
 void
 XEntryListConnector::tcons::onRecordRedirected(const tlisttext &text)
 {
-    text.label->setText(*text.str);
+    text.label->setText(QDeepCopy<QString>(*text.str));
 }
 
 void
