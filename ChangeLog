@@ -1,3 +1,7 @@
+* Thu Mar 3 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0.7-1m)
+- bug fix. : Use QDeepCopy<QString> when needed.
+
 * Thu Mar 2 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
 - (2.0.6-1m)
 - support.cpp : FormatDouble, Use "%.12g" as a default.
