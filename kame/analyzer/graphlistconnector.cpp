@@ -18,7 +18,6 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, QTa
      QPushButton *btnnew, QPushButton *btndelete) :
     XListQConnector(node, item),
     m_graphlist(node),
-    m_pItem(item),
     m_newGraph(createOrphan<XNode>("NewGraph", true)),
     m_deleteGraph(createOrphan<XNode>("DeleteGraph", true)),
     m_conNewGraph(xqcon_create<XQButtonConnector>(m_newGraph, btnnew)),
@@ -43,6 +42,7 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, QTa
   labels += i18n("Axis Y");
   labels += i18n("Axis Z");
   m_pItem->setColumnLabels(labels);
+
   { XScopedReadLock<XRecursiveRWLock> lock(node->childMutex());
       for(unsigned int i = 0; i < node->count(); i++)
         onCatch((*node)[i]);
@@ -53,13 +53,7 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, QTa
   m_lsnDeleteGraph = m_deleteGraph->onTouch().connectWeak(
         true, shared_from_this(), &XGraphListConnector::onDeleteGraph);
 }
-XGraphListConnector::~XGraphListConnector()
-{
-    if(isItemAlive()) {
-      disconnect(m_pItem, NULL, this, NULL );
-      m_pItem->setNumRows(0);
-    }
-}
+
 void
 XGraphListConnector::onNewGraph (const shared_ptr<XNode> &) {
 static int graphidx = 1;

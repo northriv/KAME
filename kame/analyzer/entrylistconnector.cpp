@@ -14,7 +14,6 @@
 XEntryListConnector::XEntryListConnector
   (const shared_ptr<XScalarEntryList> &node, QTable *item, const shared_ptr<XChartList> &chartlist)
   : XListQConnector(node, item),
-  m_pItem(item),
   m_chartList(chartlist)
 {
   connect(item, SIGNAL( clicked( int, int, int, const QPoint& )),
@@ -36,14 +35,6 @@ XEntryListConnector::XEntryListConnector
         onCatch((*node)[i]);
   }
 }
-XEntryListConnector::~XEntryListConnector()
-{
-    if(isItemAlive()) {
-      disconnect(m_pItem, NULL, this, NULL );
-      m_pItem->setNumRows(0);
-    }
-}
-
 void
 XEntryListConnector::onRecord(const shared_ptr<XDriver> &driver)
 {
@@ -114,7 +105,6 @@ XEntryListConnector::onCatch(const shared_ptr<XNode> &node)
         false, shared_from_this(), &XEntryListConnector::onRecord);
 
   m_cons.push_back(shared_ptr<tcons>(new tcons));
-  m_cons.back()->row = i;
   m_cons.back()->entry = entry;
   m_cons.back()->label = new QLabel(m_pItem);
   m_pItem->setCellWidget(i, 1, m_cons.back()->label);

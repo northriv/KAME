@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2006-02-04 22:43+0900\n"
+"POT-Creation-Date: 2006-03-05 00:44+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -16,44 +16,44 @@ msgstr ""
 "Content-Type: text/plain; charset=CHARSET\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: analyzer/analyzer.cpp:98
+#: analyzer/analyzer.cpp:100
 msgid "Chart - "
 msgstr ""
 
-#: analyzer/analyzer.cpp:253
+#: analyzer/analyzer.cpp:256
 msgid "Graph - "
 msgstr ""
 
-#: analyzer/entrylistconnector.cpp:29
+#: analyzer/entrylistconnector.cpp:28
 msgid "Entry"
 msgstr ""
 
-#: analyzer/entrylistconnector.cpp:30 thermometer/forms/caltableform.cpp:114
+#: analyzer/entrylistconnector.cpp:29 thermometer/forms/caltableform.cpp:114
 #: users/dcsource/forms/dcsourceform.cpp:94
 msgid "Value"
 msgstr ""
 
-#: analyzer/entrylistconnector.cpp:31
+#: analyzer/entrylistconnector.cpp:30
 msgid "Store"
 msgstr ""
 
-#: analyzer/entrylistconnector.cpp:32
+#: analyzer/entrylistconnector.cpp:31
 msgid "Delta"
 msgstr ""
 
-#: analyzer/graphlistconnector.cpp:41 driver/forms/drivercreate.cpp:100
+#: analyzer/graphlistconnector.cpp:40 driver/forms/drivercreate.cpp:100
 msgid "Name"
 msgstr ""
 
-#: analyzer/graphlistconnector.cpp:42
+#: analyzer/graphlistconnector.cpp:41
 msgid "Axis X"
 msgstr ""
 
-#: analyzer/graphlistconnector.cpp:43
+#: analyzer/graphlistconnector.cpp:42
 msgid "Axis Y"
 msgstr ""
 
-#: analyzer/graphlistconnector.cpp:44
+#: analyzer/graphlistconnector.cpp:43
 msgid "Axis Z"
 msgstr ""
 
@@ -114,7 +114,7 @@ msgstr ""
 msgid "Recorded Time"
 msgstr ""
 
-#: driver/driverlistconnector.cpp:158
+#: driver/driverlistconnector.cpp:153
 msgid "Driver creation failed"
 msgstr ""
 
@@ -136,8 +136,8 @@ msgid "ibwrt err"
 msgstr ""
 
 #: driver/gpib.cpp:177 driver/gpib.cpp:217 driver/gpib.cpp:265
-#: driver/gpib.cpp:375 users/nmr/pulserdriverh8.cpp:171
-#: users/nmr/pulserdriversh.cpp:362
+#: driver/gpib.cpp:375 users/nmr/pulserdriverh8.cpp:172
+#: users/nmr/pulserdriversh.cpp:371
 msgid "try to continue"
 msgstr ""
 
@@ -221,11 +221,11 @@ msgstr ""
 msgid "Addr"
 msgstr ""
 
-#: driver/interfacelistconnector.cpp:75
+#: driver/interfacelistconnector.cpp:71
 msgid "&STOP"
 msgstr ""
 
-#: driver/interfacelistconnector.cpp:80
+#: driver/interfacelistconnector.cpp:76
 msgid "&RUN"
 msgstr ""
 
@@ -241,28 +241,36 @@ msgstr ""
 msgid "Record Error, because "
 msgstr ""
 
-#: driver/serial.cpp:32
+#: driver/serial.cpp:34
 msgid "tty open failed"
 msgstr ""
 
-#: driver/serial.cpp:49
+#: driver/serial.cpp:53
 msgid "Invalid Baudrate"
 msgstr ""
 
-#: driver/serial.cpp:64
+#: driver/serial.cpp:66
 msgid "stty failed"
 msgstr ""
 
-#: driver/serial.cpp:94
+#: driver/serial.cpp:83
+msgid "TCIFLUSH failed. errno=%1. continue."
+msgstr ""
+
+#: driver/serial.cpp:101
 msgid "write error"
 msgstr ""
 
-#: driver/serial.cpp:113 driver/serial.cpp:152
-msgid "read time-out"
+#: driver/serial.cpp:135
+msgid "read time-out, buf=;"
 msgstr ""
 
-#: driver/serial.cpp:121 driver/serial.cpp:160
+#: driver/serial.cpp:143 driver/serial.cpp:186
 msgid "read error"
+msgstr ""
+
+#: driver/serial.cpp:179
+msgid "read time-out"
 msgstr ""
 
 #: graph/graph.cpp:75
@@ -273,51 +281,51 @@ msgstr ""
 msgid "Y Axis"
 msgstr ""
 
-#: graph/graphpainter.cpp:367
+#: graph/graphpainter.cpp:363
 msgid "R-DBL-CLICK TO SHOW HELP"
 msgstr ""
 
-#: graph/graphpainter.cpp:520
+#: graph/graphpainter.cpp:516
 msgid "QUICK HELP!"
 msgstr ""
 
-#: graph/graphpainter.cpp:525 graph/graphpainter.cpp:531
+#: graph/graphpainter.cpp:521 graph/graphpainter.cpp:527
 msgid "Single Click Right Button on Axis : Auto-scale"
 msgstr ""
 
-#: graph/graphpainter.cpp:527
+#: graph/graphpainter.cpp:523
 msgid "Press Left Button on Plot : Manual Scale"
 msgstr ""
 
-#: graph/graphpainter.cpp:529
+#: graph/graphpainter.cpp:525
 msgid "Press Right Button along Axis: Manual Scale"
 msgstr ""
 
-#: graph/graphpainter.cpp:533
+#: graph/graphpainter.cpp:529
 msgid "Single Click Right Button elsewhere : Auto-scale all"
 msgstr ""
 
-#: graph/graphpainter.cpp:535
+#: graph/graphpainter.cpp:531
 msgid "Press Middle Button : Tilt plots"
 msgstr ""
 
-#: graph/graphpainter.cpp:537
+#: graph/graphpainter.cpp:533
 msgid "Single Click Middle Button : Reset tilting"
 msgstr ""
 
-#: graph/graphpainter.cpp:539
+#: graph/graphpainter.cpp:535
 msgid "Wheel around Center : (Un)Zoom all Plots"
 msgstr ""
 
-#: graph/graphpainter.cpp:541
+#: graph/graphpainter.cpp:537
 msgid "Wheel at Side : Tilt by 30deg."
 msgstr ""
 
-#: graph/graphpainter.cpp:543
+#: graph/graphpainter.cpp:539
 msgid "Double Click Left Button : Show Dialog"
 msgstr ""
 
-#: graph/graphpainter.cpp:545
+#: graph/graphpainter.cpp:541
 msgid "Double Click Right Button : This Help"
 msgstr ""
 
@@ -469,21 +477,29 @@ msgstr ""
 msgid "measurement file to open"
 msgstr ""
 
-#: support.cpp:191
+#: support.cpp:194
 #, c-format
 msgid "Illegal Format, too many %s."
 msgstr ""
 
-#: support.cpp:198
+#: support.cpp:201
 msgid "Illegal Format."
 msgstr ""
 
-#: support.cpp:201
+#: support.cpp:204
 msgid "Illegal Format, no float conversion."
 msgstr ""
 
-#: support.cpp:204
+#: support.cpp:207
 msgid "Illegal Format, no %."
+msgstr ""
+
+#: thermometer/caltable.cpp:40
+msgid "Thermometer Calibration"
+msgstr ""
+
+#: thermometer/thermometer.cpp:270 thermometer/thermometer.cpp:292
+msgid "XApproxThermometer, Too small number of points"
 msgstr ""
 
 #: users/dcsource/dcsource.cpp:22
@@ -514,12 +530,16 @@ msgstr ""
 msgid "DMM Read Error"
 msgstr ""
 
-#: users/dso/dso.cpp:171
-msgid "Too small number of taps for FIR filter."
+#: users/dso/dso.cpp:262
+msgid "Select traces!."
 msgstr ""
 
-#: users/dso/dso.cpp:276
-msgid "Select traces!."
+#: users/dso/dso.cpp:289
+msgid "No Pulser!"
+msgstr ""
+
+#: users/dso/dso.cpp:376
+msgid "Too small number of taps for FIR filter."
 msgstr ""
 
 #: users/funcsynth/funcsynth.cpp:28
@@ -550,15 +570,15 @@ msgstr ""
 msgid "Error while starting, "
 msgstr ""
 
-#: users/lia/lockinamp.cpp:186
+#: users/lia/lockinamp.cpp:188
 msgid "Read Error, "
 msgstr ""
 
-#: users/lia/lockinamp.cpp:212
+#: users/lia/lockinamp.cpp:214
 msgid "Error while closing, "
 msgstr ""
 
-#: users/lia/userlockinamp.cpp:180 users/lia/userlockinamp.cpp:184
+#: users/lia/userlockinamp.cpp:182 users/lia/userlockinamp.cpp:186
 msgid "Operation not supported."
 msgstr ""
 
@@ -590,7 +610,7 @@ msgstr ""
 msgid "Conflicting freqs of 2 SGs."
 msgstr ""
 
-#: users/nmr/nmrfspectrum.cpp:154 users/nmr/nmrspectrum.cpp:172
+#: users/nmr/nmrfspectrum.cpp:154 users/nmr/nmrspectrum.cpp:175
 msgid "Invalid center freq."
 msgstr ""
 
@@ -598,7 +618,7 @@ msgstr ""
 msgid "Too large freq. step."
 msgstr ""
 
-#: users/nmr/nmrfspectrum.cpp:165 users/nmr/nmrspectrum.cpp:167
+#: users/nmr/nmrfspectrum.cpp:165 users/nmr/nmrspectrum.cpp:170
 msgid "Invalid waveform."
 msgstr ""
 
@@ -731,16 +751,20 @@ msgstr ""
 msgid "Pulser Turn-Off Failed, because"
 msgstr ""
 
-#: users/nmr/pulserdriverconnector.cpp:86
+#: users/nmr/pulserdriverconnector.cpp:90
 msgid "Pulse Patterns"
 msgstr ""
 
-#: users/nmr/pulserdriverh8.cpp:140 users/nmr/pulserdriversh.cpp:334
+#: users/nmr/pulserdriverh8.cpp:140 users/nmr/pulserdriversh.cpp:338
 msgid "Pulser Invalid pattern"
 msgstr ""
 
-#: users/nmr/pulserdriverh8.cpp:167 users/nmr/pulserdriversh.cpp:356
+#: users/nmr/pulserdriverh8.cpp:168 users/nmr/pulserdriversh.cpp:363
 msgid "Pulser Check Sum Error"
+msgstr ""
+
+#: users/nmr/pulserdriversh.cpp:304
+msgid "Too long DMA."
 msgstr ""
 
 #: users/nmr/signalgenerator.cpp:23
@@ -759,40 +783,48 @@ msgstr ""
 msgid "TempControl - "
 msgstr ""
 
-#: xitemnode.cpp:12 xitemnode.cpp:39
+#: xitemnode.cpp:12 xitemnode.cpp:35
 msgid "No item."
 msgstr ""
 
-#: xnode.cpp:155
+#: xnode.cpp:145
 msgid "Ill string conversion to integer."
 msgstr ""
 
-#: xnode.cpp:164
+#: xnode.cpp:154
 msgid "Ill string conversion to unsigned integer."
 msgstr ""
 
-#: xnode.cpp:173
+#: xnode.cpp:163
 msgid "Ill string conversion to hex."
 msgstr ""
 
-#: xnode.cpp:191
+#: xnode.cpp:181
 msgid "Ill string conversion to boolean."
 msgstr ""
 
-#: xnode.cpp:266
+#: xnode.cpp:256
 msgid "Ill string conversion to double float."
 msgstr ""
 
-#: xnodeconnector.cpp:435 xnodeconnector.cpp:441 xnodeconnector.cpp:443
-#: xnodeconnector.cpp:445
+#: xnodeconnector.cpp:400
+msgid "Use drag-n-drop with ctrl pressed to reorder."
+msgstr ""
+
+#: xnodeconnector.cpp:415
+msgid "Invalid range of selections."
+msgstr ""
+
+#: xnodeconnector.cpp:478 xnodeconnector.cpp:484 xnodeconnector.cpp:486
+#: xnodeconnector.cpp:488
 msgid "(UNSEL)"
 msgstr ""
 
-#: xnodeconnector.cpp:568
+#: xnodeconnector.cpp:611
 msgid "Warning: "
 msgstr ""
 
-#: xnodeconnector.cpp:577
+#: xnodeconnector.cpp:620
 msgid "Error: "
 msgstr ""
 
@@ -894,7 +926,7 @@ msgid "Delete Driver"
 msgstr ""
 
 #: forms/graphtool.cpp:72 graph/forms/graphdialog.cpp:551
-#: graph/forms/graphform.cpp:223 graph/forms/graphnurlform.cpp:244
+#: graph/forms/graphform.cpp:227 graph/forms/graphnurlform.cpp:244
 msgid "Graph"
 msgstr ""
 
@@ -1017,23 +1049,23 @@ msgstr ""
 msgid "DUMP"
 msgstr ""
 
-#: script/forms/rubythreadtool.cpp:93
+#: script/forms/rubythreadtool.cpp:94
 msgid "Script"
 msgstr ""
 
-#: script/forms/rubythreadtool.cpp:94
+#: script/forms/rubythreadtool.cpp:95
 msgid "KILL"
 msgstr ""
 
-#: script/forms/rubythreadtool.cpp:95
+#: script/forms/rubythreadtool.cpp:96
 msgid "RESUME"
 msgstr ""
 
-#: script/forms/rubythreadtool.cpp:96
+#: script/forms/rubythreadtool.cpp:97
 msgid "tesssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssst"
 msgstr ""
 
-#: script/forms/rubythreadtool.cpp:98
+#: script/forms/rubythreadtool.cpp:99
 msgid "Status:"
 msgstr ""
 
@@ -1042,7 +1074,7 @@ msgid "Calibration Table"
 msgstr ""
 
 #: thermometer/forms/caltableform.cpp:112
-msgid "Dump Table"
+msgid "Display"
 msgstr ""
 
 #: thermometer/forms/caltableform.cpp:113

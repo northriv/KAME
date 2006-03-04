@@ -11,11 +11,13 @@
 #include <kcolorbutton.h>
 #include <kcolorcombo.h>
 #include <qlabel.h>
+#include <qtable.h>
 #include <kled.h>
 #include <knuminput.h>
 #include <qspinbox.h>
 #include <qlcdnumber.h>
 #include <qtextbrowser.h>
+#include <qtooltip.h>
 #include <qstatusbar.h>
 #include <kpassivepopup.h>
 #include <qmainwindow.h>
@@ -342,7 +344,7 @@ XQLCDNumberConnector::XQLCDNumberConnector(const shared_ptr<XDoubleNode> &node, 
 void
 XQLCDNumberConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
     QString buf(m_node->to_str());
-    if(buf.length() > m_pItem->numDigits())
+    if((int)buf.length() > m_pItem->numDigits())
         m_pItem->setNumDigits(buf.length());
     m_pItem->display(buf);
 }
@@ -375,17 +377,55 @@ XQToggleButtonConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
       if(((bool)*m_node) ^ m_pItem->isOn()) m_pItem->toggle();
 }
 
-XListQConnector::XListQConnector(const shared_ptr<XListNodeBase> &node, QWidget *item)
-  : XQConnector(node, item) {
-    m_lsnListChanged = node->onListChanged().connectWeak
+XListQConnector::XListQConnector(const shared_ptr<XListNodeBase> &node, QTable *item)
+  : XQConnector(node, item),
+  m_pItem(item), m_list(node) {
+    m_lsnMove = node->onMove().connectWeak
         (true, shared_from_this(),
-				     &XListQConnector::onListChanged, false);
+                     &XListQConnector::onMove, false);
     m_lsnCatch = node->onCatch().connectWeak
           (true, shared_from_this(), &XListQConnector::onCatch);
     m_lsnRelease = node->onRelease().connectWeak
           (true, shared_from_this(), &XListQConnector::onRelease);
-  }
+    m_pItem->setReadOnly(true);
+
+    m_pItem->setSelectionMode(QTable::SingleRow);
+
+    m_pItem->setRowMovingEnabled(true);
+    QHeader *header = m_pItem->verticalHeader();
+    header->setResizeEnabled(false);
+    header->setMovingEnabled(true);
+    connect(header, SIGNAL( indexChange(int, int, int)),
+      this, SLOT( indexChange(int, int, int)));    
+    QToolTip::add(header, i18n("Use drag-n-drop with ctrl pressed to reorder."));
+}
 XListQConnector::~XListQConnector() {
+    if(isItemAlive()) {
+      disconnect(m_pItem, NULL, this, NULL );
+      m_pItem->setNumRows(0);
+    }
+}
+void
+XListQConnector::indexChange ( int section, int fromIndex, int toIndex )
+{
+    unsigned int src = fromIndex;
+    unsigned int dst = toIndex;
+    XScopedReadLock<XRecursiveRWLock> lock(m_list->childMutex());
+    if(src > m_list->count() || (dst > m_list->count())) {
+        throw XKameError(i18n("Invalid range of selections."), __FILE__, __LINE__);
+    }
+    m_lsnMove->mask();
+    m_list->move(src, dst);
+    m_lsnMove->unmask();
+}
+void
+XListQConnector::onMove(const XListNodeBase::MoveEvent &e)
+{
+    int dir = (e.src_idx - e.dst_idx) ? 1 : -1;
+    for(unsigned int idx = e.dst_idx; idx != e.src_idx; idx += dir) {
+        m_pItem->swapRows(idx, idx + dir);
+    }
+    m_pItem->updateContents();
 }
 
 XItemQConnector::XItemQConnector(const shared_ptr<XItemNodeBase> &node, QWidget *item)

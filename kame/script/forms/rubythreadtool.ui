@@ -75,6 +75,7 @@
             </property>
             <property name="font">
                 <font>
+                    <pointsize>10</pointsize>
                 </font>
             </property>
             <property name="hScrollBarMode">

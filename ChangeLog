@@ -1,3 +1,8 @@
+* Sat Mar 5 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0.8-1m)
+- xlistnode.cpp : move(), change order.
+- xnodeconnector.cpp : XListQConnector, dragging.
+
 * Thu Mar 3 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
 - (2.0.7-1m)
 - bug fix. : Use QDeepCopy<QString> when needed.

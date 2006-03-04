@@ -19,20 +19,33 @@ class XListNodeBase : public XNode
     ASSERT(index < count());
     return m_children[index]->getName();
   }
+  //! called after creation, moving, deleting.
    XTalker<shared_ptr<XListNodeBase> > &onListChanged() {return m_tlkOnListChanged;}
+
+  //! called after moving.
+   struct MoveEvent {
+     unsigned int src_idx, dst_idx;
+     shared_ptr<XListNodeBase> emitter;
+   };
+   XTalker<MoveEvent> &onMove() {return m_tlkOnMove;}
+
   //! called after creating a child
    XTalker<shared_ptr<XNode> > &onCatch() {return m_tlkOnCatch;}
   //! called before deleting a child
    XTalker<shared_ptr<XNode> > &onRelease() {return m_tlkOnRelease;}
   
+  //! append new item.
   virtual void insert(const shared_ptr<XNode> &ptr);
-
+  //! reorder an item. Lock \p childMutex() before.
+  void move(unsigned int src_idx, unsigned int dest_idx);
+  
   //! Create a object, whose class is determined from \a type.
   //! Scripting only. Use XNode::create for coding instead.
   virtual shared_ptr<XNode> createByTypename(
         const std::string &type, const std::string &name) = 0;        
  protected:    
   XTalker<shared_ptr<XListNodeBase> > m_tlkOnListChanged;
+  XTalker<MoveEvent> m_tlkOnMove;
   XTalker<shared_ptr<XNode> > m_tlkOnCatch, m_tlkOnRelease;
 };
 

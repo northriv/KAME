@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: ja\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2006-02-04 22:43+0900\n"
+"POT-Creation-Date: 2006-03-05 00:44+0900\n"
 "PO-Revision-Date: 2006-01-03 08:09+0900\n"
 "Last-Translator: Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>\n"
 "Language-Team: Japanese <ja@li.org>\n"
@@ -19,44 +19,44 @@ msgstr ""
 "X-Generator: KBabel 1.10.2\n"
 "Plural-Forms:  nplurals=1; plural=0;\n"
 
-#: analyzer/analyzer.cpp:98
+#: analyzer/analyzer.cpp:100
 msgid "Chart - "
 msgstr "チャート- "
 
-#: analyzer/analyzer.cpp:253
+#: analyzer/analyzer.cpp:256
 msgid "Graph - "
 msgstr "グラフ- "
 
-#: analyzer/entrylistconnector.cpp:29
+#: analyzer/entrylistconnector.cpp:28
 msgid "Entry"
 msgstr "エントリ"
 
-#: analyzer/entrylistconnector.cpp:30 thermometer/forms/caltableform.cpp:114
+#: analyzer/entrylistconnector.cpp:29 thermometer/forms/caltableform.cpp:114
 #: users/dcsource/forms/dcsourceform.cpp:94
 msgid "Value"
 msgstr "値"
 
-#: analyzer/entrylistconnector.cpp:31
+#: analyzer/entrylistconnector.cpp:30
 msgid "Store"
 msgstr "保存"
 
-#: analyzer/entrylistconnector.cpp:32
+#: analyzer/entrylistconnector.cpp:31
 msgid "Delta"
 msgstr "デルタ"
 
-#: analyzer/graphlistconnector.cpp:41 driver/forms/drivercreate.cpp:100
+#: analyzer/graphlistconnector.cpp:40 driver/forms/drivercreate.cpp:100
 msgid "Name"
 msgstr "名前"
 
-#: analyzer/graphlistconnector.cpp:42
+#: analyzer/graphlistconnector.cpp:41
 msgid "Axis X"
 msgstr "X軸"
 
-#: analyzer/graphlistconnector.cpp:43
+#: analyzer/graphlistconnector.cpp:42
 msgid "Axis Y"
 msgstr "Y軸"
 
-#: analyzer/graphlistconnector.cpp:44
+#: analyzer/graphlistconnector.cpp:43
 msgid "Axis Z"
 msgstr "Z軸"
 
@@ -117,7 +117,7 @@ msgstr "タイプ"
 msgid "Recorded Time"
 msgstr "レコード時刻"
 
-#: driver/driverlistconnector.cpp:158
+#: driver/driverlistconnector.cpp:153
 msgid "Driver creation failed"
 msgstr "ドライバ作成失敗"
 
@@ -139,8 +139,8 @@ msgid "ibwrt err"
 msgstr ""
 
 #: driver/gpib.cpp:177 driver/gpib.cpp:217 driver/gpib.cpp:265
-#: driver/gpib.cpp:375 users/nmr/pulserdriverh8.cpp:171
-#: users/nmr/pulserdriversh.cpp:362
+#: driver/gpib.cpp:375 users/nmr/pulserdriverh8.cpp:172
+#: users/nmr/pulserdriversh.cpp:371
 msgid "try to continue"
 msgstr ""
 
@@ -214,7 +214,7 @@ msgstr "制御"
 
 #: driver/interfacelistconnector.cpp:30
 msgid "Device"
-msgstr ""
+msgstr "デバイス"
 
 #: driver/interfacelistconnector.cpp:31
 msgid "Port"
@@ -224,11 +224,11 @@ msgstr "ポート"
 msgid "Addr"
 msgstr "アドレス"
 
-#: driver/interfacelistconnector.cpp:75
+#: driver/interfacelistconnector.cpp:71
 msgid "&STOP"
 msgstr "停止(&S)"
 
-#: driver/interfacelistconnector.cpp:80
+#: driver/interfacelistconnector.cpp:76
 msgid "&RUN"
 msgstr "開始(&R)"
 
@@ -244,28 +244,36 @@ msgstr ": Oxfordポートの停止失敗、"
 msgid "Record Error, because "
 msgstr "レコードエラー、"
 
-#: driver/serial.cpp:32
+#: driver/serial.cpp:34
 msgid "tty open failed"
 msgstr "TTYが開けまへん"
 
-#: driver/serial.cpp:49
+#: driver/serial.cpp:53
 msgid "Invalid Baudrate"
 msgstr "無効なボードレート"
 
-#: driver/serial.cpp:64
+#: driver/serial.cpp:66
 msgid "stty failed"
 msgstr "STTY失敗"
 
-#: driver/serial.cpp:94
+#: driver/serial.cpp:83
+msgid "TCIFLUSH failed. errno=%1. continue."
+msgstr ""
+
+#: driver/serial.cpp:101
 msgid "write error"
 msgstr ""
 
-#: driver/serial.cpp:113 driver/serial.cpp:152
-msgid "read time-out"
+#: driver/serial.cpp:135
+msgid "read time-out, buf=;"
 msgstr ""
 
-#: driver/serial.cpp:121 driver/serial.cpp:160
+#: driver/serial.cpp:143 driver/serial.cpp:186
 msgid "read error"
+msgstr ""
+
+#: driver/serial.cpp:179
+msgid "read time-out"
 msgstr ""
 
 #: graph/graph.cpp:75
@@ -276,51 +284,51 @@ msgstr "X軸"
 msgid "Y Axis"
 msgstr "Y軸"
 
-#: graph/graphpainter.cpp:367
+#: graph/graphpainter.cpp:363
 msgid "R-DBL-CLICK TO SHOW HELP"
 msgstr "右ダブルクリックでクィックヘルプ"
 
-#: graph/graphpainter.cpp:520
+#: graph/graphpainter.cpp:516
 msgid "QUICK HELP!"
 msgstr "クィック ヘルプ!"
 
-#: graph/graphpainter.cpp:525 graph/graphpainter.cpp:531
+#: graph/graphpainter.cpp:521 graph/graphpainter.cpp:527
 msgid "Single Click Right Button on Axis : Auto-scale"
 msgstr "右クリック、軸上: オートスケール"
 
-#: graph/graphpainter.cpp:527
+#: graph/graphpainter.cpp:523
 msgid "Press Left Button on Plot : Manual Scale"
 msgstr "左ボタンをプロット上でプレス: マニュアルスケール"
 
-#: graph/graphpainter.cpp:529
+#: graph/graphpainter.cpp:525
 msgid "Press Right Button along Axis: Manual Scale"
 msgstr "右ボタンを軸上でプレス: マニュアルスケール"
 
-#: graph/graphpainter.cpp:533
+#: graph/graphpainter.cpp:529
 msgid "Single Click Right Button elsewhere : Auto-scale all"
 msgstr "右クリック、他の場所: 全てオートスケール"
 
-#: graph/graphpainter.cpp:535
+#: graph/graphpainter.cpp:531
 msgid "Press Middle Button : Tilt plots"
 msgstr "中ボタンを押す: 傾ける"
 
-#: graph/graphpainter.cpp:537
+#: graph/graphpainter.cpp:533
 msgid "Single Click Middle Button : Reset tilting"
 msgstr "中ボタンクリック: 傾きを元に戻す"
 
-#: graph/graphpainter.cpp:539
+#: graph/graphpainter.cpp:535
 msgid "Wheel around Center : (Un)Zoom all Plots"
 msgstr "中心付近でホィール: ズーム"
 
-#: graph/graphpainter.cpp:541
+#: graph/graphpainter.cpp:537
 msgid "Wheel at Side : Tilt by 30deg."
 msgstr "外側でホィール: 30度毎に傾ける."
 
-#: graph/graphpainter.cpp:543
+#: graph/graphpainter.cpp:539
 msgid "Double Click Left Button : Show Dialog"
 msgstr "左ダブルクリック: ダイアログを出す"
 
-#: graph/graphpainter.cpp:545
+#: graph/graphpainter.cpp:541
 msgid "Double Click Right Button : This Help"
 msgstr "右ダブルクリック: このヘルプ"
 
@@ -472,22 +480,30 @@ msgstr "ダイレクトレンダリングを使わない"
 msgid "measurement file to open"
 msgstr "メジャメントファイルを開く"
 
-#: support.cpp:191
+#: support.cpp:194
 #, c-format
 msgid "Illegal Format, too many %s."
 msgstr "不正な書式、%が多すぎ"
 
-#: support.cpp:198
+#: support.cpp:201
 msgid "Illegal Format."
 msgstr "不正な書式"
 
-#: support.cpp:201
+#: support.cpp:204
 msgid "Illegal Format, no float conversion."
 msgstr "不正な書式、浮動小数点変換ではない"
 
-#: support.cpp:204
+#: support.cpp:207
 msgid "Illegal Format, no %."
 msgstr "不正な書式、%がない"
+
+#: thermometer/caltable.cpp:40
+msgid "Thermometer Calibration"
+msgstr "温度計キャリブレーション"
+
+#: thermometer/thermometer.cpp:270 thermometer/thermometer.cpp:292
+msgid "XApproxThermometer, Too small number of points"
+msgstr ""
 
 #: users/dcsource/dcsource.cpp:22
 msgid "DC Source - "
@@ -517,13 +533,17 @@ msgstr "DMMエラー"
 msgid "DMM Read Error"
 msgstr "DMMリードエラー"
 
-#: users/dso/dso.cpp:171
-msgid "Too small number of taps for FIR filter."
-msgstr "FIRフィルタのタップ数が少なくない？"
-
-#: users/dso/dso.cpp:276
+#: users/dso/dso.cpp:262
 msgid "Select traces!."
 msgstr ""
+
+#: users/dso/dso.cpp:289
+msgid "No Pulser!"
+msgstr "パルサーないで"
+
+#: users/dso/dso.cpp:376
+msgid "Too small number of taps for FIR filter."
+msgstr "FIRフィルタのタップ数が少なくない？"
 
 #: users/funcsynth/funcsynth.cpp:28
 msgid "Func. Synth. - "
@@ -553,15 +573,15 @@ msgstr ""
 msgid "Error while starting, "
 msgstr ""
 
-#: users/lia/lockinamp.cpp:186
+#: users/lia/lockinamp.cpp:188
 msgid "Read Error, "
 msgstr "リードエラー、"
 
-#: users/lia/lockinamp.cpp:212
+#: users/lia/lockinamp.cpp:214
 msgid "Error while closing, "
 msgstr ""
 
-#: users/lia/userlockinamp.cpp:180 users/lia/userlockinamp.cpp:184
+#: users/lia/userlockinamp.cpp:182 users/lia/userlockinamp.cpp:186
 msgid "Operation not supported."
 msgstr ""
 
@@ -593,7 +613,7 @@ msgstr "NMRスペクトラムアベレージャ (周波数掃引) - "
 msgid "Conflicting freqs of 2 SGs."
 msgstr ""
 
-#: users/nmr/nmrfspectrum.cpp:154 users/nmr/nmrspectrum.cpp:172
+#: users/nmr/nmrfspectrum.cpp:154 users/nmr/nmrspectrum.cpp:175
 msgid "Invalid center freq."
 msgstr "中心周波数があかんわ"
 
@@ -601,7 +621,7 @@ msgstr "中心周波数があかんわ"
 msgid "Too large freq. step."
 msgstr ""
 
-#: users/nmr/nmrfspectrum.cpp:165 users/nmr/nmrspectrum.cpp:167
+#: users/nmr/nmrfspectrum.cpp:165 users/nmr/nmrspectrum.cpp:170
 msgid "Invalid waveform."
 msgstr "ウェーブフォームがあかんわ"
 
@@ -734,16 +754,20 @@ msgstr "パルサー開始失敗、"
 msgid "Pulser Turn-Off Failed, because"
 msgstr "パルサー停止失敗、"
 
-#: users/nmr/pulserdriverconnector.cpp:86
+#: users/nmr/pulserdriverconnector.cpp:90
 msgid "Pulse Patterns"
 msgstr "パルスパターン"
 
-#: users/nmr/pulserdriverh8.cpp:140 users/nmr/pulserdriversh.cpp:334
+#: users/nmr/pulserdriverh8.cpp:140 users/nmr/pulserdriversh.cpp:338
 msgid "Pulser Invalid pattern"
 msgstr ""
 
-#: users/nmr/pulserdriverh8.cpp:167 users/nmr/pulserdriversh.cpp:356
+#: users/nmr/pulserdriverh8.cpp:168 users/nmr/pulserdriversh.cpp:363
 msgid "Pulser Check Sum Error"
+msgstr ""
+
+#: users/nmr/pulserdriversh.cpp:304
+msgid "Too long DMA."
 msgstr ""
 
 #: users/nmr/signalgenerator.cpp:23
@@ -762,40 +786,48 @@ msgstr "SGエラー"
 msgid "TempControl - "
 msgstr "温度コントローラ - "
 
-#: xitemnode.cpp:12 xitemnode.cpp:39
+#: xitemnode.cpp:12 xitemnode.cpp:35
 msgid "No item."
 msgstr "選択肢なし"
 
-#: xnode.cpp:155
+#: xnode.cpp:145
 msgid "Ill string conversion to integer."
 msgstr "整数型への変換失敗"
 
-#: xnode.cpp:164
+#: xnode.cpp:154
 msgid "Ill string conversion to unsigned integer."
 msgstr "符号なし整数型への変換失敗"
 
-#: xnode.cpp:173
+#: xnode.cpp:163
 msgid "Ill string conversion to hex."
 msgstr "１６進数の変換失敗"
 
-#: xnode.cpp:191
+#: xnode.cpp:181
 msgid "Ill string conversion to boolean."
 msgstr "真偽値の変換失敗"
 
-#: xnode.cpp:266
+#: xnode.cpp:256
 msgid "Ill string conversion to double float."
 msgstr "浮動小数点型への変換失敗"
 
-#: xnodeconnector.cpp:435 xnodeconnector.cpp:441 xnodeconnector.cpp:443
-#: xnodeconnector.cpp:445
+#: xnodeconnector.cpp:400
+msgid "Use drag-n-drop with ctrl pressed to reorder."
+msgstr "順番入れ替えは、CTRLを押しながらドラッグ"
+
+#: xnodeconnector.cpp:415
+msgid "Invalid range of selections."
+msgstr "Invalid range of selections."
+
+#: xnodeconnector.cpp:478 xnodeconnector.cpp:484 xnodeconnector.cpp:486
+#: xnodeconnector.cpp:488
 msgid "(UNSEL)"
 msgstr "(未選択)"
 
-#: xnodeconnector.cpp:568
+#: xnodeconnector.cpp:611
 msgid "Warning: "
 msgstr ""
 
-#: xnodeconnector.cpp:577
+#: xnodeconnector.cpp:620
 msgid "Error: "
 msgstr "エラー: "
 
@@ -897,7 +929,7 @@ msgid "Delete Driver"
 msgstr "ドライバ削除"
 
 #: forms/graphtool.cpp:72 graph/forms/graphdialog.cpp:551
-#: graph/forms/graphform.cpp:223 graph/forms/graphnurlform.cpp:244
+#: graph/forms/graphform.cpp:227 graph/forms/graphnurlform.cpp:244
 msgid "Graph"
 msgstr "グラフ"
 
@@ -1020,23 +1052,23 @@ msgstr "背景色"
 msgid "DUMP"
 msgstr "書き出し"
 
-#: script/forms/rubythreadtool.cpp:93
+#: script/forms/rubythreadtool.cpp:94
 msgid "Script"
 msgstr "スクリプト"
 
-#: script/forms/rubythreadtool.cpp:94
+#: script/forms/rubythreadtool.cpp:95
 msgid "KILL"
 msgstr "強制終了"
 
-#: script/forms/rubythreadtool.cpp:95
+#: script/forms/rubythreadtool.cpp:96
 msgid "RESUME"
 msgstr "再開"
 
-#: script/forms/rubythreadtool.cpp:96
+#: script/forms/rubythreadtool.cpp:97
 msgid "tesssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssst"
 msgstr "テスーーーーーーート"
 
-#: script/forms/rubythreadtool.cpp:98
+#: script/forms/rubythreadtool.cpp:99
 msgid "Status:"
 msgstr "ステータス"
 
@@ -1045,8 +1077,8 @@ msgid "Calibration Table"
 msgstr "キャリブレーションテーブル"
 
 #: thermometer/forms/caltableform.cpp:112
-msgid "Dump Table"
-msgstr "テーブル書き出し"
+msgid "Display"
+msgstr "表示"
 
 #: thermometer/forms/caltableform.cpp:113
 #: users/tempcontrol/forms/tempcontrolform.cpp:244
@@ -1244,9 +1276,8 @@ msgid "Amp"
 msgstr ""
 
 #: users/funcsynth/forms/funcsynthform.cpp:177
-#, fuzzy
 msgid "Init. Phase"
-msgstr "オートフェーズ"
+msgstr "初期位相"
 
 #: users/funcsynth/forms/funcsynthform.cpp:178
 msgid "deg."
@@ -1893,6 +1924,9 @@ msgstr "手動ヒータ"
 #: users/tempcontrol/forms/tempcontrolform.cpp:253
 msgid "Power Range"
 msgstr "パワーレンジ"
+
+#~ msgid "Dump Table"
+#~ msgstr "テーブル書き出し"
 
 #~ msgid "Perisistent mode."
 #~ msgstr "パーシステントモード"

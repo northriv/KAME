@@ -16,7 +16,7 @@
 
 XDriverListConnector::XDriverListConnector
   (const shared_ptr<XDriverList> &node, FrmDriver *item)
-   : XListQConnector(node, item->m_tblDrivers), m_list(node), m_pItem(item->m_tblDrivers) ,
+   : XListQConnector(node, item->m_tblDrivers),
    m_create(createOrphan<XNode>("Create", true)),
    m_release(createOrphan<XNode>("Release", true)),
    m_conCreate(xqcon_create<XQButtonConnector>(m_create, item->m_btnNew)),
@@ -40,6 +40,7 @@ XDriverListConnector::XDriverListConnector
   labels += i18n("Type");
   labels += i18n("Recorded Time");
   m_pItem->setColumnLabels(labels);
+
   { XScopedReadLock<XRecursiveRWLock> lock(node->childMutex());
       for(unsigned int i = 0; i < node->count(); i++)
         onCatch((*node)[i]);
@@ -49,12 +50,6 @@ XDriverListConnector::XDriverListConnector
     &XDriverListConnector::onCreateTouched);
   m_lsnOnReleaseTouched = m_release->onTouch().connectWeak(true, shared_from_this(),
     &XDriverListConnector::onReleaseTouched);
-}
-XDriverListConnector::~XDriverListConnector() {
-  if(isItemAlive()) {
-      disconnect(m_pItem, NULL, this, NULL );
-      m_pItem->setNumRows(0);
-  }
 }
 
 void

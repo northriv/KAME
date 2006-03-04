@@ -27,10 +27,15 @@ XQPulserDriverConnector::XQPulserDriverConnector(
   labels += "Diff [ms]";
   labels += "Pattern (Port 0, 1, ...)";
   m_pTable->setColumnLabels(labels);
+  m_pTable->setReadOnly(true);
+  m_pTable->setSelectionMode(QTable::MultiRow);
+
+  QHeader *header = m_pTable->verticalHeader();
+  header->setResizeEnabled(false);
+      
   connect(m_pTable, SIGNAL( selectionChanged()), this, SLOT(selectionChanged()) );
   connect(m_pTable, SIGNAL( clicked( int, int, int, const QPoint& )), this,
       SLOT( clicked( int, int, int, const QPoint& )));
-
 
     qgraph->setGraph(m_graph);
     

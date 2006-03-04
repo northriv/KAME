@@ -73,6 +73,30 @@ XListNodeBase::insert(const shared_ptr<XNode> &ptr)
   onListChanged().talk(dynamic_pointer_cast<XListNodeBase>(shared_from_this()));
   m_childmutex.readUnlock();
 }
+void
+XListNodeBase::move(unsigned int src_idx, unsigned int dst_idx)
+{
+    ASSERT(m_childmutex.isLocked());
+    XScopedWriteLock<XRecursiveRWLock> lock(m_childmutex);
+    tchildren_it dit = m_children.begin();
+    for(int i = 0; i < dst_idx; i++) {
+        dit++;
+    }
+    tchildren_it sit = m_children.begin();
+    for(int i = 0; i < src_idx; i++) {
+        ASSERT(sit != m_children.end());
+        sit++;
+    }
+    shared_ptr<XNode> node(*sit);
+    m_children.insert(dit, node);
+    m_children.erase(sit);
+    MoveEvent e;
+    e.src_idx = src_idx;
+    e.dst_idx = dst_idx;
+    e.emitter = dynamic_pointer_cast<XListNodeBase>(shared_from_this());
+    onMove().talk(e);
+    onListChanged().talk(dynamic_pointer_cast<XListNodeBase>(shared_from_this()));    
+}
 
 shared_ptr<XNode> empty_creator(const char *, bool ) {
     return shared_ptr<XNode>();

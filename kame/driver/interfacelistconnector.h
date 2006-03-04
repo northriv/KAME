@@ -14,9 +14,8 @@ class XInterfaceListConnector : public XListQConnector
  protected:
   XInterfaceListConnector(const shared_ptr<XInterfaceList> &node, QTable *item);
  public:
-  virtual ~XInterfaceListConnector();
+  virtual ~XInterfaceListConnector() {}
  protected:
-  virtual void onListChanged(const shared_ptr<XListNodeBase> &) {}
   virtual void onCatch(const shared_ptr<XNode> &node);
   virtual void onRelease(const shared_ptr<XNode> &node);
  protected slots:
@@ -34,7 +33,6 @@ class XInterfaceListConnector : public XListQConnector
   tconslist m_cons;
 
   shared_ptr<XInterfaceList> m_interfaceList;
-  QTable *m_pItem;
   void onOpenedChanged(const shared_ptr<XValueNodeBase> &);
   void onControlTouched(const shared_ptr<XNode> &);
 };

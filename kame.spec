@@ -6,7 +6,7 @@
 %global mikachanver 8.9
 
 Name: kame
-Version: 2.0.7
+Version: 2.0.8
 Release: %{momorel}m
 License: GPL
 Group: Applications/Engineering

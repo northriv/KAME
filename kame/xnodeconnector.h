@@ -296,24 +296,27 @@ class XQToggleButtonConnector : public XValueQConnector
   QButton *m_pItem;
 };
 
+class QTable;
 class XListQConnector : public XQConnector
 {
   Q_OBJECT
   XQCON_OBJECT
  protected:
-  XListQConnector(const shared_ptr<XListNodeBase> &node,
-    QWidget *item);
+  XListQConnector(const shared_ptr<XListNodeBase> &node, QTable *item);
  public:
   virtual ~XListQConnector();
  private slots:
  protected slots:
+  void indexChange(int section, int fromIndex, int toIndex);
  protected:
-  shared_ptr<XListener> m_lsnListChanged;
-  virtual void onListChanged(const shared_ptr<XListNodeBase> &node) = 0;
+  shared_ptr<XListener> m_lsnMove;
+  virtual void onMove(const XListNodeBase::MoveEvent &node);
   shared_ptr<XListener> m_lsnCatch;
   shared_ptr<XListener> m_lsnRelease;
   virtual void onCatch(const shared_ptr<XNode> &node) = 0;
   virtual void onRelease(const shared_ptr<XNode> &node) = 0;
+  QTable *m_pItem;
+  shared_ptr<XListNodeBase> m_list;
 };
 
 class XItemQConnector : public XValueQConnector

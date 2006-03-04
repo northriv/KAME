@@ -13,7 +13,7 @@
 
 XInterfaceListConnector::XInterfaceListConnector(
     const shared_ptr<XInterfaceList> &node, QTable *item)
-  : XListQConnector(node, item), m_interfaceList(node), m_pItem(item)
+  : XListQConnector(node, item), m_interfaceList(node)
 {
   connect(m_pItem, SIGNAL( clicked( int, int, int, const QPoint& )),
       this, SLOT(clicked( int, int, int, const QPoint& )) );
@@ -31,17 +31,13 @@ XInterfaceListConnector::XInterfaceListConnector(
   labels += i18n("Port");
   labels += i18n("Addr");
   item->setColumnLabels(labels);
+
   { XScopedReadLock<XRecursiveRWLock> lock(node->childMutex());
       for(unsigned int i = 0; i < node->count(); i++)
         onCatch((*node)[i]);
   }
 }
-XInterfaceListConnector::~XInterfaceListConnector() {
-    if(isItemAlive()) {
-      disconnect(m_pItem, NULL, this, NULL );
-      m_pItem->setNumRows(0);
-    }
-}
+
 void
 XInterfaceListConnector::onControlTouched(const shared_ptr<XNode> &node)
 {
