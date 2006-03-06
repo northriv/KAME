@@ -49,20 +49,15 @@ XListNodeBase::move(unsigned int src_idx, unsigned int dst_idx)
 {
     for(;;) {
         atomic_shared_ptr<NodeList> old_list(m_children);
-        atomic_shared_ptr<NodeList> new_list(new NodeList(*old_list));        
-        NodeList::iterator dit = new_list->begin();
-        for(unsigned int i = 0; i < dst_idx; i++) {
-            if(dit == new_list->end()) break;
-            dit++;
-        }
-        NodeList::iterator sit = new_list->begin();
-        for(unsigned int i = 0; i < src_idx; i++) {
-            if(sit == new_list->end()) return;
-            sit++;
-        }
-        shared_ptr<XNode> node(*sit);
-        new_list->insert(dit, node);
-        new_list->erase(sit);
+        atomic_shared_ptr<NodeList> new_list(new NodeList(*old_list));
+        if(src_idx >= new_list->size()) return;
+        shared_ptr<XNode> snode = new_list->at(src_idx);
+        new_list->at(src_idx).reset();
+        if(dst_idx > new_list->size()) return;
+        XNode::NodeList::iterator dit = new_list->begin();
+        dit += dst_idx;
+        new_list->insert(dit, snode);
+        new_list->erase(std::find(new_list->begin(), new_list->end(), shared_ptr<XNode>()));
         if(new_list.compareAndSwap(old_list, m_children)) break;
     }
     MoveEvent e;
