@@ -1,3 +1,8 @@
+* Tue Mar 7 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0.9-1m)
+- xnode.cpp, xlistnode.cpp, ... : Use RCU (Read-Copy-Update) to handle children.
+- xlistnode.cpp : fix move().
+
 * Sat Mar 5 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
 - (2.0.8-1m)
 - xlistnode.cpp : move(), change order.
