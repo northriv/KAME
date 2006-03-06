@@ -7,6 +7,7 @@ XThreadLocal<std::deque<shared_ptr<XNode> > > XNode::stl_thisCreating;
 
 //---------------------------------------------------------------------------
 XNode::XNode(const char *name, bool runtime)
+ : m_children(new NodeList())
 {
      // temporaly shared_ptr to be able to use shared_from_this() in constructors
       XNode::stl_thisCreating->push_back(shared_ptr<XNode>(this));
@@ -38,8 +39,12 @@ void
 XNode::insert(const shared_ptr<XNode> &ptr)
 {
     ASSERT(ptr);
-    XScopedWriteLock<XRecursiveRWLock> lock(m_childmutex);
-    m_children.push_back(ptr);
+    for(;;) {
+        atomic_shared_ptr<NodeList> old_list(m_children);
+        atomic_shared_ptr<NodeList> new_list(new NodeList(*old_list));        
+        new_list->push_back(ptr);
+        if(new_list.compareAndSwap(old_list, m_children)) break;
+    }
 }
 
 void
@@ -52,54 +57,37 @@ XNode::touch() {
     onTouch().talk(shared_from_this());
 }
 
-unsigned int
-XNode::count() const
-{
-    ASSERT(m_childmutex.isLocked());
-    return m_children.size();
-}
-
 void
 XNode::clearChildren()
 {
-  XScopedWriteLock<XRecursiveRWLock> lock(m_childmutex);
-  m_children.clear();
-}
-int
-XNode::releaseChild(unsigned int index)
-{
-  tchildren_it  it;
-  XScopedWriteLock<XRecursiveRWLock> lock(m_childmutex);
-  it = m_children.begin();
-  for(unsigned int i = 0; i < index; i++) it++;
-  ASSERT(it != m_children.end());
-  m_children.erase(it);
-  return 0;
+    atomic_shared_ptr<NodeList> new_list(new NodeList);
+    m_children = new_list;
 }
 int
 XNode::releaseChild(const shared_ptr<XNode> &node)
 {
-  tchildren_it it;
-  XScopedWriteLock<XRecursiveRWLock> lock(m_childmutex);
-  it = find(m_children.begin(), m_children.end(), node);
-  ASSERT(it != m_children.end());
-  m_children.erase(it);
-  return 0;
+    for(;;) {
+        atomic_shared_ptr<NodeList> old_list(m_children);
+        atomic_shared_ptr<NodeList> new_list(new NodeList(*old_list));        
+        NodeList::iterator it = find(new_list->begin(), new_list->end(), node);
+        if(it == new_list->end()) return -1;
+        new_list->erase(it);
+        if(new_list.compareAndSwap(old_list, m_children)) break;
+    }
+    return 0;
 }
 
 shared_ptr<XNode>
 XNode::getChild(const std::string &var) const
 {
+  QString str(QString::fromUtf8(var.c_str()));
   shared_ptr<XNode> node;
-  { XScopedReadLock<XRecursiveRWLock> lock(childMutex());
-  for(unsigned int i = 0; i < count(); i++)
-    {
-      if(m_children[i]->getName() == QString::fromUtf8(var.c_str()))
-    {
-            node = m_children[i];
+  atomic_shared_ptr<const XNode::NodeList> list(children());
+  for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+      if((*it)->getName() == str) {
+            node = *it;
             break;
-        }
-    }
+      }
   }
   return node;
 }

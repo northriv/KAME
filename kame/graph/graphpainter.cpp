@@ -72,21 +72,22 @@ double r2 = x*x + y*y;
 shared_ptr<XAxis> 
 XQGraphPainter::findAxis(const XGraph::ScrPoint &s1)
 {
-    shared_ptr<XAxis> axis;
+    shared_ptr<XAxis> found_axis;
     double zmin = 0.1;
-    XScopedReadLock<XRecursiveRWLock> lock(m_graph->axes()->childMutex());
-    for(unsigned int i = 0; i < m_graph->axes()->count(); i++)
+    atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+    for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
     {
+        shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
         	XGraph::SFloat z1;
         	XGraph::ScrPoint s2;
-            (*m_graph->axes())[i]->axisToScreen((*m_graph->axes())[i]->screenToAxis(s1), &s2);
+        axis->axisToScreen(axis->screenToAxis(s1), &s2);
         	z1 = sqrtf(s1.distance2(s2));
         	if(zmin > z1) {
         		zmin = z1;
-        		axis = (*m_graph->axes())[i];
+        		found_axis = axis;
         	}
     }
-    return axis;
+    return found_axis;
 }
 shared_ptr<XPlot> 
 XQGraphPainter::findPlane(const XGraph::ScrPoint &s1,
@@ -94,15 +95,15 @@ XQGraphPainter::findPlane(const XGraph::ScrPoint &s1,
 {
   double zmin = 0.1;
   shared_ptr<XPlot> plot_found;
-    XScopedReadLock<XRecursiveRWLock> lock(m_graph->plots()->childMutex());
-    for(unsigned int i = 0; i < m_graph->plots()->count(); i++)
+  atomic_shared_ptr<const XNode::NodeList> plots_list(m_graph->plots()->children());
+  for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
     {
+        shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
         XGraph::GPoint g1;
-        shared_ptr<XPlot> plot = (*m_graph->plots())[i];
         shared_ptr<XAxis> axisx = *plot->axisX();
         shared_ptr<XAxis> axisy = *plot->axisY();
         shared_ptr<XAxis> axisz = *plot->axisZ();
-            (*m_graph->plots())[i]->screenToGraph(s1, &g1);
+        plot->screenToGraph(s1, &g1);
         if((fabs(g1.x) < zmin) && axisz) {
              plot_found = plot;
            	zmin = fabs(g1.x);
@@ -227,21 +228,24 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 		case SelPlane:
 			break;
 		case SelAxis:
-			m_graph->suspendUpdate();
-			if(!m_foundAxis) {
-				//if no axis, autoscale all axes
-                XScopedReadLock<XRecursiveRWLock> lock(m_graph->axes()->childMutex());
-				for(unsigned int i = 0; i < m_graph->axes()->count(); i++)
-				{
-					if((*m_graph->axes())[i]->autoScale()->isUIEnabled())
-						(*m_graph->axes())[i]->autoScale()->value(true);
-				}
-			}
-			else {
-				if(m_foundAxis->autoScale()->isUIEnabled()) m_foundAxis->autoScale()->value(true);
-			}
-			m_graph->resumeUpdate();
-			break;
+            {
+                XScopedLock<XGraph> lock(*m_graph);
+        			if(!m_foundAxis) {
+        				//if no axis, autoscale all axes
+                    atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+                    for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
+                    {
+                        shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
+        					if(axis->autoScale()->isUIEnabled())
+        						axis->autoScale()->value(true);
+        			    }
+        			}
+        			else {
+        				if(m_foundAxis->autoScale()->isUIEnabled())
+                            m_foundAxis->autoScale()->value(true);
+        			}
+             }
+    			break;
 		case TiltTracking:
 			viewRotate(0.0, 0.0, 0.0, 0.0, true);
 			break;
@@ -250,7 +254,7 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 		}
 	    }
 	    else {
-		m_graph->suspendUpdate();
+        XScopedLock<XGraph> lock(*m_graph);
 		switch(mode) {
 		case SelPlane:
 			if(m_foundPlane && !(m_startScrPos == m_finishScrPos) ) {
@@ -291,7 +295,6 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 		default:
 			break;
 		}
-		m_graph->resumeUpdate();
 	    }
 	}
 	
@@ -321,15 +324,15 @@ XQGraphPainter::zoom(double zoomscale, int , int )
 {
   XGraph::ScrPoint s1(0.5, 0.5, 0.5);
   
-  m_graph->suspendUpdate();
-  XScopedReadLock<XRecursiveRWLock> lock(m_graph->axes()->childMutex());
-  for(unsigned int i = 0; i < m_graph->axes()->count(); i++)
+  XScopedLock<XGraph> lock(*m_graph);
+  atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+  for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
   {
-        if((*m_graph->axes())[i]->autoScale()->isUIEnabled())
-		(*m_graph->axes())[i]->autoScale()->value(false);
+        shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
+        if(axis->autoScale()->isUIEnabled())
+		  axis->autoScale()->value(false);
   }
   m_graph->zoomAxes(resScreen(), zoomscale, s1);
-  m_graph->resumeUpdate();
 }
 void
 XQGraphPainter::onRedraw(const shared_ptr<XGraph> &)
@@ -550,10 +553,10 @@ void
 XQGraphPainter::drawOffScreenPlanes()
 {
 	setColor((QRgb)*m_graph->backGround(), 0.3);
-    XScopedReadLock<XRecursiveRWLock> lock(m_graph->plots()->childMutex());
-	for(int i = m_graph->plots()->count() - 1; i >= 0; i--)
-	{
-	shared_ptr<XPlot> plot = (*m_graph->plots())[i];
+  atomic_shared_ptr<const XNode::NodeList> plots_list(m_graph->plots()->children());
+  for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
+    {
+        shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
 	XGraph::GPoint g1(0.0, 0.0, 0.0),
 		g2(1.0, 0.0, 0.0),
 		g3(0.0, 1.0, 0.0),
@@ -594,28 +597,31 @@ XQGraphPainter::drawOffScreenPlanes()
 void
 XQGraphPainter::drawOffScreenGrids()
 {
-    XScopedReadLock<XRecursiveRWLock> lock(m_graph->plots()->childMutex());
-	for(int i = m_graph->plots()->count() - 1; i >= 0; i--)
-	{
-		(*m_graph->plots())[i]->drawGrid(this, m_bTilted);
+  atomic_shared_ptr<const XNode::NodeList> plots_list(m_graph->plots()->children());
+  for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
+    {
+        shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
+		plot->drawGrid(this, m_bTilted);
 	}
 }
 void
 XQGraphPainter::drawOffScreenPoints()
 {
-    XScopedReadLock<XRecursiveRWLock> lock(m_graph->plots()->childMutex());
-	for(int i = m_graph->plots()->count() - 1; i >= 0; i--)
-	{
-		(*m_graph->plots())[i]->drawPlot(this);
+  atomic_shared_ptr<const XNode::NodeList> plots_list(m_graph->plots()->children());
+  for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
+    {
+        shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
+        plot->drawPlot(this);
 	}
 }
 void
 XQGraphPainter::drawOffScreenAxes()
 {
-    XScopedReadLock<XRecursiveRWLock> lock(m_graph->axes()->childMutex());
-	for(unsigned int i = 0; i < m_graph->axes()->count(); i++)
-	{
-		if(((*m_graph->axes())[i]->direction() != XAxis::DirAxisZ) || m_bTilted)
-			(*m_graph->axes())[i]->drawAxis(this);
+  atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+  for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
+  {
+        shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
+		if((axis->direction() != XAxis::DirAxisZ) || m_bTilted)
+			axis->drawAxis(this);
 	}
 }

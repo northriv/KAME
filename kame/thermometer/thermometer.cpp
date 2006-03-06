@@ -79,25 +79,24 @@ XLakeShore::getTemp(double res) const
   if(res < *resMin()) return *tempMax();
   z = log10(res);
   unsigned int n;
-  { XScopedReadLock<XRecursiveRWLock> lock(zu()->childMutex());
-      { XScopedReadLock<XRecursiveRWLock> lock(zl()->childMutex());
-      for(n = 0; n < zu()->count(); n++)
-        {
-          u = (z - *(*zu())[n] + z - *(*zl())[n]) / (*(*zu())[n] - *(*zl())[n]);
-          if((u >= -1) && (u <= 1)) break;
-        }
-      if(n >= zu()->count())
-        return 0;
-      }
-  }
-  { XScopedReadLock<XRecursiveRWLock> lock(ai()->childMutex());
-      { XScopedReadLock<XRecursiveRWLock> lock((*ai())[n]->childMutex());
-          for(unsigned int i = 0; i < (*ai())[n]->count(); i++)
-            {
-              temp += *(*(*ai())[n])[i] * cos(i * acos(u));
-            }
-      }
-  }
+  atomic_shared_ptr<const XNode::NodeList> zu_list(zu()->children());
+  atomic_shared_ptr<const XNode::NodeList> zl_list(zl()->children());
+  for(n = 0; n < zu_list->size(); n++)
+    {
+        double zu = *dynamic_pointer_cast<XDoubleNode>(zu_list->at(n));
+        double zl = *dynamic_pointer_cast<XDoubleNode>(zl_list->at(n));
+      u = (z - zu + z - zl) / (zu - zl);
+      if((u >= -1) && (u <= 1)) break;
+    }
+  if(n >= zu_list->size())
+    return 0;
+  atomic_shared_ptr<const XNode::NodeList> ai_list(ai()->children());
+  atomic_shared_ptr<const XNode::NodeList> ai_n_list(ai_list->at(n)->children());
+  for(unsigned int i = 0; i < ai_n_list->size(); i++)
+    {
+        double ai_n_i = *dynamic_pointer_cast<XDoubleNode>(ai_n_list->at(i));
+        temp += ai_n_i * cos(i * acos(u));
+    }
   return temp;
 }
 
@@ -155,12 +154,11 @@ XCryoConcept::getTemp(double res) const
     { 
       double y = 0, r = 1.0;
       double x = log10(res);
-      { XScopedReadLock<XRecursiveRWLock> lock(ai()->childMutex());
-          for(unsigned int i = 0; i < ai()->count(); i++)
-        	{
-        	  y += *(*ai())[i] * r;
+      atomic_shared_ptr<const XNode::NodeList> ai_list(ai()->children());
+      for(XNode::NodeList::const_iterator it = ai_list->begin(); it != ai_list->end(); it++) {
+          double ai_i = *dynamic_pointer_cast<XDoubleNode>(*it);
+        	  y += ai_i * r;
         	  r *= x;
-        	}
       }
       return pow(10.0, y);
     }
@@ -225,22 +223,28 @@ XScientificInstruments
   double lx = log(res);
   if(res > *rCrossover())
     { 
-          { XScopedReadLock<XRecursiveRWLock> lock(abcde()->childMutex());
-        	      if(abcde()->count() >= 5) {
-        	      		y = (*(*abcde())[0] + *(*abcde())[2]*lx + *(*abcde())[4]*lx*lx)
-        	      			/ (1.0 + *(*abcde())[1]*lx + *(*abcde())[3]*lx*lx);
-        	      }
-          }
-	      return y;
+      atomic_shared_ptr<const XNode::NodeList> abcde_list(abcde()->children());
+      if(abcde_list->size() >= 5) {
+        double a = *dynamic_pointer_cast<XDoubleNode>(abcde_list->at(0));
+        double b = *dynamic_pointer_cast<XDoubleNode>(abcde_list->at(1));
+        double c = *dynamic_pointer_cast<XDoubleNode>(abcde_list->at(2));
+        double d = *dynamic_pointer_cast<XDoubleNode>(abcde_list->at(3));
+        double e = *dynamic_pointer_cast<XDoubleNode>(abcde_list->at(4));
+  		y = (a + c*lx + e*lx*lx)
+  			/ (1.0 + b*lx + d*lx*lx);
+      }
+      return y;
     }
   else
     {
-          { XScopedReadLock<XRecursiveRWLock> lock(abc()->childMutex());
-        	      if(abc()->count() >= 3) {
-        	      		y = 1.0/(*(*abc())[0] + *(*abc())[1]*res*lx + *(*abc())[2]*res*res);
-        	      }
-          }
-	      return y;
+        atomic_shared_ptr<const XNode::NodeList> abc_list(abc()->children());
+        if(abc_list->size() >= 3) {
+            double a = *dynamic_pointer_cast<XDoubleNode>(abc_list->at(0));
+            double b = *dynamic_pointer_cast<XDoubleNode>(abc_list->at(1));
+            double c = *dynamic_pointer_cast<XDoubleNode>(abc_list->at(2));
+      		y = 1.0/(a + b*res*lx + c*res*res);
+        }
+	    return y;
     }
 }
 
@@ -258,12 +262,12 @@ XApproxThermometer
     atomic_shared_ptr<CSplineApprox> approx(m_approx);
     if(!approx) {
         std::map<double, double> pts;
-        { XScopedReadLock<XRecursiveRWLock> lock(m_resList->childMutex());
-            { XScopedReadLock<XRecursiveRWLock> lock(m_tempList->childMutex());
-                for(unsigned int i = 0; i < std::min(m_resList->count(), m_tempList->count()); i++) {
-                    pts.insert(std::pair<double, double>(log(*(*m_resList)[i]), log(*(*m_tempList)[i])));
-                }
-            }
+      atomic_shared_ptr<const XNode::NodeList> res_list(m_resList->children());
+      atomic_shared_ptr<const XNode::NodeList> temp_list(m_tempList->children());
+        for(unsigned int i = 0; i < std::min(res_list->size(), temp_list->size()); i++) {
+            double res = *dynamic_pointer_cast<XDoubleNode>(res_list->at(i));
+            double temp = *dynamic_pointer_cast<XDoubleNode>(temp_list->at(i));
+            pts.insert(std::pair<double, double>(log(res), log(temp)));
         }
         if(pts.size() < 4)
             throw XKameError(
@@ -280,12 +284,12 @@ XApproxThermometer
     atomic_shared_ptr<CSplineApprox> approx(m_approx_inv);
     if(!approx) {
         std::map<double, double> pts;
-        { XScopedReadLock<XRecursiveRWLock> lock(m_resList->childMutex());
-            { XScopedReadLock<XRecursiveRWLock> lock(m_tempList->childMutex());
-                for(unsigned int i = 0; i < std::min(m_resList->count(), m_tempList->count()); i++) {
-                    pts.insert(std::pair<double, double>(log(*(*m_tempList)[i]), log(*(*m_resList)[i])));
-                }
-            }
+      atomic_shared_ptr<const XNode::NodeList> res_list(m_resList->children());
+      atomic_shared_ptr<const XNode::NodeList> temp_list(m_tempList->children());
+        for(unsigned int i = 0; i < std::min(res_list->size(), temp_list->size()); i++) {
+            double res = *dynamic_pointer_cast<XDoubleNode>(res_list->at(i));
+            double temp = *dynamic_pointer_cast<XDoubleNode>(temp_list->at(i));
+            pts.insert(std::pair<double, double>(log(temp), log(res)));
         }
         if(pts.size() < 4)
             throw XKameError(

@@ -25,17 +25,18 @@ XRubyWriter::write()
     m_ofs << "x << " 
         << name.utf8()
         << std::endl;
-    { XScopedReadLock<XRecursiveRWLock> lock(m_root->childMutex());
-        write(m_root, false, 0);
-    }
+    atomic_shared_ptr<const XNode::NodeList> list = m_root->children();
+    write(m_root, list, false, 0);
 }
 void 
-XRubyWriter::write(const shared_ptr<XNode> &node, bool ghost, int level)
+XRubyWriter::write(
+    const shared_ptr<XNode> &node, const atomic_shared_ptr<const XNode::NodeList> &list,
+    bool ghost, int level)
 {
     ghost = ghost || node->isRunTime();
     shared_ptr<XValueNodeBase> vnode = dynamic_pointer_cast<XValueNodeBase>(node);
     if(vnode) {
-        if(vnode->count()) {
+        if(list->size()) {
             for(int j = 0; j < level; j++) m_ofs << "\t";
             if(ghost)
                 m_ofs << "# ";
@@ -56,7 +57,7 @@ XRubyWriter::write(const shared_ptr<XNode> &node, bool ghost, int level)
             << std::endl;
     }
     else
-        if(node->count() == 0) {m_ofs << std::endl;}
+        if(list->size() == 0) {m_ofs << std::endl;}
         
     shared_ptr<XListNodeBase> lnode = dynamic_pointer_cast<XListNodeBase>(node);
     bool write_typename = false;
@@ -66,14 +67,14 @@ XRubyWriter::write(const shared_ptr<XNode> &node, bool ghost, int level)
         // XAliasListNode doesn't want creation of child
         if(lnode->getTypename().find("XAliasListNode") == 0) lnode.reset();
     }
-    for(unsigned int i = 0; i < node->count(); i++) {
-        shared_ptr<XNode> child = node->getChild<XNode>(i);
-        XScopedReadLock<XRecursiveRWLock> lock(child->childMutex());
-        
+    unsigned idx = 0;
+    for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+        shared_ptr<XNode> child = *it;
         for(int j = 0; j < level; j++) m_ofs << "\t";
         if(ghost)
             m_ofs << "# ";
-        if(child->count()) {
+        atomic_shared_ptr<const XNode::NodeList> child_list = child->children();
+        if(child_list->size()) {
             m_ofs << "x << ";
         }
         if(lnode) {
@@ -91,20 +92,22 @@ XRubyWriter::write(const shared_ptr<XNode> &node, bool ghost, int level)
             }
             else {
                 m_ofs << "x.last["
-                    << i
+                    << idx
                     <<  "]";
             }
         }
-        if(child->count()) {
+        if(child_list->size()) {
             m_ofs << std::endl;
         }
-        write(child, ghost, level + 1);
-        if(child->count()) {
+        write(child, child_list, ghost, level + 1);
+        if(child_list->size()) {
             for(int j = 0; j < level; j++) m_ofs << "\t";
             if(ghost)
                 m_ofs << "# ";
             m_ofs << "x.pop"
                   << std::endl;
         }
+        
+        idx++;
     }
 }

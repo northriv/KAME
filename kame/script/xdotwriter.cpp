@@ -26,9 +26,7 @@ XDotWriter::write()
           << std::endl;
     m_ofs << "node [shape=box,style=filled,color=green];" << std::endl;
           
-    { XScopedReadLock<XRecursiveRWLock> lock(m_root->childMutex());
-        write(m_root);
-    }
+    write(m_root);
     m_ofs << "}"
           << std::endl;
 }
@@ -45,9 +43,9 @@ XDotWriter::write(const shared_ptr<XNode> &node)
         
 //    shared_ptr<XListNodeBase> lnode = dynamic_pointer_cast<XListNodeBase>(node);
     int unnamed = 0;
-    for(unsigned int i = 0; i < node->count(); i++) {
-        shared_ptr<XNode> child = node->getChild<XNode>(i);
-        XScopedReadLock<XRecursiveRWLock> lock(child->childMutex());
+    atomic_shared_ptr<const XNode::NodeList> list(m_root->children());
+    for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+        shared_ptr<XNode> child = *it;
            
         if(child->getName().isEmpty()) {
             unnamed++;

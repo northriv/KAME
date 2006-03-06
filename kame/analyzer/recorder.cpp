@@ -150,13 +150,12 @@ XTextWriter::onRelease(const shared_ptr<XNode> &node)
 }
 void
 XTextWriter::onLastLineChanged(const shared_ptr<XValueNodeBase> &) {
-  m_filemutex.lock();
+  XScopedLock<XRecursiveMutex> lock(m_filemutex);  
   if(m_stream.good())
   {
         m_stream << (const char*)lastLine()->to_str().utf8()
                 << std::endl;
   }
-  m_filemutex.unlock();
 }
 void
 XTextWriter::onRecord(const shared_ptr<XDriver> &driver)
@@ -167,17 +166,16 @@ XTextWriter::onRecord(const shared_ptr<XDriver> &driver)
 	    {
             XTime triggered_time;
             std::deque<shared_ptr<XScalarEntry> > locked_entries;
-            { XScopedReadLock<XRecursiveRWLock> lock(m_entries->childMutex());
-    	        for(unsigned int i = 0; i < m_entries->count(); i++)
-            		{
-                      shared_ptr<XScalarEntry> entry = (*m_entries)[i];
-                      if(!*entry->store()) continue;
-                      shared_ptr<XDriver> d(entry->driver());
-                      if(!d) continue;
-                      locked_entries.push_back(entry);
-                      d->readLockRecord();
-                      if(entry->isTriggered()) triggered_time = entry->driver()->time();
-            		}
+
+            atomic_shared_ptr<const XNode::NodeList> list(m_entries->children());
+            for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+                  shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(*it);
+                  if(!*entry->store()) continue;
+                  shared_ptr<XDriver> d(entry->driver());
+                  if(!d) continue;
+                  locked_entries.push_back(entry);
+                  d->readLockRecord();
+                  if(entry->isTriggered()) triggered_time = entry->driver()->time();
             }
             if(triggered_time) {
                     XRecordDependency dep;
@@ -213,8 +211,7 @@ XTextWriter::onRecord(const shared_ptr<XDriver> &driver)
 void
 XTextWriter::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
 {
-  m_filemutex.lock();
-  
+  XScopedLock<XRecursiveMutex> lock(m_filemutex);  
   if(m_stream.is_open()) m_stream.close();
   m_stream.clear();
   m_stream.open((const char*)filename()->to_str().local8Bit(), OFSMODE);
@@ -226,36 +223,31 @@ XTextWriter::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
         false, shared_from_this(), &XTextWriter::onLastLineChanged);
     lastLine()->setUIEnabled(true);
 
-     QString buf;
-     buf += "#";
-    { XScopedReadLock<XRecursiveRWLock> lock(m_entries->childMutex());
-          for(unsigned int i = 0; i < m_entries->count(); i++)
-                {
-                  shared_ptr<XScalarEntry> entry = (*m_entries)[i];
-                  if(!*entry->store()) continue;
-                  buf += entry->getEntryTitle();
-              buf += " ";
-                }
-          buf += "Time";
+    QString buf;
+    buf += "#";
+    atomic_shared_ptr<const XNode::NodeList> list(m_entries->children());
+    for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+      shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(*it);
+      if(!*entry->store()) continue;
+      buf += entry->getEntryTitle();
+      buf += " ";
     }
-     
-     lastLine()->value(buf);
+    buf += "Time";
+    lastLine()->value(buf);
   }
   else {
     m_lsnOnFlush.reset();
     m_lsnOnLastLineChanged.reset();
     lastLine()->setUIEnabled(false);
   }
-  m_filemutex.unlock();        
 }
 void
 XTextWriter::onFlush(const shared_ptr<XValueNodeBase> &)
 {
     lastLine()->setUIEnabled(*recording());
 	if(!*recording()) {
-      m_filemutex.lock();
+      XScopedLock<XRecursiveMutex> lock(m_filemutex);  
   	  if(m_stream.good())
              m_stream.flush();
-      m_filemutex.unlock();
 	}
 }

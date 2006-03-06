@@ -70,7 +70,7 @@ XWaveNGraph::selectAxes(int x, int y1, int y2, int yweight)
       m_coly2 = y2;
       m_colyweight = yweight;
     
-      m_graph->suspendUpdate();
+      XScopedLock<XGraph> lock(*m_graph);
       if(m_plot1) m_graph->plots()->releaseChild(m_plot1);
       if(m_plot2) m_graph->plots()->releaseChild(m_plot2);
       if(m_axisy2) m_graph->axes()->releaseChild(m_axisy2);
@@ -83,9 +83,9 @@ XWaveNGraph::selectAxes(int x, int y1, int y2, int yweight)
     
       m_plot1 = m_graph->plots()->create<XXYPlot>("Plot1", true, m_graph);
     
-      XScopedReadLock<XRecursiveRWLock> lock(m_graph->axes()->childMutex());
-      shared_ptr<XAxis> axisx = (*m_graph->axes())[0];
-      shared_ptr<XAxis> axisy = (*m_graph->axes())[1];
+      atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+      shared_ptr<XAxis> axisx = dynamic_pointer_cast<XAxis>(axes_list->at(0));
+      shared_ptr<XAxis> axisy = dynamic_pointer_cast<XAxis>(axes_list->at(1));
     
       m_plot1->axisX()->value(axisx);
       m_plot1->axisY()->value(axisy);
@@ -106,7 +106,6 @@ XWaveNGraph::selectAxes(int x, int y1, int y2, int yweight)
           m_plot2->maxCount()->setUIEnabled(false);
           m_plot2->clearPoints()->setUIEnabled(false);
         }
-      m_graph->resumeUpdate();
   }
 }
 
@@ -147,7 +146,7 @@ void
 XWaveNGraph::writeLock()
 {
   m_mutex.writeLock();
-  m_graph->suspendUpdate();
+  m_graph->lock();
 }
 
 void
@@ -156,11 +155,11 @@ XWaveNGraph::writeUnlock(bool updategraph)
   if(updategraph) {
       m_mutex.writeUnlockNReadLock();
       drawGraph();
-      m_graph->resumeUpdate();
+      m_graph->unlock();
       m_mutex.readUnlock();
     }
   else {
-      m_graph->resumeUpdate();
+      m_graph->unlock();
       m_mutex.writeUnlock();
   }
 }
@@ -236,11 +235,11 @@ XWaveNGraph::clear()
 {
   XScopedWriteLock<XWaveNGraph> lock(*this);
   setRowCount(0);
-  m_graph->suspendUpdate();
-  if(m_plot1) m_plot1->clearAllPoints();
-  if(m_plot2) m_plot2->clearAllPoints();
-  m_graph->requestUpdate();
-  m_graph->resumeUpdate();  
+  { XScopedLock<XGraph> lock(*m_graph);
+      if(m_plot1) m_plot1->clearAllPoints();
+      if(m_plot2) m_plot2->clearAllPoints();
+      m_graph->requestUpdate();
+  }
 }
 void
 XWaveNGraph::drawGraph()
@@ -250,11 +249,11 @@ XWaveNGraph::drawGraph()
 
       ASSERT(m_plot1);
         
-      m_graph->suspendUpdate();
+      XScopedLock<XGraph> lock(*m_graph);
       
-      XScopedReadLock<XRecursiveRWLock> lock(m_graph->axes()->childMutex());
-      shared_ptr<XAxis> axisx = (*m_graph->axes())[0];
-      shared_ptr<XAxis> axisy = (*m_graph->axes())[1];
+      atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+      shared_ptr<XAxis> axisx = dynamic_pointer_cast<XAxis>(axes_list->at(0));
+      shared_ptr<XAxis> axisy = dynamic_pointer_cast<XAxis>(axes_list->at(1));
     
       axisx->label()->value(QString::fromUtf8(m_labels[m_colx].c_str()));
       axisy->label()->value(QString::fromUtf8(m_labels[m_coly1].c_str()));
@@ -287,7 +286,6 @@ XWaveNGraph::drawGraph()
         	  }
         }
       m_graph->requestUpdate();
-      m_graph->resumeUpdate();
   }
 }
 

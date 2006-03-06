@@ -30,10 +30,10 @@ XEntryListConnector::XEntryListConnector
   labels += i18n("Store");
   labels += i18n("Delta");
   m_pItem->setColumnLabels(labels);
-  { XScopedReadLock<XRecursiveRWLock> lock(node->childMutex());
-      for(unsigned int i = 0; i < node->count(); i++)
-        onCatch((*node)[i]);
-  }
+  
+  atomic_shared_ptr<const XNode::NodeList> list(node->children());
+  for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++)
+    onCatch(*it);
 }
 void
 XEntryListConnector::onRecord(const shared_ptr<XDriver> &driver)
@@ -57,12 +57,15 @@ XEntryListConnector::tcons::onRecordRedirected(const tlisttext &text)
 
 void
 XEntryListConnector::clicked ( int row, int col, int, const QPoint& ) {
-   XScopedReadLock<XRecursiveRWLock> lock(m_chartList->childMutex());
       switch(col) {
       case 0:
       case 1:
-        if((row >= 0) && (row < (int)m_chartList->count()))
-            (*m_chartList)[row]->showChart();
+        {
+          atomic_shared_ptr<const XNode::NodeList> list(m_chartList->children());
+          if((row >= 0) && (row < (int)list->size())) {
+             dynamic_pointer_cast<XValChart>(list->at(row))->showChart();
+          }
+        }
         break;
       default:
         break;

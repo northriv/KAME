@@ -63,10 +63,10 @@ XValChart::XValChart(const char *name, bool runtime, const shared_ptr<XScalarEnt
     m_graphForm->m_graphwidget->setGraph(m_graph);
     
     m_chart= m_graph->plots()->create<XXYPlot>(entry->getEntryTitle().utf8(), true, m_graph);
-    XScopedReadLock<XRecursiveRWLock> lock(m_graph->axes()->childMutex());
-    shared_ptr<XAxis> axisx = (*m_graph->axes())[0];
-    shared_ptr<XAxis> axisy = (*m_graph->axes())[1];
-
+    atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+    shared_ptr<XAxis> axisx = dynamic_pointer_cast<XAxis>(axes_list->at(0));
+    shared_ptr<XAxis> axisy = dynamic_pointer_cast<XAxis>(axes_list->at(1));
+      
     m_chart->axisX()->value(axisx);
     m_chart->axisY()->value(axisy);
     m_chart->maxCount()->value(300);
@@ -123,11 +123,10 @@ XChartList::onReleaseEntry(const shared_ptr<XNode> &node)
     shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(node);
 
   shared_ptr<XValChart> valchart;
-  { XScopedReadLock<XRecursiveRWLock> lock(childMutex());
-  for(unsigned int i = 0; i < count(); i++)
-    {
-      if((*this)[i]->entry() == entry) valchart = (*this)[i];
-    }
+  atomic_shared_ptr<const XNode::NodeList> list(children());
+  for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+      shared_ptr<XValChart> chart = dynamic_pointer_cast<XValChart>(*it);
+      if(chart->entry() == entry) valchart = chart;
   }
   if(valchart) releaseChild(valchart);
 }
@@ -166,10 +165,10 @@ XValGraph::onAxisChanged(const shared_ptr<XValueNodeBase> &)
   m_storePlot = 
     m_graph->plots()->create<XXYPlot>((m_graph->getName() + " Stored").utf8(), false, m_graph);
 
-  XScopedReadLock<XRecursiveRWLock> lock(m_graph->axes()->childMutex());
-  shared_ptr<XAxis> axisx = (*m_graph->axes())[0];
-  shared_ptr<XAxis> axisy = (*m_graph->axes())[1];
-
+  atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+  shared_ptr<XAxis> axisx = dynamic_pointer_cast<XAxis>(axes_list->at(0));
+  shared_ptr<XAxis> axisy = dynamic_pointer_cast<XAxis>(axes_list->at(1));
+  
   axisx->ticLabelFormat()->value(entryx->value()->format());
   axisy->ticLabelFormat()->value(entryy1->value()->format());
   m_livePlot->axisX()->value(axisx);

@@ -39,9 +39,9 @@ XQPulserDriverConnector::XQPulserDriverConnector(
 
     qgraph->setGraph(m_graph);
     
-    XScopedReadLock<XRecursiveRWLock> lock(m_graph->axes()->childMutex());
-    shared_ptr<XAxis> axisx = (*m_graph->axes())[0];
-    shared_ptr<XAxis> axisy = (*m_graph->axes())[1];
+    atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+    shared_ptr<XAxis> axisx = dynamic_pointer_cast<XAxis>(axes_list->at(0));
+    shared_ptr<XAxis> axisy = dynamic_pointer_cast<XAxis>(axes_list->at(1));
 
     axisy->ticLabelFormat()->value("%.0f");
     
@@ -111,7 +111,7 @@ void
 XQPulserDriverConnector::updateGraph(bool checkselection)
 {
     shared_ptr<XPulser> pulser(m_pulser);
-    m_graph->suspendUpdate();
+    XScopedLock<XGraph> lock(*m_graph);
     std::deque<XGraph::ValPoint> & barplot_points(m_barPlot->points());
     m_barPlot->maxCount()->value(pulser->m_relPatList.size());
     barplot_points.clear();
@@ -160,7 +160,6 @@ XQPulserDriverConnector::updateGraph(bool checkselection)
         axisx->maxValue()->value(lasttime);
     }        
     m_graph->requestUpdate();
-    m_graph->resumeUpdate();
 }
 
 void
@@ -197,14 +196,13 @@ XQPulserDriverConnector::onPulseChanged(const shared_ptr<XDriver> &)
     }
     else {
         m_pTable->setNumRows(0);
-        m_graph->suspendUpdate();
+        XScopedLock<XGraph> lock(*m_graph);
         for(std::deque<shared_ptr<XXYPlot> >::iterator it = m_plots.begin();
                 it != m_plots.end(); it++) {
             (*it)->clearAllPoints();
         }
         m_barPlot->clearAllPoints();
         m_graph->requestUpdate();
-        m_graph->resumeUpdate();
     }
     
     pulser->readUnlockRecord();    

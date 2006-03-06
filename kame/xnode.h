@@ -56,18 +56,11 @@ class XNode : public enable_shared_from_this<XNode>
  
   shared_ptr<XNode> getChild(const std::string &var) const;
 
-  template <class T>
-  shared_ptr<T> getChild(unsigned int i) const;
-  //! alternative for buggy compiler
-  template <class T>
-  void getChild(unsigned int i, shared_ptr<T>&) const;
+  typedef std::deque<shared_ptr<XNode> > NodeList;
+  atomic_shared_ptr<const NodeList> children() const {return m_children;}
   
   void clearChildren();
-  int releaseChild(unsigned int index);
   int releaseChild(const shared_ptr<XNode> &node);
-
-  //! # of children
-  unsigned int count() const;
 
   bool isRunTime() const {return m_bRunTime;}
 
@@ -85,17 +78,10 @@ class XNode : public enable_shared_from_this<XNode>
   //! If true, operation allowed by GUI
   //! \sa setUIEnabled
    XTalker<shared_ptr<XNode> > &onUIEnabled() {return m_tlkOnUIEnabled;}
-
-  const XRecursiveRWLock &childMutex() const {return m_childmutex;}
   
   virtual void insert(const shared_ptr<XNode> &ptr);
- protected:
-
-  typedef std::deque<shared_ptr<XNode> > tchildren; 
-  
-  tchildren m_children;
-  typedef tchildren::iterator tchildren_it;
-  XRecursiveRWLock m_childmutex;
+ protected:  
+  atomic_shared_ptr<NodeList> m_children;
   
   XTalker<shared_ptr<XNode> > m_tlkOnTouch;
   XTalker<shared_ptr<XNode> > m_tlkOnUIEnabled;
@@ -104,7 +90,7 @@ class XNode : public enable_shared_from_this<XNode>
   bool m_bRunTime;
   bool m_bUIEnabled;
   
-  static XThreadLocal<std::deque<shared_ptr<XNode> > > stl_thisCreating;
+  static XThreadLocal<NodeList> stl_thisCreating;
 };
 
 //! Base class containing values
@@ -286,23 +272,6 @@ createOrphan(const char *name, bool runtime, X x, Y y, Z z, ZZ zz)
       XNode::stl_thisCreating->pop_back();
       return ptr;
   }
-
-
-template <class T>
-shared_ptr<T>
-XNode::getChild(unsigned int i) const {
-    ASSERT(m_childmutex.isLocked());
-    ASSERT(i < count());
-    return dynamic_pointer_cast<T>(m_children[i]);
-}
-
-template <class T>
-void
-XNode::getChild(unsigned int i, shared_ptr<T>& p) const {
-    ASSERT(m_childmutex.isLocked());
-    ASSERT(i < count());
-    p = dynamic_pointer_cast<T>(m_children[i]);
-}
 
 //---------------------------------------------------------------------------
 #endif

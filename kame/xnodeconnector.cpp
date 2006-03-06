@@ -410,8 +410,9 @@ XListQConnector::indexChange ( int section, int fromIndex, int toIndex )
 {
     unsigned int src = fromIndex;
     unsigned int dst = toIndex;
-    XScopedReadLock<XRecursiveRWLock> lock(m_list->childMutex());
-    if(src > m_list->count() || (dst > m_list->count())) {
+    
+    atomic_shared_ptr<const XNode::NodeList> list(m_list->children());
+    if(src > list->size() || (dst > list->size())) {
         throw XKameError(i18n("Invalid range of selections."), __FILE__, __LINE__);
     }
     m_lsnMove->mask();
@@ -464,13 +465,6 @@ XQComboBoxConnector::findItem(const QString &text) {
 
 void
 XQComboBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
-      XScopedReadLock<XRecursiveRWLock> lock(m_node->listMutex());
-      int cnt = m_node->itemCount();
-
-      if(!cnt) {
-          return;
-      }
-      
       m_pItem->blockSignals(true);
       int idx = findItem(m_node->to_str());
       if(idx >= 0) {
@@ -495,15 +489,13 @@ void
 XQComboBoxConnector::onListChanged(const shared_ptr<XItemNodeBase> &)
 {
       m_pItem->clear();
-      { XScopedReadLock<XRecursiveRWLock> lock(m_node->listMutex());
-          bool exist = false;
-          for(unsigned int i = 0; i < m_node->itemCount(); i++) {
-            QString item = (*m_node)[i];
-            if(!item.isEmpty()) {
-                m_pItem->insertItem(item);
-                exist = true;
-            }
-          }
+      shared_ptr<const std::deque<QString> > strings(m_node->itemStrings());      
+      bool exist = false;
+      for(std::deque<QString>::const_iterator it = strings->begin(); it != strings->end(); it++) {
+        if(!it->isEmpty()) {
+            m_pItem->insertItem(*it);
+            exist = true;
+        }
       }
       onValueChanged(m_node);
 }
@@ -537,9 +529,9 @@ void
 XQListBoxConnector::onListChanged(const shared_ptr<XItemNodeBase> &)
 {
       m_pItem->clear();
-      { XScopedReadLock<XRecursiveRWLock> lock(m_node->listMutex());
-          for(unsigned int i = 0; i < m_node->itemCount(); i++) {
-            m_pItem->insertItem((*m_node)[i]);}
+      shared_ptr<const std::deque<QString> > strings(m_node->itemStrings());      
+      for(std::deque<QString>::const_iterator it = strings->begin(); it != strings->end(); it++) {
+            m_pItem->insertItem(*it);
       }
       onValueChanged(m_node);
 }

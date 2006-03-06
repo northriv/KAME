@@ -80,19 +80,8 @@ class XPlot;
 
 class XQGraphPainter;
 
-typedef XAliasListNode<XAxis> _XAxisList;
+typedef XAliasListNode<XAxis> XAxisList;
 typedef XAliasListNode<XPlot> XPlotList;
-
-class XAxisList : public _XAxisList
-{
- XNODE_OBJECT
- protected:
-  XAxisList(const char *name, bool runtime) : 
-    _XAxisList(name, runtime) {}
- public:
-  ~XAxisList() {}
-  virtual QString getItemName(unsigned int index) const;
-};
 
 class XGraph : public XNode
 {
@@ -129,9 +118,9 @@ class XGraph : public XNode
   void requestUpdate();
   bool isUpdateScheduled() const {return m_bUpdateScheduled;}
   //! postpone signals to redraw
-  void suspendUpdate();
+  void lock();
   //! reschedule signals to redraw
-  void resumeUpdate();
+  void unlock();
 
    XTalker<shared_ptr<XGraph> > &onUpdate() {return m_tlkOnUpdate;}
  const shared_ptr<XListener> &lsnPropertyChanged() const {return m_lsnPropertyChanged;}
@@ -205,9 +194,10 @@ class XPlot : public XNode
   int findPoint(int start, const XGraph::GPoint &gmin, const XGraph::GPoint &gmax,
   		XGraph::GFloat width, XGraph::ValPoint *val, XGraph::GPoint *g1);
 
+  //! Lock info of axes.
   //! \return success or not
-  bool lockAxesInfo();
-  void unlockAxesInfo();  
+  bool trylock();
+  void unlock();
  protected:
   weak_ptr<XGraph> m_graph;
   shared_ptr<XAxis> m_curAxisX, m_curAxisY, m_curAxisZ;

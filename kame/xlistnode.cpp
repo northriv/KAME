@@ -7,89 +7,64 @@ XListNodeBase::XListNodeBase(const char *name, bool runtime) :
 void
 XListNodeBase::clearChildren()
 {
+    atomic_shared_ptr<NodeList> old_list;
+    for(;;) {
+        old_list = m_children;
+        atomic_shared_ptr<NodeList> new_list(new NodeList);
+        if(new_list.compareAndSwap(old_list, m_children)) break;
+    }
+
   bool deleted = false;
-  m_childmutex.readLock();
   for(;;)
     {
-      if(m_children.empty()) {
+      if(old_list->empty())
             break;
-      }
-      onRelease().talk(m_children.back());
+      onRelease().talk(old_list->back());
         
-      m_childmutex.writeLock();
-      m_children.pop_back();
-      m_childmutex.writeUnlock();
+      old_list->pop_back();
         
       deleted = true;
     }
   if(deleted)
     onListChanged().talk(dynamic_pointer_cast<XListNodeBase>(shared_from_this()));
-  m_childmutex.readUnlock();
-}
-int
-XListNodeBase::releaseChild(unsigned int index)
-{
-  std::deque<shared_ptr<XNode> >::iterator it;
-
-  m_childmutex.readLock();
-  it = m_children.begin();
-  for(unsigned int i = 0; i < index; i++) it++;
-  ASSERT(it != m_children.end());
-  onRelease().talk(*it);
-
-  m_childmutex.writeLock();
-  m_children.erase(it);
-  m_childmutex.writeUnlock();
-
-  onListChanged().talk(dynamic_pointer_cast<XListNodeBase>(shared_from_this()));
-  m_childmutex.readUnlock();
-  return 0;
 }
 int
 XListNodeBase::releaseChild(const shared_ptr<XNode> &node)
 {
-  std::deque<shared_ptr<XNode> >::iterator it;
+    if(XNode::releaseChild(node)) return -1;
+    onRelease().talk(node);
 
-  m_childmutex.readLock();
-  it = find(m_children.begin(), m_children.end(), node);
-  ASSERT(it != m_children.end());
-  onRelease().talk(*it);
-
-  m_childmutex.writeLock();
-  m_children.erase(it);
-  m_childmutex.writeUnlock();
-
-  onListChanged().talk(dynamic_pointer_cast<XListNodeBase>(shared_from_this()));
-  m_childmutex.readUnlock();
-  return 0;
+    onListChanged().talk(dynamic_pointer_cast<XListNodeBase>(shared_from_this()));
+    return 0;
 }
 void
 XListNodeBase::insert(const shared_ptr<XNode> &ptr)
 {
-  m_childmutex.writeLock();
   XNode::insert(ptr);
-  m_childmutex.writeUnlockNReadLock();   
   onCatch().talk(ptr);
   onListChanged().talk(dynamic_pointer_cast<XListNodeBase>(shared_from_this()));
-  m_childmutex.readUnlock();
 }
 void
 XListNodeBase::move(unsigned int src_idx, unsigned int dst_idx)
 {
-    ASSERT(m_childmutex.isLocked());
-    XScopedWriteLock<XRecursiveRWLock> lock(m_childmutex);
-    tchildren_it dit = m_children.begin();
-    for(int i = 0; i < dst_idx; i++) {
-        dit++;
+    for(;;) {
+        atomic_shared_ptr<NodeList> old_list(m_children);
+        atomic_shared_ptr<NodeList> new_list(new NodeList(*old_list));        
+        NodeList::iterator dit = new_list->begin();
+        for(unsigned int i = 0; i < dst_idx; i++) {
+            if(dit == new_list->end()) break;
+            dit++;
+        }
+        NodeList::iterator sit = new_list->begin();
+        for(unsigned int i = 0; i < src_idx; i++) {
+            if(sit == new_list->end()) return;
+            sit++;
+        }
+        shared_ptr<XNode> node(*sit);
+        new_list->insert(dit, node);
+        new_list->erase(sit);
+        if(new_list.compareAndSwap(old_list, m_children)) break;
     }
-    tchildren_it sit = m_children.begin();
-    for(int i = 0; i < src_idx; i++) {
-        ASSERT(sit != m_children.end());
-        sit++;
-    }
-    shared_ptr<XNode> node(*sit);
-    m_children.insert(dit, node);
-    m_children.erase(sit);
     MoveEvent e;
     e.src_idx = src_idx;
     e.dst_idx = dst_idx;

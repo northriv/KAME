@@ -53,11 +53,23 @@ class atomic_scoped_ptr
     T *m_ptr;
 };
 
+//! Instance of Ref is only one per one object.
+template <typename T>
+struct atomic_shared_ptr_ref {
+    template <class Y>
+    atomic_shared_ptr_ref(Y *p) : ptr(p), refcnt(1) {}
+    ~atomic_shared_ptr_ref() { ASSERT(refcnt == 0); delete ptr; }
+    T *ptr;
+    unsigned int refcnt;
+};
+
+
 template <typename T>
 class atomic_shared_ptr
 {
-    struct Ref;
  public:
+    typedef atomic_shared_ptr_ref<T> Ref;
+    
     atomic_shared_ptr() : m_ptr_instant(0) {
     }
     
@@ -112,14 +124,6 @@ class atomic_shared_ptr
  private:
     //! for instant (not atomic) access.
     T *m_ptr_instant;
-    //! Instance of Ref is only one per one object.
-    struct Ref {
-        template <class Y>
-        Ref(Y *p) : ptr(p), refcnt(1) {}
-        ~Ref() { ASSERT(refcnt == 0); delete ptr; }
-        T *ptr;
-        unsigned int refcnt;
-    };
 
     typedef union {
         struct {

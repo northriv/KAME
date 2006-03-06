@@ -76,10 +76,10 @@ XRuby::rnode_child(VALUE self, VALUE var)
       switch (TYPE(var)) {
        int idx;
       case T_FIXNUM:
-        { XScopedReadLock<XRecursiveRWLock> lock(node->childMutex());
-            idx = NUM2INT(var);
-            if ((idx >= 0) && (idx < (int)node->count()))
-                child = node->getChild<XNode>(idx);
+        idx = NUM2INT(var);
+        { atomic_shared_ptr<const NodeList> list = node->children();
+            if ((idx >= 0) && (idx < (int)list->size()))
+                child = list->at(idx);
         }
         if(! child ) {
           rb_raise(rb_eRuntimeError, "No such node idx:%d on %s\n",
@@ -234,8 +234,8 @@ XRuby::rnode_count(VALUE self)
   struct rnode_ptr *st;
   Data_Get_Struct(self, struct rnode_ptr, st);
   if(shared_ptr<XNode> node = st->ptr.lock()) {
-      XScopedReadLock<XRecursiveRWLock> lock(node->childMutex());
-      VALUE count = INT2NUM(node->count());
+      atomic_shared_ptr<const NodeList> list = node->children();
+      VALUE count = INT2NUM(list->size());
       return count;
   }
   else {
@@ -451,20 +451,19 @@ XRuby::my_rbdefout(VALUE self, VALUE str, VALUE threadid)
   QString qstr = QString::fromUtf8(RSTRING(str)->ptr);
   struct rnode_ptr *st;
   Data_Get_Struct(self, struct rnode_ptr, st);
-  { XScopedReadLock<XRecursiveRWLock> lock(st->xruby->childMutex());
-      shared_ptr<XRubyThread> rubythread;
-      for(unsigned int i = 0; i < st->xruby->count(); i++) {
-        if(id == *(*st->xruby)[i]->threadID())
-            rubythread = (*st->xruby)[i];
-      }
-      if(rubythread) {
-          shared_ptr<QString> buf(new QString(QDeepCopy<QString>(qstr)));
-          rubythread->onMessageOut().talk(buf);
-          dbgPrint(QString("Ruby [%1]; %2").arg(rubythread->filename()->to_str()).arg(qstr));
-      }
-      else {
-          dbgPrint(QString("Ruby [global]; %1").arg(qstr));
-      }
+  shared_ptr<XRubyThread> rubythread;
+  atomic_shared_ptr<const NodeList> list = st->xruby->children();
+  for(unsigned int i = 0; i < list->size(); i++) {
+    if(id == *dynamic_pointer_cast<XRubyThread>(list->at(i))->threadID())
+        rubythread = dynamic_pointer_cast<XRubyThread>(list->at(i));
+  }
+  if(rubythread) {
+      shared_ptr<QString> buf(new QString(QDeepCopy<QString>(qstr)));
+      rubythread->onMessageOut().talk(buf);
+      dbgPrint(QString("Ruby [%1]; %2").arg(rubythread->filename()->to_str()).arg(qstr));
+  }
+  else {
+      dbgPrint(QString("Ruby [global]; %1").arg(qstr));
   }
   return Qnil;
 }

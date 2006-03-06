@@ -267,11 +267,10 @@ void
 FrmKameMain::closeEvent( QCloseEvent* ce )
 {
    bool opened = false;
-   { XScopedReadLock<XRecursiveRWLock> lock(m_measure->interfaceList()->childMutex());
-       for(unsigned int i = 0; i < m_measure->interfaceList()->count(); i++) {
-            shared_ptr<XInterface> interface = (*m_measure->interfaceList())[i];
-            if(interface->isOpened()) opened = true;
-       }
+   atomic_shared_ptr<const XNode::NodeList> list(m_measure->interfaceList()->children());
+   for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+     shared_ptr<XInterface> _interface = dynamic_pointer_cast<XInterface>(*it);
+     if(_interface->isOpened()) opened = true;
    }
    if(opened) {
        QMessageBox::warning( this, "KAME", i18n("Stop running first.") );

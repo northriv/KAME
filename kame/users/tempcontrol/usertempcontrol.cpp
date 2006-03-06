@@ -8,8 +8,9 @@ XITC503::XITC503(const char *name, bool runtime,
    const shared_ptr<XDriverList> &drivers)
  : XOxfordDriver<XTempControl>(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
-  const char *channels[] = {"1", "2", "3", 0L};
-  createChannels(scalarentries, thermometers, true, channels);
+  const char *channels_create[] = {"1", "2", "3", 0L};
+  const char *excitations_create[] = {0L};
+  createChannels(scalarentries, thermometers, true, channels_create, excitations_create);
   heaterMode()->add("PID");
   heaterMode()->add("Man");
 }
@@ -76,20 +77,8 @@ XAVS47IB::XAVS47IB(const char *name, bool runtime,
   XTempControl(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
   const char *channels_create[] = {"0", "1", "2", "3", "4", "5", "6", "7", 0L};
-  createChannels(scalarentries, thermometers, false, channels_create);
-  { XScopedReadLock<XRecursiveRWLock> lock(channels()->childMutex());
-  for(unsigned int i = 0; i < channels()->count(); i++)
-    {
-      (*channels())[i]->excitation()->add("0");
-      (*channels())[i]->excitation()->add("3uV");
-      (*channels())[i]->excitation()->add("10uV");
-      (*channels())[i]->excitation()->add("30uV");
-      (*channels())[i]->excitation()->add("100uV");
-      (*channels())[i]->excitation()->add("300uV");
-      (*channels())[i]->excitation()->add("1mV");
-      (*channels())[i]->excitation()->add("3mV");
-    }
-  }
+  const char *excitations_create[] = {"0", "3uV", "10uV", "30uV", "100uV", "300uV", "1mV", "3mV", 0L};
+  createChannels(scalarentries, thermometers, false, channels_create, excitations_create);
   
   heaterMode()->add("PID");
   powerRange()->add("0");
@@ -297,18 +286,8 @@ XCryoconM62::XCryoconM62(const char *name, bool runtime,
  XCryocon(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
   const char *channels_create[] = {"A", "B", 0L};
-  createChannels(scalarentries, thermometers, true, channels_create);    
-  { XScopedReadLock<XRecursiveRWLock> lock(channels()->childMutex());
-  for(unsigned int i = 0; i < channels()->count(); i++)
-    {
-      (*channels())[i]->excitation()->add("10UV");
-      (*channels())[i]->excitation()->add("33UV");
-      (*channels())[i]->excitation()->add("100UV");
-      (*channels())[i]->excitation()->add("333UV");
-      (*channels())[i]->excitation()->add("1.0MV");
-      (*channels())[i]->excitation()->add("3.3MV");
-    }
-  }
+  const char *excitations_create[] = {"10UV", "30UV", "100UV", "333UV", "1.0MV", "3.3MV", 0L};
+  createChannels(scalarentries, thermometers, true, channels_create, excitations_create);
 }
 XCryoconM32::XCryoconM32(const char *name, bool runtime,
    const shared_ptr<XScalarEntryList> &scalarentries,
@@ -318,15 +297,8 @@ XCryoconM32::XCryoconM32(const char *name, bool runtime,
  XCryocon(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
   const char *channels_create[] = {"A", "B", 0L};
-  createChannels(scalarentries, thermometers, true, channels_create);    
-  { XScopedReadLock<XRecursiveRWLock> lock(channels()->childMutex());
-  for(unsigned int i = 0; i < channels()->count(); i++)
-    {
-      (*channels())[i]->excitation()->add("CI");
-      (*channels())[i]->excitation()->add("10MV");
-      (*channels())[i]->excitation()->add("3MV");
-    }
-  }
+  const char *excitations_create[] = {"CI", "10MV", "3MV", 0L};
+  createChannels(scalarentries, thermometers, true, channels_create, excitations_create);
   powerRange()->add("HI");
   powerRange()->add("MID");
   powerRange()->add("LOW");
@@ -344,9 +316,9 @@ XCryocon::afterStart()
   heaterMode()->str(s.stripWhiteSpace());
   interface()->query("INPUT A:VBIAS?");
 
-  XScopedReadLock<XRecursiveRWLock> lock(channels()->childMutex());
-  shared_ptr<XChannel> ch0 = (*channels())[0];
-  shared_ptr<XChannel> ch1 = (*channels())[1];
+  atomic_shared_ptr<const XNode::NodeList> list(channels()->children());
+  shared_ptr<XChannel> ch0 = dynamic_pointer_cast<XChannel>(list->at(0));
+  shared_ptr<XChannel> ch1 = dynamic_pointer_cast<XChannel>(list->at(1));
 
   ch0->excitation()->str(QString(&interface()->buffer()[0]).stripWhiteSpace());
   interface()->query("INPUT B:VBIAS?");
@@ -414,11 +386,11 @@ XCryocon::onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &) {
 void
 XCryocon::onExcitationChanged(const shared_ptr<XValueNodeBase> &node) {
       shared_ptr<XChannel> ch;
-      { XScopedReadLock<XRecursiveRWLock> lock(channels()->childMutex());
-          for(unsigned int i = 0; i < channels()->count(); i++) {
-                if((*channels())[i]->excitation() == node)
-                    ch = (*channels())[i];
-          }
+      atomic_shared_ptr<const XNode::NodeList> list(channels()->children());
+      for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+          shared_ptr<XChannel> _ch = dynamic_pointer_cast<XChannel>(*it);
+         if(_ch->excitation() == node)
+            ch = ch;
       }
       interface()->send("INPUT " + ch->getName() +
        ":VBIAS " + node->to_str());
@@ -504,8 +476,9 @@ XLakeShore340::XLakeShore340(const char *name, bool runtime,
    const shared_ptr<XDriverList> &drivers)
  : XTempControl(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
-  const char *channels[] = {"A", "B", 0L};
-  createChannels(scalarentries, thermometers, true, channels);
+  const char *channels_create[] = {"A", "B", 0L};
+  const char *excitations_create[] = {0L};
+  createChannels(scalarentries, thermometers, true, channels_create, excitations_create);
   heaterMode()->add("Off");
   heaterMode()->add("PID");
   heaterMode()->add("Man");

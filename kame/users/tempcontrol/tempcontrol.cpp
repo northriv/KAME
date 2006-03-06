@@ -151,26 +151,30 @@ XTempControl::onSetupChannelChanged(const shared_ptr<XValueNodeBase> &)
 void
 XTempControl::createChannels(const shared_ptr<XScalarEntryList> &scalarentries,
     const shared_ptr<XThermometerList> &thermometers, 
-    bool multiread, const char **channel_names)
+    bool multiread, const char **channel_names, const char **excitations)
 {
   shared_ptr<XScalarEntryList> entries(scalarentries);
   m_multiread = multiread;
   
   for(int i = 0; channel_names[i]; i++) {
-      m_channels->create<XChannel>(channel_names[i], true, thermometers);  
+      shared_ptr<XChannel> channel = 
+        m_channels->create<XChannel>(channel_names[i], true, thermometers);  
+      for(int j = 0; excitations[j]; j++) {
+        channel->excitation()->add(QString::fromUtf8(excitations[j]));
+      }
   }
   if(multiread)
     {
-      XScopedReadLock<XRecursiveRWLock> lock(m_channels->childMutex());
-      for(unsigned int i = 0; i < m_channels->count(); i++)
-      {
+      atomic_shared_ptr<const XNode::NodeList> list(m_channels->children());
+      for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+        shared_ptr<XChannel> channel = dynamic_pointer_cast<XChannel>(*it);
         shared_ptr<XScalarEntry> entry_temp(create<XScalarEntry>(
-		  QString("Ch.%1").arg((*m_channels)[i]->getName()).latin1()
+		  QString("Ch.%1").arg(channel->getName()).latin1()
 		  , false,
            dynamic_pointer_cast<XDriver>(shared_from_this())
           , "%.5g"));
         shared_ptr<XScalarEntry> entry_raw(create<XScalarEntry>(
-          QString("Ch.%1.raw").arg((*m_channels)[i]->getName()).latin1()
+          QString("Ch.%1.raw").arg(channel->getName()).latin1()
           , false,
            dynamic_pointer_cast<XDriver>(shared_from_this())
           , "%.5g"));
@@ -248,7 +252,6 @@ XTempControl::execute(const atomic<bool> &terminated)
       double raw, src_raw = 0, src_temp = 0, temp;
       startWritingRaw();
       XTime time_awared = XTime::now();
-      XScopedReadLock<XRecursiveRWLock> lock(m_channels->childMutex());
       // try/catch exception of communication errors
       try {
           shared_ptr<XChannel> src_ch = *m_currentChannel;
@@ -259,9 +262,10 @@ XTempControl::execute(const atomic<bool> &terminated)
               src_temp = (!thermo) ? src_raw : thermo->getTemp(src_raw);
               m_sourceTemp->value(src_temp);
             }
-          for(unsigned int i = 0; i < m_channels->count(); i++)
-            {
-              shared_ptr<XChannel> ch = (*m_channels)[i];
+          atomic_shared_ptr<const XNode::NodeList> list(m_channels->children());
+          unsigned int idx = 0;
+          for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+            shared_ptr<XChannel> ch = dynamic_pointer_cast<XChannel>(*it);
               if(src_ch == ch)
                 {
                   temp = src_temp;
@@ -274,10 +278,11 @@ XTempControl::execute(const atomic<bool> &terminated)
                   raw = getRaw(ch);
                   temp = (!thermo) ? raw : thermo->getTemp(raw);
                 }
-              push((unsigned short)i);
+              push((unsigned short)idx);
               push((unsigned short)0); // reserve
               push(float(raw));
               push(float(temp));
+              idx++;
             }
             
           //calicurate std. deviations in some periods

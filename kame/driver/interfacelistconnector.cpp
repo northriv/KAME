@@ -32,10 +32,9 @@ XInterfaceListConnector::XInterfaceListConnector(
   labels += i18n("Addr");
   item->setColumnLabels(labels);
 
-  { XScopedReadLock<XRecursiveRWLock> lock(node->childMutex());
-      for(unsigned int i = 0; i < node->count(); i++)
-        onCatch((*node)[i]);
-  }
+  atomic_shared_ptr<const XNode::NodeList> list(node->children());
+  for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++)
+    onCatch(*it);
 }
 
 void
