@@ -60,8 +60,7 @@ XNode::touch() {
 void
 XNode::clearChildren()
 {
-    atomic_shared_ptr<NodeList> new_list(new NodeList);
-    m_children = new_list;
+    m_children.reset(new NodeList);
 }
 int
 XNode::releaseChild(const shared_ptr<XNode> &node)

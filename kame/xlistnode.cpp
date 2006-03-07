@@ -7,12 +7,8 @@ XListNodeBase::XListNodeBase(const char *name, bool runtime) :
 void
 XListNodeBase::clearChildren()
 {
-    atomic_shared_ptr<NodeList> old_list;
-    for(;;) {
-        old_list = m_children;
-        atomic_shared_ptr<NodeList> new_list(new NodeList);
-        if(new_list.compareAndSwap(old_list, m_children)) break;
-    }
+  atomic_shared_ptr<NodeList> old_list(new NodeList);
+  old_list.swap(m_children);
 
   bool deleted = false;
   for(;;)
