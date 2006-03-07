@@ -30,7 +30,7 @@ XInterface::XInterface(const char *name, bool runtime, const shared_ptr<XDriver>
     m_bGPIBUseSerialPollOnWrite(true),
     m_bGPIBUseSerialPollOnRead(true),
     m_gpibWaitBeforeWrite(1),
-    m_gpibWaitBeforeRead(1),
+    m_gpibWaitBeforeRead(2),
     m_gpibWaitBeforeSPoll(1),
     m_gpibMAVbit(0x10),
     m_driver(driver),
