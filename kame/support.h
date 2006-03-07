@@ -137,6 +137,9 @@ double roundlog10(double val);
 //! ex. 38.32, 40 to 30, 0.4234, 0.01 to 0.42
 double setprec(double val, double prec);
 
+//! convert control characters to visible (ex. \xx).
+QString dumpCString(const char *cstr);
+
 QString formatDouble(const char *fmt, double val);
 //! validator
 //! throw XKameError

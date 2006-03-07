@@ -7,7 +7,7 @@ XThreadLocal<std::deque<shared_ptr<XNode> > > XNode::stl_thisCreating;
 
 //---------------------------------------------------------------------------
 XNode::XNode(const char *name, bool runtime)
- : m_children(new NodeList())
+ : m_children()
 {
      // temporaly shared_ptr to be able to use shared_from_this() in constructors
       XNode::stl_thisCreating->push_back(shared_ptr<XNode>(this));
@@ -41,7 +41,7 @@ XNode::insert(const shared_ptr<XNode> &ptr)
     ASSERT(ptr);
     for(;;) {
         atomic_shared_ptr<NodeList> old_list(m_children);
-        atomic_shared_ptr<NodeList> new_list(new NodeList(*old_list));        
+        atomic_shared_ptr<NodeList> new_list(old_list ? (new NodeList(*old_list)) : (new NodeList));        
         new_list->push_back(ptr);
         if(new_list.compareAndSwap(old_list, m_children)) break;
     }
@@ -60,17 +60,20 @@ XNode::touch() {
 void
 XNode::clearChildren()
 {
-    m_children.reset(new NodeList);
+    m_children.reset();
 }
 int
 XNode::releaseChild(const shared_ptr<XNode> &node)
 {
     for(;;) {
         atomic_shared_ptr<NodeList> old_list(m_children);
-        atomic_shared_ptr<NodeList> new_list(new NodeList(*old_list));        
+        if(!old_list) return -1;
+        atomic_shared_ptr<NodeList> new_list(new NodeList(*old_list));
         NodeList::iterator it = find(new_list->begin(), new_list->end(), node);
         if(it == new_list->end()) return -1;
         new_list->erase(it);
+        if(new_list->empty())
+            new_list.reset();
         if(new_list.compareAndSwap(old_list, m_children)) break;
     }
     return 0;
@@ -82,10 +85,12 @@ XNode::getChild(const std::string &var) const
   QString str(QString::fromUtf8(var.c_str()));
   shared_ptr<XNode> node;
   atomic_shared_ptr<const XNode::NodeList> list(children());
-  for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
-      if((*it)->getName() == str) {
-            node = *it;
-            break;
+  if(list) { 
+      for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+          if((*it)->getName() == str) {
+                node = *it;
+                break;
+          }
       }
   }
   return node;

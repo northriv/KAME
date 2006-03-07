@@ -62,7 +62,7 @@ XInterface::setEOS(const char *str) {
 void
 XInterface::open() throw (XInterfaceError &)
 {
-  lock();
+  XScopedLock<XInterface> lock(*this);
   try {
       
       if(isOpened()) {
@@ -94,25 +94,18 @@ XInterface::open() throw (XInterfaceError &)
   catch (XInterfaceError &e) {
           gErrPrint(QString(driver()->getName()) + i18n(": Opening port failed, because"));
           m_xport.reset();
-          
-          unlock();
           throw e;
   }
   //g_statusPrinter->clear();
-        
-  unlock();
-
 }
 void
 XInterface::close()
 {
-  lock();
+  XScopedLock<XInterface> lock(*this);
 //  if(isOpened()) 
 //    g_statusPrinter->printMessage(QString(driver()->getName()) + i18n(": Stopping..."));
   m_xport.reset();
   //g_statusPrinter->clear();
-
-  unlock();
 }
 int
 XInterface::scanf(const char *fmt, ...) const {
@@ -154,17 +147,15 @@ XInterface::buffer() const {return m_xport->buffer();}
 void
 XInterface::send(const char *str) throw (XCommError &)
 {
-  lock();
+  XScopedLock<XInterface> lock(*this);
   try {
-      dbgPrint(driver()->getName() + " Sending:\"" + str + "\"");
+      dbgPrint(driver()->getName() + " Sending:\"" + dumpCString(str) + "\"");
       m_xport->send(str);
   }
   catch (XCommError &e) {
       e.print(driver()->getName() + i18n(" SendError, because "));
-      unlock();
       throw e;
   }
-  unlock();
 }
 void
 XInterface::sendf(const char *fmt, ...) throw (XInterfaceError &)
@@ -193,39 +184,36 @@ XInterface::sendf(const char *fmt, ...) throw (XInterfaceError &)
 void
 XInterface::write(const char *sendbuf, int size) throw (XCommError &)
 {
-  lock();
+  XScopedLock<XInterface> lock(*this);
   try {
       dbgPrint(driver()->getName() + QString().sprintf(" Sending %d bytes", size));
       m_xport->write(sendbuf, size);
   }
   catch (XCommError &e) {
       e.print(driver()->getName() + i18n(" SendError, because "));
-      unlock();
       throw e;
   }
-  unlock();
 }
 void
 XInterface::receive() throw (XCommError &)
 {
-  lock();
+  XScopedLock<XInterface> lock(*this);
   try {
       dbgPrint(driver()->getName() + " Receiving...");
       m_xport->receive();
       ASSERT(buffer().size());
-      dbgPrint(driver()->getName() + " Received;\"" + (const char*)&buffer()[0] + "\"");
+      dbgPrint(driver()->getName() + " Received;\"" + 
+        dumpCString((const char*)&buffer()[0]) + "\"");
   }
   catch (XCommError &e) {
         e.print(driver()->getName() + i18n(" ReceiveError, because "));
-        unlock();
         throw e;
   }
-  unlock();
 }
 void
 XInterface::receive(unsigned int length) throw (XCommError &)
 {
-  lock();
+  XScopedLock<XInterface> lock(*this);
   try {
       dbgPrint(driver()->getName() + QString(" Receiving %1 bytes...").arg(length));
       m_xport->receive(length);
@@ -233,24 +221,15 @@ XInterface::receive(unsigned int length) throw (XCommError &)
   }
   catch (XCommError &e) {
       e.print(driver()->getName() + i18n(" ReceiveError, because "));
-      unlock();
       throw e;
   }
-  unlock();
 }
 void
 XInterface::query(const char *str) throw (XCommError &)
 {
-  lock();
-  try {
-      send(str);
-      receive();
-  }
-  catch (XCommError &e) {
-      unlock();
-      throw e;
-  }
-  unlock();
+  XScopedLock<XInterface> lock(*this);
+  send(str);
+  receive();
 }
 void
 XInterface::queryf(const char *fmt, ...) throw (XInterfaceError &)
@@ -290,19 +269,12 @@ XInterface::onQueryRequested(const shared_ptr<XValueNodeBase> &)
 shared_ptr<XPort> port = m_xport;    
     if(!port)
        throw XInterfaceError(i18n("Port is not opened."), __FILE__, __LINE__);
-    lock();
-    try {
-        port->send(m_script_query->to_str());
-        port->receive();
-    }
-    catch (XKameError &e) {
-        unlock();
-        throw e;
-    }
+    XScopedLock<XInterface> lock(*this);
+    port->send(m_script_query->to_str());
+    port->receive();
     m_lsnOnQueryRequested->mask();
     m_script_query->value(&port->buffer()[0]);
     m_lsnOnQueryRequested->unmask();
-    unlock();
 }
 
 XPort::XPort(XInterface *interface)

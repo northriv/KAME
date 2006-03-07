@@ -268,9 +268,11 @@ FrmKameMain::closeEvent( QCloseEvent* ce )
 {
    bool opened = false;
    atomic_shared_ptr<const XNode::NodeList> list(m_measure->interfaceList()->children());
-   for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
-     shared_ptr<XInterface> _interface = dynamic_pointer_cast<XInterface>(*it);
-     if(_interface->isOpened()) opened = true;
+   if(list) { 
+       for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+         shared_ptr<XInterface> _interface = dynamic_pointer_cast<XInterface>(*it);
+         if(_interface->isOpened()) opened = true;
+       }
    }
    if(opened) {
        QMessageBox::warning( this, "KAME", i18n("Stop running first.") );

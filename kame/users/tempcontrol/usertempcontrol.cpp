@@ -387,10 +387,12 @@ void
 XCryocon::onExcitationChanged(const shared_ptr<XValueNodeBase> &node) {
       shared_ptr<XChannel> ch;
       atomic_shared_ptr<const XNode::NodeList> list(channels()->children());
-      for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
-          shared_ptr<XChannel> _ch = dynamic_pointer_cast<XChannel>(*it);
-         if(_ch->excitation() == node)
-            ch = ch;
+      if(list) { 
+          for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+              shared_ptr<XChannel> _ch = dynamic_pointer_cast<XChannel>(*it);
+             if(_ch->excitation() == node)
+                ch = ch;
+          }
       }
       interface()->send("INPUT " + ch->getName() +
        ":VBIAS " + node->to_str());

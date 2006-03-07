@@ -42,8 +42,10 @@ XDriverListConnector::XDriverListConnector
   m_pItem->setColumnLabels(labels);
 
   atomic_shared_ptr<const XNode::NodeList> list(node->children());
-  for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++)
-    onCatch(*it);
+  if(list) { 
+      for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++)
+        onCatch(*it);
+  }
 
   m_lsnOnCreateTouched = m_create->onTouch().connectWeak(true, shared_from_this(),
     &XDriverListConnector::onCreateTouched);

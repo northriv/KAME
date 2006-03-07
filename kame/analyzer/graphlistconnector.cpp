@@ -44,8 +44,10 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, QTa
   m_pItem->setColumnLabels(labels);
 
   atomic_shared_ptr<const XNode::NodeList> list(node->children());
-  for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++)
-    onCatch(*it);
+  if(list) {  
+      for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++)
+        onCatch(*it);
+  }
 
   
   m_lsnNewGraph = m_newGraph->onTouch().connectWeak(
@@ -63,9 +65,11 @@ void
 XGraphListConnector::onDeleteGraph (const shared_ptr<XNode> &) {
       int n = m_pItem->currentRow();
       atomic_shared_ptr<const XNode::NodeList> list(m_graphlist->children());
-      if((n >= 0) && (n < (int)list->size())) {
-          shared_ptr<XNode> node = list->at(n);
-          m_graphlist->releaseChild(node);
+      if(list) {    
+          if((n >= 0) && (n < (int)list->size())) {
+              shared_ptr<XNode> node = list->at(n);
+              m_graphlist->releaseChild(node);
+          }
       }
 }
 void
@@ -74,8 +78,10 @@ XGraphListConnector::clicked ( int row, int col, int, const QPoint& ) {
       case 0:
         {
           atomic_shared_ptr<const XNode::NodeList> list(m_graphlist->children());
-          if((row >= 0) && (row < (int)list->size())) {
-             dynamic_pointer_cast<XValGraph>(list->at(row))->showGraph();
+          if(list) { 
+              if((row >= 0) && (row < (int)list->size())) {
+                 dynamic_pointer_cast<XValGraph>(list->at(row))->showGraph();
+              }
           }
         }
         break;

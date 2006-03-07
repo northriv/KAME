@@ -83,15 +83,17 @@ XComboNode::clear()
     onListChanged().talk(dynamic_pointer_cast<XItemNodeBase>(shared_from_this()));
 }
 
-shared_ptr<const std::deque<QString> >
+shared_ptr<const std::deque<XItemNodeBase::Item> >
 XComboNode::itemStrings() const
 {
-    shared_ptr<std::deque<QString> > strings_copy(new std::deque<QString>);
+    shared_ptr<std::deque<XItemNodeBase::Item> > items(new std::deque<XItemNodeBase::Item>());
     atomic_shared_ptr<const std::deque<QString> > strings(m_strings);
     for(std::deque<QString>::const_iterator it = strings->begin(); it != strings->end(); it++) {
-        strings_copy->push_back(QString(QDeepCopy<QString>(*it)));
+    XItemNodeBase::Item item;
+        item.name = QDeepCopy<QString>(*it);
+        item.label = QDeepCopy<QString>(*it);
     }
-    return strings_copy;
+    return items;
 }
 
 void

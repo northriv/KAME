@@ -7,10 +7,10 @@ XListNodeBase::XListNodeBase(const char *name, bool runtime) :
 void
 XListNodeBase::clearChildren()
 {
-  atomic_shared_ptr<NodeList> old_list(new NodeList);
+  atomic_shared_ptr<NodeList> old_list;
   old_list.swap(m_children);
 
-  bool deleted = false;
+  if(!old_list) return;
   for(;;)
     {
       if(old_list->empty())
@@ -18,11 +18,8 @@ XListNodeBase::clearChildren()
       onRelease().talk(old_list->back());
         
       old_list->pop_back();
-        
-      deleted = true;
     }
-  if(deleted)
-    onListChanged().talk(dynamic_pointer_cast<XListNodeBase>(shared_from_this()));
+  onListChanged().talk(dynamic_pointer_cast<XListNodeBase>(shared_from_this()));
 }
 int
 XListNodeBase::releaseChild(const shared_ptr<XNode> &node)
@@ -45,6 +42,7 @@ XListNodeBase::move(unsigned int src_idx, unsigned int dst_idx)
 {
     for(;;) {
         atomic_shared_ptr<NodeList> old_list(m_children);
+        if(!old_list) return;
         atomic_shared_ptr<NodeList> new_list(new NodeList(*old_list));
         if(src_idx >= new_list->size()) return;
         shared_ptr<XNode> snode = new_list->at(src_idx);

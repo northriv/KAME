@@ -332,7 +332,8 @@ class XItemQConnector : public XValueQConnector
  protected slots:
  protected:
   shared_ptr<XListener>  m_lsnListChanged;
-  virtual void onListChanged(const shared_ptr<XItemNodeBase> &node) = 0;
+  virtual void onListChanged(const shared_ptr<XItemNodeBase> &) = 0;
+  shared_ptr<const std::deque<XItemNodeBase::Item> > m_itemStrings;
 };
 
 class QComboBox;
@@ -351,7 +352,7 @@ class XQComboBoxConnector : public XItemQConnector
  protected:
   virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
   virtual void onValueChanged(const shared_ptr<XValueNodeBase> &);
-  virtual void onListChanged(const shared_ptr<XItemNodeBase> &node);
+  virtual void onListChanged(const shared_ptr<XItemNodeBase> &);
   shared_ptr<XItemNodeBase> m_node;
   QComboBox *m_pItem;
   int findItem(const QString &);

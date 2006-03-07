@@ -207,6 +207,17 @@ void formatDoubleValidator(QString &fmt) {
         throw XKameError(i18n("Illegal Format, no %."), __FILE__, __LINE__);
 }
 
+QString dumpCString(const char *cstr)
+{
+    QString buf;
+    for(; *cstr; cstr++) {
+        if(isprint(*cstr))
+            buf += cstr;
+        else
+            buf += QString("\%1").arg((unsigned int)*cstr, 16);
+    }
+}
+
 static XThreadLocal<unsigned int> stl_random_seed;
 namespace KAME {
     unsigned int rand() {

@@ -412,7 +412,7 @@ XListQConnector::indexChange ( int section, int fromIndex, int toIndex )
     unsigned int dst = toIndex;
     
     atomic_shared_ptr<const XNode::NodeList> list(m_list->children());
-    if(src > list->size() || (dst > list->size())) {
+    if(!list || src > list->size() || (dst > list->size())) {
         throw XKameError(i18n("Invalid range of selections."), __FILE__, __LINE__);
     }
     m_lsnMove->mask();
@@ -444,9 +444,12 @@ XQComboBoxConnector::XQComboBoxConnector(const shared_ptr<XItemNodeBase> &node, 
     onListChanged(node);
   }
 void
-XQComboBoxConnector::onSelect(int ) {
+XQComboBoxConnector::onSelect(int idx) {
     try {
-      m_node->str(m_pItem->currentText());
+        if(!m_itemStrings || (idx >= m_itemStrings->size()) || (idx < 0))
+            m_node->str(QString());
+        else
+            m_node->str(m_itemStrings->at(idx).name);
     }
     catch (XKameError &e) {
         e.print();
@@ -466,7 +469,16 @@ XQComboBoxConnector::findItem(const QString &text) {
 void
 XQComboBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
       m_pItem->blockSignals(true);
-      int idx = findItem(m_node->to_str());
+      QString str = m_node->to_str();
+      int idx = -1;
+      int i = 0;
+      for(std::deque<XItemNodeBase::Item>::const_iterator it = m_itemStrings->begin();
+         it != m_itemStrings->end(); it++) {
+        if(it->name == str) {
+            idx = i;
+        }
+        i++;
+      }
       if(idx >= 0) {
           m_pItem->setCurrentItem(idx);
           int idx1 = findItem(i18n("(UNSEL)"));
@@ -486,14 +498,18 @@ XQComboBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
       m_pItem->blockSignals(false);
 }
 void
-XQComboBoxConnector::onListChanged(const shared_ptr<XItemNodeBase> &)
+XQComboBoxConnector::onListChanged(const shared_ptr<XItemNodeBase> &e)
 {
+      m_itemStrings = m_node->itemStrings();
       m_pItem->clear();
-      shared_ptr<const std::deque<QString> > strings(m_node->itemStrings());      
       bool exist = false;
-      for(std::deque<QString>::const_iterator it = strings->begin(); it != strings->end(); it++) {
-        if(!it->isEmpty()) {
-            m_pItem->insertItem(*it);
+      for(std::deque<XItemNodeBase::Item>::const_iterator it = m_itemStrings->begin(); 
+            it != m_itemStrings->end(); it++) {
+        if(it->label.isEmpty()) {
+            m_pItem->insertItem(i18n("(NO NAME)"));
+        }
+        else {
+            m_pItem->insertItem(it->label);
             exist = true;
         }
       }
@@ -508,9 +524,12 @@ XQListBoxConnector::XQListBoxConnector(const shared_ptr<XItemNodeBase> &node, QL
     onListChanged(node);
   }
 void
-XQListBoxConnector::onSelect(int) {
+XQListBoxConnector::onSelect(int idx) {
     try {
-      m_node->str(m_pItem->currentText());
+        if(!m_itemStrings || (idx >= m_itemStrings->size()) || (idx < 0))
+            m_node->str(QString());
+        else
+            m_node->str(m_itemStrings->at(idx).name);
     }
     catch (XKameError &e) {
         e.print();
@@ -518,20 +537,25 @@ XQListBoxConnector::onSelect(int) {
 }
 void
 XQListBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
+    QString str = m_node->to_str();
       m_pItem->blockSignals(true);
-      for(unsigned int i = 0; i < m_pItem->count(); i++) {
-        if(m_node->to_str() == m_pItem->text(i))
+      unsigned int i = 0;
+      for(std::deque<XItemNodeBase::Item>::const_iterator it = m_itemStrings->begin(); 
+            it != m_itemStrings->end(); it++) {
+        if(str == it->name)
             m_pItem->setCurrentItem(i);
+        i++;
       }
       m_pItem->blockSignals(false);
 }
 void
 XQListBoxConnector::onListChanged(const shared_ptr<XItemNodeBase> &)
 {
+      m_itemStrings = m_node->itemStrings();
       m_pItem->clear();
-      shared_ptr<const std::deque<QString> > strings(m_node->itemStrings());      
-      for(std::deque<QString>::const_iterator it = strings->begin(); it != strings->end(); it++) {
-            m_pItem->insertItem(*it);
+      for(std::deque<XItemNodeBase::Item>::const_iterator it = m_itemStrings->begin(); 
+            it != m_itemStrings->end(); it++) {
+            m_pItem->insertItem(it->label);
       }
       onValueChanged(m_node);
 }

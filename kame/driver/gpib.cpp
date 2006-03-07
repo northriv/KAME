@@ -219,12 +219,15 @@ XNIGPIBPort::receive() throw (XInterface::XCommError &) {
               }
              throw XInterface::XCommError(gpibStatus(""), __FILE__, __LINE__);
         }
+        if(ThreadIbcntl() > MIN_BUF_SIZE)
+            throw XInterface::XCommError(gpibStatus(i18n("libgpib error."), __FILE__, __LINE__);
         len += ThreadIbcntl();
          if((ret & END) && (ret & CMPL))
         {
           break;
         }
         if(ret & CMPL) {
+          dbgPrint("Buffer overflow.");
           continue;
         }
         gErrPrint(gpibStatus(i18n("ibrd terminated without END or CMPL ")));
@@ -267,6 +270,8 @@ XNIGPIBPort::receive(unsigned int length) throw (XInterface::XCommError &)
               }
               throw XInterface::XCommError(gpibStatus(""), __FILE__, __LINE__);
         }
+        if(ThreadIbcntl() > length)
+            throw XInterface::XCommError(gpibStatus(i18n("libgpib error."), __FILE__, __LINE__);
          if((ret & END) && (ret & CMPL))
         {
           break;

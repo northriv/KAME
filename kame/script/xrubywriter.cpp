@@ -36,7 +36,7 @@ XRubyWriter::write(
     ghost = ghost || node->isRunTime();
     shared_ptr<XValueNodeBase> vnode = dynamic_pointer_cast<XValueNodeBase>(node);
     if(vnode) {
-        if(list->size()) {
+        if(list) {
             for(int j = 0; j < level; j++) m_ofs << "\t";
             if(ghost)
                 m_ofs << "# ";
@@ -57,7 +57,7 @@ XRubyWriter::write(
             << std::endl;
     }
     else
-        if(list->size() == 0) {m_ofs << std::endl;}
+        if(!list) {m_ofs << std::endl;}
         
     shared_ptr<XListNodeBase> lnode = dynamic_pointer_cast<XListNodeBase>(node);
     bool write_typename = false;
@@ -74,7 +74,7 @@ XRubyWriter::write(
         if(ghost)
             m_ofs << "# ";
         atomic_shared_ptr<const XNode::NodeList> child_list = child->children();
-        if(child_list->size()) {
+        if(child_list) {
             m_ofs << "x << ";
         }
         if(lnode) {
@@ -96,11 +96,11 @@ XRubyWriter::write(
                     <<  "]";
             }
         }
-        if(child_list->size()) {
+        if(child_list) {
             m_ofs << std::endl;
         }
         write(child, child_list, ghost, level + 1);
-        if(child_list->size()) {
+        if(child_list) {
             for(int j = 0; j < level; j++) m_ofs << "\t";
             if(ghost)
                 m_ofs << "# ";

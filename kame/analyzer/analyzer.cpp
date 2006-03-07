@@ -120,13 +120,15 @@ XChartList::onCatchEntry(const shared_ptr<XNode> &node)
 void
 XChartList::onReleaseEntry(const shared_ptr<XNode> &node)
 {
-    shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(node);
+  shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(node);
 
   shared_ptr<XValChart> valchart;
   atomic_shared_ptr<const XNode::NodeList> list(children());
-  for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
-      shared_ptr<XValChart> chart = dynamic_pointer_cast<XValChart>(*it);
-      if(chart->entry() == entry) valchart = chart;
+  if(list) {
+      for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+          shared_ptr<XValChart> chart = dynamic_pointer_cast<XValChart>(*it);
+          if(chart->entry() == entry) valchart = chart;
+      }
   }
   if(valchart) releaseChild(valchart);
 }

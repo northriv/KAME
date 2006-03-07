@@ -51,12 +51,16 @@ class XNode : public enable_shared_from_this<XNode>
   template <class T, typename X, typename Y, typename Z, typename ZZ>
   shared_ptr<T> create(const char *name, bool runtime, X x, Y y, Z z, ZZ z);
   
+  //! \return internal/script name. Use latin1 chars.
   QString getName() const;
+  //! \return i18n name for UI.
+  virtual QString getLabel() const {return getName();}
   std::string getTypename() const;
  
   shared_ptr<XNode> getChild(const std::string &var) const;
 
   typedef std::deque<shared_ptr<XNode> > NodeList;
+  //! \return null if node has no child.
   atomic_shared_ptr<const NodeList> children() const {return m_children;}
   
   void clearChildren();

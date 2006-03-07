@@ -77,5 +77,6 @@ XRubyThreadConnector::onKillTouched(const shared_ptr<XNode> &) {
 }
 void
 XRubyThreadConnector::onDefout(const shared_ptr<QString> &str) {
-    m_pForm->m_ptxtDefout->append(QDeepCopy<QString>(*str));
+    QString s = QDeepCopy<QString>(*str);
+    m_pForm->m_ptxtDefout->append(s);
 }

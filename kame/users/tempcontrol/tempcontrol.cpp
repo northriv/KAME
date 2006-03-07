@@ -166,22 +166,24 @@ XTempControl::createChannels(const shared_ptr<XScalarEntryList> &scalarentries,
   if(multiread)
     {
       atomic_shared_ptr<const XNode::NodeList> list(m_channels->children());
-      for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
-        shared_ptr<XChannel> channel = dynamic_pointer_cast<XChannel>(*it);
-        shared_ptr<XScalarEntry> entry_temp(create<XScalarEntry>(
-		  QString("Ch.%1").arg(channel->getName()).latin1()
-		  , false,
-           dynamic_pointer_cast<XDriver>(shared_from_this())
-          , "%.5g"));
-        shared_ptr<XScalarEntry> entry_raw(create<XScalarEntry>(
-          QString("Ch.%1.raw").arg(channel->getName()).latin1()
-          , false,
-           dynamic_pointer_cast<XDriver>(shared_from_this())
-          , "%.5g"));
-         m_entry_temps.push_back(entry_temp);
-         m_entry_raws.push_back(entry_raw);
-         entries->insert(entry_temp);
-         entries->insert(entry_raw);
+      if(list) { 
+          for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+            shared_ptr<XChannel> channel = dynamic_pointer_cast<XChannel>(*it);
+            shared_ptr<XScalarEntry> entry_temp(create<XScalarEntry>(
+    		  QString("Ch.%1").arg(channel->getName()).latin1()
+    		  , false,
+               dynamic_pointer_cast<XDriver>(shared_from_this())
+              , "%.5g"));
+            shared_ptr<XScalarEntry> entry_raw(create<XScalarEntry>(
+              QString("Ch.%1.raw").arg(channel->getName()).latin1()
+              , false,
+               dynamic_pointer_cast<XDriver>(shared_from_this())
+              , "%.5g"));
+             m_entry_temps.push_back(entry_temp);
+             m_entry_raws.push_back(entry_raw);
+             entries->insert(entry_temp);
+             entries->insert(entry_raw);
+          }
       }
     }
   else
@@ -263,27 +265,29 @@ XTempControl::execute(const atomic<bool> &terminated)
               m_sourceTemp->value(src_temp);
             }
           atomic_shared_ptr<const XNode::NodeList> list(m_channels->children());
-          unsigned int idx = 0;
-          for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
-            shared_ptr<XChannel> ch = dynamic_pointer_cast<XChannel>(*it);
-              if(src_ch == ch)
-                {
-                  temp = src_temp;
-                  raw = src_raw;
+          if(list) { 
+              unsigned int idx = 0;
+              for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+                shared_ptr<XChannel> ch = dynamic_pointer_cast<XChannel>(*it);
+                  if(src_ch == ch)
+                    {
+                      temp = src_temp;
+                      raw = src_raw;
+                    }
+                  else
+                    {
+                      if(!m_multiread) continue;
+                      shared_ptr<XThermometer> thermo = *ch->thermometer();
+                      raw = getRaw(ch);
+                      temp = (!thermo) ? raw : thermo->getTemp(raw);
+                    }
+                  push((unsigned short)idx);
+                  push((unsigned short)0); // reserve
+                  push(float(raw));
+                  push(float(temp));
+                  idx++;
                 }
-              else
-                {
-                  if(!m_multiread) continue;
-                  shared_ptr<XThermometer> thermo = *ch->thermometer();
-                  raw = getRaw(ch);
-                  temp = (!thermo) ? raw : thermo->getTemp(raw);
-                }
-              push((unsigned short)idx);
-              push((unsigned short)0); // reserve
-              push(float(raw));
-              push(float(temp));
-              idx++;
-            }
+          }
             
           //calicurate std. deviations in some periods
           double tau = *interval() * 4.0;

@@ -168,14 +168,16 @@ XTextWriter::onRecord(const shared_ptr<XDriver> &driver)
             std::deque<shared_ptr<XScalarEntry> > locked_entries;
 
             atomic_shared_ptr<const XNode::NodeList> list(m_entries->children());
-            for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
-                  shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(*it);
-                  if(!*entry->store()) continue;
-                  shared_ptr<XDriver> d(entry->driver());
-                  if(!d) continue;
-                  locked_entries.push_back(entry);
-                  d->readLockRecord();
-                  if(entry->isTriggered()) triggered_time = entry->driver()->time();
+            if(list) { 
+                for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+                      shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(*it);
+                      if(!*entry->store()) continue;
+                      shared_ptr<XDriver> d(entry->driver());
+                      if(!d) continue;
+                      locked_entries.push_back(entry);
+                      d->readLockRecord();
+                      if(entry->isTriggered()) triggered_time = entry->driver()->time();
+                }
             }
             if(triggered_time) {
                     XRecordDependency dep;
@@ -226,11 +228,13 @@ XTextWriter::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
     QString buf;
     buf += "#";
     atomic_shared_ptr<const XNode::NodeList> list(m_entries->children());
-    for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
-      shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(*it);
-      if(!*entry->store()) continue;
-      buf += entry->getEntryTitle();
-      buf += " ";
+    if(list) { 
+        for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+          shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(*it);
+          if(!*entry->store()) continue;
+          buf += entry->getEntryTitle();
+          buf += " ";
+        }
     }
     buf += "Time";
     lastLine()->value(buf);

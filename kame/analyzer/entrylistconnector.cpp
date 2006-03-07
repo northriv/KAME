@@ -32,8 +32,10 @@ XEntryListConnector::XEntryListConnector
   m_pItem->setColumnLabels(labels);
   
   atomic_shared_ptr<const XNode::NodeList> list(node->children());
-  for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++)
-    onCatch(*it);
+  if(list) {
+      for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++)
+        onCatch(*it);
+  }
 }
 void
 XEntryListConnector::onRecord(const shared_ptr<XDriver> &driver)
@@ -62,8 +64,10 @@ XEntryListConnector::clicked ( int row, int col, int, const QPoint& ) {
       case 1:
         {
           atomic_shared_ptr<const XNode::NodeList> list(m_chartList->children());
-          if((row >= 0) && (row < (int)list->size())) {
-             dynamic_pointer_cast<XValChart>(list->at(row))->showChart();
+          if(list) {
+              if((row >= 0) && (row < (int)list->size())) {
+                 dynamic_pointer_cast<XValChart>(list->at(row))->showChart();
+              }
           }
         }
         break;

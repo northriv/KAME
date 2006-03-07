@@ -44,7 +44,8 @@ XDotWriter::write(const shared_ptr<XNode> &node)
 //    shared_ptr<XListNodeBase> lnode = dynamic_pointer_cast<XListNodeBase>(node);
     int unnamed = 0;
     atomic_shared_ptr<const XNode::NodeList> list(m_root->children());
-    for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+    if(list) { 
+      for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
         shared_ptr<XNode> child = *it;
            
         if(child->getName().isEmpty()) {
@@ -57,6 +58,7 @@ XDotWriter::write(const shared_ptr<XNode> &node)
                   << std::endl;
             write(child);
         }
+      }
     }
     if(unnamed) {
         m_unnamedcnt++;

@@ -75,17 +75,19 @@ XQGraphPainter::findAxis(const XGraph::ScrPoint &s1)
     shared_ptr<XAxis> found_axis;
     double zmin = 0.1;
     atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
-    for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
-    {
-        shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
-        	XGraph::SFloat z1;
-        	XGraph::ScrPoint s2;
-        axis->axisToScreen(axis->screenToAxis(s1), &s2);
-        	z1 = sqrtf(s1.distance2(s2));
-        	if(zmin > z1) {
-        		zmin = z1;
-        		found_axis = axis;
-        	}
+    if(axes_list) { 
+        for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
+        {
+            shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
+            	XGraph::SFloat z1;
+            	XGraph::ScrPoint s2;
+            axis->axisToScreen(axis->screenToAxis(s1), &s2);
+            	z1 = sqrtf(s1.distance2(s2));
+            	if(zmin > z1) {
+            		zmin = z1;
+            		found_axis = axis;
+            	}
+        }
     }
     return found_axis;
 }
@@ -96,33 +98,35 @@ XQGraphPainter::findPlane(const XGraph::ScrPoint &s1,
   double zmin = 0.1;
   shared_ptr<XPlot> plot_found;
   atomic_shared_ptr<const XNode::NodeList> plots_list(m_graph->plots()->children());
-  for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
-    {
-        shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
-        XGraph::GPoint g1;
-        shared_ptr<XAxis> axisx = *plot->axisX();
-        shared_ptr<XAxis> axisy = *plot->axisY();
-        shared_ptr<XAxis> axisz = *plot->axisZ();
-        plot->screenToGraph(s1, &g1);
-        if((fabs(g1.x) < zmin) && axisz) {
-             plot_found = plot;
-           	zmin = fabs(g1.x);
-            	*axis1 = axisy;
-            	*axis2 = axisz;
-        }
-        if((fabs(g1.y) < zmin) && axisz) {
-             plot_found = plot;
-            	zmin = fabs(g1.y);
-            	*axis1 = axisx;
-            	*axis2 = axisz;
-        }
-        if(fabs(g1.z) < zmin) {
-             plot_found = plot;
-         	zmin = fabs(g1.z);
-            	*axis1 = axisx;
-            	*axis2 = axisy;
-        }
-    }       
+  if(plots_list) { 
+      for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
+        {
+            shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
+            XGraph::GPoint g1;
+            shared_ptr<XAxis> axisx = *plot->axisX();
+            shared_ptr<XAxis> axisy = *plot->axisY();
+            shared_ptr<XAxis> axisz = *plot->axisZ();
+            plot->screenToGraph(s1, &g1);
+            if((fabs(g1.x) < zmin) && axisz) {
+                 plot_found = plot;
+               	zmin = fabs(g1.x);
+                	*axis1 = axisy;
+                	*axis2 = axisz;
+            }
+            if((fabs(g1.y) < zmin) && axisz) {
+                 plot_found = plot;
+                	zmin = fabs(g1.y);
+                	*axis1 = axisx;
+                	*axis2 = axisz;
+            }
+            if(fabs(g1.z) < zmin) {
+                 plot_found = plot;
+             	zmin = fabs(g1.z);
+                	*axis1 = axisx;
+                	*axis2 = axisy;
+            }
+        }       
+    }
     return plot_found;
 }
 
@@ -233,12 +237,14 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
         			if(!m_foundAxis) {
         				//if no axis, autoscale all axes
                     atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
-                    for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
-                    {
-                        shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
-        					if(axis->autoScale()->isUIEnabled())
-        						axis->autoScale()->value(true);
-        			    }
+                    if(axes_list) { 
+                        for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
+                        {
+                            shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
+            					if(axis->autoScale()->isUIEnabled())
+            						axis->autoScale()->value(true);
+            			    }
+                    }
         			}
         			else {
         				if(m_foundAxis->autoScale()->isUIEnabled())
@@ -326,11 +332,13 @@ XQGraphPainter::zoom(double zoomscale, int , int )
   
   XScopedLock<XGraph> lock(*m_graph);
   atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
-  for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
-  {
-        shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
-        if(axis->autoScale()->isUIEnabled())
-		  axis->autoScale()->value(false);
+  if(axes_list) { 
+      for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
+      {
+            shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
+            if(axis->autoScale()->isUIEnabled())
+    		  axis->autoScale()->value(false);
+      }
   }
   m_graph->zoomAxes(resScreen(), zoomscale, s1);
 }
@@ -554,7 +562,8 @@ XQGraphPainter::drawOffScreenPlanes()
 {
 	setColor((QRgb)*m_graph->backGround(), 0.3);
   atomic_shared_ptr<const XNode::NodeList> plots_list(m_graph->plots()->children());
-  for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
+  if(plots_list) { 
+    for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
     {
         shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
 	XGraph::GPoint g1(0.0, 0.0, 0.0),
@@ -593,35 +602,42 @@ XQGraphPainter::drawOffScreenPlanes()
 		}
 		endQuad();
 	}
+  }
 }
 void
 XQGraphPainter::drawOffScreenGrids()
 {
   atomic_shared_ptr<const XNode::NodeList> plots_list(m_graph->plots()->children());
-  for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
+  if(plots_list) { 
+    for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
     {
         shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
 		plot->drawGrid(this, m_bTilted);
 	}
+  }
 }
 void
 XQGraphPainter::drawOffScreenPoints()
 {
   atomic_shared_ptr<const XNode::NodeList> plots_list(m_graph->plots()->children());
-  for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
+  if(plots_list) { 
+    for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
     {
         shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
         plot->drawPlot(this);
 	}
+  }
 }
 void
 XQGraphPainter::drawOffScreenAxes()
 {
   atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
-  for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
-  {
+  if(axes_list) { 
+      for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
+      {
         shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
 		if((axis->direction() != XAxis::DirAxisZ) || m_bTilted)
 			axis->drawAxis(this);
-	}
+    	   }
+  }
 }

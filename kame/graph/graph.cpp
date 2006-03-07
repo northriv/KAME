@@ -109,28 +109,34 @@ XGraph::setupRedraw(float resolution)
   m_bUpdateScheduled = false;
   
   atomic_shared_ptr<const XNode::NodeList> axes_list(axes()->children());
-  for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
-    {
-        shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
-        axis->startAutoscale(resolution, *axis->autoScale() );
-    }
-  atomic_shared_ptr<const XNode::NodeList> plots_list(plots()->children());
-  for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
-    {
-        shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
-        XScopedTryLock<XPlot> lock(*plot);
-        if(lock) {
-            plot->snapshot();
-            plot->validateAutoScale();
+  if(axes_list) { 
+      for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
+        {
+            shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
+            axis->startAutoscale(resolution, *axis->autoScale() );
         }
-    }
-  for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
-    {
-        shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
-        if(*axis->autoScale())
-            	axis->zoom(true, true, UNZOOM_ABIT);
-        axis->fixScale(resolution, true);
-    }
+  }
+  atomic_shared_ptr<const XNode::NodeList> plots_list(plots()->children());
+  if(plots_list) { 
+      for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
+        {
+            shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
+            XScopedTryLock<XPlot> lock(*plot);
+            if(lock) {
+                plot->snapshot();
+                plot->validateAutoScale();
+            }
+        }
+  }
+  if(axes_list) { 
+      for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
+        {
+            shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
+            if(*axis->autoScale())
+                	axis->zoom(true, true, UNZOOM_ABIT);
+            axis->fixScale(resolution, true);
+        }
+  }
 }
 
 void
@@ -138,19 +144,23 @@ XGraph::zoomAxes(float resolution,
     XGraph::GFloat scale, const XGraph::ScrPoint &center)
 {
   atomic_shared_ptr<const XNode::NodeList> axes_list(axes()->children());
-  for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
-    {
-        shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
-        axis->startAutoscale(resolution);
-    }
+  if(axes_list) { 
+      for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
+        {
+            shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
+            axis->startAutoscale(resolution);
+        }
+  }
 //   validateAutoScale();
   XScopedLock<XGraph> lock(*this);
-  for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
-    {
-        shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
-        axis->zoom(true, true, scale, axis->screenToAxis(center));
-        axis->fixScale(resolution);
-    }
+  if(axes_list) {
+      for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
+        {
+            shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
+            axis->zoom(true, true, scale, axis->screenToAxis(center));
+            axis->fixScale(resolution);
+        }
+  }
 }
 
 XPlot::XPlot(const char *name, bool runtime, const shared_ptr<XGraph> &graph)
