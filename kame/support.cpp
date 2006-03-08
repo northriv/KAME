@@ -24,7 +24,7 @@
         char *msg = (char*)data;
         gErrPrint(QString("Memory Leak! addr=%1, %2")
             .arg((unsigned int)obj, 0, 16)
-            .arg(QString::fromUtf8(msg)));
+            .arg(msg);
         free(msg);
     }
     void *kame_gc::operator new(size_t size) {
@@ -74,7 +74,7 @@ XKameError::print(const QString &msg, const char *file, int line, int _errno) {
         errno = 0;
         strerror_r(_errno, buf, sizeof(buf));
         if(!errno)
-                 _gErrPrint(msg + " " + QString::fromUtf8(buf), file, line);
+                 _gErrPrint(msg + " " + QString(buf), file, line);
         else
                  _gErrPrint(msg + " (strerror failed)", file, line);
         errno = 0;
@@ -155,12 +155,12 @@ _gErrPrint(const QString &str, const char *file, int line)
   if(statusprinter) statusprinter->printError(str);
 }
 
-QString formatDouble(const char *fmt, double var)
+std::string formatDouble(const char *fmt, double var)
 {
     char cbuf[128];
       if(strlen(fmt) == 0) {
           snprintf(cbuf, sizeof(cbuf), "%.12g", var);
-          return QString(cbuf);
+          return std::string(cbuf);
       }
       
       if(!strncmp(fmt, "TIME:", 5)) {
@@ -172,12 +172,12 @@ QString formatDouble(const char *fmt, double var)
                 return time.getTimeStr(false);
       }
       snprintf(cbuf, sizeof(cbuf), fmt, var);
-      return QString(cbuf);
+      return std::string(cbuf);
 }
-void formatDoubleValidator(QString &fmt) {
-    if(fmt.isEmpty()) return;
+void formatDoubleValidator(std::string &fmt) {
+    if(fmt.empty()) return;
 
-    std::string buf(fmt.local8Bit());
+    std::string buf(QString(fmt).latin1());
 
     if(!strncmp(buf.c_str(), "TIME:", 5)) return;
     
@@ -207,15 +207,19 @@ void formatDoubleValidator(QString &fmt) {
         throw XKameError(i18n("Illegal Format, no %."), __FILE__, __LINE__);
 }
 
-QString dumpCString(const char *cstr)
+std::string dumpCString(const char *cstr)
 {
-    QString buf;
+    std::string buf;
     for(; *cstr; cstr++) {
         if(isprint(*cstr))
-            buf += cstr;
-        else
-            buf += QString("\%1").arg((unsigned int)*cstr, 16);
+            buf.append(1, *cstr);
+        else {
+            char s[4];
+            snprintf(s, 4, "\\x%02x", (unsigned int)*cstr);
+            buf.append(s);
+        }
     }
+    return buf;
 }
 
 static XThreadLocal<unsigned int> stl_random_seed;

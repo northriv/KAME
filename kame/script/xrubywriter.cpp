@@ -68,46 +68,48 @@ XRubyWriter::write(
         if(lnode->getTypename().find("XAliasListNode") == 0) lnode.reset();
     }
     unsigned idx = 0;
-    for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
-        shared_ptr<XNode> child = *it;
-        for(int j = 0; j < level; j++) m_ofs << "\t";
-        if(ghost)
-            m_ofs << "# ";
-        atomic_shared_ptr<const XNode::NodeList> child_list = child->children();
-        if(child_list) {
-            m_ofs << "x << ";
-        }
-        if(lnode) {
-            m_ofs << "x.last.create(\""
-                << (write_typename ? child->getTypename().c_str() : "")
-                << "\",\""
-                << (const char *)child->getName().utf8()
-                <<  "\")";
-        }
-        else {
-            if(child->getName().length()) {
-                m_ofs << "x.last[\""
-                    << (const char *)child->getName().utf8()
-                    <<  "\"]";
-            }
-            else {
-                m_ofs << "x.last["
-                    << idx
-                    <<  "]";
-            }
-        }
-        if(child_list) {
-            m_ofs << std::endl;
-        }
-        write(child, child_list, ghost, level + 1);
-        if(child_list) {
+    if(list) {
+        for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+            shared_ptr<XNode> child = *it;
             for(int j = 0; j < level; j++) m_ofs << "\t";
             if(ghost)
                 m_ofs << "# ";
-            m_ofs << "x.pop"
-                  << std::endl;
+            atomic_shared_ptr<const XNode::NodeList> child_list = child->children();
+            if(child_list) {
+                m_ofs << "x << ";
+            }
+            if(lnode) {
+                m_ofs << "x.last.create(\""
+                    << (write_typename ? child->getTypename().c_str() : "")
+                    << "\",\""
+                    << child->getName()
+                    <<  "\")";
+            }
+            else {
+                if(child->getName().length()) {
+                    m_ofs << "x.last[\""
+                        << child->getName()
+                        <<  "\"]";
+                }
+                else {
+                    m_ofs << "x.last["
+                        << idx
+                        <<  "]";
+                }
+            }
+            if(child_list) {
+                m_ofs << std::endl;
+            }
+            write(child, child_list, ghost, level + 1);
+            if(child_list) {
+                for(int j = 0; j < level; j++) m_ofs << "\t";
+                if(ghost)
+                    m_ofs << "# ";
+                m_ofs << "x.pop"
+                      << std::endl;
+            }
+            
+            idx++;
         }
-        
-        idx++;
     }
 }

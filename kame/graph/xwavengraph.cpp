@@ -182,7 +182,7 @@ XWaveNGraph::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
       
       if(m_stream.is_open()) m_stream.close();
       m_stream.clear();
-      m_stream.open((const char*)filename()->to_str().local8Bit(), OFSMODE);
+      m_stream.open((const char*)QString(filename()->to_str()).local8Bit(), OFSMODE);
     
       if(m_stream.good()) {
           m_lsnOnDumpTouched = dump()->onTouch().connectWeak(
@@ -255,10 +255,10 @@ XWaveNGraph::drawGraph()
       shared_ptr<XAxis> axisx = dynamic_pointer_cast<XAxis>(axes_list->at(0));
       shared_ptr<XAxis> axisy = dynamic_pointer_cast<XAxis>(axes_list->at(1));
     
-      axisx->label()->value(QString::fromUtf8(m_labels[m_colx].c_str()));
-      axisy->label()->value(QString::fromUtf8(m_labels[m_coly1].c_str()));
+      axisx->label()->value(m_labels[m_colx]);
+      axisy->label()->value(m_labels[m_coly1]);
       if(colY2() > 0)
-        m_axisy2->label()->value(QString::fromUtf8(m_labels[m_coly2].c_str()));
+        m_axisy2->label()->value(m_labels[m_coly2]);
         
       int rowcnt = rowCount();
       double *colx = cols(colX());

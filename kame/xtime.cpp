@@ -43,26 +43,22 @@ XTime::now() {
     return XTime(tv.tv_sec, tv.tv_usec);
 };
 
-QString
+std::string
 XTime::getTimeStr(bool subsecond) const
 {
     if(*this) {
       char str[100];
       ctime_r(&tv_sec, str);
       str[strlen(str) - 1] = '\0';
-      QString buf;
       if(subsecond)
-          buf.sprintf("%s +%.3dms", str, (int)tv_usec/1000);
-      else
-          buf = str;
-      return buf;
+          sprintf(str + strlen(str), " +%.3dms", (int)tv_usec/1000);
+      return std::string(str);
     }
     else {
-        return QString();
+        return std::string();
     }
 }
-
-QString
+std::string
 XTime::getTimeFmtStr(const char *fmt, bool subsecond) const
 {
     if(*this) {
@@ -70,15 +66,12 @@ XTime::getTimeFmtStr(const char *fmt, bool subsecond) const
       struct tm time;
       localtime_r(&tv_sec, &time);
       strftime(str, 100, fmt, &time);
-      QString buf;
       if(subsecond)
-          buf.sprintf("%s +%.3f", str, 1e-6 * tv_usec);
-      else
-          buf = str;
-      return buf;
+          sprintf(str + strlen(str), " +%.3f", 1e-6 * tv_usec);
+      return std::string(str);
     }
     else {
-        return QString();
+        return std::string();
     }
 }
 

@@ -89,7 +89,7 @@ class XGraph : public XNode
  protected:
   XGraph(const char *name, bool runtime);
  public:
-  virtual QString getLabel() const {return *label();}
+  virtual std::string getLabel() const {return *label();}
 
   typedef float SFloat;
   static const SFloat SFLOAT_MAX;
@@ -274,7 +274,7 @@ class XAxis : public XNode
  public:
   virtual ~XAxis() {}
 
-  virtual QString getLabel() const {return *label();}
+  virtual std::string getLabel() const {return *label();}
   
   int drawAxis(XQGraphPainter *painter);
   //! obtains axis pos from value

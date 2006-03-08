@@ -32,13 +32,13 @@ class XRubyThread : public XNode
   void kill();
   void resume();
   
-   XTalker<shared_ptr<QString> > &onMessageOut() {return m_tlkOnMessageOut;}
+   XTalker<shared_ptr<std::string> > &onMessageOut() {return m_tlkOnMessageOut;}
   const shared_ptr<XStringNode> &status() const {return m_status;}
   const shared_ptr<XStringNode> &filename() const {return m_filename;}
 //  shared_ptr<XStringNode> &action() const {return m_action;}
   const shared_ptr<XIntNode> &threadID() const {return m_threadID;}
  private:
-  XTalker<shared_ptr<QString> > m_tlkOnMessageOut;
+  XTalker<shared_ptr<std::string> > m_tlkOnMessageOut;
   shared_ptr<XStringNode> m_filename;
   shared_ptr<XStringNode> m_status;
   shared_ptr<XStringNode> m_action;

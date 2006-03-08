@@ -7,7 +7,6 @@
 #include "forms/rubythreadtool.h"
 #include "icons/icon.h"
 #include <kapplication.h>
-#include <qdeepcopy.h>
 #include <kiconloader.h>
 
 XRubyThreadConnector::XRubyThreadConnector(
@@ -76,7 +75,6 @@ XRubyThreadConnector::onKillTouched(const shared_ptr<XNode> &) {
     m_rubyThread->kill();
 }
 void
-XRubyThreadConnector::onDefout(const shared_ptr<QString> &str) {
-    QString s = QDeepCopy<QString>(*str);
-    m_pForm->m_ptxtDefout->append(s);
+XRubyThreadConnector::onDefout(const shared_ptr<std::string> &str) {
+    m_pForm->m_ptxtDefout->append(*str);
 }

@@ -28,7 +28,7 @@ class XRubyThreadConnector : public XQConnector
     shared_ptr<XListener> m_lsnOnStatusChanged;
     void onResumeTouched(const shared_ptr<XNode> &node);
     void onKillTouched(const shared_ptr<XNode> &node);
-    void onDefout(const shared_ptr<QString> &str);
+    void onDefout(const shared_ptr<std::string> &str);
     void onStatusChanged(const shared_ptr<XValueNodeBase> &node);
     FrmRubyThread *m_pForm;
     shared_ptr<XRubyThread> m_rubyThread;

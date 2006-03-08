@@ -5,7 +5,6 @@
 extern "C" {
 #include <ruby.h>
 }
-#include <qdeepcopy.h>
 #include <klocale.h>
 //---------------------------------------------------------------------------
 
@@ -14,9 +13,9 @@ extern "C" {
 
 #define XRUBYSUPPORT_RB "xrubysupport.rb"
 
-static inline VALUE QString2RSTRING(const QString &qstr) {
-    if(qstr.isEmpty()) return rb_str_new2("");
-    return rb_str_new2(qstr.utf8());
+static inline VALUE string2RSTRING(const std::string &str) {
+    if(str.empty()) return rb_str_new2("");
+    return rb_str_new2(str.c_str());
 }
 
 XRuby::XRuby(const char *name, bool runtime, const shared_ptr<XMeasure> &measure)
@@ -85,7 +84,7 @@ XRuby::rnode_child(VALUE self, VALUE var)
         }
         if(! child ) {
           rb_raise(rb_eRuntimeError, "No such node idx:%d on %s\n",
-             idx, (const char*)node->getName().utf8());
+             idx, node->getName().c_str());
           return Qnil;
         }
         break;
@@ -95,14 +94,13 @@ XRuby::rnode_child(VALUE self, VALUE var)
             child = node->getChild(name);
             if(! child ) {
               rb_raise(rb_eRuntimeError, "No such node name:%s on %s\n",
-                 name, (const char*)node->getName().utf8());
+                 name, node->getName().c_str());
               return Qnil;
             }
         }
         break;
       default:
-        rb_raise(rb_eRuntimeError, "Ill format to find node on %s\n",
-          (const char*)node->getName().utf8());
+        rb_raise(rb_eRuntimeError, "Ill format to find node on %s\n", node->getName().c_str());
         return Qnil;
         break;
       }
@@ -129,8 +127,7 @@ XRuby::rlistnode_create_child(VALUE self, VALUE rbtype, VALUE rbname)
   if(shared_ptr<XNode> node = st->ptr.lock()) {
       if( node->isRunTime() )
       {
-          rb_raise(rb_eRuntimeError, "Node %s is run-time node!\n",
-             (const char*)node->getName().utf8());
+          rb_raise(rb_eRuntimeError, "Node %s is run-time node!\n", node->getName().c_str());
           return Qnil;
       }     
       shared_ptr<XListNodeBase> lnode =
@@ -138,7 +135,7 @@ XRuby::rlistnode_create_child(VALUE self, VALUE rbtype, VALUE rbname)
       if(!lnode)
       {
            rb_raise(rb_eRuntimeError, "Error on %s : Not ListNode. Could not make child"
-                " name = %s, type = %s\n", (const char*)node->getName().utf8(), name, type);
+                " name = %s, type = %s\n", node->getName().c_str(), name, type);
             return Qnil;
       }
       if(strlen(name))
@@ -163,7 +160,7 @@ XRuby::rlistnode_create_child(VALUE self, VALUE rbtype, VALUE rbname)
       }
       if(!child) {
            rb_raise(rb_eRuntimeError, "Error on %s : Could not make child"
-                " name = %s, type = %s\n", (const char*)node->getName().utf8(), name, type);
+                " name = %s, type = %s\n", node->getName().c_str(), name, type);
             return Qnil;
       }
   }
@@ -188,8 +185,7 @@ XRuby::rlistnode_release_child(VALUE self, VALUE rbchild)
   if(shared_ptr<XNode> node = st->ptr.lock()) {
       if(!node->isUIEnabled() )
       {
-          rb_raise(rb_eRuntimeError, "Node %s is read-only!\n",
-             (const char*)node->getName().utf8());
+          rb_raise(rb_eRuntimeError, "Node %s is read-only!\n", node->getName().c_str());
           return Qnil;
       }     
       shared_ptr<XListNodeBase> lnode =
@@ -197,7 +193,7 @@ XRuby::rlistnode_release_child(VALUE self, VALUE rbchild)
       if(!lnode)
         {
            rb_raise(rb_eRuntimeError, "Error on %s : Not ListNode. Could not release child\n"
-               , (const char*)node->getName().utf8());
+               , node->getName().c_str());
             return Qnil;
         }
       struct rnode_ptr *st_child;
@@ -223,7 +219,7 @@ XRuby::rnode_name(VALUE self)
   struct rnode_ptr *st;
   Data_Get_Struct(self, struct rnode_ptr, st);
   if(shared_ptr<XNode> node = st->ptr.lock()) {
-      return QString2RSTRING(node->getName());
+      return string2RSTRING(node->getName());
   }
   else {
       rb_raise(rb_eRuntimeError, "Node no longer exists\n");
@@ -255,8 +251,7 @@ XRuby::rnode_touch(VALUE self)
       if(node->isUIEnabled() )
           node->touch();
       else
-          rb_raise(rb_eRuntimeError, "Node %s is read-only!\n",
-             (const char*)node->getName().utf8());
+          rb_raise(rb_eRuntimeError, "Node %s is read-only!\n", node->getName().c_str());
       return Qnil;
   }
   else {
@@ -276,8 +271,7 @@ XRuby::rvaluenode_set(VALUE self, VALUE var)
       if(!node->isUIEnabled() )
       {
 //          rb_raise(rb_eRuntimeError, "Node %s is read-only!\n",
-          rb_warning("Node %s is read-only!\n",
-             (const char*)node->getName().utf8());
+          rb_warning("Node %s is read-only!\n", node->getName().c_str());
           return Qnil;
       }
       if(XRuby::strOnNode(vnode, var))
@@ -306,8 +300,7 @@ XRuby::rvaluenode_load(VALUE self, VALUE var)
       dbgPrint(QString("Ruby, Node %1, loading new value.").arg(node->getName()) );
       if( node->isRunTime() )
       {
-          rb_raise(rb_eRuntimeError, "Node %s is run-time node!\n",
-             (const char*)node->getName().utf8());
+          rb_raise(rb_eRuntimeError, "Node %s is run-time node!\n", node->getName().c_str());
           return Qnil;
       }
       if(XRuby::strOnNode(vnode, var))
@@ -348,7 +341,7 @@ XRuby::rvaluenode_to_str(VALUE self)
   if(shared_ptr<XNode> node = st->ptr.lock()) {
       shared_ptr<XValueNodeBase> vnode = dynamic_pointer_cast<XValueNodeBase>(node);
       ASSERT(vnode);
-      return QString2RSTRING(vnode->to_str());
+      return string2RSTRING(vnode->to_str());
   }
   else {
       rb_raise(rb_eRuntimeError, "Node no longer exists\n");
@@ -375,8 +368,7 @@ XRuby::strOnNode(const shared_ptr<XValueNodeBase> &node, VALUE value)
               uinode->value(integer); return 0;
         }
         else {
-            rb_raise(rb_eRuntimeError, "Negative FIXNUM on %s\n"
-                , (const char*)node->getName().utf8());
+            rb_raise(rb_eRuntimeError, "Negative FIXNUM on %s\n", node->getName().c_str());
             break;
         }
     }
@@ -386,46 +378,45 @@ XRuby::strOnNode(const shared_ptr<XValueNodeBase> &node, VALUE value)
     dbl = integer;
     if(dnode) {dnode->value(dbl); return 0;}
     rb_raise(rb_eRuntimeError, "FIXNUM is not appropreate on %s\n"
-        , (const char*)node->getName().utf8());
+        , node->getName().c_str());
     break;
   case T_FLOAT:
     dbl = RFLOAT(value)->value;
     if(dnode) {dnode->value(dbl); return 0;}
     rb_raise(rb_eRuntimeError, "FLOAT is not appropreate on %s\n"
-        , (const char*)node->getName().utf8());
+        , node->getName().c_str());
     break;
   case T_BIGNUM:
     dbl = NUM2DBL(value);
     if(dnode) {dnode->value(dbl); return 0;}
     rb_raise(rb_eRuntimeError, "BIGNUM is not appropreate on %s\n"
-        , (const char*)node->getName().utf8());
+        , node->getName().c_str());
 //    integer = lrint(dbl);
 //    if(inode && (dbl <= INT_MAX)) {inode->value(integer); return 0;}
     break;
   case T_STRING:
     try {
-        QString qstr = QString::fromUtf8(RSTRING(value)->ptr);
-        node->str(qstr);
+        node->str(std::string(RSTRING(value)->ptr));
     }
     catch (XKameError &e) {
         rb_raise(rb_eRuntimeError, "Validation error %s on %s\n"
-        , (const char*)e.msg().utf8(), (const char*)node->getName().utf8());
+        , (const char*)e.msg().utf8(), node->getName().c_str());
         return -1;
     }
     return 0;
   case T_TRUE:
     if(bnode) {bnode->value(true); return 0;}
     rb_raise(rb_eRuntimeError, "TRUE is not appropreate on %s\n"
-        , (const char*)node->getName().utf8());
+        , node->getName().c_str());
     break;
   case T_FALSE:
     if(bnode) {bnode->value(false); return 0;}
     rb_raise(rb_eRuntimeError, "FALSE is not appropreate on %s\n"
-        , (const char*)node->getName().utf8());
+        , node->getName().c_str());
     break;
   default:
     rb_raise(rb_eRuntimeError, "UNKNOWN TYPE is not appropreate on %s\n"
-        , (const char*)node->getName().utf8());
+        , node->getName().c_str());
     break;
   }
   return -1;
@@ -442,7 +433,7 @@ XRuby::getValueOfNode(const shared_ptr<XValueNodeBase> &node)
   if(inode) {return INT2NUM(*inode);}
   if(uinode) {return UINT2NUM(*uinode);}
   if(bnode) {return (*bnode) ? Qtrue : Qfalse;}
-  if(snode) {return QString2RSTRING(*snode);}
+  if(snode) {return string2RSTRING(*snode);}
   return Qnil;
 }
 
@@ -450,7 +441,7 @@ VALUE
 XRuby::my_rbdefout(VALUE self, VALUE str, VALUE threadid)
 {
   int id = NUM2INT(threadid);
-  QString qstr = QString::fromUtf8(RSTRING(str)->ptr);
+  shared_ptr<std::string> sstr(new std::string(RSTRING(str)->ptr));
   struct rnode_ptr *st;
   Data_Get_Struct(self, struct rnode_ptr, st);
   shared_ptr<XRubyThread> rubythread;
@@ -462,12 +453,11 @@ XRuby::my_rbdefout(VALUE self, VALUE str, VALUE threadid)
       }
   }
   if(rubythread) {
-      shared_ptr<QString> buf(new QString(QDeepCopy<QString>(qstr)));
-      rubythread->onMessageOut().talk(buf);
-      dbgPrint(QString("Ruby [%1]; %2").arg(rubythread->filename()->to_str()).arg(qstr));
+      rubythread->onMessageOut().talk(sstr);
+      dbgPrint(QString("Ruby [%1]; %2").arg(rubythread->filename()->to_str()).arg(*sstr));
   }
   else {
-      dbgPrint(QString("Ruby [global]; %1").arg(qstr));
+      dbgPrint(QString("Ruby [global]; %1").arg(*sstr));
   }
   return Qnil;
 }
@@ -511,10 +501,10 @@ XRuby::execute(const atomic<bool> &terminated)
       {
           shared_ptr<XMeasure> measure = m_measure.lock();
           ASSERT(measure);
-          QString name = measure->getName();
-          name[0] = name[0].upper();
+          std::string name = measure->getName();
+          name[0] = toupper(name[0]);
           VALUE rbRootNode = rnode_create(measure, this);
-          rb_define_global_const(name.utf8(), rbRootNode);
+          rb_define_global_const(name.c_str(), rbRootNode);
           rb_define_global_const("RootNode", rbRootNode);
       }
       {
@@ -531,7 +521,7 @@ XRuby::execute(const atomic<bool> &terminated)
               g_statusPrinter->printError("No KAME ruby support file installed.");
           }
           else {
-              rb_load_protect (QString2RSTRING(filename), 0, &state);
+              rb_load_protect (string2RSTRING(filename), 0, &state);
           }
       }
       ruby_finalize();

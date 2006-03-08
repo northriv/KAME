@@ -11,7 +11,7 @@ XQPulserDriverConnector::XQPulserDriverConnector(
      : XQConnector(node, item),
       m_pulser(node),
       m_pTable(item),
-      m_graph(createOrphan<XGraph>(node->getName().utf8(), false))
+      m_graph(createOrphan<XGraph>(node->getName().c_str(), false))
 {
   shared_ptr<XPulser> pulser(node);    
   m_lsnOnPulseChanged = pulser->onRecord().connectWeak(

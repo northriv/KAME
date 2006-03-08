@@ -35,7 +35,7 @@ XDotWriter::write(const shared_ptr<XNode> &node)
 {
     if(std::find(m_nodes.begin(), m_nodes.end(), node) == m_nodes.end()) {
         m_ofs << "obj_" << (int)node.get()
-              << " [label=\"" << (const char*)node->getName().utf8()
+              << " [label=\"" << node->getName()
               << "\"]" << std::endl;
         m_nodes.push_back(node);
     }
@@ -48,7 +48,7 @@ XDotWriter::write(const shared_ptr<XNode> &node)
       for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
         shared_ptr<XNode> child = *it;
            
-        if(child->getName().isEmpty()) {
+        if(child->getName().empty()) {
             unnamed++;
         }
         else {

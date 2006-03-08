@@ -137,7 +137,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
   p1Dist()->value(1);
 
   try {
-      relaxFunc()->str("NMR I=1/2");
+      relaxFunc()->str(std::string("NMR I=1/2"));
   }
   catch (XKameError &e) {
       e.print();

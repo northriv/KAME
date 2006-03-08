@@ -14,7 +14,7 @@ XTempControl::XChannel::XChannel(const char *name, bool runtime,
    m_excitation(create<XComboNode>("Excitation", false))
 {
     try {
-        m_thermometer->str("Raw");
+        m_thermometer->str(std::string("Raw"));
     }
     catch (XKameError &e) {
         e.print();
@@ -160,7 +160,7 @@ XTempControl::createChannels(const shared_ptr<XScalarEntryList> &scalarentries,
       shared_ptr<XChannel> channel = 
         m_channels->create<XChannel>(channel_names[i], true, thermometers);  
       for(int j = 0; excitations[j]; j++) {
-        channel->excitation()->add(QString::fromUtf8(excitations[j]));
+        channel->excitation()->add(excitations[j]);
       }
   }
   if(multiread)

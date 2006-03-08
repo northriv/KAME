@@ -145,6 +145,11 @@ const std::vector<char> &
 XInterface::buffer() const {return m_xport->buffer();}
 
 void
+XInterface::send(const std::string &str) throw (XCommError &)
+{
+    this->send(str.c_str());
+}
+void
 XInterface::send(const char *str) throw (XCommError &)
 {
   XScopedLock<XInterface> lock(*this);
@@ -225,6 +230,11 @@ XInterface::receive(unsigned int length) throw (XCommError &)
   }
 }
 void
+XInterface::query(const std::string &str) throw (XCommError &)
+{
+    query(str.c_str());
+}
+void
 XInterface::query(const char *str) throw (XCommError &)
 {
   XScopedLock<XInterface> lock(*this);
@@ -261,7 +271,7 @@ XInterface::onSendRequested(const shared_ptr<XValueNodeBase> &)
 shared_ptr<XPort> port = m_xport;
     if(!port)
        throw XInterfaceError(i18n("Port is not opened."), __FILE__, __LINE__);
-    port->send(m_script_send->to_str());
+    port->send(m_script_send->to_str().c_str());
 }
 void
 XInterface::onQueryRequested(const shared_ptr<XValueNodeBase> &)
@@ -270,10 +280,10 @@ shared_ptr<XPort> port = m_xport;
     if(!port)
        throw XInterfaceError(i18n("Port is not opened."), __FILE__, __LINE__);
     XScopedLock<XInterface> lock(*this);
-    port->send(m_script_query->to_str());
+    port->send(m_script_query->to_str().c_str());
     port->receive();
     m_lsnOnQueryRequested->mask();
-    m_script_query->value(&port->buffer()[0]);
+    m_script_query->value(std::string(&port->buffer()[0]));
     m_lsnOnQueryRequested->unmask();
 }
 

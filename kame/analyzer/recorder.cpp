@@ -58,7 +58,7 @@ void
 XRawStreamRecorder::onOpen(const shared_ptr<XValueNodeBase> &)
 {
   if(m_pGFD) gzclose(m_pGFD);
-  m_pGFD = gzopen(filename()->to_str().local8Bit(), "wb");
+  m_pGFD = gzopen(QString(filename()->to_str()).local8Bit(), "wb");
 }
 void
 XRawStreamRecorder::onFlush(const shared_ptr<XValueNodeBase> &)
@@ -87,7 +87,7 @@ XRawStreamRecorder::onRecord(const shared_ptr<XDriver> &d)
                 // size of raw record wrapped by header and footer
                 uint32_t allsize =
                     headersize
-                    + strlen(driver->getName().utf8()) //name of driver
+                    + driver->getName().size() //name of driver
                     + 2 //two null chars
                     + size //rawData
                     + sizeof(uint32_t); //allsize
@@ -98,7 +98,7 @@ XRawStreamRecorder::onRecord(const shared_ptr<XDriver> &d)
     
                 m_filemutex.lock();
                 gzwrite(m_pGFD, &buf[0], buf.size());
-                gzprintf(m_pGFD, "%s", (const char*)driver->getName().utf8());
+                gzprintf(m_pGFD, "%s", (const char*)driver->getName().c_str());
                 gzputc(m_pGFD, '\0');
                 gzputc(m_pGFD, '\0'); //Reserved
                 gzwrite(m_pGFD, &driver->rawData()[0], size);
@@ -153,7 +153,7 @@ XTextWriter::onLastLineChanged(const shared_ptr<XValueNodeBase> &) {
   XScopedLock<XRecursiveMutex> lock(m_filemutex);  
   if(m_stream.good())
   {
-        m_stream << (const char*)lastLine()->to_str().utf8()
+        m_stream << lastLine()->to_str()
                 << std::endl;
   }
 }
@@ -216,7 +216,7 @@ XTextWriter::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
   XScopedLock<XRecursiveMutex> lock(m_filemutex);  
   if(m_stream.is_open()) m_stream.close();
   m_stream.clear();
-  m_stream.open((const char*)filename()->to_str().local8Bit(), OFSMODE);
+  m_stream.open((const char*)QString(filename()->to_str()).local8Bit(), OFSMODE);
 
   if(m_stream.good()) {
     m_lsnOnFlush = recording()->onValueChanged().connectWeak(

@@ -65,7 +65,7 @@ public:
   	AlignVCenter = 0x10,
   	AlignTop = 0x20
   };
-  void drawText(const XGraph::ScrPoint &p, const QString &str);
+  void drawText(const XGraph::ScrPoint &p, const std::string &str);
   
   //! make point outer perpendicular to \a dir by offset
   //! \param offset > 0 for outer, < 0 for inner. unit is of screen coord.
@@ -75,7 +75,7 @@ public:
   //! \param dir a direction where text be aligned
   //! \param width perp. to \a dir, restricting font size
   //! \return return 0 if succeeded
-  int selectFont(const QString &str, const XGraph::ScrPoint &start, 
+  int selectFont(const std::string &str, const XGraph::ScrPoint &start, 
     const XGraph::ScrPoint &dir, const XGraph::ScrPoint &width, int sizehint = 0);
     
   //! minimum resolution of screen coordinate.

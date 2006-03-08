@@ -115,7 +115,7 @@ void
 XChartList::onCatchEntry(const shared_ptr<XNode> &node)
 {
     shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(node);
-    create<XValChart>(entry->getName(), true, entry);
+    create<XValChart>(entry->getName().c_str(), true, entry);
 }
 void
 XChartList::onReleaseEntry(const shared_ptr<XNode> &node)
@@ -155,7 +155,7 @@ XValGraph::onAxisChanged(const shared_ptr<XValueNodeBase> &)
     shared_ptr<XScalarEntry> entryz = *axisZ();
     
   if(m_graph) releaseChild(m_graph);
-  m_graph = create<XGraph>(getName().utf8(), false);
+  m_graph = create<XGraph>(getName().c_str(), false);
   m_graphForm.reset(new FrmGraph(g_pFrmMain));
   m_graphForm->statusBar()->hide();
   m_graphForm->m_graphwidget->setGraph(m_graph);
@@ -163,9 +163,9 @@ XValGraph::onAxisChanged(const shared_ptr<XValueNodeBase> &)
   if(!entryx || !entryy1) return;
   
   m_livePlot = 
-	m_graph->plots()->create<XXYPlot>((m_graph->getName() + " Live").utf8(), false, m_graph);
+	m_graph->plots()->create<XXYPlot>((m_graph->getName() + " Live").c_str(), false, m_graph);
   m_storePlot = 
-    m_graph->plots()->create<XXYPlot>((m_graph->getName() + " Stored").utf8(), false, m_graph);
+    m_graph->plots()->create<XXYPlot>((m_graph->getName() + " Stored").c_str(), false, m_graph);
 
   atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
   shared_ptr<XAxis> axisx = dynamic_pointer_cast<XAxis>(axes_list->at(0));

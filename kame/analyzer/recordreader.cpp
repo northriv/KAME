@@ -75,7 +75,7 @@ void
 XRawStreamRecordReader::onOpen(const shared_ptr<XValueNodeBase> &)
 {
   if(m_pGFD) gzclose(m_pGFD);
-  m_pGFD = gzopen(filename()->to_str().local8Bit(), "rb");
+  m_pGFD = gzopen(QString(filename()->to_str()).local8Bit(), "rb");
 }
 void
 XRawStreamRecordReader::readHeader(void *fd)

@@ -236,7 +236,7 @@ XQGraphPainter::defaultFont()
 	m_curFontSize = DEFAULT_FONT_SIZE;
 }
 int
-XQGraphPainter::selectFont(const QString &str, const XGraph::ScrPoint &start, const XGraph::ScrPoint &dir, const XGraph::ScrPoint &swidth, int sizehint)
+XQGraphPainter::selectFont(const std::string &str, const XGraph::ScrPoint &start, const XGraph::ScrPoint &dir, const XGraph::ScrPoint &swidth, int sizehint)
 {
 	XGraph::ScrPoint d = dir;
 	d.normalize();
@@ -288,7 +288,7 @@ double w = fabs(x3 - x2), h = fabs(y3 - y2);
 		}
 	}
 float llx, lly, llz, urx, ury, urz;
-std::wstring wstr = qstring2wstring(str);
+std::wstring wstr = qstring2wstring(QString(str));
 	m_curFontSize = DEFAULT_FONT_SIZE + sizehint;
 	m_curAlign = align;
     
@@ -303,10 +303,10 @@ std::wstring wstr = qstring2wstring(str);
     
 	return 0;
 }void
-XQGraphPainter::drawText(const XGraph::ScrPoint &p, const QString &str)
+XQGraphPainter::drawText(const XGraph::ScrPoint &p, const std::string &str)
 {
 float llx, lly, llz, urx, ury, urz;
-std::wstring wstr = qstring2wstring(str);
+std::wstring wstr = qstring2wstring(QString(str));
 
 	glRasterPos3f(p.x, p.y, p.z);
     checkGLError();

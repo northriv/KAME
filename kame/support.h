@@ -138,13 +138,13 @@ double roundlog10(double val);
 double setprec(double val, double prec);
 
 //! convert control characters to visible (ex. \xx).
-QString dumpCString(const char *cstr);
+std::string dumpCString(const char *cstr);
 
-QString formatDouble(const char *fmt, double val);
+std::string formatDouble(const char *fmt, double val);
 //! validator
 //! throw XKameError
 //! \sa XValueNode
-void formatDoubleValidator(QString &fmt);
+void formatDoubleValidator(std::string &fmt);
 
 namespace KAME {
     unsigned int rand();

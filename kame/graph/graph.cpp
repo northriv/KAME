@@ -804,11 +804,11 @@ XAxis::fixScale(float resolution, bool suppressupdate)
 	XGraph::VFloat min_tmp = m_bLogscaleFixed ? 
         max((XGraph::VFloat)*minValue(), (XGraph::VFloat)0.0) : (XGraph::VFloat)*minValue();
 	if(m_minFixed != min_tmp) {
-        minValue()->setFormat(ticLabelFormat()->to_str().utf8());
+        minValue()->setFormat(ticLabelFormat()->to_str().c_str());
 		minValue()->value(m_minFixed);
     }
 	if(m_maxFixed != *maxValue()) {
-        maxValue()->setFormat(ticLabelFormat()->to_str().utf8());
+        maxValue()->setFormat(ticLabelFormat()->to_str().c_str());
 		maxValue()->value(m_maxFixed);
     }
 	if(suppressupdate) {
@@ -961,7 +961,7 @@ XAxis::valToScreen(XGraph::VFloat val, XGraph::ScrPoint *scr)
 QString
 XAxis::valToString(XGraph::VFloat val)
 {
-    return formatDouble(ticLabelFormat()->to_str().utf8(), val);
+    return formatDouble(ticLabelFormat()->to_str().c_str(), val);
 }
 
 XAxis::Tic

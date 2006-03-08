@@ -23,6 +23,7 @@
 #include <qmainwindow.h>
 #include <kfiledialog.h>
 #include <klocale.h>
+#include <qdeepcopy.h>
 
 #include "icons/icon.h"
 
@@ -202,7 +203,7 @@ XQSpinBoxConnector::onChange(int val) {
 void
 XQSpinBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &node) {
   m_pItem->blockSignals(true);
-  m_pItem->setValue(node->to_str().toInt());
+  m_pItem->setValue(QString(node->to_str()).toInt());
   m_pItem->blockSignals(false);
 }
     
@@ -238,7 +239,7 @@ XKIntNumInputConnector::onChange(int val) {
 void
 XKIntNumInputConnector::onValueChanged(const shared_ptr<XValueNodeBase> &node) {
   m_pItem->blockSignals(true);
-  m_pItem->setValue(node->to_str().toInt());
+  m_pItem->setValue(QString(node->to_str()).toInt());
   m_pItem->blockSignals(false);
 }
 
@@ -447,7 +448,7 @@ void
 XQComboBoxConnector::onSelect(int idx) {
     try {
         if(!m_itemStrings || (idx >= m_itemStrings->size()) || (idx < 0))
-            m_node->str(QString());
+            m_node->str(std::string());
         else
             m_node->str(m_itemStrings->at(idx).name);
     }
@@ -474,7 +475,7 @@ XQComboBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
       int i = 0;
       for(std::deque<XItemNodeBase::Item>::const_iterator it = m_itemStrings->begin();
          it != m_itemStrings->end(); it++) {
-        if(it->name == str) {
+        if(QString(it->name) == str) {
             idx = i;
         }
         i++;
@@ -498,18 +499,18 @@ XQComboBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
       m_pItem->blockSignals(false);
 }
 void
-XQComboBoxConnector::onListChanged(const shared_ptr<XItemNodeBase> &e)
+XQComboBoxConnector::onListChanged(const shared_ptr<XItemNodeBase> &)
 {
       m_itemStrings = m_node->itemStrings();
       m_pItem->clear();
       bool exist = false;
       for(std::deque<XItemNodeBase::Item>::const_iterator it = m_itemStrings->begin(); 
             it != m_itemStrings->end(); it++) {
-        if(it->label.isEmpty()) {
+        if(it->label.empty()) {
             m_pItem->insertItem(i18n("(NO NAME)"));
         }
         else {
-            m_pItem->insertItem(it->label);
+            m_pItem->insertItem(QString(it->label));
             exist = true;
         }
       }
@@ -527,7 +528,7 @@ void
 XQListBoxConnector::onSelect(int idx) {
     try {
         if(!m_itemStrings || (idx >= m_itemStrings->size()) || (idx < 0))
-            m_node->str(QString());
+            m_node->str(std::string());
         else
             m_node->str(m_itemStrings->at(idx).name);
     }
@@ -542,7 +543,7 @@ XQListBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
       unsigned int i = 0;
       for(std::deque<XItemNodeBase::Item>::const_iterator it = m_itemStrings->begin(); 
             it != m_itemStrings->end(); it++) {
-        if(str == it->name)
+        if(str == QString(it->name))
             m_pItem->setCurrentItem(i);
         i++;
       }

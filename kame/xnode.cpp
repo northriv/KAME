@@ -23,9 +23,9 @@ XNode::XNode(const char *name, bool runtime)
 XNode::~XNode() {
       dbgPrint(QString("xnode %1 is being deleted., addr=0x%2").arg(getName()).arg((unsigned int)this, 0, 16));
 }
-QString
+std::string
 XNode::getName() const {
-    return QString::fromUtf8(m_name.c_str());
+    return m_name;
 }
 std::string
 XNode::getTypename() const {
@@ -82,12 +82,11 @@ XNode::releaseChild(const shared_ptr<XNode> &node)
 shared_ptr<XNode>
 XNode::getChild(const std::string &var) const
 {
-  QString str(QString::fromUtf8(var.c_str()));
   shared_ptr<XNode> node;
   atomic_shared_ptr<const XNode::NodeList> list(children());
   if(list) { 
       for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
-          if((*it)->getName() == str) {
+          if((*it)->getName() == var) {
                 node = *it;
                 break;
           }
@@ -101,11 +100,15 @@ XValueNodeBase::XValueNodeBase(const char *name, bool runtime) :
 {
 }
 void
-XValueNodeBase::str(const QString &s) throw (XKameError &) {
-    QString sc(s);
+XValueNodeBase::str(const std::string &s) throw (XKameError &) {
+    std::string sc(s);
     if(m_validator)
             (*m_validator)(sc);
     _str(sc);
+}
+void
+XValueNodeBase::str(const QString &s) throw (XKameError &) {
+    str(std::string((const char*)s));
 }
 void
 XValueNodeBase::setValidator(Validator v) {
@@ -130,56 +133,56 @@ XValueNode<T, base>::value(const T &t) {
 
 template <>
 void
-XValueNode<int, 10>::_str(const QString &str) throw (XKameError &) {
+XValueNode<int, 10>::_str(const std::string &str) throw (XKameError &) {
     bool ok;
-    int var = str.toInt(&ok, 10);
+    int var = QString(str).toInt(&ok, 10);
     if(!ok)
          throw XKameError(i18n("Ill string conversion to integer."), __FILE__, __LINE__);
     value(var);
 }
 template <>
 void
-XValueNode<unsigned int, 10>::_str(const QString &str) throw (XKameError &) {
+XValueNode<unsigned int, 10>::_str(const std::string &str) throw (XKameError &) {
     bool ok;
-    unsigned int var = str.toUInt(&ok);
+    unsigned int var = QString(str).toUInt(&ok);
     if(!ok)
          throw XKameError(i18n("Ill string conversion to unsigned integer."), __FILE__, __LINE__);
     value(var);
 }
 template <>
 void
-XValueNode<unsigned int, 16>::_str(const QString &str) throw (XKameError &) {
+XValueNode<unsigned int, 16>::_str(const std::string &str) throw (XKameError &) {
     bool ok;
-    unsigned int var = str.toUInt(&ok, 16);
+    unsigned int var = QString(str).toUInt(&ok, 16);
     if(!ok)
          throw XKameError(i18n("Ill string conversion to hex."), __FILE__, __LINE__);
     value(var);
 }
 template <>
 void
-XValueNode<bool, 10>::_str(const QString &str) throw (XKameError &) {
+XValueNode<bool, 10>::_str(const std::string &str) throw (XKameError &) {
   bool ok;
-  bool x = str.toInt(&ok);
+  bool x = QString(str).toInt(&ok);
     if(ok) {
       value( x ? true : false );
       return;
     }
-   if(str.stripWhiteSpace().lower() == "true") {
+   if(QString(str).stripWhiteSpace().lower() == "true") {
         value(true); return;
    }
-   if(str.stripWhiteSpace().lower() == "false") {
+   if(QString(str).stripWhiteSpace().lower() == "false") {
         value(false); return;
    }
    throw XKameError(i18n("Ill string conversion to boolean."), __FILE__, __LINE__);
 }
 
 template <typename T, int base>
-QString
+std::string
 XValueNode<T, base>::to_str() const {
     return QString::number(m_var, base);
 }
 template <>
-QString
+std::string
 XValueNode<bool, 10>::to_str() const {
     return m_var ? "true" : "false";
 }
@@ -190,31 +193,31 @@ template class XValueNode<unsigned int, 16>;
 template class XValueNode<bool, 10>;
 
 XStringNode::XStringNode(const char *name, bool runtime)
-   : XValueNodeBase(name, runtime), m_var(new QString()) {}
+   : XValueNodeBase(name, runtime), m_var(new std::string()) {}
 
-QString
+std::string
 XStringNode::to_str() const
 {
-    atomic_shared_ptr<QString> buf = m_var;
-    return QDeepCopy<QString>(*buf);
+    atomic_shared_ptr<std::string> buf = m_var;
+    return *buf;
 }
 void
-XStringNode::operator=(const QString &var)
+XStringNode::operator=(const std::string &var)
 {
     value(var);
 }
 void
-XStringNode::_str(const QString &var) throw (XKameError &)
+XStringNode::_str(const std::string &var) throw (XKameError &)
 {
     value(var);
 }
 
-XStringNode::operator QString() const {
+XStringNode::operator std::string() const {
     return to_str();
 }
 void
-XStringNode::value(const QString &t) {
-    atomic_shared_ptr<QString> var(new QString(QDeepCopy<QString>(t)));
+XStringNode::value(const std::string &t) {
+    atomic_shared_ptr<std::string> var(new std::string(t));
     if(beforeValueChanged().empty() && onValueChanged().empty()) {
         m_var = var;
     }
@@ -234,16 +237,16 @@ XDoubleNode::XDoubleNode(const char *name, bool runtime, const char *format)
   else
      setFormat("");
 }
-QString
+std::string
 XDoubleNode::to_str() const
 {
     return formatDouble(m_format.c_str(), operator double());
 }
 void
-XDoubleNode::_str(const QString &str) throw (XKameError &)
+XDoubleNode::_str(const std::string &str) throw (XKameError &)
 {
 bool ok;
-    double var = str.toDouble(&ok);
+    double var = QString(str).toDouble(&ok);
     if(!ok) 
          throw XKameError(i18n("Ill string conversion to double float."), __FILE__, __LINE__);
     value(var);
@@ -272,11 +275,11 @@ XDoubleNode::format() const {
 }
 void
 XDoubleNode::setFormat(const char* format) {
-    QString fmt;
-    if(format) fmt = QString::fromUtf8(format);
+    std::string fmt;
+    if(format) fmt = format;
     try {
         formatDoubleValidator(fmt);
-        m_format = fmt.utf8();
+        m_format = fmt;
     }
     catch (XKameError &e) {
         e.print();

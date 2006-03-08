@@ -72,7 +72,7 @@ XNIGPIBPort::gpibStatus(const QString &msg)
             cntl = QString::number(ThreadIbcntl());
         }
         else {
-            cntl = QString::number(ThreadIbcntl()) + " " + QString::fromUtf8(buf);
+            cntl = QString::number(ThreadIbcntl()) + " " + QString(buf);
         }
         errno = 0;
   }
@@ -220,7 +220,7 @@ XNIGPIBPort::receive() throw (XInterface::XCommError &) {
              throw XInterface::XCommError(gpibStatus(""), __FILE__, __LINE__);
         }
         if(ThreadIbcntl() > MIN_BUF_SIZE)
-            throw XInterface::XCommError(gpibStatus(i18n("libgpib error."), __FILE__, __LINE__);
+            throw XInterface::XCommError(gpibStatus(i18n("libgpib error.")), __FILE__, __LINE__);
         len += ThreadIbcntl();
          if((ret & END) && (ret & CMPL))
         {
@@ -271,7 +271,7 @@ XNIGPIBPort::receive(unsigned int length) throw (XInterface::XCommError &)
               throw XInterface::XCommError(gpibStatus(""), __FILE__, __LINE__);
         }
         if(ThreadIbcntl() > length)
-            throw XInterface::XCommError(gpibStatus(i18n("libgpib error."), __FILE__, __LINE__);
+            throw XInterface::XCommError(gpibStatus(i18n("libgpib error.")), __FILE__, __LINE__);
          if((ret & END) && (ret & CMPL))
         {
           break;

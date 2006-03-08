@@ -24,7 +24,7 @@ XITC503::getRaw(shared_ptr<XChannel> &channel)
 {
   ASSERT(interface()->isLocked());
   interface()->send("X");
-  return read(channel->getName().toInt());
+  return read(QString(channel->getName()).toInt());
 }
 double
 XITC503::getHeater()
@@ -149,7 +149,7 @@ XAVS47IB::onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &) {
   if(!ch) return;
   { XScopedLock<XInterface> lock(*interface());
       interface()->send("ARN 0;INP 0;ARN 0;RAN 7");
-      interface()->sendf("DIS 0;MUX %u;ARN 0", currentChannel()->to_str().toInt());
+      interface()->sendf("DIS 0;MUX %u;ARN 0", QString(currentChannel()->to_str()).toInt());
       if(*ch->excitation() >= 1)
         interface()->sendf("EXC %u", (unsigned int)(*ch->excitation()));
       msecsleep(1500);
@@ -310,7 +310,7 @@ XCryocon::afterStart()
   interface()->query("HEATER:RANGE?");
   powerRange()->str(QString(&interface()->buffer()[0]).stripWhiteSpace());
   interface()->query("HEATER:PMAN?");
-  manualPower()->str(&interface()->buffer()[0]);
+  manualPower()->str(std::string(&interface()->buffer()[0]));
   interface()->query("HEATER:TYPE?");
   QString s(&interface()->buffer()[0]);
   heaterMode()->str(s.stripWhiteSpace());
@@ -324,11 +324,11 @@ XCryocon::afterStart()
   interface()->query("INPUT B:VBIAS?");
   ch1->excitation()->str(QString(&interface()->buffer()[0]).stripWhiteSpace());
   interface()->query("HEATER:PGAIN?");
-  prop()->str(&interface()->buffer()[0]);
+  prop()->str(std::string(&interface()->buffer()[0]));
   interface()->query("HEATER:IGAIN?");
-  interval()->str(&interface()->buffer()[0]);
+  interval()->str(std::string(&interface()->buffer()[0]));
   interface()->query("HEATER:DGAIN?");
-  deriv()->str(&interface()->buffer()[0]);
+  deriv()->str(std::string(&interface()->buffer()[0]));
 }
 void
 XCryoconM62::afterStart()
@@ -424,7 +424,7 @@ XCryocon::getChannel()
   interface()->query("HEATER:SOURCE?");
   char s[3];
   if(interface()->scanf("CH%s", s) != 1) return;
-  currentChannel()->str(s);
+  currentChannel()->str(std::string(s));
 }
 void
 XCryocon::setHeaterMode(void)
@@ -458,7 +458,7 @@ XCryocon::stopControl()
 double
 XCryocon::getInput(shared_ptr<XChannel> &channel)
 {
-  interface()->query(("INPUT? " + channel->getName()).utf8());
+  interface()->query("INPUT? " + channel->getName());
   double x;
   if(interface()->scanf("%lf", &x) != 1) x = 0.0;
   return x;
@@ -492,9 +492,9 @@ XLakeShore340::getRaw(shared_ptr<XChannel> &channel)
 {
   shared_ptr<XThermometer> thermo = *(shared_ptr<XChannel>(*currentChannel()))->thermometer();
   if(thermo)
-     interface()->query(("SRDG? " + channel->getName()).utf8());
+     interface()->query("SRDG? " + channel->getName());
   else
-     interface()->query(("KRDG? " + channel->getName()).utf8());
+     interface()->query("KRDG? " + channel->getName());
   return interface()->toDouble();
 }
 double
@@ -525,12 +525,12 @@ XLakeShore340::onTargetTempChanged(const shared_ptr<XValueNodeBase> &)
   shared_ptr<XThermometer> thermo = *(shared_ptr<XChannel>(*currentChannel()))->thermometer();
   if(thermo)
     {
-      interface()->sendf("CSET 1,%s,3,1", (const char*)currentChannel()->to_str().latin1());
+      interface()->sendf("CSET 1,%s,3,1", (const char*)currentChannel()->to_str().c_str());
       temp = thermo->getRawValue(temp);
     }
   else
     {
-      interface()->sendf("CSET 1,%s,1,1", (const char*)currentChannel()->to_str().latin1());
+      interface()->sendf("CSET 1,%s,1,1", (const char*)currentChannel()->to_str().c_str());
     }
   interface()->sendf("SETP 1,%f", temp);
 }
@@ -563,7 +563,7 @@ XLakeShore340::onPowerRangeChanged(const shared_ptr<XValueNodeBase> &)
 void
 XLakeShore340::onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &)
 {
-  interface()->sendf("CSET 1,%s", (const char *)currentChannel()->to_str().utf8());
+  interface()->sendf("CSET 1,%s", (const char *)currentChannel()->to_str().c_str());
 }
 void
 XLakeShore340::onExcitationChanged(const shared_ptr<XValueNodeBase> &)
@@ -573,7 +573,7 @@ void
 XLakeShore340::afterStart()
 {
   interface()->query("CSET?");
-  currentChannel()->str(&interface()->buffer()[0]);
+  currentChannel()->str(std::string(&interface()->buffer()[0]));
   interface()->query("CDISP? 1");
   int res, maxcurr;
   if(interface()->scanf("%*d,%d", &res) != 1)
@@ -590,10 +590,10 @@ XLakeShore340::afterStart()
   interface()->query("CMODE? 1");
   switch(interface()->toInt()) {
   case 1:
-    heaterMode()->str("PID");
+    heaterMode()->str(std::string("PID"));
     break;
   case 3:
-    heaterMode()->str("Man");
+    heaterMode()->str(std::string("Man"));
     break;
   default:
     break;
@@ -601,7 +601,7 @@ XLakeShore340::afterStart()
   interface()->query("RANGE?");
   int range = interface()->toInt();
   if(range == 0)
-    heaterMode()->str("Off");
+    heaterMode()->str(std::string("Off"));
   else
     powerRange()->value(range - 1);
 

@@ -14,20 +14,20 @@ _xpointeritemnode_throwConversionError() {
 
 XComboNode::XComboNode(const char *name, bool runtime)
    : XItemNodeBase(name, runtime),
-    m_strings(new std::deque<QString>()),
+    m_strings(new std::deque<std::string>()),
     m_var(-1) {
 }
 
 void
-XComboNode::_str(const QString &var) throw (XKameError &)
+XComboNode::_str(const std::string &var) throw (XKameError &)
 {
-  if(var.isEmpty()) {
+  if(var.empty()) {
         value(-1);
         return;
   }
-  atomic_shared_ptr<const std::deque<QString> > strings(m_strings);
+  atomic_shared_ptr<const std::deque<std::string> > strings(m_strings);
   unsigned int i = 0;
-  for(std::deque<QString>::const_iterator it = strings->begin(); it != strings->end(); it++) {
+  for(std::deque<std::string>::const_iterator it = strings->begin(); it != strings->end(); it++) {
         if(*it == var) {
             value(i);
             return;
@@ -38,7 +38,7 @@ XComboNode::_str(const QString &var) throw (XKameError &)
 }
 
 void
-XComboNode::value(const QString &s)
+XComboNode::value(const std::string &s)
 {
     try {
         str(s);
@@ -51,24 +51,24 @@ XComboNode::value(const QString &s)
 XComboNode::operator int() const {
     return m_var;
 }
-QString
+std::string
 XComboNode::to_str() const
 {
     int i = m_var;
-    atomic_shared_ptr<const std::deque<QString> > strings(m_strings);
+    atomic_shared_ptr<const std::deque<std::string> > strings(m_strings);
     if((i >= 0) && (i < (int)strings->size()))
-        return QString(QDeepCopy<QString>(strings->at(i)));
+        return strings->at(i);
     else
-        return QString();
+        return std::string();
 }
 
 void
-XComboNode::add(const QString &str)
+XComboNode::add(const std::string &str)
 {
     for(;;) {
-      atomic_shared_ptr<std::deque<QString> > old_strings(m_strings);
-      atomic_shared_ptr<std::deque<QString> > new_strings(new std::deque<QString>(*old_strings));
-      new_strings->push_back(QString(QDeepCopy<QString>(str)));
+      atomic_shared_ptr<std::deque<std::string> > old_strings(m_strings);
+      atomic_shared_ptr<std::deque<std::string> > new_strings(new std::deque<std::string>(*old_strings));
+      new_strings->push_back(str);
       if(new_strings.compareAndSwap(old_strings, m_strings))
         break;
     }
@@ -78,8 +78,7 @@ XComboNode::add(const QString &str)
 void
 XComboNode::clear()
 {
-    atomic_shared_ptr<std::deque<QString> > new_strings(new std::deque<QString>());
-    m_strings = new_strings;
+    m_strings.reset(new std::deque<std::string>());
     onListChanged().talk(dynamic_pointer_cast<XItemNodeBase>(shared_from_this()));
 }
 
@@ -87,11 +86,12 @@ shared_ptr<const std::deque<XItemNodeBase::Item> >
 XComboNode::itemStrings() const
 {
     shared_ptr<std::deque<XItemNodeBase::Item> > items(new std::deque<XItemNodeBase::Item>());
-    atomic_shared_ptr<const std::deque<QString> > strings(m_strings);
-    for(std::deque<QString>::const_iterator it = strings->begin(); it != strings->end(); it++) {
+    atomic_shared_ptr<const std::deque<std::string> > strings(m_strings);
+    for(std::deque<std::string>::const_iterator it = strings->begin(); it != strings->end(); it++) {
     XItemNodeBase::Item item;
-        item.name = QDeepCopy<QString>(*it);
-        item.label = QDeepCopy<QString>(*it);
+        item.name = *it;
+        item.label = *it;
+        items->push_back(item);
     }
     return items;
 }

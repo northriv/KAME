@@ -78,49 +78,42 @@ void
 XTDS::onTrigPosChanged(const shared_ptr<XValueNodeBase> &)
 {
     if(*trigPos() >= 0)
-    	   interface()->send(QString().sprintf("HOR:DELAY:STATE OFF;TIME %.2g",
-                 (double)*trigPos()));
+    	   interface()->sendf("HOR:DELAY:STATE OFF;TIME %.2g", (double)*trigPos());
     else
-	   interface()->send(QString().sprintf("HOR:DELAY:STATE ON;TIME %.2g", 
-                -(*trigPos() - 50.0)/100.0* *timeWidth()));    
+	   interface()->sendf("HOR:DELAY:STATE ON;TIME %.2g", -(*trigPos() - 50.0)/100.0* *timeWidth());    
 }
 void
 XTDS::onTimeWidthChanged(const shared_ptr<XValueNodeBase> &)
 {
-	interface()->send(QString().sprintf("HOR:MAIN:SCALE %.1g", 
-            (double)*timeWidth()/10.0));
+	interface()->sendf("HOR:MAIN:SCALE %.1g", (double)*timeWidth()/10.0);
 }
 void
 XTDS::onVFullScale1Changed(const shared_ptr<XValueNodeBase> &)
 {
-    QString ch = trace1()->to_str();
-	if(!ch) return;
-	interface()->send(ch + QString().sprintf(":SCALE %.1g", 
-            (double)*vFullScale1()/10.0));
+    std::string ch = trace1()->to_str();
+	if(ch.empty()) return;
+	interface()->sendf("%s:SCALE %.1g", ch.c_str(), (double)*vFullScale1()/10.0);
 }
 void
 XTDS::onVFullScale2Changed(const shared_ptr<XValueNodeBase> &)
 {
-    QString ch = trace2()->to_str();
-    if(!ch) return;
-    interface()->send(ch + QString().sprintf(":SCALE %.1g", 
-            (double)*vFullScale2()/10.0));
+    std::string ch = trace2()->to_str();
+    if(ch.empty()) return;
+    interface()->sendf("%s:SCALE %.1g", ch.c_str(), (double)*vFullScale2()/10.0);
 }
 void
 XTDS::onVOffset1Changed(const shared_ptr<XValueNodeBase> &)
 {
-    QString ch = trace1()->to_str();
-    if(!ch) return;
-	interface()->send(ch + QString().sprintf(":OFFSET %.8g",
-            (double)*vOffset1()));
+    std::string ch = trace1()->to_str();
+    if(ch.empty()) return;
+    interface()->sendf("%s:OFFSET %.8g", ch.c_str(), (double)*vOffset1());
 }
 void
 XTDS::onVOffset2Changed(const shared_ptr<XValueNodeBase> &)
 {
-    QString ch = trace2()->to_str();
-    if(!ch) return;
-    interface()->send(ch + QString().sprintf(":OFFSET %.8g",
-            (double)*vOffset2()));
+    std::string ch = trace2()->to_str();
+    if(ch.empty()) return;
+    interface()->sendf("%s:OFFSET %.8g", ch.c_str(), (double)*vOffset2());
 }
 void
 XTDS::onRecordLengthChanged(const shared_ptr<XValueNodeBase> &)

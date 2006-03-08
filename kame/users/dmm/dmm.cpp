@@ -99,7 +99,7 @@ XDMM::execute(const atomic<bool> &terminated)
   while(!terminated)
     {
       msecsleep(*waitInms());
-      if(function()->to_str().isEmpty()) continue;
+      if(function()->to_str().empty()) continue;
       
       double x;
       XTime time_awared = XTime::now();
