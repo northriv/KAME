@@ -42,13 +42,15 @@ XNMRSpectrum::XNMRSpectrum(const char *name, bool runtime,
   connect(magnet());
   connect(pulse());
 
-  m_form->setCaption(i18n("NMR Spectrum - ") + getName() );
+  m_form->setCaption(i18n("NMR Spectrum - ") + getLabel() );
 
   {
       const char *labels[] = {"Field [T]", "Re [V]", "Im [V]", "Counts"};
       m_spectrum->setColCount(4, labels);
       m_spectrum->selectAxes(0, 1, 2, 3);
+      m_spectrum->plot1()->label()->value(i18n("real part"));
       m_spectrum->plot1()->drawPoints()->value(false);
+      m_spectrum->plot2()->label()->value(i18n("imag. part"));
       m_spectrum->plot2()->drawPoints()->value(false);
       m_spectrum->clear();
   }

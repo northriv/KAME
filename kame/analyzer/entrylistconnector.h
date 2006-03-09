@@ -31,7 +31,7 @@ class XEntryListConnector : public XListQConnector
   struct tcons {
       struct tlisttext {
         QLabel *label;
-        shared_ptr<QString> str;
+        shared_ptr<std::string> str;
       };
     xqcon_ptr constore, condelta;
     QLabel *label;

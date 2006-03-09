@@ -169,7 +169,7 @@ XH8Pulser::changeOutput(bool output)
           }
           catch (XKameError &e) {
               if(retry > 0) throw e;
-              e.print(getName() + ": " + i18n("try to continue") + ", ");
+              e.print(getLabel() + ": " + i18n("try to continue") + ", ");
               continue;
           }
           break;

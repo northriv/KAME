@@ -130,7 +130,7 @@ XRawStreamRecordReader::parseOne(void *fd, XMutex &mutex)
         throw XNoDriverError(name, __FILE__, __LINE__);
     }
     try {
-        driver->startWritingRaw();
+        driver->clearRaw();
         driver->rawData().resize(size);
         if(gzread(fd, &driver->rawData()[0], size) == -1)
             throw XIOError(__FILE__, __LINE__);

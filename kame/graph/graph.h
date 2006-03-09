@@ -149,6 +149,7 @@ class XPlot : public XNode
  protected:
   XPlot(const char *name, bool runtime, const shared_ptr<XGraph> &graph);
  public:  
+  virtual std::string getLabel() const {return *label();}
 
   virtual int clearAllPoints(void) = 0;
 
@@ -161,6 +162,8 @@ class XPlot : public XNode
   void graphToScreen(const XGraph::GPoint &pt, XGraph::ScrPoint *scr);
   void graphToVal(const XGraph::GPoint &pt, XGraph::ValPoint *val);
 
+  const shared_ptr<XStringNode> &label() const {return m_label;}
+  
   const shared_ptr<XUIntNode> &maxCount() const {return m_maxCount;}
   const shared_ptr<XBoolNode> &displayMajorGrid() const {return m_displayMajorGrid;}
   const shared_ptr<XBoolNode> &displayMinorGrid() const {return m_displayMinorGrid;}
@@ -217,6 +220,8 @@ class XPlot : public XNode
   struct tCanvasPoint {
   	XGraph::GPoint graph; XGraph::ScrPoint scr; bool insidecube; unsigned int color;
   };
+  
+  shared_ptr<XStringNode> m_label;
   
   shared_ptr<XUIntNode> m_maxCount;
   shared_ptr<XBoolNode> m_displayMajorGrid;

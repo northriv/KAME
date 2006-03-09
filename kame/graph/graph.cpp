@@ -166,6 +166,7 @@ XGraph::zoomAxes(float resolution,
 XPlot::XPlot(const char *name, bool runtime, const shared_ptr<XGraph> &graph)
   : XNode(name, runtime),
   m_graph(graph),
+  m_label(create<XStringNode>("Label", true)),
   m_maxCount(create<XUIntNode>("MaxCount", true)),
   m_displayMajorGrid(create<XBoolNode>("DisplayMajorGrid", true)),
   m_displayMinorGrid(create<XBoolNode>("DisplayMinorGrid", true)),

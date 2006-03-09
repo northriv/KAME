@@ -135,9 +135,9 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
   windowFunc()->add(WINDOW_FUNC_KAISER_3);
   windowFunc()->value(WINDOW_FUNC_RECT);
 
-  m_form->setCaption(i18n("NMR Pulse - ") + getName() );
+  m_form->setCaption(i18n("NMR Pulse - ") + getLabel() );
 
-  m_fftForm->setCaption(i18n("NMR-FFT - ") + getName() );
+  m_fftForm->setCaption(i18n("NMR-FFT - ") + getLabel() );
 
   m_conAvgClear = xqcon_create<XQButtonConnector>(m_avgClear, m_form->m_btnAvgClear);
   m_conFFTShow = xqcon_create<XQButtonConnector>(m_fftShow, m_form->m_btnFFT);
@@ -164,7 +164,9 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
       const char *labels[] = {"Time [ms]", "Cos [V]", "Sin [V]"};
       waveGraph()->setColCount(3, labels);
       waveGraph()->selectAxes(0, 1, 2);
+      waveGraph()->plot1()->label()->value(i18n("real part"));
       waveGraph()->plot1()->drawPoints()->value(false);
+      waveGraph()->plot2()->label()->value(i18n("imag. part"));
       waveGraph()->plot2()->drawPoints()->value(false);
       waveGraph()->clear();
   }
@@ -172,9 +174,11 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
       const char *labels[] = {"Freq. [kHz]", "Re. [V]", "Im. [V]", "Abs. [V]", "Phase [deg]"};
       ftWaveGraph()->setColCount(5, labels);
       ftWaveGraph()->selectAxes(0, 3, 4);
+      ftWaveGraph()->plot1()->label()->value(i18n("abs."));
       ftWaveGraph()->plot1()->drawBars()->value(true);
       ftWaveGraph()->plot1()->drawLines()->value(false);
       ftWaveGraph()->plot1()->drawPoints()->value(false);
+      ftWaveGraph()->plot2()->label()->value(i18n("phase"));
       ftWaveGraph()->plot2()->drawPoints()->value(false); 
       ftWaveGraph()->clear();
   }

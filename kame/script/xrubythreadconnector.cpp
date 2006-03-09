@@ -47,7 +47,7 @@ XRubyThreadConnector::XRubyThreadConnector(
         false, shared_from_this(), &XRubyThreadConnector::onStatusChanged);
         
     form->setIcon(*g_pIconScript);
-    form->setCaption(rbthread->getName());
+    form->setCaption(rbthread->getLabel());
     
     onStatusChanged(rbthread->status());    
 }

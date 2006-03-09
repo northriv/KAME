@@ -98,7 +98,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
              KApplication::kApplication()->iconLoader()->loadIconSet("reload", 
             KIcon::Toolbar, KIcon::SizeSmall, true ) );  
     
-    m_form->setCaption(i18n("NMR Relax. Meas. - ") + getName() );
+    m_form->setCaption(i18n("NMR Relax. Meas. - ") + getLabel() );
   
     scalarentries->insert(t1inv());
     scalarentries->insert(t1invErr());
@@ -115,11 +115,13 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
       shared_ptr<XAxis> axisx = *m_wave->plot1()->axisX();
       shared_ptr<XAxis> axisy = *m_wave->plot1()->axisY();
       axisx->logScale()->value(true);
+      m_wave->plot1()->label()->value(i18n("Relaxation"));
       m_wave->plot1()->drawLines()->value(false);
       shared_ptr<XFuncPlot> plot2 = create<XRelaxFuncPlot>(
         "FittedCurve", true, m_wave->graph(),
          relaxFunc(), dynamic_pointer_cast<XNMRT1>(shared_from_this()));
       m_wave->graph()->plots()->insert(plot2);
+      plot2->label()->value(i18n("Fitted Curve"));
       plot2->axisX()->value(axisx);
       plot2->axisY()->value(axisy);
       plot2->drawPoints()->value(false);

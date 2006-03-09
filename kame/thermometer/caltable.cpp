@@ -42,7 +42,9 @@ XConCalTable::XConCalTable
       const char *labels[] = {"Temp. [K]", "Value", "T(v(T))-T [K]"};
       m_wave->setColCount(3, labels);
       m_wave->selectAxes(0, 1, 2);
+      m_wave->plot1()->label()->value(i18n("Curve"));
       m_wave->plot1()->drawPoints()->value(false);
+      m_wave->plot2()->label()->value(i18n("Error"));
       m_wave->plot2()->drawPoints()->value(false);
       shared_ptr<XAxis> axisx = *m_wave->plot1()->axisX();
       axisx->logScale()->value(true);

@@ -174,11 +174,11 @@ class XPulser : public XPrimaryDriver
 
   virtual void afterStart() = 0;
   //! push parameters.
-  //! use this after startWritingRaw()
+  //! use this after clearRaw()
   void writeRaw();
   
   typedef double (*tpulsefunc)(double x);
-  tpulsefunc pulseFunc(const QString &str);
+  tpulsefunc pulseFunc(const std::string &str);
   static double pulseFuncRect(double x);
   static double pulseFuncHanning(double x);
   static double pulseFuncHamming(double x);

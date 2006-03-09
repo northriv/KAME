@@ -1,6 +1,6 @@
 #include "xnodeconnector.h"
 #include <deque>
-
+#include <qdeepcopy.h>
 #include <kapp.h>
 #include <qbutton.h>
 #include <qlineedit.h>
@@ -23,7 +23,6 @@
 #include <qmainwindow.h>
 #include <kfiledialog.h>
 #include <klocale.h>
-#include <qdeepcopy.h>
 
 #include "icons/icon.h"
 
@@ -616,7 +615,7 @@ void
 XStatusPrinter::printMessage(const QString &str, bool popup) {
 tstatus status;
 	status.ms = 3000;
-	status.str = str;
+	status.str = QDeepCopy<QString>(str);
 	status.popup = popup;
 	status.type = tstatus::Normal;
 	m_tlkTalker.talk(status);
@@ -625,7 +624,7 @@ void
 XStatusPrinter::printWarning(const QString &str, bool popup) {
 tstatus status;
 	status.ms = 3000;
-	status.str = i18n("Warning: ") + str;
+	status.str = QDeepCopy<QString>(i18n("Warning: ") + str);
 	status.popup = popup;
 	status.type = tstatus::Warning;
     m_tlkTalker.talk(status);
@@ -634,7 +633,7 @@ void
 XStatusPrinter::printError(const QString &str, bool popup) {
 tstatus status;
 	status.ms = 5000;
-	status.str = i18n("Error: ") + str;
+	status.str = QDeepCopy<QString>(i18n("Error: ") + str);
 	status.popup = popup;
 	status.type = tstatus::Error;
     m_tlkTalker.talk(status);
@@ -650,9 +649,10 @@ tstatus status;
 void
 XStatusPrinter::print(const tstatus &status) {
 bool popup = status.popup;
+QString str = QDeepCopy<QString>(status.str);
 	if(status.ms) {
 		m_pBar->show();
-		m_pBar->message(status.str, status.ms);
+		m_pBar->message(str, status.ms);
 	}
 	else {
 		m_pBar->hide();
@@ -673,7 +673,7 @@ bool popup = status.popup;
 			icon = g_pIconError;
 			break;
 		}
-		m_pPopup->setView(m_pWindow->caption(), status.str, *icon );
+		m_pPopup->setView(m_pWindow->caption(), str, *icon );
 		m_pPopup->show();
 	}
 	else {

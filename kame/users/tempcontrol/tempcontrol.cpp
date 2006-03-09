@@ -78,7 +78,7 @@ XTempControl::XTempControl(const char *name, bool runtime,
                   false, shared_from_this(), &XTempControl::onSetupChannelChanged);
 
   m_form->statusBar()->hide();
-  m_form->setCaption(i18n("TempControl - ") + getName() );
+  m_form->setCaption(i18n("TempControl - ") + getLabel() );
 }
 
 void
@@ -216,7 +216,7 @@ XTempControl::execute(const atomic<bool> &terminated)
     afterStart(); 
   }
   catch (XKameError &e) {
-      e.print(getName() + "; ");
+      e.print(getLabel() + "; ");
       interface()->close();
       return NULL;
   }
@@ -252,7 +252,7 @@ XTempControl::execute(const atomic<bool> &terminated)
       msecsleep(10);
 
       double raw, src_raw = 0, src_temp = 0, temp;
-      startWritingRaw();
+      clearRaw();
       XTime time_awared = XTime::now();
       // try/catch exception of communication errors
       try {
@@ -304,7 +304,7 @@ XTempControl::execute(const atomic<bool> &terminated)
       }
       catch (XKameError &e) {
           finishWritingRaw(XTime(), XTime(), false);
-          e.print(getName() + "; ");
+          e.print(getLabel() + "; ");
           continue;
       }
       finishWritingRaw(time_awared, XTime::now(), true);
@@ -334,7 +334,7 @@ XTempControl::execute(const atomic<bool> &terminated)
     beforeStop(); 
   }
   catch (XKameError &e) {
-      e.print(getName() + "; ");
+      e.print(getLabel() + "; ");
   }
   interface()->close();
   return NULL;

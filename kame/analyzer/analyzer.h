@@ -38,7 +38,7 @@ class XScalarEntry : public XNode
 
   shared_ptr<XDriver> driver() const {return m_driver.lock();}
   
-  QString getEntryTitle() const;
+  virtual std::string getLabel() const;
   
   virtual void value(double val);
  protected:

@@ -1,6 +1,5 @@
 #include "xitemnode.h"
 #include <klocale.h>
-#include <qdeepcopy.h>
 
 XItemNodeBase::XItemNodeBase(const char *name, bool runtime) : 
     XValueNodeBase(name, runtime)

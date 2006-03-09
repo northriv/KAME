@@ -29,7 +29,7 @@ class XDriverListConnector : public XListQConnector
   struct tcons {
     struct tlisttext {
         QLabel *label;
-        shared_ptr<QString> str;
+        shared_ptr<std::string> str;
     };
     QLabel *label;
     shared_ptr<XDriver> driver;

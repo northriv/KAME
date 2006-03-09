@@ -92,7 +92,7 @@ class XDSO : public XPrimaryDriver
   virtual int acqCount(bool *seq_busy) = 0;
 
   //! load waveform and settings from instrument
-  virtual void getWave(std::deque<QString> &channels) = 0;
+  virtual void getWave(std::deque<std::string> &channels) = 0;
   //! convert raw to record
   virtual void convertRaw() throw (XRecordError&) = 0;
   

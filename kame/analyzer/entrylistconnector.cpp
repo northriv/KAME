@@ -1,7 +1,6 @@
 #include "entrylistconnector.h"
 #include "analyzer.h"
 #include "driver.h"
-#include <qdeepcopy.h>
 #include <qtable.h>
 #include <qlabel.h>
 #include <qpushbutton.h>
@@ -46,7 +45,7 @@ XEntryListConnector::onRecord(const shared_ptr<XDriver> &driver)
 	   {
         	   tcons::tlisttext text;
             text.label = (*it)->label;
-            text.str.reset(new QString(QDeepCopy<QString>((*it)->entry->value()->to_str())));
+            text.str.reset(new std::string((*it)->entry->value()->to_str()));
             (*it)->tlkOnRecordRedirected->talk(text);
     	   }
     }
@@ -54,7 +53,7 @@ XEntryListConnector::onRecord(const shared_ptr<XDriver> &driver)
 void
 XEntryListConnector::tcons::onRecordRedirected(const tlisttext &text)
 {
-    text.label->setText(QDeepCopy<QString>(*text.str));
+    text.label->setText(*text.str);
 }
 
 void
@@ -102,7 +101,7 @@ XEntryListConnector::onCatch(const shared_ptr<XNode> &node)
   shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(node);
   int i = m_pItem->numRows();
   m_pItem->insertRows(i);
-  m_pItem->setText(i, 0, entry->getEntryTitle());
+  m_pItem->setText(i, 0, entry->getLabel());
 
   shared_ptr<XDriver> driver = entry->driver();
   if(m_lsnOnRecord)

@@ -35,7 +35,7 @@ class XPrimaryDriver : public XDriver
   //! \sa analyze()
   virtual void analyzeRaw() throw (XRecordError&) = 0;  
   
-  void startWritingRaw();
+  void clearRaw() {rawData().clear();}
   //! will call analyzeRaw() if dependency.
   //! unless dependency is broken.
   //! \arg time_awared time when a visible phenomenon started
@@ -44,9 +44,8 @@ class XPrimaryDriver : public XDriver
   //! \sa timeAwared()
   //! \sa time()
   void finishWritingRaw(const XTime &time_awared, const XTime &time_recorded, bool success = true);
-  //! raw data.
-  //! use startWritingRaw before writing.
-  std::vector<char> &rawData() {return m_rawData;}
+  //! raw data. Thread-Local storaged.
+  std::vector<char> &rawData() {return *s_tlRawData;}
 
   //! These are FIFO (fast in fast out)
   //! push raw data to raw record
@@ -65,17 +64,11 @@ class XPrimaryDriver : public XDriver
   friend class XRawStreamRecorder;
 
   shared_ptr<XInterface> m_interface;
-  
-  void readLockRaw();
-  void readUnlockRaw();
+
   //! raw data
-  std::vector<char> m_rawData;
-  typedef std::vector<char>::iterator m_rawData_it;
-  m_rawData_it m_pop_it;
-  //! time of raw data
-  XTime m_rawTime;
-  //! mutex for rawData
-  XRecursiveRWLock m_rawLock;
+  static XThreadLocal<std::vector<char> > s_tlRawData;
+  typedef std::vector<char>::iterator RawData_it;
+  static XThreadLocal<RawData_it> s_tl_pop_it;
   
   static void _push_char(char, std::vector<char> &buf);
   static void _push_short(short, std::vector<char> &buf);

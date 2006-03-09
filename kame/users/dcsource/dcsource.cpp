@@ -19,7 +19,7 @@ XDCSource::XDCSource(const char *name, bool runtime,
     m_form(new FrmDCSource(g_pFrmMain))
 {
   m_form->statusBar()->hide();
-  m_form->setCaption(i18n("DC Source - ") + getName() );
+  m_form->setCaption(i18n("DC Source - ") + getLabel() );
 
   m_output->setUIEnabled(false);
   m_function->setUIEnabled(false);
@@ -85,7 +85,7 @@ XDCSource::onOutputChanged(const shared_ptr<XValueNodeBase> &)
         changeOutput(*output());
     }
     catch (XKameError& e) {
-        e.print(getName() + i18n(": Error while changing output, "));
+        e.print(getLabel() + i18n(": Error while changing output, "));
         return;
     }
 }
@@ -96,7 +96,7 @@ XDCSource::onFunctionChanged(const shared_ptr<XValueNodeBase> &)
         changeFunction(*function());
     }
     catch (XKameError& e) {
-        e.print(getName() + i18n(": Error while changing function, "));
+        e.print(getLabel() + i18n(": Error while changing function, "));
         return;
     }
 }
@@ -107,7 +107,7 @@ XDCSource::onValueChanged(const shared_ptr<XValueNodeBase> &)
         changeValue(*value());
     }
     catch (XKameError& e) {
-        e.print(getName() + i18n(": Error while changing value, "));
+        e.print(getLabel() + i18n(": Error while changing value, "));
         return;
     }
 }

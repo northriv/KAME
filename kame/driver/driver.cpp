@@ -35,7 +35,7 @@ XDriver::startMeas() {
         start();
     }
     catch (XKameError &e) {
-        e.print(getName() + "; ");
+        e.print(getLabel() + "; ");
     }
 }
 void
@@ -44,7 +44,7 @@ XDriver::stopMeas() {
         stop();
     }
     catch (XKameError &e) {
-        e.print(getName() + "; ");
+        e.print(getLabel() + "; ");
     }
 }
 

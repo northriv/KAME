@@ -61,7 +61,8 @@ XQPulserDriverConnector::XQPulserDriverConnector(
     for(int i=0; i < 16; i++)
     {
       shared_ptr<XXYPlot> plot = m_graph->plots()->create<XXYPlot>(
-            QString().sprintf("Port%d", i).utf8(), true, m_graph);
+            QString().sprintf("Port%d", i), true, m_graph);
+      plot->label()->value(QString().sprintf(i18n("Port%d"), i));
       plot->axisX()->value(axisx);
       plot->axisY()->value(axisy);
       m_plots.push_back(plot);
@@ -72,6 +73,7 @@ XQPulserDriverConnector::XQPulserDriverConnector(
       plot->maxCount()->setUIEnabled(false);
     }
     m_barPlot = m_graph->plots()->create<XXYPlot>("Bars", true, m_graph);
+    m_barPlot->label()->value(i18n("Bars"));
     m_barPlot->axisX()->value(axisx);
     m_barPlot->axisY()->value(axisy);
     m_barPlot->drawBars()->value(true);

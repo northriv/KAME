@@ -37,10 +37,10 @@ XScalarEntry::storeValue()
     m_bTriggered = false;
 }
 
-QString
-XScalarEntry::getEntryTitle() const
+std::string
+XScalarEntry::getLabel() const
 {
-  return driver()->getName() + "-" + getName();
+  return driver()->getLabel() + "-" + XNode::getLabel();
 }
 
 void
@@ -62,7 +62,8 @@ XValChart::XValChart(const char *name, bool runtime, const shared_ptr<XScalarEnt
     m_graphForm->statusBar()->hide();
     m_graphForm->m_graphwidget->setGraph(m_graph);
     
-    m_chart= m_graph->plots()->create<XXYPlot>(entry->getEntryTitle().utf8(), true, m_graph);
+    m_chart= m_graph->plots()->create<XXYPlot>(entry->getName().c_str(), true, m_graph);
+    m_chart->label()->value(entry->getLabel());
     atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
     shared_ptr<XAxis> axisx = dynamic_pointer_cast<XAxis>(axes_list->at(0));
     shared_ptr<XAxis> axisy = dynamic_pointer_cast<XAxis>(axes_list->at(1));
@@ -74,13 +75,13 @@ XValChart::XValChart(const char *name, bool runtime, const shared_ptr<XScalarEnt
     axisy->length()->value(0.90 - *axisy->y());
     axisx->label()->value("Time");
     axisx->ticLabelFormat()->value("TIME:%T");
-    axisy->label()->value(entry->getEntryTitle());
+    axisy->label()->value(entry->getLabel());
     axisy->ticLabelFormat()->value(m_entry->value()->format());
     axisx->minValue()->setUIEnabled(false);
     axisx->maxValue()->setUIEnabled(false);
     axisx->autoScale()->setUIEnabled(false);
     axisx->logScale()->setUIEnabled(false);
-    m_graph->label()->value(entry->getEntryTitle());
+    m_graph->label()->value(entry->getLabel());
 
     m_lsnOnRecord = entry->driver()->onRecord().connectWeak(
         false, shared_from_this(), &XValChart::onRecord);
@@ -97,7 +98,7 @@ XValChart::onRecord(const shared_ptr<XDriver> &driver)
 void
 XValChart::showChart(void)
 {
-  m_graphForm->setCaption(i18n("Chart - ") + getName() );
+  m_graphForm->setCaption(i18n("Chart - ") + getLabel() );
   m_graphForm->show();
 }
 
@@ -163,9 +164,11 @@ XValGraph::onAxisChanged(const shared_ptr<XValueNodeBase> &)
   if(!entryx || !entryy1) return;
   
   m_livePlot = 
-	m_graph->plots()->create<XXYPlot>((m_graph->getName() + " Live").c_str(), false, m_graph);
+	m_graph->plots()->create<XXYPlot>((m_graph->getName() + "-Live").c_str(), false, m_graph);
+  m_livePlot->label()->value(m_graph->getLabel() + " Live");
   m_storePlot = 
-    m_graph->plots()->create<XXYPlot>((m_graph->getName() + " Stored").c_str(), false, m_graph);
+    m_graph->plots()->create<XXYPlot>((m_graph->getName() + "-Stored").c_str(), false, m_graph);
+  m_storePlot->label()->value(m_graph->getLabel() + " Stored");
 
   atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
   shared_ptr<XAxis> axisx = dynamic_pointer_cast<XAxis>(axes_list->at(0));
@@ -187,7 +190,7 @@ XValGraph::onAxisChanged(const shared_ptr<XValueNodeBase> &)
 	m_livePlot->axisZ()->value(axisz);
 	m_storePlot->axisZ()->value(axisz);
 //	axisz->label()->value("Z Axis");
-	axisz->label()->value(entryz->getEntryTitle());
+	axisz->label()->value(entryz->getLabel());
   }
   
   m_storePlot->pointColor()->value(clGreen);
@@ -196,9 +199,9 @@ XValGraph::onAxisChanged(const shared_ptr<XValueNodeBase> &)
   m_storePlot->displayMajorGrid()->value(false);
   m_livePlot->maxCount()->value(4000);
   m_storePlot->maxCount()->value(4000);
-  axisx->label()->value(entryx->getEntryTitle());
-  axisy->label()->value(entryy1->getEntryTitle());
-  m_graph->label()->value(getName());
+  axisx->label()->value(entryx->getLabel());
+  axisy->label()->value(entryy1->getLabel());
+  m_graph->label()->value(getLabel());
 
   m_lsnLiveChanged = entryx->value()->onValueChanged().connectWeak(
     false, shared_from_this(), &XValGraph::onLiveChanged);
@@ -254,7 +257,7 @@ void
 XValGraph::showGraph()
 {
   if(m_graphForm) {
-       m_graphForm->setCaption(i18n("Graph - ") + getName() );
+       m_graphForm->setCaption(i18n("Graph - ") + getLabel() );
        m_graphForm->show();
   }
 }

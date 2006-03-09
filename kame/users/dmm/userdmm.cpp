@@ -7,9 +7,9 @@
 void
 XDMMSCPI::changeFunction()
 {
-    QString func = function()->to_str();
-    if(!func.isEmpty())
-        interface()->sendf(":CONF:%s", func.latin1());
+    std::string func = function()->to_str();
+    if(!func.empty())
+        interface()->sendf(":CONF:%s", func.c_str());
 }
 double
 XDMMSCPI::fetch()
@@ -24,8 +24,8 @@ XDMMSCPI::oneShotRead()
     return interface()->toDouble();
 }
 double
-XDMMSCPI::measure(const QString &func)
+XDMMSCPI::measure(const std::string &func)
 {
-    interface()->queryf(":MEAS:%s?", func.latin1());
+    interface()->queryf(":MEAS:%s?", func.c_str());
     return interface()->toDouble();
 }

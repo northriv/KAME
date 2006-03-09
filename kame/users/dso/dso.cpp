@@ -187,7 +187,7 @@ XDSO::execute(const atomic<bool> &terminated)
       afterStart();
   }
   catch (XKameError &e) {
-      e.print(getName());
+      e.print(getLabel());
       interface()->close();
       return NULL;
   }  
@@ -252,30 +252,30 @@ XDSO::execute(const atomic<bool> &terminated)
           last_count =  count;
       }
       catch (XKameError& e) {
-          e.print(getName());
+          e.print(getLabel());
           continue;
       }
 
-      std::deque<QString> channels;
+      std::deque<std::string> channels;
       channels.push_back(trace1()->to_str());
-      if(channels.front().isEmpty()) {
-            gErrPrint(getName() + " " + i18n("Select traces!."));
+      if(channels.front().empty()) {
+            gErrPrint(getLabel() + " " + i18n("Select traces!."));
             continue;
       }
       channels.push_back(trace2()->to_str());
-      if(channels.back().isEmpty()) {
+      if(channels.back().empty()) {
             channels.pop_back();
       }
 
       shared_ptr<XPulser> pulser(*m_pulser);
       
-      startWritingRaw();
+      clearRaw();
       // try/catch exception of communication errors
       try {
           getWave(channels);
       }
       catch (XKameError &e) {
-          e.print(getName());
+          e.print(getLabel());
           finishWritingRaw(XTime(), XTime(), false);
           continue;
       }
@@ -286,7 +286,7 @@ XDSO::execute(const atomic<bool> &terminated)
           bool control_pulser = *m_foolAvgEnabled;
           if(control_pulser && !pulser) {
             control_pulser = false;
-            gErrPrint(getName() + ": " + i18n("No Pulser!"));
+            gErrPrint(getLabel() + ": " + i18n("No Pulser!"));
           }
           if(control_pulser && !(pulser->time() && (pulser->time() < time_awared)))
             control_pulser = false;
@@ -302,7 +302,7 @@ XDSO::execute(const atomic<bool> &terminated)
           time_awared = XTime::now();
       }
       catch (XKameError &e) {
-          e.print(getName());
+          e.print(getLabel());
           continue;
       }
     }

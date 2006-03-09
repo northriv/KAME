@@ -114,7 +114,7 @@ XGraphListConnector::onCatch(const shared_ptr<XNode> &node)
   shared_ptr<XValGraph> graph = dynamic_pointer_cast<XValGraph>(node);
   int i = m_pItem->numRows();
   m_pItem->insertRows(i);
-  m_pItem->setText(i, 0, graph->getName());
+  m_pItem->setText(i, 0, graph->getLabel());
 
   struct tcons con;
   con.node = node;

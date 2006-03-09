@@ -39,7 +39,7 @@ class XTDS : public XDSO
   virtual int acqCount(bool *seq_busy);
 
   //! load waveform and settings from instrument
-  virtual void getWave(std::deque<QString> &channels);
+  virtual void getWave(std::deque<std::string> &channels);
  private:
 };
 

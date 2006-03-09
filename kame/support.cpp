@@ -1,5 +1,7 @@
 #include <errno.h>
+
 #include <string.h>
+
 #include <klocale.h>
 #include "support.h"
 #include "xtime.h"
@@ -69,14 +71,19 @@ XKameError::print() {
 }
 void
 XKameError::print(const QString &msg, const char *file, int line, int _errno) {
-    char buf[256];
     if(_errno) {
         errno = 0;
+        char buf[256];
+    #ifdef __linux__
+        char *s = strerror_r(_errno, buf, sizeof(buf));
+         _gErrPrint(msg + " " + s, file, line);
+    #else
         strerror_r(_errno, buf, sizeof(buf));
         if(!errno)
-                 _gErrPrint(msg + " " + QString(buf), file, line);
+                 _gErrPrint(msg + " " + buf, file, line);
         else
                  _gErrPrint(msg + " (strerror failed)", file, line);
+     #endif
         errno = 0;
     }
     else {

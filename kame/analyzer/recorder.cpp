@@ -76,8 +76,8 @@ XRawStreamRecorder::onRecord(const shared_ptr<XDriver> &d)
     if(*recording() && m_pGFD) {
         shared_ptr<XPrimaryDriver> driver = dynamic_pointer_cast<XPrimaryDriver>(d);
         if(driver) {
-            driver->readLockRaw();
-            uint32_t size = driver->rawData().size();
+            std::vector<char> &rawdata(*XPrimaryDriver::s_tlRawData);
+            uint32_t size = rawdata.size();
             if(size) {
                 uint32_t headersize =
                     sizeof(uint32_t) //allsize
@@ -101,13 +101,12 @@ XRawStreamRecorder::onRecord(const shared_ptr<XDriver> &d)
                 gzprintf(m_pGFD, "%s", (const char*)driver->getName().c_str());
                 gzputc(m_pGFD, '\0');
                 gzputc(m_pGFD, '\0'); //Reserved
-                gzwrite(m_pGFD, &driver->rawData()[0], size);
+                gzwrite(m_pGFD, &rawdata[0], size);
                 buf.clear();
                 XPrimaryDriver::push((uint32_t)allsize, buf);
                 gzwrite(m_pGFD, &buf[0], buf.size());
                 m_filemutex.unlock();
             }
-            driver->readUnlockRaw();
         }
     } 
 }
@@ -189,14 +188,14 @@ XTextWriter::onRecord(const shared_ptr<XDriver> &driver)
                           if(dep.isConflict()) break;
                     }
                     if(!dep.isConflict()) {
-                        QString buf;
+                        std::string buf;
                         for(std::deque<shared_ptr<XScalarEntry> >::iterator it = locked_entries.begin();
                             it != locked_entries.end(); it++) {
                               if(!*(*it)->store()) continue;
                               (*it)->storeValue();
-                              buf += (*it)->storedValue()->to_str() + " ";
+                              buf.append((*it)->storedValue()->to_str() + " ");
                         }
-                    	    buf += driver->time().getTimeFmtStr("%Y/%m/%d %H:%M:%S");
+                    	    buf.append(driver->time().getTimeFmtStr("%Y/%m/%d %H:%M:%S"));
             	            lastLine()->value(buf);
                     }
             }
@@ -225,18 +224,18 @@ XTextWriter::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
         false, shared_from_this(), &XTextWriter::onLastLineChanged);
     lastLine()->setUIEnabled(true);
 
-    QString buf;
-    buf += "#";
+    std::string buf;
+    buf = "#";
     atomic_shared_ptr<const XNode::NodeList> list(m_entries->children());
     if(list) { 
         for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
           shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(*it);
           if(!*entry->store()) continue;
-          buf += entry->getEntryTitle();
-          buf += " ";
+          buf.append(entry->getLabel());
+          buf.append(" ");
         }
     }
-    buf += "Time";
+    buf.append("Time");
     lastLine()->value(buf);
   }
   else {

@@ -1,7 +1,6 @@
 #include "xnode.h"
 #include <klocale.h>
 #include <typeinfo>
-#include <qdeepcopy.h>
 
 XThreadLocal<std::deque<shared_ptr<XNode> > > XNode::stl_thisCreating;
 

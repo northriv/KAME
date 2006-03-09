@@ -84,7 +84,7 @@ XInterfaceListConnector::onCatch(const shared_ptr<XNode> &node) {
   shared_ptr<XInterface> interface = dynamic_pointer_cast<XInterface>(node);
   int i = m_pItem->numRows();
   m_pItem->insertRows(i);
-  m_pItem->setText(i, 0, interface->driver()->getName());
+  m_pItem->setText(i, 0, interface->driver()->getLabel());
   struct tcons con;
   con.interface = interface;
   con.control = createOrphan<XNode>("Control", true);

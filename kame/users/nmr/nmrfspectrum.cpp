@@ -45,13 +45,15 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
   connect(sg2());
   connect(pulse());
 
-  m_form->setCaption(i18n("NMR Spectrum (Freq. Sweep) - ") + getName() );
+  m_form->setCaption(i18n("NMR Spectrum (Freq. Sweep) - ") + getLabel() );
 
   {
       const char *labels[] = {"Freq [MHz]", "Re [V]", "Im [V]", "Counts"};
       m_spectrum->setColCount(4, labels);
       m_spectrum->selectAxes(0, 1, 2, 3);
+      m_spectrum->plot1()->label()->value(i18n("real part"));
       m_spectrum->plot1()->drawPoints()->value(false);
+      m_spectrum->plot2()->label()->value(i18n("imag. part"));
       m_spectrum->plot2()->drawPoints()->value(false);
       m_spectrum->clear();
   }

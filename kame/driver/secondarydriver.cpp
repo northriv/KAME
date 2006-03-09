@@ -70,7 +70,7 @@ XSecondaryDriver::onConnectedRecorded(const shared_ptr<XDriver> &driver)
                 }
                 catch (XRecordError& e) {
                      time_recorded = XTime(); //record is invalid
-                     e.print(getName() + ": " + i18n("Record Error, because "));
+                     e.print(getLabel() + ": " + i18n("Record Error, because "));
                 }
                 readUnlockAllConnections();
                 finishRecordingNReadLock(time_recorded);

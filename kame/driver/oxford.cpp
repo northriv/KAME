@@ -66,7 +66,7 @@ XOxfordInterface::close()
       XInterface::close();
     }
     catch (XCommError &e) {
-      e.print(driver()->getName() + i18n(": close Oxford port failed, because"));
+      e.print(driver()->getLabel() + i18n(": close Oxford port failed, because"));
       return;
     }
 }

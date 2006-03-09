@@ -2,6 +2,8 @@
 
 #include <errno.h>
 
+#include <string.h>
+
 #include "support.h"
 #include <klocale.h>
 
@@ -68,12 +70,17 @@ XNIGPIBPort::gpibStatus(const QString &msg)
   }
   if((ThreadIberr() == EDVR) || (ThreadIberr() == EFSO)) {
         char buf[256];
+    #ifdef __linux__
+        char *s = strerror_r(ThreadIbcntl(), buf, sizeof(buf));
+        cntl = QString::number(ThreadIbcntl()) + " " + s;
+    #else        
         if(strerror_r(ThreadIbcntl(), buf, sizeof(buf))) {
             cntl = QString::number(ThreadIbcntl());
         }
         else {
-            cntl = QString::number(ThreadIbcntl()) + " " + QString(buf);
+            cntl = QString::number(ThreadIbcntl()) + " " + buf;
         }
+    #endif
         errno = 0;
   }
   else {
@@ -109,7 +116,7 @@ XNIGPIBPort::open() throw (XInterface::XCommError &)
   s_cntOpened++;
   s_lock.unlock();
   
-  int port = m_pInterface->port()->to_str().toInt();
+  int port = QString(m_pInterface->port()->to_str()).toInt();
    
   Addr4882_t addrtbl[2];
   int eos = 0;
@@ -131,7 +138,7 @@ XNIGPIBPort::open() throw (XInterface::XCommError &)
 void
 XNIGPIBPort::gpib_reset() throw (XInterface::XCommError &)
 {
-  int port = m_pInterface->port()->to_str().toInt();
+  int port = QString(m_pInterface->port()->to_str()).toInt();
   dbgPrint(i18n("GPIB: Sending IFC"));
   SendIFC (port);
   msecsleep(100);

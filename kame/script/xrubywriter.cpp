@@ -20,10 +20,10 @@ XRubyWriter::~XRubyWriter()
 void 
 XRubyWriter::write()
 {
-    QString name = m_root->getName();
-    name[0] = name[0].upper();
+    std::string name = m_root->getName();
+    name[0] = toupper(name[0]);
     m_ofs << "x << " 
-        << name.utf8()
+        << name
         << std::endl;
     atomic_shared_ptr<const XNode::NodeList> list = m_root->children();
     write(m_root, list, false, 0);

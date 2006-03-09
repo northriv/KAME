@@ -368,7 +368,7 @@ XSHPulser::changeOutput(bool output)
           }
           catch (XKameError &e) {
               if(retry > 1) throw e;
-              e.print(getName() + ": " + i18n("try to continue") + ", ");
+              e.print(getLabel() + ": " + i18n("try to continue") + ", ");
               continue;
           }
           break;

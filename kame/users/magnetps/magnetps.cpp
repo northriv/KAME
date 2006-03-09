@@ -34,7 +34,7 @@ XMagnetPS::XMagnetPS(const char *name, bool runtime,
   scalarentries->insert(m_field);
   scalarentries->insert(m_current);
   m_form->statusBar()->hide();
-  m_form->setCaption("Magnet Power Supply - " + getName() );
+  m_form->setCaption("Magnet Power Supply - " + getLabel() );
   
   m_conAllowPersistent = xqcon_create<XQToggleButtonConnector>(
                            allowPersistent(), m_form->m_ckbAllowPersistent);
@@ -108,7 +108,7 @@ XMagnetPS::onRateChanged(const shared_ptr<XValueNodeBase> &)
         setRate(*sweepRate());
     }
     catch (XKameError &e) {
-          e.print(getName() + "; ");
+          e.print(getLabel() + "; ");
     }
 }
 
@@ -135,7 +135,7 @@ XMagnetPS::execute(const atomic<bool> &terminated)
     last_pcsh = isPCSHeaterOn();
   }
   catch (XKameError&e) {
-    e.print(getName());
+    e.print(getLabel());
     interface()->close();
     return NULL;
   }
@@ -174,10 +174,10 @@ XMagnetPS::execute(const atomic<bool> &terminated)
           }
       }
       catch (XKameError &e) {
-          e.print(getName() + "; ");
+          e.print(getLabel() + "; ");
           continue;
       }
-      startWritingRaw();
+      clearRaw();
       push((float)magnet_field);
       push((float)output_current);
  
@@ -219,7 +219,7 @@ XMagnetPS::execute(const atomic<bool> &terminated)
                          *allowPersistent() )
                         {
                         //field is not sweeping, and persistent is allowed
-                              m_statusPrinter->printMessage(getName() + " " + 
+                              m_statusPrinter->printMessage(getLabel() + " " + 
                                     i18n("Turning on Perisistent mode."));
                               pcsh_time = XTime::now();
                               toPersistent();
@@ -231,11 +231,11 @@ XMagnetPS::execute(const atomic<bool> &terminated)
                   if(fabs(magnet_field - *targetField()) >= field_resolution) {
                       if(fabs(magnet_field - output_field) < field_resolution) {
                             if(fabs(target_field  - magnet_field) < field_resolution) {
-                                  m_statusPrinter->printMessage(getName() + " " + 
+                                  m_statusPrinter->printMessage(getLabel() + " " + 
                                         i18n("Non-Perisistent mode."));
                                   double h = getPersistentField();
                                   if(fabs(h - output_field) > field_resolution)
-                                        throw XInterface::XInterfaceError(getName() + 
+                                        throw XInterface::XInterfaceError(getLabel() + 
                                             i18n("Huh? Magnet field confusing."), __FILE__, __LINE__); 
                                   pcsh_time = XTime::now();
                                   toNonPersistent();
@@ -266,7 +266,7 @@ XMagnetPS::execute(const atomic<bool> &terminated)
             }
       }
       catch (XKameError &e) {
-        e.print(getName());
+        e.print(getLabel());
       }
    }
  

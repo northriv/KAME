@@ -9,6 +9,7 @@
 #include <kiconloader.h>
 #include <kapplication.h>
 #include <qstatusbar.h>
+#include <klocale.h>
 
 #define OFSMODE std::ios::out | std::ios::app | std::ios::ate
 
@@ -79,9 +80,10 @@ XWaveNGraph::selectAxes(int x, int y1, int y2, int yweight)
       m_axisy2.reset();
         
      // m_graph->setName(getName());
-      m_graph->label()->value(getName());
+      m_graph->label()->value(getLabel());
     
       m_plot1 = m_graph->plots()->create<XXYPlot>("Plot1", true, m_graph);
+      m_plot1->label()->value(i18n("Plot1"));
     
       atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
       shared_ptr<XAxis> axisx = dynamic_pointer_cast<XAxis>(axes_list->at(0));
@@ -96,6 +98,7 @@ XWaveNGraph::selectAxes(int x, int y1, int y2, int yweight)
         {
           m_axisy2 = m_graph->axes()->create<XAxis>("Y2 Axis", true, XAxis::DirAxisY, true, m_graph);
           m_plot2 = m_graph->plots()->create<XXYPlot>("Plot2", true, m_graph);
+          m_plot2->label()->value(i18n("Plot2"));
           m_plot2->axisX()->value(axisx);
           m_plot2->axisY()->value(m_axisy2);
           m_plot2->pointColor()->value(clGreen);

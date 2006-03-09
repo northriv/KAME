@@ -4,7 +4,6 @@
 #include "drivercreate.h"
 #include "drivertool.h"
 #include "measure.h"
-#include <qdeepcopy.h>
 #include <qlineedit.h>
 #include <qpushbutton.h>
 #include <qtable.h>
@@ -64,7 +63,7 @@ XDriverListConnector::onCatch(const shared_ptr<XNode> &node) {
   
   int i = m_pItem->numRows();
   m_pItem->insertRows(i);
-  m_pItem->setText(i, 0, driver->getName());
+  m_pItem->setText(i, 0, driver->getLabel());
   // typename is not set at this moment
   m_pItem->setText(i, 1, driver->getTypename().c_str());
 
@@ -117,7 +116,7 @@ XDriverListConnector::onRecord(const shared_ptr<XDriver> &driver)
         {
             tcons::tlisttext text;
             text.label = (*it)->label;
-            text.str.reset(new QString(QDeepCopy<QString>((*it)->driver->time().getTimeStr())));
+            text.str.reset(new std::string((*it)->driver->time().getTimeStr()));
             (*it)->tlkOnRecordRedirected->talk(text);
         }
     }
@@ -125,7 +124,7 @@ XDriverListConnector::onRecord(const shared_ptr<XDriver> &driver)
 void
 XDriverListConnector::tcons::onRecordRedirected(const tlisttext &text)
 {
-    text.label->setText(QDeepCopy<QString>(*text.str));
+    text.label->setText(*text.str);
 }
 void
 XDriverListConnector::onCreateTouched(const shared_ptr<XNode> &)

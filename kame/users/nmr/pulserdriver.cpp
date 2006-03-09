@@ -90,7 +90,7 @@ double XPulser::pulseFuncKaiser3(double x) {
 	return pulseFuncKaiser(x, 15.0);
 }
 XPulser::tpulsefunc
-XPulser::pulseFunc(const QString &str) {
+XPulser::pulseFunc(const std::string &str) {
 	if(str == PULSE_FUNC_HANNING) return &pulseFuncHanning;
 	if(str == PULSE_FUNC_HAMMING) return &pulseFuncHamming;
 	if(str == PULSE_FUNC_BLACKMAN) return &pulseFuncBlackman;
@@ -237,8 +237,8 @@ XPulser::XPulser(const char *name, bool runtime,
   p2Func()->value(PULSE_FUNC_KAISER_2);
   combFunc()->value(PULSE_FUNC_FLATTOP);
   
-  m_form->setCaption("Pulser Control - " + getName() );
-  m_formMore->setCaption("Pulser Control More Config. - " + getName() );
+  m_form->setCaption("Pulser Control - " + getLabel() );
+  m_formMore->setCaption("Pulser Control More Config. - " + getLabel() );
   m_form->statusBar()->hide();
 //  m_formMore->m_statusBar()->hide();
   m_conMoreConfigShow = xqcon_create<XQButtonConnector>(
@@ -554,7 +554,7 @@ XPulser::visualize()
           m_phase_xor++;
       }
       catch (XKameError &e) {
-          e.print(getName() + i18n("Pulser Turn-On Failed, because"));
+          e.print(getLabel() + i18n("Pulser Turn-On Failed, because"));
       } 
   }
 }
@@ -581,12 +581,12 @@ XPulser::onPulseChanged(const shared_ptr<XValueNodeBase> &node)
   
   if(!*output())
     {
-      startWritingRaw();
+      clearRaw();
       try {
           changeOutput(false);
       }
       catch (XKameError &e) {
-          e.print(getName() + i18n("Pulser Turn-Off Failed, because"));
+          e.print(getLabel() + i18n("Pulser Turn-Off Failed, because"));
       }
       finishWritingRaw(XTime(), XTime(), true);
       return;
@@ -596,11 +596,11 @@ XPulser::onPulseChanged(const shared_ptr<XValueNodeBase> &node)
       changeOutput(false);
   }
   catch (XKameError &e) {
-      e.print(getName() + i18n("Pulser Turn-Off Failed, because"));
+      e.print(getLabel() + i18n("Pulser Turn-Off Failed, because"));
       return;
   }
 
-  startWritingRaw();
+  clearRaw();
 //! ver 1 records below
     push((short)*combMode());
     push((short)0); //reserve

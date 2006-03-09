@@ -20,7 +20,7 @@ XInterface::XInterfaceError::XInterfaceError(const QString &msg, const char *fil
 XInterface::XConvError::XConvError(const char *file, int line)
  : XInterfaceError(i18n("Conversion Error"), file, line) {}
 XInterface::XCommError::XCommError(const QString &msg, const char *file, int line)
-     :  XInterfaceError(i18n("Communication Error") + QString(", ") + msg, file, line) {}
+     :  XInterfaceError(i18n("Communication Error") + ", " + msg, file, line) {}
 XInterface::XOpenInterfaceError::XOpenInterfaceError(const char *file, int line)
      :  XInterfaceError(i18n("Open Interface Error"), file, line) {}
 
@@ -69,7 +69,7 @@ XInterface::open() throw (XInterfaceError &)
           throw XInterfaceError(i18n("Port has already opened"), __FILE__, __LINE__);
       }
         
-      g_statusPrinter->printMessage(QString(driver()->getName()) + i18n(": Starting..."));
+      g_statusPrinter->printMessage(driver()->getLabel() + i18n(": Starting..."));
     
       {
       shared_ptr<XPort> port;
@@ -92,7 +92,7 @@ XInterface::open() throw (XInterfaceError &)
       }
   }
   catch (XInterfaceError &e) {
-          gErrPrint(QString(driver()->getName()) + i18n(": Opening port failed, because"));
+          gErrPrint(driver()->getLabel() + i18n(": Opening port failed, because"));
           m_xport.reset();
           throw e;
   }
@@ -103,7 +103,7 @@ XInterface::close()
 {
   XScopedLock<XInterface> lock(*this);
 //  if(isOpened()) 
-//    g_statusPrinter->printMessage(QString(driver()->getName()) + i18n(": Stopping..."));
+//    g_statusPrinter->printMessage(QString(driver()->getLabel()) + i18n(": Stopping..."));
   m_xport.reset();
   //g_statusPrinter->clear();
 }
@@ -154,11 +154,11 @@ XInterface::send(const char *str) throw (XCommError &)
 {
   XScopedLock<XInterface> lock(*this);
   try {
-      dbgPrint(driver()->getName() + " Sending:\"" + dumpCString(str) + "\"");
+      dbgPrint(driver()->getLabel() + " Sending:\"" + dumpCString(str) + "\"");
       m_xport->send(str);
   }
   catch (XCommError &e) {
-      e.print(driver()->getName() + i18n(" SendError, because "));
+      e.print(driver()->getLabel() + i18n(" SendError, because "));
       throw e;
   }
 }
@@ -191,11 +191,11 @@ XInterface::write(const char *sendbuf, int size) throw (XCommError &)
 {
   XScopedLock<XInterface> lock(*this);
   try {
-      dbgPrint(driver()->getName() + QString().sprintf(" Sending %d bytes", size));
+      dbgPrint(driver()->getLabel() + QString().sprintf(" Sending %d bytes", size));
       m_xport->write(sendbuf, size);
   }
   catch (XCommError &e) {
-      e.print(driver()->getName() + i18n(" SendError, because "));
+      e.print(driver()->getLabel() + i18n(" SendError, because "));
       throw e;
   }
 }
@@ -204,14 +204,14 @@ XInterface::receive() throw (XCommError &)
 {
   XScopedLock<XInterface> lock(*this);
   try {
-      dbgPrint(driver()->getName() + " Receiving...");
+      dbgPrint(driver()->getLabel() + " Receiving...");
       m_xport->receive();
       ASSERT(buffer().size());
-      dbgPrint(driver()->getName() + " Received;\"" + 
+      dbgPrint(driver()->getLabel() + " Received;\"" + 
         dumpCString((const char*)&buffer()[0]) + "\"");
   }
   catch (XCommError &e) {
-        e.print(driver()->getName() + i18n(" ReceiveError, because "));
+        e.print(driver()->getLabel() + i18n(" ReceiveError, because "));
         throw e;
   }
 }
@@ -220,12 +220,12 @@ XInterface::receive(unsigned int length) throw (XCommError &)
 {
   XScopedLock<XInterface> lock(*this);
   try {
-      dbgPrint(driver()->getName() + QString(" Receiving %1 bytes...").arg(length));
+      dbgPrint(driver()->getLabel() + QString(" Receiving %1 bytes...").arg(length));
       m_xport->receive(length);
-      dbgPrint(driver()->getName() + QString("%1 bytes Received.").arg(buffer().size())); 
+      dbgPrint(driver()->getLabel() + QString("%1 bytes Received.").arg(buffer().size())); 
   }
   catch (XCommError &e) {
-      e.print(driver()->getName() + i18n(" ReceiveError, because "));
+      e.print(driver()->getLabel() + i18n(" ReceiveError, because "));
       throw e;
   }
 }

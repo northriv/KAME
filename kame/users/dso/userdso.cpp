@@ -159,18 +159,18 @@ XTDS::getTimeInterval()
 }
 
 void
-XTDS::getWave(std::deque<QString> &channels)
+XTDS::getWave(std::deque<std::string> &channels)
 {
   interface()->lock();
   try {
       int pos = 1;
       int width = 20000;
-      for(std::deque<QString>::iterator it = channels.begin();
+      for(std::deque<std::string>::iterator it = channels.begin();
             it != channels.end(); it++)
         {
           int rsize = (2 * width + 1024);
           interface()->sendf("DATA:SOURCE %s;START %u;STOP %u;:WAVF?",
-    		     (const char *)it->latin1(),
+    		     (const char *)it->c_str(),
                   pos, pos + width);
           interface()->receive(rsize);
           rawData().insert(rawData().end(), 
