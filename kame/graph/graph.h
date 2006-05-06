@@ -296,7 +296,7 @@ class XAxis : public XNode
   void valToScreen(XGraph::VFloat val, XGraph::ScrPoint *scr);
   XGraph::VFloat screenToVal(const XGraph::ScrPoint &scr);
   
-  QString valToString(XGraph::VFloat val); 
+  std::string valToString(XGraph::VFloat val); 
 
   const shared_ptr<XStringNode> &label() const {return m_label;}
     

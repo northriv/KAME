@@ -173,7 +173,7 @@ class XNMRT1 : public XSecondaryDriver
   //! \param relax a pointer to a realaxation function
   //! \param itercnt counts 
   //! \param buf a message will be passed
-  QString iterate(shared_ptr<XRelaxFunc> &relax, int itercnt);
+  std::string iterate(shared_ptr<XRelaxFunc> &relax, int itercnt);
 
   std::complex<double> acuSpectrum (
     const std::deque< std::complex<double> >&wave, double df, double cf,

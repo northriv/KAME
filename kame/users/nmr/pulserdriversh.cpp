@@ -97,6 +97,7 @@ double XSHPulser::resolution() {
 #define PULSE_P1 (1*pulsebit)
 #define PULSE_P2 (2*pulsebit)
 #define PULSE_COMB (3*pulsebit)
+#define PULSE_INDUCE_EMISSION (4*pulsebit)
 
 XSHPulser::XSHPulser(const char *name, bool runtime,
    const shared_ptr<XScalarEntryList> &scalarentries,
@@ -121,6 +122,10 @@ XSHPulser::createNativePatterns()
   double _pw2 = m_pw2Recorded;
   double _comb_pw = m_combPWRecorded;
   double _dif_freq = m_difFreqRecorded;
+
+  bool _induce_emission = *induceEmission();
+  double _induce_emission_pw = _comb_pw;
+  double _induce_emission_phase = *induceEmissionPhase() / 180.0 * PI;
       
   //dry-run to determin LastPattern, DMATime
   m_dmaTerm = 0.0;
@@ -140,6 +145,10 @@ XSHPulser::createNativePatterns()
     , _dif_freq * 1000.0, -2 * PI * _dif_freq * 2 * _tau);
   makeWaveForm(PULSE_COMB/pulsebit - 1, _comb_pw/1000.0, pulseFunc(combFunc()->to_str() ),
          *combLevel(), *combOffRes() + _dif_freq *1000.0);
+  if(_induce_emission) {
+      makeWaveForm(PULSE_INDUCE_EMISSION/pulsebit - 1, _induce_emission_pw/1000.0, pulseFunc(combFunc()->to_str() ),
+         *combLevel(), *combOffRes() + _dif_freq *1000.0, _induce_emission_phase);
+  }
   m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DO);
   m_zippedPatterns.push_back(0);
   m_zippedPatterns.push_back(0);
@@ -413,6 +422,9 @@ XSHPulser::rawToRelPat() throw (XRecordError&)
   bool driven_equilibrium = *drivenEquilibrium();
   int comb_rot_num = lrint(*combOffRes() * (_comb_pw / 1000.0) * 4);
   
+  bool _induce_emission = *induceEmission();
+  double _induce_emission_pw = _comb_pw;
+  
   //unit of phase is pi/2
   #define qpsk(phase) ((phase % 4)*qpskbit)
   #define qpskinv(phase) (qpsk(((phase) + 2) % 4))
@@ -530,6 +542,15 @@ XSHPulser::rawToRelPat() throw (XRecordError&)
       patterns.insert(tpat(pos -
                ((!former_of_alt && comb_mode_alt) ?
                 (double)_alt_sep : 0.0), ~0, trig1mask));
+                
+      //induce emission
+      if(_induce_emission) {
+          patterns.insert(tpat(pos - _induce_emission_pw/2.0/1000.0, ~0, g3mask));
+          patterns.insert(tpat(pos - _induce_emission_pw/2.0/1000.0, PULSE_INDUCE_EMISSION, pulsemask));
+          patterns.insert(tpat(pos - _induce_emission_pw/2.0/1000.0, 0, qpskmask));
+          patterns.insert(tpat(pos + _induce_emission_pw/2.0/1000.0, 0, pulsemask));
+          patterns.insert(tpat(pos + _induce_emission_pw/2.0/1000.0, 0, g3mask));
+      }
 
       //pi pulses 
       pos -= 3*_tau/1000.0;
@@ -551,6 +572,14 @@ XSHPulser::rawToRelPat() throw (XRecordError&)
       }
 
        patterns.insert(tpat(pos + _tau/1000.0 + _asw_hold, 0, aswmask | trig1mask));
+      //induce emission
+      if(_induce_emission) {
+          patterns.insert(tpat(pos + _tau/1000.0 + _asw_hold - _induce_emission_pw/2.0/1000.0, ~0, g3mask));
+          patterns.insert(tpat(pos + _tau/1000.0 + _asw_hold - _induce_emission_pw/2.0/1000.0, PULSE_INDUCE_EMISSION, pulsemask));
+          patterns.insert(tpat(pos + _tau/1000.0 + _asw_hold - _induce_emission_pw/2.0/1000.0, 0, qpskmask));
+          patterns.insert(tpat(pos + _tau/1000.0 + _asw_hold + _induce_emission_pw/2.0/1000.0, 0, pulsemask));
+          patterns.insert(tpat(pos + _tau/1000.0 + _asw_hold + _induce_emission_pw/2.0/1000.0, 0, g3mask));
+      }
 
       if(driven_equilibrium)
       {

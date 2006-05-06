@@ -475,7 +475,7 @@ XQGraphPainter::drawOnScreenObj()
     default:
     	break;
   }
-  m_onScreenMsg = msg;
+  m_onScreenMsg = msg.utf8();
 }
 void
 XQGraphPainter::showHelp()

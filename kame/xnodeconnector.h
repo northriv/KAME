@@ -435,7 +435,7 @@ public:
 	void printError(const QString &str, bool popup = true);
 	void clear();
 private:
-struct tstatus {QString str; int ms; bool popup; enum {Normal, Warning, Error} type;};
+struct tstatus {std::string str; int ms; bool popup; enum {Normal, Warning, Error} type;};
 	XTalker<tstatus> m_tlkTalker;
 	shared_ptr<XListener> m_lsn;
 	QMainWindow *m_pWindow;

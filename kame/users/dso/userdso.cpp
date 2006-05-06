@@ -224,9 +224,11 @@ XTDS::convertRaw() throw (XRecordError&) {
 	      if(!cp) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	      int x;
 	      if(sscanf(cp, "#%1d", &x) != 1) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
-	      std::string fmt = QString().sprintf("#%%*1d%%%ud", x);
+	      char fmt[9];
+          if(snprintf(fmt, sizeof(fmt), "#%%*1d%%%ud", x) < 0)
+             throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	      int yyy;
-	      if(sscanf(cp, fmt.c_str(), &yyy) != 1) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+	      if(sscanf(cp, fmt, &yyy) != 1) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	      if(yyy == 0) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	      cp += 2 + x;
            
@@ -257,9 +259,11 @@ XTDS::convertRaw() throw (XRecordError&) {
       if(!cp) break;
       int x;
       if(sscanf(cp, "#%1d", &x) != 1) break;
-      std::string fmt = QString().sprintf("#%%*1d%%%ud", x);
+      char fmt[9];
+      if(snprintf(fmt, sizeof(fmt), "#%%*1d%%%ud", x) < 0)
+         throw XBufferUnderflowRecordError(__FILE__, __LINE__);
       int yyy;
-      if(sscanf(cp, fmt.c_str(), &yyy) != 1) break;
+      if(sscanf(cp, fmt, &yyy) != 1) break;
       if(yyy == 0) break;
       cp += 2 + x;
                 

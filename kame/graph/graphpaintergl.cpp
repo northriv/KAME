@@ -126,20 +126,20 @@ XQGraphPainter::~XQGraphPainter()
     closeFont();
 }
 std::wstring
-XQGraphPainter::qstring2wstring(const QString &str)
+XQGraphPainter::string2wstring(const std::string &str)
 {
     static wchar_t buf[256];
     int outsize = 256 * sizeof(wchar_t);
     char *outp = (char*)buf;
     errno = 0;
 #ifdef USE_ICONV_SRC_UTF8
-    QCString utf8(str.utf8());
-    const char *inbuf = utf8;
+    const char *inbuf = str.c_str();
     int insize = strlen(inbuf);
 #endif //USE_ICONV_SRC_UTF8
 #ifdef USE_ICONV_SRC_UCS2
-    const char *inbuf = reinterpret_cast<const char*>(str.ucs2());
-    int insize = str.length() * sizeof(unsigned short);
+    QString qstr(str);
+    const char *inbuf = reinterpret_cast<const char*>(qstr.ucs2());
+    int insize = qstr.length() * sizeof(unsigned short);
 #endif //USE_ICONV_SRC_UCS2
     //! \todo Linux iconv needs char** instead of const char**
     size_t ret = iconv(s_iconv_cd, const_cast<char **>(&inbuf), (size_t*)&insize,
@@ -288,7 +288,7 @@ double w = fabs(x3 - x2), h = fabs(y3 - y2);
 		}
 	}
 float llx, lly, llz, urx, ury, urz;
-std::wstring wstr = qstring2wstring(QString(str));
+std::wstring wstr = string2wstring(str);
 	m_curFontSize = DEFAULT_FONT_SIZE + sizehint;
 	m_curAlign = align;
     
@@ -306,7 +306,7 @@ std::wstring wstr = qstring2wstring(QString(str));
 XQGraphPainter::drawText(const XGraph::ScrPoint &p, const std::string &str)
 {
 float llx, lly, llz, urx, ury, urz;
-std::wstring wstr = qstring2wstring(QString(str));
+std::wstring wstr = string2wstring(str);
 
 	glRasterPos3f(p.x, p.y, p.z);
     checkGLError();

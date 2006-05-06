@@ -959,7 +959,7 @@ XAxis::valToScreen(XGraph::VFloat val, XGraph::ScrPoint *scr)
 {
 	axisToScreen(valToAxis(val), scr);
 }
-QString
+std::string
 XAxis::valToString(XGraph::VFloat val)
 {
     return formatDouble(ticLabelFormat()->to_str().c_str(), val);

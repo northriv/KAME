@@ -103,7 +103,23 @@ class XValueNode
 	end
 end
 
+class XListNode
+	def create(*arg)
+		begin
+			type = ""
+			name = ""
+			type = arg[0] if arg.size >= 1
+			name = arg[1] if arg.size >= 2
+			self.internal_create(type, name)
+	    rescue RuntimeError
+		     $! = RuntimeError.new("unknown exception raised") unless $!
+		     print_exception($!)
+	 	end
+	end
+end
+
 print "Hello! KAME Ruby support.\n"
+print "Ruby " + RUBY_VERSION + " " + RUBY_PLATFORM + " " + RUBY_RELEASE_DATE + "\n"
 
 #Thread-monitor
 MONITOR_PERIOD=0.2

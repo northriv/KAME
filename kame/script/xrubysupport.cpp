@@ -495,7 +495,7 @@ XRuby::execute(const atomic<bool> &terminated)
       rb_define_method(rbClassValueNode, "to_str", (fp)rvaluenode_to_str, 0);
       rbClassListNode = rb_define_class("XListNode", rbClassNode);
       rb_global_variable(&rbClassListNode);
-      rb_define_method(rbClassListNode, "create", (fp)rlistnode_create_child, 2);
+      rb_define_method(rbClassListNode, "internal_create", (fp)rlistnode_create_child, 2);
       rb_define_method(rbClassListNode, "release", (fp)rlistnode_release_child, 1);
       
       {

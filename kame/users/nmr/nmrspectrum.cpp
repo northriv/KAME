@@ -153,9 +153,10 @@ XNMRSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
              m_counts.push_front(0);
       }
       for(int i = 0; i < rint(field_min / dH()) - rint(m_hMin / dH()); i++) {
-             ASSERT(!m_wave.empty());
-             m_wave.pop_front();
-             m_counts.pop_front();
+             if(!m_wave.empty()) {
+                 m_wave.pop_front();
+                 m_counts.pop_front();
+             }
       }
   }
   m_hMin = field_min;

@@ -205,24 +205,6 @@ x << x.last["Thermometers"]
 			x.pop
 		x.pop
 	x.pop
-	x << x.last.create("CryoConcept","RuO2 CryoConcept Mix.")
-		x.last["TMin"].load("0.005")
-		x.last["TMax"].load("30")
-		x.last["RMin"].load("1300")
-		x.last["RMax"].load("300000")
-		x << x.last["Ai"]
-			x.last.create("DoubleNode","").load("6454.7244789")
-			x.last.create("DoubleNode","").load("-8488.4199459")
-			x.last.create("DoubleNode","").load("4469.5193709")
-			x.last.create("DoubleNode","").load("-1177.2481375")
-			x.last.create("DoubleNode","").load("155.0473778")
-			x.last.create("DoubleNode","").load("-8.1667926")
-		x.pop
-		x.last["A"].load("3.66348")
-		x.last["T0"].load("0.08743")
-		x.last["R0"].load("832.04008")
-		x.last["RCrossover"].load("7000")
-	x.pop
 	x << x.last.create("ScientificInstruments","SI-RuO2 u-Dilution 2197")
 		x.last["TMin"].load("0.05")
 		x.last["TMax"].load("20")

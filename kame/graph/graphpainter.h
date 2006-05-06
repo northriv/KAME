@@ -139,7 +139,7 @@ private:
   SelectionMode m_selectionModeNow;
   XGraph::ScrPoint m_startScrPos, m_startScrDX, m_startScrDY;
   XGraph::ScrPoint m_finishScrPos, m_finishScrDX, m_finishScrDY;
-  QString m_onScreenMsg;
+  std::string m_onScreenMsg;
   int m_selStartPos[2];
   int m_tiltLastPos[2];
   
@@ -166,7 +166,7 @@ private:
   int m_curAlign;
   static void openFont();
   static void closeFont();
-  static std::wstring qstring2wstring(const QString &str);
+  static std::wstring string2wstring(const std::string &str);
   static int s_fontRefCount;
   static FTFont *s_pFont;  
 };

@@ -756,7 +756,7 @@ msgstr "パルサー停止失敗、"
 
 #: users/nmr/pulserdriverconnector.cpp:90
 msgid "Pulse Patterns"
-msgstr "パルスパターン"
+msgstr ""
 
 #: users/nmr/pulserdriverh8.cpp:140 users/nmr/pulserdriversh.cpp:338
 msgid "Pulser Invalid pattern"

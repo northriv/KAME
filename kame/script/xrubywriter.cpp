@@ -79,11 +79,18 @@ XRubyWriter::write(
                 m_ofs << "x << ";
             }
             if(lnode) {
-                m_ofs << "x.last.create(\""
-                    << (write_typename ? child->getTypename().c_str() : "")
-                    << "\",\""
-                    << child->getName()
-                    <<  "\")";
+                m_ofs << "x.last.create(";
+                if(write_typename || child->getName().length()) {
+                    m_ofs << "\""
+                        << (write_typename ? child->getTypename().c_str() : "")
+                        << "\"";
+                }
+                if(child->getName().length()) {
+                    m_ofs << ",\""
+                        << child->getName()
+                        << "\"";
+                }
+                m_ofs <<  ")";
             }
             else {
                 if(child->getName().length()) {

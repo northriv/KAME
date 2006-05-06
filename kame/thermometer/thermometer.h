@@ -79,31 +79,6 @@ protected:
 
 };
 
-class XCryoConcept : public XThermometer
-{
- XNODE_OBJECT
-protected:
-  XCryoConcept(const char *name, bool runtime);
- public:
-  virtual ~XCryoConcept() {}
-
-  double getTemp(double res) const;
-  double getRawValue(double temp) const;
-
-  const shared_ptr<XDoubleNode> &resMin() const {return m_resMin;}
-  const shared_ptr<XDoubleNode> &resMax() const {return m_resMax;}
-  typedef XListNode<XDoubleNode> XDoubleListNode;
-  const shared_ptr<XDoubleListNode> &ai() const {return m_ai;}
-  const shared_ptr<XDoubleNode> &a() const {return m_a;}
-  const shared_ptr<XDoubleNode> &t0() const {return m_t0;}
-  const shared_ptr<XDoubleNode> &r0() const {return m_r0;}
-  const shared_ptr<XDoubleNode> &rCrossover() const {return m_rCrossover;}
- private:
-  shared_ptr<XDoubleNode> m_resMin, m_resMax;
-  shared_ptr<XDoubleListNode> m_ai;
-  shared_ptr<XDoubleNode> m_a, m_t0, m_r0, m_rCrossover;    
-};
-
 class XScientificInstruments : public XThermometer
 {
  public:

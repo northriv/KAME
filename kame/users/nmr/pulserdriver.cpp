@@ -153,6 +153,8 @@ XPulser::XPulser(const char *name, bool runtime,
     m_qamDelay1(create<XDoubleNode>("QAMDelay1", false)),
     m_qamDelay2(create<XDoubleNode>("QAMDelay2", false)),
     m_difFreq(create<XDoubleNode>("DIFFreq", false)),
+    m_induceEmission(create<XBoolNode>("InduceEmission", false)),
+    m_induceEmissionPhase(create<XDoubleNode>("InduceEmissionPhase", false)),
     m_moreConfigShow(create<XNode>("MoreConfigShow", true)),
     m_form(new FrmPulser(g_pFrmMain)),
     m_formMore(new FrmPulserMore(g_pFrmMain))
@@ -237,10 +239,11 @@ XPulser::XPulser(const char *name, bool runtime,
   p2Func()->value(PULSE_FUNC_KAISER_2);
   combFunc()->value(PULSE_FUNC_FLATTOP);
   
-  m_form->setCaption("Pulser Control - " + getLabel() );
-  m_formMore->setCaption("Pulser Control More Config. - " + getLabel() );
+  m_form->setCaption(i18n("Pulser Control") + " - " + getLabel() );
+  m_formMore->setCaption(i18n("Pulser Control More Config.") + " - " + getLabel() );
   m_form->statusBar()->hide();
-//  m_formMore->m_statusBar()->hide();
+  m_formMore->statusBar()->hide();
+  
   m_conMoreConfigShow = xqcon_create<XQButtonConnector>(
         m_moreConfigShow, m_form->m_btnMoreConfig);
   m_lsnOnMoreConfigShow = m_moreConfigShow->onTouch().connectWeak(
@@ -292,6 +295,8 @@ XPulser::XPulser(const char *name, bool runtime,
   m_conQAMDelay1 = xqcon_create<XQLineEditConnector>(m_qamDelay1, m_formMore->m_edQAMDelay1);  
   m_conQAMDelay2 = xqcon_create<XQLineEditConnector>(m_qamDelay2, m_formMore->m_edQAMDelay2);
   m_conDIFFreq = xqcon_create<XQLineEditConnector>(m_difFreq, m_formMore->m_edDIFFreq);  
+  m_conInduceEmission = xqcon_create<XQToggleButtonConnector>(m_induceEmission, m_formMore->m_ckbInduceEmission);
+  m_conInduceEmissionPhase = xqcon_create<XKDoubleNumInputConnector>(m_induceEmissionPhase, m_formMore->m_numInduceEmissionPhase);
  
   output()->setUIEnabled(false);
   combMode()->setUIEnabled(false);
@@ -335,6 +340,8 @@ XPulser::XPulser(const char *name, bool runtime,
   qamDelay1()->setUIEnabled(false);
   qamDelay2()->setUIEnabled(false);
   difFreq()->setUIEnabled(false);
+  induceEmission()->setUIEnabled(false);
+  induceEmissionPhase()->setUIEnabled(false);
   
   m_conPulserDriver = xqcon_create<XQPulserDriverConnector>(
         dynamic_pointer_cast<XPulser>(shared_from_this()), m_form->m_tblPulse, m_form->m_graph);
@@ -400,6 +407,8 @@ XPulser::start()
   qamDelay1()->setUIEnabled(true);
   qamDelay2()->setUIEnabled(true);
   difFreq()->setUIEnabled(true);  
+  induceEmission()->setUIEnabled(true);
+  induceEmissionPhase()->setUIEnabled(true);
 
   afterStart();
       
@@ -445,6 +454,8 @@ XPulser::start()
   qamDelay1()->onValueChanged().connect(m_lsnOnPulseChanged);
   qamDelay2()->onValueChanged().connect(m_lsnOnPulseChanged);
   difFreq()->onValueChanged().connect(m_lsnOnPulseChanged);    
+  induceEmission()->onValueChanged().connect(m_lsnOnPulseChanged);    
+  induceEmissionPhase()->onValueChanged().connect(m_lsnOnPulseChanged);    
 
 }
 void
@@ -494,6 +505,8 @@ XPulser::stop()
   qamDelay1()->setUIEnabled(false);
   qamDelay2()->setUIEnabled(false);
   difFreq()->setUIEnabled(false);
+  induceEmission()->setUIEnabled(false);
+  induceEmissionPhase()->setUIEnabled(false);
   
   interface()->close();
 //    m_thread->waitFor();

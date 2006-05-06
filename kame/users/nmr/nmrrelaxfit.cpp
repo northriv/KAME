@@ -275,7 +275,7 @@ XRelaxFunc::relax_fdf (const gsl_vector * x, void *params,
     }
   return GSL_SUCCESS;
 }
-QString
+std::string
 XNMRT1::iterate(shared_ptr<XRelaxFunc> &func,
 		int itercnt)
 {

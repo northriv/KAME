@@ -74,19 +74,21 @@ class XPulser : public XPrimaryDriver
     const shared_ptr<XDoubleNode> &p1Level() const {return m_p1Level;} //!< [dB], Pulse Modulation
     const shared_ptr<XDoubleNode> &p2Level() const {return m_p2Level;} //!< [dB], Pulse Modulation
     const shared_ptr<XDoubleNode> &masterLevel() const {return m_masterLevel;} //!< [dB]
-  const   shared_ptr<XComboNode> &aswFilter() const {return m_aswFilter;}
-  const   shared_ptr<XDoubleNode> &portLevel8() const {return m_portLevel8;}
-  const   shared_ptr<XDoubleNode> &portLevel9() const {return m_portLevel9;}
-  const   shared_ptr<XDoubleNode> &portLevel10() const {return m_portLevel10;}
-  const   shared_ptr<XDoubleNode> &portLevel11() const {return m_portLevel11;}
-  const   shared_ptr<XDoubleNode> &portLevel12() const {return m_portLevel12;}
-  const   shared_ptr<XDoubleNode> &portLevel13() const {return m_portLevel13;}
+    const shared_ptr<XComboNode> &aswFilter() const {return m_aswFilter;}
+    const shared_ptr<XBoolNode> &induceEmission() const {return m_induceEmission;}
+    const shared_ptr<XDoubleNode> &induceEmissionPhase() const {return m_induceEmissionPhase;}
+    const shared_ptr<XDoubleNode> &portLevel8() const {return m_portLevel8;}
+    const shared_ptr<XDoubleNode> &portLevel9() const {return m_portLevel9;}
+    const shared_ptr<XDoubleNode> &portLevel10() const {return m_portLevel10;}
+    const shared_ptr<XDoubleNode> &portLevel11() const {return m_portLevel11;}
+    const shared_ptr<XDoubleNode> &portLevel12() const {return m_portLevel12;}
+    const shared_ptr<XDoubleNode> &portLevel13() const {return m_portLevel13;}
     const shared_ptr<XDoubleNode> &portLevel14() const {return m_portLevel14;} //!< [V]
-  const   shared_ptr<XDoubleNode> &qamOffset1() const {return m_qamOffset1;}
+    const shared_ptr<XDoubleNode> &qamOffset1() const {return m_qamOffset1;}
     const shared_ptr<XDoubleNode> &qamOffset2() const {return m_qamOffset2;} //!< [%F.S.]
-  const   shared_ptr<XDoubleNode> &qamLevel1() const {return m_qamLevel1;}
-  const   shared_ptr<XDoubleNode> &qamLevel2() const {return m_qamLevel2;}
-  const   shared_ptr<XDoubleNode> &qamDelay1() const {return m_qamDelay1;}
+    const shared_ptr<XDoubleNode> &qamLevel1() const {return m_qamLevel1;}
+    const shared_ptr<XDoubleNode> &qamLevel2() const {return m_qamLevel2;}
+    const shared_ptr<XDoubleNode> &qamDelay1() const {return m_qamDelay1;}
     const shared_ptr<XDoubleNode> &qamDelay2() const {return m_qamDelay2;} //!< [us]
     const shared_ptr<XDoubleNode> &difFreq() const {return m_difFreq;} //!< [MHz]
 
@@ -231,7 +233,9 @@ class XPulser : public XPrimaryDriver
     shared_ptr<XDoubleNode> m_qamDelay1;
     shared_ptr<XDoubleNode> m_qamDelay2; //!< [us]
     shared_ptr<XDoubleNode> m_difFreq; //!< [MHz]
- 
+    shared_ptr<XBoolNode> m_induceEmission; 
+    shared_ptr<XDoubleNode> m_induceEmissionPhase; 
+    
   shared_ptr<XNode> m_moreConfigShow;
   xqcon_ptr m_conOutput;
   xqcon_ptr m_conCombMode, m_conRTMode;
@@ -248,7 +252,8 @@ class XPulser : public XPrimaryDriver
     m_conQAMLevel1, m_conQAMLevel2,
     m_conQAMDelay1, m_conQAMDelay2,
     m_conMoreConfigShow,
-    m_conDIFFreq;
+    m_conDIFFreq,
+    m_conInduceEmission, m_conInduceEmissionPhase;
   shared_ptr<XListener> m_lsnOnPulseChanged;
   shared_ptr<XListener> m_lsnOnMoreConfigShow;
   void onMoreConfigShow(const shared_ptr<XNode> &);

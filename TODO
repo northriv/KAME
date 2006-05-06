@@ -1,3 +1,4 @@
+- get rid of QString.
 - Use scoped lock.
 - connectors::onRecord. iterator is not thread-safe.
 
