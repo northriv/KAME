@@ -18,11 +18,11 @@ XThreadLocal<std::vector<char> > XPort::s_tlBuffer;
 XInterface::XInterfaceError::XInterfaceError(const QString &msg, const char *file, int line)
  : XKameError(msg, file, line) {}
 XInterface::XConvError::XConvError(const char *file, int line)
- : XInterfaceError(i18n("Conversion Error"), file, line) {}
+ : XInterfaceError(KAME::i18n("Conversion Error"), file, line) {}
 XInterface::XCommError::XCommError(const QString &msg, const char *file, int line)
-     :  XInterfaceError(i18n("Communication Error") + ", " + msg, file, line) {}
+     :  XInterfaceError(KAME::i18n("Communication Error") + ", " + msg, file, line) {}
 XInterface::XOpenInterfaceError::XOpenInterfaceError(const char *file, int line)
-     :  XInterfaceError(i18n("Open Interface Error"), file, line) {}
+     :  XInterfaceError(KAME::i18n("Open Interface Error"), file, line) {}
 
 
 XInterface::XInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) : 
@@ -66,10 +66,10 @@ XInterface::open() throw (XInterfaceError &)
   try {
       
       if(isOpened()) {
-          throw XInterfaceError(i18n("Port has already opened"), __FILE__, __LINE__);
+          throw XInterfaceError(KAME::i18n("Port has already opened"), __FILE__, __LINE__);
       }
         
-      g_statusPrinter->printMessage(driver()->getLabel() + i18n(": Starting..."));
+      g_statusPrinter->printMessage(driver()->getLabel() + KAME::i18n(": Starting..."));
     
       {
       shared_ptr<XPort> port;
@@ -92,7 +92,7 @@ XInterface::open() throw (XInterfaceError &)
       }
   }
   catch (XInterfaceError &e) {
-          gErrPrint(driver()->getLabel() + i18n(": Opening port failed, because"));
+          gErrPrint(driver()->getLabel() + KAME::i18n(": Opening port failed, because"));
           m_xport.reset();
           throw e;
   }
@@ -103,7 +103,7 @@ XInterface::close()
 {
   XScopedLock<XInterface> lock(*this);
 //  if(isOpened()) 
-//    g_statusPrinter->printMessage(QString(driver()->getLabel()) + i18n(": Stopping..."));
+//    g_statusPrinter->printMessage(QString(driver()->getLabel()) + KAME::i18n(": Stopping..."));
   m_xport.reset();
   //g_statusPrinter->clear();
 }
@@ -158,7 +158,7 @@ XInterface::send(const char *str) throw (XCommError &)
       m_xport->send(str);
   }
   catch (XCommError &e) {
-      e.print(driver()->getLabel() + i18n(" SendError, because "));
+      e.print(driver()->getLabel() + KAME::i18n(" SendError, because "));
       throw e;
   }
 }
@@ -195,7 +195,7 @@ XInterface::write(const char *sendbuf, int size) throw (XCommError &)
       m_xport->write(sendbuf, size);
   }
   catch (XCommError &e) {
-      e.print(driver()->getLabel() + i18n(" SendError, because "));
+      e.print(driver()->getLabel() + KAME::i18n(" SendError, because "));
       throw e;
   }
 }
@@ -211,7 +211,7 @@ XInterface::receive() throw (XCommError &)
         dumpCString((const char*)&buffer()[0]) + "\"");
   }
   catch (XCommError &e) {
-        e.print(driver()->getLabel() + i18n(" ReceiveError, because "));
+        e.print(driver()->getLabel() + KAME::i18n(" ReceiveError, because "));
         throw e;
   }
 }
@@ -225,7 +225,7 @@ XInterface::receive(unsigned int length) throw (XCommError &)
       dbgPrint(driver()->getLabel() + QString("%1 bytes Received.").arg(buffer().size())); 
   }
   catch (XCommError &e) {
-      e.print(driver()->getLabel() + i18n(" ReceiveError, because "));
+      e.print(driver()->getLabel() + KAME::i18n(" ReceiveError, because "));
       throw e;
   }
 }
@@ -270,7 +270,7 @@ XInterface::onSendRequested(const shared_ptr<XValueNodeBase> &)
 {
 shared_ptr<XPort> port = m_xport;
     if(!port)
-       throw XInterfaceError(i18n("Port is not opened."), __FILE__, __LINE__);
+       throw XInterfaceError(KAME::i18n("Port is not opened."), __FILE__, __LINE__);
     port->send(m_script_send->to_str().c_str());
 }
 void
@@ -278,7 +278,7 @@ XInterface::onQueryRequested(const shared_ptr<XValueNodeBase> &)
 {
 shared_ptr<XPort> port = m_xport;    
     if(!port)
-       throw XInterfaceError(i18n("Port is not opened."), __FILE__, __LINE__);
+       throw XInterfaceError(KAME::i18n("Port is not opened."), __FILE__, __LINE__);
     XScopedLock<XInterface> lock(*this);
     port->send(m_script_query->to_str().c_str());
     port->receive();

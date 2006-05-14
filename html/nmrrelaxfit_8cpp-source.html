@@ -281,8 +281,8 @@
 <a name="l00275"></a>00275     }
 <a name="l00276"></a>00276   <span class="keywordflow">return</span> GSL_SUCCESS;
 <a name="l00277"></a>00277 }
-<a name="l00278"></a>00278 QString
-<a name="l00279"></a><a class="code" href="class_x_n_m_r_t1.html#a18f1974b6c63d36415f6645171126e3">00279</a> <a class="code" href="class_x_n_m_r_t1.html#a18f1974b6c63d36415f6645171126e3">XNMRT1::iterate</a>(shared_ptr&lt;XRelaxFunc&gt; &amp;func,
+<a name="l00278"></a>00278 std::string
+<a name="l00279"></a><a class="code" href="class_x_n_m_r_t1.html#24d30a4ad07dd2f80912bc3220770f15">00279</a> <a class="code" href="class_x_n_m_r_t1.html#24d30a4ad07dd2f80912bc3220770f15">XNMRT1::iterate</a>(shared_ptr&lt;XRelaxFunc&gt; &amp;func,
 <a name="l00280"></a>00280                 <span class="keywordtype">int</span> itercnt)
 <a name="l00281"></a>00281 {
 <a name="l00282"></a>00282   <span class="keywordtype">int</span> n = 0;
@@ -295,7 +295,7 @@
 <a name="l00289"></a>00289     func
 <a name="l00290"></a>00290   };
 <a name="l00291"></a>00291   <span class="keywordtype">int</span> p = 3;
-<a name="l00292"></a>00292   <span class="keywordflow">if</span>(n &lt;= p) <span class="keywordflow">return</span> QString::number(n) + i18n(<span class="stringliteral">" points, more points needed."</span>);
+<a name="l00292"></a>00292   <span class="keywordflow">if</span>(n &lt;= p) <span class="keywordflow">return</span> QString::number(n) + <a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">" points, more points needed."</span>);
 <a name="l00293"></a>00293   <span class="keywordtype">int</span> status;
 <a name="l00294"></a>00294   <span class="keywordtype">double</span> norm = 0;
 <a name="l00295"></a>00295   <a class="code" href="class_x_time.html">XTime</a> firsttime = <a class="code" href="class_x_time.html#c379a0eebc8202c724609985cf7782ac">XTime::now</a>();
@@ -402,7 +402,7 @@
 <a name="l00396"></a>00396   <span class="keywordflow">return</span> status;
 <a name="l00397"></a>00397 }
 <a name="l00398"></a>00398 
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:46 2006に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:52:29 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

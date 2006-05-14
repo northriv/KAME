@@ -78,7 +78,7 @@ XTempControl::XTempControl(const char *name, bool runtime,
                   false, shared_from_this(), &XTempControl::onSetupChannelChanged);
 
   m_form->statusBar()->hide();
-  m_form->setCaption(i18n("TempControl - ") + getLabel() );
+  m_form->setCaption(KAME::i18n("TempControl - ") + getLabel() );
 }
 
 void

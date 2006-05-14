@@ -396,7 +396,7 @@ XListQConnector::XListQConnector(const shared_ptr<XListNodeBase> &node, QTable *
     header->setMovingEnabled(true);
     connect(header, SIGNAL( indexChange(int, int, int)),
       this, SLOT( indexChange(int, int, int)));    
-    QToolTip::add(header, i18n("Use drag-n-drop with ctrl pressed to reorder."));
+    QToolTip::add(header, KAME::i18n("Use drag-n-drop with ctrl pressed to reorder."));
 }
 XListQConnector::~XListQConnector() {
     if(isItemAlive()) {
@@ -412,7 +412,7 @@ XListQConnector::indexChange ( int section, int fromIndex, int toIndex )
     
     atomic_shared_ptr<const XNode::NodeList> list(m_list->children());
     if(!list || src > list->size() || (dst > list->size())) {
-        throw XKameError(i18n("Invalid range of selections."), __FILE__, __LINE__);
+        throw XKameError(KAME::i18n("Invalid range of selections."), __FILE__, __LINE__);
     }
     m_lsnMove->mask();
     m_list->move(src, dst);
@@ -480,17 +480,17 @@ XQComboBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
       }
       if(idx >= 0) {
           m_pItem->setCurrentItem(idx);
-          int idx1 = findItem(i18n("(UNSEL)"));
+          int idx1 = findItem(KAME::i18n("(UNSEL)"));
           if(idx1 >= 0) {
             m_pItem->removeItem(idx1);
           }
       }
       else {
-          int idx1 = findItem(i18n("(UNSEL)"));
+          int idx1 = findItem(KAME::i18n("(UNSEL)"));
           if(idx1 < 0) {
-            m_pItem->insertItem(i18n("(UNSEL)"));
+            m_pItem->insertItem(KAME::i18n("(UNSEL)"));
           }
-          idx1 = findItem(i18n("(UNSEL)"));
+          idx1 = findItem(KAME::i18n("(UNSEL)"));
           ASSERT(idx1 >= 0);
           m_pItem->setCurrentItem(idx1);
       }
@@ -505,7 +505,7 @@ XQComboBoxConnector::onListChanged(const shared_ptr<XItemNodeBase> &)
       for(std::deque<XItemNodeBase::Item>::const_iterator it = m_itemStrings->begin(); 
             it != m_itemStrings->end(); it++) {
         if(it->label.empty()) {
-            m_pItem->insertItem(i18n("(NO NAME)"));
+            m_pItem->insertItem(KAME::i18n("(NO NAME)"));
         }
         else {
             m_pItem->insertItem(QString(it->label));
@@ -623,7 +623,7 @@ void
 XStatusPrinter::printWarning(const QString &str, bool popup) {
 tstatus status;
 	status.ms = 3000;
-	status.str = (i18n("Warning: ") + str).utf8();
+	status.str = (KAME::i18n("Warning: ") + str).utf8();
 	status.popup = popup;
 	status.type = tstatus::Warning;
     m_tlkTalker.talk(status);
@@ -632,7 +632,7 @@ void
 XStatusPrinter::printError(const QString &str, bool popup) {
 tstatus status;
 	status.ms = 5000;
-	status.str = (i18n("Error: ") + str).utf8();
+	status.str = (KAME::i18n("Error: ") + str).utf8();
 	status.popup = popup;
 	status.type = tstatus::Error;
     m_tlkTalker.talk(status);

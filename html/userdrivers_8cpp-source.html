@@ -64,14 +64,14 @@
 <a name="l00046"></a>00046 REGISTER_TYPE(HP8648); <span class="comment">//nmr stuff, remove me in lite version.</span>
 <a name="l00047"></a>00047 
 <a name="l00048"></a>00048 shared_ptr&lt;XNode&gt;
-<a name="l00049"></a>00049 <a class="code" href="class_x_custom_type_list_node.html#be307b80cabe2bd7196d5dbce1506292">XDriverList::createByTypename</a>(<span class="keyword">const</span> std::string &amp;type, <span class="keyword">const</span> std::string&amp; name) {
+<a name="l00049"></a>00049 <a class="code" href="class_x_custom_type_list_node.html#9c9f64daf5fed8741e48f1ff1e6849b9">XDriverList::createByTypename</a>(<span class="keyword">const</span> std::string &amp;type, <span class="keyword">const</span> std::string&amp; name) {
 <a name="l00050"></a>00050     shared_ptr&lt;XNode&gt; ptr = (*creator(type))
 <a name="l00051"></a>00051         (name.c_str(), <span class="keyword">false</span>, <a class="code" href="class_x_driver_list.html#51ed383f27be691fdf22b7493407bb2a">m_scalarentries</a>, <a class="code" href="class_x_driver_list.html#a675c668e52d41a2b22a6f683cb5e21e">m_interfaces</a>, <a class="code" href="class_x_driver_list.html#870423a7505cd9654a2d09ed7a859bac">m_thermometers</a>,
 <a name="l00052"></a>00052                 dynamic_pointer_cast&lt;XDriverList&gt;(shared_from_this()));
 <a name="l00053"></a>00053     <span class="keywordflow">if</span>(ptr) <a class="code" href="class_x_list_node_base.html#42d0dd37fb50890e739a6ec2e72a77b2">insert</a>(ptr);
 <a name="l00054"></a>00054     <span class="keywordflow">return</span> ptr;
 <a name="l00055"></a>00055 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:46 2006に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:52:29 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

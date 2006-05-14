@@ -61,46 +61,39 @@
 <a name="l00043"></a>00043     <span class="keywordflow">return</span> <a class="code" href="class_x_time.html#04e4b340857e5c8922dcb4c3de7ea38f">XTime</a>(tv.tv_sec, tv.tv_usec);
 <a name="l00044"></a>00044 };
 <a name="l00045"></a>00045 
-<a name="l00046"></a>00046 QString
-<a name="l00047"></a><a class="code" href="class_x_time.html#6488487db540996d05fc1f09f7fe047f">00047</a> <a class="code" href="class_x_time.html#6488487db540996d05fc1f09f7fe047f">XTime::getTimeStr</a>(<span class="keywordtype">bool</span> subsecond)<span class="keyword"> const</span>
+<a name="l00046"></a>00046 std::string
+<a name="l00047"></a><a class="code" href="class_x_time.html#ec4b1231f76722fe9e61dbc21fb248f4">00047</a> <a class="code" href="class_x_time.html#ec4b1231f76722fe9e61dbc21fb248f4">XTime::getTimeStr</a>(<span class="keywordtype">bool</span> subsecond)<span class="keyword"> const</span>
 <a name="l00048"></a>00048 <span class="keyword"></span>{
 <a name="l00049"></a>00049     <span class="keywordflow">if</span>(*<span class="keyword">this</span>) {
 <a name="l00050"></a>00050       <span class="keywordtype">char</span> str[100];
 <a name="l00051"></a>00051       ctime_r(&amp;<a class="code" href="class_x_time.html#a6ea95dcae162091015aa7599c7832fb">tv_sec</a>, str);
 <a name="l00052"></a>00052       str[strlen(str) - 1] = <span class="charliteral">'\0'</span>;
-<a name="l00053"></a>00053       QString buf;
-<a name="l00054"></a>00054       <span class="keywordflow">if</span>(subsecond)
-<a name="l00055"></a>00055           buf.sprintf(<span class="stringliteral">"%s +%.3dms"</span>, str, (<span class="keywordtype">int</span>)<a class="code" href="class_x_time.html#0a552c77f64a35c1a9e200f779b8bb56">tv_usec</a>/1000);
-<a name="l00056"></a>00056       <span class="keywordflow">else</span>
-<a name="l00057"></a>00057           buf = str;
-<a name="l00058"></a>00058       <span class="keywordflow">return</span> buf;
+<a name="l00053"></a>00053       <span class="keywordflow">if</span>(subsecond)
+<a name="l00054"></a>00054           sprintf(str + strlen(str), <span class="stringliteral">" +%.3dms"</span>, (<span class="keywordtype">int</span>)<a class="code" href="class_x_time.html#0a552c77f64a35c1a9e200f779b8bb56">tv_usec</a>/1000);
+<a name="l00055"></a>00055       <span class="keywordflow">return</span> std::string(str);
+<a name="l00056"></a>00056     }
+<a name="l00057"></a>00057     <span class="keywordflow">else</span> {
+<a name="l00058"></a>00058         <span class="keywordflow">return</span> std::string();
 <a name="l00059"></a>00059     }
-<a name="l00060"></a>00060     <span class="keywordflow">else</span> {
-<a name="l00061"></a>00061         <span class="keywordflow">return</span> QString();
-<a name="l00062"></a>00062     }
-<a name="l00063"></a>00063 }
-<a name="l00064"></a>00064 
-<a name="l00065"></a>00065 QString
-<a name="l00066"></a><a class="code" href="class_x_time.html#5799bbcf67bf58944c98b72c340f93fe">00066</a> <a class="code" href="class_x_time.html#5799bbcf67bf58944c98b72c340f93fe">XTime::getTimeFmtStr</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *fmt, <span class="keywordtype">bool</span> subsecond)<span class="keyword"> const</span>
-<a name="l00067"></a>00067 <span class="keyword"></span>{
-<a name="l00068"></a>00068     <span class="keywordflow">if</span>(*<span class="keyword">this</span>) {
-<a name="l00069"></a>00069       <span class="keywordtype">char</span> str[100];
-<a name="l00070"></a>00070       <span class="keyword">struct </span>tm time;
-<a name="l00071"></a>00071       localtime_r(&amp;<a class="code" href="class_x_time.html#a6ea95dcae162091015aa7599c7832fb">tv_sec</a>, &amp;time);
-<a name="l00072"></a>00072       strftime(str, 100, fmt, &amp;time);
-<a name="l00073"></a>00073       QString buf;
-<a name="l00074"></a>00074       <span class="keywordflow">if</span>(subsecond)
-<a name="l00075"></a>00075           buf.sprintf(<span class="stringliteral">"%s +%.3f"</span>, str, 1e-6 * <a class="code" href="class_x_time.html#0a552c77f64a35c1a9e200f779b8bb56">tv_usec</a>);
-<a name="l00076"></a>00076       <span class="keywordflow">else</span>
-<a name="l00077"></a>00077           buf = str;
-<a name="l00078"></a>00078       <span class="keywordflow">return</span> buf;
-<a name="l00079"></a>00079     }
-<a name="l00080"></a>00080     <span class="keywordflow">else</span> {
-<a name="l00081"></a>00081         <span class="keywordflow">return</span> QString();
-<a name="l00082"></a>00082     }
-<a name="l00083"></a>00083 }
-<a name="l00084"></a>00084 
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:47 2006に生成されました。&nbsp;
+<a name="l00060"></a>00060 }
+<a name="l00061"></a>00061 std::string
+<a name="l00062"></a><a class="code" href="class_x_time.html#95ecc21210160dec90507fed8c75cd2c">00062</a> <a class="code" href="class_x_time.html#95ecc21210160dec90507fed8c75cd2c">XTime::getTimeFmtStr</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *fmt, <span class="keywordtype">bool</span> subsecond)<span class="keyword"> const</span>
+<a name="l00063"></a>00063 <span class="keyword"></span>{
+<a name="l00064"></a>00064     <span class="keywordflow">if</span>(*<span class="keyword">this</span>) {
+<a name="l00065"></a>00065       <span class="keywordtype">char</span> str[100];
+<a name="l00066"></a>00066       <span class="keyword">struct </span>tm time;
+<a name="l00067"></a>00067       localtime_r(&amp;<a class="code" href="class_x_time.html#a6ea95dcae162091015aa7599c7832fb">tv_sec</a>, &amp;time);
+<a name="l00068"></a>00068       strftime(str, 100, fmt, &amp;time);
+<a name="l00069"></a>00069       <span class="keywordflow">if</span>(subsecond)
+<a name="l00070"></a>00070           sprintf(str + strlen(str), <span class="stringliteral">" +%.3f"</span>, 1e-6 * <a class="code" href="class_x_time.html#0a552c77f64a35c1a9e200f779b8bb56">tv_usec</a>);
+<a name="l00071"></a>00071       <span class="keywordflow">return</span> std::string(str);
+<a name="l00072"></a>00072     }
+<a name="l00073"></a>00073     <span class="keywordflow">else</span> {
+<a name="l00074"></a>00074         <span class="keywordflow">return</span> std::string();
+<a name="l00075"></a>00075     }
+<a name="l00076"></a>00076 }
+<a name="l00077"></a>00077 
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:52:30 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

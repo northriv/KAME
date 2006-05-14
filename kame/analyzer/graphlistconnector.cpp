@@ -37,10 +37,10 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, QTa
   m_pItem->setColumnWidth(2, (int)(def * 2.0));
   m_pItem->setColumnWidth(3, (int)(def * 2.0));
   QStringList labels;
-  labels += i18n("Name");
-  labels += i18n("Axis X");
-  labels += i18n("Axis Y");
-  labels += i18n("Axis Z");
+  labels += KAME::i18n("Name");
+  labels += KAME::i18n("Axis X");
+  labels += KAME::i18n("Axis Y");
+  labels += KAME::i18n("Axis Z");
   m_pItem->setColumnLabels(labels);
 
   atomic_shared_ptr<const XNode::NodeList> list(node->children());

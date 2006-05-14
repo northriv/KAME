@@ -30,23 +30,24 @@
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XPlotのコラボレーション図<p><center><img src="class_x_plot__coll__graph.png" border="0" usemap="#_x_plot__coll__map" alt="Collaboration graph"></center>
 <map name="_x_plot__coll__map">
-<area href="class_x_node.html" shape="rect" coords="506,418,568,445" alt="">
-<area href="class_x_thread_local.html" shape="rect" coords="8,296,346,322" alt="">
-<area href="class_x_talker.html" shape="rect" coords="370,296,586,322" alt="">
-<area href="class___x_talker_base.html" shape="rect" coords="236,205,340,232" alt="">
-<area href="classatomic.html" shape="rect" coords="230,114,340,141" alt="">
-<area href="classatomic__shared__ptr.html" shape="rect" coords="366,205,590,232" alt="">
-<area href="structatomic__shared__ptr_1_1___ref_local.html" shape="rect" coords="364,114,593,141" alt="">
-<area href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html" shape="rect" coords="229,8,482,34" alt="">
-<area href="structatomic__shared__ptr_1_1_ref.html" shape="rect" coords="506,8,696,34" alt="">
-<area href="class_x_mutex.html" shape="rect" coords="617,114,684,141" alt="">
-<area href="class_x_recursive_r_w_lock.html" shape="rect" coords="610,296,752,322" alt="">
-<area href="class_x_thread_local.html" shape="rect" coords="614,205,812,232" alt="">
-<area href="struct_vector3.html" shape="rect" coords="697,418,796,445" alt="">
+<area href="class_x_node.html" shape="rect" coords="452,541,513,567" alt="">
+<area href="class_x_talker.html" shape="rect" coords="142,434,358,461" alt="">
+<area href="class___x_talker_base.html" shape="rect" coords="10,327,114,354" alt="">
+<area href="classatomic.html" shape="rect" coords="8,237,117,263" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="138,327,362,354" alt="">
+<area href="structatomic__shared__ptr_1_1___ref_local.html" shape="rect" coords="210,237,440,263" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="386,327,594,354" alt="">
+<area href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html" shape="rect" coords="438,130,692,157" alt="">
+<area href="structatomic__shared__ptr__ref.html" shape="rect" coords="228,130,414,157" alt="">
+<area href="struct_vector3.html" shape="rect" coords="680,183,778,210" alt="">
+<area href="class_x_mutex.html" shape="rect" coords="493,237,560,263" alt="">
+<area href="class_x_thread_local.html" shape="rect" coords="509,434,690,461" alt="">
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_plot-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
 <tr><td></td></tr>
 <tr><td colspan="2"><br><h2>Public メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">virtual std::string&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#4c1b3c006f96d2e10d3e8d71e913546d">getLabel</a> () const </td></tr>
+
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="f423961268812b64fdeaa3401df5bd9c"></a><!-- doxytag: member="XPlot::clearAllPoints" ref="f423961268812b64fdeaa3401df5bd9c" args="(void)=0" -->
 virtual int&nbsp;</td><td class="memItemRight" valign="bottom"><b>clearAllPoints</b> (void)=0</td></tr>
 
@@ -60,6 +61,9 @@ void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a383aac843dd09ca5b56849a65f501a6"></a><!-- doxytag: member="XPlot::graphToVal" ref="a383aac843dd09ca5b56849a65f501a6" args="(const XGraph::GPoint &amp;pt, XGraph::ValPoint *val)" -->
 void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#a383aac843dd09ca5b56849a65f501a6">graphToVal</a> (const <a class="el" href="struct_vector3.html">XGraph::GPoint</a> &amp;pt, <a class="el" href="struct_vector3.html">XGraph::ValPoint</a> *val)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="17e676783ef2f33ab4fcef1482a1a345"></a><!-- doxytag: member="XPlot::label" ref="17e676783ef2f33ab4fcef1482a1a345" args="() const " -->
+const shared_ptr&lt; <a class="el" href="class_x_string_node.html">XStringNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#17e676783ef2f33ab4fcef1482a1a345">label</a> () const </td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="23f7e2bbc74285c6cd49b848b9930cf7"></a><!-- doxytag: member="XPlot::maxCount" ref="23f7e2bbc74285c6cd49b848b9930cf7" args="() const " -->
 const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XUIntNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#23f7e2bbc74285c6cd49b848b9930cf7">maxCount</a> () const </td></tr>
@@ -108,15 +112,15 @@ const shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt; &amp;
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="4ee6937b4c7bef250077b6c201951e1e"></a><!-- doxytag: member="XPlot::axisX" ref="4ee6937b4c7bef250077b6c201951e1e" args="() const " -->
 const shared_ptr&lt; <a class="el" href="class_x_item_node.html">XItemNode</a>&lt;<br>
- <a class="el" href="class_x_axis_list.html">XAxisList</a>, <a class="el" href="class_x_axis.html">XAxis</a> &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#4ee6937b4c7bef250077b6c201951e1e">axisX</a> () const </td></tr>
+ <a class="el" href="class_x_alias_list_node.html">XAxisList</a>, <a class="el" href="class_x_axis.html">XAxis</a> &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#4ee6937b4c7bef250077b6c201951e1e">axisX</a> () const </td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="7d0865191a295773a8e3e52fee9a01f5"></a><!-- doxytag: member="XPlot::axisY" ref="7d0865191a295773a8e3e52fee9a01f5" args="() const " -->
 const shared_ptr&lt; <a class="el" href="class_x_item_node.html">XItemNode</a>&lt;<br>
- <a class="el" href="class_x_axis_list.html">XAxisList</a>, <a class="el" href="class_x_axis.html">XAxis</a> &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#7d0865191a295773a8e3e52fee9a01f5">axisY</a> () const </td></tr>
+ <a class="el" href="class_x_alias_list_node.html">XAxisList</a>, <a class="el" href="class_x_axis.html">XAxis</a> &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#7d0865191a295773a8e3e52fee9a01f5">axisY</a> () const </td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="c792db1b486b8e71775a6d1ad73ee7bd"></a><!-- doxytag: member="XPlot::axisZ" ref="c792db1b486b8e71775a6d1ad73ee7bd" args="() const " -->
 const shared_ptr&lt; <a class="el" href="class_x_item_node.html">XItemNode</a>&lt;<br>
- <a class="el" href="class_x_axis_list.html">XAxisList</a>, <a class="el" href="class_x_axis.html">XAxis</a> &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#c792db1b486b8e71775a6d1ad73ee7bd">axisZ</a> () const </td></tr>
+ <a class="el" href="class_x_alias_list_node.html">XAxisList</a>, <a class="el" href="class_x_axis.html">XAxis</a> &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#c792db1b486b8e71775a6d1ad73ee7bd">axisZ</a> () const </td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="971da753fb89716a41e7a261c2bb2e40"></a><!-- doxytag: member="XPlot::zwoAxisZ" ref="971da753fb89716a41e7a261c2bb2e40" args="()" -->
 shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#971da753fb89716a41e7a261c2bb2e40">zwoAxisZ</a> ()</td></tr>
@@ -142,10 +146,10 @@ void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">take a snap-shot all points for rendering <br></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top">int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#286e05c6d0f6e8a4deaff1bd7a3eb79a">findPoint</a> (int start, const <a class="el" href="struct_vector3.html">XGraph::GPoint</a> &amp;gmin, const <a class="el" href="struct_vector3.html">XGraph::GPoint</a> &amp;gmax, <a class="el" href="class_x_graph.html#da8797eb61183ad5492ee6ad2a302e61">XGraph::GFloat</a> width, <a class="el" href="struct_vector3.html">XGraph::ValPoint</a> *val, <a class="el" href="struct_vector3.html">XGraph::GPoint</a> *g1)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top">bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#8905ec288a0235b41ee925bb0609f2e8">lockAxesInfo</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#ef533415ee1a72197d9f490e8086bea4">trylock</a> ()</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="6b5983b896ae37ba99b8b5dc4cecf3ef"></a><!-- doxytag: member="XPlot::unlockAxesInfo" ref="6b5983b896ae37ba99b8b5dc4cecf3ef" args="()" -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#6b5983b896ae37ba99b8b5dc4cecf3ef">unlockAxesInfo</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="42069edfc50d776536e673b674d7170d"></a><!-- doxytag: member="XPlot::unlock" ref="42069edfc50d776536e673b674d7170d" args="()" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#42069edfc50d776536e673b674d7170d">unlock</a> ()</td></tr>
 
 <tr><td colspan="2"><br><h2>Protected メソッド</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="5facd1757959ff911b56833b0e285330"></a><!-- doxytag: member="XPlot::XPlot" ref="5facd1757959ff911b56833b0e285330" args="(const char *name, bool runtime, const shared_ptr&lt; XGraph &gt; &amp;graph)" -->
@@ -158,9 +162,8 @@ virtual int&nbsp;</td><td class="memItemRight" valign="bottom"><b>setMaxCount</b
 virtual <a class="el" href="struct_vector3.html">XGraph::ValPoint</a>&nbsp;</td><td class="memItemRight" valign="bottom"><b>points</b> (unsigned int index) const =0</td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b7e1a865e42cbddc8caa0dfde75e7c77"></a><!-- doxytag: member="XPlot::count" ref="b7e1a865e42cbddc8caa0dfde75e7c77" args="() const =0" -->
-virtual unsigned int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#b7e1a865e42cbddc8caa0dfde75e7c77">count</a> () const =0</td></tr>
+virtual unsigned int&nbsp;</td><td class="memItemRight" valign="bottom"><b>count</b> () const =0</td></tr>
 
-<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight"># of children <br></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="3d0753d225e097a7553b0c27fb111130"></a><!-- doxytag: member="XPlot::snappedPoints" ref="3d0753d225e097a7553b0c27fb111130" args="(unsigned int index) const " -->
 virtual <a class="el" href="struct_vector3.html">XGraph::ValPoint</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#3d0753d225e097a7553b0c27fb111130">snappedPoints</a> (unsigned int index) const </td></tr>
 
@@ -216,6 +219,9 @@ void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 unsigned int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#651266707935c17be99edd763b7a3e37">blendColor</a> (unsigned int c1, unsigned int c2, float t)</td></tr>
 
 <tr><td colspan="2"><br><h2>Private 変数</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="2d8561d14baf51228e59351be5304a40"></a><!-- doxytag: member="XPlot::m_label" ref="2d8561d14baf51228e59351be5304a40" args="" -->
+shared_ptr&lt; <a class="el" href="class_x_string_node.html">XStringNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#2d8561d14baf51228e59351be5304a40">m_label</a></td></tr>
+
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="799979246cf2c07f0c989ff67ff6f587"></a><!-- doxytag: member="XPlot::m_maxCount" ref="799979246cf2c07f0c989ff67ff6f587" args="" -->
 shared_ptr&lt; <a class="el" href="class_x_value_node.html">XUIntNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#799979246cf2c07f0c989ff67ff6f587">m_maxCount</a></td></tr>
 
@@ -262,15 +268,15 @@ shared_ptr&lt; <a class="el" href="class_x_value_node.html">XHexNode</a> &gt;&nb
 shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#526d3effb89c6f4eb01d7763293ff9a1">m_clearPoints</a></td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="6c8514abddf8e1477faf3cba6ba3870b"></a><!-- doxytag: member="XPlot::m_axisX" ref="6c8514abddf8e1477faf3cba6ba3870b" args="" -->
-shared_ptr&lt; <a class="el" href="class_x_item_node.html">XItemNode</a>&lt; <a class="el" href="class_x_axis_list.html">XAxisList</a>,<br>
+shared_ptr&lt; <a class="el" href="class_x_item_node.html">XItemNode</a>&lt; <a class="el" href="class_x_alias_list_node.html">XAxisList</a>,<br>
  <a class="el" href="class_x_axis.html">XAxis</a> &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#6c8514abddf8e1477faf3cba6ba3870b">m_axisX</a></td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="25ab216f74e4d9ffcb540382387d3113"></a><!-- doxytag: member="XPlot::m_axisY" ref="25ab216f74e4d9ffcb540382387d3113" args="" -->
-shared_ptr&lt; <a class="el" href="class_x_item_node.html">XItemNode</a>&lt; <a class="el" href="class_x_axis_list.html">XAxisList</a>,<br>
+shared_ptr&lt; <a class="el" href="class_x_item_node.html">XItemNode</a>&lt; <a class="el" href="class_x_alias_list_node.html">XAxisList</a>,<br>
  <a class="el" href="class_x_axis.html">XAxis</a> &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#25ab216f74e4d9ffcb540382387d3113">m_axisY</a></td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="3e5ec6bbddb70dc11eeb2d669f806778"></a><!-- doxytag: member="XPlot::m_axisZ" ref="3e5ec6bbddb70dc11eeb2d669f806778" args="" -->
-shared_ptr&lt; <a class="el" href="class_x_item_node.html">XItemNode</a>&lt; <a class="el" href="class_x_axis_list.html">XAxisList</a>,<br>
+shared_ptr&lt; <a class="el" href="class_x_item_node.html">XItemNode</a>&lt; <a class="el" href="class_x_alias_list_node.html">XAxisList</a>,<br>
  <a class="el" href="class_x_axis.html">XAxis</a> &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_plot.html#3e5ec6bbddb70dc11eeb2d669f806778">m_axisZ</a></td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="7f0e633860fc2fff08dd047b4b63797b"></a><!-- doxytag: member="XPlot::m_zwoAxisZ" ref="7f0e633860fc2fff08dd047b4b63797b" args="" -->
@@ -304,7 +310,7 @@ unsigned int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" hr
 <p>
 
 <p>
- <a class="el" href="graph_8h-source.html">graph.h</a> の <a class="el" href="graph_8h-source.html#l00156">156</a> 行で定義されています。<hr><h2>関数</h2>
+ <a class="el" href="graph_8h-source.html">graph.h</a> の <a class="el" href="graph_8h-source.html#l00146">146</a> 行で定義されています。<hr><h2>関数</h2>
 <a class="anchor" name="286e05c6d0f6e8a4deaff1bd7a3eb79a"></a><!-- doxytag: member="XPlot::findPoint" ref="286e05c6d0f6e8a4deaff1bd7a3eb79a" args="(int start, const XGraph::GPoint &amp;gmin, const XGraph::GPoint &amp;gmax, XGraph::GFloat width, XGraph::ValPoint *val, XGraph::GPoint *g1)" --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
@@ -366,22 +372,22 @@ unsigned int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" hr
 <dl compact><dt><b>戻り値:</b></dt><dd>found index, if not return -1 </dd></dl>
 
 <p>
- <a class="el" href="graph_8cpp-source.html">graph.cpp</a> の <a class="el" href="graph_8cpp-source.html#l00329">329</a> 行で定義されています。
+ <a class="el" href="graph_8cpp-source.html">graph.cpp</a> の <a class="el" href="graph_8cpp-source.html#l00328">328</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="graph_8h-source.html#l00041">Vector3&lt; T &gt;::distance2()</a>・<a class="el" href="graph_8cpp-source.html#l00230">lockAxesInfo()</a>・<a class="el" href="graph_8h-source.html#l00220">snappedCount()</a>・<a class="el" href="graph_8h-source.html#l00219">snappedPoints()</a>・<a class="el" href="graph_8cpp-source.html#l00263">unlockAxesInfo()</a>・<a class="el" href="graph_8cpp-source.html#l00319">valToGraphFast()</a>.    </td>
+参照先 <a class="el" href="graph_8h-source.html#l00041">Vector3&lt; T &gt;::distance2()</a>・<a class="el" href="graph_8h-source.html#l00214">snappedCount()</a>・<a class="el" href="graph_8h-source.html#l00213">snappedPoints()</a>・<a class="el" href="graph_8cpp-source.html#l00318">valToGraphFast()</a>.    </td>
   </tr>
 </table>
-<a class="anchor" name="8905ec288a0235b41ee925bb0609f2e8"></a><!-- doxytag: member="XPlot::lockAxesInfo" ref="8905ec288a0235b41ee925bb0609f2e8" args="()" --><p>
+<a class="anchor" name="4c1b3c006f96d2e10d3e8d71e913546d"></a><!-- doxytag: member="XPlot::getLabel" ref="4c1b3c006f96d2e10d3e8d71e913546d" args="() const " --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
     <td class="mdRow">
       <table cellpadding="0" cellspacing="0" border="0">
         <tr>
-          <td class="md" nowrap valign="top">bool XPlot::lockAxesInfo           </td>
+          <td class="md" nowrap valign="top">virtual std::string XPlot::getLabel           </td>
           <td class="md" valign="top">(&nbsp;</td>
           <td class="mdname1" valign="top" nowrap>          </td>
           <td class="md" valign="top">&nbsp;)&nbsp;</td>
-          <td class="md" nowrap></td>
+          <td class="md" nowrap> const<code> [inline, virtual]</code></td>
         </tr>
       </table>
     </td>
@@ -395,14 +401,14 @@ unsigned int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" hr
     <td>
 
 <p>
-<dl compact><dt><b>戻り値:</b></dt><dd>success or not </dd></dl>
+<dl compact><dt><b>戻り値:</b></dt><dd>i18n name for UI. </dd></dl>
 
 <p>
- <a class="el" href="graph_8cpp-source.html">graph.cpp</a> の <a class="el" href="graph_8cpp-source.html#l00230">230</a> 行で定義されています。
+<a class="el" href="class_x_node.html#84f0935a406e8f16042f80b9dcaaa722">XNode</a>を再定義しています。
 <p>
-参照先 <a class="el" href="graph_8h-source.html#l00189">axisX()</a>・<a class="el" href="graph_8h-source.html#l00190">axisY()</a>・<a class="el" href="graph_8h-source.html#l00191">axisZ()</a>・<a class="el" href="graph_8h-source.html#l00213">m_curAxisX</a>・<a class="el" href="graph_8h-source.html#l00213">m_curAxisY</a>・<a class="el" href="graph_8h-source.html#l00213">m_curAxisZ</a>・<a class="el" href="graph_8h-source.html#l00223">m_len</a>・<a class="el" href="graph_8h-source.html#l00222">m_scr0</a>・<a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::x</a>・<a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::y</a>・<a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::z</a>・<a class="el" href="graph_8h-source.html#l00193">zwoAxisZ()</a>.
+ <a class="el" href="graph_8h-source.html">graph.h</a> の <a class="el" href="graph_8h-source.html#l00152">152</a> 行で定義されています。
 <p>
-参照元 <a class="el" href="graph_8cpp-source.html#l00403">drawGrid()</a>・<a class="el" href="graph_8cpp-source.html#l00419">drawPlot()</a>・<a class="el" href="graph_8cpp-source.html#l00329">findPoint()</a>・<a class="el" href="graph_8cpp-source.html#l00305">graphToScreen()</a>・<a class="el" href="graph_8cpp-source.html#l00283">graphToVal()</a>・<a class="el" href="graph_8cpp-source.html#l00295">screenToVal()</a>.    </td>
+参照先 <a class="el" href="graph_8h-source.html#l00165">label()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="c693778b1e2cf8f346557834d333ebd1"></a><!-- doxytag: member="XPlot::screenToVal" ref="c693778b1e2cf8f346557834d333ebd1" args="(const XGraph::ScrPoint &amp;scr, XGraph::ValPoint *val, XGraph::SFloat scr_prec=-1)" --><p>
@@ -448,14 +454,46 @@ unsigned int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" hr
 obtains values from screen coordinate if <em>scr_prec</em> &gt; 0, value will be rounded around scr_prec <dl compact><dt><b>参照:</b></dt><dd>XAxis::AxisToVal. </dd></dl>
 
 <p>
- <a class="el" href="graph_8cpp-source.html">graph.cpp</a> の <a class="el" href="graph_8cpp-source.html#l00295">295</a> 行で定義されています。
+ <a class="el" href="graph_8cpp-source.html">graph.cpp</a> の <a class="el" href="graph_8cpp-source.html#l00291">291</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="graph_8cpp-source.html#l00230">lockAxesInfo()</a>・<a class="el" href="graph_8h-source.html#l00213">m_curAxisX</a>・<a class="el" href="graph_8h-source.html#l00213">m_curAxisY</a>・<a class="el" href="graph_8h-source.html#l00213">m_curAxisZ</a>・<a class="el" href="graph_8h-source.html#l00223">m_len</a>・<a class="el" href="graph_8cpp-source.html#l00263">unlockAxesInfo()</a>・<a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::x</a>・<a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::y</a>・<a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::z</a>.    </td>
+参照先 <a class="el" href="graph_8h-source.html#l00207">m_curAxisX</a>・<a class="el" href="graph_8h-source.html#l00207">m_curAxisY</a>・<a class="el" href="graph_8h-source.html#l00207">m_curAxisZ</a>・<a class="el" href="graph_8h-source.html#l00217">m_len</a>・<a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::x</a>・<a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::y</a>・<a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::z</a>.    </td>
+  </tr>
+</table>
+<a class="anchor" name="ef533415ee1a72197d9f490e8086bea4"></a><!-- doxytag: member="XPlot::trylock" ref="ef533415ee1a72197d9f490e8086bea4" args="()" --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">bool XPlot::trylock           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="mdname1" valign="top" nowrap>          </td>
+          <td class="md" valign="top">&nbsp;)&nbsp;</td>
+          <td class="md" nowrap></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+Lock info of axes. <dl compact><dt><b>戻り値:</b></dt><dd>success or not </dd></dl>
+
+<p>
+ <a class="el" href="graph_8cpp-source.html">graph.cpp</a> の <a class="el" href="graph_8cpp-source.html#l00234">234</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="graph_8h-source.html#l00182">axisX()</a>・<a class="el" href="graph_8h-source.html#l00183">axisY()</a>・<a class="el" href="graph_8h-source.html#l00184">axisZ()</a>・<a class="el" href="graph_8h-source.html#l00207">m_curAxisX</a>・<a class="el" href="graph_8h-source.html#l00207">m_curAxisY</a>・<a class="el" href="graph_8h-source.html#l00207">m_curAxisZ</a>・<a class="el" href="graph_8h-source.html#l00217">m_len</a>・<a class="el" href="graph_8h-source.html#l00216">m_scr0</a>・<a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::x</a>・<a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::y</a>・<a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::z</a>・<a class="el" href="graph_8h-source.html#l00186">zwoAxisZ()</a>.    </td>
   </tr>
 </table>
 <hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/graph/<a class="el" href="graph_8h-source.html">graph.h</a><li>kame/graph/<a class="el" href="graph_8cpp-source.html">graph.cpp</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:51 2006に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:53:18 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

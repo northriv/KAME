@@ -39,12 +39,16 @@
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="74169300a1df110747852beca002add3"></a><!-- doxytag: member="XListQConnector::~XListQConnector" ref="74169300a1df110747852beca002add3" args="()" -->
 virtual&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_list_q_connector.html#74169300a1df110747852beca002add3">~XListQConnector</a> ()</td></tr>
 
-<tr><td colspan="2"><br><h2>Protected メソッド</h2></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="77ba949a5f8c68fd1f88e9803a6e8d8d"></a><!-- doxytag: member="XListQConnector::XListQConnector" ref="77ba949a5f8c68fd1f88e9803a6e8d8d" args="(const shared_ptr&lt; XListNodeBase &gt; &amp;node, QWidget *item)" -->
-&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_list_q_connector.html#77ba949a5f8c68fd1f88e9803a6e8d8d">XListQConnector</a> (const shared_ptr&lt; <a class="el" href="class_x_list_node_base.html">XListNodeBase</a> &gt; &amp;node, QWidget *item)</td></tr>
+<tr><td colspan="2"><br><h2>Protected スロット</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="0593f7059bb0c99b731fb5fc804c0a90"></a><!-- doxytag: member="XListQConnector::indexChange" ref="0593f7059bb0c99b731fb5fc804c0a90" args="(int section, int fromIndex, int toIndex)" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_list_q_connector.html#0593f7059bb0c99b731fb5fc804c0a90">indexChange</a> (int section, int fromIndex, int toIndex)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="af459cca34539f823a0aa66c106c551b"></a><!-- doxytag: member="XListQConnector::onListChanged" ref="af459cca34539f823a0aa66c106c551b" args="(const shared_ptr&lt; XListNodeBase &gt; &amp;node)=0" -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><b>onListChanged</b> (const shared_ptr&lt; <a class="el" href="class_x_list_node_base.html">XListNodeBase</a> &gt; &amp;node)=0</td></tr>
+<tr><td colspan="2"><br><h2>Protected メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="8d5e90fc5d72c5cfb1c373a993895829"></a><!-- doxytag: member="XListQConnector::XListQConnector" ref="8d5e90fc5d72c5cfb1c373a993895829" args="(const shared_ptr&lt; XListNodeBase &gt; &amp;node, QTable *item)" -->
+&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_list_q_connector.html#8d5e90fc5d72c5cfb1c373a993895829">XListQConnector</a> (const shared_ptr&lt; <a class="el" href="class_x_list_node_base.html">XListNodeBase</a> &gt; &amp;node, QTable *item)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="725aa806bca4c129e9675657c508f337"></a><!-- doxytag: member="XListQConnector::onMove" ref="725aa806bca4c129e9675657c508f337" args="(const XListNodeBase::MoveEvent &amp;node)" -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_list_q_connector.html#725aa806bca4c129e9675657c508f337">onMove</a> (const <a class="el" href="struct_x_list_node_base_1_1_move_event.html">XListNodeBase::MoveEvent</a> &amp;node)</td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="46c2e85c9ba274a7f8b97a31f74e48ef"></a><!-- doxytag: member="XListQConnector::onCatch" ref="46c2e85c9ba274a7f8b97a31f74e48ef" args="(const shared_ptr&lt; XNode &gt; &amp;node)=0" -->
 virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><b>onCatch</b> (const shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt; &amp;node)=0</td></tr>
@@ -53,8 +57,8 @@ virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><b>onCatch</b> (
 virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><b>onRelease</b> (const shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt; &amp;node)=0</td></tr>
 
 <tr><td colspan="2"><br><h2>Protected 変数</h2></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="6e0d4262ae23f9cd7c5fde595b3270be"></a><!-- doxytag: member="XListQConnector::m_lsnListChanged" ref="6e0d4262ae23f9cd7c5fde595b3270be" args="" -->
-shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_list_q_connector.html#6e0d4262ae23f9cd7c5fde595b3270be">m_lsnListChanged</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="155adc512ce84156ff115385def597c0"></a><!-- doxytag: member="XListQConnector::m_lsnMove" ref="155adc512ce84156ff115385def597c0" args="" -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_list_q_connector.html#155adc512ce84156ff115385def597c0">m_lsnMove</a></td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a7909e44dc87080c9db4c788b67d2b7f"></a><!-- doxytag: member="XListQConnector::m_lsnCatch" ref="a7909e44dc87080c9db4c788b67d2b7f" args="" -->
 shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_list_q_connector.html#a7909e44dc87080c9db4c788b67d2b7f">m_lsnCatch</a></td></tr>
@@ -62,15 +66,21 @@ shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbs
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="ea9cdb4553ddf4a9a4ba547fd3036c3d"></a><!-- doxytag: member="XListQConnector::m_lsnRelease" ref="ea9cdb4553ddf4a9a4ba547fd3036c3d" args="" -->
 shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_list_q_connector.html#ea9cdb4553ddf4a9a4ba547fd3036c3d">m_lsnRelease</a></td></tr>
 
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="239a572a2150353c89cdb1bd4d346c87"></a><!-- doxytag: member="XListQConnector::m_pItem" ref="239a572a2150353c89cdb1bd4d346c87" args="" -->
+QTable *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_list_q_connector.html#239a572a2150353c89cdb1bd4d346c87">m_pItem</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="f34109c514d281c6403709eb67c5af8e"></a><!-- doxytag: member="XListQConnector::m_list" ref="f34109c514d281c6403709eb67c5af8e" args="" -->
+shared_ptr&lt; <a class="el" href="class_x_list_node_base.html">XListNodeBase</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_list_q_connector.html#f34109c514d281c6403709eb67c5af8e">m_list</a></td></tr>
+
 </table>
 <hr><a name="_details"></a><h2>説明</h2>
 
 <p>
 
 <p>
- <a class="el" href="xnodeconnector_8h-source.html">xnodeconnector.h</a> の <a class="el" href="xnodeconnector_8h-source.html#l00299">299</a> 行で定義されています。<hr>このクラスの説明は次のファイルから生成されました:<ul>
+ <a class="el" href="xnodeconnector_8h-source.html">xnodeconnector.h</a> の <a class="el" href="xnodeconnector_8h-source.html#l00300">300</a> 行で定義されています。<hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/<a class="el" href="xnodeconnector_8h-source.html">xnodeconnector.h</a><li>kame/<a class="el" href="xnodeconnector_8cpp-source.html">xnodeconnector.cpp</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:50 2006に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:53:08 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

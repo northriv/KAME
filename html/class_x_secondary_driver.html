@@ -37,12 +37,20 @@ XSecondaryDriverに対する継承グラフ<p><center><img src="class_x_secondary_driver_
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XSecondaryDriverのコラボレーション図<p><center><img src="class_x_secondary_driver__coll__graph.png" border="0" usemap="#_x_secondary_driver__coll__map" alt="Collaboration graph"></center>
 <map name="_x_secondary_driver__coll__map">
-<area href="class_x_driver.html" shape="rect" coords="262,205,329,232" alt="">
-<area href="class_x_node.html" shape="rect" coords="141,98,202,125" alt="">
-<area href="class_x_recursive_r_w_lock.html" shape="rect" coords="10,8,152,34" alt="">
-<area href="class_x_talker.html" shape="rect" coords="226,98,448,125" alt="">
-<area href="class_x_time.html" shape="rect" coords="472,98,533,125" alt="">
-<area href="class_x_r_w_lock.html" shape="rect" coords="353,205,436,232" alt="">
+<area href="class_x_driver.html" shape="rect" coords="605,402,672,429" alt="">
+<area href="class_x_node.html" shape="rect" coords="553,296,614,322" alt="">
+<area href="class_x_talker.html" shape="rect" coords="253,189,469,216" alt="">
+<area href="class___x_talker_base.html" shape="rect" coords="341,98,445,125" alt="">
+<area href="class_x_talker.html" shape="rect" coords="8,189,229,216" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="93,98,317,125" alt="">
+<area href="structatomic__shared__ptr_1_1___ref_local.html" shape="rect" coords="162,8,392,34" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="469,98,677,125" alt="">
+<area href="class_x_mutex.html" shape="rect" coords="470,8,537,34" alt="">
+<area href="class_x_thread_local.html" shape="rect" coords="493,189,674,216" alt="">
+<area href="class_x_time.html" shape="rect" coords="638,296,700,322" alt="">
+<area href="class_x_recursive_r_w_lock.html" shape="rect" coords="816,296,957,322" alt="">
+<area href="class_x_thread_local.html" shape="rect" coords="813,189,1010,216" alt="">
+<area href="class_x_r_w_lock.html" shape="rect" coords="696,402,778,429" alt="">
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_secondary_driver-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
 <tr><td></td></tr>
@@ -293,7 +301,7 @@ called by connected drivers does dependency checks, readLock all connected drive
 <p>
  <a class="el" href="secondarydriver_8cpp-source.html">secondarydriver.cpp</a> の <a class="el" href="secondarydriver_8cpp-source.html#l00050">50</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="class_x_secondary_driver.html#80b1f02a7d17dcaeae700b9612aa27b5">analyze()</a>・<a class="el" href="secondarydriver_8cpp-source.html#l00015">checkDeepDependency()</a>・<a class="el" href="class_x_secondary_driver.html#7d035ebb0cae0926fa1af7face8abc08">checkDependency()</a>・<a class="el" href="driver_8cpp-source.html#l00066">XDriver::finishRecordingNReadLock()</a>・<a class="el" href="xnode_8cpp-source.html#l00026">XNode::getName()</a>・<a class="el" href="secondarydriver_8h-source.html#l00061">m_connection</a>・<a class="el" href="secondarydriver_8h-source.html#l00058">m_dependency</a>・<a class="el" href="secondarydriver_8cpp-source.html#l00031">readLockAllConnections()</a>・<a class="el" href="secondarydriver_8cpp-source.html#l00038">readUnlockAllConnections()</a>・<a class="el" href="driver_8cpp-source.html#l00052">XDriver::readUnlockRecord()</a>・<a class="el" href="driver_8cpp-source.html#l00061">XDriver::startRecording()</a>・<a class="el" href="class_x_secondary_driver.html#47921915faa9431f4575450d091821ae">visualize()</a>.
+参照先 <a class="el" href="class_x_secondary_driver.html#80b1f02a7d17dcaeae700b9612aa27b5">analyze()</a>・<a class="el" href="secondarydriver_8cpp-source.html#l00015">checkDeepDependency()</a>・<a class="el" href="class_x_secondary_driver.html#7d035ebb0cae0926fa1af7face8abc08">checkDependency()</a>・<a class="el" href="driver_8cpp-source.html#l00066">XDriver::finishRecordingNReadLock()</a>・<a class="el" href="xnode_8h-source.html#l00057">XNode::getLabel()</a>・<a class="el" href="support_8cpp-source.html#l00243">KAME::i18n()</a>・<a class="el" href="secondarydriver_8h-source.html#l00061">m_connection</a>・<a class="el" href="secondarydriver_8h-source.html#l00058">m_dependency</a>・<a class="el" href="secondarydriver_8cpp-source.html#l00031">readLockAllConnections()</a>・<a class="el" href="secondarydriver_8cpp-source.html#l00038">readUnlockAllConnections()</a>・<a class="el" href="driver_8cpp-source.html#l00052">XDriver::readUnlockRecord()</a>・<a class="el" href="driver_8cpp-source.html#l00061">XDriver::startRecording()</a>・<a class="el" href="class_x_secondary_driver.html#47921915faa9431f4575450d091821ae">visualize()</a>.
 <p>
 参照元 <a class="el" href="secondarydriver_8cpp-source.html#l00123">onItemChanged()</a>・<a class="el" href="secondarydriver_8cpp-source.html#l00045">requestAnalysis()</a>.    </td>
   </tr>
@@ -329,7 +337,7 @@ check dependencies and lock all records and analyze null pointer will be passed 
 <p>
 参照先 <a class="el" href="secondarydriver_8cpp-source.html#l00050">onConnectedRecorded()</a>.
 <p>
-参照元 <a class="el" href="nmrpulse_8cpp-source.html#l00386">XNMRPulseAnalyzer::onAvgClear()</a>・<a class="el" href="nmrspectrum_8cpp-source.html#l00098">XNMRSpectrum::onClear()</a>・<a class="el" href="nmrfspectrum_8cpp-source.html#l00100">XNMRFSpectrum::onClear()</a>・<a class="el" href="nmrrelax_8cpp-source.html#l00200">XNMRT1::onClearAll()</a>・<a class="el" href="nmrspectrum_8cpp-source.html#l00091">XNMRSpectrum::onCondChanged()</a>・<a class="el" href="nmrrelax_8cpp-source.html#l00221">XNMRT1::onCondChanged()</a>・<a class="el" href="nmrpulse_8cpp-source.html#l00392">XNMRPulseAnalyzer::onCondChanged()</a>・<a class="el" href="nmrfspectrum_8cpp-source.html#l00095">XNMRFSpectrum::onCondChanged()</a>・<a class="el" href="nmrrelax_8cpp-source.html#l00206">XNMRT1::onResetFit()</a>.    </td>
+参照元 <a class="el" href="nmrpulse_8cpp-source.html#l00390">XNMRPulseAnalyzer::onAvgClear()</a>・<a class="el" href="nmrspectrum_8cpp-source.html#l00100">XNMRSpectrum::onClear()</a>・<a class="el" href="nmrfspectrum_8cpp-source.html#l00102">XNMRFSpectrum::onClear()</a>・<a class="el" href="nmrrelax_8cpp-source.html#l00202">XNMRT1::onClearAll()</a>・<a class="el" href="nmrspectrum_8cpp-source.html#l00093">XNMRSpectrum::onCondChanged()</a>・<a class="el" href="nmrrelax_8cpp-source.html#l00223">XNMRT1::onCondChanged()</a>・<a class="el" href="nmrpulse_8cpp-source.html#l00396">XNMRPulseAnalyzer::onCondChanged()</a>・<a class="el" href="nmrfspectrum_8cpp-source.html#l00097">XNMRFSpectrum::onCondChanged()</a>・<a class="el" href="nmrrelax_8cpp-source.html#l00208">XNMRT1::onResetFit()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="47921915faa9431f4575450d091821ae"></a><!-- doxytag: member="XSecondaryDriver::visualize" ref="47921915faa9431f4575450d091821ae" args="()=0" --><p>
@@ -367,7 +375,7 @@ this is called after <a class="el" href="class_x_secondary_driver.html#80b1f02a7
 </table>
 <hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/driver/<a class="el" href="secondarydriver_8h-source.html">secondarydriver.h</a><li>kame/driver/<a class="el" href="secondarydriver_8cpp-source.html">secondarydriver.cpp</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:53 2006に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:53:44 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

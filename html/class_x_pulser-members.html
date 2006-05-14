@@ -32,8 +32,9 @@
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#939e9859fa6a244076e2930764aecd88">aswSetup</a>() const </td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [inline]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#0c95b35ac151cad7dd8615b49005f16a">aswSetupRecorded</a>() const </td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [inline]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#1a6de371cabf3a44b860d56cb780d792">changeOutput</a>(bool output)=0</td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [protected, pure virtual]</code></td></tr>
-  <tr class="memlist"><td><a class="el" href="class_x_node.html#868e8d8c49bb7d5f66a3c1980a1da6ca">childMutex</a>() const </td><td><a class="el" href="class_x_node.html">XNode</a></td><td><code> [inline]</code></td></tr>
+  <tr class="memlist"><td><a class="el" href="class_x_node.html#2384b28f90791bf8d026e58fedf6ee7e">children</a>() const </td><td><a class="el" href="class_x_node.html">XNode</a></td><td><code> [inline]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_node.html#54785efdbafac7e6551efb9f1aac69c5">clearChildren</a>()</td><td><a class="el" href="class_x_node.html">XNode</a></td><td></td></tr>
+  <tr class="memlist"><td><a class="el" href="class_x_primary_driver.html#96f11456afe35d94890107edf261ec35">clearRaw</a>()</td><td><a class="el" href="class_x_primary_driver.html">XPrimaryDriver</a></td><td><code> [inline, protected]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#b9b882609d78b89aa53fe04f1d5574a9">combFunc</a>() const </td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [inline]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#f8a127b1e270339fbb7ae981a0e26465">combLevel</a>() const </td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [inline]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#e3adfc50a6471f9a589006d0b655d916">combMode</a>() const </td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [inline]</code></td></tr>
@@ -49,7 +50,6 @@
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#203eb8af3660756d77ae6865f98f9ce5">combPTRecorded</a>() const </td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [inline]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#8dfd04875fd1ad4985532e9cd0c26022">combPW</a>() const </td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [inline]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#1b7d5a1e8a23d7243c70ed2a2488baf3">combPWRecorded</a>() const </td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [inline]</code></td></tr>
-  <tr class="memlist"><td><a class="el" href="class_x_node.html#1cca054072e12fcac3c0a1ab6bafbf52">count</a>() const </td><td><a class="el" href="class_x_node.html">XNode</a></td><td></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_node.html#0d9508b31d3e80c40caa5b3d9de6bbb0">create</a>(const char *name, bool runtime=false)</td><td><a class="el" href="class_x_node.html">XNode</a></td><td></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_node.html#2c7346f95fff3ff112267c0ab82e66c3">create</a>(const char *name, bool runtime, X x)</td><td><a class="el" href="class_x_node.html">XNode</a></td><td></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_node.html#bf28fe00397aa1ed9399fe7efda3b7a8">create</a>(const char *name, bool runtime, X x, Y y)</td><td><a class="el" href="class_x_node.html">XNode</a></td><td></td></tr>
@@ -66,10 +66,11 @@
   <tr class="memlist"><td><a class="el" href="class_x_primary_driver.html#f8c5361cad4a345efd4b5e5657bea134">finishWritingRaw</a>(const XTime &amp;time_awared, const XTime &amp;time_recorded, bool success=true)</td><td><a class="el" href="class_x_primary_driver.html">XPrimaryDriver</a></td><td><code> [protected]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#9718f99086c9408e2e3977fe31eb2bcd">g2Setup</a>() const </td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [inline]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_node.html#01704abaa52fc90e86d2e2d75d50a097">getChild</a>(const std::string &amp;var) const </td><td><a class="el" href="class_x_node.html">XNode</a></td><td></td></tr>
-  <tr class="memlist"><td><a class="el" href="class_x_node.html#bac81e6b7a90126d74113da906011afa">getChild</a>(unsigned int i) const </td><td><a class="el" href="class_x_node.html">XNode</a></td><td></td></tr>
-  <tr class="memlist"><td><a class="el" href="class_x_node.html#6d7b79cf884ff63fcb83a89b32c2f582">getChild</a>(unsigned int i, shared_ptr&lt; T &gt; &amp;) const </td><td><a class="el" href="class_x_node.html">XNode</a></td><td></td></tr>
-  <tr class="memlist"><td><a class="el" href="class_x_node.html#a80e1cda9a887e46bb4c322f9fb91978">getName</a>() const </td><td><a class="el" href="class_x_node.html">XNode</a></td><td></td></tr>
+  <tr class="memlist"><td><a class="el" href="class_x_node.html#84f0935a406e8f16042f80b9dcaaa722">getLabel</a>() const </td><td><a class="el" href="class_x_node.html">XNode</a></td><td><code> [inline, virtual]</code></td></tr>
+  <tr class="memlist"><td><a class="el" href="class_x_node.html#469600e9bb05cb4fc6d39dd96db5802b">getName</a>() const </td><td><a class="el" href="class_x_node.html">XNode</a></td><td></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_node.html#d1329d3e0aab5c495892bec368f6ff04">getTypename</a>() const </td><td><a class="el" href="class_x_node.html">XNode</a></td><td></td></tr>
+  <tr class="memlist"><td><a class="el" href="class_x_pulser.html#c55af557a7fe05cc1ddb73f4f71ebe39">induceEmission</a>() const </td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [inline]</code></td></tr>
+  <tr class="memlist"><td><a class="el" href="class_x_pulser.html#f9ff61b1afe288bf418cef15b71f9a58">induceEmissionPhase</a>() const </td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [inline]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_node.html#91e3e7bd26256c95a8a9b71ecb2e914c">insert</a>(const shared_ptr&lt; XNode &gt; &amp;ptr)</td><td><a class="el" href="class_x_node.html">XNode</a></td><td><code> [virtual]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_primary_driver.html#50131048964317ee0a2f909f3ac25e4b">interface</a>() const </td><td><a class="el" href="class_x_primary_driver.html">XPrimaryDriver</a></td><td><code> [inline, protected]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_node.html#734b569074917875f18aa184bf9c54ce">isRunTime</a>() const </td><td><a class="el" href="class_x_node.html">XNode</a></td><td><code> [inline]</code></td></tr>
@@ -81,8 +82,7 @@
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#f2d83a8fa19ebfc1d3f944fc05f77101">m_aswHoldRecorded</a></td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [protected]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#a367690bbac879dc424732d3b3b02979">m_aswSetup</a></td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [private]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#214702bc5e0ab65968386934e78e5732">m_aswSetupRecorded</a></td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [protected]</code></td></tr>
-  <tr class="memlist"><td><a class="el" href="class_x_node.html#ac10e0a56b03bb1860e9d8b322604eaa">m_childmutex</a></td><td><a class="el" href="class_x_node.html">XNode</a></td><td><code> [protected]</code></td></tr>
-  <tr class="memlist"><td><a class="el" href="class_x_node.html#4c8f348e723b9013509a2d4463f749da">m_children</a></td><td><a class="el" href="class_x_node.html">XNode</a></td><td><code> [protected]</code></td></tr>
+  <tr class="memlist"><td><a class="el" href="class_x_node.html#99772675d01190372a6f4ffb778626dd">m_children</a></td><td><a class="el" href="class_x_node.html">XNode</a></td><td><code> [protected]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#a7915c833ba6013e5c124c74b1a2056e">m_combFunc</a></td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [private]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#6c26d6f9a78e2493e01b5e4cfa2dee48">m_combLevel</a></td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [private]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#942b9f55ce82503dcffe9b8ab01fb18c">m_combMode</a></td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [private]</code></td></tr>
@@ -115,6 +115,8 @@
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#71e82890caacc215691817a0e0366fdc">m_conDrivenEquilibrium</a></td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [private]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#899129c8d229dc8cf62c3d36f02e1ff9">m_conEchoNum</a></td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [private]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#f0e5b0ad44ee4d6c891e1020295f8c45">m_conG2Setup</a></td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [private]</code></td></tr>
+  <tr class="memlist"><td><a class="el" href="class_x_pulser.html#b15937b1a0dbe946e5b9775c866ecbeb">m_conInduceEmission</a></td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [private]</code></td></tr>
+  <tr class="memlist"><td><a class="el" href="class_x_pulser.html#2177e039166f96b76bfaae09fcdc4d4d">m_conInduceEmissionPhase</a></td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [private]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#65793730b5fd9deba6dfce1d4482feed">m_conMasterLevel</a></td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [private]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#cff4268e0c6163dad6e3a82684ac48b9">m_conMoreConfigShow</a></td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [private]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#07cbf12173d343a2aba7a2682f65d298">m_conNumPhaseCycle</a></td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [private]</code></td></tr>
@@ -150,6 +152,8 @@
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#d68f4bbe6adf91be516ef22638f8d7bd">m_form</a></td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [private]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#226073d6b8acd17a8cac1d7ce9af46ba">m_formMore</a></td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [private]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#13fe3a66d7193807f6f67b39a971a7ac">m_g2Setup</a></td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [private]</code></td></tr>
+  <tr class="memlist"><td><a class="el" href="class_x_pulser.html#60efb195ea2081e3e3072b48acb9d23f">m_induceEmission</a></td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [private]</code></td></tr>
+  <tr class="memlist"><td><a class="el" href="class_x_pulser.html#c40a8b1704138bdfb9c5268da21635b7">m_induceEmissionPhase</a></td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [private]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#ba4ce7b01c5c1e55e67082225106297b">m_lsnOnMoreConfigShow</a></td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [private]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#4a9d1665a43020f6eac01d3e8abc64f4">m_lsnOnPulseChanged</a></td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [private]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#2a4070d6d89532fccb21fa535a9994e9">m_masterLevel</a></td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [private]</code></td></tr>
@@ -189,6 +193,7 @@
   <tr class="memlist"><td><a class="el" href="class_x_node.html#b54bf3f44644a4838df2f2a8b1f98a80">m_tlkOnTouch</a></td><td><a class="el" href="class_x_node.html">XNode</a></td><td><code> [protected]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_node.html#6b25ef2ea67db0014d4590fdf127b11d">m_tlkOnUIEnabled</a></td><td><a class="el" href="class_x_node.html">XNode</a></td><td><code> [protected]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#1657f1678482e3e7ea7368a1550a8f4b">masterLevel</a>() const </td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [inline]</code></td></tr>
+  <tr class="memlist"><td><a class="el" href="class_x_node.html#0ea2c4c1dea27f91ff2c6006e59d02a2">NodeList</a> typedef</td><td><a class="el" href="class_x_node.html">XNode</a></td><td></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#103c117aad8e126f1c8f4d3dafef39b2">numPhaseCycle</a>() const </td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [inline]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#ba8ec9570b00420619bf254cf833e416">numPhaseCycleRecorded</a>() const </td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [inline]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#47308628fe4641f230b3f29ac3639fc0">onMoreConfigShow</a>(const shared_ptr&lt; XNode &gt; &amp;)</td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [private]</code></td></tr>
@@ -211,7 +216,7 @@
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#a925c40733d2f4647861bc33b2e3581a">portLevel14</a>() const </td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [inline]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#2bf3516cdd41abd07d3c4719d946c487">portLevel8</a>() const </td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [inline]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#81eeae77df88f1abe21bfa5dc87901a6">portLevel9</a>() const </td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [inline]</code></td></tr>
-  <tr class="memlist"><td><a class="el" href="class_x_pulser.html#2171d8c1437d1218a5aee2891a1e419e">pulseFunc</a>(const QString &amp;str)</td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [protected]</code></td></tr>
+  <tr class="memlist"><td><a class="el" href="class_x_pulser.html#f4eb008353e0f9a3d303a1851d018acd">pulseFunc</a>(const std::string &amp;str)</td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [protected]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#a79ff640e8a5e6aaa7b81f4e8c6f244a">pulseFuncBlackman</a>(double x)</td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [protected, static]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#571d2f46d019a3b4646231a0ccb7bd63">pulseFuncBlackmanHarris</a>(double x)</td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [protected, static]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#38503aacf7da178c2e6bc1fc9feccf92">pulseFuncFlatTop</a>(double x)</td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [protected, static]</code></td></tr>
@@ -256,7 +261,6 @@
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#900062f4d2f6a901635535c6d442fb64">rawToRelPat</a>()=0</td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [protected, pure virtual]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_driver.html#71f8ddacb5818dba761c9a4b4fb0e699">readLockRecord</a>() const </td><td><a class="el" href="class_x_driver.html">XDriver</a></td><td></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_driver.html#08b2f5885f4b5d2491bf7aa575c64532">readUnlockRecord</a>() const </td><td><a class="el" href="class_x_driver.html">XDriver</a></td><td></td></tr>
-  <tr class="memlist"><td><a class="el" href="class_x_node.html#3955aaa3bd9593cfab0578b2f7f06cd9">releaseChild</a>(unsigned int index)</td><td><a class="el" href="class_x_node.html">XNode</a></td><td></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_node.html#8885960feec87e54c9717acdb837a952">releaseChild</a>(const shared_ptr&lt; XNode &gt; &amp;node)</td><td><a class="el" href="class_x_node.html">XNode</a></td><td></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#6a21b0f4efb905a8016d41a710b971fe">RelPatList</a> typedef</td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [protected]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#dcdcaab19a1309df00a3e0e31b2a5d0e">RelPatListIterator</a> typedef</td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [protected]</code></td></tr>
@@ -272,13 +276,10 @@
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#37f416616fd6597463d91ca3d6ef7710">start</a>()</td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [protected, virtual]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_driver.html#97e0fd17d70006bd37df8c3f0d95f633">startMeas</a>()</td><td><a class="el" href="class_x_driver.html">XDriver</a></td><td></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_driver.html#272561abe4b87693f950697cb6f69e31">startRecording</a>(const XTime &amp;time_awared)</td><td><a class="el" href="class_x_driver.html">XDriver</a></td><td><code> [protected]</code></td></tr>
-  <tr class="memlist"><td><a class="el" href="class_x_primary_driver.html#0d87a269d8107f43efdd80d7e6d1d5c4">startWritingRaw</a>()</td><td><a class="el" href="class_x_primary_driver.html">XPrimaryDriver</a></td><td><code> [protected]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#bfdf76e6b65e2abd956f503c029d3d57">stop</a>()</td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [protected, virtual]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_driver.html#444df536a286fb99faeec912f751d7f0">stopMeas</a>()</td><td><a class="el" href="class_x_driver.html">XDriver</a></td><td></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#a6f062ffe966922d8fea2ab9264b8e1c">tau</a>() const </td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [inline]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#7036d6413260629c45beba9dbd8eddc5">tauRecorded</a>() const </td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [inline]</code></td></tr>
-  <tr class="memlist"><td><a class="el" href="class_x_node.html#77bbb1bc0a300b87e7b1357f956d1a57">tchildren</a> typedef</td><td><a class="el" href="class_x_node.html">XNode</a></td><td><code> [protected]</code></td></tr>
-  <tr class="memlist"><td><a class="el" href="class_x_node.html#a71a9efc9d11382e3128ebb62e38d4e9">tchildren_it</a> typedef</td><td><a class="el" href="class_x_node.html">XNode</a></td><td><code> [protected]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_driver.html#e2bb087696137545e44bde8eb06389b4">time</a>() const </td><td><a class="el" href="class_x_driver.html">XDriver</a></td><td><code> [inline]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_driver.html#b7339efb3bb35a84ef0358604b19d5dc">timeAwared</a>() const </td><td><a class="el" href="class_x_driver.html">XDriver</a></td><td><code> [inline]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_node.html#a460d158acad11f36bf9b89314e8a9d8">touch</a>()</td><td><a class="el" href="class_x_node.html">XNode</a></td><td></td></tr>
@@ -294,7 +295,7 @@
   <tr class="memlist"><td><a class="el" href="class_x_node.html#cfecfaa21baad2f7066e730dc43e9640">~XNode</a>()</td><td><a class="el" href="class_x_node.html">XNode</a></td><td><code> [virtual]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_primary_driver.html#c61a62dcb13e9d49e07678ddcf515a22">~XPrimaryDriver</a>()</td><td><a class="el" href="class_x_primary_driver.html">XPrimaryDriver</a></td><td><code> [inline, virtual]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_pulser.html#e483f82b1c2057dc0c76ee92522168ec">~XPulser</a>()</td><td><a class="el" href="class_x_pulser.html">XPulser</a></td><td><code> [inline, virtual]</code></td></tr>
-</table><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:52 2006に生成されました。&nbsp;
+</table><hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:53:24 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

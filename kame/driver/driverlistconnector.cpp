@@ -35,9 +35,9 @@ XDriverListConnector::XDriverListConnector
   m_pItem->setColumnWidth(1, (int)(def * 1.0));
   m_pItem->setColumnWidth(2, (int)(def * 4.5));
   QStringList labels;
-  labels += i18n("Driver");
-  labels += i18n("Type");
-  labels += i18n("Recorded Time");
+  labels += KAME::i18n("Driver");
+  labels += KAME::i18n("Type");
+  labels += KAME::i18n("Recorded Time");
   m_pItem->setColumnLabels(labels);
 
   atomic_shared_ptr<const XNode::NodeList> list(node->children());
@@ -150,7 +150,7 @@ XDriverListConnector::onCreateTouched(const shared_ptr<XNode> &)
         driver = m_list->createByTypename(XDriverList::typenames()[idx],
                  dlg->m_edName->text());
    if(!driver)
-        gErrPrint(i18n("Driver creation failed"));
+        gErrPrint(KAME::i18n("Driver creation failed"));
 }
 void
 XDriverListConnector::onReleaseTouched(const shared_ptr<XNode> &)

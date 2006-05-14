@@ -57,6 +57,7 @@
     }
 #endif // NDEBUG
 
+
 XKameError::XKameError(const QString &s, const char *file, int line)
      : m_msg(s), m_file(file), m_line(line), m_errno(errno) {
     errno = 0;
@@ -198,20 +199,20 @@ void formatDoubleValidator(std::string &fmt) {
         }
         arg_cnt++;
         if(arg_cnt > 1) {
-            throw XKameError(i18n("Illegal Format, too many %s."), __FILE__, __LINE__);
+            throw XKameError(KAME::i18n("Illegal Format, too many %s."), __FILE__, __LINE__);
         }
         char conv;
         if((sscanf(buf.c_str() + pos, "%*[+-'0# ]%*f%c", &conv) != 1) &&
             (sscanf(buf.c_str() + pos, "%*[+-'0# ]%c", &conv) != 1) &&
             (sscanf(buf.c_str() + pos, "%*f%c", &conv) != 1) &&
             (sscanf(buf.c_str() + pos, "%c", &conv) != 1)) {
-            throw XKameError(i18n("Illegal Format."), __FILE__, __LINE__);                
+            throw XKameError(KAME::i18n("Illegal Format."), __FILE__, __LINE__);                
         }
         if(std::string("eEgGf").find(conv) == std::string::npos)
-            throw XKameError(i18n("Illegal Format, no float conversion."), __FILE__, __LINE__);  
+            throw XKameError(KAME::i18n("Illegal Format, no float conversion."), __FILE__, __LINE__);  
     }
     if(arg_cnt == 0)
-        throw XKameError(i18n("Illegal Format, no %."), __FILE__, __LINE__);
+        throw XKameError(KAME::i18n("Illegal Format, no %."), __FILE__, __LINE__);
 }
 
 std::string dumpCString(const char *cstr)
@@ -229,9 +230,20 @@ std::string dumpCString(const char *cstr)
     return buf;
 }
 
-static XThreadLocal<unsigned int> stl_random_seed;
+#include <qdeepcopy.h>
+
 namespace KAME {
+    static XThreadLocal<unsigned int> stl_random_seed;
+    static XMutex i18n_mutex;
     unsigned int rand() {
         return rand_r(&(*stl_random_seed));
     }
+    //! thread-safe version of i18n().
+    //! this is not needed in QT4 or later.
+    QString i18n(const char* eng)
+    {
+        XScopedLock<XMutex> lock(i18n_mutex);
+        return QDeepCopy<QString>(::i18n(eng));
+    }
 }
+

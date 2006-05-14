@@ -28,14 +28,15 @@
 <a name="l00010"></a>00010     <a class="code" href="class_x_ruby_writer.html#a8feea76146b533609e19a94b996f83d">~XRubyWriter</a>();
 <a name="l00011"></a>00011     <span class="keywordtype">void</span> <a class="code" href="class_x_ruby_writer.html#2f1e50f8a71f6b1cadca6c330113e661">write</a>();
 <a name="l00012"></a>00012 <span class="keyword">private</span>:
-<a name="l00013"></a>00013     <span class="keywordtype">void</span> <a class="code" href="class_x_ruby_writer.html#2f1e50f8a71f6b1cadca6c330113e661">write</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node, <span class="keywordtype">bool</span> ghost, <span class="keywordtype">int</span> level);
-<a name="l00014"></a><a class="code" href="class_x_ruby_writer.html#f967ffa6e6939b68ec722e8e9c6117cb">00014</a>     shared_ptr&lt;XNode&gt; <a class="code" href="class_x_ruby_writer.html#f967ffa6e6939b68ec722e8e9c6117cb">m_root</a>;
-<a name="l00015"></a><a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">00015</a>     std::ofstream &amp;<a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a>;    
-<a name="l00016"></a>00016 };
-<a name="l00017"></a>00017 
+<a name="l00013"></a>00013     <span class="keywordtype">void</span> <a class="code" href="class_x_ruby_writer.html#2f1e50f8a71f6b1cadca6c330113e661">write</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node,
+<a name="l00014"></a>00014          <span class="keyword">const</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> &amp;list, <span class="keywordtype">bool</span> ghost, <span class="keywordtype">int</span> level);
+<a name="l00015"></a><a class="code" href="class_x_ruby_writer.html#f967ffa6e6939b68ec722e8e9c6117cb">00015</a>     shared_ptr&lt;XNode&gt; <a class="code" href="class_x_ruby_writer.html#f967ffa6e6939b68ec722e8e9c6117cb">m_root</a>;
+<a name="l00016"></a><a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">00016</a>     std::ofstream &amp;<a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a>;    
+<a name="l00017"></a>00017 };
 <a name="l00018"></a>00018 
-<a name="l00019"></a>00019 <span class="preprocessor">#endif </span><span class="comment">/*XRUBYWRITER_H_*/</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:45 2006に生成されました。&nbsp;
+<a name="l00019"></a>00019 
+<a name="l00020"></a>00020 <span class="preprocessor">#endif </span><span class="comment">/*XRUBYWRITER_H_*/</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:52:28 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

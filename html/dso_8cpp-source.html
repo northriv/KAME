@@ -204,7 +204,7 @@
 <a name="l00187"></a>00187       afterStart();
 <a name="l00188"></a>00188   }
 <a name="l00189"></a>00189   <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
-<a name="l00190"></a>00190       e.<a class="code" href="struct_x_kame_error.html#9a84ebcb9d45b52654fd1d071450a5ee">print</a>(<a class="code" href="class_x_node.html#a80e1cda9a887e46bb4c322f9fb91978">getName</a>());
+<a name="l00190"></a>00190       e.<a class="code" href="struct_x_kame_error.html#9a84ebcb9d45b52654fd1d071450a5ee">print</a>(<a class="code" href="class_x_node.html#84f0935a406e8f16042f80b9dcaaa722">getLabel</a>());
 <a name="l00191"></a>00191       <a class="code" href="class_x_primary_driver.html#50131048964317ee0a2f909f3ac25e4b">interface</a>()-&gt;close();
 <a name="l00192"></a>00192       <span class="keywordflow">return</span> NULL;
 <a name="l00193"></a>00193   }  
@@ -254,7 +254,7 @@
 <a name="l00237"></a>00237       <span class="keywordflow">try</span> {
 <a name="l00238"></a>00238           <span class="keywordflow">if</span>(!*<a class="code" href="class_x_d_s_o.html#6e511ce641c43fec7300210151b3ed86">fetch</a>()) <span class="keywordflow">continue</span>;
 <a name="l00239"></a>00239           <span class="keywordtype">bool</span> seq_busy;
-<a name="l00240"></a>00240           <span class="keywordtype">int</span> <a class="code" href="class_x_node.html#1cca054072e12fcac3c0a1ab6bafbf52">count</a> = <a class="code" href="class_x_d_s_o.html#51c70e6e1ac30ca103dfddd2c1ec734d">acqCount</a>(&amp;seq_busy);
+<a name="l00240"></a>00240           <span class="keywordtype">int</span> count = <a class="code" href="class_x_d_s_o.html#51c70e6e1ac30ca103dfddd2c1ec734d">acqCount</a>(&amp;seq_busy);
 <a name="l00241"></a>00241           <span class="keywordflow">if</span>(!count) {
 <a name="l00242"></a>00242                 time_awared = <a class="code" href="class_x_time.html#c379a0eebc8202c724609985cf7782ac">XTime::now</a>();
 <a name="l00243"></a>00243                 last_count = 0;
@@ -269,30 +269,30 @@
 <a name="l00252"></a>00252           last_count =  count;
 <a name="l00253"></a>00253       }
 <a name="l00254"></a>00254       <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a>&amp; e) {
-<a name="l00255"></a>00255           e.<a class="code" href="struct_x_kame_error.html#9a84ebcb9d45b52654fd1d071450a5ee">print</a>(<a class="code" href="class_x_node.html#a80e1cda9a887e46bb4c322f9fb91978">getName</a>());
+<a name="l00255"></a>00255           e.<a class="code" href="struct_x_kame_error.html#9a84ebcb9d45b52654fd1d071450a5ee">print</a>(<a class="code" href="class_x_node.html#84f0935a406e8f16042f80b9dcaaa722">getLabel</a>());
 <a name="l00256"></a>00256           <span class="keywordflow">continue</span>;
 <a name="l00257"></a>00257       }
 <a name="l00258"></a>00258 
-<a name="l00259"></a>00259       std::deque&lt;QString&gt; channels;
+<a name="l00259"></a>00259       std::deque&lt;std::string&gt; channels;
 <a name="l00260"></a>00260       channels.push_back(<a class="code" href="class_x_d_s_o.html#44a56bd3836e257643c39521e647b983">trace1</a>()-&gt;to_str());
-<a name="l00261"></a>00261       <span class="keywordflow">if</span>(channels.front().isEmpty()) {
-<a name="l00262"></a>00262             gErrPrint(<a class="code" href="class_x_node.html#a80e1cda9a887e46bb4c322f9fb91978">getName</a>() + <span class="stringliteral">" "</span> + i18n(<span class="stringliteral">"Select traces!."</span>));
+<a name="l00261"></a>00261       <span class="keywordflow">if</span>(channels.front().empty()) {
+<a name="l00262"></a>00262             gErrPrint(<a class="code" href="class_x_node.html#84f0935a406e8f16042f80b9dcaaa722">getLabel</a>() + <span class="stringliteral">" "</span> + <a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Select traces!."</span>));
 <a name="l00263"></a>00263             <span class="keywordflow">continue</span>;
 <a name="l00264"></a>00264       }
 <a name="l00265"></a>00265       channels.push_back(<a class="code" href="class_x_d_s_o.html#1454ec3689ebbfe46ffc8623ee3f01af">trace2</a>()-&gt;to_str());
-<a name="l00266"></a>00266       <span class="keywordflow">if</span>(channels.back().isEmpty()) {
+<a name="l00266"></a>00266       <span class="keywordflow">if</span>(channels.back().empty()) {
 <a name="l00267"></a>00267             channels.pop_back();
 <a name="l00268"></a>00268       }
 <a name="l00269"></a>00269 
 <a name="l00270"></a>00270       shared_ptr&lt;XPulser&gt; pulser(*m_pulser);
 <a name="l00271"></a>00271       
-<a name="l00272"></a>00272       startWritingRaw();
+<a name="l00272"></a>00272       clearRaw();
 <a name="l00273"></a>00273       <span class="comment">// try/catch exception of communication errors</span>
 <a name="l00274"></a>00274       <span class="keywordflow">try</span> {
 <a name="l00275"></a>00275           getWave(channels);
 <a name="l00276"></a>00276       }
 <a name="l00277"></a>00277       <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
-<a name="l00278"></a>00278           e.<a class="code" href="struct_x_kame_error.html#9a84ebcb9d45b52654fd1d071450a5ee">print</a>(getName());
+<a name="l00278"></a>00278           e.<a class="code" href="struct_x_kame_error.html#9a84ebcb9d45b52654fd1d071450a5ee">print</a>(getLabel());
 <a name="l00279"></a>00279           finishWritingRaw(<a class="code" href="class_x_time.html">XTime</a>(), <a class="code" href="class_x_time.html">XTime</a>(), <span class="keyword">false</span>);
 <a name="l00280"></a>00280           <span class="keywordflow">continue</span>;
 <a name="l00281"></a>00281       }
@@ -303,7 +303,7 @@
 <a name="l00286"></a>00286           <span class="keywordtype">bool</span> control_pulser = *m_foolAvgEnabled;
 <a name="l00287"></a>00287           <span class="keywordflow">if</span>(control_pulser &amp;&amp; !pulser) {
 <a name="l00288"></a>00288             control_pulser = <span class="keyword">false</span>;
-<a name="l00289"></a>00289             gErrPrint(getName() + <span class="stringliteral">": "</span> + i18n(<span class="stringliteral">"No Pulser!"</span>));
+<a name="l00289"></a>00289             gErrPrint(getLabel() + <span class="stringliteral">": "</span> + <a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"No Pulser!"</span>));
 <a name="l00290"></a>00290           }
 <a name="l00291"></a>00291           <span class="keywordflow">if</span>(control_pulser &amp;&amp; !(pulser-&gt;time() &amp;&amp; (pulser-&gt;time() &lt; time_awared)))
 <a name="l00292"></a>00292             control_pulser = <span class="keyword">false</span>;
@@ -319,7 +319,7 @@
 <a name="l00302"></a>00302           time_awared = <a class="code" href="class_x_time.html#c379a0eebc8202c724609985cf7782ac">XTime::now</a>();
 <a name="l00303"></a>00303       }
 <a name="l00304"></a>00304       <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
-<a name="l00305"></a>00305           e.<a class="code" href="struct_x_kame_error.html#9a84ebcb9d45b52654fd1d071450a5ee">print</a>(getName());
+<a name="l00305"></a>00305           e.<a class="code" href="struct_x_kame_error.html#9a84ebcb9d45b52654fd1d071450a5ee">print</a>(getLabel());
 <a name="l00306"></a>00306           <span class="keywordflow">continue</span>;
 <a name="l00307"></a>00307       }
 <a name="l00308"></a>00308     }
@@ -390,7 +390,7 @@
 <a name="l00373"></a>00373      <span class="keywordtype">double</span>  bandwidth = *firBandWidth()*1000.0*timeIntervalRecorded();
 <a name="l00374"></a>00374      <span class="keywordtype">double</span> fir_sharpness = *firSharpness();
 <a name="l00375"></a>00375      <span class="keywordflow">if</span>(fir_sharpness &lt; 4.0)
-<a name="l00376"></a>00376         m_statusPrinter-&gt;printWarning(i18n(<span class="stringliteral">"Too small number of taps for FIR filter."</span>));
+<a name="l00376"></a>00376         m_statusPrinter-&gt;printWarning(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Too small number of taps for FIR filter."</span>));
 <a name="l00377"></a>00377      <span class="keywordtype">int</span> taps = std::min((<span class="keywordtype">int</span>)lrint(2 * fir_sharpness / bandwidth), 5000);
 <a name="l00378"></a>00378      m_fir.setupBPF(taps, bandwidth, *firCenterFreq() * 1000.0 * timeIntervalRecorded());
 <a name="l00379"></a>00379      <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> num_channels = numChannelsRecorded();
@@ -404,7 +404,7 @@
 <a name="l00387"></a>00387      }
 <a name="l00388"></a>00388   }
 <a name="l00389"></a>00389 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:45 2006に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:52:28 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

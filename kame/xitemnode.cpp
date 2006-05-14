@@ -8,7 +8,7 @@ XItemNodeBase::XItemNodeBase(const char *name, bool runtime) :
 
 void
 _xpointeritemnode_throwConversionError() {
-   throw XKameError(i18n("No item."), __FILE__, __LINE__);
+   throw XKameError(KAME::i18n("No item."), __FILE__, __LINE__);
 }
 
 XComboNode::XComboNode(const char *name, bool runtime)
@@ -33,7 +33,7 @@ XComboNode::_str(const std::string &var) throw (XKameError &)
         }
         i++;
    }
-   throw XKameError(i18n("No item."), __FILE__, __LINE__);
+   throw XKameError(KAME::i18n("No item."), __FILE__, __LINE__);
 }
 
 void

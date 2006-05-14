@@ -43,7 +43,7 @@ XOxfordInterface::query(const char *str) throw (XInterface::XCommError &)
        throw e;
   }
   unlock();
-  throw XCommError(i18n("Oxford Query Error, Initial doesn't match"), __FILE__, __LINE__);
+  throw XCommError(KAME::i18n("Oxford Query Error, Initial doesn't match"), __FILE__, __LINE__);
 }
 
 void
@@ -66,7 +66,7 @@ XOxfordInterface::close()
       XInterface::close();
     }
     catch (XCommError &e) {
-      e.print(driver()->getLabel() + i18n(": close Oxford port failed, because"));
+      e.print(driver()->getLabel() + KAME::i18n(": close Oxford port failed, because"));
       return;
     }
 }

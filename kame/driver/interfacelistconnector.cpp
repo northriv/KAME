@@ -25,11 +25,11 @@ XInterfaceListConnector::XInterfaceListConnector(
   item->setColumnWidth(3, (int)(def * 1));
   item->setColumnWidth(4, (int)(def * 1));
   QStringList labels;
-  labels += i18n("Driver");
-  labels += i18n("Control");
-  labels += i18n("Device");
-  labels += i18n("Port");
-  labels += i18n("Addr");
+  labels += KAME::i18n("Driver");
+  labels += KAME::i18n("Control");
+  labels += KAME::i18n("Device");
+  labels += KAME::i18n("Port");
+  labels += KAME::i18n("Addr");
   item->setColumnLabels(labels);
 
   atomic_shared_ptr<const XNode::NodeList> list(node->children());
@@ -69,12 +69,12 @@ XInterfaceListConnector::onOpenedChanged(const shared_ptr<XValueNodeBase> &node)
             if(*it->interface->opened()) {
                 it->btn->setIconSet( app->iconLoader()->loadIconSet("stop", 
                     KIcon::Toolbar, KIcon::SizeSmall, true ) );
-                it->btn->setText(i18n("&STOP"));
+                it->btn->setText(KAME::i18n("&STOP"));
              }
              else {
                 it->btn->setIconSet( app->iconLoader()->loadIconSet("run", 
                     KIcon::Toolbar, KIcon::SizeSmall, true ) );
-                it->btn->setText(i18n("&RUN"));
+                it->btn->setText(KAME::i18n("&RUN"));
             }
         }
     }

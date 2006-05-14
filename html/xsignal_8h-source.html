@@ -278,31 +278,34 @@
 <a name="l00337"></a>00337                 <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
 <a name="l00338"></a>00338                     e.<a class="code" href="struct_x_kame_error.html#9a84ebcb9d45b52654fd1d071450a5ee">print</a>();
 <a name="l00339"></a>00339                 }
-<a name="l00340"></a>00340                 <span class="keywordflow">catch</span> (...) {
-<a name="l00341"></a>00341                     gErrPrint(<span class="stringliteral">"Unhandled Exception Occurs!"</span>);
+<a name="l00340"></a>00340                 <span class="keywordflow">catch</span> (std::bad_alloc &amp;) {
+<a name="l00341"></a>00341                     gErrPrint(<span class="stringliteral">"Memory Allocation Failed!"</span>);
 <a name="l00342"></a>00342                 }
-<a name="l00343"></a>00343             }
-<a name="l00344"></a>00344             <span class="keywordflow">else</span> {
-<a name="l00345"></a>00345                            <span class="keywordflow">if</span>(listener-&gt;m_bAvoidDup) {
-<a name="l00346"></a>00346                     <a class="code" href="classatomic__scoped__ptr.html">atomic_scoped_ptr&lt;tArg&gt;</a> newarg(<span class="keyword">new</span> tArg(arg) );
-<a name="l00347"></a>00347                     newarg.<a class="code" href="classatomic__scoped__ptr.html#2ba72b89616bf71f4d1eb8d1add21a1e">swap</a>(listener-&gt;arg);
-<a name="l00348"></a>00348                     <span class="keywordflow">if</span>(!newarg.<a class="code" href="classatomic__scoped__ptr.html#029aa38d9b7c216186b5b03395628b45">get</a>()) {
-<a name="l00349"></a>00349                          g_signalBuffer-&gt;registerTransactionList(
-<a name="l00350"></a>00350                             <span class="keyword">new</span> <a class="code" href="struct_x_talker_1_1_transaction_avoid_dup.html">TransactionAvoidDup</a>(listener));
-<a name="l00351"></a>00351                     }
-<a name="l00352"></a>00352                             }
-<a name="l00353"></a>00353                 <span class="keywordflow">else</span> {
-<a name="l00354"></a>00354                      g_signalBuffer-&gt;registerTransactionList(
-<a name="l00355"></a>00355                             <span class="keyword">new</span> <a class="code" href="struct_x_talker_1_1_transaction_allow_dup.html">TransactionAllowDup</a>(listener, arg));
-<a name="l00356"></a>00356                         }
-<a name="l00357"></a>00357             }
-<a name="l00358"></a>00358         }
-<a name="l00359"></a>00359      }
-<a name="l00360"></a>00360   }
-<a name="l00361"></a>00361 }
-<a name="l00362"></a>00362 
-<a name="l00363"></a>00363 <span class="preprocessor">#endif</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:47 2006に生成されました。&nbsp;
+<a name="l00343"></a>00343                 <span class="keywordflow">catch</span> (...) {
+<a name="l00344"></a>00344                     gErrPrint(<span class="stringliteral">"Unhandled Exception Occurs!"</span>);
+<a name="l00345"></a>00345                 }
+<a name="l00346"></a>00346             }
+<a name="l00347"></a>00347             <span class="keywordflow">else</span> {
+<a name="l00348"></a>00348                            <span class="keywordflow">if</span>(listener-&gt;m_bAvoidDup) {
+<a name="l00349"></a>00349                     <a class="code" href="classatomic__scoped__ptr.html">atomic_scoped_ptr&lt;tArg&gt;</a> newarg(<span class="keyword">new</span> tArg(arg) );
+<a name="l00350"></a>00350                     newarg.<a class="code" href="classatomic__scoped__ptr.html#2ba72b89616bf71f4d1eb8d1add21a1e">swap</a>(listener-&gt;arg);
+<a name="l00351"></a>00351                     <span class="keywordflow">if</span>(!newarg.<a class="code" href="classatomic__scoped__ptr.html#029aa38d9b7c216186b5b03395628b45">get</a>()) {
+<a name="l00352"></a>00352                          g_signalBuffer-&gt;registerTransactionList(
+<a name="l00353"></a>00353                             <span class="keyword">new</span> <a class="code" href="struct_x_talker_1_1_transaction_avoid_dup.html">TransactionAvoidDup</a>(listener));
+<a name="l00354"></a>00354                     }
+<a name="l00355"></a>00355                             }
+<a name="l00356"></a>00356                 <span class="keywordflow">else</span> {
+<a name="l00357"></a>00357                      g_signalBuffer-&gt;registerTransactionList(
+<a name="l00358"></a>00358                             <span class="keyword">new</span> <a class="code" href="struct_x_talker_1_1_transaction_allow_dup.html">TransactionAllowDup</a>(listener, arg));
+<a name="l00359"></a>00359                         }
+<a name="l00360"></a>00360             }
+<a name="l00361"></a>00361         }
+<a name="l00362"></a>00362      }
+<a name="l00363"></a>00363   }
+<a name="l00364"></a>00364 }
+<a name="l00365"></a>00365 
+<a name="l00366"></a>00366 <span class="preprocessor">#endif</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:52:30 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

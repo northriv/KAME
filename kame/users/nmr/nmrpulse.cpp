@@ -135,9 +135,9 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
   windowFunc()->add(WINDOW_FUNC_KAISER_3);
   windowFunc()->value(WINDOW_FUNC_RECT);
 
-  m_form->setCaption(i18n("NMR Pulse - ") + getLabel() );
+  m_form->setCaption(KAME::i18n("NMR Pulse - ") + getLabel() );
 
-  m_fftForm->setCaption(i18n("NMR-FFT - ") + getLabel() );
+  m_fftForm->setCaption(KAME::i18n("NMR-FFT - ") + getLabel() );
 
   m_conAvgClear = xqcon_create<XQButtonConnector>(m_avgClear, m_form->m_btnAvgClear);
   m_conFFTShow = xqcon_create<XQButtonConnector>(m_fftShow, m_form->m_btnFFT);
@@ -164,9 +164,9 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
       const char *labels[] = {"Time [ms]", "Cos [V]", "Sin [V]"};
       waveGraph()->setColCount(3, labels);
       waveGraph()->selectAxes(0, 1, 2);
-      waveGraph()->plot1()->label()->value(i18n("real part"));
+      waveGraph()->plot1()->label()->value(KAME::i18n("real part"));
       waveGraph()->plot1()->drawPoints()->value(false);
-      waveGraph()->plot2()->label()->value(i18n("imag. part"));
+      waveGraph()->plot2()->label()->value(KAME::i18n("imag. part"));
       waveGraph()->plot2()->drawPoints()->value(false);
       waveGraph()->clear();
   }
@@ -174,11 +174,11 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
       const char *labels[] = {"Freq. [kHz]", "Re. [V]", "Im. [V]", "Abs. [V]", "Phase [deg]"};
       ftWaveGraph()->setColCount(5, labels);
       ftWaveGraph()->selectAxes(0, 3, 4);
-      ftWaveGraph()->plot1()->label()->value(i18n("abs."));
+      ftWaveGraph()->plot1()->label()->value(KAME::i18n("abs."));
       ftWaveGraph()->plot1()->drawBars()->value(true);
       ftWaveGraph()->plot1()->drawLines()->value(false);
       ftWaveGraph()->plot1()->drawPoints()->value(false);
-      ftWaveGraph()->plot2()->label()->value(i18n("phase"));
+      ftWaveGraph()->plot2()->label()->value(KAME::i18n("phase"));
       ftWaveGraph()->plot2()->drawPoints()->value(false); 
       ftWaveGraph()->clear();
   }
@@ -412,13 +412,13 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
   ASSERT( _dso->time() );
   
   if(_dso->numChannelsRecorded() < 1) {
-    throw XRecordError(i18n("No record in DSO"), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("No record in DSO"), __FILE__, __LINE__);
   }
 
   double interval = _dso->timeIntervalRecorded();
   
   if(interval <= 0) {
-    throw XRecordError(i18n("Invalid time interval in waveforms."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Invalid time interval in waveforms."), __FILE__, __LINE__);
   }
   //[sec]
   m_interval = interval;
@@ -429,17 +429,17 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
   m_startTime = (pos - _dso->trigPosRecorded()) * interval;
   
   if(pos >= (int)_dso->lengthRecorded()) {
-    throw XRecordError(i18n("Position beyond waveforms."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Position beyond waveforms."), __FILE__, __LINE__);
   }
   if(pos < 0) {
-    throw XRecordError(i18n("Position beyond waveforms."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Position beyond waveforms."), __FILE__, __LINE__);
   }
   int length = lrint(*width() / 1000 /  interval);
   if(pos + length >= (int)_dso->lengthRecorded()) {
-    throw XRecordError(i18n("Invalid length."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Invalid length."), __FILE__, __LINE__);
   }  
   if(length <= 0) {
-    throw XRecordError(i18n("Invalid length."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Invalid length."), __FILE__, __LINE__);
   }
 
   bool skip = (m_timeClearRequested > _dso->timeAwared());
@@ -450,7 +450,7 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
       if(m_fftlen >= 0)  fftw_destroy_plan(m_fftplan);
       m_fftlen = *fftLen();
       if(lrint(pow(2.0f, rintf(logf((float)m_fftlen) / logf(2.0f)))) != m_fftlen )
-            m_statusPrinter->printWarning(i18n("FFT length is not a power of 2."), true);
+            m_statusPrinter->printWarning(KAME::i18n("FFT length is not a power of 2."), true);
       m_fftin.resize(m_fftlen);
       m_fftout.resize(m_fftlen);
       m_fftplan = fftw_create_plan(m_fftlen, FFTW_FORWARD, FFTW_ESTIMATE);
@@ -476,23 +476,23 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
 
   int bgpos = lrint((*bgPos() - *fromTrig()) / 1000 / interval);
   if(pos + bgpos >= (int)_dso->lengthRecorded()) {
-    throw XRecordError(i18n("Position for BG. sub. beyond waveforms."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Position for BG. sub. beyond waveforms."), __FILE__, __LINE__);
   }  
   if(bgpos < 0) {
-    throw XRecordError(i18n("Position for BG. sub. beyond waveforms."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Position for BG. sub. beyond waveforms."), __FILE__, __LINE__);
   }  
   int bglength = lrint(*bgWidth() / 1000 /  interval);
   if(pos + bgpos + bglength >= (int)_dso->lengthRecorded()) {
-    throw XRecordError(i18n("Invalid Length for BG. sub."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Invalid Length for BG. sub."), __FILE__, __LINE__);
   }  
   if(bglength < 0) {
-    throw XRecordError(i18n("Invalid Length for BG. sub."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Invalid Length for BG. sub."), __FILE__, __LINE__);
   }  
   
   if(bglength < length*1.5)
-     m_statusPrinter->printWarning(i18n("Maybe, length for BG. sub. is too short."));
+     m_statusPrinter->printWarning(KAME::i18n("Maybe, length for BG. sub. is too short."));
   if((bgpos < length) && (bgpos > 0))
-     m_statusPrinter->printWarning(i18n("Maybe, position for BG. sub. is overrapped against echoes"), true);
+     m_statusPrinter->printWarning(KAME::i18n("Maybe, position for BG. sub. is overrapped against echoes"), true);
   
   int echoperiod = lrint(*echoPeriod() / 1000 /interval);
   int numechoes = *numEcho();
@@ -500,18 +500,18 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
   if(numechoes > 1)
   {
     if(pos + echoperiod * (numechoes - 1) + length >= (int)_dso->lengthRecorded()) {
-        throw XRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
+        throw XRecordError(KAME::i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
     }
     if(echoperiod < length) {
-        throw XRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
+        throw XRecordError(KAME::i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
     }
     if(!bg_after_last_echo)
     {
         if(bgpos + bglength > echoperiod) {
-            throw XRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
+            throw XRecordError(KAME::i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
         }
         if(pos + echoperiod * (numechoes - 1) + bgpos + bglength >= (int)_dso->lengthRecorded()) {
-            throw XRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
+            throw XRecordError(KAME::i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
         }       
     }
   }
@@ -584,7 +584,7 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
    
   int ftpos = lrint(*fftPos() * 1e-3 / interval + _dso->trigPosRecorded() - pos);  
   if((windowfunc != &windowFuncRect) && (abs(ftpos - length/2) > length*0.1))
-     m_statusPrinter->printWarning(i18n("FFTPos is off-centered for window func."));  
+     m_statusPrinter->printWarning(KAME::i18n("FFTPos is off-centered for window func."));  
   double ph = *phaseAdv() * PI / 180;
 
   rotNFFT(ftpos, ph, m_wave, m_ftWave, windowfunc, lrint(*difFreq() * 1000.0 / dFreq()) ); 

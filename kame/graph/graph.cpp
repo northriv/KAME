@@ -66,10 +66,10 @@ XGraph::XGraph(const char *name, bool runtime) :
     label()->value(name);
     (axes()->create<XAxis>("XAxis", true, XAxis::DirAxisX
         , false, dynamic_pointer_cast<XGraph>(shared_from_this())))
-        ->label()->value(i18n("X Axis"));
+        ->label()->value(KAME::i18n("X Axis"));
     (axes()->create<XAxis>("YAxis", true, XAxis::DirAxisY
         , false, dynamic_pointer_cast<XGraph>(shared_from_this())))
-        ->label()->value(i18n("Y Axis"));    
+        ->label()->value(KAME::i18n("Y Axis"));    
 }
 
 void

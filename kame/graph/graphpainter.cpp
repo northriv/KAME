@@ -371,7 +371,7 @@ XQGraphPainter::drawOnScreenObj()
                 .arg(m_foundPlaneAxis2->valToString(dst2));
 	}
 	else {
-		msg = I18N_NOOP("R-DBL-CLICK TO SHOW HELP");
+		msg = KAME::i18n("R-DBL-CLICK TO SHOW HELP");
 	}
 	break;
   case SelPlane:
@@ -524,32 +524,32 @@ float z = 0.99;
 	setColor(*m_graph->backGround(), 1.0);
 	defaultFont();
 	m_curAlign = AlignTop | AlignHCenter;
-	drawText(XGraph::ScrPoint(0.5, y, z), i18n("QUICK HELP!"));
+	drawText(XGraph::ScrPoint(0.5, y, z), KAME::i18n("QUICK HELP!"));
 	m_curAlign = AlignVCenter | AlignLeft;
 	y -= 0.1;
 	double x = 0.1;
 	double dy = -y/10;
-	selectFont(I18N_NOOP("Single Click Right Button on Axis : Auto-scale"), XGraph::ScrPoint(x,y,z), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, dy, 0), 0);
+	selectFont(KAME::i18n("Single Click Right Button on Axis : Auto-scale"), XGraph::ScrPoint(x,y,z), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, dy, 0), 0);
 	
-	drawText(XGraph::ScrPoint(x, y, z), I18N_NOOP("Press Left Button on Plot : Manual Scale"));
+	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Press Left Button on Plot : Manual Scale"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), I18N_NOOP("Press Right Button along Axis: Manual Scale"));
+	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Press Right Button along Axis: Manual Scale"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), I18N_NOOP("Single Click Right Button on Axis : Auto-scale"));
+	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Single Click Right Button on Axis : Auto-scale"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), I18N_NOOP("Single Click Right Button elsewhere : Auto-scale all"));
+	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Single Click Right Button elsewhere : Auto-scale all"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), I18N_NOOP("Press Middle Button : Tilt plots"));
+	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Press Middle Button : Tilt plots"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), I18N_NOOP("Single Click Middle Button : Reset tilting"));
+	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Single Click Middle Button : Reset tilting"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), I18N_NOOP("Wheel around Center : (Un)Zoom all Plots"));
+	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Wheel around Center : (Un)Zoom all Plots"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), I18N_NOOP("Wheel at Side : Tilt by 30deg."));
+	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Wheel at Side : Tilt by 30deg."));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), I18N_NOOP("Double Click Left Button : Show Dialog"));
+	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Double Click Left Button : Show Dialog"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), I18N_NOOP("Double Click Right Button : This Help"));
+	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Double Click Right Button : This Help"));
 }
 
 void

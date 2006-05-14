@@ -51,48 +51,52 @@
 <a name="l00033"></a>00033     form-&gt;m_pbtnKill-&gt;setIconSet(
 <a name="l00034"></a>00034              KApplication::kApplication()-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"stop"</span>, 
 <a name="l00035"></a>00035             KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );  
-<a name="l00036"></a>00036     <a class="code" href="class_x_ruby_thread_connector.html#bb94f616259abf95fb00304671189a53">m_lsnOnResumeTouched</a> = <a class="code" href="class_x_ruby_thread_connector.html#3e2b1b5bd888b5e432df9f0ab2a1574f">m_resume</a>-&gt;onTouch().connectWeak(
-<a name="l00037"></a>00037         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_ruby_thread_connector.html#24c7fd73980731dea6755eb26796898f">XRubyThreadConnector::onResumeTouched</a>);
-<a name="l00038"></a>00038     <a class="code" href="class_x_ruby_thread_connector.html#716d50828bf9b322676a851a36c1d046">m_lsnOnKillTouched</a> = <a class="code" href="class_x_ruby_thread_connector.html#a51aaef9081e1997067826342210952e">m_kill</a>-&gt;onTouch().connectWeak(
-<a name="l00039"></a>00039         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_ruby_thread_connector.html#7cd4fa3a020b0699fd2f993e20abae39">XRubyThreadConnector::onKillTouched</a>);
-<a name="l00040"></a>00040     <a class="code" href="class_x_ruby_thread_connector.html#d8bca47fa7e439b89f994c8309795f5b">m_lsnOnDefout</a> = rbthread-&gt;onMessageOut().connectWeak(
-<a name="l00041"></a>00041         <span class="keyword">true</span>, shared_from_this(), &amp;<a class="code" href="class_x_ruby_thread_connector.html#b1412816959c9d60bb331be9bc6fdcc5">XRubyThreadConnector::onDefout</a>, <span class="keyword">false</span>);
-<a name="l00042"></a>00042     <a class="code" href="class_x_ruby_thread_connector.html#ca33748eb1fd51fac2b4c7967cee8c39">m_lsnOnStatusChanged</a> = rbthread-&gt;status()-&gt;onValueChanged().connectWeak(
-<a name="l00043"></a>00043         <span class="keyword">true</span>, shared_from_this(), &amp;<a class="code" href="class_x_ruby_thread_connector.html#24d63dee95325084dd3b61d099f27b93">XRubyThreadConnector::onStatusChanged</a>, <span class="keyword">true</span>, 10);
-<a name="l00044"></a>00044         
-<a name="l00045"></a>00045     form-&gt;setIcon(*g_pIconScript);
-<a name="l00046"></a>00046     form-&gt;setCaption(rbthread-&gt;getName());
-<a name="l00047"></a>00047     
-<a name="l00048"></a>00048     <a class="code" href="class_x_ruby_thread_connector.html#24d63dee95325084dd3b61d099f27b93">onStatusChanged</a>(rbthread-&gt;status());    
-<a name="l00049"></a>00049 }
-<a name="l00050"></a><a class="code" href="class_x_ruby_thread_connector.html#f2ef82bd45d32dcda1b9717b8b441026">00050</a> <a class="code" href="class_x_ruby_thread_connector.html#f2ef82bd45d32dcda1b9717b8b441026">XRubyThreadConnector::~XRubyThreadConnector</a>()
-<a name="l00051"></a>00051 {
-<a name="l00052"></a>00052     <span class="keywordflow">if</span>(<a class="code" href="class_x_q_connector.html#735752c65c24616cc93a75721fd336bf">isItemAlive</a>()) {
-<a name="l00053"></a>00053         <a class="code" href="class_x_ruby_thread_connector.html#206189579c12230e96aac27b6c308d77">m_pForm</a>-&gt;m_ptxtDefout-&gt;clear();
-<a name="l00054"></a>00054     }
-<a name="l00055"></a>00055 <span class="comment">//    m_rubyThread-&gt;kill();</span>
-<a name="l00056"></a>00056     <a class="code" href="class_x_ruby_thread_connector.html#324f6535cf19a5e0f5e1469d8272f630">m_rubySupport</a>-&gt;releaseChild(<a class="code" href="class_x_ruby_thread_connector.html#a8646136776bf7553a5049212e65d818">m_rubyThread</a>);
-<a name="l00057"></a>00057 }
-<a name="l00058"></a>00058 <span class="keywordtype">void</span>
-<a name="l00059"></a><a class="code" href="class_x_ruby_thread_connector.html#24d63dee95325084dd3b61d099f27b93">00059</a> <a class="code" href="class_x_ruby_thread_connector.html#24d63dee95325084dd3b61d099f27b93">XRubyThreadConnector::onStatusChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {
-<a name="l00060"></a>00060     <span class="keywordtype">bool</span> alive = <a class="code" href="class_x_ruby_thread_connector.html#a8646136776bf7553a5049212e65d818">m_rubyThread</a>-&gt;isAlive();
-<a name="l00061"></a>00061     <a class="code" href="class_x_ruby_thread_connector.html#a51aaef9081e1997067826342210952e">m_kill</a>-&gt;setUIEnabled(alive);
-<a name="l00062"></a>00062     <span class="keywordtype">bool</span> running = <a class="code" href="class_x_ruby_thread_connector.html#a8646136776bf7553a5049212e65d818">m_rubyThread</a>-&gt;isRunning();
-<a name="l00063"></a>00063     <a class="code" href="class_x_ruby_thread_connector.html#3e2b1b5bd888b5e432df9f0ab2a1574f">m_resume</a>-&gt;setUIEnabled(alive &amp;&amp; !running);
-<a name="l00064"></a>00064 }
-<a name="l00065"></a>00065 <span class="keywordtype">void</span>
-<a name="l00066"></a><a class="code" href="class_x_ruby_thread_connector.html#24c7fd73980731dea6755eb26796898f">00066</a> <a class="code" href="class_x_ruby_thread_connector.html#24c7fd73980731dea6755eb26796898f">XRubyThreadConnector::onResumeTouched</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;) {
-<a name="l00067"></a>00067     <a class="code" href="class_x_ruby_thread_connector.html#a8646136776bf7553a5049212e65d818">m_rubyThread</a>-&gt;resume();
+<a name="l00036"></a>00036             
+<a name="l00037"></a>00037     <a class="code" href="class_x_ruby_thread_connector.html#206189579c12230e96aac27b6c308d77">m_pForm</a>-&gt;m_ptxtDefout-&gt;setMaxLogLines(10000);
+<a name="l00038"></a>00038     <a class="code" href="class_x_ruby_thread_connector.html#206189579c12230e96aac27b6c308d77">m_pForm</a>-&gt;m_ptxtDefout-&gt;setTextFormat(Qt::LogText);    
+<a name="l00039"></a>00039     
+<a name="l00040"></a>00040     <a class="code" href="class_x_ruby_thread_connector.html#bb94f616259abf95fb00304671189a53">m_lsnOnResumeTouched</a> = <a class="code" href="class_x_ruby_thread_connector.html#3e2b1b5bd888b5e432df9f0ab2a1574f">m_resume</a>-&gt;onTouch().connectWeak(
+<a name="l00041"></a>00041         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_ruby_thread_connector.html#24c7fd73980731dea6755eb26796898f">XRubyThreadConnector::onResumeTouched</a>);
+<a name="l00042"></a>00042     <a class="code" href="class_x_ruby_thread_connector.html#716d50828bf9b322676a851a36c1d046">m_lsnOnKillTouched</a> = <a class="code" href="class_x_ruby_thread_connector.html#a51aaef9081e1997067826342210952e">m_kill</a>-&gt;onTouch().connectWeak(
+<a name="l00043"></a>00043         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_ruby_thread_connector.html#7cd4fa3a020b0699fd2f993e20abae39">XRubyThreadConnector::onKillTouched</a>);
+<a name="l00044"></a>00044     <a class="code" href="class_x_ruby_thread_connector.html#d8bca47fa7e439b89f994c8309795f5b">m_lsnOnDefout</a> = rbthread-&gt;onMessageOut().connectWeak(
+<a name="l00045"></a>00045         <span class="keyword">true</span>, shared_from_this(), &amp;<a class="code" href="class_x_ruby_thread_connector.html#5d4d7af536cced1470d18bcb38cf4c92">XRubyThreadConnector::onDefout</a>, <span class="keyword">false</span>);
+<a name="l00046"></a>00046     <a class="code" href="class_x_ruby_thread_connector.html#ca33748eb1fd51fac2b4c7967cee8c39">m_lsnOnStatusChanged</a> = rbthread-&gt;status()-&gt;onValueChanged().connectWeak(
+<a name="l00047"></a>00047         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_ruby_thread_connector.html#24d63dee95325084dd3b61d099f27b93">XRubyThreadConnector::onStatusChanged</a>);
+<a name="l00048"></a>00048         
+<a name="l00049"></a>00049     form-&gt;setIcon(*g_pIconScript);
+<a name="l00050"></a>00050     form-&gt;setCaption(rbthread-&gt;getLabel());
+<a name="l00051"></a>00051     
+<a name="l00052"></a>00052     <a class="code" href="class_x_ruby_thread_connector.html#24d63dee95325084dd3b61d099f27b93">onStatusChanged</a>(rbthread-&gt;status());    
+<a name="l00053"></a>00053 }
+<a name="l00054"></a><a class="code" href="class_x_ruby_thread_connector.html#f2ef82bd45d32dcda1b9717b8b441026">00054</a> <a class="code" href="class_x_ruby_thread_connector.html#f2ef82bd45d32dcda1b9717b8b441026">XRubyThreadConnector::~XRubyThreadConnector</a>()
+<a name="l00055"></a>00055 {
+<a name="l00056"></a>00056     <span class="keywordflow">if</span>(<a class="code" href="class_x_q_connector.html#735752c65c24616cc93a75721fd336bf">isItemAlive</a>()) {
+<a name="l00057"></a>00057         <a class="code" href="class_x_ruby_thread_connector.html#206189579c12230e96aac27b6c308d77">m_pForm</a>-&gt;m_ptxtDefout-&gt;clear();
+<a name="l00058"></a>00058     }
+<a name="l00059"></a>00059 <span class="comment">//    m_rubyThread-&gt;kill();</span>
+<a name="l00060"></a>00060     <a class="code" href="class_x_ruby_thread_connector.html#324f6535cf19a5e0f5e1469d8272f630">m_rubySupport</a>-&gt;releaseChild(<a class="code" href="class_x_ruby_thread_connector.html#a8646136776bf7553a5049212e65d818">m_rubyThread</a>);
+<a name="l00061"></a>00061 }
+<a name="l00062"></a>00062 <span class="keywordtype">void</span>
+<a name="l00063"></a><a class="code" href="class_x_ruby_thread_connector.html#24d63dee95325084dd3b61d099f27b93">00063</a> <a class="code" href="class_x_ruby_thread_connector.html#24d63dee95325084dd3b61d099f27b93">XRubyThreadConnector::onStatusChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {
+<a name="l00064"></a>00064     <span class="keywordtype">bool</span> alive = <a class="code" href="class_x_ruby_thread_connector.html#a8646136776bf7553a5049212e65d818">m_rubyThread</a>-&gt;isAlive();
+<a name="l00065"></a>00065     <a class="code" href="class_x_ruby_thread_connector.html#a51aaef9081e1997067826342210952e">m_kill</a>-&gt;setUIEnabled(alive);
+<a name="l00066"></a>00066     <span class="keywordtype">bool</span> running = <a class="code" href="class_x_ruby_thread_connector.html#a8646136776bf7553a5049212e65d818">m_rubyThread</a>-&gt;isRunning();
+<a name="l00067"></a>00067     <a class="code" href="class_x_ruby_thread_connector.html#3e2b1b5bd888b5e432df9f0ab2a1574f">m_resume</a>-&gt;setUIEnabled(alive &amp;&amp; !running);
 <a name="l00068"></a>00068 }
 <a name="l00069"></a>00069 <span class="keywordtype">void</span>
-<a name="l00070"></a><a class="code" href="class_x_ruby_thread_connector.html#7cd4fa3a020b0699fd2f993e20abae39">00070</a> <a class="code" href="class_x_ruby_thread_connector.html#7cd4fa3a020b0699fd2f993e20abae39">XRubyThreadConnector::onKillTouched</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;) {
-<a name="l00071"></a>00071     <a class="code" href="class_x_ruby_thread_connector.html#a8646136776bf7553a5049212e65d818">m_rubyThread</a>-&gt;kill();
+<a name="l00070"></a><a class="code" href="class_x_ruby_thread_connector.html#24c7fd73980731dea6755eb26796898f">00070</a> <a class="code" href="class_x_ruby_thread_connector.html#24c7fd73980731dea6755eb26796898f">XRubyThreadConnector::onResumeTouched</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;) {
+<a name="l00071"></a>00071     <a class="code" href="class_x_ruby_thread_connector.html#a8646136776bf7553a5049212e65d818">m_rubyThread</a>-&gt;resume();
 <a name="l00072"></a>00072 }
 <a name="l00073"></a>00073 <span class="keywordtype">void</span>
-<a name="l00074"></a><a class="code" href="class_x_ruby_thread_connector.html#b1412816959c9d60bb331be9bc6fdcc5">00074</a> <a class="code" href="class_x_ruby_thread_connector.html#b1412816959c9d60bb331be9bc6fdcc5">XRubyThreadConnector::onDefout</a>(<span class="keyword">const</span> shared_ptr&lt;QString&gt; &amp;str) {
-<a name="l00075"></a>00075     <a class="code" href="class_x_ruby_thread_connector.html#206189579c12230e96aac27b6c308d77">m_pForm</a>-&gt;m_ptxtDefout-&gt;append(*str);
+<a name="l00074"></a><a class="code" href="class_x_ruby_thread_connector.html#7cd4fa3a020b0699fd2f993e20abae39">00074</a> <a class="code" href="class_x_ruby_thread_connector.html#7cd4fa3a020b0699fd2f993e20abae39">XRubyThreadConnector::onKillTouched</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;) {
+<a name="l00075"></a>00075     <a class="code" href="class_x_ruby_thread_connector.html#a8646136776bf7553a5049212e65d818">m_rubyThread</a>-&gt;kill();
 <a name="l00076"></a>00076 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:45 2006に生成されました。&nbsp;
+<a name="l00077"></a>00077 <span class="keywordtype">void</span>
+<a name="l00078"></a><a class="code" href="class_x_ruby_thread_connector.html#5d4d7af536cced1470d18bcb38cf4c92">00078</a> <a class="code" href="class_x_ruby_thread_connector.html#5d4d7af536cced1470d18bcb38cf4c92">XRubyThreadConnector::onDefout</a>(<span class="keyword">const</span> shared_ptr&lt;std::string&gt; &amp;str) {
+<a name="l00079"></a>00079     <a class="code" href="class_x_ruby_thread_connector.html#206189579c12230e96aac27b6c308d77">m_pForm</a>-&gt;m_ptxtDefout-&gt;append(*str);
+<a name="l00080"></a>00080 }
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:52:28 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

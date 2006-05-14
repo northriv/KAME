@@ -25,7 +25,7 @@ XFuncSynth::XFuncSynth(const char *name, bool runtime,
     m_form(new FrmFuncSynth(g_pFrmMain))
 {
   m_form->statusBar()->hide();
-  m_form->setCaption(i18n("Func. Synth. - ") + getLabel() );
+  m_form->setCaption(KAME::i18n("Func. Synth. - ") + getLabel() );
 
   m_conOutput = xqcon_create<XQToggleButtonConnector>(m_output, m_form->m_ckbOutput);
   m_conTrig = xqcon_create<XQButtonConnector>(m_trig, m_form->m_btnTrig);

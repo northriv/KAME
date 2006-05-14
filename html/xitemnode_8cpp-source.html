@@ -18,101 +18,101 @@
 <a class="el" href="dir_cbe63f28361eb71291c8905f8fbf16c0.html">kame</a></div>
 <h1>xitemnode.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#include "xitemnode.h"</span>
 <a name="l00002"></a>00002 <span class="preprocessor">#include &lt;klocale.h&gt;</span>
-<a name="l00003"></a>00003 <span class="preprocessor">#include &lt;qdeepcopy.h&gt;</span>
-<a name="l00004"></a>00004 
-<a name="l00005"></a><a class="code" href="class_x_item_node_base.html#5e7ec34a67b54f8cdb369fe0548b3625">00005</a> <a class="code" href="class_x_item_node_base.html#5e7ec34a67b54f8cdb369fe0548b3625">XItemNodeBase::XItemNodeBase</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime) : 
-<a name="l00006"></a>00006     <a class="code" href="class_x_value_node_base.html">XValueNodeBase</a>(name, runtime)
-<a name="l00007"></a>00007 {
-<a name="l00008"></a>00008 }
-<a name="l00009"></a>00009 
-<a name="l00010"></a>00010 <span class="keywordtype">void</span>
-<a name="l00011"></a>00011 _xpointeritemnode_throwConversionError() {
-<a name="l00012"></a>00012    <span class="keywordflow">throw</span> <a class="code" href="struct_x_kame_error.html">XKameError</a>(i18n(<span class="stringliteral">"No item."</span>), __FILE__, __LINE__);
-<a name="l00013"></a>00013 }
-<a name="l00014"></a>00014 
-<a name="l00015"></a><a class="code" href="class_x_combo_node.html#44b4e4219c9d4387222ad893e81e4dd2">00015</a> <a class="code" href="class_x_combo_node.html#44b4e4219c9d4387222ad893e81e4dd2">XComboNode::XComboNode</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime)
-<a name="l00016"></a>00016    : <a class="code" href="class_x_item_node_base.html">XItemNodeBase</a>(name, runtime), m_var(-1) {
-<a name="l00017"></a>00017 }
-<a name="l00018"></a>00018 
-<a name="l00019"></a>00019 <span class="keywordtype">void</span>
-<a name="l00020"></a><a class="code" href="class_x_combo_node.html#a7c713fda9d3bfde2b9005d00a89aef4">00020</a> <a class="code" href="class_x_combo_node.html#a7c713fda9d3bfde2b9005d00a89aef4">XComboNode::_str</a>(<span class="keyword">const</span> QString &amp;var) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;)
-<a name="l00021"></a>00021 {
-<a name="l00022"></a>00022   <span class="keywordflow">if</span>(var.isEmpty()) {
-<a name="l00023"></a>00023         value(-1);
-<a name="l00024"></a>00024         <span class="keywordflow">return</span>;
-<a name="l00025"></a>00025   }
-<a name="l00026"></a>00026   <a class="code" href="struct_x_scoped_read_lock.html">XScopedReadLock&lt;XRecursiveRWLock&gt;</a> lock(listMutex());
-<a name="l00027"></a>00027   <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; m_strings.size(); i++)
-<a name="l00028"></a>00028     {
-<a name="l00029"></a>00029         <span class="keywordflow">if</span>(m_strings[i] == var)
-<a name="l00030"></a>00030         {
+<a name="l00003"></a>00003 
+<a name="l00004"></a><a class="code" href="class_x_item_node_base.html#5e7ec34a67b54f8cdb369fe0548b3625">00004</a> <a class="code" href="class_x_item_node_base.html#5e7ec34a67b54f8cdb369fe0548b3625">XItemNodeBase::XItemNodeBase</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime) : 
+<a name="l00005"></a>00005     <a class="code" href="class_x_value_node_base.html">XValueNodeBase</a>(name, runtime)
+<a name="l00006"></a>00006 {
+<a name="l00007"></a>00007 }
+<a name="l00008"></a>00008 
+<a name="l00009"></a>00009 <span class="keywordtype">void</span>
+<a name="l00010"></a>00010 _xpointeritemnode_throwConversionError() {
+<a name="l00011"></a>00011    <span class="keywordflow">throw</span> <a class="code" href="struct_x_kame_error.html">XKameError</a>(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"No item."</span>), __FILE__, __LINE__);
+<a name="l00012"></a>00012 }
+<a name="l00013"></a>00013 
+<a name="l00014"></a><a class="code" href="class_x_combo_node.html#44b4e4219c9d4387222ad893e81e4dd2">00014</a> <a class="code" href="class_x_combo_node.html#44b4e4219c9d4387222ad893e81e4dd2">XComboNode::XComboNode</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime)
+<a name="l00015"></a>00015    : <a class="code" href="class_x_item_node_base.html">XItemNodeBase</a>(name, runtime),
+<a name="l00016"></a>00016     m_strings(new std::deque&lt;std::string&gt;()),
+<a name="l00017"></a>00017     m_var(-1) {
+<a name="l00018"></a>00018 }
+<a name="l00019"></a>00019 
+<a name="l00020"></a>00020 <span class="keywordtype">void</span>
+<a name="l00021"></a><a class="code" href="class_x_combo_node.html#b7777ff059a15bb277751fd0c4c8d164">00021</a> <a class="code" href="class_x_combo_node.html#b7777ff059a15bb277751fd0c4c8d164">XComboNode::_str</a>(<span class="keyword">const</span> std::string &amp;var) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;)
+<a name="l00022"></a>00022 {
+<a name="l00023"></a>00023   <span class="keywordflow">if</span>(var.empty()) {
+<a name="l00024"></a>00024         value(-1);
+<a name="l00025"></a>00025         <span class="keywordflow">return</span>;
+<a name="l00026"></a>00026   }
+<a name="l00027"></a>00027   <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const std::deque&lt;std::string&gt;</a> &gt; strings(m_strings);
+<a name="l00028"></a>00028   <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0;
+<a name="l00029"></a>00029   <span class="keywordflow">for</span>(std::deque&lt;std::string&gt;::const_iterator it = strings-&gt;begin(); it != strings-&gt;end(); it++) {
+<a name="l00030"></a>00030         <span class="keywordflow">if</span>(*it == var) {
 <a name="l00031"></a>00031             value(i);
 <a name="l00032"></a>00032             <span class="keywordflow">return</span>;
 <a name="l00033"></a>00033         }
-<a name="l00034"></a>00034     }
-<a name="l00035"></a>00035    <span class="keywordflow">throw</span> <a class="code" href="struct_x_kame_error.html">XKameError</a>(i18n(<span class="stringliteral">"No item."</span>), __FILE__, __LINE__);
-<a name="l00036"></a>00036 }
-<a name="l00037"></a>00037 
-<a name="l00038"></a>00038 <span class="keywordtype">void</span>
-<a name="l00039"></a><a class="code" href="class_x_combo_node.html#8795995e803925c3c806d86ba38bc10b">00039</a> <a class="code" href="class_x_combo_node.html#dd9527a5b1999b4be93327f19bfdfdd0">XComboNode::value</a>(<span class="keyword">const</span> QString &amp;s)
-<a name="l00040"></a>00040 {
-<a name="l00041"></a>00041     <span class="keywordflow">try</span> {
-<a name="l00042"></a>00042         <a class="code" href="class_x_value_node_base.html#24fa34f9b0d6239d727720d1aa88eaa2">str</a>(s);
-<a name="l00043"></a>00043     }
-<a name="l00044"></a>00044     <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
-<a name="l00045"></a>00045         e.<a class="code" href="struct_x_kame_error.html#9a84ebcb9d45b52654fd1d071450a5ee">print</a>();
-<a name="l00046"></a>00046     }
-<a name="l00047"></a>00047 }
-<a name="l00048"></a>00048 
-<a name="l00049"></a><a class="code" href="class_x_combo_node.html#961ada1db7e9efaf57c00d9e4ba18672">00049</a> <a class="code" href="class_x_combo_node.html#961ada1db7e9efaf57c00d9e4ba18672">XComboNode::operator int</a>()<span class="keyword"> const </span>{
-<a name="l00050"></a>00050     <span class="keywordflow">return</span> <a class="code" href="class_x_combo_node.html#198b58f09bc694c96ea47345aedf97aa">m_var</a>;
-<a name="l00051"></a>00051 }
-<a name="l00052"></a>00052 QString
-<a name="l00053"></a><a class="code" href="class_x_combo_node.html#242ede7a0869cbb2dc5ca94552016c24">00053</a> <a class="code" href="class_x_combo_node.html#242ede7a0869cbb2dc5ca94552016c24">XComboNode::to_str</a>()<span class="keyword"> const</span>
-<a name="l00054"></a>00054 <span class="keyword"></span>{
-<a name="l00055"></a>00055     <span class="keywordtype">int</span> i = <a class="code" href="class_x_combo_node.html#198b58f09bc694c96ea47345aedf97aa">m_var</a>;
-<a name="l00056"></a>00056     <a class="code" href="struct_x_scoped_read_lock.html">XScopedReadLock&lt;XRecursiveRWLock&gt;</a> lock(<a class="code" href="class_x_combo_node.html#bb3cb2e051b6e65c5cfc6c426711a5ba">listMutex</a>());    
-<a name="l00057"></a>00057     <span class="keywordflow">if</span>((i &gt;= 0) &amp;&amp; (i &lt; (<span class="keywordtype">int</span>)<a class="code" href="class_x_combo_node.html#9dbfb9314f9c615ae948f982e2095095">m_strings</a>.size()))
-<a name="l00058"></a>00058         <span class="keywordflow">return</span> QString(QDeepCopy&lt;QString&gt;(<a class="code" href="class_x_combo_node.html#9dbfb9314f9c615ae948f982e2095095">m_strings</a>[i]));
-<a name="l00059"></a>00059     <span class="keywordflow">else</span>
-<a name="l00060"></a>00060         <span class="keywordflow">return</span> QString();
-<a name="l00061"></a>00061 }
-<a name="l00062"></a>00062 
-<a name="l00063"></a>00063 <span class="keywordtype">void</span>
-<a name="l00064"></a><a class="code" href="class_x_combo_node.html#34cf65cdcb296c3c0ab45eaf45097bab">00064</a> <a class="code" href="class_x_combo_node.html#34cf65cdcb296c3c0ab45eaf45097bab">XComboNode::add</a>(<span class="keyword">const</span> QString &amp;str)
-<a name="l00065"></a>00065 {
-<a name="l00066"></a>00066    <a class="code" href="struct_x_scoped_read_lock.html">XScopedReadLock&lt;XRecursiveRWLock&gt;</a> lock(<a class="code" href="class_x_combo_node.html#bb3cb2e051b6e65c5cfc6c426711a5ba">listMutex</a>());    
-<a name="l00067"></a>00067    { <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XRecursiveRWLock&gt;</a> writelock(<a class="code" href="class_x_combo_node.html#2d0802b42a0e54703d956cc806888e9e">m_listmutex</a>);    
-<a name="l00068"></a>00068      <a class="code" href="class_x_combo_node.html#9dbfb9314f9c615ae948f982e2095095">m_strings</a>.push_back(QString(QDeepCopy&lt;QString&gt;(str)));
-<a name="l00069"></a>00069    }
-<a name="l00070"></a>00070     <a class="code" href="class_x_item_node_base.html#8d13a06f34d3a409e58275760ecc65a6">onListChanged</a>().<a class="code" href="class_x_talker.html#b65a13c950f07d8618b9c7a7b05baf28">talk</a>(dynamic_pointer_cast&lt;XItemNodeBase&gt;(shared_from_this()));
-<a name="l00071"></a>00071 }
-<a name="l00072"></a>00072 
-<a name="l00073"></a>00073 <span class="keywordtype">void</span>
-<a name="l00074"></a><a class="code" href="class_x_combo_node.html#02972a7e2576b25f5263f4d8d83e7681">00074</a> <a class="code" href="class_x_combo_node.html#02972a7e2576b25f5263f4d8d83e7681">XComboNode::clear</a>()
-<a name="l00075"></a>00075 {
-<a name="l00076"></a>00076    <a class="code" href="struct_x_scoped_read_lock.html">XScopedReadLock&lt;XRecursiveRWLock&gt;</a> lock(<a class="code" href="class_x_combo_node.html#bb3cb2e051b6e65c5cfc6c426711a5ba">listMutex</a>());    
-<a name="l00077"></a>00077    { <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XRecursiveRWLock&gt;</a> writelock(<a class="code" href="class_x_combo_node.html#2d0802b42a0e54703d956cc806888e9e">m_listmutex</a>);    
-<a name="l00078"></a>00078         <a class="code" href="class_x_combo_node.html#9dbfb9314f9c615ae948f982e2095095">m_strings</a>.clear();
-<a name="l00079"></a>00079    }
-<a name="l00080"></a>00080     <a class="code" href="class_x_item_node_base.html#8d13a06f34d3a409e58275760ecc65a6">onListChanged</a>().<a class="code" href="class_x_talker.html#b65a13c950f07d8618b9c7a7b05baf28">talk</a>(dynamic_pointer_cast&lt;XItemNodeBase&gt;(shared_from_this()));
-<a name="l00081"></a>00081 }
-<a name="l00082"></a>00082 
-<a name="l00083"></a>00083 QString
-<a name="l00084"></a><a class="code" href="class_x_combo_node.html#d2214021f78722e74cd89190560a0674">00084</a> <a class="code" href="class_x_combo_node.html#d2214021f78722e74cd89190560a0674">XComboNode::operator[]</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> index)<span class="keyword"> const</span>
-<a name="l00085"></a>00085 <span class="keyword"></span>{
-<a name="l00086"></a>00086     ASSERT(<a class="code" href="class_x_combo_node.html#bb3cb2e051b6e65c5cfc6c426711a5ba">listMutex</a>().isLocked());
-<a name="l00087"></a>00087     <span class="keywordflow">if</span>(index &lt; <a class="code" href="class_x_combo_node.html#9dbfb9314f9c615ae948f982e2095095">m_strings</a>.size())
-<a name="l00088"></a>00088       <span class="keywordflow">return</span> QString(QDeepCopy&lt;QString&gt;(<a class="code" href="class_x_combo_node.html#9dbfb9314f9c615ae948f982e2095095">m_strings</a>[index]));
-<a name="l00089"></a>00089     <span class="keywordflow">else</span>
-<a name="l00090"></a>00090       <span class="keywordflow">return</span> QString();
-<a name="l00091"></a>00091 }
-<a name="l00092"></a>00092 <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>
-<a name="l00093"></a><a class="code" href="class_x_combo_node.html#b69b0d0d5c3c1deb3c0e117672719cba">00093</a> <a class="code" href="class_x_combo_node.html#b69b0d0d5c3c1deb3c0e117672719cba">XComboNode::itemCount</a>()<span class="keyword"> const</span>
-<a name="l00094"></a>00094 <span class="keyword"></span>{
-<a name="l00095"></a>00095     ASSERT(<a class="code" href="class_x_combo_node.html#bb3cb2e051b6e65c5cfc6c426711a5ba">listMutex</a>().isLocked());
-<a name="l00096"></a>00096     <span class="keywordflow">return</span> <a class="code" href="class_x_combo_node.html#9dbfb9314f9c615ae948f982e2095095">m_strings</a>.size();
-<a name="l00097"></a>00097 }
+<a name="l00034"></a>00034         i++;
+<a name="l00035"></a>00035    }
+<a name="l00036"></a>00036    <span class="keywordflow">throw</span> <a class="code" href="struct_x_kame_error.html">XKameError</a>(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"No item."</span>), __FILE__, __LINE__);
+<a name="l00037"></a>00037 }
+<a name="l00038"></a>00038 
+<a name="l00039"></a>00039 <span class="keywordtype">void</span>
+<a name="l00040"></a><a class="code" href="class_x_combo_node.html#b5b1a7d4c96532baced4db1ab409473b">00040</a> <a class="code" href="class_x_combo_node.html#dd9527a5b1999b4be93327f19bfdfdd0">XComboNode::value</a>(<span class="keyword">const</span> std::string &amp;s)
+<a name="l00041"></a>00041 {
+<a name="l00042"></a>00042     <span class="keywordflow">try</span> {
+<a name="l00043"></a>00043         <a class="code" href="class_x_value_node_base.html#24fa34f9b0d6239d727720d1aa88eaa2">str</a>(s);
+<a name="l00044"></a>00044     }
+<a name="l00045"></a>00045     <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
+<a name="l00046"></a>00046         e.<a class="code" href="struct_x_kame_error.html#9a84ebcb9d45b52654fd1d071450a5ee">print</a>();
+<a name="l00047"></a>00047     }
+<a name="l00048"></a>00048 }
+<a name="l00049"></a>00049 
+<a name="l00050"></a><a class="code" href="class_x_combo_node.html#961ada1db7e9efaf57c00d9e4ba18672">00050</a> <a class="code" href="class_x_combo_node.html#961ada1db7e9efaf57c00d9e4ba18672">XComboNode::operator int</a>()<span class="keyword"> const </span>{
+<a name="l00051"></a>00051     <span class="keywordflow">return</span> <a class="code" href="class_x_combo_node.html#198b58f09bc694c96ea47345aedf97aa">m_var</a>;
+<a name="l00052"></a>00052 }
+<a name="l00053"></a>00053 std::string
+<a name="l00054"></a><a class="code" href="class_x_combo_node.html#d3910ebbd13c83dc587668757810c594">00054</a> <a class="code" href="class_x_combo_node.html#d3910ebbd13c83dc587668757810c594">XComboNode::to_str</a>()<span class="keyword"> const</span>
+<a name="l00055"></a>00055 <span class="keyword"></span>{
+<a name="l00056"></a>00056     <span class="keywordtype">int</span> i = <a class="code" href="class_x_combo_node.html#198b58f09bc694c96ea47345aedf97aa">m_var</a>;
+<a name="l00057"></a>00057     <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const std::deque&lt;std::string&gt;</a> &gt; strings(<a class="code" href="class_x_combo_node.html#89c3d5fb87ed277bc40f7b4f343695d2">m_strings</a>);
+<a name="l00058"></a>00058     <span class="keywordflow">if</span>((i &gt;= 0) &amp;&amp; (i &lt; (<span class="keywordtype">int</span>)strings-&gt;size()))
+<a name="l00059"></a>00059         <span class="keywordflow">return</span> strings-&gt;at(i);
+<a name="l00060"></a>00060     <span class="keywordflow">else</span>
+<a name="l00061"></a>00061         <span class="keywordflow">return</span> std::string();
+<a name="l00062"></a>00062 }
+<a name="l00063"></a>00063 
+<a name="l00064"></a>00064 <span class="keywordtype">void</span>
+<a name="l00065"></a><a class="code" href="class_x_combo_node.html#a44faa0dfec7b03d0db3b801ccb6a9a2">00065</a> <a class="code" href="class_x_combo_node.html#a44faa0dfec7b03d0db3b801ccb6a9a2">XComboNode::add</a>(<span class="keyword">const</span> std::string &amp;str)
+<a name="l00066"></a>00066 {
+<a name="l00067"></a>00067     <span class="keywordflow">for</span>(;;) {
+<a name="l00068"></a>00068       <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr</a>&lt;std::deque&lt;std::string&gt; &gt; old_strings(<a class="code" href="class_x_combo_node.html#89c3d5fb87ed277bc40f7b4f343695d2">m_strings</a>);
+<a name="l00069"></a>00069       <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;std::deque&lt;std::string&gt;</a> &gt; new_strings(<span class="keyword">new</span> std::deque&lt;std::string&gt;(*old_strings));
+<a name="l00070"></a>00070       new_strings-&gt;push_back(str);
+<a name="l00071"></a>00071       <span class="keywordflow">if</span>(new_strings.<a class="code" href="classatomic__shared__ptr.html#e1ba6ec0e548ef5f5b9dae4ef31aff82">compareAndSwap</a>(old_strings, <a class="code" href="class_x_combo_node.html#89c3d5fb87ed277bc40f7b4f343695d2">m_strings</a>))
+<a name="l00072"></a>00072         <span class="keywordflow">break</span>;
+<a name="l00073"></a>00073     }
+<a name="l00074"></a>00074     onListChanged().talk(dynamic_pointer_cast&lt;XItemNodeBase&gt;(shared_from_this()));
+<a name="l00075"></a>00075 }
+<a name="l00076"></a>00076 
+<a name="l00077"></a>00077 <span class="keywordtype">void</span>
+<a name="l00078"></a><a class="code" href="class_x_combo_node.html#02972a7e2576b25f5263f4d8d83e7681">00078</a> <a class="code" href="class_x_combo_node.html#02972a7e2576b25f5263f4d8d83e7681">XComboNode::clear</a>()
+<a name="l00079"></a>00079 {
+<a name="l00080"></a>00080     <a class="code" href="class_x_combo_node.html#89c3d5fb87ed277bc40f7b4f343695d2">m_strings</a>.<a class="code" href="classatomic__shared__ptr.html#fa6a4489f2b8514e5f59a135cd55f90b">reset</a>(<span class="keyword">new</span> std::deque&lt;std::string&gt;());
+<a name="l00081"></a>00081     <a class="code" href="class_x_item_node_base.html#8d13a06f34d3a409e58275760ecc65a6">onListChanged</a>().<a class="code" href="class_x_talker.html#b65a13c950f07d8618b9c7a7b05baf28">talk</a>(dynamic_pointer_cast&lt;XItemNodeBase&gt;(shared_from_this()));
+<a name="l00082"></a>00082 }
+<a name="l00083"></a>00083 
+<a name="l00084"></a>00084 shared_ptr&lt;const std::deque&lt;XItemNodeBase::Item&gt; &gt;
+<a name="l00085"></a><a class="code" href="class_x_combo_node.html#8281df64f180403410f59c4f62e4d2ad">00085</a> <a class="code" href="class_x_combo_node.html#8281df64f180403410f59c4f62e4d2ad">XComboNode::itemStrings</a>()<span class="keyword"> const</span>
+<a name="l00086"></a>00086 <span class="keyword"></span>{
+<a name="l00087"></a>00087     shared_ptr&lt;std::deque&lt;XItemNodeBase::Item&gt; &gt; items(<span class="keyword">new</span> std::deque&lt;XItemNodeBase::Item&gt;());
+<a name="l00088"></a>00088     <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const std::deque&lt;std::string&gt;</a> &gt; strings(<a class="code" href="class_x_combo_node.html#89c3d5fb87ed277bc40f7b4f343695d2">m_strings</a>);
+<a name="l00089"></a>00089     <span class="keywordflow">for</span>(std::deque&lt;std::string&gt;::const_iterator it = strings-&gt;begin(); it != strings-&gt;end(); it++) {
+<a name="l00090"></a>00090     <a class="code" href="struct_x_item_node_base_1_1_item.html">XItemNodeBase::Item</a> item;
+<a name="l00091"></a>00091         item.name = *it;
+<a name="l00092"></a>00092         item.label = *it;
+<a name="l00093"></a>00093         items-&gt;push_back(item);
+<a name="l00094"></a>00094     }
+<a name="l00095"></a>00095     <span class="keywordflow">return</span> items;
+<a name="l00096"></a>00096 }
+<a name="l00097"></a>00097 
 <a name="l00098"></a>00098 <span class="keywordtype">void</span>
 <a name="l00099"></a><a class="code" href="class_x_combo_node.html#dd9527a5b1999b4be93327f19bfdfdd0">00099</a> <a class="code" href="class_x_combo_node.html#dd9527a5b1999b4be93327f19bfdfdd0">XComboNode::value</a>(<span class="keywordtype">int</span> t) {
 <a name="l00100"></a>00100     shared_ptr&lt;XValueNodeBase&gt; ptr = 
@@ -122,7 +122,7 @@
 <a name="l00104"></a>00104     <a class="code" href="class_x_combo_node.html#198b58f09bc694c96ea47345aedf97aa">m_var</a> = t;
 <a name="l00105"></a>00105     <a class="code" href="class_x_value_node_base.html#4b993659d79c4519174ba2583ad9b5b4">m_tlkOnValueChanged</a>.<a class="code" href="class_x_talker.html#b65a13c950f07d8618b9c7a7b05baf28">talk</a>(ptr);
 <a name="l00106"></a>00106 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:46 2006に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:52:29 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

@@ -76,7 +76,7 @@
 <a name="l00058"></a><a class="code" href="class_x_raw_stream_recorder.html#9bb4f536a375df3ee1cdcf91cb9aa7d1">00058</a> <a class="code" href="class_x_raw_stream_recorder.html#9bb4f536a375df3ee1cdcf91cb9aa7d1">XRawStreamRecorder::onOpen</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
 <a name="l00059"></a>00059 {
 <a name="l00060"></a>00060   <span class="keywordflow">if</span>(<a class="code" href="class_x_raw_stream.html#4c8f771c347ce9587e54ff1eea3c7dab">m_pGFD</a>) gzclose(<a class="code" href="class_x_raw_stream.html#4c8f771c347ce9587e54ff1eea3c7dab">m_pGFD</a>);
-<a name="l00061"></a>00061   m_pGFD = gzopen(<a class="code" href="class_x_raw_stream.html#542b4f5dbdeadd9ecd6865087abafb79">filename</a>()-&gt;to_str().local8Bit(), <span class="stringliteral">"wb"</span>);
+<a name="l00061"></a>00061   m_pGFD = gzopen(QString(<a class="code" href="class_x_raw_stream.html#542b4f5dbdeadd9ecd6865087abafb79">filename</a>()-&gt;to_str()).local8Bit(), <span class="stringliteral">"wb"</span>);
 <a name="l00062"></a>00062 }
 <a name="l00063"></a>00063 <span class="keywordtype">void</span>
 <a name="l00064"></a><a class="code" href="class_x_raw_stream_recorder.html#1dc3480d7a52d7720c47c04b308a9265">00064</a> <a class="code" href="class_x_raw_stream_recorder.html#1dc3480d7a52d7720c47c04b308a9265">XRawStreamRecorder::onFlush</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
@@ -94,8 +94,8 @@
 <a name="l00076"></a>00076     <span class="keywordflow">if</span>(*<a class="code" href="class_x_raw_stream_recorder.html#a6725d29efe0647aebd24b1bc17a7174">recording</a>() &amp;&amp; <a class="code" href="class_x_raw_stream.html#4c8f771c347ce9587e54ff1eea3c7dab">m_pGFD</a>) {
 <a name="l00077"></a>00077         shared_ptr&lt;XPrimaryDriver&gt; driver = dynamic_pointer_cast&lt;XPrimaryDriver&gt;(d);
 <a name="l00078"></a>00078         <span class="keywordflow">if</span>(driver) {
-<a name="l00079"></a>00079             driver-&gt;readLockRaw();
-<a name="l00080"></a>00080             uint32_t size = driver-&gt;rawData().size();
+<a name="l00079"></a>00079             std::vector&lt;char&gt; &amp;rawdata(*<a class="code" href="class_x_primary_driver.html#a70bf4a005e2532b10a0e025a785242b">XPrimaryDriver::s_tlRawData</a>);
+<a name="l00080"></a>00080             uint32_t size = rawdata.size();
 <a name="l00081"></a>00081             <span class="keywordflow">if</span>(size) {
 <a name="l00082"></a>00082                 uint32_t headersize =
 <a name="l00083"></a>00083                     <span class="keyword">sizeof</span>(uint32_t) <span class="comment">//allsize</span>
@@ -105,7 +105,7 @@
 <a name="l00087"></a>00087                 <span class="comment">// size of raw record wrapped by header and footer</span>
 <a name="l00088"></a>00088                 uint32_t allsize =
 <a name="l00089"></a>00089                     headersize
-<a name="l00090"></a>00090                     + strlen(driver-&gt;getName().utf8()) <span class="comment">//name of driver</span>
+<a name="l00090"></a>00090                     + driver-&gt;getName().size() <span class="comment">//name of driver</span>
 <a name="l00091"></a>00091                     + 2 <span class="comment">//two null chars</span>
 <a name="l00092"></a>00092                     + size <span class="comment">//rawData</span>
 <a name="l00093"></a>00093                     + <span class="keyword">sizeof</span>(uint32_t); <span class="comment">//allsize</span>
@@ -116,168 +116,163 @@
 <a name="l00098"></a>00098     
 <a name="l00099"></a>00099                 <a class="code" href="class_x_raw_stream.html#88a46d916e32cb9198b78c4f0a357482">m_filemutex</a>.<a class="code" href="class_x_mutex.html#d7997a0bd8066db29ab1c5a29f574e1f">lock</a>();
 <a name="l00100"></a>00100                 gzwrite(<a class="code" href="class_x_raw_stream.html#4c8f771c347ce9587e54ff1eea3c7dab">m_pGFD</a>, &amp;buf[0], buf.size());
-<a name="l00101"></a>00101                 gzprintf(<a class="code" href="class_x_raw_stream.html#4c8f771c347ce9587e54ff1eea3c7dab">m_pGFD</a>, <span class="stringliteral">"%s"</span>, (<span class="keyword">const</span> <span class="keywordtype">char</span>*)driver-&gt;getName().utf8());
+<a name="l00101"></a>00101                 gzprintf(<a class="code" href="class_x_raw_stream.html#4c8f771c347ce9587e54ff1eea3c7dab">m_pGFD</a>, <span class="stringliteral">"%s"</span>, (<span class="keyword">const</span> <span class="keywordtype">char</span>*)driver-&gt;getName().c_str());
 <a name="l00102"></a>00102                 gzputc(<a class="code" href="class_x_raw_stream.html#4c8f771c347ce9587e54ff1eea3c7dab">m_pGFD</a>, <span class="charliteral">'\0'</span>);
 <a name="l00103"></a>00103                 gzputc(m_pGFD, <span class="charliteral">'\0'</span>); <span class="comment">//Reserved</span>
-<a name="l00104"></a>00104                 gzwrite(m_pGFD, &amp;driver-&gt;rawData()[0], size);
+<a name="l00104"></a>00104                 gzwrite(m_pGFD, &amp;rawdata[0], size);
 <a name="l00105"></a>00105                 buf.clear();
 <a name="l00106"></a>00106                 XPrimaryDriver::push((uint32_t)allsize, buf);
 <a name="l00107"></a>00107                 gzwrite(m_pGFD, &amp;buf[0], buf.size());
 <a name="l00108"></a>00108                 <a class="code" href="class_x_raw_stream.html#88a46d916e32cb9198b78c4f0a357482">m_filemutex</a>.<a class="code" href="class_x_mutex.html#c02318f75c25c6beb212a8d45b5d744f">unlock</a>();
 <a name="l00109"></a>00109             }
-<a name="l00110"></a>00110             driver-&gt;readUnlockRaw();
-<a name="l00111"></a>00111         }
-<a name="l00112"></a>00112     } 
-<a name="l00113"></a>00113 }
+<a name="l00110"></a>00110         }
+<a name="l00111"></a>00111     } 
+<a name="l00112"></a>00112 }
+<a name="l00113"></a>00113 
 <a name="l00114"></a>00114 
-<a name="l00115"></a>00115 
-<a name="l00116"></a><a class="code" href="class_x_text_writer.html#c76f523397fd7833528d0684e92c3601">00116</a> <a class="code" href="class_x_text_writer.html#c76f523397fd7833528d0684e92c3601">XTextWriter::XTextWriter</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
-<a name="l00117"></a>00117      <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;driverlist, <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;entrylist)
-<a name="l00118"></a>00118   : <a class="code" href="class_x_node.html">XNode</a>(name, runtime),
-<a name="l00119"></a>00119     m_drivers(driverlist),
-<a name="l00120"></a>00120     m_entries(entrylist),
-<a name="l00121"></a>00121     m_filename(create&lt;<a class="code" href="class_x_string_node.html">XStringNode</a>&gt;(<span class="stringliteral">"Filename"</span>, true)),
-<a name="l00122"></a>00122     m_lastLine(create&lt;<a class="code" href="class_x_string_node.html">XStringNode</a>&gt;(<span class="stringliteral">"LastLine"</span>, true)),
-<a name="l00123"></a>00123     m_recording(create&lt;<a class="code" href="class_x_value_node.html">XBoolNode</a>&gt;(<span class="stringliteral">"Recording"</span>, true))
-<a name="l00124"></a>00124 {
-<a name="l00125"></a>00125     <a class="code" href="class_x_text_writer.html#5e908de84d00311daa9fc727a47df681">recording</a>()-&gt;value(<span class="keyword">false</span>);
-<a name="l00126"></a>00126     <a class="code" href="class_x_text_writer.html#37feb01cb693d148c3912ad98413e9a4">lastLine</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00127"></a>00127   
-<a name="l00128"></a>00128     <a class="code" href="class_x_text_writer.html#d4b1643151c3b8f43217c8a2f4fbf5cd">m_lsnOnFilenameChanged</a> = <a class="code" href="class_x_text_writer.html#61d79aae17be818e2a19f499952eeb51">filename</a>()-&gt;onValueChanged().connectWeak(
-<a name="l00129"></a>00129         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_text_writer.html#6b5289652f07f8b235247ce1aedda09c">XTextWriter::onFilenameChanged</a>);
-<a name="l00130"></a>00130     <a class="code" href="class_x_text_writer.html#b8833b0e55f57811264632d24b64c533">m_lsnOnCatch</a> = <a class="code" href="class_x_text_writer.html#3aa44c43bfe340c8f7df71ef686ac1c9">m_drivers</a>-&gt;onCatch().connectWeak(
-<a name="l00131"></a>00131         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_text_writer.html#67255b358387bc9e99d0fbc20c49cb9e">XTextWriter::onCatch</a>);
-<a name="l00132"></a>00132     <a class="code" href="class_x_text_writer.html#a3e98967da36eba907aa3816be5aac4f">m_lsnOnRelease</a> = <a class="code" href="class_x_text_writer.html#3aa44c43bfe340c8f7df71ef686ac1c9">m_drivers</a>-&gt;onRelease().connectWeak(
-<a name="l00133"></a>00133         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_text_writer.html#1d2790bb528c59f1da38ccdcd1c6c01f">XTextWriter::onRelease</a>);
-<a name="l00134"></a>00134 }
-<a name="l00135"></a>00135 <span class="keywordtype">void</span>
-<a name="l00136"></a><a class="code" href="class_x_text_writer.html#67255b358387bc9e99d0fbc20c49cb9e">00136</a> <a class="code" href="class_x_text_writer.html#67255b358387bc9e99d0fbc20c49cb9e">XTextWriter::onCatch</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node)
-<a name="l00137"></a>00137 {
-<a name="l00138"></a>00138     shared_ptr&lt;XDriver&gt; driver = dynamic_pointer_cast&lt;XDriver&gt;(node);
-<a name="l00139"></a>00139     <span class="keywordflow">if</span>(<a class="code" href="class_x_text_writer.html#80c393c3cce63db2ec18fe8803b52585">m_lsnOnRecord</a>)
-<a name="l00140"></a>00140         driver-&gt;onRecord().connect(<a class="code" href="class_x_text_writer.html#80c393c3cce63db2ec18fe8803b52585">m_lsnOnRecord</a>);
-<a name="l00141"></a>00141     <span class="keywordflow">else</span>
-<a name="l00142"></a>00142         m_lsnOnRecord = driver-&gt;onRecord().connectWeak(
-<a name="l00143"></a>00143             <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_text_writer.html#a28b3a3cb0cef716a3298af4530e4ee3">XTextWriter::onRecord</a>);
-<a name="l00144"></a>00144 }
-<a name="l00145"></a>00145 <span class="keywordtype">void</span>
-<a name="l00146"></a><a class="code" href="class_x_text_writer.html#1d2790bb528c59f1da38ccdcd1c6c01f">00146</a> <a class="code" href="class_x_text_writer.html#1d2790bb528c59f1da38ccdcd1c6c01f">XTextWriter::onRelease</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node)
-<a name="l00147"></a>00147 {
-<a name="l00148"></a>00148     shared_ptr&lt;XDriver&gt; driver = dynamic_pointer_cast&lt;XDriver&gt;(node);
-<a name="l00149"></a>00149     driver-&gt;onRecord().disconnect(<a class="code" href="class_x_text_writer.html#80c393c3cce63db2ec18fe8803b52585">m_lsnOnRecord</a>);
-<a name="l00150"></a>00150 }
-<a name="l00151"></a>00151 <span class="keywordtype">void</span>
-<a name="l00152"></a><a class="code" href="class_x_text_writer.html#f262c828b66a1acc1b2f8fe0d6a0b475">00152</a> <a class="code" href="class_x_text_writer.html#f262c828b66a1acc1b2f8fe0d6a0b475">XTextWriter::onLastLineChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {
-<a name="l00153"></a>00153   <a class="code" href="class_x_text_writer.html#21e5e44896aedff5b0f91f8251ded3e2">m_filemutex</a>.<a class="code" href="class_x_recursive_mutex.html#1cfab14c32ad62dbc760781ba97eb0b2">lock</a>();
-<a name="l00154"></a>00154   <span class="keywordflow">if</span>(<a class="code" href="class_x_text_writer.html#77825d9cb0bbbb773e533ab0e86d4767">m_stream</a>.good())
-<a name="l00155"></a>00155   {
-<a name="l00156"></a>00156         <a class="code" href="class_x_text_writer.html#77825d9cb0bbbb773e533ab0e86d4767">m_stream</a> &lt;&lt; (<span class="keyword">const</span> <span class="keywordtype">char</span>*)<a class="code" href="class_x_text_writer.html#37feb01cb693d148c3912ad98413e9a4">lastLine</a>()-&gt;to_str().utf8()
-<a name="l00157"></a>00157                 &lt;&lt; std::endl;
-<a name="l00158"></a>00158   }
-<a name="l00159"></a>00159   m_filemutex.unlock();
-<a name="l00160"></a>00160 }
-<a name="l00161"></a>00161 <span class="keywordtype">void</span>
-<a name="l00162"></a><a class="code" href="class_x_text_writer.html#a28b3a3cb0cef716a3298af4530e4ee3">00162</a> <a class="code" href="class_x_text_writer.html#a28b3a3cb0cef716a3298af4530e4ee3">XTextWriter::onRecord</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;driver)
-<a name="l00163"></a>00163 {
-<a name="l00164"></a>00164      <span class="keywordflow">if</span>(*<a class="code" href="class_x_text_writer.html#5e908de84d00311daa9fc727a47df681">recording</a>() == <span class="keyword">true</span>)
-<a name="l00165"></a>00165         {
-<a name="l00166"></a>00166           <span class="keywordflow">if</span>(driver-&gt;time())
-<a name="l00167"></a>00167             {
-<a name="l00168"></a>00168             <a class="code" href="class_x_time.html">XTime</a> triggered_time;
-<a name="l00169"></a>00169             std::deque&lt;shared_ptr&lt;XScalarEntry&gt; &gt; locked_entries;
-<a name="l00170"></a>00170             { <a class="code" href="struct_x_scoped_read_lock.html">XScopedReadLock&lt;XRecursiveRWLock&gt;</a> lock(<a class="code" href="class_x_text_writer.html#dd1a2036ed1e7056b07df22e60fa178f">m_entries</a>-&gt;childMutex());
-<a name="l00171"></a>00171                 <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="class_x_text_writer.html#dd1a2036ed1e7056b07df22e60fa178f">m_entries</a>-&gt;count(); i++)
-<a name="l00172"></a>00172                         {
-<a name="l00173"></a>00173                       shared_ptr&lt;XScalarEntry&gt; entry = (*<a class="code" href="class_x_text_writer.html#dd1a2036ed1e7056b07df22e60fa178f">m_entries</a>)[i];
-<a name="l00174"></a>00174                       <span class="keywordflow">if</span>(!*entry-&gt;store()) <span class="keywordflow">continue</span>;
-<a name="l00175"></a>00175                       shared_ptr&lt;XDriver&gt; d(entry-&gt;driver());
-<a name="l00176"></a>00176                       <span class="keywordflow">if</span>(!d) <span class="keywordflow">continue</span>;
-<a name="l00177"></a>00177                       locked_entries.push_back(entry);
-<a name="l00178"></a>00178                       d-&gt;readLockRecord();
-<a name="l00179"></a>00179                       <span class="keywordflow">if</span>(entry-&gt;isTriggered()) triggered_time = entry-&gt;driver()-&gt;time();
-<a name="l00180"></a>00180                         }
-<a name="l00181"></a>00181             }
-<a name="l00182"></a>00182             <span class="keywordflow">if</span>(triggered_time) {
-<a name="l00183"></a>00183                     <a class="code" href="class_x_record_dependency.html">XRecordDependency</a> dep;
-<a name="l00184"></a>00184                     <span class="keywordflow">for</span>(std::deque&lt;shared_ptr&lt;XScalarEntry&gt; &gt;::iterator it = locked_entries.begin();
-<a name="l00185"></a>00185                         it != locked_entries.end(); it++) {
-<a name="l00186"></a>00186                           shared_ptr&lt;XDriver&gt; d((*it)-&gt;driver());
-<a name="l00187"></a>00187                           <span class="keywordflow">if</span>(!d) <span class="keywordflow">continue</span>;
-<a name="l00188"></a>00188                           dep.<a class="code" href="class_x_record_dependency.html#2b7b5079a573a759b115c8a136b07a36">merge</a>(d);
-<a name="l00189"></a>00189                           <span class="keywordflow">if</span>(dep.<a class="code" href="class_x_record_dependency.html#d2eed054201b209c1639f7b308c80509">isConflict</a>()) <span class="keywordflow">break</span>;
-<a name="l00190"></a>00190                     }
-<a name="l00191"></a>00191                     <span class="keywordflow">if</span>(!dep.isConflict()) {
-<a name="l00192"></a>00192                         QString buf;
-<a name="l00193"></a>00193                         <span class="keywordflow">for</span>(std::deque&lt;shared_ptr&lt;XScalarEntry&gt; &gt;::iterator it = locked_entries.begin();
-<a name="l00194"></a>00194                             it != locked_entries.end(); it++) {
-<a name="l00195"></a>00195                               <span class="keywordflow">if</span>(!*(*it)-&gt;store()) <span class="keywordflow">continue</span>;
-<a name="l00196"></a>00196                               (*it)-&gt;storeValue();
-<a name="l00197"></a>00197                               buf += (*it)-&gt;storedValue()-&gt;to_str() + <span class="stringliteral">" "</span>;
-<a name="l00198"></a>00198                         }
-<a name="l00199"></a>00199                             buf += driver-&gt;time().getTimeFmtStr(<span class="stringliteral">"%Y/%m/%d %H:%M:%S"</span>);
-<a name="l00200"></a>00200                             lastLine()-&gt;value(buf);
-<a name="l00201"></a>00201                     }
-<a name="l00202"></a>00202             }
-<a name="l00203"></a>00203             <span class="keywordflow">for</span>(std::deque&lt;shared_ptr&lt;XScalarEntry&gt; &gt;::iterator it = locked_entries.begin();
-<a name="l00204"></a>00204                 it != locked_entries.end(); it++) {
-<a name="l00205"></a>00205                 shared_ptr&lt;XDriver&gt; d((*it)-&gt;driver());
-<a name="l00206"></a>00206                 <span class="keywordflow">if</span>(!d) <span class="keywordflow">continue</span>;
-<a name="l00207"></a>00207                 d-&gt;readUnlockRecord();
+<a name="l00115"></a><a class="code" href="class_x_text_writer.html#c76f523397fd7833528d0684e92c3601">00115</a> <a class="code" href="class_x_text_writer.html#c76f523397fd7833528d0684e92c3601">XTextWriter::XTextWriter</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
+<a name="l00116"></a>00116      <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;driverlist, <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;entrylist)
+<a name="l00117"></a>00117   : <a class="code" href="class_x_node.html">XNode</a>(name, runtime),
+<a name="l00118"></a>00118     m_drivers(driverlist),
+<a name="l00119"></a>00119     m_entries(entrylist),
+<a name="l00120"></a>00120     m_filename(create&lt;<a class="code" href="class_x_string_node.html">XStringNode</a>&gt;(<span class="stringliteral">"Filename"</span>, true)),
+<a name="l00121"></a>00121     m_lastLine(create&lt;<a class="code" href="class_x_string_node.html">XStringNode</a>&gt;(<span class="stringliteral">"LastLine"</span>, true)),
+<a name="l00122"></a>00122     m_recording(create&lt;<a class="code" href="class_x_value_node.html">XBoolNode</a>&gt;(<span class="stringliteral">"Recording"</span>, true))
+<a name="l00123"></a>00123 {
+<a name="l00124"></a>00124     <a class="code" href="class_x_text_writer.html#5e908de84d00311daa9fc727a47df681">recording</a>()-&gt;value(<span class="keyword">false</span>);
+<a name="l00125"></a>00125     <a class="code" href="class_x_text_writer.html#37feb01cb693d148c3912ad98413e9a4">lastLine</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00126"></a>00126   
+<a name="l00127"></a>00127     <a class="code" href="class_x_text_writer.html#d4b1643151c3b8f43217c8a2f4fbf5cd">m_lsnOnFilenameChanged</a> = <a class="code" href="class_x_text_writer.html#61d79aae17be818e2a19f499952eeb51">filename</a>()-&gt;onValueChanged().connectWeak(
+<a name="l00128"></a>00128         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_text_writer.html#6b5289652f07f8b235247ce1aedda09c">XTextWriter::onFilenameChanged</a>);
+<a name="l00129"></a>00129     <a class="code" href="class_x_text_writer.html#b8833b0e55f57811264632d24b64c533">m_lsnOnCatch</a> = <a class="code" href="class_x_text_writer.html#3aa44c43bfe340c8f7df71ef686ac1c9">m_drivers</a>-&gt;onCatch().connectWeak(
+<a name="l00130"></a>00130         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_text_writer.html#67255b358387bc9e99d0fbc20c49cb9e">XTextWriter::onCatch</a>);
+<a name="l00131"></a>00131     <a class="code" href="class_x_text_writer.html#a3e98967da36eba907aa3816be5aac4f">m_lsnOnRelease</a> = <a class="code" href="class_x_text_writer.html#3aa44c43bfe340c8f7df71ef686ac1c9">m_drivers</a>-&gt;onRelease().connectWeak(
+<a name="l00132"></a>00132         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_text_writer.html#1d2790bb528c59f1da38ccdcd1c6c01f">XTextWriter::onRelease</a>);
+<a name="l00133"></a>00133 }
+<a name="l00134"></a>00134 <span class="keywordtype">void</span>
+<a name="l00135"></a><a class="code" href="class_x_text_writer.html#67255b358387bc9e99d0fbc20c49cb9e">00135</a> <a class="code" href="class_x_text_writer.html#67255b358387bc9e99d0fbc20c49cb9e">XTextWriter::onCatch</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node)
+<a name="l00136"></a>00136 {
+<a name="l00137"></a>00137     shared_ptr&lt;XDriver&gt; driver = dynamic_pointer_cast&lt;XDriver&gt;(node);
+<a name="l00138"></a>00138     <span class="keywordflow">if</span>(<a class="code" href="class_x_text_writer.html#80c393c3cce63db2ec18fe8803b52585">m_lsnOnRecord</a>)
+<a name="l00139"></a>00139         driver-&gt;onRecord().connect(<a class="code" href="class_x_text_writer.html#80c393c3cce63db2ec18fe8803b52585">m_lsnOnRecord</a>);
+<a name="l00140"></a>00140     <span class="keywordflow">else</span>
+<a name="l00141"></a>00141         m_lsnOnRecord = driver-&gt;onRecord().connectWeak(
+<a name="l00142"></a>00142             <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_text_writer.html#a28b3a3cb0cef716a3298af4530e4ee3">XTextWriter::onRecord</a>);
+<a name="l00143"></a>00143 }
+<a name="l00144"></a>00144 <span class="keywordtype">void</span>
+<a name="l00145"></a><a class="code" href="class_x_text_writer.html#1d2790bb528c59f1da38ccdcd1c6c01f">00145</a> <a class="code" href="class_x_text_writer.html#1d2790bb528c59f1da38ccdcd1c6c01f">XTextWriter::onRelease</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node)
+<a name="l00146"></a>00146 {
+<a name="l00147"></a>00147     shared_ptr&lt;XDriver&gt; driver = dynamic_pointer_cast&lt;XDriver&gt;(node);
+<a name="l00148"></a>00148     driver-&gt;onRecord().disconnect(<a class="code" href="class_x_text_writer.html#80c393c3cce63db2ec18fe8803b52585">m_lsnOnRecord</a>);
+<a name="l00149"></a>00149 }
+<a name="l00150"></a>00150 <span class="keywordtype">void</span>
+<a name="l00151"></a><a class="code" href="class_x_text_writer.html#f262c828b66a1acc1b2f8fe0d6a0b475">00151</a> <a class="code" href="class_x_text_writer.html#f262c828b66a1acc1b2f8fe0d6a0b475">XTextWriter::onLastLineChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {
+<a name="l00152"></a>00152   <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XRecursiveMutex&gt;</a> lock(<a class="code" href="class_x_text_writer.html#21e5e44896aedff5b0f91f8251ded3e2">m_filemutex</a>);  
+<a name="l00153"></a>00153   <span class="keywordflow">if</span>(<a class="code" href="class_x_text_writer.html#77825d9cb0bbbb773e533ab0e86d4767">m_stream</a>.good())
+<a name="l00154"></a>00154   {
+<a name="l00155"></a>00155         <a class="code" href="class_x_text_writer.html#77825d9cb0bbbb773e533ab0e86d4767">m_stream</a> &lt;&lt; <a class="code" href="class_x_text_writer.html#37feb01cb693d148c3912ad98413e9a4">lastLine</a>()-&gt;to_str()
+<a name="l00156"></a>00156                 &lt;&lt; std::endl;
+<a name="l00157"></a>00157   }
+<a name="l00158"></a>00158 }
+<a name="l00159"></a>00159 <span class="keywordtype">void</span>
+<a name="l00160"></a><a class="code" href="class_x_text_writer.html#a28b3a3cb0cef716a3298af4530e4ee3">00160</a> <a class="code" href="class_x_text_writer.html#a28b3a3cb0cef716a3298af4530e4ee3">XTextWriter::onRecord</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;driver)
+<a name="l00161"></a>00161 {
+<a name="l00162"></a>00162      <span class="keywordflow">if</span>(*<a class="code" href="class_x_text_writer.html#5e908de84d00311daa9fc727a47df681">recording</a>() == <span class="keyword">true</span>)
+<a name="l00163"></a>00163         {
+<a name="l00164"></a>00164           <span class="keywordflow">if</span>(driver-&gt;time())
+<a name="l00165"></a>00165             {
+<a name="l00166"></a>00166             <a class="code" href="class_x_time.html">XTime</a> triggered_time;
+<a name="l00167"></a>00167             std::deque&lt;shared_ptr&lt;XScalarEntry&gt; &gt; locked_entries;
+<a name="l00168"></a>00168 
+<a name="l00169"></a>00169             <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> list(<a class="code" href="class_x_text_writer.html#dd1a2036ed1e7056b07df22e60fa178f">m_entries</a>-&gt;children());
+<a name="l00170"></a>00170             <span class="keywordflow">if</span>(list) { 
+<a name="l00171"></a>00171                 <span class="keywordflow">for</span>(XNode::NodeList::const_iterator it = list-&gt;begin(); it != list-&gt;end(); it++) {
+<a name="l00172"></a>00172                       shared_ptr&lt;XScalarEntry&gt; entry = dynamic_pointer_cast&lt;XScalarEntry&gt;(*it);
+<a name="l00173"></a>00173                       <span class="keywordflow">if</span>(!*entry-&gt;store()) <span class="keywordflow">continue</span>;
+<a name="l00174"></a>00174                       shared_ptr&lt;XDriver&gt; d(entry-&gt;driver());
+<a name="l00175"></a>00175                       <span class="keywordflow">if</span>(!d) <span class="keywordflow">continue</span>;
+<a name="l00176"></a>00176                       locked_entries.push_back(entry);
+<a name="l00177"></a>00177                       d-&gt;readLockRecord();
+<a name="l00178"></a>00178                       <span class="keywordflow">if</span>(entry-&gt;isTriggered()) triggered_time = entry-&gt;driver()-&gt;time();
+<a name="l00179"></a>00179                 }
+<a name="l00180"></a>00180             }
+<a name="l00181"></a>00181             <span class="keywordflow">if</span>(triggered_time) {
+<a name="l00182"></a>00182                     <a class="code" href="class_x_record_dependency.html">XRecordDependency</a> dep;
+<a name="l00183"></a>00183                     <span class="keywordflow">for</span>(std::deque&lt;shared_ptr&lt;XScalarEntry&gt; &gt;::iterator it = locked_entries.begin();
+<a name="l00184"></a>00184                         it != locked_entries.end(); it++) {
+<a name="l00185"></a>00185                           shared_ptr&lt;XDriver&gt; d((*it)-&gt;driver());
+<a name="l00186"></a>00186                           <span class="keywordflow">if</span>(!d) <span class="keywordflow">continue</span>;
+<a name="l00187"></a>00187                           dep.<a class="code" href="class_x_record_dependency.html#2b7b5079a573a759b115c8a136b07a36">merge</a>(d);
+<a name="l00188"></a>00188                           <span class="keywordflow">if</span>(dep.<a class="code" href="class_x_record_dependency.html#d2eed054201b209c1639f7b308c80509">isConflict</a>()) <span class="keywordflow">break</span>;
+<a name="l00189"></a>00189                     }
+<a name="l00190"></a>00190                     <span class="keywordflow">if</span>(!dep.isConflict()) {
+<a name="l00191"></a>00191                         std::string buf;
+<a name="l00192"></a>00192                         <span class="keywordflow">for</span>(std::deque&lt;shared_ptr&lt;XScalarEntry&gt; &gt;::iterator it = locked_entries.begin();
+<a name="l00193"></a>00193                             it != locked_entries.end(); it++) {
+<a name="l00194"></a>00194                               <span class="keywordflow">if</span>(!*(*it)-&gt;store()) <span class="keywordflow">continue</span>;
+<a name="l00195"></a>00195                               (*it)-&gt;storeValue();
+<a name="l00196"></a>00196                               buf.append((*it)-&gt;storedValue()-&gt;to_str() + <span class="stringliteral">" "</span>);
+<a name="l00197"></a>00197                         }
+<a name="l00198"></a>00198                             buf.append(driver-&gt;time().getTimeFmtStr(<span class="stringliteral">"%Y/%m/%d %H:%M:%S"</span>));
+<a name="l00199"></a>00199                             lastLine()-&gt;value(buf);
+<a name="l00200"></a>00200                     }
+<a name="l00201"></a>00201             }
+<a name="l00202"></a>00202             <span class="keywordflow">for</span>(std::deque&lt;shared_ptr&lt;XScalarEntry&gt; &gt;::iterator it = locked_entries.begin();
+<a name="l00203"></a>00203                 it != locked_entries.end(); it++) {
+<a name="l00204"></a>00204                 shared_ptr&lt;XDriver&gt; d((*it)-&gt;driver());
+<a name="l00205"></a>00205                 <span class="keywordflow">if</span>(!d) <span class="keywordflow">continue</span>;
+<a name="l00206"></a>00206                 d-&gt;readUnlockRecord();
+<a name="l00207"></a>00207             }
 <a name="l00208"></a>00208             }
-<a name="l00209"></a>00209             }
-<a name="l00210"></a>00210         }
-<a name="l00211"></a>00211 }
-<a name="l00212"></a>00212 
-<a name="l00213"></a>00213 <span class="keywordtype">void</span>
-<a name="l00214"></a><a class="code" href="class_x_text_writer.html#6b5289652f07f8b235247ce1aedda09c">00214</a> <a class="code" href="class_x_text_writer.html#6b5289652f07f8b235247ce1aedda09c">XTextWriter::onFilenameChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
-<a name="l00215"></a>00215 {
-<a name="l00216"></a>00216   <a class="code" href="class_x_text_writer.html#21e5e44896aedff5b0f91f8251ded3e2">m_filemutex</a>.<a class="code" href="class_x_recursive_mutex.html#1cfab14c32ad62dbc760781ba97eb0b2">lock</a>();
-<a name="l00217"></a>00217   
-<a name="l00218"></a>00218   <span class="keywordflow">if</span>(<a class="code" href="class_x_text_writer.html#77825d9cb0bbbb773e533ab0e86d4767">m_stream</a>.is_open()) <a class="code" href="class_x_text_writer.html#77825d9cb0bbbb773e533ab0e86d4767">m_stream</a>.close();
-<a name="l00219"></a>00219   <a class="code" href="class_x_text_writer.html#77825d9cb0bbbb773e533ab0e86d4767">m_stream</a>.clear();
-<a name="l00220"></a>00220   <a class="code" href="class_x_text_writer.html#77825d9cb0bbbb773e533ab0e86d4767">m_stream</a>.open((<span class="keyword">const</span> <span class="keywordtype">char</span>*)<a class="code" href="class_x_text_writer.html#61d79aae17be818e2a19f499952eeb51">filename</a>()-&gt;to_str().local8Bit(), OFSMODE);
-<a name="l00221"></a>00221 
-<a name="l00222"></a>00222   <span class="keywordflow">if</span>(<a class="code" href="class_x_text_writer.html#77825d9cb0bbbb773e533ab0e86d4767">m_stream</a>.good()) {
-<a name="l00223"></a>00223     <a class="code" href="class_x_text_writer.html#65deff7dfc94c3522614a3e1905e42df">m_lsnOnFlush</a> = <a class="code" href="class_x_text_writer.html#5e908de84d00311daa9fc727a47df681">recording</a>()-&gt;onValueChanged().connectWeak(
-<a name="l00224"></a>00224         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_text_writer.html#cf0846e9f4031a92e460a942226d0358">XTextWriter::onFlush</a>);
-<a name="l00225"></a>00225     <a class="code" href="class_x_text_writer.html#cb923616c004832fd830cd280bf3b081">m_lsnOnLastLineChanged</a> = <a class="code" href="class_x_text_writer.html#37feb01cb693d148c3912ad98413e9a4">lastLine</a>()-&gt;onValueChanged().connectWeak(
-<a name="l00226"></a>00226         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_text_writer.html#f262c828b66a1acc1b2f8fe0d6a0b475">XTextWriter::onLastLineChanged</a>);
-<a name="l00227"></a>00227     <a class="code" href="class_x_text_writer.html#37feb01cb693d148c3912ad98413e9a4">lastLine</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
-<a name="l00228"></a>00228 
-<a name="l00229"></a>00229      QString buf;
-<a name="l00230"></a>00230      buf += <span class="stringliteral">"#"</span>;
-<a name="l00231"></a>00231     { <a class="code" href="struct_x_scoped_read_lock.html">XScopedReadLock&lt;XRecursiveRWLock&gt;</a> lock(<a class="code" href="class_x_text_writer.html#dd1a2036ed1e7056b07df22e60fa178f">m_entries</a>-&gt;childMutex());
-<a name="l00232"></a>00232           <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="class_x_text_writer.html#dd1a2036ed1e7056b07df22e60fa178f">m_entries</a>-&gt;count(); i++)
-<a name="l00233"></a>00233                 {
-<a name="l00234"></a>00234                   shared_ptr&lt;XScalarEntry&gt; entry = (*<a class="code" href="class_x_text_writer.html#dd1a2036ed1e7056b07df22e60fa178f">m_entries</a>)[i];
-<a name="l00235"></a>00235                   <span class="keywordflow">if</span>(!*entry-&gt;store()) <span class="keywordflow">continue</span>;
-<a name="l00236"></a>00236                   buf += entry-&gt;getEntryTitle();
-<a name="l00237"></a>00237               buf += <span class="stringliteral">" "</span>;
-<a name="l00238"></a>00238                 }
-<a name="l00239"></a>00239           buf += <span class="stringliteral">"Time"</span>;
-<a name="l00240"></a>00240     }
-<a name="l00241"></a>00241      
-<a name="l00242"></a>00242      lastLine()-&gt;value(buf);
-<a name="l00243"></a>00243   }
-<a name="l00244"></a>00244   <span class="keywordflow">else</span> {
-<a name="l00245"></a>00245     m_lsnOnFlush.reset();
-<a name="l00246"></a>00246     m_lsnOnLastLineChanged.reset();
-<a name="l00247"></a>00247     lastLine()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00248"></a>00248   }
-<a name="l00249"></a>00249   m_filemutex.unlock();        
-<a name="l00250"></a>00250 }
-<a name="l00251"></a>00251 <span class="keywordtype">void</span>
-<a name="l00252"></a><a class="code" href="class_x_text_writer.html#cf0846e9f4031a92e460a942226d0358">00252</a> <a class="code" href="class_x_text_writer.html#cf0846e9f4031a92e460a942226d0358">XTextWriter::onFlush</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
-<a name="l00253"></a>00253 {
-<a name="l00254"></a>00254     <a class="code" href="class_x_text_writer.html#37feb01cb693d148c3912ad98413e9a4">lastLine</a>()-&gt;setUIEnabled(*<a class="code" href="class_x_text_writer.html#5e908de84d00311daa9fc727a47df681">recording</a>());
-<a name="l00255"></a>00255         <span class="keywordflow">if</span>(!*<a class="code" href="class_x_text_writer.html#5e908de84d00311daa9fc727a47df681">recording</a>()) {
-<a name="l00256"></a>00256       <a class="code" href="class_x_text_writer.html#21e5e44896aedff5b0f91f8251ded3e2">m_filemutex</a>.<a class="code" href="class_x_recursive_mutex.html#1cfab14c32ad62dbc760781ba97eb0b2">lock</a>();
-<a name="l00257"></a>00257           <span class="keywordflow">if</span>(<a class="code" href="class_x_text_writer.html#77825d9cb0bbbb773e533ab0e86d4767">m_stream</a>.good())
-<a name="l00258"></a>00258              <a class="code" href="class_x_text_writer.html#77825d9cb0bbbb773e533ab0e86d4767">m_stream</a>.flush();
-<a name="l00259"></a>00259       <a class="code" href="class_x_text_writer.html#21e5e44896aedff5b0f91f8251ded3e2">m_filemutex</a>.<a class="code" href="class_x_recursive_mutex.html#2996019892806ce7d72a55a3206b60c0">unlock</a>();
-<a name="l00260"></a>00260         }
-<a name="l00261"></a>00261 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:43 2006に生成されました。&nbsp;
+<a name="l00209"></a>00209         }
+<a name="l00210"></a>00210 }
+<a name="l00211"></a>00211 
+<a name="l00212"></a>00212 <span class="keywordtype">void</span>
+<a name="l00213"></a><a class="code" href="class_x_text_writer.html#6b5289652f07f8b235247ce1aedda09c">00213</a> <a class="code" href="class_x_text_writer.html#6b5289652f07f8b235247ce1aedda09c">XTextWriter::onFilenameChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
+<a name="l00214"></a>00214 {
+<a name="l00215"></a>00215   <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XRecursiveMutex&gt;</a> lock(<a class="code" href="class_x_text_writer.html#21e5e44896aedff5b0f91f8251ded3e2">m_filemutex</a>);  
+<a name="l00216"></a>00216   <span class="keywordflow">if</span>(<a class="code" href="class_x_text_writer.html#77825d9cb0bbbb773e533ab0e86d4767">m_stream</a>.is_open()) <a class="code" href="class_x_text_writer.html#77825d9cb0bbbb773e533ab0e86d4767">m_stream</a>.close();
+<a name="l00217"></a>00217   <a class="code" href="class_x_text_writer.html#77825d9cb0bbbb773e533ab0e86d4767">m_stream</a>.clear();
+<a name="l00218"></a>00218   <a class="code" href="class_x_text_writer.html#77825d9cb0bbbb773e533ab0e86d4767">m_stream</a>.open((<span class="keyword">const</span> <span class="keywordtype">char</span>*)QString(<a class="code" href="class_x_text_writer.html#61d79aae17be818e2a19f499952eeb51">filename</a>()-&gt;to_str()).local8Bit(), OFSMODE);
+<a name="l00219"></a>00219 
+<a name="l00220"></a>00220   <span class="keywordflow">if</span>(<a class="code" href="class_x_text_writer.html#77825d9cb0bbbb773e533ab0e86d4767">m_stream</a>.good()) {
+<a name="l00221"></a>00221     <a class="code" href="class_x_text_writer.html#65deff7dfc94c3522614a3e1905e42df">m_lsnOnFlush</a> = <a class="code" href="class_x_text_writer.html#5e908de84d00311daa9fc727a47df681">recording</a>()-&gt;onValueChanged().connectWeak(
+<a name="l00222"></a>00222         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_text_writer.html#cf0846e9f4031a92e460a942226d0358">XTextWriter::onFlush</a>);
+<a name="l00223"></a>00223     <a class="code" href="class_x_text_writer.html#cb923616c004832fd830cd280bf3b081">m_lsnOnLastLineChanged</a> = <a class="code" href="class_x_text_writer.html#37feb01cb693d148c3912ad98413e9a4">lastLine</a>()-&gt;onValueChanged().connectWeak(
+<a name="l00224"></a>00224         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_text_writer.html#f262c828b66a1acc1b2f8fe0d6a0b475">XTextWriter::onLastLineChanged</a>);
+<a name="l00225"></a>00225     <a class="code" href="class_x_text_writer.html#37feb01cb693d148c3912ad98413e9a4">lastLine</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00226"></a>00226 
+<a name="l00227"></a>00227     std::string buf;
+<a name="l00228"></a>00228     buf = <span class="stringliteral">"#"</span>;
+<a name="l00229"></a>00229     <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> list(<a class="code" href="class_x_text_writer.html#dd1a2036ed1e7056b07df22e60fa178f">m_entries</a>-&gt;children());
+<a name="l00230"></a>00230     <span class="keywordflow">if</span>(list) { 
+<a name="l00231"></a>00231         <span class="keywordflow">for</span>(XNode::NodeList::const_iterator it = list-&gt;begin(); it != list-&gt;end(); it++) {
+<a name="l00232"></a>00232           shared_ptr&lt;XScalarEntry&gt; entry = dynamic_pointer_cast&lt;XScalarEntry&gt;(*it);
+<a name="l00233"></a>00233           <span class="keywordflow">if</span>(!*entry-&gt;store()) <span class="keywordflow">continue</span>;
+<a name="l00234"></a>00234           buf.append(entry-&gt;getLabel());
+<a name="l00235"></a>00235           buf.append(<span class="stringliteral">" "</span>);
+<a name="l00236"></a>00236         }
+<a name="l00237"></a>00237     }
+<a name="l00238"></a>00238     buf.append(<span class="stringliteral">"Time"</span>);
+<a name="l00239"></a>00239     lastLine()-&gt;value(buf);
+<a name="l00240"></a>00240   }
+<a name="l00241"></a>00241   <span class="keywordflow">else</span> {
+<a name="l00242"></a>00242     m_lsnOnFlush.reset();
+<a name="l00243"></a>00243     m_lsnOnLastLineChanged.reset();
+<a name="l00244"></a>00244     lastLine()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00245"></a>00245   }
+<a name="l00246"></a>00246 }
+<a name="l00247"></a>00247 <span class="keywordtype">void</span>
+<a name="l00248"></a><a class="code" href="class_x_text_writer.html#cf0846e9f4031a92e460a942226d0358">00248</a> <a class="code" href="class_x_text_writer.html#cf0846e9f4031a92e460a942226d0358">XTextWriter::onFlush</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
+<a name="l00249"></a>00249 {
+<a name="l00250"></a>00250     <a class="code" href="class_x_text_writer.html#37feb01cb693d148c3912ad98413e9a4">lastLine</a>()-&gt;setUIEnabled(*<a class="code" href="class_x_text_writer.html#5e908de84d00311daa9fc727a47df681">recording</a>());
+<a name="l00251"></a>00251         <span class="keywordflow">if</span>(!*<a class="code" href="class_x_text_writer.html#5e908de84d00311daa9fc727a47df681">recording</a>()) {
+<a name="l00252"></a>00252       <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XRecursiveMutex&gt;</a> lock(<a class="code" href="class_x_text_writer.html#21e5e44896aedff5b0f91f8251ded3e2">m_filemutex</a>);  
+<a name="l00253"></a>00253           <span class="keywordflow">if</span>(<a class="code" href="class_x_text_writer.html#77825d9cb0bbbb773e533ab0e86d4767">m_stream</a>.good())
+<a name="l00254"></a>00254              <a class="code" href="class_x_text_writer.html#77825d9cb0bbbb773e533ab0e86d4767">m_stream</a>.flush();
+<a name="l00255"></a>00255         }
+<a name="l00256"></a>00256 }
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:52:26 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

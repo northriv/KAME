@@ -136,7 +136,7 @@ XValueNode<int, 10>::_str(const std::string &str) throw (XKameError &) {
     bool ok;
     int var = QString(str).toInt(&ok, 10);
     if(!ok)
-         throw XKameError(i18n("Ill string conversion to integer."), __FILE__, __LINE__);
+         throw XKameError(KAME::i18n("Ill string conversion to integer."), __FILE__, __LINE__);
     value(var);
 }
 template <>
@@ -145,7 +145,7 @@ XValueNode<unsigned int, 10>::_str(const std::string &str) throw (XKameError &) 
     bool ok;
     unsigned int var = QString(str).toUInt(&ok);
     if(!ok)
-         throw XKameError(i18n("Ill string conversion to unsigned integer."), __FILE__, __LINE__);
+         throw XKameError(KAME::i18n("Ill string conversion to unsigned integer."), __FILE__, __LINE__);
     value(var);
 }
 template <>
@@ -154,7 +154,7 @@ XValueNode<unsigned int, 16>::_str(const std::string &str) throw (XKameError &) 
     bool ok;
     unsigned int var = QString(str).toUInt(&ok, 16);
     if(!ok)
-         throw XKameError(i18n("Ill string conversion to hex."), __FILE__, __LINE__);
+         throw XKameError(KAME::i18n("Ill string conversion to hex."), __FILE__, __LINE__);
     value(var);
 }
 template <>
@@ -172,7 +172,7 @@ XValueNode<bool, 10>::_str(const std::string &str) throw (XKameError &) {
    if(QString(str).stripWhiteSpace().lower() == "false") {
         value(false); return;
    }
-   throw XKameError(i18n("Ill string conversion to boolean."), __FILE__, __LINE__);
+   throw XKameError(KAME::i18n("Ill string conversion to boolean."), __FILE__, __LINE__);
 }
 
 template <typename T, int base>
@@ -247,7 +247,7 @@ XDoubleNode::_str(const std::string &str) throw (XKameError &)
 bool ok;
     double var = QString(str).toDouble(&ok);
     if(!ok) 
-         throw XKameError(i18n("Ill string conversion to double float."), __FILE__, __LINE__);
+         throw XKameError(KAME::i18n("Ill string conversion to double float."), __FILE__, __LINE__);
     value(var);
 }
 void

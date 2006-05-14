@@ -20,228 +20,228 @@
 <a name="l00002"></a>00002 <span class="preprocessor">#include "interface.h"</span>
 <a name="l00003"></a>00003 <span class="preprocessor">#include &lt;klocale.h&gt;</span>
 <a name="l00004"></a>00004 
-<a name="l00005"></a><a class="code" href="class_x_primary_driver.html#63c894f2015d73a7dc7189cc66b75365">00005</a> <a class="code" href="class_x_primary_driver.html#63c894f2015d73a7dc7189cc66b75365">XPrimaryDriver::XPrimaryDriver</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, 
-<a name="l00006"></a>00006    <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
-<a name="l00007"></a>00007    <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
-<a name="l00008"></a>00008    <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
-<a name="l00009"></a>00009    <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers) :
-<a name="l00010"></a>00010     <a class="code" href="class_x_driver.html">XDriver</a>(name, runtime, scalarentries, interfaces, thermometers, drivers),
-<a name="l00011"></a>00011     m_interface(create&lt;<a class="code" href="class_x_interface.html">XInterface</a>&gt;(<span class="stringliteral">"Interface"</span>, false,
-<a name="l00012"></a>00012             dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this())))
-<a name="l00013"></a>00013 {
-<a name="l00014"></a>00014     interfaces-&gt;insert(<a class="code" href="class_x_primary_driver.html#537882d5b0d9d2f944344bf03183f607">m_interface</a>);
-<a name="l00015"></a>00015 }
-<a name="l00016"></a>00016 <span class="keywordtype">void</span>
-<a name="l00017"></a><a class="code" href="class_x_primary_driver.html#be5ab3126c5f51b88c45852d84a59b10">00017</a> <a class="code" href="class_x_primary_driver.html#be5ab3126c5f51b88c45852d84a59b10">XPrimaryDriver::replaceInterface</a>(<span class="keyword">const</span> shared_ptr&lt;XInterface&gt; &amp;replacement,
-<a name="l00018"></a>00018          <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces)
-<a name="l00019"></a>00019 {
-<a name="l00020"></a>00020         <a class="code" href="class_x_node.html#3955aaa3bd9593cfab0578b2f7f06cd9">releaseChild</a>(<a class="code" href="class_x_primary_driver.html#50131048964317ee0a2f909f3ac25e4b">interface</a>());
-<a name="l00021"></a>00021         interfaces-&gt;releaseChild(<a class="code" href="class_x_primary_driver.html#50131048964317ee0a2f909f3ac25e4b">interface</a>());
-<a name="l00022"></a>00022         <a class="code" href="class_x_primary_driver.html#537882d5b0d9d2f944344bf03183f607">m_interface</a> = replacement;
-<a name="l00023"></a>00023         interfaces-&gt;insert(<a class="code" href="class_x_primary_driver.html#50131048964317ee0a2f909f3ac25e4b">interface</a>());
-<a name="l00024"></a>00024 }
-<a name="l00025"></a>00025 <span class="keywordtype">void</span>
-<a name="l00026"></a><a class="code" href="class_x_primary_driver.html#9d992857bdf6803a83f2dde0539dfe4f">00026</a> <a class="code" href="class_x_primary_driver.html#9d992857bdf6803a83f2dde0539dfe4f">XPrimaryDriver::readUnlockRaw</a>() {
-<a name="l00027"></a>00027     <a class="code" href="class_x_primary_driver.html#32130e795910dad3fd5785e161e3e1aa">m_rawLock</a>.<a class="code" href="class_x_recursive_r_w_lock.html#9fd8ad35d07550d03d38366c1f37ddea">readUnlock</a>();
-<a name="l00028"></a>00028 }
+<a name="l00005"></a>00005 <a class="code" href="class_x_thread_local.html">XThreadLocal&lt;std::vector&lt;char&gt;</a> &gt; <a class="code" href="class_x_primary_driver.html#a70bf4a005e2532b10a0e025a785242b">XPrimaryDriver::s_tlRawData</a>;
+<a name="l00006"></a>00006 <a class="code" href="class_x_thread_local.html">XThreadLocal&lt;XPrimaryDriver::RawData_it&gt;</a> <a class="code" href="class_x_primary_driver.html#c939c3228f0e16b00f85894acecb9f3c">XPrimaryDriver::s_tl_pop_it</a>;
+<a name="l00007"></a>00007 
+<a name="l00008"></a><a class="code" href="class_x_primary_driver.html#63c894f2015d73a7dc7189cc66b75365">00008</a> <a class="code" href="class_x_primary_driver.html#63c894f2015d73a7dc7189cc66b75365">XPrimaryDriver::XPrimaryDriver</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, 
+<a name="l00009"></a>00009    <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
+<a name="l00010"></a>00010    <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
+<a name="l00011"></a>00011    <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
+<a name="l00012"></a>00012    <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers) :
+<a name="l00013"></a>00013     <a class="code" href="class_x_driver.html">XDriver</a>(name, runtime, scalarentries, interfaces, thermometers, drivers),
+<a name="l00014"></a>00014     m_interface(create&lt;<a class="code" href="class_x_interface.html">XInterface</a>&gt;(<span class="stringliteral">"Interface"</span>, false,
+<a name="l00015"></a>00015             dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this())))
+<a name="l00016"></a>00016 {
+<a name="l00017"></a>00017     interfaces-&gt;insert(<a class="code" href="class_x_primary_driver.html#537882d5b0d9d2f944344bf03183f607">m_interface</a>);
+<a name="l00018"></a>00018 }
+<a name="l00019"></a>00019 <span class="keywordtype">void</span>
+<a name="l00020"></a><a class="code" href="class_x_primary_driver.html#be5ab3126c5f51b88c45852d84a59b10">00020</a> <a class="code" href="class_x_primary_driver.html#be5ab3126c5f51b88c45852d84a59b10">XPrimaryDriver::replaceInterface</a>(<span class="keyword">const</span> shared_ptr&lt;XInterface&gt; &amp;replacement,
+<a name="l00021"></a>00021          <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces)
+<a name="l00022"></a>00022 {
+<a name="l00023"></a>00023         <a class="code" href="class_x_node.html#8885960feec87e54c9717acdb837a952">releaseChild</a>(<a class="code" href="class_x_primary_driver.html#50131048964317ee0a2f909f3ac25e4b">interface</a>());
+<a name="l00024"></a>00024         interfaces-&gt;releaseChild(<a class="code" href="class_x_primary_driver.html#50131048964317ee0a2f909f3ac25e4b">interface</a>());
+<a name="l00025"></a>00025         <a class="code" href="class_x_primary_driver.html#537882d5b0d9d2f944344bf03183f607">m_interface</a> = replacement;
+<a name="l00026"></a>00026         interfaces-&gt;insert(<a class="code" href="class_x_primary_driver.html#50131048964317ee0a2f909f3ac25e4b">interface</a>());
+<a name="l00027"></a>00027 }
+<a name="l00028"></a>00028 
 <a name="l00029"></a>00029 <span class="keywordtype">void</span>
-<a name="l00030"></a><a class="code" href="class_x_primary_driver.html#b04a79835b18228154539fce5c301529">00030</a> <a class="code" href="class_x_primary_driver.html#b04a79835b18228154539fce5c301529">XPrimaryDriver::readLockRaw</a>() {
-<a name="l00031"></a>00031     <a class="code" href="class_x_primary_driver.html#32130e795910dad3fd5785e161e3e1aa">m_rawLock</a>.<a class="code" href="class_x_recursive_r_w_lock.html#5b5ee81f553de08100fc7feec2b82c24">readLock</a>();
-<a name="l00032"></a>00032 }
-<a name="l00033"></a>00033 
-<a name="l00034"></a>00034 <span class="keywordtype">void</span>
-<a name="l00035"></a><a class="code" href="class_x_primary_driver.html#0d87a269d8107f43efdd80d7e6d1d5c4">00035</a> <a class="code" href="class_x_primary_driver.html#0d87a269d8107f43efdd80d7e6d1d5c4">XPrimaryDriver::startWritingRaw</a>()
-<a name="l00036"></a>00036 {
-<a name="l00037"></a>00037     <a class="code" href="class_x_primary_driver.html#32130e795910dad3fd5785e161e3e1aa">m_rawLock</a>.<a class="code" href="class_x_recursive_r_w_lock.html#9863551092dbdebe2937bcaf638d36e4">writeLock</a>();
-<a name="l00038"></a>00038     <a class="code" href="class_x_primary_driver.html#95decb01c12978cf8a7e5f2333bdf314">m_rawData</a>.clear();
-<a name="l00039"></a>00039 }
-<a name="l00040"></a>00040 <span class="keywordtype">void</span>
-<a name="l00041"></a><a class="code" href="class_x_primary_driver.html#f8c5361cad4a345efd4b5e5657bea134">00041</a> <a class="code" href="class_x_primary_driver.html#f8c5361cad4a345efd4b5e5657bea134">XPrimaryDriver::finishWritingRaw</a>(
-<a name="l00042"></a>00042     <span class="keyword">const</span> <a class="code" href="class_x_time.html">XTime</a> &amp;time_awared, <span class="keyword">const</span> <a class="code" href="class_x_time.html">XTime</a> &amp;time_recorded_org, <span class="keywordtype">bool</span> success)
-<a name="l00043"></a>00043 {
-<a name="l00044"></a>00044     <span class="keywordflow">if</span>(success) {
-<a name="l00045"></a>00045         <a class="code" href="class_x_time.html">XTime</a> time_recorded = time_recorded_org;
-<a name="l00046"></a>00046         <a class="code" href="class_x_primary_driver.html#32130e795910dad3fd5785e161e3e1aa">m_rawLock</a>.<a class="code" href="class_x_recursive_r_w_lock.html#cb61e48c4d926f2cb3fd6df8a75aa6bd">writeUnlockNReadLock</a>();
-<a name="l00047"></a>00047         <a class="code" href="class_x_driver.html#272561abe4b87693f950697cb6f69e31">startRecording</a>(time_awared);
-<a name="l00048"></a>00048         <span class="keywordflow">if</span>(time_recorded) {
-<a name="l00049"></a>00049             <a class="code" href="class_x_primary_driver.html#144a7349304818c4777c070f965e203b">m_pop_it</a> = <a class="code" href="class_x_primary_driver.html#95decb01c12978cf8a7e5f2333bdf314">m_rawData</a>.begin();
-<a name="l00050"></a>00050             <span class="keywordflow">try</span> {
-<a name="l00051"></a>00051                 <a class="code" href="class_x_primary_driver.html#3c4e5d6388db35d763bd1121332f9f4e">analyzeRaw</a>();
-<a name="l00052"></a>00052             }
-<a name="l00053"></a>00053             <span class="keywordflow">catch</span> (XSkippedRecordError&amp;) {
-<a name="l00054"></a>00054                  time_recorded = <a class="code" href="class_x_time.html">XTime</a>(); <span class="comment">//record is invalid</span>
-<a name="l00055"></a>00055             }
-<a name="l00056"></a>00056             <span class="keywordflow">catch</span> (XRecordError&amp; e) {
-<a name="l00057"></a>00057                  time_recorded = <a class="code" href="class_x_time.html">XTime</a>(); <span class="comment">//record is invalid</span>
-<a name="l00058"></a>00058                  e.print(<a class="code" href="class_x_node.html#a80e1cda9a887e46bb4c322f9fb91978">getName</a>() + <span class="stringliteral">": "</span> + i18n(<span class="stringliteral">"Record Error, because "</span>));
-<a name="l00059"></a>00059             }
-<a name="l00060"></a>00060         }
-<a name="l00061"></a>00061         <a class="code" href="class_x_primary_driver.html#9d992857bdf6803a83f2dde0539dfe4f">readUnlockRaw</a>();
-<a name="l00062"></a>00062         <a class="code" href="class_x_driver.html#cd35af1461a848d4d78d58d8f0c94965">finishRecordingNReadLock</a>(time_recorded);
-<a name="l00063"></a>00063         <a class="code" href="class_x_driver.html#cea9ca56cfc70f33c98d72349931c2ff">visualize</a>();
-<a name="l00064"></a>00064         <a class="code" href="class_x_driver.html#08b2f5885f4b5d2491bf7aa575c64532">readUnlockRecord</a>();
-<a name="l00065"></a>00065     }
-<a name="l00066"></a>00066     <span class="keywordflow">else</span>
-<a name="l00067"></a>00067         <a class="code" href="class_x_primary_driver.html#32130e795910dad3fd5785e161e3e1aa">m_rawLock</a>.<a class="code" href="class_x_recursive_r_w_lock.html#71014c830628ff2702f5fedad2a88a2f">writeUnlock</a>();
-<a name="l00068"></a>00068 }
-<a name="l00069"></a>00069 
-<a name="l00070"></a>00070 <span class="keywordtype">void</span>
-<a name="l00071"></a><a class="code" href="class_x_primary_driver.html#8752ff9a09d693044de94914d7107ddc">00071</a> <a class="code" href="class_x_primary_driver.html#8752ff9a09d693044de94914d7107ddc">XPrimaryDriver::_push_char</a>(<span class="keywordtype">char</span> x, std::vector&lt;char&gt; &amp;buf) {
-<a name="l00072"></a>00072     buf.push_back(x);
-<a name="l00073"></a>00073 }
-<a name="l00074"></a>00074 <span class="keywordtype">void</span>
-<a name="l00075"></a><a class="code" href="class_x_primary_driver.html#ec5d41c83d755bab2513454ed267005a">00075</a> <a class="code" href="class_x_primary_driver.html#ec5d41c83d755bab2513454ed267005a">XPrimaryDriver::_push_short</a>(<span class="keywordtype">short</span> x, std::vector&lt;char&gt; &amp;buf) {
-<a name="l00076"></a>00076     <span class="keyword">auto</span> <span class="keywordtype">short</span> y = x;
-<a name="l00077"></a>00077     <span class="keywordtype">char</span> *p = reinterpret_cast&lt;char *&gt;(&amp;y);
-<a name="l00078"></a>00078 <span class="preprocessor">#ifdef __BIG_ENDIAN__</span>
-<a name="l00079"></a>00079 <span class="preprocessor"></span>    <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = p + <span class="keyword">sizeof</span>(x) - 1; z &gt;= p; z--) {
-<a name="l00080"></a>00080 #<span class="keywordflow">else</span>
-<a name="l00081"></a>00081     <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = p; z &lt; p + <span class="keyword">sizeof</span>(x); z++) {
-<a name="l00082"></a>00082 #endif
-<a name="l00083"></a>00083         buf.push_back(*z);
-<a name="l00084"></a>00084     }
-<a name="l00085"></a>00085 }
-<a name="l00086"></a>00086 <span class="keywordtype">void</span>
-<a name="l00087"></a><a class="code" href="class_x_primary_driver.html#d5b391e8aa21c13e102eeb556d366f8e">00087</a> <a class="code" href="class_x_primary_driver.html#d5b391e8aa21c13e102eeb556d366f8e">XPrimaryDriver::_push_int32</a>(int32_t x, std::vector&lt;char&gt; &amp;buf) {
-<a name="l00088"></a>00088     <span class="keyword">auto</span> int32_t y = x;
-<a name="l00089"></a>00089     <span class="keywordtype">char</span> *p = reinterpret_cast&lt;char *&gt;(&amp;y);
-<a name="l00090"></a>00090 <span class="preprocessor">#ifdef __BIG_ENDIAN__</span>
-<a name="l00091"></a>00091 <span class="preprocessor"></span>    <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = p + <span class="keyword">sizeof</span>(x) - 1; z &gt;= p; z--) {
-<a name="l00092"></a>00092 #<span class="keywordflow">else</span>
-<a name="l00093"></a>00093     <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = p; z &lt; p + <span class="keyword">sizeof</span>(x); z++) {
-<a name="l00094"></a>00094 #endif
-<a name="l00095"></a>00095         buf.push_back(*z);
-<a name="l00096"></a>00096     }
-<a name="l00097"></a>00097 }
-<a name="l00098"></a>00098 <span class="keywordtype">void</span>
-<a name="l00099"></a><a class="code" href="class_x_primary_driver.html#2a74474d5989f04f6eebf5f86550e354">00099</a> <a class="code" href="class_x_primary_driver.html#2a74474d5989f04f6eebf5f86550e354">XPrimaryDriver::_push_double</a>(<span class="keywordtype">double</span> x, std::vector&lt;char&gt; &amp;buf) {
-<a name="l00100"></a>00100     <span class="keyword">auto</span> <span class="keywordtype">double</span> y = x;
-<a name="l00101"></a>00101     <span class="keywordtype">char</span> *p = reinterpret_cast&lt;char *&gt;(&amp;y);
-<a name="l00102"></a>00102 <span class="preprocessor">#ifdef __BIG_ENDIAN__</span>
-<a name="l00103"></a>00103 <span class="preprocessor"></span>    <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = p + <span class="keyword">sizeof</span>(x) - 1; z &gt;= p; z--) {
-<a name="l00104"></a>00104 #<span class="keywordflow">else</span>
-<a name="l00105"></a>00105     <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = p; z &lt; p + <span class="keyword">sizeof</span>(x); z++) {
-<a name="l00106"></a>00106 #endif
-<a name="l00107"></a>00107         buf.push_back(*z);
-<a name="l00108"></a>00108     }
-<a name="l00109"></a>00109 }
-<a name="l00110"></a>00110 <span class="keywordtype">char</span>
-<a name="l00111"></a><a class="code" href="class_x_primary_driver.html#9aa9e6b92a4b97f06d6ca9bde6b5f8e2">00111</a> <a class="code" href="class_x_primary_driver.html#9aa9e6b92a4b97f06d6ca9bde6b5f8e2">XPrimaryDriver::_pop_char</a>(std::vector&lt;char&gt;::iterator &amp;it) {
-<a name="l00112"></a>00112     <span class="keywordtype">char</span> c = *(it++);
-<a name="l00113"></a>00113     <span class="keywordflow">return</span> c;
+<a name="l00030"></a><a class="code" href="class_x_primary_driver.html#f8c5361cad4a345efd4b5e5657bea134">00030</a> <a class="code" href="class_x_primary_driver.html#f8c5361cad4a345efd4b5e5657bea134">XPrimaryDriver::finishWritingRaw</a>(
+<a name="l00031"></a>00031     <span class="keyword">const</span> <a class="code" href="class_x_time.html">XTime</a> &amp;time_awared, <span class="keyword">const</span> <a class="code" href="class_x_time.html">XTime</a> &amp;time_recorded_org, <span class="keywordtype">bool</span> success)
+<a name="l00032"></a>00032 {
+<a name="l00033"></a>00033     <span class="keywordflow">if</span>(success) {
+<a name="l00034"></a>00034         <a class="code" href="class_x_time.html">XTime</a> time_recorded = time_recorded_org;
+<a name="l00035"></a>00035         <a class="code" href="class_x_driver.html#272561abe4b87693f950697cb6f69e31">startRecording</a>(time_awared);
+<a name="l00036"></a>00036         <span class="keywordflow">if</span>(time_recorded) {
+<a name="l00037"></a>00037             *<a class="code" href="class_x_primary_driver.html#c939c3228f0e16b00f85894acecb9f3c">s_tl_pop_it</a> = <a class="code" href="class_x_primary_driver.html#4012f47b4b3c66a59ef61cb180955edb">rawData</a>().begin();
+<a name="l00038"></a>00038             <span class="keywordflow">try</span> {
+<a name="l00039"></a>00039                 <a class="code" href="class_x_primary_driver.html#3c4e5d6388db35d763bd1121332f9f4e">analyzeRaw</a>();
+<a name="l00040"></a>00040             }
+<a name="l00041"></a>00041             <span class="keywordflow">catch</span> (XSkippedRecordError&amp;) {
+<a name="l00042"></a>00042                  time_recorded = <a class="code" href="class_x_time.html">XTime</a>(); <span class="comment">//record is invalid</span>
+<a name="l00043"></a>00043             }
+<a name="l00044"></a>00044             <span class="keywordflow">catch</span> (XRecordError&amp; e) {
+<a name="l00045"></a>00045                  time_recorded = <a class="code" href="class_x_time.html">XTime</a>(); <span class="comment">//record is invalid</span>
+<a name="l00046"></a>00046                  e.print(<a class="code" href="class_x_node.html#84f0935a406e8f16042f80b9dcaaa722">getLabel</a>() + <span class="stringliteral">": "</span> + <a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Record Error, because "</span>));
+<a name="l00047"></a>00047             }
+<a name="l00048"></a>00048         }
+<a name="l00049"></a>00049         <a class="code" href="class_x_driver.html#cd35af1461a848d4d78d58d8f0c94965">finishRecordingNReadLock</a>(time_recorded);
+<a name="l00050"></a>00050         <a class="code" href="class_x_driver.html#cea9ca56cfc70f33c98d72349931c2ff">visualize</a>();
+<a name="l00051"></a>00051         <a class="code" href="class_x_driver.html#08b2f5885f4b5d2491bf7aa575c64532">readUnlockRecord</a>();
+<a name="l00052"></a>00052     }
+<a name="l00053"></a>00053 }
+<a name="l00054"></a>00054 
+<a name="l00055"></a>00055 <span class="keywordtype">void</span>
+<a name="l00056"></a><a class="code" href="class_x_primary_driver.html#8752ff9a09d693044de94914d7107ddc">00056</a> <a class="code" href="class_x_primary_driver.html#8752ff9a09d693044de94914d7107ddc">XPrimaryDriver::_push_char</a>(<span class="keywordtype">char</span> x, std::vector&lt;char&gt; &amp;buf) {
+<a name="l00057"></a>00057     buf.push_back(x);
+<a name="l00058"></a>00058 }
+<a name="l00059"></a>00059 <span class="keywordtype">void</span>
+<a name="l00060"></a><a class="code" href="class_x_primary_driver.html#ec5d41c83d755bab2513454ed267005a">00060</a> <a class="code" href="class_x_primary_driver.html#ec5d41c83d755bab2513454ed267005a">XPrimaryDriver::_push_short</a>(<span class="keywordtype">short</span> x, std::vector&lt;char&gt; &amp;buf) {
+<a name="l00061"></a>00061     <span class="keywordtype">short</span> y = x;
+<a name="l00062"></a>00062     <span class="keywordtype">char</span> *p = reinterpret_cast&lt;char *&gt;(&amp;y);
+<a name="l00063"></a>00063 <span class="preprocessor">#ifdef __BIG_ENDIAN__</span>
+<a name="l00064"></a>00064 <span class="preprocessor"></span>    <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = p + <span class="keyword">sizeof</span>(x) - 1; z &gt;= p; z--) {
+<a name="l00065"></a>00065 #<span class="keywordflow">else</span>
+<a name="l00066"></a>00066     <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = p; z &lt; p + <span class="keyword">sizeof</span>(x); z++) {
+<a name="l00067"></a>00067 #endif
+<a name="l00068"></a>00068         buf.push_back(*z);
+<a name="l00069"></a>00069     }
+<a name="l00070"></a>00070 }
+<a name="l00071"></a>00071 <span class="keywordtype">void</span>
+<a name="l00072"></a><a class="code" href="class_x_primary_driver.html#d5b391e8aa21c13e102eeb556d366f8e">00072</a> <a class="code" href="class_x_primary_driver.html#d5b391e8aa21c13e102eeb556d366f8e">XPrimaryDriver::_push_int32</a>(int32_t x, std::vector&lt;char&gt; &amp;buf) {
+<a name="l00073"></a>00073     int32_t y = x;
+<a name="l00074"></a>00074     <span class="keywordtype">char</span> *p = reinterpret_cast&lt;char *&gt;(&amp;y);
+<a name="l00075"></a>00075 <span class="preprocessor">#ifdef __BIG_ENDIAN__</span>
+<a name="l00076"></a>00076 <span class="preprocessor"></span>    <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = p + <span class="keyword">sizeof</span>(x) - 1; z &gt;= p; z--) {
+<a name="l00077"></a>00077 #<span class="keywordflow">else</span>
+<a name="l00078"></a>00078     <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = p; z &lt; p + <span class="keyword">sizeof</span>(x); z++) {
+<a name="l00079"></a>00079 #endif
+<a name="l00080"></a>00080         buf.push_back(*z);
+<a name="l00081"></a>00081     }
+<a name="l00082"></a>00082 }
+<a name="l00083"></a>00083 <span class="keywordtype">void</span>
+<a name="l00084"></a><a class="code" href="class_x_primary_driver.html#2a74474d5989f04f6eebf5f86550e354">00084</a> <a class="code" href="class_x_primary_driver.html#2a74474d5989f04f6eebf5f86550e354">XPrimaryDriver::_push_double</a>(<span class="keywordtype">double</span> x, std::vector&lt;char&gt; &amp;buf) {
+<a name="l00085"></a>00085     <span class="keywordtype">double</span> y = x;
+<a name="l00086"></a>00086     <span class="keywordtype">char</span> *p = reinterpret_cast&lt;char *&gt;(&amp;y);
+<a name="l00087"></a>00087 <span class="preprocessor">#ifdef __BIG_ENDIAN__</span>
+<a name="l00088"></a>00088 <span class="preprocessor"></span>    <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = p + <span class="keyword">sizeof</span>(x) - 1; z &gt;= p; z--) {
+<a name="l00089"></a>00089 #<span class="keywordflow">else</span>
+<a name="l00090"></a>00090     <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = p; z &lt; p + <span class="keyword">sizeof</span>(x); z++) {
+<a name="l00091"></a>00091 #endif
+<a name="l00092"></a>00092         buf.push_back(*z);
+<a name="l00093"></a>00093     }
+<a name="l00094"></a>00094 }
+<a name="l00095"></a>00095 <span class="keywordtype">char</span>
+<a name="l00096"></a><a class="code" href="class_x_primary_driver.html#9aa9e6b92a4b97f06d6ca9bde6b5f8e2">00096</a> <a class="code" href="class_x_primary_driver.html#9aa9e6b92a4b97f06d6ca9bde6b5f8e2">XPrimaryDriver::_pop_char</a>(std::vector&lt;char&gt;::iterator &amp;it) {
+<a name="l00097"></a>00097     <span class="keywordtype">char</span> c = *(it++);
+<a name="l00098"></a>00098     <span class="keywordflow">return</span> c;
+<a name="l00099"></a>00099 }
+<a name="l00100"></a>00100 <span class="keywordtype">short</span>
+<a name="l00101"></a><a class="code" href="class_x_primary_driver.html#40527596b94f915deca417d4d14240b9">00101</a> <a class="code" href="class_x_primary_driver.html#40527596b94f915deca417d4d14240b9">XPrimaryDriver::_pop_short</a>(std::vector&lt;char&gt;::iterator &amp;it) {
+<a name="l00102"></a>00102     <span class="keyword">union </span>{
+<a name="l00103"></a>00103         <span class="keywordtype">short</span> x;
+<a name="l00104"></a>00104         <span class="keywordtype">char</span> p[<span class="keyword">sizeof</span>(short)];
+<a name="l00105"></a>00105     } uni;
+<a name="l00106"></a>00106 <span class="preprocessor">#ifdef __BIG_ENDIAN__</span>
+<a name="l00107"></a>00107 <span class="preprocessor"></span>    <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = uni.p + <span class="keyword">sizeof</span>(uni) - 1; z &gt;= uni.p; z--) {
+<a name="l00108"></a>00108 <span class="preprocessor">#else</span>
+<a name="l00109"></a>00109 <span class="preprocessor"></span>    <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = uni.p; z &lt; uni.p + <span class="keyword">sizeof</span>(uni); z++) {
+<a name="l00110"></a>00110 <span class="preprocessor">#endif</span>
+<a name="l00111"></a>00111 <span class="preprocessor"></span>        *z = *(it++);
+<a name="l00112"></a>00112     }
+<a name="l00113"></a>00113     <span class="keywordflow">return</span> uni.x;
 <a name="l00114"></a>00114 }
-<a name="l00115"></a>00115 <span class="keywordtype">short</span>
-<a name="l00116"></a><a class="code" href="class_x_primary_driver.html#40527596b94f915deca417d4d14240b9">00116</a> <a class="code" href="class_x_primary_driver.html#40527596b94f915deca417d4d14240b9">XPrimaryDriver::_pop_short</a>(std::vector&lt;char&gt;::iterator &amp;it) {
-<a name="l00117"></a>00117     <span class="keyword">auto</span> <span class="keywordtype">short</span> x;
-<a name="l00118"></a>00118     <span class="keywordtype">char</span> *p = reinterpret_cast&lt;char *&gt;(&amp;x);
-<a name="l00119"></a>00119 <span class="preprocessor">#ifdef __BIG_ENDIAN__</span>
-<a name="l00120"></a>00120 <span class="preprocessor"></span>    <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = p + <span class="keyword">sizeof</span>(x) - 1; z &gt;= p; z--) {
-<a name="l00121"></a>00121 #<span class="keywordflow">else</span>
-<a name="l00122"></a>00122     <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = p; z &lt; p + <span class="keyword">sizeof</span>(x); z++) {
-<a name="l00123"></a>00123 #endif
-<a name="l00124"></a>00124         *z = *(it++);
-<a name="l00125"></a>00125     }
-<a name="l00126"></a>00126     <span class="keywordflow">return</span> x;
-<a name="l00127"></a>00127 }
-<a name="l00128"></a>00128 int32_t
-<a name="l00129"></a><a class="code" href="class_x_primary_driver.html#7de0d14e7e2db6566d1d35218c07863d">00129</a> <a class="code" href="class_x_primary_driver.html#7de0d14e7e2db6566d1d35218c07863d">XPrimaryDriver::_pop_int32</a>(std::vector&lt;char&gt;::iterator &amp;it) {
-<a name="l00130"></a>00130     <span class="keyword">auto</span> int32_t x;
-<a name="l00131"></a>00131     <span class="keywordtype">char</span> *p = reinterpret_cast&lt;char *&gt;(&amp;x);
-<a name="l00132"></a>00132 <span class="preprocessor">#ifdef __BIG_ENDIAN__</span>
-<a name="l00133"></a>00133 <span class="preprocessor"></span>    <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = p + <span class="keyword">sizeof</span>(x) - 1; z &gt;= p; z--) {
-<a name="l00134"></a>00134 #<span class="keywordflow">else</span>
-<a name="l00135"></a>00135     <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = p; z &lt; p + <span class="keyword">sizeof</span>(x); z++) {
-<a name="l00136"></a>00136 #endif
-<a name="l00137"></a>00137         *z = *(it++);
-<a name="l00138"></a>00138     }
-<a name="l00139"></a>00139     <span class="keywordflow">return</span> x;
-<a name="l00140"></a>00140 }
-<a name="l00141"></a>00141 <span class="keywordtype">double</span>
-<a name="l00142"></a><a class="code" href="class_x_primary_driver.html#d2c1aac68f38acb8083efe067107b654">00142</a> <a class="code" href="class_x_primary_driver.html#d2c1aac68f38acb8083efe067107b654">XPrimaryDriver::_pop_double</a>(std::vector&lt;char&gt;::iterator &amp;it) {
-<a name="l00143"></a>00143     <span class="keyword">auto</span> <span class="keywordtype">double</span> x;
-<a name="l00144"></a>00144     <span class="keywordtype">char</span> *p = reinterpret_cast&lt;char *&gt;(&amp;x);
-<a name="l00145"></a>00145 <span class="preprocessor">#ifdef __BIG_ENDIAN__</span>
-<a name="l00146"></a>00146 <span class="preprocessor"></span>    <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = p + <span class="keyword">sizeof</span>(x) - 1; z &gt;= p; z--) {
-<a name="l00147"></a>00147 #<span class="keywordflow">else</span>
-<a name="l00148"></a>00148     <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = p; z &lt; p + <span class="keyword">sizeof</span>(x); z++) {
-<a name="l00149"></a>00149 #endif
-<a name="l00150"></a>00150         *z = *(it++);
-<a name="l00151"></a>00151     }
-<a name="l00152"></a>00152     <span class="keywordflow">return</span> x;
-<a name="l00153"></a>00153 }
-<a name="l00154"></a>00154 
-<a name="l00155"></a>00155 <span class="keyword">template</span> &lt;&gt;
-<a name="l00156"></a><a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">00156</a> <span class="keywordtype">char</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>() throw (XBufferUnderflowRecordError&amp;) {
-<a name="l00157"></a>00157     <span class="keywordflow">if</span>(<a class="code" href="class_x_primary_driver.html#144a7349304818c4777c070f965e203b">m_pop_it</a> == <a class="code" href="class_x_primary_driver.html#95decb01c12978cf8a7e5f2333bdf314">m_rawData</a>.end()) <span class="keywordflow">throw</span> XBufferUnderflowRecordError(__FILE__, __LINE__);
-<a name="l00158"></a>00158     <span class="keywordflow">return</span> <a class="code" href="class_x_primary_driver.html#9aa9e6b92a4b97f06d6ca9bde6b5f8e2">_pop_char</a>(<a class="code" href="class_x_primary_driver.html#144a7349304818c4777c070f965e203b">m_pop_it</a>);
-<a name="l00159"></a>00159 }
-<a name="l00160"></a>00160 <span class="keyword">template</span> &lt;&gt;
-<a name="l00161"></a>00161 <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>() throw (XBufferUnderflowRecordError&amp;) {
-<a name="l00162"></a>00162     <span class="keywordflow">if</span>(<a class="code" href="class_x_primary_driver.html#144a7349304818c4777c070f965e203b">m_pop_it</a> == <a class="code" href="class_x_primary_driver.html#95decb01c12978cf8a7e5f2333bdf314">m_rawData</a>.end()) <span class="keywordflow">throw</span> XBufferUnderflowRecordError(__FILE__, __LINE__);
-<a name="l00163"></a>00163     <span class="keywordflow">return</span> static_cast&lt;unsigned char&gt;(<a class="code" href="class_x_primary_driver.html#9aa9e6b92a4b97f06d6ca9bde6b5f8e2">_pop_char</a>(<a class="code" href="class_x_primary_driver.html#144a7349304818c4777c070f965e203b">m_pop_it</a>));
-<a name="l00164"></a>00164 }
-<a name="l00165"></a>00165 <span class="keyword">template</span> &lt;&gt;
-<a name="l00166"></a>00166 <span class="keywordtype">short</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>() throw (XBufferUnderflowRecordError&amp;) {
-<a name="l00167"></a>00167     <span class="keywordflow">if</span>(<a class="code" href="class_x_primary_driver.html#144a7349304818c4777c070f965e203b">m_pop_it</a> == <a class="code" href="class_x_primary_driver.html#95decb01c12978cf8a7e5f2333bdf314">m_rawData</a>.end()) <span class="keywordflow">throw</span> XBufferUnderflowRecordError(__FILE__, __LINE__);
-<a name="l00168"></a>00168     <span class="keywordflow">return</span> <a class="code" href="class_x_primary_driver.html#40527596b94f915deca417d4d14240b9">_pop_short</a>(<a class="code" href="class_x_primary_driver.html#144a7349304818c4777c070f965e203b">m_pop_it</a>);
-<a name="l00169"></a>00169 }
-<a name="l00170"></a>00170 <span class="keyword">template</span> &lt;&gt;
-<a name="l00171"></a>00171 <span class="keywordtype">unsigned</span> <span class="keywordtype">short</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>() throw (XBufferUnderflowRecordError&amp;) {
-<a name="l00172"></a>00172     <span class="keywordflow">if</span>(<a class="code" href="class_x_primary_driver.html#144a7349304818c4777c070f965e203b">m_pop_it</a> == <a class="code" href="class_x_primary_driver.html#95decb01c12978cf8a7e5f2333bdf314">m_rawData</a>.end()) <span class="keywordflow">throw</span> XBufferUnderflowRecordError(__FILE__, __LINE__);
-<a name="l00173"></a>00173     <span class="keywordflow">return</span> static_cast&lt;unsigned short&gt;(<a class="code" href="class_x_primary_driver.html#40527596b94f915deca417d4d14240b9">_pop_short</a>(<a class="code" href="class_x_primary_driver.html#144a7349304818c4777c070f965e203b">m_pop_it</a>));
-<a name="l00174"></a>00174 }
-<a name="l00175"></a>00175 <span class="keyword">template</span> &lt;&gt;
-<a name="l00176"></a>00176 int32_t <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>() throw (XBufferUnderflowRecordError&amp;) {
-<a name="l00177"></a>00177     <span class="keywordflow">if</span>(<a class="code" href="class_x_primary_driver.html#144a7349304818c4777c070f965e203b">m_pop_it</a> == <a class="code" href="class_x_primary_driver.html#95decb01c12978cf8a7e5f2333bdf314">m_rawData</a>.end()) <span class="keywordflow">throw</span> XBufferUnderflowRecordError(__FILE__, __LINE__);
-<a name="l00178"></a>00178     <span class="keywordflow">return</span> <a class="code" href="class_x_primary_driver.html#7de0d14e7e2db6566d1d35218c07863d">_pop_int32</a>(<a class="code" href="class_x_primary_driver.html#144a7349304818c4777c070f965e203b">m_pop_it</a>);
-<a name="l00179"></a>00179 }
-<a name="l00180"></a>00180 <span class="keyword">template</span> &lt;&gt;
-<a name="l00181"></a>00181 uint32_t <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>() throw (XBufferUnderflowRecordError&amp;) {
-<a name="l00182"></a>00182     <span class="keywordflow">if</span>(<a class="code" href="class_x_primary_driver.html#144a7349304818c4777c070f965e203b">m_pop_it</a> == <a class="code" href="class_x_primary_driver.html#95decb01c12978cf8a7e5f2333bdf314">m_rawData</a>.end()) <span class="keywordflow">throw</span> XBufferUnderflowRecordError(__FILE__, __LINE__);
-<a name="l00183"></a>00183     <span class="keywordflow">return</span> static_cast&lt;uint32_t&gt;(<a class="code" href="class_x_primary_driver.html#7de0d14e7e2db6566d1d35218c07863d">_pop_int32</a>(<a class="code" href="class_x_primary_driver.html#144a7349304818c4777c070f965e203b">m_pop_it</a>));
-<a name="l00184"></a>00184 }
-<a name="l00185"></a>00185 <span class="keyword">template</span> &lt;&gt;
-<a name="l00186"></a>00186 <span class="keywordtype">float</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>() throw (XBufferUnderflowRecordError&amp;) {
-<a name="l00187"></a>00187     <span class="keywordflow">if</span>(<a class="code" href="class_x_primary_driver.html#144a7349304818c4777c070f965e203b">m_pop_it</a> == <a class="code" href="class_x_primary_driver.html#95decb01c12978cf8a7e5f2333bdf314">m_rawData</a>.end()) <span class="keywordflow">throw</span> XBufferUnderflowRecordError(__FILE__, __LINE__);
-<a name="l00188"></a>00188     int32_t x = <a class="code" href="class_x_primary_driver.html#7de0d14e7e2db6566d1d35218c07863d">_pop_int32</a>(<a class="code" href="class_x_primary_driver.html#144a7349304818c4777c070f965e203b">m_pop_it</a>);
-<a name="l00189"></a>00189     C_ASSERT(<span class="keyword">sizeof</span>(x) == 4);
-<a name="l00190"></a>00190     <span class="keywordflow">return</span> *reinterpret_cast&lt;float*&gt;(&amp;x);
-<a name="l00191"></a>00191 }
-<a name="l00192"></a>00192 <span class="keyword">template</span> &lt;&gt;
-<a name="l00193"></a>00193 <span class="keywordtype">double</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>() throw (XBufferUnderflowRecordError&amp;) {
-<a name="l00194"></a>00194     <span class="keywordflow">if</span>(<a class="code" href="class_x_primary_driver.html#144a7349304818c4777c070f965e203b">m_pop_it</a> == <a class="code" href="class_x_primary_driver.html#95decb01c12978cf8a7e5f2333bdf314">m_rawData</a>.end()) <span class="keywordflow">throw</span> XBufferUnderflowRecordError(__FILE__, __LINE__);
-<a name="l00195"></a>00195     C_ASSERT(<span class="keyword">sizeof</span>(<span class="keywordtype">double</span>) == 8);
-<a name="l00196"></a>00196     <span class="keywordflow">return</span> <a class="code" href="class_x_primary_driver.html#d2c1aac68f38acb8083efe067107b654">_pop_double</a>(<a class="code" href="class_x_primary_driver.html#144a7349304818c4777c070f965e203b">m_pop_it</a>);
+<a name="l00115"></a>00115 int32_t
+<a name="l00116"></a><a class="code" href="class_x_primary_driver.html#7de0d14e7e2db6566d1d35218c07863d">00116</a> <a class="code" href="class_x_primary_driver.html#7de0d14e7e2db6566d1d35218c07863d">XPrimaryDriver::_pop_int32</a>(std::vector&lt;char&gt;::iterator &amp;it) {
+<a name="l00117"></a>00117     <span class="keyword">union </span>{
+<a name="l00118"></a>00118         int32_t x;
+<a name="l00119"></a>00119         <span class="keywordtype">char</span> p[<span class="keyword">sizeof</span>(int32_t)];
+<a name="l00120"></a>00120     } uni;
+<a name="l00121"></a>00121 <span class="preprocessor">#ifdef __BIG_ENDIAN__</span>
+<a name="l00122"></a>00122 <span class="preprocessor"></span>    <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = uni.p + <span class="keyword">sizeof</span>(uni) - 1; z &gt;= uni.p; z--) {
+<a name="l00123"></a>00123 <span class="preprocessor">#else</span>
+<a name="l00124"></a>00124 <span class="preprocessor"></span>    <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = uni.p; z &lt; uni.p + <span class="keyword">sizeof</span>(uni); z++) {
+<a name="l00125"></a>00125 <span class="preprocessor">#endif</span>
+<a name="l00126"></a>00126 <span class="preprocessor"></span>        *z = *(it++);
+<a name="l00127"></a>00127     }
+<a name="l00128"></a>00128     <span class="keywordflow">return</span> uni.x;
+<a name="l00129"></a>00129 }
+<a name="l00130"></a>00130 <span class="keywordtype">double</span>
+<a name="l00131"></a><a class="code" href="class_x_primary_driver.html#d2c1aac68f38acb8083efe067107b654">00131</a> <a class="code" href="class_x_primary_driver.html#d2c1aac68f38acb8083efe067107b654">XPrimaryDriver::_pop_double</a>(std::vector&lt;char&gt;::iterator &amp;it) {
+<a name="l00132"></a>00132     <span class="keyword">union </span>{
+<a name="l00133"></a>00133         <span class="keywordtype">double</span> x;
+<a name="l00134"></a>00134         <span class="keywordtype">char</span> p[<span class="keyword">sizeof</span>(double)];
+<a name="l00135"></a>00135     } uni;
+<a name="l00136"></a>00136 <span class="preprocessor">#ifdef __BIG_ENDIAN__</span>
+<a name="l00137"></a>00137 <span class="preprocessor"></span>    <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = uni.p + <span class="keyword">sizeof</span>(uni) - 1; z &gt;= uni.p; z--) {
+<a name="l00138"></a>00138 <span class="preprocessor">#else</span>
+<a name="l00139"></a>00139 <span class="preprocessor"></span>    <span class="keywordflow">for</span>(<span class="keywordtype">char</span> *z = uni.p; z &lt; uni.p + <span class="keyword">sizeof</span>(uni); z++) {
+<a name="l00140"></a>00140 <span class="preprocessor">#endif</span>
+<a name="l00141"></a>00141 <span class="preprocessor"></span>        *z = *(it++);
+<a name="l00142"></a>00142     }
+<a name="l00143"></a>00143     <span class="keywordflow">return</span> uni.x;
+<a name="l00144"></a>00144 }
+<a name="l00145"></a>00145 
+<a name="l00146"></a>00146 <span class="keyword">template</span> &lt;&gt;
+<a name="l00147"></a><a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">00147</a> <span class="keywordtype">char</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>() throw (XBufferUnderflowRecordError&amp;) {
+<a name="l00148"></a>00148     <span class="keywordflow">if</span>(*<a class="code" href="class_x_primary_driver.html#c939c3228f0e16b00f85894acecb9f3c">s_tl_pop_it</a> == <a class="code" href="class_x_primary_driver.html#4012f47b4b3c66a59ef61cb180955edb">rawData</a>().end()) <span class="keywordflow">throw</span> XBufferUnderflowRecordError(__FILE__, __LINE__);
+<a name="l00149"></a>00149     <span class="keywordflow">return</span> <a class="code" href="class_x_primary_driver.html#9aa9e6b92a4b97f06d6ca9bde6b5f8e2">_pop_char</a>(*<a class="code" href="class_x_primary_driver.html#c939c3228f0e16b00f85894acecb9f3c">s_tl_pop_it</a>);
+<a name="l00150"></a>00150 }
+<a name="l00151"></a>00151 <span class="keyword">template</span> &lt;&gt;
+<a name="l00152"></a>00152 <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>() throw (XBufferUnderflowRecordError&amp;) {
+<a name="l00153"></a>00153     <span class="keywordflow">if</span>(*<a class="code" href="class_x_primary_driver.html#c939c3228f0e16b00f85894acecb9f3c">s_tl_pop_it</a> == <a class="code" href="class_x_primary_driver.html#4012f47b4b3c66a59ef61cb180955edb">rawData</a>().end()) <span class="keywordflow">throw</span> XBufferUnderflowRecordError(__FILE__, __LINE__);
+<a name="l00154"></a>00154     <span class="keywordflow">return</span> static_cast&lt;unsigned char&gt;(<a class="code" href="class_x_primary_driver.html#9aa9e6b92a4b97f06d6ca9bde6b5f8e2">_pop_char</a>(*<a class="code" href="class_x_primary_driver.html#c939c3228f0e16b00f85894acecb9f3c">s_tl_pop_it</a>));
+<a name="l00155"></a>00155 }
+<a name="l00156"></a>00156 <span class="keyword">template</span> &lt;&gt;
+<a name="l00157"></a>00157 <span class="keywordtype">short</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>() throw (XBufferUnderflowRecordError&amp;) {
+<a name="l00158"></a>00158     <span class="keywordflow">if</span>(*<a class="code" href="class_x_primary_driver.html#c939c3228f0e16b00f85894acecb9f3c">s_tl_pop_it</a> == <a class="code" href="class_x_primary_driver.html#4012f47b4b3c66a59ef61cb180955edb">rawData</a>().end()) <span class="keywordflow">throw</span> XBufferUnderflowRecordError(__FILE__, __LINE__);
+<a name="l00159"></a>00159     <span class="keywordflow">return</span> <a class="code" href="class_x_primary_driver.html#40527596b94f915deca417d4d14240b9">_pop_short</a>(*<a class="code" href="class_x_primary_driver.html#c939c3228f0e16b00f85894acecb9f3c">s_tl_pop_it</a>);
+<a name="l00160"></a>00160 }
+<a name="l00161"></a>00161 <span class="keyword">template</span> &lt;&gt;
+<a name="l00162"></a>00162 <span class="keywordtype">unsigned</span> <span class="keywordtype">short</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>() throw (XBufferUnderflowRecordError&amp;) {
+<a name="l00163"></a>00163     <span class="keywordflow">if</span>(*<a class="code" href="class_x_primary_driver.html#c939c3228f0e16b00f85894acecb9f3c">s_tl_pop_it</a> == <a class="code" href="class_x_primary_driver.html#4012f47b4b3c66a59ef61cb180955edb">rawData</a>().end()) <span class="keywordflow">throw</span> XBufferUnderflowRecordError(__FILE__, __LINE__);
+<a name="l00164"></a>00164     <span class="keywordflow">return</span> static_cast&lt;unsigned short&gt;(<a class="code" href="class_x_primary_driver.html#40527596b94f915deca417d4d14240b9">_pop_short</a>(*<a class="code" href="class_x_primary_driver.html#c939c3228f0e16b00f85894acecb9f3c">s_tl_pop_it</a>));
+<a name="l00165"></a>00165 }
+<a name="l00166"></a>00166 <span class="keyword">template</span> &lt;&gt;
+<a name="l00167"></a>00167 int32_t <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>() throw (XBufferUnderflowRecordError&amp;) {
+<a name="l00168"></a>00168     <span class="keywordflow">if</span>(*<a class="code" href="class_x_primary_driver.html#c939c3228f0e16b00f85894acecb9f3c">s_tl_pop_it</a> == <a class="code" href="class_x_primary_driver.html#4012f47b4b3c66a59ef61cb180955edb">rawData</a>().end()) <span class="keywordflow">throw</span> XBufferUnderflowRecordError(__FILE__, __LINE__);
+<a name="l00169"></a>00169     <span class="keywordflow">return</span> <a class="code" href="class_x_primary_driver.html#7de0d14e7e2db6566d1d35218c07863d">_pop_int32</a>(*<a class="code" href="class_x_primary_driver.html#c939c3228f0e16b00f85894acecb9f3c">s_tl_pop_it</a>);
+<a name="l00170"></a>00170 }
+<a name="l00171"></a>00171 <span class="keyword">template</span> &lt;&gt;
+<a name="l00172"></a>00172 uint32_t <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>() throw (XBufferUnderflowRecordError&amp;) {
+<a name="l00173"></a>00173     <span class="keywordflow">if</span>(*<a class="code" href="class_x_primary_driver.html#c939c3228f0e16b00f85894acecb9f3c">s_tl_pop_it</a> == <a class="code" href="class_x_primary_driver.html#4012f47b4b3c66a59ef61cb180955edb">rawData</a>().end()) <span class="keywordflow">throw</span> XBufferUnderflowRecordError(__FILE__, __LINE__);
+<a name="l00174"></a>00174     <span class="keywordflow">return</span> static_cast&lt;uint32_t&gt;(<a class="code" href="class_x_primary_driver.html#7de0d14e7e2db6566d1d35218c07863d">_pop_int32</a>(*<a class="code" href="class_x_primary_driver.html#c939c3228f0e16b00f85894acecb9f3c">s_tl_pop_it</a>));
+<a name="l00175"></a>00175 }
+<a name="l00176"></a>00176 <span class="keyword">template</span> &lt;&gt;
+<a name="l00177"></a>00177 <span class="keywordtype">float</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>() throw (XBufferUnderflowRecordError&amp;) {
+<a name="l00178"></a>00178     <span class="keywordflow">if</span>(*<a class="code" href="class_x_primary_driver.html#c939c3228f0e16b00f85894acecb9f3c">s_tl_pop_it</a> == <a class="code" href="class_x_primary_driver.html#4012f47b4b3c66a59ef61cb180955edb">rawData</a>().end()) <span class="keywordflow">throw</span> XBufferUnderflowRecordError(__FILE__, __LINE__);
+<a name="l00179"></a>00179     <span class="keyword">union </span>{
+<a name="l00180"></a>00180         int32_t x;
+<a name="l00181"></a>00181         <span class="keywordtype">float</span> y;
+<a name="l00182"></a>00182     } uni;
+<a name="l00183"></a>00183     C_ASSERT(<span class="keyword">sizeof</span>(uni.x) == <span class="keyword">sizeof</span>(uni.y));
+<a name="l00184"></a>00184     uni.x = <a class="code" href="class_x_primary_driver.html#7de0d14e7e2db6566d1d35218c07863d">_pop_int32</a>(*<a class="code" href="class_x_primary_driver.html#c939c3228f0e16b00f85894acecb9f3c">s_tl_pop_it</a>);
+<a name="l00185"></a>00185     <span class="keywordflow">return</span> uni.y;
+<a name="l00186"></a>00186 }
+<a name="l00187"></a>00187 <span class="keyword">template</span> &lt;&gt;
+<a name="l00188"></a>00188 <span class="keywordtype">double</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>() throw (XBufferUnderflowRecordError&amp;) {
+<a name="l00189"></a>00189     <span class="keywordflow">if</span>(*<a class="code" href="class_x_primary_driver.html#c939c3228f0e16b00f85894acecb9f3c">s_tl_pop_it</a> == <a class="code" href="class_x_primary_driver.html#4012f47b4b3c66a59ef61cb180955edb">rawData</a>().end()) <span class="keywordflow">throw</span> XBufferUnderflowRecordError(__FILE__, __LINE__);
+<a name="l00190"></a>00190     C_ASSERT(<span class="keyword">sizeof</span>(<span class="keywordtype">double</span>) == 8);
+<a name="l00191"></a>00191     <span class="keywordflow">return</span> <a class="code" href="class_x_primary_driver.html#d2c1aac68f38acb8083efe067107b654">_pop_double</a>(*<a class="code" href="class_x_primary_driver.html#c939c3228f0e16b00f85894acecb9f3c">s_tl_pop_it</a>);
+<a name="l00192"></a>00192 }
+<a name="l00193"></a>00193 
+<a name="l00194"></a>00194 <span class="keyword">template</span> &lt;&gt;
+<a name="l00195"></a><a class="code" href="class_x_primary_driver.html#a6b0338110f629154a1c4b34aa057c81">00195</a> <span class="keywordtype">char</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>(std::vector&lt;char&gt;::iterator &amp;it) {
+<a name="l00196"></a>00196     <span class="keywordflow">return</span> <a class="code" href="class_x_primary_driver.html#9aa9e6b92a4b97f06d6ca9bde6b5f8e2">_pop_char</a>(it);
 <a name="l00197"></a>00197 }
-<a name="l00198"></a>00198 
-<a name="l00199"></a>00199 <span class="keyword">template</span> &lt;&gt;
-<a name="l00200"></a><a class="code" href="class_x_primary_driver.html#a6b0338110f629154a1c4b34aa057c81">00200</a> <span class="keywordtype">char</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>(std::vector&lt;char&gt;::iterator &amp;it) {
-<a name="l00201"></a>00201     <span class="keywordflow">return</span> <a class="code" href="class_x_primary_driver.html#9aa9e6b92a4b97f06d6ca9bde6b5f8e2">_pop_char</a>(it);
-<a name="l00202"></a>00202 }
-<a name="l00203"></a>00203 <span class="keyword">template</span> &lt;&gt;
-<a name="l00204"></a>00204 <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>(std::vector&lt;char&gt;::iterator &amp;it) {
-<a name="l00205"></a>00205     <span class="keywordflow">return</span> static_cast&lt;unsigned char&gt;(<a class="code" href="class_x_primary_driver.html#9aa9e6b92a4b97f06d6ca9bde6b5f8e2">_pop_char</a>(it));
-<a name="l00206"></a>00206 }
-<a name="l00207"></a>00207 <span class="keyword">template</span> &lt;&gt;
-<a name="l00208"></a>00208 <span class="keywordtype">short</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>(std::vector&lt;char&gt;::iterator &amp;it) {
-<a name="l00209"></a>00209     <span class="keywordflow">return</span> <a class="code" href="class_x_primary_driver.html#40527596b94f915deca417d4d14240b9">_pop_short</a>(it);
-<a name="l00210"></a>00210 }
-<a name="l00211"></a>00211 <span class="keyword">template</span> &lt;&gt;
-<a name="l00212"></a>00212 <span class="keywordtype">unsigned</span> <span class="keywordtype">short</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>(std::vector&lt;char&gt;::iterator &amp;it) {
-<a name="l00213"></a>00213     <span class="keywordflow">return</span> static_cast&lt;unsigned short&gt;(<a class="code" href="class_x_primary_driver.html#40527596b94f915deca417d4d14240b9">_pop_short</a>(it));
-<a name="l00214"></a>00214 }
-<a name="l00215"></a>00215 <span class="keyword">template</span> &lt;&gt;
-<a name="l00216"></a>00216 int32_t <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>(std::vector&lt;char&gt;::iterator &amp;it) {
-<a name="l00217"></a>00217     <span class="keywordflow">return</span> <a class="code" href="class_x_primary_driver.html#7de0d14e7e2db6566d1d35218c07863d">_pop_int32</a>(it);
-<a name="l00218"></a>00218 }
-<a name="l00219"></a>00219 <span class="keyword">template</span> &lt;&gt;
-<a name="l00220"></a>00220 uint32_t <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>(std::vector&lt;char&gt;::iterator &amp;it) {
-<a name="l00221"></a>00221     <span class="keywordflow">return</span> static_cast&lt;uint32_t&gt;(<a class="code" href="class_x_primary_driver.html#7de0d14e7e2db6566d1d35218c07863d">_pop_int32</a>(it));
-<a name="l00222"></a>00222 }
-<a name="l00223"></a>00223 <span class="keyword">template</span> &lt;&gt;
-<a name="l00224"></a>00224 <span class="keywordtype">float</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>(std::vector&lt;char&gt;::iterator &amp;it) {
-<a name="l00225"></a>00225     <span class="keyword">auto</span> int32_t x = <a class="code" href="class_x_primary_driver.html#7de0d14e7e2db6566d1d35218c07863d">_pop_int32</a>(it);
-<a name="l00226"></a>00226     <span class="keywordflow">return</span> *reinterpret_cast&lt;float*&gt;(&amp;x);
+<a name="l00198"></a>00198 <span class="keyword">template</span> &lt;&gt;
+<a name="l00199"></a>00199 <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>(std::vector&lt;char&gt;::iterator &amp;it) {
+<a name="l00200"></a>00200     <span class="keywordflow">return</span> static_cast&lt;unsigned char&gt;(<a class="code" href="class_x_primary_driver.html#9aa9e6b92a4b97f06d6ca9bde6b5f8e2">_pop_char</a>(it));
+<a name="l00201"></a>00201 }
+<a name="l00202"></a>00202 <span class="keyword">template</span> &lt;&gt;
+<a name="l00203"></a>00203 <span class="keywordtype">short</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>(std::vector&lt;char&gt;::iterator &amp;it) {
+<a name="l00204"></a>00204     <span class="keywordflow">return</span> <a class="code" href="class_x_primary_driver.html#40527596b94f915deca417d4d14240b9">_pop_short</a>(it);
+<a name="l00205"></a>00205 }
+<a name="l00206"></a>00206 <span class="keyword">template</span> &lt;&gt;
+<a name="l00207"></a>00207 <span class="keywordtype">unsigned</span> <span class="keywordtype">short</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>(std::vector&lt;char&gt;::iterator &amp;it) {
+<a name="l00208"></a>00208     <span class="keywordflow">return</span> static_cast&lt;unsigned short&gt;(<a class="code" href="class_x_primary_driver.html#40527596b94f915deca417d4d14240b9">_pop_short</a>(it));
+<a name="l00209"></a>00209 }
+<a name="l00210"></a>00210 <span class="keyword">template</span> &lt;&gt;
+<a name="l00211"></a>00211 int32_t <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>(std::vector&lt;char&gt;::iterator &amp;it) {
+<a name="l00212"></a>00212     <span class="keywordflow">return</span> <a class="code" href="class_x_primary_driver.html#7de0d14e7e2db6566d1d35218c07863d">_pop_int32</a>(it);
+<a name="l00213"></a>00213 }
+<a name="l00214"></a>00214 <span class="keyword">template</span> &lt;&gt;
+<a name="l00215"></a>00215 uint32_t <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>(std::vector&lt;char&gt;::iterator &amp;it) {
+<a name="l00216"></a>00216     <span class="keywordflow">return</span> static_cast&lt;uint32_t&gt;(<a class="code" href="class_x_primary_driver.html#7de0d14e7e2db6566d1d35218c07863d">_pop_int32</a>(it));
+<a name="l00217"></a>00217 }
+<a name="l00218"></a>00218 <span class="keyword">template</span> &lt;&gt;
+<a name="l00219"></a>00219 <span class="keywordtype">float</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>(std::vector&lt;char&gt;::iterator &amp;it) {
+<a name="l00220"></a>00220     <span class="keyword">union </span>{
+<a name="l00221"></a>00221         int32_t x;
+<a name="l00222"></a>00222         <span class="keywordtype">float</span> y;
+<a name="l00223"></a>00223     } uni;
+<a name="l00224"></a>00224     C_ASSERT(<span class="keyword">sizeof</span>(uni.x) == <span class="keyword">sizeof</span>(uni.y));
+<a name="l00225"></a>00225     uni.x = <a class="code" href="class_x_primary_driver.html#7de0d14e7e2db6566d1d35218c07863d">_pop_int32</a>(it);
+<a name="l00226"></a>00226     <span class="keywordflow">return</span> uni.y;
 <a name="l00227"></a>00227 }
 <a name="l00228"></a>00228 <span class="keyword">template</span> &lt;&gt;
 <a name="l00229"></a>00229 <span class="keywordtype">double</span> <a class="code" href="class_x_primary_driver.html#b948b98eff94b17c0b0770cdb9959909">XPrimaryDriver::pop</a>(std::vector&lt;char&gt;::iterator &amp;it) {
@@ -249,70 +249,82 @@
 <a name="l00231"></a>00231 }
 <a name="l00232"></a>00232 <span class="keyword">template</span> &lt;&gt;
 <a name="l00233"></a><a class="code" href="class_x_primary_driver.html#741c6589eac94b224d79e41063d14ab0">00233</a> <span class="keywordtype">void</span> XPrimaryDriver::push(<span class="keywordtype">char</span> x) {
-<a name="l00234"></a>00234     <a class="code" href="class_x_primary_driver.html#8752ff9a09d693044de94914d7107ddc">_push_char</a>(x, <a class="code" href="class_x_primary_driver.html#95decb01c12978cf8a7e5f2333bdf314">m_rawData</a>);
+<a name="l00234"></a>00234     <a class="code" href="class_x_primary_driver.html#8752ff9a09d693044de94914d7107ddc">_push_char</a>(x, <a class="code" href="class_x_primary_driver.html#4012f47b4b3c66a59ef61cb180955edb">rawData</a>());
 <a name="l00235"></a>00235 }
 <a name="l00236"></a>00236 <span class="keyword">template</span> &lt;&gt;
 <a name="l00237"></a><a class="code" href="class_x_primary_driver.html#a65db83f3e8b4036689c04a46b7336b3">00237</a> <span class="keywordtype">void</span> XPrimaryDriver::push(<span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> x) {
-<a name="l00238"></a>00238     <a class="code" href="class_x_primary_driver.html#8752ff9a09d693044de94914d7107ddc">_push_char</a>(static_cast&lt;char&gt;(x), <a class="code" href="class_x_primary_driver.html#95decb01c12978cf8a7e5f2333bdf314">m_rawData</a>);
+<a name="l00238"></a>00238     <a class="code" href="class_x_primary_driver.html#8752ff9a09d693044de94914d7107ddc">_push_char</a>(static_cast&lt;char&gt;(x), <a class="code" href="class_x_primary_driver.html#4012f47b4b3c66a59ef61cb180955edb">rawData</a>());
 <a name="l00239"></a>00239 }
 <a name="l00240"></a>00240 <span class="keyword">template</span> &lt;&gt;
 <a name="l00241"></a><a class="code" href="class_x_primary_driver.html#ca8f696d67a2b2755850d165456c3783">00241</a> <span class="keywordtype">void</span> XPrimaryDriver::push(<span class="keywordtype">short</span> x) {
-<a name="l00242"></a>00242     <a class="code" href="class_x_primary_driver.html#ec5d41c83d755bab2513454ed267005a">_push_short</a>(x, <a class="code" href="class_x_primary_driver.html#95decb01c12978cf8a7e5f2333bdf314">m_rawData</a>);
+<a name="l00242"></a>00242     <a class="code" href="class_x_primary_driver.html#ec5d41c83d755bab2513454ed267005a">_push_short</a>(x, <a class="code" href="class_x_primary_driver.html#4012f47b4b3c66a59ef61cb180955edb">rawData</a>());
 <a name="l00243"></a>00243 }
 <a name="l00244"></a>00244 <span class="keyword">template</span> &lt;&gt;
 <a name="l00245"></a><a class="code" href="class_x_primary_driver.html#cb4a89e7f0c592b9ee2060260e3564ea">00245</a> <span class="keywordtype">void</span> XPrimaryDriver::push(<span class="keywordtype">unsigned</span> <span class="keywordtype">short</span> x) {
-<a name="l00246"></a>00246     <a class="code" href="class_x_primary_driver.html#ec5d41c83d755bab2513454ed267005a">_push_short</a>(static_cast&lt;short&gt;(x), <a class="code" href="class_x_primary_driver.html#95decb01c12978cf8a7e5f2333bdf314">m_rawData</a>);
+<a name="l00246"></a>00246     <a class="code" href="class_x_primary_driver.html#ec5d41c83d755bab2513454ed267005a">_push_short</a>(static_cast&lt;short&gt;(x), <a class="code" href="class_x_primary_driver.html#4012f47b4b3c66a59ef61cb180955edb">rawData</a>());
 <a name="l00247"></a>00247 }
 <a name="l00248"></a>00248 <span class="keyword">template</span> &lt;&gt;
 <a name="l00249"></a><a class="code" href="class_x_primary_driver.html#0b06d3a841291300f65c4e4a00e015ef">00249</a> <span class="keywordtype">void</span> XPrimaryDriver::push(int32_t x) {
-<a name="l00250"></a>00250     <a class="code" href="class_x_primary_driver.html#d5b391e8aa21c13e102eeb556d366f8e">_push_int32</a>(x, <a class="code" href="class_x_primary_driver.html#95decb01c12978cf8a7e5f2333bdf314">m_rawData</a>);
+<a name="l00250"></a>00250     <a class="code" href="class_x_primary_driver.html#d5b391e8aa21c13e102eeb556d366f8e">_push_int32</a>(x, <a class="code" href="class_x_primary_driver.html#4012f47b4b3c66a59ef61cb180955edb">rawData</a>());
 <a name="l00251"></a>00251 }
 <a name="l00252"></a>00252 <span class="keyword">template</span> &lt;&gt;
 <a name="l00253"></a><a class="code" href="class_x_primary_driver.html#122b84d28d229d130411bdf19b570df4">00253</a> <span class="keywordtype">void</span> XPrimaryDriver::push(uint32_t x) {
-<a name="l00254"></a>00254     <a class="code" href="class_x_primary_driver.html#d5b391e8aa21c13e102eeb556d366f8e">_push_int32</a>(static_cast&lt;int32_t&gt;(x), <a class="code" href="class_x_primary_driver.html#95decb01c12978cf8a7e5f2333bdf314">m_rawData</a>);
+<a name="l00254"></a>00254     <a class="code" href="class_x_primary_driver.html#d5b391e8aa21c13e102eeb556d366f8e">_push_int32</a>(static_cast&lt;int32_t&gt;(x), <a class="code" href="class_x_primary_driver.html#4012f47b4b3c66a59ef61cb180955edb">rawData</a>());
 <a name="l00255"></a>00255 }
 <a name="l00256"></a>00256 <span class="keyword">template</span> &lt;&gt;
 <a name="l00257"></a><a class="code" href="class_x_primary_driver.html#cca0df5d743d5f62fa5f1eb0e65a8c00">00257</a> <span class="keywordtype">void</span> XPrimaryDriver::push(<span class="keywordtype">float</span> f) {
-<a name="l00258"></a>00258     <a class="code" href="class_x_primary_driver.html#d5b391e8aa21c13e102eeb556d366f8e">_push_int32</a>(*reinterpret_cast&lt;int32_t*&gt;(&amp;f), <a class="code" href="class_x_primary_driver.html#95decb01c12978cf8a7e5f2333bdf314">m_rawData</a>);
-<a name="l00259"></a>00259 }
-<a name="l00260"></a>00260 <span class="keyword">template</span> &lt;&gt;
-<a name="l00261"></a><a class="code" href="class_x_primary_driver.html#1e11e8a196d4fbe12ffce8ac5ee2d286">00261</a> <span class="keywordtype">void</span> XPrimaryDriver::push(<span class="keywordtype">double</span> x) {
-<a name="l00262"></a>00262     <a class="code" href="class_x_primary_driver.html#2a74474d5989f04f6eebf5f86550e354">_push_double</a>(x, <a class="code" href="class_x_primary_driver.html#95decb01c12978cf8a7e5f2333bdf314">m_rawData</a>);
-<a name="l00263"></a>00263 }
-<a name="l00264"></a>00264 
-<a name="l00265"></a>00265 <span class="keyword">template</span> &lt;&gt;
-<a name="l00266"></a><a class="code" href="class_x_primary_driver.html#32dfda1e32643b1d2971e033f187de2a">00266</a> <span class="keywordtype">void</span> XPrimaryDriver::push(<span class="keywordtype">char</span> x, std::vector&lt;char&gt; &amp;buf) {
-<a name="l00267"></a>00267     <a class="code" href="class_x_primary_driver.html#8752ff9a09d693044de94914d7107ddc">_push_char</a>(x, buf);
-<a name="l00268"></a>00268 }
-<a name="l00269"></a>00269 <span class="keyword">template</span> &lt;&gt;
-<a name="l00270"></a><a class="code" href="class_x_primary_driver.html#f77f30b88683dedef447574e41777f83">00270</a> <span class="keywordtype">void</span> XPrimaryDriver::push(<span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> x, std::vector&lt;char&gt; &amp;buf) {
-<a name="l00271"></a>00271     <a class="code" href="class_x_primary_driver.html#8752ff9a09d693044de94914d7107ddc">_push_char</a>(static_cast&lt;char&gt;(x), buf);
-<a name="l00272"></a>00272 }
-<a name="l00273"></a>00273 <span class="keyword">template</span> &lt;&gt;
-<a name="l00274"></a><a class="code" href="class_x_primary_driver.html#242e08fdc6d444f085e27bd2d0e66cad">00274</a> <span class="keywordtype">void</span> XPrimaryDriver::push(<span class="keywordtype">short</span> x, std::vector&lt;char&gt; &amp;buf) {
-<a name="l00275"></a>00275     <a class="code" href="class_x_primary_driver.html#ec5d41c83d755bab2513454ed267005a">_push_short</a>(x, buf);
-<a name="l00276"></a>00276 }
-<a name="l00277"></a>00277 <span class="keyword">template</span> &lt;&gt;
-<a name="l00278"></a><a class="code" href="class_x_primary_driver.html#2f5df16fcbce07b70d57a1b83f84f49e">00278</a> <span class="keywordtype">void</span> XPrimaryDriver::push(<span class="keywordtype">unsigned</span> <span class="keywordtype">short</span> x, std::vector&lt;char&gt; &amp;buf) {
-<a name="l00279"></a>00279     <a class="code" href="class_x_primary_driver.html#ec5d41c83d755bab2513454ed267005a">_push_short</a>(static_cast&lt;short&gt;(x), buf);
-<a name="l00280"></a>00280 }
-<a name="l00281"></a>00281 <span class="keyword">template</span> &lt;&gt;
-<a name="l00282"></a><a class="code" href="class_x_primary_driver.html#469707e4f4cc888a2dbeb69d1bf06b27">00282</a> <span class="keywordtype">void</span> XPrimaryDriver::push(int32_t x, std::vector&lt;char&gt; &amp;buf) {
-<a name="l00283"></a>00283     <a class="code" href="class_x_primary_driver.html#d5b391e8aa21c13e102eeb556d366f8e">_push_int32</a>(x, buf);
-<a name="l00284"></a>00284 }
-<a name="l00285"></a>00285 <span class="keyword">template</span> &lt;&gt;
-<a name="l00286"></a><a class="code" href="class_x_primary_driver.html#32f31a26646e953304305a469dadaf0e">00286</a> <span class="keywordtype">void</span> XPrimaryDriver::push(uint32_t x, std::vector&lt;char&gt; &amp;buf) {
-<a name="l00287"></a>00287     <a class="code" href="class_x_primary_driver.html#d5b391e8aa21c13e102eeb556d366f8e">_push_int32</a>(static_cast&lt;int32_t&gt;(x), buf);
-<a name="l00288"></a>00288 }
-<a name="l00289"></a>00289 <span class="keyword">template</span> &lt;&gt;
-<a name="l00290"></a><a class="code" href="class_x_primary_driver.html#a886c055955a660c7e7f235ab1c1cb7b">00290</a> <span class="keywordtype">void</span> XPrimaryDriver::push(<span class="keywordtype">float</span> f, std::vector&lt;char&gt; &amp;buf) {
-<a name="l00291"></a>00291     <a class="code" href="class_x_primary_driver.html#d5b391e8aa21c13e102eeb556d366f8e">_push_int32</a>(*reinterpret_cast&lt;int32_t*&gt;(&amp;f), buf);
-<a name="l00292"></a>00292 }
-<a name="l00293"></a>00293 <span class="keyword">template</span> &lt;&gt;
-<a name="l00294"></a><a class="code" href="class_x_primary_driver.html#7223a8730db95283bde7816c2be78499">00294</a> <span class="keywordtype">void</span> XPrimaryDriver::push(<span class="keywordtype">double</span> x, std::vector&lt;char&gt; &amp;buf) {
-<a name="l00295"></a>00295     <a class="code" href="class_x_primary_driver.html#2a74474d5989f04f6eebf5f86550e354">_push_double</a>(x, buf);
-<a name="l00296"></a>00296 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:44 2006に生成されました。&nbsp;
+<a name="l00258"></a>00258     <span class="keyword">union </span>{
+<a name="l00259"></a>00259         int32_t x;
+<a name="l00260"></a>00260         <span class="keywordtype">float</span> y;
+<a name="l00261"></a>00261     } uni;
+<a name="l00262"></a>00262     C_ASSERT(<span class="keyword">sizeof</span>(uni.x) == <span class="keyword">sizeof</span>(uni.y));
+<a name="l00263"></a>00263     uni.y = f;
+<a name="l00264"></a>00264     <a class="code" href="class_x_primary_driver.html#d5b391e8aa21c13e102eeb556d366f8e">_push_int32</a>(uni.x, <a class="code" href="class_x_primary_driver.html#4012f47b4b3c66a59ef61cb180955edb">rawData</a>());
+<a name="l00265"></a>00265 }
+<a name="l00266"></a>00266 <span class="keyword">template</span> &lt;&gt;
+<a name="l00267"></a><a class="code" href="class_x_primary_driver.html#1e11e8a196d4fbe12ffce8ac5ee2d286">00267</a> <span class="keywordtype">void</span> XPrimaryDriver::push(<span class="keywordtype">double</span> x) {
+<a name="l00268"></a>00268     <a class="code" href="class_x_primary_driver.html#2a74474d5989f04f6eebf5f86550e354">_push_double</a>(x, <a class="code" href="class_x_primary_driver.html#4012f47b4b3c66a59ef61cb180955edb">rawData</a>());
+<a name="l00269"></a>00269 }
+<a name="l00270"></a>00270 
+<a name="l00271"></a>00271 <span class="keyword">template</span> &lt;&gt;
+<a name="l00272"></a><a class="code" href="class_x_primary_driver.html#32dfda1e32643b1d2971e033f187de2a">00272</a> <span class="keywordtype">void</span> XPrimaryDriver::push(<span class="keywordtype">char</span> x, std::vector&lt;char&gt; &amp;buf) {
+<a name="l00273"></a>00273     <a class="code" href="class_x_primary_driver.html#8752ff9a09d693044de94914d7107ddc">_push_char</a>(x, buf);
+<a name="l00274"></a>00274 }
+<a name="l00275"></a>00275 <span class="keyword">template</span> &lt;&gt;
+<a name="l00276"></a><a class="code" href="class_x_primary_driver.html#f77f30b88683dedef447574e41777f83">00276</a> <span class="keywordtype">void</span> XPrimaryDriver::push(<span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> x, std::vector&lt;char&gt; &amp;buf) {
+<a name="l00277"></a>00277     <a class="code" href="class_x_primary_driver.html#8752ff9a09d693044de94914d7107ddc">_push_char</a>(static_cast&lt;char&gt;(x), buf);
+<a name="l00278"></a>00278 }
+<a name="l00279"></a>00279 <span class="keyword">template</span> &lt;&gt;
+<a name="l00280"></a><a class="code" href="class_x_primary_driver.html#242e08fdc6d444f085e27bd2d0e66cad">00280</a> <span class="keywordtype">void</span> XPrimaryDriver::push(<span class="keywordtype">short</span> x, std::vector&lt;char&gt; &amp;buf) {
+<a name="l00281"></a>00281     <a class="code" href="class_x_primary_driver.html#ec5d41c83d755bab2513454ed267005a">_push_short</a>(x, buf);
+<a name="l00282"></a>00282 }
+<a name="l00283"></a>00283 <span class="keyword">template</span> &lt;&gt;
+<a name="l00284"></a><a class="code" href="class_x_primary_driver.html#2f5df16fcbce07b70d57a1b83f84f49e">00284</a> <span class="keywordtype">void</span> XPrimaryDriver::push(<span class="keywordtype">unsigned</span> <span class="keywordtype">short</span> x, std::vector&lt;char&gt; &amp;buf) {
+<a name="l00285"></a>00285     <a class="code" href="class_x_primary_driver.html#ec5d41c83d755bab2513454ed267005a">_push_short</a>(static_cast&lt;short&gt;(x), buf);
+<a name="l00286"></a>00286 }
+<a name="l00287"></a>00287 <span class="keyword">template</span> &lt;&gt;
+<a name="l00288"></a><a class="code" href="class_x_primary_driver.html#469707e4f4cc888a2dbeb69d1bf06b27">00288</a> <span class="keywordtype">void</span> XPrimaryDriver::push(int32_t x, std::vector&lt;char&gt; &amp;buf) {
+<a name="l00289"></a>00289     <a class="code" href="class_x_primary_driver.html#d5b391e8aa21c13e102eeb556d366f8e">_push_int32</a>(x, buf);
+<a name="l00290"></a>00290 }
+<a name="l00291"></a>00291 <span class="keyword">template</span> &lt;&gt;
+<a name="l00292"></a><a class="code" href="class_x_primary_driver.html#32f31a26646e953304305a469dadaf0e">00292</a> <span class="keywordtype">void</span> XPrimaryDriver::push(uint32_t x, std::vector&lt;char&gt; &amp;buf) {
+<a name="l00293"></a>00293     <a class="code" href="class_x_primary_driver.html#d5b391e8aa21c13e102eeb556d366f8e">_push_int32</a>(static_cast&lt;int32_t&gt;(x), buf);
+<a name="l00294"></a>00294 }
+<a name="l00295"></a>00295 <span class="keyword">template</span> &lt;&gt;
+<a name="l00296"></a><a class="code" href="class_x_primary_driver.html#a886c055955a660c7e7f235ab1c1cb7b">00296</a> <span class="keywordtype">void</span> XPrimaryDriver::push(<span class="keywordtype">float</span> f, std::vector&lt;char&gt; &amp;buf) {
+<a name="l00297"></a>00297     <span class="keyword">union </span>{
+<a name="l00298"></a>00298         int32_t x;
+<a name="l00299"></a>00299         <span class="keywordtype">float</span> y;
+<a name="l00300"></a>00300     } uni;
+<a name="l00301"></a>00301     C_ASSERT(<span class="keyword">sizeof</span>(uni.x) == <span class="keyword">sizeof</span>(uni.y));
+<a name="l00302"></a>00302     uni.y =  f;
+<a name="l00303"></a>00303     <a class="code" href="class_x_primary_driver.html#d5b391e8aa21c13e102eeb556d366f8e">_push_int32</a>(uni.x, buf);
+<a name="l00304"></a>00304 }
+<a name="l00305"></a>00305 <span class="keyword">template</span> &lt;&gt;
+<a name="l00306"></a><a class="code" href="class_x_primary_driver.html#7223a8730db95283bde7816c2be78499">00306</a> <span class="keywordtype">void</span> XPrimaryDriver::push(<span class="keywordtype">double</span> x, std::vector&lt;char&gt; &amp;buf) {
+<a name="l00307"></a>00307     <a class="code" href="class_x_primary_driver.html#2a74474d5989f04f6eebf5f86550e354">_push_double</a>(x, buf);
+<a name="l00308"></a>00308 }
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:52:27 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

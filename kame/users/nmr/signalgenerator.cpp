@@ -20,7 +20,7 @@ XSG::XSG(const char *name, bool runtime,
     m_form(new FrmSG(g_pFrmMain))
 {
   m_form->statusBar()->hide();
-  m_form->setCaption(i18n("Signal Gen. Control - ") + getLabel() );
+  m_form->setCaption(KAME::i18n("Signal Gen. Control - ") + getLabel() );
 
   m_conOLevel = xqcon_create<XQLineEditConnector>(m_oLevel, m_form->m_edOLevel);
   m_conFreq = xqcon_create<XQLineEditConnector>(m_freq, m_form->m_edFreq);
@@ -90,7 +90,7 @@ XSG::onFreqChanged(const shared_ptr<XValueNodeBase> &)
 {
     double _freq = *freq();
     if(_freq <= 0) {
-        gErrPrint(getLabel() + " " + i18n("Positive Value Needed."));
+        gErrPrint(getLabel() + " " + KAME::i18n("Positive Value Needed."));
         return;
     }
 
@@ -100,7 +100,7 @@ XSG::onFreqChanged(const shared_ptr<XValueNodeBase> &)
         changeFreq(_freq);
     }
       catch (XKameError &e) {
-        e.print(getLabel() + " " + i18n("SG Error."));
+        e.print(getLabel() + " " + KAME::i18n("SG Error."));
         return;
     }
     clearRaw();

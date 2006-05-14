@@ -22,7 +22,7 @@ XDMM::XDMM(const char *name, bool runtime,
   scalarentries->insert(m_entry);
   m_waitInms->value(100);
   m_form->statusBar()->hide();
-  m_form->setCaption(i18n("DMM - ") + getLabel() );
+  m_form->setCaption(KAME::i18n("DMM - ") + getLabel() );
   m_function->setUIEnabled(false);
   m_waitInms->setUIEnabled(false);
   m_conFunction = xqcon_create<XQComboBoxConnector>(m_function, m_form->m_cmbFunction);
@@ -74,7 +74,7 @@ XDMM::onFunctionChanged(const shared_ptr<XValueNodeBase> &node)
         changeFunction();
     }
     catch (XKameError &e) {
-          e.print(getLabel() + " " + i18n("DMM Error"));
+          e.print(getLabel() + " " + KAME::i18n("DMM Error"));
     }
 }
 
@@ -85,7 +85,7 @@ XDMM::execute(const atomic<bool> &terminated)
         changeFunction();
     }
     catch (XKameError &e) {
-          e.print(getLabel() + " " + i18n("DMM Error"));
+          e.print(getLabel() + " " + KAME::i18n("DMM Error"));
           interface()->close();
           return NULL;
     }
@@ -108,7 +108,7 @@ XDMM::execute(const atomic<bool> &terminated)
           x = oneShotRead();
       }
       catch (XKameError &e) {
-          e.print(getLabel() + " " + i18n("DMM Read Error"));
+          e.print(getLabel() + " " + KAME::i18n("DMM Read Error"));
           continue;
       }
       clearRaw();

@@ -25,9 +25,9 @@
 <a name="l00007"></a>00007 <span class="keywordtype">void</span>
 <a name="l00008"></a><a class="code" href="class_x_d_m_m_s_c_p_i.html#b1b89e0cc056be47445455f18ab16758">00008</a> <a class="code" href="class_x_d_m_m_s_c_p_i.html#b1b89e0cc056be47445455f18ab16758">XDMMSCPI::changeFunction</a>()
 <a name="l00009"></a>00009 {
-<a name="l00010"></a>00010     QString func = <a class="code" href="class_x_d_m_m.html#ab034c68fa9f514fd8f145b6eb61a07d">function</a>()-&gt;to_str();
-<a name="l00011"></a>00011     <span class="keywordflow">if</span>(!func.isEmpty())
-<a name="l00012"></a>00012         <a class="code" href="class_x_primary_driver.html#50131048964317ee0a2f909f3ac25e4b">interface</a>()-&gt;sendf(<span class="stringliteral">":CONF:%s"</span>, func.latin1());
+<a name="l00010"></a>00010     std::string func = <a class="code" href="class_x_d_m_m.html#ab034c68fa9f514fd8f145b6eb61a07d">function</a>()-&gt;to_str();
+<a name="l00011"></a>00011     <span class="keywordflow">if</span>(!func.empty())
+<a name="l00012"></a>00012         <a class="code" href="class_x_primary_driver.html#50131048964317ee0a2f909f3ac25e4b">interface</a>()-&gt;sendf(<span class="stringliteral">":CONF:%s"</span>, func.c_str());
 <a name="l00013"></a>00013 }
 <a name="l00014"></a>00014 <span class="keywordtype">double</span>
 <a name="l00015"></a><a class="code" href="class_x_d_m_m_s_c_p_i.html#26965519d72b37251c2457d5e92db1ef">00015</a> <a class="code" href="class_x_d_m_m_s_c_p_i.html#26965519d72b37251c2457d5e92db1ef">XDMMSCPI::fetch</a>()
@@ -42,12 +42,12 @@
 <a name="l00024"></a>00024     <span class="keywordflow">return</span> <a class="code" href="class_x_primary_driver.html#50131048964317ee0a2f909f3ac25e4b">interface</a>()-&gt;toDouble();
 <a name="l00025"></a>00025 }
 <a name="l00026"></a>00026 <span class="keywordtype">double</span>
-<a name="l00027"></a><a class="code" href="class_x_d_m_m_s_c_p_i.html#c25d578d3050a04489417f32e8f38db3">00027</a> <a class="code" href="class_x_d_m_m_s_c_p_i.html#c25d578d3050a04489417f32e8f38db3">XDMMSCPI::measure</a>(<span class="keyword">const</span> QString &amp;func)
+<a name="l00027"></a><a class="code" href="class_x_d_m_m_s_c_p_i.html#189a91d6e4dc08c1262c7168cfe7f120">00027</a> <a class="code" href="class_x_d_m_m_s_c_p_i.html#189a91d6e4dc08c1262c7168cfe7f120">XDMMSCPI::measure</a>(<span class="keyword">const</span> std::string &amp;func)
 <a name="l00028"></a>00028 {
-<a name="l00029"></a>00029     <a class="code" href="class_x_primary_driver.html#50131048964317ee0a2f909f3ac25e4b">interface</a>()-&gt;queryf(<span class="stringliteral">":MEAS:%s?"</span>, func.latin1());
+<a name="l00029"></a>00029     <a class="code" href="class_x_primary_driver.html#50131048964317ee0a2f909f3ac25e4b">interface</a>()-&gt;queryf(<span class="stringliteral">":MEAS:%s?"</span>, func.c_str());
 <a name="l00030"></a>00030     <span class="keywordflow">return</span> <a class="code" href="class_x_primary_driver.html#50131048964317ee0a2f909f3ac25e4b">interface</a>()-&gt;toDouble();
 <a name="l00031"></a>00031 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:45 2006に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:52:28 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

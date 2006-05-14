@@ -98,7 +98,7 @@ XValChart::onRecord(const shared_ptr<XDriver> &driver)
 void
 XValChart::showChart(void)
 {
-  m_graphForm->setCaption(i18n("Chart - ") + getLabel() );
+  m_graphForm->setCaption(KAME::i18n("Chart - ") + getLabel() );
   m_graphForm->show();
 }
 
@@ -257,7 +257,7 @@ void
 XValGraph::showGraph()
 {
   if(m_graphForm) {
-       m_graphForm->setCaption(i18n("Graph - ") + getLabel() );
+       m_graphForm->setCaption(KAME::i18n("Graph - ") + getLabel() );
        m_graphForm->show();
   }
 }

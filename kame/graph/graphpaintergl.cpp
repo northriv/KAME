@@ -46,7 +46,7 @@ XQGraphPainter::openFont()
   QString filename = ::locate("appdata", FONT_FILE);
 	  if(!filename)
 	    {
-		    gErrPrint(i18n("No Fontfile!!"));
+		    gErrPrint(KAME::i18n("No Fontfile!!"));
 	    }
 	    fprintf(stderr, filename.ascii() );
 		s_pFont = new FTGLPixmapFont(filename.ascii() );
@@ -94,11 +94,11 @@ XQGraphPainter::openFont()
         /*
         int arg = 1;
         if(iconvctl(s_iconv_cd, ICONV_SET_TRANSLITERATE, &arg)) {
-            XKameError::print(i18n("iconv error"), __FILE__, __LINE__, errno);
+            XKameError::print(KAME::i18n("iconv error"), __FILE__, __LINE__, errno);
         }
         int arg = 1;
         if(iconvctl(s_utf8toWCHART, ICONV_SET_DISCARD_ILSEQ, &arg)) {
-            XKameError::print(i18n("iconv error"), __FILE__, __LINE__, errno);
+            XKameError::print(KAME::i18n("iconv error"), __FILE__, __LINE__, errno);
         }
         */
 	}
@@ -146,7 +146,7 @@ XQGraphPainter::string2wstring(const std::string &str)
         &outp, (size_t*)&outsize);
 	if(ret == (size_t)(-1)) {
             XKameError::print(
-                i18n("iconv error, probably locale is not correct."),
+                KAME::i18n("iconv error, probably locale is not correct."),
                  __FILE__, __LINE__, errno);
             iconv(s_iconv_cd, NULL, NULL, NULL, NULL); //reset 
             return std::wstring(L"iconv-err"); 

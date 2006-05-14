@@ -1,3 +1,20 @@
+* Sun May 14 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0.11-1)
+- nmrrelaxfit.cpp : more relaxation curves.
+
+* Fri May 12 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0.10-4)
+- Use mutex and deepcopy for i18n(). Use KAME::i18n() to redirect i18n().
+
+* Thu May 11 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0.10-3)
+- XNIGPIBPort: fix the case for CMPL without END.
+- primarydriver.cpp : fix for gcc-4.0
+
+* Tue May 9 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0.10-2)
+- Switch to Fedra Core 5
+
 * Wed May 3 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
 - (2.0.10-1m)
 - pulserdriversh.cpp : preliminary induced emission.

@@ -148,6 +148,9 @@ void formatDoubleValidator(std::string &fmt);
 
 namespace KAME {
     unsigned int rand();
+    //! thread-safe version of i18n().
+    //! this is not needed in QT4 or later.
+    QString i18n(const char* eng);    
 }
 
 //---------------------------------------------------------------------------

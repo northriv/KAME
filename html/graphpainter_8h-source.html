@@ -73,11 +73,11 @@
 <a name="l00065"></a>00065         AlignVCenter = 0x10,
 <a name="l00066"></a>00066         AlignTop = 0x20
 <a name="l00067"></a>00067   };
-<a name="l00068"></a>00068   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#5a9142a7aaa58ca2e500a3719d163f6b">drawText</a>(<span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;p, <span class="keyword">const</span> QString &amp;str);
+<a name="l00068"></a>00068   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#18329daf22cec94c11556f9126c58212">drawText</a>(<span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;p, <span class="keyword">const</span> std::string &amp;str);
 <a name="l00069"></a>00069   
 <a name="l00072"></a>00072   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#1a74d394bdb629d62ba73e3077b6c2d9">posOffAxis</a>(<span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;dir, <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> *src, <a class="code" href="class_x_graph.html#5905cbc16b56c97bbc6ee5b3d83982bc">XGraph::SFloat</a> offset);
 <a name="l00073"></a>00073   <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#3e136c272f3075917875891abd75b95e">defaultFont</a>();
-<a name="l00078"></a>00078   <span class="keywordtype">int</span> <a class="code" href="class_x_q_graph_painter.html#63d0c36eacacd0727e5e601d93ef3e3e">selectFont</a>(<span class="keyword">const</span> QString &amp;str, <span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;start, 
+<a name="l00078"></a>00078   <span class="keywordtype">int</span> <a class="code" href="class_x_q_graph_painter.html#31628e1eb67717cdc34c31b1ae5df905">selectFont</a>(<span class="keyword">const</span> std::string &amp;str, <span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;start, 
 <a name="l00079"></a>00079     <span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;dir, <span class="keyword">const</span> <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;width, <span class="keywordtype">int</span> sizehint = 0);
 <a name="l00080"></a>00080     
 <a name="l00082"></a>00082   <span class="keywordtype">float</span> <a class="code" href="class_x_q_graph_painter.html#2b0919935bfbc453af6bf4bc8ec1de1d">resScreen</a>();
@@ -125,7 +125,7 @@
 <a name="l00139"></a><a class="code" href="class_x_q_graph_painter.html#451442377ab7912fb0cf215efea01118">00139</a>   <a class="code" href="class_x_q_graph_painter.html#646fa8a355aacf8d4f5aa6fd638ebe27">SelectionMode</a> <a class="code" href="class_x_q_graph_painter.html#451442377ab7912fb0cf215efea01118">m_selectionModeNow</a>;
 <a name="l00140"></a><a class="code" href="class_x_q_graph_painter.html#7532145827590585f1ee44b0b967edf8">00140</a>   <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> <a class="code" href="class_x_q_graph_painter.html#7532145827590585f1ee44b0b967edf8">m_startScrPos</a>, <a class="code" href="class_x_q_graph_painter.html#72798cc42bb2229e8d422d5babe137cc">m_startScrDX</a>, <a class="code" href="class_x_q_graph_painter.html#8ef884fbdd64d6f0d98d1ce2c6f6c881">m_startScrDY</a>;
 <a name="l00141"></a><a class="code" href="class_x_q_graph_painter.html#58fabd034f48f834df07bb8cf123f735">00141</a>   <a class="code" href="struct_vector3.html">XGraph::ScrPoint</a> <a class="code" href="class_x_q_graph_painter.html#58fabd034f48f834df07bb8cf123f735">m_finishScrPos</a>, <a class="code" href="class_x_q_graph_painter.html#1a84f9e74641505b374dc4712fecfe91">m_finishScrDX</a>, <a class="code" href="class_x_q_graph_painter.html#126a056bbcb30e81b1b8d152b7110f44">m_finishScrDY</a>;
-<a name="l00142"></a><a class="code" href="class_x_q_graph_painter.html#16c331210b99fe8d6ec3f37434459eba">00142</a>   QString <a class="code" href="class_x_q_graph_painter.html#16c331210b99fe8d6ec3f37434459eba">m_onScreenMsg</a>;
+<a name="l00142"></a><a class="code" href="class_x_q_graph_painter.html#b0470180fad4a172902afba71b27b1f4">00142</a>   std::string <a class="code" href="class_x_q_graph_painter.html#b0470180fad4a172902afba71b27b1f4">m_onScreenMsg</a>;
 <a name="l00143"></a><a class="code" href="class_x_q_graph_painter.html#ad653683d0ecc9ed5a7a2809b090572d">00143</a>   <span class="keywordtype">int</span> <a class="code" href="class_x_q_graph_painter.html#ad653683d0ecc9ed5a7a2809b090572d">m_selStartPos</a>[2];
 <a name="l00144"></a><a class="code" href="class_x_q_graph_painter.html#9ad26455c21d31b07af124c452dbe87d">00144</a>   <span class="keywordtype">int</span> <a class="code" href="class_x_q_graph_painter.html#9ad26455c21d31b07af124c452dbe87d">m_tiltLastPos</a>[2];
 <a name="l00145"></a>00145   
@@ -152,13 +152,13 @@
 <a name="l00166"></a><a class="code" href="class_x_q_graph_painter.html#6771a5eaabd52883124ac2d973f86b4d">00166</a>   <span class="keywordtype">int</span> <a class="code" href="class_x_q_graph_painter.html#6771a5eaabd52883124ac2d973f86b4d">m_curAlign</a>;
 <a name="l00167"></a>00167   <span class="keyword">static</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#9cf853795a45039ebda790f3d67f7336">openFont</a>();
 <a name="l00168"></a>00168   <span class="keyword">static</span> <span class="keywordtype">void</span> <a class="code" href="class_x_q_graph_painter.html#c01d6ac4c490e8d4807e1d29194edd6a">closeFont</a>();
-<a name="l00169"></a>00169   <span class="keyword">static</span> std::wstring <a class="code" href="class_x_q_graph_painter.html#995c5ec3dc1cf5501d897a6ea778cdf9">qstring2wstring</a>(<span class="keyword">const</span> QString &amp;str);
+<a name="l00169"></a>00169   <span class="keyword">static</span> std::wstring <a class="code" href="class_x_q_graph_painter.html#69e4f8b181c8f3af7a0d78fa75f8d913">string2wstring</a>(<span class="keyword">const</span> std::string &amp;str);
 <a name="l00170"></a><a class="code" href="class_x_q_graph_painter.html#39b8895e04197091b508680b63ef0f70">00170</a>   <span class="keyword">static</span> <span class="keywordtype">int</span> <a class="code" href="class_x_q_graph_painter.html#39b8895e04197091b508680b63ef0f70">s_fontRefCount</a>;
 <a name="l00171"></a><a class="code" href="class_x_q_graph_painter.html#62238b9af1234b71571a1a2512e0689a">00171</a>   <span class="keyword">static</span> FTFont *<a class="code" href="class_x_q_graph_painter.html#62238b9af1234b71571a1a2512e0689a">s_pFont</a>;  
 <a name="l00172"></a>00172 };
 <a name="l00173"></a>00173 
 <a name="l00174"></a>00174 <span class="preprocessor">#endif</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:44 2006に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:52:27 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

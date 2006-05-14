@@ -34,15 +34,12 @@ XNMRT1に対する継承グラフ<p><center><img src="class_x_n_m_r_t1__inherit__graph.pn
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XNMRT1のコラボレーション図<p><center><img src="class_x_n_m_r_t1__coll__graph.png" border="0" usemap="#_x_n_m_r_t1__coll__map" alt="Collaboration graph"></center>
 <map name="_x_n_m_r_t1__coll__map">
-<area href="class_x_secondary_driver.html" shape="rect" coords="330,295,461,322" alt="">
-<area href="class_x_driver.html" shape="rect" coords="329,205,396,231" alt="">
-<area href="class_x_node.html" shape="rect" coords="8,98,69,125" alt="">
-<area href="class_x_recursive_r_w_lock.html" shape="rect" coords="180,7,321,34" alt="">
-<area href="class_x_talker.html" shape="rect" coords="93,98,314,125" alt="">
-<area href="class_x_time.html" shape="rect" coords="497,98,558,125" alt="">
-<area href="class_x_r_w_lock.html" shape="rect" coords="189,205,272,231" alt="">
-<area href="classqshared__ptr.html" shape="rect" coords="590,295,774,322" alt="">
-<area href="classqshared__ptr.html" shape="rect" coords="798,295,921,322" alt="">
+<area href="class_x_secondary_driver.html" shape="rect" coords="170,205,301,232" alt="">
+<area href="class_x_driver.html" shape="rect" coords="103,114,170,141" alt="">
+<area href="class_x_time.html" shape="rect" coords="42,8,103,34" alt="">
+<area href="class_x_r_w_lock.html" shape="rect" coords="229,114,311,141" alt="">
+<area href="classqshared__ptr.html" shape="rect" coords="325,205,509,232" alt="">
+<area href="classqshared__ptr.html" shape="rect" coords="533,205,655,232" alt="">
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_n_m_r_t1-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
 <tr><td></td></tr>
@@ -151,7 +148,7 @@ void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="6b762fd6217a18413c2020564b2bd466"></a><!-- doxytag: member="XNMRT1::onCondChanged" ref="6b762fd6217a18413c2020564b2bd466" args="(const shared_ptr&lt; XValueNodeBase &gt; &amp;)" -->
 void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#6b762fd6217a18413c2020564b2bd466">onCondChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top">QString&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#a18f1974b6c63d36415f6645171126e3">iterate</a> (shared_ptr&lt; <a class="el" href="class_x_relax_func.html">XRelaxFunc</a> &gt; &amp;relax, int itercnt)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">std::string&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#24d30a4ad07dd2f80912bc3220770f15">iterate</a> (shared_ptr&lt; <a class="el" href="class_x_relax_func.html">XRelaxFunc</a> &gt; &amp;relax, int itercnt)</td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="64c7086de31a3ba7c8db0c88f19ae947"></a><!-- doxytag: member="XNMRT1::acuSpectrum" ref="64c7086de31a3ba7c8db0c88f19ae947" args="(const std::deque&lt; std::complex&lt; double &gt; &gt; &amp;wave, double df, double cf, double bw)" -->
 std::complex&lt; double &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_t1.html#64c7086de31a3ba7c8db0c88f19ae947">acuSpectrum</a> (const std::deque&lt; std::complex&lt; double &gt; &gt; &amp;wave, double df, double cf, double bw)</td></tr>
@@ -393,7 +390,9 @@ this is called when connected driver emit a signal unless dependency is broken a
 <p>
 <a class="el" href="class_x_secondary_driver.html#80b1f02a7d17dcaeae700b9612aa27b5">XSecondaryDriver</a>を実装しています。
 <p>
- <a class="el" href="nmrrelax_8cpp-source.html">nmrrelax.cpp</a> の <a class="el" href="nmrrelax_8cpp-source.html#l00258">258</a> 行で定義されています。    </td>
+ <a class="el" href="nmrrelax_8cpp-source.html">nmrrelax.cpp</a> の <a class="el" href="nmrrelax_8cpp-source.html#l00260">260</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="support_8cpp-source.html#l00243">KAME::i18n()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="4ed43a66cb85371d728c380efa4b6687"></a><!-- doxytag: member="XNMRT1::checkDependency" ref="4ed43a66cb85371d728c380efa4b6687" args="(const shared_ptr&lt; XDriver &gt; &amp;emitter) const " --><p>
@@ -426,18 +425,18 @@ check connected drivers have valid time <dl compact><dt><b>戻り値:</b></dt><dd>t
 <p>
 <a class="el" href="class_x_secondary_driver.html#7d035ebb0cae0926fa1af7face8abc08">XSecondaryDriver</a>を実装しています。
 <p>
- <a class="el" href="nmrrelax_8cpp-source.html">nmrrelax.cpp</a> の <a class="el" href="nmrrelax_8cpp-source.html#l00248">248</a> 行で定義されています。
+ <a class="el" href="nmrrelax_8cpp-source.html">nmrrelax.cpp</a> の <a class="el" href="nmrrelax_8cpp-source.html#l00250">250</a> 行で定義されています。
 <p>
 参照先 <a class="el" href="nmrrelax_8h-source.html#l00054">pulse1()</a>・<a class="el" href="nmrrelax_8h-source.html#l00055">pulse2()</a>・<a class="el" href="nmrrelax_8h-source.html#l00053">pulser()</a>.    </td>
   </tr>
 </table>
-<a class="anchor" name="a18f1974b6c63d36415f6645171126e3"></a><!-- doxytag: member="XNMRT1::iterate" ref="a18f1974b6c63d36415f6645171126e3" args="(shared_ptr&lt; XRelaxFunc &gt; &amp;relax, int itercnt)" --><p>
+<a class="anchor" name="24d30a4ad07dd2f80912bc3220770f15"></a><!-- doxytag: member="XNMRT1::iterate" ref="24d30a4ad07dd2f80912bc3220770f15" args="(shared_ptr&lt; XRelaxFunc &gt; &amp;relax, int itercnt)" --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
     <td class="mdRow">
       <table cellpadding="0" cellspacing="0" border="0">
         <tr>
-          <td class="md" nowrap valign="top">QString XNMRT1::iterate           </td>
+          <td class="md" nowrap valign="top">std::string XNMRT1::iterate           </td>
           <td class="md" valign="top">(&nbsp;</td>
           <td class="md" nowrap valign="top">shared_ptr&lt; <a class="el" href="class_x_relax_func.html">XRelaxFunc</a> &gt; &amp;&nbsp;</td>
           <td class="mdname" nowrap> <em>relax</em>, </td>
@@ -507,7 +506,7 @@ this is called after <a class="el" href="class_x_n_m_r_t1.html#fbae1215e4de5a092
 <p>
 <a class="el" href="class_x_secondary_driver.html#47921915faa9431f4575450d091821ae">XSecondaryDriver</a>を実装しています。
 <p>
- <a class="el" href="nmrrelax_8cpp-source.html">nmrrelax.cpp</a> の <a class="el" href="nmrrelax_8cpp-source.html#l00463">463</a> 行で定義されています。
+ <a class="el" href="nmrrelax_8cpp-source.html">nmrrelax.cpp</a> の <a class="el" href="nmrrelax_8cpp-source.html#l00465">465</a> 行で定義されています。
 <p>
 参照先 <a class="el" href="nmrrelax_8h-source.html#l00158">m_sumpts</a>・<a class="el" href="nmrrelax_8h-source.html#l00164">m_wave</a>・<a class="el" href="nmrrelax_8h-source.html#l00072">t2Mode()</a>.    </td>
   </tr>
@@ -538,12 +537,12 @@ Store reduced points <dl compact><dt><b>参照:</b></dt><dd>m_pt, <a class="el" hr
 <p>
  <a class="el" href="nmrrelax_8h-source.html">nmrrelax.h</a> の <a class="el" href="nmrrelax_8h-source.html#l00164">164</a> 行で定義されています。
 <p>
-参照元 <a class="el" href="nmrrelax_8cpp-source.html#l00463">visualize()</a>・<a class="el" href="nmrrelax_8cpp-source.html#l00056">XNMRT1()</a>.    </td>
+参照元 <a class="el" href="nmrrelax_8cpp-source.html#l00465">visualize()</a>・<a class="el" href="nmrrelax_8cpp-source.html#l00056">XNMRT1()</a>.    </td>
   </tr>
 </table>
 <hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/users/nmr/<a class="el" href="nmrrelax_8h-source.html">nmrrelax.h</a><li>kame/users/nmr/<a class="el" href="nmrrelax_8cpp-source.html">nmrrelax.cpp</a><li>kame/users/nmr/<a class="el" href="nmrrelaxfit_8cpp-source.html">nmrrelaxfit.cpp</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:51 2006に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:53:15 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

@@ -43,7 +43,7 @@ XPrimaryDriver::finishWritingRaw(
             }
             catch (XRecordError& e) {
                  time_recorded = XTime(); //record is invalid
-                 e.print(getLabel() + ": " + i18n("Record Error, because "));
+                 e.print(getLabel() + ": " + KAME::i18n("Record Error, because "));
             }
         }
         finishRecordingNReadLock(time_recorded);
@@ -58,7 +58,7 @@ XPrimaryDriver::_push_char(char x, std::vector<char> &buf) {
 }
 void
 XPrimaryDriver::_push_short(short x, std::vector<char> &buf) {
-    auto short y = x;
+    short y = x;
     char *p = reinterpret_cast<char *>(&y);
 #ifdef __BIG_ENDIAN__
     for(char *z = p + sizeof(x) - 1; z >= p; z--) {
@@ -70,7 +70,7 @@ XPrimaryDriver::_push_short(short x, std::vector<char> &buf) {
 }
 void
 XPrimaryDriver::_push_int32(int32_t x, std::vector<char> &buf) {
-    auto int32_t y = x;
+    int32_t y = x;
     char *p = reinterpret_cast<char *>(&y);
 #ifdef __BIG_ENDIAN__
     for(char *z = p + sizeof(x) - 1; z >= p; z--) {
@@ -82,7 +82,7 @@ XPrimaryDriver::_push_int32(int32_t x, std::vector<char> &buf) {
 }
 void
 XPrimaryDriver::_push_double(double x, std::vector<char> &buf) {
-    auto double y = x;
+    double y = x;
     char *p = reinterpret_cast<char *>(&y);
 #ifdef __BIG_ENDIAN__
     for(char *z = p + sizeof(x) - 1; z >= p; z--) {
@@ -99,42 +99,48 @@ XPrimaryDriver::_pop_char(std::vector<char>::iterator &it) {
 }
 short
 XPrimaryDriver::_pop_short(std::vector<char>::iterator &it) {
-    auto short x;
-    char *p = reinterpret_cast<char *>(&x);
+    union {
+        short x;
+        char p[sizeof(short)];
+    } uni;
 #ifdef __BIG_ENDIAN__
-    for(char *z = p + sizeof(x) - 1; z >= p; z--) {
+    for(char *z = uni.p + sizeof(uni) - 1; z >= uni.p; z--) {
 #else
-    for(char *z = p; z < p + sizeof(x); z++) {
+    for(char *z = uni.p; z < uni.p + sizeof(uni); z++) {
 #endif
         *z = *(it++);
     }
-    return x;
+    return uni.x;
 }
 int32_t
 XPrimaryDriver::_pop_int32(std::vector<char>::iterator &it) {
-    auto int32_t x;
-    char *p = reinterpret_cast<char *>(&x);
+    union {
+        int32_t x;
+        char p[sizeof(int32_t)];
+    } uni;
 #ifdef __BIG_ENDIAN__
-    for(char *z = p + sizeof(x) - 1; z >= p; z--) {
+    for(char *z = uni.p + sizeof(uni) - 1; z >= uni.p; z--) {
 #else
-    for(char *z = p; z < p + sizeof(x); z++) {
+    for(char *z = uni.p; z < uni.p + sizeof(uni); z++) {
 #endif
         *z = *(it++);
     }
-    return x;
+    return uni.x;
 }
 double
 XPrimaryDriver::_pop_double(std::vector<char>::iterator &it) {
-    auto double x;
-    char *p = reinterpret_cast<char *>(&x);
+    union {
+        double x;
+        char p[sizeof(double)];
+    } uni;
 #ifdef __BIG_ENDIAN__
-    for(char *z = p + sizeof(x) - 1; z >= p; z--) {
+    for(char *z = uni.p + sizeof(uni) - 1; z >= uni.p; z--) {
 #else
-    for(char *z = p; z < p + sizeof(x); z++) {
+    for(char *z = uni.p; z < uni.p + sizeof(uni); z++) {
 #endif
         *z = *(it++);
     }
-    return x;
+    return uni.x;
 }
 
 template <>
@@ -170,9 +176,13 @@ uint32_t XPrimaryDriver::pop() throw (XBufferUnderflowRecordError&) {
 template <>
 float XPrimaryDriver::pop() throw (XBufferUnderflowRecordError&) {
     if(*s_tl_pop_it == rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
-    int32_t x = _pop_int32(*s_tl_pop_it);
-    C_ASSERT(sizeof(x) == 4);
-    return *reinterpret_cast<float*>(&x);
+    union {
+        int32_t x;
+        float y;
+    } uni;
+    C_ASSERT(sizeof(uni.x) == sizeof(uni.y));
+    uni.x = _pop_int32(*s_tl_pop_it);
+    return uni.y;
 }
 template <>
 double XPrimaryDriver::pop() throw (XBufferUnderflowRecordError&) {
@@ -207,8 +217,13 @@ uint32_t XPrimaryDriver::pop(std::vector<char>::iterator &it) {
 }
 template <>
 float XPrimaryDriver::pop(std::vector<char>::iterator &it) {
-    auto int32_t x = _pop_int32(it);
-    return *reinterpret_cast<float*>(&x);
+    union {
+        int32_t x;
+        float y;
+    } uni;
+    C_ASSERT(sizeof(uni.x) == sizeof(uni.y));
+    uni.x = _pop_int32(it);
+    return uni.y;
 }
 template <>
 double XPrimaryDriver::pop(std::vector<char>::iterator &it) {
@@ -240,7 +255,13 @@ void XPrimaryDriver::push(uint32_t x) {
 }
 template <>
 void XPrimaryDriver::push(float f) {
-    _push_int32(*reinterpret_cast<int32_t*>(&f), rawData());
+    union {
+        int32_t x;
+        float y;
+    } uni;
+    C_ASSERT(sizeof(uni.x) == sizeof(uni.y));
+    uni.y = f;
+    _push_int32(uni.x, rawData());
 }
 template <>
 void XPrimaryDriver::push(double x) {
@@ -273,7 +294,13 @@ void XPrimaryDriver::push(uint32_t x, std::vector<char> &buf) {
 }
 template <>
 void XPrimaryDriver::push(float f, std::vector<char> &buf) {
-    _push_int32(*reinterpret_cast<int32_t*>(&f), buf);
+    union {
+        int32_t x;
+        float y;
+    } uni;
+    C_ASSERT(sizeof(uni.x) == sizeof(uni.y));
+    uni.y =  f;
+    _push_int32(uni.x, buf);
 }
 template <>
 void XPrimaryDriver::push(double x, std::vector<char> &buf) {

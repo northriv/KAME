@@ -29,7 +29,7 @@
 <a name="l00011"></a>00011      : <a class="code" href="class_x_q_connector.html">XQConnector</a>(node, item),
 <a name="l00012"></a>00012       m_pulser(node),
 <a name="l00013"></a>00013       m_pTable(item),
-<a name="l00014"></a>00014       m_graph(createOrphan&lt;<a class="code" href="class_x_graph.html">XGraph</a>&gt;(node-&gt;getName().utf8(), false))
+<a name="l00014"></a>00014       m_graph(createOrphan&lt;<a class="code" href="class_x_graph.html">XGraph</a>&gt;(node-&gt;getName().c_str(), false))
 <a name="l00015"></a>00015 {
 <a name="l00016"></a>00016   shared_ptr&lt;XPulser&gt; pulser(node);    
 <a name="l00017"></a>00017   <a class="code" href="class_x_q_pulser_driver_connector.html#be1b392e7c7b20d846dfefea81bccbc7">m_lsnOnPulseChanged</a> = pulser-&gt;onRecord().connectWeak(
@@ -45,184 +45,189 @@
 <a name="l00027"></a>00027   labels += <span class="stringliteral">"Diff [ms]"</span>;
 <a name="l00028"></a>00028   labels += <span class="stringliteral">"Pattern (Port 0, 1, ...)"</span>;
 <a name="l00029"></a>00029   <a class="code" href="class_x_q_pulser_driver_connector.html#7dd12eb42cb02a98e6fb73b64f53bc24">m_pTable</a>-&gt;setColumnLabels(labels);
-<a name="l00030"></a>00030   connect(<a class="code" href="class_x_q_pulser_driver_connector.html#7dd12eb42cb02a98e6fb73b64f53bc24">m_pTable</a>, SIGNAL( <a class="code" href="class_x_q_pulser_driver_connector.html#b7b439f144e240f20d9bf5e5b8a483ac">selectionChanged</a>()), <span class="keyword">this</span>, SLOT(<a class="code" href="class_x_q_pulser_driver_connector.html#b7b439f144e240f20d9bf5e5b8a483ac">selectionChanged</a>()) );
-<a name="l00031"></a>00031   connect(<a class="code" href="class_x_q_pulser_driver_connector.html#7dd12eb42cb02a98e6fb73b64f53bc24">m_pTable</a>, SIGNAL( <a class="code" href="class_x_q_pulser_driver_connector.html#eab33c4c84f576ab6f72f10765f993e5">clicked</a>( <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keyword">const</span> QPoint&amp; )), <span class="keyword">this</span>,
-<a name="l00032"></a>00032       SLOT( <a class="code" href="class_x_q_pulser_driver_connector.html#eab33c4c84f576ab6f72f10765f993e5">clicked</a>( <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keyword">const</span> QPoint&amp; )));
-<a name="l00033"></a>00033 
-<a name="l00034"></a>00034 
-<a name="l00035"></a>00035     qgraph-&gt;<a class="code" href="class_x_q_graph.html#4d982330fa380848b7a90be6ecfd1438">setGraph</a>(<a class="code" href="class_x_q_pulser_driver_connector.html#6e0e3f7e91c06111086a2b5768b16de2">m_graph</a>);
-<a name="l00036"></a>00036     
-<a name="l00037"></a>00037     <a class="code" href="struct_x_scoped_read_lock.html">XScopedReadLock&lt;XRecursiveRWLock&gt;</a> lock(<a class="code" href="class_x_q_pulser_driver_connector.html#6e0e3f7e91c06111086a2b5768b16de2">m_graph</a>-&gt;axes()-&gt;childMutex());
-<a name="l00038"></a>00038     shared_ptr&lt;XAxis&gt; axisx = (*<a class="code" href="class_x_q_pulser_driver_connector.html#6e0e3f7e91c06111086a2b5768b16de2">m_graph</a>-&gt;axes())[0];
-<a name="l00039"></a>00039     shared_ptr&lt;XAxis&gt; axisy = (*<a class="code" href="class_x_q_pulser_driver_connector.html#6e0e3f7e91c06111086a2b5768b16de2">m_graph</a>-&gt;axes())[1];
-<a name="l00040"></a>00040 
-<a name="l00041"></a>00041     axisy-&gt;ticLabelFormat()-&gt;value(<span class="stringliteral">"%.0f"</span>);
-<a name="l00042"></a>00042     
-<a name="l00043"></a>00043     <a class="code" href="class_x_q_pulser_driver_connector.html#6e0e3f7e91c06111086a2b5768b16de2">m_graph</a>-&gt;backGround()-&gt;value(QColor(0x0A, 0x05, 0x45).rgb());
-<a name="l00044"></a>00044     <a class="code" href="class_x_q_pulser_driver_connector.html#6e0e3f7e91c06111086a2b5768b16de2">m_graph</a>-&gt;titleColor()-&gt;value(clWhite);
-<a name="l00045"></a>00045     axisx-&gt;label()-&gt;value(<span class="stringliteral">"Time [ms]"</span>);
-<a name="l00046"></a>00046     axisx-&gt;ticColor()-&gt;value(clWhite);
-<a name="l00047"></a>00047     axisx-&gt;labelColor()-&gt;value(clWhite);
-<a name="l00048"></a>00048     axisx-&gt;ticLabelColor()-&gt;value(clWhite);  
-<a name="l00049"></a>00049     axisy-&gt;label()-&gt;value(<span class="stringliteral">"Port"</span>);
-<a name="l00050"></a>00050     axisy-&gt;majorTicScale()-&gt;value(1);
-<a name="l00051"></a>00051     axisy-&gt;autoFreq()-&gt;value(<span class="keyword">false</span>);  
-<a name="l00052"></a>00052     axisy-&gt;displayMinorTics()-&gt;value(<span class="keyword">false</span>);  
-<a name="l00053"></a>00053     axisy-&gt;ticColor()-&gt;value(clWhite);
-<a name="l00054"></a>00054     axisy-&gt;labelColor()-&gt;value(clWhite);
-<a name="l00055"></a>00055     axisy-&gt;ticLabelColor()-&gt;value(clWhite);
-<a name="l00056"></a>00056     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i=0; i &lt; 16; i++)
-<a name="l00057"></a>00057     {
-<a name="l00058"></a>00058       shared_ptr&lt;XXYPlot&gt; plot = <a class="code" href="class_x_q_pulser_driver_connector.html#6e0e3f7e91c06111086a2b5768b16de2">m_graph</a>-&gt;plots()-&gt;create&lt;<a class="code" href="class_x_x_y_plot.html">XXYPlot</a>&gt;(
-<a name="l00059"></a>00059             QString().sprintf(<span class="stringliteral">"Port%d"</span>, i).utf8(), <span class="keyword">true</span>, <a class="code" href="class_x_q_pulser_driver_connector.html#6e0e3f7e91c06111086a2b5768b16de2">m_graph</a>);
-<a name="l00060"></a>00060       plot-&gt;axisX()-&gt;value(axisx);
-<a name="l00061"></a>00061       plot-&gt;axisY()-&gt;value(axisy);
-<a name="l00062"></a>00062       <a class="code" href="class_x_q_pulser_driver_connector.html#8349011466cd19aef445d92a2d49965e">m_plots</a>.push_back(plot);
-<a name="l00063"></a>00063       plot-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
-<a name="l00064"></a>00064       plot-&gt;displayMajorGrid()-&gt;value(<span class="keyword">false</span>);
-<a name="l00065"></a>00065       plot-&gt;lineColor()-&gt;value(QColor(0x4e, 0xff, 0x10).rgb());
-<a name="l00066"></a>00066       plot-&gt;clearPoints()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00067"></a>00067       plot-&gt;maxCount()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00068"></a>00068     }
-<a name="l00069"></a>00069     m_barPlot = m_graph-&gt;plots()-&gt;create&lt;<a class="code" href="class_x_x_y_plot.html">XXYPlot</a>&gt;(<span class="stringliteral">"Bars"</span>, <span class="keyword">true</span>, m_graph);
-<a name="l00070"></a>00070     m_barPlot-&gt;axisX()-&gt;value(axisx);
-<a name="l00071"></a>00071     m_barPlot-&gt;axisY()-&gt;value(axisy);
-<a name="l00072"></a>00072     m_barPlot-&gt;drawBars()-&gt;value(<span class="keyword">true</span>);
-<a name="l00073"></a>00073     m_barPlot-&gt;drawLines()-&gt;value(<span class="keyword">false</span>);
-<a name="l00074"></a>00074     m_barPlot-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
-<a name="l00075"></a>00075     m_barPlot-&gt;barColor()-&gt;value(QColor(0x4A, 0x3D, 0x87).rgb());
-<a name="l00076"></a>00076     m_barPlot-&gt;displayMajorGrid()-&gt;value(<span class="keyword">true</span>);
-<a name="l00077"></a>00077     m_barPlot-&gt;majorGridColor()-&gt;value(QColor(0x4A, 0x4A, 0).rgb());
-<a name="l00078"></a>00078     m_barPlot-&gt;drawLines()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00079"></a>00079     m_barPlot-&gt;drawPoints()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00080"></a>00080     m_barPlot-&gt;lineColor()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00081"></a>00081     m_barPlot-&gt;pointColor()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00082"></a>00082     m_barPlot-&gt;clearPoints()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00083"></a>00083     m_barPlot-&gt;maxCount()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00084"></a>00084 
-<a name="l00085"></a>00085     m_graph-&gt;label()-&gt;value(i18n(<span class="stringliteral">"Pulse Patterns"</span>));
-<a name="l00086"></a>00086 }
-<a name="l00087"></a>00087 
-<a name="l00088"></a><a class="code" href="class_x_q_pulser_driver_connector.html#6b760c5c4cf07e2e6189afceb4b3a1ea">00088</a> <a class="code" href="class_x_q_pulser_driver_connector.html#6b760c5c4cf07e2e6189afceb4b3a1ea">XQPulserDriverConnector::~XQPulserDriverConnector</a>()
-<a name="l00089"></a>00089 {
-<a name="l00090"></a>00090 }
+<a name="l00030"></a>00030   <a class="code" href="class_x_q_pulser_driver_connector.html#7dd12eb42cb02a98e6fb73b64f53bc24">m_pTable</a>-&gt;setReadOnly(<span class="keyword">true</span>);
+<a name="l00031"></a>00031   <a class="code" href="class_x_q_pulser_driver_connector.html#7dd12eb42cb02a98e6fb73b64f53bc24">m_pTable</a>-&gt;setSelectionMode(QTable::MultiRow);
+<a name="l00032"></a>00032 
+<a name="l00033"></a>00033   QHeader *header = <a class="code" href="class_x_q_pulser_driver_connector.html#7dd12eb42cb02a98e6fb73b64f53bc24">m_pTable</a>-&gt;verticalHeader();
+<a name="l00034"></a>00034   header-&gt;setResizeEnabled(<span class="keyword">false</span>);
+<a name="l00035"></a>00035       
+<a name="l00036"></a>00036   connect(<a class="code" href="class_x_q_pulser_driver_connector.html#7dd12eb42cb02a98e6fb73b64f53bc24">m_pTable</a>, SIGNAL( <a class="code" href="class_x_q_pulser_driver_connector.html#b7b439f144e240f20d9bf5e5b8a483ac">selectionChanged</a>()), <span class="keyword">this</span>, SLOT(<a class="code" href="class_x_q_pulser_driver_connector.html#b7b439f144e240f20d9bf5e5b8a483ac">selectionChanged</a>()) );
+<a name="l00037"></a>00037   connect(<a class="code" href="class_x_q_pulser_driver_connector.html#7dd12eb42cb02a98e6fb73b64f53bc24">m_pTable</a>, SIGNAL( <a class="code" href="class_x_q_pulser_driver_connector.html#eab33c4c84f576ab6f72f10765f993e5">clicked</a>( <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keyword">const</span> QPoint&amp; )), <span class="keyword">this</span>,
+<a name="l00038"></a>00038       SLOT( <a class="code" href="class_x_q_pulser_driver_connector.html#eab33c4c84f576ab6f72f10765f993e5">clicked</a>( <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keyword">const</span> QPoint&amp; )));
+<a name="l00039"></a>00039 
+<a name="l00040"></a>00040     qgraph-&gt;<a class="code" href="class_x_q_graph.html#4d982330fa380848b7a90be6ecfd1438">setGraph</a>(<a class="code" href="class_x_q_pulser_driver_connector.html#6e0e3f7e91c06111086a2b5768b16de2">m_graph</a>);
+<a name="l00041"></a>00041     
+<a name="l00042"></a>00042     <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> axes_list(<a class="code" href="class_x_q_pulser_driver_connector.html#6e0e3f7e91c06111086a2b5768b16de2">m_graph</a>-&gt;axes()-&gt;children());
+<a name="l00043"></a>00043     shared_ptr&lt;XAxis&gt; axisx = dynamic_pointer_cast&lt;XAxis&gt;(axes_list-&gt;at(0));
+<a name="l00044"></a>00044     shared_ptr&lt;XAxis&gt; axisy = dynamic_pointer_cast&lt;XAxis&gt;(axes_list-&gt;at(1));
+<a name="l00045"></a>00045 
+<a name="l00046"></a>00046     axisy-&gt;ticLabelFormat()-&gt;value(<span class="stringliteral">"%.0f"</span>);
+<a name="l00047"></a>00047     
+<a name="l00048"></a>00048     <a class="code" href="class_x_q_pulser_driver_connector.html#6e0e3f7e91c06111086a2b5768b16de2">m_graph</a>-&gt;backGround()-&gt;value(QColor(0x0A, 0x05, 0x45).rgb());
+<a name="l00049"></a>00049     <a class="code" href="class_x_q_pulser_driver_connector.html#6e0e3f7e91c06111086a2b5768b16de2">m_graph</a>-&gt;titleColor()-&gt;value(clWhite);
+<a name="l00050"></a>00050     axisx-&gt;label()-&gt;value(<span class="stringliteral">"Time [ms]"</span>);
+<a name="l00051"></a>00051     axisx-&gt;ticColor()-&gt;value(clWhite);
+<a name="l00052"></a>00052     axisx-&gt;labelColor()-&gt;value(clWhite);
+<a name="l00053"></a>00053     axisx-&gt;ticLabelColor()-&gt;value(clWhite);  
+<a name="l00054"></a>00054     axisy-&gt;label()-&gt;value(<span class="stringliteral">"Port"</span>);
+<a name="l00055"></a>00055     axisy-&gt;majorTicScale()-&gt;value(1);
+<a name="l00056"></a>00056     axisy-&gt;autoFreq()-&gt;value(<span class="keyword">false</span>);  
+<a name="l00057"></a>00057     axisy-&gt;displayMinorTics()-&gt;value(<span class="keyword">false</span>);  
+<a name="l00058"></a>00058     axisy-&gt;ticColor()-&gt;value(clWhite);
+<a name="l00059"></a>00059     axisy-&gt;labelColor()-&gt;value(clWhite);
+<a name="l00060"></a>00060     axisy-&gt;ticLabelColor()-&gt;value(clWhite);
+<a name="l00061"></a>00061     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i=0; i &lt; 16; i++)
+<a name="l00062"></a>00062     {
+<a name="l00063"></a>00063       shared_ptr&lt;XXYPlot&gt; plot = <a class="code" href="class_x_q_pulser_driver_connector.html#6e0e3f7e91c06111086a2b5768b16de2">m_graph</a>-&gt;plots()-&gt;create&lt;<a class="code" href="class_x_x_y_plot.html">XXYPlot</a>&gt;(
+<a name="l00064"></a>00064             QString().sprintf(<span class="stringliteral">"Port%d"</span>, i), <span class="keyword">true</span>, <a class="code" href="class_x_q_pulser_driver_connector.html#6e0e3f7e91c06111086a2b5768b16de2">m_graph</a>);
+<a name="l00065"></a>00065       plot-&gt;label()-&gt;value(QString().sprintf(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Port%d"</span>), i));
+<a name="l00066"></a>00066       plot-&gt;axisX()-&gt;value(axisx);
+<a name="l00067"></a>00067       plot-&gt;axisY()-&gt;value(axisy);
+<a name="l00068"></a>00068       <a class="code" href="class_x_q_pulser_driver_connector.html#8349011466cd19aef445d92a2d49965e">m_plots</a>.push_back(plot);
+<a name="l00069"></a>00069       plot-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
+<a name="l00070"></a>00070       plot-&gt;displayMajorGrid()-&gt;value(<span class="keyword">false</span>);
+<a name="l00071"></a>00071       plot-&gt;lineColor()-&gt;value(QColor(0x4e, 0xff, 0x10).rgb());
+<a name="l00072"></a>00072       plot-&gt;clearPoints()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00073"></a>00073       plot-&gt;maxCount()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00074"></a>00074     }
+<a name="l00075"></a>00075     m_barPlot = m_graph-&gt;plots()-&gt;create&lt;<a class="code" href="class_x_x_y_plot.html">XXYPlot</a>&gt;(<span class="stringliteral">"Bars"</span>, <span class="keyword">true</span>, m_graph);
+<a name="l00076"></a>00076     m_barPlot-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Bars"</span>));
+<a name="l00077"></a>00077     m_barPlot-&gt;axisX()-&gt;value(axisx);
+<a name="l00078"></a>00078     m_barPlot-&gt;axisY()-&gt;value(axisy);
+<a name="l00079"></a>00079     m_barPlot-&gt;drawBars()-&gt;value(<span class="keyword">true</span>);
+<a name="l00080"></a>00080     m_barPlot-&gt;drawLines()-&gt;value(<span class="keyword">false</span>);
+<a name="l00081"></a>00081     m_barPlot-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
+<a name="l00082"></a>00082     m_barPlot-&gt;barColor()-&gt;value(QColor(0x4A, 0x3D, 0x87).rgb());
+<a name="l00083"></a>00083     m_barPlot-&gt;displayMajorGrid()-&gt;value(<span class="keyword">true</span>);
+<a name="l00084"></a>00084     m_barPlot-&gt;majorGridColor()-&gt;value(QColor(0x4A, 0x4A, 0).rgb());
+<a name="l00085"></a>00085     m_barPlot-&gt;drawLines()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00086"></a>00086     m_barPlot-&gt;drawPoints()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00087"></a>00087     m_barPlot-&gt;lineColor()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00088"></a>00088     m_barPlot-&gt;pointColor()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00089"></a>00089     m_barPlot-&gt;clearPoints()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00090"></a>00090     m_barPlot-&gt;maxCount()-&gt;setUIEnabled(<span class="keyword">false</span>);
 <a name="l00091"></a>00091 
-<a name="l00092"></a>00092 <span class="keywordtype">void</span>
-<a name="l00093"></a><a class="code" href="class_x_q_pulser_driver_connector.html#eab33c4c84f576ab6f72f10765f993e5">00093</a> <a class="code" href="class_x_q_pulser_driver_connector.html#eab33c4c84f576ab6f72f10765f993e5">XQPulserDriverConnector::clicked</a>( <span class="keywordtype">int</span> , <span class="keywordtype">int</span> , <span class="keywordtype">int</span>, <span class="keyword">const</span> QPoint &amp; )
-<a name="l00094"></a>00094 {
-<a name="l00095"></a>00095 }
-<a name="l00096"></a>00096 
-<a name="l00097"></a>00097 <span class="keywordtype">void</span>
-<a name="l00098"></a><a class="code" href="class_x_q_pulser_driver_connector.html#b7b439f144e240f20d9bf5e5b8a483ac">00098</a> <a class="code" href="class_x_q_pulser_driver_connector.html#b7b439f144e240f20d9bf5e5b8a483ac">XQPulserDriverConnector::selectionChanged</a>()
-<a name="l00099"></a>00099 {
-<a name="l00100"></a>00100     shared_ptr&lt;XPulser&gt; pulser(<a class="code" href="class_x_q_pulser_driver_connector.html#718a96c394450b429c93ffbb73b8f5c7">m_pulser</a>);
-<a name="l00101"></a>00101     pulser-&gt;readLockRecord();    
-<a name="l00102"></a>00102     <a class="code" href="class_x_q_pulser_driver_connector.html#4308bec1c611823fbffced9b28114f2f">updateGraph</a>(<span class="keyword">true</span>);
-<a name="l00103"></a>00103     pulser-&gt;readUnlockRecord();    
-<a name="l00104"></a>00104 }
-<a name="l00105"></a>00105 <span class="keywordtype">void</span>
-<a name="l00106"></a><a class="code" href="class_x_q_pulser_driver_connector.html#4308bec1c611823fbffced9b28114f2f">00106</a> <a class="code" href="class_x_q_pulser_driver_connector.html#4308bec1c611823fbffced9b28114f2f">XQPulserDriverConnector::updateGraph</a>(<span class="keywordtype">bool</span> checkselection)
-<a name="l00107"></a>00107 {
-<a name="l00108"></a>00108     shared_ptr&lt;XPulser&gt; pulser(<a class="code" href="class_x_q_pulser_driver_connector.html#718a96c394450b429c93ffbb73b8f5c7">m_pulser</a>);
-<a name="l00109"></a>00109     <a class="code" href="class_x_q_pulser_driver_connector.html#6e0e3f7e91c06111086a2b5768b16de2">m_graph</a>-&gt;suspendUpdate();
-<a name="l00110"></a>00110     std::deque&lt;XGraph::ValPoint&gt; &amp; barplot_points(<a class="code" href="class_x_q_pulser_driver_connector.html#6c89c2046522b0e6cff737f6fa7f595b">m_barPlot</a>-&gt;points());
-<a name="l00111"></a>00111     <a class="code" href="class_x_q_pulser_driver_connector.html#6c89c2046522b0e6cff737f6fa7f595b">m_barPlot</a>-&gt;maxCount()-&gt;value(pulser-&gt;m_relPatList.size());
-<a name="l00112"></a>00112     barplot_points.clear();
-<a name="l00113"></a>00113     std::deque&lt;std::deque&lt;XGraph::ValPoint&gt; *&gt; plots_points;
-<a name="l00114"></a>00114     <span class="keywordflow">for</span>(std::deque&lt;shared_ptr&lt;XXYPlot&gt; &gt;::iterator it = <a class="code" href="class_x_q_pulser_driver_connector.html#8349011466cd19aef445d92a2d49965e">m_plots</a>.begin();
-<a name="l00115"></a>00115              it != <a class="code" href="class_x_q_pulser_driver_connector.html#8349011466cd19aef445d92a2d49965e">m_plots</a>.end(); it++)
-<a name="l00116"></a>00116     {
-<a name="l00117"></a>00117         (*it)-&gt;maxCount()-&gt;value(pulser-&gt;m_relPatList.size() * 2);
-<a name="l00118"></a>00118         (*it)-&gt;points().clear();
-<a name="l00119"></a>00119         plots_points.push_back(&amp;(*it)-&gt;points());
-<a name="l00120"></a>00120     }
-<a name="l00121"></a>00121     uint32_t lastpat = pulser-&gt;m_relPatList.empty() ? 0 :
-<a name="l00122"></a>00122         pulser-&gt;m_relPatList[pulser-&gt;m_relPatList.size() - 1].pattern;
-<a name="l00123"></a>00123     <span class="keywordtype">double</span> firsttime = -0.001, lasttime = 100;
-<a name="l00124"></a>00124 
-<a name="l00125"></a>00125     <span class="keywordtype">int</span> i = 0;
-<a name="l00126"></a>00126     <span class="keywordflow">for</span>(<a class="code" href="class_x_pulser.html#dcdcaab19a1309df00a3e0e31b2a5d0e">XPulser::RelPatListIterator</a> it = pulser-&gt;m_relPatList.begin(); 
-<a name="l00127"></a>00127             it != pulser-&gt;m_relPatList.end(); it++)
-<a name="l00128"></a>00128     {
-<a name="l00129"></a>00129         <span class="keywordflow">if</span>(m_pTable-&gt;isRowSelected(i))
-<a name="l00130"></a>00130         {
-<a name="l00131"></a>00131             <span class="keywordflow">if</span>(firsttime &lt; 0) firsttime = it-&gt;time;
-<a name="l00132"></a>00132             lasttime = it-&gt;time;
-<a name="l00133"></a>00133         }
-<a name="l00134"></a>00134         barplot_points.push_back(<a class="code" href="struct_vector3.html">XGraph::ValPoint</a>(it-&gt;time, m_plots.size()));
-<a name="l00135"></a>00135         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j = 0; j &lt; (int)plots_points.size(); j++)
-<a name="l00136"></a>00136         {
-<a name="l00137"></a>00137             plots_points[j]-&gt;push_back(<a class="code" href="struct_vector3.html">XGraph::ValPoint</a>(it-&gt;time, j + 0.7 * ((lastpat &gt;&gt; j) % 2)));
-<a name="l00138"></a>00138             plots_points[j]-&gt;push_back(<a class="code" href="struct_vector3.html">XGraph::ValPoint</a>(it-&gt;time, j + 0.7 * ((it-&gt;pattern &gt;&gt; j) % 2)));
-<a name="l00139"></a>00139         }
-<a name="l00140"></a>00140         lastpat = it-&gt;pattern;       
-<a name="l00141"></a>00141         i++;
-<a name="l00142"></a>00142     }
-<a name="l00143"></a>00143     <span class="keywordflow">if</span>(checkselection)
-<a name="l00144"></a>00144     {
-<a name="l00145"></a>00145         <span class="keywordflow">if</span>(lasttime == firsttime) {
-<a name="l00146"></a>00146             firsttime -= 0.5;
-<a name="l00147"></a>00147             lasttime += 0.5;
-<a name="l00148"></a>00148         }
-<a name="l00149"></a>00149         <span class="keywordtype">double</span> width = lasttime - firsttime;
-<a name="l00150"></a>00150         firsttime -= width / 10;
-<a name="l00151"></a>00151         lasttime += width / 10;
-<a name="l00152"></a>00152         shared_ptr&lt;XAxis&gt; axisx = *m_barPlot-&gt;axisX();
-<a name="l00153"></a>00153         axisx-&gt;autoScale()-&gt;value(<span class="keyword">false</span>);
-<a name="l00154"></a>00154         axisx-&gt;minValue()-&gt;value(firsttime);
-<a name="l00155"></a>00155         axisx-&gt;maxValue()-&gt;value(lasttime);
-<a name="l00156"></a>00156     }        
-<a name="l00157"></a>00157     m_graph-&gt;requestUpdate();
-<a name="l00158"></a>00158     m_graph-&gt;resumeUpdate();
-<a name="l00159"></a>00159 }
-<a name="l00160"></a>00160 
-<a name="l00161"></a>00161 <span class="keywordtype">void</span>
-<a name="l00162"></a><a class="code" href="class_x_q_pulser_driver_connector.html#a7ff9ce0fb1b511c113ea86a9d323ccb">00162</a> <a class="code" href="class_x_q_pulser_driver_connector.html#a7ff9ce0fb1b511c113ea86a9d323ccb">XQPulserDriverConnector::onPulseChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;)
-<a name="l00163"></a>00163 {
-<a name="l00164"></a>00164     shared_ptr&lt;XPulser&gt; pulser(<a class="code" href="class_x_q_pulser_driver_connector.html#718a96c394450b429c93ffbb73b8f5c7">m_pulser</a>);
-<a name="l00165"></a>00165 
-<a name="l00166"></a>00166     pulser-&gt;readLockRecord();
-<a name="l00167"></a>00167     
-<a name="l00168"></a>00168     <span class="keywordflow">if</span>(pulser-&gt;time()) {
-<a name="l00169"></a>00169         
-<a name="l00170"></a>00170         <a class="code" href="class_x_q_pulser_driver_connector.html#7dd12eb42cb02a98e6fb73b64f53bc24">m_pTable</a>-&gt;blockSignals(<span class="keyword">true</span>);
-<a name="l00171"></a>00171         <a class="code" href="class_x_q_pulser_driver_connector.html#7dd12eb42cb02a98e6fb73b64f53bc24">m_pTable</a>-&gt;setNumRows(pulser-&gt;m_relPatList.size());
-<a name="l00172"></a>00172         <span class="keywordtype">int</span> i = 0;
-<a name="l00173"></a>00173         <span class="keywordflow">for</span>(<a class="code" href="class_x_pulser.html#dcdcaab19a1309df00a3e0e31b2a5d0e">XPulser::RelPatListIterator</a> it = pulser-&gt;m_relPatList.begin();
-<a name="l00174"></a>00174                  it != pulser-&gt;m_relPatList.end(); it++)
-<a name="l00175"></a>00175         {
-<a name="l00176"></a>00176     <span class="comment">//        Form-&gt;tblPulse-&gt;insertRows(i);</span>
-<a name="l00177"></a>00177             <a class="code" href="class_x_q_pulser_driver_connector.html#7dd12eb42cb02a98e6fb73b64f53bc24">m_pTable</a>-&gt;setText(i, 0, QString().sprintf(<span class="stringliteral">"%.4f"</span>, it-&gt;time));
-<a name="l00178"></a>00178             <a class="code" href="class_x_q_pulser_driver_connector.html#7dd12eb42cb02a98e6fb73b64f53bc24">m_pTable</a>-&gt;setText(i, 1, QString().sprintf(<span class="stringliteral">"%.4f"</span>, it-&gt;toappear));
-<a name="l00179"></a>00179             QString s;
-<a name="l00180"></a>00180             uint32_t pat = it-&gt;pattern;
-<a name="l00181"></a>00181             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j = 0; j &lt; 16; j++) {
-<a name="l00182"></a>00182     <span class="comment">//            if(j != 0) s+= ",";</span>
-<a name="l00183"></a>00183                 s += (pat % 2) ? <span class="stringliteral">"1"</span> : <span class="stringliteral">"0"</span>;
-<a name="l00184"></a>00184                 pat /= 2;
-<a name="l00185"></a>00185             }
-<a name="l00186"></a>00186             m_pTable-&gt;setText(i, 2, s);
-<a name="l00187"></a>00187              i++;
-<a name="l00188"></a>00188         }
-<a name="l00189"></a>00189         m_pTable-&gt;blockSignals(<span class="keyword">false</span>);
-<a name="l00190"></a>00190         
-<a name="l00191"></a>00191         updateGraph(<span class="keyword">false</span>);
-<a name="l00192"></a>00192     }
-<a name="l00193"></a>00193     <span class="keywordflow">else</span> {
-<a name="l00194"></a>00194         m_pTable-&gt;setNumRows(0);
-<a name="l00195"></a>00195         m_graph-&gt;suspendUpdate();
-<a name="l00196"></a>00196         <span class="keywordflow">for</span>(std::deque&lt;shared_ptr&lt;XXYPlot&gt; &gt;::iterator it = m_plots.begin();
-<a name="l00197"></a>00197                 it != m_plots.end(); it++) {
-<a name="l00198"></a>00198             (*it)-&gt;clearAllPoints();
-<a name="l00199"></a>00199         }
-<a name="l00200"></a>00200         m_barPlot-&gt;clearAllPoints();
-<a name="l00201"></a>00201         m_graph-&gt;requestUpdate();
-<a name="l00202"></a>00202         m_graph-&gt;resumeUpdate();
-<a name="l00203"></a>00203     }
-<a name="l00204"></a>00204     
-<a name="l00205"></a>00205     pulser-&gt;readUnlockRecord();    
-<a name="l00206"></a>00206 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:46 2006に生成されました。&nbsp;
+<a name="l00092"></a>00092     m_graph-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Pulse Patterns"</span>));
+<a name="l00093"></a>00093 }
+<a name="l00094"></a>00094 
+<a name="l00095"></a><a class="code" href="class_x_q_pulser_driver_connector.html#6b760c5c4cf07e2e6189afceb4b3a1ea">00095</a> <a class="code" href="class_x_q_pulser_driver_connector.html#6b760c5c4cf07e2e6189afceb4b3a1ea">XQPulserDriverConnector::~XQPulserDriverConnector</a>()
+<a name="l00096"></a>00096 {
+<a name="l00097"></a>00097 }
+<a name="l00098"></a>00098 
+<a name="l00099"></a>00099 <span class="keywordtype">void</span>
+<a name="l00100"></a><a class="code" href="class_x_q_pulser_driver_connector.html#eab33c4c84f576ab6f72f10765f993e5">00100</a> <a class="code" href="class_x_q_pulser_driver_connector.html#eab33c4c84f576ab6f72f10765f993e5">XQPulserDriverConnector::clicked</a>( <span class="keywordtype">int</span> , <span class="keywordtype">int</span> , <span class="keywordtype">int</span>, <span class="keyword">const</span> QPoint &amp; )
+<a name="l00101"></a>00101 {
+<a name="l00102"></a>00102 }
+<a name="l00103"></a>00103 
+<a name="l00104"></a>00104 <span class="keywordtype">void</span>
+<a name="l00105"></a><a class="code" href="class_x_q_pulser_driver_connector.html#b7b439f144e240f20d9bf5e5b8a483ac">00105</a> <a class="code" href="class_x_q_pulser_driver_connector.html#b7b439f144e240f20d9bf5e5b8a483ac">XQPulserDriverConnector::selectionChanged</a>()
+<a name="l00106"></a>00106 {
+<a name="l00107"></a>00107     shared_ptr&lt;XPulser&gt; pulser(<a class="code" href="class_x_q_pulser_driver_connector.html#718a96c394450b429c93ffbb73b8f5c7">m_pulser</a>);
+<a name="l00108"></a>00108     pulser-&gt;readLockRecord();    
+<a name="l00109"></a>00109     <a class="code" href="class_x_q_pulser_driver_connector.html#4308bec1c611823fbffced9b28114f2f">updateGraph</a>(<span class="keyword">true</span>);
+<a name="l00110"></a>00110     pulser-&gt;readUnlockRecord();    
+<a name="l00111"></a>00111 }
+<a name="l00112"></a>00112 <span class="keywordtype">void</span>
+<a name="l00113"></a><a class="code" href="class_x_q_pulser_driver_connector.html#4308bec1c611823fbffced9b28114f2f">00113</a> <a class="code" href="class_x_q_pulser_driver_connector.html#4308bec1c611823fbffced9b28114f2f">XQPulserDriverConnector::updateGraph</a>(<span class="keywordtype">bool</span> checkselection)
+<a name="l00114"></a>00114 {
+<a name="l00115"></a>00115     shared_ptr&lt;XPulser&gt; pulser(<a class="code" href="class_x_q_pulser_driver_connector.html#718a96c394450b429c93ffbb73b8f5c7">m_pulser</a>);
+<a name="l00116"></a>00116     <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XGraph&gt;</a> lock(*<a class="code" href="class_x_q_pulser_driver_connector.html#6e0e3f7e91c06111086a2b5768b16de2">m_graph</a>);
+<a name="l00117"></a>00117     std::deque&lt;XGraph::ValPoint&gt; &amp; barplot_points(<a class="code" href="class_x_q_pulser_driver_connector.html#6c89c2046522b0e6cff737f6fa7f595b">m_barPlot</a>-&gt;points());
+<a name="l00118"></a>00118     <a class="code" href="class_x_q_pulser_driver_connector.html#6c89c2046522b0e6cff737f6fa7f595b">m_barPlot</a>-&gt;maxCount()-&gt;value(pulser-&gt;m_relPatList.size());
+<a name="l00119"></a>00119     barplot_points.clear();
+<a name="l00120"></a>00120     std::deque&lt;std::deque&lt;XGraph::ValPoint&gt; *&gt; plots_points;
+<a name="l00121"></a>00121     <span class="keywordflow">for</span>(std::deque&lt;shared_ptr&lt;XXYPlot&gt; &gt;::iterator it = <a class="code" href="class_x_q_pulser_driver_connector.html#8349011466cd19aef445d92a2d49965e">m_plots</a>.begin();
+<a name="l00122"></a>00122              it != <a class="code" href="class_x_q_pulser_driver_connector.html#8349011466cd19aef445d92a2d49965e">m_plots</a>.end(); it++)
+<a name="l00123"></a>00123     {
+<a name="l00124"></a>00124         (*it)-&gt;maxCount()-&gt;value(pulser-&gt;m_relPatList.size() * 2);
+<a name="l00125"></a>00125         (*it)-&gt;points().clear();
+<a name="l00126"></a>00126         plots_points.push_back(&amp;(*it)-&gt;points());
+<a name="l00127"></a>00127     }
+<a name="l00128"></a>00128     uint32_t lastpat = pulser-&gt;m_relPatList.empty() ? 0 :
+<a name="l00129"></a>00129         pulser-&gt;m_relPatList[pulser-&gt;m_relPatList.size() - 1].pattern;
+<a name="l00130"></a>00130     <span class="keywordtype">double</span> firsttime = -0.001, lasttime = 100;
+<a name="l00131"></a>00131 
+<a name="l00132"></a>00132     <span class="keywordtype">int</span> i = 0;
+<a name="l00133"></a>00133     <span class="keywordflow">for</span>(<a class="code" href="class_x_pulser.html#dcdcaab19a1309df00a3e0e31b2a5d0e">XPulser::RelPatListIterator</a> it = pulser-&gt;m_relPatList.begin(); 
+<a name="l00134"></a>00134             it != pulser-&gt;m_relPatList.end(); it++)
+<a name="l00135"></a>00135     {
+<a name="l00136"></a>00136         <span class="keywordflow">if</span>(m_pTable-&gt;isRowSelected(i))
+<a name="l00137"></a>00137         {
+<a name="l00138"></a>00138             <span class="keywordflow">if</span>(firsttime &lt; 0) firsttime = it-&gt;time;
+<a name="l00139"></a>00139             lasttime = it-&gt;time;
+<a name="l00140"></a>00140         }
+<a name="l00141"></a>00141         barplot_points.push_back(<a class="code" href="struct_vector3.html">XGraph::ValPoint</a>(it-&gt;time, m_plots.size()));
+<a name="l00142"></a>00142         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j = 0; j &lt; (int)plots_points.size(); j++)
+<a name="l00143"></a>00143         {
+<a name="l00144"></a>00144             plots_points[j]-&gt;push_back(<a class="code" href="struct_vector3.html">XGraph::ValPoint</a>(it-&gt;time, j + 0.7 * ((lastpat &gt;&gt; j) % 2)));
+<a name="l00145"></a>00145             plots_points[j]-&gt;push_back(<a class="code" href="struct_vector3.html">XGraph::ValPoint</a>(it-&gt;time, j + 0.7 * ((it-&gt;pattern &gt;&gt; j) % 2)));
+<a name="l00146"></a>00146         }
+<a name="l00147"></a>00147         lastpat = it-&gt;pattern;       
+<a name="l00148"></a>00148         i++;
+<a name="l00149"></a>00149     }
+<a name="l00150"></a>00150     <span class="keywordflow">if</span>(checkselection)
+<a name="l00151"></a>00151     {
+<a name="l00152"></a>00152         <span class="keywordflow">if</span>(lasttime == firsttime) {
+<a name="l00153"></a>00153             firsttime -= 0.5;
+<a name="l00154"></a>00154             lasttime += 0.5;
+<a name="l00155"></a>00155         }
+<a name="l00156"></a>00156         <span class="keywordtype">double</span> width = lasttime - firsttime;
+<a name="l00157"></a>00157         firsttime -= width / 10;
+<a name="l00158"></a>00158         lasttime += width / 10;
+<a name="l00159"></a>00159         shared_ptr&lt;XAxis&gt; axisx = *m_barPlot-&gt;axisX();
+<a name="l00160"></a>00160         axisx-&gt;autoScale()-&gt;value(<span class="keyword">false</span>);
+<a name="l00161"></a>00161         axisx-&gt;minValue()-&gt;value(firsttime);
+<a name="l00162"></a>00162         axisx-&gt;maxValue()-&gt;value(lasttime);
+<a name="l00163"></a>00163     }        
+<a name="l00164"></a>00164     m_graph-&gt;requestUpdate();
+<a name="l00165"></a>00165 }
+<a name="l00166"></a>00166 
+<a name="l00167"></a>00167 <span class="keywordtype">void</span>
+<a name="l00168"></a><a class="code" href="class_x_q_pulser_driver_connector.html#a7ff9ce0fb1b511c113ea86a9d323ccb">00168</a> <a class="code" href="class_x_q_pulser_driver_connector.html#a7ff9ce0fb1b511c113ea86a9d323ccb">XQPulserDriverConnector::onPulseChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;)
+<a name="l00169"></a>00169 {
+<a name="l00170"></a>00170     shared_ptr&lt;XPulser&gt; pulser(<a class="code" href="class_x_q_pulser_driver_connector.html#718a96c394450b429c93ffbb73b8f5c7">m_pulser</a>);
+<a name="l00171"></a>00171 
+<a name="l00172"></a>00172     pulser-&gt;readLockRecord();
+<a name="l00173"></a>00173     
+<a name="l00174"></a>00174     <span class="keywordflow">if</span>(pulser-&gt;time()) {
+<a name="l00175"></a>00175         
+<a name="l00176"></a>00176         <a class="code" href="class_x_q_pulser_driver_connector.html#7dd12eb42cb02a98e6fb73b64f53bc24">m_pTable</a>-&gt;blockSignals(<span class="keyword">true</span>);
+<a name="l00177"></a>00177         <a class="code" href="class_x_q_pulser_driver_connector.html#7dd12eb42cb02a98e6fb73b64f53bc24">m_pTable</a>-&gt;setNumRows(pulser-&gt;m_relPatList.size());
+<a name="l00178"></a>00178         <span class="keywordtype">int</span> i = 0;
+<a name="l00179"></a>00179         <span class="keywordflow">for</span>(<a class="code" href="class_x_pulser.html#dcdcaab19a1309df00a3e0e31b2a5d0e">XPulser::RelPatListIterator</a> it = pulser-&gt;m_relPatList.begin();
+<a name="l00180"></a>00180                  it != pulser-&gt;m_relPatList.end(); it++)
+<a name="l00181"></a>00181         {
+<a name="l00182"></a>00182     <span class="comment">//        Form-&gt;tblPulse-&gt;insertRows(i);</span>
+<a name="l00183"></a>00183             <a class="code" href="class_x_q_pulser_driver_connector.html#7dd12eb42cb02a98e6fb73b64f53bc24">m_pTable</a>-&gt;setText(i, 0, QString().sprintf(<span class="stringliteral">"%.4f"</span>, it-&gt;time));
+<a name="l00184"></a>00184             <a class="code" href="class_x_q_pulser_driver_connector.html#7dd12eb42cb02a98e6fb73b64f53bc24">m_pTable</a>-&gt;setText(i, 1, QString().sprintf(<span class="stringliteral">"%.4f"</span>, it-&gt;toappear));
+<a name="l00185"></a>00185             QString s;
+<a name="l00186"></a>00186             uint32_t pat = it-&gt;pattern;
+<a name="l00187"></a>00187             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j = 0; j &lt; 16; j++) {
+<a name="l00188"></a>00188     <span class="comment">//            if(j != 0) s+= ",";</span>
+<a name="l00189"></a>00189                 s += (pat % 2) ? <span class="stringliteral">"1"</span> : <span class="stringliteral">"0"</span>;
+<a name="l00190"></a>00190                 pat /= 2;
+<a name="l00191"></a>00191             }
+<a name="l00192"></a>00192             m_pTable-&gt;setText(i, 2, s);
+<a name="l00193"></a>00193              i++;
+<a name="l00194"></a>00194         }
+<a name="l00195"></a>00195         m_pTable-&gt;blockSignals(<span class="keyword">false</span>);
+<a name="l00196"></a>00196         
+<a name="l00197"></a>00197         updateGraph(<span class="keyword">false</span>);
+<a name="l00198"></a>00198     }
+<a name="l00199"></a>00199     <span class="keywordflow">else</span> {
+<a name="l00200"></a>00200         m_pTable-&gt;setNumRows(0);
+<a name="l00201"></a>00201         <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XGraph&gt;</a> lock(*m_graph);
+<a name="l00202"></a>00202         <span class="keywordflow">for</span>(std::deque&lt;shared_ptr&lt;XXYPlot&gt; &gt;::iterator it = m_plots.begin();
+<a name="l00203"></a>00203                 it != m_plots.end(); it++) {
+<a name="l00204"></a>00204             (*it)-&gt;clearAllPoints();
+<a name="l00205"></a>00205         }
+<a name="l00206"></a>00206         m_barPlot-&gt;clearAllPoints();
+<a name="l00207"></a>00207         m_graph-&gt;requestUpdate();
+<a name="l00208"></a>00208     }
+<a name="l00209"></a>00209     
+<a name="l00210"></a>00210     pulser-&gt;readUnlockRecord();    
+<a name="l00211"></a>00211 }
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:52:29 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

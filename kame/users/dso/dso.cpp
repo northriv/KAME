@@ -259,7 +259,7 @@ XDSO::execute(const atomic<bool> &terminated)
       std::deque<std::string> channels;
       channels.push_back(trace1()->to_str());
       if(channels.front().empty()) {
-            gErrPrint(getLabel() + " " + i18n("Select traces!."));
+            gErrPrint(getLabel() + " " + KAME::i18n("Select traces!."));
             continue;
       }
       channels.push_back(trace2()->to_str());
@@ -286,7 +286,7 @@ XDSO::execute(const atomic<bool> &terminated)
           bool control_pulser = *m_foolAvgEnabled;
           if(control_pulser && !pulser) {
             control_pulser = false;
-            gErrPrint(getLabel() + ": " + i18n("No Pulser!"));
+            gErrPrint(getLabel() + ": " + KAME::i18n("No Pulser!"));
           }
           if(control_pulser && !(pulser->time() && (pulser->time() < time_awared)))
             control_pulser = false;
@@ -373,7 +373,7 @@ XDSO::analyzeRaw() throw (XRecordError&) {
      double  bandwidth = *firBandWidth()*1000.0*timeIntervalRecorded();
      double fir_sharpness = *firSharpness();
      if(fir_sharpness < 4.0)
-        m_statusPrinter->printWarning(i18n("Too small number of taps for FIR filter."));
+        m_statusPrinter->printWarning(KAME::i18n("Too small number of taps for FIR filter."));
      int taps = std::min((int)lrint(2 * fir_sharpness / bandwidth), 5000);
      m_fir.setupBPF(taps, bandwidth, *firCenterFreq() * 1000.0 * timeIntervalRecorded());
      unsigned int num_channels = numChannelsRecorded();

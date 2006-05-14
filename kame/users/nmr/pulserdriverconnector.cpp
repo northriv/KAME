@@ -62,7 +62,7 @@ XQPulserDriverConnector::XQPulserDriverConnector(
     {
       shared_ptr<XXYPlot> plot = m_graph->plots()->create<XXYPlot>(
             QString().sprintf("Port%d", i), true, m_graph);
-      plot->label()->value(QString().sprintf(i18n("Port%d"), i));
+      plot->label()->value(QString().sprintf(KAME::i18n("Port%d"), i));
       plot->axisX()->value(axisx);
       plot->axisY()->value(axisy);
       m_plots.push_back(plot);
@@ -73,7 +73,7 @@ XQPulserDriverConnector::XQPulserDriverConnector(
       plot->maxCount()->setUIEnabled(false);
     }
     m_barPlot = m_graph->plots()->create<XXYPlot>("Bars", true, m_graph);
-    m_barPlot->label()->value(i18n("Bars"));
+    m_barPlot->label()->value(KAME::i18n("Bars"));
     m_barPlot->axisX()->value(axisx);
     m_barPlot->axisY()->value(axisy);
     m_barPlot->drawBars()->value(true);
@@ -89,7 +89,7 @@ XQPulserDriverConnector::XQPulserDriverConnector(
     m_barPlot->clearPoints()->setUIEnabled(false);
     m_barPlot->maxCount()->setUIEnabled(false);
 
-    m_graph->label()->value(i18n("Pulse Patterns"));
+    m_graph->label()->value(KAME::i18n("Pulse Patterns"));
 }
 
 XQPulserDriverConnector::~XQPulserDriverConnector()

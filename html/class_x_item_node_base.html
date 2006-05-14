@@ -49,14 +49,9 @@ XItemNodeBaseに対する継承グラフ<p><center><img src="class_x_item_node_base__inhe
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="39cfe005d1fa4180d537c6816720d88d"></a><!-- doxytag: member="XItemNodeBase::~XItemNodeBase" ref="39cfe005d1fa4180d537c6816720d88d" args="()" -->
 virtual&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_item_node_base.html#39cfe005d1fa4180d537c6816720d88d">~XItemNodeBase</a> ()</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="9b6906cf4fdbf7248c24ef7ae744d3b1"></a><!-- doxytag: member="XItemNodeBase::operator[]" ref="9b6906cf4fdbf7248c24ef7ae744d3b1" args="(unsigned int index) const =0" -->
-virtual QString&nbsp;</td><td class="memItemRight" valign="bottom"><b>operator[]</b> (unsigned int index) const =0</td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="c6525da47b94e5ca00796fd61d29b0bb"></a><!-- doxytag: member="XItemNodeBase::itemCount" ref="c6525da47b94e5ca00796fd61d29b0bb" args="() const =0" -->
-virtual unsigned int&nbsp;</td><td class="memItemRight" valign="bottom"><b>itemCount</b> () const =0</td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="c2f59770deab8f4b79d0c9d67aa51871"></a><!-- doxytag: member="XItemNodeBase::listMutex" ref="c2f59770deab8f4b79d0c9d67aa51871" args="() const =0" -->
-virtual const <a class="el" href="class_x_recursive_r_w_lock.html">XRecursiveRWLock</a> &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><b>listMutex</b> () const =0</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a93c8b1b8c8b60102310a7e8fbcd78f2"></a><!-- doxytag: member="XItemNodeBase::itemStrings" ref="a93c8b1b8c8b60102310a7e8fbcd78f2" args="() const =0" -->
+virtual shared_ptr&lt; const <br>
+std::deque&lt; <a class="el" href="struct_x_item_node_base_1_1_item.html">Item</a> &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><b>itemStrings</b> () const =0</td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="8d13a06f34d3a409e58275760ecc65a6"></a><!-- doxytag: member="XItemNodeBase::onListChanged" ref="8d13a06f34d3a409e58275760ecc65a6" args="()" -->
 <a class="el" href="class_x_talker.html">XTalker</a>&lt; shared_ptr&lt; <a class="el" href="class_x_item_node_base.html">XItemNodeBase</a> &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_item_node_base.html#8d13a06f34d3a409e58275760ecc65a6">onListChanged</a> ()</td></tr>
@@ -69,6 +64,9 @@ virtual const <a class="el" href="class_x_recursive_r_w_lock.html">XRecursiveRWL
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="ea8fc432c83c4b2408f6684a13346687"></a><!-- doxytag: member="XItemNodeBase::m_tlkOnListChanged" ref="ea8fc432c83c4b2408f6684a13346687" args="" -->
 <a class="el" href="class_x_talker.html">XTalker</a>&lt; shared_ptr&lt; <a class="el" href="class_x_item_node_base.html">XItemNodeBase</a> &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_item_node_base.html#ea8fc432c83c4b2408f6684a13346687">m_tlkOnListChanged</a></td></tr>
 
+<tr><td colspan="2"><br><h2>構成</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">struct &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_x_item_node_base_1_1_item.html">Item</a></td></tr>
+
 </table>
 <hr><a name="_details"></a><h2>説明</h2>
 Posses a pointer to a member of a list 
@@ -77,7 +75,7 @@ Posses a pointer to a member of a list
 <p>
  <a class="el" href="xitemnode_8h-source.html">xitemnode.h</a> の <a class="el" href="xitemnode_8h-source.html#l00008">8</a> 行で定義されています。<hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/<a class="el" href="xitemnode_8h-source.html">xitemnode.h</a><li>kame/<a class="el" href="xitemnode_8cpp-source.html">xitemnode.cpp</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:50 2006に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:53:00 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

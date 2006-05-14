@@ -34,10 +34,18 @@ XDriverに対する継承グラフ<p><center><img src="class_x_driver__inherit__graph.png
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XDriverのコラボレーション図<p><center><img src="class_x_driver__coll__graph.png" border="0" usemap="#_x_driver__coll__map" alt="Collaboration graph"></center>
 <map name="_x_driver__coll__map">
-<area href="class_x_node.html" shape="rect" coords="141,98,202,125" alt="">
-<area href="class_x_recursive_r_w_lock.html" shape="rect" coords="10,8,152,34" alt="">
-<area href="class_x_talker.html" shape="rect" coords="226,98,448,125" alt="">
-<area href="class_x_time.html" shape="rect" coords="472,98,533,125" alt="">
+<area href="class_x_node.html" shape="rect" coords="553,295,614,322" alt="">
+<area href="class_x_talker.html" shape="rect" coords="253,189,469,215" alt="">
+<area href="class___x_talker_base.html" shape="rect" coords="341,98,445,125" alt="">
+<area href="class_x_talker.html" shape="rect" coords="8,189,229,215" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="93,98,317,125" alt="">
+<area href="structatomic__shared__ptr_1_1___ref_local.html" shape="rect" coords="162,7,392,34" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="469,98,677,125" alt="">
+<area href="class_x_mutex.html" shape="rect" coords="470,7,537,34" alt="">
+<area href="class_x_thread_local.html" shape="rect" coords="493,189,674,215" alt="">
+<area href="class_x_time.html" shape="rect" coords="638,295,700,322" alt="">
+<area href="class_x_recursive_r_w_lock.html" shape="rect" coords="814,295,956,322" alt="">
+<area href="class_x_thread_local.html" shape="rect" coords="813,189,1010,215" alt="">
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_driver-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
 <tr><td></td></tr>
@@ -149,7 +157,7 @@ clear time
 <p>
  <a class="el" href="driver_8cpp-source.html">driver.cpp</a> の <a class="el" href="driver_8cpp-source.html#l00029">29</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="xnode_8cpp-source.html#l00026">XNode::getName()</a>・<a class="el" href="driver_8h-source.html#l00090">m_recordTime</a>・<a class="el" href="support_8cpp-source.html#l00067">XKameError::print()</a>・<a class="el" href="class_x_driver.html#36060609da09707b1adb1cf488a3a5ee">start()</a>.    </td>
+参照先 <a class="el" href="xnode_8h-source.html#l00057">XNode::getLabel()</a>・<a class="el" href="driver_8h-source.html#l00090">m_recordTime</a>・<a class="el" href="support_8cpp-source.html#l00070">XKameError::print()</a>・<a class="el" href="class_x_driver.html#36060609da09707b1adb1cf488a3a5ee">start()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="272561abe4b87693f950697cb6f69e31"></a><!-- doxytag: member="XDriver::startRecording" ref="272561abe4b87693f950697cb6f69e31" args="(const XTime &amp;time_awared)" --><p>
@@ -184,7 +192,7 @@ writeLock record and readLock all dependent drivers <dl compact><dt><b>参照:</b>
 <p>
 参照先 <a class="el" href="driver_8h-source.html#l00092">m_awaredTime</a>・<a class="el" href="driver_8h-source.html#l00088">m_recordLock</a>・<a class="el" href="rwlock_8cpp-source.html#l00132">XRecursiveRWLock::writeLock()</a>.
 <p>
-参照元 <a class="el" href="primarydriver_8cpp-source.html#l00041">XPrimaryDriver::finishWritingRaw()</a>・<a class="el" href="secondarydriver_8cpp-source.html#l00050">XSecondaryDriver::onConnectedRecorded()</a>.    </td>
+参照元 <a class="el" href="primarydriver_8cpp-source.html#l00030">XPrimaryDriver::finishWritingRaw()</a>・<a class="el" href="secondarydriver_8cpp-source.html#l00050">XSecondaryDriver::onConnectedRecorded()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="d3f6ab51c0ec70d0a23993485118571f"></a><!-- doxytag: member="XDriver::stop" ref="d3f6ab51c0ec70d0a23993485118571f" args="()=0" --><p>
@@ -248,7 +256,7 @@ recorded time. time when phenomenon finished and recorded. analyses must be base
 <p>
 参照先 <a class="el" href="driver_8h-source.html#l00090">m_recordTime</a>.
 <p>
-参照元 <a class="el" href="signalgenerator_8cpp-source.html#l00089">XSG::onFreqChanged()</a>・<a class="el" href="pulserdriver_8cpp-source.html#l00546">XPulser::visualize()</a>・<a class="el" href="nmrspectrum_8cpp-source.html#l00185">XNMRSpectrum::visualize()</a>・<a class="el" href="nmrpulse_8cpp-source.html#l00595">XNMRPulseAnalyzer::visualize()</a>・<a class="el" href="nmrfspectrum_8cpp-source.html#l00215">XNMRFSpectrum::visualize()</a>・<a class="el" href="dso_8cpp-source.html#l00143">XDSO::visualize()</a>.    </td>
+参照元 <a class="el" href="signalgenerator_8cpp-source.html#l00089">XSG::onFreqChanged()</a>・<a class="el" href="pulserdriver_8cpp-source.html#l00559">XPulser::visualize()</a>・<a class="el" href="nmrspectrum_8cpp-source.html#l00188">XNMRSpectrum::visualize()</a>・<a class="el" href="nmrpulse_8cpp-source.html#l00599">XNMRPulseAnalyzer::visualize()</a>・<a class="el" href="nmrfspectrum_8cpp-source.html#l00218">XNMRFSpectrum::visualize()</a>・<a class="el" href="dso_8cpp-source.html#l00143">XDSO::visualize()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="b7339efb3bb35a84ef0358604b19d5dc"></a><!-- doxytag: member="XDriver::timeAwared" ref="b7339efb3bb35a84ef0358604b19d5dc" args="() const " --><p>
@@ -310,7 +318,7 @@ this is called after analyze() or analyzeRaw() record is readLocked
 <p>
 <a class="el" href="class_x_secondary_driver.html#47921915faa9431f4575450d091821ae">XSecondaryDriver</a>・<a class="el" href="class_x_d_c_source.html#1294b7146152618a90d5664199894d49">XDCSource</a>・<a class="el" href="class_x_d_m_m.html#bc74bba9d44eb6075af7f36d72edf8da">XDMM</a>・<a class="el" href="class_x_d_s_o.html#598ddbba9fdfdf0d8774da5a37db3887">XDSO</a>・<a class="el" href="class_x_func_synth.html#3d4a31a7423036d9f3c1b9216a62fce8">XFuncSynth</a>・<a class="el" href="class_x_l_i_a.html#a4f66d7bf6203497be62e8e6fc282655">XLIA</a>・<a class="el" href="class_x_magnet_p_s.html#1659abf2c519a787fa97776c76078236">XMagnetPS</a>・<a class="el" href="class_x_n_m_r_f_spectrum.html#2641a25ae89fd5f30bc2d67991db2f9f">XNMRFSpectrum</a>・<a class="el" href="class_x_n_m_r_pulse_analyzer.html#cb36f94c49398713f9d2c7e9be592d3d">XNMRPulseAnalyzer</a>・<a class="el" href="class_x_n_m_r_t1.html#8ac7d614a0b6571c9c59cab2811e7d96">XNMRT1</a>・<a class="el" href="class_x_n_m_r_spectrum.html#c1a8aaffe89531efcf173ca36413dcc2">XNMRSpectrum</a>・<a class="el" href="class_x_pulser.html#600f08daaae8338b32ec6bd6c33f1db7">XPulser</a>・<a class="el" href="class_x_s_g.html#5b1d579028b42b3e38755068efe5b34d">XSG</a>・<a class="el" href="class_x_temp_control.html#3810bd0ec979d9927e5b4d842d6f3e0a">XTempControl</a>・<a class="el" href="class_x_test_driver.html#dc64b074ceff93dde495ad03668d0bf2">XTestDriver</a>で実装されています。
 <p>
-参照元 <a class="el" href="primarydriver_8cpp-source.html#l00041">XPrimaryDriver::finishWritingRaw()</a>.    </td>
+参照元 <a class="el" href="primarydriver_8cpp-source.html#l00030">XPrimaryDriver::finishWritingRaw()</a>.    </td>
   </tr>
 </table>
 <hr><h2>変数</h2>
@@ -372,7 +380,7 @@ this is called after analyze() or analyzeRaw() record is readLocked
 </table>
 <hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/driver/<a class="el" href="driver_8h-source.html">driver.h</a><li>kame/driver/<a class="el" href="driver_8cpp-source.html">driver.cpp</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:48 2006に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:52:46 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

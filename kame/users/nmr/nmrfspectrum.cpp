@@ -45,15 +45,15 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
   connect(sg2());
   connect(pulse());
 
-  m_form->setCaption(i18n("NMR Spectrum (Freq. Sweep) - ") + getLabel() );
+  m_form->setCaption(KAME::i18n("NMR Spectrum (Freq. Sweep) - ") + getLabel() );
 
   {
       const char *labels[] = {"Freq [MHz]", "Re [V]", "Im [V]", "Counts"};
       m_spectrum->setColCount(4, labels);
       m_spectrum->selectAxes(0, 1, 2, 3);
-      m_spectrum->plot1()->label()->value(i18n("real part"));
+      m_spectrum->plot1()->label()->value(KAME::i18n("real part"));
       m_spectrum->plot1()->drawPoints()->value(false);
-      m_spectrum->plot2()->label()->value(i18n("imag. part"));
+      m_spectrum->plot2()->label()->value(KAME::i18n("imag. part"));
       m_spectrum->plot2()->drawPoints()->value(false);
       m_spectrum->clear();
   }
@@ -140,7 +140,7 @@ XNMRFSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
     double freq = _sg1->freqRecorded() - *sg1FreqOffset(); //MHz
     if(_sg2) {
         if(fabs(freq - (_sg2->freqRecorded() - *sg2FreqOffset())) > freq * 1e-6)
-            throw XRecordError(i18n("Conflicting freqs of 2 SGs."), __FILE__, __LINE__); 
+            throw XRecordError(KAME::i18n("Conflicting freqs of 2 SGs."), __FILE__, __LINE__); 
     }
     
   shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
@@ -153,10 +153,10 @@ XNMRFSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
   double freq_span = *freqSpan() * 1e-3; //MHz
   double freq_step = *freqStep() * 1e-3; //MHz
   if(cfreq <= freq_span/2) {
-    throw XRecordError(i18n("Invalid center freq."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Invalid center freq."), __FILE__, __LINE__);
   }
   if(freq_span <= freq_step*2) {
-    throw XRecordError(i18n("Too large freq. step."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Too large freq. step."), __FILE__, __LINE__);
   }
 
   bool clear = (m_timeClearRequested > _pulse->timeAwared());
@@ -164,13 +164,13 @@ XNMRFSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
   int len = _pulse->ftWave().size();
   double _df = _pulse->dFreq() * 1e-6; //MHz
   if((len == 0) || (_df == 0)) {
-    throw XRecordError(i18n("Invalid waveform."), __FILE__, __LINE__);  
+    throw XRecordError(KAME::i18n("Invalid waveform."), __FILE__, __LINE__);  
   }
   
   double freq_min = cfreq - freq_span/2;
   double freq_max = cfreq + freq_span/2;
 
-  if((df() != _df) || clear)
+  if((fabs(df() - _df) > 1e-6) || clear)
     {
       m_df = _df;
       m_wave.clear();
@@ -182,9 +182,10 @@ XNMRFSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
          m_counts.push_front(0);
     }
     for(int i = 0; i < rint(freq_min / df()) - rint(m_fMin / df()); i++) {
-         ASSERT(!m_wave.empty());
-         m_wave.pop_front();
-         m_counts.pop_front();
+         if(!m_wave.empty()) {
+             m_wave.pop_front();
+             m_counts.pop_front();
+         }
     }
   }
   m_fMin = freq_min;

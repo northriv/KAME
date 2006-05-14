@@ -3,7 +3,7 @@
 #include <klocale.h>
 
 XDriver::XBufferUnderflowRecordError::XBufferUnderflowRecordError(const char *file, int line) : 
-    XRecordError(i18n("Buffer Underflow."), file, line) {}
+    XRecordError(KAME::i18n("Buffer Underflow."), file, line) {}
 
 XDriverList::XDriverList(const char *name, bool runtime,
    const shared_ptr<XScalarEntryList> &scalarentries,

@@ -220,7 +220,7 @@ XMagnetPS::execute(const atomic<bool> &terminated)
                         {
                         //field is not sweeping, and persistent is allowed
                               m_statusPrinter->printMessage(getLabel() + " " + 
-                                    i18n("Turning on Perisistent mode."));
+                                    KAME::i18n("Turning on Perisistent mode."));
                               pcsh_time = XTime::now();
                               toPersistent();
                         }
@@ -229,23 +229,25 @@ XMagnetPS::execute(const atomic<bool> &terminated)
               else {
                 //pcs heater if off
                   if(fabs(magnet_field - *targetField()) >= field_resolution) {
+                    //start sweeping.
                       if(fabs(magnet_field - output_field) < field_resolution) {
                             if(fabs(target_field  - magnet_field) < field_resolution) {
+                            //ready to go non-persistent.
                                   m_statusPrinter->printMessage(getLabel() + " " + 
-                                        i18n("Non-Perisistent mode."));
+                                        KAME::i18n("Non-Perisistent mode."));
                                   double h = getPersistentField();
                                   if(fabs(h - output_field) > field_resolution)
                                         throw XInterface::XInterfaceError(getLabel() + 
-                                            i18n("Huh? Magnet field confusing."), __FILE__, __LINE__); 
+                                            KAME::i18n("Huh? Magnet field confusing."), __FILE__, __LINE__);
                                   pcsh_time = XTime::now();
                                   toNonPersistent();
                             }
                       }
                       else {
+                        //set output to persistent field.
                             if(pcsh_stable) {
-                                if(fabs(target_field  - magnet_field) >= field_resolution) {
+                                if(target_field != magnet_field)
                                     setPoint(magnet_field);
-                                }
                                 toSetPoint();  
                             }
                       }

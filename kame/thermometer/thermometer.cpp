@@ -210,7 +210,7 @@ XApproxThermometer
         }
         if(pts.size() < 4)
             throw XKameError(
-                i18n("XApproxThermometer, Too small number of points"), __FILE__, __LINE__);
+                KAME::i18n("XApproxThermometer, Too small number of points"), __FILE__, __LINE__);
         approx.reset(new CSplineApprox(pts));
         m_approx = approx;
     }
@@ -234,7 +234,7 @@ XApproxThermometer
         }
         if(pts.size() < 4)
             throw XKameError(
-                i18n("XApproxThermometer, Too small number of points"), __FILE__, __LINE__);
+                KAME::i18n("XApproxThermometer, Too small number of points"), __FILE__, __LINE__);
         approx.reset(new CSplineApprox(pts));
         m_approx_inv = approx;
     }

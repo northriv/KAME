@@ -310,7 +310,7 @@ XSHPulser::pulseAdd(double msec, uint32_t pattern, bool firsttime)
   m_dmaTerm += msec;
   unsigned long pos_l = rintl(m_dmaTerm / DMA_PERIOD);
   if(pos_l >= 0x7000u)
-     throw XInterface::XInterfaceError(i18n("Too long DMA."), __FILE__, __LINE__);
+     throw XInterface::XInterfaceError(KAME::i18n("Too long DMA."), __FILE__, __LINE__);
   unsigned short pos = (unsigned short)pos_l;
   unsigned short len = (unsigned short)rintl(msec / DMA_PERIOD);
   if( ((m_lastPattern & pulsemask)/pulsebit == 0) && ((pattern & pulsemask)/pulsebit > 0) ) {
@@ -344,7 +344,7 @@ XSHPulser::changeOutput(bool output)
   if(output)
     {
       if(m_zippedPatterns.empty() )
-              throw XInterface::XInterfaceError(i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
+              throw XInterface::XInterfaceError(KAME::i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
       XScopedLock<XInterface> lock(*interface());
       for(unsigned int retry = 0; ; retry++) {
           try {
@@ -369,7 +369,7 @@ XSHPulser::changeOutput(bool output)
               if(interface()->scanf("%x", &ret) != 1)
                     throw XInterface::XConvError(__FILE__, __LINE__);
               if(ret != sum)
-                    throw XInterface::XInterfaceError(i18n("Pulser Check Sum Error"), __FILE__, __LINE__);
+                    throw XInterface::XInterfaceError(KAME::i18n("Pulser Check Sum Error"), __FILE__, __LINE__);
               interface()->send("$pon");
               interface()->receive();
               if((interface()->scanf("Pulse %2s", buf) != 1) || strncmp(buf, "On", 2))
@@ -377,7 +377,7 @@ XSHPulser::changeOutput(bool output)
           }
           catch (XKameError &e) {
               if(retry > 1) throw e;
-              e.print(getLabel() + ": " + i18n("try to continue") + ", ");
+              e.print(getLabel() + ": " + KAME::i18n("try to continue") + ", ");
               continue;
           }
           break;

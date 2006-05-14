@@ -35,45 +35,41 @@
 <a name="l00017"></a>00017   <a class="code" href="class_x_driver_list_connector.html#39f115ecf7182ce9b335c00fac62066f">XDriverListConnector</a>
 <a name="l00018"></a>00018   (<span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;node, FrmDriver *item);
 <a name="l00019"></a>00019  <span class="keyword">public</span>:
-<a name="l00020"></a>00020   <span class="keyword">virtual</span> <a class="code" href="class_x_driver_list_connector.html#f1492ebf5695274fc40ce21cb3b18645">~XDriverListConnector</a>();
+<a name="l00020"></a><a class="code" href="class_x_driver_list_connector.html#d8a2251f391eb577960df1808f279db7">00020</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_driver_list_connector.html#d8a2251f391eb577960df1808f279db7">~XDriverListConnector</a>() {}
 <a name="l00021"></a>00021  <span class="keyword">protected</span>:
-<a name="l00022"></a><a class="code" href="class_x_driver_list_connector.html#4a3308776a802c09771b9f272fa4e6c1">00022</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_driver_list_connector.html#4a3308776a802c09771b9f272fa4e6c1">onListChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XListNodeBase&gt; &amp;) {}
-<a name="l00023"></a>00023   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_driver_list_connector.html#a1cdafc0051549940ba8d06a8c34c161">onCatch</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
-<a name="l00024"></a>00024   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_driver_list_connector.html#232e1d0a0a463dc083104c3fdd9eb889">onRelease</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
-<a name="l00025"></a>00025  <span class="keyword">protected</span> slots:
-<a name="l00026"></a>00026     <span class="keywordtype">void</span> <a class="code" href="class_x_driver_list_connector.html#91a61af61bad2d09c81de2fc378e3076">clicked</a> ( <span class="keywordtype">int</span> row, <span class="keywordtype">int</span> col, <span class="keywordtype">int</span> button, <span class="keyword">const</span> QPoint&amp; );
-<a name="l00027"></a>00027  <span class="keyword">private</span>:
-<a name="l00028"></a><a class="code" href="class_x_driver_list_connector.html#8e47e6ffd2241720b119c2f1d45097ff">00028</a>   shared_ptr&lt;XDriverList&gt; <a class="code" href="class_x_driver_list_connector.html#8e47e6ffd2241720b119c2f1d45097ff">m_list</a>; 
-<a name="l00029"></a><a class="code" href="class_x_driver_list_connector.html#12c7fd023b2ffd14e1fa6883b5faad07">00029</a>   QTable *<a class="code" href="class_x_driver_list_connector.html#12c7fd023b2ffd14e1fa6883b5faad07">m_pItem</a>;
-<a name="l00030"></a>00030   
-<a name="l00031"></a><a class="code" href="class_x_driver_list_connector.html#3952f643a0853925146242fb7d4a475b">00031</a>   shared_ptr&lt;XNode&gt; <a class="code" href="class_x_driver_list_connector.html#fe79aeaa05cc366071a1a42fb0a133c4">m_create</a>, <a class="code" href="class_x_driver_list_connector.html#3952f643a0853925146242fb7d4a475b">m_release</a>;
-<a name="l00032"></a>00032   
-<a name="l00033"></a><a class="code" href="struct_x_driver_list_connector_1_1tcons.html">00033</a>   <span class="keyword">struct </span><a class="code" href="struct_x_driver_list_connector_1_1tcons.html">tcons</a> {
-<a name="l00034"></a><a class="code" href="struct_x_driver_list_connector_1_1tcons_1_1tlisttext.html">00034</a>     <span class="keyword">struct </span><a class="code" href="struct_x_driver_list_connector_1_1tcons_1_1tlisttext.html">tlisttext</a> {
-<a name="l00035"></a><a class="code" href="struct_x_driver_list_connector_1_1tcons_1_1tlisttext.html#b2bb0be9587c7e6463580e33d2064389">00035</a>         QLabel *<a class="code" href="struct_x_driver_list_connector_1_1tcons_1_1tlisttext.html#b2bb0be9587c7e6463580e33d2064389">label</a>;
-<a name="l00036"></a><a class="code" href="struct_x_driver_list_connector_1_1tcons_1_1tlisttext.html#e278c62285cf072ca6d41e06a2515ac4">00036</a>         shared_ptr&lt;QString&gt; <a class="code" href="struct_x_driver_list_connector_1_1tcons_1_1tlisttext.html#e278c62285cf072ca6d41e06a2515ac4">str</a>;
-<a name="l00037"></a>00037     };
-<a name="l00038"></a><a class="code" href="struct_x_driver_list_connector_1_1tcons.html#c3719c96868437ea6149175ac910c1b3">00038</a>     QLabel *<a class="code" href="struct_x_driver_list_connector_1_1tcons.html#c3719c96868437ea6149175ac910c1b3">label</a>;
-<a name="l00039"></a><a class="code" href="struct_x_driver_list_connector_1_1tcons.html#f1c4607f44ed00c20f2ed2376c8ca094">00039</a>     shared_ptr&lt;XDriver&gt; <a class="code" href="struct_x_driver_list_connector_1_1tcons.html#f1c4607f44ed00c20f2ed2376c8ca094">driver</a>;
-<a name="l00040"></a><a class="code" href="struct_x_driver_list_connector_1_1tcons.html#ae59aeaf395836b39a76f2e9c746abd2">00040</a>     shared_ptr&lt;XTalker&lt;tlisttext&gt; &gt; <a class="code" href="struct_x_driver_list_connector_1_1tcons.html#ae59aeaf395836b39a76f2e9c746abd2">tlkOnRecordRedirected</a>;
-<a name="l00041"></a><a class="code" href="struct_x_driver_list_connector_1_1tcons.html#b6e9def2079fdbb4dbf007580f54a6aa">00041</a>     shared_ptr&lt;XListener&gt; <a class="code" href="struct_x_driver_list_connector_1_1tcons.html#b6e9def2079fdbb4dbf007580f54a6aa">lsnOnRecordRedirected</a>;
-<a name="l00042"></a>00042     <span class="keywordtype">void</span> <a class="code" href="struct_x_driver_list_connector_1_1tcons.html#ceebf585650dd3c85ec1db321d9a99bc">onRecordRedirected</a>(<span class="keyword">const</span> <a class="code" href="struct_x_driver_list_connector_1_1tcons_1_1tlisttext.html">tlisttext</a> &amp;);
-<a name="l00043"></a>00043   };
-<a name="l00044"></a><a class="code" href="class_x_driver_list_connector.html#16af5d916d8190b3950fcd5027df6f53">00044</a>   <span class="keyword">typedef</span> std::deque&lt;shared_ptr&lt;tcons&gt; &gt; <a class="code" href="class_x_driver_list_connector.html#16af5d916d8190b3950fcd5027df6f53">tconslist</a>;
-<a name="l00045"></a><a class="code" href="class_x_driver_list_connector.html#3b46079023218e58e570e3e1dc4798b0">00045</a>   <a class="code" href="class_x_driver_list_connector.html#16af5d916d8190b3950fcd5027df6f53">tconslist</a> <a class="code" href="class_x_driver_list_connector.html#3b46079023218e58e570e3e1dc4798b0">m_cons</a>;
-<a name="l00046"></a>00046   
-<a name="l00047"></a><a class="code" href="class_x_driver_list_connector.html#0134b45105d7798afcef0cb88d4f7947">00047</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_driver_list_connector.html#0134b45105d7798afcef0cb88d4f7947">m_lsnOnRecord</a>;
-<a name="l00048"></a><a class="code" href="class_x_driver_list_connector.html#d9767334608695cea90e8277ece0c323">00048</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_driver_list_connector.html#a46f7b081abaa7a20f7a30927ca37fe9">m_lsnOnCreateTouched</a>, <a class="code" href="class_x_driver_list_connector.html#d9767334608695cea90e8277ece0c323">m_lsnOnReleaseTouched</a>;
-<a name="l00049"></a>00049   
-<a name="l00050"></a><a class="code" href="class_x_driver_list_connector.html#d7b8ae8d2e3dffd8d96c6e1dcc0ddf86">00050</a>   <a class="code" href="classqshared__ptr.html">xqcon_ptr</a> <a class="code" href="class_x_driver_list_connector.html#9630a28075c6ed3d4a42c473b28c4450">m_conCreate</a>, <a class="code" href="class_x_driver_list_connector.html#d7b8ae8d2e3dffd8d96c6e1dcc0ddf86">m_conRelease</a>;
-<a name="l00051"></a>00051   <span class="keywordtype">void</span> <a class="code" href="class_x_driver_list_connector.html#a9577c314e1915322f2917ffff3e5146">onRecord</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;driver);
-<a name="l00052"></a>00052   <span class="keywordtype">void</span> <a class="code" href="class_x_driver_list_connector.html#8d1c3fb1be7d85041e748d866d3c2042">onCreateTouched</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;);
-<a name="l00053"></a>00053   <span class="keywordtype">void</span> <a class="code" href="class_x_driver_list_connector.html#9311266663896177faf099cd4590c8ea">onReleaseTouched</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;);
-<a name="l00054"></a>00054 };
-<a name="l00055"></a>00055 
-<a name="l00056"></a>00056 
-<a name="l00057"></a>00057 <span class="preprocessor">#endif</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:43 2006に生成されました。&nbsp;
+<a name="l00022"></a>00022   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_driver_list_connector.html#a1cdafc0051549940ba8d06a8c34c161">onCatch</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
+<a name="l00023"></a>00023   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_driver_list_connector.html#232e1d0a0a463dc083104c3fdd9eb889">onRelease</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
+<a name="l00024"></a>00024  <span class="keyword">protected</span> slots:
+<a name="l00025"></a>00025     <span class="keywordtype">void</span> <a class="code" href="class_x_driver_list_connector.html#91a61af61bad2d09c81de2fc378e3076">clicked</a> ( <span class="keywordtype">int</span> row, <span class="keywordtype">int</span> col, <span class="keywordtype">int</span> button, <span class="keyword">const</span> QPoint&amp; );
+<a name="l00026"></a>00026  <span class="keyword">private</span>:
+<a name="l00027"></a><a class="code" href="class_x_driver_list_connector.html#3952f643a0853925146242fb7d4a475b">00027</a>   shared_ptr&lt;XNode&gt; <a class="code" href="class_x_driver_list_connector.html#fe79aeaa05cc366071a1a42fb0a133c4">m_create</a>, <a class="code" href="class_x_driver_list_connector.html#3952f643a0853925146242fb7d4a475b">m_release</a>;
+<a name="l00028"></a>00028   
+<a name="l00029"></a><a class="code" href="struct_x_driver_list_connector_1_1tcons.html">00029</a>   <span class="keyword">struct </span><a class="code" href="struct_x_driver_list_connector_1_1tcons.html">tcons</a> {
+<a name="l00030"></a><a class="code" href="struct_x_driver_list_connector_1_1tcons_1_1tlisttext.html">00030</a>     <span class="keyword">struct </span><a class="code" href="struct_x_driver_list_connector_1_1tcons_1_1tlisttext.html">tlisttext</a> {
+<a name="l00031"></a><a class="code" href="struct_x_driver_list_connector_1_1tcons_1_1tlisttext.html#b2bb0be9587c7e6463580e33d2064389">00031</a>         QLabel *<a class="code" href="struct_x_driver_list_connector_1_1tcons_1_1tlisttext.html#b2bb0be9587c7e6463580e33d2064389">label</a>;
+<a name="l00032"></a><a class="code" href="struct_x_driver_list_connector_1_1tcons_1_1tlisttext.html#a3000d86ad8b8c96c3d00c2b8f93f5ed">00032</a>         shared_ptr&lt;std::string&gt; <a class="code" href="struct_x_driver_list_connector_1_1tcons_1_1tlisttext.html#a3000d86ad8b8c96c3d00c2b8f93f5ed">str</a>;
+<a name="l00033"></a>00033     };
+<a name="l00034"></a><a class="code" href="struct_x_driver_list_connector_1_1tcons.html#c3719c96868437ea6149175ac910c1b3">00034</a>     QLabel *<a class="code" href="struct_x_driver_list_connector_1_1tcons.html#c3719c96868437ea6149175ac910c1b3">label</a>;
+<a name="l00035"></a><a class="code" href="struct_x_driver_list_connector_1_1tcons.html#f1c4607f44ed00c20f2ed2376c8ca094">00035</a>     shared_ptr&lt;XDriver&gt; <a class="code" href="struct_x_driver_list_connector_1_1tcons.html#f1c4607f44ed00c20f2ed2376c8ca094">driver</a>;
+<a name="l00036"></a><a class="code" href="struct_x_driver_list_connector_1_1tcons.html#ae59aeaf395836b39a76f2e9c746abd2">00036</a>     shared_ptr&lt;XTalker&lt;tlisttext&gt; &gt; <a class="code" href="struct_x_driver_list_connector_1_1tcons.html#ae59aeaf395836b39a76f2e9c746abd2">tlkOnRecordRedirected</a>;
+<a name="l00037"></a><a class="code" href="struct_x_driver_list_connector_1_1tcons.html#b6e9def2079fdbb4dbf007580f54a6aa">00037</a>     shared_ptr&lt;XListener&gt; <a class="code" href="struct_x_driver_list_connector_1_1tcons.html#b6e9def2079fdbb4dbf007580f54a6aa">lsnOnRecordRedirected</a>;
+<a name="l00038"></a>00038     <span class="keywordtype">void</span> <a class="code" href="struct_x_driver_list_connector_1_1tcons.html#ceebf585650dd3c85ec1db321d9a99bc">onRecordRedirected</a>(<span class="keyword">const</span> <a class="code" href="struct_x_driver_list_connector_1_1tcons_1_1tlisttext.html">tlisttext</a> &amp;);
+<a name="l00039"></a>00039   };
+<a name="l00040"></a><a class="code" href="class_x_driver_list_connector.html#16af5d916d8190b3950fcd5027df6f53">00040</a>   <span class="keyword">typedef</span> std::deque&lt;shared_ptr&lt;tcons&gt; &gt; <a class="code" href="class_x_driver_list_connector.html#16af5d916d8190b3950fcd5027df6f53">tconslist</a>;
+<a name="l00041"></a><a class="code" href="class_x_driver_list_connector.html#3b46079023218e58e570e3e1dc4798b0">00041</a>   <a class="code" href="class_x_driver_list_connector.html#16af5d916d8190b3950fcd5027df6f53">tconslist</a> <a class="code" href="class_x_driver_list_connector.html#3b46079023218e58e570e3e1dc4798b0">m_cons</a>;
+<a name="l00042"></a>00042   
+<a name="l00043"></a><a class="code" href="class_x_driver_list_connector.html#0134b45105d7798afcef0cb88d4f7947">00043</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_driver_list_connector.html#0134b45105d7798afcef0cb88d4f7947">m_lsnOnRecord</a>;
+<a name="l00044"></a><a class="code" href="class_x_driver_list_connector.html#d9767334608695cea90e8277ece0c323">00044</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_driver_list_connector.html#a46f7b081abaa7a20f7a30927ca37fe9">m_lsnOnCreateTouched</a>, <a class="code" href="class_x_driver_list_connector.html#d9767334608695cea90e8277ece0c323">m_lsnOnReleaseTouched</a>;
+<a name="l00045"></a>00045   
+<a name="l00046"></a><a class="code" href="class_x_driver_list_connector.html#d7b8ae8d2e3dffd8d96c6e1dcc0ddf86">00046</a>   <a class="code" href="classqshared__ptr.html">xqcon_ptr</a> <a class="code" href="class_x_driver_list_connector.html#9630a28075c6ed3d4a42c473b28c4450">m_conCreate</a>, <a class="code" href="class_x_driver_list_connector.html#d7b8ae8d2e3dffd8d96c6e1dcc0ddf86">m_conRelease</a>;
+<a name="l00047"></a>00047   <span class="keywordtype">void</span> <a class="code" href="class_x_driver_list_connector.html#a9577c314e1915322f2917ffff3e5146">onRecord</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;driver);
+<a name="l00048"></a>00048   <span class="keywordtype">void</span> <a class="code" href="class_x_driver_list_connector.html#8d1c3fb1be7d85041e748d866d3c2042">onCreateTouched</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;);
+<a name="l00049"></a>00049   <span class="keywordtype">void</span> <a class="code" href="class_x_driver_list_connector.html#9311266663896177faf099cd4590c8ea">onReleaseTouched</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;);
+<a name="l00050"></a>00050 };
+<a name="l00051"></a>00051 
+<a name="l00052"></a>00052 
+<a name="l00053"></a>00053 <span class="preprocessor">#endif</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:52:26 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

@@ -44,6 +44,8 @@ private:
   void gpib_spoll_before_write() throw (XInterface::XCommError &);
   void gpib_spoll_before_read() throw (XInterface::XCommError &);
   QString gpibStatus(const QString &msg);
+  unsigned int gpib_receive(unsigned int est_length, unsigned int max_length)
+     throw (XInterface::XCommError &);
   static int s_cntOpened;
   static XMutex s_lock;
 };

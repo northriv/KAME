@@ -63,203 +63,206 @@
 <a name="l00045"></a>00045   <a class="code" href="class_x_secondary_driver.html#4940486d2e02b927bc87db36a8d0fb34">connect</a>(<a class="code" href="class_x_n_m_r_f_spectrum.html#73f53df5e031708d5f01643b10419d16">sg2</a>());
 <a name="l00046"></a>00046   <a class="code" href="class_x_secondary_driver.html#4940486d2e02b927bc87db36a8d0fb34">connect</a>(<a class="code" href="class_x_n_m_r_f_spectrum.html#daf884bc952e2b60197534ab5bc28f26">pulse</a>());
 <a name="l00047"></a>00047 
-<a name="l00048"></a>00048   <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;setCaption(i18n(<span class="stringliteral">"NMR Spectrum (Freq. Sweep) - "</span>) + <a class="code" href="class_x_node.html#a80e1cda9a887e46bb4c322f9fb91978">getName</a>() );
+<a name="l00048"></a>00048   <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;setCaption(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"NMR Spectrum (Freq. Sweep) - "</span>) + <a class="code" href="class_x_node.html#84f0935a406e8f16042f80b9dcaaa722">getLabel</a>() );
 <a name="l00049"></a>00049 
 <a name="l00050"></a>00050   {
 <a name="l00051"></a>00051       <span class="keyword">const</span> <span class="keywordtype">char</span> *labels[] = {<span class="stringliteral">"Freq [MHz]"</span>, <span class="stringliteral">"Re [V]"</span>, <span class="stringliteral">"Im [V]"</span>, <span class="stringliteral">"Counts"</span>};
 <a name="l00052"></a>00052       <a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>-&gt;setColCount(4, labels);
 <a name="l00053"></a>00053       <a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>-&gt;selectAxes(0, 1, 2, 3);
-<a name="l00054"></a>00054       <a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>-&gt;plot1()-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
-<a name="l00055"></a>00055       <a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>-&gt;plot2()-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
-<a name="l00056"></a>00056       <a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>-&gt;clear();
-<a name="l00057"></a>00057   }
-<a name="l00058"></a>00058   
-<a name="l00059"></a>00059   <a class="code" href="class_x_n_m_r_f_spectrum.html#0983a74c240779e7cc5815fd93f9ca3c">centerFreq</a>()-&gt;value(20);
-<a name="l00060"></a>00060   <a class="code" href="class_x_n_m_r_f_spectrum.html#f1634eebc06dc2bbbdf2069b9f057560">bandWidth</a>()-&gt;value(50);
-<a name="l00061"></a>00061   <a class="code" href="class_x_n_m_r_f_spectrum.html#ff300730740ede397244cc4339221a43">sg1FreqOffset</a>()-&gt;value(700);
-<a name="l00062"></a>00062   <a class="code" href="class_x_n_m_r_f_spectrum.html#0592006b5bedc1135905f08a36610de9">sg2FreqOffset</a>()-&gt;value(700);
-<a name="l00063"></a>00063   <a class="code" href="class_x_n_m_r_f_spectrum.html#ef4f79d23fc8219bf88905bd36b27c6b">freqSpan</a>()-&gt;value(200);
-<a name="l00064"></a>00064   <a class="code" href="class_x_n_m_r_f_spectrum.html#e01941b8f7152d5a0b9af6a74378f78d">freqStep</a>()-&gt;value(1);
-<a name="l00065"></a>00065 
-<a name="l00066"></a>00066   <a class="code" href="class_x_n_m_r_f_spectrum.html#2dabc1b56f35c7770e41928c1951b106">m_lsnOnClear</a> = <a class="code" href="class_x_n_m_r_f_spectrum.html#80d4edb175ed3c12b96a223eb2127b77">m_clear</a>-&gt;onTouch().connectWeak(
-<a name="l00067"></a>00067                    <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_n_m_r_f_spectrum.html#0e1d68cc80e1623dcac57e6b75479763">XNMRFSpectrum::onClear</a>);
-<a name="l00068"></a>00068   <a class="code" href="class_x_n_m_r_f_spectrum.html#ce408fa7cb7660ac5ceb982aa340851e">m_lsnOnActiveChanged</a> = <a class="code" href="class_x_n_m_r_f_spectrum.html#803c392d984a2b71c08fc46b5c74e578">active</a>()-&gt;onValueChanged().connectWeak(  
-<a name="l00069"></a>00069                             <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_n_m_r_f_spectrum.html#72c0c2777a84c95629f5cdcf1f1f4566">XNMRFSpectrum::onActiveChanged</a>);
-<a name="l00070"></a>00070   <a class="code" href="class_x_n_m_r_f_spectrum.html#cece0b045959caf8593fd2bffa128c9d">m_lsnOnCondChanged</a> = <a class="code" href="class_x_n_m_r_f_spectrum.html#0983a74c240779e7cc5815fd93f9ca3c">centerFreq</a>()-&gt;onValueChanged().connectWeak(
-<a name="l00071"></a>00071                      <span class="keyword">true</span>, shared_from_this(), &amp;<a class="code" href="class_x_n_m_r_f_spectrum.html#23448b45501ddf44badeb671ef026c54">XNMRFSpectrum::onCondChanged</a>, <span class="keyword">true</span>);
-<a name="l00072"></a>00072   <a class="code" href="class_x_n_m_r_f_spectrum.html#11cfc8ecef35134491537b6dc60ed2f4">m_bandWidth</a>-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_f_spectrum.html#cece0b045959caf8593fd2bffa128c9d">m_lsnOnCondChanged</a>);
-<a name="l00073"></a>00073   <a class="code" href="class_x_n_m_r_f_spectrum.html#039a304e8c7bef7e48b045b3f6cd46db">m_freqSpan</a>-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_f_spectrum.html#cece0b045959caf8593fd2bffa128c9d">m_lsnOnCondChanged</a>);
-<a name="l00074"></a>00074   <a class="code" href="class_x_n_m_r_f_spectrum.html#e4b12a032b9b2352b78766831e5bf2b7">m_freqStep</a>-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_f_spectrum.html#cece0b045959caf8593fd2bffa128c9d">m_lsnOnCondChanged</a>);
-<a name="l00075"></a>00075 
-<a name="l00076"></a>00076   <a class="code" href="class_x_n_m_r_f_spectrum.html#b68e466a614907c9dde890fec60f0eac">m_conSG1FreqOffset</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_f_spectrum.html#2938458d5b71132f20d254b6bb4b0ed4">m_sg1FreqOffset</a>, <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;m_edSG1FreqOffset);
-<a name="l00077"></a>00077   <a class="code" href="class_x_n_m_r_f_spectrum.html#5ecd596a6bece6f8ede4ce9f35a7fafe">m_conSG2FreqOffset</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_f_spectrum.html#0cdc7e9247d631db17aca1aa66dad6b5">m_sg2FreqOffset</a>, <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;m_edSG2FreqOffset);
-<a name="l00078"></a>00078   <a class="code" href="class_x_n_m_r_f_spectrum.html#dc4283c5399ab968d154eb138e42cb1d">m_conCenterFreq</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_f_spectrum.html#ab664de4f4399a6721a5a16759dafcd8">m_centerFreq</a>, <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;m_edCenterFreq);
-<a name="l00079"></a>00079   <a class="code" href="class_x_n_m_r_f_spectrum.html#edbe9eb8547b9f59b35c0bee9c45a0fe">m_conBandWidth</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_f_spectrum.html#11cfc8ecef35134491537b6dc60ed2f4">m_bandWidth</a>, <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;m_edBW);
-<a name="l00080"></a>00080   <a class="code" href="class_x_n_m_r_f_spectrum.html#e4f08b9be6089e3f0183f9852dfbe563">m_conFreqSpan</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_f_spectrum.html#039a304e8c7bef7e48b045b3f6cd46db">m_freqSpan</a>, <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;m_edFreqSpan);
-<a name="l00081"></a>00081   <a class="code" href="class_x_n_m_r_f_spectrum.html#2cbf8aebe6e10b05e0062f22e6348292">m_conFreqStep</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_f_spectrum.html#e4b12a032b9b2352b78766831e5bf2b7">m_freqStep</a>, <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;m_edFreqStep);
-<a name="l00082"></a>00082   <a class="code" href="class_x_n_m_r_f_spectrum.html#552641d200253eb61aa7a1e6a126879b">m_conSG1</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_n_m_r_f_spectrum.html#de1044661c8899efd5f55bb9ccee4a37">m_sg1</a>, <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;m_cmbSG1);
-<a name="l00083"></a>00083   <a class="code" href="class_x_n_m_r_f_spectrum.html#a161facd9c911da1285f3cb0dea53163">m_conSG2</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_n_m_r_f_spectrum.html#c200741e973322e247f9c9d800e8f102">m_sg2</a>, <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;m_cmbSG2);
-<a name="l00084"></a>00084   <a class="code" href="class_x_n_m_r_f_spectrum.html#6d44340140c025c38929711231aaf0ba">m_conPulse</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_n_m_r_f_spectrum.html#443aed48dbce36d810b0afcfd254253f">m_pulse</a>, <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;m_cmbPulse);
-<a name="l00085"></a>00085   <a class="code" href="class_x_n_m_r_f_spectrum.html#546c58e4c6f0cc0d45df2440d82af73b">m_conActive</a> = xqcon_create&lt;XQToggleButtonConnector&gt;(<a class="code" href="class_x_n_m_r_f_spectrum.html#76901f1455444e37e81798c09c24c9a3">m_active</a>, <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;m_ckbActive);
-<a name="l00086"></a>00086   <a class="code" href="class_x_n_m_r_f_spectrum.html#b64394503d8602d8d4a7dd7df58ebcbf">m_conClear</a> = xqcon_create&lt;XQButtonConnector&gt;(<a class="code" href="class_x_n_m_r_f_spectrum.html#80d4edb175ed3c12b96a223eb2127b77">m_clear</a>, <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;m_btnClear);
-<a name="l00087"></a>00087 }
-<a name="l00088"></a>00088 <span class="keywordtype">void</span>
-<a name="l00089"></a><a class="code" href="class_x_n_m_r_f_spectrum.html#a0a7ff9f8842fe2f68315044c854bc82">00089</a> <a class="code" href="class_x_n_m_r_f_spectrum.html#a0a7ff9f8842fe2f68315044c854bc82">XNMRFSpectrum::showForms</a>()
-<a name="l00090"></a>00090 {
-<a name="l00091"></a>00091    <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;show();
-<a name="l00092"></a>00092    <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;raise();
-<a name="l00093"></a>00093 }
-<a name="l00094"></a>00094 <span class="keywordtype">void</span> 
-<a name="l00095"></a><a class="code" href="class_x_n_m_r_f_spectrum.html#23448b45501ddf44badeb671ef026c54">00095</a> <a class="code" href="class_x_n_m_r_f_spectrum.html#23448b45501ddf44badeb671ef026c54">XNMRFSpectrum::onCondChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
-<a name="l00096"></a>00096 {
-<a name="l00097"></a>00097     <a class="code" href="class_x_secondary_driver.html#ef54cddf02a0087c01578988ffd33498">requestAnalysis</a>();
-<a name="l00098"></a>00098 }
-<a name="l00099"></a>00099 <span class="keywordtype">void</span>
-<a name="l00100"></a><a class="code" href="class_x_n_m_r_f_spectrum.html#0e1d68cc80e1623dcac57e6b75479763">00100</a> <a class="code" href="class_x_n_m_r_f_spectrum.html#0e1d68cc80e1623dcac57e6b75479763">XNMRFSpectrum::onClear</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;)
-<a name="l00101"></a>00101 {
-<a name="l00102"></a>00102     <a class="code" href="class_x_n_m_r_f_spectrum.html#a868178fc1d50d50a29a69bcfffadc8e">m_timeClearRequested</a> = <a class="code" href="class_x_time.html#c379a0eebc8202c724609985cf7782ac">XTime::now</a>();
-<a name="l00103"></a>00103     <a class="code" href="class_x_secondary_driver.html#ef54cddf02a0087c01578988ffd33498">requestAnalysis</a>();
-<a name="l00104"></a>00104 }
-<a name="l00105"></a>00105 <span class="keywordtype">void</span>
-<a name="l00106"></a><a class="code" href="class_x_n_m_r_f_spectrum.html#72c0c2777a84c95629f5cdcf1f1f4566">00106</a> <a class="code" href="class_x_n_m_r_f_spectrum.html#72c0c2777a84c95629f5cdcf1f1f4566">XNMRFSpectrum::onActiveChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
-<a name="l00107"></a>00107 {
-<a name="l00108"></a>00108     <span class="keywordflow">if</span>(*<a class="code" href="class_x_n_m_r_f_spectrum.html#803c392d984a2b71c08fc46b5c74e578">active</a>())    
-<a name="l00109"></a>00109     {
-<a name="l00110"></a>00110         shared_ptr&lt;XSG&gt; _sg1 = *<a class="code" href="class_x_n_m_r_f_spectrum.html#fccdb98bcb4ddda9b37b55e04af77c6c">sg1</a>();
-<a name="l00111"></a>00111         <span class="keywordflow">if</span>(_sg1) _sg1-&gt;freq()-&gt;value(*<a class="code" href="class_x_n_m_r_f_spectrum.html#0983a74c240779e7cc5815fd93f9ca3c">centerFreq</a>() - *<a class="code" href="class_x_n_m_r_f_spectrum.html#ef4f79d23fc8219bf88905bd36b27c6b">freqSpan</a>()/2e3 + *<a class="code" href="class_x_n_m_r_f_spectrum.html#ff300730740ede397244cc4339221a43">sg1FreqOffset</a>());
-<a name="l00112"></a>00112         shared_ptr&lt;XSG&gt; _sg2 = *<a class="code" href="class_x_n_m_r_f_spectrum.html#73f53df5e031708d5f01643b10419d16">sg2</a>();
-<a name="l00113"></a>00113         <span class="keywordflow">if</span>(_sg2) _sg2-&gt;freq()-&gt;value(*<a class="code" href="class_x_n_m_r_f_spectrum.html#0983a74c240779e7cc5815fd93f9ca3c">centerFreq</a>() - *<a class="code" href="class_x_n_m_r_f_spectrum.html#ef4f79d23fc8219bf88905bd36b27c6b">freqSpan</a>()/2e3 + *<a class="code" href="class_x_n_m_r_f_spectrum.html#0592006b5bedc1135905f08a36610de9">sg2FreqOffset</a>());
-<a name="l00114"></a>00114         <a class="code" href="class_x_n_m_r_f_spectrum.html#a868178fc1d50d50a29a69bcfffadc8e">m_timeClearRequested</a> = <a class="code" href="class_x_time.html#c379a0eebc8202c724609985cf7782ac">XTime::now</a>();
-<a name="l00115"></a>00115     }
-<a name="l00116"></a>00116 }
-<a name="l00117"></a>00117 <span class="keywordtype">bool</span>
-<a name="l00118"></a><a class="code" href="class_x_n_m_r_f_spectrum.html#8ea611fc950a0fb9e86a96ffe9022bed">00118</a> <a class="code" href="class_x_n_m_r_f_spectrum.html#8ea611fc950a0fb9e86a96ffe9022bed">XNMRFSpectrum::checkDependency</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;emitter)<span class="keyword"> const </span>{
-<a name="l00119"></a>00119     shared_ptr&lt;XSG&gt; _sg1 = *<a class="code" href="class_x_n_m_r_f_spectrum.html#fccdb98bcb4ddda9b37b55e04af77c6c">sg1</a>();
-<a name="l00120"></a>00120     shared_ptr&lt;XSG&gt; _sg2 = *<a class="code" href="class_x_n_m_r_f_spectrum.html#73f53df5e031708d5f01643b10419d16">sg2</a>();
-<a name="l00121"></a>00121     shared_ptr&lt;XNMRPulseAnalyzer&gt; _pulse = *<a class="code" href="class_x_n_m_r_f_spectrum.html#daf884bc952e2b60197534ab5bc28f26">pulse</a>();
-<a name="l00122"></a>00122     <span class="keywordflow">if</span>(!_sg1 || !_pulse) <span class="keywordflow">return</span> <span class="keyword">false</span>;
-<a name="l00123"></a>00123     <span class="keywordflow">if</span>(emitter == shared_from_this()) <span class="keywordflow">return</span> <span class="keyword">true</span>;
-<a name="l00124"></a>00124     <span class="keywordflow">if</span>(emitter != _pulse) <span class="keywordflow">return</span> <span class="keyword">false</span>;
-<a name="l00125"></a>00125     <span class="keywordflow">if</span>(_pulse-&gt;timeAwared() &lt; _sg1-&gt;time()) <span class="keywordflow">return</span> <span class="keyword">false</span>;
-<a name="l00126"></a>00126     <span class="keywordflow">if</span>(_sg2) {
-<a name="l00127"></a>00127         <span class="keywordflow">if</span>(_pulse-&gt;timeAwared() &lt; _sg2-&gt;time()) <span class="keywordflow">return</span> <span class="keyword">false</span>;
-<a name="l00128"></a>00128     }
-<a name="l00129"></a>00129     <span class="keywordflow">return</span> <span class="keyword">true</span>;
-<a name="l00130"></a>00130 }
-<a name="l00131"></a>00131 <span class="keywordtype">void</span>
-<a name="l00132"></a><a class="code" href="class_x_n_m_r_f_spectrum.html#e44a0669791140108ba4663ac3af4436">00132</a> <a class="code" href="class_x_n_m_r_f_spectrum.html#e44a0669791140108ba4663ac3af4436">XNMRFSpectrum::analyze</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;emitter) <span class="keywordflow">throw</span> (XRecordError&amp;)
-<a name="l00133"></a>00133 {
-<a name="l00134"></a>00134     shared_ptr&lt;XSG&gt; _sg1 = *sg1();
-<a name="l00135"></a>00135   ASSERT( _sg1 );
-<a name="l00136"></a>00136   ASSERT( _sg1-&gt;time() );
-<a name="l00137"></a>00137     shared_ptr&lt;XSG&gt; _sg2 = *sg2();
-<a name="l00138"></a>00138     <span class="keywordtype">double</span> freq = _sg1-&gt;freqRecorded() - *sg1FreqOffset(); <span class="comment">//MHz</span>
-<a name="l00139"></a>00139     <span class="keywordflow">if</span>(_sg2) {
-<a name="l00140"></a>00140         <span class="keywordflow">if</span>(fabs(freq - (_sg2-&gt;freqRecorded() - *sg2FreqOffset())) &gt; freq * 1e-6)
-<a name="l00141"></a>00141             <span class="keywordflow">throw</span> XRecordError(i18n(<span class="stringliteral">"Conflicting freqs of 2 SGs."</span>), __FILE__, __LINE__); 
-<a name="l00142"></a>00142     }
-<a name="l00143"></a>00143     
-<a name="l00144"></a>00144   shared_ptr&lt;XNMRPulseAnalyzer&gt; _pulse = *pulse();
-<a name="l00145"></a>00145   ASSERT( _pulse );
-<a name="l00146"></a>00146   ASSERT( _pulse-&gt;time() );
-<a name="l00147"></a>00147   ASSERT( emitter != _sg1 );
-<a name="l00148"></a>00148   ASSERT( emitter != _sg2 );
-<a name="l00149"></a>00149    
-<a name="l00150"></a>00150   <span class="keywordtype">double</span> cfreq = *centerFreq(); <span class="comment">//MHz</span>
-<a name="l00151"></a>00151   <span class="keywordtype">double</span> freq_span = *freqSpan() * 1e-3; <span class="comment">//MHz</span>
-<a name="l00152"></a>00152   <span class="keywordtype">double</span> freq_step = *freqStep() * 1e-3; <span class="comment">//MHz</span>
-<a name="l00153"></a>00153   <span class="keywordflow">if</span>(cfreq &lt;= freq_span/2) {
-<a name="l00154"></a>00154     <span class="keywordflow">throw</span> XRecordError(i18n(<span class="stringliteral">"Invalid center freq."</span>), __FILE__, __LINE__);
-<a name="l00155"></a>00155   }
-<a name="l00156"></a>00156   <span class="keywordflow">if</span>(freq_span &lt;= freq_step*2) {
-<a name="l00157"></a>00157     <span class="keywordflow">throw</span> XRecordError(i18n(<span class="stringliteral">"Too large freq. step."</span>), __FILE__, __LINE__);
-<a name="l00158"></a>00158   }
-<a name="l00159"></a>00159 
-<a name="l00160"></a>00160   <span class="keywordtype">bool</span> clear = (m_timeClearRequested &gt; _pulse-&gt;timeAwared());
-<a name="l00161"></a>00161   
-<a name="l00162"></a>00162   <span class="keywordtype">int</span> len = _pulse-&gt;ftWave().size();
-<a name="l00163"></a>00163   <span class="keywordtype">double</span> _df = _pulse-&gt;dFreq() * 1e-6; <span class="comment">//MHz</span>
-<a name="l00164"></a>00164   <span class="keywordflow">if</span>((len == 0) || (_df == 0)) {
-<a name="l00165"></a>00165     <span class="keywordflow">throw</span> XRecordError(i18n(<span class="stringliteral">"Invalid waveform."</span>), __FILE__, __LINE__);  
-<a name="l00166"></a>00166   }
-<a name="l00167"></a>00167   
-<a name="l00168"></a>00168   <span class="keywordtype">double</span> freq_min = cfreq - freq_span/2;
-<a name="l00169"></a>00169   <span class="keywordtype">double</span> freq_max = cfreq + freq_span/2;
-<a name="l00170"></a>00170 
-<a name="l00171"></a>00171   <span class="keywordflow">if</span>((df() != _df) || clear)
-<a name="l00172"></a>00172     {
-<a name="l00173"></a>00173       m_df = _df;
-<a name="l00174"></a>00174       m_wave.clear();
-<a name="l00175"></a>00175       m_counts.clear();
-<a name="l00176"></a>00176     }
-<a name="l00177"></a>00177   <span class="keywordflow">else</span> {
-<a name="l00178"></a>00178     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; rint(m_fMin / df()) - rint(freq_min / df()); i++) {
-<a name="l00179"></a>00179          m_wave.push_front(0.0);
-<a name="l00180"></a>00180          m_counts.push_front(0);
-<a name="l00181"></a>00181     }
-<a name="l00182"></a>00182     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; rint(freq_min / df()) - rint(m_fMin / df()); i++) {
-<a name="l00183"></a>00183          ASSERT(!m_wave.empty());
-<a name="l00184"></a>00184          m_wave.pop_front();
-<a name="l00185"></a>00185          m_counts.pop_front();
-<a name="l00186"></a>00186     }
-<a name="l00187"></a>00187   }
-<a name="l00188"></a>00188   m_fMin = freq_min;
-<a name="l00189"></a>00189   <span class="keywordtype">int</span> length = lrint(freq_span / df());
-<a name="l00190"></a>00190   m_wave.resize(length, 0.0);
-<a name="l00191"></a>00191   m_counts.resize(length, 0);
-<a name="l00192"></a>00192 
-<a name="l00193"></a>00193   <span class="keywordflow">if</span>(emitter != _pulse) <span class="keywordflow">throw</span> XSkippedRecordError(__FILE__, __LINE__);
-<a name="l00194"></a>00194   <span class="keywordflow">if</span>(clear) <span class="keywordflow">throw</span> XSkippedRecordError(__FILE__, __LINE__);
-<a name="l00195"></a>00195   
-<a name="l00196"></a>00196   <span class="keywordtype">int</span> bw = lrint(*bandWidth() * 1e-3 / df());
-<a name="l00197"></a>00197   <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = std::max(0, (len - bw) / 2); i &lt; std::min(len, (len + bw) / 2); i++)
-<a name="l00198"></a>00198     {
-<a name="l00199"></a>00199       <span class="keywordtype">double</span> f = (i - len/2) * df(); <span class="comment">//MHz</span>
-<a name="l00200"></a>00200         add(freq + f, _pulse-&gt;ftWave()[i]);
-<a name="l00201"></a>00201     }
-<a name="l00202"></a>00202     
-<a name="l00203"></a>00203      <span class="comment">//set new freq</span>
-<a name="l00204"></a>00204    <span class="keywordflow">if</span>(*active())
-<a name="l00205"></a>00205    {
-<a name="l00206"></a>00206       <span class="keywordtype">double</span> newf = freq + freq_step; <span class="comment">//MHz</span>
-<a name="l00207"></a>00207     
-<a name="l00208"></a>00208       <span class="keywordflow">if</span>(_sg1) _sg1-&gt;freq()-&gt;value(newf + *sg1FreqOffset());
-<a name="l00209"></a>00209       <span class="keywordflow">if</span>(_sg2) _sg2-&gt;freq()-&gt;value(newf + *sg2FreqOffset());
-<a name="l00210"></a>00210       <span class="keywordflow">if</span>(newf &gt;= freq_max)
-<a name="l00211"></a>00211             active()-&gt;value(<span class="keyword">false</span>);
-<a name="l00212"></a>00212    }
-<a name="l00213"></a>00213 }
-<a name="l00214"></a>00214 <span class="keywordtype">void</span>
-<a name="l00215"></a><a class="code" href="class_x_n_m_r_f_spectrum.html#2641a25ae89fd5f30bc2d67991db2f9f">00215</a> <a class="code" href="class_x_n_m_r_f_spectrum.html#2641a25ae89fd5f30bc2d67991db2f9f">XNMRFSpectrum::visualize</a>()
-<a name="l00216"></a>00216 {
-<a name="l00217"></a>00217   <span class="keywordflow">if</span>(!<a class="code" href="class_x_driver.html#e2bb087696137545e44bde8eb06389b4">time</a>()) {
-<a name="l00218"></a>00218       <a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>-&gt;clear();
-<a name="l00219"></a>00219       <span class="keywordflow">return</span>;
-<a name="l00220"></a>00220   }
-<a name="l00221"></a>00221 
-<a name="l00222"></a>00222   <span class="keywordtype">int</span> length = <a class="code" href="class_x_n_m_r_f_spectrum.html#4f2aeb8f827a11d67091a1fb3c16831c">wave</a>().size();
-<a name="l00223"></a>00223   {   <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XWaveNGraph&gt;</a> lock(*<a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>);
-<a name="l00224"></a>00224       <a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>-&gt;setRowCount(length);
-<a name="l00225"></a>00225       <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; length; i++)
-<a name="l00226"></a>00226         {
-<a name="l00227"></a>00227           <a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>-&gt;cols(0)[i] = <a class="code" href="class_x_n_m_r_f_spectrum.html#83b7f3a4d42932372ff1560fff9a321a">fMin</a>() + i * <a class="code" href="class_x_n_m_r_f_spectrum.html#b49d46cadb08e37a0519f50bee49a323">df</a>();
-<a name="l00228"></a>00228           <a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>-&gt;cols(1)[i] = (<a class="code" href="class_x_n_m_r_f_spectrum.html#2ed4ac9c515dba46ba9a2ea8a0b7d3e3">counts</a>()[i] &gt; 0) ? std::real(<a class="code" href="class_x_n_m_r_f_spectrum.html#4f2aeb8f827a11d67091a1fb3c16831c">wave</a>()[i]) / <a class="code" href="class_x_n_m_r_f_spectrum.html#2ed4ac9c515dba46ba9a2ea8a0b7d3e3">counts</a>()[i] : 0;
-<a name="l00229"></a>00229           <a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>-&gt;cols(2)[i] = (<a class="code" href="class_x_n_m_r_f_spectrum.html#2ed4ac9c515dba46ba9a2ea8a0b7d3e3">counts</a>()[i] &gt; 0) ? std::imag(<a class="code" href="class_x_n_m_r_f_spectrum.html#4f2aeb8f827a11d67091a1fb3c16831c">wave</a>()[i]) / <a class="code" href="class_x_n_m_r_f_spectrum.html#2ed4ac9c515dba46ba9a2ea8a0b7d3e3">counts</a>()[i] : 0;
-<a name="l00230"></a>00230           <a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>-&gt;cols(3)[i] = <a class="code" href="class_x_n_m_r_f_spectrum.html#2ed4ac9c515dba46ba9a2ea8a0b7d3e3">counts</a>()[i];
-<a name="l00231"></a>00231         }
-<a name="l00232"></a>00232   }
-<a name="l00233"></a>00233 }
-<a name="l00234"></a>00234 
-<a name="l00235"></a>00235 <span class="keywordtype">void</span>
-<a name="l00236"></a><a class="code" href="class_x_n_m_r_f_spectrum.html#ad5cd29ee8f2983d1b766d0d968f73f0">00236</a> <a class="code" href="class_x_n_m_r_f_spectrum.html#ad5cd29ee8f2983d1b766d0d968f73f0">XNMRFSpectrum::add</a>(<span class="keywordtype">double</span> freq, std::complex&lt;double&gt; c)
-<a name="l00237"></a>00237 {
-<a name="l00238"></a>00238   <span class="keywordtype">int</span> idx = lrint((freq - <a class="code" href="class_x_n_m_r_f_spectrum.html#83b7f3a4d42932372ff1560fff9a321a">fMin</a>()) / <a class="code" href="class_x_n_m_r_f_spectrum.html#b49d46cadb08e37a0519f50bee49a323">df</a>());
-<a name="l00239"></a>00239   <span class="keywordflow">if</span>((idx &gt;= (<span class="keywordtype">int</span>)<a class="code" href="class_x_n_m_r_f_spectrum.html#4f2aeb8f827a11d67091a1fb3c16831c">wave</a>().size()) || (idx &lt; 0)) <span class="keywordflow">return</span>;
-<a name="l00240"></a>00240   <a class="code" href="class_x_n_m_r_f_spectrum.html#32b802d36f878bbd20a1f85132ca2fc3">m_wave</a>[idx] += c;
-<a name="l00241"></a>00241   <a class="code" href="class_x_n_m_r_f_spectrum.html#28368a32db43a9c5f9dd562a4081e83c">m_counts</a>[idx]++;
-<a name="l00242"></a>00242   <span class="keywordflow">return</span>;
-<a name="l00243"></a>00243 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:45 2006に生成されました。&nbsp;
+<a name="l00054"></a>00054       <a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>-&gt;plot1()-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"real part"</span>));
+<a name="l00055"></a>00055       <a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>-&gt;plot1()-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
+<a name="l00056"></a>00056       <a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>-&gt;plot2()-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"imag. part"</span>));
+<a name="l00057"></a>00057       <a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>-&gt;plot2()-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
+<a name="l00058"></a>00058       <a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>-&gt;clear();
+<a name="l00059"></a>00059   }
+<a name="l00060"></a>00060   
+<a name="l00061"></a>00061   <a class="code" href="class_x_n_m_r_f_spectrum.html#0983a74c240779e7cc5815fd93f9ca3c">centerFreq</a>()-&gt;value(20);
+<a name="l00062"></a>00062   <a class="code" href="class_x_n_m_r_f_spectrum.html#f1634eebc06dc2bbbdf2069b9f057560">bandWidth</a>()-&gt;value(50);
+<a name="l00063"></a>00063   <a class="code" href="class_x_n_m_r_f_spectrum.html#ff300730740ede397244cc4339221a43">sg1FreqOffset</a>()-&gt;value(700);
+<a name="l00064"></a>00064   <a class="code" href="class_x_n_m_r_f_spectrum.html#0592006b5bedc1135905f08a36610de9">sg2FreqOffset</a>()-&gt;value(700);
+<a name="l00065"></a>00065   <a class="code" href="class_x_n_m_r_f_spectrum.html#ef4f79d23fc8219bf88905bd36b27c6b">freqSpan</a>()-&gt;value(200);
+<a name="l00066"></a>00066   <a class="code" href="class_x_n_m_r_f_spectrum.html#e01941b8f7152d5a0b9af6a74378f78d">freqStep</a>()-&gt;value(1);
+<a name="l00067"></a>00067 
+<a name="l00068"></a>00068   <a class="code" href="class_x_n_m_r_f_spectrum.html#2dabc1b56f35c7770e41928c1951b106">m_lsnOnClear</a> = <a class="code" href="class_x_n_m_r_f_spectrum.html#80d4edb175ed3c12b96a223eb2127b77">m_clear</a>-&gt;onTouch().connectWeak(
+<a name="l00069"></a>00069                    <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_n_m_r_f_spectrum.html#0e1d68cc80e1623dcac57e6b75479763">XNMRFSpectrum::onClear</a>);
+<a name="l00070"></a>00070   <a class="code" href="class_x_n_m_r_f_spectrum.html#ce408fa7cb7660ac5ceb982aa340851e">m_lsnOnActiveChanged</a> = <a class="code" href="class_x_n_m_r_f_spectrum.html#803c392d984a2b71c08fc46b5c74e578">active</a>()-&gt;onValueChanged().connectWeak(  
+<a name="l00071"></a>00071                             <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_n_m_r_f_spectrum.html#72c0c2777a84c95629f5cdcf1f1f4566">XNMRFSpectrum::onActiveChanged</a>);
+<a name="l00072"></a>00072   <a class="code" href="class_x_n_m_r_f_spectrum.html#cece0b045959caf8593fd2bffa128c9d">m_lsnOnCondChanged</a> = <a class="code" href="class_x_n_m_r_f_spectrum.html#0983a74c240779e7cc5815fd93f9ca3c">centerFreq</a>()-&gt;onValueChanged().connectWeak(
+<a name="l00073"></a>00073                      <span class="keyword">true</span>, shared_from_this(), &amp;<a class="code" href="class_x_n_m_r_f_spectrum.html#23448b45501ddf44badeb671ef026c54">XNMRFSpectrum::onCondChanged</a>, <span class="keyword">true</span>);
+<a name="l00074"></a>00074   <a class="code" href="class_x_n_m_r_f_spectrum.html#11cfc8ecef35134491537b6dc60ed2f4">m_bandWidth</a>-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_f_spectrum.html#cece0b045959caf8593fd2bffa128c9d">m_lsnOnCondChanged</a>);
+<a name="l00075"></a>00075   <a class="code" href="class_x_n_m_r_f_spectrum.html#039a304e8c7bef7e48b045b3f6cd46db">m_freqSpan</a>-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_f_spectrum.html#cece0b045959caf8593fd2bffa128c9d">m_lsnOnCondChanged</a>);
+<a name="l00076"></a>00076   <a class="code" href="class_x_n_m_r_f_spectrum.html#e4b12a032b9b2352b78766831e5bf2b7">m_freqStep</a>-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_f_spectrum.html#cece0b045959caf8593fd2bffa128c9d">m_lsnOnCondChanged</a>);
+<a name="l00077"></a>00077 
+<a name="l00078"></a>00078   <a class="code" href="class_x_n_m_r_f_spectrum.html#b68e466a614907c9dde890fec60f0eac">m_conSG1FreqOffset</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_f_spectrum.html#2938458d5b71132f20d254b6bb4b0ed4">m_sg1FreqOffset</a>, <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;m_edSG1FreqOffset);
+<a name="l00079"></a>00079   <a class="code" href="class_x_n_m_r_f_spectrum.html#5ecd596a6bece6f8ede4ce9f35a7fafe">m_conSG2FreqOffset</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_f_spectrum.html#0cdc7e9247d631db17aca1aa66dad6b5">m_sg2FreqOffset</a>, <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;m_edSG2FreqOffset);
+<a name="l00080"></a>00080   <a class="code" href="class_x_n_m_r_f_spectrum.html#dc4283c5399ab968d154eb138e42cb1d">m_conCenterFreq</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_f_spectrum.html#ab664de4f4399a6721a5a16759dafcd8">m_centerFreq</a>, <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;m_edCenterFreq);
+<a name="l00081"></a>00081   <a class="code" href="class_x_n_m_r_f_spectrum.html#edbe9eb8547b9f59b35c0bee9c45a0fe">m_conBandWidth</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_f_spectrum.html#11cfc8ecef35134491537b6dc60ed2f4">m_bandWidth</a>, <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;m_edBW);
+<a name="l00082"></a>00082   <a class="code" href="class_x_n_m_r_f_spectrum.html#e4f08b9be6089e3f0183f9852dfbe563">m_conFreqSpan</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_f_spectrum.html#039a304e8c7bef7e48b045b3f6cd46db">m_freqSpan</a>, <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;m_edFreqSpan);
+<a name="l00083"></a>00083   <a class="code" href="class_x_n_m_r_f_spectrum.html#2cbf8aebe6e10b05e0062f22e6348292">m_conFreqStep</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_f_spectrum.html#e4b12a032b9b2352b78766831e5bf2b7">m_freqStep</a>, <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;m_edFreqStep);
+<a name="l00084"></a>00084   <a class="code" href="class_x_n_m_r_f_spectrum.html#552641d200253eb61aa7a1e6a126879b">m_conSG1</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_n_m_r_f_spectrum.html#de1044661c8899efd5f55bb9ccee4a37">m_sg1</a>, <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;m_cmbSG1);
+<a name="l00085"></a>00085   <a class="code" href="class_x_n_m_r_f_spectrum.html#a161facd9c911da1285f3cb0dea53163">m_conSG2</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_n_m_r_f_spectrum.html#c200741e973322e247f9c9d800e8f102">m_sg2</a>, <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;m_cmbSG2);
+<a name="l00086"></a>00086   <a class="code" href="class_x_n_m_r_f_spectrum.html#6d44340140c025c38929711231aaf0ba">m_conPulse</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_n_m_r_f_spectrum.html#443aed48dbce36d810b0afcfd254253f">m_pulse</a>, <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;m_cmbPulse);
+<a name="l00087"></a>00087   <a class="code" href="class_x_n_m_r_f_spectrum.html#546c58e4c6f0cc0d45df2440d82af73b">m_conActive</a> = xqcon_create&lt;XQToggleButtonConnector&gt;(<a class="code" href="class_x_n_m_r_f_spectrum.html#76901f1455444e37e81798c09c24c9a3">m_active</a>, <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;m_ckbActive);
+<a name="l00088"></a>00088   <a class="code" href="class_x_n_m_r_f_spectrum.html#b64394503d8602d8d4a7dd7df58ebcbf">m_conClear</a> = xqcon_create&lt;XQButtonConnector&gt;(<a class="code" href="class_x_n_m_r_f_spectrum.html#80d4edb175ed3c12b96a223eb2127b77">m_clear</a>, <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;m_btnClear);
+<a name="l00089"></a>00089 }
+<a name="l00090"></a>00090 <span class="keywordtype">void</span>
+<a name="l00091"></a><a class="code" href="class_x_n_m_r_f_spectrum.html#a0a7ff9f8842fe2f68315044c854bc82">00091</a> <a class="code" href="class_x_n_m_r_f_spectrum.html#a0a7ff9f8842fe2f68315044c854bc82">XNMRFSpectrum::showForms</a>()
+<a name="l00092"></a>00092 {
+<a name="l00093"></a>00093    <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;show();
+<a name="l00094"></a>00094    <a class="code" href="class_x_n_m_r_f_spectrum.html#274d6186e060e706d37cdbf4356a36b3">m_form</a>-&gt;raise();
+<a name="l00095"></a>00095 }
+<a name="l00096"></a>00096 <span class="keywordtype">void</span> 
+<a name="l00097"></a><a class="code" href="class_x_n_m_r_f_spectrum.html#23448b45501ddf44badeb671ef026c54">00097</a> <a class="code" href="class_x_n_m_r_f_spectrum.html#23448b45501ddf44badeb671ef026c54">XNMRFSpectrum::onCondChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
+<a name="l00098"></a>00098 {
+<a name="l00099"></a>00099     <a class="code" href="class_x_secondary_driver.html#ef54cddf02a0087c01578988ffd33498">requestAnalysis</a>();
+<a name="l00100"></a>00100 }
+<a name="l00101"></a>00101 <span class="keywordtype">void</span>
+<a name="l00102"></a><a class="code" href="class_x_n_m_r_f_spectrum.html#0e1d68cc80e1623dcac57e6b75479763">00102</a> <a class="code" href="class_x_n_m_r_f_spectrum.html#0e1d68cc80e1623dcac57e6b75479763">XNMRFSpectrum::onClear</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;)
+<a name="l00103"></a>00103 {
+<a name="l00104"></a>00104     <a class="code" href="class_x_n_m_r_f_spectrum.html#a868178fc1d50d50a29a69bcfffadc8e">m_timeClearRequested</a> = <a class="code" href="class_x_time.html#c379a0eebc8202c724609985cf7782ac">XTime::now</a>();
+<a name="l00105"></a>00105     <a class="code" href="class_x_secondary_driver.html#ef54cddf02a0087c01578988ffd33498">requestAnalysis</a>();
+<a name="l00106"></a>00106 }
+<a name="l00107"></a>00107 <span class="keywordtype">void</span>
+<a name="l00108"></a><a class="code" href="class_x_n_m_r_f_spectrum.html#72c0c2777a84c95629f5cdcf1f1f4566">00108</a> <a class="code" href="class_x_n_m_r_f_spectrum.html#72c0c2777a84c95629f5cdcf1f1f4566">XNMRFSpectrum::onActiveChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
+<a name="l00109"></a>00109 {
+<a name="l00110"></a>00110     <span class="keywordflow">if</span>(*<a class="code" href="class_x_n_m_r_f_spectrum.html#803c392d984a2b71c08fc46b5c74e578">active</a>())    
+<a name="l00111"></a>00111     {
+<a name="l00112"></a>00112         shared_ptr&lt;XSG&gt; _sg1 = *<a class="code" href="class_x_n_m_r_f_spectrum.html#fccdb98bcb4ddda9b37b55e04af77c6c">sg1</a>();
+<a name="l00113"></a>00113         <span class="keywordflow">if</span>(_sg1) _sg1-&gt;freq()-&gt;value(*<a class="code" href="class_x_n_m_r_f_spectrum.html#0983a74c240779e7cc5815fd93f9ca3c">centerFreq</a>() - *<a class="code" href="class_x_n_m_r_f_spectrum.html#ef4f79d23fc8219bf88905bd36b27c6b">freqSpan</a>()/2e3 + *<a class="code" href="class_x_n_m_r_f_spectrum.html#ff300730740ede397244cc4339221a43">sg1FreqOffset</a>());
+<a name="l00114"></a>00114         shared_ptr&lt;XSG&gt; _sg2 = *<a class="code" href="class_x_n_m_r_f_spectrum.html#73f53df5e031708d5f01643b10419d16">sg2</a>();
+<a name="l00115"></a>00115         <span class="keywordflow">if</span>(_sg2) _sg2-&gt;freq()-&gt;value(*<a class="code" href="class_x_n_m_r_f_spectrum.html#0983a74c240779e7cc5815fd93f9ca3c">centerFreq</a>() - *<a class="code" href="class_x_n_m_r_f_spectrum.html#ef4f79d23fc8219bf88905bd36b27c6b">freqSpan</a>()/2e3 + *<a class="code" href="class_x_n_m_r_f_spectrum.html#0592006b5bedc1135905f08a36610de9">sg2FreqOffset</a>());
+<a name="l00116"></a>00116         <a class="code" href="class_x_n_m_r_f_spectrum.html#a868178fc1d50d50a29a69bcfffadc8e">m_timeClearRequested</a> = <a class="code" href="class_x_time.html#c379a0eebc8202c724609985cf7782ac">XTime::now</a>();
+<a name="l00117"></a>00117     }
+<a name="l00118"></a>00118 }
+<a name="l00119"></a>00119 <span class="keywordtype">bool</span>
+<a name="l00120"></a><a class="code" href="class_x_n_m_r_f_spectrum.html#8ea611fc950a0fb9e86a96ffe9022bed">00120</a> <a class="code" href="class_x_n_m_r_f_spectrum.html#8ea611fc950a0fb9e86a96ffe9022bed">XNMRFSpectrum::checkDependency</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;emitter)<span class="keyword"> const </span>{
+<a name="l00121"></a>00121     shared_ptr&lt;XSG&gt; _sg1 = *<a class="code" href="class_x_n_m_r_f_spectrum.html#fccdb98bcb4ddda9b37b55e04af77c6c">sg1</a>();
+<a name="l00122"></a>00122     shared_ptr&lt;XSG&gt; _sg2 = *<a class="code" href="class_x_n_m_r_f_spectrum.html#73f53df5e031708d5f01643b10419d16">sg2</a>();
+<a name="l00123"></a>00123     shared_ptr&lt;XNMRPulseAnalyzer&gt; _pulse = *<a class="code" href="class_x_n_m_r_f_spectrum.html#daf884bc952e2b60197534ab5bc28f26">pulse</a>();
+<a name="l00124"></a>00124     <span class="keywordflow">if</span>(!_sg1 || !_pulse) <span class="keywordflow">return</span> <span class="keyword">false</span>;
+<a name="l00125"></a>00125     <span class="keywordflow">if</span>(emitter == shared_from_this()) <span class="keywordflow">return</span> <span class="keyword">true</span>;
+<a name="l00126"></a>00126     <span class="keywordflow">if</span>(emitter != _pulse) <span class="keywordflow">return</span> <span class="keyword">false</span>;
+<a name="l00127"></a>00127     <span class="keywordflow">if</span>(_pulse-&gt;timeAwared() &lt; _sg1-&gt;time()) <span class="keywordflow">return</span> <span class="keyword">false</span>;
+<a name="l00128"></a>00128     <span class="keywordflow">if</span>(_sg2) {
+<a name="l00129"></a>00129         <span class="keywordflow">if</span>(_pulse-&gt;timeAwared() &lt; _sg2-&gt;time()) <span class="keywordflow">return</span> <span class="keyword">false</span>;
+<a name="l00130"></a>00130     }
+<a name="l00131"></a>00131     <span class="keywordflow">return</span> <span class="keyword">true</span>;
+<a name="l00132"></a>00132 }
+<a name="l00133"></a>00133 <span class="keywordtype">void</span>
+<a name="l00134"></a><a class="code" href="class_x_n_m_r_f_spectrum.html#e44a0669791140108ba4663ac3af4436">00134</a> <a class="code" href="class_x_n_m_r_f_spectrum.html#e44a0669791140108ba4663ac3af4436">XNMRFSpectrum::analyze</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;emitter) <span class="keywordflow">throw</span> (XRecordError&amp;)
+<a name="l00135"></a>00135 {
+<a name="l00136"></a>00136     shared_ptr&lt;XSG&gt; _sg1 = *sg1();
+<a name="l00137"></a>00137   ASSERT( _sg1 );
+<a name="l00138"></a>00138   ASSERT( _sg1-&gt;time() );
+<a name="l00139"></a>00139     shared_ptr&lt;XSG&gt; _sg2 = *sg2();
+<a name="l00140"></a>00140     <span class="keywordtype">double</span> freq = _sg1-&gt;freqRecorded() - *sg1FreqOffset(); <span class="comment">//MHz</span>
+<a name="l00141"></a>00141     <span class="keywordflow">if</span>(_sg2) {
+<a name="l00142"></a>00142         <span class="keywordflow">if</span>(fabs(freq - (_sg2-&gt;freqRecorded() - *sg2FreqOffset())) &gt; freq * 1e-6)
+<a name="l00143"></a>00143             <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Conflicting freqs of 2 SGs."</span>), __FILE__, __LINE__); 
+<a name="l00144"></a>00144     }
+<a name="l00145"></a>00145     
+<a name="l00146"></a>00146   shared_ptr&lt;XNMRPulseAnalyzer&gt; _pulse = *pulse();
+<a name="l00147"></a>00147   ASSERT( _pulse );
+<a name="l00148"></a>00148   ASSERT( _pulse-&gt;time() );
+<a name="l00149"></a>00149   ASSERT( emitter != _sg1 );
+<a name="l00150"></a>00150   ASSERT( emitter != _sg2 );
+<a name="l00151"></a>00151    
+<a name="l00152"></a>00152   <span class="keywordtype">double</span> cfreq = *centerFreq(); <span class="comment">//MHz</span>
+<a name="l00153"></a>00153   <span class="keywordtype">double</span> freq_span = *freqSpan() * 1e-3; <span class="comment">//MHz</span>
+<a name="l00154"></a>00154   <span class="keywordtype">double</span> freq_step = *freqStep() * 1e-3; <span class="comment">//MHz</span>
+<a name="l00155"></a>00155   <span class="keywordflow">if</span>(cfreq &lt;= freq_span/2) {
+<a name="l00156"></a>00156     <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Invalid center freq."</span>), __FILE__, __LINE__);
+<a name="l00157"></a>00157   }
+<a name="l00158"></a>00158   <span class="keywordflow">if</span>(freq_span &lt;= freq_step*2) {
+<a name="l00159"></a>00159     <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Too large freq. step."</span>), __FILE__, __LINE__);
+<a name="l00160"></a>00160   }
+<a name="l00161"></a>00161 
+<a name="l00162"></a>00162   <span class="keywordtype">bool</span> clear = (m_timeClearRequested &gt; _pulse-&gt;timeAwared());
+<a name="l00163"></a>00163   
+<a name="l00164"></a>00164   <span class="keywordtype">int</span> len = _pulse-&gt;ftWave().size();
+<a name="l00165"></a>00165   <span class="keywordtype">double</span> _df = _pulse-&gt;dFreq() * 1e-6; <span class="comment">//MHz</span>
+<a name="l00166"></a>00166   <span class="keywordflow">if</span>((len == 0) || (_df == 0)) {
+<a name="l00167"></a>00167     <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Invalid waveform."</span>), __FILE__, __LINE__);  
+<a name="l00168"></a>00168   }
+<a name="l00169"></a>00169   
+<a name="l00170"></a>00170   <span class="keywordtype">double</span> freq_min = cfreq - freq_span/2;
+<a name="l00171"></a>00171   <span class="keywordtype">double</span> freq_max = cfreq + freq_span/2;
+<a name="l00172"></a>00172 
+<a name="l00173"></a>00173   <span class="keywordflow">if</span>((fabs(df() - _df) &gt; 1e-6) || clear)
+<a name="l00174"></a>00174     {
+<a name="l00175"></a>00175       m_df = _df;
+<a name="l00176"></a>00176       m_wave.clear();
+<a name="l00177"></a>00177       m_counts.clear();
+<a name="l00178"></a>00178     }
+<a name="l00179"></a>00179   <span class="keywordflow">else</span> {
+<a name="l00180"></a>00180     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; rint(m_fMin / df()) - rint(freq_min / df()); i++) {
+<a name="l00181"></a>00181          m_wave.push_front(0.0);
+<a name="l00182"></a>00182          m_counts.push_front(0);
+<a name="l00183"></a>00183     }
+<a name="l00184"></a>00184     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; rint(freq_min / df()) - rint(m_fMin / df()); i++) {
+<a name="l00185"></a>00185          <span class="keywordflow">if</span>(!m_wave.empty()) {
+<a name="l00186"></a>00186              m_wave.pop_front();
+<a name="l00187"></a>00187              m_counts.pop_front();
+<a name="l00188"></a>00188          }
+<a name="l00189"></a>00189     }
+<a name="l00190"></a>00190   }
+<a name="l00191"></a>00191   m_fMin = freq_min;
+<a name="l00192"></a>00192   <span class="keywordtype">int</span> length = lrint(freq_span / df());
+<a name="l00193"></a>00193   m_wave.resize(length, 0.0);
+<a name="l00194"></a>00194   m_counts.resize(length, 0);
+<a name="l00195"></a>00195 
+<a name="l00196"></a>00196   <span class="keywordflow">if</span>(emitter != _pulse) <span class="keywordflow">throw</span> XSkippedRecordError(__FILE__, __LINE__);
+<a name="l00197"></a>00197   <span class="keywordflow">if</span>(clear) <span class="keywordflow">throw</span> XSkippedRecordError(__FILE__, __LINE__);
+<a name="l00198"></a>00198   
+<a name="l00199"></a>00199   <span class="keywordtype">int</span> bw = lrint(*bandWidth() * 1e-3 / df());
+<a name="l00200"></a>00200   <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = std::max(0, (len - bw) / 2); i &lt; std::min(len, (len + bw) / 2); i++)
+<a name="l00201"></a>00201     {
+<a name="l00202"></a>00202       <span class="keywordtype">double</span> f = (i - len/2) * df(); <span class="comment">//MHz</span>
+<a name="l00203"></a>00203         add(freq + f, _pulse-&gt;ftWave()[i]);
+<a name="l00204"></a>00204     }
+<a name="l00205"></a>00205     
+<a name="l00206"></a>00206      <span class="comment">//set new freq</span>
+<a name="l00207"></a>00207    <span class="keywordflow">if</span>(*active())
+<a name="l00208"></a>00208    {
+<a name="l00209"></a>00209       <span class="keywordtype">double</span> newf = freq + freq_step; <span class="comment">//MHz</span>
+<a name="l00210"></a>00210     
+<a name="l00211"></a>00211       <span class="keywordflow">if</span>(_sg1) _sg1-&gt;freq()-&gt;value(newf + *sg1FreqOffset());
+<a name="l00212"></a>00212       <span class="keywordflow">if</span>(_sg2) _sg2-&gt;freq()-&gt;value(newf + *sg2FreqOffset());
+<a name="l00213"></a>00213       <span class="keywordflow">if</span>(newf &gt;= freq_max)
+<a name="l00214"></a>00214             active()-&gt;value(<span class="keyword">false</span>);
+<a name="l00215"></a>00215    }
+<a name="l00216"></a>00216 }
+<a name="l00217"></a>00217 <span class="keywordtype">void</span>
+<a name="l00218"></a><a class="code" href="class_x_n_m_r_f_spectrum.html#2641a25ae89fd5f30bc2d67991db2f9f">00218</a> <a class="code" href="class_x_n_m_r_f_spectrum.html#2641a25ae89fd5f30bc2d67991db2f9f">XNMRFSpectrum::visualize</a>()
+<a name="l00219"></a>00219 {
+<a name="l00220"></a>00220   <span class="keywordflow">if</span>(!<a class="code" href="class_x_driver.html#e2bb087696137545e44bde8eb06389b4">time</a>()) {
+<a name="l00221"></a>00221       <a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>-&gt;clear();
+<a name="l00222"></a>00222       <span class="keywordflow">return</span>;
+<a name="l00223"></a>00223   }
+<a name="l00224"></a>00224 
+<a name="l00225"></a>00225   <span class="keywordtype">int</span> length = <a class="code" href="class_x_n_m_r_f_spectrum.html#4f2aeb8f827a11d67091a1fb3c16831c">wave</a>().size();
+<a name="l00226"></a>00226   {   <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XWaveNGraph&gt;</a> lock(*<a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>);
+<a name="l00227"></a>00227       <a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>-&gt;setRowCount(length);
+<a name="l00228"></a>00228       <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; length; i++)
+<a name="l00229"></a>00229         {
+<a name="l00230"></a>00230           <a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>-&gt;cols(0)[i] = <a class="code" href="class_x_n_m_r_f_spectrum.html#83b7f3a4d42932372ff1560fff9a321a">fMin</a>() + i * <a class="code" href="class_x_n_m_r_f_spectrum.html#b49d46cadb08e37a0519f50bee49a323">df</a>();
+<a name="l00231"></a>00231           <a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>-&gt;cols(1)[i] = (<a class="code" href="class_x_n_m_r_f_spectrum.html#2ed4ac9c515dba46ba9a2ea8a0b7d3e3">counts</a>()[i] &gt; 0) ? std::real(<a class="code" href="class_x_n_m_r_f_spectrum.html#4f2aeb8f827a11d67091a1fb3c16831c">wave</a>()[i]) / <a class="code" href="class_x_n_m_r_f_spectrum.html#2ed4ac9c515dba46ba9a2ea8a0b7d3e3">counts</a>()[i] : 0;
+<a name="l00232"></a>00232           <a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>-&gt;cols(2)[i] = (<a class="code" href="class_x_n_m_r_f_spectrum.html#2ed4ac9c515dba46ba9a2ea8a0b7d3e3">counts</a>()[i] &gt; 0) ? std::imag(<a class="code" href="class_x_n_m_r_f_spectrum.html#4f2aeb8f827a11d67091a1fb3c16831c">wave</a>()[i]) / <a class="code" href="class_x_n_m_r_f_spectrum.html#2ed4ac9c515dba46ba9a2ea8a0b7d3e3">counts</a>()[i] : 0;
+<a name="l00233"></a>00233           <a class="code" href="class_x_n_m_r_f_spectrum.html#2d4b5cb229eedee67bc38af91f2ada39">m_spectrum</a>-&gt;cols(3)[i] = <a class="code" href="class_x_n_m_r_f_spectrum.html#2ed4ac9c515dba46ba9a2ea8a0b7d3e3">counts</a>()[i];
+<a name="l00234"></a>00234         }
+<a name="l00235"></a>00235   }
+<a name="l00236"></a>00236 }
+<a name="l00237"></a>00237 
+<a name="l00238"></a>00238 <span class="keywordtype">void</span>
+<a name="l00239"></a><a class="code" href="class_x_n_m_r_f_spectrum.html#ad5cd29ee8f2983d1b766d0d968f73f0">00239</a> <a class="code" href="class_x_n_m_r_f_spectrum.html#ad5cd29ee8f2983d1b766d0d968f73f0">XNMRFSpectrum::add</a>(<span class="keywordtype">double</span> freq, std::complex&lt;double&gt; c)
+<a name="l00240"></a>00240 {
+<a name="l00241"></a>00241   <span class="keywordtype">int</span> idx = lrint((freq - <a class="code" href="class_x_n_m_r_f_spectrum.html#83b7f3a4d42932372ff1560fff9a321a">fMin</a>()) / <a class="code" href="class_x_n_m_r_f_spectrum.html#b49d46cadb08e37a0519f50bee49a323">df</a>());
+<a name="l00242"></a>00242   <span class="keywordflow">if</span>((idx &gt;= (<span class="keywordtype">int</span>)<a class="code" href="class_x_n_m_r_f_spectrum.html#4f2aeb8f827a11d67091a1fb3c16831c">wave</a>().size()) || (idx &lt; 0)) <span class="keywordflow">return</span>;
+<a name="l00243"></a>00243   <a class="code" href="class_x_n_m_r_f_spectrum.html#32b802d36f878bbd20a1f85132ca2fc3">m_wave</a>[idx] += c;
+<a name="l00244"></a>00244   <a class="code" href="class_x_n_m_r_f_spectrum.html#28368a32db43a9c5f9dd562a4081e83c">m_counts</a>[idx]++;
+<a name="l00245"></a>00245   <span class="keywordflow">return</span>;
+<a name="l00246"></a>00246 }
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:52:28 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

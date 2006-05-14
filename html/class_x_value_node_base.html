@@ -39,23 +39,36 @@ XValueNodeBaseに対する継承グラフ<p><center><img src="class_x_value_node_base__in
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XValueNodeBaseのコラボレーション図<p><center><img src="class_x_value_node_base__coll__graph.png" border="0" usemap="#_x_value_node_base__coll__map" alt="Collaboration graph"></center>
 <map name="_x_value_node_base__coll__map">
-<area href="class_x_node.html" shape="rect" coords="8,7,69,34" alt="">
-<area href="class_x_talker.html" shape="rect" coords="93,7,373,34" alt="">
+<area href="class_x_node.html" shape="rect" coords="270,496,332,522" alt="">
+<area href="class_x_talker.html" shape="rect" coords="328,386,544,413" alt="">
+<area href="class___x_talker_base.html" shape="rect" coords="634,296,738,322" alt="">
+<area href="class_x_talker.html" shape="rect" coords="568,386,848,413" alt="">
+<area href="classatomic.html" shape="rect" coords="632,205,741,232" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="376,296,600,322" alt="">
+<area href="structatomic__shared__ptr_1_1___ref_local.html" shape="rect" coords="334,205,564,232" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="133,296,341,322" alt="">
+<area href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html" shape="rect" coords="200,98,453,125" alt="">
+<area href="structatomic__shared__ptr__ref.html" shape="rect" coords="477,98,664,125" alt="">
+<area href="class_x_mutex.html" shape="rect" coords="186,205,253,232" alt="">
+<area href="class_x_thread_local.html" shape="rect" coords="8,386,189,413" alt="">
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_value_node_base-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
 <tr><td></td></tr>
 <tr><td colspan="2"><br><h2>Public 型</h2></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="49045974b0ab635dec0d315aa9939f5c"></a><!-- doxytag: member="XValueNodeBase::Validator" ref="49045974b0ab635dec0d315aa9939f5c" args=")(QString &amp;)" -->
-typedef void(*&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#49045974b0ab635dec0d315aa9939f5c">Validator</a> )(QString &amp;)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="ff009563716fba668704508706301f64"></a><!-- doxytag: member="XValueNodeBase::Validator" ref="ff009563716fba668704508706301f64" args=")(std::string &amp;)" -->
+typedef void(*&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#ff009563716fba668704508706301f64">Validator</a> )(std::string &amp;)</td></tr>
 
 <tr><td colspan="2"><br><h2>Public メソッド</h2></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="647dce1d54eb8193c63b696958997a39"></a><!-- doxytag: member="XValueNodeBase::to_str" ref="647dce1d54eb8193c63b696958997a39" args="() const =0" -->
-virtual QString&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#647dce1d54eb8193c63b696958997a39">to_str</a> () const =0</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="013fd3fc14d2320d493843638bae839d"></a><!-- doxytag: member="XValueNodeBase::to_str" ref="013fd3fc14d2320d493843638bae839d" args="() const =0" -->
+virtual std::string&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#013fd3fc14d2320d493843638bae839d">to_str</a> () const =0</td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Get value as a string, which is used as XML meta data. <br></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#24fa34f9b0d6239d727720d1aa88eaa2">str</a> (const QString &amp;str)  throw (XKameError &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#74f78f2d1409ed2bdef13025cfba43de">setValidator</a> (<a class="el" href="class_x_value_node_base.html#49045974b0ab635dec0d315aa9939f5c">Validator</a>)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="7366fb62028f2cadded3622d483e84ab"></a><!-- doxytag: member="XValueNodeBase::str" ref="7366fb62028f2cadded3622d483e84ab" args="(const std::string &amp;str)" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#7366fb62028f2cadded3622d483e84ab">str</a> (const std::string &amp;str)  throw (XKameError &amp;)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#74f78f2d1409ed2bdef13025cfba43de">setValidator</a> (<a class="el" href="class_x_value_node_base.html#ff009563716fba668704508706301f64">Validator</a>)</td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="264fec167bd92444aa3b17f8956b5098"></a><!-- doxytag: member="XValueNodeBase::beforeValueChanged" ref="264fec167bd92444aa3b17f8956b5098" args="()" -->
 <a class="el" href="class_x_talker.html">XTalker</a>&lt; shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#264fec167bd92444aa3b17f8956b5098">beforeValueChanged</a> ()</td></tr>
@@ -67,8 +80,8 @@ virtual QString&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el"
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="92afe79c9c0b9ef2e5c6bfc4c487df2e"></a><!-- doxytag: member="XValueNodeBase::XValueNodeBase" ref="92afe79c9c0b9ef2e5c6bfc4c487df2e" args="(const char *name, bool runtime=false)" -->
 &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#92afe79c9c0b9ef2e5c6bfc4c487df2e">XValueNodeBase</a> (const char *name, bool runtime=false)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="24c8125c24e10fcd2bd9fd7cd911d5b7"></a><!-- doxytag: member="XValueNodeBase::_str" ref="24c8125c24e10fcd2bd9fd7cd911d5b7" args="(const QString &amp;str)=0" -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><b>_str</b> (const QString &amp;str)=0  throw (XKameError &amp;)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="31fbf88d7d82eba641ccbb8eca718539"></a><!-- doxytag: member="XValueNodeBase::_str" ref="31fbf88d7d82eba641ccbb8eca718539" args="(const std::string &amp;str)=0" -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><b>_str</b> (const std::string &amp;str)=0  throw (XKameError &amp;)</td></tr>
 
 <tr><td colspan="2"><br><h2>Protected 変数</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="6ac6061a1d1d7bbbf0b6723971bc2117"></a><!-- doxytag: member="XValueNodeBase::m_tlkBeforeValueChanged" ref="6ac6061a1d1d7bbbf0b6723971bc2117" args="" -->
@@ -78,7 +91,7 @@ virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><b>_str</b> (con
 <a class="el" href="class_x_talker.html">XTalker</a>&lt; shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#4b993659d79c4519174ba2583ad9b5b4">m_tlkOnValueChanged</a></td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="ec1086f48c483c8daf55751586e8cfe9"></a><!-- doxytag: member="XValueNodeBase::m_validator" ref="ec1086f48c483c8daf55751586e8cfe9" args="" -->
-<a class="el" href="class_x_value_node_base.html#49045974b0ab635dec0d315aa9939f5c">Validator</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#ec1086f48c483c8daf55751586e8cfe9">m_validator</a></td></tr>
+<a class="el" href="class_x_value_node_base.html#ff009563716fba668704508706301f64">Validator</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#ec1086f48c483c8daf55751586e8cfe9">m_validator</a></td></tr>
 
 </table>
 <hr><a name="_details"></a><h2>説明</h2>
@@ -86,7 +99,7 @@ Base class containing values
 <p>
 
 <p>
- <a class="el" href="xnode_8h-source.html">xnode.h</a> の <a class="el" href="xnode_8h-source.html#l00111">111</a> 行で定義されています。<hr><h2>関数</h2>
+ <a class="el" href="xnode_8h-source.html">xnode.h</a> の <a class="el" href="xnode_8h-source.html#l00101">101</a> 行で定義されています。<hr><h2>関数</h2>
 <a class="anchor" name="74f78f2d1409ed2bdef13025cfba43de"></a><!-- doxytag: member="XValueNodeBase::setValidator" ref="74f78f2d1409ed2bdef13025cfba43de" args="(Validator)" --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
@@ -95,7 +108,7 @@ Base class containing values
         <tr>
           <td class="md" nowrap valign="top">void XValueNodeBase::setValidator           </td>
           <td class="md" valign="top">(&nbsp;</td>
-          <td class="md" nowrap valign="top"><a class="el" href="class_x_value_node_base.html#49045974b0ab635dec0d315aa9939f5c">Validator</a>&nbsp;</td>
+          <td class="md" nowrap valign="top"><a class="el" href="class_x_value_node_base.html#ff009563716fba668704508706301f64">Validator</a>&nbsp;</td>
           <td class="mdname1" valign="top" nowrap>          </td>
           <td class="md" valign="top">&nbsp;)&nbsp;</td>
           <td class="md" nowrap></td>
@@ -114,9 +127,9 @@ Base class containing values
 <p>
 validator can throw <em><a class="el" href="struct_x_kame_error.html">XKameError</a></em>, if it detects conversion errors. never insert when <a class="el" href="class_x_value_node_base.html#24fa34f9b0d6239d727720d1aa88eaa2">str()</a> may be called. 
 <p>
- <a class="el" href="xnode_8cpp-source.html">xnode.cpp</a> の <a class="el" href="xnode_8cpp-source.html#l00119">119</a> 行で定義されています。
+ <a class="el" href="xnode_8cpp-source.html">xnode.cpp</a> の <a class="el" href="xnode_8cpp-source.html#l00113">113</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="xnode_8h-source.html#l00137">m_validator</a>.    </td>
+参照先 <a class="el" href="xnode_8h-source.html#l00128">m_validator</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="24fa34f9b0d6239d727720d1aa88eaa2"></a><!-- doxytag: member="XValueNodeBase::str" ref="24fa34f9b0d6239d727720d1aa88eaa2" args="(const QString &amp;str)" --><p>
@@ -146,14 +159,14 @@ validator can throw <em><a class="el" href="struct_x_kame_error.html">XKameError
 <p>
 Set value as a string, which is used as XML meta data. throw exception when validator throws. 
 <p>
- <a class="el" href="xnode_8cpp-source.html">xnode.cpp</a> の <a class="el" href="xnode_8cpp-source.html#l00112">112</a> 行で定義されています。
+ <a class="el" href="xnode_8cpp-source.html">xnode.cpp</a> の <a class="el" href="xnode_8cpp-source.html#l00109">109</a> 行で定義されています。
 <p>
-参照元 <a class="el" href="xitemnode_8cpp-source.html#l00039">XComboNode::value()</a>.    </td>
+参照元 <a class="el" href="xitemnode_8cpp-source.html#l00040">XComboNode::value()</a>.    </td>
   </tr>
 </table>
 <hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/<a class="el" href="xnode_8h-source.html">xnode.h</a><li>kame/<a class="el" href="xnode_8cpp-source.html">xnode.cpp</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:54 2006に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:54:05 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>

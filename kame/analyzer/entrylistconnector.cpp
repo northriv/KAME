@@ -24,10 +24,10 @@ XEntryListConnector::XEntryListConnector
   m_pItem->setColumnWidth(2, (int)(def * 0.8));
   m_pItem->setColumnWidth(3, (int)(def * 2.5));
   QStringList labels;
-  labels += i18n("Entry");
-  labels += i18n("Value");
-  labels += i18n("Store");
-  labels += i18n("Delta");
+  labels += KAME::i18n("Entry");
+  labels += KAME::i18n("Value");
+  labels += KAME::i18n("Store");
+  labels += KAME::i18n("Delta");
   m_pItem->setColumnLabels(labels);
   
   atomic_shared_ptr<const XNode::NodeList> list(node->children());

@@ -239,8 +239,8 @@ XPulser::XPulser(const char *name, bool runtime,
   p2Func()->value(PULSE_FUNC_KAISER_2);
   combFunc()->value(PULSE_FUNC_FLATTOP);
   
-  m_form->setCaption(i18n("Pulser Control") + " - " + getLabel() );
-  m_formMore->setCaption(i18n("Pulser Control More Config.") + " - " + getLabel() );
+  m_form->setCaption(KAME::i18n("Pulser Control") + " - " + getLabel() );
+  m_formMore->setCaption(KAME::i18n("Pulser Control More Config.") + " - " + getLabel() );
   m_form->statusBar()->hide();
   m_formMore->statusBar()->hide();
   
@@ -567,7 +567,7 @@ XPulser::visualize()
           m_phase_xor++;
       }
       catch (XKameError &e) {
-          e.print(getLabel() + i18n("Pulser Turn-On Failed, because"));
+          e.print(getLabel() + KAME::i18n("Pulser Turn-On Failed, because"));
       } 
   }
 }
@@ -599,7 +599,7 @@ XPulser::onPulseChanged(const shared_ptr<XValueNodeBase> &node)
           changeOutput(false);
       }
       catch (XKameError &e) {
-          e.print(getLabel() + i18n("Pulser Turn-Off Failed, because"));
+          e.print(getLabel() + KAME::i18n("Pulser Turn-Off Failed, because"));
       }
       finishWritingRaw(XTime(), XTime(), true);
       return;
@@ -609,7 +609,7 @@ XPulser::onPulseChanged(const shared_ptr<XValueNodeBase> &node)
       changeOutput(false);
   }
   catch (XKameError &e) {
-      e.print(getLabel() + i18n("Pulser Turn-Off Failed, because"));
+      e.print(getLabel() + KAME::i18n("Pulser Turn-Off Failed, because"));
       return;
   }
 

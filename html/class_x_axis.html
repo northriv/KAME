@@ -27,19 +27,18 @@
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XAxisのコラボレーション図<p><center><img src="class_x_axis__coll__graph.png" border="0" usemap="#_x_axis__coll__map" alt="Collaboration graph"></center>
 <map name="_x_axis__coll__map">
-<area href="class_x_node.html" shape="rect" coords="506,418,568,445" alt="">
-<area href="class_x_thread_local.html" shape="rect" coords="8,296,346,322" alt="">
-<area href="class_x_talker.html" shape="rect" coords="370,296,586,322" alt="">
-<area href="class___x_talker_base.html" shape="rect" coords="236,205,340,232" alt="">
-<area href="classatomic.html" shape="rect" coords="230,114,340,141" alt="">
-<area href="classatomic__shared__ptr.html" shape="rect" coords="366,205,590,232" alt="">
-<area href="structatomic__shared__ptr_1_1___ref_local.html" shape="rect" coords="364,114,593,141" alt="">
-<area href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html" shape="rect" coords="229,8,482,34" alt="">
-<area href="structatomic__shared__ptr_1_1_ref.html" shape="rect" coords="506,8,696,34" alt="">
-<area href="class_x_mutex.html" shape="rect" coords="617,114,684,141" alt="">
-<area href="class_x_recursive_r_w_lock.html" shape="rect" coords="610,296,752,322" alt="">
-<area href="class_x_thread_local.html" shape="rect" coords="614,205,812,232" alt="">
-<area href="struct_vector3.html" shape="rect" coords="697,418,796,445" alt="">
+<area href="class_x_node.html" shape="rect" coords="452,525,513,551" alt="">
+<area href="class_x_talker.html" shape="rect" coords="142,418,358,445" alt="">
+<area href="class___x_talker_base.html" shape="rect" coords="10,327,114,354" alt="">
+<area href="classatomic.html" shape="rect" coords="8,237,117,263" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="138,327,362,354" alt="">
+<area href="structatomic__shared__ptr_1_1___ref_local.html" shape="rect" coords="210,237,440,263" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="386,327,594,354" alt="">
+<area href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html" shape="rect" coords="438,130,692,157" alt="">
+<area href="structatomic__shared__ptr__ref.html" shape="rect" coords="228,130,414,157" alt="">
+<area href="struct_vector3.html" shape="rect" coords="680,183,778,210" alt="">
+<area href="class_x_mutex.html" shape="rect" coords="493,237,560,263" alt="">
+<area href="class_x_thread_local.html" shape="rect" coords="509,418,690,445" alt="">
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_axis-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
 <tr><td></td></tr>
@@ -57,6 +56,8 @@
 <tr><td colspan="2"><br><h2>Public メソッド</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="0b63703bb6b03362e625e3e18b9ab659"></a><!-- doxytag: member="XAxis::~XAxis" ref="0b63703bb6b03362e625e3e18b9ab659" args="()" -->
 virtual&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_axis.html#0b63703bb6b03362e625e3e18b9ab659">~XAxis</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">virtual std::string&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_axis.html#6a5206ccf601c44c06b5797cb61fe3db">getLabel</a> () const </td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top">int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_axis.html#236b99a840c1cc3ec19a2af29ebcf0e6">drawAxis</a> (<a class="el" href="class_x_q_graph_painter.html">XQGraphPainter</a> *painter)</td></tr>
 
@@ -78,8 +79,8 @@ void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="467b91b142f1480f2a0469a5f6733221"></a><!-- doxytag: member="XAxis::screenToVal" ref="467b91b142f1480f2a0469a5f6733221" args="(const XGraph::ScrPoint &amp;scr)" -->
 <a class="el" href="class_x_graph.html#9912cb9c112bf372dc8bef23491c5b54">XGraph::VFloat</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_axis.html#467b91b142f1480f2a0469a5f6733221">screenToVal</a> (const <a class="el" href="struct_vector3.html">XGraph::ScrPoint</a> &amp;scr)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="4db67ad504907afd9467862df40ab905"></a><!-- doxytag: member="XAxis::valToString" ref="4db67ad504907afd9467862df40ab905" args="(XGraph::VFloat val)" -->
-QString&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_axis.html#4db67ad504907afd9467862df40ab905">valToString</a> (<a class="el" href="class_x_graph.html#9912cb9c112bf372dc8bef23491c5b54">XGraph::VFloat</a> val)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="97a69c84ac59ce993a8848f203cded18"></a><!-- doxytag: member="XAxis::valToString" ref="97a69c84ac59ce993a8848f203cded18" args="(XGraph::VFloat val)" -->
+std::string&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_axis.html#97a69c84ac59ce993a8848f203cded18">valToString</a> (<a class="el" href="class_x_graph.html#9912cb9c112bf372dc8bef23491c5b54">XGraph::VFloat</a> val)</td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="5a1b3796e48119f6779b05ecc899f9af"></a><!-- doxytag: member="XAxis::label" ref="5a1b3796e48119f6779b05ecc899f9af" args="() const " -->
 const shared_ptr&lt; <a class="el" href="class_x_string_node.html">XStringNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_axis.html#5a1b3796e48119f6779b05ecc899f9af">label</a> () const </td></tr>
@@ -295,7 +296,7 @@ bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 <p>
 
 <p>
- <a class="el" href="graph_8h-source.html">graph.h</a> の <a class="el" href="graph_8h-source.html#l00274">274</a> 行で定義されています。<hr><h2>関数</h2>
+ <a class="el" href="graph_8h-source.html">graph.h</a> の <a class="el" href="graph_8h-source.html#l00270">270</a> 行で定義されています。<hr><h2>関数</h2>
 <a class="anchor" name="8c84775ec8267042be408fdfb64fc168"></a><!-- doxytag: member="XAxis::axisToVal" ref="8c84775ec8267042be408fdfb64fc168" args="(XGraph::GFloat pos, XGraph::GFloat axis_prec=-1)" --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
@@ -338,11 +339,11 @@ obtains value from position on axis <dl compact><dt><b>引数:</b></dt><dd>
 </dl>
 
 <p>
- <a class="el" href="graph_8cpp-source.html">graph.cpp</a> の <a class="el" href="graph_8cpp-source.html#l00917">917</a> 行で定義されています。
+ <a class="el" href="graph_8cpp-source.html">graph.cpp</a> の <a class="el" href="graph_8cpp-source.html#l00908">908</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="graph_8h-source.html#l00385">m_bLogscaleFixed</a>・<a class="el" href="graph_8h-source.html#l00382">m_maxFixed</a>・<a class="el" href="graph_8h-source.html#l00382">m_minFixed</a>・<a class="el" href="graph_8h-source.html#l00305">x()</a>.
+参照先 <a class="el" href="graph_8h-source.html#l00383">m_bLogscaleFixed</a>・<a class="el" href="graph_8h-source.html#l00380">m_maxFixed</a>・<a class="el" href="graph_8h-source.html#l00380">m_minFixed</a>・<a class="el" href="graph_8h-source.html#l00303">x()</a>.
 <p>
-参照元 <a class="el" href="graph_8cpp-source.html#l00978">queryTic()</a>・<a class="el" href="graph_8cpp-source.html#l00962">screenToVal()</a>・<a class="el" href="graph_8cpp-source.html#l00877">zoom()</a>.    </td>
+参照元 <a class="el" href="graph_8cpp-source.html#l00969">queryTic()</a>・<a class="el" href="graph_8cpp-source.html#l00953">screenToVal()</a>・<a class="el" href="graph_8cpp-source.html#l00868">zoom()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="236b99a840c1cc3ec19a2af29ebcf0e6"></a><!-- doxytag: member="XAxis::drawAxis" ref="236b99a840c1cc3ec19a2af29ebcf0e6" args="(XQGraphPainter *painter)" --><p>
@@ -372,9 +373,43 @@ obtains value from position on axis <dl compact><dt><b>引数:</b></dt><dd>
 <p>
 dry-run to determine font 
 <p>
- <a class="el" href="graph_8cpp-source.html">graph.cpp</a> の <a class="el" href="graph_8cpp-source.html#l01067">1067</a> 行で定義されています。
+ <a class="el" href="graph_8cpp-source.html">graph.cpp</a> の <a class="el" href="graph_8cpp-source.html#l01058">1058</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="graph_8cpp-source.html#l00943">axisToScreen()</a>・<a class="el" href="graphpaintergl_8cpp-source.html#l00193">XQGraphPainter::beginLine()</a>・<a class="el" href="graphpaintergl_8cpp-source.html#l00233">XQGraphPainter::defaultFont()</a>・<a class="el" href="graph_8h-source.html#l00318">displayLabel()</a>・<a class="el" href="graph_8cpp-source.html#l01024">drawLabel()</a>・<a class="el" href="graphpaintergl_8cpp-source.html#l00200">XQGraphPainter::endLine()</a>・<a class="el" href="graph_8h-source.html#l00308">length()</a>・<a class="el" href="graph_8h-source.html#l00385">m_bLogscaleFixed</a>・<a class="el" href="graph_8h-source.html#l00350">m_dirVector</a>・<a class="el" href="graph_8h-source.html#l00382">m_maxFixed</a>・<a class="el" href="graph_8h-source.html#l00382">m_minFixed</a>・<a class="el" href="graph_8h-source.html#l00383">m_minorFixed</a>・<a class="el" href="graphpainter_8cpp-source.html#l00045">XQGraphPainter::posOffAxis()</a>・<a class="el" href="graph_8cpp-source.html#l00978">queryTic()</a>・<a class="el" href="graphpainter_8cpp-source.html#l00034">XQGraphPainter::resScreen()</a>・<a class="el" href="graphpaintergl_8cpp-source.html#l00239">XQGraphPainter::selectFont()</a>・<a class="el" href="graphpainter_8h-source.html#l00040">XQGraphPainter::setColor()</a>・<a class="el" href="graphpainter_8h-source.html#l00047">XQGraphPainter::setVertex()</a>・<a class="el" href="graph_8h-source.html#l00320">ticColor()</a>・<a class="el" href="graph_8cpp-source.html#l00972">valToString()</a>・<a class="el" href="graph_8h-source.html#l00305">x()</a>・<a class="el" href="graph_8h-source.html#l00307">z()</a>.    </td>
+参照先 <a class="el" href="graph_8cpp-source.html#l00934">axisToScreen()</a>・<a class="el" href="graphpaintergl_8cpp-source.html#l00193">XQGraphPainter::beginLine()</a>・<a class="el" href="graphpaintergl_8cpp-source.html#l00233">XQGraphPainter::defaultFont()</a>・<a class="el" href="graph_8h-source.html#l00316">displayLabel()</a>・<a class="el" href="graph_8cpp-source.html#l01015">drawLabel()</a>・<a class="el" href="graphpaintergl_8cpp-source.html#l00200">XQGraphPainter::endLine()</a>・<a class="el" href="graph_8h-source.html#l00306">length()</a>・<a class="el" href="graph_8h-source.html#l00383">m_bLogscaleFixed</a>・<a class="el" href="graph_8h-source.html#l00348">m_dirVector</a>・<a class="el" href="graph_8h-source.html#l00380">m_maxFixed</a>・<a class="el" href="graph_8h-source.html#l00380">m_minFixed</a>・<a class="el" href="graph_8h-source.html#l00381">m_minorFixed</a>・<a class="el" href="graphpainter_8cpp-source.html#l00045">XQGraphPainter::posOffAxis()</a>・<a class="el" href="graph_8cpp-source.html#l00969">queryTic()</a>・<a class="el" href="graphpainter_8cpp-source.html#l00034">XQGraphPainter::resScreen()</a>・<a class="el" href="graphpaintergl_8cpp-source.html#l00239">XQGraphPainter::selectFont()</a>・<a class="el" href="graphpainter_8h-source.html#l00040">XQGraphPainter::setColor()</a>・<a class="el" href="graphpainter_8h-source.html#l00047">XQGraphPainter::setVertex()</a>・<a class="el" href="graph_8h-source.html#l00318">ticColor()</a>・<a class="el" href="graph_8cpp-source.html#l00963">valToString()</a>・<a class="el" href="graph_8h-source.html#l00303">x()</a>・<a class="el" href="graph_8h-source.html#l00305">z()</a>.    </td>
+  </tr>
+</table>
+<a class="anchor" name="6a5206ccf601c44c06b5797cb61fe3db"></a><!-- doxytag: member="XAxis::getLabel" ref="6a5206ccf601c44c06b5797cb61fe3db" args="() const " --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">virtual std::string XAxis::getLabel           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="mdname1" valign="top" nowrap>          </td>
+          <td class="md" valign="top">&nbsp;)&nbsp;</td>
+          <td class="md" nowrap> const<code> [inline, virtual]</code></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+<dl compact><dt><b>戻り値:</b></dt><dd>i18n name for UI. </dd></dl>
+
+<p>
+<a class="el" href="class_x_node.html#84f0935a406e8f16042f80b9dcaaa722">XNode</a>を再定義しています。
+<p>
+ <a class="el" href="graph_8h-source.html">graph.h</a> の <a class="el" href="graph_8h-source.html#l00282">282</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="graph_8h-source.html#l00301">label()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="3527cbdce2f852f68bd89d892403ef08"></a><!-- doxytag: member="XAxis::screenToAxis" ref="3527cbdce2f852f68bd89d892403ef08" args="(const XGraph::ScrPoint &amp;scr)" --><p>
@@ -405,16 +440,16 @@ dry-run to determine font
 obtains axis pos from screen coordinate <dl compact><dt><b>戻り値:</b></dt><dd>pos in axis </dd></dl>
 
 <p>
- <a class="el" href="graph_8cpp-source.html">graph.cpp</a> の <a class="el" href="graph_8cpp-source.html#l00952">952</a> 行で定義されています。
+ <a class="el" href="graph_8cpp-source.html">graph.cpp</a> の <a class="el" href="graph_8cpp-source.html#l00943">943</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="graph_8h-source.html#l00308">length()</a>・<a class="el" href="graph_8h-source.html#l00349">m_direction</a>・<a class="el" href="graph_8h-source.html#l00305">x()</a>・<a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::x</a>・<a class="el" href="graph_8h-source.html#l00306">y()</a>・<a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::y</a>・<a class="el" href="graph_8h-source.html#l00307">z()</a>・<a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::z</a>.
+参照先 <a class="el" href="graph_8h-source.html#l00306">length()</a>・<a class="el" href="graph_8h-source.html#l00347">m_direction</a>・<a class="el" href="graph_8h-source.html#l00303">x()</a>・<a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::x</a>・<a class="el" href="graph_8h-source.html#l00304">y()</a>・<a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::y</a>・<a class="el" href="graph_8h-source.html#l00305">z()</a>・<a class="el" href="graph_8h-source.html#l00025">Vector3&lt; T &gt;::z</a>.
 <p>
-参照元 <a class="el" href="graph_8cpp-source.html#l00962">screenToVal()</a>.    </td>
+参照元 <a class="el" href="graph_8cpp-source.html#l00953">screenToVal()</a>.    </td>
   </tr>
 </table>
 <hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/graph/<a class="el" href="graph_8h-source.html">graph.h</a><li>kame/graph/<a class="el" href="graph_8cpp-source.html">graph.cpp</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してThu Mar 2 18:05:48 2006に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してFri May 12 22:52:37 2006に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
