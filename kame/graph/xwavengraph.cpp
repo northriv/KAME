@@ -25,7 +25,7 @@ XWaveNGraph::XWaveNGraph(const char *name, bool runtime, FrmGraphNURL *item)
   item->m_graphwidget->setGraph(m_graph);
   item->statusBar()->hide();
   m_conFilename = xqcon_create<XKURLReqConnector>(m_filename, item->m_url,
-				      "*.dat|Data files (*.dat)\n*.*|All files (*.*)", true);
+                      "*.dat|Data files (*.dat)\n*.*|All files (*.*)", true);
   m_conDump = xqcon_create<XQButtonConnector>(m_dump, item->m_btnDump);
   init();
 }
@@ -57,27 +57,34 @@ XWaveNGraph::~XWaveNGraph()
 {
   if(m_plot1) m_graph->plots()->releaseChild(m_plot1);
   if(m_plot2) m_graph->plots()->releaseChild(m_plot2);
+  if(m_axisw) m_graph->axes()->releaseChild(m_axisw);
+  if(m_axisz) m_graph->axes()->releaseChild(m_axisz);
   if(m_axisy2) m_graph->axes()->releaseChild(m_axisy2);
   m_stream.close();
 }
 
 void
-XWaveNGraph::selectAxes(int x, int y1, int y2, int yweight)
+XWaveNGraph::selectAxes(int x, int y1, int y2, int weight, int z)
 {
   XScopedWriteLock<XRecursiveRWLock> lock(m_mutex);
   {  
       m_colx = x;
       m_coly1 = y1;
       m_coly2 = y2;
-      m_colyweight = yweight;
+      m_colweight = weight;
+      m_colz = z;
     
       XScopedLock<XGraph> lock(*m_graph);
       if(m_plot1) m_graph->plots()->releaseChild(m_plot1);
       if(m_plot2) m_graph->plots()->releaseChild(m_plot2);
+      if(m_axisw) m_graph->axes()->releaseChild(m_axisw);
+      if(m_axisz) m_graph->axes()->releaseChild(m_axisz);
       if(m_axisy2) m_graph->axes()->releaseChild(m_axisy2);
       m_plot1.reset();
       m_plot2.reset();
       m_axisy2.reset();
+      m_axisz.reset();
+      m_axisw.reset();
         
      // m_graph->setName(getName());
       m_graph->label()->value(getLabel());
@@ -86,11 +93,18 @@ XWaveNGraph::selectAxes(int x, int y1, int y2, int yweight)
       m_plot1->label()->value(KAME::i18n("Plot1"));
     
       atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
-      shared_ptr<XAxis> axisx = dynamic_pointer_cast<XAxis>(axes_list->at(0));
-      shared_ptr<XAxis> axisy = dynamic_pointer_cast<XAxis>(axes_list->at(1));
-    
-      m_plot1->axisX()->value(axisx);
-      m_plot1->axisY()->value(axisy);
+      m_axisx = dynamic_pointer_cast<XAxis>(axes_list->at(0));
+      m_axisy = dynamic_pointer_cast<XAxis>(axes_list->at(1));
+      m_plot1->axisX()->value(m_axisx);
+      m_plot1->axisY()->value(m_axisy);
+      if(m_colz >= 0) {
+          m_axisz = m_graph->axes()->create<XAxis>("Z Axis", true, XAxis::DirAxisZ, true, m_graph);
+          m_plot1->axisZ()->value(m_axisz);
+      }
+      if(m_colweight >= 0) {
+          m_axisw = m_graph->axes()->create<XAxis>("Weight", true, XAxis::AxisWeight, true, m_graph);
+          m_plot1->axisW()->value(m_axisw);
+      }
       m_plot1->maxCount()->value(rowCount());
       m_plot1->maxCount()->setUIEnabled(false);
       m_plot1->clearPoints()->setUIEnabled(false);
@@ -99,8 +113,14 @@ XWaveNGraph::selectAxes(int x, int y1, int y2, int yweight)
           m_axisy2 = m_graph->axes()->create<XAxis>("Y2 Axis", true, XAxis::DirAxisY, true, m_graph);
           m_plot2 = m_graph->plots()->create<XXYPlot>("Plot2", true, m_graph);
           m_plot2->label()->value(KAME::i18n("Plot2"));
-          m_plot2->axisX()->value(axisx);
+          m_plot2->axisX()->value(m_axisx);
           m_plot2->axisY()->value(m_axisy2);
+          if(m_colz >= 0) {
+              m_plot2->axisZ()->value(m_axisz);
+          }
+          if(m_colweight >= 0) {
+              m_plot2->axisW()->value(m_axisw);
+          }
           m_plot2->pointColor()->value(clGreen);
           m_plot2->lineColor()->value(clGreen);
           m_plot2->barColor()->value(clGreen);
@@ -174,7 +194,9 @@ XWaveNGraph::colY1() const {return m_coly1;}
 int
 XWaveNGraph::colY2() const {return m_coly2;}
 int
-XWaveNGraph::colYWeight() const {return m_colyweight;}
+XWaveNGraph::colWeight() const {return m_colweight;}
+int
+XWaveNGraph::colZ() const {return m_colz;}
 void
 XWaveNGraph::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
 {
@@ -204,30 +226,30 @@ XWaveNGraph::onDumpTouched(const shared_ptr<XNode> &)
   XScopedLock<XMutex> filelock(m_filemutex);
   if(m_stream.good()) {
     XScopedReadLock<XRecursiveRWLock> lock(m_mutex);
-	
-	m_stream << "#dumping...  "
-		<< (XTime::now()).getTimeFmtStr("%Y/%m/%d %H:%M:%S")
-		<< std::endl;
-	m_stream << "#";
-	for(unsigned int i = 0; i < colCount(); i++)
-	{
-        	m_stream << m_labels[i] << " ";
-	}
-	m_stream << std::endl;
-	
-	for(unsigned int i = 0; i < rowCount(); i++)
-	{
-        	if(colYWeight() >= 0)
-        	if(cols(colYWeight())[i] < 0.1) continue;
-        	for(unsigned int j = 0; j < colCount(); j++)
-        	{
-        		m_stream << cols(j)[i] << " ";
-        	}
-        	m_stream << std::endl;
-	}
-	m_stream << std::endl;
     
-	m_stream.flush();
+    m_stream << "#dumping...  "
+        << (XTime::now()).getTimeFmtStr("%Y/%m/%d %H:%M:%S")
+        << std::endl;
+    m_stream << "#";
+    for(unsigned int i = 0; i < colCount(); i++)
+    {
+            m_stream << m_labels[i] << " ";
+    }
+    m_stream << std::endl;
+    
+    for(unsigned int i = 0; i < rowCount(); i++)
+    {
+            if(colWeight() >= 0)
+            if(cols(colWeight())[i] < 1e-20) continue;
+            for(unsigned int j = 0; j < colCount(); j++)
+            {
+                m_stream << cols(j)[i] << " ";
+            }
+            m_stream << std::endl;
+    }
+    m_stream << std::endl;
+    
+    m_stream.flush();
 
     m_btnDump->setIconSet( KApplication::kApplication()->iconLoader()->loadIconSet("redo", 
             KIcon::Toolbar, KIcon::SizeSmall, true ) );
@@ -254,39 +276,48 @@ XWaveNGraph::drawGraph()
         
       XScopedLock<XGraph> lock(*m_graph);
       
-      atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
-      shared_ptr<XAxis> axisx = dynamic_pointer_cast<XAxis>(axes_list->at(0));
-      shared_ptr<XAxis> axisy = dynamic_pointer_cast<XAxis>(axes_list->at(1));
-    
-      axisx->label()->value(m_labels[m_colx]);
-      axisy->label()->value(m_labels[m_coly1]);
+      m_axisx->label()->value(m_labels[m_colx]);
+      m_axisy->label()->value(m_labels[m_coly1]);
       if(colY2() > 0)
         m_axisy2->label()->value(m_labels[m_coly2]);
+      if(colZ() > 0)
+        m_axisz->label()->value(m_labels[m_colz]);
+      if(colWeight() > 0)
+        m_axisw->label()->value(m_labels[m_colweight]);
         
       int rowcnt = rowCount();
       double *colx = cols(colX());
       double *coly1 = cols(colY1());
       double *coly2 = (colY2() > 0) ? cols(colY2()) : NULL;
-      double *colyweight = (colYWeight() >= 0) ? cols(colYWeight()) : NULL;
+      double *colweight = (colWeight() >= 0) ? cols(colWeight()) : NULL;
+      double *colz = (colZ() >= 0) ? cols(colZ()) : NULL;
     
       std::deque<XGraph::ValPoint> &points_plot1(m_plot1->points());
       points_plot1.clear();
       for(int i = 0; i < rowcnt; i++)
         {
-          if(colyweight)
-    	       if(colyweight[i] <= 0) continue;
-           points_plot1.push_back( XGraph::ValPoint(colx[i], coly1[i]) );
+          double z = 0.0;
+          if(colz)
+            z = colz[i];
+          if(colweight)
+               points_plot1.push_back( XGraph::ValPoint(colx[i], coly1[i], z, colweight[i]) );
+          else
+               points_plot1.push_back( XGraph::ValPoint(colx[i], coly1[i], z) );
         }
       if(coly2)
         {
           std::deque<XGraph::ValPoint> &points_plot2 = m_plot2->points();
           points_plot2.clear();
           for(int i = 0; i < rowcnt; i++)
-        	  {
-    	    if(colyweight)
-    	       if(colyweight[i] <= 0) continue;
-            points_plot2.push_back( XGraph::ValPoint(colx[i], coly2[i]) );
-        	  }
+          {
+              double z = 0.0;
+              if(colz)
+                z = colz[i];
+              if(colweight)
+                   points_plot2.push_back( XGraph::ValPoint(colx[i], coly2[i], z, colweight[i]) );
+              else
+                   points_plot2.push_back( XGraph::ValPoint(colx[i], coly2[i], z) );
+          }
         }
       m_graph->requestUpdate();
   }

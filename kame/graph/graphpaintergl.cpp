@@ -25,6 +25,7 @@ using std::max;
 #undef USE_ICONV_WCHART // this is portable, however, it likely depends on the current locale.
 #if defined MACOSX
     #define USE_ICONV_UCS4_AS_WCHART
+//    #define USE_ICONV_WCHART
 #endif
 #if defined __linux__
 //    #define USE_ICONV_WCHART
@@ -128,8 +129,8 @@ XQGraphPainter::~XQGraphPainter()
 std::wstring
 XQGraphPainter::string2wstring(const std::string &str)
 {
-    static wchar_t buf[256];
-    int outsize = 256 * sizeof(wchar_t);
+    wchar_t buf[256];
+    int outsize = sizeof(buf);
     char *outp = (char*)buf;
     errno = 0;
 #ifdef USE_ICONV_SRC_UTF8
@@ -142,7 +143,7 @@ XQGraphPainter::string2wstring(const std::string &str)
     int insize = qstr.length() * sizeof(unsigned short);
 #endif //USE_ICONV_SRC_UCS2
     //! \todo Linux iconv needs char** instead of const char**
-    size_t ret = iconv(s_iconv_cd, const_cast<char **>(&inbuf), (size_t*)&insize,
+    size_t ret = iconv(s_iconv_cd, (&inbuf), (size_t*)&insize,
         &outp, (size_t*)&outsize);
 	if(ret == (size_t)(-1)) {
             XKameError::print(
@@ -151,6 +152,7 @@ XQGraphPainter::string2wstring(const std::string &str)
             iconv(s_iconv_cd, NULL, NULL, NULL, NULL); //reset 
             return std::wstring(L"iconv-err"); 
     }
+    ASSERT(outp <= (char*)&buf[sizeof(buf)/sizeof(wchar_t) - 1]);
 	*((wchar_t *)outp) = L'\0';
     return std::wstring(buf); 
 }
@@ -321,9 +323,9 @@ std::wstring wstr = string2wstring(str);
 	if( (m_curAlign & AlignTop) ) y -= h;
 	if( (m_curAlign & AlignHCenter) ) x -= w / 2;
 	if( (m_curAlign & AlignRight) ) x -= w;
-        // Move raster position
-        if((x != 0.0f) || (y != 0.0f))
-		glBitmap( 0, 0, 0.0f, 0.0f, x, y, (const GLubyte*)0);
+    // Move raster position
+    if((x != 0.0f) || (y != 0.0f))
+    	glBitmap( 0, 0, 0.0f, 0.0f, x, y, (const GLubyte*)0);
 	
  	s_pFont->Render(wstr.c_str());
 	checkGLError();
@@ -437,17 +439,17 @@ GLuint selections[MAX_SELECTION];
       double zmax = -0.1;
       GLuint *ptr = selections;
       for (int i = 0; i < hits; i++) {
-	double zmin1 = (double)ptr[1] / (double)0xffffffffu;
-	double zmax1  = (double)ptr[2] / (double)0xffffffffu;
-	int n = ptr[0];
-	ptr += 3;
-	for (int j = 0; j < n; j++) {
-	  int k = *(ptr++);
-	  	if(k != -1) {
-			zmin = min(zmin1, zmin);
-			zmax = max(zmax1, zmax);
-		}
-	}
+    	double zmin1 = (double)ptr[1] / (double)0xffffffffu;
+    	double zmax1  = (double)ptr[2] / (double)0xffffffffu;
+    	int n = ptr[0];
+    	ptr += 3;
+    	for (int j = 0; j < n; j++) {
+    	  int k = *(ptr++);
+    	  	if(k != -1) {
+    			zmin = min(zmin1, zmin);
+    			zmax = max(zmax1, zmax);
+    		}
+    	}
       }
      if((zmin < 1.0) && (zmax > 0.0) ) {
         windowToScreen(x, y, zmin, scr);

@@ -108,15 +108,15 @@ static const struct XRelaxFuncPoly::Term  s_relaxdata_nqr5_3[] = {
     {3, 3.0/28}, {10, 25.0/28}, {0, 0}
   };
   //NQR I=3, 3
-static const struct XRelaxFuncPoly::Term  s_relaxdata_nqr3_6[] = {
+static const struct XRelaxFuncPoly::Term  s_relaxdata_nqr6_6[] = {
 {21,0.05303}, {10,0.64935}, {3,0.29762}, {0, 0}
   };
   //NQR I=3, 2
-static const struct XRelaxFuncPoly::Term  s_relaxdata_nqr3_4[] = {
+static const struct XRelaxFuncPoly::Term  s_relaxdata_nqr6_4[] = {
 {21,0.47727}, {10,0.41558}, {3,0.10714}, {0, 0}
   };
   //NQR I=3, 1
-static const struct XRelaxFuncPoly::Term  s_relaxdata_nqr3_2[] = {
+static const struct XRelaxFuncPoly::Term  s_relaxdata_nqr6_2[] = {
 {21,0.88384}, {10,0.10823}, {3,0.0079365}, {0, 0}
   };
   //NQR I=7/2, 7/2
@@ -190,7 +190,7 @@ static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr6s1[] = {
 {21,0.23864}, {15,0.48214}, {10,0.20779}, {3,0.053571}, {1,0.017857}, {0,0}
 };
   //NMR I=3 3-2
-static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr6s1[] = {  
+static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr6s2[] = {  
 {21,0.026515}, {15,0.14881}, {10,0.32468}, {6,0.33333}, {3,0.14881}, {1,0.017857}, {0,0}
 };
   //NMR I=7/2 center
@@ -362,7 +362,7 @@ XNMRT1::iterate(shared_ptr<XRelaxFunc> &func,
     func
   };
   int p = 3;
-  if(n <= p) return QString::number(n) + KAME::i18n(" points, more points needed.");
+  if(n <= p) return formatString("%d",n) + KAME::i18n(" points, more points needed.");
   int status;
   double norm = 0;
   XTime firsttime = XTime::now();

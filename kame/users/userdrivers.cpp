@@ -13,6 +13,7 @@
 #include "lia/userlockinamp.h"
 #include "dcsource/dcsource.h"
 #include "funcsynth/userfuncsynth.h"
+#include "montecarlo/kamemontecarlo.h"
 //---------------------------------------------------------------------------
 
 #define LIST XDriverList
@@ -44,6 +45,7 @@ REGISTER_TYPE(SG7130); //nmr stuff, remove me in lite version.
 REGISTER_TYPE(SG7200); //nmr stuff, remove me in lite version.
 REGISTER_TYPE(HP8643); //nmr stuff, remove me in lite version.
 REGISTER_TYPE(HP8648); //nmr stuff, remove me in lite version.
+REGISTER_TYPE(MonteCarloDriver);
 
 shared_ptr<XNode>
 XDriverList::createByTypename(const std::string &type, const std::string& name) {

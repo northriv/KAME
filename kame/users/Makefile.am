@@ -10,7 +10,7 @@ libusers_a_METASOURCES = AUTO
 libusers_a_SOURCES = testdriver.cpp testdriver.h \
 	userdrivers.cpp 
 
-SUBDIRS = dmm dso tempcontrol magnetps lia dcsource funcsynth nmr 
+SUBDIRS = dmm dso tempcontrol magnetps lia dcsource funcsynth nmr montecarlo
 
 METASOURCES = AUTO
 

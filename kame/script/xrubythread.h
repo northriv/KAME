@@ -1,12 +1,11 @@
-//---------------------------------------------------------------------------
-
 #ifndef xrubythreadH
 #define xrubythreadH
 //---------------------------------------------------------------------------
+#include "xnode.h"
+
 extern "C" {
 #include <ruby.h>
 }
-#include "xnode.h"
 
 #define RUBY_THREAD_ACTION_KILL "kill"
 #define RUBY_THREAD_ACTION_WAKEUP "wakeup"

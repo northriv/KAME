@@ -100,7 +100,7 @@ XAVS47IB::read(const char *str)
 {
   double x = 0;
   interface()->queryf("%s?", str);
-  char buf[3];
+  char buf[4];
   if(interface()->scanf("%3s %lf", buf, &x) != 2)
     throw XInterface::XConvError(__FILE__, __LINE__);
   if(strncmp(buf, str, 3))
@@ -174,7 +174,7 @@ XAVS47IB::afterStart()
 {
   msecsleep(200);
   interface()->send("REM 1;ARN 0;DIS 0");
-  currentChannel()->str(QString::number(lrint(read("MUX"))));
+  currentChannel()->str(formatString("%d",(int)lrint(read("MUX"))));
   manualPower()->setUIEnabled(false);
 }
 void
@@ -274,9 +274,9 @@ XCryocon::XCryocon(const char *name, bool runtime,
   interface()->setEOS("");
   interface()->setGPIBUseSerialPollOnWrite(false);
   interface()->setGPIBUseSerialPollOnRead (false);
-  interface()->setGPIBWaitBeforeWrite(10);
+  interface()->setGPIBWaitBeforeWrite(20);
   //    ExclusiveWaitAfterWrite = 10;
-  interface()->setGPIBWaitBeforeRead(10);
+  interface()->setGPIBWaitBeforeRead(20);
 }
 XCryoconM62::XCryoconM62(const char *name, bool runtime,
    const shared_ptr<XScalarEntryList> &scalarentries,

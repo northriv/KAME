@@ -67,7 +67,7 @@ public:
   void send(const std::string &str) throw (XCommError &);
   virtual void send(const char *str) throw (XCommError &);
   //! format version of send()
-  //! \sa pritnf()
+  //! \sa printf()
   void sendf(const char *format, ...) throw (XInterfaceError &)
      __attribute__ ((format(printf,2,3)));
   virtual void write(const char *sendbuf, int size) throw (XCommError &);
@@ -76,7 +76,7 @@ public:
   void query(const std::string &str) throw (XCommError &);
   virtual void query(const char *str) throw (XCommError &);
   //! format version of query()
-  //! \sa pritnf()
+  //! \sa printf()
   void queryf(const char *format, ...) throw (XInterfaceError &)
      __attribute__ ((format(printf,2,3)));
   

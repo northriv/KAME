@@ -66,25 +66,25 @@ XNIGPIBPort::gpibStatus(const QString &msg)
       case ESTB: err = "ESTB"; break;
       case ESRQ: err = "ESRQ"; break;
       case ETAB: err = "ETAB"; break;
-      default: err = QString::number(ThreadIberr()); break;
+      default: err = formatString("%u",ThreadIberr()); break;
   }
   if((ThreadIberr() == EDVR) || (ThreadIberr() == EFSO)) {
         char buf[256];
     #ifdef __linux__
         char *s = strerror_r(ThreadIbcntl(), buf, sizeof(buf));
-        cntl = QString::number(ThreadIbcntl()) + " " + s;
+        cntl = formatString("%d",ThreadIbcntl()) + " " + s;
     #else        
         if(strerror_r(ThreadIbcntl(), buf, sizeof(buf))) {
-            cntl = QString::number(ThreadIbcntl());
+            cntl = formatString("%d",ThreadIbcntl());
         }
         else {
-            cntl = QString::number(ThreadIbcntl()) + " " + buf;
+            cntl = formatString("%d",ThreadIbcntl()) + " " + buf;
         }
     #endif
         errno = 0;
   }
   else {
-        cntl = QString::number(ThreadIbcntl());
+        cntl = formatString("%d",ThreadIbcntl());
   }
   return QString("GPIB %1: addr %2, sta %3, err %4, cntl %5")
     .arg(msg)
@@ -101,23 +101,26 @@ XNIGPIBPort::XNIGPIBPort(XInterface *interface)
 }
 XNIGPIBPort::~XNIGPIBPort()
 {
-  s_lock.lock();
-  s_cntOpened--;
-  s_lock.unlock();
-  
-  if(m_ud >= 0) ibonl(m_ud, 0);
+    try {
+        gpib_close();
+    }
+    catch(...) {
+    }
 } 
 void
 XNIGPIBPort::open() throw (XInterface::XCommError &)
 {
-  s_lock.lock();
-  if(s_cntOpened == 0)
-        gpib_reset();
-  s_cntOpened++;
-  s_lock.unlock();
-  
   int port = QString(m_pInterface->port()->to_str()).toInt();
-   
+  {
+      XScopedLock<XMutex> lock(s_lock);
+      if(s_cntOpened == 0) {
+          dbgPrint(KAME::i18n("GPIB: Sending IFC"));
+          SendIFC (port);
+          msecsleep(100);
+      }
+      s_cntOpened++;
+  }
+  
   Addr4882_t addrtbl[2];
   int eos = 0;
   if(m_pInterface->eos().length()) {
@@ -136,12 +139,21 @@ XNIGPIBPort::open() throw (XInterface::XCommError &)
   EnableRemote(port, addrtbl);
 }
 void
+XNIGPIBPort::gpib_close() throw (XInterface::XCommError &)
+{
+  if(m_ud >= 0) ibonl(m_ud, 0);
+  m_ud=-1;
+  {
+      XScopedLock<XMutex> lock(s_lock);
+      s_cntOpened--;
+  }
+}
+void
 XNIGPIBPort::gpib_reset() throw (XInterface::XCommError &)
 {
-  int port = QString(m_pInterface->port()->to_str()).toInt();
-  dbgPrint(KAME::i18n("GPIB: Sending IFC"));
-  SendIFC (port);
-  msecsleep(100);
+    gpib_close();
+    msecsleep(100);
+    open();
 }
 
 void
@@ -240,7 +252,7 @@ XNIGPIBPort::gpib_receive(unsigned int est_length, unsigned int max_length)
                         gpibStatus(KAME::i18n("too many EDVR/EFSO")), __FILE__, __LINE__);
               }
               gErrPrint(gpibStatus(KAME::i18n("ibrd err")));
-              gpib_reset();
+//              gpib_reset();
               if(i < 2) {
                 gErrPrint(KAME::i18n("try to continue"));
                 continue;

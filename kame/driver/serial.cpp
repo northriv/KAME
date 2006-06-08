@@ -80,8 +80,11 @@ XPosixSerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommE
       for (;;) {
           int ret = tcflush(m_scifd, TCIFLUSH);
           if(ret < 0) {
-             dbgPrint(KAME::i18n("TCIFLUSH failed. errno=%1. continue.").arg(errno));
-             continue;
+            if(errno == EINTR) {
+                dbgPrint("Serial, EINTR, try to continue.");
+                continue;
+            }
+             throw XInterface::XCommError(KAME::i18n("tciflush error."), __FILE__, __LINE__);
           }
           break;
       }

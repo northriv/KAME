@@ -85,10 +85,11 @@ double XSHPulser::resolution() {
 #define trig1mask 0x0004
 #define trig2mask 0x0008
 #define aswmask	0x0080
+#define qswmask 0x0040
 #define allmask 0xffff
 #define pulse1mask 0x0100
-#define pulse2mask 0x0220
-#define combmask 0x0840
+#define pulse2mask 0x0200
+#define combmask 0x0820
 #define combfmmask 0x0400
 #define qpskbit 0x10000
 #define qpskmask (qpskbit*3)
@@ -420,6 +421,9 @@ XSHPulser::rawToRelPat() throw (XRecordError&)
             (_comb_mode == N_COMB_MODE_COMB_ALT));
   bool saturation_wo_comb = (_comb_num == 0);
   bool driven_equilibrium = *drivenEquilibrium();
+  double _qsw_delay = *qswDelay();
+  double _qsw_width = *qswWidth();
+  bool _qsw_pi_only = *qswPiPulseOnly();
   int comb_rot_num = lrint(*combOffRes() * (_comb_pw / 1000.0) * 4);
   
   bool _induce_emission = *induceEmission();
@@ -513,11 +517,16 @@ XSHPulser::rawToRelPat() throw (XRecordError&)
           cpos += _comb_pw/1000.0;      
           patterns.insert(tpat(cpos, 0 , g1mask));
           patterns.insert(tpat(cpos, 0, pulsemask));
+
           cpos -= _comb_pw/2/1000.0;
         }
       patterns.insert(tpat(cpos + _comb_pw/2/1000.0, 0, g2mask));
       patterns.insert(tpat(cpos + _comb_pw/2/1000.0, 0, combmask));
       patterns.insert(tpat(cpos + _comb_pw/1000.0/2, ~0, combfmmask));
+      if(! _qsw_pi_only) {
+          patterns.insert(tpat(cpos + _comb_pw/2/1000.0 + _qsw_delay/1000.0, ~0 , qswmask));
+          patterns.insert(tpat(cpos + _comb_pw/2/1000.0 + (_qsw_delay + _qsw_width)/1000.0, 0 , qswmask));
+      }
     }   
        pos += _p1;
        
@@ -534,6 +543,10 @@ XSHPulser::rawToRelPat() throw (XRecordError&)
       patterns.insert(tpat(pos + _pw1/2.0/1000.0, 0, pulse1mask));
       patterns.insert(tpat(pos + _pw1/2.0/1000.0, qpsk(p2[j]), qpskmask));
       patterns.insert(tpat(pos + _pw1/2.0/1000.0, ~0, pulse2mask));
+      if(! _qsw_pi_only) {
+          patterns.insert(tpat(pos + _pw1/2.0/1000.0 + _qsw_delay/1000.0, ~0 , qswmask));
+          patterns.insert(tpat(pos + _pw1/2.0/1000.0 + (_qsw_delay + _qsw_width)/1000.0, 0 , qswmask));
+      }
      
       //2tau
       pos += 2*_tau/1000.0;
@@ -569,6 +582,8 @@ XSHPulser::rawToRelPat() throw (XRecordError&)
           patterns.insert(tpat(pos + _pw2/2.0/1000.0, 0, pulsemask));
           patterns.insert(tpat(pos + _pw2/2.0/1000.0, 0, g1mask));
           patterns.insert(tpat(pos + _pw2/2.0/1000.0, 0, g2mask));
+          patterns.insert(tpat(pos + _pw2/2.0/1000.0 + _qsw_delay/1000.0, ~0 , qswmask));
+          patterns.insert(tpat(pos + _pw2/2.0/1000.0 + (_qsw_delay + _qsw_width)/1000.0, 0 , qswmask));
       }
 
        patterns.insert(tpat(pos + _tau/1000.0 + _asw_hold, 0, aswmask | trig1mask));
@@ -595,6 +610,8 @@ XSHPulser::rawToRelPat() throw (XRecordError&)
         patterns.insert(tpat(pos + _pw2/2.0/1000.0, 0, pulse2mask));
         patterns.insert(tpat(pos + _pw2/2.0/1000.0, 0, pulsemask));
         patterns.insert(tpat(pos + _pw2/2.0/1000.0, 0, g1mask | g2mask));
+        patterns.insert(tpat(pos + _pw2/2.0/1000.0 + _qsw_delay/1000.0, ~0 , qswmask));
+        patterns.insert(tpat(pos + _pw2/2.0/1000.0 + (_qsw_delay + _qsw_width)/1000.0, 0 , qswmask));
         pos += _tau/1000.0;
          //pi/2 pulse
         //on
@@ -609,6 +626,10 @@ XSHPulser::rawToRelPat() throw (XRecordError&)
         patterns.insert(tpat(pos + _pw1/2.0/1000.0, 0, pulse1mask));
         patterns.insert(tpat(pos + _pw1/2.0/1000.0, qpsk(p1[j]), qpskmask));
         patterns.insert(tpat(pos + _pw1/2.0/1000.0, 0, g2mask));
+        if(! _qsw_pi_only) {
+            patterns.insert(tpat(pos + _pw1/2.0/1000.0 + _qsw_delay/1000.0, ~0 , qswmask));
+            patterns.insert(tpat(pos + _pw1/2.0/1000.0 + (_qsw_delay + _qsw_width)/1000.0, 0 , qswmask));
+        }
       }
     }
 

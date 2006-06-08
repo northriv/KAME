@@ -448,8 +448,10 @@ XRuby::my_rbdefout(VALUE self, VALUE str, VALUE threadid)
   atomic_shared_ptr<const NodeList> list = st->xruby->children();
   if(list) { 
       for(unsigned int i = 0; i < list->size(); i++) {
-        if(id == *dynamic_pointer_cast<XRubyThread>(list->at(i))->threadID())
-            rubythread = dynamic_pointer_cast<XRubyThread>(list->at(i));
+        shared_ptr<XRubyThread> th = dynamic_pointer_cast<XRubyThread>(list->at(i));
+        ASSERT(th);
+        if(id == *th->threadID())
+            rubythread = th;
       }
   }
   if(rubythread) {

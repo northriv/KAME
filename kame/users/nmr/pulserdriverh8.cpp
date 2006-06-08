@@ -72,6 +72,9 @@ XH8Pulser::afterStart()
   qamDelay1()->setUIEnabled(false);
   qamDelay2()->setUIEnabled(false);
   difFreq()->setUIEnabled(false);    
+  qswDelay()->setUIEnabled(false);
+  qswWidth()->setUIEnabled(false);
+  qswPiPulseOnly()->setUIEnabled(false);
 }
 
 void

@@ -39,7 +39,8 @@ public:
 
 private:
   int m_ud;
-  //! send IFC
+  void gpib_close() throw (XInterface::XCommError &);
+  //! reopen device
   void gpib_reset() throw (XInterface::XCommError &);
   void gpib_spoll_before_write() throw (XInterface::XCommError &);
   void gpib_spoll_before_read() throw (XInterface::XCommError &);

@@ -29,7 +29,7 @@ class XWaveNGraph : public XNode
   void setRowCount(unsigned int rowcnt);
   void setColCount(unsigned int colcnt, const char **lables);
   void setLabel(unsigned int col, const char *label);
-  void selectAxes(int colx = 0, int coly1 = 1, int coly2 = -1, int colyweight = -1);
+  void selectAxes(int colx = 0, int coly1 = 1, int coly2 = -1, int colweight = -1, int colz = -1);
 
   unsigned int rowCount() const;
   unsigned int colCount() const;
@@ -48,12 +48,17 @@ class XWaveNGraph : public XNode
   int colX() const;
   int colY1() const;
   int colY2() const;
-  int colYWeight() const; 
+  int colWeight() const; 
+  int colZ() const; 
 
   const shared_ptr<XGraph> &graph() const {return m_graph;}
   const shared_ptr<XXYPlot> &plot1() const {return m_plot1;}
   const shared_ptr<XXYPlot> &plot2() const {return m_plot2;}
+  const shared_ptr<XAxis> &axisx() const {return m_axisx;}  
+  const shared_ptr<XAxis> &axisy() const {return m_axisy;}  
   const shared_ptr<XAxis> &axisy2() const {return m_axisy2;}  
+  const shared_ptr<XAxis> &axisz() const {return m_axisz;}  
+  const shared_ptr<XAxis> &axisw() const {return m_axisw;}  
   const shared_ptr<XNode> &dump() const {return m_dump;}
   const shared_ptr<XStringNode> &filename() const {return m_filename;}
  private:
@@ -69,7 +74,7 @@ class XWaveNGraph : public XNode
   
   shared_ptr<XGraph> m_graph;
   shared_ptr<XXYPlot> m_plot1, m_plot2;
-  shared_ptr<XAxis> m_axisy2;
+  shared_ptr<XAxis> m_axisx, m_axisy, m_axisy2, m_axisw, m_axisz;
   
   shared_ptr<XNode> m_dump;
   shared_ptr<XStringNode> m_filename;
@@ -84,7 +89,7 @@ class XWaveNGraph : public XNode
   
   xqcon_ptr m_conFilename, m_conDump;
 
-  int m_colx, m_coly1, m_coly2, m_colyweight;
+  int m_colx, m_coly1, m_coly2, m_colweight, m_colz;
 };
 
 #endif

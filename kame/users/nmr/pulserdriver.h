@@ -86,11 +86,14 @@ class XPulser : public XPrimaryDriver
     const shared_ptr<XDoubleNode> &portLevel14() const {return m_portLevel14;} //!< [V]
     const shared_ptr<XDoubleNode> &qamOffset1() const {return m_qamOffset1;}
     const shared_ptr<XDoubleNode> &qamOffset2() const {return m_qamOffset2;} //!< [%F.S.]
-    const shared_ptr<XDoubleNode> &qamLevel1() const {return m_qamLevel1;}
+    const shared_ptr<XDoubleNode> &qamLevel1() const {return m_qamLevel1;} //! < Quadrature Amplitude Modulation. Amplitude compensation factor.
     const shared_ptr<XDoubleNode> &qamLevel2() const {return m_qamLevel2;}
-    const shared_ptr<XDoubleNode> &qamDelay1() const {return m_qamDelay1;}
+    const shared_ptr<XDoubleNode> &qamDelay1() const {return m_qamDelay1;} //! < Delaying compensation [us].
     const shared_ptr<XDoubleNode> &qamDelay2() const {return m_qamDelay2;} //!< [us]
     const shared_ptr<XDoubleNode> &difFreq() const {return m_difFreq;} //!< [MHz]
+    const shared_ptr<XDoubleNode> &qswDelay() const {return m_qswDelay;} //!< Q-switch setting, period after the end-edge of pulses [us].
+    const shared_ptr<XDoubleNode> &qswWidth() const {return m_qswWidth;} //!< Q-switch setting, width of suppression [us].
+    const shared_ptr<XBoolNode> &qswPiPulseOnly() const {return m_qswPiPulseOnly;} //!< Q-switch setting, use QSW only for pi pulses.
 
     //! ver 1 records
     short combModeRecorded() const {return m_combModeRecorded;}
@@ -193,6 +196,8 @@ class XPulser : public XPrimaryDriver
   static double pulseFuncFlatTop(double x);
   static double pulseFuncFlatTopLong(double x);
   static double pulseFuncFlatTopLongLong(double x);
+  static double pulseFuncHalfCos(double x);
+  static double pulseFuncChoppedHalfCos(double x);
   
   unsigned int m_phase_xor;
  private:
@@ -235,6 +240,9 @@ class XPulser : public XPrimaryDriver
     shared_ptr<XDoubleNode> m_difFreq; //!< [MHz]
     shared_ptr<XBoolNode> m_induceEmission; 
     shared_ptr<XDoubleNode> m_induceEmissionPhase; 
+    shared_ptr<XDoubleNode> m_qswDelay;
+    shared_ptr<XDoubleNode> m_qswWidth;
+    shared_ptr<XBoolNode> m_qswPiPulseOnly;
     
   shared_ptr<XNode> m_moreConfigShow;
   xqcon_ptr m_conOutput;
@@ -253,7 +261,8 @@ class XPulser : public XPrimaryDriver
     m_conQAMDelay1, m_conQAMDelay2,
     m_conMoreConfigShow,
     m_conDIFFreq,
-    m_conInduceEmission, m_conInduceEmissionPhase;
+    m_conInduceEmission, m_conInduceEmissionPhase,
+    m_conQSWDelay, m_conQSWWidth, m_conQSWPiPulseOnly;
   shared_ptr<XListener> m_lsnOnPulseChanged;
   shared_ptr<XListener> m_lsnOnMoreConfigShow;
   void onMoreConfigShow(const shared_ptr<XNode> &);

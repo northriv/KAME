@@ -25,6 +25,8 @@
 #define PULSE_FUNC_KAISER_1 "Kaiser(3) BW=1.6/T"
 #define PULSE_FUNC_KAISER_2 "Kaiser(7.2) BW=2.6/T"
 #define PULSE_FUNC_KAISER_3 "Kaiser(15) BW=3.8/T"
+#define PULSE_FUNC_HALF_COS "Half-cos BW=1.2/T"
+#define PULSE_FUNC_CHOPPED_HALF_COS "Chopped-Half-cos BW=1.0/T"
 
 #define COMB_MODE_OFF "Comb Off"
 #define COMB_MODE_ON "Comb On"
@@ -89,6 +91,13 @@ double XPulser::pulseFuncKaiser2(double x) {
 double XPulser::pulseFuncKaiser3(double x) {
 	return pulseFuncKaiser(x, 15.0);
 }
+double XPulser::pulseFuncHalfCos(double x) {
+    return cos(PI*x);
+}
+double XPulser::pulseFuncChoppedHalfCos(double x) {
+    return 2.0*std::min(0.5, cos(PI*x));
+}
+
 XPulser::tpulsefunc
 XPulser::pulseFunc(const std::string &str) {
 	if(str == PULSE_FUNC_HANNING) return &pulseFuncHanning;
@@ -101,6 +110,8 @@ XPulser::pulseFunc(const std::string &str) {
 	if(str == PULSE_FUNC_FLATTOP) return &pulseFuncFlatTop;
 	if(str == PULSE_FUNC_FLATTOP_LONG) return &pulseFuncFlatTopLong;
 	if(str == PULSE_FUNC_FLATTOP_LONG_LONG) return &pulseFuncFlatTopLongLong;
+    if(str == PULSE_FUNC_HALF_COS) return &pulseFuncHalfCos;
+    if(str == PULSE_FUNC_CHOPPED_HALF_COS) return &pulseFuncChoppedHalfCos;
 	return &pulseFuncRect;
 }
 
@@ -155,6 +166,9 @@ XPulser::XPulser(const char *name, bool runtime,
     m_difFreq(create<XDoubleNode>("DIFFreq", false)),
     m_induceEmission(create<XBoolNode>("InduceEmission", false)),
     m_induceEmissionPhase(create<XDoubleNode>("InduceEmissionPhase", false)),
+    m_qswDelay(create<XDoubleNode>("QSWDelay", false)),
+    m_qswWidth(create<XDoubleNode>("QSWWidth", false)),
+    m_qswPiPulseOnly(create<XBoolNode>("QSWPiPulseOnly", false)),
     m_moreConfigShow(create<XNode>("MoreConfigShow", true)),
     m_form(new FrmPulser(g_pFrmMain)),
     m_formMore(new FrmPulserMore(g_pFrmMain))
@@ -191,6 +205,8 @@ XPulser::XPulser(const char *name, bool runtime,
   masterLevel()->value(-10.0);
   qamLevel1()->value(1.0);
   qamLevel2()->value(1.0);
+  qswDelay()->value(5.0);
+  qswWidth()->value(10.0);
  
   combMode()->add(COMB_MODE_OFF);
   combMode()->add(COMB_MODE_ON);
@@ -212,6 +228,8 @@ XPulser::XPulser(const char *name, bool runtime,
   p1Func()->add(PULSE_FUNC_KAISER_1);
   p1Func()->add(PULSE_FUNC_KAISER_2);
   p1Func()->add(PULSE_FUNC_KAISER_3);
+  p1Func()->add(PULSE_FUNC_HALF_COS);
+  p1Func()->add(PULSE_FUNC_CHOPPED_HALF_COS);
     p2Func()->add(PULSE_FUNC_RECT);
     p2Func()->add(PULSE_FUNC_HANNING);
     p2Func()->add(PULSE_FUNC_HAMMING);
@@ -223,6 +241,8 @@ XPulser::XPulser(const char *name, bool runtime,
     p2Func()->add(PULSE_FUNC_KAISER_1);
     p2Func()->add(PULSE_FUNC_KAISER_2);
     p2Func()->add(PULSE_FUNC_KAISER_3);
+    p2Func()->add(PULSE_FUNC_HALF_COS);
+    p2Func()->add(PULSE_FUNC_CHOPPED_HALF_COS);
   combFunc()->add(PULSE_FUNC_RECT);
   combFunc()->add(PULSE_FUNC_HANNING);
   combFunc()->add(PULSE_FUNC_HAMMING);
@@ -234,6 +254,8 @@ XPulser::XPulser(const char *name, bool runtime,
   combFunc()->add(PULSE_FUNC_KAISER_1);
   combFunc()->add(PULSE_FUNC_KAISER_2);
   combFunc()->add(PULSE_FUNC_KAISER_3);
+  combFunc()->add(PULSE_FUNC_HALF_COS);
+  combFunc()->add(PULSE_FUNC_CHOPPED_HALF_COS);
     
   p1Func()->value(PULSE_FUNC_KAISER_2);
   p2Func()->value(PULSE_FUNC_KAISER_2);
@@ -297,6 +319,9 @@ XPulser::XPulser(const char *name, bool runtime,
   m_conDIFFreq = xqcon_create<XQLineEditConnector>(m_difFreq, m_formMore->m_edDIFFreq);  
   m_conInduceEmission = xqcon_create<XQToggleButtonConnector>(m_induceEmission, m_formMore->m_ckbInduceEmission);
   m_conInduceEmissionPhase = xqcon_create<XKDoubleNumInputConnector>(m_induceEmissionPhase, m_formMore->m_numInduceEmissionPhase);
+  m_conQSWDelay = xqcon_create<XQLineEditConnector>(m_qswDelay, m_formMore->m_edQSWDelay);  
+  m_conQSWWidth = xqcon_create<XQLineEditConnector>(m_qswWidth, m_formMore->m_edQSWWidth);  
+  m_conQSWPiPulseOnly = xqcon_create<XQToggleButtonConnector>(m_qswPiPulseOnly, m_formMore->m_ckbQSWPiPulseOnly);  
  
   output()->setUIEnabled(false);
   combMode()->setUIEnabled(false);
@@ -342,6 +367,9 @@ XPulser::XPulser(const char *name, bool runtime,
   difFreq()->setUIEnabled(false);
   induceEmission()->setUIEnabled(false);
   induceEmissionPhase()->setUIEnabled(false);
+  qswDelay()->setUIEnabled(false);
+  qswWidth()->setUIEnabled(false);
+  qswPiPulseOnly()->setUIEnabled(false);
   
   m_conPulserDriver = xqcon_create<XQPulserDriverConnector>(
         dynamic_pointer_cast<XPulser>(shared_from_this()), m_form->m_tblPulse, m_form->m_graph);
@@ -409,6 +437,9 @@ XPulser::start()
   difFreq()->setUIEnabled(true);  
   induceEmission()->setUIEnabled(true);
   induceEmissionPhase()->setUIEnabled(true);
+  qswDelay()->setUIEnabled(true);
+  qswWidth()->setUIEnabled(true);
+  qswPiPulseOnly()->setUIEnabled(true);
 
   afterStart();
       
@@ -456,7 +487,9 @@ XPulser::start()
   difFreq()->onValueChanged().connect(m_lsnOnPulseChanged);    
   induceEmission()->onValueChanged().connect(m_lsnOnPulseChanged);    
   induceEmissionPhase()->onValueChanged().connect(m_lsnOnPulseChanged);    
-
+  qswDelay()->onValueChanged().connect(m_lsnOnPulseChanged);
+  qswWidth()->onValueChanged().connect(m_lsnOnPulseChanged);
+  qswPiPulseOnly()->onValueChanged().connect(m_lsnOnPulseChanged);
 }
 void
 XPulser::stop()
@@ -507,6 +540,9 @@ XPulser::stop()
   difFreq()->setUIEnabled(false);
   induceEmission()->setUIEnabled(false);
   induceEmissionPhase()->setUIEnabled(false);
+  qswDelay()->setUIEnabled(false);
+  qswWidth()->setUIEnabled(false);
+  qswPiPulseOnly()->setUIEnabled(false);
   
   interface()->close();
 //    m_thread->waitFor();
