@@ -108,6 +108,16 @@ RUBY_LIBS="$RUBY_LIBS $ruby_libs"
 RUBY_CFLAGS="$RUBY_CFLAGS $ruby_cflags"
 LIBS="$ac_save_LIBS"
 
+AC_MSG_CHECKING(for NI-DAQmx)
+if test -f /usr/local/lib/libnidaqmx.so ; then
+  AC_MSG_RESULT(yes)
+  AC_DEFINE([HAVE_NI_DAQMX], 1, [Define if you have 'NI-DAQmx' library])
+  NIDAQMX_LIBS="-L/usr/local/lib -lnidaqmx"
+  NIDAQMX_CFLAGS="-I/usr/local/include"
+else
+  AC_MSG_RESULT(no)
+fi
+
 AC_MSG_CHECKING(for linux-gpib)
 if test -f /usr/local/lib/libgpib.so ; then
   AC_MSG_RESULT(yes)
@@ -150,6 +160,8 @@ AC_CHECK_SIZEOF(void *)
 
 AC_SUBST(GSL_LIBS)
 AC_SUBST(FFTW_LIBS)
+AC_SUBST(NIDAQMX_LIBS)
+AC_SUBST(NIDAQMX_CFLAGS)
 AC_SUBST(LINUXGPIB_LIBS)
 AC_SUBST(LINUXGPIB_CFLAGS)
 AC_SUBST(RUBY_LIBS)
@@ -193,6 +205,8 @@ AC_CONFIG_FILES([ kame/users/lia/Makefile ])
 AC_CONFIG_FILES([ kame/users/lia/forms/Makefile ])
 AC_CONFIG_FILES([ kame/users/magnetps/Makefile ])
 AC_CONFIG_FILES([ kame/users/magnetps/forms/Makefile ])
+AC_CONFIG_FILES([ kame/users/montecarlo/Makefile ])
+AC_CONFIG_FILES([ kame/users/montecarlo/forms/Makefile ])
 AC_CONFIG_FILES([ kame/users/nmr/Makefile ])
 AC_CONFIG_FILES([ kame/users/nmr/forms/Makefile ])
 AC_CONFIG_FILES([ kame/users/tempcontrol/Makefile ])

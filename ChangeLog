@@ -1,6 +1,11 @@
+* Wed May 24 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- pulserdriver : Q-Switch support.
+
 * Sun May 14 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
 - (2.0.11-1)
 - nmrrelaxfit.cpp : more relaxation curves.
+- usertempcontrol.cpp : fix crashing.
+- support.cpp : new func. formatString().
 
 * Fri May 12 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
 - (2.0.10-4)

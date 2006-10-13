@@ -464,7 +464,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO AMTAR install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM AWK SET_MAKE CONF_FILES CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE WOVERLOADED_VIRTUAL USE_EXCEPTIONS USE_RTTI CXXCPP NOOPT_CXXFLAGS NOOPT_CFLAGS KDE_USE_FINAL_TRUE KDE_USE_FINAL_FALSE KDE_USE_CLOSURE_TRUE KDE_USE_CLOSURE_FALSE KDE_NO_UNDEFINED KDE_USE_NMCHECK_TRUE KDE_USE_NMCHECK_FALSE EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB F77 FFLAGS ac_ct_F77 LIBTOOL KDE_PLUGIN MSGFMT GMSGFMT XGETTEXT LIBUTIL LIBCOMPAT LIBCRYPT LIBRESOLV LIB_POLL FRAMEWORK_COREAUDIO LIBSOCKET X_EXTRA_LIBS LIBUCB LIBDL X_PRE_LIBS LIB_X11 LIB_XRENDER LIBSM X_INCLUDES X_LDFLAGS x_includes x_libraries QTE_NORTTI LIB_XEXT LIBPTHREAD USE_THREADS KDE_MT_LDFLAGS KDE_MT_LIBS USER_INCLUDES USER_LDFLAGS LIBZ LIBPNG LIBJPEG qt_libraries qt_includes QT_INCLUDES QT_LDFLAGS PERL MOC UIC UIC_TR LIB_QT LIB_QPE kde_qtver KDE_EXTRA_RPATH KDE_RPATH X_RPATH kde_libraries kde_includes KDE_LDFLAGS KDE_INCLUDES all_includes all_libraries AUTODIRS include_ARTS_TRUE include_ARTS_FALSE KCONFIG_COMPILER KCFG_DEPENDENCIES DCOPIDLNG DCOPIDL DCOPIDL2CPP DCOP_DEPENDENCIES MCOPIDL ARTSCCONFIG KDECONFIG MEINPROC KDE_XSL_STYLESHEET XMLLINT kde_libs_prefix kde_libs_htmldir kde_htmldir kde_appsdir kde_icondir kde_sounddir kde_datadir kde_locale kde_confdir kde_kcfgdir kde_mimedir kde_wallpaperdir kde_bindir xdg_appsdir xdg_menudir xdg_directorydir kde_templatesdir kde_servicesdir kde_servicetypesdir kde_moduledir kdeinitdir kde_styledir kde_widgetdir LIB_KDECORE LIB_KDEUI LIB_KIO LIB_SMB LIB_KAB LIB_KABC LIB_KHTML LIB_KSPELL LIB_KPARTS LIB_KDEPRINT LIB_KUTILS LIB_KDEPIM LIB_KSYCOCA LIB_KFILE LIB_KFM GSL_LIBS FFTW_LIBS LINUXGPIB_LIBS LINUXGPIB_CFLAGS RUBY_LIBS RUBY_CFLAGS FREETYPE2_LIBS FREETYPE2_CFLAGS GC_LIBS MALLOC_DEBUG_LIBS TOPSUBDIRS LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO AMTAR install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM AWK SET_MAKE CONF_FILES CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE WOVERLOADED_VIRTUAL USE_EXCEPTIONS USE_RTTI CXXCPP NOOPT_CXXFLAGS NOOPT_CFLAGS KDE_USE_FINAL_TRUE KDE_USE_FINAL_FALSE KDE_USE_CLOSURE_TRUE KDE_USE_CLOSURE_FALSE KDE_NO_UNDEFINED KDE_USE_NMCHECK_TRUE KDE_USE_NMCHECK_FALSE EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB F77 FFLAGS ac_ct_F77 LIBTOOL KDE_PLUGIN MSGFMT GMSGFMT XGETTEXT LIBUTIL LIBCOMPAT LIBCRYPT LIBRESOLV LIB_POLL FRAMEWORK_COREAUDIO LIBSOCKET X_EXTRA_LIBS LIBUCB LIBDL X_PRE_LIBS LIB_X11 LIB_XRENDER LIBSM X_INCLUDES X_LDFLAGS x_includes x_libraries QTE_NORTTI LIB_XEXT LIBPTHREAD USE_THREADS KDE_MT_LDFLAGS KDE_MT_LIBS USER_INCLUDES USER_LDFLAGS LIBZ LIBPNG LIBJPEG qt_libraries qt_includes QT_INCLUDES QT_LDFLAGS PERL MOC UIC UIC_TR LIB_QT LIB_QPE kde_qtver KDE_EXTRA_RPATH KDE_RPATH X_RPATH kde_libraries kde_includes KDE_LDFLAGS KDE_INCLUDES all_includes all_libraries AUTODIRS include_ARTS_TRUE include_ARTS_FALSE KCONFIG_COMPILER KCFG_DEPENDENCIES DCOPIDLNG DCOPIDL DCOPIDL2CPP DCOP_DEPENDENCIES MCOPIDL ARTSCCONFIG KDECONFIG MEINPROC KDE_XSL_STYLESHEET XMLLINT kde_libs_prefix kde_libs_htmldir kde_htmldir kde_appsdir kde_icondir kde_sounddir kde_datadir kde_locale kde_confdir kde_kcfgdir kde_mimedir kde_wallpaperdir kde_bindir xdg_appsdir xdg_menudir xdg_directorydir kde_templatesdir kde_servicesdir kde_servicetypesdir kde_moduledir kdeinitdir kde_styledir kde_widgetdir LIB_KDECORE LIB_KDEUI LIB_KIO LIB_SMB LIB_KAB LIB_KABC LIB_KHTML LIB_KSPELL LIB_KPARTS LIB_KDEPRINT LIB_KUTILS LIB_KDEPIM LIB_KSYCOCA LIB_KFILE LIB_KFM GSL_LIBS FFTW_LIBS NIDAQMX_LIBS NIDAQMX_CFLAGS LINUXGPIB_LIBS LINUXGPIB_CFLAGS RUBY_LIBS RUBY_CFLAGS FREETYPE2_LIBS FREETYPE2_CFLAGS GC_LIBS MALLOC_DEBUG_LIBS TOPSUBDIRS LIBOBJS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -31189,6 +31189,23 @@ RUBY_LIBS="$RUBY_LIBS $ruby_libs"
 RUBY_CFLAGS="$RUBY_CFLAGS $ruby_cflags"
 LIBS="$ac_save_LIBS"
 
+echo "$as_me:$LINENO: checking for NI-DAQmx" >&5
+echo $ECHO_N "checking for NI-DAQmx... $ECHO_C" >&6
+if test -f /usr/local/lib/libnidaqmx.so ; then
+  echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_NI_DAQMX 1
+_ACEOF
+
+  NIDAQMX_LIBS="-L/usr/local/lib -lnidaqmx"
+  NIDAQMX_CFLAGS="-I/usr/local/include"
+else
+  echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+fi
+
 echo "$as_me:$LINENO: checking for linux-gpib" >&5
 echo $ECHO_N "checking for linux-gpib... $ECHO_C" >&6
 if test -f /usr/local/lib/libgpib.so ; then
@@ -34092,6 +34109,8 @@ _ACEOF
 
 
 
+
+
 CPPFLAGS="$CPPFLAGS $RUBY_CFLAGS $FREETYPE2_CFLAGS"
 
 
@@ -34202,6 +34221,10 @@ done
           ac_config_files="$ac_config_files kame/users/magnetps/Makefile"
 
           ac_config_files="$ac_config_files kame/users/magnetps/forms/Makefile"
+
+          ac_config_files="$ac_config_files kame/users/montecarlo/Makefile"
+
+          ac_config_files="$ac_config_files kame/users/montecarlo/forms/Makefile"
 
           ac_config_files="$ac_config_files kame/users/nmr/Makefile"
 
@@ -34794,6 +34817,8 @@ do
   "kame/users/lia/forms/Makefile" ) CONFIG_FILES="$CONFIG_FILES kame/users/lia/forms/Makefile" ;;
   "kame/users/magnetps/Makefile" ) CONFIG_FILES="$CONFIG_FILES kame/users/magnetps/Makefile" ;;
   "kame/users/magnetps/forms/Makefile" ) CONFIG_FILES="$CONFIG_FILES kame/users/magnetps/forms/Makefile" ;;
+  "kame/users/montecarlo/Makefile" ) CONFIG_FILES="$CONFIG_FILES kame/users/montecarlo/Makefile" ;;
+  "kame/users/montecarlo/forms/Makefile" ) CONFIG_FILES="$CONFIG_FILES kame/users/montecarlo/forms/Makefile" ;;
   "kame/users/nmr/Makefile" ) CONFIG_FILES="$CONFIG_FILES kame/users/nmr/Makefile" ;;
   "kame/users/nmr/forms/Makefile" ) CONFIG_FILES="$CONFIG_FILES kame/users/nmr/forms/Makefile" ;;
   "kame/users/tempcontrol/Makefile" ) CONFIG_FILES="$CONFIG_FILES kame/users/tempcontrol/Makefile" ;;
@@ -35067,6 +35092,8 @@ s,@LIB_KFILE@,$LIB_KFILE,;t t
 s,@LIB_KFM@,$LIB_KFM,;t t
 s,@GSL_LIBS@,$GSL_LIBS,;t t
 s,@FFTW_LIBS@,$FFTW_LIBS,;t t
+s,@NIDAQMX_LIBS@,$NIDAQMX_LIBS,;t t
+s,@NIDAQMX_CFLAGS@,$NIDAQMX_CFLAGS,;t t
 s,@LINUXGPIB_LIBS@,$LINUXGPIB_LIBS,;t t
 s,@LINUXGPIB_CFLAGS@,$LINUXGPIB_CFLAGS,;t t
 s,@RUBY_LIBS@,$RUBY_LIBS,;t t
