@@ -191,7 +191,7 @@ XLIA::execute(const atomic<bool> &terminated)
       clearRaw();
       push(x);
       push(y);
-      finishWritingRaw(time_awared, XTime::now(), true);
+      finishWritingRaw(time_awared, XTime::now());
     }
   
   m_lsnOutput.reset();

@@ -1,4 +1,4 @@
-#include "userdso.h"
+#include "tds.h"
 #include "interface.h"
 #include "xwavengraph.h"
 #include <klocale.h>
@@ -15,12 +15,23 @@ XTDS::XTDS(const char *name, bool runtime,
         trace1()->add(ch[i]);
         trace2()->add(ch[i]);
     }
+  const char* sc[] = {"0.02", "0.05", "0.1", "0.2", "0.5", "1", "2", "5", "10",
+        "20", "50", "100", 0L};
+  for(int i = 0; sc[i]; i++)
+    {
+        vFullScale1()->add(sc[i]);
+        vFullScale2()->add(sc[i]);
+    }
+  const char* tr[] = {"EXT", "EXT10", "CH1", "CH2", "CH3", "CH4", "LINE", 0L};
+  for(int i = 0; tr[i]; i++)
+    {
+        trigSource()->add(tr[i]);
+    }
 
   interface()->setGPIBWaitBeforeWrite(20); //20msec
   interface()->setGPIBWaitBeforeSPoll(10); //10msec
 
-  recordLength()->add("500");
-  recordLength()->add("10000");
+  recordLength()->value(10000);
  }
 
 void
@@ -75,12 +86,27 @@ XTDS::onSingleChanged(const shared_ptr<XValueNodeBase> &)
     }
 }
 void
+XTDS::onTrigSourceChanged(const shared_ptr<XValueNodeBase> &)
+{
+  interface()->send("TRIG:A:EDG:SOU " + trigSource()->to_str());
+}
+void
 XTDS::onTrigPosChanged(const shared_ptr<XValueNodeBase> &)
 {
     if(*trigPos() >= 0)
     	   interface()->sendf("HOR:DELAY:STATE OFF;TIME %.2g", (double)*trigPos());
     else
 	   interface()->sendf("HOR:DELAY:STATE ON;TIME %.2g", -(*trigPos() - 50.0)/100.0* *timeWidth());    
+}
+void
+XTDS::onTrigLevelChanged(const shared_ptr<XValueNodeBase> &)
+{
+  interface()->send("TRIG:A:EDG:LEV " + trigSource()->to_str());
+}
+void
+XTDS::onTrigFallingChanged(const shared_ptr<XValueNodeBase> &)
+{
+  interface()->sendf("TRIG:A:EDG:SLOP %s", (*trigFalling() ? "FALL" : "RISE"));
 }
 void
 XTDS::onTimeWidthChanged(const shared_ptr<XValueNodeBase> &)
@@ -92,14 +118,14 @@ XTDS::onVFullScale1Changed(const shared_ptr<XValueNodeBase> &)
 {
     std::string ch = trace1()->to_str();
 	if(ch.empty()) return;
-	interface()->sendf("%s:SCALE %.1g", ch.c_str(), (double)*vFullScale1()/10.0);
+	interface()->sendf("%s:SCALE %.1g", ch.c_str(), atof(vFullScale1()->to_str().c_str())/10.0);
 }
 void
 XTDS::onVFullScale2Changed(const shared_ptr<XValueNodeBase> &)
 {
     std::string ch = trace2()->to_str();
     if(ch.empty()) return;
-    interface()->sendf("%s:SCALE %.1g", ch.c_str(), (double)*vFullScale2()/10.0);
+    interface()->sendf("%s:SCALE %.1g", ch.c_str(), atof(vFullScale2()->to_str().c_str())/10.0);
 }
 void
 XTDS::onVOffset1Changed(const shared_ptr<XValueNodeBase> &)

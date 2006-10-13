@@ -47,13 +47,16 @@ class XDSO : public XPrimaryDriver
   //! If true, pause acquision after averaging count
   const shared_ptr<XBoolNode> &singleSequence() const {return m_singleSequence;}
   const shared_ptr<XBoolNode> &fetch() const {return m_fetch;}
+  const shared_ptr<XComboNode> &trigSource() const {return m_trigSource;}
   const shared_ptr<XDoubleNode> &trigPos() const {return m_trigPos;}
+  const shared_ptr<XDoubleNode> &trigLevel() const {return m_trigLevel;}
+  const shared_ptr<XBoolNode> &trigFalling() const {return m_trigFalling;}
   const shared_ptr<XDoubleNode> &timeWidth() const {return m_timeWidth;}
-  const shared_ptr<XDoubleNode> &vFullScale1() const {return m_vFullScale1;}
-  const shared_ptr<XDoubleNode> &vFullScale2() const {return m_vFullScale2;}
+  const shared_ptr<XComboNode> &vFullScale1() const {return m_vFullScale1;}
+  const shared_ptr<XComboNode> &vFullScale2() const {return m_vFullScale2;}
   const shared_ptr<XDoubleNode> &vOffset1() const {return m_vOffset1;}
   const shared_ptr<XDoubleNode> &vOffset2() const {return m_vOffset2;}
-  const shared_ptr<XComboNode> &recordLength() const {return m_recordLength;}
+  const shared_ptr<XUIntNode> &recordLength() const {return m_recordLength;}
   const shared_ptr<XNode> &forceTrigger() const {return m_forceTrigger;}  
 
   const shared_ptr<XComboNode> &trace1() const {return m_trace1;}
@@ -74,7 +77,10 @@ class XDSO : public XPrimaryDriver
  protected:
   virtual void onAverageChanged(const shared_ptr<XValueNodeBase> &) = 0;
   virtual void onSingleChanged(const shared_ptr<XValueNodeBase> &) = 0;
+  virtual void onTrigSourceChanged(const shared_ptr<XValueNodeBase> &) = 0;
   virtual void onTrigPosChanged(const shared_ptr<XValueNodeBase> &) = 0;
+  virtual void onTrigLevelChanged(const shared_ptr<XValueNodeBase> &) = 0;
+  virtual void onTrigFallingChanged(const shared_ptr<XValueNodeBase> &) = 0;
   virtual void onTimeWidthChanged(const shared_ptr<XValueNodeBase> &) = 0;
   virtual void onVFullScale1Changed(const shared_ptr<XValueNodeBase> &) = 0;
   virtual void onVFullScale2Changed(const shared_ptr<XValueNodeBase> &) = 0;
@@ -84,6 +90,7 @@ class XDSO : public XPrimaryDriver
   virtual void onForceTriggerTouched(const shared_ptr<XNode> &) = 0;
 
   virtual void afterStart() = 0;
+  virtual void beforeStop() = 0;
   
   virtual double getTimeInterval() = 0;
   //! clear count or start sequence measurement
@@ -109,13 +116,16 @@ class XDSO : public XPrimaryDriver
   //! If true, pause acquision after averaging count
   shared_ptr<XBoolNode> m_singleSequence;
   shared_ptr<XBoolNode> m_fetch;
+  shared_ptr<XComboNode> m_trigSource;
+  shared_ptr<XBoolNode> m_trigFalling;
   shared_ptr<XDoubleNode> m_trigPos;
+  shared_ptr<XDoubleNode> m_trigLevel;
   shared_ptr<XDoubleNode> m_timeWidth;
-  shared_ptr<XDoubleNode> m_vFullScale1;
-  shared_ptr<XDoubleNode> m_vFullScale2;
+  shared_ptr<XComboNode> m_vFullScale1;
+  shared_ptr<XComboNode> m_vFullScale2;
   shared_ptr<XDoubleNode> m_vOffset1;
   shared_ptr<XDoubleNode> m_vOffset2;
-  shared_ptr<XComboNode> m_recordLength;
+  shared_ptr<XUIntNode> m_recordLength;
   shared_ptr<XNode> m_forceTrigger;  
   shared_ptr<XComboNode> m_trace1;
   shared_ptr<XComboNode> m_trace2;
@@ -140,7 +150,10 @@ class XDSO : public XPrimaryDriver
   
   shared_ptr<XListener> m_lsnOnSingleChanged;
   shared_ptr<XListener> m_lsnOnAverageChanged;
+  shared_ptr<XListener> m_lsnOnTrigSourceChanged;
   shared_ptr<XListener> m_lsnOnTrigPosChanged;
+  shared_ptr<XListener> m_lsnOnTrigLevelChanged;
+  shared_ptr<XListener> m_lsnOnTrigFallingChanged;
   shared_ptr<XListener> m_lsnOnTimeWidthChanged;
   shared_ptr<XListener> m_lsnOnVFullScale1Changed;
   shared_ptr<XListener> m_lsnOnVFullScale2Changed;
@@ -153,7 +166,8 @@ class XDSO : public XPrimaryDriver
   void onCondChanged(const shared_ptr<XValueNodeBase> &);
   
   xqcon_ptr m_conAverage, m_conSingle, m_conTrace1, m_conTrace2;
-  xqcon_ptr m_conFetch, m_conTrigPos, m_conTimeWidth, m_conVFullScale1, m_conVFullScale2;
+  xqcon_ptr m_conFetch, m_conTimeWidth, m_conVFullScale1, m_conVFullScale2;
+  xqcon_ptr m_conTrigSource, m_conTrigPos, m_conTrigLevel, m_conTrigFalling;
   xqcon_ptr m_conVOffset1, m_conVOffset2, m_conForceTrigger, m_conRecordLength;
   xqcon_ptr m_conFIREnabled, m_conFIRBandWidth, m_conFIRSharpness, m_conFIRCenterFreq;
   xqcon_ptr m_conFoolAvg4x, m_conPulser, m_conFoolAvgEnabled;

@@ -45,6 +45,8 @@ class XMonteCarloDriver : public XPrimaryDriver
   shared_ptr<XDoubleNode> m_hdirz;
   shared_ptr<XUIntNode> m_L;
   shared_ptr<XDoubleNode> m_cutoffReal;
+  shared_ptr<XDoubleNode> m_cutoffRec;
+  shared_ptr<XDoubleNode> m_alpha;
   shared_ptr<XDoubleNode> m_minTests;
   shared_ptr<XDoubleNode> m_minFlips;
   shared_ptr<XNode> m_step;
@@ -54,15 +56,17 @@ class XMonteCarloDriver : public XPrimaryDriver
     m_entryS, m_entryM, m_entry2in2, m_entry1in3;
   shared_ptr<MonteCarlo> m_loop, m_store;
   
-  xqcon_ptr m_conLength, m_conCutoffReal, m_conTargetTemp, m_conTargetField,
+  xqcon_ptr m_conLength, m_conCutoffReal, m_conCutoffRec, m_conAlpha,
+    m_conTargetTemp, m_conTargetField,
     m_conHDirX, m_conHDirY, m_conHDirZ, m_conMinTests, m_conMinFlips, m_conStep,
     m_conGraph3D;
   qshared_ptr<FrmMonteCarlo> m_form;
   shared_ptr<XWaveNGraph> m_wave3D;
-  long double m_sumDU, m_sumDS;
+  long double m_sumDU, m_sumDS, m_sumDUav;
   long double m_testsTotal;
   double m_flippedTotal;
   double m_dU;
+  double m_DUav, m_Mav;
   double m_lastTemp;
   //! along field direction.
   double m_lastField, m_lastMagnetization;

@@ -105,7 +105,7 @@ XSG::onFreqChanged(const shared_ptr<XValueNodeBase> &)
     }
     clearRaw();
     push(_freq);
-    finishWritingRaw(time, XTime::now(), true);
+    finishWritingRaw(time, XTime::now());
 }
 
 

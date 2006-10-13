@@ -637,7 +637,7 @@ XPulser::onPulseChanged(const shared_ptr<XValueNodeBase> &node)
       catch (XKameError &e) {
           e.print(getLabel() + KAME::i18n("Pulser Turn-Off Failed, because"));
       }
-      finishWritingRaw(XTime(), XTime(), true);
+      finishWritingRaw(XTime(), XTime());
       return;
     }
 
@@ -677,7 +677,7 @@ XPulser::onPulseChanged(const shared_ptr<XValueNodeBase> &node)
   if(numPhaseCycle()->to_str() == NUM_PHASE_CYCLE_16) npat = 16;
    push((unsigned short)npat);
 
-  finishWritingRaw(time_awared, XTime::now(), true);
+  finishWritingRaw(time_awared, XTime::now());
 }
 double
 XPulser::periodicTermRecorded() const {

@@ -15,7 +15,8 @@ libdso_a_METASOURCES = AUTO
 
 libdso_a_SOURCES = fir.cpp fir.h \
 	dso.cpp dso.h \
-	userdso.cpp userdso.h
+	tds.cpp tds.h \
+	nidaqdso.cpp nidaqdso.h
 
 ####### kdevelop will overwrite this part!!! (end)############
 METASOURCES = AUTO

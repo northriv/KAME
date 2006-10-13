@@ -62,7 +62,7 @@ XTestDriver::execute(const atomic<bool> &terminated)
       clearRaw();
       push(x);
       push(y);
-      finishWritingRaw(XTime::now(), XTime::now(), true);
+      finishWritingRaw(XTime::now(), XTime::now());
     }
   return NULL;
 }

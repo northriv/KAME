@@ -11,7 +11,9 @@ INCLUDES = -I$(top_srcdir)/kame \
 libmontecarlo_a_METASOURCES = AUTO
 
 libmontecarlo_a_CXXFLAGS = $(CXXFLAGS) \
-	-O6 -march=prescott -mfpmath=sse -msse3 -mmmx -funroll-loops -fomit-frame-pointer -funswitch-loops -finline-functions -fgcse-after-reload
+	-O6  \
+	-funroll-loops -fomit-frame-pointer -funswitch-loops -finline-functions -fgcse-after-reload \
+	-ffast-math -fno-tree-vectorize -ftree-vectorizer-verbose=3 -fno-unsafe-math-optimizations
 
 libmontecarlo_a_SOURCES = montecarlo.cpp montecarlo.h \
 	interaction.cpp \

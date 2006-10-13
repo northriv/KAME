@@ -1,5 +1,6 @@
 #include <qpushbutton.h>
 #include <qcheckbox.h>
+#include <knuminput.h>
 #include "forms/dsoform.h"
 #include "dso.h"
 #include "graph.h"
@@ -29,13 +30,16 @@ XDSO::XDSO(const char *name, bool runtime,
   m_average(create<XUIntNode>("Average", false)),
   m_singleSequence(create<XBoolNode>("SingleSequence", false)),
   m_fetch(create<XBoolNode>("Fetch", false)),
+  m_trigSource(create<XComboNode>("TrigSource", true)),
   m_trigPos(create<XDoubleNode>("TrigPos", true)),
+  m_trigLevel(create<XDoubleNode>("TrigLevel", true)),
+  m_trigFalling(create<XBoolNode>("TrigFalling", true)),
   m_timeWidth(create<XDoubleNode>("TimeWidth", true)),
-  m_vFullScale1(create<XDoubleNode>("VFullScale1", true)),
-  m_vFullScale2(create<XDoubleNode>("VFullScale2", true)),
+  m_vFullScale1(create<XComboNode>("VFullScale1", true)),
+  m_vFullScale2(create<XComboNode>("VFullScale2", true)),
   m_vOffset1(create<XDoubleNode>("VOffset1", true)),
   m_vOffset2(create<XDoubleNode>("VOffset2", true)),
-  m_recordLength(create<XComboNode>("RecordLength", true)),
+  m_recordLength(create<XUIntNode>("RecordLength", true)),
   m_forceTrigger(create<XNode>("ForceTrigger", true)),  
   m_trace1(create<XComboNode>("Trace1", false)),
   m_trace2(create<XComboNode>("Trace2", false)),
@@ -53,16 +57,19 @@ XDSO::XDSO(const char *name, bool runtime,
   m_conAverage(xqcon_create<XQLineEditConnector>(m_average, m_form->m_edAverage)),
   m_conSingle(xqcon_create<XQToggleButtonConnector>(m_singleSequence, m_form->m_ckbSingleSeq)),
   m_conFetch(xqcon_create<XQToggleButtonConnector>(m_fetch, m_form->m_ckbFetch)),
-  m_conTrigPos(xqcon_create<XQLineEditConnector>(m_trigPos, m_form->m_edTimeWidth)),
+  m_conTrigSource(xqcon_create<XQComboBoxConnector>(m_trigSource, m_form->m_cmbTrigSource)),
+  m_conTrigPos(xqcon_create<XKDoubleNumInputConnector>(m_trigPos, m_form->m_numTrigPos)),
+  m_conTrigLevel(xqcon_create<XQLineEditConnector>(m_trigLevel, m_form->m_edTrigLevel)),
+  m_conTrigFalling(xqcon_create<XQToggleButtonConnector>(m_trigFalling, m_form->m_ckbTrigFalling)),
   m_conTrace1(xqcon_create<XQComboBoxConnector>(m_trace1, m_form->m_cmbTrace1)),
   m_conTrace2(xqcon_create<XQComboBoxConnector>(m_trace2, m_form->m_cmbTrace2)),
-  m_conTimeWidth(xqcon_create<XQLineEditConnector>(m_timeWidth, m_form->m_edTrigPos)),
-  m_conVFullScale1(xqcon_create<XQLineEditConnector>(m_vFullScale1, m_form->m_edVFullScale1)),
-  m_conVFullScale2(xqcon_create<XQLineEditConnector>(m_vFullScale2, m_form->m_edVFullScale2)),
+  m_conTimeWidth(xqcon_create<XQLineEditConnector>(m_timeWidth, m_form->m_edTimeWidth)),
+  m_conVFullScale1(xqcon_create<XQComboBoxConnector>(m_vFullScale1, m_form->m_cmbVFS1)),
+  m_conVFullScale2(xqcon_create<XQComboBoxConnector>(m_vFullScale2, m_form->m_cmbVFS2)),
   m_conVOffset1(xqcon_create<XQLineEditConnector>(m_vOffset1, m_form->m_edVOffset1)),
   m_conVOffset2(xqcon_create<XQLineEditConnector>(m_vOffset2, m_form->m_edVOffset2)),
   m_conForceTrigger(xqcon_create<XQButtonConnector>(m_forceTrigger, m_form->m_btnForceTrigger)),
-  m_conRecordLength(xqcon_create<XQComboBoxConnector>(m_recordLength, m_form->m_cmbRecordLength)),
+  m_conRecordLength(xqcon_create<XQLineEditConnector>(m_recordLength, m_form->m_edRecordLength)),
   m_conFIREnabled(xqcon_create<XQToggleButtonConnector>(m_firEnabled, m_form->m_ckbFIREnabled)),
   m_conFIRBandWidth(xqcon_create<XQLineEditConnector>(m_firBandWidth, m_form->m_edFIRBandWidth)),
   m_conFIRSharpness(xqcon_create<XQLineEditConnector>(m_firSharpness, m_form->m_edFIRSharpness)),
@@ -75,6 +82,7 @@ XDSO::XDSO(const char *name, bool runtime,
   m_form->m_btnForceTrigger->setIconSet(
             KApplication::kApplication()->iconLoader()->loadIconSet("apply", 
             KIcon::Toolbar, KIcon::SizeSmall, true ) );  
+  m_form->m_numTrigPos->setRange(0.0, 100.0, 1.0, true);
     
   singleSequence()->value(true);
   fetch()->value(true);
@@ -92,7 +100,10 @@ XDSO::XDSO(const char *name, bool runtime,
   singleSequence()->setUIEnabled(false);
   fetch()->setUIEnabled(false);
   timeWidth()->setUIEnabled(false);
+  trigSource()->setUIEnabled(false);
   trigPos()->setUIEnabled(false);
+  trigLevel()->setUIEnabled(false);
+  trigFalling()->setUIEnabled(false);
   vFullScale1()->setUIEnabled(false);
   vFullScale2()->setUIEnabled(false);
   vOffset1()->setUIEnabled(false);
@@ -144,36 +155,30 @@ XDSO::visualize()
 {
   m_statusPrinter->clear();
   
-  if(time()) {
-      unsigned int num_channels = numChannelsRecorded();
-      unsigned int length = lengthRecorded();
-      { XScopedWriteLock<XWaveNGraph> lock(*m_waveForm);
-          m_waveForm->setColCount(num_channels + 1, s_trace_names);
-          if((m_waveForm->colX() != 0) || (m_waveForm->colY1() != 1) ||
-                (m_waveForm->colY2() != ((num_channels > 1) ? 2 : -1))) 
-              m_waveForm->selectAxes(0, 1, (num_channels > 1) ? 2 : -1);
-          m_waveForm->plot1()->drawPoints()->value(false);
-          if(num_channels > 1)
-               m_waveForm->plot2()->drawPoints()->value(false);
-              
-          m_waveForm->setRowCount(length);
+  unsigned int num_channels = numChannelsRecorded();
+  unsigned int length = lengthRecorded();
+  { XScopedWriteLock<XWaveNGraph> lock(*m_waveForm);
+      m_waveForm->setColCount(num_channels + 1, s_trace_names);
+      if((m_waveForm->colX() != 0) || (m_waveForm->colY1() != 1) ||
+            (m_waveForm->colY2() != ((num_channels > 1) ? 2 : -1))) 
+          m_waveForm->selectAxes(0, 1, (num_channels > 1) ? 2 : -1);
+      m_waveForm->plot1()->drawPoints()->value(false);
+      if(num_channels > 1)
+           m_waveForm->plot2()->drawPoints()->value(false);
+          
+      m_waveForm->setRowCount(length);
+    
+      double *times = m_waveForm->cols(0);
+      for(unsigned int i = 0; i < length; i++)
+        {
+          times[i] = (i - trigPosRecorded()) * timeIntervalRecorded();
+        }
         
-          double *times = m_waveForm->cols(0);
-          for(unsigned int i = 0; i < length; i++)
-            {
-              times[i] = (i - trigPosRecorded()) * timeIntervalRecorded();
-            }
-            
-          for(unsigned int i = 0; i < num_channels; i++) {
-            for(unsigned int k = 0; k < length; k++) {
-                m_waveForm->cols(i + 1)[k] = waveRecorded(i)[k];
-            }
-          }
+      for(unsigned int i = 0; i < num_channels; i++) {
+        for(unsigned int k = 0; k < length; k++) {
+            m_waveForm->cols(i + 1)[k] = waveRecorded(i)[k];
+        }
       }
-  }
-  // no time record
-  else {
-//      m_waveForm->clear();
   }
 }
 
@@ -190,7 +195,7 @@ XDSO::execute(const atomic<bool> &terminated)
       e.print(getLabel());
       interface()->close();
       return NULL;
-  }  
+  }
 
   m_lsnOnAverageChanged = average()->onValueChanged().connectWeak(
                            false, shared_from_this(), &XDSO::onAverageChanged);
@@ -198,8 +203,14 @@ XDSO::execute(const atomic<bool> &terminated)
                           false, shared_from_this(), &XDSO::onSingleChanged);
   m_lsnOnTimeWidthChanged = timeWidth()->onValueChanged().connectWeak(
                           false, shared_from_this(), &XDSO::onTimeWidthChanged);
+  m_lsnOnTrigSourceChanged = trigSource()->onValueChanged().connectWeak(
+                          false, shared_from_this(), &XDSO::onTrigSourceChanged);
   m_lsnOnTrigPosChanged = trigPos()->onValueChanged().connectWeak(
                           false, shared_from_this(), &XDSO::onTrigPosChanged);
+  m_lsnOnTrigLevelChanged = trigLevel()->onValueChanged().connectWeak(
+                          false, shared_from_this(), &XDSO::onTrigLevelChanged);
+  m_lsnOnTrigFallingChanged = trigFalling()->onValueChanged().connectWeak(
+                          false, shared_from_this(), &XDSO::onTrigFallingChanged);
   m_lsnOnVFullScale1Changed = vFullScale1()->onValueChanged().connectWeak(
                           false, shared_from_this(), &XDSO::onVFullScale1Changed);
   m_lsnOnVFullScale2Changed = vFullScale2()->onValueChanged().connectWeak(
@@ -213,13 +224,16 @@ XDSO::execute(const atomic<bool> &terminated)
   m_lsnOnRecordLengthChanged = recordLength()->onValueChanged().connectWeak(
                           false, shared_from_this(), &XDSO::onRecordLengthChanged);
 
-  trace1()->setUIEnabled(true);
-  trace2()->setUIEnabled(true);
+  trace1()->setUIEnabled(false);
+  trace2()->setUIEnabled(false);
   average()->setUIEnabled(true);
   singleSequence()->setUIEnabled(true);
   fetch()->setUIEnabled(true);
   timeWidth()->setUIEnabled(true);
+  trigSource()->setUIEnabled(true);
   trigPos()->setUIEnabled(true);
+  trigLevel()->setUIEnabled(true);
+  trigFalling()->setUIEnabled(true);
   vFullScale1()->setUIEnabled(true);
   vFullScale2()->setUIEnabled(true);
   vOffset1()->setUIEnabled(true);
@@ -233,20 +247,18 @@ XDSO::execute(const atomic<bool> &terminated)
     {
       
       msecsleep(10);
-      
+      bool seq_busy = false;
       try {
-          if(!*fetch()) continue;
-          bool seq_busy;
           int count = acqCount(&seq_busy);
           if(!count) {
                 time_awared = XTime::now();
                 last_count = 0;
                 continue;
           }
-          if( *singleSequence() && seq_busy) {
+          if(!*fetch() &&  *singleSequence() && seq_busy) {
                 continue;
           }
-          if( !*singleSequence() && (count == last_count) ) {
+          if(count == last_count) {
                 continue;
           }
           last_count =  count;
@@ -266,8 +278,6 @@ XDSO::execute(const atomic<bool> &terminated)
       if(channels.back().empty()) {
             channels.pop_back();
       }
-
-      shared_ptr<XPulser> pulser(*m_pulser);
       
       clearRaw();
       // try/catch exception of communication errors
@@ -276,46 +286,55 @@ XDSO::execute(const atomic<bool> &terminated)
       }
       catch (XKameError &e) {
           e.print(getLabel());
-          finishWritingRaw(XTime(), XTime(), false);
           continue;
       }
-      finishWritingRaw(time_awared, XTime::now(), true);
-
-      // try/catch exception of communication errors
-      try {
-          bool control_pulser = *m_foolAvgEnabled;
-          if(control_pulser && !pulser) {
-            control_pulser = false;
-            gErrPrint(getLabel() + ": " + KAME::i18n("No Pulser!"));
-          }
-          if(control_pulser && !(pulser->time() && (pulser->time() < time_awared)))
-            control_pulser = false;
-          if(control_pulser) {
-                pulser->output()->value(false);
-          }
-          startSequence();
-          if(control_pulser) {
-                pulser->setPhaseCycleOrder(m_foolavgcnt);
-                pulser->output()->value(true);
-                pulser->setPhaseCycleOrder(0);
-          }
-          time_awared = XTime::now();
+      
+      if(seq_busy) {
+          finishWritingRaw(XTime(), XTime());
       }
-      catch (XKameError &e) {
-          e.print(getLabel());
-          continue;
+      else {
+          finishWritingRaw(time_awared, XTime::now());
+    
+          // try/catch exception of communication errors
+          try {
+              shared_ptr<XPulser> pulser(*m_pulser);
+              bool control_pulser = *m_foolAvgEnabled;
+              if(control_pulser && !pulser) {
+                control_pulser = false;
+                gErrPrint(getLabel() + ": " + KAME::i18n("No Pulser!"));
+              }
+              if(control_pulser && !(pulser->time() && (pulser->time() < time_awared)))
+                control_pulser = false;
+              if(control_pulser) {
+                    pulser->output()->value(false);
+              }
+              startSequence();
+              if(control_pulser) {
+                    pulser->setPhaseCycleOrder(m_foolavgcnt);
+                    pulser->output()->value(true);
+                    pulser->setPhaseCycleOrder(0);
+              }
+              time_awared = XTime::now();
+          }
+          catch (XKameError &e) {
+              e.print(getLabel());
+              continue;
+          }
       }
     }
     
   m_foolAvgEnabled->setUIEnabled(false);
     
-  trace1()->setUIEnabled(false);
-  trace2()->setUIEnabled(false);
+  trace1()->setUIEnabled(true);
+  trace2()->setUIEnabled(true);
   average()->setUIEnabled(false);
   singleSequence()->setUIEnabled(false);
   fetch()->setUIEnabled(false);
   timeWidth()->setUIEnabled(false);
+  trigSource()->setUIEnabled(false);
   trigPos()->setUIEnabled(false);
+  trigLevel()->setUIEnabled(false);
+  trigFalling()->setUIEnabled(false);
   vFullScale1()->setUIEnabled(false);
   vFullScale2()->setUIEnabled(false);
   vOffset1()->setUIEnabled(false);
@@ -326,7 +345,10 @@ XDSO::execute(const atomic<bool> &terminated)
   m_lsnOnAverageChanged.reset();
   m_lsnOnSingleChanged.reset();
   m_lsnOnTimeWidthChanged.reset();
+  m_lsnOnTrigSourceChanged.reset();
   m_lsnOnTrigPosChanged.reset();
+  m_lsnOnTrigLevelChanged.reset();
+  m_lsnOnTrigFallingChanged.reset();
   m_lsnOnVFullScale1Changed.reset();
   m_lsnOnVFullScale2Changed.reset();
   m_lsnOnVOffset1Changed.reset();
@@ -334,6 +356,13 @@ XDSO::execute(const atomic<bool> &terminated)
   m_lsnOnForceTriggerTouched.reset();
   m_lsnOnRecordLengthChanged.reset();
                             
+  try {
+      beforeStop();
+  }
+  catch (XKameError &e) {
+      e.print(getLabel());
+  }
+  
   interface()->close();
   return NULL;
 }

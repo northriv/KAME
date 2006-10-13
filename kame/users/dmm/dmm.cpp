@@ -113,7 +113,7 @@ XDMM::execute(const atomic<bool> &terminated)
       }
       clearRaw();
       push(x);
-      finishWritingRaw(time_awared, XTime::now(), true);
+      finishWritingRaw(time_awared, XTime::now());
     }
     
     m_lsnOnFunctionChanged.reset();

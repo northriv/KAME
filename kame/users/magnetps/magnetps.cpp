@@ -181,7 +181,7 @@ XMagnetPS::execute(const atomic<bool> &terminated)
       push((float)magnet_field);
       push((float)output_current);
  
-      finishWritingRaw(XTime::now(), XTime::now(), true);
+      finishWritingRaw(XTime::now(), XTime::now());
       
       magnetField()->value(magnet_field);
       outputField()->value(output_field);

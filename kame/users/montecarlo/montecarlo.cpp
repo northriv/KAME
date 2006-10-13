@@ -25,20 +25,25 @@ using namespace std;
 
 int MonteCarlo::s_L;
 int MonteCarlo::s_num_spins;
-int MonteCarlo::s_cutoff_rec;
-std::vector<double> MonteCarlo::s_fields_rec[16][16];
+double MonteCarlo::s_alpha;
+double MonteCarlo::s_dfactor;
 int MonteCarlo::s_cutoff_real;
-std::vector<double> MonteCarlo::s_fields_real[16][16];
-std::vector<int> MonteCarlo::s_4r2_neighbor;
+double MonteCarlo::s_cutoff_real_radius;
+MonteCarlo::FieldRealArray MonteCarlo::s_fields_real[16][16];
+MonteCarlo::FieldRealArray MonteCarlo::s_fields_real_B[16][16][3];
+MonteCarlo::FieldRealArray MonteCarlo::s_fields_real_8a[8][16][3];
+MonteCarlo::FieldRealArray MonteCarlo::s_fields_real_48f[48][16][3];
+int MonteCarlo::s_cutoff_rec;
+double MonteCarlo::s_cutoff_rec_radius;
+std::vector<MonteCarlo::Spin> MonteCarlo::s_fields_rec[16][16];
+std::vector<MonteCarlo::Vector3<MonteCarlo::Spin> > MonteCarlo::s_fields_rec_generic[16];
 double MonteCarlo::s_fields_rec_sum;
-std::vector<int> MonteCarlo::s_is_inside_sphere_rec;
-std::vector<int> MonteCarlo::s_is_inside_sphere_real[16][16];
-std::vector<std::complex<double> > MonteCarlo::s_exp_ph[16];
+std::vector<std::complex<MonteCarlo::Spin> > MonteCarlo::s_exp_ph[16];
+std::vector<int> MonteCarlo::s_4r2_neighbor;
 
 MonteCarlo::MonteCarlo(int num_threads)
  : 
    m_bTerminated(false),
-   m_thread_pool_active(false),
    m_sec_cache_enabled(false),
    m_third_cache_enabled(false),
    m_sec_cache_firsttime(true),
@@ -47,7 +52,11 @@ MonteCarlo::MonteCarlo(int num_threads)
     int lsize = s_num_spins/16;
 
     for(int site1 = 0; site1 < 16; site1++) {
+    #ifdef PACK_4FLOAT
+        m_spins_real[site1].resize(spins_real_index(0,0,s_L)/4);
+    #else
         m_spins_real[site1].resize(3*lsize);
+    #endif
         
         m_field_pri_cached[site1].resize(lsize, 0.0);
         m_field_pri_cached_sane.resize(lsize, 0);
@@ -74,8 +83,11 @@ MonteCarlo::MonteCarlo(int num_threads)
 }
 MonteCarlo::~MonteCarlo()
 {
-    m_bTerminated = true;
-    activateThreading();
+   {
+       XScopedLock<XCondition> lock(m_thread_pool_cond);
+        m_bTerminated = true;
+        m_thread_pool_cond.broadcast();
+   }
     for(deque<pthread_t>::iterator it = m_threads.begin(); it != m_threads.end(); it++)
     {
       void *retv;
@@ -115,9 +127,7 @@ MonteCarlo::read(istream &is)
                     int x = atoi(str.c_str());
                     if(abs(x) != 1) throw "value be +-1\n";
                     int sidx = spins_real_index(i1,j1,k1);
-                    m_spins_real[site1][sidx - s_L] = x;
-                    m_spins_real[site1][sidx] = x;
-                    m_spins_real[site1][sidx + s_L] = x;
+                    writeSpin(x, site1, sidx);
                     is >> str;
                     if(str != "?") {
                         int lidx = lattice_index(i1,j1,k1);
@@ -159,8 +169,8 @@ MonteCarlo::write(ostream &os)
                os << "[ ";
                 for(int i1 = 0; i1 < s_L; i1++) {
                     os << "[ ";
-                    os << m_spins_real[site1][spins_real_index(i1,j1,k1)];
                     int lidx = lattice_index(i1,j1,k1);
+                    os << readSpin(site1, spins_real_index(lidx));
                     if(m_field_pri_cached_sane[lidx] & (1u << site1)) {
                         char buf[31];
                         snprintf(buf, 30, "%.16g", m_field_pri_cached[site1][lidx]);
@@ -194,9 +204,7 @@ MonteCarlo::randomize()
                 for(int i1 = 0; i1 < s_L; i1++) {
                     int sidx = spins_real_index(i1,j1,k1);
                     int val = (_drand() < 0.5) ? 1 : -1;
-                    m_spins_real[site1][sidx - s_L] = val;
-                    m_spins_real[site1][sidx] = val;
-                    m_spins_real[site1][sidx + s_L] = val;
+                    writeSpin(val, site1, sidx);
                 }
            }
         }
@@ -215,7 +223,7 @@ MonteCarlo::siteMagnetization()
                     int in = 0;
                     for(int site_wo_trans = 0; site_wo_trans < 4; site_wo_trans++) {
                         int site1 = site_wo_trans + 4*trans;
-                        int spin = m_spins_real[site1][sidx];
+                        Spin spin = readSpin(site1, sidx);
                         quartet.sites[site1 % 4] += spin;
                         in += (spin == 1) ? 1 : 0;
                     }
@@ -246,8 +254,21 @@ MonteCarlo::magnetization()
     m *= 1.0/4; // per one spin.
     return m;
 }
+void
+MonteCarlo::takeThermalAverage(long double tests_after_check)
+{
+    m_SumDeltaU += m_DeltaU * tests_after_check;
+
+    for(int site = 0; site < 16; site++) {
+        m_SumSpin[site] += real(m_spins_rec[site][reciprocal_index(0,0,0)]) * tests_after_check;
+    }
+
+    m_SumTests += tests_after_check;
+}
+
 double
-MonteCarlo::exec(double temp, Vector3<double> field, int *flips, long double *tests)
+MonteCarlo::exec(double temp, Vector3<double> field, int *flips,
+     long double *tests, double *DUav, Vector3<double> *Mav)
 {
     m_beta = 1.0/K_B/temp;
 
@@ -256,15 +277,31 @@ MonteCarlo::exec(double temp, Vector3<double> field, int *flips, long double *te
     }
     
     m_DeltaU = 0.0;
-    doTests(flips, tests);
-    
+    m_SumDeltaU = 0.0;
+    for(int site = 0; site < 16; site++) {
+        m_SumSpin[site] = 0.0;
+    }
+    m_SumTests = 0.0;
+
+    doTests(flips, *tests);
+
+    *DUav = m_SumDeltaU / s_num_spins / m_SumTests;
+    Vector3<double> m;
+    for(int site1 = 0; site1 < 16; site1++) {
+        Vector3<double> v(s_ASiteIsingVector[site1]);
+        v *= (double)(m_SumSpin[site1]);
+        m += v;
+    }
+    m *= A_MOMENT / s_num_spins / m_SumTests;
+    *Mav = m;
+    *tests = m_SumTests;
     return m_DeltaU/s_num_spins;
 }
 inline double
 MonteCarlo::flippingProbability(int site, int lidx, double h, double *pdu)
 {
     int sidx = spins_real_index(lidx);
-    double du = 2 * m_spins_real[site][sidx] * A_MOMENT * MU_B * (
+    double du = 2 * readSpin(site, sidx) * A_MOMENT * MU_B * (
         h + m_ext_field[site]);
     *pdu = du;
 
@@ -300,7 +337,6 @@ MonteCarlo::accelFlipping()
     }
     else {
         // iterate target site.
-        activateThreading();
         for(int site1 = 0; site1 < 16; site1++) {
             double *pprob = &m_probability_buffers[current_buffer][site1][0];
             int cnt = s_num_spins/16;
@@ -313,7 +349,6 @@ MonteCarlo::accelFlipping()
                 sum_p += probability;
             }
         }
-        deactivateThreading();
     }
     m_play_back_buffer = false;
     m_last_probability_buffer = current_buffer;
@@ -347,7 +382,7 @@ MonteCarlo::accelFlipping()
     ASSERT(site1 != 16);
     double du = 0.0;
     flippingProbability(site1, lidx, hinteraction(site1, lidx), &du);
-    flipSpin(site1, lidx, du);
+    flipSpin(site1, lidx, du, cnt_d);
 //    fprintf(stderr, "Accelerate Flipping done. Skipped tests = %lld\n", cnt);
 
     if((m_last_flipped_lattice_index == lidx) && (m_last_flipped_site == site1)) {
@@ -404,8 +439,6 @@ MonteCarlo::internalEnergy() {
     //internal energy. [J/A-site]
     double U = 0.0;
     // iterate target site.
-    activateThreading();
-    
     for(int site1 = 0; site1 < 16; site1++) {
     for(int lidx = 0; lidx < s_num_spins/16; lidx++) {
         double h = 0.0;
@@ -413,15 +446,14 @@ MonteCarlo::internalEnergy() {
         // interacting field must be half.
         h *= 0.5;
         h += m_ext_field[site1];
-        U += -m_spins_real[site1][spins_real_index(lidx)] * A_MOMENT * MU_B * h;
+        U += -readSpin(site1, spins_real_index(lidx)) * A_MOMENT * MU_B * h;
     }}
-    deactivateThreading();
     
     U /= s_num_spins;
     return U;
 }
 void
-MonteCarlo::doTests(int *flips, long double *tests)
+MonteCarlo::doTests(int *flips, long double tests)
 {
     int flipped = 0;
     int flipped_checked = 0;
@@ -429,20 +461,21 @@ MonteCarlo::doTests(int *flips, long double *tests)
     m_third_cache_hit = 0;
     m_hinteractions_called = 0;
     long tested = 0;
+    long tests_after_check = 0;
     long double tests_accel_flip = 0;
     long double tests_accel_flip_started = 0;
     int flipped_accel_flip_started = 0;
     bool accel_flip = false;
-    if(!m_sec_cache_enabled)
-        activateThreading();
     for(;;) {
-        if((flipped >= *flips) && (tested + tests_accel_flip >= *tests)) break;
+        if((flipped >= *flips) && (m_SumTests + tests_after_check >= tests)) break;
         if(s_bAborting) {
             fprintf(stderr, "Signal caught! Aborting...\n");
             break;
         }
 
         if(accel_flip) {
+            takeThermalAverage(tests_after_check);
+            tests_after_check = 0;
             long double adv = accelFlipping();
             if(adv <= 0) {
                 fprintf(stderr, "Spins are completely freezed!.\n");
@@ -471,12 +504,12 @@ MonteCarlo::doTests(int *flips, long double *tests)
         double probability = flippingProbability(site, lidx, h, &du);
         
         tested++;
+        tests_after_check++;
         
         if((probability >= 1) || (_drand() < probability)) {
-            flipSpin(site, lidx, du);
+            flipSpin(site, lidx, du, tests_after_check);
+            tests_after_check = 0;
             flipped++;
-            if(m_sec_cache_enabled)
-                activateThreading();
         }
         
         if((tested % s_num_spins == 0) && (tested != 0)) {
@@ -544,55 +577,43 @@ MonteCarlo::doTests(int *flips, long double *tests)
                         
             flipped_checked = flipped;
             m_hinteractions_called = 0;
-
-            if(m_sec_cache_enabled) {
-                deactivateThreading();
-            }
-            else {
-                activateThreading();
-            }            
         } 
     }
-    deactivateThreading();
     if(accel_flip) {
         fprintf(stderr, "\nSkipped tests = %Lg. Flipped = %d\n", 
         (long double)(tests_accel_flip - tests_accel_flip_started), flipped - flipped_accel_flip_started);
     }
     *flips = flipped;
-    *tests = tested + tests_accel_flip;
-    fprintf(stderr, "Flip = %Lg %%\n", (long double)100.0**flips / *tests);
+    takeThermalAverage(tests_after_check);
 }
 
 inline void
-MonteCarlo::modifyReciprocalImage(int diff, int site1, int i, int j, int k)
+MonteCarlo::modifyReciprocalImage(Spin diff, int site1, int i, int j, int k)
 {
     int cutoff = s_cutoff_rec;
-    complex<double> *pspin = &m_spins_rec[site1][0];
-    int *pinside = &s_is_inside_sphere_rec[0];
+    int cnt = 2*cutoff + 1;
+    complex<Spin> *pspin = &m_spins_rec[site1][0];
     
     Vector3<double> pos1(cg_ASitePositions[site1]);
     pos1 *= LATTICE_CONST / 4.0;
     double phx = -2*M_PI / (LATTICE_CONST * s_L) * (i * LATTICE_CONST + pos1.x);
     double phy = -2*M_PI / (LATTICE_CONST * s_L) * (j * LATTICE_CONST + pos1.y);
     double phz = -2*M_PI / (LATTICE_CONST * s_L) * (k * LATTICE_CONST + pos1.z);
-    complex<double> exp_i_rx = exp(complex<double>(0.0, phx));
-    complex<double> exp_i_ry = exp(complex<double>(0.0, phy));
-    complex<double> exp_i_rz = exp(complex<double>(0.0, phz));
+    complex<Spin> exp_i_rx = exp(complex<Spin>(0.0, phx));
+    complex<Spin> exp_i_ry = exp(complex<Spin>(0.0, phy));
+    complex<Spin> exp_i_rz = exp(complex<Spin>(0.0, phz));
         
-    complex<double> exp_ikrz = ((double)diff)
-            * exp(complex<double>(0.0, -cutoff * (phx + phy)));
+    complex<Spin> exp_ikrz = ((Spin)diff)
+            * exp(complex<Spin>(0.0, -cutoff * (phx + phy)));
     for(int kz = 0; kz <= cutoff; kz++) {
-        complex<double> exp_ikryz = exp_ikrz;
+        complex<Spin> exp_ikryz = exp_ikrz;
         for(int ky = -cutoff; ky <= cutoff; ky++) {
-            complex<double> exp_ikr = exp_ikryz;
-            for(int n = 0; n < 2*cutoff+1; n++) {
-                if(*pinside) {
-                    *pspin += exp_ikr;
-                }
-                pspin++;
-                pinside++;
+            complex<Spin> exp_ikr = exp_ikryz;
+            for(int n = 0; n < cnt; n++) {
+                pspin[n] += exp_ikr;
                 exp_ikr *= exp_i_rx;
             }
+            pspin+=cnt;
             exp_ikryz *= exp_i_ry;
         }
         exp_ikrz *= exp_i_rz;
@@ -610,19 +631,21 @@ MonteCarlo::makeReciprocalImage()
         for(int k = 0; k < s_L; k++) {
             for(int j = 0; j < s_L; j++) {
                 for(int i = 0; i < s_L; i++) {
-                    modifyReciprocalImage(m_spins_real[site][spins_real_index(i,j,k)], site, i, j, k);
+                    modifyReciprocalImage(readSpin(site, spins_real_index(i,j,k)), site, i, j, k);
                 }
             }
         }
     }
 }
 void
-MonteCarlo::flipSpin(int site1, int lidx, double du)
+MonteCarlo::flipSpin(int site1, int lidx, double du, long double tests_after_check)
 {
+    takeThermalAverage(tests_after_check);
+    
     m_DeltaU += du;
 
     int sidx = spins_real_index(lidx);
-    int oldv = m_spins_real[site1][sidx];
+    Spin oldv = readSpin(site1, sidx);
     int n = lidx;
     int i = n % s_L;
     n /= s_L;
@@ -631,12 +654,7 @@ MonteCarlo::flipSpin(int site1, int lidx, double du)
     int k = n;
     modifyReciprocalImage(-2*oldv, site1, i, j, k);
     // flip spin. keep repeated image.
-    m_spins_real[site1][sidx - s_L] *= -1;
-    m_spins_real[site1][sidx] *= -1;
-    m_spins_real[site1][sidx + s_L] *= -1;
-    ASSERT(m_spins_real[site1][sidx - s_L] == m_spins_real[site1][sidx]);
-    ASSERT(m_spins_real[site1][sidx + s_L] == m_spins_real[site1][sidx]);
-    ASSERT(-oldv == m_spins_real[site1][sidx]);
+    writeSpin(-oldv, site1, sidx);
     ASSERT(spins_real_index(i,j,k) == sidx);
     
     //set dirty flags to caches.
@@ -667,6 +685,7 @@ MonteCarlo::flipSpin(int site1, int lidx, double du)
             }
         }
     }
+    
 }
 void
 MonteCarlo::write(char *data, double *fields, double *probabilities)
@@ -675,7 +694,7 @@ MonteCarlo::write(char *data, double *fields, double *probabilities)
         for(int k1 = 0; k1 < s_L; k1++) {
             for(int j1 = 0; j1 < s_L; j1++) {
                 for(int i1 = 0; i1 < s_L; i1++) {
-                    *(data++) = m_spins_real[site][spins_real_index(i1,j1,k1)];
+                    *(data++) = lrint(readSpin(site, spins_real_index(i1,j1,k1)));
                     if(fields) {
                         int lidx = lattice_index(i1,j1,k1);
                         double h = hinteraction(site, lidx);
@@ -692,6 +711,61 @@ MonteCarlo::write(char *data, double *fields, double *probabilities)
     }
 }
 void
+MonteCarlo::write_bsite(Vector3<double> *fields)
+{
+    for(int site = 0; site < 16; site++) {
+        for(int k1 = 0; k1 < s_L; k1++) {
+            for(int j1 = 0; j1 < s_L; j1++) {
+                for(int i1 = 0; i1 < s_L; i1++) {
+                    Vector3<double> h;
+                    h += iterate_real_generic(s_fields_real_B[site], i1, j1, k1);
+                    Vector3<double> pos(cg_BSitePositions[site]);
+                    pos *= 1.0/4.0;
+                    h += iterate_rec_generic(pos, i1, j1, k1);
+                    *(fields++) = h;
+                }
+            }
+        }
+    }
+}
+void
+MonteCarlo::write_8asite(Vector3<double> *fields)
+{
+    for(int site = 0; site < 8; site++) {
+        for(int k1 = 0; k1 < s_L; k1++) {
+            for(int j1 = 0; j1 < s_L; j1++) {
+                for(int i1 = 0; i1 < s_L; i1++) {
+                    Vector3<double> h;
+                    h += iterate_real_generic(s_fields_real_8a[site], i1, j1, k1);
+                    Vector3<double> pos(cg_8aSitePositions[site]);
+                    pos *= 1.0/8.0;
+                    h += iterate_rec_generic(pos, i1, j1, k1);
+                    *(fields++) = h;
+                }
+            }
+        }
+    }
+}
+void
+MonteCarlo::write_48fsite(Vector3<double> *fields)
+{
+    for(int site = 0; site < 48; site++) {
+        for(int k1 = 0; k1 < s_L; k1++) {
+            for(int j1 = 0; j1 < s_L; j1++) {
+                for(int i1 = 0; i1 < s_L; i1++) {
+                    Vector3<double> h;
+                    h += iterate_real_generic(s_fields_real_48f[site], i1, j1, k1);
+                    Vector3<double> pos(cg_48fSitePositions[site]);
+                    pos *= 1.0/8.0;
+                    h += iterate_rec_generic(pos, i1, j1, k1);
+                    *(fields++) = h;
+                }
+            }
+        }
+    }
+}
+
+void
 MonteCarlo::read(const char *data, double temp, Vector3<double> field)
 {
     m_beta = 1.0/K_B/temp;
@@ -704,9 +778,7 @@ MonteCarlo::read(const char *data, double temp, Vector3<double> field)
         for(int k1 = 0; k1 < s_L; k1++) {
             for(int j1 = 0; j1 < s_L; j1++) {
                 for(int i1 = 0; i1 < s_L; i1++) {
-                    m_spins_real[site][spins_real_index(i1,j1,k1) - s_L] = *(data);
-                    m_spins_real[site][spins_real_index(i1,j1,k1)] = *(data);
-                    m_spins_real[site][spins_real_index(i1,j1,k1) + s_L] = *(data++);
+                    writeSpin(*(data++), site, spins_real_index(i1,j1,k1));
                 }
             }
         }

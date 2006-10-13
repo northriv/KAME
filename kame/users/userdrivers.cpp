@@ -1,6 +1,7 @@
 #include "users/testdriver.h"
 #include "users/dmm/userdmm.h"
-#include "users/dso/userdso.h"
+#include "users/dso/tds.h"
+#include "users/dso/nidaqdso.h"
 #include "tempcontrol/usertempcontrol.h"
 #include "magnetps/usermagnetps.h"
 #include "nmr/pulserdriverh8.h"
@@ -24,6 +25,9 @@ REGISTER_TYPE(KE2000);
 REGISTER_TYPE(KE2182);
 REGISTER_TYPE(HP34420A);
 REGISTER_TYPE(TDS);
+#ifdef HAVE_NI_DAQMX
+    REGISTER_TYPE(NIDAQmxDSO);
+#endif
 REGISTER_TYPE(CryoconM32);
 REGISTER_TYPE(CryoconM62);
 REGISTER_TYPE(LakeShore340);

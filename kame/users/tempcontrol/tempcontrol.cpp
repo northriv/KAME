@@ -303,11 +303,10 @@ XTempControl::execute(const atomic<bool> &terminated)
           heaterPower()->value(getHeater());
       }
       catch (XKameError &e) {
-          finishWritingRaw(XTime(), XTime(), false);
           e.print(getLabel() + "; ");
           continue;
       }
-      finishWritingRaw(time_awared, XTime::now(), true);
+      finishWritingRaw(time_awared, XTime::now());
     }
 
   m_setupChannel->value(shared_ptr<XThermometer>());
