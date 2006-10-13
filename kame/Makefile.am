@@ -34,6 +34,8 @@ kame_LDADD = $(top_builddir)/kame/forms/libforms.a \
 	$(top_builddir)/kame/users/dcsource/forms/libforms.a \
 	$(top_builddir)/kame/users/funcsynth/libfuncsynth.a \
 	$(top_builddir)/kame/users/funcsynth/forms/libforms.a \
+	$(top_builddir)/kame/users/montecarlo/libmontecarlo.a \
+	$(top_builddir)/kame/users/montecarlo/forms/libforms.a \
 	$(top_builddir)/kame/analyzer/libanalyzer.a \
 	$(top_builddir)/kame/analyzer/forms/libforms.a \
 	$(top_builddir)/kame/driver/libdriver.a \

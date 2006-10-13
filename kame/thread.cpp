@@ -101,25 +101,20 @@ XRecursiveMutex::isLockedByCurrentThread() const
 {
     return pthread_equal(m_lockingthread, threadID());
 }
-XCondition::XCondition()
+XCondition::XCondition() : XMutex()
 {
-  int ret = pthread_mutex_init(&m_mutex, NULL);
-  if(DEBUG_XTHREAD) ASSERT(!ret);
-  ret = pthread_cond_init(&m_cond, NULL);
+  int ret = pthread_cond_init(&m_cond, NULL);
   if(DEBUG_XTHREAD) ASSERT(!ret);
 }
 XCondition::~XCondition()
 {
   int ret = pthread_cond_destroy(&m_cond);
   if(DEBUG_XTHREAD) ASSERT(!ret);
-  ret = pthread_mutex_destroy(&m_mutex);
-  if(DEBUG_XTHREAD) ASSERT(!ret);
 }
 int
 XCondition::wait(int usec)
 {
   int ret;
-  pthread_mutex_lock(&m_mutex);
   if(usec > 0)
     {
       struct timespec abstime;
@@ -129,48 +124,25 @@ XCondition::wait(int usec)
       abstime.tv_sec = tv.tv_sec;
       nsec = (tv.tv_usec + usec) * 1000;
       if(nsec >= 1000000000) {
-	nsec -= 1000000000; abstime.tv_sec++;
+    nsec -= 1000000000; abstime.tv_sec++;
       }
       abstime.tv_nsec = nsec;
       ret = pthread_cond_timedwait(&m_cond, &m_mutex, &abstime);
     }
   else {
-  #ifdef BUGGY_PTHRAD_COND
-    for(;;) {
-      struct timespec abstime;
-      timeval tv;
-      long nsec;
-      gettimeofday(&tv, NULL);
-      abstime.tv_sec = tv.tv_sec;
-      nsec = (tv.tv_usec + BUGGY_PTHRAD_COND_WAIT_USEC) * 1000;
-      if(nsec >= 1000000000) {
-    nsec -= 1000000000; abstime.tv_sec++;
-      }
-      abstime.tv_nsec = nsec;
-      ret = pthread_cond_timedwait(&m_cond, &m_mutex, &abstime);
-      if(ret != ETIMEDOUT) break;
-    }
-  #else
     ret = pthread_cond_wait(&m_cond, &m_mutex);
-  #endif
   }
-  pthread_mutex_unlock(&m_mutex);
   return ret;
 }
 void 
 XCondition::signal()
 {
-  pthread_mutex_lock(&m_mutex);
   int ret = pthread_cond_signal(&m_cond);
-  pthread_mutex_unlock(&m_mutex);
   if(DEBUG_XTHREAD) ASSERT(!ret);
 }
 void 
 XCondition::broadcast()
 {
-  pthread_mutex_lock(&m_mutex);
   int ret = pthread_cond_broadcast(&m_cond);
-  pthread_mutex_unlock(&m_mutex);
   if(DEBUG_XTHREAD) ASSERT(!ret);
 }
-

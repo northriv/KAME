@@ -33,17 +33,17 @@ class XPrimaryDriver : public XDriver
   //! unless dependency is broken
   //! convert raw to record
   //! \sa analyze()
-  virtual void analyzeRaw() throw (XRecordError&) = 0;  
+  virtual void analyzeRaw() throw (XRecordError&) = 0;
   
+  //! clear thread-local raw buffer.
   void clearRaw() {rawData().clear();}
   //! will call analyzeRaw() if dependency.
   //! unless dependency is broken.
   //! \arg time_awared time when a visible phenomenon started
   //! \arg time_recorded usually pass \p XTime::now()
-  //! \arg success if false, just unlock mutex.
   //! \sa timeAwared()
   //! \sa time()
-  void finishWritingRaw(const XTime &time_awared, const XTime &time_recorded, bool success = true);
+  void finishWritingRaw(const XTime &time_awared, const XTime &time_recorded);
   //! raw data. Thread-Local storaged.
   std::vector<char> &rawData() {return *s_tlRawData;}
 

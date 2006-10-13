@@ -162,10 +162,58 @@ _gErrPrint(const QString &str, const char *file, int line)
   shared_ptr<XStatusPrinter> statusprinter = g_statusPrinter;
   if(statusprinter) statusprinter->printError(str);
 }
+void
+_gWarnPrint(const QString &str, const char *file, int line)
+{
+   {
+      XScopedLock<XMutex> lock(g_debug_mutex);
+      g_debugofs 
+        << (const char*)(QString("Warn:0x%1:%2:%3:%4 %5")
+            .arg((unsigned int)threadID(), 0, 16)
+            .arg(XTime::now().getTimeStr())
+            .arg(file)
+            .arg(line)
+            .arg(str))
+            .local8Bit()
+        << std::endl;
+      fprintf(stderr, "warn:%s:%d %s\n", file, line, (const char*)str.local8Bit());
+   }
+  shared_ptr<XStatusPrinter> statusprinter = g_statusPrinter;
+  if(statusprinter) statusprinter->printWarning(str);
+}
+
+#define SNPRINT_BUF_SIZE 128
+#include <stdarg.h>
+#include <vector>
+
+std::string
+formatString(const char *fmt, ...)
+{
+  va_list ap;
+  int buf_size = SNPRINT_BUF_SIZE;
+  std::vector<char> buf;
+  for(;;) {
+      buf.resize(buf_size);
+   int ret;
+    
+      va_start(ap, fmt);
+    
+      ret = vsnprintf(&buf[0], buf_size, fmt, ap);
+    
+      va_end(ap);
+      
+      if(ret < 0) throw XKameError(KAME::i18n("Mal-format conversion."), __FILE__, __LINE__);
+      if(ret < buf_size) break;
+      
+      buf_size *= 2;
+  }
+  
+  return std::string((char*)&buf[0]);
+}
 
 std::string formatDouble(const char *fmt, double var)
 {
-    char cbuf[128];
+    char cbuf[SNPRINT_BUF_SIZE];
       if(strlen(fmt) == 0) {
           snprintf(cbuf, sizeof(cbuf), "%.12g", var);
           return std::string(cbuf);

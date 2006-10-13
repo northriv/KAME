@@ -143,12 +143,12 @@ XRawStreamRecordReader::parseOne(void *fd, XMutex &mutex)
             throw XBrokenRecordError(__FILE__, __LINE__);
     }
     catch (XRecordError &e) {
-        driver->finishWritingRaw(XTime(), XTime(), true);
+        driver->finishWritingRaw(XTime(), XTime());
         throw e;
     }
     mutex.unlock();
     { XScopedLock<XMutex> lock(m_drivermutex);
-        driver->finishWritingRaw(XTime::now(), time, true);
+        driver->finishWritingRaw(XTime::now(), time);
     }
 }
 void
@@ -205,6 +205,7 @@ XRawStreamRecordReader::terminate()
     for(tThreadIt it = m_threads.begin(); it != m_threads.end(); it++) {
         (*it)->terminate();
     }
+    XScopedLock<XCondition> lock(m_condition);
     m_condition.broadcast();
 }
 
@@ -219,6 +220,7 @@ XRawStreamRecordReader::onPlayCondChanged(const shared_ptr<XValueNodeBase> &)
     if(!*m_fastForward && !*m_rewind) ms = 0;
     if(*m_rewind) ms = -ms;
     m_periodicTerm = ms;
+    XScopedLock<XCondition> lock(m_condition);
     m_condition.broadcast();
 }
 void
@@ -290,8 +292,11 @@ void *XRawStreamRecordReader::execute(const atomic<bool> &terminated)
   while(!terminated)
     {
     double ms = 0.0;
-    while((fabs((ms = m_periodicTerm)) < 1e-4) && !terminated)
-            m_condition.wait();
+        {
+        XScopedLock<XCondition> lock(m_condition);
+        while((fabs((ms = m_periodicTerm)) < 1e-4) && !terminated)
+                m_condition.wait();
+        }
     
       if(terminated) break;
       

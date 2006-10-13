@@ -153,8 +153,9 @@ XRuby::rlistnode_create_child(VALUE self, VALUE rbtype, VALUE rbname)
             x->type = type;
             x->name = name;
             st->xruby->m_tlkCreateChild.talk(x);
+            XScopedLock<XCondition> lock(x->cond);
             while(x->lnode) {
-                x->cond.wait(50000);
+                x->cond.wait();
             }
             child = x->child;
       }
@@ -175,6 +176,7 @@ XRuby::onCreateChild(const shared_ptr<tCreateChild> &x)
 {
     x->child = x->lnode->createByTypename(x->type, x->name);
     x->lnode.reset();
+    XScopedLock<XCondition> lock(x->cond);
     x->cond.signal();
 }
 VALUE

@@ -4,18 +4,15 @@
 #include <stdint.h>
 
 //! Lock-free synchronizations.
-
-#if SIZEOF_VOID_P < SIZEOF_INT
- #error KAME assume assignment of int is atomic.
-#endif
+//! Some compiler needs 'volatile'
 
 #if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__
      //! memory barriers. 
      inline void readBarrier() {
-            asm volatile( "" ::: "memory" );
+            asm volatile( "lfence" ::: "memory" );
      }
      inline void memoryBarrier() {
-            asm volatile( "" ::: "memory" );
+            asm volatile( "sfence" ::: "memory" );
      }
      //! For spinning.
      inline void pauseN(unsigned int cnt) {
@@ -25,7 +22,7 @@
      }
     //! \return true if old == *target and new value is assigned
     template <typename T>
-    inline bool atomicCompareAndSet(T oldv, T newv, T *target ) {
+    inline bool atomicCompareAndSet(T oldv, T newv, volatile T *target ) {
        register unsigned char ret;
         asm volatile (
                 "  lock; cmpxchg%z1 %1,%2;"
@@ -44,13 +41,15 @@
         //! \param newv1 new value to \p target[1].
         inline bool atomicCompareAndSet2(
             uint32_t oldv0, uint32_t oldv1,
-            uint32_t newv0, uint32_t newv1, uint32_t *target ) {
+            uint32_t newv0, uint32_t newv1, volatile uint32_t *target ) {
            unsigned char ret;
             asm volatile (
+                    " push %%ebx;"
                     " mov %6, %%ebx;"
                     "  lock; cmpxchg8b %7;"
-                    " sete %0" // ret = zflag ? 1 : 0
-                    : "=&b" (ret), "=&d" (oldv1), "=&a" (oldv0)
+                    " sete %0;" // ret = zflag ? 1 : 0
+                    " pop %%ebx"
+                    : "=r" (ret), "=&d" (oldv1), "=&a" (oldv0)
                     : "1" (oldv1), "2" (oldv0),
                      "c" (newv1), "r" (newv0),
                      "m" (*target)
@@ -59,13 +58,13 @@
         }
         inline bool atomicCompareAndSet2(
             int32_t oldv0, int32_t oldv1,
-            int32_t newv0, int32_t newv1, int32_t *target ) {
+            int32_t newv0, int32_t newv1, volatile int32_t *target ) {
                return atomicCompareAndSet2((uint32_t) oldv0, (uint32_t) oldv1,
-                            (uint32_t) newv0, (uint32_t) newv1, (uint32_t*) target);
+                            (uint32_t) newv0, (uint32_t) newv1, (volatile uint32_t*) target);
         }
     #endif
     template <typename T>
-    inline T atomicSwap(T v, T *target ) {
+    inline T atomicSwap(T v, volatile T *target ) {
         asm volatile (
                 "xchg%z0 %0,%1" //lock prefix is not needed.
                 : "=r" (v)
@@ -74,7 +73,7 @@
         return v;
     }
     template <typename T>
-    inline void atomicAdd(T *target, T x ) {
+    inline void atomicAdd(volatile T *target, T x ) {
         asm volatile (
                 "lock; add%z0 %1,%0"
                 :
@@ -83,7 +82,7 @@
     }
     //! \return true if new value is zero.
     template <typename T>
-    inline bool atomicAddAndTest(T *target, T x ) {
+    inline bool atomicAddAndTest(volatile T *target, T x ) {
         register unsigned char ret;
         asm volatile (
                 "lock; add%z1 %2,%1;"
@@ -94,7 +93,7 @@
         return ret;
     }
     template <typename T>
-    inline void atomicInc(T *target ) {
+    inline void atomicInc(volatile T *target ) {
         asm volatile (
                 "lock; inc%z0 %0"
                 :
@@ -102,7 +101,7 @@
                 : "memory" );
     }
     template <typename T>
-    inline void atomicDec(T *target ) {
+    inline void atomicDec(volatile T *target ) {
         asm volatile (
                 "lock; dec%z0 %0"
                 :
@@ -111,7 +110,7 @@
     }
     //! \return zero flag.
     template <typename T>
-    inline bool atomicDecAndTest(T *target ) {
+    inline bool atomicDecAndTest(volatile T *target ) {
         register unsigned char ret;
         asm volatile (
                 "lock; dec%z1 %1;"
@@ -137,7 +136,7 @@
          }
          template <typename T>
         //! \return true if old == *target and new value is assigned
-         inline bool atomicCompareAndSet(T oldv, T newv, T *target ) {
+         inline bool atomicCompareAndSet(T oldv, T newv, volatile T *target ) {
             T ret;
             asm volatile ( "1: \n"
                     "lwarx %[ret], 0, %[target] \n"
@@ -153,7 +152,7 @@
          }
          //! \return target's old value.
          template <typename T>
-         inline T atomicSwap(T newv, T *target ) {
+         inline T atomicSwap(T newv, volatile T *target ) {
             T ret;
             asm volatile ( "1: \n"
                     "lwarx %[ret], 0, %[target] \n"
@@ -165,7 +164,7 @@
             return ret;
          }
         template <typename T>
-        inline void atomicInc(T *target ) {
+        inline void atomicInc(volatile T *target ) {
             T ret;
             asm volatile ( "1: \n"
                     "lwarx %[ret], 0, %[target] \n"
@@ -177,7 +176,7 @@
                     : "cc", "memory");
         }
         template <typename T>
-        inline void atomicDec(T *target ) {
+        inline void atomicDec(volatile T *target ) {
             T ret;
             asm volatile ( "1: \n"
                     "lwarx %[ret], 0, %[target] \n"
@@ -189,7 +188,7 @@
                     : "cc", "memory");
         }
         template <typename T>
-        inline void atomicAdd(T *target, T x ) {
+        inline void atomicAdd(volatile T *target, T x ) {
             T ret;
             asm volatile ( "1: \n"
                     " lwarx %[ret], 0, %[target] \n"
@@ -202,7 +201,7 @@
         }
         //! \return true if new value is zero.
         template <typename T>
-        inline bool atomicAddAndTest(T *target, T x ) {
+        inline bool atomicAddAndTest(volatile T *target, T x ) {
             T ret;
             asm volatile ( "1: \n"
                     "lwarx %[ret], 0, %[target] \n"
@@ -216,7 +215,7 @@
         }
         //! \return zero flag.
         template <typename T>
-        inline bool atomicDecAndTest(T *target ) {
+        inline bool atomicDecAndTest(volatile T *target ) {
             return atomicAddAndTest(target, (T)-1);
         }
    #else
@@ -233,28 +232,29 @@ class atomic
     atomic(const atomic &t) : m_var(t) {}
     ~atomic() {}
     operator T() const {readBarrier(); return m_var;}
-    atomic &operator=(T t) {m_var = t; readBarrier(); return *this;}
+    atomic &operator=(T t) {m_var = t; memoryBarrier(); return *this;}
     atomic &operator++() {atomicInc(&m_var); return *this;}
     atomic &operator--() {atomicDecAndTest(&m_var); return *this;}
     atomic &operator+=(T t) {atomicAdd(&m_var, t); return *this;}
     atomic &operator-=(T t) {atomicAdd(&m_var, -t); return *this;}
     static T swap(T newv, atomic &t) {
         T old = atomicSwap(newv, &t.m_var);
-        readBarrier();
         return old;
     }
     bool decAndTest() {
         bool ret = atomicDecAndTest(&m_var);
-        readBarrier();
         return ret;
     }
     bool addAndTest(T t) {
         bool ret = atomicAddAndTest(&m_var, t);
-        readBarrier();
+        return ret;
+    }
+    bool compareAndSet(T oldv, T newv) {
+        bool ret = atomicCompareAndSet(oldv, newv, &m_var);
         return ret;
     }
  private:
-    T m_var;
+    volatile T m_var;
 };
 
 #endif /*ATOMIC_H_*/

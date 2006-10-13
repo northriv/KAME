@@ -5,7 +5,7 @@
 #define supportH
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
 
 #ifdef WORDS_BIGENDIAN
@@ -110,8 +110,11 @@ void
 _dbgPrint(const QString &str, const char *file, int line);
 //! Global Error Message/Printing.
 #define gErrPrint(msg) _gErrPrint(msg, __FILE__, __LINE__)
+#define gWarnPrint(msg) _gWarningPrint(msg, __FILE__, __LINE__)
 void
 _gErrPrint(const QString &str, const char *file, int line);
+void
+_gWarnPrint(const QString &str, const char *file, int line);
 
 //! Base of exception
 struct XKameError {
@@ -139,6 +142,10 @@ double setprec(double val, double prec);
 
 //! convert control characters to visible (ex. \xx).
 std::string dumpCString(const char *cstr);
+
+//! \sa printf()
+std::string formatString(const char *format, ...)
+     __attribute__ ((format(printf,1,2)));
 
 std::string formatDouble(const char *fmt, double val);
 //! validator

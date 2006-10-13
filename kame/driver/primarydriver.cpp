@@ -28,28 +28,27 @@ XPrimaryDriver::replaceInterface(const shared_ptr<XInterface> &replacement,
 
 void
 XPrimaryDriver::finishWritingRaw(
-    const XTime &time_awared, const XTime &time_recorded_org, bool success)
+    const XTime &time_awared, const XTime &time_recorded_org)
 {
-    if(success) {
-        XTime time_recorded = time_recorded_org;
-        startRecording(time_awared);
-        if(time_recorded) {
-            *s_tl_pop_it = rawData().begin();
-            try {
-                analyzeRaw();
-            }
-            catch (XSkippedRecordError&) {
-                 time_recorded = XTime(); //record is invalid
-            }
-            catch (XRecordError& e) {
-                 time_recorded = XTime(); //record is invalid
-                 e.print(getLabel() + ": " + KAME::i18n("Record Error, because "));
-            }
+    XTime time_recorded = time_recorded_org;
+    startRecording(time_awared);
+//    if(time_recorded) {
+    {
+        *s_tl_pop_it = rawData().begin();
+        try {
+            analyzeRaw();
         }
-        finishRecordingNReadLock(time_recorded);
-        visualize();
-        readUnlockRecord();
+        catch (XSkippedRecordError&) {
+             time_recorded = XTime(); //record is invalid
+        }
+        catch (XRecordError& e) {
+             time_recorded = XTime(); //record is invalid
+             e.print(getLabel() + ": " + KAME::i18n("Record Error, because "));
+        }
     }
+    finishRecordingNReadLock(time_recorded);
+    visualize();
+    readUnlockRecord();
 }
 
 void
