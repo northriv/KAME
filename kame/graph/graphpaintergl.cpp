@@ -143,7 +143,7 @@ XQGraphPainter::string2wstring(const std::string &str)
     int insize = qstr.length() * sizeof(unsigned short);
 #endif //USE_ICONV_SRC_UCS2
     //! \todo Linux iconv needs char** instead of const char**
-    size_t ret = iconv(s_iconv_cd, (&inbuf), (size_t*)&insize,
+    size_t ret = iconv(s_iconv_cd, const_cast<char**>(&inbuf), (size_t*)&insize,
         &outp, (size_t*)&outsize);
 	if(ret == (size_t)(-1)) {
             XKameError::print(
