@@ -1,9 +1,9 @@
 #ifndef nidaqdsoH
 #define nidaqdsoH
 
-#ifdef HAVE_NI_DAQMX
-
 #include "dso.h"
+
+#ifdef HAVE_NI_DAQMX
 
 class TaskHandle;
 

@@ -1,6 +1,7 @@
+#include "nidaqdso.h"
+
 #ifdef HAVE_NI_DAQMX
 
-#include "nidaqdso.h"
 #include "xwavengraph.h"
 #include <klocale.h>
 #include "NIDAQmx.h"
