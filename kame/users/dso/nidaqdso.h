@@ -23,7 +23,10 @@ class XNIDAQmxDSO : public XDSO
  protected:
   virtual void onAverageChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onSingleChanged(const shared_ptr<XValueNodeBase> &);
+  virtual void onTrigSourceChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onTrigPosChanged(const shared_ptr<XValueNodeBase> &);
+  virtual void onTrigLevelChanged(const shared_ptr<XValueNodeBase> &);
+  virtual void onTrigFallingChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onTimeWidthChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onVFullScale1Changed(const shared_ptr<XValueNodeBase> &);
   virtual void onVFullScale2Changed(const shared_ptr<XValueNodeBase> &);
