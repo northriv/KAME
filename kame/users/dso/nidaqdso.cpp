@@ -6,14 +6,24 @@
 #include <klocale.h>
 #include "NIDAQmx.h"
 
+#define TASK_UNDEF ((TaskHandle)-1)
+
 #define CheckError(code, msg) _checkError(code, msg, __FILE__, __LINE__)
 void
 XNIDAQmxDSO::_checkError(int code, const char *msg, const char *file, int line)
 {
     if(code < 0)
-        throw XInterfaceError(msg, file, line);
+        throw XInterface::XInterfaceError(msg, file, line);
     if(code > 0)
         _gWarnPrint(msg, file, line);
+}
+
+void
+XNIDAQmxDSO::splitList(const char *str, std::deque<std::string> &list)
+{
+	QStringList qlist = QString(str).split(QRegExp("\\s+"));
+	for(QListIterator<QString> it = qlist.constBegin(); it != qlist.constEnd(); it++)
+		list.push_back(std::string(*it));
 }
 
 //---------------------------------------------------------------------------
@@ -23,10 +33,10 @@ XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers) :
  XDSO(name, runtime, scalarentries, interfaces, thermometers, drivers),
- m_task(new TaskHandle)
+ m_task(TASK_UNDEF)
 {
     char buf[2048];
-    DAQmxGetSysDeviceNames(buf, sizeof(buf));
+    DAQmxGetSysDevNames(buf, sizeof(buf));
     std::deque<std::string> dev;
     splitList(buf, dev);
     for(std::deque<std::string>::iterator it = dev.begin(); it != dev.end(); it++) {
@@ -62,13 +72,6 @@ XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
     DAQmxClearTask(task);
 }
 void
-XNIDAQmDSO::task_deleter(TaskHandle* task)
-{
-    CheckError(DAQmxStopTask(*task), "Stop Task");
-    int ret = DAQmxClearTask(task);
-    ASSERT(ret >= 0);
-}
-void
 XNIDAQmxDSO::afterStart()
 {
     createChannels();
@@ -78,16 +81,20 @@ XNIDAQmxDSO::afterStart()
 void
 XNIDAQmxDSO::beforeStop()
 {
-    m_task.reset();
+	XScopedLock<XMutex> lock(m_tasklock);
+	m_task = TASK_UNDEF;
+    CheckError(DAQmxStopTask(m_task), "Stop Task");
+    int ret = DAQmxClearTask(m_task);
+    ASSERT(ret >= 0);
 }
 void
 XNIDAQmxDSO::setupTrigger()
 {
-    shared_ptr<TaskHandle> task(m_task);
-    CheckError(DAQmxStopTask(*task), "Stop Task");
+	XScopedLock<XMutex> lock(m_tasklock);
+    CheckError(DAQmxStopTask(m_task), "Stop Task");
     if(std::find(m_analogTrigSrc.begin(), m_analogTrigSrc.end(), trigSource()->to_str())
          != m_analogTrigSrc.end()) {
-        CheckError(DAQmxCfgAnlgEdgeStartTrig(*task,
+        CheckError(DAQmxCfgAnlgEdgeStartTrig(m_task,
             trigSource()->to_str().c_str(),
             *trigFalling ? DAQmx_Val_FallingSlope : DAQmx_Val_RisingSlope,
             *trigLevel()),
@@ -95,37 +102,43 @@ XNIDAQmxDSO::setupTrigger()
     }
     if(std::find(m_digitalTrigSrc.begin(), m_digitalTrigSrc.end(), trigSource()->to_str())
          != m_digitalTrigSrc.end()) {
-        CheckError(DAQmxCfgDigEdgeStartTrig(*task,
+        CheckError(DAQmxCfgDigEdgeStartTrig(m_task,
             trigSource()->to_str().c_str(),
             *trigFalling ? DAQmx_Val_FallingSlope : DAQmx_Val_RisingSlope,
             *trigLevel()),
             "Trigger Setup");
     }
-    CheckError(DAQmxStartTask(*task), "Start Task");
+    CheckError(DAQmxStartTask(m_task), "Start Task");
 }
 void
 XNIDAQmxDSO::setupTiming()
 {
     m_acqCount = 0;
-    shared_ptr<TaskHandle> task(m_task);    
-    CheckError(DAQmxStopTask(*task), "Stop Task");
+	XScopedLock<XMutex> lock(m_tasklock);
+    CheckError(DAQmxStopTask(m_task), "Stop Task");
     m_timeInterval = 
-    CheckError(DAQmxCfgSampClkTiming(*task,
+    CheckError(DAQmxCfgSampClkTiming(m_task,
         NULL, // internal source
         *recordLength() / *timeWidth(),
         DAQmx_Val_Rising,
         DAQmx_Val_FiniteSamps,
         *recordLength()
         ), "Set Timing");
-    CheckError(DAQmxStartTask(*task), "Start Task");
+    CheckError(DAQmxStartTask(m_task), "Start Task");
 }
 void
 XNIDAQmxDSO::createChannels()
 {
-    shared_ptr<TaskHandle> task(new TaskHandle);
-    CheckError(DAQmxCreateTask("XNIDAQmxDSO", task.ptr()), "Task Creation");
+	XScopedLock<XMutex> lock(m_tasklock);
+	if(m_task == TASK_UNDEF) {
+	    CheckError(DAQmxStopTask(m_task), "Stop Task");
+	    int ret = DAQmxClearTask(m_task);
+	    ASSERT(ret >= 0);
+	}
+
+    CheckError(DAQmxCreateTask("XNIDAQmxDSO", &m_task), "Task Creation");
     if(*trace1() > 0) {
-        CheckError(DAQmxCreateAIVoltageChan(*task,
+        CheckError(DAQmxCreateAIVoltageChan(m_task,
             trace1()->to_str().c_str(),
             trace1()->to_str().c_str(),
             DAQmx_Val_Cfg_Default,
@@ -136,7 +149,7 @@ XNIDAQmxDSO::createChannels()
             ), "Channel Creation");
     }
     if(*trace2() > 0) {
-        CheckError(DAQmxCreateAIVoltageChan(*task,
+        CheckError(DAQmxCreateAIVoltageChan(m_task,
             trace2()->to_str().c_str(),
             trace2()->to_str().c_str(),
             DAQmx_Val_Cfg_Default,
@@ -146,11 +159,10 @@ XNIDAQmxDSO::createChannels()
             NULL
             ), "Channel Creation");
     }
-    CheckError(DAQmxRegisterDoneEvent(*task, 0, &XNIDAQmxDSO::_acqCallBack, this),
+    CheckError(DAQmxRegisterDoneEvent(m_task, 0, &XNIDAQmxDSO::_acqCallBack, this),
         "Register Event");
-    CheckError(DAQmxStartTask(*task), "Start Task");
+    CheckError(DAQmxStartTask(m_task), "Start Task");
     m_acqCount = 0;
-    m_task = task;
 }
 void 
 XNIDAQmxDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
@@ -211,7 +223,8 @@ XNIDAQmxDSO::onRecordLengthChanged(const shared_ptr<XValueNodeBase> &)
 void
 XNIDAQmxDSO::onForceTriggerTouched(const shared_ptr<XNode> &)
 {
-    CheckError(DAQmxSendSoftwareTrigger(*m_task, DAQmx_Val_AdvanceTrigger),
+	XScopedLock<XMutex> lock(m_tasklock);
+    CheckError(DAQmxSendSoftwareTrigger(m_task, DAQmx_Val_AdvanceTrigger),
         "Force Trigger");
 }
 int32
@@ -223,11 +236,12 @@ XNIDAQmxDSO::_acqCallBack(TaskHandle task, int32 status, void *data)
 int32
 XNIDAQmxDSO::acqCallBack(TaskHandle task, int32 status)
 {
+ 	XScopedLock<XMutex> lock(m_tasklock);
     CheckError(status, "Event");
     int len = *recordLength();
     int32 cnt;
     std::vector<float64> buf(len * 2);
-    CheckError(DAQmxReadAnalogF64(task, DAQmx_Val_Auto,
+    CheckError(DAQmxReadAnalogF64(m_task, DAQmx_Val_Auto,
         0, DAQmx_Val_GroupByChannel,
         &buf[0], len * 2, &cnt, NULL
         ), "Read");
@@ -242,7 +256,7 @@ XNIDAQmxDSO::acqCallBack(TaskHandle task, int32 status)
     }
     m_acqCount++;
     if(*singleSequence() && (m_acqCount >= *average())) {
-        CheckError(DAQmxDisableStartTrigger(*m_task), "Disable Trigger");       
+        CheckError(DAQmxDisableStartTrigger(m_task), "Disable Trigger");       
     }
 }
 void
@@ -266,8 +280,9 @@ XNIDAQmxDSO::acqCount(bool *seq_busy)
 double
 XNIDAQmxDSO::getTimeInterval()
 {
+	XScopedLock<XMutex> lock(m_tasklock);
     float64 rate;
-    DAQmxGetSampClkRate(*m_task, &rate);
+    DAQmxGetSampClkRate(m_task, &rate);
     return 1.0 / rate;
 }
 

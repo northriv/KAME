@@ -5,8 +5,6 @@
 
 #ifdef HAVE_NI_DAQMX
 
-class TaskHandle;
-
 //! Software DSO w/ NI DAQmx
 class XNIDAQmxDSO : public XDSO
 {
@@ -48,13 +46,14 @@ class XNIDAQmxDSO : public XDSO
  private:
   std::vector<double> m_records[2];
   std::deque<std::string> m_analogTrigSrc, m_digitalTrigSrc;
-  shared_ptr<TaskHandle> m_task;
+  unsigned int m_task;
+  XMutex m_tasklock;
   int m_acqCount;
   void setupAcquision();
   void setupTrigger();
   void createChannels();
   void _checkError(int code, const char *msg, const char *file, int line);
-  static void task_deleter(TaskHandle*);
+  void splitList(const char *, std::deque<std::string> &);
 };
 
 #endif //HAVE_NI_DAQMX
