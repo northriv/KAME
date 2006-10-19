@@ -297,7 +297,7 @@ XCryoconM32::XCryoconM32(const char *name, bool runtime,
  XCryocon(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
   const char *channels_create[] = {"A", "B", 0L};
-  const char *excitations_create[] = {"CI", "10MV", "3MV", 0L};
+  const char *excitations_create[] = {"CI", "10MV", "3MV", "1MV", 0L};
   createChannels(scalarentries, thermometers, true, channels_create, excitations_create);
   powerRange()->add("HI");
   powerRange()->add("MID");
