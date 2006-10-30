@@ -412,7 +412,7 @@ XNMRPulseAnalyzer::onCondChanged(const shared_ptr<XValueNodeBase> &node)
 bool
 XNMRPulseAnalyzer::checkDependency(const shared_ptr<XDriver> &emitter) const {
 	shared_ptr<XPulser> _pulser = *pulser();
-    if(emitter == *_pulser()) return false;
+    if(emitter == _pulser) return false;
     shared_ptr<XDSO> _dso = *dso();
     return _dso;
 }
@@ -590,7 +590,7 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
   unsigned int epcnum = (epcenabled) ? ((*m_epc4x) ? 4 : 2) : 1;
 
   if(epcenabled) {
-  		ASSERST( _pulser->time() );
+  		ASSERT( _pulser->time() );
         phase_origin = _pulser->phaseOriginRecorded();
         double new_ph = phase_origin + 360.0 / epcnum;
         new_ph -= floor(new_ph / 360.0) * 360.0;
@@ -609,7 +609,7 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
 	  if(m_epccnt < epcnum)
 	    throw XSkippedRecordError(__FILE__, __LINE__);
 	  for(int i = 0; i < length; i++) {
-	  	m_wave /= epcnum;
+	  	m_wave[i] /= epcnum;
 	  }
   }
   m_epccnt = 0;
