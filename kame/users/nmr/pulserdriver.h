@@ -94,7 +94,7 @@ class XPulser : public XPrimaryDriver
     const shared_ptr<XDoubleNode> &qswDelay() const {return m_qswDelay;} //!< Q-switch setting, period after the end-edge of pulses [us].
     const shared_ptr<XDoubleNode> &qswWidth() const {return m_qswWidth;} //!< Q-switch setting, width of suppression [us].
     const shared_ptr<XBoolNode> &qswPiPulseOnly() const {return m_qswPiPulseOnly;} //!< Q-switch setting, use QSW only for pi pulses.
-    const shared_ptr<XDoubleNode> &phasePrigin() const {return m_phaseOrigin;} //!< [deg.]
+    const shared_ptr<XDoubleNode> &phaseOrigin() const {return m_phaseOrigin;} //!< [deg.]
 
     //! ver 1 records
     short combModeRecorded() const {return m_combModeRecorded;}
