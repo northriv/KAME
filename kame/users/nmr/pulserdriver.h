@@ -94,6 +94,7 @@ class XPulser : public XPrimaryDriver
     const shared_ptr<XDoubleNode> &qswDelay() const {return m_qswDelay;} //!< Q-switch setting, period after the end-edge of pulses [us].
     const shared_ptr<XDoubleNode> &qswWidth() const {return m_qswWidth;} //!< Q-switch setting, width of suppression [us].
     const shared_ptr<XBoolNode> &qswPiPulseOnly() const {return m_qswPiPulseOnly;} //!< Q-switch setting, use QSW only for pi pulses.
+    const shared_ptr<XDoubleNode> &phasePrigin() const {return m_phaseOrigin;} //!< [deg.]
 
     //! ver 1 records
     short combModeRecorded() const {return m_combModeRecorded;}
@@ -114,11 +115,11 @@ class XPulser : public XPrimaryDriver
     unsigned short combNumRecorded() const {return m_combNumRecorded;}
     short rtModeRecorded() const {return m_rtModeRecorded;}
     unsigned short numPhaseCycleRecorded() const {return m_numPhaseCycleRecorded;}
+    //! ver 3 records
+    double phaseOrigin() const {return m_phaseOriginRecorded;}
     
     //! periodic term of one cycle [ms]
     double periodicTermRecorded() const;
-
-    void setPhaseCycleOrder(unsigned int x) {m_phase_xor = x;}
  protected:
   //! Start up your threads, connect GUI, and activate signals
   virtual void start();
@@ -164,6 +165,8 @@ class XPulser : public XPrimaryDriver
     unsigned short m_combNumRecorded;
     short m_rtModeRecorded;
     unsigned short m_numPhaseCycleRecorded;        
+    //! ver 3 records
+    double m_phaseOriginRecorded;
 
   struct RelPat {
       RelPat(uint32_t pat, double t, double toapp) :
@@ -198,8 +201,6 @@ class XPulser : public XPrimaryDriver
   static double pulseFuncFlatTopLongLong(double x);
   static double pulseFuncHalfCos(double x);
   static double pulseFuncChoppedHalfCos(double x);
-  
-  unsigned int m_phase_xor;
  private:
     shared_ptr<XBoolNode> m_output;
     shared_ptr<XComboNode> m_combMode; //!< see above definitions in header file
@@ -243,6 +244,7 @@ class XPulser : public XPrimaryDriver
     shared_ptr<XDoubleNode> m_qswDelay;
     shared_ptr<XDoubleNode> m_qswWidth;
     shared_ptr<XBoolNode> m_qswPiPulseOnly;
+    shared_ptr<XDoubleNode> m_phaseOrigin;
     
   shared_ptr<XNode> m_moreConfigShow;
   xqcon_ptr m_conOutput;

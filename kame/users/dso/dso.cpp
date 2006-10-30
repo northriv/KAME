@@ -7,7 +7,6 @@
 #include "graphwidget.h"
 #include "xwavengraph.h"
 #include "fir.h"
-#include "pulserdriver.h"
 
 #include "interface.h"
 #include "analyzer.h"
@@ -47,10 +46,6 @@ XDSO::XDSO(const char *name, bool runtime,
   m_firBandWidth(create<XDoubleNode>("FIRBandWidth", false)),
   m_firCenterFreq(create<XDoubleNode>("FIRCenterFreq", false)),
   m_firSharpness(create<XDoubleNode>("FIRSharpness", false)),
-  m_foolAvgEnabled(create<XBoolNode>("FoolAvgEnabled", false)),
-  m_foolAvg4x(create<XBoolNode>("FoolAvg4x", false)),
-  m_pulser(create<XItemNode<XDriverList, XPulser> >("Pulser", false, drivers)),
-  m_foolavgcnt(0),
   m_form(new FrmDSO(g_pFrmMain)),
   m_waveForm(create<XWaveNGraph>("WaveForm", false, 
         m_form->m_graphwidget, m_form->m_urlDump, m_form->m_btnDump)),
@@ -74,9 +69,6 @@ XDSO::XDSO(const char *name, bool runtime,
   m_conFIRBandWidth(xqcon_create<XQLineEditConnector>(m_firBandWidth, m_form->m_edFIRBandWidth)),
   m_conFIRSharpness(xqcon_create<XQLineEditConnector>(m_firSharpness, m_form->m_edFIRSharpness)),
   m_conFIRCenterFreq(xqcon_create<XQLineEditConnector>(m_firCenterFreq, m_form->m_edFIRCenterFreq)),
-  m_conFoolAvgEnabled(xqcon_create<XQToggleButtonConnector>(m_foolAvgEnabled, m_form->m_ckbEnable)),
-  m_conFoolAvg4x(xqcon_create<XQToggleButtonConnector>(m_foolAvg4x, m_form->m_ckb4x)),  
-  m_conPulser(xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser)),
   m_statusPrinter(XStatusPrinter::create(m_form.get()))
 {
   m_form->m_btnForceTrigger->setIconSet(
@@ -110,8 +102,6 @@ XDSO::XDSO(const char *name, bool runtime,
   vOffset2()->setUIEnabled(false);
   forceTrigger()->setUIEnabled(false);
   recordLength()->setUIEnabled(false);
-  
-  m_foolAvgEnabled->setUIEnabled(false);
   
   m_waveForm->setColCount(2, s_trace_names); 
   m_waveForm->selectAxes(0, 1, -1);
@@ -241,8 +231,6 @@ XDSO::execute(const atomic<bool> &terminated)
   forceTrigger()->setUIEnabled(true);
   recordLength()->setUIEnabled(true);
     
-  m_foolAvgEnabled->setUIEnabled(true);
-  
   while(!terminated)
     {
       
@@ -297,23 +285,7 @@ XDSO::execute(const atomic<bool> &terminated)
     
           // try/catch exception of communication errors
           try {
-              shared_ptr<XPulser> pulser(*m_pulser);
-              bool control_pulser = *m_foolAvgEnabled;
-              if(control_pulser && !pulser) {
-                control_pulser = false;
-                gErrPrint(getLabel() + ": " + KAME::i18n("No Pulser!"));
-              }
-              if(control_pulser && !(pulser->time() && (pulser->time() < time_awared)))
-                control_pulser = false;
-              if(control_pulser) {
-                    pulser->output()->value(false);
-              }
               startSequence();
-              if(control_pulser) {
-                    pulser->setPhaseCycleOrder(m_foolavgcnt);
-                    pulser->output()->value(true);
-                    pulser->setPhaseCycleOrder(0);
-              }
               time_awared = XTime::now();
           }
           catch (XKameError &e) {
@@ -322,8 +294,6 @@ XDSO::execute(const atomic<bool> &terminated)
           }
       }
     }
-    
-  m_foolAvgEnabled->setUIEnabled(false);
     
   trace1()->setUIEnabled(true);
   trace2()->setUIEnabled(true);
@@ -385,18 +355,9 @@ XDSO::setRecordDim(unsigned int channels, double startpos, double interval, unsi
 
 void
 XDSO::analyzeRaw() throw (XRecordError&) {
-    if(m_foolavgcnt == 0)
-        std::fill(m_wavesRecorded.begin(), m_wavesRecorded.end(), 0.0);
+    std::fill(m_wavesRecorded.begin(), m_wavesRecorded.end(), 0.0);
     
     convertRaw();
-
-    unsigned int foolavg = (*m_foolAvgEnabled) ? ((*m_foolAvg4x) ? 4 : 2) : 1;
-    m_foolavgcnt++;
-    if(m_foolavgcnt < foolavg) throw XSkippedRecordError(__FILE__, __LINE__);
-    for(unsigned int i = 0; i < m_wavesRecorded.size(); i++) {
-            m_wavesRecorded[i] /= m_foolavgcnt;
-    }
-    m_foolavgcnt = 0;
     
   if(*firEnabled()) {
      double  bandwidth = *firBandWidth()*1000.0*timeIntervalRecorded();

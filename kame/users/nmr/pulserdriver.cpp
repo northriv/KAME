@@ -168,6 +168,7 @@ XPulser::XPulser(const char *name, bool runtime,
     m_induceEmissionPhase(create<XDoubleNode>("InduceEmissionPhase", false)),
     m_qswDelay(create<XDoubleNode>("QSWDelay", false)),
     m_qswWidth(create<XDoubleNode>("QSWWidth", false)),
+    m_phaseOrigin(create<XDoubleNode>("PhaseOrigin", false)),
     m_qswPiPulseOnly(create<XBoolNode>("QSWPiPulseOnly", false)),
     m_moreConfigShow(create<XNode>("MoreConfigShow", true)),
     m_form(new FrmPulser(g_pFrmMain)),
@@ -370,6 +371,7 @@ XPulser::XPulser(const char *name, bool runtime,
   qswDelay()->setUIEnabled(false);
   qswWidth()->setUIEnabled(false);
   qswPiPulseOnly()->setUIEnabled(false);
+  phaseOrigin()->setUIEnabled(false);
   
   m_conPulserDriver = xqcon_create<XQPulserDriverConnector>(
         dynamic_pointer_cast<XPulser>(shared_from_this()), m_form->m_tblPulse, m_form->m_graph);
@@ -440,6 +442,7 @@ XPulser::start()
   qswDelay()->setUIEnabled(true);
   qswWidth()->setUIEnabled(true);
   qswPiPulseOnly()->setUIEnabled(true);
+  phaseOrigin()->setUIEnabled(true);
 
   afterStart();
       
@@ -490,6 +493,7 @@ XPulser::start()
   qswDelay()->onValueChanged().connect(m_lsnOnPulseChanged);
   qswWidth()->onValueChanged().connect(m_lsnOnPulseChanged);
   qswPiPulseOnly()->onValueChanged().connect(m_lsnOnPulseChanged);
+  phaseOrigin()->onValueChanged().connect(m_lsnOnPulseChanged);
 }
 void
 XPulser::stop()
@@ -543,6 +547,7 @@ XPulser::stop()
   qswDelay()->setUIEnabled(false);
   qswWidth()->setUIEnabled(false);
   qswPiPulseOnly()->setUIEnabled(false);
+  phaseOrigin()->setUIEnabled(false);
   
   interface()->close();
 //    m_thread->waitFor();
@@ -572,6 +577,8 @@ XPulser::analyzeRaw() throw (XRecordError&)
         m_combNumRecorded = pop<unsigned short>();
         m_rtModeRecorded = pop<short>();
         m_numPhaseCycleRecorded = pop<unsigned short>();
+        //! ver 3 records
+        m_phaseOriginRecorded = pop<double>();
     }
     catch (XRecordError &) {
         m_difFreqRecorded = *difFreq();
@@ -587,6 +594,7 @@ XPulser::analyzeRaw() throw (XRecordError&)
       if(numPhaseCycle()->to_str() == NUM_PHASE_CYCLE_8) npat = 8;
       if(numPhaseCycle()->to_str() == NUM_PHASE_CYCLE_16) npat = 16;
         m_numPhaseCycleRecorded = npat;
+        m_phaseOriginRecorded = 0.0;
     }    
     rawToRelPat();
 }
@@ -676,6 +684,8 @@ XPulser::onPulseChanged(const shared_ptr<XValueNodeBase> &node)
   if(numPhaseCycle()->to_str() == NUM_PHASE_CYCLE_8) npat = 8;
   if(numPhaseCycle()->to_str() == NUM_PHASE_CYCLE_16) npat = 16;
    push((unsigned short)npat);
+//! ver 3 records below
+    push((double)*phaseOrigin());
 
   finishWritingRaw(time_awared, XTime::now());
 }

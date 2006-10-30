@@ -134,11 +134,6 @@ class XDSO : public XPrimaryDriver
   shared_ptr<XDoubleNode> m_firCenterFreq; ///< [kHz]
   shared_ptr<XDoubleNode> m_firSharpness;
 
-  shared_ptr<XBoolNode> m_foolAvgEnabled;
-  shared_ptr<XBoolNode> m_foolAvg4x;
-  shared_ptr<XItemNode<XDriverList, XPulser> > m_pulser;
-  unsigned int m_foolavgcnt;
-
   qshared_ptr<FrmDSO> m_form;
   shared_ptr<XWaveNGraph> m_waveForm;
   
@@ -170,7 +165,6 @@ class XDSO : public XPrimaryDriver
   xqcon_ptr m_conTrigSource, m_conTrigPos, m_conTrigLevel, m_conTrigFalling;
   xqcon_ptr m_conVOffset1, m_conVOffset2, m_conForceTrigger, m_conRecordLength;
   xqcon_ptr m_conFIREnabled, m_conFIRBandWidth, m_conFIRSharpness, m_conFIRCenterFreq;
-  xqcon_ptr m_conFoolAvg4x, m_conPulser, m_conFoolAvgEnabled;
  
   shared_ptr<XThread<XDSO> > m_thread;
   shared_ptr<XStatusPrinter> m_statusPrinter;

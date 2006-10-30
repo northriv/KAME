@@ -8,8 +8,8 @@
         <rect>
             <x>0</x>
             <y>0</y>
-            <width>634</width>
-            <height>479</height>
+            <width>560</width>
+            <height>508</height>
         </rect>
     </property>
     <property name="caption">
@@ -634,7 +634,7 @@
                         <number>0</number>
                     </property>
                     <property name="maxValue">
-                        <number>999900</number>
+                        <number>9.999e+06</number>
                     </property>
                     <property name="suffix">
                         <string>deg</string>
@@ -828,7 +828,7 @@
                 </widget>
             </hbox>
         </widget>
-        <widget class="QLayoutWidget" row="0" column="1" rowspan="9" colspan="1">
+        <widget class="QLayoutWidget" row="0" column="1" rowspan="10" colspan="1">
             <property name="name">
                 <cstring>layout30</cstring>
             </property>
@@ -962,6 +962,91 @@
                 </widget>
             </vbox>
         </widget>
+        <widget class="QGroupBox" row="9" column="0">
+            <property name="name">
+                <cstring>groupBox4_2</cstring>
+            </property>
+            <property name="sizePolicy">
+                <sizepolicy>
+                    <hsizetype>5</hsizetype>
+                    <vsizetype>0</vsizetype>
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                </sizepolicy>
+            </property>
+            <property name="title">
+                <string>Echo Phase Cycling</string>
+            </property>
+            <grid>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <property name="margin">
+                    <number>2</number>
+                </property>
+                <widget class="QComboBox" row="1" column="1" rowspan="1" colspan="2">
+                    <property name="name">
+                        <cstring>m_cmbPulser</cstring>
+                    </property>
+                    <property name="sizePolicy">
+                        <sizepolicy>
+                            <hsizetype>5</hsizetype>
+                            <vsizetype>0</vsizetype>
+                            <horstretch>0</horstretch>
+                            <verstretch>0</verstretch>
+                        </sizepolicy>
+                    </property>
+                </widget>
+                <widget class="QLabel" row="1" column="0">
+                    <property name="name">
+                        <cstring>textLabel1_3_2</cstring>
+                    </property>
+                    <property name="sizePolicy">
+                        <sizepolicy>
+                            <hsizetype>0</hsizetype>
+                            <vsizetype>5</vsizetype>
+                            <horstretch>0</horstretch>
+                            <verstretch>0</verstretch>
+                        </sizepolicy>
+                    </property>
+                    <property name="text">
+                        <string>Pulser</string>
+                    </property>
+                </widget>
+                <widget class="QCheckBox" row="0" column="2">
+                    <property name="name">
+                        <cstring>m_ckbEPC4x</cstring>
+                    </property>
+                    <property name="sizePolicy">
+                        <sizepolicy>
+                            <hsizetype>0</hsizetype>
+                            <vsizetype>0</vsizetype>
+                            <horstretch>0</horstretch>
+                            <verstretch>0</verstretch>
+                        </sizepolicy>
+                    </property>
+                    <property name="text">
+                        <string>4x</string>
+                    </property>
+                </widget>
+                <widget class="QCheckBox" row="0" column="0" rowspan="1" colspan="2">
+                    <property name="name">
+                        <cstring>m_ckbEPCEnabled</cstring>
+                    </property>
+                    <property name="sizePolicy">
+                        <sizepolicy>
+                            <hsizetype>0</hsizetype>
+                            <vsizetype>0</vsizetype>
+                            <horstretch>0</horstretch>
+                            <verstretch>0</verstretch>
+                        </sizepolicy>
+                    </property>
+                    <property name="text">
+                        <string>Enable</string>
+                    </property>
+                </widget>
+            </grid>
+        </widget>
     </grid>
 </widget>
 <toolbars>
@@ -969,7 +1054,7 @@
 <customwidgets>
     <customwidget>
         <class>XQGraph</class>
-        <header location="local">../../graph/graphwidget.h</header>
+        <header location="local">graphwidget.h</header>
         <sizehint>
             <width>-1</width>
             <height>-1</height>

@@ -218,9 +218,12 @@ XH8Pulser::rawToRelPat() throw (XRecordError&)
     //patterns correspoinding to 0, pi/2, pi, -pi/2
   const unsigned short qpsk1[4] = {0, 1, 3, 2};
   const unsigned short qpsk2[4] = {2, 3, 4, 5};
+  
+  int _phase_origin = rintl(*phaseOrigin() / 90.0);  
   //unit of phase is pi/2
-  #define qpsk(phase) (qpsk1[(phase) % 4]*qpsk1bit + qpsk2[(phase) % 4]*qpsk2bit)
-  #define qpskinv(phase) (qpsk(((phase) + 2) % 4))
+  #define qpsk(phase) (qpsk1[((phase) + _phase_origin) % 4]*qpsk1bit\
+   + qpsk2[((phase) + _phase_origin) % 4]*qpsk2bit)
+  #define qpskinv(phase) (qpsk((((phase) + _phase_origin) + 2) % 4))
 
   //comb phases
   const unsigned short comb[MAX_NUM_PHASE_CYCLE] = {
@@ -267,7 +270,7 @@ XH8Pulser::rawToRelPat() throw (XRecordError&)
   
   for(int i = 0; i < _num_phase_cycle * (comb_mode_alt ? 2 : 1); i++)
     {
-      int j = (i / (comb_mode_alt ? 2 : 1) ^ m_phase_xor) % _num_phase_cycle; //index for phase cycling
+      int j = (i / (comb_mode_alt ? 2 : 1)) % _num_phase_cycle; //index for phase cycling
       former_of_alt = !former_of_alt;
       bool comb_off_res = ((_comb_mode != N_COMB_MODE_COMB_ALT) || former_of_alt) && (comb_rot_num != 0);
             

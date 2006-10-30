@@ -127,6 +127,8 @@ XSHPulser::createNativePatterns()
   bool _induce_emission = *induceEmission();
   double _induce_emission_pw = _comb_pw;
   double _induce_emission_phase = *induceEmissionPhase() / 180.0 * PI;
+  
+  double _phase_origin = *phaseOrigin() / 180.0 * PI;
       
   //dry-run to determin LastPattern, DMATime
   m_dmaTerm = 0.0;
@@ -141,14 +143,14 @@ XSHPulser::createNativePatterns()
   
   insertPreamble((unsigned short)pat);
   makeWaveForm(PULSE_P1/pulsebit - 1, _pw1/1000.0, pulseFunc(p1Func()->to_str() ), *p1Level()
-    , _dif_freq * 1000.0, -2 * PI * _dif_freq * 2 * _tau);
+    , _dif_freq * 1000.0, -2 * PI * _dif_freq * 2 * _tau, _phase_origin);
   makeWaveForm(PULSE_P2/pulsebit - 1, _pw2/1000.0, pulseFunc(p2Func()->to_str() ), *p2Level()
-    , _dif_freq * 1000.0, -2 * PI * _dif_freq * 2 * _tau);
+    , _dif_freq * 1000.0, -2 * PI * _dif_freq * 2 * _tau, _phase_origin);
   makeWaveForm(PULSE_COMB/pulsebit - 1, _comb_pw/1000.0, pulseFunc(combFunc()->to_str() ),
-         *combLevel(), *combOffRes() + _dif_freq *1000.0);
+         *combLevel(), *combOffRes() + _dif_freq *1000.0, _phase_origin);
   if(_induce_emission) {
       makeWaveForm(PULSE_INDUCE_EMISSION/pulsebit - 1, _induce_emission_pw/1000.0, pulseFunc(combFunc()->to_str() ),
-         *combLevel(), *combOffRes() + _dif_freq *1000.0, _induce_emission_phase);
+         *combLevel(), *combOffRes() + _dif_freq *1000.0, _induce_emission_phase + _phase_origin);
   }
   m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DO);
   m_zippedPatterns.push_back(0);
@@ -476,7 +478,7 @@ XSHPulser::rawToRelPat() throw (XRecordError&)
   
   for(int i = 0; i < _num_phase_cycle * (comb_mode_alt ? 2 : 1); i++)
     {
-      int j = (i / (comb_mode_alt ? 2 : 1) ^ m_phase_xor) % _num_phase_cycle; //index for phase cycling
+      int j = (i / (comb_mode_alt ? 2 : 1)) % _num_phase_cycle; //index for phase cycling
       former_of_alt = !former_of_alt;
       bool comb_off_res = ((_comb_mode != N_COMB_MODE_COMB_ALT) || former_of_alt) && (comb_rot_num != 0);
             

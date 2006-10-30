@@ -1,7 +1,6 @@
 //---------------------------------------------------------------------------
 #include "nmrpulse.h"
 #include "forms/nmrpulseform.h"
-#include "pulserdriver.h"
 
 #include "graph.h"
 #include "graphwidget.h"
@@ -95,6 +94,10 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
   m_echoPeriod(create<XDoubleNode>("EchoPeriod", false)),
   m_fftShow(create<XNode>("FFTShow", true)),
   m_avgClear(create<XNode>("AvgClear", true)),
+  m_epcEnabled(create<XBoolNode>("FoolAvgEnabled", false)),
+  m_epc4x(create<XBoolNode>("FoolAvg4x", false)),
+  m_pulser(create<XItemNode<XDriverList, XPulser> >("Pulser", false, drivers)),
+  m_epccnt(0),
   m_form(new FrmNMRPulse(g_pFrmMain)),
   m_statusPrinter(XStatusPrinter::create(m_form.get())),
   m_fftForm(new FrmGraphNURL(g_pFrmMain)),
@@ -113,6 +116,8 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
             KIcon::Toolbar, KIcon::SizeSmall, true ) );      
     
   connect(dso());
+  connect(pulser());
+
 
   scalarentries->insert(entryCosAv());
   scalarentries->insert(entrySinAv());
@@ -158,6 +163,10 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
   m_conWindowFunc = xqcon_create<XQComboBoxConnector>(windowFunc(), m_form->m_cmbWindowFunc);
   m_conDIFFreq = xqcon_create<XQLineEditConnector>(difFreq(), m_form->m_edDIFFreq);
 
+  m_conEPCEnabled = xqcon_create<XQToggleButtonConnector>(m_epcEnabled, m_form->m_ckbEPCEnabled);
+  m_conEPC4x = xqcon_create<XQToggleButtonConnector>(m_epc4x, m_form->m_ckbEPC4x);
+  
+  m_conPulser = xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser);
   m_conDSO = xqcon_create<XQComboBoxConnector>(dso(), m_form->m_cmbDSO);
       
   {
@@ -224,8 +233,9 @@ XNMRPulseAnalyzer::showForms()
 
 void
 XNMRPulseAnalyzer::backgroundSub(const std::deque<std::complex<double> > &wave,
-     int length, int bgpos, int bglength, twindowfunc windowfunc)
+     int length, int bgpos, int bglength, twindowfunc windowfunc, double phase_shift)
 {
+	complex<double> rot_cmpx(exp(complex<double>(0,phase_shift)));
 
   if(*useDNR() && (bglength > 0))
     {
@@ -308,7 +318,7 @@ XNMRPulseAnalyzer::backgroundSub(const std::deque<std::complex<double> > &wave,
     {
       int j = i % m_dnrpulsefftlen;
       std::complex<double> c(m_dnrpulsefftout[j].re, m_dnrpulsefftout[j].im);
-      m_wave[i] = wave[i] - c;
+      m_wave[i] += (wave[i] - c) * rot_cmpx;
 //    WaveRe[i] = dnrpulsefftout[j].re;
 //    WaveIm[i] = dnrpulsefftout[j].im;
     }
@@ -338,7 +348,7 @@ XNMRPulseAnalyzer::backgroundSub(const std::deque<std::complex<double> > &wave,
 
       for(int i = 0; i < length; i++)
     {
-      m_wave[i] = wave[i] - bg;
+      m_wave[i] += (wave[i] - bg) * rot_cmpx;
     }
   }            
 }
@@ -400,7 +410,9 @@ XNMRPulseAnalyzer::onCondChanged(const shared_ptr<XValueNodeBase> &node)
     requestAnalysis();
 }
 bool
-XNMRPulseAnalyzer::checkDependency(const shared_ptr<XDriver> &) const {
+XNMRPulseAnalyzer::checkDependency(const shared_ptr<XDriver> &emitter) const {
+	shared_ptr<XPulser> _pulser = *pulser();
+    if(emitter == *_pulser()) return false;
     shared_ptr<XDSO> _dso = *dso();
     return _dso;
 }
@@ -413,6 +425,9 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
   
   if(_dso->numChannelsRecorded() < 1) {
     throw XRecordError(KAME::i18n("No record in DSO"), __FILE__, __LINE__);
+  }
+  if(_dso->numChannelsRecorded() < 2) {
+    throw XRecordError(KAME::i18n("Two channels needed in DSO"), __FILE__, __LINE__);
   }
 
   double interval = _dso->timeIntervalRecorded();
@@ -563,8 +578,41 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
   if(windowFunc()->to_str() == WINDOW_FUNC_KAISER_2) windowfunc = &windowFuncKaiser2;
   if(windowFunc()->to_str() == WINDOW_FUNC_KAISER_3) windowfunc = &windowFuncKaiser3;
   
+
+	// Echo Phase Cycling
+  shared_ptr<XPulser> _pulser(*pulser());
+  bool epcenabled = *m_epcEnabled;
+  double phase_origin = 0.0;
+  if(epcenabled && !_pulser) {
+    epcenabled = false;
+    gErrPrint(getLabel() + ": " + KAME::i18n("No Pulser!"));
+  }
+  unsigned int epcnum = (epcenabled) ? ((*m_epc4x) ? 4 : 2) : 1;
+
+  if(epcenabled) {
+  		ASSERST( _pulser->time() )
+        phase_origin = _pulser->phaseOriginRecorded();
+        double new_ph = phase_origin + 360.0 / epcnum;
+        new_ph -= floor(new_ph / 360.0) * 360.0;
+        _pulser->phaseOrigin()->value(new_ph);
+  }
+
+  if(!epcenabled || (m_epccnt == 0)) {
+	  std::fill(m_wave.begin(), m_wave.end(), 0.0);
+  }
   //background subtraction or dynamic noise reduction
-  backgroundSub(wave, length, bgpos, bglength, windowfunc);
+  //accumlate echo into m_wave
+  backgroundSub(wave, length, bgpos, bglength, windowfunc, -phase_origin / 180.0 * PI);
+  
+  if(epcenabled) {
+ 	  m_epccnt++;
+	  if(m_epccnt < epcnum)
+	    throw XSkippedRecordError(__FILE__, __LINE__);
+	  for(int i = 0; i < length; i++) {
+	  	m_wave /= epcnum;
+	  }
+  }
+  m_epccnt = 0;
   
     if(!*exAvgIncr() && (*extraAvg() == m_waveAv.size()) && !m_waveAv.empty())  {
       for(int i = 0; i < length; i++) {
