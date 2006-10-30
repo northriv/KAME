@@ -232,10 +232,10 @@ XNMRPulseAnalyzer::showForms()
 }
 
 void
-XNMRPulseAnalyzer::backgroundSub(const std::deque<std::complex<double> > &wave,
+XNMRPulseAnalyzer::backgroundSub(const std::deque<std::std::complex<double> > &wave,
      int length, int bgpos, int bglength, twindowfunc windowfunc, double phase_shift)
 {
-	complex<double> rot_cmpx(exp(complex<double>(0,phase_shift)));
+	std::complex<double> rot_cmpx(exp(std::complex<double>(0,phase_shift)));
 
   if(*useDNR() && (bglength > 0))
     {
@@ -317,7 +317,7 @@ XNMRPulseAnalyzer::backgroundSub(const std::deque<std::complex<double> > &wave,
       for(int i = 0; i < length; i++)
     {
       int j = i % m_dnrpulsefftlen;
-      std::complex<double> c(m_dnrpulsefftout[j].re, m_dnrpulsefftout[j].im);
+      std::std::complex<double> c(m_dnrpulsefftout[j].re, m_dnrpulsefftout[j].im);
       m_wave[i] += (wave[i] - c) * rot_cmpx;
 //    WaveRe[i] = dnrpulsefftout[j].re;
 //    WaveIm[i] = dnrpulsefftout[j].im;
@@ -325,7 +325,7 @@ XNMRPulseAnalyzer::backgroundSub(const std::deque<std::complex<double> > &wave,
   }
   else
   {
-      std::complex<double> bg = 0;
+      std::std::complex<double> bg = 0;
       m_noisePower = 1.0;
       if(bglength)
     {
@@ -354,12 +354,12 @@ XNMRPulseAnalyzer::backgroundSub(const std::deque<std::complex<double> > &wave,
 }
 void
 XNMRPulseAnalyzer::rotNFFT(int ftpos, 
-    double ph, std::deque<std::complex<double> > &wave, 
-    std::deque<std::complex<double> > &ftwave, twindowfunc windowfunc, int diffreq)
+    double ph, std::deque<std::std::complex<double> > &wave, 
+    std::deque<std::std::complex<double> > &ftwave, twindowfunc windowfunc, int diffreq)
 {
 int length = wave.size();
   //phase advance
-  std::complex<double> cph(cos(ph), sin(ph));
+  std::std::complex<double> cph(cos(ph), sin(ph));
   for(int i = 0; i < length; i++)
     {
       wave[i] *= cph;
@@ -389,7 +389,7 @@ int length = wave.size();
       if((k >= 0) && (k < m_fftlen)) {
           int j = (k < m_fftlen / 2) ? (m_fftlen / 2 + k) : (k - m_fftlen / 2);
           double normalize = 1.0 / length;
-          ftwave[i] = std::complex<double>(m_fftout[j].re * normalize, m_fftout[j].im * normalize);
+          ftwave[i] = std::std::complex<double>(m_fftout[j].re * normalize, m_fftout[j].im * normalize);
       }
       else {
          ftwave[i] = 0;
@@ -536,7 +536,7 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
     throw XSkippedRecordError(__FILE__, __LINE__);
   }
   
-  std::deque<std::complex<double> > wave(_dso->lengthRecorded(), 0.0);
+  std::deque<std::std::complex<double> > wave(_dso->lengthRecorded(), 0.0);
   
   double *rawwavecos, *rawwavesin = NULL;
   ASSERT( _dso->numChannelsRecorded() );
@@ -552,7 +552,7 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
       {
           int k = rpos + j;
           ASSERT(k < (int)_dso->lengthRecorded());
-          wave[j] += std::complex<double>(rawwavecos[k] / numechoes,
+          wave[j] += std::std::complex<double>(rawwavecos[k] / numechoes,
             rawwavesin ? (rawwavesin[k] / numechoes) : 0.0);
       }
   }
@@ -562,7 +562,7 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
       {
          int k = pos + j;
          ASSERT(k < (int)_dso->lengthRecorded());
-         wave[j] += std::complex<double>(rawwavecos[k],
+         wave[j] += std::std::complex<double>(rawwavecos[k],
             rawwavesin ? rawwavesin[k] : 0.0);
       }
   }
@@ -590,7 +590,7 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
   unsigned int epcnum = (epcenabled) ? ((*m_epc4x) ? 4 : 2) : 1;
 
   if(epcenabled) {
-  		ASSERST( _pulser->time() )
+  		ASSERST( _pulser->time() );
         phase_origin = _pulser->phaseOriginRecorded();
         double new_ph = phase_origin + 360.0 / epcnum;
         new_ph -= floor(new_ph / 360.0) * 360.0;
