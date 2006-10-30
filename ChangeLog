@@ -1,3 +1,8 @@
+* Mon Oct 30 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0.12-1)
+- dso, nmrpulse : move averaging rotation to nmrpulse.
+- nmrpulse.cpp : Use inversion echoes to cancel background out.
+
 * Wed May 24 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
 - pulserdriver : Q-Switch support.
 
