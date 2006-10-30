@@ -608,7 +608,6 @@ XPulser::visualize()
       createNativePatterns();
       try {
           changeOutput(true);
-          m_phase_xor++;
       }
       catch (XKameError &e) {
           e.print(getLabel() + KAME::i18n("Pulser Turn-On Failed, because"));

@@ -116,7 +116,7 @@ class XPulser : public XPrimaryDriver
     short rtModeRecorded() const {return m_rtModeRecorded;}
     unsigned short numPhaseCycleRecorded() const {return m_numPhaseCycleRecorded;}
     //! ver 3 records
-    double phaseOrigin() const {return m_phaseOriginRecorded;}
+    double phaseOriginRecorded() const {return m_phaseOriginRecorded;}
     
     //! periodic term of one cycle [ms]
     double periodicTermRecorded() const;
