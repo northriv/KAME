@@ -143,11 +143,11 @@ XSHPulser::createNativePatterns()
   
   insertPreamble((unsigned short)pat);
   makeWaveForm(PULSE_P1/pulsebit - 1, _pw1/1000.0, pulseFunc(p1Func()->to_str() ), *p1Level()
-    , _dif_freq * 1000.0, -2 * PI * _dif_freq * 2 * _tau, _phase_origin);
+    , _dif_freq * 1000.0, -2 * PI * _dif_freq * 2 * _tau + _phase_origin);
   makeWaveForm(PULSE_P2/pulsebit - 1, _pw2/1000.0, pulseFunc(p2Func()->to_str() ), *p2Level()
-    , _dif_freq * 1000.0, -2 * PI * _dif_freq * 2 * _tau, _phase_origin);
+    , _dif_freq * 1000.0, -2 * PI * _dif_freq * 2 * _tau + _phase_origin);
   makeWaveForm(PULSE_COMB/pulsebit - 1, _comb_pw/1000.0, pulseFunc(combFunc()->to_str() ),
-         *combLevel(), *combOffRes() + _dif_freq *1000.0, _phase_origin);
+         *combLevel(), *combOffRes() + _dif_freq *1000.0 + _phase_origin);
   if(_induce_emission) {
       makeWaveForm(PULSE_INDUCE_EMISSION/pulsebit - 1, _induce_emission_pw/1000.0, pulseFunc(combFunc()->to_str() ),
          *combLevel(), *combOffRes() + _dif_freq *1000.0, _induce_emission_phase + _phase_origin);
