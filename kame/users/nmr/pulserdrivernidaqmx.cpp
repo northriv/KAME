@@ -1,6 +1,7 @@
+#include "pulserdrivernidaqmx.h"
+
 #ifdef HAVE_NI_DAQMX
 
-#include "pulserdrivernidaqmx.h"
 #include "interface.h"
 #include <klocale.h>
 

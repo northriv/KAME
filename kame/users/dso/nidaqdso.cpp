@@ -5,6 +5,7 @@
 #include "xwavengraph.h"
 #include <klocale.h>
 #include "NIDAQmx.h"
+#include <QRegExp>
 
 #define TASK_UNDEF ((TaskHandle)-1)
 
@@ -54,8 +55,6 @@ XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
         vFullScale1()->add(sc[i]);
         vFullScale2()->add(sc[i]);
     }
-    
-    recordLength()->value("10000");
     
     TaskHandle task;
     DAQmxCreateTask("", &task);

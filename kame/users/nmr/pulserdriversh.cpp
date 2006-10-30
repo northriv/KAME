@@ -415,7 +415,6 @@ XSHPulser::rawToRelPat() throw (XRecordError&)
   int _comb_mode = m_combModeRecorded;
   int _rt_mode = m_rtModeRecorded;
   int _num_phase_cycle = m_numPhaseCycleRecorded;
-  if(_comb_mode == N_COMB_MODE_OFF) _num_phase_cycle = std::min(_num_phase_cycle, 4);
   
   bool comb_mode_alt = ((_comb_mode == N_COMB_MODE_P1_ALT) ||
             (_comb_mode == N_COMB_MODE_COMB_ALT));
@@ -428,6 +427,7 @@ XSHPulser::rawToRelPat() throw (XRecordError&)
   
   bool _induce_emission = *induceEmission();
   double _induce_emission_pw = _comb_pw;
+  if((_comb_mode == N_COMB_MODE_OFF) && !_induce_emission) _num_phase_cycle = std::min(_num_phase_cycle, 4);
   
   //unit of phase is pi/2
   #define qpsk(phase) ((phase % 4)*qpskbit)
@@ -560,7 +560,7 @@ XSHPulser::rawToRelPat() throw (XRecordError&)
       if(_induce_emission) {
           patterns.insert(tpat(pos - _induce_emission_pw/2.0/1000.0, ~0, g3mask));
           patterns.insert(tpat(pos - _induce_emission_pw/2.0/1000.0, PULSE_INDUCE_EMISSION, pulsemask));
-          patterns.insert(tpat(pos - _induce_emission_pw/2.0/1000.0, 0, qpskmask));
+          patterns.insert(tpat(pos - _induce_emission_pw/2.0/1000.0, (i / 4) % 2, qpskmask));
           patterns.insert(tpat(pos + _induce_emission_pw/2.0/1000.0, 0, pulsemask));
           patterns.insert(tpat(pos + _induce_emission_pw/2.0/1000.0, 0, g3mask));
       }
@@ -591,7 +591,7 @@ XSHPulser::rawToRelPat() throw (XRecordError&)
       if(_induce_emission) {
           patterns.insert(tpat(pos + _tau/1000.0 + _asw_hold - _induce_emission_pw/2.0/1000.0, ~0, g3mask));
           patterns.insert(tpat(pos + _tau/1000.0 + _asw_hold - _induce_emission_pw/2.0/1000.0, PULSE_INDUCE_EMISSION, pulsemask));
-          patterns.insert(tpat(pos + _tau/1000.0 + _asw_hold - _induce_emission_pw/2.0/1000.0, 0, qpskmask));
+          patterns.insert(tpat(pos + _tau/1000.0 + _asw_hold - _induce_emission_pw/2.0/1000.0, (i / 4) % 2, qpskmask));
           patterns.insert(tpat(pos + _tau/1000.0 + _asw_hold + _induce_emission_pw/2.0/1000.0, 0, pulsemask));
           patterns.insert(tpat(pos + _tau/1000.0 + _asw_hold + _induce_emission_pw/2.0/1000.0, 0, g3mask));
       }

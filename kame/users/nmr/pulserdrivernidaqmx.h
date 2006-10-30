@@ -1,6 +1,7 @@
+#include "pulserdriver.h"
+
 #ifdef HAVE_NI_DAQMX
 
-#include "pulserdriver.h"
 #include <vector>
 
 class XNIDAQmxPulser : public XPulser
@@ -58,10 +59,11 @@ class XNIDAQmxPulser : public XPulser
   int pulseAdd(double msec, uint32_t pattern, bool firsttime);
   uint32_t m_lastPattern;
   double m_dmaTerm;  
-  
   std::vector<unsigned char> m_zippedPatterns;
   
   int m_waveformPos[3];
   
+  struct h8ushort {unsigned char msb; unsigned char lsb;};
+  std::vector<h8ushort> m_zippedPatterns;  
 };
 #endif //HAVE_NI_DAQMX
