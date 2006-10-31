@@ -14,18 +14,18 @@
 
 //#define HAVE_CAS_2
 // fake cas2
-inline bool atomicCompareAndSet2(
-    uint32_t oldv0, uint32_t oldv1,
-    uint32_t newv0, uint32_t newv1, uint32_t *target ) {
-        ASSERT(oldv0 == target[0]);
-        ASSERT(oldv1 == target[1]);
-        if(rand() > RAND_MAX/2) {
-            target[0] = newv0;
-            target[1] = newv1;
-            return true;
-        }
-        return false;
-    }
+//inline bool atomicCompareAndSet2(
+//    uint32_t oldv0, uint32_t oldv1,
+//    uint32_t newv0, uint32_t newv1, uint32_t *target ) {
+//        ASSERT(oldv0 == target[0]);
+//        ASSERT(oldv1 == target[1]);
+//        if(rand() > RAND_MAX/2) {
+//            target[0] = newv0;
+//            target[1] = newv1;
+//            return true;
+//        }
+//        return false;
+//    }
 
 #include "atomic_smart_ptr.h"
 #include "atomic_queue.h"
