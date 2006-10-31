@@ -329,11 +329,13 @@ template <typename T>
 void
 atomic_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
     Ref *pref;
+    T *oldptr = 0;
     if(m_ref.pref) {
     // Release local reference.
         if(m_ref.refcnt_n_serial.split.refcnt)
             atomicAdd(&m_ref.pref->refcnt, (unsigned int)m_ref.refcnt_n_serial.split.refcnt);
         m_ref.refcnt_n_serial.split.serial++;
+        oldptr = m_ref.pref->ptr;
     }
     m_ref.refcnt_n_serial.split.refcnt = 0;
     memoryBarrier();
@@ -389,17 +391,20 @@ atomic_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
 #endif 
     m_ref.pref = pref;
     m_ptr_instant = !m_ref.pref ? 0 : m_ref.pref->ptr;
-    r.m_ptr_instant = !r.m_ref.pref ? 0 : r.m_ref.pref->ptr;
+    r.m_ptr_instant = oldptr;
 }
 
 template <typename T>
 bool
 atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_shared_ptr<T> &r) {
     Ref *pref;
+    T *oldptr = 0;
     if(m_ref.pref) {
+    // Release local reference.
         if(m_ref.refcnt_n_serial.split.refcnt)
             atomicAdd(&m_ref.pref->refcnt, (unsigned int)m_ref.refcnt_n_serial.split.refcnt);
         m_ref.refcnt_n_serial.split.serial++;
+        oldptr = m_ref.pref->ptr;
     }
     m_ref.refcnt_n_serial.split.refcnt = 0;
     memoryBarrier();
@@ -408,7 +413,8 @@ atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_sh
         RefcntNSerial rs_old, rs_new;
         pref = r._reserve_scan_(&rs_old);
         if(pref != oldr.m_ref.pref) {
-            r._leave_scan_(pref, rs_old.split.serial);
+        	if(pref)
+	            r._leave_scan_(pref, rs_old.split.serial);
             return false;
         }
         if(pref) {
@@ -460,7 +466,7 @@ atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_sh
 #endif 
     m_ref.pref = pref;
     m_ptr_instant = !m_ref.pref ? 0 : m_ref.pref->ptr;
-    r.m_ptr_instant = !r.m_ref.pref ? 0 : r.m_ref.pref->ptr;
+    r.m_ptr_instant = oldptr;
     return true;
 }
 
