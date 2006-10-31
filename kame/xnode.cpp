@@ -216,14 +216,13 @@ XStringNode::operator std::string() const {
 }
 void
 XStringNode::value(const std::string &t) {
-    atomic_shared_ptr<std::string> var(new std::string(t));
     if(beforeValueChanged().empty() && onValueChanged().empty()) {
-        m_var = var;
+        m_var.reset(new std::string(t));
     }
     else {
         XScopedLock<XRecursiveMutex> lock(m_valuemutex);
         beforeValueChanged().talk(dynamic_pointer_cast<XValueNodeBase>(shared_from_this()));
-        m_var = var;
+        m_var.reset(new std::string(t));
         onValueChanged().talk(dynamic_pointer_cast<XValueNodeBase>(shared_from_this()));
     }
 }
