@@ -145,7 +145,15 @@ XDSO::visualize()
 {
   m_statusPrinter->clear();
   
+  if(!time()) {
+  	m_waveForm->clear();
+  	return;
+  }
   unsigned int num_channels = numChannelsRecorded();
+  if(!num_channels) {
+  	m_waveForm->clear();
+  	return;
+  }
   unsigned int length = lengthRecorded();
   { XScopedWriteLock<XWaveNGraph> lock(*m_waveForm);
       m_waveForm->setColCount(num_channels + 1, s_trace_names);

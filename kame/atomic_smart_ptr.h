@@ -52,7 +52,7 @@ class atomic_scoped_ptr
     atomic_scoped_ptr(const atomic_scoped_ptr &) {}
     atomic_scoped_ptr& operator=(const atomic_scoped_ptr &) {return *this;}
     
-    volatile t_ptr m_ptr;
+    t_ptr m_ptr;
 };
 
 //! Instance of Ref is only one per one object.
@@ -61,7 +61,8 @@ struct atomic_shared_ptr_ref {
     template <class Y>
     atomic_shared_ptr_ref(Y *p) : ptr(p), refcnt(1) {}
     ~atomic_shared_ptr_ref() { ASSERT(refcnt == 0); delete ptr; }
-    volatile T *ptr;
+    T *ptr;
+    //! Global reference counter.
     unsigned int refcnt;
 };
 
@@ -80,11 +81,11 @@ class atomic_shared_ptr
     }
     
     atomic_shared_ptr(const atomic_shared_ptr &t) : m_ref(t._scan_()) {
-        m_ptr_instant = const_cast<T*>(!m_ref.pref ? 0 : m_ref.pref->ptr);
+        m_ptr_instant = !m_ref.pref ? 0 : m_ref.pref->ptr;
     }
     template<typename Y> atomic_shared_ptr(const atomic_shared_ptr<Y> &y)
      : m_ref((typename atomic_shared_ptr::Ref*)y._scan_()) {
-        m_ptr_instant = const_cast<T*>(!m_ref.pref ? 0 : ((volatile typename atomic_shared_ptr<Y>::Ref *)m_ref.pref)->ptr);
+        m_ptr_instant = !m_ref.pref ? 0 : ((typename atomic_shared_ptr<Y>::Ref *)m_ref.pref)->ptr;
     }
 
     ~atomic_shared_ptr();
@@ -142,7 +143,7 @@ class atomic_shared_ptr
     //! atomically scan \a Ref and increase global reference counter.
     Ref *_scan_() const;
     //! atomically scan \a Ref and increase local reference counter.
-    Ref *_reserve_scan_(volatile RefcntNSerial *) const;    
+    Ref *_reserve_scan_(RefcntNSerial *) const;    
     //! try to decrease local reference counter.
     void _leave_scan_(Ref *, unsigned int serial) const;    
  private:
@@ -158,8 +159,10 @@ class atomic_shared_ptr
         #endif
             { refcnt_n_serial.both = 0; }
         typedef Ref* Ref_ptr;
-        volatile Ref_ptr pref;
-        volatile RefcntNSerial refcnt_n_serial;
+        //! A pointer to global reference struct.
+        Ref_ptr pref;
+	 	//! Local reference counter w/ serial number for ABA problem.
+        RefcntNSerial refcnt_n_serial;
         #ifdef ATOMIC_SMART_PTR_USE_LOCKFREE_READ
             Ref *pref_old;
             unsigned int serial_update;
@@ -178,6 +181,7 @@ atomic_shared_ptr<T>::~atomic_shared_ptr() {
     Ref *pref = m_ref.pref;
     if(!pref) return;
     if(atomicDecAndTest(&pref->refcnt)) {
+	    readBarrier();
         delete pref;
     }
 }
@@ -187,16 +191,16 @@ typename atomic_shared_ptr<T>::Ref *atomic_shared_ptr<T>::_scan_() const {
     RefcntNSerial rs;
     Ref *pref = _reserve_scan_(&rs);
     if(!pref) return 0;
+    memoryBarrier();
     atomicInc(&pref->refcnt);
     _leave_scan_(pref, rs.split.serial);
-    readBarrier();
     return pref;
 }
 
 #ifdef ATOMIC_SMART_PTR_USE_CAS2
 template <typename T>
 typename atomic_shared_ptr<T>::Ref *
-atomic_shared_ptr<T>::_reserve_scan_(volatile RefcntNSerial *rs) const {
+atomic_shared_ptr<T>::_reserve_scan_(RefcntNSerial *rs) const {
     Ref *pref;
     RefcntNSerial rs_new;
     for(;;) {
@@ -204,12 +208,14 @@ atomic_shared_ptr<T>::_reserve_scan_(volatile RefcntNSerial *rs) const {
         RefcntNSerial rs_old;
         rs_old.both = m_ref.refcnt_n_serial.both;
         if(!pref) {
-            rs->both = rs_old.both;
+        	// target is null.
+        	rs->both = rs_old.both;
             return 0;
         }
         rs_new = rs_old;
         rs_new.split.refcnt++;
         C_ASSERT(sizeof(m_ref) == sizeof(unsigned int) * 2);
+        // try to increase local reference counter w/ same serial.
         if(atomicCompareAndSet2(
             (unsigned int)pref, rs_old.both,
             (unsigned int)pref, rs_new.both,
@@ -228,14 +234,18 @@ atomic_shared_ptr<T>::_leave_scan_(Ref *pref, unsigned int serial) const {
         rs_old.split.serial = serial;
         RefcntNSerial rs_new = rs_old;
         rs_new.split.refcnt--;
+    	// try to dec. reference counter and change serial if stored pointer is unchanged.
         if(atomicCompareAndSet2(
             (unsigned int)pref, rs_old.both,
             (unsigned int)pref, rs_new.both,
                  (unsigned int*)&m_ref))
                     break;
         if((pref != m_ref.pref) || (serial != m_ref.refcnt_n_serial.split.serial)) {
-            if(atomicDecAndTest((int*)&pref->refcnt))
+        	// local reference of this context has released by other processes.
+            if(atomicDecAndTest((int*)&pref->refcnt)) {
+			    readBarrier();
                 delete pref;
+            }
             break;
         }
     }
@@ -245,7 +255,7 @@ atomic_shared_ptr<T>::_leave_scan_(Ref *pref, unsigned int serial) const {
 
 template <typename T>
 typename atomic_shared_ptr<T>::Ref *
-atomic_shared_ptr<T>::_reserve_scan_(volatile RefcntNSerial *rs) const {
+atomic_shared_ptr<T>::_reserve_scan_(RefcntNSerial *rs) const {
     Ref *pref;
     RefcntNSerial rs_new;
     for(;;) {
@@ -320,16 +330,20 @@ void
 atomic_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
     Ref *pref;
     if(m_ref.pref) {
+    // Release local reference.
         if(m_ref.refcnt_n_serial.split.refcnt)
             atomicAdd(&m_ref.pref->refcnt, (unsigned int)m_ref.refcnt_n_serial.split.refcnt);
-        m_ref.refcnt_n_serial.split.refcnt = 0;
         m_ref.refcnt_n_serial.split.serial++;
     }
+    m_ref.refcnt_n_serial.split.refcnt = 0;
+    memoryBarrier();
 #ifdef ATOMIC_SMART_PTR_USE_CAS2
     for(;;) {
         RefcntNSerial rs_old, rs_new;
         pref = r._reserve_scan_(&rs_old);
         if(pref) {
+            ASSERT(rs_old.split.refcnt);
+            memoryBarrier();
             atomicAdd(&pref->refcnt, (unsigned int)(rs_old.split.refcnt - 1));
         }
         rs_new.split.refcnt = 0;
@@ -340,12 +354,11 @@ atomic_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
                      (unsigned int*)&r.m_ref))
                     break;
         if(pref) {
-            if(rs_old.split.refcnt)
-                atomicAdd((int*)&pref->refcnt, - (int)(rs_old.split.refcnt - 1));
+            ASSERT(rs_old.split.refcnt);
+            atomicAdd((int*)&pref->refcnt, - (int)(rs_old.split.refcnt - 1));
             r._leave_scan_(pref, rs_old.split.serial);
         }
     }
-    readBarrier();
 #elif defined ATOMIC_SMART_PTR_USE_LOCKFREE_READ
     m_ref.serial_update = m_ref.refcnt_n_serial.split.serial;
     { XScopedLock<XMutex> lock(r.m_updatemutex);
@@ -375,8 +388,8 @@ atomic_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
     m_ref.pref_old = pref;
 #endif 
     m_ref.pref = pref;
-    m_ptr_instant = const_cast<T*>(!m_ref.pref ? 0 : m_ref.pref->ptr);
-    r.m_ptr_instant = const_cast<T*>(!r.m_ref.pref ? 0 : r.m_ref.pref->ptr);
+    m_ptr_instant = !m_ref.pref ? 0 : m_ref.pref->ptr;
+    r.m_ptr_instant = !r.m_ref.pref ? 0 : r.m_ref.pref->ptr;
 }
 
 template <typename T>
@@ -386,9 +399,10 @@ atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_sh
     if(m_ref.pref) {
         if(m_ref.refcnt_n_serial.split.refcnt)
             atomicAdd(&m_ref.pref->refcnt, (unsigned int)m_ref.refcnt_n_serial.split.refcnt);
-        m_ref.refcnt_n_serial.split.refcnt = 0;
         m_ref.refcnt_n_serial.split.serial++;
     }
+    m_ref.refcnt_n_serial.split.refcnt = 0;
+    memoryBarrier();
 #ifdef ATOMIC_SMART_PTR_USE_CAS2
     for(;;) {
         RefcntNSerial rs_old, rs_new;
@@ -398,8 +412,9 @@ atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_sh
             return false;
         }
         if(pref) {
-            if(rs_old.split.refcnt)
-                atomicAdd(&pref->refcnt, (unsigned int)(rs_old.split.refcnt - 1));
+            ASSERT(rs_old.split.refcnt);
+            memoryBarrier();
+            atomicAdd(&pref->refcnt, (unsigned int)(rs_old.split.refcnt - 1));
         }
         rs_new.split.refcnt = 0;
         rs_new.split.serial = rs_old.split.serial + 1;
@@ -409,12 +424,11 @@ atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_sh
                      (unsigned int*)&r.m_ref))
                     break;
         if(pref) {
-            if(rs_old.split.refcnt)
-                atomicAdd((int*)&pref->refcnt, - (int)(rs_old.split.refcnt - 1));
+            ASSERT(rs_old.split.refcnt);
+            atomicAdd((int*)&pref->refcnt, - (int)(rs_old.split.refcnt - 1));
             r._leave_scan_(pref, rs_old.split.serial);
         }
     }
-    readBarrier();
 #elif defined ATOMIC_SMART_PTR_USE_LOCKFREE_READ
     m_ref.serial_update = m_ref.refcnt_n_serial.split.serial;
     { XScopedLock<XMutex> lock(r.m_updatemutex);
@@ -445,8 +459,8 @@ atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_sh
     m_ref.pref_old = pref;
 #endif 
     m_ref.pref = pref;
-    m_ptr_instant = const_cast<T*>(!m_ref.pref ? 0 : m_ref.pref->ptr);
-    r.m_ptr_instant = const_cast<T*>(!r.m_ref.pref ? 0 : r.m_ref.pref->ptr);
+    m_ptr_instant = !m_ref.pref ? 0 : m_ref.pref->ptr;
+    r.m_ptr_instant = !r.m_ref.pref ? 0 : r.m_ref.pref->ptr;
     return true;
 }
 
