@@ -18,18 +18,17 @@
 template <typename T>
 class atomic_scoped_ptr
 {
-    typedef T* t_ptr;
  public:
     atomic_scoped_ptr() : m_ptr(0) {
     }
     
-    explicit atomic_scoped_ptr(t_ptr t) : m_ptr(t) {
+    explicit atomic_scoped_ptr(T *t) : m_ptr(t) {
     }
     
     ~atomic_scoped_ptr() { readBarrier(); delete m_ptr;}
 
-    void reset(t_ptr t = 0) {
-        t_ptr old = atomicSwap(t, &m_ptr);
+    void reset(T *t = 0) {
+        T *old = atomicSwap(t, &m_ptr);
         readBarrier();
         delete old;
     }
@@ -43,16 +42,15 @@ class atomic_scoped_ptr
     //! These functions must be called while writing is blocked.
     T &operator*() const { ASSERT(m_ptr); return (T&)*m_ptr;}
 
-    t_ptr operator->() const { ASSERT(m_ptr); return (t_ptr)m_ptr;}
+    T *operator->() const { ASSERT(m_ptr); return (T*)m_ptr;}
     
-    t_ptr get() const {
-        return (t_ptr )m_ptr;
+    T *get() const {
+        return (T*)m_ptr;
     }
  private:
     atomic_scoped_ptr(const atomic_scoped_ptr &) {}
     atomic_scoped_ptr& operator=(const atomic_scoped_ptr &) {return *this;}
-    
-    volatile t_ptr m_ptr;
+    T *m_ptr;
 };
 
 //! Instance of Ref is only one per one object.
@@ -61,7 +59,7 @@ struct atomic_shared_ptr_ref {
     template <class Y>
     atomic_shared_ptr_ref(Y *p) : ptr(p), refcnt(1) {}
     ~atomic_shared_ptr_ref() { ASSERT(refcnt == 0); delete ptr; }
-    volatile T *ptr;
+    T *ptr;
     unsigned int refcnt;
 };
 
@@ -80,11 +78,11 @@ class atomic_shared_ptr
     }
     
     atomic_shared_ptr(const atomic_shared_ptr &t) : m_ref(t._scan_()) {
-        m_ptr_instant = const_cast<T*>(!m_ref.pref ? 0 : m_ref.pref->ptr);
+        m_ptr_instant = !m_ref.pref ? 0 : m_ref.pref->ptr;
     }
     template<typename Y> atomic_shared_ptr(const atomic_shared_ptr<Y> &y)
      : m_ref((typename atomic_shared_ptr::Ref*)y._scan_()) {
-        m_ptr_instant = const_cast<T*>(!m_ref.pref ? 0 : ((volatile typename atomic_shared_ptr<Y>::Ref *)m_ref.pref)->ptr);
+        m_ptr_instant = !m_ref.pref ? 0 : ((typename atomic_shared_ptr<Y>::Ref *)m_ref.pref)->ptr;
     }
 
     ~atomic_shared_ptr();
@@ -142,7 +140,7 @@ class atomic_shared_ptr
     //! atomically scan \a Ref and increase global reference counter.
     Ref *_scan_() const;
     //! atomically scan \a Ref and increase local reference counter.
-    Ref *_reserve_scan_(volatile RefcntNSerial *) const;    
+    Ref *_reserve_scan_(RefcntNSerial *) const;    
     //! try to decrease local reference counter.
     void _leave_scan_(Ref *, unsigned int serial) const;    
  private:
@@ -157,9 +155,8 @@ class atomic_shared_ptr
             , pref_old(0), serial_update(0)
         #endif
             { refcnt_n_serial.both = 0; }
-        typedef Ref* Ref_ptr;
-        volatile Ref_ptr pref;
-        volatile RefcntNSerial refcnt_n_serial;
+        Ref *pref;
+        RefcntNSerial refcnt_n_serial;
         #ifdef ATOMIC_SMART_PTR_USE_LOCKFREE_READ
             Ref *pref_old;
             unsigned int serial_update;
@@ -196,15 +193,14 @@ typename atomic_shared_ptr<T>::Ref *atomic_shared_ptr<T>::_scan_() const {
 #ifdef ATOMIC_SMART_PTR_USE_CAS2
 template <typename T>
 typename atomic_shared_ptr<T>::Ref *
-atomic_shared_ptr<T>::_reserve_scan_(volatile RefcntNSerial *rs) const {
+atomic_shared_ptr<T>::_reserve_scan_(RefcntNSerial *rs) const {
     Ref *pref;
     RefcntNSerial rs_new;
     for(;;) {
         pref = m_ref.pref;
-        RefcntNSerial rs_old;
-        rs_old.both = m_ref.refcnt_n_serial.both;
+        RefcntNSerial rs_old = m_ref.refcnt_n_serial;
         if(!pref) {
-            rs->both = rs_old.both;
+            *rs = rs_old;
             return 0;
         }
         rs_new = rs_old;
@@ -216,15 +212,14 @@ atomic_shared_ptr<T>::_reserve_scan_(volatile RefcntNSerial *rs) const {
                  (unsigned int*)&m_ref))
                     break;
     }
-    rs->both = rs_new.both;
+    *rs = rs_new;
     return pref;
 }
 template <typename T>
 void
 atomic_shared_ptr<T>::_leave_scan_(Ref *pref, unsigned int serial) const {
     for(;;) {
-        RefcntNSerial rs_old;
-        rs_old.both = m_ref.refcnt_n_serial.both;
+        RefcntNSerial rs_old = m_ref.refcnt_n_serial;
         rs_old.split.serial = serial;
         RefcntNSerial rs_new = rs_old;
         rs_new.split.refcnt--;
@@ -245,7 +240,7 @@ atomic_shared_ptr<T>::_leave_scan_(Ref *pref, unsigned int serial) const {
 
 template <typename T>
 typename atomic_shared_ptr<T>::Ref *
-atomic_shared_ptr<T>::_reserve_scan_(volatile RefcntNSerial *rs) const {
+atomic_shared_ptr<T>::_reserve_scan_(RefcntNSerial *rs) const {
     Ref *pref;
     RefcntNSerial rs_new;
     for(;;) {
@@ -375,8 +370,8 @@ atomic_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
     m_ref.pref_old = pref;
 #endif 
     m_ref.pref = pref;
-    m_ptr_instant = const_cast<T*>(!m_ref.pref ? 0 : m_ref.pref->ptr);
-    r.m_ptr_instant = const_cast<T*>(!r.m_ref.pref ? 0 : r.m_ref.pref->ptr);
+    m_ptr_instant = !m_ref.pref ? 0 : m_ref.pref->ptr;
+    r.m_ptr_instant = !r.m_ref.pref ? 0 : r.m_ref.pref->ptr;
 }
 
 template <typename T>
@@ -445,8 +440,8 @@ atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_sh
     m_ref.pref_old = pref;
 #endif 
     m_ref.pref = pref;
-    m_ptr_instant = const_cast<T*>(!m_ref.pref ? 0 : m_ref.pref->ptr);
-    r.m_ptr_instant = const_cast<T*>(!r.m_ref.pref ? 0 : r.m_ref.pref->ptr);
+    m_ptr_instant = !m_ref.pref ? 0 : m_ref.pref->ptr;
+    r.m_ptr_instant = !r.m_ref.pref ? 0 : r.m_ref.pref->ptr;
     return true;
 }
 
