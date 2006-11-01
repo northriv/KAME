@@ -31,24 +31,28 @@ XPrimaryDriver::finishWritingRaw(
     const XTime &time_awared, const XTime &time_recorded_org)
 {
     XTime time_recorded = time_recorded_org;
-    startRecording(time_awared);
-//    if(time_recorded) {
-    {
-        *s_tl_pop_it = rawData().begin();
-        try {
-            analyzeRaw();
-        }
-        catch (XSkippedRecordError&) {
-             time_recorded = XTime(); //record is invalid
-        }
-        catch (XRecordError& e) {
-             time_recorded = XTime(); //record is invalid
-             e.print(getLabel() + ": " + KAME::i18n("Record Error, because "));
-        }
+	bool skipped = false;
+    startRecording();
+    if(time_recorded) {
+	    *s_tl_pop_it = rawData().begin();
+	    try {
+	        analyzeRaw();
+	    }
+	    catch (XSkippedRecordError&) {
+	    	skipped = true;
+	    }
+	    catch (XRecordError& e) {
+	         time_recorded = XTime(); //record is invalid
+	         e.print(getLabel() + ": " + KAME::i18n("Record Error, because "));
+	    }
     }
-    finishRecordingNReadLock(time_recorded);
-    visualize();
-    readUnlockRecord();
+    if(skipped)
+    	abortRecording();
+	else {
+	    finishRecordingNReadLock(time_awared, time_recorded);
+	    visualize();
+	    readUnlockRecord();
+	}
 }
 
 void

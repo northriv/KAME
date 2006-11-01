@@ -58,17 +58,20 @@ XDriver::readLockRecord() const {
 }
 
 void
-XDriver::startRecording(const XTime &time_awared) {
+XDriver::startRecording() {
     m_recordLock.writeLock();
-    m_awaredTime = time_awared;
 }
 void
-XDriver::finishRecordingNReadLock(const XTime &time_recorded) {
+XDriver::finishRecordingNReadLock(const XTime &time_awared, const XTime &time_recorded) {
+    m_awaredTime = time_awared;
     m_recordTime = time_recorded;
     m_recordLock.writeUnlockNReadLock();
     onRecord().talk(dynamic_pointer_cast<XDriver>(shared_from_this()));
 }
-
+void
+XDriver::abortRecording() {
+    m_recordLock.writeUnlock();
+}
 
 XRecordDependency::tDependency::tDependency(const shared_ptr<const XDriver> &d, const XTime &time) :
     driver(d), time(time)

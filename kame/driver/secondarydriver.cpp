@@ -59,23 +59,28 @@ XSecondaryDriver::onConnectedRecorded(const shared_ptr<XDriver> &driver)
             shared_ptr<XRecordDependency> dep(new XRecordDependency);
             //! check if recorded times don't contradict
             if(checkDeepDependency(dep)) {
-                startRecording(driver->timeAwared());
+            	bool skipped = false;
+                startRecording();
                 XTime time_recorded = driver->time();
                 m_dependency = dep;
                 try {
                     analyze(driver);
                 }
                 catch (XSkippedRecordError&) {
-                     time_recorded = XTime(); //record is invalid
+                	skipped = true;
                 }
                 catch (XRecordError& e) {
                      time_recorded = XTime(); //record is invalid
                      e.print(getLabel() + ": " + KAME::i18n("Record Error, because "));
                 }
                 readUnlockAllConnections();
-                finishRecordingNReadLock(time_recorded);
-                visualize();
-                readUnlockRecord();
+                if(skipped)
+                	abortRecording();
+            	else {
+	                finishRecordingNReadLock(driver->timeAwared(), time_recorded);
+	                visualize();
+	                readUnlockRecord();
+            	}
             }
             else    
                 readUnlockAllConnections();

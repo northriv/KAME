@@ -194,7 +194,7 @@ XNMRFSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
   m_counts.resize(length, 0);
 
   if(emitter != _pulse) throw XSkippedRecordError(__FILE__, __LINE__);
-  if(clear) throw XSkippedRecordError(__FILE__, __LINE__);
+  if(clear) return;
   
   int bw = lrint(*bandWidth() * 1e-3 / df());
   for(int i = std::max(0, (len - bw) / 2); i < std::min(len, (len + bw) / 2); i++)

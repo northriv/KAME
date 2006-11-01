@@ -165,7 +165,7 @@ XNMRSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
   m_counts.resize(length, 0);
 
   if(emitter != _pulse) throw XSkippedRecordError(__FILE__, __LINE__);
-  if(clear) throw XSkippedRecordError(__FILE__, __LINE__);
+  if(clear) return;
 
   int len = _pulse->ftWave().size();
   double df = _pulse->dFreq();

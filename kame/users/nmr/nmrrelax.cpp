@@ -388,7 +388,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
   if(m_timeClearRequested > _pulse1->timeAwared()) {
     m_pts.clear();
     m_avgCount = 0;
-    throw XSkippedRecordError(__FILE__, __LINE__);
+	return;
   }
   
   shared_ptr<XRelaxFunc> func = *relaxFunc();
@@ -464,12 +464,11 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 void
 XNMRT1::visualize()
 {
-  /*
   if(!time()) {
        m_wave->clear();
        return;
   }
-  */
+
   {   XScopedWriteLock<XWaveNGraph> lock(*m_wave);
       m_wave->setLabel(0, *t2Mode() ? "2Tau [us]" : "P1 [ms]");
       m_wave->setRowCount(m_sumpts.size());

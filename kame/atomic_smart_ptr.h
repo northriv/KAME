@@ -365,10 +365,10 @@ atomic_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
     m_ref.serial_update = m_ref.refcnt_n_serial.split.serial;
     { XScopedLock<XMutex> lock(r.m_updatemutex);
         unsigned int serial = ++r.m_ref.serial_update;
-        readBarrier();
+        writeBarrier();
         pref = r.m_ref.pref;
         r.m_ref.pref = m_ref.pref;
-        readBarrier();
+        writeBarrier();
         RefcntNSerial rs_new;
         rs_new.split.serial = serial;
         rs_new.split.refcnt = 0;
@@ -384,7 +384,7 @@ atomic_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
                 if(rs_old.split.refcnt)
                     atomicAdd((int*)&pref->refcnt, -(int)rs_old.split.refcnt);
          }
-        readBarrier();
+        writeBarrier();
         r.m_ref.pref_old = m_ref.pref;
     }
     m_ref.pref_old = pref;
@@ -441,9 +441,9 @@ atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_sh
         pref = r.m_ref.pref;
         if(pref != oldr.m_ref.pref) return false;
         unsigned int serial = ++r.m_ref.serial_update;
-        readBarrier();
+        writeBarrier();
         r.m_ref.pref = m_ref.pref;
-        readBarrier();
+        writeBarrier();
         RefcntNSerial rs_new;
         rs_new.split.serial = serial;
         rs_new.split.refcnt = 0;
@@ -459,7 +459,7 @@ atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_sh
                 if(rs_old.split.refcnt)
                     atomicAdd((int*)&pref->refcnt, -(int)rs_old.split.refcnt);
          }
-        readBarrier();
+        writeBarrier();
         r.m_ref.pref_old = m_ref.pref;
     }
     m_ref.pref_old = pref;
