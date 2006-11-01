@@ -251,7 +251,7 @@ XDSO::execute(const atomic<bool> &terminated)
                 last_count = 0;
                 continue;
           }
-          if(!*fetch() &&  *singleSequence() && seq_busy) {
+          if(*singleSequence() && seq_busy) {
                 continue;
           }
           if(count == last_count) {
@@ -285,21 +285,16 @@ XDSO::execute(const atomic<bool> &terminated)
           continue;
       }
       
-      if(seq_busy) {
-          finishWritingRaw(XTime(), XTime());
+      finishWritingRaw(time_awared, XTime::now());
+
+      // try/catch exception of communication errors
+      try {
+          startSequence();
+          time_awared = XTime::now();
       }
-      else {
-          finishWritingRaw(time_awared, XTime::now());
-    
-          // try/catch exception of communication errors
-          try {
-              startSequence();
-              time_awared = XTime::now();
-          }
-          catch (XKameError &e) {
-              e.print(getLabel());
-              continue;
-          }
+      catch (XKameError &e) {
+          e.print(getLabel());
+          continue;
       }
     }
     
