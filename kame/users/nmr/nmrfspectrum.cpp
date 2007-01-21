@@ -45,13 +45,15 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
   connect(sg2());
   connect(pulse());
 
-  m_form->setCaption(i18n("NMR Spectrum (Freq. Sweep) - ") + getName() );
+  m_form->setCaption(KAME::i18n("NMR Spectrum (Freq. Sweep) - ") + getLabel() );
 
   {
       const char *labels[] = {"Freq [MHz]", "Re [V]", "Im [V]", "Counts"};
       m_spectrum->setColCount(4, labels);
       m_spectrum->selectAxes(0, 1, 2, 3);
+      m_spectrum->plot1()->label()->value(KAME::i18n("real part"));
       m_spectrum->plot1()->drawPoints()->value(false);
+      m_spectrum->plot2()->label()->value(KAME::i18n("imag. part"));
       m_spectrum->plot2()->drawPoints()->value(false);
       m_spectrum->clear();
   }
@@ -108,9 +110,9 @@ XNMRFSpectrum::onActiveChanged(const shared_ptr<XValueNodeBase> &)
     if(*active())    
     {
         shared_ptr<XSG> _sg1 = *sg1();
-        if(_sg1) _sg1->freq()->value(*centerFreq() - *freqSpan()/2e3 - *sg1FreqOffset());
+        if(_sg1) _sg1->freq()->value(*centerFreq() - *freqSpan()/2e3 + *sg1FreqOffset());
         shared_ptr<XSG> _sg2 = *sg2();
-        if(_sg2) _sg2->freq()->value(*centerFreq() - *freqSpan()/2e3 - *sg2FreqOffset());
+        if(_sg2) _sg2->freq()->value(*centerFreq() - *freqSpan()/2e3 + *sg2FreqOffset());
         m_timeClearRequested = XTime::now();
     }
 }
@@ -138,7 +140,7 @@ XNMRFSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
     double freq = _sg1->freqRecorded() - *sg1FreqOffset(); //MHz
     if(_sg2) {
         if(fabs(freq - (_sg2->freqRecorded() - *sg2FreqOffset())) > freq * 1e-6)
-            throw XRecordError(i18n("Conflicting freqs of 2 SGs."), __FILE__, __LINE__); 
+            throw XRecordError(KAME::i18n("Conflicting freqs of 2 SGs."), __FILE__, __LINE__); 
     }
     
   shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
@@ -151,38 +153,39 @@ XNMRFSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
   double freq_span = *freqSpan() * 1e-3; //MHz
   double freq_step = *freqStep() * 1e-3; //MHz
   if(cfreq <= freq_span/2) {
-    throw XRecordError(i18n("Invalid center freq."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Invalid center freq."), __FILE__, __LINE__);
   }
   if(freq_span <= freq_step*2) {
-    throw XRecordError(i18n("Too large freq. step."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Too large freq. step."), __FILE__, __LINE__);
   }
 
   bool clear = (m_timeClearRequested > _pulse->timeAwared());
   
   int len = _pulse->ftWave().size();
-  double _df = _pulse->dFreq();
+  double _df = _pulse->dFreq() * 1e-6; //MHz
   if((len == 0) || (_df == 0)) {
-    throw XRecordError(i18n("Invalid waveform."), __FILE__, __LINE__);  
+    throw XRecordError(KAME::i18n("Invalid waveform."), __FILE__, __LINE__);  
   }
   
-  if((df() != _df) || clear)
+  double freq_min = cfreq - freq_span/2;
+  double freq_max = cfreq + freq_span/2;
+
+  if((fabs(df() - _df) > 1e-6) || clear)
     {
       m_df = _df;
       m_wave.clear();
       m_counts.clear();
     }
-  double freq_min = cfreq - freq_span/2;
-  double freq_max = cfreq + freq_span/2;
-  if(freq_min < m_fMin) {
+  else {
     for(int i = 0; i < rint(m_fMin / df()) - rint(freq_min / df()); i++) {
          m_wave.push_front(0.0);
          m_counts.push_front(0);
     }
-  }
-  if(freq_min > m_fMin) {
     for(int i = 0; i < rint(freq_min / df()) - rint(m_fMin / df()); i++) {
-         m_wave.pop_front();
-         m_counts.pop_front();
+         if(!m_wave.empty()) {
+             m_wave.pop_front();
+             m_counts.pop_front();
+         }
     }
   }
   m_fMin = freq_min;
@@ -190,14 +193,17 @@ XNMRFSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
   m_wave.resize(length, 0.0);
   m_counts.resize(length, 0);
 
+  if(clear) {
+    m_spectrum->clear();
+	throw XSkippedRecordError(__FILE__, __LINE__);
+  }
   if(emitter != _pulse) throw XSkippedRecordError(__FILE__, __LINE__);
-  if(clear) throw XSkippedRecordError(__FILE__, __LINE__);
   
-  int bw = lrint(*bandWidth() * 1000.0 / _df);
+  int bw = lrint(*bandWidth() * 1e-3 / df());
   for(int i = std::max(0, (len - bw) / 2); i < std::min(len, (len + bw) / 2); i++)
     {
-      double f = (i - len/2) * _df;
-        add(freq + f*1e-6, _pulse->ftWave()[i]);
+      double f = (i - len/2) * df(); //MHz
+        add(freq + f, _pulse->ftWave()[i]);
     }
     
      //set new freq

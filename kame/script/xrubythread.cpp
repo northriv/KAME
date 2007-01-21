@@ -17,12 +17,12 @@ XRubyThread::XRubyThread(const char *name, bool runtime, const QString &filename
 bool
 XRubyThread::isRunning() const
 {
-    return (*m_status == RUBY_THREAD_STATUS_RUN);
+    return (std::string(*m_status) == RUBY_THREAD_STATUS_RUN);
 }
 bool
 XRubyThread::isAlive() const
 {
-    return (*m_status != RUBY_THREAD_STATUS_N_A);
+    return (std::string(*m_status) != RUBY_THREAD_STATUS_N_A);
 }
 void
 XRubyThread::kill()

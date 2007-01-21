@@ -18,60 +18,60 @@
 #define clBlue (unsigned int)Qt::blue.rgb()
 
 template <typename T>
-struct Vector3 {
-	Vector3() : x(0), y(0), z(0) {}
-    Vector3(T nx, T ny) : x(nx), y(ny), z(0) {} 
-	Vector3(T nx, T ny, T nz) : x(nx), y(ny), z(nz) {} 
-	T x; T y; T z;
-	
-	bool operator==(const Vector3<T> &s1)  const {return ((x == s1.x) && (y == s1.y) && (z == s1.z));}
-	Vector3<T> &operator+=(const Vector3<T> &s1) {
-		x += s1.x; y += s1.y; z += s1.z;
-		return *this;
-	}
-	Vector3<T> &operator-=(const Vector3<T> &s1) {
-		x -= s1.x; y -= s1.y; z -= s1.z;
-		return *this;
-	}
-	Vector3<T> &operator*=(T k) {
-		x *= k; y *= k; z *= k;
-		return *this;
-	}
-	//! square of distance between this and a point
-	T distance2(const Vector3<T> &s1) const {
-	T x1 = x - s1.x;
-	T y1 = y - s1.y;
-	T z1 = z - s1.z;
-		return x1*x1 + y1*y1 + z1*z1;
-	}
-	//! square of distance between this and a line from s1 to s2
-	T distance2(const Vector3<T> &s1, const Vector3<T> &s2) const  {
-	T x1 = x - s1.x;
-	T y1 = y - s1.y;
-	T z1 = z - s1.z;
-	T x2 = s2.x - s1.x;
-	T y2 = s2.y - s1.y;
-	T z2 = s2.z - s1.z;
-	T zbab = x1*x2 + y1*y2 + z1*z2;
-	T ab2 = x2*x2 + y2*y2 + z2*z2;
-	T zb2 = x1*x1 + y1*y1 + z1*z1;
-	return (zb2*ab2 - zbab*zbab) / ab2;
-	}
-	void normalize() {
-		T ir = (T)1.0 / sqrtf(x*x + y*y + z*z);
-		x *= ir; y *= ir; z *= ir;
-	}
-	Vector3<T> &vectorProduct(const Vector3<T> &s1) {
-	Vector3<T> s2;
-		s2.x = y * s1.z - z * s1.y;
-		s2.y = z * s1.x - x * s1.z;
-		s2.z = x * s1.y - y * s1.x;
-		*this = s2;
-		return *this;
-	}
-	T innerProduct(const Vector3<T> &s1) const {
-		return x * s1.x + y * s1.y + z * s1.z;
-	}
+struct Vector4 {
+    Vector4() : x(0), y(0), z(0), w(1) {}
+    Vector4(const Vector4<T> &v) : x(v.x), y(v.y), z(v.z), w(v.w) {}
+    Vector4(T nx, T ny, T nz = 0, T nw = 1) : x(nx), y(ny), z(nz), w(nw) {} 
+    T x, y, z, w;
+    //! operators below do not take weights into account.
+    bool operator==(const Vector4<T> &s1)  const {return ((x == s1.x) && (y == s1.y) && (z == s1.z));}
+    Vector4<T> &operator+=(const Vector4<T> &s1) {
+        x += s1.x; y += s1.y; z += s1.z;
+        return *this;
+    }
+    Vector4<T> &operator-=(const Vector4<T> &s1) {
+        x -= s1.x; y -= s1.y; z -= s1.z;
+        return *this;
+    }
+    Vector4<T> &operator*=(T k) {
+        x *= k; y *= k; z *= k;
+        return *this;
+    }
+    //! square of distance between this and a point
+    T distance2(const Vector4<T> &s1) const {
+    T x1 = x - s1.x;
+    T y1 = y - s1.y;
+    T z1 = z - s1.z;
+        return x1*x1 + y1*y1 + z1*z1;
+    }
+    //! square of distance between this and a line from s1 to s2
+    T distance2(const Vector4<T> &s1, const Vector4<T> &s2) const  {
+    T x1 = x - s1.x;
+    T y1 = y - s1.y;
+    T z1 = z - s1.z;
+    T x2 = s2.x - s1.x;
+    T y2 = s2.y - s1.y;
+    T z2 = s2.z - s1.z;
+    T zbab = x1*x2 + y1*y2 + z1*z2;
+    T ab2 = x2*x2 + y2*y2 + z2*z2;
+    T zb2 = x1*x1 + y1*y1 + z1*z1;
+    return (zb2*ab2 - zbab*zbab) / ab2;
+    }
+    void normalize() {
+        T ir = (T)1.0 / sqrtf(x*x + y*y + z*z);
+        x *= ir; y *= ir; z *= ir;
+    }
+    Vector4<T> &vectorProduct(const Vector4<T> &s1) {
+    Vector4<T> s2;
+        s2.x = y * s1.z - z * s1.y;
+        s2.y = z * s1.x - x * s1.z;
+        s2.z = x * s1.y - y * s1.x;
+        *this = s2;
+        return *this;
+    }
+    T innerProduct(const Vector4<T> &s1) const {
+        return x * s1.x + y * s1.y + z * s1.z;
+    }
 }; 
 
 class XAxis;
@@ -80,19 +80,8 @@ class XPlot;
 
 class XQGraphPainter;
 
-typedef XAliasListNode<XAxis> _XAxisList;
+typedef XAliasListNode<XAxis> XAxisList;
 typedef XAliasListNode<XPlot> XPlotList;
-
-class XAxisList : public _XAxisList
-{
- XNODE_OBJECT
- protected:
-  XAxisList(const char *name, bool runtime) : 
-    _XAxisList(name, runtime) {}
- public:
-  ~XAxisList() {}
-  virtual QString getItemName(unsigned int index) const;
-};
 
 class XGraph : public XNode
 {
@@ -100,6 +89,7 @@ class XGraph : public XNode
  protected:
   XGraph(const char *name, bool runtime);
  public:
+  virtual std::string getLabel() const {return *label();}
 
   typedef float SFloat;
   static const SFloat SFLOAT_MAX;
@@ -107,9 +97,9 @@ class XGraph : public XNode
   static const GFloat GFLOAT_MAX;
   typedef double VFloat;
   static const VFloat VFLOAT_MAX;
-  typedef Vector3<SFloat> ScrPoint;
-  typedef Vector3<GFloat> GPoint;
-  typedef Vector3<VFloat> ValPoint;
+  typedef Vector4<SFloat> ScrPoint;
+  typedef Vector4<GFloat> GPoint;
+  typedef Vector4<VFloat> ValPoint;
  
   //! call me before redraw graph
   //! Fix axes, take snapshot of points, autoscale axes
@@ -125,13 +115,14 @@ class XGraph : public XNode
   const shared_ptr<XHexNode> &backGround() const {return m_backGround;}
   const shared_ptr<XHexNode> &titleColor() const {return m_titleColor;}
 
+  const shared_ptr<XDoubleNode> &persistence() const {return m_persistence;}
   //! signal to redraw
   void requestUpdate();
   bool isUpdateScheduled() const {return m_bUpdateScheduled;}
   //! postpone signals to redraw
-  void suspendUpdate();
+  void lock();
   //! reschedule signals to redraw
-  void resumeUpdate();
+  void unlock();
 
    XTalker<shared_ptr<XGraph> > &onUpdate() {return m_tlkOnUpdate;}
  const shared_ptr<XListener> &lsnPropertyChanged() const {return m_lsnPropertyChanged;}
@@ -150,6 +141,8 @@ class XGraph : public XNode
 
   shared_ptr<XHexNode> m_backGround;
   shared_ptr<XHexNode> m_titleColor;
+
+  shared_ptr<XDoubleNode> m_persistence;
   XTalker<shared_ptr<XGraph> > m_tlkOnUpdate;
 };
 
@@ -159,6 +152,7 @@ class XPlot : public XNode
  protected:
   XPlot(const char *name, bool runtime, const shared_ptr<XGraph> &graph);
  public:  
+  virtual std::string getLabel() const {return *label();}
 
   virtual int clearAllPoints(void) = 0;
 
@@ -171,6 +165,8 @@ class XPlot : public XNode
   void graphToScreen(const XGraph::GPoint &pt, XGraph::ScrPoint *scr);
   void graphToVal(const XGraph::GPoint &pt, XGraph::ValPoint *val);
 
+  const shared_ptr<XStringNode> &label() const {return m_label;}
+  
   const shared_ptr<XUIntNode> &maxCount() const {return m_maxCount;}
   const shared_ptr<XBoolNode> &displayMajorGrid() const {return m_displayMajorGrid;}
   const shared_ptr<XBoolNode> &displayMinorGrid() const {return m_displayMinorGrid;}
@@ -189,6 +185,7 @@ class XPlot : public XNode
   const shared_ptr<XItemNode<XAxisList, XAxis> > &axisX() const {return m_axisX;}
   const shared_ptr<XItemNode<XAxisList, XAxis> > &axisY() const {return m_axisY;}
   const shared_ptr<XItemNode<XAxisList, XAxis> > &axisZ() const {return m_axisZ;}
+  const shared_ptr<XItemNode<XAxisList, XAxis> > &axisW() const {return m_axisW;}
   //! z value without AxisZ
   shared_ptr<XDoubleNode> zwoAxisZ() {return m_zwoAxisZ;}
   shared_ptr<XDoubleNode> intensity() {return m_intensity;}
@@ -203,14 +200,15 @@ class XPlot : public XNode
   
   //! \return found index, if not return -1 
   int findPoint(int start, const XGraph::GPoint &gmin, const XGraph::GPoint &gmax,
-  		XGraph::GFloat width, XGraph::ValPoint *val, XGraph::GPoint *g1);
+        XGraph::GFloat width, XGraph::ValPoint *val, XGraph::GPoint *g1);
 
+  //! Lock info of axes.
   //! \return success or not
-  bool lockAxesInfo();
-  void unlockAxesInfo();  
+  bool trylock();
+  void unlock();
  protected:
   weak_ptr<XGraph> m_graph;
-  shared_ptr<XAxis> m_curAxisX, m_curAxisY, m_curAxisZ;
+  shared_ptr<XAxis> m_curAxisX, m_curAxisY, m_curAxisZ, m_curAxisW;
 
   virtual int setMaxCount(unsigned int count) = 0;
   virtual XGraph::ValPoint points(unsigned int index) const = 0;
@@ -224,8 +222,10 @@ class XPlot : public XNode
   
  private:
   struct tCanvasPoint {
-  	XGraph::GPoint graph; XGraph::ScrPoint scr; bool insidecube; unsigned int color;
+    XGraph::GPoint graph; XGraph::ScrPoint scr; bool insidecube; unsigned int color;
   };
+  
+  shared_ptr<XStringNode> m_label;
   
   shared_ptr<XUIntNode> m_maxCount;
   shared_ptr<XBoolNode> m_displayMajorGrid;
@@ -245,6 +245,7 @@ class XPlot : public XNode
   shared_ptr<XItemNode<XAxisList, XAxis> > m_axisX;
   shared_ptr<XItemNode<XAxisList, XAxis> > m_axisY;
   shared_ptr<XItemNode<XAxisList, XAxis> > m_axisZ;
+  shared_ptr<XItemNode<XAxisList, XAxis> > m_axisW;
   //! z value without AxisZ
   shared_ptr<XDoubleNode> m_zwoAxisZ;
   shared_ptr<XDoubleNode> m_intensity;
@@ -256,8 +257,8 @@ class XPlot : public XNode
   void onClearPoints(const shared_ptr<XNode> &) {clearAllPoints();}
   
   bool clipLine(const tCanvasPoint &c1, const tCanvasPoint &c2, 
-  	XGraph::ScrPoint *s1, XGraph::ScrPoint *s2, 
-    bool colorplot, unsigned int *color1, unsigned int *color2);
+    XGraph::ScrPoint *s1, XGraph::ScrPoint *s2, 
+    bool blendcolor, unsigned int *color1, unsigned int *color2, float *alpha1, float *alpha2);
   bool isPtIncluded(const XGraph::GPoint &pt);
   void validateAutoScaleOnePoint(const XGraph::ValPoint &pt);
     
@@ -275,7 +276,7 @@ class XAxis : public XNode
 {
  XNODE_OBJECT
  public:
-  enum AxisDirection {DirAxisX, DirAxisY, DirAxisZ};
+  enum AxisDirection {DirAxisX, DirAxisY, DirAxisZ, AxisWeight};
   enum Tic {MajorTic, MinorTic, NoTics};  
  protected:
   XAxis(const char *name, bool runtime,
@@ -283,6 +284,8 @@ class XAxis : public XNode
  public:
   virtual ~XAxis() {}
 
+  virtual std::string getLabel() const {return *label();}
+  
   int drawAxis(XQGraphPainter *painter);
   //! obtains axis pos from value
   XGraph::GFloat valToAxis(XGraph::VFloat value);
@@ -298,7 +301,7 @@ class XAxis : public XNode
   void valToScreen(XGraph::VFloat val, XGraph::ScrPoint *scr);
   XGraph::VFloat screenToVal(const XGraph::ScrPoint &scr);
   
-  QString valToString(XGraph::VFloat val); 
+  std::string valToString(XGraph::VFloat val); 
 
   const shared_ptr<XStringNode> &label() const {return m_label;}
     
@@ -395,7 +398,7 @@ class XXYPlot : public XPlot
  public:
   int clearAllPoints();
   //! adds one point and draws
-  int addPoint(XGraph::VFloat x, XGraph::VFloat y, XGraph::VFloat z = 0.0);
+  int addPoint(XGraph::VFloat x, XGraph::VFloat y, XGraph::VFloat z = 0.0, XGraph::VFloat weight = 1.0);
   //! Direct Access.
   //! use XGraph::suspendUpdate() first.
   std::deque<XGraph::ValPoint> &points() {return m_points;}

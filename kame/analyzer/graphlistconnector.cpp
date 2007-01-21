@@ -18,7 +18,6 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, QTa
      QPushButton *btnnew, QPushButton *btndelete) :
     XListQConnector(node, item),
     m_graphlist(node),
-    m_pItem(item),
     m_newGraph(createOrphan<XNode>("NewGraph", true)),
     m_deleteGraph(createOrphan<XNode>("DeleteGraph", true)),
     m_conNewGraph(xqcon_create<XQButtonConnector>(m_newGraph, btnnew)),
@@ -38,28 +37,25 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, QTa
   m_pItem->setColumnWidth(2, (int)(def * 2.0));
   m_pItem->setColumnWidth(3, (int)(def * 2.0));
   QStringList labels;
-  labels += i18n("Name");
-  labels += i18n("Axis X");
-  labels += i18n("Axis Y");
-  labels += i18n("Axis Z");
+  labels += KAME::i18n("Name");
+  labels += KAME::i18n("Axis X");
+  labels += KAME::i18n("Axis Y");
+  labels += KAME::i18n("Axis Z");
   m_pItem->setColumnLabels(labels);
-  node->childLock();
-  for(unsigned int i = 0; i < node->count(); i++)
-    onCatch((*node)[i]);
-  node->childUnlock();
+
+  atomic_shared_ptr<const XNode::NodeList> list(node->children());
+  if(list) {  
+      for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++)
+        onCatch(*it);
+  }
+
   
   m_lsnNewGraph = m_newGraph->onTouch().connectWeak(
         true, shared_from_this(), &XGraphListConnector::onNewGraph);
   m_lsnDeleteGraph = m_deleteGraph->onTouch().connectWeak(
         true, shared_from_this(), &XGraphListConnector::onDeleteGraph);
 }
-XGraphListConnector::~XGraphListConnector()
-{
-    if(isItemAlive()) {
-      disconnect(m_pItem, NULL, this, NULL );
-      m_pItem->setNumRows(0);
-    }
-}
+
 void
 XGraphListConnector::onNewGraph (const shared_ptr<XNode> &) {
 static int graphidx = 1;
@@ -68,28 +64,30 @@ static int graphidx = 1;
 void
 XGraphListConnector::onDeleteGraph (const shared_ptr<XNode> &) {
       int n = m_pItem->currentRow();
-      m_graphlist->childLock();
-      if((n >= 0) && (n < (int)m_graphlist->count())) {
-          shared_ptr<XNode> node = (*m_graphlist)[n];
-          m_graphlist->childUnlock();
-          m_graphlist->releaseChild(node);
-      }
-      else {
-          m_graphlist->childUnlock();
+      atomic_shared_ptr<const XNode::NodeList> list(m_graphlist->children());
+      if(list) {    
+          if((n >= 0) && (n < (int)list->size())) {
+              shared_ptr<XNode> node = list->at(n);
+              m_graphlist->releaseChild(node);
+          }
       }
 }
 void
 XGraphListConnector::clicked ( int row, int col, int, const QPoint& ) {
-      m_graphlist->childLock();
       switch(col) {
       case 0:
-        if((row >= 0) && (row < (int)m_graphlist->count()))
-             (*m_graphlist)[row]->showGraph();
+        {
+          atomic_shared_ptr<const XNode::NodeList> list(m_graphlist->children());
+          if(list) { 
+              if((row >= 0) && (row < (int)list->size())) {
+                 dynamic_pointer_cast<XValGraph>(list->at(row))->showGraph();
+              }
+          }
+        }
         break;
       default:
         break;
       }
-      m_graphlist->childUnlock();
 }
 void
 XGraphListConnector::onRelease(const shared_ptr<XNode> &node)
@@ -116,7 +114,7 @@ XGraphListConnector::onCatch(const shared_ptr<XNode> &node)
   shared_ptr<XValGraph> graph = dynamic_pointer_cast<XValGraph>(node);
   int i = m_pItem->numRows();
   m_pItem->insertRows(i);
-  m_pItem->setText(i, 0, graph->getName());
+  m_pItem->setText(i, 0, graph->getLabel());
 
   struct tcons con;
   con.node = node;

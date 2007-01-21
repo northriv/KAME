@@ -8,8 +8,6 @@ INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_builddir)/kame/users/dmm/forms \
 	$(all_includes)
 
-libdmm_a_METASOURCES = AUTO
-
 libdmm_a_SOURCES = dmm.cpp dmm.h \
 	userdmm.cpp userdmm.h
 

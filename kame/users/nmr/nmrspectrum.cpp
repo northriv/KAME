@@ -42,13 +42,15 @@ XNMRSpectrum::XNMRSpectrum(const char *name, bool runtime,
   connect(magnet());
   connect(pulse());
 
-  m_form->setCaption(i18n("NMR Spectrum - ") + getName() );
+  m_form->setCaption(KAME::i18n("NMR Spectrum - ") + getLabel() );
 
   {
       const char *labels[] = {"Field [T]", "Re [V]", "Im [V]", "Counts"};
       m_spectrum->setColCount(4, labels);
       m_spectrum->selectAxes(0, 1, 2, 3);
+      m_spectrum->plot1()->label()->value(KAME::i18n("real part"));
       m_spectrum->plot1()->drawPoints()->value(false);
+      m_spectrum->plot2()->label()->value(KAME::i18n("imag. part"));
       m_spectrum->plot2()->drawPoints()->value(false);
       m_spectrum->clear();
   }
@@ -121,7 +123,7 @@ XNMRSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
   ASSERT( emitter != _magnet );
   
 //  if(fabs(_pulse->time() - _magnet->time()) > 10)
-//        m_statusPrinter->printWarning(i18n("Recorded time is older by 10 sec"));
+//        m_statusPrinter->printWarning(KAME::i18n("Recorded time is older by 10 sec"));
   double field = _magnet->magnetFieldRecorded();
 
   field *= *fieldFactor();
@@ -130,11 +132,11 @@ XNMRSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
   double field_max = *fieldMax();
   double field_min = *fieldMin();
   if(field_max <= field_min) {
-    throw XRecordError(i18n("Invalid min. and max."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Invalid min. and max."), __FILE__, __LINE__);
   }
   double res = *resolution();
   if(res < 1e-6) {
-    throw XRecordError(i18n("Too small resolution."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Too small resolution."), __FILE__, __LINE__);
   }
   
   bool clear = (m_timeClearRequested > _pulse->timeAwared());
@@ -145,31 +147,38 @@ XNMRSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
       m_wave.clear();
       m_counts.clear();
     }
-  for(int i = 0; i < rint(m_hMin / dH()) - rint(field_min / dH()); i++) {
-         m_wave.push_front(0.0);
-         m_counts.push_front(0);
-  }
-  for(int i = 0; i < rint(field_min / dH()) - rint(m_hMin / dH()); i++) {
-         m_wave.pop_front();
-         m_counts.pop_front();
+  else {
+      for(int i = 0; i < rint(m_hMin / dH()) - rint(field_min / dH()); i++) {
+             m_wave.push_front(0.0);
+             m_counts.push_front(0);
+      }
+      for(int i = 0; i < rint(field_min / dH()) - rint(m_hMin / dH()); i++) {
+             if(!m_wave.empty()) {
+                 m_wave.pop_front();
+                 m_counts.pop_front();
+             }
+      }
   }
   m_hMin = field_min;
   int length = lrint((field_max - field_min) / dH());
   m_wave.resize(length, 0.0);
   m_counts.resize(length, 0);
 
+  if(clear) {
+    m_spectrum->clear();
+	throw XSkippedRecordError(__FILE__, __LINE__);
+  }
   if(emitter != _pulse) throw XSkippedRecordError(__FILE__, __LINE__);
-  if(clear) throw XSkippedRecordError(__FILE__, __LINE__);
 
   int len = _pulse->ftWave().size();
   double df = _pulse->dFreq();
   if((len == 0) || (df == 0)) {
-    throw XRecordError(i18n("Invalid waveform."), __FILE__, __LINE__);  
+    throw XRecordError(KAME::i18n("Invalid waveform."), __FILE__, __LINE__);  
   }
   int bw = lrint(*bandWidth() * 1000.0 / df);
   double cfreq = *centerFreq() * 1e6;
   if(cfreq == 0) {
-    throw XRecordError(i18n("Invalid center freq."), __FILE__, __LINE__);  
+    throw XRecordError(KAME::i18n("Invalid center freq."), __FILE__, __LINE__);  
   }
   for(int i = std::max(0, (len - bw) / 2); i < std::min(len, (len + bw) / 2); i++)
     {

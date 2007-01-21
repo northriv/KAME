@@ -2,6 +2,7 @@
 #include "FTGLPixmapFont.h"
 #include "graphwidget.h"
 #include <iconv.h>
+#include <qtimer.h>
 
 using std::min;
 using std::max;
@@ -15,6 +16,36 @@ using std::max;
 #include <klocale.h>
 #include <locale.h>
 #include <errno.h>
+
+#define checkGLError() \
+{	 \
+	GLenum err = glGetError(); \
+	if(err != GL_NO_ERROR) { \
+		switch(err) \
+		{ \
+		case GL_INVALID_ENUM: \
+			dbgPrint("GL_INVALID_ENUM"); \
+			break; \
+		case GL_INVALID_VALUE: \
+			dbgPrint("GL_INVALID_VALUE"); \
+			break; \
+		case GL_INVALID_OPERATION: \
+			dbgPrint("GL_INVALID_OPERATION"); \
+			break; \
+		case GL_STACK_OVERFLOW: \
+			dbgPrint("GL_STACK_OVERFLOW"); \
+			break; \
+		case GL_STACK_UNDERFLOW: \
+			dbgPrint("GL_STACK_UNDERFLOW"); \
+			break; \
+		case GL_OUT_OF_MEMORY: \
+			dbgPrint("GL_OUT_OF_MEMORY"); \
+			break; \
+		} \
+	} \
+} 
+
+
 #define FONT_FILE "mikachan/mikachan.ttf"
 	
 #define DEFAULT_FONT_SIZE 12
@@ -25,6 +56,7 @@ using std::max;
 #undef USE_ICONV_WCHART // this is portable, however, it likely depends on the current locale.
 #if defined MACOSX
     #define USE_ICONV_UCS4_AS_WCHART
+//    #define USE_ICONV_WCHART
 #endif
 #if defined __linux__
 //    #define USE_ICONV_WCHART
@@ -46,7 +78,7 @@ XQGraphPainter::openFont()
   QString filename = ::locate("appdata", FONT_FILE);
 	  if(!filename)
 	    {
-		    gErrPrint(i18n("No Fontfile!!"));
+		    gErrPrint(KAME::i18n("No Fontfile!!"));
 	    }
 	    fprintf(stderr, filename.ascii() );
 		s_pFont = new FTGLPixmapFont(filename.ascii() );
@@ -94,11 +126,11 @@ XQGraphPainter::openFont()
         /*
         int arg = 1;
         if(iconvctl(s_iconv_cd, ICONV_SET_TRANSLITERATE, &arg)) {
-            XKameError::print(i18n("iconv error"), __FILE__, __LINE__, errno);
+            XKameError::print(KAME::i18n("iconv error"), __FILE__, __LINE__, errno);
         }
         int arg = 1;
         if(iconvctl(s_utf8toWCHART, ICONV_SET_DISCARD_ILSEQ, &arg)) {
-            XKameError::print(i18n("iconv error"), __FILE__, __LINE__, errno);
+            XKameError::print(KAME::i18n("iconv error"), __FILE__, __LINE__, errno);
         }
         */
 	}
@@ -126,31 +158,36 @@ XQGraphPainter::~XQGraphPainter()
     closeFont();
 }
 std::wstring
-XQGraphPainter::qstring2wstring(const QString &str)
+XQGraphPainter::string2wstring(const std::string &str)
 {
-    static wchar_t buf[256];
-    int outsize = 256 * sizeof(wchar_t);
+    wchar_t buf[256];
+    int outsize = sizeof(buf);
     char *outp = (char*)buf;
     errno = 0;
 #ifdef USE_ICONV_SRC_UTF8
-    QCString utf8(str.utf8());
-    const char *inbuf = utf8;
+    const char *inbuf = str.c_str();
     int insize = strlen(inbuf);
 #endif //USE_ICONV_SRC_UTF8
 #ifdef USE_ICONV_SRC_UCS2
-    const char *inbuf = reinterpret_cast<const char*>(str.ucs2());
-    int insize = str.length() * sizeof(unsigned short);
+    QString qstr(str);
+    const char *inbuf = reinterpret_cast<const char*>(qstr.ucs2());
+    int insize = qstr.length() * sizeof(unsigned short);
 #endif //USE_ICONV_SRC_UCS2
-    //! \todo Linux iconv needs char** instead of const char**
-    size_t ret = iconv(s_iconv_cd, const_cast<char **>(&inbuf), (size_t*)&insize,
+    size_t ret = iconv(s_iconv_cd,
+    #ifdef __linux__
+    // Linux iconv needs char** instead of const char**
+     const_cast<char**>
+    #endif
+     (&inbuf), (size_t*)&insize,
         &outp, (size_t*)&outsize);
 	if(ret == (size_t)(-1)) {
             XKameError::print(
-                i18n("iconv error, probably locale is not correct."),
+                KAME::i18n("iconv error, probably locale is not correct."),
                  __FILE__, __LINE__, errno);
             iconv(s_iconv_cd, NULL, NULL, NULL, NULL); //reset 
             return std::wstring(L"iconv-err"); 
     }
+    ASSERT(outp <= (char*)&buf[sizeof(buf)/sizeof(wchar_t) - 1]);
 	*((wchar_t *)outp) = L'\0';
     return std::wstring(buf); 
 }
@@ -236,7 +273,7 @@ XQGraphPainter::defaultFont()
 	m_curFontSize = DEFAULT_FONT_SIZE;
 }
 int
-XQGraphPainter::selectFont(const QString &str, const XGraph::ScrPoint &start, const XGraph::ScrPoint &dir, const XGraph::ScrPoint &swidth, int sizehint)
+XQGraphPainter::selectFont(const std::string &str, const XGraph::ScrPoint &start, const XGraph::ScrPoint &dir, const XGraph::ScrPoint &swidth, int sizehint)
 {
 	XGraph::ScrPoint d = dir;
 	d.normalize();
@@ -288,7 +325,7 @@ double w = fabs(x3 - x2), h = fabs(y3 - y2);
 		}
 	}
 float llx, lly, llz, urx, ury, urz;
-std::wstring wstr = qstring2wstring(str);
+std::wstring wstr = string2wstring(str);
 	m_curFontSize = DEFAULT_FONT_SIZE + sizehint;
 	m_curAlign = align;
     
@@ -303,10 +340,10 @@ std::wstring wstr = qstring2wstring(str);
     
 	return 0;
 }void
-XQGraphPainter::drawText(const XGraph::ScrPoint &p, const QString &str)
+XQGraphPainter::drawText(const XGraph::ScrPoint &p, const std::string &str)
 {
 float llx, lly, llz, urx, ury, urz;
-std::wstring wstr = qstring2wstring(str);
+std::wstring wstr = string2wstring(str);
 
 	glRasterPos3f(p.x, p.y, p.z);
     checkGLError();
@@ -321,42 +358,14 @@ std::wstring wstr = qstring2wstring(str);
 	if( (m_curAlign & AlignTop) ) y -= h;
 	if( (m_curAlign & AlignHCenter) ) x -= w / 2;
 	if( (m_curAlign & AlignRight) ) x -= w;
-        // Move raster position
-        if((x != 0.0f) || (y != 0.0f))
-		glBitmap( 0, 0, 0.0f, 0.0f, x, y, (const GLubyte*)0);
+    // Move raster position
+    if((x != 0.0f) || (y != 0.0f))
+    	glBitmap( 0, 0, 0.0f, 0.0f, x, y, (const GLubyte*)0);
 	
  	s_pFont->Render(wstr.c_str());
 	checkGLError();
 	ASSERT(s_pFont->Error() == 0);
 } 
-
-void
-XQGraphPainter::checkGLError()
-{	
-	GLenum err = glGetError();
-	if(err == GL_NO_ERROR) return;
-	switch(err)
-	{
-	case GL_INVALID_ENUM:
-		dbgPrint("GL_INVALID_ENUM");
-		break;
-	case GL_INVALID_VALUE:
-		dbgPrint("GL_INVALID_VALUE");
-		break;
-	case GL_INVALID_OPERATION:
-		dbgPrint("GL_INVALID_OPERATION");
-		break;
-	case GL_STACK_OVERFLOW:
-		dbgPrint("GL_STACK_OVERFLOW");
-		break;
-	case GL_STACK_UNDERFLOW:
-		dbgPrint("GL_STACK_UNDERFLOW");
-		break;
-	case GL_OUT_OF_MEMORY:
-		dbgPrint("GL_OUT_OF_MEMORY");
-		break;
-	}
-}
 
 #define VIEW_NEAR -1.5
 #define VIEW_FAR 0.5
@@ -437,17 +446,17 @@ GLuint selections[MAX_SELECTION];
       double zmax = -0.1;
       GLuint *ptr = selections;
       for (int i = 0; i < hits; i++) {
-	double zmin1 = (double)ptr[1] / (double)0xffffffffu;
-	double zmax1  = (double)ptr[2] / (double)0xffffffffu;
-	int n = ptr[0];
-	ptr += 3;
-	for (int j = 0; j < n; j++) {
-	  int k = *(ptr++);
-	  	if(k != -1) {
-			zmin = min(zmin1, zmin);
-			zmax = max(zmax1, zmax);
-		}
-	}
+    	double zmin1 = (double)ptr[1] / (double)0xffffffffu;
+    	double zmax1  = (double)ptr[2] / (double)0xffffffffu;
+    	int n = ptr[0];
+    	ptr += 3;
+    	for (int j = 0; j < n; j++) {
+    	  int k = *(ptr++);
+    	  	if(k != -1) {
+    			zmin = min(zmin1, zmin);
+    			zmax = max(zmax1, zmax);
+    		}
+    	}
       }
      if((zmin < 1.0) && (zmax > 0.0) ) {
         windowToScreen(x, y, zmin, scr);
@@ -520,9 +529,8 @@ void
 XQGraphPainter::paintGL ()
 {
 //	m_pItem->makeCurrent();
-	
     glGetError(); // flush error
-        
+    
     glMatrixMode(GL_PROJECTION);
     glViewport( 0, 0, (GLint)m_pItem->width(), (GLint)m_pItem->height() );
     glGetDoublev(GL_PROJECTION_MATRIX, m_proj);
@@ -530,6 +538,16 @@ XQGraphPainter::paintGL ()
     glGetIntegerv(GL_VIEWPORT, m_viewport);
 
     checkGLError(); 
+
+	// Ghost stuff.
+	XTime time_started = XTime::now();
+    if(m_bIsRedrawNeeded || m_bIsAxisRedrawNeeded) {
+		m_modifiedTime = time_started;    
+		if(m_lastFrame.size())
+			m_updatedTime = time_started;
+		else
+			m_updatedTime = XTime::XTime();
+    }
         
     if(m_bIsRedrawNeeded) {
         drawOffScreenStart();
@@ -591,6 +609,7 @@ XQGraphPainter::paintGL ()
             glCallList(m_listaxes);
         }
     }
+
     drawOnScreenObj();
     
     glMatrixMode(GL_PROJECTION);
@@ -598,6 +617,63 @@ XQGraphPainter::paintGL ()
     setInitView();
     glGetDoublev(GL_PROJECTION_MATRIX, m_proj);
     glMatrixMode(GL_MODELVIEW);
+    
+    double persist = *m_graph->persistence();
+    if(persist > 0) {
+		#define OFFSET 0.1
+		double tau = persist / (-log(OFFSET)) * 0.4;
+		double scale = exp(-(time_started - m_updatedTime)/tau);
+		double offset = -OFFSET*(1.0-scale);
+		bool update = (time_started - m_modifiedTime) < persist; 
+		GLint accum;
+		glGetIntegerv(GL_ACCUM_ALPHA_BITS, &accum);
+		checkGLError();
+		//! \todo QGLContext might clear accumration buffer.
+		if(0) {
+			if(update) {
+				glAccum(GL_MULT, scale);
+			    checkGLError(); 
+				glAccum(GL_ACCUM, 1.0 - scale);
+			    checkGLError(); 
+				glAccum(GL_RETURN, 1.0);
+			    checkGLError(); 
+			}
+			else {
+				glAccum(GL_LOAD, 1.0);
+			    checkGLError(); 
+			}
+		}
+		else {
+			m_lastFrame.resize(m_pItem->width() * m_pItem->height() * 4);
+			if(update) {
+				glPixelTransferf(GL_ALPHA_SCALE, scale);
+			    checkGLError(); 
+				glPixelTransferf(GL_ALPHA_BIAS, offset);
+			    checkGLError(); 
+				glRasterPos2i(0,0);
+			    checkGLError(); 
+				glDrawPixels((GLint)m_pItem->width(), (GLint)m_pItem->height(), 
+					GL_RGBA, GL_UNSIGNED_BYTE, &m_lastFrame[0]);
+			    checkGLError(); 
+				glPixelTransferf(GL_ALPHA_SCALE, 1.0);
+			    checkGLError(); 
+				glPixelTransferf(GL_ALPHA_BIAS, 0.0);
+			    checkGLError(); 
+			}
+			glReadPixels(0, 0, (GLint)m_pItem->width(), (GLint)m_pItem->height(),
+				GL_RGBA, GL_UNSIGNED_BYTE, &m_lastFrame[0]);
+		    checkGLError();     
+		}
+		m_updatedTime = time_started;
+		if(update) {
+			QTimer::singleShot(50, m_pItem, SLOT(update()));
+		}
+    }
+    else {
+    	m_lastFrame.clear();
+		m_updatedTime = XTime::XTime();
+    }
+
     drawOnScreenViewObj();
     glMatrixMode(GL_PROJECTION);
     glPopMatrix();

@@ -59,7 +59,7 @@
                         <bool>false</bool>
                     </property>
                     <property name="numDigits">
-                        <number>7</number>
+                        <number>8</number>
                     </property>
                     <property name="mode">
                         <enum>Dec</enum>
@@ -68,7 +68,7 @@
                         <enum>Flat</enum>
                     </property>
                     <property name="value" stdset="0">
-                        <number>3</number>
+                        <number>3.2323</number>
                     </property>
                     <property name="intValue" stdset="0">
                         <number>3</number>
@@ -336,7 +336,7 @@
                         <bool>false</bool>
                     </property>
                     <property name="numDigits">
-                        <number>7</number>
+                        <number>8</number>
                     </property>
                     <property name="mode">
                         <enum>Dec</enum>

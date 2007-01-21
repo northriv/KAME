@@ -1,7 +1,6 @@
 //---------------------------------------------------------------------------
 #include "nmrpulse.h"
 #include "forms/nmrpulseform.h"
-#include "pulserdriver.h"
 
 #include "graph.h"
 #include "graphwidget.h"
@@ -95,6 +94,9 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
   m_echoPeriod(create<XDoubleNode>("EchoPeriod", false)),
   m_fftShow(create<XNode>("FFTShow", true)),
   m_avgClear(create<XNode>("AvgClear", true)),
+  m_picEnabled(create<XBoolNode>("PICEnabled", false)),
+  m_pulser(create<XItemNode<XDriverList, XPulser> >("Pulser", false, drivers)),
+  m_piccnt(0),
   m_form(new FrmNMRPulse(g_pFrmMain)),
   m_statusPrinter(XStatusPrinter::create(m_form.get())),
   m_fftForm(new FrmGraphNURL(g_pFrmMain)),
@@ -113,6 +115,8 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
             KIcon::Toolbar, KIcon::SizeSmall, true ) );      
     
   connect(dso());
+  connect(pulser());
+
 
   scalarentries->insert(entryCosAv());
   scalarentries->insert(entrySinAv());
@@ -135,9 +139,9 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
   windowFunc()->add(WINDOW_FUNC_KAISER_3);
   windowFunc()->value(WINDOW_FUNC_RECT);
 
-  m_form->setCaption(i18n("NMR Pulse - ") + getName() );
+  m_form->setCaption(KAME::i18n("NMR Pulse - ") + getLabel() );
 
-  m_fftForm->setCaption(i18n("NMR-FFT - ") + getName() );
+  m_fftForm->setCaption(KAME::i18n("NMR-FFT - ") + getLabel() );
 
   m_conAvgClear = xqcon_create<XQButtonConnector>(m_avgClear, m_form->m_btnAvgClear);
   m_conFFTShow = xqcon_create<XQButtonConnector>(m_fftShow, m_form->m_btnFFT);
@@ -158,13 +162,18 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
   m_conWindowFunc = xqcon_create<XQComboBoxConnector>(windowFunc(), m_form->m_cmbWindowFunc);
   m_conDIFFreq = xqcon_create<XQLineEditConnector>(difFreq(), m_form->m_edDIFFreq);
 
+  m_conPICEnabled = xqcon_create<XQToggleButtonConnector>(m_picEnabled, m_form->m_ckbPICEnabled);
+  
+  m_conPulser = xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser);
   m_conDSO = xqcon_create<XQComboBoxConnector>(dso(), m_form->m_cmbDSO);
       
   {
       const char *labels[] = {"Time [ms]", "Cos [V]", "Sin [V]"};
       waveGraph()->setColCount(3, labels);
       waveGraph()->selectAxes(0, 1, 2);
+      waveGraph()->plot1()->label()->value(KAME::i18n("real part"));
       waveGraph()->plot1()->drawPoints()->value(false);
+      waveGraph()->plot2()->label()->value(KAME::i18n("imag. part"));
       waveGraph()->plot2()->drawPoints()->value(false);
       waveGraph()->clear();
   }
@@ -172,9 +181,11 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
       const char *labels[] = {"Freq. [kHz]", "Re. [V]", "Im. [V]", "Abs. [V]", "Phase [deg]"};
       ftWaveGraph()->setColCount(5, labels);
       ftWaveGraph()->selectAxes(0, 3, 4);
+      ftWaveGraph()->plot1()->label()->value(KAME::i18n("abs."));
       ftWaveGraph()->plot1()->drawBars()->value(true);
       ftWaveGraph()->plot1()->drawLines()->value(false);
       ftWaveGraph()->plot1()->drawPoints()->value(false);
+      ftWaveGraph()->plot2()->label()->value(KAME::i18n("phase"));
       ftWaveGraph()->plot2()->drawPoints()->value(false); 
       ftWaveGraph()->clear();
   }
@@ -220,9 +231,8 @@ XNMRPulseAnalyzer::showForms()
 
 void
 XNMRPulseAnalyzer::backgroundSub(const std::deque<std::complex<double> > &wave,
-     int length, int bgpos, int bglength, twindowfunc windowfunc)
+     int pos, int length, int bgpos, int bglength, twindowfunc windowfunc)
 {
-
   if(*useDNR() && (bglength > 0))
     {
       int dnrlen = bglength;
@@ -249,8 +259,8 @@ XNMRPulseAnalyzer::backgroundSub(const std::deque<std::complex<double> > &wave,
 
       for(int i = 0; i < m_dnrsubfftlen; i++)
     {
-      m_dnrsubfftin[i].re = std::real(wave[i + dnrpos]);
-      m_dnrsubfftin[i].im = std::imag(wave[i + dnrpos]);
+      m_dnrsubfftin[i].re = std::real(wave[i + pos + dnrpos]);
+      m_dnrsubfftin[i].im = std::imag(wave[i + pos + dnrpos]);
     }
       fftw_one(m_dnrsubfftplan, &m_dnrsubfftin[0], &m_dnrsubfftout[0]);
 
@@ -304,7 +314,7 @@ XNMRPulseAnalyzer::backgroundSub(const std::deque<std::complex<double> > &wave,
     {
       int j = i % m_dnrpulsefftlen;
       std::complex<double> c(m_dnrpulsefftout[j].re, m_dnrpulsefftout[j].im);
-      m_wave[i] = wave[i] - c;
+      m_wave[i] = wave[pos + i] - c;
 //    WaveRe[i] = dnrpulsefftout[j].re;
 //    WaveIm[i] = dnrpulsefftout[j].im;
     }
@@ -319,7 +329,7 @@ XNMRPulseAnalyzer::backgroundSub(const std::deque<std::complex<double> > &wave,
           for(int i = 0; i < bglength; i++)
         {
         double z = windowfunc( (double)i / bglength - 0.5);
-          bg += z * wave[i + bgpos];
+          bg += z * wave[pos + i + bgpos];
           normalize += z;
         }
           bg /= normalize;
@@ -327,14 +337,14 @@ XNMRPulseAnalyzer::backgroundSub(const std::deque<std::complex<double> > &wave,
           m_noisePower = 0.0;
           for(int i = bgpos; i < bgpos + bglength; i++)
         {
-              m_noisePower += std::norm(wave[i] - bg);
+              m_noisePower += std::norm(wave[pos + i] - bg);
         }
           m_noisePower /= bglength;
     }
 
       for(int i = 0; i < length; i++)
     {
-      m_wave[i] = wave[i] - bg;
+      m_wave[i] = wave[pos + i] - bg;
     }
   }            
 }
@@ -396,9 +406,13 @@ XNMRPulseAnalyzer::onCondChanged(const shared_ptr<XValueNodeBase> &node)
     requestAnalysis();
 }
 bool
-XNMRPulseAnalyzer::checkDependency(const shared_ptr<XDriver> &) const {
+XNMRPulseAnalyzer::checkDependency(const shared_ptr<XDriver> &emitter) const {
+	shared_ptr<XPulser> _pulser = *pulser();
+    if(emitter == _pulser) return false;
     shared_ptr<XDSO> _dso = *dso();
-    return _dso;
+    if(!_dso) return false;
+    if(_pulser && (_dso->timeAwared() < _pulser->time())) return false;
+    return true;
 }
 void
 XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
@@ -408,13 +422,16 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
   ASSERT( _dso->time() );
   
   if(_dso->numChannelsRecorded() < 1) {
-    throw XRecordError(i18n("No record in DSO"), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("No record in DSO"), __FILE__, __LINE__);
+  }
+  if(_dso->numChannelsRecorded() < 2) {
+    throw XRecordError(KAME::i18n("Two channels needed in DSO"), __FILE__, __LINE__);
   }
 
   double interval = _dso->timeIntervalRecorded();
   
   if(interval <= 0) {
-    throw XRecordError(i18n("Invalid time interval in waveforms."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Invalid time interval in waveforms."), __FILE__, __LINE__);
   }
   //[sec]
   m_interval = interval;
@@ -425,17 +442,17 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
   m_startTime = (pos - _dso->trigPosRecorded()) * interval;
   
   if(pos >= (int)_dso->lengthRecorded()) {
-    throw XRecordError(i18n("Position beyond waveforms."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Position beyond waveforms."), __FILE__, __LINE__);
   }
   if(pos < 0) {
-    throw XRecordError(i18n("Position beyond waveforms."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Position beyond waveforms."), __FILE__, __LINE__);
   }
   int length = lrint(*width() / 1000 /  interval);
   if(pos + length >= (int)_dso->lengthRecorded()) {
-    throw XRecordError(i18n("Invalid length."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Invalid length."), __FILE__, __LINE__);
   }  
   if(length <= 0) {
-    throw XRecordError(i18n("Invalid length."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Invalid length."), __FILE__, __LINE__);
   }
 
   bool skip = (m_timeClearRequested > _dso->timeAwared());
@@ -446,7 +463,7 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
       if(m_fftlen >= 0)  fftw_destroy_plan(m_fftplan);
       m_fftlen = *fftLen();
       if(lrint(pow(2.0f, rintf(logf((float)m_fftlen) / logf(2.0f)))) != m_fftlen )
-            m_statusPrinter->printWarning(i18n("FFT length is not a power of 2."), true);
+            m_statusPrinter->printWarning(KAME::i18n("FFT length is not a power of 2."), true);
       m_fftin.resize(m_fftlen);
       m_fftout.resize(m_fftlen);
       m_fftplan = fftw_create_plan(m_fftlen, FFTW_FORWARD, FFTW_ESTIMATE);
@@ -468,27 +485,28 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
   if(avgclear) {
       std::fill(m_rawWaveSum.begin(), m_rawWaveSum.end(), 0.0 );
       m_avcount = 0;
+      m_piccnt = 0;
     }
 
   int bgpos = lrint((*bgPos() - *fromTrig()) / 1000 / interval);
   if(pos + bgpos >= (int)_dso->lengthRecorded()) {
-    throw XRecordError(i18n("Position for BG. sub. beyond waveforms."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Position for BG. sub. beyond waveforms."), __FILE__, __LINE__);
   }  
   if(bgpos < 0) {
-    throw XRecordError(i18n("Position for BG. sub. beyond waveforms."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Position for BG. sub. beyond waveforms."), __FILE__, __LINE__);
   }  
   int bglength = lrint(*bgWidth() / 1000 /  interval);
   if(pos + bgpos + bglength >= (int)_dso->lengthRecorded()) {
-    throw XRecordError(i18n("Invalid Length for BG. sub."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Invalid Length for BG. sub."), __FILE__, __LINE__);
   }  
   if(bglength < 0) {
-    throw XRecordError(i18n("Invalid Length for BG. sub."), __FILE__, __LINE__);
+    throw XRecordError(KAME::i18n("Invalid Length for BG. sub."), __FILE__, __LINE__);
   }  
   
   if(bglength < length*1.5)
-     m_statusPrinter->printWarning(i18n("Maybe, length for BG. sub. is too short."));
+     m_statusPrinter->printWarning(KAME::i18n("Maybe, length for BG. sub. is too short."));
   if((bgpos < length) && (bgpos > 0))
-     m_statusPrinter->printWarning(i18n("Maybe, position for BG. sub. is overrapped against echoes"), true);
+     m_statusPrinter->printWarning(KAME::i18n("Maybe, position for BG. sub. is overrapped against echoes"), true);
   
   int echoperiod = lrint(*echoPeriod() / 1000 /interval);
   int numechoes = *numEcho();
@@ -496,36 +514,69 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
   if(numechoes > 1)
   {
     if(pos + echoperiod * (numechoes - 1) + length >= (int)_dso->lengthRecorded()) {
-        throw XRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
+        throw XRecordError(KAME::i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
     }
     if(echoperiod < length) {
-        throw XRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
+        throw XRecordError(KAME::i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
     }
     if(!bg_after_last_echo)
     {
         if(bgpos + bglength > echoperiod) {
-            throw XRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
+            throw XRecordError(KAME::i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
         }
         if(pos + echoperiod * (numechoes - 1) + bgpos + bglength >= (int)_dso->lengthRecorded()) {
-            throw XRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
+            throw XRecordError(KAME::i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
         }       
     }
   }
   
-//  if(skip && (*exAvgIncr() || (*extraAvg > 1))) {
   if(skip) {
+    ftWaveGraph()->clear();
+    waveGraph()->clear();
     throw XSkippedRecordError(__FILE__, __LINE__);
   }
   
-  std::deque<std::complex<double> > wave(_dso->lengthRecorded(), 0.0);
-  
-  double *rawwavecos, *rawwavesin = NULL;
-  ASSERT( _dso->numChannelsRecorded() );
-  rawwavecos = _dso->waveRecorded(0);
-  if(_dso->numChannelsRecorded() > 1)
-      rawwavesin = _dso->waveRecorded(1);
+  m_picRawWaveSum.resize(_dso->lengthRecorded());
+  // Phase Inversion Cycling
+  shared_ptr<XPulser> _pulser(*pulser());
+  bool picenabled = *m_picEnabled;
+  if(picenabled && !_pulser) {
+    picenabled = false;
+    gErrPrint(getLabel() + ": " + KAME::i18n("No Pulser!"));
+  }
 
-  for(int i = 0; i < numechoes; i++)
+  if(!picenabled || (m_piccnt == 0)) {
+	  std::fill(m_picRawWaveSum.begin(), m_picRawWaveSum.end(), std::complex<double>(0.0,0.0));
+  }
+  bool inverted = false;
+  if(picenabled) {
+	ASSERT( _pulser->time() );
+    inverted = _pulser->invertPhaseRecorded();
+  }
+  {
+	  double *rawwavecos, *rawwavesin = NULL;
+	  ASSERT( _dso->numChannelsRecorded() );
+	  rawwavecos = _dso->waveRecorded(0);
+      rawwavesin = _dso->waveRecorded(1);
+	  for(int i = 0; i < _dso->lengthRecorded(); i++) {
+	  	m_picRawWaveSum[i] += std::complex<double>(rawwavecos[i], rawwavesin[i]) * (inverted ? -1.0 : 1.0);
+	  }
+ 	  m_piccnt++;
+  }
+  
+  if(picenabled) {
+	  if(m_piccnt < 2) {
+  		ASSERT( _pulser->time() );
+        _pulser->invertPhase()->value(!inverted);
+	    throw XSkippedRecordError(__FILE__, __LINE__);
+      }
+  }
+  for(int i = 0; i < length; i++) {
+  	m_picRawWaveSum[i] /= (double)m_piccnt;
+  }
+  m_piccnt = 0;
+  
+  for(int i = 1; i < numechoes; i++)
   {
       int rpos = pos + i * echoperiod;
       for(int j = 0;
@@ -533,18 +584,7 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
       {
           int k = rpos + j;
           ASSERT(k < (int)_dso->lengthRecorded());
-          wave[j] += std::complex<double>(rawwavecos[k] / numechoes,
-            rawwavesin ? (rawwavesin[k] / numechoes) : 0.0);
-      }
-  }
-  if(bg_after_last_echo)
-  {
-     for(int j = bgpos; j < bgpos + bglength ; j++)
-      {
-         int k = pos + j;
-         ASSERT(k < (int)_dso->lengthRecorded());
-         wave[j] += std::complex<double>(rawwavecos[k],
-            rawwavesin ? rawwavesin[k] : 0.0);
+          m_picRawWaveSum[pos + j] += m_picRawWaveSum[k];
       }
   }
 
@@ -560,7 +600,8 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
   if(windowFunc()->to_str() == WINDOW_FUNC_KAISER_3) windowfunc = &windowFuncKaiser3;
   
   //background subtraction or dynamic noise reduction
-  backgroundSub(wave, length, bgpos, bglength, windowfunc);
+  //write echo into m_wave
+  backgroundSub(m_picRawWaveSum, pos, length, bgpos, bglength, windowfunc);
   
     if(!*exAvgIncr() && (*extraAvg() == m_waveAv.size()) && !m_waveAv.empty())  {
       for(int i = 0; i < length; i++) {
@@ -580,7 +621,7 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
    
   int ftpos = lrint(*fftPos() * 1e-3 / interval + _dso->trigPosRecorded() - pos);  
   if((windowfunc != &windowFuncRect) && (abs(ftpos - length/2) > length*0.1))
-     m_statusPrinter->printWarning(i18n("FFTPos is off-centered for window func."));  
+     m_statusPrinter->printWarning(KAME::i18n("FFTPos is off-centered for window func."));  
   double ph = *phaseAdv() * PI / 180;
 
   rotNFFT(ftpos, ph, m_wave, m_ftWave, windowfunc, lrint(*difFreq() * 1000.0 / dFreq()) ); 

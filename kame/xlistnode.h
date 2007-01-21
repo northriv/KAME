@@ -12,31 +12,39 @@ class XListNodeBase : public XNode
   virtual ~XListNodeBase() {}
 
   virtual void clearChildren();
-  virtual int releaseChild(unsigned int index);
   virtual int releaseChild(const shared_ptr<XNode> &node);
         
-  virtual QString getItemName(unsigned int index) const {
-    ASSERT(index < count());
-    return m_children[index]->getName();
-  }
+  //! called after creation, moving, deleting.
    XTalker<shared_ptr<XListNodeBase> > &onListChanged() {return m_tlkOnListChanged;}
+
+  //! called after moving.
+   struct MoveEvent {
+     unsigned int src_idx, dst_idx;
+     shared_ptr<XListNodeBase> emitter;
+   };
+   XTalker<MoveEvent> &onMove() {return m_tlkOnMove;}
+
   //! called after creating a child
    XTalker<shared_ptr<XNode> > &onCatch() {return m_tlkOnCatch;}
   //! called before deleting a child
    XTalker<shared_ptr<XNode> > &onRelease() {return m_tlkOnRelease;}
   
+  //! append new item.
   virtual void insert(const shared_ptr<XNode> &ptr);
 
+  void move(unsigned int src_idx, unsigned int dest_idx);
+  
   //! Create a object, whose class is determined from \a type.
   //! Scripting only. Use XNode::create for coding instead.
   virtual shared_ptr<XNode> createByTypename(
         const std::string &type, const std::string &name) = 0;        
  protected:    
   XTalker<shared_ptr<XListNodeBase> > m_tlkOnListChanged;
+  XTalker<MoveEvent> m_tlkOnMove;
   XTalker<shared_ptr<XNode> > m_tlkOnCatch, m_tlkOnRelease;
 };
 
-template <class NT, class T = shared_ptr<NT> >
+template <class NT>
 class XListNode : public  XListNodeBase
 {
  XNODE_OBJECT
@@ -45,7 +53,6 @@ class XListNode : public  XListNodeBase
    :  XListNodeBase(name, runtime) {}
  public:
   virtual ~XListNode() {}
-  T operator[](unsigned int index) {return getChild<NT>(index);}
 
   virtual shared_ptr<XNode> createByTypename(
         const std::string &, const std::string &name) {
@@ -54,7 +61,7 @@ class XListNode : public  XListNodeBase
 };
 
 //! creation by UI is not allowed.
-template <class NT, class T = shared_ptr<NT> >
+template <class NT>
 class XAliasListNode : public  XListNodeBase
 {
  XNODE_OBJECT
@@ -63,7 +70,6 @@ class XAliasListNode : public  XListNodeBase
    :  XListNodeBase(name, runtime) {}
  public:
   virtual ~XAliasListNode() {}
-  T operator[](unsigned int index) const {return getChild<NT>(index);}
 
   virtual shared_ptr<XNode> createByTypename(
         const std::string &, const std::string &) {
@@ -71,7 +77,7 @@ class XAliasListNode : public  XListNodeBase
   }
 };
 
-template <class NT, class T = shared_ptr<NT> >
+template <class NT>
 class XCustomTypeListNode : public  XListNodeBase
 {
  XNODE_OBJECT
@@ -80,7 +86,6 @@ class XCustomTypeListNode : public  XListNodeBase
    :  XListNodeBase(name, runtime) {}
  public:
   virtual ~XCustomTypeListNode() {}
-  T operator[](unsigned int index) const {return getChild<NT>(index);}    
 
   virtual shared_ptr<XNode> createByTypename(
         const std::string &type, const std::string &name) = 0;

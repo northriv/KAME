@@ -34,6 +34,8 @@ kame_LDADD = $(top_builddir)/kame/forms/libforms.a \
 	$(top_builddir)/kame/users/dcsource/forms/libforms.a \
 	$(top_builddir)/kame/users/funcsynth/libfuncsynth.a \
 	$(top_builddir)/kame/users/funcsynth/forms/libforms.a \
+	$(top_builddir)/kame/users/montecarlo/libmontecarlo.a \
+	$(top_builddir)/kame/users/montecarlo/forms/libforms.a \
 	$(top_builddir)/kame/analyzer/libanalyzer.a \
 	$(top_builddir)/kame/analyzer/forms/libforms.a \
 	$(top_builddir)/kame/driver/libdriver.a \
@@ -46,7 +48,7 @@ kame_LDADD = $(top_builddir)/kame/forms/libforms.a \
 	$(top_srcdir)/FTGL/unix/src/.libs/libftgl.a -lGLU -lm \
 	$(LIB_KFILE) $(LIB_KDEUI) $(LIB_KDECORE) $(LIB_QT) $(LIBSOCKET) -lkmdi 
 
-SUBDIRS = forms script driver thermometer graph users analyzer icons mikachanfont
+SUBDIRS = forms script driver graph thermometer users analyzer icons mikachanfont
 
 EXTRA_DIST = main.cpp kame.desktop lo32-app-kame.png lo16-app-kame.png
 
@@ -100,7 +102,8 @@ INCLUDES = -I$(top_srcdir)/. \
 METASOURCES = AUTO
 
 # the library search path. 
-kame_LDFLAGS = $(all_libraries) $(KDE_RPATH)
+kame_LDFLAGS = $(all_libraries)
+# $(KDE_RPATH)
 
 rcdir = $(kde_datadir)/kame
 rc_DATA = 

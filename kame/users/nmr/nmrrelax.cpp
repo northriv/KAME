@@ -78,8 +78,6 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
     m_t2Mode(create<XBoolNode>("T2Mode", false)),
     m_smoothSamples(create<XUIntNode>("SmoothSamples", false)),
     m_p1Dist(create<XComboNode>("P1Dist", false)),
-    m_ignoreCount(create<XUIntNode>("IgnoreCount", false)),
-    m_extraAvg(create<XUIntNode>("ExtraAvg", false)),
     m_relaxFunc(create<XItemNode < XRelaxFuncList, XRelaxFunc > >(
         "RelaxFunc", false, m_relaxFuncs)),
     m_resetFit(create<XNode>("ResetFit", true)),
@@ -87,10 +85,8 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
     m_fitStatus(create<XStringNode>("FitStatus", true)),
     m_form(new FrmNMRT1(g_pFrmMain)),
     m_statusPrinter(XStatusPrinter::create(m_form.get())),
-    m_wave(create<XWaveNGraph>("Wave", true, m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)),
-    m_avgCount(0),
-    m_ignoredCount(0)
- {
+    m_wave(create<XWaveNGraph>("Wave", true, m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump))
+{
     m_form->m_btnClear->setIconSet(
              KApplication::kApplication()->iconLoader()->loadIconSet("editdelete", 
             KIcon::Toolbar, KIcon::SizeSmall, true ) );  
@@ -98,14 +94,14 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
              KApplication::kApplication()->iconLoader()->loadIconSet("reload", 
             KIcon::Toolbar, KIcon::SizeSmall, true ) );  
     
-    m_form->setCaption(i18n("NMR Relax. Meas. - ") + getName() );
+    m_form->setCaption(KAME::i18n("NMR Relax. Meas. - ") + getLabel() );
   
     scalarentries->insert(t1inv());
     scalarentries->insert(t1invErr());
     
-    connect(pulser());
-    connect(pulse1());
-    connect(pulse2());
+    connect(pulser(), true);
+    connect(pulse1(), false);
+    connect(pulse2(), false);
 
   {
       const char *labels[] = {"P1 [ms] or 2Tau [us]", "Intens [V]",
@@ -115,11 +111,13 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
       shared_ptr<XAxis> axisx = *m_wave->plot1()->axisX();
       shared_ptr<XAxis> axisy = *m_wave->plot1()->axisY();
       axisx->logScale()->value(true);
+      m_wave->plot1()->label()->value(KAME::i18n("Relaxation"));
       m_wave->plot1()->drawLines()->value(false);
       shared_ptr<XFuncPlot> plot2 = create<XRelaxFuncPlot>(
         "FittedCurve", true, m_wave->graph(),
          relaxFunc(), dynamic_pointer_cast<XNMRT1>(shared_from_this()));
       m_wave->graph()->plots()->insert(plot2);
+      plot2->label()->value(KAME::i18n("Fitted Curve"));
       plot2->axisX()->value(axisx);
       plot2->axisY()->value(axisy);
       plot2->drawPoints()->value(false);
@@ -137,7 +135,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
   p1Dist()->value(1);
 
   try {
-      relaxFunc()->str("NMR I=1/2");
+      relaxFunc()->str(std::string("NMR I=1/2"));
   }
   catch (XKameError &e) {
       e.print();
@@ -163,8 +161,6 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
     m_conFitStatus = xqcon_create<XQTextBrowserConnector>(m_fitStatus, m_form->m_txtFitStatus);
     m_conRelaxFunc = xqcon_create<XQComboBoxConnector>(m_relaxFunc, m_form->m_cmbFunction);
     m_conT2Mode = xqcon_create<XQToggleButtonConnector>(m_t2Mode, m_form->m_ckbT2Mode);
-    m_conIgnoreCount = xqcon_create<XQSpinBoxConnector>(m_ignoreCount, m_form->m_numIgnore);
-    m_conExtraAvg = xqcon_create<XQSpinBoxConnector>(m_extraAvg, m_form->m_numExtraAvg);
 
     m_conPulser = xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser);
     m_conPulse1 = xqcon_create<XQComboBoxConnector>(m_pulse1, m_form->m_cmbPulse1);
@@ -209,7 +205,7 @@ XNMRT1::onResetFit(const shared_ptr<XNode> &)
       double p1min = *p1Min();
       double p1max = *p1Max();
       if((p1min <= 0) || (p1min >= p1max)) {
-      	gErrPrint(i18n("Invalid P1Min or P1Max."));  
+      	gErrPrint(KAME::i18n("Invalid P1Min or P1Max."));  
       	return;
       }
       m_params[0] = 1.0 / f(x);
@@ -252,7 +248,21 @@ XNMRT1::checkDependency(const shared_ptr<XDriver> &emitter) const {
     if(!_pulser || !_pulse1) return false;
     if(emitter == shared_from_this()) return true;
     if(emitter == _pulser) return false;
-    return (_pulser->time() < _pulse1->timeAwared()) && (_pulser->time() < _pulse1->time());
+    if(_pulser->time() > _pulse1->time()) return false;
+    
+	switch(_pulser->combModeRecorded()) {
+	    default:
+	    	return true;
+	    case N_COMB_MODE_COMB_ALT:
+	    case N_COMB_MODE_P1_ALT:
+	    	if(!_pulse2) {
+	            m_statusPrinter->printError(KAME::i18n("2 Pulse Analyzers needed."));
+		    	return false;
+	    	}
+	    	if(_pulse1->time() != _pulse2->time()) return false;
+	    	return true;
+	}    
+//    return (_pulser->time() < _pulse1->timeAwared()) && (_pulser->time() < _pulse1->time());
 }
 void
 XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
@@ -261,15 +271,15 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
   double p1max = *p1Max();
     
   if((p1min <= 0) || (p1min >= p1max)) {
-  	throw XRecordError(i18n("Invalid P1Min or P1Max."), __FILE__, __LINE__);  
+  	throw XRecordError(KAME::i18n("Invalid P1Min or P1Max."), __FILE__, __LINE__);  
   }
 
   int samples = *smoothSamples();
   if(samples <= 10) {
-  	throw XRecordError(i18n("Invalid # of Samples."), __FILE__, __LINE__);  
+  	throw XRecordError(KAME::i18n("Invalid # of Samples."), __FILE__, __LINE__);  
   }
   if(samples >= 10000) {
-  	throw XRecordError(i18n("Too many Samples."), __FILE__, __LINE__);
+  	throw XRecordError(KAME::i18n("Too many Samples."), __FILE__, __LINE__);
   }
   
   bool t2mode = *t2Mode();
@@ -286,19 +296,8 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
       ASSERT( emitter != _pulser );
             
       bool _active = *active();
-      if(_active) {
-        m_ignoredCount++;
-        if(m_ignoredCount <= (int)*ignoreCount()) {
-            m_statusPrinter->printMessage(i18n("Ignored"));   
-            return;
-        }
-        m_avgCount++;
-        if(m_avgCount < (int)*extraAvg())
-                 _active = false;
-      }
-      
       if(_pulse1->time() - _pulser->time() < _pulser->periodicTermRecorded() * 1e-3) {
-            m_statusPrinter->printWarning(i18n("Too small avg. count for phase cycling."));
+            m_statusPrinter->printWarning(KAME::i18n("Too small avg. count for phase cycling."));
       }
       
       std::complex<double> cmp1, cmp2;
@@ -309,54 +308,46 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
       RawPt pt1, pt2;
       switch(_pulser->combModeRecorded()) {
         default:
-           throw XRecordError(i18n("Unknown Comb Mode!"), __FILE__, __LINE__);
+           throw XRecordError(KAME::i18n("Unknown Comb Mode!"), __FILE__, __LINE__);
         case N_COMB_MODE_COMB_ALT:
-          if(t2mode) throw XRecordError(i18n("Do not use T2 mode!"), __FILE__, __LINE__);
-          if(_pulse2) {
+          if(t2mode) throw XRecordError(KAME::i18n("Do not use T2 mode!"), __FILE__, __LINE__);
+          ASSERT(_pulse2);
             pt1.p1 = _pulser->combP1Recorded();
             pt1.c = (cmp1 - cmp2) / cmp1;
-            pt1.isigma2 = (*extraAvg() > 1) ? 1 : (1/(_pulse1->noisePower()));
+            pt1.isigma2 = 1/(_pulse1->noisePower());
             m_pts.push_back(pt1);
             break;
-         }
-         else {
-            throw XRecordError(i18n("2 Pulse Analyzers needed."), __FILE__, __LINE__);
-         }
         case N_COMB_MODE_P1_ALT:
           if(t2mode) 
-                throw XRecordError(i18n("Do not use T2 mode!"), __FILE__, __LINE__);
-          if(_pulse2) {
+                throw XRecordError(KAME::i18n("Do not use T2 mode!"), __FILE__, __LINE__);
+          ASSERT(_pulse2);
             pt1.p1 = _pulser->combP1Recorded();
             pt1.c = cmp1;
-            pt1.isigma2 = (*extraAvg() > 1) ? 1 : (1/(_pulse1->noisePower()));
+            pt1.isigma2 = 1/(_pulse1->noisePower());
             m_pts.push_back(pt1);
             pt2.p1 = _pulser->combP1AltRecorded();
             pt2.c = cmp2;
-            pt2.isigma2 = (*extraAvg() > 1) ? 1 : (1/(_pulse2->noisePower()));
+            pt2.isigma2 = 1/(_pulse2->noisePower());
             m_pts.push_back(pt2);
             break;
-          }
-         else {
-            throw XRecordError(i18n("2 Pulse Analyzers needed."), __FILE__, __LINE__);
-         }
         case N_COMB_MODE_ON:
           if(!t2mode) {
                 pt1.p1 = _pulser->combP1Recorded();
                 pt1.c = cmp1;
-                pt1.isigma2 = (*extraAvg() > 1) ? 1 : (1/(_pulse1->noisePower()));
+                pt1.isigma2 = 1/(_pulse1->noisePower());
                 m_pts.push_back(pt1);
                 break;
            }
-           m_statusPrinter->printWarning(i18n("T2 mode with comb pulse!"));
+           m_statusPrinter->printWarning(KAME::i18n("T2 mode with comb pulse!"));
         case N_COMB_MODE_OFF:
            if(!t2mode) {
-                     m_statusPrinter->printWarning(i18n("Do not use T1 mode! Skipping."));
+                     m_statusPrinter->printWarning(KAME::i18n("Do not use T1 mode! Skipping."));
                      throw XSkippedRecordError(__FILE__, __LINE__);
            }
           //T2 measurement
             pt1.p1 = 2.0 * _pulser->tauRecorded();
             pt1.c = cmp1;
-            pt1.isigma2 = (*extraAvg() > 1) ? 1 : (1/(_pulse1->noisePower()));
+            pt1.isigma2 = 1/(_pulse1->noisePower());
             m_pts.push_back(pt1);
             break;
         }
@@ -376,8 +367,6 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
             _pulser->tau()->value(np1 / 2.0);
           }
           _pulser->output()->value(true);
-          m_avgCount = 0;
-          m_ignoredCount = 0;
         }
     }
   
@@ -385,13 +374,14 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
   
   if(m_timeClearRequested > _pulse1->timeAwared()) {
     m_pts.clear();
-    m_avgCount = 0;
+	m_wave->clear();
+	m_fitStatus->value("");
     throw XSkippedRecordError(__FILE__, __LINE__);
   }
   
   shared_ptr<XRelaxFunc> func = *relaxFunc();
   if(!func) {
-    throw XRecordError(i18n("Please select relaxation func."), __FILE__, __LINE__);  
+    throw XRecordError(KAME::i18n("Please select relaxation func."), __FILE__, __LINE__);  
   }
   
   m_sumpts.resize(samples);
@@ -462,12 +452,11 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 void
 XNMRT1::visualize()
 {
-  /*
   if(!time()) {
        m_wave->clear();
        return;
   }
-  */
+
   {   XScopedWriteLock<XWaveNGraph> lock(*m_wave);
       m_wave->setLabel(0, *t2Mode() ? "2Tau [us]" : "P1 [ms]");
       m_wave->setRowCount(m_sumpts.size());
@@ -510,7 +499,7 @@ XNMRT1::onActiveChanged(const shared_ptr<XValueNodeBase> &)
 
       onClearAll(shared_from_this());
       if(!_pulser || !_pulse1) {
-  	     gErrPrint(i18n("No pulser or No NMR Pulse Analyzer."));  
+  	     gErrPrint(KAME::i18n("No pulser or No NMR Pulse Analyzer."));  
       	return;
       }
       

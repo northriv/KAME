@@ -77,7 +77,7 @@ class XTempControl : public XPrimaryDriver
   //! \param channel_names array of pointers to channel name. ends with null pointer.
   void createChannels(const shared_ptr<XScalarEntryList> &scalarentries,
     const shared_ptr<XThermometerList> &thermometers, 
-    bool multiread, const char **channel_names);
+    bool multiread, const char **channel_names, const char **excitations);
   
   //! read raw value from the instrument
   virtual double getRaw(shared_ptr<XChannel> &channel) = 0;

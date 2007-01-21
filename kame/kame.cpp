@@ -169,46 +169,46 @@ FrmKameMain::FrmKameMain()
     m_pHelpAboutAction->addTo( m_pHelpMenu );
     m_pMenubar->insertItem( QString(""), m_pHelpMenu, 6 );
 
-//     setCaption( i18n( "KAME 1.8.4" ) );
+//     setCaption( KAME::i18n( "KAME 1.8.4" ) );
     
-    m_pFileOpenAction->setText( i18n( "Open" ) );
-    m_pFileOpenAction->setMenuText( i18n( "&Open..." ) );
-    m_pFileOpenAction->setAccel( i18n( "Ctrl+O" ) );
-    m_pFileSaveAction->setText( i18n( "Save" ) );
+    m_pFileOpenAction->setText( KAME::i18n( "Open" ) );
+    m_pFileOpenAction->setMenuText( KAME::i18n( "&Open..." ) );
+    m_pFileOpenAction->setAccel( KAME::i18n( "Ctrl+O" ) );
+    m_pFileSaveAction->setText( KAME::i18n( "Save" ) );
     m_pFileSaveAction->setMenuText( tr( "&Save..." ) );
-    m_pFileSaveAction->setAccel( i18n( "Ctrl+S" ) );
-    m_pFileExitAction->setText( i18n( "Exit" ) );
-    m_pFileExitAction->setMenuText( i18n( "E&xit" ) );
+    m_pFileSaveAction->setAccel( KAME::i18n( "Ctrl+S" ) );
+    m_pFileExitAction->setText( KAME::i18n( "Exit" ) );
+    m_pFileExitAction->setMenuText( KAME::i18n( "E&xit" ) );
     m_pFileExitAction->setAccel( QString::null );
-    m_pHelpContentsAction->setText( i18n( "Contents" ) );
-    m_pHelpContentsAction->setMenuText( i18n( "&Contents..." ) );
+    m_pHelpContentsAction->setText( KAME::i18n( "Contents" ) );
+    m_pHelpContentsAction->setMenuText( KAME::i18n( "&Contents..." ) );
     m_pHelpContentsAction->setAccel( QString::null );
-    m_pHelpIndexAction->setText( i18n( "Index" ) );
-    m_pHelpIndexAction->setMenuText( i18n( "&Index..." ) );
+    m_pHelpIndexAction->setText( KAME::i18n( "Index" ) );
+    m_pHelpIndexAction->setMenuText( KAME::i18n( "&Index..." ) );
     m_pHelpIndexAction->setAccel( QString::null );
-    m_pHelpAboutAction->setText( i18n( "About" ) );
-    m_pHelpAboutAction->setMenuText( i18n( "&About" ) );
+    m_pHelpAboutAction->setText( KAME::i18n( "About" ) );
+    m_pHelpAboutAction->setMenuText( KAME::i18n( "&About" ) );
     m_pHelpAboutAction->setAccel( QString::null );
-    m_pFileLogAction->setMenuText( i18n( "&Log Debugging Info" ) );
-//    m_pMesRunAction->setMenuText( i18n( "&Run" ) );
-    m_pMesStopAction->setMenuText( i18n( "&Stop" ) );
-    m_pScriptRunAction->setMenuText( i18n( "&Run..." ) );
-    m_pScriptDotSaveAction->setMenuText( i18n( "&Graphviz Save .dot..." ) );
-    m_pFileCloseAction->setText( i18n( "Close" ) );
-    m_pFileCloseAction->setMenuText( i18n( "&Close" ) );
-//     Toolbar->setLabel( i18n( "Toolbar" ) );
+    m_pFileLogAction->setMenuText( KAME::i18n( "&Log Debugging Info" ) );
+//    m_pMesRunAction->setMenuText( KAME::i18n( "&Run" ) );
+    m_pMesStopAction->setMenuText( KAME::i18n( "&Stop" ) );
+    m_pScriptRunAction->setMenuText( KAME::i18n( "&Run..." ) );
+    m_pScriptDotSaveAction->setMenuText( KAME::i18n( "&Graphviz Save .dot..." ) );
+    m_pFileCloseAction->setText( KAME::i18n( "Close" ) );
+    m_pFileCloseAction->setMenuText( KAME::i18n( "&Close" ) );
+//     Toolbar->setLabel( KAME::i18n( "Toolbar" ) );
     if (m_pMenubar->findItem(1))
-        m_pMenubar->findItem(1)->setText( i18n( "&File" ) );
+        m_pMenubar->findItem(1)->setText( KAME::i18n( "&File" ) );
     if (m_pMenubar->findItem(2))
-        m_pMenubar->findItem(2)->setText( i18n( "&Measure" ) );
+        m_pMenubar->findItem(2)->setText( KAME::i18n( "&Measure" ) );
     if (m_pMenubar->findItem(3))
-        m_pMenubar->findItem(3)->setText( i18n( "&Script" ) );
+        m_pMenubar->findItem(3)->setText( KAME::i18n( "&Script" ) );
     if (m_pMenubar->findItem(4))
-        m_pMenubar->findItem(4)->setText( i18n( "&View" ) );
+        m_pMenubar->findItem(4)->setText( KAME::i18n( "&View" ) );
     if (m_pMenubar->findItem(5))
-        m_pMenubar->findItem(5)->setText( i18n( "&Window" ) );
+        m_pMenubar->findItem(5)->setText( KAME::i18n( "&Window" ) );
     if (m_pMenubar->findItem(6))
-        m_pMenubar->findItem(6)->setText( i18n( "&Help" ) );
+        m_pMenubar->findItem(6)->setText( KAME::i18n( "&Help" ) );
     m_pMenubar->show();
 
 //      clearWState( WState_Polished );   
@@ -267,14 +267,15 @@ void
 FrmKameMain::closeEvent( QCloseEvent* ce )
 {
    bool opened = false;
-   m_measure->interfaceList()->childLock();
-   for(unsigned int i = 0; i < m_measure->interfaceList()->count(); i++) {
-        shared_ptr<XInterface> interface = (*m_measure->interfaceList())[i];
-        if(interface->isOpened()) opened = true;
+   atomic_shared_ptr<const XNode::NodeList> list(m_measure->interfaceList()->children());
+   if(list) { 
+       for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+         shared_ptr<XInterface> _interface = dynamic_pointer_cast<XInterface>(*it);
+         if(_interface->isOpened()) opened = true;
+       }
    }
-   m_measure->interfaceList()->childUnlock();
    if(opened) {
-       QMessageBox::warning( this, "KAME", i18n("Stop running first.") );
+       QMessageBox::warning( this, "KAME", KAME::i18n("Stop running first.") );
        ce->ignore();
    }
    else {
@@ -335,7 +336,7 @@ void FrmKameMain::fileOpenAction_activated()
                         "*.mes|KAME1 Measurement files (*.mes)\n"
                         "*.*|All files (*.*)",
 					   this,
-					   i18n("Open Measurement File"));
+					   KAME::i18n("Open Measurement File"));
   openMes(filename);
 }
 
@@ -348,7 +349,7 @@ void FrmKameMain::fileSaveAction_activated()
 					   "*.mes|KAME1 Measurement files (*.mes)\n"
                         "*.*|All files (*.*)",
 					   this,
-					   i18n("Save Measurement File") );
+					   KAME::i18n("Save Measurement File") );
   if(!filename.isEmpty())
     {
         std::ofstream ofs(filename.local8Bit(), std::ios::out);
@@ -363,7 +364,7 @@ void FrmKameMain::fileSaveAction_activated()
 void FrmKameMain::helpAboutAction_activated()
 {
   KMessageBox::about( this,
-		      i18n("K's Adaptive Measurement Engine."), "KAME");
+		      KAME::i18n("K's Adaptive Measurement Engine."), "KAME");
 }
 
 void FrmKameMain::helpContentsAction_activated()
@@ -405,7 +406,7 @@ void FrmKameMain::scriptRunAction_activated()
 					   "",
 					   "*.seq|KAME Script files (*.seq)",
 					   this,
-					   i18n("Open Script File") );
+					   KAME::i18n("Open Script File") );
   if(!filename.isEmpty())
     {
       static unsigned int thread_no = 1;
@@ -436,7 +437,7 @@ void FrmKameMain::scriptDotSaveAction_activated()
                         "*.dot|Graphviz dot files (*.dot)\n"
                         "*.*|All files (*.*)",
                        this,
-                       i18n("Save Graphviz dot File") );
+                       KAME::i18n("Save Graphviz dot File") );
   if(!filename.isEmpty())
     {
         std::ofstream ofs(filename.local8Bit(), std::ios::out);

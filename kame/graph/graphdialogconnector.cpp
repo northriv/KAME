@@ -18,11 +18,14 @@ XQGraphDialogConnector::XQGraphDialogConnector
     m_selPlot(createOrphan<XItemNode<XPlotList, XPlot> >("", true, graph->plots())),
     m_selAxis(createOrphan<XItemNode<XAxisList, XAxis> >("", true, graph->axes())),
     m_conBackGround(xqcon_create<XKColorComboConnector>
-        (graph->backGround(), m_pItem->clrBackGroundColor)),
+        (graph->backGround(), m_pItem->m_clrBackGroundColor)),
+    m_conPersistence(xqcon_create<XKDoubleNumInputConnector>
+        (graph->persistence(), m_pItem->m_dblPersistence)),
     m_conPlots(xqcon_create<XQListBoxConnector>(m_selPlot, m_pItem->lbPlots)),
     m_conAxes(xqcon_create<XQListBoxConnector>(m_selAxis, m_pItem->lbAxes))
 {
     m_pItem->dblIntensity->setRange(0.0, 2.0, 0.1, true);
+    m_pItem->m_dblPersistence->setRange(0.0, 1.0, 0.1, true);
     
     m_lsnAxisChanged = m_selAxis->onValueChanged().connectWeak
         (false, shared_from_this(), &XQGraphDialogConnector::onSelAxisChanged);

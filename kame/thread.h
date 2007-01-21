@@ -87,11 +87,12 @@ class XRecursiveMutex
 };
 
 //! condition class.
-class XCondition
+class XCondition : public XMutex
 {
  public:
   XCondition();
   ~XCondition();
+  //! Lock me before calling me.
   //! go asleep until signal is emitted.
   //! \param usec if non-zero, timeout occurs after \a usec.
   //! \return zero if locked thread is waked up.
@@ -104,7 +105,6 @@ class XCondition
   void broadcast();
  private:
   pthread_cond_t m_cond;
-  pthread_mutex_t m_mutex;
 };
 
 //! create a new thread.

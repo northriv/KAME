@@ -11,7 +11,8 @@
 #include "forms/graphdialog.h"
 
 XQGraph::XQGraph( QWidget* parent, const char* name, WFlags fl ) :
-    QGLWidget( QGLFormat(AlphaChannel | DoubleBuffer | Rgba | DepthBuffer), parent, name, 0, fl)
+    QGLWidget( QGLFormat(AlphaChannel | DoubleBuffer | Rgba | DepthBuffer | AccumBuffer )
+    	, parent, name, 0, fl)
 {
     if(!format().directRendering()) dbgPrint("direct rendering disabled");
 //      if(!layout() ) new QHBoxLayout(this);

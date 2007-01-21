@@ -64,17 +64,19 @@ public:
   //! This can be called even if has already closed.
   virtual void close();
   
+  void send(const std::string &str) throw (XCommError &);
   virtual void send(const char *str) throw (XCommError &);
   //! format version of send()
-  //! \sa pritnf()
+  //! \sa printf()
   void sendf(const char *format, ...) throw (XInterfaceError &)
      __attribute__ ((format(printf,2,3)));
   virtual void write(const char *sendbuf, int size) throw (XCommError &);
   virtual void receive() throw (XCommError &);
   virtual void receive(unsigned int length) throw (XCommError &);
+  void query(const std::string &str) throw (XCommError &);
   virtual void query(const char *str) throw (XCommError &);
   //! format version of query()
-  //! \sa pritnf()
+  //! \sa printf()
   void queryf(const char *format, ...) throw (XInterfaceError &)
      __attribute__ ((format(printf,2,3)));
   

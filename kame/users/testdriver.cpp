@@ -59,10 +59,10 @@ XTestDriver::execute(const atomic<bool> &terminated)
       msecsleep(10);
       double x = (double)KAME::rand() / RAND_MAX - 0.2;
       double y = (double)KAME::rand() / RAND_MAX - 0.2;
-      startWritingRaw();
+      clearRaw();
       push(x);
       push(y);
-      finishWritingRaw(XTime::now(), XTime::now(), true);
+      finishWritingRaw(XTime::now(), XTime::now());
     }
   return NULL;
 }

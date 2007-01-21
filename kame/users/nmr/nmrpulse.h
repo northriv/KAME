@@ -5,6 +5,7 @@
 #include <vector>
 #include "secondarydriver.h"
 #include "users/dso/dso.h"
+#include "pulserdriver.h"
 #include <complex>
 //---------------------------------------------------------------------------
 
@@ -46,6 +47,7 @@ class XNMRPulseAnalyzer : public XSecondaryDriver
   const shared_ptr<XScalarEntry> &entrySinAv() const {return m_entrySinAv;}    ///< Entry storing dc
 
   const shared_ptr<XItemNode<XDriverList, XDSO> > &dso() const {return m_dso;}
+  const shared_ptr<XItemNode<XDriverList, XPulser> > &pulser() const {return m_pulser;}
 
   void acquire();
 
@@ -126,6 +128,12 @@ class XNMRPulseAnalyzer : public XSecondaryDriver
 
   shared_ptr<XNode> m_fftShow;
   shared_ptr<XNode> m_avgClear;
+
+  //! Phase Inversion Cycling
+  shared_ptr<XBoolNode> m_picEnabled;
+  shared_ptr<XItemNode<XDriverList, XPulser> > m_pulser;
+  unsigned int m_piccnt;
+  std::deque<std::complex<double> > m_picRawWaveSum;
   
   //! Records
   //! these are without avg.
@@ -153,6 +161,7 @@ class XNMRPulseAnalyzer : public XSecondaryDriver
   xqcon_ptr m_conAvgClear, m_conFFTShow, m_conWindowFunc, m_conDIFFreq;
   xqcon_ptr m_conNumEcho, m_conEchoPeriod;
   xqcon_ptr m_conDSO;
+  xqcon_ptr m_conPulser, m_conPICEnabled;
 
   shared_ptr<XListener> m_lsnOnFFTShow, m_lsnOnAvgClear;
   shared_ptr<XListener> m_lsnOnCondChanged;
@@ -187,7 +196,7 @@ class XNMRPulseAnalyzer : public XSecondaryDriver
   fftw_plan m_dnrsubfftplan;    
   std::vector<fftw_complex> m_dnrpulsefftin, m_dnrpulsefftout;
   fftw_plan m_dnrpulsefftplan;
-  void backgroundSub(const std::deque<std::complex<double> > &wave,
+  void backgroundSub(const std::deque<std::complex<double> > &wave, int pos,
      int length, int bgpos, int bglength, twindowfunc windowfunc);
   
   //for FFT

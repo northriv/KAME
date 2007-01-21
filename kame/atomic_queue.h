@@ -27,18 +27,18 @@ public:
                 }
             }
             if(atomicCompareAndSet((T*)0, t, last)) {
-                readBarrier();
+		        memoryBarrier();
                 m_pLast = last;
                 break;
             }
         }
         atomicInc(&m_count);
-        readBarrier();
+		writeBarrier();
     }
     //! This is not reentrant.
     void pop() {
         atomicDec(&m_count);
-        readBarrier();
+        writeBarrier();
         *m_pFirst = 0;
     }
     //! This is not reentrant.

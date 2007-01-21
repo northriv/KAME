@@ -72,22 +72,24 @@ double r2 = x*x + y*y;
 shared_ptr<XAxis> 
 XQGraphPainter::findAxis(const XGraph::ScrPoint &s1)
 {
-    shared_ptr<XAxis> axis;
+    shared_ptr<XAxis> found_axis;
     double zmin = 0.1;
-    m_graph->axes()->childLock();
-    for(unsigned int i = 0; i < m_graph->axes()->count(); i++)
-    {
-    	XGraph::SFloat z1;
-    	XGraph::ScrPoint s2;
-        (*m_graph->axes())[i]->axisToScreen((*m_graph->axes())[i]->screenToAxis(s1), &s2);
-	z1 = sqrtf(s1.distance2(s2));
-	if(zmin > z1) {
-		zmin = z1;
-		axis = (*m_graph->axes())[i];
-	}
-    }       
-    m_graph->axes()->childUnlock();
-    return axis;
+    atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+    if(axes_list) { 
+        for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
+        {
+            shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
+            	XGraph::SFloat z1;
+            	XGraph::ScrPoint s2;
+            axis->axisToScreen(axis->screenToAxis(s1), &s2);
+            	z1 = sqrtf(s1.distance2(s2));
+            	if(zmin > z1) {
+            		zmin = z1;
+            		found_axis = axis;
+            	}
+        }
+    }
+    return found_axis;
 }
 shared_ptr<XPlot> 
 XQGraphPainter::findPlane(const XGraph::ScrPoint &s1,
@@ -95,35 +97,36 @@ XQGraphPainter::findPlane(const XGraph::ScrPoint &s1,
 {
   double zmin = 0.1;
   shared_ptr<XPlot> plot_found;
-    m_graph->plots()->childLock();
-    for(unsigned int i = 0; i < m_graph->plots()->count(); i++)
-    {
-        XGraph::GPoint g1;
-        shared_ptr<XPlot> plot = (*m_graph->plots())[i];
-        shared_ptr<XAxis> axisx = *plot->axisX();
-        shared_ptr<XAxis> axisy = *plot->axisY();
-        shared_ptr<XAxis> axisz = *plot->axisZ();
-            (*m_graph->plots())[i]->screenToGraph(s1, &g1);
-        if((fabs(g1.x) < zmin) && axisz) {
-             plot_found = plot;
-           	zmin = fabs(g1.x);
-            	*axis1 = axisy;
-            	*axis2 = axisz;
-        }
-        if((fabs(g1.y) < zmin) && axisz) {
-             plot_found = plot;
-            	zmin = fabs(g1.y);
-            	*axis1 = axisx;
-            	*axis2 = axisz;
-        }
-        if(fabs(g1.z) < zmin) {
-             plot_found = plot;
-         	zmin = fabs(g1.z);
-            	*axis1 = axisx;
-            	*axis2 = axisy;
-        }
-    }       
-    m_graph->plots()->childUnlock();
+  atomic_shared_ptr<const XNode::NodeList> plots_list(m_graph->plots()->children());
+  if(plots_list) { 
+      for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
+        {
+            shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
+            XGraph::GPoint g1;
+            shared_ptr<XAxis> axisx = *plot->axisX();
+            shared_ptr<XAxis> axisy = *plot->axisY();
+            shared_ptr<XAxis> axisz = *plot->axisZ();
+            plot->screenToGraph(s1, &g1);
+            if((fabs(g1.x) < zmin) && axisz) {
+                 plot_found = plot;
+               	zmin = fabs(g1.x);
+                	*axis1 = axisy;
+                	*axis2 = axisz;
+            }
+            if((fabs(g1.y) < zmin) && axisz) {
+                 plot_found = plot;
+                	zmin = fabs(g1.y);
+                	*axis1 = axisx;
+                	*axis2 = axisz;
+            }
+            if(fabs(g1.z) < zmin) {
+                 plot_found = plot;
+             	zmin = fabs(g1.z);
+                	*axis1 = axisx;
+                	*axis2 = axisy;
+            }
+        }       
+    }
     return plot_found;
 }
 
@@ -229,22 +232,26 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 		case SelPlane:
 			break;
 		case SelAxis:
-			m_graph->suspendUpdate();
-			if(!m_foundAxis) {
-				//if no axis, autoscale all axes
-				m_graph->axes()->childLock();
-				for(unsigned int i = 0; i < m_graph->axes()->count(); i++)
-				{
-					if((*m_graph->axes())[i]->autoScale()->isUIEnabled())
-						(*m_graph->axes())[i]->autoScale()->value(true);
-				}
-				m_graph->axes()->childUnlock();
-			}
-			else {
-				if(m_foundAxis->autoScale()->isUIEnabled()) m_foundAxis->autoScale()->value(true);
-			}
-			m_graph->resumeUpdate();
-			break;
+            {
+                XScopedLock<XGraph> lock(*m_graph);
+        			if(!m_foundAxis) {
+        				//if no axis, autoscale all axes
+                    atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+                    if(axes_list) { 
+                        for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
+                        {
+                            shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
+            					if(axis->autoScale()->isUIEnabled())
+            						axis->autoScale()->value(true);
+            			    }
+                    }
+        			}
+        			else {
+        				if(m_foundAxis->autoScale()->isUIEnabled())
+                            m_foundAxis->autoScale()->value(true);
+        			}
+             }
+    			break;
 		case TiltTracking:
 			viewRotate(0.0, 0.0, 0.0, 0.0, true);
 			break;
@@ -253,7 +260,7 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 		}
 	    }
 	    else {
-		m_graph->suspendUpdate();
+        XScopedLock<XGraph> lock(*m_graph);
 		switch(mode) {
 		case SelPlane:
 			if(m_foundPlane && !(m_startScrPos == m_finishScrPos) ) {
@@ -294,7 +301,6 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 		default:
 			break;
 		}
-		m_graph->resumeUpdate();
 	    }
 	}
 	
@@ -324,16 +330,17 @@ XQGraphPainter::zoom(double zoomscale, int , int )
 {
   XGraph::ScrPoint s1(0.5, 0.5, 0.5);
   
-  m_graph->suspendUpdate();
-  m_graph->axes()->childLock();
-  for(unsigned int i = 0; i < m_graph->axes()->count(); i++)
-  {
-        if((*m_graph->axes())[i]->autoScale()->isUIEnabled())
-		(*m_graph->axes())[i]->autoScale()->value(false);
+  XScopedLock<XGraph> lock(*m_graph);
+  atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+  if(axes_list) { 
+      for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
+      {
+            shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
+            if(axis->autoScale()->isUIEnabled())
+    		  axis->autoScale()->value(false);
+      }
   }
-  m_graph->axes()->childUnlock();
   m_graph->zoomAxes(resScreen(), zoomscale, s1);
-  m_graph->resumeUpdate();
 }
 void
 XQGraphPainter::onRedraw(const shared_ptr<XGraph> &)
@@ -364,7 +371,7 @@ XQGraphPainter::drawOnScreenObj()
                 .arg(m_foundPlaneAxis2->valToString(dst2));
 	}
 	else {
-		msg = I18N_NOOP("R-DBL-CLICK TO SHOW HELP");
+		msg = KAME::i18n("R-DBL-CLICK TO SHOW HELP");
 	}
 	break;
   case SelPlane:
@@ -468,7 +475,7 @@ XQGraphPainter::drawOnScreenObj()
     default:
     	break;
   }
-  m_onScreenMsg = msg;
+  m_onScreenMsg = msg.utf8();
 }
 void
 XQGraphPainter::showHelp()
@@ -517,32 +524,32 @@ float z = 0.99;
 	setColor(*m_graph->backGround(), 1.0);
 	defaultFont();
 	m_curAlign = AlignTop | AlignHCenter;
-	drawText(XGraph::ScrPoint(0.5, y, z), i18n("QUICK HELP!"));
+	drawText(XGraph::ScrPoint(0.5, y, z), KAME::i18n("QUICK HELP!"));
 	m_curAlign = AlignVCenter | AlignLeft;
 	y -= 0.1;
 	double x = 0.1;
 	double dy = -y/10;
-	selectFont(I18N_NOOP("Single Click Right Button on Axis : Auto-scale"), XGraph::ScrPoint(x,y,z), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, dy, 0), 0);
+	selectFont(KAME::i18n("Single Click Right Button on Axis : Auto-scale"), XGraph::ScrPoint(x,y,z), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, dy, 0), 0);
 	
-	drawText(XGraph::ScrPoint(x, y, z), I18N_NOOP("Press Left Button on Plot : Manual Scale"));
+	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Press Left Button on Plot : Manual Scale"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), I18N_NOOP("Press Right Button along Axis: Manual Scale"));
+	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Press Right Button along Axis: Manual Scale"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), I18N_NOOP("Single Click Right Button on Axis : Auto-scale"));
+	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Single Click Right Button on Axis : Auto-scale"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), I18N_NOOP("Single Click Right Button elsewhere : Auto-scale all"));
+	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Single Click Right Button elsewhere : Auto-scale all"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), I18N_NOOP("Press Middle Button : Tilt plots"));
+	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Press Middle Button : Tilt plots"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), I18N_NOOP("Single Click Middle Button : Reset tilting"));
+	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Single Click Middle Button : Reset tilting"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), I18N_NOOP("Wheel around Center : (Un)Zoom all Plots"));
+	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Wheel around Center : (Un)Zoom all Plots"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), I18N_NOOP("Wheel at Side : Tilt by 30deg."));
+	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Wheel at Side : Tilt by 30deg."));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), I18N_NOOP("Double Click Left Button : Show Dialog"));
+	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Double Click Left Button : Show Dialog"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), I18N_NOOP("Double Click Right Button : This Help"));
+	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Double Click Right Button : This Help"));
 }
 
 void
@@ -554,10 +561,11 @@ void
 XQGraphPainter::drawOffScreenPlanes()
 {
 	setColor((QRgb)*m_graph->backGround(), 0.3);
-	m_graph->plots()->childLock();
-	for(int i = m_graph->plots()->count() - 1; i >= 0; i--)
-	{
-	shared_ptr<XPlot> plot = (*m_graph->plots())[i];
+  atomic_shared_ptr<const XNode::NodeList> plots_list(m_graph->plots()->children());
+  if(plots_list) { 
+    for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
+    {
+        shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
 	XGraph::GPoint g1(0.0, 0.0, 0.0),
 		g2(1.0, 0.0, 0.0),
 		g3(0.0, 1.0, 0.0),
@@ -594,36 +602,42 @@ XQGraphPainter::drawOffScreenPlanes()
 		}
 		endQuad();
 	}
-	m_graph->plots()->childUnlock();
+  }
 }
 void
 XQGraphPainter::drawOffScreenGrids()
 {
-	m_graph->plots()->childLock();
-	for(int i = m_graph->plots()->count() - 1; i >= 0; i--)
-	{
-		(*m_graph->plots())[i]->drawGrid(this, m_bTilted);
+  atomic_shared_ptr<const XNode::NodeList> plots_list(m_graph->plots()->children());
+  if(plots_list) { 
+    for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
+    {
+        shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
+		plot->drawGrid(this, m_bTilted);
 	}
-	m_graph->plots()->childUnlock();
+  }
 }
 void
 XQGraphPainter::drawOffScreenPoints()
 {
-	m_graph->plots()->childLock();
-	for(int i = m_graph->plots()->count() - 1; i >= 0; i--)
-	{
-		(*m_graph->plots())[i]->drawPlot(this);
+  atomic_shared_ptr<const XNode::NodeList> plots_list(m_graph->plots()->children());
+  if(plots_list) { 
+    for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
+    {
+        shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
+        plot->drawPlot(this);
 	}
-	m_graph->plots()->childUnlock();
+  }
 }
 void
 XQGraphPainter::drawOffScreenAxes()
 {
-	m_graph->axes()->childLock();
-	for(unsigned int i = 0; i < m_graph->axes()->count(); i++)
-	{
-		if(((*m_graph->axes())[i]->direction() != XAxis::DirAxisZ) || m_bTilted)
-			(*m_graph->axes())[i]->drawAxis(this);
-	}
-	m_graph->axes()->childUnlock();	
+  atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+  if(axes_list) { 
+      for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
+      {
+        shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
+		if((axis->direction() != XAxis::DirAxisZ) || m_bTilted)
+			axis->drawAxis(this);
+    	   }
+  }
 }

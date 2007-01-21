@@ -2,6 +2,8 @@
 
 #include <errno.h>
 
+#include <string.h>
+
 #include "support.h"
 #include <klocale.h>
 
@@ -15,7 +17,7 @@
 
 #ifdef GPIB_LINUX_NI
 #define __inline__  __inline
-#include <ib.h>
+#include <gpib/ib.h>
 #endif
 
 #define MIN_BUF_SIZE 1024
@@ -64,20 +66,25 @@ XNIGPIBPort::gpibStatus(const QString &msg)
       case ESTB: err = "ESTB"; break;
       case ESRQ: err = "ESRQ"; break;
       case ETAB: err = "ETAB"; break;
-      default: err = QString::number(ThreadIberr()); break;
+      default: err = formatString("%u",ThreadIberr()); break;
   }
   if((ThreadIberr() == EDVR) || (ThreadIberr() == EFSO)) {
         char buf[256];
+    #ifdef __linux__
+        char *s = strerror_r(ThreadIbcntl(), buf, sizeof(buf));
+        cntl = formatString("%d",ThreadIbcntl()) + " " + s;
+    #else        
         if(strerror_r(ThreadIbcntl(), buf, sizeof(buf))) {
-            cntl = QString::number(ThreadIbcntl());
+            cntl = formatString("%d",ThreadIbcntl());
         }
         else {
-            cntl = QString::number(ThreadIbcntl()) + " " + QString::fromUtf8(buf);
+            cntl = formatString("%d",ThreadIbcntl()) + " " + buf;
         }
+    #endif
         errno = 0;
   }
   else {
-        cntl = QString::number(ThreadIbcntl());
+        cntl = formatString("%d",ThreadIbcntl());
   }
   return QString("GPIB %1: addr %2, sta %3, err %4, cntl %5")
     .arg(msg)
@@ -94,23 +101,26 @@ XNIGPIBPort::XNIGPIBPort(XInterface *interface)
 }
 XNIGPIBPort::~XNIGPIBPort()
 {
-  s_lock.lock();
-  s_cntOpened--;
-  s_lock.unlock();
-  
-  if(m_ud >= 0) ibonl(m_ud, 0);
+    try {
+        gpib_close();
+    }
+    catch(...) {
+    }
 } 
 void
 XNIGPIBPort::open() throw (XInterface::XCommError &)
 {
-  s_lock.lock();
-  if(s_cntOpened == 0)
-        gpib_reset();
-  s_cntOpened++;
-  s_lock.unlock();
+  int port = QString(m_pInterface->port()->to_str()).toInt();
+  {
+      XScopedLock<XMutex> lock(s_lock);
+      if(s_cntOpened == 0) {
+          dbgPrint(KAME::i18n("GPIB: Sending IFC"));
+          SendIFC (port);
+          msecsleep(100);
+      }
+      s_cntOpened++;
+  }
   
-  int port = m_pInterface->port()->to_str().toInt();
-   
   Addr4882_t addrtbl[2];
   int eos = 0;
   if(m_pInterface->eos().length()) {
@@ -120,7 +130,7 @@ XNIGPIBPort::open() throw (XInterface::XCommError &)
         *m_pInterface->address(), 0, T3s, 1, eos);
   if(m_ud < 0) {
     throw XInterface::XCommError(
-            gpibStatus(i18n("opening gpib device faild")), __FILE__, __LINE__);
+            gpibStatus(KAME::i18n("opening gpib device faild")), __FILE__, __LINE__);
   }
   ibclr(m_ud);
   ibeos(m_ud, eos);
@@ -129,12 +139,21 @@ XNIGPIBPort::open() throw (XInterface::XCommError &)
   EnableRemote(port, addrtbl);
 }
 void
+XNIGPIBPort::gpib_close() throw (XInterface::XCommError &)
+{
+  if(m_ud >= 0) ibonl(m_ud, 0);
+  m_ud=-1;
+  {
+      XScopedLock<XMutex> lock(s_lock);
+      s_cntOpened--;
+  }
+}
+void
 XNIGPIBPort::gpib_reset() throw (XInterface::XCommError &)
 {
-  int port = m_pInterface->port()->to_str().toInt();
-  dbgPrint(i18n("GPIB: Sending IFC"));
-  SendIFC (port);
-  msecsleep(100);
+    gpib_close();
+    msecsleep(100);
+    open();
 }
 
 void
@@ -169,35 +188,56 @@ XNIGPIBPort::write(const char *sendbuf, int size) throw (XInterface::XCommError 
               continue;
             }
             throw XInterface::XCommError(
-                    gpibStatus(i18n("too many EDVR/EFSO")), __FILE__, __LINE__);
+                    gpibStatus(KAME::i18n("too many EDVR/EFSO")), __FILE__, __LINE__);
           }
-          gErrPrint(gpibStatus(i18n("ibwrt err")));
+          gErrPrint(gpibStatus(KAME::i18n("ibwrt err")));
           gpib_reset();
           if(i < 2) {
-            gErrPrint(i18n("try to continue"));
+            gErrPrint(KAME::i18n("try to continue"));
             continue;
           }
           throw XInterface::XCommError(gpibStatus(""), __FILE__, __LINE__);
         }
-        if(ret & CMPL)
+        if((ret & END) && (ret & CMPL))
         {
           break;
         }
-        gErrPrint(gpibStatus(i18n("ibwrt terminated without CMPL")));
+        sendbuf += ThreadIbcntl();
+        size -= ThreadIbcntl();        
+        if(ret & CMPL) {
+          dbgPrint("ibwrt terminated without END");
+          continue;
+        }
+        gErrPrint(gpibStatus(KAME::i18n("ibwrt terminated without CMPL")));
     }
 }
 void
 XNIGPIBPort::receive() throw (XInterface::XCommError &) {
+    unsigned int len = gpib_receive(MIN_BUF_SIZE, 1000000uL);
+    buffer().resize(len + 1);
+    buffer()[len] = '\0';
+}
+void
+XNIGPIBPort::receive(unsigned int length) throw (XInterface::XCommError &)
+{
+    unsigned int len = gpib_receive(length, length);
+    buffer().resize(len);
+}
+
+unsigned int
+XNIGPIBPort::gpib_receive(unsigned int est_length, unsigned int max_length)
+     throw (XInterface::XCommError &) {
   ASSERT(m_pInterface->isOpened());
 
    gpib_spoll_before_read();
    int len = 0;
    for(int i = 0; ; i++)
-    {    
-         if(buffer().size() < len + MIN_BUF_SIZE)
-                buffer().resize(len + MIN_BUF_SIZE);
+    {
+        unsigned int buf_size = std::min(max_length, len + est_length);
+         if(buffer().size() < buf_size)
+                buffer().resize(buf_size);
          msecsleep(m_pInterface->gpibWaitBeforeRead());
-         int ret = ibrd(m_ud, &buffer()[len], len + MIN_BUF_SIZE);
+         int ret = ibrd(m_ud, &buffer()[len], buf_size - len);
          if(ret & ERR)
          {
              switch(ThreadIberr()) {
@@ -209,72 +249,31 @@ XNIGPIBPort::receive() throw (XInterface::XCommError &) {
                   continue;
                 }
                 throw XInterface::XCommError(
-                        gpibStatus(i18n("too many EDVR/EFSO")), __FILE__, __LINE__);
+                        gpibStatus(KAME::i18n("too many EDVR/EFSO")), __FILE__, __LINE__);
               }
-              gErrPrint(gpibStatus(i18n("ibrd err")));
-              gpib_reset();
+              gErrPrint(gpibStatus(KAME::i18n("ibrd err")));
+//              gpib_reset();
               if(i < 2) {
-                gErrPrint(i18n("try to continue"));
+                gErrPrint(KAME::i18n("try to continue"));
                 continue;
               }
              throw XInterface::XCommError(gpibStatus(""), __FILE__, __LINE__);
         }
+        if(ThreadIbcntl() > buf_size - len)
+            throw XInterface::XCommError(gpibStatus(KAME::i18n("libgpib error.")), __FILE__, __LINE__);
         len += ThreadIbcntl();
-         if((ret & END) && (ret & CMPL))
+        if((ret & END) && (ret & CMPL))
         {
           break;
         }
         if(ret & CMPL) {
+          dbgPrint("ibrd terminated without END");
           continue;
         }
-        gErrPrint(gpibStatus(i18n("ibrd terminated without END or CMPL ")));
+        gErrPrint(gpibStatus(KAME::i18n("ibrd terminated without CMPL")));
     }
-  
-  buffer()[len] = '\0';
-  buffer().resize(len + 1);
+  return len;
 }
-void
-XNIGPIBPort::receive(unsigned int length) throw (XInterface::XCommError &)
-{
-  ASSERT(m_pInterface->isOpened());
-  
-   buffer().resize(length);
-        
-   gpib_spoll_before_read();
- 
-   for(int i = 0; ; i++)
-    {
-        msecsleep(m_pInterface->gpibWaitBeforeRead());
-        int ret = ibrd(m_ud, &buffer()[0], length);
-          if(ret & ERR)
-         {
-             switch(ThreadIberr()) {
-              case EDVR:
-              case EFSO:
-                if(i < 3) {
-                  dbgPrint("EDVR/EFSO, try to continue");
-                  msecsleep(10 * i + 10);
-                  continue;
-                }
-                throw XInterface::XCommError(
-                        gpibStatus(i18n("too many EDVR/EFSO")), __FILE__, __LINE__);
-              }
-              gErrPrint(gpibStatus(i18n("ibrd err")));
-              gpib_reset();
-              if(i < 2) {
-                gErrPrint(i18n("try to continue"));
-                continue;
-              }
-              throw XInterface::XCommError(gpibStatus(""), __FILE__, __LINE__);
-        }
-         if((ret & END) && (ret & CMPL))
-        {
-          break;
-        }
-        gErrPrint(gpibStatus(i18n("ibrd terminated without END or CMPL ")));
-    }
-    buffer().resize(ThreadIbcntl());
-} 
 void
 XNIGPIBPort::gpib_spoll_before_read() throw (XInterface::XCommError &)
 {
@@ -285,7 +284,7 @@ XNIGPIBPort::gpib_spoll_before_read() throw (XInterface::XCommError &)
           if(i > 20)
             {
               throw XInterface::XCommError(
-                    gpibStatus(i18n("too many spoll timeouts")), __FILE__, __LINE__);
+                    gpibStatus(KAME::i18n("too many spoll timeouts")), __FILE__, __LINE__);
             }
           msecsleep(m_pInterface->gpibWaitBeforeSPoll());
           unsigned char spr;
@@ -299,9 +298,9 @@ XNIGPIBPort::gpib_spoll_before_read() throw (XInterface::XCommError &)
                 msecsleep(10 * i + 10);
                 continue;
               }
-              gErrPrint(gpibStatus(i18n("ibrsp err")));
+              gErrPrint(gpibStatus(KAME::i18n("ibrsp err")));
               gpib_reset();
-              throw XInterface::XCommError(gpibStatus(i18n("ibrsp failed")), __FILE__, __LINE__);
+              throw XInterface::XCommError(gpibStatus(KAME::i18n("ibrsp failed")), __FILE__, __LINE__);
             }
             if((spr & m_pInterface->gpibMAVbit()) == 0)
             {
@@ -324,7 +323,7 @@ XNIGPIBPort::gpib_spoll_before_write() throw (XInterface::XCommError &)
       if(i > 5)
         {
           throw XInterface::XCommError(
-                gpibStatus(i18n("too many spoll timeouts")), __FILE__, __LINE__);
+                gpibStatus(KAME::i18n("too many spoll timeouts")), __FILE__, __LINE__);
         }
       msecsleep(m_pInterface->gpibWaitBeforeSPoll());
       unsigned char spr;
@@ -338,9 +337,9 @@ XNIGPIBPort::gpib_spoll_before_write() throw (XInterface::XCommError &)
             msecsleep(10 * i + 10);
             continue;
           }
-          gErrPrint(gpibStatus(i18n("ibrsp err")));
+          gErrPrint(gpibStatus(KAME::i18n("ibrsp err")));
           gpib_reset();
-          throw XInterface::XCommError(gpibStatus(i18n("ibrsp failed")), __FILE__, __LINE__);
+          throw XInterface::XCommError(gpibStatus(KAME::i18n("ibrsp failed")), __FILE__, __LINE__);
         }
       if((spr & m_pInterface->gpibMAVbit()))
         {
@@ -349,40 +348,10 @@ XNIGPIBPort::gpib_spoll_before_write() throw (XInterface::XCommError &)
               msecsleep(5*i + 5);
               continue;
           }
-          gErrPrint(gpibStatus(i18n("ibrd before ibwrt asserted")));
+          gErrPrint(gpibStatus(KAME::i18n("ibrd before ibwrt asserted")));
           
           // clear device's buffer
-          buffer().resize(2048);
-          for(int i = 0; ; i++)
-          { 
-              int ret = ibrd(m_ud, &buffer()[0], buffer().size());
-              if(ret & ERR)
-             {
-                 switch(ThreadIberr()) {
-                  case EDVR:
-                  case EFSO:
-                    if(i < 3) {
-                      dbgPrint("EDVR/EFSO, try to continue");
-                      msecsleep(10 * i + 10);
-                      continue;
-                    }
-                    throw XInterface::XCommError(
-                            gpibStatus(i18n("too many EDVR/EFSO")), __FILE__, __LINE__);
-                  }
-                  gErrPrint(gpibStatus(i18n("ibrd err")));
-                  gpib_reset();
-                  if(i < 2) {
-                    gErrPrint(i18n("try to continue"));
-                    continue;
-                  }
-                  throw XInterface::XCommError(gpibStatus(""), __FILE__, __LINE__);
-            }
-             if((ret & END) && (ret & CMPL))
-            {
-              break;
-            }
-            gErrPrint(gpibStatus(i18n("ibrd terminated without END or CMPL ")));
-          }
+          gpib_receive(MIN_BUF_SIZE, 1000000uL);
           break;
         }
 

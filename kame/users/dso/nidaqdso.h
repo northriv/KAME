@@ -1,30 +1,30 @@
-//---------------------------------------------------------------------------
-
-#ifndef userdsoH
-#define userdsoH
+#ifndef nidaqdsoH
+#define nidaqdsoH
 
 #include "dso.h"
-//---------------------------------------------------------------------------
 
-//! Tektronix DSO
-class XTDS : public XDSO
+#ifdef HAVE_NI_DAQMX
+
+//! Software DSO w/ NI DAQmx
+class XNIDAQmxDSO : public XDSO
 {
  XNODE_OBJECT
  protected:
-  XTDS(const char *name, bool runtime,
+  XNIDAQmxDSO(const char *name, bool runtime,
    const shared_ptr<XScalarEntryList> &scalarentries,
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers);
-  ~XTDS() {}
-  //! this is called when raw is written 
-  //! unless dependency is broken
+  ~XNIDAQmxDSO();
   //! convert raw to record
-  virtual void analyzeRaw() throw (XRecordError&);
+  virtual void convertRaw() throw (XRecordError&);
  protected:
   virtual void onAverageChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onSingleChanged(const shared_ptr<XValueNodeBase> &);
+  virtual void onTrigSourceChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onTrigPosChanged(const shared_ptr<XValueNodeBase> &);
+  virtual void onTrigLevelChanged(const shared_ptr<XValueNodeBase> &);
+  virtual void onTrigFallingChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onTimeWidthChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onVFullScale1Changed(const shared_ptr<XValueNodeBase> &);
   virtual void onVFullScale2Changed(const shared_ptr<XValueNodeBase> &);
@@ -34,6 +34,7 @@ class XTDS : public XDSO
   virtual void onForceTriggerTouched(const shared_ptr<XNode> &);
 
   virtual void afterStart();
+  virtual void beforeStop();
 
   virtual double getTimeInterval();
   //! clear count or start sequence measurement
@@ -41,8 +42,20 @@ class XTDS : public XDSO
   virtual int acqCount(bool *seq_busy);
 
   //! load waveform and settings from instrument
-  virtual void getWave(std::deque<QString> &channels);
+  virtual void getWave(std::deque<std::string> &channels);
  private:
+  std::vector<double> m_records[2];
+  std::deque<std::string> m_analogTrigSrc, m_digitalTrigSrc;
+  unsigned int m_task;
+  XMutex m_tasklock;
+  int m_acqCount;
+  void setupAcquision();
+  void setupTrigger();
+  void createChannels();
+  void _checkError(int code, const char *msg, const char *file, int line);
+  void splitList(const char *, std::deque<std::string> &);
 };
+
+#endif //HAVE_NI_DAQMX
 
 #endif

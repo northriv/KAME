@@ -18,16 +18,14 @@ class XGraphListConnector : public XListQConnector
   XGraphListConnector(const shared_ptr<XGraphList> &node, QTable *item,
      QPushButton *btnnew, QPushButton *btndelete);
  public:
-  virtual ~XGraphListConnector();
+  virtual ~XGraphListConnector() {}
  protected:
-  virtual void onListChanged(const shared_ptr<XListNodeBase> &) {}
   virtual void onCatch(const shared_ptr<XNode> &node);
   virtual void onRelease(const shared_ptr<XNode> &node);
  protected slots:
   void clicked ( int row, int col, int button, const QPoint& );
  private:
   shared_ptr<XGraphList> m_graphlist;
-  QTable *m_pItem;
   
   shared_ptr<XNode> m_newGraph;
   shared_ptr<XNode> m_deleteGraph;

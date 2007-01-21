@@ -4,7 +4,6 @@
 #include "drivercreate.h"
 #include "drivertool.h"
 #include "measure.h"
-#include <qdeepcopy.h>
 #include <qlineedit.h>
 #include <qpushbutton.h>
 #include <qtable.h>
@@ -16,7 +15,7 @@
 
 XDriverListConnector::XDriverListConnector
   (const shared_ptr<XDriverList> &node, FrmDriver *item)
-   : XListQConnector(node, item->m_tblDrivers), m_list(node), m_pItem(item->m_tblDrivers) ,
+   : XListQConnector(node, item->m_tblDrivers),
    m_create(createOrphan<XNode>("Create", true)),
    m_release(createOrphan<XNode>("Release", true)),
    m_conCreate(xqcon_create<XQButtonConnector>(m_create, item->m_btnNew)),
@@ -36,25 +35,21 @@ XDriverListConnector::XDriverListConnector
   m_pItem->setColumnWidth(1, (int)(def * 1.0));
   m_pItem->setColumnWidth(2, (int)(def * 4.5));
   QStringList labels;
-  labels += i18n("Driver");
-  labels += i18n("Type");
-  labels += i18n("Recorded Time");
+  labels += KAME::i18n("Driver");
+  labels += KAME::i18n("Type");
+  labels += KAME::i18n("Recorded Time");
   m_pItem->setColumnLabels(labels);
-  node->childLock();
-  for(unsigned int i = 0; i < node->count(); i++)
-    onCatch((*node)[i]);
-  node->childUnlock();
+
+  atomic_shared_ptr<const XNode::NodeList> list(node->children());
+  if(list) { 
+      for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++)
+        onCatch(*it);
+  }
 
   m_lsnOnCreateTouched = m_create->onTouch().connectWeak(true, shared_from_this(),
     &XDriverListConnector::onCreateTouched);
   m_lsnOnReleaseTouched = m_release->onTouch().connectWeak(true, shared_from_this(),
     &XDriverListConnector::onReleaseTouched);
-}
-XDriverListConnector::~XDriverListConnector() {
-  if(isItemAlive()) {
-      disconnect(m_pItem, NULL, this, NULL );
-      m_pItem->setNumRows(0);
-  }
 }
 
 void
@@ -68,7 +63,7 @@ XDriverListConnector::onCatch(const shared_ptr<XNode> &node) {
   
   int i = m_pItem->numRows();
   m_pItem->insertRows(i);
-  m_pItem->setText(i, 0, driver->getName());
+  m_pItem->setText(i, 0, driver->getLabel());
   // typename is not set at this moment
   m_pItem->setText(i, 1, driver->getTypename().c_str());
 
@@ -121,7 +116,7 @@ XDriverListConnector::onRecord(const shared_ptr<XDriver> &driver)
         {
             tcons::tlisttext text;
             text.label = (*it)->label;
-            text.str.reset(new QString(QDeepCopy<QString>((*it)->driver->time().getTimeStr())));
+            text.str.reset(new std::string((*it)->driver->time().getTimeStr()));
             (*it)->tlkOnRecordRedirected->talk(text);
         }
     }
@@ -155,7 +150,7 @@ XDriverListConnector::onCreateTouched(const shared_ptr<XNode> &)
         driver = m_list->createByTypename(XDriverList::typenames()[idx],
                  dlg->m_edName->text());
    if(!driver)
-        gErrPrint(i18n("Driver creation failed"));
+        gErrPrint(KAME::i18n("Driver creation failed"));
 }
 void
 XDriverListConnector::onReleaseTouched(const shared_ptr<XNode> &)

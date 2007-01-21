@@ -1,4 +1,3 @@
-####### kdevelop will overwrite this part!!! (begin)##########
 noinst_LIBRARIES = libnmr.a
 
 INCLUDES = -I$(top_srcdir)/kame \
@@ -8,8 +7,6 @@ INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_builddir)/kame/graph/forms \
 	-I$(top_builddir)/kame/users/nmr/forms \
 	$(all_includes)
-
-libnmr_a_METASOURCES = AUTO
 
 libnmr_a_SOURCES = pulserdriver.cpp pulserdriver.h \
 	pulserdriverconnector.cpp pulserdriverconnector.h \

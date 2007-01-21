@@ -37,7 +37,7 @@ protected:
    {
         tPrimaryDriver::replaceInterface(
             XNode::create<XOxfordInterface>(
-                tPrimaryDriver::interface()->getName().utf8(),
+                tPrimaryDriver::interface()->getName().c_str(),
                 tPrimaryDriver::interface()->isRunTime(),
                 tPrimaryDriver::interface()->driver()), interfaces);
    }

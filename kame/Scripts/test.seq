@@ -18,11 +18,16 @@ end
  
  
  x = Measurement["Drivers"]["driver1"]["X"]["Value"]
- for i in 1..10000
+ for i in 1..100
    Measurement["Drivers"].each_with_index {|item, index|
    	item.each_with_index {|item, index|
 	   	 p item["Value"].get, index unless item.name == "Interface"
 	}
    }
-  sleep 1
+  sleep 0.04
  end
+ for i in 1..10000000
+  print "Test\n"
+  sleep 0.001
+ end
+ 

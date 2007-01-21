@@ -74,10 +74,6 @@ class XNMRT1 : public XSecondaryDriver
   const shared_ptr<XUIntNode> &smoothSamples() const {return m_smoothSamples;}
   //! Distribution of P1 or 2tau
   const shared_ptr<XComboNode> &p1Dist() const {return m_p1Dist;}
-  //! Cycles for stabilize
-  const shared_ptr<XUIntNode> &ignoreCount() const {return m_ignoreCount;}
-  //! Extra Average
-  const shared_ptr<XUIntNode> &extraAvg() const {return m_extraAvg;}
   //! Relaxation Function
   const shared_ptr<XItemNode < XRelaxFuncList, XRelaxFunc > >  &relaxFunc() const {return m_relaxFunc;}
 
@@ -107,8 +103,6 @@ class XNMRT1 : public XSecondaryDriver
   shared_ptr<XBoolNode> m_t2Mode;
   shared_ptr<XUIntNode> m_smoothSamples;
   shared_ptr<XComboNode> m_p1Dist;
-  shared_ptr<XUIntNode> m_ignoreCount;
-  shared_ptr<XUIntNode> m_extraAvg;
   shared_ptr<XItemNode < XRelaxFuncList, XRelaxFunc > >  m_relaxFunc;
   shared_ptr<XNode> m_clearAll, m_resetFit;
   shared_ptr<XStringNode> m_fitStatus;
@@ -142,7 +136,7 @@ class XNMRT1 : public XSecondaryDriver
   xqcon_ptr m_conP1Dist, m_conRelaxFunc;
   xqcon_ptr m_conClearAll, m_conResetFit;
   xqcon_ptr m_conActive, m_conAutoPhase, m_conAbsFit;
-  xqcon_ptr m_conIgnoreCount, m_conT2Mode, m_conExtraAvg;
+  xqcon_ptr m_conT2Mode;
   xqcon_ptr m_conPulser, m_conPulse1, m_conPulse2;
 
   //! Raw measured points
@@ -166,14 +160,11 @@ class XNMRT1 : public XSecondaryDriver
   double m_params[3]; //!< fitting parameters; 1/T1, c, a; ex. f(t) = c*exp(-t/T1) + a
   double m_errors[3]; //!< std. deviations
   
-  int m_avgCount;
-  int m_ignoredCount;
-  
   //! Do fitting iterations \a itercnt times
   //! \param relax a pointer to a realaxation function
   //! \param itercnt counts 
   //! \param buf a message will be passed
-  QString iterate(shared_ptr<XRelaxFunc> &relax, int itercnt);
+  std::string iterate(shared_ptr<XRelaxFunc> &relax, int itercnt);
 
   std::complex<double> acuSpectrum (
     const std::deque< std::complex<double> >&wave, double df, double cf,

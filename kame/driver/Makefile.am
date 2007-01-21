@@ -6,8 +6,6 @@ INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_builddir)/kame/driver/forms \
 	$(all_includes)
 
-libdriver_a_METASOURCES = AUTO
-
 libdriver_a_SOURCES = interface.cpp interface.h \
 	oxford.cpp oxford.h \
 	gpib.cpp gpib.h serial.cpp serial.h \
@@ -18,9 +16,8 @@ libdriver_a_SOURCES = interface.cpp interface.h \
 	driverlistconnector.cpp driverlistconnector.h \
 	interfacelistconnector.cpp interfacelistconnector.h 
 
-####### kdevelop will overwrite this part!!! (end)############
-
 AM_CPPFLAGS = @LINUXGPIB_CFLAGS@
 
 METASOURCES = AUTO
+
 SUBDIRS = forms

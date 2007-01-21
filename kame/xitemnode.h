@@ -12,13 +12,11 @@ class XItemNodeBase : public XValueNodeBase
   explicit XItemNodeBase(const char *name, bool runtime = false);
  public:
   virtual ~XItemNodeBase() {}
-  virtual QString operator[](unsigned int index) const = 0;
-  virtual unsigned int itemCount() const = 0;
   
-  virtual void listLock() = 0;
-  virtual void listUnlock() = 0;
-  virtual const XRecursiveRWLock &listMutex() const = 0;
-  
+  struct Item {
+    std::string name, label;
+  };
+  virtual shared_ptr<const std::deque<Item> > itemStrings() const = 0;
   XTalker<shared_ptr<XItemNodeBase> >  &onListChanged() {return m_tlkOnListChanged;}
  private:
   XTalker<shared_ptr<XItemNodeBase> > m_tlkOnListChanged;
@@ -44,44 +42,37 @@ class XPointerItemNode : public XItemNodeBase
     }
  public:
   virtual ~XPointerItemNode() {}
-  virtual void listLock() {m_list->childLock();}
-  virtual void listUnlock() {m_list->childUnlock();}
 
-  virtual const XRecursiveRWLock &listMutex() const {return m_list->childMutex();}
-
-  virtual QString to_str() const {
+  virtual std::string to_str() const {
     shared_ptr<XNode> node(*this);
     if(node)
         return node->getName();
     else
-        return QString();
-  }
-  virtual unsigned int itemCount() const {
-      return m_list->count();
-  }
-  virtual QString operator[](unsigned int index) const {
-      return m_list->getItemName(index);
+        return std::string();
   }
   virtual operator shared_ptr<XNode>() const {return *m_var;}
   virtual void value(const shared_ptr<XNode> &t) = 0;
  protected:
-  virtual void _str(const QString &var) throw (XKameError &)
+  virtual void _str(const std::string &var) throw (XKameError &)
   {
-    if(var.isEmpty()) {
+    if(var.empty()) {
         value(shared_ptr<XNode>());
         return;
     }
-    XScopedReadLock<XRecursiveRWLock> lock(listMutex());
-    for(unsigned int i = 0; i < m_list->count(); i++) {
-      if(m_list->getItemName(i) == var) {
-           value((*m_list)[i]);
-           return;
-      }
+    atomic_shared_ptr<const XNode::NodeList> children(m_list->children());
+    if(children) { 
+        for(NodeList::const_iterator it = children->begin(); it != children->end(); it++) {
+          if((*it)->getName() == var) {
+               value(*it);
+               return;
+          }
+        }
     }
     _xpointeritemnode_throwConversionError();
   }
   atomic_shared_ptr<shared_ptr<XNode> > m_var;
   shared_ptr<TL> m_list;
+ protected:
  private:  
   void onItemReleased(const shared_ptr<XNode>& node)
   {
@@ -89,8 +80,8 @@ class XPointerItemNode : public XItemNodeBase
             value(shared_ptr<XNode>());
   }
   void lsnOnListChanged(const shared_ptr<XListNodeBase>&)
-  {      
-      onListChanged().talk(dynamic_pointer_cast<XItemNodeBase>(shared_from_this()));
+  {
+        onListChanged().talk(dynamic_pointer_cast<XItemNodeBase>(shared_from_this()));
   }
   shared_ptr<XListener> m_lsnOnItemReleased, m_lsnOnListChanged;
 };
@@ -101,19 +92,12 @@ class XItemNode : public XPointerItemNode<TL>
  XNODE_OBJECT
  protected:
   XItemNode(const char *name, bool runtime, const shared_ptr<TL> &list)
-   :  XPointerItemNode<TL>(name, runtime, list) {}
+   :  XPointerItemNode<TL>(name, runtime, list) {
+   }
  public:
   virtual ~XItemNode() {}
   virtual operator shared_ptr<T>() const {
         return dynamic_pointer_cast<T>(*XPointerItemNode<TL>::m_var);
-  }
-  virtual QString operator[](unsigned int index) const {
-      shared_ptr<T> p;
-      XPointerItemNode<TL>::m_list->getChild(index, p);
-      if(p)
-          return XPointerItemNode<TL>::m_list->getItemName(index);
-      else
-          return QString();
   }
   virtual void value(const shared_ptr<XNode> &t) {
     shared_ptr<XValueNodeBase> ptr = 
@@ -122,6 +106,22 @@ class XItemNode : public XPointerItemNode<TL>
     XPointerItemNode<TL>::m_tlkBeforeValueChanged.talk(ptr);
     XPointerItemNode<TL>::m_var.reset(new shared_ptr<XNode>(t));
     XPointerItemNode<TL>::m_tlkOnValueChanged.talk(ptr); //, 1, &statusmutex);
+  }
+  virtual shared_ptr<const std::deque<XItemNodeBase::Item> > itemStrings() const
+  {
+        shared_ptr<std::deque<XItemNodeBase::Item> > items(new std::deque<XItemNodeBase::Item>());
+        atomic_shared_ptr<const XNode::NodeList> children(XPointerItemNode<TL>::m_list->children());
+        if(children) {
+            for(XNode::NodeList::const_iterator it = children->begin(); it != children->end(); it++) {
+                if(dynamic_pointer_cast<T>(*it)) {
+                XItemNodeBase::Item item;
+                    item.name = (*it)->getName();
+                    item.label = (*it)->getLabel();
+                    items->push_back(item);
+                }
+            }
+        }
+        return items;
   }
  protected:
  private:
@@ -136,25 +136,19 @@ class XComboNode : public XItemNodeBase
   explicit XComboNode(const char *name, bool runtime = false);
  public:
   virtual ~XComboNode() {}
-
-  virtual void listLock();
-  virtual void listUnlock();
-  virtual const XRecursiveRWLock &listMutex() const {return m_listmutex;}
   
-  virtual QString to_str() const;
-  virtual void add(const QString &str);
+  virtual std::string to_str() const;
+  virtual void add(const std::string &str);
   virtual void clear();
-  QString operator[](unsigned int index) const;
-  virtual unsigned int itemCount() const;
   virtual operator int() const;
   virtual void value(int t);
-  virtual void value(const QString &);
+  virtual void value(const std::string &);
+  virtual shared_ptr<const std::deque<XItemNodeBase::Item> > itemStrings() const;
  protected:
-  virtual void _str(const QString &value) throw (XKameError &);
+  virtual void _str(const std::string &value) throw (XKameError &);
  private:
-  std::deque<QString> m_strings;
+  atomic_shared_ptr<std::deque<std::string> > m_strings;
   atomic<int> m_var;
-  XRecursiveRWLock m_listmutex;
   XRecursiveMutex m_write_mutex;
 };
 

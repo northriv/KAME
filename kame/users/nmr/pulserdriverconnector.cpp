@@ -11,7 +11,7 @@ XQPulserDriverConnector::XQPulserDriverConnector(
      : XQConnector(node, item),
       m_pulser(node),
       m_pTable(item),
-      m_graph(createOrphan<XGraph>(node->getName().utf8(), false))
+      m_graph(createOrphan<XGraph>(node->getName().c_str(), false))
 {
   shared_ptr<XPulser> pulser(node);    
   m_lsnOnPulseChanged = pulser->onRecord().connectWeak(
@@ -27,17 +27,21 @@ XQPulserDriverConnector::XQPulserDriverConnector(
   labels += "Diff [ms]";
   labels += "Pattern (Port 0, 1, ...)";
   m_pTable->setColumnLabels(labels);
+  m_pTable->setReadOnly(true);
+  m_pTable->setSelectionMode(QTable::MultiRow);
+
+  QHeader *header = m_pTable->verticalHeader();
+  header->setResizeEnabled(false);
+      
   connect(m_pTable, SIGNAL( selectionChanged()), this, SLOT(selectionChanged()) );
   connect(m_pTable, SIGNAL( clicked( int, int, int, const QPoint& )), this,
       SLOT( clicked( int, int, int, const QPoint& )));
 
-
     qgraph->setGraph(m_graph);
     
-    m_graph->axes()->childLock();
-    shared_ptr<XAxis> axisx = (*m_graph->axes())[0];
-    shared_ptr<XAxis> axisy = (*m_graph->axes())[1];
-    m_graph->axes()->childUnlock();
+    atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+    shared_ptr<XAxis> axisx = dynamic_pointer_cast<XAxis>(axes_list->at(0));
+    shared_ptr<XAxis> axisy = dynamic_pointer_cast<XAxis>(axes_list->at(1));
 
     axisy->ticLabelFormat()->value("%.0f");
     
@@ -57,7 +61,8 @@ XQPulserDriverConnector::XQPulserDriverConnector(
     for(int i=0; i < 16; i++)
     {
       shared_ptr<XXYPlot> plot = m_graph->plots()->create<XXYPlot>(
-            QString().sprintf("Port%d", i).utf8(), true, m_graph);
+            QString().sprintf("Port%d", i), true, m_graph);
+      plot->label()->value(QString().sprintf(KAME::i18n("Port%d"), i));
       plot->axisX()->value(axisx);
       plot->axisY()->value(axisy);
       m_plots.push_back(plot);
@@ -68,6 +73,7 @@ XQPulserDriverConnector::XQPulserDriverConnector(
       plot->maxCount()->setUIEnabled(false);
     }
     m_barPlot = m_graph->plots()->create<XXYPlot>("Bars", true, m_graph);
+    m_barPlot->label()->value(KAME::i18n("Bars"));
     m_barPlot->axisX()->value(axisx);
     m_barPlot->axisY()->value(axisy);
     m_barPlot->drawBars()->value(true);
@@ -83,7 +89,7 @@ XQPulserDriverConnector::XQPulserDriverConnector(
     m_barPlot->clearPoints()->setUIEnabled(false);
     m_barPlot->maxCount()->setUIEnabled(false);
 
-    m_graph->label()->value(i18n("Pulse Patterns"));
+    m_graph->label()->value(KAME::i18n("Pulse Patterns"));
 }
 
 XQPulserDriverConnector::~XQPulserDriverConnector()
@@ -107,7 +113,7 @@ void
 XQPulserDriverConnector::updateGraph(bool checkselection)
 {
     shared_ptr<XPulser> pulser(m_pulser);
-    m_graph->suspendUpdate();
+    XScopedLock<XGraph> lock(*m_graph);
     std::deque<XGraph::ValPoint> & barplot_points(m_barPlot->points());
     m_barPlot->maxCount()->value(pulser->m_relPatList.size());
     barplot_points.clear();
@@ -156,7 +162,6 @@ XQPulserDriverConnector::updateGraph(bool checkselection)
         axisx->maxValue()->value(lasttime);
     }        
     m_graph->requestUpdate();
-    m_graph->resumeUpdate();
 }
 
 void
@@ -193,14 +198,13 @@ XQPulserDriverConnector::onPulseChanged(const shared_ptr<XDriver> &)
     }
     else {
         m_pTable->setNumRows(0);
-        m_graph->suspendUpdate();
+        XScopedLock<XGraph> lock(*m_graph);
         for(std::deque<shared_ptr<XXYPlot> >::iterator it = m_plots.begin();
                 it != m_plots.end(); it++) {
             (*it)->clearAllPoints();
         }
         m_barPlot->clearAllPoints();
         m_graph->requestUpdate();
-        m_graph->resumeUpdate();
     }
     
     pulser->readUnlockRecord();    

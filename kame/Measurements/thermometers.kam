@@ -1,317 +1,390 @@
 # KAME2 measurement configuration file
 # Automatically created. KAME version. 2.0
-# date: Wed Dec 14 23:56:23 2005 +673ms
+# date: Thu Mar  2 17:52:31 2006 +756ms
 x = Array.new
 x << Measurement
 x << x.last["Thermometers"]
+	x << x.last.create("RawThermometer","Raw")
+		# x.last["TMin"]	# .load("0.001")
+		# x.last["TMax"]	# .load("1000")
+	x.pop
 	x << x.last.create("LakeShore","Cernox CX1050-AA-X11345 LF")
-		x.last["TMin"].value = "1.2906"
-		x.last["TMax"].value = "316.87"
-		x.last["RMin"].value = "47"
-		x.last["RMax"].value = "45000"
+		x.last["TMin"].load("1.2906")
+		x.last["TMax"].load("316.87")
+		x.last["RMin"].load("47")
+		x.last["RMax"].load("45000")
 		x << x.last["Zu"]
-			x.last.create("","").value = "4.6532"
-			x.last.create("","").value = "3.0298"
-			x.last.create("","").value = "2.2748"
+			x.last.create("DoubleNode","").load("4.6532")
+			x.last.create("DoubleNode","").load("3.0298")
+			x.last.create("DoubleNode","").load("2.2748")
 		x.pop
 		x << x.last["Zl"]
-			x.last.create("","").value = "3.0314"
-			x.last.create("","").value = "2.2751"
-			x.last.create("","").value = "1.6721"
+			x.last.create("DoubleNode","").load("3.0314")
+			x.last.create("DoubleNode","").load("2.2751")
+			x.last.create("DoubleNode","").load("1.6721")
 		x.pop
 		x << x.last["Ai"]
-			x << x.last.create("","")
-				x.last.create("","").value = "5.20759"
-				x.last.create("","").value = "-5.59749"
-				x.last.create("","").value = "2.26563"
-				x.last.create("","").value = "-0.747735"
-				x.last.create("","").value = "0.201996"
-				x.last.create("","").value = "-0.0437265"
-				x.last.create("","").value = "0.0043652"
+			x << x.last.create("ListNodeI11XDoubleNodeN5boost10shared_ptrIS0_EEE","")
+				x.last.create("DoubleNode","").load("5.2075866")
+				x.last.create("DoubleNode","").load("-5.5974918")
+				x.last.create("DoubleNode","").load("2.2656327")
+				x.last.create("DoubleNode","").load("-0.7477347")
+				x.last.create("DoubleNode","").load("0.2019965")
+				x.last.create("DoubleNode","").load("-0.0437265")
+				x.last.create("DoubleNode","").load("0.0043652")
 			x.pop
-			x << x.last.create("","")
-				x.last.create("","").value = "40.468"
-				x.last.create("","").value = "-32.266"
-				x.last.create("","").value = "6.7262"
-				x.last.create("","").value = "-0.90156"
-				x.last.create("","").value = "0.10043"
-				x.last.create("","").value = "-0.0055572"
-				x.last.create("","").value = "-0.0010819"
+			x << x.last.create("ListNodeI11XDoubleNodeN5boost10shared_ptrIS0_EEE","")
+				x.last.create("DoubleNode","").load("40.468")
+				x.last.create("DoubleNode","").load("-32.266")
+				x.last.create("DoubleNode","").load("6.7262")
+				x.last.create("DoubleNode","").load("-0.90156")
+				x.last.create("DoubleNode","").load("0.10043")
+				x.last.create("DoubleNode","").load("-0.0055572")
+				x.last.create("DoubleNode","").load("-0.0010819")
 			x.pop
-			x << x.last.create("","")
-				x.last.create("","").value = "177.98"
-				x.last.create("","").value = "-115.01"
-				x.last.create("","").value = "20.126"
-				x.last.create("","").value = "-3.0567"
-				x.last.create("","").value = "0.57233"
-				x.last.create("","").value = "-0.11296"
-				x.last.create("","").value = "0.027935"
-				x.last.create("","").value = "0.0018494"
+			x << x.last.create("ListNodeI11XDoubleNodeN5boost10shared_ptrIS0_EEE","")
+				x.last.create("DoubleNode","").load("177.98")
+				x.last.create("DoubleNode","").load("-115.01")
+				x.last.create("DoubleNode","").load("20.126")
+				x.last.create("DoubleNode","").load("-3.0567")
+				x.last.create("DoubleNode","").load("0.57233")
+				x.last.create("DoubleNode","").load("-0.11296")
+				x.last.create("DoubleNode","").load("0.027935")
+				x.last.create("DoubleNode","").load("0.0018494")
 			x.pop
 		x.pop
 	x.pop
 	x << x.last.create("LakeShore","Cernox CX1050-CU-1.4L-X20921 RP")
-		x.last["TMin"].value = "1.4"
-		x.last["TMax"].value = "325"
-		x.last["RMin"].value = "54.31"
-		x.last["RMax"].value = "25600"
+		x.last["TMin"].load("1.4")
+		x.last["TMax"].load("325")
+		x.last["RMin"].load("54.31")
+		x.last["RMax"].load("25600")
 		x << x.last["Zu"]
-			x.last.create("","").value = "4.57928"
-			x.last.create("","").value = "3.04585"
-			x.last.create("","").value = "2.34814"
+			x.last.create("DoubleNode","").load("4.57928049")
+			x.last.create("DoubleNode","").load("3.04584694207")
+			x.last.create("DoubleNode","").load("2.34813703362")
 		x.pop
 		x << x.last["Zl"]
-			x.last.create("","").value = "2.93045"
-			x.last.create("","").value = "2.24769"
-			x.last.create("","").value = "1.72925"
+			x.last.create("DoubleNode","").load("2.93044605")
+			x.last.create("DoubleNode","").load("2.24768792")
+			x.last.create("DoubleNode","").load("1.72924848")
 		x.pop
 		x << x.last["Ai"]
-			x << x.last.create("","")
-				x.last.create("","").value = "5.53503"
-				x.last.create("","").value = "-6.36183"
-				x.last.create("","").value = "2.79341"
-				x.last.create("","").value = "-1.00232"
-				x.last.create("","").value = "0.295707"
-				x.last.create("","").value = "-0.068265"
-				x.last.create("","").value = "0.009787"
+			x << x.last.create("ListNodeI11XDoubleNodeN5boost10shared_ptrIS0_EEE","")
+				x.last.create("DoubleNode","").load("5.535035")
+				x.last.create("DoubleNode","").load("-6.361829")
+				x.last.create("DoubleNode","").load("2.793409")
+				x.last.create("DoubleNode","").load("-1.002316")
+				x.last.create("DoubleNode","").load("0.295707")
+				x.last.create("DoubleNode","").load("-0.068265")
+				x.last.create("DoubleNode","").load("0.009787")
 			x.pop
-			x << x.last.create("","")
-				x.last.create("","").value = "41.8204"
-				x.last.create("","").value = "-37.5164"
-				x.last.create("","").value = "9.02739"
-				x.last.create("","").value = "-1.41962"
-				x.last.create("","").value = "0.183444"
-				x.last.create("","").value = "-0.013341"
-				x.last.create("","").value = "-0.005013"
+			x << x.last.create("ListNodeI11XDoubleNodeN5boost10shared_ptrIS0_EEE","")
+				x.last.create("DoubleNode","").load("41.820448")
+				x.last.create("DoubleNode","").load("-37.516391")
+				x.last.create("DoubleNode","").load("9.027386")
+				x.last.create("DoubleNode","").load("-1.419616")
+				x.last.create("DoubleNode","").load("0.183444")
+				x.last.create("DoubleNode","").load("-0.013341")
+				x.last.create("DoubleNode","").load("-0.005013")
 			x.pop
-			x << x.last.create("","")
-				x.last.create("","").value = "174.667"
-				x.last.create("","").value = "-125.858"
-				x.last.create("","").value = "24.494"
-				x.last.create("","").value = "-3.97179"
-				x.last.create("","").value = "0.802266"
-				x.last.create("","").value = "-0.179257"
-				x.last.create("","").value = "0.036402"
-				x.last.create("","").value = "-0.011356"
+			x << x.last.create("ListNodeI11XDoubleNodeN5boost10shared_ptrIS0_EEE","")
+				x.last.create("DoubleNode","").load("174.666612")
+				x.last.create("DoubleNode","").load("-125.857585")
+				x.last.create("DoubleNode","").load("24.493983")
+				x.last.create("DoubleNode","").load("-3.971787")
+				x.last.create("DoubleNode","").load("0.802266")
+				x.last.create("DoubleNode","").load("-0.179257")
+				x.last.create("DoubleNode","").load("0.036402")
+				x.last.create("DoubleNode","").load("-0.011356")
 			x.pop
 		x.pop
 	x.pop
 	x << x.last.create("LakeShore","Cernox CX1050-AA-X23328 saan")
-		x.last["TMin"].value = "1.3195"
-		x.last["TMax"].value = "314.87"
-		x.last["RMin"].value = "46.5"
-		x.last["RMax"].value = "10000"
+		x.last["TMin"].load("1.3195")
+		x.last["TMax"].load("314.87")
+		x.last["RMin"].load("46.5")
+		x.last["RMax"].load("10000")
 		x << x.last["Zu"]
-			x.last.create("","").value = "4"
-			x.last.create("","").value = "2.7283"
-			x.last.create("","").value = "2.1711"
+			x.last.create("DoubleNode","").load("4")
+			x.last.create("DoubleNode","").load("2.7283")
+			x.last.create("DoubleNode","").load("2.1711")
 		x.pop
 		x << x.last["Zl"]
-			x.last.create("","").value = "2.7285"
-			x.last.create("","").value = "2.1714"
-			x.last.create("","").value = "1.6675"
+			x.last.create("DoubleNode","").load("2.7285")
+			x.last.create("DoubleNode","").load("2.1714")
+			x.last.create("DoubleNode","").load("1.6675")
 		x.pop
 		x << x.last["Ai"]
-			x << x.last.create("","")
-				x.last.create("","").value = "5.11749"
-				x.last.create("","").value = "-5.50939"
-				x.last.create("","").value = "2.32197"
-				x.last.create("","").value = "-0.818433"
-				x.last.create("","").value = "0.256483"
-				x.last.create("","").value = "-0.062898"
-				x.last.create("","").value = "0.014277"
+			x << x.last.create("ListNodeI11XDoubleNodeN5boost10shared_ptrIS0_EEE","")
+				x.last.create("DoubleNode","").load("5.117493")
+				x.last.create("DoubleNode","").load("-5.50939")
+				x.last.create("DoubleNode","").load("2.321974")
+				x.last.create("DoubleNode","").load("-0.818433")
+				x.last.create("DoubleNode","").load("0.256483")
+				x.last.create("DoubleNode","").load("-0.062898")
+				x.last.create("DoubleNode","").load("0.014277")
 			x.pop
-			x << x.last.create("","")
-				x.last.create("","").value = "40.734"
-				x.last.create("","").value = "-32.256"
-				x.last.create("","").value = "6.235"
-				x.last.create("","").value = "-0.66163"
-				x.last.create("","").value = "0.064852"
-				x.last.create("","").value = "-0.0038196"
-				x.last.create("","").value = "-0.0030576"
+			x << x.last.create("ListNodeI11XDoubleNodeN5boost10shared_ptrIS0_EEE","")
+				x.last.create("DoubleNode","").load("40.734")
+				x.last.create("DoubleNode","").load("-32.256")
+				x.last.create("DoubleNode","").load("6.235")
+				x.last.create("DoubleNode","").load("-0.66163")
+				x.last.create("DoubleNode","").load("0.064852")
+				x.last.create("DoubleNode","").load("-0.0038196")
+				x.last.create("DoubleNode","").load("-0.0030576")
 			x.pop
-			x << x.last.create("","")
-				x.last.create("","").value = "178.57"
-				x.last.create("","").value = "-114.87"
-				x.last.create("","").value = "18.411"
-				x.last.create("","").value = "-2.4842"
-				x.last.create("","").value = "0.44574"
-				x.last.create("","").value = "-0.075723"
-				x.last.create("","").value = "0.013453"
-				x.last.create("","").value = "0.0011681"
+			x << x.last.create("ListNodeI11XDoubleNodeN5boost10shared_ptrIS0_EEE","")
+				x.last.create("DoubleNode","").load("178.57")
+				x.last.create("DoubleNode","").load("-114.87")
+				x.last.create("DoubleNode","").load("18.411")
+				x.last.create("DoubleNode","").load("-2.4842")
+				x.last.create("DoubleNode","").load("0.44574")
+				x.last.create("DoubleNode","").load("-0.075723")
+				x.last.create("DoubleNode","").load("0.013453")
+				x.last.create("DoubleNode","").load("0.0011681")
 			x.pop
 		x.pop
 	x.pop
 	x << x.last.create("LakeShore","Cernox CX1030-SD-0.3L-X14377 robin")
-		x.last["TMin"].value = "0.3"
-		x.last["TMax"].value = "325"
-		x.last["RMin"].value = "36.14"
-		x.last["RMax"].value = "110600"
+		x.last["TMin"].load("0.3")
+		x.last["TMax"].load("325")
+		x.last["RMin"].load("36.14")
+		x.last["RMax"].load("110600")
 		x << x.last["Zu"]
-			x.last.create("","").value = "5.27556"
-			x.last.create("","").value = "2.96757"
-			x.last.create("","").value = "2.34461"
-			x.last.create("","").value = "1.93973"
+			x.last.create("DoubleNode","").load("5.2755647")
+			x.last.create("DoubleNode","").load("2.967573")
+			x.last.create("DoubleNode","").load("2.34461")
+			x.last.create("DoubleNode","").load("1.939733")
 		x.pop
 		x << x.last["Zl"]
-			x.last.create("","").value = "2.85096"
-			x.last.create("","").value = "2.28783"
-			x.last.create("","").value = "1.86842"
-			x.last.create("","").value = "1.55374"
+			x.last.create("DoubleNode","").load("2.8509599")
+			x.last.create("DoubleNode","").load("2.287826")
+			x.last.create("DoubleNode","").load("1.8684219")
+			x.last.create("DoubleNode","").load("1.553739")
 		x.pop
 		x << x.last["Ai"]
-			x << x.last.create("","")
-				x.last.create("","").value = "1.09228"
-				x.last.create("","").value = "-1.2459"
-				x.last.create("","").value = "0.613688"
-				x.last.create("","").value = "-0.272877"
-				x.last.create("","").value = "0.112802"
-				x.last.create("","").value = "-0.044648"
-				x.last.create("","").value = "0.017064"
-				x.last.create("","").value = "-0.006297"
-				x.last.create("","").value = "0.002061"
-				x.last.create("","").value = "-0.000716"
+			x << x.last.create("ListNodeI11XDoubleNodeN5boost10shared_ptrIS0_EEE","")
+				x.last.create("DoubleNode","").load("1.092277")
+				x.last.create("DoubleNode","").load("-1.245902")
+				x.last.create("DoubleNode","").load("0.613688")
+				x.last.create("DoubleNode","").load("-0.272877")
+				x.last.create("DoubleNode","").load("0.112802")
+				x.last.create("DoubleNode","").load("-0.044648")
+				x.last.create("DoubleNode","").load("0.017064")
+				x.last.create("DoubleNode","").load("-0.006297")
+				x.last.create("DoubleNode","").load("0.002061")
+				x.last.create("DoubleNode","").load("-0.000716")
 			x.pop
-			x << x.last.create("","")
-				x.last.create("","").value = "9.40114"
-				x.last.create("","").value = "-9.27489"
-				x.last.create("","").value = "3.13395"
-				x.last.create("","").value = "-0.781475"
-				x.last.create("","").value = "0.132077"
-				x.last.create("","").value = "-0.007481"
-				x.last.create("","").value = "-0.002956"
+			x << x.last.create("ListNodeI11XDoubleNodeN5boost10shared_ptrIS0_EEE","")
+				x.last.create("DoubleNode","").load("9.401139")
+				x.last.create("DoubleNode","").load("-9.274892")
+				x.last.create("DoubleNode","").load("3.133954")
+				x.last.create("DoubleNode","").load("-0.781475")
+				x.last.create("DoubleNode","").load("0.132077")
+				x.last.create("DoubleNode","").load("-0.007481")
+				x.last.create("DoubleNode","").load("-0.002956")
 			x.pop
-			x << x.last.create("","")
-				x.last.create("","").value = "55.1948"
-				x.last.create("","").value = "-45.2274"
-				x.last.create("","").value = "9.18428"
-				x.last.create("","").value = "-1.1574"
-				x.last.create("","").value = "0.097745"
-				x.last.create("","").value = "0.006633"
-				x.last.create("","").value = "-0.003883"
+			x << x.last.create("ListNodeI11XDoubleNodeN5boost10shared_ptrIS0_EEE","")
+				x.last.create("DoubleNode","").load("55.194823")
+				x.last.create("DoubleNode","").load("-45.227421")
+				x.last.create("DoubleNode","").load("9.184285")
+				x.last.create("DoubleNode","").load("-1.157403")
+				x.last.create("DoubleNode","").load("0.097745")
+				x.last.create("DoubleNode","").load("0.006633")
+				x.last.create("DoubleNode","").load("-0.003883")
 			x.pop
-			x << x.last.create("","")
-				x.last.create("","").value = "188.015"
-				x.last.create("","").value = "-119.283"
-				x.last.create("","").value = "19.3702"
-				x.last.create("","").value = "-2.78631"
-				x.last.create("","").value = "0.535679"
-				x.last.create("","").value = "-0.09549"
-				x.last.create("","").value = "0.016253"
-			x.pop
-		x.pop
-	x.pop
-	x << x.last.create("LakeShore","ROX RX-202A-AA-0.05B-U01133 saan")
-		x.last["TMin"].value = "0.05"
-		x.last["TMax"].value = "40"
-		x.last["RMin"].value = "2193"
-		x.last["RMax"].value = "56160"
-		x << x.last["Zu"]
-			x.last.create("","").value = "4.82485"
-			x.last.create("","").value = "3.6765"
-			x.last.create("","").value = "3.43739"
-		x.pop
-		x << x.last["Zl"]
-			x.last.create("","").value = "3.6011"
-			x.last.create("","").value = "3.40892"
-			x.last.create("","").value = "3.33723"
-		x.pop
-		x << x.last["Ai"]
-			x << x.last.create("","")
-				x.last.create("","").value = "0.287532"
-				x.last.create("","").value = "-0.377508"
-				x.last.create("","").value = "0.206183"
-				x.last.create("","").value = "-0.100008"
-				x.last.create("","").value = "0.046252"
-				x.last.create("","").value = "-0.021118"
-				x.last.create("","").value = "0.009233"
-				x.last.create("","").value = "-0.004107"
-				x.last.create("","").value = "0.002141"
-			x.pop
-			x << x.last.create("","")
-				x.last.create("","").value = "2.77996"
-				x.last.create("","").value = "-3.05729"
-				x.last.create("","").value = "1.36109"
-				x.last.create("","").value = "-0.549012"
-				x.last.create("","").value = "0.206822"
-				x.last.create("","").value = "-0.073629"
-				x.last.create("","").value = "0.023933"
-				x.last.create("","").value = "-0.007315"
-			x.pop
-			x << x.last.create("","")
-				x.last.create("","").value = "18.191"
-				x.last.create("","").value = "-18.0422"
-				x.last.create("","").value = "6.31869"
-				x.last.create("","").value = "-1.87373"
-				x.last.create("","").value = "0.533655"
-				x.last.create("","").value = "-0.14589"
-				x.last.create("","").value = "0.040672"
+			x << x.last.create("ListNodeI11XDoubleNodeN5boost10shared_ptrIS0_EEE","")
+				x.last.create("DoubleNode","").load("188.015302")
+				x.last.create("DoubleNode","").load("-119.2827")
+				x.last.create("DoubleNode","").load("19.370189")
+				x.last.create("DoubleNode","").load("-2.786307")
+				x.last.create("DoubleNode","").load("0.535679")
+				x.last.create("DoubleNode","").load("-0.09549")
+				x.last.create("DoubleNode","").load("0.016253")
 			x.pop
 		x.pop
-	x.pop
-	x << x.last.create("CryoConcept","RuO2 CryoConcept Mix.")
-		x.last["TMin"].value = "0.003"
-		x.last["TMax"].value = "100"
-		x.last["RMin"].value = "1300"
-		x.last["RMax"].value = "300000"
-		x << x.last["Ai"]
-			x.last.create("","").value = "6454.72"
-			x.last.create("","").value = "-8488.42"
-			x.last.create("","").value = "4469.52"
-			x.last.create("","").value = "-1177.25"
-			x.last.create("","").value = "155.047"
-			x.last.create("","").value = "-8.16679"
-		x.pop
-		x.last["A"].value = "3.66348"
-		x.last["T0"].value = "0.08743"
-		x.last["R0"].value = "832.04"
-		x.last["RCrossover"].value = "7000"
 	x.pop
 	x << x.last.create("ScientificInstruments","SI-RuO2 u-Dilution 2197")
-		x.last["TMin"].value = "0.05"
-		x.last["TMax"].value = "20"
-		x.last["RMin"].value = "1102"
-		x.last["RMax"].value = "55187"
+		x.last["TMin"].load("0.05")
+		x.last["TMax"].load("20")
+		x.last["RMin"].load("1102")
+		x.last["RMax"].load("55187")
 		x << x.last["ABCDE"]
-			x.last.create("","").value = "0.277936"
-			x.last.create("","").value = "-0.325162"
-			x.last.create("","").value = "-0.0445365"
-			x.last.create("","").value = "0.0261067"
-			x.last.create("","").value = "0.00198329"
+			x.last.create("DoubleNode","").load("0.27793595097")
+			x.last.create("DoubleNode","").load("-0.3251619644")
+			x.last.create("DoubleNode","").load("-0.0445364651")
+			x.last.create("DoubleNode","").load("0.0261066949")
+			x.last.create("DoubleNode","").load("0.00198328651")
 		x.pop
 		x << x.last["ABC"]
-			x.last.create("","").value = "-0.377119"
-			x.last.create("","").value = "2.92569e-05"
-			x.last.create("","").value = "1.65651e-07"
+			x.last.create("DoubleNode","").load("-0.3771193572")
+			x.last.create("DoubleNode","").load("2.925693e-05")
+			x.last.create("DoubleNode","").load("1.6565086e-07")
 		x.pop
-		x.last["RCrossover"].value = "1408.3"
+		x.last["RCrossover"].load("1408.3")
 	x.pop
-	x << x.last.create("Raw","Raw")
-		x.last["TMin"].value = "0"
-		x.last["TMax"].value = "10000"
+	x << x.last.create("ApproxThermometer","RuO2 Cryoconcept Mix")
+		x.last["TMin"].load("0.007")
+		x.last["TMax"].load("10")
+		x << x.last["ResList"]
+			x.last.create("DoubleNode","").load("70000")
+			x.last.create("DoubleNode","").load("64821.32422")
+			x.last.create("DoubleNode","").load("51472.76563")
+			x.last.create("DoubleNode","").load("42474.39063")
+			x.last.create("DoubleNode","").load("30054.98633")
+			x.last.create("DoubleNode","").load("23865.80859")
+			x.last.create("DoubleNode","").load("20465.19336")
+			x.last.create("DoubleNode","").load("17549.13086")
+			x.last.create("DoubleNode","").load("14481.22363")
+			x.last.create("DoubleNode","").load("11949.64258")
+			x.last.create("DoubleNode","").load("9131.12793")
+			x.last.create("DoubleNode","").load("7830.04346")
+			x.last.create("DoubleNode","").load("6461.20947")
+			x.last.create("DoubleNode","").load("5540.55859")
+			x.last.create("DoubleNode","").load("4937.22998")
+			x.last.create("DoubleNode","").load("4399.59961")
+			x.last.create("DoubleNode","").load("3920.51343")
+			x.last.create("DoubleNode","").load("3630.46973")
+			x.last.create("DoubleNode","").load("3361.88379")
+			x.last.create("DoubleNode","").load("2995.79761")
+			x.last.create("DoubleNode","").load("2669.57593")
+			x.last.create("DoubleNode","").load("2289.19092")
+			x.last.create("DoubleNode","").load("2119.83398")
+			x.last.create("DoubleNode","").load("1888.99878")
+			x.last.create("DoubleNode","").load("1749.24854")
+			x.last.create("DoubleNode","").load("1683.2998")
+		x.pop
+		x << x.last["TempList"]
+			x.last.create("DoubleNode","").load("0.00794")
+			x.last.create("DoubleNode","").load("0.00846")
+			x.last.create("DoubleNode","").load("0.01033")
+			x.last.create("DoubleNode","").load("0.0123")
+			x.last.create("DoubleNode","").load("0.01724")
+			x.last.create("DoubleNode","").load("0.02199")
+			x.last.create("DoubleNode","").load("0.02611")
+			x.last.create("DoubleNode","").load("0.03126")
+			x.last.create("DoubleNode","").load("0.03968")
+			x.last.create("DoubleNode","").load("0.05121")
+			x.last.create("DoubleNode","").load("0.07563")
+			x.last.create("DoubleNode","").load("0.09643")
+			x.last.create("DoubleNode","").load("0.13323")
+			x.last.create("DoubleNode","").load("0.17846")
+			x.last.create("DoubleNode","").load("0.22491")
+			x.last.create("DoubleNode","").load("0.28659")
+			x.last.create("DoubleNode","").load("0.37001")
+			x.last.create("DoubleNode","").load("0.44281")
+			x.last.create("DoubleNode","").load("0.53507")
+			x.last.create("DoubleNode","").load("0.72795")
+			x.last.create("DoubleNode","").load("1.03065")
+			x.last.create("DoubleNode","").load("1.79563")
+			x.last.create("DoubleNode","").load("2.50206")
+			x.last.create("DoubleNode","").load("4.50952")
+			x.last.create("DoubleNode","").load("7.2047")
+			x.last.create("DoubleNode","").load("9.35722")
+		x.pop
+	x.pop
+	x << x.last.create("ApproxThermometer","RuO2 Cryoconcept Still")
+		x.last["TMin"].load("0.45")
+		x.last["TMax"].load("4.2")
+		x << x.last["ResList"]
+			x.last.create("DoubleNode","").load("975")
+			x.last.create("DoubleNode","").load("1075")
+			x.last.create("DoubleNode","").load("1150")
+			x.last.create("DoubleNode","").load("1225")
+			x.last.create("DoubleNode","").load("1375")
+			x.last.create("DoubleNode","").load("1450")
+			x.last.create("DoubleNode","").load("1600")
+			x.last.create("DoubleNode","").load("1875")
+			x.last.create("DoubleNode","").load("2275")
+			x.last.create("DoubleNode","").load("2500")
+			x.last.create("DoubleNode","").load("2975")
+			x.last.create("DoubleNode","").load("3300")
+			x.last.create("DoubleNode","").load("3625")
+			x.last.create("DoubleNode","").load("4000")
+			x.last.create("DoubleNode","").load("4125")
+			x.last.create("DoubleNode","").load("4200")
+		x.pop
+		x << x.last["TempList"]
+			x.last.create("DoubleNode","").load("4.196")
+			x.last.create("DoubleNode","").load("3.189")
+			x.last.create("DoubleNode","").load("2.694")
+			x.last.create("DoubleNode","").load("2.329")
+			x.last.create("DoubleNode","").load("1.833")
+			x.last.create("DoubleNode","").load("1.658")
+			x.last.create("DoubleNode","").load("1.396")
+			x.last.create("DoubleNode","").load("1.091")
+			x.last.create("DoubleNode","").load("0.842")
+			x.last.create("DoubleNode","").load("0.752")
+			x.last.create("DoubleNode","").load("0.621")
+			x.last.create("DoubleNode","").load("0.56")
+			x.last.create("DoubleNode","").load("0.512")
+			x.last.create("DoubleNode","").load("0.469")
+			x.last.create("DoubleNode","").load("0.457")
+			x.last.create("DoubleNode","").load("0.45")
+		x.pop
+	x.pop
+	x << x.last.create("ApproxThermometer","RuO2 Yonezo SampleStage3")
+		x.last["TMin"].load("0.009")
+		x.last["TMax"].load("0.7")
+		x << x.last["ResList"]
+			x.last.create("DoubleNode","").load("42927.875107")
+			x.last.create("DoubleNode","").load("21472.083647")
+			x.last.create("DoubleNode","").load("14778.138848")
+			x.last.create("DoubleNode","").load("2835.02611")
+			x.last.create("DoubleNode","").load("3468.25096")
+			x.last.create("DoubleNode","").load("4980.920317")
+			x.last.create("DoubleNode","").load("6879.444083")
+			x.last.create("DoubleNode","").load("8529.339777")
+			x.last.create("DoubleNode","").load("11030.41852")
+			x.last.create("DoubleNode","").load("13886.890024")
+			x.last.create("DoubleNode","").load("19009.522169")
+			x.last.create("DoubleNode","").load("25827.23052")
+			x.last.create("DoubleNode","").load("35358.811405")
+			x.last.create("DoubleNode","").load("47085.269215")
+			x.last.create("DoubleNode","").load("58532.616827")
+		x.pop
+		x << x.last["TempList"]
+			x.last.create("DoubleNode","").load("0.018187334")
+			x.last.create("DoubleNode","").load("0.038436429")
+			x.last.create("DoubleNode","").load("0.058428209")
+			x.last.create("DoubleNode","").load("0.66619384")
+			x.last.create("DoubleNode","").load("0.456817897")
+			x.last.create("DoubleNode","").load("0.249777573")
+			x.last.create("DoubleNode","").load("0.152976849")
+			x.last.create("DoubleNode","").load("0.114121138")
+			x.last.create("DoubleNode","").load("0.082241458")
+			x.last.create("DoubleNode","").load("0.062555703")
+			x.last.create("DoubleNode","").load("0.043792772")
+			x.last.create("DoubleNode","").load("0.031423445")
+			x.last.create("DoubleNode","").load("0.022568501")
+			x.last.create("DoubleNode","").load("0.01640331")
+			x.last.create("DoubleNode","").load("0.011599534")
+		x.pop
 	x.pop
 x.pop
 x.last["ScalarEntries"]
 x.last["GraphList"]
 x.last["ChartList"]
+x.last["Interfaces"]
 x.last["Drivers"]
 x << x.last["TextWriter"]
-	x.last["Filename"]	# .value = ""
-	x.last["Recording"]	# .value = "false"
+	x.last["Filename"]	# .load("")
+	x.last["LastLine"]	# .load("")
+	x.last["Recording"]	# .load("false")
 x.pop
 x << x.last["RawStreamRecorder"]
-	x.last["Filename"]	# .value = ""
-	x.last["Recording"]	# .value = "false"
+	x.last["Filename"]	# .load("")
+	x.last["Recording"]	# .load("false")
 x.pop
 x << x.last["RawStreamRecordReader"]
-	x.last["Filename"]	# .value = ""
-	x.last["Speed"]	# .value = "Fast"
-	x.last["FastForward"]	# .value = "false"
-	x.last["Rewind"]	# .value = "false"
+	x.last["Filename"]	# .load("")
+	x.last["Speed"]	# .load("Fast")
+	x.last["FastForward"]	# .load("false")
+	x.last["Rewind"]	# .load("false")
 	x.last["Stop"]
 	x.last["First"]
 	x.last["Next"]
 	x.last["Back"]
-	x.last["PosString"]	# .value = ""
+	x.last["PosString"]	# .load("")
 x.pop
-x.last["Interfaces"]

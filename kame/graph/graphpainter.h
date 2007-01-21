@@ -65,7 +65,7 @@ public:
   	AlignVCenter = 0x10,
   	AlignTop = 0x20
   };
-  void drawText(const XGraph::ScrPoint &p, const QString &str);
+  void drawText(const XGraph::ScrPoint &p, const std::string &str);
   
   //! make point outer perpendicular to \a dir by offset
   //! \param offset > 0 for outer, < 0 for inner. unit is of screen coord.
@@ -75,7 +75,7 @@ public:
   //! \param dir a direction where text be aligned
   //! \param width perp. to \a dir, restricting font size
   //! \return return 0 if succeeded
-  int selectFont(const QString &str, const XGraph::ScrPoint &start, 
+  int selectFont(const std::string &str, const XGraph::ScrPoint &start, 
     const XGraph::ScrPoint &dir, const XGraph::ScrPoint &width, int sizehint = 0);
     
   //! minimum resolution of screen coordinate.
@@ -139,7 +139,7 @@ private:
   SelectionMode m_selectionModeNow;
   XGraph::ScrPoint m_startScrPos, m_startScrDX, m_startScrDY;
   XGraph::ScrPoint m_finishScrPos, m_finishScrDX, m_finishScrDY;
-  QString m_onScreenMsg;
+  std::string m_onScreenMsg;
   int m_selStartPos[2];
   int m_tiltLastPos[2];
   
@@ -159,14 +159,16 @@ private:
   GLdouble m_model[16]; // Current Modelview matrix
   GLint m_viewport[4]; // Current Viewport
   
-  void checkGLError();
-  
+  //! ghost stuff
+  std::vector<GLubyte> m_lastFrame;
+  XTime m_modifiedTime;
+  XTime m_updatedTime;
 //   XGraph::ScrPoint DirProj; //direction vector of z of window coord.
   int m_curFontSize;
   int m_curAlign;
   static void openFont();
   static void closeFont();
-  static std::wstring qstring2wstring(const QString &str);
+  static std::wstring string2wstring(const std::string &str);
   static int s_fontRefCount;
   static FTFont *s_pFont;  
 };

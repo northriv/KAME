@@ -26,9 +26,7 @@ XDotWriter::write()
           << std::endl;
     m_ofs << "node [shape=box,style=filled,color=green];" << std::endl;
           
-    m_root->childLock();
     write(m_root);
-    m_root->childUnlock();
     m_ofs << "}"
           << std::endl;
 }
@@ -37,7 +35,7 @@ XDotWriter::write(const shared_ptr<XNode> &node)
 {
     if(std::find(m_nodes.begin(), m_nodes.end(), node) == m_nodes.end()) {
         m_ofs << "obj_" << (int)node.get()
-              << " [label=\"" << (const char*)node->getName().utf8()
+              << " [label=\"" << node->getName()
               << "\"]" << std::endl;
         m_nodes.push_back(node);
     }
@@ -45,11 +43,12 @@ XDotWriter::write(const shared_ptr<XNode> &node)
         
 //    shared_ptr<XListNodeBase> lnode = dynamic_pointer_cast<XListNodeBase>(node);
     int unnamed = 0;
-    for(unsigned int i = 0; i < node->count(); i++) {
-        shared_ptr<XNode> child = node->getChild<XNode>(i);
+    atomic_shared_ptr<const XNode::NodeList> list(m_root->children());
+    if(list) { 
+      for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+        shared_ptr<XNode> child = *it;
            
-        child->childLock();
-        if(child->getName().isEmpty()) {
+        if(child->getName().empty()) {
             unnamed++;
         }
         else {
@@ -59,7 +58,7 @@ XDotWriter::write(const shared_ptr<XNode> &node)
                   << std::endl;
             write(child);
         }
-        child->childUnlock();
+      }
     }
     if(unnamed) {
         m_unnamedcnt++;

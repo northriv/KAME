@@ -10,7 +10,8 @@ public:
     ~XRubyWriter();
     void write();
 private:
-    void write(const shared_ptr<XNode> &node, bool ghost, int level);
+    void write(const shared_ptr<XNode> &node,
+         const atomic_shared_ptr<const XNode::NodeList> &list, bool ghost, int level);
     shared_ptr<XNode> m_root;
     std::ofstream &m_ofs;    
 };

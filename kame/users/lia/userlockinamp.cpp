@@ -78,6 +78,8 @@ XSR830::afterStart()
       sensitivity()->value(interface()->toInt());
       interface()->query("SLVL?");
       output()->value(interface()->toDouble());
+      interface()->query("FREQ?");
+      frequency()->value(interface()->toDouble());
 }
 void
 XSR830::beforeStop()
@@ -177,9 +179,9 @@ XAH2500A::changeTimeConst(int x)
 void
 XAH2500A::changeSensitivity(int )
 {
-    throw XInterface::XInterfaceError(i18n("Operation not supported."), __FILE__, __LINE__);
+    throw XInterface::XInterfaceError(KAME::i18n("Operation not supported."), __FILE__, __LINE__);
 }
 void
 XAH2500A::changeFreq(double ) {
-    throw XInterface::XInterfaceError(i18n("Operation not supported."), __FILE__, __LINE__);
+    throw XInterface::XInterfaceError(KAME::i18n("Operation not supported."), __FILE__, __LINE__);
 }

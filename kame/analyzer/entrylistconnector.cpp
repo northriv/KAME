@@ -1,7 +1,6 @@
 #include "entrylistconnector.h"
 #include "analyzer.h"
 #include "driver.h"
-#include <qdeepcopy.h>
 #include <qtable.h>
 #include <qlabel.h>
 #include <qpushbutton.h>
@@ -14,7 +13,6 @@
 XEntryListConnector::XEntryListConnector
   (const shared_ptr<XScalarEntryList> &node, QTable *item, const shared_ptr<XChartList> &chartlist)
   : XListQConnector(node, item),
-  m_pItem(item),
   m_chartList(chartlist)
 {
   connect(item, SIGNAL( clicked( int, int, int, const QPoint& )),
@@ -26,24 +24,18 @@ XEntryListConnector::XEntryListConnector
   m_pItem->setColumnWidth(2, (int)(def * 0.8));
   m_pItem->setColumnWidth(3, (int)(def * 2.5));
   QStringList labels;
-  labels += i18n("Entry");
-  labels += i18n("Value");
-  labels += i18n("Store");
-  labels += i18n("Delta");
+  labels += KAME::i18n("Entry");
+  labels += KAME::i18n("Value");
+  labels += KAME::i18n("Store");
+  labels += KAME::i18n("Delta");
   m_pItem->setColumnLabels(labels);
-  node->childLock();
-  for(unsigned int i = 0; i < node->count(); i++)
-    onCatch((*node)[i]);
-  node->childUnlock();
+  
+  atomic_shared_ptr<const XNode::NodeList> list(node->children());
+  if(list) {
+      for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++)
+        onCatch(*it);
+  }
 }
-XEntryListConnector::~XEntryListConnector()
-{
-    if(isItemAlive()) {
-      disconnect(m_pItem, NULL, this, NULL );
-      m_pItem->setNumRows(0);
-    }
-}
-
 void
 XEntryListConnector::onRecord(const shared_ptr<XDriver> &driver)
 {
@@ -53,7 +45,7 @@ XEntryListConnector::onRecord(const shared_ptr<XDriver> &driver)
 	   {
         	   tcons::tlisttext text;
             text.label = (*it)->label;
-            text.str.reset(new QString(QDeepCopy<QString>((*it)->entry->value()->to_str())));
+            text.str.reset(new std::string((*it)->entry->value()->to_str()));
             (*it)->tlkOnRecordRedirected->talk(text);
     	   }
     }
@@ -66,17 +58,21 @@ XEntryListConnector::tcons::onRecordRedirected(const tlisttext &text)
 
 void
 XEntryListConnector::clicked ( int row, int col, int, const QPoint& ) {
-    m_chartList->childLock();
       switch(col) {
       case 0:
       case 1:
-        if((row >= 0) && (row < (int)m_chartList->count()))
-            (*m_chartList)[row]->showChart();
+        {
+          atomic_shared_ptr<const XNode::NodeList> list(m_chartList->children());
+          if(list) {
+              if((row >= 0) && (row < (int)list->size())) {
+                 dynamic_pointer_cast<XValChart>(list->at(row))->showChart();
+              }
+          }
+        }
         break;
       default:
         break;
       }
-    m_chartList->childUnlock();
 }
 void
 XEntryListConnector::onRelease(const shared_ptr<XNode> &node)
@@ -105,7 +101,7 @@ XEntryListConnector::onCatch(const shared_ptr<XNode> &node)
   shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(node);
   int i = m_pItem->numRows();
   m_pItem->insertRows(i);
-  m_pItem->setText(i, 0, entry->getEntryTitle());
+  m_pItem->setText(i, 0, entry->getLabel());
 
   shared_ptr<XDriver> driver = entry->driver();
   if(m_lsnOnRecord)
@@ -115,7 +111,6 @@ XEntryListConnector::onCatch(const shared_ptr<XNode> &node)
         false, shared_from_this(), &XEntryListConnector::onRecord);
 
   m_cons.push_back(shared_ptr<tcons>(new tcons));
-  m_cons.back()->row = i;
   m_cons.back()->entry = entry;
   m_cons.back()->label = new QLabel(m_pItem);
   m_pItem->setCellWidget(i, 1, m_cons.back()->label);

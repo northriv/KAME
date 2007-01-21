@@ -1,5 +1,7 @@
 #include <errno.h>
+
 #include <string.h>
+
 #include <klocale.h>
 #include "support.h"
 #include "xtime.h"
@@ -24,7 +26,7 @@
         char *msg = (char*)data;
         gErrPrint(QString("Memory Leak! addr=%1, %2")
             .arg((unsigned int)obj, 0, 16)
-            .arg(QString::fromUtf8(msg)));
+            .arg(msg);
         free(msg);
     }
     void *kame_gc::operator new(size_t size) {
@@ -55,6 +57,7 @@
     }
 #endif // NDEBUG
 
+
 XKameError::XKameError(const QString &s, const char *file, int line)
      : m_msg(s), m_file(file), m_line(line), m_errno(errno) {
     errno = 0;
@@ -69,14 +72,19 @@ XKameError::print() {
 }
 void
 XKameError::print(const QString &msg, const char *file, int line, int _errno) {
-    char buf[256];
     if(_errno) {
         errno = 0;
+        char buf[256];
+    #ifdef __linux__
+        char *s = strerror_r(_errno, buf, sizeof(buf));
+         _gErrPrint(msg + " " + s, file, line);
+    #else
         strerror_r(_errno, buf, sizeof(buf));
         if(!errno)
-                 _gErrPrint(msg + " " + QString::fromUtf8(buf), file, line);
+                 _gErrPrint(msg + " " + buf, file, line);
         else
                  _gErrPrint(msg + " (strerror failed)", file, line);
+     #endif
         errno = 0;
     }
     else {
@@ -95,8 +103,9 @@ bool g_bLogDbgPrint;
 #include <iostream>
 #include <fstream>
 
-std::ofstream g_debugofs("/tmp/kame.log", std::ios::out);
-
+#include <thread.h>
+static std::ofstream g_debugofs("/tmp/kame.log", std::ios::out);
+static XMutex g_debug_mutex;
 
 double roundlog10(double val)
 {
@@ -116,8 +125,6 @@ double setprec(double val, double prec)
 
 
 //---------------------------------------------------------------------------
-#include <thread.h>
-
 #include "xtime.h"
 
 
@@ -125,6 +132,7 @@ void
 _dbgPrint(const QString &str, const char *file, int line)
 {
   if(!g_bLogDbgPrint) return;
+  XScopedLock<XMutex> lock(g_debug_mutex);
   g_debugofs 
   	<< (const char*)(QString("0x%1:%2:%3:%4 %5")
         .arg((unsigned int)threadID(), 0, 16)
@@ -138,26 +146,77 @@ _dbgPrint(const QString &str, const char *file, int line)
 void
 _gErrPrint(const QString &str, const char *file, int line)
 {
-  g_debugofs 
-    << (const char*)(QString("Err:0x%1:%2:%3:%4 %5")
-        .arg((unsigned int)threadID(), 0, 16)
-        .arg(XTime::now().getTimeStr())
-        .arg(file)
-        .arg(line)
-        .arg(str))
-        .local8Bit()
-    << std::endl;
-  fprintf(stderr, "err:%s:%d %s\n", file, line, (const char*)str.local8Bit());
+   {
+      XScopedLock<XMutex> lock(g_debug_mutex);
+      g_debugofs 
+        << (const char*)(QString("Err:0x%1:%2:%3:%4 %5")
+            .arg((unsigned int)threadID(), 0, 16)
+            .arg(XTime::now().getTimeStr())
+            .arg(file)
+            .arg(line)
+            .arg(str))
+            .local8Bit()
+        << std::endl;
+      fprintf(stderr, "err:%s:%d %s\n", file, line, (const char*)str.local8Bit());
+   }
   shared_ptr<XStatusPrinter> statusprinter = g_statusPrinter;
   if(statusprinter) statusprinter->printError(str);
 }
-
-QString formatDouble(const char *fmt, double var)
+void
+_gWarnPrint(const QString &str, const char *file, int line)
 {
-    char cbuf[128];
+   {
+      XScopedLock<XMutex> lock(g_debug_mutex);
+      g_debugofs 
+        << (const char*)(QString("Warn:0x%1:%2:%3:%4 %5")
+            .arg((unsigned int)threadID(), 0, 16)
+            .arg(XTime::now().getTimeStr())
+            .arg(file)
+            .arg(line)
+            .arg(str))
+            .local8Bit()
+        << std::endl;
+      fprintf(stderr, "warn:%s:%d %s\n", file, line, (const char*)str.local8Bit());
+   }
+  shared_ptr<XStatusPrinter> statusprinter = g_statusPrinter;
+  if(statusprinter) statusprinter->printWarning(str);
+}
+
+#define SNPRINT_BUF_SIZE 128
+#include <stdarg.h>
+#include <vector>
+
+std::string
+formatString(const char *fmt, ...)
+{
+  va_list ap;
+  int buf_size = SNPRINT_BUF_SIZE;
+  std::vector<char> buf;
+  for(;;) {
+      buf.resize(buf_size);
+   int ret;
+    
+      va_start(ap, fmt);
+    
+      ret = vsnprintf(&buf[0], buf_size, fmt, ap);
+    
+      va_end(ap);
+      
+      if(ret < 0) throw XKameError(KAME::i18n("Mal-format conversion."), __FILE__, __LINE__);
+      if(ret < buf_size) break;
+      
+      buf_size *= 2;
+  }
+  
+  return std::string((char*)&buf[0]);
+}
+
+std::string formatDouble(const char *fmt, double var)
+{
+    char cbuf[SNPRINT_BUF_SIZE];
       if(strlen(fmt) == 0) {
-          snprintf(cbuf, sizeof(cbuf), "%g", var);
-          return QString(cbuf);
+          snprintf(cbuf, sizeof(cbuf), "%.12g", var);
+          return std::string(cbuf);
       }
       
       if(!strncmp(fmt, "TIME:", 5)) {
@@ -169,12 +228,12 @@ QString formatDouble(const char *fmt, double var)
                 return time.getTimeStr(false);
       }
       snprintf(cbuf, sizeof(cbuf), fmt, var);
-      return QString(cbuf);
+      return std::string(cbuf);
 }
-void formatDoubleValidator(QString &fmt) {
-    if(fmt.isEmpty()) return;
+void formatDoubleValidator(std::string &fmt) {
+    if(fmt.empty()) return;
 
-    std::string buf(fmt.local8Bit());
+    std::string buf(QString(fmt).latin1());
 
     if(!strncmp(buf.c_str(), "TIME:", 5)) return;
     
@@ -188,25 +247,51 @@ void formatDoubleValidator(QString &fmt) {
         }
         arg_cnt++;
         if(arg_cnt > 1) {
-            throw XKameError(i18n("Illegal Format, too many %s."), __FILE__, __LINE__);
+            throw XKameError(KAME::i18n("Illegal Format, too many %s."), __FILE__, __LINE__);
         }
         char conv;
         if((sscanf(buf.c_str() + pos, "%*[+-'0# ]%*f%c", &conv) != 1) &&
             (sscanf(buf.c_str() + pos, "%*[+-'0# ]%c", &conv) != 1) &&
             (sscanf(buf.c_str() + pos, "%*f%c", &conv) != 1) &&
             (sscanf(buf.c_str() + pos, "%c", &conv) != 1)) {
-            throw XKameError(i18n("Illegal Format."), __FILE__, __LINE__);                
+            throw XKameError(KAME::i18n("Illegal Format."), __FILE__, __LINE__);                
         }
         if(std::string("eEgGf").find(conv) == std::string::npos)
-            throw XKameError(i18n("Illegal Format, no float conversion."), __FILE__, __LINE__);  
+            throw XKameError(KAME::i18n("Illegal Format, no float conversion."), __FILE__, __LINE__);  
     }
     if(arg_cnt == 0)
-        throw XKameError(i18n("Illegal Format, no %."), __FILE__, __LINE__);
+        throw XKameError(KAME::i18n("Illegal Format, no %."), __FILE__, __LINE__);
 }
 
-static XThreadLocal<unsigned int> stl_random_seed;
+std::string dumpCString(const char *cstr)
+{
+    std::string buf;
+    for(; *cstr; cstr++) {
+        if(isprint(*cstr))
+            buf.append(1, *cstr);
+        else {
+            char s[4];
+            snprintf(s, 4, "\\x%02x", (unsigned int)*cstr);
+            buf.append(s);
+        }
+    }
+    return buf;
+}
+
+#include <qdeepcopy.h>
+
 namespace KAME {
+    static XThreadLocal<unsigned int> stl_random_seed;
+    static XMutex i18n_mutex;
     unsigned int rand() {
         return rand_r(&(*stl_random_seed));
     }
+    //! thread-safe version of i18n().
+    //! this is not needed in QT4 or later.
+    QString i18n(const char* eng)
+    {
+        XScopedLock<XMutex> lock(i18n_mutex);
+        return QDeepCopy<QString>(::i18n(eng));
+    }
 }
+

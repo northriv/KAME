@@ -32,13 +32,13 @@
                 </property>
                 <widget class="QPushButton" row="2" column="0">
                     <property name="name">
-                        <cstring>btnDump</cstring>
+                        <cstring>btnDisplay</cstring>
                     </property>
                     <property name="acceptDrops">
                         <bool>false</bool>
                     </property>
                     <property name="text">
-                        <string>Dump Table</string>
+                        <string>Display</string>
                     </property>
                     <property name="autoDefault">
                         <bool>false</bool>
@@ -212,7 +212,7 @@
     <tabstop>cmbThermometer</tabstop>
     <tabstop>edTemp</tabstop>
     <tabstop>edValue</tabstop>
-    <tabstop>btnDump</tabstop>
+    <tabstop>btnDisplay</tabstop>
 </tabstops>
 <slots>
     <slot>btnOK_clicked()</slot>

@@ -97,7 +97,7 @@ XPS120::toNonPersistent()
         }
       if(ret != 0)
             throw XInterface::XInterfaceError(
-            i18n("Cannot enter non-persistent mode. Output is busy."), __FILE__, __LINE__);
+            KAME::i18n("Cannot enter non-persistent mode. Output is busy."), __FILE__, __LINE__);
     
       //Set to HOLD
       setActivity(0);
@@ -273,7 +273,7 @@ XPS120::setPCSHeater(bool val) throw (XInterface::XInterfaceError&)
   msecsleep(200);
   if(isPCSHeaterOn() != val)
      throw XInterface::XInterfaceError(
-        i18n("Persistent Switch Heater not responding"), __FILE__, __LINE__);
+        KAME::i18n("Persistent Switch Heater not responding"), __FILE__, __LINE__);
 }
 void
 XIPS120::setRate(double hpm)

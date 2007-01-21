@@ -19,23 +19,20 @@ class XEntryListConnector : public XListQConnector
   XEntryListConnector
   (const shared_ptr<XScalarEntryList> &node, QTable *item, const shared_ptr<XChartList> &chartlist);
  public:
-  virtual ~XEntryListConnector();
+  virtual ~XEntryListConnector() {}
  protected:
-  virtual void onListChanged(const shared_ptr<XListNodeBase> &) {}
   virtual void onCatch(const shared_ptr<XNode> &node);
   virtual void onRelease(const shared_ptr<XNode> &node);
  protected slots:
     void clicked ( int row, int col, int button, const QPoint& );
  private:
-  QTable *m_pItem;
   shared_ptr<XChartList> m_chartList;
 
   struct tcons {
       struct tlisttext {
         QLabel *label;
-        shared_ptr<QString> str;
+        shared_ptr<std::string> str;
       };
-    int row;
     xqcon_ptr constore, condelta;
     QLabel *label;
     shared_ptr<XScalarEntry> entry;

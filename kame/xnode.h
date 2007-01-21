@@ -51,23 +51,20 @@ class XNode : public enable_shared_from_this<XNode>
   template <class T, typename X, typename Y, typename Z, typename ZZ>
   shared_ptr<T> create(const char *name, bool runtime, X x, Y y, Z z, ZZ z);
   
-  QString getName() const;
+  //! \return internal/script name. Use latin1 chars.
+  std::string getName() const;
+  //! \return i18n name for UI.
+  virtual std::string getLabel() const {return getName();}
   std::string getTypename() const;
  
   shared_ptr<XNode> getChild(const std::string &var) const;
 
-  template <class T>
-  shared_ptr<T> getChild(unsigned int i) const;
-  //! alternative for buggy compiler
-  template <class T>
-  void getChild(unsigned int i, shared_ptr<T>&) const;
+  typedef std::deque<shared_ptr<XNode> > NodeList;
+  //! \return null if node has no child.
+  atomic_shared_ptr<const NodeList> children() const {return m_children;}
   
   void clearChildren();
-  int releaseChild(unsigned int index);
   int releaseChild(const shared_ptr<XNode> &node);
-
-  //! # of children
-  unsigned int count() const;
 
   bool isRunTime() const {return m_bRunTime;}
 
@@ -85,19 +82,10 @@ class XNode : public enable_shared_from_this<XNode>
   //! If true, operation allowed by GUI
   //! \sa setUIEnabled
    XTalker<shared_ptr<XNode> > &onUIEnabled() {return m_tlkOnUIEnabled;}
-
-  void childLock() const;
-  void childUnlock() const;
-  const XRecursiveRWLock &childMutex() const {return m_childmutex;}
   
   virtual void insert(const shared_ptr<XNode> &ptr);
- protected:
-
-  typedef std::deque<shared_ptr<XNode> > tchildren; 
-  
-  tchildren m_children;
-  typedef tchildren::iterator tchildren_it;
-  XRecursiveRWLock m_childmutex;
+ protected:  
+  atomic_shared_ptr<NodeList> m_children;
   
   XTalker<shared_ptr<XNode> > m_tlkOnTouch;
   XTalker<shared_ptr<XNode> > m_tlkOnUIEnabled;
@@ -106,7 +94,7 @@ class XNode : public enable_shared_from_this<XNode>
   bool m_bRunTime;
   bool m_bUIEnabled;
   
-  static XThreadLocal<std::deque<shared_ptr<XNode> > > stl_thisCreating;
+  static XThreadLocal<NodeList> stl_thisCreating;
 };
 
 //! Base class containing values
@@ -117,12 +105,13 @@ class XValueNodeBase : public XNode
   explicit XValueNodeBase(const char *name, bool runtime = false);
  public:
   //! Get value as a string, which is used as XML meta data.
-  virtual QString to_str() const = 0;
+  virtual std::string to_str() const = 0;
   //! Set value as a string, which is used as XML meta data.
   //! throw exception when validator throws.
   void str(const QString &str) throw (XKameError &);
+  void str(const std::string &str) throw (XKameError &);
 
-  typedef void (*Validator)(QString &);
+  typedef void (*Validator)(std::string &);
   //! validator can throw \a XKameError, if it detects conversion errors.
   //! never insert when str() may be called.
   void setValidator(Validator);
@@ -132,7 +121,7 @@ class XValueNodeBase : public XNode
   XTalker<shared_ptr<XValueNodeBase> > &onValueChanged() 
          {return m_tlkOnValueChanged;}
  protected:
-  virtual void _str(const QString &str) throw (XKameError &) = 0;
+  virtual void _str(const std::string &str) throw (XKameError &) = 0;
   
   XTalker<shared_ptr<XValueNodeBase> > m_tlkBeforeValueChanged;
   XTalker<shared_ptr<XValueNodeBase> > m_tlkOnValueChanged;
@@ -146,13 +135,13 @@ class XDoubleNode : public XValueNodeBase
   explicit XDoubleNode(const char *name, bool runtime = false, const char *format = 0L);
  public:
   virtual ~XDoubleNode() {}
-  virtual QString to_str() const;
+  virtual std::string to_str() const;
   virtual void value(const double &t);
   virtual operator double() const;
   const char *format() const;
   void setFormat(const char* format);
  protected:
-  virtual void _str(const QString &str) throw (XKameError &);
+  virtual void _str(const std::string &str) throw (XKameError &);
  private:
   atomic_shared_ptr<double> m_var;
   std::string m_format;
@@ -166,14 +155,14 @@ class XStringNode : public XValueNodeBase
   explicit XStringNode(const char *name, bool runtime = false);
  public:
   virtual ~XStringNode() {}
-  virtual QString to_str() const;
-  virtual operator QString() const;
-  void operator=(const QString &str);
-  virtual void value(const QString &t);
+  virtual std::string to_str() const;
+  virtual operator std::string() const;
+  void operator=(const std::string &str);
+  virtual void value(const std::string &t);
  protected:
-  virtual void _str(const QString &str) throw (XKameError &);
+  virtual void _str(const std::string &str) throw (XKameError &);
  private:
-  atomic_shared_ptr<QString> m_var;
+  atomic_shared_ptr<std::string> m_var;
   XRecursiveMutex m_valuemutex;
 };
 
@@ -188,10 +177,10 @@ class XValueNode : public XValueNodeBase
  public:
   virtual ~XValueNode() {}
   virtual operator T() const {return m_var;}
-  virtual QString to_str() const;
+  virtual std::string to_str() const;
   virtual void value(const T &t);
  protected:
-  virtual void _str(const QString &str) throw (XKameError &);
+  virtual void _str(const std::string &str) throw (XKameError &);
   atomic<T> m_var;
   XRecursiveMutex m_valuemutex;
  private:
@@ -288,23 +277,6 @@ createOrphan(const char *name, bool runtime, X x, Y y, Z z, ZZ zz)
       XNode::stl_thisCreating->pop_back();
       return ptr;
   }
-
-
-template <class T>
-shared_ptr<T>
-XNode::getChild(unsigned int i) const {
-    ASSERT(m_childmutex.isLocked());
-    ASSERT(i < count());
-    return dynamic_pointer_cast<T>(m_children[i]);
-}
-
-template <class T>
-void
-XNode::getChild(unsigned int i, shared_ptr<T>& p) const {
-    ASSERT(m_childmutex.isLocked());
-    ASSERT(i < count());
-    p = dynamic_pointer_cast<T>(m_children[i]);
-}
 
 //---------------------------------------------------------------------------
 #endif

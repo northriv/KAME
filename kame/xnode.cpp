@@ -1,12 +1,12 @@
 #include "xnode.h"
 #include <klocale.h>
 #include <typeinfo>
-#include <qdeepcopy.h>
 
 XThreadLocal<std::deque<shared_ptr<XNode> > > XNode::stl_thisCreating;
 
 //---------------------------------------------------------------------------
 XNode::XNode(const char *name, bool runtime)
+ : m_children()
 {
      // temporaly shared_ptr to be able to use shared_from_this() in constructors
       XNode::stl_thisCreating->push_back(shared_ptr<XNode>(this));
@@ -22,9 +22,9 @@ XNode::XNode(const char *name, bool runtime)
 XNode::~XNode() {
       dbgPrint(QString("xnode %1 is being deleted., addr=0x%2").arg(getName()).arg((unsigned int)this, 0, 16));
 }
-QString
+std::string
 XNode::getName() const {
-    return QString::fromUtf8(m_name.c_str());
+    return m_name;
 }
 std::string
 XNode::getTypename() const {
@@ -38,18 +38,12 @@ void
 XNode::insert(const shared_ptr<XNode> &ptr)
 {
     ASSERT(ptr);
-    XScopedWriteLock<XRecursiveRWLock> lock(m_childmutex);
-    m_children.push_back(ptr);
-}
-void
-XNode::childLock() const
-{
-    m_childmutex.readLock();
-}
-void
-XNode::childUnlock() const
-{
-    m_childmutex.readUnlock();
+    for(;;) {
+        atomic_shared_ptr<NodeList> old_list(m_children);
+        atomic_shared_ptr<NodeList> new_list(old_list ? (new NodeList(*old_list)) : (new NodeList));        
+        new_list->push_back(ptr);
+        if(new_list.compareAndSwap(old_list, m_children)) break;
+    }
 }
 
 void
@@ -62,55 +56,41 @@ XNode::touch() {
     onTouch().talk(shared_from_this());
 }
 
-unsigned int
-XNode::count() const
-{
-    ASSERT(m_childmutex.isLocked());
-    return m_children.size();
-}
-
 void
 XNode::clearChildren()
 {
-  XScopedWriteLock<XRecursiveRWLock> lock(m_childmutex);
-  m_children.clear();
-}
-int
-XNode::releaseChild(unsigned int index)
-{
-  tchildren_it  it;
-  XScopedWriteLock<XRecursiveRWLock> lock(m_childmutex);
-  it = m_children.begin();
-  for(unsigned int i = 0; i < index; i++) it++;
-  ASSERT(it != m_children.end());
-  m_children.erase(it);
-  return 0;
+    m_children.reset();
 }
 int
 XNode::releaseChild(const shared_ptr<XNode> &node)
 {
-  tchildren_it it;
-  XScopedWriteLock<XRecursiveRWLock> lock(m_childmutex);
-  it = find(m_children.begin(), m_children.end(), node);
-  ASSERT(it != m_children.end());
-  m_children.erase(it);
-  return 0;
+    for(;;) {
+        atomic_shared_ptr<NodeList> old_list(m_children);
+        if(!old_list) return -1;
+        atomic_shared_ptr<NodeList> new_list(new NodeList(*old_list));
+        NodeList::iterator it = find(new_list->begin(), new_list->end(), node);
+        if(it == new_list->end()) return -1;
+        new_list->erase(it);
+        if(new_list->empty())
+            new_list.reset();
+        if(new_list.compareAndSwap(old_list, m_children)) break;
+    }
+    return 0;
 }
 
 shared_ptr<XNode>
 XNode::getChild(const std::string &var) const
 {
   shared_ptr<XNode> node;
-  childLock();
-  for(unsigned int i = 0; i < count(); i++)
-    {
-      if(m_children[i]->getName() == QString::fromUtf8(var.c_str()))
-    {
-            node = m_children[i];
-            break;
-        }
-    }
-  childUnlock();
+  atomic_shared_ptr<const XNode::NodeList> list(children());
+  if(list) { 
+      for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+          if((*it)->getName() == var) {
+                node = *it;
+                break;
+          }
+      }
+  }
   return node;
 }
 
@@ -119,11 +99,15 @@ XValueNodeBase::XValueNodeBase(const char *name, bool runtime) :
 {
 }
 void
-XValueNodeBase::str(const QString &s) throw (XKameError &) {
-    QString sc(s);
+XValueNodeBase::str(const std::string &s) throw (XKameError &) {
+    std::string sc(s);
     if(m_validator)
             (*m_validator)(sc);
     _str(sc);
+}
+void
+XValueNodeBase::str(const QString &s) throw (XKameError &) {
+    str(std::string((const char*)s));
 }
 void
 XValueNodeBase::setValidator(Validator v) {
@@ -148,56 +132,56 @@ XValueNode<T, base>::value(const T &t) {
 
 template <>
 void
-XValueNode<int, 10>::_str(const QString &str) throw (XKameError &) {
+XValueNode<int, 10>::_str(const std::string &str) throw (XKameError &) {
     bool ok;
-    int var = str.toInt(&ok, 10);
+    int var = QString(str).toInt(&ok, 10);
     if(!ok)
-         throw XKameError(i18n("Ill string conversion to integer."), __FILE__, __LINE__);
+         throw XKameError(KAME::i18n("Ill string conversion to integer."), __FILE__, __LINE__);
     value(var);
 }
 template <>
 void
-XValueNode<unsigned int, 10>::_str(const QString &str) throw (XKameError &) {
+XValueNode<unsigned int, 10>::_str(const std::string &str) throw (XKameError &) {
     bool ok;
-    unsigned int var = str.toUInt(&ok);
+    unsigned int var = QString(str).toUInt(&ok);
     if(!ok)
-         throw XKameError(i18n("Ill string conversion to unsigned integer."), __FILE__, __LINE__);
+         throw XKameError(KAME::i18n("Ill string conversion to unsigned integer."), __FILE__, __LINE__);
     value(var);
 }
 template <>
 void
-XValueNode<unsigned int, 16>::_str(const QString &str) throw (XKameError &) {
+XValueNode<unsigned int, 16>::_str(const std::string &str) throw (XKameError &) {
     bool ok;
-    unsigned int var = str.toUInt(&ok, 16);
+    unsigned int var = QString(str).toUInt(&ok, 16);
     if(!ok)
-         throw XKameError(i18n("Ill string conversion to hex."), __FILE__, __LINE__);
+         throw XKameError(KAME::i18n("Ill string conversion to hex."), __FILE__, __LINE__);
     value(var);
 }
 template <>
 void
-XValueNode<bool, 10>::_str(const QString &str) throw (XKameError &) {
+XValueNode<bool, 10>::_str(const std::string &str) throw (XKameError &) {
   bool ok;
-  bool x = str.toInt(&ok);
+  bool x = QString(str).toInt(&ok);
     if(ok) {
       value( x ? true : false );
       return;
     }
-   if(str.stripWhiteSpace().lower() == "true") {
+   if(QString(str).stripWhiteSpace().lower() == "true") {
         value(true); return;
    }
-   if(str.stripWhiteSpace().lower() == "false") {
+   if(QString(str).stripWhiteSpace().lower() == "false") {
         value(false); return;
    }
-   throw XKameError(i18n("Ill string conversion to boolean."), __FILE__, __LINE__);
+   throw XKameError(KAME::i18n("Ill string conversion to boolean."), __FILE__, __LINE__);
 }
 
 template <typename T, int base>
-QString
+std::string
 XValueNode<T, base>::to_str() const {
     return QString::number(m_var, base);
 }
 template <>
-QString
+std::string
 XValueNode<bool, 10>::to_str() const {
     return m_var ? "true" : "false";
 }
@@ -208,38 +192,37 @@ template class XValueNode<unsigned int, 16>;
 template class XValueNode<bool, 10>;
 
 XStringNode::XStringNode(const char *name, bool runtime)
-   : XValueNodeBase(name, runtime), m_var(new QString()) {}
+   : XValueNodeBase(name, runtime), m_var(new std::string()) {}
 
-QString
+std::string
 XStringNode::to_str() const
 {
-    atomic_shared_ptr<QString> buf = m_var;
-    return QDeepCopy<QString>(*buf);
+    atomic_shared_ptr<std::string> buf = m_var;
+    return *buf;
 }
 void
-XStringNode::operator=(const QString &var)
+XStringNode::operator=(const std::string &var)
 {
     value(var);
 }
 void
-XStringNode::_str(const QString &var) throw (XKameError &)
+XStringNode::_str(const std::string &var) throw (XKameError &)
 {
     value(var);
 }
 
-XStringNode::operator QString() const {
+XStringNode::operator std::string() const {
     return to_str();
 }
 void
-XStringNode::value(const QString &t) {
-    atomic_shared_ptr<QString> var(new QString(QDeepCopy<QString>(t)));
+XStringNode::value(const std::string &t) {
     if(beforeValueChanged().empty() && onValueChanged().empty()) {
-        m_var = var;
+        m_var.reset(new std::string(t));
     }
     else {
         XScopedLock<XRecursiveMutex> lock(m_valuemutex);
         beforeValueChanged().talk(dynamic_pointer_cast<XValueNodeBase>(shared_from_this()));
-        m_var = var;
+        m_var.reset(new std::string(t));
         onValueChanged().talk(dynamic_pointer_cast<XValueNodeBase>(shared_from_this()));
     }
 }
@@ -252,18 +235,18 @@ XDoubleNode::XDoubleNode(const char *name, bool runtime, const char *format)
   else
      setFormat("");
 }
-QString
+std::string
 XDoubleNode::to_str() const
 {
     return formatDouble(m_format.c_str(), operator double());
 }
 void
-XDoubleNode::_str(const QString &str) throw (XKameError &)
+XDoubleNode::_str(const std::string &str) throw (XKameError &)
 {
 bool ok;
-    double var = str.toDouble(&ok);
+    double var = QString(str).toDouble(&ok);
     if(!ok) 
-         throw XKameError(i18n("Ill string conversion to double float."), __FILE__, __LINE__);
+         throw XKameError(KAME::i18n("Ill string conversion to double float."), __FILE__, __LINE__);
     value(var);
 }
 void
@@ -290,11 +273,11 @@ XDoubleNode::format() const {
 }
 void
 XDoubleNode::setFormat(const char* format) {
-    QString fmt;
-    if(format) fmt = QString::fromUtf8(format);
+    std::string fmt;
+    if(format) fmt = format;
     try {
         formatDoubleValidator(fmt);
-        m_format = fmt.utf8();
+        m_format = fmt;
     }
     catch (XKameError &e) {
         e.print();

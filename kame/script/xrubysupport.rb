@@ -3,31 +3,88 @@
 
 $KCODE = 'UTF8'
 
+require "cgi"
+
 #redirect defout, deferr
 class << $stdout
   def write(str)
-    XRubyThreads.my_rbdefout(str, Thread.current.object_id)
+  	str = CGI.escapeHTML(str)
+  	if /^\s*#/ =~ str then
+  		str.each_line {|line|
+  			line = "<font color=#005500>#{line}"
+	  		begin
+				line["\n"] = "</font>\n"
+			rescue IndexError
+				line = "#{line}</font>"
+			end
+		    XRubyThreads.my_rbdefout(line, Thread.current.object_id)
+  		}
+    else
+	    XRubyThreads.my_rbdefout(str, Thread.current.object_id)
+  	end
   end
 end
 class << $stderr
   def write(str)
-    XRubyThreads.my_rbdefout(str, Thread.current.object_id)
+  	str = CGI.escapeHTML(str)
+  	str.each_line {|line|
+  		line = "<font color=#ff0000>#{line}"
+  		begin
+			line["\n"] = "</font>\n"
+		rescue IndexError
+			line = "#{line}</font>"
+		end
+		XRubyThreads.my_rbdefout(line, Thread.current.object_id)
+    }
   end
 end
 
 #function to dump exception info
 def print_exception(exc)
-	print exc.message, "\n"
+	$stderr.print exc.message, "\n"
 	bt_shown = false
 	exc.backtrace.each {|b|
-		print b, "\n" unless b.include?(__FILE__)
+		$stderr.print b, "\n" unless b.include?(__FILE__)
 		bt_shown = true
 	}
-	print exc.backtrace[0], "\n" unless bt_shown
+	$stderr.print exc.backtrace[0], "\n" unless bt_shown
 end
 
 #useful modules
 include Math
+
+#Fake node
+class XFakeNode
+	def [](key)
+		$stderr.print("[#{key}] Ignored\n")
+		self
+	end
+	def []=(key,value)
+		$stderr.print("[#{key}]=#{value} Ignored\n")
+	end
+	def value=(value)
+		$stderr.print("value=#{value} Ignored\n")
+	end
+	def <<(value)
+		$stderr.print("<< #{value} Ignored\n")
+	end
+	def value()
+		$stderr.print("value() Ignored\n")
+	end
+	def set(value)
+		$stderr.print("set(#{value}) Ignored\n")
+	end
+	def get()
+		$stderr.print("get() Ignored\n")
+	end
+	def load(value)
+		$stderr.print("load(#{value}) Ignored\n")
+	end
+	def create(*arg)
+		$stderr.print("create(...) Ignored\n")
+		self
+	end
+end
 
 #impliment more functions
 class XNode
@@ -45,6 +102,15 @@ class XNode
 		ary = Array.new()
 		self.each {|x| ary.push x }
 		return ary
+	end
+	def [](key)
+		begin
+			self.child(key)
+	    rescue RuntimeError
+		     $! = RuntimeError.new("unknown exception raised") unless $!
+		     print_exception($!)
+		     XFakeNode.new()
+	 	end
 	end
 	#element substitution
 	def []=(key, value)
@@ -69,9 +135,33 @@ class XValueNode
 	def value()
 		self.get()
 	end
+	def load(value)
+		begin
+			self.internal_load(value)
+	    rescue RuntimeError
+		     $! = RuntimeError.new("unknown exception raised") unless $!
+		     print_exception($!)
+	 	end
+	end
+end
+
+class XListNode
+	def create(*arg)
+		begin
+			type = ""
+			name = ""
+			type = arg[0] if arg.size >= 1
+			name = arg[1] if arg.size >= 2
+			self.internal_create(type, name)
+	    rescue RuntimeError
+		     $! = RuntimeError.new("unknown exception raised") unless $!
+		     print_exception($!)
+	 	end
+	end
 end
 
 print "Hello! KAME Ruby support.\n"
+print "Ruby " + RUBY_VERSION + " " + RUBY_PLATFORM + " " + RUBY_RELEASE_DATE + "\n"
 
 #Thread-monitor
 MONITOR_PERIOD=0.2

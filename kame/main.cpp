@@ -12,6 +12,7 @@
 #include <kstandarddirs.h>
 #include <qgl.h>
 #include <qfile.h>
+#include <qtextcodec.h>
 
 static const char *description =
   I18N_NOOP("KAME");
@@ -58,6 +59,9 @@ int main(int argc, char *argv[])
             QGLFormat::setDefaultFormat( f );
             
             g_bLogDbgPrint = args->isSet("logging");
+            
+            //! Use UTF8 conversion from std::string to QString.
+            QTextCodec::setCodecForCStrings(QTextCodec::codecForName("utf8") );
             
         FrmKameMain *form;
             form = new FrmKameMain();

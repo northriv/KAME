@@ -1,5 +1,6 @@
 #include <qpushbutton.h>
 #include <qcheckbox.h>
+#include <knuminput.h>
 #include "forms/dsoform.h"
 #include "dso.h"
 #include "graph.h"
@@ -28,13 +29,16 @@ XDSO::XDSO(const char *name, bool runtime,
   m_average(create<XUIntNode>("Average", false)),
   m_singleSequence(create<XBoolNode>("SingleSequence", false)),
   m_fetch(create<XBoolNode>("Fetch", false)),
+  m_trigSource(create<XComboNode>("TrigSource", true)),
   m_trigPos(create<XDoubleNode>("TrigPos", true)),
+  m_trigLevel(create<XDoubleNode>("TrigLevel", true)),
+  m_trigFalling(create<XBoolNode>("TrigFalling", true)),
   m_timeWidth(create<XDoubleNode>("TimeWidth", true)),
-  m_vFullScale1(create<XDoubleNode>("VFullScale1", true)),
-  m_vFullScale2(create<XDoubleNode>("VFullScale2", true)),
+  m_vFullScale1(create<XComboNode>("VFullScale1", true)),
+  m_vFullScale2(create<XComboNode>("VFullScale2", true)),
   m_vOffset1(create<XDoubleNode>("VOffset1", true)),
   m_vOffset2(create<XDoubleNode>("VOffset2", true)),
-  m_recordLength(create<XComboNode>("RecordLength", true)),
+  m_recordLength(create<XUIntNode>("RecordLength", true)),
   m_forceTrigger(create<XNode>("ForceTrigger", true)),  
   m_trace1(create<XComboNode>("Trace1", false)),
   m_trace2(create<XComboNode>("Trace2", false)),
@@ -48,16 +52,19 @@ XDSO::XDSO(const char *name, bool runtime,
   m_conAverage(xqcon_create<XQLineEditConnector>(m_average, m_form->m_edAverage)),
   m_conSingle(xqcon_create<XQToggleButtonConnector>(m_singleSequence, m_form->m_ckbSingleSeq)),
   m_conFetch(xqcon_create<XQToggleButtonConnector>(m_fetch, m_form->m_ckbFetch)),
-  m_conTrigPos(xqcon_create<XQLineEditConnector>(m_trigPos, m_form->m_edTimeWidth)),
+  m_conTrigSource(xqcon_create<XQComboBoxConnector>(m_trigSource, m_form->m_cmbTrigSource)),
+  m_conTrigPos(xqcon_create<XKDoubleNumInputConnector>(m_trigPos, m_form->m_numTrigPos)),
+  m_conTrigLevel(xqcon_create<XQLineEditConnector>(m_trigLevel, m_form->m_edTrigLevel)),
+  m_conTrigFalling(xqcon_create<XQToggleButtonConnector>(m_trigFalling, m_form->m_ckbTrigFalling)),
   m_conTrace1(xqcon_create<XQComboBoxConnector>(m_trace1, m_form->m_cmbTrace1)),
   m_conTrace2(xqcon_create<XQComboBoxConnector>(m_trace2, m_form->m_cmbTrace2)),
-  m_conTimeWidth(xqcon_create<XQLineEditConnector>(m_timeWidth, m_form->m_edTrigPos)),
-  m_conVFullScale1(xqcon_create<XQLineEditConnector>(m_vFullScale1, m_form->m_edVFullScale1)),
-  m_conVFullScale2(xqcon_create<XQLineEditConnector>(m_vFullScale2, m_form->m_edVFullScale2)),
+  m_conTimeWidth(xqcon_create<XQLineEditConnector>(m_timeWidth, m_form->m_edTimeWidth)),
+  m_conVFullScale1(xqcon_create<XQComboBoxConnector>(m_vFullScale1, m_form->m_cmbVFS1)),
+  m_conVFullScale2(xqcon_create<XQComboBoxConnector>(m_vFullScale2, m_form->m_cmbVFS2)),
   m_conVOffset1(xqcon_create<XQLineEditConnector>(m_vOffset1, m_form->m_edVOffset1)),
   m_conVOffset2(xqcon_create<XQLineEditConnector>(m_vOffset2, m_form->m_edVOffset2)),
   m_conForceTrigger(xqcon_create<XQButtonConnector>(m_forceTrigger, m_form->m_btnForceTrigger)),
-  m_conRecordLength(xqcon_create<XQComboBoxConnector>(m_recordLength, m_form->m_cmbRecordLength)),
+  m_conRecordLength(xqcon_create<XQLineEditConnector>(m_recordLength, m_form->m_edRecordLength)),
   m_conFIREnabled(xqcon_create<XQToggleButtonConnector>(m_firEnabled, m_form->m_ckbFIREnabled)),
   m_conFIRBandWidth(xqcon_create<XQLineEditConnector>(m_firBandWidth, m_form->m_edFIRBandWidth)),
   m_conFIRSharpness(xqcon_create<XQLineEditConnector>(m_firSharpness, m_form->m_edFIRSharpness)),
@@ -67,6 +74,7 @@ XDSO::XDSO(const char *name, bool runtime,
   m_form->m_btnForceTrigger->setIconSet(
             KApplication::kApplication()->iconLoader()->loadIconSet("apply", 
             KIcon::Toolbar, KIcon::SizeSmall, true ) );  
+  m_form->m_numTrigPos->setRange(0.0, 100.0, 1.0, true);
     
   singleSequence()->value(true);
   fetch()->value(true);
@@ -84,7 +92,10 @@ XDSO::XDSO(const char *name, bool runtime,
   singleSequence()->setUIEnabled(false);
   fetch()->setUIEnabled(false);
   timeWidth()->setUIEnabled(false);
+  trigSource()->setUIEnabled(false);
   trigPos()->setUIEnabled(false);
+  trigLevel()->setUIEnabled(false);
+  trigFalling()->setUIEnabled(false);
   vFullScale1()->setUIEnabled(false);
   vFullScale2()->setUIEnabled(false);
   vOffset1()->setUIEnabled(false);
@@ -94,6 +105,7 @@ XDSO::XDSO(const char *name, bool runtime,
   
   m_waveForm->setColCount(2, s_trace_names); 
   m_waveForm->selectAxes(0, 1, -1);
+  m_waveForm->graph()->persistence()->value(0.3);
   m_waveForm->clear();
 }
 void
@@ -134,50 +146,39 @@ XDSO::visualize()
 {
   m_statusPrinter->clear();
   
-  if(time()) {
-      unsigned int num_channels = numChannelsRecorded();
-      unsigned int length = lengthRecorded();
-      { XScopedWriteLock<XWaveNGraph> lock(*m_waveForm);
-          m_waveForm->setColCount(num_channels + 1, s_trace_names);
-          if((m_waveForm->colX() != 0) || (m_waveForm->colY1() != 1) ||
-                (m_waveForm->colY2() != ((num_channels > 1) ? 2 : -1))) 
-              m_waveForm->selectAxes(0, 1, (num_channels > 1) ? 2 : -1);
-          m_waveForm->plot1()->drawPoints()->value(false);
-          if(num_channels > 1)
-               m_waveForm->plot2()->drawPoints()->value(false);
-              
-          m_waveForm->setRowCount(length);
-        
-          double *times = m_waveForm->cols(0);
-          for(unsigned int i = 0; i < length; i++)
-            {
-              times[i] = (i - trigPosRecorded()) * timeIntervalRecorded();
-            }
-            
-          if(*firEnabled()) {
-             double  bandwidth = *firBandWidth()*1000.0*timeIntervalRecorded();
-             double fir_sharpness = *firSharpness();
-             if(fir_sharpness < 4.0)
-                m_statusPrinter->printWarning(i18n("Too small number of taps for FIR filter."));
-             int taps = std::min((int)lrint(2 * fir_sharpness / bandwidth), 5000);
-             m_fir.setupBPF(taps, bandwidth, *firCenterFreq() * 1000.0 * timeIntervalRecorded());  
-             for(unsigned int i = 0; i < num_channels; i++) {
-                m_fir.doFIR(waveRecorded(i), 
-                        m_waveForm->cols(i + 1), length);
-             }
-          }
-          else {
-             for(unsigned int i = 0; i < num_channels; i++) {
-                for(unsigned int k = 0; k < length; k++) {
-                    m_waveForm->cols(i + 1)[k] = waveRecorded(i)[k];
-                }
-            }
-          }
-      }
+  if(!time()) {
+  	m_waveForm->clear();
+  	return;
   }
-  // no time record
-  else {
-      m_waveForm->clear();
+  unsigned int num_channels = numChannelsRecorded();
+  if(!num_channels) {
+  	m_waveForm->clear();
+  	return;
+  }
+  unsigned int length = lengthRecorded();
+  { XScopedWriteLock<XWaveNGraph> lock(*m_waveForm);
+      m_waveForm->setColCount(num_channels + 1, s_trace_names);
+      if((m_waveForm->colX() != 0) || (m_waveForm->colY1() != 1) ||
+            (m_waveForm->colY2() != ((num_channels > 1) ? 2 : -1))) {
+          m_waveForm->selectAxes(0, 1, (num_channels > 1) ? 2 : -1);
+      }
+      m_waveForm->plot1()->drawPoints()->value(false);
+      if(num_channels > 1)
+           m_waveForm->plot2()->drawPoints()->value(false);
+          
+      m_waveForm->setRowCount(length);
+    
+      double *times = m_waveForm->cols(0);
+      for(unsigned int i = 0; i < length; i++)
+        {
+          times[i] = (i - trigPosRecorded()) * timeIntervalRecorded();
+        }
+        
+      for(unsigned int i = 0; i < num_channels; i++) {
+        for(unsigned int k = 0; k < length; k++) {
+            m_waveForm->cols(i + 1)[k] = waveRecorded(i)[k];
+        }
+      }
   }
 }
 
@@ -191,10 +192,10 @@ XDSO::execute(const atomic<bool> &terminated)
       afterStart();
   }
   catch (XKameError &e) {
-      e.print(getName());
+      e.print(getLabel());
       interface()->close();
       return NULL;
-  }  
+  }
 
   m_lsnOnAverageChanged = average()->onValueChanged().connectWeak(
                            false, shared_from_this(), &XDSO::onAverageChanged);
@@ -202,8 +203,14 @@ XDSO::execute(const atomic<bool> &terminated)
                           false, shared_from_this(), &XDSO::onSingleChanged);
   m_lsnOnTimeWidthChanged = timeWidth()->onValueChanged().connectWeak(
                           false, shared_from_this(), &XDSO::onTimeWidthChanged);
+  m_lsnOnTrigSourceChanged = trigSource()->onValueChanged().connectWeak(
+                          false, shared_from_this(), &XDSO::onTrigSourceChanged);
   m_lsnOnTrigPosChanged = trigPos()->onValueChanged().connectWeak(
                           false, shared_from_this(), &XDSO::onTrigPosChanged);
+  m_lsnOnTrigLevelChanged = trigLevel()->onValueChanged().connectWeak(
+                          false, shared_from_this(), &XDSO::onTrigLevelChanged);
+  m_lsnOnTrigFallingChanged = trigFalling()->onValueChanged().connectWeak(
+                          false, shared_from_this(), &XDSO::onTrigFallingChanged);
   m_lsnOnVFullScale1Changed = vFullScale1()->onValueChanged().connectWeak(
                           false, shared_from_this(), &XDSO::onVFullScale1Changed);
   m_lsnOnVFullScale2Changed = vFullScale2()->onValueChanged().connectWeak(
@@ -217,13 +224,16 @@ XDSO::execute(const atomic<bool> &terminated)
   m_lsnOnRecordLengthChanged = recordLength()->onValueChanged().connectWeak(
                           false, shared_from_this(), &XDSO::onRecordLengthChanged);
 
-  trace1()->setUIEnabled(true);
-  trace2()->setUIEnabled(true);
+  trace1()->setUIEnabled(false);
+  trace2()->setUIEnabled(false);
   average()->setUIEnabled(true);
   singleSequence()->setUIEnabled(true);
   fetch()->setUIEnabled(true);
   timeWidth()->setUIEnabled(true);
+  trigSource()->setUIEnabled(true);
   trigPos()->setUIEnabled(true);
+  trigLevel()->setUIEnabled(true);
+  trigFalling()->setUIEnabled(true);
   vFullScale1()->setUIEnabled(true);
   vFullScale2()->setUIEnabled(true);
   vOffset1()->setUIEnabled(true);
@@ -235,70 +245,71 @@ XDSO::execute(const atomic<bool> &terminated)
     {
       
       msecsleep(10);
-      
+      bool seq_busy = false;
       try {
-          if(!*fetch()) continue;
-          bool seq_busy;
           int count = acqCount(&seq_busy);
           if(!count) {
                 time_awared = XTime::now();
                 last_count = 0;
                 continue;
           }
-          if( *singleSequence() && seq_busy) {
+          if(*singleSequence() && seq_busy) {
                 continue;
           }
-          if( !*singleSequence() && (count == last_count) ) {
+          if(count == last_count) {
                 continue;
           }
           last_count =  count;
       }
       catch (XKameError& e) {
-          e.print(getName());
+          e.print(getLabel());
           continue;
       }
 
-      std::deque<QString> channels;
+      std::deque<std::string> channels;
       channels.push_back(trace1()->to_str());
-      if(channels.front().isEmpty()) {
-            gErrPrint(getName() + " " + i18n("Select traces!."));
+      if(channels.front().empty()) {
+            gErrPrint(getLabel() + " " + KAME::i18n("Select traces!."));
             continue;
       }
       channels.push_back(trace2()->to_str());
-      if(channels.back().isEmpty()) {
+      if(channels.back().empty()) {
             channels.pop_back();
       }
-
-      startWritingRaw();
+      
+      clearRaw();
       // try/catch exception of communication errors
       try {
           getWave(channels);
       }
       catch (XKameError &e) {
-          e.print(getName());
-          finishWritingRaw(XTime(), XTime(), false);
+          e.print(getLabel());
           continue;
       }
-      finishWritingRaw(time_awared, XTime::now(), true);
+      
+      finishWritingRaw(time_awared, XTime::now());
+
       // try/catch exception of communication errors
       try {
-          time_awared = XTime::now();
           startSequence();
+          time_awared = XTime::now();
       }
       catch (XKameError &e) {
-          e.print(getName());
+          e.print(getLabel());
           continue;
       }
     }
     
-    
-  trace1()->setUIEnabled(false);
-  trace2()->setUIEnabled(false);
+  trace1()->setUIEnabled(true);
+  trace2()->setUIEnabled(true);
   average()->setUIEnabled(false);
   singleSequence()->setUIEnabled(false);
   fetch()->setUIEnabled(false);
   timeWidth()->setUIEnabled(false);
+  trigSource()->setUIEnabled(false);
   trigPos()->setUIEnabled(false);
+  trigLevel()->setUIEnabled(false);
+  trigFalling()->setUIEnabled(false);
   vFullScale1()->setUIEnabled(false);
   vFullScale2()->setUIEnabled(false);
   vOffset1()->setUIEnabled(false);
@@ -309,7 +320,10 @@ XDSO::execute(const atomic<bool> &terminated)
   m_lsnOnAverageChanged.reset();
   m_lsnOnSingleChanged.reset();
   m_lsnOnTimeWidthChanged.reset();
+  m_lsnOnTrigSourceChanged.reset();
   m_lsnOnTrigPosChanged.reset();
+  m_lsnOnTrigLevelChanged.reset();
+  m_lsnOnTrigFallingChanged.reset();
   m_lsnOnVFullScale1Changed.reset();
   m_lsnOnVFullScale2Changed.reset();
   m_lsnOnVOffset1Changed.reset();
@@ -317,6 +331,13 @@ XDSO::execute(const atomic<bool> &terminated)
   m_lsnOnForceTriggerTouched.reset();
   m_lsnOnRecordLengthChanged.reset();
                             
+  try {
+      beforeStop();
+  }
+  catch (XKameError &e) {
+      e.print(getLabel());
+  }
+  
   interface()->close();
   return NULL;
 }
@@ -332,8 +353,32 @@ void
 XDSO::setRecordDim(unsigned int channels, double startpos, double interval, unsigned int length)
 {
   m_numChannelsRecorded = channels;
-  m_wavesRecorded.resize(channels * length);
+  m_wavesRecorded.resize(channels * length, 0.0);
   m_trigPosRecorded = -startpos / interval;
   m_timeIntervalRecorded = interval;
 }
 
+void
+XDSO::analyzeRaw() throw (XRecordError&) {
+    std::fill(m_wavesRecorded.begin(), m_wavesRecorded.end(), 0.0);
+    
+    convertRaw();
+    
+  if(*firEnabled()) {
+     double  bandwidth = *firBandWidth()*1000.0*timeIntervalRecorded();
+     double fir_sharpness = *firSharpness();
+     if(fir_sharpness < 4.0)
+        m_statusPrinter->printWarning(KAME::i18n("Too small number of taps for FIR filter."));
+     int taps = std::min((int)lrint(2 * fir_sharpness / bandwidth), 5000);
+     m_fir.setupBPF(taps, bandwidth, *firCenterFreq() * 1000.0 * timeIntervalRecorded());
+     unsigned int num_channels = numChannelsRecorded();
+     unsigned int length = lengthRecorded();
+     std::vector<double> buf(length);
+     for(unsigned int i = 0; i < num_channels; i++) {
+        m_fir.doFIR(waveRecorded(i), 
+                &buf[0], length);
+        for(unsigned int j = 0; j < length; j++)
+             waveRecorded(i)[j] = buf[j];
+     }
+  }
+}

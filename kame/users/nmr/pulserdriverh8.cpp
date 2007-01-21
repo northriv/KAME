@@ -72,6 +72,9 @@ XH8Pulser::afterStart()
   qamDelay1()->setUIEnabled(false);
   qamDelay2()->setUIEnabled(false);
   difFreq()->setUIEnabled(false);    
+  qswDelay()->setUIEnabled(false);
+  qswWidth()->setUIEnabled(false);
+  qswPiPulseOnly()->setUIEnabled(false);
 }
 
 void
@@ -137,8 +140,7 @@ XH8Pulser::changeOutput(bool output)
     {
       if(m_zippedPatterns.empty() |
         (m_zippedPatterns.size() >= MAX_PATTERN_SIZE ))
-              throw XInterface::XInterfaceError(i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
-      XScopedLock<XInterface> lock(*interface());
+              throw XInterface::XInterfaceError(KAME::i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
       for(unsigned int retry = 0; ; retry++) {
           try {
               interface()->sendf("$poff %x", BLANK_PATTERN);
@@ -148,6 +150,7 @@ XH8Pulser::changeOutput(bool output)
               interface()->sendf("$pload %x %x", size, pincr);
               interface()->receive();
               interface()->write(">", 1);
+              msecsleep(1);
               for(unsigned int j=0; j < size; j += pincr)
                 {
                   interface()->write(
@@ -164,11 +167,11 @@ XH8Pulser::changeOutput(bool output)
               if(interface()->scanf("%x", &ret) != 1)
                     throw XInterface::XConvError(__FILE__, __LINE__);
               if(ret != size)
-                  throw XInterface::XInterfaceError(i18n("Pulser Check Sum Error"), __FILE__, __LINE__);
+                  throw XInterface::XInterfaceError(KAME::i18n("Pulser Check Sum Error"), __FILE__, __LINE__);
           }
           catch (XKameError &e) {
               if(retry > 0) throw e;
-              e.print(getName() + ": " + i18n("try to continue") + ", ");
+              e.print(getLabel() + ": " + KAME::i18n("try to continue") + ", ");
               continue;
           }
           break;
@@ -176,7 +179,6 @@ XH8Pulser::changeOutput(bool output)
     }
   else
     {
-       XScopedLock<XInterface> lock(*interface());
       interface()->sendf("$poff %x", BLANK_PATTERN);
     }
 }
@@ -204,6 +206,7 @@ XH8Pulser::rawToRelPat() throw (XRecordError&)
   int _comb_mode = m_combModeRecorded;
   int _rt_mode = m_rtModeRecorded;
   int _num_phase_cycle = m_numPhaseCycleRecorded;
+  if(_comb_mode == N_COMB_MODE_OFF) _num_phase_cycle = std::min(_num_phase_cycle, 4);
   
   bool comb_mode_alt = ((_comb_mode == N_COMB_MODE_P1_ALT) ||
             (_comb_mode == N_COMB_MODE_COMB_ALT));
@@ -213,8 +216,11 @@ XH8Pulser::rawToRelPat() throw (XRecordError&)
     //patterns correspoinding to 0, pi/2, pi, -pi/2
   const unsigned short qpsk1[4] = {0, 1, 3, 2};
   const unsigned short qpsk2[4] = {2, 3, 4, 5};
+  
+  bool _invert_phase = *invertPhase();
   //unit of phase is pi/2
-  #define qpsk(phase) (qpsk1[(phase) % 4]*qpsk1bit + qpsk2[(phase) % 4]*qpsk2bit)
+  #define qpsk(phase) (qpsk1[((phase) + (_invert_phase ? 2 : 0)) % 4]*qpsk1bit\
+   + qpsk2[((phase) + (_invert_phase ? 2 : 0)) % 4]*qpsk2bit)
   #define qpskinv(phase) (qpsk(((phase) + 2) % 4))
 
   //comb phases
@@ -257,12 +263,12 @@ XH8Pulser::rawToRelPat() throw (XRecordError&)
   const unsigned short *p1 = (echonum > 1) ? p1multi : p1single;
   const unsigned short *p2 = (echonum > 1) ? p2multi : p2single;
   
-  //dice for alternative modes
-  bool former_of_alt = ((double)KAME::rand() / (RAND_MAX - 1) > 0.5);
-  
+  bool former_of_alt = !_invert_phase;
   for(int i = 0; i < _num_phase_cycle * (comb_mode_alt ? 2 : 1); i++)
     {
-      int j = i / (comb_mode_alt ? 2 : 1); //index for phase cycling
+      int j = (i / (comb_mode_alt ? 2 : 1)) % _num_phase_cycle; //index for phase cycling
+      if(_invert_phase)
+      	j = _num_phase_cycle - 1 - j;
       former_of_alt = !former_of_alt;
       bool comb_off_res = ((_comb_mode != N_COMB_MODE_COMB_ALT) || former_of_alt) && (comb_rot_num != 0);
             

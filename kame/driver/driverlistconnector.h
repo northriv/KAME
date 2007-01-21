@@ -17,23 +17,19 @@ class XDriverListConnector : public XListQConnector
   XDriverListConnector
   (const shared_ptr<XDriverList> &node, FrmDriver *item);
  public:
-  virtual ~XDriverListConnector();
+  virtual ~XDriverListConnector() {}
  protected:
-  virtual void onListChanged(const shared_ptr<XListNodeBase> &) {}
   virtual void onCatch(const shared_ptr<XNode> &node);
   virtual void onRelease(const shared_ptr<XNode> &node);
  protected slots:
     void clicked ( int row, int col, int button, const QPoint& );
  private:
-  shared_ptr<XDriverList> m_list; 
-  QTable *m_pItem;
-  
   shared_ptr<XNode> m_create, m_release;
   
   struct tcons {
     struct tlisttext {
         QLabel *label;
-        shared_ptr<QString> str;
+        shared_ptr<std::string> str;
     };
     QLabel *label;
     shared_ptr<XDriver> driver;

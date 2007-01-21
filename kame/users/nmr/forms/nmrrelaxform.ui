@@ -8,8 +8,8 @@
         <rect>
             <x>0</x>
             <y>0</y>
-            <width>613</width>
-            <height>604</height>
+            <width>555</width>
+            <height>527</height>
         </rect>
     </property>
     <property name="caption">
@@ -327,80 +327,6 @@
                                     <horstretch>0</horstretch>
                                     <verstretch>0</verstretch>
                                 </sizepolicy>
-                            </property>
-                        </widget>
-                    </hbox>
-                </widget>
-                <widget class="QLayoutWidget" row="0" column="3">
-                    <property name="name">
-                        <cstring>layout21</cstring>
-                    </property>
-                    <hbox>
-                        <property name="name">
-                            <cstring>unnamed</cstring>
-                        </property>
-                        <widget class="QLabel">
-                            <property name="name">
-                                <cstring>textLabel5_2_3_3_2</cstring>
-                            </property>
-                            <property name="sizePolicy">
-                                <sizepolicy>
-                                    <hsizetype>5</hsizetype>
-                                    <vsizetype>0</vsizetype>
-                                    <horstretch>0</horstretch>
-                                    <verstretch>0</verstretch>
-                                </sizepolicy>
-                            </property>
-                            <property name="text">
-                                <string>Extra Average</string>
-                            </property>
-                            <property name="alignment">
-                                <set>AlignCenter</set>
-                            </property>
-                        </widget>
-                        <widget class="QSpinBox">
-                            <property name="name">
-                                <cstring>m_numExtraAvg</cstring>
-                            </property>
-                            <property name="maxValue">
-                                <number>256</number>
-                            </property>
-                            <property name="minValue">
-                                <number>1</number>
-                            </property>
-                        </widget>
-                    </hbox>
-                </widget>
-                <widget class="QLayoutWidget" row="1" column="3">
-                    <property name="name">
-                        <cstring>layout22</cstring>
-                    </property>
-                    <hbox>
-                        <property name="name">
-                            <cstring>unnamed</cstring>
-                        </property>
-                        <widget class="QLabel">
-                            <property name="name">
-                                <cstring>textLabel5_2_3_3_2_2</cstring>
-                            </property>
-                            <property name="sizePolicy">
-                                <sizepolicy>
-                                    <hsizetype>5</hsizetype>
-                                    <vsizetype>0</vsizetype>
-                                    <horstretch>0</horstretch>
-                                    <verstretch>0</verstretch>
-                                </sizepolicy>
-                            </property>
-                            <property name="text">
-                                <string>Ignore Cnt.</string>
-                            </property>
-                            <property name="alignment">
-                                <set>AlignCenter</set>
-                            </property>
-                        </widget>
-                        <widget class="QSpinBox">
-                            <property name="name">
-                                <cstring>m_numIgnore</cstring>
                             </property>
                         </widget>
                     </hbox>
@@ -921,7 +847,7 @@
 <customwidgets>
     <customwidget>
         <class>XQGraph</class>
-        <header location="local">../../graph/graphwidget.h</header>
+        <header location="local">graphwidget.h</header>
         <sizehint>
             <width>-1</width>
             <height>-1</height>
@@ -947,8 +873,6 @@
     <tabstop>m_edP1Max</tabstop>
     <tabstop>m_ckbT2Mode</tabstop>
     <tabstop>m_cmbP1Dist</tabstop>
-    <tabstop>m_numExtraAvg</tabstop>
-    <tabstop>m_numIgnore</tabstop>
     <tabstop>m_cmbPulse1</tabstop>
     <tabstop>m_cmbPulse2</tabstop>
     <tabstop>m_cmbPulser</tabstop>

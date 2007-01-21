@@ -24,7 +24,7 @@ class XDMMSCPI : public XDMM
   //one-shot reading
   virtual double oneShotRead();
   //configure and read
-  virtual double measure(const QString &func);
+  virtual double measure(const std::string &func);
  protected:
   //! called when m_function is changed
   virtual void changeFunction();

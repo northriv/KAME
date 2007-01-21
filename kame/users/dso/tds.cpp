@@ -1,4 +1,4 @@
-#include "userdso.h"
+#include "tds.h"
 #include "interface.h"
 #include "xwavengraph.h"
 #include <klocale.h>
@@ -15,12 +15,23 @@ XTDS::XTDS(const char *name, bool runtime,
         trace1()->add(ch[i]);
         trace2()->add(ch[i]);
     }
+  const char* sc[] = {"0.02", "0.05", "0.1", "0.2", "0.5", "1", "2", "5", "10",
+        "20", "50", "100", 0L};
+  for(int i = 0; sc[i]; i++)
+    {
+        vFullScale1()->add(sc[i]);
+        vFullScale2()->add(sc[i]);
+    }
+  const char* tr[] = {"EXT", "EXT10", "CH1", "CH2", "CH3", "CH4", "LINE", 0L};
+  for(int i = 0; tr[i]; i++)
+    {
+        trigSource()->add(tr[i]);
+    }
 
   interface()->setGPIBWaitBeforeWrite(20); //20msec
   interface()->setGPIBWaitBeforeSPoll(10); //10msec
 
-  recordLength()->add("500");
-  recordLength()->add("10000");
+  recordLength()->value(10000);
  }
 
 void
@@ -75,52 +86,60 @@ XTDS::onSingleChanged(const shared_ptr<XValueNodeBase> &)
     }
 }
 void
+XTDS::onTrigSourceChanged(const shared_ptr<XValueNodeBase> &)
+{
+  interface()->send("TRIG:A:EDG:SOU " + trigSource()->to_str());
+}
+void
 XTDS::onTrigPosChanged(const shared_ptr<XValueNodeBase> &)
 {
     if(*trigPos() >= 0)
-    	   interface()->send(QString().sprintf("HOR:DELAY:STATE OFF;TIME %.2g",
-                 (double)*trigPos()));
+    	   interface()->sendf("HOR:DELAY:STATE OFF;TIME %.2g", (double)*trigPos());
     else
-	   interface()->send(QString().sprintf("HOR:DELAY:STATE ON;TIME %.2g", 
-                -(*trigPos() - 50.0)/100.0* *timeWidth()));    
+	   interface()->sendf("HOR:DELAY:STATE ON;TIME %.2g", -(*trigPos() - 50.0)/100.0* *timeWidth());    
+}
+void
+XTDS::onTrigLevelChanged(const shared_ptr<XValueNodeBase> &)
+{
+  interface()->send("TRIG:A:EDG:LEV " + trigSource()->to_str());
+}
+void
+XTDS::onTrigFallingChanged(const shared_ptr<XValueNodeBase> &)
+{
+  interface()->sendf("TRIG:A:EDG:SLOP %s", (*trigFalling() ? "FALL" : "RISE"));
 }
 void
 XTDS::onTimeWidthChanged(const shared_ptr<XValueNodeBase> &)
 {
-	interface()->send(QString().sprintf("HOR:MAIN:SCALE %.1g", 
-            (double)*timeWidth()/10.0));
+	interface()->sendf("HOR:MAIN:SCALE %.1g", (double)*timeWidth()/10.0);
 }
 void
 XTDS::onVFullScale1Changed(const shared_ptr<XValueNodeBase> &)
 {
-    QString ch = trace1()->to_str();
-	if(!ch) return;
-	interface()->send(ch + QString().sprintf(":SCALE %.1g", 
-            (double)*vFullScale1()/10.0));
+    std::string ch = trace1()->to_str();
+	if(ch.empty()) return;
+	interface()->sendf("%s:SCALE %.1g", ch.c_str(), atof(vFullScale1()->to_str().c_str())/10.0);
 }
 void
 XTDS::onVFullScale2Changed(const shared_ptr<XValueNodeBase> &)
 {
-    QString ch = trace2()->to_str();
-    if(!ch) return;
-    interface()->send(ch + QString().sprintf(":SCALE %.1g", 
-            (double)*vFullScale2()/10.0));
+    std::string ch = trace2()->to_str();
+    if(ch.empty()) return;
+    interface()->sendf("%s:SCALE %.1g", ch.c_str(), atof(vFullScale2()->to_str().c_str())/10.0);
 }
 void
 XTDS::onVOffset1Changed(const shared_ptr<XValueNodeBase> &)
 {
-    QString ch = trace1()->to_str();
-    if(!ch) return;
-	interface()->send(ch + QString().sprintf(":OFFSET %.8g",
-            (double)*vOffset1()));
+    std::string ch = trace1()->to_str();
+    if(ch.empty()) return;
+    interface()->sendf("%s:OFFSET %.8g", ch.c_str(), (double)*vOffset1());
 }
 void
 XTDS::onVOffset2Changed(const shared_ptr<XValueNodeBase> &)
 {
-    QString ch = trace2()->to_str();
-    if(!ch) return;
-    interface()->send(ch + QString().sprintf(":OFFSET %.8g",
-            (double)*vOffset2()));
+    std::string ch = trace2()->to_str();
+    if(ch.empty()) return;
+    interface()->sendf("%s:OFFSET %.8g", ch.c_str(), (double)*vOffset2());
 }
 void
 XTDS::onRecordLengthChanged(const shared_ptr<XValueNodeBase> &)
@@ -166,18 +185,18 @@ XTDS::getTimeInterval()
 }
 
 void
-XTDS::getWave(std::deque<QString> &channels)
+XTDS::getWave(std::deque<std::string> &channels)
 {
   interface()->lock();
   try {
       int pos = 1;
       int width = 20000;
-      for(std::deque<QString>::iterator it = channels.begin();
+      for(std::deque<std::string>::iterator it = channels.begin();
             it != channels.end(); it++)
         {
           int rsize = (2 * width + 1024);
           interface()->sendf("DATA:SOURCE %s;START %u;STOP %u;:WAVF?",
-    		     (const char *)it->latin1(),
+    		     (const char *)it->c_str(),
                   pos, pos + width);
           interface()->receive(rsize);
           rawData().insert(rawData().end(), 
@@ -191,7 +210,7 @@ XTDS::getWave(std::deque<QString> &channels)
   interface()->unlock();
 }
 void
-XTDS::analyzeRaw() throw (XRecordError&) {
+XTDS::convertRaw() throw (XRecordError&) {
   double xin = 0;
   double yin[256], yoff[256];
   int width = 0;
@@ -231,9 +250,11 @@ XTDS::analyzeRaw() throw (XRecordError&) {
 	      if(!cp) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	      int x;
 	      if(sscanf(cp, "#%1d", &x) != 1) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
-	      std::string fmt = QString().sprintf("#%%*1d%%%ud", x);
+	      char fmt[9];
+          if(snprintf(fmt, sizeof(fmt), "#%%*1d%%%ud", x) < 0)
+             throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	      int yyy;
-	      if(sscanf(cp, fmt.c_str(), &yyy) != 1) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+	      if(sscanf(cp, fmt, &yyy) != 1) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	      if(yyy == 0) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	      cp += 2 + x;
            
@@ -264,9 +285,11 @@ XTDS::analyzeRaw() throw (XRecordError&) {
       if(!cp) break;
       int x;
       if(sscanf(cp, "#%1d", &x) != 1) break;
-      std::string fmt = QString().sprintf("#%%*1d%%%ud", x);
+      char fmt[9];
+      if(snprintf(fmt, sizeof(fmt), "#%%*1d%%%ud", x) < 0)
+         throw XBufferUnderflowRecordError(__FILE__, __LINE__);
       int yyy;
-      if(sscanf(cp, fmt.c_str(), &yyy) != 1) break;
+      if(sscanf(cp, fmt, &yyy) != 1) break;
       if(yyy == 0) break;
       cp += 2 + x;
                 
@@ -276,12 +299,11 @@ XTDS::analyzeRaw() throw (XRecordError&) {
         	{
         	  double val = *((unsigned char *)cp) * 0x100;
         	  val += *((unsigned char *)cp + 1);
-        	  *(wave++) = yin[j] * (val - yoff[j] - 0.5);
-        
+        	  *(wave++) += yin[j] * (val - yoff[j] - 0.5);
         	  cp += 2;
         	}
       for(; i < width; i++) {
       	  *(wave++) = 0.0;
-      }      
-    }
+      }
+    }  
 }

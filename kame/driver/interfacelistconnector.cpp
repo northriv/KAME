@@ -13,7 +13,7 @@
 
 XInterfaceListConnector::XInterfaceListConnector(
     const shared_ptr<XInterfaceList> &node, QTable *item)
-  : XListQConnector(node, item), m_interfaceList(node), m_pItem(item)
+  : XListQConnector(node, item), m_interfaceList(node)
 {
   connect(m_pItem, SIGNAL( clicked( int, int, int, const QPoint& )),
       this, SLOT(clicked( int, int, int, const QPoint& )) );
@@ -25,23 +25,20 @@ XInterfaceListConnector::XInterfaceListConnector(
   item->setColumnWidth(3, (int)(def * 1));
   item->setColumnWidth(4, (int)(def * 1));
   QStringList labels;
-  labels += i18n("Driver");
-  labels += i18n("Control");
-  labels += i18n("Device");
-  labels += i18n("Port");
-  labels += i18n("Addr");
+  labels += KAME::i18n("Driver");
+  labels += KAME::i18n("Control");
+  labels += KAME::i18n("Device");
+  labels += KAME::i18n("Port");
+  labels += KAME::i18n("Addr");
   item->setColumnLabels(labels);
-  node->childLock();
-  for(unsigned int i = 0; i < node->count(); i++)
-    onCatch((*node)[i]);
-  node->childUnlock();
+
+  atomic_shared_ptr<const XNode::NodeList> list(node->children());
+  if(list) { 
+      for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++)
+        onCatch(*it);
+  }
 }
-XInterfaceListConnector::~XInterfaceListConnector() {
-    if(isItemAlive()) {
-      disconnect(m_pItem, NULL, this, NULL );
-      m_pItem->setNumRows(0);
-    }
-}
+
 void
 XInterfaceListConnector::onControlTouched(const shared_ptr<XNode> &node)
 {
@@ -72,12 +69,12 @@ XInterfaceListConnector::onOpenedChanged(const shared_ptr<XValueNodeBase> &node)
             if(*it->interface->opened()) {
                 it->btn->setIconSet( app->iconLoader()->loadIconSet("stop", 
                     KIcon::Toolbar, KIcon::SizeSmall, true ) );
-                it->btn->setText(i18n("&STOP"));
+                it->btn->setText(KAME::i18n("&STOP"));
              }
              else {
                 it->btn->setIconSet( app->iconLoader()->loadIconSet("run", 
                     KIcon::Toolbar, KIcon::SizeSmall, true ) );
-                it->btn->setText(i18n("&RUN"));
+                it->btn->setText(KAME::i18n("&RUN"));
             }
         }
     }
@@ -87,7 +84,7 @@ XInterfaceListConnector::onCatch(const shared_ptr<XNode> &node) {
   shared_ptr<XInterface> interface = dynamic_pointer_cast<XInterface>(node);
   int i = m_pItem->numRows();
   m_pItem->insertRows(i);
-  m_pItem->setText(i, 0, interface->driver()->getName());
+  m_pItem->setText(i, 0, interface->driver()->getLabel());
   struct tcons con;
   con.interface = interface;
   con.control = createOrphan<XNode>("Control", true);

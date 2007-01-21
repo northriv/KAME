@@ -5,17 +5,16 @@
 
 //! Lock-free synchronizations.
 
-#if SIZEOF_VOID_P < SIZEOF_INT
- #error KAME assume assignment of int is atomic.
-#endif
-
 #if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__
      //! memory barriers. 
      inline void readBarrier() {
-            asm volatile( "" ::: "memory" );
+            asm volatile( "lfence" ::: "memory" );
+     }
+     inline void writeBarrier() {
+            asm volatile( "sfence" ::: "memory" );
      }
      inline void memoryBarrier() {
-            asm volatile( "" ::: "memory" );
+            asm volatile( "mfence" ::: "memory" );
      }
      //! For spinning.
      inline void pauseN(unsigned int cnt) {
@@ -47,13 +46,25 @@
             uint32_t newv0, uint32_t newv1, uint32_t *target ) {
            unsigned char ret;
             asm volatile (
+           #ifdef MACOSX
+           //gcc in XCode cannot handle EBX correctly.
+                    " push %%ebx;"
                     " mov %6, %%ebx;"
                     "  lock; cmpxchg8b %7;"
-                    " sete %0" // ret = zflag ? 1 : 0
-                    : "=&b" (ret), "=&d" (oldv1), "=&a" (oldv0)
+                    " sete %0;" // ret = zflag ? 1 : 0
+                    " pop %%ebx"
+                    : "=r" (ret), "=&d" (oldv1), "=&a" (oldv0)
                     : "1" (oldv1), "2" (oldv0),
-                     "c" (newv1), "r" (newv0),
+                     "c" (newv1), "m" (newv0),
                      "m" (*target)
+            #else
+                    "  lock; cmpxchg8b %7;"
+                    " sete %0;" // ret = zflag ? 1 : 0
+                    : "=r" (ret), "=&d" (oldv1), "=&a" (oldv0)
+                    : "1" (oldv1), "2" (oldv0),
+                     "c" (newv1), "b" (newv0),
+                     "m" (*target)
+            #endif
                     : "memory");
             return ret;
         }
@@ -126,6 +137,9 @@
          //! memory barriers. 
          inline void readBarrier() {
             asm volatile( "isync" ::: "memory" );
+         }
+         inline void writeBarrier() {
+            asm volatile( "osync" ::: "memory" );
          }
          inline void memoryBarrier() {
             asm volatile( "sync" ::: "memory" );
@@ -233,24 +247,29 @@ class atomic
     atomic(const atomic &t) : m_var(t) {}
     ~atomic() {}
     operator T() const {readBarrier(); return m_var;}
-    atomic &operator=(T t) {m_var = t; readBarrier(); return *this;}
-    atomic &operator++() {atomicInc(&m_var); return *this;}
-    atomic &operator--() {atomicDecAndTest(&m_var); return *this;}
-    atomic &operator+=(T t) {atomicAdd(&m_var, t); return *this;}
-    atomic &operator-=(T t) {atomicAdd(&m_var, -t); return *this;}
+    atomic &operator=(T t) {m_var = t; writeBarrier(); return *this;}
+    atomic &operator++() {atomicInc(&m_var); writeBarrier(); return *this;}
+    atomic &operator--() {atomicDecAndTest(&m_var); writeBarrier(); return *this;}
+    atomic &operator+=(T t) {atomicAdd(&m_var, t); writeBarrier(); return *this;}
+    atomic &operator-=(T t) {atomicAdd(&m_var, -t); writeBarrier(); return *this;}
     static T swap(T newv, atomic &t) {
         T old = atomicSwap(newv, &t.m_var);
-        readBarrier();
+        writeBarrier();
         return old;
     }
     bool decAndTest() {
         bool ret = atomicDecAndTest(&m_var);
-        readBarrier();
+        writeBarrier();
         return ret;
     }
     bool addAndTest(T t) {
         bool ret = atomicAddAndTest(&m_var, t);
-        readBarrier();
+        writeBarrier();
+        return ret;
+    }
+    bool compareAndSet(T oldv, T newv) {
+        bool ret = atomicCompareAndSet(oldv, newv, &m_var);
+        writeBarrier();
         return ret;
     }
  private:

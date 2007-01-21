@@ -1,0 +1,51 @@
+data = <<EOS      # here document
+0.00794 70000
+0.00846 64821.32422
+0.01033 51472.76563
+0.01230 42474.39063
+0.01724 30054.98633
+0.02199 23865.80859
+0.02611 20465.19336
+0.03126 17549.13086
+0.03968 14481.22363
+0.05121 11949.64258
+0.07563 9131.12793
+0.09643 7830.04346
+0.13323 6461.20947
+0.17846 5540.55859
+0.22491 4937.22998
+0.28659 4399.59961
+0.37001 3920.51343
+0.44281 3630.46973
+0.53507 3361.88379
+0.72795 2995.79761
+1.03065 2669.57593
+1.79563 2289.19092
+2.50206 2119.83398
+4.50952 1888.99878
+7.20470 1749.24854
+9.35722 1683.29980
+EOS
+
+x = Array.new
+x << Measurement
+x << x.last["Thermometers"]
+	x << x.last.create("ApproxThermometer","RuO2 Cryoconcept Mix")
+		x.last["TMin"].value = "0.007"
+		x.last["TMax"].value = "10"
+		reslist = x.last["ResList"]
+		templist = x.last["TempList"]
+		data.each_line { |line|
+			 arg=line.split
+			 begin
+			  temp=Float(arg[0])
+			  res=Float(arg[1])
+			 rescue # => ArgumentError
+			  next
+			 end
+			 print " #{temp} #{res}\n"
+			 reslist.create("","").load(res)
+		     templist.create("","").load(temp)
+		}
+	x.pop
+x.pop

@@ -8,8 +8,6 @@ INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_builddir)/kame/users/dcsource/forms \
 	$(all_includes)
 	
-libdcsource_a_METASOURCES = AUTO
-
 libdcsource_a_SOURCES = dcsource.cpp dcsource.h
 
 SUBDIRS = forms

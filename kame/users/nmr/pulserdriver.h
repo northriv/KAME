@@ -74,22 +74,28 @@ class XPulser : public XPrimaryDriver
     const shared_ptr<XDoubleNode> &p1Level() const {return m_p1Level;} //!< [dB], Pulse Modulation
     const shared_ptr<XDoubleNode> &p2Level() const {return m_p2Level;} //!< [dB], Pulse Modulation
     const shared_ptr<XDoubleNode> &masterLevel() const {return m_masterLevel;} //!< [dB]
-  const   shared_ptr<XComboNode> &aswFilter() const {return m_aswFilter;}
-  const   shared_ptr<XDoubleNode> &portLevel8() const {return m_portLevel8;}
-  const   shared_ptr<XDoubleNode> &portLevel9() const {return m_portLevel9;}
-  const   shared_ptr<XDoubleNode> &portLevel10() const {return m_portLevel10;}
-  const   shared_ptr<XDoubleNode> &portLevel11() const {return m_portLevel11;}
-  const   shared_ptr<XDoubleNode> &portLevel12() const {return m_portLevel12;}
-  const   shared_ptr<XDoubleNode> &portLevel13() const {return m_portLevel13;}
+    const shared_ptr<XComboNode> &aswFilter() const {return m_aswFilter;}
+    const shared_ptr<XBoolNode> &induceEmission() const {return m_induceEmission;}
+    const shared_ptr<XDoubleNode> &induceEmissionPhase() const {return m_induceEmissionPhase;}
+    const shared_ptr<XDoubleNode> &portLevel8() const {return m_portLevel8;}
+    const shared_ptr<XDoubleNode> &portLevel9() const {return m_portLevel9;}
+    const shared_ptr<XDoubleNode> &portLevel10() const {return m_portLevel10;}
+    const shared_ptr<XDoubleNode> &portLevel11() const {return m_portLevel11;}
+    const shared_ptr<XDoubleNode> &portLevel12() const {return m_portLevel12;}
+    const shared_ptr<XDoubleNode> &portLevel13() const {return m_portLevel13;}
     const shared_ptr<XDoubleNode> &portLevel14() const {return m_portLevel14;} //!< [V]
-  const   shared_ptr<XDoubleNode> &qamOffset1() const {return m_qamOffset1;}
+    const shared_ptr<XDoubleNode> &qamOffset1() const {return m_qamOffset1;}
     const shared_ptr<XDoubleNode> &qamOffset2() const {return m_qamOffset2;} //!< [%F.S.]
-  const   shared_ptr<XDoubleNode> &qamLevel1() const {return m_qamLevel1;}
-  const   shared_ptr<XDoubleNode> &qamLevel2() const {return m_qamLevel2;}
-  const   shared_ptr<XDoubleNode> &qamDelay1() const {return m_qamDelay1;}
+    const shared_ptr<XDoubleNode> &qamLevel1() const {return m_qamLevel1;} //! < Quadrature Amplitude Modulation. Amplitude compensation factor.
+    const shared_ptr<XDoubleNode> &qamLevel2() const {return m_qamLevel2;}
+    const shared_ptr<XDoubleNode> &qamDelay1() const {return m_qamDelay1;} //! < Delaying compensation [us].
     const shared_ptr<XDoubleNode> &qamDelay2() const {return m_qamDelay2;} //!< [us]
     const shared_ptr<XDoubleNode> &difFreq() const {return m_difFreq;} //!< [MHz]
-
+    const shared_ptr<XDoubleNode> &qswDelay() const {return m_qswDelay;} //!< Q-switch setting, period after the end-edge of pulses [us].
+    const shared_ptr<XDoubleNode> &qswWidth() const {return m_qswWidth;} //!< Q-switch setting, width of suppression [us].
+    const shared_ptr<XBoolNode> &qswPiPulseOnly() const {return m_qswPiPulseOnly;} //!< Q-switch setting, use QSW only for pi pulses.
+    const shared_ptr<XBoolNode> &invertPhase() const {return m_invertPhase;}
+    
     //! ver 1 records
     short combModeRecorded() const {return m_combModeRecorded;}
     double rtimeRecorded() const {return m_rtimeRecorded;}
@@ -109,10 +115,11 @@ class XPulser : public XPrimaryDriver
     unsigned short combNumRecorded() const {return m_combNumRecorded;}
     short rtModeRecorded() const {return m_rtModeRecorded;}
     unsigned short numPhaseCycleRecorded() const {return m_numPhaseCycleRecorded;}
+    //! ver 3 records
+    bool invertPhaseRecorded() const {return m_invertPhaseRecorded;}
     
     //! periodic term of one cycle [ms]
     double periodicTermRecorded() const;
-
  protected:
   //! Start up your threads, connect GUI, and activate signals
   virtual void start();
@@ -158,6 +165,8 @@ class XPulser : public XPrimaryDriver
     unsigned short m_combNumRecorded;
     short m_rtModeRecorded;
     unsigned short m_numPhaseCycleRecorded;        
+    //! ver 3 records
+    bool m_invertPhaseRecorded;
 
   struct RelPat {
       RelPat(uint32_t pat, double t, double toapp) :
@@ -173,11 +182,11 @@ class XPulser : public XPrimaryDriver
 
   virtual void afterStart() = 0;
   //! push parameters.
-  //! use this after startWritingRaw()
+  //! use this after clearRaw()
   void writeRaw();
   
   typedef double (*tpulsefunc)(double x);
-  tpulsefunc pulseFunc(const QString &str);
+  tpulsefunc pulseFunc(const std::string &str);
   static double pulseFuncRect(double x);
   static double pulseFuncHanning(double x);
   static double pulseFuncHamming(double x);
@@ -190,6 +199,8 @@ class XPulser : public XPrimaryDriver
   static double pulseFuncFlatTop(double x);
   static double pulseFuncFlatTopLong(double x);
   static double pulseFuncFlatTopLongLong(double x);
+  static double pulseFuncHalfCos(double x);
+  static double pulseFuncChoppedHalfCos(double x);
  private:
     shared_ptr<XBoolNode> m_output;
     shared_ptr<XComboNode> m_combMode; //!< see above definitions in header file
@@ -228,7 +239,13 @@ class XPulser : public XPrimaryDriver
     shared_ptr<XDoubleNode> m_qamDelay1;
     shared_ptr<XDoubleNode> m_qamDelay2; //!< [us]
     shared_ptr<XDoubleNode> m_difFreq; //!< [MHz]
- 
+    shared_ptr<XBoolNode> m_induceEmission; 
+    shared_ptr<XDoubleNode> m_induceEmissionPhase; 
+    shared_ptr<XDoubleNode> m_qswDelay;
+    shared_ptr<XDoubleNode> m_qswWidth;
+    shared_ptr<XBoolNode> m_qswPiPulseOnly;
+    shared_ptr<XBoolNode> m_invertPhase;
+    
   shared_ptr<XNode> m_moreConfigShow;
   xqcon_ptr m_conOutput;
   xqcon_ptr m_conCombMode, m_conRTMode;
@@ -245,7 +262,9 @@ class XPulser : public XPrimaryDriver
     m_conQAMLevel1, m_conQAMLevel2,
     m_conQAMDelay1, m_conQAMDelay2,
     m_conMoreConfigShow,
-    m_conDIFFreq;
+    m_conDIFFreq,
+    m_conInduceEmission, m_conInduceEmissionPhase,
+    m_conQSWDelay, m_conQSWWidth, m_conQSWPiPulseOnly;
   shared_ptr<XListener> m_lsnOnPulseChanged;
   shared_ptr<XListener> m_lsnOnMoreConfigShow;
   void onMoreConfigShow(const shared_ptr<XNode> &);

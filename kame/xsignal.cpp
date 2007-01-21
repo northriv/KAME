@@ -104,6 +104,9 @@ XSignalBuffer::synchronize()
     catch (XKameError &e) {
         e.print();
     }
+    catch (std::bad_alloc &) {
+        gErrPrint("Memory Allocation Failed!");
+    }
     catch (...) {
         gErrPrint("Unhandled Exception Occurs!");
     }    

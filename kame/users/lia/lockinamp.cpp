@@ -34,7 +34,7 @@ XLIA::XLIA(const char *name, bool runtime,
   scalarentries->insert(m_valueY);
 
   m_form->statusBar()->hide();
-  m_form->setCaption(i18n("Lock-in-Amp - ") + getName() );
+  m_form->setCaption(KAME::i18n("Lock-in-Amp - ") + getLabel() );
 
   m_output->setUIEnabled(false);
   m_frequency->setUIEnabled(false);
@@ -99,7 +99,7 @@ XLIA::onOutputChanged(const shared_ptr<XValueNodeBase> &)
         changeOutput(*output());
     }
     catch (XKameError& e) {
-        e.print(getName() + " " + i18n("Error while changing output, "));
+        e.print(getLabel() + " " + KAME::i18n("Error while changing output, "));
         return;
     }
 }
@@ -110,7 +110,7 @@ XLIA::onFreqChanged(const shared_ptr<XValueNodeBase> &)
         changeFreq(*frequency());
     }
     catch (XKameError& e) {
-        e.print(getName() + " " + i18n("Error while changing frequency, "));
+        e.print(getLabel() + " " + KAME::i18n("Error while changing frequency, "));
         return;
     }
 }
@@ -121,7 +121,7 @@ XLIA::onSensitivityChanged(const shared_ptr<XValueNodeBase> &)
         changeSensitivity(*sensitivity());
     }
     catch (XKameError& e) {
-        e.print(getName() + " " + i18n("Error while changing sensitivity, "));
+        e.print(getLabel() + " " + KAME::i18n("Error while changing sensitivity, "));
         return;
     }
 }
@@ -132,7 +132,7 @@ XLIA::onTimeConstChanged(const shared_ptr<XValueNodeBase> &)
         changeTimeConst(*timeConst());
     }
     catch (XKameError& e) {
-        e.print(getName() + " " + i18n("Error while changing time const., "));
+        e.print(getLabel() + " " + KAME::i18n("Error while changing time const., "));
         return;
     }
 }
@@ -145,7 +145,7 @@ XLIA::execute(const atomic<bool> &terminated)
       afterStart();
   }
   catch (XKameError &e) {
-      e.print(getName() + " " +  i18n("Error while starting, "));
+      e.print(getLabel() + " " +  KAME::i18n("Error while starting, "));
       interface()->close();
       return NULL;
   }
@@ -172,8 +172,10 @@ XLIA::execute(const atomic<bool> &terminated)
     {
       double fetch_freq = *fetchFreq();
       double wait = 0;
-      if(fetch_freq > 0)
-          wait = timeConst()->to_str().toDouble() * 1000.0 / fetch_freq;
+      if(fetch_freq > 0) {
+         sscanf(timeConst()->to_str().c_str(), "%lf", &wait);
+         wait *= 1000.0 / fetch_freq;
+      }
       if(wait > 0) msecsleep(lrint(wait));
       
       double x, y;
@@ -183,13 +185,13 @@ XLIA::execute(const atomic<bool> &terminated)
           get(&x, &y);
       }
       catch (XKameError &e) {
-          e.print(getName() + " " + i18n("Read Error, "));
+          e.print(getLabel() + " " + KAME::i18n("Read Error, "));
           continue;
       }
-      startWritingRaw();
+      clearRaw();
       push(x);
       push(y);
-      finishWritingRaw(time_awared, XTime::now(), true);
+      finishWritingRaw(time_awared, XTime::now());
     }
   
   m_lsnOutput.reset();
@@ -209,7 +211,7 @@ XLIA::execute(const atomic<bool> &terminated)
       beforeStop();
   }
   catch (XKameError &e) {
-      e.print(getName() + " " + i18n("Error while closing, "));
+      e.print(getLabel() + " " + KAME::i18n("Error while closing, "));
   }
     
   interface()->close();

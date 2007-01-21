@@ -83,8 +83,8 @@ class XTime
     long sec() const {return tv_sec;}
     long usec() const {return tv_usec;}
     static XTime now();
-    QString getTimeStr(bool subsecond = true) const;
-    QString getTimeFmtStr(const char *fmt, bool subsecond = true) const
+    std::string getTimeStr(bool subsecond = true) const;
+    std::string getTimeFmtStr(const char *fmt, bool subsecond = true) const
        __attribute__ ((format(strftime,2, 0)));
  private:
     long tv_sec;

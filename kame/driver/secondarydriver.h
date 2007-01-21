@@ -23,7 +23,7 @@ class XSecondaryDriver : public XDriver
   virtual const shared_ptr<XRecordDependency> dependency() const {return m_dependency;}
  protected:
   //! call this to receive signal/data
-  void connect(const shared_ptr<XItemNodeBase> &item);
+  void connect(const shared_ptr<XItemNodeBase> &item, bool check_deep_dep = true);
   //! check dependencies and lock all records and analyze
   //! null pointer will be passed to analyze()
   //! emitter is driver itself.
@@ -52,23 +52,25 @@ class XSecondaryDriver : public XDriver
   void readUnlockAllConnections();
   
   //! \ret true if dependency is resolved
-  //! check 
   bool checkDeepDependency(shared_ptr<XRecordDependency> &) const;
 
   shared_ptr<XRecordDependency> m_dependency;
   
   //! holds connections
   std::vector<shared_ptr<const XDriver> > m_connection;
+  std::vector<shared_ptr<const XDriver> > m_connection_check_deep_dep;
   XRWLock m_connection_mutex;
   typedef std::vector<shared_ptr<const XDriver> >::const_iterator tConnection_it;
   shared_ptr<XListener> m_lsnOnRecord;
   shared_ptr<XListener> m_lsnBeforeItemChanged;
+  shared_ptr<XListener> m_lsnOnItemChangedCheckDeepDep;
   shared_ptr<XListener> m_lsnOnItemChanged;
   //! called by connected drivers
   //! does dependency checks, readLock all connected drivers, write
   //! and finally call purely virtual function analyze();
   void onConnectedRecorded(const shared_ptr<XDriver> &);
   void beforeItemChanged(const shared_ptr<XValueNodeBase> &item);
+  void onItemChangedCheckDeepDep(const shared_ptr<XValueNodeBase> &item);
   void onItemChanged(const shared_ptr<XValueNodeBase> &item);
 };
 

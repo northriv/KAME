@@ -91,7 +91,10 @@ class XRelaxFuncSqrt : public XRelaxFunc
  }
 };
 
-
+//NQR I=1
+static const struct XRelaxFuncPoly::Term s_relaxdata_nqr2[] = {
+  {3, 1.0}, {0, 0}
+};
 //NQR I=3/2
 static const struct XRelaxFuncPoly::Term s_relaxdata_nqr3[] = {
   {3, 1.0}, {0, 0}
@@ -103,6 +106,18 @@ static const struct XRelaxFuncPoly::Term s_relaxdata_nqr5_5[] = {
   //NQR I=5/2, 3/2
 static const struct XRelaxFuncPoly::Term  s_relaxdata_nqr5_3[] = {
     {3, 3.0/28}, {10, 25.0/28}, {0, 0}
+  };
+  //NQR I=3, 3
+static const struct XRelaxFuncPoly::Term  s_relaxdata_nqr6_6[] = {
+{21,0.05303}, {10,0.64935}, {3,0.29762}, {0, 0}
+  };
+  //NQR I=3, 2
+static const struct XRelaxFuncPoly::Term  s_relaxdata_nqr6_4[] = {
+{21,0.47727}, {10,0.41558}, {3,0.10714}, {0, 0}
+  };
+  //NQR I=3, 1
+static const struct XRelaxFuncPoly::Term  s_relaxdata_nqr6_2[] = {
+{21,0.88384}, {10,0.10823}, {3,0.0079365}, {0, 0}
   };
   //NQR I=7/2, 7/2
 static const struct XRelaxFuncPoly::Term  s_relaxdata_nqr7_7[] = {
@@ -136,6 +151,10 @@ static const struct XRelaxFuncPoly::Term  s_relaxdata_nqr9_3[] = {
 static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr1[] = {
     {1, 1}, {0, 0}
   };
+  //NMR I=1
+static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr2[] = {
+  {3,0.75}, {1,0.25}, {0, 0}
+  };
   //NMR I=3/2 center
 static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr3ca[] = {
     {1, 0.1}, {6, 0.9}, {0, 0}
@@ -162,29 +181,60 @@ static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr5s[] = {
 static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr5s2[] = {
     {1, 0.028571}, {3, 0.2143}, {6, 0.3996}, {10, 0.2857}, {15, 0.0714}, {0, 0}
   };
+  //NMR I=3 1--1
+static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr6c[] = {  
+  {21,0.66288}, {15,0.14881}, {10,0.081169}, {6,0.083333}, {3,0.0059524}, {1,0.017857}, {0,0}
+};
+  //NMR I=3 2-1
+static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr6s1[] = {  
+{21,0.23864}, {15,0.48214}, {10,0.20779}, {3,0.053571}, {1,0.017857}, {0,0}
+};
+  //NMR I=3 3-2
+static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr6s2[] = {  
+{21,0.026515}, {15,0.14881}, {10,0.32468}, {6,0.33333}, {3,0.14881}, {1,0.017857}, {0,0}
+};
   //NMR I=7/2 center
 static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr7c[] = {
     {1, 0.0119}, {6, 0.06818}, {15, 0.20605}, {28, 0.7137375}, {0, 0}
   };
-  //NMR I=7/2 satellite
-static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr7s[] = {
+  //NMR I=7/2 satellite 3/2-1/2
+static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr7s1[] = {
     {1, 0.01191}, {3, 0.05952}, {6, 0.030305}, {10, 0.17532}, {15, 0.000915}, {21, 0.26513}, {28, 0.45678}, {0, 0}
+  };
+  //NMR I=7/2 satellite 5/2-3/2
+static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr7s2[] = {
+{28,0.11422}, {21,0.37121}, {15,0.3663}, {10,0.081169}, {6,0.0075758}, {3,0.047619}, {1,0.011905} , {0, 0}
+  };
+  //NMR I=7/2 satellite 7/2-5/2
+static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr7s3[] = {
+ {28,0.009324}, {21,0.068182}, {15,0.20604}, {10,0.32468}, {6,0.27273}, {3,0.10714}, {1,0.011905}, {0, 0}
+  };
+  //NMR I=9/2 center
+static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr9c[] = {
+{45,0.65306}, {28,0.215}, {15,0.092308}, {6,0.033566}, {1,0.0060606}, {0, 0}
+  };
+  //NMR I=9/2 satellite 3/2-1/2
+static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr9s1[] = {
+{45,0.45352}, {36,0.30839}, {28,0.0033594}, {21,0.14848}, {15,0.016026}, {10,0.039336}, {6,0.021037}, {3,0.0037879}, {1,0.0060606}, {0, 0}
+  };
+  //NMR I=9/2 satellite 5/2-3/2
+static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr9s2[] = {
+{45,0.14809}, {36,0.4028}, {28,0.28082}, {21,0.012121}, {15,0.064103}, {10,0.06993}, {6,0.0009324}, {3,0.015152}, {1,0.0060606}, {0, 0}
+  };
+  //NMR I=9/2 satellite 7/2-5/2
+static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr9s3[] = {
+{45,0.020825}, {36,0.12745}, {28,0.30318}, {21,0.33409}, {15,0.14423}, {10,0.0043706}, {6,0.025699}, {3,0.034091}, {1,0.0060606}, {0, 0}
+  };
+  //NMR I=9/2 satellite 9/2-7/2
+static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr9s4[] = {
+{45,0.0010284}, {36,0.011189}, {28,0.05375}, {21,0.14848}, {15,0.25641}, {10,0.27972}, {6,0.18275}, {3,0.060606}, {1,0.0060606}, {0, 0}
   };
 
 XRelaxFuncList::XRelaxFuncList(const char *name, bool runtime)
  : XAliasListNode<XRelaxFunc>(name, runtime)
 {
-   create<XRelaxFuncPoly>("NQR I=3/2", true, s_relaxdata_nqr3);
-   create<XRelaxFuncPoly>("NQR I=5/2 5/2-3/2", true, s_relaxdata_nqr5_5);
-   create<XRelaxFuncPoly>("NQR I=5/2 3/2-1/2", true, s_relaxdata_nqr5_3);
-   create<XRelaxFuncPoly>("NQR I=7/2 7/2-5/2", true, s_relaxdata_nqr7_7);
-   create<XRelaxFuncPoly>("NQR I=7/2 5/2-3/2", true, s_relaxdata_nqr7_5);
-   create<XRelaxFuncPoly>("NQR I=7/2 3/2-2/1", true, s_relaxdata_nqr7_3);
-   create<XRelaxFuncPoly>("NQR I=9/2 9/2-7/2", true, s_relaxdata_nqr9_9);
-   create<XRelaxFuncPoly>("NQR I=9/2 7/2-5/2", true, s_relaxdata_nqr9_7);
-   create<XRelaxFuncPoly>("NQR I=9/2 5/2-3/2", true, s_relaxdata_nqr9_5);
-   create<XRelaxFuncPoly>("NQR I=9/2 3/2-2/1", true, s_relaxdata_nqr9_3);
    create<XRelaxFuncPoly>("NMR I=1/2", true, s_relaxdata_nmr1);
+   create<XRelaxFuncPoly>("NMR I=1", true, s_relaxdata_nmr2);
    create<XRelaxFuncPoly>("NMR I=3/2 center a", true, s_relaxdata_nmr3ca);
    create<XRelaxFuncPoly>("NMR I=3/2 center b", true, s_relaxdata_nmr3cb);
    create<XRelaxFuncPoly>("NMR I=3/2 satellite", true, s_relaxdata_nmr3s);
@@ -192,10 +242,33 @@ XRelaxFuncList::XRelaxFuncList(const char *name, bool runtime)
    create<XRelaxFuncPoly>("NMR I=5/2 center b", true, s_relaxdata_nmr5cb);
    create<XRelaxFuncPoly>("NMR I=5/2 satellite 3/2-1/2", true, s_relaxdata_nmr5s);
    create<XRelaxFuncPoly>("NMR I=5/2 satellite 5/2-3/2", true, s_relaxdata_nmr5s2);
+   create<XRelaxFuncPoly>("NMR I=3 1-0", true, s_relaxdata_nmr6c);
+   create<XRelaxFuncPoly>("NMR I=3 2-1", true, s_relaxdata_nmr6s1);
+   create<XRelaxFuncPoly>("NMR I=3 3-2", true, s_relaxdata_nmr6s2);
    create<XRelaxFuncPoly>("NMR I=7/2 center", true, s_relaxdata_nmr7c);
-   create<XRelaxFuncPoly>("NMR I=7/2 satellite 3/2-1/2", true, s_relaxdata_nmr7s);
-   create<XRelaxFuncSqrt>("Random Spins; exp(-sqrt(t/tau))", true);
-   
+   create<XRelaxFuncPoly>("NMR I=7/2 satellite 3/2-1/2", true, s_relaxdata_nmr7s1);
+   create<XRelaxFuncPoly>("NMR I=7/2 satellite 5/2-3/2", true, s_relaxdata_nmr7s2);
+   create<XRelaxFuncPoly>("NMR I=7/2 satellite 7/2-5/2", true, s_relaxdata_nmr7s3);
+   create<XRelaxFuncPoly>("NMR I=9/2 center", true, s_relaxdata_nmr9c);
+   create<XRelaxFuncPoly>("NMR I=9/2 satellite 3/2-1/2", true, s_relaxdata_nmr9s1);
+   create<XRelaxFuncPoly>("NMR I=9/2 satellite 5/2-3/2", true, s_relaxdata_nmr9s2);
+   create<XRelaxFuncPoly>("NMR I=9/2 satellite 7/2-5/2", true, s_relaxdata_nmr9s3);
+   create<XRelaxFuncPoly>("NMR I=9/2 satellite 9/2-7/2", true, s_relaxdata_nmr9s4);
+   create<XRelaxFuncPoly>("NQR I=1", true, s_relaxdata_nqr2);
+   create<XRelaxFuncPoly>("NQR I=3/2", true, s_relaxdata_nqr3);
+   create<XRelaxFuncPoly>("NQR I=5/2 5/2-3/2", true, s_relaxdata_nqr5_5);
+   create<XRelaxFuncPoly>("NQR I=5/2 3/2-1/2", true, s_relaxdata_nqr5_3);
+   create<XRelaxFuncPoly>("NQR I=3 3-2", true, s_relaxdata_nqr6_6);
+   create<XRelaxFuncPoly>("NQR I=3 2-1", true, s_relaxdata_nqr6_4);
+   create<XRelaxFuncPoly>("NQR I=3 1-0", true, s_relaxdata_nqr6_2);
+   create<XRelaxFuncPoly>("NQR I=7/2 7/2-5/2", true, s_relaxdata_nqr7_7);
+   create<XRelaxFuncPoly>("NQR I=7/2 5/2-3/2", true, s_relaxdata_nqr7_5);
+   create<XRelaxFuncPoly>("NQR I=7/2 3/2-2/1", true, s_relaxdata_nqr7_3);
+   create<XRelaxFuncPoly>("NQR I=9/2 9/2-7/2", true, s_relaxdata_nqr9_9);
+   create<XRelaxFuncPoly>("NQR I=9/2 7/2-5/2", true, s_relaxdata_nqr9_7);
+   create<XRelaxFuncPoly>("NQR I=9/2 5/2-3/2", true, s_relaxdata_nqr9_5);
+   create<XRelaxFuncPoly>("NQR I=9/2 3/2-2/1", true, s_relaxdata_nqr9_3);
+   create<XRelaxFuncSqrt>("Random Spins; exp(-sqrt(t/tau))", true);   
 }
 
 
@@ -275,7 +348,7 @@ XRelaxFunc::relax_fdf (const gsl_vector * x, void *params,
     }
   return GSL_SUCCESS;
 }
-QString
+std::string
 XNMRT1::iterate(shared_ptr<XRelaxFunc> &func,
 		int itercnt)
 {
@@ -289,7 +362,7 @@ XNMRT1::iterate(shared_ptr<XRelaxFunc> &func,
     func
   };
   int p = 3;
-  if(n <= p) return QString::number(n) + i18n(" points, more points needed.");
+  if(n <= p) return formatString("%d",n) + KAME::i18n(" points, more points needed.");
   int status;
   double norm = 0;
   XTime firsttime = XTime::now();

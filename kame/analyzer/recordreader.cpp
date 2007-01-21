@@ -18,16 +18,16 @@
 #define RECORD_READER_NUM_THREADS 2
 
 XRawStreamRecordReader::XIOError::XIOError(const char *file, int line)
- : XRecordError(i18n("IO Error"), file, line) {}
+ : XRecordError(KAME::i18n("IO Error"), file, line) {}
 XRawStreamRecordReader::XIOError::XIOError(const QString &msg, const char *file, int line)
  : XRecordError(msg, file, line) {}
 XRawStreamRecordReader::XBufferOverflowError::XBufferOverflowError(const char *file, int line)
- : XIOError(i18n("Buffer Overflow Error"), file, line) {}
+ : XIOError(KAME::i18n("Buffer Overflow Error"), file, line) {}
 XRawStreamRecordReader::XBrokenRecordError::XBrokenRecordError(const char *file, int line)
- : XRecordError(i18n("Broken Record Error"), file, line) {}
+ : XRecordError(KAME::i18n("Broken Record Error"), file, line) {}
 XRawStreamRecordReader::XNoDriverError::
  XNoDriverError(const char *driver_name, const char *file, int line)
-   : XRecordError(i18n("No Driver Error: ") + driver_name, file, line),
+   : XRecordError(KAME::i18n("No Driver Error: ") + driver_name, file, line),
     name(driver_name) {}
          
 XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist)
@@ -75,7 +75,7 @@ void
 XRawStreamRecordReader::onOpen(const shared_ptr<XValueNodeBase> &)
 {
   if(m_pGFD) gzclose(m_pGFD);
-  m_pGFD = gzopen(filename()->to_str().local8Bit(), "rb");
+  m_pGFD = gzopen(QString(filename()->to_str()).local8Bit(), "rb");
 }
 void
 XRawStreamRecordReader::readHeader(void *fd)
@@ -130,7 +130,7 @@ XRawStreamRecordReader::parseOne(void *fd, XMutex &mutex)
         throw XNoDriverError(name, __FILE__, __LINE__);
     }
     try {
-        driver->startWritingRaw();
+        driver->clearRaw();
         driver->rawData().resize(size);
         if(gzread(fd, &driver->rawData()[0], size) == -1)
             throw XIOError(__FILE__, __LINE__);
@@ -143,12 +143,12 @@ XRawStreamRecordReader::parseOne(void *fd, XMutex &mutex)
             throw XBrokenRecordError(__FILE__, __LINE__);
     }
     catch (XRecordError &e) {
-        driver->finishWritingRaw(XTime(), XTime(), true);
+        driver->finishWritingRaw(XTime(), XTime());
         throw e;
     }
     mutex.unlock();
     { XScopedLock<XMutex> lock(m_drivermutex);
-        driver->finishWritingRaw(XTime::now(), time, true);
+        driver->finishWritingRaw(XTime::now(), time);
     }
 }
 void
@@ -205,6 +205,7 @@ XRawStreamRecordReader::terminate()
     for(tThreadIt it = m_threads.begin(); it != m_threads.end(); it++) {
         (*it)->terminate();
     }
+    XScopedLock<XCondition> lock(m_condition);
     m_condition.broadcast();
 }
 
@@ -219,13 +220,14 @@ XRawStreamRecordReader::onPlayCondChanged(const shared_ptr<XValueNodeBase> &)
     if(!*m_fastForward && !*m_rewind) ms = 0;
     if(*m_rewind) ms = -ms;
     m_periodicTerm = ms;
+    XScopedLock<XCondition> lock(m_condition);
     m_condition.broadcast();
 }
 void
 XRawStreamRecordReader::onStop(const shared_ptr<XNode> &)
 {
     m_periodicTerm = 0;
-    g_statusPrinter->printMessage(i18n("Stopped"));
+    g_statusPrinter->printMessage(KAME::i18n("Stopped"));
     m_fastForward->onValueChanged().mask();
     m_fastForward->value(false);
     m_fastForward->onValueChanged().unmask();
@@ -242,11 +244,11 @@ XRawStreamRecordReader::onFirst(const shared_ptr<XNode> &)
             m_filemutex.lock();
             _first(m_pGFD);
             parseOne(m_pGFD, m_filemutex);
-            g_statusPrinter->printMessage(i18n("First"));
+            g_statusPrinter->printMessage(KAME::i18n("First"));
       }
       catch (XRecordError &e) {
             m_filemutex.unlock();
-            e.print(i18n("No Record, because "));
+            e.print(KAME::i18n("No Record, because "));
       }
     }
 }
@@ -258,11 +260,11 @@ XRawStreamRecordReader::onNext(const shared_ptr<XNode> &)
       try {
            m_filemutex.lock(); 
            parseOne(m_pGFD, m_filemutex);
-           g_statusPrinter->printMessage(i18n("Next"));
+           g_statusPrinter->printMessage(KAME::i18n("Next"));
       }
       catch (XRecordError &e) {
             m_filemutex.unlock();
-            e.print(i18n("No Record, because "));
+            e.print(KAME::i18n("No Record, because "));
       }
     }
 }
@@ -276,11 +278,11 @@ XRawStreamRecordReader::onBack(const shared_ptr<XNode> &)
            _previous(m_pGFD);
            _previous(m_pGFD);
            parseOne(m_pGFD, m_filemutex);
-           g_statusPrinter->printMessage(i18n("Previous"));
+           g_statusPrinter->printMessage(KAME::i18n("Previous"));
       }
       catch (XRecordError &e) {
             m_filemutex.unlock();
-            e.print(i18n("No Record, because "));
+            e.print(KAME::i18n("No Record, because "));
       }
     }
 }
@@ -290,8 +292,11 @@ void *XRawStreamRecordReader::execute(const atomic<bool> &terminated)
   while(!terminated)
     {
     double ms = 0.0;
-    while((fabs((ms = m_periodicTerm)) < 1e-4) && !terminated)
-            m_condition.wait();
+        {
+        XScopedLock<XCondition> lock(m_condition);
+        while((fabs((ms = m_periodicTerm)) < 1e-4) && !terminated)
+                m_condition.wait();
+        }
     
       if(terminated) break;
       
@@ -305,7 +310,7 @@ void *XRawStreamRecordReader::execute(const atomic<bool> &terminated)
       }
       catch (XNoDriverError &e) {
           m_filemutex.unlock();
-          e.print(i18n("No such driver :") + e.name);
+          e.print(KAME::i18n("No such driver :") + e.name);
       }
       catch (XRecordError &e) {
           m_periodicTerm = 0.0;
@@ -316,7 +321,7 @@ void *XRawStreamRecordReader::execute(const atomic<bool> &terminated)
           m_rewind->value(false);
           m_rewind->onValueChanged().unmask();
           m_filemutex.unlock();
-          e.print(i18n("No Record, because "));
+          e.print(KAME::i18n("No Record, because "));
       }
      
       msecsleep(lrint(fabs(ms)));

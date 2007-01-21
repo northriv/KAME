@@ -57,7 +57,7 @@ class XDriver : public XNode
   struct XRecordError : public XKameError {
     XRecordError(const QString &s, const char *file, int line) : XKameError(s, file, line) {}
   };
-  //! throwing this exception will cause reset of record time
+  //! throwing this exception will skip signal emission, assuming record is kept valid.
   struct XSkippedRecordError : public XRecordError {
     XSkippedRecordError(const char *file, int line) : XRecordError("", file, line) {}
   };
@@ -77,10 +77,12 @@ class XDriver : public XNode
   virtual void visualize() = 0;
   
   //! writeLock record and readLock all dependent drivers
-  //! \sa time(), timeAwared()
-  void startRecording(const XTime &time_awared);
+  void startRecording();
   //! m_tlkRecord is invoked after unlocking
-  void finishRecordingNReadLock(const XTime &time_recorded);
+  //! \sa time(), timeAwared()
+  void finishRecordingNReadLock(const XTime &time_awared, const XTime &time_recorded);
+  //! leave existing record.
+  void abortRecording();
   //! Lock this record and dependent drivers
  private:
   XTalker<shared_ptr<XDriver> > m_tlkRecord;
