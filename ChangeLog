@@ -1,3 +1,7 @@
+* Sun Jan 21 2007 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.0.13-2)
+- kame.spec : modified for FedoraCore6.
+
 * Wed Nov 1 2006 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
 - (2.0.12-2)
 - xrubysupport.{cpp,rb} : Ignore errors on loading .kam.

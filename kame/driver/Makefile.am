@@ -1,4 +1,3 @@
-####### kdevelop will overwrite this part!!! (begin)##########
 noinst_LIBRARIES = libdriver.a
 
 INCLUDES = -I$(top_srcdir)/kame \
@@ -15,8 +14,6 @@ libdriver_a_SOURCES = interface.cpp interface.h \
 	secondarydriver.cpp secondarydriver.h \
 	driverlistconnector.cpp driverlistconnector.h \
 	interfacelistconnector.cpp interfacelistconnector.h 
-
-AM_CPPFLAGS = @LINUXGPIB_CFLAGS@
 
 METASOURCES = AUTO
 

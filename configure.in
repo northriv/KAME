@@ -40,7 +40,7 @@ dnl Perform program name transformation
 AC_ARG_PROGRAM
 
 dnl Automake doc recommends to do this only here. (Janos)
-AM_INIT_AUTOMAKE(kame, 2.0) dnl searches for some needed programs
+AM_INIT_AUTOMAKE(kame, 2.1) dnl searches for some needed programs
 
 KDE_SET_PREFIX
 
@@ -159,7 +159,6 @@ AC_SUBST(FFTW_LIBS)
 AC_SUBST(NIDAQMX_LIBS)
 AC_SUBST(NIDAQMX_CFLAGS)
 AC_SUBST(LINUXGPIB_LIBS)
-AC_SUBST(LINUXGPIB_CFLAGS)
 AC_SUBST(RUBY_LIBS)
 AC_SUBST(RUBY_CFLAGS)
 AC_SUBST(FREETYPE2_LIBS)

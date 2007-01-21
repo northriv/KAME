@@ -973,7 +973,6 @@ FFTW_LIBS
 NIDAQMX_LIBS
 NIDAQMX_CFLAGS
 LINUXGPIB_LIBS
-LINUXGPIB_CFLAGS
 RUBY_LIBS
 RUBY_CFLAGS
 FREETYPE2_LIBS
@@ -2489,7 +2488,7 @@ fi
 
 # Define the identity of the package.
  PACKAGE=kame
- VERSION=2.0
+ VERSION=2.1
 
 
 cat >>confdefs.h <<_ACEOF
@@ -37622,7 +37621,6 @@ _ACEOF
 
 
 
-
 CPPFLAGS="$CPPFLAGS $RUBY_CFLAGS $FREETYPE2_CFLAGS"
 
 
@@ -38716,7 +38714,6 @@ FFTW_LIBS!$FFTW_LIBS$ac_delim
 NIDAQMX_LIBS!$NIDAQMX_LIBS$ac_delim
 NIDAQMX_CFLAGS!$NIDAQMX_CFLAGS$ac_delim
 LINUXGPIB_LIBS!$LINUXGPIB_LIBS$ac_delim
-LINUXGPIB_CFLAGS!$LINUXGPIB_CFLAGS$ac_delim
 RUBY_LIBS!$RUBY_LIBS$ac_delim
 RUBY_CFLAGS!$RUBY_CFLAGS$ac_delim
 FREETYPE2_LIBS!$FREETYPE2_LIBS$ac_delim
@@ -38728,7 +38725,7 @@ LIB@&t@OBJS!$LIB@&t@OBJS$ac_delim
 LTLIBOBJS!$LTLIBOBJS$ac_delim
 _ACEOF
 
-  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 36; then
+  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 35; then
     break
   elif $ac_last_try; then
     { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5

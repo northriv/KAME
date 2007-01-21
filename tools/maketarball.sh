@@ -1,8 +1,8 @@
 #!/bin/bash
 kame_date=`date +'%Y%m%d'`
-version=2.0.13
+version=2.1.0
 file=kame-$version-$kame_date
-dir=../2.0-backups/$file
+dir=../2.1-backups/$file
 mkdir -p $dir
 rsync --exclude "linux686" \
 	--exclude "kdedarwin" \

@@ -5,7 +5,7 @@
 %global mikachanver 8.9
 
 Name: kame
-Version: 2.0.13
+Version: 2.1.0
 Release: 1
 License: GPL
 Group: Applications/Engineering
