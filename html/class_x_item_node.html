@@ -4,7 +4,7 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <h1>クラス テンプレート XItemNode&lt; TL, T &gt;</h1><!-- doxytag: class=<XItemNode> --><!-- doxytag: inherits=<XPointerItemNode> -->A pointer to a <a class="el" href="class_x_list_node.html">XListNode</a> TL, T is value type.  
 <a href="#_details">[詳細]</a>
 <p>
@@ -19,14 +19,18 @@ XItemNode&lt; TL, T &gt;に対する継承グラフ<p><center><img src="class_x_item_node
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XItemNode&lt; TL, T &gt;のコラボレーション図<p><center><img src="class_x_item_node__coll__graph.png" border="0" usemap="#_x_item_node_3_01_t_l_00_01_t_01_4__coll__map" alt="Collaboration graph"></center>
 <map name="_x_item_node_3_01_t_l_00_01_t_01_4__coll__map">
-<area href="class_x_pointer_item_node.html" shape="rect" coords="408,290,576,317" alt="">
-<area href="class_x_item_node_base.html" shape="rect" coords="209,200,326,226" alt="">
-<area href="class_x_value_node_base.html" shape="rect" coords="8,98,133,125" alt="">
-<area href="class_x_talker.html" shape="rect" coords="157,98,429,125" alt="">
-<area href="class_x_mutex.html" shape="rect" coords="460,8,526,34" alt="">
-<area href="class_x_recursive_mutex.html" shape="rect" coords="598,149,726,176" alt="">
-<area href="classatomic__shared__ptr.html" shape="rect" coords="350,200,633,226" alt="">
-<area href="class_x_light_mutex.html" shape="rect" coords="453,98,549,125" alt="">
+<area href="class_x_pointer_item_node.html" shape="rect" coords="623,458,791,485" alt="">
+<area href="class_x_item_node_base.html" shape="rect" coords="474,381,591,408" alt="">
+<area href="class_x_value_node_base.html" shape="rect" coords="126,290,251,317" alt="">
+<area href="class_x_node.html" shape="rect" coords="7,200,69,226" alt="">
+<area href="class_x_talker.html" shape="rect" coords="93,200,373,226" alt="">
+<area href="class___x_talker_base.html" shape="rect" coords="187,98,291,125" alt="">
+<area href="class_x_talker.html" shape="rect" coords="397,200,669,226" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="317,98,541,125" alt="">
+<area href="structatomic__shared__ptr_1_1___ref_local.html" shape="rect" coords="355,8,585,34" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="565,98,847,125" alt="">
+<area href="class_x_mutex.html" shape="rect" coords="705,8,771,34" alt="">
+<area href="class_x_recursive_mutex.html" shape="rect" coords="801,149,929,176" alt="">
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_item_node-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
 <tr><td></td></tr>
@@ -37,11 +41,12 @@ virtual&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="c
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a1"></a><!-- doxytag: member=<XItemNode::operator shared_ptr> ref=<a1> args=<() const > -->
 virtual&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_item_node.html#a1">operator shared_ptr</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a2"></a><!-- doxytag: member=<XItemNode::operator[]> ref=<a2> args=<(unsigned int index) const > -->
-virtual QString&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_item_node.html#a2">operator[]</a> (unsigned int index) const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a2"></a><!-- doxytag: member=<XItemNode::value> ref=<a2> args=<(const shared_ptr&lt; XNode &gt; &amp;t)> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_item_node.html#a2">value</a> (const shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt; &amp;t)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a3"></a><!-- doxytag: member=<XItemNode::value> ref=<a3> args=<(const shared_ptr&lt; XNode &gt; &amp;t)> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_item_node.html#a3">value</a> (const shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt; &amp;t)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a3"></a><!-- doxytag: member=<XItemNode::itemStrings> ref=<a3> args=<() const > -->
+virtual shared_ptr&lt; const <br>
+std::deque&lt; <a class="el" href="struct_x_item_node_base_1_1_item.html">XItemNodeBase::Item</a> &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_item_node.html#a3">itemStrings</a> () const </td></tr>
 
 <tr><td colspan="2"><br><h2>Protected メソッド</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b0"></a><!-- doxytag: member=<XItemNode::XItemNode> ref=<b0> args=<(const char *name, bool runtime, const shared_ptr&lt; TL &gt; &amp;list)> -->
@@ -60,9 +65,9 @@ A pointer to a <a class="el" href="class_x_list_node.html">XListNode</a> TL, T i
 <p>
 
 <p>
- <a class="el" href="xitemnode_8h-source.html">xitemnode.h</a> の <a class="el" href="xitemnode_8h-source.html#l00099">99</a> 行で定義されています。<hr>このクラスの説明は次のファイルから生成されました:<ul>
+ <a class="el" href="xitemnode_8h-source.html">xitemnode.h</a> の <a class="el" href="xitemnode_8h-source.html#l00090">90</a> 行で定義されています。<hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/<a class="el" href="xitemnode_8h-source.html">xitemnode.h</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:05:06 2006に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 13:04:40 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

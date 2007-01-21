@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: ja\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2006-01-09 22:55+0900\n"
+"POT-Creation-Date: 2006-11-04 04:09+0900\n"
 "PO-Revision-Date: 2006-01-03 08:09+0900\n"
 "Last-Translator: Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>\n"
 "Language-Team: Japanese <ja@li.org>\n"
@@ -19,44 +19,44 @@ msgstr ""
 "X-Generator: KBabel 1.10.2\n"
 "Plural-Forms:  nplurals=1; plural=0;\n"
 
-#: analyzer/analyzer.cpp:98
+#: analyzer/analyzer.cpp:101
 msgid "Chart - "
 msgstr "チャート- "
 
-#: analyzer/analyzer.cpp:252
+#: analyzer/analyzer.cpp:260
 msgid "Graph - "
 msgstr "グラフ- "
 
-#: analyzer/entrylistconnector.cpp:29
+#: analyzer/entrylistconnector.cpp:27
 msgid "Entry"
 msgstr "エントリ"
 
-#: analyzer/entrylistconnector.cpp:30 thermometer/forms/caltableform.cpp:114
+#: analyzer/entrylistconnector.cpp:28 thermometer/forms/caltableform.cpp:115
 #: users/dcsource/forms/dcsourceform.cpp:94
 msgid "Value"
 msgstr "値"
 
-#: analyzer/entrylistconnector.cpp:31
+#: analyzer/entrylistconnector.cpp:29
 msgid "Store"
 msgstr "保存"
 
-#: analyzer/entrylistconnector.cpp:32
+#: analyzer/entrylistconnector.cpp:30
 msgid "Delta"
 msgstr "デルタ"
 
-#: analyzer/graphlistconnector.cpp:41 driver/forms/drivercreate.cpp:100
+#: analyzer/graphlistconnector.cpp:40 driver/forms/drivercreate.cpp:100
 msgid "Name"
 msgstr "名前"
 
-#: analyzer/graphlistconnector.cpp:42
+#: analyzer/graphlistconnector.cpp:41
 msgid "Axis X"
 msgstr "X軸"
 
-#: analyzer/graphlistconnector.cpp:43
+#: analyzer/graphlistconnector.cpp:42
 msgid "Axis Y"
 msgstr "Y軸"
 
-#: analyzer/graphlistconnector.cpp:44
+#: analyzer/graphlistconnector.cpp:43
 msgid "Axis Z"
 msgstr "Z軸"
 
@@ -76,28 +76,28 @@ msgstr "異常レコードエラー"
 msgid "No Driver Error: "
 msgstr "あかんドライバ名エラー"
 
-#: analyzer/recordreader.cpp:225
+#: analyzer/recordreader.cpp:230
 msgid "Stopped"
 msgstr "停止しちゃった"
 
-#: analyzer/recordreader.cpp:242
+#: analyzer/recordreader.cpp:247
 msgid "First"
 msgstr "最初"
 
-#: analyzer/recordreader.cpp:246 analyzer/recordreader.cpp:262
-#: analyzer/recordreader.cpp:280 analyzer/recordreader.cpp:316
+#: analyzer/recordreader.cpp:251 analyzer/recordreader.cpp:267
+#: analyzer/recordreader.cpp:285 analyzer/recordreader.cpp:324
 msgid "No Record, because "
 msgstr "レコードがありまへん、"
 
-#: analyzer/recordreader.cpp:258
+#: analyzer/recordreader.cpp:263
 msgid "Next"
 msgstr "次"
 
-#: analyzer/recordreader.cpp:276
+#: analyzer/recordreader.cpp:281
 msgid "Previous"
 msgstr "前"
 
-#: analyzer/recordreader.cpp:305
+#: analyzer/recordreader.cpp:313
 msgid "No such driver :"
 msgstr "ドライバが見つかりません:"
 
@@ -105,67 +105,72 @@ msgstr "ドライバが見つかりません:"
 msgid "Buffer Underflow."
 msgstr "バッファアンダーフロー."
 
-#: driver/driverlistconnector.cpp:39 driver/interfacelistconnector.cpp:28
+#: driver/driverlistconnector.cpp:38 driver/interfacelistconnector.cpp:28
 msgid "Driver"
 msgstr "ドライバ"
 
-#: driver/driverlistconnector.cpp:40
+#: driver/driverlistconnector.cpp:39
 msgid "Type"
 msgstr "タイプ"
 
-#: driver/driverlistconnector.cpp:41
+#: driver/driverlistconnector.cpp:40
 msgid "Recorded Time"
 msgstr "レコード時刻"
 
-#: driver/driverlistconnector.cpp:159
+#: driver/driverlistconnector.cpp:153
 msgid "Driver creation failed"
 msgstr "ドライバ作成失敗"
 
-#: driver/gpib.cpp:72
+#: driver/gpib.cpp:117
+msgid "GPIB: Sending IFC"
+msgstr "GPIB: IFC送信"
+
+#: driver/gpib.cpp:133
 msgid "opening gpib device faild"
 msgstr "GPIBデバイスオープン失敗"
 
-#: driver/gpib.cpp:84
-msgid "GPIB: Sending IFC"
-msgstr ""
-
-#: driver/gpib.cpp:111
-msgid "ibwrt err"
-msgstr ""
-
-#: driver/gpib.cpp:122 driver/gpib.cpp:162 driver/gpib.cpp:210
+#: driver/gpib.cpp:191 driver/gpib.cpp:252
 msgid "too many EDVR/EFSO"
-msgstr ""
+msgstr "多すぎるEDVR/EFSO"
 
-#: driver/gpib.cpp:126 driver/gpib.cpp:166 driver/gpib.cpp:214
+#: driver/gpib.cpp:193
+msgid "ibwrt err"
+msgstr "ibwrtエラー"
+
+#: driver/gpib.cpp:196 driver/gpib.cpp:257 users/nmr/pulserdriverh8.cpp:174
+#: users/nmr/pulserdrivernidaqmx.cpp:384 users/nmr/pulserdriversh.cpp:380
 msgid "try to continue"
 msgstr ""
 
-#: driver/gpib.cpp:135
+#: driver/gpib.cpp:211
 msgid "ibwrt terminated without CMPL"
 msgstr ""
 
-#: driver/gpib.cpp:151 driver/gpib.cpp:199
+#: driver/gpib.cpp:254
 msgid "ibrd err"
+msgstr "ibrdエラー"
+
+#: driver/gpib.cpp:263
+msgid "libgpib error."
+msgstr "libgpibエラー"
+
+#: driver/gpib.cpp:273
+msgid "ibrd terminated without CMPL"
 msgstr ""
 
-#: driver/gpib.cpp:179 driver/gpib.cpp:223
-msgid "ibrd terminated without END or CMPL "
-msgstr ""
-
-#: driver/gpib.cpp:237 driver/gpib.cpp:277
+#: driver/gpib.cpp:287 driver/gpib.cpp:326
 msgid "too many spoll timeouts"
 msgstr ""
 
-#: driver/gpib.cpp:244 driver/gpib.cpp:284
+#: driver/gpib.cpp:301 driver/gpib.cpp:340
 msgid "ibrsp err"
-msgstr ""
+msgstr "ibrspエラー"
 
-#: driver/gpib.cpp:254 driver/gpib.cpp:294
+#: driver/gpib.cpp:303 driver/gpib.cpp:342
 msgid "ibrsp failed"
 msgstr "ibrsp 失敗"
 
-#: driver/gpib.cpp:303
+#: driver/gpib.cpp:351
 msgid "ibrd before ibwrt asserted"
 msgstr ""
 
@@ -181,25 +186,29 @@ msgstr "コミュニケーションエラー"
 msgid "Open Interface Error"
 msgstr "インターフェース開始エラー"
 
-#: driver/interface.cpp:62
+#: driver/interface.cpp:69
 msgid "Port has already opened"
 msgstr "ポートは既に開かれてますわ"
 
-#: driver/interface.cpp:65
+#: driver/interface.cpp:72
 msgid ": Starting..."
 msgstr ": 開始..."
 
-#: driver/interface.cpp:84
+#: driver/interface.cpp:95
 msgid ": Opening port failed, because"
 msgstr ": ポートが開けまへん、"
 
-#: driver/interface.cpp:152 driver/interface.cpp:191
+#: driver/interface.cpp:161 driver/interface.cpp:198
 msgid " SendError, because "
 msgstr "送信エラー、"
 
-#: driver/interface.cpp:208 driver/interface.cpp:224
+#: driver/interface.cpp:214 driver/interface.cpp:228
 msgid " ReceiveError, because "
 msgstr "受信エラー、"
+
+#: driver/interface.cpp:273 driver/interface.cpp:281
+msgid "Port is not opened."
+msgstr "ポートは開かれてません"
 
 #: driver/interfacelistconnector.cpp:29 users/nmr/forms/nmrpllform.cpp:107
 msgid "Control"
@@ -207,7 +216,7 @@ msgstr "制御"
 
 #: driver/interfacelistconnector.cpp:30
 msgid "Device"
-msgstr ""
+msgstr "デバイス"
 
 #: driver/interfacelistconnector.cpp:31
 msgid "Port"
@@ -217,11 +226,11 @@ msgstr "ポート"
 msgid "Addr"
 msgstr "アドレス"
 
-#: driver/interfacelistconnector.cpp:75
+#: driver/interfacelistconnector.cpp:72
 msgid "&STOP"
 msgstr "停止(&S)"
 
-#: driver/interfacelistconnector.cpp:80
+#: driver/interfacelistconnector.cpp:77
 msgid "&RUN"
 msgstr "開始(&R)"
 
@@ -233,242 +242,290 @@ msgstr "Oxfordクエリエラー、イニシャル不一致"
 msgid ": close Oxford port failed, because"
 msgstr ": Oxfordポートの停止失敗、"
 
-#: driver/primarydriver.cpp:58 driver/secondarydriver.cpp:73
+#: driver/primarydriver.cpp:46 driver/secondarydriver.cpp:73
 msgid "Record Error, because "
 msgstr "レコードエラー、"
 
-#: driver/serial.cpp:32
+#: driver/serial.cpp:34
 msgid "tty open failed"
 msgstr "TTYが開けまへん"
 
-#: driver/serial.cpp:49
+#: driver/serial.cpp:53
 msgid "Invalid Baudrate"
 msgstr "無効なボードレート"
 
-#: driver/serial.cpp:59
+#: driver/serial.cpp:66
 msgid "stty failed"
 msgstr "STTY失敗"
 
 #: driver/serial.cpp:87
+msgid "tciflush error."
+msgstr "tciflushエラー"
+
+#: driver/serial.cpp:104
 msgid "write error"
+msgstr "writeエラー"
+
+#: driver/serial.cpp:138
+msgid "read time-out, buf=;"
 msgstr ""
 
-#: driver/serial.cpp:110 driver/serial.cpp:142
+#: driver/serial.cpp:146 driver/serial.cpp:189
 msgid "read error"
+msgstr "readエラー"
+
+#: driver/serial.cpp:182
+msgid "read time-out"
 msgstr ""
 
-#: graph/graphpainter.cpp:384
+#: graph/graph.cpp:69
+msgid "X Axis"
+msgstr "X軸"
+
+#: graph/graph.cpp:72
+msgid "Y Axis"
+msgstr "Y軸"
+
+#: graph/graphpainter.cpp:374
 msgid "R-DBL-CLICK TO SHOW HELP"
 msgstr "右ダブルクリックでクィックヘルプ"
 
-#: graph/graphpainter.cpp:537
+#: graph/graphpainter.cpp:527
 msgid "QUICK HELP!"
 msgstr "クィック ヘルプ!"
 
-#: graph/graphpainter.cpp:542 graph/graphpainter.cpp:548
+#: graph/graphpainter.cpp:532 graph/graphpainter.cpp:538
 msgid "Single Click Right Button on Axis : Auto-scale"
 msgstr "右クリック、軸上: オートスケール"
 
-#: graph/graphpainter.cpp:544
+#: graph/graphpainter.cpp:534
 msgid "Press Left Button on Plot : Manual Scale"
 msgstr "左ボタンをプロット上でプレス: マニュアルスケール"
 
-#: graph/graphpainter.cpp:546
+#: graph/graphpainter.cpp:536
 msgid "Press Right Button along Axis: Manual Scale"
 msgstr "右ボタンを軸上でプレス: マニュアルスケール"
 
-#: graph/graphpainter.cpp:550
+#: graph/graphpainter.cpp:540
 msgid "Single Click Right Button elsewhere : Auto-scale all"
 msgstr "右クリック、他の場所: 全てオートスケール"
 
-#: graph/graphpainter.cpp:552
+#: graph/graphpainter.cpp:542
 msgid "Press Middle Button : Tilt plots"
 msgstr "中ボタンを押す: 傾ける"
 
-#: graph/graphpainter.cpp:554
+#: graph/graphpainter.cpp:544
 msgid "Single Click Middle Button : Reset tilting"
 msgstr "中ボタンクリック: 傾きを元に戻す"
 
-#: graph/graphpainter.cpp:556
+#: graph/graphpainter.cpp:546
 msgid "Wheel around Center : (Un)Zoom all Plots"
 msgstr "中心付近でホィール: ズーム"
 
-#: graph/graphpainter.cpp:558
+#: graph/graphpainter.cpp:548
 msgid "Wheel at Side : Tilt by 30deg."
 msgstr "外側でホィール: 30度毎に傾ける."
 
-#: graph/graphpainter.cpp:560
+#: graph/graphpainter.cpp:550
 msgid "Double Click Left Button : Show Dialog"
 msgstr "左ダブルクリック: ダイアログを出す"
 
-#: graph/graphpainter.cpp:562
+#: graph/graphpainter.cpp:552
 msgid "Double Click Right Button : This Help"
 msgstr "右ダブルクリック: このヘルプ"
 
-#: graph/graphpaintergl.cpp:48
+#: graph/graphpaintergl.cpp:50
 msgid "No Fontfile!!"
 msgstr ""
 
-#: graph/graphpaintergl.cpp:138
+#: graph/graphpaintergl.cpp:154
 msgid "iconv error, probably locale is not correct."
 msgstr ""
 
-#: kame.cpp:175
+#: graph/xwavengraph.cpp:93
+msgid "Plot1"
+msgstr "プロット1"
+
+#: graph/xwavengraph.cpp:117
+msgid "Plot2"
+msgstr "プロット2"
+
+#: kame.cpp:174
 msgid "Open"
 msgstr "開く"
 
-#: kame.cpp:176
+#: kame.cpp:175
 msgid "&Open..."
 msgstr "開く(&O)..."
 
-#: kame.cpp:177
+#: kame.cpp:176
 msgid "Ctrl+O"
 msgstr "Ctrl+O"
 
-#: kame.cpp:178
+#: kame.cpp:177
 msgid "Save"
 msgstr "保存"
 
-#: kame.cpp:180
+#: kame.cpp:179
 msgid "Ctrl+S"
 msgstr "Ctrl+S"
 
-#: kame.cpp:181
+#: kame.cpp:180
 msgid "Exit"
 msgstr "終了"
 
-#: kame.cpp:182
+#: kame.cpp:181
 msgid "E&xit"
 msgstr "終了(&x)"
 
-#: kame.cpp:184
+#: kame.cpp:183
 msgid "Contents"
 msgstr "内容"
 
-#: kame.cpp:185
+#: kame.cpp:184
 msgid "&Contents..."
 msgstr "内容(&C)..."
 
-#: kame.cpp:187
+#: kame.cpp:186
 msgid "Index"
 msgstr "インデックス"
 
-#: kame.cpp:188
+#: kame.cpp:187
 msgid "&Index..."
 msgstr "インデックス(&I)..."
 
-#: kame.cpp:190
+#: kame.cpp:189
 msgid "About"
 msgstr "KAMEについて"
 
-#: kame.cpp:191
+#: kame.cpp:190
 msgid "&About"
 msgstr "KAMEについて(&A)"
 
-#: kame.cpp:193
-msgid "&Log Debugging Info."
-msgstr "ログをとる(&L)."
+#: kame.cpp:192
+msgid "&Log Debugging Info"
+msgstr "ログをとる(&L)"
 
-#: kame.cpp:195
+#: kame.cpp:194
 msgid "&Stop"
 msgstr "停止(&S)"
 
-#: kame.cpp:196
+#: kame.cpp:195
 msgid "&Run..."
 msgstr "開始(&R)"
 
-#: kame.cpp:197
+#: kame.cpp:196
 msgid "&Graphviz Save .dot..."
 msgstr "&Graphviz .dotを保存"
 
-#: kame.cpp:198
+#: kame.cpp:197
 msgid "Close"
 msgstr "閉じる"
 
-#: kame.cpp:199
+#: kame.cpp:198
 msgid "&Close"
 msgstr "閉じる(&C)"
 
-#: kame.cpp:202
+#: kame.cpp:201
 msgid "&File"
 msgstr "ファイル(&F)"
 
-#: kame.cpp:204
+#: kame.cpp:203
 msgid "&Measure"
 msgstr "測定(&M)"
 
-#: kame.cpp:206
+#: kame.cpp:205
 msgid "&Script"
 msgstr "スクリプト(&S)"
 
-#: kame.cpp:208
+#: kame.cpp:207
 msgid "&View"
 msgstr "表示(&V)"
 
-#: kame.cpp:210
+#: kame.cpp:209
 msgid "&Window"
 msgstr "ウィンドウ(&W)"
 
-#: kame.cpp:212 graph/forms/graphdialog.cpp:523
+#: kame.cpp:211 graph/forms/graphdialog.cpp:525
 msgid "&Help"
 msgstr "ヘルプ(&H)"
 
-#: kame.cpp:270
+#: kame.cpp:278
 msgid "Stop running first."
 msgstr "測定を中止する必要がありまっせ"
 
-#: kame.cpp:341
+#: kame.cpp:339
 msgid "Open Measurement File"
-msgstr "メジャメントファイルの保存"
+msgstr "メジャメントファイルを開く"
 
-#: kame.cpp:354
+#: kame.cpp:352
 msgid "Save Measurement File"
 msgstr "メジャメントファイルの保存"
 
-#: kame.cpp:377
+#: kame.cpp:367
 msgid "K's Adaptive Measurement Engine."
 msgstr ""
 
-#: kame.cpp:419
+#: kame.cpp:409
 msgid "Open Script File"
 msgstr "スクリプトファイルを開く"
 
-#: kame.cpp:451
+#: kame.cpp:440
 msgid "Save Graphviz dot File"
 msgstr "Graphviz dotファイルの保存"
 
-#: main.cpp:17 main.cpp:40
+#: main.cpp:18 main.cpp:41
 msgid "KAME"
 msgstr "KAME"
 
-#: main.cpp:23
+#: main.cpp:24
 msgid "log debuging info."
 msgstr "ログをとる."
 
-#: main.cpp:25
+#: main.cpp:26
 msgid "do not use direct rendering"
 msgstr "ダイレクトレンダリングを使わない"
 
-#: main.cpp:26
+#: main.cpp:27
 msgid "measurement file to open"
 msgstr "メジャメントファイルを開く"
 
-#: support.cpp:168
+#: support.cpp:205
+msgid "Mal-format conversion."
+msgstr "不正な書式による変換"
+
+#: support.cpp:250
 #, c-format
 msgid "Illegal Format, too many %s."
 msgstr "不正な書式、%が多すぎ"
 
-#: support.cpp:175
+#: support.cpp:257
 msgid "Illegal Format."
 msgstr "不正な書式"
 
-#: support.cpp:178
+#: support.cpp:260
 msgid "Illegal Format, no float conversion."
 msgstr "不正な書式、浮動小数点変換ではない"
 
-#: support.cpp:181
+#: support.cpp:263
 msgid "Illegal Format, no %."
 msgstr "不正な書式、%がない"
+
+#: thermometer/caltable.cpp:40
+msgid "Thermometer Calibration"
+msgstr "温度計キャリブレーション"
+
+#: thermometer/caltable.cpp:45
+msgid "Curve"
+msgstr "カーブ"
+
+#: thermometer/caltable.cpp:47
+msgid "Error"
+msgstr "エラー"
+
+#: thermometer/thermometer.cpp:213 thermometer/thermometer.cpp:237
+msgid "XApproxThermometer, Too small number of points"
+msgstr ""
 
 #: users/dcsource/dcsource.cpp:22
 msgid "DC Source - "
@@ -490,73 +547,73 @@ msgstr ""
 msgid "DMM - "
 msgstr "DMM - "
 
-#: users/dmm/dmm.cpp:78 users/dmm/dmm.cpp:89
+#: users/dmm/dmm.cpp:77 users/dmm/dmm.cpp:88
 msgid "DMM Error"
 msgstr "DMMエラー"
 
-#: users/dmm/dmm.cpp:112
+#: users/dmm/dmm.cpp:111
 msgid "DMM Read Error"
 msgstr "DMMリードエラー"
 
-#: users/dso/dso.cpp:162
+#: users/dso/dso.cpp:270
+msgid "Select traces!."
+msgstr ""
+
+#: users/dso/dso.cpp:369
 msgid "Too small number of taps for FIR filter."
 msgstr "FIRフィルタのタップ数が少なくない？"
 
-#: users/dso/dso.cpp:265
-msgid "Select traces!."
+#: users/funcsynth/funcsynth.cpp:28
+msgid "Func. Synth. - "
 msgstr ""
 
 #: users/lia/lockinamp.cpp:37
 msgid "Lock-in-Amp - "
 msgstr ""
 
-#: users/lia/lockinamp.cpp:103
+#: users/lia/lockinamp.cpp:102
 msgid "Error while changing output, "
 msgstr ""
 
-#: users/lia/lockinamp.cpp:114
+#: users/lia/lockinamp.cpp:113
 msgid "Error while changing frequency, "
 msgstr ""
 
-#: users/lia/lockinamp.cpp:125
+#: users/lia/lockinamp.cpp:124
 msgid "Error while changing sensitivity, "
 msgstr ""
 
-#: users/lia/lockinamp.cpp:136
+#: users/lia/lockinamp.cpp:135
 msgid "Error while changing time const., "
 msgstr ""
 
-#: users/lia/lockinamp.cpp:149
+#: users/lia/lockinamp.cpp:148
 msgid "Error while starting, "
 msgstr ""
 
-#: users/lia/lockinamp.cpp:187
+#: users/lia/lockinamp.cpp:188
 msgid "Read Error, "
 msgstr "リードエラー、"
 
-#: users/lia/lockinamp.cpp:213
+#: users/lia/lockinamp.cpp:214
 msgid "Error while closing, "
 msgstr ""
 
-#: users/lia/userlockinamp.cpp:180 users/lia/userlockinamp.cpp:184
+#: users/lia/userlockinamp.cpp:182 users/lia/userlockinamp.cpp:186
 msgid "Operation not supported."
 msgstr ""
 
-#: users/magnetps/magnetps.cpp:224
+#: users/magnetps/magnetps.cpp:223
 msgid "Turning on Perisistent mode."
 msgstr "パーシステントに入るで"
 
-#: users/magnetps/magnetps.cpp:243
+#: users/magnetps/magnetps.cpp:237
 msgid "Non-Perisistent mode."
 msgstr "パーシステント抜けるで"
 
-#: users/magnetps/magnetps.cpp:247
+#: users/magnetps/magnetps.cpp:241
 msgid "Huh? Magnet field confusing."
 msgstr ""
-
-#: users/magnetps/magnetps.cpp:258
-msgid "Perisistent mode."
-msgstr "パーシステントモード"
 
 #: users/magnetps/usermagnetps.cpp:100
 msgid "Cannot enter non-persistent mode. Output is busy."
@@ -570,128 +627,158 @@ msgstr ""
 msgid "NMR Spectrum (Freq. Sweep) - "
 msgstr "NMRスペクトラムアベレージャ (周波数掃引) - "
 
-#: users/nmr/nmrfspectrum.cpp:142
+#: users/nmr/nmrfspectrum.cpp:54 users/nmr/nmrpulse.cpp:174
+#: users/nmr/nmrspectrum.cpp:51
+msgid "real part"
+msgstr "実部"
+
+#: users/nmr/nmrfspectrum.cpp:56 users/nmr/nmrpulse.cpp:176
+#: users/nmr/nmrspectrum.cpp:53
+msgid "imag. part"
+msgstr "虚部"
+
+#: users/nmr/nmrfspectrum.cpp:143
 msgid "Conflicting freqs of 2 SGs."
 msgstr ""
 
-#: users/nmr/nmrfspectrum.cpp:155 users/nmr/nmrspectrum.cpp:177
+#: users/nmr/nmrfspectrum.cpp:156 users/nmr/nmrspectrum.cpp:181
 msgid "Invalid center freq."
 msgstr "中心周波数があかんわ"
 
-#: users/nmr/nmrfspectrum.cpp:158
+#: users/nmr/nmrfspectrum.cpp:159
 msgid "Too large freq. step."
 msgstr ""
 
-#: users/nmr/nmrfspectrum.cpp:166 users/nmr/nmrspectrum.cpp:172
+#: users/nmr/nmrfspectrum.cpp:167 users/nmr/nmrspectrum.cpp:176
 msgid "Invalid waveform."
 msgstr "ウェーブフォームがあかんわ"
 
-#: users/nmr/nmrpulse.cpp:138
+#: users/nmr/nmrpulse.cpp:142
 msgid "NMR Pulse - "
 msgstr "NMRパルス - "
 
-#: users/nmr/nmrpulse.cpp:140
+#: users/nmr/nmrpulse.cpp:144
 msgid "NMR-FFT - "
 msgstr "NMR-FFT - "
 
-#: users/nmr/nmrpulse.cpp:409
+#: users/nmr/nmrpulse.cpp:184
+msgid "abs."
+msgstr "絶対値"
+
+#: users/nmr/nmrpulse.cpp:188
+msgid "phase"
+msgstr "位相"
+
+#: users/nmr/nmrpulse.cpp:423
 msgid "No record in DSO"
 msgstr "DSOのレコードが無効"
 
-#: users/nmr/nmrpulse.cpp:415
+#: users/nmr/nmrpulse.cpp:426
+msgid "Two channels needed in DSO"
+msgstr ""
+
+#: users/nmr/nmrpulse.cpp:432
 msgid "Invalid time interval in waveforms."
 msgstr "波形の時間間隔、あきまへん"
 
-#: users/nmr/nmrpulse.cpp:426 users/nmr/nmrpulse.cpp:429
+#: users/nmr/nmrpulse.cpp:443 users/nmr/nmrpulse.cpp:446
 msgid "Position beyond waveforms."
 msgstr "ウェーブフォームのレンジを越えてるで"
 
-#: users/nmr/nmrpulse.cpp:433 users/nmr/nmrpulse.cpp:436
+#: users/nmr/nmrpulse.cpp:450 users/nmr/nmrpulse.cpp:453
 msgid "Invalid length."
 msgstr "長さが無効ですわ"
 
-#: users/nmr/nmrpulse.cpp:447
+#: users/nmr/nmrpulse.cpp:464
 msgid "FFT length is not a power of 2."
 msgstr "FFT長が２の累乗ちゃうで"
 
-#: users/nmr/nmrpulse.cpp:473 users/nmr/nmrpulse.cpp:476
+#: users/nmr/nmrpulse.cpp:491 users/nmr/nmrpulse.cpp:494
 msgid "Position for BG. sub. beyond waveforms."
 msgstr "BGポジションがウェーブフォームのレンジを越えてるで"
 
-#: users/nmr/nmrpulse.cpp:480 users/nmr/nmrpulse.cpp:483
+#: users/nmr/nmrpulse.cpp:498 users/nmr/nmrpulse.cpp:501
 msgid "Invalid Length for BG. sub."
 msgstr "BG用の長さがあかんわ"
 
-#: users/nmr/nmrpulse.cpp:487
+#: users/nmr/nmrpulse.cpp:505
 msgid "Maybe, length for BG. sub. is too short."
 msgstr "多分、BG用の長さがしょぼいわ"
 
-#: users/nmr/nmrpulse.cpp:489
+#: users/nmr/nmrpulse.cpp:507
 msgid "Maybe, position for BG. sub. is overrapped against echoes"
 msgstr "BGの計算がエコーとかぶってるで、どうすんの"
 
-#: users/nmr/nmrpulse.cpp:497 users/nmr/nmrpulse.cpp:500
-#: users/nmr/nmrpulse.cpp:505 users/nmr/nmrpulse.cpp:508
+#: users/nmr/nmrpulse.cpp:515 users/nmr/nmrpulse.cpp:518
+#: users/nmr/nmrpulse.cpp:523 users/nmr/nmrpulse.cpp:526
 msgid "Invalid Multiecho settings."
 msgstr "マルチエコーの設定があかんわ"
 
-#: users/nmr/nmrpulse.cpp:581
+#: users/nmr/nmrpulse.cpp:543
+msgid "No Pulser!"
+msgstr "パルサーないで"
+
+#: users/nmr/nmrpulse.cpp:622
 msgid "FFTPos is off-centered for window func."
 msgstr "FFT位置が中心にないで"
 
-#: users/nmr/nmrrelax.cpp:101
+#: users/nmr/nmrrelax.cpp:97
 msgid "NMR Relax. Meas. - "
 msgstr "NMR緩和測定 - "
 
-#: users/nmr/nmrrelax.cpp:214 users/nmr/nmrrelax.cpp:266
+#: users/nmr/nmrrelax.cpp:114
+msgid "Relaxation"
+msgstr "緩和"
+
+#: users/nmr/nmrrelax.cpp:120
+msgid "Fitted Curve"
+msgstr "フィッティング"
+
+#: users/nmr/nmrrelax.cpp:208 users/nmr/nmrrelax.cpp:261
 msgid "Invalid P1Min or P1Max."
 msgstr "あかんP1最小とP1最大値"
 
-#: users/nmr/nmrrelax.cpp:271
+#: users/nmr/nmrrelax.cpp:266
 msgid "Invalid # of Samples."
 msgstr "サンプル数があかんわ"
 
-#: users/nmr/nmrrelax.cpp:274
+#: users/nmr/nmrrelax.cpp:269
 msgid "Too many Samples."
 msgstr "サンプル数でかすきや"
 
-#: users/nmr/nmrrelax.cpp:294
-msgid "Ignored"
-msgstr "しかとされたで"
-
-#: users/nmr/nmrrelax.cpp:303
+#: users/nmr/nmrrelax.cpp:287
 msgid "Too small avg. count for phase cycling."
 msgstr "フェーズサイクルに比べて短くない？"
 
-#: users/nmr/nmrrelax.cpp:314
+#: users/nmr/nmrrelax.cpp:298
 msgid "Unknown Comb Mode!"
 msgstr "あかんコムモード"
 
-#: users/nmr/nmrrelax.cpp:316 users/nmr/nmrrelax.cpp:329
+#: users/nmr/nmrrelax.cpp:300 users/nmr/nmrrelax.cpp:313
 msgid "Do not use T2 mode!"
 msgstr "T2モードはあかんで"
 
-#: users/nmr/nmrrelax.cpp:325 users/nmr/nmrrelax.cpp:342
+#: users/nmr/nmrrelax.cpp:309 users/nmr/nmrrelax.cpp:326
 msgid "2 Pulse Analyzers needed."
 msgstr "パルスアナライザが２ついるで"
 
-#: users/nmr/nmrrelax.cpp:352
+#: users/nmr/nmrrelax.cpp:336
 msgid "T2 mode with comb pulse!"
 msgstr "T2モードとコムパルス、ええの？"
 
-#: users/nmr/nmrrelax.cpp:355
+#: users/nmr/nmrrelax.cpp:339
 msgid "Do not use T1 mode! Skipping."
 msgstr "T1モード使わんといて、はしょるわ"
 
-#: users/nmr/nmrrelax.cpp:396
+#: users/nmr/nmrrelax.cpp:379
 msgid "Please select relaxation func."
 msgstr "緩和関数選んでや"
 
-#: users/nmr/nmrrelax.cpp:515
+#: users/nmr/nmrrelax.cpp:497
 msgid "No pulser or No NMR Pulse Analyzer."
 msgstr "パルサーかNMRパルスアナライザを設定してや"
 
-#: users/nmr/nmrrelaxfit.cpp:292
+#: users/nmr/nmrrelaxfit.cpp:365
 msgid " points, more points needed."
 msgstr " ポイントしかあらへん、もっとちょうだい"
 
@@ -699,28 +786,56 @@ msgstr " ポイントしかあらへん、もっとちょうだい"
 msgid "NMR Spectrum - "
 msgstr "NMRスペクトルアベレージャ - "
 
-#: users/nmr/nmrspectrum.cpp:134
+#: users/nmr/nmrspectrum.cpp:135
 msgid "Invalid min. and max."
 msgstr "あかん最小／最大値"
 
-#: users/nmr/nmrspectrum.cpp:138
+#: users/nmr/nmrspectrum.cpp:139
 msgid "Too small resolution."
 msgstr "精度が小さすぎですわ"
 
-#: users/nmr/pulserdriver.cpp:547
+#: users/nmr/pulserdriver.cpp:264 users/nmr/forms/pulserdriverform.cpp:455
+#: users/nmr/forms/pulserdrivermoreform.cpp:594
+msgid "Pulser Control"
+msgstr "パルサー制御"
+
+#: users/nmr/pulserdriver.cpp:265
+msgid "Pulser Control More Config."
+msgstr "パルサー制御その他の設定"
+
+#: users/nmr/pulserdriver.cpp:613
 msgid "Pulser Turn-On Failed, because"
 msgstr "パルサー開始失敗、"
 
-#: users/nmr/pulserdriver.cpp:579 users/nmr/pulserdriver.cpp:589
+#: users/nmr/pulserdriver.cpp:646 users/nmr/pulserdriver.cpp:657
 msgid "Pulser Turn-Off Failed, because"
 msgstr "パルサー停止失敗、"
 
-#: users/nmr/pulserdriverh8.cpp:140 users/nmr/pulserdriversh.cpp:334
+#: users/nmr/pulserdriverconnector.cpp:65
+#, c-format
+msgid "Port%d"
+msgstr "ポート%d"
+
+#: users/nmr/pulserdriverconnector.cpp:76
+msgid "Bars"
+msgstr "棒"
+
+#: users/nmr/pulserdriverconnector.cpp:92
+msgid "Pulse Patterns"
+msgstr "パルスパターン"
+
+#: users/nmr/pulserdriverh8.cpp:143 users/nmr/pulserdrivernidaqmx.cpp:351
+#: users/nmr/pulserdriversh.cpp:348
 msgid "Pulser Invalid pattern"
 msgstr ""
 
-#: users/nmr/pulserdriverh8.cpp:166 users/nmr/pulserdriversh.cpp:359
+#: users/nmr/pulserdriverh8.cpp:170 users/nmr/pulserdrivernidaqmx.cpp:376
+#: users/nmr/pulserdriversh.cpp:372
 msgid "Pulser Check Sum Error"
+msgstr ""
+
+#: users/nmr/pulserdrivernidaqmx.cpp:317 users/nmr/pulserdriversh.cpp:314
+msgid "Too long DMA."
 msgstr ""
 
 #: users/nmr/signalgenerator.cpp:23
@@ -739,100 +854,116 @@ msgstr "SGエラー"
 msgid "TempControl - "
 msgstr "温度コントローラ - "
 
-#: xitemnode.cpp:11 xitemnode.cpp:37
+#: xitemnode.cpp:11 xitemnode.cpp:36
 msgid "No item."
 msgstr "選択肢なし"
 
-#: xnode.cpp:147
+#: xnode.cpp:139
 msgid "Ill string conversion to integer."
 msgstr "整数型への変換失敗"
 
-#: xnode.cpp:155
+#: xnode.cpp:148
 msgid "Ill string conversion to unsigned integer."
 msgstr "符号なし整数型への変換失敗"
 
-#: xnode.cpp:167
-msgid "Ill string conversion to boolean."
-msgstr "真偽値の変換失敗"
-
-#: xnode.cpp:201
+#: xnode.cpp:157
 msgid "Ill string conversion to hex."
 msgstr "１６進数の変換失敗"
 
-#: xnode.cpp:264
+#: xnode.cpp:175
+msgid "Ill string conversion to boolean."
+msgstr "真偽値の変換失敗"
+
+#: xnode.cpp:249
 msgid "Ill string conversion to double float."
 msgstr "浮動小数点型への変換失敗"
 
-#: xnodeconnector.cpp:428 xnodeconnector.cpp:434 xnodeconnector.cpp:436
-#: xnodeconnector.cpp:438
+#: xnodeconnector.cpp:182
+msgid "Input cancelled."
+msgstr "入力をしかと"
+
+#: xnodeconnector.cpp:419
+msgid "Use drag-n-drop with ctrl pressed to reorder."
+msgstr "順番入れ替えは、CTRLを押しながらドラッグ"
+
+#: xnodeconnector.cpp:435
+msgid "Invalid range of selections."
+msgstr "Invalid range of selections."
+
+#: xnodeconnector.cpp:503 xnodeconnector.cpp:509 xnodeconnector.cpp:511
+#: xnodeconnector.cpp:513
 msgid "(UNSEL)"
 msgstr "(未選択)"
 
-#: xnodeconnector.cpp:561
-msgid "Warning: "
-msgstr ""
+#: xnodeconnector.cpp:528
+msgid "(NO NAME)"
+msgstr "(名無し)"
 
-#: xnodeconnector.cpp:570
+#: xnodeconnector.cpp:646
+msgid "Warning: "
+msgstr "警告: "
+
+#: xnodeconnector.cpp:655
 msgid "Error: "
 msgstr "エラー: "
 
-#: analyzer/forms/recordreaderform.cpp:158
+#: analyzer/forms/recordreaderform.cpp:161
 msgid "Raw Stream Reader"
 msgstr "Rawストリームリーダ"
 
-#: analyzer/forms/recordreaderform.cpp:159
+#: analyzer/forms/recordreaderform.cpp:162
 msgid "Raw Stream Binary"
 msgstr "Rawストリームバイナリ"
 
-#: analyzer/forms/recordreaderform.cpp:160
+#: analyzer/forms/recordreaderform.cpp:163
 msgid "Position"
 msgstr "位置"
 
-#: analyzer/forms/recordreaderform.cpp:161
+#: analyzer/forms/recordreaderform.cpp:164
 msgid "RW"
 msgstr "巻き戻し"
 
-#: analyzer/forms/recordreaderform.cpp:162
+#: analyzer/forms/recordreaderform.cpp:165
 msgid "STOP"
 msgstr "停止"
 
-#: analyzer/forms/recordreaderform.cpp:163
+#: analyzer/forms/recordreaderform.cpp:166
 msgid "FF"
 msgstr "送り"
 
-#: analyzer/forms/recordreaderform.cpp:164
+#: analyzer/forms/recordreaderform.cpp:167
 msgid "FIRST"
 msgstr "最初"
 
-#: analyzer/forms/recordreaderform.cpp:165
+#: analyzer/forms/recordreaderform.cpp:168
 msgid "BACK"
 msgstr "前"
 
-#: analyzer/forms/recordreaderform.cpp:166
+#: analyzer/forms/recordreaderform.cpp:169
 msgid "NEXT"
 msgstr "次"
 
-#: analyzer/forms/recordreaderform.cpp:167
+#: analyzer/forms/recordreaderform.cpp:170
 msgid "Speed"
 msgstr "速度"
 
-#: analyzer/forms/recordreaderform.cpp:169
+#: analyzer/forms/recordreaderform.cpp:172
 msgid "Fastest"
 msgstr "爆速"
 
-#: analyzer/forms/recordreaderform.cpp:170
+#: analyzer/forms/recordreaderform.cpp:173
 msgid "Fast"
 msgstr "最初"
 
-#: analyzer/forms/recordreaderform.cpp:171
+#: analyzer/forms/recordreaderform.cpp:174
 msgid "Normal"
 msgstr "普通"
 
-#: analyzer/forms/recordreaderform.cpp:172
+#: analyzer/forms/recordreaderform.cpp:175
 msgid "Slow"
 msgstr "遅い"
 
-#: analyzer/forms/recordreaderform.cpp:173
+#: analyzer/forms/recordreaderform.cpp:176
 msgid "Slowest"
 msgstr "遅すぎ"
 
@@ -840,7 +971,7 @@ msgstr "遅すぎ"
 msgid "Create New Driver"
 msgstr "新規ドライバ作成"
 
-#: driver/forms/drivercreate.cpp:94 graph/forms/graphdialog.cpp:525
+#: driver/forms/drivercreate.cpp:94 graph/forms/graphdialog.cpp:527
 msgid "&OK"
 msgstr "ええよ(&O)"
 
@@ -848,33 +979,33 @@ msgstr "ええよ(&O)"
 msgid "&Cancel"
 msgstr "やめとく(&C)"
 
-#: driver/forms/drivercreate.cpp:99 graph/forms/graphdialog.cpp:533
-#: graph/forms/graphdialog.cpp:544
+#: driver/forms/drivercreate.cpp:99 graph/forms/graphdialog.cpp:535
+#: graph/forms/graphdialog.cpp:546
 msgid "New Item"
 msgstr "新規アイテム"
 
-#: forms/drivertool.cpp:98
+#: forms/drivertool.cpp:101
 msgid "Drivers"
 msgstr "ドライバ"
 
-#: forms/drivertool.cpp:99
+#: forms/drivertool.cpp:102
 msgid "Raw Stream Recorder"
 msgstr "Rawストリームレコーダ"
 
-#: forms/drivertool.cpp:100 forms/scalarentrytool.cpp:118
+#: forms/drivertool.cpp:103 forms/scalarentrytool.cpp:121
 msgid "Write"
 msgstr "書き込み"
 
-#: forms/drivertool.cpp:101
+#: forms/drivertool.cpp:104
 msgid "New Driver"
 msgstr "新規ドライバ"
 
-#: forms/drivertool.cpp:102
+#: forms/drivertool.cpp:105
 msgid "Delete Driver"
 msgstr "ドライバ削除"
 
-#: forms/graphtool.cpp:72 graph/forms/graphdialog.cpp:551
-#: graph/forms/graphform.cpp:223 graph/forms/graphnurlform.cpp:244
+#: forms/graphtool.cpp:72 graph/forms/graphdialog.cpp:553
+#: graph/forms/graphform.cpp:228 graph/forms/graphnurlform.cpp:248
 msgid "Graph"
 msgstr "グラフ"
 
@@ -890,152 +1021,154 @@ msgstr "グラフ削除"
 msgid "Interfaces"
 msgstr "インターフェース"
 
-#: forms/scalarentrytool.cpp:116
+#: forms/scalarentrytool.cpp:119
 msgid "Scalar Entries"
 msgstr "スカラエントリ"
 
-#: forms/scalarentrytool.cpp:117
+#: forms/scalarentrytool.cpp:120
 msgid "Text Writer"
 msgstr "テキストライタ"
 
-#: forms/scalarentrytool.cpp:119
+#: forms/scalarentrytool.cpp:122
 msgid "LastLine"
 msgstr "最終行"
 
-#: graph/forms/graphdialog.cpp:522
+#: graph/forms/graphdialog.cpp:524
 msgid "Graph Setup"
 msgstr "グラフセットアップ"
 
-#: graph/forms/graphdialog.cpp:524
+#: graph/forms/graphdialog.cpp:526
 msgid "F1"
 msgstr "F1"
 
-#: graph/forms/graphdialog.cpp:527
+#: graph/forms/graphdialog.cpp:529
 msgid "Draw Bars"
 msgstr "棒を表示"
 
-#: graph/forms/graphdialog.cpp:528
+#: graph/forms/graphdialog.cpp:530
 msgid "Draw Lines"
 msgstr "線を表示"
 
-#: graph/forms/graphdialog.cpp:529
+#: graph/forms/graphdialog.cpp:531
 msgid "Draw Points"
 msgstr "ポイントを表示"
 
-#: graph/forms/graphdialog.cpp:530
+#: graph/forms/graphdialog.cpp:532
 msgid "Display Major Grids"
 msgstr "メジャーグリッドを表示"
 
-#: graph/forms/graphdialog.cpp:531
+#: graph/forms/graphdialog.cpp:533
 msgid "Display Minor Grids"
 msgstr "マイナーグリッドを表示"
 
-#: graph/forms/graphdialog.cpp:534
+#: graph/forms/graphdialog.cpp:536
 msgid "Max Counts"
 msgstr "最大点数"
 
-#: graph/forms/graphdialog.cpp:535
+#: graph/forms/graphdialog.cpp:537
 msgid "Clear Points"
 msgstr "点を消去"
 
-#: graph/forms/graphdialog.cpp:536
+#: graph/forms/graphdialog.cpp:538
 msgid "Intensity"
 msgstr "輝度"
 
-#: graph/forms/graphdialog.cpp:537
+#: graph/forms/graphdialog.cpp:539
 msgid "ColorPlot"
 msgstr "カラープロット"
 
-#: graph/forms/graphdialog.cpp:538
+#: graph/forms/graphdialog.cpp:540
 msgid "Plots"
 msgstr "プロット"
 
-#: graph/forms/graphdialog.cpp:539
+#: graph/forms/graphdialog.cpp:541
 msgid "Tic Label Format"
 msgstr "チックラベルフォーマット"
 
-#: graph/forms/graphdialog.cpp:540
+#: graph/forms/graphdialog.cpp:542
 msgid "Display Tic Labels"
 msgstr "チックラベルを表示"
 
-#: graph/forms/graphdialog.cpp:541
+#: graph/forms/graphdialog.cpp:543
 msgid "Display Major Tics"
 msgstr "メジャーチックを表示"
 
-#: graph/forms/graphdialog.cpp:542
+#: graph/forms/graphdialog.cpp:544
 msgid "Display Minor Tics"
 msgstr "マイナーチックを表示"
 
-#: graph/forms/graphdialog.cpp:545
+#: graph/forms/graphdialog.cpp:547
 msgid "AutoScale"
 msgstr "オートスケール"
 
-#: graph/forms/graphdialog.cpp:546 users/nmr/forms/nmrrelaxform.cpp:375
+#: graph/forms/graphdialog.cpp:548 users/nmr/forms/nmrrelaxform.cpp:350
 msgid "Max"
 msgstr "最大値"
 
-#: graph/forms/graphdialog.cpp:547 users/nmr/forms/nmrrelaxform.cpp:374
+#: graph/forms/graphdialog.cpp:549 users/nmr/forms/nmrrelaxform.cpp:349
 msgid "Min"
 msgstr "最小値"
 
-#: graph/forms/graphdialog.cpp:548
+#: graph/forms/graphdialog.cpp:550
 msgid "LogScale"
 msgstr "ログスケール"
 
-#: graph/forms/graphdialog.cpp:549
+#: graph/forms/graphdialog.cpp:551
 msgid "Axes"
 msgstr "軸"
 
-#: graph/forms/graphdialog.cpp:550
+#: graph/forms/graphdialog.cpp:552
 msgid "Back Ground Color"
 msgstr "背景色"
 
-#: graph/forms/graphnurlform.cpp:245 users/dso/forms/dsoform.cpp:357
-#: users/nmr/forms/nmrfspectrumform.cpp:272
-#: users/nmr/forms/nmrpulseform.cpp:395 users/nmr/forms/nmrrelaxform.cpp:370
-#: users/nmr/forms/nmrspectrumform.cpp:269
+#: graph/forms/graphnurlform.cpp:249 users/dso/forms/dsoform.cpp:409
+#: users/montecarlo/forms/montecarloform.cpp:261
+#: users/nmr/forms/nmrfspectrumform.cpp:276
+#: users/nmr/forms/nmrpulseform.cpp:424 users/nmr/forms/nmrrelaxform.cpp:345
+#: users/nmr/forms/nmrspectrumform.cpp:273
 msgid "DUMP"
 msgstr "書き出し"
 
-#: script/forms/rubythreadtool.cpp:93
+#: script/forms/rubythreadtool.cpp:94
 msgid "Script"
 msgstr "スクリプト"
 
-#: script/forms/rubythreadtool.cpp:94
+#: script/forms/rubythreadtool.cpp:95
 msgid "KILL"
 msgstr "強制終了"
 
-#: script/forms/rubythreadtool.cpp:95
+#: script/forms/rubythreadtool.cpp:96
 msgid "RESUME"
 msgstr "再開"
 
-#: script/forms/rubythreadtool.cpp:96
+#: script/forms/rubythreadtool.cpp:97
 msgid "tesssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssst"
 msgstr "テスーーーーーーート"
 
-#: script/forms/rubythreadtool.cpp:98
+#: script/forms/rubythreadtool.cpp:99
 msgid "Status:"
 msgstr "ステータス"
 
-#: thermometer/forms/caltableform.cpp:111
+#: thermometer/forms/caltableform.cpp:112
 msgid "Calibration Table"
 msgstr "キャリブレーションテーブル"
 
-#: thermometer/forms/caltableform.cpp:112
-msgid "Dump Table"
-msgstr "テーブル書き出し"
-
 #: thermometer/forms/caltableform.cpp:113
+msgid "Display"
+msgstr "表示"
+
+#: thermometer/forms/caltableform.cpp:114
 #: users/tempcontrol/forms/tempcontrolform.cpp:244
 msgid "Thermometer"
 msgstr "温度計"
 
-#: thermometer/forms/caltableform.cpp:115
+#: thermometer/forms/caltableform.cpp:116
 #: users/tempcontrol/forms/tempcontrolform.cpp:238
 msgid "Temp."
 msgstr "温度"
 
-#: thermometer/forms/caltableform.cpp:116
+#: thermometer/forms/caltableform.cpp:117
+#: users/montecarlo/forms/montecarloform.cpp:272
 #: users/tempcontrol/forms/tempcontrolform.cpp:239
 #: users/tempcontrol/forms/tempcontrolform.cpp:251
 msgid "K"
@@ -1046,12 +1179,14 @@ msgid "DC Source Settings"
 msgstr "DCソース設定"
 
 #: users/dcsource/forms/dcsourceform.cpp:92 users/dmm/forms/dmmform.cpp:87
+#: users/funcsynth/forms/funcsynthform.cpp:172
 msgid "Function"
 msgstr "ファンクション"
 
 #: users/dcsource/forms/dcsourceform.cpp:93
+#: users/funcsynth/forms/funcsynthform.cpp:169
 #: users/lia/forms/lockinampform.cpp:134
-#: users/nmr/forms/pulserdriverform.cpp:454
+#: users/nmr/forms/pulserdriverform.cpp:456
 msgid "Output"
 msgstr "出力"
 
@@ -1067,112 +1202,170 @@ msgstr "ウェイト"
 msgid " ms"
 msgstr "ms"
 
-#: users/dso/forms/dsoform.cpp:337
+#: users/dso/forms/dsoform.cpp:383
 msgid "DSO Control"
 msgstr "DSOコントローラ"
 
-#: users/dso/forms/dsoform.cpp:338
-msgid "Trace2"
-msgstr "トレース2"
-
-#: users/dso/forms/dsoform.cpp:339 users/dso/forms/dsoform.cpp:344
-msgid "Full Scale"
-msgstr "フルスケール"
-
-#: users/dso/forms/dsoform.cpp:340 users/dso/forms/dsoform.cpp:345
-msgid "Vp-p"
-msgstr "Vp-p"
-
-#: users/dso/forms/dsoform.cpp:341 users/dso/forms/dsoform.cpp:346
-msgid "Offset"
-msgstr "オフセット"
-
-#: users/dso/forms/dsoform.cpp:342 users/dso/forms/dsoform.cpp:347
-#: users/lia/forms/lockinampform.cpp:135
-#: users/magnetps/forms/magnetpsform.cpp:232
-#: users/nmr/forms/pulserdrivermoreform.cpp:529
-#: users/nmr/forms/pulserdrivermoreform.cpp:531
-#: users/nmr/forms/pulserdrivermoreform.cpp:533
-#: users/nmr/forms/pulserdrivermoreform.cpp:535
-#: users/nmr/forms/pulserdrivermoreform.cpp:537
-#: users/nmr/forms/pulserdrivermoreform.cpp:539
-#: users/nmr/forms/pulserdrivermoreform.cpp:541
-msgid "V"
-msgstr "V"
-
-#: users/dso/forms/dsoform.cpp:343
-msgid "Trace1"
-msgstr "トレース1"
-
-#: users/dso/forms/dsoform.cpp:348
-msgid "Record Length"
-msgstr "レコード長"
-
-#: users/dso/forms/dsoform.cpp:349
-msgid "Trigger Position"
-msgstr "トリガーポジション"
-
-#: users/dso/forms/dsoform.cpp:350
-msgid "%"
-msgstr "%"
-
-#: users/dso/forms/dsoform.cpp:351
-msgid "Time Width"
-msgstr "時間幅"
-
-#: users/dso/forms/dsoform.cpp:352
-msgid "sec."
-msgstr "sec."
-
-#: users/dso/forms/dsoform.cpp:353
-msgid "Average"
-msgstr "アベレージ"
-
-#: users/dso/forms/dsoform.cpp:354
+#: users/dso/forms/dsoform.cpp:384
 msgid "Fetch Continueous"
 msgstr "連続取り込み"
 
-#: users/dso/forms/dsoform.cpp:355
+#: users/dso/forms/dsoform.cpp:385
 msgid "Single Sequence"
 msgstr "シングルシーケンス"
 
-#: users/dso/forms/dsoform.cpp:356
+#: users/dso/forms/dsoform.cpp:386
+msgid "Average"
+msgstr "アベレージ"
+
+#: users/dso/forms/dsoform.cpp:387
+msgid "Horizontal Setup"
+msgstr "水平軸設定"
+
+#: users/dso/forms/dsoform.cpp:388 users/nmr/forms/nmrpulseform.cpp:413
+#: users/nmr/forms/nmrpulseform.cpp:421
+#: users/nmr/forms/pulserdrivermoreform.cpp:645
+msgid "Width"
+msgstr "幅"
+
+#: users/dso/forms/dsoform.cpp:389
+msgid "s"
+msgstr "s"
+
+#: users/dso/forms/dsoform.cpp:390
+msgid "Record Length"
+msgstr "レコード長"
+
+#: users/dso/forms/dsoform.cpp:391
+msgid "Trace1"
+msgstr "トレース1"
+
+#: users/dso/forms/dsoform.cpp:392 users/dso/forms/dsoform.cpp:397
+#: users/funcsynth/forms/funcsynthform.cpp:179
+msgid "Offset"
+msgstr "オフセット"
+
+#: users/dso/forms/dsoform.cpp:393 users/dso/forms/dsoform.cpp:398
+#: users/dso/forms/dsoform.cpp:408 users/funcsynth/forms/funcsynthform.cpp:180
+#: users/lia/forms/lockinampform.cpp:135
+#: users/magnetps/forms/magnetpsform.cpp:233
+#: users/nmr/forms/pulserdrivermoreform.cpp:629
+#: users/nmr/forms/pulserdrivermoreform.cpp:631
+#: users/nmr/forms/pulserdrivermoreform.cpp:633
+#: users/nmr/forms/pulserdrivermoreform.cpp:635
+#: users/nmr/forms/pulserdrivermoreform.cpp:637
+#: users/nmr/forms/pulserdrivermoreform.cpp:639
+#: users/nmr/forms/pulserdrivermoreform.cpp:641
+msgid "V"
+msgstr "V"
+
+#: users/dso/forms/dsoform.cpp:394 users/dso/forms/dsoform.cpp:399
+msgid "F.S."
+msgstr "F.S."
+
+#: users/dso/forms/dsoform.cpp:395 users/dso/forms/dsoform.cpp:400
+#: users/funcsynth/forms/funcsynthform.cpp:176
+msgid "Vp-p"
+msgstr "Vp-p"
+
+#: users/dso/forms/dsoform.cpp:396
+msgid "Trace2"
+msgstr "トレース2"
+
+#: users/dso/forms/dsoform.cpp:401
+msgid "Trigger Setup"
+msgstr "トリガー設定"
+
+#: users/dso/forms/dsoform.cpp:402
+msgid "Source"
+msgstr "ソース"
+
+#: users/dso/forms/dsoform.cpp:403
+msgid "Pos."
+msgstr "位置"
+
+#: users/dso/forms/dsoform.cpp:404
+msgid "%"
+msgstr "%"
+
+#: users/dso/forms/dsoform.cpp:405
 msgid "Force Trigger"
 msgstr "強制トリガー"
 
-#: users/dso/forms/dsoform.cpp:358
+#: users/dso/forms/dsoform.cpp:406
+msgid "FallingEdge"
+msgstr "下げエッジ"
+
+#: users/dso/forms/dsoform.cpp:407
+msgid "Level"
+msgstr "レベル"
+
+#: users/dso/forms/dsoform.cpp:410
 msgid "Digital Filter"
 msgstr "デジタルフィルタ"
 
-#: users/dso/forms/dsoform.cpp:359
+#: users/dso/forms/dsoform.cpp:411
 msgid "FIR filter"
 msgstr "FIRフィルタ"
 
-#: users/dso/forms/dsoform.cpp:360
-msgid "Sharpness"
-msgstr "シャープネス"
-
-#: users/dso/forms/dsoform.cpp:361 users/nmr/forms/nmrfspectrumform.cpp:262
-#: users/nmr/forms/nmrrelaxform.cpp:389
-#: users/nmr/forms/nmrspectrumform.cpp:281
+#: users/dso/forms/dsoform.cpp:412 users/nmr/forms/nmrfspectrumform.cpp:266
+#: users/nmr/forms/nmrrelaxform.cpp:362
+#: users/nmr/forms/nmrspectrumform.cpp:285
 msgid "Band Width"
 msgstr "バンド幅"
 
-#: users/dso/forms/dsoform.cpp:362 users/dso/forms/dsoform.cpp:364
-#: users/nmr/forms/nmrfspectrumform.cpp:259
-#: users/nmr/forms/nmrfspectrumform.cpp:261
+#: users/dso/forms/dsoform.cpp:413 users/dso/forms/dsoform.cpp:416
 #: users/nmr/forms/nmrfspectrumform.cpp:263
-#: users/nmr/forms/nmrpulseform.cpp:380 users/nmr/forms/nmrrelaxform.cpp:390
-#: users/nmr/forms/nmrrelaxform.cpp:394
-#: users/nmr/forms/nmrspectrumform.cpp:282
-#: users/nmr/forms/pulserdriverform.cpp:486
+#: users/nmr/forms/nmrfspectrumform.cpp:265
+#: users/nmr/forms/nmrfspectrumform.cpp:267
+#: users/nmr/forms/nmrpulseform.cpp:409 users/nmr/forms/nmrrelaxform.cpp:363
+#: users/nmr/forms/nmrrelaxform.cpp:367
+#: users/nmr/forms/nmrspectrumform.cpp:286
+#: users/nmr/forms/pulserdriverform.cpp:488
 msgid "kHz"
 msgstr "kHz"
 
-#: users/dso/forms/dsoform.cpp:363 users/nmr/forms/nmrfspectrumform.cpp:256
-#: users/nmr/forms/nmrspectrumform.cpp:279
+#: users/dso/forms/dsoform.cpp:414
+msgid "Sharpness"
+msgstr "シャープネス"
+
+#: users/dso/forms/dsoform.cpp:415 users/nmr/forms/nmrfspectrumform.cpp:260
+#: users/nmr/forms/nmrspectrumform.cpp:283
 msgid "Center Freq"
 msgstr "中心周波数"
+
+#: users/funcsynth/forms/funcsynthform.cpp:168
+msgid "Function Synthesizer Control"
+msgstr ""
+
+#: users/funcsynth/forms/funcsynthform.cpp:170
+msgid "Trigger Burst"
+msgstr "トリガーバースト"
+
+#: users/funcsynth/forms/funcsynthform.cpp:171
+msgid "Modulation"
+msgstr "変調"
+
+#: users/funcsynth/forms/funcsynthform.cpp:173
+msgid "Freq"
+msgstr "周波数"
+
+#: users/funcsynth/forms/funcsynthform.cpp:174
+#: users/lia/forms/lockinampform.cpp:137
+msgid "Hz"
+msgstr "Hz"
+
+#: users/funcsynth/forms/funcsynthform.cpp:175
+msgid "Amp"
+msgstr ""
+
+#: users/funcsynth/forms/funcsynthform.cpp:177
+msgid "Init. Phase"
+msgstr "初期位相"
+
+#: users/funcsynth/forms/funcsynthform.cpp:178
+msgid "deg."
+msgstr "度"
 
 #: users/lia/forms/lockinampform.cpp:128
 msgid "LIA Control"
@@ -1198,120 +1391,190 @@ msgstr ""
 msgid "Time Const."
 msgstr ""
 
-#: users/lia/forms/lockinampform.cpp:136 users/nmr/forms/nmrrelaxform.cpp:393
+#: users/lia/forms/lockinampform.cpp:136 users/nmr/forms/nmrrelaxform.cpp:366
 #: users/nmr/forms/signalgeneratorform.cpp:125
 msgid "Frequency"
 msgstr "周波数"
 
-#: users/lia/forms/lockinampform.cpp:137
-msgid "Hz"
-msgstr "Hz"
-
-#: users/magnetps/forms/magnetpsform.cpp:224
+#: users/magnetps/forms/magnetpsform.cpp:225
 msgid "Magnet Power Supply Settings"
 msgstr "マグネット電源設定"
 
-#: users/magnetps/forms/magnetpsform.cpp:225
+#: users/magnetps/forms/magnetpsform.cpp:226
 msgid "Magnet Field"
 msgstr "マグネット磁場"
 
-#: users/magnetps/forms/magnetpsform.cpp:226
-#: users/magnetps/forms/magnetpsform.cpp:228
-#: users/magnetps/forms/magnetpsform.cpp:237
-#: users/nmr/forms/nmrspectrumform.cpp:273
-#: users/nmr/forms/nmrspectrumform.cpp:276
-#: users/nmr/forms/nmrspectrumform.cpp:278
-#: users/nmr/forms/nmrspectrumform.cpp:284
+#: users/magnetps/forms/magnetpsform.cpp:227
+#: users/magnetps/forms/magnetpsform.cpp:229
+#: users/magnetps/forms/magnetpsform.cpp:238
+#: users/montecarlo/forms/montecarloform.cpp:268
+#: users/nmr/forms/nmrspectrumform.cpp:277
+#: users/nmr/forms/nmrspectrumform.cpp:280
+#: users/nmr/forms/nmrspectrumform.cpp:282
+#: users/nmr/forms/nmrspectrumform.cpp:288
 msgid "T"
 msgstr "T"
 
-#: users/magnetps/forms/magnetpsform.cpp:227
+#: users/magnetps/forms/magnetpsform.cpp:228
 msgid "Output Field"
 msgstr "アウトプット磁場"
 
-#: users/magnetps/forms/magnetpsform.cpp:229
+#: users/magnetps/forms/magnetpsform.cpp:230
 msgid "Output Current"
 msgstr "アウトプット電流"
 
-#: users/magnetps/forms/magnetpsform.cpp:230
+#: users/magnetps/forms/magnetpsform.cpp:231
 msgid "A"
 msgstr "A"
 
-#: users/magnetps/forms/magnetpsform.cpp:231
+#: users/magnetps/forms/magnetpsform.cpp:232
 msgid "Output Voltage"
 msgstr "アウトプット電圧"
 
-#: users/magnetps/forms/magnetpsform.cpp:233
+#: users/magnetps/forms/magnetpsform.cpp:234
 msgid "Switch Heater"
 msgstr "スイッチヒータ"
 
-#: users/magnetps/forms/magnetpsform.cpp:234
+#: users/magnetps/forms/magnetpsform.cpp:235
 msgid "Persistent"
 msgstr "パーシステント"
 
-#: users/magnetps/forms/magnetpsform.cpp:235
+#: users/magnetps/forms/magnetpsform.cpp:236
 msgid "Allow Persistent"
 msgstr "パーシステントの許可"
 
-#: users/magnetps/forms/magnetpsform.cpp:236
+#: users/magnetps/forms/magnetpsform.cpp:237
 msgid "Field"
 msgstr "磁場"
 
-#: users/magnetps/forms/magnetpsform.cpp:238
+#: users/magnetps/forms/magnetpsform.cpp:239
 msgid "Sweep Rate"
 msgstr "掃引レート"
 
-#: users/magnetps/forms/magnetpsform.cpp:239
+#: users/magnetps/forms/magnetpsform.cpp:240
 msgid "T/min"
 msgstr "T/min"
 
-#: users/nmr/forms/nmrfspectrumform.cpp:254
+#: users/montecarlo/forms/montecarloform.cpp:251
+msgid "MonteCarlo control"
+msgstr ""
+
+#: users/montecarlo/forms/montecarloform.cpp:252
+msgid "Length"
+msgstr "長さ"
+
+#: users/montecarlo/forms/montecarloform.cpp:253
+#: users/montecarlo/forms/montecarloform.cpp:255
+msgid "Lattices"
+msgstr "Lattices"
+
+#: users/montecarlo/forms/montecarloform.cpp:254
+msgid "Cutoff-Real"
+msgstr ""
+
+#: users/montecarlo/forms/montecarloform.cpp:256
+msgid "Graph-3D"
+msgstr "3Dグラフ"
+
+#: users/montecarlo/forms/montecarloform.cpp:257
+msgid "Cutoff-Rec."
+msgstr ""
+
+#: users/montecarlo/forms/montecarloform.cpp:258
+msgid "2pi/L"
+msgstr ""
+
+#: users/montecarlo/forms/montecarloform.cpp:259
+msgid "Ewald conv. (Alpha)"
+msgstr ""
+
+#: users/montecarlo/forms/montecarloform.cpp:260
+msgid "1/L"
+msgstr ""
+
+#: users/montecarlo/forms/montecarloform.cpp:262
+msgid "Exec"
+msgstr ""
+
+#: users/montecarlo/forms/montecarloform.cpp:263
+msgid "Min. Tests"
+msgstr ""
+
+#: users/montecarlo/forms/montecarloform.cpp:264
+msgid "STEP"
+msgstr "STEP"
+
+#: users/montecarlo/forms/montecarloform.cpp:265
+msgid "Field Direction, x="
+msgstr ""
+
+#: users/montecarlo/forms/montecarloform.cpp:266
+msgid "Field Direction, z="
+msgstr ""
+
+#: users/montecarlo/forms/montecarloform.cpp:267
+msgid "Target Field"
+msgstr "設定磁場"
+
+#: users/montecarlo/forms/montecarloform.cpp:269
+msgid "Min. Flips"
+msgstr ""
+
+#: users/montecarlo/forms/montecarloform.cpp:270
+msgid "Field Direction, y="
+msgstr ""
+
+#: users/montecarlo/forms/montecarloform.cpp:271
+msgid "Target Temp."
+msgstr "設定温度"
+
+#: users/nmr/forms/nmrfspectrumform.cpp:258
 msgid "NMR Spectrum Averager (Frequency Sweep)"
 msgstr "NMRスペクトラムアベレージャ (周波数掃引)"
 
-#: users/nmr/forms/nmrfspectrumform.cpp:255
+#: users/nmr/forms/nmrfspectrumform.cpp:259
 msgid "Activate Freq. Sweep"
 msgstr "周波数掃引開始"
 
-#: users/nmr/forms/nmrfspectrumform.cpp:257
-#: users/nmr/forms/nmrfspectrumform.cpp:267
-#: users/nmr/forms/nmrfspectrumform.cpp:270
+#: users/nmr/forms/nmrfspectrumform.cpp:261
+#: users/nmr/forms/nmrfspectrumform.cpp:271
+#: users/nmr/forms/nmrfspectrumform.cpp:274
 #: users/nmr/forms/nmrsgcontrolform.cpp:122
 #: users/nmr/forms/nmrsgcontrolform.cpp:124
 #: users/nmr/forms/nmrsgcontrolform.cpp:126
-#: users/nmr/forms/nmrspectrumform.cpp:280
-#: users/nmr/forms/pulserdrivermoreform.cpp:564
+#: users/nmr/forms/nmrspectrumform.cpp:284
+#: users/nmr/forms/pulserdrivermoreform.cpp:609
 #: users/nmr/forms/signalgeneratorform.cpp:126
 msgid "MHz"
 msgstr "MHz"
 
-#: users/nmr/forms/nmrfspectrumform.cpp:258
+#: users/nmr/forms/nmrfspectrumform.cpp:262
 msgid "Step"
 msgstr "ステップ"
 
-#: users/nmr/forms/nmrfspectrumform.cpp:260
+#: users/nmr/forms/nmrfspectrumform.cpp:264
 msgid "Span"
 msgstr "スパン"
 
-#: users/nmr/forms/nmrfspectrumform.cpp:264
-#: users/nmr/forms/nmrspectrumform.cpp:274
+#: users/nmr/forms/nmrfspectrumform.cpp:268
+#: users/nmr/forms/nmrspectrumform.cpp:278
 msgid "CLEAR SPECTRUM"
 msgstr "スペクトラム消去"
 
-#: users/nmr/forms/nmrfspectrumform.cpp:265
+#: users/nmr/forms/nmrfspectrumform.cpp:269
 msgid "Pulse Analyzer"
 msgstr "パルスアナライザ"
 
-#: users/nmr/forms/nmrfspectrumform.cpp:266
+#: users/nmr/forms/nmrfspectrumform.cpp:270
 msgid "Signal Generator 1"
 msgstr "シグナル発生器制御1"
 
-#: users/nmr/forms/nmrfspectrumform.cpp:268
-#: users/nmr/forms/nmrfspectrumform.cpp:271
+#: users/nmr/forms/nmrfspectrumform.cpp:272
+#: users/nmr/forms/nmrfspectrumform.cpp:275
 msgid "Offset Freq."
 msgstr "オフセット周波数"
 
-#: users/nmr/forms/nmrfspectrumform.cpp:269
+#: users/nmr/forms/nmrfspectrumform.cpp:273
 msgid "Signal Generator 2"
 msgstr "シグナル発生器制御2"
 
@@ -1323,16 +1586,16 @@ msgstr ""
 msgid "Wait for SG"
 msgstr ""
 
-#: users/nmr/forms/nmrpllform.cpp:109 users/nmr/forms/nmrpulseform.cpp:373
-#: users/nmr/forms/nmrpulseform.cpp:376 users/nmr/forms/nmrpulseform.cpp:383
-#: users/nmr/forms/nmrpulseform.cpp:385 users/nmr/forms/nmrpulseform.cpp:391
-#: users/nmr/forms/nmrpulseform.cpp:393
-#: users/nmr/forms/pulserdriverform.cpp:457
-#: users/nmr/forms/pulserdriverform.cpp:479
+#: users/nmr/forms/nmrpllform.cpp:109 users/nmr/forms/nmrpulseform.cpp:402
+#: users/nmr/forms/nmrpulseform.cpp:405 users/nmr/forms/nmrpulseform.cpp:412
+#: users/nmr/forms/nmrpulseform.cpp:414 users/nmr/forms/nmrpulseform.cpp:420
+#: users/nmr/forms/nmrpulseform.cpp:422
+#: users/nmr/forms/pulserdriverform.cpp:459
 #: users/nmr/forms/pulserdriverform.cpp:481
-#: users/nmr/forms/pulserdrivermoreform.cpp:557
-#: users/nmr/forms/pulserdrivermoreform.cpp:559
-#: users/nmr/forms/pulserdrivermoreform.cpp:561
+#: users/nmr/forms/pulserdriverform.cpp:483
+#: users/nmr/forms/pulserdrivermoreform.cpp:612
+#: users/nmr/forms/pulserdrivermoreform.cpp:614
+#: users/nmr/forms/pulserdrivermoreform.cpp:616
 msgid "ms"
 msgstr "ms"
 
@@ -1344,164 +1607,160 @@ msgstr "dφ/df"
 msgid "deg./MHz"
 msgstr "度/MHz"
 
-#: users/nmr/forms/nmrpulseform.cpp:370
+#: users/nmr/forms/nmrpulseform.cpp:399
 msgid "NMR Pulse Settings"
 msgstr "NMRパルス設定"
 
-#: users/nmr/forms/nmrpulseform.cpp:371
-#: users/nmr/forms/pulserdrivermoreform.cpp:523
+#: users/nmr/forms/nmrpulseform.cpp:400
 msgid "Multiple Echoes"
 msgstr "マルチエコー"
 
-#: users/nmr/forms/nmrpulseform.cpp:372
+#: users/nmr/forms/nmrpulseform.cpp:401
 msgid "Period (=2Tau)"
 msgstr "間隔(=2Tau)"
 
-#: users/nmr/forms/nmrpulseform.cpp:374
+#: users/nmr/forms/nmrpulseform.cpp:403
 msgid "# of Echoes"
 msgstr "エコー数"
 
-#: users/nmr/forms/nmrpulseform.cpp:375
+#: users/nmr/forms/nmrpulseform.cpp:404
 msgid "FFT Origin"
 msgstr "FFT原点"
 
-#: users/nmr/forms/nmrpulseform.cpp:377
+#: users/nmr/forms/nmrpulseform.cpp:406
 msgid "FFT Length"
 msgstr "FFT数"
 
-#: users/nmr/forms/nmrpulseform.cpp:378
+#: users/nmr/forms/nmrpulseform.cpp:407
 msgid "pts"
 msgstr "pts"
 
-#: users/nmr/forms/nmrpulseform.cpp:379
+#: users/nmr/forms/nmrpulseform.cpp:408
 msgid "Digital IF Freq"
 msgstr "デジタルIF周波数"
 
-#: users/nmr/forms/nmrpulseform.cpp:381
+#: users/nmr/forms/nmrpulseform.cpp:410
 msgid "Dynamic Noise Reduction (DNR)"
 msgstr "ダイナミックノイズリダクション(DNR)"
 
-#: users/nmr/forms/nmrpulseform.cpp:382
+#: users/nmr/forms/nmrpulseform.cpp:411
 msgid "Pos for Sub."
 msgstr "背景補正位置"
 
-#: users/nmr/forms/nmrpulseform.cpp:384 users/nmr/forms/nmrpulseform.cpp:392
-msgid "Width"
-msgstr "幅"
-
-#: users/nmr/forms/nmrpulseform.cpp:386
+#: users/nmr/forms/nmrpulseform.cpp:415
 msgid "SHOW FFT"
 msgstr "FFTの表示"
 
-#: users/nmr/forms/nmrpulseform.cpp:387
+#: users/nmr/forms/nmrpulseform.cpp:416
 msgid "Window Func."
 msgstr "窓関数"
 
-#: users/nmr/forms/nmrpulseform.cpp:388 users/nmr/forms/nmrrelaxform.cpp:391
+#: users/nmr/forms/nmrpulseform.cpp:417 users/nmr/forms/nmrrelaxform.cpp:364
+#: users/nmr/forms/pulserdrivermoreform.cpp:624
 msgid "Phase"
 msgstr "位相"
 
-#: users/nmr/forms/nmrpulseform.cpp:389
+#: users/nmr/forms/nmrpulseform.cpp:418
 msgid "deg"
 msgstr "度"
 
-#: users/nmr/forms/nmrpulseform.cpp:390
+#: users/nmr/forms/nmrpulseform.cpp:419
 msgid "Origin from Trig"
 msgstr "トリガーからの位置"
 
-#: users/nmr/forms/nmrpulseform.cpp:394
+#: users/nmr/forms/nmrpulseform.cpp:423
 msgid "DSO"
 msgstr "DSO"
 
-#: users/nmr/forms/nmrpulseform.cpp:396
+#: users/nmr/forms/nmrpulseform.cpp:425
 msgid "Incremental/Moving Average"
 msgstr "インクリメンタル/移動平均"
 
-#: users/nmr/forms/nmrpulseform.cpp:397
+#: users/nmr/forms/nmrpulseform.cpp:426
 msgid "Incremental"
 msgstr "インクリメンタル"
 
-#: users/nmr/forms/nmrpulseform.cpp:398
+#: users/nmr/forms/nmrpulseform.cpp:427
 msgid "CLEAR"
 msgstr "消去"
 
-#: users/nmr/forms/nmrrelaxform.cpp:369
-msgid "NMR/NQR Relax(T1) Measurement"
-msgstr "NMR/NQR緩和(T1)測定"
+#: users/nmr/forms/nmrpulseform.cpp:428
+msgid "Phase Inversion Cycling"
+msgstr "フェーズ反転サイクル"
 
-#: users/nmr/forms/nmrrelaxform.cpp:371
-msgid "Acquision Control"
-msgstr "測定の制御"
-
-#: users/nmr/forms/nmrrelaxform.cpp:372
-msgid "Control Pulser"
-msgstr "パルサーの制御"
-
-#: users/nmr/forms/nmrrelaxform.cpp:373
-msgid "<i>P</i><font size=\"-1\">1</font>(ms) / 2Tau (us)"
-msgstr "<i>P</i><font size=\"-1\">1</font>(ms) / 2Tau (us)"
-
-#: users/nmr/forms/nmrrelaxform.cpp:376
-msgid "T2 Measurement"
-msgstr "T2測定"
-
-#: users/nmr/forms/nmrrelaxform.cpp:377
-msgid "<i>P</i><font size=\"-1\">1</font> Dist"
-msgstr "<i>P</i><font size=\"-1\">1</font> 分散"
-
-#: users/nmr/forms/nmrrelaxform.cpp:378
-msgid "Extra Average"
-msgstr "もっとアベレージ"
-
-#: users/nmr/forms/nmrrelaxform.cpp:379
-msgid "Ignore Cnt."
-msgstr "しかと回数"
-
-#: users/nmr/forms/nmrrelaxform.cpp:380
-msgid "PulseAnalyzer 1"
-msgstr "パルスアナライザ1"
-
-#: users/nmr/forms/nmrrelaxform.cpp:381
-msgid "PulseAnalyzer 2"
-msgstr "パルスアナライザ2"
-
-#: users/nmr/forms/nmrrelaxform.cpp:382
+#: users/nmr/forms/nmrpulseform.cpp:429 users/nmr/forms/nmrrelaxform.cpp:355
 msgid "Pulser"
 msgstr "パルサー"
 
-#: users/nmr/forms/nmrrelaxform.cpp:383
+#: users/nmr/forms/nmrpulseform.cpp:430
+msgid "Enable"
+msgstr "有効"
+
+#: users/nmr/forms/nmrrelaxform.cpp:344
+msgid "NMR/NQR Relax(T1) Measurement"
+msgstr "NMR/NQR緩和(T1)測定"
+
+#: users/nmr/forms/nmrrelaxform.cpp:346
+msgid "Acquision Control"
+msgstr "測定の制御"
+
+#: users/nmr/forms/nmrrelaxform.cpp:347
+msgid "Control Pulser"
+msgstr "パルサーの制御"
+
+#: users/nmr/forms/nmrrelaxform.cpp:348
+msgid "<i>P</i><font size=\"-1\">1</font>(ms) / 2Tau (us)"
+msgstr "<i>P</i><font size=\"-1\">1</font>(ms) / 2Tau (us)"
+
+#: users/nmr/forms/nmrrelaxform.cpp:351
+msgid "T2 Measurement"
+msgstr "T2測定"
+
+#: users/nmr/forms/nmrrelaxform.cpp:352
+msgid "<i>P</i><font size=\"-1\">1</font> Dist"
+msgstr "<i>P</i><font size=\"-1\">1</font> 分散"
+
+#: users/nmr/forms/nmrrelaxform.cpp:353
+msgid "PulseAnalyzer 1"
+msgstr "パルスアナライザ1"
+
+#: users/nmr/forms/nmrrelaxform.cpp:354
+msgid "PulseAnalyzer 2"
+msgstr "パルスアナライザ2"
+
+#: users/nmr/forms/nmrrelaxform.cpp:356
 msgid "Data Processing"
 msgstr "データ処理"
 
-#: users/nmr/forms/nmrrelaxform.cpp:384
+#: users/nmr/forms/nmrrelaxform.cpp:357
 msgid "Auto Phase"
 msgstr "オートフェーズ"
 
-#: users/nmr/forms/nmrrelaxform.cpp:385
+#: users/nmr/forms/nmrrelaxform.cpp:358
 msgid "Abs Value Fit"
 msgstr "絶対値フィット"
 
-#: users/nmr/forms/nmrrelaxform.cpp:386
+#: users/nmr/forms/nmrrelaxform.cpp:359
 msgid "Fitting Status"
 msgstr "フィッティングステータス"
 
-#: users/nmr/forms/nmrrelaxform.cpp:387
+#: users/nmr/forms/nmrrelaxform.cpp:360
 msgid "Relax Func"
 msgstr "緩和関数"
 
-#: users/nmr/forms/nmrrelaxform.cpp:388
+#: users/nmr/forms/nmrrelaxform.cpp:361
 msgid "Smooth Samples"
 msgstr "スムージングサンプル数"
 
-#: users/nmr/forms/nmrrelaxform.cpp:392
+#: users/nmr/forms/nmrrelaxform.cpp:365
 msgid " deg"
 msgstr " 度"
 
-#: users/nmr/forms/nmrrelaxform.cpp:395
+#: users/nmr/forms/nmrrelaxform.cpp:368
 msgid "CLEAR CURVE"
 msgstr "カーブの消去"
 
-#: users/nmr/forms/nmrrelaxform.cpp:396
+#: users/nmr/forms/nmrrelaxform.cpp:369
 msgid "RESET FITTING"
 msgstr "フィッティングリセット"
 
@@ -1521,240 +1780,261 @@ msgstr "SG2周波数オフセット"
 msgid "Rx Frequency"
 msgstr "Rx周波数"
 
-#: users/nmr/forms/nmrspectrumform.cpp:268
+#: users/nmr/forms/nmrspectrumform.cpp:272
 msgid "NMR Spectrum Averager"
 msgstr "NMRスペクトルアベレージャ"
 
-#: users/nmr/forms/nmrspectrumform.cpp:270
+#: users/nmr/forms/nmrspectrumform.cpp:274
 msgid "Field Factor"
 msgstr "磁場係数"
 
-#: users/nmr/forms/nmrspectrumform.cpp:271
+#: users/nmr/forms/nmrspectrumform.cpp:275
 msgid "T/?"
 msgstr "T/?"
 
-#: users/nmr/forms/nmrspectrumform.cpp:272
+#: users/nmr/forms/nmrspectrumform.cpp:276
 msgid "Residual Field"
 msgstr "残留磁場"
 
-#: users/nmr/forms/nmrspectrumform.cpp:275
+#: users/nmr/forms/nmrspectrumform.cpp:279
 msgid "Field Min"
 msgstr "最低磁場"
 
-#: users/nmr/forms/nmrspectrumform.cpp:277
+#: users/nmr/forms/nmrspectrumform.cpp:281
 msgid "Field Max"
 msgstr "最大磁場"
 
-#: users/nmr/forms/nmrspectrumform.cpp:283
+#: users/nmr/forms/nmrspectrumform.cpp:287
 msgid "Resolution"
 msgstr "精度"
 
-#: users/nmr/forms/nmrspectrumform.cpp:285
+#: users/nmr/forms/nmrspectrumform.cpp:289
 msgid "Magnet PS"
 msgstr "マグネット電源"
 
-#: users/nmr/forms/nmrspectrumform.cpp:286
+#: users/nmr/forms/nmrspectrumform.cpp:290
 msgid "NMR Pulse Analyzer"
 msgstr "NMRパルスアナライザ"
 
-#: users/nmr/forms/pulserdriverform.cpp:453
-#: users/nmr/forms/pulserdrivermoreform.cpp:521
-msgid "Pulser Control"
-msgstr "パルサー制御"
-
-#: users/nmr/forms/pulserdriverform.cpp:455
+#: users/nmr/forms/pulserdriverform.cpp:457
 msgid "RT Mode"
 msgstr "RTモード"
 
-#: users/nmr/forms/pulserdriverform.cpp:456
+#: users/nmr/forms/pulserdriverform.cpp:458
 msgid "Rep/Rest Time"
 msgstr "Rep/Rest時間"
 
-#: users/nmr/forms/pulserdriverform.cpp:458
+#: users/nmr/forms/pulserdriverform.cpp:460
 msgid "Tau"
 msgstr "Tau"
 
-#: users/nmr/forms/pulserdriverform.cpp:459
-#: users/nmr/forms/pulserdriverform.cpp:462
-#: users/nmr/forms/pulserdriverform.cpp:468
-#: users/nmr/forms/pulserdriverform.cpp:483
-#: users/nmr/forms/pulserdriverform.cpp:488
-#: users/nmr/forms/pulserdrivermoreform.cpp:525
-#: users/nmr/forms/pulserdrivermoreform.cpp:552
-#: users/nmr/forms/pulserdrivermoreform.cpp:554
+#: users/nmr/forms/pulserdriverform.cpp:461
+#: users/nmr/forms/pulserdriverform.cpp:464
+#: users/nmr/forms/pulserdriverform.cpp:470
+#: users/nmr/forms/pulserdriverform.cpp:485
+#: users/nmr/forms/pulserdriverform.cpp:490
+#: users/nmr/forms/pulserdrivermoreform.cpp:598
+#: users/nmr/forms/pulserdrivermoreform.cpp:620
+#: users/nmr/forms/pulserdrivermoreform.cpp:622
+#: users/nmr/forms/pulserdrivermoreform.cpp:644
+#: users/nmr/forms/pulserdrivermoreform.cpp:646
 msgid "us"
 msgstr "us"
 
-#: users/nmr/forms/pulserdriverform.cpp:460
+#: users/nmr/forms/pulserdriverform.cpp:462
 msgid "Pi/2 Pulse"
 msgstr "Pi/2パルス"
 
-#: users/nmr/forms/pulserdriverform.cpp:461
-#: users/nmr/forms/pulserdriverform.cpp:467
-#: users/nmr/forms/pulserdriverform.cpp:487
+#: users/nmr/forms/pulserdriverform.cpp:463
+#: users/nmr/forms/pulserdriverform.cpp:469
+#: users/nmr/forms/pulserdriverform.cpp:489
 msgid "Pulse Width"
 msgstr "パルス幅"
 
-#: users/nmr/forms/pulserdriverform.cpp:463
-#: users/nmr/forms/pulserdriverform.cpp:471
-#: users/nmr/forms/pulserdriverform.cpp:489
+#: users/nmr/forms/pulserdriverform.cpp:465
+#: users/nmr/forms/pulserdriverform.cpp:473
+#: users/nmr/forms/pulserdriverform.cpp:491
 msgid "Waveform"
 msgstr "波形"
 
-#: users/nmr/forms/pulserdriverform.cpp:464
-#: users/nmr/forms/pulserdriverform.cpp:469
-#: users/nmr/forms/pulserdriverform.cpp:490
+#: users/nmr/forms/pulserdriverform.cpp:466
+#: users/nmr/forms/pulserdriverform.cpp:471
+#: users/nmr/forms/pulserdriverform.cpp:492
 #: users/nmr/forms/signalgeneratorform.cpp:122
 msgid "Output Level"
 msgstr "出力レベル"
 
-#: users/nmr/forms/pulserdriverform.cpp:465
-#: users/nmr/forms/pulserdriverform.cpp:470
-#: users/nmr/forms/pulserdriverform.cpp:475
-#: users/nmr/forms/pulserdriverform.cpp:491
+#: users/nmr/forms/pulserdriverform.cpp:467
+#: users/nmr/forms/pulserdriverform.cpp:472
+#: users/nmr/forms/pulserdriverform.cpp:477
+#: users/nmr/forms/pulserdriverform.cpp:493
 msgid " dB"
 msgstr " dB"
 
-#: users/nmr/forms/pulserdriverform.cpp:466
+#: users/nmr/forms/pulserdriverform.cpp:468
 msgid "Pi Pulse"
 msgstr "Piパルス"
 
-#: users/nmr/forms/pulserdriverform.cpp:472
+#: users/nmr/forms/pulserdriverform.cpp:474
 msgid "Pulse Table (Select Region to Visualize)"
 msgstr "パルステーブル (範囲選択で表示)"
 
-#: users/nmr/forms/pulserdriverform.cpp:473
+#: users/nmr/forms/pulserdriverform.cpp:475
 msgid "More Config."
 msgstr "もっと設定"
 
-#: users/nmr/forms/pulserdriverform.cpp:474
+#: users/nmr/forms/pulserdriverform.cpp:476
 msgid "Master Level"
 msgstr "マスターレベル"
 
-#: users/nmr/forms/pulserdriverform.cpp:476
+#: users/nmr/forms/pulserdriverform.cpp:478
 msgid "Comb Mode"
 msgstr "コムモード"
 
-#: users/nmr/forms/pulserdriverform.cpp:477
+#: users/nmr/forms/pulserdriverform.cpp:479
 msgid "Comb Pulse"
 msgstr "コムパルス"
 
-#: users/nmr/forms/pulserdriverform.cpp:478
+#: users/nmr/forms/pulserdriverform.cpp:480
 msgid "<i>P</i><font size=\"-1\">1</font> (ALT)"
 msgstr "<i>P</i><font size=\"-1\">1</font> (ALT)"
 
-#: users/nmr/forms/pulserdriverform.cpp:480
+#: users/nmr/forms/pulserdriverform.cpp:482
 msgid "<i>P</i><font size=\"-1\">1</font>"
 msgstr "<i>P</i><font size=\"-1\">1</font>"
 
-#: users/nmr/forms/pulserdriverform.cpp:482
+#: users/nmr/forms/pulserdriverform.cpp:484
 msgid "Periodic Term"
 msgstr "時間間隔"
 
-#: users/nmr/forms/pulserdriverform.cpp:484
+#: users/nmr/forms/pulserdriverform.cpp:486
 msgid "# of Pulses"
 msgstr "パルス数"
 
-#: users/nmr/forms/pulserdriverform.cpp:485
+#: users/nmr/forms/pulserdriverform.cpp:487
 msgid "Off-Resonance"
 msgstr "オフレゾナンス"
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:522
+#: users/nmr/forms/pulserdrivermoreform.cpp:595
 msgid "# in Phase Cycle"
 msgstr "フェーズサイクル数"
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:524
+#: users/nmr/forms/pulserdrivermoreform.cpp:596
+msgid "Multi-echo (Meiboom-Gill)"
+msgstr "マルチエコー (Meiboom-Gill)"
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:597
 msgid "Pre-Gate Setup Time"
 msgstr "プリゲートセットアップ時間"
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:526
+#: users/nmr/forms/pulserdrivermoreform.cpp:599
 msgid "Driven Equilibrium"
 msgstr "ドリブンイクィリブリウム"
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:527
-msgid "Analog Pulse Level"
-msgstr "アナログパルスレベル"
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:528
-msgid "Port8"
-msgstr "ポート8"
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:530
-msgid "Port10"
-msgstr "ポート10"
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:532
-msgid "Port9"
-msgstr "ポート9"
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:534
-msgid "Port11"
-msgstr "ポート11"
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:536
-msgid "Port12"
-msgstr "ポート12"
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:538
-msgid "Port13"
-msgstr "ポート13"
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:540
-msgid "Port14"
-msgstr "ポート14"
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:542
-msgid "QAM Level Tuning"
-msgstr "QAMレベルチューン"
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:543
-#: users/nmr/forms/pulserdrivermoreform.cpp:546
-#: users/nmr/forms/pulserdrivermoreform.cpp:551
-msgid "Port Q"
-msgstr "ポートQ"
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:544
-#: users/nmr/forms/pulserdrivermoreform.cpp:548
-#: users/nmr/forms/pulserdrivermoreform.cpp:553
-msgid "Port I"
-msgstr "ポートI"
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:545
+#: users/nmr/forms/pulserdrivermoreform.cpp:600
 msgid "QAM DC Offset"
 msgstr "QAM DCオフセット"
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:547
-#: users/nmr/forms/pulserdrivermoreform.cpp:549
+#: users/nmr/forms/pulserdrivermoreform.cpp:601
+#: users/nmr/forms/pulserdrivermoreform.cpp:606
+#: users/nmr/forms/pulserdrivermoreform.cpp:619
+msgid "Port Q"
+msgstr "ポートQ"
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:602
+#: users/nmr/forms/pulserdrivermoreform.cpp:604
 msgid "%<font size=\"-1\">F.S.</font>"
 msgstr "%<font size=\"-1\">F.S.</font>"
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:550
-msgid "QAM Delay Tuning"
-msgstr "QAM遅延チューン"
+#: users/nmr/forms/pulserdrivermoreform.cpp:603
+#: users/nmr/forms/pulserdrivermoreform.cpp:607
+#: users/nmr/forms/pulserdrivermoreform.cpp:621
+msgid "Port I"
+msgstr "ポートI"
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:555
+#: users/nmr/forms/pulserdrivermoreform.cpp:605
+msgid "QAM Level Tuning"
+msgstr "QAMレベルチューン"
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:608
+msgid "Digital IF Freq."
+msgstr "デジタルIF周波数"
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:610
 msgid "Analog Switch"
 msgstr "アナログスィッチ"
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:556
+#: users/nmr/forms/pulserdrivermoreform.cpp:611
 msgid "ASW Hold"
 msgstr "ASWホールド"
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:558
+#: users/nmr/forms/pulserdrivermoreform.cpp:613
 msgid "ASW Setup"
 msgstr "ASWセットアップ"
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:560
+#: users/nmr/forms/pulserdrivermoreform.cpp:615
 msgid "ALT Separation"
 msgstr "ALT間隔"
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:562
+#: users/nmr/forms/pulserdrivermoreform.cpp:617
 msgid "Filter"
 msgstr "フィルタ"
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:563
-msgid "Digital IF Freq."
-msgstr "デジタルIF周波数"
+#: users/nmr/forms/pulserdrivermoreform.cpp:618
+msgid "QAM Delay Tuning"
+msgstr "QAM遅延チューン"
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:623
+msgid "Induce Emission (Preliminary)"
+msgstr ""
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:626
+msgid " deg."
+msgstr "度"
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:627
+msgid "Analog Pulse Level"
+msgstr "アナログパルスレベル"
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:628
+msgid "Port8"
+msgstr "ポート8"
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:630
+msgid "Port10"
+msgstr "ポート10"
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:632
+msgid "Port9"
+msgstr "ポート9"
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:634
+msgid "Port11"
+msgstr "ポート11"
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:636
+msgid "Port12"
+msgstr "ポート12"
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:638
+msgid "Port13"
+msgstr "ポート13"
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:640
+msgid "Port14"
+msgstr "ポート14"
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:642
+msgid "Q-Switch"
+msgstr "Qスィッチ"
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:643
+msgid "Delay"
+msgstr "遅延"
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:647
+msgid "Only for pi pulses"
+msgstr "πパルスのみ"
 
 #: users/nmr/forms/signalgeneratorform.cpp:120
 msgid "Signal Generator Control"
@@ -1824,14 +2104,26 @@ msgstr "手動ヒータ"
 msgid "Power Range"
 msgstr "パワーレンジ"
 
-#~ msgid "Interface Error, because "
-#~ msgstr "インターフェースエラー、"
+#~ msgid "Ignored"
+#~ msgstr "しかとされたで"
 
-#~ msgid ": Stopping..."
-#~ msgstr ": 停止..."
+#~ msgid "4x"
+#~ msgstr "4x"
 
-#~ msgid "Communication Error, "
-#~ msgstr "コミュニケーションエラー"
+#~ msgid "Extra Average"
+#~ msgstr "もっとアベレージ"
 
-#~ msgid "Communication Error."
-#~ msgstr "通信エラー"
+#~ msgid "Ignore Cnt."
+#~ msgstr "しかと回数"
+
+#~ msgid "Trigger Position"
+#~ msgstr "トリガーポジション"
+
+#~ msgid "Time Width"
+#~ msgstr "時間幅"
+
+#~ msgid "sec."
+#~ msgstr "sec."
+
+#~ msgid "Full Scale"
+#~ msgstr "フルスケール"

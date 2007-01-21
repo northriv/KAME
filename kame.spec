@@ -1,4 +1,3 @@
-%define momorel 1
 %global kamedate kame_date
 %global qtver 3.3
 %global kdever 3.3
@@ -6,18 +5,21 @@
 %global mikachanver 8.9
 
 Name: kame
-Version: 2.0.1
-Release: %{momorel}m
+Version: 2.0.13
+Release: 1
 License: GPL
 Group: Applications/Engineering
-BuildRoot: %{_tmppath}/%{name}-%{version}-root
+BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Requires: qt >= %{qtver}, kdelibs >= %{kdever}
-Requires: XFree86, libart_lgpl, gsl, fftw, zlib, freetype2
-BuildPreReq: ruby-devel, gsl, boost-devel, fftw-devel
-BuildPreReq: libidn-devel, freetype2-devel
+Requires: libart_lgpl, gsl, fftw2, zlib
+Requires: linux-gpib
+BuildPreReq: ruby-devel, gsl, boost-devel, fftw2-devel
+BuildPreReq: libidn-devel
 BuildPreReq: qt-devel >= %{qtver}, kdelibs-devel >= %{kdever}
-BuildPreReq: XFree86-devel, libart_lgpl-devel, zlib-devel, libpng-devel, libjpeg-devel
+BuildPreReq: libart_lgpl-devel, zlib-devel, libpng-devel, libjpeg-devel
 BuildPreReq: gcc-c++ >= 3.3
+BuildPreReq: compat-gcc-34-c++
+BuildPreReq: linux-gpib-devel
 Source0: %{name}-%{version}-%{kamedate}.tar.bz2
 Source1: ftgl-%{ftglver}.tar.gz
 Source2: mikachanfont-%{mikachanver}.tar.bz2
@@ -36,23 +38,23 @@ mv mikachanfont-%{mikachanver}/* kame/mikachanfont
 %build
 # build static FTGL
 pushd FTGL/unix
-./configure --disable-shared --enable-static
-make
+CXX=g++34 ./configure --disable-shared --enable-static
+make %{?_smp_mflags}
 popd
 
 %configure --enable-debug
-%make %{?_smp_mflags}
+make %{?_smp_mflags}
 
 %install
-rm -rf %{buildroot}
+rm -rf $RPM_BUILD_ROOT
 %makeinstall
-if [ -f %{buildroot}/%{_bindir}/*-kame ]
-then
-	mv %{buildroot}/%{_bindir}/*-kame %{buildroot}/%{_bindir}/kame
-fi
+#if [ -f $RPM_BUILD_ROOT/%{_bindir}/*-kame ]
+#then
+#	mv $RPM_BUILD_ROOT/%{_bindir}/*-kame $RPM_BUILD_ROOT/%{_bindir}/kame
+#fi
 
 %clean
-rm -rf %{buildroot}
+rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root)

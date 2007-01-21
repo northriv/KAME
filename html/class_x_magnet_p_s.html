@@ -4,7 +4,7 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <h1>クラス XMagnetPS</h1><!-- doxytag: class=<XMagnetPS> --><!-- doxytag: inherits=<XPrimaryDriver> -->XMagnetPSに対する継承グラフ<p><center><img src="class_x_magnet_p_s__inherit__graph.png" border="0" usemap="#_x_magnet_p_s__inherit__map" alt="Inheritance graph"></center>
 <map name="_x_magnet_p_s__inherit__map">
 <area href="class_x_oxford_driver.html" shape="rect" coords="8,306,208,333" alt="">
@@ -144,8 +144,8 @@ virtual bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" hr
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d0"></a><!-- doxytag: member=<XMagnetPS::onRateChanged> ref=<d0> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
 virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_magnet_p_s.html#d0">onRateChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d1"></a><!-- doxytag: member=<XMagnetPS::execute> ref=<d1> args=<()> -->
-void *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_magnet_p_s.html#d1">execute</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d1"></a><!-- doxytag: member=<XMagnetPS::execute> ref=<d1> args=<(const atomic&lt; bool &gt; &amp;)> -->
+void *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_magnet_p_s.html#d1">execute</a> (const <a class="el" href="classatomic.html">atomic</a>&lt; bool &gt; &amp;)</td></tr>
 
 <tr><td colspan="2"><br><h2>Private 変数</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r0"></a><!-- doxytag: member=<XMagnetPS::m_field> ref=<r0> args=<> -->
@@ -231,9 +231,6 @@ double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="cl
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r26"></a><!-- doxytag: member=<XMagnetPS::m_outputCurrentRecorded> ref=<r26> args=<> -->
 double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_magnet_p_s.html#r26">m_outputCurrentRecorded</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r27"></a><!-- doxytag: member=<XMagnetPS::m_bTerminated> ref=<r27> args=<> -->
-bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_magnet_p_s.html#r27">m_bTerminated</a></td></tr>
-
 </table>
 <hr><a name="_details"></a><h2>説明</h2>
 
@@ -269,7 +266,7 @@ this is called when raw is written unless dependency is broken convert raw to re
 <p>
 <a class="el" href="class_x_primary_driver.html#b1">XPrimaryDriver</a>を実装しています.
 <p>
- <a class="el" href="magnetps_8cpp-source.html">magnetps.cpp</a> の <a class="el" href="magnetps_8cpp-source.html#l00091">91</a> 行で定義されています。
+ <a class="el" href="magnetps_8cpp-source.html">magnetps.cpp</a> の <a class="el" href="magnetps_8cpp-source.html#l00090">90</a> 行で定義されています。
 <p>
 参照先 <a class="el" href="magnetps_8h-source.html#l00085">m_current</a>, <a class="el" href="magnetps_8h-source.html#l00085">m_field</a>, <a class="el" href="magnetps_8h-source.html#l00107">m_magnetFieldRecorded</a>, と <a class="el" href="magnetps_8h-source.html#l00108">m_outputCurrentRecorded</a>.    </td>
   </tr>
@@ -302,7 +299,7 @@ Persistent Current Switch Heater please return *TRUE* if no PCS fitted
 <p>
 <a class="el" href="class_x_p_s120.html#b13">XPS120</a>で実装されています.
 <p>
-参照元 <a class="el" href="magnetps_8cpp-source.html#l00117">execute()</a>.    </td>
+参照元 <a class="el" href="magnetps_8cpp-source.html#l00116">execute()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="a1"></a><!-- doxytag: member=<XMagnetPS::showForms> ref=<a1> args=<()> --><p>
@@ -368,9 +365,9 @@ Shut down your threads, unconnect GUI, and deactivate signals this may be called
 <p>
 <a class="el" href="class_x_driver.html#b2">XDriver</a>を実装しています.
 <p>
- <a class="el" href="magnetps_8cpp-source.html">magnetps.cpp</a> の <a class="el" href="magnetps_8cpp-source.html#l00083">83</a> 行で定義されています。
+ <a class="el" href="magnetps_8cpp-source.html">magnetps.cpp</a> の <a class="el" href="magnetps_8cpp-source.html#l00082">82</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="magnetps_8h-source.html#l00111">m_bTerminated</a>.    </td>
+参照先 <a class="el" href="magnetps_8h-source.html#l00102">m_thread</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="b4"></a><!-- doxytag: member=<XMagnetPS::visualize> ref=<b4> args=<()> --><p>
@@ -401,12 +398,12 @@ this is called after analyze() or <a class="el" href="class_x_magnet_p_s.html#b3
 <p>
 <a class="el" href="class_x_driver.html#b3">XDriver</a>を実装しています.
 <p>
- <a class="el" href="magnetps_8cpp-source.html">magnetps.cpp</a> の <a class="el" href="magnetps_8cpp-source.html#l00099">99</a> 行で定義されています。    </td>
+ <a class="el" href="magnetps_8cpp-source.html">magnetps.cpp</a> の <a class="el" href="magnetps_8cpp-source.html#l00098">98</a> 行で定義されています。    </td>
   </tr>
 </table>
 <hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/users/magnetps/<a class="el" href="magnetps_8h-source.html">magnetps.h</a><li>kame/users/magnetps/<a class="el" href="magnetps_8cpp-source.html">magnetps.cpp</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:05:21 2006に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 13:04:41 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>
