@@ -4,7 +4,7 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <h1>クラス XRuby</h1><!-- doxytag: class=<XRuby> --><!-- doxytag: inherits=<XAliasListNode&lt; XRubyThread &gt;> -->XRubyに対する継承グラフ<p><center><img src="class_x_ruby__inherit__graph.png" border="0" usemap="#_x_ruby__inherit__map" alt="Inheritance graph"></center>
 <map name="_x_ruby__inherit__map">
 <area href="class_x_alias_list_node.html" shape="rect" coords="8,157,226,184" alt="">
@@ -13,14 +13,16 @@
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XRubyのコラボレーション図<p><center><img src="class_x_ruby__coll__graph.png" border="0" usemap="#_x_ruby__coll__map" alt="Collaboration graph"></center>
 <map name="_x_ruby__coll__map">
-<area href="class_x_alias_list_node.html" shape="rect" coords="7,98,226,125" alt="">
-<area href="class_x_list_node_base.html" shape="rect" coords="61,8,173,34" alt="">
-<area href="class_x_thread.html" shape="rect" coords="250,98,386,125" alt="">
-<area href="struct_x_thread_1_1targ.html" shape="rect" coords="223,8,357,34" alt="">
-<area href="class_x_talker.html" shape="rect" coords="453,98,703,125" alt="">
-<area href="class___x_talker_base.html" shape="rect" coords="381,8,485,34" alt="">
-<area href="classatomic__shared__ptr.html" shape="rect" coords="509,8,733,34" alt="">
-<area href="class_x_mutex.html" shape="rect" coords="757,8,823,34" alt="">
+<area href="class_x_alias_list_node.html" shape="rect" coords="349,343,568,370" alt="">
+<area href="class_x_list_node_base.html" shape="rect" coords="385,266,497,293" alt="">
+<area href="class_x_node.html" shape="rect" coords="332,189,393,215" alt="">
+<area href="class_x_talker.html" shape="rect" coords="8,98,224,125" alt="">
+<area href="class___x_talker_base.html" shape="rect" coords="626,7,730,34" alt="">
+<area href="class_x_talker.html" shape="rect" coords="248,98,514,125" alt="">
+<area href="class_x_talker.html" shape="rect" coords="538,98,693,125" alt="">
+<area href="class_x_talker.html" shape="rect" coords="717,98,968,125" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="292,7,516,34" alt="">
+<area href="class_x_thread.html" shape="rect" coords="638,343,774,370" alt="">
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_ruby-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
 <tr><td></td></tr>
@@ -38,8 +40,8 @@ void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b0"></a><!-- doxytag: member=<XRuby::XRuby> ref=<b0> args=<(const char *name, bool runtime, const shared_ptr&lt; XMeasure &gt; &amp;measure)> -->
 &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_ruby.html#b0">XRuby</a> (const char *name, bool runtime, const shared_ptr&lt; <a class="el" href="class_x_measure.html">XMeasure</a> &gt; &amp;measure)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b1"></a><!-- doxytag: member=<XRuby::execute> ref=<b1> args=<()> -->
-virtual void *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_ruby.html#b1">execute</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b1"></a><!-- doxytag: member=<XRuby::execute> ref=<b1> args=<(const atomic&lt; bool &gt; &amp;)> -->
+virtual void *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_ruby.html#b1">execute</a> (const <a class="el" href="classatomic.html">atomic</a>&lt; bool &gt; &amp;)</td></tr>
 
 <tr><td colspan="2"><br><h2>Private メソッド</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d0"></a><!-- doxytag: member=<XRuby::onCreateChild> ref=<d0> args=<(const shared_ptr&lt; tCreateChild &gt; &amp;x)> -->
@@ -122,9 +124,6 @@ weak_ptr&lt; <a class="el" href="class_x_measure.html">XMeasure</a> &gt;&nbsp;</
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r6"></a><!-- doxytag: member=<XRuby::m_thread> ref=<r6> args=<> -->
 <a class="el" href="class_x_thread.html">XThread</a>&lt; <a class="el" href="class_x_ruby.html">XRuby</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_ruby.html#r6">m_thread</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r7"></a><!-- doxytag: member=<XRuby::m_bTerminated> ref=<r7> args=<> -->
-bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_ruby.html#r7">m_bTerminated</a></td></tr>
-
 <tr><td colspan="2"><br><h2>構成</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top">struct &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a></td></tr>
 
@@ -138,7 +137,7 @@ bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 <p>
  <a class="el" href="xrubysupport_8h-source.html">xrubysupport.h</a> の <a class="el" href="xrubysupport_8h-source.html#l00013">13</a> 行で定義されています。<hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/script/<a class="el" href="xrubysupport_8h-source.html">xrubysupport.h</a><li>kame/script/<a class="el" href="xrubysupport_8cpp-source.html">xrubysupport.cpp</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:05:55 2006に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:32 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

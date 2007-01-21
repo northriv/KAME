@@ -4,7 +4,7 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
 <a class="el" href="dir_000000.html">kame</a></div>
 <h1>rwlock.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#include "thread.h"</span>
@@ -217,9 +217,10 @@
 <a name="l00208"></a>00208 <span class="keywordtype">bool</span>
 <a name="l00209"></a><a class="code" href="class_x_recursive_r_w_lock.html#a7">00209</a> <a class="code" href="class_x_recursive_r_w_lock.html#a7">XRecursiveRWLock::isLocked</a>()<span class="keyword"> const</span>
 <a name="l00210"></a>00210 <span class="keyword"></span>{
-<a name="l00211"></a>00211     <span class="keywordflow">return</span> (<a class="code" href="class_x_recursive_r_w_lock.html#r3">m_rdlockingcnt</a> &gt; 0) || (<a class="code" href="class_x_recursive_r_w_lock.html#r4">m_wrlockingcnt</a> &gt; 0);
-<a name="l00212"></a>00212 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:21 2006に生成されました。&nbsp;
+<a name="l00211"></a>00211     readBarrier();
+<a name="l00212"></a>00212     <span class="keywordflow">return</span> (<a class="code" href="class_x_recursive_r_w_lock.html#r3">m_rdlockingcnt</a> &gt; 0) || (<a class="code" href="class_x_recursive_r_w_lock.html#r4">m_wrlockingcnt</a> &gt; 0);
+<a name="l00213"></a>00213 }
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:15 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

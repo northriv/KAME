@@ -4,7 +4,7 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <h1>クラス XSecondaryDriver</h1><!-- doxytag: class=<XSecondaryDriver> --><!-- doxytag: inherits=<XDriver> -->Base class for all instrument drivers.  
 <a href="#_details">[詳細]</a>
 <p>
@@ -21,12 +21,12 @@ XSecondaryDriverに対する継承グラフ<p><center><img src="class_x_secondary_driver_
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XSecondaryDriverのコラボレーション図<p><center><img src="class_x_secondary_driver__coll__graph.png" border="0" usemap="#_x_secondary_driver__coll__map" alt="Collaboration graph"></center>
 <map name="_x_secondary_driver__coll__map">
-<area href="class_x_driver.html" shape="rect" coords="262,189,329,216" alt="">
-<area href="class_x_node.html" shape="rect" coords="141,98,202,125" alt="">
-<area href="class_x_recursive_r_w_lock.html" shape="rect" coords="10,8,152,34" alt="">
-<area href="class_x_talker.html" shape="rect" coords="226,98,448,125" alt="">
-<area href="class_x_time.html" shape="rect" coords="472,98,533,125" alt="">
-<area href="class_x_r_w_lock.html" shape="rect" coords="353,189,436,216" alt="">
+<area href="class_x_driver.html" shape="rect" coords="242,98,309,125" alt="">
+<area href="class_x_node.html" shape="rect" coords="7,8,69,34" alt="">
+<area href="class_x_talker.html" shape="rect" coords="93,8,314,34" alt="">
+<area href="class_x_time.html" shape="rect" coords="338,8,399,34" alt="">
+<area href="class_x_recursive_r_w_lock.html" shape="rect" coords="513,8,654,34" alt="">
+<area href="class_x_r_w_lock.html" shape="rect" coords="333,98,415,125" alt="">
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_secondary_driver-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
 <tr><td></td></tr>
@@ -46,8 +46,8 @@ virtual const shared_ptr&lt;<br>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b0"></a><!-- doxytag: member=<XSecondaryDriver::XSecondaryDriver> ref=<b0> args=<(const char *name, bool runtime, const shared_ptr&lt; XScalarEntryList &gt; &amp;scalarentries, const shared_ptr&lt; XInterfaceList &gt; &amp;interfaces, const shared_ptr&lt; XThermometerList &gt; &amp;thermometers, const shared_ptr&lt; XDriverList &gt; &amp;drivers)> -->
 &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#b0">XSecondaryDriver</a> (const char *name, bool runtime, const shared_ptr&lt; <a class="el" href="class_x_scalar_entry_list.html">XScalarEntryList</a> &gt; &amp;scalarentries, const shared_ptr&lt; <a class="el" href="class_x_interface_list.html">XInterfaceList</a> &gt; &amp;interfaces, const shared_ptr&lt; <a class="el" href="class_x_thermometer_list.html">XThermometerList</a> &gt; &amp;thermometers, const shared_ptr&lt; <a class="el" href="class_x_driver_list.html">XDriverList</a> &gt; &amp;drivers)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b1"></a><!-- doxytag: member=<XSecondaryDriver::connect> ref=<b1> args=<(const shared_ptr&lt; XItemNodeBase &gt; &amp;item)> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#b1">connect</a> (const shared_ptr&lt; <a class="el" href="class_x_item_node_base.html">XItemNodeBase</a> &gt; &amp;item)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b1"></a><!-- doxytag: member=<XSecondaryDriver::connect> ref=<b1> args=<(const shared_ptr&lt; XItemNodeBase &gt; &amp;item, bool check_deep_dep=true)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#b1">connect</a> (const shared_ptr&lt; <a class="el" href="class_x_item_node_base.html">XItemNodeBase</a> &gt; &amp;item, bool check_deep_dep=true)</td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">call this to receive signal/data <br></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top">virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#b2">requestAnalysis</a> ()</td></tr>
@@ -78,14 +78,19 @@ void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d1"></a><!-- doxytag: member=<XSecondaryDriver::readUnlockAllConnections> ref=<d1> args=<()> -->
 void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#d1">readUnlockAllConnections</a> ()</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top">bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#d2">checkDeepDependency</a> (shared_ptr&lt; <a class="el" href="class_x_record_dependency.html">XRecordDependency</a> &gt; &amp;) const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d2"></a><!-- doxytag: member=<XSecondaryDriver::checkDeepDependency> ref=<d2> args=<(shared_ptr&lt; XRecordDependency &gt; &amp;) const > -->
+bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#d2">checkDeepDependency</a> (shared_ptr&lt; <a class="el" href="class_x_record_dependency.html">XRecordDependency</a> &gt; &amp;) const </td></tr>
 
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">true if dependency is resolved <br></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#d3">onConnectedRecorded</a> (const shared_ptr&lt; <a class="el" href="class_x_driver.html">XDriver</a> &gt; &amp;)</td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#d4">beforeItemChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;item)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d5"></a><!-- doxytag: member=<XSecondaryDriver::onItemChanged> ref=<d5> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;item)> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#d5">onItemChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;item)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d5"></a><!-- doxytag: member=<XSecondaryDriver::onItemChangedCheckDeepDep> ref=<d5> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;item)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#d5">onItemChangedCheckDeepDep</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;item)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d6"></a><!-- doxytag: member=<XSecondaryDriver::onItemChanged> ref=<d6> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;item)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#d6">onItemChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;item)</td></tr>
 
 <tr><td colspan="2"><br><h2>Private 変数</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r0"></a><!-- doxytag: member=<XSecondaryDriver::m_dependency> ref=<r0> args=<> -->
@@ -96,17 +101,24 @@ std::vector&lt; shared_ptr&lt; const <br>
 <a class="el" href="class_x_driver.html">XDriver</a> &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#r1">m_connection</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">holds connections <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r2"></a><!-- doxytag: member=<XSecondaryDriver::m_connection_mutex> ref=<r2> args=<> -->
-<a class="el" href="class_x_r_w_lock.html">XRWLock</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#r2">m_connection_mutex</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r2"></a><!-- doxytag: member=<XSecondaryDriver::m_connection_check_deep_dep> ref=<r2> args=<> -->
+std::vector&lt; shared_ptr&lt; const <br>
+<a class="el" href="class_x_driver.html">XDriver</a> &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#r2">m_connection_check_deep_dep</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r3"></a><!-- doxytag: member=<XSecondaryDriver::m_lsnOnRecord> ref=<r3> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#r3">m_lsnOnRecord</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r3"></a><!-- doxytag: member=<XSecondaryDriver::m_connection_mutex> ref=<r3> args=<> -->
+<a class="el" href="class_x_r_w_lock.html">XRWLock</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#r3">m_connection_mutex</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r4"></a><!-- doxytag: member=<XSecondaryDriver::m_lsnBeforeItemChanged> ref=<r4> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#r4">m_lsnBeforeItemChanged</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r4"></a><!-- doxytag: member=<XSecondaryDriver::m_lsnOnRecord> ref=<r4> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#r4">m_lsnOnRecord</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r5"></a><!-- doxytag: member=<XSecondaryDriver::m_lsnOnItemChanged> ref=<r5> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#r5">m_lsnOnItemChanged</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r5"></a><!-- doxytag: member=<XSecondaryDriver::m_lsnBeforeItemChanged> ref=<r5> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#r5">m_lsnBeforeItemChanged</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r6"></a><!-- doxytag: member=<XSecondaryDriver::m_lsnOnItemChangedCheckDeepDep> ref=<r6> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#r6">m_lsnOnItemChangedCheckDeepDep</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r7"></a><!-- doxytag: member=<XSecondaryDriver::m_lsnOnItemChanged> ref=<r7> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_secondary_driver.html#r7">m_lsnOnItemChanged</a></td></tr>
 
 </table>
 <hr><a name="_details"></a><h2>説明</h2>
@@ -174,45 +186,11 @@ this is called when connected driver emit a signal unless dependency is broken a
 <p>
 changes in items are not allowed while <a class="el" href="class_x_driver.html#a4">onRecord()</a> is emitting
 <p>
- <a class="el" href="secondarydriver_8cpp-source.html">secondarydriver.cpp</a> の <a class="el" href="secondarydriver_8cpp-source.html#l00105">105</a> 行で定義されています。
+ <a class="el" href="secondarydriver_8cpp-source.html">secondarydriver.cpp</a> の <a class="el" href="secondarydriver_8cpp-source.html#l00118">118</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="secondarydriver_8h-source.html#l00061">m_connection</a>, <a class="el" href="secondarydriver_8h-source.html#l00062">m_connection_mutex</a>, <a class="el" href="secondarydriver_8h-source.html#l00064">m_lsnOnRecord</a>, と <a class="el" href="rwlock_8cpp-source.html#l00028">XRWLock::writeLock()</a>.
+参照先 <a class="el" href="secondarydriver_8h-source.html#l00060">m_connection</a>, <a class="el" href="secondarydriver_8h-source.html#l00061">m_connection_check_deep_dep</a>, <a class="el" href="secondarydriver_8h-source.html#l00062">m_connection_mutex</a>, <a class="el" href="secondarydriver_8h-source.html#l00064">m_lsnOnRecord</a>, と <a class="el" href="rwlock_8cpp-source.html#l00028">XRWLock::writeLock()</a>.
 <p>
-参照元 <a class="el" href="secondarydriver_8cpp-source.html#l00090">connect()</a>.    </td>
-  </tr>
-</table>
-<a class="anchor" name="d2"></a><!-- doxytag: member=<XSecondaryDriver::checkDeepDependency> ref=<d2> args=<(shared_ptr&lt; XRecordDependency &gt; &amp;) const > --><p>
-<table class="mdTable" cellpadding="2" cellspacing="0">
-  <tr>
-    <td class="mdRow">
-      <table cellpadding="0" cellspacing="0" border="0">
-        <tr>
-          <td class="md" nowrap valign="top">bool XSecondaryDriver::checkDeepDependency           </td>
-          <td class="md" valign="top">(&nbsp;</td>
-          <td class="md" nowrap valign="top">shared_ptr&lt; <a class="el" href="class_x_record_dependency.html">XRecordDependency</a> &gt; &amp;&nbsp;</td>
-          <td class="mdname1" valign="top" nowrap>          </td>
-          <td class="md" valign="top">&nbsp;)&nbsp;</td>
-          <td class="md" nowrap> const<code> [private]</code></td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-</table>
-<table cellspacing="5" cellpadding="0" border="0">
-  <tr>
-    <td>
-      &nbsp;
-    </td>
-    <td>
-
-<p>
-true if dependency is resolved check 
-<p>
- <a class="el" href="secondarydriver_8cpp-source.html">secondarydriver.cpp</a> の <a class="el" href="secondarydriver_8cpp-source.html#l00015">15</a> 行で定義されています。
-<p>
-参照先 <a class="el" href="secondarydriver_8h-source.html#l00061">m_connection</a>.
-<p>
-参照元 <a class="el" href="secondarydriver_8cpp-source.html#l00050">onConnectedRecorded()</a>.    </td>
+参照元 <a class="el" href="secondarydriver_8cpp-source.html#l00095">connect()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="b5"></a><!-- doxytag: member=<XSecondaryDriver::checkDependency> ref=<b5> args=<(const shared_ptr&lt; XDriver &gt; &amp;emitter) const =0> --><p>
@@ -277,9 +255,9 @@ called by connected drivers does dependency checks, readLock all connected drive
 <p>
  <a class="el" href="secondarydriver_8cpp-source.html">secondarydriver.cpp</a> の <a class="el" href="secondarydriver_8cpp-source.html#l00050">50</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="class_x_secondary_driver.html#b3">analyze()</a>, <a class="el" href="secondarydriver_8cpp-source.html#l00015">checkDeepDependency()</a>, <a class="el" href="class_x_secondary_driver.html#b5">checkDependency()</a>, <a class="el" href="driver_8cpp-source.html#l00066">XDriver::finishRecordingNReadLock()</a>, <a class="el" href="xnode_8cpp-source.html#l00025">XNode::getName()</a>, <a class="el" href="secondarydriver_8h-source.html#l00061">m_connection</a>, <a class="el" href="secondarydriver_8h-source.html#l00058">m_dependency</a>, <a class="el" href="secondarydriver_8cpp-source.html#l00031">readLockAllConnections()</a>, <a class="el" href="secondarydriver_8cpp-source.html#l00038">readUnlockAllConnections()</a>, <a class="el" href="driver_8cpp-source.html#l00052">XDriver::readUnlockRecord()</a>, <a class="el" href="driver_8cpp-source.html#l00061">XDriver::startRecording()</a>, と <a class="el" href="class_x_secondary_driver.html#b4">visualize()</a>.
+参照先 <a class="el" href="driver_8cpp-source.html#l00072">XDriver::abortRecording()</a>, <a class="el" href="class_x_secondary_driver.html#b3">analyze()</a>, <a class="el" href="secondarydriver_8cpp-source.html#l00015">checkDeepDependency()</a>, <a class="el" href="class_x_secondary_driver.html#b5">checkDependency()</a>, <a class="el" href="driver_8cpp-source.html#l00065">XDriver::finishRecordingNReadLock()</a>, <a class="el" href="xnode_8h-source.html#l00057">XNode::getLabel()</a>, <a class="el" href="support_8cpp-source.html#l00291">KAME::i18n()</a>, <a class="el" href="secondarydriver_8h-source.html#l00060">m_connection</a>, <a class="el" href="secondarydriver_8h-source.html#l00057">m_dependency</a>, <a class="el" href="secondarydriver_8cpp-source.html#l00031">readLockAllConnections()</a>, <a class="el" href="secondarydriver_8cpp-source.html#l00038">readUnlockAllConnections()</a>, <a class="el" href="driver_8cpp-source.html#l00052">XDriver::readUnlockRecord()</a>, <a class="el" href="driver_8cpp-source.html#l00061">XDriver::startRecording()</a>, と <a class="el" href="class_x_secondary_driver.html#b4">visualize()</a>.
 <p>
-参照元 <a class="el" href="secondarydriver_8cpp-source.html#l00123">onItemChanged()</a>, と <a class="el" href="secondarydriver_8cpp-source.html#l00045">requestAnalysis()</a>.    </td>
+参照元 <a class="el" href="secondarydriver_8cpp-source.html#l00151">onItemChanged()</a>, と <a class="el" href="secondarydriver_8cpp-source.html#l00045">requestAnalysis()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="b2"></a><!-- doxytag: member=<XSecondaryDriver::requestAnalysis> ref=<b2> args=<()> --><p>
@@ -313,7 +291,7 @@ check dependencies and lock all records and analyze null pointer will be passed 
 <p>
 参照先 <a class="el" href="secondarydriver_8cpp-source.html#l00050">onConnectedRecorded()</a>.
 <p>
-参照元 <a class="el" href="nmrpulse_8cpp-source.html#l00389">XNMRPulseAnalyzer::onAvgClear()</a>, <a class="el" href="nmrspectrum_8cpp-source.html#l00099">XNMRSpectrum::onClear()</a>, <a class="el" href="nmrfspectrum_8cpp-source.html#l00101">XNMRFSpectrum::onClear()</a>, <a class="el" href="nmrrelax_8cpp-source.html#l00202">XNMRT1::onClearAll()</a>, <a class="el" href="nmrspectrum_8cpp-source.html#l00092">XNMRSpectrum::onCondChanged()</a>, <a class="el" href="nmrrelax_8cpp-source.html#l00223">XNMRT1::onCondChanged()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00395">XNMRPulseAnalyzer::onCondChanged()</a>, <a class="el" href="nmrfspectrum_8cpp-source.html#l00096">XNMRFSpectrum::onCondChanged()</a>, と <a class="el" href="nmrrelax_8cpp-source.html#l00208">XNMRT1::onResetFit()</a>.    </td>
+参照元 <a class="el" href="nmrpulse_8cpp-source.html#l00396">XNMRPulseAnalyzer::onAvgClear()</a>, <a class="el" href="nmrspectrum_8cpp-source.html#l00100">XNMRSpectrum::onClear()</a>, <a class="el" href="nmrfspectrum_8cpp-source.html#l00102">XNMRFSpectrum::onClear()</a>, <a class="el" href="nmrrelax_8cpp-source.html#l00196">XNMRT1::onClearAll()</a>, <a class="el" href="nmrspectrum_8cpp-source.html#l00093">XNMRSpectrum::onCondChanged()</a>, <a class="el" href="nmrrelax_8cpp-source.html#l00217">XNMRT1::onCondChanged()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00402">XNMRPulseAnalyzer::onCondChanged()</a>, <a class="el" href="nmrfspectrum_8cpp-source.html#l00097">XNMRFSpectrum::onCondChanged()</a>, と <a class="el" href="nmrrelax_8cpp-source.html#l00202">XNMRT1::onResetFit()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="b4"></a><!-- doxytag: member=<XSecondaryDriver::visualize> ref=<b4> args=<()=0> --><p>
@@ -351,7 +329,7 @@ this is called after <a class="el" href="class_x_secondary_driver.html#b3">analy
 </table>
 <hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/driver/<a class="el" href="secondarydriver_8h-source.html">secondarydriver.h</a><li>kame/driver/<a class="el" href="secondarydriver_8cpp-source.html">secondarydriver.cpp</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:06:03 2006に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:33 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

@@ -4,7 +4,7 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
 <a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000001.html">analyzer</a></div>
 <h1>analyzer.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">//---------------------------------------------------------------------------</span>
@@ -16,261 +16,269 @@
 <a name="l00007"></a>00007 <span class="preprocessor">#include "measure.h"</span>
 <a name="l00008"></a>00008 
 <a name="l00009"></a>00009 <span class="preprocessor">#include &lt;klocale.h&gt;</span>
-<a name="l00010"></a>00010 
-<a name="l00011"></a>00011 <span class="comment">//---------------------------------------------------------------------------</span>
-<a name="l00012"></a><a class="code" href="class_x_scalar_entry.html#b0">00012</a> <a class="code" href="class_x_scalar_entry.html#b0">XScalarEntry::XScalarEntry</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;driver,
-<a name="l00013"></a>00013     <span class="keyword">const</span> <span class="keywordtype">char</span> *format)
-<a name="l00014"></a>00014   : <a class="code" href="class_x_node.html">XNode</a>(name, runtime),
-<a name="l00015"></a>00015   m_driver(driver),
-<a name="l00016"></a>00016   m_delta(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"Delta"</span>, false)),
-<a name="l00017"></a>00017   m_store(create&lt;<a class="code" href="class_x_value_node.html">XBoolNode</a>&gt;(<span class="stringliteral">"Store"</span>, false)),
-<a name="l00018"></a>00018   m_value(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"Value"</span>, true)),
-<a name="l00019"></a>00019   m_storedValue(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"StoredValue"</span>, true)),
-<a name="l00020"></a>00020   m_bTriggered(false)
-<a name="l00021"></a>00021 {
-<a name="l00022"></a>00022   <a class="code" href="class_x_scalar_entry.html#r1">m_delta</a>-&gt;setFormat(format);
-<a name="l00023"></a>00023   <a class="code" href="class_x_scalar_entry.html#r4">m_storedValue</a>-&gt;setFormat(format);
-<a name="l00024"></a>00024   <a class="code" href="class_x_scalar_entry.html#r3">m_value</a>-&gt;setFormat(format);
-<a name="l00025"></a>00025   <a class="code" href="class_x_scalar_entry.html#a2">store</a>()-&gt;value(<span class="keyword">false</span>);
-<a name="l00026"></a>00026 }
-<a name="l00027"></a>00027 <span class="keywordtype">bool</span>
-<a name="l00028"></a><a class="code" href="class_x_scalar_entry.html#a5">00028</a> <a class="code" href="class_x_scalar_entry.html#a5">XScalarEntry::isTriggered</a>()<span class="keyword"> const</span>
-<a name="l00029"></a>00029 <span class="keyword"></span>{
-<a name="l00030"></a>00030     <span class="keywordflow">return</span> <a class="code" href="class_x_scalar_entry.html#r5">m_bTriggered</a>;
-<a name="l00031"></a>00031 }
-<a name="l00032"></a>00032 <span class="keywordtype">void</span>
-<a name="l00033"></a><a class="code" href="class_x_scalar_entry.html#a6">00033</a> <a class="code" href="class_x_scalar_entry.html#a6">XScalarEntry::storeValue</a>()
-<a name="l00034"></a>00034 {
-<a name="l00035"></a>00035     <a class="code" href="class_x_scalar_entry.html#a4">storedValue</a>()-&gt;value(*<a class="code" href="class_x_scalar_entry.html#a3">value</a>());
-<a name="l00036"></a>00036     <a class="code" href="class_x_scalar_entry.html#r5">m_bTriggered</a> = <span class="keyword">false</span>;
-<a name="l00037"></a>00037 }
-<a name="l00038"></a>00038 
-<a name="l00039"></a>00039 QString
-<a name="l00040"></a><a class="code" href="class_x_scalar_entry.html#a8">00040</a> <a class="code" href="class_x_scalar_entry.html#a8">XScalarEntry::getEntryTitle</a>()<span class="keyword"> const</span>
-<a name="l00041"></a>00041 <span class="keyword"></span>{
-<a name="l00042"></a>00042   <span class="keywordflow">return</span> <a class="code" href="class_x_scalar_entry.html#a7">driver</a>()-&gt;getName() + <span class="stringliteral">"-"</span> + <a class="code" href="class_x_node.html#a6">getName</a>();
-<a name="l00043"></a>00043 }
-<a name="l00044"></a>00044 
-<a name="l00045"></a>00045 <span class="keywordtype">void</span>
-<a name="l00046"></a><a class="code" href="class_x_scalar_entry.html#a9">00046</a> <a class="code" href="class_x_scalar_entry.html#a3">XScalarEntry::value</a>(<span class="keywordtype">double</span> val)
-<a name="l00047"></a>00047 {
-<a name="l00048"></a>00048   <span class="keywordflow">if</span>((*<a class="code" href="class_x_scalar_entry.html#a1">delta</a>() != 0) &amp;&amp; (fabs(val - *<a class="code" href="class_x_scalar_entry.html#a4">storedValue</a>()) &gt; *<a class="code" href="class_x_scalar_entry.html#a1">delta</a>()))
-<a name="l00049"></a>00049     {
-<a name="l00050"></a>00050         <a class="code" href="class_x_scalar_entry.html#r5">m_bTriggered</a> = <span class="keyword">true</span>;
-<a name="l00051"></a>00051     }
-<a name="l00052"></a>00052   <a class="code" href="class_x_scalar_entry.html#a3">value</a>()-&gt;value(val);
-<a name="l00053"></a>00053 }
-<a name="l00054"></a>00054 
-<a name="l00055"></a><a class="code" href="class_x_val_chart.html#b0">00055</a> <a class="code" href="class_x_val_chart.html#b0">XValChart::XValChart</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XScalarEntry&gt; &amp;entry)
-<a name="l00056"></a>00056  : <a class="code" href="class_x_node.html">XNode</a>(name, runtime),
-<a name="l00057"></a>00057     m_entry(entry),
-<a name="l00058"></a>00058     m_graph(create&lt;<a class="code" href="class_x_graph.html">XGraph</a>&gt;(name, false)),
-<a name="l00059"></a>00059     m_graphForm(new FrmGraph(g_pFrmMain))
-<a name="l00060"></a>00060 {
-<a name="l00061"></a>00061     <a class="code" href="class_x_val_chart.html#r3">m_graphForm</a>-&gt;m_graphwidget-&gt;setGraph(<a class="code" href="class_x_val_chart.html#r2">m_graph</a>);
-<a name="l00062"></a>00062     
-<a name="l00063"></a>00063     <a class="code" href="class_x_val_chart.html#r4">m_chart</a>= <a class="code" href="class_x_val_chart.html#r2">m_graph</a>-&gt;plots()-&gt;create&lt;<a class="code" href="class_x_x_y_plot.html">XXYPlot</a>&gt;(entry-&gt;getEntryTitle().utf8(), <span class="keyword">true</span>, <a class="code" href="class_x_val_chart.html#r2">m_graph</a>);
-<a name="l00064"></a>00064     <a class="code" href="class_x_val_chart.html#r2">m_graph</a>-&gt;axes()-&gt;childLock();
-<a name="l00065"></a>00065     shared_ptr&lt;XAxis&gt; axisx = (*<a class="code" href="class_x_val_chart.html#r2">m_graph</a>-&gt;axes())[0];
-<a name="l00066"></a>00066     shared_ptr&lt;XAxis&gt; axisy = (*<a class="code" href="class_x_val_chart.html#r2">m_graph</a>-&gt;axes())[1];
-<a name="l00067"></a>00067     <a class="code" href="class_x_val_chart.html#r2">m_graph</a>-&gt;axes()-&gt;childUnlock();
-<a name="l00068"></a>00068     <a class="code" href="class_x_val_chart.html#r4">m_chart</a>-&gt;axisX()-&gt;value(axisx);
-<a name="l00069"></a>00069     <a class="code" href="class_x_val_chart.html#r4">m_chart</a>-&gt;axisY()-&gt;value(axisy);
-<a name="l00070"></a>00070     <a class="code" href="class_x_val_chart.html#r4">m_chart</a>-&gt;maxCount()-&gt;value(300);
-<a name="l00071"></a>00071     axisx-&gt;length()-&gt;value(0.95 - *axisx-&gt;x());
-<a name="l00072"></a>00072     axisy-&gt;length()-&gt;value(0.90 - *axisy-&gt;y());
-<a name="l00073"></a>00073     axisx-&gt;label()-&gt;value(<span class="stringliteral">"Time"</span>);
-<a name="l00074"></a>00074     axisx-&gt;ticLabelFormat()-&gt;value(<span class="stringliteral">"TIME:%T"</span>);
-<a name="l00075"></a>00075     axisy-&gt;label()-&gt;value(entry-&gt;getEntryTitle());
-<a name="l00076"></a>00076     axisy-&gt;ticLabelFormat()-&gt;value(<a class="code" href="class_x_val_chart.html#r1">m_entry</a>-&gt;value()-&gt;format());
-<a name="l00077"></a>00077     axisx-&gt;minValue()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00078"></a>00078     axisx-&gt;maxValue()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00079"></a>00079     axisx-&gt;autoScale()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00080"></a>00080     axisx-&gt;logScale()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00081"></a>00081     <a class="code" href="class_x_val_chart.html#r2">m_graph</a>-&gt;label()-&gt;value(entry-&gt;getEntryTitle());
-<a name="l00082"></a>00082 
-<a name="l00083"></a>00083     <a class="code" href="class_x_val_chart.html#r0">m_lsnOnRecord</a> = entry-&gt;driver()-&gt;onRecord().connectWeak(
-<a name="l00084"></a>00084         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_val_chart.html#d0">XValChart::onRecord</a>);
-<a name="l00085"></a>00085 }
-<a name="l00086"></a>00086 <span class="keywordtype">void</span>
-<a name="l00087"></a><a class="code" href="class_x_val_chart.html#d0">00087</a> <a class="code" href="class_x_val_chart.html#d0">XValChart::onRecord</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;driver)
-<a name="l00088"></a>00088 {
-<a name="l00089"></a>00089   <span class="keywordtype">double</span> val;
-<a name="l00090"></a>00090     val = *<a class="code" href="class_x_val_chart.html#r1">m_entry</a>-&gt;value();
-<a name="l00091"></a>00091     <a class="code" href="class_x_time.html">XTime</a> time = driver-&gt;time();
-<a name="l00092"></a>00092     <span class="keywordflow">if</span>(time)
-<a name="l00093"></a>00093         <a class="code" href="class_x_val_chart.html#r4">m_chart</a>-&gt;addPoint(time.<a class="code" href="class_x_time.html#a17">sec</a>() + time.<a class="code" href="class_x_time.html#a18">usec</a>() * 1e-6, val);
-<a name="l00094"></a>00094 }
-<a name="l00095"></a>00095 <span class="keywordtype">void</span>
-<a name="l00096"></a><a class="code" href="class_x_val_chart.html#a1">00096</a> <a class="code" href="class_x_val_chart.html#a1">XValChart::showChart</a>(<span class="keywordtype">void</span>)
-<a name="l00097"></a>00097 {
-<a name="l00098"></a>00098   <a class="code" href="class_x_val_chart.html#r3">m_graphForm</a>-&gt;setCaption(i18n(<span class="stringliteral">"Chart - "</span>) + <a class="code" href="class_x_node.html#a6">getName</a>() );
-<a name="l00099"></a>00099   <a class="code" href="class_x_val_chart.html#r3">m_graphForm</a>-&gt;show();
-<a name="l00100"></a>00100 }
-<a name="l00101"></a>00101 
-<a name="l00102"></a><a class="code" href="class_x_chart_list.html#b0">00102</a> <a class="code" href="class_x_chart_list.html#b0">XChartList::XChartList</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;entries)
-<a name="l00103"></a>00103   : <a class="code" href="class_x_alias_list_node.html">XAliasListNode</a>&lt;<a class="code" href="class_x_val_chart.html">XValChart</a>&gt;(name, runtime),
-<a name="l00104"></a>00104   m_entries(entries)
-<a name="l00105"></a>00105 {
-<a name="l00106"></a>00106     <a class="code" href="class_x_chart_list.html#r0">m_lsnOnCatchEntry</a> = entries-&gt;onCatch().connectWeak(
-<a name="l00107"></a>00107         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_chart_list.html#d0">XChartList::onCatchEntry</a>);
-<a name="l00108"></a>00108     <a class="code" href="class_x_chart_list.html#r1">m_lsnOnReleaseEntry</a> = entries-&gt;onRelease().connectWeak(
-<a name="l00109"></a>00109         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_chart_list.html#d1">XChartList::onReleaseEntry</a>);
-<a name="l00110"></a>00110 }
-<a name="l00111"></a>00111 
-<a name="l00112"></a>00112 <span class="keywordtype">void</span>
-<a name="l00113"></a><a class="code" href="class_x_chart_list.html#d0">00113</a> <a class="code" href="class_x_chart_list.html#d0">XChartList::onCatchEntry</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node)
-<a name="l00114"></a>00114 {
-<a name="l00115"></a>00115     shared_ptr&lt;XScalarEntry&gt; entry = dynamic_pointer_cast&lt;XScalarEntry&gt;(node);
-<a name="l00116"></a>00116     create&lt;XValChart&gt;(entry-&gt;getName(), <span class="keyword">true</span>, entry);
-<a name="l00117"></a>00117 }
-<a name="l00118"></a>00118 <span class="keywordtype">void</span>
-<a name="l00119"></a><a class="code" href="class_x_chart_list.html#d1">00119</a> <a class="code" href="class_x_chart_list.html#d1">XChartList::onReleaseEntry</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node)
-<a name="l00120"></a>00120 {
-<a name="l00121"></a>00121     shared_ptr&lt;XScalarEntry&gt; entry = dynamic_pointer_cast&lt;XScalarEntry&gt;(node);
-<a name="l00122"></a>00122 
-<a name="l00123"></a>00123   shared_ptr&lt;XValChart&gt; valchart;
-<a name="l00124"></a>00124   <a class="code" href="class_x_node.html#a21">childLock</a>();
-<a name="l00125"></a>00125   <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="class_x_node.html#a14">count</a>(); i++)
-<a name="l00126"></a>00126     {
-<a name="l00127"></a>00127       <span class="keywordflow">if</span>((*this)[i]-&gt;entry() == entry) valchart = (*this)[i];
-<a name="l00128"></a>00128     }
-<a name="l00129"></a>00129   <a class="code" href="class_x_node.html#a22">childUnlock</a>();
-<a name="l00130"></a>00130   <span class="keywordflow">if</span>(valchart) <a class="code" href="class_x_list_node_base.html#a2">releaseChild</a>(valchart);
-<a name="l00131"></a>00131 }
-<a name="l00132"></a>00132 
-<a name="l00133"></a><a class="code" href="class_x_val_graph.html#b0">00133</a> <a class="code" href="class_x_val_graph.html#b0">XValGraph::XValGraph</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
-<a name="l00134"></a>00134      <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;entries)
-<a name="l00135"></a>00135   : <a class="code" href="class_x_node.html">XNode</a>(name, runtime),
-<a name="l00136"></a>00136     m_graph(),
-<a name="l00137"></a>00137     m_graphForm(),
-<a name="l00138"></a>00138     m_axisX(create&lt;<a class="code" href="class_x_item_node.html">tAxis</a>&gt;(<span class="stringliteral">"AxisX"</span>, false, entries)),
-<a name="l00139"></a>00139     m_axisY1(create&lt;<a class="code" href="class_x_item_node.html">tAxis</a>&gt;(<span class="stringliteral">"AxisY1"</span>, false, entries)),
-<a name="l00140"></a>00140     m_axisZ(create&lt;<a class="code" href="class_x_item_node.html">tAxis</a>&gt;(<span class="stringliteral">"AxisZ"</span>, false, entries))
-<a name="l00141"></a>00141 {
-<a name="l00142"></a>00142     <a class="code" href="class_x_val_graph.html#r7">m_lsnAxisChanged</a> = <a class="code" href="class_x_val_graph.html#a3">axisX</a>()-&gt;onValueChanged().connectWeak(
-<a name="l00143"></a>00143         <span class="keyword">true</span>, shared_from_this(), &amp;<a class="code" href="class_x_val_graph.html#d0">XValGraph::onAxisChanged</a>, <span class="keyword">true</span>);
-<a name="l00144"></a>00144     <a class="code" href="class_x_val_graph.html#a4">axisY1</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_val_graph.html#r7">m_lsnAxisChanged</a>);
-<a name="l00145"></a>00145     <a class="code" href="class_x_val_graph.html#a5">axisZ</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_val_graph.html#r7">m_lsnAxisChanged</a>);
-<a name="l00146"></a>00146 }
-<a name="l00147"></a>00147 <span class="keywordtype">void</span>
-<a name="l00148"></a><a class="code" href="class_x_val_graph.html#d0">00148</a> <a class="code" href="class_x_val_graph.html#d0">XValGraph::onAxisChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
-<a name="l00149"></a>00149 {
-<a name="l00150"></a>00150     shared_ptr&lt;XScalarEntry&gt; entryx = *<a class="code" href="class_x_val_graph.html#a3">axisX</a>();
-<a name="l00151"></a>00151     shared_ptr&lt;XScalarEntry&gt; entryy1 = *<a class="code" href="class_x_val_graph.html#a4">axisY1</a>();
-<a name="l00152"></a>00152     shared_ptr&lt;XScalarEntry&gt; entryz = *<a class="code" href="class_x_val_graph.html#a5">axisZ</a>();
-<a name="l00153"></a>00153     
-<a name="l00154"></a>00154   <span class="keywordflow">if</span>(<a class="code" href="class_x_val_graph.html#r0">m_graph</a>) <a class="code" href="class_x_node.html#a12">releaseChild</a>(<a class="code" href="class_x_val_graph.html#r0">m_graph</a>);
-<a name="l00155"></a>00155   <a class="code" href="class_x_val_graph.html#r0">m_graph</a> = create&lt;XGraph&gt;(<a class="code" href="class_x_node.html#a6">getName</a>().utf8(), <span class="keyword">false</span>);
-<a name="l00156"></a>00156   <a class="code" href="class_x_val_graph.html#r1">m_graphForm</a>.reset(<span class="keyword">new</span> FrmGraph(g_pFrmMain));
-<a name="l00157"></a>00157   <a class="code" href="class_x_val_graph.html#r1">m_graphForm</a>-&gt;m_graphwidget-&gt;setGraph(<a class="code" href="class_x_val_graph.html#r0">m_graph</a>);
-<a name="l00158"></a>00158 
-<a name="l00159"></a>00159   <span class="keywordflow">if</span>(!entryx || !entryy1) <span class="keywordflow">return</span>;
-<a name="l00160"></a>00160   
-<a name="l00161"></a>00161   <a class="code" href="class_x_val_graph.html#r5">m_livePlot</a> = 
-<a name="l00162"></a>00162         <a class="code" href="class_x_val_graph.html#r0">m_graph</a>-&gt;plots()-&gt;create&lt;<a class="code" href="class_x_x_y_plot.html">XXYPlot</a>&gt;((<a class="code" href="class_x_val_graph.html#r0">m_graph</a>-&gt;getName() + <span class="stringliteral">" Live"</span>).utf8(), <span class="keyword">false</span>, <a class="code" href="class_x_val_graph.html#r0">m_graph</a>);
-<a name="l00163"></a>00163   <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a> = 
-<a name="l00164"></a>00164     <a class="code" href="class_x_val_graph.html#r0">m_graph</a>-&gt;plots()-&gt;create&lt;<a class="code" href="class_x_x_y_plot.html">XXYPlot</a>&gt;((<a class="code" href="class_x_val_graph.html#r0">m_graph</a>-&gt;getName() + <span class="stringliteral">" Stored"</span>).utf8(), <span class="keyword">false</span>, <a class="code" href="class_x_val_graph.html#r0">m_graph</a>);
-<a name="l00165"></a>00165 
-<a name="l00166"></a>00166   <a class="code" href="class_x_val_graph.html#r0">m_graph</a>-&gt;axes()-&gt;childLock();
-<a name="l00167"></a>00167   shared_ptr&lt;XAxis&gt; axisx = (*<a class="code" href="class_x_val_graph.html#r0">m_graph</a>-&gt;axes())[0];
-<a name="l00168"></a>00168   shared_ptr&lt;XAxis&gt; axisy = (*<a class="code" href="class_x_val_graph.html#r0">m_graph</a>-&gt;axes())[1];
-<a name="l00169"></a>00169   <a class="code" href="class_x_val_graph.html#r0">m_graph</a>-&gt;axes()-&gt;childUnlock();
-<a name="l00170"></a>00170   axisx-&gt;ticLabelFormat()-&gt;value(entryx-&gt;value()-&gt;format());
-<a name="l00171"></a>00171   axisy-&gt;ticLabelFormat()-&gt;value(entryy1-&gt;value()-&gt;format());
-<a name="l00172"></a>00172   <a class="code" href="class_x_val_graph.html#r5">m_livePlot</a>-&gt;axisX()-&gt;value(axisx);
-<a name="l00173"></a>00173   <a class="code" href="class_x_val_graph.html#r5">m_livePlot</a>-&gt;axisY()-&gt;value(axisy);
-<a name="l00174"></a>00174   <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a>-&gt;axisX()-&gt;value(axisx);
-<a name="l00175"></a>00175   <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a>-&gt;axisY()-&gt;value(axisy);
-<a name="l00176"></a>00176   
-<a name="l00177"></a>00177   axisx-&gt;length()-&gt;value(0.95 - *axisx-&gt;x());
-<a name="l00178"></a>00178   axisy-&gt;length()-&gt;value(0.90 - *axisy-&gt;y());
-<a name="l00179"></a>00179   <span class="keywordflow">if</span>(entryz) {
-<a name="l00180"></a>00180         shared_ptr&lt;XAxis&gt; axisz = <a class="code" href="class_x_val_graph.html#r0">m_graph</a>-&gt;axes()-&gt;create&lt;<a class="code" href="class_x_axis.html">XAxis</a>&gt;(
-<a name="l00181"></a>00181             <span class="stringliteral">"Z Axis"</span>, <span class="keyword">false</span>, XAxis::DirAxisZ, <span class="keyword">false</span>, <a class="code" href="class_x_val_graph.html#r0">m_graph</a>);
-<a name="l00182"></a>00182     axisz-&gt;ticLabelFormat()-&gt;value(entryz-&gt;value()-&gt;format());
-<a name="l00183"></a>00183         <a class="code" href="class_x_val_graph.html#r5">m_livePlot</a>-&gt;axisZ()-&gt;value(axisz);
-<a name="l00184"></a>00184         <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a>-&gt;axisZ()-&gt;value(axisz);
-<a name="l00185"></a>00185 <span class="comment">//      axisz-&gt;label()-&gt;value("Z Axis");</span>
-<a name="l00186"></a>00186         axisz-&gt;label()-&gt;value(entryz-&gt;getEntryTitle());
-<a name="l00187"></a>00187   }
-<a name="l00188"></a>00188   
-<a name="l00189"></a>00189   <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a>-&gt;pointColor()-&gt;value(clGreen);
-<a name="l00190"></a>00190   <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a>-&gt;lineColor()-&gt;value(clGreen);
-<a name="l00191"></a>00191   <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a>-&gt;barColor()-&gt;value(clGreen);
-<a name="l00192"></a>00192   <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a>-&gt;displayMajorGrid()-&gt;value(<span class="keyword">false</span>);
-<a name="l00193"></a>00193   <a class="code" href="class_x_val_graph.html#r5">m_livePlot</a>-&gt;maxCount()-&gt;value(4000);
-<a name="l00194"></a>00194   <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a>-&gt;maxCount()-&gt;value(4000);
-<a name="l00195"></a>00195   axisx-&gt;label()-&gt;value(entryx-&gt;getEntryTitle());
-<a name="l00196"></a>00196   axisy-&gt;label()-&gt;value(entryy1-&gt;getEntryTitle());
-<a name="l00197"></a>00197   <a class="code" href="class_x_val_graph.html#r0">m_graph</a>-&gt;label()-&gt;value(<a class="code" href="class_x_node.html#a6">getName</a>());
-<a name="l00198"></a>00198 
-<a name="l00199"></a>00199   <a class="code" href="class_x_val_graph.html#r8">m_lsnLiveChanged</a> = entryx-&gt;value()-&gt;onValueChanged().connectWeak(
-<a name="l00200"></a>00200     <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_val_graph.html#d1">XValGraph::onLiveChanged</a>);
-<a name="l00201"></a>00201   entryy1-&gt;value()-&gt;onValueChanged().connect(<a class="code" href="class_x_val_graph.html#r8">m_lsnLiveChanged</a>);
-<a name="l00202"></a>00202   <span class="keywordflow">if</span>(entryz) entryz-&gt;value()-&gt;onValueChanged().connect(<a class="code" href="class_x_val_graph.html#r8">m_lsnLiveChanged</a>);
-<a name="l00203"></a>00203   
-<a name="l00204"></a>00204   <a class="code" href="class_x_val_graph.html#r9">m_lsnStoreChanged</a> = entryx-&gt;storedValue()-&gt;onValueChanged().connectWeak(
-<a name="l00205"></a>00205     <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_val_graph.html#d2">XValGraph::onStoreChanged</a>);
-<a name="l00206"></a>00206   entryy1-&gt;storedValue()-&gt;onValueChanged().connect(<a class="code" href="class_x_val_graph.html#r9">m_lsnStoreChanged</a>);
-<a name="l00207"></a>00207   <span class="keywordflow">if</span>(entryz) entryz-&gt;storedValue()-&gt;onValueChanged().connect(<a class="code" href="class_x_val_graph.html#r9">m_lsnStoreChanged</a>);
-<a name="l00208"></a>00208   
-<a name="l00209"></a>00209   <a class="code" href="class_x_val_graph.html#a1">showGraph</a>();
-<a name="l00210"></a>00210 }
-<a name="l00211"></a>00211 
-<a name="l00212"></a>00212 <span class="keywordtype">void</span>
-<a name="l00213"></a><a class="code" href="class_x_val_graph.html#a2">00213</a> <a class="code" href="class_x_val_graph.html#a2">XValGraph::clearAllPoints</a>()
-<a name="l00214"></a>00214 {
-<a name="l00215"></a>00215   <span class="keywordflow">if</span>(!<a class="code" href="class_x_val_graph.html#r0">m_graph</a>) <span class="keywordflow">return</span>;
-<a name="l00216"></a>00216   <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a>-&gt;clearAllPoints();
-<a name="l00217"></a>00217   <a class="code" href="class_x_val_graph.html#r5">m_livePlot</a>-&gt;clearAllPoints();
+<a name="l00010"></a>00010 <span class="preprocessor">#include &lt;qstatusbar.h&gt;</span>
+<a name="l00011"></a>00011 
+<a name="l00012"></a>00012 <span class="comment">//---------------------------------------------------------------------------</span>
+<a name="l00013"></a><a class="code" href="class_x_scalar_entry.html#b0">00013</a> <a class="code" href="class_x_scalar_entry.html#b0">XScalarEntry::XScalarEntry</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;driver,
+<a name="l00014"></a>00014     <span class="keyword">const</span> <span class="keywordtype">char</span> *format)
+<a name="l00015"></a>00015   : <a class="code" href="class_x_node.html">XNode</a>(name, runtime),
+<a name="l00016"></a>00016   m_driver(driver),
+<a name="l00017"></a>00017   m_delta(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"Delta"</span>, false)),
+<a name="l00018"></a>00018   m_store(create&lt;<a class="code" href="class_x_value_node.html">XBoolNode</a>&gt;(<span class="stringliteral">"Store"</span>, false)),
+<a name="l00019"></a>00019   m_value(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"Value"</span>, true)),
+<a name="l00020"></a>00020   m_storedValue(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"StoredValue"</span>, true)),
+<a name="l00021"></a>00021   m_bTriggered(false)
+<a name="l00022"></a>00022 {
+<a name="l00023"></a>00023   <a class="code" href="class_x_scalar_entry.html#r1">m_delta</a>-&gt;setFormat(format);
+<a name="l00024"></a>00024   <a class="code" href="class_x_scalar_entry.html#r4">m_storedValue</a>-&gt;setFormat(format);
+<a name="l00025"></a>00025   <a class="code" href="class_x_scalar_entry.html#r3">m_value</a>-&gt;setFormat(format);
+<a name="l00026"></a>00026   <a class="code" href="class_x_scalar_entry.html#a2">store</a>()-&gt;value(<span class="keyword">false</span>);
+<a name="l00027"></a>00027 }
+<a name="l00028"></a>00028 <span class="keywordtype">bool</span>
+<a name="l00029"></a><a class="code" href="class_x_scalar_entry.html#a5">00029</a> <a class="code" href="class_x_scalar_entry.html#a5">XScalarEntry::isTriggered</a>()<span class="keyword"> const</span>
+<a name="l00030"></a>00030 <span class="keyword"></span>{
+<a name="l00031"></a>00031     <span class="keywordflow">return</span> <a class="code" href="class_x_scalar_entry.html#r5">m_bTriggered</a>;
+<a name="l00032"></a>00032 }
+<a name="l00033"></a>00033 <span class="keywordtype">void</span>
+<a name="l00034"></a><a class="code" href="class_x_scalar_entry.html#a6">00034</a> <a class="code" href="class_x_scalar_entry.html#a6">XScalarEntry::storeValue</a>()
+<a name="l00035"></a>00035 {
+<a name="l00036"></a>00036     <a class="code" href="class_x_scalar_entry.html#a4">storedValue</a>()-&gt;value(*<a class="code" href="class_x_scalar_entry.html#a3">value</a>());
+<a name="l00037"></a>00037     <a class="code" href="class_x_scalar_entry.html#r5">m_bTriggered</a> = <span class="keyword">false</span>;
+<a name="l00038"></a>00038 }
+<a name="l00039"></a>00039 
+<a name="l00040"></a>00040 std::string
+<a name="l00041"></a><a class="code" href="class_x_scalar_entry.html#a8">00041</a> <a class="code" href="class_x_scalar_entry.html#a8">XScalarEntry::getLabel</a>()<span class="keyword"> const</span>
+<a name="l00042"></a>00042 <span class="keyword"></span>{
+<a name="l00043"></a>00043   <span class="keywordflow">return</span> <a class="code" href="class_x_scalar_entry.html#a7">driver</a>()-&gt;getLabel() + <span class="stringliteral">"-"</span> + <a class="code" href="class_x_node.html#a7">XNode::getLabel</a>();
+<a name="l00044"></a>00044 }
+<a name="l00045"></a>00045 
+<a name="l00046"></a>00046 <span class="keywordtype">void</span>
+<a name="l00047"></a><a class="code" href="class_x_scalar_entry.html#a9">00047</a> <a class="code" href="class_x_scalar_entry.html#a3">XScalarEntry::value</a>(<span class="keywordtype">double</span> val)
+<a name="l00048"></a>00048 {
+<a name="l00049"></a>00049   <span class="keywordflow">if</span>((*<a class="code" href="class_x_scalar_entry.html#a1">delta</a>() != 0) &amp;&amp; (fabs(val - *<a class="code" href="class_x_scalar_entry.html#a4">storedValue</a>()) &gt; *<a class="code" href="class_x_scalar_entry.html#a1">delta</a>()))
+<a name="l00050"></a>00050     {
+<a name="l00051"></a>00051         <a class="code" href="class_x_scalar_entry.html#r5">m_bTriggered</a> = <span class="keyword">true</span>;
+<a name="l00052"></a>00052     }
+<a name="l00053"></a>00053   <a class="code" href="class_x_scalar_entry.html#a3">value</a>()-&gt;value(val);
+<a name="l00054"></a>00054 }
+<a name="l00055"></a>00055 
+<a name="l00056"></a><a class="code" href="class_x_val_chart.html#b0">00056</a> <a class="code" href="class_x_val_chart.html#b0">XValChart::XValChart</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XScalarEntry&gt; &amp;entry)
+<a name="l00057"></a>00057  : <a class="code" href="class_x_node.html">XNode</a>(name, runtime),
+<a name="l00058"></a>00058     m_entry(entry),
+<a name="l00059"></a>00059     m_graph(create&lt;<a class="code" href="class_x_graph.html">XGraph</a>&gt;(name, false)),
+<a name="l00060"></a>00060     m_graphForm(new FrmGraph(g_pFrmMain))
+<a name="l00061"></a>00061 {
+<a name="l00062"></a>00062     <a class="code" href="class_x_val_chart.html#r3">m_graphForm</a>-&gt;statusBar()-&gt;hide();
+<a name="l00063"></a>00063     <a class="code" href="class_x_val_chart.html#r3">m_graphForm</a>-&gt;m_graphwidget-&gt;setGraph(<a class="code" href="class_x_val_chart.html#r2">m_graph</a>);
+<a name="l00064"></a>00064     
+<a name="l00065"></a>00065     <a class="code" href="class_x_val_chart.html#r4">m_chart</a>= <a class="code" href="class_x_val_chart.html#r2">m_graph</a>-&gt;plots()-&gt;create&lt;<a class="code" href="class_x_x_y_plot.html">XXYPlot</a>&gt;(entry-&gt;getName().c_str(), <span class="keyword">true</span>, <a class="code" href="class_x_val_chart.html#r2">m_graph</a>);
+<a name="l00066"></a>00066         <a class="code" href="class_x_val_chart.html#r2">m_graph</a>-&gt;persistence()-&gt;value(0.0);
+<a name="l00067"></a>00067     <a class="code" href="class_x_val_chart.html#r4">m_chart</a>-&gt;label()-&gt;value(entry-&gt;getLabel());
+<a name="l00068"></a>00068     <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> axes_list(<a class="code" href="class_x_val_chart.html#r2">m_graph</a>-&gt;axes()-&gt;children());
+<a name="l00069"></a>00069     shared_ptr&lt;XAxis&gt; axisx = dynamic_pointer_cast&lt;XAxis&gt;(axes_list-&gt;at(0));
+<a name="l00070"></a>00070     shared_ptr&lt;XAxis&gt; axisy = dynamic_pointer_cast&lt;XAxis&gt;(axes_list-&gt;at(1));
+<a name="l00071"></a>00071       
+<a name="l00072"></a>00072     <a class="code" href="class_x_val_chart.html#r4">m_chart</a>-&gt;axisX()-&gt;value(axisx);
+<a name="l00073"></a>00073     <a class="code" href="class_x_val_chart.html#r4">m_chart</a>-&gt;axisY()-&gt;value(axisy);
+<a name="l00074"></a>00074     <a class="code" href="class_x_val_chart.html#r4">m_chart</a>-&gt;maxCount()-&gt;value(300);
+<a name="l00075"></a>00075     axisx-&gt;length()-&gt;value(0.95 - *axisx-&gt;x());
+<a name="l00076"></a>00076     axisy-&gt;length()-&gt;value(0.90 - *axisy-&gt;y());
+<a name="l00077"></a>00077     axisx-&gt;label()-&gt;value(<span class="stringliteral">"Time"</span>);
+<a name="l00078"></a>00078     axisx-&gt;ticLabelFormat()-&gt;value(<span class="stringliteral">"TIME:%T"</span>);
+<a name="l00079"></a>00079     axisy-&gt;label()-&gt;value(entry-&gt;getLabel());
+<a name="l00080"></a>00080     axisy-&gt;ticLabelFormat()-&gt;value(<a class="code" href="class_x_val_chart.html#r1">m_entry</a>-&gt;value()-&gt;format());
+<a name="l00081"></a>00081     axisx-&gt;minValue()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00082"></a>00082     axisx-&gt;maxValue()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00083"></a>00083     axisx-&gt;autoScale()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00084"></a>00084     axisx-&gt;logScale()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00085"></a>00085     <a class="code" href="class_x_val_chart.html#r2">m_graph</a>-&gt;label()-&gt;value(entry-&gt;getLabel());
+<a name="l00086"></a>00086 
+<a name="l00087"></a>00087     <a class="code" href="class_x_val_chart.html#r0">m_lsnOnRecord</a> = entry-&gt;driver()-&gt;onRecord().connectWeak(
+<a name="l00088"></a>00088         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_val_chart.html#d0">XValChart::onRecord</a>);
+<a name="l00089"></a>00089 }
+<a name="l00090"></a>00090 <span class="keywordtype">void</span>
+<a name="l00091"></a><a class="code" href="class_x_val_chart.html#d0">00091</a> <a class="code" href="class_x_val_chart.html#d0">XValChart::onRecord</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;driver)
+<a name="l00092"></a>00092 {
+<a name="l00093"></a>00093   <span class="keywordtype">double</span> val;
+<a name="l00094"></a>00094     val = *<a class="code" href="class_x_val_chart.html#r1">m_entry</a>-&gt;value();
+<a name="l00095"></a>00095     <a class="code" href="class_x_time.html">XTime</a> time = driver-&gt;time();
+<a name="l00096"></a>00096     <span class="keywordflow">if</span>(time)
+<a name="l00097"></a>00097         <a class="code" href="class_x_val_chart.html#r4">m_chart</a>-&gt;addPoint(time.<a class="code" href="class_x_time.html#a17">sec</a>() + time.<a class="code" href="class_x_time.html#a18">usec</a>() * 1e-6, val);
+<a name="l00098"></a>00098 }
+<a name="l00099"></a>00099 <span class="keywordtype">void</span>
+<a name="l00100"></a><a class="code" href="class_x_val_chart.html#a1">00100</a> <a class="code" href="class_x_val_chart.html#a1">XValChart::showChart</a>(<span class="keywordtype">void</span>)
+<a name="l00101"></a>00101 {
+<a name="l00102"></a>00102   <a class="code" href="class_x_val_chart.html#r3">m_graphForm</a>-&gt;setCaption(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Chart - "</span>) + <a class="code" href="class_x_node.html#a7">getLabel</a>() );
+<a name="l00103"></a>00103   <a class="code" href="class_x_val_chart.html#r3">m_graphForm</a>-&gt;show();
+<a name="l00104"></a>00104 }
+<a name="l00105"></a>00105 
+<a name="l00106"></a><a class="code" href="class_x_chart_list.html#b0">00106</a> <a class="code" href="class_x_chart_list.html#b0">XChartList::XChartList</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;entries)
+<a name="l00107"></a>00107   : <a class="code" href="class_x_alias_list_node.html">XAliasListNode</a>&lt;<a class="code" href="class_x_val_chart.html">XValChart</a>&gt;(name, runtime),
+<a name="l00108"></a>00108   m_entries(entries)
+<a name="l00109"></a>00109 {
+<a name="l00110"></a>00110     <a class="code" href="class_x_chart_list.html#r0">m_lsnOnCatchEntry</a> = entries-&gt;onCatch().connectWeak(
+<a name="l00111"></a>00111         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_chart_list.html#d0">XChartList::onCatchEntry</a>);
+<a name="l00112"></a>00112     <a class="code" href="class_x_chart_list.html#r1">m_lsnOnReleaseEntry</a> = entries-&gt;onRelease().connectWeak(
+<a name="l00113"></a>00113         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_chart_list.html#d1">XChartList::onReleaseEntry</a>);
+<a name="l00114"></a>00114 }
+<a name="l00115"></a>00115 
+<a name="l00116"></a>00116 <span class="keywordtype">void</span>
+<a name="l00117"></a><a class="code" href="class_x_chart_list.html#d0">00117</a> <a class="code" href="class_x_chart_list.html#d0">XChartList::onCatchEntry</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node)
+<a name="l00118"></a>00118 {
+<a name="l00119"></a>00119     shared_ptr&lt;XScalarEntry&gt; entry = dynamic_pointer_cast&lt;XScalarEntry&gt;(node);
+<a name="l00120"></a>00120     create&lt;XValChart&gt;(entry-&gt;getName().c_str(), <span class="keyword">true</span>, entry);
+<a name="l00121"></a>00121 }
+<a name="l00122"></a>00122 <span class="keywordtype">void</span>
+<a name="l00123"></a><a class="code" href="class_x_chart_list.html#d1">00123</a> <a class="code" href="class_x_chart_list.html#d1">XChartList::onReleaseEntry</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node)
+<a name="l00124"></a>00124 {
+<a name="l00125"></a>00125   shared_ptr&lt;XScalarEntry&gt; entry = dynamic_pointer_cast&lt;XScalarEntry&gt;(node);
+<a name="l00126"></a>00126 
+<a name="l00127"></a>00127   shared_ptr&lt;XValChart&gt; valchart;
+<a name="l00128"></a>00128   <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> list(<a class="code" href="class_x_node.html#a10">children</a>());
+<a name="l00129"></a>00129   <span class="keywordflow">if</span>(list) {
+<a name="l00130"></a>00130       <span class="keywordflow">for</span>(XNode::NodeList::const_iterator it = list-&gt;begin(); it != list-&gt;end(); it++) {
+<a name="l00131"></a>00131           shared_ptr&lt;XValChart&gt; chart = dynamic_pointer_cast&lt;XValChart&gt;(*it);
+<a name="l00132"></a>00132           <span class="keywordflow">if</span>(chart-&gt;entry() == entry) valchart = chart;
+<a name="l00133"></a>00133       }
+<a name="l00134"></a>00134   }
+<a name="l00135"></a>00135   <span class="keywordflow">if</span>(valchart) <a class="code" href="class_x_list_node_base.html#a2">releaseChild</a>(valchart);
+<a name="l00136"></a>00136 }
+<a name="l00137"></a>00137 
+<a name="l00138"></a><a class="code" href="class_x_val_graph.html#b0">00138</a> <a class="code" href="class_x_val_graph.html#b0">XValGraph::XValGraph</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
+<a name="l00139"></a>00139      <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;entries)
+<a name="l00140"></a>00140   : <a class="code" href="class_x_node.html">XNode</a>(name, runtime),
+<a name="l00141"></a>00141     m_graph(),
+<a name="l00142"></a>00142     m_graphForm(),
+<a name="l00143"></a>00143     m_axisX(create&lt;<a class="code" href="class_x_item_node.html">tAxis</a>&gt;(<span class="stringliteral">"AxisX"</span>, false, entries)),
+<a name="l00144"></a>00144     m_axisY1(create&lt;<a class="code" href="class_x_item_node.html">tAxis</a>&gt;(<span class="stringliteral">"AxisY1"</span>, false, entries)),
+<a name="l00145"></a>00145     m_axisZ(create&lt;<a class="code" href="class_x_item_node.html">tAxis</a>&gt;(<span class="stringliteral">"AxisZ"</span>, false, entries))
+<a name="l00146"></a>00146 {
+<a name="l00147"></a>00147     <a class="code" href="class_x_val_graph.html#r7">m_lsnAxisChanged</a> = <a class="code" href="class_x_val_graph.html#a3">axisX</a>()-&gt;onValueChanged().connectWeak(
+<a name="l00148"></a>00148         <span class="keyword">true</span>, shared_from_this(), &amp;<a class="code" href="class_x_val_graph.html#d0">XValGraph::onAxisChanged</a>, <span class="keyword">true</span>);
+<a name="l00149"></a>00149     <a class="code" href="class_x_val_graph.html#a4">axisY1</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_val_graph.html#r7">m_lsnAxisChanged</a>);
+<a name="l00150"></a>00150     <a class="code" href="class_x_val_graph.html#a5">axisZ</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_val_graph.html#r7">m_lsnAxisChanged</a>);
+<a name="l00151"></a>00151 }
+<a name="l00152"></a>00152 <span class="keywordtype">void</span>
+<a name="l00153"></a><a class="code" href="class_x_val_graph.html#d0">00153</a> <a class="code" href="class_x_val_graph.html#d0">XValGraph::onAxisChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
+<a name="l00154"></a>00154 {
+<a name="l00155"></a>00155     shared_ptr&lt;XScalarEntry&gt; entryx = *<a class="code" href="class_x_val_graph.html#a3">axisX</a>();
+<a name="l00156"></a>00156     shared_ptr&lt;XScalarEntry&gt; entryy1 = *<a class="code" href="class_x_val_graph.html#a4">axisY1</a>();
+<a name="l00157"></a>00157     shared_ptr&lt;XScalarEntry&gt; entryz = *<a class="code" href="class_x_val_graph.html#a5">axisZ</a>();
+<a name="l00158"></a>00158     
+<a name="l00159"></a>00159   <span class="keywordflow">if</span>(<a class="code" href="class_x_val_graph.html#r0">m_graph</a>) <a class="code" href="class_x_node.html#a12">releaseChild</a>(<a class="code" href="class_x_val_graph.html#r0">m_graph</a>);
+<a name="l00160"></a>00160   <a class="code" href="class_x_val_graph.html#r0">m_graph</a> = create&lt;XGraph&gt;(<a class="code" href="class_x_node.html#a6">getName</a>().c_str(), <span class="keyword">false</span>);
+<a name="l00161"></a>00161   <a class="code" href="class_x_val_graph.html#r1">m_graphForm</a>.reset(<span class="keyword">new</span> FrmGraph(g_pFrmMain));
+<a name="l00162"></a>00162   <a class="code" href="class_x_val_graph.html#r1">m_graphForm</a>-&gt;statusBar()-&gt;hide();
+<a name="l00163"></a>00163   <a class="code" href="class_x_val_graph.html#r1">m_graphForm</a>-&gt;m_graphwidget-&gt;setGraph(<a class="code" href="class_x_val_graph.html#r0">m_graph</a>);
+<a name="l00164"></a>00164 
+<a name="l00165"></a>00165   <span class="keywordflow">if</span>(!entryx || !entryy1) <span class="keywordflow">return</span>;
+<a name="l00166"></a>00166   
+<a name="l00167"></a>00167   <a class="code" href="class_x_val_graph.html#r5">m_livePlot</a> = 
+<a name="l00168"></a>00168         <a class="code" href="class_x_val_graph.html#r0">m_graph</a>-&gt;plots()-&gt;create&lt;<a class="code" href="class_x_x_y_plot.html">XXYPlot</a>&gt;((<a class="code" href="class_x_val_graph.html#r0">m_graph</a>-&gt;getName() + <span class="stringliteral">"-Live"</span>).c_str(), <span class="keyword">false</span>, <a class="code" href="class_x_val_graph.html#r0">m_graph</a>);
+<a name="l00169"></a>00169   <a class="code" href="class_x_val_graph.html#r5">m_livePlot</a>-&gt;label()-&gt;value(<a class="code" href="class_x_val_graph.html#r0">m_graph</a>-&gt;getLabel() + <span class="stringliteral">" Live"</span>);
+<a name="l00170"></a>00170   <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a> = 
+<a name="l00171"></a>00171     <a class="code" href="class_x_val_graph.html#r0">m_graph</a>-&gt;plots()-&gt;create&lt;<a class="code" href="class_x_x_y_plot.html">XXYPlot</a>&gt;((<a class="code" href="class_x_val_graph.html#r0">m_graph</a>-&gt;getName() + <span class="stringliteral">"-Stored"</span>).c_str(), <span class="keyword">false</span>, <a class="code" href="class_x_val_graph.html#r0">m_graph</a>);
+<a name="l00172"></a>00172   <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a>-&gt;label()-&gt;value(<a class="code" href="class_x_val_graph.html#r0">m_graph</a>-&gt;getLabel() + <span class="stringliteral">" Stored"</span>);
+<a name="l00173"></a>00173 
+<a name="l00174"></a>00174   <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> axes_list(<a class="code" href="class_x_val_graph.html#r0">m_graph</a>-&gt;axes()-&gt;children());
+<a name="l00175"></a>00175   shared_ptr&lt;XAxis&gt; axisx = dynamic_pointer_cast&lt;XAxis&gt;(axes_list-&gt;at(0));
+<a name="l00176"></a>00176   shared_ptr&lt;XAxis&gt; axisy = dynamic_pointer_cast&lt;XAxis&gt;(axes_list-&gt;at(1));
+<a name="l00177"></a>00177   
+<a name="l00178"></a>00178   axisx-&gt;ticLabelFormat()-&gt;value(entryx-&gt;value()-&gt;format());
+<a name="l00179"></a>00179   axisy-&gt;ticLabelFormat()-&gt;value(entryy1-&gt;value()-&gt;format());
+<a name="l00180"></a>00180   <a class="code" href="class_x_val_graph.html#r5">m_livePlot</a>-&gt;axisX()-&gt;value(axisx);
+<a name="l00181"></a>00181   <a class="code" href="class_x_val_graph.html#r5">m_livePlot</a>-&gt;axisY()-&gt;value(axisy);
+<a name="l00182"></a>00182   <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a>-&gt;axisX()-&gt;value(axisx);
+<a name="l00183"></a>00183   <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a>-&gt;axisY()-&gt;value(axisy);
+<a name="l00184"></a>00184   
+<a name="l00185"></a>00185   axisx-&gt;length()-&gt;value(0.95 - *axisx-&gt;x());
+<a name="l00186"></a>00186   axisy-&gt;length()-&gt;value(0.90 - *axisy-&gt;y());
+<a name="l00187"></a>00187   <span class="keywordflow">if</span>(entryz) {
+<a name="l00188"></a>00188         shared_ptr&lt;XAxis&gt; axisz = <a class="code" href="class_x_val_graph.html#r0">m_graph</a>-&gt;axes()-&gt;create&lt;<a class="code" href="class_x_axis.html">XAxis</a>&gt;(
+<a name="l00189"></a>00189             <span class="stringliteral">"Z Axis"</span>, <span class="keyword">false</span>, XAxis::DirAxisZ, <span class="keyword">false</span>, <a class="code" href="class_x_val_graph.html#r0">m_graph</a>);
+<a name="l00190"></a>00190     axisz-&gt;ticLabelFormat()-&gt;value(entryz-&gt;value()-&gt;format());
+<a name="l00191"></a>00191         <a class="code" href="class_x_val_graph.html#r5">m_livePlot</a>-&gt;axisZ()-&gt;value(axisz);
+<a name="l00192"></a>00192         <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a>-&gt;axisZ()-&gt;value(axisz);
+<a name="l00193"></a>00193 <span class="comment">//      axisz-&gt;label()-&gt;value("Z Axis");</span>
+<a name="l00194"></a>00194         axisz-&gt;label()-&gt;value(entryz-&gt;getLabel());
+<a name="l00195"></a>00195   }
+<a name="l00196"></a>00196   
+<a name="l00197"></a>00197   <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a>-&gt;pointColor()-&gt;value(clGreen);
+<a name="l00198"></a>00198   <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a>-&gt;lineColor()-&gt;value(clGreen);
+<a name="l00199"></a>00199   <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a>-&gt;barColor()-&gt;value(clGreen);
+<a name="l00200"></a>00200   <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a>-&gt;displayMajorGrid()-&gt;value(<span class="keyword">false</span>);
+<a name="l00201"></a>00201   <a class="code" href="class_x_val_graph.html#r5">m_livePlot</a>-&gt;maxCount()-&gt;value(4000);
+<a name="l00202"></a>00202   <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a>-&gt;maxCount()-&gt;value(4000);
+<a name="l00203"></a>00203   axisx-&gt;label()-&gt;value(entryx-&gt;getLabel());
+<a name="l00204"></a>00204   axisy-&gt;label()-&gt;value(entryy1-&gt;getLabel());
+<a name="l00205"></a>00205   <a class="code" href="class_x_val_graph.html#r0">m_graph</a>-&gt;label()-&gt;value(<a class="code" href="class_x_node.html#a7">getLabel</a>());
+<a name="l00206"></a>00206 
+<a name="l00207"></a>00207   <a class="code" href="class_x_val_graph.html#r8">m_lsnLiveChanged</a> = entryx-&gt;value()-&gt;onValueChanged().connectWeak(
+<a name="l00208"></a>00208     <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_val_graph.html#d1">XValGraph::onLiveChanged</a>);
+<a name="l00209"></a>00209   entryy1-&gt;value()-&gt;onValueChanged().connect(<a class="code" href="class_x_val_graph.html#r8">m_lsnLiveChanged</a>);
+<a name="l00210"></a>00210   <span class="keywordflow">if</span>(entryz) entryz-&gt;value()-&gt;onValueChanged().connect(<a class="code" href="class_x_val_graph.html#r8">m_lsnLiveChanged</a>);
+<a name="l00211"></a>00211   
+<a name="l00212"></a>00212   <a class="code" href="class_x_val_graph.html#r9">m_lsnStoreChanged</a> = entryx-&gt;storedValue()-&gt;onValueChanged().connectWeak(
+<a name="l00213"></a>00213     <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_val_graph.html#d2">XValGraph::onStoreChanged</a>);
+<a name="l00214"></a>00214   entryy1-&gt;storedValue()-&gt;onValueChanged().connect(<a class="code" href="class_x_val_graph.html#r9">m_lsnStoreChanged</a>);
+<a name="l00215"></a>00215   <span class="keywordflow">if</span>(entryz) entryz-&gt;storedValue()-&gt;onValueChanged().connect(<a class="code" href="class_x_val_graph.html#r9">m_lsnStoreChanged</a>);
+<a name="l00216"></a>00216   
+<a name="l00217"></a>00217   <a class="code" href="class_x_val_graph.html#a1">showGraph</a>();
 <a name="l00218"></a>00218 }
-<a name="l00219"></a>00219 <span class="keywordtype">void</span>
-<a name="l00220"></a><a class="code" href="class_x_val_graph.html#d1">00220</a> <a class="code" href="class_x_val_graph.html#d1">XValGraph::onLiveChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
-<a name="l00221"></a>00221 {
-<a name="l00222"></a>00222   <span class="keywordtype">double</span> x, y, z = 0.0;
-<a name="l00223"></a>00223     shared_ptr&lt;XScalarEntry&gt; entryx = *<a class="code" href="class_x_val_graph.html#a3">axisX</a>();
-<a name="l00224"></a>00224     shared_ptr&lt;XScalarEntry&gt; entryy1 = *<a class="code" href="class_x_val_graph.html#a4">axisY1</a>();
-<a name="l00225"></a>00225     shared_ptr&lt;XScalarEntry&gt; entryz = *<a class="code" href="class_x_val_graph.html#a5">axisZ</a>();
-<a name="l00226"></a>00226     
-<a name="l00227"></a>00227     <span class="keywordflow">if</span>(!entryx || !entryy1) <span class="keywordflow">return</span>;
-<a name="l00228"></a>00228     x = *entryx-&gt;value();
-<a name="l00229"></a>00229     y = *entryy1-&gt;value();
-<a name="l00230"></a>00230     <span class="keywordflow">if</span>(entryz) z = *entryz-&gt;value();
-<a name="l00231"></a>00231   
-<a name="l00232"></a>00232     <a class="code" href="class_x_val_graph.html#r5">m_livePlot</a>-&gt;addPoint(x, y, z);
-<a name="l00233"></a>00233 }
-<a name="l00234"></a>00234 <span class="keywordtype">void</span>
-<a name="l00235"></a><a class="code" href="class_x_val_graph.html#d2">00235</a> <a class="code" href="class_x_val_graph.html#d2">XValGraph::onStoreChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
-<a name="l00236"></a>00236 {
-<a name="l00237"></a>00237   <span class="keywordtype">double</span> x, y, z = 0.0;
-<a name="l00238"></a>00238     shared_ptr&lt;XScalarEntry&gt; entryx = *<a class="code" href="class_x_val_graph.html#a3">axisX</a>();
-<a name="l00239"></a>00239     shared_ptr&lt;XScalarEntry&gt; entryy1 = *<a class="code" href="class_x_val_graph.html#a4">axisY1</a>();
-<a name="l00240"></a>00240     shared_ptr&lt;XScalarEntry&gt; entryz = *<a class="code" href="class_x_val_graph.html#a5">axisZ</a>();
-<a name="l00241"></a>00241     
-<a name="l00242"></a>00242     <span class="keywordflow">if</span>(!entryx || !entryy1) <span class="keywordflow">return</span>;
-<a name="l00243"></a>00243     x = *entryx-&gt;storedValue();
-<a name="l00244"></a>00244     y = *entryy1-&gt;storedValue();
-<a name="l00245"></a>00245     <span class="keywordflow">if</span>(entryz) z = *entryz-&gt;storedValue();
-<a name="l00246"></a>00246   
-<a name="l00247"></a>00247     <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a>-&gt;addPoint(x, y, z);
-<a name="l00248"></a>00248 }
-<a name="l00249"></a>00249 <span class="keywordtype">void</span>
-<a name="l00250"></a><a class="code" href="class_x_val_graph.html#a1">00250</a> <a class="code" href="class_x_val_graph.html#a1">XValGraph::showGraph</a>()
-<a name="l00251"></a>00251 {
-<a name="l00252"></a>00252   <span class="keywordflow">if</span>(<a class="code" href="class_x_val_graph.html#r1">m_graphForm</a>) {
-<a name="l00253"></a>00253        <a class="code" href="class_x_val_graph.html#r1">m_graphForm</a>-&gt;setCaption(i18n(<span class="stringliteral">"Graph - "</span>) + <a class="code" href="class_x_node.html#a6">getName</a>() );
-<a name="l00254"></a>00254        <a class="code" href="class_x_val_graph.html#r1">m_graphForm</a>-&gt;show();
-<a name="l00255"></a>00255   }
+<a name="l00219"></a>00219 
+<a name="l00220"></a>00220 <span class="keywordtype">void</span>
+<a name="l00221"></a><a class="code" href="class_x_val_graph.html#a2">00221</a> <a class="code" href="class_x_val_graph.html#a2">XValGraph::clearAllPoints</a>()
+<a name="l00222"></a>00222 {
+<a name="l00223"></a>00223   <span class="keywordflow">if</span>(!<a class="code" href="class_x_val_graph.html#r0">m_graph</a>) <span class="keywordflow">return</span>;
+<a name="l00224"></a>00224   <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a>-&gt;clearAllPoints();
+<a name="l00225"></a>00225   <a class="code" href="class_x_val_graph.html#r5">m_livePlot</a>-&gt;clearAllPoints();
+<a name="l00226"></a>00226 }
+<a name="l00227"></a>00227 <span class="keywordtype">void</span>
+<a name="l00228"></a><a class="code" href="class_x_val_graph.html#d1">00228</a> <a class="code" href="class_x_val_graph.html#d1">XValGraph::onLiveChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
+<a name="l00229"></a>00229 {
+<a name="l00230"></a>00230   <span class="keywordtype">double</span> x, y, z = 0.0;
+<a name="l00231"></a>00231     shared_ptr&lt;XScalarEntry&gt; entryx = *<a class="code" href="class_x_val_graph.html#a3">axisX</a>();
+<a name="l00232"></a>00232     shared_ptr&lt;XScalarEntry&gt; entryy1 = *<a class="code" href="class_x_val_graph.html#a4">axisY1</a>();
+<a name="l00233"></a>00233     shared_ptr&lt;XScalarEntry&gt; entryz = *<a class="code" href="class_x_val_graph.html#a5">axisZ</a>();
+<a name="l00234"></a>00234     
+<a name="l00235"></a>00235     <span class="keywordflow">if</span>(!entryx || !entryy1) <span class="keywordflow">return</span>;
+<a name="l00236"></a>00236     x = *entryx-&gt;value();
+<a name="l00237"></a>00237     y = *entryy1-&gt;value();
+<a name="l00238"></a>00238     <span class="keywordflow">if</span>(entryz) z = *entryz-&gt;value();
+<a name="l00239"></a>00239   
+<a name="l00240"></a>00240     <a class="code" href="class_x_val_graph.html#r5">m_livePlot</a>-&gt;addPoint(x, y, z);
+<a name="l00241"></a>00241 }
+<a name="l00242"></a>00242 <span class="keywordtype">void</span>
+<a name="l00243"></a><a class="code" href="class_x_val_graph.html#d2">00243</a> <a class="code" href="class_x_val_graph.html#d2">XValGraph::onStoreChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
+<a name="l00244"></a>00244 {
+<a name="l00245"></a>00245   <span class="keywordtype">double</span> x, y, z = 0.0;
+<a name="l00246"></a>00246     shared_ptr&lt;XScalarEntry&gt; entryx = *<a class="code" href="class_x_val_graph.html#a3">axisX</a>();
+<a name="l00247"></a>00247     shared_ptr&lt;XScalarEntry&gt; entryy1 = *<a class="code" href="class_x_val_graph.html#a4">axisY1</a>();
+<a name="l00248"></a>00248     shared_ptr&lt;XScalarEntry&gt; entryz = *<a class="code" href="class_x_val_graph.html#a5">axisZ</a>();
+<a name="l00249"></a>00249     
+<a name="l00250"></a>00250     <span class="keywordflow">if</span>(!entryx || !entryy1) <span class="keywordflow">return</span>;
+<a name="l00251"></a>00251     x = *entryx-&gt;storedValue();
+<a name="l00252"></a>00252     y = *entryy1-&gt;storedValue();
+<a name="l00253"></a>00253     <span class="keywordflow">if</span>(entryz) z = *entryz-&gt;storedValue();
+<a name="l00254"></a>00254   
+<a name="l00255"></a>00255     <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a>-&gt;addPoint(x, y, z);
 <a name="l00256"></a>00256 }
-<a name="l00257"></a>00257 
-<a name="l00258"></a><a class="code" href="class_x_graph_list.html#b0">00258</a> <a class="code" href="class_x_graph_list.html#b0">XGraphList::XGraphList</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;entries)
-<a name="l00259"></a>00259   : <a class="code" href="class_x_custom_type_list_node.html">XCustomTypeListNode</a>&lt;<a class="code" href="class_x_val_graph.html">XValGraph</a>&gt;(name, runtime),
-<a name="l00260"></a>00260     m_entries(entries)
-<a name="l00261"></a>00261 {
-<a name="l00262"></a>00262 }
-<a name="l00263"></a>00263 
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:19 2006に生成されました。&nbsp;
+<a name="l00257"></a>00257 <span class="keywordtype">void</span>
+<a name="l00258"></a><a class="code" href="class_x_val_graph.html#a1">00258</a> <a class="code" href="class_x_val_graph.html#a1">XValGraph::showGraph</a>()
+<a name="l00259"></a>00259 {
+<a name="l00260"></a>00260   <span class="keywordflow">if</span>(<a class="code" href="class_x_val_graph.html#r1">m_graphForm</a>) {
+<a name="l00261"></a>00261        <a class="code" href="class_x_val_graph.html#r1">m_graphForm</a>-&gt;setCaption(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Graph - "</span>) + <a class="code" href="class_x_node.html#a7">getLabel</a>() );
+<a name="l00262"></a>00262        <a class="code" href="class_x_val_graph.html#r1">m_graphForm</a>-&gt;show();
+<a name="l00263"></a>00263   }
+<a name="l00264"></a>00264 }
+<a name="l00265"></a>00265 
+<a name="l00266"></a><a class="code" href="class_x_graph_list.html#b0">00266</a> <a class="code" href="class_x_graph_list.html#b0">XGraphList::XGraphList</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;entries)
+<a name="l00267"></a>00267   : <a class="code" href="class_x_custom_type_list_node.html">XCustomTypeListNode</a>&lt;<a class="code" href="class_x_val_graph.html">XValGraph</a>&gt;(name, runtime),
+<a name="l00268"></a>00268     m_entries(entries)
+<a name="l00269"></a>00269 {
+<a name="l00270"></a>00270 }
+<a name="l00271"></a>00271 
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:11 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

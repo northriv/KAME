@@ -4,7 +4,7 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
 <a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000001.html">analyzer</a></div>
 <h1>recordreader.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#ifndef RECORDREADER_H_</span>
@@ -82,17 +82,17 @@
 <a name="l00075"></a><a class="code" href="class_x_raw_stream_record_reader.html#y1">00075</a>   typedef std::deque&lt;tThread&gt; <a class="code" href="class_x_raw_stream_record_reader.html#y1">tThreadList</a>;
 <a name="l00076"></a><a class="code" href="class_x_raw_stream_record_reader.html#y2">00076</a>   typedef tThreadList::iterator <a class="code" href="class_x_raw_stream_record_reader.html#y2">tThreadIt</a>;
 <a name="l00077"></a><a class="code" href="class_x_raw_stream_record_reader.html#r11">00077</a>   tThreadList <a class="code" href="class_x_raw_stream_record_reader.html#r11">m_threads</a>;  
-<a name="l00078"></a>00078   <span class="keywordtype">void</span> *<a class="code" href="class_x_raw_stream_record_reader.html#d13">execute</a>();      
+<a name="l00078"></a>00078   <span class="keywordtype">void</span> *<a class="code" href="class_x_raw_stream_record_reader.html#d13">execute</a>(const <a class="code" href="classatomic.html">atomic</a>&lt;<span class="keywordtype">bool</span>&gt; &amp;);      
 <a name="l00079"></a><a class="code" href="class_x_raw_stream_record_reader.html#r12">00079</a>   <a class="code" href="class_x_condition.html">XCondition</a> <a class="code" href="class_x_raw_stream_record_reader.html#r12">m_condition</a>;
 <a name="l00080"></a><a class="code" href="class_x_raw_stream_record_reader.html#r13">00080</a>   <span class="keywordtype">double</span> <a class="code" href="class_x_raw_stream_record_reader.html#r13">m_periodicTerm</a>;
-<a name="l00081"></a><a class="code" href="class_x_raw_stream_record_reader.html#r14">00081</a>   <span class="keywordtype">bool</span> <a class="code" href="class_x_raw_stream_record_reader.html#r14">m_bTerminated</a>;
+<a name="l00081"></a><a class="code" href="class_x_raw_stream_record_reader.html#r14">00081</a>   <a class="code" href="class_x_mutex.html">XMutex</a> <a class="code" href="class_x_raw_stream_record_reader.html#r14">m_drivermutex</a>;
 <a name="l00082"></a>00082   
 <a name="l00083"></a><a class="code" href="class_x_raw_stream_record_reader.html#r15">00083</a>   shared_ptr&lt;<a class="code" href="class_x_listener.html">XListener</a>&gt; <a class="code" href="class_x_raw_stream_record_reader.html#r15">m_lsnStop</a>, <a class="code" href="class_x_raw_stream_record_reader.html#r16">m_lsnFirst</a>, <a class="code" href="class_x_raw_stream_record_reader.html#r17">m_lsnNext</a>, <a class="code" href="class_x_raw_stream_record_reader.html#r18">m_lsnBack</a>;
 <a name="l00084"></a><a class="code" href="class_x_raw_stream_record_reader.html#r19">00084</a>   shared_ptr&lt;<a class="code" href="class_x_listener.html">XListener</a>&gt; <a class="code" href="class_x_raw_stream_record_reader.html#r19">m_lsnPlayCond</a>;
 <a name="l00085"></a>00085 };
 <a name="l00086"></a>00086 
 <a name="l00087"></a>00087 #endif <span class="comment">/*RECORDREADER_H_*/</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:19 2006に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:12 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

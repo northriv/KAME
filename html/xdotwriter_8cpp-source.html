@@ -4,7 +4,7 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
 <a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000008.html">script</a></div>
 <h1>xdotwriter.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#include "xdotwriter.h"</span>
@@ -35,53 +35,52 @@
 <a name="l00026"></a>00026           &lt;&lt; std::endl;
 <a name="l00027"></a>00027     <a class="code" href="class_x_dot_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"node [shape=box,style=filled,color=green];"</span> &lt;&lt; std::endl;
 <a name="l00028"></a>00028           
-<a name="l00029"></a>00029     <a class="code" href="class_x_dot_writer.html#r0">m_root</a>-&gt;childLock();
-<a name="l00030"></a>00030     <a class="code" href="class_x_dot_writer.html#a2">write</a>(<a class="code" href="class_x_dot_writer.html#r0">m_root</a>);
-<a name="l00031"></a>00031     <a class="code" href="class_x_dot_writer.html#r0">m_root</a>-&gt;childUnlock();
-<a name="l00032"></a>00032     <a class="code" href="class_x_dot_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"}"</span>
-<a name="l00033"></a>00033           &lt;&lt; std::endl;
-<a name="l00034"></a>00034 }
-<a name="l00035"></a>00035 <span class="keywordtype">void</span> 
-<a name="l00036"></a><a class="code" href="class_x_dot_writer.html#d0">00036</a> <a class="code" href="class_x_dot_writer.html#a2">XDotWriter::write</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node)
-<a name="l00037"></a>00037 {
-<a name="l00038"></a>00038     <span class="keywordflow">if</span>(std::find(<a class="code" href="class_x_dot_writer.html#r2">m_nodes</a>.begin(), <a class="code" href="class_x_dot_writer.html#r2">m_nodes</a>.end(), node) == <a class="code" href="class_x_dot_writer.html#r2">m_nodes</a>.end()) {
-<a name="l00039"></a>00039         <a class="code" href="class_x_dot_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"obj_"</span> &lt;&lt; (int)node.get()
-<a name="l00040"></a>00040               &lt;&lt; <span class="stringliteral">" [label=\""</span> &lt;&lt; (<span class="keyword">const</span> <span class="keywordtype">char</span>*)node-&gt;getName().utf8()
-<a name="l00041"></a>00041               &lt;&lt; <span class="stringliteral">"\"]"</span> &lt;&lt; std::endl;
-<a name="l00042"></a>00042         <a class="code" href="class_x_dot_writer.html#r2">m_nodes</a>.push_back(node);
-<a name="l00043"></a>00043     }
-<a name="l00044"></a>00044 <span class="comment">//    shared_ptr&lt;XValueNodeBase&gt; vnode = dynamic_pointer_cast&lt;XValueNodeBase&gt;(node);</span>
-<a name="l00045"></a>00045         
-<a name="l00046"></a>00046 <span class="comment">//    shared_ptr&lt;XListNodeBase&gt; lnode = dynamic_pointer_cast&lt;XListNodeBase&gt;(node);</span>
-<a name="l00047"></a>00047     <span class="keywordtype">int</span> unnamed = 0;
-<a name="l00048"></a>00048     <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; node-&gt;count(); i++) {
-<a name="l00049"></a>00049         shared_ptr&lt;XNode&gt; child = node-&gt;getChild&lt;<a class="code" href="class_x_node.html">XNode</a>&gt;(i);
+<a name="l00029"></a>00029     <a class="code" href="class_x_dot_writer.html#a2">write</a>(<a class="code" href="class_x_dot_writer.html#r0">m_root</a>);
+<a name="l00030"></a>00030     <a class="code" href="class_x_dot_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"}"</span>
+<a name="l00031"></a>00031           &lt;&lt; std::endl;
+<a name="l00032"></a>00032 }
+<a name="l00033"></a>00033 <span class="keywordtype">void</span> 
+<a name="l00034"></a><a class="code" href="class_x_dot_writer.html#d0">00034</a> <a class="code" href="class_x_dot_writer.html#a2">XDotWriter::write</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node)
+<a name="l00035"></a>00035 {
+<a name="l00036"></a>00036     <span class="keywordflow">if</span>(std::find(<a class="code" href="class_x_dot_writer.html#r2">m_nodes</a>.begin(), <a class="code" href="class_x_dot_writer.html#r2">m_nodes</a>.end(), node) == <a class="code" href="class_x_dot_writer.html#r2">m_nodes</a>.end()) {
+<a name="l00037"></a>00037         <a class="code" href="class_x_dot_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"obj_"</span> &lt;&lt; (int)node.get()
+<a name="l00038"></a>00038               &lt;&lt; <span class="stringliteral">" [label=\""</span> &lt;&lt; node-&gt;getName()
+<a name="l00039"></a>00039               &lt;&lt; <span class="stringliteral">"\"]"</span> &lt;&lt; std::endl;
+<a name="l00040"></a>00040         <a class="code" href="class_x_dot_writer.html#r2">m_nodes</a>.push_back(node);
+<a name="l00041"></a>00041     }
+<a name="l00042"></a>00042 <span class="comment">//    shared_ptr&lt;XValueNodeBase&gt; vnode = dynamic_pointer_cast&lt;XValueNodeBase&gt;(node);</span>
+<a name="l00043"></a>00043         
+<a name="l00044"></a>00044 <span class="comment">//    shared_ptr&lt;XListNodeBase&gt; lnode = dynamic_pointer_cast&lt;XListNodeBase&gt;(node);</span>
+<a name="l00045"></a>00045     <span class="keywordtype">int</span> unnamed = 0;
+<a name="l00046"></a>00046     <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> list(<a class="code" href="class_x_dot_writer.html#r0">m_root</a>-&gt;children());
+<a name="l00047"></a>00047     <span class="keywordflow">if</span>(list) { 
+<a name="l00048"></a>00048       <span class="keywordflow">for</span>(XNode::NodeList::const_iterator it = list-&gt;begin(); it != list-&gt;end(); it++) {
+<a name="l00049"></a>00049         shared_ptr&lt;XNode&gt; child = *it;
 <a name="l00050"></a>00050            
-<a name="l00051"></a>00051         child-&gt;childLock();
-<a name="l00052"></a>00052         <span class="keywordflow">if</span>(child-&gt;getName().isEmpty()) {
-<a name="l00053"></a>00053             unnamed++;
-<a name="l00054"></a>00054         }
-<a name="l00055"></a>00055         <span class="keywordflow">else</span> {
-<a name="l00056"></a>00056             <a class="code" href="class_x_dot_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"obj_"</span> &lt;&lt; (int)child.get()
-<a name="l00057"></a>00057                   &lt;&lt; <span class="stringliteral">" -&gt; "</span>
-<a name="l00058"></a>00058                   &lt;&lt; <span class="stringliteral">"obj_"</span> &lt;&lt; (int)node.get()
-<a name="l00059"></a>00059                   &lt;&lt; std::endl;
-<a name="l00060"></a>00060             <a class="code" href="class_x_dot_writer.html#a2">write</a>(child);
-<a name="l00061"></a>00061         }
-<a name="l00062"></a>00062         child-&gt;childUnlock();
-<a name="l00063"></a>00063     }
-<a name="l00064"></a>00064     <span class="keywordflow">if</span>(unnamed) {
-<a name="l00065"></a>00065         <a class="code" href="class_x_dot_writer.html#r3">m_unnamedcnt</a>++;
-<a name="l00066"></a>00066         <a class="code" href="class_x_dot_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"unnamedobj_"</span> &lt;&lt; (int)<a class="code" href="class_x_dot_writer.html#r3">m_unnamedcnt</a>
-<a name="l00067"></a>00067               &lt;&lt; <span class="stringliteral">" [label=\""</span> &lt;&lt; (<span class="keyword">const</span> <span class="keywordtype">char</span>*)QString(<span class="stringliteral">"%1 obj."</span>).arg(unnamed).utf8()
-<a name="l00068"></a>00068               &lt;&lt; <span class="stringliteral">"\"]"</span> &lt;&lt; std::endl;
-<a name="l00069"></a>00069         <a class="code" href="class_x_dot_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"unnamedobj_"</span> &lt;&lt; (int)<a class="code" href="class_x_dot_writer.html#r3">m_unnamedcnt</a>
-<a name="l00070"></a>00070               &lt;&lt; <span class="stringliteral">" -&gt; "</span>
-<a name="l00071"></a>00071               &lt;&lt; <span class="stringliteral">"obj_"</span> &lt;&lt; (int)node.get()
-<a name="l00072"></a>00072               &lt;&lt; std::endl;
-<a name="l00073"></a>00073     }
-<a name="l00074"></a>00074 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:21 2006に生成されました。&nbsp;
+<a name="l00051"></a>00051         <span class="keywordflow">if</span>(child-&gt;getName().empty()) {
+<a name="l00052"></a>00052             unnamed++;
+<a name="l00053"></a>00053         }
+<a name="l00054"></a>00054         <span class="keywordflow">else</span> {
+<a name="l00055"></a>00055             <a class="code" href="class_x_dot_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"obj_"</span> &lt;&lt; (int)child.get()
+<a name="l00056"></a>00056                   &lt;&lt; <span class="stringliteral">" -&gt; "</span>
+<a name="l00057"></a>00057                   &lt;&lt; <span class="stringliteral">"obj_"</span> &lt;&lt; (int)node.get()
+<a name="l00058"></a>00058                   &lt;&lt; std::endl;
+<a name="l00059"></a>00059             <a class="code" href="class_x_dot_writer.html#a2">write</a>(child);
+<a name="l00060"></a>00060         }
+<a name="l00061"></a>00061       }
+<a name="l00062"></a>00062     }
+<a name="l00063"></a>00063     <span class="keywordflow">if</span>(unnamed) {
+<a name="l00064"></a>00064         <a class="code" href="class_x_dot_writer.html#r3">m_unnamedcnt</a>++;
+<a name="l00065"></a>00065         <a class="code" href="class_x_dot_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"unnamedobj_"</span> &lt;&lt; (int)<a class="code" href="class_x_dot_writer.html#r3">m_unnamedcnt</a>
+<a name="l00066"></a>00066               &lt;&lt; <span class="stringliteral">" [label=\""</span> &lt;&lt; (<span class="keyword">const</span> <span class="keywordtype">char</span>*)QString(<span class="stringliteral">"%1 obj."</span>).arg(unnamed).utf8()
+<a name="l00067"></a>00067               &lt;&lt; <span class="stringliteral">"\"]"</span> &lt;&lt; std::endl;
+<a name="l00068"></a>00068         <a class="code" href="class_x_dot_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"unnamedobj_"</span> &lt;&lt; (int)<a class="code" href="class_x_dot_writer.html#r3">m_unnamedcnt</a>
+<a name="l00069"></a>00069               &lt;&lt; <span class="stringliteral">" -&gt; "</span>
+<a name="l00070"></a>00070               &lt;&lt; <span class="stringliteral">"obj_"</span> &lt;&lt; (int)node.get()
+<a name="l00071"></a>00071               &lt;&lt; std::endl;
+<a name="l00072"></a>00072     }
+<a name="l00073"></a>00073 }
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:15 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

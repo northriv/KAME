@@ -4,7 +4,7 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <h1>クラス XRawStreamRecordReader</h1><!-- doxytag: class=<XRawStreamRecordReader> --><!-- doxytag: inherits=<XRawStream> -->XRawStreamRecordReaderに対する継承グラフ<p><center><img src="class_x_raw_stream_record_reader__inherit__graph.png" border="0" usemap="#_x_raw_stream_record_reader__inherit__map" alt="Inheritance graph"></center>
 <map name="_x_raw_stream_record_reader__inherit__map">
 <area href="class_x_raw_stream.html" shape="rect" coords="50,82,152,109" alt="">
@@ -12,14 +12,14 @@
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XRawStreamRecordReaderのコラボレーション図<p><center><img src="class_x_raw_stream_record_reader__coll__graph.png" border="0" usemap="#_x_raw_stream_record_reader__coll__map" alt="Collaboration graph"></center>
 <map name="_x_raw_stream_record_reader__coll__map">
-<area href="class_x_raw_stream.html" shape="rect" coords="8,266,109,293" alt="">
-<area href="class_x_node.html" shape="rect" coords="265,189,326,216" alt="">
-<area href="class_x_thread_local.html" shape="rect" coords="520,98,858,125" alt="">
-<area href="class_x_talker.html" shape="rect" coords="70,98,286,125" alt="">
-<area href="class_x_mutex.html" shape="rect" coords="50,8,117,34" alt="">
-<area href="class_x_recursive_r_w_lock.html" shape="rect" coords="354,98,496,125" alt="">
-<area href="class_x_condition.html" shape="rect" coords="133,266,221,293" alt="">
-<area href="class_x_time.html" shape="rect" coords="268,266,329,293" alt="">
+<area href="class_x_raw_stream.html" shape="rect" coords="324,290,425,317" alt="">
+<area href="class_x_node.html" shape="rect" coords="358,200,420,226" alt="">
+<area href="class_x_talker.html" shape="rect" coords="633,98,849,125" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="401,98,609,125" alt="">
+<area href="class_x_mutex.html" shape="rect" coords="226,8,293,34" alt="">
+<area href="class_x_condition.html" shape="rect" coords="842,149,930,176" alt="">
+<area href="class_x_thread_local.html" shape="rect" coords="196,98,377,125" alt="">
+<area href="class_x_time.html" shape="rect" coords="500,290,561,317" alt="">
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_raw_stream_record_reader-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
 <tr><td></td></tr>
@@ -111,8 +111,8 @@ void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d12"></a><!-- doxytag: member=<XRawStreamRecordReader::gzgetline> ref=<d12> args=<(void *fd, unsigned char *buf, unsigned int len, int del)> -->
 void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_raw_stream_record_reader.html#d12">gzgetline</a> (void *fd, unsigned char *buf, unsigned int len, int del)  throw (XIOError &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d13"></a><!-- doxytag: member=<XRawStreamRecordReader::execute> ref=<d13> args=<()> -->
-void *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_raw_stream_record_reader.html#d13">execute</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d13"></a><!-- doxytag: member=<XRawStreamRecordReader::execute> ref=<d13> args=<(const atomic&lt; bool &gt; &amp;)> -->
+void *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_raw_stream_record_reader.html#d13">execute</a> (const <a class="el" href="classatomic.html">atomic</a>&lt; bool &gt; &amp;)</td></tr>
 
 <tr><td colspan="2"><br><h2>Private 変数</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r0"></a><!-- doxytag: member=<XRawStreamRecordReader::m_speed> ref=<r0> args=<> -->
@@ -157,8 +157,8 @@ uint32_t&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r13"></a><!-- doxytag: member=<XRawStreamRecordReader::m_periodicTerm> ref=<r13> args=<> -->
 double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_raw_stream_record_reader.html#r13">m_periodicTerm</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r14"></a><!-- doxytag: member=<XRawStreamRecordReader::m_bTerminated> ref=<r14> args=<> -->
-bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_raw_stream_record_reader.html#r14">m_bTerminated</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r14"></a><!-- doxytag: member=<XRawStreamRecordReader::m_drivermutex> ref=<r14> args=<> -->
+<a class="el" href="class_x_mutex.html">XMutex</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_raw_stream_record_reader.html#r14">m_drivermutex</a></td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r15"></a><!-- doxytag: member=<XRawStreamRecordReader::m_lsnStop> ref=<r15> args=<> -->
 shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_raw_stream_record_reader.html#r15">m_lsnStop</a></td></tr>
@@ -194,7 +194,7 @@ shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbs
 <p>
  <a class="el" href="recordreader_8h-source.html">recordreader.h</a> の <a class="el" href="recordreader_8h-source.html#l00006">6</a> 行で定義されています。<hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/analyzer/<a class="el" href="recordreader_8h-source.html">recordreader.h</a><li>kame/analyzer/<a class="el" href="recordreader_8cpp-source.html">recordreader.cpp</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:05:45 2006に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:32 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

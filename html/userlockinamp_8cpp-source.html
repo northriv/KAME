@@ -4,7 +4,7 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
 <a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000012.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000021.html">lia</a></div>
 <h1>userlockinamp.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#include "userlockinamp.h"</span>
@@ -87,112 +87,114 @@
 <a name="l00078"></a>00078       <a class="code" href="class_x_l_i_a.html#b9">sensitivity</a>()-&gt;value(<a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;toInt());
 <a name="l00079"></a>00079       <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;query(<span class="stringliteral">"SLVL?"</span>);
 <a name="l00080"></a>00080       <a class="code" href="class_x_l_i_a.html#b7">output</a>()-&gt;value(<a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;toDouble());
-<a name="l00081"></a>00081 }
-<a name="l00082"></a>00082 <span class="keywordtype">void</span>
-<a name="l00083"></a><a class="code" href="class_x_s_r830.html#b7">00083</a> <a class="code" href="class_x_s_r830.html#b7">XSR830::beforeStop</a>()
-<a name="l00084"></a>00084 {
-<a name="l00085"></a>00085       <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;send(<span class="stringliteral">"LOCL 0"</span>);
-<a name="l00086"></a>00086 }
-<a name="l00087"></a>00087 <span class="keywordtype">void</span>
-<a name="l00088"></a><a class="code" href="class_x_s_r830.html#b2">00088</a> <a class="code" href="class_x_s_r830.html#b2">XSR830::changeOutput</a>(<span class="keywordtype">double</span> x)
-<a name="l00089"></a>00089 {
-<a name="l00090"></a>00090       <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;sendf(<span class="stringliteral">"SLVL %f"</span>, x);
-<a name="l00091"></a>00091 }
-<a name="l00092"></a>00092 <span class="keywordtype">void</span>
-<a name="l00093"></a><a class="code" href="class_x_s_r830.html#b4">00093</a> <a class="code" href="class_x_s_r830.html#b4">XSR830::changeSensitivity</a>(<span class="keywordtype">int</span> x)
-<a name="l00094"></a>00094 {
-<a name="l00095"></a>00095       <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;sendf(<span class="stringliteral">"SENS %d"</span>, x);
-<a name="l00096"></a>00096 }
-<a name="l00097"></a>00097 <span class="keywordtype">void</span>
-<a name="l00098"></a><a class="code" href="class_x_s_r830.html#b5">00098</a> <a class="code" href="class_x_s_r830.html#b5">XSR830::changeTimeConst</a>(<span class="keywordtype">int</span> x)
-<a name="l00099"></a>00099 {
-<a name="l00100"></a>00100       <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;sendf(<span class="stringliteral">"OFLT %d"</span>, x);
-<a name="l00101"></a>00101 }
-<a name="l00102"></a>00102 <span class="keywordtype">void</span>
-<a name="l00103"></a><a class="code" href="class_x_s_r830.html#b3">00103</a> <a class="code" href="class_x_s_r830.html#b3">XSR830::changeFreq</a>(<span class="keywordtype">double</span> x)
-<a name="l00104"></a>00104 {
-<a name="l00105"></a>00105       <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;sendf(<span class="stringliteral">"FREQ %g"</span>, x);
-<a name="l00106"></a>00106 }
-<a name="l00107"></a>00107 
-<a name="l00108"></a><a class="code" href="class_x_a_h2500_a.html#b0">00108</a> <a class="code" href="class_x_a_h2500_a.html#b0">XAH2500A::XAH2500A</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, 
-<a name="l00109"></a>00109    <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
-<a name="l00110"></a>00110    <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
-<a name="l00111"></a>00111    <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
-<a name="l00112"></a>00112    <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers)
-<a name="l00113"></a>00113     : <a class="code" href="class_x_l_i_a.html">XLIA</a>(name, runtime, scalarentries, interfaces, thermometers, drivers)
-<a name="l00114"></a>00114 {
-<a name="l00115"></a>00115   <span class="keyword">const</span> <span class="keywordtype">char</span> *tc[] = {<span class="stringliteral">"0.04s"</span>, <span class="stringliteral">"0.08s"</span>, <span class="stringliteral">"0.14s"</span>, <span class="stringliteral">"0.25s"</span>, <span class="stringliteral">"0.5s"</span>,
-<a name="l00116"></a>00116      <span class="stringliteral">"1s"</span>, <span class="stringliteral">"2s"</span>, <span class="stringliteral">"4s"</span>, <span class="stringliteral">"8s"</span>, <span class="stringliteral">"15s"</span>, <span class="stringliteral">"30s"</span>, <span class="stringliteral">"60s"</span>,
-<a name="l00117"></a>00117      <span class="stringliteral">"120s"</span>, <span class="stringliteral">"250s"</span>, <span class="stringliteral">"500s"</span>, <span class="stringliteral">"1000s"</span>, <span class="stringliteral">""</span>};
-<a name="l00118"></a>00118   <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; strlen(tc[i]) &gt; 0; i++)
-<a name="l00119"></a>00119     {
-<a name="l00120"></a>00120       <a class="code" href="class_x_l_i_a.html#b10">timeConst</a>()-&gt;add(tc[i]);
-<a name="l00121"></a>00121     }
-<a name="l00122"></a>00122   <span class="keyword">const</span> <span class="keywordtype">char</span> *sens[] = {<span class="stringliteral">""</span>};
-<a name="l00123"></a>00123   <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; strlen(sens[i]) &gt; 0; i++)
-<a name="l00124"></a>00124     {
-<a name="l00125"></a>00125       <a class="code" href="class_x_l_i_a.html#b9">sensitivity</a>()-&gt;add(sens[i]);
-<a name="l00126"></a>00126     }
-<a name="l00127"></a>00127   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;setGPIBUseSerialPollOnWrite(<span class="keyword">false</span>);
-<a name="l00128"></a>00128   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;setGPIBWaitBeforeWrite(20);
-<a name="l00129"></a>00129   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;setGPIBWaitBeforeRead(20);
-<a name="l00130"></a>00130   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;setGPIBWaitBeforeSPoll(20);
-<a name="l00131"></a>00131   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;setGPIBMAVbit(0x80);
-<a name="l00132"></a>00132   <a class="code" href="class_x_l_i_a.html#b13">fetchFreq</a>()-&gt;value(10);
-<a name="l00133"></a>00133 }
-<a name="l00134"></a>00134 <span class="keywordtype">void</span>
-<a name="l00135"></a><a class="code" href="class_x_a_h2500_a.html#b1">00135</a> <a class="code" href="class_x_a_h2500_a.html#b1">XAH2500A::get</a>(<span class="keywordtype">double</span> *cap, <span class="keywordtype">double</span> *loss)
-<a name="l00136"></a>00136 {
-<a name="l00137"></a>00137     <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;query(<span class="stringliteral">"SI"</span>);
-<a name="l00138"></a>00138     <span class="keywordflow">if</span>(<a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;scanf(<span class="stringliteral">"C=%lf %*s L=%lf"</span>, cap, loss) != 2)
-<a name="l00139"></a>00139             <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_conv_error.html">XInterface::XConvError</a>(__FILE__, __LINE__);
-<a name="l00140"></a>00140 }
-<a name="l00141"></a>00141 <span class="keywordtype">void</span>
-<a name="l00142"></a><a class="code" href="class_x_a_h2500_a.html#b6">00142</a> <a class="code" href="class_x_a_h2500_a.html#b6">XAH2500A::afterStart</a>()
-<a name="l00143"></a>00143 {
-<a name="l00144"></a>00144   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;query(<span class="stringliteral">"SH AV"</span>);
-<a name="l00145"></a>00145   <span class="keywordtype">int</span> d;
-<a name="l00146"></a>00146   <span class="keywordflow">if</span>(<a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;scanf(<span class="stringliteral">"%*s AVEREXP=%d"</span>, &amp;d) != 1)
-<a name="l00147"></a>00147             <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_conv_error.html">XInterface::XConvError</a>(__FILE__, __LINE__);
-<a name="l00148"></a>00148   <a class="code" href="class_x_l_i_a.html#b10">timeConst</a>()-&gt;value(d);
-<a name="l00149"></a>00149   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;query(<span class="stringliteral">"SH V"</span>);
-<a name="l00150"></a>00150   <span class="keywordtype">double</span> f;
-<a name="l00151"></a>00151   <span class="keywordflow">if</span>(<a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;scanf(<span class="stringliteral">"%*s HIGHEST=%lf"</span>, &amp;f) != 1)
-<a name="l00152"></a>00152             <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_conv_error.html">XInterface::XConvError</a>(__FILE__, __LINE__);
-<a name="l00153"></a>00153   <a class="code" href="class_x_l_i_a.html#b7">output</a>()-&gt;value(f);
-<a name="l00154"></a>00154 
-<a name="l00155"></a>00155   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;send(<span class="stringliteral">"NREM"</span>);
+<a name="l00081"></a>00081       <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;query(<span class="stringliteral">"FREQ?"</span>);
+<a name="l00082"></a>00082       <a class="code" href="class_x_l_i_a.html#b8">frequency</a>()-&gt;value(<a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;toDouble());
+<a name="l00083"></a>00083 }
+<a name="l00084"></a>00084 <span class="keywordtype">void</span>
+<a name="l00085"></a><a class="code" href="class_x_s_r830.html#b7">00085</a> <a class="code" href="class_x_s_r830.html#b7">XSR830::beforeStop</a>()
+<a name="l00086"></a>00086 {
+<a name="l00087"></a>00087       <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;send(<span class="stringliteral">"LOCL 0"</span>);
+<a name="l00088"></a>00088 }
+<a name="l00089"></a>00089 <span class="keywordtype">void</span>
+<a name="l00090"></a><a class="code" href="class_x_s_r830.html#b2">00090</a> <a class="code" href="class_x_s_r830.html#b2">XSR830::changeOutput</a>(<span class="keywordtype">double</span> x)
+<a name="l00091"></a>00091 {
+<a name="l00092"></a>00092       <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;sendf(<span class="stringliteral">"SLVL %f"</span>, x);
+<a name="l00093"></a>00093 }
+<a name="l00094"></a>00094 <span class="keywordtype">void</span>
+<a name="l00095"></a><a class="code" href="class_x_s_r830.html#b4">00095</a> <a class="code" href="class_x_s_r830.html#b4">XSR830::changeSensitivity</a>(<span class="keywordtype">int</span> x)
+<a name="l00096"></a>00096 {
+<a name="l00097"></a>00097       <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;sendf(<span class="stringliteral">"SENS %d"</span>, x);
+<a name="l00098"></a>00098 }
+<a name="l00099"></a>00099 <span class="keywordtype">void</span>
+<a name="l00100"></a><a class="code" href="class_x_s_r830.html#b5">00100</a> <a class="code" href="class_x_s_r830.html#b5">XSR830::changeTimeConst</a>(<span class="keywordtype">int</span> x)
+<a name="l00101"></a>00101 {
+<a name="l00102"></a>00102       <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;sendf(<span class="stringliteral">"OFLT %d"</span>, x);
+<a name="l00103"></a>00103 }
+<a name="l00104"></a>00104 <span class="keywordtype">void</span>
+<a name="l00105"></a><a class="code" href="class_x_s_r830.html#b3">00105</a> <a class="code" href="class_x_s_r830.html#b3">XSR830::changeFreq</a>(<span class="keywordtype">double</span> x)
+<a name="l00106"></a>00106 {
+<a name="l00107"></a>00107       <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;sendf(<span class="stringliteral">"FREQ %g"</span>, x);
+<a name="l00108"></a>00108 }
+<a name="l00109"></a>00109 
+<a name="l00110"></a><a class="code" href="class_x_a_h2500_a.html#b0">00110</a> <a class="code" href="class_x_a_h2500_a.html#b0">XAH2500A::XAH2500A</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, 
+<a name="l00111"></a>00111    <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
+<a name="l00112"></a>00112    <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
+<a name="l00113"></a>00113    <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
+<a name="l00114"></a>00114    <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers)
+<a name="l00115"></a>00115     : <a class="code" href="class_x_l_i_a.html">XLIA</a>(name, runtime, scalarentries, interfaces, thermometers, drivers)
+<a name="l00116"></a>00116 {
+<a name="l00117"></a>00117   <span class="keyword">const</span> <span class="keywordtype">char</span> *tc[] = {<span class="stringliteral">"0.04s"</span>, <span class="stringliteral">"0.08s"</span>, <span class="stringliteral">"0.14s"</span>, <span class="stringliteral">"0.25s"</span>, <span class="stringliteral">"0.5s"</span>,
+<a name="l00118"></a>00118      <span class="stringliteral">"1s"</span>, <span class="stringliteral">"2s"</span>, <span class="stringliteral">"4s"</span>, <span class="stringliteral">"8s"</span>, <span class="stringliteral">"15s"</span>, <span class="stringliteral">"30s"</span>, <span class="stringliteral">"60s"</span>,
+<a name="l00119"></a>00119      <span class="stringliteral">"120s"</span>, <span class="stringliteral">"250s"</span>, <span class="stringliteral">"500s"</span>, <span class="stringliteral">"1000s"</span>, <span class="stringliteral">""</span>};
+<a name="l00120"></a>00120   <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; strlen(tc[i]) &gt; 0; i++)
+<a name="l00121"></a>00121     {
+<a name="l00122"></a>00122       <a class="code" href="class_x_l_i_a.html#b10">timeConst</a>()-&gt;add(tc[i]);
+<a name="l00123"></a>00123     }
+<a name="l00124"></a>00124   <span class="keyword">const</span> <span class="keywordtype">char</span> *sens[] = {<span class="stringliteral">""</span>};
+<a name="l00125"></a>00125   <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; strlen(sens[i]) &gt; 0; i++)
+<a name="l00126"></a>00126     {
+<a name="l00127"></a>00127       <a class="code" href="class_x_l_i_a.html#b9">sensitivity</a>()-&gt;add(sens[i]);
+<a name="l00128"></a>00128     }
+<a name="l00129"></a>00129   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;setGPIBUseSerialPollOnWrite(<span class="keyword">false</span>);
+<a name="l00130"></a>00130   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;setGPIBWaitBeforeWrite(20);
+<a name="l00131"></a>00131   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;setGPIBWaitBeforeRead(20);
+<a name="l00132"></a>00132   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;setGPIBWaitBeforeSPoll(20);
+<a name="l00133"></a>00133   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;setGPIBMAVbit(0x80);
+<a name="l00134"></a>00134   <a class="code" href="class_x_l_i_a.html#b13">fetchFreq</a>()-&gt;value(10);
+<a name="l00135"></a>00135 }
+<a name="l00136"></a>00136 <span class="keywordtype">void</span>
+<a name="l00137"></a><a class="code" href="class_x_a_h2500_a.html#b1">00137</a> <a class="code" href="class_x_a_h2500_a.html#b1">XAH2500A::get</a>(<span class="keywordtype">double</span> *cap, <span class="keywordtype">double</span> *loss)
+<a name="l00138"></a>00138 {
+<a name="l00139"></a>00139     <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;query(<span class="stringliteral">"SI"</span>);
+<a name="l00140"></a>00140     <span class="keywordflow">if</span>(<a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;scanf(<span class="stringliteral">"C=%lf %*s L=%lf"</span>, cap, loss) != 2)
+<a name="l00141"></a>00141             <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_conv_error.html">XInterface::XConvError</a>(__FILE__, __LINE__);
+<a name="l00142"></a>00142 }
+<a name="l00143"></a>00143 <span class="keywordtype">void</span>
+<a name="l00144"></a><a class="code" href="class_x_a_h2500_a.html#b6">00144</a> <a class="code" href="class_x_a_h2500_a.html#b6">XAH2500A::afterStart</a>()
+<a name="l00145"></a>00145 {
+<a name="l00146"></a>00146   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;query(<span class="stringliteral">"SH AV"</span>);
+<a name="l00147"></a>00147   <span class="keywordtype">int</span> d;
+<a name="l00148"></a>00148   <span class="keywordflow">if</span>(<a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;scanf(<span class="stringliteral">"%*s AVEREXP=%d"</span>, &amp;d) != 1)
+<a name="l00149"></a>00149             <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_conv_error.html">XInterface::XConvError</a>(__FILE__, __LINE__);
+<a name="l00150"></a>00150   <a class="code" href="class_x_l_i_a.html#b10">timeConst</a>()-&gt;value(d);
+<a name="l00151"></a>00151   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;query(<span class="stringliteral">"SH V"</span>);
+<a name="l00152"></a>00152   <span class="keywordtype">double</span> f;
+<a name="l00153"></a>00153   <span class="keywordflow">if</span>(<a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;scanf(<span class="stringliteral">"%*s HIGHEST=%lf"</span>, &amp;f) != 1)
+<a name="l00154"></a>00154             <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_conv_error.html">XInterface::XConvError</a>(__FILE__, __LINE__);
+<a name="l00155"></a>00155   <a class="code" href="class_x_l_i_a.html#b7">output</a>()-&gt;value(f);
 <a name="l00156"></a>00156 
-<a name="l00157"></a>00157   <a class="code" href="class_x_l_i_a.html#b11">autoScaleX</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00158"></a>00158   <a class="code" href="class_x_l_i_a.html#b12">autoScaleY</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00159"></a>00159   <a class="code" href="class_x_l_i_a.html#b9">sensitivity</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00160"></a>00160   <a class="code" href="class_x_l_i_a.html#b8">frequency</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00161"></a>00161 }
-<a name="l00162"></a>00162 <span class="keywordtype">void</span>
-<a name="l00163"></a><a class="code" href="class_x_a_h2500_a.html#b7">00163</a> <a class="code" href="class_x_a_h2500_a.html#b7">XAH2500A::beforeStop</a>()
-<a name="l00164"></a>00164 {
-<a name="l00165"></a>00165   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;send(<span class="stringliteral">"LOC"</span>);
-<a name="l00166"></a>00166 }
-<a name="l00167"></a>00167 <span class="keywordtype">void</span>
-<a name="l00168"></a><a class="code" href="class_x_a_h2500_a.html#b2">00168</a> <a class="code" href="class_x_a_h2500_a.html#b2">XAH2500A::changeOutput</a>(<span class="keywordtype">double</span> x)
-<a name="l00169"></a>00169 {
-<a name="l00170"></a>00170   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;sendf(<span class="stringliteral">"V %f"</span>, x);
-<a name="l00171"></a>00171 }
-<a name="l00172"></a>00172 <span class="keywordtype">void</span>
-<a name="l00173"></a><a class="code" href="class_x_a_h2500_a.html#b5">00173</a> <a class="code" href="class_x_a_h2500_a.html#b5">XAH2500A::changeTimeConst</a>(<span class="keywordtype">int</span> x)
-<a name="l00174"></a>00174 {
-<a name="l00175"></a>00175   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;sendf(<span class="stringliteral">"AV %d"</span>, x);
-<a name="l00176"></a>00176 }
-<a name="l00177"></a>00177 <span class="keywordtype">void</span>
-<a name="l00178"></a><a class="code" href="class_x_a_h2500_a.html#b4">00178</a> <a class="code" href="class_x_a_h2500_a.html#b4">XAH2500A::changeSensitivity</a>(<span class="keywordtype">int</span> )
-<a name="l00179"></a>00179 {
-<a name="l00180"></a>00180     <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterface::XInterfaceError</a>(i18n(<span class="stringliteral">"Operation not supported."</span>), __FILE__, __LINE__);
-<a name="l00181"></a>00181 }
-<a name="l00182"></a>00182 <span class="keywordtype">void</span>
-<a name="l00183"></a><a class="code" href="class_x_a_h2500_a.html#b3">00183</a> <a class="code" href="class_x_a_h2500_a.html#b3">XAH2500A::changeFreq</a>(<span class="keywordtype">double</span> ) {
-<a name="l00184"></a>00184     <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterface::XInterfaceError</a>(i18n(<span class="stringliteral">"Operation not supported."</span>), __FILE__, __LINE__);
-<a name="l00185"></a>00185 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:22 2006に生成されました。&nbsp;
+<a name="l00157"></a>00157   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;send(<span class="stringliteral">"NREM"</span>);
+<a name="l00158"></a>00158 
+<a name="l00159"></a>00159   <a class="code" href="class_x_l_i_a.html#b11">autoScaleX</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00160"></a>00160   <a class="code" href="class_x_l_i_a.html#b12">autoScaleY</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00161"></a>00161   <a class="code" href="class_x_l_i_a.html#b9">sensitivity</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00162"></a>00162   <a class="code" href="class_x_l_i_a.html#b8">frequency</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00163"></a>00163 }
+<a name="l00164"></a>00164 <span class="keywordtype">void</span>
+<a name="l00165"></a><a class="code" href="class_x_a_h2500_a.html#b7">00165</a> <a class="code" href="class_x_a_h2500_a.html#b7">XAH2500A::beforeStop</a>()
+<a name="l00166"></a>00166 {
+<a name="l00167"></a>00167   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;send(<span class="stringliteral">"LOC"</span>);
+<a name="l00168"></a>00168 }
+<a name="l00169"></a>00169 <span class="keywordtype">void</span>
+<a name="l00170"></a><a class="code" href="class_x_a_h2500_a.html#b2">00170</a> <a class="code" href="class_x_a_h2500_a.html#b2">XAH2500A::changeOutput</a>(<span class="keywordtype">double</span> x)
+<a name="l00171"></a>00171 {
+<a name="l00172"></a>00172   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;sendf(<span class="stringliteral">"V %f"</span>, x);
+<a name="l00173"></a>00173 }
+<a name="l00174"></a>00174 <span class="keywordtype">void</span>
+<a name="l00175"></a><a class="code" href="class_x_a_h2500_a.html#b5">00175</a> <a class="code" href="class_x_a_h2500_a.html#b5">XAH2500A::changeTimeConst</a>(<span class="keywordtype">int</span> x)
+<a name="l00176"></a>00176 {
+<a name="l00177"></a>00177   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;sendf(<span class="stringliteral">"AV %d"</span>, x);
+<a name="l00178"></a>00178 }
+<a name="l00179"></a>00179 <span class="keywordtype">void</span>
+<a name="l00180"></a><a class="code" href="class_x_a_h2500_a.html#b4">00180</a> <a class="code" href="class_x_a_h2500_a.html#b4">XAH2500A::changeSensitivity</a>(<span class="keywordtype">int</span> )
+<a name="l00181"></a>00181 {
+<a name="l00182"></a>00182     <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterface::XInterfaceError</a>(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Operation not supported."</span>), __FILE__, __LINE__);
+<a name="l00183"></a>00183 }
+<a name="l00184"></a>00184 <span class="keywordtype">void</span>
+<a name="l00185"></a><a class="code" href="class_x_a_h2500_a.html#b3">00185</a> <a class="code" href="class_x_a_h2500_a.html#b3">XAH2500A::changeFreq</a>(<span class="keywordtype">double</span> ) {
+<a name="l00186"></a>00186     <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterface::XInterfaceError</a>(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Operation not supported."</span>), __FILE__, __LINE__);
+<a name="l00187"></a>00187 }
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:16 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

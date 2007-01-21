@@ -4,7 +4,7 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <h1>クラス テンプレート XTalker&lt; tArg &gt;</h1><!-- doxytag: class=<XTalker> --><!-- doxytag: inherits=<_XTalkerBase> --><code>#include &lt;<a class="el" href="xsignal_8h-source.html">xsignal.h</a>&gt;</code>
 <p>
 XTalker&lt; tArg &gt;に対する継承グラフ<p><center><img src="class_x_talker__inherit__graph.png" border="0" usemap="#_x_talker_3_01t_arg_01_4__inherit__map" alt="Inheritance graph"></center>
@@ -13,10 +13,12 @@ XTalker&lt; tArg &gt;に対する継承グラフ<p><center><img src="class_x_talker__inhe
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XTalker&lt; tArg &gt;のコラボレーション図<p><center><img src="class_x_talker__coll__graph.png" border="0" usemap="#_x_talker_3_01t_arg_01_4__coll__map" alt="Collaboration graph"></center>
 <map name="_x_talker_3_01t_arg_01_4__coll__map">
-<area href="class___x_talker_base.html" shape="rect" coords="8,98,112,125" alt="">
-<area href="classatomic__shared__ptr.html" shape="rect" coords="136,98,360,125" alt="">
-<area href="class_x_light_mutex.html" shape="rect" coords="200,8,296,34" alt="">
-<area href="class_x_mutex.html" shape="rect" coords="384,98,450,125" alt="">
+<area href="class___x_talker_base.html" shape="rect" coords="13,189,117,216" alt="">
+<area href="classatomic.html" shape="rect" coords="8,98,117,125" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="144,189,368,216" alt="">
+<area href="structatomic__shared__ptr_1_1___ref_local.html" shape="rect" coords="141,98,370,125" alt="">
+<area href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html" shape="rect" coords="129,8,382,34" alt="">
+<area href="class_x_mutex.html" shape="rect" coords="394,98,461,125" alt="">
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_talker-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
 <tr><td></td></tr>
@@ -43,6 +45,9 @@ void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_talker.html#a7">talk</a> (const tArg &amp;arg)</td></tr>
 
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a8"></a><!-- doxytag: member=<XTalker::empty> ref=<a8> args=<() const > -->
+bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_talker.html#a8">empty</a> () const </td></tr>
+
 <tr><td colspan="2"><br><h2>Private 型</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="y0"></a><!-- doxytag: member=<XTalker::Listener> ref=<y0> args=<> -->
 typedef <a class="el" href="class___x_listener_impl.html">_XListenerImpl</a>&lt; tArg &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_talker.html#y0">Listener</a></td></tr>
@@ -65,14 +70,7 @@ void&nbsp;</td><td class="memItemRight" valign="bottom"><b>connect</b> (const sh
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r0"></a><!-- doxytag: member=<XTalker::m_listeners> ref=<r0> args=<> -->
 <a class="el" href="classatomic__shared__ptr.html">atomic_shared_ptr</a>&lt; <a class="el" href="class_x_talker.html#y1">ListenerList</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_talker.html#r0">m_listeners</a></td></tr>
 
-<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">listener list is atomically substituted by new one. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r1"></a><!-- doxytag: member=<XTalker::m_listener_write_mutex> ref=<r1> args=<> -->
-<a class="el" href="class_x_mutex.html">XMutex</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_talker.html#r1">m_listener_write_mutex</a></td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r2"></a><!-- doxytag: member=<XTalker::m_transactions> ref=<r2> args=<> -->
-shared_ptr&lt; <a class="el" href="struct___x_transaction_1_1_list.html">_XTransaction::List</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_talker.html#r2">m_transactions</a></td></tr>
-
-<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">transaction list is shared between XTalker and <a class="el" href="class_x_signal_buffer.html">XSignalBuffer</a>. <br></td></tr>
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">listener list is atomically substituted by new one. i.e. Read-Copy-Update. <br></td></tr>
 <tr><td colspan="2"><br><h2>構成</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top">struct &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_x_talker_1_1_transaction.html">Transaction</a></td></tr>
 
@@ -90,7 +88,7 @@ M/M Listener and Talker model <dl compact><dt><b>参照:</b></dt><dd><a class="el"
 <p>
 
 <p>
- <a class="el" href="xsignal_8h-source.html">xsignal.h</a> の <a class="el" href="xsignal_8h-source.html#l00085">85</a> 行で定義されています。<hr><h2>関数</h2>
+ <a class="el" href="xsignal_8h-source.html">xsignal.h</a> の <a class="el" href="xsignal_8h-source.html#l00082">82</a> 行で定義されています。<hr><h2>関数</h2>
 <a class="anchor" name="a4"></a><!-- doxytag: member=<XTalker::connectShared> ref=<a4> args=<(bool mainthreadcall, const shared_ptr&lt; tObj &gt; &amp;obj, void(tClass::*func)(const tArg &amp;), bool avoid_dup=false, unsigned int delay_ms=0)> --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
@@ -158,15 +156,15 @@ Associate XTalker to <a class="el" href="class_x_listener.html">XListener</a> Ta
     <tr><td valign="top"></td><td valign="top"><em>obj</em>&nbsp;</td><td>a pointer to object </td></tr>
     <tr><td valign="top"></td><td valign="top"><em>func</em>&nbsp;</td><td>a pointer to member function </td></tr>
     <tr><td valign="top"></td><td valign="top"><em>avoid_dup</em>&nbsp;</td><td>If <em>mainthreadcall</em> is true, when stored signals to the listener are duplicated, this signal is copied to the first request. </td></tr>
-    <tr><td valign="top"></td><td valign="top"><em>delay_ms</em>&nbsp;</td><td>If non-zero, this signal is buffered at least this <em>delay_ms</em>. </td></tr>
+    <tr><td valign="top"></td><td valign="top"><em>delay_ms</em>&nbsp;</td><td>If non-zero, this signal is buffered at least this <em>delay_ms</em>. ignored if avoid_dup is false. </td></tr>
   </table>
 </dl>
 <dl compact><dt><b>戻り値:</b></dt><dd>shared_ptr to <code><a class="el" href="class_x_listener.html">XListener</a></code>. </dd></dl>
 
 <p>
- <a class="el" href="xsignal_8h-source.html">xsignal.h</a> の <a class="el" href="xsignal_8h-source.html#l00261">261</a> 行で定義されています。
+ <a class="el" href="xsignal_8h-source.html">xsignal.h</a> の <a class="el" href="xsignal_8h-source.html#l00247">247</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="xsignal_8h-source.html#l00286">XTalker&lt; tArg &gt;::connect()</a>.    </td>
+参照先 <a class="el" href="xsignal_8h-source.html#l00272">XTalker&lt; tArg &gt;::connect()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="a2"></a><!-- doxytag: member=<XTalker::connectStatic> ref=<a2> args=<(bool mainthreadcall, void(*func)(const tArg &amp;), bool avoid_dup=false, unsigned int delay_ms=0)> --><p>
@@ -225,15 +223,15 @@ Associate XTalker to <a class="el" href="class_x_listener.html">XListener</a> Ta
     <tr><td valign="top"></td><td valign="top"><em>mainthreadcall</em>&nbsp;</td><td>if true, listener is called by the main thread. this is useful to handle with GUI. </td></tr>
     <tr><td valign="top"></td><td valign="top"><em>func</em>&nbsp;</td><td>a pointer to static function </td></tr>
     <tr><td valign="top"></td><td valign="top"><em>avoid_dup</em>&nbsp;</td><td>If <em>mainthreadcall</em> is true, when stored signals to the listener are duplicated, this signal is copied to the first request. </td></tr>
-    <tr><td valign="top"></td><td valign="top"><em>delay_ms</em>&nbsp;</td><td>If non-zero, this signal is buffered at least this <em>delay_ms</em>. </td></tr>
+    <tr><td valign="top"></td><td valign="top"><em>delay_ms</em>&nbsp;</td><td>If non-zero, this signal is buffered at least this <em>delay_ms</em>. ignored if avoid_dup is false. </td></tr>
   </table>
 </dl>
 <dl compact><dt><b>戻り値:</b></dt><dd>shared_ptr to <code><a class="el" href="class_x_listener.html">XListener</a></code>. </dd></dl>
 
 <p>
- <a class="el" href="xsignal_8h-source.html">xsignal.h</a> の <a class="el" href="xsignal_8h-source.html#l00249">249</a> 行で定義されています。
+ <a class="el" href="xsignal_8h-source.html">xsignal.h</a> の <a class="el" href="xsignal_8h-source.html#l00235">235</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="xsignal_8h-source.html#l00286">XTalker&lt; tArg &gt;::connect()</a>.    </td>
+参照先 <a class="el" href="xsignal_8h-source.html#l00272">XTalker&lt; tArg &gt;::connect()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="a3"></a><!-- doxytag: member=<XTalker::connectWeak> ref=<a3> args=<(bool mainthreadcall, const shared_ptr&lt; tObj &gt; &amp;obj, void(tClass::*func)(const tArg &amp;), bool avoid_dup=false, unsigned int delay_ms=0)> --><p>
@@ -303,17 +301,17 @@ Associate XTalker to <a class="el" href="class_x_listener.html">XListener</a> Ta
     <tr><td valign="top"></td><td valign="top"><em>obj</em>&nbsp;</td><td>a pointer to object </td></tr>
     <tr><td valign="top"></td><td valign="top"><em>func</em>&nbsp;</td><td>a pointer to member function </td></tr>
     <tr><td valign="top"></td><td valign="top"><em>avoid_dup</em>&nbsp;</td><td>If <em>mainthreadcall</em> is true, when stored signals to the listener are duplicated, this signal is copied to the first request. </td></tr>
-    <tr><td valign="top"></td><td valign="top"><em>delay_ms</em>&nbsp;</td><td>If non-zero, this signal is buffered at least this <em>delay_ms</em>. </td></tr>
+    <tr><td valign="top"></td><td valign="top"><em>delay_ms</em>&nbsp;</td><td>If non-zero, this signal is buffered at least this <em>delay_ms</em>. ignored if avoid_dup is false. </td></tr>
   </table>
 </dl>
 <dl compact><dt><b>戻り値:</b></dt><dd>shared_ptr to <code><a class="el" href="class_x_listener.html">XListener</a></code>. </dd></dl>
 
 <p>
- <a class="el" href="xsignal_8h-source.html">xsignal.h</a> の <a class="el" href="xsignal_8h-source.html#l00274">274</a> 行で定義されています。
+ <a class="el" href="xsignal_8h-source.html">xsignal.h</a> の <a class="el" href="xsignal_8h-source.html#l00260">260</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="xsignal_8h-source.html#l00286">XTalker&lt; tArg &gt;::connect()</a>.
+参照先 <a class="el" href="xsignal_8h-source.html#l00272">XTalker&lt; tArg &gt;::connect()</a>.
 <p>
-参照元 <a class="el" href="xrubysupport_8cpp-source.html#l00016">XRuby::XRuby()</a>, と <a class="el" href="xnodeconnector_8cpp-source.html#l00534">XStatusPrinter::XStatusPrinter()</a>.    </td>
+参照元 <a class="el" href="xrubysupport_8cpp-source.html#l00021">XRuby::XRuby()</a>, と <a class="el" href="xnodeconnector_8cpp-source.html#l00612">XStatusPrinter::XStatusPrinter()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="a7"></a><!-- doxytag: member=<XTalker::talk> ref=<a7> args=<(const tArg &amp;arg)> --><p>
@@ -352,16 +350,16 @@ Request a talk to connected listeners. If a listener is not mainthread model, th
 </dl>
 
 <p>
- <a class="el" href="xsignal_8h-source.html">xsignal.h</a> の <a class="el" href="xsignal_8h-source.html#l00328">328</a> 行で定義されています。
+ <a class="el" href="xsignal_8h-source.html">xsignal.h</a> の <a class="el" href="xsignal_8h-source.html#l00321">321</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="xsignal_8h-source.html#l00066">_XTalkerBase::m_bMasked</a>, <a class="el" href="xsignal_8h-source.html#l00159">XTalker&lt; tArg &gt;::m_listeners</a>, <a class="el" href="xsignal_8h-source.html#l00164">XTalker&lt; tArg &gt;::m_transactions</a>, <a class="el" href="xtime_8cpp-source.html#l00015">XTime::now()</a>, <a class="el" href="support_8cpp-source.html#l00068">XKameError::print()</a>, <a class="el" href="atomic_8h-source.html#l00270">atomic_shared_ptr&lt; T &gt;::reset()</a>, と <a class="el" href="atomic_8h-source.html#l00186">atomic_shared_ptr&lt; T &gt;::swap()</a>.
+参照先 <a class="el" href="xsignal_8h-source.html#l00153">XTalker&lt; tArg &gt;::empty()</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00046">atomic_scoped_ptr&lt; T &gt;::get()</a>, <a class="el" href="xsignal_8h-source.html#l00066">_XTalkerBase::m_bMasked</a>, <a class="el" href="xsignal_8h-source.html#l00160">XTalker&lt; tArg &gt;::m_listeners</a>, <a class="el" href="support_8cpp-source.html#l00070">XKameError::print()</a>, と <a class="el" href="atomic__smart__ptr_8h-source.html#l00036">atomic_scoped_ptr&lt; T &gt;::swap()</a>.
 <p>
-参照元 <a class="el" href="xitemnode_8cpp-source.html#l00067">XComboNode::add()</a>, <a class="el" href="xnodeconnector_8cpp-source.html#l00583">XStatusPrinter::clear()</a>, <a class="el" href="xitemnode_8cpp-source.html#l00077">XComboNode::clear()</a>, <a class="el" href="xlistnode_8cpp-source.html#l00008">XListNodeBase::clearChildren()</a>, <a class="el" href="driver_8cpp-source.html#l00066">XDriver::finishRecordingNReadLock()</a>, <a class="el" href="xlistnode_8cpp-source.html#l00067">XListNodeBase::insert()</a>, <a class="el" href="xitemnode_8h-source.html#l00091">XPointerItemNode&lt; TL &gt;::lsnOnListChanged()</a>, <a class="el" href="xnodeconnector_8cpp-source.html#l00574">XStatusPrinter::printError()</a>, <a class="el" href="xnodeconnector_8cpp-source.html#l00556">XStatusPrinter::printMessage()</a>, <a class="el" href="xnodeconnector_8cpp-source.html#l00565">XStatusPrinter::printWarning()</a>, <a class="el" href="xlistnode_8cpp-source.html#l00030">XListNodeBase::releaseChild()</a>, <a class="el" href="graph_8cpp-source.html#l00096">XGraph::resumeUpdate()</a>, <a class="el" href="xrubysupport_8cpp-source.html#l00109">XRuby::rlistnode_create_child()</a>, <a class="el" href="xnode_8cpp-source.html#l00055">XNode::setUIEnabled()</a>, <a class="el" href="xnode_8cpp-source.html#l00060">XNode::touch()</a>, <a class="el" href="xnode_8cpp-source.html#l00258">XDoubleNode::value()</a>, <a class="el" href="xnode_8cpp-source.html#l00228">XStringNode::value()</a>, <a class="el" href="xnode_8cpp-source.html#l00134">XValueNode&lt; T, base &gt;::value()</a>, <a class="el" href="xitemnode_8h-source.html#l00118">XItemNode&lt; TL, T &gt;::value()</a>, と <a class="el" href="xitemnode_8cpp-source.html#l00102">XComboNode::value()</a>.    </td>
+参照元 <a class="el" href="xitemnode_8cpp-source.html#l00065">XComboNode::add()</a>, <a class="el" href="xnodeconnector_8cpp-source.html#l00661">XStatusPrinter::clear()</a>, <a class="el" href="xitemnode_8cpp-source.html#l00078">XComboNode::clear()</a>, <a class="el" href="xlistnode_8cpp-source.html#l00008">XListNodeBase::clearChildren()</a>, <a class="el" href="driver_8cpp-source.html#l00065">XDriver::finishRecordingNReadLock()</a>, <a class="el" href="xlistnode_8cpp-source.html#l00034">XListNodeBase::insert()</a>, <a class="el" href="xitemnode_8h-source.html#l00082">XPointerItemNode&lt; TL &gt;::lsnOnListChanged()</a>, <a class="el" href="xlistnode_8cpp-source.html#l00041">XListNodeBase::move()</a>, <a class="el" href="xnodeconnector_8cpp-source.html#l00652">XStatusPrinter::printError()</a>, <a class="el" href="xnodeconnector_8cpp-source.html#l00634">XStatusPrinter::printMessage()</a>, <a class="el" href="xnodeconnector_8cpp-source.html#l00643">XStatusPrinter::printWarning()</a>, <a class="el" href="xlistnode_8cpp-source.html#l00025">XListNodeBase::releaseChild()</a>, <a class="el" href="xrubysupport_8cpp-source.html#l00115">XRuby::rlistnode_create_child()</a>, <a class="el" href="xnode_8cpp-source.html#l00050">XNode::setUIEnabled()</a>, <a class="el" href="xnode_8cpp-source.html#l00055">XNode::touch()</a>, <a class="el" href="graph_8cpp-source.html#l00091">XGraph::unlock()</a>, <a class="el" href="xnode_8cpp-source.html#l00253">XDoubleNode::value()</a>, <a class="el" href="xnode_8cpp-source.html#l00218">XStringNode::value()</a>, <a class="el" href="xnode_8cpp-source.html#l00119">XValueNode&lt; T, base &gt;::value()</a>, <a class="el" href="xitemnode_8h-source.html#l00102">XItemNode&lt; TL, T &gt;::value()</a>, と <a class="el" href="xitemnode_8cpp-source.html#l00099">XComboNode::value()</a>.    </td>
   </tr>
 </table>
 <hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/<a class="el" href="xsignal_8h-source.html">xsignal.h</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:06:10 2006に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:33 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

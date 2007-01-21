@@ -4,7 +4,7 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <h1>クラス XTempControl</h1><!-- doxytag: class=<XTempControl> --><!-- doxytag: inherits=<XPrimaryDriver> -->XTempControlに対する継承グラフ<p><center><img src="class_x_temp_control__inherit__graph.png" border="0" usemap="#_x_temp_control__inherit__map" alt="Inheritance graph"></center>
 <map name="_x_temp_control__inherit__map">
 <area href="class_x_a_v_s47_i_b.html" shape="rect" coords="8,306,90,333" alt="">
@@ -98,7 +98,7 @@ virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" hr
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b6"></a><!-- doxytag: member=<XTempControl::beforeStop> ref=<b6> args=<()> -->
 virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_temp_control.html#b6">beforeStop</a> ()</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_temp_control.html#b7">createChannels</a> (const shared_ptr&lt; <a class="el" href="class_x_scalar_entry_list.html">XScalarEntryList</a> &gt; &amp;scalarentries, const shared_ptr&lt; <a class="el" href="class_x_thermometer_list.html">XThermometerList</a> &gt; &amp;thermometers, bool multiread, const char **channel_names)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_temp_control.html#b7">createChannels</a> (const shared_ptr&lt; <a class="el" href="class_x_scalar_entry_list.html">XScalarEntryList</a> &gt; &amp;scalarentries, const shared_ptr&lt; <a class="el" href="class_x_thermometer_list.html">XThermometerList</a> &gt; &amp;thermometers, bool multiread, const char **channel_names, const char **excitations)</td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b8"></a><!-- doxytag: member=<XTempControl::getRaw> ref=<b8> args=<(shared_ptr&lt; XChannel &gt; &amp;channel)=0> -->
 virtual double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_temp_control.html#b8">getRaw</a> (shared_ptr&lt; <a class="el" href="class_x_temp_control_1_1_x_channel.html">XChannel</a> &gt; &amp;channel)=0</td></tr>
@@ -141,8 +141,8 @@ virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><b>onExcitationC
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d0"></a><!-- doxytag: member=<XTempControl::onSetupChannelChanged> ref=<d0> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
 void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_temp_control.html#d0">onSetupChannelChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d1"></a><!-- doxytag: member=<XTempControl::execute> ref=<d1> args=<()> -->
-void *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_temp_control.html#d1">execute</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d1"></a><!-- doxytag: member=<XTempControl::execute> ref=<d1> args=<(const atomic&lt; bool &gt; &amp;)> -->
+void *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_temp_control.html#d1">execute</a> (const <a class="el" href="classatomic.html">atomic</a>&lt; bool &gt; &amp;)</td></tr>
 
 <tr><td colspan="2"><br><h2>Private 変数</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r0"></a><!-- doxytag: member=<XTempControl::m_channels> ref=<r0> args=<> -->
@@ -271,9 +271,6 @@ shared_ptr&lt; <a class="el" href="class_x_thread.html">XThread</a>&lt; <a class
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r40"></a><!-- doxytag: member=<XTempControl::m_multiread> ref=<r40> args=<> -->
 bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_temp_control.html#r40">m_multiread</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r41"></a><!-- doxytag: member=<XTempControl::m_bTerminated> ref=<r41> args=<> -->
-bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_temp_control.html#r41">m_bTerminated</a></td></tr>
-
 <tr><td colspan="2"><br><h2>構成</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top">class &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_temp_control_1_1_x_channel.html">XChannel</a></td></tr>
 
@@ -312,12 +309,12 @@ this is called when raw is written unless dependency is broken convert raw to re
 <p>
 <a class="el" href="class_x_primary_driver.html#b1">XPrimaryDriver</a>を実装しています.
 <p>
- <a class="el" href="tempcontrol_8cpp-source.html">tempcontrol.cpp</a> の <a class="el" href="tempcontrol_8cpp-source.html#l00109">109</a> 行で定義されています。
+ <a class="el" href="tempcontrol_8cpp-source.html">tempcontrol.cpp</a> の <a class="el" href="tempcontrol_8cpp-source.html#l00108">108</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="tempcontrol_8h-source.html#l00128">m_entry_raws</a>, と <a class="el" href="tempcontrol_8h-source.html#l00127">m_entry_temps</a>.    </td>
+参照先 <a class="el" href="tempcontrol_8h-source.html#l00128">m_entry_raws</a>, <a class="el" href="tempcontrol_8h-source.html#l00127">m_entry_temps</a>, と <a class="el" href="tempcontrol_8h-source.html#l00132">m_multiread</a>.    </td>
   </tr>
 </table>
-<a class="anchor" name="b7"></a><!-- doxytag: member=<XTempControl::createChannels> ref=<b7> args=<(const shared_ptr&lt; XScalarEntryList &gt; &amp;scalarentries, const shared_ptr&lt; XThermometerList &gt; &amp;thermometers, bool multiread, const char **channel_names)> --><p>
+<a class="anchor" name="b7"></a><!-- doxytag: member=<XTempControl::createChannels> ref=<b7> args=<(const shared_ptr&lt; XScalarEntryList &gt; &amp;scalarentries, const shared_ptr&lt; XThermometerList &gt; &amp;thermometers, bool multiread, const char **channel_names, const char **excitations)> --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
     <td class="mdRow">
@@ -344,7 +341,13 @@ this is called when raw is written unless dependency is broken convert raw to re
           <td class="md" nowrap align="right"></td>
           <td class="md"></td>
           <td class="md" nowrap>const char **&nbsp;</td>
-          <td class="mdname" nowrap> <em>channel_names</em></td>
+          <td class="mdname" nowrap> <em>channel_names</em>, </td>
+        </tr>
+        <tr>
+          <td class="md" nowrap align="right"></td>
+          <td class="md"></td>
+          <td class="md" nowrap>const char **&nbsp;</td>
+          <td class="mdname" nowrap> <em>excitations</em></td>
         </tr>
         <tr>
           <td class="md"></td>
@@ -373,9 +376,9 @@ register channel names in your constructor <dl compact><dt><b>引数:</b></dt><dd>
 <p>
  <a class="el" href="tempcontrol_8cpp-source.html">tempcontrol.cpp</a> の <a class="el" href="tempcontrol_8cpp-source.html#l00152">152</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="xnode_8cpp-source.html#l00025">XNode::getName()</a>, <a class="el" href="tempcontrol_8h-source.html#l00101">m_channels</a>, <a class="el" href="tempcontrol_8h-source.html#l00128">m_entry_raws</a>, <a class="el" href="tempcontrol_8h-source.html#l00127">m_entry_temps</a>, と <a class="el" href="tempcontrol_8h-source.html#l00132">m_multiread</a>.
+参照先 <a class="el" href="tempcontrol_8h-source.html#l00101">m_channels</a>, <a class="el" href="tempcontrol_8h-source.html#l00128">m_entry_raws</a>, <a class="el" href="tempcontrol_8h-source.html#l00127">m_entry_temps</a>, と <a class="el" href="tempcontrol_8h-source.html#l00132">m_multiread</a>.
 <p>
-参照元 <a class="el" href="usertempcontrol_8cpp-source.html#l00071">XAVS47IB::XAVS47IB()</a>, <a class="el" href="usertempcontrol_8cpp-source.html#l00329">XCryoconM32::XCryoconM32()</a>, <a class="el" href="usertempcontrol_8cpp-source.html#l00308">XCryoconM62::XCryoconM62()</a>, <a class="el" href="usertempcontrol_8cpp-source.html#l00004">XITC503::XITC503()</a>, と <a class="el" href="usertempcontrol_8cpp-source.html#l00515">XLakeShore340::XLakeShore340()</a>.    </td>
+参照元 <a class="el" href="usertempcontrol_8cpp-source.html#l00072">XAVS47IB::XAVS47IB()</a>, <a class="el" href="usertempcontrol_8cpp-source.html#l00292">XCryoconM32::XCryoconM32()</a>, <a class="el" href="usertempcontrol_8cpp-source.html#l00281">XCryoconM62::XCryoconM62()</a>, <a class="el" href="usertempcontrol_8cpp-source.html#l00004">XITC503::XITC503()</a>, と <a class="el" href="usertempcontrol_8cpp-source.html#l00474">XLakeShore340::XLakeShore340()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="b9"></a><!-- doxytag: member=<XTempControl::getHeater> ref=<b9> args=<()=0> --><p>
@@ -407,7 +410,7 @@ obtain current heater power <dl compact><dt><b>参照:</b></dt><dd><a class="el" h
 <p>
 <a class="el" href="class_x_i_t_c503.html#b2">XITC503</a>, <a class="el" href="class_x_a_v_s47_i_b.html#b2">XAVS47IB</a>, <a class="el" href="class_x_cryocon.html#b2">XCryocon</a>, と <a class="el" href="class_x_lake_shore340.html#b2">XLakeShore340</a>で実装されています.
 <p>
-参照元 <a class="el" href="tempcontrol_8cpp-source.html#l00204">execute()</a>.    </td>
+参照元 <a class="el" href="tempcontrol_8cpp-source.html#l00209">execute()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="a1"></a><!-- doxytag: member=<XTempControl::showForms> ref=<a1> args=<()> --><p>
@@ -473,9 +476,9 @@ Shut down your threads, unconnect GUI, and deactivate signals this may be called
 <p>
 <a class="el" href="class_x_driver.html#b2">XDriver</a>を実装しています.
 <p>
- <a class="el" href="tempcontrol_8cpp-source.html">tempcontrol.cpp</a> の <a class="el" href="tempcontrol_8cpp-source.html#l00101">101</a> 行で定義されています。
+ <a class="el" href="tempcontrol_8cpp-source.html">tempcontrol.cpp</a> の <a class="el" href="tempcontrol_8cpp-source.html#l00100">100</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="tempcontrol_8h-source.html#l00135">m_bTerminated</a>.    </td>
+参照先 <a class="el" href="tempcontrol_8h-source.html#l00130">m_thread</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="b4"></a><!-- doxytag: member=<XTempControl::visualize> ref=<b4> args=<()> --><p>
@@ -511,7 +514,7 @@ this is called after analyze() or <a class="el" href="class_x_temp_control.html#
 </table>
 <hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/users/tempcontrol/<a class="el" href="tempcontrol_8h-source.html">tempcontrol.h</a><li>kame/users/tempcontrol/<a class="el" href="tempcontrol_8cpp-source.html">tempcontrol.cpp</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:06:14 2006に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:33 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

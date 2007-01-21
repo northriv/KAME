@@ -4,7 +4,7 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
 <a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000012.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000023.html">magnetps</a></div>
 <h1>magnetps.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#include "forms/magnetpsform.h"</span>
@@ -43,7 +43,7 @@
 <a name="l00034"></a>00034   scalarentries-&gt;insert(<a class="code" href="class_x_magnet_p_s.html#r0">m_field</a>);
 <a name="l00035"></a>00035   scalarentries-&gt;insert(<a class="code" href="class_x_magnet_p_s.html#r1">m_current</a>);
 <a name="l00036"></a>00036   <a class="code" href="class_x_magnet_p_s.html#r23">m_form</a>-&gt;statusBar()-&gt;hide();
-<a name="l00037"></a>00037   <a class="code" href="class_x_magnet_p_s.html#r23">m_form</a>-&gt;setCaption(<span class="stringliteral">"Magnet Power Supply - "</span> + <a class="code" href="class_x_node.html#a6">getName</a>() );
+<a name="l00037"></a>00037   <a class="code" href="class_x_magnet_p_s.html#r23">m_form</a>-&gt;setCaption(<span class="stringliteral">"Magnet Power Supply - "</span> + <a class="code" href="class_x_node.html#a7">getLabel</a>() );
 <a name="l00038"></a>00038   
 <a name="l00039"></a>00039   <a class="code" href="class_x_magnet_p_s.html#r13">m_conAllowPersistent</a> = xqcon_create&lt;XQToggleButtonConnector&gt;(
 <a name="l00040"></a>00040                            <a class="code" href="class_x_magnet_p_s.html#b9">allowPersistent</a>(), <a class="code" href="class_x_magnet_p_s.html#r23">m_form</a>-&gt;m_ckbAllowPersistent);
@@ -83,209 +83,210 @@
 <a name="l00075"></a>00075 {
 <a name="l00076"></a>00076   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;open();
 <a name="l00077"></a>00077   
-<a name="l00078"></a>00078   <a class="code" href="class_x_magnet_p_s.html#r27">m_bTerminated</a> = <span class="keyword">false</span>;
-<a name="l00079"></a>00079   <a class="code" href="class_x_magnet_p_s.html#r22">m_thread</a>.reset(<span class="keyword">new</span> <a class="code" href="class_x_thread.html">XThread&lt;XMagnetPS&gt;</a>(shared_from_this(), &amp;<a class="code" href="class_x_magnet_p_s.html#d1">XMagnetPS::execute</a>));
-<a name="l00080"></a>00080   <a class="code" href="class_x_magnet_p_s.html#r22">m_thread</a>-&gt;resume();
-<a name="l00081"></a>00081 }
-<a name="l00082"></a>00082 <span class="keywordtype">void</span>
-<a name="l00083"></a><a class="code" href="class_x_magnet_p_s.html#b2">00083</a> <a class="code" href="class_x_magnet_p_s.html#b2">XMagnetPS::stop</a>()
-<a name="l00084"></a>00084 {
-<a name="l00085"></a>00085   <a class="code" href="class_x_magnet_p_s.html#r27">m_bTerminated</a> = <span class="keyword">true</span>;
-<a name="l00086"></a>00086 <span class="comment">//    m_thread-&gt;waitFor();</span>
-<a name="l00087"></a>00087 <span class="comment">//  thread must do interface()-&gt;close() at the end</span>
-<a name="l00088"></a>00088 }
-<a name="l00089"></a>00089 
-<a name="l00090"></a>00090 <span class="keywordtype">void</span>
-<a name="l00091"></a><a class="code" href="class_x_magnet_p_s.html#b3">00091</a> <a class="code" href="class_x_magnet_p_s.html#b3">XMagnetPS::analyzeRaw</a>() throw (XRecordError&amp;)
-<a name="l00092"></a>00092 {
-<a name="l00093"></a>00093     <a class="code" href="class_x_magnet_p_s.html#r25">m_magnetFieldRecorded</a> = pop&lt;float&gt;();
-<a name="l00094"></a>00094     <a class="code" href="class_x_magnet_p_s.html#r26">m_outputCurrentRecorded</a> = pop&lt;float&gt;();
-<a name="l00095"></a>00095     <a class="code" href="class_x_magnet_p_s.html#r0">m_field</a>-&gt;value(<a class="code" href="class_x_magnet_p_s.html#r25">m_magnetFieldRecorded</a>);
-<a name="l00096"></a>00096     <a class="code" href="class_x_magnet_p_s.html#r1">m_current</a>-&gt;value(<a class="code" href="class_x_magnet_p_s.html#r26">m_outputCurrentRecorded</a>);
-<a name="l00097"></a>00097 }
-<a name="l00098"></a>00098 <span class="keywordtype">void</span>
-<a name="l00099"></a><a class="code" href="class_x_magnet_p_s.html#b4">00099</a> <a class="code" href="class_x_magnet_p_s.html#b4">XMagnetPS::visualize</a>()
-<a name="l00100"></a>00100 {
-<a name="l00103"></a>00103 }
-<a name="l00104"></a>00104 
-<a name="l00105"></a>00105 <span class="keywordtype">void</span>
-<a name="l00106"></a><a class="code" href="class_x_magnet_p_s.html#d0">00106</a> <a class="code" href="class_x_magnet_p_s.html#d0">XMagnetPS::onRateChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
-<a name="l00107"></a>00107 {
-<a name="l00108"></a>00108     <span class="keywordflow">try</span> {
-<a name="l00109"></a>00109         setRate(*<a class="code" href="class_x_magnet_p_s.html#b8">sweepRate</a>());
-<a name="l00110"></a>00110     }
-<a name="l00111"></a>00111     <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
-<a name="l00112"></a>00112           e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(<a class="code" href="class_x_node.html#a6">getName</a>() + <span class="stringliteral">"; "</span>);
-<a name="l00113"></a>00113     }
-<a name="l00114"></a>00114 }
-<a name="l00115"></a>00115 
-<a name="l00116"></a>00116 <span class="keywordtype">void</span> *
-<a name="l00117"></a><a class="code" href="class_x_magnet_p_s.html#d1">00117</a> <a class="code" href="class_x_magnet_p_s.html#d1">XMagnetPS::execute</a>()
-<a name="l00118"></a>00118 {   
-<a name="l00119"></a>00119   <span class="keywordtype">double</span> havg = 0.0;
-<a name="l00120"></a>00120   <span class="keywordtype">double</span> dhavg = 0.0;
-<a name="l00121"></a>00121   <span class="keywordtype">double</span> lasth = 0.0;
-<a name="l00122"></a>00122   <a class="code" href="class_x_time.html">XTime</a> lasttime = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
-<a name="l00123"></a>00123   <span class="keyword">const</span> <span class="keywordtype">double</span> pcsh_stab_period = 30.0;
-<a name="l00124"></a>00124   <a class="code" href="class_x_time.html">XTime</a> pcsh_time = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
-<a name="l00125"></a>00125   pcsh_time -= pcsh_stab_period;
-<a name="l00126"></a>00126   <span class="keywordtype">double</span> field_resolution;
-<a name="l00127"></a>00127   <span class="keywordtype">bool</span> is_pcs_fitted;
-<a name="l00128"></a>00128   <span class="keywordtype">bool</span> last_pcsh;
-<a name="l00129"></a>00129   
-<a name="l00130"></a>00130   <span class="keywordflow">try</span> {
-<a name="l00131"></a>00131     afterStart();
-<a name="l00132"></a>00132     field_resolution = fieldResolution();
-<a name="l00133"></a>00133     is_pcs_fitted = <a class="code" href="class_x_magnet_p_s.html#b33">isPCSFitted</a>();
-<a name="l00134"></a>00134     <a class="code" href="class_x_magnet_p_s.html#b8">sweepRate</a>()-&gt;value(getSweepRate());
-<a name="l00135"></a>00135     <a class="code" href="class_x_magnet_p_s.html#b7">targetField</a>()-&gt;value(getTargetField());
-<a name="l00136"></a>00136     last_pcsh = <a class="code" href="class_x_magnet_p_s.html#b32">isPCSHeaterOn</a>();
-<a name="l00137"></a>00137   }
-<a name="l00138"></a>00138   <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a>&amp;e) {
-<a name="l00139"></a>00139     e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(<a class="code" href="class_x_node.html#a6">getName</a>());
-<a name="l00140"></a>00140     <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;close();
-<a name="l00141"></a>00141     <span class="keywordflow">return</span> NULL;
-<a name="l00142"></a>00142   }
-<a name="l00143"></a>00143 
-<a name="l00144"></a>00144   <span class="keywordflow">if</span>(is_pcs_fitted ) <a class="code" href="class_x_magnet_p_s.html#b9">allowPersistent</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
-<a name="l00145"></a>00145   <a class="code" href="class_x_magnet_p_s.html#r12">m_lsnRate</a> = <a class="code" href="class_x_magnet_p_s.html#b8">sweepRate</a>()-&gt;onValueChanged().connectWeak(
-<a name="l00146"></a>00146                         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_magnet_p_s.html#d0">XMagnetPS::onRateChanged</a>);
-<a name="l00147"></a>00147   
-<a name="l00148"></a>00148   <a class="code" href="class_x_magnet_p_s.html#b7">targetField</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
-<a name="l00149"></a>00149   <a class="code" href="class_x_magnet_p_s.html#b8">sweepRate</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
-<a name="l00150"></a>00150   
-<a name="l00151"></a>00151     <span class="keywordflow">while</span>(!<a class="code" href="class_x_magnet_p_s.html#r27">m_bTerminated</a>)
-<a name="l00152"></a>00152     {
-<a name="l00153"></a>00153       msecsleep(10);
-<a name="l00154"></a>00154       <span class="keywordtype">double</span> magnet_field;
-<a name="l00155"></a>00155       <span class="keywordtype">double</span> output_field;
-<a name="l00156"></a>00156       <span class="keywordtype">double</span> output_current;
-<a name="l00157"></a>00157       <span class="keywordtype">double</span> output_volt;
-<a name="l00158"></a>00158       <span class="keywordtype">double</span> target_field;
-<a name="l00159"></a>00159       <span class="keywordtype">bool</span> pcs_heater = <span class="keyword">true</span>;
-<a name="l00160"></a>00160       <span class="keywordtype">bool</span> pcsh_stable = <span class="keyword">false</span>;
-<a name="l00161"></a>00161       
-<a name="l00162"></a>00162       <span class="comment">// try/catch exception of communication errors</span>
-<a name="l00163"></a>00163       <span class="keywordflow">try</span> {
-<a name="l00164"></a>00164           magnet_field = getMagnetField();
-<a name="l00165"></a>00165           output_field = getOutputField();
-<a name="l00166"></a>00166           output_current = getOutputCurrent();
-<a name="l00167"></a>00167           output_volt = getOutputVolt();
-<a name="l00168"></a>00168           target_field = getTargetField();
-<a name="l00169"></a>00169           <span class="keywordflow">if</span>(is_pcs_fitted) {
-<a name="l00170"></a>00170               pcs_heater = <a class="code" href="class_x_magnet_p_s.html#b32">isPCSHeaterOn</a>();
-<a name="l00171"></a>00171               <span class="keywordflow">if</span>(pcs_heater != last_pcsh)
-<a name="l00172"></a>00172                      pcsh_time = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
-<a name="l00173"></a>00173               last_pcsh = pcs_heater;
-<a name="l00174"></a>00174               pcsh_stable = (<a class="code" href="class_x_time.html#e0">XTime::now</a>() - pcsh_time &gt; pcsh_stab_period);
-<a name="l00175"></a>00175           }
-<a name="l00176"></a>00176       }
-<a name="l00177"></a>00177       <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
-<a name="l00178"></a>00178           e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(<a class="code" href="class_x_node.html#a6">getName</a>() + <span class="stringliteral">"; "</span>);
-<a name="l00179"></a>00179           <span class="keywordflow">continue</span>;
-<a name="l00180"></a>00180       }
-<a name="l00181"></a>00181       <a class="code" href="class_x_primary_driver.html#b2">startWritingRaw</a>();
-<a name="l00182"></a>00182       push((<span class="keywordtype">float</span>)magnet_field);
-<a name="l00183"></a>00183       push((<span class="keywordtype">float</span>)output_current);
-<a name="l00184"></a>00184  
-<a name="l00185"></a>00185       <a class="code" href="class_x_primary_driver.html#b3">finishWritingRaw</a>(<a class="code" href="class_x_time.html#e0">XTime::now</a>(), <a class="code" href="class_x_time.html#e0">XTime::now</a>(), <span class="keyword">true</span>);
-<a name="l00186"></a>00186       
-<a name="l00187"></a>00187       <a class="code" href="class_x_magnet_p_s.html#b11">magnetField</a>()-&gt;value(magnet_field);
-<a name="l00188"></a>00188       <a class="code" href="class_x_magnet_p_s.html#b12">outputField</a>()-&gt;value(output_field);
-<a name="l00189"></a>00189       <a class="code" href="class_x_magnet_p_s.html#b13">outputCurrent</a>()-&gt;value(output_current);
-<a name="l00190"></a>00190       <a class="code" href="class_x_magnet_p_s.html#b14">outputVolt</a>()-&gt;value(output_volt);
-<a name="l00191"></a>00191       <a class="code" href="class_x_magnet_p_s.html#b15">pcsHeater</a>()-&gt;value(pcs_heater &amp;&amp; is_pcs_fitted);
-<a name="l00192"></a>00192 
-<a name="l00193"></a>00193       <a class="code" href="class_x_magnet_p_s.html#b16">persistent</a>()-&gt;value(!pcs_heater &amp;&amp; pcsh_stable &amp;&amp; is_pcs_fitted);
-<a name="l00194"></a>00194 
-<a name="l00195"></a>00195       <span class="comment">//calicurate std. deviations in some periods</span>
-<a name="l00196"></a>00196       <a class="code" href="class_x_time.html">XTime</a> newtime = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
-<a name="l00197"></a>00197       <span class="keywordtype">double</span> dt = fabs(newtime - lasttime);
-<a name="l00198"></a>00198       lasttime = newtime;
-<a name="l00199"></a>00199       havg = (havg - magnet_field) * exp(-dt / 3.0) + magnet_field;
-<a name="l00200"></a>00200       <a class="code" href="class_x_magnet_p_s.html#b10">stabilized</a>()-&gt;value(fabs(havg - *<a class="code" href="class_x_magnet_p_s.html#b7">targetField</a>())); <span class="comment">//stderr</span>
-<a name="l00201"></a>00201       
-<a name="l00202"></a>00202       <span class="keywordtype">double</span> dhdt = (magnet_field - lasth) / dt;
-<a name="l00203"></a>00203       lasth = magnet_field;
-<a name="l00204"></a>00204       dhavg = (dhavg - dhdt) * exp(-dt / 3.0) + dhdt;
-<a name="l00205"></a>00205       
-<a name="l00206"></a>00206       <span class="keywordflow">try</span> {
-<a name="l00207"></a>00207           <span class="keywordflow">if</span>(is_pcs_fitted)
-<a name="l00208"></a>00208             {
-<a name="l00209"></a>00209               <span class="keywordflow">if</span>(pcs_heater) {
-<a name="l00210"></a>00210                 <span class="comment">//pcs heater is on</span>
-<a name="l00211"></a>00211                     <span class="keywordflow">if</span>(fabs(target_field - *<a class="code" href="class_x_magnet_p_s.html#b7">targetField</a>()) &gt;= field_resolution) {
-<a name="l00212"></a>00212                         <span class="keywordflow">if</span>(pcsh_stable) {
-<a name="l00213"></a>00213                             setPoint(*<a class="code" href="class_x_magnet_p_s.html#b7">targetField</a>());
-<a name="l00214"></a>00214                             toSetPoint();    
-<a name="l00215"></a>00215                         }
-<a name="l00216"></a>00216                     }
-<a name="l00217"></a>00217                     <span class="keywordflow">else</span> {
-<a name="l00218"></a>00218                         <span class="keywordflow">if</span>((fabs(dhavg) &lt; field_resolution / 10) &amp;&amp; 
-<a name="l00219"></a>00219                         (fabs(magnet_field - target_field) &lt; field_resolution) &amp;&amp;
-<a name="l00220"></a>00220                          *<a class="code" href="class_x_magnet_p_s.html#b9">allowPersistent</a>() )
-<a name="l00221"></a>00221                         {
-<a name="l00222"></a>00222                         <span class="comment">//field is not sweeping, and persistent is allowed</span>
-<a name="l00223"></a>00223                               <a class="code" href="class_x_magnet_p_s.html#r24">m_statusPrinter</a>-&gt;printMessage(<a class="code" href="class_x_node.html#a6">getName</a>() + <span class="stringliteral">" "</span> + 
-<a name="l00224"></a>00224                                     i18n(<span class="stringliteral">"Turning on Perisistent mode."</span>));
-<a name="l00225"></a>00225                               pcsh_time = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
-<a name="l00226"></a>00226                               toPersistent();
-<a name="l00227"></a>00227                         }
-<a name="l00228"></a>00228                     }
-<a name="l00229"></a>00229               }
-<a name="l00230"></a>00230               <span class="keywordflow">else</span> {
-<a name="l00231"></a>00231                 <span class="comment">//pcs heater if off</span>
-<a name="l00232"></a>00232                   <span class="keywordflow">if</span>(fabs(magnet_field - *<a class="code" href="class_x_magnet_p_s.html#b7">targetField</a>()) &gt;= field_resolution) {
+<a name="l00078"></a>00078   <a class="code" href="class_x_magnet_p_s.html#r22">m_thread</a>.reset(<span class="keyword">new</span> <a class="code" href="class_x_thread.html">XThread&lt;XMagnetPS&gt;</a>(shared_from_this(), &amp;<a class="code" href="class_x_magnet_p_s.html#d1">XMagnetPS::execute</a>));
+<a name="l00079"></a>00079   <a class="code" href="class_x_magnet_p_s.html#r22">m_thread</a>-&gt;resume();
+<a name="l00080"></a>00080 }
+<a name="l00081"></a>00081 <span class="keywordtype">void</span>
+<a name="l00082"></a><a class="code" href="class_x_magnet_p_s.html#b2">00082</a> <a class="code" href="class_x_magnet_p_s.html#b2">XMagnetPS::stop</a>()
+<a name="l00083"></a>00083 {
+<a name="l00084"></a>00084     <span class="keywordflow">if</span>(<a class="code" href="class_x_magnet_p_s.html#r22">m_thread</a>) <a class="code" href="class_x_magnet_p_s.html#r22">m_thread</a>-&gt;terminate();
+<a name="l00085"></a>00085 <span class="comment">//    m_thread-&gt;waitFor();</span>
+<a name="l00086"></a>00086 <span class="comment">//  thread must do interface()-&gt;close() at the end</span>
+<a name="l00087"></a>00087 }
+<a name="l00088"></a>00088 
+<a name="l00089"></a>00089 <span class="keywordtype">void</span>
+<a name="l00090"></a><a class="code" href="class_x_magnet_p_s.html#b3">00090</a> <a class="code" href="class_x_magnet_p_s.html#b3">XMagnetPS::analyzeRaw</a>() throw (XRecordError&amp;)
+<a name="l00091"></a>00091 {
+<a name="l00092"></a>00092     <a class="code" href="class_x_magnet_p_s.html#r25">m_magnetFieldRecorded</a> = pop&lt;float&gt;();
+<a name="l00093"></a>00093     <a class="code" href="class_x_magnet_p_s.html#r26">m_outputCurrentRecorded</a> = pop&lt;float&gt;();
+<a name="l00094"></a>00094     <a class="code" href="class_x_magnet_p_s.html#r0">m_field</a>-&gt;value(<a class="code" href="class_x_magnet_p_s.html#r25">m_magnetFieldRecorded</a>);
+<a name="l00095"></a>00095     <a class="code" href="class_x_magnet_p_s.html#r1">m_current</a>-&gt;value(<a class="code" href="class_x_magnet_p_s.html#r26">m_outputCurrentRecorded</a>);
+<a name="l00096"></a>00096 }
+<a name="l00097"></a>00097 <span class="keywordtype">void</span>
+<a name="l00098"></a><a class="code" href="class_x_magnet_p_s.html#b4">00098</a> <a class="code" href="class_x_magnet_p_s.html#b4">XMagnetPS::visualize</a>()
+<a name="l00099"></a>00099 {
+<a name="l00102"></a>00102 }
+<a name="l00103"></a>00103 
+<a name="l00104"></a>00104 <span class="keywordtype">void</span>
+<a name="l00105"></a><a class="code" href="class_x_magnet_p_s.html#d0">00105</a> <a class="code" href="class_x_magnet_p_s.html#d0">XMagnetPS::onRateChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
+<a name="l00106"></a>00106 {
+<a name="l00107"></a>00107     <span class="keywordflow">try</span> {
+<a name="l00108"></a>00108         setRate(*<a class="code" href="class_x_magnet_p_s.html#b8">sweepRate</a>());
+<a name="l00109"></a>00109     }
+<a name="l00110"></a>00110     <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
+<a name="l00111"></a>00111           e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(<a class="code" href="class_x_node.html#a7">getLabel</a>() + <span class="stringliteral">"; "</span>);
+<a name="l00112"></a>00112     }
+<a name="l00113"></a>00113 }
+<a name="l00114"></a>00114 
+<a name="l00115"></a>00115 <span class="keywordtype">void</span> *
+<a name="l00116"></a><a class="code" href="class_x_magnet_p_s.html#d1">00116</a> <a class="code" href="class_x_magnet_p_s.html#d1">XMagnetPS::execute</a>(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;terminated)
+<a name="l00117"></a>00117 {   
+<a name="l00118"></a>00118   <span class="keywordtype">double</span> havg = 0.0;
+<a name="l00119"></a>00119   <span class="keywordtype">double</span> dhavg = 0.0;
+<a name="l00120"></a>00120   <span class="keywordtype">double</span> lasth = 0.0;
+<a name="l00121"></a>00121   <a class="code" href="class_x_time.html">XTime</a> lasttime = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
+<a name="l00122"></a>00122   <span class="keyword">const</span> <span class="keywordtype">double</span> pcsh_stab_period = 30.0;
+<a name="l00123"></a>00123   <a class="code" href="class_x_time.html">XTime</a> pcsh_time = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
+<a name="l00124"></a>00124   pcsh_time -= pcsh_stab_period;
+<a name="l00125"></a>00125   <span class="keywordtype">double</span> field_resolution;
+<a name="l00126"></a>00126   <span class="keywordtype">bool</span> is_pcs_fitted;
+<a name="l00127"></a>00127   <span class="keywordtype">bool</span> last_pcsh;
+<a name="l00128"></a>00128   
+<a name="l00129"></a>00129   <span class="keywordflow">try</span> {
+<a name="l00130"></a>00130     afterStart();
+<a name="l00131"></a>00131     field_resolution = fieldResolution();
+<a name="l00132"></a>00132     is_pcs_fitted = <a class="code" href="class_x_magnet_p_s.html#b33">isPCSFitted</a>();
+<a name="l00133"></a>00133     <a class="code" href="class_x_magnet_p_s.html#b8">sweepRate</a>()-&gt;value(getSweepRate());
+<a name="l00134"></a>00134     <a class="code" href="class_x_magnet_p_s.html#b7">targetField</a>()-&gt;value(getTargetField());
+<a name="l00135"></a>00135     last_pcsh = <a class="code" href="class_x_magnet_p_s.html#b32">isPCSHeaterOn</a>();
+<a name="l00136"></a>00136   }
+<a name="l00137"></a>00137   <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a>&amp;e) {
+<a name="l00138"></a>00138     e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(<a class="code" href="class_x_node.html#a7">getLabel</a>());
+<a name="l00139"></a>00139     <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;close();
+<a name="l00140"></a>00140     <span class="keywordflow">return</span> NULL;
+<a name="l00141"></a>00141   }
+<a name="l00142"></a>00142 
+<a name="l00143"></a>00143   <span class="keywordflow">if</span>(is_pcs_fitted ) <a class="code" href="class_x_magnet_p_s.html#b9">allowPersistent</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00144"></a>00144   <a class="code" href="class_x_magnet_p_s.html#r12">m_lsnRate</a> = <a class="code" href="class_x_magnet_p_s.html#b8">sweepRate</a>()-&gt;onValueChanged().connectWeak(
+<a name="l00145"></a>00145                         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_magnet_p_s.html#d0">XMagnetPS::onRateChanged</a>);
+<a name="l00146"></a>00146   
+<a name="l00147"></a>00147   <a class="code" href="class_x_magnet_p_s.html#b7">targetField</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00148"></a>00148   <a class="code" href="class_x_magnet_p_s.html#b8">sweepRate</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00149"></a>00149   
+<a name="l00150"></a>00150     <span class="keywordflow">while</span>(!terminated)
+<a name="l00151"></a>00151     {
+<a name="l00152"></a>00152       msecsleep(10);
+<a name="l00153"></a>00153       <span class="keywordtype">double</span> magnet_field;
+<a name="l00154"></a>00154       <span class="keywordtype">double</span> output_field;
+<a name="l00155"></a>00155       <span class="keywordtype">double</span> output_current;
+<a name="l00156"></a>00156       <span class="keywordtype">double</span> output_volt;
+<a name="l00157"></a>00157       <span class="keywordtype">double</span> target_field;
+<a name="l00158"></a>00158       <span class="keywordtype">bool</span> pcs_heater = <span class="keyword">true</span>;
+<a name="l00159"></a>00159       <span class="keywordtype">bool</span> pcsh_stable = <span class="keyword">false</span>;
+<a name="l00160"></a>00160       
+<a name="l00161"></a>00161       <span class="comment">// try/catch exception of communication errors</span>
+<a name="l00162"></a>00162       <span class="keywordflow">try</span> {
+<a name="l00163"></a>00163           magnet_field = getMagnetField();
+<a name="l00164"></a>00164           output_field = getOutputField();
+<a name="l00165"></a>00165           output_current = getOutputCurrent();
+<a name="l00166"></a>00166           output_volt = getOutputVolt();
+<a name="l00167"></a>00167           target_field = getTargetField();
+<a name="l00168"></a>00168           <span class="keywordflow">if</span>(is_pcs_fitted) {
+<a name="l00169"></a>00169               pcs_heater = <a class="code" href="class_x_magnet_p_s.html#b32">isPCSHeaterOn</a>();
+<a name="l00170"></a>00170               <span class="keywordflow">if</span>(pcs_heater != last_pcsh)
+<a name="l00171"></a>00171                      pcsh_time = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
+<a name="l00172"></a>00172               last_pcsh = pcs_heater;
+<a name="l00173"></a>00173               pcsh_stable = (<a class="code" href="class_x_time.html#e0">XTime::now</a>() - pcsh_time &gt; pcsh_stab_period);
+<a name="l00174"></a>00174           }
+<a name="l00175"></a>00175       }
+<a name="l00176"></a>00176       <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
+<a name="l00177"></a>00177           e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(<a class="code" href="class_x_node.html#a7">getLabel</a>() + <span class="stringliteral">"; "</span>);
+<a name="l00178"></a>00178           <span class="keywordflow">continue</span>;
+<a name="l00179"></a>00179       }
+<a name="l00180"></a>00180       <a class="code" href="class_x_primary_driver.html#b2">clearRaw</a>();
+<a name="l00181"></a>00181       push((<span class="keywordtype">float</span>)magnet_field);
+<a name="l00182"></a>00182       push((<span class="keywordtype">float</span>)output_current);
+<a name="l00183"></a>00183  
+<a name="l00184"></a>00184       <a class="code" href="class_x_primary_driver.html#b3">finishWritingRaw</a>(<a class="code" href="class_x_time.html#e0">XTime::now</a>(), <a class="code" href="class_x_time.html#e0">XTime::now</a>());
+<a name="l00185"></a>00185       
+<a name="l00186"></a>00186       <a class="code" href="class_x_magnet_p_s.html#b11">magnetField</a>()-&gt;value(magnet_field);
+<a name="l00187"></a>00187       <a class="code" href="class_x_magnet_p_s.html#b12">outputField</a>()-&gt;value(output_field);
+<a name="l00188"></a>00188       <a class="code" href="class_x_magnet_p_s.html#b13">outputCurrent</a>()-&gt;value(output_current);
+<a name="l00189"></a>00189       <a class="code" href="class_x_magnet_p_s.html#b14">outputVolt</a>()-&gt;value(output_volt);
+<a name="l00190"></a>00190       <a class="code" href="class_x_magnet_p_s.html#b15">pcsHeater</a>()-&gt;value(pcs_heater &amp;&amp; is_pcs_fitted);
+<a name="l00191"></a>00191 
+<a name="l00192"></a>00192       <a class="code" href="class_x_magnet_p_s.html#b16">persistent</a>()-&gt;value(!pcs_heater &amp;&amp; pcsh_stable &amp;&amp; is_pcs_fitted);
+<a name="l00193"></a>00193 
+<a name="l00194"></a>00194       <span class="comment">//calicurate std. deviations in some periods</span>
+<a name="l00195"></a>00195       <a class="code" href="class_x_time.html">XTime</a> newtime = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
+<a name="l00196"></a>00196       <span class="keywordtype">double</span> dt = fabs(newtime - lasttime);
+<a name="l00197"></a>00197       lasttime = newtime;
+<a name="l00198"></a>00198       havg = (havg - magnet_field) * exp(-dt / 3.0) + magnet_field;
+<a name="l00199"></a>00199       <a class="code" href="class_x_magnet_p_s.html#b10">stabilized</a>()-&gt;value(fabs(havg - *<a class="code" href="class_x_magnet_p_s.html#b7">targetField</a>())); <span class="comment">//stderr</span>
+<a name="l00200"></a>00200       
+<a name="l00201"></a>00201       <span class="keywordtype">double</span> dhdt = (magnet_field - lasth) / dt;
+<a name="l00202"></a>00202       lasth = magnet_field;
+<a name="l00203"></a>00203       dhavg = (dhavg - dhdt) * exp(-dt / 3.0) + dhdt;
+<a name="l00204"></a>00204       
+<a name="l00205"></a>00205       <span class="keywordflow">try</span> {
+<a name="l00206"></a>00206           <span class="keywordflow">if</span>(is_pcs_fitted)
+<a name="l00207"></a>00207             {
+<a name="l00208"></a>00208               <span class="keywordflow">if</span>(pcs_heater) {
+<a name="l00209"></a>00209                 <span class="comment">//pcs heater is on</span>
+<a name="l00210"></a>00210                     <span class="keywordflow">if</span>(fabs(target_field - *<a class="code" href="class_x_magnet_p_s.html#b7">targetField</a>()) &gt;= field_resolution) {
+<a name="l00211"></a>00211                         <span class="keywordflow">if</span>(pcsh_stable) {
+<a name="l00212"></a>00212                             setPoint(*<a class="code" href="class_x_magnet_p_s.html#b7">targetField</a>());
+<a name="l00213"></a>00213                             toSetPoint();    
+<a name="l00214"></a>00214                         }
+<a name="l00215"></a>00215                     }
+<a name="l00216"></a>00216                     <span class="keywordflow">else</span> {
+<a name="l00217"></a>00217                         <span class="keywordflow">if</span>((fabs(dhavg) &lt; field_resolution / 10) &amp;&amp; 
+<a name="l00218"></a>00218                         (fabs(magnet_field - target_field) &lt; field_resolution) &amp;&amp;
+<a name="l00219"></a>00219                          *<a class="code" href="class_x_magnet_p_s.html#b9">allowPersistent</a>() )
+<a name="l00220"></a>00220                         {
+<a name="l00221"></a>00221                         <span class="comment">//field is not sweeping, and persistent is allowed</span>
+<a name="l00222"></a>00222                               <a class="code" href="class_x_magnet_p_s.html#r24">m_statusPrinter</a>-&gt;printMessage(<a class="code" href="class_x_node.html#a7">getLabel</a>() + <span class="stringliteral">" "</span> + 
+<a name="l00223"></a>00223                                     <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Turning on Perisistent mode."</span>));
+<a name="l00224"></a>00224                               pcsh_time = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
+<a name="l00225"></a>00225                               toPersistent();
+<a name="l00226"></a>00226                         }
+<a name="l00227"></a>00227                     }
+<a name="l00228"></a>00228               }
+<a name="l00229"></a>00229               <span class="keywordflow">else</span> {
+<a name="l00230"></a>00230                 <span class="comment">//pcs heater if off</span>
+<a name="l00231"></a>00231                   <span class="keywordflow">if</span>(fabs(magnet_field - *<a class="code" href="class_x_magnet_p_s.html#b7">targetField</a>()) &gt;= field_resolution) {
+<a name="l00232"></a>00232                     <span class="comment">//start sweeping.</span>
 <a name="l00233"></a>00233                       <span class="keywordflow">if</span>(fabs(magnet_field - output_field) &lt; field_resolution) {
 <a name="l00234"></a>00234                             <span class="keywordflow">if</span>(fabs(target_field  - magnet_field) &lt; field_resolution) {
-<a name="l00235"></a>00235                                   <a class="code" href="class_x_magnet_p_s.html#r24">m_statusPrinter</a>-&gt;printMessage(<a class="code" href="class_x_node.html#a6">getName</a>() + <span class="stringliteral">" "</span> + 
-<a name="l00236"></a>00236                                         i18n(<span class="stringliteral">"Non-Perisistent mode."</span>));
-<a name="l00237"></a>00237                                   <span class="keywordtype">double</span> h = getPersistentField();
-<a name="l00238"></a>00238                                   <span class="keywordflow">if</span>(fabs(h - output_field) &gt; field_resolution)
-<a name="l00239"></a>00239                                         <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterface::XInterfaceError</a>(<a class="code" href="class_x_node.html#a6">getName</a>() + 
-<a name="l00240"></a>00240                                             i18n(<span class="stringliteral">"Huh? Magnet field confusing."</span>), __FILE__, __LINE__); 
-<a name="l00241"></a>00241                                   pcsh_time = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
-<a name="l00242"></a>00242                                   toNonPersistent();
-<a name="l00243"></a>00243                             }
-<a name="l00244"></a>00244                       }
-<a name="l00245"></a>00245                       <span class="keywordflow">else</span> {
-<a name="l00246"></a>00246                             <span class="keywordflow">if</span>(pcsh_stable) {
-<a name="l00247"></a>00247                                 <span class="keywordflow">if</span>(fabs(target_field  - magnet_field) &gt;= field_resolution) {
-<a name="l00248"></a>00248                                     setPoint(magnet_field);
-<a name="l00249"></a>00249                                 }
-<a name="l00250"></a>00250                                 toSetPoint();  
-<a name="l00251"></a>00251                             }
-<a name="l00252"></a>00252                       }
-<a name="l00253"></a>00253                   }
-<a name="l00254"></a>00254                   <span class="keywordflow">else</span> {
-<a name="l00255"></a>00255                       <span class="keywordflow">if</span>(pcsh_stable) {
-<a name="l00256"></a>00256                             toZero();
-<a name="l00257"></a>00257                       }
-<a name="l00258"></a>00258                   }
-<a name="l00259"></a>00259                }
-<a name="l00260"></a>00260             }
-<a name="l00261"></a>00261             <span class="keywordflow">else</span> {
-<a name="l00262"></a>00262                 <span class="comment">// pcsh is not fitted.</span>
-<a name="l00263"></a>00263                     <span class="keywordflow">if</span>(fabs(target_field - *<a class="code" href="class_x_magnet_p_s.html#b7">targetField</a>()) &gt;= field_resolution) {                
-<a name="l00264"></a>00264                         setPoint(*<a class="code" href="class_x_magnet_p_s.html#b7">targetField</a>());
-<a name="l00265"></a>00265                         toSetPoint();
-<a name="l00266"></a>00266                     }
-<a name="l00267"></a>00267             }
-<a name="l00268"></a>00268       }
-<a name="l00269"></a>00269       <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
-<a name="l00270"></a>00270         e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(<a class="code" href="class_x_node.html#a6">getName</a>());
-<a name="l00271"></a>00271       }
-<a name="l00272"></a>00272    }
-<a name="l00273"></a>00273  
-<a name="l00274"></a>00274   <a class="code" href="class_x_magnet_p_s.html#r12">m_lsnRate</a>.reset();
-<a name="l00275"></a>00275   <a class="code" href="class_x_magnet_p_s.html#b7">targetField</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00276"></a>00276   <a class="code" href="class_x_magnet_p_s.html#b8">sweepRate</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00277"></a>00277   <a class="code" href="class_x_magnet_p_s.html#b9">allowPersistent</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00278"></a>00278       
-<a name="l00279"></a>00279   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;close();
-<a name="l00280"></a>00280   <span class="keywordflow">return</span> NULL;
-<a name="l00281"></a>00281 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:22 2006に生成されました。&nbsp;
+<a name="l00235"></a>00235                             <span class="comment">//ready to go non-persistent.</span>
+<a name="l00236"></a>00236                                   <a class="code" href="class_x_magnet_p_s.html#r24">m_statusPrinter</a>-&gt;printMessage(<a class="code" href="class_x_node.html#a7">getLabel</a>() + <span class="stringliteral">" "</span> + 
+<a name="l00237"></a>00237                                         <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Non-Perisistent mode."</span>));
+<a name="l00238"></a>00238                                   <span class="keywordtype">double</span> h = getPersistentField();
+<a name="l00239"></a>00239                                   <span class="keywordflow">if</span>(fabs(h - output_field) &gt; field_resolution)
+<a name="l00240"></a>00240                                         <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterface::XInterfaceError</a>(<a class="code" href="class_x_node.html#a7">getLabel</a>() + 
+<a name="l00241"></a>00241                                             <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Huh? Magnet field confusing."</span>), __FILE__, __LINE__);
+<a name="l00242"></a>00242                                   pcsh_time = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
+<a name="l00243"></a>00243                                   toNonPersistent();
+<a name="l00244"></a>00244                             }
+<a name="l00245"></a>00245                       }
+<a name="l00246"></a>00246                       <span class="keywordflow">else</span> {
+<a name="l00247"></a>00247                         <span class="comment">//set output to persistent field.</span>
+<a name="l00248"></a>00248                             <span class="keywordflow">if</span>(pcsh_stable) {
+<a name="l00249"></a>00249                                 <span class="keywordflow">if</span>(target_field != magnet_field)
+<a name="l00250"></a>00250                                     setPoint(magnet_field);
+<a name="l00251"></a>00251                                 toSetPoint();  
+<a name="l00252"></a>00252                             }
+<a name="l00253"></a>00253                       }
+<a name="l00254"></a>00254                   }
+<a name="l00255"></a>00255                   <span class="keywordflow">else</span> {
+<a name="l00256"></a>00256                       <span class="keywordflow">if</span>(pcsh_stable) {
+<a name="l00257"></a>00257                             toZero();
+<a name="l00258"></a>00258                       }
+<a name="l00259"></a>00259                   }
+<a name="l00260"></a>00260                }
+<a name="l00261"></a>00261             }
+<a name="l00262"></a>00262             <span class="keywordflow">else</span> {
+<a name="l00263"></a>00263                 <span class="comment">// pcsh is not fitted.</span>
+<a name="l00264"></a>00264                     <span class="keywordflow">if</span>(fabs(target_field - *<a class="code" href="class_x_magnet_p_s.html#b7">targetField</a>()) &gt;= field_resolution) {                
+<a name="l00265"></a>00265                         setPoint(*<a class="code" href="class_x_magnet_p_s.html#b7">targetField</a>());
+<a name="l00266"></a>00266                         toSetPoint();
+<a name="l00267"></a>00267                     }
+<a name="l00268"></a>00268             }
+<a name="l00269"></a>00269       }
+<a name="l00270"></a>00270       <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
+<a name="l00271"></a>00271         e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(<a class="code" href="class_x_node.html#a7">getLabel</a>());
+<a name="l00272"></a>00272       }
+<a name="l00273"></a>00273    }
+<a name="l00274"></a>00274  
+<a name="l00275"></a>00275   <a class="code" href="class_x_magnet_p_s.html#r12">m_lsnRate</a>.reset();
+<a name="l00276"></a>00276   <a class="code" href="class_x_magnet_p_s.html#b7">targetField</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00277"></a>00277   <a class="code" href="class_x_magnet_p_s.html#b8">sweepRate</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00278"></a>00278   <a class="code" href="class_x_magnet_p_s.html#b9">allowPersistent</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00279"></a>00279       
+<a name="l00280"></a>00280   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;close();
+<a name="l00281"></a>00281   <span class="keywordflow">return</span> NULL;
+<a name="l00282"></a>00282 }
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:17 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

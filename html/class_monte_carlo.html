@@ -1,0 +1,794 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: クラス MonteCarlo</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<h1>クラス MonteCarlo</h1><!-- doxytag: class=<MonteCarlo> -->MonteCarloのコラボレーション図<p><center><img src="class_monte_carlo__coll__graph.png" border="0" usemap="#_monte_carlo__coll__map" alt="Collaboration graph"></center>
+<map name="_monte_carlo__coll__map">
+<area href="classatomic.html" shape="rect" coords="7,85,106,112" alt="">
+<area href="struct_monte_carlo_1_1_vector3.html" shape="rect" coords="250,85,455,112" alt="">
+<area href="classatomic.html" shape="rect" coords="479,85,589,112" alt="">
+<area href="class_x_condition.html" shape="rect" coords="645,85,733,112" alt="">
+<area href="class_x_mutex.html" shape="rect" coords="655,8,722,34" alt="">
+</map>
+<center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_monte_carlo-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
+<tr><td></td></tr>
+<tr><td colspan="2"><br><h2>Public メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a0"></a><!-- doxytag: member=<MonteCarlo::MonteCarlo> ref=<a0> args=<(int num_threads)> -->
+&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#a0">MonteCarlo</a> (int num_threads)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a1"></a><!-- doxytag: member=<MonteCarlo::~MonteCarlo> ref=<a1> args=<()> -->
+&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#a1">~MonteCarlo</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#a2">exec</a> (double temp, <a class="el" href="struct_monte_carlo_1_1_vector3.html">Vector3</a>&lt; double &gt; field, int *flips, long double *tests, double *DUav, <a class="el" href="struct_monte_carlo_1_1_vector3.html">Vector3</a>&lt; double &gt; *Mav)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a3"></a><!-- doxytag: member=<MonteCarlo::randomize> ref=<a3> args=<()> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#a3">randomize</a> ()</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">randomize spins <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a4"></a><!-- doxytag: member=<MonteCarlo::magnetization> ref=<a4> args=<()> -->
+<a class="el" href="struct_monte_carlo_1_1_vector3.html">Vector3</a>&lt; double &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#a4">magnetization</a> ()</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">[mu_B/A site] <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a5"></a><!-- doxytag: member=<MonteCarlo::siteMagnetization> ref=<a5> args=<()> -->
+<a class="el" href="struct_monte_carlo_1_1_quartet.html">Quartet</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#a5">siteMagnetization</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a6"></a><!-- doxytag: member=<MonteCarlo::internalEnergy> ref=<a6> args=<()> -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#a6">internalEnergy</a> ()</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">internal energy U [J/A site] <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a7"></a><!-- doxytag: member=<MonteCarlo::read> ref=<a7> args=<(std::istream &amp;)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#a7">read</a> (std::istream &amp;)</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">read snapshot. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a8"></a><!-- doxytag: member=<MonteCarlo::read> ref=<a8> args=<(const char *spins, double temp, Vector3&lt; double &gt; field)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#a8">read</a> (const char *spins, double temp, <a class="el" href="struct_monte_carlo_1_1_vector3.html">Vector3</a>&lt; double &gt; field)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a9"></a><!-- doxytag: member=<MonteCarlo::write> ref=<a9> args=<(std::ostream &amp;)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#a9">write</a> (std::ostream &amp;)</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">write snapshot. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a10"></a><!-- doxytag: member=<MonteCarlo::write> ref=<a10> args=<(char *spins, double *fields=0, double *probabilities=0)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#a10">write</a> (char *spins, double *fields=0, double *probabilities=0)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a11"></a><!-- doxytag: member=<MonteCarlo::write_bsite> ref=<a11> args=<(Vector3&lt; double &gt; *fields)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#a11">write_bsite</a> (<a class="el" href="struct_monte_carlo_1_1_vector3.html">Vector3</a>&lt; double &gt; *fields)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a12"></a><!-- doxytag: member=<MonteCarlo::write_8asite> ref=<a12> args=<(Vector3&lt; double &gt; *fields)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#a12">write_8asite</a> (<a class="el" href="struct_monte_carlo_1_1_vector3.html">Vector3</a>&lt; double &gt; *fields)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a13"></a><!-- doxytag: member=<MonteCarlo::write_48fsite> ref=<a13> args=<(Vector3&lt; double &gt; *fields)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#a13">write_48fsite</a> (<a class="el" href="struct_monte_carlo_1_1_vector3.html">Vector3</a>&lt; double &gt; *fields)</td></tr>
+
+<tr><td colspan="2"><br><h2>Static Public メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">static int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#e0">setupField</a> (int size, double dfactor, double cutoff_real, double cutoff_rec, double alpha)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="e1"></a><!-- doxytag: member=<MonteCarlo::length> ref=<e1> args=<()> -->
+static int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#e1">length</a> ()</td></tr>
+
+<tr><td colspan="2"><br><h2>Static Public 変数</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="s0"></a><!-- doxytag: member=<MonteCarlo::s_bAborting> ref=<s0> args=<> -->
+static volatile bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#s0">s_bAborting</a> = false</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">true if user interrupts. <br></td></tr>
+<tr><td colspan="2"><br><h2>Private 型</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="y0"></a><!-- doxytag: member=<MonteCarlo::VectorInt> ref=<y0> args=<> -->
+typedef <a class="el" href="struct_monte_carlo_1_1_vector3.html">Vector3</a>&lt; int &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#y0">VectorInt</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="y1"></a><!-- doxytag: member=<MonteCarlo::Spin> ref=<y1> args=<> -->
+typedef float&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#y1">Spin</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">typedef std::vector&lt; <a class="el" href="class_monte_carlo.html#y1">Spin</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#y2">FieldRealArray</a></td></tr>
+
+<tr><td colspan="2"><br><h2>Private メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d0"></a><!-- doxytag: member=<MonteCarlo::execute> ref=<d0> args=<()> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#d0">execute</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">long double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#d1">accelFlipping</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#d2">doTests</a> (int *flips, long double tests)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d3"></a><!-- doxytag: member=<MonteCarlo::flipSpin> ref=<d3> args=<(int site, int lidx, double du, long double tests_after_check)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#d3">flipSpin</a> (int site, int lidx, double du, long double tests_after_check)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d4"></a><!-- doxytag: member=<MonteCarlo::flippingProbability> ref=<d4> args=<(int site, int lidx, double field, double *du)> -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#d4">flippingProbability</a> (int site, int lidx, double field, double *du)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d5"></a><!-- doxytag: member=<MonteCarlo::readSpin> ref=<d5> args=<(int site, int sidx)> -->
+<a class="el" href="class_monte_carlo.html#y1">Spin</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#d5">readSpin</a> (int site, int sidx)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d6"></a><!-- doxytag: member=<MonteCarlo::writeSpin> ref=<d6> args=<(Spin v, int site, int sidx)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#d6">writeSpin</a> (<a class="el" href="class_monte_carlo.html#y1">Spin</a> v, int site, int sidx)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d7"></a><!-- doxytag: member=<MonteCarlo::makeReciprocalImage> ref=<d7> args=<()> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#d7">makeReciprocalImage</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#d8">modifyReciprocalImage</a> (<a class="el" href="class_monte_carlo.html#y1">Spin</a> diff, int site, int i, int j, int k)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d9"></a><!-- doxytag: member=<MonteCarlo::hinteraction> ref=<d9> args=<(int site, int lidx)> -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#d9">hinteraction</a> (int site, int lidx)</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">internal field from surrounding spins along ising axis [T]. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d10"></a><!-- doxytag: member=<MonteCarlo::hinteraction_miscache> ref=<d10> args=<(int sec_cache_miss_cnt, int site, int lidx)> -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#d10">hinteraction_miscache</a> (int sec_cache_miss_cnt, int site, int lidx)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d11"></a><!-- doxytag: member=<MonteCarlo::iterate_interactions> ref=<d11> args=<(int site1, int lidx, int site2)> -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#d11">iterate_interactions</a> (int site1, int lidx, int site2)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d12"></a><!-- doxytag: member=<MonteCarlo::iterate_real_generic> ref=<d12> args=<(const FieldRealArray[16][3], int i, int j, int k)> -->
+<a class="el" href="struct_monte_carlo_1_1_vector3.html">Vector3</a>&lt; double &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#d12">iterate_real_generic</a> (const <a class="el" href="class_monte_carlo.html#y2">FieldRealArray</a>[16][3], int i, int j, int k)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d13"></a><!-- doxytag: member=<MonteCarlo::iterate_real_redirected> ref=<d13> args=<(int cnt, const FieldRealArray &amp;, int i, int j, int k, int site2)> -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#d13">iterate_real_redirected</a> (int cnt, const <a class="el" href="class_monte_carlo.html#y2">FieldRealArray</a> &amp;, int i, int j, int k, int site2)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d14"></a><!-- doxytag: member=<MonteCarlo::iterate_real> ref=<d14> args=<(int site1, int i, int j, int k, int site2)> -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#d14">iterate_real</a> (int site1, int i, int j, int k, int site2)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d15"></a><!-- doxytag: member=<MonteCarlo::iterate_rec_generic> ref=<d15> args=<(Vector3&lt; double &gt; pos1, int i, int j, int k)> -->
+<a class="el" href="struct_monte_carlo_1_1_vector3.html">Vector3</a>&lt; double &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#d15">iterate_rec_generic</a> (<a class="el" href="struct_monte_carlo_1_1_vector3.html">Vector3</a>&lt; double &gt; pos1, int i, int j, int k)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d16"></a><!-- doxytag: member=<MonteCarlo::iterate_rec_generic> ref=<d16> args=<(Vector3&lt; double &gt; pos1, int i, int j, int k, int site2)> -->
+<a class="el" href="struct_monte_carlo_1_1_vector3.html">Vector3</a>&lt; double &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#d16">iterate_rec_generic</a> (<a class="el" href="struct_monte_carlo_1_1_vector3.html">Vector3</a>&lt; double &gt; pos1, int i, int j, int k, int site2)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d17"></a><!-- doxytag: member=<MonteCarlo::iterate_rec_redirected> ref=<d17> args=<(int cutoff, int site1, int i, int j, int k, int site2)> -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#d17">iterate_rec_redirected</a> (int cutoff, int site1, int i, int j, int k, int site2)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d18"></a><!-- doxytag: member=<MonteCarlo::iterate_rec> ref=<d18> args=<(int site1, int i, int j, int k, int site2)> -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#d18">iterate_rec</a> (int site1, int i, int j, int k, int site2)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d19"></a><!-- doxytag: member=<MonteCarlo::takeThermalAverage> ref=<d19> args=<(long double tests_after_check)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#d19">takeThermalAverage</a> (long double tests_after_check)</td></tr>
+
+<tr><td colspan="2"><br><h2>Static Private メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="h0"></a><!-- doxytag: member=<MonteCarlo::distance> ref=<h0> args=<(int site1, int site2, int di, int dj, int dk)> -->
+static <a class="el" href="struct_monte_carlo_1_1_vector3.html">VectorInt</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#h0">distance</a> (int site1, int site2, int di, int dj, int dk)</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">unit is 1/4 lattice const. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">static int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#h1">dipoleFieldReal</a> (<a class="el" href="struct_monte_carlo_1_1_vector3.html">VectorInt</a> dist_times_4, int site2, <a class="el" href="struct_monte_carlo_1_1_vector3.html">Vector3</a>&lt; double &gt; *ret)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="h2"></a><!-- doxytag: member=<MonteCarlo::dipoleFieldRec> ref=<h2> args=<(VectorInt k, int site2, Vector3&lt; double &gt; *ret)> -->
+static int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#h2">dipoleFieldRec</a> (<a class="el" href="struct_monte_carlo_1_1_vector3.html">VectorInt</a> k, int site2, <a class="el" href="struct_monte_carlo_1_1_vector3.html">Vector3</a>&lt; double &gt; *ret)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="h3"></a><!-- doxytag: member=<MonteCarlo::lattice_index> ref=<h3> args=<(int i, int j, int k)> -->
+static int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#h3">lattice_index</a> (int i, int j, int k)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="h4"></a><!-- doxytag: member=<MonteCarlo::addFieldsReal> ref=<h4> args=<(MonteCarlo::Spin v, FieldRealArray &amp;array, int di, int dj, int dk)> -->
+static void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#h4">addFieldsReal</a> (<a class="el" href="class_monte_carlo.html#y1">MonteCarlo::Spin</a> v, <a class="el" href="class_monte_carlo.html#y2">FieldRealArray</a> &amp;array, int di, int dj, int dk)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="h5"></a><!-- doxytag: member=<MonteCarlo::reciprocal_index> ref=<h5> args=<(int kx, int ky, int kz)> -->
+static int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#h5">reciprocal_index</a> (int kx, int ky, int kz)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="h6"></a><!-- doxytag: member=<MonteCarlo::spins_real_index> ref=<h6> args=<(int i, int j, int k)> -->
+static int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#h6">spins_real_index</a> (int i, int j, int k)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="h7"></a><!-- doxytag: member=<MonteCarlo::spins_real_index> ref=<h7> args=<(int lidx)> -->
+static int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#h7">spins_real_index</a> (int lidx)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="h8"></a><!-- doxytag: member=<MonteCarlo::xthread_start_routine> ref=<h8> args=<(void *)> -->
+static void *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#h8">xthread_start_routine</a> (void *)</td></tr>
+
+<tr><td colspan="2"><br><h2>Private 変数</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r0"></a><!-- doxytag: member=<MonteCarlo::m_bTerminated> ref=<r0> args=<> -->
+volatile bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r0">m_bTerminated</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">thread pool. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r1"></a><!-- doxytag: member=<MonteCarlo::m_thread_pool_cond> ref=<r1> args=<> -->
+<a class="el" href="class_x_condition.html">XCondition</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r1">m_thread_pool_cond</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r2"></a><!-- doxytag: member=<MonteCarlo::m_hint_site2_last_cond> ref=<r2> args=<> -->
+<a class="el" href="class_x_condition.html">XCondition</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r2">m_hint_site2_last_cond</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r3"></a><!-- doxytag: member=<MonteCarlo::m_hint_site2_left> ref=<r3> args=<> -->
+<a class="el" href="classatomic.html">atomic</a>&lt; int &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r3">m_hint_site2_left</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">target spin for concurrent calc. of interactions. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r4"></a><!-- doxytag: member=<MonteCarlo::m_hint_site2_not_done> ref=<r4> args=<> -->
+<a class="el" href="classatomic.html">atomic</a>&lt; int &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r4">m_hint_site2_not_done</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">target spin for concurrent calc. of interactions. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r5"></a><!-- doxytag: member=<MonteCarlo::m_hint_spin1_site> ref=<r5> args=<> -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r5">m_hint_spin1_site</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r6"></a><!-- doxytag: member=<MonteCarlo::m_hint_spin1_lattice_index> ref=<r6> args=<> -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r6">m_hint_spin1_lattice_index</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r7"></a><!-- doxytag: member=<MonteCarlo::m_hint_fields> ref=<r7> args=<[16]> -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r7">m_hint_fields</a> [16]</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">store calculated fields. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r8"></a><!-- doxytag: member=<MonteCarlo::m_hint_sec_cache_miss> ref=<r8> args=<[16]> -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r8">m_hint_sec_cache_miss</a> [16]</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r9"></a><!-- doxytag: member=<MonteCarlo::m_last_probability_buffer> ref=<r9> args=<> -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r9">m_last_probability_buffer</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r10"></a><!-- doxytag: member=<MonteCarlo::m_last_flipped_site> ref=<r10> args=<> -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r10">m_last_flipped_site</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r11"></a><!-- doxytag: member=<MonteCarlo::m_last_flipped_lattice_index> ref=<r11> args=<> -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r11">m_last_flipped_lattice_index</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r12"></a><!-- doxytag: member=<MonteCarlo::m_play_back_buffer> ref=<r12> args=<> -->
+bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r12">m_play_back_buffer</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r13"></a><!-- doxytag: member=<MonteCarlo::m_probability_buffers> ref=<r13> args=<[2][16]> -->
+std::vector&lt; double &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r13">m_probability_buffers</a> [2][16]</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">long&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r14">m_hinteractions_called</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r15"></a><!-- doxytag: member=<MonteCarlo::m_sec_cache_enabled> ref=<r15> args=<> -->
+bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r15">m_sec_cache_enabled</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r16"></a><!-- doxytag: member=<MonteCarlo::m_third_cache_enabled> ref=<r16> args=<> -->
+bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r16">m_third_cache_enabled</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r17"></a><!-- doxytag: member=<MonteCarlo::m_sec_cache_firsttime> ref=<r17> args=<> -->
+bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r17">m_sec_cache_firsttime</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r18"></a><!-- doxytag: member=<MonteCarlo::m_third_cache_firsttime> ref=<r18> args=<> -->
+bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r18">m_third_cache_firsttime</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r19"></a><!-- doxytag: member=<MonteCarlo::m_sec_cache_hit> ref=<r19> args=<> -->
+long&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r19">m_sec_cache_hit</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">total hittings to caches. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r20"></a><!-- doxytag: member=<MonteCarlo::m_third_cache_hit> ref=<r20> args=<> -->
+<a class="el" href="classatomic.html">atomic</a>&lt; long &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r20">m_third_cache_hit</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r21"></a><!-- doxytag: member=<MonteCarlo::m_field_pri_cached> ref=<r21> args=<[16]> -->
+std::vector&lt; double &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r21">m_field_pri_cached</a> [16]</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">cached interaction energy. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r22"></a><!-- doxytag: member=<MonteCarlo::m_field_pri_cached_sane> ref=<r22> args=<> -->
+std::vector&lt; unsigned short &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r22">m_field_pri_cached_sane</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">true if cached data is valid. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r23"></a><!-- doxytag: member=<MonteCarlo::m_field_sec_cached> ref=<r23> args=<[16][16]> -->
+std::vector&lt; double &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r23">m_field_sec_cached</a> [16][16]</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">cached interaction energy. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r24"></a><!-- doxytag: member=<MonteCarlo::m_field_sec_cached_sane> ref=<r24> args=<[16]> -->
+std::vector&lt; unsigned short &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r24">m_field_sec_cached_sane</a> [16]</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">true if cached data is valid. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r25"></a><!-- doxytag: member=<MonteCarlo::m_field_third_cached> ref=<r25> args=<[16][16]> -->
+std::vector&lt; double &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r25">m_field_third_cached</a> [16][16]</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">cached interaction energy. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r26"></a><!-- doxytag: member=<MonteCarlo::m_field_third_cached_sane> ref=<r26> args=<[16]> -->
+std::vector&lt; unsigned short &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r26">m_field_third_cached_sane</a> [16]</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">true if cached data is valid. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">std::vector&lt; <a class="el" href="class_monte_carlo.html#y1">Spin</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r27">m_spins_real</a> [16]</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r28"></a><!-- doxytag: member=<MonteCarlo::m_spins_rec> ref=<r28> args=<[16]> -->
+std::vector&lt; std::complex&lt;<br>
+ <a class="el" href="class_monte_carlo.html#y1">Spin</a> &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r28">m_spins_rec</a> [16]</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">For reciprocal space. with q-cutoff. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r29"></a><!-- doxytag: member=<MonteCarlo::m_beta> ref=<r29> args=<> -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r29">m_beta</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">temperature. 1/k_B T [1/J]. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r30"></a><!-- doxytag: member=<MonteCarlo::m_ext_field> ref=<r30> args=<[16]> -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r30">m_ext_field</a> [16]</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Along Ising direction [T]. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r31"></a><!-- doxytag: member=<MonteCarlo::m_DeltaU> ref=<r31> args=<> -->
+long double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r31">m_DeltaU</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Delta U [J]. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r32"></a><!-- doxytag: member=<MonteCarlo::m_SumDeltaU> ref=<r32> args=<> -->
+long double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r32">m_SumDeltaU</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Sum Delta U [J]. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r33"></a><!-- doxytag: member=<MonteCarlo::m_SumSpin> ref=<r33> args=<[16]> -->
+long double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r33">m_SumSpin</a> [16]</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Sum Spin Polarization. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r34"></a><!-- doxytag: member=<MonteCarlo::m_SumTests> ref=<r34> args=<> -->
+long double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r34">m_SumTests</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r35"></a><!-- doxytag: member=<MonteCarlo::m_threads> ref=<r35> args=<> -->
+std::deque&lt; pthread_t &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#r35">m_threads</a></td></tr>
+
+<tr><td colspan="2"><br><h2>Static Private 変数</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="v0"></a><!-- doxytag: member=<MonteCarlo::s_cutoff_real> ref=<v0> args=<> -->
+static int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#v0">s_cutoff_real</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">max interaction distance for real space. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="v1"></a><!-- doxytag: member=<MonteCarlo::s_cutoff_real_radius> ref=<v1> args=<> -->
+static double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#v1">s_cutoff_real_radius</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="v2"></a><!-- doxytag: member=<MonteCarlo::s_cutoff_rec> ref=<v2> args=<> -->
+static int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#v2">s_cutoff_rec</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">For reciprocal space. i.e. Ewald term. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="v3"></a><!-- doxytag: member=<MonteCarlo::s_cutoff_rec_radius> ref=<v3> args=<> -->
+static double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#v3">s_cutoff_rec_radius</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="v4"></a><!-- doxytag: member=<MonteCarlo::s_alpha> ref=<v4> args=<> -->
+static double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#v4">s_alpha</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Ewald convergence factor [1/m]. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="v5"></a><!-- doxytag: member=<MonteCarlo::s_dfactor> ref=<v5> args=<> -->
+static double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#v5">s_dfactor</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Demagnetization D factor. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="v6"></a><!-- doxytag: member=<MonteCarlo::s_fields_real> ref=<v6> args=<[16][16]> -->
+static <a class="el" href="class_monte_carlo.html#y2">FieldRealArray</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#v6">s_fields_real</a> [16][16]</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="v7"></a><!-- doxytag: member=<MonteCarlo::s_fields_real_B> ref=<v7> args=<[16][16][3]> -->
+static <a class="el" href="class_monte_carlo.html#y2">FieldRealArray</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#v7">s_fields_real_B</a> [16][16][3]</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="v8"></a><!-- doxytag: member=<MonteCarlo::s_fields_real_8a> ref=<v8> args=<[8][16][3]> -->
+static <a class="el" href="class_monte_carlo.html#y2">FieldRealArray</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#v8">s_fields_real_8a</a> [8][16][3]</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="v9"></a><!-- doxytag: member=<MonteCarlo::s_fields_real_48f> ref=<v9> args=<[48][16][3]> -->
+static <a class="el" href="class_monte_carlo.html#y2">FieldRealArray</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#v9">s_fields_real_48f</a> [48][16][3]</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="v10"></a><!-- doxytag: member=<MonteCarlo::s_fields_rec> ref=<v10> args=<[16][16]> -->
+static std::vector&lt; <a class="el" href="class_monte_carlo.html#y1">Spin</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#v10">s_fields_rec</a> [16][16]</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">For reciprocal space. i.e. Ewald term. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="v11"></a><!-- doxytag: member=<MonteCarlo::s_fields_rec_generic> ref=<v11> args=<[16]> -->
+static std::vector&lt; <a class="el" href="struct_monte_carlo_1_1_vector3.html">Vector3</a>&lt;<br>
+ <a class="el" href="class_monte_carlo.html#y1">Spin</a> &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#v11">s_fields_rec_generic</a> [16]</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="v12"></a><!-- doxytag: member=<MonteCarlo::s_fields_rec_sum> ref=<v12> args=<> -->
+static double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#v12">s_fields_rec_sum</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">For self-energy caclulation. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="v13"></a><!-- doxytag: member=<MonteCarlo::s_exp_ph> ref=<v13> args=<[16]> -->
+static std::vector&lt; std::complex&lt;<br>
+ <a class="el" href="class_monte_carlo.html#y1">MonteCarlo::Spin</a> &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#v13">s_exp_ph</a> [16]</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="v14"></a><!-- doxytag: member=<MonteCarlo::s_L> ref=<v14> args=<> -->
+static int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#v14">s_L</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">size of lattices <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="v15"></a><!-- doxytag: member=<MonteCarlo::s_num_spins> ref=<v15> args=<> -->
+static int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#v15">s_num_spins</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight"># of spins <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="v16"></a><!-- doxytag: member=<MonteCarlo::s_4r2_neighbor> ref=<v16> args=<> -->
+static std::vector&lt; int &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#v16">s_4r2_neighbor</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">4*r^2 to nth neighbor. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="v17"></a><!-- doxytag: member=<MonteCarlo::s_ASiteIsingVector> ref=<v17> args=<[16]> -->
+static <a class="el" href="struct_monte_carlo_1_1_vector3.html">Vector3</a>&lt; double &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_monte_carlo.html#v17">s_ASiteIsingVector</a> [16]</td></tr>
+
+<tr><td colspan="2"><br><h2>構成</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">struct &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_monte_carlo_1_1_quartet.html">Quartet</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">[mu_B/site]  <a href="struct_monte_carlo_1_1_quartet.html#_details">[詳細]</a><br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">struct &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_monte_carlo_1_1_vector3.html">Vector3</a></td></tr>
+
+</table>
+<hr><a name="_details"></a><h2>説明</h2>
+
+<p>
+
+<p>
+ <a class="el" href="montecarlo_8h-source.html">montecarlo.h</a> の <a class="el" href="montecarlo_8h-source.html#l00046">46</a> 行で定義されています。<hr><h2>型定義</h2>
+<a class="anchor" name="y2"></a><!-- doxytag: member=<MonteCarlo::FieldRealArray> ref=<y2> args=<> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">typedef std::vector&lt;<a class="el" href="class_monte_carlo.html#y1">Spin</a>&gt; <a class="el" href="class_monte_carlo.html#y2">MonteCarlo::FieldRealArray</a><code> [private]</code>          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+For real space calculations. Particle part. field along ising axis when spin is +1. index is given by distance_index() [T] 
+<p>
+ <a class="el" href="montecarlo_8h-source.html">montecarlo.h</a> の <a class="el" href="montecarlo_8h-source.html#l00275">275</a> 行で定義されています。    </td>
+  </tr>
+</table>
+<hr><h2>関数</h2>
+<a class="anchor" name="d1"></a><!-- doxytag: member=<MonteCarlo::accelFlipping> ref=<d1> args=<()> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">long double MonteCarlo::accelFlipping           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="mdname1" valign="top" nowrap>          </td>
+          <td class="md" valign="top">&nbsp;)&nbsp;</td>
+          <td class="md" nowrap><code> [private]</code></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+Accelerate flipping. <dl compact><dt><b>戻り値:</b></dt><dd>tests to flip. </dd></dl>
+
+<p>
+ <a class="el" href="montecarlo_8cpp-source.html">montecarlo.cpp</a> の <a class="el" href="montecarlo_8cpp-source.html#l00314">314</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="montecarlo_8h-source.html#l00440">distance()</a>, <a class="el" href="montecarlo_8cpp-source.html#l00301">flippingProbability()</a>, <a class="el" href="montecarlo_8cpp-source.html#l00641">flipSpin()</a>, <a class="el" href="montecarlo_8h-source.html#l00483">hinteraction()</a>, <a class="el" href="montecarlo_8h-source.html#l00193">m_last_flipped_lattice_index</a>, <a class="el" href="montecarlo_8h-source.html#l00192">m_last_flipped_site</a>, <a class="el" href="montecarlo_8h-source.html#l00191">m_last_probability_buffer</a>, <a class="el" href="montecarlo_8h-source.html#l00194">m_play_back_buffer</a>, <a class="el" href="montecarlo_8h-source.html#l00195">m_probability_buffers</a>, <a class="el" href="montecarlo_8h-source.html#l00202">m_sec_cache_enabled</a>, <a class="el" href="montecarlo_8cpp-source.html#l00042">s_4r2_neighbor</a>, <a class="el" href="montecarlo_8cpp-source.html#l00027">s_num_spins</a>, <a class="el" href="montecarlo_8h-source.html#l00058">MonteCarlo::Vector3&lt; T &gt;::x</a>, <a class="el" href="montecarlo_8h-source.html#l00058">MonteCarlo::Vector3&lt; T &gt;::y</a>, と <a class="el" href="montecarlo_8h-source.html#l00058">MonteCarlo::Vector3&lt; T &gt;::z</a>.
+<p>
+参照元 <a class="el" href="montecarlo_8cpp-source.html#l00456">doTests()</a>.    </td>
+  </tr>
+</table>
+<a class="anchor" name="h1"></a><!-- doxytag: member=<MonteCarlo::dipoleFieldReal> ref=<h1> args=<(VectorInt dist_times_4, int site2, Vector3&lt; double &gt; *ret)> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">int MonteCarlo::dipoleFieldReal           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="md" nowrap valign="top"><a class="el" href="struct_monte_carlo_1_1_vector3.html">VectorInt</a>&nbsp;</td>
+          <td class="mdname" nowrap> <em>dist_times_4</em>, </td>
+        </tr>
+        <tr>
+          <td class="md" nowrap align="right"></td>
+          <td class="md"></td>
+          <td class="md" nowrap>int&nbsp;</td>
+          <td class="mdname" nowrap> <em>site2</em>, </td>
+        </tr>
+        <tr>
+          <td class="md" nowrap align="right"></td>
+          <td class="md"></td>
+          <td class="md" nowrap><a class="el" href="struct_monte_carlo_1_1_vector3.html">Vector3</a>&lt; double &gt; *&nbsp;</td>
+          <td class="mdname" nowrap> <em>ret</em></td>
+        </tr>
+        <tr>
+          <td class="md"></td>
+          <td class="md">)&nbsp;</td>
+          <td class="md" colspan="2"><code> [static, private]</code></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+<dl compact><dt><b>戻り値:</b></dt><dd>true if included.</dd></dl>
+
+<p>
+ <a class="el" href="interaction_8cpp-source.html">interaction.cpp</a> の <a class="el" href="interaction_8cpp-source.html#l00031">31</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="montecarlo_8h-source.html#l00108">MonteCarlo::Vector3&lt; T &gt;::innerProduct()</a>, <a class="el" href="montecarlo_8cpp-source.html#l00028">s_alpha</a>, <a class="el" href="montecarlo_8cpp-source.html#l00021">s_ASiteIsingVector</a>, <a class="el" href="montecarlo_8cpp-source.html#l00031">s_cutoff_real_radius</a>, <a class="el" href="montecarlo_8h-source.html#l00058">MonteCarlo::Vector3&lt; T &gt;::x</a>, <a class="el" href="montecarlo_8h-source.html#l00058">MonteCarlo::Vector3&lt; T &gt;::y</a>, と <a class="el" href="montecarlo_8h-source.html#l00058">MonteCarlo::Vector3&lt; T &gt;::z</a>.
+<p>
+参照元 <a class="el" href="interaction_8cpp-source.html#l00087">setupField()</a>.    </td>
+  </tr>
+</table>
+<a class="anchor" name="d2"></a><!-- doxytag: member=<MonteCarlo::doTests> ref=<d2> args=<(int *flips, long double tests)> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">void MonteCarlo::doTests           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="md" nowrap valign="top">int *&nbsp;</td>
+          <td class="mdname" nowrap> <em>flips</em>, </td>
+        </tr>
+        <tr>
+          <td class="md" nowrap align="right"></td>
+          <td class="md"></td>
+          <td class="md" nowrap>long double&nbsp;</td>
+          <td class="mdname" nowrap> <em>tests</em></td>
+        </tr>
+        <tr>
+          <td class="md"></td>
+          <td class="md">)&nbsp;</td>
+          <td class="md" colspan="2"><code> [private]</code></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+many tests until fixed number of flipping is performed. <dl compact><dt><b>参照:</b></dt><dd><a class="el" href="class_monte_carlo.html#a2">exec()</a> </dd></dl>
+
+<p>
+ <a class="el" href="montecarlo_8cpp-source.html">montecarlo.cpp</a> の <a class="el" href="montecarlo_8cpp-source.html#l00456">456</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="montecarlo_8cpp-source.html#l00314">accelFlipping()</a>, <a class="el" href="montecarlo_8cpp-source.html#l00301">flippingProbability()</a>, <a class="el" href="montecarlo_8cpp-source.html#l00641">flipSpin()</a>, <a class="el" href="montecarlo_8h-source.html#l00483">hinteraction()</a>, <a class="el" href="montecarlo_8h-source.html#l00214">m_field_sec_cached_sane</a>, <a class="el" href="montecarlo_8h-source.html#l00218">m_field_third_cached_sane</a>, <a class="el" href="montecarlo_8h-source.html#l00201">m_hinteractions_called</a>, <a class="el" href="montecarlo_8h-source.html#l00193">m_last_flipped_lattice_index</a>, <a class="el" href="montecarlo_8h-source.html#l00191">m_last_probability_buffer</a>, <a class="el" href="montecarlo_8h-source.html#l00202">m_sec_cache_enabled</a>, <a class="el" href="montecarlo_8h-source.html#l00203">m_sec_cache_firsttime</a>, <a class="el" href="montecarlo_8h-source.html#l00205">m_sec_cache_hit</a>, <a class="el" href="montecarlo_8h-source.html#l00333">m_SumTests</a>, <a class="el" href="montecarlo_8h-source.html#l00202">m_third_cache_enabled</a>, <a class="el" href="montecarlo_8h-source.html#l00203">m_third_cache_firsttime</a>, <a class="el" href="montecarlo_8h-source.html#l00206">m_third_cache_hit</a>, <a class="el" href="montecarlo_8cpp-source.html#l00022">s_bAborting</a>, <a class="el" href="montecarlo_8cpp-source.html#l00030">s_cutoff_real</a>, <a class="el" href="montecarlo_8cpp-source.html#l00027">s_num_spins</a>, と <a class="el" href="montecarlo_8cpp-source.html#l00258">takeThermalAverage()</a>.
+<p>
+参照元 <a class="el" href="montecarlo_8cpp-source.html#l00270">exec()</a>.    </td>
+  </tr>
+</table>
+<a class="anchor" name="a2"></a><!-- doxytag: member=<MonteCarlo::exec> ref=<a2> args=<(double temp, Vector3&lt; double &gt; field, int *flips, long double *tests, double *DUav, Vector3&lt; double &gt; *Mav)> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">double MonteCarlo::exec           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="md" nowrap valign="top">double&nbsp;</td>
+          <td class="mdname" nowrap> <em>temp</em>, </td>
+        </tr>
+        <tr>
+          <td class="md" nowrap align="right"></td>
+          <td class="md"></td>
+          <td class="md" nowrap><a class="el" href="struct_monte_carlo_1_1_vector3.html">Vector3</a>&lt; double &gt;&nbsp;</td>
+          <td class="mdname" nowrap> <em>field</em>, </td>
+        </tr>
+        <tr>
+          <td class="md" nowrap align="right"></td>
+          <td class="md"></td>
+          <td class="md" nowrap>int *&nbsp;</td>
+          <td class="mdname" nowrap> <em>flips</em>, </td>
+        </tr>
+        <tr>
+          <td class="md" nowrap align="right"></td>
+          <td class="md"></td>
+          <td class="md" nowrap>long double *&nbsp;</td>
+          <td class="mdname" nowrap> <em>tests</em>, </td>
+        </tr>
+        <tr>
+          <td class="md" nowrap align="right"></td>
+          <td class="md"></td>
+          <td class="md" nowrap>double *&nbsp;</td>
+          <td class="mdname" nowrap> <em>DUav</em>, </td>
+        </tr>
+        <tr>
+          <td class="md" nowrap align="right"></td>
+          <td class="md"></td>
+          <td class="md" nowrap><a class="el" href="struct_monte_carlo_1_1_vector3.html">Vector3</a>&lt; double &gt; *&nbsp;</td>
+          <td class="mdname" nowrap> <em>Mav</em></td>
+        </tr>
+        <tr>
+          <td class="md"></td>
+          <td class="md">)&nbsp;</td>
+          <td class="md" colspan="2"></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+<dl compact><dt><b>戻り値:</b></dt><dd>Delta U [J/A site]. <ul>
+<li>flips # of flipping to be performed. # done is returned. </li>
+<li>tests Min # of tests to be performed. # done is returned. </li>
+</ul>
+</dd></dl>
+
+<p>
+ <a class="el" href="montecarlo_8cpp-source.html">montecarlo.cpp</a> の <a class="el" href="montecarlo_8cpp-source.html#l00270">270</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="montecarlo_8cpp-source.html#l00456">doTests()</a>, <a class="el" href="montecarlo_8h-source.html#l00108">MonteCarlo::Vector3&lt; T &gt;::innerProduct()</a>, <a class="el" href="montecarlo_8h-source.html#l00319">m_beta</a>, <a class="el" href="montecarlo_8h-source.html#l00327">m_DeltaU</a>, <a class="el" href="montecarlo_8h-source.html#l00321">m_ext_field</a>, <a class="el" href="montecarlo_8h-source.html#l00330">m_SumDeltaU</a>, <a class="el" href="montecarlo_8h-source.html#l00332">m_SumSpin</a>, <a class="el" href="montecarlo_8h-source.html#l00333">m_SumTests</a>, <a class="el" href="montecarlo_8cpp-source.html#l00021">s_ASiteIsingVector</a>, と <a class="el" href="montecarlo_8cpp-source.html#l00027">s_num_spins</a>.    </td>
+  </tr>
+</table>
+<a class="anchor" name="d8"></a><!-- doxytag: member=<MonteCarlo::modifyReciprocalImage> ref=<d8> args=<(Spin diff, int site, int i, int j, int k)> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">void MonteCarlo::modifyReciprocalImage           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="md" nowrap valign="top"><a class="el" href="class_monte_carlo.html#y1">Spin</a>&nbsp;</td>
+          <td class="mdname" nowrap> <em>diff</em>, </td>
+        </tr>
+        <tr>
+          <td class="md" nowrap align="right"></td>
+          <td class="md"></td>
+          <td class="md" nowrap>int&nbsp;</td>
+          <td class="mdname" nowrap> <em>site</em>, </td>
+        </tr>
+        <tr>
+          <td class="md" nowrap align="right"></td>
+          <td class="md"></td>
+          <td class="md" nowrap>int&nbsp;</td>
+          <td class="mdname" nowrap> <em>i</em>, </td>
+        </tr>
+        <tr>
+          <td class="md" nowrap align="right"></td>
+          <td class="md"></td>
+          <td class="md" nowrap>int&nbsp;</td>
+          <td class="mdname" nowrap> <em>j</em>, </td>
+        </tr>
+        <tr>
+          <td class="md" nowrap align="right"></td>
+          <td class="md"></td>
+          <td class="md" nowrap>int&nbsp;</td>
+          <td class="mdname" nowrap> <em>k</em></td>
+        </tr>
+        <tr>
+          <td class="md"></td>
+          <td class="md">)&nbsp;</td>
+          <td class="md" colspan="2"><code> [inline, private]</code></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+<ul>
+<li>diff e.g. -2, -1, 1, 2.</li>
+</ul>
+
+<p>
+ <a class="el" href="montecarlo_8cpp-source.html">montecarlo.cpp</a> の <a class="el" href="montecarlo_8cpp-source.html#l00591">591</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="montecarlo_8h-source.html#l00301">m_spins_rec</a>, <a class="el" href="montecarlo_8cpp-source.html#l00036">s_cutoff_rec</a>, <a class="el" href="montecarlo_8h-source.html#l00058">MonteCarlo::Vector3&lt; T &gt;::x</a>, <a class="el" href="montecarlo_8h-source.html#l00058">MonteCarlo::Vector3&lt; T &gt;::y</a>, と <a class="el" href="montecarlo_8h-source.html#l00058">MonteCarlo::Vector3&lt; T &gt;::z</a>.
+<p>
+参照元 <a class="el" href="montecarlo_8cpp-source.html#l00641">flipSpin()</a>, と <a class="el" href="montecarlo_8cpp-source.html#l00624">makeReciprocalImage()</a>.    </td>
+  </tr>
+</table>
+<a class="anchor" name="e0"></a><!-- doxytag: member=<MonteCarlo::setupField> ref=<e0> args=<(int size, double dfactor, double cutoff_real, double cutoff_rec, double alpha)> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">int MonteCarlo::setupField           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="md" nowrap valign="top">int&nbsp;</td>
+          <td class="mdname" nowrap> <em>size</em>, </td>
+        </tr>
+        <tr>
+          <td class="md" nowrap align="right"></td>
+          <td class="md"></td>
+          <td class="md" nowrap>double&nbsp;</td>
+          <td class="mdname" nowrap> <em>dfactor</em>, </td>
+        </tr>
+        <tr>
+          <td class="md" nowrap align="right"></td>
+          <td class="md"></td>
+          <td class="md" nowrap>double&nbsp;</td>
+          <td class="mdname" nowrap> <em>cutoff_real</em>, </td>
+        </tr>
+        <tr>
+          <td class="md" nowrap align="right"></td>
+          <td class="md"></td>
+          <td class="md" nowrap>double&nbsp;</td>
+          <td class="mdname" nowrap> <em>cutoff_rec</em>, </td>
+        </tr>
+        <tr>
+          <td class="md" nowrap align="right"></td>
+          <td class="md"></td>
+          <td class="md" nowrap>double&nbsp;</td>
+          <td class="mdname" nowrap> <em>alpha</em></td>
+        </tr>
+        <tr>
+          <td class="md"></td>
+          <td class="md">)&nbsp;</td>
+          <td class="md" colspan="2"><code> [static]</code></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+prepare interactions. <ul>
+<li>size # of lattices for one direction. </li>
+<li>dfactor Bulk demagnetization factor D (0 &lt; D &lt; 1). </li>
+<li>cutoff_real [L.U.]. </li>
+<li>cutoff_rec [2pi/L]. </li>
+<li>alpha Ewald convergence factor [1/L]. <dl compact><dt><b>戻り値:</b></dt><dd># of interactions. </dd></dl>
+</li>
+</ul>
+
+<p>
+ <a class="el" href="interaction_8cpp-source.html">interaction.cpp</a> の <a class="el" href="interaction_8cpp-source.html#l00087">87</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="interaction_8cpp-source.html#l00007">addFieldsReal()</a>, <a class="el" href="interaction_8cpp-source.html#l00031">dipoleFieldReal()</a>, <a class="el" href="interaction_8cpp-source.html#l00058">dipoleFieldRec()</a>, <a class="el" href="montecarlo_8h-source.html#l00440">distance()</a>, <a class="el" href="montecarlo_8h-source.html#l00108">MonteCarlo::Vector3&lt; T &gt;::innerProduct()</a>, <a class="el" href="montecarlo_8h-source.html#l00392">lattice_index()</a>, <a class="el" href="montecarlo_8h-source.html#l00388">reciprocal_index()</a>, <a class="el" href="montecarlo_8cpp-source.html#l00042">s_4r2_neighbor</a>, <a class="el" href="montecarlo_8cpp-source.html#l00028">s_alpha</a>, <a class="el" href="montecarlo_8cpp-source.html#l00021">s_ASiteIsingVector</a>, <a class="el" href="montecarlo_8cpp-source.html#l00022">s_bAborting</a>, <a class="el" href="montecarlo_8cpp-source.html#l00030">s_cutoff_real</a>, <a class="el" href="montecarlo_8cpp-source.html#l00031">s_cutoff_real_radius</a>, <a class="el" href="montecarlo_8cpp-source.html#l00036">s_cutoff_rec</a>, <a class="el" href="montecarlo_8cpp-source.html#l00037">s_cutoff_rec_radius</a>, <a class="el" href="montecarlo_8cpp-source.html#l00029">s_dfactor</a>, <a class="el" href="montecarlo_8cpp-source.html#l00041">s_exp_ph</a>, <a class="el" href="montecarlo_8cpp-source.html#l00032">s_fields_real</a>, <a class="el" href="montecarlo_8cpp-source.html#l00035">s_fields_real_48f</a>, <a class="el" href="montecarlo_8cpp-source.html#l00034">s_fields_real_8a</a>, <a class="el" href="montecarlo_8cpp-source.html#l00033">s_fields_real_B</a>, <a class="el" href="montecarlo_8cpp-source.html#l00038">s_fields_rec</a>, <a class="el" href="montecarlo_8cpp-source.html#l00039">s_fields_rec_generic</a>, <a class="el" href="montecarlo_8cpp-source.html#l00040">s_fields_rec_sum</a>, <a class="el" href="montecarlo_8cpp-source.html#l00026">s_L</a>, <a class="el" href="montecarlo_8cpp-source.html#l00027">s_num_spins</a>, <a class="el" href="montecarlo_8h-source.html#l00058">MonteCarlo::Vector3&lt; T &gt;::x</a>, <a class="el" href="montecarlo_8h-source.html#l00058">MonteCarlo::Vector3&lt; T &gt;::y</a>, と <a class="el" href="montecarlo_8h-source.html#l00058">MonteCarlo::Vector3&lt; T &gt;::z</a>.
+<p>
+参照元 <a class="el" href="kamemontecarlo_8cpp-source.html#l00179">XMonteCarloDriver::start()</a>.    </td>
+  </tr>
+</table>
+<hr><h2>変数</h2>
+<a class="anchor" name="r14"></a><!-- doxytag: member=<MonteCarlo::m_hinteractions_called> ref=<r14> args=<> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">long <a class="el" href="class_monte_carlo.html#r14">MonteCarlo::m_hinteractions_called</a><code> [private]</code>          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+Cache systems Primary cache: field at the target site. Secondary cache: field from a certain site at the target site. Third cache : field from a certain site with real space calc. at the target site. 
+<p>
+ <a class="el" href="montecarlo_8h-source.html">montecarlo.h</a> の <a class="el" href="montecarlo_8h-source.html#l00201">201</a> 行で定義されています。
+<p>
+参照元 <a class="el" href="montecarlo_8cpp-source.html#l00456">doTests()</a>, と <a class="el" href="montecarlo_8h-source.html#l00483">hinteraction()</a>.    </td>
+  </tr>
+</table>
+<a class="anchor" name="r27"></a><!-- doxytag: member=<MonteCarlo::m_spins_real> ref=<r27> args=<[16]> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">std::vector&lt;<a class="el" href="class_monte_carlo.html#y1">Spin</a>&gt; <a class="el" href="class_monte_carlo.html#r27">MonteCarlo::m_spins_real</a>[16]<code> [private]</code>          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+spin orientations. in real space. images are repeated outside boundary along x. 
+<p>
+ <a class="el" href="montecarlo_8h-source.html">montecarlo.h</a> の <a class="el" href="montecarlo_8h-source.html#l00294">294</a> 行で定義されています。
+<p>
+参照元 <a class="el" href="interaction_8cpp-source.html#l00392">iterate_real_redirected()</a>, <a class="el" href="montecarlo_8cpp-source.html#l00044">MonteCarlo()</a>, <a class="el" href="montecarlo_8h-source.html#l00428">readSpin()</a>, と <a class="el" href="montecarlo_8h-source.html#l00432">writeSpin()</a>.    </td>
+  </tr>
+</table>
+<hr>このクラスの説明は次のファイルから生成されました:<ul>
+<li>kame/users/montecarlo/<a class="el" href="montecarlo_8h-source.html">montecarlo.h</a><li>kame/users/montecarlo/<a class="el" href="interaction_8cpp-source.html">interaction.cpp</a><li>kame/users/montecarlo/<a class="el" href="montecarlo_8cpp-source.html">montecarlo.cpp</a></ul>
+<hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:30 2007に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+</body>
+</html>

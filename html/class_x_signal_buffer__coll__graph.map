@@ -1,4 +1,2 @@
 base referer
-rect $class_x_light_mutex.html 41,8 137,34
-rect $classatomic__shared__ptr.html 156,98 348,125
-rect $class_x_time.html 221,8 282,34
+rect $classatomic.html 8,7 176,34

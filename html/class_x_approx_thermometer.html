@@ -1,0 +1,81 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: クラス XApproxThermometer</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<h1>クラス XApproxThermometer</h1><!-- doxytag: class=<XApproxThermometer> --><!-- doxytag: inherits=<XThermometer> -->Cubic (natural) spline approximation.  
+<a href="#_details">[詳細]</a>
+<p>
+<code>#include &lt;<a class="el" href="thermometer_8h-source.html">thermometer.h</a>&gt;</code>
+<p>
+XApproxThermometerに対する継承グラフ<p><center><img src="class_x_approx_thermometer__inherit__graph.png" border="0" usemap="#_x_approx_thermometer__inherit__map" alt="Inheritance graph"></center>
+<map name="_x_approx_thermometer__inherit__map">
+<area href="class_x_thermometer.html" shape="rect" coords="29,82,141,109" alt="">
+<area href="class_x_node.html" shape="rect" coords="54,8,116,34" alt="">
+</map>
+<center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XApproxThermometerのコラボレーション図<p><center><img src="class_x_approx_thermometer__coll__graph.png" border="0" usemap="#_x_approx_thermometer__coll__map" alt="Collaboration graph"></center>
+<map name="_x_approx_thermometer__coll__map">
+<area href="class_x_thermometer.html" shape="rect" coords="317,448,429,474" alt="">
+<area href="class_x_node.html" shape="rect" coords="486,370,547,397" alt="">
+<area href="class_x_talker.html" shape="rect" coords="559,280,775,306" alt="">
+<area href="class___x_talker_base.html" shape="rect" coords="819,189,923,216" alt="">
+<area href="classatomic.html" shape="rect" coords="831,98,941,125" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="571,189,795,216" alt="">
+<area href="structatomic__shared__ptr_1_1___ref_local.html" shape="rect" coords="578,98,807,125" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="339,189,547,216" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="70,189,315,216" alt="">
+<area href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html" shape="rect" coords="566,8,819,34" alt="">
+<area href="class_x_mutex.html" shape="rect" coords="303,98,370,125" alt="">
+<area href="class_x_thread_local.html" shape="rect" coords="799,280,981,306" alt="">
+<area href="class_c_spline_approx.html" shape="rect" coords="7,98,117,125" alt="">
+</map>
+<center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_approx_thermometer-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
+<tr><td></td></tr>
+<tr><td colspan="2"><br><h2>Public 型</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="w0"></a><!-- doxytag: member=<XApproxThermometer::XDoubleListNode> ref=<w0> args=<> -->
+typedef <a class="el" href="class_x_list_node.html">XListNode</a>&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_approx_thermometer.html#w0">XDoubleListNode</a></td></tr>
+
+<tr><td colspan="2"><br><h2>Public メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a0"></a><!-- doxytag: member=<XApproxThermometer::XApproxThermometer> ref=<a0> args=<(const char *name, bool runtime)> -->
+&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_approx_thermometer.html#a0">XApproxThermometer</a> (const char *name, bool runtime)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a1"></a><!-- doxytag: member=<XApproxThermometer::getTemp> ref=<a1> args=<(double res) const > -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_approx_thermometer.html#a1">getTemp</a> (double res) const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a2"></a><!-- doxytag: member=<XApproxThermometer::getRawValue> ref=<a2> args=<(double temp) const > -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_approx_thermometer.html#a2">getRawValue</a> (double temp) const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a3"></a><!-- doxytag: member=<XApproxThermometer::resList> ref=<a3> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_list_node.html">XDoubleListNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_approx_thermometer.html#a3">resList</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a4"></a><!-- doxytag: member=<XApproxThermometer::tempList> ref=<a4> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_list_node.html">XDoubleListNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_approx_thermometer.html#a4">tempList</a> () const </td></tr>
+
+<tr><td colspan="2"><br><h2>Private 変数</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r0"></a><!-- doxytag: member=<XApproxThermometer::m_resList> ref=<r0> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_list_node.html">XDoubleListNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_approx_thermometer.html#r0">m_resList</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r1"></a><!-- doxytag: member=<XApproxThermometer::m_tempList> ref=<r1> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_list_node.html">XDoubleListNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_approx_thermometer.html#r1">m_tempList</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r2"></a><!-- doxytag: member=<XApproxThermometer::m_approx> ref=<r2> args=<> -->
+<a class="el" href="classatomic__shared__ptr.html">atomic_shared_ptr</a>&lt; <a class="el" href="class_c_spline_approx.html">CSplineApprox</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_approx_thermometer.html#r2">m_approx</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r3"></a><!-- doxytag: member=<XApproxThermometer::m_approx_inv> ref=<r3> args=<> -->
+<a class="el" href="classatomic__shared__ptr.html">atomic_shared_ptr</a>&lt; <a class="el" href="class_c_spline_approx.html">CSplineApprox</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_approx_thermometer.html#r3">m_approx_inv</a></td></tr>
+
+</table>
+<hr><a name="_details"></a><h2>説明</h2>
+Cubic (natural) spline approximation. 
+<p>
+
+<p>
+ <a class="el" href="thermometer_8h-source.html">thermometer.h</a> の <a class="el" href="thermometer_8h-source.html#l00105">105</a> 行で定義されています。<hr>このクラスの説明は次のファイルから生成されました:<ul>
+<li>kame/thermometer/<a class="el" href="thermometer_8h-source.html">thermometer.h</a><li>kame/thermometer/<a class="el" href="thermometer_8cpp-source.html">thermometer.cpp</a></ul>
+<hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:27 2007に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+</body>
+</html>

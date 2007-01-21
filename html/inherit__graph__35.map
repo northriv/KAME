@@ -1,2 +1,3 @@
 base referer
-rect $struct_x_record_dependency_1_1t_dependency.html 8,8 242,34
+rect $class_x_mutex.html 9,8 76,34
+rect $class_x_condition.html 126,8 214,34

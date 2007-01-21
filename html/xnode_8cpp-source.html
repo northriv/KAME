@@ -4,271 +4,271 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
 <a class="el" href="dir_000000.html">kame</a></div>
-<h1>xnode.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">//---------------------------------------------------------------------------</span>
-<a name="l00002"></a>00002 <span class="preprocessor">#include "xnode.h"</span>
-<a name="l00003"></a>00003 <span class="preprocessor">#include &lt;klocale.h&gt;</span>
+<h1>xnode.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#include "xnode.h"</span>
+<a name="l00002"></a>00002 <span class="preprocessor">#include &lt;klocale.h&gt;</span>
+<a name="l00003"></a>00003 <span class="preprocessor">#include &lt;typeinfo&gt;</span>
 <a name="l00004"></a>00004 
 <a name="l00005"></a><a class="code" href="class_x_node.html#v0">00005</a> <a class="code" href="class_x_thread_local.html">XThreadLocal&lt;std::deque&lt;shared_ptr&lt;XNode&gt;</a> &gt; &gt; <a class="code" href="class_x_node.html#v0">XNode::stl_thisCreating</a>;
 <a name="l00006"></a>00006 
 <a name="l00007"></a>00007 <span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00008"></a><a class="code" href="class_x_node.html#b0">00008</a> <a class="code" href="class_x_node.html#b0">XNode::XNode</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime)
-<a name="l00009"></a>00009 {
-<a name="l00010"></a>00010      <span class="comment">// temporaly shared_ptr to be able to use shared_from_this() in constructors</span>
-<a name="l00011"></a>00011       XNode::stl_thisCreating-&gt;push_back(shared_ptr&lt;XNode&gt;(<span class="keyword">this</span>));
-<a name="l00012"></a>00012       ASSERT(shared_from_this());
-<a name="l00013"></a>00013       <a class="code" href="class_x_node.html#r2">m_bUIEnabled</a> = <span class="keyword">true</span>;
-<a name="l00014"></a>00014       <a class="code" href="class_x_node.html#r1">m_bRunTime</a> = runtime;
-<a name="l00015"></a>00015       <span class="keywordflow">if</span>(name) <a class="code" href="class_x_node.html#r0">m_name</a> = name;
-<a name="l00016"></a>00016       dbgPrint(QString(<span class="stringliteral">"xnode %1 is created., addr=0x%2, size=0x%3"</span>)
-<a name="l00017"></a>00017             .arg(<a class="code" href="class_x_node.html#a6">getName</a>())
-<a name="l00018"></a>00018             .arg((<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)<span class="keyword">this</span>, 0, 16)
-<a name="l00019"></a>00019             .arg((<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)<span class="keyword">sizeof</span>(<a class="code" href="class_x_node.html">XNode</a>), 0, 16));
-<a name="l00020"></a>00020 }
-<a name="l00021"></a><a class="code" href="class_x_node.html#a0">00021</a> <a class="code" href="class_x_node.html#a0">XNode::~XNode</a>() {
-<a name="l00022"></a>00022       dbgPrint(QString(<span class="stringliteral">"xnode %1 is being deleted., addr=0x%2"</span>).arg(<a class="code" href="class_x_node.html#a6">getName</a>()).arg((<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)<span class="keyword">this</span>, 0, 16));
-<a name="l00023"></a>00023 }
-<a name="l00024"></a>00024 QString
-<a name="l00025"></a><a class="code" href="class_x_node.html#a6">00025</a> <a class="code" href="class_x_node.html#a6">XNode::getName</a>()<span class="keyword"> const </span>{
-<a name="l00026"></a>00026     <span class="keywordflow">return</span> QString::fromUtf8(<a class="code" href="class_x_node.html#r0">m_name</a>.c_str());
-<a name="l00027"></a>00027 }
-<a name="l00028"></a>00028 std::string
-<a name="l00029"></a><a class="code" href="class_x_node.html#a7">00029</a> <a class="code" href="class_x_node.html#a7">XNode::getTypename</a>()<span class="keyword"> const </span>{
-<a name="l00030"></a>00030     std::string name = <span class="keyword">typeid</span>(*this).name();
-<a name="l00031"></a>00031     <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = name.find(<span class="charliteral">'X'</span>);
-<a name="l00032"></a>00032     ASSERT(i != std::string::npos);
-<a name="l00033"></a>00033     ASSERT(i + 1 &lt; name.length());
-<a name="l00034"></a>00034     <span class="keywordflow">return</span> name.substr(i + 1);
-<a name="l00035"></a>00035 }
-<a name="l00036"></a>00036 <span class="keywordtype">void</span>
-<a name="l00037"></a><a class="code" href="class_x_node.html#a24">00037</a> <a class="code" href="class_x_node.html#a24">XNode::insert</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;ptr)
-<a name="l00038"></a>00038 {
-<a name="l00039"></a>00039     ASSERT(ptr);
-<a name="l00040"></a>00040     <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XRecursiveRWLock&gt;</a> lock(<a class="code" href="class_x_node.html#p1">m_childmutex</a>);
-<a name="l00041"></a>00041     <a class="code" href="class_x_node.html#p0">m_children</a>.push_back(ptr);
-<a name="l00042"></a>00042 }
-<a name="l00043"></a>00043 <span class="keywordtype">void</span>
-<a name="l00044"></a><a class="code" href="class_x_node.html#a21">00044</a> <a class="code" href="class_x_node.html#a21">XNode::childLock</a>()<span class="keyword"> const</span>
-<a name="l00045"></a>00045 <span class="keyword"></span>{
-<a name="l00046"></a>00046     <a class="code" href="class_x_node.html#p1">m_childmutex</a>.<a class="code" href="class_x_recursive_r_w_lock.html#a2">readLock</a>();
+<a name="l00009"></a>00009  : m_children()
+<a name="l00010"></a>00010 {
+<a name="l00011"></a>00011      <span class="comment">// temporaly shared_ptr to be able to use shared_from_this() in constructors</span>
+<a name="l00012"></a>00012       XNode::stl_thisCreating-&gt;push_back(shared_ptr&lt;XNode&gt;(<span class="keyword">this</span>));
+<a name="l00013"></a>00013       ASSERT(shared_from_this());
+<a name="l00014"></a>00014       <a class="code" href="class_x_node.html#r2">m_bUIEnabled</a> = <span class="keyword">true</span>;
+<a name="l00015"></a>00015       <a class="code" href="class_x_node.html#r1">m_bRunTime</a> = runtime;
+<a name="l00016"></a>00016       <span class="keywordflow">if</span>(name) <a class="code" href="class_x_node.html#r0">m_name</a> = name;
+<a name="l00017"></a>00017       dbgPrint(QString(<span class="stringliteral">"xnode %1 is created., addr=0x%2, size=0x%3"</span>)
+<a name="l00018"></a>00018             .arg(<a class="code" href="class_x_node.html#a6">getName</a>())
+<a name="l00019"></a>00019             .arg((<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)<span class="keyword">this</span>, 0, 16)
+<a name="l00020"></a>00020             .arg((<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)<span class="keyword">sizeof</span>(<a class="code" href="class_x_node.html">XNode</a>), 0, 16));
+<a name="l00021"></a>00021 }
+<a name="l00022"></a><a class="code" href="class_x_node.html#a0">00022</a> <a class="code" href="class_x_node.html#a0">XNode::~XNode</a>() {
+<a name="l00023"></a>00023       dbgPrint(QString(<span class="stringliteral">"xnode %1 is being deleted., addr=0x%2"</span>).arg(<a class="code" href="class_x_node.html#a6">getName</a>()).arg((<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)<span class="keyword">this</span>, 0, 16));
+<a name="l00024"></a>00024 }
+<a name="l00025"></a>00025 std::string
+<a name="l00026"></a><a class="code" href="class_x_node.html#a6">00026</a> <a class="code" href="class_x_node.html#a6">XNode::getName</a>()<span class="keyword"> const </span>{
+<a name="l00027"></a>00027     <span class="keywordflow">return</span> <a class="code" href="class_x_node.html#r0">m_name</a>;
+<a name="l00028"></a>00028 }
+<a name="l00029"></a>00029 std::string
+<a name="l00030"></a><a class="code" href="class_x_node.html#a8">00030</a> <a class="code" href="class_x_node.html#a8">XNode::getTypename</a>()<span class="keyword"> const </span>{
+<a name="l00031"></a>00031     std::string name = <span class="keyword">typeid</span>(*this).name();
+<a name="l00032"></a>00032     <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = name.find(<span class="charliteral">'X'</span>);
+<a name="l00033"></a>00033     ASSERT(i != std::string::npos);
+<a name="l00034"></a>00034     ASSERT(i + 1 &lt; name.length());
+<a name="l00035"></a>00035     <span class="keywordflow">return</span> name.substr(i + 1);
+<a name="l00036"></a>00036 }
+<a name="l00037"></a>00037 <span class="keywordtype">void</span>
+<a name="l00038"></a><a class="code" href="class_x_node.html#a19">00038</a> <a class="code" href="class_x_node.html#a19">XNode::insert</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;ptr)
+<a name="l00039"></a>00039 {
+<a name="l00040"></a>00040     ASSERT(ptr);
+<a name="l00041"></a>00041     <span class="keywordflow">for</span>(;;) {
+<a name="l00042"></a>00042         <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;NodeList&gt;</a> old_list(<a class="code" href="class_x_node.html#p0">m_children</a>);
+<a name="l00043"></a>00043         <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;NodeList&gt;</a> new_list(old_list ? (<span class="keyword">new</span> <a class="code" href="class_x_node.html#w0">NodeList</a>(*old_list)) : (<span class="keyword">new</span> <a class="code" href="class_x_node.html#w0">NodeList</a>));        
+<a name="l00044"></a>00044         new_list-&gt;push_back(ptr);
+<a name="l00045"></a>00045         <span class="keywordflow">if</span>(new_list.<a class="code" href="classatomic__shared__ptr.html#a10">compareAndSwap</a>(old_list, <a class="code" href="class_x_node.html#p0">m_children</a>)) <span class="keywordflow">break</span>;
+<a name="l00046"></a>00046     }
 <a name="l00047"></a>00047 }
-<a name="l00048"></a>00048 <span class="keywordtype">void</span>
-<a name="l00049"></a><a class="code" href="class_x_node.html#a22">00049</a> <a class="code" href="class_x_node.html#a22">XNode::childUnlock</a>()<span class="keyword"> const</span>
-<a name="l00050"></a>00050 <span class="keyword"></span>{
-<a name="l00051"></a>00051     <a class="code" href="class_x_node.html#p1">m_childmutex</a>.<a class="code" href="class_x_recursive_r_w_lock.html#a3">readUnlock</a>();
-<a name="l00052"></a>00052 }
-<a name="l00053"></a>00053 
+<a name="l00048"></a>00048 
+<a name="l00049"></a>00049 <span class="keywordtype">void</span>
+<a name="l00050"></a><a class="code" href="class_x_node.html#a15">00050</a> <a class="code" href="class_x_node.html#a15">XNode::setUIEnabled</a>(<span class="keywordtype">bool</span> v) {
+<a name="l00051"></a>00051     <a class="code" href="class_x_node.html#r2">m_bUIEnabled</a> = v;
+<a name="l00052"></a>00052     <a class="code" href="class_x_node.html#a18">onUIEnabled</a>().<a class="code" href="class_x_talker.html#a7">talk</a>(shared_from_this());
+<a name="l00053"></a>00053 }
 <a name="l00054"></a>00054 <span class="keywordtype">void</span>
-<a name="l00055"></a><a class="code" href="class_x_node.html#a17">00055</a> <a class="code" href="class_x_node.html#a17">XNode::setUIEnabled</a>(<span class="keywordtype">bool</span> v) {
-<a name="l00056"></a>00056     <a class="code" href="class_x_node.html#r2">m_bUIEnabled</a> = v;
-<a name="l00057"></a>00057     <a class="code" href="class_x_node.html#a20">onUIEnabled</a>().<a class="code" href="class_x_talker.html#a7">talk</a>(shared_from_this());
-<a name="l00058"></a>00058 }
+<a name="l00055"></a><a class="code" href="class_x_node.html#a16">00055</a> <a class="code" href="class_x_node.html#a16">XNode::touch</a>() {
+<a name="l00056"></a>00056     <a class="code" href="class_x_node.html#a17">onTouch</a>().<a class="code" href="class_x_talker.html#a7">talk</a>(shared_from_this());
+<a name="l00057"></a>00057 }
+<a name="l00058"></a>00058 
 <a name="l00059"></a>00059 <span class="keywordtype">void</span>
-<a name="l00060"></a><a class="code" href="class_x_node.html#a18">00060</a> <a class="code" href="class_x_node.html#a18">XNode::touch</a>() {
-<a name="l00061"></a>00061     <a class="code" href="class_x_node.html#a19">onTouch</a>().<a class="code" href="class_x_talker.html#a7">talk</a>(shared_from_this());
-<a name="l00062"></a>00062 }
-<a name="l00063"></a>00063 
-<a name="l00064"></a>00064 <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>
-<a name="l00065"></a><a class="code" href="class_x_node.html#a14">00065</a> <a class="code" href="class_x_node.html#a14">XNode::count</a>()<span class="keyword"> const</span>
-<a name="l00066"></a>00066 <span class="keyword"></span>{
-<a name="l00067"></a>00067     ASSERT(<a class="code" href="class_x_node.html#p1">m_childmutex</a>.<a class="code" href="class_x_recursive_r_w_lock.html#a7">isLocked</a>());
-<a name="l00068"></a>00068     <span class="keywordflow">return</span> <a class="code" href="class_x_node.html#p0">m_children</a>.size();
-<a name="l00069"></a>00069 }
-<a name="l00070"></a>00070 
-<a name="l00071"></a>00071 <span class="keywordtype">void</span>
-<a name="l00072"></a><a class="code" href="class_x_node.html#a11">00072</a> <a class="code" href="class_x_node.html#a11">XNode::clearChildren</a>()
-<a name="l00073"></a>00073 {
-<a name="l00074"></a>00074   <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XRecursiveRWLock&gt;</a> lock(<a class="code" href="class_x_node.html#p1">m_childmutex</a>);
-<a name="l00075"></a>00075   <a class="code" href="class_x_node.html#p0">m_children</a>.clear();
-<a name="l00076"></a>00076 }
-<a name="l00077"></a>00077 <span class="keywordtype">int</span>
-<a name="l00078"></a><a class="code" href="class_x_node.html#a12">00078</a> <a class="code" href="class_x_node.html#a12">XNode::releaseChild</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> index)
-<a name="l00079"></a>00079 {
-<a name="l00080"></a>00080   <a class="code" href="class_x_node.html#x1">tchildren_it</a>  it;
-<a name="l00081"></a>00081   <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XRecursiveRWLock&gt;</a> lock(<a class="code" href="class_x_node.html#p1">m_childmutex</a>);
-<a name="l00082"></a>00082   it = <a class="code" href="class_x_node.html#p0">m_children</a>.begin();
-<a name="l00083"></a>00083   <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; index; i++) it++;
-<a name="l00084"></a>00084   ASSERT(it != <a class="code" href="class_x_node.html#p0">m_children</a>.end());
-<a name="l00085"></a>00085   <a class="code" href="class_x_node.html#p0">m_children</a>.erase(it);
-<a name="l00086"></a>00086   <span class="keywordflow">return</span> 0;
-<a name="l00087"></a>00087 }
-<a name="l00088"></a>00088 <span class="keywordtype">int</span>
-<a name="l00089"></a><a class="code" href="class_x_node.html#a13">00089</a> <a class="code" href="class_x_node.html#a12">XNode::releaseChild</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node)
-<a name="l00090"></a>00090 {
-<a name="l00091"></a>00091   <a class="code" href="class_x_node.html#x1">tchildren_it</a> it;
-<a name="l00092"></a>00092   <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XRecursiveRWLock&gt;</a> lock(<a class="code" href="class_x_node.html#p1">m_childmutex</a>);
-<a name="l00093"></a>00093   it = find(<a class="code" href="class_x_node.html#p0">m_children</a>.begin(), <a class="code" href="class_x_node.html#p0">m_children</a>.end(), node);
-<a name="l00094"></a>00094   ASSERT(it != <a class="code" href="class_x_node.html#p0">m_children</a>.end());
-<a name="l00095"></a>00095   <a class="code" href="class_x_node.html#p0">m_children</a>.erase(it);
-<a name="l00096"></a>00096   <span class="keywordflow">return</span> 0;
-<a name="l00097"></a>00097 }
-<a name="l00098"></a>00098 
-<a name="l00099"></a>00099 shared_ptr&lt;XNode&gt;
-<a name="l00100"></a><a class="code" href="class_x_node.html#a8">00100</a> <a class="code" href="class_x_node.html#a8">XNode::getChild</a>(<span class="keyword">const</span> std::string &amp;var)<span class="keyword"> const</span>
-<a name="l00101"></a>00101 <span class="keyword"></span>{
-<a name="l00102"></a>00102   shared_ptr&lt;XNode&gt; node;
-<a name="l00103"></a>00103   <a class="code" href="class_x_node.html#a21">childLock</a>();
-<a name="l00104"></a>00104   <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="class_x_node.html#a14">count</a>(); i++)
-<a name="l00105"></a>00105     {
-<a name="l00106"></a>00106       <span class="keywordflow">if</span>(<a class="code" href="class_x_node.html#p0">m_children</a>[i]-&gt;getName() == QString::fromUtf8(var.c_str()))
-<a name="l00107"></a>00107     {
-<a name="l00108"></a>00108             node = <a class="code" href="class_x_node.html#p0">m_children</a>[i];
-<a name="l00109"></a>00109             <span class="keywordflow">break</span>;
-<a name="l00110"></a>00110         }
-<a name="l00111"></a>00111     }
-<a name="l00112"></a>00112   <a class="code" href="class_x_node.html#a22">childUnlock</a>();
-<a name="l00113"></a>00113   <span class="keywordflow">return</span> node;
-<a name="l00114"></a>00114 }
-<a name="l00115"></a>00115 
-<a name="l00116"></a><a class="code" href="class_x_value_node_base.html#b0">00116</a> <a class="code" href="class_x_value_node_base.html#b0">XValueNodeBase::XValueNodeBase</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime) : 
-<a name="l00117"></a>00117     <a class="code" href="class_x_node.html">XNode</a>(name, runtime), m_validator(0L)
-<a name="l00118"></a>00118 {
-<a name="l00119"></a>00119 }
-<a name="l00120"></a>00120 <span class="keywordtype">void</span>
-<a name="l00121"></a><a class="code" href="class_x_value_node_base.html#a1">00121</a> <a class="code" href="class_x_value_node_base.html#a1">XValueNodeBase::str</a>(<span class="keyword">const</span> QString &amp;s) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;) {
-<a name="l00122"></a>00122     QString sc(s);
-<a name="l00123"></a>00123     <span class="keywordflow">if</span>(m_validator)
-<a name="l00124"></a>00124             (*m_validator)(sc);
-<a name="l00125"></a>00125     _str(sc);
-<a name="l00126"></a>00126 }
-<a name="l00127"></a>00127 <span class="keywordtype">void</span>
-<a name="l00128"></a><a class="code" href="class_x_value_node_base.html#a2">00128</a> <a class="code" href="class_x_value_node_base.html#a2">XValueNodeBase::setValidator</a>(Validator v) {
-<a name="l00129"></a>00129     <a class="code" href="class_x_value_node_base.html#p2">m_validator</a> = v;
-<a name="l00130"></a>00130 }
-<a name="l00131"></a>00131 
-<a name="l00132"></a>00132 <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T, <span class="keywordtype">int</span> base&gt;
-<a name="l00133"></a>00133 <span class="keywordtype">void</span>
-<a name="l00134"></a><a class="code" href="class_x_value_node.html#a3">00134</a> <a class="code" href="class_x_value_node.html#a3">XValueNode&lt;T, base&gt;::value</a>(<span class="keyword">const</span> T &amp;t) {
-<a name="l00135"></a>00135     <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XRecursiveMutex&gt;</a> lock(<a class="code" href="class_x_value_node.html#p1">m_valuemutex</a>);
-<a name="l00136"></a>00136     shared_ptr&lt;XValueNodeBase&gt; ptr = 
-<a name="l00137"></a>00137         dynamic_pointer_cast&lt;XValueNodeBase&gt;(shared_from_this());
-<a name="l00138"></a>00138     <a class="code" href="class_x_value_node_base.html#p0">m_tlkBeforeValueChanged</a>.<a class="code" href="class_x_talker.html#a7">talk</a>(ptr);
-<a name="l00139"></a>00139     <a class="code" href="class_x_value_node.html#p0">m_var</a> = t;
-<a name="l00140"></a>00140     <a class="code" href="class_x_value_node_base.html#p1">m_tlkOnValueChanged</a>.<a class="code" href="class_x_talker.html#a7">talk</a>(ptr); <span class="comment">//, 1, &amp;statusmutex);</span>
+<a name="l00060"></a><a class="code" href="class_x_node.html#a11">00060</a> <a class="code" href="class_x_node.html#a11">XNode::clearChildren</a>()
+<a name="l00061"></a>00061 {
+<a name="l00062"></a>00062     <a class="code" href="class_x_node.html#p0">m_children</a>.<a class="code" href="classatomic__shared__ptr.html#a7">reset</a>();
+<a name="l00063"></a>00063 }
+<a name="l00064"></a>00064 <span class="keywordtype">int</span>
+<a name="l00065"></a><a class="code" href="class_x_node.html#a12">00065</a> <a class="code" href="class_x_node.html#a12">XNode::releaseChild</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node)
+<a name="l00066"></a>00066 {
+<a name="l00067"></a>00067     <span class="keywordflow">for</span>(;;) {
+<a name="l00068"></a>00068         <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;NodeList&gt;</a> old_list(<a class="code" href="class_x_node.html#p0">m_children</a>);
+<a name="l00069"></a>00069         <span class="keywordflow">if</span>(!old_list) <span class="keywordflow">return</span> -1;
+<a name="l00070"></a>00070         <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;NodeList&gt;</a> new_list(<span class="keyword">new</span> <a class="code" href="class_x_node.html#w0">NodeList</a>(*old_list));
+<a name="l00071"></a>00071         NodeList::iterator it = find(new_list-&gt;begin(), new_list-&gt;end(), node);
+<a name="l00072"></a>00072         <span class="keywordflow">if</span>(it == new_list-&gt;end()) <span class="keywordflow">return</span> -1;
+<a name="l00073"></a>00073         new_list-&gt;erase(it);
+<a name="l00074"></a>00074         <span class="keywordflow">if</span>(new_list-&gt;empty())
+<a name="l00075"></a>00075             new_list.<a class="code" href="classatomic__shared__ptr.html#a7">reset</a>();
+<a name="l00076"></a>00076         <span class="keywordflow">if</span>(new_list.<a class="code" href="classatomic__shared__ptr.html#a10">compareAndSwap</a>(old_list, <a class="code" href="class_x_node.html#p0">m_children</a>)) <span class="keywordflow">break</span>;
+<a name="l00077"></a>00077     }
+<a name="l00078"></a>00078     <span class="keywordflow">return</span> 0;
+<a name="l00079"></a>00079 }
+<a name="l00080"></a>00080 
+<a name="l00081"></a>00081 shared_ptr&lt;XNode&gt;
+<a name="l00082"></a><a class="code" href="class_x_node.html#a9">00082</a> <a class="code" href="class_x_node.html#a9">XNode::getChild</a>(<span class="keyword">const</span> std::string &amp;var)<span class="keyword"> const</span>
+<a name="l00083"></a>00083 <span class="keyword"></span>{
+<a name="l00084"></a>00084   shared_ptr&lt;XNode&gt; node;
+<a name="l00085"></a>00085   <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> list(<a class="code" href="class_x_node.html#a10">children</a>());
+<a name="l00086"></a>00086   <span class="keywordflow">if</span>(list) { 
+<a name="l00087"></a>00087       <span class="keywordflow">for</span>(XNode::NodeList::const_iterator it = list-&gt;begin(); it != list-&gt;end(); it++) {
+<a name="l00088"></a>00088           <span class="keywordflow">if</span>((*it)-&gt;getName() == var) {
+<a name="l00089"></a>00089                 node = *it;
+<a name="l00090"></a>00090                 <span class="keywordflow">break</span>;
+<a name="l00091"></a>00091           }
+<a name="l00092"></a>00092       }
+<a name="l00093"></a>00093   }
+<a name="l00094"></a>00094   <span class="keywordflow">return</span> node;
+<a name="l00095"></a>00095 }
+<a name="l00096"></a>00096 
+<a name="l00097"></a><a class="code" href="class_x_value_node_base.html#b0">00097</a> <a class="code" href="class_x_value_node_base.html#b0">XValueNodeBase::XValueNodeBase</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime) : 
+<a name="l00098"></a>00098     <a class="code" href="class_x_node.html">XNode</a>(name, runtime), m_validator(0L)
+<a name="l00099"></a>00099 {
+<a name="l00100"></a>00100 }
+<a name="l00101"></a>00101 <span class="keywordtype">void</span>
+<a name="l00102"></a><a class="code" href="class_x_value_node_base.html#a2">00102</a> <a class="code" href="class_x_value_node_base.html#a1">XValueNodeBase::str</a>(<span class="keyword">const</span> std::string &amp;s) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;) {
+<a name="l00103"></a>00103     std::string sc(s);
+<a name="l00104"></a>00104     <span class="keywordflow">if</span>(m_validator)
+<a name="l00105"></a>00105             (*m_validator)(sc);
+<a name="l00106"></a>00106     _str(sc);
+<a name="l00107"></a>00107 }
+<a name="l00108"></a>00108 <span class="keywordtype">void</span>
+<a name="l00109"></a><a class="code" href="class_x_value_node_base.html#a1">00109</a> <a class="code" href="class_x_value_node_base.html#a1">XValueNodeBase::str</a>(<span class="keyword">const</span> QString &amp;s) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;) {
+<a name="l00110"></a>00110     str(std::string((<span class="keyword">const</span> <span class="keywordtype">char</span>*)s));
+<a name="l00111"></a>00111 }
+<a name="l00112"></a>00112 <span class="keywordtype">void</span>
+<a name="l00113"></a><a class="code" href="class_x_value_node_base.html#a3">00113</a> <a class="code" href="class_x_value_node_base.html#a3">XValueNodeBase::setValidator</a>(Validator v) {
+<a name="l00114"></a>00114     <a class="code" href="class_x_value_node_base.html#p2">m_validator</a> = v;
+<a name="l00115"></a>00115 }
+<a name="l00116"></a>00116 
+<a name="l00117"></a>00117 <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T, <span class="keywordtype">int</span> base&gt;
+<a name="l00118"></a>00118 <span class="keywordtype">void</span>
+<a name="l00119"></a><a class="code" href="class_x_value_node.html#a3">00119</a> <a class="code" href="class_x_value_node.html#a3">XValueNode&lt;T, base&gt;::value</a>(<span class="keyword">const</span> T &amp;t) {
+<a name="l00120"></a>00120     <span class="keywordflow">if</span>(<a class="code" href="class_x_value_node_base.html#p0">m_tlkBeforeValueChanged</a>.<a class="code" href="class_x_talker.html#a8">empty</a>() &amp;&amp; <a class="code" href="class_x_value_node_base.html#p1">m_tlkOnValueChanged</a>.<a class="code" href="class_x_talker.html#a8">empty</a>()) {
+<a name="l00121"></a>00121         <a class="code" href="class_x_value_node.html#p0">m_var</a> = t;
+<a name="l00122"></a>00122     }
+<a name="l00123"></a>00123     <span class="keywordflow">else</span> {
+<a name="l00124"></a>00124         <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XRecursiveMutex&gt;</a> lock(<a class="code" href="class_x_value_node.html#p1">m_valuemutex</a>);
+<a name="l00125"></a>00125         shared_ptr&lt;XValueNodeBase&gt; ptr = 
+<a name="l00126"></a>00126             dynamic_pointer_cast&lt;XValueNodeBase&gt;(shared_from_this());
+<a name="l00127"></a>00127         <a class="code" href="class_x_value_node_base.html#p0">m_tlkBeforeValueChanged</a>.<a class="code" href="class_x_talker.html#a7">talk</a>(ptr);
+<a name="l00128"></a>00128         <a class="code" href="class_x_value_node.html#p0">m_var</a> = t;
+<a name="l00129"></a>00129         <a class="code" href="class_x_value_node_base.html#p1">m_tlkOnValueChanged</a>.<a class="code" href="class_x_talker.html#a7">talk</a>(ptr); <span class="comment">//, 1, &amp;statusmutex);</span>
+<a name="l00130"></a>00130     }
+<a name="l00131"></a>00131 }
+<a name="l00132"></a>00132 
+<a name="l00133"></a>00133 <span class="keyword">template</span> &lt;&gt;
+<a name="l00134"></a>00134 <span class="keywordtype">void</span>
+<a name="l00135"></a><a class="code" href="class_x_value_node.html#a4">00135</a> <a class="code" href="class_x_value_node.html">XValueNode&lt;int, 10&gt;::_str</a>(<span class="keyword">const</span> std::string &amp;str) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;) {
+<a name="l00136"></a>00136     <span class="keywordtype">bool</span> ok;
+<a name="l00137"></a>00137     <span class="keywordtype">int</span> var = QString(str).toInt(&amp;ok, 10);
+<a name="l00138"></a>00138     <span class="keywordflow">if</span>(!ok)
+<a name="l00139"></a>00139          <span class="keywordflow">throw</span> <a class="code" href="struct_x_kame_error.html">XKameError</a>(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Ill string conversion to integer."</span>), __FILE__, __LINE__);
+<a name="l00140"></a>00140     value(var);
 <a name="l00141"></a>00141 }
-<a name="l00142"></a>00142 
-<a name="l00143"></a>00143 <span class="keyword">template</span> &lt;&gt;
-<a name="l00144"></a>00144 <span class="keywordtype">void</span>
-<a name="l00145"></a><a class="code" href="class_x_value_node.html#a4">00145</a> <a class="code" href="class_x_value_node.html">XValueNode&lt;int, 10&gt;::_str</a>(<span class="keyword">const</span> QString &amp;str) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;) {
-<a name="l00146"></a>00146     <span class="keywordtype">bool</span> ok;
-<a name="l00147"></a>00147     <span class="keywordtype">int</span> var = str.toInt(&amp;ok, 10);
-<a name="l00148"></a>00148     <span class="keywordflow">if</span>(!ok)
-<a name="l00149"></a>00149          <span class="keywordflow">throw</span> <a class="code" href="struct_x_kame_error.html">XKameError</a>(i18n(<span class="stringliteral">"Ill string conversion to integer."</span>), __FILE__, __LINE__);
-<a name="l00150"></a>00150     value(var);
-<a name="l00151"></a>00151 }
-<a name="l00152"></a>00152 <span class="keyword">template</span> &lt;&gt;
-<a name="l00153"></a>00153 <span class="keywordtype">void</span>
-<a name="l00154"></a><a class="code" href="class_x_value_node.html#a5">00154</a> <a class="code" href="class_x_value_node.html">XValueNode&lt;unsigned int, 10&gt;::_str</a>(<span class="keyword">const</span> QString &amp;str) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;) {
-<a name="l00155"></a>00155     <span class="keywordtype">bool</span> ok;
-<a name="l00156"></a>00156     <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> var = str.toUInt(&amp;ok);
-<a name="l00157"></a>00157     <span class="keywordflow">if</span>(!ok)
-<a name="l00158"></a>00158          <span class="keywordflow">throw</span> <a class="code" href="struct_x_kame_error.html">XKameError</a>(i18n(<span class="stringliteral">"Ill string conversion to unsigned integer."</span>), __FILE__, __LINE__);
-<a name="l00159"></a>00159     value(var);
-<a name="l00160"></a>00160 }
-<a name="l00161"></a>00161 <span class="keyword">template</span> &lt;&gt;
-<a name="l00162"></a>00162 <span class="keywordtype">void</span>
-<a name="l00163"></a><a class="code" href="class_x_value_node.html#a6">00163</a> <a class="code" href="class_x_value_node.html">XValueNode&lt;unsigned int, 16&gt;::_str</a>(<span class="keyword">const</span> QString &amp;str) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;) {
-<a name="l00164"></a>00164     <span class="keywordtype">bool</span> ok;
-<a name="l00165"></a>00165     <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> var = str.toUInt(&amp;ok, 16);
-<a name="l00166"></a>00166     <span class="keywordflow">if</span>(!ok)
-<a name="l00167"></a>00167          <span class="keywordflow">throw</span> <a class="code" href="struct_x_kame_error.html">XKameError</a>(i18n(<span class="stringliteral">"Ill string conversion to hex."</span>), __FILE__, __LINE__);
-<a name="l00168"></a>00168     value(var);
-<a name="l00169"></a>00169 }
-<a name="l00170"></a>00170 <span class="keyword">template</span> &lt;&gt;
-<a name="l00171"></a>00171 <span class="keywordtype">void</span>
-<a name="l00172"></a><a class="code" href="class_x_value_node.html#a7">00172</a> <a class="code" href="class_x_value_node.html">XValueNode&lt;bool, 10&gt;::_str</a>(<span class="keyword">const</span> QString &amp;str) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;) {
-<a name="l00173"></a>00173   <span class="keywordtype">bool</span> ok;
-<a name="l00174"></a>00174   <span class="keywordtype">bool</span> x = str.toInt(&amp;ok);
-<a name="l00175"></a>00175     <span class="keywordflow">if</span>(ok) {
-<a name="l00176"></a>00176       value( x ? <span class="keyword">true</span> : <span class="keyword">false</span> );
-<a name="l00177"></a>00177       <span class="keywordflow">return</span>;
-<a name="l00178"></a>00178     }
-<a name="l00179"></a>00179    <span class="keywordflow">if</span>(str.stripWhiteSpace().lower() == <span class="stringliteral">"true"</span>) {
-<a name="l00180"></a>00180         value(<span class="keyword">true</span>); <span class="keywordflow">return</span>;
-<a name="l00181"></a>00181    }
-<a name="l00182"></a>00182    <span class="keywordflow">if</span>(str.stripWhiteSpace().lower() == <span class="stringliteral">"false"</span>) {
-<a name="l00183"></a>00183         value(<span class="keyword">false</span>); <span class="keywordflow">return</span>;
-<a name="l00184"></a>00184    }
-<a name="l00185"></a>00185    <span class="keywordflow">throw</span> <a class="code" href="struct_x_kame_error.html">XKameError</a>(i18n(<span class="stringliteral">"Ill string conversion to boolean."</span>), __FILE__, __LINE__);
-<a name="l00186"></a>00186 }
-<a name="l00187"></a>00187 
-<a name="l00188"></a>00188 <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T, <span class="keywordtype">int</span> base&gt;
-<a name="l00189"></a>00189 QString
-<a name="l00190"></a><a class="code" href="class_x_value_node.html#a2">00190</a> <a class="code" href="class_x_value_node.html#a2">XValueNode&lt;T, base&gt;::to_str</a>()<span class="keyword"> const </span>{
-<a name="l00191"></a>00191     <span class="keywordflow">return</span> QString::number(<a class="code" href="class_x_value_node.html#p0">m_var</a>, base);
-<a name="l00192"></a>00192 }
-<a name="l00193"></a>00193 <span class="keyword">template</span> &lt;&gt;
-<a name="l00194"></a>00194 QString
-<a name="l00195"></a><a class="code" href="class_x_value_node.html#a8">00195</a> <a class="code" href="class_x_value_node.html#a2">XValueNode&lt;bool, 10&gt;::to_str</a>()<span class="keyword"> const </span>{
-<a name="l00196"></a>00196     <span class="keywordflow">return</span> <a class="code" href="class_x_value_node.html#p0">m_var</a> ? <span class="stringliteral">"true"</span> : <span class="stringliteral">"false"</span>;
-<a name="l00197"></a>00197 }
-<a name="l00198"></a>00198 
-<a name="l00199"></a>00199 <span class="keyword">template</span> <span class="keyword">class </span><a class="code" href="class_x_value_node.html">XValueNode&lt;int, 10&gt;</a>;
-<a name="l00200"></a>00200 <span class="keyword">template</span> <span class="keyword">class </span><a class="code" href="class_x_value_node.html">XValueNode&lt;unsigned int, 10&gt;</a>;
-<a name="l00201"></a>00201 <span class="keyword">template</span> <span class="keyword">class </span><a class="code" href="class_x_value_node.html">XValueNode&lt;unsigned int, 16&gt;</a>;
-<a name="l00202"></a>00202 <span class="keyword">template</span> <span class="keyword">class </span><a class="code" href="class_x_value_node.html">XValueNode&lt;bool, 10&gt;</a>;
-<a name="l00203"></a>00203 
-<a name="l00204"></a><a class="code" href="class_x_string_node.html#b0">00204</a> <a class="code" href="class_x_string_node.html#b0">XStringNode::XStringNode</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime)
-<a name="l00205"></a>00205    : <a class="code" href="class_x_value_node_base.html">XValueNodeBase</a>(name, runtime), m_var(new QString()) {}
-<a name="l00206"></a>00206 
-<a name="l00207"></a>00207 QString
-<a name="l00208"></a><a class="code" href="class_x_string_node.html#a1">00208</a> <a class="code" href="class_x_string_node.html#a1">XStringNode::to_str</a>()<span class="keyword"> const</span>
-<a name="l00209"></a>00209 <span class="keyword"></span>{
-<a name="l00210"></a>00210     <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;QString&gt;</a> buf = <a class="code" href="class_x_string_node.html#r0">m_var</a>;
-<a name="l00211"></a>00211     <span class="keywordflow">return</span> *buf;
+<a name="l00142"></a>00142 <span class="keyword">template</span> &lt;&gt;
+<a name="l00143"></a>00143 <span class="keywordtype">void</span>
+<a name="l00144"></a><a class="code" href="class_x_value_node.html#a5">00144</a> <a class="code" href="class_x_value_node.html">XValueNode&lt;unsigned int, 10&gt;::_str</a>(<span class="keyword">const</span> std::string &amp;str) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;) {
+<a name="l00145"></a>00145     <span class="keywordtype">bool</span> ok;
+<a name="l00146"></a>00146     <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> var = QString(str).toUInt(&amp;ok);
+<a name="l00147"></a>00147     <span class="keywordflow">if</span>(!ok)
+<a name="l00148"></a>00148          <span class="keywordflow">throw</span> <a class="code" href="struct_x_kame_error.html">XKameError</a>(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Ill string conversion to unsigned integer."</span>), __FILE__, __LINE__);
+<a name="l00149"></a>00149     value(var);
+<a name="l00150"></a>00150 }
+<a name="l00151"></a>00151 <span class="keyword">template</span> &lt;&gt;
+<a name="l00152"></a>00152 <span class="keywordtype">void</span>
+<a name="l00153"></a><a class="code" href="class_x_value_node.html#a6">00153</a> <a class="code" href="class_x_value_node.html">XValueNode&lt;unsigned int, 16&gt;::_str</a>(<span class="keyword">const</span> std::string &amp;str) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;) {
+<a name="l00154"></a>00154     <span class="keywordtype">bool</span> ok;
+<a name="l00155"></a>00155     <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> var = QString(str).toUInt(&amp;ok, 16);
+<a name="l00156"></a>00156     <span class="keywordflow">if</span>(!ok)
+<a name="l00157"></a>00157          <span class="keywordflow">throw</span> <a class="code" href="struct_x_kame_error.html">XKameError</a>(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Ill string conversion to hex."</span>), __FILE__, __LINE__);
+<a name="l00158"></a>00158     value(var);
+<a name="l00159"></a>00159 }
+<a name="l00160"></a>00160 <span class="keyword">template</span> &lt;&gt;
+<a name="l00161"></a>00161 <span class="keywordtype">void</span>
+<a name="l00162"></a><a class="code" href="class_x_value_node.html#a7">00162</a> <a class="code" href="class_x_value_node.html">XValueNode&lt;bool, 10&gt;::_str</a>(<span class="keyword">const</span> std::string &amp;str) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;) {
+<a name="l00163"></a>00163   <span class="keywordtype">bool</span> ok;
+<a name="l00164"></a>00164   <span class="keywordtype">bool</span> x = QString(str).toInt(&amp;ok);
+<a name="l00165"></a>00165     <span class="keywordflow">if</span>(ok) {
+<a name="l00166"></a>00166       value( x ? <span class="keyword">true</span> : <span class="keyword">false</span> );
+<a name="l00167"></a>00167       <span class="keywordflow">return</span>;
+<a name="l00168"></a>00168     }
+<a name="l00169"></a>00169    <span class="keywordflow">if</span>(QString(str).stripWhiteSpace().lower() == <span class="stringliteral">"true"</span>) {
+<a name="l00170"></a>00170         value(<span class="keyword">true</span>); <span class="keywordflow">return</span>;
+<a name="l00171"></a>00171    }
+<a name="l00172"></a>00172    <span class="keywordflow">if</span>(QString(str).stripWhiteSpace().lower() == <span class="stringliteral">"false"</span>) {
+<a name="l00173"></a>00173         value(<span class="keyword">false</span>); <span class="keywordflow">return</span>;
+<a name="l00174"></a>00174    }
+<a name="l00175"></a>00175    <span class="keywordflow">throw</span> <a class="code" href="struct_x_kame_error.html">XKameError</a>(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Ill string conversion to boolean."</span>), __FILE__, __LINE__);
+<a name="l00176"></a>00176 }
+<a name="l00177"></a>00177 
+<a name="l00178"></a>00178 <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T, <span class="keywordtype">int</span> base&gt;
+<a name="l00179"></a>00179 std::string
+<a name="l00180"></a><a class="code" href="class_x_value_node.html#a2">00180</a> <a class="code" href="class_x_value_node.html#a2">XValueNode&lt;T, base&gt;::to_str</a>()<span class="keyword"> const </span>{
+<a name="l00181"></a>00181     <span class="keywordflow">return</span> QString::number(<a class="code" href="class_x_value_node.html#p0">m_var</a>, base);
+<a name="l00182"></a>00182 }
+<a name="l00183"></a>00183 <span class="keyword">template</span> &lt;&gt;
+<a name="l00184"></a>00184 std::string
+<a name="l00185"></a><a class="code" href="class_x_value_node.html#a8">00185</a> <a class="code" href="class_x_value_node.html#a2">XValueNode&lt;bool, 10&gt;::to_str</a>()<span class="keyword"> const </span>{
+<a name="l00186"></a>00186     <span class="keywordflow">return</span> <a class="code" href="class_x_value_node.html#p0">m_var</a> ? <span class="stringliteral">"true"</span> : <span class="stringliteral">"false"</span>;
+<a name="l00187"></a>00187 }
+<a name="l00188"></a>00188 
+<a name="l00189"></a>00189 <span class="keyword">template</span> <span class="keyword">class </span><a class="code" href="class_x_value_node.html">XValueNode&lt;int, 10&gt;</a>;
+<a name="l00190"></a>00190 <span class="keyword">template</span> <span class="keyword">class </span><a class="code" href="class_x_value_node.html">XValueNode&lt;unsigned int, 10&gt;</a>;
+<a name="l00191"></a>00191 <span class="keyword">template</span> <span class="keyword">class </span><a class="code" href="class_x_value_node.html">XValueNode&lt;unsigned int, 16&gt;</a>;
+<a name="l00192"></a>00192 <span class="keyword">template</span> <span class="keyword">class </span><a class="code" href="class_x_value_node.html">XValueNode&lt;bool, 10&gt;</a>;
+<a name="l00193"></a>00193 
+<a name="l00194"></a><a class="code" href="class_x_string_node.html#b0">00194</a> <a class="code" href="class_x_string_node.html#b0">XStringNode::XStringNode</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime)
+<a name="l00195"></a>00195    : <a class="code" href="class_x_value_node_base.html">XValueNodeBase</a>(name, runtime), m_var(new std::string()) {}
+<a name="l00196"></a>00196 
+<a name="l00197"></a>00197 std::string
+<a name="l00198"></a><a class="code" href="class_x_string_node.html#a1">00198</a> <a class="code" href="class_x_string_node.html#a1">XStringNode::to_str</a>()<span class="keyword"> const</span>
+<a name="l00199"></a>00199 <span class="keyword"></span>{
+<a name="l00200"></a>00200     <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;std::string&gt;</a> buf = <a class="code" href="class_x_string_node.html#r0">m_var</a>;
+<a name="l00201"></a>00201     <span class="keywordflow">return</span> *buf;
+<a name="l00202"></a>00202 }
+<a name="l00203"></a>00203 <span class="keywordtype">void</span>
+<a name="l00204"></a><a class="code" href="class_x_string_node.html#a3">00204</a> <a class="code" href="class_x_string_node.html#a3">XStringNode::operator=</a>(<span class="keyword">const</span> std::string &amp;var)
+<a name="l00205"></a>00205 {
+<a name="l00206"></a>00206     <a class="code" href="class_x_string_node.html#a4">value</a>(var);
+<a name="l00207"></a>00207 }
+<a name="l00208"></a>00208 <span class="keywordtype">void</span>
+<a name="l00209"></a><a class="code" href="class_x_string_node.html#b1">00209</a> <a class="code" href="class_x_string_node.html#b1">XStringNode::_str</a>(<span class="keyword">const</span> std::string &amp;var) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;)
+<a name="l00210"></a>00210 {
+<a name="l00211"></a>00211     value(var);
 <a name="l00212"></a>00212 }
-<a name="l00213"></a>00213 <span class="keywordtype">void</span>
-<a name="l00214"></a><a class="code" href="class_x_string_node.html#a3">00214</a> <a class="code" href="class_x_string_node.html#a3">XStringNode::operator=</a>(<span class="keyword">const</span> QString &amp;var)
-<a name="l00215"></a>00215 {
-<a name="l00216"></a>00216     <a class="code" href="class_x_string_node.html#a4">value</a>(var);
-<a name="l00217"></a>00217 }
-<a name="l00218"></a>00218 <span class="keywordtype">void</span>
-<a name="l00219"></a><a class="code" href="class_x_string_node.html#b1">00219</a> <a class="code" href="class_x_string_node.html#b1">XStringNode::_str</a>(<span class="keyword">const</span> QString &amp;var) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;)
-<a name="l00220"></a>00220 {
-<a name="l00221"></a>00221     value(var);
-<a name="l00222"></a>00222 }
-<a name="l00223"></a>00223 
-<a name="l00224"></a><a class="code" href="class_x_string_node.html#a2">00224</a> <a class="code" href="class_x_string_node.html#a2">XStringNode::operator QString</a>()<span class="keyword"> const </span>{
-<a name="l00225"></a>00225     <span class="keywordflow">return</span> <a class="code" href="class_x_string_node.html#a1">to_str</a>();
-<a name="l00226"></a>00226 }
-<a name="l00227"></a>00227 <span class="keywordtype">void</span>
-<a name="l00228"></a><a class="code" href="class_x_string_node.html#a4">00228</a> <a class="code" href="class_x_string_node.html#a4">XStringNode::value</a>(<span class="keyword">const</span> QString &amp;t) {
-<a name="l00229"></a>00229     <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XRecursiveMutex&gt;</a> lock(<a class="code" href="class_x_string_node.html#r1">m_valuemutex</a>);
-<a name="l00230"></a>00230     <a class="code" href="class_x_value_node_base.html#a3">beforeValueChanged</a>().<a class="code" href="class_x_talker.html#a7">talk</a>(dynamic_pointer_cast&lt;XValueNodeBase&gt;(shared_from_this()));
-<a name="l00231"></a>00231     <a class="code" href="class_x_string_node.html#r0">m_var</a>.<a class="code" href="classatomic__shared__ptr.html#a7">reset</a>(<span class="keyword">new</span> QString(t));
-<a name="l00232"></a>00232     <a class="code" href="class_x_value_node_base.html#a4">onValueChanged</a>().<a class="code" href="class_x_talker.html#a7">talk</a>(dynamic_pointer_cast&lt;XValueNodeBase&gt;(shared_from_this()));
-<a name="l00233"></a>00233 }
-<a name="l00234"></a>00234 
-<a name="l00235"></a><a class="code" href="class_x_double_node.html#b0">00235</a> <a class="code" href="class_x_double_node.html#b0">XDoubleNode::XDoubleNode</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> <span class="keywordtype">char</span> *format)
-<a name="l00236"></a>00236  : <a class="code" href="class_x_value_node_base.html">XValueNodeBase</a>(name, runtime), m_var(new double(0.0))
-<a name="l00237"></a>00237 {
-<a name="l00238"></a>00238   <span class="keywordflow">if</span>(format)
-<a name="l00239"></a>00239      <a class="code" href="class_x_double_node.html#a5">setFormat</a>(format);
-<a name="l00240"></a>00240   <span class="keywordflow">else</span>
-<a name="l00241"></a>00241      <a class="code" href="class_x_double_node.html#a5">setFormat</a>(<span class="stringliteral">""</span>);
+<a name="l00213"></a>00213 
+<a name="l00214"></a><a class="code" href="class_x_string_node.html#a2">00214</a> XStringNode::operator std::string()<span class="keyword"> const </span>{
+<a name="l00215"></a>00215     <span class="keywordflow">return</span> <a class="code" href="class_x_string_node.html#a1">to_str</a>();
+<a name="l00216"></a>00216 }
+<a name="l00217"></a>00217 <span class="keywordtype">void</span>
+<a name="l00218"></a><a class="code" href="class_x_string_node.html#a4">00218</a> <a class="code" href="class_x_string_node.html#a4">XStringNode::value</a>(<span class="keyword">const</span> std::string &amp;t) {
+<a name="l00219"></a>00219     <span class="keywordflow">if</span>(<a class="code" href="class_x_value_node_base.html#a4">beforeValueChanged</a>().<a class="code" href="class_x_talker.html#a8">empty</a>() &amp;&amp; <a class="code" href="class_x_value_node_base.html#a5">onValueChanged</a>().<a class="code" href="class_x_talker.html#a8">empty</a>()) {
+<a name="l00220"></a>00220         <a class="code" href="class_x_string_node.html#r0">m_var</a>.<a class="code" href="classatomic__shared__ptr.html#a7">reset</a>(<span class="keyword">new</span> std::string(t));
+<a name="l00221"></a>00221     }
+<a name="l00222"></a>00222     <span class="keywordflow">else</span> {
+<a name="l00223"></a>00223         <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XRecursiveMutex&gt;</a> lock(<a class="code" href="class_x_string_node.html#r1">m_valuemutex</a>);
+<a name="l00224"></a>00224         <a class="code" href="class_x_value_node_base.html#a4">beforeValueChanged</a>().<a class="code" href="class_x_talker.html#a7">talk</a>(dynamic_pointer_cast&lt;XValueNodeBase&gt;(shared_from_this()));
+<a name="l00225"></a>00225         <a class="code" href="class_x_string_node.html#r0">m_var</a>.<a class="code" href="classatomic__shared__ptr.html#a7">reset</a>(<span class="keyword">new</span> std::string(t));
+<a name="l00226"></a>00226         <a class="code" href="class_x_value_node_base.html#a5">onValueChanged</a>().<a class="code" href="class_x_talker.html#a7">talk</a>(dynamic_pointer_cast&lt;XValueNodeBase&gt;(shared_from_this()));
+<a name="l00227"></a>00227     }
+<a name="l00228"></a>00228 }
+<a name="l00229"></a>00229 
+<a name="l00230"></a><a class="code" href="class_x_double_node.html#b0">00230</a> <a class="code" href="class_x_double_node.html#b0">XDoubleNode::XDoubleNode</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> <span class="keywordtype">char</span> *format)
+<a name="l00231"></a>00231  : <a class="code" href="class_x_value_node_base.html">XValueNodeBase</a>(name, runtime), m_var(new double(0.0))
+<a name="l00232"></a>00232 {
+<a name="l00233"></a>00233   <span class="keywordflow">if</span>(format)
+<a name="l00234"></a>00234      <a class="code" href="class_x_double_node.html#a5">setFormat</a>(format);
+<a name="l00235"></a>00235   <span class="keywordflow">else</span>
+<a name="l00236"></a>00236      <a class="code" href="class_x_double_node.html#a5">setFormat</a>(<span class="stringliteral">""</span>);
+<a name="l00237"></a>00237 }
+<a name="l00238"></a>00238 std::string
+<a name="l00239"></a><a class="code" href="class_x_double_node.html#a1">00239</a> <a class="code" href="class_x_double_node.html#a1">XDoubleNode::to_str</a>()<span class="keyword"> const</span>
+<a name="l00240"></a>00240 <span class="keyword"></span>{
+<a name="l00241"></a>00241     <span class="keywordflow">return</span> formatDouble(<a class="code" href="class_x_double_node.html#r1">m_format</a>.c_str(), <a class="code" href="class_x_double_node.html#a3">operator double</a>());
 <a name="l00242"></a>00242 }
-<a name="l00243"></a>00243 QString
-<a name="l00244"></a><a class="code" href="class_x_double_node.html#a1">00244</a> <a class="code" href="class_x_double_node.html#a1">XDoubleNode::to_str</a>()<span class="keyword"> const</span>
-<a name="l00245"></a>00245 <span class="keyword"></span>{
-<a name="l00246"></a>00246     <span class="keywordflow">return</span> formatDouble(<a class="code" href="class_x_double_node.html#r1">m_format</a>.c_str(), <a class="code" href="class_x_double_node.html#a3">operator double</a>());
-<a name="l00247"></a>00247 }
-<a name="l00248"></a>00248 <span class="keywordtype">void</span>
-<a name="l00249"></a><a class="code" href="class_x_double_node.html#b1">00249</a> <a class="code" href="class_x_double_node.html#b1">XDoubleNode::_str</a>(<span class="keyword">const</span> QString &amp;str) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;)
-<a name="l00250"></a>00250 {
-<a name="l00251"></a>00251 <span class="keywordtype">bool</span> ok;
-<a name="l00252"></a>00252     <span class="keywordtype">double</span> var = str.toDouble(&amp;ok);
-<a name="l00253"></a>00253     <span class="keywordflow">if</span>(!ok) 
-<a name="l00254"></a>00254          <span class="keywordflow">throw</span> <a class="code" href="struct_x_kame_error.html">XKameError</a>(i18n(<span class="stringliteral">"Ill string conversion to double float."</span>), __FILE__, __LINE__);
-<a name="l00255"></a>00255     value(var);
-<a name="l00256"></a>00256 }
-<a name="l00257"></a>00257 <span class="keywordtype">void</span>
-<a name="l00258"></a><a class="code" href="class_x_double_node.html#a2">00258</a> <a class="code" href="class_x_double_node.html#a2">XDoubleNode::value</a>(<span class="keyword">const</span> <span class="keywordtype">double</span> &amp;t) {
-<a name="l00259"></a>00259     <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XRecursiveMutex&gt;</a> lock(<a class="code" href="class_x_double_node.html#r2">m_valuemutex</a>);
-<a name="l00260"></a>00260     <a class="code" href="class_x_value_node_base.html#a3">beforeValueChanged</a>().<a class="code" href="class_x_talker.html#a7">talk</a>(dynamic_pointer_cast&lt;XValueNodeBase&gt;(shared_from_this()));
-<a name="l00261"></a>00261     <a class="code" href="class_x_double_node.html#r0">m_var</a>.<a class="code" href="classatomic__shared__ptr.html#a7">reset</a>(<span class="keyword">new</span> <span class="keywordtype">double</span>(t));
-<a name="l00262"></a>00262     <a class="code" href="class_x_value_node_base.html#a4">onValueChanged</a>().<a class="code" href="class_x_talker.html#a7">talk</a>(dynamic_pointer_cast&lt;XValueNodeBase&gt;(shared_from_this()));
+<a name="l00243"></a>00243 <span class="keywordtype">void</span>
+<a name="l00244"></a><a class="code" href="class_x_double_node.html#b1">00244</a> <a class="code" href="class_x_double_node.html#b1">XDoubleNode::_str</a>(<span class="keyword">const</span> std::string &amp;str) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;)
+<a name="l00245"></a>00245 {
+<a name="l00246"></a>00246 <span class="keywordtype">bool</span> ok;
+<a name="l00247"></a>00247     <span class="keywordtype">double</span> var = QString(str).toDouble(&amp;ok);
+<a name="l00248"></a>00248     <span class="keywordflow">if</span>(!ok) 
+<a name="l00249"></a>00249          <span class="keywordflow">throw</span> <a class="code" href="struct_x_kame_error.html">XKameError</a>(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Ill string conversion to double float."</span>), __FILE__, __LINE__);
+<a name="l00250"></a>00250     value(var);
+<a name="l00251"></a>00251 }
+<a name="l00252"></a>00252 <span class="keywordtype">void</span>
+<a name="l00253"></a><a class="code" href="class_x_double_node.html#a2">00253</a> <a class="code" href="class_x_double_node.html#a2">XDoubleNode::value</a>(<span class="keyword">const</span> <span class="keywordtype">double</span> &amp;t) {
+<a name="l00254"></a>00254     <span class="keywordflow">if</span>(<a class="code" href="class_x_value_node_base.html#a4">beforeValueChanged</a>().<a class="code" href="class_x_talker.html#a8">empty</a>() &amp;&amp; <a class="code" href="class_x_value_node_base.html#a5">onValueChanged</a>().<a class="code" href="class_x_talker.html#a8">empty</a>()) {
+<a name="l00255"></a>00255         <a class="code" href="class_x_double_node.html#r0">m_var</a>.<a class="code" href="classatomic__shared__ptr.html#a7">reset</a>(<span class="keyword">new</span> <span class="keywordtype">double</span>(t));
+<a name="l00256"></a>00256     }
+<a name="l00257"></a>00257     <span class="keywordflow">else</span> {
+<a name="l00258"></a>00258         <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XRecursiveMutex&gt;</a> lock(<a class="code" href="class_x_double_node.html#r2">m_valuemutex</a>);
+<a name="l00259"></a>00259         <a class="code" href="class_x_value_node_base.html#a4">beforeValueChanged</a>().<a class="code" href="class_x_talker.html#a7">talk</a>(dynamic_pointer_cast&lt;XValueNodeBase&gt;(shared_from_this()));
+<a name="l00260"></a>00260         <a class="code" href="class_x_double_node.html#r0">m_var</a>.<a class="code" href="classatomic__shared__ptr.html#a7">reset</a>(<span class="keyword">new</span> <span class="keywordtype">double</span>(t));
+<a name="l00261"></a>00261         <a class="code" href="class_x_value_node_base.html#a5">onValueChanged</a>().<a class="code" href="class_x_talker.html#a7">talk</a>(dynamic_pointer_cast&lt;XValueNodeBase&gt;(shared_from_this()));
+<a name="l00262"></a>00262     }
 <a name="l00263"></a>00263 }
 <a name="l00264"></a><a class="code" href="class_x_double_node.html#a3">00264</a> <a class="code" href="class_x_double_node.html#a3">XDoubleNode::operator double</a>()<span class="keyword"> const</span>
 <a name="l00265"></a>00265 <span class="keyword"></span>{
@@ -282,18 +282,18 @@
 <a name="l00273"></a>00273 }
 <a name="l00274"></a>00274 <span class="keywordtype">void</span>
 <a name="l00275"></a><a class="code" href="class_x_double_node.html#a5">00275</a> <a class="code" href="class_x_double_node.html#a5">XDoubleNode::setFormat</a>(<span class="keyword">const</span> <span class="keywordtype">char</span>* format) {
-<a name="l00276"></a>00276     QString fmt;
-<a name="l00277"></a>00277     <span class="keywordflow">if</span>(format) fmt = QString::fromUtf8(format);
+<a name="l00276"></a>00276     std::string fmt;
+<a name="l00277"></a>00277     <span class="keywordflow">if</span>(format) fmt = format;
 <a name="l00278"></a>00278     <span class="keywordflow">try</span> {
 <a name="l00279"></a>00279         formatDoubleValidator(fmt);
-<a name="l00280"></a>00280         <a class="code" href="class_x_double_node.html#r1">m_format</a> = fmt.utf8();
+<a name="l00280"></a>00280         <a class="code" href="class_x_double_node.html#r1">m_format</a> = fmt;
 <a name="l00281"></a>00281     }
 <a name="l00282"></a>00282     <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
 <a name="l00283"></a>00283         e.<a class="code" href="struct_x_kame_error.html#a1">print</a>();
 <a name="l00284"></a>00284     }
 <a name="l00285"></a>00285 }
 <a name="l00286"></a>00286 
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:24 2006に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:24 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

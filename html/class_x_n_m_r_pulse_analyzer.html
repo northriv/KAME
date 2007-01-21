@@ -4,7 +4,7 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <h1>クラス XNMRPulseAnalyzer</h1><!-- doxytag: class=<XNMRPulseAnalyzer> --><!-- doxytag: inherits=<XSecondaryDriver> -->XNMRPulseAnalyzerに対する継承グラフ<p><center><img src="class_x_n_m_r_pulse_analyzer__inherit__graph.png" border="0" usemap="#_x_n_m_r_pulse_analyzer__inherit__map" alt="Inheritance graph"></center>
 <map name="_x_n_m_r_pulse_analyzer__inherit__map">
 <area href="class_x_secondary_driver.html" shape="rect" coords="16,157,146,184" alt="">
@@ -13,11 +13,11 @@
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XNMRPulseAnalyzerのコラボレーション図<p><center><img src="class_x_n_m_r_pulse_analyzer__coll__graph.png" border="0" usemap="#_x_n_m_r_pulse_analyzer__coll__map" alt="Collaboration graph"></center>
 <map name="_x_n_m_r_pulse_analyzer__coll__map">
-<area href="class_x_secondary_driver.html" shape="rect" coords="65,16,196,42" alt="">
-<area href="classqshared__ptr.html" shape="rect" coords="24,69,237,96" alt="">
-<area href="classqshared__ptr.html" shape="rect" coords="29,133,232,160" alt="">
-<area href="classqshared__ptr.html" shape="rect" coords="9,197,252,224" alt="">
-<area href="class_x_time.html" shape="rect" coords="100,261,161,288" alt="">
+<area href="class_x_secondary_driver.html" shape="rect" coords="65,25,196,52" alt="">
+<area href="classqshared__ptr.html" shape="rect" coords="24,78,237,105" alt="">
+<area href="classqshared__ptr.html" shape="rect" coords="29,142,232,169" alt="">
+<area href="classqshared__ptr.html" shape="rect" coords="9,206,252,233" alt="">
+<area href="class_x_time.html" shape="rect" coords="100,270,161,297" alt="">
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_n_m_r_pulse_analyzer-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
 <tr><td></td></tr>
@@ -41,85 +41,89 @@ const shared_ptr&lt; <a class="el" href="class_x_scalar_entry.html">XScalarEntry
 const shared_ptr&lt; <a class="el" href="class_x_item_node.html">XItemNode</a>&lt;<br>
  <a class="el" href="class_x_driver_list.html">XDriverList</a>, <a class="el" href="class_x_d_s_o.html">XDSO</a> &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a4">dso</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a5"></a><!-- doxytag: member=<XNMRPulseAnalyzer::acquire> ref=<a5> args=<()> -->
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a5"></a><!-- doxytag: member=<XNMRPulseAnalyzer::pulser> ref=<a5> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_item_node.html">XItemNode</a>&lt;<br>
+ <a class="el" href="class_x_driver_list.html">XDriverList</a>, <a class="el" href="class_x_pulser.html">XPulser</a> &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a5">pulser</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a6"></a><!-- doxytag: member=<XNMRPulseAnalyzer::acquire> ref=<a6> args=<()> -->
 void&nbsp;</td><td class="memItemRight" valign="bottom"><b>acquire</b> ()</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a6"></a><!-- doxytag: member=<XNMRPulseAnalyzer::fromTrig> ref=<a6> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a6">fromTrig</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a7"></a><!-- doxytag: member=<XNMRPulseAnalyzer::fromTrig> ref=<a7> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a7">fromTrig</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Origin from trigger [ms]. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a7"></a><!-- doxytag: member=<XNMRPulseAnalyzer::width> ref=<a7> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a7">width</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a8"></a><!-- doxytag: member=<XNMRPulseAnalyzer::width> ref=<a8> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a8">width</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">length of data points [ms] <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top">const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a8">phaseAdv</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a9">phaseAdv</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a9"></a><!-- doxytag: member=<XNMRPulseAnalyzer::useDNR> ref=<a9> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a9">useDNR</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a10"></a><!-- doxytag: member=<XNMRPulseAnalyzer::useDNR> ref=<a10> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a10">useDNR</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Dynamic Noise Reduction. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a10"></a><!-- doxytag: member=<XNMRPulseAnalyzer::bgPos> ref=<a10> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a10">bgPos</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a11"></a><!-- doxytag: member=<XNMRPulseAnalyzer::bgPos> ref=<a11> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a11">bgPos</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Position from trigger, for background subtraction or DNR [ms]. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a11"></a><!-- doxytag: member=<XNMRPulseAnalyzer::bgWidth> ref=<a11> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a11">bgWidth</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a12"></a><!-- doxytag: member=<XNMRPulseAnalyzer::bgWidth> ref=<a12> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a12">bgWidth</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">length for background subtraction or DNR [ms] <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a12"></a><!-- doxytag: member=<XNMRPulseAnalyzer::fftPos> ref=<a12> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a12">fftPos</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a13"></a><!-- doxytag: member=<XNMRPulseAnalyzer::fftPos> ref=<a13> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a13">fftPos</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Phase 0 deg. position of FT component from trigger [ms]. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a13"></a><!-- doxytag: member=<XNMRPulseAnalyzer::fftLen> ref=<a13> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XUIntNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a13">fftLen</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a14"></a><!-- doxytag: member=<XNMRPulseAnalyzer::fftLen> ref=<a14> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XUIntNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a14">fftLen</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">If exceeding Width, do zerofilling. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a14"></a><!-- doxytag: member=<XNMRPulseAnalyzer::windowFunc> ref=<a14> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a14">windowFunc</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a15"></a><!-- doxytag: member=<XNMRPulseAnalyzer::windowFunc> ref=<a15> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a15">windowFunc</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">FFT Window Function. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a15"></a><!-- doxytag: member=<XNMRPulseAnalyzer::difFreq> ref=<a15> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a15">difFreq</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a16"></a><!-- doxytag: member=<XNMRPulseAnalyzer::difFreq> ref=<a16> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a16">difFreq</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Set Digital IF frequency. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a16"></a><!-- doxytag: member=<XNMRPulseAnalyzer::exAvgIncr> ref=<a16> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a16">exAvgIncr</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a17"></a><!-- doxytag: member=<XNMRPulseAnalyzer::exAvgIncr> ref=<a17> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a17">exAvgIncr</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Extra Average with infinite steps. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a17"></a><!-- doxytag: member=<XNMRPulseAnalyzer::extraAvg> ref=<a17> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XUIntNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a17">extraAvg</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a18"></a><!-- doxytag: member=<XNMRPulseAnalyzer::extraAvg> ref=<a18> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XUIntNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a18">extraAvg</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Extra Average Steps. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a18"></a><!-- doxytag: member=<XNMRPulseAnalyzer::numEcho> ref=<a18> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XUIntNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a18">numEcho</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a19"></a><!-- doxytag: member=<XNMRPulseAnalyzer::numEcho> ref=<a19> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XUIntNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a19">numEcho</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight"># of echoes <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a19"></a><!-- doxytag: member=<XNMRPulseAnalyzer::echoPeriod> ref=<a19> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a19">echoPeriod</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a20"></a><!-- doxytag: member=<XNMRPulseAnalyzer::echoPeriod> ref=<a20> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a20">echoPeriod</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">If NumEcho &gt; 1, need periodic term of echoes [ms]. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a20"></a><!-- doxytag: member=<XNMRPulseAnalyzer::ftWave> ref=<a20> args=<() const > -->
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a21"></a><!-- doxytag: member=<XNMRPulseAnalyzer::ftWave> ref=<a21> args=<() const > -->
 const std::deque&lt; std::complex&lt;<br>
- double &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a20">ftWave</a> () const </td></tr>
+ double &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a21">ftWave</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">FFT Wave without extra avg. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a21"></a><!-- doxytag: member=<XNMRPulseAnalyzer::wave> ref=<a21> args=<() const > -->
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a22"></a><!-- doxytag: member=<XNMRPulseAnalyzer::wave> ref=<a22> args=<() const > -->
 const std::deque&lt; std::complex&lt;<br>
- double &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a21">wave</a> () const </td></tr>
+ double &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a22">wave</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Wave without extra avg. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a22"></a><!-- doxytag: member=<XNMRPulseAnalyzer::dFreq> ref=<a22> args=<() const > -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a22">dFreq</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a23"></a><!-- doxytag: member=<XNMRPulseAnalyzer::dFreq> ref=<a23> args=<() const > -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a23">dFreq</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">freq. resolution [Hz] <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top">double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a23">noisePower</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a24">noisePower</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a24"></a><!-- doxytag: member=<XNMRPulseAnalyzer::interval> ref=<a24> args=<() const > -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a24">interval</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a25"></a><!-- doxytag: member=<XNMRPulseAnalyzer::interval> ref=<a25> args=<() const > -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a25">interval</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">time resolution [sec.] <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a25"></a><!-- doxytag: member=<XNMRPulseAnalyzer::startTime> ref=<a25> args=<() const > -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a25">startTime</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a26"></a><!-- doxytag: member=<XNMRPulseAnalyzer::startTime> ref=<a26> args=<() const > -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#a26">startTime</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">time diff. of the first point from trigger [sec.] <br></td></tr>
 <tr><td colspan="2"><br><h2>Protected メソッド</h2></td></tr>
@@ -154,8 +158,8 @@ void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d4"></a><!-- doxytag: member=<XNMRPulseAnalyzer::onAvgClear> ref=<d4> args=<(const shared_ptr&lt; XNode &gt; &amp;)> -->
 void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#d4">onAvgClear</a> (const shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt; &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d5"></a><!-- doxytag: member=<XNMRPulseAnalyzer::backgroundSub> ref=<d5> args=<(const std::deque&lt; std::complex&lt; double &gt; &gt; &amp;wave, int length, int bgpos, int bglength, twindowfunc windowfunc)> -->
-void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#d5">backgroundSub</a> (const std::deque&lt; std::complex&lt; double &gt; &gt; &amp;wave, int length, int bgpos, int bglength, <a class="el" href="class_x_n_m_r_pulse_analyzer.html#y0">twindowfunc</a> windowfunc)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d5"></a><!-- doxytag: member=<XNMRPulseAnalyzer::backgroundSub> ref=<d5> args=<(const std::deque&lt; std::complex&lt; double &gt; &gt; &amp;wave, int pos, int length, int bgpos, int bglength, twindowfunc windowfunc)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#d5">backgroundSub</a> (const std::deque&lt; std::complex&lt; double &gt; &gt; &amp;wave, int pos, int length, int bgpos, int bglength, <a class="el" href="class_x_n_m_r_pulse_analyzer.html#y0">twindowfunc</a> windowfunc)</td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d6"></a><!-- doxytag: member=<XNMRPulseAnalyzer::rotNFFT> ref=<d6> args=<(int ftpos, double ph, std::deque&lt; std::complex&lt; double &gt; &gt; &amp;wave, std::deque&lt; std::complex&lt; double &gt; &gt; &amp;ftwave, twindowfunc windowfunc, int diffreq)> -->
 void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#d6">rotNFFT</a> (int ftpos, double ph, std::deque&lt; std::complex&lt; double &gt; &gt; &amp;wave, std::deque&lt; std::complex&lt; double &gt; &gt; &amp;ftwave, <a class="el" href="class_x_n_m_r_pulse_analyzer.html#y0">twindowfunc</a> windowfunc, int diffreq)</td></tr>
@@ -253,164 +257,185 @@ shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt;&nbsp;</td><
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r18"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_avgClear> ref=<r18> args=<> -->
 shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r18">m_avgClear</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top">std::deque&lt; std::complex&lt;<br>
- double &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r19">m_ftWave</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r19"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_picEnabled> ref=<r19> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r19">m_picEnabled</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r20"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_wave> ref=<r20> args=<> -->
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Phase Inversion Cycling. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r20"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_pulser> ref=<r20> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_item_node.html">XItemNode</a>&lt; <a class="el" href="class_x_driver_list.html">XDriverList</a>,<br>
+ <a class="el" href="class_x_pulser.html">XPulser</a> &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r20">m_pulser</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r21"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_piccnt> ref=<r21> args=<> -->
+unsigned int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r21">m_piccnt</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r22"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_picRawWaveSum> ref=<r22> args=<> -->
 std::deque&lt; std::complex&lt;<br>
- double &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r20">m_wave</a></td></tr>
+ double &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r22">m_picRawWaveSum</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r21"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_dFreq> ref=<r21> args=<> -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r21">m_dFreq</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">std::deque&lt; std::complex&lt;<br>
+ double &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r23">m_ftWave</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r24"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_wave> ref=<r24> args=<> -->
+std::deque&lt; std::complex&lt;<br>
+ double &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r24">m_wave</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r25"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_dFreq> ref=<r25> args=<> -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r25">m_dFreq</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Hz per point. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r22"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_noisePower> ref=<r22> args=<> -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r22">m_noisePower</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r26"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_noisePower> ref=<r26> args=<> -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r26">m_noisePower</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r23"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_avcount> ref=<r23> args=<> -->
-int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r23">m_avcount</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r27"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_avcount> ref=<r27> args=<> -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r27">m_avcount</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r24"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_ftWaveSum> ref=<r24> args=<> -->
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r28"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_ftWaveSum> ref=<r28> args=<> -->
 std::deque&lt; std::complex&lt;<br>
- double &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r24">m_ftWaveSum</a></td></tr>
+ double &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r28">m_ftWaveSum</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Stored FFT Wave with avg. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r25"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_waveSum> ref=<r25> args=<> -->
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r29"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_waveSum> ref=<r29> args=<> -->
 std::deque&lt; std::complex&lt;<br>
- double &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r25">m_waveSum</a></td></tr>
+ double &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r29">m_waveSum</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Stored Waves for avg. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r26"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_waveAv> ref=<r26> args=<> -->
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r30"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_waveAv> ref=<r30> args=<> -->
 std::deque&lt; std::deque&lt; std::complex&lt;<br>
- double &gt; &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r26">m_waveAv</a></td></tr>
+ double &gt; &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r30">m_waveAv</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Stored Waves for moving avg. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r27"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_rawWaveSum> ref=<r27> args=<> -->
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r31"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_rawWaveSum> ref=<r31> args=<> -->
 std::deque&lt; std::complex&lt;<br>
- double &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r27">m_rawWaveSum</a></td></tr>
+ double &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r31">m_rawWaveSum</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Stored Waves for avg. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r28"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_interval> ref=<r28> args=<> -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r28">m_interval</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r32"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_interval> ref=<r32> args=<> -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r32">m_interval</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">time resolution <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r29"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_startTime> ref=<r29> args=<> -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r29">m_startTime</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r33"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_startTime> ref=<r33> args=<> -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r33">m_startTime</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">time diff. of the first point from trigger <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r30"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conFromTrig> ref=<r30> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r30">m_conFromTrig</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r34"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conFromTrig> ref=<r34> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r34">m_conFromTrig</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r31"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conWidth> ref=<r31> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r31">m_conWidth</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r35"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conWidth> ref=<r35> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r35">m_conWidth</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r32"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conPhaseAdv> ref=<r32> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r32">m_conPhaseAdv</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r36"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conPhaseAdv> ref=<r36> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r36">m_conPhaseAdv</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r33"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conBGPos> ref=<r33> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r33">m_conBGPos</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r37"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conBGPos> ref=<r37> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r37">m_conBGPos</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r34"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conUseDNR> ref=<r34> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r34">m_conUseDNR</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r38"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conUseDNR> ref=<r38> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r38">m_conUseDNR</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r35"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conBGWidth> ref=<r35> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r35">m_conBGWidth</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r39"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conBGWidth> ref=<r39> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r39">m_conBGWidth</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r36"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conFFTPos> ref=<r36> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r36">m_conFFTPos</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r40"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conFFTPos> ref=<r40> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r40">m_conFFTPos</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r37"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conFFTLen> ref=<r37> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r37">m_conFFTLen</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r41"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conFFTLen> ref=<r41> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r41">m_conFFTLen</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r38"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conExtraAv> ref=<r38> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r38">m_conExtraAv</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r42"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conExtraAv> ref=<r42> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r42">m_conExtraAv</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r39"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conExAvgIncr> ref=<r39> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r39">m_conExAvgIncr</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r43"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conExAvgIncr> ref=<r43> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r43">m_conExAvgIncr</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r40"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conAvgClear> ref=<r40> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r40">m_conAvgClear</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r44"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conAvgClear> ref=<r44> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r44">m_conAvgClear</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r41"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conFFTShow> ref=<r41> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r41">m_conFFTShow</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r45"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conFFTShow> ref=<r45> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r45">m_conFFTShow</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r42"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conWindowFunc> ref=<r42> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r42">m_conWindowFunc</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r46"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conWindowFunc> ref=<r46> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r46">m_conWindowFunc</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r43"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conDIFFreq> ref=<r43> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r43">m_conDIFFreq</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r47"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conDIFFreq> ref=<r47> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r47">m_conDIFFreq</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r44"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conNumEcho> ref=<r44> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r44">m_conNumEcho</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r48"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conNumEcho> ref=<r48> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r48">m_conNumEcho</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r45"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conEchoPeriod> ref=<r45> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r45">m_conEchoPeriod</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r49"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conEchoPeriod> ref=<r49> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r49">m_conEchoPeriod</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r46"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conDSO> ref=<r46> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r46">m_conDSO</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r50"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conDSO> ref=<r50> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r50">m_conDSO</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r47"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_lsnOnFFTShow> ref=<r47> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r47">m_lsnOnFFTShow</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r51"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conPulser> ref=<r51> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r51">m_conPulser</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r48"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_lsnOnAvgClear> ref=<r48> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r48">m_lsnOnAvgClear</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r52"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_conPICEnabled> ref=<r52> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r52">m_conPICEnabled</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r49"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_lsnOnCondChanged> ref=<r49> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r49">m_lsnOnCondChanged</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r53"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_lsnOnFFTShow> ref=<r53> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r53">m_lsnOnFFTShow</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r50"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_form> ref=<r50> args=<> -->
-<a class="el" href="classqshared__ptr.html">qshared_ptr</a>&lt; FrmNMRPulse &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r50">m_form</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r54"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_lsnOnAvgClear> ref=<r54> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r54">m_lsnOnAvgClear</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r51"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_statusPrinter> ref=<r51> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_status_printer.html">XStatusPrinter</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r51">m_statusPrinter</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r55"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_lsnOnCondChanged> ref=<r55> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r55">m_lsnOnCondChanged</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r52"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_fftForm> ref=<r52> args=<> -->
-<a class="el" href="classqshared__ptr.html">qshared_ptr</a>&lt; FrmGraphNURL &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r52">m_fftForm</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r56"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_form> ref=<r56> args=<> -->
+<a class="el" href="classqshared__ptr.html">qshared_ptr</a>&lt; FrmNMRPulse &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r53"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_waveGraph> ref=<r53> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_wave_n_graph.html">XWaveNGraph</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r53">m_waveGraph</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r57"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_statusPrinter> ref=<r57> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_status_printer.html">XStatusPrinter</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r57">m_statusPrinter</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r54"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_ftWaveGraph> ref=<r54> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_wave_n_graph.html">XWaveNGraph</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r54">m_ftWaveGraph</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r58"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_fftForm> ref=<r58> args=<> -->
+<a class="el" href="classqshared__ptr.html">qshared_ptr</a>&lt; FrmGraphNURL &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r58">m_fftForm</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r55"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_dnrsubfftlen> ref=<r55> args=<> -->
-int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r55">m_dnrsubfftlen</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r59"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_waveGraph> ref=<r59> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_wave_n_graph.html">XWaveNGraph</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r59">m_waveGraph</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r56"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_dnrpulsefftlen> ref=<r56> args=<> -->
-int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r56">m_dnrpulsefftlen</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r60"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_ftWaveGraph> ref=<r60> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_wave_n_graph.html">XWaveNGraph</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r60">m_ftWaveGraph</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r57"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_dnrsubfftin> ref=<r57> args=<> -->
-std::vector&lt; fftw_complex &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r57">m_dnrsubfftin</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r61"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_dnrsubfftlen> ref=<r61> args=<> -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r61">m_dnrsubfftlen</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r58"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_dnrsubfftout> ref=<r58> args=<> -->
-std::vector&lt; fftw_complex &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r58">m_dnrsubfftout</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r62"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_dnrpulsefftlen> ref=<r62> args=<> -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r62">m_dnrpulsefftlen</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r59"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_dnrsubfftplan> ref=<r59> args=<> -->
-fftw_plan&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r59">m_dnrsubfftplan</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r63"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_dnrsubfftin> ref=<r63> args=<> -->
+std::vector&lt; fftw_complex &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r63">m_dnrsubfftin</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r60"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_dnrpulsefftin> ref=<r60> args=<> -->
-std::vector&lt; fftw_complex &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r60">m_dnrpulsefftin</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r64"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_dnrsubfftout> ref=<r64> args=<> -->
+std::vector&lt; fftw_complex &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r64">m_dnrsubfftout</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r61"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_dnrpulsefftout> ref=<r61> args=<> -->
-std::vector&lt; fftw_complex &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r61">m_dnrpulsefftout</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r65"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_dnrsubfftplan> ref=<r65> args=<> -->
+fftw_plan&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r65">m_dnrsubfftplan</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r62"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_dnrpulsefftplan> ref=<r62> args=<> -->
-fftw_plan&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r62">m_dnrpulsefftplan</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r66"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_dnrpulsefftin> ref=<r66> args=<> -->
+std::vector&lt; fftw_complex &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r66">m_dnrpulsefftin</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r63"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_fftlen> ref=<r63> args=<> -->
-int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r63">m_fftlen</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r67"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_dnrpulsefftout> ref=<r67> args=<> -->
+std::vector&lt; fftw_complex &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r67">m_dnrpulsefftout</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r64"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_fftin> ref=<r64> args=<> -->
-std::vector&lt; fftw_complex &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r64">m_fftin</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r68"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_dnrpulsefftplan> ref=<r68> args=<> -->
+fftw_plan&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r68">m_dnrpulsefftplan</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r65"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_fftout> ref=<r65> args=<> -->
-std::vector&lt; fftw_complex &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r65">m_fftout</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r69"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_fftlen> ref=<r69> args=<> -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r69">m_fftlen</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r66"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_fftplan> ref=<r66> args=<> -->
-fftw_plan&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r66">m_fftplan</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r70"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_fftin> ref=<r70> args=<> -->
+std::vector&lt; fftw_complex &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r70">m_fftin</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r67"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_timeClearRequested> ref=<r67> args=<> -->
-<a class="el" href="class_x_time.html">XTime</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r67">m_timeClearRequested</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r71"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_fftout> ref=<r71> args=<> -->
+std::vector&lt; fftw_complex &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r71">m_fftout</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r72"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_fftplan> ref=<r72> args=<> -->
+fftw_plan&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r72">m_fftplan</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r73"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_timeClearRequested> ref=<r73> args=<> -->
+<a class="el" href="class_x_time.html">XTime</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_n_m_r_pulse_analyzer.html#r73">m_timeClearRequested</a></td></tr>
 
 </table>
 <hr><a name="_details"></a><h2>説明</h2>
@@ -418,7 +443,7 @@ fftw_plan&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href=
 <p>
 
 <p>
- <a class="el" href="nmrpulse_8h-source.html">nmrpulse.h</a> の <a class="el" href="nmrpulse_8h-source.html#l00015">15</a> 行で定義されています。<hr><h2>関数</h2>
+ <a class="el" href="nmrpulse_8h-source.html">nmrpulse.h</a> の <a class="el" href="nmrpulse_8h-source.html#l00016">16</a> 行で定義されています。<hr><h2>関数</h2>
 <a class="anchor" name="b1"></a><!-- doxytag: member=<XNMRPulseAnalyzer::analyze> ref=<b1> args=<(const shared_ptr&lt; XDriver &gt; &amp;emitter)> --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
@@ -448,9 +473,9 @@ this is called when connected driver emit a signal unless dependency is broken a
 <p>
 <a class="el" href="class_x_secondary_driver.html#b3">XSecondaryDriver</a>を実装しています.
 <p>
- <a class="el" href="nmrpulse_8cpp-source.html">nmrpulse.cpp</a> の <a class="el" href="nmrpulse_8cpp-source.html#l00407">407</a> 行で定義されています。
+ <a class="el" href="nmrpulse_8cpp-source.html">nmrpulse.cpp</a> の <a class="el" href="nmrpulse_8cpp-source.html#l00418">418</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="nmrpulse_8cpp-source.html#l00225">backgroundSub()</a>, <a class="el" href="nmrpulse_8h-source.html#l00061">bgPos()</a>, <a class="el" href="nmrpulse_8h-source.html#l00063">bgWidth()</a>, <a class="el" href="nmrpulse_8h-source.html#l00090">dFreq()</a>, <a class="el" href="nmrpulse_8h-source.html#l00071">difFreq()</a>, <a class="el" href="nmrpulse_8h-source.html#l00048">dso()</a>, <a class="el" href="nmrpulse_8h-source.html#l00081">echoPeriod()</a>, <a class="el" href="nmrpulse_8h-source.html#l00045">entryCosAv()</a>, <a class="el" href="nmrpulse_8h-source.html#l00046">entrySinAv()</a>, <a class="el" href="nmrpulse_8h-source.html#l00074">exAvgIncr()</a>, <a class="el" href="nmrpulse_8h-source.html#l00076">extraAvg()</a>, <a class="el" href="nmrpulse_8h-source.html#l00067">fftLen()</a>, <a class="el" href="nmrpulse_8h-source.html#l00065">fftPos()</a>, <a class="el" href="nmrpulse_8h-source.html#l00053">fromTrig()</a>, <a class="el" href="nmrpulse_8h-source.html#l00095">interval()</a>, <a class="el" href="nmrpulse_8h-source.html#l00136">m_avcount</a>, <a class="el" href="nmrpulse_8h-source.html#l00134">m_dFreq</a>, <a class="el" href="nmrpulse_8h-source.html#l00195">m_fftin</a>, <a class="el" href="nmrpulse_8h-source.html#l00194">m_fftlen</a>, <a class="el" href="nmrpulse_8h-source.html#l00195">m_fftout</a>, <a class="el" href="nmrpulse_8h-source.html#l00196">m_fftplan</a>, <a class="el" href="nmrpulse_8h-source.html#l00132">m_ftWave</a>, <a class="el" href="nmrpulse_8h-source.html#l00138">m_ftWaveSum</a>, <a class="el" href="nmrpulse_8h-source.html#l00146">m_interval</a>, <a class="el" href="nmrpulse_8h-source.html#l00144">m_rawWaveSum</a>, <a class="el" href="nmrpulse_8h-source.html#l00148">m_startTime</a>, <a class="el" href="nmrpulse_8h-source.html#l00161">m_statusPrinter</a>, <a class="el" href="nmrpulse_8h-source.html#l00201">m_timeClearRequested</a>, <a class="el" href="nmrpulse_8h-source.html#l00133">m_wave</a>, <a class="el" href="nmrpulse_8h-source.html#l00142">m_waveAv</a>, <a class="el" href="nmrpulse_8h-source.html#l00140">m_waveSum</a>, <a class="el" href="nmrpulse_8h-source.html#l00079">numEcho()</a>, <a class="el" href="nmrpulse_8h-source.html#l00057">phaseAdv()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00345">rotNFFT()</a>, <a class="el" href="nmrpulse_8h-source.html#l00088">wave()</a>, <a class="el" href="nmrpulse_8h-source.html#l00055">width()</a>, <a class="el" href="nmrpulse_8h-source.html#l00069">windowFunc()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00043">windowFuncBlackman()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00047">windowFuncBlackmanHarris()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00051">windowFuncFlatTop()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00039">windowFuncHamming()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00035">windowFuncHanning()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00060">windowFuncKaiser1()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00063">windowFuncKaiser2()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00066">windowFuncKaiser3()</a>, と <a class="el" href="nmrpulse_8cpp-source.html#l00031">windowFuncRect()</a>.    </td>
+参照先 <a class="el" href="nmrpulse_8cpp-source.html#l00233">backgroundSub()</a>, <a class="el" href="nmrpulse_8h-source.html#l00063">bgPos()</a>, <a class="el" href="nmrpulse_8h-source.html#l00065">bgWidth()</a>, <a class="el" href="nmrpulse_8h-source.html#l00092">dFreq()</a>, <a class="el" href="nmrpulse_8h-source.html#l00073">difFreq()</a>, <a class="el" href="nmrpulse_8h-source.html#l00049">dso()</a>, <a class="el" href="nmrpulse_8h-source.html#l00083">echoPeriod()</a>, <a class="el" href="nmrpulse_8h-source.html#l00046">entryCosAv()</a>, <a class="el" href="nmrpulse_8h-source.html#l00047">entrySinAv()</a>, <a class="el" href="nmrpulse_8h-source.html#l00076">exAvgIncr()</a>, <a class="el" href="nmrpulse_8h-source.html#l00078">extraAvg()</a>, <a class="el" href="nmrpulse_8h-source.html#l00069">fftLen()</a>, <a class="el" href="nmrpulse_8h-source.html#l00067">fftPos()</a>, <a class="el" href="nmrpulse_8h-source.html#l00055">fromTrig()</a>, <a class="el" href="nmrpulse_8h-source.html#l00104">ftWaveGraph()</a>, <a class="el" href="xnode_8h-source.html#l00057">XNode::getLabel()</a>, <a class="el" href="support_8cpp-source.html#l00291">KAME::i18n()</a>, <a class="el" href="nmrpulse_8h-source.html#l00097">interval()</a>, <a class="el" href="nmrpulse_8h-source.html#l00144">m_avcount</a>, <a class="el" href="nmrpulse_8h-source.html#l00142">m_dFreq</a>, <a class="el" href="nmrpulse_8h-source.html#l00204">m_fftin</a>, <a class="el" href="nmrpulse_8h-source.html#l00203">m_fftlen</a>, <a class="el" href="nmrpulse_8h-source.html#l00204">m_fftout</a>, <a class="el" href="nmrpulse_8h-source.html#l00205">m_fftplan</a>, <a class="el" href="nmrpulse_8h-source.html#l00140">m_ftWave</a>, <a class="el" href="nmrpulse_8h-source.html#l00146">m_ftWaveSum</a>, <a class="el" href="nmrpulse_8h-source.html#l00154">m_interval</a>, <a class="el" href="nmrpulse_8h-source.html#l00135">m_piccnt</a>, <a class="el" href="nmrpulse_8h-source.html#l00133">m_picEnabled</a>, <a class="el" href="nmrpulse_8h-source.html#l00136">m_picRawWaveSum</a>, <a class="el" href="nmrpulse_8h-source.html#l00152">m_rawWaveSum</a>, <a class="el" href="nmrpulse_8h-source.html#l00156">m_startTime</a>, <a class="el" href="nmrpulse_8h-source.html#l00170">m_statusPrinter</a>, <a class="el" href="nmrpulse_8h-source.html#l00210">m_timeClearRequested</a>, <a class="el" href="nmrpulse_8h-source.html#l00141">m_wave</a>, <a class="el" href="nmrpulse_8h-source.html#l00150">m_waveAv</a>, <a class="el" href="nmrpulse_8h-source.html#l00148">m_waveSum</a>, <a class="el" href="nmrpulse_8h-source.html#l00081">numEcho()</a>, <a class="el" href="nmrpulse_8h-source.html#l00059">phaseAdv()</a>, <a class="el" href="nmrpulse_8h-source.html#l00050">pulser()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00352">rotNFFT()</a>, <a class="el" href="nmrpulse_8h-source.html#l00102">waveGraph()</a>, <a class="el" href="nmrpulse_8h-source.html#l00057">width()</a>, <a class="el" href="nmrpulse_8h-source.html#l00071">windowFunc()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00042">windowFuncBlackman()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00046">windowFuncBlackmanHarris()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00050">windowFuncFlatTop()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00038">windowFuncHamming()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00034">windowFuncHanning()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00059">windowFuncKaiser1()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00062">windowFuncKaiser2()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00065">windowFuncKaiser3()</a>, と <a class="el" href="nmrpulse_8cpp-source.html#l00030">windowFuncRect()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="b3"></a><!-- doxytag: member=<XNMRPulseAnalyzer::checkDependency> ref=<b3> args=<(const shared_ptr&lt; XDriver &gt; &amp;emitter) const > --><p>
@@ -483,12 +508,12 @@ check connected drivers have valid time <dl compact><dt><b>戻り値:</b></dt><dd>t
 <p>
 <a class="el" href="class_x_secondary_driver.html#b5">XSecondaryDriver</a>を実装しています.
 <p>
- <a class="el" href="nmrpulse_8cpp-source.html">nmrpulse.cpp</a> の <a class="el" href="nmrpulse_8cpp-source.html#l00402">402</a> 行で定義されています。
+ <a class="el" href="nmrpulse_8cpp-source.html">nmrpulse.cpp</a> の <a class="el" href="nmrpulse_8cpp-source.html#l00409">409</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="nmrpulse_8h-source.html#l00048">dso()</a>.    </td>
+参照先 <a class="el" href="nmrpulse_8h-source.html#l00049">dso()</a>, と <a class="el" href="nmrpulse_8h-source.html#l00050">pulser()</a>.    </td>
   </tr>
 </table>
-<a class="anchor" name="a23"></a><!-- doxytag: member=<XNMRPulseAnalyzer::noisePower> ref=<a23> args=<() const > --><p>
+<a class="anchor" name="a24"></a><!-- doxytag: member=<XNMRPulseAnalyzer::noisePower> ref=<a24> args=<() const > --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
     <td class="mdRow">
@@ -515,12 +540,12 @@ check connected drivers have valid time <dl compact><dt><b>戻り値:</b></dt><dd>t
 [V^2] noise factor deduced from background <dl compact><dt><b>参照:</b></dt><dd>UseDNR, BGPos, BGWidth </dd></dl>
 
 <p>
- <a class="el" href="nmrpulse_8h-source.html">nmrpulse.h</a> の <a class="el" href="nmrpulse_8h-source.html#l00093">93</a> 行で定義されています。
+ <a class="el" href="nmrpulse_8h-source.html">nmrpulse.h</a> の <a class="el" href="nmrpulse_8h-source.html#l00095">95</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="nmrpulse_8h-source.html#l00135">m_noisePower</a>.    </td>
+参照先 <a class="el" href="nmrpulse_8h-source.html#l00143">m_noisePower</a>.    </td>
   </tr>
 </table>
-<a class="anchor" name="a8"></a><!-- doxytag: member=<XNMRPulseAnalyzer::phaseAdv> ref=<a8> args=<() const > --><p>
+<a class="anchor" name="a9"></a><!-- doxytag: member=<XNMRPulseAnalyzer::phaseAdv> ref=<a9> args=<() const > --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
     <td class="mdRow">
@@ -546,11 +571,11 @@ check connected drivers have valid time <dl compact><dt><b>戻り値:</b></dt><dd>t
 <p>
 [deg] 
 <p>
- <a class="el" href="nmrpulse_8h-source.html">nmrpulse.h</a> の <a class="el" href="nmrpulse_8h-source.html#l00057">57</a> 行で定義されています。
+ <a class="el" href="nmrpulse_8h-source.html">nmrpulse.h</a> の <a class="el" href="nmrpulse_8h-source.html#l00059">59</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="nmrpulse_8h-source.html#l00112">m_phaseAdv</a>.
+参照先 <a class="el" href="nmrpulse_8h-source.html#l00114">m_phaseAdv</a>.
 <p>
-参照元 <a class="el" href="nmrpulse_8cpp-source.html#l00407">analyze()</a>, と <a class="el" href="nmrpulse_8cpp-source.html#l00071">XNMRPulseAnalyzer()</a>.    </td>
+参照元 <a class="el" href="nmrpulse_8cpp-source.html#l00418">analyze()</a>, と <a class="el" href="nmrpulse_8cpp-source.html#l00070">XNMRPulseAnalyzer()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="b2"></a><!-- doxytag: member=<XNMRPulseAnalyzer::visualize> ref=<b2> args=<()> --><p>
@@ -581,19 +606,19 @@ this is called after <a class="el" href="class_x_n_m_r_pulse_analyzer.html#b1">a
 <p>
 <a class="el" href="class_x_secondary_driver.html#b4">XSecondaryDriver</a>を実装しています.
 <p>
- <a class="el" href="nmrpulse_8cpp-source.html">nmrpulse.cpp</a> の <a class="el" href="nmrpulse_8cpp-source.html#l00598">598</a> 行で定義されています。
+ <a class="el" href="nmrpulse_8cpp-source.html">nmrpulse.cpp</a> の <a class="el" href="nmrpulse_8cpp-source.html#l00636">636</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="nmrpulse_8h-source.html#l00102">ftWaveGraph()</a>, <a class="el" href="nmrpulse_8h-source.html#l00136">m_avcount</a>, <a class="el" href="nmrpulse_8h-source.html#l00194">m_fftlen</a>, <a class="el" href="nmrpulse_8h-source.html#l00138">m_ftWaveSum</a>, <a class="el" href="nmrpulse_8h-source.html#l00146">m_interval</a>, <a class="el" href="nmrpulse_8h-source.html#l00133">m_wave</a>, <a class="el" href="nmrpulse_8h-source.html#l00140">m_waveSum</a>, <a class="el" href="nmrpulse_8h-source.html#l00097">startTime()</a>, <a class="el" href="driver_8h-source.html#l00045">XDriver::time()</a>, と <a class="el" href="nmrpulse_8h-source.html#l00100">waveGraph()</a>.    </td>
+参照先 <a class="el" href="nmrpulse_8h-source.html#l00104">ftWaveGraph()</a>, <a class="el" href="nmrpulse_8h-source.html#l00144">m_avcount</a>, <a class="el" href="nmrpulse_8h-source.html#l00203">m_fftlen</a>, <a class="el" href="nmrpulse_8h-source.html#l00146">m_ftWaveSum</a>, <a class="el" href="nmrpulse_8h-source.html#l00154">m_interval</a>, <a class="el" href="nmrpulse_8h-source.html#l00141">m_wave</a>, <a class="el" href="nmrpulse_8h-source.html#l00148">m_waveSum</a>, <a class="el" href="nmrpulse_8h-source.html#l00099">startTime()</a>, <a class="el" href="driver_8h-source.html#l00045">XDriver::time()</a>, と <a class="el" href="nmrpulse_8h-source.html#l00102">waveGraph()</a>.    </td>
   </tr>
 </table>
 <hr><h2>変数</h2>
-<a class="anchor" name="r19"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_ftWave> ref=<r19> args=<> --><p>
+<a class="anchor" name="r23"></a><!-- doxytag: member=<XNMRPulseAnalyzer::m_ftWave> ref=<r23> args=<> --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
     <td class="mdRow">
       <table cellpadding="0" cellspacing="0" border="0">
         <tr>
-          <td class="md" nowrap valign="top">std::deque&lt;std::complex&lt;double&gt; &gt; <a class="el" href="class_x_n_m_r_pulse_analyzer.html#r19">XNMRPulseAnalyzer::m_ftWave</a><code> [private]</code>          </td>
+          <td class="md" nowrap valign="top">std::deque&lt;std::complex&lt;double&gt; &gt; <a class="el" href="class_x_n_m_r_pulse_analyzer.html#r23">XNMRPulseAnalyzer::m_ftWave</a><code> [private]</code>          </td>
         </tr>
       </table>
     </td>
@@ -609,14 +634,14 @@ this is called after <a class="el" href="class_x_n_m_r_pulse_analyzer.html#b1">a
 <p>
 Records these are without avg. 
 <p>
- <a class="el" href="nmrpulse_8h-source.html">nmrpulse.h</a> の <a class="el" href="nmrpulse_8h-source.html#l00132">132</a> 行で定義されています。
+ <a class="el" href="nmrpulse_8h-source.html">nmrpulse.h</a> の <a class="el" href="nmrpulse_8h-source.html#l00140">140</a> 行で定義されています。
 <p>
-参照元 <a class="el" href="nmrpulse_8cpp-source.html#l00407">analyze()</a>, と <a class="el" href="nmrpulse_8h-source.html#l00086">ftWave()</a>.    </td>
+参照元 <a class="el" href="nmrpulse_8cpp-source.html#l00418">analyze()</a>, と <a class="el" href="nmrpulse_8h-source.html#l00088">ftWave()</a>.    </td>
   </tr>
 </table>
 <hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/users/nmr/<a class="el" href="nmrpulse_8h-source.html">nmrpulse.h</a><li>kame/users/nmr/<a class="el" href="nmrpulse_8cpp-source.html">nmrpulse.cpp</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:05:23 2006に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:30 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

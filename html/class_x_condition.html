@@ -4,13 +4,21 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
-<h1>クラス XCondition</h1><!-- doxytag: class=<XCondition> -->condition class.  
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<h1>クラス XCondition</h1><!-- doxytag: class=<XCondition> --><!-- doxytag: inherits=<XMutex> -->condition class.  
 <a href="#_details">[詳細]</a>
 <p>
 <code>#include &lt;<a class="el" href="thread_8h-source.html">thread.h</a>&gt;</code>
 <p>
-<a href="class_x_condition-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
+XConditionに対する継承グラフ<p><center><img src="class_x_condition__inherit__graph.png" border="0" usemap="#_x_condition__inherit__map" alt="Inheritance graph"></center>
+<map name="_x_condition__inherit__map">
+<area href="class_x_mutex.html" shape="rect" coords="18,7,85,34" alt="">
+</map>
+<center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XConditionのコラボレーション図<p><center><img src="class_x_condition__coll__graph.png" border="0" usemap="#_x_condition__coll__map" alt="Collaboration graph"></center>
+<map name="_x_condition__coll__map">
+<area href="class_x_mutex.html" shape="rect" coords="18,7,85,34" alt="">
+</map>
+<center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_condition-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
 <tr><td></td></tr>
 <tr><td colspan="2"><br><h2>Public メソッド</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a0"></a><!-- doxytag: member=<XCondition::XCondition> ref=<a0> args=<()> -->
@@ -29,16 +37,13 @@
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r0"></a><!-- doxytag: member=<XCondition::m_cond> ref=<r0> args=<> -->
 pthread_cond_t&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_condition.html#r0">m_cond</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r1"></a><!-- doxytag: member=<XCondition::m_mutex> ref=<r1> args=<> -->
-pthread_mutex_t&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_condition.html#r1">m_mutex</a></td></tr>
-
 </table>
 <hr><a name="_details"></a><h2>説明</h2>
 condition class. 
 <p>
 
 <p>
- <a class="el" href="thread_8h-source.html">thread.h</a> の <a class="el" href="thread_8h-source.html#l00092">92</a> 行で定義されています。<hr><h2>関数</h2>
+ <a class="el" href="thread_8h-source.html">thread.h</a> の <a class="el" href="thread_8h-source.html#l00090">90</a> 行で定義されています。<hr><h2>関数</h2>
 <a class="anchor" name="a4"></a><!-- doxytag: member=<XCondition::broadcast> ref=<a4> args=<()> --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
@@ -66,11 +71,11 @@ condition class.
 wake-up all waiting threads. <dl compact><dt><b>参照:</b></dt><dd><a class="el" href="class_x_condition.html#a3">signal()</a> </dd></dl>
 
 <p>
- <a class="el" href="thread_8cpp-source.html">thread.cpp</a> の <a class="el" href="thread_8cpp-source.html#l00169">169</a> 行で定義されています。
+ <a class="el" href="thread_8cpp-source.html">thread.cpp</a> の <a class="el" href="thread_8cpp-source.html#l00144">144</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="thread_8h-source.html#l00108">m_cond</a>, と <a class="el" href="thread_8h-source.html#l00109">m_mutex</a>.
+参照先 <a class="el" href="thread_8h-source.html#l00107">m_cond</a>.
 <p>
-参照元 <a class="el" href="recordreader_8cpp-source.html#l00209">XRawStreamRecordReader::onPlayCondChanged()</a>, と <a class="el" href="recordreader_8cpp-source.html#l00201">XRawStreamRecordReader::terminate()</a>.    </td>
+参照元 <a class="el" href="interaction_8cpp-source.html#l00625">MonteCarlo::hinteraction_miscache()</a>, <a class="el" href="recordreader_8cpp-source.html#l00213">XRawStreamRecordReader::onPlayCondChanged()</a>, <a class="el" href="recordreader_8cpp-source.html#l00202">XRawStreamRecordReader::terminate()</a>, と <a class="el" href="montecarlo_8cpp-source.html#l00084">MonteCarlo::~MonteCarlo()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="a3"></a><!-- doxytag: member=<XCondition::signal> ref=<a3> args=<()> --><p>
@@ -100,9 +105,11 @@ wake-up all waiting threads. <dl compact><dt><b>参照:</b></dt><dd><a class="el" 
 wake-up at most one thread. <dl compact><dt><b>参照:</b></dt><dd><a class="el" href="class_x_condition.html#a4">broadcast()</a> </dd></dl>
 
 <p>
- <a class="el" href="thread_8cpp-source.html">thread.cpp</a> の <a class="el" href="thread_8cpp-source.html#l00161">161</a> 行で定義されています。
+ <a class="el" href="thread_8cpp-source.html">thread.cpp</a> の <a class="el" href="thread_8cpp-source.html#l00138">138</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="thread_8h-source.html#l00108">m_cond</a>, と <a class="el" href="thread_8h-source.html#l00109">m_mutex</a>.    </td>
+参照先 <a class="el" href="thread_8h-source.html#l00107">m_cond</a>.
+<p>
+参照元 <a class="el" href="interaction_8cpp-source.html#l00596">MonteCarlo::execute()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="a2"></a><!-- doxytag: member=<XCondition::wait> ref=<a2> args=<(int usec=0)> --><p>
@@ -130,7 +137,7 @@ wake-up at most one thread. <dl compact><dt><b>参照:</b></dt><dd><a class="el" h
     <td>
 
 <p>
-go asleep until signal is emitted. <dl compact><dt><b>引数:</b></dt><dd>
+Lock me before calling me. go asleep until signal is emitted. <dl compact><dt><b>引数:</b></dt><dd>
   <table border="0" cellspacing="2" cellpadding="0">
     <tr><td valign="top"></td><td valign="top"><em>usec</em>&nbsp;</td><td>if non-zero, timeout occurs after <em>usec</em>. </td></tr>
   </table>
@@ -138,16 +145,16 @@ go asleep until signal is emitted. <dl compact><dt><b>引数:</b></dt><dd>
 <dl compact><dt><b>戻り値:</b></dt><dd>zero if locked thread is waked up. </dd></dl>
 
 <p>
- <a class="el" href="thread_8cpp-source.html">thread.cpp</a> の <a class="el" href="thread_8cpp-source.html#l00119">119</a> 行で定義されています。
+ <a class="el" href="thread_8cpp-source.html">thread.cpp</a> の <a class="el" href="thread_8cpp-source.html#l00115">115</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="thread_8h-source.html#l00108">m_cond</a>, と <a class="el" href="thread_8h-source.html#l00109">m_mutex</a>.
+参照先 <a class="el" href="thread_8h-source.html#l00107">m_cond</a>, と <a class="el" href="thread_8h-source.html#l00066">XMutex::m_mutex</a>.
 <p>
-参照元 <a class="el" href="recordreader_8cpp-source.html#l00285">XRawStreamRecordReader::execute()</a>.    </td>
+参照元 <a class="el" href="interaction_8cpp-source.html#l00596">MonteCarlo::execute()</a>, <a class="el" href="recordreader_8cpp-source.html#l00290">XRawStreamRecordReader::execute()</a>, と <a class="el" href="interaction_8cpp-source.html#l00625">MonteCarlo::hinteraction_miscache()</a>.    </td>
   </tr>
 </table>
 <hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/<a class="el" href="thread_8h-source.html">thread.h</a><li>kame/<a class="el" href="thread_8cpp-source.html">thread.cpp</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:38 2006に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:28 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

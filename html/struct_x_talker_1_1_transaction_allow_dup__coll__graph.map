@@ -1,6 +1,3 @@
 base referer
-rect $struct_x_talker_1_1_transaction.html 7,189 199,216
-rect $struct___x_transaction.html 49,98 158,125
-rect $class_x_time.html 73,8 134,34
-rect $classatomic__shared__ptr.html 223,189 405,216
-rect $class_x_light_mutex.html 266,98 362,125
+rect $struct_x_talker_1_1_transaction.html 36,82 228,109
+rect $struct___x_transaction.html 77,8 186,34

@@ -1,0 +1,57 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: 構造体 atomic_shared_ptr&lt; T &gt;::_RefLocal</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="nav">
+<a class="el" href="classatomic__shared__ptr.html">atomic_shared_ptr</a>::<a class="el" href="structatomic__shared__ptr_1_1___ref_local.html">_RefLocal</a></div>
+<h1>構造体 atomic_shared_ptr&lt; T &gt;::_RefLocal</h1><!-- doxytag: class=<atomic_shared_ptr::_RefLocal> -->atomic_shared_ptr&lt; T &gt;::_RefLocalのコラボレーション図<p><center><img src="structatomic__shared__ptr_1_1___ref_local__coll__graph.png" border="0" usemap="#atomic__shared__ptr_3_01_t_01_4_1_1___ref_local__coll__map" alt="Collaboration graph"></center>
+<map name="atomic__shared__ptr_3_01_t_01_4_1_1___ref_local__coll__map">
+<area href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html" shape="rect" coords="7,7,261,34" alt="">
+</map>
+<center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="structatomic__shared__ptr_1_1___ref_local-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
+<tr><td></td></tr>
+<tr><td colspan="2"><br><h2>Public 型</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="w0"></a><!-- doxytag: member=<atomic_shared_ptr::_RefLocal::Ref_ptr> ref=<w0> args=<> -->
+typedef <a class="el" href="structatomic__shared__ptr__ref.html">Ref</a> *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="structatomic__shared__ptr_1_1___ref_local.html#w0">Ref_ptr</a></td></tr>
+
+<tr><td colspan="2"><br><h2>Public メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a0"></a><!-- doxytag: member=<atomic_shared_ptr::_RefLocal::_RefLocal> ref=<a0> args=<(Ref *r)> -->
+&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="structatomic__shared__ptr_1_1___ref_local.html#a0">_RefLocal</a> (<a class="el" href="structatomic__shared__ptr__ref.html">Ref</a> *r)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a1"></a><!-- doxytag: member=<atomic_shared_ptr::_RefLocal::_RefLocal> ref=<a1> args=<()> -->
+&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="structatomic__shared__ptr_1_1___ref_local.html#a1">_RefLocal</a> ()</td></tr>
+
+<tr><td colspan="2"><br><h2>Public 変数</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="o0"></a><!-- doxytag: member=<atomic_shared_ptr::_RefLocal::pref> ref=<o0> args=<> -->
+<a class="el" href="structatomic__shared__ptr__ref.html">Ref_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">A pointer to global reference struct. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="o1"></a><!-- doxytag: member=<atomic_shared_ptr::_RefLocal::refcnt_n_serial> ref=<o1> args=<> -->
+<a class="el" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Local reference counter w/ serial number for ABA problem. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="o2"></a><!-- doxytag: member=<atomic_shared_ptr::_RefLocal::pref_old> ref=<o2> args=<> -->
+<a class="el" href="structatomic__shared__ptr__ref.html">Ref</a> *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="structatomic__shared__ptr_1_1___ref_local.html#o2">pref_old</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="o3"></a><!-- doxytag: member=<atomic_shared_ptr::_RefLocal::serial_update> ref=<o3> args=<> -->
+unsigned int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="structatomic__shared__ptr_1_1___ref_local.html#o3">serial_update</a></td></tr>
+
+</table>
+<hr><a name="_details"></a><h2>説明</h2>
+<h3>template&lt;typename T&gt;<br>
+ struct atomic_shared_ptr&lt; T &gt;::_RefLocal</h3>
+
+
+<p>
+
+<p>
+ <a class="el" href="atomic__smart__ptr_8h-source.html">atomic_smart_ptr.h</a> の <a class="el" href="atomic__smart__ptr_8h-source.html#l00154">154</a> 行で定義されています。<hr>この構造体の説明は次のファイルから生成されました:<ul>
+<li>kame/<a class="el" href="atomic__smart__ptr_8h-source.html">atomic_smart_ptr.h</a></ul>
+<hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:27 2007に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+</body>
+</html>

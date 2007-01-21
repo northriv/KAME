@@ -4,7 +4,7 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <h1>クラス XValueNodeBase</h1><!-- doxytag: class=<XValueNodeBase> --><!-- doxytag: inherits=<XNode> -->Base class containing values.  
 <a href="#_details">[詳細]</a>
 <p>
@@ -23,36 +23,48 @@ XValueNodeBaseに対する継承グラフ<p><center><img src="class_x_value_node_base__in
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XValueNodeBaseのコラボレーション図<p><center><img src="class_x_value_node_base__coll__graph.png" border="0" usemap="#_x_value_node_base__coll__map" alt="Collaboration graph"></center>
 <map name="_x_value_node_base__coll__map">
-<area href="class_x_node.html" shape="rect" coords="8,7,69,34" alt="">
-<area href="class_x_talker.html" shape="rect" coords="93,7,373,34" alt="">
+<area href="class_x_node.html" shape="rect" coords="270,370,332,397" alt="">
+<area href="class_x_talker.html" shape="rect" coords="328,280,544,306" alt="">
+<area href="class___x_talker_base.html" shape="rect" coords="634,189,738,216" alt="">
+<area href="class_x_talker.html" shape="rect" coords="568,280,848,306" alt="">
+<area href="classatomic.html" shape="rect" coords="632,98,741,125" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="376,189,600,216" alt="">
+<area href="structatomic__shared__ptr_1_1___ref_local.html" shape="rect" coords="334,98,564,125" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="133,189,341,216" alt="">
+<area href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html" shape="rect" coords="322,8,576,34" alt="">
+<area href="class_x_mutex.html" shape="rect" coords="186,98,253,125" alt="">
+<area href="class_x_thread_local.html" shape="rect" coords="8,280,189,306" alt="">
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_value_node_base-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
 <tr><td></td></tr>
 <tr><td colspan="2"><br><h2>Public 型</h2></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="w0"></a><!-- doxytag: member=<XValueNodeBase::Validator> ref=<w0> args=<)(QString &amp;)> -->
-typedef void(*&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#w0">Validator</a> )(QString &amp;)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="w0"></a><!-- doxytag: member=<XValueNodeBase::Validator> ref=<w0> args=<)(std::string &amp;)> -->
+typedef void(*&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#w0">Validator</a> )(std::string &amp;)</td></tr>
 
 <tr><td colspan="2"><br><h2>Public メソッド</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a0"></a><!-- doxytag: member=<XValueNodeBase::to_str> ref=<a0> args=<() const =0> -->
-virtual QString&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#a0">to_str</a> () const =0</td></tr>
+virtual std::string&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#a0">to_str</a> () const =0</td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Get value as a string, which is used as XML meta data. <br></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#a1">str</a> (const QString &amp;str)  throw (XKameError &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#a2">setValidator</a> (<a class="el" href="class_x_value_node_base.html#w0">Validator</a>)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a2"></a><!-- doxytag: member=<XValueNodeBase::str> ref=<a2> args=<(const std::string &amp;str)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#a2">str</a> (const std::string &amp;str)  throw (XKameError &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a3"></a><!-- doxytag: member=<XValueNodeBase::beforeValueChanged> ref=<a3> args=<()> -->
-<a class="el" href="class_x_talker.html">XTalker</a>&lt; shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#a3">beforeValueChanged</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#a3">setValidator</a> (<a class="el" href="class_x_value_node_base.html#w0">Validator</a>)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a4"></a><!-- doxytag: member=<XValueNodeBase::onValueChanged> ref=<a4> args=<()> -->
-<a class="el" href="class_x_talker.html">XTalker</a>&lt; shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#a4">onValueChanged</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a4"></a><!-- doxytag: member=<XValueNodeBase::beforeValueChanged> ref=<a4> args=<()> -->
+<a class="el" href="class_x_talker.html">XTalker</a>&lt; shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#a4">beforeValueChanged</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a5"></a><!-- doxytag: member=<XValueNodeBase::onValueChanged> ref=<a5> args=<()> -->
+<a class="el" href="class_x_talker.html">XTalker</a>&lt; shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#a5">onValueChanged</a> ()</td></tr>
 
 <tr><td colspan="2"><br><h2>Protected メソッド</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b0"></a><!-- doxytag: member=<XValueNodeBase::XValueNodeBase> ref=<b0> args=<(const char *name, bool runtime=false)> -->
 &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_value_node_base.html#b0">XValueNodeBase</a> (const char *name, bool runtime=false)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b1"></a><!-- doxytag: member=<XValueNodeBase::_str> ref=<b1> args=<(const QString &amp;str)=0> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><b>_str</b> (const QString &amp;str)=0  throw (XKameError &amp;)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b1"></a><!-- doxytag: member=<XValueNodeBase::_str> ref=<b1> args=<(const std::string &amp;str)=0> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><b>_str</b> (const std::string &amp;str)=0  throw (XKameError &amp;)</td></tr>
 
 <tr><td colspan="2"><br><h2>Protected 変数</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="p0"></a><!-- doxytag: member=<XValueNodeBase::m_tlkBeforeValueChanged> ref=<p0> args=<> -->
@@ -70,8 +82,8 @@ Base class containing values.
 <p>
 
 <p>
- <a class="el" href="xnode_8h-source.html">xnode.h</a> の <a class="el" href="xnode_8h-source.html#l00115">115</a> 行で定義されています。<hr><h2>関数</h2>
-<a class="anchor" name="a2"></a><!-- doxytag: member=<XValueNodeBase::setValidator> ref=<a2> args=<(Validator)> --><p>
+ <a class="el" href="xnode_8h-source.html">xnode.h</a> の <a class="el" href="xnode_8h-source.html#l00101">101</a> 行で定義されています。<hr><h2>関数</h2>
+<a class="anchor" name="a3"></a><!-- doxytag: member=<XValueNodeBase::setValidator> ref=<a3> args=<(Validator)> --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
     <td class="mdRow">
@@ -98,9 +110,9 @@ Base class containing values.
 <p>
 validator can throw <em><a class="el" href="struct_x_kame_error.html">XKameError</a></em>, if it detects conversion errors. never insert when <a class="el" href="class_x_value_node_base.html#a1">str()</a> may be called. 
 <p>
- <a class="el" href="xnode_8cpp-source.html">xnode.cpp</a> の <a class="el" href="xnode_8cpp-source.html#l00128">128</a> 行で定義されています。
+ <a class="el" href="xnode_8cpp-source.html">xnode.cpp</a> の <a class="el" href="xnode_8cpp-source.html#l00113">113</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="xnode_8h-source.html#l00141">m_validator</a>.    </td>
+参照先 <a class="el" href="xnode_8h-source.html#l00128">m_validator</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="a1"></a><!-- doxytag: member=<XValueNodeBase::str> ref=<a1> args=<(const QString &amp;str)> --><p>
@@ -130,14 +142,14 @@ validator can throw <em><a class="el" href="struct_x_kame_error.html">XKameError
 <p>
 Set value as a string, which is used as XML meta data. throw exception when validator throws. 
 <p>
- <a class="el" href="xnode_8cpp-source.html">xnode.cpp</a> の <a class="el" href="xnode_8cpp-source.html#l00121">121</a> 行で定義されています。
+ <a class="el" href="xnode_8cpp-source.html">xnode.cpp</a> の <a class="el" href="xnode_8cpp-source.html#l00109">109</a> 行で定義されています。
 <p>
-参照元 <a class="el" href="xitemnode_8cpp-source.html#l00042">XComboNode::value()</a>.    </td>
+参照元 <a class="el" href="xitemnode_8cpp-source.html#l00040">XComboNode::value()</a>.    </td>
   </tr>
 </table>
 <hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/<a class="el" href="xnode_8h-source.html">xnode.h</a><li>kame/<a class="el" href="xnode_8cpp-source.html">xnode.cpp</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:06:22 2006に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:33 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

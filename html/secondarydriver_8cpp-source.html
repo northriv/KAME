@@ -4,7 +4,7 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
 <a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000003.html">driver</a></div>
 <h1>secondarydriver.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#include "secondarydriver.h"</span>
@@ -25,7 +25,7 @@
 <a name="l00016"></a>00016 <span class="keyword"></span>{
 <a name="l00017"></a>00017     <span class="keywordtype">bool</span> sane = <span class="keyword">true</span>;
 <a name="l00018"></a>00018     dep-&gt;clear();
-<a name="l00019"></a>00019     <span class="keywordflow">for</span>(<a class="code" href="class_x_secondary_driver.html#y0">tConnection_it</a> it = <a class="code" href="class_x_secondary_driver.html#r1">m_connection</a>.begin(); it != <a class="code" href="class_x_secondary_driver.html#r1">m_connection</a>.end(); it++) {
+<a name="l00019"></a>00019     <span class="keywordflow">for</span>(<a class="code" href="class_x_secondary_driver.html#y0">tConnection_it</a> it = <a class="code" href="class_x_secondary_driver.html#r2">m_connection_check_deep_dep</a>.begin(); it != <a class="code" href="class_x_secondary_driver.html#r2">m_connection_check_deep_dep</a>.end(); it++) {
 <a name="l00020"></a>00020         <span class="keywordtype">bool</span> is_conflict = dep-&gt;merge(*it);
 <a name="l00021"></a>00021         <span class="keywordflow">if</span>(is_conflict) {
 <a name="l00022"></a>00022             sane = <span class="keyword">false</span>;
@@ -38,7 +38,7 @@
 <a name="l00029"></a>00029 
 <a name="l00030"></a>00030 <span class="keywordtype">void</span>
 <a name="l00031"></a><a class="code" href="class_x_secondary_driver.html#d0">00031</a> <a class="code" href="class_x_secondary_driver.html#d0">XSecondaryDriver::readLockAllConnections</a>() {
-<a name="l00032"></a>00032     <a class="code" href="class_x_secondary_driver.html#r2">m_connection_mutex</a>.<a class="code" href="class_x_r_w_lock.html#a2">readLock</a>();
+<a name="l00032"></a>00032     <a class="code" href="class_x_secondary_driver.html#r3">m_connection_mutex</a>.<a class="code" href="class_x_r_w_lock.html#a2">readLock</a>();
 <a name="l00033"></a>00033     <span class="keywordflow">for</span>(<a class="code" href="class_x_secondary_driver.html#y0">tConnection_it</a> it = <a class="code" href="class_x_secondary_driver.html#r1">m_connection</a>.begin(); it != <a class="code" href="class_x_secondary_driver.html#r1">m_connection</a>.end(); it++) {
 <a name="l00034"></a>00034         (*it)-&gt;readLockRecord();
 <a name="l00035"></a>00035     }
@@ -48,7 +48,7 @@
 <a name="l00039"></a>00039     <span class="keywordflow">for</span>(<a class="code" href="class_x_secondary_driver.html#y0">tConnection_it</a> it = <a class="code" href="class_x_secondary_driver.html#r1">m_connection</a>.begin(); it != <a class="code" href="class_x_secondary_driver.html#r1">m_connection</a>.end(); it++) {
 <a name="l00040"></a>00040         (*it)-&gt;readUnlockRecord();
 <a name="l00041"></a>00041     }
-<a name="l00042"></a>00042     <a class="code" href="class_x_secondary_driver.html#r2">m_connection_mutex</a>.<a class="code" href="class_x_r_w_lock.html#a3">readUnlock</a>();
+<a name="l00042"></a>00042     <a class="code" href="class_x_secondary_driver.html#r3">m_connection_mutex</a>.<a class="code" href="class_x_r_w_lock.html#a3">readUnlock</a>();
 <a name="l00043"></a>00043 }
 <a name="l00044"></a>00044 <span class="keywordtype">void</span>
 <a name="l00045"></a><a class="code" href="class_x_secondary_driver.html#b2">00045</a> <a class="code" href="class_x_secondary_driver.html#b2">XSecondaryDriver::requestAnalysis</a>()
@@ -65,84 +65,112 @@
 <a name="l00058"></a>00058         <span class="keywordflow">if</span>(<a class="code" href="class_x_secondary_driver.html#b5">checkDependency</a>(driver)) {
 <a name="l00059"></a>00059             shared_ptr&lt;XRecordDependency&gt; dep(<span class="keyword">new</span> <a class="code" href="class_x_record_dependency.html">XRecordDependency</a>);
 <a name="l00061"></a>00061             <span class="keywordflow">if</span>(<a class="code" href="class_x_secondary_driver.html#d2">checkDeepDependency</a>(dep)) {
-<a name="l00062"></a>00062                 <a class="code" href="class_x_driver.html#b4">startRecording</a>(driver-&gt;timeAwared());
-<a name="l00063"></a>00063                 <a class="code" href="class_x_time.html">XTime</a> time_recorded = driver-&gt;time();
-<a name="l00064"></a>00064                 <a class="code" href="class_x_secondary_driver.html#r0">m_dependency</a> = dep;
+<a name="l00062"></a>00062                 <span class="keywordtype">bool</span> skipped = <span class="keyword">false</span>;
+<a name="l00063"></a>00063                 <a class="code" href="class_x_driver.html#b4">startRecording</a>();
+<a name="l00064"></a>00064                 <a class="code" href="class_x_time.html">XTime</a> time_recorded = driver-&gt;time();
 <a name="l00065"></a>00065                 <span class="keywordflow">try</span> {
 <a name="l00066"></a>00066                     <a class="code" href="class_x_secondary_driver.html#b3">analyze</a>(driver);
 <a name="l00067"></a>00067                 }
 <a name="l00068"></a>00068                 <span class="keywordflow">catch</span> (XSkippedRecordError&amp;) {
-<a name="l00069"></a>00069                      time_recorded = <a class="code" href="class_x_time.html">XTime</a>(); <span class="comment">//record is invalid</span>
+<a name="l00069"></a>00069                         skipped = <span class="keyword">true</span>;
 <a name="l00070"></a>00070                 }
 <a name="l00071"></a>00071                 <span class="keywordflow">catch</span> (XRecordError&amp; e) {
 <a name="l00072"></a>00072                      time_recorded = <a class="code" href="class_x_time.html">XTime</a>(); <span class="comment">//record is invalid</span>
-<a name="l00073"></a>00073                      e.print(<a class="code" href="class_x_node.html#a6">getName</a>() + <span class="stringliteral">": "</span> + i18n(<span class="stringliteral">"Record Error, because "</span>));
+<a name="l00073"></a>00073                      e.print(<a class="code" href="class_x_node.html#a7">getLabel</a>() + <span class="stringliteral">": "</span> + <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Record Error, because "</span>));
 <a name="l00074"></a>00074                 }
 <a name="l00075"></a>00075                 <a class="code" href="class_x_secondary_driver.html#d1">readUnlockAllConnections</a>();
-<a name="l00076"></a>00076                 <a class="code" href="class_x_driver.html#b5">finishRecordingNReadLock</a>(time_recorded);
-<a name="l00077"></a>00077                 <a class="code" href="class_x_secondary_driver.html#b4">visualize</a>();
-<a name="l00078"></a>00078                 <a class="code" href="class_x_driver.html#a6">readUnlockRecord</a>();
-<a name="l00079"></a>00079             }
-<a name="l00080"></a>00080             <span class="keywordflow">else</span>    
-<a name="l00081"></a>00081                 <a class="code" href="class_x_secondary_driver.html#d1">readUnlockAllConnections</a>();
-<a name="l00082"></a>00082         }
-<a name="l00083"></a>00083         <span class="keywordflow">else</span>    
-<a name="l00084"></a>00084             <a class="code" href="class_x_secondary_driver.html#d1">readUnlockAllConnections</a>();
-<a name="l00085"></a>00085     }
-<a name="l00086"></a>00086     <span class="keywordflow">else</span>    
-<a name="l00087"></a>00087         <a class="code" href="class_x_secondary_driver.html#d1">readUnlockAllConnections</a>();
-<a name="l00088"></a>00088 }
-<a name="l00089"></a>00089 <span class="keywordtype">void</span>
-<a name="l00090"></a><a class="code" href="class_x_secondary_driver.html#b1">00090</a> <a class="code" href="class_x_secondary_driver.html#b1">XSecondaryDriver::connect</a>(<span class="keyword">const</span> shared_ptr&lt;XItemNodeBase&gt; &amp;item)
-<a name="l00091"></a>00091 {
-<a name="l00092"></a>00092     <span class="keywordflow">if</span>(<a class="code" href="class_x_secondary_driver.html#r4">m_lsnBeforeItemChanged</a>)
-<a name="l00093"></a>00093         item-&gt;beforeValueChanged().connect(<a class="code" href="class_x_secondary_driver.html#r4">m_lsnBeforeItemChanged</a>);
-<a name="l00094"></a>00094     <span class="keywordflow">else</span>
-<a name="l00095"></a>00095         <a class="code" href="class_x_secondary_driver.html#r4">m_lsnBeforeItemChanged</a> = item-&gt;beforeValueChanged().connectWeak(
-<a name="l00096"></a>00096                 <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_secondary_driver.html#d4">XSecondaryDriver::beforeItemChanged</a>);
-<a name="l00097"></a>00097 
-<a name="l00098"></a>00098     <span class="keywordflow">if</span>(<a class="code" href="class_x_secondary_driver.html#r5">m_lsnOnItemChanged</a>)
-<a name="l00099"></a>00099         item-&gt;onValueChanged().connect(<a class="code" href="class_x_secondary_driver.html#r5">m_lsnOnItemChanged</a>);
-<a name="l00100"></a>00100     <span class="keywordflow">else</span>
-<a name="l00101"></a>00101         <a class="code" href="class_x_secondary_driver.html#r5">m_lsnOnItemChanged</a> = item-&gt;onValueChanged().connectWeak(
-<a name="l00102"></a>00102                 <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_secondary_driver.html#d5">XSecondaryDriver::onItemChanged</a>);
-<a name="l00103"></a>00103 }
-<a name="l00104"></a>00104 <span class="keywordtype">void</span>
-<a name="l00105"></a><a class="code" href="class_x_secondary_driver.html#d4">00105</a> <a class="code" href="class_x_secondary_driver.html#d4">XSecondaryDriver::beforeItemChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node) {
-<a name="l00107"></a>00107     <a class="code" href="class_x_secondary_driver.html#r2">m_connection_mutex</a>.<a class="code" href="class_x_r_w_lock.html#a4">writeLock</a>();
-<a name="l00108"></a>00108 
-<a name="l00109"></a>00109     shared_ptr&lt;XPointerItemNode&lt;XDriverList&gt; &gt; item =
-<a name="l00110"></a>00110          dynamic_pointer_cast&lt;XPointerItemNode&lt;XDriverList&gt; &gt;(node);
-<a name="l00111"></a>00111     shared_ptr&lt;XNode&gt; nd = *item;
-<a name="l00112"></a>00112     shared_ptr&lt;XDriver&gt; driver = dynamic_pointer_cast&lt;XDriver&gt;(nd);
-<a name="l00113"></a>00113 
-<a name="l00114"></a>00114     <span class="keywordflow">if</span>(driver) {
-<a name="l00115"></a>00115         driver-&gt;onRecord().disconnect(<a class="code" href="class_x_secondary_driver.html#r3">m_lsnOnRecord</a>);
-<a name="l00116"></a>00116         ASSERT(std::find(<a class="code" href="class_x_secondary_driver.html#r1">m_connection</a>.begin(), <a class="code" href="class_x_secondary_driver.html#r1">m_connection</a>.end(), driver) != <a class="code" href="class_x_secondary_driver.html#r1">m_connection</a>.end());
-<a name="l00117"></a>00117         <a class="code" href="class_x_secondary_driver.html#r1">m_connection</a>.erase(
-<a name="l00118"></a>00118             std::remove(<a class="code" href="class_x_secondary_driver.html#r1">m_connection</a>.begin(), <a class="code" href="class_x_secondary_driver.html#r1">m_connection</a>.end(), driver),
-<a name="l00119"></a>00119              <a class="code" href="class_x_secondary_driver.html#r1">m_connection</a>.end());
-<a name="l00120"></a>00120     }
-<a name="l00121"></a>00121 }
-<a name="l00122"></a>00122 <span class="keywordtype">void</span>
-<a name="l00123"></a><a class="code" href="class_x_secondary_driver.html#d5">00123</a> <a class="code" href="class_x_secondary_driver.html#d5">XSecondaryDriver::onItemChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node) {
-<a name="l00124"></a>00124     shared_ptr&lt;XPointerItemNode&lt;XDriverList&gt; &gt; item = 
-<a name="l00125"></a>00125         dynamic_pointer_cast&lt;XPointerItemNode&lt;XDriverList&gt; &gt;(node);
-<a name="l00126"></a>00126     shared_ptr&lt;XNode&gt; nd = *item;
-<a name="l00127"></a>00127     shared_ptr&lt;XDriver&gt; driver = dynamic_pointer_cast&lt;XDriver&gt;(nd);
-<a name="l00128"></a>00128 
-<a name="l00129"></a>00129     <span class="keywordflow">if</span>(driver) {
-<a name="l00130"></a>00130         <a class="code" href="class_x_secondary_driver.html#r1">m_connection</a>.push_back(driver);
-<a name="l00131"></a>00131         <span class="keywordflow">if</span>(<a class="code" href="class_x_secondary_driver.html#r3">m_lsnOnRecord</a>)
-<a name="l00132"></a>00132             driver-&gt;onRecord().connect(<a class="code" href="class_x_secondary_driver.html#r3">m_lsnOnRecord</a>);
-<a name="l00133"></a>00133         <span class="keywordflow">else</span>
-<a name="l00134"></a>00134             <a class="code" href="class_x_secondary_driver.html#r3">m_lsnOnRecord</a> = driver-&gt;onRecord().connectWeak(
-<a name="l00135"></a>00135                 <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_secondary_driver.html#d3">XSecondaryDriver::onConnectedRecorded</a>);
-<a name="l00136"></a>00136     }
-<a name="l00137"></a>00137 
-<a name="l00138"></a>00138     <a class="code" href="class_x_secondary_driver.html#r2">m_connection_mutex</a>.<a class="code" href="class_x_r_w_lock.html#a5">writeUnlock</a>();
-<a name="l00139"></a>00139 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:20 2006に生成されました。&nbsp;
+<a name="l00076"></a>00076                 <span class="keywordflow">if</span>(skipped)
+<a name="l00077"></a>00077                         <a class="code" href="class_x_driver.html#b6">abortRecording</a>();
+<a name="l00078"></a>00078                 <span class="keywordflow">else</span> {
+<a name="l00079"></a>00079                         <a class="code" href="class_x_secondary_driver.html#r0">m_dependency</a> = dep;
+<a name="l00080"></a>00080                         <a class="code" href="class_x_driver.html#b5">finishRecordingNReadLock</a>(driver-&gt;timeAwared(), time_recorded);
+<a name="l00081"></a>00081                         <a class="code" href="class_x_secondary_driver.html#b4">visualize</a>();
+<a name="l00082"></a>00082                         <a class="code" href="class_x_driver.html#a6">readUnlockRecord</a>();
+<a name="l00083"></a>00083                 }
+<a name="l00084"></a>00084             }
+<a name="l00085"></a>00085             <span class="keywordflow">else</span>    
+<a name="l00086"></a>00086                 <a class="code" href="class_x_secondary_driver.html#d1">readUnlockAllConnections</a>();
+<a name="l00087"></a>00087         }
+<a name="l00088"></a>00088         <span class="keywordflow">else</span>    
+<a name="l00089"></a>00089             <a class="code" href="class_x_secondary_driver.html#d1">readUnlockAllConnections</a>();
+<a name="l00090"></a>00090     }
+<a name="l00091"></a>00091     <span class="keywordflow">else</span>    
+<a name="l00092"></a>00092         <a class="code" href="class_x_secondary_driver.html#d1">readUnlockAllConnections</a>();
+<a name="l00093"></a>00093 }
+<a name="l00094"></a>00094 <span class="keywordtype">void</span>
+<a name="l00095"></a><a class="code" href="class_x_secondary_driver.html#b1">00095</a> <a class="code" href="class_x_secondary_driver.html#b1">XSecondaryDriver::connect</a>(<span class="keyword">const</span> shared_ptr&lt;XItemNodeBase&gt; &amp;item, <span class="keywordtype">bool</span> check_deep_dep)
+<a name="l00096"></a>00096 {
+<a name="l00097"></a>00097     <span class="keywordflow">if</span>(<a class="code" href="class_x_secondary_driver.html#r5">m_lsnBeforeItemChanged</a>)
+<a name="l00098"></a>00098         item-&gt;beforeValueChanged().connect(<a class="code" href="class_x_secondary_driver.html#r5">m_lsnBeforeItemChanged</a>);
+<a name="l00099"></a>00099     <span class="keywordflow">else</span>
+<a name="l00100"></a>00100         <a class="code" href="class_x_secondary_driver.html#r5">m_lsnBeforeItemChanged</a> = item-&gt;beforeValueChanged().connectWeak(
+<a name="l00101"></a>00101                 <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_secondary_driver.html#d4">XSecondaryDriver::beforeItemChanged</a>);
+<a name="l00102"></a>00102         <span class="keywordflow">if</span>(check_deep_dep) {
+<a name="l00103"></a>00103             <span class="keywordflow">if</span>(<a class="code" href="class_x_secondary_driver.html#r6">m_lsnOnItemChangedCheckDeepDep</a>)
+<a name="l00104"></a>00104                 item-&gt;onValueChanged().connect(<a class="code" href="class_x_secondary_driver.html#r6">m_lsnOnItemChangedCheckDeepDep</a>);
+<a name="l00105"></a>00105             <span class="keywordflow">else</span>
+<a name="l00106"></a>00106                 <a class="code" href="class_x_secondary_driver.html#r6">m_lsnOnItemChangedCheckDeepDep</a> = item-&gt;onValueChanged().connectWeak(
+<a name="l00107"></a>00107                         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_secondary_driver.html#d5">XSecondaryDriver::onItemChangedCheckDeepDep</a>);
+<a name="l00108"></a>00108         }
+<a name="l00109"></a>00109         <span class="keywordflow">else</span> {
+<a name="l00110"></a>00110             <span class="keywordflow">if</span>(<a class="code" href="class_x_secondary_driver.html#r7">m_lsnOnItemChanged</a>)
+<a name="l00111"></a>00111                 item-&gt;onValueChanged().connect(<a class="code" href="class_x_secondary_driver.html#r7">m_lsnOnItemChanged</a>);
+<a name="l00112"></a>00112             <span class="keywordflow">else</span>
+<a name="l00113"></a>00113                 <a class="code" href="class_x_secondary_driver.html#r7">m_lsnOnItemChanged</a> = item-&gt;onValueChanged().connectWeak(
+<a name="l00114"></a>00114                         <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_secondary_driver.html#d6">XSecondaryDriver::onItemChanged</a>);
+<a name="l00115"></a>00115         }
+<a name="l00116"></a>00116 }
+<a name="l00117"></a>00117 <span class="keywordtype">void</span>
+<a name="l00118"></a><a class="code" href="class_x_secondary_driver.html#d4">00118</a> <a class="code" href="class_x_secondary_driver.html#d4">XSecondaryDriver::beforeItemChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node) {
+<a name="l00120"></a>00120     <a class="code" href="class_x_secondary_driver.html#r3">m_connection_mutex</a>.<a class="code" href="class_x_r_w_lock.html#a4">writeLock</a>();
+<a name="l00121"></a>00121 
+<a name="l00122"></a>00122     shared_ptr&lt;XPointerItemNode&lt;XDriverList&gt; &gt; item =
+<a name="l00123"></a>00123          dynamic_pointer_cast&lt;XPointerItemNode&lt;XDriverList&gt; &gt;(node);
+<a name="l00124"></a>00124     shared_ptr&lt;XNode&gt; nd = *item;
+<a name="l00125"></a>00125     shared_ptr&lt;XDriver&gt; driver = dynamic_pointer_cast&lt;XDriver&gt;(nd);
+<a name="l00126"></a>00126 
+<a name="l00127"></a>00127     <span class="keywordflow">if</span>(driver) {
+<a name="l00128"></a>00128         driver-&gt;onRecord().disconnect(<a class="code" href="class_x_secondary_driver.html#r4">m_lsnOnRecord</a>);
+<a name="l00129"></a>00129         ASSERT(std::find(<a class="code" href="class_x_secondary_driver.html#r1">m_connection</a>.begin(), <a class="code" href="class_x_secondary_driver.html#r1">m_connection</a>.end(), driver) != <a class="code" href="class_x_secondary_driver.html#r1">m_connection</a>.end());
+<a name="l00130"></a>00130         <a class="code" href="class_x_secondary_driver.html#r1">m_connection</a>.erase(std::find(<a class="code" href="class_x_secondary_driver.html#r1">m_connection</a>.begin(), <a class="code" href="class_x_secondary_driver.html#r1">m_connection</a>.end(), driver));
+<a name="l00131"></a>00131         std::vector&lt;shared_ptr&lt;const XDriver&gt; &gt;::iterator it = 
+<a name="l00132"></a>00132                 std::find(<a class="code" href="class_x_secondary_driver.html#r2">m_connection_check_deep_dep</a>.begin(), <a class="code" href="class_x_secondary_driver.html#r2">m_connection_check_deep_dep</a>.end(), driver);
+<a name="l00133"></a>00133         <span class="keywordflow">if</span>(it != <a class="code" href="class_x_secondary_driver.html#r2">m_connection_check_deep_dep</a>.end())
+<a name="l00134"></a>00134                 <a class="code" href="class_x_secondary_driver.html#r2">m_connection_check_deep_dep</a>.erase(it);
+<a name="l00135"></a>00135     }
+<a name="l00136"></a>00136 }
+<a name="l00137"></a>00137 <span class="keywordtype">void</span>
+<a name="l00138"></a><a class="code" href="class_x_secondary_driver.html#d5">00138</a> <a class="code" href="class_x_secondary_driver.html#d5">XSecondaryDriver::onItemChangedCheckDeepDep</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node) {
+<a name="l00139"></a>00139     shared_ptr&lt;XPointerItemNode&lt;XDriverList&gt; &gt; item = 
+<a name="l00140"></a>00140         dynamic_pointer_cast&lt;XPointerItemNode&lt;XDriverList&gt; &gt;(node);
+<a name="l00141"></a>00141     shared_ptr&lt;XNode&gt; nd = *item;
+<a name="l00142"></a>00142     shared_ptr&lt;XDriver&gt; driver = dynamic_pointer_cast&lt;XDriver&gt;(nd);
+<a name="l00143"></a>00143 
+<a name="l00144"></a>00144     <span class="keywordflow">if</span>(driver) {
+<a name="l00145"></a>00145         <a class="code" href="class_x_secondary_driver.html#r2">m_connection_check_deep_dep</a>.push_back(driver);
+<a name="l00146"></a>00146     }
+<a name="l00147"></a>00147 
+<a name="l00148"></a>00148     <a class="code" href="class_x_secondary_driver.html#d6">onItemChanged</a>(node);
+<a name="l00149"></a>00149 }
+<a name="l00150"></a>00150 <span class="keywordtype">void</span>
+<a name="l00151"></a><a class="code" href="class_x_secondary_driver.html#d6">00151</a> <a class="code" href="class_x_secondary_driver.html#d6">XSecondaryDriver::onItemChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node) {
+<a name="l00152"></a>00152     shared_ptr&lt;XPointerItemNode&lt;XDriverList&gt; &gt; item = 
+<a name="l00153"></a>00153         dynamic_pointer_cast&lt;XPointerItemNode&lt;XDriverList&gt; &gt;(node);
+<a name="l00154"></a>00154     shared_ptr&lt;XNode&gt; nd = *item;
+<a name="l00155"></a>00155     shared_ptr&lt;XDriver&gt; driver = dynamic_pointer_cast&lt;XDriver&gt;(nd);
+<a name="l00156"></a>00156 
+<a name="l00157"></a>00157     <span class="keywordflow">if</span>(driver) {
+<a name="l00158"></a>00158         <a class="code" href="class_x_secondary_driver.html#r1">m_connection</a>.push_back(driver);
+<a name="l00159"></a>00159         <span class="keywordflow">if</span>(<a class="code" href="class_x_secondary_driver.html#r4">m_lsnOnRecord</a>)
+<a name="l00160"></a>00160             driver-&gt;onRecord().connect(<a class="code" href="class_x_secondary_driver.html#r4">m_lsnOnRecord</a>);
+<a name="l00161"></a>00161         <span class="keywordflow">else</span>
+<a name="l00162"></a>00162             <a class="code" href="class_x_secondary_driver.html#r4">m_lsnOnRecord</a> = driver-&gt;onRecord().connectWeak(
+<a name="l00163"></a>00163                 <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_secondary_driver.html#d3">XSecondaryDriver::onConnectedRecorded</a>);
+<a name="l00164"></a>00164     }
+<a name="l00165"></a>00165 
+<a name="l00166"></a>00166     <a class="code" href="class_x_secondary_driver.html#r3">m_connection_mutex</a>.<a class="code" href="class_x_r_w_lock.html#a5">writeUnlock</a>();
+<a name="l00167"></a>00167 }
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:13 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

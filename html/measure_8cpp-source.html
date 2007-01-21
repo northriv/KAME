@@ -4,7 +4,7 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
 <a class="el" href="dir_000000.html">kame</a></div>
 <h1>measure.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#include "measure.h"</span>
@@ -49,7 +49,7 @@
 <a name="l00040"></a>00040     <a class="code" href="class_x_node.html">XNode</a>(name, runtime),
 <a name="l00041"></a>00041    m_thermometers(create&lt;<a class="code" href="class_x_thermometer_list.html">XThermometerList</a>&gt;(<span class="stringliteral">"Thermometers"</span>, false)),
 <a name="l00042"></a>00042    m_scalarEntries(create&lt;<a class="code" href="class_x_scalar_entry_list.html">XScalarEntryList</a>&gt;(<span class="stringliteral">"ScalarEntries"</span>, true)),
-<a name="l00043"></a>00043    m_graphList(create&lt;<a class="code" href="class_x_graph_list.html">XGraphList</a>&gt;(<span class="stringliteral">"GraphList"</span>, false, scalarEntryList())),
+<a name="l00043"></a>00043    m_graphList(create&lt;<a class="code" href="class_x_graph_list.html">XGraphList</a>&gt;(<span class="stringliteral">"GraphList"</span>, true, scalarEntryList())),
 <a name="l00044"></a>00044    m_chartList(create&lt;<a class="code" href="class_x_chart_list.html">XChartList</a>&gt;(<span class="stringliteral">"ChartList"</span>, true, scalarEntryList())),
 <a name="l00045"></a>00045    m_interfaces(create&lt;<a class="code" href="class_x_interface_list.html">XInterfaceList</a>&gt;(<span class="stringliteral">"Interfaces"</span>, true)),
 <a name="l00046"></a>00046    m_drivers(create&lt;<a class="code" href="class_x_driver_list.html">XDriverList</a>&gt;(<span class="stringliteral">"Drivers"</span>, false, 
@@ -134,44 +134,50 @@
 <a name="l00125"></a>00125 <span class="keywordtype">void</span>
 <a name="l00126"></a><a class="code" href="class_x_measure.html#a3">00126</a> <a class="code" href="class_x_measure.html#a3">XMeasure::stop</a>()
 <a name="l00127"></a>00127 {
-<a name="l00128"></a>00128     <a class="code" href="class_x_measure.html#a5">driverList</a>()-&gt;childLock();
-<a name="l00129"></a>00129     <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="class_x_measure.html#a5">driverList</a>()-&gt;count(); i++) {
-<a name="l00130"></a>00130         (*<a class="code" href="class_x_measure.html#a5">driverList</a>())[i]-&gt;stopMeas();
-<a name="l00131"></a>00131     }
-<a name="l00132"></a>00132     <a class="code" href="class_x_measure.html#a5">driverList</a>()-&gt;childUnlock();
-<a name="l00133"></a>00133 }
-<a name="l00134"></a>00134 <span class="keywordtype">void</span>
-<a name="l00135"></a><a class="code" href="class_x_measure.html#d0">00135</a> <a class="code" href="class_x_measure.html#d0">XMeasure::onReleaseDriver</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;d)
-<a name="l00136"></a>00136 {
-<a name="l00137"></a>00137     shared_ptr&lt;XDriver&gt; driver = dynamic_pointer_cast&lt;XDriver&gt;(d);
-<a name="l00138"></a>00138     ASSERT( driver );
-<a name="l00139"></a>00139     driver-&gt;stopMeas();
-<a name="l00140"></a>00140     <span class="keywordflow">for</span>(;;) {
-<a name="l00141"></a>00141         shared_ptr&lt;XScalarEntry&gt; entry;
-<a name="l00142"></a>00142         <a class="code" href="class_x_measure.html#a7">scalarEntryList</a>()-&gt;childLock();
-<a name="l00143"></a>00143         <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="class_x_measure.html#a7">scalarEntryList</a>()-&gt;count(); i++) {
-<a name="l00144"></a>00144             <span class="keywordflow">if</span>((*<a class="code" href="class_x_measure.html#a7">scalarEntryList</a>())[i]-&gt;driver() == driver) {
-<a name="l00145"></a>00145                 entry = (*<a class="code" href="class_x_measure.html#a7">scalarEntryList</a>())[i];
-<a name="l00146"></a>00146             }
-<a name="l00147"></a>00147         }
-<a name="l00148"></a>00148         <a class="code" href="class_x_measure.html#a7">scalarEntryList</a>()-&gt;childUnlock();
-<a name="l00149"></a>00149         <span class="keywordflow">if</span>(!entry) <span class="keywordflow">break</span>;
-<a name="l00150"></a>00150         <a class="code" href="class_x_measure.html#a7">scalarEntryList</a>()-&gt;releaseChild(entry);
-<a name="l00151"></a>00151     }
-<a name="l00152"></a>00152     <span class="keywordflow">for</span>(;;) {
-<a name="l00153"></a>00153         shared_ptr&lt;XInterface&gt; interface;
-<a name="l00154"></a>00154         <a class="code" href="class_x_measure.html#a6">interfaceList</a>()-&gt;childLock();
-<a name="l00155"></a>00155         <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="class_x_measure.html#a6">interfaceList</a>()-&gt;count(); i++) {
-<a name="l00156"></a>00156             <span class="keywordflow">if</span>((*<a class="code" href="class_x_measure.html#a6">interfaceList</a>())[i]-&gt;driver() == driver) {
-<a name="l00157"></a>00157                 interface = (*<a class="code" href="class_x_measure.html#a6">interfaceList</a>())[i];
-<a name="l00158"></a>00158             }
-<a name="l00159"></a>00159         }
-<a name="l00160"></a>00160         <a class="code" href="class_x_measure.html#a6">interfaceList</a>()-&gt;childUnlock();
-<a name="l00161"></a>00161         <span class="keywordflow">if</span>(!interface) <span class="keywordflow">break</span>;
-<a name="l00162"></a>00162         <a class="code" href="class_x_measure.html#a6">interfaceList</a>()-&gt;releaseChild(interface);
-<a name="l00163"></a>00163     }
-<a name="l00164"></a>00164 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:21 2006に生成されました。&nbsp;
+<a name="l00128"></a>00128   <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> list(<a class="code" href="class_x_measure.html#a5">driverList</a>()-&gt;<a class="code" href="class_x_node.html#a10">children</a>());
+<a name="l00129"></a>00129   <span class="keywordflow">if</span>(list) { 
+<a name="l00130"></a>00130       <span class="keywordflow">for</span>(XNode::NodeList::const_iterator it = list-&gt;begin(); it != list-&gt;end(); it++) {
+<a name="l00131"></a>00131           shared_ptr&lt;XDriver&gt; driver = dynamic_pointer_cast&lt;XDriver&gt;(*it);
+<a name="l00132"></a>00132             driver-&gt;stopMeas();
+<a name="l00133"></a>00133       }
+<a name="l00134"></a>00134   }
+<a name="l00135"></a>00135 }
+<a name="l00136"></a>00136 <span class="keywordtype">void</span>
+<a name="l00137"></a><a class="code" href="class_x_measure.html#d0">00137</a> <a class="code" href="class_x_measure.html#d0">XMeasure::onReleaseDriver</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;d)
+<a name="l00138"></a>00138 {
+<a name="l00139"></a>00139     shared_ptr&lt;XDriver&gt; driver = dynamic_pointer_cast&lt;XDriver&gt;(d);
+<a name="l00140"></a>00140     ASSERT( driver );
+<a name="l00141"></a>00141     driver-&gt;stopMeas();
+<a name="l00142"></a>00142     <span class="keywordflow">for</span>(;;) {
+<a name="l00143"></a>00143         shared_ptr&lt;XScalarEntry&gt; entry;
+<a name="l00144"></a>00144         <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> list(<a class="code" href="class_x_measure.html#a7">scalarEntryList</a>()-&gt;<a class="code" href="class_x_node.html#a10">children</a>());
+<a name="l00145"></a>00145         <span class="keywordflow">if</span>(list) { 
+<a name="l00146"></a>00146             <span class="keywordflow">for</span>(XNode::NodeList::const_iterator it = list-&gt;begin(); it != list-&gt;end(); it++) {
+<a name="l00147"></a>00147               shared_ptr&lt;XScalarEntry&gt; _entry = dynamic_pointer_cast&lt;XScalarEntry&gt;(*it);
+<a name="l00148"></a>00148               <span class="keywordflow">if</span>(_entry-&gt;driver() == driver) {
+<a name="l00149"></a>00149                     entry = _entry;
+<a name="l00150"></a>00150               }
+<a name="l00151"></a>00151             }
+<a name="l00152"></a>00152         }
+<a name="l00153"></a>00153         <span class="keywordflow">if</span>(!entry) <span class="keywordflow">break</span>;
+<a name="l00154"></a>00154         <a class="code" href="class_x_measure.html#a7">scalarEntryList</a>()-&gt;releaseChild(entry);
+<a name="l00155"></a>00155     }
+<a name="l00156"></a>00156     <span class="keywordflow">for</span>(;;) {
+<a name="l00157"></a>00157         shared_ptr&lt;XInterface&gt; interface;
+<a name="l00158"></a>00158         <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> list(<a class="code" href="class_x_measure.html#a6">interfaceList</a>()-&gt;<a class="code" href="class_x_node.html#a10">children</a>());
+<a name="l00159"></a>00159         <span class="keywordflow">if</span>(list) { 
+<a name="l00160"></a>00160             <span class="keywordflow">for</span>(XNode::NodeList::const_iterator it = list-&gt;begin(); it != list-&gt;end(); it++) {
+<a name="l00161"></a>00161               shared_ptr&lt;XInterface&gt; _interface = dynamic_pointer_cast&lt;XInterface&gt;(*it);
+<a name="l00162"></a>00162               <span class="keywordflow">if</span>(_interface-&gt;driver() == driver) {
+<a name="l00163"></a>00163                         interface = _interface;
+<a name="l00164"></a>00164               }
+<a name="l00165"></a>00165             }
+<a name="l00166"></a>00166         }
+<a name="l00167"></a>00167         <span class="keywordflow">if</span>(!interface) <span class="keywordflow">break</span>;
+<a name="l00168"></a>00168         <a class="code" href="class_x_measure.html#a6">interfaceList</a>()-&gt;releaseChild(interface);
+<a name="l00169"></a>00169     }
+<a name="l00170"></a>00170 }
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:15 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

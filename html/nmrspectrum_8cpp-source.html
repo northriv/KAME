@@ -4,9 +4,9 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000012.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000025.html">nmr</a></div>
+<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000012.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000027.html">nmr</a></div>
 <h1>nmrspectrum.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00002"></a>00002 <span class="preprocessor">#include "forms/nmrspectrumform.h"</span>
 <a name="l00003"></a>00003 <span class="preprocessor">#include "nmrspectrum.h"</span>
@@ -51,174 +51,182 @@
 <a name="l00042"></a>00042   <a class="code" href="class_x_secondary_driver.html#b1">connect</a>(<a class="code" href="class_x_n_m_r_spectrum.html#a3">magnet</a>());
 <a name="l00043"></a>00043   <a class="code" href="class_x_secondary_driver.html#b1">connect</a>(<a class="code" href="class_x_n_m_r_spectrum.html#a2">pulse</a>());
 <a name="l00044"></a>00044 
-<a name="l00045"></a>00045   <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;setCaption(i18n(<span class="stringliteral">"NMR Spectrum - "</span>) + <a class="code" href="class_x_node.html#a6">getName</a>() );
+<a name="l00045"></a>00045   <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;setCaption(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"NMR Spectrum - "</span>) + <a class="code" href="class_x_node.html#a7">getLabel</a>() );
 <a name="l00046"></a>00046 
-<a name="l00047"></a>00047   <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;setColCount(4);
-<a name="l00048"></a>00048   <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;labels()[0] = <span class="stringliteral">"Field [T]"</span>;
-<a name="l00049"></a>00049   <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;labels()[1] = <span class="stringliteral">"Re [V]"</span>;
-<a name="l00050"></a>00050   <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;labels()[2] = <span class="stringliteral">"Im [V]"</span>;
-<a name="l00051"></a>00051   <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;labels()[3] = <span class="stringliteral">"Counts"</span>;
-<a name="l00052"></a>00052   <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;selectAxes(0, 1, 2, 3);
-<a name="l00053"></a>00053   <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;plot1()-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
-<a name="l00054"></a>00054   <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;plot2()-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
-<a name="l00055"></a>00055   <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;clear();
-<a name="l00056"></a>00056   
-<a name="l00057"></a>00057   <a class="code" href="class_x_n_m_r_spectrum.html#a4">centerFreq</a>()-&gt;value(20);
-<a name="l00058"></a>00058   <a class="code" href="class_x_n_m_r_spectrum.html#a5">bandWidth</a>()-&gt;value(50);
-<a name="l00059"></a>00059   <a class="code" href="class_x_n_m_r_spectrum.html#a6">resolution</a>()-&gt;value(0.001);
-<a name="l00060"></a>00060   <a class="code" href="class_x_n_m_r_spectrum.html#a7">fieldFactor</a>()-&gt;value(1);
-<a name="l00061"></a>00061   <a class="code" href="class_x_n_m_r_spectrum.html#a10">fieldMax</a>()-&gt;value(0.1);
-<a name="l00062"></a>00062 
-<a name="l00063"></a>00063   <a class="code" href="class_x_n_m_r_spectrum.html#r14">m_lsnOnClear</a> = <a class="code" href="class_x_n_m_r_spectrum.html#r9">m_clear</a>-&gt;onTouch().connectWeak(
-<a name="l00064"></a>00064                    <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_n_m_r_spectrum.html#d1">XNMRSpectrum::onClear</a>);
-<a name="l00065"></a>00065   <a class="code" href="class_x_n_m_r_spectrum.html#r15">m_lsnOnCondChanged</a> = <a class="code" href="class_x_n_m_r_spectrum.html#a4">centerFreq</a>()-&gt;onValueChanged().connectWeak(
-<a name="l00066"></a>00066                      <span class="keyword">true</span>, shared_from_this(), &amp;<a class="code" href="class_x_n_m_r_spectrum.html#d0">XNMRSpectrum::onCondChanged</a>, <span class="keyword">true</span>);
-<a name="l00067"></a>00067   <a class="code" href="class_x_n_m_r_spectrum.html#r3">m_bandWidth</a>-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_spectrum.html#r15">m_lsnOnCondChanged</a>);
-<a name="l00068"></a>00068   <a class="code" href="class_x_n_m_r_spectrum.html#r4">m_resolution</a>-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_spectrum.html#r15">m_lsnOnCondChanged</a>);
-<a name="l00069"></a>00069   <a class="code" href="class_x_n_m_r_spectrum.html#r5">m_fieldFactor</a>-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_spectrum.html#r15">m_lsnOnCondChanged</a>);
-<a name="l00070"></a>00070   <a class="code" href="class_x_n_m_r_spectrum.html#r6">m_residualField</a>-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_spectrum.html#r15">m_lsnOnCondChanged</a>);
-<a name="l00071"></a>00071   <a class="code" href="class_x_n_m_r_spectrum.html#r7">m_fieldMin</a>-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_spectrum.html#r15">m_lsnOnCondChanged</a>);
-<a name="l00072"></a>00072   <a class="code" href="class_x_n_m_r_spectrum.html#r8">m_fieldMax</a>-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_spectrum.html#r15">m_lsnOnCondChanged</a>);
-<a name="l00073"></a>00073 
-<a name="l00074"></a>00074   <a class="code" href="class_x_n_m_r_spectrum.html#r18">m_conCenterFreq</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_spectrum.html#r2">m_centerFreq</a>, <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;m_edFreq);
-<a name="l00075"></a>00075   <a class="code" href="class_x_n_m_r_spectrum.html#r19">m_conBandWidth</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_spectrum.html#r3">m_bandWidth</a>, <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;m_edBW);
-<a name="l00076"></a>00076   <a class="code" href="class_x_n_m_r_spectrum.html#r20">m_conResolution</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_spectrum.html#r4">m_resolution</a>, <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;m_edResolution);
-<a name="l00077"></a>00077   <a class="code" href="class_x_n_m_r_spectrum.html#r21">m_conFieldFactor</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_spectrum.html#r5">m_fieldFactor</a>, <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;m_edFieldFactor);
-<a name="l00078"></a>00078   <a class="code" href="class_x_n_m_r_spectrum.html#r22">m_conResidualField</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_spectrum.html#r6">m_residualField</a>, <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;m_edResidual);
-<a name="l00079"></a>00079   <a class="code" href="class_x_n_m_r_spectrum.html#r23">m_conFieldMin</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_spectrum.html#r7">m_fieldMin</a>, <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;m_edHMin);
-<a name="l00080"></a>00080   <a class="code" href="class_x_n_m_r_spectrum.html#r24">m_conFieldMax</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_spectrum.html#r8">m_fieldMax</a>, <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;m_edHMax);
-<a name="l00081"></a>00081   <a class="code" href="class_x_n_m_r_spectrum.html#r25">m_conMagnet</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_n_m_r_spectrum.html#r1">m_magnet</a>, <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;m_cmbFieldEntry);
-<a name="l00082"></a>00082   <a class="code" href="class_x_n_m_r_spectrum.html#r26">m_conPulse</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_n_m_r_spectrum.html#r0">m_pulse</a>, <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;m_cmbPulse);
-<a name="l00083"></a>00083   <a class="code" href="class_x_n_m_r_spectrum.html#r27">m_conClear</a> = xqcon_create&lt;XQButtonConnector&gt;(<a class="code" href="class_x_n_m_r_spectrum.html#r9">m_clear</a>, <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;m_btnClear);
-<a name="l00084"></a>00084 }
-<a name="l00085"></a>00085 <span class="keywordtype">void</span>
-<a name="l00086"></a><a class="code" href="class_x_n_m_r_spectrum.html#a1">00086</a> <a class="code" href="class_x_n_m_r_spectrum.html#a1">XNMRSpectrum::showForms</a>()
-<a name="l00087"></a>00087 {
-<a name="l00088"></a>00088    <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;show();
-<a name="l00089"></a>00089    <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;raise();
-<a name="l00090"></a>00090 }
-<a name="l00091"></a>00091 <span class="keywordtype">void</span> 
-<a name="l00092"></a><a class="code" href="class_x_n_m_r_spectrum.html#d0">00092</a> <a class="code" href="class_x_n_m_r_spectrum.html#d0">XNMRSpectrum::onCondChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node)
-<a name="l00093"></a>00093 {
-<a name="l00094"></a>00094     <span class="keywordflow">if</span>((node == <a class="code" href="class_x_n_m_r_spectrum.html#r6">m_residualField</a>) || (node == <a class="code" href="class_x_n_m_r_spectrum.html#r4">m_resolution</a>) || (node == <a class="code" href="class_x_n_m_r_spectrum.html#r5">m_fieldFactor</a>))
-<a name="l00095"></a>00095         <a class="code" href="class_x_n_m_r_spectrum.html#r28">m_timeClearRequested</a> = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
-<a name="l00096"></a>00096     <a class="code" href="class_x_secondary_driver.html#b2">requestAnalysis</a>();
-<a name="l00097"></a>00097 }
-<a name="l00098"></a>00098 <span class="keywordtype">void</span>
-<a name="l00099"></a><a class="code" href="class_x_n_m_r_spectrum.html#d1">00099</a> <a class="code" href="class_x_n_m_r_spectrum.html#d1">XNMRSpectrum::onClear</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;)
-<a name="l00100"></a>00100 {
-<a name="l00101"></a>00101     <a class="code" href="class_x_n_m_r_spectrum.html#r28">m_timeClearRequested</a> = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
-<a name="l00102"></a>00102     <a class="code" href="class_x_secondary_driver.html#b2">requestAnalysis</a>();
-<a name="l00103"></a>00103 }
-<a name="l00104"></a>00104 <span class="keywordtype">bool</span>
-<a name="l00105"></a><a class="code" href="class_x_n_m_r_spectrum.html#b3">00105</a> <a class="code" href="class_x_n_m_r_spectrum.html#b3">XNMRSpectrum::checkDependency</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;emitter)<span class="keyword"> const </span>{
-<a name="l00106"></a>00106     shared_ptr&lt;XMagnetPS&gt; _magnet = *<a class="code" href="class_x_n_m_r_spectrum.html#a3">magnet</a>();
-<a name="l00107"></a>00107     shared_ptr&lt;XNMRPulseAnalyzer&gt; _pulse = *<a class="code" href="class_x_n_m_r_spectrum.html#a2">pulse</a>();
-<a name="l00108"></a>00108     <span class="keywordflow">if</span>(!_magnet || !_pulse) <span class="keywordflow">return</span> <span class="keyword">false</span>;
-<a name="l00109"></a>00109     <span class="keywordflow">if</span>(emitter == _magnet) <span class="keywordflow">return</span> <span class="keyword">false</span>;
-<a name="l00110"></a>00110     <span class="keywordflow">if</span>(emitter == shared_from_this()) <span class="keywordflow">return</span> <span class="keyword">true</span>;
-<a name="l00111"></a>00111     <span class="keywordflow">return</span> (emitter == _pulse);
-<a name="l00112"></a>00112 }
-<a name="l00113"></a>00113 <span class="keywordtype">void</span>
-<a name="l00114"></a><a class="code" href="class_x_n_m_r_spectrum.html#b1">00114</a> <a class="code" href="class_x_n_m_r_spectrum.html#b1">XNMRSpectrum::analyze</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;emitter) <span class="keywordflow">throw</span> (XRecordError&amp;)
-<a name="l00115"></a>00115 {
-<a name="l00116"></a>00116   shared_ptr&lt;XMagnetPS&gt; _magnet = *magnet();
-<a name="l00117"></a>00117   shared_ptr&lt;XNMRPulseAnalyzer&gt; _pulse = *pulse();
-<a name="l00118"></a>00118   ASSERT( _magnet );
-<a name="l00119"></a>00119   ASSERT( _magnet-&gt;time() );
-<a name="l00120"></a>00120   ASSERT( _pulse );
-<a name="l00121"></a>00121   ASSERT( _pulse-&gt;time() );
-<a name="l00122"></a>00122   ASSERT( emitter != _magnet );
-<a name="l00123"></a>00123   
-<a name="l00124"></a>00124 <span class="comment">//  if(fabs(_pulse-&gt;time() - _magnet-&gt;time()) &gt; 10)</span>
-<a name="l00125"></a>00125 <span class="comment">//        m_statusPrinter-&gt;printWarning(i18n("Recorded time is older by 10 sec"));</span>
-<a name="l00126"></a>00126   <span class="keywordtype">double</span> field = _magnet-&gt;magnetFieldRecorded();
-<a name="l00127"></a>00127 
-<a name="l00128"></a>00128   field *= *fieldFactor();
-<a name="l00129"></a>00129   field += *residualField();
-<a name="l00130"></a>00130  
-<a name="l00131"></a>00131   <span class="keywordtype">double</span> field_max = *fieldMax();
-<a name="l00132"></a>00132   <span class="keywordtype">double</span> field_min = *fieldMin();
-<a name="l00133"></a>00133   <span class="keywordflow">if</span>(field_max &lt;= field_min) {
-<a name="l00134"></a>00134     <span class="keywordflow">throw</span> XRecordError(i18n(<span class="stringliteral">"Invalid min. and max."</span>), __FILE__, __LINE__);
-<a name="l00135"></a>00135   }
-<a name="l00136"></a>00136   <span class="keywordtype">double</span> res = *resolution();
-<a name="l00137"></a>00137   <span class="keywordflow">if</span>(res &lt; 1e-6) {
-<a name="l00138"></a>00138     <span class="keywordflow">throw</span> XRecordError(i18n(<span class="stringliteral">"Too small resolution."</span>), __FILE__, __LINE__);
-<a name="l00139"></a>00139   }
-<a name="l00140"></a>00140   
-<a name="l00141"></a>00141   <span class="keywordtype">bool</span> clear = (m_timeClearRequested &gt; _pulse-&gt;timeAwared());
-<a name="l00142"></a>00142   
-<a name="l00143"></a>00143   <span class="keywordflow">if</span>((dH() != res) || clear)
-<a name="l00144"></a>00144     {
-<a name="l00145"></a>00145       m_dH = res;
-<a name="l00146"></a>00146       m_wave.clear();
-<a name="l00147"></a>00147       m_counts.clear();
-<a name="l00148"></a>00148     }
-<a name="l00149"></a>00149   <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; rint(m_hMin / dH()) - rint(field_min / dH()); i++) {
-<a name="l00150"></a>00150          m_wave.push_front(0.0);
-<a name="l00151"></a>00151          m_counts.push_front(0);
-<a name="l00152"></a>00152   }
-<a name="l00153"></a>00153   <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; rint(field_min / dH()) - rint(m_hMin / dH()); i++) {
-<a name="l00154"></a>00154          m_wave.pop_front();
-<a name="l00155"></a>00155          m_counts.pop_front();
-<a name="l00156"></a>00156   }
-<a name="l00157"></a>00157   m_hMin = field_min;
-<a name="l00158"></a>00158   <span class="keywordtype">int</span> length = lrint((field_max - field_min) / dH());
-<a name="l00159"></a>00159   m_wave.resize(length, 0.0);
-<a name="l00160"></a>00160   m_counts.resize(length, 0);
-<a name="l00161"></a>00161 
-<a name="l00162"></a>00162   <span class="keywordflow">if</span>(emitter != _pulse) <span class="keywordflow">throw</span> XSkippedRecordError(__FILE__, __LINE__);
-<a name="l00163"></a>00163   <span class="keywordflow">if</span>(clear) <span class="keywordflow">throw</span> XSkippedRecordError(__FILE__, __LINE__);
-<a name="l00164"></a>00164 
-<a name="l00165"></a>00165   <span class="keywordtype">int</span> len = _pulse-&gt;ftWave().size();
-<a name="l00166"></a>00166   <span class="keywordtype">double</span> df = _pulse-&gt;dFreq();
-<a name="l00167"></a>00167   <span class="keywordflow">if</span>((len == 0) || (df == 0)) {
-<a name="l00168"></a>00168     <span class="keywordflow">throw</span> XRecordError(i18n(<span class="stringliteral">"Invalid waveform."</span>), __FILE__, __LINE__);  
-<a name="l00169"></a>00169   }
-<a name="l00170"></a>00170   <span class="keywordtype">int</span> bw = lrint(*bandWidth() * 1000.0 / df);
-<a name="l00171"></a>00171   <span class="keywordtype">double</span> cfreq = *centerFreq() * 1e6;
-<a name="l00172"></a>00172   <span class="keywordflow">if</span>(cfreq == 0) {
-<a name="l00173"></a>00173     <span class="keywordflow">throw</span> XRecordError(i18n(<span class="stringliteral">"Invalid center freq."</span>), __FILE__, __LINE__);  
-<a name="l00174"></a>00174   }
-<a name="l00175"></a>00175   <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = std::max(0, (len - bw) / 2); i &lt; std::min(len, (len + bw) / 2); i++)
-<a name="l00176"></a>00176     {
-<a name="l00177"></a>00177       <span class="keywordtype">double</span> freq = (i - len/2) * df;
-<a name="l00178"></a>00178       <span class="keywordflow">if</span>(freq / cfreq  != -1)
-<a name="l00179"></a>00179         add(field / (1 + freq / cfreq), _pulse-&gt;ftWave()[i]);
-<a name="l00180"></a>00180     }
-<a name="l00181"></a>00181 }
-<a name="l00182"></a>00182 <span class="keywordtype">void</span>
-<a name="l00183"></a><a class="code" href="class_x_n_m_r_spectrum.html#b2">00183</a> <a class="code" href="class_x_n_m_r_spectrum.html#b2">XNMRSpectrum::visualize</a>()
-<a name="l00184"></a>00184 {
-<a name="l00185"></a>00185   <span class="keywordflow">if</span>(!<a class="code" href="class_x_driver.html#a7">time</a>()) {
-<a name="l00186"></a>00186       <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;clear();
-<a name="l00187"></a>00187       <span class="keywordflow">return</span>;
-<a name="l00188"></a>00188   }
-<a name="l00189"></a>00189 
-<a name="l00190"></a>00190   <span class="keywordtype">int</span> length = <a class="code" href="class_x_n_m_r_spectrum.html#a11">wave</a>().size();
-<a name="l00191"></a>00191   <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;startWriting();
-<a name="l00192"></a>00192   <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;setRowCount(length);
-<a name="l00193"></a>00193   <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; length; i++)
-<a name="l00194"></a>00194     {
-<a name="l00195"></a>00195       <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;cols(0)[i] = <a class="code" href="class_x_n_m_r_spectrum.html#a14">hMin</a>() + i * <a class="code" href="class_x_n_m_r_spectrum.html#a13">dH</a>();
-<a name="l00196"></a>00196       <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;cols(1)[i] = (<a class="code" href="class_x_n_m_r_spectrum.html#a12">counts</a>()[i] &gt; 0) ? std::real(<a class="code" href="class_x_n_m_r_spectrum.html#a11">wave</a>()[i]) / <a class="code" href="class_x_n_m_r_spectrum.html#a12">counts</a>()[i] : 0;
-<a name="l00197"></a>00197       <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;cols(2)[i] = (<a class="code" href="class_x_n_m_r_spectrum.html#a12">counts</a>()[i] &gt; 0) ? std::imag(<a class="code" href="class_x_n_m_r_spectrum.html#a11">wave</a>()[i]) / <a class="code" href="class_x_n_m_r_spectrum.html#a12">counts</a>()[i] : 0;
-<a name="l00198"></a>00198       <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;cols(3)[i] = <a class="code" href="class_x_n_m_r_spectrum.html#a12">counts</a>()[i];
-<a name="l00199"></a>00199     }
-<a name="l00200"></a>00200   <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;finishWriting();
-<a name="l00201"></a>00201 }
-<a name="l00202"></a>00202 
-<a name="l00203"></a>00203 <span class="keywordtype">void</span>
-<a name="l00204"></a><a class="code" href="class_x_n_m_r_spectrum.html#d2">00204</a> <a class="code" href="class_x_n_m_r_spectrum.html#d2">XNMRSpectrum::add</a>(<span class="keywordtype">double</span> field, std::complex&lt;double&gt; c)
-<a name="l00205"></a>00205 {
-<a name="l00206"></a>00206   <span class="keywordtype">int</span> idx = lrint((field - <a class="code" href="class_x_n_m_r_spectrum.html#a14">hMin</a>()) / <a class="code" href="class_x_n_m_r_spectrum.html#a13">dH</a>());
-<a name="l00207"></a>00207   <span class="keywordflow">if</span>((idx &gt;= (int)<a class="code" href="class_x_n_m_r_spectrum.html#a11">wave</a>().size()) || (idx &lt; 0)) <span class="keywordflow">return</span>;
-<a name="l00208"></a>00208   <a class="code" href="class_x_n_m_r_spectrum.html#r13">m_wave</a>[idx] += c;
-<a name="l00209"></a>00209   <a class="code" href="class_x_n_m_r_spectrum.html#r10">m_counts</a>[idx]++;
-<a name="l00210"></a>00210   <span class="keywordflow">return</span>;
-<a name="l00211"></a>00211 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:23 2006に生成されました。&nbsp;
+<a name="l00047"></a>00047   {
+<a name="l00048"></a>00048       <span class="keyword">const</span> <span class="keywordtype">char</span> *labels[] = {<span class="stringliteral">"Field [T]"</span>, <span class="stringliteral">"Re [V]"</span>, <span class="stringliteral">"Im [V]"</span>, <span class="stringliteral">"Counts"</span>};
+<a name="l00049"></a>00049       <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;setColCount(4, labels);
+<a name="l00050"></a>00050       <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;selectAxes(0, 1, 2, 3);
+<a name="l00051"></a>00051       <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;plot1()-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"real part"</span>));
+<a name="l00052"></a>00052       <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;plot1()-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
+<a name="l00053"></a>00053       <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;plot2()-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"imag. part"</span>));
+<a name="l00054"></a>00054       <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;plot2()-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
+<a name="l00055"></a>00055       <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;clear();
+<a name="l00056"></a>00056   }
+<a name="l00057"></a>00057   
+<a name="l00058"></a>00058   <a class="code" href="class_x_n_m_r_spectrum.html#a4">centerFreq</a>()-&gt;value(20);
+<a name="l00059"></a>00059   <a class="code" href="class_x_n_m_r_spectrum.html#a5">bandWidth</a>()-&gt;value(50);
+<a name="l00060"></a>00060   <a class="code" href="class_x_n_m_r_spectrum.html#a6">resolution</a>()-&gt;value(0.001);
+<a name="l00061"></a>00061   <a class="code" href="class_x_n_m_r_spectrum.html#a7">fieldFactor</a>()-&gt;value(1);
+<a name="l00062"></a>00062   <a class="code" href="class_x_n_m_r_spectrum.html#a10">fieldMax</a>()-&gt;value(0.1);
+<a name="l00063"></a>00063 
+<a name="l00064"></a>00064   <a class="code" href="class_x_n_m_r_spectrum.html#r14">m_lsnOnClear</a> = <a class="code" href="class_x_n_m_r_spectrum.html#r9">m_clear</a>-&gt;onTouch().connectWeak(
+<a name="l00065"></a>00065                    <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_n_m_r_spectrum.html#d1">XNMRSpectrum::onClear</a>);
+<a name="l00066"></a>00066   <a class="code" href="class_x_n_m_r_spectrum.html#r15">m_lsnOnCondChanged</a> = <a class="code" href="class_x_n_m_r_spectrum.html#a4">centerFreq</a>()-&gt;onValueChanged().connectWeak(
+<a name="l00067"></a>00067                      <span class="keyword">true</span>, shared_from_this(), &amp;<a class="code" href="class_x_n_m_r_spectrum.html#d0">XNMRSpectrum::onCondChanged</a>, <span class="keyword">true</span>);
+<a name="l00068"></a>00068   <a class="code" href="class_x_n_m_r_spectrum.html#r3">m_bandWidth</a>-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_spectrum.html#r15">m_lsnOnCondChanged</a>);
+<a name="l00069"></a>00069   <a class="code" href="class_x_n_m_r_spectrum.html#r4">m_resolution</a>-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_spectrum.html#r15">m_lsnOnCondChanged</a>);
+<a name="l00070"></a>00070   <a class="code" href="class_x_n_m_r_spectrum.html#r5">m_fieldFactor</a>-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_spectrum.html#r15">m_lsnOnCondChanged</a>);
+<a name="l00071"></a>00071   <a class="code" href="class_x_n_m_r_spectrum.html#r6">m_residualField</a>-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_spectrum.html#r15">m_lsnOnCondChanged</a>);
+<a name="l00072"></a>00072   <a class="code" href="class_x_n_m_r_spectrum.html#r7">m_fieldMin</a>-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_spectrum.html#r15">m_lsnOnCondChanged</a>);
+<a name="l00073"></a>00073   <a class="code" href="class_x_n_m_r_spectrum.html#r8">m_fieldMax</a>-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_spectrum.html#r15">m_lsnOnCondChanged</a>);
+<a name="l00074"></a>00074 
+<a name="l00075"></a>00075   <a class="code" href="class_x_n_m_r_spectrum.html#r18">m_conCenterFreq</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_spectrum.html#r2">m_centerFreq</a>, <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;m_edFreq);
+<a name="l00076"></a>00076   <a class="code" href="class_x_n_m_r_spectrum.html#r19">m_conBandWidth</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_spectrum.html#r3">m_bandWidth</a>, <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;m_edBW);
+<a name="l00077"></a>00077   <a class="code" href="class_x_n_m_r_spectrum.html#r20">m_conResolution</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_spectrum.html#r4">m_resolution</a>, <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;m_edResolution);
+<a name="l00078"></a>00078   <a class="code" href="class_x_n_m_r_spectrum.html#r21">m_conFieldFactor</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_spectrum.html#r5">m_fieldFactor</a>, <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;m_edFieldFactor);
+<a name="l00079"></a>00079   <a class="code" href="class_x_n_m_r_spectrum.html#r22">m_conResidualField</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_spectrum.html#r6">m_residualField</a>, <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;m_edResidual);
+<a name="l00080"></a>00080   <a class="code" href="class_x_n_m_r_spectrum.html#r23">m_conFieldMin</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_spectrum.html#r7">m_fieldMin</a>, <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;m_edHMin);
+<a name="l00081"></a>00081   <a class="code" href="class_x_n_m_r_spectrum.html#r24">m_conFieldMax</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_spectrum.html#r8">m_fieldMax</a>, <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;m_edHMax);
+<a name="l00082"></a>00082   <a class="code" href="class_x_n_m_r_spectrum.html#r25">m_conMagnet</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_n_m_r_spectrum.html#r1">m_magnet</a>, <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;m_cmbFieldEntry);
+<a name="l00083"></a>00083   <a class="code" href="class_x_n_m_r_spectrum.html#r26">m_conPulse</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_n_m_r_spectrum.html#r0">m_pulse</a>, <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;m_cmbPulse);
+<a name="l00084"></a>00084   <a class="code" href="class_x_n_m_r_spectrum.html#r27">m_conClear</a> = xqcon_create&lt;XQButtonConnector&gt;(<a class="code" href="class_x_n_m_r_spectrum.html#r9">m_clear</a>, <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;m_btnClear);
+<a name="l00085"></a>00085 }
+<a name="l00086"></a>00086 <span class="keywordtype">void</span>
+<a name="l00087"></a><a class="code" href="class_x_n_m_r_spectrum.html#a1">00087</a> <a class="code" href="class_x_n_m_r_spectrum.html#a1">XNMRSpectrum::showForms</a>()
+<a name="l00088"></a>00088 {
+<a name="l00089"></a>00089    <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;show();
+<a name="l00090"></a>00090    <a class="code" href="class_x_n_m_r_spectrum.html#r16">m_form</a>-&gt;raise();
+<a name="l00091"></a>00091 }
+<a name="l00092"></a>00092 <span class="keywordtype">void</span> 
+<a name="l00093"></a><a class="code" href="class_x_n_m_r_spectrum.html#d0">00093</a> <a class="code" href="class_x_n_m_r_spectrum.html#d0">XNMRSpectrum::onCondChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node)
+<a name="l00094"></a>00094 {
+<a name="l00095"></a>00095     <span class="keywordflow">if</span>((node == <a class="code" href="class_x_n_m_r_spectrum.html#r6">m_residualField</a>) || (node == <a class="code" href="class_x_n_m_r_spectrum.html#r4">m_resolution</a>) || (node == <a class="code" href="class_x_n_m_r_spectrum.html#r5">m_fieldFactor</a>))
+<a name="l00096"></a>00096         <a class="code" href="class_x_n_m_r_spectrum.html#r28">m_timeClearRequested</a> = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
+<a name="l00097"></a>00097     <a class="code" href="class_x_secondary_driver.html#b2">requestAnalysis</a>();
+<a name="l00098"></a>00098 }
+<a name="l00099"></a>00099 <span class="keywordtype">void</span>
+<a name="l00100"></a><a class="code" href="class_x_n_m_r_spectrum.html#d1">00100</a> <a class="code" href="class_x_n_m_r_spectrum.html#d1">XNMRSpectrum::onClear</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;)
+<a name="l00101"></a>00101 {
+<a name="l00102"></a>00102     <a class="code" href="class_x_n_m_r_spectrum.html#r28">m_timeClearRequested</a> = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
+<a name="l00103"></a>00103     <a class="code" href="class_x_secondary_driver.html#b2">requestAnalysis</a>();
+<a name="l00104"></a>00104 }
+<a name="l00105"></a>00105 <span class="keywordtype">bool</span>
+<a name="l00106"></a><a class="code" href="class_x_n_m_r_spectrum.html#b3">00106</a> <a class="code" href="class_x_n_m_r_spectrum.html#b3">XNMRSpectrum::checkDependency</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;emitter)<span class="keyword"> const </span>{
+<a name="l00107"></a>00107     shared_ptr&lt;XMagnetPS&gt; _magnet = *<a class="code" href="class_x_n_m_r_spectrum.html#a3">magnet</a>();
+<a name="l00108"></a>00108     shared_ptr&lt;XNMRPulseAnalyzer&gt; _pulse = *<a class="code" href="class_x_n_m_r_spectrum.html#a2">pulse</a>();
+<a name="l00109"></a>00109     <span class="keywordflow">if</span>(!_magnet || !_pulse) <span class="keywordflow">return</span> <span class="keyword">false</span>;
+<a name="l00110"></a>00110     <span class="keywordflow">if</span>(emitter == _magnet) <span class="keywordflow">return</span> <span class="keyword">false</span>;
+<a name="l00111"></a>00111     <span class="keywordflow">if</span>(emitter == shared_from_this()) <span class="keywordflow">return</span> <span class="keyword">true</span>;
+<a name="l00112"></a>00112     <span class="keywordflow">return</span> (emitter == _pulse);
+<a name="l00113"></a>00113 }
+<a name="l00114"></a>00114 <span class="keywordtype">void</span>
+<a name="l00115"></a><a class="code" href="class_x_n_m_r_spectrum.html#b1">00115</a> <a class="code" href="class_x_n_m_r_spectrum.html#b1">XNMRSpectrum::analyze</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;emitter) <span class="keywordflow">throw</span> (XRecordError&amp;)
+<a name="l00116"></a>00116 {
+<a name="l00117"></a>00117   shared_ptr&lt;XMagnetPS&gt; _magnet = *magnet();
+<a name="l00118"></a>00118   shared_ptr&lt;XNMRPulseAnalyzer&gt; _pulse = *pulse();
+<a name="l00119"></a>00119   ASSERT( _magnet );
+<a name="l00120"></a>00120   ASSERT( _magnet-&gt;time() );
+<a name="l00121"></a>00121   ASSERT( _pulse );
+<a name="l00122"></a>00122   ASSERT( _pulse-&gt;time() );
+<a name="l00123"></a>00123   ASSERT( emitter != _magnet );
+<a name="l00124"></a>00124   
+<a name="l00125"></a>00125 <span class="comment">//  if(fabs(_pulse-&gt;time() - _magnet-&gt;time()) &gt; 10)</span>
+<a name="l00126"></a>00126 <span class="comment">//        m_statusPrinter-&gt;printWarning(KAME::i18n("Recorded time is older by 10 sec"));</span>
+<a name="l00127"></a>00127   <span class="keywordtype">double</span> field = _magnet-&gt;magnetFieldRecorded();
+<a name="l00128"></a>00128 
+<a name="l00129"></a>00129   field *= *fieldFactor();
+<a name="l00130"></a>00130   field += *residualField();
+<a name="l00131"></a>00131  
+<a name="l00132"></a>00132   <span class="keywordtype">double</span> field_max = *fieldMax();
+<a name="l00133"></a>00133   <span class="keywordtype">double</span> field_min = *fieldMin();
+<a name="l00134"></a>00134   <span class="keywordflow">if</span>(field_max &lt;= field_min) {
+<a name="l00135"></a>00135     <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Invalid min. and max."</span>), __FILE__, __LINE__);
+<a name="l00136"></a>00136   }
+<a name="l00137"></a>00137   <span class="keywordtype">double</span> res = *resolution();
+<a name="l00138"></a>00138   <span class="keywordflow">if</span>(res &lt; 1e-6) {
+<a name="l00139"></a>00139     <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Too small resolution."</span>), __FILE__, __LINE__);
+<a name="l00140"></a>00140   }
+<a name="l00141"></a>00141   
+<a name="l00142"></a>00142   <span class="keywordtype">bool</span> clear = (m_timeClearRequested &gt; _pulse-&gt;timeAwared());
+<a name="l00143"></a>00143   
+<a name="l00144"></a>00144   <span class="keywordflow">if</span>((dH() != res) || clear)
+<a name="l00145"></a>00145     {
+<a name="l00146"></a>00146       m_dH = res;
+<a name="l00147"></a>00147       m_wave.clear();
+<a name="l00148"></a>00148       m_counts.clear();
+<a name="l00149"></a>00149     }
+<a name="l00150"></a>00150   <span class="keywordflow">else</span> {
+<a name="l00151"></a>00151       <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; rint(m_hMin / dH()) - rint(field_min / dH()); i++) {
+<a name="l00152"></a>00152              m_wave.push_front(0.0);
+<a name="l00153"></a>00153              m_counts.push_front(0);
+<a name="l00154"></a>00154       }
+<a name="l00155"></a>00155       <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; rint(field_min / dH()) - rint(m_hMin / dH()); i++) {
+<a name="l00156"></a>00156              <span class="keywordflow">if</span>(!m_wave.empty()) {
+<a name="l00157"></a>00157                  m_wave.pop_front();
+<a name="l00158"></a>00158                  m_counts.pop_front();
+<a name="l00159"></a>00159              }
+<a name="l00160"></a>00160       }
+<a name="l00161"></a>00161   }
+<a name="l00162"></a>00162   m_hMin = field_min;
+<a name="l00163"></a>00163   <span class="keywordtype">int</span> length = lrint((field_max - field_min) / dH());
+<a name="l00164"></a>00164   m_wave.resize(length, 0.0);
+<a name="l00165"></a>00165   m_counts.resize(length, 0);
+<a name="l00166"></a>00166 
+<a name="l00167"></a>00167   <span class="keywordflow">if</span>(clear) {
+<a name="l00168"></a>00168     m_spectrum-&gt;clear();
+<a name="l00169"></a>00169         <span class="keywordflow">throw</span> XSkippedRecordError(__FILE__, __LINE__);
+<a name="l00170"></a>00170   }
+<a name="l00171"></a>00171   <span class="keywordflow">if</span>(emitter != _pulse) <span class="keywordflow">throw</span> XSkippedRecordError(__FILE__, __LINE__);
+<a name="l00172"></a>00172 
+<a name="l00173"></a>00173   <span class="keywordtype">int</span> len = _pulse-&gt;ftWave().size();
+<a name="l00174"></a>00174   <span class="keywordtype">double</span> df = _pulse-&gt;dFreq();
+<a name="l00175"></a>00175   <span class="keywordflow">if</span>((len == 0) || (df == 0)) {
+<a name="l00176"></a>00176     <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Invalid waveform."</span>), __FILE__, __LINE__);  
+<a name="l00177"></a>00177   }
+<a name="l00178"></a>00178   <span class="keywordtype">int</span> bw = lrint(*bandWidth() * 1000.0 / df);
+<a name="l00179"></a>00179   <span class="keywordtype">double</span> cfreq = *centerFreq() * 1e6;
+<a name="l00180"></a>00180   <span class="keywordflow">if</span>(cfreq == 0) {
+<a name="l00181"></a>00181     <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Invalid center freq."</span>), __FILE__, __LINE__);  
+<a name="l00182"></a>00182   }
+<a name="l00183"></a>00183   <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = std::max(0, (len - bw) / 2); i &lt; std::min(len, (len + bw) / 2); i++)
+<a name="l00184"></a>00184     {
+<a name="l00185"></a>00185       <span class="keywordtype">double</span> freq = (i - len/2) * df;
+<a name="l00186"></a>00186       <span class="keywordflow">if</span>(freq / cfreq  != -1)
+<a name="l00187"></a>00187         add(field / (1 + freq / cfreq), _pulse-&gt;ftWave()[i]);
+<a name="l00188"></a>00188     }
+<a name="l00189"></a>00189 }
+<a name="l00190"></a>00190 <span class="keywordtype">void</span>
+<a name="l00191"></a><a class="code" href="class_x_n_m_r_spectrum.html#b2">00191</a> <a class="code" href="class_x_n_m_r_spectrum.html#b2">XNMRSpectrum::visualize</a>()
+<a name="l00192"></a>00192 {
+<a name="l00193"></a>00193   <span class="keywordflow">if</span>(!<a class="code" href="class_x_driver.html#a7">time</a>()) {
+<a name="l00194"></a>00194       <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;clear();
+<a name="l00195"></a>00195       <span class="keywordflow">return</span>;
+<a name="l00196"></a>00196   }
+<a name="l00197"></a>00197 
+<a name="l00198"></a>00198   <span class="keywordtype">int</span> length = <a class="code" href="class_x_n_m_r_spectrum.html#a11">wave</a>().size();
+<a name="l00199"></a>00199   {   <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XWaveNGraph&gt;</a> lock(*<a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>);
+<a name="l00200"></a>00200       <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;setRowCount(length);
+<a name="l00201"></a>00201       <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; length; i++)
+<a name="l00202"></a>00202         {
+<a name="l00203"></a>00203           <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;cols(0)[i] = <a class="code" href="class_x_n_m_r_spectrum.html#a14">hMin</a>() + i * <a class="code" href="class_x_n_m_r_spectrum.html#a13">dH</a>();
+<a name="l00204"></a>00204           <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;cols(1)[i] = (<a class="code" href="class_x_n_m_r_spectrum.html#a12">counts</a>()[i] &gt; 0) ? std::real(<a class="code" href="class_x_n_m_r_spectrum.html#a11">wave</a>()[i]) / <a class="code" href="class_x_n_m_r_spectrum.html#a12">counts</a>()[i] : 0;
+<a name="l00205"></a>00205           <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;cols(2)[i] = (<a class="code" href="class_x_n_m_r_spectrum.html#a12">counts</a>()[i] &gt; 0) ? std::imag(<a class="code" href="class_x_n_m_r_spectrum.html#a11">wave</a>()[i]) / <a class="code" href="class_x_n_m_r_spectrum.html#a12">counts</a>()[i] : 0;
+<a name="l00206"></a>00206           <a class="code" href="class_x_n_m_r_spectrum.html#r17">m_spectrum</a>-&gt;cols(3)[i] = <a class="code" href="class_x_n_m_r_spectrum.html#a12">counts</a>()[i];
+<a name="l00207"></a>00207         }
+<a name="l00208"></a>00208   }
+<a name="l00209"></a>00209 }
+<a name="l00210"></a>00210 
+<a name="l00211"></a>00211 <span class="keywordtype">void</span>
+<a name="l00212"></a><a class="code" href="class_x_n_m_r_spectrum.html#d2">00212</a> <a class="code" href="class_x_n_m_r_spectrum.html#d2">XNMRSpectrum::add</a>(<span class="keywordtype">double</span> field, std::complex&lt;double&gt; c)
+<a name="l00213"></a>00213 {
+<a name="l00214"></a>00214   <span class="keywordtype">int</span> idx = lrint((field - <a class="code" href="class_x_n_m_r_spectrum.html#a14">hMin</a>()) / <a class="code" href="class_x_n_m_r_spectrum.html#a13">dH</a>());
+<a name="l00215"></a>00215   <span class="keywordflow">if</span>((idx &gt;= (int)<a class="code" href="class_x_n_m_r_spectrum.html#a11">wave</a>().size()) || (idx &lt; 0)) <span class="keywordflow">return</span>;
+<a name="l00216"></a>00216   <a class="code" href="class_x_n_m_r_spectrum.html#r13">m_wave</a>[idx] += c;
+<a name="l00217"></a>00217   <a class="code" href="class_x_n_m_r_spectrum.html#r10">m_counts</a>[idx]++;
+<a name="l00218"></a>00218   <span class="keywordflow">return</span>;
+<a name="l00219"></a>00219 }
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:20 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

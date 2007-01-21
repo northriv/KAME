@@ -4,21 +4,17 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- ºîÀ®¡§ Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">¥á¥¤¥ó¥Ú¡¼¥¸</a> | <a class="qindex" href="hierarchy.html">¥¯¥é¥¹³¬ÁØ</a> | <a class="qindex" href="classes.html">¥¢¥ë¥Õ¥¡¥Ù¥Ã¥È½ç°ìÍ÷</a> | <a class="qindex" href="annotated.html">¹½À®</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">¥Õ¥¡¥¤¥ë°ìÍ÷</a> | <a class="qindex" href="functions.html">¹½À®¥á¥ó¥Ð</a> | <a class="qindex" href="pages.html">´ØÏ¢¥Ú¡¼¥¸</a></div>
+<div class="qindex"><a class="qindex" href="main.html">¥á¥¤¥ó¥Ú¡¼¥¸</a> | <a class="qindex" href="namespaces.html">¥Í¡¼¥à¥¹¥Ú¡¼¥¹°ìÍ÷</a> | <a class="qindex" href="hierarchy.html">¥¯¥é¥¹³¬ÁØ</a> | <a class="qindex" href="classes.html">¥¢¥ë¥Õ¥¡¥Ù¥Ã¥È½ç°ìÍ÷</a> | <a class="qindex" href="annotated.html">¹½À®</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">¥Õ¥¡¥¤¥ë°ìÍ÷</a> | <a class="qindex" href="namespacemembers.html">¥Í¡¼¥à¥¹¥Ú¡¼¥¹¥á¥ó¥Ð</a> | <a class="qindex" href="functions.html">¹½À®¥á¥ó¥Ð</a> | <a class="qindex" href="pages.html">´ØÏ¢¥Ú¡¼¥¸</a></div>
 <h1>¥¯¥é¥¹ ¥Æ¥ó¥×¥ì¡¼¥È XThread&lt; T &gt;</h1><!-- doxytag: class=<XThread> -->create a new thread.  
 <a href="#_details">[¾ÜºÙ]</a>
 <p>
 <code>#include &lt;<a class="el" href="thread_8h-source.html">thread.h</a>&gt;</code>
 <p>
-XThread&lt; T &gt;¤Î¥³¥é¥Ü¥ì¡¼¥·¥ç¥ó¿Þ<p><center><img src="class_x_thread__coll__graph.png" border="0" usemap="#_x_thread_3_01_t_01_4__coll__map" alt="Collaboration graph"></center>
-<map name="_x_thread_3_01_t_01_4__coll__map">
-<area href="struct_x_thread_1_1targ.html" shape="rect" coords="7,7,141,34" alt="">
-</map>
-<center><font size="2">[<a target="top" href="graph_legend.html">ËÞÎã</a>]</font></center><a href="class_x_thread-members.html">¤¹¤Ù¤Æ¤Î¥á¥ó¥Ð°ìÍ÷</a><table border="0" cellpadding="0" cellspacing="0">
+<a href="class_x_thread-members.html">¤¹¤Ù¤Æ¤Î¥á¥ó¥Ð°ìÍ÷</a><table border="0" cellpadding="0" cellspacing="0">
 <tr><td></td></tr>
 <tr><td colspan="2"><br><h2>Public ¥á¥½¥Ã¥É</h2></td></tr>
 <tr><td class="memTemplParams" nowrap colspan="2">template&lt;class X&gt; </td></tr>
-<tr><td class="memTemplItemLeft" nowrap align="right" valign="top">&nbsp;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="class_x_thread.html#a0">XThread</a> (const shared_ptr&lt; X &gt; &amp;t, void *(T::*func)())</td></tr>
+<tr><td class="memTemplItemLeft" nowrap align="right" valign="top">&nbsp;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="class_x_thread.html#a0">XThread</a> (const shared_ptr&lt; X &gt; &amp;t, void *(T::*func)(const <a class="el" href="classatomic.html">atomic</a>&lt; bool &gt; &amp;))</td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a1"></a><!-- doxytag: member=<XThread::~XThread> ref=<a1> args=<()> -->
 &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_thread.html#a1">~XThread</a> ()</td></tr>
@@ -29,6 +25,14 @@ void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">resume a new thread. <br></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_thread.html#a3">waitFor</a> (void **retval=0L)</td></tr>
 
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a4"></a><!-- doxytag: member=<XThread::terminate> ref=<a4> args=<()> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_thread.html#a4">terminate</a> ()</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">set termination flag. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a5"></a><!-- doxytag: member=<XThread::isTerminated> ref=<a5> args=<() const > -->
+bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_thread.html#a5">isTerminated</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">fetch termination flag. <br></td></tr>
 <tr><td colspan="2"><br><h2>Static Private ¥á¥½¥Ã¥É</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="h0"></a><!-- doxytag: member=<XThread::xthread_start_routine> ref=<h0> args=<(void *)> -->
 static void *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_thread.html#h0">xthread_start_routine</a> (void *)</td></tr>
@@ -38,7 +42,7 @@ static void *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" h
 pthread_t&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_thread.html#r0">m_threadid</a></td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r1"></a><!-- doxytag: member=<XThread::m_startarg> ref=<r1> args=<> -->
-<a class="el" href="struct_x_thread_1_1targ.html">XThread::targ</a>&nbsp;</td><td class="memItemRight" valign="bottom"><b>m_startarg</b></td></tr>
+shared_ptr&lt; <a class="el" href="struct_x_thread_1_1targ.html">targ</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_thread.html#r1">m_startarg</a></td></tr>
 
 <tr><td colspan="2"><br><h2>¹½À®</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top">struct &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_x_thread_1_1targ.html">targ</a></td></tr>
@@ -52,8 +56,8 @@ create a new thread.
 <p>
 
 <p>
- <a class="el" href="thread_8h-source.html">thread.h</a> ¤Î <a class="el" href="thread_8h-source.html#l00114">114</a> ¹Ô¤ÇÄêµÁ¤µ¤ì¤Æ¤¤¤Þ¤¹¡£<hr><h2>¥³¥ó¥¹¥È¥é¥¯¥¿¤È¥Ç¥¹¥È¥é¥¯¥¿</h2>
-<a class="anchor" name="a0"></a><!-- doxytag: member=<XThread::XThread> ref=<a0> args=<(const shared_ptr&lt; X &gt; &amp;t, void *(T::*func)())> --><p>
+ <a class="el" href="thread_8h-source.html">thread.h</a> ¤Î <a class="el" href="thread_8h-source.html#l00112">112</a> ¹Ô¤ÇÄêµÁ¤µ¤ì¤Æ¤¤¤Þ¤¹¡£<hr><h2>¥³¥ó¥¹¥È¥é¥¯¥¿¤È¥Ç¥¹¥È¥é¥¯¥¿</h2>
+<a class="anchor" name="a0"></a><!-- doxytag: member=<XThread::XThread> ref=<a0> args=<(const shared_ptr&lt; X &gt; &amp;t, void *(T::*func)(const atomic&lt; bool &gt; &amp;))> --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
     <td class="mdRow">
@@ -75,7 +79,7 @@ template&lt;class X&gt; </td>
         <tr>
           <td class="md" nowrap align="right"></td>
           <td class="md"></td>
-          <td class="md" nowrap>void *(T::*)()&nbsp;</td>
+          <td class="md" nowrap>void *(T::*)(const <a class="el" href="classatomic.html">atomic</a>&lt; bool &gt; &amp;)&nbsp;</td>
           <td class="mdname" nowrap> <em>func</em></td>
         </tr>
         <tr>
@@ -97,9 +101,9 @@ template&lt;class X&gt; </td>
 <p>
 use <a class="el" href="class_x_thread.html#a2">resume()</a> to start a thread. <code>X</code> must be super class of <code>T</code>.
 <p>
- <a class="el" href="thread_8h-source.html">thread.h</a> ¤Î <a class="el" href="thread_8h-source.html#l00141">141</a> ¹Ô¤ÇÄêµÁ¤µ¤ì¤Æ¤¤¤Þ¤¹¡£
+ <a class="el" href="thread_8h-source.html">thread.h</a> ¤Î <a class="el" href="thread_8h-source.html#l00146">146</a> ¹Ô¤ÇÄêµÁ¤µ¤ì¤Æ¤¤¤Þ¤¹¡£
 <p>
-»²¾ÈÀè XThread&lt; T &gt;::targ::func, ¤È <a class="el" href="thread_8h-source.html#l00133">XThread&lt; T &gt;::targ::obj</a>.    </td>
+»²¾ÈÀè <a class="el" href="thread_8h-source.html#l00140">XThread&lt; T &gt;::m_startarg</a>.    </td>
   </tr>
 </table>
 <hr><h2>´Ø¿ô</h2>
@@ -139,14 +143,14 @@ join a running thread. should be called before destruction. <dl compact><dt><b>°
 </dl>
 
 <p>
- <a class="el" href="thread_8h-source.html">thread.h</a> ¤Î <a class="el" href="thread_8h-source.html#l00169">169</a> ¹Ô¤ÇÄêµÁ¤µ¤ì¤Æ¤¤¤Þ¤¹¡£
+ <a class="el" href="thread_8h-source.html">thread.h</a> ¤Î <a class="el" href="thread_8h-source.html#l00178">178</a> ¹Ô¤ÇÄêµÁ¤µ¤ì¤Æ¤¤¤Þ¤¹¡£
 <p>
-»²¾ÈÀè <a class="el" href="thread_8h-source.html#l00131">XThread&lt; T &gt;::m_threadid</a>.    </td>
+»²¾ÈÀè <a class="el" href="thread_8h-source.html#l00133">XThread&lt; T &gt;::m_threadid</a>.    </td>
   </tr>
 </table>
 <hr>¤³¤Î¥¯¥é¥¹¤ÎÀâÌÀ¤Ï¼¡¤Î¥Õ¥¡¥¤¥ë¤«¤éÀ¸À®¤µ¤ì¤Þ¤·¤¿:<ul>
 <li>kame/<a class="el" href="thread_8h-source.html">thread.h</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2¤ËÂÐ¤·¤ÆTue Jan 17 21:06:19 2006¤ËÀ¸À®¤µ¤ì¤Þ¤·¤¿¡£&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2¤ËÂÐ¤·¤ÆSun Jan 21 12:50:33 2007¤ËÀ¸À®¤µ¤ì¤Þ¤·¤¿¡£&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

@@ -1,0 +1,66 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: ネームスペース KAME</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<h1>ネームスペース KAME</h1>
+<p>
+<table border="0" cellpadding="0" cellspacing="0">
+<tr><td></td></tr>
+<tr><td colspan="2"><br><h2>関数</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a2"></a><!-- doxytag: member=<KAME::rand> ref=<a2> args=<()> -->
+unsigned int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_k_a_m_e.html#a2">rand</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">QString&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_k_a_m_e.html#a3">i18n</a> (const char *eng)</td></tr>
+
+<tr><td colspan="2"><br><h2>変数</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a0"></a><!-- doxytag: member=<KAME::stl_random_seed> ref=<a0> args=<> -->
+static <a class="el" href="class_x_thread_local.html">XThreadLocal</a>&lt; unsigned <br>
+int &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_k_a_m_e.html#a0">stl_random_seed</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a1"></a><!-- doxytag: member=<KAME::i18n_mutex> ref=<a1> args=<> -->
+static <a class="el" href="class_x_mutex.html">XMutex</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_k_a_m_e.html#a1">i18n_mutex</a></td></tr>
+
+</table>
+<hr><h2>関数</h2>
+<a class="anchor" name="a3"></a><!-- doxytag: member=<KAME::i18n> ref=<a3> args=<(const char *eng)> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">QString KAME::i18n           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="md" nowrap valign="top">const char *&nbsp;</td>
+          <td class="mdname1" valign="top" nowrap> <em>eng</em>          </td>
+          <td class="md" valign="top">&nbsp;)&nbsp;</td>
+          <td class="md" nowrap></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+thread-safe version of <a class="el" href="namespace_k_a_m_e.html#a3">i18n()</a>. this is not needed in QT4 or later. 
+<p>
+ <a class="el" href="support_8cpp-source.html">support.cpp</a> の <a class="el" href="support_8cpp-source.html#l00291">291</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="support_8cpp-source.html#l00285">i18n_mutex</a>.
+<p>
+参照元 <a class="el" href="xnode_8cpp-source.html#l00244">XDoubleNode::_str()</a>, <a class="el" href="xnode_8cpp-source.html#l00135">XValueNode&lt; T, base &gt;::_str()</a>, <a class="el" href="xitemnode_8cpp-source.html#l00021">XComboNode::_str()</a>, <a class="el" href="nmrspectrum_8cpp-source.html#l00115">XNMRSpectrum::analyze()</a>, <a class="el" href="nmrrelax_8cpp-source.html#l00268">XNMRT1::analyze()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00418">XNMRPulseAnalyzer::analyze()</a>, <a class="el" href="nmrfspectrum_8cpp-source.html#l00134">XNMRFSpectrum::analyze()</a>, <a class="el" href="dso_8cpp-source.html#l00362">XDSO::analyzeRaw()</a>, <a class="el" href="userlockinamp_8cpp-source.html#l00185">XAH2500A::changeFreq()</a>, <a class="el" href="pulserdriversh_8cpp-source.html#l00343">XSHPulser::changeOutput()</a>, <a class="el" href="pulserdriverh8_8cpp-source.html#l00137">XH8Pulser::changeOutput()</a>, <a class="el" href="userlockinamp_8cpp-source.html#l00180">XAH2500A::changeSensitivity()</a>, <a class="el" href="nmrrelax_8cpp-source.html#l00244">XNMRT1::checkDependency()</a>, <a class="el" href="oxford_8cpp-source.html#l00061">XOxfordInterface::close()</a>, <a class="el" href="kame_8cpp-source.html#l00267">FrmKameMain::closeEvent()</a>, <a class="el" href="graphpainter_8cpp-source.html#l00505">XQGraphPainter::drawOnScreenHelp()</a>, <a class="el" href="graphpainter_8cpp-source.html#l00352">XQGraphPainter::drawOnScreenObj()</a>, <a class="el" href="magnetps_8cpp-source.html#l00116">XMagnetPS::execute()</a>, <a class="el" href="lockinamp_8cpp-source.html#l00142">XLIA::execute()</a>, <a class="el" href="dso_8cpp-source.html#l00186">XDSO::execute()</a>, <a class="el" href="dmm_8cpp-source.html#l00082">XDMM::execute()</a>, <a class="el" href="recordreader_8cpp-source.html#l00290">XRawStreamRecordReader::execute()</a>, <a class="el" href="kame_8cpp-source.html#l00331">FrmKameMain::fileOpenAction_activated()</a>, <a class="el" href="kame_8cpp-source.html#l00344">FrmKameMain::fileSaveAction_activated()</a>, <a class="el" href="primarydriver_8cpp-source.html#l00030">XPrimaryDriver::finishWritingRaw()</a>, <a class="el" href="kame_8cpp-source.html#l00046">FrmKameMain::FrmKameMain()</a>, <a class="el" href="thermometer_8cpp-source.html#l00221">XApproxThermometer::getRawValue()</a>, <a class="el" href="thermometer_8cpp-source.html#l00197">XApproxThermometer::getTemp()</a>, <a class="el" href="kame_8cpp-source.html#l00364">FrmKameMain::helpAboutAction_activated()</a>, <a class="el" href="xnodeconnector_8cpp-source.html#l00428">XListQConnector::indexChange()</a>, <a class="el" href="nmrrelaxfit_8cpp-source.html#l00352">XNMRT1::iterate()</a>, <a class="el" href="nmrrelax_8cpp-source.html#l00492">XNMRT1::onActiveChanged()</a>, <a class="el" href="recordreader_8cpp-source.html#l00272">XRawStreamRecordReader::onBack()</a>, <a class="el" href="secondarydriver_8cpp-source.html#l00050">XSecondaryDriver::onConnectedRecorded()</a>, <a class="el" href="driverlistconnector_8cpp-source.html#l00130">XDriverListConnector::onCreateTouched()</a>, <a class="el" href="recordreader_8cpp-source.html#l00239">XRawStreamRecordReader::onFirst()</a>, <a class="el" href="signalgenerator_8cpp-source.html#l00089">XSG::onFreqChanged()</a>, <a class="el" href="lockinamp_8cpp-source.html#l00107">XLIA::onFreqChanged()</a>, <a class="el" href="dmm_8cpp-source.html#l00071">XDMM::onFunctionChanged()</a>, <a class="el" href="dcsource_8cpp-source.html#l00093">XDCSource::onFunctionChanged()</a>, <a class="el" href="xnodeconnector_8cpp-source.html#l00520">XQComboBoxConnector::onListChanged()</a>, <a class="el" href="recordreader_8cpp-source.html#l00256">XRawStreamRecordReader::onNext()</a>, <a class="el" href="interfacelistconnector_8cpp-source.html#l00061">XInterfaceListConnector::onOpenedChanged()</a>, <a class="el" href="lockinamp_8cpp-source.html#l00096">XLIA::onOutputChanged()</a>, <a class="el" href="dcsource_8cpp-source.html#l00082">XDCSource::onOutputChanged()</a>, <a class="el" href="interface_8cpp-source.html#l00277">XInterface::onQueryRequested()</a>, <a class="el" href="nmrrelax_8cpp-source.html#l00202">XNMRT1::onResetFit()</a>, <a class="el" href="interface_8cpp-source.html#l00269">XInterface::onSendRequested()</a>, <a class="el" href="lockinamp_8cpp-source.html#l00118">XLIA::onSensitivityChanged()</a>, <a class="el" href="recordreader_8cpp-source.html#l00227">XRawStreamRecordReader::onStop()</a>, <a class="el" href="lockinamp_8cpp-source.html#l00129">XLIA::onTimeConstChanged()</a>, <a class="el" href="xnodeconnector_8cpp-source.html#l00489">XQComboBoxConnector::onValueChanged()</a>, <a class="el" href="dcsource_8cpp-source.html#l00104">XDCSource::onValueChanged()</a>, <a class="el" href="interface_8cpp-source.html#l00063">XInterface::open()</a>, <a class="el" href="graphpaintergl_8cpp-source.html#l00075">XQGraphPainter::openFont()</a>, <a class="el" href="xnodeconnector_8cpp-source.html#l00652">XStatusPrinter::printError()</a>, <a class="el" href="xnodeconnector_8cpp-source.html#l00643">XStatusPrinter::printWarning()</a>, <a class="el" href="pulserdriversh_8cpp-source.html#l00270">XSHPulser::pulseAdd()</a>, <a class="el" href="oxford_8cpp-source.html#l00025">XOxfordInterface::query()</a>, <a class="el" href="interface_8cpp-source.html#l00203">XInterface::receive()</a>, <a class="el" href="kame_8cpp-source.html#l00433">FrmKameMain::scriptDotSaveAction_activated()</a>, <a class="el" href="kame_8cpp-source.html#l00403">FrmKameMain::scriptRunAction_activated()</a>, <a class="el" href="xwavengraph_8cpp-source.html#l00069">XWaveNGraph::selectAxes()</a>, <a class="el" href="interface_8cpp-source.html#l00153">XInterface::send()</a>, <a class="el" href="usermagnetps_8cpp-source.html#l00270">XPS120::setPCSHeater()</a>, <a class="el" href="analyzer_8cpp-source.html#l00100">XValChart::showChart()</a>, <a class="el" href="analyzer_8cpp-source.html#l00258">XValGraph::showGraph()</a>, <a class="el" href="graphpaintergl_8cpp-source.html#l00161">XQGraphPainter::string2wstring()</a>, <a class="el" href="usermagnetps_8cpp-source.html#l00084">XPS120::toNonPersistent()</a>, <a class="el" href="pulserdriver_8cpp-source.html#l00602">XPulser::visualize()</a>, <a class="el" href="interface_8cpp-source.html#l00190">XInterface::write()</a>, <a class="el" href="caltable_8cpp-source.html#l00014">XConCalTable::XConCalTable()</a>, <a class="el" href="dcsource_8cpp-source.html#l00010">XDCSource::XDCSource()</a>, <a class="el" href="dmm_8cpp-source.html#l00010">XDMM::XDMM()</a>, <a class="el" href="driverlistconnector_8cpp-source.html#l00017">XDriverListConnector::XDriverListConnector()</a>, <a class="el" href="entrylistconnector_8cpp-source.html#l00014">XEntryListConnector::XEntryListConnector()</a>, <a class="el" href="funcsynth_8cpp-source.html#l00011">XFuncSynth::XFuncSynth()</a>, <a class="el" href="graph_8cpp-source.html#l00050">XGraph::XGraph()</a>, <a class="el" href="graphlistconnector_8cpp-source.html#l00017">XGraphListConnector::XGraphListConnector()</a>, <a class="el" href="interfacelistconnector_8cpp-source.html#l00014">XInterfaceListConnector::XInterfaceListConnector()</a>, <a class="el" href="lockinamp_8cpp-source.html#l00012">XLIA::XLIA()</a>, <a class="el" href="xnodeconnector_8cpp-source.html#l00399">XListQConnector::XListQConnector()</a>, <a class="el" href="nmrfspectrum_8cpp-source.html#l00019">XNMRFSpectrum::XNMRFSpectrum()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00070">XNMRPulseAnalyzer::XNMRPulseAnalyzer()</a>, <a class="el" href="nmrspectrum_8cpp-source.html#l00018">XNMRSpectrum::XNMRSpectrum()</a>, <a class="el" href="nmrrelax_8cpp-source.html#l00056">XNMRT1::XNMRT1()</a>, <a class="el" href="pulserdriver_8cpp-source.html#l00118">XPulser::XPulser()</a>, <a class="el" href="pulserdriverconnector_8cpp-source.html#l00009">XQPulserDriverConnector::XQPulserDriverConnector()</a>, <a class="el" href="signalgenerator_8cpp-source.html#l00010">XSG::XSG()</a>, と <a class="el" href="tempcontrol_8cpp-source.html#l00024">XTempControl::XTempControl()</a>.    </td>
+  </tr>
+</table>
+<hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:41 2007に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+</body>
+</html>

@@ -4,7 +4,7 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <h1>クラス XDMM</h1><!-- doxytag: class=<XDMM> --><!-- doxytag: inherits=<XPrimaryDriver> -->XDMMに対する継承グラフ<p><center><img src="class_x_d_m_m__inherit__graph.png" border="0" usemap="#_x_d_m_m__inherit__map" alt="Inheritance graph"></center>
 <map name="_x_d_m_m__inherit__map">
 <area href="class_x_d_m_m_s_c_p_i.html" shape="rect" coords="120,306,213,333" alt="">
@@ -17,12 +17,12 @@
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XDMMのコラボレーション図<p><center><img src="class_x_d_m_m__coll__graph.png" border="0" usemap="#_x_d_m_m__coll__map" alt="Collaboration graph"></center>
 <map name="_x_d_m_m__coll__map">
-<area href="class_x_primary_driver.html" shape="rect" coords="332,175,446,202" alt="">
-<area href="class_x_driver.html" shape="rect" coords="296,98,362,125" alt="">
-<area href="class_x_time.html" shape="rect" coords="32,7,93,34" alt="">
-<area href="class_x_recursive_r_w_lock.html" shape="rect" coords="320,7,461,34" alt="">
-<area href="classqshared__ptr.html" shape="rect" coords="530,175,701,202" alt="">
-<area href="classqshared__ptr.html" shape="rect" coords="725,175,968,202" alt="">
+<area href="class_x_primary_driver.html" shape="rect" coords="261,98,376,125" alt="">
+<area href="class_x_driver.html" shape="rect" coords="8,8,74,34" alt="">
+<area href="class_x_thread_local.html" shape="rect" coords="98,8,296,34" alt="">
+<area href="class_x_thread_local.html" shape="rect" coords="320,8,560,34" alt="">
+<area href="classqshared__ptr.html" shape="rect" coords="573,98,744,125" alt="">
+<area href="classqshared__ptr.html" shape="rect" coords="768,98,1010,125" alt="">
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_d_m_m-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
 <tr><td></td></tr>
@@ -68,8 +68,8 @@ virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" hr
 void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_m_m.html#d0">onFunctionChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;node)</td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">called when m_function is changed <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d1"></a><!-- doxytag: member=<XDMM::execute> ref=<d1> args=<()> -->
-void *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_m_m.html#d1">execute</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d1"></a><!-- doxytag: member=<XDMM::execute> ref=<d1> args=<(const atomic&lt; bool &gt; &amp;)> -->
+void *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_m_m.html#d1">execute</a> (const <a class="el" href="classatomic.html">atomic</a>&lt; bool &gt; &amp;)</td></tr>
 
 <tr><td colspan="2"><br><h2>Private 変数</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r0"></a><!-- doxytag: member=<XDMM::m_entry> ref=<r0> args=<> -->
@@ -95,9 +95,6 @@ shared_ptr&lt; <a class="el" href="class_x_thread.html">XThread</a>&lt; <a class
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r7"></a><!-- doxytag: member=<XDMM::m_form> ref=<r7> args=<> -->
 <a class="el" href="classqshared__ptr.html">qshared_ptr</a>&lt; FrmDMM &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_m_m.html#r7">m_form</a></td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r8"></a><!-- doxytag: member=<XDMM::m_bTerminated> ref=<r8> args=<> -->
-bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_d_m_m.html#r8">m_bTerminated</a></td></tr>
 
 </table>
 <hr><a name="_details"></a><h2>説明</h2>
@@ -134,7 +131,7 @@ this is called when raw is written unless dependency is broken convert raw to re
 <p>
 <a class="el" href="class_x_primary_driver.html#b1">XPrimaryDriver</a>を実装しています.
 <p>
- <a class="el" href="dmm_8cpp-source.html">dmm.cpp</a> の <a class="el" href="dmm_8cpp-source.html#l00057">57</a> 行で定義されています。
+ <a class="el" href="dmm_8cpp-source.html">dmm.cpp</a> の <a class="el" href="dmm_8cpp-source.html#l00056">56</a> 行で定義されています。
 <p>
 参照先 <a class="el" href="dmm_8h-source.html#l00051">m_entry</a>.    </td>
   </tr>
@@ -202,9 +199,9 @@ Shut down your threads, unconnect GUI, and deactivate signals this may be called
 <p>
 <a class="el" href="class_x_driver.html#b2">XDriver</a>を実装しています.
 <p>
- <a class="el" href="dmm_8cpp-source.html">dmm.cpp</a> の <a class="el" href="dmm_8cpp-source.html#l00049">49</a> 行で定義されています。
+ <a class="el" href="dmm_8cpp-source.html">dmm.cpp</a> の <a class="el" href="dmm_8cpp-source.html#l00048">48</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="dmm_8h-source.html#l00061">m_bTerminated</a>.    </td>
+参照先 <a class="el" href="dmm_8h-source.html#l00057">m_thread</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="b4"></a><!-- doxytag: member=<XDMM::visualize> ref=<b4> args=<()> --><p>
@@ -235,12 +232,12 @@ this is called after analyze() or <a class="el" href="class_x_d_m_m.html#b3">ana
 <p>
 <a class="el" href="class_x_driver.html#b3">XDriver</a>を実装しています.
 <p>
- <a class="el" href="dmm_8cpp-source.html">dmm.cpp</a> の <a class="el" href="dmm_8cpp-source.html#l00064">64</a> 行で定義されています。    </td>
+ <a class="el" href="dmm_8cpp-source.html">dmm.cpp</a> の <a class="el" href="dmm_8cpp-source.html#l00063">63</a> 行で定義されています。    </td>
   </tr>
 </table>
 <hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/users/dmm/<a class="el" href="dmm_8h-source.html">dmm.h</a><li>kame/users/dmm/<a class="el" href="dmm_8cpp-source.html">dmm.cpp</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:44 2006に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:28 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

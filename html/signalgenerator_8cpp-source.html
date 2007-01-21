@@ -4,9 +4,9 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000012.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000025.html">nmr</a></div>
+<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000012.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000027.html">nmr</a></div>
 <h1>signalgenerator.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#include &lt;klocale.h&gt;</span>
 <a name="l00002"></a>00002 <span class="preprocessor">#include &lt;qcheckbox.h&gt;</span>
 <a name="l00003"></a>00003 <span class="preprocessor">#include &lt;qstatusbar.h&gt;</span>
@@ -29,7 +29,7 @@
 <a name="l00020"></a>00020     m_form(new FrmSG(g_pFrmMain))
 <a name="l00021"></a>00021 {
 <a name="l00022"></a>00022   <a class="code" href="class_x_s_g.html#r13">m_form</a>-&gt;statusBar()-&gt;hide();
-<a name="l00023"></a>00023   <a class="code" href="class_x_s_g.html#r13">m_form</a>-&gt;setCaption(i18n(<span class="stringliteral">"Signal Gen. Control - "</span>) + <a class="code" href="class_x_node.html#a6">getName</a>() );
+<a name="l00023"></a>00023   <a class="code" href="class_x_s_g.html#r13">m_form</a>-&gt;setCaption(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Signal Gen. Control - "</span>) + <a class="code" href="class_x_node.html#a7">getLabel</a>() );
 <a name="l00024"></a>00024 
 <a name="l00025"></a>00025   <a class="code" href="class_x_s_g.html#r6">m_conOLevel</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_s_g.html#r1">m_oLevel</a>, <a class="code" href="class_x_s_g.html#r13">m_form</a>-&gt;m_edOLevel);
 <a name="l00026"></a>00026   <a class="code" href="class_x_s_g.html#r5">m_conFreq</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_s_g.html#r0">m_freq</a>, <a class="code" href="class_x_s_g.html#r13">m_form</a>-&gt;m_edFreq);
@@ -97,7 +97,7 @@
 <a name="l00090"></a>00090 {
 <a name="l00091"></a>00091     <span class="keywordtype">double</span> _freq = *<a class="code" href="class_x_s_g.html#a2">freq</a>();
 <a name="l00092"></a>00092     <span class="keywordflow">if</span>(_freq &lt;= 0) {
-<a name="l00093"></a>00093         gErrPrint(<a class="code" href="class_x_node.html#a6">getName</a>() + <span class="stringliteral">" "</span> + i18n(<span class="stringliteral">"Positive Value Needed."</span>));
+<a name="l00093"></a>00093         gErrPrint(<a class="code" href="class_x_node.html#a7">getLabel</a>() + <span class="stringliteral">" "</span> + <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Positive Value Needed."</span>));
 <a name="l00094"></a>00094         <span class="keywordflow">return</span>;
 <a name="l00095"></a>00095     }
 <a name="l00096"></a>00096 
@@ -107,12 +107,12 @@
 <a name="l00100"></a>00100         changeFreq(_freq);
 <a name="l00101"></a>00101     }
 <a name="l00102"></a>00102       <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
-<a name="l00103"></a>00103         e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(<a class="code" href="class_x_node.html#a6">getName</a>() + <span class="stringliteral">" "</span> + i18n(<span class="stringliteral">"SG Error."</span>));
+<a name="l00103"></a>00103         e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(<a class="code" href="class_x_node.html#a7">getLabel</a>() + <span class="stringliteral">" "</span> + <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"SG Error."</span>));
 <a name="l00104"></a>00104         <span class="keywordflow">return</span>;
 <a name="l00105"></a>00105     }
-<a name="l00106"></a>00106     <a class="code" href="class_x_primary_driver.html#b2">startWritingRaw</a>();
+<a name="l00106"></a>00106     <a class="code" href="class_x_primary_driver.html#b2">clearRaw</a>();
 <a name="l00107"></a>00107     push(_freq);
-<a name="l00108"></a>00108     <a class="code" href="class_x_primary_driver.html#b3">finishWritingRaw</a>(time, <a class="code" href="class_x_time.html#e0">XTime::now</a>(), <span class="keyword">true</span>);
+<a name="l00108"></a>00108     <a class="code" href="class_x_primary_driver.html#b3">finishWritingRaw</a>(time, <a class="code" href="class_x_time.html#e0">XTime::now</a>());
 <a name="l00109"></a>00109 }
 <a name="l00110"></a>00110 
 <a name="l00111"></a>00111 
@@ -199,7 +199,7 @@
 <a name="l00192"></a>00192 {
 <a name="l00193"></a>00193   <a class="code" href="class_x_primary_driver.html#b7">interface</a>()-&gt;sendf(<span class="stringliteral">"POW:AMPL %f DBM"</span>, (<span class="keywordtype">double</span>)*<a class="code" href="class_x_s_g.html#a3">oLevel</a>());
 <a name="l00194"></a>00194 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:23 2006に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:22 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

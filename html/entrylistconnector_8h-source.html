@@ -4,65 +4,60 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
 <a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000001.html">analyzer</a></div>
-<h1>entrylistconnector.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">//---------------------------------------------------------------------------</span>
-<a name="l00002"></a>00002 
-<a name="l00003"></a>00003 <span class="preprocessor">#ifndef entrylistconnectorH</span>
-<a name="l00004"></a>00004 <span class="preprocessor"></span><span class="preprocessor">#define entrylistconnectorH</span>
-<a name="l00005"></a>00005 <span class="preprocessor"></span>
-<a name="l00006"></a>00006 <span class="preprocessor">#include "xnodeconnector.h"</span>
-<a name="l00007"></a>00007 <span class="comment">//---------------------------------------------------------------------------</span>
+<h1>entrylistconnector.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#ifndef entrylistconnectorH</span>
+<a name="l00002"></a>00002 <span class="preprocessor"></span><span class="preprocessor">#define entrylistconnectorH</span>
+<a name="l00003"></a>00003 <span class="preprocessor"></span>
+<a name="l00004"></a>00004 <span class="preprocessor">#include "xnodeconnector.h"</span>
+<a name="l00005"></a>00005 <span class="comment">//---------------------------------------------------------------------------</span>
+<a name="l00006"></a>00006 
+<a name="l00007"></a>00007 <span class="keyword">class </span>QTable;
 <a name="l00008"></a>00008 
-<a name="l00009"></a>00009 <span class="keyword">class </span>QTable;
-<a name="l00010"></a>00010 
-<a name="l00011"></a>00011 <span class="keyword">class </span><a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>;
-<a name="l00012"></a>00012 <span class="keyword">class </span><a class="code" href="class_x_chart_list.html">XChartList</a>;
-<a name="l00013"></a>00013 <span class="keyword">class </span><a class="code" href="class_x_scalar_entry_list.html">XScalarEntryList</a>;
-<a name="l00014"></a>00014 <span class="keyword">class </span><a class="code" href="class_x_driver.html">XDriver</a>;
-<a name="l00015"></a>00015 
-<a name="l00016"></a><a class="code" href="class_x_entry_list_connector.html">00016</a> <span class="keyword">class </span><a class="code" href="class_x_entry_list_connector.html">XEntryListConnector</a> : <span class="keyword">public</span> <a class="code" href="class_x_list_q_connector.html">XListQConnector</a>
-<a name="l00017"></a>00017 {
-<a name="l00018"></a>00018   Q_OBJECT
-<a name="l00019"></a>00019   XQCON_OBJECT
-<a name="l00020"></a>00020  <span class="keyword">protected</span>:
-<a name="l00021"></a>00021   <a class="code" href="class_x_entry_list_connector.html">XEntryListConnector</a>
-<a name="l00022"></a>00022   (<span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;node, QTable *item, <span class="keyword">const</span> shared_ptr&lt;XChartList&gt; &amp;chartlist);
-<a name="l00023"></a>00023  <span class="keyword">public</span>:
-<a name="l00024"></a>00024   <span class="keyword">virtual</span> <a class="code" href="class_x_entry_list_connector.html#a0">~XEntryListConnector</a>();
-<a name="l00025"></a>00025  <span class="keyword">protected</span>:
-<a name="l00026"></a><a class="code" href="class_x_entry_list_connector.html#b1">00026</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_entry_list_connector.html#b1">onListChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XListNodeBase&gt; &amp;) {}
-<a name="l00027"></a>00027   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_entry_list_connector.html#b2">onCatch</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
-<a name="l00028"></a>00028   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_entry_list_connector.html#b3">onRelease</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
-<a name="l00029"></a>00029  <span class="keyword">protected</span> slots:
-<a name="l00030"></a>00030     <span class="keywordtype">void</span> <a class="code" href="class_x_entry_list_connector.html#j0">clicked</a> ( <span class="keywordtype">int</span> row, <span class="keywordtype">int</span> col, <span class="keywordtype">int</span> button, <span class="keyword">const</span> QPoint&amp; );
-<a name="l00031"></a>00031  <span class="keyword">private</span>:
-<a name="l00032"></a><a class="code" href="class_x_entry_list_connector.html#r0">00032</a>   QTable *<a class="code" href="class_x_entry_list_connector.html#r0">m_pItem</a>;
-<a name="l00033"></a><a class="code" href="class_x_entry_list_connector.html#r1">00033</a>   shared_ptr&lt;XChartList&gt; <a class="code" href="class_x_entry_list_connector.html#r1">m_chartList</a>;
-<a name="l00034"></a>00034 
-<a name="l00035"></a><a class="code" href="struct_x_entry_list_connector_1_1tlisttext.html">00035</a>   <span class="keyword">struct </span><a class="code" href="struct_x_entry_list_connector_1_1tlisttext.html">tlisttext</a> {
-<a name="l00036"></a><a class="code" href="struct_x_entry_list_connector_1_1tlisttext.html#o0">00036</a>         <span class="keywordtype">int</span> <a class="code" href="struct_x_entry_list_connector_1_1tlisttext.html#o0">row</a>;
-<a name="l00037"></a><a class="code" href="struct_x_entry_list_connector_1_1tlisttext.html#o1">00037</a>         QString <a class="code" href="struct_x_entry_list_connector_1_1tlisttext.html#o1">str</a>;
-<a name="l00038"></a>00038   };
-<a name="l00039"></a><a class="code" href="struct_x_entry_list_connector_1_1tcons.html">00039</a>   <span class="keyword">struct </span><a class="code" href="struct_x_entry_list_connector_1_1tcons.html">tcons</a> {
-<a name="l00040"></a><a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o0">00040</a>     <span class="keywordtype">int</span> <a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o0">row</a>;
-<a name="l00041"></a><a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o1">00041</a>     <a class="code" href="classqshared__ptr.html">xqcon_ptr</a> <a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o1">constore</a>, <a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o2">condelta</a>;
-<a name="l00042"></a><a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o3">00042</a>     shared_ptr&lt;XScalarEntry&gt; <a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o3">entry</a>;
-<a name="l00043"></a><a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o4">00043</a>     QWidget *<a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o4">widget</a>;
-<a name="l00044"></a><a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o5">00044</a>     shared_ptr&lt;XDriver&gt; <a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o5">driver</a>;
-<a name="l00045"></a><a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o6">00045</a>     shared_ptr&lt;XTalker&lt;tlisttext&gt; &gt; <a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o6">tlkOnRecordRedirected</a>;
-<a name="l00046"></a><a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o7">00046</a>     shared_ptr&lt;XListener&gt; <a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o7">lsnOnRecordRedirected</a>;
-<a name="l00047"></a>00047   };
-<a name="l00048"></a><a class="code" href="class_x_entry_list_connector.html#y0">00048</a>   <span class="keyword">typedef</span> std::deque&lt;tcons&gt; <a class="code" href="class_x_entry_list_connector.html#y0">tconslist</a>;
-<a name="l00049"></a><a class="code" href="class_x_entry_list_connector.html#r2">00049</a>   <a class="code" href="class_x_entry_list_connector.html#y0">tconslist</a> <a class="code" href="class_x_entry_list_connector.html#r2">m_cons</a>;
-<a name="l00050"></a><a class="code" href="class_x_entry_list_connector.html#r3">00050</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_entry_list_connector.html#r3">m_lsnOnRecord</a>;
-<a name="l00051"></a>00051   <span class="keywordtype">void</span> <a class="code" href="class_x_entry_list_connector.html#d0">onRecord</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;driver);
-<a name="l00052"></a>00052   <span class="keywordtype">void</span> <a class="code" href="class_x_entry_list_connector.html#d1">onRecordRedirected</a>(<span class="keyword">const</span> <a class="code" href="struct_x_entry_list_connector_1_1tlisttext.html">tlisttext</a> &amp;);
-<a name="l00053"></a>00053 };
-<a name="l00054"></a>00054 
-<a name="l00055"></a>00055 <span class="preprocessor">#endif</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:19 2006に生成されました。&nbsp;
+<a name="l00009"></a>00009 <span class="keyword">class </span><a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>;
+<a name="l00010"></a>00010 <span class="keyword">class </span><a class="code" href="class_x_chart_list.html">XChartList</a>;
+<a name="l00011"></a>00011 <span class="keyword">class </span><a class="code" href="class_x_scalar_entry_list.html">XScalarEntryList</a>;
+<a name="l00012"></a>00012 <span class="keyword">class </span><a class="code" href="class_x_driver.html">XDriver</a>;
+<a name="l00013"></a>00013 
+<a name="l00014"></a><a class="code" href="class_x_entry_list_connector.html">00014</a> <span class="keyword">class </span><a class="code" href="class_x_entry_list_connector.html">XEntryListConnector</a> : <span class="keyword">public</span> <a class="code" href="class_x_list_q_connector.html">XListQConnector</a>
+<a name="l00015"></a>00015 {
+<a name="l00016"></a>00016   Q_OBJECT
+<a name="l00017"></a>00017   XQCON_OBJECT
+<a name="l00018"></a>00018  <span class="keyword">protected</span>:
+<a name="l00019"></a>00019   <a class="code" href="class_x_entry_list_connector.html">XEntryListConnector</a>
+<a name="l00020"></a>00020   (<span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;node, QTable *item, <span class="keyword">const</span> shared_ptr&lt;XChartList&gt; &amp;chartlist);
+<a name="l00021"></a>00021  <span class="keyword">public</span>:
+<a name="l00022"></a><a class="code" href="class_x_entry_list_connector.html#a0">00022</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_entry_list_connector.html#a0">~XEntryListConnector</a>() {}
+<a name="l00023"></a>00023  <span class="keyword">protected</span>:
+<a name="l00024"></a>00024   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_entry_list_connector.html#b1">onCatch</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
+<a name="l00025"></a>00025   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_entry_list_connector.html#b2">onRelease</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
+<a name="l00026"></a>00026  <span class="keyword">protected</span> slots:
+<a name="l00027"></a>00027     <span class="keywordtype">void</span> <a class="code" href="class_x_entry_list_connector.html#j0">clicked</a> ( <span class="keywordtype">int</span> row, <span class="keywordtype">int</span> col, <span class="keywordtype">int</span> button, <span class="keyword">const</span> QPoint&amp; );
+<a name="l00028"></a>00028  <span class="keyword">private</span>:
+<a name="l00029"></a><a class="code" href="class_x_entry_list_connector.html#r0">00029</a>   shared_ptr&lt;XChartList&gt; <a class="code" href="class_x_entry_list_connector.html#r0">m_chartList</a>;
+<a name="l00030"></a>00030 
+<a name="l00031"></a><a class="code" href="struct_x_entry_list_connector_1_1tcons.html">00031</a>   <span class="keyword">struct </span><a class="code" href="struct_x_entry_list_connector_1_1tcons.html">tcons</a> {
+<a name="l00032"></a><a class="code" href="struct_x_entry_list_connector_1_1tcons_1_1tlisttext.html">00032</a>       <span class="keyword">struct </span><a class="code" href="struct_x_entry_list_connector_1_1tcons_1_1tlisttext.html">tlisttext</a> {
+<a name="l00033"></a><a class="code" href="struct_x_entry_list_connector_1_1tcons_1_1tlisttext.html#o0">00033</a>         QLabel *<a class="code" href="struct_x_entry_list_connector_1_1tcons_1_1tlisttext.html#o0">label</a>;
+<a name="l00034"></a><a class="code" href="struct_x_entry_list_connector_1_1tcons_1_1tlisttext.html#o1">00034</a>         shared_ptr&lt;std::string&gt; <a class="code" href="struct_x_entry_list_connector_1_1tcons_1_1tlisttext.html#o1">str</a>;
+<a name="l00035"></a>00035       };
+<a name="l00036"></a><a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o0">00036</a>     <a class="code" href="classqshared__ptr.html">xqcon_ptr</a> <a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o0">constore</a>, <a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o1">condelta</a>;
+<a name="l00037"></a><a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o2">00037</a>     QLabel *<a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o2">label</a>;
+<a name="l00038"></a><a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o3">00038</a>     shared_ptr&lt;XScalarEntry&gt; <a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o3">entry</a>;
+<a name="l00039"></a><a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o4">00039</a>     shared_ptr&lt;XDriver&gt; <a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o4">driver</a>;
+<a name="l00040"></a><a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o5">00040</a>     shared_ptr&lt;XTalker&lt;tlisttext&gt; &gt; <a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o5">tlkOnRecordRedirected</a>;
+<a name="l00041"></a><a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o6">00041</a>     shared_ptr&lt;XListener&gt; <a class="code" href="struct_x_entry_list_connector_1_1tcons.html#o6">lsnOnRecordRedirected</a>;
+<a name="l00042"></a>00042     <span class="keywordtype">void</span> <a class="code" href="struct_x_entry_list_connector_1_1tcons.html#a0">onRecordRedirected</a>(<span class="keyword">const</span> <a class="code" href="struct_x_entry_list_connector_1_1tcons_1_1tlisttext.html">tlisttext</a> &amp;);
+<a name="l00043"></a>00043   };
+<a name="l00044"></a><a class="code" href="class_x_entry_list_connector.html#y0">00044</a>   <span class="keyword">typedef</span> std::deque&lt;shared_ptr&lt;tcons&gt; &gt; <a class="code" href="class_x_entry_list_connector.html#y0">tconslist</a>;
+<a name="l00045"></a><a class="code" href="class_x_entry_list_connector.html#r1">00045</a>   <a class="code" href="class_x_entry_list_connector.html#y0">tconslist</a> <a class="code" href="class_x_entry_list_connector.html#r1">m_cons</a>;
+<a name="l00046"></a><a class="code" href="class_x_entry_list_connector.html#r2">00046</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_entry_list_connector.html#r2">m_lsnOnRecord</a>;
+<a name="l00047"></a>00047   <span class="keywordtype">void</span> <a class="code" href="class_x_entry_list_connector.html#d0">onRecord</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;driver);
+<a name="l00048"></a>00048 };
+<a name="l00049"></a>00049 
+<a name="l00050"></a>00050 <span class="preprocessor">#endif</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:11 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

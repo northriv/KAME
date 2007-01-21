@@ -4,7 +4,7 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
 <a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000006.html">graph</a></div>
 <h1>graphdialogconnector.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#include "graphdialogconnector.h"</span>
@@ -27,111 +27,114 @@
 <a name="l00018"></a>00018     m_selPlot(createOrphan&lt;<a class="code" href="class_x_item_node.html">XItemNode&lt;XPlotList, XPlot&gt;</a> &gt;(<span class="stringliteral">""</span>, <span class="keyword">true</span>, graph-&gt;plots())),
 <a name="l00019"></a>00019     m_selAxis(createOrphan&lt;<a class="code" href="class_x_item_node.html">XItemNode&lt;XAxisList, XAxis&gt;</a> &gt;(<span class="stringliteral">""</span>, <span class="keyword">true</span>, graph-&gt;axes())),
 <a name="l00020"></a>00020     m_conBackGround(xqcon_create&lt;XKColorComboConnector&gt;
-<a name="l00021"></a>00021         (graph-&gt;backGround(), m_pItem-&gt;clrBackGroundColor)),
-<a name="l00022"></a>00022     m_conPlots(xqcon_create&lt;XQListBoxConnector&gt;(m_selPlot, m_pItem-&gt;lbPlots)),
-<a name="l00023"></a>00023     m_conAxes(xqcon_create&lt;XQListBoxConnector&gt;(m_selAxis, m_pItem-&gt;lbAxes))
-<a name="l00024"></a>00024 {
-<a name="l00025"></a>00025     m_pItem-&gt;dblIntensity-&gt;setRange(0.0, 2.0, 0.1, <span class="keyword">true</span>);
-<a name="l00026"></a>00026     
-<a name="l00027"></a>00027     m_lsnAxisChanged = m_selAxis-&gt;onValueChanged().connectWeak
-<a name="l00028"></a>00028         (<span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_q_graph_dialog_connector.html#d0">XQGraphDialogConnector::onSelAxisChanged</a>);
-<a name="l00029"></a>00029     m_lsnPlotChanged = m_selPlot-&gt;onValueChanged().connectWeak
-<a name="l00030"></a>00030         (<span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_q_graph_dialog_connector.html#d1">XQGraphDialogConnector::onSelPlotChanged</a>);
-<a name="l00031"></a>00031 
-<a name="l00032"></a>00032     m_pItem-&gt;show();
-<a name="l00033"></a>00033 }   
-<a name="l00034"></a><a class="code" href="class_x_q_graph_dialog_connector.html#a0">00034</a> <a class="code" href="class_x_q_graph_dialog_connector.html#a0">XQGraphDialogConnector::~XQGraphDialogConnector</a>() {
-<a name="l00035"></a>00035     <span class="keywordflow">if</span>(<a class="code" href="class_x_q_connector.html#b1">isItemAlive</a>()) <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;close();
-<a name="l00036"></a>00036 }
-<a name="l00037"></a>00037  
-<a name="l00038"></a>00038 <span class="keywordtype">void</span>
-<a name="l00039"></a><a class="code" href="class_x_q_graph_dialog_connector.html#d0">00039</a> <a class="code" href="class_x_q_graph_dialog_connector.html#d0">XQGraphDialogConnector::onSelAxisChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {
-<a name="l00040"></a>00040     <a class="code" href="class_x_q_graph_dialog_connector.html#r10">m_conAutoScale</a>.reset();
-<a name="l00041"></a>00041     <a class="code" href="class_x_q_graph_dialog_connector.html#r11">m_conLogScale</a>.reset();
-<a name="l00042"></a>00042     <a class="code" href="class_x_q_graph_dialog_connector.html#r14">m_conDisplayTicLabels</a>.reset();
-<a name="l00043"></a>00043     <a class="code" href="class_x_q_graph_dialog_connector.html#r12">m_conDisplayMajorTics</a>.reset();
-<a name="l00044"></a>00044     <a class="code" href="class_x_q_graph_dialog_connector.html#r13">m_conDisplayMinorTics</a>.reset();
-<a name="l00045"></a>00045     <a class="code" href="class_x_q_graph_dialog_connector.html#r16">m_conAxisMin</a>.reset();
-<a name="l00046"></a>00046     <a class="code" href="class_x_q_graph_dialog_connector.html#r17">m_conAxisMax</a>.reset();
-<a name="l00047"></a>00047     <a class="code" href="class_x_q_graph_dialog_connector.html#r15">m_conTicLabelFormat</a>.reset();
-<a name="l00048"></a>00048   shared_ptr&lt;XAxis&gt; axis = *m_selAxis;
-<a name="l00049"></a>00049   <span class="keywordflow">if</span>(!axis) {
-<a name="l00050"></a>00050     <span class="keywordflow">return</span>;
-<a name="l00051"></a>00051   }
-<a name="l00052"></a>00052   <a class="code" href="class_x_q_graph_dialog_connector.html#r10">m_conAutoScale</a> = xqcon_create&lt;XQToggleButtonConnector&gt;(
-<a name="l00053"></a>00053                          axis-&gt;autoScale(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;ckbAutoScale);
-<a name="l00054"></a>00054   <a class="code" href="class_x_q_graph_dialog_connector.html#r11">m_conLogScale</a> = xqcon_create&lt;XQToggleButtonConnector&gt;(
-<a name="l00055"></a>00055                         axis-&gt;logScale(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;ckbLogScale);
-<a name="l00056"></a>00056   <a class="code" href="class_x_q_graph_dialog_connector.html#r14">m_conDisplayTicLabels</a> = xqcon_create&lt;XQToggleButtonConnector&gt;
-<a name="l00057"></a>00057     (axis-&gt;displayTicLabels(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;ckbDisplayTicLabels);
-<a name="l00058"></a>00058   <a class="code" href="class_x_q_graph_dialog_connector.html#r12">m_conDisplayMajorTics</a> = xqcon_create&lt;XQToggleButtonConnector&gt;
-<a name="l00059"></a>00059     (axis-&gt;displayMajorTics(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;ckbDisplayMajorTics);
-<a name="l00060"></a>00060   <a class="code" href="class_x_q_graph_dialog_connector.html#r13">m_conDisplayMinorTics</a> = xqcon_create&lt;XQToggleButtonConnector&gt;
-<a name="l00061"></a>00061     (axis-&gt;displayMinorTics(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;ckbDisplayMinorTics);
-<a name="l00062"></a>00062   <a class="code" href="class_x_q_graph_dialog_connector.html#r16">m_conAxisMin</a> = xqcon_create&lt;XQLineEditConnector&gt;(axis-&gt;minValue(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;edAxisMin);
-<a name="l00063"></a>00063   <a class="code" href="class_x_q_graph_dialog_connector.html#r17">m_conAxisMax</a> = xqcon_create&lt;XQLineEditConnector&gt;(axis-&gt;maxValue(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;edAxisMax);
-<a name="l00064"></a>00064   <a class="code" href="class_x_q_graph_dialog_connector.html#r15">m_conTicLabelFormat</a> = xqcon_create&lt;XQLineEditConnector&gt;
-<a name="l00065"></a>00065     (axis-&gt;ticLabelFormat(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;edTicLabelFormat);
-<a name="l00066"></a>00066  }
-<a name="l00067"></a>00067 <span class="keywordtype">void</span>
-<a name="l00068"></a><a class="code" href="class_x_q_graph_dialog_connector.html#d1">00068</a> <a class="code" href="class_x_q_graph_dialog_connector.html#d1">XQGraphDialogConnector::onSelPlotChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {
-<a name="l00069"></a>00069     <a class="code" href="class_x_q_graph_dialog_connector.html#r8">m_conDrawPoints</a>.reset();
-<a name="l00070"></a>00070     <a class="code" href="class_x_q_graph_dialog_connector.html#r5">m_conDrawLines</a>.reset();
-<a name="l00071"></a>00071     <a class="code" href="class_x_q_graph_dialog_connector.html#r9">m_conDrawBars</a>.reset();
-<a name="l00072"></a>00072     <a class="code" href="class_x_q_graph_dialog_connector.html#r6">m_conDisplayMajorGrids</a>.reset();
-<a name="l00073"></a>00073     <a class="code" href="class_x_q_graph_dialog_connector.html#r7">m_conDisplayMinorGrids</a>.reset();
-<a name="l00074"></a>00074     <a class="code" href="class_x_q_graph_dialog_connector.html#r20">m_conMajorGridColor</a>.reset();
-<a name="l00075"></a>00075     <a class="code" href="class_x_q_graph_dialog_connector.html#r21">m_conMinorGridColor</a>.reset();
-<a name="l00076"></a>00076     <a class="code" href="class_x_q_graph_dialog_connector.html#r22">m_conPointColor</a>.reset();
-<a name="l00077"></a>00077     <a class="code" href="class_x_q_graph_dialog_connector.html#r23">m_conLineColor</a>.reset();
-<a name="l00078"></a>00078     <a class="code" href="class_x_q_graph_dialog_connector.html#r24">m_conBarColor</a>.reset();
-<a name="l00079"></a>00079     <a class="code" href="class_x_q_graph_dialog_connector.html#r18">m_conMaxCount</a>.reset();
-<a name="l00080"></a>00080     <a class="code" href="class_x_q_graph_dialog_connector.html#r25">m_conClearPoints</a>.reset();
-<a name="l00081"></a>00081     <a class="code" href="class_x_q_graph_dialog_connector.html#r31">m_conIntensity</a>.reset();
-<a name="l00082"></a>00082     <a class="code" href="class_x_q_graph_dialog_connector.html#r26">m_conColorPlot</a>.reset();
-<a name="l00083"></a>00083     <a class="code" href="class_x_q_graph_dialog_connector.html#r28">m_conColorPlotColorLow</a>.reset();
-<a name="l00084"></a>00084     <a class="code" href="class_x_q_graph_dialog_connector.html#r27">m_conColorPlotColorHigh</a>.reset();
-<a name="l00085"></a>00085 
-<a name="l00086"></a>00086   shared_ptr&lt;XPlot&gt; plot = *<a class="code" href="class_x_q_graph_dialog_connector.html#r1">m_selPlot</a>;
-<a name="l00087"></a>00087   <span class="keywordflow">if</span>(!plot) {
-<a name="l00088"></a>00088     <span class="keywordflow">return</span>;
-<a name="l00089"></a>00089   }
-<a name="l00090"></a>00090   <a class="code" href="class_x_q_graph_dialog_connector.html#r8">m_conDrawPoints</a> = xqcon_create&lt;XQToggleButtonConnector&gt;
-<a name="l00091"></a>00091     (plot-&gt;drawPoints(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;ckbDrawPoints);
-<a name="l00092"></a>00092   <a class="code" href="class_x_q_graph_dialog_connector.html#r5">m_conDrawLines</a> = xqcon_create&lt;XQToggleButtonConnector&gt;
-<a name="l00093"></a>00093     (plot-&gt;drawLines(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;ckbDrawLines);
-<a name="l00094"></a>00094   <a class="code" href="class_x_q_graph_dialog_connector.html#r9">m_conDrawBars</a> = xqcon_create&lt;XQToggleButtonConnector&gt;
-<a name="l00095"></a>00095     (plot-&gt;drawBars(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;ckbDrawBars);
-<a name="l00096"></a>00096   <a class="code" href="class_x_q_graph_dialog_connector.html#r6">m_conDisplayMajorGrids</a> = xqcon_create&lt;XQToggleButtonConnector&gt;
-<a name="l00097"></a>00097     (plot-&gt;displayMajorGrid(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;ckbDisplayMajorGrids);
-<a name="l00098"></a>00098   <a class="code" href="class_x_q_graph_dialog_connector.html#r7">m_conDisplayMinorGrids</a> = xqcon_create&lt;XQToggleButtonConnector&gt;
-<a name="l00099"></a>00099     (plot-&gt;displayMinorGrid(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;ckbDisplayMinorGrids);
-<a name="l00100"></a>00100   <a class="code" href="class_x_q_graph_dialog_connector.html#r20">m_conMajorGridColor</a> = xqcon_create&lt;XKColorComboConnector&gt;
-<a name="l00101"></a>00101     (plot-&gt;majorGridColor(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;clrMajorGridColor);
-<a name="l00102"></a>00102   <a class="code" href="class_x_q_graph_dialog_connector.html#r21">m_conMinorGridColor</a> = xqcon_create&lt;XKColorComboConnector&gt;
-<a name="l00103"></a>00103     (plot-&gt;minorGridColor(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;clrMinorGridColor);
-<a name="l00104"></a>00104   <a class="code" href="class_x_q_graph_dialog_connector.html#r22">m_conPointColor</a> = xqcon_create&lt;XKColorComboConnector&gt;
-<a name="l00105"></a>00105     (plot-&gt;pointColor(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;clrPointColor);
-<a name="l00106"></a>00106   <a class="code" href="class_x_q_graph_dialog_connector.html#r23">m_conLineColor</a> = xqcon_create&lt;XKColorComboConnector&gt;
-<a name="l00107"></a>00107     (plot-&gt;lineColor(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;clrLineColor);
-<a name="l00108"></a>00108   <a class="code" href="class_x_q_graph_dialog_connector.html#r24">m_conBarColor</a> = xqcon_create&lt;XKColorComboConnector&gt;
-<a name="l00109"></a>00109     (plot-&gt;barColor(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;clrBarColor);
-<a name="l00110"></a>00110   <a class="code" href="class_x_q_graph_dialog_connector.html#r18">m_conMaxCount</a> = xqcon_create&lt;XQLineEditConnector&gt;
-<a name="l00111"></a>00111     (plot-&gt;maxCount(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;edMaxCount);
-<a name="l00112"></a>00112   <a class="code" href="class_x_q_graph_dialog_connector.html#r25">m_conClearPoints</a> = xqcon_create&lt;XQButtonConnector&gt;
-<a name="l00113"></a>00113     (plot-&gt;clearPoints(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;btnClearPoints);
-<a name="l00114"></a>00114   <a class="code" href="class_x_q_graph_dialog_connector.html#r31">m_conIntensity</a> = xqcon_create&lt;XKDoubleNumInputConnector&gt;
-<a name="l00115"></a>00115     (plot-&gt;intensity(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;dblIntensity);
-<a name="l00116"></a>00116   <a class="code" href="class_x_q_graph_dialog_connector.html#r26">m_conColorPlot</a> = xqcon_create&lt;XQToggleButtonConnector&gt;
-<a name="l00117"></a>00117     (plot-&gt;colorPlot(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;ckbColorPlot);
-<a name="l00118"></a>00118   <a class="code" href="class_x_q_graph_dialog_connector.html#r28">m_conColorPlotColorLow</a> = xqcon_create&lt;XKColorComboConnector&gt;
-<a name="l00119"></a>00119     (plot-&gt;colorPlotColorLow(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;clrColorPlotLow);
-<a name="l00120"></a>00120   <a class="code" href="class_x_q_graph_dialog_connector.html#r27">m_conColorPlotColorHigh</a> = xqcon_create&lt;XKColorComboConnector&gt;
-<a name="l00121"></a>00121     (plot-&gt;colorPlotColorHigh(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;clrColorPlotHigh);
-<a name="l00122"></a>00122 }
-<a name="l00123"></a>00123 
-<a name="l00124"></a>00124 
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:04:20 2006に生成されました。&nbsp;
+<a name="l00021"></a>00021         (graph-&gt;backGround(), m_pItem-&gt;m_clrBackGroundColor)),
+<a name="l00022"></a>00022     m_conPersistence(xqcon_create&lt;XKDoubleNumInputConnector&gt;
+<a name="l00023"></a>00023         (graph-&gt;persistence(), m_pItem-&gt;m_dblPersistence)),
+<a name="l00024"></a>00024     m_conPlots(xqcon_create&lt;XQListBoxConnector&gt;(m_selPlot, m_pItem-&gt;lbPlots)),
+<a name="l00025"></a>00025     m_conAxes(xqcon_create&lt;XQListBoxConnector&gt;(m_selAxis, m_pItem-&gt;lbAxes))
+<a name="l00026"></a>00026 {
+<a name="l00027"></a>00027     m_pItem-&gt;dblIntensity-&gt;setRange(0.0, 2.0, 0.1, <span class="keyword">true</span>);
+<a name="l00028"></a>00028     m_pItem-&gt;m_dblPersistence-&gt;setRange(0.0, 1.0, 0.1, <span class="keyword">true</span>);
+<a name="l00029"></a>00029     
+<a name="l00030"></a>00030     m_lsnAxisChanged = m_selAxis-&gt;onValueChanged().connectWeak
+<a name="l00031"></a>00031         (<span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_q_graph_dialog_connector.html#d0">XQGraphDialogConnector::onSelAxisChanged</a>);
+<a name="l00032"></a>00032     m_lsnPlotChanged = m_selPlot-&gt;onValueChanged().connectWeak
+<a name="l00033"></a>00033         (<span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_q_graph_dialog_connector.html#d1">XQGraphDialogConnector::onSelPlotChanged</a>);
+<a name="l00034"></a>00034 
+<a name="l00035"></a>00035     m_pItem-&gt;show();
+<a name="l00036"></a>00036 }   
+<a name="l00037"></a><a class="code" href="class_x_q_graph_dialog_connector.html#a0">00037</a> <a class="code" href="class_x_q_graph_dialog_connector.html#a0">XQGraphDialogConnector::~XQGraphDialogConnector</a>() {
+<a name="l00038"></a>00038     <span class="keywordflow">if</span>(<a class="code" href="class_x_q_connector.html#b1">isItemAlive</a>()) <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;close();
+<a name="l00039"></a>00039 }
+<a name="l00040"></a>00040  
+<a name="l00041"></a>00041 <span class="keywordtype">void</span>
+<a name="l00042"></a><a class="code" href="class_x_q_graph_dialog_connector.html#d0">00042</a> <a class="code" href="class_x_q_graph_dialog_connector.html#d0">XQGraphDialogConnector::onSelAxisChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {
+<a name="l00043"></a>00043     <a class="code" href="class_x_q_graph_dialog_connector.html#r10">m_conAutoScale</a>.reset();
+<a name="l00044"></a>00044     <a class="code" href="class_x_q_graph_dialog_connector.html#r11">m_conLogScale</a>.reset();
+<a name="l00045"></a>00045     <a class="code" href="class_x_q_graph_dialog_connector.html#r14">m_conDisplayTicLabels</a>.reset();
+<a name="l00046"></a>00046     <a class="code" href="class_x_q_graph_dialog_connector.html#r12">m_conDisplayMajorTics</a>.reset();
+<a name="l00047"></a>00047     <a class="code" href="class_x_q_graph_dialog_connector.html#r13">m_conDisplayMinorTics</a>.reset();
+<a name="l00048"></a>00048     <a class="code" href="class_x_q_graph_dialog_connector.html#r16">m_conAxisMin</a>.reset();
+<a name="l00049"></a>00049     <a class="code" href="class_x_q_graph_dialog_connector.html#r17">m_conAxisMax</a>.reset();
+<a name="l00050"></a>00050     <a class="code" href="class_x_q_graph_dialog_connector.html#r15">m_conTicLabelFormat</a>.reset();
+<a name="l00051"></a>00051   shared_ptr&lt;XAxis&gt; axis = *m_selAxis;
+<a name="l00052"></a>00052   <span class="keywordflow">if</span>(!axis) {
+<a name="l00053"></a>00053     <span class="keywordflow">return</span>;
+<a name="l00054"></a>00054   }
+<a name="l00055"></a>00055   <a class="code" href="class_x_q_graph_dialog_connector.html#r10">m_conAutoScale</a> = xqcon_create&lt;XQToggleButtonConnector&gt;(
+<a name="l00056"></a>00056                          axis-&gt;autoScale(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;ckbAutoScale);
+<a name="l00057"></a>00057   <a class="code" href="class_x_q_graph_dialog_connector.html#r11">m_conLogScale</a> = xqcon_create&lt;XQToggleButtonConnector&gt;(
+<a name="l00058"></a>00058                         axis-&gt;logScale(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;ckbLogScale);
+<a name="l00059"></a>00059   <a class="code" href="class_x_q_graph_dialog_connector.html#r14">m_conDisplayTicLabels</a> = xqcon_create&lt;XQToggleButtonConnector&gt;
+<a name="l00060"></a>00060     (axis-&gt;displayTicLabels(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;ckbDisplayTicLabels);
+<a name="l00061"></a>00061   <a class="code" href="class_x_q_graph_dialog_connector.html#r12">m_conDisplayMajorTics</a> = xqcon_create&lt;XQToggleButtonConnector&gt;
+<a name="l00062"></a>00062     (axis-&gt;displayMajorTics(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;ckbDisplayMajorTics);
+<a name="l00063"></a>00063   <a class="code" href="class_x_q_graph_dialog_connector.html#r13">m_conDisplayMinorTics</a> = xqcon_create&lt;XQToggleButtonConnector&gt;
+<a name="l00064"></a>00064     (axis-&gt;displayMinorTics(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;ckbDisplayMinorTics);
+<a name="l00065"></a>00065   <a class="code" href="class_x_q_graph_dialog_connector.html#r16">m_conAxisMin</a> = xqcon_create&lt;XQLineEditConnector&gt;(axis-&gt;minValue(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;edAxisMin);
+<a name="l00066"></a>00066   <a class="code" href="class_x_q_graph_dialog_connector.html#r17">m_conAxisMax</a> = xqcon_create&lt;XQLineEditConnector&gt;(axis-&gt;maxValue(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;edAxisMax);
+<a name="l00067"></a>00067   <a class="code" href="class_x_q_graph_dialog_connector.html#r15">m_conTicLabelFormat</a> = xqcon_create&lt;XQLineEditConnector&gt;
+<a name="l00068"></a>00068     (axis-&gt;ticLabelFormat(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;edTicLabelFormat);
+<a name="l00069"></a>00069  }
+<a name="l00070"></a>00070 <span class="keywordtype">void</span>
+<a name="l00071"></a><a class="code" href="class_x_q_graph_dialog_connector.html#d1">00071</a> <a class="code" href="class_x_q_graph_dialog_connector.html#d1">XQGraphDialogConnector::onSelPlotChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) {
+<a name="l00072"></a>00072     <a class="code" href="class_x_q_graph_dialog_connector.html#r8">m_conDrawPoints</a>.reset();
+<a name="l00073"></a>00073     <a class="code" href="class_x_q_graph_dialog_connector.html#r5">m_conDrawLines</a>.reset();
+<a name="l00074"></a>00074     <a class="code" href="class_x_q_graph_dialog_connector.html#r9">m_conDrawBars</a>.reset();
+<a name="l00075"></a>00075     <a class="code" href="class_x_q_graph_dialog_connector.html#r6">m_conDisplayMajorGrids</a>.reset();
+<a name="l00076"></a>00076     <a class="code" href="class_x_q_graph_dialog_connector.html#r7">m_conDisplayMinorGrids</a>.reset();
+<a name="l00077"></a>00077     <a class="code" href="class_x_q_graph_dialog_connector.html#r20">m_conMajorGridColor</a>.reset();
+<a name="l00078"></a>00078     <a class="code" href="class_x_q_graph_dialog_connector.html#r21">m_conMinorGridColor</a>.reset();
+<a name="l00079"></a>00079     <a class="code" href="class_x_q_graph_dialog_connector.html#r22">m_conPointColor</a>.reset();
+<a name="l00080"></a>00080     <a class="code" href="class_x_q_graph_dialog_connector.html#r23">m_conLineColor</a>.reset();
+<a name="l00081"></a>00081     <a class="code" href="class_x_q_graph_dialog_connector.html#r24">m_conBarColor</a>.reset();
+<a name="l00082"></a>00082     <a class="code" href="class_x_q_graph_dialog_connector.html#r18">m_conMaxCount</a>.reset();
+<a name="l00083"></a>00083     <a class="code" href="class_x_q_graph_dialog_connector.html#r25">m_conClearPoints</a>.reset();
+<a name="l00084"></a>00084     <a class="code" href="class_x_q_graph_dialog_connector.html#r31">m_conIntensity</a>.reset();
+<a name="l00085"></a>00085     <a class="code" href="class_x_q_graph_dialog_connector.html#r26">m_conColorPlot</a>.reset();
+<a name="l00086"></a>00086     <a class="code" href="class_x_q_graph_dialog_connector.html#r28">m_conColorPlotColorLow</a>.reset();
+<a name="l00087"></a>00087     <a class="code" href="class_x_q_graph_dialog_connector.html#r27">m_conColorPlotColorHigh</a>.reset();
+<a name="l00088"></a>00088 
+<a name="l00089"></a>00089   shared_ptr&lt;XPlot&gt; plot = *<a class="code" href="class_x_q_graph_dialog_connector.html#r1">m_selPlot</a>;
+<a name="l00090"></a>00090   <span class="keywordflow">if</span>(!plot) {
+<a name="l00091"></a>00091     <span class="keywordflow">return</span>;
+<a name="l00092"></a>00092   }
+<a name="l00093"></a>00093   <a class="code" href="class_x_q_graph_dialog_connector.html#r8">m_conDrawPoints</a> = xqcon_create&lt;XQToggleButtonConnector&gt;
+<a name="l00094"></a>00094     (plot-&gt;drawPoints(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;ckbDrawPoints);
+<a name="l00095"></a>00095   <a class="code" href="class_x_q_graph_dialog_connector.html#r5">m_conDrawLines</a> = xqcon_create&lt;XQToggleButtonConnector&gt;
+<a name="l00096"></a>00096     (plot-&gt;drawLines(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;ckbDrawLines);
+<a name="l00097"></a>00097   <a class="code" href="class_x_q_graph_dialog_connector.html#r9">m_conDrawBars</a> = xqcon_create&lt;XQToggleButtonConnector&gt;
+<a name="l00098"></a>00098     (plot-&gt;drawBars(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;ckbDrawBars);
+<a name="l00099"></a>00099   <a class="code" href="class_x_q_graph_dialog_connector.html#r6">m_conDisplayMajorGrids</a> = xqcon_create&lt;XQToggleButtonConnector&gt;
+<a name="l00100"></a>00100     (plot-&gt;displayMajorGrid(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;ckbDisplayMajorGrids);
+<a name="l00101"></a>00101   <a class="code" href="class_x_q_graph_dialog_connector.html#r7">m_conDisplayMinorGrids</a> = xqcon_create&lt;XQToggleButtonConnector&gt;
+<a name="l00102"></a>00102     (plot-&gt;displayMinorGrid(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;ckbDisplayMinorGrids);
+<a name="l00103"></a>00103   <a class="code" href="class_x_q_graph_dialog_connector.html#r20">m_conMajorGridColor</a> = xqcon_create&lt;XKColorComboConnector&gt;
+<a name="l00104"></a>00104     (plot-&gt;majorGridColor(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;clrMajorGridColor);
+<a name="l00105"></a>00105   <a class="code" href="class_x_q_graph_dialog_connector.html#r21">m_conMinorGridColor</a> = xqcon_create&lt;XKColorComboConnector&gt;
+<a name="l00106"></a>00106     (plot-&gt;minorGridColor(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;clrMinorGridColor);
+<a name="l00107"></a>00107   <a class="code" href="class_x_q_graph_dialog_connector.html#r22">m_conPointColor</a> = xqcon_create&lt;XKColorComboConnector&gt;
+<a name="l00108"></a>00108     (plot-&gt;pointColor(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;clrPointColor);
+<a name="l00109"></a>00109   <a class="code" href="class_x_q_graph_dialog_connector.html#r23">m_conLineColor</a> = xqcon_create&lt;XKColorComboConnector&gt;
+<a name="l00110"></a>00110     (plot-&gt;lineColor(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;clrLineColor);
+<a name="l00111"></a>00111   <a class="code" href="class_x_q_graph_dialog_connector.html#r24">m_conBarColor</a> = xqcon_create&lt;XKColorComboConnector&gt;
+<a name="l00112"></a>00112     (plot-&gt;barColor(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;clrBarColor);
+<a name="l00113"></a>00113   <a class="code" href="class_x_q_graph_dialog_connector.html#r18">m_conMaxCount</a> = xqcon_create&lt;XQLineEditConnector&gt;
+<a name="l00114"></a>00114     (plot-&gt;maxCount(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;edMaxCount);
+<a name="l00115"></a>00115   <a class="code" href="class_x_q_graph_dialog_connector.html#r25">m_conClearPoints</a> = xqcon_create&lt;XQButtonConnector&gt;
+<a name="l00116"></a>00116     (plot-&gt;clearPoints(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;btnClearPoints);
+<a name="l00117"></a>00117   <a class="code" href="class_x_q_graph_dialog_connector.html#r31">m_conIntensity</a> = xqcon_create&lt;XKDoubleNumInputConnector&gt;
+<a name="l00118"></a>00118     (plot-&gt;intensity(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;dblIntensity);
+<a name="l00119"></a>00119   <a class="code" href="class_x_q_graph_dialog_connector.html#r26">m_conColorPlot</a> = xqcon_create&lt;XQToggleButtonConnector&gt;
+<a name="l00120"></a>00120     (plot-&gt;colorPlot(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;ckbColorPlot);
+<a name="l00121"></a>00121   <a class="code" href="class_x_q_graph_dialog_connector.html#r28">m_conColorPlotColorLow</a> = xqcon_create&lt;XKColorComboConnector&gt;
+<a name="l00122"></a>00122     (plot-&gt;colorPlotColorLow(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;clrColorPlotLow);
+<a name="l00123"></a>00123   <a class="code" href="class_x_q_graph_dialog_connector.html#r27">m_conColorPlotColorHigh</a> = xqcon_create&lt;XKColorComboConnector&gt;
+<a name="l00124"></a>00124     (plot-&gt;colorPlotColorHigh(), <a class="code" href="class_x_q_graph_dialog_connector.html#r0">m_pItem</a>-&gt;clrColorPlotHigh);
+<a name="l00125"></a>00125 }
+<a name="l00126"></a>00126 
+<a name="l00127"></a>00127 
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:14 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

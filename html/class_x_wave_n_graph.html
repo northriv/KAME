@@ -4,17 +4,17 @@
 <link href="doxygen.css" rel="stylesheet" type="text/css">
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <h1>クラス XWaveNGraph</h1><!-- doxytag: class=<XWaveNGraph> --><!-- doxytag: inherits=<XNode> -->XWaveNGraphに対する継承グラフ<p><center><img src="class_x_wave_n_graph__inherit__graph.png" border="0" usemap="#_x_wave_n_graph__inherit__map" alt="Inheritance graph"></center>
 <map name="_x_wave_n_graph__inherit__map">
 <area href="class_x_node.html" shape="rect" coords="33,7,94,34" alt="">
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XWaveNGraphのコラボレーション図<p><center><img src="class_x_wave_n_graph__coll__graph.png" border="0" usemap="#_x_wave_n_graph__coll__map" alt="Collaboration graph"></center>
 <map name="_x_wave_n_graph__coll__map">
-<area href="class_x_node.html" shape="rect" coords="115,98,177,125" alt="">
-<area href="class_x_recursive_r_w_lock.html" shape="rect" coords="7,8,149,34" alt="">
-<area href="class_x_mutex.html" shape="rect" coords="201,98,267,125" alt="">
-<area href="classqshared__ptr.html" shape="rect" coords="291,98,534,125" alt="">
+<area href="class_x_node.html" shape="rect" coords="8,7,69,34" alt="">
+<area href="class_x_mutex.html" shape="rect" coords="93,7,160,34" alt="">
+<area href="classqshared__ptr.html" shape="rect" coords="184,7,426,34" alt="">
+<area href="class_x_recursive_r_w_lock.html" shape="rect" coords="458,7,600,34" alt="">
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_wave_n_graph-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
 <tr><td></td></tr>
@@ -22,43 +22,43 @@
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a0"></a><!-- doxytag: member=<XWaveNGraph::~XWaveNGraph> ref=<a0> args=<()> -->
 virtual&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a0">~XWaveNGraph</a> ()</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a1"></a><!-- doxytag: member=<XWaveNGraph::setRowCount> ref=<a1> args=<(int rowcnt)> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a1">setRowCount</a> (int rowcnt)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a1"></a><!-- doxytag: member=<XWaveNGraph::setRowCount> ref=<a1> args=<(unsigned int rowcnt)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a1">setRowCount</a> (unsigned int rowcnt)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a2"></a><!-- doxytag: member=<XWaveNGraph::setColCount> ref=<a2> args=<(int colcnt)> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a2">setColCount</a> (int colcnt)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a2"></a><!-- doxytag: member=<XWaveNGraph::setColCount> ref=<a2> args=<(unsigned int colcnt, const char **lables)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a2">setColCount</a> (unsigned int colcnt, const char **lables)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a3"></a><!-- doxytag: member=<XWaveNGraph::selectAxes> ref=<a3> args=<(int colx=0, int coly1=1, int coly2=-1, int colyweight=-1)> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a3">selectAxes</a> (int colx=0, int coly1=1, int coly2=-1, int colyweight=-1)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a3"></a><!-- doxytag: member=<XWaveNGraph::setLabel> ref=<a3> args=<(unsigned int col, const char *label)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a3">setLabel</a> (unsigned int col, const char *label)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a4"></a><!-- doxytag: member=<XWaveNGraph::rowCount> ref=<a4> args=<() const > -->
-virtual int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a4">rowCount</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a4"></a><!-- doxytag: member=<XWaveNGraph::selectAxes> ref=<a4> args=<(int colx=0, int coly1=1, int coly2=-1, int colweight=-1, int colz=-1)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a4">selectAxes</a> (int colx=0, int coly1=1, int coly2=-1, int colweight=-1, int colz=-1)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a5"></a><!-- doxytag: member=<XWaveNGraph::colCount> ref=<a5> args=<() const > -->
-virtual int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a5">colCount</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a5"></a><!-- doxytag: member=<XWaveNGraph::rowCount> ref=<a5> args=<() const > -->
+unsigned int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a5">rowCount</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a6"></a><!-- doxytag: member=<XWaveNGraph::labels> ref=<a6> args=<()> -->
-virtual QString *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a6">labels</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a6"></a><!-- doxytag: member=<XWaveNGraph::colCount> ref=<a6> args=<() const > -->
+unsigned int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a6">colCount</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a7"></a><!-- doxytag: member=<XWaveNGraph::cols> ref=<a7> args=<(int n)> -->
-virtual double *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a7">cols</a> (int n)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a7"></a><!-- doxytag: member=<XWaveNGraph::cols> ref=<a7> args=<(unsigned int n)> -->
+double *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a7">cols</a> (unsigned int n)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a8"></a><!-- doxytag: member=<XWaveNGraph::startReading> ref=<a8> args=<()> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a8">startReading</a> ()</td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a9"></a><!-- doxytag: member=<XWaveNGraph::finishReading> ref=<a9> args=<()> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a9">finishReading</a> ()</td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a10"></a><!-- doxytag: member=<XWaveNGraph::clear> ref=<a10> args=<()> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a10">clear</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a8"></a><!-- doxytag: member=<XWaveNGraph::clear> ref=<a8> args=<()> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a8">clear</a> ()</td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">clear all data points <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a11"></a><!-- doxytag: member=<XWaveNGraph::startWriting> ref=<a11> args=<()> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a11">startWriting</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a9"></a><!-- doxytag: member=<XWaveNGraph::readLock> ref=<a9> args=<() const > -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a9">readLock</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a10"></a><!-- doxytag: member=<XWaveNGraph::readUnlock> ref=<a10> args=<() const > -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a10">readUnlock</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a11"></a><!-- doxytag: member=<XWaveNGraph::writeLock> ref=<a11> args=<()> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a11">writeLock</a> ()</td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">now allow user to access data <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a12"></a><!-- doxytag: member=<XWaveNGraph::finishWriting> ref=<a12> args=<(bool updategraph=true)> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a12">finishWriting</a> (bool updategraph=true)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a12"></a><!-- doxytag: member=<XWaveNGraph::writeUnlock> ref=<a12> args=<(bool updategraph=true)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a12">writeUnlock</a> (bool updategraph=true)</td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">unlock and update graph <br></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a13"></a><!-- doxytag: member=<XWaveNGraph::colX> ref=<a13> args=<() const > -->
@@ -70,26 +70,41 @@ int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a15"></a><!-- doxytag: member=<XWaveNGraph::colY2> ref=<a15> args=<() const > -->
 int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a15">colY2</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a16"></a><!-- doxytag: member=<XWaveNGraph::colYWeight> ref=<a16> args=<() const > -->
-int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a16">colYWeight</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a16"></a><!-- doxytag: member=<XWaveNGraph::colWeight> ref=<a16> args=<() const > -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a16">colWeight</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a17"></a><!-- doxytag: member=<XWaveNGraph::graph> ref=<a17> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_graph.html">XGraph</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a17">graph</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a17"></a><!-- doxytag: member=<XWaveNGraph::colZ> ref=<a17> args=<() const > -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a17">colZ</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a18"></a><!-- doxytag: member=<XWaveNGraph::plot1> ref=<a18> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_x_y_plot.html">XXYPlot</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a18">plot1</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a18"></a><!-- doxytag: member=<XWaveNGraph::graph> ref=<a18> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_graph.html">XGraph</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a18">graph</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a19"></a><!-- doxytag: member=<XWaveNGraph::plot2> ref=<a19> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_x_y_plot.html">XXYPlot</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a19">plot2</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a19"></a><!-- doxytag: member=<XWaveNGraph::plot1> ref=<a19> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_x_y_plot.html">XXYPlot</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a19">plot1</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a20"></a><!-- doxytag: member=<XWaveNGraph::axisy2> ref=<a20> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a20">axisy2</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a20"></a><!-- doxytag: member=<XWaveNGraph::plot2> ref=<a20> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_x_y_plot.html">XXYPlot</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a20">plot2</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a21"></a><!-- doxytag: member=<XWaveNGraph::dump> ref=<a21> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a21">dump</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a21"></a><!-- doxytag: member=<XWaveNGraph::axisx> ref=<a21> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a21">axisx</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a22"></a><!-- doxytag: member=<XWaveNGraph::filename> ref=<a22> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_string_node.html">XStringNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a22">filename</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a22"></a><!-- doxytag: member=<XWaveNGraph::axisy> ref=<a22> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a22">axisy</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a23"></a><!-- doxytag: member=<XWaveNGraph::axisy2> ref=<a23> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a23">axisy2</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a24"></a><!-- doxytag: member=<XWaveNGraph::axisz> ref=<a24> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a24">axisz</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a25"></a><!-- doxytag: member=<XWaveNGraph::axisw> ref=<a25> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a25">axisw</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a26"></a><!-- doxytag: member=<XWaveNGraph::dump> ref=<a26> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a26">dump</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a27"></a><!-- doxytag: member=<XWaveNGraph::filename> ref=<a27> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_string_node.html">XStringNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#a27">filename</a> () const </td></tr>
 
 <tr><td colspan="2"><br><h2>Protected メソッド</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b0"></a><!-- doxytag: member=<XWaveNGraph::XWaveNGraph> ref=<b0> args=<(const char *name, bool runtime, FrmGraphNURL *item)> -->
@@ -97,22 +112,6 @@ const shared_ptr&lt; <a class="el" href="class_x_string_node.html">XStringNode</
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b1"></a><!-- doxytag: member=<XWaveNGraph::XWaveNGraph> ref=<b1> args=<(const char *name, bool runtime, XQGraph *graphwidget, KURLRequester *urlreq, QPushButton *btndump)> -->
 &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#b1">XWaveNGraph</a> (const char *name, bool runtime, <a class="el" href="class_x_q_graph.html">XQGraph</a> *graphwidget, KURLRequester *urlreq, QPushButton *btndump)</td></tr>
-
-<tr><td colspan="2"><br><h2>Protected 変数</h2></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="p0"></a><!-- doxytag: member=<XWaveNGraph::m_mutex> ref=<p0> args=<> -->
-<a class="el" href="class_x_recursive_r_w_lock.html">XRecursiveRWLock</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#p0">m_mutex</a></td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="p1"></a><!-- doxytag: member=<XWaveNGraph::m_colcnt> ref=<p1> args=<> -->
-int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#p1">m_colcnt</a></td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="p2"></a><!-- doxytag: member=<XWaveNGraph::m_labels> ref=<p2> args=<> -->
-std::vector&lt; QString &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#p2">m_labels</a></td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="p3"></a><!-- doxytag: member=<XWaveNGraph::m_units> ref=<p3> args=<> -->
-std::vector&lt; QString &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#p3">m_units</a></td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="p4"></a><!-- doxytag: member=<XWaveNGraph::m_cols> ref=<p4> args=<> -->
-std::vector&lt; double &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#p4">m_cols</a></td></tr>
 
 <tr><td colspan="2"><br><h2>Private メソッド</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d0"></a><!-- doxytag: member=<XWaveNGraph::init> ref=<d0> args=<()> -->
@@ -128,56 +127,83 @@ void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#d3">onFilenameChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
 
 <tr><td colspan="2"><br><h2>Private 変数</h2></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r0"></a><!-- doxytag: member=<XWaveNGraph::m_btnDump> ref=<r0> args=<> -->
-QPushButton *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r0">m_btnDump</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r0"></a><!-- doxytag: member=<XWaveNGraph::m_mutex> ref=<r0> args=<> -->
+<a class="el" href="class_x_recursive_r_w_lock.html">XRecursiveRWLock</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r0">m_mutex</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r1"></a><!-- doxytag: member=<XWaveNGraph::m_graph> ref=<r1> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_graph.html">XGraph</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r1">m_graph</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r1"></a><!-- doxytag: member=<XWaveNGraph::m_colcnt> ref=<r1> args=<> -->
+unsigned int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r1">m_colcnt</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r2"></a><!-- doxytag: member=<XWaveNGraph::m_plot1> ref=<r2> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_x_y_plot.html">XXYPlot</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r2">m_plot1</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r2"></a><!-- doxytag: member=<XWaveNGraph::m_labels> ref=<r2> args=<> -->
+std::vector&lt; std::string &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r2">m_labels</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r3"></a><!-- doxytag: member=<XWaveNGraph::m_plot2> ref=<r3> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_x_y_plot.html">XXYPlot</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r3">m_plot2</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r3"></a><!-- doxytag: member=<XWaveNGraph::m_cols> ref=<r3> args=<> -->
+std::vector&lt; double &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r3">m_cols</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r4"></a><!-- doxytag: member=<XWaveNGraph::m_axisy2> ref=<r4> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r4">m_axisy2</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r4"></a><!-- doxytag: member=<XWaveNGraph::m_btnDump> ref=<r4> args=<> -->
+QPushButton *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r4">m_btnDump</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r5"></a><!-- doxytag: member=<XWaveNGraph::m_dump> ref=<r5> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r5">m_dump</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r5"></a><!-- doxytag: member=<XWaveNGraph::m_graph> ref=<r5> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_graph.html">XGraph</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r5">m_graph</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r6"></a><!-- doxytag: member=<XWaveNGraph::m_filename> ref=<r6> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_string_node.html">XStringNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r6">m_filename</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r6"></a><!-- doxytag: member=<XWaveNGraph::m_plot1> ref=<r6> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_x_y_plot.html">XXYPlot</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r6">m_plot1</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r7"></a><!-- doxytag: member=<XWaveNGraph::m_lsnOnDumpTouched> ref=<r7> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r7">m_lsnOnDumpTouched</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r7"></a><!-- doxytag: member=<XWaveNGraph::m_plot2> ref=<r7> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_x_y_plot.html">XXYPlot</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r7">m_plot2</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r8"></a><!-- doxytag: member=<XWaveNGraph::m_lsnOnFilenameChanged> ref=<r8> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r8">m_lsnOnFilenameChanged</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r8"></a><!-- doxytag: member=<XWaveNGraph::m_axisx> ref=<r8> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r8">m_axisx</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r9"></a><!-- doxytag: member=<XWaveNGraph::m_stream> ref=<r9> args=<> -->
-std::fstream&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r9">m_stream</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r9"></a><!-- doxytag: member=<XWaveNGraph::m_axisy> ref=<r9> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r9">m_axisy</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r10"></a><!-- doxytag: member=<XWaveNGraph::m_filemutex> ref=<r10> args=<> -->
-<a class="el" href="class_x_mutex.html">XMutex</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r10">m_filemutex</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r10"></a><!-- doxytag: member=<XWaveNGraph::m_axisy2> ref=<r10> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r10">m_axisy2</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r11"></a><!-- doxytag: member=<XWaveNGraph::m_conFilename> ref=<r11> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r11">m_conFilename</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r11"></a><!-- doxytag: member=<XWaveNGraph::m_axisw> ref=<r11> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r11">m_axisw</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r12"></a><!-- doxytag: member=<XWaveNGraph::m_conDump> ref=<r12> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r12">m_conDump</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r12"></a><!-- doxytag: member=<XWaveNGraph::m_axisz> ref=<r12> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_axis.html">XAxis</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r12">m_axisz</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r13"></a><!-- doxytag: member=<XWaveNGraph::m_colx> ref=<r13> args=<> -->
-int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r13">m_colx</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r13"></a><!-- doxytag: member=<XWaveNGraph::m_dump> ref=<r13> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r13">m_dump</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r14"></a><!-- doxytag: member=<XWaveNGraph::m_coly1> ref=<r14> args=<> -->
-int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r14">m_coly1</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r14"></a><!-- doxytag: member=<XWaveNGraph::m_filename> ref=<r14> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_string_node.html">XStringNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r14">m_filename</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r15"></a><!-- doxytag: member=<XWaveNGraph::m_coly2> ref=<r15> args=<> -->
-int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r15">m_coly2</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r15"></a><!-- doxytag: member=<XWaveNGraph::m_lsnOnDumpTouched> ref=<r15> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r15">m_lsnOnDumpTouched</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r16"></a><!-- doxytag: member=<XWaveNGraph::m_colyweight> ref=<r16> args=<> -->
-int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r16">m_colyweight</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r16"></a><!-- doxytag: member=<XWaveNGraph::m_lsnOnFilenameChanged> ref=<r16> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r16">m_lsnOnFilenameChanged</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r17"></a><!-- doxytag: member=<XWaveNGraph::m_stream> ref=<r17> args=<> -->
+std::fstream&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r17">m_stream</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r18"></a><!-- doxytag: member=<XWaveNGraph::m_filemutex> ref=<r18> args=<> -->
+<a class="el" href="class_x_mutex.html">XMutex</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r18">m_filemutex</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r19"></a><!-- doxytag: member=<XWaveNGraph::m_conFilename> ref=<r19> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r19">m_conFilename</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r20"></a><!-- doxytag: member=<XWaveNGraph::m_conDump> ref=<r20> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r20">m_conDump</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r21"></a><!-- doxytag: member=<XWaveNGraph::m_colx> ref=<r21> args=<> -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r21">m_colx</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r22"></a><!-- doxytag: member=<XWaveNGraph::m_coly1> ref=<r22> args=<> -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r22">m_coly1</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r23"></a><!-- doxytag: member=<XWaveNGraph::m_coly2> ref=<r23> args=<> -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r23">m_coly2</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r24"></a><!-- doxytag: member=<XWaveNGraph::m_colweight> ref=<r24> args=<> -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r24">m_colweight</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r25"></a><!-- doxytag: member=<XWaveNGraph::m_colz> ref=<r25> args=<> -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_wave_n_graph.html#r25">m_colz</a></td></tr>
 
 </table>
 <hr><a name="_details"></a><h2>説明</h2>
@@ -187,7 +213,7 @@ int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class
 <p>
  <a class="el" href="xwavengraph_8h-source.html">xwavengraph.h</a> の <a class="el" href="xwavengraph_8h-source.html#l00019">19</a> 行で定義されています。<hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/graph/<a class="el" href="xwavengraph_8h-source.html">xwavengraph.h</a><li>kame/graph/<a class="el" href="xwavengraph_8cpp-source.html">xwavengraph.cpp</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してTue Jan 17 21:06:25 2006に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 12:50:33 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>
