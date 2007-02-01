@@ -1,5 +1,8 @@
 /* config.h.in.  Generated from configure.in by autoheader.  */
 
+/* Define if you have 'comedi' library */
+#undef HAVE_COMEDI
+
 /* Define if you have the CoreAudio API */
 #undef HAVE_COREAUDIO
 

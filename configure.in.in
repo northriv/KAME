@@ -53,6 +53,12 @@ else
   AC_MSG_RESULT(no)
 fi
 
+AC_CHECK_LIB(comedilib, main, 
+	comedi_libs="-lcomedilib"\
+	  AC_DEFINE([HAVE_COMEDI], 1, [Define if you have 'comedi' library]),
+	  AC_MSG_WARN([comedilib is not installed - comedi is disabled]), -lcomedi)
+COMEDI_LIBS="$comedi_libs"
+
 AC_CHECK_LIB(gpib, main, 
 	gpib_libs="-lgpib"\
 	  AC_DEFINE([HAVE_LINUX_GPIB], 1, [Define if you have 'linux-gpib' library]),
@@ -94,6 +100,7 @@ AC_SUBST(FFTW_LIBS)
 AC_SUBST(NIDAQMX_LIBS)
 AC_SUBST(NIDAQMX_CFLAGS)
 AC_SUBST(LINUXGPIB_LIBS)
+AC_SUBST(COMEDI_LIBS)
 AC_SUBST(RUBY_LIBS)
 AC_SUBST(RUBY_CFLAGS)
 AC_SUBST(FREETYPE2_LIBS)

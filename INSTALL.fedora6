@@ -1,5 +1,6 @@
 Add user in samba
 SELinux: allow samba to handle with the home dir. 
+ntsysv: smb
 
 cat <<EOF >> /etc/yum.conf
 proxy=http://---:8080/
@@ -11,7 +12,7 @@ compat-gcc-34-c++
 rpmdevtools
 (ccache)
 
-CVS_RSH=ssh CVSROOT=:ext:--@--:/Users/northriv/Documents/Projects/CVS cvs co -r "STABLE_2"  kame
+CVS_RSH=ssh CVSROOT=:ext:--@--:/Users/northriv/Documents/Projects/CVS cvs co kame
 
 #cat <<EOF >> ~/.rpmmacros
 #%_topdir      %(echo $HOME)/rpmbuild
@@ -25,14 +26,14 @@ CVS_RSH=ssh CVSROOT=:ext:--@--:/Users/northriv/Documents/Projects/CVS cvs co -r 
 fedora-buildrpmtree
 
 #linux-gpib 3.2.08
-rpm --target i586 --rebuild linux-gpib-kmod-{ver}.src.rpm
-rpm --rebuild linux-gpib-{ver}.src.rpm
+rpmbuild --target=`uname -m` --rebuild linux-gpib-kmod-{ver}.src.rpm
+rpmbuild --rebuild linux-gpib-{ver}.src.rpm
 #install the two rpms
 #see /usr/share/doc/linux-gpib/INSTALL
 
 #comedi-0.7.73
-rpm --target i586 --rebuild comedi-kmod-{ver}.src.rpm
-rpm --rebuild comedi-{ver}.src.rpm
+rpmbuild --target=`uname -m` --rebuild comedi-kmod-{ver}.src.rpm
+rpmbuild --rebuild comedi-{ver}.src.rpm
 #install the two rpms
 
 ./mkrpm.sh kame-2.0.13.tar.bz2 
