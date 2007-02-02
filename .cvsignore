@@ -1,0 +1,9 @@
+FTGL
+*~
+*.a
+*.la
+*.o
+*.so
+.dep
+.libs
+autom4te.cache
