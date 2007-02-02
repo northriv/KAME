@@ -3,7 +3,7 @@
 #include <qstatusbar.h>
 
 #include "analyzer.h"
-#include "interface.h"
+#include "charinterface.h"
 #include "signalgenerator.h"
 #include "forms/signalgeneratorform.h"
 
@@ -42,7 +42,7 @@ XSG::showForms()
 void
 XSG::start()
 {
-    interface()->open();
+    openInterfaces();
     
   m_oLevel->setUIEnabled(true);
   m_freq->setUIEnabled(true);
@@ -71,7 +71,7 @@ XSG::stop()
   m_amON->setUIEnabled(false);
   m_fmON->setUIEnabled(false);
   
-  interface()->close();
+  closeInterfaces();
 }
 
 void
@@ -114,7 +114,7 @@ XSG7200::XSG7200(const char *name, bool runtime,
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers)
-    : XSG(name, runtime, scalarentries, interfaces, thermometers, drivers)
+    : XCharDeviceDriver<XSG>(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
    interface()->setGPIBUseSerialPollOnWrite(false);
    interface()->setGPIBUseSerialPollOnRead(false);
@@ -154,7 +154,7 @@ XHP8643::XHP8643(const char *name, bool runtime,
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers)
-    : XSG(name, runtime, scalarentries, interfaces, thermometers, drivers)
+    : XCharDeviceDriver<XSG>(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
 }
 void

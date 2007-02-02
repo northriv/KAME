@@ -1,12 +1,12 @@
 #ifndef DUMMYPORT_H_
 #define DUMMYPORT_H_
-#include "interface.h"
+#include "charinterface.h"
 
 #include <fstream>
 
 class XDummyPort : public XPort {
 public:
-      XDummyPort(XInterface *interface);
+      XDummyPort(XCharInterface *interface);
       virtual ~XDummyPort();
       virtual void open() throw (XInterface::XCommError &);
       virtual void send(const char *str) throw (XInterface::XCommError &);

@@ -1,3 +1,7 @@
+* Fri Feb 2 2007 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.1.0-2)
+- chardevicedriver.h, oxforddriver.h : use such like XCharDeviceDriver<...> for driver w/ one character-based interface.
+
 * Sun Jan 21 2007 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
 - (2.0.13-2)
 - kame.spec : modified for FedoraCore6.

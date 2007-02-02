@@ -1,6 +1,6 @@
 #include "dummyport.h"
 
-XDummyPort::XDummyPort(XInterface *interface) :
+XDummyPort::XDummyPort(XCharInterface *interface) :
     XPort(interface),
     m_stream()
 {

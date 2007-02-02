@@ -63,7 +63,7 @@ XLIA::showForms() {
 void
 XLIA::start()
 {
-    interface()->open();
+    openInterfaces();
     
     m_thread.reset(new XThread<XLIA>(shared_from_this(), &XLIA::execute));
     m_thread->resume();
@@ -146,7 +146,7 @@ XLIA::execute(const atomic<bool> &terminated)
   }
   catch (XKameError &e) {
       e.print(getLabel() + " " +  KAME::i18n("Error while starting, "));
-      interface()->close();
+      closeInterfaces();
       return NULL;
   }
 
@@ -214,6 +214,6 @@ XLIA::execute(const atomic<bool> &terminated)
       e.print(getLabel() + " " + KAME::i18n("Error while closing, "));
   }
     
-  interface()->close();
+  closeInterfaces();
   return NULL;
 }

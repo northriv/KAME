@@ -1,6 +1,6 @@
 #include "dcsourceform.h"
 #include "dcsource.h"
-#include "interface.h"
+#include "charinterface.h"
 #include "xnodeconnector.h"
 #include <qstatusbar.h>
 #include <qpushbutton.h>
@@ -40,7 +40,7 @@ XDCSource::showForms() {
 void
 XDCSource::start()
 {
-    interface()->open();
+  openInterfaces();
     
   m_output->setUIEnabled(true);
   m_function->setUIEnabled(true);
@@ -64,7 +64,7 @@ XDCSource::stop()
   m_function->setUIEnabled(false);
   m_value->setUIEnabled(false);
   
-  interface()->close();
+  closeInterfaces();
 }
 
 void
@@ -117,13 +117,13 @@ XYK7651::XYK7651(const char *name, bool runtime,
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers) 
-   : XDCSource(name, runtime, scalarentries, interfaces, thermometers, drivers)
+   : XCharDeviceDriver<XDCSource>(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
   function()->add("F1");
   function()->add("F5");
 }
 void
-XYK7651::changeFunction(int x)
+XYK7651::changeFunction(int )
 {
   interface()->send(function()->to_str() + "E");
 }

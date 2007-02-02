@@ -1,8 +1,9 @@
 #include "pulserdriver.h"
+#include "chardevicedriver.h"
 #include <vector>
 
 //! My pulser driver
-class XH8Pulser : public XPulser
+class XH8Pulser : public XCharDeviceDriver<XPulser>
 {
  XNODE_OBJECT
  protected:

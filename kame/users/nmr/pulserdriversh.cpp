@@ -1,5 +1,5 @@
 #include "pulserdriversh.h"
-#include "interface.h"
+#include "charinterface.h"
 #include <klocale.h>
 
 using std::max;
@@ -105,7 +105,7 @@ XSHPulser::XSHPulser(const char *name, bool runtime,
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers) :
-    XPulser(name, runtime, scalarentries, interfaces, thermometers, drivers)
+    XCharDeviceDriver<XPulser>(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
     interface()->setEOS("\n");
     interface()->baudrate()->value(115200);

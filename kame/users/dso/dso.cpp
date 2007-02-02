@@ -118,7 +118,7 @@ XDSO::showForms() {
 void
 XDSO::start()
 {
-  interface()->open();
+  openInterfaces();
       
   m_thread.reset(new XThread<XDSO>(shared_from_this(), &XDSO::execute));
   m_thread->resume();
@@ -193,7 +193,7 @@ XDSO::execute(const atomic<bool> &terminated)
   }
   catch (XKameError &e) {
       e.print(getLabel());
-      interface()->close();
+      closeInterfaces();
       return NULL;
   }
 
@@ -338,7 +338,7 @@ XDSO::execute(const atomic<bool> &terminated)
       e.print(getLabel());
   }
   
-  interface()->close();
+  closeInterfaces();
   return NULL;
 }
 

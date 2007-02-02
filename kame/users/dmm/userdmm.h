@@ -2,11 +2,12 @@
 #ifndef userdmmH
 #define userdmmH
 
-#include "interface.h"
+#include "chardevicedriver.h"
+#include "charinterface.h"
 #include "dmm.h"
 //---------------------------------------------------------------------------
 
-class XDMMSCPI : public XDMM
+class XDMMSCPI : public XCharDeviceDriver<XDMM>
 {
  XNODE_OBJECT
  protected:
@@ -15,7 +16,7 @@ class XDMMSCPI : public XDMM
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers) :
-    XDMM(name, runtime, scalarentries, interfaces, thermometers, drivers) {}
+    XCharDeviceDriver<XDMM>(name, runtime, scalarentries, interfaces, thermometers, drivers) {}
  public:
   virtual ~XDMMSCPI() {}
 

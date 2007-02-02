@@ -2,10 +2,11 @@
 #define tdsH
 
 #include "dso.h"
+#include "chardevicedriver.h"
 //---------------------------------------------------------------------------
 
 //! Tektronix DSO
-class XTDS : public XDSO
+class XTDS : public XCharDeviceDriver<XDSO>
 {
  XNODE_OBJECT
  protected:

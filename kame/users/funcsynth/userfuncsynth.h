@@ -1,6 +1,7 @@
 #include "funcsynth.h"
+#include "chardevicedriver.h"
 
-class XWAVEFACTORY : public XFuncSynth
+class XWAVEFACTORY : public XCharDeviceDriver<XFuncSynth>
 {
  XNODE_OBJECT
  protected:

@@ -1,5 +1,6 @@
 //---------------------------------------------------------------------------
 #include "usertempcontrol.h"
+#include "charinterface.h"
 
 XITC503::XITC503(const char *name, bool runtime,
    const shared_ptr<XScalarEntryList> &scalarentries,
@@ -74,7 +75,7 @@ XAVS47IB::XAVS47IB(const char *name, bool runtime,
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers) :
-  XTempControl(name, runtime, scalarentries, interfaces, thermometers, drivers)
+  XCharDeviceDriver<XTempControl>(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
   const char *channels_create[] = {"0", "1", "2", "3", "4", "5", "6", "7", 0L};
   const char *excitations_create[] = {"0", "3uV", "10uV", "30uV", "100uV", "300uV", "1mV", "3mV", 0L};
@@ -159,6 +160,7 @@ XAVS47IB::onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &) {
 }
 void
 XAVS47IB::onExcitationChanged(const shared_ptr<XValueNodeBase> &node) {
+	if(!interface()->isOpened()) return;
       shared_ptr<XComboNode> excitation = dynamic_pointer_cast<XComboNode>(node);
       interface()->sendf("EXC %u", (unsigned int)(*excitation));
       m_autorange_wait = 0;
@@ -266,7 +268,7 @@ XCryocon::XCryocon(const char *name, bool runtime,
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers) :
- XTempControl(name, runtime, scalarentries, interfaces, thermometers, drivers)
+ XCharDeviceDriver<XTempControl>(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
   heaterMode()->add("OFF");
   heaterMode()->add("PID");
@@ -385,6 +387,7 @@ XCryocon::onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &) {
 }
 void
 XCryocon::onExcitationChanged(const shared_ptr<XValueNodeBase> &node) {
+	if(!interface()->isOpened()) return;
       shared_ptr<XChannel> ch;
       atomic_shared_ptr<const XNode::NodeList> list(channels()->children());
       if(list) { 
@@ -476,7 +479,7 @@ XLakeShore340::XLakeShore340(const char *name, bool runtime,
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers)
- : XTempControl(name, runtime, scalarentries, interfaces, thermometers, drivers)
+ : XCharDeviceDriver<XTempControl>(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
   const char *channels_create[] = {"A", "B", 0L};
   const char *excitations_create[] = {0L};

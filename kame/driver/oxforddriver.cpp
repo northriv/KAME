@@ -1,9 +1,9 @@
-#include "oxford.h"
+#include "oxforddriver.h"
 #include <klocale.h>
 
 XOxfordInterface::XOxfordInterface
     (const char *name, bool runtime, const shared_ptr<XDriver> &driver)
-   : XInterface(name, runtime, driver) {
+   : XCharInterface(name, runtime, driver) {
     setEOS("\r\n");
     setGPIBWaitBeforeSPoll(10);
 }
@@ -13,7 +13,7 @@ XOxfordInterface::send(const char *str) throw (XInterface::XCommError &)
 {
   ASSERT(strlen(str));
   if(str[0] == '$') {
-      XInterface::send(str);
+      XCharInterface::send(str);
   }
   else {
       //Oxfords always send back echo
@@ -28,8 +28,8 @@ XOxfordInterface::query(const char *str) throw (XInterface::XCommError &)
   try {
       for(int i = 0; i < 30; i++)
         {
-          XInterface::send(str);
-          XInterface::receive();
+          XCharInterface::send(str);
+          XCharInterface::receive();
           if(buffer().size() >= 1)
           if(buffer()[0] == str[0]) {
               unlock();
@@ -49,7 +49,7 @@ XOxfordInterface::query(const char *str) throw (XInterface::XCommError &)
 void
 XOxfordInterface::open() throw (XInterfaceError &)
 {
-  XInterface::open();
+  XCharInterface::open();
   //    XDriver::Send("@0");
   send("$Q2");
   //    msecsleep(100);
@@ -63,7 +63,7 @@ XOxfordInterface::close()
     if(!isOpened()) return;
     try {
       send("C0"); //local
-      XInterface::close();
+      XCharInterface::close();
     }
     catch (XCommError &e) {
       e.print(driver()->getLabel() + KAME::i18n(": close Oxford port failed, because"));
@@ -72,9 +72,11 @@ XOxfordInterface::close()
 }
 void
 XOxfordInterface::receive() throw (XCommError &) {
-    XInterface::receive();
+    XCharInterface::receive();
 }
 void
 XOxfordInterface::receive(int length) throw (XCommError &) {
-    XInterface::receive(length);
+    XCharInterface::receive(length);
 }
+
+

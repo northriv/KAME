@@ -392,7 +392,7 @@ XPulser::onMoreConfigShow(const shared_ptr<XNode> &)
 void
 XPulser::start()
 {
-  interface()->open();
+  openInterfaces();
 
   output()->setUIEnabled(true);
   combMode()->setUIEnabled(true);
@@ -548,7 +548,7 @@ XPulser::stop()
   qswPiPulseOnly()->setUIEnabled(false);
   invertPhase()->setUIEnabled(false);
   
-  interface()->close();
+  closeInterfaces();
 //    m_thread->waitFor();
 //  thread must do interface()->close() at the end
 }
@@ -603,27 +603,6 @@ XPulser::visualize()
 {
  //! impliment extra codes which do not need write-lock of record
  //! record is read-locked
-  XScopedLock<XInterface> lock(*interface());
-  if(interface()->isOpened()) {
-  	if(time()) {
-      try {
-		  createNativePatterns();
-          changeOutput(true);
-      }
-      catch (XKameError &e) {
-          e.print(getLabel() + KAME::i18n("Pulser Turn-On Failed, because"));
-      } 
-  	}
-  	else {
-	  try {
-	      changeOutput(false);
-	  }
-	  catch (XKameError &e) {
-	      e.print(getLabel() + KAME::i18n("Pulser Turn-Off Failed, because"));
-	      return;
-	  }
-  	}
-  }
 }
 
 void
@@ -683,6 +662,25 @@ XPulser::onPulseChanged(const shared_ptr<XValueNodeBase> &node)
     push((unsigned short)*invertPhase());
 
   finishWritingRaw(time_awared, XTime::now());
+  
+  	if(time()) {
+      try {
+		  createNativePatterns();
+          changeOutput(true);
+      }
+      catch (XKameError &e) {
+          e.print(getLabel() + KAME::i18n("Pulser Turn-On Failed, because"));
+      } 
+  	}
+  	else {
+	  try {
+	      changeOutput(false);
+	  }
+	  catch (XKameError &e) {
+	      e.print(getLabel() + KAME::i18n("Pulser Turn-Off Failed, because"));
+	      return;
+	  }
+  	}
 }
 double
 XPulser::periodicTermRecorded() const {

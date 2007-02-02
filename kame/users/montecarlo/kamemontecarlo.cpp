@@ -40,7 +40,7 @@ XMonteCarloDriver::XMonteCarloDriver(const char *name, bool runtime,
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers) :
-    XPrimaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
+    XDummyDriver<XPrimaryDriver>(name, runtime, scalarentries, interfaces, thermometers, drivers),
     m_targetTemp(create<XDoubleNode>("TargetTemp", false)),
     m_targetField(create<XDoubleNode>("TargetField", false)),
     m_hdirx(create<XDoubleNode>("FieldDirX", false)),

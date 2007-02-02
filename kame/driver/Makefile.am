@@ -6,7 +6,10 @@ INCLUDES = -I$(top_srcdir)/kame \
 	$(all_includes)
 
 libdriver_a_SOURCES = interface.cpp interface.h \
-	oxford.cpp oxford.h \
+	charinterface.cpp charinterface.h \
+	chardevicedriver.h \
+	dummydriver.h \
+	oxforddriver.cpp oxforddriver.h \
 	gpib.cpp gpib.h serial.cpp serial.h \
 	dummyport.cpp dummyport.h \
 	driver.cpp driver.h \

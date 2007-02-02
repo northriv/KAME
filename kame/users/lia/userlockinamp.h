@@ -2,9 +2,10 @@
 #define userlockinampH
 
 #include "lockinamp.h"
+#include "chardevicedriver.h"
 //---------------------------------------------------------------------------
 //Stanford Research SR830 Lock-in Amplifier
-class XSR830 : public XLIA
+class XSR830 : public XCharDeviceDriver<XLIA>
 {
  XNODE_OBJECT
  protected:
@@ -26,7 +27,7 @@ class XSR830 : public XLIA
 };
 
 //ANDEEN HAGERLING 2500A 1kHz Ultra-Precision Capcitance Bridge
-class XAH2500A : public XLIA
+class XAH2500A : public XCharDeviceDriver<XLIA>
 {
  XNODE_OBJECT
  protected:

@@ -1,13 +1,13 @@
 #include "userlockinamp.h"
 #include <klocale.h>
-#include "interface.h"
+#include "charinterface.h"
 
 XSR830::XSR830(const char *name, bool runtime, 
    const shared_ptr<XScalarEntryList> &scalarentries,
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers)
-    : XLIA(name, runtime, scalarentries, interfaces, thermometers, drivers)
+    : XCharDeviceDriver<XLIA>(name, runtime, scalarentries, interfaces, thermometers, drivers)
     , m_cCount(10)
 {
   const char *tc[] = {"1e-5sec", "3e-5s", "1e-4s", "3e-4s", "1e-3s", "3e-3s", "1e-2s",
@@ -112,7 +112,7 @@ XAH2500A::XAH2500A(const char *name, bool runtime,
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers)
-    : XLIA(name, runtime, scalarentries, interfaces, thermometers, drivers)
+    : XCharDeviceDriver<XLIA>(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
   const char *tc[] = {"0.04s", "0.08s", "0.14s", "0.25s", "0.5s",
      "1s", "2s", "4s", "8s", "15s", "30s", "60s",

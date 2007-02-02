@@ -1,5 +1,4 @@
 #include "primarydriver.h"
-#include "interface.h"
 #include <klocale.h>
 
 XThreadLocal<std::vector<char> > XPrimaryDriver::s_tlRawData;
@@ -10,20 +9,8 @@ XPrimaryDriver::XPrimaryDriver(const char *name, bool runtime,
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers) :
-    XDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
-    m_interface(create<XInterface>("Interface", false,
-            dynamic_pointer_cast<XDriver>(shared_from_this())))
+    XDriver(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
-    interfaces->insert(m_interface);
-}
-void
-XPrimaryDriver::replaceInterface(const shared_ptr<XInterface> &replacement,
-         const shared_ptr<XInterfaceList> &interfaces)
-{
-        releaseChild(interface());
-        interfaces->releaseChild(interface());
-        m_interface = replacement;
-        interfaces->insert(interface());
 }
 
 void

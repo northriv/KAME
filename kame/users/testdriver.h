@@ -4,10 +4,11 @@
 #define testdriverH
 //---------------------------------------------------------------------------
 #include "primarydriver.h"
+#include "dummydriver.h"
 
 class XScalarEntry;
 
-class XTestDriver : public XPrimaryDriver
+class XTestDriver : public XDummyDriver<XPrimaryDriver>
 {
  XNODE_OBJECT
  protected:

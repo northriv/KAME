@@ -73,7 +73,7 @@ XMagnetPS::showForms() {
 void
 XMagnetPS::start()
 {
-  interface()->open();
+  openInterfaces();
   
   m_thread.reset(new XThread<XMagnetPS>(shared_from_this(), &XMagnetPS::execute));
   m_thread->resume();
@@ -136,7 +136,7 @@ XMagnetPS::execute(const atomic<bool> &terminated)
   }
   catch (XKameError&e) {
     e.print(getLabel());
-    interface()->close();
+    closeInterfaces();
     return NULL;
   }
 
@@ -277,6 +277,6 @@ XMagnetPS::execute(const atomic<bool> &terminated)
   sweepRate()->setUIEnabled(false);
   allowPersistent()->setUIEnabled(false);
       
-  interface()->close();
+  closeInterfaces();
   return NULL;
 }

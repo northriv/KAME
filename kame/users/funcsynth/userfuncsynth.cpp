@@ -1,5 +1,5 @@
 #include "userfuncsynth.h"
-#include "interface.h"
+#include "charinterface.h"
 #include "analyzer.h"
 #include <klocale.h>
 
@@ -8,7 +8,7 @@ XWAVEFACTORY::XWAVEFACTORY(const char *name, bool runtime,
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers) : 
-    XFuncSynth(name, runtime, scalarentries, interfaces, thermometers, drivers)
+    XCharDeviceDriver<XFuncSynth>(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
 	function()->add("SINUSOID");
 	function()->add("TRIANGLE");

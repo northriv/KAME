@@ -91,7 +91,7 @@ XTempControl::showForms() {
 void
 XTempControl::start()
 {
-  interface()->open();
+  openInterfaces();
 
   m_thread.reset(new XThread<XTempControl>(shared_from_this(), &XTempControl::execute));
   m_thread->resume();
@@ -141,11 +141,8 @@ XTempControl::onSetupChannelChanged(const shared_ptr<XValueNodeBase> &)
         channel->thermometer(), m_form->m_cmbThermometer);
   m_conExcitation = xqcon_create<XQComboBoxConnector>(
 	    channel->excitation(), m_form->m_cmbExcitation);
-  if(interface()->isOpened())
-    {
-      m_lsnOnExcitationChanged = channel->excitation()->onValueChanged().connectWeak(
-				    false, shared_from_this(), &XTempControl::onExcitationChanged);
-    }
+  m_lsnOnExcitationChanged = channel->excitation()->onValueChanged().connectWeak(
+			    false, shared_from_this(), &XTempControl::onExcitationChanged);
 }
 
 void
@@ -217,7 +214,7 @@ XTempControl::execute(const atomic<bool> &terminated)
   }
   catch (XKameError &e) {
       e.print(getLabel() + "; ");
-      interface()->close();
+      closeInterfaces();
       return NULL;
   }
 
@@ -335,7 +332,7 @@ XTempControl::execute(const atomic<bool> &terminated)
   catch (XKameError &e) {
       e.print(getLabel() + "; ");
   }
-  interface()->close();
+  closeInterfaces();
   return NULL;
 }
 

@@ -2,6 +2,7 @@
 #define KAMEMONTECARLO_H_
 
 #include "primarydriver.h"
+#include "dummydriver.h"
 #include <fftw.h>
 
 class XScalarEntry;
@@ -9,7 +10,7 @@ class MonteCarlo;
 class FrmMonteCarlo;
 class XWaveNGraph;
 
-class XMonteCarloDriver : public XPrimaryDriver
+class XMonteCarloDriver : public XDummyDriver<XPrimaryDriver>
 {
  XNODE_OBJECT
  protected:

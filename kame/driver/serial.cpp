@@ -14,7 +14,7 @@
 #define MIN_BUFFER_SIZE 256
 #define TTY_WAIT 1 //ms
 
-XPosixSerialPort::XPosixSerialPort(XInterface *interface)
+XPosixSerialPort::XPosixSerialPort(XCharInterface *interface)
  : XPort(interface), m_scifd(-1)
 {
 

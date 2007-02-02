@@ -56,7 +56,7 @@ XFuncSynth::showForms() {
 void
 XFuncSynth::start()
 {
-    interface()->open();
+    openInterfaces();
 
     m_output->setUIEnabled(true);
     m_trig->setUIEnabled(true);
@@ -105,7 +105,7 @@ XFuncSynth::stop()
     m_phase->setUIEnabled(false);
     m_offset->setUIEnabled(false);
 
-  interface()->close();
+  closeInterfaces();
 }
 
 void

@@ -4,7 +4,8 @@
 #define usertempcontrolH
 
 #include "tempcontrol.h"
-#include "oxford.h"
+#include "oxforddriver.h"
+#include "chardevicedriver.h"
 //---------------------------------------------------------------------------
 //ITC503 Oxford
 class XITC503 : public XOxfordDriver<XTempControl>
@@ -43,7 +44,7 @@ class XITC503 : public XOxfordDriver<XTempControl>
 
 //AVS47-IB
 //AVS47 and TS530A
-class XAVS47IB:public XTempControl
+class XAVS47IB:public XCharDeviceDriver<XTempControl>
 {
  XNODE_OBJECT
  protected:
@@ -93,7 +94,7 @@ class XAVS47IB:public XTempControl
 };
 
 //Cryo-con base class
-class XCryocon : public XTempControl
+class XCryocon : public XCharDeviceDriver<XTempControl>
 {
  XNODE_OBJECT
  protected:
@@ -169,7 +170,7 @@ class XCryoconM62:public XCryocon
 };
 
 //LakeShore 340
-class XLakeShore340:public XTempControl
+class XLakeShore340:public XCharDeviceDriver<XTempControl>
 {
  XNODE_OBJECT
  protected:

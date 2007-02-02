@@ -4,6 +4,7 @@
 #define dcsourceH
 
 #include "primarydriver.h"
+#include "chardevicedriver.h"
 #include "xnodeconnector.h"
 
 class FrmDCSource;
@@ -63,7 +64,7 @@ class XDCSource : public XPrimaryDriver
 
 
 //YOKOGAWA 7551 DC V/DC A source
-class XYK7651:public XDCSource
+class XYK7651:public XCharDeviceDriver<XDCSource>
 {
  public:
   XYK7651(const char *name, bool runtime,

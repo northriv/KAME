@@ -2,6 +2,8 @@
 #define signalgeneratorH
 
 #include "primarydriver.h"
+#include "chardevicedriver.h"
+#include "charinterface.h"
 #include "xnodeconnector.h"
 
 class FrmSG;
@@ -64,7 +66,7 @@ class XSG : public XPrimaryDriver
 };//---------------------------------------------------------------------------
 
 //! KENWOOD SG-7200
-class XSG7200 : public XSG
+class XSG7200 : public XCharDeviceDriver<XSG>
 {
  XNODE_OBJECT
  protected:
@@ -99,7 +101,7 @@ class XSG7130 : public XSG7200
 };
 
 //! Agilent 8643A, 8644A
-class XHP8643 : public XSG
+class XHP8643 : public XCharDeviceDriver<XSG>
 {
  XNODE_OBJECT
  protected:

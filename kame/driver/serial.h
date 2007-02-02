@@ -1,7 +1,7 @@
 #ifndef SERIAL_H_
 #define SERIAL_H_
 
-#include "interface.h"
+#include "charinterface.h"
 
 #if  defined __linux__ || defined MACOSX
 #define SERIAL_POSIX
@@ -20,7 +20,7 @@
 class XPosixSerialPort : public XPort
 {
 public:
- XPosixSerialPort(XInterface *interface);
+ XPosixSerialPort(XCharInterface *interface);
  virtual ~XPosixSerialPort();
  
   virtual void open() throw (XInterface::XCommError &);

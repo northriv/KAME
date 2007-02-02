@@ -94,7 +94,7 @@ XNIGPIBPort::gpibStatus(const QString &msg)
     .arg(cntl);
 }
 
-XNIGPIBPort::XNIGPIBPort(XInterface *interface)
+XNIGPIBPort::XNIGPIBPort(XCharInterface *interface)
  : XPort(interface), m_ud(-1)
 {
 

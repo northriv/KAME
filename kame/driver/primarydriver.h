@@ -2,8 +2,7 @@
 #define PRIMARYDRIVER_H_
 
 #include "driver.h"
-
-class XInterface;
+#include "interface.h"
 
 class XPrimaryDriver : public XDriver
 {
@@ -29,6 +28,10 @@ class XPrimaryDriver : public XDriver
   virtual const shared_ptr<XRecordDependency> dependency() const 
         {return shared_ptr<XRecordDependency>();}
  protected:
+   //! open all interfaces.
+  virtual void openInterfaces() throw (XInterface::XInterfaceError &) = 0;
+  //! close all interfaces.
+  virtual void closeInterfaces() = 0;
   //! this is called when raw is written 
   //! unless dependency is broken
   //! convert raw to record
@@ -54,16 +57,10 @@ class XPrimaryDriver : public XDriver
   //! read raw record
   template <typename tVar>
   tVar pop() throw (XBufferUnderflowRecordError&);
-  
-  const shared_ptr<XInterface> &interface() const {return m_interface;}
-  
-  void replaceInterface(const shared_ptr<XInterface> &replacement,
-         const shared_ptr<XInterfaceList> &interfaces);
+
  private:
   friend class XRawStreamRecordReader;
   friend class XRawStreamRecorder;
-
-  shared_ptr<XInterface> m_interface;
 
   //! raw data
   static XThreadLocal<std::vector<char> > s_tlRawData;

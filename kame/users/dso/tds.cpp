@@ -1,5 +1,5 @@
 #include "tds.h"
-#include "interface.h"
+#include "charinterface.h"
 #include "xwavengraph.h"
 #include <klocale.h>
 //---------------------------------------------------------------------------
@@ -8,7 +8,7 @@ XTDS::XTDS(const char *name, bool runtime,
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers) :
- XDSO(name, runtime, scalarentries, interfaces, thermometers, drivers) {
+ XCharDeviceDriver<XDSO>(name, runtime, scalarentries, interfaces, thermometers, drivers) {
   const char* ch[] = {"CH1", "CH2", "CH3", "CH4", "MATH1", "MATH2", 0L};
   for(int i = 0; ch[i]; i++)
     {

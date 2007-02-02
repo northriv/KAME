@@ -3,7 +3,7 @@
 #define usermagnetpsH
 
 #include "magnetps.h"
-#include "oxford.h"
+#include "oxforddriver.h"
 //---------------------------------------------------------------------------
 //OXFORD PS120 Magnet Power Supply
 class XPS120 : public XOxfordDriver<XMagnetPS>

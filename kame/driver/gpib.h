@@ -1,7 +1,7 @@
 #ifndef GPIB_H_
 #define GPIB_H_
 
-#include "interface.h"
+#include "charinterface.h"
 
 #ifdef HAVE_CONFIG_H
  #include <config.h>
@@ -28,7 +28,7 @@
 class XNIGPIBPort : public XPort
 {
 public:
- XNIGPIBPort(XInterface *interface);
+ XNIGPIBPort(XCharInterface *interface);
  virtual ~XNIGPIBPort();
  
   virtual void open() throw (XInterface::XCommError &);
