@@ -135,7 +135,6 @@ XLIA::onTimeConstChanged(const shared_ptr<XValueNodeBase> &)
     }
 }
 
-
 void *
 XLIA::execute(const atomic<bool> &terminated)
 {

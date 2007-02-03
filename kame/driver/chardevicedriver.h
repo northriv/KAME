@@ -20,11 +20,12 @@ class XCharDeviceDriver : public tDriver
  protected:
   const shared_ptr<XCharInterface> &interface() const {return m_interface;}
   //! Be called just after opening interface. Call start() inside this routine appropriately.
-  virtual void open() throw (XInterface::XInterfaceError &) {tDriver::start();}
+  virtual void open() throw (XInterface::XInterfaceError &) {this->start();}
   //! Be called during stopping driver. Call interface()->stop() inside this routine.
   virtual void close() throw (XInterface::XInterfaceError &) {interface()->stop();}
   void onOpen(const shared_ptr<XInterface> &);
   void onClose(const shared_ptr<XInterface> &);
+  virtual void afterStop() {close();}
  private:
   shared_ptr<XListener> m_lsnOnOpen, m_lsnOnClose;
   
@@ -39,23 +40,23 @@ XCharDeviceDriver<tDriver>::XCharDeviceDriver(const char *name, bool runtime,
    const shared_ptr<XDriverList> &drivers) :
     tDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
 	m_interface(XNode::create<XCharInterface>("Interface", false,
-            dynamic_pointer_cast<XDriver>(tDriver::shared_from_this())))
+            dynamic_pointer_cast<XDriver>(this->shared_from_this())))
 {
     interfaces->insert(m_interface);
     m_lsnOnOpen = interface()->onOpen().connectWeak(false,
-    	 XCharDeviceDriver<tDriver>::shared_from_this(), &XCharDeviceDriver<tDriver>::onOpen);
+    	 this->shared_from_this(), &XCharDeviceDriver<tDriver>::onOpen);
     m_lsnOnClose = interface()->onClose().connectWeak(false, 
-    	XCharDeviceDriver<tDriver>::shared_from_this(), &XCharDeviceDriver<tDriver>::onClose);
+    	this->shared_from_this(), &XCharDeviceDriver<tDriver>::onClose);
 }
 template<class tDriver>
 void
 XCharDeviceDriver<tDriver>::onOpen(const shared_ptr<XInterface> &)
 {
 	try {
-		XCharDeviceDriver<tDriver>::open();
+		open();
 	}
 	catch (XInterface::XInterfaceError& e) {
-		e.print(tDriver::getLabel() + KAME::i18n(": Opening interface failed, because"));
+		e.print(this->getLabel() + KAME::i18n(": Opening interface failed, because"));
 	}
 }
 template<class tDriver>
@@ -63,10 +64,10 @@ void
 XCharDeviceDriver<tDriver>::onClose(const shared_ptr<XInterface> &)
 {
 	try {
-		XCharDeviceDriver<tDriver>::stop();
+		this->stop();
 	}
 	catch (XInterface::XInterfaceError& e) {
-		e.print(tDriver::getLabel() + KAME::i18n(": Stopping driver failed, because"));
+		e.print(this->getLabel() + KAME::i18n(": Stopping driver failed, because"));
 	}
 }
 #endif /*CHARDEVICEDRIVER_H_*/

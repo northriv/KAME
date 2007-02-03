@@ -42,8 +42,6 @@ XSG::showForms()
 void
 XSG::start()
 {
-    openInterfaces();
-    
   m_oLevel->setUIEnabled(true);
   m_freq->setUIEnabled(true);
   m_amON->setUIEnabled(true);
@@ -71,7 +69,7 @@ XSG::stop()
   m_amON->setUIEnabled(false);
   m_fmON->setUIEnabled(false);
   
-  closeInterfaces();
+  afterStop();
 }
 
 void

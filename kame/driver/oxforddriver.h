@@ -45,8 +45,8 @@ double
 XOxfordDriver<tDriver>::read(int arg) throw (XInterface::XInterfaceError &)
 {
   double x;
-  XCharDeviceDriver<tDriver>::interface()->queryf("R%d", arg);
-  int ret = XCharDeviceDriver<tDriver>::interface()->scanf("R%lf", &x);
+  this->interface()->queryf("R%d", arg);
+  int ret = this->interface()->scanf("R%lf", &x);
   if(ret != 1) throw XInterface::XConvError(__FILE__, __LINE__);
   return x;
 }

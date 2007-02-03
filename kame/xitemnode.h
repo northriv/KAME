@@ -97,20 +97,20 @@ class XItemNode : public XPointerItemNode<TL>
  public:
   virtual ~XItemNode() {}
   virtual operator shared_ptr<T>() const {
-        return dynamic_pointer_cast<T>(*XPointerItemNode<TL>::m_var);
+        return dynamic_pointer_cast<T>(*this->m_var);
   }
   virtual void value(const shared_ptr<XNode> &t) {
     shared_ptr<XValueNodeBase> ptr = 
-        dynamic_pointer_cast<XValueNodeBase>(XPointerItemNode<TL>::shared_from_this());
+        dynamic_pointer_cast<XValueNodeBase>(this->shared_from_this());
     XScopedLock<XRecursiveMutex> lock(m_write_mutex);
-    XPointerItemNode<TL>::m_tlkBeforeValueChanged.talk(ptr);
-    XPointerItemNode<TL>::m_var.reset(new shared_ptr<XNode>(t));
-    XPointerItemNode<TL>::m_tlkOnValueChanged.talk(ptr); //, 1, &statusmutex);
+    this->m_tlkBeforeValueChanged.talk(ptr);
+    this->m_var.reset(new shared_ptr<XNode>(t));
+    this->m_tlkOnValueChanged.talk(ptr); //, 1, &statusmutex);
   }
   virtual shared_ptr<const std::deque<XItemNodeBase::Item> > itemStrings() const
   {
         shared_ptr<std::deque<XItemNodeBase::Item> > items(new std::deque<XItemNodeBase::Item>());
-        atomic_shared_ptr<const XNode::NodeList> children(XPointerItemNode<TL>::m_list->children());
+        atomic_shared_ptr<const XNode::NodeList> children(this->m_list->children());
         if(children) {
             for(XNode::NodeList::const_iterator it = children->begin(); it != children->end(); it++) {
                 if(dynamic_pointer_cast<T>(*it)) {

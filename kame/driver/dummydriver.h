@@ -38,7 +38,7 @@ class XDummyDriver : public tDriver
  public:
   virtual ~XDummyDriver() {}
  protected:
-  virtual void afterStop() {}
+  virtual void afterStop() {interface()->stop();}
   const shared_ptr<XDummyInterface> &interface() const {return m_interface;}
  private:
   shared_ptr<XListener> m_lsnOnOpen, m_lsnOnClose;
@@ -55,23 +55,23 @@ XDummyDriver<tDriver>::XDummyDriver(const char *name, bool runtime,
    const shared_ptr<XDriverList> &drivers) :
     tDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
 	m_interface(XNode::create<XDummyInterface>("Interface", false,
-            dynamic_pointer_cast<XDriver>(tDriver::shared_from_this())))
+            dynamic_pointer_cast<XDriver>(this->shared_from_this())))
 {
     interfaces->insert(m_interface);
     m_lsnOnOpen = interface()->onOpen().connectWeak(false,
-    	XDummyDriver<tDriver>::shared_from_this(), &XDummyDriver<tDriver>::onOpen);
+    	this->shared_from_this(), &XDummyDriver<tDriver>::onOpen);
     m_lsnOnClose = interface()->onClose().connectWeak(false,
-    	XDummyDriver<tDriver>::shared_from_this(), &XDummyDriver<tDriver>::onClose);
+    	this->shared_from_this(), &XDummyDriver<tDriver>::onClose);
 }
 template<class tDriver>
 void
 XDummyDriver<tDriver>::onOpen(const shared_ptr<XInterface> &)
 {
 	try {
-		XDummyDriver<tDriver>::start();
+		this->start();
 	}
 	catch (XInterface::XInterfaceError& e) {
-		e.print(tDriver::getLabel() + KAME::i18n(": Starting driver failed, because"));
+		e.print(this->getLabel() + KAME::i18n(": Starting driver failed, because"));
 	}
 }
 template<class tDriver>
@@ -79,10 +79,10 @@ void
 XDummyDriver<tDriver>::onClose(const shared_ptr<XInterface> &)
 {
 	try {
-		XDummyDriver<tDriver>::stop();
+		this->stop();
 	}
 	catch (XInterface::XInterfaceError& e) {
-		e.print(tDriver::getLabel() + KAME::i18n(": Stopping driver failed, because"));
+		e.print(this->getLabel() + KAME::i18n(": Stopping driver failed, because"));
 	}
 }
 

@@ -27,12 +27,14 @@ class XPrimaryDriver : public XDriver
   
   virtual const shared_ptr<XRecordDependency> dependency() const 
         {return shared_ptr<XRecordDependency>();}
- protected:
-  //! Start up your threads, connect GUI, and activate signals
-  virtual void start() = 0;
+
+
   //! Shut down your threads, unconnect GUI, and deactivate signals
   //! this may be called even if driver has already stopped.
   virtual void stop() = 0;  
+ protected:
+  //! Start up your threads, connect GUI, and activate signals
+  virtual void start() = 0;
   //! Be called for closing interfaces.
   virtual void afterStop() = 0;  
     

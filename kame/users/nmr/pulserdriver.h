@@ -180,7 +180,6 @@ class XPulser : public XPrimaryDriver
   RelPatList m_relPatList;
   typedef RelPatList::iterator RelPatListIterator;
 
-  virtual void afterStart() = 0;
   //! push parameters.
   //! use this after clearRaw()
   void writeRaw();

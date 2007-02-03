@@ -53,8 +53,6 @@ class XLIA : public XPrimaryDriver
   virtual void changeFreq(double freq) = 0;
   virtual void changeSensitivity(int) = 0;
   virtual void changeTimeConst(int) = 0;
-  virtual void afterStart() = 0;
-  virtual void beforeStop() = 0;
  private:
   shared_ptr<XScalarEntry> m_valueX, m_valueY;
  

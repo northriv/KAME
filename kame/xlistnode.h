@@ -56,7 +56,7 @@ class XListNode : public  XListNodeBase
 
   virtual shared_ptr<XNode> createByTypename(
         const std::string &, const std::string &name) {
-    return XNode::create<NT>(name.c_str(), false);
+    return this->create<NT>(name.c_str(), false);
   }
 };
 
