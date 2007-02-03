@@ -75,6 +75,10 @@ XInterface::start()
   address()->setUIEnabled(false);
   baudrate()->setUIEnabled(false);
 
+	lsnOnControlChanged->mask();
+	control()->value(true);
+	lsnOnControlChanged->unmask();
+	
   m_tlkOnOpen.talk(dynamic_pointer_cast<XInterface>(shared_from_this()));
 }
 void
@@ -93,5 +97,10 @@ XInterface::stop()
   port()->setUIEnabled(true);
   address()->setUIEnabled(true);
   baudrate()->setUIEnabled(true);
+
+	lsnOnControlChanged->mask();
+	control()->value(false);
+	lsnOnControlChanged->unmask();
+
   //g_statusPrinter->clear();
 }
