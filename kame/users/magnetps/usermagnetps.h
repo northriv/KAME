@@ -19,8 +19,6 @@ class XPS120 : public XOxfordDriver<XMagnetPS>
   virtual ~XPS120() {}
 
  protected:
-  virtual void afterStart() {}
-  
   virtual void toNonPersistent();
   virtual void toPersistent();
   virtual void toZero();
@@ -67,7 +65,9 @@ class XIPS120 : public XPS120
   virtual ~XIPS120() {}
   virtual double fieldResolution() {return 0.0001;}
  protected:
-  virtual void afterStart();
+  //! Be called just after opening interface. Call start() inside this routine appropriately.
+  virtual void open() throw (XInterface::XInterfaceError &);
+
   virtual double currentResolution() {return 0.001;}
   virtual double voltageResolution() {return 0.001;}
   virtual double getTargetField();

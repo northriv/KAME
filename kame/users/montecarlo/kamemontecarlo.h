@@ -30,7 +30,7 @@ class XMonteCarloDriver : public XDummyDriver<XPrimaryDriver>
   //! Shut down your threads, unconnect GUI, and deactivate signals
   //! this may be called even if driver has already stopped.
   virtual void stop();
-  
+    
   //! this is called when raw is written 
   //! unless dependency is broken
   //! convert raw to record

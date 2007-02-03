@@ -88,9 +88,6 @@ class XDSO : public XPrimaryDriver
   virtual void onRecordLengthChanged(const shared_ptr<XValueNodeBase> &) = 0;
   virtual void onForceTriggerTouched(const shared_ptr<XNode> &) = 0;
 
-  virtual void afterStart() = 0;
-  virtual void beforeStop() = 0;
-  
   virtual double getTimeInterval() = 0;
   //! clear count or start sequence measurement
   virtual void startSequence() = 0;

@@ -25,16 +25,13 @@ class XInterfaceListConnector : public XListQConnector
     xqcon_ptr condev, concontrol, conport, conaddr;
     shared_ptr<XInterface> interface;
     QPushButton *btn;
-    shared_ptr<XNode> control;
-    shared_ptr<XListener> lsnOnOpenedChanged;
-    shared_ptr<XListener> lsnOnControlTouched;
+    shared_ptr<XListener> lsnOnControlChanged;
   };
   typedef std::deque<tcons> tconslist;
   tconslist m_cons;
 
   shared_ptr<XInterfaceList> m_interfaceList;
-  void onOpenedChanged(const shared_ptr<XValueNodeBase> &);
-  void onControlTouched(const shared_ptr<XNode> &);
+  void onControlChanged(const shared_ptr<XValueNodeBase> &);
 };
 
 #endif /*INTERFACELISTCONNECTOR_H_*/

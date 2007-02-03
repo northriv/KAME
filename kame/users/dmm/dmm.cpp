@@ -39,8 +39,6 @@ XDMM::showForms() {
 void
 XDMM::start()
 {
-    openInterfaces();
-    
     m_thread.reset(new XThread<XDMM>(shared_from_this(), &XDMM::execute));
     m_thread->resume();
 }
@@ -86,7 +84,7 @@ XDMM::execute(const atomic<bool> &terminated)
     }
     catch (XKameError &e) {
           e.print(getLabel() + " " + KAME::i18n("DMM Error"));
-          closeInterfaces();
+          afterStop();
           return NULL;
     }
     
@@ -120,7 +118,12 @@ XDMM::execute(const atomic<bool> &terminated)
     m_function->setUIEnabled(false);
     m_waitInms->setUIEnabled(false);
         
-  closeInterfaces();
+	  try {
+	      afterStop();
+	  }
+	  catch (XKameError &e) {
+	      e.print(getLabel());
+	  }
   return NULL;
 }
 

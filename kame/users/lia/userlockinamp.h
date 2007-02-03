@@ -20,8 +20,11 @@ class XSR830 : public XCharDeviceDriver<XLIA>
   virtual void changeFreq(double freq);
   virtual void changeSensitivity(int);
   virtual void changeTimeConst(int);
-  virtual void afterStart();
-  virtual void beforeStop();
+
+  //! Be called just after opening interface. Call start() inside this routine appropriately.
+  virtual void open() throw (XInterface::XInterfaceError &);
+  //! Be called for closing interfaces.
+  virtual void afterStop();
 
   int m_cCount;
 };
@@ -42,8 +45,10 @@ class XAH2500A : public XCharDeviceDriver<XLIA>
   virtual void changeFreq(double freq);
   virtual void changeSensitivity(int);
   virtual void changeTimeConst(int);
-  virtual void afterStart();
-  virtual void beforeStop();
+  //! Be called just after opening interface. Call start() inside this routine appropriately.
+  virtual void open() throw (XInterface::XInterfaceError &);
+  //! Be called for closing interfaces.
+  virtual void afterStop();
 };
 
 #endif

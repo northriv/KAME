@@ -28,7 +28,8 @@ class XITC503 : public XOxfordDriver<XTempControl>
   //! ex. "W", "dB", or so
   virtual const char *m_heaterPowerUnit() {return "%";}
   
-  virtual void afterStart();
+  //! Be called just after opening interface. Call start() inside this routine appropriately.
+  virtual void open() throw (XInterface::XInterfaceError &);
   
   virtual void onPChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onIChanged(const shared_ptr<XValueNodeBase> &);
@@ -64,8 +65,10 @@ class XAVS47IB:public XCharDeviceDriver<XTempControl>
   //! ex. "W", "dB", or so
   virtual const char *m_heaterPowerUnit() {return "W";}
   
-  virtual void afterStart();
-  virtual void beforeStop();
+  //! Be called just after opening interface. Call start() inside this routine appropriately.
+  virtual void open() throw (XInterface::XInterfaceError &);
+  //! Be called for closing interfaces.
+  virtual void afterStop();
   
   virtual void onPChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onIChanged(const shared_ptr<XValueNodeBase> &);
@@ -114,7 +117,8 @@ class XCryocon : public XCharDeviceDriver<XTempControl>
   //! ex. "W", "dB", or so
   virtual const char *m_heaterPowerUnit() {return "%";}
   
-  virtual void afterStart();
+  //! Be called just after opening interface. Call start() inside this routine appropriately.
+  virtual void open() throw (XInterface::XInterfaceError &);
   
   virtual void onPChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onIChanged(const shared_ptr<XValueNodeBase> &);
@@ -166,7 +170,8 @@ class XCryoconM62:public XCryocon
   ~XCryoconM62() {}
 
  protected:
-  virtual void afterStart();
+  //! Be called just after opening interface. Call start() inside this routine appropriately.
+  virtual void open() throw (XInterface::XInterfaceError &);
 };
 
 //LakeShore 340
@@ -190,8 +195,9 @@ class XLakeShore340:public XCharDeviceDriver<XTempControl>
   //! ex. "W", "dB", or so
   virtual const char *m_heaterPowerUnit() {return "%";}
   
-  virtual void afterStart();
-  
+  //! Be called just after opening interface. Call start() inside this routine appropriately.
+  virtual void open() throw (XInterface::XInterfaceError &);
+    
   virtual void onPChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onIChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onDChanged(const shared_ptr<XValueNodeBase> &);

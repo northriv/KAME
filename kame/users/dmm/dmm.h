@@ -44,6 +44,8 @@ class XDMM : public XPrimaryDriver
   virtual double oneShotRead() = 0; 
   //! called when m_function is changed
   virtual void changeFunction() = 0;
+  
+  virtual void afterStop() = 0;
  private:
   //! called when m_function is changed
   void onFunctionChanged(const shared_ptr<XValueNodeBase> &node);

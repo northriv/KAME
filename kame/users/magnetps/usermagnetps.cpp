@@ -299,7 +299,8 @@ XPS120::setRate(double hpm)
 }
 
 void
-XIPS120::afterStart()
+XIPS120::open() throw (XInterface::XInterfaceError &)
 {
 	interface()->send("$Q6");
+	start();
 }

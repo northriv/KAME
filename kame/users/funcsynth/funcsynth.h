@@ -53,8 +53,6 @@ class XFuncSynth : public XPrimaryDriver
   virtual void onAmpChanged(const shared_ptr<XValueNodeBase> &) = 0;
   virtual void onPhaseChanged(const shared_ptr<XValueNodeBase> &) = 0;
   virtual void onOffsetChanged(const shared_ptr<XValueNodeBase> &) = 0;
-//  virtual void afterStart();
-//  virtual void beforeStop();
  private:
   shared_ptr<XBoolNode>  m_output;
   shared_ptr<XNode>  m_trig;

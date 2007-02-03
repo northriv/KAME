@@ -170,6 +170,7 @@ public:
 
     //! true if user interrupts.
     static volatile bool s_bAborting;
+
 private:
     //! thread pool.
     volatile bool m_bTerminated;

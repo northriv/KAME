@@ -19,11 +19,15 @@ class XCharDeviceDriver : public tDriver
   virtual ~XCharDeviceDriver() {}
  protected:
   const shared_ptr<XCharInterface> &interface() const {return m_interface;}
-  //! open all interfaces.
-  virtual void openInterfaces() throw (XInterface::XInterfaceError &);
-  //! close all interfaces.
-  virtual void closeInterfaces();
+  //! Be called just after opening interface. Call start() inside this routine appropriately.
+  virtual void open() throw (XInterface::XInterfaceError &) {tDriver::start();}
+  //! Be called during stopping driver. Call interface()->stop() inside this routine.
+  virtual void close() throw (XInterface::XInterfaceError &) {interface()->stop();}
+  void onOpen(const shared_ptr<XInterface> &);
+  void onClose(const shared_ptr<XInterface> &);
  private:
+  shared_ptr<XListener> m_lsnOnOpen, m_lsnOnClose;
+  
   shared_ptr<XCharInterface> m_interface;
 };
 
@@ -38,18 +42,31 @@ XCharDeviceDriver<tDriver>::XCharDeviceDriver(const char *name, bool runtime,
             dynamic_pointer_cast<XDriver>(tDriver::shared_from_this())))
 {
     interfaces->insert(m_interface);
+    m_lsnOnOpen = interface()->onOpen().connectWeak(false,
+    	 XCharDeviceDriver<tDriver>::shared_from_this(), &XCharDeviceDriver<tDriver>::onOpen);
+    m_lsnOnClose = interface()->onClose().connectWeak(false, 
+    	XCharDeviceDriver<tDriver>::shared_from_this(), &XCharDeviceDriver<tDriver>::onClose);
 }
 template<class tDriver>
 void
-XCharDeviceDriver<tDriver>::openInterfaces() throw (XInterface::XInterfaceError &)
+XCharDeviceDriver<tDriver>::onOpen(const shared_ptr<XInterface> &)
 {
-	interface()->open();
+	try {
+		XCharDeviceDriver<tDriver>::open();
+	}
+	catch (XInterface::XInterfaceError& e) {
+		e.print(tDriver::getLabel() + KAME::i18n(": Opening interface failed, because"));
+	}
 }
 template<class tDriver>
 void
-XCharDeviceDriver<tDriver>::closeInterfaces()
+XCharDeviceDriver<tDriver>::onClose(const shared_ptr<XInterface> &)
 {
-	interface()->close();
+	try {
+		XCharDeviceDriver<tDriver>::stop();
+	}
+	catch (XInterface::XInterfaceError& e) {
+		e.print(tDriver::getLabel() + KAME::i18n(": Stopping driver failed, because"));
+	}
 }
-
 #endif /*CHARDEVICEDRIVER_H_*/

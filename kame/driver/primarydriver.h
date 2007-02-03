@@ -28,10 +28,14 @@ class XPrimaryDriver : public XDriver
   virtual const shared_ptr<XRecordDependency> dependency() const 
         {return shared_ptr<XRecordDependency>();}
  protected:
-   //! open all interfaces.
-  virtual void openInterfaces() throw (XInterface::XInterfaceError &) = 0;
-  //! close all interfaces.
-  virtual void closeInterfaces() = 0;
+  //! Start up your threads, connect GUI, and activate signals
+  virtual void start() = 0;
+  //! Shut down your threads, unconnect GUI, and deactivate signals
+  //! this may be called even if driver has already stopped.
+  virtual void stop() = 0;  
+  //! Be called for closing interfaces.
+  virtual void afterStop() = 0;  
+    
   //! this is called when raw is written 
   //! unless dependency is broken
   //! convert raw to record
@@ -76,6 +80,5 @@ class XPrimaryDriver : public XDriver
   static int32_t _pop_int32(std::vector<char>::iterator &it);
   static double _pop_double(std::vector<char>::iterator &it);
 };
-
 
 #endif /*PRIMARYDRIVER_H_*/

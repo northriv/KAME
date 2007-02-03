@@ -33,9 +33,9 @@ class XTDS : public XCharDeviceDriver<XDSO>
   virtual void onRecordLengthChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onForceTriggerTouched(const shared_ptr<XNode> &);
 
-  virtual void afterStart();
-  virtual void beforeStop() {}
-
+  //! Be called just after opening interface. Call start() inside this routine appropriately.
+  virtual void open() throw (XInterface::XInterfaceError &);
+  
   virtual double getTimeInterval();
   //! clear count or start sequence measurement
   virtual void startSequence();

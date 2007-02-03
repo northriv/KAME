@@ -16,8 +16,6 @@ class XSHPulser : public XCharDeviceDriver<XPulser>
   virtual ~XSHPulser() {}
 
  protected:
-    virtual void afterStart() {}
-    
     //! send patterns to pulser or turn-off
     virtual void changeOutput(bool output);
     //! convert RelPatList to native patterns

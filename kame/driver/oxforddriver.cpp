@@ -58,17 +58,11 @@ XOxfordInterface::open() throw (XInterfaceError &)
 }
 
 void
-XOxfordInterface::close()
+XOxfordInterface::close() throw (XInterfaceError &)
 {
     if(!isOpened()) return;
-    try {
       send("C0"); //local
       XCharInterface::close();
-    }
-    catch (XCommError &e) {
-      e.print(driver()->getLabel() + KAME::i18n(": close Oxford port failed, because"));
-      return;
-    }
 }
 void
 XOxfordInterface::receive() throw (XCommError &) {

@@ -91,8 +91,6 @@ XTempControl::showForms() {
 void
 XTempControl::start()
 {
-  openInterfaces();
-
   m_thread.reset(new XThread<XTempControl>(shared_from_this(), &XTempControl::execute));
   m_thread->resume();
 }
@@ -209,15 +207,6 @@ XTempControl::execute(const atomic<bool> &terminated)
   double tempErrAvg = 0.0;
   XTime lasttime = XTime::now();
   
-  try {
-    afterStart(); 
-  }
-  catch (XKameError &e) {
-      e.print(getLabel() + "; ");
-      closeInterfaces();
-      return NULL;
-  }
-
   m_currentChannel->setUIEnabled(true);
   m_powerRange->setUIEnabled(true);
   m_heaterMode->setUIEnabled(true);
@@ -327,12 +316,11 @@ XTempControl::execute(const atomic<bool> &terminated)
   m_targetTemp->setUIEnabled(false);
   
   try {
-    beforeStop(); 
+    afterStop(); 
   }
   catch (XKameError &e) {
       e.print(getLabel() + "; ");
   }
-  closeInterfaces();
   return NULL;
 }
 

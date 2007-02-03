@@ -40,8 +40,6 @@ XDCSource::showForms() {
 void
 XDCSource::start()
 {
-  openInterfaces();
-    
   m_output->setUIEnabled(true);
   m_function->setUIEnabled(true);
   m_value->setUIEnabled(true);
@@ -64,7 +62,7 @@ XDCSource::stop()
   m_function->setUIEnabled(false);
   m_value->setUIEnabled(false);
   
-  closeInterfaces();
+  afterStop();
 }
 
 void

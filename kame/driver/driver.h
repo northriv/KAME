@@ -28,10 +28,6 @@ class XDriver : public XNode
   //! show all forms belonging to driver
   virtual void showForms() = 0;
  
-  void startMeas();
-  //! this can be called even if driver has already stopped.
-  void stopMeas();
-  
   //! called during parsing
    XTalker<shared_ptr<XDriver> > &onRecord() {return m_tlkRecord;}
   //! lock analysed members and entries
@@ -66,12 +62,6 @@ class XDriver : public XNode
     XBufferUnderflowRecordError(const char *file, int line);
   };
  
-  //! Start up your threads, connect GUI, and activate signals
-  virtual void start() = 0;
-  //! Shut down your threads, unconnect GUI, and deactivate signals
-  //! this may be called even if driver has already stopped.
-  virtual void stop() = 0;
-  
   //! this is called after analyze() or analyzeRaw()
   //! record is readLocked
   virtual void visualize() = 0;

@@ -7,7 +7,6 @@
 #include <vector>
 
 class XDriver;
-
 //! virtual class for communication devices.
 //! \sa XCharInterface
 class XInterface : public XNode
@@ -31,8 +30,10 @@ public:
     XOpenInterfaceError(const char *file, int line);
  };
  
- shared_ptr<XDriver> driver() const {return m_driver.lock();}
+ void setLabel(const std::string& str) {m_label = str;}
+ virtual std::string getLabel() const;
  
+ shared_ptr<XDriver> driver() const {return m_driver.lock();}
  //! type of interface or driver.
  const shared_ptr<XComboNode> &device() const {return m_device;}
   //! port number or device name.
@@ -41,32 +42,43 @@ public:
  const shared_ptr<XUIntNode> &address() const {return m_address;}
   //! e.g. Serial port baud rate.
  const shared_ptr<XUIntNode> &baudrate() const {return m_baudrate;}
- //! True if interface is opened.
- const shared_ptr<XBoolNode> &opened() const {return m_opened;}
+ //! True if interface is opened. Start/stop interface.
+ const shared_ptr<XBoolNode> &control() const {return m_control;}
 
   void lock() {m_mutex.lock();}
   void unlock() {m_mutex.unlock();}
   bool isLocked() const {return m_mutex.isLockedByCurrentThread();}
 
   XRecursiveMutex &mutex() {return m_mutex;}
-  
-  virtual void open() throw (XInterfaceError &) = 0;
-  //! This can be called even if has already closed.
-  virtual void close() = 0;
     
   virtual bool isOpened() const = 0;
-private:
-  weak_ptr<XDriver> m_driver;
 
+  void stop();
+  
+  XTalker<shared_ptr<XInterface> > &onOpen() {return m_tlkOnOpen;}
+  XTalker<shared_ptr<XInterface> > &onClose() {return m_tlkOnClose;}
+protected:  
+  virtual void open() throw (XInterfaceError &) = 0;
+  //! This can be called even if has already closed.
+  virtual void close() throw (XInterfaceError &) = 0;
+private:
+  void start();
+  void onControlChanged(const shared_ptr<XValueNodeBase> &);
+
+  weak_ptr<XDriver> m_driver;
   shared_ptr<XComboNode> m_device;
   shared_ptr<XStringNode> m_port;
   shared_ptr<XUIntNode> m_address;
   shared_ptr<XUIntNode> m_baudrate;
-  shared_ptr<XBoolNode> m_opened;
+  shared_ptr<XBoolNode> m_control;
+
+  shared_ptr<XListener> lsnOnControlChanged;
+  XTalker<shared_ptr<XInterface> > m_tlkOnOpen, m_tlkOnClose;
       
   XRecursiveMutex m_mutex;
+  
+  std::string m_label;
 };
-
 
 class XInterfaceList : public XAliasListNode<XInterface>
 {

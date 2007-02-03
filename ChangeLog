@@ -1,3 +1,7 @@
+* Sat Feb 3 2007 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.1.0-3)
+- introduce XCharDeviceDriver::{open(),close()}, XPrimaryDriver::afterStop()
+
 * Fri Feb 2 2007 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
 - (2.1.0-2)
 - chardevicedriver.h, oxforddriver.h : use such like XCharDeviceDriver<...> for driver w/ one character-based interface.

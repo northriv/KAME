@@ -26,10 +26,6 @@ public:
   int toInt() const throw (XConvError &);
   unsigned int toUInt() const throw (XConvError &);
   
-  virtual void open() throw (XInterfaceError &);
-  //! This can be called even if has already closed.
-  virtual void close();
-  
   void send(const std::string &str) throw (XCommError &);
   virtual void send(const char *str) throw (XCommError &);
   //! format version of send()
@@ -63,6 +59,10 @@ public:
   unsigned char gpibMAVbit() const {return m_gpibMAVbit;}
   
   virtual bool isOpened() const {return m_xport;}
+protected:
+  virtual void open() throw (XInterfaceError &);
+  //! This can be called even if has already closed.
+  virtual void close() throw (XInterfaceError &);
 private:
   std::string m_eos;
   bool m_bGPIBUseSerialPollOnWrite;
@@ -73,7 +73,7 @@ private:
   unsigned char m_gpibMAVbit; //! don't check if zero
   
   shared_ptr<XPort> m_xport;
-  
+
   //! for scripting
   shared_ptr<XStringNode> m_script_send;
   shared_ptr<XStringNode> m_script_query;

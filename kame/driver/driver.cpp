@@ -26,29 +26,6 @@ XDriver::XDriver(const char *name, bool runtime,
 }
 
 void
-XDriver::startMeas() {
-    //! clear time
-    m_recordTime = XTime();
-    shared_ptr<XRecordDependency> dep(dependency());
-    if(dep) dep->clear();
-    try {
-        start();
-    }
-    catch (XKameError &e) {
-        e.print(getLabel() + "; ");
-    }
-}
-void
-XDriver::stopMeas() {
-    try {
-        stop();
-    }
-    catch (XKameError &e) {
-        e.print(getLabel() + "; ");
-    }
-}
-
-void
 XDriver::readUnlockRecord() const {
     m_recordLock.readUnlock();
 }

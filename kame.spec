@@ -6,7 +6,7 @@
 
 Name: kame
 Version: 2.1.0
-Release: 2
+Release: 3
 License: GPL
 Group: Applications/Engineering
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)

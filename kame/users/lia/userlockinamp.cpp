@@ -70,7 +70,7 @@ XSR830::get(double *cos, double *sin)
             m_cCount = 10;
 }
 void
-XSR830::afterStart()
+XSR830::open() throw (XInterface::XInterfaceError &)
 {
       interface()->query("OFLT?");
       timeConst()->value(interface()->toInt());
@@ -80,11 +80,14 @@ XSR830::afterStart()
       output()->value(interface()->toDouble());
       interface()->query("FREQ?");
       frequency()->value(interface()->toDouble());
+      
+      start();
 }
 void
-XSR830::beforeStop()
+XSR830::afterStop()
 {
       interface()->send("LOCL 0");
+      close();
 }
 void
 XSR830::changeOutput(double x)
@@ -141,7 +144,7 @@ XAH2500A::get(double *cap, double *loss)
             throw XInterface::XConvError(__FILE__, __LINE__);
 }
 void
-XAH2500A::afterStart()
+XAH2500A::open() throw (XInterface::XInterfaceError &)
 {
   interface()->query("SH AV");
   int d;
@@ -160,11 +163,14 @@ XAH2500A::afterStart()
   autoScaleY()->setUIEnabled(false);
   sensitivity()->setUIEnabled(false);
   frequency()->setUIEnabled(false);
+  
+  start();
 }
 void
-XAH2500A::beforeStop()
+XAH2500A::afterStop()
 {
   interface()->send("LOC");
+  close();
 }
 void
 XAH2500A::changeOutput(double x)

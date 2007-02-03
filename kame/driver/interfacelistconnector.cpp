@@ -40,33 +40,14 @@ XInterfaceListConnector::XInterfaceListConnector(
 }
 
 void
-XInterfaceListConnector::onControlTouched(const shared_ptr<XNode> &node)
+XInterfaceListConnector::onControlChanged(const shared_ptr<XValueNodeBase> &node)
 {
   for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++)
     {
-      if(it->control == node)
+      if(it->interface->control() == node)
         {
-            if(!it->interface->isOpened()) {
-//                it->control->isUIEnabled(false);
-                it->interface->driver()->startMeas();
-            }
-            else {
-//                it->control->isUIEnabled(false);
-                it->interface->driver()->stopMeas();
-            }
-        }
-    }
-}
-void
-XInterfaceListConnector::onOpenedChanged(const shared_ptr<XValueNodeBase> &node)
-{
-  for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++)
-    {
-      if(it->interface->opened() == node)
-        {
-            it->control->setUIEnabled(true);
             KApplication *app = KApplication::kApplication();
-            if(*it->interface->opened()) {
+            if(*it->interface->control()) {
                 it->btn->setIconSet( app->iconLoader()->loadIconSet("stop", 
                     KIcon::Toolbar, KIcon::SizeSmall, true ) );
                 it->btn->setText(KAME::i18n("&STOP"));
@@ -84,15 +65,14 @@ XInterfaceListConnector::onCatch(const shared_ptr<XNode> &node) {
   shared_ptr<XInterface> interface = dynamic_pointer_cast<XInterface>(node);
   int i = m_pItem->numRows();
   m_pItem->insertRows(i);
-  m_pItem->setText(i, 0, interface->driver()->getLabel());
+  m_pItem->setText(i, 0, interface->getLabel());
   struct tcons con;
   con.interface = interface;
-  con.control = createOrphan<XNode>("Control", true);
   con.btn = new QPushButton(m_pItem);
-  con.btn->setToggleButton(false);
+  con.btn->setToggleButton(true);
   con.btn->setAutoDefault(false);
   con.btn->setFlat(true);
-  con.concontrol = xqcon_create<XQButtonConnector>(con.control, con.btn);    
+  con.concontrol = xqcon_create<XQToggleButtonConnector>(interface->control(), con.btn);    
   m_pItem->setCellWidget(i, 1, con.btn);
   QComboBox *cmbdev(new QComboBox(m_pItem) );
   con.condev = xqcon_create<XQComboBoxConnector>(interface->device(), cmbdev);
@@ -103,12 +83,10 @@ XInterfaceListConnector::onCatch(const shared_ptr<XNode> &node) {
   QSpinBox *numAddr(new QSpinBox(0, 32, 1, m_pItem) );
   con.conaddr = xqcon_create<XQSpinBoxConnector>(interface->address(), numAddr);
   m_pItem->setCellWidget(i, 4, numAddr);
-  con.lsnOnControlTouched = con.control->onTouch().connectWeak(
-        true, shared_from_this(), &XInterfaceListConnector::onControlTouched, true);
-  con.lsnOnOpenedChanged = interface->opened()->onValueChanged().connectWeak(
-        true, shared_from_this(), &XInterfaceListConnector::onOpenedChanged, true);
+  con.lsnOnControlChanged = interface->control()->onValueChanged().connectWeak(
+        true, shared_from_this(), &XInterfaceListConnector::onControlChanged, true);
   m_cons.push_back(con);
-  onOpenedChanged(interface->opened());
+  onControlChanged(interface->control());
 }
 void
 XInterfaceListConnector::onRelease(const shared_ptr<XNode> &node) {

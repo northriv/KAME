@@ -16,9 +16,11 @@ XITC503::XITC503(const char *name, bool runtime,
   heaterMode()->add("Man");
 }
 void
-XITC503::afterStart()
+XITC503::open() throw (XInterface::XInterfaceError &)
 {
   powerRange()->setUIEnabled(false);
+
+  start();
 }
 double
 XITC503::getRaw(shared_ptr<XChannel> &channel)
@@ -172,17 +174,21 @@ XAVS47IB::getRaw(shared_ptr<XChannel> &)
   return getRes();
 }
 void
-XAVS47IB::afterStart()
+XAVS47IB::open() throw (XInterface::XInterfaceError &)
 {
   msecsleep(200);
   interface()->send("REM 1;ARN 0;DIS 0");
   currentChannel()->str(formatString("%d",(int)lrint(read("MUX"))));
   manualPower()->setUIEnabled(false);
+  
+  start();
 }
 void
-XAVS47IB::beforeStop()
+XAVS47IB::afterStop()
 {
   interface()->send("REM 0"); //LOCAL
+  
+  close();
 }
 
 int
@@ -306,7 +312,7 @@ XCryoconM32::XCryoconM32(const char *name, bool runtime,
   powerRange()->add("LOW");
 }
 void
-XCryocon::afterStart()
+XCryocon::open() throw (XInterface::XInterfaceError &)
 {
   getChannel();
   interface()->query("HEATER:RANGE?");
@@ -331,9 +337,11 @@ XCryocon::afterStart()
   interval()->str(std::string(&interface()->buffer()[0]));
   interface()->query("HEATER:DGAIN?");
   deriv()->str(std::string(&interface()->buffer()[0]));
+  
+  start();
 }
 void
-XCryoconM62::afterStart()
+XCryoconM62::open() throw (XInterface::XInterfaceError &)
 {
   powerRange()->clear();
   interface()->query("HEATER:LOAD?");
@@ -351,7 +359,7 @@ XCryoconM62::afterStart()
       powerRange()->add("2.5W");
       powerRange()->add("25W");
     }
-  XCryocon::afterStart();
+  XCryocon::open();
 }
 void
 XCryocon::onPChanged(const shared_ptr<XValueNodeBase> &) {
@@ -573,7 +581,7 @@ XLakeShore340::onExcitationChanged(const shared_ptr<XValueNodeBase> &)
 {
 }
 void
-XLakeShore340::afterStart()
+XLakeShore340::open() throw (XInterface::XInterfaceError &)
 {
   interface()->query("CSET?");
   currentChannel()->str(std::string(&interface()->buffer()[0]));
@@ -617,5 +625,7 @@ XLakeShore340::afterStart()
   prop()->value(p);
   interval()->value(i);
   deriv()->value(d);
+  
+  start();
 }
 

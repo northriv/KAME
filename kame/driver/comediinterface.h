@@ -9,22 +9,21 @@
 
 #include <comedilib.h>
 
-class XComediPort : public XPort
+class XComediInterface : public XInterface
 {
+ XNODE_OBJECT
+protected:
+ XComediInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
 public:
- XComediPort(XInterface *interface);
- virtual ~XComediPort();
- 
-  virtual void open() throw (XInterface::XCommError &);
-  virtual void send(const char *str) throw (XInterface::XCommError &);
-  virtual void write(const char *sendbuf, int size) throw (XInterface::XCommError &);
-  virtual void receive() throw (XInterface::XCommError &);
-  virtual void receive(unsigned int length) throw (XInterface::XCommError &);
-
+ virtual ~XComediInterface() {}
+   
+  virtual void open() throw (XInterfaceError &);
+  //! This can be called even if has already closed.
+  virtual void close();
+  
+  virtual bool isOpened() const {return pDev;}
 private:
-  void comedi_close() throw (XInterface::XCommError &);
   comedi_t *pDev;
-  QString errmsg(const QString &str);
 };
  	
  #endif //HAVE_COMEDI

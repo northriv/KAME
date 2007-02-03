@@ -58,8 +58,6 @@ class XMagnetPS : public XPrimaryDriver
   const shared_ptr<XBoolNode> &pcsHeater() const {return m_pcsHeater;}
   const shared_ptr<XBoolNode> &persistent() const {return m_persistent;}
   
-  virtual void afterStart() = 0;
-  
   virtual double fieldResolution() = 0;
   virtual void toNonPersistent() = 0;
   virtual void toPersistent() = 0;

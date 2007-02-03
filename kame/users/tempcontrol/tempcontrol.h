@@ -68,10 +68,6 @@ class XTempControl : public XPrimaryDriver
   //! record is readLocked
   virtual void visualize();
   
-  //! driver specific part below
-  virtual void afterStart() = 0;
-  virtual void beforeStop() {}
-  
   //! register channel names in your constructor
   //! \param multiread if true, simultaneous reading of multi channels.
   //! \param channel_names array of pointers to channel name. ends with null pointer.

@@ -118,8 +118,6 @@ XDSO::showForms() {
 void
 XDSO::start()
 {
-  openInterfaces();
-      
   m_thread.reset(new XThread<XDSO>(shared_from_this(), &XDSO::execute));
   m_thread->resume();
 }
@@ -188,15 +186,6 @@ XDSO::execute(const atomic<bool> &terminated)
   XTime time_awared = XTime::now();
   int last_count = 0;
   
-  try {
-      afterStart();
-  }
-  catch (XKameError &e) {
-      e.print(getLabel());
-      closeInterfaces();
-      return NULL;
-  }
-
   m_lsnOnAverageChanged = average()->onValueChanged().connectWeak(
                            false, shared_from_this(), &XDSO::onAverageChanged);
   m_lsnOnSingleChanged = singleSequence()->onValueChanged().connectWeak(
@@ -332,13 +321,12 @@ XDSO::execute(const atomic<bool> &terminated)
   m_lsnOnRecordLengthChanged.reset();
                             
   try {
-      beforeStop();
+      afterStop();
   }
   catch (XKameError &e) {
       e.print(getLabel());
   }
-  
-  closeInterfaces();
+
   return NULL;
 }
 

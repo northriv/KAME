@@ -24,7 +24,6 @@ XWAVEFACTORY::XWAVEFACTORY(const char *name, bool runtime,
 	mode()->add("NOISE");
 	mode()->add("DC");
 }
-
 /*
 double
 XWAVEFACTORY::Read(void)

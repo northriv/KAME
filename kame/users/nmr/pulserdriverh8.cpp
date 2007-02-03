@@ -48,7 +48,7 @@ XH8Pulser::XH8Pulser(const char *name, bool runtime,
     interface()->baudrate()->value(115200);
 }
 void
-XH8Pulser::afterStart()
+XH8Pulser::open() throw (XInterface::XInterfaceError &)
 {
   p1Func()->setUIEnabled(false);
   p2Func()->setUIEnabled(false);
@@ -75,6 +75,8 @@ XH8Pulser::afterStart()
   qswDelay()->setUIEnabled(false);
   qswWidth()->setUIEnabled(false);
   qswPiPulseOnly()->setUIEnabled(false);
+  
+  start();
 }
 
 void

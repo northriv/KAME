@@ -46,14 +46,9 @@ XCharInterface::setEOS(const char *str) {
          
 void
 XCharInterface::open() throw (XInterfaceError &)
-{
-  XScopedLock<XCharInterface> lock(*this);
-  try {
-      
-      if(isOpened()) {
-          throw XInterfaceError(KAME::i18n("Port has already opened"), __FILE__, __LINE__);
-      }
-        
+{        
+      m_xport.reset();
+
       g_statusPrinter->printMessage(driver()->getLabel() + KAME::i18n(": Starting..."));
     
       {
@@ -70,27 +65,18 @@ XCharInterface::open() throw (XInterfaceError &)
             port.reset(new XDummyPort(this));
           }
           
-          if(!port) throw XOpenInterfaceError(__FILE__, __LINE__);
-            
+          if(!port) {
+          	throw XOpenInterfaceError(__FILE__, __LINE__);
+          }
+          
           port->open();
           m_xport.swap(port);
       }
-  }
-  catch (XInterfaceError &e) {
-          gErrPrint(driver()->getLabel() + KAME::i18n(": Opening port failed, because"));
-          m_xport.reset();
-          throw e;
-  }
-  //g_statusPrinter->clear();
 }
 void
-XCharInterface::close()
+XCharInterface::close() throw (XInterfaceError &)
 {
-  XScopedLock<XCharInterface> lock(*this);
-//  if(isOpened()) 
-//    g_statusPrinter->printMessage(QString(driver()->getLabel()) + KAME::i18n(": Stopping..."));
   m_xport.reset();
-  //g_statusPrinter->clear();
 }
 int
 XCharInterface::scanf(const char *fmt, ...) const {
@@ -275,17 +261,7 @@ shared_ptr<XPort> port = m_xport;
 XPort::XPort(XCharInterface *interface)
  : m_pInterface(interface)
 {
-  m_pInterface->opened()->value(true);
-  m_pInterface->device()->setUIEnabled(false);
-  m_pInterface->port()->setUIEnabled(false);
-  m_pInterface->address()->setUIEnabled(false);
-  m_pInterface->baudrate()->setUIEnabled(false);   
 }
 XPort::~XPort()
 {
-  m_pInterface->device()->setUIEnabled(true);
-  m_pInterface->port()->setUIEnabled(true);
-  m_pInterface->address()->setUIEnabled(true);
-  m_pInterface->baudrate()->setUIEnabled(true);
-  m_pInterface->opened()->value(false);
 }

@@ -16,8 +16,8 @@ class XH8Pulser : public XCharDeviceDriver<XPulser>
   virtual ~XH8Pulser() {}
 
  protected:
-    virtual void afterStart();
-    
+  //! Be called just after opening interface. Call start() inside this routine appropriately.
+  virtual void open() throw (XInterface::XInterfaceError &);
     //! send patterns to pulser or turn-off
     virtual void changeOutput(bool output);
     //! convert RelPatList to native patterns

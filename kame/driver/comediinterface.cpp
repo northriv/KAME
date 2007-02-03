@@ -1,18 +1,19 @@
 #include "comediinterface.h"
-
+ #ifdef HAVE_COMEDI
+ 
 QString
-XComediPort::errmsg(const QString &msg)
+XComediInterface::errmsg(const QString &msg)
 {
 	return QString(msg) + ": " + comedi_strerror(comedi_errno());
 }
 
-XComediPort::XComediPort(XInterface *interface)
+XComediInterface::XComediInterface(XInterface *interface)
  : XPort(interface)
 {
 	comedi_loglevel(3);
 }
 
-XComediPort::~XComediPort()
+XComediInterface::~XComediInterface()
 {
     try {
         comedi_close();
@@ -21,7 +22,7 @@ XComediPort::~XComediPort()
     }
 } 
 void
-XComediPort::open() throw (XInterface::XCommError &)
+XComediInterface::open() throw (XInterfaceError &)
 {
 	comedi_t *pdev = comedi_open(m_pInterface->port()->to_str());
 	pDev = pdev;
@@ -31,26 +32,11 @@ XComediPort::open() throw (XInterface::XCommError &)
 	}
 }
 void
-XComediPort::comedi_close() throw (XInterface::XCommError &)
+XComediInterface::close() throw (XInterface::XCommError &)
 {
 	if(pDev)
 		comedi_close(pDev);
 }
 
-void
-XComediPort::send(const char *str) throw (XInterface::XCommError &)
-{
-  ASSERT(m_pInterface->isOpened());
-}
-void
-XComediPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &)
-{
-  ASSERT(m_pInterface->isOpened());
-}
-void
-XComediPort::receive() throw (XInterface::XCommError &) {
-}
-void
-XComediPort::receive(unsigned int length) throw (XInterface::XCommError &)
-{
-}
+
+ #endif //HAVE_COMEDI

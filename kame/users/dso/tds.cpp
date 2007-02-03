@@ -35,7 +35,7 @@ XTDS::XTDS(const char *name, bool runtime,
  }
 
 void
-XTDS::afterStart()
+XTDS::open() throw (XInterface::XInterfaceError &)
 {
   interface()->send("HEADER ON");
   interface()->query("ACQ:STOPAFTER?");
@@ -58,6 +58,8 @@ XTDS::afterStart()
   if(!strncmp(buf, "SAM", 3))
        average()->value(1);
   interface()->send("DATA:ENC RPB;WIDTH 2"); //MSB first RIB
+  
+  start();
 }
 void 
 XTDS::onAverageChanged(const shared_ptr<XValueNodeBase> &) {

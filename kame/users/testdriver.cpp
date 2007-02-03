@@ -26,6 +26,7 @@ XTestDriver::showForms() {
 void
 XTestDriver::start()
 {
+	openInterfaces();
     m_thread.reset(new XThread<XTestDriver>(shared_from_this(), &XTestDriver::execute));
     m_thread->resume();
 }
@@ -34,6 +35,7 @@ XTestDriver::stop()
 {
     if(m_thread) m_thread->terminate();
 //    m_thread->waitFor();
+	closeInterfaces();
 }
 void
 XTestDriver::analyzeRaw() throw (XRecordError&)

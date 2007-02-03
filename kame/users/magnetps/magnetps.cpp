@@ -73,8 +73,6 @@ XMagnetPS::showForms() {
 void
 XMagnetPS::start()
 {
-  openInterfaces();
-  
   m_thread.reset(new XThread<XMagnetPS>(shared_from_this(), &XMagnetPS::execute));
   m_thread->resume();
 }
@@ -127,7 +125,6 @@ XMagnetPS::execute(const atomic<bool> &terminated)
   bool last_pcsh;
   
   try {
-    afterStart();
     field_resolution = fieldResolution();
     is_pcs_fitted = isPCSFitted();
     sweepRate()->value(getSweepRate());
@@ -136,7 +133,7 @@ XMagnetPS::execute(const atomic<bool> &terminated)
   }
   catch (XKameError&e) {
     e.print(getLabel());
-    closeInterfaces();
+    afterStop();
     return NULL;
   }
 
@@ -277,6 +274,11 @@ XMagnetPS::execute(const atomic<bool> &terminated)
   sweepRate()->setUIEnabled(false);
   allowPersistent()->setUIEnabled(false);
       
-  closeInterfaces();
+  try {
+      afterStop();
+  }
+  catch (XKameError &e) {
+      e.print(getLabel() + " " + KAME::i18n("Error while closing, "));
+  }
   return NULL;
 }

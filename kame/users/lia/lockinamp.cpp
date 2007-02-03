@@ -63,8 +63,6 @@ XLIA::showForms() {
 void
 XLIA::start()
 {
-    openInterfaces();
-    
     m_thread.reset(new XThread<XLIA>(shared_from_this(), &XLIA::execute));
     m_thread->resume();
 }
@@ -141,16 +139,6 @@ XLIA::onTimeConstChanged(const shared_ptr<XValueNodeBase> &)
 void *
 XLIA::execute(const atomic<bool> &terminated)
 {
-  try {
-      afterStart();
-  }
-  catch (XKameError &e) {
-      e.print(getLabel() + " " +  KAME::i18n("Error while starting, "));
-      closeInterfaces();
-      return NULL;
-  }
-
-    
   m_output->setUIEnabled(true);
   m_frequency->setUIEnabled(true);
   m_sensitivity->setUIEnabled(true);
@@ -208,12 +196,10 @@ XLIA::execute(const atomic<bool> &terminated)
   m_fetchFreq->setUIEnabled(false);
   
   try {
-      beforeStop();
+      afterStop();
   }
   catch (XKameError &e) {
       e.print(getLabel() + " " + KAME::i18n("Error while closing, "));
   }
-    
-  closeInterfaces();
   return NULL;
 }

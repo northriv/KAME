@@ -392,8 +392,6 @@ XPulser::onMoreConfigShow(const shared_ptr<XNode> &)
 void
 XPulser::start()
 {
-  openInterfaces();
-
   output()->setUIEnabled(true);
   combMode()->setUIEnabled(true);
   rtMode()->setUIEnabled(true);
@@ -443,8 +441,6 @@ XPulser::start()
   qswPiPulseOnly()->setUIEnabled(true);
   invertPhase()->setUIEnabled(true);
 
-  afterStart();
-      
   m_lsnOnPulseChanged = combMode()->onValueChanged().connectWeak(
                          false, shared_from_this(), &XPulser::onPulseChanged);
   rtime()->onValueChanged().connect(m_lsnOnPulseChanged);
@@ -548,7 +544,7 @@ XPulser::stop()
   qswPiPulseOnly()->setUIEnabled(false);
   invertPhase()->setUIEnabled(false);
   
-  closeInterfaces();
+  afterStop();
 //    m_thread->waitFor();
 //  thread must do interface()->close() at the end
 }

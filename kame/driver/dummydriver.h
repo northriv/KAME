@@ -13,9 +13,13 @@ class XDummyInterface : public XInterface
 public:
  virtual ~XDummyInterface() {}
 
-  virtual void open() throw (XInterfaceError &) {m_bOpened = true;}
+  virtual void open() throw (XInterfaceError &) {
+  	m_bOpened = true;
+  }
   //! This can be called even if has already closed.
-  virtual void close() {m_bOpened = false;}
+  virtual void close() throw (XInterfaceError &) {
+  	m_bOpened = false;
+  }
 
   virtual bool isOpened() const {return m_bOpened;}
 private:
@@ -34,12 +38,12 @@ class XDummyDriver : public tDriver
  public:
   virtual ~XDummyDriver() {}
  protected:
+  virtual void afterStop() {}
   const shared_ptr<XDummyInterface> &interface() const {return m_interface;}
-  //! open all interfaces.
-  virtual void openInterfaces() throw (XInterface::XInterfaceError &);
-  //! close all interfaces.
-  virtual void closeInterfaces();
  private:
+  shared_ptr<XListener> m_lsnOnOpen, m_lsnOnClose;
+  void onOpen(const shared_ptr<XInterface> &);
+  void onClose(const shared_ptr<XInterface> &);
   shared_ptr<XDummyInterface> m_interface;
 };
 
@@ -54,19 +58,32 @@ XDummyDriver<tDriver>::XDummyDriver(const char *name, bool runtime,
             dynamic_pointer_cast<XDriver>(tDriver::shared_from_this())))
 {
     interfaces->insert(m_interface);
+    m_lsnOnOpen = interface()->onOpen().connectWeak(false,
+    	XDummyDriver<tDriver>::shared_from_this(), &XDummyDriver<tDriver>::onOpen);
+    m_lsnOnClose = interface()->onClose().connectWeak(false,
+    	XDummyDriver<tDriver>::shared_from_this(), &XDummyDriver<tDriver>::onClose);
 }
 template<class tDriver>
 void
-XDummyDriver<tDriver>::openInterfaces() throw (XInterface::XInterfaceError &)
+XDummyDriver<tDriver>::onOpen(const shared_ptr<XInterface> &)
 {
-	interface()->open();
+	try {
+		XDummyDriver<tDriver>::start();
+	}
+	catch (XInterface::XInterfaceError& e) {
+		e.print(tDriver::getLabel() + KAME::i18n(": Starting driver failed, because"));
+	}
 }
 template<class tDriver>
 void
-XDummyDriver<tDriver>::closeInterfaces()
+XDummyDriver<tDriver>::onClose(const shared_ptr<XInterface> &)
 {
-	interface()->close();
+	try {
+		XDummyDriver<tDriver>::stop();
+	}
+	catch (XInterface::XInterfaceError& e) {
+		e.print(tDriver::getLabel() + KAME::i18n(": Stopping driver failed, because"));
+	}
 }
-
 
 #endif /*DUMMYDRIVER_H_*/
