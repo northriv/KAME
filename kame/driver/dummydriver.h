@@ -72,7 +72,7 @@ XDummyDriver<tDriver>::onOpen(const shared_ptr<XInterface> &)
 	}
 	catch (XInterface::XInterfaceError& e) {
 		e.print(this->getLabel() + KAME::i18n(": Starting driver failed, because "));
-		close();
+		interface()->stop();
 	}
 }
 template<class tDriver>

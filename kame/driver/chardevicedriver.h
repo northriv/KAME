@@ -25,6 +25,7 @@ class XCharDeviceDriver : public tDriver
   virtual void close() throw (XInterface::XInterfaceError &) {interface()->stop();}
   void onOpen(const shared_ptr<XInterface> &);
   void onClose(const shared_ptr<XInterface> &);
+  //! This should not cause an exception.
   virtual void afterStop() {close();}
  private:
   shared_ptr<XListener> m_lsnOnOpen, m_lsnOnClose;

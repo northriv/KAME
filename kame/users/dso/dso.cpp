@@ -321,12 +321,7 @@ XDSO::execute(const atomic<bool> &terminated)
   m_lsnOnForceTriggerTouched.reset();
   m_lsnOnRecordLengthChanged.reset();
                             
-  try {
-      afterStop();
-  }
-  catch (XKameError &e) {
-      e.print(getLabel());
-  }
+  afterStop();
 
   return NULL;
 }

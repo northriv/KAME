@@ -48,11 +48,13 @@ class XNIDAQmxDSO : public XNIDAQmxDriver<XDSO>
   //! load waveform and settings from instrument
   virtual void getWave(std::deque<std::string> &channels);
  private:
-  std::vector<double> m_records[2];
+  std::vector<float64> m_record, m_record_buf;
+  int m_accumCount;
+  //! for moving av.
+  std::deque<std::vector<float64> > m_record_av; 
   std::deque<std::string> m_analogTrigSrc, m_digitalTrigSrc;
   TaskHandle m_task;
   double m_interval;
-  XMutex m_tasklock;
   int m_acqCount;
   void setupAcquision();
   void setupTrigger();

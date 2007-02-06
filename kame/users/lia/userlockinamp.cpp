@@ -86,8 +86,13 @@ XSR830::open() throw (XInterface::XInterfaceError &)
 void
 XSR830::afterStop()
 {
+	try {
       interface()->send("LOCL 0");
-      close();
+	}
+	catch (XInterface::XInterfaceError &e) {
+		e.print(getLabel());
+	}
+    close();
 }
 void
 XSR830::changeOutput(double x)
@@ -169,7 +174,12 @@ XAH2500A::open() throw (XInterface::XInterfaceError &)
 void
 XAH2500A::afterStop()
 {
-  interface()->send("LOC");
+	try {
+	  interface()->send("LOC");
+	}
+	catch (XInterface::XInterfaceError &e) {
+		e.print(getLabel());
+	}
   close();
 }
 void

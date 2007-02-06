@@ -59,7 +59,7 @@ XInterface::start()
   XScopedLock<XInterface> lock(*this);
   try {
       if(isOpened()) {
-	      e.print(getLabel() + KAME::i18n("Port has already opened"));
+	      gErrPrint(getLabel() + KAME::i18n("Port has already opened"));
 	      return;
       }
       open();

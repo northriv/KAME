@@ -31,11 +31,14 @@ class XPrimaryDriver : public XDriver
 
   //! Shut down your threads, unconnect GUI, and deactivate signals
   //! this may be called even if driver has already stopped.
+  //! This should not cause an exception.
   virtual void stop() = 0;  
  protected:
   //! Start up your threads, connect GUI, and activate signals
+  //! This should not cause an exception.
   virtual void start() = 0;
   //! Be called for closing interfaces.
+  //! This should not cause an exception.
   virtual void afterStop() = 0;  
     
   //! this is called when raw is written 

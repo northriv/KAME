@@ -195,12 +195,6 @@ XLIA::execute(const atomic<bool> &terminated)
   m_lsnSens.reset();
   m_lsnTimeConst.reset();
 
-  
-  try {
-      afterStop();
-  }
-  catch (XKameError &e) {
-      e.print(getLabel() + " " + KAME::i18n("Error while closing, "));
-  }
+  afterStop();
   return NULL;
 }

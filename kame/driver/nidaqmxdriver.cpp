@@ -9,6 +9,13 @@ char str[2048];
 	DAQmxGetExtendedErrorInfo(str, sizeof(str));
 	return QString(str);
 }
+QString
+XNIDAQmxInterface::getNIDAQmxErrMessage(int status)
+{
+char str[2048];
+	DAQmxGetErrorString(status, str, sizeof(str));
+	return QString(str);
+}
 int
 XNIDAQmxInterface::checkDAQmxError(const QString &msg, const char*file, int line) {
 	throw XInterface::XInterfaceError(msg + " " + getNIDAQmxErrMessage(), file, line);

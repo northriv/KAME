@@ -276,11 +276,6 @@ XMagnetPS::execute(const atomic<bool> &terminated)
  
   m_lsnRate.reset();
       
-  try {
-      afterStop();
-  }
-  catch (XKameError &e) {
-      e.print(getLabel() + " " + KAME::i18n("Error while closing, "));
-  }
+  afterStop();
   return NULL;
 }

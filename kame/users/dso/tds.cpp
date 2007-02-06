@@ -189,8 +189,7 @@ XTDS::getTimeInterval()
 void
 XTDS::getWave(std::deque<std::string> &channels)
 {
-  interface()->lock();
-  try {
+XScopedLock<XInterface> lock(*interface());
       int pos = 1;
       int width = 20000;
       for(std::deque<std::string>::iterator it = channels.begin();
@@ -204,12 +203,6 @@ XTDS::getWave(std::deque<std::string> &channels)
           rawData().insert(rawData().end(), 
                 interface()->buffer().begin(), interface()->buffer().end());
         }
-  }
-  catch (XKameError& e) {
-      interface()->unlock();
-      throw e;
-  }
-  interface()->unlock();
 }
 void
 XTDS::convertRaw() throw (XRecordError&) {

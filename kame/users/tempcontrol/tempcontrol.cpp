@@ -316,12 +316,7 @@ XTempControl::execute(const atomic<bool> &terminated)
   m_lsnOnCurrentChannelChanged.reset();
 
   
-  try {
-    afterStop(); 
-  }
-  catch (XKameError &e) {
-      e.print(getLabel() + "; ");
-  }
+  afterStop(); 
   return NULL;
 }
 

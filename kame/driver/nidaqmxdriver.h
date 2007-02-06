@@ -22,6 +22,7 @@ public:
  virtual ~XNIDAQmxInterface() {}
  
   static QString getNIDAQmxErrMessage();
+  static QString getNIDAQmxErrMessage(int status);
   static int checkDAQmxError(const QString &msg, const char*file, int line);
 
   virtual bool isOpened() const {return m_devname.length();}
@@ -62,6 +63,7 @@ class XNIDAQmxDriver : public tDriver
   virtual void close() throw (XInterface::XInterfaceError &) {interface()->stop();}
   void onOpen(const shared_ptr<XInterface> &);
   void onClose(const shared_ptr<XInterface> &);
+  //! This should not cause an exception.
   virtual void afterStop() {close();}
  private:
   shared_ptr<XListener> m_lsnOnOpen, m_lsnOnClose;

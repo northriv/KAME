@@ -45,6 +45,7 @@ class XDMM : public XPrimaryDriver
   //! called when m_function is changed
   virtual void changeFunction() = 0;
   
+  //! This should not cause an exception.
   virtual void afterStop() = 0;
  private:
   //! called when m_function is changed

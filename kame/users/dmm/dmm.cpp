@@ -119,12 +119,7 @@ XDMM::execute(const atomic<bool> &terminated)
     
     m_lsnOnFunctionChanged.reset();
         
-	  try {
-	      afterStop();
-	  }
-	  catch (XKameError &e) {
-	      e.print(getLabel());
-	  }
+    afterStop();
   return NULL;
 }
 

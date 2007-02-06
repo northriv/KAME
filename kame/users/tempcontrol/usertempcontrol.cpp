@@ -186,7 +186,12 @@ XAVS47IB::open() throw (XInterface::XInterfaceError &)
 void
 XAVS47IB::afterStop()
 {
-  interface()->send("REM 0"); //LOCAL
+	try {
+	  interface()->send("REM 0"); //LOCAL
+	}
+	catch (XInterface::XInterfaceError &e) {
+		e.print(getLabel());
+	}
   
   close();
 }
