@@ -75,10 +75,17 @@ XMagnetPS::start()
 {
   m_thread.reset(new XThread<XMagnetPS>(shared_from_this(), &XMagnetPS::execute));
   m_thread->resume();
+  
+  targetField()->setUIEnabled(true);
+  sweepRate()->setUIEnabled(true);
 }
 void
 XMagnetPS::stop()
 {
+  targetField()->setUIEnabled(false);
+  sweepRate()->setUIEnabled(false);
+  allowPersistent()->setUIEnabled(false);
+	
     if(m_thread) m_thread->terminate();
 //    m_thread->waitFor();
 //  thread must do interface()->close() at the end
@@ -140,9 +147,7 @@ XMagnetPS::execute(const atomic<bool> &terminated)
   if(is_pcs_fitted ) allowPersistent()->setUIEnabled(true);
   m_lsnRate = sweepRate()->onValueChanged().connectWeak(
                         false, shared_from_this(), &XMagnetPS::onRateChanged);
-  
-  targetField()->setUIEnabled(true);
-  sweepRate()->setUIEnabled(true);
+
   
     while(!terminated)
     {
@@ -270,9 +275,6 @@ XMagnetPS::execute(const atomic<bool> &terminated)
    }
  
   m_lsnRate.reset();
-  targetField()->setUIEnabled(false);
-  sweepRate()->setUIEnabled(false);
-  allowPersistent()->setUIEnabled(false);
       
   try {
       afterStop();

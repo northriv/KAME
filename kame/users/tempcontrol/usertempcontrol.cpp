@@ -18,9 +18,8 @@ XITC503::XITC503(const char *name, bool runtime,
 void
 XITC503::open() throw (XInterface::XInterfaceError &)
 {
-  powerRange()->setUIEnabled(false);
-
   start();
+  powerRange()->setUIEnabled(false);
 }
 double
 XITC503::getRaw(shared_ptr<XChannel> &channel)
@@ -179,9 +178,10 @@ XAVS47IB::open() throw (XInterface::XInterfaceError &)
   msecsleep(200);
   interface()->send("REM 1;ARN 0;DIS 0");
   currentChannel()->str(formatString("%d",(int)lrint(read("MUX"))));
-  manualPower()->setUIEnabled(false);
   
   start();
+
+  manualPower()->setUIEnabled(false);
 }
 void
 XAVS47IB::afterStop()

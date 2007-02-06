@@ -93,10 +93,28 @@ XTempControl::start()
 {
   m_thread.reset(new XThread<XTempControl>(shared_from_this(), &XTempControl::execute));
   m_thread->resume();
+
+  m_currentChannel->setUIEnabled(true);
+  m_powerRange->setUIEnabled(true);
+  m_heaterMode->setUIEnabled(true);
+  m_prop->setUIEnabled(true);
+  m_int->setUIEnabled(true);
+  m_deriv->setUIEnabled(true);
+  m_manualPower->setUIEnabled(true);
+  m_targetTemp->setUIEnabled(true);
 }
 void
 XTempControl::stop()
 {
+  m_currentChannel->setUIEnabled(false);
+  m_powerRange->setUIEnabled(false);
+  m_heaterMode->setUIEnabled(false);
+  m_prop->setUIEnabled(false);
+  m_int->setUIEnabled(false);
+  m_deriv->setUIEnabled(false);
+  m_manualPower->setUIEnabled(false);
+  m_targetTemp->setUIEnabled(false);
+  	
     if(m_thread) m_thread->terminate();
 //    m_thread->waitFor();
 //  thread must do interface()->close() at the end
@@ -207,15 +225,6 @@ XTempControl::execute(const atomic<bool> &terminated)
   double tempErrAvg = 0.0;
   XTime lasttime = XTime::now();
   
-  m_currentChannel->setUIEnabled(true);
-  m_powerRange->setUIEnabled(true);
-  m_heaterMode->setUIEnabled(true);
-  m_prop->setUIEnabled(true);
-  m_int->setUIEnabled(true);
-  m_deriv->setUIEnabled(true);
-  m_manualPower->setUIEnabled(true);
-  m_targetTemp->setUIEnabled(true);
-
   m_lsnOnPChanged = prop()->onValueChanged().connectWeak(
                 false, shared_from_this(), &XTempControl::onPChanged);
   m_lsnOnIChanged = interval()->onValueChanged().connectWeak(
@@ -306,14 +315,6 @@ XTempControl::execute(const atomic<bool> &terminated)
   m_lsnOnPowerRangeChanged.reset();
   m_lsnOnCurrentChannelChanged.reset();
 
-  m_currentChannel->setUIEnabled(false);
-  m_powerRange->setUIEnabled(false);
-  m_heaterMode->setUIEnabled(false);
-  m_prop->setUIEnabled(false);
-  m_int->setUIEnabled(false);
-  m_deriv->setUIEnabled(false);
-  m_manualPower->setUIEnabled(false);
-  m_targetTemp->setUIEnabled(false);
   
   try {
     afterStop(); 

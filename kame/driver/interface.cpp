@@ -59,12 +59,13 @@ XInterface::start()
   XScopedLock<XInterface> lock(*this);
   try {
       if(isOpened()) {
-          throw XInterfaceError(KAME::i18n("Port has already opened"), __FILE__, __LINE__);
+	      e.print(getLabel() + KAME::i18n("Port has already opened"));
+	      return;
       }
       open();
   }
   catch (XInterfaceError &e) {
-        e.print(getLabel() + KAME::i18n(": Opening port failed, because"));
+        e.print(getLabel() + KAME::i18n(": Opening interface failed, because "));
 		lsnOnControlChanged->mask();
 		control()->value(false);
 		lsnOnControlChanged->unmask();
@@ -76,9 +77,9 @@ XInterface::start()
   address()->setUIEnabled(false);
   baudrate()->setUIEnabled(false);
 
-	lsnOnControlChanged->mask();
-	control()->value(true);
-	lsnOnControlChanged->unmask();
+  lsnOnControlChanged->mask();
+  control()->value(true);
+  lsnOnControlChanged->unmask();
 	
   m_tlkOnOpen.talk(dynamic_pointer_cast<XInterface>(shared_from_this()));
 }

@@ -41,10 +41,16 @@ XDMM::start()
 {
     m_thread.reset(new XThread<XDMM>(shared_from_this(), &XDMM::execute));
     m_thread->resume();
+
+    m_function->setUIEnabled(true);
+    m_waitInms->setUIEnabled(true);
 }
 void
 XDMM::stop()
 {
+    m_function->setUIEnabled(false);
+    m_waitInms->setUIEnabled(false);
+
     if(m_thread) m_thread->terminate();
 //    m_thread->waitFor();
 //  thread must do interface()->close() at the end
@@ -87,10 +93,7 @@ XDMM::execute(const atomic<bool> &terminated)
           afterStop();
           return NULL;
     }
-    
-    m_function->setUIEnabled(true);
-    m_waitInms->setUIEnabled(true);
-    
+        
     m_lsnOnFunctionChanged = 
         function()->onValueChanged().connectWeak(
                         false, shared_from_this(), &XDMM::onFunctionChanged);    
@@ -115,8 +118,6 @@ XDMM::execute(const atomic<bool> &terminated)
     }
     
     m_lsnOnFunctionChanged.reset();
-    m_function->setUIEnabled(false);
-    m_waitInms->setUIEnabled(false);
         
 	  try {
 	      afterStop();

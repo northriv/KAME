@@ -86,14 +86,14 @@ XNIDAQmxDriver<tDriver>::XNIDAQmxDriver(const char *name, bool runtime,
 }
 template<class tDriver>
 void
-XNIDAQmxDriver<tDriver>::onOpen(const shared_ptr<XInterface> &intf)
+XNIDAQmxDriver<tDriver>::onOpen(const shared_ptr<XInterface> &)
 {
 	try {
 		open();
 	}
 	catch (XInterface::XInterfaceError& e) {
-		e.print(this->getLabel() + KAME::i18n(": Opening interface failed, because"));
-		onClose(intf);
+		e.print(this->getLabel() + KAME::i18n(": Opening interface failed, because "));
+		close();
 	}
 }
 template<class tDriver>
@@ -104,7 +104,7 @@ XNIDAQmxDriver<tDriver>::onClose(const shared_ptr<XInterface> &)
 		this->stop();
 	}
 	catch (XInterface::XInterfaceError& e) {
-		e.print(this->getLabel() + KAME::i18n(": Stopping driver failed, because"));
+		e.print(this->getLabel() + KAME::i18n(": Stopping driver failed, because "));
 	}
 }
 #endif //HAVE_NI_DAQMX

@@ -120,10 +120,44 @@ XDSO::start()
 {
   m_thread.reset(new XThread<XDSO>(shared_from_this(), &XDSO::execute));
   m_thread->resume();
+  
+  trace1()->setUIEnabled(false);
+  trace2()->setUIEnabled(false);
+  average()->setUIEnabled(true);
+  singleSequence()->setUIEnabled(true);
+  fetch()->setUIEnabled(true);
+  timeWidth()->setUIEnabled(true);
+  trigSource()->setUIEnabled(true);
+  trigPos()->setUIEnabled(true);
+  trigLevel()->setUIEnabled(true);
+  trigFalling()->setUIEnabled(true);
+  vFullScale1()->setUIEnabled(true);
+  vFullScale2()->setUIEnabled(true);
+  vOffset1()->setUIEnabled(true);
+  vOffset2()->setUIEnabled(true);
+  forceTrigger()->setUIEnabled(true);
+  recordLength()->setUIEnabled(true);
 }
 void
 XDSO::stop()
-{ 
+{   
+  trace1()->setUIEnabled(true);
+  trace2()->setUIEnabled(true);
+  average()->setUIEnabled(false);
+  singleSequence()->setUIEnabled(false);
+  fetch()->setUIEnabled(false);
+  timeWidth()->setUIEnabled(false);
+  trigSource()->setUIEnabled(false);
+  trigPos()->setUIEnabled(false);
+  trigLevel()->setUIEnabled(false);
+  trigFalling()->setUIEnabled(false);
+  vFullScale1()->setUIEnabled(false);
+  vFullScale2()->setUIEnabled(false);
+  vOffset1()->setUIEnabled(false);
+  vOffset2()->setUIEnabled(false);
+  forceTrigger()->setUIEnabled(false);
+  recordLength()->setUIEnabled(false);  
+  	
   if(m_thread) m_thread->terminate();
 //    m_thread->waitFor();
 //  thread must do interface()->close() at the end
@@ -213,23 +247,7 @@ XDSO::execute(const atomic<bool> &terminated)
   m_lsnOnRecordLengthChanged = recordLength()->onValueChanged().connectWeak(
                           false, shared_from_this(), &XDSO::onRecordLengthChanged);
 
-  trace1()->setUIEnabled(false);
-  trace2()->setUIEnabled(false);
-  average()->setUIEnabled(true);
-  singleSequence()->setUIEnabled(true);
-  fetch()->setUIEnabled(true);
-  timeWidth()->setUIEnabled(true);
-  trigSource()->setUIEnabled(true);
-  trigPos()->setUIEnabled(true);
-  trigLevel()->setUIEnabled(true);
-  trigFalling()->setUIEnabled(true);
-  vFullScale1()->setUIEnabled(true);
-  vFullScale2()->setUIEnabled(true);
-  vOffset1()->setUIEnabled(true);
-  vOffset2()->setUIEnabled(true);
-  forceTrigger()->setUIEnabled(true);
-  recordLength()->setUIEnabled(true);
-    
+
   while(!terminated)
     {
       
@@ -288,23 +306,6 @@ XDSO::execute(const atomic<bool> &terminated)
           continue;
       }
     }
-    
-  trace1()->setUIEnabled(true);
-  trace2()->setUIEnabled(true);
-  average()->setUIEnabled(false);
-  singleSequence()->setUIEnabled(false);
-  fetch()->setUIEnabled(false);
-  timeWidth()->setUIEnabled(false);
-  trigSource()->setUIEnabled(false);
-  trigPos()->setUIEnabled(false);
-  trigLevel()->setUIEnabled(false);
-  trigFalling()->setUIEnabled(false);
-  vFullScale1()->setUIEnabled(false);
-  vFullScale2()->setUIEnabled(false);
-  vOffset1()->setUIEnabled(false);
-  vOffset2()->setUIEnabled(false);
-  forceTrigger()->setUIEnabled(false);
-  recordLength()->setUIEnabled(false);  
 
   m_lsnOnAverageChanged.reset();
   m_lsnOnSingleChanged.reset();
