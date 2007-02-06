@@ -19,14 +19,6 @@ XNIDAQmxDSO::_checkError(int code, const char *msg, const char *file, int line)
         _gWarnPrint(msg, file, line);
 }
 
-void
-XNIDAQmxDSO::splitList(const char *str, std::deque<std::string> &list)
-{
-	QStringList qlist = QString(str).split(QRegExp("\\s+"));
-	for(QListIterator<QString> it = qlist.constBegin(); it != qlist.constEnd(); it++)
-		list.push_back(std::string(*it));
-}
-
 //---------------------------------------------------------------------------
 XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
    const shared_ptr<XScalarEntryList> &scalarentries,

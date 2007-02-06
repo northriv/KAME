@@ -18,6 +18,8 @@ libdriver_a_SOURCES = interface.cpp interface.h \
 	driverlistconnector.cpp driverlistconnector.h \
 	interfacelistconnector.cpp interfacelistconnector.h 
 
+#	comediinterface.cpp comediinterface.h \
+
 METASOURCES = AUTO
 
 SUBDIRS = forms

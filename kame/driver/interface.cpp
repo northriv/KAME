@@ -44,6 +44,7 @@ void
 XInterface::onControlChanged(const shared_ptr<XValueNodeBase> &)
 {
 	if(*control()) {
+	    g_statusPrinter->printMessage(driver()->getLabel() + KAME::i18n(": Starting..."));
 		start();
 	}
 	else {

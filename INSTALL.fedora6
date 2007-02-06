@@ -12,17 +12,6 @@ compat-gcc-34-c++
 rpmdevtools
 (ccache)
 
-CVS_RSH=ssh CVSROOT=:ext:--@--:/Users/northriv/Documents/Projects/CVS cvs co kame
-
-#cat <<EOF >> ~/.rpmmacros
-#%_topdir      %(echo $HOME)/rpmbuild
-#%_smp_mflags  -j3
-#%__arch_install_post   /usr/lib/rpm/check-rpaths   /usr/lib/rpm/check-buildroot
-#EOF
-#mkdir -p ~/rpmbuild/SPECS
-#mkdir -p ~/rpmbuild/BUILD
-#mkdir -p ~/rpmbuild/RPMS
-#mkdir -p ~/rpmbuild/SRPMS
 fedora-buildrpmtree
 
 #linux-gpib 3.2.08
@@ -31,11 +20,43 @@ rpmbuild --rebuild linux-gpib-{ver}.src.rpm
 #install the two rpms
 #see /usr/share/doc/linux-gpib/INSTALL
 
-#comedi-0.7.73
-rpmbuild --target=`uname -m` --rebuild comedi-kmod-{ver}.src.rpm
-rpmbuild --rebuild comedi-{ver}.src.rpm
-#install the two rpms
+#Install NI-DAQmx 8.0 for Linux
+#yum install yum-utils
+
+su
+cd /usr/src/kernels/`uname -r`-`uname -m`
+sed -e 's/fatal("parse error in symbol dump file\\n");/return;/' scripts/mod/modpost.c > tmp
+mv -f tmp scripts/mod/modpost.c 
+make scripts
+cat <<EOF >> include/linux/config.h
+#include <linux/mm.h>
+#define VM_SHM 0
+#define put_page_testzero
+EOF
+cat include/linux/utsrelease.h >> include/linux/version.h 
+(cd include/asm; ln -s asm-offsets.h asm_offsets.h )
+cd (NIDAQ800-REDHAT directory)
+./INSTALL --accept-license
+cd (NIKAL-1.4 directory)
+./INSTALL --accept-license
+/usr/local/bin/updateNIDrivers
+rpm -Uvh labview82-rte* #for DAQmxTestPanels
+
+cd /usr/src/kernels/`uname -r`-`uname -m`
+rpm -e kernel-devel
+rm -fR include
+yum -y install kernel-devel
+#for DAQmxTestPanels
+(cd /usr/local/lib; ln -s LabVIEW-8.2/linux/libOSMesa.so.4 .)
+exit
+#SELinux (memory protection) allow textshlib...
+#SELinux (memory protection) allow execheap		
+LD_PRELOAD=/usr/local/lib/LabView-8.2/patchlib/libGL.so.1 /usr/local/bin/DAQmxTestPanels
+
 
 ./mkrpm.sh kame-2.0.13.tar.bz2 
 #install the rpm
+
+#for cvs
+CVS_RSH=ssh CVSROOT=:ext:--@--:/Users/northriv/Documents/Projects/CVS cvs co kame
 

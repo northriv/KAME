@@ -48,8 +48,6 @@ void
 XCharInterface::open() throw (XInterfaceError &)
 {        
       m_xport.reset();
-
-      g_statusPrinter->printMessage(driver()->getLabel() + KAME::i18n(": Starting..."));
     
       {
       shared_ptr<XPort> port;
