@@ -22,7 +22,7 @@ public:
  virtual ~XNIDAQmxInterface() {}
  
   static QString getNIDAQmxErrMessage();
-  int checkDAQmxError(const QString &msg, const char*file, int line);
+  static int checkDAQmxError(const QString &msg, const char*file, int line);
 
   virtual bool isOpened() const {return m_devname.length();}
   

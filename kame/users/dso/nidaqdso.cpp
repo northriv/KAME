@@ -77,18 +77,17 @@ XNIDAQmxDSO::setupTrigger()
          != m_analogTrigSrc.end()) {
         CHECK_DAQMX_RET(DAQmxCfgAnlgEdgeRefTrig(m_task,
             trigSource()->to_str().c_str(),
-            *trigFalling ? DAQmx_Val_FallingSlope : DAQmx_Val_RisingSlope,
+            *trigFalling() ? DAQmx_Val_FallingSlope : DAQmx_Val_RisingSlope,
             *trigLevel(),
-            - *trigPos() / getTimeInterval()),
+            - lrintl(*trigPos() / getTimeInterval())),
             "Trigger Setup");
     }
     if(std::find(m_digitalTrigSrc.begin(), m_digitalTrigSrc.end(), trigSource()->to_str())
          != m_digitalTrigSrc.end()) {
         CHECK_DAQMX_RET(DAQmxCfgDigEdgeRefTrig(m_task,
             trigSource()->to_str().c_str(),
-            *trigFalling ? DAQmx_Val_FallingSlope : DAQmx_Val_RisingSlope,
-            *trigLevel(),
-            - *trigPos() / getTimeInterval()),
+            *trigFalling() ? DAQmx_Val_FallingSlope : DAQmx_Val_RisingSlope,
+            - lrintl(*trigPos() / getTimeInterval())),
             "Trigger Setup");
     }
     CHECK_DAQMX_RET(DAQmxStartTask(m_task), "Start Task");
@@ -214,7 +213,7 @@ XNIDAQmxDSO::onForceTriggerTouched(const shared_ptr<XNode> &)
 int32
 XNIDAQmxDSO::_acqCallBack(TaskHandle task, int32 status, void *data)
 {
-    XNIDAQmxDSO *obj = reinterpret_cast<XNIDAQmxDSO>(data);
+    XNIDAQmxDSO *obj = reinterpret_cast<XNIDAQmxDSO*>(data);
     return obj->acqCallBack(task, status);
 }
 int32
@@ -225,7 +224,7 @@ XNIDAQmxDSO::acqCallBack(TaskHandle task, int32 status)
     int len = *recordLength();
     int32 cnt;
     std::vector<float64> buf(len * 2);
-    CHECK_DAQMX_RET(DAQmxReadAnalogF64(m_task, DAQmx_Val_Auto,
+    CHECK_DAQMX_RET(DAQmxReadAnalogF64(task, DAQmx_Val_Auto,
         0, DAQmx_Val_GroupByChannel,
         &buf[0], len * 2, &cnt, NULL
         ), "Read");
@@ -235,12 +234,12 @@ XNIDAQmxDSO::acqCallBack(TaskHandle task, int32 status)
         double *prec = &m_records[ch][0];
         float64 *pbuf = &buf[cnt * ch];
         for(int i = 0; i < cnt; i++) {
-            (*prec++) += (*pbuf++)
+            (*prec++) += (*pbuf++);
         }
     }
     m_acqCount++;
-    if(*singleSequence() && (m_acqCount >= *average())) {
-        CHECK_DAQMX_RET(DAQmxDisableStartTrigger(m_task), "Disable Trigger");       
+    if(*singleSequence() && ((unsigned int)m_acqCount >= *average())) {
+        CHECK_DAQMX_RET(DAQmxDisableRefTrig(m_task), "Disable Trigger");       
     }
 }
 void
@@ -257,7 +256,7 @@ XNIDAQmxDSO::acqCount(bool *seq_busy)
 //    int ret = DAQmxWaitForNextSampleClock(*m_task, 1.0, &late);
 //    if(late)
 //        gWarnPrint(i18n("Real Time Operation Failed."));
-    *seq_busy = (m_acqCount < *average());
+    *seq_busy = ((unsigned int)m_acqCount < *average());
     return m_acqCount;
 }
 
@@ -277,7 +276,7 @@ XNIDAQmxDSO::getWave(std::deque<std::string> &channels)
 }
 void
 XNIDAQmxDSO::convertRaw() throw (XRecordError&) {
-
+/*
   setRecordDim(ch_cnt, xoff, xin, width);
   
   cp = buf;
@@ -294,7 +293,7 @@ XNIDAQmxDSO::convertRaw() throw (XRecordError&) {
       for(; i < width; i++) {
       	  *(wave++) = 0.0;
       }
-    }  
+    }  */
 }
 
 #endif //HAVE_NI_DAQMX

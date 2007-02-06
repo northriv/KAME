@@ -50,13 +50,16 @@ class XNIDAQmxDSO : public XNIDAQmxDriver<XDSO>
  private:
   std::vector<double> m_records[2];
   std::deque<std::string> m_analogTrigSrc, m_digitalTrigSrc;
-  unsigned int m_task;
+  TaskHandle m_task;
   double m_interval;
   XMutex m_tasklock;
   int m_acqCount;
   void setupAcquision();
   void setupTrigger();
+  void setupTiming();
   void createChannels();
+  static int32 _acqCallBack(TaskHandle, int32, void*);
+  int32 acqCallBack(TaskHandle task, int32 status);
 };
 
 #endif //HAVE_NI_DAQMX
