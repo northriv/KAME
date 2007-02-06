@@ -603,7 +603,7 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
   //write echo into m_wave
   backgroundSub(m_picRawWaveSum, pos, length, bgpos, bglength, windowfunc);
   
-    if(!*exAvgIncr() && (*extraAvg() =< m_waveAv.size()) && !m_waveAv.empty())  {
+    while(!*exAvgIncr() && (*extraAvg() <= m_waveAv.size()) && !m_waveAv.empty())  {
       for(int i = 0; i < length; i++) {
         m_rawWaveSum[i] -= m_waveAv.front()[i];
         }

@@ -4,7 +4,6 @@
 
 #include "xwavengraph.h"
 #include <klocale.h>
-#include <numeric>
 
 #define TASK_UNDEF ((TaskHandle)-1)
 #define MAX_NUM_CH 2
@@ -87,7 +86,7 @@ XNIDAQmxDSO::setupTrigger()
             trigSource()->to_str().c_str(),
             *trigFalling() ? DAQmx_Val_FallingSlope : DAQmx_Val_RisingSlope,
             *trigLevel(),
-            - lrintl(*trigPos() / getTimeInterval())),
+            lrintl(*trigPos() / getTimeInterval())),
             "Trigger Setup");
     }
     if(std::find(m_digitalTrigSrc.begin(), m_digitalTrigSrc.end(), trigSource()->to_str())
@@ -95,7 +94,7 @@ XNIDAQmxDSO::setupTrigger()
         CHECK_DAQMX_RET(DAQmxCfgDigEdgeRefTrig(m_task,
             trigSource()->to_str().c_str(),
             *trigFalling() ? DAQmx_Val_FallingSlope : DAQmx_Val_RisingSlope,
-            - lrintl(*trigPos() / getTimeInterval())),
+            lrintl(*trigPos() / getTimeInterval())),
             "Trigger Setup");
     }
     CHECK_DAQMX_RET(DAQmxStartTask(m_task), "Start Task");
@@ -251,14 +250,16 @@ XNIDAQmxDSO::acqCallBack(TaskHandle task, int32 status)
 	        &m_record_buf[0], m_record_buf.size(), &cnt, NULL
 	        ), "Read");
 	    ASSERT(cnt * num_ch <= len);
-	   	std::accumrate(m_record_buf.begin(), &m_record_buf[cnt * num_ch], m_record.begin());	   	
+	      for(unsigned int i = 0; i < m_record.size(); i++) {
+	        m_record[i] += m_record_buf[i];
+	      }
 	    m_acqCount++;
 	    m_accumCount++;
 
 		int av = *average();
 		bool sseq = *singleSequence();
 		
-	    if(!sseq && (av =< m_record_av.size()) && !m_record_av.empty())  {
+	    while(!sseq && (av <= m_record_av.size()) && !m_record_av.empty())  {
 	      for(unsigned int i = 0; i < m_record.size(); i++) {
 	        m_record[i] -= m_record_av.front()[i];
 	      }
