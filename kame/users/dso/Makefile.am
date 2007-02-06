@@ -12,10 +12,9 @@ INCLUDES = -I$(top_srcdir)/. \
 	$(all_includes)
 
 libdso_a_SOURCES = fir.cpp fir.h \
+	nidaqdso.cpp nidaqdso.h \
 	dso.cpp dso.h \
 	tds.cpp tds.h
-	
-#	nidaqdso.cpp nidaqdso.h
 
 METASOURCES = AUTO
 

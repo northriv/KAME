@@ -32,8 +32,6 @@ protected:
   virtual void open() throw (XInterfaceError &);
   //! This can be called even if has already closed.
   virtual void close() throw (XInterfaceError &);
-
-	virtual char *devPhysicalChans(const char *device, char *data, uInt32 bufferSize) = 0;
 private:
 	std::string m_devname;
 };

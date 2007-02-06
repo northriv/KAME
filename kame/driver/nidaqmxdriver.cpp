@@ -32,6 +32,18 @@ std::deque<std::string> list;
 	parseList(buf, list);
 	for(std::deque<std::string>::iterator it = list.begin(); it != list.end(); it++) {
 		CHECK_DAQMX_RET(DAQmxGetDevProductType(*it, buf, sizeof(buf)), "");
+//		int32 type;
+//		CHECK_DAQMX_RET(DAQmxGetDevBusType(*it, &type), "");
+//		std::string ts;
+//		switch(type) {
+//			case DAQmx_Val_PCI: ts = "PCI"; break;
+//			case DAQmx_Val_PCIe: ts = "PCIe"; break;
+//			case DAQmx_Val_PXI: ts = "PXI"; break;
+//			case DAQmx_Val_SCXI: ts = "SCXI"; break;
+//			case DAQmx_Val_USB: ts = "USB"; break;
+//			default: ts = "Unknown"; break;
+//		}
+//		device()->add(*it + " [" + buf + "-" + ts + "]");
 		device()->add(*it + " [" + buf + "]");
 	}
 }

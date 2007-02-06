@@ -3,10 +3,12 @@
 
 #include "dso.h"
 
+#include "nidaqmxdriver.h"
+
 #ifdef HAVE_NI_DAQMX
 
 //! Software DSO w/ NI DAQmx
-class XNIDAQmxDSO : public XDSO
+class XNIDAQmxDSO : public XNIDAQmxDriver<XDSO>
 {
  XNODE_OBJECT
  protected:
@@ -19,6 +21,11 @@ class XNIDAQmxDSO : public XDSO
   //! convert raw to record
   virtual void convertRaw() throw (XRecordError&);
  protected:
+  //! Be called just after opening interface. Call start() inside this routine appropriately.
+  virtual void open() throw (XInterface::XInterfaceError &);
+  //! Be called during stopping driver. Call interface()->stop() inside this routine.
+  virtual void close() throw (XInterface::XInterfaceError &);
+
   virtual void onAverageChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onSingleChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onTrigSourceChanged(const shared_ptr<XValueNodeBase> &);
@@ -33,9 +40,6 @@ class XNIDAQmxDSO : public XDSO
   virtual void onRecordLengthChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onForceTriggerTouched(const shared_ptr<XNode> &);
 
-  virtual void afterStart();
-  virtual void beforeStop();
-
   virtual double getTimeInterval();
   //! clear count or start sequence measurement
   virtual void startSequence();
@@ -47,13 +51,12 @@ class XNIDAQmxDSO : public XDSO
   std::vector<double> m_records[2];
   std::deque<std::string> m_analogTrigSrc, m_digitalTrigSrc;
   unsigned int m_task;
+  double m_interval;
   XMutex m_tasklock;
   int m_acqCount;
   void setupAcquision();
   void setupTrigger();
   void createChannels();
-  void _checkError(int code, const char *msg, const char *file, int line);
-  void splitList(const char *, std::deque<std::string> &);
 };
 
 #endif //HAVE_NI_DAQMX
