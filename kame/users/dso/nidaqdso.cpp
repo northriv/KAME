@@ -4,7 +4,6 @@
 
 #include "xwavengraph.h"
 #include <klocale.h>
-#include <QRegExp>
 
 #define TASK_UNDEF ((TaskHandle)-1)
 
@@ -100,7 +99,7 @@ XNIDAQmxDSO::setupTiming()
     m_acqCount = 0;
 	XScopedLock<XMutex> lock(m_tasklock);
     CHECK_DAQMX_RET(DAQmxStopTask(m_task), "Stop Task");
-    m_timeInterval = 
+
     CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_task,
         NULL, // internal source
         *recordLength() / *timeWidth(),

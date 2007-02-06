@@ -54,7 +54,7 @@ class XNIDAQmxDriver : public tDriver
  public:
   virtual ~XNIDAQmxDriver() {}
  protected:
-  const shared_ptr<XCharInterface> &interface() const {return m_interface;}
+  const shared_ptr<XNIDAQmxInterface> &interface() const {return m_interface;}
   //! Be called just after opening interface. Call start() inside this routine appropriately.
   virtual void open() throw (XInterface::XInterfaceError &) {this->start();}
   //! Be called during stopping driver. Call interface()->stop() inside this routine.
@@ -68,7 +68,6 @@ class XNIDAQmxDriver : public tDriver
   shared_ptr<XNIDAQmxInterface> m_interface;
 };
 
-}
 template<class tDriver>
 void
 XNIDAQmxDriver<tDriver>::onOpen(const shared_ptr<XInterface> &)
