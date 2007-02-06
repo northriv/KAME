@@ -50,13 +50,14 @@ XCharDeviceDriver<tDriver>::XCharDeviceDriver(const char *name, bool runtime,
 }
 template<class tDriver>
 void
-XCharDeviceDriver<tDriver>::onOpen(const shared_ptr<XInterface> &)
+XCharDeviceDriver<tDriver>::onOpen(const shared_ptr<XInterface> &intf)
 {
 	try {
 		open();
 	}
 	catch (XInterface::XInterfaceError& e) {
 		e.print(this->getLabel() + KAME::i18n(": Opening interface failed, because"));
+		onClose(intf);
 	}
 }
 template<class tDriver>

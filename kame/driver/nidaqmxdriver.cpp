@@ -11,7 +11,7 @@ char str[2048];
 }
 int
 XNIDAQmxInterface::checkDAQmxError(const QString &msg, const char*file, int line) {
-	throw XInterface::XInterfaceError(msg + getNIDAQmxErrMessage(), file, line);
+	throw XInterface::XInterfaceError(msg + " " + getNIDAQmxErrMessage(), file, line);
 }
 
 void

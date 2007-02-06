@@ -20,8 +20,6 @@ XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
 void
 XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 {
-	this->start();
-
     char buf[2048];
     {
 	    DAQmxGetDevAIPhysicalChans(interface()->devName(), buf, sizeof(buf));
@@ -49,16 +47,20 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
         vFullScale1()->add(sc[i]);
         vFullScale2()->add(sc[i]);
     }
+
     createChannels();
     setupTrigger();
     setupTiming();
+
+	this->start();
 }
 void
 XNIDAQmxDSO::close() throw (XInterface::XInterfaceError &)
 {
 	XScopedLock<XMutex> lock(m_tasklock);
+	if(m_task != TASK_UNDEF)
+	    CHECK_DAQMX_RET(DAQmxClearTask(m_task), "Clear Task");
 	m_task = TASK_UNDEF;
-    CHECK_DAQMX_RET(DAQmxClearTask(m_task), "Clear Task");
     m_analogTrigSrc.clear();
     m_digitalTrigSrc.clear();
     trace1()->clear();
@@ -66,6 +68,7 @@ XNIDAQmxDSO::close() throw (XInterface::XInterfaceError &)
     trigSource()->clear();
     vFullScale1()->clear();
     vFullScale2()->clear();
+    
 	interface()->stop();
 }
 void
@@ -116,9 +119,11 @@ void
 XNIDAQmxDSO::createChannels()
 {
 	XScopedLock<XMutex> lock(m_tasklock);
-	if(m_task == TASK_UNDEF)
+	if(m_task != TASK_UNDEF)
 	    CHECK_DAQMX_RET(DAQmxClearTask(m_task), "Clear Task");
-    CHECK_DAQMX_RET(DAQmxCreateTask("XNIDAQmxDSO", &m_task), "Task Creation");
+	m_task = TASK_UNDEF;
+    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_task), "Task Creation");
+	ASSERT(m_task != TASK_UNDEF);   
     
     if(*trace1() > 0) {
         CHECK_DAQMX_RET(DAQmxCreateAIVoltageChan(m_task,

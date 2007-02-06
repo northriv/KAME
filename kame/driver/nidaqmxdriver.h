@@ -39,7 +39,7 @@ private:
 
 #define CHECK_DAQMX_ERROR(ret, msg) ((ret >= 0) ? ret : XNIDAQmxInterface::checkDAQmxError(msg, __FILE__, __LINE__))
 
-#define CHECK_DAQMX_RET(ret, msg) {if(ret > 0) {gWarnPrint(msg + XNIDAQmxInterface::getNIDAQmxErrMessage()); } \
+#define CHECK_DAQMX_RET(ret, msg) {if(ret > 0) {gWarnPrint(QString(msg) + " " + XNIDAQmxInterface::getNIDAQmxErrMessage()); } \
 	else CHECK_DAQMX_ERROR(ret, msg);}
 
 template<class tDriver>
@@ -68,16 +68,32 @@ class XNIDAQmxDriver : public tDriver
   
   shared_ptr<XNIDAQmxInterface> m_interface;
 };
-
+template<class tDriver>
+XNIDAQmxDriver<tDriver>::XNIDAQmxDriver(const char *name, bool runtime, 
+   const shared_ptr<XScalarEntryList> &scalarentries,
+   const shared_ptr<XInterfaceList> &interfaces,
+   const shared_ptr<XThermometerList> &thermometers,
+   const shared_ptr<XDriverList> &drivers) :
+    tDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
+	m_interface(XNode::create<XNIDAQmxInterface>("Interface", false,
+            dynamic_pointer_cast<XDriver>(this->shared_from_this())))
+{
+    interfaces->insert(m_interface);
+    m_lsnOnOpen = interface()->onOpen().connectWeak(false,
+    	 this->shared_from_this(), &XNIDAQmxDriver<tDriver>::onOpen);
+    m_lsnOnClose = interface()->onClose().connectWeak(false, 
+    	this->shared_from_this(), &XNIDAQmxDriver<tDriver>::onClose);
+}
 template<class tDriver>
 void
-XNIDAQmxDriver<tDriver>::onOpen(const shared_ptr<XInterface> &)
+XNIDAQmxDriver<tDriver>::onOpen(const shared_ptr<XInterface> &intf)
 {
 	try {
 		open();
 	}
 	catch (XInterface::XInterfaceError& e) {
 		e.print(this->getLabel() + KAME::i18n(": Opening interface failed, because"));
+		onClose(intf);
 	}
 }
 template<class tDriver>

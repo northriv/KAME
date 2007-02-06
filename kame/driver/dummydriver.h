@@ -65,13 +65,14 @@ XDummyDriver<tDriver>::XDummyDriver(const char *name, bool runtime,
 }
 template<class tDriver>
 void
-XDummyDriver<tDriver>::onOpen(const shared_ptr<XInterface> &)
+XDummyDriver<tDriver>::onOpen(const shared_ptr<XInterface> &intf)
 {
 	try {
 		this->start();
 	}
 	catch (XInterface::XInterfaceError& e) {
 		e.print(this->getLabel() + KAME::i18n(": Starting driver failed, because"));
+		onClose(intf);
 	}
 }
 template<class tDriver>
