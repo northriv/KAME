@@ -17,6 +17,11 @@ XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
  m_task(TASK_UNDEF)
 {
 }
+XNIDAQmxDSO::~XNIDAQmxDSO()
+{
+	if(m_task != TASK_UNDEF)
+    DAQmxClearTask(m_task);
+}
 void
 XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 {

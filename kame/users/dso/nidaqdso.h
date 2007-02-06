@@ -17,7 +17,7 @@ class XNIDAQmxDSO : public XNIDAQmxDriver<XDSO>
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers);
-  virtual ~XNIDAQmxDSO() {}
+  virtual ~XNIDAQmxDSO();
   //! convert raw to record
   virtual void convertRaw() throw (XRecordError&);
  protected:
