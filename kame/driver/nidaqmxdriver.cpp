@@ -11,15 +11,24 @@ char str[2048];
 }
 int
 XNIDAQmxInterface::checkDAQmxError(const QString &msg, const char*file, int line) {
-	throw XInterface::XInterfaceError(msg + getNIDAQmxErrMessage(ret), file, line);
+	throw XInterface::XInterfaceError(msg + getNIDAQmxErrMessage(), file, line);
 }
 
 void
 XNIDAQmxInterface::parseList(const char *str, std::deque<std::string> &list)
 {
-	QStringList qlist = QString(str).split(QRegExp("\\s+"));
-	for(QListIterator<QString> it = qlist.constBegin(); it != qlist.constEnd(); it++)
-		list.push_back(std::string(*it));
+	list.clear();
+	std::string org(str);
+	const char *del = " \t";
+	for(unsigned int pos = 0; pos != std::string::npos; ) {
+		unsigned int spos = org.find_first_not_of(del, pos);
+		if(spos == std::string::npos) break;
+		pos = org.find_first_of(del, spos);
+		if(pos == std::string::npos)
+			list.push_back(org.substr(spos));
+		else
+			list.push_back(org.substr(spos, pos - spos));
+	}
 }
 
 
@@ -31,7 +40,7 @@ char buf[2048];
 std::deque<std::string> list;
 	parseList(buf, list);
 	for(std::deque<std::string>::iterator it = list.begin(); it != list.end(); it++) {
-		CHECK_DAQMX_RET(DAQmxGetDevProductType(*it, buf, sizeof(buf)), "");
+		CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)), "");
 //		int32 type;
 //		CHECK_DAQMX_RET(DAQmxGetDevBusType(*it, &type), "");
 //		std::string ts;

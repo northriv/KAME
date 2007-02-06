@@ -110,7 +110,7 @@ void
 _dbgPrint(const QString &str, const char *file, int line);
 //! Global Error Message/Printing.
 #define gErrPrint(msg) _gErrPrint(msg, __FILE__, __LINE__)
-#define gWarnPrint(msg) _gWarningPrint(msg, __FILE__, __LINE__)
+#define gWarnPrint(msg) _gWarnPrint(msg, __FILE__, __LINE__)
 void
 _gErrPrint(const QString &str, const char *file, int line);
 void

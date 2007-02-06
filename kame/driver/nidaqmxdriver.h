@@ -8,6 +8,7 @@
 #ifdef HAVE_NI_DAQMX
 
 #include "interface.h"
+#include "driver.h"
 #include <NIDAQmx.h>
 
 class XNIDAQmxTask;
@@ -38,8 +39,8 @@ private:
 
 #define CHECK_DAQMX_ERROR(ret, msg) ((ret >= 0) ? ret : XNIDAQmxInterface::checkDAQmxError(msg, __FILE__, __LINE__))
 
-#define CHECK_DAQMX_RET(ret, msg) {if(ret > 0) {gWarnPrint(msg + XNIDAQmxInterface::getNIDAQmxErrMessage(ret)); } \
-	else CHECK_DAQMX_ERROR(ret, msg);
+#define CHECK_DAQMX_RET(ret, msg) {if(ret > 0) {gWarnPrint(msg + XNIDAQmxInterface::getNIDAQmxErrMessage()); } \
+	else CHECK_DAQMX_ERROR(ret, msg);}
 
 template<class tDriver>
 class XNIDAQmxDriver : public tDriver

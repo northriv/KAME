@@ -8,6 +8,7 @@ INCLUDES = -I$(top_srcdir)/kame \
 libdriver_a_SOURCES = interface.cpp interface.h \
 	charinterface.cpp charinterface.h \
 	chardevicedriver.h \
+	nidaqmxdriver.cpp nidaqmxdriver.h \
 	dummydriver.h \
 	oxforddriver.cpp oxforddriver.h \
 	gpib.cpp gpib.h serial.cpp serial.h \
@@ -17,8 +18,6 @@ libdriver_a_SOURCES = interface.cpp interface.h \
 	secondarydriver.cpp secondarydriver.h \
 	driverlistconnector.cpp driverlistconnector.h \
 	interfacelistconnector.cpp interfacelistconnector.h 
-
-#	comediinterface.cpp comediinterface.h \
 
 METASOURCES = AUTO
 
