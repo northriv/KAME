@@ -59,6 +59,7 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
     	}
     }
 
+	m_acqCount = 0;
 //    createChannels();
 //    setupTrigger();
 
@@ -132,19 +133,7 @@ XNIDAQmxDSO::setupTrigger()
 //		CHECK_DAQMX_RET(DAQmxSetRefTrigRetriggerable(m_task, true), "");
     }
     
-    if(*singleSequence()) {
-	    m_acqCount = 0;
-	    m_accumCount = 0;
-		std::fill(m_record.begin(), m_record.end(), 0.0);
-		m_record_av.clear();   	
-    }
-
-	uInt32 num_ch;
-    CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch), "");	
-    if(num_ch > 0) {
-	    CHECK_DAQMX_RET(DAQmxStartTask(m_task), "Start Task");
-    }
-//	startSequence();
+	startSequence();
 }
 void
 XNIDAQmxDSO::setupTiming()
@@ -181,6 +170,9 @@ XNIDAQmxDSO::createChannels()
 	    CHECK_DAQMX_RET(DAQmxClearTask(m_task), "Clear Task");
 	}
 	m_task = TASK_UNDEF;
+	
+	m_acqCount = 0;
+	
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_task), "Task Creation");
 	ASSERT(m_task != TASK_UNDEF);   
     
@@ -370,8 +362,23 @@ XNIDAQmxDSO::acquire(TaskHandle task)
 void
 XNIDAQmxDSO::startSequence()
 {
-	printf("StartSequence!\n");
-	setupTrigger();
+ 	XScopedLock<XInterface> lock(*interface());
+
+    CHECK_DAQMX_RET(DAQmxStopTask(m_task), "Stop Task");
+
+    if(*singleSequence()) {
+	    m_acqCount = 0;
+	    m_accumCount = 0;
+		std::fill(m_record.begin(), m_record.end(), 0.0);
+		m_record_av.clear();   	
+    }
+
+	uInt32 num_ch;
+    CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch), "");	
+    if(num_ch > 0) {
+	    CHECK_DAQMX_RET(DAQmxStartTask(m_task), "Start Task");
+    }
+//	setupTrigger();
 }
 
 int
@@ -451,7 +458,7 @@ XNIDAQmxDSO::convertRaw() throw (XRecordError&)
 	unsigned int accumCount = pop<uint32_t>();
 	double interval = pop<double>();
 
-	printf("%d %f %f %d\n", num_ch, - pretrig * interval, interval, len);
+//	printf("%d %f %f %d\n", num_ch, - pretrig * interval, interval, len);
 	setRecordDim(num_ch, - pretrig * interval, interval, len);
 	
   for(unsigned int j = 0; j < num_ch; j++)
