@@ -63,6 +63,9 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 //    setupTrigger();
 
 	this->start();
+	
+	vOffset1()->setUIEnabled(false);
+	vOffset2()->setUIEnabled(false);
 }
 void
 XNIDAQmxDSO::close() throw (XInterface::XInterfaceError &)
@@ -83,17 +86,9 @@ void
 XNIDAQmxDSO::setupTrigger()
 {
  	XScopedLock<XInterface> lock(*interface());
- 	{
- 		char buf[2048];
-	    CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_task, buf, sizeof(buf)), "");
-	    printf("%s\n", buf);
-	    CHECK_DAQMX_RET(DAQmxGetTaskDevices(m_task, buf, sizeof(buf)), "");
-	    printf("%s\n", buf);
- 	}
 
     CHECK_DAQMX_RET(DAQmxStopTask(m_task), "Stop Task");
     
-	printf("trigsource:%s\n", trigSource()->to_str().c_str());
     CHECK_DAQMX_RET(DAQmxDisableStartTrig(m_task), "");
     CHECK_DAQMX_RET(DAQmxDisableRefTrig(m_task), "");
 	
@@ -114,6 +109,7 @@ XNIDAQmxDSO::setupTrigger()
 	            *trigFalling() ? DAQmx_Val_FallingSlope : DAQmx_Val_RisingSlope),
 	            "Trigger Setup");
 	    }
+//		CHECK_DAQMX_RET(DAQmxSetStartTrigRetriggerable(m_task, true), "");
     }
     else {
 	    if(std::find(m_analogTrigSrc.begin(), m_analogTrigSrc.end(), trigSource()->to_str())
@@ -133,9 +129,22 @@ XNIDAQmxDSO::setupTrigger()
 	            pretrig),
 	            "Trigger Setup");
 	    }
+//		CHECK_DAQMX_RET(DAQmxSetRefTrigRetriggerable(m_task, true), "");
     }
     
-	startSequence();
+    if(*singleSequence()) {
+	    m_acqCount = 0;
+	    m_accumCount = 0;
+		std::fill(m_record.begin(), m_record.end(), 0.0);
+		m_record_av.clear();   	
+    }
+
+	uInt32 num_ch;
+    CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch), "");	
+    if(num_ch > 0) {
+	    CHECK_DAQMX_RET(DAQmxStartTask(m_task), "Start Task");
+    }
+//	startSequence();
 }
 void
 XNIDAQmxDSO::setupTiming()
@@ -162,8 +171,6 @@ XNIDAQmxDSO::setupTiming()
     CHECK_DAQMX_RET(DAQmxGetSampClkRate(m_task, &rate
     	), "Get Rate");
     m_interval = 1.0 / rate;
-    
-	startSequence();
 }
 void
 XNIDAQmxDSO::createChannels()
@@ -207,6 +214,7 @@ XNIDAQmxDSO::createChannels()
     	dbgPrint(getLabel() + ": Polling mode enabled.");
 
     setupTiming();
+	 setupTrigger();
 }
 void 
 XNIDAQmxDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
@@ -240,6 +248,7 @@ void
 XNIDAQmxDSO::onTimeWidthChanged(const shared_ptr<XValueNodeBase> &)
 {
     setupTiming();
+	startSequence();
 }
 void
 XNIDAQmxDSO::onTrace1Changed(const shared_ptr<XValueNodeBase> &)
@@ -272,7 +281,8 @@ XNIDAQmxDSO::onVOffset2Changed(const shared_ptr<XValueNodeBase> &)
 void
 XNIDAQmxDSO::onRecordLengthChanged(const shared_ptr<XValueNodeBase> &)
 {
-    setupTiming();
+    setupTiming();    
+	startSequence();
 }
 void
 XNIDAQmxDSO::onForceTriggerTouched(const shared_ptr<XNode> &)
@@ -280,8 +290,16 @@ XNIDAQmxDSO::onForceTriggerTouched(const shared_ptr<XNode> &)
  	XScopedLock<XInterface> lock(*interface());
 //    CHECK_DAQMX_RET(DAQmxSendSoftwareTrigger(m_task, DAQmx_Val_AdvanceTrigger), "");
     CHECK_DAQMX_RET(DAQmxStopTask(m_task), "");
-    CHECK_DAQMX_RET(DAQmxDisableStartTrig(m_task), "");
-    CHECK_DAQMX_RET(DAQmxDisableRefTrig(m_task), "");
+
+    int32 trigtype;
+	CHECK_DAQMX_RET(DAQmxGetRefTrigType(m_task, &trigtype), "");
+	if(trigtype != DAQmx_Val_None) {
+	    CHECK_DAQMX_RET(DAQmxDisableRefTrig(m_task), "");
+	}
+	CHECK_DAQMX_RET(DAQmxGetStartTrigType(m_task, &trigtype), "");
+	if(trigtype != DAQmx_Val_None) {
+	    CHECK_DAQMX_RET(DAQmxDisableStartTrig(m_task), "");
+	}
     CHECK_DAQMX_RET(DAQmxStartTask(m_task), "");
 }
 int32
@@ -316,7 +334,7 @@ XNIDAQmxDSO::acquire(TaskHandle task)
     if(num_ch == 0) return;
     uInt32 len;
     CHECK_DAQMX_RET(DAQmxGetReadAvailSampPerChan(m_task, &len), "SampPerChan");
-    if(len < m_record.size() / NUM_MAX_CH) return;
+//    if(len < m_record.size() / NUM_MAX_CH) return;
     int32 cnt;
     CHECK_DAQMX_RET(DAQmxReadAnalogF64(task, DAQmx_Val_Auto,
         0, DAQmx_Val_GroupByChannel,
@@ -352,18 +370,8 @@ XNIDAQmxDSO::acquire(TaskHandle task)
 void
 XNIDAQmxDSO::startSequence()
 {
- 	XScopedLock<XInterface> lock(*interface());
-    CHECK_DAQMX_RET(DAQmxStopTask(m_task), "Stop Task");
-    m_acqCount = 0;
-    m_accumCount = 0;
-	std::fill(m_record.begin(), m_record.end(), 0.0);
-	m_record_av.clear();   	
-
-	uInt32 num_ch;
-    CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch), "");	
-    if(num_ch > 0) {
-	    CHECK_DAQMX_RET(DAQmxStartTask(m_task), "Start Task");
-    }
+	printf("StartSequence!\n");
+	setupTrigger();
 }
 
 int
@@ -411,9 +419,12 @@ XNIDAQmxDSO::getWave(std::deque<std::string> &)
     
     char buf[2048];
     CHECK_DAQMX_RET(DAQmxGetReadChannelsToRead(m_task, buf, sizeof(buf)), "");
-    
-    uInt32 pretrig;
-    CHECK_DAQMX_RET(DAQmxGetRefTrigPretrigSamples(m_task, &pretrig), "");
+    int32 reftrigtype;
+	CHECK_DAQMX_RET(DAQmxGetRefTrigType(m_task, &reftrigtype), "");
+    uInt32 pretrig = 0;
+	if(reftrigtype != DAQmx_Val_None) {
+	    pretrig = lrintl(*trigPos() / 100.0 * *recordLength());
+	}
     
     push((uint32_t)num_ch);
     push((uint32_t)pretrig);

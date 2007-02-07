@@ -105,7 +105,7 @@ XDSO::XDSO(const char *name, bool runtime,
   
   m_waveForm->setColCount(2, s_trace_names); 
   m_waveForm->selectAxes(0, 1, -1);
-  m_waveForm->graph()->persistence()->value(0.3);
+  m_waveForm->graph()->persistence()->value(0);
   m_waveForm->clear();
 }
 void
@@ -257,7 +257,7 @@ XDSO::execute(const atomic<bool> &terminated)
   while(!terminated)
     {
       
-      msecsleep(10);
+      msecsleep(4);
       bool seq_busy = false;
       try {
           int count = acqCount(&seq_busy);
@@ -269,7 +269,7 @@ XDSO::execute(const atomic<bool> &terminated)
           if(*singleSequence() && seq_busy) {
                 continue;
           }
-          if(count == last_count) {
+          if((count == last_count) && !*singleSequence()) {
                 continue;
           }
           last_count =  count;
