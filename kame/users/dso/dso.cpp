@@ -121,8 +121,9 @@ XDSO::start()
   m_thread.reset(new XThread<XDSO>(shared_from_this(), &XDSO::execute));
   m_thread->resume();
   
-  trace1()->setUIEnabled(false);
-  trace2()->setUIEnabled(false);
+//  trace1()->setUIEnabled(false);
+//  trace2()->setUIEnabled(false);
+  
   average()->setUIEnabled(true);
   singleSequence()->setUIEnabled(true);
   fetch()->setUIEnabled(true);
@@ -141,8 +142,9 @@ XDSO::start()
 void
 XDSO::stop()
 {   
-  trace1()->setUIEnabled(true);
-  trace2()->setUIEnabled(true);
+//  trace1()->setUIEnabled(true);
+//  trace2()->setUIEnabled(true);
+  
   average()->setUIEnabled(false);
   singleSequence()->setUIEnabled(false);
   fetch()->setUIEnabled(false);
@@ -234,6 +236,10 @@ XDSO::execute(const atomic<bool> &terminated)
                           false, shared_from_this(), &XDSO::onTrigLevelChanged);
   m_lsnOnTrigFallingChanged = trigFalling()->onValueChanged().connectWeak(
                           false, shared_from_this(), &XDSO::onTrigFallingChanged);
+  m_lsnOnTrace1Changed = trace1()->onValueChanged().connectWeak(
+                          false, shared_from_this(), &XDSO::onTrace1Changed);
+  m_lsnOnTrace2Changed = trace2()->onValueChanged().connectWeak(
+                          false, shared_from_this(), &XDSO::onTrace2Changed);
   m_lsnOnVFullScale1Changed = vFullScale1()->onValueChanged().connectWeak(
                           false, shared_from_this(), &XDSO::onVFullScale1Changed);
   m_lsnOnVFullScale2Changed = vFullScale2()->onValueChanged().connectWeak(
@@ -316,6 +322,8 @@ XDSO::execute(const atomic<bool> &terminated)
   m_lsnOnTrigFallingChanged.reset();
   m_lsnOnVFullScale1Changed.reset();
   m_lsnOnVFullScale2Changed.reset();
+  m_lsnOnTrace1Changed.reset();
+  m_lsnOnTrace2Changed.reset();
   m_lsnOnVOffset1Changed.reset();
   m_lsnOnVOffset2Changed.reset();
   m_lsnOnForceTriggerTouched.reset();

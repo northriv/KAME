@@ -17,8 +17,10 @@ char str[2048];
 	return QString(str);
 }
 int
-XNIDAQmxInterface::checkDAQmxError(const QString &msg, const char*file, int line) {
+XNIDAQmxInterface::checkDAQmxError(int ret, const QString &msg, const char*file, int line) {
+	if(ret >= 0) return ret;
 	throw XInterface::XInterfaceError(msg + " " + getNIDAQmxErrMessage(), file, line);
+	return 0;
 }
 
 void
@@ -26,7 +28,7 @@ XNIDAQmxInterface::parseList(const char *str, std::deque<std::string> &list)
 {
 	list.clear();
 	std::string org(str);
-	const char *del = " \t";
+	const char *del = ", \t";
 	for(unsigned int pos = 0; pos != std::string::npos; ) {
 		unsigned int spos = org.find_first_not_of(del, pos);
 		if(spos == std::string::npos) break;

@@ -74,6 +74,8 @@ class XDSO : public XPrimaryDriver
   double *waveRecorded(unsigned int ch);
   
  protected:
+  virtual void onTrace1Changed(const shared_ptr<XValueNodeBase> &) = 0;
+  virtual void onTrace2Changed(const shared_ptr<XValueNodeBase> &) = 0;
   virtual void onAverageChanged(const shared_ptr<XValueNodeBase> &) = 0;
   virtual void onSingleChanged(const shared_ptr<XValueNodeBase> &) = 0;
   virtual void onTrigSourceChanged(const shared_ptr<XValueNodeBase> &) = 0;
@@ -146,6 +148,8 @@ class XDSO : public XPrimaryDriver
   shared_ptr<XListener> m_lsnOnTrigLevelChanged;
   shared_ptr<XListener> m_lsnOnTrigFallingChanged;
   shared_ptr<XListener> m_lsnOnTimeWidthChanged;
+  shared_ptr<XListener> m_lsnOnTrace1Changed;
+  shared_ptr<XListener> m_lsnOnTrace2Changed;
   shared_ptr<XListener> m_lsnOnVFullScale1Changed;
   shared_ptr<XListener> m_lsnOnVFullScale2Changed;
   shared_ptr<XListener> m_lsnOnVOffset1Changed;

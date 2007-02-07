@@ -23,7 +23,7 @@ public:
  
   static QString getNIDAQmxErrMessage();
   static QString getNIDAQmxErrMessage(int status);
-  static int checkDAQmxError(const QString &msg, const char*file, int line);
+  static int checkDAQmxError(int ret, const QString &msg, const char*file, int line);
 
   virtual bool isOpened() const {return m_devname.length();}
   
@@ -38,10 +38,10 @@ private:
 	std::string m_devname;
 };
 
-#define CHECK_DAQMX_ERROR(ret, msg) ((ret >= 0) ? ret : XNIDAQmxInterface::checkDAQmxError(msg, __FILE__, __LINE__))
+#define CHECK_DAQMX_ERROR(ret, msg) XNIDAQmxInterface::checkDAQmxError(ret, msg, __FILE__, __LINE__)
 
-#define CHECK_DAQMX_RET(ret, msg) {if(ret > 0) {gWarnPrint(QString(msg) + " " + XNIDAQmxInterface::getNIDAQmxErrMessage()); } \
-	else CHECK_DAQMX_ERROR(ret, msg);}
+#define CHECK_DAQMX_RET(ret, msg) {dbgPrint(# ret);\
+	if(CHECK_DAQMX_ERROR(ret, msg) > 0) {gWarnPrint(QString(msg) + " " + XNIDAQmxInterface::getNIDAQmxErrMessage()); } }
 
 template<class tDriver>
 class XNIDAQmxDriver : public tDriver

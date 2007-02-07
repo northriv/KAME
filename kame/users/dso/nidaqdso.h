@@ -26,6 +26,8 @@ class XNIDAQmxDSO : public XNIDAQmxDriver<XDSO>
   //! Be called during stopping driver. Call interface()->stop() inside this routine.
   virtual void close() throw (XInterface::XInterfaceError &);
 
+  virtual void onTrace1Changed(const shared_ptr<XValueNodeBase> &);
+  virtual void onTrace2Changed(const shared_ptr<XValueNodeBase> &);
   virtual void onAverageChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onSingleChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onTrigSourceChanged(const shared_ptr<XValueNodeBase> &);
@@ -52,8 +54,10 @@ class XNIDAQmxDSO : public XNIDAQmxDriver<XDSO>
   int m_accumCount;
   //! for moving av.
   std::deque<std::vector<float64> > m_record_av; 
+  unsigned int m_record_length;
   std::deque<std::string> m_analogTrigSrc, m_digitalTrigSrc;
   TaskHandle m_task;
+  bool m_bPollMode;
   double m_interval;
   int m_acqCount;
   void setupAcquision();
@@ -62,6 +66,7 @@ class XNIDAQmxDSO : public XNIDAQmxDriver<XDSO>
   void createChannels();
   static int32 _acqCallBack(TaskHandle, int32, void*);
   int32 acqCallBack(TaskHandle task, int32 status);
+  void acquire(TaskHandle task);
 };
 
 #endif //HAVE_NI_DAQMX

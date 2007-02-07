@@ -19,6 +19,8 @@ class XTDS : public XCharDeviceDriver<XDSO>
   //! convert raw to record
   virtual void convertRaw() throw (XRecordError&);
  protected:
+  virtual void onTrace1Changed(const shared_ptr<XValueNodeBase> &) {}
+  virtual void onTrace2Changed(const shared_ptr<XValueNodeBase> &) {}
   virtual void onAverageChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onSingleChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onTrigSourceChanged(const shared_ptr<XValueNodeBase> &);
