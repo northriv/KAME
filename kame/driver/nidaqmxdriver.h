@@ -31,9 +31,12 @@ public:
   
   static void parseList(const char *list, std::deque<std::string> &buf);
   
-  struct XNIDAQmxRoute {
+  class XNIDAQmxRoute {
+  public:
   	XNIDAQmxRoute(const char*src, const char*dst);
   	~XNIDAQmxRoute();
+  private:
+  	std::string m_src, m_dst;
   };
 protected:
   virtual void open() throw (XInterfaceError &);

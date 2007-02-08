@@ -4,35 +4,34 @@
 
 static int g_daqmx_open_cnt;
 static XMutex g_daqmx_mutex;
-static TaskHandle g_task_sync_timebase;
-static void XNIDAQmxGlobalOpen();
-static void XNIDAQmxGlobalClose();
+//static TaskHandle g_task_sync_master;
 
 static void
 XNIDAQmxGlobalOpen()
 {
 	XScopedLock<XMutex> lock(g_daqmx_mutex);
 	if(g_daqmx_open_cnt == 0) {
-	    CHECK_DAQMX_RET(DAQmxCreateTask("", &g_task_sync_master));
+//	    CHECK_DAQMX_RET(DAQmxCreateTask("", &g_task_sync_master));
 		
 	char buf[2048];
-		CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)), "");
+		CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
 	std::deque<std::string> list;
 		XNIDAQmxInterface::parseList(buf, list);
 		for(std::deque<std::string>::iterator it = list.begin(); it != list.end(); it++) {
+			DAQmxResetDevice(it->c_str());
 			if(it == list.begin()) {
 				dbgPrint(QString("Export %1/20MHzTimebase as the global MasterTimebase.").arg(*it));
-				CHECK_DAQMX_RET(DAQmxExportSignal(g_task_sync_master,
-					DAQmx_Val_20MHzTimebaseClock, QString("%1/RTSI7").arg(*it)));
-//				CHECK_DAQMX_RET(DAQmxConnectTerms(QString("%1/20MHzTimebase").arg(*it),
-//					QString("%1/RTSI7").arg(*it), DAQmx_Val_DoNotInvertPolarity));
+//				CHECK_DAQMX_RET(DAQmxExportSignal(g_task_sync_master,
+//					DAQmx_Val_20MHzTimebaseClock, QString("%1/RTSI7").arg(*it)));
+				CHECK_DAQMX_RET(DAQmxConnectTerms(QString("/%1/20MHzTimebase").arg(*it),
+					QString("/%1/RTSI7").arg(*it), DAQmx_Val_DoNotInvertPolarity));
 			}
 			else {
-				CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(g_task_sync_master,
-					QString("%1/RTSI7").arg(*it)));
-//				CHECK_DAQMX_RET(DAQmxConnectTerms(QString("%1/RTSI7").arg(*it),
-//					QString("%1/MasterTimebase").arg(*it),
-//					DAQmx_Val_DoNotInvertPolarity));
+//				CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(g_task_sync_master,
+//					QString("%1/RTSI7").arg(*it)));
+				CHECK_DAQMX_RET(DAQmxConnectTerms(QString("/%1/RTSI7").arg(*it),
+					QString("/%1/MasterTimebase").arg(*it),
+					DAQmx_Val_DoNotInvertPolarity));
 			}
 		}
 	}
@@ -44,21 +43,21 @@ XNIDAQmxGlobalClose()
 	XScopedLock<XMutex> lock(g_daqmx_mutex);
 	g_daqmx_open_cnt--;
 	if(g_daqmx_open_cnt == 0) {
-		CHECK_DAQMX_RET(DAQmxClearTask(g_task_sync_master));
-//	char buf[2048];
-//		CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)), "");
-//	std::deque<std::string> list;
-//		XNIDAQmxInterface::parseList(buf, list);
-//		for(std::deque<std::string>::iterator it = list.begin(); it != list.end(); it++) {
-//			if(it == list.begin()) {
-//				CHECK_DAQMX_RET(DAQmxDisconnectTerms(QString("%1/20MHzTimebase").arg(*it),
-//					QString("%1/RTSI7").arg(*it)));
-//			}
-//			else {
-//				CHECK_DAQMX_RET(DAQmxDisconnectTerms(QString("%1/RTSI7").arg(*it),
-//					QString("%1/MasterTimebase").arg(*it)));
-//			}
-//		}
+//		CHECK_DAQMX_RET(DAQmxClearTask(g_task_sync_master));
+	char buf[2048];
+		CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
+	std::deque<std::string> list;
+		XNIDAQmxInterface::parseList(buf, list);
+		for(std::deque<std::string>::iterator it = list.begin(); it != list.end(); it++) {
+			if(it == list.begin()) {
+				CHECK_DAQMX_RET(DAQmxDisconnectTerms(QString("/%1/20MHzTimebase").arg(*it),
+					QString("/%1/RTSI7").arg(*it)));
+			}
+			else {
+				CHECK_DAQMX_RET(DAQmxDisconnectTerms(QString("/%1/RTSI7").arg(*it),
+					QString("/%1/MasterTimebase").arg(*it)));
+			}
+		}
 	}
 }
 
@@ -105,11 +104,11 @@ XNIDAQmxInterface::XNIDAQmxInterface(const char *name, bool runtime, const share
     XInterface(name, runtime, driver)
 {
 char buf[2048];
-	CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)), "");
+	CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
 std::deque<std::string> list;
 	parseList(buf, list);
 	for(std::deque<std::string>::iterator it = list.begin(); it != list.end(); it++) {
-		CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)), "");
+		CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
 //		int32 type;
 //		CHECK_DAQMX_RET(DAQmxGetDevBusType(*it, &type), "");
 //		std::string ts;
@@ -125,7 +124,8 @@ std::deque<std::string> list;
 		device()->add(*it + " [" + buf + "]");
 	}
 }
-XNIDAQmxRoute::XNIDAQmxRoute(const char*src, const char*dst)
+XNIDAQmxInterface::XNIDAQmxRoute::XNIDAQmxRoute(const char*src, const char*dst)
+ : m_src(src), m_dst(dst)
 {
 	try {
 	    CHECK_DAQMX_RET(DAQmxConnectTerms(src, dst, DAQmx_Val_DoNotInvertPolarity));
@@ -134,10 +134,10 @@ XNIDAQmxRoute::XNIDAQmxRoute(const char*src, const char*dst)
 		e.print();
 	}
 }
-XNIDAQmxRoute::~XNIDAQmxRoute()
+XNIDAQmxInterface::XNIDAQmxRoute::~XNIDAQmxRoute()
 {
 	try {
-	    CHECK_DAQMX_RET(DAQmxDisconnectTerms(src, dst));
+	    CHECK_DAQMX_RET(DAQmxDisconnectTerms(m_src.c_str(), m_dst.c_str()));
 	}
 	catch (XInterface::XInterfaceError &e) {
 		e.print();
