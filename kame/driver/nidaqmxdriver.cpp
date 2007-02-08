@@ -14,6 +14,10 @@ XNIDAQmxGlobalOpen()
 //	    CHECK_DAQMX_RET(DAQmxCreateTask("", &g_task_sync_master));
 		
 	char buf[2048];
+	
+		CHECK_DAQMX_RET(DAQmxGetSysGlobalChans(buf, sizeof(buf)));
+		printf("global chans: %s\n", buf);
+		
 		CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
 	std::deque<std::string> list;
 		XNIDAQmxInterface::parseList(buf, list);

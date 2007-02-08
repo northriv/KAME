@@ -66,7 +66,7 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
     	 0L};
 	    for(int i = 0; sc[i]; i++)
 	    {
-	    	QString str(QString("%1/%2").arg(interface()->devName()).arg(sc[i]));
+	    	QString str(QString("/%1/%2").arg(interface()->devName()).arg(sc[i]));
 	        trigSource()->add(str);
 //	        m_digitalTrigSrc.push_back(str);
 	    }
@@ -118,7 +118,7 @@ XNIDAQmxDSO::setupTrigger()
     }
     if(std::find(m_digitalTrigSrc.begin(), m_digitalTrigSrc.end(), src)
          != m_digitalTrigSrc.end()) {
-    	dtrig = QString("%1/PFI0").arg(interface()->devName());
+    	dtrig = QString("/%1/PFI0").arg(interface()->devName());
     	m_trigRoute.reset(new XNIDAQmxInterface::XNIDAQmxRoute(src.c_str(), dtrig));
     }
     if(!atrig && !dtrig) {
