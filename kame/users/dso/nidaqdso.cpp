@@ -111,7 +111,7 @@ XNIDAQmxDSO::setupTrigger()
     const char *atrig = 0;
     const char *dtrig = 0;
     std::string src = trigSource()->to_str();
-    if(!src.length()) return;
+//    if(!src.length()) return;
     if(std::find(m_analogTrigSrc.begin(), m_analogTrigSrc.end(), src)
          != m_analogTrigSrc.end()) {
          atrig = src.c_str();
@@ -121,7 +121,7 @@ XNIDAQmxDSO::setupTrigger()
     	dtrig = QString("/%1/PFI0").arg(interface()->devName());
     	m_trigRoute.reset(new XNIDAQmxInterface::XNIDAQmxRoute(src.c_str(), dtrig));
     }
-    if(!atrig && !dtrig) {
+    if(!atrig && !dtrig && src.length()) {
          dtrig = src.c_str();
     }
     
@@ -180,8 +180,9 @@ XNIDAQmxDSO::setupTiming()
         len
         ));
     float64 rate;
-    CHECK_DAQMX_RET(DAQmxGetSampClkRate(m_task, &rate
-    	));
+    CHECK_DAQMX_RET(DAQmxGetRefClkRate(m_task, &rate));
+	dbgPrint(QString("Reference Clk rate = %1.").arg(rate));
+    CHECK_DAQMX_RET(DAQmxGetSampClkRate(m_task, &rate));
     m_interval = 1.0 / rate;
 }
 void
@@ -347,7 +348,7 @@ XNIDAQmxDSO::acquire(TaskHandle task)
     if(num_ch == 0) return;
     uInt32 len;
     CHECK_DAQMX_RET(DAQmxGetReadAvailSampPerChan(m_task, &len));
-//    if(len < m_record.size() / NUM_MAX_CH) return;
+    if(len < m_record.size() / NUM_MAX_CH) return;
     int32 cnt;
     CHECK_DAQMX_RET(DAQmxReadAnalogF64(task, DAQmx_Val_Auto,
         0, DAQmx_Val_GroupByChannel,

@@ -33,7 +33,7 @@ public:
   
   class XNIDAQmxRoute {
   public:
-  	XNIDAQmxRoute(const char*src, const char*dst);
+  	XNIDAQmxRoute(const char*src, const char*dst, int *ret = NULL);
   	~XNIDAQmxRoute();
   private:
   	std::string m_src, m_dst;

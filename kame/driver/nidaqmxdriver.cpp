@@ -4,7 +4,7 @@
 
 static int g_daqmx_open_cnt;
 static XMutex g_daqmx_mutex;
-//static TaskHandle g_task_sync_master;
+static std::deque<shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> > g_daqmx_sync_routes;
 
 static void
 XNIDAQmxGlobalOpen()
@@ -13,29 +13,81 @@ XNIDAQmxGlobalOpen()
 	if(g_daqmx_open_cnt == 0) {
 //	    CHECK_DAQMX_RET(DAQmxCreateTask("", &g_task_sync_master));
 		
-	char buf[2048];
-	
-		CHECK_DAQMX_RET(DAQmxGetSysGlobalChans(buf, sizeof(buf)));
-		printf("global chans: %s\n", buf);
-		
+	char buf[2048];		
 		CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
 	std::deque<std::string> list;
 		XNIDAQmxInterface::parseList(buf, list);
+		std::string master10MHz;
+		std::string master20MHz;
+		std::deque<std::string> pcidevs;
 		for(std::deque<std::string>::iterator it = list.begin(); it != list.end(); it++) {
 			DAQmxResetDevice(it->c_str());
-			if(it == list.begin()) {
-				dbgPrint(QString("Export %1/20MHzTimebase as the global MasterTimebase.").arg(*it));
-//				CHECK_DAQMX_RET(DAQmxExportSignal(g_task_sync_master,
-//					DAQmx_Val_20MHzTimebaseClock, QString("%1/RTSI7").arg(*it)));
-				CHECK_DAQMX_RET(DAQmxConnectTerms(QString("/%1/20MHzTimebase").arg(*it),
-					QString("/%1/RTSI7").arg(*it), DAQmx_Val_DoNotInvertPolarity));
+			int32 bus;
+			DAQmxGetDevBusType(it->c_str(), &bus);
+			if((bus == DAQmx_Val_PCI) || (bus == DAQmx_Val_PCIe)) {
+				pcidevs.push_back(*it);
+				//RTSI synchronizations.
+				shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
+				if(!master10MHz.length()) {
+					int pret;
+					route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
+						QString("/%1/10MHzRefClock").arg(*it),
+						QString("/%1/RTSI6").arg(*it), &pret));
+					if(pret >= 0) {
+						master10MHz = *it;
+						g_daqmx_sync_routes.push_back(route);
+						printf("10MHzRefClk found on %s\n", it->c_str());
+						route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
+							QString("/%1/20MHzTimebase").arg(*it),
+							QString("/%1/RTSI7").arg(*it), &pret));
+						if(pret >= 0) {
+							master20MHz = *it;
+							printf("20MHzRefClk found on %s\n", it->c_str());
+							g_daqmx_sync_routes.push_back(route);
+						}
+					}
+				}
 			}
-			else {
-//				CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(g_task_sync_master,
-//					QString("%1/RTSI7").arg(*it)));
-				CHECK_DAQMX_RET(DAQmxConnectTerms(QString("/%1/RTSI7").arg(*it),
-					QString("/%1/MasterTimebase").arg(*it),
-					DAQmx_Val_DoNotInvertPolarity));
+		}
+		for(std::deque<std::string>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
+			shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
+			if(!master20MHz.length()) {
+				int pret;
+				route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
+					QString("/%1/20MHzTimebase").arg(*it),
+					QString("/%1/RTSI7").arg(*it), &pret));
+				if(pret >= 0) {
+					master20MHz = *it;
+					printf("20MHzRefClk found on %s\n", it->c_str());
+					g_daqmx_sync_routes.push_back(route);
+				}
+			}
+		}
+		if(pcidevs.size() > 1) {
+			for(std::deque<std::string>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
+				shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
+				if(*it == master10MHz) continue;
+				if(*it == master20MHz) continue;
+				int pret = -1;
+				if(master20MHz.length())
+					route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
+						QString("/%1/RTSI7").arg(*it),
+						QString("/%1/MasterTimebase").arg(*it), &pret));
+				if(pret >= 0) {
+					g_daqmx_sync_routes.push_back(route);
+				}
+				else {
+					if(master10MHz.length())
+						route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
+							QString("/%1/RTSI6").arg(*it),
+							QString("/%1/ExternalRefereceClock").arg(*it), &pret));
+					if(pret >= 0) {
+						g_daqmx_sync_routes.push_back(route);
+					}
+					else {
+						gErrPrint(KAME::i18n("No synchronization route found on ") + *it);
+					}
+				}
 			}
 		}
 	}
@@ -47,21 +99,7 @@ XNIDAQmxGlobalClose()
 	XScopedLock<XMutex> lock(g_daqmx_mutex);
 	g_daqmx_open_cnt--;
 	if(g_daqmx_open_cnt == 0) {
-//		CHECK_DAQMX_RET(DAQmxClearTask(g_task_sync_master));
-	char buf[2048];
-		CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
-	std::deque<std::string> list;
-		XNIDAQmxInterface::parseList(buf, list);
-		for(std::deque<std::string>::iterator it = list.begin(); it != list.end(); it++) {
-			if(it == list.begin()) {
-				CHECK_DAQMX_RET(DAQmxDisconnectTerms(QString("/%1/20MHzTimebase").arg(*it),
-					QString("/%1/RTSI7").arg(*it)));
-			}
-			else {
-				CHECK_DAQMX_RET(DAQmxDisconnectTerms(QString("/%1/RTSI7").arg(*it),
-					QString("/%1/MasterTimebase").arg(*it)));
-			}
-		}
+		g_daqmx_sync_routes.clear();
 	}
 }
 
@@ -128,20 +166,32 @@ std::deque<std::string> list;
 		device()->add(*it + " [" + buf + "]");
 	}
 }
-XNIDAQmxInterface::XNIDAQmxRoute::XNIDAQmxRoute(const char*src, const char*dst)
+XNIDAQmxInterface::XNIDAQmxRoute::XNIDAQmxRoute(const char*src, const char*dst, int *pret)
  : m_src(src), m_dst(dst)
 {
+	int ret;
 	try {
-	    CHECK_DAQMX_RET(DAQmxConnectTerms(src, dst, DAQmx_Val_DoNotInvertPolarity));
+	    ret = CHECK_DAQMX_ERROR(DAQmxConnectTerms(src, dst, DAQmx_Val_DoNotInvertPolarity));
+	    dbgPrint(QString("Connect route from %1 to %2.").arg(src).arg(dst));
 	}
 	catch (XInterface::XInterfaceError &e) {
-		e.print();
+		if(!pret) {
+			e.print();
+		}
+		else {
+			dbgPrint(e.msg());
+		}
+		m_src.clear();
 	}
+	if(pret)
+		*pret = ret;
 }
 XNIDAQmxInterface::XNIDAQmxRoute::~XNIDAQmxRoute()
 {
+	if(!m_src.length()) return;
 	try {
 	    CHECK_DAQMX_RET(DAQmxDisconnectTerms(m_src.c_str(), m_dst.c_str()));
+	    dbgPrint(QString("Dsiconnect route from %1 to %2.").arg(m_src).arg(m_dst));
 	}
 	catch (XInterface::XInterfaceError &e) {
 		e.print();
