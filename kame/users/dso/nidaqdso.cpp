@@ -180,8 +180,8 @@ XNIDAQmxDSO::setupTiming()
         len
         ));
     float64 rate;
-    CHECK_DAQMX_RET(DAQmxGetRefClkRate(m_task, &rate));
-	dbgPrint(QString("Reference Clk rate = %1.").arg(rate));
+//    CHECK_DAQMX_RET(DAQmxGetRefClkRate(m_task, &rate));
+//	dbgPrint(QString("Reference Clk rate = %1.").arg(rate));
     CHECK_DAQMX_RET(DAQmxGetSampClkRate(m_task, &rate));
     m_interval = 1.0 / rate;
 }
@@ -378,6 +378,7 @@ XNIDAQmxDSO::acquire(TaskHandle task)
     }
 
     if(!sseq || ((unsigned int)m_accumCount < av)) {
+	    CHECK_DAQMX_RET(DAQmxStopTask(m_task));
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_task));
     }
 }

@@ -12,7 +12,6 @@ XNIDAQmxGlobalOpen()
 	XScopedLock<XMutex> lock(g_daqmx_mutex);
 	if(g_daqmx_open_cnt == 0) {
 //	    CHECK_DAQMX_RET(DAQmxCreateTask("", &g_task_sync_master));
-		
 	char buf[2048];		
 		CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
 	std::deque<std::string> list;
@@ -63,7 +62,7 @@ XNIDAQmxGlobalOpen()
 				}
 			}
 		}
-		if(pcidevs.size() > 1) {
+/*		if(pcidevs.size() > 1) {
 			for(std::deque<std::string>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
 				shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
 				if(*it == master10MHz) continue;
@@ -89,7 +88,7 @@ XNIDAQmxGlobalOpen()
 					}
 				}
 			}
-		}
+		}*/
 	}
 	g_daqmx_open_cnt++;
 }

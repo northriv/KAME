@@ -50,8 +50,8 @@ private:
 
 //#define CHECK_DAQMX_RET(ret, msg) {dbgPrint(# ret);\
 //	if(CHECK_DAQMX_ERROR(ret, msg) > 0) {gWarnPrint(QString(msg) + " " + XNIDAQmxInterface::getNIDAQmxErrMessage()); } }
-#define CHECK_DAQMX_RET(ret) {\
-	if(CHECK_DAQMX_ERROR(ret) > 0) {gWarnPrint(XNIDAQmxInterface::getNIDAQmxErrMessage()); } }
+#define CHECK_DAQMX_RET(ret) {int _code = ret; \
+	if(CHECK_DAQMX_ERROR(_code) > 0) {gWarnPrint(XNIDAQmxInterface::getNIDAQmxErrMessage(_code)); } }
 
 template<class tDriver>
 class XNIDAQmxDriver : public tDriver
