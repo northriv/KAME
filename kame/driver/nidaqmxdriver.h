@@ -23,13 +23,18 @@ public:
  
   static QString getNIDAQmxErrMessage();
   static QString getNIDAQmxErrMessage(int status);
-  static int checkDAQmxError(int ret, const QString &msg, const char*file, int line);
+  static int checkDAQmxError(int ret, const char*file, int line);
 
   virtual bool isOpened() const {return m_devname.length();}
   
   const char*devName() const {return m_devname.c_str();}
   
   static void parseList(const char *list, std::deque<std::string> &buf);
+  
+  struct XNIDAQmxRoute {
+  	XNIDAQmxRoute(const char*src, const char*dst);
+  	~XNIDAQmxRoute();
+  };
 protected:
   virtual void open() throw (XInterfaceError &);
   //! This can be called even if has already closed.
@@ -38,10 +43,12 @@ private:
 	std::string m_devname;
 };
 
-#define CHECK_DAQMX_ERROR(ret, msg) XNIDAQmxInterface::checkDAQmxError(ret, msg, __FILE__, __LINE__)
+#define CHECK_DAQMX_ERROR(ret) XNIDAQmxInterface::checkDAQmxError(ret, __FILE__, __LINE__)
 
-#define CHECK_DAQMX_RET(ret, msg) {dbgPrint(# ret);\
-	if(CHECK_DAQMX_ERROR(ret, msg) > 0) {gWarnPrint(QString(msg) + " " + XNIDAQmxInterface::getNIDAQmxErrMessage()); } }
+//#define CHECK_DAQMX_RET(ret, msg) {dbgPrint(# ret);\
+//	if(CHECK_DAQMX_ERROR(ret, msg) > 0) {gWarnPrint(QString(msg) + " " + XNIDAQmxInterface::getNIDAQmxErrMessage()); } }
+#define CHECK_DAQMX_RET(ret) {\
+	if(CHECK_DAQMX_ERROR(ret) > 0) {gWarnPrint(XNIDAQmxInterface::getNIDAQmxErrMessage()); } }
 
 template<class tDriver>
 class XNIDAQmxDriver : public tDriver

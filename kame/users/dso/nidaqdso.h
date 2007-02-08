@@ -50,6 +50,7 @@ class XNIDAQmxDSO : public XNIDAQmxDriver<XDSO>
   //! load waveform and settings from instrument
   virtual void getWave(std::deque<std::string> &channels);
  private:
+  scoped_ptr<XNIDAQmxInterface::XNIDAQmxRoute> m_trigRoute;
   std::vector<float64> m_record, m_record_buf;
   int m_accumCount;
   //! for moving av.

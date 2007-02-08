@@ -58,6 +58,19 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 	        trigSource()->add(it->c_str());
     	}
     }
+    {
+	    const char* sc[] = {
+	    "PFI0", "PFI1", "PFI2", "PFI3", "PFI4", "PFI5", "PFI6", "PFI7",
+    	"RTSI0", "RTSI1", "RTSI2", "RTSI3", "RTSI4", "RTSI5", "RTSI6",
+    	"crt0", "crt1",
+    	 0L};
+	    for(int i = 0; sc[i]; i++)
+	    {
+	    	QString str(QString("%1/%2").arg(interface()->devName()).arg(sc[i]));
+	        trigSource()->add(str);
+//	        m_digitalTrigSrc.push_back(str);
+	    }
+    }
 
 	m_acqCount = 0;
 //    createChannels();
@@ -80,6 +93,7 @@ XNIDAQmxDSO::close() throw (XInterface::XInterfaceError &)
     trace1()->clear();
     trace2()->clear();
     trigSource()->clear();
+    m_trigRoute.reset();
     
 	interface()->stop();
 }
@@ -88,47 +102,56 @@ XNIDAQmxDSO::setupTrigger()
 {
  	XScopedLock<XInterface> lock(*interface());
 
-    CHECK_DAQMX_RET(DAQmxStopTask(m_task), "Stop Task");
-    
-    CHECK_DAQMX_RET(DAQmxDisableStartTrig(m_task), "");
-    CHECK_DAQMX_RET(DAQmxDisableRefTrig(m_task), "");
+    CHECK_DAQMX_RET(DAQmxStopTask(m_task));
+    CHECK_DAQMX_RET(DAQmxDisableStartTrig(m_task));
+    CHECK_DAQMX_RET(DAQmxDisableRefTrig(m_task));
+    m_trigRoute.reset();
 	
     unsigned int pretrig = lrintl(*trigPos() / 100.0 * *recordLength());
+    const char *atrig = 0;
+    const char *dtrig = 0;
+    std::string src = trigSource()->to_str();
+    if(!src.length()) return;
+    if(std::find(m_analogTrigSrc.begin(), m_analogTrigSrc.end(), src)
+         != m_analogTrigSrc.end()) {
+         atrig = src.c_str();
+    }
+    if(std::find(m_digitalTrigSrc.begin(), m_digitalTrigSrc.end(), src)
+         != m_digitalTrigSrc.end()) {
+    	dtrig = QString("%1/PFI0").arg(interface()->devName());
+    	m_trigRoute.reset(new XNIDAQmxInterface::XNIDAQmxRoute(src.c_str(), dtrig));
+    }
+    if(!atrig && !dtrig) {
+         dtrig = src.c_str();
+    }
+    
     if(pretrig < 2) {
-	    if(std::find(m_analogTrigSrc.begin(), m_analogTrigSrc.end(), trigSource()->to_str())
-	         != m_analogTrigSrc.end()) {
+	    if(atrig) {
 	        CHECK_DAQMX_RET(DAQmxCfgAnlgEdgeStartTrig(m_task,
-	            trigSource()->to_str().c_str(),
+	            atrig,
 	            *trigFalling() ? DAQmx_Val_FallingSlope : DAQmx_Val_RisingSlope,
-	            *trigLevel()),
-	            "Trigger Setup");
+	            *trigLevel()));
 	    }
-	    if(std::find(m_digitalTrigSrc.begin(), m_digitalTrigSrc.end(), trigSource()->to_str())
-	         != m_digitalTrigSrc.end()) {
+	    if(dtrig) {
 	        CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_task,
-	            trigSource()->to_str().c_str(),
-	            *trigFalling() ? DAQmx_Val_FallingSlope : DAQmx_Val_RisingSlope),
-	            "Trigger Setup");
+	            dtrig,
+	            *trigFalling() ? DAQmx_Val_FallingSlope : DAQmx_Val_RisingSlope));
 	    }
 //		CHECK_DAQMX_RET(DAQmxSetStartTrigRetriggerable(m_task, true), "");
     }
     else {
-	    if(std::find(m_analogTrigSrc.begin(), m_analogTrigSrc.end(), trigSource()->to_str())
-	         != m_analogTrigSrc.end()) {
+	    if(atrig) {
 	        CHECK_DAQMX_RET(DAQmxCfgAnlgEdgeRefTrig(m_task,
-	            trigSource()->to_str().c_str(),
+	            atrig,
 	            *trigFalling() ? DAQmx_Val_FallingSlope : DAQmx_Val_RisingSlope,
 	            *trigLevel(),
-	            pretrig),
-	            "Trigger Setup");
+	            pretrig));
 	    }
-	    if(std::find(m_digitalTrigSrc.begin(), m_digitalTrigSrc.end(), trigSource()->to_str())
-	         != m_digitalTrigSrc.end()) {
+	    if(dtrig) {
 	        CHECK_DAQMX_RET(DAQmxCfgDigEdgeRefTrig(m_task,
-	            trigSource()->to_str().c_str(),
+	            dtrig,
 	            *trigFalling() ? DAQmx_Val_FallingSlope : DAQmx_Val_RisingSlope,
-	            pretrig),
-	            "Trigger Setup");
+	            pretrig));
 	    }
 //		CHECK_DAQMX_RET(DAQmxSetRefTrigRetriggerable(m_task, true), "");
     }
@@ -141,10 +164,10 @@ XNIDAQmxDSO::setupTiming()
  	XScopedLock<XInterface> lock(*interface());
 
 	uInt32 num_ch;
-    CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch), "");	
+    CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
     if(num_ch == 0) return;
 
-    CHECK_DAQMX_RET(DAQmxStopTask(m_task), "Stop Task");
+    CHECK_DAQMX_RET(DAQmxStopTask(m_task));
 
 	unsigned int len = *recordLength();
 	m_record.resize(len * NUM_MAX_CH);
@@ -155,10 +178,10 @@ XNIDAQmxDSO::setupTiming()
         DAQmx_Val_Rising,
         DAQmx_Val_FiniteSamps,
         len
-        ), "Set Timing");
+        ));
     float64 rate;
     CHECK_DAQMX_RET(DAQmxGetSampClkRate(m_task, &rate
-    	), "Get Rate");
+    	));
     m_interval = 1.0 / rate;
 }
 void
@@ -166,18 +189,17 @@ XNIDAQmxDSO::createChannels()
 {
  	XScopedLock<XInterface> lock(*interface());
 	if(m_task != TASK_UNDEF) {
-	    CHECK_DAQMX_RET(DAQmxStopTask(m_task), "Stop Task");
-	    CHECK_DAQMX_RET(DAQmxClearTask(m_task), "Clear Task");
+	    CHECK_DAQMX_RET(DAQmxStopTask(m_task));
+	    CHECK_DAQMX_RET(DAQmxClearTask(m_task));
 	}
 	m_task = TASK_UNDEF;
 	
 	m_acqCount = 0;
 	
-    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_task), "Task Creation");
+    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_task));
 	ASSERT(m_task != TASK_UNDEF);   
     
     if(*trace1() >= 0) {
-    	 printf("%s\n", trace1()->to_str().c_str());
         CHECK_DAQMX_RET(DAQmxCreateAIVoltageChan(m_task,
             trace1()->to_str().c_str(),
               "",
@@ -186,10 +208,9 @@ XNIDAQmxDSO::createChannels()
             atof(vFullScale1()->to_str().c_str()) / 2.0,
             DAQmx_Val_Volts,
             NULL
-            ), "Channel Creation");
+            ));
     }
     if(*trace2() >= 0) {
-    	 printf("%s\n", trace2()->to_str().c_str());
         CHECK_DAQMX_RET(DAQmxCreateAIVoltageChan(m_task,
             trace2()->to_str().c_str(),
               "",
@@ -198,7 +219,7 @@ XNIDAQmxDSO::createChannels()
             atof(vFullScale2()->to_str().c_str()) / 2.0,
             DAQmx_Val_Volts,
             NULL
-            ), "Channel Creation");
+            ));
     }
 
     m_bPollMode = (DAQmxRegisterDoneEvent(m_task, 0, &XNIDAQmxDSO::_acqCallBack, this) < 0);
@@ -281,18 +302,18 @@ XNIDAQmxDSO::onForceTriggerTouched(const shared_ptr<XNode> &)
 {
  	XScopedLock<XInterface> lock(*interface());
 //    CHECK_DAQMX_RET(DAQmxSendSoftwareTrigger(m_task, DAQmx_Val_AdvanceTrigger), "");
-    CHECK_DAQMX_RET(DAQmxStopTask(m_task), "");
+    CHECK_DAQMX_RET(DAQmxStopTask(m_task));
 
     int32 trigtype;
-	CHECK_DAQMX_RET(DAQmxGetRefTrigType(m_task, &trigtype), "");
+	CHECK_DAQMX_RET(DAQmxGetRefTrigType(m_task, &trigtype));
 	if(trigtype != DAQmx_Val_None) {
-	    CHECK_DAQMX_RET(DAQmxDisableRefTrig(m_task), "");
+	    CHECK_DAQMX_RET(DAQmxDisableRefTrig(m_task));
 	}
-	CHECK_DAQMX_RET(DAQmxGetStartTrigType(m_task, &trigtype), "");
+	CHECK_DAQMX_RET(DAQmxGetStartTrigType(m_task, &trigtype));
 	if(trigtype != DAQmx_Val_None) {
-	    CHECK_DAQMX_RET(DAQmxDisableStartTrig(m_task), "");
+	    CHECK_DAQMX_RET(DAQmxDisableStartTrig(m_task));
 	}
-    CHECK_DAQMX_RET(DAQmxStartTask(m_task), "");
+    CHECK_DAQMX_RET(DAQmxStartTask(m_task));
 }
 int32
 XNIDAQmxDSO::_acqCallBack(TaskHandle task, int32 status, void *data)
@@ -320,18 +341,18 @@ void
 XNIDAQmxDSO::acquire(TaskHandle task)
 {
     uInt32 num_ch;
-    CHECK_DAQMX_RET(DAQmxGetTaskNumChans(task, &num_ch), "");	
+    CHECK_DAQMX_RET(DAQmxGetTaskNumChans(task, &num_ch));	
     if(num_ch == 0) return;
-    CHECK_DAQMX_RET(DAQmxGetReadNumChans(task, &num_ch), "");
+    CHECK_DAQMX_RET(DAQmxGetReadNumChans(task, &num_ch));
     if(num_ch == 0) return;
     uInt32 len;
-    CHECK_DAQMX_RET(DAQmxGetReadAvailSampPerChan(m_task, &len), "SampPerChan");
+    CHECK_DAQMX_RET(DAQmxGetReadAvailSampPerChan(m_task, &len));
 //    if(len < m_record.size() / NUM_MAX_CH) return;
     int32 cnt;
     CHECK_DAQMX_RET(DAQmxReadAnalogF64(task, DAQmx_Val_Auto,
         0, DAQmx_Val_GroupByChannel,
         &m_record_buf[0], m_record_buf.size(), &cnt, NULL
-        ), "Read");
+        ));
     ASSERT(cnt <= len);
     m_record_length = cnt;
       for(unsigned int i = 0; i < m_record.size(); i++) {
@@ -356,7 +377,7 @@ XNIDAQmxDSO::acquire(TaskHandle task)
     }
 
     if(!sseq || ((unsigned int)m_accumCount < av)) {
-	    CHECK_DAQMX_RET(DAQmxStartTask(m_task), "Start Task");
+	    CHECK_DAQMX_RET(DAQmxStartTask(m_task));
     }
 }
 void
@@ -364,7 +385,7 @@ XNIDAQmxDSO::startSequence()
 {
  	XScopedLock<XInterface> lock(*interface());
 
-    CHECK_DAQMX_RET(DAQmxStopTask(m_task), "Stop Task");
+    CHECK_DAQMX_RET(DAQmxStopTask(m_task));
 
     if(*singleSequence()) {
 	    m_acqCount = 0;
@@ -374,9 +395,9 @@ XNIDAQmxDSO::startSequence()
     }
 
 	uInt32 num_ch;
-    CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch), "");	
+    CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
     if(num_ch > 0) {
-	    CHECK_DAQMX_RET(DAQmxStartTask(m_task), "Start Task");
+	    CHECK_DAQMX_RET(DAQmxStartTask(m_task));
     }
 //	setupTrigger();
 }
@@ -391,7 +412,7 @@ XNIDAQmxDSO::acqCount(bool *seq_busy)
 	    }
 	    else {
 	    bool32 done;
-	    	CHECK_DAQMX_RET(DAQmxGetTaskComplete(m_task, &done), "");
+	    	CHECK_DAQMX_RET(DAQmxGetTaskComplete(m_task, &done));
 	    	if(done) {
 		    //task done.
 		    	acquire(m_task);
@@ -412,9 +433,9 @@ void
 XNIDAQmxDSO::getWave(std::deque<std::string> &)
 {
  	XScopedLock<XInterface> lock(*interface());
- 	if(m_accumCount == 0) return;
+ 	if(m_accumCount == 0) throw XInterface::XInterfaceError(KAME::i18n("No sample."), __FILE__, __LINE__);
     uInt32 num_ch;
-    CHECK_DAQMX_RET(DAQmxGetReadNumChans(m_task, &num_ch), "# of ch");
+    CHECK_DAQMX_RET(DAQmxGetReadNumChans(m_task, &num_ch));
 //    bool32 overload;
 //    CHECK_DAQMX_RET(DAQmxGetReadOverloadedChansExist(m_task, &overload), "Overload");
 //    if(overload) {
@@ -425,9 +446,9 @@ XNIDAQmxDSO::getWave(std::deque<std::string> &)
 	len = m_record_length;
     
     char buf[2048];
-    CHECK_DAQMX_RET(DAQmxGetReadChannelsToRead(m_task, buf, sizeof(buf)), "");
+    CHECK_DAQMX_RET(DAQmxGetReadChannelsToRead(m_task, buf, sizeof(buf)));
     int32 reftrigtype;
-	CHECK_DAQMX_RET(DAQmxGetRefTrigType(m_task, &reftrigtype), "");
+	CHECK_DAQMX_RET(DAQmxGetRefTrigType(m_task, &reftrigtype));
     uInt32 pretrig = 0;
 	if(reftrigtype != DAQmx_Val_None) {
 	    pretrig = lrintl(*trigPos() / 100.0 * *recordLength());

@@ -1,10 +1,12 @@
 #include "pulserdriver.h"
 
+#include "nidaqmxdriver.h"
+
 #ifdef HAVE_NI_DAQMX
 
 #include <vector>
 
-class XNIDAQmxPulser : public XPulser
+class XNIDAQmxPulser : public XNIDAQmxDriver<XDSO>
 {
  XNODE_OBJECT
  protected:
@@ -14,11 +16,9 @@ class XNIDAQmxPulser : public XPulser
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers);
  public:
-  virtual ~XNIDAQmxPulser() {}
+  virtual ~XNIDAQmxPulser();
 
  protected:
-    virtual void afterStart() {}
-    
     //! send patterns to pulser or turn-off
     virtual void changeOutput(bool output);
     //! convert RelPatList to native patterns
@@ -27,7 +27,13 @@ class XNIDAQmxPulser : public XPulser
     virtual double resolution();
     //! create RelPatList
     virtual void rawToRelPat() throw (XRecordError&);
+    
+  const shared_ptr<XNIDAQmxInterface> &intfDO() const {return interface();}
+  const shared_ptr<XNIDAQmxInterface> &intfAO() const {return m_ao_interface;}    
  private:
+	shared_ptr<XNIDAQmxInterface> m_ao_interface;
+	TaskHandle m_taskAO, m_taskDO;
+	
     //A pettern at absolute time
     class tpat {
           public:

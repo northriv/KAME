@@ -2,6 +2,9 @@
 
 #ifdef HAVE_NI_DAQMX
 
+#define TASK_UNDEF ((TaskHandle)-1)
+#define BUF_SIZE_HINT 10000
+
 #include "interface.h"
 #include <klocale.h>
 
@@ -10,77 +13,11 @@ using std::min;
 
 
 //[ms]
-#define DMA_PERIOD (1.0/(28.64e3/2))
+#define DMA_PERIOD (1.0/(1e3))
 
 double XNIDAQmxPulser::resolution() {
      return DMA_PERIOD;
 }
-
-//[ms]
-#define MIN_MTU_LEN 100e-3
-//[ms]
-#define MTU_PERIOD (1.0/(28.64e3/1))
-
-
-#define NUM_BANK 2
-#define PATTERNS_ZIPPED_MAX 40000
-
-//dma time commands
-#define PATTERN_ZIPPED_COMMAND_DMA_END 0
-//+1: a phase by 90deg.
-//+2,3: from DMA start 
-//+4,5: src neg. offset from here
-#define PATTERN_ZIPPED_COMMAND_DMA_COPY_HBURST 1
-//+1,2: time to appear
-//+2,3: pattern to appear
-#define PATTERN_ZIPPED_COMMAND_DMA_LSET_LONG 2
-//+0: time to appear + START
-//+1,2: pattern to appear
-#define PATTERN_ZIPPED_COMMAND_DMA_LSET_START 0x10
-#define PATTERN_ZIPPED_COMMAND_DMA_LSET_END 0xffu
-
-//off-dma time commands
-#define PATTERN_ZIPPED_COMMAND_END 0
-//+1,2 : TimerL
-#define PATTERN_ZIPPED_COMMAND_WAIT 1
-//+1,2 : TimerL
-//+3,4: LSW of TimerU
-#define PATTERN_ZIPPED_COMMAND_WAIT_LONG 2
-//+1,2 : TimerL
-//+3,4: MSW of TimerU
-//+5,6: LSW of TimerU
-#define PATTERN_ZIPPED_COMMAND_WAIT_LONG_LONG 3
-//+1: byte
-#define PATTERN_ZIPPED_COMMAND_AUX1 4
-//+1: byte
-#define PATTERN_ZIPPED_COMMAND_AUX3 5
-//+1: address
-//+2,3: value
-#define PATTERN_ZIPPED_COMMAND_AUX2_DA 6
-//+1,2: loops
-#define PATTERN_ZIPPED_COMMAND_DO 7
-#define PATTERN_ZIPPED_COMMAND_LOOP 8
-#define PATTERN_ZIPPED_COMMAND_LOOP_INF 9
-#define PATTERN_ZIPPED_COMMAND_BREAKPOINT 0xa 
-#define PATTERN_ZIPPED_COMMAND_PULSEON 0xb
-//+1,2: last pattern
-#define PATTERN_ZIPPED_COMMAND_DMA_SET 0xc
-//+1,2: size
-//+2n: patterns
-#define PATTERN_ZIPPED_COMMAND_DMA_HBURST 0xd
-//+1 (signed char): QAM1 offset
-//+2 (signed char): QAM2 offset
-#define PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_OFFSET 0xe
-//+1 (signed char): QAM1 level
-//+2 (signed char): QAM2 level
-#define PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_LEVEL 0xf
-//+1 (signed char): QAM1 delay
-//+2 (signed char): QAM2 delay
-#define PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_DELAY 0x10
-
-#define ASW_FILTER_1 "200kHz"
-#define ASW_FILTER_2 "600kHz"
-#define ASW_FILTER_3 "2MHz"
 
 #define g3mask 0x0010
 #define g2mask 0x0002
@@ -108,16 +45,66 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers) :
-    XPulser(name, runtime, scalarentries, interfaces, thermometers, drivers)
+    XNIDAQmxDriver<XDSO>(name, runtime, scalarentries, interfaces, thermometers, drivers),
+	m_ao_interface(XNode::create<XNIDAQmxInterface>("Interface2", false,
+            dynamic_pointer_cast<XDriver>(this->shared_from_this()))),
+	 m_taskAO(TASK_UNDEF),
+	 m_taskDO(TASK_UNDEF)
 {
-    interface()->setEOS("\n");
-    interface()->baudrate()->value(115200);
-    aswFilter()->add(ASW_FILTER_1);
-    aswFilter()->add(ASW_FILTER_2);
-    aswFilter()->add(ASW_FILTER_3);
-    aswFilter()->value(ASW_FILTER_3);
+    interfaces->insert(m_ao_interface);
+
+}
+XNIDAQmxPulser::~XNIDAQmxPulser()
+{
+	if(m_taskAO != TASK_UNDEF)
+	    DAQmxClearTask(m_taskAO);
+	if(m_taskDO != TASK_UNDEF)
+	    DAQmxClearTask(m_taskDO);
 }
 
+void
+XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
+{
+ 	XScopedLock<XInterface> lock(*intfDO());
+    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDO));
+
+    CHECK_DAQMX_RET(DAQmxCreateDOVoltageChan(m_taskDO, 
+    	(QString("%1/port0/line0:7").arg(intfDO()->devName())), "", DAQmx_Val_ChanForAllLines));
+	
+	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO, NULL,
+		1e3 / DMA_PERIOD, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
+	
+	this->start();	
+}
+void
+XNIDAQmxPulser::openAODevice() throw (XInterface::XInterfaceError &)
+{
+ 	XScopedLock<XInterface> lock(*intfAO());
+    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskAO));
+
+	CHECK_DAQMX_RET(DAQmxCreateAOVoltageChan(m_taskAO,
+    	(QString("%1/ao0:1").arg(intfAO()->devName())), "",
+    	-1.0, 1.0, DAQmx_Val_Volts, NULL));
+
+	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, NULL,
+		1e3 / DMA_PERIOD, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
+		
+}
+void
+XNIDAQmxPulser::close() throw (XInterface::XInterfaceError &)
+{
+ 	XScopedLock<XInterface> lock(*intfAO());
+ 	XScopedLock<XInterface> lock(*intfDO());
+	if(m_taskAO != TASK_UNDEF)
+	    DAQmxClearTask(m_taskAO);
+	if(m_taskDO != TASK_UNDEF)
+	    DAQmxClearTask(m_taskDO);
+	m_taskAO = TASK_UNDEF;
+	m_taskDO = TASK_UNDEF;
+    
+	intfDO()->stop();
+	intfAO()->stop();
+}
 void
 XNIDAQmxPulser::createNativePatterns()
 {
