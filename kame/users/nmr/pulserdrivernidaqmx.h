@@ -93,6 +93,7 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 	static int32 _genCallBack(TaskHandle task, int32 /*type*/, uInt32 num_samps, void *data);
 	static int32 _doneCallBack(TaskHandle task, int32 /*status*/, void *data);
 	int32 genCallBack(TaskHandle task, uInt32 num_samps);
+    scoped_ptr<XNIDAQmxInterface::XNIDAQmxRoute> m_route;
     
   int makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
   

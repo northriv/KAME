@@ -62,11 +62,11 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 	    const char* sc[] = {
 	    "PFI0", "PFI1", "PFI2", "PFI3", "PFI4", "PFI5", "PFI6", "PFI7",
     	"RTSI0", "RTSI1", "RTSI2", "RTSI3", "RTSI4", "RTSI5", "RTSI6",
-    	"crt0", "crt1",
+    	"ctr0", "ctr1",
     	 0L};
 	    for(int i = 0; sc[i]; i++)
 	    {
-	    	QString str(QString("/%1/%2").arg(interface()->devName()).arg(sc[i]));
+	    	QString str(QString("%1/%2").arg(interface()->devName()).arg(sc[i]));
 	        trigSource()->add(str);
 //	        m_digitalTrigSrc.push_back(str);
 	    }

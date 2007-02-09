@@ -73,7 +73,6 @@ XNIDAQmxPulser::~XNIDAQmxPulser()
 	    DAQmxClearTask(m_taskCtr);
 	}
 }
-
 void
 XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
 {
@@ -82,22 +81,29 @@ XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
 	    DAQmxClearTask(m_taskDO);
 	    DAQmxClearTask(m_taskCtr);
 	}
+	#define PFI_DO_SAMP "RTSI5"
 	float64 freq = 1e3 / DMA_DO_PERIOD;
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskCtr));
 	CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskCtr, 
-    	(QString("/%1/ctr0").arg(intfDO()->devName())), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
+//    	(QString("%1/ctr0").arg(intfDO()->devName())), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
+    	(QString("%1/freqout").arg(intfDO()->devName())), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
     	freq, 0.5));
-    CHECK_DAQMX_RET(DAQmxSetCOPulseTerm(m_taskCtr, 
-    (QString("/%1/ctr0").arg(intfDO()->devName())), (QString("/%1/Ctr0InternalOutput").arg(intfDO()->devName()))));
+    m_route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
+//    	(QString("/%1/Ctr0InternalOutput").arg(intfDO()->devName())), 
+    	(QString("/%1/FrequencyOutput").arg(intfDO()->devName())), 
+    	(QString("/%1/" PFI_DO_SAMP).arg(intfDO()->devName()))));
+    
     CHECK_DAQMX_RET(DAQmxStartTask(m_taskCtr));
 	
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDO));
 
     CHECK_DAQMX_RET(DAQmxCreateDOChan(m_taskDO, 
-    	(QString("/%1/port0/line0:7").arg(intfDO()->devName())), "", DAQmx_Val_ChanForAllLines));
+    	(QString("%1/port0/line0:7").arg(intfDO()->devName())), "", DAQmx_Val_ChanForAllLines));
 
-	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO, (QString("/%1/Ctr0InternalOutput").arg(intfDO()->devName())),
+	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO, (QString("/%1/FrequencyOutput").arg(intfDO()->devName())),
 		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
+//	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO, (QString("/%1/Ctr0InternalOutput").arg(intfDO()->devName())),
+//		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
 //	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO, (QString("/%1/FrequencyOutput").arg(intfDO()->devName())),
 //		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
 	
@@ -108,7 +114,7 @@ XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
 	printf("Using bufsize = %u, freq = %f\n", bufsize, freq);
 	CHECK_DAQMX_RET(DAQmxRegisterEveryNSamplesEvent(m_taskDO,
-		DAQmx_Val_Transferred_From_Buffer, bufsize/2, 0,
+		DAQmx_Val_Transferred_From_Buffer, bufsize/4, 0,
 		&XNIDAQmxPulser::_genCallBack, this));
 	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskDO, 0,
 		&XNIDAQmxPulser::_doneCallBack, this));
@@ -125,7 +131,7 @@ XNIDAQmxPulser::onOpenAO(const shared_ptr<XInterface> &)
 	    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskAO));
 	
 		CHECK_DAQMX_RET(DAQmxCreateAOVoltageChan(m_taskAO,
-	    	(QString("/%1/ao0:1").arg(intfAO()->devName())), "",
+	    	(QString("%1/ao0:1").arg(intfAO()->devName())), "",
 	    	-1.0, 1.0, DAQmx_Val_Volts, NULL));
 	
 		CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, NULL,
@@ -133,7 +139,7 @@ XNIDAQmxPulser::onOpenAO(const shared_ptr<XInterface> &)
 
 		//Configure RTSI or PXI before doing this.
 		CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskAO,
-			QString("/%1/do/StartTrigger").arg(intfDO()->devName()), DAQmx_Val_Rising));
+			QString("%1/do/StartTrigger").arg(intfDO()->devName()), DAQmx_Val_Rising));
 //			QString("/%1/ai/StartTrigger").arg(intfDO()->devName()), DAQmx_Val_Rising));
 			
 		unsigned int coeff_size = sizeof(m_coeffAO[0])/sizeof(float64);
@@ -141,13 +147,13 @@ XNIDAQmxPulser::onOpenAO(const shared_ptr<XInterface> &)
 			for(unsigned int i = 0; i < coeff_size; i++)
 				m_coeffAO[ch][i] = 0.0;
 			CHECK_DAQMX_RET(DAQmxGetAODevScalingCoeff(m_taskAO, 
-				(QString("/%1/ao%2").arg(intfAO()->devName()).arg(ch)),
+				(QString("%1/ao%2").arg(intfAO()->devName()).arg(ch)),
 				m_coeffAO[ch], coeff_size));
 			CHECK_DAQMX_RET(DAQmxGetAODACRngHigh(m_taskAO,
-				(QString("/%1/ao%2").arg(intfAO()->devName()).arg(ch)),
+				(QString("%1/ao%2").arg(intfAO()->devName()).arg(ch)),
 				&m_upperLimAO[ch]));
 			CHECK_DAQMX_RET(DAQmxGetAODACRngLow(m_taskAO,
-				(QString("/%1/ao%2").arg(intfAO()->devName()).arg(ch)),
+				(QString("%1/ao%2").arg(intfAO()->devName()).arg(ch)),
 				&m_lowerLimAO[ch]));
 		}
 		
@@ -175,6 +181,7 @@ XNIDAQmxPulser::close() throw (XInterface::XInterfaceError &)
 	    DAQmxClearTask(m_taskAO);
 	if(m_taskDO != TASK_UNDEF) {
 	    DAQmxClearTask(m_taskDO);
+	    m_route.reset();
 	    DAQmxClearTask(m_taskCtr);
 	}
 	m_taskAO = TASK_UNDEF;
@@ -222,7 +229,6 @@ XNIDAQmxPulser::stopPulseGen() throw (XInterface::XInterfaceError &)
 int32
 XNIDAQmxPulser::_genCallBack(TaskHandle task, int32 /*type*/, uInt32 num_samps, void *data)
 {
-	printf("gen\n");
     XNIDAQmxPulser *obj = reinterpret_cast<XNIDAQmxPulser*>(data);
     return obj->genCallBack(task, num_samps);
 }
@@ -302,8 +308,8 @@ XNIDAQmxPulser::genPulseBuffer(uInt32 num_samps)
 			toappear = it->toappear;
 		}
 	}
-	ASSERT(pDO == &*m_genBufDO.end());
-	ASSERT(pAO == &*m_genBufAO.end());
+	ASSERT(pDO == &m_genBufDO[num_samps]);
+	ASSERT(pAO == &m_genBufAO[num_samps * SAMPS_AO_PER_DO * NUM_AO_CH]);
 	m_genLastPattern = pat;
 	m_genRestSamps = toappear;
 	m_genLastPatIt = it;
