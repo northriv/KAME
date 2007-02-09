@@ -82,9 +82,14 @@ XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
 
     CHECK_DAQMX_RET(DAQmxCreateDOChan(m_taskDO, 
     	(QString("/%1/port0/line0:7").arg(intfDO()->devName())), "", DAQmx_Val_ChanForAllLines));
+
+	float64 freq = 1e3 / DMA_DO_PERIOD;
+	CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskDO, 
+    	(QString("/%1/crt0").arg(intfDO()->devName())), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
+    	freq, 0.5));
 	
-	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO, "",
-		1e3 / DMA_DO_PERIOD, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
+	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO, (QString("/%1/Crt0Out").arg(intfDO()->devName())),
+		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
 	
 //	CHECK_DAQMX_RET(DAQmxExportSignal(m_taskDO, DAQmx_Val_StartTrigger, 
 //		QString("/%1/" RTSI_START_TRIG).arg(intfDO()->devName())));
