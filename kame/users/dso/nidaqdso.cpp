@@ -480,10 +480,8 @@ XNIDAQmxDSO::convertRaw() throw (XRecordError&)
 	unsigned int len = pop<uint32_t>();
 	unsigned int accumCount = pop<uint32_t>();
 	double interval = pop<double>();
-	printf("strange pre-prig num:%d %f\n", (uint32_t)pretrig, - pretrig * interval);
 
-//	printf("%d %f %f %d\n", num_ch, - pretrig * interval, interval, len);
-	setRecordDim(num_ch, - pretrig * interval, interval, len);
+	setRecordDim(num_ch, - (double)pretrig * interval, interval, len);
 	
   for(unsigned int j = 0; j < num_ch; j++)
     {

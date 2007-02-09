@@ -482,14 +482,14 @@ XNIDAQmxPulser::rawToRelPat() throw (XRecordError&)
      
       patterns.insert(tpat(cpos - _comb_pw/1000.0/2 - _g2_setup/1000.0,
                      g2mask, g2mask));
-      patterns.insert(tpat(cpos - _comb_pw/1000.0/2 - _g2_setup/1000.0, comb_off_res ? ~0 : 0, combfmmask));
-      patterns.insert(tpat(cpos - _comb_pw/1000.0/2 - _g2_setup/1000.0, ~0, combmask));
+      patterns.insert(tpat(cpos - _comb_pw/1000.0/2 - _g2_setup/1000.0, comb_off_res ? ~(uint32_t)0 : 0, combfmmask));
+      patterns.insert(tpat(cpos - _comb_pw/1000.0/2 - _g2_setup/1000.0, ~(uint32_t)0, combmask));
           for(int k = 0; k < _comb_num; k++)
         {
               patterns.insert(tpat(cpos + _comb_pw/2/1000.0 , qpsk(comb[j]), qpskmask));
           cpos += combpt;
           cpos -= _comb_pw/2/1000.0;
-          patterns.insert(tpat(cpos, ~0, g1mask));
+          patterns.insert(tpat(cpos, ~(uint32_t)0, g1mask));
           patterns.insert(tpat(cpos, PULSE_COMB, pulsemask));
           cpos += _comb_pw/1000.0;      
           patterns.insert(tpat(cpos, 0 , g1mask));
@@ -499,9 +499,9 @@ XNIDAQmxPulser::rawToRelPat() throw (XRecordError&)
         }
       patterns.insert(tpat(cpos + _comb_pw/2/1000.0, 0, g2mask));
       patterns.insert(tpat(cpos + _comb_pw/2/1000.0, 0, combmask));
-      patterns.insert(tpat(cpos + _comb_pw/1000.0/2, ~0, combfmmask));
+      patterns.insert(tpat(cpos + _comb_pw/1000.0/2, ~(uint32_t)0, combfmmask));
       if(! _qsw_pi_only) {
-          patterns.insert(tpat(cpos + _comb_pw/2/1000.0 + _qsw_delay/1000.0, ~0 , qswmask));
+          patterns.insert(tpat(cpos + _comb_pw/2/1000.0 + _qsw_delay/1000.0, ~(uint32_t)0 , qswmask));
           patterns.insert(tpat(cpos + _comb_pw/2/1000.0 + (_qsw_delay + _qsw_width)/1000.0, 0 , qswmask));
       }
     }   
@@ -510,32 +510,32 @@ XNIDAQmxPulser::rawToRelPat() throw (XRecordError&)
        //pi/2 pulse
       //on
       patterns.insert(tpat(pos - _pw1/2.0/1000.0 - _g2_setup/1000.0, qpsk(p1[j]), qpskmask));
-      patterns.insert(tpat(pos - _pw1/2.0/1000.0 - _g2_setup/1000.0, ~0, pulse1mask));
-      patterns.insert(tpat(pos - _pw1/2.0/1000.0 - _g2_setup/1000.0, ~0, g2mask));
+      patterns.insert(tpat(pos - _pw1/2.0/1000.0 - _g2_setup/1000.0, ~(uint32_t)0, pulse1mask));
+      patterns.insert(tpat(pos - _pw1/2.0/1000.0 - _g2_setup/1000.0, ~(uint32_t)0, g2mask));
       patterns.insert(tpat(pos - _pw1/2.0/1000.0, PULSE_P1, pulsemask));
-      patterns.insert(tpat(pos - _pw1/2.0/1000.0, ~0, g1mask | trig2mask));
+      patterns.insert(tpat(pos - _pw1/2.0/1000.0, ~(uint32_t)0, g1mask | trig2mask));
       //off
       patterns.insert(tpat(pos + _pw1/2.0/1000.0, 0, g1mask));
       patterns.insert(tpat(pos + _pw1/2.0/1000.0, 0, pulsemask));
       patterns.insert(tpat(pos + _pw1/2.0/1000.0, 0, pulse1mask));
       patterns.insert(tpat(pos + _pw1/2.0/1000.0, qpsk(p2[j]), qpskmask));
-      patterns.insert(tpat(pos + _pw1/2.0/1000.0, ~0, pulse2mask));
+      patterns.insert(tpat(pos + _pw1/2.0/1000.0, ~(uint32_t)0, pulse2mask));
       if(! _qsw_pi_only) {
-          patterns.insert(tpat(pos + _pw1/2.0/1000.0 + _qsw_delay/1000.0, ~0 , qswmask));
+          patterns.insert(tpat(pos + _pw1/2.0/1000.0 + _qsw_delay/1000.0, ~(uint32_t)0 , qswmask));
           patterns.insert(tpat(pos + _pw1/2.0/1000.0 + (_qsw_delay + _qsw_width)/1000.0, 0 , qswmask));
       }
      
       //2tau
       pos += 2*_tau/1000.0;
       //    patterns.insert(tpat(pos - _asw_setup, -1, aswmask | rfswmask, 0));
-      patterns.insert(tpat(pos - _asw_setup, ~0, aswmask));
+      patterns.insert(tpat(pos - _asw_setup, ~(uint32_t)0, aswmask));
       patterns.insert(tpat(pos -
                ((!former_of_alt && comb_mode_alt) ?
-                (double)_alt_sep : 0.0), ~0, trig1mask));
+                (double)_alt_sep : 0.0), ~(uint32_t)0, trig1mask));
                 
       //induce emission
       if(_induce_emission) {
-          patterns.insert(tpat(pos - _induce_emission_pw/2.0/1000.0, ~0, g3mask));
+          patterns.insert(tpat(pos - _induce_emission_pw/2.0/1000.0, ~(uint32_t)0, g3mask));
           patterns.insert(tpat(pos - _induce_emission_pw/2.0/1000.0, PULSE_INDUCE_EMISSION, pulsemask));
           patterns.insert(tpat(pos - _induce_emission_pw/2.0/1000.0, 0, qpskmask));
           patterns.insert(tpat(pos + _induce_emission_pw/2.0/1000.0, 0, pulsemask));
@@ -549,24 +549,24 @@ XNIDAQmxPulser::rawToRelPat() throw (XRecordError&)
           pos += 2*_tau/1000.0;
           //on
       if(k >= 1) {
-              patterns.insert(tpat(pos - _pw2/2.0/1000.0 - _g2_setup/1000.0, ~0, g2mask));
+              patterns.insert(tpat(pos - _pw2/2.0/1000.0 - _g2_setup/1000.0, ~(uint32_t)0, g2mask));
       }
           patterns.insert(tpat(pos - _pw2/2.0/1000.0, 0, trig2mask));
           patterns.insert(tpat(pos - _pw2/2.0/1000.0, PULSE_P2, pulsemask));
-          patterns.insert(tpat(pos - _pw2/2.0/1000.0, ~0, g1mask));
+          patterns.insert(tpat(pos - _pw2/2.0/1000.0, ~(uint32_t)0, g1mask));
           //off
           patterns.insert(tpat(pos + _pw2/2.0/1000.0, 0, pulse2mask));
           patterns.insert(tpat(pos + _pw2/2.0/1000.0, 0, pulsemask));
           patterns.insert(tpat(pos + _pw2/2.0/1000.0, 0, g1mask));
           patterns.insert(tpat(pos + _pw2/2.0/1000.0, 0, g2mask));
-          patterns.insert(tpat(pos + _pw2/2.0/1000.0 + _qsw_delay/1000.0, ~0 , qswmask));
+          patterns.insert(tpat(pos + _pw2/2.0/1000.0 + _qsw_delay/1000.0, ~(uint32_t)0 , qswmask));
           patterns.insert(tpat(pos + _pw2/2.0/1000.0 + (_qsw_delay + _qsw_width)/1000.0, 0 , qswmask));
       }
 
        patterns.insert(tpat(pos + _tau/1000.0 + _asw_hold, 0, aswmask | trig1mask));
       //induce emission
       if(_induce_emission) {
-          patterns.insert(tpat(pos + _tau/1000.0 + _asw_hold - _induce_emission_pw/2.0/1000.0, ~0, g3mask));
+          patterns.insert(tpat(pos + _tau/1000.0 + _asw_hold - _induce_emission_pw/2.0/1000.0, ~(uint32_t)0, g3mask));
           patterns.insert(tpat(pos + _tau/1000.0 + _asw_hold - _induce_emission_pw/2.0/1000.0, PULSE_INDUCE_EMISSION, pulsemask));
           patterns.insert(tpat(pos + _tau/1000.0 + _asw_hold - _induce_emission_pw/2.0/1000.0, 0, qpskmask));
           patterns.insert(tpat(pos + _tau/1000.0 + _asw_hold + _induce_emission_pw/2.0/1000.0, 0, pulsemask));
@@ -579,24 +579,24 @@ XNIDAQmxPulser::rawToRelPat() throw (XRecordError&)
         //pi pulse 
         //on
         patterns.insert(tpat(pos - _pw2/2.0/1000.0 - _g2_setup/1000.0, qpsk_driven_equilibrium(p2[j]), qpskmask));
-        patterns.insert(tpat(pos - _pw2/2.0/1000.0 - _g2_setup/1000.0, ~0, g2mask));
-        patterns.insert(tpat(pos - _pw2/2.0/1000.0 - _g2_setup/1000.0, ~0, pulse2mask));
+        patterns.insert(tpat(pos - _pw2/2.0/1000.0 - _g2_setup/1000.0, ~(uint32_t)0, g2mask));
+        patterns.insert(tpat(pos - _pw2/2.0/1000.0 - _g2_setup/1000.0, ~(uint32_t)0, pulse2mask));
         patterns.insert(tpat(pos - _pw2/2.0/1000.0, PULSE_P2, pulsemask));
-        patterns.insert(tpat(pos - _pw2/2.0/1000.0, ~0, g1mask));
+        patterns.insert(tpat(pos - _pw2/2.0/1000.0, ~(uint32_t)0, g1mask));
         //off
         patterns.insert(tpat(pos + _pw2/2.0/1000.0, 0, pulse2mask));
         patterns.insert(tpat(pos + _pw2/2.0/1000.0, 0, pulsemask));
         patterns.insert(tpat(pos + _pw2/2.0/1000.0, 0, g1mask | g2mask));
-        patterns.insert(tpat(pos + _pw2/2.0/1000.0 + _qsw_delay/1000.0, ~0 , qswmask));
+        patterns.insert(tpat(pos + _pw2/2.0/1000.0 + _qsw_delay/1000.0, ~(uint32_t)0 , qswmask));
         patterns.insert(tpat(pos + _pw2/2.0/1000.0 + (_qsw_delay + _qsw_width)/1000.0, 0 , qswmask));
         pos += _tau/1000.0;
          //pi/2 pulse
         //on
         patterns.insert(tpat(pos - _pw1/2.0/1000.0 - _g2_setup/1000.0, qpskinv(p1[j]), qpskmask));
-        patterns.insert(tpat(pos - _pw1/2.0/1000.0 - _g2_setup/1000.0, ~0, pulse1mask));
-        patterns.insert(tpat(pos - _pw1/2.0/1000.0 - _g2_setup/1000.0, ~0, g2mask));
+        patterns.insert(tpat(pos - _pw1/2.0/1000.0 - _g2_setup/1000.0, ~(uint32_t)0, pulse1mask));
+        patterns.insert(tpat(pos - _pw1/2.0/1000.0 - _g2_setup/1000.0, ~(uint32_t)0, g2mask));
         patterns.insert(tpat(pos - _pw1/2.0/1000.0, PULSE_P1, pulsemask));
-        patterns.insert(tpat(pos - _pw1/2.0/1000.0, ~0, g1mask));
+        patterns.insert(tpat(pos - _pw1/2.0/1000.0, ~(uint32_t)0, g1mask));
         //off
         patterns.insert(tpat(pos + _pw1/2.0/1000.0, 0, pulsemask));
         patterns.insert(tpat(pos + _pw1/2.0/1000.0, 0, g1mask));
@@ -604,7 +604,7 @@ XNIDAQmxPulser::rawToRelPat() throw (XRecordError&)
         patterns.insert(tpat(pos + _pw1/2.0/1000.0, qpsk(p1[j]), qpskmask));
         patterns.insert(tpat(pos + _pw1/2.0/1000.0, 0, g2mask));
         if(! _qsw_pi_only) {
-            patterns.insert(tpat(pos + _pw1/2.0/1000.0 + _qsw_delay/1000.0, ~0 , qswmask));
+            patterns.insert(tpat(pos + _pw1/2.0/1000.0 + _qsw_delay/1000.0, ~(uint32_t)0 , qswmask));
             patterns.insert(tpat(pos + _pw1/2.0/1000.0 + (_qsw_delay + _qsw_width)/1000.0, 0 , qswmask));
         }
       }
