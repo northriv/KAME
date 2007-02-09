@@ -354,7 +354,7 @@ XNIDAQmxDSO::acquire(TaskHandle task)
         0, DAQmx_Val_GroupByChannel,
         &m_record_buf[0], m_record_buf.size(), &cnt, NULL
         ));
-    ASSERT(cnt <= len);
+    ASSERT(cnt <= (uInt32)len);
     m_record_length = cnt;
       for(unsigned int i = 0; i < m_record.size(); i++) {
         m_record[i] += m_record_buf[i];
@@ -478,7 +478,7 @@ XNIDAQmxDSO::convertRaw() throw (XRecordError&)
 	unsigned int num_ch = pop<uint32_t>();
 	unsigned int pretrig = pop<uint32_t>();
 	unsigned int len = pop<uint32_t>();
-	unsigned int accumCount = pop<uint32_t>();
+	/*unsigned int accumCount = */ pop<uint32_t>();
 	double interval = pop<double>();
 
 	setRecordDim(num_ch, - (double)pretrig * interval, interval, len);

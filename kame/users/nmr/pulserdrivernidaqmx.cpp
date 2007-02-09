@@ -81,9 +81,9 @@ XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDO));
 
     CHECK_DAQMX_RET(DAQmxCreateDOChan(m_taskDO, 
-    	(QString("%1/port0/line0:7").arg(intfDO()->devName())), "", DAQmx_Val_ChanForAllLines));
+    	(QString("/%1/port0/line0:7").arg(intfDO()->devName())), "", DAQmx_Val_ChanForAllLines));
 	
-	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO, NULL,
+	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO, "",
 		1e3 / DMA_DO_PERIOD, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
 	
 //	CHECK_DAQMX_RET(DAQmxExportSignal(m_taskDO, DAQmx_Val_StartTrigger, 
@@ -233,7 +233,7 @@ XNIDAQmxPulser::genPulseBuffer(uInt32 num_samps)
 	for(unsigned int samps_rest = num_samps; samps_rest;) {
 		unsigned int gen_cnt = std::min((long long int)samps_rest, toappear);
 		tRawDO patDO = allmask & pat;
-		unsigned int pidx = (pat & (pulsemask | qpskmask)) / qpskbit;
+		unsigned int pidx = (pat & pulsemask) / pulsebit;
 		C_ASSERT(pulsebit > qpskbit);
 		if(pidx == 0) {
 			aoidx = 0;
@@ -246,8 +246,11 @@ XNIDAQmxPulser::genPulseBuffer(uInt32 num_samps)
 			}
 		}
 		else {
-			tRawAO *pGenAO0 = &m_genPulseWaveAO[0][pidx - pulsebit/qpskbit][aoidx];
-			tRawAO *pGenAO1 = &m_genPulseWaveAO[1][pidx - pulsebit/qpskbit][aoidx];
+			unsigned int qpskidx = (pat & qpskmask) / qpskbit;
+			unsigned int pnum = (pidx - 1) * (pulsebit/qpskbit) + qpskidx;
+			tRawAO *pGenAO0 = &m_genPulseWaveAO[0][pnum][aoidx];
+			tRawAO *pGenAO1 = &m_genPulseWaveAO[1][pnum][aoidx];
+			ASSERT(m_genPulseWaveAO[0][pidx - pulsebit/qpskbit].size() >= aoidx + gen_cnt);
 			for(unsigned int cnt = 0; cnt < gen_cnt; cnt++) {
 				(*pDO++) = patDO;
 				for(unsigned int i = 0; i < SAMPS_AO_PER_DO; i++) {
@@ -339,7 +342,8 @@ int
 XNIDAQmxPulser::makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq, double phase)
 {
 	for(unsigned int qpsk = 0; qpsk < 4; qpsk++) {
-	  	unsigned short word = (unsigned short)lrint(pw / DMA_AO_PERIOD) + SAMPS_AO_PER_DO;
+		unsigned int pnum = num * pulsebit/qpskbit + qpsk;
+	  	unsigned short word = (unsigned short)lrint(pw / DMA_AO_PERIOD) + SAMPS_AO_PER_DO*2;
 		double dx = DMA_AO_PERIOD / pw;
 		double dp = 2*PI*freq*DMA_AO_PERIOD + PI/2*qpsk;
 		double z = pow(10.0, dB/20.0);
@@ -347,8 +351,8 @@ XNIDAQmxPulser::makeWaveForm(int num, double pw, tpulsefunc func, double dB, dou
 			double w = z * func((i - word / 2.0) * dx) * 1.0;
 			double x = w * cos((i - word / 2.0) * dp + PI/4 + phase);
 			double y = w * sin((i - word / 2.0) * dp + PI/4 + phase);
-			m_genPulseWaveAO[0][num * pulsebit/qpskbit + qpsk].push_back(aoVoltToRaw(0, x));
-			m_genPulseWaveAO[1][num * pulsebit/qpskbit + qpsk].push_back(aoVoltToRaw(1, y));
+			m_genPulseWaveAO[0][pnum].push_back(aoVoltToRaw(0, x));
+			m_genPulseWaveAO[1][pnum].push_back(aoVoltToRaw(1, y));
 		}
 	}
 	return 0;
