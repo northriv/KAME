@@ -87,7 +87,8 @@ XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
 	CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskCtr, 
     	(QString("/%1/ctr0").arg(intfDO()->devName())), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
     	freq, 0.5));
-    CHECK_DAQMX_RET(DAQmxSetCOPulseTerm(m_taskCtr, (QString("/%1/Ctr0InternalOutput").arg(intfDO()->devName()))));
+    CHECK_DAQMX_RET(DAQmxSetCOPulseTerm(m_taskCtr, 
+    (QString("/%1/ctr0").arg(intfDO()->devName())), (QString("/%1/Ctr0InternalOutput").arg(intfDO()->devName()))));
     CHECK_DAQMX_RET(DAQmxStartTask(m_taskCtr));
 	
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDO));
@@ -105,7 +106,7 @@ XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, BUF_SIZE_HINT));
 	uInt32 bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
-	printf("Using bufsize = %d, freq = %f\n", bufsize, freq);
+	printf("Using bufsize = %u, freq = %f\n", bufsize, freq);
 	CHECK_DAQMX_RET(DAQmxRegisterEveryNSamplesEvent(m_taskDO,
 		DAQmx_Val_Transferred_From_Buffer, bufsize/2, 0,
 		&XNIDAQmxPulser::_genCallBack, this));
@@ -198,7 +199,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	m_genRestSamps = m_genPatternList.back().toappear;
 	m_genAOIndex = 0;
 	m_genBufDO.resize(BUF_SIZE_HINT);
-	m_genBufAO.resize(BUF_SIZE_HINT * NUM_AO_CH);
+	m_genBufAO.resize(BUF_SIZE_HINT * NUM_AO_CH * SAMPS_AO_PER_DO);
 	
 	genCallBack(m_taskDO, BUF_SIZE_HINT);
 	
@@ -301,8 +302,8 @@ XNIDAQmxPulser::genPulseBuffer(uInt32 num_samps)
 			toappear = it->toappear;
 		}
 	}
-	ASSERT(pDO == &m_genBufDO[num_samps]);
-	ASSERT(pAO == &m_genBufAO[num_samps*2]);
+	ASSERT(pDO == &*m_genBufDO.end());
+	ASSERT(pAO == &*m_genBufAO.end());
 	m_genLastPattern = pat;
 	m_genRestSamps = toappear;
 	m_genLastPatIt = it;
@@ -323,9 +324,9 @@ XNIDAQmxPulser::genCallBack(TaskHandle /*task*/, uInt32 num_samps)
 		if(samps != (int32)num_samps)
 			gWarnPrint("DO: buffer underrun");
 		if(m_taskAO != TASK_UNDEF) {
-			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, num_samps, false, 0.1, 
+			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, num_samps*SAMPS_AO_PER_DO, false, 0.1, 
 				DAQmx_Val_GroupByScanNumber, &m_genBufAO[0], &samps, NULL));
-			if(samps != (int32)num_samps)
+			if(samps != (int32)num_samps*SAMPS_AO_PER_DO)
 				gWarnPrint("AO: buffer underrun");
 		}
 	}
