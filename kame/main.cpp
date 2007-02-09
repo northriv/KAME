@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
             KCmdLineArgs *args = KCmdLineArgs::parsedArgs();
         
            QGLFormat f;
-            f.setDirectRendering( args->isSet("directrender") );
+            f.setDirectRendering(args->isSet("directrender") );
             QGLFormat::setDefaultFormat( f );
             
             g_bLogDbgPrint = args->isSet("logging");

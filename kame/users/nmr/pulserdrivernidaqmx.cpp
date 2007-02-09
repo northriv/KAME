@@ -18,8 +18,7 @@ using std::min;
 //[ms]
 #define DMA_AO_PERIOD (DMA_DO_PERIOD / SAMPS_AO_PER_DO)
 
-#define BUF_SIZE_HINT 10000
-#define BUF_SIZE_CB_EVENT (BUF_SIZE_HINT/2)
+#define BUF_SIZE_HINT 8192
 
 double XNIDAQmxPulser::resolution() {
      return DMA_DO_PERIOD;
@@ -70,6 +69,7 @@ XNIDAQmxPulser::~XNIDAQmxPulser()
 	    DAQmxClearTask(m_taskAO);
 	if(m_taskDO != TASK_UNDEF) {
 	    DAQmxClearTask(m_taskDO);
+	    DAQmxStopTask(m_taskCtr);
 	    DAQmxClearTask(m_taskCtr);
 	}
 }
@@ -94,15 +94,20 @@ XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
     CHECK_DAQMX_RET(DAQmxCreateDOChan(m_taskDO, 
     	(QString("/%1/port0/line0:7").arg(intfDO()->devName())), "", DAQmx_Val_ChanForAllLines));
 
-	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO, (QString("/%1/freqout").arg(intfDO()->devName())),
+	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO, (QString("/%1/FrequencyOutput").arg(intfDO()->devName())),
 		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
 	
 //	CHECK_DAQMX_RET(DAQmxExportSignal(m_taskDO, DAQmx_Val_StartTrigger, 
 //		QString("/%1/" RTSI_START_TRIG).arg(intfDO()->devName())));
-		
+	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, BUF_SIZE_HINT));
+	uInt32 bufsize;
+	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
+	printf("Using bufsize = %d, freq = %f\n", bufsize, freq);
 	CHECK_DAQMX_RET(DAQmxRegisterEveryNSamplesEvent(m_taskDO,
-		DAQmx_Val_Transferred_From_Buffer, BUF_SIZE_CB_EVENT, 0,
+		DAQmx_Val_Transferred_From_Buffer, bufsize/2, 0,
 		&XNIDAQmxPulser::_genCallBack, this));
+	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskDO, 0,
+		&XNIDAQmxPulser::_doneCallBack, this));
 
 	this->start();	
 }
@@ -213,8 +218,15 @@ XNIDAQmxPulser::stopPulseGen() throw (XInterface::XInterfaceError &)
 int32
 XNIDAQmxPulser::_genCallBack(TaskHandle task, int32 /*type*/, uInt32 num_samps, void *data)
 {
+	printf("gen\n");
     XNIDAQmxPulser *obj = reinterpret_cast<XNIDAQmxPulser*>(data);
     return obj->genCallBack(task, num_samps);
+}
+int32
+XNIDAQmxPulser::_doneCallBack(TaskHandle task, int32 /*status*/, void *data)
+{
+	printf("done\n");
+    return 0;
 }
 XNIDAQmxPulser::tRawAO
 XNIDAQmxPulser::aoVoltToRaw(int ch, float64 volt)
