@@ -36,14 +36,14 @@ XNIDAQmxGlobalOpen()
 					int pret;
 					route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
 						QString("/%1/10MHzRefClock").arg(*it),
-						QString("/%1/RTSI6").arg(*it), &pret));
+						"RTSI6", &pret));
 					if(pret >= 0) {
 						master10MHz = *it;
 						g_daqmx_sync_routes.push_back(route);
 						printf("10MHzRefClk found on %s\n", it->c_str());
 						route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
 							QString("/%1/20MHzTimebase").arg(*it),
-							QString("/%1/RTSI7").arg(*it), &pret));
+							"RTSI7", &pret));
 						if(pret >= 0) {
 							master20MHz = *it;
 							printf("20MHzRefClk found on %s\n", it->c_str());
@@ -59,7 +59,7 @@ XNIDAQmxGlobalOpen()
 				int pret;
 				route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
 					QString("/%1/20MHzTimebase").arg(*it),
-					QString("/%1/RTSI7").arg(*it), &pret));
+					"RTSI7", &pret));
 				if(pret >= 0) {
 					master20MHz = *it;
 					printf("20MHzRefClk found on %s\n", it->c_str());
@@ -75,7 +75,7 @@ XNIDAQmxGlobalOpen()
 				int pret = -1;
 				if(master20MHz.length())
 					route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
-						QString("/%1/RTSI7").arg(*it),
+						"RTSI7",
 						QString("/%1/MasterTimebase").arg(*it), &pret));
 				if(pret >= 0) {
 					g_daqmx_sync_routes.push_back(route);
@@ -83,7 +83,7 @@ XNIDAQmxGlobalOpen()
 				else {
 					if(master10MHz.length())
 						route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
-							QString("/%1/RTSI6").arg(*it),
+							"RTSI6",
 							QString("/%1/ExternalRefereceClock").arg(*it), &pret));
 					if(pret >= 0) {
 						g_daqmx_sync_routes.push_back(route);

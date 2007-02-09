@@ -49,7 +49,7 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 	        trigSource()->add(it->c_str());
     	}
     }
-    {
+/*    {
 	    DAQmxGetDevDILines(interface()->devName(), buf, sizeof(buf));
 	    std::deque<std::string> chans;
 	    XNIDAQmxInterface::parseList(buf, chans);
@@ -58,7 +58,7 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 	        trigSource()->add(it->c_str());
     	}
     }
-    {
+*/    {
 	    const char* sc[] = {
 	    "PFI0", "PFI1", "PFI2", "PFI3", "PFI4", "PFI5", "PFI6", "PFI7",
 //	    "PFI8", "PFI9", "PFI10", "PFI11", "PFI12", "PFI13", "PFI14", "PFI15",
@@ -80,7 +80,7 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 	    {
 	    	QString str(QString("%1/%2").arg(interface()->devName()).arg(sc[i]));
 	        trigSource()->add(str);
-//	        m_digitalTrigSrc.push_back(str);
+	        m_digitalTrigSrc.push_back(str);
 	    }
     }
 
@@ -128,8 +128,9 @@ XNIDAQmxDSO::setupTrigger()
          != m_analogTrigSrc.end()) {
          atrig = src.c_str();
     }
+    // create route to PFI0
     if(std::find(m_digitalTrigSrc.begin(), m_digitalTrigSrc.end(), src)
-         != m_digitalTrigSrc.end()) {
+         == m_digitalTrigSrc.end()) {
     	dtrig = QString("/%1/PFI0").arg(interface()->devName());
     	m_trigRoute.reset(new XNIDAQmxInterface::XNIDAQmxRoute(src.c_str(), dtrig));
     }
@@ -222,7 +223,20 @@ XNIDAQmxDSO::createChannels()
             DAQmx_Val_Volts,
             NULL
             ));
-    }
+
+		//obtain range info.
+		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++)
+			m_coeffAI[0][i] = 0.0;
+		CHECK_DAQMX_RET(DAQmxGetAIDevScalingCoeff(m_task, 
+            trace1()->to_str().c_str(),
+			m_coeffAI[0], CAL_POLY_ORDER));
+/*		CHECK_DAQMX_RET(DAQmxGetAIDACRngHigh(m_task,
+            trace1()->to_str().c_str(),
+			&m_upperLimAI[0]));
+		CHECK_DAQMX_RET(DAQmxGetAIDACRngLow(m_task,
+            trace1()->to_str().c_str(),
+			&m_lowerLimAI[0]));
+*/    }
     if(*trace2() >= 0) {
         CHECK_DAQMX_RET(DAQmxCreateAIVoltageChan(m_task,
             trace2()->to_str().c_str(),
@@ -233,6 +247,18 @@ XNIDAQmxDSO::createChannels()
             DAQmx_Val_Volts,
             NULL
             ));
+		//obtain range info.
+		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++)
+			m_coeffAI[1][i] = 0.0;
+		CHECK_DAQMX_RET(DAQmxGetAIDevScalingCoeff(m_task, 
+            trace2()->to_str().c_str(),
+			m_coeffAI[1], CAL_POLY_ORDER));
+/*		CHECK_DAQMX_RET(DAQmxGetAIDACRngHigh(m_task,
+            trace2()->to_str().c_str(),
+			&m_upperLimAI[1]));
+		CHECK_DAQMX_RET(DAQmxGetAIDACRngLow(m_task,
+            trace2()->to_str().c_str(),
+			&m_lowerLimAI[1]));*/
     }
 
     m_bPollMode = (DAQmxRegisterDoneEvent(m_task, 0, &XNIDAQmxDSO::_acqCallBack, this) < 0);
@@ -362,7 +388,7 @@ XNIDAQmxDSO::acquire(TaskHandle task)
     CHECK_DAQMX_RET(DAQmxGetReadAvailSampPerChan(m_task, &len));
     if(len < m_record.size() / NUM_MAX_CH) return;
     int32 cnt;
-    CHECK_DAQMX_RET(DAQmxReadAnalogF64(task, DAQmx_Val_Auto,
+    CHECK_DAQMX_RET(DAQmxReadBinaryI16(task, DAQmx_Val_Auto,
         0, DAQmx_Val_GroupByChannel,
         &m_record_buf[0], m_record_buf.size(), &cnt, NULL
         ));
@@ -390,7 +416,7 @@ XNIDAQmxDSO::acquire(TaskHandle task)
     }
 
     if(!sseq || ((unsigned int)m_accumCount < av)) {
-	    CHECK_DAQMX_RET(DAQmxStopTask(m_task));
+	    DAQmxStopTask(m_task);
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_task));
     }
 }
@@ -399,7 +425,7 @@ XNIDAQmxDSO::startSequence()
 {
  	XScopedLock<XInterface> lock(*interface());
 
-    CHECK_DAQMX_RET(DAQmxStopTask(m_task));
+    DAQmxStopTask(m_task);
 
     if(*singleSequence()) {
 	    m_acqCount = 0;
@@ -443,6 +469,18 @@ XNIDAQmxDSO::getTimeInterval()
 	return m_interval;
 }
 
+inline float64
+XNIDAQmxDSO::aiRawToVolt(const float64 *pcoeff, float64 raw)
+{
+	float64 x = 1.0;
+	float64 y = 0.0;
+	for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
+		y += *(pcoeff++) * x;
+		x *= raw;
+	}
+	return y;
+}
+
 void
 XNIDAQmxDSO::getWave(std::deque<std::string> &)
 {
@@ -473,11 +511,13 @@ XNIDAQmxDSO::getWave(std::deque<std::string> &)
     push((uint32_t)len);
     push((uint32_t)m_accumCount);
     push((double)m_interval);
-    double coeff =  1.0 / m_accumCount;
     float64 *p = &m_record[0];
     for(unsigned int ch = 0; ch < num_ch; ch++) {
+		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
+			push((double)m_coeffAI[ch][i]);
+		}
 	    for(unsigned int i = 0; i < len; i++) {
-	    	push((double)*(p++) * coeff);
+	    	push(*(p++));
 	    }
     }
     std::string str(buf);
@@ -490,17 +530,22 @@ XNIDAQmxDSO::convertRaw() throw (XRecordError&)
 	unsigned int num_ch = pop<uint32_t>();
 	unsigned int pretrig = pop<uint32_t>();
 	unsigned int len = pop<uint32_t>();
-	/*unsigned int accumCount = */ pop<uint32_t>();
+	unsigned int accumCount = pop<uint32_t>();
 	double interval = pop<double>();
 
 	setRecordDim(num_ch, - (double)pretrig * interval, interval, len);
 	
   for(unsigned int j = 0; j < num_ch; j++)
     {
+    	float64 coeff[CAL_POLY_ORDER];
+		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
+			coeff[i] = pop<double>();
+		}
       double *wave = waveRecorded(j);
+      float64 prop = 1.0 / accumCount;
       for(unsigned int i = 0; i < len; i++)
 		{
-        	  *(wave++) = pop<double>();
+        	  *(wave++) = aiRawToVolt(coeff, pop<int32_t>() * prop);
 		}
     }
 }

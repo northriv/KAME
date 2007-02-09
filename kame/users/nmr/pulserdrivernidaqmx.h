@@ -85,7 +85,8 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 	std::vector<tRawDO> m_genBufDO;
 	std::vector<tRawAO> m_genBufAO;
 	std::vector<tRawAO> m_genPulseWaveAO[NUM_AO_CH][32];
-	float64 m_coeffAO[NUM_AO_CH][6];
+#define CAL_POLY_ORDER 4
+	float64 m_coeffAO[NUM_AO_CH][CAL_POLY_ORDER];
 	float64 m_upperLimAO[NUM_AO_CH];
 	float64 m_lowerLimAO[NUM_AO_CH];
 	tRawAO aoVoltToRaw(int ch, float64 volt);

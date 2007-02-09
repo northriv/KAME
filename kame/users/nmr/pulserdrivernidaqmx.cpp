@@ -153,13 +153,12 @@ XNIDAQmxPulser::onOpenAO(const shared_ptr<XInterface> &)
 		printf("Using bufsize = %d\n", (int)bufsize);
 	
 		//obtain range info.
-		unsigned int coeff_size = sizeof(m_coeffAO[0])/sizeof(float64);
 		for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
-			for(unsigned int i = 0; i < coeff_size; i++)
+			for(unsigned int i = 0; i < CAL_POLY_ORDER; i++)
 				m_coeffAO[ch][i] = 0.0;
 			CHECK_DAQMX_RET(DAQmxGetAODevScalingCoeff(m_taskAO, 
 				(QString("%1/ao%2").arg(intfAO()->devName()).arg(ch)),
-				m_coeffAO[ch], coeff_size));
+				m_coeffAO[ch], CAL_POLY_ORDER));
 			CHECK_DAQMX_RET(DAQmxGetAODACRngHigh(m_taskAO,
 				(QString("%1/ao%2").arg(intfAO()->devName()).arg(ch)),
 				&m_upperLimAO[ch]));
@@ -260,7 +259,7 @@ XNIDAQmxPulser::aoVoltToRaw(int ch, float64 volt)
 	float64 x = 1.0;
 	float64 y = 0.0;
 	float64 *pco = m_coeffAO[ch];
-	for(unsigned int i = 0; i < sizeof(m_coeffAO[ch])/sizeof(float64); i++) {
+	for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
 		y += *(pco++) * x;
 		x *= volt;
 	}

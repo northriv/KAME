@@ -50,11 +50,18 @@ class XNIDAQmxDSO : public XNIDAQmxDriver<XDSO>
   //! load waveform and settings from instrument
   virtual void getWave(std::deque<std::string> &channels);
  private:
+ typedef int16 tRawAI;
   scoped_ptr<XNIDAQmxInterface::XNIDAQmxRoute> m_trigRoute;
-  std::vector<float64> m_record, m_record_buf;
+  std::vector<tRawAI> m_record_buf;
+  std::vector<int32_t> m_record;
+#define CAL_POLY_ORDER 4
+	float64 m_coeffAI[2][CAL_POLY_ORDER];
+//	float64 m_upperLimAI[2];
+//	float64 m_lowerLimAI[2];
+	inline float64 aiRawToVolt(const float64 *pcoeff, float64 raw);
   int m_accumCount;
   //! for moving av.
-  std::deque<std::vector<float64> > m_record_av; 
+  std::deque<std::vector<tRawAI> > m_record_av; 
   unsigned int m_record_length;
   std::deque<std::string> m_analogTrigSrc, m_digitalTrigSrc;
   TaskHandle m_task;
