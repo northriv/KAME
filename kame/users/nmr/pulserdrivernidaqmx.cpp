@@ -82,11 +82,6 @@ XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
 	    DAQmxClearTask(m_taskDO);
 	    DAQmxClearTask(m_taskCtr);
 	}
-    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDO));
-
-    CHECK_DAQMX_RET(DAQmxCreateDOChan(m_taskDO, 
-    	(QString("/%1/port0/line0:7").arg(intfDO()->devName())), "", DAQmx_Val_ChanForAllLines));
-
 	float64 freq = 1e3 / DMA_DO_PERIOD;
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskCtr));
 	CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskCtr, 
@@ -94,6 +89,11 @@ XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
     	freq, 0.5));
     CHECK_DAQMX_RET(DAQmxStartTask(m_taskCtr));
 	
+    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDO));
+
+    CHECK_DAQMX_RET(DAQmxCreateDOChan(m_taskDO, 
+    	(QString("/%1/port0/line0:7").arg(intfDO()->devName())), "", DAQmx_Val_ChanForAllLines));
+
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO, (QString("/%1/Ctr0InternalOutput").arg(intfDO()->devName())),
 		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
 	

@@ -11,6 +11,7 @@ XNIDAQmxGlobalOpen()
 {
 	XScopedLock<XMutex> lock(g_daqmx_mutex);
 	if(g_daqmx_open_cnt == 0) {
+		return;
 //	    CHECK_DAQMX_RET(DAQmxCreateTask("", &g_task_sync_master));
 	char buf[2048];		
 		CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
