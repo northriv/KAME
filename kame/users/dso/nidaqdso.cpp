@@ -26,8 +26,8 @@ XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
         vFullScale1()->add(sc[i]);
         vFullScale2()->add(sc[i]);
     }
-    vFullScale1()->value("84");
-    vFullScale2()->value("84");
+    vFullScale1()->value("20");
+    vFullScale2()->value("20");
 }
 XNIDAQmxDSO::~XNIDAQmxDSO()
 {
@@ -61,8 +61,20 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
     {
 	    const char* sc[] = {
 	    "PFI0", "PFI1", "PFI2", "PFI3", "PFI4", "PFI5", "PFI6", "PFI7",
+//	    "PFI8", "PFI9", "PFI10", "PFI11", "PFI12", "PFI13", "PFI14", "PFI15",
     	"RTSI0", "RTSI1", "RTSI2", "RTSI3", "RTSI4", "RTSI5", "RTSI6",
-    	"ctr0", "ctr1",
+    	"Ctr0Out", "Ctr1Out",
+    	"Ctr0InternalOutput", "Ctr1InternalOutput",
+    	"FrequencyOutput",
+    	"ao/StartTrigger",
+    	"di/StartTrigger",
+    	"do/StartTrigger",
+    	"ao/ReferenceTrigger",
+    	"di/ReferenceTrigger",
+    	"do/ReferenceTrigger",
+    	"ao/PauseTrigger",
+    	"di/PauseTrigger",
+    	"do/PauseTrigger",
     	 0L};
 	    for(int i = 0; sc[i]; i++)
 	    {

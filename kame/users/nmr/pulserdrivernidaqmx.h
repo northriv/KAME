@@ -42,7 +42,7 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 	void onCloseAO(const shared_ptr<XInterface> &);
 	
 	void startPulseGen() throw (XInterface::XInterfaceError &);
-	void stopPulseGen() throw (XInterface::XInterfaceError &);
+	void stopPulseGen();
 
     //A pettern at absolute time
     class tpat {
@@ -93,7 +93,7 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 	static int32 _genCallBack(TaskHandle task, int32 /*type*/, uInt32 num_samps, void *data);
 	static int32 _doneCallBack(TaskHandle task, int32 /*status*/, void *data);
 	int32 genCallBack(TaskHandle task, uInt32 num_samps);
-    scoped_ptr<XNIDAQmxInterface::XNIDAQmxRoute> m_route;
+//    scoped_ptr<XNIDAQmxInterface::XNIDAQmxRoute> m_route;
     
   int makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
   
