@@ -33,7 +33,13 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XDSO>
  private:
 	shared_ptr<XNIDAQmxInterface> m_ao_interface;
 	TaskHandle m_taskAO, m_taskDO;
+	shared_ptr<XListener> m_lsnOnOpenAO, m_lsnOnCloseAO;
+	void onOpenAO(const shared_ptr<XInterface> &);
+	void onCloseAO(const shared_ptr<XInterface> &);
 	
+	void startPulseGen() throw (XInterface::XInterfaceError &)
+	void stopPulseGen() throw (XInterface::XInterfaceError &)
+
     //A pettern at absolute time
     class tpat {
           public:
@@ -54,22 +60,34 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XDSO>
               return pos < y.pos;
         }          
     }; 
- 
-  int setAUX2DA(double volt, int addr);
+
+	typedef int16 tRawAO;
+	typedef uInt16 tRawDO;
+	  struct GenPattern {
+	      GenPattern(uint32_t pat, long long int toapp) :
+	        pattern(pat), toappear(toapp) {}
+	      uint32_t pattern;
+	      long long int toappear; // in samps for DO.
+	  };
+	std::deque<GenPattern> m_genPatternList;
+	typedef typename std::deque<GenPattern>::iterator GenPatternIterator;
+	uint32_t m_genLastPattern;
+	GenPatternIterator m_genLastPatIt;
+	long long int m_genRestSamps;
+	unsigned int m_genAOIndex;
+
+#define NUM_AO_CH 2
+
+	std::vector<tRawDO> m_genBufDO;
+	std::vector<tRawAO> m_genBufAO;
+	std::vector<tRawAO> m_genPulseWaveAO[NUM_AO_CH][32];
+	float64 m_coeffAO[NUM_AO_CH][6];
+	float64 m_upperLimAO[NUM_AO_CH];
+	float64 m_lowerLimAO[NUM_AO_CH];
+	tRawAO aoVoltToRaw(int ch, float64 volt);
+	void genPulseBuffer(uInt32 num_samps);
+    
   int makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
-  int insertPreamble(unsigned short startpattern);
-  int finishPulse();
-  //! Add 1 pulse pattern
-  //! \param msec a period to next pattern
-  //! \param pattern a pattern for digital, to appear
-  int pulseAdd(double msec, uint32_t pattern, bool firsttime);
-  uint32_t m_lastPattern;
-  double m_dmaTerm;  
-  std::vector<unsigned char> m_zippedPatterns;
   
-  int m_waveformPos[3];
-  
-  struct h8ushort {unsigned char msb; unsigned char lsb;};
-  std::vector<h8ushort> m_zippedPatterns;  
 };
 #endif //HAVE_NI_DAQMX

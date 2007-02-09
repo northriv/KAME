@@ -107,7 +107,7 @@ XNIDAQmxDSO::setupTrigger()
     CHECK_DAQMX_RET(DAQmxDisableRefTrig(m_task));
     m_trigRoute.reset();
 	
-    unsigned int pretrig = lrintl(*trigPos() / 100.0 * *recordLength());
+    unsigned int pretrig = lrint(*trigPos() / 100.0 * *recordLength());
     const char *atrig = 0;
     const char *dtrig = 0;
     std::string src = trigSource()->to_str();
@@ -453,9 +453,11 @@ XNIDAQmxDSO::getWave(std::deque<std::string> &)
 	CHECK_DAQMX_RET(DAQmxGetRefTrigType(m_task, &reftrigtype));
     uInt32 pretrig = 0;
 	if(reftrigtype != DAQmx_Val_None) {
-	    pretrig = lrintl(*trigPos() / 100.0 * *recordLength());
+	    pretrig = lrint(*trigPos() / 100.0 * *recordLength());
 	}
-    
+	
+	printf("strange pre-prig num:%d\n", (uint32_t)pretrig);
+//	gWarnPrint(QString("strange pre-prig num:%1").arg((uint32_t)pretrig));
     push((uint32_t)num_ch);
     push((uint32_t)pretrig);
     push((uint32_t)len);
