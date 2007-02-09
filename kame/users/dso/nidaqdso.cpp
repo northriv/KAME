@@ -456,8 +456,6 @@ XNIDAQmxDSO::getWave(std::deque<std::string> &)
 	    pretrig = lrint(*trigPos() / 100.0 * *recordLength());
 	}
 	
-	printf("strange pre-prig num:%d\n", (uint32_t)pretrig);
-//	gWarnPrint(QString("strange pre-prig num:%1").arg((uint32_t)pretrig));
     push((uint32_t)num_ch);
     push((uint32_t)pretrig);
     push((uint32_t)len);
@@ -482,6 +480,7 @@ XNIDAQmxDSO::convertRaw() throw (XRecordError&)
 	unsigned int len = pop<uint32_t>();
 	unsigned int accumCount = pop<uint32_t>();
 	double interval = pop<double>();
+	printf("strange pre-prig num:%d %f\n", (uint32_t)pretrig, - pretrig * interval);
 
 //	printf("%d %f %f %d\n", num_ch, - pretrig * interval, interval, len);
 	setRecordDim(num_ch, - pretrig * interval, interval, len);

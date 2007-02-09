@@ -130,11 +130,14 @@ XNIDAQmxPulser::onOpenAO(const shared_ptr<XInterface> &)
 				(QString("/%1/ao%2").arg(intfAO()->devName()).arg(ch)),
 				&m_lowerLimAO[ch]));
 		}
+		
+		stopPulseGen();
 	}
 	catch (XInterface::XInterfaceError &e) {
 		e.print(getLabel());
 	    DAQmxClearTask(m_taskAO);
 	    m_taskAO = TASK_UNDEF;
+	    intfAO()->stop();
 	}
 }
 void
@@ -188,7 +191,8 @@ XNIDAQmxPulser::stopPulseGen() throw (XInterface::XInterfaceError &)
 {
  	XScopedLock<XInterface> lockao(*intfAO());
  	XScopedLock<XInterface> lockdo(*intfDO());
-    CHECK_DAQMX_RET(DAQmxStopTask(m_taskDO));
+	if(m_taskDO != TASK_UNDEF)
+	    CHECK_DAQMX_RET(DAQmxStopTask(m_taskDO));
 	if(m_taskAO != TASK_UNDEF)
 	    CHECK_DAQMX_RET(DAQmxStopTask(m_taskAO));
 }
@@ -220,6 +224,8 @@ XNIDAQmxPulser::genPulseBuffer(uInt32 num_samps)
 	long long int toappear = m_genRestSamps;
 	unsigned int aoidx = m_genAOIndex;
 	
+	C_ASSERT(sizeof(long long int) > sizeof(int32_t));
+	
 	tRawDO *pDO = &m_genBufDO[0];
 	tRawAO *pAO = &m_genBufAO[0];
 	tRawAO raw_ao0_zero = aoVoltToRaw(0, 0.0);
@@ -228,7 +234,7 @@ XNIDAQmxPulser::genPulseBuffer(uInt32 num_samps)
 		unsigned int gen_cnt = std::min((long long int)samps_rest, toappear);
 		tRawDO patDO = allmask & pat;
 		unsigned int pidx = (pat & (pulsemask | qpskmask)) / qpskbit;
-		ASSERT(pulsebit > qpskbit);
+		C_ASSERT(pulsebit > qpskbit);
 		if(pidx == 0) {
 			aoidx = 0;
 			for(unsigned int cnt = 0; cnt < gen_cnt; cnt++) {
