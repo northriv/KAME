@@ -87,6 +87,7 @@ XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
 	CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskCtr, 
     	(QString("/%1/ctr0").arg(intfDO()->devName())), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
     	freq, 0.5));
+    CHECK_DAQMX_RET(DAQmxSetCOPulseTerm(m_taskCtr, (QString("/%1/Ctr0InternalOutput").arg(intfDO()->devName()))));
     CHECK_DAQMX_RET(DAQmxStartTask(m_taskCtr));
 	
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDO));
@@ -94,8 +95,10 @@ XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
     CHECK_DAQMX_RET(DAQmxCreateDOChan(m_taskDO, 
     	(QString("/%1/port0/line0:7").arg(intfDO()->devName())), "", DAQmx_Val_ChanForAllLines));
 
-	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO, (QString("/%1/FrequencyOutput").arg(intfDO()->devName())),
+	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO, (QString("/%1/Ctr0InternalOutput").arg(intfDO()->devName())),
 		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
+//	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO, (QString("/%1/FrequencyOutput").arg(intfDO()->devName())),
+//		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
 	
 //	CHECK_DAQMX_RET(DAQmxExportSignal(m_taskDO, DAQmx_Val_StartTrigger, 
 //		QString("/%1/" RTSI_START_TRIG).arg(intfDO()->devName())));
@@ -298,6 +301,8 @@ XNIDAQmxPulser::genPulseBuffer(uInt32 num_samps)
 			toappear = it->toappear;
 		}
 	}
+	ASSERT(pDO == &m_genBufDO[num_samps]);
+	ASSERT(pAO == &m_genBufAO[num_samps*2]);
 	m_genLastPattern = pat;
 	m_genRestSamps = toappear;
 	m_genLastPatIt = it;
@@ -371,6 +376,7 @@ XNIDAQmxPulser::makeWaveForm(int num, double pw, tpulsefunc func, double dB, dou
 {
 	for(unsigned int qpsk = 0; qpsk < 4; qpsk++) {
 		unsigned int pnum = num * pulsebit/qpskbit + qpsk;
+		ASSERT(pnum < 32);
 	  	unsigned short word = (unsigned short)lrint(pw / DMA_AO_PERIOD) + SAMPS_AO_PER_DO*2;
 		double dx = DMA_AO_PERIOD / pw;
 		double dp = 2*PI*freq*DMA_AO_PERIOD + PI/2*qpsk;
