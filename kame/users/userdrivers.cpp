@@ -6,6 +6,7 @@
 #include "magnetps/usermagnetps.h"
 #include "nmr/pulserdriverh8.h"
 #include "nmr/pulserdriversh.h"
+#include "nmr/pulserdrivernidaqmx.h"
 #include "nmr/nmrpulse.h"
 #include "nmr/nmrspectrum.h"
 #include "nmr/nmrfspectrum.h"
@@ -27,6 +28,7 @@ REGISTER_TYPE(HP34420A);
 REGISTER_TYPE(TDS);
 #ifdef HAVE_NI_DAQMX
     REGISTER_TYPE(NIDAQmxDSO);
+    REGISTER_TYPE(NIDAQmxPulser);
 #endif
 REGISTER_TYPE(CryoconM32);
 REGISTER_TYPE(CryoconM62);

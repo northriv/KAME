@@ -6,7 +6,7 @@
 
 #include <vector>
 
-class XNIDAQmxPulser : public XNIDAQmxDriver<XDSO>
+class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 {
  XNODE_OBJECT
  protected:
@@ -19,6 +19,10 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XDSO>
   virtual ~XNIDAQmxPulser();
 
  protected:
+	virtual void open() throw (XInterface::XInterfaceError &);
+  //! Be called during stopping driver. Call interface()->stop() inside this routine.
+ 	 virtual void close() throw (XInterface::XInterfaceError &);
+ 
     //! send patterns to pulser or turn-off
     virtual void changeOutput(bool output);
     //! convert RelPatList to native patterns
@@ -37,8 +41,8 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XDSO>
 	void onOpenAO(const shared_ptr<XInterface> &);
 	void onCloseAO(const shared_ptr<XInterface> &);
 	
-	void startPulseGen() throw (XInterface::XInterfaceError &)
-	void stopPulseGen() throw (XInterface::XInterfaceError &)
+	void startPulseGen() throw (XInterface::XInterfaceError &);
+	void stopPulseGen() throw (XInterface::XInterfaceError &);
 
     //A pettern at absolute time
     class tpat {
@@ -70,7 +74,7 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XDSO>
 	      long long int toappear; // in samps for DO.
 	  };
 	std::deque<GenPattern> m_genPatternList;
-	typedef typename std::deque<GenPattern>::iterator GenPatternIterator;
+	typedef std::deque<GenPattern>::iterator GenPatternIterator;
 	uint32_t m_genLastPattern;
 	GenPatternIterator m_genLastPatIt;
 	long long int m_genRestSamps;
@@ -86,6 +90,8 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XDSO>
 	float64 m_lowerLimAO[NUM_AO_CH];
 	tRawAO aoVoltToRaw(int ch, float64 volt);
 	void genPulseBuffer(uInt32 num_samps);
+	static int32 _genCallBack(TaskHandle task, int32 /*type*/, uInt32 num_samps, void *data);
+	int32 genCallBack(TaskHandle task, uInt32 num_samps);
     
   int makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
   

@@ -12,6 +12,7 @@ libnmr_a_SOURCES = pulserdriver.cpp pulserdriver.h \
 	pulserdriverconnector.cpp pulserdriverconnector.h \
 	pulserdriversh.cpp pulserdriversh.h \
 	pulserdriverh8.cpp pulserdriverh8.h \
+	pulserdrivernidaqmx.cpp pulserdrivernidaqmx.h \
 	nmrpulse.cpp nmrpulse.h \
 	nmrspectrum.cpp nmrspectrum.h \
 	nmrfspectrum.cpp nmrfspectrum.h \
