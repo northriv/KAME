@@ -68,27 +68,33 @@ XNIDAQmxPulser::~XNIDAQmxPulser()
 {
 	if(m_taskAO != TASK_UNDEF)
 	    DAQmxClearTask(m_taskAO);
-	if(m_taskDO != TASK_UNDEF)
+	if(m_taskDO != TASK_UNDEF) {
 	    DAQmxClearTask(m_taskDO);
+	    DAQmxClearTask(m_taskCtr);
+	}
 }
 
 void
 XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
 {
  	XScopedLock<XInterface> lock(*intfDO());
-	if(m_taskDO != TASK_UNDEF)
+	if(m_taskDO != TASK_UNDEF) {
 	    DAQmxClearTask(m_taskDO);
+	    DAQmxClearTask(m_taskCtr);
+	}
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDO));
 
     CHECK_DAQMX_RET(DAQmxCreateDOChan(m_taskDO, 
     	(QString("/%1/port0/line0:7").arg(intfDO()->devName())), "", DAQmx_Val_ChanForAllLines));
 
 	float64 freq = 1e3 / DMA_DO_PERIOD;
-	CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskDO, 
-    	(QString("/%1/crt0").arg(intfDO()->devName())), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
+    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskCtr));
+	CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskCtr, 
+    	(QString("/%1/ctr0").arg(intfDO()->devName())), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
     	freq, 0.5));
+    CHECK_DAQMX_RET(DAQmxStartTask(m_taskCtr));
 	
-	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO, (QString("/%1/Crt0Out").arg(intfDO()->devName())),
+	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO, (QString("/%1/Ctr0InternalOutput").arg(intfDO()->devName())),
 		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
 	
 //	CHECK_DAQMX_RET(DAQmxExportSignal(m_taskDO, DAQmx_Val_StartTrigger, 
@@ -158,8 +164,10 @@ XNIDAQmxPulser::close() throw (XInterface::XInterfaceError &)
  	XScopedLock<XInterface> locko(*intfDO());
 	if(m_taskAO != TASK_UNDEF)
 	    DAQmxClearTask(m_taskAO);
-	if(m_taskDO != TASK_UNDEF)
+	if(m_taskDO != TASK_UNDEF) {
 	    DAQmxClearTask(m_taskDO);
+	    DAQmxClearTask(m_taskCtr);
+	}
 	m_taskAO = TASK_UNDEF;
 	m_taskDO = TASK_UNDEF;
     
@@ -196,8 +204,9 @@ XNIDAQmxPulser::stopPulseGen() throw (XInterface::XInterfaceError &)
 {
  	XScopedLock<XInterface> lockao(*intfAO());
  	XScopedLock<XInterface> lockdo(*intfDO());
-	if(m_taskDO != TASK_UNDEF)
+	if(m_taskDO != TASK_UNDEF) {
 	    CHECK_DAQMX_RET(DAQmxStopTask(m_taskDO));
+	}
 	if(m_taskAO != TASK_UNDEF)
 	    CHECK_DAQMX_RET(DAQmxStopTask(m_taskAO));
 }

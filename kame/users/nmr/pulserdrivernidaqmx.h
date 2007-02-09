@@ -36,7 +36,7 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
   const shared_ptr<XNIDAQmxInterface> &intfAO() const {return m_ao_interface;}    
  private:
 	shared_ptr<XNIDAQmxInterface> m_ao_interface;
-	TaskHandle m_taskAO, m_taskDO;
+	TaskHandle m_taskAO, m_taskDO, m_taskCtr;
 	shared_ptr<XListener> m_lsnOnOpenAO, m_lsnOnCloseAO;
 	void onOpenAO(const shared_ptr<XInterface> &);
 	void onCloseAO(const shared_ptr<XInterface> &);
