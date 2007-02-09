@@ -18,7 +18,7 @@ using std::min;
 //[ms]
 #define DMA_AO_PERIOD (DMA_DO_PERIOD / SAMPS_AO_PER_DO)
 
-#define BUF_SIZE_HINT 8192
+#define BUF_SIZE_HINT 32768
 
 double XNIDAQmxPulser::resolution() {
      return DMA_DO_PERIOD;
@@ -81,17 +81,12 @@ XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
 	    DAQmxClearTask(m_taskDO);
 	    DAQmxClearTask(m_taskCtr);
 	}
-	#define RTSI_DO_SAMP "RTSI5"
 	float64 freq = 1e3 / DMA_DO_PERIOD;
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskCtr));
 	CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskCtr, 
 //    	(QString("%1/ctr0").arg(intfDO()->devName())), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
     	(QString("%1/freqout").arg(intfDO()->devName())), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
     	freq, 0.5));
-    m_route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
-//    	(QString("/%1/Ctr0InternalOutput").arg(intfDO()->devName())), 
-    	(QString("/%1/FrequencyOutput").arg(intfDO()->devName())), 
-    	(QString("/%1/" RTSI_DO_SAMP).arg(intfDO()->devName()))));
     
     CHECK_DAQMX_RET(DAQmxStartTask(m_taskCtr));
 	
@@ -208,7 +203,8 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	m_genBufDO.resize(BUF_SIZE_HINT);
 	m_genBufAO.resize(BUF_SIZE_HINT * NUM_AO_CH * SAMPS_AO_PER_DO);
 	
-	genCallBack(m_taskDO, BUF_SIZE_HINT);
+	genCallBack(m_taskDO, BUF_SIZE_HINT/2);
+	genCallBack(m_taskDO, BUF_SIZE_HINT/2);
 	
 	//slave must start before the master.
 	if(m_taskAO != TASK_UNDEF)
@@ -302,7 +298,7 @@ XNIDAQmxPulser::genPulseBuffer(uInt32 num_samps)
 			it++;
 			if(it == m_genPatternList.end()) {
 				it = m_genPatternList.begin();
-				printf("Next loop\n");
+				printf("p.\n");
 			}
 			pat = it->pattern;
 			toappear = it->toappear;
@@ -325,15 +321,17 @@ XNIDAQmxPulser::genCallBack(TaskHandle /*task*/, uInt32 num_samps)
 
 	try {
 		int32 samps;
-		CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, num_samps, false, 0.1, 
-			DAQmx_Val_GroupByChannel, &m_genBufDO[0], &samps, NULL));
-		if(samps != (int32)num_samps)
-			gWarnPrint("DO: buffer underrun");
+		if(m_taskDO != TASK_UNDEF) {
+			CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, num_samps, false, 0.3, 
+				DAQmx_Val_GroupByChannel, &m_genBufDO[0], &samps, NULL));
+			if(samps != (int32)num_samps)
+				dbgPrint("DO: buffer underrun");
+		}
 		if(m_taskAO != TASK_UNDEF) {
-			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, num_samps*SAMPS_AO_PER_DO, false, 0.1, 
+			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, num_samps*SAMPS_AO_PER_DO, false, 0.3, 
 				DAQmx_Val_GroupByScanNumber, &m_genBufAO[0], &samps, NULL));
 			if(samps != (int32)num_samps*SAMPS_AO_PER_DO)
-				gWarnPrint("AO: buffer underrun");
+				dbgPrint("AO: buffer underrun");
 		}
 	}
 	catch (XInterface::XInterfaceError &e) {
