@@ -278,8 +278,10 @@ XNIDAQmxPulser::genPulseBuffer(uInt32 num_samps)
 		samps_rest -= gen_cnt;
 		if(toappear == 0) {
 			it++;
-			if(it == m_genPatternList.end())
+			if(it == m_genPatternList.end()) {
 				it = m_genPatternList.begin();
+				printf("Next loop\n");
+			}
 			pat = it->pattern;
 			toappear = it->toappear;
 		}

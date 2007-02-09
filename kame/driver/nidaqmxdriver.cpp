@@ -11,7 +11,6 @@ XNIDAQmxGlobalOpen()
 {
 	XScopedLock<XMutex> lock(g_daqmx_mutex);
 	if(g_daqmx_open_cnt == 0) {
-		return;
 //	    CHECK_DAQMX_RET(DAQmxCreateTask("", &g_task_sync_master));
 	char buf[2048];		
 		CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
@@ -22,6 +21,11 @@ XNIDAQmxGlobalOpen()
 		std::deque<std::string> pcidevs;
 		for(std::deque<std::string>::iterator it = list.begin(); it != list.end(); it++) {
 			DAQmxResetDevice(it->c_str());
+			
+			
+			continue;
+			
+			
 			int32 bus;
 			DAQmxGetDevBusType(it->c_str(), &bus);
 			if((bus == DAQmx_Val_PCI) || (bus == DAQmx_Val_PCIe)) {
