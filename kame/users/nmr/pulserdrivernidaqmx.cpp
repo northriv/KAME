@@ -81,7 +81,7 @@ XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
 	    DAQmxClearTask(m_taskDO);
 	    DAQmxClearTask(m_taskCtr);
 	}
-	#define PFI_DO_SAMP "RTSI5"
+	#define RTSI_DO_SAMP "RTSI5"
 	float64 freq = 1e3 / DMA_DO_PERIOD;
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskCtr));
 	CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskCtr, 
@@ -91,7 +91,7 @@ XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
     m_route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
 //    	(QString("/%1/Ctr0InternalOutput").arg(intfDO()->devName())), 
     	(QString("/%1/FrequencyOutput").arg(intfDO()->devName())), 
-    	(QString("/%1/" PFI_DO_SAMP).arg(intfDO()->devName()))));
+    	(QString("/%1/" RTSI_DO_SAMP).arg(intfDO()->devName()))));
     
     CHECK_DAQMX_RET(DAQmxStartTask(m_taskCtr));
 	
@@ -104,8 +104,6 @@ XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
 		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
 //	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO, (QString("/%1/Ctr0InternalOutput").arg(intfDO()->devName())),
 //		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
-//	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO, (QString("/%1/FrequencyOutput").arg(intfDO()->devName())),
-//		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
 	
 //	CHECK_DAQMX_RET(DAQmxExportSignal(m_taskDO, DAQmx_Val_StartTrigger, 
 //		QString("/%1/" RTSI_START_TRIG).arg(intfDO()->devName())));
@@ -114,7 +112,7 @@ XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
 	printf("Using bufsize = %u, freq = %f\n", bufsize, freq);
 	CHECK_DAQMX_RET(DAQmxRegisterEveryNSamplesEvent(m_taskDO,
-		DAQmx_Val_Transferred_From_Buffer, bufsize/4, 0,
+		DAQmx_Val_Transferred_From_Buffer, bufsize/2, 0,
 		&XNIDAQmxPulser::_genCallBack, this));
 	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskDO, 0,
 		&XNIDAQmxPulser::_doneCallBack, this));
@@ -134,7 +132,9 @@ XNIDAQmxPulser::onOpenAO(const shared_ptr<XInterface> &)
 	    	(QString("%1/ao0:1").arg(intfAO()->devName())), "",
 	    	-1.0, 1.0, DAQmx_Val_Volts, NULL));
 	
-		CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, NULL,
+		CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, 
+			NULL,
+//			QString("%1/do/SampleClock").arg(intfDO()->devName()),
 			1e3 / DMA_AO_PERIOD, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
 
 		//Configure RTSI or PXI before doing this.
