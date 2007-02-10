@@ -38,6 +38,7 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 	shared_ptr<XNIDAQmxInterface> m_ao_interface;
 	TaskHandle m_taskAO, m_taskDO, m_taskCtr;
 	shared_ptr<XListener> m_lsnOnOpenAO, m_lsnOnCloseAO;
+	void openDO() throw (XInterface::XInterfaceError &);
 	void onOpenAO(const shared_ptr<XInterface> &);
 	void onCloseAO(const shared_ptr<XInterface> &);
 	

@@ -77,28 +77,36 @@ XNIDAQmxPulser::~XNIDAQmxPulser()
 void
 XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
 {
+ 	openDO();
+
+	this->start();	
+}
+void
+XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
+{
+	const char *freqdev = (m_taskAO != TASK_UNDEF) ? intfAO()->devName() : intfDO()->devName();
+
  	XScopedLock<XInterface> lock(*intfDO());
 	if(m_taskDO != TASK_UNDEF) {
 	    DAQmxClearTask(m_taskDO);
 	    DAQmxClearTask(m_taskCtr);
 	}
+	
 	float64 freq = 1e3 / DMA_DO_PERIOD;
+
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskCtr));
 	CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskCtr, 
-//    	(QString("%1/ctr0").arg(intfDO()->devName())), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
-    	(QString("%1/freqout").arg(intfDO()->devName())), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
+    	formatString("%s/freqout", freqdev).c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
     	freq, 0.5));
     	
-    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDO));
+	CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDO));
 
     CHECK_DAQMX_RET(DAQmxCreateDOChan(m_taskDO, 
     	(QString("%1/port0/line0:7").arg(intfDO()->devName())), "", DAQmx_Val_ChanForAllLines));
 
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO,
-		formatString("/%s/FrequencyOutput", intfDO()->devName()).c_str(),
+		formatString("/%s/FrequencyOutput", freqdev).c_str(),
 		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
-//	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO, (QString("/%1/Ctr0InternalOutput").arg(intfDO()->devName())),
-//		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
 	
 	//Buffer setup.
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, BUF_SIZE_HINT));
@@ -112,8 +120,6 @@ XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
 	CHECK_DAQMX_RET(DAQmxRegisterEveryNSamplesEvent(m_taskDO,
 		DAQmx_Val_Transferred_From_Buffer, CB_TRANSFER_SIZE, 0,
 		&XNIDAQmxPulser::_genCallBackDO, this));
-
-	this->start();	
 }
 void
 XNIDAQmxPulser::onOpenAO(const shared_ptr<XInterface> &)
@@ -127,30 +133,29 @@ XNIDAQmxPulser::onOpenAO(const shared_ptr<XInterface> &)
 		    DAQmxClearTask(m_taskAO);
 	    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskAO));
 	
+		openDO();
+	
 		CHECK_DAQMX_RET(DAQmxCreateAOVoltageChan(m_taskAO,
 	    	formatString("%s/ao0:1", intfAO()->devName()).c_str(), "",
 	    	-1.0, 1.0, DAQmx_Val_Volts, NULL));
 	
 		CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, 
-			formatString("/%s/FrequencyOutput", intfDO()->devName()).c_str(),
+			formatString("/%s/FrequencyOutput", intfAO()->devName()).c_str(),
 			1e3 / DMA_AO_PERIOD, DAQmx_Val_Rising, DAQmx_Val_ContSamps,
 			BUF_SIZE_HINT * SAMPS_AO_PER_DO));
 
+
 /*		shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
 		route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
-			formatString("/%s/FrequencyOutput", intfDO()->devName()).c_str(),
-			formatString("/%s/RTSI0", intfDO()->devName()).c_str()));
-		m_routes.push_back(route);*/
-/*		CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskAO,
-			formatString("/%s/FrequencyOutput", intfDO()->devName()).c_str(),
-			 DAQmx_Val_Rising));
-*/		
-		//Configure RTSI or PXI before doing this.
-//		CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskAO,
-//			formatString("/%s/do/StartTrigger", intfDO()->devName()).c_str(),
-//			 DAQmx_Val_Rising));
+			formatString("/%s/20MHzTimebase", intfDO()->devName()).c_str(),
+			formatString("/%s/RTSI7", intfDO()->devName()).c_str()));
+		m_routes.push_back(route);
+		route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
+			formatString("/%s/RTSI7", intfAO()->devName()).c_str(),
+			formatString("/%s/MasterTimebase", intfAO()->devName()).c_str()));
+		m_routes.push_back(route);
 			
-		//Buffer setup.
+*/		//Buffer setup.
 		CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, BUF_SIZE_HINT * SAMPS_AO_PER_DO));
 		uInt32 bufsize;
 		CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
