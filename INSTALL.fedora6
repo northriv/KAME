@@ -14,6 +14,10 @@ rpmdevtools
 
 fedora-buildrpmtree
 
+#if you need to make extra kernel-module packages
+#rpmbuild --define='kversion `uname -r`' --define='kvariants ""' --target=i686 \
+#-ba ~/rpmbuild/SPECS/nvidia-kmod.spec 
+
 #linux-gpib 3.2.08
 rpmbuild --target=`uname -m` --rebuild linux-gpib-kmod-{ver}.src.rpm
 rpmbuild --rebuild linux-gpib-{ver}.src.rpm
