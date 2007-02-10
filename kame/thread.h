@@ -117,8 +117,7 @@ class XThread
    * \p X must be super class of \p T.
    */
   template <class X>
-  XThread(const shared_ptr<X> &t, void *(T::*func)(const atomic<bool> &),
-  	 int mlock_flag = MCL_CURRENT | MCL_FUTURE);
+  XThread(const shared_ptr<X> &t, void *(T::*func)(const atomic<bool> &));
   ~XThread() {terminate();}
   //! resume a new thread.
   void resume();
@@ -146,14 +145,14 @@ class XThread
 
 template <class T>
 template <class X>
-XThread<T>::XThread(const shared_ptr<X> &t, void *(T::*func)(const atomic<bool> &), int mlock_flag)
+XThread<T>::XThread(const shared_ptr<X> &t, void *(T::*func)(const atomic<bool> &))
 : m_startarg(new targ)
 {
   m_startarg->obj = dynamic_pointer_cast<T>(t);
   ASSERT(m_startarg->obj);
   m_startarg->func = func;
   m_startarg->is_terminated = false;
-  m_startarg->mlock_flag = mlock_flag;
+  m_startarg->mlock_flag = g_bMLockAlways ? (MCL_CURRENT | MCL_FUTURE) : 0;
 }
 
 template <class T>

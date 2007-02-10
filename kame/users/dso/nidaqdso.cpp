@@ -78,9 +78,9 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
     	 0L};
 	    for(int i = 0; sc[i]; i++)
 	    {
-	    	QString str(QString("%1/%2").arg(interface()->devName()).arg(sc[i]));
+	    	std::string str(formatString("/%s/%s", interface()->devName(), sc[i]));
 	        trigSource()->add(str);
-	        m_digitalTrigSrc.push_back(str);
+//	        m_digitalTrigSrc.push_back(str);
 	    }
     }
 
@@ -120,49 +120,51 @@ XNIDAQmxDSO::setupTrigger()
     m_trigRoute.reset();
 	
     unsigned int pretrig = lrint(*trigPos() / 100.0 * *recordLength());
-    const char *atrig = 0;
-    const char *dtrig = 0;
+    std::string atrig;
+    std::string dtrig;
     std::string src = trigSource()->to_str();
 //    if(!src.length()) return;
     if(std::find(m_analogTrigSrc.begin(), m_analogTrigSrc.end(), src)
          != m_analogTrigSrc.end()) {
-         atrig = src.c_str();
+         atrig = src;
     }
-    // create route to PFI0
-    if(std::find(m_digitalTrigSrc.begin(), m_digitalTrigSrc.end(), src)
-         == m_digitalTrigSrc.end()) {
-    	dtrig = QString("/%1/PFI0").arg(interface()->devName());
-    	m_trigRoute.reset(new XNIDAQmxInterface::XNIDAQmxRoute(src.c_str(), dtrig));
+    else {
+	    // create route to PFI0
+	    if(std::find(m_digitalTrigSrc.begin(), m_digitalTrigSrc.end(), src)
+	         != m_digitalTrigSrc.end()) {
+	    	dtrig = formatString("/%s/PFI0", interface()->devName());
+	    	m_trigRoute.reset(new XNIDAQmxInterface::XNIDAQmxRoute(src.c_str(), dtrig.c_str()));
+	    }
     }
-    if(!atrig && !dtrig && src.length()) {
-         dtrig = src.c_str();
+    if(!atrig.length() && !dtrig.length() && src.length()) {
+         dtrig = src;
     }
     
     if(pretrig < 2) {
-	    if(atrig) {
+	    if(atrig.length()) {
 	        CHECK_DAQMX_RET(DAQmxCfgAnlgEdgeStartTrig(m_task,
-	            atrig,
+	            atrig.c_str(),
 	            *trigFalling() ? DAQmx_Val_FallingSlope : DAQmx_Val_RisingSlope,
 	            *trigLevel()));
 	    }
-	    if(dtrig) {
+	    if(dtrig.length()) {
 	        CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_task,
-	            dtrig,
+	            dtrig.c_str(),
 	            *trigFalling() ? DAQmx_Val_FallingSlope : DAQmx_Val_RisingSlope));
 	    }
 //		CHECK_DAQMX_RET(DAQmxSetStartTrigRetriggerable(m_task, true), "");
     }
     else {
-	    if(atrig) {
+	    if(atrig.length()) {
 	        CHECK_DAQMX_RET(DAQmxCfgAnlgEdgeRefTrig(m_task,
-	            atrig,
+	            atrig.c_str(),
 	            *trigFalling() ? DAQmx_Val_FallingSlope : DAQmx_Val_RisingSlope,
 	            *trigLevel(),
 	            pretrig));
 	    }
-	    if(dtrig) {
+	    if(dtrig.length()) {
 	        CHECK_DAQMX_RET(DAQmxCfgDigEdgeRefTrig(m_task,
-	            dtrig,
+	            dtrig.c_str(),
 	            *trigFalling() ? DAQmx_Val_FallingSlope : DAQmx_Val_RisingSlope,
 	            pretrig));
 	    }
@@ -430,7 +432,7 @@ XNIDAQmxDSO::startSequence()
     if(*singleSequence()) {
 	    m_acqCount = 0;
 	    m_accumCount = 0;
-		std::fill(m_record.begin(), m_record.end(), 0.0);
+		std::fill(m_record.begin(), m_record.end(), 0);
 		m_record_av.clear();   	
     }
 
@@ -511,7 +513,7 @@ XNIDAQmxDSO::getWave(std::deque<std::string> &)
     push((uint32_t)len);
     push((uint32_t)m_accumCount);
     push((double)m_interval);
-    float64 *p = &m_record[0];
+    int32_t *p = &m_record[0];
     for(unsigned int ch = 0; ch < num_ch; ch++) {
 		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
 			push((double)m_coeffAI[ch][i]);

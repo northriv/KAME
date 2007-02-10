@@ -13,6 +13,7 @@
 #include <qgl.h>
 #include <qfile.h>
 #include <qtextcodec.h>
+#include <errno.h>
 
 static const char *description =
   I18N_NOOP("KAME");
@@ -22,7 +23,7 @@ static const char *description =
 static KCmdLineOptions options[] =
   {
     { "logging", I18N_NOOP("log debuging info."), 0 },
-    { "nomlockall", I18N_NOOP("do not use mlockall"), 0 },
+    { "mlockall", I18N_NOOP("never cause swapping, perhaps you need 'ulimit -l <MB>'"), 0 },
     { "nodr", 0, 0 },
     { "nodirectrender", I18N_NOOP("do not use direct rendering"), 0 },
     { "+[File]", I18N_NOOP("measurement file to open"), 0 },
@@ -59,12 +60,14 @@ int main(int argc, char *argv[])
             
             g_bMLockAlways = args->isSet("mlockall");
 
-	          if(( mlockall(MCL_CURRENT | (g_bMLockAlways ? MCL_FUTURE : 0) ) == 0)) {
-			  	dbgPrint("MLOCKALL succeeded.");
-			  }
-			  else{
-			  	dbgPrint("MLOCKALL failed.");
-			  }
+			 if(g_bMLockAlways) {
+		          if(( mlockall(MCL_CURRENT | MCL_FUTURE ) == 0)) {
+				  	dbgPrint("MLOCKALL succeeded.");
+				  }
+				  else{
+				  	dbgPrint(formatString("MLOCKALL failed errno=%d.", errno));
+				  }
+			 }
         
            QGLFormat f;
             f.setDirectRendering(args->isSet("directrender") );
