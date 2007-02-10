@@ -255,19 +255,14 @@ const void *FIRST_OF_MLOCK_MEMBER = &m_genPatternList;
 const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];
 
 	//Suppress swapping.
-	mlock(FIRST_OF_MLOCK_MEMBER, LAST_OF_MLOCK_MEMBER - FIRST_OF_MLOCK_MEMBER);
+	mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);
 	mlock(&m_genBufDO[0], m_genBufDO.size() * sizeof(tRawDO));
 	mlock(&m_genBufAO[0], m_genBufAO.size() * sizeof(tRawAO));
 	for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
 		for(unsigned int i = 0; i < 32; i++)
 			mlock(&m_genPulseWaveAO[ch][i], m_genPulseWaveAO[ch][i].size() * sizeof(tRawAO));
 	}
-	mlock(&XNIDAQmxPulser::genCallBackDO, 4096); //exec.
-	mlock(&XNIDAQmxPulser::_genCallBackDO, 4096); //exec.
-	mlock(&XNIDAQmxPulser::genCallBackAO, 4096); //exec.
-	mlock(&XNIDAQmxPulser::_genCallBackAO, 4096); //exec.
-	mlock(&XNIDAQmxPulser::genPulseBuffer, 4096); //exec.
-
+	
 	//prefilling of our-side buffer.
 	genPulseBuffer(CB_TRANSFER_SIZE);
 	//transfer twice
