@@ -12,6 +12,7 @@
 #define threadID() pthread_self()
 
 #include "threadlocal.h"
+#include <sys/mman.h>
 
 //! Lock mutex during its life time.
 template <class Mutex>
@@ -116,7 +117,8 @@ class XThread
    * \p X must be super class of \p T.
    */
   template <class X>
-  XThread(const shared_ptr<X> &t, void *(T::*func)(const atomic<bool> &));
+  XThread(const shared_ptr<X> &t, void *(T::*func)(const atomic<bool> &),
+  	 int mlock_flag = MCL_CURRENT | MCL_FUTURE);
   ~XThread() {terminate();}
   //! resume a new thread.
   void resume();
@@ -136,6 +138,7 @@ class XThread
     shared_ptr<T> obj;
     void *(T::*func)(const atomic<bool> &);
     atomic<bool> is_terminated;
+    int mlock_flag;
   };
   shared_ptr<targ> m_startarg;
   static void * xthread_start_routine(void *);
@@ -143,13 +146,14 @@ class XThread
 
 template <class T>
 template <class X>
-XThread<T>::XThread(const shared_ptr<X> &t, void *(T::*func)(const atomic<bool> &))
+XThread<T>::XThread(const shared_ptr<X> &t, void *(T::*func)(const atomic<bool> &), int mlock_flag)
 : m_startarg(new targ)
 {
   m_startarg->obj = dynamic_pointer_cast<T>(t);
   ASSERT(m_startarg->obj);
   m_startarg->func = func;
   m_startarg->is_terminated = false;
+  m_startarg->mlock_flag = mlock_flag;
 }
 
 template <class T>
@@ -168,9 +172,20 @@ void *
 XThread<T>::xthread_start_routine(void *x)
 {
   shared_ptr<targ> arg = ((targ *)x)->this_ptr;
+  int mlock_flag = arg->mlock_flag;
+  if(mlock_flag) {
+	  if(( mlockall(mlock_flag) == 0)) {
+	  	dbgPrint("MLOCKALL succeeded.");
+	  }
+	  else{
+	  	dbgPrint("MLOCKALL failed.");
+	  }
+  }
+
   arg->this_ptr.reset();
   void *p = ((arg->obj.get())->*(arg->func))(arg->is_terminated);
   arg->obj.reset();
+
   return p;
 }
 template <class T>

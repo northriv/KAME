@@ -18,7 +18,8 @@ using std::min;
 //[ms]
 #define DMA_AO_PERIOD (DMA_DO_PERIOD / SAMPS_AO_PER_DO)
 
-#define BUF_SIZE_HINT 32768
+#define BUF_SIZE_HINT 65536
+#define CB_TRANSFER_SIZE (BUF_SIZE_HINT/2)
 
 double XNIDAQmxPulser::resolution() {
      return DMA_DO_PERIOD;
@@ -102,12 +103,18 @@ XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
 	
 //	CHECK_DAQMX_RET(DAQmxExportSignal(m_taskDO, DAQmx_Val_StartTrigger, 
 //		QString("/%1/" RTSI_START_TRIG).arg(intfDO()->devName())));
+
+	//Buffer setup.
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, BUF_SIZE_HINT));
 	uInt32 bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
 	printf("Using bufsize = %d, freq = %f\n", (int)bufsize, freq);
+	if(bufsize < CB_TRANSFER_SIZE * 2)
+		throw XInterface::XInterfaceError(KAME::i18n("Insufficient size of NIDAQmx buffer."), __FILE__, __LINE__);
+	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
+	
 	CHECK_DAQMX_RET(DAQmxRegisterEveryNSamplesEvent(m_taskDO,
-		DAQmx_Val_Transferred_From_Buffer, bufsize/2, 0,
+		DAQmx_Val_Transferred_From_Buffer, CB_TRANSFER_SIZE, 0,
 		&XNIDAQmxPulser::_genCallBack, this));
 	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskDO, 0,
 		&XNIDAQmxPulser::_doneCallBack, this));
@@ -147,10 +154,15 @@ XNIDAQmxPulser::onOpenAO(const shared_ptr<XInterface> &)
 		CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskAO,
 			QString("/%1/do/StartTrigger").arg(intfDO()->devName()), DAQmx_Val_Rising));
 			
+		//Buffer setup.
 		CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, BUF_SIZE_HINT * SAMPS_AO_PER_DO));
 		uInt32 bufsize;
 		CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
 		printf("Using bufsize = %d\n", (int)bufsize);
+		if(bufsize < CB_TRANSFER_SIZE * 2 * SAMPS_AO_PER_DO)
+			throw XInterface::XInterfaceError(
+				KAME::i18n("Insufficient size of NIDAQmx buffer."), __FILE__, __LINE__);
+		CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskAO, DAQmx_Val_DoNotAllowRegen));
 	
 		//obtain range info.
 		for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
@@ -214,11 +226,14 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	m_genLastPattern = m_genPatternList.back().pattern;
 	m_genRestSamps = m_genPatternList.back().toappear;
 	m_genAOIndex = 0;
-	m_genBufDO.resize(BUF_SIZE_HINT);
-	m_genBufAO.resize(BUF_SIZE_HINT * NUM_AO_CH * SAMPS_AO_PER_DO);
+	m_genBufDO.resize(CB_TRANSFER_SIZE);
+	m_genBufAO.resize(CB_TRANSFER_SIZE * NUM_AO_CH * SAMPS_AO_PER_DO);
 	
-	genCallBack(m_taskDO, BUF_SIZE_HINT/2);
-	genCallBack(m_taskDO, BUF_SIZE_HINT/2);
+	//prefilling of our-side buffer.
+	genPulseBuffer(CB_TRANSFER_SIZE);
+	//transfer twice
+	genCallBack(m_taskDO, CB_TRANSFER_SIZE);
+	genCallBack(m_taskDO, CB_TRANSFER_SIZE);
 	
 	//slave must start before the master.
 	if(m_taskAO != TASK_UNDEF)
@@ -289,10 +304,10 @@ XNIDAQmxPulser::genPulseBuffer(uInt32 num_samps)
 		if(pidx == 0) {
 			aoidx = 0;
 			for(unsigned int cnt = 0; cnt < gen_cnt; cnt++) {
-				(*pDO++) = patDO;
+				*pDO++ = patDO;
 				for(unsigned int i = 0; i < SAMPS_AO_PER_DO; i++) {
-					(*pAO++) = raw_ao0_zero;
-					(*pAO++) = raw_ao1_zero;
+					*pAO++ = raw_ao0_zero;
+					*pAO++ = raw_ao1_zero;
 				}
 			}
 		}
@@ -303,10 +318,10 @@ XNIDAQmxPulser::genPulseBuffer(uInt32 num_samps)
 			tRawAO *pGenAO1 = &m_genPulseWaveAO[1][pnum][aoidx];
 			ASSERT(m_genPulseWaveAO[0][pidx - pulsebit/qpskbit].size() >= aoidx + gen_cnt);
 			for(unsigned int cnt = 0; cnt < gen_cnt; cnt++) {
-				(*pDO++) = patDO;
+				*pDO++ = patDO;
 				for(unsigned int i = 0; i < SAMPS_AO_PER_DO; i++) {
-					(*pAO++) = (*pGenAO0++);
-					(*pAO++) = (*pGenAO1++);
+					*pAO++ = *pGenAO0++;
+					*pAO++ = *pGenAO1++;
 					aoidx++;
 				}
 			}
@@ -331,27 +346,35 @@ XNIDAQmxPulser::genPulseBuffer(uInt32 num_samps)
 	m_genAOIndex = aoidx;
 }
 int32
-XNIDAQmxPulser::genCallBack(TaskHandle /*task*/, uInt32 num_samps)
+XNIDAQmxPulser::genCallBack(TaskHandle /*task*/, uInt32 transfer_size)
 {
-	genPulseBuffer(num_samps);
-	
- 	XScopedLock<XInterface> lockao(*intfAO());
- 	XScopedLock<XInterface> lockdo(*intfDO());
-
 	try {
-		int32 samps;
-		if(m_taskDO != TASK_UNDEF) {
-			CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, num_samps, false, 0.3, 
-				DAQmx_Val_GroupByChannel, &m_genBufDO[0], &samps, NULL));
-			if(samps != (int32)num_samps) {
-				throw XInterface::XInterfaceError("DO: buffer underrun", __FILE__, __LINE__);
+	 	XScopedLock<XInterface> lockao(*intfAO());
+	 	XScopedLock<XInterface> lockdo(*intfDO());
+	 	#define NUM_CB_DIV 4
+		for(int cnt = 0; cnt < NUM_CB_DIV; cnt++) {
+//			uInt32 space;
+//			CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskDO, &space));
+//			
+			uInt32 num_samps = transfer_size / NUM_CB_DIV;
+				
+			int32 samps;
+			if(m_taskDO != TASK_UNDEF) {
+				ASSERT(NUM_CB_DIV * num_samps == m_genBufDO.size());
+				CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, num_samps, false, 0.3, 
+					DAQmx_Val_GroupByChannel, &m_genBufDO[cnt * num_samps], &samps, NULL));
+				if(samps != (int32)num_samps) {
+					throw XInterface::XInterfaceError("DO: buffer underrun", __FILE__, __LINE__);
+				}
 			}
-		}
-		if(m_taskAO != TASK_UNDEF) {
-			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, num_samps*SAMPS_AO_PER_DO, false, 0.3, 
-				DAQmx_Val_GroupByScanNumber, &m_genBufAO[0], &samps, NULL));
-			if(samps != (int32)num_samps*SAMPS_AO_PER_DO) {
-				throw XInterface::XInterfaceError("AO: buffer underrun", __FILE__, __LINE__);
+			if(m_taskAO != TASK_UNDEF) {
+				ASSERT(NUM_CB_DIV * num_samps * SAMPS_AO_PER_DO * NUM_AO_CH== m_genBufAO.size());
+				CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, num_samps * SAMPS_AO_PER_DO, false, 0.3, 
+					DAQmx_Val_GroupByScanNumber, &m_genBufAO[cnt * num_samps * SAMPS_AO_PER_DO * NUM_AO_CH],
+					 &samps, NULL));
+				if(samps != (int32)num_samps*SAMPS_AO_PER_DO) {
+					throw XInterface::XInterfaceError("AO: buffer underrun", __FILE__, __LINE__);
+				}
 			}
 		}
 	}
@@ -360,6 +383,9 @@ XNIDAQmxPulser::genCallBack(TaskHandle /*task*/, uInt32 num_samps)
 		e.print(getLabel());
 		return -1;
 	}
+	
+	//refill our-side buffer.
+	genPulseBuffer(transfer_size);
 	return 0;
 }
 void
