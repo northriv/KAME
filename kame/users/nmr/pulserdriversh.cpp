@@ -7,98 +7,98 @@ using std::min;
 
 
 //[ms]
-#define DMA_PERIOD (1.0/(28.64e3/2))
+static const double DMA_PERIOD = (1.0/(28.64e3/2));
 
 double XSHPulser::resolution() {
      return DMA_PERIOD;
 }
 
 //[ms]
-#define MIN_MTU_LEN 50e-3
+static const double MIN_MTU_LEN = 50e-3;
 //[ms]
-#define MTU_PERIOD (1.0/(28.64e3/1))
+static const double MTU_PERIOD = (1.0/(28.64e3/1));
 
 
-#define NUM_BANK 2
-#define PATTERNS_ZIPPED_MAX 40000
+static const unsigned int NUM_BANK = 2;
+static const unsigned int PATTERNS_ZIPPED_MAX = 40000;
 
 //dma time commands
-#define PATTERN_ZIPPED_COMMAND_DMA_END 0
+static const unsigned char PATTERN_ZIPPED_COMMAND_DMA_END = 0;
 //+1: a phase by 90deg.
 //+2,3: from DMA start 
 //+4,5: src neg. offset from here
-#define PATTERN_ZIPPED_COMMAND_DMA_COPY_HBURST 1
+static const unsigned char PATTERN_ZIPPED_COMMAND_DMA_COPY_HBURST = 1;
 //+1,2: time to appear
 //+2,3: pattern to appear
-#define PATTERN_ZIPPED_COMMAND_DMA_LSET_LONG 2
+static const unsigned char PATTERN_ZIPPED_COMMAND_DMA_LSET_LONG = 2;
 //+0: time to appear + START
 //+1,2: pattern to appear
-#define PATTERN_ZIPPED_COMMAND_DMA_LSET_START 0x10
-#define PATTERN_ZIPPED_COMMAND_DMA_LSET_END 0xffu
+static const unsigned char PATTERN_ZIPPED_COMMAND_DMA_LSET_START = 0x10;
+static const unsigned char PATTERN_ZIPPED_COMMAND_DMA_LSET_END = 0xffu;
 
 //off-dma time commands
-#define PATTERN_ZIPPED_COMMAND_END 0
+static const unsigned char PATTERN_ZIPPED_COMMAND_END = 0;
 //+1,2 : TimerL
-#define PATTERN_ZIPPED_COMMAND_WAIT 1
+static const unsigned char PATTERN_ZIPPED_COMMAND_WAIT = 1;
 //+1,2 : TimerL
 //+3,4: LSW of TimerU
-#define PATTERN_ZIPPED_COMMAND_WAIT_LONG 2
+static const unsigned char PATTERN_ZIPPED_COMMAND_WAIT_LONG = 2;
 //+1,2 : TimerL
 //+3,4: MSW of TimerU
 //+5,6: LSW of TimerU
-#define PATTERN_ZIPPED_COMMAND_WAIT_LONG_LONG 3
+static const unsigned char PATTERN_ZIPPED_COMMAND_WAIT_LONG_LONG = 3;
 //+1: byte
-#define PATTERN_ZIPPED_COMMAND_AUX1 4
+static const unsigned char PATTERN_ZIPPED_COMMAND_AUX1 = 4;
 //+1: byte
-#define PATTERN_ZIPPED_COMMAND_AUX3 5
+static const unsigned char PATTERN_ZIPPED_COMMAND_AUX3 = 5;
 //+1: address
 //+2,3: value
-#define PATTERN_ZIPPED_COMMAND_AUX2_DA 6
+static const unsigned char PATTERN_ZIPPED_COMMAND_AUX2_DA = 6;
 //+1,2: loops
-#define PATTERN_ZIPPED_COMMAND_DO 7
-#define PATTERN_ZIPPED_COMMAND_LOOP 8
-#define PATTERN_ZIPPED_COMMAND_LOOP_INF 9
-#define PATTERN_ZIPPED_COMMAND_BREAKPOINT 0xa 
-#define PATTERN_ZIPPED_COMMAND_PULSEON 0xb
+static const unsigned char PATTERN_ZIPPED_COMMAND_DO = 7;
+static const unsigned char PATTERN_ZIPPED_COMMAND_LOOP = 8;
+static const unsigned char PATTERN_ZIPPED_COMMAND_LOOP_INF = 9;
+static const unsigned char PATTERN_ZIPPED_COMMAND_BREAKPOINT = 0xa; 
+static const unsigned char PATTERN_ZIPPED_COMMAND_PULSEON = 0xb;
 //+1,2: last pattern
-#define PATTERN_ZIPPED_COMMAND_DMA_SET 0xc
+static const unsigned char PATTERN_ZIPPED_COMMAND_DMA_SET = 0xc;
 //+1,2: size
 //+2n: patterns
-#define PATTERN_ZIPPED_COMMAND_DMA_HBURST 0xd
+static const unsigned char PATTERN_ZIPPED_COMMAND_DMA_HBURST = 0xd;
 //+1 (signed char): QAM1 offset
 //+2 (signed char): QAM2 offset
-#define PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_OFFSET 0xe
+static const unsigned char PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_OFFSET = 0xe;
 //+1 (signed char): QAM1 level
 //+2 (signed char): QAM2 level
-#define PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_LEVEL 0xf
+static const unsigned char PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_LEVEL = 0xf;
 //+1 (signed char): QAM1 delay
 //+2 (signed char): QAM2 delay
-#define PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_DELAY 0x10
+static const unsigned char PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_DELAY = 0x10;
 
 #define ASW_FILTER_1 "200kHz"
 #define ASW_FILTER_2 "600kHz"
 #define ASW_FILTER_3 "2MHz"
 
-#define g3mask 0x0010
-#define g2mask 0x0002
-#define g1mask (0x0001 | g3mask)
-#define trig1mask 0x0004
-#define trig2mask 0x0008
-#define aswmask	0x0080
-#define qswmask 0x0040
-#define allmask 0xffff
-#define pulse1mask 0x0100
-#define pulse2mask 0x0200
-#define combmask 0x0820
-#define combfmmask 0x0400
-#define qpskbit 0x10000
-#define qpskmask (qpskbit*3)
-#define pulsebit 0x40000
-#define pulsemask (pulsebit*7)
-#define PULSE_P1 (1*pulsebit)
-#define PULSE_P2 (2*pulsebit)
-#define PULSE_COMB (3*pulsebit)
-#define PULSE_INDUCE_EMISSION (4*pulsebit)
+static const unsigned int g3mask = 0x0010;
+static const unsigned int g2mask = 0x0002;
+static const unsigned int g1mask = (0x0001 | g3mask);
+static const unsigned int trig1mask = 0x0004;
+static const unsigned int trig2mask = 0x0008;
+static const unsigned int aswmask = 0x0080;
+static const unsigned int qswmask = 0x0040;
+static const unsigned int allmask = 0xffff;
+static const unsigned int pulse1mask = 0x0100;
+static const unsigned int pulse2mask = 0x0200;
+static const unsigned int combmask = 0x0820;
+static const unsigned int combfmmask = 0x0400;
+static const unsigned int qpskbit = 0x10000;
+static const unsigned int qpskmask = (qpskbit*3);
+static const unsigned int pulsebit = 0x40000;
+static const unsigned int pulsemask = (pulsebit*7);
+static const unsigned int PULSE_P1 = (1*pulsebit);
+static const unsigned int PULSE_P2 = (2*pulsebit);
+static const unsigned int PULSE_COMB = (3*pulsebit);
+static const unsigned int PULSE_INDUCE_EMISSION = (4*pulsebit);
 
 XSHPulser::XSHPulser(const char *name, bool runtime,
    const shared_ptr<XScalarEntryList> &scalarentries,

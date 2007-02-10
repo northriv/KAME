@@ -68,6 +68,7 @@ int main(int argc, char *argv[])
 				  	dbgPrint(formatString("MLOCKALL failed errno=%d.", errno));
 				  }
 			 }
+			 mlock(&aboutData, 4096); //reserve stack of main thread.
         
            QGLFormat f;
             f.setDirectRendering(args->isSet("directrender") );

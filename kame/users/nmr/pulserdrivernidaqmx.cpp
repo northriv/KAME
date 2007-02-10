@@ -12,39 +12,39 @@ using std::min;
 
 
 //[ms]
-#define DMA_DO_PERIOD (1.0/(1e3))
+static const double DMA_DO_PERIOD = (1.0/(1e3));
 
-#define SAMPS_AO_PER_DO 1
+static const unsigned int SAMPS_AO_PER_DO = 1;
 //[ms]
-#define DMA_AO_PERIOD (DMA_DO_PERIOD / SAMPS_AO_PER_DO)
+static const double DMA_AO_PERIOD = (DMA_DO_PERIOD / SAMPS_AO_PER_DO);
 
-#define BUF_SIZE_HINT 65536
-#define CB_TRANSFER_SIZE (BUF_SIZE_HINT/2)
+static const unsigned int BUF_SIZE_HINT = 65536;
+static const unsigned int CB_TRANSFER_SIZE = (BUF_SIZE_HINT/2);
 
 double XNIDAQmxPulser::resolution() {
      return DMA_DO_PERIOD;
 }
 
-#define g3mask 0x0010
-#define g2mask 0x0002
-#define g1mask (0x0001 | g3mask)
-#define trig1mask 0x0004
-#define trig2mask 0x0008
-#define aswmask	0x0080
-#define qswmask 0x0040
-#define allmask 0xffff
-#define pulse1mask 0x0100
-#define pulse2mask 0x0200
-#define combmask 0x0820
-#define combfmmask 0x0400
-#define qpskbit 0x10000
-#define qpskmask (qpskbit*3)
-#define pulsebit 0x40000
-#define pulsemask (pulsebit*7)
-#define PULSE_P1 (1*pulsebit)
-#define PULSE_P2 (2*pulsebit)
-#define PULSE_COMB (3*pulsebit)
-#define PULSE_INDUCE_EMISSION (4*pulsebit)
+static const unsigned int g3mask = 0x0010;
+static const unsigned int g2mask = 0x0002;
+static const unsigned int g1mask = (0x0001 | g3mask);
+static const unsigned int trig1mask = 0x0004;
+static const unsigned int trig2mask = 0x0008;
+static const unsigned int aswmask =	0x0080;
+static const unsigned int qswmask = 0x0040;
+static const unsigned int allmask = 0xffff;
+static const unsigned int pulse1mask = 0x0100;
+static const unsigned int pulse2mask = 0x0200;
+static const unsigned int combmask = 0x0820;
+static const unsigned int combfmmask = 0x0400;
+static const unsigned int qpskbit = 0x10000;
+static const unsigned int qpskmask = (qpskbit*3);
+static const unsigned int pulsebit = 0x40000;
+static const unsigned int pulsemask = (pulsebit*7);
+static const unsigned int PULSE_P1 = (1*pulsebit);
+static const unsigned int PULSE_P2 = (2*pulsebit);
+static const unsigned int PULSE_COMB = (3*pulsebit);
+static const unsigned int PULSE_INDUCE_EMISSION = (4*pulsebit);
 
 XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
    const shared_ptr<XScalarEntryList> &scalarentries,
@@ -101,6 +101,7 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 	
 	float64 freq = 1e3 / DMA_DO_PERIOD;
 
+	//Continuous pulse train generation. Duty = 50%.
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskCtr));
 	CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskCtr, 
     	freqdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
@@ -121,6 +122,7 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
     	formatString("%s/port0/line0:7", intfDO()->devName()).c_str(),
     	 "", DAQmx_Val_ChanForAllLines));
 
+	//M series needs an external sample clock and trigger for DO channels.
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO,
 		freqout.c_str(),
 		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
@@ -155,17 +157,10 @@ XNIDAQmxPulser::onOpenAO(const shared_ptr<XInterface> &)
 		CHECK_DAQMX_RET(DAQmxCreateAOVoltageChan(m_taskAO,
 	    	formatString("%s/ao0:1", intfAO()->devName()).c_str(), "",
 	    	-1.0, 1.0, DAQmx_Val_Volts, NULL));
-	if(0)
-		CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, 
-			formatString("/%s/FrequencyOutput", intfDO()->devName()).c_str(),
-			1e3 / DMA_AO_PERIOD, DAQmx_Val_Rising, DAQmx_Val_ContSamps,
-			BUF_SIZE_HINT * SAMPS_AO_PER_DO));
 
-	if(1) {
 		CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, "",
 			1e3 / DMA_AO_PERIOD, DAQmx_Val_Rising, DAQmx_Val_ContSamps,
 			BUF_SIZE_HINT * SAMPS_AO_PER_DO));
-	}
 
 /*		shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
 		route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
@@ -247,6 +242,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
     DAQmxStopTask(m_taskDO);
 	if(m_taskAO != TASK_UNDEF)
 	   DAQmxStopTask(m_taskAO);
+	   
 //	std::deque<GenPattern> m_genPatternList;
 	m_genLastPatIt = m_genPatternList.begin();
 	m_genLastPattern = m_genPatternList.back().pattern;
@@ -255,6 +251,23 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	m_genBufDO.resize(CB_TRANSFER_SIZE);
 	m_genBufAO.resize(CB_TRANSFER_SIZE * NUM_AO_CH * SAMPS_AO_PER_DO);
 	
+const void *FIRST_OF_MLOCK_MEMBER = &m_genPatternList;
+const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];
+
+	//Suppress swapping.
+	mlock(FIRST_OF_MLOCK_MEMBER, LAST_OF_MLOCK_MEMBER - FIRST_OF_MLOCK_MEMBER);
+	mlock(&m_genBufDO[0], m_genBufDO.size() * sizeof(tRawDO));
+	mlock(&m_genBufAO[0], m_genBufAO.size() * sizeof(tRawAO));
+	for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
+		for(unsigned int i = 0; i < 32; i++)
+			mlock(&m_genPulseWaveAO[ch][i], m_genPulseWaveAO[ch][i].size() * sizeof(tRawAO));
+	}
+	mlock(&XNIDAQmxPulser::genCallBackDO, 4096); //exec.
+	mlock(&XNIDAQmxPulser::_genCallBackDO, 4096); //exec.
+	mlock(&XNIDAQmxPulser::genCallBackAO, 4096); //exec.
+	mlock(&XNIDAQmxPulser::_genCallBackAO, 4096); //exec.
+	mlock(&XNIDAQmxPulser::genPulseBuffer, 4096); //exec.
+
 	//prefilling of our-side buffer.
 	genPulseBuffer(CB_TRANSFER_SIZE);
 	//transfer twice
@@ -293,7 +306,7 @@ XNIDAQmxPulser::_genCallBackAO(TaskHandle task, int32 /*type*/, uInt32 num_samps
     return obj->genCallBackAO(task, num_samps);
 }
 
-XNIDAQmxPulser::tRawAO
+inline XNIDAQmxPulser::tRawAO
 XNIDAQmxPulser::aoVoltToRaw(int ch, float64 volt)
 {
 	volt = std::max(volt, m_lowerLimAO[ch]);

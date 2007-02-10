@@ -54,7 +54,7 @@ class XNIDAQmxDSO : public XNIDAQmxDriver<XDSO>
   scoped_ptr<XNIDAQmxInterface::XNIDAQmxRoute> m_trigRoute;
   std::vector<tRawAI> m_record_buf;
   std::vector<int32_t> m_record;
-#define CAL_POLY_ORDER 4
+enum {CAL_POLY_ORDER = 4};
 	float64 m_coeffAI[2][CAL_POLY_ORDER];
 //	float64 m_upperLimAI[2];
 //	float64 m_lowerLimAI[2];

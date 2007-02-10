@@ -13,25 +13,24 @@ class FrmPulser;
 class FrmPulserMore;
 class XQPulserDriverConnector;
 
-#define N_COMB_MODE_OFF 0
-#define N_COMB_MODE_ON 1
-#define N_COMB_MODE_P1_ALT 2
-#define N_COMB_MODE_COMB_ALT 3
+static const unsigned int  N_COMB_MODE_OFF = 0;
+static const unsigned int  N_COMB_MODE_ON = 1;
+static const unsigned int  N_COMB_MODE_P1_ALT = 2;
+static const unsigned int  N_COMB_MODE_COMB_ALT = 3;
 
-#define N_RT_MODE_FIXREP 0
-#define N_RT_MODE_FIXREST 1
+static const unsigned int  N_RT_MODE_FIXREP = 0;
+static const unsigned int  N_RT_MODE_FIXREST = 1;
 
 #define NUM_PHASE_CYCLE_1 "1"
 #define NUM_PHASE_CYCLE_2 "2"
 #define NUM_PHASE_CYCLE_4 "4"
 #define NUM_PHASE_CYCLE_8 "8"
 #define NUM_PHASE_CYCLE_16 "16"
-#define MAX_NUM_PHASE_CYCLE 16
-
+static const unsigned int  MAX_NUM_PHASE_CYCLE = 16;
 
 //! Base class of NMR Pulsers
 class XPulser : public XPrimaryDriver
-{
+{	
  XNODE_OBJECT
  protected:
   XPulser(const char *name, bool runtime,

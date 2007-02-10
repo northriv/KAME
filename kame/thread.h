@@ -180,6 +180,7 @@ XThread<T>::xthread_start_routine(void *x)
 	  	dbgPrint("MLOCKALL failed.");
 	  }
   }
+  mlock(&arg, 4096); //reserve stack.
 
   arg->this_ptr.reset();
   void *p = ((arg->obj.get())->*(arg->func))(arg->is_terminated);

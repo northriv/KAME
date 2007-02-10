@@ -74,6 +74,7 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 	      uint32_t pattern;
 	      long long int toappear; // in samps for DO.
 	  };
+
 	std::deque<GenPattern> m_genPatternList;
 	typedef std::deque<GenPattern>::iterator GenPatternIterator;
 	uint32_t m_genLastPattern;
@@ -81,16 +82,16 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 	long long int m_genRestSamps;
 	unsigned int m_genAOIndex;
 
-#define NUM_AO_CH 2
-
+enum { NUM_AO_CH = 2};
 	std::vector<tRawDO> m_genBufDO;
 	std::vector<tRawAO> m_genBufAO;
 	std::vector<tRawAO> m_genPulseWaveAO[NUM_AO_CH][32];
-#define CAL_POLY_ORDER 4
+enum { CAL_POLY_ORDER = 4};
 	float64 m_coeffAO[NUM_AO_CH][CAL_POLY_ORDER];
 	float64 m_upperLimAO[NUM_AO_CH];
 	float64 m_lowerLimAO[NUM_AO_CH];
-	tRawAO aoVoltToRaw(int ch, float64 volt);
+	
+	inline tRawAO aoVoltToRaw(int ch, float64 volt);
 	void genPulseBuffer(uInt32 num_samps);
 	static int32 _genCallBackAO(TaskHandle task, int32 /*type*/, uInt32 num_samps, void *data);
 	static int32 _genCallBackDO(TaskHandle task, int32 /*type*/, uInt32 num_samps, void *data);
@@ -101,4 +102,5 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
   int makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
   
 };
+
 #endif //HAVE_NI_DAQMX
