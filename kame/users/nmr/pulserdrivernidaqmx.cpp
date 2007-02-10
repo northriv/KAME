@@ -84,7 +84,14 @@ XNIDAQmxPulser::open() throw (XInterface::XInterfaceError &)
 void
 XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 {
-	const char *freqdev = (m_taskAO != TASK_UNDEF) ? intfAO()->devName() : intfDO()->devName();
+//	std::string freqdev = formatString("%s/freqout", intfDO()->devName()).c_str();
+//	std::string freqout = formatString("/%s/FrequencyOutput", intfDO()->devName()).c_str();
+	std::string freqdev = formatString("%s/ctr0", intfDO()->devName()).c_str();
+	std::string freqout = formatString("/%s/Ctr0InternalOutput", intfDO()->devName()).c_str();
+	if(m_taskAO != TASK_UNDEF) {
+		freqdev = formatString("%s/ctr0", intfAO()->devName()).c_str();
+		freqout = formatString("/%s/Ctr0InternalOutput", intfAO()->devName()).c_str();
+	}
 
  	XScopedLock<XInterface> lock(*intfDO());
 	if(m_taskDO != TASK_UNDEF) {
@@ -96,16 +103,26 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskCtr));
 	CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskCtr, 
-    	formatString("%s/freqout", freqdev).c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
+    	freqdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
     	freq, 0.5));
+    //config. of timing is needed for some reasons.
+	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskCtr, DAQmx_Val_ContSamps, 1000));
     	
+	if(m_taskAO != TASK_UNDEF) {
+		CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskCtr,
+			formatString("/%s/ao/StartTrigger", intfAO()->devName()).c_str(),
+			DAQmx_Val_Rising));
+	}
+   CHECK_DAQMX_RET(DAQmxStartTask(m_taskCtr));
+   
 	CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDO));
 
     CHECK_DAQMX_RET(DAQmxCreateDOChan(m_taskDO, 
-    	(QString("%1/port0/line0:7").arg(intfDO()->devName())), "", DAQmx_Val_ChanForAllLines));
+    	formatString("%s/port0/line0:7", intfDO()->devName()).c_str(),
+    	 "", DAQmx_Val_ChanForAllLines));
 
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO,
-		formatString("/%s/FrequencyOutput", freqdev).c_str(),
+		freqout.c_str(),
 		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
 	
 	//Buffer setup.
@@ -138,12 +155,17 @@ XNIDAQmxPulser::onOpenAO(const shared_ptr<XInterface> &)
 		CHECK_DAQMX_RET(DAQmxCreateAOVoltageChan(m_taskAO,
 	    	formatString("%s/ao0:1", intfAO()->devName()).c_str(), "",
 	    	-1.0, 1.0, DAQmx_Val_Volts, NULL));
-	
+	if(0)
 		CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, 
-			formatString("/%s/FrequencyOutput", intfAO()->devName()).c_str(),
+			formatString("/%s/FrequencyOutput", intfDO()->devName()).c_str(),
 			1e3 / DMA_AO_PERIOD, DAQmx_Val_Rising, DAQmx_Val_ContSamps,
 			BUF_SIZE_HINT * SAMPS_AO_PER_DO));
 
+	if(1) {
+		CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, "",
+			1e3 / DMA_AO_PERIOD, DAQmx_Val_Rising, DAQmx_Val_ContSamps,
+			BUF_SIZE_HINT * SAMPS_AO_PER_DO));
+	}
 
 /*		shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
 		route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
@@ -222,7 +244,6 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
  	XScopedLock<XInterface> lockao(*intfAO());
  	XScopedLock<XInterface> lockdo(*intfDO());
  	
-    DAQmxStopTask(m_taskCtr);
     DAQmxStopTask(m_taskDO);
 	if(m_taskAO != TASK_UNDEF)
 	   DAQmxStopTask(m_taskAO);
@@ -244,8 +265,6 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	if(m_taskAO != TASK_UNDEF)
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
     CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
-
-    CHECK_DAQMX_RET(DAQmxStartTask(m_taskCtr));
 }
 void
 XNIDAQmxPulser::stopPulseGen()
@@ -350,7 +369,6 @@ XNIDAQmxPulser::genPulseBuffer(uInt32 num_samps)
 	m_genRestSamps = toappear;
 	m_genLastPatIt = it;
 	m_genAOIndex = aoidx;
-	m_genBufRefCnt = 2;
 }
 int32
 XNIDAQmxPulser::genCallBackDO(TaskHandle /*task*/, uInt32 transfer_size)
@@ -371,7 +389,6 @@ XNIDAQmxPulser::genCallBackDO(TaskHandle /*task*/, uInt32 transfer_size)
 					throw XInterface::XInterfaceError("DO: buffer underrun", __FILE__, __LINE__);
 				}
 			}
-			int32 samps;
 			if(m_taskAO != TASK_UNDEF) {
 				ASSERT(NUM_CB_DIV * num_samps * SAMPS_AO_PER_DO * NUM_AO_CH== m_genBufAO.size());
 				CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, num_samps * SAMPS_AO_PER_DO, false, 0.3, 

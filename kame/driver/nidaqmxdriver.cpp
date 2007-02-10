@@ -22,6 +22,7 @@ XNIDAQmxGlobalOpen()
 		for(std::deque<std::string>::iterator it = list.begin(); it != list.end(); it++) {
 			DAQmxResetDevice(it->c_str());
 			
+			continue;
 			int32 bus;
 			DAQmxGetDevBusType(it->c_str(), &bus);
 			if((bus == DAQmx_Val_PCI) || (bus == DAQmx_Val_PCIe)) {
