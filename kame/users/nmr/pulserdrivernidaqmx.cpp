@@ -161,7 +161,6 @@ XNIDAQmxPulser::onOpenAO(const shared_ptr<XInterface> &)
 		CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, "",
 			1e3 / DMA_AO_PERIOD, DAQmx_Val_Rising, DAQmx_Val_ContSamps,
 			BUF_SIZE_HINT * SAMPS_AO_PER_DO));
-
 /*		shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
 		route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
 			formatString("/%s/20MHzTimebase", intfDO()->devName()).c_str(),
@@ -182,8 +181,14 @@ XNIDAQmxPulser::onOpenAO(const shared_ptr<XInterface> &)
 				KAME::i18n("Insufficient size of NIDAQmx buffer."), __FILE__, __LINE__);
 		CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskAO, DAQmx_Val_DoNotAllowRegen));
 	
-		//obtain range info.
 		for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
+			
+			//DMA is slower than interrupts!
+			CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, 
+				formatString("%s/ao%d", intfAO()->devName(), ch).c_str(),
+				DAQmx_Val_Interrupts));
+			
+		//obtain range info.
 			for(unsigned int i = 0; i < CAL_POLY_ORDER; i++)
 				m_coeffAO[ch][i] = 0.0;
 			CHECK_DAQMX_RET(DAQmxGetAODevScalingCoeff(m_taskAO, 
