@@ -91,11 +91,12 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 	float64 m_lowerLimAO[NUM_AO_CH];
 	tRawAO aoVoltToRaw(int ch, float64 volt);
 	void genPulseBuffer(uInt32 num_samps);
-	static int32 _genCallBack(TaskHandle task, int32 /*type*/, uInt32 num_samps, void *data);
-	static int32 _doneCallBack(TaskHandle task, int32 /*status*/, void *data);
-	int32 genCallBack(TaskHandle task, uInt32 num_samps);
-//    scoped_ptr<XNIDAQmxInterface::XNIDAQmxRoute> m_route;
-    
+	static int32 _genCallBackAO(TaskHandle task, int32 /*type*/, uInt32 num_samps, void *data);
+	static int32 _genCallBackDO(TaskHandle task, int32 /*type*/, uInt32 num_samps, void *data);
+	int32 genCallBackDO(TaskHandle task, uInt32 num_samps);
+	int32 genCallBackAO(TaskHandle task, uInt32 num_samps);
+	std::deque<shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> > m_routes;
+	
   int makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
   
 };
