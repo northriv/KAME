@@ -4,7 +4,6 @@
 
 static int g_daqmx_open_cnt;
 static XMutex g_daqmx_mutex;
-static std::deque<shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> > g_daqmx_sync_routes;
 
 static void
 XNIDAQmxGlobalOpen()
@@ -21,79 +20,7 @@ XNIDAQmxGlobalOpen()
 		std::deque<std::string> pcidevs;
 		for(std::deque<std::string>::iterator it = list.begin(); it != list.end(); it++) {
 			DAQmxResetDevice(it->c_str());
-			
-			
-			continue;
-			
-			
-			int32 bus;
-			DAQmxGetDevBusType(it->c_str(), &bus);
-			if((bus == DAQmx_Val_PCI) || (bus == DAQmx_Val_PCIe)) {
-				pcidevs.push_back(*it);
-				//RTSI synchronizations.
-				shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
-				if(!master10MHz.length()) {
-					int pret;
-					route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
-						QString("/%1/10MHzRefClock").arg(*it),
-						"RTSI6", &pret));
-					if(pret >= 0) {
-						master10MHz = *it;
-						g_daqmx_sync_routes.push_back(route);
-						printf("10MHzRefClk found on %s\n", it->c_str());
-						route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
-							QString("/%1/20MHzTimebase").arg(*it),
-							"RTSI7", &pret));
-						if(pret >= 0) {
-							master20MHz = *it;
-							printf("20MHzRefClk found on %s\n", it->c_str());
-							g_daqmx_sync_routes.push_back(route);
-						}
-					}
-				}
-			}
 		}
-		for(std::deque<std::string>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
-			shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
-			if(!master20MHz.length()) {
-				int pret;
-				route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
-					QString("/%1/20MHzTimebase").arg(*it),
-					"RTSI7", &pret));
-				if(pret >= 0) {
-					master20MHz = *it;
-					printf("20MHzRefClk found on %s\n", it->c_str());
-					g_daqmx_sync_routes.push_back(route);
-				}
-			}
-		}
-/*		if(pcidevs.size() > 1) {
-			for(std::deque<std::string>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
-				shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
-				if(*it == master10MHz) continue;
-				if(*it == master20MHz) continue;
-				int pret = -1;
-				if(master20MHz.length())
-					route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
-						"RTSI7",
-						QString("/%1/MasterTimebase").arg(*it), &pret));
-				if(pret >= 0) {
-					g_daqmx_sync_routes.push_back(route);
-				}
-				else {
-					if(master10MHz.length())
-						route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
-							"RTSI6",
-							QString("/%1/ExternalRefereceClock").arg(*it), &pret));
-					if(pret >= 0) {
-						g_daqmx_sync_routes.push_back(route);
-					}
-					else {
-						gErrPrint(KAME::i18n("No synchronization route found on ") + *it);
-					}
-				}
-			}
-		}*/
 	}
 	g_daqmx_open_cnt++;
 }
@@ -102,9 +29,6 @@ XNIDAQmxGlobalClose()
 {
 	XScopedLock<XMutex> lock(g_daqmx_mutex);
 	g_daqmx_open_cnt--;
-	if(g_daqmx_open_cnt == 0) {
-		g_daqmx_sync_routes.clear();
-	}
 }
 
 QString
@@ -183,7 +107,7 @@ XNIDAQmxInterface::XNIDAQmxRoute::~XNIDAQmxRoute()
 	if(!m_src.length()) return;
 	try {
 	    CHECK_DAQMX_RET(DAQmxDisconnectTerms(m_src.c_str(), m_dst.c_str()));
-	    dbgPrint(QString("Dsiconnect route from %1 to %2.").arg(m_src).arg(m_dst));
+	    dbgPrint(QString("Disconnect route from %1 to %2.").arg(m_src).arg(m_dst));
 	}
 	catch (XInterface::XInterfaceError &e) {
 		e.print();
@@ -201,7 +125,9 @@ char buf[256];
 void
 XNIDAQmxInterface::close() throw (XInterfaceError &)
 {
-	m_devname.clear();
-	XNIDAQmxGlobalClose();
+	if(m_devname.length()) {
+		m_devname.clear();
+		XNIDAQmxGlobalClose();
+	}
 }
 #endif //HAVE_NI_DAQMX
