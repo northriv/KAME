@@ -83,8 +83,12 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 	unsigned int m_genAOIndex;
 
 enum { NUM_AO_CH = 2};
-	std::vector<tRawDO> m_genBufDO;
-	std::vector<tRawAO> m_genBufAO;
+enum { NUM_BUF_BANK = 4};
+	std::vector<tRawDO> m_genBufDO[NUM_BUF_BANK];
+	std::vector<tRawAO> m_genBufAO[NUM_BUF_BANK];
+	unsigned int m_genBankWrittenLast;
+	unsigned int m_genBankDO;
+	unsigned int m_genBankAO;
 	std::vector<tRawAO> m_genPulseWaveAO[NUM_AO_CH][32];
 enum { CAL_POLY_ORDER = 4};
 	float64 m_coeffAO[NUM_AO_CH][CAL_POLY_ORDER];
@@ -97,7 +101,6 @@ enum { CAL_POLY_ORDER = 4};
 	static int32 _genCallBackDO(TaskHandle task, int32 /*type*/, uInt32 num_samps, void *data);
 	int32 genCallBackDO(TaskHandle task, uInt32 num_samps);
 	int32 genCallBackAO(TaskHandle task, uInt32 num_samps);
-	std::deque<shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> > m_routes;
 	
   int makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
   
