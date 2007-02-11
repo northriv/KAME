@@ -359,8 +359,8 @@ XNIDAQmxPulser::genPulseBuffer(uInt32 num_samps)
 			tRawAO *pGenAO0 = &m_genPulseWaveAO[0][pnum][aoidx];
 			tRawAO *pGenAO1 = &m_genPulseWaveAO[1][pnum][aoidx];
 			if(m_genPulseWaveAO[0][pnum].size() <= aoidx + gen_cnt) {
-				unsigned int lps = m_genPulseWaveAO[0][pnum].size() - aoidx;
-				for(unsigned int cnt = 0; cnt < lps; cnt++) {
+				int lps = m_genPulseWaveAO[0][pnum].size() - aoidx;
+				for(int cnt = 0; cnt < lps; cnt++) {
 					*pDO++ = patDO;
 					for(unsigned int i = 0; i < SAMPS_AO_PER_DO; i++) {
 						*pAO++ = *pGenAO0++;
@@ -368,7 +368,7 @@ XNIDAQmxPulser::genPulseBuffer(uInt32 num_samps)
 						aoidx++;
 					}
 				}
-				for(unsigned int cnt = 0; cnt < gen_cnt - lps; cnt++) {
+				for(int cnt = 0; cnt < gen_cnt - lps; cnt++) {
 					*pDO++ = patDO;
 					for(unsigned int i = 0; i < SAMPS_AO_PER_DO; i++) {
 						*pAO++ = raw_ao0_zero;
