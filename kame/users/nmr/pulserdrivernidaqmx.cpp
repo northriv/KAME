@@ -12,7 +12,7 @@ using std::min;
 
 
 //[ms]
-static const double DMA_DO_PERIOD = (10.0/(1e3));
+static const double DMA_DO_PERIOD = (20.0/(1e3));
 
 static const unsigned int SAMPS_AO_PER_DO = 1;
 //[ms]
@@ -358,13 +358,32 @@ XNIDAQmxPulser::genPulseBuffer(uInt32 num_samps)
 			unsigned int pnum = (pidx - 1) * (pulsebit/qpskbit) + qpskidx;
 			tRawAO *pGenAO0 = &m_genPulseWaveAO[0][pnum][aoidx];
 			tRawAO *pGenAO1 = &m_genPulseWaveAO[1][pnum][aoidx];
-			gen_cnt = std::min(gen_cnt, m_genPulseWaveAO[0][pnum].size() - aoidx);
-			for(unsigned int cnt = 0; cnt < gen_cnt; cnt++) {
-				*pDO++ = patDO;
-				for(unsigned int i = 0; i < SAMPS_AO_PER_DO; i++) {
-					*pAO++ = *pGenAO0++;
-					*pAO++ = *pGenAO1++;
-					aoidx++;
+			if(m_genPulseWaveAO[0][pnum].size() <= aoidx + gen_cnt) {
+				unsigned int lps = m_genPulseWaveAO[0][pnum].size() - aoidx;
+				for(unsigned int cnt = 0; cnt < lps; cnt++) {
+					*pDO++ = patDO;
+					for(unsigned int i = 0; i < SAMPS_AO_PER_DO; i++) {
+						*pAO++ = *pGenAO0++;
+						*pAO++ = *pGenAO1++;
+						aoidx++;
+					}
+				}
+				for(unsigned int cnt = 0; cnt < gen_cnt - lps; cnt++) {
+					*pDO++ = patDO;
+					for(unsigned int i = 0; i < SAMPS_AO_PER_DO; i++) {
+						*pAO++ = raw_ao0_zero;
+						*pAO++ = raw_ao1_zero;
+					}
+				}
+			}
+			else {
+				for(unsigned int cnt = 0; cnt < gen_cnt; cnt++) {
+					*pDO++ = patDO;
+					for(unsigned int i = 0; i < SAMPS_AO_PER_DO; i++) {
+						*pAO++ = *pGenAO0++;
+						*pAO++ = *pGenAO1++;
+						aoidx++;
+					}
 				}
 			}
 		}
