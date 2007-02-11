@@ -17,7 +17,7 @@ static const double DMA_DO_PERIOD = (10.0/(1e3));
 static const unsigned int OVERSAMP_AO = 1;
 static const unsigned int OVERSAMP_DO = 1;
 //[ms]
-static const double DMA_AO_PERIOD = (DMA_DO_PERIOD * OVERSAMP_DO / OVERSAMP_AO);
+static const double DMA_AO_PERIOD = ((DMA_DO_PERIOD * OVERSAMP_DO) / OVERSAMP_AO);
 
 static const unsigned int BUF_SIZE_HINT = 8192;
 static const unsigned int CB_TRANSFER_SIZE = (BUF_SIZE_HINT/2);
@@ -682,9 +682,8 @@ XNIDAQmxPulser::rawToRelPat() throw (XRecordError&)
                      g2mask, g2mask));
       patterns.insert(tpat(cpos - _comb_pw/1000.0/2 - _g2_setup/1000.0, comb_off_res ? ~(uint32_t)0 : 0, combfmmask));
       patterns.insert(tpat(cpos - _comb_pw/1000.0/2 - _g2_setup/1000.0, ~(uint32_t)0, combmask));
-          for(int k = 0; k < _comb_num; k++)
-        {
-              patterns.insert(tpat(cpos + _comb_pw/2/1000.0 , qpsk(comb[j]), qpskmask));
+      for(int k = 0; k < _comb_num; k++) {
+          patterns.insert(tpat(cpos + _comb_pw/2/1000.0 , qpsk(comb[j]), qpskmask));
           cpos += combpt;
           cpos -= _comb_pw/2/1000.0;
           patterns.insert(tpat(cpos, ~(uint32_t)0, g1mask));
@@ -694,7 +693,7 @@ XNIDAQmxPulser::rawToRelPat() throw (XRecordError&)
           patterns.insert(tpat(cpos, 0, pulsemask));
 
           cpos -= _comb_pw/2/1000.0;
-        }
+      }
       patterns.insert(tpat(cpos + _comb_pw/2/1000.0, 0, g2mask));
       patterns.insert(tpat(cpos + _comb_pw/2/1000.0, 0, combmask));
       patterns.insert(tpat(cpos + _comb_pw/1000.0/2, ~(uint32_t)0, combfmmask));
