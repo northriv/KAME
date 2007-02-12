@@ -36,7 +36,6 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
   const shared_ptr<XNIDAQmxInterface> &intfAO() const {return m_ao_interface;}    
  private:
 	shared_ptr<XNIDAQmxInterface> m_ao_interface;
-	TaskHandle m_taskAO, m_taskDO, m_taskCtr;
 	shared_ptr<XListener> m_lsnOnOpenAO, m_lsnOnCloseAO;
 	void openDO() throw (XInterface::XInterfaceError &);
 	void onOpenAO(const shared_ptr<XInterface> &);
@@ -77,15 +76,20 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 
 	std::deque<GenPattern> m_genPatternList;
 	typedef std::deque<GenPattern>::iterator GenPatternIterator;
+
 	uint32_t m_genLastPattern;
-	GenPatternIterator m_genLastPatIt;
-	long long int m_genRestSamps;
+	GenPatternIterator m_genLastPatItAODO, m_genLastPatItCO;
+	long long int m_genRestSampsAODO, m_genRestSampsCO;
+	unsigned int m_genResumePeriodCO;
 	unsigned int m_genAOIndex;
 
+	TaskHandle m_taskAO, m_taskDO, m_taskCtr,m_taskCO;
 enum { NUM_AO_CH = 2};
 enum { NUM_BUF_BANK = 4};
 	std::vector<tRawDO> m_genBufDO[NUM_BUF_BANK];
 	std::vector<tRawAO> m_genBufAO[NUM_BUF_BANK];
+	std::vector<uInt32> m_genBufCOTicksLow;
+	std::vector<uInt32> m_genBufCOTichsHigh;
 	unsigned int m_genBankWrittenLast;
 	unsigned int m_genBankDO;
 	unsigned int m_genBankAO;
@@ -96,11 +100,14 @@ enum { CAL_POLY_ORDER = 4};
 	float64 m_lowerLimAO[NUM_AO_CH];
 	
 	inline tRawAO aoVoltToRaw(int ch, float64 volt);
-	void genPulseBuffer(uInt32 num_samps);
+	void genPulseBufferAODO(uInt32 num_samps);
+	void genPulseBufferCO();
 	static int32 _genCallBackAO(TaskHandle task, int32 /*type*/, uInt32 num_samps, void *data);
 	static int32 _genCallBackDO(TaskHandle task, int32 /*type*/, uInt32 num_samps, void *data);
+	static int32 _genCallBackCO(TaskHandle task, int32 /*type*/, uInt32 num_samps, void *data);
 	int32 genCallBackDO(TaskHandle task, uInt32 num_samps);
 	int32 genCallBackAO(TaskHandle task, uInt32 num_samps);
+	int32 genCallBackCO(TaskHandle task, uInt32 num_samps);
 	
   int makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
   
