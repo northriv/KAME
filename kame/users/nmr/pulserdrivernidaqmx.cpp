@@ -133,7 +133,7 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 		}
 	    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskCO));
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanTicks(m_taskCO, 
-	    	ctr2dev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 1000, 0, 0));
+	    	ctr2dev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0, 0, 1000));
 
 		CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskCO, "",
 			1e3 / CO_PERIOD, DAQmx_Val_Rising, DAQmx_Val_ContSamps, CO_BUF_SIZE_HINT));
@@ -340,17 +340,23 @@ const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];
 		genCallBackDO(m_taskDO, CB_TRANSFER_SIZE * OVERSAMP_DO );
 		genCallBackAO(m_taskAO, CB_TRANSFER_SIZE * OVERSAMP_AO );
 	}
-	for(unsigned int i = 0; i < 2; i++) {
-		genCallBackCO(m_taskCO, m_genBufCO.size() );
-	}
-	
 	//slave must start before the master.
     CHECK_DAQMX_RET(DAQmxStartTask(m_taskCtr));
     CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
 	if(m_taskAO != TASK_UNDEF)
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
-	if(USE_PAUSING) {
+	
+	if(m_taskCO != TASK_UNDEF)
+		char ch[2048];
+		CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskCO, ch, sizeof(ch)));
+	    CHECK_DAQMX_RET(DAQmxSetCOPulseLowTicks(m_taskCO, ch, 0xffffffuL));
+	    //dry run.
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskCO));
+		//transfer at least twice.
+		for(unsigned int i = 0; i < 2; i++) {
+			genCallBackCO(m_taskCO, m_genBufCO.size() );
+		}
+	    CHECK_DAQMX_RET(DAQmxSetCOPulseLowTicks(m_taskCO, ch, 100));
 	}
 }
 void
@@ -451,6 +457,7 @@ XNIDAQmxPulser::genPulseBufferAODO(uInt32 num_samps)
 			ASSSERT(m_genPulseWaveAO[0][pnum].size());
 			ASSSERT(m_genPulseWaveAO[1][pnum].size());
 			if(m_genPulseWaveAO[0][pnum].size() <= aoidx + gen_cnt) {
+				dbgPrint("Oops. This should not happen.");
 				int lps = m_genPulseWaveAO[0][pnum].size() - aoidx;
 				lps = std::max(0, lps);
 				for(int cnt = 0; cnt < lps; cnt++) {
