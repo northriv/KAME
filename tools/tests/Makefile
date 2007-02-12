@@ -1,5 +1,5 @@
 CXX=g++
-CFLAGS=-g3 -O6 -I/include/qt3 -I ../../kame -I/usr/local/include -I/usr/lib/qt-3.3/include -L/usr/local/lib -lpthread -lnidaqmx
+CFLAGS=-Wall -g3 -O1 -I/include/qt3 -I ../../kame -I/usr/local/include -I/usr/lib/qt-3.3/include -L/usr/local/lib -lnidaqmx
 
 all : nidaqmx_cont_ao_test nidaqmx_cont_co_test
 clean :
