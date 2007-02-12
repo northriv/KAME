@@ -17,8 +17,8 @@ static const unsigned int BUF_SIZE_HINT = 8192;
 static const unsigned int CB_TRANSFER_SIZE = (BUF_SIZE_HINT/2);
 #define NUM_CO_CH 1
 
-int16 m_genBufCOLowTicks[CB_TRANSFER_SIZE * NUM_CO_CH];
-int16 m_genBufCOHighTicks[CB_TRANSFER_SIZE * NUM_CO_CH];
+uInt32 m_genBufCOLowTicks[CB_TRANSFER_SIZE * NUM_CO_CH];
+uInt32 m_genBufCOHighTicks[CB_TRANSFER_SIZE * NUM_CO_CH];
 
 TaskHandle m_taskCO;
 void _CHECK_DAQMX_RET(int ret, const char *file, int line) {
@@ -28,14 +28,14 @@ void _CHECK_DAQMX_RET(int ret, const char *file, int line) {
 		fprintf(stderr, "%s\n@ %s: %d\n", str, file, line);
 	}
 	if( ret < 0 )
-		abort();
+		throw int(ret);
 }
 #define CHECK_DAQMX_RET(ret) _CHECK_DAQMX_RET(ret, __FILE__, __LINE__)
 
 int32
 _genCallBackCO(TaskHandle task, int32 /*type*/, uInt32 num_samps, void *data)
 {
-
+	try {
 	 	#define NUM_CB_DIV 1
 		for(int cnt = 0; cnt < NUM_CB_DIV; cnt++) {
 			uInt32 num_samps = transfer_size / NUM_CB_DIV;
@@ -49,21 +49,25 @@ _genCallBackCO(TaskHandle task, int32 /*type*/, uInt32 num_samps, void *data)
 					&m_genBufCOLowTicks[cnt * num_samps * NUM_CO_CH],
 					&samps, NULL));
 		}
+	}
+	catch (...) {
+	}
 }
 
 int
 main(int argc, char **argv)
 {
 		for(int i = 0; i < CB_TRANSFER_SIZE; i++) {
-			m_genBufCOLowTicks[i] = 10;
+			m_genBufCOLowTicks[i] = 1000;
 			m_genBufCOHighTicks[i] = i * 10;
 		}
+	try {
 		
 	    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskCO));
 	
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanTicks(m_taskCO, 
-	    	"Dev1/ctr0", "", DAQmx_Val_Hz, DAQmx_Val_Low, 0,
-	    	0, 0));
+	    	"Dev1/ctr0", "", DAQmx_Val_Hz, DAQmx_Val_Low, 100,
+	    	0, 10));
 			
 		CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskCO, "",
 			1e6, DAQmx_Val_Rising, DAQmx_Val_ContSamps,
@@ -81,11 +85,11 @@ main(int argc, char **argv)
 			DAQmx_Val_Transferred_From_Buffer, CB_TRANSFER_SIZE, 0,
 			_genCallBackCO, this));
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskCO));
-	
-	getchar();
 
-	    DAQmxStopTask(m_taskCO);
-    DAQmxClearTask(m_taskCO);
-
-
+		getchar();
+	}
+	catch (...) {
+	}
+    DAQmxStopTask(m_taskCO);
+	DAQmxClearTask(m_taskCO);
 }

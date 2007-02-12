@@ -27,14 +27,14 @@ void _CHECK_DAQMX_RET(int ret, const char *file, int line) {
 		fprintf(stderr, "%s\n@ %s: %d\n", str, file, line);
 	}
 	if( ret < 0 )
-		abort();
+		throw int(ret);
 }
 #define CHECK_DAQMX_RET(ret) _CHECK_DAQMX_RET(ret, __FILE__, __LINE__)
 
 int32
 _genCallBackAO(TaskHandle task, int32 /*type*/, uInt32 num_samps, void *data)
 {
-
+	try {
 	 	#define NUM_CB_DIV 2
 		for(int cnt = 0; cnt < NUM_CB_DIV; cnt++) {
 			uInt32 num_samps = transfer_size / NUM_CB_DIV;
@@ -50,8 +50,9 @@ _genCallBackAO(TaskHandle task, int32 /*type*/, uInt32 num_samps, void *data)
 					 &samps, NULL));
 
 		}
-
-
+	}
+	catch (...) {
+	}
 }
 
 int
@@ -61,7 +62,7 @@ main(int argc, char **argv)
 			m_genBufAO[2 * i] = lrint(cos(i * 2 * PI / 10) * 5000u);
 			m_genBufAO[2 * i + 1] = lrint(sin(i * 2 * PI / 10) * 20000u);
 		}
-		
+	try {
 	    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskAO));
 	
 		CHECK_DAQMX_RET(DAQmxCreateAOVoltageChan(m_taskAO, "Dev1/ao0:1", "",
@@ -94,9 +95,11 @@ main(int argc, char **argv)
 			_genCallBackAO, this));
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
 	
-	getchar();
-
-	    DAQmxStopTask(m_taskAO);
+		getchar();
+	}
+	catch (...) {
+	}
+    DAQmxStopTask(m_taskAO);
     DAQmxClearTask(m_taskAO);
 
 

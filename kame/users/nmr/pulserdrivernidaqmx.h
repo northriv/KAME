@@ -68,16 +68,15 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 	typedef int16 tRawAO;
 	typedef uInt16 tRawDO;
 	  struct GenPattern {
-	      GenPattern(uint32_t pat, long long int toapp) :
-	        pattern(pat), toappear(toapp) {}
+	      GenPattern(uint32_t pat, long long int next) :
+	        pattern(pat), tonext(next) {}
 	      uint32_t pattern;
-	      long long int toappear; // in samps for DO.
+	      long long int tonext; // in samps for DO.
 	  };
 
 	std::deque<GenPattern> m_genPatternList;
 	typedef std::deque<GenPattern>::iterator GenPatternIterator;
 
-	uint32_t m_genLastPattern;
 	GenPatternIterator m_genLastPatItAODO, m_genLastPatItCO;
 	long long int m_genRestSampsAODO, m_genRestSampsCO;
 	unsigned int m_genResumePeriodCO;

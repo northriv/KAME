@@ -307,7 +307,6 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 //	std::deque<GenPattern> m_genPatternList;
 	m_genLastPatItAODO = m_genPatternList.begin();
 	m_genLastPatItCO = m_genPatternList.begin();
-	m_genLastPattern = m_genPatternList.back().pattern;
 	m_genRestSampsAODO = m_genPatternList.back().toappear;
 	m_genRestSampsCO = m_genPatternList.back().toappear;
 	m_genAOIndex = 0;
@@ -325,6 +324,7 @@ const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];
 		mlock(&m_genBufDO[bank][0], m_genBufDO[bank].size() * sizeof(tRawDO));
 		mlock(&m_genBufAO[bank][0], m_genBufAO[bank].size() * sizeof(tRawAO));
 	}
+	mlock(&m_genBufCO[0], m_genBufCO.size() * sizeof(uInt32));
 	for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
 		for(unsigned int i = 0; i < 32; i++)
 			mlock(&m_genPulseWaveAO[ch][i], m_genPulseWaveAO[ch][i].size() * sizeof(tRawAO));
@@ -403,9 +403,9 @@ XNIDAQmxPulser::aoVoltToRaw(int ch, float64 volt)
 void
 XNIDAQmxPulser::genPulseBufferAODO(uInt32 num_samps)
 {
-	uint32_t pat = m_genLastPattern;
 	GenPatternIterator it = m_genLastPatItAODO;
-	long long int toappear = m_genRestSampsAODO;
+	uint32_t pat = it->pattern;
+	long long int tonext = m_genRestSampsAODO;
 	unsigned int aoidx = m_genAOIndex;
 	unsigned int bank = m_genBufBankWrittenLast;
 	bank++;
@@ -419,18 +419,18 @@ XNIDAQmxPulser::genPulseBufferAODO(uInt32 num_samps)
 	tRawAO raw_ao0_zero = aoVoltToRaw(0, 0.0);
 	tRawAO raw_ao1_zero = aoVoltToRaw(1, 0.0);
 	for(unsigned int samps_rest = num_samps; samps_rest;) {
-		if(USE_PAUSING) {
-			if(toappear >= MIN_PAUSING) {
-				uInt32 cnt = std::min((long long int)((1uL << 23)), toappear);
-//				cnt / UNDERSAMP_CO;
-				cnt -= 1;
-				toappear -= cnt;
-			}
-		}
-		unsigned int gen_cnt = std::min((long long int)samps_rest, toappear);
 		tRawDO patDO = allmask & pat;
 		unsigned int pidx = (pat & pulsemask) / pulsebit;
 		C_ASSERT(pulsebit > qpskbit);
+		if(USE_PAUSING) {
+			if((tonext >= MIN_PAUSING) && (pdix == 0)) {
+				uInt32 cnt = std::min((long long int)((1uL << 23)), tonext);
+//				cnt / UNDERSAMP_CO;
+				cnt -= 1;
+				tonext -= cnt;
+			}
+		}
+		unsigned int gen_cnt = std::min((long long int)samps_rest, tonext);
 		if(pidx == 0) {
 			aoidx = 0;
 			for(unsigned int cnt = 0; cnt < gen_cnt; cnt++) {
@@ -486,22 +486,21 @@ XNIDAQmxPulser::genPulseBufferAODO(uInt32 num_samps)
 				}
 			}
 		}
-		toappear -= gen_cnt;
+		tonext -= gen_cnt;
 		samps_rest -= gen_cnt;
-		if(toappear == 0) {
+		if(tonext == 0) {
 			it++;
 			if(it == m_genPatternList.end()) {
 				it = m_genPatternList.begin();
 				printf("p.\n");
 			}
 			pat = it->pattern;
-			toappear = it->toappear;
+			tonext = it->tonext;
 		}
 	}
 	ASSERT(pDO == &m_genBufDO[num_samps * OVERSAMP_DO]);
 	ASSERT(pAO == &m_genBufAO[num_samps * OVERSAMP_AO * NUM_AO_CH]);
-	m_genLastPattern = pat;
-	m_genRestSampsAODO = toappear;
+	m_genRestSampsAODO = tonext;
 	m_genLastPatItAODO = it;
 	m_genAOIndex = aoidx;
 	m_genBufBankWrittenLast = bank;	
@@ -510,7 +509,8 @@ void
 XNIDAQmxPulser::genPulseBufferCO()
 {
 	GenPatternIterator it = m_genLastPatItCO;
-	long long int toappear = m_genRestSampsCO;
+	uint32_t pat = it->pattern;
+	long long int tonext = m_genRestSampsCO;
 	long long int resume = m_genResumePeriodCO;
 
 	C_ASSERT(sizeof(long long int) > sizeof(int32_t));
@@ -519,11 +519,12 @@ XNIDAQmxPulser::genPulseBufferCO()
 	uInt32 *pTicksLowEnd = pTicksLow + m_genBufCOTicksLow.size();
 	uInt32 *pTicksHigh = &m_genBufCOTicksLow[0];
 	for(;;) {
-		if(toappear >= MIN_PAUSING) {
-			uInt32 cnt = std::min((long long int)((1uL << 23)), toappear);
+		unsigned int pidx = (pat & pulsemask) / pulsebit;
+		if((tonext >= MIN_PAUSING) && (pdix == 0)) {
+			uInt32 cnt = std::min((long long int)((1uL << 23)), tonext);
 //			cnt / UNDERSAMP_CO;
 			cnt -= 1;
-			toappear -= cnt;
+			tonext -= cnt;
 			*pTicksHigh++ = resume;
 			resume = 0;
 			*pTicksLow++ = cnt;
@@ -532,15 +533,16 @@ XNIDAQmxPulser::genPulseBufferCO()
 			continue;
 		}
 
-		resume += toappear;
+		resume += tonext;
 		it++;
 		if(it == m_genPatternList.end()) {
 			it = m_genPatternList.begin();
 			printf("c.\n");
 		}
-		toappear = it->toappear;
+		pat = it->pattern;
+		tonext = it->tonext;
 	}
-	m_genRestSampsCO = toappear;
+	m_genRestSampsCO = tonext;
 	m_genLastPatItCO = it;
 	m_genResumePeriodCO = resume;
 }
@@ -657,13 +659,12 @@ XNIDAQmxPulser::createNativePatterns()
   double _induce_emission_phase = *induceEmissionPhase() / 180.0 * PI;
       
   m_genPatternList.clear();
-  double rest = 0.0;
+  uint32_t lastpat = m_relPatList.rend().pattern;
   for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++)
   {
-	  rest += it->toappear;
-  long long int toappear = llrint(rest / DMA_DO_PERIOD);
-	  rest -= toappear * DMA_DO_PERIOD;
-  GenPattern pat(it->pattern, toappear);
+  long long int tonext = llrint(it->toappear / DMA_DO_PERIOD);
+	 	GenPattern pat(lastpat, tonext);
+	 	lastpat = it->pattern;
   		m_genPatternList.push_back(pat);
   }
     
