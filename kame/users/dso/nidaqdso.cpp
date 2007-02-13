@@ -114,7 +114,7 @@ XNIDAQmxDSO::setupTrigger()
 {
  	XScopedLock<XInterface> lock(*interface());
 
-    CHECK_DAQMX_RET(DAQmxStopTask(m_task));
+    DAQmxStopTask(m_task);
     CHECK_DAQMX_RET(DAQmxDisableStartTrig(m_task));
     CHECK_DAQMX_RET(DAQmxDisableRefTrig(m_task));
     m_trigRoute.reset();
@@ -343,7 +343,7 @@ XNIDAQmxDSO::onForceTriggerTouched(const shared_ptr<XNode> &)
 {
  	XScopedLock<XInterface> lock(*interface());
 //    CHECK_DAQMX_RET(DAQmxSendSoftwareTrigger(m_task, DAQmx_Val_AdvanceTrigger), "");
-    CHECK_DAQMX_RET(DAQmxStopTask(m_task));
+    DAQmxStopTask(m_task);
 
     int32 trigtype;
 	CHECK_DAQMX_RET(DAQmxGetRefTrigType(m_task, &trigtype));

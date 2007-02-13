@@ -80,8 +80,10 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 	GenPatternIterator m_genLastPatItAODO;
 	long long int m_genRestSampsAODO;
 	unsigned int m_genAOIndex;
+	unsigned int m_genFiniteAOSamps;
+	unsigned int m_genFiniteAORestSamps;
 
-	TaskHandle m_taskAO, m_taskDO, m_taskCtr,m_taskCO;
+	TaskHandle m_taskAO, m_taskDO, m_taskDOCtr, m_taskAOCtr;
 enum { NUM_AO_CH = 2};
 enum { NUM_BUF_BANK = 4};
 	std::vector<tRawDO> m_genBufDO[NUM_BUF_BANK];
@@ -96,11 +98,13 @@ enum { CAL_POLY_ORDER = 4};
 	float64 m_lowerLimAO[NUM_AO_CH];
 	
 	inline tRawAO aoVoltToRaw(int ch, float64 volt);
-	void genPulseBufferAODO(uInt32 num_samps);
-	static int32 _genCallBackAO(TaskHandle task, int32 /*type*/, uInt32 num_samps, void *data);
-	static int32 _genCallBackDO(TaskHandle task, int32 /*type*/, uInt32 num_samps, void *data);
-	int32 genCallBackDO(TaskHandle task, uInt32 num_samps);
-	int32 genCallBackAO(TaskHandle task, uInt32 num_samps);
+	void genBankAODO();
+	shared_ptr<XThread<XDSO> > m_threadWriteAO;
+	shared_ptr<XThread<XDSO> > m_threadWriteDO;
+	void writeBankAO(const atomic<bool> &terminated);
+	void writeBankDO(const atomic<bool> &terminated);
+	void *executeWriteAO(const atomic<bool> &);
+	void *executeWriteDO(const atomic<bool> &);
 	
   int makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
   
