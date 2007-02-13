@@ -316,6 +316,13 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		for(unsigned int bank = 0; bank < 2; bank++) {
 			genBankAODO();
 		}
+		
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
+		if(m_taskAOCtr != TASK_UNDEF)
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAOCtr, DAQmx_Val_Task_Commit));
+		if(m_taskAO != TASK_UNDEF)
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
  	}
  	
 	m_threadWriteDO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
