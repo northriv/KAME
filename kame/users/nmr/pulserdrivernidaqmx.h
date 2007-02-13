@@ -84,12 +84,14 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 	unsigned int m_genFiniteAOSamps;
 	unsigned int m_genFiniteAORestSamps;
 
-	TaskHandle m_taskAO, m_taskDO, m_taskDOCtr, m_taskAOCtr;
+	TaskHandle m_taskAO, m_taskDO,
+		 m_taskDOCtr, m_taskGateCtr,
+		 m_taskAOCtr;
 enum { NUM_AO_CH = 2};
 enum { NUM_BUF_BANK = 4};
 	std::vector<tRawDO> m_genBufDO[NUM_BUF_BANK];
 	std::vector<tRawAO> m_genBufAO[NUM_BUF_BANK];
-	atomic<unsigned int> m_genBankWrittenLast;
+	atomic<unsigned int> m_genBankWriting;
 	atomic<unsigned int> m_genBankDO;
 	atomic<unsigned int> m_genBankAO;
 	std::vector<tRawAO> m_genPulseWaveAO[NUM_AO_CH][32];

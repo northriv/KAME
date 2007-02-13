@@ -61,9 +61,8 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 */    {
 	    const char* sc[] = {
 	    "PFI0", "PFI1", "PFI2", "PFI3", "PFI4", "PFI5", "PFI6", "PFI7",
-//	    "PFI8", "PFI9", "PFI10", "PFI11", "PFI12", "PFI13", "PFI14", "PFI15",
+	    "PFI8", "PFI9", "PFI10", "PFI11", "PFI12", "PFI13", "PFI14", "PFI15",
     	"RTSI0", "RTSI1", "RTSI2", "RTSI3", "RTSI4", "RTSI5", "RTSI6",
-    	"Ctr0Out", "Ctr1Out",
     	"Ctr0InternalOutput", "Ctr1InternalOutput",
     	"FrequencyOutput",
     	"ao/StartTrigger",
