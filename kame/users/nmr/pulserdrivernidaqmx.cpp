@@ -3,7 +3,6 @@
 #ifdef HAVE_NI_DAQMX
 
 static const bool USE_FINITE_AO = true;
-static const unsigned int FINITE_AO_TO_RETRIG = 10;
 
 #define TASK_UNDEF ((TaskHandle)-1)
 
@@ -180,16 +179,14 @@ XNIDAQmxPulser::onOpenAO(const shared_ptr<XInterface> &)
 		    	freq, 0.5));
 			CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskAOCtr, DAQmx_Val_FiniteSamps, 1));
 			CHECK_DAQMX_RET(DAQmxSetChangeDetectDIRisingEdgePhysicalChans(
-				m_taskAOCtr,
+				m_taskDO,
 				formatString("/%s/port0/line%d", intfDO()->devName(), ctrtrigline).c_str()));
-			CHECK_DAQMX_RET(DAQmxSetExportedChangeDetectEventPulsePolarity(
-				m_taskAOCtr, DAQmx_Val_ActiveHigh));
-
 		    CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskAOCtr,
 				formatString("/%s/ChangeDetectionEvent", intfDO()->devName()).c_str(),
 		    	DAQmx_Val_Rising));
+//			CHECK_DAQMX_RET(DAQmxSetExportedChangeDetectEventPulsePolarity(
+//				m_taskAOCtr, DAQmx_Val_ActiveHigh));
 			CHECK_DAQMX_RET(DAQmxSetStartTrigRetriggerable(m_taskAOCtr, true));
-
 
 			CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO,
 				ctrout.c_str(),
@@ -271,8 +268,8 @@ XNIDAQmxPulser::close() throw (XInterface::XInterfaceError &)
 unsigned int
 XNIDAQmxPulser::finiteAOSamps(unsigned int finiteaosamps)
 {
-	unsigned int finteaocnt = 0;
-	unsigned int finteaorest = 0;
+	unsigned int finiteaocnt = 0;
+	unsigned int finiteaorest = 0;
 	for(GenPatternIterator it = m_genPatternList.begin(); it != m_genPatternList.end(); it++) {
 		unsigned int pat = it->pattern;
 		unsigned int gen_cnt = it->tonext;
@@ -281,7 +278,6 @@ XNIDAQmxPulser::finiteAOSamps(unsigned int finiteaosamps)
 		if(patDO & ctrtrigbit) {
 			finiteaocnt += finiteaorest;
 			if(!finiteaocnt) {
-				finiteao = true;
 				finiteaocnt = 0;
 			}
 			finiteaocnt += gen_cnt;
@@ -290,7 +286,7 @@ XNIDAQmxPulser::finiteAOSamps(unsigned int finiteaosamps)
 		else {
 			if(finiteaocnt) {
 				finiteaorest += gen_cnt;
-				if(finiteaorest > FINITE_AO_RETRIG) {
+				if(finiteaorest > 10) {
 					finiteaosamps = std::max(finiteaosamps, finiteaocnt);
 					if(finiteaocnt + finiteaorest > finiteaosamps) {
 						finiteaocnt = 0;
@@ -335,7 +331,8 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			}
 			m_genFiniteAOSamps = newv;
 			printf("Using finite ao = %u.\n", newv);
-			CHECK_DAQMX_RET(DAQmxSetSampQuantSampPerChan(m_taskAOCtr, newv));
+			if(m_taskAOCtr != TASK_UNDEF)
+				CHECK_DAQMX_RET(DAQmxSetSampQuantSampPerChan(m_taskAOCtr, newv));
 		}
 		
 	const void *FIRST_OF_MLOCK_MEMBER = &m_genPatternList;
@@ -386,7 +383,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 
  	{
 		//slave must start before the master.
-		if(USE_FINITE_AO) {
+		if(USE_FINITE_AO && (m_taskAOCtr != TASK_UNDEF)) {
 			if(m_taskAO != TASK_UNDEF) {
 			    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
 			}
@@ -641,9 +638,9 @@ XNIDAQmxPulser::genBankAODO()
 	}
 	ASSERT(pDO == &m_genBufDO[bank][m_genBufDO[bank].size()]);
 	if(USE_FINITE_AO)
-		ASSERT(pAO == &m_genBufAO[bank][m_genBufAO[bank].size()]);
-	else
 		m_genBufAO[bank].resize((int)(pAO - &m_genBufAO[bank][0]));
+	else
+		ASSERT(pAO == &m_genBufAO[bank][m_genBufAO[bank].size()]);
 	m_genRestSampsAODO = tonext;
 	m_genLastPatItAODO = it;
 	m_genAOIndex = aoidx;
