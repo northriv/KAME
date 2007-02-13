@@ -12,9 +12,8 @@ static const bool USE_FINITE_AO = false;
 using std::max;
 using std::min;
 
-
 //[ms]
-static const double DMA_DO_PERIOD = (10.0/(1e3));
+static const double DMA_DO_PERIOD = (5.0/(1e3));
 
 static const unsigned int OVERSAMP_AO = 1;
 static const unsigned int OVERSAMP_DO = 1;
@@ -586,7 +585,7 @@ XNIDAQmxPulser::genBankAODO()
 			for(unsigned int cnt = 0; cnt < zerocnt * OVERSAMP_AO; cnt++) {
 				*pAO++ = raw_ao0_zero;
 //				*pAO++ = raw_ao1_zero;
-				*pAO++ = (cnt %2 == 0) ? raw_ao1_zero : 40000uL;
+				*pAO++ = (cnt %2 == 0) ? raw_ao1_zero : -1000uL;
 			}
 		}
 		else {
@@ -619,7 +618,7 @@ XNIDAQmxPulser::genBankAODO()
 				for(unsigned int cnt = 0; cnt < gen_cnt * OVERSAMP_AO; cnt++) {
 					*pAO++ = *pGenAO0++;
 //					*pAO++ = *pGenAO1++;
-					*pAO++ = 45000uL;
+					*pAO++ = 30000uL;
 					aoidx++;
 				}
 			}
