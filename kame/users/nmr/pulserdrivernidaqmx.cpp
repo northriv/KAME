@@ -16,7 +16,7 @@ using std::min;
 static const double DMA_DO_PERIOD = (5.0/(1e3));
 
 static const unsigned int OVERSAMP_AO = 1;
-static const unsigned int OVERSAMP_DO = 2;
+static const unsigned int OVERSAMP_DO = 1;
 //[ms]
 static const double DMA_AO_PERIOD = ((DMA_DO_PERIOD * OVERSAMP_DO) / OVERSAMP_AO);
 
@@ -242,6 +242,7 @@ XNIDAQmxPulser::onCloseAO(const shared_ptr<XInterface> &)
 void
 XNIDAQmxPulser::close() throw (XInterface::XInterfaceError &)
 {
+	stopPulseGen();
  	XScopedLock<XInterface> lockao(*intfAO());
  	XScopedLock<XInterface> lockdo(*intfDO());
 	if(m_taskAO != TASK_UNDEF)
@@ -505,7 +506,7 @@ XNIDAQmxPulser::writeBankDO(const atomic<bool> &terminated)
 	unsigned int bank = m_genBankDO;
 	unsigned int size = m_genBufDO[bank].size();
 	try {
-		const unsigned int num_samps = 128;
+		const unsigned int num_samps = 256;
 		for(unsigned int cnt = 0; cnt < size;) {
 			int32 samps;
 			samps = std::min(size - cnt, num_samps);
@@ -563,7 +564,6 @@ XNIDAQmxPulser::genBankAODO()
 	for(unsigned int samps_rest = BUF_SIZE_HINT; samps_rest;) {
 		tRawDO patDO = allmask & pat;
 		unsigned int pidx = (pat & pulsemask) / pulsebit;
-		C_ASSERT(pulsebit > qpskbit);
 		unsigned int gen_cnt = std::min((long long int)samps_rest, tonext);
 		
 		for(unsigned int cnt = 0; cnt < gen_cnt * OVERSAMP_DO; cnt++) {
@@ -598,29 +598,25 @@ XNIDAQmxPulser::genBankAODO()
 			tRawAO *pGenAO1 = &m_genPulseWaveAO[1][pnum][aoidx];
 			ASSERT(m_genPulseWaveAO[0][pnum].size());
 			ASSERT(m_genPulseWaveAO[1][pnum].size());
-			if(m_genPulseWaveAO[0][pnum].size() <= aoidx + gen_cnt) {
+			if(m_genPulseWaveAO[0][pnum].size() <= aoidx + gen_cnt * OVERSAMP_AO) {
 				dbgPrint("Oops. This should not happen.");
 				int lps = m_genPulseWaveAO[0][pnum].size() - aoidx;
 				lps = std::max(0, lps);
-				for(int cnt = 0; cnt < lps * OVERSAMP_AO; cnt++) {
+				for(int cnt = 0; cnt < lps; cnt++) {
 					*pAO++ = *pGenAO0++;
-//					*pAO++ = *pGenAO1++;
-					*pAO++ = 15000uL;
-					aoidx++;
+					*pAO++ = *pGenAO1++;
 				}
-				for(int cnt = 0; cnt < (gen_cnt - lps) * OVERSAMP_AO; cnt++) {
+				for(int cnt = 0; cnt < gen_cnt * OVERSAMP_AO - lps; cnt++) {
 					*pAO++ = raw_ao0_zero;
-//					*pAO++ = raw_ao1_zero;
-					*pAO++ = 25000uL;
+					*pAO++ = raw_ao1_zero;
 				}
 			}
 			else {
 				for(unsigned int cnt = 0; cnt < gen_cnt * OVERSAMP_AO; cnt++) {
 					*pAO++ = *pGenAO0++;
-//					*pAO++ = *pGenAO1++;
-					*pAO++ = 30000uL;
-					aoidx++;
+					*pAO++ = *pGenAO1++;
 				}
+				aoidx += gen_cnt * OVERSAMP_AO;
 			}
 		}
 		tonext -= gen_cnt;
@@ -650,6 +646,7 @@ XNIDAQmxPulser::genBankAODO()
 void
 XNIDAQmxPulser::createNativePatterns()
 {
+  double _master = *masterLevel();
   double _tau = m_tauRecorded;
   double _pw1 = m_pw1Recorded;
   double _pw2 = m_pw2Recorded;
@@ -670,15 +667,17 @@ XNIDAQmxPulser::createNativePatterns()
   		m_genPatternList.push_back(pat);
   }
     
-  makeWaveForm(PULSE_P1/pulsebit - 1, _pw1/1000.0, pulseFunc(p1Func()->to_str() ), *p1Level()
+  makeWaveForm(PULSE_P1/pulsebit - 1, _pw1/1000.0, pulseFunc(p1Func()->to_str() ),
+  	 _master + *p1Level()
     , _dif_freq * 1000.0, -2 * PI * _dif_freq * 2 * _tau);
-  makeWaveForm(PULSE_P2/pulsebit - 1, _pw2/1000.0, pulseFunc(p2Func()->to_str() ), *p2Level()
+  makeWaveForm(PULSE_P2/pulsebit - 1, _pw2/1000.0, pulseFunc(p2Func()->to_str() ),
+  	_master + *p2Level()
     , _dif_freq * 1000.0, -2 * PI * _dif_freq * 2 * _tau);
   makeWaveForm(PULSE_COMB/pulsebit - 1, _comb_pw/1000.0, pulseFunc(combFunc()->to_str() ),
-         *combLevel(), *combOffRes() + _dif_freq *1000.0);
+         _master + *combLevel(), *combOffRes() + _dif_freq *1000.0);
   if(_induce_emission) {
       makeWaveForm(PULSE_INDUCE_EMISSION/pulsebit - 1, _induce_emission_pw/1000.0, pulseFunc(combFunc()->to_str() ),
-         *combLevel(), *combOffRes() + _dif_freq *1000.0, _induce_emission_phase);
+         _master + *combLevel(), *combOffRes() + _dif_freq *1000.0, _induce_emission_phase);
   }
 }
 
@@ -687,6 +686,8 @@ XNIDAQmxPulser::makeWaveForm(int num, double pw, tpulsefunc func, double dB, dou
 {
 	for(unsigned int qpsk = 0; qpsk < 4; qpsk++) {
 		unsigned int pnum = num * (pulsebit/qpskbit) + qpsk;
+		m_genPulseWaveAO[0][pnum].clear();
+		m_genPulseWaveAO[1][pnum].clear();
 		ASSERT(pnum < 32);
 	  	unsigned short word = (unsigned short)lrint(pw / DMA_AO_PERIOD) + 2;
 		double dx = DMA_AO_PERIOD / pw;
