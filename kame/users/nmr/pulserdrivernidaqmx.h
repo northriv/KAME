@@ -80,6 +80,7 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 	GenPatternIterator m_genLastPatItAODO;
 	long long int m_genRestSampsAODO;
 	unsigned int m_genAOIndex;
+	unsigned int finiteAOSamps();
 	unsigned int m_genFiniteAOSamps;
 	unsigned int m_genFiniteAORestSamps;
 
@@ -99,8 +100,8 @@ enum { CAL_POLY_ORDER = 4};
 	
 	inline tRawAO aoVoltToRaw(int ch, float64 volt);
 	void genBankAODO();
-	shared_ptr<XThread<XDSO> > m_threadWriteAO;
-	shared_ptr<XThread<XDSO> > m_threadWriteDO;
+	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriteAO;
+	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriteDO;
 	void writeBankAO(const atomic<bool> &terminated);
 	void writeBankDO(const atomic<bool> &terminated);
 	void *executeWriteAO(const atomic<bool> &);
