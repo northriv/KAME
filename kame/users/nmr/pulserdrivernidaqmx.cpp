@@ -21,7 +21,7 @@ static const unsigned int OVERSAMP_DO = 1;
 //[ms]
 static const double DMA_AO_PERIOD = ((DMA_DO_PERIOD * OVERSAMP_DO) / OVERSAMP_AO);
 
-static const unsigned int BUF_SIZE_HINT = 65536*16;
+static const unsigned int BUF_SIZE_HINT = 65536*4;
 
 double XNIDAQmxPulser::resolution() {
      return DMA_DO_PERIOD * OVERSAMP_DO;
@@ -319,10 +319,15 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		
 		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
 		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
+	    CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_FirstSample));
+	    CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
 		if(m_taskAOCtr != TASK_UNDEF)
 			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAOCtr, DAQmx_Val_Task_Commit));
-		if(m_taskAO != TASK_UNDEF)
+		if(m_taskAO != TASK_UNDEF) {
 			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
+		    CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
+		    CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
+		}
  	}
  	
 	m_threadWriteDO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
@@ -341,8 +346,6 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	}
 
  	{
- 	XScopedLock<XInterface> lockao(*intfAO());
- 	XScopedLock<XInterface> lockdo(*intfDO());
 		//slave must start before the master.
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
@@ -357,6 +360,12 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 void
 XNIDAQmxPulser::stopPulseGen()
 {
+	if(m_threadWriteAO) {
+		m_threadWriteAO->terminate();
+	}
+	if(m_threadWriteDO) {
+		m_threadWriteDO->terminate();
+	}
 	{
  	XScopedLock<XInterface> lockao(*intfAO());
  	XScopedLock<XInterface> lockdo(*intfDO());
@@ -364,14 +373,6 @@ XNIDAQmxPulser::stopPulseGen()
 		    DAQmxStopTask(m_taskAOCtr);
 		if(m_taskDOCtr != TASK_UNDEF)
 		    DAQmxStopTask(m_taskDOCtr);
-	}
-	if(m_threadWriteAO) {
-		m_threadWriteAO->terminate();
-		m_threadWriteAO->waitFor();
-	}
-	if(m_threadWriteDO) {
-		m_threadWriteDO->terminate();
-		m_threadWriteDO->waitFor();
 	}
 	{
  	XScopedLock<XInterface> lockao(*intfAO());
@@ -416,37 +417,35 @@ XNIDAQmxPulser::executeWriteDO(const atomic<bool> &terminated)
 void
 XNIDAQmxPulser::writeBankAO(const atomic<bool> &terminated)
 {
+ 	XScopedLock<XInterface> lockao(*intfAO());
 	unsigned int bank = m_genBankAO;
 	unsigned int size = m_genBufAO[bank].size() / NUM_AO_CH;
- 	intfAO()->lock();
 	try {
 		const unsigned int num_samps = 128;
 		for(unsigned int cnt = 0; cnt < size;) {
+			int32 samps;
+			samps = std::min(size - cnt, num_samps);
 			if(bank == m_genBankWrittenLast)
 				throw XInterface::XInterfaceError(KAME::i18n("AO buffer underrun."), __FILE__, __LINE__);
 			while(!terminated) {
 			uInt32 space;
 				int ret = DAQmxGetWriteSpaceAvail(m_taskAO, &space);
-				if(!ret && (space >= num_samps))
+				if(!ret && (space >= samps))
 					break;
-			 	intfAO()->unlock();
-				usleep(lrint(1e3 * num_samps * DMA_AO_PERIOD));
-			 	intfAO()->lock();
+				usleep(lrint(1e3 * samps * DMA_AO_PERIOD));
 			}
 			if(terminated)
 				break;
-			int32 samps;
-			samps = std::min(size - cnt, num_samps);
 			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, samps, false, DAQmx_Val_WaitInfinitely, 
 				DAQmx_Val_GroupByScanNumber,
 				&m_genBufAO[bank][cnt * NUM_AO_CH],
 				&samps, NULL));
+		   CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_CurrWritePos));
 			cnt += samps;
 		}
 	}
 	catch (XInterface::XInterfaceError &e) {
 		e.print(getLabel());
-	 	intfAO()->unlock();
 		stopPulseGen();
 		return;
 	}
@@ -454,43 +453,40 @@ XNIDAQmxPulser::writeBankAO(const atomic<bool> &terminated)
 	if(bank == NUM_BUF_BANK)
 		bank = 0;
 	m_genBankAO = bank;
- 	intfAO()->unlock();
 	return;
 }
 void
 XNIDAQmxPulser::writeBankDO(const atomic<bool> &terminated)
 {
+ 	XScopedLock<XInterface> lockdo(*intfDO());
 	unsigned int bank = m_genBankDO;
 	unsigned int size = m_genBufDO[bank].size();
- 	intfDO()->lock();
 	try {
 		const unsigned int num_samps = 1024;
 		for(unsigned int cnt = 0; cnt < size;) {
+			int32 samps;
+			samps = std::min(size - cnt, num_samps);
 			if(bank == m_genBankWrittenLast)
 				throw XInterface::XInterfaceError(KAME::i18n("DO buffer underrun."), __FILE__, __LINE__);
 			while(!terminated) {
 			uInt32 space;
 				int ret = DAQmxGetWriteSpaceAvail(m_taskDO, &space);
-				if(!ret && (space >= num_samps))
+				if(!ret && (space >= samps))
 					break;
-			 	intfDO()->unlock();
-				usleep(lrint(1e3 * num_samps * DMA_DO_PERIOD));
-			 	intfDO()->lock();
+				usleep(lrint(1e3 * samps * DMA_DO_PERIOD));
 			}
 			if(terminated)
 				break;
-			int32 samps;
-			samps = std::min(size - cnt, num_samps);
 			CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, samps, false, DAQmx_Val_WaitInfinitely, 
 				DAQmx_Val_GroupByScanNumber,
 				&m_genBufDO[bank][cnt],
 				&samps, NULL));
+		   CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_CurrWritePos));
 			cnt += samps;
 		}
 	}
 	catch (XInterface::XInterfaceError &e) {
 		e.print(getLabel());
-	 	intfDO()->unlock();
 		stopPulseGen();
  		return; 	
 	}
@@ -498,7 +494,6 @@ XNIDAQmxPulser::writeBankDO(const atomic<bool> &terminated)
 	if(bank == NUM_BUF_BANK)
 		bank = 0;
 	m_genBankDO = bank;
- 	intfDO()->unlock();
  	genBankAODO();
 	return;
 }
