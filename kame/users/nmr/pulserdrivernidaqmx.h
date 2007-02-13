@@ -80,7 +80,7 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 	GenPatternIterator m_genLastPatItAODO;
 	long long int m_genRestSampsAODO;
 	unsigned int m_genAOIndex;
-	unsigned int finiteAOSamps();
+	unsigned int finiteAOSamps(unsigned int finiteaosamps);
 	unsigned int m_genFiniteAOSamps;
 	unsigned int m_genFiniteAORestSamps;
 
