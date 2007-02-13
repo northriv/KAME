@@ -584,8 +584,7 @@ XNIDAQmxPulser::genBankAODO()
 			}
 			for(unsigned int cnt = 0; cnt < zerocnt * OVERSAMP_AO; cnt++) {
 				*pAO++ = raw_ao0_zero;
-//				*pAO++ = raw_ao1_zero;
-				*pAO++ = (cnt %2 == 0) ? raw_ao1_zero : -1000uL;
+				*pAO++ = raw_ao1_zero;
 			}
 		}
 		else {
