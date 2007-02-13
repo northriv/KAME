@@ -140,10 +140,6 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 	if(bufsize < BUF_SIZE_HINT * OVERSAMP_DO)
 		throw XInterface::XInterfaceError(KAME::i18n("Insufficient size of NIDAQmx buffer."), __FILE__, __LINE__);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
-	
-	for(unsigned int bank = 0; bank < NUM_BUF_BANK; bank++) {
-		m_genBufDO[bank].resize(BUF_SIZE_HINT * OVERSAMP_DO);
-	}
 }
 void
 XNIDAQmxPulser::onOpenAO(const shared_ptr<XInterface> &)
@@ -237,9 +233,6 @@ XNIDAQmxPulser::onOpenAO(const shared_ptr<XInterface> &)
 				&m_lowerLimAO[ch]));
 		}
 
-		for(unsigned int bank = 0; bank < NUM_BUF_BANK; bank++) {
-			m_genBufAO[bank].resize(BUF_SIZE_HINT * NUM_AO_CH * OVERSAMP_AO);
-		}
 	}
 	catch (XInterface::XInterfaceError &e) {
 		e.print(getLabel());
@@ -282,71 +275,105 @@ XNIDAQmxPulser::finiteAOSamps()
 void
 XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 {
+ 	{
  	XScopedLock<XInterface> lockao(*intfAO());
  	XScopedLock<XInterface> lockdo(*intfDO());
- 	
- 	stopPulseGen();
-	   
-//	std::deque<GenPattern> m_genPatternList;
-	m_genLastPatItAODO = m_genPatternList.begin();
-	m_genRestSampsAODO = m_genPatternList.back().tonext;
-	m_genAOIndex = 0;
-	m_genBankWrittenLast = NUM_BUF_BANK - 1;
-	m_genBankDO = 0;
-	m_genBankAO = 0;
 
-	if(USE_FINITE_AO)
-		m_genFiniteAOSamps = finiteAOSamps();
+	 	stopPulseGen();
+		   
+	//	std::deque<GenPattern> m_genPatternList;
+		m_genLastPatItAODO = m_genPatternList.begin();
+		m_genRestSampsAODO = m_genPatternList.back().tonext;
+		m_genAOIndex = 0;
+		m_genBankWrittenLast = NUM_BUF_BANK - 1;
+		m_genBankDO = 0;
+		m_genBankAO = 0;
 	
-const void *FIRST_OF_MLOCK_MEMBER = &m_genPatternList;
-const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];
-	//Suppress swapping.
-	mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);
-	for(unsigned int bank = 0; bank < NUM_BUF_BANK; bank++) {
-		mlock(&m_genBufDO[bank][0], m_genBufDO[bank].size() * sizeof(tRawDO));
-		mlock(&m_genBufAO[bank][0], m_genBufAO[bank].size() * sizeof(tRawAO));
-	}
-	for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
-		for(unsigned int i = 0; i < 32; i++)
-			mlock(&m_genPulseWaveAO[ch][i], m_genPulseWaveAO[ch][i].size() * sizeof(tRawAO));
-	}
+		for(unsigned int bank = 0; bank < NUM_BUF_BANK; bank++) {
+			m_genBufDO[bank].resize(BUF_SIZE_HINT * OVERSAMP_DO);
+		}
+		for(unsigned int bank = 0; bank < NUM_BUF_BANK; bank++) {
+			m_genBufAO[bank].resize(BUF_SIZE_HINT * NUM_AO_CH * OVERSAMP_AO);
+		}
 	
-	//prefilling of banks.
-	for(unsigned int bank = 0; bank < 2; bank++) {
-		genBankAODO();
-	}
-	m_threadWriteAO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
-		 &XNIDAQmxPulser::executeWriteAO));
+		if(USE_FINITE_AO)
+			m_genFiniteAOSamps = finiteAOSamps();
+		
+	const void *FIRST_OF_MLOCK_MEMBER = &m_genPatternList;
+	const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];
+		//Suppress swapping.
+		mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);
+		for(unsigned int bank = 0; bank < NUM_BUF_BANK; bank++) {
+			mlock(&m_genBufDO[bank][0], m_genBufDO[bank].size() * sizeof(tRawDO));
+			mlock(&m_genBufAO[bank][0], m_genBufAO[bank].size() * sizeof(tRawAO));
+		}
+		for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
+			for(unsigned int i = 0; i < 32; i++)
+				mlock(&m_genPulseWaveAO[ch][i], m_genPulseWaveAO[ch][i].size() * sizeof(tRawAO));
+		}
+		
+		//prefilling of banks.
+		for(unsigned int bank = 0; bank < 2; bank++) {
+			genBankAODO();
+		}
+ 	}
+ 	
 	m_threadWriteDO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
 		 &XNIDAQmxPulser::executeWriteDO));
-	m_threadWriteAO->resume();
 	m_threadWriteDO->resume();
-		 
-	//slave must start before the master.
-    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
-    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
-	if(m_taskAOCtr != TASK_UNDEF) {
-	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAOCtr));
+	while(m_genBankDO < 1) {
+		msecsleep(1);
 	}
 	if(m_taskAO != TASK_UNDEF) {
-	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
+		m_threadWriteAO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
+			 &XNIDAQmxPulser::executeWriteAO));
+		m_threadWriteAO->resume();
+		while(m_genBankAO < 1) {
+			msecsleep(1);
+		}
 	}
+
+ 	{
+ 	XScopedLock<XInterface> lockao(*intfAO());
+ 	XScopedLock<XInterface> lockdo(*intfDO());
+		//slave must start before the master.
+	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
+	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
+		if(m_taskAOCtr != TASK_UNDEF) {
+		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAOCtr));
+		}
+		if(m_taskAO != TASK_UNDEF) {
+		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
+		}
+ 	}
 }
 void
 XNIDAQmxPulser::stopPulseGen()
 {
+	{
  	XScopedLock<XInterface> lockao(*intfAO());
  	XScopedLock<XInterface> lockdo(*intfDO());
-	if(m_taskDO != TASK_UNDEF)
-	    DAQmxStopTask(m_taskDO);
-	if(m_taskAO != TASK_UNDEF)
-	    DAQmxStopTask(m_taskAO);
-	if(m_taskAOCtr != TASK_UNDEF)
-	    DAQmxStopTask(m_taskAOCtr);
-	if(m_taskDOCtr != TASK_UNDEF)
-	    DAQmxStopTask(m_taskDOCtr);
-	m_threadWriteAO->waitFor();	
-	m_threadWriteDO->waitFor();	
+		if(m_taskAOCtr != TASK_UNDEF)
+		    DAQmxStopTask(m_taskAOCtr);
+		if(m_taskDOCtr != TASK_UNDEF)
+		    DAQmxStopTask(m_taskDOCtr);
+	}
+	if(m_threadWriteAO) {
+		m_threadWriteAO->terminate();
+		m_threadWriteAO->waitFor();
+	}
+	if(m_threadWriteDO) {
+		m_threadWriteDO->terminate();
+		m_threadWriteDO->waitFor();
+	}
+	{
+ 	XScopedLock<XInterface> lockao(*intfAO());
+ 	XScopedLock<XInterface> lockdo(*intfDO());
+		if(m_taskDO != TASK_UNDEF)
+		    DAQmxStopTask(m_taskDO);
+		if(m_taskAO != TASK_UNDEF)
+		    DAQmxStopTask(m_taskAO);
+	}
 }
 inline XNIDAQmxPulser::tRawAO
 XNIDAQmxPulser::aoVoltToRaw(int ch, float64 volt)
@@ -382,15 +409,18 @@ XNIDAQmxPulser::executeWriteDO(const atomic<bool> &terminated)
 void
 XNIDAQmxPulser::writeBankAO(const atomic<bool> &terminated)
 {
-	unsigned int size = m_genBufAO[m_genBankAO].size() / NUM_AO_CH;
+	unsigned int bank = m_genBankAO;
+	unsigned int size = m_genBufAO[bank].size() / NUM_AO_CH;
  	intfAO()->lock();
 	try {
 		const unsigned int num_samps = 128;
 		for(unsigned int cnt = 0; cnt < size;) {
+			if(bank == m_genBankWrittenLast)
+				throw XInterface::XInterfaceError(KAME::i18n("AO buffer underrun."), __FILE__, __LINE__);
 			while(!terminated) {
 			uInt32 space;
-				CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskAO, &space));
-				if(space >= num_samps)
+				int ret = DAQmxGetWriteSpaceAvail(m_taskAO, &space);
+				if(!ret && (space >= num_samps))
 					break;
 			 	intfAO()->unlock();
 				usleep(lrint(1e3 * num_samps * DMA_AO_PERIOD));
@@ -402,35 +432,39 @@ XNIDAQmxPulser::writeBankAO(const atomic<bool> &terminated)
 			samps = std::min(size - cnt, num_samps);
 			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, samps, false, DAQmx_Val_WaitInfinitely, 
 				DAQmx_Val_GroupByScanNumber,
-				&m_genBufAO[m_genBankAO][cnt * NUM_AO_CH],
+				&m_genBufAO[bank][cnt * NUM_AO_CH],
 				&samps, NULL));
 			cnt += samps;
 		}
 	}
 	catch (XInterface::XInterfaceError &e) {
 		e.print(getLabel());
-		stopPulseGen();
 	 	intfAO()->unlock();
+		stopPulseGen();
 		return;
 	}
-	m_genBankAO++;
-	if(m_genBankAO == NUM_BUF_BANK)
-		m_genBankAO = 0;
+	bank++;
+	if(bank == NUM_BUF_BANK)
+		bank = 0;
+	m_genBankAO = bank;
  	intfAO()->unlock();
 	return;
 }
 void
 XNIDAQmxPulser::writeBankDO(const atomic<bool> &terminated)
 {
-	unsigned int size = m_genBufDO[m_genBankDO].size();
+	unsigned int bank = m_genBankDO;
+	unsigned int size = m_genBufDO[bank].size();
  	intfDO()->lock();
 	try {
 		const unsigned int num_samps = 1024;
 		for(unsigned int cnt = 0; cnt < size;) {
+			if(bank == m_genBankWrittenLast)
+				throw XInterface::XInterfaceError(KAME::i18n("DO buffer underrun."), __FILE__, __LINE__);
 			while(!terminated) {
 			uInt32 space;
-				CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskDO, &space));
-				if(space >= num_samps)
+				int ret = DAQmxGetWriteSpaceAvail(m_taskDO, &space);
+				if(!ret && (space >= num_samps))
 					break;
 			 	intfDO()->unlock();
 				usleep(lrint(1e3 * num_samps * DMA_DO_PERIOD));
@@ -442,20 +476,21 @@ XNIDAQmxPulser::writeBankDO(const atomic<bool> &terminated)
 			samps = std::min(size - cnt, num_samps);
 			CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, samps, false, DAQmx_Val_WaitInfinitely, 
 				DAQmx_Val_GroupByScanNumber,
-				&m_genBufDO[m_genBankDO][cnt],
+				&m_genBufDO[bank][cnt],
 				&samps, NULL));
 			cnt += samps;
 		}
 	}
 	catch (XInterface::XInterfaceError &e) {
 		e.print(getLabel());
-		stopPulseGen();
 	 	intfDO()->unlock();
+		stopPulseGen();
  		return; 	
 	}
-	m_genBankDO++;
-	if(m_genBankDO == NUM_BUF_BANK)
-		m_genBankDO = 0;
+	bank++;
+	if(bank == NUM_BUF_BANK)
+		bank = 0;
+	m_genBankDO = bank;
  	intfDO()->unlock();
  	genBankAODO();
 	return;
