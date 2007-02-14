@@ -198,6 +198,9 @@ XNIDAQmxDSO::setupTiming()
 //	dbgPrint(QString("Reference Clk rate = %1.").arg(rate));
     CHECK_DAQMX_RET(DAQmxGetSampClkRate(m_task, &rate));
     m_interval = 1.0 / rate;
+    
+	mlock(&m_record[0], m_record.size() * sizeof(tRawAI));
+	mlock(&m_record_buf[0], m_record_buf.size() * sizeof(int32_t));    
 }
 void
 XNIDAQmxDSO::createChannels()
@@ -267,15 +270,21 @@ XNIDAQmxDSO::createChannels()
     	dbgPrint(getLabel() + ": Polling mode enabled.");
 
     setupTiming();
-	 setupTrigger();
+	setupTrigger();
+	
+	const void *FIRST_OF_MLOCK_MEMBER = &m_record_buf;
+	const void *LAST_OF_MLOCK_MEMBER = &m_acqCount;
+	//Suppress swapping.
+	mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);
 }
 void 
 XNIDAQmxDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
+	startSequence();
 }
 
 void
-XNIDAQmxDSO::onSingleChanged(const shared_ptr<XValueNodeBase> &)
-{
+XNIDAQmxDSO::onSingleChanged(const shared_ptr<XValueNodeBase> &) {
+	startSequence();
 }
 void
 XNIDAQmxDSO::onTrigPosChanged(const shared_ptr<XValueNodeBase> &)
@@ -394,6 +403,12 @@ XNIDAQmxDSO::acquire(TaskHandle task)
         &m_record_buf[0], m_record_buf.size(), &cnt, NULL
         ));
     ASSERT(cnt <= (uInt32)len);
+
+    if(!sseq || ((unsigned int)m_accumCount < av)) {
+	    DAQmxStopTask(m_task);
+	    CHECK_DAQMX_RET(DAQmxStartTask(m_task));
+    }
+
     m_record_length = cnt;
       for(unsigned int i = 0; i < m_record.size(); i++) {
         m_record[i] += m_record_buf[i];
@@ -414,11 +429,6 @@ XNIDAQmxDSO::acquire(TaskHandle task)
     
     if(!sseq) {
       m_record_av.push_back(m_record_buf);
-    }
-
-    if(!sseq || ((unsigned int)m_accumCount < av)) {
-	    DAQmxStopTask(m_task);
-	    CHECK_DAQMX_RET(DAQmxStartTask(m_task));
     }
 }
 void
