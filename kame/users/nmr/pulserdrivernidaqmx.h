@@ -88,7 +88,7 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 		 m_taskDOCtr, m_taskGateCtr,
 		 m_taskAOCtr;
 enum { NUM_AO_CH = 2};
-enum { NUM_BUF_BANK = 4};
+enum { NUM_BUF_BANK = 6};
 	std::vector<tRawDO> m_genBufDO[NUM_BUF_BANK];
 	std::vector<tRawAO> m_genBufAO[NUM_BUF_BANK];
 	atomic<unsigned int> m_genBankWriting;
@@ -110,7 +110,7 @@ enum { CAL_POLY_ORDER = 4};
 	void *executeWriteDO(const atomic<bool> &);
 	
   int makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
-  
+  XRecursiveMutex m_totalLock;
 };
 
 #endif //HAVE_NI_DAQMX
