@@ -130,6 +130,8 @@ void
 XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
+	
+	const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
 
 	stopPulseGen();
  	XScopedLock<XInterface> lockAO(*intfAO());
@@ -176,12 +178,12 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 		CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO,
 			ctrout.c_str(),
 			1e3 / DMA_AO_PERIOD, DAQmx_Val_Rising, DAQmx_Val_ContSamps,
-			BUF_SIZE_HINT * OVERSAMP_AO));
+			BUF_SIZE_HINT * oversamp_ao));
 	}
 	else {
 		CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, "",
 			1e3 / DMA_AO_PERIOD, DAQmx_Val_Rising, DAQmx_Val_ContSamps,
-			BUF_SIZE_HINT * OVERSAMP_AO));
+			BUF_SIZE_HINT * oversamp_ao));
 
 		CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskDOCtr,
 			formatString("/%s/ao/StartTrigger", intfAO()->devName()).c_str(),
@@ -195,11 +197,11 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	}
 
 	//Buffer setup.
-	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, BUF_SIZE_HINT * OVERSAMP_AO));
+	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, BUF_SIZE_HINT * oversamp_ao));
 	uInt32 bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
 	printf("Using bufsize = %d\n", (int)bufsize);
-	if(bufsize < BUF_SIZE_HINT * OVERSAMP_AO)
+	if(bufsize < BUF_SIZE_HINT * oversamp_ao)
 		throw XInterface::XInterfaceError(
 			KAME::i18n("Insufficient size of NIDAQmx buffer."), __FILE__, __LINE__);
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &bufsize));
@@ -308,8 +310,8 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			m_genBufDO[bank].reserve(BUF_SIZE_HINT); //redundant
 		}
 		for(unsigned int bank = 0; bank < NUM_BUF_BANK; bank++) {
-			m_genBufAO[bank].resize(BUF_SIZE_HINT * NUM_AO_CH * OVERSAMP_AO);
-			m_genBufAO[bank].reserve(BUF_SIZE_HINT * NUM_AO_CH * OVERSAMP_AO); //redundant
+			m_genBufAO[bank].resize(BUF_SIZE_HINT * NUM_AO_CH * oversamp_ao);
+			m_genBufAO[bank].reserve(BUF_SIZE_HINT * NUM_AO_CH * oversamp_ao); //redundant
 		}
 	
 		if(USE_FINITE_AO) {
@@ -461,6 +463,7 @@ void
 XNIDAQmxPulser::writeBankAO(const atomic<bool> &terminated)
 {
  	XScopedLock<XInterface> lockao(*intfAO());
+ 	const double dma_ao_period = resolutionQAM();
 	unsigned int bank = m_genBankAO;
 	unsigned int size = m_genBufAO[bank].size() / NUM_AO_CH;
 	bool firsttime = true;
@@ -471,12 +474,13 @@ XNIDAQmxPulser::writeBankAO(const atomic<bool> &terminated)
 			samps = std::min(size - cnt, num_samps);
 			while(!terminated) {
 				if(bank == m_genBankWriting)
-					throw XInterface::XInterfaceError(KAME::i18n("AO buffer underrun."), __FILE__, __LINE__);
+					msecsleep(lrint(size * dma_ao_period));
+//					throw XInterface::XInterfaceError(KAME::i18n("AO buffer underrun."), __FILE__, __LINE__);
 			uInt32 space;
 				int ret = DAQmxGetWriteSpaceAvail(m_taskAO, &space);
 				if(!ret && (space >= (uInt32)samps))
 					break;
-				usleep(lrint(1e3 * samps * DMA_AO_PERIOD));
+				usleep(lrint(1e3 * samps * dma_ao_period));
 			}
 			if(terminated)
 				break;
@@ -506,6 +510,7 @@ void
 XNIDAQmxPulser::writeBankDO(const atomic<bool> &terminated)
 {
  	XScopedLock<XInterface> lockdo(*intfDO());
+ 	const double dma_do_period = resolution();
 	unsigned int bank = m_genBankDO;
 	unsigned int size = m_genBufDO[bank].size();
 	bool firsttime = true;
@@ -516,12 +521,13 @@ XNIDAQmxPulser::writeBankDO(const atomic<bool> &terminated)
 			samps = std::min(size - cnt, num_samps);
 			while(!terminated) {
 				if(bank == m_genBankWriting)
-					throw XInterface::XInterfaceError(KAME::i18n("DO buffer underrun."), __FILE__, __LINE__);
+					msecsleep(lrint(size * dma_do_period));
+//					throw XInterface::XInterfaceError(KAME::i18n("DO buffer underrun."), __FILE__, __LINE__);
 			uInt32 space;
 				int ret = DAQmxGetWriteSpaceAvail(m_taskDO, &space);
 				if(!ret && (space >= (uInt32)samps))
 					break;
-				usleep(lrint(1e3 * samps * DMA_DO_PERIOD));
+				usleep(lrint(1e3 * samps * dma_do_period));
 			}
 			if(terminated)
 				break;
@@ -554,9 +560,10 @@ void
 XNIDAQmxPulser::genBankAODO()
 {
 	const double dma_do_period = resolution();
-	const unsigned int PAUSING_CNT = lrint(PAUSING_TERM / dma_do_period);
-	const unsigned int PAUSING_CNT_BLANK = 2;
-	const double PAUSING_TERM_BLANK = PAUSING_CNT_BLANK * dma_do_period;
+	const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
+	const unsigned int pausing_cnt = lrint(PAUSING_TERM / dma_do_period);
+	const unsigned int pausing_cnt_blank = 2;
+	const double PAUSING_TERM_BLANK = pausing_cnt_blank * dma_do_period;
 	
 	GenPatternIterator it = m_genLastPatItAODO;
 	uint32_t pat = it->pattern;
@@ -586,20 +593,20 @@ XNIDAQmxPulser::genBankAODO()
 		if(pausingbit) {
 			patDO &= ~pausingbit;
 			if(paused) {
-				ASSERT(gen_cnt >= PAUSING_CNT_BLANK + 1);
+				ASSERT(gen_cnt >= pausing_cnt_blank + 1);
 				//generate a blank time after pausing.
-				gen_cnt = PAUSING_CNT_BLANK + 1;
+				gen_cnt = pausing_cnt_blank + 1;
 				paused = false;
 			}
 			else {
 				if((pidx == 0) &&
-					 (tonext > PAUSING_CNT + PAUSING_CNT_BLANK + 1) &&
-					 (samps_rest > PAUSING_CNT_BLANK + 1)) {
+					 (tonext > pausing_cnt + pausing_cnt_blank + 1) &&
+					 (samps_rest > pausing_cnt_blank + 1)) {
 					//generate a pausing trigger.
 					gen_cnt = 1;
-					tonext -= PAUSING_CNT;
+					tonext -= pausing_cnt;
 					patDO |= pausingbit;
-					samps_rest = std::max((int)samps_rest - (int)PAUSING_CNT, (int)PAUSING_CNT_BLANK + 2);
+					samps_rest = std::max((int)samps_rest - (int)pausing_cnt, (int)pausing_cnt_blank + 2);
 					paused = true;
 				}
 			}
@@ -622,7 +629,7 @@ XNIDAQmxPulser::genBankAODO()
 				zerocnt = std::min(finiteaorest, gen_cnt);
 				finiteaorest -= zerocnt;
 			}
-			for(unsigned int cnt = 0; cnt < zerocnt * OVERSAMP_AO; cnt++) {
+			for(unsigned int cnt = 0; cnt < zerocnt * oversamp_ao; cnt++) {
 				*pAO++ = raw_ao0_zero;
 				*pAO++ = raw_ao1_zero;
 			}
@@ -637,25 +644,25 @@ XNIDAQmxPulser::genBankAODO()
 			tRawAO *pGenAO1 = &m_genPulseWaveAO[1][pnum][aoidx];
 			ASSERT(m_genPulseWaveAO[0][pnum].size());
 			ASSERT(m_genPulseWaveAO[1][pnum].size());
-			if(m_genPulseWaveAO[0][pnum].size() <= aoidx + gen_cnt * OVERSAMP_AO) {
-				dbgPrint("Oops. This should not happen.");
+			if(m_genPulseWaveAO[0][pnum].size() <= aoidx + gen_cnt * oversamp_ao) {
+				fprintf(stderr, "Oops. This should not happen.");
 				int lps = m_genPulseWaveAO[0][pnum].size() - aoidx;
 				lps = std::max(0, lps);
 				for(int cnt = 0; cnt < lps; cnt++) {
 					*pAO++ = *pGenAO0++;
 					*pAO++ = *pGenAO1++;
 				}
-				for(unsigned int cnt = 0; cnt < gen_cnt * OVERSAMP_AO - lps; cnt++) {
+				for(unsigned int cnt = 0; cnt < gen_cnt * oversamp_ao - lps; cnt++) {
 					*pAO++ = raw_ao0_zero;
 					*pAO++ = raw_ao1_zero;
 				}
 			}
 			else {
-				for(unsigned int cnt = 0; cnt < gen_cnt * OVERSAMP_AO; cnt++) {
+				for(unsigned int cnt = 0; cnt < gen_cnt * oversamp_ao; cnt++) {
 					*pAO++ = *pGenAO0++;
 					*pAO++ = *pGenAO1++;
 				}
-				aoidx += gen_cnt * OVERSAMP_AO;
+				aoidx += gen_cnt * oversamp_ao;
 			}
 		}
 		tonext -= gen_cnt;
@@ -666,7 +673,7 @@ XNIDAQmxPulser::genBankAODO()
 			it++;
 			if(it == m_genPatternList.end()) {
 				it = m_genPatternList.begin();
-				printf("p.\n");
+//				printf("p.\n");
 			}
 			pat = it->pattern;
 			tonext = it->tonext;
