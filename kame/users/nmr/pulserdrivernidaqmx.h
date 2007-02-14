@@ -1,3 +1,6 @@
+#ifndef PULSERDRIVERNIDAQMX_H_
+#define PULSERDRIVERNIDAQMX_H_
+
 #include "pulserdriver.h"
 
 #include "nidaqmxdriver.h"
@@ -19,34 +22,27 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
   virtual ~XNIDAQmxPulser();
 
  protected:
-	virtual void open() throw (XInterface::XInterfaceError &);
-  //! Be called during stopping driver. Call interface()->stop() inside this routine.
- 	 virtual void close() throw (XInterface::XInterfaceError &);
- 
+	virtual void open() throw (XInterface::XInterfaceError &) = 0;
+    //! time resolution [ms]
+    virtual double resolution() const = 0;
+    virtual double resolutionQAM() const {return resolution();}
+     //! existense of AO ports.
+    virtual bool haveQAMPorts() const = 0;
+ 	virtual const shared_ptr<XNIDAQmxInterface> &intfDO() const {return interface();}
+	virtual const shared_ptr<XNIDAQmxInterface> &intfAO() const {return interface();} 
+       	 
     //! send patterns to pulser or turn-off
     virtual void changeOutput(bool output, unsigned int blankpattern);
     //! convert RelPatList to native patterns
     virtual void createNativePatterns();
-    //! time resolution [ms]
-    virtual double resolution() const;
+
     //! minimum period of pulses [ms]
     virtual double minPulseWidth() const {return resolution();}
-    //! existense of AO ports.
-    virtual bool haveQAMPorts() const;
     
-  const shared_ptr<XNIDAQmxInterface> &intfDO() const {return interface();}
-  const shared_ptr<XNIDAQmxInterface> &intfAO() const {return m_ao_interface;}    
- private:
-	shared_ptr<XNIDAQmxInterface> m_ao_interface;
-	shared_ptr<XListener> m_lsnOnOpenAO, m_lsnOnCloseAO;
 	void openDO() throw (XInterface::XInterfaceError &);
-	void onOpenAO(const shared_ptr<XInterface> &);
-	void onCloseAO(const shared_ptr<XInterface> &);
-	
-	void startPulseGen() throw (XInterface::XInterfaceError &);
-	void stopPulseGen();
-
-	typedef int16 tRawAO;
+	void openAODO() throw (XInterface::XInterfaceError &);
+private:
+ 	typedef int16 tRawAO;
 	typedef uInt16 tRawDO;
 	  struct GenPattern {
 	      GenPattern(uint32_t pat, long long int next) :
@@ -67,7 +63,6 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 	unsigned int m_ctrTrigBit;
 	unsigned int m_pausingBit;
 	
-
 	TaskHandle m_taskAO, m_taskDO,
 		 m_taskDOCtr, m_taskGateCtr,
 		 m_taskAOCtr;
@@ -98,3 +93,5 @@ enum { CAL_POLY_ORDER = 4};
 };
 
 #endif //HAVE_NI_DAQMX
+
+#endif /*PULSERDRIVERNIDAQMX_H_*/
