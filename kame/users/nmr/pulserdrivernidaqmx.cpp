@@ -620,20 +620,20 @@ XNIDAQmxPulser::genBankAODO()
 		if(USE_PAUSING) {
 			patDO &= ~pausingbit;
 			if(paused) {
-				ASSERT(gen_cnt >= PAUSING_CNT_BLANK);
+				ASSERT(gen_cnt >= PAUSING_CNT_BLANK + 1);
 				//generate a blank time after pausing.
-				gen_cnt = PAUSING_CNT_BLANK;
+				gen_cnt = PAUSING_CNT_BLANK + 1;
 				paused = false;
 			}
 			else {
 				if((pidx == 0) &&
-					 (tonext > PAUSING_CNT + PAUSING_CNT_BLANK) &&
-					 (samps_rest > PAUSING_CNT_BLANK)) {
+					 (tonext > PAUSING_CNT + PAUSING_CNT_BLANK + 1) &&
+					 (samps_rest > PAUSING_CNT_BLANK + 1)) {
 					//generate a pausing trigger.
 					gen_cnt = 1;
 					tonext -= PAUSING_CNT;
 					patDO |= pausingbit;
-					samps_rest = std::max((int)samps_rest - (int)PAUSING_CNT, (int)PAUSING_CNT_BLANK + 1);
+					samps_rest = std::max((int)samps_rest - (int)PAUSING_CNT, (int)PAUSING_CNT_BLANK + 2);
 					paused = true;
 				}
 			}
