@@ -428,7 +428,7 @@ XSHPulser::rawToRelPat() throw (XRecordError&)
   if((_comb_mode == N_COMB_MODE_OFF))
   	 _num_phase_cycle = std::min(_num_phase_cycle, 4);
   
-  bool _invert_phase = *invertPhase();
+  bool _invert_phase = m_invertPhaseRecorded;
   //unit of phase is pi/2
   #define qpsk(phase) ((((phase) + (_invert_phase ? 2 : 0)) % 4)*qpskbit)
   #define qpskinv(phase) (qpsk(((phase) + 2) % 4))

@@ -13,20 +13,11 @@ class FrmPulser;
 class FrmPulserMore;
 class XQPulserDriverConnector;
 
-static const unsigned int  N_COMB_MODE_OFF = 0;
-static const unsigned int  N_COMB_MODE_ON = 1;
-static const unsigned int  N_COMB_MODE_P1_ALT = 2;
-static const unsigned int  N_COMB_MODE_COMB_ALT = 3;
-
-static const unsigned int  N_RT_MODE_FIXREP = 0;
-static const unsigned int  N_RT_MODE_FIXREST = 1;
-
-#define NUM_PHASE_CYCLE_1 "1"
-#define NUM_PHASE_CYCLE_2 "2"
-#define NUM_PHASE_CYCLE_4 "4"
-#define NUM_PHASE_CYCLE_8 "8"
-#define NUM_PHASE_CYCLE_16 "16"
-static const unsigned int  MAX_NUM_PHASE_CYCLE = 16;
+static const char *NUM_PHASE_CYCLE_1 = "1";
+static const char *NUM_PHASE_CYCLE_2 = "2";
+static const char *NUM_PHASE_CYCLE_4 = "4";
+static const char *NUM_PHASE_CYCLE_8 = "8";
+static const char *NUM_PHASE_CYCLE_16 = "16";
 
 //! Base class of NMR Pulsers
 class XPulser : public XPrimaryDriver
@@ -95,7 +86,7 @@ class XPulser : public XPrimaryDriver
     const shared_ptr<XBoolNode> &qswPiPulseOnly() const {return m_qswPiPulseOnly;} //!< Q-switch setting, use QSW only for pi pulses.
     const shared_ptr<XBoolNode> &invertPhase() const {return m_invertPhase;}
     
-    //! ver 1 records
+    //! ver 1 records.
     short combModeRecorded() const {return m_combModeRecorded;}
     double rtimeRecorded() const {return m_rtimeRecorded;}
     double tauRecorded() const {return m_tauRecorded;}
@@ -106,7 +97,7 @@ class XPulser : public XPrimaryDriver
     double combP1AltRecorded() const {return m_combP1AltRecorded;}
     double aswSetupRecorded() const {return m_aswSetupRecorded;}
     double aswHoldRecorded() const {return m_aswHoldRecorded;}
-    //! ver 2 records
+    //! ver 2 records.
     double difFreqRecorded() const {return m_difFreqRecorded;}
     double combPWRecorded() const {return m_combPWRecorded;}
     double combPTRecorded() const {return m_combPTRecorded;}
@@ -114,11 +105,21 @@ class XPulser : public XPrimaryDriver
     unsigned short combNumRecorded() const {return m_combNumRecorded;}
     short rtModeRecorded() const {return m_rtModeRecorded;}
     unsigned short numPhaseCycleRecorded() const {return m_numPhaseCycleRecorded;}
-    //! ver 3 records
+    //! ver 3 records [experimental].
     bool invertPhaseRecorded() const {return m_invertPhaseRecorded;}
     
-    //! periodic term of one cycle [ms]
+    //! periodic term of one cycle [ms].
     double periodicTermRecorded() const;
+    
+    //! \sa combMode(), combModeRecorded().
+	enum {N_COMB_MODE_OFF = 0, N_COMB_MODE_ON = 1, N_COMB_MODE_P1_ALT = 2, N_COMB_MODE_COMB_ALT = 3}; 
+    //! \sa rtMode(), rtModeRecorded().
+    enum {N_RT_MODE_FIXREP = 0, N_RT_MODE_FIXREST = 1};
+	//! \sa numPhaseCycle(), numPhaseCycleRecorded().
+	enum {MAX_NUM_PHASE_CYCLE = 16};
+	//! # of digital-pulse ports.
+	enum {NUM_DO_PORTS= 16};
+    
  protected:
   //! Start up your threads, connect GUI, and activate signals
   virtual void start();
@@ -263,6 +264,7 @@ class XPulser : public XPrimaryDriver
     m_conDIFFreq,
     m_conInduceEmission, m_conInduceEmissionPhase,
     m_conQSWDelay, m_conQSWWidth, m_conQSWPiPulseOnly;
+   xqcon_ptr m_conPortSel[NUM_DO_PORTS];
   shared_ptr<XListener> m_lsnOnPulseChanged;
   shared_ptr<XListener> m_lsnOnMoreConfigShow;
   void onMoreConfigShow(const shared_ptr<XNode> &);
