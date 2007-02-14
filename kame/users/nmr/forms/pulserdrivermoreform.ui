@@ -8,8 +8,8 @@
         <rect>
             <x>0</x>
             <y>0</y>
-            <width>494</width>
-            <height>583</height>
+            <width>505</width>
+            <height>595</height>
         </rect>
     </property>
     <property name="caption">
@@ -414,29 +414,6 @@
                         </widget>
                     </hbox>
                 </widget>
-                <widget class="QLayoutWidget" row="3" column="0">
-                    <property name="name">
-                        <cstring>layout85_2</cstring>
-                    </property>
-                    <hbox>
-                        <property name="name">
-                            <cstring>unnamed</cstring>
-                        </property>
-                        <widget class="QLabel">
-                            <property name="name">
-                                <cstring>textLabel2_2</cstring>
-                            </property>
-                            <property name="text">
-                                <string>Filter</string>
-                            </property>
-                        </widget>
-                        <widget class="QComboBox">
-                            <property name="name">
-                                <cstring>m_cmbASWFilter</cstring>
-                            </property>
-                        </widget>
-                    </hbox>
-                </widget>
             </grid>
         </widget>
         <widget class="QCheckBox" row="11" column="0">
@@ -758,6 +735,14 @@
                             <property name="name">
                                 <cstring>textLabel2_2_2</cstring>
                             </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>0</hsizetype>
+                                    <vsizetype>5</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
                             <property name="text">
                                 <string>Port0</string>
                             </property>
@@ -780,6 +765,14 @@
                         <widget class="QLabel">
                             <property name="name">
                                 <cstring>textLabel2_2_2_3</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>0</hsizetype>
+                                    <vsizetype>5</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
                             </property>
                             <property name="text">
                                 <string>Port1</string>
@@ -804,6 +797,14 @@
                             <property name="name">
                                 <cstring>textLabel2_2_2_3_2</cstring>
                             </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>0</hsizetype>
+                                    <vsizetype>5</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
                             <property name="text">
                                 <string>Port2</string>
                             </property>
@@ -826,6 +827,14 @@
                         <widget class="QLabel">
                             <property name="name">
                                 <cstring>textLabel2_2_2_3_3</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>0</hsizetype>
+                                    <vsizetype>5</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
                             </property>
                             <property name="text">
                                 <string>Port3</string>
@@ -881,6 +890,14 @@
                             <property name="name">
                                 <cstring>textLabel2_2_2_3_5</cstring>
                             </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>0</hsizetype>
+                                    <vsizetype>5</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
                             <property name="text">
                                 <string>Port5</string>
                             </property>
@@ -903,6 +920,14 @@
                         <widget class="QLabel">
                             <property name="name">
                                 <cstring>textLabel2_2_2_3_6</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>0</hsizetype>
+                                    <vsizetype>5</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
                             </property>
                             <property name="text">
                                 <string>Port6</string>
@@ -927,6 +952,14 @@
                             <property name="name">
                                 <cstring>textLabel2_2_2_3_7</cstring>
                             </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>0</hsizetype>
+                                    <vsizetype>5</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
                             <property name="text">
                                 <string>Port7</string>
                             </property>
@@ -949,6 +982,14 @@
                         <widget class="QLabel">
                             <property name="name">
                                 <cstring>textLabel2_2_2_3_8</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>0</hsizetype>
+                                    <vsizetype>5</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
                             </property>
                             <property name="text">
                                 <string>Port8</string>
@@ -973,6 +1014,14 @@
                             <property name="name">
                                 <cstring>textLabel2_2_2_3_9</cstring>
                             </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>0</hsizetype>
+                                    <vsizetype>5</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
                             <property name="text">
                                 <string>Port9</string>
                             </property>
@@ -995,6 +1044,14 @@
                         <widget class="QLabel">
                             <property name="name">
                                 <cstring>textLabel2_2_2_3_10</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>0</hsizetype>
+                                    <vsizetype>5</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
                             </property>
                             <property name="text">
                                 <string>Port10</string>
@@ -1019,6 +1076,14 @@
                             <property name="name">
                                 <cstring>textLabel2_2_2_3_11</cstring>
                             </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>0</hsizetype>
+                                    <vsizetype>5</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
                             <property name="text">
                                 <string>Port11</string>
                             </property>
@@ -1041,6 +1106,14 @@
                         <widget class="QLabel">
                             <property name="name">
                                 <cstring>textLabel2_2_2_3_12</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>0</hsizetype>
+                                    <vsizetype>5</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
                             </property>
                             <property name="text">
                                 <string>Port12</string>
@@ -1065,6 +1138,14 @@
                             <property name="name">
                                 <cstring>textLabel2_2_2_3_13</cstring>
                             </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>0</hsizetype>
+                                    <vsizetype>5</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
                             <property name="text">
                                 <string>Port13</string>
                             </property>
@@ -1088,6 +1169,14 @@
                             <property name="name">
                                 <cstring>textLabel2_2_2_3_14</cstring>
                             </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>0</hsizetype>
+                                    <vsizetype>5</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
                             <property name="text">
                                 <string>Port14</string>
                             </property>
@@ -1110,6 +1199,14 @@
                         <widget class="QLabel">
                             <property name="name">
                                 <cstring>textLabel2_2_2_3_15</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>0</hsizetype>
+                                    <vsizetype>5</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
                             </property>
                             <property name="text">
                                 <string>Port15</string>
@@ -1675,7 +1772,7 @@
                                 </sizepolicy>
                             </property>
                             <property name="text">
-                                <string>Port Q</string>
+                                <string>Port I</string>
                             </property>
                         </widget>
                         <widget class="QLayoutWidget">
@@ -1730,7 +1827,7 @@
                                 </sizepolicy>
                             </property>
                             <property name="text">
-                                <string>Port I</string>
+                                <string>Port Q</string>
                             </property>
                         </widget>
                         <widget class="QLayoutWidget">
@@ -1801,7 +1898,7 @@
                                 </sizepolicy>
                             </property>
                             <property name="text">
-                                <string>Port Q</string>
+                                <string>Port I</string>
                             </property>
                         </widget>
                         <widget class="QLayoutWidget">
@@ -1872,7 +1969,7 @@
                                 </sizepolicy>
                             </property>
                             <property name="text">
-                                <string>Port I</string>
+                                <string>Port Q</string>
                             </property>
                         </widget>
                         <widget class="QLayoutWidget">
@@ -1959,7 +2056,7 @@
                                 </sizepolicy>
                             </property>
                             <property name="text">
-                                <string>Port Q</string>
+                                <string>Port I</string>
                             </property>
                         </widget>
                         <widget class="QLayoutWidget">
@@ -2030,7 +2127,7 @@
                                 </sizepolicy>
                             </property>
                             <property name="text">
-                                <string>Port I</string>
+                                <string>Port Q</string>
                             </property>
                         </widget>
                         <widget class="QLayoutWidget">
@@ -2097,7 +2194,6 @@
     <tabstop>m_edASWHold</tabstop>
     <tabstop>m_edASWSetup</tabstop>
     <tabstop>m_edALTSep</tabstop>
-    <tabstop>m_cmbASWFilter</tabstop>
     <tabstop>m_edQAMOffset1</tabstop>
     <tabstop>m_edQAMOffset2</tabstop>
     <tabstop>m_edQAMLevel1</tabstop>

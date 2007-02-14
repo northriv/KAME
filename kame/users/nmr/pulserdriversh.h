@@ -17,35 +17,16 @@ class XSHPulser : public XCharDeviceDriver<XPulser>
 
  protected:
     //! send patterns to pulser or turn-off
-    virtual void changeOutput(bool output);
+    virtual void changeOutput(bool output, unsigned int blankpattern);
     //! convert RelPatList to native patterns
     virtual void createNativePatterns();
     //! time resolution [ms]
-    virtual double resolution();
-    //! create RelPatList
-    virtual void rawToRelPat() throw (XRecordError&);
+    virtual double resolution() const;
+    //! minimum period of pulses [ms]
+    virtual double minPulseWidth() const {return resolution();}
+    //! existense of AO ports.
+    virtual bool haveQAMPorts() const {return false;}
  private:
-    //A pettern at absolute time
-    class tpat {
-          public:
-          tpat(double npos, uint32_t newpat, uint32_t nmask) {
-              pos = npos; pat = newpat; mask = nmask;
-          }
-          tpat(const tpat &x) {
-              pos = x.pos; pat = x.pat; mask = x.mask;
-          }
-          double pos;
-          //this pattern bits will be outputted at 'pos'
-          uint32_t pat;
-          //mask bits
-          uint32_t mask;
-          
-  
-        bool operator< (const tpat &y) const {
-              return pos < y.pos;
-        }          
-    }; 
- 
   int setAUX2DA(double volt, int addr);
   int makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
   int insertPreamble(unsigned short startpattern);

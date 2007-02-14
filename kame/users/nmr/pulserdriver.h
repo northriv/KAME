@@ -13,12 +13,6 @@ class FrmPulser;
 class FrmPulserMore;
 class XQPulserDriverConnector;
 
-static const char *NUM_PHASE_CYCLE_1 = "1";
-static const char *NUM_PHASE_CYCLE_2 = "2";
-static const char *NUM_PHASE_CYCLE_4 = "4";
-static const char *NUM_PHASE_CYCLE_8 = "8";
-static const char *NUM_PHASE_CYCLE_16 = "16";
-
 //! Base class of NMR Pulsers
 class XPulser : public XPrimaryDriver
 {	
@@ -35,11 +29,22 @@ class XPulser : public XPrimaryDriver
   virtual void showForms();
 
   //! driver specific part below
-  const   shared_ptr<XBoolNode> &output() const {return m_output;}
-    const shared_ptr<XComboNode> &combMode() const {return m_combMode;} //!< see above definitions in header file
+
+    
+    //! \sa combMode(), combModeRecorded().
+	enum {N_COMB_MODE_OFF = 0, N_COMB_MODE_ON = 1, N_COMB_MODE_P1_ALT = 2, N_COMB_MODE_COMB_ALT = 3}; 
+    //! \sa rtMode(), rtModeRecorded().
+    enum {N_RT_MODE_FIXREP = 0, N_RT_MODE_FIXREST = 1};
+	//! \sa numPhaseCycle(), numPhaseCycleRecorded().
+	enum {MAX_NUM_PHASE_CYCLE = 16};
+	//! # of digital-pulse ports.
+	enum {NUM_DO_PORTS= 16};
+	
+	const shared_ptr<XBoolNode> &output() const {return m_output;}
+ 	const shared_ptr<XComboNode> &combMode() const {return m_combMode;} //!< see above definitions in header file
       //! Control period to next pulse sequence
       //! Fix Repetition Time or Fix Rest Time which means time between pulse sequences 
-  const   shared_ptr<XComboNode> &rtMode() const {return m_rtMode;}
+ 	const shared_ptr<XComboNode> &rtMode() const {return m_rtMode;}
     const shared_ptr<XComboNode> &numPhaseCycle() const {return m_numPhaseCycle;} //!< How many cycles in phase cycling
     const shared_ptr<XDoubleNode> &rtime() const {return m_rt;} //!< Repetition/Rest Time [ms]
     const shared_ptr<XDoubleNode> &tau() const {return m_tau;}  //!< [us]
@@ -64,7 +69,6 @@ class XPulser : public XPrimaryDriver
     const shared_ptr<XDoubleNode> &p1Level() const {return m_p1Level;} //!< [dB], Pulse Modulation
     const shared_ptr<XDoubleNode> &p2Level() const {return m_p2Level;} //!< [dB], Pulse Modulation
     const shared_ptr<XDoubleNode> &masterLevel() const {return m_masterLevel;} //!< [dB]
-    const shared_ptr<XComboNode> &aswFilter() const {return m_aswFilter;}
     const shared_ptr<XBoolNode> &induceEmission() const {return m_induceEmission;}
     const shared_ptr<XDoubleNode> &induceEmissionPhase() const {return m_induceEmissionPhase;}
     const shared_ptr<XDoubleNode> &portLevel8() const {return m_portLevel8;}
@@ -85,6 +89,10 @@ class XPulser : public XPrimaryDriver
     const shared_ptr<XDoubleNode> &qswWidth() const {return m_qswWidth;} //!< Q-switch setting, width of suppression [us].
     const shared_ptr<XBoolNode> &qswPiPulseOnly() const {return m_qswPiPulseOnly;} //!< Q-switch setting, use QSW only for pi pulses.
     const shared_ptr<XBoolNode> &invertPhase() const {return m_invertPhase;}
+    const shared_ptr<XComboNode> &portSel(unsigned int port) const {
+    	ASSERT(port < NUM_DO_PORTS);
+    	return m_portSel[port];
+    }
     
     //! ver 1 records.
     short combModeRecorded() const {return m_combModeRecorded;}
@@ -110,17 +118,33 @@ class XPulser : public XPrimaryDriver
     
     //! periodic term of one cycle [ms].
     double periodicTermRecorded() const;
-    
-    //! \sa combMode(), combModeRecorded().
-	enum {N_COMB_MODE_OFF = 0, N_COMB_MODE_ON = 1, N_COMB_MODE_P1_ALT = 2, N_COMB_MODE_COMB_ALT = 3}; 
-    //! \sa rtMode(), rtModeRecorded().
-    enum {N_RT_MODE_FIXREP = 0, N_RT_MODE_FIXREST = 1};
-	//! \sa numPhaseCycle(), numPhaseCycleRecorded().
-	enum {MAX_NUM_PHASE_CYCLE = 16};
-	//! # of digital-pulse ports.
-	enum {NUM_DO_PORTS= 16};
-    
  protected:
+	//! indice for return values of portSel().
+  enum {PORTSEL_UNSEL = -1,
+  	PORTSEL_GATE = 0, PORTSEL_PREGATE = 1, PORTSEL_GATE3 = 2,
+  	PORTSEL_TRIG1 = 3, PORTSEL_TRIG2 = 4, PORTSEL_ASW = 5, PORTSEL_QSW = 6,
+  	PORTSEL_PULSE1 = 7, PORTSEL_PULSE2 = 8, 
+  	PORTSEL_COMB = 9, PORTSEL_COMB_FM = 10,
+  	PORTSEL_QPSK_A = 11, PORTSEL_QPSK_B = 12,
+  	PORTSEL_QPSK_OLD_NONINV = 13, PORTSEL_QPSK_OLD_INV = 14,
+  	PORTSEL_QPSK_OLD_PSGATE = 15,
+  	PORTSEL_PAUSING = 16};
+  //! \arg func e.g. PORTSEL_GATE.
+  //! \return bit mask.
+  unsigned int selectedPorts(int func) const;
+  	//! for RelPatList patterns. \sa RelPatList.
+  enum {PAT_DO_MASK = NUM_DO_PORTS - 1,
+  	PAT_QAM_PHASE = NUM_DO_PORTS,
+  	PAT_QAM_PHASE_MASK = PAT_QAM_PHASE * 3,
+  	PAT_QAM_PULSE_IDX = PAT_QAM_PHASE * 4,
+  	PAT_QAM_PULSE_IDX_P1 = PAT_QAM_PULSE_IDX * 1,
+  	PAT_QAM_PULSE_IDX_P2 = PAT_QAM_PULSE_IDX * 2,
+  	PAT_QAM_PULSE_IDX_PCOMB = PAT_QAM_PULSE_IDX * 3,
+  	PAT_QAM_PULSE_IDX_INDUCE_EMISSION = PAT_QAM_PULSE_IDX * 4,
+  	PAT_QAM_PULSE_IDX_MASK = PAT_QAM_PULSE_IDX * 15,
+  	PAT_QAM_MASK = PAT_QAM_PHASE_MASK | PAT_QAM_PULSE_IDX_MASK,
+  	};
+ 
   //! Start up your threads, connect GUI, and activate signals
   virtual void start();
   //! Shut down your threads, unconnect GUI, and deactivate signals
@@ -138,13 +162,15 @@ class XPulser : public XPrimaryDriver
   friend class XQPulserDriverConnector;
   
     //! send patterns to pulser or turn-off
-    virtual void changeOutput(bool output) = 0;
+    virtual void changeOutput(bool output, unsigned int blankpattern) = 0;
     //! convert RelPatList to native patterns
     virtual void createNativePatterns() = 0;
     //! time resolution [ms]
-    virtual double resolution() = 0;
-    //! create RelPatList
-    virtual void rawToRelPat() throw (XRecordError&) = 0;
+    virtual double resolution() const = 0;
+    //! minimum period of pulses [ms]
+    virtual double minPulseWidth() const = 0;
+    //! existense of AO ports.
+    virtual bool haveQAMPorts() const = 0;
 
     //! ver 1 records
     short m_combModeRecorded;
@@ -185,7 +211,7 @@ class XPulser : public XPrimaryDriver
   void writeRaw();
   
   typedef double (*tpulsefunc)(double x);
-  tpulsefunc pulseFunc(const std::string &str);
+  tpulsefunc pulseFunc(const std::string &str) const;
   static double pulseFuncRect(double x);
   static double pulseFuncHanning(double x);
   static double pulseFuncHamming(double x);
@@ -223,7 +249,6 @@ class XPulser : public XPrimaryDriver
     shared_ptr<XComboNode> m_combFunc, m_p1Func, m_p2Func; //!< Pulse Modulation
     shared_ptr<XDoubleNode> m_combLevel, m_p1Level, m_p2Level; //!< [dB], Pulse Modulation
     shared_ptr<XDoubleNode> m_masterLevel; //!< [dB]
-    shared_ptr<XComboNode> m_aswFilter;
     shared_ptr<XDoubleNode> m_portLevel8;
     shared_ptr<XDoubleNode> m_portLevel9;
     shared_ptr<XDoubleNode> m_portLevel10;
@@ -244,6 +269,7 @@ class XPulser : public XPrimaryDriver
     shared_ptr<XDoubleNode> m_qswWidth;
     shared_ptr<XBoolNode> m_qswPiPulseOnly;
     shared_ptr<XBoolNode> m_invertPhase;
+    shared_ptr<XComboNode> m_portSel[NUM_DO_PORTS];
     
   shared_ptr<XNode> m_moreConfigShow;
   xqcon_ptr m_conOutput;
@@ -255,7 +281,6 @@ class XPulser : public XPrimaryDriver
     m_conCombFunc, m_conP1Func, m_conP2Func,
     m_conCombLevel, m_conP1Level, m_conP2Level,
     m_conMasterLevel,
-    m_conASWFilter,
     m_conPortLevel8, m_conPortLevel9, m_conPortLevel10, m_conPortLevel11, m_conPortLevel12, m_conPortLevel13, m_conPortLevel14,
     m_conQAMOffset1, m_conQAMOffset2,
     m_conQAMLevel1, m_conQAMLevel2,
@@ -275,6 +300,10 @@ class XPulser : public XPrimaryDriver
   xqcon_ptr m_conPulserDriver;
     
   void onPulseChanged(const shared_ptr<XValueNodeBase> &);
+
+  //! create RelPatList
+  void rawToRelPat() throw (XRecordError&);
+  
  };
 
 #endif

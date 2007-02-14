@@ -253,8 +253,8 @@ XNMRT1::checkDependency(const shared_ptr<XDriver> &emitter) const {
 	switch(_pulser->combModeRecorded()) {
 	    default:
 	    	return true;
-	    case N_COMB_MODE_COMB_ALT:
-	    case N_COMB_MODE_P1_ALT:
+	    case XPulser::N_COMB_MODE_COMB_ALT:
+	    case XPulser::N_COMB_MODE_P1_ALT:
 	    	if(!_pulse2) {
 	            m_statusPrinter->printError(KAME::i18n("2 Pulse Analyzers needed."));
 		    	return false;
@@ -309,7 +309,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
       switch(_pulser->combModeRecorded()) {
         default:
            throw XRecordError(KAME::i18n("Unknown Comb Mode!"), __FILE__, __LINE__);
-        case N_COMB_MODE_COMB_ALT:
+        case XPulser::N_COMB_MODE_COMB_ALT:
           if(t2mode) throw XRecordError(KAME::i18n("Do not use T2 mode!"), __FILE__, __LINE__);
           ASSERT(_pulse2);
             pt1.p1 = _pulser->combP1Recorded();
@@ -317,7 +317,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
             pt1.isigma2 = 1/(_pulse1->noisePower());
             m_pts.push_back(pt1);
             break;
-        case N_COMB_MODE_P1_ALT:
+        case XPulser::N_COMB_MODE_P1_ALT:
           if(t2mode) 
                 throw XRecordError(KAME::i18n("Do not use T2 mode!"), __FILE__, __LINE__);
           ASSERT(_pulse2);
@@ -330,7 +330,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
             pt2.isigma2 = 1/(_pulse2->noisePower());
             m_pts.push_back(pt2);
             break;
-        case N_COMB_MODE_ON:
+        case XPulser::N_COMB_MODE_ON:
           if(!t2mode) {
                 pt1.p1 = _pulser->combP1Recorded();
                 pt1.c = cmp1;
@@ -339,7 +339,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
                 break;
            }
            m_statusPrinter->printWarning(KAME::i18n("T2 mode with comb pulse!"));
-        case N_COMB_MODE_OFF:
+        case XPulser::N_COMB_MODE_OFF:
            if(!t2mode) {
                      m_statusPrinter->printWarning(KAME::i18n("Do not use T1 mode! Skipping."));
                      throw XSkippedRecordError(__FILE__, __LINE__);
@@ -504,8 +504,8 @@ XNMRT1::onActiveChanged(const shared_ptr<XValueNodeBase> &)
       }
       
         	if(!!_pulse2 && 
-        	((*_pulser->combMode() == N_COMB_MODE_COMB_ALT) ||
-        	(*_pulser->combMode() == N_COMB_MODE_P1_ALT))) {
+        	((*_pulser->combMode() == XPulser::N_COMB_MODE_COMB_ALT) ||
+        	(*_pulser->combMode() == XPulser::N_COMB_MODE_P1_ALT))) {
         		_pulse2->fromTrig()->value(
         						*_pulse1->fromTrig() + *_pulser->altSep());
         		_pulse2->width()->value(*_pulse1->width());

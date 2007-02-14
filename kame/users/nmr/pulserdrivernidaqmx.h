@@ -24,13 +24,15 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
  	 virtual void close() throw (XInterface::XInterfaceError &);
  
     //! send patterns to pulser or turn-off
-    virtual void changeOutput(bool output);
+    virtual void changeOutput(bool output, unsigned int blankpattern);
     //! convert RelPatList to native patterns
     virtual void createNativePatterns();
     //! time resolution [ms]
-    virtual double resolution();
-    //! create RelPatList
-    virtual void rawToRelPat() throw (XRecordError&);
+    virtual double resolution() const;
+    //! minimum period of pulses [ms]
+    virtual double minPulseWidth() const {return resolution();}
+    //! existense of AO ports.
+    virtual bool haveQAMPorts() const;
     
   const shared_ptr<XNIDAQmxInterface> &intfDO() const {return interface();}
   const shared_ptr<XNIDAQmxInterface> &intfAO() const {return m_ao_interface;}    
@@ -43,27 +45,6 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 	
 	void startPulseGen() throw (XInterface::XInterfaceError &);
 	void stopPulseGen();
-
-    //A pettern at absolute time
-    class tpat {
-          public:
-          tpat(double npos, uint32_t newpat, uint32_t nmask) {
-              pos = npos; pat = newpat; mask = nmask;
-          }
-          tpat(const tpat &x) {
-              pos = x.pos; pat = x.pat; mask = x.mask;
-          }
-          double pos;
-          //this pattern bits will be outputted at 'pos'
-          uint32_t pat;
-          //mask bits
-          uint32_t mask;
-          
-  
-        bool operator< (const tpat &y) const {
-              return pos < y.pos;
-        }          
-    }; 
 
 	typedef int16 tRawAO;
 	typedef uInt16 tRawDO;
@@ -83,6 +64,9 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 	unsigned int finiteAOSamps(unsigned int finiteaosamps);
 	unsigned int m_genFiniteAOSamps;
 	unsigned int m_genFiniteAORestSamps;
+	unsigned int m_ctrTrigBit;
+	unsigned int m_pausingBit;
+	
 
 	TaskHandle m_taskAO, m_taskDO,
 		 m_taskDOCtr, m_taskGateCtr,

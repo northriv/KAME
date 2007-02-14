@@ -58,7 +58,7 @@ XQPulserDriverConnector::XQPulserDriverConnector(
     axisy->ticColor()->value(clWhite);
     axisy->labelColor()->value(clWhite);
     axisy->ticLabelColor()->value(clWhite);
-    for(int i=0; i < 16; i++)
+    for(int i=0; i < XPulser::NUM_DO_PORTS; i++)
     {
       shared_ptr<XXYPlot> plot = m_graph->plots()->create<XXYPlot>(
             QString().sprintf("Port%d", i), true, m_graph);
@@ -184,7 +184,7 @@ XQPulserDriverConnector::onPulseChanged(const shared_ptr<XDriver> &)
             m_pTable->setText(i, 1, QString().sprintf("%.4f", it->toappear));
             QString s;
             uint32_t pat = it->pattern;
-            for(int j = 0; j < 16; j++) {
+            for(int j = 0; j < XPulser::NUM_DO_PORTS; j++) {
     //            if(j != 0) s+= ",";
                 s += (pat % 2) ? "1" : "0";
                 pat /= 2;
