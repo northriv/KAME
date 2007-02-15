@@ -28,7 +28,6 @@ XDSO::XDSO(const char *name, bool runtime,
   XPrimaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
   m_average(create<XUIntNode>("Average", false)),
   m_singleSequence(create<XBoolNode>("SingleSequence", false)),
-  m_fetch(create<XBoolNode>("Fetch", false)),
   m_trigSource(create<XComboNode>("TrigSource", true)),
   m_trigPos(create<XDoubleNode>("TrigPos", true)),
   m_trigLevel(create<XDoubleNode>("TrigLevel", true)),
@@ -42,6 +41,7 @@ XDSO::XDSO(const char *name, bool runtime,
   m_forceTrigger(create<XNode>("ForceTrigger", true)),  
   m_trace1(create<XComboNode>("Trace1", false)),
   m_trace2(create<XComboNode>("Trace2", false)),
+  m_fetchMode(create<XComboNode>("FetchMode", false)),
   m_firEnabled(create<XBoolNode>("FIREnabled", false)),
   m_firBandWidth(create<XDoubleNode>("FIRBandWidth", false)),
   m_firCenterFreq(create<XDoubleNode>("FIRCenterFreq", false)),
@@ -51,13 +51,13 @@ XDSO::XDSO(const char *name, bool runtime,
         m_form->m_graphwidget, m_form->m_urlDump, m_form->m_btnDump)),
   m_conAverage(xqcon_create<XQLineEditConnector>(m_average, m_form->m_edAverage)),
   m_conSingle(xqcon_create<XQToggleButtonConnector>(m_singleSequence, m_form->m_ckbSingleSeq)),
-  m_conFetch(xqcon_create<XQToggleButtonConnector>(m_fetch, m_form->m_ckbFetch)),
   m_conTrigSource(xqcon_create<XQComboBoxConnector>(m_trigSource, m_form->m_cmbTrigSource)),
   m_conTrigPos(xqcon_create<XKDoubleNumInputConnector>(m_trigPos, m_form->m_numTrigPos)),
   m_conTrigLevel(xqcon_create<XQLineEditConnector>(m_trigLevel, m_form->m_edTrigLevel)),
   m_conTrigFalling(xqcon_create<XQToggleButtonConnector>(m_trigFalling, m_form->m_ckbTrigFalling)),
   m_conTrace1(xqcon_create<XQComboBoxConnector>(m_trace1, m_form->m_cmbTrace1)),
   m_conTrace2(xqcon_create<XQComboBoxConnector>(m_trace2, m_form->m_cmbTrace2)),
+  m_conFetchMode(xqcon_create<XQComboBoxConnector>(m_fetchMode, m_form->m_cmbFetchMode)),
   m_conTimeWidth(xqcon_create<XQLineEditConnector>(m_timeWidth, m_form->m_edTimeWidth)),
   m_conVFullScale1(xqcon_create<XQComboBoxConnector>(m_vFullScale1, m_form->m_cmbVFS1)),
   m_conVFullScale2(xqcon_create<XQComboBoxConnector>(m_vFullScale2, m_form->m_cmbVFS2)),
@@ -77,7 +77,6 @@ XDSO::XDSO(const char *name, bool runtime,
   m_form->m_numTrigPos->setRange(0.0, 100.0, 1.0, true);
     
   singleSequence()->value(true);
-  fetch()->value(true);
   firBandWidth()->value(1000.0);
   firCenterFreq()->value(.0);
   firSharpness()->value(4.5);
@@ -88,9 +87,16 @@ XDSO::XDSO(const char *name, bool runtime,
   firCenterFreq()->onValueChanged().connect(m_lsnOnCondChanged);
   firSharpness()->onValueChanged().connect(m_lsnOnCondChanged);
   
+  {
+  	const char *modes[] = {"Never", "Averaging", "Sequence", 0L};
+  	for(const char **mode = &modes[0]; *mode; mode++)
+  		fetchMode()->add(*mode);
+  }
+  fetchMode()->value(FETCHMODE_SEQ);
+  
   average()->setUIEnabled(false);
   singleSequence()->setUIEnabled(false);
-  fetch()->setUIEnabled(false);
+//  fetchMode()->setUIEnabled(false);
   timeWidth()->setUIEnabled(false);
   trigSource()->setUIEnabled(false);
   trigPos()->setUIEnabled(false);
@@ -126,7 +132,6 @@ XDSO::start()
   
   average()->setUIEnabled(true);
   singleSequence()->setUIEnabled(true);
-  fetch()->setUIEnabled(true);
   timeWidth()->setUIEnabled(true);
   trigSource()->setUIEnabled(true);
   trigPos()->setUIEnabled(true);
@@ -147,7 +152,6 @@ XDSO::stop()
   
   average()->setUIEnabled(false);
   singleSequence()->setUIEnabled(false);
-  fetch()->setUIEnabled(false);
   timeWidth()->setUIEnabled(false);
   trigSource()->setUIEnabled(false);
   trigPos()->setUIEnabled(false);
@@ -256,21 +260,28 @@ XDSO::execute(const atomic<bool> &terminated)
 
   while(!terminated)
     {
-      
-      msecsleep(4);
+      while(!*fetchMode() || (*fetchMode() == FETCHMODE_NEVER)) {
+	    msecsleep(50);
+      	continue;
+      }
       bool seq_busy = false;
       try {
           int count = acqCount(&seq_busy);
           if(!count) {
                 time_awared = XTime::now();
                 last_count = 0;
-                continue;
-          }
-          if(*singleSequence() && seq_busy) {
+			    msecsleep(0);
                 continue;
           }
           if((count == last_count) && !*singleSequence()) {
+			    msecsleep(0);
                 continue;
+          }
+          if(*fetchMode() == FETCHMODE_SEQ) {
+	          if(*singleSequence() && seq_busy) {
+				    msecsleep(4);
+	                continue;
+	          }
           }
           last_count =  count;
       }
@@ -302,15 +313,17 @@ XDSO::execute(const atomic<bool> &terminated)
       
       finishWritingRaw(time_awared, XTime::now());
 
-      // try/catch exception of communication errors
-      try {
-          startSequence();
-          time_awared = XTime::now();
-      }
-      catch (XKameError &e) {
-          e.print(getLabel());
-          continue;
-      }
+	  if(*singleSequence()) {
+	      // try/catch exception of communication errors
+	      try {
+	          startSequence();
+	          time_awared = XTime::now();
+	      }
+	      catch (XKameError &e) {
+	          e.print(getLabel());
+	          continue;
+	      }
+	  }
     }
 
   m_lsnOnAverageChanged.reset();

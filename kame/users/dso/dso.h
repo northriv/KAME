@@ -45,7 +45,6 @@ class XDSO : public XPrimaryDriver
   const shared_ptr<XUIntNode> &average() const {return m_average;}
   //! If true, pause acquision after averaging count
   const shared_ptr<XBoolNode> &singleSequence() const {return m_singleSequence;}
-  const shared_ptr<XBoolNode> &fetch() const {return m_fetch;}
   const shared_ptr<XComboNode> &trigSource() const {return m_trigSource;}
   const shared_ptr<XDoubleNode> &trigPos() const {return m_trigPos;}
   const shared_ptr<XDoubleNode> &trigLevel() const {return m_trigLevel;}
@@ -60,6 +59,8 @@ class XDSO : public XPrimaryDriver
 
   const shared_ptr<XComboNode> &trace1() const {return m_trace1;}
   const shared_ptr<XComboNode> &trace2() const {return m_trace2;}
+  
+  const shared_ptr<XComboNode> &fetchMode() const {return m_fetchMode;}
   
   const shared_ptr<XBoolNode> &firEnabled() const {return m_firEnabled;}
   const shared_ptr<XDoubleNode> &firBandWidth() const {return m_firBandWidth;} ///< [kHz]
@@ -108,12 +109,13 @@ class XDSO : public XPrimaryDriver
   
   void setRecordDim(unsigned int channels, double startpos, double interval, unsigned int length);
  private:
+  enum {FETCHMODE_NEVER = 0, FETCHMODE_AVG = 1, FETCHMODE_SEQ = 2};
+ 
   const shared_ptr<XWaveNGraph> &waveForm() const {return m_waveForm;}
   
   shared_ptr<XUIntNode> m_average;
   //! If true, pause acquision after averaging count
   shared_ptr<XBoolNode> m_singleSequence;
-  shared_ptr<XBoolNode> m_fetch;
   shared_ptr<XComboNode> m_trigSource;
   shared_ptr<XBoolNode> m_trigFalling;
   shared_ptr<XDoubleNode> m_trigPos;
@@ -127,6 +129,7 @@ class XDSO : public XPrimaryDriver
   shared_ptr<XNode> m_forceTrigger;  
   shared_ptr<XComboNode> m_trace1;
   shared_ptr<XComboNode> m_trace2;
+  shared_ptr<XComboNode> m_fetchMode;
   shared_ptr<XBoolNode> m_firEnabled;
   shared_ptr<XDoubleNode> m_firBandWidth; ///< [kHz]
   shared_ptr<XDoubleNode> m_firCenterFreq; ///< [kHz]
@@ -161,7 +164,7 @@ class XDSO : public XPrimaryDriver
   void onCondChanged(const shared_ptr<XValueNodeBase> &);
   
   xqcon_ptr m_conAverage, m_conSingle, m_conTrace1, m_conTrace2;
-  xqcon_ptr m_conFetch, m_conTimeWidth, m_conVFullScale1, m_conVFullScale2;
+  xqcon_ptr m_conFetchMode, m_conTimeWidth, m_conVFullScale1, m_conVFullScale2;
   xqcon_ptr m_conTrigSource, m_conTrigPos, m_conTrigLevel, m_conTrigFalling;
   xqcon_ptr m_conVOffset1, m_conVOffset2, m_conForceTrigger, m_conRecordLength;
   xqcon_ptr m_conFIREnabled, m_conFIRBandWidth, m_conFIRSharpness, m_conFIRCenterFreq;
