@@ -79,7 +79,7 @@ class XNIDAQmxDriver : public tDriver
  private:
   shared_ptr<XListener> m_lsnOnOpen, m_lsnOnClose;
   
-  shared_ptr<XNIDAQmxInterface> m_interface;
+  const shared_ptr<XNIDAQmxInterface> m_interface;
 };
 template<class tDriver>
 XNIDAQmxDriver<tDriver>::XNIDAQmxDriver(const char *name, bool runtime, 

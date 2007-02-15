@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2007-02-15 04:20+0900\n"
+"POT-Creation-Date: 2007-02-16 02:35+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -120,26 +120,6 @@ msgstr ""
 msgid "Port is not opened."
 msgstr ""
 
-#: driver/comediinterface.cpp:32 driver/comediinterface.cpp:37
-msgid "opening comedi device failed"
-msgstr ""
-
-#: driver/comediinterface.cpp:42 driver/comediinterface.cpp:46
-msgid "opening comedi sub-device failed"
-msgstr ""
-
-#: driver/comediinterface.cpp:50
-msgid "locking comedi sub-device failed"
-msgstr ""
-
-#: driver/comediinterface.cpp:68
-msgid "unlocking comedi sub-device failed"
-msgstr ""
-
-#: driver/comediinterface.cpp:78
-msgid "Comedi comm. failed"
-msgstr ""
-
 #: driver/driver.cpp:6
 msgid "Buffer Underflow."
 msgstr ""
@@ -181,7 +161,7 @@ msgid "ibwrt err"
 msgstr ""
 
 #: driver/gpib.cpp:196 driver/gpib.cpp:257 users/nmr/pulserdriverh8.cpp:140
-#: users/nmr/pulserdriversh.cpp:360
+#: users/nmr/pulserdriversh.cpp:367
 msgid "try to continue"
 msgstr ""
 
@@ -586,19 +566,11 @@ msgstr ""
 msgid "DMM Read Error"
 msgstr ""
 
-#: users/dso/comedidso.cpp:66
-msgid ": Starting driver failed, because"
-msgstr ""
-
-#: users/dso/comedidso.cpp:76
-msgid ": Stopping driver failed, because"
-msgstr ""
-
-#: users/dso/dso.cpp:285
+#: users/dso/dso.cpp:297
 msgid "Select traces!."
 msgstr ""
 
-#: users/dso/dso.cpp:363
+#: users/dso/dso.cpp:377
 msgid "Too small number of taps for FIR filter."
 msgstr ""
 
@@ -829,20 +801,20 @@ msgstr ""
 msgid "Too small resolution."
 msgstr ""
 
-#: users/nmr/pulserdriver.cpp:293 users/nmr/forms/pulserdriverform.cpp:455
-#: users/nmr/forms/pulserdrivermoreform.cpp:773
+#: users/nmr/pulserdriver.cpp:286 users/nmr/forms/pulserdriverform.cpp:455
+#: users/nmr/forms/pulserdrivermoreform.cpp:617
 msgid "Pulser Control"
 msgstr ""
 
-#: users/nmr/pulserdriver.cpp:294
+#: users/nmr/pulserdriver.cpp:287
 msgid "Pulser Control More Config."
 msgstr ""
 
-#: users/nmr/pulserdriver.cpp:673 users/nmr/pulserdriver.cpp:682
+#: users/nmr/pulserdriver.cpp:632 users/nmr/pulserdriver.cpp:641
 msgid "Pulser Turn-Off Failed, because"
 msgstr ""
 
-#: users/nmr/pulserdriver.cpp:722
+#: users/nmr/pulserdriver.cpp:681
 msgid "Pulser Turn-On Failed, because"
 msgstr ""
 
@@ -859,20 +831,16 @@ msgstr ""
 msgid "Pulse Patterns"
 msgstr ""
 
-#: users/nmr/pulserdriverh8.cpp:109 users/nmr/pulserdrivernidaqmx.cpp:770
-#: users/nmr/pulserdriversh.cpp:328
+#: users/nmr/pulserdriverh8.cpp:109 users/nmr/pulserdrivernidaqmx.cpp:827
+#: users/nmr/pulserdriversh.cpp:335
 msgid "Pulser Invalid pattern"
 msgstr ""
 
-#: users/nmr/pulserdriverh8.cpp:136 users/nmr/pulserdriversh.cpp:352
+#: users/nmr/pulserdriverh8.cpp:136 users/nmr/pulserdriversh.cpp:359
 msgid "Pulser Check Sum Error"
 msgstr ""
 
-#: users/nmr/pulserdrivernidaqmx.cpp:107 users/nmr/pulserdrivernidaqmx.cpp:206
-msgid "Insufficient size of NIDAQmx buffer."
-msgstr ""
-
-#: users/nmr/pulserdriversh.cpp:294
+#: users/nmr/pulserdriversh.cpp:301
 msgid "Too long DMA."
 msgstr ""
 
@@ -1167,7 +1135,7 @@ msgstr ""
 msgid " sec"
 msgstr ""
 
-#: graph/forms/graphnurlform.cpp:249 users/dso/forms/dsoform.cpp:409
+#: graph/forms/graphnurlform.cpp:249 users/dso/forms/dsoform.cpp:387
 #: users/montecarlo/forms/montecarloform.cpp:261
 #: users/nmr/forms/nmrfspectrumform.cpp:276
 #: users/nmr/forms/nmrpulseform.cpp:424 users/nmr/forms/nmrrelaxform.cpp:345
@@ -1248,119 +1216,29 @@ msgstr ""
 msgid " ms"
 msgstr ""
 
-#: users/dso/forms/dsoform.cpp:383
+#: users/dso/forms/dsoform.cpp:386
 msgid "DSO Control"
 msgstr ""
 
-#: users/dso/forms/dsoform.cpp:384
-msgid "Fetch Continueous"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:385
-msgid "Single Sequence"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:386
-msgid "Average"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:387
-msgid "Horizontal Setup"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:388 users/nmr/forms/nmrpulseform.cpp:413
-#: users/nmr/forms/nmrpulseform.cpp:421
-#: users/nmr/forms/pulserdrivermoreform.cpp:793
-msgid "Width"
+#: users/dso/forms/dsoform.cpp:388
+msgid "Display Strategy"
 msgstr ""
 
 #: users/dso/forms/dsoform.cpp:389
-msgid "s"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:390
-msgid "Record Length"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:391
-msgid "Trace1"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:392 users/dso/forms/dsoform.cpp:397
-#: users/funcsynth/forms/funcsynthform.cpp:179
-msgid "Offset"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:393 users/dso/forms/dsoform.cpp:398
-#: users/dso/forms/dsoform.cpp:408 users/funcsynth/forms/funcsynthform.cpp:180
-#: users/lia/forms/lockinampform.cpp:135
-#: users/magnetps/forms/magnetpsform.cpp:233
-#: users/nmr/forms/pulserdrivermoreform.cpp:818
-#: users/nmr/forms/pulserdrivermoreform.cpp:820
-#: users/nmr/forms/pulserdrivermoreform.cpp:822
-#: users/nmr/forms/pulserdrivermoreform.cpp:824
-#: users/nmr/forms/pulserdrivermoreform.cpp:826
-#: users/nmr/forms/pulserdrivermoreform.cpp:828
-#: users/nmr/forms/pulserdrivermoreform.cpp:830
-msgid "V"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:394 users/dso/forms/dsoform.cpp:399
-msgid "F.S."
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:395 users/dso/forms/dsoform.cpp:400
-#: users/funcsynth/forms/funcsynthform.cpp:176
-msgid "Vp-p"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:396
-msgid "Trace2"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:401
-msgid "Trigger Setup"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:402
-msgid "Source"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:403
-msgid "Pos."
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:404
-msgid "%"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:405
-msgid "Force Trigger"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:406
-msgid "FallingEdge"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:407
-msgid "Level"
-msgstr ""
-
-#: users/dso/forms/dsoform.cpp:410
 msgid "Digital Filter"
 msgstr ""
 
-#: users/dso/forms/dsoform.cpp:411
+#: users/dso/forms/dsoform.cpp:390
 msgid "FIR filter"
 msgstr ""
 
-#: users/dso/forms/dsoform.cpp:412 users/nmr/forms/nmrfspectrumform.cpp:266
+#: users/dso/forms/dsoform.cpp:391 users/nmr/forms/nmrfspectrumform.cpp:266
 #: users/nmr/forms/nmrrelaxform.cpp:362
 #: users/nmr/forms/nmrspectrumform.cpp:285
 msgid "Band Width"
 msgstr ""
 
-#: users/dso/forms/dsoform.cpp:413 users/dso/forms/dsoform.cpp:416
+#: users/dso/forms/dsoform.cpp:392 users/dso/forms/dsoform.cpp:395
 #: users/nmr/forms/nmrfspectrumform.cpp:263
 #: users/nmr/forms/nmrfspectrumform.cpp:265
 #: users/nmr/forms/nmrfspectrumform.cpp:267
@@ -1371,13 +1249,96 @@ msgstr ""
 msgid "kHz"
 msgstr ""
 
-#: users/dso/forms/dsoform.cpp:414
+#: users/dso/forms/dsoform.cpp:393
 msgid "Sharpness"
 msgstr ""
 
-#: users/dso/forms/dsoform.cpp:415 users/nmr/forms/nmrfspectrumform.cpp:260
+#: users/dso/forms/dsoform.cpp:394 users/nmr/forms/nmrfspectrumform.cpp:260
 #: users/nmr/forms/nmrspectrumform.cpp:283
 msgid "Center Freq"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:396
+msgid "Single Sequence"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:397
+msgid "Average"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:398
+msgid "Horizontal Setup"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:399 users/nmr/forms/nmrpulseform.cpp:413
+#: users/nmr/forms/nmrpulseform.cpp:421
+#: users/nmr/forms/pulserdrivermoreform.cpp:670
+msgid "Width"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:400
+msgid "s"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:401
+msgid "Record Length"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:402
+msgid "Trace1"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:403 users/dso/forms/dsoform.cpp:408
+#: users/funcsynth/forms/funcsynthform.cpp:179
+msgid "Offset"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:404 users/dso/forms/dsoform.cpp:409
+#: users/dso/forms/dsoform.cpp:419 users/funcsynth/forms/funcsynthform.cpp:180
+#: users/lia/forms/lockinampform.cpp:135
+#: users/magnetps/forms/magnetpsform.cpp:233
+msgid "V"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:405 users/dso/forms/dsoform.cpp:410
+msgid "F.S."
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:406 users/dso/forms/dsoform.cpp:411
+#: users/funcsynth/forms/funcsynthform.cpp:176
+msgid "Vp-p"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:407
+msgid "Trace2"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:412
+msgid "Trigger Setup"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:413
+msgid "Source"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:414
+msgid "Pos."
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:415
+msgid "%"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:416
+msgid "Force Trigger"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:417
+msgid "FallingEdge"
+msgstr ""
+
+#: users/dso/forms/dsoform.cpp:418
+msgid "Level"
 msgstr ""
 
 #: users/funcsynth/forms/funcsynthform.cpp:168
@@ -1589,7 +1550,7 @@ msgstr ""
 #: users/nmr/forms/nmrsgcontrolform.cpp:124
 #: users/nmr/forms/nmrsgcontrolform.cpp:126
 #: users/nmr/forms/nmrspectrumform.cpp:284
-#: users/nmr/forms/pulserdrivermoreform.cpp:778
+#: users/nmr/forms/pulserdrivermoreform.cpp:642
 #: users/nmr/forms/signalgeneratorform.cpp:126
 msgid "MHz"
 msgstr ""
@@ -1639,9 +1600,9 @@ msgstr ""
 #: users/nmr/forms/pulserdriverform.cpp:459
 #: users/nmr/forms/pulserdriverform.cpp:481
 #: users/nmr/forms/pulserdriverform.cpp:483
-#: users/nmr/forms/pulserdrivermoreform.cpp:781
-#: users/nmr/forms/pulserdrivermoreform.cpp:783
-#: users/nmr/forms/pulserdrivermoreform.cpp:785
+#: users/nmr/forms/pulserdrivermoreform.cpp:645
+#: users/nmr/forms/pulserdrivermoreform.cpp:647
+#: users/nmr/forms/pulserdrivermoreform.cpp:649
 msgid "ms"
 msgstr ""
 
@@ -1702,7 +1663,7 @@ msgid "Window Func."
 msgstr ""
 
 #: users/nmr/forms/nmrpulseform.cpp:417 users/nmr/forms/nmrrelaxform.cpp:364
-#: users/nmr/forms/pulserdrivermoreform.cpp:787
+#: users/nmr/forms/pulserdrivermoreform.cpp:663
 msgid "Phase"
 msgstr ""
 
@@ -1879,11 +1840,11 @@ msgstr ""
 #: users/nmr/forms/pulserdriverform.cpp:470
 #: users/nmr/forms/pulserdriverform.cpp:485
 #: users/nmr/forms/pulserdriverform.cpp:490
-#: users/nmr/forms/pulserdrivermoreform.cpp:776
-#: users/nmr/forms/pulserdrivermoreform.cpp:792
-#: users/nmr/forms/pulserdrivermoreform.cpp:794
-#: users/nmr/forms/pulserdrivermoreform.cpp:836
-#: users/nmr/forms/pulserdrivermoreform.cpp:838
+#: users/nmr/forms/pulserdrivermoreform.cpp:640
+#: users/nmr/forms/pulserdrivermoreform.cpp:660
+#: users/nmr/forms/pulserdrivermoreform.cpp:662
+#: users/nmr/forms/pulserdrivermoreform.cpp:669
+#: users/nmr/forms/pulserdrivermoreform.cpp:671
 msgid "us"
 msgstr ""
 
@@ -1961,172 +1922,161 @@ msgstr ""
 msgid "Off-Resonance"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:774
-msgid "# in Phase Cycle"
-msgstr ""
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:775
-msgid "Pre-Gate Setup Time"
-msgstr ""
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:777
-msgid "Digital IF Freq."
-msgstr ""
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:779
-msgid "Analog Switch"
-msgstr ""
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:780
-msgid "ASW Hold"
-msgstr ""
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:782
-msgid "ASW Setup"
-msgstr ""
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:784
-msgid "ALT Separation"
-msgstr ""
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:786
-msgid "Induce Emission (Preliminary)"
-msgstr ""
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:789
-msgid " deg."
-msgstr ""
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:790
-msgid "Q-Switch"
-msgstr ""
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:791
-msgid "Delay"
-msgstr ""
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:795
-msgid "Only for pi pulses"
-msgstr ""
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:796
-msgid "Multi-echo (Meiboom-Gill)"
-msgstr ""
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:797
-msgid "Driven Equilibrium"
-msgstr ""
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:798
-msgid "Echo Phase Inversion"
-msgstr ""
-
-#: users/nmr/forms/pulserdrivermoreform.cpp:799
+#: users/nmr/forms/pulserdrivermoreform.cpp:618
 msgid "Port Selector"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:800
+#: users/nmr/forms/pulserdrivermoreform.cpp:619
 msgid "Port0"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:801
+#: users/nmr/forms/pulserdrivermoreform.cpp:620
 msgid "Port1"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:802
+#: users/nmr/forms/pulserdrivermoreform.cpp:621
 msgid "Port2"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:803
+#: users/nmr/forms/pulserdrivermoreform.cpp:622
 msgid "Port3"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:804
+#: users/nmr/forms/pulserdrivermoreform.cpp:623
 msgid "Port4"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:805
+#: users/nmr/forms/pulserdrivermoreform.cpp:624
 msgid "Port5"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:806
+#: users/nmr/forms/pulserdrivermoreform.cpp:625
 msgid "Port6"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:807
+#: users/nmr/forms/pulserdrivermoreform.cpp:626
 msgid "Port7"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:808
-#: users/nmr/forms/pulserdrivermoreform.cpp:817
+#: users/nmr/forms/pulserdrivermoreform.cpp:627
 msgid "Port8"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:809
-#: users/nmr/forms/pulserdrivermoreform.cpp:821
+#: users/nmr/forms/pulserdrivermoreform.cpp:628
 msgid "Port9"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:810
-#: users/nmr/forms/pulserdrivermoreform.cpp:819
+#: users/nmr/forms/pulserdrivermoreform.cpp:629
 msgid "Port10"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:811
-#: users/nmr/forms/pulserdrivermoreform.cpp:823
+#: users/nmr/forms/pulserdrivermoreform.cpp:630
 msgid "Port11"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:812
-#: users/nmr/forms/pulserdrivermoreform.cpp:825
+#: users/nmr/forms/pulserdrivermoreform.cpp:631
 msgid "Port12"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:813
-#: users/nmr/forms/pulserdrivermoreform.cpp:827
+#: users/nmr/forms/pulserdrivermoreform.cpp:632
 msgid "Port13"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:814
-#: users/nmr/forms/pulserdrivermoreform.cpp:829
+#: users/nmr/forms/pulserdrivermoreform.cpp:633
 msgid "Port14"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:815
+#: users/nmr/forms/pulserdrivermoreform.cpp:634
 msgid "Port15"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:816
-msgid "Analog Pulse Level"
+#: users/nmr/forms/pulserdrivermoreform.cpp:635
+msgid "# in Phase Cycle"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:831
-msgid "QAM Level Tuning"
+#: users/nmr/forms/pulserdrivermoreform.cpp:636
+msgid "Echo Phase Inversion"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:832
-#: users/nmr/forms/pulserdrivermoreform.cpp:835
-#: users/nmr/forms/pulserdrivermoreform.cpp:840
-msgid "Port I"
+#: users/nmr/forms/pulserdrivermoreform.cpp:637
+msgid "Multi-echo (Meiboom-Gill)"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:833
-#: users/nmr/forms/pulserdrivermoreform.cpp:837
-#: users/nmr/forms/pulserdrivermoreform.cpp:842
-msgid "Port Q"
+#: users/nmr/forms/pulserdrivermoreform.cpp:638
+msgid "Driven Equilibrium"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:834
-msgid "QAM Delay Tuning"
+#: users/nmr/forms/pulserdrivermoreform.cpp:639
+msgid "Pre-Gate Setup Time"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:839
+#: users/nmr/forms/pulserdrivermoreform.cpp:641
+msgid "Digital IF Freq."
+msgstr ""
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:643
+msgid "Analog Switch"
+msgstr ""
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:644
+msgid "ASW Hold"
+msgstr ""
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:646
+msgid "ASW Setup"
+msgstr ""
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:648
+msgid "ALT Separation"
+msgstr ""
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:650
 msgid "QAM DC Offset"
 msgstr ""
 
-#: users/nmr/forms/pulserdrivermoreform.cpp:841
-#: users/nmr/forms/pulserdrivermoreform.cpp:843
+#: users/nmr/forms/pulserdrivermoreform.cpp:651
+#: users/nmr/forms/pulserdrivermoreform.cpp:656
+#: users/nmr/forms/pulserdrivermoreform.cpp:659
+msgid "Port I"
+msgstr ""
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:652
+#: users/nmr/forms/pulserdrivermoreform.cpp:654
 msgid "%<font size=\"-1\">F.S.</font>"
+msgstr ""
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:653
+#: users/nmr/forms/pulserdrivermoreform.cpp:657
+#: users/nmr/forms/pulserdrivermoreform.cpp:661
+msgid "Port Q"
+msgstr ""
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:655
+msgid "QAM Level Tuning"
+msgstr ""
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:658
+msgid "QAM Delay Tuning"
+msgstr ""
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:665
+msgid " deg."
+msgstr ""
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:666
+msgid "Induce Emission (Preliminary)"
+msgstr ""
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:667
+msgid "Q-Switch"
+msgstr ""
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:668
+msgid "Delay"
+msgstr ""
+
+#: users/nmr/forms/pulserdrivermoreform.cpp:672
+msgid "Only for pi pulses"
 msgstr ""
 
 #: users/nmr/forms/signalgeneratorform.cpp:120

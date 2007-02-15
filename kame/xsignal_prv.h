@@ -27,7 +27,7 @@ class _XListenerStatic : public _XListenerImpl<Arg>
      (*m_func)(x);
   }
  private:
-  void (*m_func)(const Arg &);
+  void (*const m_func)(const Arg &);
 };
 template <class tClass, class Arg>
 class _XListenerWeak : public _XListenerImpl<Arg>
@@ -44,8 +44,8 @@ class _XListenerWeak : public _XListenerImpl<Arg>
      if(shared_ptr<tClass> p = m_obj.lock() ) ((p.get())->*m_func)(x);
   }
  private:
-  void (tClass::*m_func)(const Arg &);
-  weak_ptr<tClass> m_obj;
+  void (tClass::*const m_func)(const Arg &);
+  const weak_ptr<tClass> m_obj;
 };
 template <class tClass, class Arg>
 class _XListenerShared : public _XListenerImpl<Arg>
@@ -61,7 +61,7 @@ class _XListenerShared : public _XListenerImpl<Arg>
   virtual void operator() (const Arg &x) const {((m_obj.get())->*m_func)(x);}
  private:
   void (tClass::*m_func)(const Arg &);
-  shared_ptr<tClass> m_obj;
+  const shared_ptr<tClass> m_obj;
 };
 
 #endif /*XSIGNAL_PRV_H_*/

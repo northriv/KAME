@@ -54,21 +54,21 @@ class XLIA : public XPrimaryDriver
   virtual void changeSensitivity(int) = 0;
   virtual void changeTimeConst(int) = 0;
  private:
-  shared_ptr<XScalarEntry> m_valueX, m_valueY;
+  const shared_ptr<XScalarEntry> m_valueX, m_valueY;
  
-  shared_ptr<XDoubleNode> m_output;
-  shared_ptr<XDoubleNode> m_frequency;
-  shared_ptr<XComboNode> m_sensitivity;
-  shared_ptr<XComboNode> m_timeConst;
-  shared_ptr<XBoolNode> m_autoScaleX;
-  shared_ptr<XBoolNode> m_autoScaleY;
-  shared_ptr<XDoubleNode> m_fetchFreq; //Data Acquision Frequency to Time Constant
+  const shared_ptr<XDoubleNode> m_output;
+  const shared_ptr<XDoubleNode> m_frequency;
+  const shared_ptr<XComboNode> m_sensitivity;
+  const shared_ptr<XComboNode> m_timeConst;
+  const shared_ptr<XBoolNode> m_autoScaleX;
+  const shared_ptr<XBoolNode> m_autoScaleY;
+  const shared_ptr<XDoubleNode> m_fetchFreq; //Data Acquision Frequency to Time Constant
   shared_ptr<XListener> m_lsnOutput, m_lsnSens, m_lsnTimeConst, m_lsnFreq;
   xqcon_ptr m_conSens, m_conTimeConst, m_conOutput, m_conFreq;
   xqcon_ptr m_conAutoScaleX, m_conAutoScaleY, m_conFetchFreq;
  
   shared_ptr<XThread<XLIA> > m_thread;
-  qshared_ptr<FrmLIA> m_form;
+  const qshared_ptr<FrmLIA> m_form;
   
   void onOutputChanged(const shared_ptr<XValueNodeBase> &);
   void onFreqChanged(const shared_ptr<XValueNodeBase> &);

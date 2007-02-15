@@ -26,7 +26,7 @@ class XEntryListConnector : public XListQConnector
  protected slots:
     void clicked ( int row, int col, int button, const QPoint& );
  private:
-  shared_ptr<XChartList> m_chartList;
+  const shared_ptr<XChartList> m_chartList;
 
   struct tcons {
       struct tlisttext {

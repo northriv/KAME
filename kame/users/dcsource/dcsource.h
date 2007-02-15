@@ -50,16 +50,16 @@ class XDCSource : public XPrimaryDriver
  private:
  
   xqcon_ptr m_conFunction, m_conOutput, m_conValue;
-  shared_ptr<XComboNode> m_function;
-  shared_ptr<XBoolNode> m_output;
-  shared_ptr<XDoubleNode> m_value;
+  const shared_ptr<XComboNode> m_function;
+  const shared_ptr<XBoolNode> m_output;
+  const shared_ptr<XDoubleNode> m_value;
   shared_ptr<XListener> m_lsnFunction, m_lsnOutput, m_lsnValue;
   
   virtual void onFunctionChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onOutputChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onValueChanged(const shared_ptr<XValueNodeBase> &);
   
-  qshared_ptr<FrmDCSource> m_form;
+  const qshared_ptr<FrmDCSource> m_form;
 };
 
 

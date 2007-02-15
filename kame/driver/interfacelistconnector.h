@@ -30,7 +30,7 @@ class XInterfaceListConnector : public XListQConnector
   typedef std::deque<tcons> tconslist;
   tconslist m_cons;
 
-  shared_ptr<XInterfaceList> m_interfaceList;
+  const shared_ptr<XInterfaceList> m_interfaceList;
   void onControlChanged(const shared_ptr<XValueNodeBase> &);
 };
 

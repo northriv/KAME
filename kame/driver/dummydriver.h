@@ -44,7 +44,7 @@ class XDummyDriver : public tDriver
   shared_ptr<XListener> m_lsnOnOpen, m_lsnOnClose;
   void onOpen(const shared_ptr<XInterface> &);
   void onClose(const shared_ptr<XInterface> &);
-  shared_ptr<XDummyInterface> m_interface;
+  const shared_ptr<XDummyInterface> m_interface;
 };
 
 template<class tDriver>

@@ -61,18 +61,18 @@ class XNMRSpectrum : public XSecondaryDriver
   //! field of the first point
   double hMin() const {return m_hMin;}
  private:
-  shared_ptr<XItemNode<XDriverList, XNMRPulseAnalyzer> > m_pulse;
-  shared_ptr<XItemNode<XDriverList, XMagnetPS> > m_magnet;
+  const shared_ptr<XItemNode<XDriverList, XNMRPulseAnalyzer> > m_pulse;
+  const shared_ptr<XItemNode<XDriverList, XMagnetPS> > m_magnet;
  
-  shared_ptr<XDoubleNode> m_centerFreq;
-  shared_ptr<XDoubleNode> m_bandWidth;
-  shared_ptr<XDoubleNode> m_resolution;
-  shared_ptr<XDoubleNode> m_fieldFactor;
-  shared_ptr<XDoubleNode> m_residualField;
-  shared_ptr<XDoubleNode> m_fieldMin;
-  shared_ptr<XDoubleNode> m_fieldMax;
+  const shared_ptr<XDoubleNode> m_centerFreq;
+  const shared_ptr<XDoubleNode> m_bandWidth;
+  const shared_ptr<XDoubleNode> m_resolution;
+  const shared_ptr<XDoubleNode> m_fieldFactor;
+  const shared_ptr<XDoubleNode> m_residualField;
+  const shared_ptr<XDoubleNode> m_fieldMin;
+  const shared_ptr<XDoubleNode> m_fieldMax;
 
-  shared_ptr<XNode> m_clear;
+  const shared_ptr<XNode> m_clear;
   
   //! Records
   std::deque<int> m_counts;
@@ -81,9 +81,9 @@ class XNMRSpectrum : public XSecondaryDriver
 
   shared_ptr<XListener> m_lsnOnClear, m_lsnOnCondChanged;
     
-  qshared_ptr<FrmNMRSpectrum> m_form;
+  const qshared_ptr<FrmNMRSpectrum> m_form;
 
-  shared_ptr<XWaveNGraph> m_spectrum;
+  const shared_ptr<XWaveNGraph> m_spectrum;
 
   xqcon_ptr m_conCenterFreq, m_conBandWidth, m_conResolution,
     m_conFieldFactor, m_conResidualField, m_conFieldMin, m_conFieldMax;

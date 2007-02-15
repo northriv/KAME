@@ -54,21 +54,21 @@ class XFuncSynth : public XPrimaryDriver
   virtual void onPhaseChanged(const shared_ptr<XValueNodeBase> &) = 0;
   virtual void onOffsetChanged(const shared_ptr<XValueNodeBase> &) = 0;
  private:
-  shared_ptr<XBoolNode>  m_output;
-  shared_ptr<XNode>  m_trig;
-  shared_ptr<XComboNode>  m_mode;
-  shared_ptr<XComboNode>  m_function;
-  shared_ptr<XDoubleNode>  m_freq;
-  shared_ptr<XDoubleNode>  m_amp;
-  shared_ptr<XDoubleNode>  m_phase;
-  shared_ptr<XDoubleNode>  m_offset;
+  const shared_ptr<XBoolNode>  m_output;
+  const shared_ptr<XNode>  m_trig;
+  const shared_ptr<XComboNode>  m_mode;
+  const shared_ptr<XComboNode>  m_function;
+  const shared_ptr<XDoubleNode>  m_freq;
+  const shared_ptr<XDoubleNode>  m_amp;
+  const shared_ptr<XDoubleNode>  m_phase;
+  const shared_ptr<XDoubleNode>  m_offset;
   shared_ptr<XListener> m_lsnOutput, m_lsnMode, m_lsnFunction,
          m_lsnFreq, m_lsnAmp, m_lsnPhase, m_lsnOffset;
   shared_ptr<XListener> m_lsnTrig;
   xqcon_ptr m_conOutput, m_conTrig, m_conMode, m_conFunction,
          m_conFreq, m_conAmp, m_conPhase, m_conOffset;
 
-  qshared_ptr<FrmFuncSynth> m_form;
+  const qshared_ptr<FrmFuncSynth> m_form;
 };
 
 #endif

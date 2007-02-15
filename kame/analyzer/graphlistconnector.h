@@ -25,10 +25,10 @@ class XGraphListConnector : public XListQConnector
  protected slots:
   void clicked ( int row, int col, int button, const QPoint& );
  private:
-  shared_ptr<XGraphList> m_graphlist;
+  const shared_ptr<XGraphList> m_graphlist;
   
-  shared_ptr<XNode> m_newGraph;
-  shared_ptr<XNode> m_deleteGraph;
+  const shared_ptr<XNode> m_newGraph;
+  const shared_ptr<XNode> m_deleteGraph;
   struct tcons {
     xqcon_ptr conx, cony1, conz;
     shared_ptr<XNode> node;
@@ -38,7 +38,7 @@ class XGraphListConnector : public XListQConnector
   tconslist m_cons;
     
   
-  xqcon_ptr m_conNewGraph, m_conDeleteGraph;
+  const xqcon_ptr m_conNewGraph, m_conDeleteGraph;
   shared_ptr<XListener> m_lsnNewGraph, m_lsnDeleteGraph;
   
   void onNewGraph (const shared_ptr<XNode> &);

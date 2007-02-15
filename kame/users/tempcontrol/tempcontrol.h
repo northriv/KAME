@@ -94,17 +94,17 @@ class XTempControl : public XPrimaryDriver
   virtual void onExcitationChanged(const shared_ptr<XValueNodeBase> &) = 0;
 
  private:
-  shared_ptr<XChannelList> m_channels;
-  shared_ptr<XItemNode<XChannelList, XChannel> > m_currentChannel;
-  shared_ptr<XItemNode<XChannelList, XChannel> > m_setupChannel;
-  shared_ptr<XDoubleNode> m_targetTemp;
-  shared_ptr<XDoubleNode> m_manualPower;
-  shared_ptr<XDoubleNode> m_prop, m_int, m_deriv;
-  shared_ptr<XComboNode> m_heaterMode;
-  shared_ptr<XComboNode> m_powerRange;
-  shared_ptr<XDoubleNode> m_heaterPower, m_sourceTemp;
+  const shared_ptr<XChannelList> m_channels;
+  const shared_ptr<XItemNode<XChannelList, XChannel> > m_currentChannel;
+  const shared_ptr<XItemNode<XChannelList, XChannel> > m_setupChannel;
+  const shared_ptr<XDoubleNode> m_targetTemp;
+  const shared_ptr<XDoubleNode> m_manualPower;
+  const shared_ptr<XDoubleNode> m_prop, m_int, m_deriv;
+  const shared_ptr<XComboNode> m_heaterMode;
+  const shared_ptr<XComboNode> m_powerRange;
+  const shared_ptr<XDoubleNode> m_heaterPower, m_sourceTemp;
   //! holds an averaged error between target temp and actual one
-  shared_ptr<XDoubleNode> m_stabilized;
+  const shared_ptr<XDoubleNode> m_stabilized;
   
   shared_ptr<XListener> m_lsnOnPChanged, m_lsnOnIChanged, m_lsnOnDChanged,
     m_lsnOnTargetTempChanged, m_lsnOnManualPowerChanged, m_lsnOnHeaterModeChanged,
@@ -113,19 +113,19 @@ class XTempControl : public XPrimaryDriver
 
   void onSetupChannelChanged(const shared_ptr<XValueNodeBase> &);
 
+  std::deque<shared_ptr<XScalarEntry> > m_entry_temps;
+  std::deque<shared_ptr<XScalarEntry> > m_entry_raws;
+ 
+  shared_ptr<XThread<XTempControl> > m_thread;
+  const qshared_ptr<FrmTempControl> m_form;
+  bool m_multiread;
+
   xqcon_ptr m_conCurrentChannel, m_conSetupChannel,
     m_conHeaterMode, m_conPowerRange,
     m_conExcitation, m_conThermometer;
   xqcon_ptr m_conTargetTemp, m_conManualPower, m_conP, m_conI, m_conD;
   xqcon_ptr m_conHeater;
   xqcon_ptr m_conTemp;
-  
-  std::deque<shared_ptr<XScalarEntry> > m_entry_temps;
-  std::deque<shared_ptr<XScalarEntry> > m_entry_raws;
- 
-  shared_ptr<XThread<XTempControl> > m_thread;
-  qshared_ptr<FrmTempControl> m_form;
-  bool m_multiread;
    
   void *execute(const atomic<bool> &);
   

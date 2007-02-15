@@ -51,17 +51,17 @@ class XMeasure : public XNode
  private:
   shared_ptr<XRuby> m_ruby;
  
-  shared_ptr<XThermometerList> m_thermometers;
-  shared_ptr<XScalarEntryList> m_scalarEntries;
-  shared_ptr<XGraphList> m_graphList;
-  shared_ptr<XChartList> m_chartList;
-  shared_ptr<XInterfaceList> m_interfaces;
-  shared_ptr<XDriverList> m_drivers;
-  shared_ptr<XTextWriter> m_textWriter;
-  shared_ptr<XRawStreamRecorder> m_rawStreamRecorder;
-  shared_ptr<XRawStreamRecordReader> m_rawStreamRecordReader;
+  const shared_ptr<XThermometerList> m_thermometers;
+  const shared_ptr<XScalarEntryList> m_scalarEntries;
+  const shared_ptr<XGraphList> m_graphList;
+  const shared_ptr<XChartList> m_chartList;
+  const shared_ptr<XInterfaceList> m_interfaces;
+  const shared_ptr<XDriverList> m_drivers;
+  const shared_ptr<XTextWriter> m_textWriter;
+  const shared_ptr<XRawStreamRecorder> m_rawStreamRecorder;
+  const shared_ptr<XRawStreamRecordReader> m_rawStreamRecordReader;
   
-  xqcon_ptr m_conRecordReader,
+  const xqcon_ptr m_conRecordReader,
    m_conDrivers, m_conInterfaces, m_conEntries, m_conGraphs,
    m_conTextWrite, m_conTextURL, m_conTextLastLine,
    m_conBinURL, m_conBinWrite, m_conUrlRubyThread,

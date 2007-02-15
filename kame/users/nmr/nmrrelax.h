@@ -85,27 +85,27 @@ class XNMRT1 : public XSecondaryDriver
  friend class XRelaxFuncPlot;
  
   //! Holds 1/T1 or 1/T2 and its std. deviation
-  shared_ptr<XScalarEntry> m_t1inv;
-  shared_ptr<XScalarEntry> m_t1invErr;
+  const shared_ptr<XScalarEntry> m_t1inv;
+  const shared_ptr<XScalarEntry> m_t1invErr;
 
-  shared_ptr<XItemNode < XDriverList, XPulser > > m_pulser;
-  shared_ptr<XItemNode < XDriverList, XNMRPulseAnalyzer > > m_pulse1;
-  shared_ptr<XItemNode < XDriverList, XNMRPulseAnalyzer > > m_pulse2;
+  const shared_ptr<XItemNode < XDriverList, XPulser > > m_pulser;
+  const shared_ptr<XItemNode < XDriverList, XNMRPulseAnalyzer > > m_pulse1;
+  const shared_ptr<XItemNode < XDriverList, XNMRPulseAnalyzer > > m_pulse2;
 
-  shared_ptr<XBoolNode> m_active;
-  shared_ptr<XBoolNode> m_autoPhase;
-  shared_ptr<XBoolNode> m_absFit;
-  shared_ptr<XDoubleNode> m_p1Min;
-  shared_ptr<XDoubleNode> m_p1Max;
-  shared_ptr<XDoubleNode> m_phase;
-  shared_ptr<XDoubleNode> m_freq;
-  shared_ptr<XDoubleNode> m_bandWidth;
-  shared_ptr<XBoolNode> m_t2Mode;
-  shared_ptr<XUIntNode> m_smoothSamples;
-  shared_ptr<XComboNode> m_p1Dist;
-  shared_ptr<XItemNode < XRelaxFuncList, XRelaxFunc > >  m_relaxFunc;
-  shared_ptr<XNode> m_resetFit, m_clearAll;
-  shared_ptr<XStringNode> m_fitStatus;
+  const shared_ptr<XBoolNode> m_active;
+  const shared_ptr<XBoolNode> m_autoPhase;
+  const shared_ptr<XBoolNode> m_absFit;
+  const shared_ptr<XDoubleNode> m_p1Min;
+  const shared_ptr<XDoubleNode> m_p1Max;
+  const shared_ptr<XDoubleNode> m_phase;
+  const shared_ptr<XDoubleNode> m_freq;
+  const shared_ptr<XDoubleNode> m_bandWidth;
+  const shared_ptr<XBoolNode> m_t2Mode;
+  const shared_ptr<XUIntNode> m_smoothSamples;
+  const shared_ptr<XComboNode> m_p1Dist;
+  const shared_ptr<XItemNode < XRelaxFuncList, XRelaxFunc > >  m_relaxFunc;
+  const shared_ptr<XNode> m_resetFit, m_clearAll;
+  const shared_ptr<XStringNode> m_fitStatus;
 
   //! For fitting and display
   struct Pt
@@ -151,11 +151,11 @@ class XNMRT1 : public XSecondaryDriver
   //! Store reduced points to manage fitting and display
   std::deque< Pt > m_sumpts;
 
-  qshared_ptr<FrmNMRT1> m_form;
-  shared_ptr<XStatusPrinter> m_statusPrinter;
+  const qshared_ptr<FrmNMRT1> m_form;
+  const shared_ptr<XStatusPrinter> m_statusPrinter;
   //! Store reduced points
   //! \sa m_pt, m_sumpts
-  shared_ptr<XWaveNGraph> m_wave;
+  const shared_ptr<XWaveNGraph> m_wave;
 
   double m_params[3]; //!< fitting parameters; 1/T1, c, a; ex. f(t) = c*exp(-t/T1) + a
   double m_errors[3]; //!< std. deviations

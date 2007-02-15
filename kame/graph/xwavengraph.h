@@ -70,14 +70,14 @@ class XWaveNGraph : public XNode
   void init();
   void drawGraph();
 
-  QPushButton *m_btnDump;
+  QPushButton *const m_btnDump;
   
-  shared_ptr<XGraph> m_graph;
+  const shared_ptr<XGraph> m_graph;
   shared_ptr<XXYPlot> m_plot1, m_plot2;
   shared_ptr<XAxis> m_axisx, m_axisy, m_axisy2, m_axisw, m_axisz;
   
-  shared_ptr<XNode> m_dump;
-  shared_ptr<XStringNode> m_filename;
+  const shared_ptr<XNode> m_dump;
+  const shared_ptr<XStringNode> m_filename;
 
   shared_ptr<XListener> m_lsnOnDumpTouched, m_lsnOnFilenameChanged;
 

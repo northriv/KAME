@@ -41,12 +41,12 @@ class XRawStreamRecordReader : public XRawStream
     QString name;
   };
  
-  shared_ptr<XComboNode> m_speed;
-  shared_ptr<XBoolNode> m_fastForward;
-  shared_ptr<XBoolNode> m_rewind;
-  shared_ptr<XNode> m_stop;
-  shared_ptr<XNode> m_first, m_next, m_back;
-  shared_ptr<XStringNode> m_posString;
+  const shared_ptr<XComboNode> m_speed;
+  const shared_ptr<XBoolNode> m_fastForward;
+  const shared_ptr<XBoolNode> m_rewind;
+  const shared_ptr<XNode> m_stop;
+  const shared_ptr<XNode> m_first, m_next, m_back;
+  const shared_ptr<XStringNode> m_posString;
   void onPlayCondChanged(const shared_ptr<XValueNodeBase> &);
   void onStop(const shared_ptr<XNode> &);
   void onFirst(const shared_ptr<XNode> &);

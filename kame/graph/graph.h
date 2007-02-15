@@ -133,16 +133,16 @@ class XGraph : public XNode
   bool m_bUpdateScheduled;
   XRecursiveRWLock m_graphLock;
 
-  shared_ptr<XStringNode> m_label;
+  const shared_ptr<XStringNode> m_label;
   shared_ptr<XListener> m_lsnPropertyChanged;
   
-  shared_ptr<XAxisList> m_axes;
-  shared_ptr<XPlotList> m_plots; 
+  const shared_ptr<XAxisList> m_axes;
+  const shared_ptr<XPlotList> m_plots; 
 
-  shared_ptr<XHexNode> m_backGround;
-  shared_ptr<XHexNode> m_titleColor;
+  const shared_ptr<XHexNode> m_backGround;
+  const shared_ptr<XHexNode> m_titleColor;
 
-  shared_ptr<XDoubleNode> m_persistence;
+  const shared_ptr<XDoubleNode> m_persistence;
   XTalker<shared_ptr<XGraph> > m_tlkOnUpdate;
 };
 
@@ -187,8 +187,8 @@ class XPlot : public XNode
   const shared_ptr<XItemNode<XAxisList, XAxis> > &axisZ() const {return m_axisZ;}
   const shared_ptr<XItemNode<XAxisList, XAxis> > &axisW() const {return m_axisW;}
   //! z value without AxisZ
-  shared_ptr<XDoubleNode> zwoAxisZ() {return m_zwoAxisZ;}
-  shared_ptr<XDoubleNode> intensity() {return m_intensity;}
+  const shared_ptr<XDoubleNode> &zwoAxisZ() const {return m_zwoAxisZ;}
+  const shared_ptr<XDoubleNode> &intensity() const {return m_intensity;}
 
   //! auto-scale
   virtual int validateAutoScale();
@@ -207,7 +207,7 @@ class XPlot : public XNode
   bool trylock();
   void unlock();
  protected:
-  weak_ptr<XGraph> m_graph;
+  const weak_ptr<XGraph> m_graph;
   shared_ptr<XAxis> m_curAxisX, m_curAxisY, m_curAxisZ, m_curAxisW;
 
   virtual int setMaxCount(unsigned int count) = 0;
@@ -225,30 +225,30 @@ class XPlot : public XNode
     XGraph::GPoint graph; XGraph::ScrPoint scr; bool insidecube; unsigned int color;
   };
   
-  shared_ptr<XStringNode> m_label;
+  const shared_ptr<XStringNode> m_label;
   
-  shared_ptr<XUIntNode> m_maxCount;
-  shared_ptr<XBoolNode> m_displayMajorGrid;
-  shared_ptr<XBoolNode> m_displayMinorGrid;
-  shared_ptr<XBoolNode> m_drawLines;
-  shared_ptr<XBoolNode> m_drawBars;
-  shared_ptr<XBoolNode> m_drawPoints;
-  shared_ptr<XBoolNode> m_colorPlot;
-  shared_ptr<XHexNode> m_majorGridColor;
-  shared_ptr<XHexNode> m_minorGridColor;
-  shared_ptr<XHexNode> m_pointColor;
-  shared_ptr<XHexNode> m_lineColor;
-  shared_ptr<XHexNode> m_barColor;//, BarInnerColor;
-  shared_ptr<XHexNode> m_colorPlotColorHigh;
-  shared_ptr<XHexNode> m_colorPlotColorLow;
-  shared_ptr<XNode> m_clearPoints;
-  shared_ptr<XItemNode<XAxisList, XAxis> > m_axisX;
-  shared_ptr<XItemNode<XAxisList, XAxis> > m_axisY;
-  shared_ptr<XItemNode<XAxisList, XAxis> > m_axisZ;
-  shared_ptr<XItemNode<XAxisList, XAxis> > m_axisW;
+  const shared_ptr<XUIntNode> m_maxCount;
+  const shared_ptr<XBoolNode> m_displayMajorGrid;
+  const shared_ptr<XBoolNode> m_displayMinorGrid;
+  const shared_ptr<XBoolNode> m_drawLines;
+  const shared_ptr<XBoolNode> m_drawBars;
+  const shared_ptr<XBoolNode> m_drawPoints;
+  const shared_ptr<XBoolNode> m_colorPlot;
+  const shared_ptr<XHexNode> m_majorGridColor;
+  const shared_ptr<XHexNode> m_minorGridColor;
+  const shared_ptr<XHexNode> m_pointColor;
+  const shared_ptr<XHexNode> m_lineColor;
+  const shared_ptr<XHexNode> m_barColor;//, BarInnerColor;
+  const shared_ptr<XHexNode> m_colorPlotColorHigh;
+  const shared_ptr<XHexNode> m_colorPlotColorLow;
+  const shared_ptr<XNode> m_clearPoints;
+  const shared_ptr<XItemNode<XAxisList, XAxis> > m_axisX;
+  const shared_ptr<XItemNode<XAxisList, XAxis> > m_axisY;
+  const shared_ptr<XItemNode<XAxisList, XAxis> > m_axisZ;
+  const shared_ptr<XItemNode<XAxisList, XAxis> > m_axisW;
   //! z value without AxisZ
-  shared_ptr<XDoubleNode> m_zwoAxisZ;
-  shared_ptr<XDoubleNode> m_intensity;
+  const shared_ptr<XDoubleNode> m_zwoAxisZ;
+  const shared_ptr<XDoubleNode> m_intensity;
   
   shared_ptr<XListener> m_lsnMaxCount;
   shared_ptr<XListener> m_lsnClearPoints;
@@ -352,35 +352,35 @@ class XAxis : public XNode
   AxisDirection m_direction;
   XGraph::ScrPoint m_dirVector;
   
-  weak_ptr<XGraph> m_graph;
+  const weak_ptr<XGraph> m_graph;
   
   void _startAutoscale(bool clearscale);
   void drawLabel(XQGraphPainter *painter);
   void autoFreq(float resolution);
   
-  shared_ptr<XStringNode> m_label;
+  const shared_ptr<XStringNode> m_label;
     
-  shared_ptr<XDoubleNode> m_x;
-  shared_ptr<XDoubleNode> m_y;
-  shared_ptr<XDoubleNode> m_z; // in screen coordinate
-  shared_ptr<XDoubleNode> m_length; // in screen coordinate
-  shared_ptr<XDoubleNode> m_majorTicScale;
-  shared_ptr<XDoubleNode> m_minorTicScale;
-  shared_ptr<XBoolNode> m_displayMajorTics;
-  shared_ptr<XBoolNode> m_displayMinorTics;
-  shared_ptr<XDoubleNode> m_max;
-  shared_ptr<XDoubleNode> m_min;
-  shared_ptr<XBoolNode> m_rightOrTopSided; //sit on right, top
+  const shared_ptr<XDoubleNode> m_x;
+  const shared_ptr<XDoubleNode> m_y;
+  const shared_ptr<XDoubleNode> m_z; // in screen coordinate
+  const shared_ptr<XDoubleNode> m_length; // in screen coordinate
+  const shared_ptr<XDoubleNode> m_majorTicScale;
+  const shared_ptr<XDoubleNode> m_minorTicScale;
+  const shared_ptr<XBoolNode> m_displayMajorTics;
+  const shared_ptr<XBoolNode> m_displayMinorTics;
+  const shared_ptr<XDoubleNode> m_max;
+  const shared_ptr<XDoubleNode> m_min;
+  const shared_ptr<XBoolNode> m_rightOrTopSided; //sit on right, top
 
-  shared_ptr<XStringNode> m_ticLabelFormat;
-  shared_ptr<XBoolNode> m_displayLabel;
-  shared_ptr<XBoolNode> m_displayTicLabels;
-  shared_ptr<XHexNode> m_ticColor;
-  shared_ptr<XHexNode> m_labelColor;
-  shared_ptr<XHexNode> m_ticLabelColor;
-  shared_ptr<XBoolNode> m_autoFreq;
-  shared_ptr<XBoolNode> m_autoScale;
-  shared_ptr<XBoolNode> m_logScale;
+  const shared_ptr<XStringNode> m_ticLabelFormat;
+  const shared_ptr<XBoolNode> m_displayLabel;
+  const shared_ptr<XBoolNode> m_displayTicLabels;
+  const shared_ptr<XHexNode> m_ticColor;
+  const shared_ptr<XHexNode> m_labelColor;
+  const shared_ptr<XHexNode> m_ticLabelColor;
+  const shared_ptr<XBoolNode> m_autoFreq;
+  const shared_ptr<XBoolNode> m_autoScale;
+  const shared_ptr<XBoolNode> m_logScale;
   
   XGraph::VFloat m_minFixed, m_maxFixed;
   XGraph::VFloat m_majorFixed, m_minorFixed;

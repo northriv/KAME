@@ -72,7 +72,7 @@ class XNIDAQMSeriesWithSSeriesPulser : public XNIDAQmxPulser
 	virtual const shared_ptr<XNIDAQmxInterface> &intfCtr() const {return m_ctr_interface;} 
  private:
  
-	shared_ptr<XNIDAQmxInterface> m_ao_interface;
+	const shared_ptr<XNIDAQmxInterface> m_ao_interface;
 	shared_ptr<XNIDAQmxInterface> m_ctr_interface;
 	shared_ptr<XListener> m_lsnOnOpenAO, m_lsnOnCloseAO;
 	void onOpenAO(const shared_ptr<XInterface> &);

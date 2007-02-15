@@ -6,14 +6,12 @@ XThreadLocal<std::deque<shared_ptr<XNode> > > XNode::stl_thisCreating;
 
 //---------------------------------------------------------------------------
 XNode::XNode(const char *name, bool runtime)
- : m_children()
+ : m_children(), m_name(name ? name : ""), m_bRunTime(runtime)
 {
      // temporaly shared_ptr to be able to use shared_from_this() in constructors
       XNode::stl_thisCreating->push_back(shared_ptr<XNode>(this));
       ASSERT(shared_from_this());
       m_bUIEnabled = true;
-      m_bRunTime = runtime;
-      if(name) m_name = name;
       dbgPrint(QString("xnode %1 is created., addr=0x%2, size=0x%3")
             .arg(getName())
             .arg((unsigned int)this, 0, 16)

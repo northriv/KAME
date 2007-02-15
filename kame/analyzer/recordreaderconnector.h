@@ -18,10 +18,10 @@ class XRawStreamRecordReaderConnector : public XQConnector
   virtual ~XRawStreamRecordReaderConnector() {}
 
  private:
-  shared_ptr<XRawStreamRecordReader> m_reader;
-  FrmRecordReader *m_pForm;
+  const shared_ptr<XRawStreamRecordReader> m_reader;
+  FrmRecordReader *const m_pForm;
   
-  xqcon_ptr m_conRecordFile, m_conFF, m_conRW, m_conStop,
+  const xqcon_ptr m_conRecordFile, m_conFF, m_conRW, m_conStop,
      m_conFirst, m_conNext, m_conBack, m_conPosString, m_conSpeed;    
 };
   

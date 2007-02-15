@@ -30,7 +30,7 @@ class XCharDeviceDriver : public tDriver
  private:
   shared_ptr<XListener> m_lsnOnOpen, m_lsnOnClose;
   
-  shared_ptr<XCharInterface> m_interface;
+  const shared_ptr<XCharInterface> m_interface;
 };
 
 template<class tDriver>

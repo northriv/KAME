@@ -51,14 +51,14 @@ class XDMM : public XPrimaryDriver
   //! called when m_function is changed
   void onFunctionChanged(const shared_ptr<XValueNodeBase> &node);
   
-  shared_ptr<XScalarEntry> m_entry;
-  shared_ptr<XComboNode> m_function;
-  shared_ptr<XUIntNode> m_waitInms;
+  const shared_ptr<XScalarEntry> m_entry;
+  const shared_ptr<XComboNode> m_function;
+  const shared_ptr<XUIntNode> m_waitInms;
   shared_ptr<XListener> m_lsnOnFunctionChanged;
   xqcon_ptr m_conFunction, m_conWaitInms;
  
   shared_ptr<XThread<XDMM> > m_thread;
-  qshared_ptr<FrmDMM> m_form;
+  const qshared_ptr<FrmDMM> m_form;
   
   void *execute(const atomic<bool> &);
   

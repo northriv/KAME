@@ -113,30 +113,30 @@ class XDSO : public XPrimaryDriver
  
   const shared_ptr<XWaveNGraph> &waveForm() const {return m_waveForm;}
   
-  shared_ptr<XUIntNode> m_average;
+  const shared_ptr<XUIntNode> m_average;
   //! If true, pause acquision after averaging count
-  shared_ptr<XBoolNode> m_singleSequence;
-  shared_ptr<XComboNode> m_trigSource;
-  shared_ptr<XBoolNode> m_trigFalling;
-  shared_ptr<XDoubleNode> m_trigPos;
-  shared_ptr<XDoubleNode> m_trigLevel;
-  shared_ptr<XDoubleNode> m_timeWidth;
-  shared_ptr<XComboNode> m_vFullScale1;
-  shared_ptr<XComboNode> m_vFullScale2;
-  shared_ptr<XDoubleNode> m_vOffset1;
-  shared_ptr<XDoubleNode> m_vOffset2;
-  shared_ptr<XUIntNode> m_recordLength;
-  shared_ptr<XNode> m_forceTrigger;  
-  shared_ptr<XComboNode> m_trace1;
-  shared_ptr<XComboNode> m_trace2;
-  shared_ptr<XComboNode> m_fetchMode;
-  shared_ptr<XBoolNode> m_firEnabled;
-  shared_ptr<XDoubleNode> m_firBandWidth; ///< [kHz]
-  shared_ptr<XDoubleNode> m_firCenterFreq; ///< [kHz]
-  shared_ptr<XDoubleNode> m_firSharpness;
+  const shared_ptr<XBoolNode> m_singleSequence;
+  const shared_ptr<XComboNode> m_trigSource;
+  const shared_ptr<XBoolNode> m_trigFalling;
+  const shared_ptr<XDoubleNode> m_trigPos;
+  const shared_ptr<XDoubleNode> m_trigLevel;
+  const shared_ptr<XDoubleNode> m_timeWidth;
+  const shared_ptr<XComboNode> m_vFullScale1;
+  const shared_ptr<XComboNode> m_vFullScale2;
+  const shared_ptr<XDoubleNode> m_vOffset1;
+  const shared_ptr<XDoubleNode> m_vOffset2;
+  const shared_ptr<XUIntNode> m_recordLength;
+  const shared_ptr<XNode> m_forceTrigger;  
+  const shared_ptr<XComboNode> m_trace1;
+  const shared_ptr<XComboNode> m_trace2;
+  const shared_ptr<XComboNode> m_fetchMode;
+  const shared_ptr<XBoolNode> m_firEnabled;
+  const shared_ptr<XDoubleNode> m_firBandWidth; ///< [kHz]
+  const shared_ptr<XDoubleNode> m_firCenterFreq; ///< [kHz]
+  const shared_ptr<XDoubleNode> m_firSharpness;
 
-  qshared_ptr<FrmDSO> m_form;
-  shared_ptr<XWaveNGraph> m_waveForm;
+  const qshared_ptr<FrmDSO> m_form;
+  const shared_ptr<XWaveNGraph> m_waveForm;
   
   //! these are record
   double m_trigPosRecorded; ///< unit is interval
@@ -170,7 +170,7 @@ class XDSO : public XPrimaryDriver
   xqcon_ptr m_conFIREnabled, m_conFIRBandWidth, m_conFIRSharpness, m_conFIRCenterFreq;
  
   shared_ptr<XThread<XDSO> > m_thread;
-  shared_ptr<XStatusPrinter> m_statusPrinter;
+  const shared_ptr<XStatusPrinter> m_statusPrinter;
 
   FIR m_fir;
   

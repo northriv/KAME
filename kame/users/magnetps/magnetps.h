@@ -80,15 +80,15 @@ class XMagnetPS : public XPrimaryDriver
  private:
   virtual void onRateChanged(const shared_ptr<XValueNodeBase> &);
   
-  shared_ptr<XScalarEntry> m_field, m_current;
+  const shared_ptr<XScalarEntry> m_field, m_current;
 
-  shared_ptr<XDoubleNode> m_targetField;
-  shared_ptr<XDoubleNode> m_sweepRate;
-  shared_ptr<XBoolNode> m_allowPersistent;
+  const shared_ptr<XDoubleNode> m_targetField;
+  const shared_ptr<XDoubleNode> m_sweepRate;
+  const shared_ptr<XBoolNode> m_allowPersistent;
   //! averaged err between magnet field and target one
-  shared_ptr<XDoubleNode> m_stabilized;
-  shared_ptr<XDoubleNode> m_magnetField, m_outputField, m_outputCurrent, m_outputVolt;
-  shared_ptr<XBoolNode> m_pcsHeater, m_persistent;
+  const shared_ptr<XDoubleNode> m_stabilized;
+  const shared_ptr<XDoubleNode> m_magnetField, m_outputField, m_outputCurrent, m_outputVolt;
+  const shared_ptr<XBoolNode> m_pcsHeater, m_persistent;
 
   shared_ptr<XListener> m_lsnRate;
   
@@ -98,8 +98,8 @@ class XMagnetPS : public XPrimaryDriver
   xqcon_ptr m_conPCSH, m_conPersist;
  
   shared_ptr<XThread<XMagnetPS> > m_thread;
-  qshared_ptr<FrmMagnetPS> m_form;
-  shared_ptr<XStatusPrinter> m_statusPrinter;
+  const qshared_ptr<FrmMagnetPS> m_form;
+  const shared_ptr<XStatusPrinter> m_statusPrinter;
   
   //! Records
   double m_magnetFieldRecorded;

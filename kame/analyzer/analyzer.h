@@ -43,13 +43,13 @@ class XScalarEntry : public XNode
   virtual void value(double val);
  protected:
  private:
-  weak_ptr<XDriver> m_driver;
+  const weak_ptr<XDriver> m_driver;
  
-  shared_ptr<XDoubleNode> m_delta;
-  shared_ptr<XBoolNode> m_store;
+  const shared_ptr<XDoubleNode> m_delta;
+  const shared_ptr<XBoolNode> m_store;
 
-  shared_ptr<XDoubleNode> m_value;
-  shared_ptr<XDoubleNode> m_storedValue;
+  const shared_ptr<XDoubleNode> m_value;
+  const shared_ptr<XDoubleNode> m_storedValue;
   
   bool m_bTriggered;
 };
@@ -80,7 +80,7 @@ class XValChart : public XNode
   //callback from Driver
   void onRecord(const shared_ptr<XDriver> &);
 
-  shared_ptr<XScalarEntry> m_entry;
+  const shared_ptr<XScalarEntry> m_entry;
   shared_ptr<XGraph> m_graph;
   qshared_ptr<FrmGraph> m_graphForm;
   shared_ptr<XXYPlot> m_chart;
@@ -99,7 +99,7 @@ class XChartList : public XAliasListNode<XValChart>
   void onCatchEntry(const shared_ptr<XNode> &node);
   void onReleaseEntry(const shared_ptr<XNode> &node);
 
-  shared_ptr<XScalarEntryList> m_entries;
+  const shared_ptr<XScalarEntryList> m_entries;
 };
 
 class XValGraph : public XNode
@@ -147,7 +147,7 @@ class XGraphList : public XCustomTypeListNode<XValGraph>
     return XNode::create<XValGraph>(name.c_str(), false, m_entries);
   }
  private:
-  shared_ptr<XScalarEntryList> m_entries;
+  const shared_ptr<XScalarEntryList> m_entries;
 };
 //---------------------------------------------------------------------------
 #endif

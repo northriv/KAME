@@ -39,7 +39,7 @@ class XTestDriver : public XDummyDriver<XPrimaryDriver>
  private:
   shared_ptr<XThread<XTestDriver> > m_thread;
   double m_x,m_y;
-  shared_ptr<XScalarEntry> m_entryX, m_entryY;
+  const shared_ptr<XScalarEntry> m_entryX, m_entryY;
   void *execute(const atomic<bool> &);
   
 };

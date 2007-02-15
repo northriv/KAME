@@ -69,17 +69,17 @@ class XNMRFSpectrum : public XSecondaryDriver
   //! freq of the first point [MHz]
   double fMin() const {return m_fMin;}
  private:
-  shared_ptr<XItemNode<XDriverList, XNMRPulseAnalyzer> > m_pulse;
-  shared_ptr<XItemNode<XDriverList, XSG> > m_sg1, m_sg2;
+  const shared_ptr<XItemNode<XDriverList, XNMRPulseAnalyzer> > m_pulse;
+  const shared_ptr<XItemNode<XDriverList, XSG> > m_sg1, m_sg2;
  
-  shared_ptr<XDoubleNode> m_sg1FreqOffset;
-  shared_ptr<XDoubleNode> m_sg2FreqOffset;
-  shared_ptr<XDoubleNode> m_centerFreq;
-  shared_ptr<XDoubleNode> m_bandWidth;
-  shared_ptr<XDoubleNode> m_freqSpan;
-  shared_ptr<XDoubleNode> m_freqStep;
-  shared_ptr<XBoolNode> m_active;
-  shared_ptr<XNode> m_clear;
+  const shared_ptr<XDoubleNode> m_sg1FreqOffset;
+  const shared_ptr<XDoubleNode> m_sg2FreqOffset;
+  const shared_ptr<XDoubleNode> m_centerFreq;
+  const shared_ptr<XDoubleNode> m_bandWidth;
+  const shared_ptr<XDoubleNode> m_freqSpan;
+  const shared_ptr<XDoubleNode> m_freqStep;
+  const shared_ptr<XBoolNode> m_active;
+  const shared_ptr<XNode> m_clear;
   
   //! Records
   std::deque<int> m_counts;
@@ -88,9 +88,9 @@ class XNMRFSpectrum : public XSecondaryDriver
 
   shared_ptr<XListener> m_lsnOnClear, m_lsnOnCondChanged, m_lsnOnActiveChanged;
     
-  qshared_ptr<FrmNMRFSpectrum> m_form;
+  const qshared_ptr<FrmNMRFSpectrum> m_form;
 
-  shared_ptr<XWaveNGraph> m_spectrum;
+  const shared_ptr<XWaveNGraph> m_spectrum;
 
   xqcon_ptr m_conCenterFreq, m_conBandWidth,
    m_conFreqSpan, m_conFreqStep;

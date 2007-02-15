@@ -55,8 +55,8 @@ class XQButtonConnector : public XQConnector
  protected:
   virtual void onTouch(const shared_ptr<XNode> &node);
   shared_ptr<XListener> m_lsnTouch;
-  shared_ptr<XNode> m_node;
-  QButton *m_pItem;
+  const shared_ptr<XNode> m_node;
+  QButton *const m_pItem;
 };
 
 class XValueQConnector : public XQConnector
@@ -94,8 +94,8 @@ class XQLineEditConnector : public XValueQConnector
  protected:
   virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
   virtual void onValueChanged(const shared_ptr<XValueNodeBase> &);
-  shared_ptr<XValueNodeBase> m_node;
-  QLineEdit *m_pItem;
+  const shared_ptr<XValueNodeBase> m_node;
+  QLineEdit *const m_pItem;
 };
 
 class QTextBrowser;
@@ -113,8 +113,8 @@ class XQTextBrowserConnector : public XValueQConnector
  protected:
   virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
   virtual void onValueChanged(const shared_ptr<XValueNodeBase> &);
-  shared_ptr<XValueNodeBase> m_node;
-  QTextBrowser *m_pItem;
+  const shared_ptr<XValueNodeBase> m_node;
+  QTextBrowser *const m_pItem;
 };
 
 class KIntNumInput;
@@ -135,9 +135,9 @@ class XKIntNumInputConnector : public XValueQConnector
  protected:
   virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
   virtual void onValueChanged(const shared_ptr<XValueNodeBase> &node);
-  shared_ptr<XIntNode> m_iNode;
-  shared_ptr<XUIntNode> m_uINode;
-  KIntNumInput *m_pItem;
+  const shared_ptr<XIntNode> m_iNode;
+  const shared_ptr<XUIntNode> m_uINode;
+  KIntNumInput *const m_pItem;
 };
 
 class QSpinBox;
@@ -158,9 +158,9 @@ class XQSpinBoxConnector : public XValueQConnector
  protected:
   virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
   virtual void onValueChanged(const shared_ptr<XValueNodeBase> &node);
-  shared_ptr<XIntNode> m_iNode;
-  shared_ptr<XUIntNode> m_uINode;
-  QSpinBox *m_pItem;
+  const shared_ptr<XIntNode> m_iNode;
+  const shared_ptr<XUIntNode> m_uINode;
+  QSpinBox *const m_pItem;
 };
 
 class KDoubleNumInput;
@@ -179,8 +179,8 @@ class XKDoubleNumInputConnector : public XValueQConnector
  protected:
   virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
   virtual void onValueChanged(const shared_ptr<XValueNodeBase> &node);
-  shared_ptr<XDoubleNode> m_node;
-  KDoubleNumInput *m_pItem;
+  const shared_ptr<XDoubleNode> m_node;
+  KDoubleNumInput *const m_pItem;
 };
 
 class KDoubleSpinBox;
@@ -199,8 +199,8 @@ class XKDoubleSpinBoxConnector : public XValueQConnector
  protected:
   virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
   virtual void onValueChanged(const shared_ptr<XValueNodeBase> &node);
-  shared_ptr<XDoubleNode> m_node;
-  KDoubleSpinBox *m_pItem;
+  const shared_ptr<XDoubleNode> m_node;
+  KDoubleSpinBox *const m_pItem;
 };
 
 class KURLRequester;
@@ -219,8 +219,8 @@ class XKURLReqConnector : public XValueQConnector
  protected:
   virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
   virtual void onValueChanged(const shared_ptr<XValueNodeBase> &node);
-  shared_ptr<XStringNode> m_node;
-  KURLRequester *m_pItem;
+  const shared_ptr<XStringNode> m_node;
+  KURLRequester *const m_pItem;
 };
 
 class QLabel;
@@ -238,8 +238,8 @@ class XQLabelConnector : public XValueQConnector
  protected:
   virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
   virtual void onValueChanged(const shared_ptr<XValueNodeBase> &node);
-  shared_ptr<XValueNodeBase> m_node;
-  QLabel *m_pItem;
+  const shared_ptr<XValueNodeBase> m_node;
+  QLabel *const m_pItem;
 };
 
 class KLed;
@@ -257,8 +257,8 @@ class XKLedConnector : public XValueQConnector
  protected:
   virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
   virtual void onValueChanged(const shared_ptr<XValueNodeBase> &node);
-  shared_ptr<XBoolNode> m_node;
-  KLed *m_pItem;
+  const shared_ptr<XBoolNode> m_node;
+  KLed *const m_pItem;
 };
 
 class QLCDNumber;
@@ -275,8 +275,8 @@ class XQLCDNumberConnector : public XValueQConnector
  protected:
   virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
   virtual void onValueChanged(const shared_ptr<XValueNodeBase> &node);
-  shared_ptr<XDoubleNode> m_node;
-  QLCDNumber *m_pItem;
+  const shared_ptr<XDoubleNode> m_node;
+  QLCDNumber *const m_pItem;
 };
 
 class XQToggleButtonConnector : public XValueQConnector
@@ -293,8 +293,8 @@ class XQToggleButtonConnector : public XValueQConnector
  protected:
   virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
   virtual void onValueChanged(const shared_ptr<XValueNodeBase> &node);
-  shared_ptr<XBoolNode> m_node;
-  QButton *m_pItem;
+  const shared_ptr<XBoolNode> m_node;
+  QButton *const m_pItem;
 };
 
 class QTable;
@@ -316,8 +316,8 @@ class XListQConnector : public XQConnector
   shared_ptr<XListener> m_lsnRelease;
   virtual void onCatch(const shared_ptr<XNode> &node) = 0;
   virtual void onRelease(const shared_ptr<XNode> &node) = 0;
-  QTable *m_pItem;
-  shared_ptr<XListNodeBase> m_list;
+  QTable *const m_pItem;
+  const shared_ptr<XListNodeBase> m_list;
 };
 
 class XItemQConnector : public XValueQConnector
@@ -354,8 +354,8 @@ class XQComboBoxConnector : public XItemQConnector
   virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
   virtual void onValueChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onListChanged(const shared_ptr<XItemNodeBase> &);
-  shared_ptr<XItemNodeBase> m_node;
-  QComboBox *m_pItem;
+  const shared_ptr<XItemNodeBase> m_node;
+  QComboBox *const m_pItem;
   int findItem(const QString &);
 };
 
@@ -376,8 +376,8 @@ class XQListBoxConnector : public XItemQConnector
   virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
   virtual void onValueChanged(const shared_ptr<XValueNodeBase> &);
   virtual void onListChanged(const shared_ptr<XItemNodeBase> &);
-  shared_ptr<XItemNodeBase> m_node;
-  QListBox *m_pItem;
+  const shared_ptr<XItemNodeBase> m_node;
+  QListBox *const m_pItem;
 };
 
 class KColorButton;
@@ -396,8 +396,8 @@ class XKColorButtonConnector : public XValueQConnector
  protected:
   virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
   virtual void onValueChanged(const shared_ptr<XValueNodeBase> &);
-  shared_ptr<XHexNode> m_node;
-  KColorButton *m_pItem;
+  const shared_ptr<XHexNode> m_node;
+  KColorButton *const m_pItem;
 };
 
 class KColorCombo;
@@ -416,8 +416,8 @@ class XKColorComboConnector : public XValueQConnector
  protected:
   virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
   virtual void onValueChanged(const shared_ptr<XValueNodeBase> &);
-  shared_ptr<XHexNode> m_node;
-  KColorCombo *m_pItem;
+  const shared_ptr<XHexNode> m_node;
+  KColorCombo *const m_pItem;
 };
 
 //! Show status

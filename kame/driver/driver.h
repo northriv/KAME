@@ -126,9 +126,9 @@ class XDriverList : public XCustomTypeListNode<XDriver>
    )
   virtual shared_ptr<XNode> createByTypename(const std::string &type, const std::string& name);
  private:
-  shared_ptr<XScalarEntryList> m_scalarentries;
-  shared_ptr<XInterfaceList> m_interfaces;
-  shared_ptr<XThermometerList> m_thermometers;
+  const shared_ptr<XScalarEntryList> m_scalarentries;
+  const shared_ptr<XInterfaceList> m_interfaces;
+  const shared_ptr<XThermometerList> m_thermometers;
 };
 //---------------------------------------------------------------------------
 #endif

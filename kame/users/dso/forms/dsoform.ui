@@ -91,7 +91,7 @@
                                 </sizepolicy>
                             </property>
                             <property name="text">
-                                <string>Fetching Strategy</string>
+                                <string>Display Strategy</string>
                             </property>
                         </widget>
                         <widget class="QComboBox">

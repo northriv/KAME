@@ -43,7 +43,7 @@ class XDriverListConnector : public XListQConnector
   shared_ptr<XListener> m_lsnOnRecord;
   shared_ptr<XListener> m_lsnOnCreateTouched, m_lsnOnReleaseTouched;
   
-  xqcon_ptr m_conCreate, m_conRelease;
+  const xqcon_ptr m_conCreate, m_conRelease;
   void onRecord(const shared_ptr<XDriver> &driver);
   void onCreateTouched(const shared_ptr<XNode> &);
   void onReleaseTouched(const shared_ptr<XNode> &);

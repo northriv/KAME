@@ -52,17 +52,17 @@ class XSG : public XPrimaryDriver
  private:
   void onFreqChanged(const shared_ptr<XValueNodeBase> &);
   
-  shared_ptr<XDoubleNode> m_freq;
-  shared_ptr<XDoubleNode> m_oLevel;
-  shared_ptr<XBoolNode> m_fmON;
-  shared_ptr<XBoolNode> m_amON;
+  const shared_ptr<XDoubleNode> m_freq;
+  const shared_ptr<XDoubleNode> m_oLevel;
+  const shared_ptr<XBoolNode> m_fmON;
+  const shared_ptr<XBoolNode> m_amON;
   
   double m_freqRecorded;
   
   xqcon_ptr m_conFreq, m_conOLevel, m_conFMON, m_conAMON;
   shared_ptr<XListener> m_lsnFreq, m_lsnOLevel, m_lsnFMON, m_lsnAMON;
   
-  qshared_ptr<FrmSG> m_form;
+  const qshared_ptr<FrmSG> m_form;
 };//---------------------------------------------------------------------------
 
 //! KENWOOD SG-7200

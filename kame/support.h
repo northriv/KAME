@@ -125,10 +125,10 @@ struct XKameError {
     static void print(const QString &msg, const char *file, int line, int _errno);
     const QString &msg() const;
 private:
-    QString m_msg;
-    const char *m_file;
-    int m_line;
-    int m_errno;
+    const QString m_msg;
+    const char *const m_file;
+    const int m_line;
+    const int m_errno;
 };
 
 //! If true, Log all dbgPrint().

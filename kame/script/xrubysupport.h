@@ -65,7 +65,7 @@ class XRuby : public XAliasListNode<XRubyThread>
   shared_ptr<XListener> m_lsnCreateChild;
   void onCreateChild(const shared_ptr<tCreateChild> &x);
   
-  weak_ptr<XMeasure> m_measure;
+  const weak_ptr<XMeasure> m_measure;
   XThread<XRuby> m_thread;
   
 };

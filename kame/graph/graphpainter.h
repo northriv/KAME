@@ -125,8 +125,8 @@ private:
   void drawOnScreenViewObj();
   void drawOnScreenHelp();
   
-  shared_ptr<XGraph> m_graph;
-  XQGraph *m_pItem;
+  const shared_ptr<XGraph> m_graph;
+  XQGraph *const m_pItem;
     
   shared_ptr<XPlot> m_foundPlane;
   shared_ptr<XAxis> m_foundPlaneAxis1, m_foundPlaneAxis2;

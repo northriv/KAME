@@ -65,12 +65,12 @@ private:
   void start();
   void onControlChanged(const shared_ptr<XValueNodeBase> &);
 
-  weak_ptr<XDriver> m_driver;
-  shared_ptr<XComboNode> m_device;
-  shared_ptr<XStringNode> m_port;
-  shared_ptr<XUIntNode> m_address;
-  shared_ptr<XUIntNode> m_baudrate;
-  shared_ptr<XBoolNode> m_control;
+  const weak_ptr<XDriver> m_driver;
+  const shared_ptr<XComboNode> m_device;
+  const shared_ptr<XStringNode> m_port;
+  const shared_ptr<XUIntNode> m_address;
+  const shared_ptr<XUIntNode> m_baudrate;
+  const shared_ptr<XBoolNode> m_control;
 
   shared_ptr<XListener> lsnOnControlChanged;
   XTalker<shared_ptr<XInterface> > m_tlkOnOpen, m_tlkOnClose;

@@ -90,8 +90,8 @@ class XNode : public enable_shared_from_this<XNode>
   XTalker<shared_ptr<XNode> > m_tlkOnTouch;
   XTalker<shared_ptr<XNode> > m_tlkOnUIEnabled;
  private:
-  std::string m_name;
-  bool m_bRunTime;
+  const std::string m_name;
+  const bool m_bRunTime;
   bool m_bUIEnabled;
   
   static XThreadLocal<NodeList> stl_thisCreating;

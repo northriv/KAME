@@ -50,7 +50,7 @@ class XRawStreamRecorder : public XRawStream
   
   void onRecord(const shared_ptr<XDriver> &driver);
   void onFlush(const shared_ptr<XValueNodeBase> &);
-  shared_ptr<XBoolNode> m_recording;
+  const shared_ptr<XBoolNode> m_recording;
 };
 
 
@@ -73,11 +73,11 @@ class XTextWriter : public XNode
   virtual void onCatch(const shared_ptr<XNode> &node);
   virtual void onRelease(const shared_ptr<XNode> &node);  
  private:
-  shared_ptr<XDriverList> m_drivers;
-  shared_ptr<XScalarEntryList> m_entries;
-  shared_ptr<XStringNode> m_filename;
-  shared_ptr<XStringNode> m_lastLine;
-  shared_ptr<XBoolNode> m_recording;
+  const shared_ptr<XDriverList> m_drivers;
+  const shared_ptr<XScalarEntryList> m_entries;
+  const shared_ptr<XStringNode> m_filename;
+  const shared_ptr<XStringNode> m_lastLine;
+  const shared_ptr<XBoolNode> m_recording;
   shared_ptr<XListener> m_lsnOnRecord;
   shared_ptr<XListener> m_lsnOnFlush;
   shared_ptr<XListener> m_lsnOnCatch;

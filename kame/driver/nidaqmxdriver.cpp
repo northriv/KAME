@@ -121,6 +121,7 @@ char str[2048];
 int
 XNIDAQmxInterface::checkDAQmxError(int ret, const char*file, int line) {
 	if(ret >= 0) return ret;
+	errno = 0;
 	throw XInterface::XInterfaceError(getNIDAQmxErrMessage(), file, line);
 	return 0;
 }

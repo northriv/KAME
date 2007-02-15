@@ -103,35 +103,35 @@ class XNMRPulseAnalyzer : public XSecondaryDriver
   /// Stored FFT Wave for display with extra avg
   const shared_ptr<XWaveNGraph> &ftWaveGraph() const {return m_ftWaveGraph;}
 
-  shared_ptr<XScalarEntry> m_entryCosAv;    ///< Entry storing dc
-  shared_ptr<XScalarEntry> m_entrySinAv;    ///< Entry storing dc
+  const shared_ptr<XScalarEntry> m_entryCosAv;    ///< Entry storing dc
+  const shared_ptr<XScalarEntry> m_entrySinAv;    ///< Entry storing dc
 
-  shared_ptr<XItemNode<XDriverList, XDSO> > m_dso;
+  const shared_ptr<XItemNode<XDriverList, XDSO> > m_dso;
  
-  shared_ptr<XDoubleNode> m_fromTrig;
-  shared_ptr<XDoubleNode> m_width;
+  const shared_ptr<XDoubleNode> m_fromTrig;
+  const shared_ptr<XDoubleNode> m_width;
 
-  shared_ptr<XDoubleNode> m_phaseAdv;   ///< [deg]
-  shared_ptr<XBoolNode> m_useDNR;
-  shared_ptr<XDoubleNode> m_bgPos;
-  shared_ptr<XDoubleNode> m_bgWidth;
-  shared_ptr<XDoubleNode> m_fftPos;
-  shared_ptr<XUIntNode> m_fftLen;
-  shared_ptr<XComboNode> m_windowFunc;
-  shared_ptr<XDoubleNode> m_difFreq;
+  const shared_ptr<XDoubleNode> m_phaseAdv;   ///< [deg]
+  const shared_ptr<XBoolNode> m_useDNR;
+  const shared_ptr<XDoubleNode> m_bgPos;
+  const shared_ptr<XDoubleNode> m_bgWidth;
+  const shared_ptr<XDoubleNode> m_fftPos;
+  const shared_ptr<XUIntNode> m_fftLen;
+  const shared_ptr<XComboNode> m_windowFunc;
+  const shared_ptr<XDoubleNode> m_difFreq;
 
-  shared_ptr<XBoolNode> m_exAvgIncr;
-  shared_ptr<XUIntNode> m_extraAvg;
+  const shared_ptr<XBoolNode> m_exAvgIncr;
+  const shared_ptr<XUIntNode> m_extraAvg;
 
-  shared_ptr<XUIntNode> m_numEcho;
-  shared_ptr<XDoubleNode> m_echoPeriod;
+  const shared_ptr<XUIntNode> m_numEcho;
+  const shared_ptr<XDoubleNode> m_echoPeriod;
 
-  shared_ptr<XNode> m_fftShow;
-  shared_ptr<XNode> m_avgClear;
+  const shared_ptr<XNode> m_fftShow;
+  const shared_ptr<XNode> m_avgClear;
 
   //! Phase Inversion Cycling
-  shared_ptr<XBoolNode> m_picEnabled;
-  shared_ptr<XItemNode<XDriverList, XPulser> > m_pulser;
+  const shared_ptr<XBoolNode> m_picEnabled;
+  const shared_ptr<XItemNode<XDriverList, XPulser> > m_pulser;
   unsigned int m_piccnt;
   std::deque<std::complex<double> > m_picRawWaveSum;
   
@@ -166,12 +166,12 @@ class XNMRPulseAnalyzer : public XSecondaryDriver
   shared_ptr<XListener> m_lsnOnFFTShow, m_lsnOnAvgClear;
   shared_ptr<XListener> m_lsnOnCondChanged;
     
-  qshared_ptr<FrmNMRPulse> m_form;
-  shared_ptr<XStatusPrinter> m_statusPrinter;
-  qshared_ptr<FrmGraphNURL> m_fftForm;
+  const qshared_ptr<FrmNMRPulse> m_form;
+  const shared_ptr<XStatusPrinter> m_statusPrinter;
+  const qshared_ptr<FrmGraphNURL> m_fftForm;
 
-  shared_ptr<XWaveNGraph> m_waveGraph;
-  shared_ptr<XWaveNGraph> m_ftWaveGraph;
+  const shared_ptr<XWaveNGraph> m_waveGraph;
+  const shared_ptr<XWaveNGraph> m_ftWaveGraph;
   
   void onCondChanged(const shared_ptr<XValueNodeBase> &);
   void onFFTShow(const shared_ptr<XNode> &);

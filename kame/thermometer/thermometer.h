@@ -20,7 +20,7 @@ protected:
   const shared_ptr<XDoubleNode> &tempMin() const {return m_tempMin;} 
   const shared_ptr<XDoubleNode> &tempMax() const {return m_tempMax;} 
  private:
-  shared_ptr<XDoubleNode> m_tempMin, m_tempMax;
+  const shared_ptr<XDoubleNode> m_tempMin, m_tempMax;
 };
 
 class XThermometerList : public XCustomTypeListNode<XThermometer>
@@ -73,9 +73,9 @@ protected:
   typedef XListNode<XDoubleListNode> XDouble2DNode;
   const shared_ptr<XDouble2DNode> &ai() const {return m_ai;}
  private:
-  shared_ptr<XDoubleNode> m_resMin, m_resMax;
-  shared_ptr<XDoubleListNode> m_zu, m_zl;
-  shared_ptr<XDouble2DNode> m_ai;
+  const shared_ptr<XDoubleNode> m_resMin, m_resMax;
+  const shared_ptr<XDoubleListNode> m_zu, m_zl;
+  const shared_ptr<XDouble2DNode> m_ai;
 
 };
 
@@ -95,9 +95,9 @@ class XScientificInstruments : public XThermometer
   const shared_ptr<XDoubleListNode> &abc() const {return m_abc;}
   const shared_ptr<XDoubleNode> &rCrossover() const {return m_rCrossover;}
  private:
-  shared_ptr<XDoubleNode> m_resMin, m_resMax;
-  shared_ptr<XDoubleListNode> m_abcde, m_abc;
-  shared_ptr<XDoubleNode> m_rCrossover;    
+  const shared_ptr<XDoubleNode> m_resMin, m_resMax;
+  const shared_ptr<XDoubleListNode> m_abcde, m_abc;
+  const shared_ptr<XDoubleNode> m_rCrossover;    
 };
 
 class CSplineApprox;
@@ -114,7 +114,7 @@ class XApproxThermometer : public XThermometer
   const shared_ptr<XDoubleListNode> &resList() const {return m_resList;}
   const shared_ptr<XDoubleListNode> &tempList() const {return m_tempList;}  
  private:
-  shared_ptr<XDoubleListNode> m_resList, m_tempList;
+  const shared_ptr<XDoubleListNode> m_resList, m_tempList;
   mutable atomic_shared_ptr<CSplineApprox> m_approx, m_approx_inv;
 };
 

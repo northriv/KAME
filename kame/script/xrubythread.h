@@ -38,7 +38,7 @@ class XRubyThread : public XNode
   const shared_ptr<XIntNode> &threadID() const {return m_threadID;}
  private:
   XTalker<shared_ptr<std::string> > m_tlkOnMessageOut;
-  shared_ptr<XStringNode> m_filename;
+  const shared_ptr<XStringNode> m_filename;
   shared_ptr<XStringNode> m_status;
   shared_ptr<XStringNode> m_action;
   shared_ptr<XIntNode> m_threadID;

@@ -98,7 +98,7 @@ public:
       std::vector<char>& buffer() {return *s_tlBuffer;}
 protected:
       static XThreadLocal<std::vector<char> > s_tlBuffer;
-      XCharInterface *m_pInterface;
+      XCharInterface *const m_pInterface;
 };
 
 #endif /*CHARINTERFACE_H_*/

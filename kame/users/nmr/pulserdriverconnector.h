@@ -29,10 +29,10 @@ class XQPulserDriverConnector : public XQConnector
   shared_ptr<XListener> m_lsnOnPulseChanged;
   void onPulseChanged(const shared_ptr<XDriver> &);
   
-  QTable *m_pTable;
-  weak_ptr<XPulser> m_pulser;
+  QTable *const m_pTable;
+  const weak_ptr<XPulser> m_pulser;
 
-  shared_ptr<XGraph> m_graph;
+  const shared_ptr<XGraph> m_graph;
   shared_ptr<XXYPlot> m_barPlot;
   std::deque<shared_ptr<XXYPlot> > m_plots;
 };

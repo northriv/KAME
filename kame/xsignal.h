@@ -38,9 +38,9 @@ class XListener
   template <class tArg>
   friend class XTalker;
   XListener(bool mainthreadcall, bool avoid_dup, unsigned int delay_ms);
-  bool m_bMainThreadCall;
-  bool m_bAvoidDup;
-  unsigned int m_delay_ms;
+  const bool m_bMainThreadCall;
+  const bool m_bAvoidDup;
+  const unsigned int m_delay_ms;
   atomic<bool> m_bMasked;
 };
 
@@ -70,7 +70,7 @@ struct _XTransaction
 {   
     _XTransaction() : registered_time(timeStamp()) {}
     virtual ~_XTransaction() {}
-    unsigned long registered_time;
+    const unsigned long registered_time;
     virtual bool talkBuffered() = 0;
 };
 
@@ -164,14 +164,14 @@ class XTalker : public _XTalkerBase
   {   
         Transaction(const shared_ptr<Listener> &l) :
              _XTransaction(), listener(l) {}
-        shared_ptr<Listener> listener;
+        const shared_ptr<Listener> listener;
         virtual bool talkBuffered() = 0;
   };
   struct TransactionAllowDup : public XTalker<tArg>::Transaction
   {   
         TransactionAllowDup(const shared_ptr<Listener> &l, const tArg &a) :
              XTalker<tArg>::Transaction(l), arg(a) {}
-        tArg arg;
+        const tArg arg;
         virtual bool talkBuffered() {
             (*XTalker<tArg>::Transaction::listener)(arg);
             return false;
@@ -215,7 +215,7 @@ class XSignalBuffer
   
  private:
   typedef atomic_pointer_queue<_XTransaction, 10000> Queue;
-  scoped_ptr<Queue> m_queue;
+  const scoped_ptr<Queue> m_queue;
   atomic<unsigned long> m_queue_oldest_timestamp;
 };
 

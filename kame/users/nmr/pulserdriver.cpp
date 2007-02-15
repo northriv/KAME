@@ -425,7 +425,8 @@ XPulser::start()
   qswWidth()->setUIEnabled(true);
   qswPiPulseOnly()->setUIEnabled(true);
   invertPhase()->setUIEnabled(true);
-  for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
+  //Port0 is locked.
+  for(unsigned int i = 1; i < NUM_DO_PORTS; i++) {
 	m_portSel[i]->setUIEnabled(true);
   }
   

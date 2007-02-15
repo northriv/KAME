@@ -15,7 +15,7 @@ protected:
 public:
   virtual ~XQGraphDialogConnector();
 private:
-  DlgGraphSetup *m_pItem;
+  DlgGraphSetup *const m_pItem;
   
   shared_ptr<XItemNode<XPlotList, XPlot> > m_selPlot;
   shared_ptr<XItemNode<XAxisList, XAxis> > m_selAxis;
