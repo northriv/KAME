@@ -40,13 +40,6 @@ XNIDAQMSeriesWithSSeriesPulser::XNIDAQMSeriesWithSSeriesPulser(const char *name,
 
     m_ctr_interface = intfDO();
 }
-
-void
-XNIDAQMSeriesWithSSeriesPulser::open() throw (XInterface::XInterfaceError &)
-{
- 	openDO();
-	this->start();	
-}
 void
 XNIDAQSSeriesPulser::open() throw (XInterface::XInterfaceError &)
 {
@@ -56,6 +49,13 @@ XNIDAQSSeriesPulser::open() throw (XInterface::XInterfaceError &)
 void
 XNIDAQMSeriesPulser::open() throw (XInterface::XInterfaceError &)
 {
+ 	openDO();
+	this->start();	
+}
+void
+XNIDAQMSeriesWithSSeriesPulser::open() throw (XInterface::XInterfaceError &)
+{
+   m_ctr_interface = intfDO();
  	openDO();
 	this->start();	
 }
@@ -75,7 +75,6 @@ void
 XNIDAQMSeriesWithSSeriesPulser::onCloseAO(const shared_ptr<XInterface> &)
 {
 	stop();
-    m_ctr_interface = intfDO();
 }
 
 #endif //HAVE_NI_DAQMX

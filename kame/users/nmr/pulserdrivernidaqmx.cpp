@@ -333,7 +333,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		mlock(&m_genBufDO[0], m_genBufDO.size() * sizeof(tRawDO));
 		mlock(&m_genBufAO[0], m_genBufAO.size() * sizeof(tRawAO));
 		for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
-			for(unsigned int i = 0; i < 32; i++)
+			for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK / PAT_QAM_PULSE_IDX; i++)
 				mlock(&m_genPulseWaveAO[ch][i], m_genPulseWaveAO[ch][i].size() * sizeof(tRawAO));
 		}
 		
@@ -732,7 +732,7 @@ XNIDAQmxPulser::genBankAO()
 		}
 	}
 	//resize buffers if necessary.
-	if(USE_FINITE_AO || USE_PAUSING)
+	if(USE_FINITE_AO || pausingbit)
 		m_genBufAO.resize((int)(pAO - &m_genBufAO[0]));
 	else
 		ASSERT(pAO == &m_genBufAO[m_genBufAO.size()]);
@@ -773,11 +773,13 @@ XNIDAQmxPulser::createNativePatterns()
 		for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
 		//arrange range info.
 			double x = 1.0;
-			for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
-				m_coeffAO[ch][i] = m_coeffAODev[ch][i] * x
-					+ ((i == 0) ? offset[ch] : 0);
+			for(unsigned int i = 1; i < CAL_POLY_ORDER; i++) {
+				m_coeffAO[ch][i] = m_coeffAODev[ch][i] * x;
 				x *= level[ch];
 			}
+			m_coeffAO[ch][0] = m_coeffAODev[ch][0];
+			m_coeffAO[ch][0] += aoVoltToRaw(ch,
+				 offset[ch] / 100.0 * (m_upperLimAO[ch] - m_lowerLimAO[ch]) );
 		}
   	
 	  makeWaveForm(PAT_QAM_PULSE_IDX_P1/PAT_QAM_PULSE_IDX - 1, _pw1/1000.0, pulseFunc(p1Func()->to_str() ),
