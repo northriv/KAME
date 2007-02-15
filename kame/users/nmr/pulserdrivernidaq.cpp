@@ -29,7 +29,7 @@ XNIDAQMSeriesWithSSeriesPulser::XNIDAQMSeriesWithSSeriesPulser(const char *name,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers) :
     XNIDAQmxPulser(name, runtime, scalarentries, interfaces, thermometers, drivers),
-	m_ao_interface(XNode::create<XNIDAQmxInterface>("Interface2", false,
+	m_ao_interface(XNode::create<XNIDAQmxInterface>("SubInterface", false,
             dynamic_pointer_cast<XDriver>(this->shared_from_this())))
 {
     interfaces->insert(m_ao_interface);
@@ -37,6 +37,8 @@ XNIDAQMSeriesWithSSeriesPulser::XNIDAQMSeriesWithSSeriesPulser(const char *name,
     	 this->shared_from_this(), &XNIDAQMSeriesWithSSeriesPulser::onOpenAO);
     m_lsnOnCloseAO = m_ao_interface->onClose().connectWeak(false, 
     	this->shared_from_this(), &XNIDAQMSeriesWithSSeriesPulser::onCloseAO);
+
+    m_ctr_interface = intfDO();
 }
 
 void
@@ -61,6 +63,7 @@ void
 XNIDAQMSeriesWithSSeriesPulser::onOpenAO(const shared_ptr<XInterface> &)
 {
 	try {
+	    m_ctr_interface = intfAO();
 		openAODO();
 	}
 	catch (XInterface::XInterfaceError &e) {
@@ -72,6 +75,7 @@ void
 XNIDAQMSeriesWithSSeriesPulser::onCloseAO(const shared_ptr<XInterface> &)
 {
 	stop();
+    m_ctr_interface = intfDO();
 }
 
 #endif //HAVE_NI_DAQMX

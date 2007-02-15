@@ -154,13 +154,6 @@ XPulser::XPulser(const char *name, bool runtime,
     m_p2Level(create<XDoubleNode>("P2Level", false)),
     m_combLevel(create<XDoubleNode>("CombLevel", false)),
     m_masterLevel(create<XDoubleNode>("MasterLevel", false)),
-    m_portLevel8(create<XDoubleNode>("PortLevel8", false)),
-    m_portLevel9(create<XDoubleNode>("PortLevel9", false)),
-    m_portLevel10(create<XDoubleNode>("PortLevel10", false)),
-    m_portLevel11(create<XDoubleNode>("PortLevel11", false)),
-    m_portLevel12(create<XDoubleNode>("PortLevel12", false)),
-    m_portLevel13(create<XDoubleNode>("PortLevel13", false)),  
-    m_portLevel14(create<XDoubleNode>("PortLevel14", false)),
     m_qamOffset1(create<XDoubleNode>("QAMOffset1", false)),
     m_qamOffset2(create<XDoubleNode>("QAMOffset2", false)),
     m_qamLevel1(create<XDoubleNode>("QAMLevel1", false)),
@@ -331,13 +324,6 @@ XPulser::XPulser(const char *name, bool runtime,
   m_conCombLevel = xqcon_create<XKDoubleNumInputConnector>(m_combLevel, m_form->m_dblCombLevel);
   m_form->m_dblMasterLevel->setRange(-30.0, 0.0, 1.0, true);
   m_conMasterLevel = xqcon_create<XKDoubleNumInputConnector>(m_masterLevel, m_form->m_dblMasterLevel);
-  m_conPortLevel8 = xqcon_create<XQLineEditConnector>(m_portLevel8, m_formMore->m_edPortLevel8);  
-  m_conPortLevel9 = xqcon_create<XQLineEditConnector>(m_portLevel9, m_formMore->m_edPortLevel9);  
-  m_conPortLevel10 = xqcon_create<XQLineEditConnector>(m_portLevel10, m_formMore->m_edPortLevel10);  
-  m_conPortLevel11 = xqcon_create<XQLineEditConnector>(m_portLevel11, m_formMore->m_edPortLevel11);  
-  m_conPortLevel12 = xqcon_create<XQLineEditConnector>(m_portLevel12, m_formMore->m_edPortLevel12);  
-  m_conPortLevel13 = xqcon_create<XQLineEditConnector>(m_portLevel13, m_formMore->m_edPortLevel13);  
-  m_conPortLevel14 = xqcon_create<XQLineEditConnector>(m_portLevel14, m_formMore->m_edPortLevel14);  
   m_conQAMOffset1 = xqcon_create<XQLineEditConnector>(m_qamOffset1, m_formMore->m_edQAMOffset1);  
   m_conQAMOffset2 = xqcon_create<XQLineEditConnector>(m_qamOffset2, m_formMore->m_edQAMOffset2);
   m_conQAMLevel1 = xqcon_create<XQLineEditConnector>(m_qamLevel1, m_formMore->m_edQAMLevel1);  
@@ -378,13 +364,6 @@ XPulser::XPulser(const char *name, bool runtime,
   p2Level()->setUIEnabled(false);
   combLevel()->setUIEnabled(false);
   masterLevel()->setUIEnabled(false);
-  portLevel8()->setUIEnabled(false);
-  portLevel9()->setUIEnabled(false);
-  portLevel10()->setUIEnabled(false);
-  portLevel11()->setUIEnabled(false);
-  portLevel12()->setUIEnabled(false);
-  portLevel13()->setUIEnabled(false);
-  portLevel14()->setUIEnabled(false);
   qamOffset1()->setUIEnabled(false);
   qamOffset2()->setUIEnabled(false);
   qamLevel1()->setUIEnabled(false);
@@ -463,13 +442,6 @@ XPulser::start()
 	  qamLevel2()->setUIEnabled(true);
 	  qamDelay1()->setUIEnabled(true);
 	  qamDelay2()->setUIEnabled(true);
-	  portLevel8()->setUIEnabled(true);
-	  portLevel9()->setUIEnabled(true);
-	  portLevel10()->setUIEnabled(true);
-	  portLevel11()->setUIEnabled(true);
-	  portLevel12()->setUIEnabled(true);
-	  portLevel13()->setUIEnabled(true);
-	  portLevel14()->setUIEnabled(true);
 	  difFreq()->setUIEnabled(true);  
   }
 
@@ -511,13 +483,6 @@ XPulser::start()
 	  p2Level()->onValueChanged().connect(m_lsnOnPulseChanged);
 	  combLevel()->onValueChanged().connect(m_lsnOnPulseChanged);
 	  masterLevel()->onValueChanged().connect(m_lsnOnPulseChanged);
-	  portLevel8()->onValueChanged().connect(m_lsnOnPulseChanged);
-	  portLevel9()->onValueChanged().connect(m_lsnOnPulseChanged);
-	  portLevel10()->onValueChanged().connect(m_lsnOnPulseChanged);
-	  portLevel11()->onValueChanged().connect(m_lsnOnPulseChanged);
-	  portLevel12()->onValueChanged().connect(m_lsnOnPulseChanged);
-	  portLevel13()->onValueChanged().connect(m_lsnOnPulseChanged);
-	  portLevel14()->onValueChanged().connect(m_lsnOnPulseChanged);
 	  qamOffset1()->onValueChanged().connect(m_lsnOnPulseChanged);
 	  qamOffset2()->onValueChanged().connect(m_lsnOnPulseChanged);
 	  qamLevel1()->onValueChanged().connect(m_lsnOnPulseChanged);
@@ -559,13 +524,6 @@ XPulser::stop()
   p2Level()->setUIEnabled(false);
   combLevel()->setUIEnabled(false);
   masterLevel()->setUIEnabled(false);
-  portLevel8()->setUIEnabled(false);
-  portLevel9()->setUIEnabled(false);
-  portLevel10()->setUIEnabled(false);
-  portLevel11()->setUIEnabled(false);
-  portLevel12()->setUIEnabled(false);
-  portLevel13()->setUIEnabled(false);
-  portLevel14()->setUIEnabled(false);
   qamOffset1()->setUIEnabled(false);
   qamOffset2()->setUIEnabled(false);
   qamLevel1()->setUIEnabled(false);

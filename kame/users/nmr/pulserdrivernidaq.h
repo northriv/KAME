@@ -66,12 +66,14 @@ class XNIDAQMSeriesWithSSeriesPulser : public XNIDAQmxPulser
     virtual double resolution() const;
     virtual double resolutionQAM() const;
     //! existense of AO ports.
-    virtual bool haveQAMPorts() const {return false;}
+    virtual bool haveQAMPorts() const {return true;}
     
 	virtual const shared_ptr<XNIDAQmxInterface> &intfAO() const {return m_ao_interface;} 
+	virtual const shared_ptr<XNIDAQmxInterface> &intfCtr() const {return m_ctr_interface;} 
  private:
  
 	shared_ptr<XNIDAQmxInterface> m_ao_interface;
+	shared_ptr<XNIDAQmxInterface> m_ctr_interface;
 	shared_ptr<XListener> m_lsnOnOpenAO, m_lsnOnCloseAO;
 	void onOpenAO(const shared_ptr<XInterface> &);
 	void onCloseAO(const shared_ptr<XInterface> &);

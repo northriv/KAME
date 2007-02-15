@@ -191,6 +191,8 @@ struct XTypeHolder
     g_driver_type_ ## name(LIST::s_types, # name);
 #define REGISTER_TYPE(name) \
     _REGISTER_TYPE_2(X ## name, name);
+#define REGISTER_TYPE_N_NAME(type, name) LIST::TypeHolder::Creator<type> \
+    g_driver_type_ ## type(LIST::s_types, name);
 
 class XStringList : public  XListNode<XStringNode>
 {

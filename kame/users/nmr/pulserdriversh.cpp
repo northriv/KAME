@@ -228,13 +228,20 @@ uint32_t len;
 	if(aswFilter()->to_str() == ASW_FILTER_2) aswfilter = 2;
 	m_zippedPatterns.push_back((unsigned char)aswfilter);
 */
-	setAUX2DA(*portLevel8(), 1);
+/*	setAUX2DA(*portLevel8(), 1);
 	setAUX2DA(*portLevel9(), 2);
 	setAUX2DA(*portLevel10(), 3);
 	setAUX2DA(*portLevel11(), 4);
 	setAUX2DA(*portLevel12(), 5);
 	setAUX2DA(*portLevel13(), 6);
-	setAUX2DA(*portLevel14(), 7);
+	setAUX2DA(*portLevel14(), 7);*/
+	setAUX2DA(0.0, 1);
+	setAUX2DA(0.0, 2);
+	setAUX2DA(0.0, 3);
+	setAUX2DA(0.0, 4);
+	setAUX2DA(0.0, 5);
+	setAUX2DA(0.0, 6);
+	setAUX2DA(0.0, 7);
 	setAUX2DA(1.6 * masterlevel, 0); //tobe 5V
 	
 	return 0;	

@@ -558,7 +558,7 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
 	  ASSERT( _dso->numChannelsRecorded() );
 	  rawwavecos = _dso->waveRecorded(0);
       rawwavesin = _dso->waveRecorded(1);
-	  for(int i = 0; i < _dso->lengthRecorded(); i++) {
+	  for(unsigned int i = 0; i < _dso->lengthRecorded(); i++) {
 	  	m_picRawWaveSum[i] += std::complex<double>(rawwavecos[i], rawwavesin[i]) * (inverted ? -1.0 : 1.0);
 	  }
  	  m_piccnt++;

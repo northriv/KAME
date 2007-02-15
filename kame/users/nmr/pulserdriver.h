@@ -71,13 +71,6 @@ class XPulser : public XPrimaryDriver
     const shared_ptr<XDoubleNode> &masterLevel() const {return m_masterLevel;} //!< [dB]
     const shared_ptr<XBoolNode> &induceEmission() const {return m_induceEmission;}
     const shared_ptr<XDoubleNode> &induceEmissionPhase() const {return m_induceEmissionPhase;}
-    const shared_ptr<XDoubleNode> &portLevel8() const {return m_portLevel8;}
-    const shared_ptr<XDoubleNode> &portLevel9() const {return m_portLevel9;}
-    const shared_ptr<XDoubleNode> &portLevel10() const {return m_portLevel10;}
-    const shared_ptr<XDoubleNode> &portLevel11() const {return m_portLevel11;}
-    const shared_ptr<XDoubleNode> &portLevel12() const {return m_portLevel12;}
-    const shared_ptr<XDoubleNode> &portLevel13() const {return m_portLevel13;}
-    const shared_ptr<XDoubleNode> &portLevel14() const {return m_portLevel14;} //!< [V]
     const shared_ptr<XDoubleNode> &qamOffset1() const {return m_qamOffset1;}
     const shared_ptr<XDoubleNode> &qamOffset2() const {return m_qamOffset2;} //!< [%F.S.]
     const shared_ptr<XDoubleNode> &qamLevel1() const {return m_qamLevel1;} //! < Quadrature Amplitude Modulation. Amplitude compensation factor.
@@ -133,8 +126,8 @@ class XPulser : public XPrimaryDriver
   //! \return bit mask.
   unsigned int selectedPorts(int func) const;
   	//! for RelPatList patterns. \sa RelPatList.
-  enum {PAT_DO_MASK = NUM_DO_PORTS - 1,
-  	PAT_QAM_PHASE = NUM_DO_PORTS,
+  enum {PAT_DO_MASK = (1 << NUM_DO_PORTS) - 1,
+  	PAT_QAM_PHASE = (1 << NUM_DO_PORTS),
   	PAT_QAM_PHASE_MASK = PAT_QAM_PHASE * 3,
   	PAT_QAM_PULSE_IDX = PAT_QAM_PHASE * 4,
   	PAT_QAM_PULSE_IDX_P1 = PAT_QAM_PULSE_IDX * 1,
@@ -249,13 +242,6 @@ class XPulser : public XPrimaryDriver
     shared_ptr<XComboNode> m_p1Func, m_p2Func, m_combFunc; //!< Pulse Modulation
     shared_ptr<XDoubleNode> m_p1Level, m_p2Level, m_combLevel; //!< [dB], Pulse Modulation
     shared_ptr<XDoubleNode> m_masterLevel; //!< [dB]
-    shared_ptr<XDoubleNode> m_portLevel8;
-    shared_ptr<XDoubleNode> m_portLevel9;
-    shared_ptr<XDoubleNode> m_portLevel10;
-    shared_ptr<XDoubleNode> m_portLevel11;
-    shared_ptr<XDoubleNode> m_portLevel12;
-    shared_ptr<XDoubleNode> m_portLevel13;
-    shared_ptr<XDoubleNode> m_portLevel14; //!< [V]
     shared_ptr<XDoubleNode> m_qamOffset1;
     shared_ptr<XDoubleNode> m_qamOffset2; //!< [%F.S.]
     shared_ptr<XDoubleNode> m_qamLevel1;
@@ -281,7 +267,6 @@ class XPulser : public XPrimaryDriver
     m_conCombFunc, m_conP1Func, m_conP2Func,
     m_conCombLevel, m_conP1Level, m_conP2Level,
     m_conMasterLevel,
-    m_conPortLevel8, m_conPortLevel9, m_conPortLevel10, m_conPortLevel11, m_conPortLevel12, m_conPortLevel13, m_conPortLevel14,
     m_conQAMOffset1, m_conQAMOffset2,
     m_conQAMLevel1, m_conQAMLevel2,
     m_conQAMDelay1, m_conQAMDelay2,

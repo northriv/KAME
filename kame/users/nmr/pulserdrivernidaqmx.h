@@ -32,6 +32,7 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
     virtual bool haveQAMPorts() const = 0;
  	virtual const shared_ptr<XNIDAQmxInterface> &intfDO() const {return interface();}
 	virtual const shared_ptr<XNIDAQmxInterface> &intfAO() const {return interface();} 
+	virtual const shared_ptr<XNIDAQmxInterface> &intfCtr() const {return interface();} 
        	 
     //! send patterns to pulser or turn-off
     virtual void changeOutput(bool output, unsigned int blankpattern);
@@ -81,6 +82,7 @@ enum { NUM_BUF_BANK = 6};
 	std::vector<tRawAO> m_genPulseWaveAO[NUM_AO_CH][32];
 enum { CAL_POLY_ORDER = 4};
 	float64 m_coeffAO[NUM_AO_CH][CAL_POLY_ORDER];
+	float64 m_coeffAODev[NUM_AO_CH][CAL_POLY_ORDER];
 	float64 m_upperLimAO[NUM_AO_CH];
 	float64 m_lowerLimAO[NUM_AO_CH];
 	
