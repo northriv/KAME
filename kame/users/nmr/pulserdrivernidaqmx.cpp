@@ -299,8 +299,10 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
  	XScopedLock<XInterface> lockCtr(*intfCtr());
 		   
 	//	std::deque<GenPattern> m_genPatternList;
-		m_genLastPatItAODO = m_genPatternList.begin();
-		m_genRestSampsAODO = m_genPatternList.back().tonext;
+		m_genLastPatItDO = m_genPatternList.begin();
+		m_genRestSampsDO = m_genPatternList.back().tonext;
+		m_genLastPatItAO = m_genPatternList.begin();
+		m_genRestSampsAO = m_genPatternList.back().tonext;
 		
 		m_genBufDO.resize(BUF_SIZE_HINT);
 		m_genBufDO.reserve(BUF_SIZE_HINT); //redundant
@@ -440,7 +442,7 @@ void *
 XNIDAQmxPulser::executeWriteAO(const atomic<bool> &terminated)
 {
 	while(!terminated) {
-		writeBankAO(terminated);
+		writeBufAO(terminated);
 	}
 	return NULL;
 }
@@ -448,7 +450,7 @@ void *
 XNIDAQmxPulser::executeWriteDO(const atomic<bool> &terminated)
 {
 	while(!terminated) {
-		writeBankDO(terminated);
+		writeBufDO(terminated);
 	}
 	return NULL;
 }
@@ -498,7 +500,7 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated)
 	return;
 }
 void
-XNIDAQmxPulser::writeBankDO(const atomic<bool> &terminated)
+XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated)
 {
  	XScopedLock<XInterface> lockdo(*intfDO());
  	const double dma_do_period = resolution();
