@@ -263,7 +263,7 @@ class XPulser : public XPrimaryDriver
   xqcon_ptr m_conRT, m_conTau, m_conCombPW, m_conPW1, m_conPW2,
     m_conCombNum, m_conCombPT, m_conCombP1, m_conCombP1Alt,
     m_conASWHold, m_conASWSetup, m_conALTSep, m_conG2Setup,
-    m_conEchoNum, m_conDrivenEquilibrium, m_conNumPhaseCycle, m_conCombOffRes,
+    m_conEchoNum, m_conDrivenEquilibrium, m_conNumPhaseCycle, m_conCombOffRes, m_conInvertPhase,
     m_conCombFunc, m_conP1Func, m_conP2Func,
     m_conCombLevel, m_conP1Level, m_conP2Level,
     m_conMasterLevel,
