@@ -473,9 +473,8 @@ XNIDAQmxPulser::writeBankAO(const atomic<bool> &terminated)
 			int32 samps;
 			samps = std::min(size - cnt, num_samps);
 			while(!terminated) {
-				if(bank == m_genBankWriting)
-					msecsleep(lrint(size * dma_ao_period));
-//					throw XInterface::XInterfaceError(KAME::i18n("AO buffer underrun."), __FILE__, __LINE__);
+//				if(bank == m_genBankWriting)
+//					throw XInterface::XInterfaceError(KAME::i18n("AO buffer overrun."), __FILE__, __LINE__);
 			uInt32 space;
 				int ret = DAQmxGetWriteSpaceAvail(m_taskAO, &space);
 				if(!ret && (space >= (uInt32)samps))
@@ -503,6 +502,8 @@ XNIDAQmxPulser::writeBankAO(const atomic<bool> &terminated)
 	bank++;
 	if(bank == NUM_BUF_BANK)
 		bank = 0;
+	while((bank == m_genBankWriting) && !terminated)
+		msecsleep(lrint(BUF_SIZE_HINT * dma_ao_period));
 	m_genBankAO = bank;
 	return;
 }
@@ -512,6 +513,7 @@ XNIDAQmxPulser::writeBankDO(const atomic<bool> &terminated)
  	XScopedLock<XInterface> lockdo(*intfDO());
  	const double dma_do_period = resolution();
 	unsigned int bank = m_genBankDO;
+	ASSERT(bank != m_genBankWriting);
 	unsigned int size = m_genBufDO[bank].size();
 	bool firsttime = true;
 	try {
@@ -520,9 +522,8 @@ XNIDAQmxPulser::writeBankDO(const atomic<bool> &terminated)
 			int32 samps;
 			samps = std::min(size - cnt, num_samps);
 			while(!terminated) {
-				if(bank == m_genBankWriting)
-					msecsleep(lrint(size * dma_do_period));
-//					throw XInterface::XInterfaceError(KAME::i18n("DO buffer underrun."), __FILE__, __LINE__);
+//				if(bank == m_genBankWriting)
+//					throw XInterface::XInterfaceError(KAME::i18n("DO buffer overrun."), __FILE__, __LINE__);
 			uInt32 space;
 				int ret = DAQmxGetWriteSpaceAvail(m_taskDO, &space);
 				if(!ret && (space >= (uInt32)samps))
@@ -548,6 +549,10 @@ XNIDAQmxPulser::writeBankDO(const atomic<bool> &terminated)
  		return; 	
 	}
 
+	while((m_genBankWriting == m_genBankAO) && !terminated)
+		msecsleep(lrint(BUF_SIZE_HINT * dma_do_period));
+	if(terminated)
+		return;
  	genBankAODO();
 
 	bank++;
@@ -570,6 +575,7 @@ XNIDAQmxPulser::genBankAODO()
 	long long int tonext = m_genRestSampsAODO;
 	unsigned int aoidx = m_genAOIndex;
 	unsigned int bank = m_genBankWriting;
+	
 	tRawDO pausingbit = m_pausingBit;
 	tRawDO ctrtrigbit = m_ctrTrigBit;
 

@@ -6,10 +6,10 @@
 #include <klocale.h>
 
 double XNIDAQSSeriesPulser::resolution() const {
-     return (1.0/(1e3));
+     return (0.5/(1e3));
 }
 double XNIDAQSSeriesPulser::resolutionQAM() const {
-const unsigned int OVERSAMP_AO = 2;
+const unsigned int OVERSAMP_AO = 1;
      return resolution() / OVERSAMP_AO;
 }
 double XNIDAQMSeriesPulser::resolution() const {
