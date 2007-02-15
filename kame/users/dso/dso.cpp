@@ -257,10 +257,11 @@ XDSO::execute(const atomic<bool> &terminated)
   m_lsnOnRecordLengthChanged = recordLength()->onValueChanged().connectWeak(
                           false, shared_from_this(), &XDSO::onRecordLengthChanged);
 
+  int fetch_mode = *fetchMode();
 
   while(!terminated)
     {
-      while(!*fetchMode() || (*fetchMode() == FETCHMODE_NEVER)) {
+      while(!fetch_mode || (fetch_mode == FETCHMODE_NEVER)) {
 	    msecsleep(50);
       	continue;
       }
@@ -270,16 +271,16 @@ XDSO::execute(const atomic<bool> &terminated)
           if(!count) {
                 time_awared = XTime::now();
                 last_count = 0;
-			    msecsleep(0);
+			    msecsleep(2);
                 continue;
           }
           if((count == last_count) && !*singleSequence()) {
-			    msecsleep(0);
+			    msecsleep(2);
                 continue;
           }
-          if(*fetchMode() == FETCHMODE_SEQ) {
+          if(fetch_mode == FETCHMODE_SEQ) {
 	          if(*singleSequence() && seq_busy) {
-				    msecsleep(4);
+				    msecsleep(10);
 	                continue;
 	          }
           }
