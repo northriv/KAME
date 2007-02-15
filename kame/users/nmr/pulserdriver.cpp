@@ -736,7 +736,8 @@ XPulser::rawToRelPat() throw (XRecordError&)
   const unsigned int qpsknoninvmask = selectedPorts(PORTSEL_QPSK_OLD_NONINV);
   const unsigned int qpskinvmask = selectedPorts(PORTSEL_QPSK_OLD_INV);
   const unsigned int qpskpsgatemask = selectedPorts(PORTSEL_QPSK_OLD_PSGATE);
-  const unsigned int qpskmask = qpskamask | qpskbmask | qpskinvmask | qpsknoninvmask | qpskpsgatemask;
+  const unsigned int qpskmask = qpskamask | qpskbmask |
+  	 qpskinvmask | qpsknoninvmask | qpskpsgatemask | PAT_QAM_PHASE_MASK;
 	
   double _rtime = m_rtimeRecorded;
   double _tau = m_tauRecorded;

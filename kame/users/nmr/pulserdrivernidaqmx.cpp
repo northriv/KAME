@@ -652,7 +652,9 @@ XNIDAQmxPulser::genBankAODO()
 					finiteaorest -= gen_cnt;
 				}
 				unsigned int qpskidx = (pat & PAT_QAM_PHASE_MASK) / PAT_QAM_PHASE;
+				ASSERT(qpskidx < 4);
 				unsigned int pnum = (pidx - 1) * (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE) + qpskidx;
+				ASSERT(pnum < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX);
 				tRawAO *pGenAO0 = &m_genPulseWaveAO[0][pnum][aoidx];
 				tRawAO *pGenAO1 = &m_genPulseWaveAO[1][pnum][aoidx];
 				ASSERT(m_genPulseWaveAO[0][pnum].size());
@@ -778,7 +780,7 @@ XNIDAQmxPulser::makeWaveForm(int num, double pw, tpulsefunc func, double dB, dou
 		unsigned int pnum = num * (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE) + qpsk;
 		m_genPulseWaveAO[0][pnum].clear();
 		m_genPulseWaveAO[1][pnum].clear();
-		ASSERT(pnum < 32);
+		ASSERT(pnum < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX);
 	  	unsigned short word = (unsigned short)lrint(pw / dma_ao_period);
 		double dx = dma_ao_period / pw;
 		double dp = 2*PI*freq*dma_ao_period;
@@ -791,7 +793,7 @@ XNIDAQmxPulser::makeWaveForm(int num, double pw, tpulsefunc func, double dB, dou
 			m_genPulseWaveAO[0][pnum].push_back(aoVoltToRaw(0, x));
 			m_genPulseWaveAO[1][pnum].push_back(aoVoltToRaw(1, y));
 		}
-		phase += PI/2;
+		phase += PI/4;
 	}
 	return 0;
 }
