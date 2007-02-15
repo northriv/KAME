@@ -75,7 +75,7 @@ private:
 enum { NUM_AO_CH = 2};
 	std::vector<tRawDO> m_genBufDO;
 	std::vector<tRawAO> m_genBufAO;
-	std::vector<tRawAO> m_genPulseWaveAO[NUM_AO_CH][32];
+	std::vector<tRawAO> m_genPulseWaveAO[NUM_AO_CH][PAT_QAM_PULSE_IDX_MASK / PAT_QAM_PULSE_IDX];
 enum { CAL_POLY_ORDER = 4};
 	float64 m_coeffAO[NUM_AO_CH][CAL_POLY_ORDER];
 	float64 m_coeffAODev[NUM_AO_CH][CAL_POLY_ORDER];
