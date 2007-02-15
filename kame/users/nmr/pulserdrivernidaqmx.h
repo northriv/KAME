@@ -68,6 +68,8 @@ private:
 	unsigned int m_genFiniteAORestSamps;
 	unsigned int m_ctrTrigBit;
 	unsigned int m_pausingBit;
+	unsigned int m_bufSizeHintDO;
+	unsigned int m_bufSizeHintAO;
 	
 	TaskHandle m_taskAO, m_taskDO,
 		 m_taskDOCtr, m_taskGateCtr,
