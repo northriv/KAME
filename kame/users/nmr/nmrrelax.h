@@ -104,7 +104,7 @@ class XNMRT1 : public XSecondaryDriver
   shared_ptr<XUIntNode> m_smoothSamples;
   shared_ptr<XComboNode> m_p1Dist;
   shared_ptr<XItemNode < XRelaxFuncList, XRelaxFunc > >  m_relaxFunc;
-  shared_ptr<XNode> m_clearAll, m_resetFit;
+  shared_ptr<XNode> m_resetFit, m_clearAll;
   shared_ptr<XStringNode> m_fitStatus;
 
   //! For fitting and display

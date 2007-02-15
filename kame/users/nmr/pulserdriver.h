@@ -232,22 +232,22 @@ class XPulser : public XPrimaryDriver
       //! Control period to next pulse sequence
       //! Fix Repetition Time or Fix Rest Time which means time between pulse sequences 
     shared_ptr<XComboNode> m_rtMode;
-    shared_ptr<XComboNode> m_numPhaseCycle; //!< How many cycles in phase cycling
     shared_ptr<XDoubleNode> m_rt; //!< Repetition/Rest Time [ms]
     shared_ptr<XDoubleNode> m_tau;  //!< [us]
     shared_ptr<XDoubleNode> m_combPW, m_pw1, m_pw2; //!< PulseWidths [us]
+    shared_ptr<XUIntNode> m_combNum; //!< # of comb pulses
     shared_ptr<XDoubleNode> m_combPT; //!< Comb pulse periodic term [us]
     shared_ptr<XDoubleNode> m_combP1, m_combP1Alt; //!< P1 and P1 alternative
     shared_ptr<XDoubleNode> m_aswSetup; //!< Analog switch setting, setup(proceeding) time before the first spin echo
     shared_ptr<XDoubleNode> m_aswHold;  //!< Analog switch setting, hold time after the last spin echo
     shared_ptr<XDoubleNode> m_altSep; //!< Separation time in DSO record, cause a shift of trigger of DSO in alternatively mode
     shared_ptr<XDoubleNode> m_g2Setup; //!< Setup time of pre-gating port and QPSK
-    shared_ptr<XUIntNode> m_combNum; //!< # of comb pulses
     shared_ptr<XUIntNode> m_echoNum; //!< # of Spin echoes (i.e. pi pulses)
-    shared_ptr<XBoolNode> m_drivenEquilibrium; //!< polarize spins after pulse sequence or not
     shared_ptr<XDoubleNode> m_combOffRes; //!< off-resonance comb pulses
-    shared_ptr<XComboNode> m_combFunc, m_p1Func, m_p2Func; //!< Pulse Modulation
-    shared_ptr<XDoubleNode> m_combLevel, m_p1Level, m_p2Level; //!< [dB], Pulse Modulation
+    shared_ptr<XBoolNode> m_drivenEquilibrium; //!< polarize spins after pulse sequence or not
+    shared_ptr<XComboNode> m_numPhaseCycle; //!< How many cycles in phase cycling
+    shared_ptr<XComboNode> m_p1Func, m_p2Func, m_combFunc; //!< Pulse Modulation
+    shared_ptr<XDoubleNode> m_p1Level, m_p2Level, m_combLevel; //!< [dB], Pulse Modulation
     shared_ptr<XDoubleNode> m_masterLevel; //!< [dB]
     shared_ptr<XDoubleNode> m_portLevel8;
     shared_ptr<XDoubleNode> m_portLevel9;
@@ -267,8 +267,8 @@ class XPulser : public XPrimaryDriver
     shared_ptr<XDoubleNode> m_induceEmissionPhase; 
     shared_ptr<XDoubleNode> m_qswDelay;
     shared_ptr<XDoubleNode> m_qswWidth;
-    shared_ptr<XBoolNode> m_qswPiPulseOnly;
     shared_ptr<XBoolNode> m_invertPhase;
+    shared_ptr<XBoolNode> m_qswPiPulseOnly;
     shared_ptr<XComboNode> m_portSel[NUM_DO_PORTS];
     
   shared_ptr<XNode> m_moreConfigShow;

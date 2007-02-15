@@ -103,9 +103,9 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
   m_waveGraph(create<XWaveNGraph>("Wave", true,
          m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)),
   m_ftWaveGraph(create<XWaveNGraph>("Spectrum", true, m_fftForm.get())),
-  m_fftlen(-1),
   m_dnrsubfftlen(-1),
-  m_dnrpulsefftlen(-1)
+  m_dnrpulsefftlen(-1),
+  m_fftlen(-1)
 {
     m_form->m_btnAvgClear->setIconSet(
              KApplication::kApplication()->iconLoader()->loadIconSet("editdelete", 

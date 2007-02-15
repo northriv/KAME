@@ -11,7 +11,8 @@ static const TaskHandle TASK_UNDEF = ((TaskHandle)-1);
 static const unsigned int BUF_SIZE_HINT = 65536*4;
 
 static const bool USE_PAUSING = false;
-static const double PAUSING_TERM = 0.4; //msec
+static const unsigned int PAUSING_CNT = 400;
+static const unsigned int PAUSING_CNT_BLANK = 10;
 
 XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
    const shared_ptr<XScalarEntryList> &scalarentries,
@@ -19,8 +20,6 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers) :
     XNIDAQmxDriver<XPulser>(name, runtime, scalarentries, interfaces, thermometers, drivers),
-	m_ao_interface(XNode::create<XNIDAQmxInterface>("Interface2", false,
-            dynamic_pointer_cast<XDriver>(this->shared_from_this()))),
 	 m_taskAO(TASK_UNDEF),
 	 m_taskDO(TASK_UNDEF),
  	 m_taskDOCtr(TASK_UNDEF),
@@ -73,7 +72,7 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 		gatectrout = formatString("/%s/Ctr1InternalOutput", intfAO()->devName()).c_str();
 	}
 	
-	float64 freq = 1e3 / DMA_DO_PERIOD;
+	float64 freq = 1e3 / resolution();
 
 	//Continuous pulse train generation. Duty = 50%.
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDOCtr));
@@ -108,10 +107,12 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
 	
 	if(USE_PAUSING) {
+	const unsigned pausing_term = lrint(PAUSING_CNT * resolution() * 1e-3);
+	const unsigned pausing_term_blank = lrint(PAUSING_CNT_BLANK * resolution() * 1e-3);
 	    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskGateCtr));
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanTime(m_taskGateCtr, 
 	    	gatectrdev.c_str(), "", DAQmx_Val_Seconds, DAQmx_Val_Low, 0.0,
-	    	PAUSING_TERM, PAUSING_TERM_BLANK));
+	    	pausing_term, pausing_term_blank));
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskGateCtr,
 			 DAQmx_Val_FiniteSamps, 1));
 
@@ -177,12 +178,12 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 
 		CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO,
 			ctrout.c_str(),
-			1e3 / DMA_AO_PERIOD, DAQmx_Val_Rising, DAQmx_Val_ContSamps,
+			1e3 / resolutionQAM(), DAQmx_Val_Rising, DAQmx_Val_ContSamps,
 			BUF_SIZE_HINT * oversamp_ao));
 	}
 	else {
 		CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, "",
-			1e3 / DMA_AO_PERIOD, DAQmx_Val_Rising, DAQmx_Val_ContSamps,
+			1e3 / resolutionQAM(), DAQmx_Val_Rising, DAQmx_Val_ContSamps,
 			BUF_SIZE_HINT * oversamp_ao));
 
 		CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskDOCtr,
@@ -260,8 +261,8 @@ XNIDAQmxPulser::finiteAOSamps(unsigned int finiteaosamps)
 	for(GenPatternIterator it = m_genPatternList.begin(); it != m_genPatternList.end(); it++) {
 		unsigned int pat = it->pattern;
 		unsigned int gen_cnt = it->tonext;
-		tRawDO patDO = allmask & pat;
-		if(patDO & ctrtrigbit) {
+		tRawDO patDO = PAT_DO_MASK & pat;
+		if(patDO & m_ctrTrigBit) {
 			finiteaocnt += finiteaorest;
 			if(!finiteaocnt) {
 				finiteaocnt = 0;
@@ -289,7 +290,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
 
-	m_ctrTrigBit = selectedPorts(PORTSEL_PRETRIG);
+	m_ctrTrigBit = selectedPorts(PORTSEL_PREGATE);
 	m_pausingBit = selectedPorts(PORTSEL_PAUSING);
 	
 	 stopPulseGen();
@@ -309,6 +310,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			m_genBufDO[bank].resize(BUF_SIZE_HINT);
 			m_genBufDO[bank].reserve(BUF_SIZE_HINT); //redundant
 		}
+		const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());	
 		for(unsigned int bank = 0; bank < NUM_BUF_BANK; bank++) {
 			m_genBufAO[bank].resize(BUF_SIZE_HINT * NUM_AO_CH * oversamp_ao);
 			m_genBufAO[bank].reserve(BUF_SIZE_HINT * NUM_AO_CH * oversamp_ao); //redundant
@@ -564,11 +566,9 @@ XNIDAQmxPulser::writeBankDO(const atomic<bool> &terminated)
 void
 XNIDAQmxPulser::genBankAODO()
 {
-	const double dma_do_period = resolution();
 	const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
-	const unsigned int pausing_cnt = lrint(PAUSING_TERM / dma_do_period);
-	const unsigned int pausing_cnt_blank = 2;
-	const double PAUSING_TERM_BLANK = pausing_cnt_blank * dma_do_period;
+	const unsigned int pausing_cnt = PAUSING_CNT;
+	const unsigned int pausing_cnt_blank = PAUSING_CNT_BLANK;
 	
 	GenPatternIterator it = m_genLastPatItAODO;
 	uint32_t pat = it->pattern;
@@ -590,7 +590,7 @@ XNIDAQmxPulser::genBankAODO()
 	tRawAO raw_ao1_zero = aoVoltToRaw(1, 0.0);
 	for(unsigned int samps_rest = BUF_SIZE_HINT; samps_rest;) {
 		//pattern of digital lines.
-		tRawDO patDO = allmask & pat;
+		tRawDO patDO = PAT_DO_MASK & pat;
 		//index for analog pulses.
 		unsigned int pidx = (pat & PAT_QAM_PULSE_IDX_MASK) / PAT_QAM_PULSE_IDX;
 		//number of samples to be written into buffer.
@@ -751,9 +751,10 @@ XNIDAQmxPulser::makeWaveForm(int num, double pw, tpulsefunc func, double dB, dou
 		m_genPulseWaveAO[0][pnum].clear();
 		m_genPulseWaveAO[1][pnum].clear();
 		ASSERT(pnum < 32);
-	  	unsigned short word = (unsigned short)lrint(pw / DMA_AO_PERIOD) + 2;
-		double dx = DMA_AO_PERIOD / pw;
-		double dp = 2*PI*freq*DMA_AO_PERIOD;
+		const double dma_ao_period = resolutionQAM();
+	  	unsigned short word = (unsigned short)lrint(pw / dma_ao_period) + 2;
+		double dx = dma_ao_period / pw;
+		double dp = 2*PI*freq*dma_ao_period;
 		double z = pow(10.0, dB/20.0);
 		for(int i = 0; i < word; i++) {
 			double w = z * func((i - word / 2.0) * dx) * 1.0;

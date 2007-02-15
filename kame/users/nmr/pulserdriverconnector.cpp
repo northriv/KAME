@@ -9,8 +9,8 @@
 XQPulserDriverConnector::XQPulserDriverConnector(
     const shared_ptr<XPulser> &node, QTable *item, XQGraph *qgraph)
      : XQConnector(node, item),
-      m_pulser(node),
       m_pTable(item),
+      m_pulser(node),
       m_graph(createOrphan<XGraph>(node->getName().c_str(), false))
 {
   shared_ptr<XPulser> pulser(node);    

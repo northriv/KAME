@@ -34,9 +34,9 @@ XNIDAQMSeriesWithSSeriesPulser::XNIDAQMSeriesWithSSeriesPulser(const char *name,
 {
     interfaces->insert(m_ao_interface);
     m_lsnOnOpenAO = m_ao_interface->onOpen().connectWeak(false,
-    	 this->shared_from_this(), &XNIDAQmxPulser::onOpenAO);
+    	 this->shared_from_this(), &XNIDAQMSeriesWithSSeriesPulser::onOpenAO);
     m_lsnOnCloseAO = m_ao_interface->onClose().connectWeak(false, 
-    	this->shared_from_this(), &XNIDAQmxPulser::onCloseAO);
+    	this->shared_from_this(), &XNIDAQMSeriesWithSSeriesPulser::onCloseAO);
 }
 
 void
@@ -48,7 +48,7 @@ XNIDAQMSeriesWithSSeriesPulser::open() throw (XInterface::XInterfaceError &)
 void
 XNIDAQSSeriesPulser::open() throw (XInterface::XInterfaceError &)
 {
- 	openAO();
+ 	openAODO();
 	this->start();	
 }
 void

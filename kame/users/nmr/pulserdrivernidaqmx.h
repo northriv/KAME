@@ -23,6 +23,8 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 
  protected:
 	virtual void open() throw (XInterface::XInterfaceError &) = 0;
+	virtual void close() throw (XInterface::XInterfaceError &);
+	
     //! time resolution [ms]
     virtual double resolution() const = 0;
     virtual double resolutionQAM() const {return resolution();}
@@ -42,6 +44,9 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 	void openDO() throw (XInterface::XInterfaceError &);
 	void openAODO() throw (XInterface::XInterfaceError &);
 private:
+	void startPulseGen() throw (XInterface::XInterfaceError &);
+	void stopPulseGen();
+
  	typedef int16 tRawAO;
 	typedef uInt16 tRawDO;
 	  struct GenPattern {

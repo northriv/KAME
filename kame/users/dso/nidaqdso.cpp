@@ -402,8 +402,11 @@ XNIDAQmxDSO::acquire(TaskHandle task)
         0, DAQmx_Val_GroupByChannel,
         &m_record_buf[0], m_record_buf.size(), &cnt, NULL
         ));
-    ASSERT(cnt <= (uInt32)len);
+    ASSERT(cnt <= (int32)len);
 
+	unsigned int av = *average();
+	bool sseq = *singleSequence();
+	
     if(!sseq || ((unsigned int)m_accumCount < av)) {
 	    DAQmxStopTask(m_task);
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_task));
@@ -416,9 +419,6 @@ XNIDAQmxDSO::acquire(TaskHandle task)
     m_acqCount++;
     m_accumCount++;
 
-	unsigned int av = *average();
-	bool sseq = *singleSequence();
-	
     while(!sseq && (av <= m_record_av.size()) && !m_record_av.empty())  {
       for(unsigned int i = 0; i < m_record.size(); i++) {
         m_record[i] -= m_record_av.front()[i];

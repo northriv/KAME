@@ -83,7 +83,7 @@ class XAVS47IB:public XCharDeviceDriver<XTempControl>
   double read(const char *str);
 
   void setTemp(double temp);
-  void setHeaterMode(int mode) {}
+  void setHeaterMode(int /*mode*/) {}
   int setPoint();
   //AVS-47 COMMANDS
   int setRange(unsigned int range);
