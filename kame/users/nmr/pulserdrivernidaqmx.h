@@ -60,8 +60,8 @@ private:
 	std::deque<GenPattern> m_genPatternList;
 	typedef std::deque<GenPattern>::iterator GenPatternIterator;
 
-	GenPatternIterator m_genLastPatItAODO;
-	long long int m_genRestSampsAODO;
+	GenPatternIterator m_genLastPatItAO, m_genLastPatItDO;
+	long long int m_genRestSampsAO, m_genRestSampsDO;
 	unsigned int m_genAOIndex;
 	unsigned int finiteAOSamps(unsigned int finiteaosamps);
 	unsigned int m_genFiniteAOSamps;
@@ -73,12 +73,8 @@ private:
 		 m_taskDOCtr, m_taskGateCtr,
 		 m_taskAOCtr;
 enum { NUM_AO_CH = 2};
-enum { NUM_BUF_BANK = 6};
-	std::vector<tRawDO> m_genBufDO[NUM_BUF_BANK];
-	std::vector<tRawAO> m_genBufAO[NUM_BUF_BANK];
-	atomic<unsigned int> m_genBankWriting;
-	atomic<unsigned int> m_genBankDO;
-	atomic<unsigned int> m_genBankAO;
+	std::vector<tRawDO> m_genBufDO;
+	std::vector<tRawAO> m_genBufAO;
 	std::vector<tRawAO> m_genPulseWaveAO[NUM_AO_CH][32];
 enum { CAL_POLY_ORDER = 4};
 	float64 m_coeffAO[NUM_AO_CH][CAL_POLY_ORDER];
@@ -87,11 +83,12 @@ enum { CAL_POLY_ORDER = 4};
 	float64 m_lowerLimAO[NUM_AO_CH];
 	
 	inline tRawAO aoVoltToRaw(int ch, float64 volt);
-	void genBankAODO();
+	void genBankDO();
+	void genBankAO();
 	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriteAO;
 	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriteDO;
-	void writeBankAO(const atomic<bool> &terminated);
-	void writeBankDO(const atomic<bool> &terminated);
+	void writeBufAO(const atomic<bool> &terminated);
+	void writeBufDO(const atomic<bool> &terminated);
 	void *executeWriteAO(const atomic<bool> &);
 	void *executeWriteDO(const atomic<bool> &);
 	
