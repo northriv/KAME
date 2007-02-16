@@ -188,12 +188,12 @@ XDSO::visualize()
   	m_waveForm->clear();
   	return;
   }
-  unsigned int num_channels = numChannelsRecorded();
+  const unsigned int num_channels = numChannelsRecorded();
   if(!num_channels) {
   	m_waveForm->clear();
   	return;
   }
-  unsigned int length = lengthRecorded();
+  const unsigned int length = lengthRecorded();
   { XScopedWriteLock<XWaveNGraph> lock(*m_waveForm);
       m_waveForm->setColCount(num_channels + 1, s_trace_names);
       if((m_waveForm->colX() != 0) || (m_waveForm->colY1() != 1) ||
@@ -206,7 +206,7 @@ XDSO::visualize()
           
       m_waveForm->setRowCount(length);
     
-      double *times = m_waveForm->cols(0);
+      double *const times = m_waveForm->cols(0);
       for(unsigned int i = 0; i < length; i++)
         {
           times[i] = (i - trigPosRecorded()) * timeIntervalRecorded();
@@ -257,10 +257,9 @@ XDSO::execute(const atomic<bool> &terminated)
   m_lsnOnRecordLengthChanged = recordLength()->onValueChanged().connectWeak(
                           false, shared_from_this(), &XDSO::onRecordLengthChanged);
 
-  int fetch_mode = *fetchMode();
-
   while(!terminated)
-    {
+  {
+	  const int fetch_mode = *fetchMode();
       while(!fetch_mode || (fetch_mode == FETCHMODE_NEVER)) {
 	    msecsleep(50);
       	continue;

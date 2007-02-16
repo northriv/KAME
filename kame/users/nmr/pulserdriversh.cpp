@@ -98,15 +98,15 @@ XSHPulser::XSHPulser(const char *name, bool runtime,
 void
 XSHPulser::createNativePatterns()
 {
-  double _tau = m_tauRecorded;
-  double _pw1 = m_pw1Recorded;
-  double _pw2 = m_pw2Recorded;
-  double _comb_pw = m_combPWRecorded;
-  double _dif_freq = m_difFreqRecorded;
+  const double _tau = m_tauRecorded;
+  const double _pw1 = m_pw1Recorded;
+  const double _pw2 = m_pw2Recorded;
+  const double _comb_pw = m_combPWRecorded;
+  const double _dif_freq = m_difFreqRecorded;
 
-  bool _induce_emission = *induceEmission();
-  double _induce_emission_pw = _comb_pw;
-  double _induce_emission_phase = *induceEmissionPhase() / 180.0 * PI;
+  const bool _induce_emission = *induceEmission();
+  const double _induce_emission_pw = _comb_pw;
+  const double _induce_emission_phase = *induceEmissionPhase() / 180.0 * PI;
   
   //dry-run to determin LastPattern, DMATime
   m_dmaTerm = 0.0;
@@ -147,13 +147,13 @@ int
 XSHPulser::makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq, double phase)
 {
 	m_waveformPos[num] = m_zippedPatterns.size();
-  	unsigned short word = (unsigned short)rint(pw / DMA_PERIOD);
+  	const unsigned short word = (unsigned short)rint(pw / DMA_PERIOD);
 	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_HBURST);
 	m_zippedPatterns.push_back((unsigned char)(word / 0x100) );
 	m_zippedPatterns.push_back((unsigned char)(word % 0x100) );
-	double dx = DMA_PERIOD / pw;
-	double dp = 2*PI*freq*DMA_PERIOD;
-	double z = pow(10.0, dB/20.0);
+	const double dx = DMA_PERIOD / pw;
+	const double dp = 2*PI*freq*DMA_PERIOD;
+	const double z = pow(10.0, dB/20.0);
 	for(int i = 0; i < word; i++) {
 		double w = z * func((i - word / 2.0) * dx) * 125.0;
 		double x = w * cos((i - word / 2.0) * dp + PI/4 + phase);
@@ -180,9 +180,9 @@ XSHPulser::setAUX2DA(double volt, int addr)
 int
 XSHPulser::insertPreamble(unsigned short startpattern)
 {
-double masterlevel = pow(10.0, *masterLevel() / 20.0);
-double qamlevel1 = *qamLevel1();
-double qamlevel2 = *qamLevel2();
+const double masterlevel = pow(10.0, *masterLevel() / 20.0);
+const double qamlevel1 = *qamLevel1();
+const double qamlevel2 = *qamLevel2();
 	m_zippedPatterns.clear();
 	
 	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_OFFSET);

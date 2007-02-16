@@ -233,13 +233,13 @@ void
 XNMRPulseAnalyzer::backgroundSub(const std::deque<std::complex<double> > &wave,
      int pos, int length, int bgpos, int bglength, twindowfunc windowfunc)
 {
-  if(*useDNR() && (bglength > 0))
+	if(*useDNR() && (bglength > 0))
     {
-      int dnrlen = bglength;
-      int dnrpos = bgpos;
+	const int dnrlen = bglength;
+	const int dnrpos = bgpos;
 
       //FFT plan for subtraction
-      if(m_dnrsubfftlen != dnrlen)
+    if(m_dnrsubfftlen != dnrlen)
     {
       if(m_dnrsubfftlen >= 0) fftw_destroy_plan(m_dnrsubfftplan);
       m_dnrsubfftlen = dnrlen;
@@ -247,8 +247,8 @@ XNMRPulseAnalyzer::backgroundSub(const std::deque<std::complex<double> > &wave,
       m_dnrsubfftout.resize(m_dnrsubfftlen);
       m_dnrsubfftplan = fftw_create_plan(m_dnrsubfftlen, FFTW_FORWARD, FFTW_ESTIMATE);
     }
-      //IFFT plan for the subtracted
-      if(m_dnrpulsefftlen != std::max(dnrlen, length))
+    //IFFT plan for the subtracted
+    if(m_dnrpulsefftlen != std::max(dnrlen, length))
     {
       if(m_dnrpulsefftlen >= 0)  fftw_destroy_plan(m_dnrpulsefftplan);
       m_dnrpulsefftlen = std::max(dnrlen, length);
@@ -257,62 +257,62 @@ XNMRPulseAnalyzer::backgroundSub(const std::deque<std::complex<double> > &wave,
       m_dnrpulsefftplan = fftw_create_plan(m_dnrpulsefftlen, FFTW_BACKWARD, FFTW_ESTIMATE);
     }
 
-      for(int i = 0; i < m_dnrsubfftlen; i++)
+    for(int i = 0; i < m_dnrsubfftlen; i++)
     {
       m_dnrsubfftin[i].re = std::real(wave[i + pos + dnrpos]);
       m_dnrsubfftin[i].im = std::imag(wave[i + pos + dnrpos]);
     }
-      fftw_one(m_dnrsubfftplan, &m_dnrsubfftin[0], &m_dnrsubfftout[0]);
+    fftw_one(m_dnrsubfftplan, &m_dnrsubfftin[0], &m_dnrsubfftout[0]);
 
-      //calcurate noise level
-      double nlevel = 0.0;
-      int nlevel_cnt = 0;
+    //calcurate noise level
+	double nlevel = 0.0;
+	int nlevel_cnt = 0;
 #define NOISE_BW 20
-      for(int i = 0; i < m_dnrsubfftlen; i++)
+	for(int i = 0; i < m_dnrsubfftlen; i++)
     {
       int k = (i < m_dnrsubfftlen/2) ? i : (i - m_dnrsubfftlen);
-          if((abs(k) < NOISE_BW) && (k != 0))
+      if((abs(k) < NOISE_BW) && (k != 0))
         { 
           nlevel += sqrt(m_dnrsubfftout[i].re * m_dnrsubfftout[i].re
                  + m_dnrsubfftout[i].im * m_dnrsubfftout[i].im);
           nlevel_cnt++;
         }
     }
-      nlevel /= nlevel_cnt;
-      nlevel *= 2.0; //Threshold value
+    nlevel /= nlevel_cnt;
+    nlevel *= 2.0; //Threshold value
 
-      for(int i = 0; i < m_dnrpulsefftlen; i++)
+    for(int i = 0; i < m_dnrpulsefftlen; i++)
     {
       m_dnrpulsefftin[i].re = 0.0;
       m_dnrpulsefftin[i].im = 0.0;
     }        
 
     m_noisePower = 0.0;
-      for(int i = 0; i < m_dnrsubfftlen; i++)
+    for(int i = 0; i < m_dnrsubfftlen; i++)
     {
       int k = (i < m_dnrsubfftlen/2) ? i : (i - m_dnrsubfftlen);
-          if((k != 0)
+      if((k != 0)
          && (sqrt(m_dnrsubfftout[i].re * m_dnrsubfftout[i].re + m_dnrsubfftout[i].im * m_dnrsubfftout[i].im) < nlevel))
-        {
-              m_noisePower += m_dnrsubfftout[i].re * m_dnrsubfftout[i].re 
+	  {
+          m_noisePower += m_dnrsubfftout[i].re * m_dnrsubfftout[i].re 
                     + m_dnrsubfftout[i].im * m_dnrsubfftout[i].im;
           continue;            
-        }
-          double dphase = - 2 * PI * dnrpos * i / m_dnrsubfftlen;
+      }
+      const double dphase = - 2 * PI * dnrpos * i / m_dnrsubfftlen;
 
-          double cx = cos(dphase) / m_dnrsubfftlen;
-          double sx = sin(dphase) / m_dnrsubfftlen;
-      int j = i * (m_dnrpulsefftlen - 1) / (m_dnrsubfftlen - 1);
+      const double cx = cos(dphase) / m_dnrsubfftlen;
+      const double sx = sin(dphase) / m_dnrsubfftlen;
+      const int j = i * (m_dnrpulsefftlen - 1) / (m_dnrsubfftlen - 1);
       ASSERT((j >= 0) || (j < m_dnrpulsefftlen));
-          m_dnrpulsefftin[j].re += cx * m_dnrsubfftout[i].re - sx * m_dnrsubfftout[i].im;
-          m_dnrpulsefftin[j].im += cx * m_dnrsubfftout[i].im + sx * m_dnrsubfftout[i].re;
+      m_dnrpulsefftin[j].re += cx * m_dnrsubfftout[i].re - sx * m_dnrsubfftout[i].im;
+      m_dnrpulsefftin[j].im += cx * m_dnrsubfftout[i].im + sx * m_dnrsubfftout[i].re;
     }
-        m_noisePower /= bglength*bglength;   
+    m_noisePower /= bglength*bglength;   
 
-      fftw_one(m_dnrpulsefftplan, &m_dnrpulsefftin[0], &m_dnrpulsefftout[0]);
-      for(int i = 0; i < length; i++)
+	fftw_one(m_dnrpulsefftplan, &m_dnrpulsefftin[0], &m_dnrpulsefftout[0]);
+    for(int i = 0; i < length; i++)
     {
-      int j = i % m_dnrpulsefftlen;
+      const int j = i % m_dnrpulsefftlen;
       std::complex<double> c(m_dnrpulsefftout[j].re, m_dnrpulsefftout[j].im);
       m_wave[i] = wave[pos + i] - c;
 //    WaveRe[i] = dnrpulsefftout[j].re;
@@ -342,7 +342,7 @@ XNMRPulseAnalyzer::backgroundSub(const std::deque<std::complex<double> > &wave,
           m_noisePower /= bglength;
     }
 
-      for(int i = 0; i < length; i++)
+    for(int i = 0; i < length; i++)
     {
       m_wave[i] = wave[pos + i] - bg;
     }
@@ -353,7 +353,7 @@ XNMRPulseAnalyzer::rotNFFT(int ftpos,
     double ph, std::deque<std::complex<double> > &wave, 
     std::deque<std::complex<double> > &ftwave, twindowfunc windowfunc, int diffreq)
 {
-int length = wave.size();
+const int length = wave.size();
   //phase advance
   std::complex<double> cph(cos(ph), sin(ph));
   for(int i = 0; i < length; i++)
@@ -364,8 +364,8 @@ int length = wave.size();
   //fft
   for(int i = 0; i < m_fftlen; i++)
     {
-      int j = (ftpos + i >= m_fftlen) ? (ftpos + i - m_fftlen) : (ftpos + i);
-      double z = windowfunc((j - ftpos) / (double)length);
+      const int j = (ftpos + i >= m_fftlen) ? (ftpos + i - m_fftlen) : (ftpos + i);
+      const double z = windowfunc((j - ftpos) / (double)length);
       if((j >= length) || (j < 0)) {
             m_fftin[i].re = 0;
             m_fftin[i].im = 0;
@@ -381,10 +381,10 @@ int length = wave.size();
 
   for(int i = 0; i < m_fftlen; i++)
     {
-      int k = i + diffreq;
+      const int k = i + diffreq;
       if((k >= 0) && (k < m_fftlen)) {
-          int j = (k < m_fftlen / 2) ? (m_fftlen / 2 + k) : (k - m_fftlen / 2);
-          double normalize = 1.0 / length;
+          const int j = (k < m_fftlen / 2) ? (m_fftlen / 2 + k) : (k - m_fftlen / 2);
+          const double normalize = 1.0 / length;
           ftwave[i] = std::complex<double>(m_fftout[j].re * normalize, m_fftout[j].im * normalize);
       }
       else {
@@ -407,9 +407,9 @@ XNMRPulseAnalyzer::onCondChanged(const shared_ptr<XValueNodeBase> &node)
 }
 bool
 XNMRPulseAnalyzer::checkDependency(const shared_ptr<XDriver> &emitter) const {
-	shared_ptr<XPulser> _pulser = *pulser();
+	const shared_ptr<XPulser> _pulser = *pulser();
     if(emitter == _pulser) return false;
-    shared_ptr<XDSO> _dso = *dso();
+    const shared_ptr<XDSO> _dso = *dso();
     if(!_dso) return false;
     if(_pulser && (_dso->timeAwared() < _pulser->time())) return false;
     return true;
@@ -417,7 +417,7 @@ XNMRPulseAnalyzer::checkDependency(const shared_ptr<XDriver> &emitter) const {
 void
 XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
 {
-  shared_ptr<XDSO> _dso = *dso();
+  const shared_ptr<XDSO> _dso = *dso();
   ASSERT( _dso );
   ASSERT( _dso->time() );
   
@@ -428,7 +428,7 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
     throw XRecordError(KAME::i18n("Two channels needed in DSO"), __FILE__, __LINE__);
   }
 
-  double interval = _dso->timeIntervalRecorded();
+  const double interval = _dso->timeIntervalRecorded();
   
   if(interval <= 0) {
     throw XRecordError(KAME::i18n("Invalid time interval in waveforms."), __FILE__, __LINE__);
@@ -455,7 +455,7 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
     throw XRecordError(KAME::i18n("Invalid length."), __FILE__, __LINE__);
   }
 
-  bool skip = (m_timeClearRequested > _dso->timeAwared());
+  const bool skip = (m_timeClearRequested > _dso->timeAwared());
   bool avgclear = skip;
 
   if((int)*fftLen() != m_fftlen)
@@ -641,7 +641,7 @@ XNMRPulseAnalyzer::visualize()
       return;
   }
 
-  unsigned int length = m_wave.size();
+  const unsigned int length = m_wave.size();
   {   XScopedWriteLock<XWaveNGraph> lock(*ftWaveGraph());
       ftWaveGraph()->setRowCount(m_fftlen);
       for(int i = 0; i < m_fftlen; i++)

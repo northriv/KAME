@@ -603,12 +603,12 @@ XNIDAQmxPulser::genBankAO()
 	const unsigned int pausing_cnt_blank = PAUSING_CNT_BLANK;
 	
 	GenPatternIterator it = m_genLastPatItAO;
-	uint32_t pat = it->pattern;
+	const uint32_t pat = it->pattern;
 	long long int tonext = m_genRestSampsAO;
 	unsigned int aoidx = m_genAOIndex;
 	
-	tRawDO pausingbit = m_pausingBit;
-	tRawDO ctrtrigbit = m_ctrTrigBit;
+	const tRawDO pausingbit = m_pausingBit;
+	const tRawDO ctrtrigbit = m_ctrTrigBit;
 
 	unsigned int finiteaorest = m_genFiniteAORestSamps;
 	const unsigned int finiteaosamps = m_genFiniteAOSamps;
@@ -667,9 +667,9 @@ XNIDAQmxPulser::genBankAO()
 			if(USE_FINITE_AO) {
 				finiteaorest -= gen_cnt;
 			}
-			unsigned int qpskidx = (pat & PAT_QAM_PHASE_MASK) / PAT_QAM_PHASE;
+			const unsigned int qpskidx = (pat & PAT_QAM_PHASE_MASK) / PAT_QAM_PHASE;
 			ASSERT(qpskidx < 4);
-			unsigned int pnum = (pidx - 1) * (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE) + qpskidx;
+			const unsigned int pnum = (pidx - 1) * (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE) + qpskidx;
 			ASSERT(pnum < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX);
 			tRawAO *pGenAO0 = &m_genPulseWaveAO[0][pnum][aoidx];
 			tRawAO *pGenAO1 = &m_genPulseWaveAO[1][pnum][aoidx];
@@ -725,16 +725,16 @@ void
 XNIDAQmxPulser::createNativePatterns()
 {
   const double dma_do_period = resolution();
-  double _master = *masterLevel();
-  double _tau = m_tauRecorded;
-  double _pw1 = m_pw1Recorded;
-  double _pw2 = m_pw2Recorded;
-  double _comb_pw = m_combPWRecorded;
-  double _dif_freq = m_difFreqRecorded;
+  const double _master = *masterLevel();
+  const double _tau = m_tauRecorded;
+  const double _pw1 = m_pw1Recorded;
+  const double _pw2 = m_pw2Recorded;
+  const double _comb_pw = m_combPWRecorded;
+  const double _dif_freq = m_difFreqRecorded;
 
-  bool _induce_emission = *induceEmission();
-  double _induce_emission_pw = _comb_pw;
-  double _induce_emission_phase = *induceEmissionPhase() / 180.0 * PI;
+  const bool _induce_emission = *induceEmission();
+  const double _induce_emission_pw = _comb_pw;
+  const double _induce_emission_phase = *induceEmissionPhase() / 180.0 * PI;
       
   m_genPatternList.clear();
   uint32_t lastpat = m_relPatList.back().pattern;
@@ -782,7 +782,7 @@ XNIDAQmxPulser::makeWaveForm(int num, double pw, tpulsefunc func, double dB, dou
 	const double delay1 = *qamDelay1() * 1e-3 / dma_ao_period;
 	const double delay2 = *qamDelay2() * 1e-3 / dma_ao_period;
 	for(unsigned int qpsk = 0; qpsk < 4; qpsk++) {
-		unsigned int pnum = num * (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE) + qpsk;
+		const unsigned int pnum = num * (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE) + qpsk;
 		m_genPulseWaveAO[0][pnum].clear();
 		m_genPulseWaveAO[1][pnum].clear();
 		ASSERT(pnum < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX);

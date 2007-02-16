@@ -201,9 +201,9 @@ XNMRT1::onClearAll(const shared_ptr<XNode> &)
 void
 XNMRT1::onResetFit(const shared_ptr<XNode> &)
 {
-      double x = ((double)KAME::rand())/RAND_MAX;
-      double p1min = *p1Min();
-      double p1max = *p1Max();
+      const double x = ((double)KAME::rand())/RAND_MAX;
+      const double p1min = *p1Min();
+      const double p1max = *p1Max();
       if((p1min <= 0) || (p1min >= p1max)) {
       	gErrPrint(KAME::i18n("Invalid P1Min or P1Max."));  
       	return;
@@ -231,9 +231,9 @@ XNMRT1::acuSpectrum(const std::deque<std::complex<double> > &wave,
 {
   std::complex<double> x(0.0, 0.0);
   int cnt = 0;
-  int len = wave.size();
-  int width = lrint(bw / df);
-  int cpos = lrint(len / 2 + cf / df);
+  const int len = wave.size();
+  const int width = lrint(bw / df);
+  const int cpos = lrint(len / 2 + cf / df);
   for(int i = std::max(0, cpos - width/2); i <= std::min(len - 1, cpos + width / 2); i++) {
       x += wave[i];
       cnt++; 
@@ -267,14 +267,14 @@ XNMRT1::checkDependency(const shared_ptr<XDriver> &emitter) const {
 void
 XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 {
-  double p1min = *p1Min();
-  double p1max = *p1Max();
+  const double p1min = *p1Min();
+  const double p1max = *p1Max();
     
   if((p1min <= 0) || (p1min >= p1max)) {
   	throw XRecordError(KAME::i18n("Invalid P1Min or P1Max."), __FILE__, __LINE__);  
   }
 
-  int samples = *smoothSamples();
+  const int samples = *smoothSamples();
   if(samples <= 10) {
   	throw XRecordError(KAME::i18n("Invalid # of Samples."), __FILE__, __LINE__);  
   }
@@ -282,8 +282,8 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
   	throw XRecordError(KAME::i18n("Too many Samples."), __FILE__, __LINE__);
   }
   
-  bool t2mode = *t2Mode();
-  shared_ptr<XNMRPulseAnalyzer> _pulse1 = *pulse1();
+  const bool t2mode = *t2Mode();
+  const shared_ptr<XNMRPulseAnalyzer> _pulse1 = *pulse1();
   ASSERT( _pulse1 );
   ASSERT( _pulse1->time() );
     
@@ -493,9 +493,9 @@ XNMRT1::onActiveChanged(const shared_ptr<XValueNodeBase> &)
 {
   if(*active() == true)
     {
-        shared_ptr<XPulser> _pulser = *pulser();
-        shared_ptr<XNMRPulseAnalyzer> _pulse1 = *pulse1();
-        shared_ptr<XNMRPulseAnalyzer> _pulse2 = *pulse2();
+    const shared_ptr<XPulser> _pulser = *pulser();
+    const shared_ptr<XNMRPulseAnalyzer> _pulse1 = *pulse1();
+    const shared_ptr<XNMRPulseAnalyzer> _pulse2 = *pulse2();
 
       onClearAll(shared_from_this());
       if(!_pulser || !_pulse1) {

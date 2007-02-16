@@ -172,7 +172,7 @@ XPulser::XPulser(const char *name, bool runtime,
     m_formMore(new FrmPulserMore(g_pFrmMain))
 {
 	{
-		QComboBox* combo[] = {
+		QComboBox*const combo[] = {
 			m_formMore->m_cmbPortSel0, m_formMore->m_cmbPortSel1, m_formMore->m_cmbPortSel2, m_formMore->m_cmbPortSel3,
 			m_formMore->m_cmbPortSel4, m_formMore->m_cmbPortSel5, m_formMore->m_cmbPortSel6, m_formMore->m_cmbPortSel7, 
 			m_formMore->m_cmbPortSel8, m_formMore->m_cmbPortSel9, m_formMore->m_cmbPortSel10, m_formMore->m_cmbPortSel11, 
@@ -605,11 +605,11 @@ XPulser::onPulseChanged(const shared_ptr<XValueNodeBase> &node)
 {
   XTime time_awared = XTime::now();
   
-  double _tau = *tau();
-  double _asw_setup = *aswSetup();
-  double _asw_hold = *aswHold();
-  double _alt_sep = *altSep();
-  int _echo_num = *echoNum();
+  const double _tau = *tau();
+  const double _asw_setup = *aswSetup();
+  const double _asw_hold = *aswHold();
+  const double _alt_sep = *altSep();
+  const int _echo_num = *echoNum();
   if(_asw_setup > 2.0 * _tau)
     aswSetup()->value(2.0 * _tau);
   if(node != altSep())
@@ -621,7 +621,7 @@ XPulser::onPulseChanged(const shared_ptr<XValueNodeBase> &node)
 
   clearRaw();
 
-  unsigned int blankpattern = selectedPorts(PORTSEL_COMB_FM);
+  const unsigned int blankpattern = selectedPorts(PORTSEL_COMB_FM);
   
   if(!*output())
     {
@@ -741,39 +741,39 @@ XPulser::rawToRelPat() throw (XRecordError&)
   const unsigned int qpskmask = qpskamask | qpskbmask |
   	 qpskinvmask | qpsknoninvmask | qpskpsgatemask | PAT_QAM_PHASE_MASK;
 	
-  double _rtime = m_rtimeRecorded;
-  double _tau = m_tauRecorded;
-  double _asw_setup = m_aswSetupRecorded;
-  double _asw_hold = m_aswHoldRecorded;
-  double _alt_sep = m_altSepRecorded;
-  double _pw1 = m_pw1Recorded;
-  double _pw2 = m_pw2Recorded;
-  double _comb_pw = m_combPWRecorded;
-  double _comb_pt = m_combPTRecorded;
-  double _comb_p1 = m_combP1Recorded;
-  double _comb_p1_alt = m_combP1AltRecorded;
-  double _g2_setup = *g2Setup();
-  int _echo_num = m_echoNumRecorded;
-  int _comb_num = m_combNumRecorded;
-  int _comb_mode = m_combModeRecorded;
-  int _rt_mode = m_rtModeRecorded;
+  const double _rtime = m_rtimeRecorded;
+  const double _tau = m_tauRecorded;
+  const double _asw_setup = m_aswSetupRecorded;
+  const double _asw_hold = m_aswHoldRecorded;
+  const double _alt_sep = m_altSepRecorded;
+  const double _pw1 = m_pw1Recorded;
+  const double _pw2 = m_pw2Recorded;
+  const double _comb_pw = m_combPWRecorded;
+  const double _comb_pt = m_combPTRecorded;
+  const double _comb_p1 = m_combP1Recorded;
+  const double _comb_p1_alt = m_combP1AltRecorded;
+  const double _g2_setup = *g2Setup();
+  const int _echo_num = m_echoNumRecorded;
+  const int _comb_num = m_combNumRecorded;
+  const int _comb_mode = m_combModeRecorded;
+  const int _rt_mode = m_rtModeRecorded;
   int _num_phase_cycle = m_numPhaseCycleRecorded;
   
-  bool comb_mode_alt = ((_comb_mode == N_COMB_MODE_P1_ALT) ||
+  const bool comb_mode_alt = ((_comb_mode == N_COMB_MODE_P1_ALT) ||
             (_comb_mode == N_COMB_MODE_COMB_ALT));
-  bool saturation_wo_comb = (_comb_num == 0);
-  bool driven_equilibrium = *drivenEquilibrium();
-  double _qsw_delay = *qswDelay();
-  double _qsw_width = *qswWidth();
-  bool _qsw_pi_only = *qswPiPulseOnly();
-  int comb_rot_num = lrint(*combOffRes() * (_comb_pw / 1000.0) * 4);
+  const bool saturation_wo_comb = (_comb_num == 0);
+  const bool driven_equilibrium = *drivenEquilibrium();
+  const double _qsw_delay = *qswDelay();
+  const double _qsw_width = *qswWidth();
+  const bool _qsw_pi_only = *qswPiPulseOnly();
+  const int comb_rot_num = lrint(*combOffRes() * (_comb_pw / 1000.0) * 4);
   
-  bool _induce_emission = *induceEmission();
-  double _induce_emission_pw = _comb_pw;
+  const bool _induce_emission = *induceEmission();
+  const double _induce_emission_pw = _comb_pw;
   if((_comb_mode == N_COMB_MODE_OFF))
   	 _num_phase_cycle = std::min(_num_phase_cycle, 4);
   
-  bool _invert_phase = m_invertPhaseRecorded;
+  const bool _invert_phase = m_invertPhaseRecorded;
 
   //patterns correspoinding to 0, pi/2, pi, -pi/2
   const unsigned int qpskIQ[4] = {0, 1, 3, 2};
@@ -832,8 +832,8 @@ XPulser::rawToRelPat() throw (XRecordError&)
   double pos = 0;
             
   int echonum = _echo_num;
-  const uint32_t *p1 = (echonum > 1) ? p1multi : p1single;
-  const uint32_t *p2 = (echonum > 1) ? p2multi : p2single;
+  const uint32_t *const p1 = (echonum > 1) ? p1multi : p1single;
+  const uint32_t *const p2 = (echonum > 1) ? p2multi : p2single;
   
   bool former_of_alt = !_invert_phase;
   for(int i = 0; i < _num_phase_cycle * (comb_mode_alt ? 2 : 1); i++)
@@ -864,7 +864,7 @@ XPulser::rawToRelPat() throw (XRecordError&)
       //comb pulses
       if((_p1 > 0) && !saturation_wo_comb)
      {
-     double combpt = std::max((double)_comb_pt, (double)_comb_pw)/1000.0;
+     const double combpt = std::max((double)_comb_pt, (double)_comb_pw)/1000.0;
      double cpos = pos - combpt*_comb_num;
      
       patterns_cheap.insert(tpat(cpos - _comb_pw/1000.0/2 - _g2_setup/1000.0,

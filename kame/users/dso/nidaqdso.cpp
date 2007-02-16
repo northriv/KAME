@@ -118,7 +118,7 @@ XNIDAQmxDSO::setupTrigger()
     CHECK_DAQMX_RET(DAQmxDisableRefTrig(m_task));
     m_trigRoute.reset();
 	
-    unsigned int pretrig = lrint(*trigPos() / 100.0 * *recordLength());
+    const unsigned int pretrig = lrint(*trigPos() / 100.0 * *recordLength());
     std::string atrig;
     std::string dtrig;
     std::string src = trigSource()->to_str();
@@ -183,7 +183,7 @@ XNIDAQmxDSO::setupTiming()
 
     CHECK_DAQMX_RET(DAQmxStopTask(m_task));
 
-	unsigned int len = *recordLength();
+	const unsigned int len = *recordLength();
 	m_record.resize(len * NUM_MAX_CH);
 	m_record_buf.resize(len * NUM_MAX_CH);
     CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_task,
@@ -404,8 +404,8 @@ XNIDAQmxDSO::acquire(TaskHandle task)
         ));
     ASSERT(cnt <= (int32)len);
 
-	unsigned int av = *average();
-	bool sseq = *singleSequence();
+	const unsigned int av = *average();
+	const bool sseq = *singleSequence();
 	
     if(!sseq || ((unsigned int)m_accumCount < av)) {
 	    DAQmxStopTask(m_task);
@@ -538,11 +538,11 @@ XNIDAQmxDSO::getWave(std::deque<std::string> &)
 void
 XNIDAQmxDSO::convertRaw() throw (XRecordError&)
 {
-	unsigned int num_ch = pop<uint32_t>();
-	unsigned int pretrig = pop<uint32_t>();
-	unsigned int len = pop<uint32_t>();
-	unsigned int accumCount = pop<uint32_t>();
-	double interval = pop<double>();
+	const unsigned int num_ch = pop<uint32_t>();
+	const unsigned int pretrig = pop<uint32_t>();
+	const unsigned int len = pop<uint32_t>();
+	const unsigned int accumCount = pop<uint32_t>();
+	const double interval = pop<double>();
 
 	setRecordDim(num_ch, - (double)pretrig * interval, interval, len);
 	
@@ -553,7 +553,7 @@ XNIDAQmxDSO::convertRaw() throw (XRecordError&)
 			coeff[i] = pop<double>();
 		}
       double *wave = waveRecorded(j);
-      float64 prop = 1.0 / accumCount;
+      const float64 prop = 1.0 / accumCount;
       for(unsigned int i = 0; i < len; i++)
 		{
         	  *(wave++) = aiRawToVolt(coeff, pop<int32_t>() * prop);
