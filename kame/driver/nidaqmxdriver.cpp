@@ -10,7 +10,8 @@ static std::deque<shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> > g_daqmx_sync_ro
 static const XNIDAQmxInterface::ProductInfo gc_productInfoList[] = {
 	{"PCI-6110", "S", 5000uL, 2500uL, 0, 0, 20000uL},
 	{"PXI-6110", "S", 5000uL, 2500uL, 0, 0, 20000uL},
-	{"PCI-6111", "S", 5000uL, 2500uL, 0, 0, 20000uL},
+//	{"PCI-6111", "S", 5000uL, 2500uL, 0, 0, 20000uL},
+	{"PCI-6111", "S", 5000uL, 0100uL, 0, 0, 20000uL},
 	{"PXI-6111", "S", 5000uL, 2500uL, 0, 0, 20000uL},
 	{"PCI-6115", "S", 10000uL, 2500uL, 10000uL, 10000uL, 20000uL},
 	{"PCI-6120", "S", 800uL, 2500uL, 10000uL, 10000uL, 20000uL},

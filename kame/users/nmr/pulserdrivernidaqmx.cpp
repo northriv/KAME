@@ -143,6 +143,8 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	if(m_taskAOCtr != TASK_UNDEF)
 	    DAQmxClearTask(m_taskAOCtr);
 	
+	if(intfDO()->productInfo()->do_max_rate == 0)
+		throw XInterface::XInterfaceError(KAME::i18n("HW-timed transfer needed."), __FILE__, __LINE__);
 	if(intfAO()->productInfo()->ao_max_rate == 0)
 		throw XInterface::XInterfaceError(KAME::i18n("HW-timed transfer needed."), __FILE__, __LINE__);
 	
