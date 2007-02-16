@@ -192,7 +192,7 @@ template <class T>
 void 
 XThread<T>::waitFor(void **retval)
 {
-  int ret = pthread_join(m_threadid, retval);
+  pthread_join(m_threadid, retval);
 //  ASSERT(!ret);
 }
 template <class T>
