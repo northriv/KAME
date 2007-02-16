@@ -417,22 +417,20 @@ XNIDAQmxPulser::stopPulseGen()
 	if(m_threadWriteDO) {
 		m_threadWriteDO->terminate();
 	}
-	if(m_threadWriteAO) {
-		m_threadWriteAO->waitFor();
+	{
+		XScopedLock<XMutex> lockAO(m_mutexAO);
+		XScopedLock<XMutex> lockDO(m_mutexDO);
+		if(m_taskAOCtr != TASK_UNDEF)
+		    DAQmxStopTask(m_taskAOCtr);
+		if(m_taskDOCtr != TASK_UNDEF)
+		    DAQmxStopTask(m_taskDOCtr);
+		if(m_taskDO != TASK_UNDEF)
+		    DAQmxStopTask(m_taskDO);
+		if(m_taskAO != TASK_UNDEF)
+		    DAQmxStopTask(m_taskAO);
+		if(m_taskGateCtr != TASK_UNDEF)
+		    DAQmxStopTask(m_taskGateCtr);
 	}
-	if(m_threadWriteDO) {
-		m_threadWriteDO->waitFor();
-	}
-	if(m_taskAOCtr != TASK_UNDEF)
-	    DAQmxStopTask(m_taskAOCtr);
-	if(m_taskDOCtr != TASK_UNDEF)
-	    DAQmxStopTask(m_taskDOCtr);
-	if(m_taskDO != TASK_UNDEF)
-	    DAQmxStopTask(m_taskDO);
-	if(m_taskAO != TASK_UNDEF)
-	    DAQmxStopTask(m_taskAO);
-	if(m_taskGateCtr != TASK_UNDEF)
-	    DAQmxStopTask(m_taskGateCtr);
 }
 inline XNIDAQmxPulser::tRawAO
 XNIDAQmxPulser::aoVoltToRaw(int ch, float64 volt)
@@ -451,6 +449,7 @@ XNIDAQmxPulser::aoVoltToRaw(int ch, float64 volt)
 void *
 XNIDAQmxPulser::executeWriteAO(const atomic<bool> &terminated)
 {
+	XScopedLock<XMutex> lockAO(m_mutexAO);
 	while(!terminated) {
 		writeBufAO(terminated);
 	}
@@ -459,6 +458,7 @@ XNIDAQmxPulser::executeWriteAO(const atomic<bool> &terminated)
 void *
 XNIDAQmxPulser::executeWriteDO(const atomic<bool> &terminated)
 {
+	XScopedLock<XMutex> lockDO(m_mutexDO);
 	while(!terminated) {
 		writeBufDO(terminated);
 	}
@@ -736,7 +736,7 @@ XNIDAQmxPulser::genBankAO()
 		}
 	}
 	//resize buffers if necessary.
-	if(USE_FINITE_AO || USE_PAUSING)
+	if(USE_FINITE_AO || pausingbit)
 		m_genBufAO.resize((int)(pAO - &m_genBufAO[0]));
 	else
 		ASSERT(pAO == &m_genBufAO[m_genBufAO.size()]);
