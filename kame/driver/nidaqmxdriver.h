@@ -38,12 +38,26 @@ public:
   private:
   	std::string m_src, m_dst;
   };
+  
+  struct ProductInfo {
+  	const char *type;
+  	const char *series;
+  	unsigned long ai_max_rate; //!< [kHz]
+  	unsigned long ao_max_rate; //!< [kHz]
+  	unsigned long di_max_rate; //!< [kHz]
+  	unsigned long do_max_rate; //!< [kHz]
+  	unsigned long onboard_timebase; //!< [kHz]
+  };
+
+  const ProductInfo* productInfo() const {return m_productInfo;}
+  
 protected:
   virtual void open() throw (XInterfaceError &);
   //! This can be called even if has already closed.
   virtual void close() throw (XInterfaceError &);
 private:
 	std::string m_devname;
+	ProductInfo* m_productInfo;
 };
 
 #define CHECK_DAQMX_ERROR(ret) XNIDAQmxInterface::checkDAQmxError(ret, __FILE__, __LINE__)

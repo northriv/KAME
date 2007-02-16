@@ -7,6 +7,24 @@ static int g_daqmx_open_cnt;
 static XMutex g_daqmx_mutex;
 static std::deque<shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> > g_daqmx_sync_routes;
 
+static const XNIDAQmxInterface::ProductInfo gc_productInfoList[] = {
+	{"PCI-6110", "S", 5000uL, 2500uL, 0, 0, 20000uL},
+	{"PXI-6110", "S", 5000uL, 2500uL, 0, 0, 20000uL},
+	{"PCI-6111", "S", 5000uL, 2500uL, 0, 0, 20000uL},
+	{"PXI-6111", "S", 5000uL, 2500uL, 0, 0, 20000uL},
+	{"PCI-6115", "S", 10000uL, 2500uL, 10000uL, 10000uL, 20000uL},
+	{"PCI-6120", "S", 800uL, 2500uL, 10000uL, 10000uL, 20000uL},
+	{"PCI-6220", "M", 250uL, 0, 1000uL, 1000uL, 80000uL},
+	{"PXI-6220", "M", 250uL, 0, 1000uL, 1000uL, 80000uL},
+	{"PCI-6221", "M", 250uL, 740uL, 1000uL, 1000uL, 80000uL},
+	{"PXI-6221", "M", 250uL, 740uL, 1000uL, 1000uL, 80000uL},
+	{"PCI-6224", "M", 250uL, 0, 1000uL, 1000uL, 80000uL},
+	{"PXI-6224", "M", 250uL, 0, 1000uL, 1000uL, 80000uL},
+	{"PCI-6229", "M", 250uL, 625uL, 1000uL, 1000uL, 80000uL},
+	{"PXI-6229", "M", 250uL, 625uL, 1000uL, 1000uL, 80000uL},
+	{0, 0, 0, 0, 0, 0, 0},
+};
+
 static void
 XNIDAQmxGlobalOpen()
 {
@@ -196,7 +214,18 @@ char buf[256];
 	XNIDAQmxGlobalOpen();
 	if(sscanf(device()->to_str().c_str(), "%256s", buf) != 1)
           	throw XOpenInterfaceError(__FILE__, __LINE__);
-	m_devname = buf;
+	std::string devname = buf;
+	CHECK_DAQMX_RET(DAQmxGetDevProductType(devname.c_str(), buf, sizeof(buf)));
+	std::string type = buf;
+	
+	for(const ProductInfo *it = gc_productInfoList; it->type; it++) {
+		if(it->type == type) {
+			m_productInfo = it;
+			m_devname = devname;
+			return;
+		}
+	}
+	throw XInterfaceError(KAME::i18n("No device info. for product [%1].").arg(type), __FILE__, __LINE__);
 }
 void
 XNIDAQmxInterface::close() throw (XInterfaceError &)
