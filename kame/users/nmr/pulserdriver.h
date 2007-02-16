@@ -188,11 +188,11 @@ class XPulser : public XPrimaryDriver
     bool m_invertPhaseRecorded;
 
   struct RelPat {
-      RelPat(uint32_t pat, double t, double toapp) :
+      RelPat(uint32_t pat, uint64_t t, uint64_t toapp) :
         pattern(pat), time(t), toappear(toapp) {}
       uint32_t pattern;
-      double time; //!< [ms]
-      double toappear; //!< term between this pattern and the previous [ms]
+      uint64_t time; //!< unit of resolution().
+      uint64_t toappear; //!< term between this pattern and the previous. unit of resolution().
   };
 
   typedef std::deque<RelPat> RelPatList;
@@ -289,6 +289,12 @@ class XPulser : public XPrimaryDriver
   //! create RelPatList
   void rawToRelPat() throw (XRecordError&);
   
+  //! truncate time by resolution().
+  inline double rintTermMilliSec(double msec) const;
+  inline double rintTermMicroSec(double usec) const;
+  inline uint64_t ceilSampsMicroSec(double us) const;
+  inline uint64_t rintSampsMicroSec(double us) const;
+  inline uint64_t rintSampsMilliSec(double ms) const;
  };
 
 #endif

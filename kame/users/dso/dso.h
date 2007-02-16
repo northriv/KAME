@@ -163,11 +163,11 @@ class XDSO : public XPrimaryDriver
   
   void onCondChanged(const shared_ptr<XValueNodeBase> &);
   
-  xqcon_ptr m_conAverage, m_conSingle, m_conTrace1, m_conTrace2;
-  xqcon_ptr m_conFetchMode, m_conTimeWidth, m_conVFullScale1, m_conVFullScale2;
-  xqcon_ptr m_conTrigSource, m_conTrigPos, m_conTrigLevel, m_conTrigFalling;
-  xqcon_ptr m_conVOffset1, m_conVOffset2, m_conForceTrigger, m_conRecordLength;
-  xqcon_ptr m_conFIREnabled, m_conFIRBandWidth, m_conFIRSharpness, m_conFIRCenterFreq;
+  const xqcon_ptr m_conAverage, m_conSingle, m_conTrace1, m_conTrace2;
+  const xqcon_ptr m_conFetchMode, m_conTimeWidth, m_conVFullScale1, m_conVFullScale2;
+  const xqcon_ptr m_conTrigSource, m_conTrigPos, m_conTrigLevel, m_conTrigFalling;
+  const xqcon_ptr m_conVOffset1, m_conVOffset2, m_conForceTrigger, m_conRecordLength;
+  const xqcon_ptr m_conFIREnabled, m_conFIRBandWidth, m_conFIRSharpness, m_conFIRCenterFreq;
  
   shared_ptr<XThread<XDSO> > m_thread;
   const shared_ptr<XStatusPrinter> m_statusPrinter;

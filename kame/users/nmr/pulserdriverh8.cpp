@@ -53,15 +53,12 @@ XH8Pulser::createNativePatterns()
   }
 }
 int
-XH8Pulser::pulseAdd(double msec, unsigned short pattern)
+XH8Pulser::pulseAdd(uint64_t term, unsigned short pattern)
 {
-  msec = std::max(msec, MIN_PULSE_WIDTH);
+  term = std::max(term, (uint64_t)lrint(MIN_PULSE_WIDTH / TIMER_PERIOD));
 
-  uint32_t ulen = (uint32_t)floor(
-    (msec / TIMER_PERIOD - 1) / 0x8000u);
-  uint32_t llen = lrint(
-    (msec / TIMER_PERIOD - 1) - ulen * 0x8000u);
-  if(llen >= 0x8000u) llen = 0;
+  uint32_t ulen = (uint32_t)((term - 1) / 0x8000uLL);
+  uint32_t llen = (uint32_t)((term - 1) % 0x8000uLL);
 
   switch(ulen)
     {

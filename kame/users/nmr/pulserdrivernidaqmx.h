@@ -51,17 +51,17 @@ private:
  	typedef int16 tRawAO;
 	typedef uInt16 tRawDO;
 	  struct GenPattern {
-	      GenPattern(uint32_t pat, long long int next) :
+	      GenPattern(uint32_t pat, uint64_t int next) :
 	        pattern(pat), tonext(next) {}
 	      uint32_t pattern;
-	      long long int tonext; // in samps for DO.
+	      uint64_t int tonext; // in samps for DO.
 	  };
 
 	std::deque<GenPattern> m_genPatternList;
 	typedef std::deque<GenPattern>::iterator GenPatternIterator;
 
 	GenPatternIterator m_genLastPatItAO, m_genLastPatItDO;
-	long long int m_genRestSampsAO, m_genRestSampsDO;
+	uint64_t int m_genRestSampsAO, m_genRestSampsDO;
 	unsigned int m_genAOIndex;
 	unsigned int finiteAOSamps(unsigned int finiteaosamps);
 	unsigned int m_genFiniteAOSamps;

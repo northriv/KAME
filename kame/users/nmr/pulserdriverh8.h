@@ -30,9 +30,9 @@ class XH8Pulser : public XCharDeviceDriver<XPulser>
     virtual bool haveQAMPorts() const {return false;}
  private:
   //! Add 1 pulse pattern
-  //! \param msec a period to next pattern
+  //! \param term a period to next pattern
   //! \param pattern a pattern for digital, to appear
-  int pulseAdd(double msec, unsigned short pattern);
+  int pulseAdd(uint64_t term, unsigned short pattern);
 
   struct h8ushort {unsigned char msb; unsigned char lsb;};
   std::vector<h8ushort> m_zippedPatterns;

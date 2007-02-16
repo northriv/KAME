@@ -533,12 +533,11 @@ XNIDAQmxPulser::genBankDO()
 	
 	GenPatternIterator it = m_genLastPatItDO;
 	uint32_t pat = it->pattern;
-	long long int tonext = m_genRestSampsDO;
+	uint64_t tonext = m_genRestSampsDO;
 	
 	tRawDO pausingbit = m_pausingBit;
 
 	bool paused = false;
-	C_ASSERT(sizeof(long long int) > sizeof(int32_t));
 
 	tRawDO *pDO = &m_genBufDO[0];
 	const unsigned int size = m_bufSizeHintDO;
@@ -548,7 +547,7 @@ XNIDAQmxPulser::genBankDO()
 		//index for analog pulses.
 		const unsigned int pidx = (pat & PAT_QAM_PULSE_IDX_MASK) / PAT_QAM_PULSE_IDX;
 		//number of samples to be written into buffer.
-		unsigned int gen_cnt = std::min((long long int)samps_rest, tonext);
+		unsigned int gen_cnt = std::min((uint64_t)samps_rest, tonext);
 		
 		if(pausingbit) {
 			patDO &= ~pausingbit;
@@ -606,7 +605,7 @@ XNIDAQmxPulser::genBankAO()
 	
 	GenPatternIterator it = m_genLastPatItAO;
 	uint32_t pat = it->pattern;
-	long long int tonext = m_genRestSampsAO;
+	uint64_t tonext = m_genRestSampsAO;
 	unsigned int aoidx = m_genAOIndex;
 	
 	const tRawDO pausingbit = m_pausingBit;
@@ -615,7 +614,7 @@ XNIDAQmxPulser::genBankAO()
 	unsigned int finiteaorest = m_genFiniteAORestSamps;
 	const unsigned int finiteaosamps = m_genFiniteAOSamps;
 	bool paused = false;
-	C_ASSERT(sizeof(long long int) > sizeof(int32_t));
+
 	tRawAO *pAO = &m_genBufAO[0];
 	const tRawAO raw_ao0_zero = aoVoltToRaw(0, 0.0);
 	const tRawAO raw_ao1_zero = aoVoltToRaw(1, 0.0);
@@ -624,7 +623,7 @@ XNIDAQmxPulser::genBankAO()
 		//index for analog pulses.
 		const unsigned int pidx = (pat & PAT_QAM_PULSE_IDX_MASK) / PAT_QAM_PULSE_IDX;
 		//number of samples to be written into buffer.
-		unsigned int gen_cnt = std::min((long long int)samps_rest, tonext);
+		unsigned int gen_cnt = std::min((uint64_t)samps_rest, tonext);
 		
 		if(pausingbit) {
 			if(paused) {
@@ -742,8 +741,7 @@ XNIDAQmxPulser::createNativePatterns()
   uint32_t lastpat = m_relPatList.back().pattern;
   for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++)
   {
-  long long int tonext = llrint(it->toappear / dma_do_period);
-	 	GenPattern pat(lastpat, tonext);
+	 	GenPattern pat(lastpat, it->toappear);
 	 	lastpat = it->pattern;
   		m_genPatternList.push_back(pat);
   }

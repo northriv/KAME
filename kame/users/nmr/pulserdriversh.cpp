@@ -109,7 +109,7 @@ XSHPulser::createNativePatterns()
   const double _induce_emission_phase = *induceEmissionPhase() / 180.0 * PI;
   
   //dry-run to determin LastPattern, DMATime
-  m_dmaTerm = 0.0;
+  m_dmaTerm = 0;
   m_lastPattern = 0;
   uint32_t pat = 0;
   insertPreamble((unsigned short)pat);
@@ -254,18 +254,20 @@ XSHPulser::finishPulse(void)
 	return 0;
 }
 int
-XSHPulser::pulseAdd(double msec, uint32_t pattern, bool firsttime)
+XSHPulser::pulseAdd(uint64_t term, uint32_t pattern, bool firsttime)
 {
+  const double msec = term * resolution();
+  int64_t mtu_term = term * llrint(resolution() / MTU_PERIOD);
   if( (msec > MIN_MTU_LEN) && ((m_lastPattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX == 0) ) {
   //insert long wait
 	if(!firsttime) {
 		m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_END);
 	}
-	msec += m_dmaTerm;
-	uint32_t ulen = (uint32_t)floor((msec / MTU_PERIOD) / (double)0x10000);
+	mtu_term += m_dmaTerm;
+	uint32_t ulen = (uint32_t)(mtu_term / 0x10000uLL);
 	unsigned short ulenh = (unsigned short)(ulen / 0x10000uL);
 	unsigned short ulenl = (unsigned short)(ulen % 0x10000uL);	
-	unsigned short dlen = (uint32_t)floor((msec / MTU_PERIOD) - ulen * (double)0x10000);
+	unsigned short dlen = (uint32_t)(mtu_term % 0x10000uLL);
 	if(ulenh) {
 		m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_WAIT_LONG_LONG);
 		m_zippedPatterns.push_back((unsigned char)(dlen / 0x100) );
@@ -288,19 +290,19 @@ XSHPulser::pulseAdd(double msec, uint32_t pattern, bool firsttime)
 		m_zippedPatterns.push_back((unsigned char)(dlen % 0x100) );
 	  }
 	}
-	msec -= ((double)ulen*0x10000ul + dlen) * MTU_PERIOD;
-	msec = max(0.0, msec);
+	mtu_term -= ulen*0x10000uL + dlen;
+	mtu_term = max(0LL, mtu_term);
 	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_SET);
 	m_zippedPatterns.push_back((unsigned char)(m_lastPattern / 0x100) );
 	m_zippedPatterns.push_back((unsigned char)(m_lastPattern % 0x100) );
-	m_dmaTerm = 0.0;
+	m_dmaTerm = 0;
   }
-  m_dmaTerm += msec;
-  unsigned long pos_l = rintl(m_dmaTerm / DMA_PERIOD);
+  m_dmaTerm += mtu_term;
+  unsigned long pos_l = m_dmaTerm / llrint(resolution() / MTU_PERIOD);
   if(pos_l >= 0x7000u)
      throw XInterface::XInterfaceError(KAME::i18n("Too long DMA."), __FILE__, __LINE__);
   unsigned short pos = (unsigned short)pos_l;
-  unsigned short len = (unsigned short)rintl(msec / DMA_PERIOD);
+  unsigned short len = mtu_term / llrint(resolution() / MTU_PERIOD);
   if( ((m_lastPattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX == 0) && ((pattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX > 0) ) {
 	unsigned short word = m_zippedPatterns.size() - m_waveformPos[(pattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX - 1];
 	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_COPY_HBURST);

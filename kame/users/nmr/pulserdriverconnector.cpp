@@ -114,6 +114,7 @@ XQPulserDriverConnector::updateGraph(bool checkselection)
 {
     shared_ptr<XPulser> pulser(m_pulser);
     XScopedLock<XGraph> lock(*m_graph);
+    
     std::deque<XGraph::ValPoint> & barplot_points(m_barPlot->points());
     m_barPlot->maxCount()->value(pulser->m_relPatList.size());
     barplot_points.clear();
@@ -128,23 +129,24 @@ XQPulserDriverConnector::updateGraph(bool checkselection)
     uint32_t lastpat = pulser->m_relPatList.empty() ? 0 :
         pulser->m_relPatList[pulser->m_relPatList.size() - 1].pattern;
     double firsttime = -0.001, lasttime = 100;
-
+    
     int i = 0;
     for(XPulser::RelPatListIterator it = pulser->m_relPatList.begin(); 
             it != pulser->m_relPatList.end(); it++)
     {
+    	double time = it->time * pulser->resolution();
         if(m_pTable->isRowSelected(i))
         {
-            if(firsttime < 0) firsttime = it->time;
-            lasttime = it->time;
+            if(firsttime < 0) firsttime = time;
+            lasttime = time;
         }
         barplot_points.push_back(XGraph::ValPoint(it->time, m_plots.size()));
         for(int j = 0; j < (int)plots_points.size(); j++)
         {
-            plots_points[j]->push_back(XGraph::ValPoint(it->time, j + 0.7 * ((lastpat >> j) % 2)));
-            plots_points[j]->push_back(XGraph::ValPoint(it->time, j + 0.7 * ((it->pattern >> j) % 2)));
+            plots_points[j]->push_back(XGraph::ValPoint(time, j + 0.7 * ((lastpat >> j) % 2)));
+            plots_points[j]->push_back(XGraph::ValPoint(time, j + 0.7 * ((it->pattern >> j) % 2)));
         }
-        lastpat = it->pattern;       
+        lastpat = it->pattern;
         i++;
     }
     if(checkselection)
@@ -180,8 +182,8 @@ XQPulserDriverConnector::onPulseChanged(const shared_ptr<XDriver> &)
                  it != pulser->m_relPatList.end(); it++)
         {
     //        Form->tblPulse->insertRows(i);
-            m_pTable->setText(i, 0, QString().sprintf("%.4f", it->time));
-            m_pTable->setText(i, 1, QString().sprintf("%.4f", it->toappear));
+            m_pTable->setText(i, 0, QString().sprintf("%.4f", it->time * pulser->resolution()));
+            m_pTable->setText(i, 1, QString().sprintf("%.4f", it->toappear * pulser->resolution()));
             QString s;
             uint32_t pat = it->pattern;
             for(int j = 0; j < XPulser::NUM_DO_PORTS; j++) {

@@ -32,11 +32,11 @@ class XSHPulser : public XCharDeviceDriver<XPulser>
   int insertPreamble(unsigned short startpattern);
   int finishPulse();
   //! Add 1 pulse pattern
-  //! \param msec a period to next pattern
+  //! \param term a period to next pattern
   //! \param pattern a pattern for digital, to appear
-  int pulseAdd(double msec, uint32_t pattern, bool firsttime);
+  int pulseAdd(uint64_t term, uint32_t pattern, bool firsttime);
   uint32_t m_lastPattern;
-  double m_dmaTerm;  
+  uint64_t m_dmaTerm;  
   
   std::vector<unsigned char> m_zippedPatterns;
   
