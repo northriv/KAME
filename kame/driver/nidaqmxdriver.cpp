@@ -128,16 +128,16 @@ QString
 XNIDAQmxInterface::getNIDAQmxErrMessage()
 {
 char str[2048];
-	errno = 0;
 	DAQmxGetExtendedErrorInfo(str, sizeof(str));
+	errno = 0;
 	return QString(str);
 }
 QString
 XNIDAQmxInterface::getNIDAQmxErrMessage(int status)
 {
 char str[2048];
-	errno = 0;
 	DAQmxGetErrorString(status, str, sizeof(str));
+	errno = 0;
 	return QString(str);
 }
 int
