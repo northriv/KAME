@@ -50,7 +50,7 @@ void
 XNIDAQMSeriesWithSSeriesPulser::onOpenAO(const shared_ptr<XInterface> &)
 {
 	try {
-		if(std::string(interface()->productInfo()->series) != "S")
+		if(std::string(intfAO()->productInfo()->series) != "S")
 			throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
 	    m_ctr_interface = intfAO();
 		openAODO();

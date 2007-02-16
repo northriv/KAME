@@ -65,7 +65,7 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 	
 	if(m_resolutionDO <= 0.0)
 		m_resolutionDO = 1.0 / intfDO()->productInfo()->do_max_rate;
-	fprintf(stderr, "Using DO rate = %f[kHz]\n", m_resolutionDO);
+	fprintf(stderr, "Using DO rate = %f[kHz]\n", 1.0/m_resolutionDO);
 
 //	std::string ctrdev = formatString("%s/freqout", intfDO()->devName()).c_str();
 //	std::string ctrout = formatString("/%s/FrequencyOutput", intfDO()->devName()).c_str();
@@ -159,7 +159,7 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 		m_resolutionDO = 1.0 / do_rate;
 		m_resolutionAO = 1.0 / ao_rate;
 	}
-	fprintf(stderr, "Using AO rate = %f[kHz]\n", m_resolutionAO);
+	fprintf(stderr, "Using AO rate = %f[kHz]\n", 1.0/m_resolutionAO);
 	
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskAO));
 

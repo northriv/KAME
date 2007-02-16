@@ -268,17 +268,17 @@ XNIDAQmxDSO::createChannels()
     }
 
 	{
-		char chans[256];
+/*		char chans[256];
 		CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_task, chans, sizeof(chans)));
 		bool32 ret;
 		CHECK_DAQMX_RET(DAQmxGetAIChanCalHasValidCalInfo(m_task, chans, &ret));
 		if(!ret) {
 			statusPrinter()->printMessage(KAME::i18n("Performing self calibration."));
-	        QMessageBox::warning( *form, "KAME", KAME::i18n("Performing self calibration. Wait for minutes.") );
+	        QMessageBox::warning(g_pFrmMain, "KAME", KAME::i18n("Performing self calibration. Wait for minutes.") );
 			CHECK_DAQMX_RET(DAQmxSelfCal(interface()->devName()));
 			statusPrinter()->printMessage(KAME::i18n("Self calibration done."));
 		}
-	}
+*/	}
 
     m_bPollMode = (DAQmxRegisterDoneEvent(m_task, 0, &XNIDAQmxDSO::_acqCallBack, this) < 0);
     if(m_bPollMode)
