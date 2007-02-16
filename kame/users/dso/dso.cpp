@@ -273,7 +273,7 @@ XDSO::execute(const atomic<bool> &terminated)
 			    msecsleep(10);
                 continue;
           }
-          if((count == last_count) && !*singleSequence()) {
+          if(count == last_count) {
 			    msecsleep(10);
                 continue;
           }
