@@ -2,6 +2,8 @@
 
 #ifdef HAVE_NI_DAQMX
 
+#include <qmessagebox.h>
+#include <kmessagebox.h>
 #include "xwavengraph.h"
 #include <klocale.h>
 
@@ -272,6 +274,7 @@ XNIDAQmxDSO::createChannels()
 		CHECK_DAQMX_RET(DAQmxGetAIChanCalHasValidCalInfo(m_task, chans, &ret));
 		if(!ret) {
 			statusPrinter()->printMessage(KAME::i18n("Performing self calibration."));
+	        QMessageBox::warning( *form, "KAME", KAME::i18n("Performing self calibration. Wait for minutes.") );
 			CHECK_DAQMX_RET(DAQmxSelfCal(interface()->devName()));
 			statusPrinter()->printMessage(KAME::i18n("Self calibration done."));
 		}

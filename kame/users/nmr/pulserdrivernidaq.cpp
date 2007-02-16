@@ -24,7 +24,7 @@ XNIDAQMSeriesWithSSeriesPulser::XNIDAQMSeriesWithSSeriesPulser(const char *name,
 void
 XNIDAQSSeriesPulser::open() throw (XInterface::XInterfaceError &)
 {
-	if(std::string(interface()->productInfo()->type) != "S")
+	if(std::string(interface()->productInfo()->series) != "S")
 		throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
  	openAODO();
 	this->start();	
@@ -32,7 +32,7 @@ XNIDAQSSeriesPulser::open() throw (XInterface::XInterfaceError &)
 void
 XNIDAQMSeriesPulser::open() throw (XInterface::XInterfaceError &)
 {
-	if(std::string(interface()->productInfo()->type) != "M")
+	if(std::string(interface()->productInfo()->series) != "M")
 		throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
  	openDO();
 	this->start();	
@@ -40,7 +40,7 @@ XNIDAQMSeriesPulser::open() throw (XInterface::XInterfaceError &)
 void
 XNIDAQMSeriesWithSSeriesPulser::open() throw (XInterface::XInterfaceError &)
 {
-	if(std::string(interface()->productInfo()->type) != "M")
+	if(std::string(interface()->productInfo()->series) != "M")
 		throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
  	m_ctr_interface = intfDO();
  	openDO();
@@ -50,7 +50,7 @@ void
 XNIDAQMSeriesWithSSeriesPulser::onOpenAO(const shared_ptr<XInterface> &)
 {
 	try {
-		if(std::string(interface()->productInfo()->type) != "S")
+		if(std::string(interface()->productInfo()->series) != "S")
 			throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
 	    m_ctr_interface = intfAO();
 		openAODO();
