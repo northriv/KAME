@@ -1,4 +1,40 @@
-#ifndef PULSERDRIVERNIDAQMX_H_
+/***************************************************************************
+		Copyright (C) 2002-2007 Kentaro Kitagawa
+		                   kitagawa@scphys.kyoto-u.ac.jp
+		
+		This program is free software; you can redistribute it and/or
+		modify it under the terms of the GNU Library General Public
+		License as published by the Free Software Foundation; either
+		version 2 of the License, or (at your option) any later version.
+		
+		You should have received a copy of the GNU Library General 
+		Public License and a list of authors along with this program; 
+		see the files COPYING and AUTHORS.
+ ***************************************************************************//***************************************************************************
+		Copyright (C) 2002-2007 Kentaro Kitagawa
+		                   kitagawa@scphys.kyoto-u.ac.jp
+		
+		This program is free software; you can redistribute it and/or
+		modify it under the terms of the GNU Library General Public
+		License as published by the Free Software Foundation; either
+		version 2 of the License, or (at your option) any later version.
+		
+		You should have received a copy of the GNU Library General 
+		Public License and a list of authors along with this program; 
+		see the files COPYING and AUTHORS.
+ ***************************************************************************//***************************************************************************
+		Copyright (C) 2002-2007 Kentaro Kitagawa
+		                   kitagawa@scphys.kyoto-u.ac.jp
+		
+		This program is free software; you can redistribute it and/or
+		modify it under the terms of the GNU Library General Public
+		License as published by the Free Software Foundation; either
+		version 2 of the License, or (at your option) any later version.
+		
+		You should have received a copy of the GNU Library General 
+		Public License and a list of authors along with this program; 
+		see the files COPYING and AUTHORS.
+ ***************************************************************************/#ifndef PULSERDRIVERNIDAQMX_H_
 #define PULSERDRIVERNIDAQMX_H_
 
 #include "pulserdriver.h"
@@ -70,6 +106,8 @@ private:
 	unsigned int m_pausingBit;
 	unsigned int m_bufSizeHintDO;
 	unsigned int m_bufSizeHintAO;
+	unsigned int m_transferSizeHintDO;
+	unsigned int m_transferSizeHintAO;
 	double m_resolutionDO, m_resolutionAO;
 protected:	
 	TaskHandle m_taskAO, m_taskDO,

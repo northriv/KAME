@@ -1,4 +1,16 @@
-#include "pulserdrivernidaqmx.h"
+/***************************************************************************
+		Copyright (C) 2002-2007 Kentaro Kitagawa
+		                   kitagawa@scphys.kyoto-u.ac.jp
+		
+		This program is free software; you can redistribute it and/or
+		modify it under the terms of the GNU Library General Public
+		License as published by the Free Software Foundation; either
+		version 2 of the License, or (at your option) any later version.
+		
+		You should have received a copy of the GNU Library General 
+		Public License and a list of authors along with this program; 
+		see the files COPYING and AUTHORS.
+ ***************************************************************************/#include "pulserdrivernidaqmx.h"
 
 #ifdef HAVE_NI_DAQMX
 
@@ -104,10 +116,11 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, BUF_SIZE_HINT));
 	uInt32 bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
-	printf("Using bufsize = %d, freq = %f\n", (int)bufsize, freq);
+	fprintf(stderr, "Using bufsize = %d, freq = %f\n", (int)bufsize, freq);
 	m_bufSizeHintDO = bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &bufsize));
-	printf("On-board bufsize = %d\n", (int)bufsize);
+	fprintf(stderr, "On-board bufsize = %d\n", (int)bufsize);
+	m_transferSizeHintDO = bufsize / 2;
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
 	
 	if(USE_PAUSING) {
@@ -215,10 +228,11 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, BUF_SIZE_HINT));
 	uInt32 bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
-	printf("Using bufsize = %d\n", (int)bufsize);
+	fprintf(stderr, "Using bufsize = %d\n", (int)bufsize);
 	m_bufSizeHintAO = bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &bufsize));
-	printf("On-board bufsize = %d\n", (int)bufsize);
+	fprintf(stderr, "On-board bufsize = %d\n", (int)bufsize);
+	m_transferSizeHintAO = bufsize / 2;
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskAO, DAQmx_Val_DoNotAllowRegen));
 
 	for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
@@ -472,7 +486,7 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated)
 	const unsigned int size = m_genBufAO.size() / NUM_AO_CH;
 	bool firsttime = true;
 	try {
-		const unsigned int num_samps = 256;
+		const unsigned int num_samps = m_transferSizeHintAO;
 		for(unsigned int cnt = 0; cnt < size;) {
 			int32 samps;
 			samps = std::min(size - cnt, num_samps);
@@ -515,7 +529,7 @@ XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated)
 	const unsigned int size = m_genBufDO.size();
 	bool firsttime = true;
 	try {
-		const unsigned int num_samps = 256;
+		const unsigned int num_samps = m_transferSizeHintDO;
 		for(unsigned int cnt = 0; cnt < size;) {
 			int32 samps;
 			samps = std::min(size - cnt, num_samps);
