@@ -108,6 +108,8 @@ class XDSO : public XPrimaryDriver
   virtual void analyzeRaw() throw (XRecordError&);
   
   void setRecordDim(unsigned int channels, double startpos, double interval, unsigned int length);
+  
+  const shared_ptr<XStatusPrinter> &statusPrinter() const {return m_statusPrinter;}
  private:
   enum {FETCHMODE_NEVER = 0, FETCHMODE_AVG = 1, FETCHMODE_SEQ = 2};
  

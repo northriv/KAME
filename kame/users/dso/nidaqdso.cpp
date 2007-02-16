@@ -271,9 +271,9 @@ XNIDAQmxDSO::createChannels()
 		bool32 ret;
 		CHECK_DAQMX_RET(DAQmxGetAIChanCalHasValidCalInfo(m_task, chans, &ret));
 		if(!ret) {
-			m_statusPrinter->printMessage(KAME::i18n("Performing self calibration."));
+			statusPrinter()->printMessage(KAME::i18n("Performing self calibration."));
 			CHECK_DAQMX_RET(DAQmxSelfCal(interface()->devName()));
-			m_statusPrinter->printMessage(KAME::i18n("Self calibration done."));
+			statusPrinter()->printMessage(KAME::i18n("Self calibration done."));
 		}
 	}
 
