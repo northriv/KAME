@@ -265,6 +265,18 @@ XNIDAQmxDSO::createChannels()
 			&m_lowerLimAI[1]));*/
     }
 
+	{
+		char chans[256];
+		CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_task, chans, sizeof(chans)));
+		bool32 ret;
+		CHECK_DAQMX_RET(DAQmxGetAIChanCalHasValidCalInfo(m_task, chans, &ret));
+		if(!ret) {
+			g_statusPrinter->printMessage(KAME::i18n("Performing self calibration."));
+			CHECK_DAQMX_RET(DAQmxSelfCal(interface()->devName()));
+			g_statusPrinter->printMessage(KAME::i18n("Self calibration done."));
+		}
+	}
+
     m_bPollMode = (DAQmxRegisterDoneEvent(m_task, 0, &XNIDAQmxDSO::_acqCallBack, this) < 0);
     if(m_bPollMode)
     	dbgPrint(getLabel() + ": Polling mode enabled.");

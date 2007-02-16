@@ -270,11 +270,11 @@ XDSO::execute(const atomic<bool> &terminated)
           if(!count) {
                 time_awared = XTime::now();
                 last_count = 0;
-			    msecsleep(2);
+			    msecsleep(10);
                 continue;
           }
           if((count == last_count) && !*singleSequence()) {
-			    msecsleep(2);
+			    msecsleep(10);
                 continue;
           }
           if(fetch_mode == FETCHMODE_SEQ) {
