@@ -71,11 +71,12 @@ private:
 	unsigned int m_bufSizeHintDO;
 	unsigned int m_bufSizeHintAO;
 	double m_resolutionDO, m_resolutionAO;
-	
+protected:	
 	TaskHandle m_taskAO, m_taskDO,
 		 m_taskDOCtr, m_taskGateCtr,
 		 m_taskAOCtr;
 enum { NUM_AO_CH = 2};
+private:
 	std::vector<tRawDO> m_genBufDO;
 	std::vector<tRawAO> m_genBufAO;
 	std::vector<tRawAO> m_genPulseWaveAO[NUM_AO_CH][PAT_QAM_PULSE_IDX_MASK / PAT_QAM_PULSE_IDX];

@@ -20,9 +20,6 @@ class XNIDAQSSeriesPulser : public XNIDAQmxPulser
 
  protected:
 	virtual void open() throw (XInterface::XInterfaceError &);
-    //! time resolution [ms]
-    virtual double resolution() const;
-    virtual double resolutionQAM() const;
     //! existense of AO ports.
     virtual bool haveQAMPorts() const {return true;}
 };
@@ -42,8 +39,6 @@ class XNIDAQMSeriesPulser : public XNIDAQmxPulser
 
  protected:
 	virtual void open() throw (XInterface::XInterfaceError &);
-    //! time resolution [ms]
-    virtual double resolution() const;
     //! existense of AO ports.
     virtual bool haveQAMPorts() const {return false;}
 };
@@ -62,9 +57,6 @@ class XNIDAQMSeriesWithSSeriesPulser : public XNIDAQmxPulser
 
  protected:
 	virtual void open() throw (XInterface::XInterfaceError &);
-    //! time resolution [ms]
-    virtual double resolution() const;
-    virtual double resolutionQAM() const;
     //! existense of AO ports.
     virtual bool haveQAMPorts() const {return true;}
     
