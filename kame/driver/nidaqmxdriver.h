@@ -57,7 +57,7 @@ protected:
   virtual void close() throw (XInterfaceError &);
 private:
 	std::string m_devname;
-	ProductInfo* m_productInfo;
+	const ProductInfo* m_productInfo;
 };
 
 #define CHECK_DAQMX_ERROR(ret) XNIDAQmxInterface::checkDAQmxError(ret, __FILE__, __LINE__)
