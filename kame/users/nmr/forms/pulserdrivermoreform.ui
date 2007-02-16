@@ -1677,6 +1677,7 @@
 </customwidgets>
 <tabstops>
     <tabstop>m_cmbPhaseCycle</tabstop>
+    <tabstop>m_ckbInvertPhase</tabstop>
     <tabstop>m_numEcho</tabstop>
     <tabstop>m_ckbDrivenEquilibrium</tabstop>
     <tabstop>m_edG2Setup</tabstop>
@@ -1684,6 +1685,27 @@
     <tabstop>m_edASWHold</tabstop>
     <tabstop>m_edASWSetup</tabstop>
     <tabstop>m_edALTSep</tabstop>
+    <tabstop>m_edQSWDelay</tabstop>
+    <tabstop>m_edQSWWidth</tabstop>
+    <tabstop>m_ckbQSWPiPulseOnly</tabstop>
+    <tabstop>m_ckbInduceEmission</tabstop>
+    <tabstop>m_numInduceEmissionPhase</tabstop>
+    <tabstop>m_cmbPortSel0</tabstop>
+    <tabstop>m_cmbPortSel1</tabstop>
+    <tabstop>m_cmbPortSel2</tabstop>
+    <tabstop>m_cmbPortSel3</tabstop>
+    <tabstop>m_cmbPortSel4</tabstop>
+    <tabstop>m_cmbPortSel5</tabstop>
+    <tabstop>m_cmbPortSel6</tabstop>
+    <tabstop>m_cmbPortSel7</tabstop>
+    <tabstop>m_cmbPortSel8</tabstop>
+    <tabstop>m_cmbPortSel9</tabstop>
+    <tabstop>m_cmbPortSel10</tabstop>
+    <tabstop>m_cmbPortSel11</tabstop>
+    <tabstop>m_cmbPortSel12</tabstop>
+    <tabstop>m_cmbPortSel13</tabstop>
+    <tabstop>m_cmbPortSel14</tabstop>
+    <tabstop>m_cmbPortSel15</tabstop>
     <tabstop>m_edQAMOffset1</tabstop>
     <tabstop>m_edQAMOffset2</tabstop>
     <tabstop>m_edQAMLevel1</tabstop>

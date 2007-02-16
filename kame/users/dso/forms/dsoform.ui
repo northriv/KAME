@@ -1051,14 +1051,26 @@
 <tabstops>
     <tabstop>m_ckbSingleSeq</tabstop>
     <tabstop>m_edAverage</tabstop>
+    <tabstop>m_edTimeWidth</tabstop>
+    <tabstop>m_edRecordLength</tabstop>
     <tabstop>m_cmbTrace1</tabstop>
+    <tabstop>m_cmbVFS1</tabstop>
     <tabstop>m_edVOffset1</tabstop>
+    <tabstop>m_cmbTrace2</tabstop>
+    <tabstop>m_cmbVFS2</tabstop>
+    <tabstop>m_edVOffset2</tabstop>
+    <tabstop>m_cmbTrigSource</tabstop>
+    <tabstop>m_numTrigPos</tabstop>
+    <tabstop>m_edTrigLevel</tabstop>
+    <tabstop>m_ckbTrigFalling</tabstop>
+    <tabstop>m_btnForceTrigger</tabstop>
+    <tabstop>m_urlDump</tabstop>
+    <tabstop>m_btnDump</tabstop>
+    <tabstop>m_cmbFetchMode</tabstop>
     <tabstop>m_ckbFIREnabled</tabstop>
     <tabstop>m_edFIRSharpness</tabstop>
     <tabstop>m_edFIRBandWidth</tabstop>
     <tabstop>m_edFIRCenterFreq</tabstop>
-    <tabstop>m_urlDump</tabstop>
-    <tabstop>m_btnDump</tabstop>
 </tabstops>
 <layoutdefaults spacing="6" margin="11"/>
 <includehints>
