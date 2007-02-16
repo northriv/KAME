@@ -282,76 +282,30 @@ XNIDAQmxPulser::close() throw (XInterface::XInterfaceError &)
 	intfCtr()->stop();
 }
 
-unsigned int
-XNIDAQmxPulser::finiteAOSamps(unsigned int finiteaosamps)
-{
-	unsigned int finiteaocnt = 0;
-	unsigned int finiteaorest = 0;
-	for(GenPatternIterator it = m_genPatternList.begin(); it != m_genPatternList.end(); it++) {
-		unsigned int pat = it->pattern;
-		unsigned int gen_cnt = it->tonext;
-		tRawDO patDO = PAT_DO_MASK & pat;
-		if(patDO & m_ctrTrigBit) {
-			finiteaocnt += finiteaorest;
-			if(!finiteaocnt) {
-				finiteaocnt = 0;
-			}
-			finiteaocnt += gen_cnt;
-			finiteaorest = 0;
-		}
-		else {
-			if(finiteaocnt) {
-				finiteaorest += gen_cnt;
-				if(finiteaorest > 10) {
-					finiteaosamps = std::max(finiteaosamps, finiteaocnt);
-					if(finiteaocnt + finiteaorest > finiteaosamps) {
-						finiteaocnt = 0;
-						finiteaorest = 0;
-					}
-				}
-			}
-		}
-	}
-	return finiteaosamps;
-}
 void
 XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
 
-	m_ctrTrigBit = selectedPorts(PORTSEL_PREGATE);
-	m_pausingBit = selectedPorts(PORTSEL_PAUSING);
-	
 	 stopPulseGen();
 		   
 //	std::deque<GenPattern> m_genPatternList;
-	m_genLastPatItAO = m_genPatternList.begin();
-	m_genRestSampsAO = m_genPatternList.back().tonext;
-	m_genLastPatItDO = m_genPatternList.begin();
-	m_genRestSampsDO = m_genPatternList.back().tonext;
+	m_genLastPatItAO = m_genPatternListAO.begin();
+	m_genRestSampsAO = m_genPatternListAO.back().tonext;
+	m_genLastPatItDO = m_genPatternListDO.begin();
+	m_genRestSampsDO = m_genPatternListDO.back().tonext;
 	
 	m_genBufDO.resize(m_bufSizeHintDO);
-	m_genBufDO.reserve(m_bufSizeHintDO); //redundant
 	if(m_taskAO != TASK_UNDEF) {
 		m_genAOIndex = 0;
 		m_genBufAO.resize(m_bufSizeHintAO * NUM_AO_CH);
-		m_genBufAO.reserve(m_bufSizeHintAO * NUM_AO_CH); //redundant
 		if(USE_FINITE_AO) {
-			unsigned int oldv = 0;
-			unsigned int newv = 2;
-			while(oldv != newv) {
-				oldv = newv;
-				newv = finiteAOSamps(oldv);
-			}
-			m_genFiniteAOSamps = newv;
-			printf("Using finite ao = %u.\n", newv);
 			if(m_taskAOCtr != TASK_UNDEF)
-				CHECK_DAQMX_RET(DAQmxSetSampQuantSampPerChan(m_taskAOCtr, newv));
+				CHECK_DAQMX_RET(DAQmxSetSampQuantSampPerChan(m_taskAOCtr, m_genFiniteAOSamps));
 		}
-
 	}
 	
-const void *FIRST_OF_MLOCK_MEMBER = &m_genPatternList;
+const void *FIRST_OF_MLOCK_MEMBER = &m_genPatternListAO;
 const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];
 	//Suppress swapping.
 	mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);
@@ -569,48 +523,16 @@ XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated)
 void
 XNIDAQmxPulser::genBankDO()
 {
-	const unsigned int pausing_cnt = PAUSING_CNT;
-	const unsigned int pausing_cnt_blank = PAUSING_CNT_BLANK;
-	
 	GenPatternIterator it = m_genLastPatItDO;
-	uint32_t pat = it->pattern;
+	tRawDO patDO = it->pattern;
 	uint64_t tonext = m_genRestSampsDO;
 	
-	tRawDO pausingbit = m_pausingBit;
-
-	bool paused = false;
-
 	tRawDO *pDO = &m_genBufDO[0];
 	const unsigned int size = m_bufSizeHintDO;
 	for(unsigned int samps_rest = size; samps_rest;) {
-		//pattern of digital lines.
-		tRawDO patDO = PAT_DO_MASK & pat;
-		//index for analog pulses.
-		const unsigned int pidx = (pat & PAT_QAM_PULSE_IDX_MASK) / PAT_QAM_PULSE_IDX;
 		//number of samples to be written into buffer.
 		unsigned int gen_cnt = std::min((uint64_t)samps_rest, tonext);
 		
-		if(pausingbit) {
-			patDO &= ~pausingbit;
-			if(paused) {
-				ASSERT(gen_cnt >= pausing_cnt_blank + 1);
-				//generate a blank time after pausing.
-				gen_cnt = pausing_cnt_blank + 1;
-				paused = false;
-			}
-			else {
-				if((pidx == 0) &&
-					 (tonext > pausing_cnt + pausing_cnt_blank + 1) &&
-					 (samps_rest > pausing_cnt_blank + 1)) {
-					//generate a pausing trigger.
-					gen_cnt = 1;
-					tonext -= pausing_cnt;
-					patDO |= pausingbit;
-					samps_rest = std::max((int)samps_rest - (int)pausing_cnt, (int)pausing_cnt_blank + 2);
-					paused = true;
-				}
-			}
-		}
 		//write digital pattern.
 		for(unsigned int cnt = 0; cnt < gen_cnt; cnt++) {
 			*pDO++ = patDO;
@@ -620,94 +542,42 @@ XNIDAQmxPulser::genBankDO()
 		ASSERT(samps_rest < size);
 		if(tonext == 0) {
 			it++;
-			if(it == m_genPatternList.end()) {
-				it = m_genPatternList.begin();
+			if(it == m_genPatternListDO.end()) {
+				it = m_genPatternListDO.begin();
 //				printf("p.\n");
 			}
-			pat = it->pattern;
+			patDO = it->pattern;
 			tonext = it->tonext;
 		}
 	}
-	//resize buffers if necessary.
-	if(pausingbit)
-		m_genBufDO.resize((int)(pDO - &m_genBufDO[0]));
-	else
-		ASSERT(pDO == &m_genBufDO[m_genBufDO.size()]);
+	ASSERT(pDO == &m_genBufDO[m_genBufDO.size()]);
 	m_genRestSampsDO = tonext;
 	m_genLastPatItDO = it;
 }
 void
 XNIDAQmxPulser::genBankAO()
 {
-	const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
-	const unsigned int pausing_cnt = PAUSING_CNT;
-	const unsigned int pausing_cnt_blank = PAUSING_CNT_BLANK;
-	
 	GenPatternIterator it = m_genLastPatItAO;
-	uint32_t pat = it->pattern;
+	tRawAO pidx = it->pattern;
 	uint64_t tonext = m_genRestSampsAO;
 	unsigned int aoidx = m_genAOIndex;
-	
-	const tRawDO pausingbit = m_pausingBit;
-	const tRawDO ctrtrigbit = m_ctrTrigBit;
-
-	unsigned int finiteaorest = m_genFiniteAORestSamps;
-	const unsigned int finiteaosamps = m_genFiniteAOSamps;
-	bool paused = false;
 
 	tRawAO *pAO = &m_genBufAO[0];
 	const tRawAO raw_ao0_zero = aoVoltToRaw(0, 0.0);
 	const tRawAO raw_ao1_zero = aoVoltToRaw(1, 0.0);
 	const unsigned int size = m_bufSizeHintAO;
 	for(unsigned int samps_rest = size; samps_rest;) {
-		//index for analog pulses.
-		const unsigned int pidx = (pat & PAT_QAM_PULSE_IDX_MASK) / PAT_QAM_PULSE_IDX;
 		//number of samples to be written into buffer.
 		unsigned int gen_cnt = std::min((uint64_t)samps_rest, tonext);
-		
-		if(pausingbit) {
-			if(paused) {
-				ASSERT(gen_cnt >= pausing_cnt_blank + 1);
-				//generate a blank time after pausing.
-				gen_cnt = pausing_cnt_blank + 1;
-				paused = false;
-			}
-			else {
-				if((pidx == 0) &&
-					 (tonext > pausing_cnt + pausing_cnt_blank + 1) &&
-					 (samps_rest > pausing_cnt_blank + 1)) {
-					//generate a pausing trigger.
-					gen_cnt = 1;
-					tonext -= pausing_cnt;
-					samps_rest = std::max((int)samps_rest - (int)pausing_cnt, (int)pausing_cnt_blank + 2);
-					paused = true;
-				}
-			}
-		}
-		if(USE_FINITE_AO)
-		{
-			if((pat & ctrtrigbit) && (finiteaorest == 0)) {
-				finiteaorest = finiteaosamps;
-			}
-		}
 		if(pidx == 0) {
 			//write blank in analog lines.
 			aoidx = 0;
-			unsigned int zerocnt = gen_cnt;
-			if(USE_FINITE_AO) {
-				zerocnt = std::min(finiteaorest, gen_cnt);
-				finiteaorest -= zerocnt;
-			}
-			zerocnt *= oversamp_ao;
-			for(unsigned int cnt = 0; cnt < zerocnt; cnt++) {
+			for(unsigned int cnt = 0; cnt < gen_cnt; cnt++) {
 				*pAO++ = raw_ao0_zero;
 				*pAO++ = raw_ao1_zero;
 			}
 		}
 		else {
-			if(USE_FINITE_AO) {
-				finiteaorest -= gen_cnt;
-			}
 			const unsigned int qpskidx = (pat & PAT_QAM_PHASE_MASK) / PAT_QAM_PHASE;
 			ASSERT(qpskidx < 4);
 			const unsigned int pnum = (pidx - 1) * (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE) + qpskidx;
@@ -716,7 +586,7 @@ XNIDAQmxPulser::genBankAO()
 			tRawAO *pGenAO1 = &m_genPulseWaveAO[1][pnum][aoidx];
 			ASSERT(m_genPulseWaveAO[0][pnum].size());
 			ASSERT(m_genPulseWaveAO[1][pnum].size());
-			if(m_genPulseWaveAO[0][pnum].size() <= aoidx + gen_cnt * oversamp_ao) {
+			if(m_genPulseWaveAO[0][pnum].size() <= aoidx + gen_cnt) {
 				fprintf(stderr, "Oops. This should not happen.\n");
 				int lps = m_genPulseWaveAO[0][pnum].size() - aoidx;
 				lps = std::max(0, lps);
@@ -724,17 +594,17 @@ XNIDAQmxPulser::genBankAO()
 					*pAO++ = *pGenAO0++;
 					*pAO++ = *pGenAO1++;
 				}
-				for(unsigned int cnt = 0; cnt < gen_cnt * oversamp_ao - lps; cnt++) {
+				for(unsigned int cnt = 0; cnt < gen_cnt - lps; cnt++) {
 					*pAO++ = raw_ao0_zero;
 					*pAO++ = raw_ao1_zero;
 				}
 			}
 			else {
-				for(unsigned int cnt = 0; cnt < gen_cnt * oversamp_ao; cnt++) {
+				for(unsigned int cnt = 0; cnt < gen_cnt; cnt++) {
 					*pAO++ = *pGenAO0++;
 					*pAO++ = *pGenAO1++;
 				}
-				aoidx += gen_cnt * oversamp_ao;
+				aoidx += gen_cnt;
 			}
 		}
 		tonext -= gen_cnt;
@@ -742,25 +612,47 @@ XNIDAQmxPulser::genBankAO()
 		ASSERT(samps_rest < size);
 		if(tonext == 0) {
 			it++;
-			if(it == m_genPatternList.end()) {
-				it = m_genPatternList.begin();
+			if(it == m_genPatternListAO.end()) {
+				it = m_genPatternListAO.begin();
 //				printf("p.\n");
 			}
-			pat = it->pattern;
+			pidx = it->pattern;
 			tonext = it->tonext;
 		}
 	}
-	//resize buffers if necessary.
-	if(USE_FINITE_AO || pausingbit)
-		m_genBufAO.resize((int)(pAO - &m_genBufAO[0]));
-	else
-		ASSERT(pAO == &m_genBufAO[m_genBufAO.size()]);
+	ASSERT(pAO == &m_genBufAO[m_genBufAO.size()]);
 	m_genRestSampsAO = tonext;
 	m_genLastPatItAO = it;
 	m_genAOIndex = aoidx;
-	m_genFiniteAORestSamps = finiteaorest;
 }
 
+unsigned int
+XNIDAQmxPulser::finiteAOSamps(unsigned int finiteaosamps)
+{
+	unsigned int finiteaocnt = 0;
+	unsigned int finiteaorest = 0;
+	for(GenPatternIterator it = m_genPatternListAO.begin(); it != m_genPatternListAO.end(); it++) {
+		const unsigned int pidx = (pat & PAT_QAM_PULSE_IDX_MASK) / PAT_QAM_PULSE_IDX;
+		unsigned int tonext = it->tonext;
+		if(pidx) {
+			finiteaocnt += finiteaorest + tonext;
+			finiteaorest = 0;
+		}
+		else {
+			if(finiteaocnt) {
+				finiteaorest += tonext;
+				if(finiteaorest > 10) {
+					finiteaosamps = std::max(finiteaosamps, finiteaocnt);
+					if(finiteaocnt + finiteaorest > finiteaosamps) {
+						finiteaocnt = 0;
+						finiteaorest = 0;
+					}
+				}
+			}
+		}
+	}
+	return finiteaosamps;
+}
 void
 XNIDAQmxPulser::createNativePatterns()
 {
@@ -774,15 +666,92 @@ XNIDAQmxPulser::createNativePatterns()
   const bool _induce_emission = *induceEmission();
   const double _induce_emission_pw = _comb_pw;
   const double _induce_emission_phase = *induceEmissionPhase() / 180.0 * PI;
+
+  m_ctrTrigBit = selectedPorts(PORTSEL_GATE);
+  m_pausingBit = selectedPorts(PORTSEL_PAUSING);
+
+  const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
+	
+  const tRawDO pausingbit = m_pausingBit;
+  const tRawDO ctrtrigbit = m_ctrTrigBit;
+  unsigned int finiteaorest = 0;
+  const unsigned int finiteaosamps = m_genFiniteAOSamps;
+  const unsigned int pausing_cnt = PAUSING_CNT;
+  const unsigned int pausing_cnt_blank = PAUSING_CNT_BLANK;
       
-  m_genPatternList.clear();
-  uint32_t lastpat = m_relPatList.back().pattern;
-  for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++)
-  {
-	 	GenPattern pat(lastpat, it->toappear);
-	 	lastpat = it->pattern;
-  		m_genPatternList.push_back(pat);
-  }
+	m_genPatternListDO.clear();
+	m_genPatternListAO.clear();
+	uint32_t pat = m_relPatList.back().pattern;
+	for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++)
+	{
+	 	uint64_t tonext = it->toappear;
+		//pattern of digital lines.
+		tRawDO patDO = PAT_DO_MASK & pat;
+		const unsigned int pidx = (pat & PAT_QAM_PULSE_IDX_MASK) / PAT_QAM_PULSE_IDX;
+		if(pausingbit) {
+			patDO &= ~pausingbit;
+			while((pidx == 0) &&
+				 (tonext > pausing_cnt + pausing_cnt_blank + 1) {
+				//generate a pausing trigger.
+				{
+				 	GenPattern genpat(patDO | pausingbit, 1);
+			  		m_genPatternListDO.push_back(genpat);
+			  		genpat.pattern = 0;
+			  		genpat.tonext *= oversampao;
+			  		m_genPatternListAO.push_back(genpat);
+				}
+				tonext -= pausing_cnt - 1;
+				{
+				 	GenPattern genpat(patDO, pausing_cnt_blank);
+			  		m_genPatternListDO.push_back(genpat);
+			  		genpat.pattern = 0;
+			  		genpat.tonext *= oversampao;
+			  		m_genPatternListAO.push_back(genpat);
+				}
+			}
+		}
+		{
+		 	GenPattern genpat(patDO, tonext);
+	  		m_genPatternListDO.push_back(genpat);
+	  		genpat.pattern = pidx;
+	  		genpat.tonext *= oversampao;
+	  		m_genPatternListAO.push_back(genpat);
+		}
+	 	pat = it->pattern;
+	}
+
+	if(USE_FINITE_AO) {
+		unsigned int oldv = 0;
+		unsigned int newv = 2;
+		while(oldv != newv) {
+			oldv = newv;
+			newv = finiteAOSamps(oldv);
+		}
+		const unsigned int finiteaosamps = newv;
+		fprintf(stderr, "Using finite ao = %u.\n", finiteaosamps);
+		
+		std::deque<GenPattern> list(m_genPatternListAO);
+		m_genPatternListAO.clear();
+		unsigned int rest = 0;
+		for(GenPatternIterator it = list.begin(); it != list.end(); it++) {
+		unsigned int pidx = it->pattern;
+		uint64_t tonext = it->tonext;
+			if(!pidx) {
+				if(!rest)
+					continue;
+				if(tonext < rest)
+					tonext = rest;
+			}
+			else {
+				if(!rest)
+					rest = finiteaosamps;
+			}
+		 	GenPattern genpat(pidx, tonext);
+	  		m_genPatternListAO.push_back(genpat);
+			rest -= tonext;
+		}
+	}
+		  
   if(m_taskAO != TASK_UNDEF) {
 		const double offset[] = {*qamOffset1(), *qamOffset2()};
 		const double level[] = {*qamLevel1(), *qamLevel2()};

@@ -67,18 +67,17 @@ private:
 	      GenPattern(uint32_t pat, uint64_t next) :
 	        pattern(pat), tonext(next) {}
 	      uint32_t pattern;
-	      uint64_t tonext; // in samps for DO.
+	      uint64_t tonext; //!< in samps for buffer.
 	  };
 
-	std::deque<GenPattern> m_genPatternList;
+	std::deque<GenPattern> m_genPatternListAO;
+	std::deque<GenPattern> m_genPatternListDO;
 	typedef std::deque<GenPattern>::iterator GenPatternIterator;
 
 	GenPatternIterator m_genLastPatItAO, m_genLastPatItDO;
 	uint64_t m_genRestSampsAO, m_genRestSampsDO;
 	unsigned int m_genAOIndex;
 	unsigned int finiteAOSamps(unsigned int finiteaosamps);
-	unsigned int m_genFiniteAOSamps;
-	unsigned int m_genFiniteAORestSamps;
 	unsigned int m_ctrTrigBit;
 	unsigned int m_pausingBit;
 	unsigned int m_bufSizeHintDO;
