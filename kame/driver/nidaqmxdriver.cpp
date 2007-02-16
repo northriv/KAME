@@ -1,4 +1,5 @@
 #include "nidaqmxdriver.h"
+#include <sys/errno.h>
 
 #ifdef HAVE_NI_DAQMX
 
@@ -108,6 +109,7 @@ QString
 XNIDAQmxInterface::getNIDAQmxErrMessage()
 {
 char str[2048];
+	errno = 0;
 	DAQmxGetExtendedErrorInfo(str, sizeof(str));
 	return QString(str);
 }
@@ -115,13 +117,13 @@ QString
 XNIDAQmxInterface::getNIDAQmxErrMessage(int status)
 {
 char str[2048];
+	errno = 0;
 	DAQmxGetErrorString(status, str, sizeof(str));
 	return QString(str);
 }
 int
 XNIDAQmxInterface::checkDAQmxError(int ret, const char*file, int line) {
 	if(ret >= 0) return ret;
-	errno = 0;
 	throw XInterface::XInterfaceError(getNIDAQmxErrMessage(), file, line);
 	return 0;
 }

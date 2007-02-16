@@ -284,8 +284,10 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	 stopPulseGen();
 		   
 //	std::deque<GenPattern> m_genPatternList;
-	m_genLastPatItAODO = m_genPatternList.begin();
-	m_genRestSampsAODO = m_genPatternList.back().tonext;
+	m_genLastPatItAO = m_genPatternList.begin();
+	m_genRestSampsAO = m_genPatternList.back().tonext;
+	m_genLastPatItDO = m_genPatternList.begin();
+	m_genRestSampsDO = m_genPatternList.back().tonext;
 	
 	m_genBufDO.resize(m_bufSizeHintDO);
 	m_genBufDO.reserve(m_bufSizeHintDO); //redundant
@@ -424,7 +426,7 @@ void *
 XNIDAQmxPulser::executeWriteAO(const atomic<bool> &terminated)
 {
 	while(!terminated) {
-		writeBankAO(terminated);
+		writeBufAO(terminated);
 	}
 	return NULL;
 }
@@ -432,7 +434,7 @@ void *
 XNIDAQmxPulser::executeWriteDO(const atomic<bool> &terminated)
 {
 	while(!terminated) {
-		writeBankDO(terminated);
+		writeBufDO(terminated);
 	}
 	return NULL;
 }
@@ -481,7 +483,7 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated)
 	return;
 }
 void
-XNIDAQmxPulser::writeBankDO(const atomic<bool> &terminated)
+XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated)
 {
  	const double dma_do_period = resolution();
 	const unsigned int size = m_genBufDO.size();
@@ -603,7 +605,7 @@ XNIDAQmxPulser::genBankAO()
 	const unsigned int pausing_cnt_blank = PAUSING_CNT_BLANK;
 	
 	GenPatternIterator it = m_genLastPatItAO;
-	const uint32_t pat = it->pattern;
+	uint32_t pat = it->pattern;
 	long long int tonext = m_genRestSampsAO;
 	unsigned int aoidx = m_genAOIndex;
 	

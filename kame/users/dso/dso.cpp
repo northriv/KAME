@@ -260,7 +260,7 @@ XDSO::execute(const atomic<bool> &terminated)
   while(!terminated)
   {
 	  const int fetch_mode = *fetchMode();
-      while(!fetch_mode || (fetch_mode == FETCHMODE_NEVER)) {
+      if(!fetch_mode || (fetch_mode == FETCHMODE_NEVER)) {
 	    msecsleep(50);
       	continue;
       }
@@ -313,7 +313,7 @@ XDSO::execute(const atomic<bool> &terminated)
       
       finishWritingRaw(time_awared, XTime::now());
 
-	  if(*singleSequence()) {
+	  if(*singleSequence() && !seq_busy) {
 	      // try/catch exception of communication errors
 	      try {
 	          startSequence();
