@@ -329,7 +329,7 @@ XSHPulser::pulseAdd(uint64_t term, uint32_t pattern, bool firsttime)
 }
 
 void
-XSHPulser::changeOutput(bool output, unsigned int blankpattern)
+XSHPulser::changeOutput(bool output, unsigned int /*blankpattern*/)
 {
   if(output)
     {

@@ -575,7 +575,6 @@ XNIDAQmxPulser::genBankDO()
 			*pDO++ = patDO;
 		}
 		tonext -= gen_cnt;
-		ASSERT(tonext >= 0);
 		samps_rest -= gen_cnt;
 		ASSERT(samps_rest < size);
 		if(tonext == 0) {
@@ -698,7 +697,6 @@ XNIDAQmxPulser::genBankAO()
 			}
 		}
 		tonext -= gen_cnt;
-		ASSERT(tonext >= 0);
 		samps_rest -= gen_cnt;
 		ASSERT(samps_rest < size);
 		if(tonext == 0) {
@@ -725,7 +723,6 @@ XNIDAQmxPulser::genBankAO()
 void
 XNIDAQmxPulser::createNativePatterns()
 {
-  const double dma_do_period = resolution();
   const double _master = *masterLevel();
   const double _tau = m_tauRecorded;
   const double _pw1 = m_pw1Recorded;

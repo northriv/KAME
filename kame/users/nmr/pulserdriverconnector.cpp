@@ -107,7 +107,7 @@ XQPulserDriverConnector::selectionChanged()
     shared_ptr<XPulser> pulser(m_pulser);
     pulser->readLockRecord();    
     updateGraph(true);
-    pulser->readUnlockRecord();    
+    pulser->readUnlockRecord();
 }
 void
 XQPulserDriverConnector::updateGraph(bool checkselection)
@@ -140,7 +140,7 @@ XQPulserDriverConnector::updateGraph(bool checkselection)
             if(firsttime < 0) firsttime = time;
             lasttime = time;
         }
-        barplot_points.push_back(XGraph::ValPoint(it->time, m_plots.size()));
+        barplot_points.push_back(XGraph::ValPoint(time, m_plots.size()));
         for(int j = 0; j < (int)plots_points.size(); j++)
         {
             plots_points[j]->push_back(XGraph::ValPoint(time, j + 0.7 * ((lastpat >> j) % 2)));
