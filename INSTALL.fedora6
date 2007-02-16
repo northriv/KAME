@@ -1,11 +1,3 @@
-Add user in samba
-SELinux: allow samba to handle with the home dir. 
-ntsysv: smb
-
-cat <<EOF >> /etc/yum.conf
-proxy=http://---:8080/
-EOF
-
 #pirut or sudo yum -y install
 fftw2-devel, gsl-devel, fftw-devel?
 compat-gcc-34-c++
