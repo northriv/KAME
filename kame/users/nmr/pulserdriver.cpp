@@ -561,7 +561,7 @@ XPulser::rintTermMicroSec(double usec) const {
 inline uint64_t
 XPulser::ceilSampsMicroSec(double usec) const {
 	const double res = resolution() * 1e3;
-	return llrint(usec / res + 0.5);
+	return llrint(usec / res + 0.499);
 }
 inline uint64_t
 XPulser::rintSampsMicroSec(double usec) const {
