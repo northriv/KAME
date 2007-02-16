@@ -5,24 +5,6 @@
 #include "interface.h"
 #include <klocale.h>
 
-double XNIDAQSSeriesPulser::resolution() const {
-     return (0.5/(1e3));
-}
-double XNIDAQSSeriesPulser::resolutionQAM() const {
-const unsigned int OVERSAMP_AO = 1;
-     return resolution() / OVERSAMP_AO;
-}
-double XNIDAQMSeriesPulser::resolution() const {
-     return (1.0/(1e3));
-}
-double XNIDAQMSeriesWithSSeriesPulser::resolution() const {
-     return (10.0/(1e3));
-}
-double XNIDAQMSeriesWithSSeriesPulser::resolutionQAM() const {
-const unsigned int OVERSAMP_AO = 1;
-     return resolution() / OVERSAMP_AO;
-}
-
 XNIDAQMSeriesWithSSeriesPulser::XNIDAQMSeriesWithSSeriesPulser(const char *name, bool runtime,
    const shared_ptr<XScalarEntryList> &scalarentries,
    const shared_ptr<XInterfaceList> &interfaces,
@@ -42,19 +24,25 @@ XNIDAQMSeriesWithSSeriesPulser::XNIDAQMSeriesWithSSeriesPulser(const char *name,
 void
 XNIDAQSSeriesPulser::open() throw (XInterface::XInterfaceError &)
 {
+	if(std::string(productInfo()->type) != "S")
+		throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
  	openAODO();
 	this->start();	
 }
 void
 XNIDAQMSeriesPulser::open() throw (XInterface::XInterfaceError &)
 {
+	if(std::string(productInfo()->type) != "M")
+		throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
  	openDO();
 	this->start();	
 }
 void
 XNIDAQMSeriesWithSSeriesPulser::open() throw (XInterface::XInterfaceError &)
 {
-   m_ctr_interface = intfDO();
+	if(std::string(productInfo()->type) != "M")
+		throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
+ 	m_ctr_interface = intfDO();
  	openDO();
 	this->start();	
 }
@@ -62,8 +50,14 @@ void
 XNIDAQMSeriesWithSSeriesPulser::onOpenAO(const shared_ptr<XInterface> &)
 {
 	try {
+		if(std::string(productInfo()->type) != "S")
+			throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
 	    m_ctr_interface = intfAO();
 		openAODO();
+		//DMA is slower than interrupts!
+		CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, 
+	    	formatString("%s/ao0:1", intfAO()->devName()).c_str(),
+			DAQmx_Val_Interrupts));
 	}
 	catch (XInterface::XInterfaceError &e) {
 		e.print(getLabel());

@@ -26,8 +26,8 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 	virtual void close() throw (XInterface::XInterfaceError &);
 	
     //! time resolution [ms]
-    virtual double resolution() const = 0;
-    virtual double resolutionQAM() const {return resolution();}
+    virtual double resolution() const {return m_resolutionDO;}
+    double resolutionQAM() const {return m_resolutionAO;}
      //! existense of AO ports.
     virtual bool haveQAMPorts() const = 0;
  	virtual const shared_ptr<XNIDAQmxInterface> &intfDO() const {return interface();}
@@ -70,6 +70,7 @@ private:
 	unsigned int m_pausingBit;
 	unsigned int m_bufSizeHintDO;
 	unsigned int m_bufSizeHintAO;
+	double m_resolutionDO, m_resolutionAO;
 	
 	TaskHandle m_taskAO, m_taskDO,
 		 m_taskDOCtr, m_taskGateCtr,

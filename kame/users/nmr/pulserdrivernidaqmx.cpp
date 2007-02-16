@@ -18,6 +18,8 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers) :
     XNIDAQmxDriver<XPulser>(name, runtime, scalarentries, interfaces, thermometers, drivers),
+    m_resolutionDO(-1.0),
+    m_resolutionAO(-1.0),
 	 m_taskAO(TASK_UNDEF),
 	 m_taskDO(TASK_UNDEF),
  	 m_taskDOCtr(TASK_UNDEF),
@@ -57,6 +59,13 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 	    DAQmxClearTask(m_taskDOCtr);
 	if(m_taskGateCtr != TASK_UNDEF)
 	    DAQmxClearTask(m_taskGateCtr); 
+
+	if(intfDO()->productInfo()->do_max_rate == 0)
+		throw XInterface::XInterfaceError(KAME::i18n("HW-timed transfer needed."), __FILE__, __LINE__);
+	
+	if(m_resolutionDO <= 0.0)
+		m_resolutionDO = 1.0 / intfDO()->productInfo()->do_max_rate;
+	fprintf(stder, "Using DO rate = [kHz]\n", m_resolutionDO);
 
 //	std::string ctrdev = formatString("%s/freqout", intfDO()->devName()).c_str();
 //	std::string ctrout = formatString("/%s/FrequencyOutput", intfDO()->devName()).c_str();
@@ -120,14 +129,13 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigSrc(m_taskDOCtr, gatectrout.c_str()));
 		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskDOCtr, DAQmx_Val_High));
 	}
-	
 }
 
 void
 XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
-	
+
 	stopPulseGen();
 	
 	if(m_taskAO != TASK_UNDEF)
@@ -135,17 +143,30 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	if(m_taskAOCtr != TASK_UNDEF)
 	    DAQmxClearTask(m_taskAOCtr);
 	
+	if(intfAO()->productInfo()->ao_max_rate == 0)
+		throw XInterface::XInterfaceError(KAME::i18n("HW-timed transfer needed."), __FILE__, __LINE__);
+	
+	if((m_resolutionDO <= 0.0) || (m_resolutionAO <= 0.0))
+	{
+		unsigned long do_rate = intfDO()->productInfo()->do_max_rate;
+		unsigned long ao_rate = intfAO()->productInfo()->ao_max_rate;
+		if(ao_rate <= do_rate)
+			do_rate = ao_rate;
+		else {
+			unsigned int oversamp = ao_rate / do_rate;
+			ao_rate = do_rate * oversamp;
+		}
+		m_resolutionDO = 1.0 / do_rate;
+		m_resolutionAO = 1.0 / ao_rate;
+	}
+	fprintf(stder, "Using AO rate = [kHz]\n", m_resolutionAO);
+	
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskAO));
 
 	CHECK_DAQMX_RET(DAQmxCreateAOVoltageChan(m_taskAO,
     	formatString("%s/ao0:1", intfAO()->devName()).c_str(), "",
     	-1.0, 1.0, DAQmx_Val_Volts, NULL));
 		
-	//DMA is slower than interrupts!
-	CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, 
-    	formatString("%s/ao0:1", intfAO()->devName()).c_str(),
-		DAQmx_Val_Interrupts));
-
 	openDO();
 	
 	float64 freq = 1e3 / resolutionQAM();
@@ -235,7 +256,10 @@ XNIDAQmxPulser::close() throw (XInterface::XInterfaceError &)
 	m_taskAOCtr = TASK_UNDEF;
 	m_taskDOCtr = TASK_UNDEF;
 	m_taskGateCtr = TASK_UNDEF;
-    
+
+	m_resolutionDO = -1.0;    
+	m_resolutionAO = -1.0;    
+
 	intfDO()->stop();
 	intfAO()->stop();
 	intfCtr()->stop();
