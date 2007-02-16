@@ -800,7 +800,7 @@ XNIDAQmxPulser::makeWaveForm(int num, double pw, tpulsefunc func, double dB, dou
 			m_genPulseWaveAO[0][pnum].push_back(aoVoltToRaw(0, x));
 			m_genPulseWaveAO[1][pnum].push_back(aoVoltToRaw(1, y));
 		}
-		phase += PI/4;
+		phase += PI/2;
 	}
 	return 0;
 }
