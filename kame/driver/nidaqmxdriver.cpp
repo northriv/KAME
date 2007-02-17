@@ -16,10 +16,6 @@
 
 #ifdef HAVE_NI_DAQMX
 
-static int g_daqmx_open_cnt;
-static XMutex g_daqmx_mutex;
-static std::deque<shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> > g_daqmx_sync_routes;
-
 static const XNIDAQmxInterface::ProductInfo gc_productInfoList[] = {
 	{"PCI-6110", "S", 5000uL, 2500uL, 0, 0, 20000uL},
 	{"PXI-6110", "S", 5000uL, 2500uL, 0, 0, 20000uL},
@@ -38,6 +34,90 @@ static const XNIDAQmxInterface::ProductInfo gc_productInfoList[] = {
 	{"PXI-6229", "M", 250uL, 625uL, 1000uL, 1000uL, 80000uL},
 	{0, 0, 0, 0, 0, 0, 0},
 };
+
+static int g_daqmx_open_cnt;
+static XMutex g_daqmx_mutex;
+static std::deque<shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> > g_daqmx_sync_routes;
+
+atomic_shared_ptr<XNIDAQmxInterface::VirtualTrigger::VirtualTriggerList>
+XNIDAQmxInterface::VirtualTrigger::s_virtualTrigList;
+
+XNIDAQmxInterface::VirtualTrigger::VirtualTrigger(TaskHandle task,
+	const char *label, unsigned int bits)
+ : m_task(task), m_label(label), m_bits(bits) {
+     for(;;) {
+        atomic_shared_ptr<VirtualTriggerList> old_list(s_virtualTrigList);
+        atomic_shared_ptr<VirtualTriggerList> new_list(
+            old_list ? (new VirtualTriggerList(*old_list)) : (new VirtualTriggerList));
+        // clean-up dead listeners.
+        for(VirtualTriggerList_it it = new_list->begin(); it != new_list->end();) {
+            if(!it->lock())
+                it = new_list->erase(it);
+            else
+                it++;
+        }
+        new_list->push_back(shared_from_this());
+        if(new_list.compareAndSwap(old_list, s_virtualTrigList)) break;
+    }	
+}
+XNIDAQmxInterface::VirtualTrigger::~VirtualTrigger() {
+}
+void
+XNIDAQmxInterface::VirtualTrigger::start(float64 freq) {
+	XScopedLock<XMutex> lock(m_mutex);
+	m_endOfBlank = 0;
+	m_freq = freq;
+	onStart().talk(shared_from_this());
+}
+
+void
+XNIDAQmxInterface::VirtualTrigger::stop() {
+	XScopedLock<XMutex> lock(m_mutex);
+	uInt64 totalsamps;
+	if(CHECK_DAQMX_ERROR(DAQmxGetReadTotalSampPerChanAcquired(m_task, &totalsamps)) < 0) {
+		m_stamps.clear();
+	}
+	else {
+		//remove future stamps.
+		while(m_stamps.front() > totalsamps) {
+			m_stamps.pop_front();
+		}
+	}
+}
+void
+XNIDAQmxInterface::VirtualTrigger::connect(uint32_t rising_edge_mask, 
+	uint32_t falling_edge_mask) throw (XInterface::XInterfaceError &) {
+	XScopedLock<XMutex> lock(m_mutex);
+	m_stamps.clear();
+	if(m_risingEdgeMask || m_fallingEdgeMask)
+		throw XInterface::XInterfaceError(
+			KAME::i18n("Duplicated connection to virtual trigger is not supported."), __FILE__, __LINE__);
+	m_risingEdgeMask = rising_edge_mask;
+	m_fallingEdgeMask = falling_edge_mask;
+}
+void
+XNIDAQmxInterface::VirtualTrigger::disconnect() {
+	XScopedLock<XMutex> lock(m_mutex);
+	m_stamps.clear();
+	m_risingEdgeMask = 0;
+	m_fallingEdgeMask = 0;
+}
+uint64_t
+XNIDAQmxInterface::VirtualTrigger::front() {
+	if(m_stamps.empty())
+		return 0;
+	return m_stamps.front();
+}
+void
+XNIDAQmxInterface::VirtualTrigger::pop() {
+	XScopedLock<XMutex> lock(m_mutex);
+	m_stamps.pop_front();
+}
+void
+XNIDAQmxInterface::VirtualTrigger::clear() {
+	XScopedLock<XMutex> lock(m_mutex);
+	m_stamps.clear();
+}
 
 static void
 XNIDAQmxGlobalOpen()

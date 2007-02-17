@@ -64,10 +64,11 @@ private:
  	typedef int16 tRawAO;
 	typedef uInt16 tRawDO;
 	  struct GenPattern {
-	      GenPattern(uint32_t pat, uint64_t next) :
-	        pattern(pat), tonext(next) {}
+	      GenPattern(uint32_t pat, uint64_t next, uint64_t t) :
+	        pattern(pat), tonext(next), time(t) {}
 	      uint32_t pattern;
 	      uint64_t tonext; //!< in samps for buffer.
+	      uint64_t time; //!< timesamp for physical time.
 	  };
 
 	std::deque<GenPattern> m_genPatternListAO;
@@ -77,7 +78,9 @@ private:
 	GenPatternIterator m_genLastPatItAO, m_genLastPatItDO;
 	uint64_t m_genRestSampsAO, m_genRestSampsDO;
 	unsigned int m_genAOIndex;
+	unsigned int m_genFiniteAOSamps;
 	unsigned int finiteAOSamps(unsigned int finiteaosamps);
+	shared_ptr<XNIDAQmxInterface::VirtualTrigger> m_virtualTrigger;
 	unsigned int m_ctrTrigBit;
 	unsigned int m_pausingBit;
 	unsigned int m_bufSizeHintDO;

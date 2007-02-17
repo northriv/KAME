@@ -65,29 +65,52 @@ class XNIDAQmxDSO : public XNIDAQmxDriver<XDSO>
  private:
  typedef int16 tRawAI;
   scoped_ptr<XNIDAQmxInterface::XNIDAQmxRoute> m_trigRoute;
-  std::vector<tRawAI> m_record_buf;
+  shared_ptr<XNIDAQmxInterface::VirtualTrigger> m_virtualTrigger;
+  atomic_shared_ptr<XNIDAQmxInterface::VirtualTrigger::VirtualTriggerList> m_virtualTriggerList; 
+  shared_ptr<XListener> m_lsnOnVirtualTrigStart;
+  void onVirtualTrigStart(const shared_ptr<XNIDAQmxInterface::VirtualTrigger> &);
+  shared_ptr<XThread<XNIDAQmxDSO> > m_threadReadAI;
+  void *executeReadAI(const atomic<bool> &);
+  atomic<bool> m_suspendRead;
+  std::vector<tRawAI> m_recordBuf;
   std::vector<int32_t> m_record;
 enum {CAL_POLY_ORDER = 4};
 	float64 m_coeffAI[2][CAL_POLY_ORDER];
-//	float64 m_upperLimAI[2];
-//	float64 m_lowerLimAI[2];
 	inline float64 aiRawToVolt(const float64 *pcoeff, float64 raw);
-  int m_accumCount;
+  unsigned int m_accumCount;
   //! for moving av.
   std::deque<std::vector<tRawAI> > m_record_av; 
-  unsigned int m_record_length;
+  unsigned int m_recordLength;
   std::deque<std::string> m_analogTrigSrc, m_digitalTrigSrc;
   TaskHandle m_task;
-  bool m_bPollMode;
   double m_interval;
+  unsigned int m_preTriggerPos;
   int m_acqCount;
+  void clearAcquision();
   void setupAcquision();
+  void disableTrigger();
   void setupTrigger();
   void setupTiming();
   void createChannels();
-  static int32 _acqCallBack(TaskHandle, int32, void*);
-  int32 acqCallBack(TaskHandle task, int32 status);
-  void acquire(TaskHandle task);
+  void acquire(const atomic<bool> &terminated);
+
+  XRecursiveMutex m_readMutex;
+  class ScopedReadAILock;
+  friend class ScopedReadAILock;
+  class ScopedReadAILock {
+  public:
+  	ScopedReadAILock(XNIDAQmxDSO& obj) : m_obj(obj) {
+  		obj.m_suspendRead = true;
+  		obj.m_readMutex.lock();
+  		obj.m_suspendRead = false;
+  	}
+  	~ScopedReadAILock() {
+  		m_obj.m_readMutex.unlock();
+  	}
+  private: 		
+  	XNIDAQmxDSO &m_obj;
+  };
+  inline bool tryReadAISuspend();
 };
 
 #endif //HAVE_NI_DAQMX

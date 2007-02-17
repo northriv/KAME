@@ -64,11 +64,69 @@ public:
 
   const ProductInfo* productInfo() const {return m_productInfo;}
   
+  class VirtualTrigger : public enable_shared_from_this<VirtualTrigger> {
+  public:
+  	VirtualTrigger(TaskHandle task, const char *label, unsigned int bits);
+  	~VirtualTrigger();
+  	const char *label() const {return m_label.c_str();}
+  	void setArmTerm(const char *arm_term) {m_armTerm = arm_term;}
+  	const char *armTerm() const {return m_armTerm.c_str();}
+
+  	void start(float64 freq);
+  	float64 freq() const {return m_freq;} //!< [Hz].
+  	unsigned int bits() const {return m_bits;}
+  	void stop();
+  	void stamp(uint64_t cnt) {
+  		if(cnt < m_endOfBlank) return;
+  		XScopedLock<XMutex> lock(m_mutex);
+  		m_stamps.push_back(cnt);
+  		m_endOfBlank = cnt + m_blankTerm;
+  	}
+  	template <typename T>
+  	void changeValue(T oldval, T val, uint64_t time) {
+  		if(((m_risingEdgeMask & val) && (m_risingEdgeMask & ~oldval))
+  			|| ((m_fallingEdgeMask & ~val) && (m_fallingEdgeMask & oldval))) {
+  				stamp(time);
+  		}
+  	}
+  	//! \arg blankterm in seconds.
+  	void connect(uint32_t rising_edge_mask, 
+  		uint32_t falling_edge_mask) throw (XInterface::XInterfaceError &);
+  	void disconnect();
+  	void setBlankTerm(float64 blankterm) {
+		m_blankTerm = lrint(blankterm * freq());
+  	}
+	//! for restarting connected task.
+	XTalker<shared_ptr<VirtualTrigger> > &onStart() {return m_onstart;}
+	
+  	void clear();
+  	uint64_t front();
+  	void pop();
+
+	  typedef std::deque<weak_ptr<XNIDAQmxInterface::VirtualTrigger> > VirtualTriggerList;
+	  typedef VirtualTriggerList::iterator VirtualTriggerList_it;
+	  static const atomic_shared_ptr<VirtualTriggerList> &virtualTrigList() {
+	  	return s_virtualTrigList;
+	  }
+  private:
+  	TaskHandle m_task;
+  	const std::string m_label;
+  	std::string m_armTerm;
+  	unsigned int m_bits;
+  	uint32_t m_risingEdgeMask, m_fallingEdgeMask;
+  	uint64_t m_blankTerm, m_lastStamp, m_endOfBlank;
+  	float64 m_freq; //!< [Hz].
+  	std::deque<uint64_t> m_stamps;
+  	XMutex m_mutex;
+  	XTalker<shared_ptr<VirtualTrigger> > m_onstart;
+    static atomic_shared_ptr<VirtualTriggerList> s_virtualTrigList;
+  };
 protected:
   virtual void open() throw (XInterfaceError &);
   //! This can be called even if has already closed.
   virtual void close() throw (XInterfaceError &);
 private:
+	friend class VirtualTrigger;
 	std::string m_devname;
 	const ProductInfo* m_productInfo;
 };

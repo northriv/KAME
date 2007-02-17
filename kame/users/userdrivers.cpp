@@ -34,17 +34,9 @@
 #define LIST XDriverList
 DECLARE_TYPE_HOLDER
   
-REGISTER_TYPE(TestDriver);
 REGISTER_TYPE(KE2000);
 REGISTER_TYPE(KE2182);
 REGISTER_TYPE(HP34420A);
-REGISTER_TYPE(TDS);
-#ifdef HAVE_NI_DAQMX
-    REGISTER_TYPE_N_NAME(XNIDAQmxDSO, "DSO-NIDAQ");
-    REGISTER_TYPE_N_NAME(XNIDAQSSeriesPulser, "NMRPulser-NIDAQ-SSeries");
-    REGISTER_TYPE_N_NAME(XNIDAQMSeriesPulser, "NMRPulser-NIDAQ-MSeries");
-    REGISTER_TYPE_N_NAME(XNIDAQMSeriesWithSSeriesPulser, "NMRPulser-NIDAQ-MSeriesWithSSeries");
-#endif
 REGISTER_TYPE(CryoconM32);
 REGISTER_TYPE(CryoconM62);
 REGISTER_TYPE(LakeShore340);
@@ -56,16 +48,24 @@ REGISTER_TYPE(SR830);
 REGISTER_TYPE(AH2500A);
 REGISTER_TYPE(YK7651);
 REGISTER_TYPE(WAVEFACTORY);
-REGISTER_TYPE(H8Pulser); //nmr stuff, remove me in lite version.
-REGISTER_TYPE(SHPulser); //nmr stuff, remove me in lite version.
-REGISTER_TYPE(NMRPulseAnalyzer); //nmr stuff, remove me in lite version.
-REGISTER_TYPE(NMRSpectrum); //nmr stuff, remove me in lite version.
-REGISTER_TYPE(NMRFSpectrum); //nmr stuff, remove me in lite version.
-REGISTER_TYPE(NMRT1); //nmr stuff, remove me in lite version.
-REGISTER_TYPE(SG7130); //nmr stuff, remove me in lite version.
-REGISTER_TYPE(SG7200); //nmr stuff, remove me in lite version.
-REGISTER_TYPE(HP8643); //nmr stuff, remove me in lite version.
-REGISTER_TYPE(HP8648); //nmr stuff, remove me in lite version.
+REGISTER_TYPE(TDS);
+#ifdef HAVE_NI_DAQMX
+    REGISTER_TYPE_N_NAME(XNIDAQmxDSO, "DSO-NIDAQ");
+    REGISTER_TYPE_N_NAME(XNIDAQSSeriesPulser, "NMRPulser-NIDAQ-SSeries");
+    REGISTER_TYPE_N_NAME(XNIDAQMSeriesPulser, "NMRPulser-NIDAQ-MSeries");
+    REGISTER_TYPE_N_NAME(XNIDAQMSeriesWithSSeriesPulser, "NMRPulser-NIDAQ-MSeriesWithSSeries");
+#endif
+REGISTER_TYPE(H8Pulser);
+REGISTER_TYPE(SHPulser);
+REGISTER_TYPE(NMRPulseAnalyzer);
+REGISTER_TYPE(NMRSpectrum);
+REGISTER_TYPE(NMRFSpectrum);
+REGISTER_TYPE(NMRT1);
+REGISTER_TYPE(SG7130);
+REGISTER_TYPE(SG7200);
+REGISTER_TYPE(HP8643);
+REGISTER_TYPE(HP8648);
+REGISTER_TYPE(TestDriver);
 REGISTER_TYPE(MonteCarloDriver);
 
 shared_ptr<XNode>
