@@ -623,7 +623,7 @@ XNIDAQmxDSO::startSequence()
     
 	if(m_virtualTrigger) {
 		uInt32 bufsize = std::max(m_recordLength * 4, (unsigned int)lrint(0.1 / m_interval));
-		CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_task, bufsize));
+		CHECK_DAQMX_RET(DAQmxCfgInputBuffer(m_task, bufsize));
 		m_virtualTrigger->enable(m_interval * m_recordLength);
 		uInt64 total_samps;
 		CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));

@@ -126,8 +126,10 @@ XNIDAQmxInterface::VirtualTrigger::clear(uint64_t now, float64 _freq) {
 		now *= lrint(freq() / _freq);
 
 	XScopedLock<XMutex> lock(m_mutex);
-	while(m_stamps.front() <= now)
-		m_stamps.pop_front();
+	if(m_stamps.size()) {
+		while(m_stamps.front() <= now)
+			m_stamps.pop_front();
+	}
 }
 
 static void
