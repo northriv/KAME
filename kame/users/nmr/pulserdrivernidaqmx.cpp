@@ -47,7 +47,7 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
     	portSel(i)->value(ports[i]);
 	}
 	m_virtualTrigger.reset(new XNIDAQmxInterface::VirtualTrigger(name, NUM_DO_PORTS));
-	
+	XNIDAQmxInterface::VirtualTrigger::registerVirtualTrigger(m_virtualTrigger);
 const void *FIRST_OF_MLOCK_MEMBER = &m_genPatternListAO;
 const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];
 	//Suppress swapping.

@@ -42,8 +42,9 @@ static std::deque<shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> > g_daqmx_sync_ro
 atomic_shared_ptr<XNIDAQmxInterface::VirtualTrigger::VirtualTriggerList>
 XNIDAQmxInterface::VirtualTrigger::s_virtualTrigList;
 
-XNIDAQmxInterface::VirtualTrigger::VirtualTrigger(const char *label, unsigned int bits)
- : m_label(label), m_bits(bits) {
+void
+XNIDAQmxInterface::VirtualTrigger::registerVirtualTrigger(const shared_ptr<VirtualTrigger> &item)
+{
      for(;;) {
         atomic_shared_ptr<VirtualTriggerList> old_list(s_virtualTrigList);
         atomic_shared_ptr<VirtualTriggerList> new_list(
@@ -55,9 +56,14 @@ XNIDAQmxInterface::VirtualTrigger::VirtualTrigger(const char *label, unsigned in
             else
                 it++;
         }
-        new_list->push_back(shared_from_this());
+        new_list->push_back(item);
         if(new_list.compareAndSwap(old_list, s_virtualTrigList)) break;
     }	
+}
+
+XNIDAQmxInterface::VirtualTrigger::VirtualTrigger(const char *label, unsigned int bits)
+ : m_label(label), m_bits(bits) {
+
 }
 XNIDAQmxInterface::VirtualTrigger::~VirtualTrigger() {
 }

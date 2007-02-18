@@ -112,6 +112,7 @@ public:
 	  static const atomic_shared_ptr<VirtualTriggerList> &virtualTrigList() {
 	  	return s_virtualTrigList;
 	  }
+	static void registerVirtualTrigger(const shared_ptr<VirtualTrigger> &);
   private:
   	TaskHandle m_task;
   	const std::string m_label;
