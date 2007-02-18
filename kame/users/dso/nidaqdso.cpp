@@ -103,14 +103,16 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 //	        m_digitalTrigSrc.push_back(str);
 	    }
 	    m_virtualTriggerList = XNIDAQmxInterface::VirtualTrigger::virtualTrigList();
-	    for(XNIDAQmxInterface::VirtualTrigger::VirtualTriggerList_it
-	    	it = m_virtualTriggerList->begin(); it != m_virtualTriggerList->end(); it++) {
-    		if(shared_ptr<XNIDAQmxInterface::VirtualTrigger> vt = it->lock()) {
-				for(unsigned int i = 0; i < vt->bits(); i++) {
-			    	trigSource()->add(
-			    		formatString("%s/line%d", vt->label(), i));
-				}
-    		}
+	    if(m_virtualTriggerList) {
+		    for(XNIDAQmxInterface::VirtualTrigger::VirtualTriggerList_it
+		    	it = m_virtualTriggerList->begin(); it != m_virtualTriggerList->end(); it++) {
+	    		if(shared_ptr<XNIDAQmxInterface::VirtualTrigger> vt = it->lock()) {
+					for(unsigned int i = 0; i < vt->bits(); i++) {
+				    	trigSource()->add(
+				    		formatString("%s/line%d", vt->label(), i));
+					}
+	    		}
+		    }
 	    }
     }
 
@@ -210,26 +212,28 @@ XNIDAQmxDSO::setupTrigger()
     int32 trig_spec = *trigFalling() ? DAQmx_Val_FallingSlope : DAQmx_Val_RisingSlope;
     
     //setup virtual trigger.
-    for(XNIDAQmxInterface::VirtualTrigger::VirtualTriggerList_it
-    	it = m_virtualTriggerList->begin(); it != m_virtualTriggerList->end(); it++) {
-		if(shared_ptr<XNIDAQmxInterface::VirtualTrigger> vt = it->lock()) {
-			for(unsigned int i = 0; i < vt->bits(); i++) {
-	    		if(src == formatString("%s/line%d", vt->label(), i)) {
-		    		dtrig.clear();
-		    		m_virtualTrigger = vt;
-		    		vt->connect(
-		    			!*trigFalling() ? (1uL << i) : 0,
-		    			*trigFalling() ? (1uL << i) : 0);
-		    		vt->setBlankTerm(m_interval * m_record.size() / NUM_MAX_CH);
-		    		m_lsnOnVirtualTrigStart = vt->onStart().connectWeak(false,
-		    			shared_from_this(), &XNIDAQmxDSO::onVirtualTrigStart);
-				    CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_task, DAQmx_Val_OverwriteUnreadSamps));
-				    dtrig = vt->armTerm();
-				    trig_spec = DAQmx_Val_RisingSlope;
-				    pretrig = 0;				    
+    if(m_virtualTriggerList) {
+	    for(XNIDAQmxInterface::VirtualTrigger::VirtualTriggerList_it
+	    	it = m_virtualTriggerList->begin(); it != m_virtualTriggerList->end(); it++) {
+			if(shared_ptr<XNIDAQmxInterface::VirtualTrigger> vt = it->lock()) {
+				for(unsigned int i = 0; i < vt->bits(); i++) {
+		    		if(src == formatString("%s/line%d", vt->label(), i)) {
+			    		dtrig.clear();
+			    		m_virtualTrigger = vt;
+			    		vt->connect(
+			    			!*trigFalling() ? (1uL << i) : 0,
+			    			*trigFalling() ? (1uL << i) : 0);
+			    		vt->setBlankTerm(m_interval * m_record.size() / NUM_MAX_CH);
+			    		m_lsnOnVirtualTrigStart = vt->onStart().connectWeak(false,
+			    			shared_from_this(), &XNIDAQmxDSO::onVirtualTrigStart);
+					    CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_task, DAQmx_Val_OverwriteUnreadSamps));
+					    dtrig = vt->armTerm();
+					    trig_spec = DAQmx_Val_RisingSlope;
+					    pretrig = 0;				    
+		    		}
 	    		}
-    		}
-		}
+			}
+	    }
     }
     
     if(pretrig < 2) {
