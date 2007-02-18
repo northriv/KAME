@@ -283,12 +283,12 @@ XTDS::convertRaw() throw (XRecordError&) {
   if(triggerpos != 0)
       xoff = -triggerpos * xin;
 
-  setRecordDim(ch_cnt, xoff, xin, width);
+  setParameters(ch_cnt, xoff, xin, width);
   
   cp = buf;
   for(int j = 0; j < ch_cnt; j++)
     {
-      double *wave = waveRecorded(j);
+      double *wave = waveDisp(j);
       cp = index(cp, '#');
       if(!cp) break;
       int x;

@@ -85,7 +85,7 @@ class XDSO : public XPrimaryDriver
   unsigned int numChannelsRecorded() const {return m_numChannelsRecorded;}
   double timeIntervalRecorded() const {return m_timeIntervalRecorded;} //! [sec]
   unsigned int lengthRecorded() const;
-  double *waveRecorded(unsigned int ch);
+  const double *waveRecorded(unsigned int ch) const;
   
  protected:
   virtual void onTrace1Changed(const shared_ptr<XValueNodeBase> &) = 0;
@@ -112,15 +112,20 @@ class XDSO : public XPrimaryDriver
 
   //! load waveform and settings from instrument
   virtual void getWave(std::deque<std::string> &channels) = 0;
-  //! convert raw to record
+  //! convert raw to dispaly-able
   virtual void convertRaw() throw (XRecordError&) = 0;
+  void setParameters(unsigned int channels, double startpos, double interval, unsigned int length);
+  //! for displaying.
+  unsigned int lengthDisp() const;
+  double *waveDisp(unsigned int ch);
+  double trigPosDisp() const {return m_trigPosDisp;} ///< unit is interval
+  unsigned int numChannelsDisp() const {return m_numChannelsDisp;}
+  double timeIntervalDisp() const {return m_timeIntervalDisp;} //! [sec]
   
   //! this is called when raw is written 
   //! unless dependency is broken
   //! convert raw to record
   virtual void analyzeRaw() throw (XRecordError&);
-  
-  void setRecordDim(unsigned int channels, double startpos, double interval, unsigned int length);
   
   const shared_ptr<XStatusPrinter> &statusPrinter() const {return m_statusPrinter;}
  private:
@@ -158,6 +163,14 @@ class XDSO : public XPrimaryDriver
   unsigned int m_numChannelsRecorded;
   double m_timeIntervalRecorded; //! [sec]
   std::vector<double> m_wavesRecorded;
+  //! for displaying.
+  double m_trigPosDisp; ///< unit is interval
+  unsigned int m_numChannelsDisp;
+  double m_timeIntervalDisp; //! [sec]
+  std::vector<double> m_wavesDisp;
+  XRecursiveMutex m_dispMutex;
+  //! convert raw to dispaly-able and perform extra digital processing.
+  void convertRawToDisp() throw (XRecordError&);
   
   shared_ptr<XListener> m_lsnOnSingleChanged;
   shared_ptr<XListener> m_lsnOnAverageChanged;

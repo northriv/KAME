@@ -186,27 +186,39 @@ XDSO::lengthRecorded() const
 {
     return m_wavesRecorded.size() / numChannelsRecorded();
 }
-double *
-XDSO::waveRecorded(unsigned int ch)
+const double *
+XDSO::waveRecorded(unsigned int ch) const
 {
     return &m_wavesRecorded[lengthRecorded() * ch];
+}
+unsigned int
+XDSO::lengthDisp() const
+{
+    return m_wavesDisp.size() / numChannelsDisp();
+}
+double *
+XDSO::waveDisp(unsigned int ch)
+{
+    return &m_wavesDisp[lengthDisp() * ch];
 }
 
 void
 XDSO::visualize()
 {
+  XScopedLock<XRecursiveMutex> lock(m_dispMutex);
+  
   m_statusPrinter->clear();
   
-  if(!time()) {
-  	m_waveForm->clear();
-  	return;
-  }
-  const unsigned int num_channels = numChannelsRecorded();
+//  if(!time()) {
+//  	m_waveForm->clear();
+//  	return;
+//  }
+  const unsigned int num_channels = numChannelsDisp();
   if(!num_channels) {
   	m_waveForm->clear();
   	return;
   }
-  const unsigned int length = lengthRecorded();
+  const unsigned int length = lengthDisp();
   { XScopedWriteLock<XWaveNGraph> lock(*m_waveForm);
       m_waveForm->setColCount(num_channels + 1, s_trace_names);
       if((m_waveForm->colX() != 0) || (m_waveForm->colY1() != 1) ||
@@ -222,12 +234,12 @@ XDSO::visualize()
       double *const times = m_waveForm->cols(0);
       for(unsigned int i = 0; i < length; i++)
         {
-          times[i] = (i - trigPosRecorded()) * timeIntervalRecorded();
+          times[i] = (i - trigPosDisp()) * timeIntervalDisp();
         }
         
       for(unsigned int i = 0; i < num_channels; i++) {
         for(unsigned int k = 0; k < length; k++) {
-            m_waveForm->cols(i + 1)[k] = waveRecorded(i)[k];
+            m_waveForm->cols(i + 1)[k] = waveDisp(i)[k];
         }
       }
   }
@@ -315,15 +327,21 @@ XDSO::execute(const atomic<bool> &terminated)
       
       clearRaw();
       // try/catch exception of communication errors
-      try {
-          getWave(channels);
-      }
-      catch (XKameError &e) {
-          e.print(getLabel());
-          continue;
-      }
+	  try {
+	      getWave(channels);
+	  }
+	  catch (XKameError &e) {
+	      e.print(getLabel());
+	      continue;
+	  }
       
-      finishWritingRaw(time_awared, XTime::now());
+	  if(*singleSequence() && seq_busy) {
+	  		XScopedLock<XRecursiveMutex> lock(m_dispMutex);
+			convertRawToDisp();
+			visualize();
+	  }
+	  else
+	      finishWritingRaw(time_awared, XTime::now());
 	      
 	  if(*singleSequence() && !seq_busy) {
 	      // try/catch exception of communication errors
@@ -362,40 +380,51 @@ XDSO::execute(const atomic<bool> &terminated)
 void
 XDSO::onCondChanged(const shared_ptr<XValueNodeBase> &)
 {
-  readLockRecord();
+//  readLockRecord();
   visualize();
-  readUnlockRecord();
+//  readUnlockRecord();
 }
 void
-XDSO::setRecordDim(unsigned int channels, double startpos, double interval, unsigned int length)
+XDSO::setParameters(unsigned int channels, double startpos, double interval, unsigned int length)
 {
-  m_numChannelsRecorded = channels;
-  m_wavesRecorded.resize(channels * length, 0.0);
-  m_trigPosRecorded = -startpos / interval;
-  m_timeIntervalRecorded = interval;
+  m_numChannelsDisp = channels;
+  m_wavesDisp.resize(channels * length, 0.0);
+  m_trigPosDisp = -startpos / interval;
+  m_timeIntervalDisp = interval;
 }
-
 void
-XDSO::analyzeRaw() throw (XRecordError&) {
-    std::fill(m_wavesRecorded.begin(), m_wavesRecorded.end(), 0.0);
-    
+XDSO::convertRawToDisp() throw (XRecordError&) {
     convertRaw();
     
   if(*firEnabled()) {
-     double  bandwidth = *firBandWidth()*1000.0*timeIntervalRecorded();
+     double  bandwidth = *firBandWidth()*1000.0*timeIntervalDisp();
      double fir_sharpness = *firSharpness();
      if(fir_sharpness < 4.0)
         m_statusPrinter->printWarning(KAME::i18n("Too small number of taps for FIR filter."));
      int taps = std::min((int)lrint(2 * fir_sharpness / bandwidth), 5000);
-     m_fir.setupBPF(taps, bandwidth, *firCenterFreq() * 1000.0 * timeIntervalRecorded());
-     unsigned int num_channels = numChannelsRecorded();
-     unsigned int length = lengthRecorded();
+     m_fir.setupBPF(taps, bandwidth, *firCenterFreq() * 1000.0 * timeIntervalDisp());
+     unsigned int num_channels = numChannelsDisp();
+     unsigned int length = lengthDisp();
      std::vector<double> buf(length);
      for(unsigned int i = 0; i < num_channels; i++) {
-        m_fir.doFIR(waveRecorded(i), 
+        m_fir.doFIR(waveDisp(i), 
                 &buf[0], length);
         for(unsigned int j = 0; j < length; j++)
-             waveRecorded(i)[j] = buf[j];
+             waveDisp(i)[j] = buf[j];
      }
   }
+}
+void
+XDSO::analyzeRaw() throw (XRecordError&) {
+//    std::fill(m_wavesRecorded.begin(), m_wavesRecorded.end(), 0.0);
+  {
+  	XScopedLock<XRecursiveMutex> lock(m_dispMutex);  
+    convertRawToDisp();
+	m_numChannelsRecorded = m_numChannelsDisp;
+	m_wavesRecorded.resize(m_wavesDisp.size());
+	m_trigPosRecorded = m_trigPosDisp;
+	m_timeIntervalRecorded = m_timeIntervalDisp;
+    std::copy(m_wavesDisp.begin(), m_wavesDisp.end(), m_wavesRecorded.begin());
+  }
+
 }

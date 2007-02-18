@@ -531,7 +531,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 	}
 	const unsigned int num_samps = std::min(size, 1024u);
 
-	for(; cnt < size;) {
+/*	for(; cnt < size;) {
 		int32 samps;
 		samps = std::min(size - cnt, num_samps);
 		while(!terminated) {
@@ -549,6 +549,19 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 	        DAQmx_Val_WaitInfinitely, DAQmx_Val_GroupByScanNumber,
 	        &m_recordBuf[cnt * num_ch], samps, &samps, NULL
 	        ));
+	    cnt += samps;
+	}*/
+	for(; cnt < size;) {
+		int32 samps;
+		samps = std::min(size - cnt, num_samps);
+		if(tryReadAISuspend())
+			return;
+		if(terminated)
+			return;
+	    DAQmxReadBinaryI16(m_task, DAQmx_Val_Auto,
+	        samps * m_interval, DAQmx_Val_GroupByScanNumber,
+	        &m_recordBuf[cnt * num_ch], samps, &samps, NULL
+	        );
 	    cnt += samps;
 	}
   } //end of readMutex
@@ -695,7 +708,7 @@ XNIDAQmxDSO::convertRaw() throw (XRecordError&)
 	const unsigned int accumCount = pop<uint32_t>();
 	const double interval = pop<double>();
 
-	setRecordDim(num_ch, - (double)pretrig * interval, interval, len);
+	setParameters(num_ch, - (double)pretrig * interval, interval, len);
 	
 	double *wave[NUM_MAX_CH];
 	float64 coeff[NUM_MAX_CH][CAL_POLY_ORDER];
@@ -704,7 +717,7 @@ XNIDAQmxDSO::convertRaw() throw (XRecordError&)
 			coeff[j][i] = pop<double>();
 		}
 		
-		wave[j] = waveRecorded(j);
+		wave[j] = waveDisp(j);
     }
 
 	const float64 prop = 1.0 / accumCount;
