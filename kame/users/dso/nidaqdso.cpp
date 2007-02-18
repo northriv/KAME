@@ -492,10 +492,11 @@ XNIDAQmxDSO::executeReadAI(const atomic<bool> &terminated)
 void
 XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 {
+	unsigned int cnt = 0;
+    uInt32 num_ch;
   {
 	XScopedLock<XRecursiveMutex> lock(m_readMutex);
 
-    uInt32 num_ch;
     CHECK_DAQMX_RET(DAQmxGetReadNumChans(m_task, &num_ch));
     if(num_ch == 0) return;
     
@@ -529,7 +530,6 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 		}
 	}
 	const unsigned int num_samps = std::min(size, 1024u);
-	unsigned int cnt = 0;
 
 	for(; cnt < size;) {
 		int32 samps;

@@ -270,8 +270,7 @@ XDSO::execute(const atomic<bool> &terminated)
   m_lsnOnRecordLengthChanged = recordLength()->onValueChanged().connectWeak(
                           false, shared_from_this(), &XDSO::onRecordLengthChanged);
 
-  while(!terminated)
-  {
+  while(!terminated) {
 	  const int fetch_mode = *fetchMode();
       if(!fetch_mode || (fetch_mode == FETCHMODE_NEVER)) {
 	    msecsleep(50);
@@ -279,23 +278,23 @@ XDSO::execute(const atomic<bool> &terminated)
       }
       bool seq_busy = false;
       try {
-          int count = acqCount(&seq_busy);
-          if(!count) {
-                time_awared = XTime::now();
-                last_count = 0;
-			    msecsleep(10);
-                continue;
-          }
-          if(count == last_count) {
-			    msecsleep(10);
-                continue;
-          }
-          if(fetch_mode == FETCHMODE_SEQ) {
-	          if(*singleSequence() && seq_busy) {
-				    msecsleep(10);
-	                continue;
-	          }
-          }
+			int count = acqCount(&seq_busy);
+			if(!count) {
+				time_awared = XTime::now();
+				last_count = 0;
+				msecsleep(10);
+				continue;
+			}
+			if(count == last_count) {
+				msecsleep(10);
+				continue;
+			}
+			if(fetch_mode == FETCHMODE_SEQ) {
+				if(*singleSequence() && seq_busy) {
+					msecsleep(10);
+					continue;
+				}
+			}
           last_count =  count;
       }
       catch (XKameError& e) {
@@ -325,7 +324,7 @@ XDSO::execute(const atomic<bool> &terminated)
       }
       
       finishWritingRaw(time_awared, XTime::now());
-
+	      
 	  if(*singleSequence() && !seq_busy) {
 	      // try/catch exception of communication errors
 	      try {
