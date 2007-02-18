@@ -46,7 +46,7 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
     for(unsigned int i = 0; i < sizeof(ports)/sizeof(int); i++) {
     	portSel(i)->value(ports[i]);
 	}
-	m_virtualTrigger.reset(new XNIDAQmxInterface::VirtualTrigger(getLabel().c_str(), NUM_DO_PORTS));
+	m_virtualTrigger.reset(new XNIDAQmxInterface::VirtualTrigger(name, NUM_DO_PORTS));
 	
 const void *FIRST_OF_MLOCK_MEMBER = &m_genPatternListAO;
 const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];

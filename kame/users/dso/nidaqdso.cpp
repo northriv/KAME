@@ -550,15 +550,15 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 	for(; cnt < size;) {
 		int32 samps;
 		samps = std::min(size - cnt, num_samps);
-		while(!terminated) {
+//		while(!terminated) {
 			if(tryReadAISuspend())
 				return;
-		uInt32 space;
-			int ret = DAQmxGetReadAvailSampPerChan(m_task, &space);
-			if(!ret && (space >= (uInt32)samps))
-				break;
-			usleep(lrint(1e6 * (samps - space) * m_interval));
-		}
+//		uInt32 space;
+//			int ret = DAQmxGetReadAvailSampPerChan(m_task, &space);
+//			if(!ret && (space >= (uInt32)samps))
+//				break;
+//			usleep(lrint(1e6 * (samps - space) * m_interval));
+//		}
 		if(terminated)
 			return;
 	    CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, DAQmx_Val_Auto,
