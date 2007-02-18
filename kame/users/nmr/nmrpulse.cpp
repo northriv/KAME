@@ -567,7 +567,7 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
     inverted = _pulser->invertPhaseRecorded();
   }
   {
-	  double *rawwavecos, *rawwavesin = NULL;
+	  const double *rawwavecos, *rawwavesin = NULL;
 	  ASSERT( _dso->numChannelsRecorded() );
 	  rawwavecos = _dso->waveRecorded(0);
       rawwavesin = _dso->waveRecorded(1);

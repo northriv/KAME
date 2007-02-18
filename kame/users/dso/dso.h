@@ -164,6 +164,7 @@ class XDSO : public XPrimaryDriver
   double m_timeIntervalRecorded; //! [sec]
   std::vector<double> m_wavesRecorded;
   //! for displaying.
+  bool m_rawDisplayOnly;
   double m_trigPosDisp; ///< unit is interval
   unsigned int m_numChannelsDisp;
   double m_timeIntervalDisp; //! [sec]

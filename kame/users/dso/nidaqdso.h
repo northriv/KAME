@@ -72,6 +72,7 @@ class XNIDAQmxDSO : public XNIDAQmxDriver<XDSO>
   shared_ptr<XThread<XNIDAQmxDSO> > m_threadReadAI;
   void *executeReadAI(const atomic<bool> &);
   atomic<bool> m_suspendRead;
+  atomic<bool> m_running;
   std::vector<tRawAI> m_recordBuf;
   std::vector<int32_t> m_record;
 enum {CAL_POLY_ORDER = 4};

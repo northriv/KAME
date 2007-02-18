@@ -335,13 +335,9 @@ XDSO::execute(const atomic<bool> &terminated)
 	      continue;
 	  }
       
-	  if(*singleSequence() && seq_busy) {
-	  		XScopedLock<XRecursiveMutex> lock(m_dispMutex);
-			convertRawToDisp();
-			visualize();
-	  }
-	  else
-	      finishWritingRaw(time_awared, XTime::now());
+	  m_rawDisplayOnly = (*singleSequence() && seq_busy);
+
+      finishWritingRaw(time_awared, XTime::now());
 	      
 	  if(*singleSequence() && !seq_busy) {
 	      // try/catch exception of communication errors
@@ -416,15 +412,18 @@ XDSO::convertRawToDisp() throw (XRecordError&) {
 }
 void
 XDSO::analyzeRaw() throw (XRecordError&) {
-//    std::fill(m_wavesRecorded.begin(), m_wavesRecorded.end(), 0.0);
-  {
-  	XScopedLock<XRecursiveMutex> lock(m_dispMutex);  
+	XScopedLock<XRecursiveMutex> lock(m_dispMutex);
+
     convertRawToDisp();
+
+	if(m_rawDisplayOnly) {
+		visualize();
+		throw XSkippedRecordError(__FILE__, __LINE__);
+	}
+//    std::fill(m_wavesRecorded.begin(), m_wavesRecorded.end(), 0.0);
 	m_numChannelsRecorded = m_numChannelsDisp;
 	m_wavesRecorded.resize(m_wavesDisp.size());
 	m_trigPosRecorded = m_trigPosDisp;
 	m_timeIntervalRecorded = m_timeIntervalDisp;
     std::copy(m_wavesDisp.begin(), m_wavesDisp.end(), m_wavesRecorded.begin());
-  }
-
 }

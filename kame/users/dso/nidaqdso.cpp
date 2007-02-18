@@ -58,7 +58,7 @@ void
 XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 {
 	XScopedLock<XInterface> lock(*interface());
-	
+	m_running = false;
     char buf[2048];
     {
 	    DAQmxGetDevAIPhysicalChans(interface()->devName(), buf, sizeof(buf));
@@ -162,6 +162,8 @@ XNIDAQmxDSO::disableTrigger()
 {
 	XScopedLock<XInterface> lock(*interface());
 	ScopedReadAILock lockRead(*this);
+	
+    m_running = false;
     if(m_task != TASK_UNDEF) {
     	DAQmxStopTask(m_task);
 
@@ -268,6 +270,7 @@ XNIDAQmxDSO::setupTiming()
 	XScopedLock<XInterface> lock(*interface());
 	ScopedReadAILock lockRead(*this);
 
+    m_running = false;
     if(m_task != TASK_UNDEF)
     	DAQmxStopTask(m_task);
 
@@ -368,6 +371,7 @@ XNIDAQmxDSO::createChannels()
 	    CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
 	    if(num_ch > 0) {
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_task));
+		    m_running = true;
 	    }
 	}
 }
@@ -376,6 +380,7 @@ XNIDAQmxDSO::onVirtualTrigStart(const shared_ptr<XNIDAQmxInterface::VirtualTrigg
 	XScopedLock<XInterface> lock(*interface());
 	ScopedReadAILock lockRead(*this);
 
+    m_running = false;
     if(m_task != TASK_UNDEF)
     	DAQmxStopTask(m_task);
 
@@ -385,6 +390,7 @@ XNIDAQmxDSO::onVirtualTrigStart(const shared_ptr<XNIDAQmxInterface::VirtualTrigg
     CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
     if(num_ch > 0) {
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_task));
+	    m_running = true;
     }
 }
 void 
@@ -465,6 +471,7 @@ XNIDAQmxDSO::onForceTriggerTouched(const shared_ptr<XNode> &)
 	disableTrigger();
 
     CHECK_DAQMX_RET(DAQmxStartTask(m_task));
+    m_running = true;
 }
 inline bool
 XNIDAQmxDSO::tryReadAISuspend() {
@@ -497,11 +504,20 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
   {
 	XScopedLock<XRecursiveMutex> lock(m_readMutex);
 
+	const unsigned int size = m_record.size() / NUM_MAX_CH;
+
+	 if(!m_running) {
+		msecsleep(30);
+		return;
+	 }
+
     CHECK_DAQMX_RET(DAQmxGetReadNumChans(m_task, &num_ch));
-    if(num_ch == 0) return;
+    if(num_ch == 0) {
+		msecsleep(30);
+		return;
+	 }
     
     float64 freq = 1.0 / m_interval;
-	const unsigned int size = m_record.size() / NUM_MAX_CH;
 
 	if(m_virtualTrigger) {
 		shared_ptr<XNIDAQmxInterface::VirtualTrigger> &vt(m_virtualTrigger);
@@ -531,7 +547,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 	}
 	const unsigned int num_samps = std::min(size, 1024u);
 
-/*	for(; cnt < size;) {
+	for(; cnt < size;) {
 		int32 samps;
 		samps = std::min(size - cnt, num_samps);
 		while(!terminated) {
@@ -550,19 +566,6 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 	        &m_recordBuf[cnt * num_ch], samps, &samps, NULL
 	        ));
 	    cnt += samps;
-	}*/
-	for(; cnt < size;) {
-		int32 samps;
-		samps = std::min(size - cnt, num_samps);
-		if(tryReadAISuspend())
-			return;
-		if(terminated)
-			return;
-	    DAQmxReadBinaryI16(m_task, DAQmx_Val_Auto,
-	        samps * m_interval, DAQmx_Val_GroupByScanNumber,
-	        &m_recordBuf[cnt * num_ch], samps, &samps, NULL
-	        );
-	    cnt += samps;
 	}
   } //end of readMutex
 
@@ -573,8 +576,10 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 	
     if(!sseq || ((unsigned int)m_accumCount < av)) {
 		if(!m_virtualTrigger) {
+		    m_running = false;
 		    DAQmxStopTask(m_task);
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_task));
+		    m_running = true;
 		}
     }
     else {
@@ -623,6 +628,8 @@ XNIDAQmxDSO::startSequence()
 		m_virtualTrigger->clear(total_samps, 1.0 / m_interval);
 	}
 	else {
+	    m_running = false;
+	    
 	    if(m_task != TASK_UNDEF)
 	    	DAQmxStopTask(m_task);
 
@@ -630,9 +637,10 @@ XNIDAQmxDSO::startSequence()
 	    CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
 	    if(num_ch > 0) {
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_task));
+		    m_running = true;
 	    }
 	}
-    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
+//    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
 }
 
 int
