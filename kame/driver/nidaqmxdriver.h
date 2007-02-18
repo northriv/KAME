@@ -94,8 +94,11 @@ public:
   		uint32_t falling_edge_mask) throw (XInterface::XInterfaceError &);
   	void disconnect();
   	//! \arg blankterm in seconds.
-  	void setBlankTerm(float64 blankterm) {
+  	void enable(float64 blankterm) {
 		m_blankTerm = lrint(blankterm * freq());
+  	}
+  	void disable() {
+		m_blankTerm = (uint64_t)-1LL;
   	}
 	//! for restarting connected task.
 	XTalker<shared_ptr<VirtualTrigger> > &onStart() {return m_onstart;}

@@ -223,7 +223,7 @@ XNIDAQmxDSO::setupTrigger()
 			    		vt->connect(
 			    			!*trigFalling() ? (1uL << i) : 0,
 			    			*trigFalling() ? (1uL << i) : 0);
-			    		vt->setBlankTerm(m_interval * m_record.size() / NUM_MAX_CH);
+			    		vt->enable(m_interval * m_record.size() / NUM_MAX_CH);
 			    		m_lsnOnVirtualTrigStart = vt->onStart().connectWeak(false,
 			    			shared_from_this(), &XNIDAQmxDSO::onVirtualTrigStart);
 					    CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_task, DAQmx_Val_OverwriteUnreadSamps));
@@ -492,6 +492,7 @@ XNIDAQmxDSO::executeReadAI(const atomic<bool> &terminated)
 void
 XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 {
+  {
 	XScopedLock<XRecursiveMutex> lock(m_readMutex);
 
     uInt32 num_ch;
@@ -527,7 +528,6 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 			usleep(lrint(1e6 * size * m_interval / 2));
 		}
 	}
-
 	const unsigned int num_samps = std::min(size, 1024u);
 	unsigned int cnt = 0;
 
@@ -551,9 +551,10 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 	        ));
 	    cnt += samps;
 	}
+  } //end of readMutex
 
-	XScopedLock<XInterface> lock2(*interface());
-
+	XScopedLock<XInterface> lock(*interface());
+	
 	const unsigned int av = *average();
 	const bool sseq = *singleSequence();
 	
@@ -565,7 +566,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
     }
     else {
 		if(m_virtualTrigger) {
-			m_virtualTrigger->disconnect();
+			m_virtualTrigger->disable();
 		}
     }
 
@@ -603,7 +604,7 @@ XNIDAQmxDSO::startSequence()
 	if(m_virtualTrigger) {
 		uInt32 bufsize = std::max(m_recordLength * 4, (unsigned int)lrint(0.1 / m_interval));
 		CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_task, bufsize));
-		m_virtualTrigger->setBlankTerm(m_interval * m_recordLength);
+		m_virtualTrigger->enable(m_interval * m_recordLength);
 		uInt64 total_samps;
 		CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
 		m_virtualTrigger->clear(total_samps, 1.0 / m_interval);

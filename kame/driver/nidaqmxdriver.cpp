@@ -75,7 +75,7 @@ void
 XNIDAQmxInterface::VirtualTrigger::stop() {
 	XScopedLock<XMutex> lock(m_mutex);
 	m_stamps.clear();
-	m_endOfBlank = (uint64_t)-1;
+	disable();
 }
 void
 XNIDAQmxInterface::VirtualTrigger::connect(uint32_t rising_edge_mask, 
