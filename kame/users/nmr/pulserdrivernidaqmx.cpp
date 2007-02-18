@@ -46,6 +46,13 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
     for(unsigned int i = 0; i < sizeof(ports)/sizeof(int); i++) {
     	portSel(i)->value(ports[i]);
 	}
+	m_virtualTrigger.reset(new XNIDAQmxInterface::VirtualTrigger(getLabel().c_str(), NUM_DO_PORTS));
+	
+const void *FIRST_OF_MLOCK_MEMBER = &m_genPatternListAO;
+const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];
+	//Suppress swapping.
+	mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);
+	
 }
 XNIDAQmxPulser::~XNIDAQmxPulser()
 {
@@ -144,7 +151,6 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskDOCtr, DAQmx_Val_High));
 	}
 	
-	m_virtualTrigger.reset(new XNIDAQmxInterface::VirtualTrigger(m_taskDO, getLabel().c_str(), NUM_DO_PORTS));
 	m_virtualTrigger->setArmTerm(ctrout.c_str());
 }
 
@@ -311,10 +317,6 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		}
 	}
 	
-const void *FIRST_OF_MLOCK_MEMBER = &m_genPatternListAO;
-const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];
-	//Suppress swapping.
-	mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);
 	mlock(&m_genBufDO[0], m_genBufDO.size() * sizeof(tRawDO));
 	mlock(&m_genBufAO[0], m_genBufAO.size() * sizeof(tRawAO));
 	for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {

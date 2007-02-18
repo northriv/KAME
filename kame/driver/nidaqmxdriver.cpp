@@ -42,9 +42,8 @@ static std::deque<shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> > g_daqmx_sync_ro
 atomic_shared_ptr<XNIDAQmxInterface::VirtualTrigger::VirtualTriggerList>
 XNIDAQmxInterface::VirtualTrigger::s_virtualTrigList;
 
-XNIDAQmxInterface::VirtualTrigger::VirtualTrigger(TaskHandle task,
-	const char *label, unsigned int bits)
- : m_task(task), m_label(label), m_bits(bits) {
+XNIDAQmxInterface::VirtualTrigger::VirtualTrigger(const char *label, unsigned int bits)
+ : m_label(label), m_bits(bits) {
      for(;;) {
         atomic_shared_ptr<VirtualTriggerList> old_list(s_virtualTrigList);
         atomic_shared_ptr<VirtualTriggerList> new_list(
@@ -64,25 +63,19 @@ XNIDAQmxInterface::VirtualTrigger::~VirtualTrigger() {
 }
 void
 XNIDAQmxInterface::VirtualTrigger::start(float64 freq) {
-	XScopedLock<XMutex> lock(m_mutex);
-	m_endOfBlank = 0;
-	m_freq = freq;
+	{
+		XScopedLock<XMutex> lock(m_mutex);
+		m_endOfBlank = 0;
+		m_freq = freq;
+	}
 	onStart().talk(shared_from_this());
 }
 
 void
 XNIDAQmxInterface::VirtualTrigger::stop() {
 	XScopedLock<XMutex> lock(m_mutex);
-	uInt64 totalsamps;
-	if(CHECK_DAQMX_ERROR(DAQmxGetReadTotalSampPerChanAcquired(m_task, &totalsamps)) < 0) {
-		m_stamps.clear();
-	}
-	else {
-		//remove future stamps.
-		while(m_stamps.front() > totalsamps) {
-			m_stamps.pop_front();
-		}
-	}
+	m_stamps.clear();
+	m_endOfBlank = (uint64_t)-1;
 }
 void
 XNIDAQmxInterface::VirtualTrigger::connect(uint32_t rising_edge_mask, 
@@ -103,10 +96,16 @@ XNIDAQmxInterface::VirtualTrigger::disconnect() {
 	m_fallingEdgeMask = 0;
 }
 uint64_t
-XNIDAQmxInterface::VirtualTrigger::front() {
+XNIDAQmxInterface::VirtualTrigger::front(float64 _freq) {
+	XScopedLock<XMutex> lock(m_mutex);
 	if(m_stamps.empty())
-		return 0;
-	return m_stamps.front();
+		return 0uLL;
+	uint64_t cnt = m_stamps.front();
+	if(_freq > freq())
+		cnt *= lrint(_freq / freq());
+	else
+		cnt /= lrint(freq() / _freq);
+	return cnt;
 }
 void
 XNIDAQmxInterface::VirtualTrigger::pop() {
@@ -114,9 +113,15 @@ XNIDAQmxInterface::VirtualTrigger::pop() {
 	m_stamps.pop_front();
 }
 void
-XNIDAQmxInterface::VirtualTrigger::clear() {
+XNIDAQmxInterface::VirtualTrigger::clear(uint64_t now, float64 _freq) {
+	if(_freq > freq())
+		now /= lrint(_freq / freq());
+	else
+		now *= lrint(freq() / _freq);
+
 	XScopedLock<XMutex> lock(m_mutex);
-	m_stamps.clear();
+	while(m_stamps.front() <= now)
+		m_stamps.pop_front();
 }
 
 static void
