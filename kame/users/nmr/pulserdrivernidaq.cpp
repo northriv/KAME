@@ -37,7 +37,7 @@ XNIDAQMSeriesWithSSeriesPulser::XNIDAQMSeriesWithSSeriesPulser(const char *name,
 void
 XNIDAQSSeriesPulser::open() throw (XInterface::XInterfaceError &)
 {
-	if(std::string(interface()->productInfo()->series) != "S")
+	if(std::string(interface()->productSeries()) != "S")
 		throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
  	openAODO();
 	this->start();	
@@ -45,7 +45,7 @@ XNIDAQSSeriesPulser::open() throw (XInterface::XInterfaceError &)
 void
 XNIDAQMSeriesPulser::open() throw (XInterface::XInterfaceError &)
 {
-	if(std::string(interface()->productInfo()->series) != "M")
+	if(std::string(interface()->productSeries()) != "M")
 		throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
  	openDO();
 	this->start();	
@@ -53,7 +53,7 @@ XNIDAQMSeriesPulser::open() throw (XInterface::XInterfaceError &)
 void
 XNIDAQMSeriesWithSSeriesPulser::open() throw (XInterface::XInterfaceError &)
 {
-	if(std::string(interface()->productInfo()->series) != "M")
+	if(std::string(interface()->productSeries()) != "M")
 		throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
  	m_ctr_interface = intfDO();
  	openDO();
@@ -63,10 +63,23 @@ void
 XNIDAQMSeriesWithSSeriesPulser::onOpenAO(const shared_ptr<XInterface> &)
 {
 	try {
-		if(std::string(intfAO()->productInfo()->series) != "S")
+		if(std::string(intfAO()->productSeries()) != "S")
 			throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
-	    m_ctr_interface = intfAO();
+
+	    m_ctr_interface = intfDO();
 		openAODO();
+
+//		{
+//			//reference clock synchronization.
+//			float64 rate;
+//			char src[256];
+//			CHECK_DAQMX_RET(DAQmxSetRefClkSrc(m_taskDO,"OnboardClock"));
+//			CHECK_DAQMX_RET(DAQmxGetRefClkSrc(m_taskDO, src, 256));
+//			CHECK_DAQMX_RET(DAQmxGetRefClkRate(m_taskDO, &rate));
+//			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(m_taskAO, src));
+//			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseRate(m_taskAO, rate));
+//		}
+
 		//DMA is slower than interrupts!
 		CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, 
 	    	formatString("%s/ao0:1", intfAO()->devName()).c_str(),

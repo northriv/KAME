@@ -16,24 +16,29 @@
 
 #ifdef HAVE_NI_DAQMX
 
-static const XNIDAQmxInterface::ProductInfo gc_productInfoList[] = {
-	{"PCI-6110", "S", 5000uL, 2500uL, 0, 0, 20000uL},
-	{"PXI-6110", "S", 5000uL, 2500uL, 0, 0, 20000uL},
-//	{"PCI-6111", "S", 5000uL, 2500uL, 0, 0, 20000uL},
-	{"PCI-6111", "S", 5000uL, 100uL, 0, 0, 20000uL},
-	{"PXI-6111", "S", 5000uL, 2500uL, 0, 0, 20000uL},
-	{"PCI-6115", "S", 10000uL, 2500uL, 10000uL, 10000uL, 20000uL},
-	{"PCI-6120", "S", 800uL, 2500uL, 10000uL, 10000uL, 20000uL},
-	{"PCI-6220", "M", 250uL, 0, 1000uL, 1000uL, 80000uL},
-	{"PXI-6220", "M", 250uL, 0, 1000uL, 1000uL, 80000uL},
-	{"PCI-6221", "M", 250uL, 740uL, 1000uL, 1000uL, 80000uL},
-	{"PXI-6221", "M", 250uL, 740uL, 1000uL, 1000uL, 80000uL},
-	{"PCI-6224", "M", 250uL, 0, 1000uL, 1000uL, 80000uL},
-	{"PXI-6224", "M", 250uL, 0, 1000uL, 1000uL, 80000uL},
-	{"PCI-6229", "M", 250uL, 625uL, 1000uL, 1000uL, 80000uL},
-	{"PXI-6229", "M", 250uL, 625uL, 1000uL, 1000uL, 80000uL},
-	{0, 0, 0, 0, 0, 0, 0},
+
+const XNIDAQmxInterface::ProductInfo
+XNIDAQmxInterface::sc_productInfoList[] = {
+	{"PCI-6110", "S", 5000uL, 2500uL, 0, 0},
+	{"PXI-6110", "S", 5000uL, 2500uL, 0, 0},
+//	{"PCI-6111", "S", 5000uL, 2500uL, 0, 0},
+	{"PCI-6111", "S", 5000uL, 100uL, 0, 0},
+	{"PXI-6111", "S", 5000uL, 2500uL, 0, 0},
+	{"PCI-6115", "S", 10000uL, 2500uL, 10000uL, 10000uL},
+	{"PCI-6120", "S", 800uL, 2500uL, 10000uL, 10000uL},
+	{"PCI-6220", "M", 250uL, 0, 1000uL, 1000uL},
+	{"PXI-6220", "M", 250uL, 0, 1000uL, 1000uL},
+	{"PCI-6221", "M", 250uL, 740uL, 1000uL, 1000uL},
+	{"PXI-6221", "M", 250uL, 740uL, 1000uL, 1000uL},
+	{"PCI-6224", "M", 250uL, 0, 1000uL, 1000uL},
+	{"PXI-6224", "M", 250uL, 0, 1000uL, 1000uL},
+	{"PCI-6229", "M", 250uL, 625uL, 1000uL, 1000uL},
+	{"PXI-6229", "M", 250uL, 625uL, 1000uL, 1000uL},
+	{0, 0, 0, 0, 0, 0},
 };
+
+static std::string g_pciClockMaster("");
+static float64 g_pciClockMasterRate = 0.0;
 
 static int g_daqmx_open_cnt;
 static XMutex g_daqmx_mutex;
@@ -111,6 +116,7 @@ XNIDAQmxInterface::VirtualTrigger::front(float64 _freq) {
 		cnt *= lrint(_freq / freq());
 	else
 		cnt /= lrint(freq() / _freq);
+	ASSERT(cnt != 0);
 	return cnt;
 }
 void
@@ -143,12 +149,11 @@ XNIDAQmxGlobalOpen()
 	std::deque<std::string> list;
 		XNIDAQmxInterface::parseList(buf, list);
 		std::string master10MHz;
-		std::string master20MHz;
 		std::deque<std::string> pcidevs;
 		for(std::deque<std::string>::iterator it = list.begin(); it != list.end(); it++) {
+			// Device reset.
 			DAQmxResetDevice(it->c_str());
-			
-			continue;
+			// Search for master clock among PCI(e) devices.
 			int32 bus;
 			DAQmxGetDevBusType(it->c_str(), &bus);
 			if((bus == DAQmx_Val_PCI) || (bus == DAQmx_Val_PCIe)) {
@@ -159,65 +164,19 @@ XNIDAQmxGlobalOpen()
 					int pret;
 					route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
 						QString("/%1/10MHzRefClock").arg(*it),
-						"RTSI6", &pret));
+						"RTSI7", &pret));
 					if(pret >= 0) {
 						master10MHz = *it;
 						g_daqmx_sync_routes.push_back(route);
 						printf("10MHzRefClk found on %s\n", it->c_str());
-						route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
-							QString("/%1/20MHzTimebase").arg(*it),
-							"RTSI7", &pret));
-						if(pret >= 0) {
-							master20MHz = *it;
-							printf("20MHzRefClk found on %s\n", it->c_str());
-							g_daqmx_sync_routes.push_back(route);
-						}
+						g_pciClockMaster = *it;
+						g_pciClockMasterRate = 10e6;
 					}
 				}
 			}
 		}
-		for(std::deque<std::string>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
-			shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
-			if(!master20MHz.length()) {
-				int pret;
-				route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
-					QString("/%1/20MHzTimebase").arg(*it),
-					"RTSI7", &pret));
-				if(pret >= 0) {
-					master20MHz = *it;
-					printf("20MHzRefClk found on %s\n", it->c_str());
-					g_daqmx_sync_routes.push_back(route);
-				}
-			}
-		}
-/*		if(pcidevs.size() > 1) {
-			for(std::deque<std::string>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
-				shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
-				if(*it == master10MHz) continue;
-				if(*it == master20MHz) continue;
-				int pret = -1;
-				if(master20MHz.length())
-					route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
-						"RTSI7",
-						QString("/%1/MasterTimebase").arg(*it), &pret));
-				if(pret >= 0) {
-					g_daqmx_sync_routes.push_back(route);
-				}
-				else {
-					if(master10MHz.length())
-						route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
-							"RTSI6",
-							QString("/%1/ExternalRefereceClock").arg(*it), &pret));
-					if(pret >= 0) {
-						g_daqmx_sync_routes.push_back(route);
-					}
-					else {
-						gErrPrint(KAME::i18n("No synchronization route found on ") + *it);
-					}
-				}
-			}
-		}*/
 	}
+
 	g_daqmx_open_cnt++;
 }
 static void
@@ -227,6 +186,51 @@ XNIDAQmxGlobalClose()
 	g_daqmx_open_cnt--;
 	if(g_daqmx_open_cnt == 0) {
 		g_daqmx_sync_routes.clear();
+	}
+}
+const char *
+XNIDAQmxInterface::busArchType() const {
+	int32 bus;
+	DAQmxGetDevBusType(devName(), &bus);
+	switch(bus) {
+	case DAQmx_Val_PCI:
+	case DAQmx_Val_PCIe:
+		return "PCI";
+	case DAQmx_Val_PXI:
+//	case DAQmx_Val_PXIe:
+		return "PXI";
+	case DAQmx_Val_USB:
+		return "USB";
+	default:
+		return "Unknown";
+	}
+}
+void
+XNIDAQmxInterface::synchronizeClock(TaskHandle task)
+{
+	if(busArchType() == std::string("PCI")) {
+		if(devName() == g_pciClockMaster) return;
+	}
+	
+	if(productSeries() == std::string("M")) {
+		if(busArchType() == std::string("PCI")) {
+			CHECK_DAQMX_RET(DAQmxSetRefClkSrc(task,"RTSI7"));
+			CHECK_DAQMX_RET(DAQmxSetRefClkRate(task, g_pciClockMasterRate));
+		}
+		if(busArchType() == std::string("PXI")) {
+			CHECK_DAQMX_RET(DAQmxSetRefClkSrc(task,"PXI_Clk10"));
+			CHECK_DAQMX_RET(DAQmxSetRefClkRate(task, 10e6));
+		}
+	}
+	if(productSeries() == std::string("S")) {
+		if(busArchType() == std::string("PCI")) {
+			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(task,"RTSI7"));
+			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseRate(task, g_pciClockMasterRate));
+		}
+		if(busArchType() == std::string("PXI")) {
+			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(task,"PXI_Clk10"));
+			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseRate(task, 10e6));
+		}
 	}
 }
 
@@ -325,7 +329,7 @@ char buf[256];
 	CHECK_DAQMX_RET(DAQmxGetDevProductType(devname.c_str(), buf, sizeof(buf)));
 	std::string type = buf;
 	
-	for(const ProductInfo *it = gc_productInfoList; it->type; it++) {
+	for(const ProductInfo *it = sc_productInfoList; it->type; it++) {
 		if(it->type == type) {
 			m_productInfo = it;
 			m_devname = devname;

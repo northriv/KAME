@@ -40,10 +40,14 @@ public:
 
   virtual bool isOpened() const {return m_devname.length();}
   
+  //! e.g. "Dev1".
   const char*devName() const {return m_devname.c_str();}
-  
+  //! Split camma-separated strings.
   static void parseList(const char *list, std::deque<std::string> &buf);
   
+  //! Each task must call this to tell the reference frequency.
+  void synchronizeClock(TaskHandle task);
+    
   class XNIDAQmxRoute {
   public:
   	XNIDAQmxRoute(const char*src, const char*dst, int *ret = NULL);
@@ -51,18 +55,18 @@ public:
   private:
   	std::string m_src, m_dst;
   };
-  
-  struct ProductInfo {
-  	const char *type;
-  	const char *series;
-  	unsigned long ai_max_rate; //!< [kHz]
-  	unsigned long ao_max_rate; //!< [kHz]
-  	unsigned long di_max_rate; //!< [kHz]
-  	unsigned long do_max_rate; //!< [kHz]
-  	unsigned long onboard_timebase; //!< [kHz]
-  };
 
-  const ProductInfo* productInfo() const {return m_productInfo;}
+  //! e.g. "PCI-6111".
+  const char* productType() const {return m_productInfo->type;}
+  //! e.g. "S", "M".
+  const char* productSeries() const {return m_productInfo->series;}
+  //! e.g. "PCI", "PXI". Never "PCIe" or "PXIe".
+  const char* busArchType() const;
+  //! \return 0 if hw timed transfer is not supported.
+  double maxAIRate(unsigned int /*num_scans*/) const {return m_productInfo->ai_max_rate;}
+  double maxAORate(unsigned int /*num_scans*/) const {return m_productInfo->ao_max_rate;}
+  double maxDIRate(unsigned int /*num_scans*/) const {return m_productInfo->di_max_rate;}
+  double maxDORate(unsigned int /*num_scans*/) const {return m_productInfo->do_max_rate;}
   
   class VirtualTrigger : public enable_shared_from_this<VirtualTrigger> {
   public:
@@ -82,11 +86,12 @@ public:
   		if(cnt < m_endOfBlank) return; //for barrier.
   		m_stamps.push_back(cnt);
   		m_endOfBlank = cnt + m_blankTerm;
+  		fprintf(stderr, "stamp!\n");
   	}
   	template <typename T>
   	void changeValue(T oldval, T val, uint64_t time) {
-  		if(((m_risingEdgeMask & val) && (m_risingEdgeMask & ~oldval))
-  			|| ((m_fallingEdgeMask & ~val) && (m_fallingEdgeMask & oldval))) {
+  		if(((m_risingEdgeMask & val) & (m_risingEdgeMask & ~oldval))
+  			|| ((m_fallingEdgeMask & ~val) & (m_fallingEdgeMask & oldval))) {
   				stamp(time);
   		}
   	}
@@ -131,9 +136,18 @@ protected:
   //! This can be called even if has already closed.
   virtual void close() throw (XInterfaceError &);
 private:
+	struct ProductInfo {
+	  	const char *type;
+	  	const char *series;
+	  	unsigned long ai_max_rate; //!< [kHz]
+	  	unsigned long ao_max_rate; //!< [kHz]
+	  	unsigned long di_max_rate; //!< [kHz]
+	  	unsigned long do_max_rate; //!< [kHz]
+	};
 	friend class VirtualTrigger;
 	std::string m_devname;
 	const ProductInfo* m_productInfo;
+	static const ProductInfo sc_productInfoList[];
 };
 
 #define CHECK_DAQMX_ERROR(ret) XNIDAQmxInterface::checkDAQmxError(ret, __FILE__, __LINE__)

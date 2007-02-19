@@ -81,22 +81,44 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
     	}
     }
 */    {
-	    const char* sc[] = {
+		//M series
+	    const char* sc_m[] = {
 	    "PFI0", "PFI1", "PFI2", "PFI3", "PFI4", "PFI5", "PFI6", "PFI7",
 	    "PFI8", "PFI9", "PFI10", "PFI11", "PFI12", "PFI13", "PFI14", "PFI15",
-    	"RTSI0", "RTSI1", "RTSI2", "RTSI3", "RTSI4", "RTSI5", "RTSI6",
+//    	"RTSI0", "RTSI1", "RTSI2", "RTSI3", "RTSI4", "RTSI5", "RTSI6", "RTSI7", 
     	"Ctr0InternalOutput", "Ctr1InternalOutput",
-    	"FrequencyOutput",
+    	//via PFI or RTSI
+    	"ao/SampleClock",
     	"ao/StartTrigger",
-    	"di/StartTrigger",
-    	"do/StartTrigger",
-    	"ao/ReferenceTrigger",
-    	"di/ReferenceTrigger",
-    	"do/ReferenceTrigger",
     	"ao/PauseTrigger",
-    	"di/PauseTrigger",
-    	"do/PauseTrigger",
+    	"Ctr0Source",
+    	"Ctr0Gate",
+    	"Ctr1Source",
+    	"Ctr1Gate",
+    	"FrequencyOutput",
+    	"di/SampleClock",
+    	"do/SampleClock",
     	 0L};
+    	 //S series
+	    const char* sc_s[] = {
+	    //internally
+	    "PFI0", "PFI1", "PFI2", "PFI3", "PFI4", "PFI5", "PFI6", "PFI7",
+	    "PFI8", "PFI9",
+//    	"RTSI0", "RTSI1", "RTSI2", "RTSI3", "RTSI4", "RTSI5", "RTSI6",
+    	"Ctr0InternalOutput",
+    	"OnboardClock",
+    	//via PFI or RTSI
+    	"ao/SampleClock",
+    	"ao/StartTrigger",
+    	"ao/PauseTrigger",
+    	"Ctr0Source",
+    	"Ctr0Gate",
+    	"Ctr1Source",
+    	"Ctr1Gate",
+    	 0L};
+    	 const char **sc = sc_s;
+    	 if(interface()->productSeries() == std::string("M"))
+    	 	sc = sc_m;
 	    for(const char**it = sc; *it; it++) {
 	    	std::string str(formatString("/%s/%s", interface()->devName(), *it));
 	        trigSource()->add(str);
@@ -225,20 +247,21 @@ XNIDAQmxDSO::setupTrigger()
 			    		vt->connect(
 			    			!*trigFalling() ? (1uL << i) : 0,
 			    			*trigFalling() ? (1uL << i) : 0);
-			    		vt->enable(m_interval * m_record.size() / NUM_MAX_CH);
-			    		m_lsnOnVirtualTrigStart = vt->onStart().connectWeak(false,
-			    			shared_from_this(), &XNIDAQmxDSO::onVirtualTrigStart);
 					    CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_task, DAQmx_Val_OverwriteUnreadSamps));
 					    dtrig = vt->armTerm();
 					    trig_spec = DAQmx_Val_RisingSlope;
 					    pretrig = 0;				    
+					    CHECK_DAQMX_RET(DAQmxSetSampQuantSampMode(m_task, DAQmx_Val_ContSamps));
 		    		}
 	    		}
 			}
 	    }
     }
+    //Small # of pretriggers is not allowed for ReferenceTrigger.
+    if(!m_virtualTrigger && (pretrig < 2))
+    	pretrig = 0;
     
-    if(pretrig < 2) {
+    if(!pretrig) {
 	    if(atrig.length()) {
 	        CHECK_DAQMX_RET(DAQmxCfgAnlgEdgeStartTrig(m_task,
 	            atrig.c_str(), trig_spec, *trigLevel()));
@@ -259,7 +282,7 @@ XNIDAQmxDSO::setupTrigger()
 	    }
     }
     
-    setupTiming(); //for continuous/finite sampling.
+ //   setupTiming(); //for continuous/finite sampling.
 
 	CHECK_DAQMX_RET(DAQmxTaskControl(m_task, DAQmx_Val_Task_Commit));	
 	startSequence();
@@ -288,7 +311,8 @@ XNIDAQmxDSO::setupTiming()
         NULL, // internal source
         len / *timeWidth(),
         DAQmx_Val_Rising,
-        m_virtualTrigger ? DAQmx_Val_ContSamps : DAQmx_Val_FiniteSamps,
+//        m_virtualTrigger ? DAQmx_Val_ContSamps : DAQmx_Val_FiniteSamps,
+        DAQmx_Val_FiniteSamps,
         len
         ));
     float64 rate;
@@ -309,6 +333,7 @@ XNIDAQmxDSO::createChannels()
 	
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_task));
 	ASSERT(m_task != TASK_UNDEF);   
+    interface()->synchronizeClock(m_task);
     
     if(*trace1() >= 0) {
         CHECK_DAQMX_RET(DAQmxCreateAIVoltageChan(m_task,
@@ -499,8 +524,8 @@ XNIDAQmxDSO::executeReadAI(const atomic<bool> &terminated)
 void
 XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 {
-	unsigned int cnt = 0;
     uInt32 num_ch;
+	unsigned int cnt = 0;
   {
 	XScopedLock<XRecursiveMutex> lock(m_readMutex);
 
@@ -537,9 +562,10 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 					gWarnPrint(KAME::i18n("Buffer Overflow."));
 					continue;
 				}
-				uInt64 currpos;
-				CHECK_DAQMX_RET(DAQmxGetReadCurrReadPos(m_task, &currpos));
-				int32 offset = ((lastcnt - currpos) % (uInt64)bufsize) - m_preTriggerPos;
+//				uInt64 currpos;
+//				CHECK_DAQMX_RET(DAQmxGetReadCurrReadPos(m_task, &currpos));
+//				int32 offset = ((lastcnt - currpos) % (uInt64)bufsize) - m_preTriggerPos;
+				int32 offset = ((lastcnt - m_preTriggerPos + (uInt64)bufsize) % (uInt64)bufsize);
 			    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, offset));
 				vt->pop();
 				break;
@@ -547,8 +573,20 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 			usleep(lrint(1e6 * size * m_interval / 2));
 		}
 	}
-	const unsigned int num_samps = std::min(size, 1024u);
+	else {
+		if(m_preTriggerPos) {
+			CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstPretrigSamp));
+		}
+		else {
+			CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_CurrReadPos));
+		}
+			
+	    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
+	}
+	if(terminated)
+		return;
 
+	const unsigned int num_samps = std::min(size, 1024u);
 	for(; cnt < size;) {
 		int32 samps;
 		samps = std::min(size - cnt, num_samps);
@@ -563,11 +601,12 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 		}
 		if(terminated)
 			return;
-	    CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, DAQmx_Val_Auto,
-	        DAQmx_Val_WaitInfinitely, DAQmx_Val_GroupByScanNumber,
-	        &m_recordBuf[cnt * num_ch], samps, &samps, NULL
+	    CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, samps,
+	        0.01, DAQmx_Val_GroupByScanNumber,
+	        &m_recordBuf[cnt * num_ch], samps * num_ch, &samps, NULL
 	        ));
 	    cnt += samps;
+		CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_CurrReadPos));
 	}
   } //end of readMutex
 
@@ -628,6 +667,11 @@ XNIDAQmxDSO::startSequence()
 		uInt64 total_samps;
 		CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
 		m_virtualTrigger->clear(total_samps, 1.0 / m_interval);
+		if(!m_lsnOnVirtualTrigStart)
+			m_lsnOnVirtualTrigStart = m_virtualTrigger->onStart().connectWeak(false,
+				shared_from_this(), &XNIDAQmxDSO::onVirtualTrigStart);
+
+		CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstSample));
 	}
 	else {
 	    m_running = false;

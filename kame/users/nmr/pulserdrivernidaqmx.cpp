@@ -80,11 +80,11 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 	if(m_taskGateCtr != TASK_UNDEF)
 	    DAQmxClearTask(m_taskGateCtr); 
 
-	if(intfDO()->productInfo()->do_max_rate == 0)
+	if(intfDO()->maxDORate(1) == 0)
 		throw XInterface::XInterfaceError(KAME::i18n("HW-timed transfer needed."), __FILE__, __LINE__);
 	
 	if(m_resolutionDO <= 0.0)
-		m_resolutionDO = 1.0 / intfDO()->productInfo()->do_max_rate;
+		m_resolutionDO = 1.0 / intfDO()->maxDORate(1);
 	fprintf(stderr, "Using DO rate = %f[kHz]\n", 1.0/m_resolutionDO);
 
 //	std::string ctrdev = formatString("%s/freqout", intfDO()->devName()).c_str();
@@ -98,6 +98,8 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 
 	//Continuous pulse train generation. Duty = 50%.
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDOCtr));
+    intfCtr()->synchronizeClock(m_taskDOCtr);
+
 	CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskDOCtr, 
     	ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
     	freq, 0.5));
@@ -105,6 +107,7 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskDOCtr, DAQmx_Val_ContSamps, 1000));
    
 	CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDO));
+    intfDO()->synchronizeClock(m_taskDO);
 
     CHECK_DAQMX_RET(DAQmxCreateDOChan(m_taskDO, 
     	formatString("%s/port0", intfDO()->devName()).c_str(),
@@ -135,6 +138,7 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 	const unsigned pausing_term = lrint(PAUSING_CNT * resolution() * 1e-3);
 	const unsigned pausing_term_blank = lrint(PAUSING_CNT_BLANK * resolution() * 1e-3);
 	    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskGateCtr));
+	    intfCtr()->synchronizeClock(m_taskGateCtr);
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanTime(m_taskGateCtr, 
 	    	gatectrdev.c_str(), "", DAQmx_Val_Seconds, DAQmx_Val_Low, 0.0,
 	    	pausing_term, pausing_term_blank));
@@ -166,15 +170,15 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	if(m_taskAOCtr != TASK_UNDEF)
 	    DAQmxClearTask(m_taskAOCtr);
 	
-	if(intfDO()->productInfo()->do_max_rate == 0)
+	if(intfDO()->maxDORate(1) == 0)
 		throw XInterface::XInterfaceError(KAME::i18n("HW-timed transfer needed."), __FILE__, __LINE__);
-	if(intfAO()->productInfo()->ao_max_rate == 0)
+	if(intfAO()->maxAORate(2) == 0)
 		throw XInterface::XInterfaceError(KAME::i18n("HW-timed transfer needed."), __FILE__, __LINE__);
 	
 	if((m_resolutionDO <= 0.0) || (m_resolutionAO <= 0.0))
 	{
-		unsigned long do_rate = intfDO()->productInfo()->do_max_rate;
-		unsigned long ao_rate = intfAO()->productInfo()->ao_max_rate;
+		unsigned long do_rate = intfDO()->maxDORate(1);
+		unsigned long ao_rate = intfAO()->maxAORate(2);
 		if(ao_rate <= do_rate)
 			do_rate = ao_rate;
 		else {
@@ -187,6 +191,7 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	fprintf(stderr, "Using AO rate = %f[kHz]\n", 1.0/m_resolutionAO);
 	
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskAO));
+    intfAO()->synchronizeClock(m_taskAO);
 
 	CHECK_DAQMX_RET(DAQmxCreateAOVoltageChan(m_taskAO,
     	formatString("%s/ao0:1", intfAO()->devName()).c_str(), "",
@@ -204,6 +209,7 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 		std::string ctrout = formatString("/%s/Ctr1InternalOutput", intfCtr()->devName()).c_str();
 
 	    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskAOCtr));
+	    intfCtr()->synchronizeClock(m_taskAOCtr);
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskAOCtr, 
 	    	ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
 	    	freq, 0.5));
