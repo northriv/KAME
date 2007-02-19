@@ -82,7 +82,7 @@ enum {CAL_POLY_ORDER = 4};
   //! for moving av.
   std::deque<std::vector<tRawAI> > m_record_av; 
   unsigned int m_recordLength;
-  std::deque<std::string> m_analogTrigSrc, m_digitalTrigSrc;
+  std::deque<std::string> m_analogTrigSrc;
   TaskHandle m_task;
   double m_interval;
   unsigned int m_preTriggerPos;

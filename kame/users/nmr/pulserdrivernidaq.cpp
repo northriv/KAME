@@ -69,17 +69,6 @@ XNIDAQMSeriesWithSSeriesPulser::onOpenAO(const shared_ptr<XInterface> &)
 	    m_ctr_interface = intfDO();
 		openAODO();
 
-//		{
-//			//reference clock synchronization.
-//			float64 rate;
-//			char src[256];
-//			CHECK_DAQMX_RET(DAQmxSetRefClkSrc(m_taskDO,"OnboardClock"));
-//			CHECK_DAQMX_RET(DAQmxGetRefClkSrc(m_taskDO, src, 256));
-//			CHECK_DAQMX_RET(DAQmxGetRefClkRate(m_taskDO, &rate));
-//			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(m_taskAO, src));
-//			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseRate(m_taskAO, rate));
-//		}
-
 		//DMA is slower than interrupts!
 		CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, 
 	    	formatString("%s/ao0:1", intfAO()->devName()).c_str(),

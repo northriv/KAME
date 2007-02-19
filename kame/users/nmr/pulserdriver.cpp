@@ -784,9 +784,9 @@ XPulser::rawToRelPat() throw (XRecordError&)
   const uint64_t _asw_setup = rintSampsMilliSec(m_aswSetupRecorded);
   const uint64_t _asw_hold = rintSampsMilliSec(m_aswHoldRecorded);
   const uint64_t _alt_sep = rintSampsMilliSec(m_altSepRecorded);
-  const uint64_t _pw1 = ceilSampsMicroSec(m_pw1Recorded);
-  const uint64_t _pw2 = ceilSampsMicroSec(m_pw2Recorded);
-  const uint64_t _comb_pw = ceilSampsMicroSec(m_combPWRecorded);
+  const uint64_t _pw1 = ceilSampsMicroSec(m_pw1Recorded/2)*2;
+  const uint64_t _pw2 = ceilSampsMicroSec(m_pw2Recorded/2)*2;
+  const uint64_t _comb_pw = ceilSampsMicroSec(m_combPWRecorded/2)*2;
   const uint64_t _comb_pt = rintSampsMicroSec(m_combPTRecorded);
   const uint64_t _comb_p1 = rintSampsMilliSec(m_combP1Recorded);
   const uint64_t _comb_p1_alt = rintSampsMilliSec(m_combP1AltRecorded);

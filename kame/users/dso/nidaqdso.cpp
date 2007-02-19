@@ -122,7 +122,6 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 	    for(const char**it = sc; *it; it++) {
 	    	std::string str(formatString("/%s/%s", interface()->devName(), *it));
 	        trigSource()->add(str);
-//	        m_digitalTrigSrc.push_back(str);
 	    }
 	    m_virtualTriggerList = XNIDAQmxInterface::VirtualTrigger::virtualTrigList();
 	    if(m_virtualTriggerList) {
@@ -155,7 +154,6 @@ XNIDAQmxDSO::close() throw (XInterface::XInterfaceError &)
 	clearAcquision();
  	
     m_analogTrigSrc.clear();
-    m_digitalTrigSrc.clear();
     trace1()->clear();
     trace2()->clear();
     trigSource()->clear();
@@ -219,14 +217,6 @@ XNIDAQmxDSO::setupTrigger()
     if(std::find(m_analogTrigSrc.begin(), m_analogTrigSrc.end(), src)
          != m_analogTrigSrc.end()) {
          atrig = src;
-    }
-    else {
-	    // create route to PFI0
-	    if(std::find(m_digitalTrigSrc.begin(), m_digitalTrigSrc.end(), src)
-	         != m_digitalTrigSrc.end()) {
-	    	dtrig = formatString("/%s/PFI0", interface()->devName());
-	    	m_trigRoute.reset(new XNIDAQmxInterface::XNIDAQmxRoute(src.c_str(), dtrig.c_str()));
-	    }
     }
     
     if(!atrig.length() && !dtrig.length() && src.length()) {
@@ -420,75 +410,6 @@ XNIDAQmxDSO::onVirtualTrigStart(const shared_ptr<XNIDAQmxInterface::VirtualTrigg
 	    m_running = true;
     }
 }
-void 
-XNIDAQmxDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
-	startSequence();
-}
-
-void
-XNIDAQmxDSO::onSingleChanged(const shared_ptr<XValueNodeBase> &) {
-	startSequence();
-}
-void
-XNIDAQmxDSO::onTrigPosChanged(const shared_ptr<XValueNodeBase> &)
-{
-    setupTrigger();
-}
-void
-XNIDAQmxDSO::onTrigSourceChanged(const shared_ptr<XValueNodeBase> &)
-{
-    setupTrigger();
-}
-void
-XNIDAQmxDSO::onTrigLevelChanged(const shared_ptr<XValueNodeBase> &)
-{
-    setupTrigger();
-}
-void
-XNIDAQmxDSO::onTrigFallingChanged(const shared_ptr<XValueNodeBase> &)
-{
-    setupTrigger();
-}
-void
-XNIDAQmxDSO::onTimeWidthChanged(const shared_ptr<XValueNodeBase> &)
-{
-    setupTiming();
-	startSequence();
-}
-void
-XNIDAQmxDSO::onTrace1Changed(const shared_ptr<XValueNodeBase> &)
-{
-    createChannels();
-}
-void
-XNIDAQmxDSO::onTrace2Changed(const shared_ptr<XValueNodeBase> &)
-{
-    createChannels();
-}
-void
-XNIDAQmxDSO::onVFullScale1Changed(const shared_ptr<XValueNodeBase> &)
-{
-    createChannels();
-}
-void
-XNIDAQmxDSO::onVFullScale2Changed(const shared_ptr<XValueNodeBase> &)
-{
-    createChannels();
-}
-void
-XNIDAQmxDSO::onVOffset1Changed(const shared_ptr<XValueNodeBase> &)
-{
-}
-void
-XNIDAQmxDSO::onVOffset2Changed(const shared_ptr<XValueNodeBase> &)
-{
-}
-void
-XNIDAQmxDSO::onRecordLengthChanged(const shared_ptr<XValueNodeBase> &)
-{
-    setupTiming();
-	startSequence();
-}
 void
 XNIDAQmxDSO::onForceTriggerTouched(const shared_ptr<XNode> &)
 {
@@ -528,89 +449,91 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 {
     uInt32 num_ch;
 	unsigned int cnt = 0;
-  {
-	XScopedLock<XRecursiveMutex> lock(m_readMutex);
-
-	const unsigned int size = m_record.size() / NUM_MAX_CH;
-
-	 if(!m_running) {
-		tryReadAISuspend();
-		msecsleep(10);
-		return;
-	 }
-
-    CHECK_DAQMX_RET(DAQmxGetReadNumChans(m_task, &num_ch));
-    if(num_ch == 0) {
-		tryReadAISuspend();
-		msecsleep(10);
-		return;
-	 }
-    
-    float64 freq = 1.0 / m_interval;
-
-	if(m_virtualTrigger) {
-		shared_ptr<XNIDAQmxInterface::VirtualTrigger> &vt(m_virtualTrigger);
-		while(!terminated) {
-			if(tryReadAISuspend())
-				return;
-			uInt64 total_samps;
-			CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
-			uint64_t lastcnt = vt->front(freq);
-			if(lastcnt && (lastcnt < total_samps)) {
-				uInt32 bufsize;
-				CHECK_DAQMX_RET(DAQmxGetBufInputBufSize(m_task, &bufsize));
-				if(total_samps - lastcnt + m_preTriggerPos > bufsize * 4 / 5) {
+	{
+		XScopedLock<XRecursiveMutex> lock(m_readMutex);
+	
+		const unsigned int size = m_record.size() / NUM_MAX_CH;
+	
+		 if(!m_running) {
+			tryReadAISuspend();
+			msecsleep(10);
+			return;
+		 }
+	
+	    CHECK_DAQMX_RET(DAQmxGetReadNumChans(m_task, &num_ch));
+	    if(num_ch == 0) {
+			tryReadAISuspend();
+			msecsleep(10);
+			return;
+		 }
+	    
+	    float64 freq = 1.0 / m_interval;
+	
+		if(m_virtualTrigger) {
+			shared_ptr<XNIDAQmxInterface::VirtualTrigger> &vt(m_virtualTrigger);
+			while(!terminated) {
+				if(tryReadAISuspend())
+					return;
+				uInt64 total_samps;
+				CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
+				uint64_t lastcnt = vt->front(freq);
+				if(lastcnt && (lastcnt < total_samps)) {
+					uInt32 bufsize;
+					CHECK_DAQMX_RET(DAQmxGetBufInputBufSize(m_task, &bufsize));
+					if(total_samps - lastcnt + m_preTriggerPos > bufsize * 4 / 5) {
+						vt->pop();
+						gWarnPrint(KAME::i18n("Buffer Overflow."));
+						continue;
+					}
+	//				uInt64 currpos;
+	//				CHECK_DAQMX_RET(DAQmxGetReadCurrReadPos(m_task, &currpos));
+	//				int32 offset = ((lastcnt - currpos) % (uInt64)bufsize) - m_preTriggerPos;
+					int32 offset = ((lastcnt - m_preTriggerPos + (uInt64)bufsize) % (uInt64)bufsize);
+				    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, offset));
 					vt->pop();
-					gWarnPrint(KAME::i18n("Buffer Overflow."));
-					continue;
+					break;
 				}
-//				uInt64 currpos;
-//				CHECK_DAQMX_RET(DAQmxGetReadCurrReadPos(m_task, &currpos));
-//				int32 offset = ((lastcnt - currpos) % (uInt64)bufsize) - m_preTriggerPos;
-				int32 offset = ((lastcnt - m_preTriggerPos + (uInt64)bufsize) % (uInt64)bufsize);
-			    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, offset));
-				vt->pop();
-				break;
+				usleep(lrint(1e6 * size * m_interval / 2));
 			}
-			usleep(lrint(1e6 * size * m_interval / 2));
-		}
-	}
-	else {
-		if(m_preTriggerPos) {
-			CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstPretrigSamp));
 		}
 		else {
-			CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_CurrReadPos));
-		}
-			
-	    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
-	}
-	if(terminated)
-		return;
-
-	const unsigned int num_samps = std::min(size, 1024u);
-	for(; cnt < size;) {
-		int32 samps;
-		samps = std::min(size - cnt, num_samps);
-		while(!terminated) {
-			if(tryReadAISuspend())
-				return;
-		uInt32 space;
-			int ret = DAQmxGetReadAvailSampPerChan(m_task, &space);
-			if(!ret && (space >= (uInt32)samps))
-				break;
-			usleep(lrint(1e6 * (samps - space) * m_interval));
+			if(m_preTriggerPos) {
+				CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstPretrigSamp));
+			}
+			else {
+				CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_CurrReadPos));
+			}
+				
+		    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
 		}
 		if(terminated)
 			return;
-	    CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, samps,
-	        0.01, DAQmx_Val_GroupByScanNumber,
-	        &m_recordBuf[cnt * num_ch], samps * num_ch, &samps, NULL
-	        ));
-	    cnt += samps;
-		CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_CurrReadPos));
-	}
-  } //end of readMutex
+	
+		const unsigned int num_samps = std::min(size, 1024u);
+		for(; cnt < size;) {
+			int32 samps;
+			samps = std::min(size - cnt, num_samps);
+			while(!terminated) {
+				if(tryReadAISuspend())
+					return;
+			uInt32 space;
+				int ret = DAQmxGetReadAvailSampPerChan(m_task, &space);
+				if(!ret && (space >= (uInt32)samps))
+					break;
+				usleep(lrint(1e6 * (samps - space) * m_interval));
+			}
+			if(terminated)
+				return;
+		    CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, samps,
+		        0.01, DAQmx_Val_GroupByScanNumber,
+		        &m_recordBuf[cnt * num_ch], samps * num_ch, &samps, NULL
+		        ));
+		    cnt += samps;
+			if(m_preTriggerPos && !m_virtualTrigger) {
+				CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, cnt));
+			}
+		}
+	} //end of readMutex
 
 	XScopedLock<XInterface> lock(*interface());
 	
@@ -798,5 +721,62 @@ XNIDAQmxDSO::convertRaw() throw (XRecordError&)
     }
 }
 
+void 
+XNIDAQmxDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
+	startSequence();
+}
+
+void
+XNIDAQmxDSO::onSingleChanged(const shared_ptr<XValueNodeBase> &) {
+	startSequence();
+}
+void
+XNIDAQmxDSO::onTrigPosChanged(const shared_ptr<XValueNodeBase> &) {
+    setupTrigger();
+}
+void
+XNIDAQmxDSO::onTrigSourceChanged(const shared_ptr<XValueNodeBase> &) {
+    setupTrigger();
+}
+void
+XNIDAQmxDSO::onTrigLevelChanged(const shared_ptr<XValueNodeBase> &) {
+    setupTrigger();
+}
+void
+XNIDAQmxDSO::onTrigFallingChanged(const shared_ptr<XValueNodeBase> &) {
+    setupTrigger();
+}
+void
+XNIDAQmxDSO::onTimeWidthChanged(const shared_ptr<XValueNodeBase> &) {
+    setupTiming();
+	startSequence();
+}
+void
+XNIDAQmxDSO::onTrace1Changed(const shared_ptr<XValueNodeBase> &) {
+    createChannels();
+}
+void
+XNIDAQmxDSO::onTrace2Changed(const shared_ptr<XValueNodeBase> &) {
+    createChannels();
+}
+void
+XNIDAQmxDSO::onVFullScale1Changed(const shared_ptr<XValueNodeBase> &) {
+    createChannels();
+}
+void
+XNIDAQmxDSO::onVFullScale2Changed(const shared_ptr<XValueNodeBase> &) {
+    createChannels();
+}
+void
+XNIDAQmxDSO::onVOffset1Changed(const shared_ptr<XValueNodeBase> &) {
+}
+void
+XNIDAQmxDSO::onVOffset2Changed(const shared_ptr<XValueNodeBase> &) {
+}
+void
+XNIDAQmxDSO::onRecordLengthChanged(const shared_ptr<XValueNodeBase> &) {
+    setupTiming();
+	startSequence();
+}
 
 #endif //HAVE_NI_DAQMX
