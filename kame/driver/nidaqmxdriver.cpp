@@ -300,10 +300,10 @@ char buf[256];
 						if(!master10MHz.length()) {
 							route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
 								formatString("/%s/10MHzRefClock", it->c_str()).c_str(),
-								formatString("/%s/RTSI", it->c_str()).c_str());
+								formatString("/%s/RTSI7", it->c_str()).c_str()));
 							master10MHz = *it;
 							g_daqmx_sync_routes.push_back(route);
-							fprintf(stderr, "10MHzRefClk found on %s\n", it->c_str());
+							fprintf(stderr, "10MHz Reference Clock found on %s\n", it->c_str());
 							g_pciClockMaster = *it;
 							g_pciClockMasterRate = 10.0e6;
 						}
