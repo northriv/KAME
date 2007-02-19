@@ -101,22 +101,21 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 	CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskDOCtr, 
     	ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
     	freq, 0.5));
-    intfCtr()->synchronizeClock(m_taskDOCtr);
-
     //config. of timing is needed for some reasons.
 	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskDOCtr, DAQmx_Val_ContSamps, 1000));
+    intfCtr()->synchronizeClock(m_taskDOCtr);
    
 	CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDO));
     CHECK_DAQMX_RET(DAQmxCreateDOChan(m_taskDO, 
     	formatString("%s/port0", intfDO()->devName()).c_str(),
     	 "", DAQmx_Val_ChanForAllLines));
-    intfDO()->synchronizeClock(m_taskDO);
 
 	const unsigned int BUF_SIZE_HINT = lrint(65.536e-3 * freq);
 	//M series needs an external sample clock and trigger for DO channels.
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO,
 		ctrout.c_str(),
 		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
+    intfDO()->synchronizeClock(m_taskDO);
 	
 	//Buffer setup.
 /*	CHECK_DAQMX_RET(DAQmxSetDODataXferReqCond(m_taskDO, 
@@ -140,10 +139,10 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanTime(m_taskGateCtr, 
 	    	gatectrdev.c_str(), "", DAQmx_Val_Seconds, DAQmx_Val_Low, 0.0,
 	    	pausing_term, pausing_term_blank));
-	    intfCtr()->synchronizeClock(m_taskGateCtr);
 
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskGateCtr,
 			 DAQmx_Val_FiniteSamps, 1));
+	    intfCtr()->synchronizeClock(m_taskGateCtr);
 
 	    CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskGateCtr,
 			formatString("/%s/PFI0", intfCtr()->devName()).c_str(),
@@ -194,7 +193,6 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	CHECK_DAQMX_RET(DAQmxCreateAOVoltageChan(m_taskAO,
     	formatString("%s/ao0:1", intfAO()->devName()).c_str(), "",
     	-1.0, 1.0, DAQmx_Val_Volts, NULL));
-    intfAO()->synchronizeClock(m_taskAO);
 		
 	openDO();
 	
@@ -211,8 +209,8 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskAOCtr, 
 	    	ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
 	    	freq, 0.5));
-	    intfCtr()->synchronizeClock(m_taskAOCtr);
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskAOCtr, DAQmx_Val_FiniteSamps, 1));
+	    intfCtr()->synchronizeClock(m_taskAOCtr);
 
 	    CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskAOCtr,
 			formatString("/%s/PFI0", intfCtr()->devName()).c_str(),
@@ -234,6 +232,8 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 			CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskAO, DAQmx_Val_High));
 		}
 	}
+    intfAO()->synchronizeClock(m_taskAO);
+
 	//Synchronize ARM.
 	CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskDOCtr,
 		formatString("/%s/ao/StartTrigger", intfAO()->devName()).c_str(),

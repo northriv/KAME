@@ -315,6 +315,9 @@ XNIDAQmxDSO::setupTiming()
         DAQmx_Val_FiniteSamps,
         len
         ));
+
+    interface()->synchronizeClock(m_task);
+
     float64 rate;
 //    CHECK_DAQMX_RET(DAQmxGetRefClkRate(m_task, &rate));
 //	dbgPrint(QString("Reference Clk rate = %1.").arg(rate));
@@ -382,8 +385,6 @@ XNIDAQmxDSO::createChannels()
 			statusPrinter()->printMessage(KAME::i18n("Self calibration done."));
 		}
 */	}
-
-    interface()->synchronizeClock(m_task);
 
     setupTiming();
 	setupTrigger();
