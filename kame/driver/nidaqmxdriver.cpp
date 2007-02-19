@@ -138,56 +138,6 @@ XNIDAQmxInterface::VirtualTrigger::clear(uint64_t now, float64 _freq) {
 	}
 }
 
-static void
-XNIDAQmxGlobalOpen()
-{
-	XScopedLock<XMutex> lock(g_daqmx_mutex);
-	if(g_daqmx_open_cnt == 0) {
-//	    CHECK_DAQMX_RET(DAQmxCreateTask("", &g_task_sync_master));
-	char buf[2048];		
-		CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
-	std::deque<std::string> list;
-		XNIDAQmxInterface::parseList(buf, list);
-		std::string master10MHz;
-		std::deque<std::string> pcidevs;
-		for(std::deque<std::string>::iterator it = list.begin(); it != list.end(); it++) {
-			// Device reset.
-			DAQmxResetDevice(it->c_str());
-			// Search for master clock among PCI(e) devices.
-			int32 bus;
-			DAQmxGetDevBusType(it->c_str(), &bus);
-			if((bus == DAQmx_Val_PCI) || (bus == DAQmx_Val_PCIe)) {
-				pcidevs.push_back(*it);
-				//RTSI synchronizations.
-				shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
-				if(!master10MHz.length()) {
-					int pret;
-					route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
-						QString("/%1/10MHzRefClock").arg(*it),
-						"RTSI7", &pret));
-					if(pret >= 0) {
-						master10MHz = *it;
-						g_daqmx_sync_routes.push_back(route);
-						printf("10MHzRefClk found on %s\n", it->c_str());
-						g_pciClockMaster = *it;
-						g_pciClockMasterRate = 10e6;
-					}
-				}
-			}
-		}
-	}
-
-	g_daqmx_open_cnt++;
-}
-static void
-XNIDAQmxGlobalClose()
-{
-	XScopedLock<XMutex> lock(g_daqmx_mutex);
-	g_daqmx_open_cnt--;
-	if(g_daqmx_open_cnt == 0) {
-		g_daqmx_sync_routes.clear();
-	}
-}
 const char *
 XNIDAQmxInterface::busArchType() const {
 	int32 bus;
@@ -208,13 +158,16 @@ XNIDAQmxInterface::busArchType() const {
 void
 XNIDAQmxInterface::synchronizeClock(TaskHandle task)
 {
+	if(!g_pciClockMaster.length())
+		return;
 	if(busArchType() == std::string("PCI")) {
 		if(devName() == g_pciClockMaster) return;
 	}
 	
 	if(productSeries() == std::string("M")) {
 		if(busArchType() == std::string("PCI")) {
-			CHECK_DAQMX_RET(DAQmxSetRefClkSrc(task,"RTSI7"));
+			CHECK_DAQMX_RET(DAQmxSetRefClkSrc(task,
+				formatString("/%s/RTSI7", devName()).c_str()));
 			CHECK_DAQMX_RET(DAQmxSetRefClkRate(task, g_pciClockMasterRate));
 		}
 		if(busArchType() == std::string("PXI")) {
@@ -224,7 +177,8 @@ XNIDAQmxInterface::synchronizeClock(TaskHandle task)
 	}
 	if(productSeries() == std::string("S")) {
 		if(busArchType() == std::string("PCI")) {
-			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(task,"RTSI7"));
+			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(task,
+				formatString("/%s/RTSI7", devName()).c_str()));
 			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseRate(task, g_pciClockMasterRate));
 		}
 		if(busArchType() == std::string("PXI")) {
@@ -290,22 +244,21 @@ std::deque<std::string> list;
 XNIDAQmxInterface::XNIDAQmxRoute::XNIDAQmxRoute(const char*src, const char*dst, int *pret)
  : m_src(src), m_dst(dst)
 {
-	int ret;
-	try {
-	    ret = CHECK_DAQMX_ERROR(DAQmxConnectTerms(src, dst, DAQmx_Val_DoNotInvertPolarity));
-	    dbgPrint(QString("Connect route from %1 to %2.").arg(src).arg(dst));
-	}
-	catch (XInterface::XInterfaceError &e) {
-		if(!pret) {
-			e.print();
-		}
-		else {
-			dbgPrint(e.msg());
-		}
-		m_src.clear();
-	}
-	if(pret)
+	if(pret) {
+	int ret = 0;
+	    ret = DAQmxConnectTerms(src, dst, DAQmx_Val_DoNotInvertPolarity);
 		*pret = ret;
+	}
+	else {
+		try {
+		    CHECK_DAQMX_ERROR(DAQmxConnectTerms(src, dst, DAQmx_Val_DoNotInvertPolarity));
+		    dbgPrint(QString("Connect route from %1 to %2.").arg(src).arg(dst));
+		}
+		catch (XInterface::XInterfaceError &e) {
+			e.print();
+			m_src.clear();
+		}
+	}
 }
 XNIDAQmxInterface::XNIDAQmxRoute::~XNIDAQmxRoute()
 {
@@ -322,7 +275,45 @@ void
 XNIDAQmxInterface::open() throw (XInterfaceError &)
 {
 char buf[256];
-	XNIDAQmxGlobalOpen();
+
+	XScopedLock<XMutex> lock(g_daqmx_mutex);
+	if(g_daqmx_open_cnt == 0) {
+//	    CHECK_DAQMX_RET(DAQmxCreateTask("", &g_task_sync_master));
+	char buf[2048];		
+		CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
+	std::deque<std::string> list;
+		XNIDAQmxInterface::parseList(buf, list);
+		std::string master10MHz;
+		for(std::deque<std::string>::iterator it = list.begin(); it != list.end(); it++) {
+			// Device reset.
+			DAQmxResetDevice(it->c_str());
+			// Search for master clock among PCI(e) devices.
+			int32 bus;
+			DAQmxGetDevBusType(it->c_str(), &bus);
+			if((bus == DAQmx_Val_PCI) || (bus == DAQmx_Val_PCIe)) {
+				CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
+				std::string type = buf;
+				for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
+					if((pit->type == type) && (pit->series == std::string("M"))) {
+						//RTSI synchronizations.
+						shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
+						if(!master10MHz.length()) {
+							route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
+								formatString("/%s/10MHzRefClock", it->c_str()).c_str(),
+								formatString("/%s/RTSI", it->c_str()).c_str());
+							master10MHz = *it;
+							g_daqmx_sync_routes.push_back(route);
+							fprintf(stderr, "10MHzRefClk found on %s\n", it->c_str());
+							g_pciClockMaster = *it;
+							g_pciClockMasterRate = 10.0e6;
+						}
+					}
+				}
+			}
+		}
+	}
+	g_daqmx_open_cnt++;
+
 	if(sscanf(device()->to_str().c_str(), "%256s", buf) != 1)
           	throw XOpenInterfaceError(__FILE__, __LINE__);
 	std::string devname = buf;
@@ -343,7 +334,12 @@ XNIDAQmxInterface::close() throw (XInterfaceError &)
 {
 	if(m_devname.length()) {
 		m_devname.clear();
-		XNIDAQmxGlobalClose();
+
+		XScopedLock<XMutex> lock(g_daqmx_mutex);
+		g_daqmx_open_cnt--;
+		if(g_daqmx_open_cnt == 0) {
+			g_daqmx_sync_routes.clear();
+		}
 	}
 }
 #endif //HAVE_NI_DAQMX

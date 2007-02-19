@@ -333,7 +333,6 @@ XNIDAQmxDSO::createChannels()
 	
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_task));
 	ASSERT(m_task != TASK_UNDEF);   
-    interface()->synchronizeClock(m_task);
     
     if(*trace1() >= 0) {
         CHECK_DAQMX_RET(DAQmxCreateAIVoltageChan(m_task,
@@ -383,6 +382,8 @@ XNIDAQmxDSO::createChannels()
 			statusPrinter()->printMessage(KAME::i18n("Self calibration done."));
 		}
 */	}
+
+    interface()->synchronizeClock(m_task);
 
     setupTiming();
 	setupTrigger();
