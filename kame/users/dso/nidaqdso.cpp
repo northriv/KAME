@@ -505,19 +505,24 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 			while(!terminated) {
 				if(tryReadAISuspend())
 					return;
-			uInt32 space;
-				int ret = DAQmxGetReadAvailSampPerChan(m_task, &space);
-				if(!ret && (space >= (uInt32)samps))
+//			uInt32 space;
+//				int ret = DAQmxGetReadAvailSampPerChan(m_task, &space);
+//				if(!ret && (space >= (uInt32)samps))
 					break;
-				usleep(lrint(1e6 * (samps - space) * m_interval));
+//				usleep(lrint(1e6 * (samps - space) * m_interval));
 			}
 			if(terminated)
 				return;
-		    CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, samps,
+/*		    CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, samps,
 		        0.01, DAQmx_Val_GroupByScanNumber,
 		        &m_recordBuf[cnt * num_ch], samps * num_ch, &samps, NULL
 		        ));
+*/		    int ret = DAQmxReadBinaryI16(m_task, samps,
+		        0.04, DAQmx_Val_GroupByScanNumber,
+		        &m_recordBuf[cnt * num_ch], samps * num_ch, &samps, NULL
+		        ); 
 		    cnt += samps;
+		    if(ret == 0) break;
 			if(m_preTriggerPos && !m_virtualTrigger) {
 				CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, cnt));
 			}

@@ -159,10 +159,10 @@ void
 XNIDAQmxInterface::synchronizeClock(TaskHandle task)
 {
 	const float64 rate = g_pciClockMasterRate;
-	const char *const src = formatString("/%s/RTSI7", devName()).c_str();
+	const std::string src = formatString("/%s/RTSI7", devName());
 
 	if(devName() == g_pciClockMaster) {
-	char buf[2048];		
+/*	char buf[2048];		
 		CHECK_DAQMX_RET(DAQmxGetTaskChannels(task, buf, sizeof(buf)));
 	std::deque<std::string> list;
 		XNIDAQmxInterface::parseList(buf, list);
@@ -176,21 +176,21 @@ XNIDAQmxInterface::synchronizeClock(TaskHandle task)
 			case DAQmx_Val_DO:
 				break;
 			case DAQmx_Val_CI:
-				CHECK_DAQMX_RET(DAQmxSetCICtrTimebaseSrc(task, it->c_str(), src));
+				CHECK_DAQMX_RET(DAQmxSetCICtrTimebaseSrc(task, it->c_str(), src.c_str()));
 				CHECK_DAQMX_RET(DAQmxSetCICtrTimebaseRate(task, it->c_str(), rate));
 				break;
 			case DAQmx_Val_CO:
-				CHECK_DAQMX_RET(DAQmxSetCOCtrTimebaseSrc(task, it->c_str(), src));
+				CHECK_DAQMX_RET(DAQmxSetCOCtrTimebaseSrc(task, it->c_str(), src.c_str()));
 				CHECK_DAQMX_RET(DAQmxSetCOCtrTimebaseRate(task, it->c_str(), rate));
 				break;
 			}
-		}
+		}*/
 		return;
 	}
 	
 	if(productSeries() == std::string("M")) {
 		if(busArchType() == std::string("PCI")) {
-			CHECK_DAQMX_RET(DAQmxSetRefClkSrc(task, src));
+			CHECK_DAQMX_RET(DAQmxSetRefClkSrc(task, src.c_str()));
 			CHECK_DAQMX_RET(DAQmxSetRefClkRate(task, rate));
 		}
 		if(busArchType() == std::string("PXI")) {
@@ -200,7 +200,7 @@ XNIDAQmxInterface::synchronizeClock(TaskHandle task)
 	}
 	if(productSeries() == std::string("S")) {
 		if(busArchType() == std::string("PCI")) {
-			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(task, src));
+			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(task, src.c_str()));
 			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseRate(task, rate));
 		}
 		if(busArchType() == std::string("PXI")) {
@@ -321,7 +321,7 @@ char buf[256];
 				CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
 				std::string type = buf;
 				for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
-					if((pit->type == type) && (pit->series == std::string("M"))) {
+					if((pit->type == type) && (pit->series == std::string("S"))) {
 						//RTSI synchronizations.
 						shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
 						if(!g_pciClockMaster.length()) {

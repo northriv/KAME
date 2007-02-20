@@ -115,7 +115,7 @@ enum { CAL_POLY_ORDER = 4};
 	
   int makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
   XRecursiveMutex m_totalLock;
-  XMutex m_mutexAO, m_mutexDO;
+  XRecursiveMutex m_mutexAO, m_mutexDO;
 };
 
 #endif //HAVE_NI_DAQMX

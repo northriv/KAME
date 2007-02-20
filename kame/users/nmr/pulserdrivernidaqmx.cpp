@@ -115,7 +115,7 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO,
 		ctrout.c_str(),
 		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
-    intfDO()->synchronizeClock(m_taskDO);
+//    intfDO()->synchronizeClock(m_taskDO);
 	
 	//Buffer setup.
 /*	CHECK_DAQMX_RET(DAQmxSetDODataXferReqCond(m_taskDO, 
@@ -225,6 +225,7 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	else {
 		CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, "",
 			freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
+	    intfAO()->synchronizeClock(m_taskAO);
 
 		if(USE_PAUSING) {
 			std::string gatectrout = formatString("/%s/Ctr1InternalOutput", intfAO()->devName()).c_str();
@@ -232,7 +233,6 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 			CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskAO, DAQmx_Val_High));
 		}
 	}
-    intfAO()->synchronizeClock(m_taskAO);
 
 	//Synchronize ARM.
 	CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskDOCtr,
@@ -402,8 +402,8 @@ XNIDAQmxPulser::stopPulseGen()
 		m_threadWriteDO->terminate();
 	}
 	{
-		XScopedLock<XMutex> lockAO(m_mutexAO);
-		XScopedLock<XMutex> lockDO(m_mutexDO);
+		XScopedLock<XRecursiveMutex> lockAO(m_mutexAO);
+		XScopedLock<XRecursiveMutex> lockDO(m_mutexDO);
 
 		m_virtualTrigger->stop();
 
@@ -436,7 +436,7 @@ XNIDAQmxPulser::aoVoltToRaw(int ch, float64 volt)
 void *
 XNIDAQmxPulser::executeWriteAO(const atomic<bool> &terminated)
 {
-	XScopedLock<XMutex> lockAO(m_mutexAO);
+	XScopedLock<XRecursiveMutex> lockAO(m_mutexAO);
 	while(!terminated) {
 		writeBufAO(terminated);
 	}
@@ -445,7 +445,7 @@ XNIDAQmxPulser::executeWriteAO(const atomic<bool> &terminated)
 void *
 XNIDAQmxPulser::executeWriteDO(const atomic<bool> &terminated)
 {
-	XScopedLock<XMutex> lockDO(m_mutexDO);
+	XScopedLock<XRecursiveMutex> lockDO(m_mutexDO);
 	while(!terminated) {
 		writeBufDO(terminated);
 	}
