@@ -84,7 +84,10 @@ public:
   		if(cnt < m_endOfBlank) return;
   		XScopedLock<XMutex> lock(m_mutex);
   		if(cnt < m_endOfBlank) return; //for barrier.
+  		if(cnt == 0) return; //ignore.
   		m_stamps.push_back(cnt);
+  		if(m_stamps.size() > 100)
+  			m_stams.pop_front();
   		m_endOfBlank = cnt + m_blankTerm;
   		fprintf(stderr, "stamp!\n");
   	}
@@ -100,10 +103,10 @@ public:
   	void disconnect();
   	//! \arg blankterm in seconds.
   	void enable(float64 blankterm) {
+  		XScopedLock<XMutex> lock(m_mutex);
 		m_blankTerm = lrint(blankterm * freq());
   	}
   	void disable() {
-		m_blankTerm = (uint64_t)-1LL;
   	}
 	//! for restarting connected task.
 	XTalker<shared_ptr<VirtualTrigger> > &onStart() {return m_onstart;}
@@ -124,7 +127,7 @@ public:
   	std::string m_armTerm;
   	unsigned int m_bits;
   	uint32_t m_risingEdgeMask, m_fallingEdgeMask;
-  	uint64_t m_blankTerm, m_lastStamp, m_endOfBlank;
+  	uint64_t m_blankTerm, m_endOfBlank;
   	float64 m_freq; //!< [Hz].
   	std::deque<uint64_t> m_stamps;
   	XMutex m_mutex;

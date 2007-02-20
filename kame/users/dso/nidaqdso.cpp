@@ -225,16 +225,16 @@ XNIDAQmxDSO::setupTrigger()
 			    		vt->connect(
 			    			!*trigFalling() ? (1uL << i) : 0,
 			    			*trigFalling() ? (1uL << i) : 0);
-					    CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_task, DAQmx_Val_OverwriteUnreadSamps));
 					    dtrig = vt->armTerm();
 					    trig_spec = DAQmx_Val_RisingSlope;
 					    pretrig = 0;				    
-					    CHECK_DAQMX_RET(DAQmxSetSampQuantSampMode(m_task, DAQmx_Val_ContSamps));
+					    CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_task, DAQmx_Val_OverwriteUnreadSamps));
 		    		}
 	    		}
 			}
 	    }
     }
+    
     //Small # of pretriggers is not allowed for ReferenceTrigger.
     if(!m_virtualTrigger && (pretrig < 2)) {
     	pretrig = 0;
@@ -590,6 +590,7 @@ XNIDAQmxDSO::startSequence()
 			m_lsnOnVirtualTrigStart = m_virtualTrigger->onStart().connectWeak(false,
 				shared_from_this(), &XNIDAQmxDSO::onVirtualTrigStart);
 
+	    CHECK_DAQMX_RET(DAQmxSetSampQuantSampMode(m_task, DAQmx_Val_ContSamps));
 		CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstSample));
 	}
 	else {
@@ -598,6 +599,7 @@ XNIDAQmxDSO::startSequence()
 		    if(m_task != TASK_UNDEF)
 		    	DAQmxStopTask(m_task);
 		}
+	    CHECK_DAQMX_RET(DAQmxSetSampQuantSampMode(m_task, DAQmx_Val_FiniteSamps));
 		uInt32 num_ch;
 	    CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
 	    if(num_ch > 0) {
