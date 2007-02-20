@@ -683,8 +683,8 @@ XNIDAQmxPulser::createNativePatterns()
   const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
 	
   const tRawDO pausingbit = m_pausingBit;
-  const unsigned int pausing_cnt = PAUSING_CNT;
-  const unsigned int pausing_cnt_blank = PAUSING_CNT_BLANK;
+  const uint64_t pausing_cnt = PAUSING_CNT;
+  const uint64_t pausing_cnt_blank = PAUSING_CNT_BLANK;
       
 	m_genPatternListDO.clear();
 	m_genPatternListAO.clear();
@@ -696,7 +696,7 @@ XNIDAQmxPulser::createNativePatterns()
 		//pattern of digital lines.
 		tRawDO patDO = PAT_DO_MASK & pat;
 		const unsigned int patAO = pat / PAT_QAM_PHASE;
-		if(pausingbit && (pat & PAT_QAM_PULSE_IDX_MASK == 0)) {
+		if(pausingbit && ((pat & PAT_QAM_PULSE_IDX_MASK) == 0)) {
 			patDO &= ~pausingbit;
 			while(tonext > pausing_cnt + pausing_cnt_blank + 1) {
 				//generate a pausing trigger.
