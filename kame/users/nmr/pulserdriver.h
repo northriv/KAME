@@ -230,15 +230,13 @@ class XPulser : public XPrimaryDriver
     virtual void createNativePatterns() = 0;
     //! time resolution [ms]
     virtual double resolution() const = 0;
+    virtual double resolutionQAM() const = 0;
     //! minimum period of pulses [ms]
     virtual double minPulseWidth() const = 0;
     //! existense of AO ports.
     virtual bool haveQAMPorts() const = 0;
-    //! prepare waveforms for QAM.
-	 virtual int makeWaveForm(unsigned int pnum_minus_1, 
-		 double pw, unsigned int to_center,
-	  	 tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0) = 0;
-  	 std::vector<std::complex<double> > &qamWaveForm(unsigned int idx)
+
+  	const std::vector<std::complex<double> > &qamWaveForm(unsigned int idx) const
   	 	 {return m_qamWaveForm[idx];}
 
   
@@ -312,6 +310,10 @@ class XPulser : public XPrimaryDriver
   //! create RelPatList
   void rawToRelPat() throw (XRecordError&);
 
+  //! prepare waveforms for QAM.
+  void makeWaveForm(unsigned int pnum_minus_1, 
+	 double pw, unsigned int to_center,
+  	 tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
   std::vector<std::complex<double> > m_qamWaveForm[PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX];
   
   //! truncate time by resolution().

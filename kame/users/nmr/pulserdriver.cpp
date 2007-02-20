@@ -1085,7 +1085,7 @@ XPulser::rawToRelPat() throw (XRecordError&)
     
     if(haveQAMPorts()) {
     	for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX; i++)
-    		qamWaveForm(i).clear();
+    		m_qamWaveForm[i].clear();
     		
 	  const double _tau = m_tauRecorded;
 	  const double _dif_freq = m_difFreqRecorded;
@@ -1108,4 +1108,26 @@ XPulser::rawToRelPat() throw (XRecordError&)
 		      	*combLevel(), *combOffRes() + _dif_freq *1000.0, _induce_emission_phase);
 		  }
     }
+}
+
+void
+XPulser::makeWaveForm(unsigned int pnum_minus_1, 
+		 double pw, unsigned int to_center,
+	  	 tpulsefunc func, double dB, double freq, double phase)
+{
+	std::vector<std::complex<double> > &p = m_qamWaveForm[pnum_minus_1];
+	const double dma_ao_period = resolutionQAM();
+	to_center *= lrint(resolution() / dma_ao_period);
+	const double delay1 = *qamDelay1() * 1e-3 / dma_ao_period;
+	const double delay2 = *qamDelay2() * 1e-3 / dma_ao_period;
+	double dx = dma_ao_period / pw;
+	double dp = 2*PI*freq*dma_ao_period;
+	double z = pow(10.0, dB/20.0);
+	for(int i = 0; i < (int)to_center*2; i++) {
+		double i1 = i - (int)to_center + 0.5 - delay1;
+		double i2 = i - (int)to_center + 0.5 - delay2;
+		double x = z * func(i1 * dx) * cos(i1 * dp + PI/4 + phase);
+		double y = z * func(i2 * dx) * sin(i2 * dp + PI/4 + phase);
+		p.push_back(std::complex<double>(x, y));
+	}
 }

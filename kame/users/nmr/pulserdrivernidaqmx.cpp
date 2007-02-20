@@ -135,7 +135,7 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 	if(m_pausingBit) {
 		for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
 			if(m_pausingBit & (1u << i))
-				m_portSel[i]->setUIEnabled(false);
+				portSel(i)->setUIEnabled(false);
 		}
 
 	const double pausing_term = PAUSING_CNT * resolution() * 1e-3;
@@ -161,6 +161,11 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 	}
 	
 	m_virtualTrigger->setArmTerm(ctrout.c_str());
+	
+	m_suspendDO = true; 	
+	m_threadWriteDO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
+		 &XNIDAQmxPulser::executeWriteDO));
+	m_threadWriteDO->resume();
 }
 
 void
@@ -254,13 +259,12 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 			formatString("/%s/ao/StartTrigger", intfAO()->devName()).c_str(),
 			DAQmx_Val_Rising));
 		//for debugging.
-		CHECK_DAQMX_RET(DAQmxExportSignal(DAQmx_Val_StartTrigger,
+		CHECK_DAQMX_RET(DAQmxExportSignal(m_taskAO, DAQmx_Val_StartTrigger,
 			formatString("/%s/PFI6", intfAO()->devName()).c_str() ));
     }
 
 	m_virtualTrigger->setArmTerm(
 		formatString("/%s/ao/SampleClock", intfAO()->devName()).c_str());
-
 
 	//Buffer setup.
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, BUF_SIZE_HINT));
@@ -287,6 +291,11 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 			formatString("%s/ao%d", intfAO()->devName(), ch).c_str(),
 			&m_lowerLimAO[ch]));
 	}
+
+	m_suspendAO = true;
+	m_threadWriteAO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
+		 &XNIDAQmxPulser::executeWriteAO));
+	m_threadWriteAO->resume();
 }
 
 void
@@ -295,6 +304,17 @@ XNIDAQmxPulser::close() throw (XInterface::XInterfaceError &)
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
 
 	stopPulseGen();
+	
+	if(m_threadWriteAO) {
+		m_threadWriteAO->terminate();
+	}
+	if(m_threadWriteDO) {
+		m_threadWriteDO->terminate();
+	}
+
+	XScopedLock<XRecursiveMutex> lockAO(m_mutexAO);
+	XScopedLock<XRecursiveMutex> lockDO(m_mutexDO);
+	
 	if(m_taskAO != TASK_UNDEF)
 	    DAQmxClearTask(m_taskAO);
 	if(m_taskAOCtr != TASK_UNDEF)
@@ -323,9 +343,11 @@ void
 XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
-
-	 stopPulseGen();
-		   
+	XScopedLock<XRecursiveMutex> lockAO(m_mutexAO);
+	XScopedLock<XRecursiveMutex> lockDO(m_mutexDO);
+	
+	stopPulseGen();
+ 
 //	std::deque<GenPattern> m_genPatternList;
 	m_genLastPatItAO = m_genPatternListAO.begin();
 	m_genRestSampsAO = m_genPatternListAO.back().tonext;
@@ -375,15 +397,6 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		writeBufAO(terminated);
 	}
 	writeBufDO(terminated);
- 	
-	m_threadWriteDO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
-		 &XNIDAQmxPulser::executeWriteDO));
-	m_threadWriteDO->resume();
-	if(m_taskAO != TASK_UNDEF) {
-		m_threadWriteAO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
-			 &XNIDAQmxPulser::executeWriteAO));
-		m_threadWriteAO->resume();
-	}
 	
 	//slave must start before the master.
 	if(USE_FINITE_AO && (m_taskAOCtr != TASK_UNDEF)) {
@@ -407,36 +420,31 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		if(m_taskAO != TASK_UNDEF)
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
 	}
-
+	
+	m_suspendAO = false;
+	m_suspendDO = false;
 }
 void
 XNIDAQmxPulser::stopPulseGen()
 {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
-	
-	if(m_threadWriteAO) {
-		m_threadWriteAO->terminate();
-	}
-	if(m_threadWriteDO) {
-		m_threadWriteDO->terminate();
-	}
-	{
-		XScopedLock<XRecursiveMutex> lockAO(m_mutexAO);
-		XScopedLock<XRecursiveMutex> lockDO(m_mutexDO);
+	m_suspendAO = true;
+	m_suspendDO = true;
+	XScopedLock<XRecursiveMutex> lockAO(m_mutexAO);
+	XScopedLock<XRecursiveMutex> lockDO(m_mutexDO);
 
-		m_virtualTrigger->stop();
+	m_virtualTrigger->stop();
 
-		if(m_taskAOCtr != TASK_UNDEF)
-		    DAQmxStopTask(m_taskAOCtr);
-		if(m_taskDOCtr != TASK_UNDEF)
-		    DAQmxStopTask(m_taskDOCtr);
-		if(m_taskDO != TASK_UNDEF)
-		    DAQmxStopTask(m_taskDO);
-		if(m_taskAO != TASK_UNDEF)
-		    DAQmxStopTask(m_taskAO);
-		if(m_taskGateCtr != TASK_UNDEF)
-		    DAQmxStopTask(m_taskGateCtr);
-	}
+	if(m_taskAOCtr != TASK_UNDEF)
+	    DAQmxStopTask(m_taskAOCtr);
+	if(m_taskDOCtr != TASK_UNDEF)
+	    DAQmxStopTask(m_taskDOCtr);
+	if(m_taskDO != TASK_UNDEF)
+	    DAQmxStopTask(m_taskDO);
+	if(m_taskAO != TASK_UNDEF)
+	    DAQmxStopTask(m_taskAO);
+	if(m_taskGateCtr != TASK_UNDEF)
+	    DAQmxStopTask(m_taskGateCtr);
 }
 inline XNIDAQmxPulser::tRawAO
 XNIDAQmxPulser::aoVoltToRaw(int ch, float64 volt)
@@ -452,10 +460,20 @@ XNIDAQmxPulser::aoVoltToRaw(int ch, float64 volt)
 	}
 	return lrint(y);
 }
+inline bool
+XNIDAQmxPulser::tryOutputSuspend(const atomic<bool> &flag, 
+	XRecursiveMutex &mutex, const atomic<bool> &terminated) {
+	if(flag) {
+		mutex.unlock();
+		while(flag && !terminated) msecsleep(10);
+		mutex.lock();
+		return true;
+	}
+	return false;
+}
 void *
 XNIDAQmxPulser::executeWriteAO(const atomic<bool> &terminated)
 {
-	XScopedLock<XRecursiveMutex> lockAO(m_mutexAO);
 	while(!terminated) {
 		writeBufAO(terminated);
 	}
@@ -464,7 +482,6 @@ XNIDAQmxPulser::executeWriteAO(const atomic<bool> &terminated)
 void *
 XNIDAQmxPulser::executeWriteDO(const atomic<bool> &terminated)
 {
-	XScopedLock<XRecursiveMutex> lockDO(m_mutexDO);
 	while(!terminated) {
 		writeBufDO(terminated);
 	}
@@ -474,6 +491,8 @@ XNIDAQmxPulser::executeWriteDO(const atomic<bool> &terminated)
 void
 XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated)
 {
+	XScopedLock<XRecursiveMutex> lock(m_mutexAO);
+
  	const double dma_ao_period = resolutionQAM();
 	const unsigned int size = m_genBufAO.size() / NUM_AO_CH;
 	bool firsttime = true;
@@ -483,6 +502,8 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated)
 			int32 samps;
 			samps = std::min(size - cnt, num_samps);
 			while(!terminated) {
+				if(tryOutputSuspend(m_suspendAO, m_mutexAO, terminated))
+					return;
 //				if(bank == m_genBankWriting)
 //					throw XInterface::XInterfaceError(KAME::i18n("AO buffer overrun."), __FILE__, __LINE__);
 			uInt32 space;
@@ -517,6 +538,8 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated)
 void
 XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated)
 {
+	XScopedLock<XRecursiveMutex> lock(m_mutexDO);
+
  	const double dma_do_period = resolution();
 	const unsigned int size = m_genBufDO.size();
 	bool firsttime = true;
@@ -526,6 +549,8 @@ XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated)
 			int32 samps;
 			samps = std::min(size - cnt, num_samps);
 			while(!terminated) {
+				if(tryOutputSuspend(m_suspendDO, m_mutexDO, terminated))
+					return;
 //				if(bank == m_genBankWriting)
 //					throw XInterface::XInterfaceError(KAME::i18n("DO buffer overrun."), __FILE__, __LINE__);
 			uInt32 space;
@@ -801,12 +826,12 @@ XNIDAQmxPulser::createNativePatterns()
 	for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX; i++) {
 	  	const unsigned short word = qamWaveForm(i).size();
 		if(!word) continue;
-		std::complex<double> c(1, 0);
+		std::complex<double> c(pow(10.0, *masterLevel()/20.0), 0);
 		for(unsigned int qpsk = 0; qpsk < 4; qpsk++) {
 			const unsigned int pnum = i * (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE) + qpsk;
 			m_genPulseWaveAO[0][pnum].clear();
 			m_genPulseWaveAO[1][pnum].clear();
-			for(std::vector<std::complex<double> >::iterator it = 
+			for(std::vector<std::complex<double> >::const_iterator it = 
 				qamWaveForm(i).begin(); it != qamWaveForm(i).end(); it++) {
 				std::complex<double> z(*it * c);
 				m_genPulseWaveAO[0][pnum].push_back(aoVoltToRaw(0, z.real()));
@@ -817,29 +842,6 @@ XNIDAQmxPulser::createNativePatterns()
 	}
 }
 
-int
-XNIDAQmxPulser::makeWaveForm(unsigned int pnum_minus_1, 
-		 double pw, unsigned int to_center,
-	  	 tpulsefunc func, double dB, double freq, double phase)
-{
-	std::vector<std::complex<double> > &p = qamWaveForm(pnum_minus_1);
-	const double _master = *masterLevel();
-	const double dma_ao_period = resolutionQAM();
-	to_center *= lrint(resolution() / dma_ao_period);
-	const double delay1 = *qamDelay1() * 1e-3 / dma_ao_period;
-	const double delay2 = *qamDelay2() * 1e-3 / dma_ao_period;
-	double dx = dma_ao_period / pw;
-	double dp = 2*PI*freq*dma_ao_period;
-	double z = pow(10.0, (_master + dB)/20.0);
-	for(int i = 0; i < (int)to_center*2; i++) {
-		double i1 = i - (int)to_center + 0.5 - delay1;
-		double i2 = i - (int)to_center + 0.5 - delay2;
-		double x = z * func(i1 * dx) * cos(i1 * dp + PI/4 + phase);
-		double y = z * func(i2 * dx) * sin(i2 * dp + PI/4 + phase);
-		p.push_back(std::complex<double>(x, y));
-	}
-	return 0;
-}
 
 void
 XNIDAQmxPulser::changeOutput(bool output, unsigned int /*blankpattern*/)

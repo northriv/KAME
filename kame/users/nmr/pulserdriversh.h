@@ -35,14 +35,12 @@ class XSHPulser : public XCharDeviceDriver<XPulser>
     virtual void createNativePatterns();
     //! time resolution [ms]
     virtual double resolution() const;
+    virtual double resolutionQAM() const {return resolution();}
     //! minimum period of pulses [ms]
     virtual double minPulseWidth() const {return resolution();}
     //! existense of AO ports.
     virtual bool haveQAMPorts() const {return false;}
-    //! prepare waveforms for QAM.
-	 virtual int makeWaveForm(unsigned int pnum_minus_1, 
-		 double pw, unsigned int to_center,
-	  	 tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
+
  private:
   int setAUX2DA(double volt, int addr);
   int insertPreamble(unsigned short startpattern);

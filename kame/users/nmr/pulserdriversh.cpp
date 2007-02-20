@@ -131,10 +131,10 @@ XSHPulser::createNativePatterns()
 		m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_HBURST);
 		m_zippedPatterns.push_back((unsigned char)(word / 0x100) );
 		m_zippedPatterns.push_back((unsigned char)(word % 0x100) );
-		for(std::vector<std::complex<double> >::iterator it = 
+		for(std::vector<std::complex<double> >::const_iterator it = 
 			qamWaveForm(i).begin(); it != qamWaveForm(i).end(); it++) {
-			double x = max(min(it->real(), 124.0), -124.0);
-			double y = max(min(it->imag(), 124.0), -124.0);
+			double x = max(min(it->real() * 125.0, 124.0), -124.0);
+			double y = max(min(it->imag() * 125.0, 124.0), -124.0);
 			m_zippedPatterns.push_back( (unsigned char)(char)x );	
 			m_zippedPatterns.push_back( (unsigned char)(char)y );	
 		}
@@ -153,24 +153,6 @@ XSHPulser::createNativePatterns()
   m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_END);
 }
 
-int
-XSHPulser::makeWaveForm(unsigned int pnum_minus_1,
-	 double pw, unsigned int to_center,
-  	 tpulsefunc func, double dB, double freq, double phase)
-{
-	std::vector<std::complex<double> > &p = qamWaveForm(pnum_minus_1);
-  	const int word = to_center*2;
-	const double dx = DMA_PERIOD / pw;
-	const double dp = 2*PI*freq*DMA_PERIOD;
-	const double z = pow(10.0, dB/20.0);
-	for(int i = 0; i < word; i++) {
-		double w = z * func((i - (int)to_center + 0.5) * dx) * 125.0;
-		double x = w * cos((i - (int)to_center + 0.5) * dp + PI/4 + phase);
-		double y = w * sin((i - (int)to_center + 0.5) * dp + PI/4 + phase);
-		p.push_back(std::complex<double>(x, y));	
-	}
-	return 0;
-}
 int
 XSHPulser::setAUX2DA(double volt, int addr)
 {
@@ -198,8 +180,11 @@ const double qamlevel2 = *qamLevel2();
 	m_zippedPatterns.push_back((unsigned char)(signed char)rint(qamlevel1 * 0x100) );
 	m_zippedPatterns.push_back((unsigned char)(signed char)rint(qamlevel2 * 0x100) );
 	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_DELAY);
-	m_zippedPatterns.push_back((unsigned char)(signed char)rint(*qamDelay1() / DMA_PERIOD * 1e-3) );
-	m_zippedPatterns.push_back((unsigned char)(signed char)rint(*qamDelay2() / DMA_PERIOD * 1e-3) );
+//obsolete
+//	m_zippedPatterns.push_back((unsigned char)(signed char)rint(*qamDelay1() / DMA_PERIOD * 1e-3) );
+//	m_zippedPatterns.push_back((unsigned char)(signed char)rint(*qamDelay2() / DMA_PERIOD * 1e-3) );
+	m_zippedPatterns.push_back((unsigned char)(signed char)rint(0) );
+	m_zippedPatterns.push_back((unsigned char)(signed char)rint(0) );
 	
 uint32_t len;	
 	//wait for 1 ms
