@@ -180,7 +180,7 @@ XNIDAQmxDSO::disableTrigger()
     if(m_task != TASK_UNDEF) {
 	    DAQmxDisableStartTrig(m_task);
 	    DAQmxDisableRefTrig(m_task);
-	    DAQmxSetReadOverWrite(m_task, DAQmx_Val_DoNotOverwriteUnreadSamps);
+//	    DAQmxSetReadOverWrite(m_task, DAQmx_Val_DoNotOverwriteUnreadSamps);
     }
     
     m_preTriggerPos = 0;
@@ -526,10 +526,10 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 		        ); 
 		    cnt += samps;
 		    if(ret == 0) break;
-			if(m_preTriggerPos && !m_virtualTrigger) {
+/*			if(m_preTriggerPos && !m_virtualTrigger) {
 				CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, cnt));
 			}
-		}
+*/		}
 	} //end of readMutex
 
 	XScopedLock<XInterface> lock(*interface());
