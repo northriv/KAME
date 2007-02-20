@@ -21,7 +21,7 @@
 static const bool USE_FINITE_AO = false;
 static const TaskHandle TASK_UNDEF = ((TaskHandle)-1);
 
-static const bool USE_PAUSING = true;
+static const bool USE_PAUSING = false;
 static const unsigned int PAUSING_CNT = 400;
 static const unsigned int PAUSING_CNT_BLANK = 10;
 
@@ -174,6 +174,7 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	if(intfAO()->maxAORate(2) == 0)
 		throw XInterface::XInterfaceError(KAME::i18n("HW-timed transfer needed."), __FILE__, __LINE__);
 	
+	unsigned int oversamp = 1;
 	if((m_resolutionDO <= 0.0) || (m_resolutionAO <= 0.0))
 	{
 		double do_rate = intfDO()->maxDORate(1);
@@ -181,7 +182,7 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 		if(ao_rate <= do_rate)
 			do_rate = ao_rate;
 		else {
-			unsigned int oversamp = lrint(ao_rate / do_rate);
+			oversamp = lrint(ao_rate / do_rate);
 			ao_rate = do_rate * oversamp;
 		}
 		m_resolutionDO = 1.0 / do_rate;
@@ -226,7 +227,7 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 		CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, "",
 			freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
 	    intfAO()->synchronizeClock(m_taskAO);
-
+	    
 		if(USE_PAUSING) {
 			std::string gatectrout = formatString("/%s/Ctr1InternalOutput", intfAO()->devName()).c_str();
 			CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigSrc(m_taskAO, gatectrout.c_str()));
@@ -234,10 +235,19 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 		}
 	}
 
-	//Synchronize ARM.
-	CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskDOCtr,
-		formatString("/%s/ao/SampleClock", intfAO()->devName()).c_str(),
-		DAQmx_Val_Rising));
+    if((oversamp == 1) && !USE_FINITE_AO) {
+	    CHECK_DAQMX_RET(DAQmxSetSampClkSrc(m_taskDO,
+			formatString("/%s/ao/SampleClock", intfAO()->devName()).c_str()));
+	    CHECK_DAQMX_RET(DAQmxClearTask(m_taskDOCtr));
+	    m_taskDOCtr = TASK_UNDEF;
+    }
+    else {
+		//Synchronize ARM.
+		CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskDOCtr,
+			formatString("/%s/ao/SampleClock", intfAO()->devName()).c_str(),
+			DAQmx_Val_Rising));
+    }
+
 	m_virtualTrigger->setArmTerm(
 		formatString("/%s/ao/SampleClock", intfAO()->devName()).c_str());
 
@@ -336,7 +346,8 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		genBankAO();
 	genBankDO();
 	
-	CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
+	if(m_taskDOCtr != TASK_UNDEF)
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
 	CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
     CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_FirstSample));
     CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
@@ -366,28 +377,25 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	
 	//slave must start before the master.
 	if(USE_FINITE_AO && (m_taskAOCtr != TASK_UNDEF)) {
-		if(m_taskAO != TASK_UNDEF) {
+		if(m_taskAO != TASK_UNDEF)
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
-		}
-		if(m_taskAOCtr != TASK_UNDEF) {
+		if(m_taskAOCtr != TASK_UNDEF)
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAOCtr));
-		}
-	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
+		if(m_taskDOCtr != TASK_UNDEF)
+		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
 	}
 	else {
-		if(m_taskGateCtr != TASK_UNDEF) {
+		if(m_taskGateCtr != TASK_UNDEF)
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
-		}
 		msecsleep(1);
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
-	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
-		if(m_taskAOCtr != TASK_UNDEF) {
+		if(m_taskDOCtr != TASK_UNDEF)
+		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
+		if(m_taskAOCtr != TASK_UNDEF)
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAOCtr));
-		}
-		if(m_taskAO != TASK_UNDEF) {
+		if(m_taskAO != TASK_UNDEF)
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
-		}
 	}
 
 }
