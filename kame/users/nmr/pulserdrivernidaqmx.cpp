@@ -197,7 +197,7 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	openDO();
 	
 	float64 freq = 1e3 / resolutionQAM();
-	const unsigned int BUF_SIZE_HINT = lrint(4 * 65.536e-3 * freq);
+	const unsigned int BUF_SIZE_HINT = lrint(8 * 65.536e-3 * freq);
 	
 	if(USE_FINITE_AO) {
 		ASSERT(!USE_PAUSING);
@@ -236,10 +236,10 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 
 	//Synchronize ARM.
 	CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskDOCtr,
-		formatString("/%s/ao/StartTrigger", intfAO()->devName()).c_str(),
+		formatString("/%s/ao/SampleClock", intfAO()->devName()).c_str(),
 		DAQmx_Val_Rising));
 	m_virtualTrigger->setArmTerm(
-		formatString("/%s/ao/StartTrigger", intfAO()->devName()).c_str());
+		formatString("/%s/ao/SampleClock", intfAO()->devName()).c_str());
 
 
 	//Buffer setup.
@@ -379,8 +379,8 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		if(m_taskGateCtr != TASK_UNDEF) {
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
 		}
-	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
+	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
 		if(m_taskAOCtr != TASK_UNDEF) {
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAOCtr));
 		}
@@ -814,9 +814,9 @@ XNIDAQmxPulser::makeWaveForm(unsigned int pnum_minus_1,
 	double dx = dma_ao_period / pw;
 	double dp = 2*PI*freq*dma_ao_period;
 	double z = pow(10.0, (_master + dB)/20.0);
-	for(unsigned int i = 0; i < to_center*2; i++) {
-		double i1 = i - to_center + 0.5 - delay1;
-		double i2 = i - to_center + 0.5 - delay2;
+	for(int i = 0; i < (int)to_center*2; i++) {
+		double i1 = i - (int)to_center + 0.5 - delay1;
+		double i2 = i - (int)to_center + 0.5 - delay2;
 		double x = z * func(i1 * dx) * cos(i1 * dp + PI/4 + phase);
 		double y = z * func(i2 * dx) * sin(i2 * dp + PI/4 + phase);
 		p.push_back(std::complex<double>(x, y));

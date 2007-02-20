@@ -159,14 +159,14 @@ XSHPulser::makeWaveForm(unsigned int pnum_minus_1,
   	 tpulsefunc func, double dB, double freq, double phase)
 {
 	std::vector<std::complex<double> > &p = qamWaveForm(pnum_minus_1);
-  	const unsigned short word = to_center*2;
+  	const int word = to_center*2;
 	const double dx = DMA_PERIOD / pw;
 	const double dp = 2*PI*freq*DMA_PERIOD;
 	const double z = pow(10.0, dB/20.0);
 	for(int i = 0; i < word; i++) {
-		double w = z * func((i - to_center + 0.5) * dx) * 125.0;
-		double x = w * cos((i - to_center + 0.5) * dp + PI/4 + phase);
-		double y = w * sin((i - to_center + 0.5) * dp + PI/4 + phase);
+		double w = z * func((i - (int)to_center + 0.5) * dx) * 125.0;
+		double x = w * cos((i - (int)to_center + 0.5) * dp + PI/4 + phase);
+		double y = w * sin((i - (int)to_center + 0.5) * dp + PI/4 + phase);
 		p.push_back(std::complex<double>(x, y));	
 	}
 	return 0;
