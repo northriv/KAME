@@ -110,7 +110,7 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
     	formatString("%s/port0", intfDO()->devName()).c_str(),
     	 "", DAQmx_Val_ChanForAllLines));
 
-	const unsigned int BUF_SIZE_HINT = lrint(65.536e-3 * freq);
+	const unsigned int BUF_SIZE_HINT = lrint(65.536e-3 * freq * 4);
 	//M series needs an external sample clock and trigger for DO channels.
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO,
 		ctrout.c_str(),
@@ -176,12 +176,12 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	
 	if((m_resolutionDO <= 0.0) || (m_resolutionAO <= 0.0))
 	{
-		unsigned long do_rate = intfDO()->maxDORate(1);
-		unsigned long ao_rate = intfAO()->maxAORate(2);
+		double do_rate = intfDO()->maxDORate(1);
+		double ao_rate = intfAO()->maxAORate(2);
 		if(ao_rate <= do_rate)
 			do_rate = ao_rate;
 		else {
-			unsigned int oversamp = ao_rate / do_rate;
+			unsigned int oversamp = lrint(ao_rate / do_rate);
 			ao_rate = do_rate * oversamp;
 		}
 		m_resolutionDO = 1.0 / do_rate;

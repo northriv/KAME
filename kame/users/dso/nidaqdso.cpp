@@ -162,7 +162,6 @@ XNIDAQmxDSO::clearAcquision() {
  	disableTrigger();
 
     if(m_task != TASK_UNDEF) {
-    	DAQmxStopTask(m_task);
 	    DAQmxClearTask(m_task);
     }
 	m_task = TASK_UNDEF;
@@ -174,15 +173,17 @@ XNIDAQmxDSO::disableTrigger()
 	XScopedLock<XInterface> lock(*interface());
 	ScopedReadAILock lockRead(*this);
 	
-    m_running = false;
-    if(m_task != TASK_UNDEF) {
+	if(m_running) {
+		m_running = false;
     	DAQmxStopTask(m_task);
-
-	    CHECK_DAQMX_RET(DAQmxDisableStartTrig(m_task));
-	    CHECK_DAQMX_RET(DAQmxDisableRefTrig(m_task));
-	    CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_task, DAQmx_Val_DoNotOverwriteUnreadSamps));
+	}
+    if(m_task != TASK_UNDEF) {
+	    DAQmxDisableStartTrig(m_task);
+	    DAQmxDisableRefTrig(m_task);
+	    DAQmxSetReadOverWrite(m_task, DAQmx_Val_DoNotOverwriteUnreadSamps);
     }
-
+    
+    m_preTriggerPos = 0;
     m_trigRoute.reset();
     //reset virtual trigger setup.
 	if(m_virtualTrigger)
@@ -274,9 +275,10 @@ XNIDAQmxDSO::setupTiming()
 	XScopedLock<XInterface> lock(*interface());
 	ScopedReadAILock lockRead(*this);
 
-    m_running = false;
-    if(m_task != TASK_UNDEF)
+	if(m_running) {
+		m_running = false;
     	DAQmxStopTask(m_task);
+	}
 
 	uInt32 num_ch;
     CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
@@ -386,9 +388,10 @@ XNIDAQmxDSO::onVirtualTrigStart(const shared_ptr<XNIDAQmxInterface::VirtualTrigg
 	XScopedLock<XInterface> lock(*interface());
 	ScopedReadAILock lockRead(*this);
 
-    m_running = false;
-    if(m_task != TASK_UNDEF)
+	if(m_running) {
+		m_running = false;
     	DAQmxStopTask(m_task);
+	}
 
     startSequence();
 
@@ -485,7 +488,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 				usleep(lrint(1e6 * size * m_interval / 2));
 			}
 		}
-		else {
+/*		else {
 			if(m_preTriggerPos) {
 				CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstPretrigSamp));
 			}
@@ -495,7 +498,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 				
 		    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
 		}
-		if(terminated)
+*/		if(terminated)
 			return;
 	
 		const unsigned int num_samps = size; //std::min(size, 1024u);
@@ -536,8 +539,10 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 	
     if(!sseq || ((unsigned int)m_accumCount < av)) {
 		if(!m_virtualTrigger) {
-		    m_running = false;
-		    DAQmxStopTask(m_task);
+			if(m_running) {
+				m_running = false;
+		    	DAQmxStopTask(m_task);
+			}
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_task));
 		    m_running = true;
 		}
@@ -593,11 +598,11 @@ XNIDAQmxDSO::startSequence()
 		CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstSample));
 	}
 	else {
-	    m_running = false;
-	    
-	    if(m_task != TASK_UNDEF)
-	    	DAQmxStopTask(m_task);
-
+		if(m_running) {
+			m_running = false;
+		    if(m_task != TASK_UNDEF)
+		    	DAQmxStopTask(m_task);
+		}
 		uInt32 num_ch;
 	    CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
 	    if(num_ch > 0) {
