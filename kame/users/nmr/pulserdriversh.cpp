@@ -111,16 +111,6 @@ XSHPulser::XSHPulser(const char *name, bool runtime,
 void
 XSHPulser::createNativePatterns()
 {
-  const double _tau = m_tauRecorded;
-  const double _pw1 = m_pw1Recorded;
-  const double _pw2 = m_pw2Recorded;
-  const double _comb_pw = m_combPWRecorded;
-  const double _dif_freq = m_difFreqRecorded;
-
-  const bool _induce_emission = *induceEmission();
-  const double _induce_emission_pw = _comb_pw;
-  const double _induce_emission_phase = *induceEmissionPhase() / 180.0 * PI;
-  
   //dry-run to determin LastPattern, DMATime
   m_dmaTerm = 0;
   m_lastPattern = 0;
@@ -133,16 +123,23 @@ XSHPulser::createNativePatterns()
   }
   
   insertPreamble((unsigned short)pat);
-  makeWaveForm(PAT_QAM_PULSE_IDX_P1/PAT_QAM_PULSE_IDX - 1, _pw1/1000.0, pulseFunc(p1Func()->to_str() ), *p1Level()
-    , _dif_freq * 1000.0, -2 * PI * _dif_freq * 2 * _tau);
-  makeWaveForm(PAT_QAM_PULSE_IDX_P2/PAT_QAM_PULSE_IDX - 1, _pw2/1000.0, pulseFunc(p2Func()->to_str() ), *p2Level()
-    , _dif_freq * 1000.0, -2 * PI * _dif_freq * 2 * _tau);
-  makeWaveForm(PAT_QAM_PULSE_IDX_PCOMB/PAT_QAM_PULSE_IDX - 1, _comb_pw/1000.0, pulseFunc(combFunc()->to_str() ),
-         *combLevel(), *combOffRes() + _dif_freq *1000.0);
-  if(_induce_emission) {
-      makeWaveForm(PAT_QAM_PULSE_IDX_INDUCE_EMISSION/PAT_QAM_PULSE_IDX - 1, _induce_emission_pw/1000.0, pulseFunc(combFunc()->to_str() ),
-         *combLevel(), *combOffRes() + _dif_freq *1000.0, _induce_emission_phase);
-  }
+
+	for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX; i++) {
+	  	const unsigned short word = qamWaveForm(i).size();
+		if(!word) continue;
+		m_waveformPos[i] = m_zippedPatterns.size();
+		m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_HBURST);
+		m_zippedPatterns.push_back((unsigned char)(word / 0x100) );
+		m_zippedPatterns.push_back((unsigned char)(word % 0x100) );
+		for(std::vector<std::complex<double> >::iterator it = 
+			qamWaveForm(i).begin(); it != qamWaveForm(i).end(); it++) {
+			double x = max(min(it->real(), 124.0), -124.0);
+			double y = max(min(it->imag(), 124.0), -124.0);
+			m_zippedPatterns.push_back( (unsigned char)(char)x );	
+			m_zippedPatterns.push_back( (unsigned char)(char)y );	
+		}
+	}
+	
   m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DO);
   m_zippedPatterns.push_back(0);
   m_zippedPatterns.push_back(0);
@@ -157,24 +154,20 @@ XSHPulser::createNativePatterns()
 }
 
 int
-XSHPulser::makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq, double phase)
+XSHPulser::makeWaveForm(unsigned int pnum_minus_1,
+	 double pw, unsigned int to_center,
+  	 tpulsefunc func, double dB, double freq, double phase)
 {
-	m_waveformPos[num] = m_zippedPatterns.size();
-  	const unsigned short word = (unsigned short)rint(pw / DMA_PERIOD);
-	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_HBURST);
-	m_zippedPatterns.push_back((unsigned char)(word / 0x100) );
-	m_zippedPatterns.push_back((unsigned char)(word % 0x100) );
+	std::vector<std::complex<double> > &p = qamWaveForm(pnum_minus_1);
+  	const unsigned short word = to_center*2;
 	const double dx = DMA_PERIOD / pw;
 	const double dp = 2*PI*freq*DMA_PERIOD;
 	const double z = pow(10.0, dB/20.0);
 	for(int i = 0; i < word; i++) {
-		double w = z * func((i - word / 2.0) * dx) * 125.0;
-		double x = w * cos((i - word / 2.0) * dp + PI/4 + phase);
-		double y = w * sin((i - word / 2.0) * dp + PI/4 + phase);
-		x = max(min(x, 124.0), -124.0);
-		y = max(min(y, 124.0), -124.0);
-		m_zippedPatterns.push_back( (unsigned char)(char)rint(x) );	
-		m_zippedPatterns.push_back( (unsigned char)(char)rint(y) );	
+		double w = z * func((i - to_center + 0.5) * dx) * 125.0;
+		double x = w * cos((i - to_center + 0.5) * dp + PI/4 + phase);
+		double y = w * sin((i - to_center + 0.5) * dp + PI/4 + phase);
+		p.push_back(std::complex<double>(x, y));	
 	}
 	return 0;
 }

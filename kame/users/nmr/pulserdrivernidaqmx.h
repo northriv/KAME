@@ -43,6 +43,11 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
     double resolutionQAM() const {return m_resolutionAO;}
      //! existense of AO ports.
     virtual bool haveQAMPorts() const = 0;
+    //! prepare waveforms for QAM.
+	 virtual int makeWaveForm(unsigned int pnum_minus_1, 
+		 double pw, unsigned int to_center,
+	  	 tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
+
  	virtual const shared_ptr<XNIDAQmxInterface> &intfDO() const {return interface();}
 	virtual const shared_ptr<XNIDAQmxInterface> &intfAO() const {return interface();} 
 	virtual const shared_ptr<XNIDAQmxInterface> &intfCtr() const {return interface();} 

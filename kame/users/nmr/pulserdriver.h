@@ -18,6 +18,7 @@
 #include "primarydriver.h"
 #include "xitemnode.h"
 #include "xnodeconnector.h"
+#include <complex>
 
 //! Modified Bessel Function, 1st type
 double bessel_i0(double x);
@@ -167,17 +168,6 @@ class XPulser : public XPrimaryDriver
 
   friend class XQPulserDriverConnector;
   
-    //! send patterns to pulser or turn-off
-    virtual void changeOutput(bool output, unsigned int blankpattern) = 0;
-    //! convert RelPatList to native patterns
-    virtual void createNativePatterns() = 0;
-    //! time resolution [ms]
-    virtual double resolution() const = 0;
-    //! minimum period of pulses [ms]
-    virtual double minPulseWidth() const = 0;
-    //! existense of AO ports.
-    virtual bool haveQAMPorts() const = 0;
-
     //! ver 1 records
     short m_combModeRecorded;
     double m_rtimeRecorded;
@@ -232,6 +222,26 @@ class XPulser : public XPrimaryDriver
   static double pulseFuncFlatTopLongLong(double x);
   static double pulseFuncHalfCos(double x);
   static double pulseFuncChoppedHalfCos(double x);
+  
+  
+    //! send patterns to pulser or turn-off
+    virtual void changeOutput(bool output, unsigned int blankpattern) = 0;
+    //! convert RelPatList to native patterns
+    virtual void createNativePatterns() = 0;
+    //! time resolution [ms]
+    virtual double resolution() const = 0;
+    //! minimum period of pulses [ms]
+    virtual double minPulseWidth() const = 0;
+    //! existense of AO ports.
+    virtual bool haveQAMPorts() const = 0;
+    //! prepare waveforms for QAM.
+	 virtual int makeWaveForm(unsigned int pnum_minus_1, 
+		 double pw, unsigned int to_center,
+	  	 tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0) = 0;
+  	 std::vector<std::complex<double> > &qamWaveForm(unsigned int idx)
+  	 	 {return m_qamWaveForm[idx];}
+
+  
  private:
     const shared_ptr<XBoolNode> m_output;
     const shared_ptr<XComboNode> m_combMode; //!< see above definitions in header file
@@ -301,6 +311,8 @@ class XPulser : public XPrimaryDriver
 
   //! create RelPatList
   void rawToRelPat() throw (XRecordError&);
+
+  std::vector<std::complex<double> > m_qamWaveForm[PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX];
   
   //! truncate time by resolution().
   inline double rintTermMilliSec(double msec) const;

@@ -41,6 +41,10 @@ class XH8Pulser : public XCharDeviceDriver<XPulser>
     virtual double minPulseWidth() const;
     //! existense of AO ports.
     virtual bool haveQAMPorts() const {return false;}
+    //! prepare waveforms for QAM.
+	 virtual int makeWaveForm(unsigned int, 
+		 double, unsigned int,
+	  	 tpulsefunc, double, double = 0.0, double = 0.0) {return -1;}    
  private:
   //! Add 1 pulse pattern
   //! \param term a period to next pattern

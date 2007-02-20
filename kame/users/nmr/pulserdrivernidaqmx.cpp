@@ -607,7 +607,7 @@ XNIDAQmxPulser::genBankAO()
 			tRawAO *pGenAO1 = &m_genPulseWaveAO[1][pnum][aoidx];
 			ASSERT(m_genPulseWaveAO[0][pnum].size());
 			ASSERT(m_genPulseWaveAO[1][pnum].size());
-			if(m_genPulseWaveAO[0][pnum].size() <= aoidx + gen_cnt) {
+			if(m_genPulseWaveAO[0][pnum].size() < aoidx + gen_cnt) {
 				fprintf(stderr, "Oops. This should not happen.\n");
 				int lps = m_genPulseWaveAO[0][pnum].size() - aoidx;
 				lps = std::max(0, lps);
@@ -676,17 +676,6 @@ XNIDAQmxPulser::finiteAOSamps(unsigned int finiteaosamps)
 void
 XNIDAQmxPulser::createNativePatterns()
 {
-  const double _master = *masterLevel();
-  const double _tau = m_tauRecorded;
-  const double _pw1 = m_pw1Recorded;
-  const double _pw2 = m_pw2Recorded;
-  const double _comb_pw = m_combPWRecorded;
-  const double _dif_freq = m_difFreqRecorded;
-
-  const bool _induce_emission = *induceEmission();
-  const double _induce_emission_pw = _comb_pw;
-  const double _induce_emission_phase = *induceEmissionPhase() / 180.0 * PI;
-
   m_ctrTrigBit = selectedPorts(PORTSEL_GATE);
   m_pausingBit = selectedPorts(PORTSEL_PAUSING);
 
@@ -791,47 +780,45 @@ XNIDAQmxPulser::createNativePatterns()
 				x *= level[ch];
 			}
 		}
-  	
-	  makeWaveForm(PAT_QAM_PULSE_IDX_P1/PAT_QAM_PULSE_IDX - 1, _pw1/1000.0, pulseFunc(p1Func()->to_str() ),
-	  	 _master + *p1Level()
-	    , _dif_freq * 1000.0, -2 * PI * _dif_freq * 2 * _tau);
-	  makeWaveForm(PAT_QAM_PULSE_IDX_P2/PAT_QAM_PULSE_IDX - 1, _pw2/1000.0, pulseFunc(p2Func()->to_str() ),
-	  	_master + *p2Level()
-	    , _dif_freq * 1000.0, -2 * PI * _dif_freq * 2 * _tau);
-	  makeWaveForm(PAT_QAM_PULSE_IDX_PCOMB/PAT_QAM_PULSE_IDX - 1, _comb_pw/1000.0, pulseFunc(combFunc()->to_str() ),
-	         _master + *combLevel(), *combOffRes() + _dif_freq *1000.0);
-	  if(_induce_emission) {
-	      makeWaveForm(PAT_QAM_PULSE_IDX_INDUCE_EMISSION/PAT_QAM_PULSE_IDX - 1, _induce_emission_pw/1000.0, pulseFunc(combFunc()->to_str() ),
-	         _master + *combLevel(), *combOffRes() + _dif_freq *1000.0, _induce_emission_phase);
-	  }
-
   }
+	for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX; i++) {
+	  	const unsigned short word = qamWaveForm(i).size();
+		if(!word) continue;
+		for(unsigned int qpsk = 0; qpsk < 4; qpsk++) {
+			const unsigned int pnum = i * (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE) + qpsk;
+			m_genPulseWaveAO[0][pnum].clear();
+			m_genPulseWaveAO[1][pnum].clear();
+			std::complex<double> c(1, 0);
+			for(std::vector<std::complex<double> >::iterator it = 
+				qamWaveForm(i).begin(); it != qamWaveForm(i).end(); it++) {
+				std::complex<double> z(*it * c);
+				m_genPulseWaveAO[0][pnum].push_back(aoVoltToRaw(0, z.real()));
+				m_genPulseWaveAO[1][pnum].push_back(aoVoltToRaw(1, z.imag()));
+				c *= std::complex<double>(0,1);
+			}
+		}
+	}
 }
 
 int
-XNIDAQmxPulser::makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq, double phase)
+XNIDAQmxPulser::makeWaveForm(unsigned int pnum_minus_1, 
+		 double pw, unsigned int to_center,
+	  	 tpulsefunc func, double dB, double freq, double phase)
 {
+	std::vector<std::complex<double> > &p = qamWaveForm(pnum_minus_1);
+	const double _master = *masterLevel();
 	const double dma_ao_period = resolutionQAM();
 	const double delay1 = *qamDelay1() * 1e-3 / dma_ao_period;
 	const double delay2 = *qamDelay2() * 1e-3 / dma_ao_period;
-	for(unsigned int qpsk = 0; qpsk < 4; qpsk++) {
-		const unsigned int pnum = num * (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE) + qpsk;
-		m_genPulseWaveAO[0][pnum].clear();
-		m_genPulseWaveAO[1][pnum].clear();
-		ASSERT(pnum < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX);
-	  	unsigned short word = (unsigned short)lrint(pw / dma_ao_period);
-		double dx = dma_ao_period / pw;
-		double dp = 2*PI*freq*dma_ao_period;
-		double z = pow(10.0, dB/20.0);
-		for(int i = 0; i < word + 2; i++) {
-			double i1 = i - word / 2.0 - delay1;
-			double i2 = i - word / 2.0 - delay2;
-			double x = z * func(i1 * dx) * cos(i1 * dp + PI/4 + phase);
-			double y = z * func(i2 * dx) * sin(i2 * dp + PI/4 + phase);
-			m_genPulseWaveAO[0][pnum].push_back(aoVoltToRaw(0, x));
-			m_genPulseWaveAO[1][pnum].push_back(aoVoltToRaw(1, y));
-		}
-		phase += PI/2;
+	double dx = dma_ao_period / pw;
+	double dp = 2*PI*freq*dma_ao_period;
+	double z = pow(10.0, (_master + dB)/20.0);
+	for(unsigned int i = 0; i < to_center*2; i++) {
+		double i1 = i - to_center + 0.5 - delay1;
+		double i2 = i - to_center + 0.5 - delay2;
+		double x = z * func(i1 * dx) * cos(i1 * dp + PI/4 + phase);
+		double y = z * func(i2 * dx) * sin(i2 * dp + PI/4 + phase);
+		p.push_back(std::complex<double>(x, y));
 	}
 	return 0;
 }

@@ -483,6 +483,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 					int32 offset = ((lastcnt - m_preTriggerPos + (uInt64)bufsize) % (uInt64)bufsize);
 				    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, offset));
 					vt->pop();
+					fprintf(stderr, "hit!\n");
 					break;
 				}
 				usleep(lrint(1e6 * size * m_interval / 2));

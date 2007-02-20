@@ -1078,4 +1078,30 @@ XPulser::rawToRelPat() throw (XRecordError&)
             curpos = it->pos;
         }
     }
+    
+    if(haveQAMPorts()) {
+    	for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX; i++)
+    		qamWaveForm(i).clear();
+    		
+	  const double _tau = m_tauRecorded;
+	  const double _dif_freq = m_difFreqRecorded;
+	
+	  const bool _induce_emission = *induceEmission();
+	  const double _induce_emission_phase = *induceEmissionPhase() / 180.0 * PI;
+
+		  makeWaveForm(PAT_QAM_PULSE_IDX_P1/PAT_QAM_PULSE_IDX - 1, m_pw1Recorded*1e-3,
+			  	_pw1/2, pulseFunc(p1Func()->to_str() ),
+			  *p1Level(), _dif_freq * 1e3, -2 * PI * _dif_freq * 2 * _tau);
+		  makeWaveForm(PAT_QAM_PULSE_IDX_P2/PAT_QAM_PULSE_IDX - 1, m_pw2Recorded*1e-3, 
+			   _pw2/2, pulseFunc(p2Func()->to_str() ),
+			  *p2Level(), _dif_freq * 1e3, -2 * PI * _dif_freq * 2 * _tau);
+		  makeWaveForm(PAT_QAM_PULSE_IDX_PCOMB/PAT_QAM_PULSE_IDX - 1, m_combPWRecorded*1e-3,
+			   _comb_pw/2, pulseFunc(combFunc()->to_str() ),
+			  *combLevel(), *combOffRes() + _dif_freq *1000.0);
+		  if(_induce_emission) {
+		      makeWaveForm(PAT_QAM_PULSE_IDX_INDUCE_EMISSION/PAT_QAM_PULSE_IDX - 1, m_combPWRecorded*1e-3,
+		      _induce_emission_pw/2, pulseFunc(combFunc()->to_str() ),
+		      	*combLevel(), *combOffRes() + _dif_freq *1000.0, _induce_emission_phase);
+		  }
+    }
 }

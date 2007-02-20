@@ -87,7 +87,7 @@ public:
   		if(cnt == 0) return; //ignore.
   		m_stamps.push_back(cnt);
   		if(m_stamps.size() > 100)
-  			m_stams.pop_front();
+  			m_stamps.pop_front();
   		m_endOfBlank = cnt + m_blankTerm;
   		fprintf(stderr, "stamp!\n");
   	}

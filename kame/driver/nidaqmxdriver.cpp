@@ -68,8 +68,7 @@ XNIDAQmxInterface::VirtualTrigger::registerVirtualTrigger(const shared_ptr<Virtu
 
 XNIDAQmxInterface::VirtualTrigger::VirtualTrigger(const char *label, unsigned int bits)
  : m_label(label), m_bits(bits),
- m_risingEdgeMask(0u), m_fallingEdgeMask(0u),
- m_blankTerm(0.02) {
+ m_risingEdgeMask(0u), m_fallingEdgeMask(0u) {
 }
 XNIDAQmxInterface::VirtualTrigger::~VirtualTrigger() {
 }
@@ -78,6 +77,7 @@ XNIDAQmxInterface::VirtualTrigger::start(float64 freq) {
 	{
 		XScopedLock<XMutex> lock(m_mutex);
 		m_endOfBlank = 0;
+		m_blankTerm = lrint(0.02 * freq);
 		m_freq = freq;
 	}
 	onStart().talk(shared_from_this());
@@ -87,7 +87,7 @@ void
 XNIDAQmxInterface::VirtualTrigger::stop() {
 	XScopedLock<XMutex> lock(m_mutex);
 	m_stamps.clear();
-	disable();
+	m_endOfBlank = (uint64_t)-1LL;
 }
 void
 XNIDAQmxInterface::VirtualTrigger::connect(uint32_t rising_edge_mask, 
