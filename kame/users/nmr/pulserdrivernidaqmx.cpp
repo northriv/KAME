@@ -21,7 +21,6 @@
 static const bool USE_FINITE_AO = false;
 static const TaskHandle TASK_UNDEF = ((TaskHandle)-1);
 
-static const bool USE_PAUSING = false;
 static const unsigned int PAUSING_CNT = 400;
 static const unsigned int PAUSING_CNT_BLANK = 10;
 
@@ -132,7 +131,13 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 	m_transferSizeHintDO = std::min((unsigned int)bufsize / 2, m_bufSizeHintDO);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
 	
-	if(USE_PAUSING) {
+	m_pausingBit = selectedPorts(PORTSEL_PAUSING);
+	if(m_pausingBit) {
+		for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
+			if(m_pausingBit & (1u << i))
+				m_portSel[i]->setUIEnabled(false);
+		}
+
 	const double pausing_term = PAUSING_CNT * resolution() * 1e-3;
 	const double pausing_term_blank = PAUSING_CNT_BLANK * resolution() * 1e-3;
 	    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskGateCtr));
@@ -141,7 +146,8 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 	    	pausing_term, pausing_term_blank));
 
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskGateCtr,
-			 DAQmx_Val_FiniteSamps, 1));
+//			 DAQmx_Val_FiniteSamps, 1));
+			 DAQmx_Val_HWTimedSinglePoint, 1));
 	    intfCtr()->synchronizeClock(m_taskGateCtr);
 
 	    CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskGateCtr,
@@ -201,7 +207,7 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	const unsigned int BUF_SIZE_HINT = lrint(8 * 65.536e-3 * freq);
 	
 	if(USE_FINITE_AO) {
-		ASSERT(!USE_PAUSING);
+		ASSERT(!m_pausingBit);
 		
 		std::string ctrdev = formatString("%s/ctr1", intfCtr()->devName()).c_str();
 		std::string ctrout = formatString("/%s/Ctr1InternalOutput", intfCtr()->devName()).c_str();
@@ -228,7 +234,7 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 			freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
 	    intfAO()->synchronizeClock(m_taskAO);
 	    
-		if(USE_PAUSING) {
+		if(m_pausingBit) {
 			std::string gatectrout = formatString("/%s/Ctr1InternalOutput", intfAO()->devName()).c_str();
 			CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigSrc(m_taskAO, gatectrout.c_str()));
 			CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskAO, DAQmx_Val_High));
@@ -238,14 +244,18 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
     if((oversamp == 1) && !USE_FINITE_AO) {
 	    CHECK_DAQMX_RET(DAQmxSetSampClkSrc(m_taskDO,
 			formatString("/%s/ao/SampleClock", intfAO()->devName()).c_str()));
-	    CHECK_DAQMX_RET(DAQmxClearTask(m_taskDOCtr));
+	    DAQmxStopTask(m_taskDOCtr);
+		DAQmxClearTask(m_taskDOCtr);
 	    m_taskDOCtr = TASK_UNDEF;
     }
     else {
 		//Synchronize ARM.
 		CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskDOCtr,
-			formatString("/%s/ao/SampleClock", intfAO()->devName()).c_str(),
+			formatString("/%s/ao/StartTrigger", intfAO()->devName()).c_str(),
 			DAQmx_Val_Rising));
+		//for debugging.
+		CHECK_DAQMX_RET(DAQmxExportSignal(DAQmx_Val_StartTrigger,
+			formatString("/%s/PFI6", intfAO()->devName()).c_str() ));
     }
 
 	m_virtualTrigger->setArmTerm(
@@ -686,7 +696,6 @@ void
 XNIDAQmxPulser::createNativePatterns()
 {
   m_ctrTrigBit = selectedPorts(PORTSEL_GATE);
-  m_pausingBit = selectedPorts(PORTSEL_PAUSING);
 
   const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
 	

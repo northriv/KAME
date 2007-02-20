@@ -202,7 +202,7 @@ XPulser::XPulser(const char *name, bool runtime,
 			m_conPortSel[i] = xqcon_create<XQComboBoxConnector>(m_portSel[i], combo[i]);
 			for(const char **p = &desc[0]; *p; p++)
 				m_portSel[i]->add(*p);
-			m_portSel[i]->setUIEnabled(false);
+//			m_portSel[i]->setUIEnabled(false);
 		}
 		portSel(0)->value(PORTSEL_GATE);
 		portSel(1)->value(PORTSEL_PREGATE);
@@ -440,7 +440,7 @@ XPulser::start()
   invertPhase()->setUIEnabled(true);
   //Port0 is locked.
   for(unsigned int i = 1; i < NUM_DO_PORTS; i++) {
-	m_portSel[i]->setUIEnabled(true);
+//	m_portSel[i]->setUIEnabled(true);
   }
   
   if(haveQAMPorts()) {
@@ -553,7 +553,8 @@ XPulser::stop()
   qswPiPulseOnly()->setUIEnabled(false);
   invertPhase()->setUIEnabled(false);
   for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
-	m_portSel[i]->setUIEnabled(false);
+//	m_portSel[i]->setUIEnabled(false);
+	m_portSel[i]->setUIEnabled(true);
   }
   
   afterStop();
@@ -784,9 +785,12 @@ XPulser::rawToRelPat() throw (XRecordError&)
   const uint64_t _asw_setup = rintSampsMilliSec(m_aswSetupRecorded);
   const uint64_t _asw_hold = rintSampsMilliSec(m_aswHoldRecorded);
   const uint64_t _alt_sep = rintSampsMilliSec(m_altSepRecorded);
-  const uint64_t _pw1 = ceilSampsMicroSec(m_pw1Recorded/2)*2;
-  const uint64_t _pw2 = ceilSampsMicroSec(m_pw2Recorded/2)*2;
-  const uint64_t _comb_pw = ceilSampsMicroSec(m_combPWRecorded/2)*2;
+  const uint64_t _pw1 = haveQAMPorts() ? 
+  	ceilSampsMicroSec(m_pw1Recorded/2)*2 : rintSampsMicroSec(m_pw1Recorded/2)*2;
+  const uint64_t _pw2 = haveQAMPorts() ?
+  	ceilSampsMicroSec(m_pw2Recorded/2)*2 : rintSampsMicroSec(m_pw2Recorded/2)*2;
+  const uint64_t _comb_pw = haveQAMPorts() ?
+  	ceilSampsMicroSec(m_combPWRecorded/2)*2 : rintSampsMicroSec(m_combPWRecorded/2)*2;
   const uint64_t _comb_pt = rintSampsMicroSec(m_combPTRecorded);
   const uint64_t _comb_p1 = rintSampsMilliSec(m_combP1Recorded);
   const uint64_t _comb_p1_alt = rintSampsMilliSec(m_combP1AltRecorded);
