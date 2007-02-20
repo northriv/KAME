@@ -784,18 +784,18 @@ XNIDAQmxPulser::createNativePatterns()
 	for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX; i++) {
 	  	const unsigned short word = qamWaveForm(i).size();
 		if(!word) continue;
+		std::complex<double> c(1, 0);
 		for(unsigned int qpsk = 0; qpsk < 4; qpsk++) {
 			const unsigned int pnum = i * (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE) + qpsk;
 			m_genPulseWaveAO[0][pnum].clear();
 			m_genPulseWaveAO[1][pnum].clear();
-			std::complex<double> c(1, 0);
 			for(std::vector<std::complex<double> >::iterator it = 
 				qamWaveForm(i).begin(); it != qamWaveForm(i).end(); it++) {
 				std::complex<double> z(*it * c);
 				m_genPulseWaveAO[0][pnum].push_back(aoVoltToRaw(0, z.real()));
 				m_genPulseWaveAO[1][pnum].push_back(aoVoltToRaw(1, z.imag()));
-				c *= std::complex<double>(0,1);
 			}
+			c *= std::complex<double>(0,1);
 		}
 	}
 }
@@ -808,6 +808,7 @@ XNIDAQmxPulser::makeWaveForm(unsigned int pnum_minus_1,
 	std::vector<std::complex<double> > &p = qamWaveForm(pnum_minus_1);
 	const double _master = *masterLevel();
 	const double dma_ao_period = resolutionQAM();
+	to_center *= lrint(resolution() / dma_ao_period);
 	const double delay1 = *qamDelay1() * 1e-3 / dma_ao_period;
 	const double delay2 = *qamDelay2() * 1e-3 / dma_ao_period;
 	double dx = dma_ao_period / pw;
