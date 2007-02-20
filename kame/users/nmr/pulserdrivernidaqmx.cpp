@@ -21,7 +21,7 @@
 static const bool USE_FINITE_AO = false;
 static const TaskHandle TASK_UNDEF = ((TaskHandle)-1);
 
-static const bool USE_PAUSING = false;
+static const bool USE_PAUSING = true;
 static const unsigned int PAUSING_CNT = 400;
 static const unsigned int PAUSING_CNT_BLANK = 10;
 
@@ -133,8 +133,8 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
 	
 	if(USE_PAUSING) {
-	const unsigned pausing_term = lrint(PAUSING_CNT * resolution() * 1e-3);
-	const unsigned pausing_term_blank = lrint(PAUSING_CNT_BLANK * resolution() * 1e-3);
+	const double pausing_term = PAUSING_CNT * resolution() * 1e-3;
+	const double pausing_term_blank = PAUSING_CNT_BLANK * resolution() * 1e-3;
 	    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskGateCtr));
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanTime(m_taskGateCtr, 
 	    	gatectrdev.c_str(), "", DAQmx_Val_Seconds, DAQmx_Val_Low, 0.0,
@@ -379,6 +379,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		if(m_taskGateCtr != TASK_UNDEF) {
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
 		}
+		msecsleep(1);
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
 		if(m_taskAOCtr != TASK_UNDEF) {
@@ -695,21 +696,20 @@ XNIDAQmxPulser::createNativePatterns()
 		//pattern of digital lines.
 		tRawDO patDO = PAT_DO_MASK & pat;
 		const unsigned int patAO = pat / PAT_QAM_PHASE;
-		if(pausingbit) {
+		if(pausingbit && (pat & PAT_QAM_PULSE_IDX_MASK == 0)) {
 			patDO &= ~pausingbit;
-			while((patAO == 0) &&
-				 (tonext > pausing_cnt + pausing_cnt_blank + 1)) {
+			while(tonext > pausing_cnt + pausing_cnt_blank + 1) {
 				//generate a pausing trigger.
 				{
-				 	GenPattern genpat(patDO | pausingbit, 1, time);
+				 	GenPattern genpat(patDO | pausingbit, 3, time);
 			  		m_genPatternListDO.push_back(genpat);
 			  		genpat.pattern = 0;
 			  		genpat.tonext *= oversamp_ao;
 			  		genpat.time *= oversamp_ao;
 			  		m_genPatternListAO.push_back(genpat);
 				}
-				tonext -= pausing_cnt - 1;
-				time += pausing_cnt - 1;
+				tonext -= pausing_cnt - 3;
+				time += pausing_cnt - 3;
 				{
 				 	GenPattern genpat(patDO, pausing_cnt_blank, time);
 			  		m_genPatternListDO.push_back(genpat);
