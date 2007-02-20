@@ -166,7 +166,6 @@ XNIDAQmxDSO::clearAcquision() {
     }
 	m_task = TASK_UNDEF;
 }
-
 void
 XNIDAQmxDSO::disableTrigger()
 {
@@ -180,7 +179,6 @@ XNIDAQmxDSO::disableTrigger()
     if(m_task != TASK_UNDEF) {
 	    DAQmxDisableStartTrig(m_task);
 	    DAQmxDisableRefTrig(m_task);
-//	    DAQmxSetReadOverWrite(m_task, DAQmx_Val_DoNotOverwriteUnreadSamps);
     }
     
     m_preTriggerPos = 0;
@@ -252,6 +250,7 @@ XNIDAQmxDSO::setupTrigger()
 	        CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_task,
 	            dtrig.c_str(), trig_spec));
 	    }
+	    DAQmxSetReadOverWrite(m_task, DAQmx_Val_DoNotOverwriteUnreadSamps);
     }
     else {
 	    if(atrig.length()) {
@@ -262,6 +261,7 @@ XNIDAQmxDSO::setupTrigger()
 	        CHECK_DAQMX_RET(DAQmxCfgDigEdgeRefTrig(m_task,
 	            dtrig.c_str(), trig_spec, pretrig));
 	    }
+	    CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_task, DAQmx_Val_OverwriteUnreadSamps));
     }
     
  //   setupTiming(); //for continuous/finite sampling.
@@ -488,7 +488,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 				usleep(lrint(1e6 * size * m_interval / 2));
 			}
 		}
-/*		else {
+		else {
 			if(m_preTriggerPos) {
 				CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstPretrigSamp));
 			}
@@ -498,7 +498,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 				
 		    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
 		}
-*/		if(terminated)
+		if(terminated)
 			return;
 	
 		const unsigned int num_samps = size; //std::min(size, 1024u);
@@ -508,28 +508,23 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 			while(!terminated) {
 				if(tryReadAISuspend())
 					return;
-//			uInt32 space;
-//				int ret = DAQmxGetReadAvailSampPerChan(m_task, &space);
-//				if(!ret && (space >= (uInt32)samps))
+			uInt32 space;
+				int ret = DAQmxGetReadAvailSampPerChan(m_task, &space);
+				if(!ret && (space >= (uInt32)samps))
 					break;
-//				usleep(lrint(1e6 * (samps - space) * m_interval));
+				usleep(lrint(1e6 * (samps - space) * m_interval));
 			}
 			if(terminated)
 				return;
-/*		    CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, samps,
+		    CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, samps,
 		        0.01, DAQmx_Val_GroupByScanNumber,
 		        &m_recordBuf[cnt * num_ch], samps * num_ch, &samps, NULL
 		        ));
-*/		    int ret = DAQmxReadBinaryI16(m_task, samps,
-		        0.04, DAQmx_Val_GroupByScanNumber,
-		        &m_recordBuf[cnt * num_ch], samps * num_ch, &samps, NULL
-		        ); 
 		    cnt += samps;
-		    if(ret == 0) break;
-/*			if(m_preTriggerPos && !m_virtualTrigger) {
+			if(m_preTriggerPos && !m_virtualTrigger) {
 				CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, cnt));
 			}
-*/		}
+		}
 	} //end of readMutex
 
 	XScopedLock<XInterface> lock(*interface());
