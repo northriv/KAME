@@ -68,8 +68,8 @@ XNIDAQmxInterface::VirtualTrigger::registerVirtualTrigger(const shared_ptr<Virtu
 
 XNIDAQmxInterface::VirtualTrigger::VirtualTrigger(const char *label, unsigned int bits)
  : m_label(label), m_bits(bits),
- m_risingEdgeMask(0u), m_fallingEdgeMask(0u) {
-
+ m_risingEdgeMask(0u), m_fallingEdgeMask(0u),
+ m_blankTerm(0.02) {
 }
 XNIDAQmxInterface::VirtualTrigger::~VirtualTrigger() {
 }

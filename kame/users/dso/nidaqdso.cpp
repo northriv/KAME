@@ -542,11 +542,6 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 		    m_running = true;
 		}
     }
-    else {
-		if(m_virtualTrigger) {
-			m_virtualTrigger->disable();
-		}
-    }
 
     m_recordLength = std::min(cnt, m_recordLength);
       for(unsigned int i = 0; i < cnt * num_ch; i++) {
@@ -582,7 +577,7 @@ XNIDAQmxDSO::startSequence()
 	if(m_virtualTrigger) {
 		uInt32 bufsize = std::max(m_recordLength * 4, (unsigned int)lrint(0.1 / m_interval));
 		CHECK_DAQMX_RET(DAQmxCfgInputBuffer(m_task, bufsize));
-		m_virtualTrigger->enable(m_interval * m_recordLength);
+		m_virtualTrigger->setBlankTerm(m_interval * m_recordLength);
 		uInt64 total_samps;
 		CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
 		m_virtualTrigger->clear(total_samps, 1.0 / m_interval);
