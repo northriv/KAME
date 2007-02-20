@@ -1,3 +1,4 @@
-- atomic_smart_ptr.h is buggy.
-
-- Do not pause script reading.
+Code refactoring:
+	- reducing object size.
+	- profiling.
+	

@@ -5,8 +5,11 @@
 %global mikachanver 8.9
 
 Name: kame
+
+%{!?without_nidamx:%global without_nidaqmx 0}
+
 Version: 2.1.0
-Release: 3
+Release: 3%{?without_nidaqmx:"wonidaqmx"}
 License: GPL
 Group: Applications/Engineering
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
@@ -26,23 +29,28 @@ Source2: mikachanfont-%{mikachanver}.tar.bz2
 
 Summary: KAME, K's adaptive measurement engine.
 
+%if ! %without_nidamx
+ BuildPreReq: nidaqmx
+ Require: nidaqmx
+%endif
+
 %description
 K's adaptive measurement engine. 
-kame-lite is a NMR disabled version of kame.
 
 %prep
 %setup -q -a 1 -a 2 -n %{name}-%{version}-%{kamedate}
 mv mikachanfont-%{mikachanver}/fonts/* kame/mikachanfont
 mv mikachanfont-%{mikachanver}/* kame/mikachanfont
 
+
 %build
 # build static FTGL
 pushd FTGL/unix
-CXX=g++34 ./configure --disable-shared --enable-static
+CXX=g++34 ../configure --disable-shared --enable-static
 make %{?_smp_mflags}
 popd
 
-%configure --enable-debug
+%configure --enable-debug %{?without_nidqmx:"--without-nidaqmx"}
 make %{?_smp_mflags}
 
 %install

@@ -71,16 +71,7 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 	        trigSource()->add(it->c_str());
     	}
     }
-/*    {
-	    DAQmxGetDevDILines(interface()->devName(), buf, sizeof(buf));
-	    std::deque<std::string> chans;
-	    XNIDAQmxInterface::parseList(buf, chans);
-	    for(std::deque<std::string>::iterator it = chans.begin(); it != chans.end(); it++) {
-	        m_digitalTrigSrc.push_back(*it);
-	        trigSource()->add(it->c_str());
-    	}
-    }
-*/    {
+    {
 		//M series
 	    const char* sc_m[] = {
 	    "PFI0", "PFI1", "PFI2", "PFI3", "PFI4", "PFI5", "PFI6", "PFI7",
@@ -138,13 +129,13 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
     }
 
 	m_acqCount = 0;
-//    createChannels();
-//    setupTrigger();
 
 	this->start();
 	
 	vOffset1()->setUIEnabled(false);
 	vOffset2()->setUIEnabled(false);
+
+//    createChannels();
 }
 void
 XNIDAQmxDSO::close() throw (XInterface::XInterfaceError &)
@@ -213,13 +204,12 @@ XNIDAQmxDSO::setupTrigger()
     std::string atrig;
     std::string dtrig;
     std::string src = trigSource()->to_str();
-//    if(!src.length()) return;
+
     if(std::find(m_analogTrigSrc.begin(), m_analogTrigSrc.end(), src)
          != m_analogTrigSrc.end()) {
          atrig = src;
     }
-    
-    if(!atrig.length() && !dtrig.length() && src.length()) {
+    else {
          dtrig = src;
     }
     
@@ -232,7 +222,6 @@ XNIDAQmxDSO::setupTrigger()
 			if(shared_ptr<XNIDAQmxInterface::VirtualTrigger> vt = it->lock()) {
 				for(unsigned int i = 0; i < vt->bits(); i++) {
 		    		if(src == formatString("%s/line%d", vt->label(), i)) {
-			    		dtrig.clear();
 			    		m_virtualTrigger = vt;
 			    		vt->connect(
 			    			!*trigFalling() ? (1uL << i) : 0,
@@ -248,8 +237,10 @@ XNIDAQmxDSO::setupTrigger()
 	    }
     }
     //Small # of pretriggers is not allowed for ReferenceTrigger.
-    if(!m_virtualTrigger && (pretrig < 2))
+    if(!m_virtualTrigger && (pretrig < 2)) {
     	pretrig = 0;
+		m_preTriggerPos = pretrig;
+    }
     
     if(!pretrig) {
 	    if(atrig.length()) {
@@ -321,8 +312,6 @@ XNIDAQmxDSO::createChannels()
 	ScopedReadAILock lockRead(*this);
  	
 	clearAcquision();
-	
-	m_acqCount = 0;
 	
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_task));
 	ASSERT(m_task != TASK_UNDEF);   
@@ -509,7 +498,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 		if(terminated)
 			return;
 	
-		const unsigned int num_samps = std::min(size, 1024u);
+		const unsigned int num_samps = size; //std::min(size, 1024u);
 		for(; cnt < size;) {
 			int32 samps;
 			samps = std::min(size - cnt, num_samps);

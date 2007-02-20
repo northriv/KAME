@@ -37,9 +37,9 @@ XNIDAQmxInterface::sc_productInfoList[] = {
 	{0, 0, 0, 0, 0, 0},
 };
 
+//for synchronization.
 static std::string g_pciClockMaster("");
 static float64 g_pciClockMasterRate = 0.0;
-static TaskHandle g_pciClockMasterTask;
 static int g_daqmx_open_cnt;
 static XMutex g_daqmx_mutex;
 static std::deque<shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> > g_daqmx_sync_routes;
@@ -158,25 +158,40 @@ XNIDAQmxInterface::busArchType() const {
 void
 XNIDAQmxInterface::synchronizeClock(TaskHandle task)
 {
-	if(!g_pciClockMaster.length())
+	const float64 rate = g_pciClockMasterRate;
+	const char *const src = formatString("/%s/RTSI7", devName()).c_str();
+
+	if(devName() == g_pciClockMaster) {
+	char buf[2048];		
+		CHECK_DAQMX_RET(DAQmxGetTaskChannels(task, buf, sizeof(buf)));
+	std::deque<std::string> list;
+		XNIDAQmxInterface::parseList(buf, list);
+		for(std::deque<std::string>::iterator it = list.begin(); it != list.end(); it++) {
+			int32 ch_type;
+			CHECK_DAQMX_RET(DAQmxGetChanType(task, it->c_str(), &ch_type));
+			switch(ch_type) {
+			case DAQmx_Val_AI:
+			case DAQmx_Val_AO:
+			case DAQmx_Val_DI:
+			case DAQmx_Val_DO:
+				break;
+			case DAQmx_Val_CI:
+				CHECK_DAQMX_RET(DAQmxSetCICtrTimebaseSrc(task, it->c_str(), src));
+				CHECK_DAQMX_RET(DAQmxSetCICtrTimebaseRate(task, it->c_str(), rate));
+				break;
+			case DAQmx_Val_CO:
+				CHECK_DAQMX_RET(DAQmxSetCOCtrTimebaseSrc(task, it->c_str(), src));
+				CHECK_DAQMX_RET(DAQmxSetCOCtrTimebaseRate(task, it->c_str(), rate));
+				break;
+			}
+		}
 		return;
+	}
 	
 	if(productSeries() == std::string("M")) {
 		if(busArchType() == std::string("PCI")) {
-			if(devName() == g_pciClockMaster) {
-/*				char src[256];
-				CHECK_DAQMX_RET(DAQmxGetSampClkSrc(task, src, 256));
-				if(!std::string(src).length() || (std::string(src) == "OnboardClock")) {
-					CHECK_DAQMX_RET(DAQmxSetSampClkSrc(task, 
-						formatString("/%s/RTSI7", devName()).c_str()));
-					CHECK_DAQMX_RET(DAQmxSetSampClkRate(task, g_pciClockMasterRate));
-					CHECK_DAQMX_RET(DAQmxSetRefClkSrc(task, "OnboardClock"));
-				}
-*/				return;
-			}
-			CHECK_DAQMX_RET(DAQmxSetRefClkSrc(task,
-				formatString("/%s/RTSI7", devName()).c_str()));
-			CHECK_DAQMX_RET(DAQmxSetRefClkRate(task, g_pciClockMasterRate));
+			CHECK_DAQMX_RET(DAQmxSetRefClkSrc(task, src));
+			CHECK_DAQMX_RET(DAQmxSetRefClkRate(task, rate));
 		}
 		if(busArchType() == std::string("PXI")) {
 			CHECK_DAQMX_RET(DAQmxSetRefClkSrc(task,"PXI_Clk10"));
@@ -185,10 +200,8 @@ XNIDAQmxInterface::synchronizeClock(TaskHandle task)
 	}
 	if(productSeries() == std::string("S")) {
 		if(busArchType() == std::string("PCI")) {
-			if(devName() == g_pciClockMaster) return;
-			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(task,
-				formatString("/%s/RTSI7", devName()).c_str()));
-			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseRate(task, g_pciClockMasterRate));
+			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(task, src));
+			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseRate(task, rate));
 		}
 		if(busArchType() == std::string("PXI")) {
 			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(task,"PXI_Clk10"));
@@ -313,17 +326,9 @@ char buf[256];
 						shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
 						if(!g_pciClockMaster.length()) {
 							float64 freq = 20.0e6;
-							CHECK_DAQMX_RET(DAQmxCreateTask("", &g_pciClockMasterTask));
-							CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(g_pciClockMasterTask, 
-								formatString("%s/ctr1", it->c_str()).c_str(),
-						    	"", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0, freq/2, 0.5));						
-							CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(g_pciClockMasterTask, 
-								DAQmx_Val_ContSamps, 1000));
-							CHECK_DAQMX_RET(DAQmxStartTask(g_pciClockMasterTask));
 							route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
 //								formatString("/%s/10MHzRefClock", it->c_str()).c_str(),
-//								formatString("/%s/20MHzTimebase", it->c_str()).c_str(),
-								formatString("/%s/Ctr1InternalOutput", it->c_str()).c_str(),
+								formatString("/%s/20MHzTimebase", it->c_str()).c_str(),
 								formatString("/%s/RTSI7", it->c_str()).c_str()));
 							g_daqmx_sync_routes.push_back(route);
 							fprintf(stderr, "20MHz Reference Clock exported from %s\n", it->c_str());
@@ -361,8 +366,6 @@ XNIDAQmxInterface::close() throw (XInterfaceError &)
 		XScopedLock<XMutex> lock(g_daqmx_mutex);
 		g_daqmx_open_cnt--;
 		if(g_daqmx_open_cnt == 0) {
-			DAQmxStopTask(g_pciClockMasterTask);
-			DAQmxClearTask(g_pciClockMasterTask);
 			g_daqmx_sync_routes.clear();
 		}
 	}

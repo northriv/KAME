@@ -108,15 +108,29 @@ RUBY_LIBS="$RUBY_LIBS $ruby_libs"
 RUBY_CFLAGS="$RUBY_CFLAGS $ruby_cflags"
 LIBS="$ac_save_LIBS"
 
-AC_MSG_CHECKING(for NI-DAQmx)
-if test -f /usr/local/lib/libnidaqmx.so ; then
-  AC_MSG_RESULT(yes)
-  AC_DEFINE([HAVE_NI_DAQMX], 1, [Define if you have 'NI-DAQmx' library])
-  NIDAQMX_LIBS="-L/usr/local/lib -lnidaqmx"
-  NIDAQMX_CFLAGS="-I/usr/local/include"
-else
-  AC_MSG_RESULT(no)
-fi
+AC_ARG_WITH(nidaqmx, 
+[  --without-nidaqmx		build without NIDAQmx default=yes],
+if test "$with_nidaqmx" = "yes"; then
+	ac_save_LIBS="$LIBS"
+	AC_CHECK_LIB(nidaqmx, main, 
+	nidaqmx_libs="-L/usr/local/lib -lnidaqmx"\
+	nidaqmx_cflags="-I/usr/local/include"
+	AC_DEFINE([HAVE_NI_DAQMX], 1, [Define if you have 'NI-DAQmx' library]),
+	AC_MSG_ERROR([NIDAQmx is not installed - NIDAQmx is disabled]), -L/usr/local/lib -lnidaqmx)
+	NIDAQMX_LIBS="$nidaqmx_libs"
+	NIDAQMX_CFLAGS="$nidaqmx_cflags"
+	LIBS="$ac_save_LIBS"
+fi,
+	ac_save_LIBS="$LIBS"
+	AC_CHECK_LIB(nidaqmx, main, 
+	nidaqmx_libs="-L/usr/local/lib -lnidaqmx"\
+	nidaqmx_cflags="-I/usr/local/include"
+	AC_DEFINE([HAVE_NI_DAQMX], 1, [Define if you have 'NI-DAQmx' library]),
+	AC_MSG_WARN([NIDAQmx is not installed - NIDAQmx is disabled]), -L/usr/local/lib -lnidaqmx)
+	NIDAQMX_LIBS="$nidaqmx_libs"
+	NIDAQMX_CFLAGS="$nidaqmx_cflags"
+	LIBS="$ac_save_LIBS"
+)
 
 AC_CHECK_LIB(comedilib, main, 
 	comedi_libs="-lcomedilib"\
@@ -131,7 +145,8 @@ AC_CHECK_LIB(gpib, main,
 LINUXGPIB_LIBS="$gpib_libs"
 
 AC_ARG_WITH(gc, 
-[  --with-gc         use garbage collector],
+[  --with-gc		use garbage collector],
+if test "$with_gc" = "yes"; then
 	ac_save_LIBS="$LIBS"
 	AC_CHECK_LIB(gccpp, main, 
 	  gc_libs="-lgccpp -lgc" \
@@ -139,10 +154,12 @@ AC_ARG_WITH(gc,
 	  AC_MSG_WARN([gc or gccpp is not installed - gc is disabled]), -lgc)
 	GC_LIBS="$GC_LIBS $gc_libs"
 	LIBS="$ac_save_LIBS"
+fi
 )
 
 AC_ARG_WITH(malloc-debug, 
-[  --with-malloc-debug         use MallocDebug.app],
+[  --with-malloc-debug	use MallocDebug.app],
+if test "$with_malloc_debug" = "yes"; then
 	ac_save_LIBS="$LIBS"
 	AC_CHECK_LIB(MallocDebug, main, 
 	  malloc_debug_libs="-lMallocDebug" \
@@ -150,6 +167,7 @@ AC_ARG_WITH(malloc-debug,
 	  AC_MSG_WARN([libMallocDebug.a is not installed - MallocDebug is disabled]), -lMallocDebug)
 	MALLOC_DEBUG_LIBS="$MALLOC_DEBUG_LIBS $malloc_debug_libs"
 	LIBS="$ac_save_LIBS"
+fi
 )
 
 AC_C_BIGENDIAN
@@ -173,7 +191,7 @@ AC_SUBST(FREETYPE2_CFLAGS)
 AC_SUBST(GC_LIBS)
 AC_SUBST(MALLOC_DEBUG_LIBS)
 
-CPPFLAGS="$CPPFLAGS $RUBY_CFLAGS $FREETYPE2_CFLAGS"
+CPPFLAGS="$CPPFLAGS $RUBY_CFLAGS $FREETYPE2_CFLAGS $NIDAQMX_CFLAGS"
 KDE_CREATE_SUBDIRSLIST
 AC_CONFIG_FILES([ Makefile ])
 AC_CONFIG_FILES([ doc/Makefile ])
