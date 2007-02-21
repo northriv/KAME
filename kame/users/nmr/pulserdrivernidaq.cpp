@@ -69,10 +69,12 @@ XNIDAQMSeriesWithSSeriesPulser::onOpenAO(const shared_ptr<XInterface> &)
 	    m_ctr_interface = intfDO();
 		openAODO();
 
-		//DMA is slower than interrupts!
-		CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, 
-	    	formatString("%s/ao0:1", intfAO()->devName()).c_str(),
-			DAQmx_Val_Interrupts));
+		if(std::string(intfAO()->productType()) == "PCI-6111") {
+			//DMA is slower than interrupts!
+			CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, 
+		    	formatString("%s/ao0:1", intfAO()->devName()).c_str(),
+				DAQmx_Val_Interrupts));
+		}
 	}
 	catch (XInterface::XInterfaceError &e) {
 		e.print(getLabel());

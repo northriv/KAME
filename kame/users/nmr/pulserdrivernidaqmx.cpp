@@ -146,12 +146,11 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 	    	pausing_term, pausing_term_blank));
 
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskGateCtr,
-//			 DAQmx_Val_FiniteSamps, 1));
-			 DAQmx_Val_HWTimedSinglePoint, 1));
+			 DAQmx_Val_FiniteSamps, 1));
 	    intfCtr()->synchronizeClock(m_taskGateCtr);
 
 	    CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskGateCtr,
-			formatString("/%s/PFI0", intfCtr()->devName()).c_str(),
+			formatString("/%s/PFI1", intfCtr()->devName()).c_str(),
 	    	DAQmx_Val_Rising));
 
 		CHECK_DAQMX_RET(DAQmxSetStartTrigRetriggerable(m_taskGateCtr, true));
@@ -225,7 +224,7 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	    intfCtr()->synchronizeClock(m_taskAOCtr);
 
 	    CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskAOCtr,
-			formatString("/%s/PFI0", intfCtr()->devName()).c_str(),
+			formatString("/%s/PFI1", intfCtr()->devName()).c_str(),
 	    	DAQmx_Val_Rising));
 
 		CHECK_DAQMX_RET(DAQmxSetStartTrigRetriggerable(m_taskAOCtr, true));
@@ -380,9 +379,6 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	
 	if(m_taskDOCtr != TASK_UNDEF)
 		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
-	CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
-    CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_FirstSample));
-    CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
 	if(m_taskGateCtr != TASK_UNDEF)
 		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
 	if(m_taskAOCtr != TASK_UNDEF)
@@ -392,6 +388,9 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	    CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
 	    CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
 	}
+	CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
+    CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_FirstSample));
+    CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
 	atomic<bool> terminated = false;
 	atomic<bool> suspended = false;
 	if(m_taskAO != TASK_UNDEF) {
@@ -412,14 +411,19 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	else {
 		if(m_taskGateCtr != TASK_UNDEF)
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
-		msecsleep(1);
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
 		if(m_taskDOCtr != TASK_UNDEF)
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
-		if(m_taskAOCtr != TASK_UNDEF)
-		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAOCtr));
-		if(m_taskAO != TASK_UNDEF)
+		if(m_taskAO != TASK_UNDEF) {
+			// stupid NIDAQmx needs wait before for sychronization.
+			msecsleep(1);
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
+		}
+		if(m_taskAOCtr != TASK_UNDEF) {
+			// stupid NIDAQmx needs wait before for sychronization.
+			msecsleep(1);
+		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAOCtr));
+		}
 	}
 	
 	m_suspendAO = false;
@@ -494,7 +498,7 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated, const atomic<bool> &s
 {
 	XScopedLock<XRecursiveMutex> lock(m_mutexAO);
 
-	if(tryOutputSuspend(suspended, m_mutexDO, terminated))
+	if(tryOutputSuspend(suspended, m_mutexAO, terminated))
 		return;
 
  	const double dma_ao_period = resolutionQAM();
