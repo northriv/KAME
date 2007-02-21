@@ -253,6 +253,7 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	    DAQmxStopTask(m_taskDOCtr);
 		DAQmxClearTask(m_taskDOCtr);
 	    m_taskDOCtr = TASK_UNDEF;
+	    fprintf(stderr, "Using ao/SampleClock for DO.\n");
     }
     else {
 		//Synchronize ARM.
@@ -380,17 +381,25 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			genBankAO();
 		genBankDO();
 		
-		if(m_taskDOCtr != TASK_UNDEF)
+		if(m_taskDOCtr != TASK_UNDEF) {
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Unreserve));
 			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
-		if(m_taskGateCtr != TASK_UNDEF)
+		}
+		if(m_taskGateCtr != TASK_UNDEF) {
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Unreserve));
 			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
-		if(m_taskAOCtr != TASK_UNDEF)
+		}
+		if(m_taskAOCtr != TASK_UNDEF) {
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAOCtr, DAQmx_Val_Task_Unreserve));
 			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAOCtr, DAQmx_Val_Task_Commit));
+		}
 		if(m_taskAO != TASK_UNDEF) {
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Unreserve));
 			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
 		    CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
 		    CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
 		}
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Unreserve));
 		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
 	    CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_FirstSample));
 	    CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
@@ -423,12 +432,12 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
 		if(m_taskAO != TASK_UNDEF) {
 			// stupid NIDAQmx needs a wait before for sychronization.
-			msecsleep(5);
+//			msecsleep(1);
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
 		}
 		if(m_taskAOCtr != TASK_UNDEF) {
 			// stupid NIDAQmx needs a wait before for sychronization.
-			msecsleep(5);
+//			msecsleep(1);
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAOCtr));
 		}
 	}
