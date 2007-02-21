@@ -27,7 +27,9 @@ class XNIDAQSSeriesPulser : public XNIDAQmxPulser
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers)
-   : XNIDAQmxPulser(name, runtime, scalarentries, interfaces, thermometers, drivers) {}
+   : XNIDAQmxPulser(name, runtime, scalarentries, interfaces, thermometers, drivers) {
+		setPausingGateTerm(formatString("/%s/PFI4", intfCtr()->devName()).c_str());
+   }
  public:
   virtual ~XNIDAQSSeriesPulser() {}
 
@@ -46,7 +48,9 @@ class XNIDAQDOPulser : public XNIDAQmxPulser
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers)
-    : XNIDAQmxPulser(name, runtime, scalarentries, interfaces, thermometers, drivers) {}
+    : XNIDAQmxPulser(name, runtime, scalarentries, interfaces, thermometers, drivers) {
+		setPausingGateTerm(formatString("/%s/PFI4", intfCtr()->devName()).c_str());
+    }
  public:
   virtual ~XNIDAQDOPulser() {}
 
@@ -74,11 +78,10 @@ class XNIDAQMSeriesWithSSeriesPulser : public XNIDAQmxPulser
     virtual bool haveQAMPorts() const {return true;}
     
 	virtual const shared_ptr<XNIDAQmxInterface> &intfAO() const {return m_ao_interface;} 
-	virtual const shared_ptr<XNIDAQmxInterface> &intfCtr() const {return m_ctr_interface;} 
+	virtual const shared_ptr<XNIDAQmxInterface> &intfCtr() const {return interface();} 
  private:
  
 	const shared_ptr<XNIDAQmxInterface> m_ao_interface;
-	shared_ptr<XNIDAQmxInterface> m_ctr_interface;
 };
 
 #endif //HAVE_NI_DAQMX

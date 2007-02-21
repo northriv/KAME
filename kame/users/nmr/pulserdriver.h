@@ -135,7 +135,7 @@ class XPulser : public XPrimaryDriver
   	PORTSEL_QPSK_A = 11, PORTSEL_QPSK_B = 12,
   	PORTSEL_QPSK_OLD_NONINV = 13, PORTSEL_QPSK_OLD_INV = 14,
   	PORTSEL_QPSK_OLD_PSGATE = 15,
-  	PORTSEL_PAUSING = 16};
+  	/*PORTSEL_PAUSING = 16*/};
   //! \arg func e.g. PORTSEL_GATE.
   //! \return bit mask.
   unsigned int selectedPorts(int func) const;

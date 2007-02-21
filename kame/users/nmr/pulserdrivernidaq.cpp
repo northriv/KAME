@@ -27,9 +27,9 @@ XNIDAQMSeriesWithSSeriesPulser::XNIDAQMSeriesWithSSeriesPulser(const char *name,
 	m_ao_interface(XNode::create<XNIDAQmxInterface>("SubInterface", false,
             dynamic_pointer_cast<XDriver>(this->shared_from_this())))
 {
+	setPausingGateTerm(formatString("/%s/PFI4", intfCtr()->devName()).c_str());
     interfaces->insert(m_ao_interface);
     m_ao_interface->control()->setUIEnabled(false);
-	m_ctr_interface = intfDO();
 }
 void
 XNIDAQSSeriesPulser::open() throw (XInterface::XInterfaceError &)
@@ -57,8 +57,6 @@ XNIDAQMSeriesWithSSeriesPulser::open() throw (XInterface::XInterfaceError &)
 	
 	if(std::string(intfAO()->productSeries()) != "S")
 		throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
-
- 	m_ctr_interface = intfDO();
  	openAODO();
 	this->start();	
 }

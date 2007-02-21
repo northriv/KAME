@@ -188,6 +188,7 @@ XNIDAQmxDSO::disableTrigger()
     	m_virtualTrigger->disconnect();
     m_lsnOnVirtualTrigStart.reset();
     m_virtualTrigger.reset();
+	CHECK_DAQMX_RET(DAQmxTaskControl(m_task, DAQmx_Val_Task_Commit));	
 }
 void
 XNIDAQmxDSO::setupTrigger()
@@ -264,9 +265,8 @@ XNIDAQmxDSO::setupTrigger()
 	    CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_task, DAQmx_Val_OverwriteUnreadSamps));
     }
     
- //   setupTiming(); //for continuous/finite sampling.
-
 	CHECK_DAQMX_RET(DAQmxTaskControl(m_task, DAQmx_Val_Task_Commit));	
+	
 	startSequence();
 }
 void
@@ -306,6 +306,8 @@ XNIDAQmxDSO::setupTiming()
 //	dbgPrint(QString("Reference Clk rate = %1.").arg(rate));
     CHECK_DAQMX_RET(DAQmxGetSampClkRate(m_task, &rate));
     m_interval = 1.0 / rate;
+    
+    setupTrigger();
 }
 void
 XNIDAQmxDSO::createChannels()
@@ -368,7 +370,6 @@ XNIDAQmxDSO::createChannels()
 */	}
 
     setupTiming();
-	setupTrigger();
 	
 	m_threadReadAI.reset(new XThread<XNIDAQmxDSO>(shared_from_this(),
 		 &XNIDAQmxDSO::executeReadAI));
@@ -741,7 +742,6 @@ XNIDAQmxDSO::onTrigFallingChanged(const shared_ptr<XValueNodeBase> &) {
 void
 XNIDAQmxDSO::onTimeWidthChanged(const shared_ptr<XValueNodeBase> &) {
     setupTiming();
-	startSequence();
 }
 void
 XNIDAQmxDSO::onTrace1Changed(const shared_ptr<XValueNodeBase> &) {
@@ -768,7 +768,6 @@ XNIDAQmxDSO::onVOffset2Changed(const shared_ptr<XValueNodeBase> &) {
 void
 XNIDAQmxDSO::onRecordLengthChanged(const shared_ptr<XValueNodeBase> &) {
     setupTiming();
-	startSequence();
 }
 
 #endif //HAVE_NI_DAQMX

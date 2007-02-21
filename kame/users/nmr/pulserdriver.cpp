@@ -195,7 +195,7 @@ XPulser::XPulser(const char *name, bool runtime,
   			"Gate", "PreGate", "Gate3", "Trig1", "Trig2", "ASW",
   			"QSW", "Pulse1", "Pulse2", "Comb", "CombFM",
   			"QPSK-A", "QPSK-B", "QPSK-NonInv", "QPSK-Inv",
-  			"QPSK-PS-Gate", "Pause[NIDAQ]", 0L
+  			"QPSK-PS-Gate", 0L
   		};
 		for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
 			m_portSel[i] = create<XComboNode>(formatString("PortSel%u", i).c_str(), false);
