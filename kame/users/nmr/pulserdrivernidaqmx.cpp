@@ -393,10 +393,11 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	    CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
 	}
 	atomic<bool> terminated = false;
+	atomic<bool> suspended = false;
 	if(m_taskAO != TASK_UNDEF) {
-		writeBufAO(terminated);
+		writeBufAO(terminated, suspended);
 	}
-	writeBufDO(terminated);
+	writeBufDO(terminated, suspended);
 	
 	//slave must start before the master.
 	if(USE_FINITE_AO && (m_taskAOCtr != TASK_UNDEF)) {
@@ -475,7 +476,7 @@ void *
 XNIDAQmxPulser::executeWriteAO(const atomic<bool> &terminated)
 {
 	while(!terminated) {
-		writeBufAO(terminated);
+		writeBufAO(terminated, m_suspendAO);
 	}
 	return NULL;
 }
@@ -483,15 +484,18 @@ void *
 XNIDAQmxPulser::executeWriteDO(const atomic<bool> &terminated)
 {
 	while(!terminated) {
-		writeBufDO(terminated);
+		writeBufDO(terminated, m_suspendDO);
 	}
 	return NULL;
 }
 
 void
-XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated)
+XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated, const atomic<bool> &suspended)
 {
 	XScopedLock<XRecursiveMutex> lock(m_mutexAO);
+
+	if(tryOutputSuspend(suspended, m_mutexDO, terminated))
+		return;
 
  	const double dma_ao_period = resolutionQAM();
 	const unsigned int size = m_genBufAO.size() / NUM_AO_CH;
@@ -502,7 +506,7 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated)
 			int32 samps;
 			samps = std::min(size - cnt, num_samps);
 			while(!terminated) {
-				if(tryOutputSuspend(m_suspendAO, m_mutexAO, terminated))
+				if(tryOutputSuspend(suspended, m_mutexAO, terminated))
 					return;
 //				if(bank == m_genBankWriting)
 //					throw XInterface::XInterfaceError(KAME::i18n("AO buffer overrun."), __FILE__, __LINE__);
@@ -536,9 +540,12 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated)
 	return;
 }
 void
-XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated)
+XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated, const atomic<bool> &suspended)
 {
 	XScopedLock<XRecursiveMutex> lock(m_mutexDO);
+
+	if(tryOutputSuspend(suspended, m_mutexDO, terminated))
+		return;
 
  	const double dma_do_period = resolution();
 	const unsigned int size = m_genBufDO.size();
@@ -549,7 +556,7 @@ XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated)
 			int32 samps;
 			samps = std::min(size - cnt, num_samps);
 			while(!terminated) {
-				if(tryOutputSuspend(m_suspendDO, m_mutexDO, terminated))
+				if(tryOutputSuspend(suspended, m_mutexDO, terminated))
 					return;
 //				if(bank == m_genBankWriting)
 //					throw XInterface::XInterfaceError(KAME::i18n("DO buffer overrun."), __FILE__, __LINE__);

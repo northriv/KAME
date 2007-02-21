@@ -110,8 +110,8 @@ enum { CAL_POLY_ORDER = 4};
 	void genBankAO();
 	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriteAO;
 	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriteDO;
-	void writeBufAO(const atomic<bool> &terminated);
-	void writeBufDO(const atomic<bool> &terminated);
+	void writeBufAO(const atomic<bool> &terminated, const atomic<bool> &suspended);
+	void writeBufDO(const atomic<bool> &terminated, const atomic<bool> &suspended);
 	void *executeWriteAO(const atomic<bool> &);
 	void *executeWriteDO(const atomic<bool> &);
 	
