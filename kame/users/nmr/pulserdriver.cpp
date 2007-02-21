@@ -674,14 +674,14 @@ XPulser::onPulseChanged(const shared_ptr<XValueNodeBase> &node)
       return;
     }
 
-  try {
+/*  try {
       changeOutput(false, blankpattern);
   }
   catch (XKameError &e) {
       e.print(getLabel() + KAME::i18n("Pulser Turn-Off Failed, because"));
       return;
   }
-    
+*/    
 //! ver 1 records below
     push((short)*combMode());
     push((short)0); //reserve

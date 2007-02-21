@@ -18,7 +18,6 @@
 #include "interface.h"
 #include <klocale.h>
 
-static const bool USE_FINITE_AO = false;
 static const TaskHandle TASK_UNDEF = ((TaskHandle)-1);
 
 static const unsigned int PAUSING_CNT = 400;
@@ -30,13 +29,14 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers) :
     XNIDAQmxDriver<XPulser>(name, runtime, scalarentries, interfaces, thermometers, drivers),
+ 	 m_running(false),
     m_resolutionDO(-1.0),
     m_resolutionAO(-1.0),
 	 m_taskAO(TASK_UNDEF),
 	 m_taskDO(TASK_UNDEF),
  	 m_taskDOCtr(TASK_UNDEF),
  	 m_taskGateCtr(TASK_UNDEF),
- 	 m_taskAOCtr(TASK_UNDEF)	 
+ 	 m_taskAOCtr(TASK_UNDEF)
 {
     const int ports[] = {
     	PORTSEL_GATE, PORTSEL_PREGATE, PORTSEL_TRIG1, PORTSEL_TRIG2,
@@ -47,11 +47,6 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
 	}
 	m_virtualTrigger.reset(new XNIDAQmxInterface::VirtualTrigger(name, NUM_DO_PORTS));
 	XNIDAQmxInterface::VirtualTrigger::registerVirtualTrigger(m_virtualTrigger);
-const void *FIRST_OF_MLOCK_MEMBER = &m_genPatternListAO;
-const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];
-	//Suppress swapping.
-	mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);
-	
 }
 XNIDAQmxPulser::~XNIDAQmxPulser()
 {
@@ -211,43 +206,18 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	float64 freq = 1e3 / resolutionQAM();
 	const unsigned int BUF_SIZE_HINT = lrint(8 * 65.536e-3 * freq);
 	
-	if(USE_FINITE_AO) {
-		ASSERT(!m_pausingBit);
-		
-		std::string ctrdev = formatString("%s/ctr1", intfCtr()->devName()).c_str();
-		std::string ctrout = formatString("/%s/Ctr1InternalOutput", intfCtr()->devName()).c_str();
-
-	    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskAOCtr));
-		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskAOCtr, 
-	    	ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
-	    	freq, 0.5));
-		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskAOCtr, DAQmx_Val_FiniteSamps, 1));
-	    intfCtr()->synchronizeClock(m_taskAOCtr);
-
-	    CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskAOCtr,
-			formatString("/%s/PFI4", intfCtr()->devName()).c_str(),
-	    	DAQmx_Val_Rising));
-
-		CHECK_DAQMX_RET(DAQmxSetStartTrigRetriggerable(m_taskAOCtr, true));
-
-		CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO,
-			ctrout.c_str(),
-			freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
-	}
-	else {
-		CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, "",
-			freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
-	    intfAO()->synchronizeClock(m_taskAO);
-	    
-		if(m_pausingBit) {
-			std::string gatectrout = formatString("/%s/Ctr1InternalOutput", intfCtr()->devName()).c_str();
-			CHECK_DAQMX_RET(DAQmxSetPauseTrigType(m_taskAO, DAQmx_Val_DigLvl));
-			CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigSrc(m_taskAO, gatectrout.c_str()));
-			CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskAO, DAQmx_Val_High));
-		}
+	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, "",
+		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
+    intfAO()->synchronizeClock(m_taskAO);
+    
+	if(m_pausingBit) {
+		std::string gatectrout = formatString("/%s/Ctr1InternalOutput", intfCtr()->devName()).c_str();
+		CHECK_DAQMX_RET(DAQmxSetPauseTrigType(m_taskAO, DAQmx_Val_DigLvl));
+		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigSrc(m_taskAO, gatectrout.c_str()));
+		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskAO, DAQmx_Val_High));
 	}
 
-    if((oversamp == 1) && !USE_FINITE_AO) {
+    if(oversamp == 1) {
 	    CHECK_DAQMX_RET(DAQmxSetSampClkSrc(m_taskDO,
 			formatString("/%s/ao/SampleClock", intfAO()->devName()).c_str()));
 	    DAQmxStopTask(m_taskDOCtr);
@@ -276,6 +246,11 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	m_bufSizeHintAO = bufsize / 4;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &bufsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)bufsize);
+	if(!m_pausingBit & (bufsize < 8192uL))
+		throw XInterface::XInterfaceError(KAME::i18n("Use the pausing feature for a cheap DAQmx board."), __FILE__, __LINE__);
+	if(!m_pausingBit)
+		gWarnPrint(KAME::i18n("Use of the pausing feature is recommended."));
+	
 	m_transferSizeHintAO = std::min((unsigned int)bufsize / 2, m_bufSizeHintAO);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskAO, DAQmx_Val_DoNotAllowRegen));
 
@@ -346,63 +321,87 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
 	{
+		m_suspendDO = true;
+		m_suspendAO = true;
 		XScopedLock<XRecursiveMutex> lockAO(m_mutexAO);
 		XScopedLock<XRecursiveMutex> lockDO(m_mutexDO);
 		
-		stopPulseGen();
-	 
-	//	std::deque<GenPattern> m_genPatternList;
-		m_genLastPatItAO = m_genPatternListAO.begin();
-		m_genRestSampsAO = m_genPatternListAO.back().tonext;
-		m_genLastPatItDO = m_genPatternListDO.begin();
-		m_genRestSampsDO = m_genPatternListDO.back().tonext;
+		//unlock memory.
+		munlock(&m_genBufDO[0], m_genBufDO.size() * sizeof(tRawDO));
+		munlock(&m_genBufAO[0], m_genBufAO.size() * sizeof(tRawAO));
+		if(m_genPatternListAO)
+			munlock(&m_genPatternListAO->at(0), m_genPatternListAO->size() * sizeof(GenPattern));
+		if(m_genPatternListDO)
+			munlock(&m_genPatternListDO->at(0), m_genPatternListDO->size() * sizeof(GenPattern));
+	 	for(unsigned int i = 0; i < NUM_AO_CH; i++) {
+	 		for(unsigned int j = 0; j < PAT_QAM_PULSE_IDX_MASK / PAT_QAM_PULSE_IDX; j++) {
+	 			if(m_genPulseWaveAO[i][j])
+	 				munlock(&m_genPulseWaveAO[i][j]->at(0), m_genPulseWaveAO[i][j]->size() * sizeof(tRawAO));
+	 		}
+	 	}
+		//swap generated pattern lists to new ones.
+	 	m_genPatternListNextAO.swap(m_genPatternListAO);
+	 	m_genPatternListNextAO.reset();
+		mlock(&m_genPatternListAO->at(0), m_genPatternListAO->size() * sizeof(GenPattern));
+	 	m_genPatternListNextDO.swap(m_genPatternListAO);
+	 	m_genPatternListNextDO.reset();
+		mlock(&m_genPatternListDO->at(0), m_genPatternListDO->size() * sizeof(GenPattern));
+	 	for(unsigned int i = 0; i < NUM_AO_CH; i++) {
+	 		for(unsigned int j = 0; j < PAT_QAM_PULSE_IDX_MASK / PAT_QAM_PULSE_IDX; j++) {
+	 			m_genPulseWaveNextAO[i][j].swap(m_genPulseWaveAO[i][j]);
+ 				mlock(&m_genPulseWaveAO[i][j]->at(0), m_genPulseWaveAO[i][j]->size() * sizeof(tRawAO));
+	 		}
+	 	}
+		m_genLastPatItAO = m_genPatternListAO->begin();
+		m_genRestSampsAO = m_genPatternListAO->back().tonext;
+		m_genLastPatItDO = m_genPatternListDO->begin();
+		m_genRestSampsDO = m_genPatternListDO->back().tonext;
 		
 		m_genBufDO.resize(m_bufSizeHintDO);
 		if(m_taskAO != TASK_UNDEF) {
 			m_genAOIndex = 0;
 			m_genBufAO.resize(m_bufSizeHintAO * NUM_AO_CH);
-			if(USE_FINITE_AO) {
-				if(m_taskAOCtr != TASK_UNDEF)
-					CHECK_DAQMX_RET(DAQmxSetSampQuantSampPerChan(m_taskAOCtr, m_genFiniteAOSamps));
-			}
 		}
 		
+		//memory locks.
 		mlock(&m_genBufDO[0], m_genBufDO.size() * sizeof(tRawDO));
 		mlock(&m_genBufAO[0], m_genBufAO.size() * sizeof(tRawAO));
 		for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
 			for(unsigned int i = 0; i < 32; i++)
-				mlock(&m_genPulseWaveAO[ch][i], m_genPulseWaveAO[ch][i].size() * sizeof(tRawAO));
+				mlock(&m_genPulseWaveAO[ch][i]->at(0), m_genPulseWaveAO[ch][i]->size() * sizeof(tRawAO));
 		}
-		
-		m_virtualTrigger->start(1e3 / resolution());
+	const void *FIRST_OF_MLOCK_MEMBER = &m_genPatternListAO;
+	const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];
+		mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);
 	
+		if(!m_running)
+			m_virtualTrigger->start(1e3 / resolution());
+	
+		//committing is needed before queries.
+		if(!m_running) {
+			if(m_taskDOCtr != TASK_UNDEF)
+				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
+			if(m_taskGateCtr != TASK_UNDEF)
+				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
+			if(m_taskAOCtr != TASK_UNDEF)
+				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAOCtr, DAQmx_Val_Task_Commit));
+			if(m_taskAO != TASK_UNDEF)
+				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
+		}
+
+		//set write positions to the first pos.
+		if(m_taskAO != TASK_UNDEF) {
+		    CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
+		    CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
+		}
+	    CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_FirstSample));
+	    CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
+		
 		//prefilling of the buffers.
 		if(m_taskAO != TASK_UNDEF)
 			genBankAO();
 		genBankDO();
-		
-		if(m_taskDOCtr != TASK_UNDEF) {
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Unreserve));
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
-		}
-		if(m_taskGateCtr != TASK_UNDEF) {
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Unreserve));
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
-		}
-		if(m_taskAOCtr != TASK_UNDEF) {
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAOCtr, DAQmx_Val_Task_Unreserve));
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAOCtr, DAQmx_Val_Task_Commit));
-		}
-		if(m_taskAO != TASK_UNDEF) {
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Unreserve));
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
-		    CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
-		    CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
-		}
-		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Unreserve));
-		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
-	    CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_FirstSample));
-	    CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
 		atomic<bool> terminated = false;
 		atomic<bool> suspended = false;
 		if(m_taskAO != TASK_UNDEF) {
@@ -413,18 +412,8 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		m_suspendAO = false;
 		m_suspendDO = false;
 	}
-
-	//slave must start before the master.
-	if(USE_FINITE_AO && (m_taskAOCtr != TASK_UNDEF)) {
-		if(m_taskAO != TASK_UNDEF)
-		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
-		if(m_taskAOCtr != TASK_UNDEF)
-		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAOCtr));
-		if(m_taskDOCtr != TASK_UNDEF)
-		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
-	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
-	}
-	else {
+	if(!m_running) {
+		//slave must start before the master.
 		if(m_taskGateCtr != TASK_UNDEF)
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
@@ -441,11 +430,14 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAOCtr));
 		}
 	}
+	m_running = true;	
 }
 void
 XNIDAQmxPulser::stopPulseGen()
 {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
+	m_running = false;
+
 	m_suspendAO = true;
 	m_suspendDO = true;
 	XScopedLock<XRecursiveMutex> lockAO(m_mutexAO);
@@ -463,12 +455,24 @@ XNIDAQmxPulser::stopPulseGen()
 	    DAQmxStopTask(m_taskAO);
 	if(m_taskGateCtr != TASK_UNDEF)
 	    DAQmxStopTask(m_taskGateCtr);
+    
+    msecsleep(10);
+    
+	if(m_taskDOCtr != TASK_UNDEF)
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Unreserve));
+	if(m_taskGateCtr != TASK_UNDEF)
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Unreserve));
+	if(m_taskAOCtr != TASK_UNDEF)
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAOCtr, DAQmx_Val_Task_Unreserve));
+	if(m_taskAO != TASK_UNDEF)
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Unreserve));
+	CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Unreserve));
+
+    msecsleep(10);
 }
 inline XNIDAQmxPulser::tRawAO
 XNIDAQmxPulser::aoVoltToRaw(int ch, float64 volt)
 {
-//	volt = std::max(volt, m_lowerLimAO[ch]);
-//	volt = std::min(volt, m_upperLimAO[ch]);
 	float64 x = 1.0;
 	float64 y = 0.0;
 	float64 *pco = m_coeffAO[ch];
@@ -631,8 +635,8 @@ XNIDAQmxPulser::genBankDO()
 		ASSERT(samps_rest < size);
 		if(tonext == 0) {
 			it++;
-			if(it == m_genPatternListDO.end()) {
-				it = m_genPatternListDO.begin();
+			if(it == m_genPatternListDO->end()) {
+				it = m_genPatternListDO->begin();
 //				printf("p.\n");
 			}
 			vt->changeValue(patDO, (tRawDO)it->pattern, it->time);
@@ -653,8 +657,8 @@ XNIDAQmxPulser::genBankAO()
 	unsigned int aoidx = m_genAOIndex;
 
 	tRawAO *pAO = &m_genBufAO[0];
-	const tRawAO raw_ao0_zero = aoVoltToRaw(0, 0.0);
-	const tRawAO raw_ao1_zero = aoVoltToRaw(1, 0.0);
+	const tRawAO raw_ao0_zero = m_genAOZeroLevel[0];
+	const tRawAO raw_ao1_zero = m_genAOZeroLevel[1];
 	const unsigned int size = m_bufSizeHintAO;
 	for(unsigned int samps_rest = size; samps_rest;) {
 		//number of samples to be written into buffer.
@@ -671,13 +675,13 @@ XNIDAQmxPulser::genBankAO()
 		else {
 			unsigned int pnum = patAO - (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE);
 			ASSERT(pnum < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX);
-			tRawAO *pGenAO0 = &m_genPulseWaveAO[0][pnum][aoidx];
-			tRawAO *pGenAO1 = &m_genPulseWaveAO[1][pnum][aoidx];
-			ASSERT(m_genPulseWaveAO[0][pnum].size());
-			ASSERT(m_genPulseWaveAO[1][pnum].size());
-			if(m_genPulseWaveAO[0][pnum].size() < aoidx + gen_cnt) {
+			tRawAO *pGenAO0 = &m_genPulseWaveAO[0][pnum]->at(aoidx);
+			tRawAO *pGenAO1 = &m_genPulseWaveAO[1][pnum]->at(aoidx);
+			ASSERT(m_genPulseWaveAO[0][pnum]->size());
+			ASSERT(m_genPulseWaveAO[1][pnum]->size());
+			if(m_genPulseWaveAO[0][pnum]->size() < aoidx + gen_cnt) {
 				fprintf(stderr, "Oops. This should not happen.\n");
-				int lps = m_genPulseWaveAO[0][pnum].size() - aoidx;
+				int lps = m_genPulseWaveAO[0][pnum]->size() - aoidx;
 				lps = std::max(0, lps);
 				for(int cnt = 0; cnt < lps; cnt++) {
 					*pAO++ = *pGenAO0++;
@@ -701,8 +705,8 @@ XNIDAQmxPulser::genBankAO()
 		ASSERT(samps_rest < size);
 		if(tonext == 0) {
 			it++;
-			if(it == m_genPatternListAO.end()) {
-				it = m_genPatternListAO.begin();
+			if(it == m_genPatternListAO->end()) {
+				it = m_genPatternListAO->begin();
 //				printf("p.\n");
 			}
 			patAO = it->pattern;
@@ -715,45 +719,17 @@ XNIDAQmxPulser::genBankAO()
 	m_genAOIndex = aoidx;
 }
 
-unsigned int
-XNIDAQmxPulser::finiteAOSamps(unsigned int finiteaosamps)
-{
-	unsigned int finiteaocnt = 0;
-	unsigned int finiteaorest = 0;
-	for(GenPatternIterator it = m_genPatternListAO.begin(); it != m_genPatternListAO.end(); it++) {
-		unsigned int tonext = it->tonext;
-		if(it->pattern) {
-			finiteaocnt += finiteaorest + tonext;
-			finiteaorest = 0;
-		}
-		else {
-			if(finiteaocnt) {
-				finiteaorest += tonext;
-				if(finiteaorest > 10) {
-					finiteaosamps = std::max(finiteaosamps, finiteaocnt);
-					if(finiteaocnt + finiteaorest > finiteaosamps) {
-						finiteaocnt = 0;
-						finiteaorest = 0;
-					}
-				}
-			}
-		}
-	}
-	return finiteaosamps;
-}
 void
 XNIDAQmxPulser::createNativePatterns()
 {
-  m_ctrTrigBit = selectedPorts(PORTSEL_GATE);
-
   const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
 	
   const tRawDO pausingbit = m_pausingBit;
   const uint64_t pausing_cnt = PAUSING_CNT;
   const uint64_t pausing_cnt_blank = PAUSING_CNT_BLANK;
       
-	m_genPatternListDO.clear();
-	m_genPatternListAO.clear();
+	m_genPatternListNextDO.reset(new std::vector<GenPattern>);
+	m_genPatternListNextAO.reset(new std::vector<GenPattern>);
 	uint32_t pat = m_relPatList.back().pattern;
 	uint64_t time = 0;
 	for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++)
@@ -768,21 +744,21 @@ XNIDAQmxPulser::createNativePatterns()
 				//generate a pausing trigger.
 				{
 				 	GenPattern genpat(patDO | pausingbit, pausing_cnt_blank * 2, time);
-			  		m_genPatternListDO.push_back(genpat);
+			  		m_genPatternListNextDO->push_back(genpat);
 			  		genpat.pattern = 0;
 			  		genpat.tonext *= oversamp_ao;
 			  		genpat.time *= oversamp_ao;
-			  		m_genPatternListAO.push_back(genpat);
+			  		m_genPatternListNextAO->push_back(genpat);
 				}
 				tonext -= pausing_cnt + pausing_cnt_blank * 2;
 				time += pausing_cnt + pausing_cnt_blank * 2;
 				{
 				 	GenPattern genpat(patDO, pausing_cnt_blank, time);
-			  		m_genPatternListDO.push_back(genpat);
+			  		m_genPatternListNextDO->push_back(genpat);
 			  		genpat.pattern = 0;
 			  		genpat.tonext *= oversamp_ao;
 			  		genpat.time *= oversamp_ao;
-			  		m_genPatternListAO.push_back(genpat);
+			  		m_genPatternListNextAO->push_back(genpat);
 				}
 				tonext -= pausing_cnt_blank;
 				time += pausing_cnt_blank;
@@ -790,49 +766,16 @@ XNIDAQmxPulser::createNativePatterns()
 		}
 		{
 		 	GenPattern genpat(patDO, tonext, time);
-	  		m_genPatternListDO.push_back(genpat);
+	  		m_genPatternListNextDO->push_back(genpat);
 	  		genpat.pattern = patAO;
 	  		genpat.tonext *= oversamp_ao;
 	  		genpat.time *= oversamp_ao;
-	  		m_genPatternListAO.push_back(genpat);
+	  		m_genPatternListNextAO->push_back(genpat);
 		}
 	 	pat = it->pattern;
 	 	time = it->time;
 	}
 
-	if(USE_FINITE_AO) {
-		unsigned int oldv = 0;
-		unsigned int newv = 2;
-		while(oldv != newv) {
-			oldv = newv;
-			newv = finiteAOSamps(oldv);
-		}
-		const unsigned int finiteaosamps = newv;
-		m_genFiniteAOSamps = finiteaosamps;
-		fprintf(stderr, "Using finite ao = %u.\n", finiteaosamps);
-		
-		std::deque<GenPattern> list(m_genPatternListAO);
-		m_genPatternListAO.clear();
-		unsigned int rest = 0;
-		for(GenPatternIterator it = list.begin(); it != list.end(); it++) {
-		unsigned int pidx = it->pattern;
-		uint64_t tonext = it->tonext;
-			if(!pidx) {
-				if(!rest)
-					continue;
-				if(tonext < rest)
-					tonext = rest;
-			}
-			else {
-				if(!rest)
-					rest = finiteaosamps;
-			}
-		 	GenPattern genpat(pidx, tonext, it->time);
-	  		m_genPatternListAO.push_back(genpat);
-			rest -= tonext;
-		}
-	}
-		  
   if(m_taskAO != TASK_UNDEF) {
 		const double offset[] = {*qamOffset1(), *qamOffset2()};
 		const double level[] = {*qamLevel1(), *qamLevel2()};
@@ -846,20 +789,22 @@ XNIDAQmxPulser::createNativePatterns()
 				x *= level[ch];
 			}
 		}
-  }
+    }
+    m_genAOZeroLevel[0] = aoVoltToRaw(0, 0.0);
+    m_genAOZeroLevel[1] = aoVoltToRaw(1, 0.0);
 	for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX; i++) {
 	  	const unsigned short word = qamWaveForm(i).size();
 		if(!word) continue;
 		std::complex<double> c(pow(10.0, *masterLevel()/20.0), 0);
 		for(unsigned int qpsk = 0; qpsk < 4; qpsk++) {
 			const unsigned int pnum = i * (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE) + qpsk;
-			m_genPulseWaveAO[0][pnum].clear();
-			m_genPulseWaveAO[1][pnum].clear();
+			m_genPulseWaveNextAO[0][pnum].reset(new std::vector<tRawAO>);
+			m_genPulseWaveNextAO[1][pnum].reset(new std::vector<tRawAO>);
 			for(std::vector<std::complex<double> >::const_iterator it = 
 				qamWaveForm(i).begin(); it != qamWaveForm(i).end(); it++) {
 				std::complex<double> z(*it * c);
-				m_genPulseWaveAO[0][pnum].push_back(aoVoltToRaw(0, z.real()));
-				m_genPulseWaveAO[1][pnum].push_back(aoVoltToRaw(1, z.imag()));
+				m_genPulseWaveNextAO[0][pnum]->push_back(aoVoltToRaw(0, z.real()));
+				m_genPulseWaveNextAO[1][pnum]->push_back(aoVoltToRaw(1, z.imag()));
 			}
 			c *= std::complex<double>(0,1);
 		}
@@ -872,7 +817,7 @@ XNIDAQmxPulser::changeOutput(bool output, unsigned int /*blankpattern*/)
 {
   if(output)
     {
-      if(m_genPatternListDO.empty() )
+      if(!m_genPatternListNextDO || m_genPatternListNextDO->empty() )
               throw XInterface::XInterfaceError(KAME::i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
 	  startPulseGen();
     }

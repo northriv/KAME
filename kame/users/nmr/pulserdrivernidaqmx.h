@@ -72,33 +72,35 @@ private:
 	      uint64_t time; //!< timesamp for physical time.
 	  };
 
-	std::deque<GenPattern> m_genPatternListAO;
-	std::deque<GenPattern> m_genPatternListDO;
-	typedef std::deque<GenPattern>::iterator GenPatternIterator;
+	scoped_ptr<std::vector<GenPattern> > m_genPatternListAO;
+	scoped_ptr<std::vector<GenPattern> > m_genPatternListDO;
+	scoped_ptr<std::vector<GenPattern> > m_genPatternListNextAO;
+	scoped_ptr<std::vector<GenPattern> > m_genPatternListNextDO;
+	typedef std::vector<GenPattern>::iterator GenPatternIterator;
 
 	GenPatternIterator m_genLastPatItAO, m_genLastPatItDO;
 	uint64_t m_genRestSampsAO, m_genRestSampsDO;
+enum { NUM_AO_CH = 2};
+	tRawAO m_genAOZeroLevel[NUM_AO_CH];
 	unsigned int m_genAOIndex;
-	unsigned int m_genFiniteAOSamps;
-	unsigned int finiteAOSamps(unsigned int finiteaosamps);
 	shared_ptr<XNIDAQmxInterface::VirtualTrigger> m_virtualTrigger;
-	unsigned int m_ctrTrigBit;
 	unsigned int m_pausingBit;
 	unsigned int m_bufSizeHintDO;
 	unsigned int m_bufSizeHintAO;
 	unsigned int m_transferSizeHintDO;
 	unsigned int m_transferSizeHintAO;
+	atomic<bool> m_running;
 	atomic<bool> m_suspendDO, m_suspendAO;
 	double m_resolutionDO, m_resolutionAO;
 protected:	
 	TaskHandle m_taskAO, m_taskDO,
 		 m_taskDOCtr, m_taskGateCtr,
 		 m_taskAOCtr;
-enum { NUM_AO_CH = 2};
 private:
 	std::vector<tRawDO> m_genBufDO;
 	std::vector<tRawAO> m_genBufAO;
-	std::vector<tRawAO> m_genPulseWaveAO[NUM_AO_CH][PAT_QAM_PULSE_IDX_MASK / PAT_QAM_PULSE_IDX];
+	scoped_ptr<std::vector<tRawAO> > m_genPulseWaveAO[NUM_AO_CH][PAT_QAM_PULSE_IDX_MASK / PAT_QAM_PULSE_IDX];
+	scoped_ptr<std::vector<tRawAO> > m_genPulseWaveNextAO[NUM_AO_CH][PAT_QAM_PULSE_IDX_MASK / PAT_QAM_PULSE_IDX];
 enum { CAL_POLY_ORDER = 4};
 	float64 m_coeffAO[NUM_AO_CH][CAL_POLY_ORDER];
 	float64 m_coeffAODev[NUM_AO_CH][CAL_POLY_ORDER];
