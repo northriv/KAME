@@ -61,7 +61,7 @@ XNIDAQmxPulser::~XNIDAQmxPulser()
 }
 
 void
-XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
+XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XInterface::XInterfaceError &)
 {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
 
@@ -79,33 +79,38 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 		m_resolutionDO = 1.0 / intfDO()->maxDORate(1);
 	fprintf(stderr, "Using DO rate = %f[kHz]\n", 1.0/m_resolutionDO);
 
-//	std::string ctrdev = formatString("%s/freqout", intfDO()->devName()).c_str();
-//	std::string ctrout = formatString("/%s/FrequencyOutput", intfDO()->devName()).c_str();
-	std::string ctrdev = formatString("%s/ctr0", intfCtr()->devName()).c_str();
-	std::string ctrout = formatString("/%s/Ctr0InternalOutput", intfCtr()->devName()).c_str();
-	std::string gatectrdev = formatString("%s/ctr1", intfCtr()->devName()).c_str();
-	std::string gatectrout = formatString("/%s/Ctr1InternalOutput", intfCtr()->devName()).c_str();
-	
 	float64 freq = 1e3 / resolution();
 
-	//Continuous pulse train generation. Duty = 50%.
-    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDOCtr));
-	CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskDOCtr, 
-    	ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
-    	freq, 0.5));
-    //config. of timing is needed for some reasons.
-	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskDOCtr, DAQmx_Val_ContSamps, 1000));
-    intfCtr()->synchronizeClock(m_taskDOCtr);
-   
 	CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDO));
     CHECK_DAQMX_RET(DAQmxCreateDOChan(m_taskDO, 
     	formatString("%s/port0", intfDO()->devName()).c_str(),
     	 "", DAQmx_Val_ChanForAllLines));
 
+	std::string do_clk_src;
+	
+	if(!use_ao_clock) {
+		do_clk_src = formatString("/%s/Ctr0InternalOutput", intfCtr()->devName());
+		std::string ctrdev = formatString("%s/ctr0", intfCtr()->devName());
+		//Continuous pulse train generation. Duty = 50%.
+	    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDOCtr));
+		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskDOCtr, 
+	    	ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
+	    	freq, 0.5));
+	    //config. of timing is needed for some reasons.
+		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskDOCtr, DAQmx_Val_ContSamps, 1000));
+	    intfCtr()->synchronizeClock(m_taskDOCtr);
+
+		m_virtualTrigger->setArmTerm(do_clk_src.c_str());
+	}
+	else {
+		do_clk_src = formatString("/%s/ao/SampleClock", intfAO()->devName());
+	    fprintf(stderr, "Using ao/SampleClock for DO.\n");
+	}
+   
 	const unsigned int BUF_SIZE_HINT = lrint(65.536e-3 * freq * 4);
 	//M series needs an external sample clock and trigger for DO channels.
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO,
-		ctrout.c_str(),
+		do_clk_src.c_str(),
 		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
 //    intfDO()->synchronizeClock(m_taskDO);
 	
@@ -126,6 +131,9 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 	
 	m_pausingBit = selectedPorts(PORTSEL_PAUSING);
 	if(m_pausingBit) {
+		std::string gatectrdev = formatString("%s/ctr1", intfCtr()->devName()).c_str();
+		m_pausingSrcTerm = formatString("/%s/Ctr1InternalOutput", intfCtr()->devName()).c_str();
+	
 		for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
 			if(m_pausingBit & (1u << i))
 				portSel(i)->setUIEnabled(false);
@@ -152,12 +160,12 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 
 		CHECK_DAQMX_RET(DAQmxSetStartTrigRetriggerable(m_taskGateCtr, true));
 		
-		CHECK_DAQMX_RET(DAQmxSetPauseTrigType(m_taskDOCtr, DAQmx_Val_DigLvl));
-		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigSrc(m_taskDOCtr, gatectrout.c_str()));
-		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskDOCtr, DAQmx_Val_High));
+		if(!use_ao_clock) {
+			CHECK_DAQMX_RET(DAQmxSetPauseTrigType(m_taskDOCtr, DAQmx_Val_DigLvl));
+			CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigSrc(m_taskDOCtr, m_pausingSrcTerm.c_str()));
+			CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskDOCtr, DAQmx_Val_High));
+		}
 	}
-	
-	m_virtualTrigger->setArmTerm(ctrout.c_str());
 	
 	m_suspendDO = true; 	
 	m_threadWriteDO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
@@ -210,8 +218,6 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
     	formatString("%s/ao0:1", intfAO()->devName()).c_str(), "",
     	-1.0, 1.0, DAQmx_Val_Volts, NULL));
 		
-	openDO();
-	
 	float64 freq = 1e3 / resolutionQAM();
 	const unsigned int BUF_SIZE_HINT = lrint(8 * 65.536e-3 * freq);
 	
@@ -219,22 +225,8 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
     intfAO()->synchronizeClock(m_taskAO);
     
-	if(m_pausingBit) {
-		std::string gatectrout = formatString("/%s/Ctr1InternalOutput", intfCtr()->devName()).c_str();
-		CHECK_DAQMX_RET(DAQmxSetPauseTrigType(m_taskAO, DAQmx_Val_DigLvl));
-		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigSrc(m_taskAO, gatectrout.c_str()));
-		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskAO, DAQmx_Val_High));
-	}
-
-    if(oversamp == 1) {
-	    CHECK_DAQMX_RET(DAQmxSetSampClkSrc(m_taskDO,
-			formatString("/%s/ao/SampleClock", intfAO()->devName()).c_str()));
-	    DAQmxStopTask(m_taskDOCtr);
-		DAQmxClearTask(m_taskDOCtr);
-	    m_taskDOCtr = TASK_UNDEF;
-	    fprintf(stderr, "Using ao/SampleClock for DO.\n");
-    }
-    else {
+	openDO(oversamp == 1);
+    if(oversamp != 1) {
 		//Synchronize ARM.
 		CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskDOCtr,
 			formatString("/%s/ao/StartTrigger", intfAO()->devName()).c_str(),
@@ -243,6 +235,12 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 		CHECK_DAQMX_RET(DAQmxExportSignal(m_taskAO, DAQmx_Val_StartTrigger,
 			formatString("/%s/PFI6", intfAO()->devName()).c_str() ));
     }
+	
+	if(m_pausingBit) {
+		CHECK_DAQMX_RET(DAQmxSetPauseTrigType(m_taskAO, DAQmx_Val_DigLvl));
+		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigSrc(m_taskAO, m_pausingSrcTerm.c_str()));
+		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskAO, DAQmx_Val_High));
+	}
 
 	m_virtualTrigger->setArmTerm(
 		formatString("/%s/ao/SampleClock", intfAO()->devName()).c_str());
@@ -340,6 +338,9 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		XScopedLock<XRecursiveMutex> lockAO(m_mutexAO);
 		XScopedLock<XRecursiveMutex> lockDO(m_mutexDO);
 		
+		//Non-stop restart has not been implimented.
+		stopPulseGen();
+		
 		//unlock memory.
 		munlock(&m_genBufDO[0], m_genBufDO.size() * sizeof(tRawDO));
 		munlock(&m_genBufAO[0], m_genBufAO.size() * sizeof(tRawAO));
@@ -388,11 +389,6 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];
 		mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);
 	
-		if(!m_running) {
-			//synchronize the software trigger.
-			m_virtualTrigger->start(1e3 / resolution());
-		}
-		
 		if(m_running) {
 			//set write positions to the appropriate pos.
 			uInt64 curr_pos, total_cnt;
@@ -409,10 +405,13 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 				uInt32 bufsize;
 				CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
 				int32 offset = (total_cnt % bufsize) - (curr_pos % bufsize);
-			    CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
+			    CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, offset));
 			}
 		}
 		else {
+			//synchronize the software trigger.
+			m_virtualTrigger->start(1e3 / resolution());
+
 			//clear on-board/off-board FIFOs.
 			uInt32 on_bufsize, off_bufsize;
 			CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &on_bufsize));
@@ -468,14 +467,14 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 //			msecsleep(1);
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAOCtr));
 		}
+		
+		m_running = true;	
 	}
-	m_running = true;	
 }
 void
 XNIDAQmxPulser::stopPulseGen()
 {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
-	m_running = false;
 
 	m_suspendAO = true;
 	m_suspendDO = true;
@@ -484,17 +483,20 @@ XNIDAQmxPulser::stopPulseGen()
 
 	m_virtualTrigger->stop();
 
-	if(m_taskAOCtr != TASK_UNDEF)
-	    DAQmxStopTask(m_taskAOCtr);
-	if(m_taskDOCtr != TASK_UNDEF)
-	    DAQmxStopTask(m_taskDOCtr);
-	if(m_taskDO != TASK_UNDEF)
-	    DAQmxStopTask(m_taskDO);
-	if(m_taskAO != TASK_UNDEF)
-	    DAQmxStopTask(m_taskAO);
-	if(m_taskGateCtr != TASK_UNDEF)
-	    DAQmxStopTask(m_taskGateCtr);
-    
+	if(m_running) {
+		if(m_taskAOCtr != TASK_UNDEF)
+		    DAQmxStopTask(m_taskAOCtr);
+		if(m_taskDOCtr != TASK_UNDEF)
+		    DAQmxStopTask(m_taskDOCtr);
+		if(m_taskDO != TASK_UNDEF)
+		    DAQmxStopTask(m_taskDO);
+		if(m_taskAO != TASK_UNDEF)
+		    DAQmxStopTask(m_taskAO);
+		if(m_taskGateCtr != TASK_UNDEF)
+		    DAQmxStopTask(m_taskGateCtr);
+
+		m_running = false;
+	}
 /*    msecsleep(10);
     
 	if(m_taskDOCtr != TASK_UNDEF)

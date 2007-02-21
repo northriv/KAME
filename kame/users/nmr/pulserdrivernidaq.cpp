@@ -28,10 +28,7 @@ XNIDAQMSeriesWithSSeriesPulser::XNIDAQMSeriesWithSSeriesPulser(const char *name,
             dynamic_pointer_cast<XDriver>(this->shared_from_this())))
 {
     interfaces->insert(m_ao_interface);
-    m_lsnOnOpenAO = m_ao_interface->onOpen().connectWeak(false,
-    	 this->shared_from_this(), &XNIDAQMSeriesWithSSeriesPulser::onOpenAO);
-    m_lsnOnCloseAO = m_ao_interface->onClose().connectWeak(false, 
-    	this->shared_from_this(), &XNIDAQMSeriesWithSSeriesPulser::onCloseAO);
+    m_ao_interface->control()->setUIEnabled(false);
 	m_ctr_interface = intfDO();
 }
 void
@@ -43,10 +40,10 @@ XNIDAQSSeriesPulser::open() throw (XInterface::XInterfaceError &)
 	this->start();	
 }
 void
-XNIDAQMSeriesPulser::open() throw (XInterface::XInterfaceError &)
+XNIDAQDOPulser::open() throw (XInterface::XInterfaceError &)
 {
-	if(std::string(interface()->productSeries()) != "M")
-		throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
+//	if(std::string(interface()->productSeries()) != "M")
+//		throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
  	openDO();
 	this->start();	
 }
@@ -55,36 +52,15 @@ XNIDAQMSeriesWithSSeriesPulser::open() throw (XInterface::XInterfaceError &)
 {
 	if(std::string(interface()->productSeries()) != "M")
 		throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
+
+	intfAO()->start();
+	
+	if(std::string(intfAO()->productSeries()) != "S")
+		throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
+
  	m_ctr_interface = intfDO();
- 	openDO();
+ 	openAODO();
 	this->start();	
-}
-void
-XNIDAQMSeriesWithSSeriesPulser::onOpenAO(const shared_ptr<XInterface> &)
-{
-	try {
-		if(std::string(intfAO()->productSeries()) != "S")
-			throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
-
-	    m_ctr_interface = intfDO();
-		openAODO();
-
-/*		if(std::string(intfAO()->productType()) == "PCI-6111") {
-			//DMA is slower than interrupts!
-			CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, 
-		    	formatString("%s/ao0:1", intfAO()->devName()).c_str(),
-				DAQmx_Val_Interrupts));
-		}
-*/	}
-	catch (XInterface::XInterfaceError &e) {
-		e.print(getLabel());
-	    close();
-	}
-}
-void
-XNIDAQMSeriesWithSSeriesPulser::onCloseAO(const shared_ptr<XInterface> &)
-{
-	stop();
 }
 
 #endif //HAVE_NI_DAQMX

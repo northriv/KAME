@@ -300,6 +300,9 @@ XNIDAQmxInterface::open() throw (XInterfaceError &)
 {
 char buf[256];
 
+	if(sscanf(device()->to_str().c_str(), "%256s", buf) != 1)
+          	throw XOpenInterfaceError(__FILE__, __LINE__);
+
 	XScopedLock<XMutex> lock(g_daqmx_mutex);
 	if(g_daqmx_open_cnt == 0) {
 //	    CHECK_DAQMX_RET(DAQmxCreateTask("", &g_task_sync_master));
@@ -344,8 +347,6 @@ char buf[256];
 	}
 	g_daqmx_open_cnt++;
 
-	if(sscanf(device()->to_str().c_str(), "%256s", buf) != 1)
-          	throw XOpenInterfaceError(__FILE__, __LINE__);
 	std::string devname = buf;
 	CHECK_DAQMX_RET(DAQmxGetDevProductType(devname.c_str(), buf, sizeof(buf)));
 	std::string type = buf;

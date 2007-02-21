@@ -37,18 +37,18 @@ class XNIDAQSSeriesPulser : public XNIDAQmxPulser
     virtual bool haveQAMPorts() const {return true;}
 };
 
-class XNIDAQMSeriesPulser : public XNIDAQmxPulser
+class XNIDAQDOPulser : public XNIDAQmxPulser
 {
  XNODE_OBJECT
  protected:
-  XNIDAQMSeriesPulser(const char *name, bool runtime,
+  XNIDAQDOPulser(const char *name, bool runtime,
    const shared_ptr<XScalarEntryList> &scalarentries,
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers)
     : XNIDAQmxPulser(name, runtime, scalarentries, interfaces, thermometers, drivers) {}
  public:
-  virtual ~XNIDAQMSeriesPulser() {}
+  virtual ~XNIDAQDOPulser() {}
 
  protected:
 	virtual void open() throw (XInterface::XInterfaceError &);
@@ -79,9 +79,6 @@ class XNIDAQMSeriesWithSSeriesPulser : public XNIDAQmxPulser
  
 	const shared_ptr<XNIDAQmxInterface> m_ao_interface;
 	shared_ptr<XNIDAQmxInterface> m_ctr_interface;
-	shared_ptr<XListener> m_lsnOnOpenAO, m_lsnOnCloseAO;
-	void onOpenAO(const shared_ptr<XInterface> &);
-	void onCloseAO(const shared_ptr<XInterface> &);
 };
 
 #endif //HAVE_NI_DAQMX

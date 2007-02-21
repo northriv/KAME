@@ -66,6 +66,7 @@ public:
     
   virtual bool isOpened() const = 0;
 
+  void start();
   void stop();
   
   XTalker<shared_ptr<XInterface> > &onOpen() {return m_tlkOnOpen;}
@@ -75,7 +76,6 @@ protected:
   //! This can be called even if has already closed.
   virtual void close() throw (XInterfaceError &) = 0;
 private:
-  void start();
   void onControlChanged(const shared_ptr<XValueNodeBase> &);
 
   const weak_ptr<XDriver> m_driver;

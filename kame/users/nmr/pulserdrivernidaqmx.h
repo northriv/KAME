@@ -56,7 +56,7 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
     //! minimum period of pulses [ms]
     virtual double minPulseWidth() const {return resolution();}
     
-	void openDO() throw (XInterface::XInterfaceError &);
+	void openDO(bool use_ao_clock = false) throw (XInterface::XInterfaceError &);
 	void openAODO() throw (XInterface::XInterfaceError &);
 private:
 	void startPulseGen() throw (XInterface::XInterfaceError &);
@@ -88,6 +88,7 @@ enum { NUM_AO_CH = 2};
 	unsigned int m_pausingCount;
 	unsigned int m_pausingBlankBefore;
 	unsigned int m_pausingBlankAfter;
+	std::string m_pausingSrcTerm;
 	unsigned int m_bufSizeHintDO;
 	unsigned int m_bufSizeHintAO;
 	unsigned int m_transferSizeHintDO;
