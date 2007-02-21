@@ -143,18 +143,19 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 	    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskGateCtr));
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanTime(m_taskGateCtr, 
 	    	gatectrdev.c_str(), "", DAQmx_Val_Seconds, DAQmx_Val_Low, 0.0,
-	    	pausing_term, pausing_term_blank));
+	    	pausing_term_blank, pausing_term));
 
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskGateCtr,
 			 DAQmx_Val_FiniteSamps, 1));
 	    intfCtr()->synchronizeClock(m_taskGateCtr);
 
 	    CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskGateCtr,
-			formatString("/%s/PFI1", intfCtr()->devName()).c_str(),
+			formatString("/%s/PFI4", intfCtr()->devName()).c_str(),
 	    	DAQmx_Val_Rising));
 
 		CHECK_DAQMX_RET(DAQmxSetStartTrigRetriggerable(m_taskGateCtr, true));
 		
+		CHECK_DAQMX_RET(DAQmxSetPauseTrigType(m_taskDOCtr, DAQmx_Val_DigLvl));
 		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigSrc(m_taskDOCtr, gatectrout.c_str()));
 		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskDOCtr, DAQmx_Val_High));
 	}
@@ -224,7 +225,7 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	    intfCtr()->synchronizeClock(m_taskAOCtr);
 
 	    CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskAOCtr,
-			formatString("/%s/PFI1", intfCtr()->devName()).c_str(),
+			formatString("/%s/PFI4", intfCtr()->devName()).c_str(),
 	    	DAQmx_Val_Rising));
 
 		CHECK_DAQMX_RET(DAQmxSetStartTrigRetriggerable(m_taskAOCtr, true));
@@ -240,6 +241,7 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	    
 		if(m_pausingBit) {
 			std::string gatectrout = formatString("/%s/Ctr1InternalOutput", intfAO()->devName()).c_str();
+			CHECK_DAQMX_RET(DAQmxSetPauseTrigType(m_taskAO, DAQmx_Val_DigLvl));
 			CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigSrc(m_taskAO, gatectrout.c_str()));
 			CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskAO, DAQmx_Val_High));
 		}
@@ -372,7 +374,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	
 	m_virtualTrigger->start(1e3 / resolution());
 
-	//prefilling of buffer.
+	//prefilling of the buffers.
 	if(m_taskAO != TASK_UNDEF)
 		genBankAO();
 	genBankDO();
@@ -415,12 +417,12 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		if(m_taskDOCtr != TASK_UNDEF)
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
 		if(m_taskAO != TASK_UNDEF) {
-			// stupid NIDAQmx needs wait before for sychronization.
+			// stupid NIDAQmx needs a wait before for sychronization.
 			msecsleep(1);
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
 		}
 		if(m_taskAOCtr != TASK_UNDEF) {
-			// stupid NIDAQmx needs wait before for sychronization.
+			// stupid NIDAQmx needs a wait before for sychronization.
 			msecsleep(1);
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAOCtr));
 		}
