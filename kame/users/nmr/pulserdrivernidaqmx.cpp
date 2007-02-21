@@ -20,15 +20,13 @@
 
 static const TaskHandle TASK_UNDEF = ((TaskHandle)-1);
 
-static const unsigned int PAUSING_CNT = 400;
-static const unsigned int PAUSING_CNT_BLANK = 10;
-
 XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
    const shared_ptr<XScalarEntryList> &scalarentries,
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers) :
     XNIDAQmxDriver<XPulser>(name, runtime, scalarentries, interfaces, thermometers, drivers),
+    m_pausingBit(0), m_pausingCount(0), m_pausingBlankBefore(0), m_pausingBlankAfter(0),
  	 m_running(false),
     m_resolutionDO(-1.0),
     m_resolutionAO(-1.0),
@@ -133,12 +131,16 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 				portSel(i)->setUIEnabled(false);
 		}
 
-	const double pausing_term = PAUSING_CNT * resolution() * 1e-3;
-	const double pausing_term_blank = PAUSING_CNT_BLANK * resolution() * 1e-3;
+		m_pausingBlankBefore = 2;
+		m_pausingBlankAfter = 1;
+		m_pausingCount = (m_pausingBlankBefore + m_pausingBlankAfter) * 20;
+		
 	    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskGateCtr));
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanTime(m_taskGateCtr, 
-	    	gatectrdev.c_str(), "", DAQmx_Val_Seconds, DAQmx_Val_Low, pausing_term_blank,
-	    	pausing_term_blank, pausing_term));
+	    	gatectrdev.c_str(), "", DAQmx_Val_Seconds, DAQmx_Val_Low, 
+	    	m_pausingBlankBefore * resolution() * 1e-3,
+	    	m_pausingBlankAfter * resolution() * 1e-3, 
+	    	m_pausingCount * resolution() * 1e-3));
 
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskGateCtr,
 			 DAQmx_Val_FiniteSamps, 1));
@@ -161,6 +163,13 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 	m_threadWriteDO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
 		 &XNIDAQmxPulser::executeWriteDO));
 	m_threadWriteDO->resume();
+
+	//committing is needed before queries.
+	if(m_taskDOCtr != TASK_UNDEF)
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
+	if(m_taskGateCtr != TASK_UNDEF)
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
+	CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
 }
 
 void
@@ -273,6 +282,12 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	m_threadWriteAO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
 		 &XNIDAQmxPulser::executeWriteAO));
 	m_threadWriteAO->resume();
+
+	//committing is needed before queries.
+	if(m_taskAOCtr != TASK_UNDEF)
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAOCtr, DAQmx_Val_Task_Commit));
+	if(m_taskAO != TASK_UNDEF)
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
 }
 
 void
@@ -315,7 +330,6 @@ XNIDAQmxPulser::close() throw (XInterface::XInterfaceError &)
 	intfAO()->stop();
 	intfCtr()->stop();
 }
-
 void
 XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 {
@@ -352,11 +366,11 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
  				mlock(&m_genPulseWaveAO[i][j]->at(0), m_genPulseWaveAO[i][j]->size() * sizeof(tRawAO));
 	 		}
 	 	}
+	 	//prepare pattern generation.
 		m_genLastPatItAO = m_genPatternListAO->begin();
 		m_genRestSampsAO = m_genPatternListAO->back().tonext;
 		m_genLastPatItDO = m_genPatternListDO->begin();
 		m_genRestSampsDO = m_genPatternListDO->back().tonext;
-		
 		m_genBufDO.resize(m_bufSizeHintDO);
 		if(m_taskAO != TASK_UNDEF) {
 			m_genAOIndex = 0;
@@ -374,29 +388,54 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];
 		mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);
 	
-		if(!m_running)
-			m_virtualTrigger->start(1e3 / resolution());
-	
-		//committing is needed before queries.
 		if(!m_running) {
-			if(m_taskDOCtr != TASK_UNDEF)
-				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
-			if(m_taskGateCtr != TASK_UNDEF)
-				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
-			if(m_taskAOCtr != TASK_UNDEF)
-				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAOCtr, DAQmx_Val_Task_Commit));
-			if(m_taskAO != TASK_UNDEF)
-				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
+			//synchronize the software trigger.
+			m_virtualTrigger->start(1e3 / resolution());
+		}
+		
+		if(m_running) {
+			//set write positions to the appropriate pos.
+			uInt64 curr_pos, total_cnt;
+			CHECK_DAQMX_RET(DAQmxGetWriteTotalSampPerChanGenerated(m_taskDO, &total_cnt));
+			CHECK_DAQMX_RET(DAQmxGetWriteCurrWritePos(m_taskDO, &curr_pos));
+			uInt32 bufsize;
+			CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
+			int32 offset = (total_cnt % bufsize) - (curr_pos % bufsize);
+		    CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, offset));
+			if(m_taskAO != TASK_UNDEF) {
+				uInt64 curr_pos, total_cnt;
+				CHECK_DAQMX_RET(DAQmxGetWriteTotalSampPerChanGenerated(m_taskDO, &total_cnt));
+				CHECK_DAQMX_RET(DAQmxGetWriteCurrWritePos(m_taskDO, &curr_pos));
+				uInt32 bufsize;
+				CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
+				int32 offset = (total_cnt % bufsize) - (curr_pos % bufsize);
+			    CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
+			}
+		}
+		else {
+			//clear on-board/off-board FIFOs.
+			uInt32 on_bufsize, off_bufsize;
+			CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &on_bufsize));
+			CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &off_bufsize));
+//			CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskDO, 0));
+//			CHECK_DAQMX_RET(DAQmxSetBufOutputBufSize(m_taskDO, 0));
+			CHECK_DAQMX_RET(DAQmxResetBufOutputOnbrdBufSize(m_taskDO));
+			CHECK_DAQMX_RET(DAQmxResetBufOutputBufSize(m_taskDO));
 			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
+			CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskDO, on_bufsize));
+			CHECK_DAQMX_RET(DAQmxSetBufOutputBufSize(m_taskDO, off_bufsize));
+			if(m_taskAO != TASK_UNDEF) {
+				CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &on_bufsize));
+				CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &off_bufsize));
+//				CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskAO, 0));
+//				CHECK_DAQMX_RET(DAQmxSetBufOutputBufSize(m_taskAO, 0));
+				CHECK_DAQMX_RET(DAQmxResetBufOutputOnbrdBufSize(m_taskAO));
+				CHECK_DAQMX_RET(DAQmxResetBufOutputBufSize(m_taskAO));
+				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
+				CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskAO, on_bufsize));
+				CHECK_DAQMX_RET(DAQmxSetBufOutputBufSize(m_taskAO, off_bufsize));
+			}
 		}
-
-		//set write positions to the first pos.
-		if(m_taskAO != TASK_UNDEF) {
-		    CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
-		    CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
-		}
-	    CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_FirstSample));
-	    CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
 		
 		//prefilling of the buffers.
 		if(m_taskAO != TASK_UNDEF)
@@ -408,7 +447,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			writeBufAO(terminated, suspended);
 		}
 		writeBufDO(terminated, suspended);
-		
+
 		m_suspendAO = false;
 		m_suspendDO = false;
 	}
@@ -456,7 +495,7 @@ XNIDAQmxPulser::stopPulseGen()
 	if(m_taskGateCtr != TASK_UNDEF)
 	    DAQmxStopTask(m_taskGateCtr);
     
-    msecsleep(10);
+/*    msecsleep(10);
     
 	if(m_taskDOCtr != TASK_UNDEF)
 		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Unreserve));
@@ -469,7 +508,7 @@ XNIDAQmxPulser::stopPulseGen()
 	CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Unreserve));
 
     msecsleep(10);
-}
+*/}
 inline XNIDAQmxPulser::tRawAO
 XNIDAQmxPulser::aoVoltToRaw(int ch, float64 volt)
 {
@@ -520,7 +559,6 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated, const atomic<bool> &s
 
  	const double dma_ao_period = resolutionQAM();
 	const unsigned int size = m_genBufAO.size() / NUM_AO_CH;
-	bool firsttime = true;
 	try {
 		const unsigned int num_samps = m_transferSizeHintAO;
 		for(unsigned int cnt = 0; cnt < size;) {
@@ -543,10 +581,6 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated, const atomic<bool> &s
 				DAQmx_Val_GroupByScanNumber,
 				&m_genBufAO[cnt * NUM_AO_CH],
 				&samps, NULL));
-			if(firsttime) {
-			   CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_CurrWritePos));
-			   firsttime = false;
-			}
 			cnt += samps;
 		}
 	}
@@ -570,7 +604,6 @@ XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated, const atomic<bool> &s
 
  	const double dma_do_period = resolution();
 	const unsigned int size = m_genBufDO.size();
-	bool firsttime = true;
 	try {
 		const unsigned int num_samps = m_transferSizeHintDO;
 		for(unsigned int cnt = 0; cnt < size;) {
@@ -593,10 +626,6 @@ XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated, const atomic<bool> &s
 				DAQmx_Val_GroupByScanNumber,
 				&m_genBufDO[cnt],
 				&samps, NULL));
-			if(firsttime) {
-			   CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_CurrWritePos));
-			   firsttime = false;
-			}
 			cnt += samps;
 		}
 	}
@@ -725,8 +754,9 @@ XNIDAQmxPulser::createNativePatterns()
   const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
 	
   const tRawDO pausingbit = m_pausingBit;
-  const uint64_t pausing_cnt = PAUSING_CNT;
-  const uint64_t pausing_cnt_blank = PAUSING_CNT_BLANK;
+  const uint64_t pausing_cnt = m_pausingCount;
+  const uint64_t pausing_cnt_blank_before = m_pausingBlankBefore + m_pausingBlankAfter;
+  const uint64_t pausing_cnt_blank_after = 1;
       
 	m_genPatternListNextDO.reset(new std::vector<GenPattern>);
 	m_genPatternListNextAO.reset(new std::vector<GenPattern>);
@@ -740,28 +770,28 @@ XNIDAQmxPulser::createNativePatterns()
 		const unsigned int patAO = pat / PAT_QAM_PHASE;
 		if(pausingbit && ((pat & PAT_QAM_PULSE_IDX_MASK) == 0)) {
 			patDO &= ~pausingbit;
-			while(tonext > pausing_cnt + pausing_cnt_blank * 3) {
+			while(tonext > pausing_cnt + pausing_cnt_blank_before + pausing_cnt_blank_after) {
 				//generate a pausing trigger.
 				{
-				 	GenPattern genpat(patDO | pausingbit, pausing_cnt_blank * 2, time);
+				 	GenPattern genpat(patDO | pausingbit, pausing_cnt_blank_before, time);
 			  		m_genPatternListNextDO->push_back(genpat);
 			  		genpat.pattern = 0;
 			  		genpat.tonext *= oversamp_ao;
 			  		genpat.time *= oversamp_ao;
 			  		m_genPatternListNextAO->push_back(genpat);
 				}
-				tonext -= pausing_cnt + pausing_cnt_blank * 2;
-				time += pausing_cnt + pausing_cnt_blank * 2;
+				tonext -= pausing_cnt + pausing_cnt_blank_before;
+				time += pausing_cnt + pausing_cnt_blank_before;
 				{
-				 	GenPattern genpat(patDO, pausing_cnt_blank, time);
+				 	GenPattern genpat(patDO, pausing_cnt_blank_after, time);
 			  		m_genPatternListNextDO->push_back(genpat);
 			  		genpat.pattern = 0;
 			  		genpat.tonext *= oversamp_ao;
 			  		genpat.time *= oversamp_ao;
 			  		m_genPatternListNextAO->push_back(genpat);
 				}
-				tonext -= pausing_cnt_blank;
-				time += pausing_cnt_blank;
+				tonext -= pausing_cnt_blank_after;
+				time += pausing_cnt_blank_after;
 			}
 		}
 		{
