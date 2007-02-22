@@ -39,7 +39,7 @@ XNIDAQmxInterface::sc_productInfoList[] = {
 //for synchronization.
 static std::string g_pciClockMaster("");
 static float64 g_pciClockMasterRate = 0.0;
-static bool g_daqmx_first_open = true;
+static int g_daqmx_open_cnt;
 static XMutex g_daqmx_mutex;
 static std::deque<shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> > g_daqmx_sync_routes;
 
@@ -247,6 +247,8 @@ XNIDAQmxInterface::XNIDAQmxRoute::XNIDAQmxRoute(const char*src, const char*dst, 
 	if(pret) {
 	int ret = 0;
 	    ret = DAQmxConnectTerms(src, dst, DAQmx_Val_DoNotInvertPolarity);
+	    if(ret < 0)
+			m_src.clear();
 		*pret = ret;
 	}
 	else {
@@ -280,9 +282,7 @@ char buf[256];
           	throw XOpenInterfaceError(__FILE__, __LINE__);
 
 	XScopedLock<XMutex> lock(g_daqmx_mutex);
-	if(g_daqmx_first_open) {
-		g_daqmx_first_open = false;
-
+	if(g_daqmx_open_cnt == 0) {
 //	    CHECK_DAQMX_RET(DAQmxCreateTask("", &g_task_sync_master));
 	char buf[2048];		
 		CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
@@ -291,7 +291,7 @@ char buf[256];
 		std::deque<std::string> pcidevs;
 		for(std::deque<std::string>::iterator it = list.begin(); it != list.end(); it++) {
 			// Device reset.
-			DAQmxResetDevice(it->c_str());
+//			DAQmxResetDevice(it->c_str());
 			// Search for master clock among PCI(e) devices.
 			int32 bus;
 			DAQmxGetDevBusType(it->c_str(), &bus);
@@ -321,27 +321,30 @@ char buf[256];
 				}
 			}
 			if(!g_pciClockMaster.length()) {
-				//Assuming M series only.
-				CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
-				std::string type = buf;
-				for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
-					if((pit->type == type) && (pit->series == std::string("M"))) {
-						//RTSI synchronizations.
-						shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
-						float64 freq = 10.0e6;
-						route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
-							formatString("/%s/10MHzRefClock", it->c_str()).c_str(),
-							formatString("/%s/RTSI7", it->c_str()).c_str()));
-						g_daqmx_sync_routes.push_back(route);
-						fprintf(stderr, "10MHz Reference Clock exported from %s\n", it->c_str());
-						g_pciClockMaster = *it;
-						g_pciClockMasterRate = freq;
-						break;
+				for(std::deque<std::string>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
+					//Assuming M series only.
+					CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
+					std::string type = buf;
+					for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
+						if((pit->type == type) && (pit->series == std::string("M"))) {
+							//RTSI synchronizations.
+							shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
+							float64 freq = 10.0e6;
+							route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
+								formatString("/%s/10MHzRefClock", it->c_str()).c_str(),
+								formatString("/%s/RTSI7", it->c_str()).c_str()));
+							g_daqmx_sync_routes.push_back(route);
+							fprintf(stderr, "10MHz Reference Clock exported from %s\n", it->c_str());
+							g_pciClockMaster = *it;
+							g_pciClockMasterRate = freq;
+							break;
+						}
 					}
 				}
 			}
 		}
 	}
+	g_daqmx_open_cnt++;
 
 	std::string devname = buf;
 	CHECK_DAQMX_RET(DAQmxGetDevProductType(devname.c_str(), buf, sizeof(buf)));
@@ -359,6 +362,14 @@ char buf[256];
 void
 XNIDAQmxInterface::close() throw (XInterfaceError &)
 {
-	m_devname.clear();
+	if(m_devname.length()) {
+		m_devname.clear();
+
+		XScopedLock<XMutex> lock(g_daqmx_mutex);
+		g_daqmx_open_cnt--;
+		if(g_daqmx_open_cnt == 0) {
+			g_daqmx_sync_routes.clear();
+		}
+	}
 }
 #endif //HAVE_NI_DAQMX
