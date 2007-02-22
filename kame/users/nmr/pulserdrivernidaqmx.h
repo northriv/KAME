@@ -98,8 +98,8 @@ enum { NUM_AO_CH = 2};
 	unsigned int m_transferSizeHintAO;
 	atomic<bool> m_running;
 	atomic<bool> m_suspendDO, m_suspendAO;
-	double m_resolutionDO, m_resolutionAO;
 protected:	
+	double m_resolutionDO, m_resolutionAO;
 	TaskHandle m_taskAO, m_taskDO,
 		 m_taskDOCtr, m_taskGateCtr;
 private:
