@@ -58,8 +58,6 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
     
 	void openDO(bool use_ao_clock = false) throw (XInterface::XInterfaceError &);
 	void openAODO() throw (XInterface::XInterfaceError &);
-	
-	void setPausingGateTerm(const char*term);
 private:
 	void startPulseGen() throw (XInterface::XInterfaceError &);
 	void stopPulseGen();
@@ -106,8 +104,8 @@ private:
 enum {PORTSEL_PAUSING = 16};
 	std::vector<tRawDO> m_genBufDO;
 	std::vector<tRawAO> m_genBufAO;
-	scoped_ptr<std::vector<tRawAO> > m_genPulseWaveAO[NUM_AO_CH][PAT_QAM_PULSE_IDX_MASK / PAT_QAM_PULSE_IDX];
-	scoped_ptr<std::vector<tRawAO> > m_genPulseWaveNextAO[NUM_AO_CH][PAT_QAM_PULSE_IDX_MASK / PAT_QAM_PULSE_IDX];
+	scoped_ptr<std::vector<tRawAO> > m_genPulseWaveAO[NUM_AO_CH][PAT_QAM_MASK / PAT_QAM_PHASE];
+	scoped_ptr<std::vector<tRawAO> > m_genPulseWaveNextAO[NUM_AO_CH][PAT_QAM_MASK / PAT_QAM_PHASE];
 enum { CAL_POLY_ORDER = 4};
 	float64 m_coeffAO[NUM_AO_CH][CAL_POLY_ORDER];
 	float64 m_coeffAODev[NUM_AO_CH][CAL_POLY_ORDER];

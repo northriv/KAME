@@ -28,7 +28,6 @@ class XNIDAQSSeriesPulser : public XNIDAQmxPulser
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers)
    : XNIDAQmxPulser(name, runtime, scalarentries, interfaces, thermometers, drivers) {
-		setPausingGateTerm(formatString("/%s/PFI4", intfCtr()->devName()).c_str());
    }
  public:
   virtual ~XNIDAQSSeriesPulser() {}
@@ -49,7 +48,6 @@ class XNIDAQDOPulser : public XNIDAQmxPulser
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers)
     : XNIDAQmxPulser(name, runtime, scalarentries, interfaces, thermometers, drivers) {
-		setPausingGateTerm(formatString("/%s/PFI4", intfCtr()->devName()).c_str());
     }
  public:
   virtual ~XNIDAQDOPulser() {}

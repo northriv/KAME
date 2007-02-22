@@ -27,7 +27,6 @@ XNIDAQMSeriesWithSSeriesPulser::XNIDAQMSeriesWithSSeriesPulser(const char *name,
 	m_ao_interface(XNode::create<XNIDAQmxInterface>("SubInterface", false,
             dynamic_pointer_cast<XDriver>(this->shared_from_this())))
 {
-	setPausingGateTerm(formatString("/%s/PFI4", intfCtr()->devName()).c_str());
     interfaces->insert(m_ao_interface);
     m_ao_interface->control()->setUIEnabled(false);
 }
