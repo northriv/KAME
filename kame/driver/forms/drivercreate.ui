@@ -8,8 +8,8 @@
         <rect>
             <x>0</x>
             <y>0</y>
-            <width>213</width>
-            <height>323</height>
+            <width>433</width>
+            <height>373</height>
         </rect>
     </property>
     <property name="caption">
@@ -97,6 +97,9 @@
             </item>
             <property name="name">
                 <cstring>m_lstType</cstring>
+            </property>
+            <property name="resizePolicy">
+                <enum>AutoOneFit</enum>
             </property>
         </widget>
         <widget class="QLayoutWidget" row="1" column="0">

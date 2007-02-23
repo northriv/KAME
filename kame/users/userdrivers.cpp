@@ -34,39 +34,39 @@
 #define LIST XDriverList
 DECLARE_TYPE_HOLDER
   
-REGISTER_TYPE(KE2000);
-REGISTER_TYPE(KE2182);
-REGISTER_TYPE(HP34420A);
-REGISTER_TYPE(CryoconM32);
-REGISTER_TYPE(CryoconM62);
-REGISTER_TYPE(LakeShore340);
-REGISTER_TYPE(AVS47IB);
-REGISTER_TYPE(ITC503);
-REGISTER_TYPE(PS120);
-REGISTER_TYPE(IPS120);
-REGISTER_TYPE(SR830);
-REGISTER_TYPE(AH2500A);
-REGISTER_TYPE(YK7651);
-REGISTER_TYPE(WAVEFACTORY);
-REGISTER_TYPE(TDS);
+REGISTER_TYPE(KE2000, "Keithley 2000/2001 DMM");
+REGISTER_TYPE(KE2182, "Keithley 2182 nanovolt meter");
+REGISTER_TYPE(HP34420A, "Agilent 34420A nanovolt meter");
+REGISTER_TYPE(CryoconM32, "Cryocon M32 temp. controller");
+REGISTER_TYPE(CryoconM62, "Cryocon M62 temp. controller");
+REGISTER_TYPE(LakeShore340, "LakeShore 340 temp. controller");
+REGISTER_TYPE(AVS47IB, "Picowatt AVS-47 bridge");
+REGISTER_TYPE(ITC503, "Oxford ITC-503 temp. controller");
+REGISTER_TYPE(PS120, "Oxford PS-120 magnet power supply");
+REGISTER_TYPE(IPS120, "Oxford IPS-120 magnet power supply");
+REGISTER_TYPE(SR830, "Stanford Research SR830 lock-in amp.");
+REGISTER_TYPE(AH2500A, "Andeen-Hagerling 2500A capacitance bridge");
+REGISTER_TYPE(YK7651, "YOKOGAWA 7651 dc source");
+REGISTER_TYPE(WAVEFACTORY, "NF WAVE-FACTORY pulse generator");
+REGISTER_TYPE(SG7130, "KENWOOD SG7130 signal generator");
+REGISTER_TYPE(SG7200, "KENWOOD SG7200 signal generator");
+REGISTER_TYPE(HP8643, "Agilent 8643 signal generator");
+REGISTER_TYPE(HP8648, "Agilent 8648 signal generator");
+REGISTER_TYPE(TDS, "Tektronix DSO");
 #ifdef HAVE_NI_DAQMX
-    REGISTER_TYPE_N_NAME(XNIDAQmxDSO, "DSO-NIDAQ");
-    REGISTER_TYPE_N_NAME(XNIDAQSSeriesPulser, "NMRPulser-NIDAQ-SSeries");
-    REGISTER_TYPE_N_NAME(XNIDAQDOPulser, "NMRPulser-NIDAQ-DOonly");
-    REGISTER_TYPE_N_NAME(XNIDAQMSeriesWithSSeriesPulser, "NMRPulser-NIDAQ-MSeriesWithSSeries");
+    REGISTER_TYPE(NIDAQmxDSO, "National Instruments DAQ as DSO");
+    REGISTER_TYPE(NIDAQSSeriesPulser, "NMR pulser NI-DAQ S Series");
+    REGISTER_TYPE(NIDAQDOPulser, "NMR pulser NI-DAQ digital port only");
+    REGISTER_TYPE(NIDAQMSeriesWithSSeriesPulser, "NMR pulser NI-DAQ M Series with S Series");
 #endif
-REGISTER_TYPE(H8Pulser);
-REGISTER_TYPE(SHPulser);
-REGISTER_TYPE(NMRPulseAnalyzer);
-REGISTER_TYPE(NMRSpectrum);
-REGISTER_TYPE(NMRFSpectrum);
-REGISTER_TYPE(NMRT1);
-REGISTER_TYPE(SG7130);
-REGISTER_TYPE(SG7200);
-REGISTER_TYPE(HP8643);
-REGISTER_TYPE(HP8648);
-REGISTER_TYPE(TestDriver);
-REGISTER_TYPE(MonteCarloDriver);
+REGISTER_TYPE(H8Pulser, "NMR pulser handmade-H8");
+REGISTER_TYPE(SHPulser, "NMR pulser handmade-SH2");
+REGISTER_TYPE(NMRPulseAnalyzer, "NMR FID/echo analyzer");
+REGISTER_TYPE(NMRSpectrum, "NMR field-swept spectrum measurement");
+REGISTER_TYPE(NMRFSpectrum, "NMR frequency-swept spectrum measurement");
+REGISTER_TYPE(NMRT1, "NMR relaxation measurement");
+REGISTER_TYPE(TestDriver, "Test driver: random number generation");
+REGISTER_TYPE(MonteCarloDriver, "Monte-Carlo simulation");
 
 shared_ptr<XNode>
 XDriverList::createByTypename(const std::string &type, const std::string& name) {

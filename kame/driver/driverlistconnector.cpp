@@ -149,8 +149,8 @@ XDriverListConnector::onCreateTouched(const shared_ptr<XNode> &)
    dlg->m_edName->setText(QString("NewDriver%1").arg(num));
    
    dlg->m_lstType->clear();
-   for(unsigned int i = 0; i < XDriverList::typenames().size(); i++) {
-        dlg->m_lstType->insertItem(XDriverList::typenames()[i].c_str());
+   for(unsigned int i = 0; i < XDriverList::typelabels().size(); i++) {
+        dlg->m_lstType->insertItem(XDriverList::typelabels()[i].c_str());
    }
    
    dlg->m_lstType->setCurrentItem(-1);

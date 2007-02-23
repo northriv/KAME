@@ -152,10 +152,11 @@ struct XTypeHolder
 {
      template <class tChild>
      struct Creator {
-         Creator(XTypeHolder &holder, const char *name) {
+         Creator(XTypeHolder &holder, const char *name, const char *label = 0L) {
             tFunc create_typed = _creator<tChild>;
             holder.creators.push_back(create_typed);
             holder.names.push_back(std::string(name));
+            holder.labels.push_back(std::string(label ? label : name));
          }
      };
      tFunc creator(const std::string &tp) {
@@ -165,14 +166,15 @@ struct XTypeHolder
          return empty_creator;
      }
      std::deque<tFunc> creators;
-     std::deque<std::string> names;
+     std::deque<std::string> names, labels;
 };
 
 #define DEFINE_TYPE_HOLDER_W_FUNC(func) \
   typedef XTypeHolder<func> TypeHolder; \
   static TypeHolder s_types; \
   static tCreateFunc creator(const std::string &tp) {return s_types.creator(tp);} \
-  static std::deque<std::string> &typenames() {return s_types.names;}
+  static std::deque<std::string> &typenames() {return s_types.names;} \
+  static std::deque<std::string> &typelabels() {return s_types.labels;}
 
 #define DEFINE_TYPE_HOLDER \
   typedef shared_ptr<XNode>(*tCreateFunc)(const char *, bool); \
@@ -200,12 +202,11 @@ struct XTypeHolder
 
 #define DECLARE_TYPE_HOLDER \
     LIST::TypeHolder LIST::s_types;
-#define _REGISTER_TYPE_2(type, name) LIST::TypeHolder::Creator<type> \
-    g_driver_type_ ## name(LIST::s_types, # name);
-#define REGISTER_TYPE(name) \
-    _REGISTER_TYPE_2(X ## name, name);
-#define REGISTER_TYPE_N_NAME(type, name) LIST::TypeHolder::Creator<type> \
-    g_driver_type_ ## type(LIST::s_types, name);
+
+#define _REGISTER_TYPE_2(type, name, label) LIST::TypeHolder::Creator<type> \
+    g_driver_type_ ## name(LIST::s_types, # name, label);
+    
+#define REGISTER_TYPE(type, label) _REGISTER_TYPE_2(X ## type, type, label)
 
 class XStringList : public  XListNode<XStringNode>
 {

@@ -25,10 +25,10 @@ XThermometerList::XThermometerList(const char *name, bool runtime)
 #define LIST XThermometerList
 DECLARE_TYPE_HOLDER
 
-REGISTER_TYPE(RawThermometer)
-REGISTER_TYPE(LakeShore)
-REGISTER_TYPE(ScientificInstruments)
-REGISTER_TYPE(ApproxThermometer)
+REGISTER_TYPE(RawThermometer, "Raw Values");
+REGISTER_TYPE(LakeShore, "LakeShore");
+REGISTER_TYPE(ScientificInstruments, "Scientific Instruments");
+REGISTER_TYPE(ApproxThermometer, "Cubic-spline");
 
 XThermometer::XThermometer(const char *name, bool runtime) : 
     XNode(name, runtime),
