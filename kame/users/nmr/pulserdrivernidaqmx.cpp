@@ -250,8 +250,23 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		m_pausingGateTerm = formatString("/%s/PFI4", intfCtr()->devName());
 		std::string gatectrdev = formatString("%s/ctr1", intfCtr()->devName());
 		m_pausingSrcTerm = formatString("/%s/Ctr1InternalOutput", intfCtr()->devName());
-	
-	    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskGateCtr));
+		//set initial state to high level for synchronization.
+		CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskGateCtr));
+		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanTime(m_taskGateCtr, 
+	    	gatectrdev.c_str(), "", DAQmx_Val_Seconds, DAQmx_Val_High, 
+	    	m_pausingBlankBefore * resolution() * 1e-3,
+	    	m_pausingBlankAfter * resolution() * 1e-3, 
+	    	m_pausingCount * resolution() * 1e-3));
+		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskGateCtr,
+			 DAQmx_Val_FiniteSamps, 1));
+	    intfCtr()->synchronizeClock(m_taskGateCtr);
+		CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
+		CHECK_DAQMX_RET(DAQmxWaitUntilTaskDone(m_taskGateCtr, 0.5));
+		CHECK_DAQMX_RET(DAQmxStopTask(m_taskGateCtr));
+		CHECK_DAQMX_RET(DAQmxClearTask(m_taskGateCtr));
+
+		//set initial state to low.
+		CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskGateCtr));
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanTime(m_taskGateCtr, 
 	    	gatectrdev.c_str(), "", DAQmx_Val_Seconds, DAQmx_Val_Low, 
 	    	m_pausingBlankBefore * resolution() * 1e-3,
@@ -295,10 +310,12 @@ XNIDAQmxPulser::setupTasksAODO() {
     int oversamp = lrint(resolution() / resolutionQAM());
 	openDO(oversamp == 1);
     if(oversamp != 1) {
-		//Synchronize ARM.
-		CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskDOCtr,
-			formatString("/%s/ao/StartTrigger", intfAO()->devName()).c_str(),
-			DAQmx_Val_Rising));
+    	if(!m_pausingBit) {
+			//Synchronize ARM.
+			CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskDOCtr,
+				formatString("/%s/ao/StartTrigger", intfAO()->devName()).c_str(),
+				DAQmx_Val_Rising));
+    	}
 		//for debugging.
 		CHECK_DAQMX_RET(DAQmxExportSignal(m_taskAO, DAQmx_Val_StartTrigger,
 			formatString("/%s/PFI6", intfAO()->devName()).c_str() ));
@@ -340,13 +357,13 @@ XNIDAQmxPulser::setupTasksAODO() {
 			&m_lowerLimAO[ch]));
 	}
 	
-	//override auto-setup.
+/*	//override auto-setup.
 	if(std::string(intfAO()->productType()) == "PCI-6111") {
 		//DMA is slower than interrupts!
 		CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, 
 	    	formatString("%s/ao0:1", intfAO()->devName()).c_str(),
 			DAQmx_Val_Interrupts));
-	}	
+	}*/	
 }
 void
 XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
@@ -358,13 +375,12 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		XScopedLock<XRecursiveMutex> lockAO(m_mutexAO);
 		XScopedLock<XRecursiveMutex> lockDO(m_mutexDO);
 		
-		//Non-stop restart has not been implimented.
 		stopPulseGen();
 		
 		setupTasks();
 		
 		//unlock memory.
-		munlock(&m_genBufDO[0], m_genBufDO.size() * sizeof(tRawDO));
+/*		munlock(&m_genBufDO[0], m_genBufDO.size() * sizeof(tRawDO));
 		munlock(&m_genBufAO[0], m_genBufAO.size() * sizeof(tRawAO));
 		if(m_genPatternListAO.get())
 			munlock(&m_genPatternListAO->at(0), m_genPatternListAO->size() * sizeof(GenPattern));
@@ -375,7 +391,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	 			if(m_genPulseWaveAO[i][j].get() && m_genPulseWaveAO[i][j]->size())
 	 				munlock(&m_genPulseWaveAO[i][j]->at(0), m_genPulseWaveAO[i][j]->size() * sizeof(tRawAO));
 	 		}
-	 	}
+	 	}*/
 		//swap generated pattern lists to new ones.
 	 	m_genPatternListAO.reset();
 	 	m_genPatternListNextAO.swap(m_genPatternListAO);
@@ -405,48 +421,17 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		}
 		
 		//memory locks.
-		mlock(&m_genBufDO[0], m_genBufDO.size() * sizeof(tRawDO));
+/*		mlock(&m_genBufDO[0], m_genBufDO.size() * sizeof(tRawDO));
 		if(m_taskAO != TASK_UNDEF) {
 			mlock(&m_genBufAO[0], m_genBufAO.size() * sizeof(tRawAO));
 		}
 	const void *FIRST_OF_MLOCK_MEMBER = &m_genPatternListAO;
 	const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];
 		mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);
-	
-		if(m_running) {
-			//set write positions to the appropriate pos.
-			uInt64 curr_pos, total_cnt;
-			CHECK_DAQMX_RET(DAQmxGetWriteTotalSampPerChanGenerated(m_taskDO, &total_cnt));
-			CHECK_DAQMX_RET(DAQmxGetWriteCurrWritePos(m_taskDO, &curr_pos));
-			uInt32 bufsize;
-			CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
-			int32 offset = (total_cnt % bufsize) - (curr_pos % bufsize);
-		    CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, offset));
-			if(m_taskAO != TASK_UNDEF) {
-				uInt64 curr_pos, total_cnt;
-				CHECK_DAQMX_RET(DAQmxGetWriteTotalSampPerChanGenerated(m_taskDO, &total_cnt));
-				CHECK_DAQMX_RET(DAQmxGetWriteCurrWritePos(m_taskDO, &curr_pos));
-				uInt32 bufsize;
-				CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
-				int32 offset = (total_cnt % bufsize) - (curr_pos % bufsize);
-			    CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, offset));
-			}
-		}
-		else {
-			//synchronize the software trigger.
-			m_virtualTrigger->start(1e3 / resolution());
-
-/*			//committing is needed before queries.
-			if(m_taskDOCtr != TASK_UNDEF)
-				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
-			if(m_taskGateCtr != TASK_UNDEF)
-				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
-			if(m_taskAO != TASK_UNDEF)
-				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
 */
-		}
-		
+		//synchronize the software trigger.
+		m_virtualTrigger->start(1e3 / resolution());
+
 		//prefilling of the buffers.
 		if(m_taskAO != TASK_UNDEF) {
 			genBankAO();
@@ -506,19 +491,17 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		}
 	}
 
-	if(!m_running) {
-		//slave must start before the master.
-		if(m_taskGateCtr != TASK_UNDEF)
-		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
-	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
-		if(m_taskDOCtr != TASK_UNDEF)
-		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
-		if(m_taskAO != TASK_UNDEF) {
-		    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
-		}
-		
-		m_running = true;	
+	//slave must start before the master.
+	if(m_taskGateCtr != TASK_UNDEF)
+	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
+    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
+	if(m_taskDOCtr != TASK_UNDEF)
+	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
+	if(m_taskAO != TASK_UNDEF) {
+	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
 	}
+	
+	m_running = true;	
 }
 void
 XNIDAQmxPulser::stopPulseGen()
@@ -540,47 +523,6 @@ XNIDAQmxPulser::stopPulseGen()
 	    DAQmxStopTask(m_taskDO);
 		if(m_taskGateCtr != TASK_UNDEF)
 		    DAQmxStopTask(m_taskGateCtr);
-/*
-		//reset counters/buffers.
-		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Reserve));
-		if(m_taskAO != TASK_UNDEF)
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Reserve));
-		if(m_taskGateCtr != TASK_UNDEF)
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Reserve));
-		if(m_taskDOCtr != TASK_UNDEF)
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Reserve));
-
-		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Verify));
-		if(m_taskAO != TASK_UNDEF)
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Verify));
-		if(m_taskGateCtr != TASK_UNDEF)
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Verify));
-		if(m_taskDOCtr != TASK_UNDEF)
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Verify));
-
-		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Unreserve));
-		if(m_taskAO != TASK_UNDEF)
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Unreserve));
-		if(m_taskGateCtr != TASK_UNDEF)
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Unreserve));
-		if(m_taskDOCtr != TASK_UNDEF)
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Unreserve));
-
-		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Verify));
-		if(m_taskAO != TASK_UNDEF)
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Verify));
-		if(m_taskGateCtr != TASK_UNDEF)
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Verify));
-		if(m_taskDOCtr != TASK_UNDEF)
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Verify));
-
-		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Reserve));
-		if(m_taskAO != TASK_UNDEF)
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Reserve));
-		if(m_taskGateCtr != TASK_UNDEF)
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Reserve));
-		if(m_taskDOCtr != TASK_UNDEF)
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Reserve));*/
 
 		m_running = false;
 	}

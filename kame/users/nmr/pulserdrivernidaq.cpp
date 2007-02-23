@@ -56,10 +56,10 @@ XNIDAQMSeriesWithSSeriesPulser::open() throw (XInterface::XInterfaceError &)
 	if(!intfAO()->isOpened())
 		throw XInterface::XInterfaceError(KAME::i18n("Opening M series device failed."), __FILE__, __LINE__);
 	//override auto-setup.
-	if(std::string(intfAO()->productType()) == "PCI-6111") {
+/*	if(std::string(intfAO()->productType()) == "PCI-6111") {
 		m_resolutionAO = 1e-3;
 		m_resolutionDO = 1e-3;
-	}
+	}*/
 	if(std::string(intfAO()->productSeries()) != "S")
 		throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
  	openAODO();
