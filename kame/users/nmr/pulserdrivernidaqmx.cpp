@@ -427,7 +427,6 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			genBankAO();
 		genBankDO();
 
-		int32 samps;
 		if(m_taskAO != TASK_UNDEF) {
 			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
 			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
@@ -452,7 +451,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		for(unsigned int cnt = 0; cnt < size;) {
 			int32 samps;
 			samps = std::min(size - cnt, m_transferSizeHintDO);
-			CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, m_genBufDO.size(),
+			CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, samps,
 					false, 0.5, 
 					DAQmx_Val_GroupByScanNumber,
 					&m_genBufDO[cnt],
