@@ -858,7 +858,7 @@ XNIDAQmxPulser::createNativePatterns()
 	 	time = it->time;
 	}
 
-	if(m_taskAO != TASK_UNDEF) {
+	if(haveQAMPorts()) {
 		const double offset[] = {*qamOffset1(), *qamOffset2()};
 		const double level[] = {*qamLevel1(), *qamLevel2()};
 		  			  	
