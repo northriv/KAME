@@ -238,6 +238,10 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 		CHECK_DAQMX_RET(DAQmxSetPauseTrigType(m_taskAO, DAQmx_Val_DigLvl));
 		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigSrc(m_taskAO, m_pausingSrcTerm.c_str()));
 		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskAO, DAQmx_Val_High));
+		//Dummy trigger.
+		CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskAO,
+			formatString("/%s/20MHzTimebase", intfAO()->devName()).c_str(),
+			DAQmx_Val_Rising));
 	}
 
 	m_virtualTrigger->setArmTerm(
@@ -418,7 +422,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			if(m_taskAO != TASK_UNDEF)
 				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
 			//clear on-board/off-board FIFOs.
-/*			uInt32 on_bufsize, off_bufsize;
+			uInt32 on_bufsize, off_bufsize;
 			CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &on_bufsize));
 			CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &off_bufsize));
 //			CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskDO, 0));
@@ -440,7 +444,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 				CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskAO, on_bufsize));
 				CHECK_DAQMX_RET(DAQmxSetBufOutputBufSize(m_taskAO, off_bufsize));
 				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
-			}*/
+			}
 
 		}
 		
@@ -499,6 +503,22 @@ XNIDAQmxPulser::stopPulseGen()
 		    DAQmxStopTask(m_taskGateCtr);
 
 		//reset counters/buffers.
+/*		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Reserve));
+		if(m_taskAO != TASK_UNDEF)
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Reserve));
+		if(m_taskGateCtr != TASK_UNDEF)
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Reserve));
+		if(m_taskDOCtr != TASK_UNDEF)
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Reserve));
+
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Verify));
+		if(m_taskAO != TASK_UNDEF)
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Verify));
+		if(m_taskGateCtr != TASK_UNDEF)
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Verify));
+		if(m_taskDOCtr != TASK_UNDEF)
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Verify));
+*/
 		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Reserve));
 		if(m_taskAO != TASK_UNDEF)
 			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Reserve));
