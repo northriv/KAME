@@ -574,18 +574,19 @@ XNIDAQmxDSO::startSequence()
 	m_recordLength = m_record.size() / NUM_MAX_CH;
     
 	if(m_virtualTrigger) {
-		uInt32 bufsize = std::max(m_recordLength * 4, (unsigned int)lrint(0.1 / m_interval));
-		CHECK_DAQMX_RET(DAQmxCfgInputBuffer(m_task, bufsize));
-		m_virtualTrigger->setBlankTerm(m_interval * m_recordLength);
-		uInt64 total_samps;
-		CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
-		m_virtualTrigger->clear(total_samps, 1.0 / m_interval);
+		CHECK_DAQMX_RET(DAQmxSetSampQuantSampMode(m_task, DAQmx_Val_ContSamps));
+		CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstSample));
+		if(m_running) {
+			uInt32 bufsize = std::max(m_recordLength * 4, (unsigned int)lrint(0.1 / m_interval));
+			CHECK_DAQMX_RET(DAQmxCfgInputBuffer(m_task, bufsize));
+			m_virtualTrigger->setBlankTerm(m_interval * m_recordLength);
+			uInt64 total_samps;
+			CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
+			m_virtualTrigger->clear(total_samps, 1.0 / m_interval);
+		}
 		if(!m_lsnOnVirtualTrigStart)
 			m_lsnOnVirtualTrigStart = m_virtualTrigger->onStart().connectWeak(false,
 				shared_from_this(), &XNIDAQmxDSO::onVirtualTrigStart);
-
-	    CHECK_DAQMX_RET(DAQmxSetSampQuantSampMode(m_task, DAQmx_Val_ContSamps));
-		CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstSample));
 	}
 	else {
 		if(m_running) {
@@ -593,7 +594,8 @@ XNIDAQmxDSO::startSequence()
 		    if(m_task != TASK_UNDEF)
 		    	DAQmxStopTask(m_task);
 		}
-	    CHECK_DAQMX_RET(DAQmxSetSampQuantSampMode(m_task, DAQmx_Val_FiniteSamps));
+		CHECK_DAQMX_RET(DAQmxSetSampQuantSampMode(m_task, DAQmx_Val_FiniteSamps));
+		CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_CurrReadPos));
 		uInt32 num_ch;
 	    CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
 	    if(num_ch > 0) {
