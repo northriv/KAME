@@ -478,7 +478,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	for(int i = 0;; i++) {
 		uInt32 space;
 		CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskDO, &space));
-		if(space == 0) break;
+		if(space < m_transferSizeHintDO) break;
 		if(i > 400)
 			throw XInterface::XInterfaceError(KAME::i18n("Writing thread aborted."), __FILE__, __LINE__);
 		msecsleep(1);
@@ -487,7 +487,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		for(int i = 0;; i++) {
 			uInt32 space;
 			CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskAO, &space));
-			if(space == 0) break;
+			if(space < m_transferSizeHintAO) break;
 			if(i > 400)
 				throw XInterface::XInterfaceError(KAME::i18n("Writing thread aborted."), __FILE__, __LINE__);
 			msecsleep(1);
