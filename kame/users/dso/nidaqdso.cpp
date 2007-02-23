@@ -188,7 +188,6 @@ XNIDAQmxDSO::disableTrigger()
     	m_virtualTrigger->disconnect();
     m_lsnOnVirtualTrigStart.reset();
     m_virtualTrigger.reset();
-	CHECK_DAQMX_RET(DAQmxTaskControl(m_task, DAQmx_Val_Task_Commit));	
 }
 void
 XNIDAQmxDSO::setupTrigger()
@@ -265,8 +264,6 @@ XNIDAQmxDSO::setupTrigger()
 	    CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_task, DAQmx_Val_OverwriteUnreadSamps));
     }
     
-	CHECK_DAQMX_RET(DAQmxTaskControl(m_task, DAQmx_Val_Task_Commit));	
-	
 	startSequence();
 }
 void
