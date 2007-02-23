@@ -61,7 +61,7 @@ XNIDAQmxPulser::~XNIDAQmxPulser()
 }
 
 void
-XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
+XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XInterface::XInterfaceError &)
 {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
 
@@ -72,7 +72,7 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 		m_resolutionDO = 1.0 / intfDO()->maxDORate(1);
 	fprintf(stderr, "Using DO rate = %f[kHz]\n", 1.0/m_resolutionDO);
 
-	setupTasksDO();
+	setupTasksDO(use_ao_clock);
 		
 	m_suspendDO = true; 	
 	m_threadWriteDO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
@@ -289,7 +289,7 @@ XNIDAQmxPulser::setupTasksAODO() {
     intfAO()->synchronizeClock(m_taskAO);
     
     int oversamp = lrint(resolution() / resolutionQAM());
-	setupTasksDO(oversamp == 1);
+	openDO(oversamp == 1);
     if(oversamp != 1) {
 		//Synchronize ARM.
 		CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskDOCtr,

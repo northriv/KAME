@@ -56,7 +56,7 @@ class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
     //! minimum period of pulses [ms]
     virtual double minPulseWidth() const {return resolution();}
     
-	void openDO() throw (XInterface::XInterfaceError &);
+	void openDO(bool use_ao_clock = false) throw (XInterface::XInterfaceError &);
 	void openAODO() throw (XInterface::XInterfaceError &);
 private:
 	void startPulseGen() throw (XInterface::XInterfaceError &);
