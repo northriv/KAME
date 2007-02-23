@@ -97,7 +97,6 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	if(intfAO()->maxAORate(2) == 0)
 		throw XInterface::XInterfaceError(KAME::i18n("HW-timed transfer needed."), __FILE__, __LINE__);
 	
-	unsigned int oversamp = 1;
 	if((m_resolutionDO <= 0.0) || (m_resolutionAO <= 0.0))
 	{
 		double do_rate = intfDO()->maxDORate(1);
@@ -105,7 +104,7 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 		if(ao_rate <= do_rate)
 			do_rate = ao_rate;
 		else {
-			oversamp = lrint(ao_rate / do_rate);
+			int oversamp = lrint(ao_rate / do_rate);
 			ao_rate = do_rate * oversamp;
 		}
 		m_resolutionDO = 1.0 / do_rate;
@@ -290,7 +289,8 @@ XNIDAQmxPulser::setupTasksAODO() {
 		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
     intfAO()->synchronizeClock(m_taskAO);
     
-	openDO(oversamp == 1);
+    int oversamp = lrint(resolution() / resolutionQAM());
+	setupTasksDO(oversamp == 1);
     if(oversamp != 1) {
 		//Synchronize ARM.
 		CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskDOCtr,
