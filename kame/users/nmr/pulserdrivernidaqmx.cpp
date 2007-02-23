@@ -72,7 +72,7 @@ XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 		m_resolutionDO = 1.0 / intfDO()->maxDORate(1);
 	fprintf(stderr, "Using DO rate = %f[kHz]\n", 1.0/m_resolutionDO);
 
-//	setupTasksDO();
+	setupTasksDO();
 		
 	m_suspendDO = true; 	
 	m_threadWriteDO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
@@ -112,7 +112,7 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	}
 	fprintf(stderr, "Using AO rate = %f[kHz]\n", 1.0/m_resolutionAO);
 
-//	setupTasksAODO();
+	setupTasksAODO();
 
 	m_suspendAO = true;
 	m_threadWriteAO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
@@ -233,21 +233,11 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	m_transferSizeHintDO = std::min((unsigned int)bufsize / 2, m_bufSizeHintDO);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
 	
-	m_pausingBit = selectedPorts(PORTSEL_PAUSING);
 	if(m_pausingBit) {
 		m_pausingGateTerm = formatString("/%s/PFI4", intfCtr()->devName());
 		std::string gatectrdev = formatString("%s/ctr1", intfCtr()->devName());
 		m_pausingSrcTerm = formatString("/%s/Ctr1InternalOutput", intfCtr()->devName());
 	
-		for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
-			if(m_pausingBit & (1u << i))
-				portSel(i)->setUIEnabled(false);
-		}
-
-		m_pausingBlankBefore = 2;
-		m_pausingBlankAfter = 1;
-		m_pausingCount = (m_pausingBlankBefore + m_pausingBlankAfter) * 20;
-		
 	    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskGateCtr));
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanTime(m_taskGateCtr, 
 	    	gatectrdev.c_str(), "", DAQmx_Val_Seconds, DAQmx_Val_Low, 
@@ -805,6 +795,13 @@ void
 XNIDAQmxPulser::createNativePatterns()
 {
   const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
+
+	m_pausingBit = selectedPorts(PORTSEL_PAUSING);
+	if(m_pausingBit) {
+		m_pausingBlankBefore = 2;
+		m_pausingBlankAfter = 1;
+		m_pausingCount = (m_pausingBlankBefore + m_pausingBlankAfter) * 20;
+	}
 	
   const tRawDO pausingbit = m_pausingBit;
   const uint64_t pausing_cnt = m_pausingCount;
