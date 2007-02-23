@@ -61,16 +61,9 @@ XNIDAQmxPulser::~XNIDAQmxPulser()
 }
 
 void
-XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XInterface::XInterfaceError &)
+XNIDAQmxPulser::openDO() throw (XInterface::XInterfaceError &)
 {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
-
-	if(m_taskDO != TASK_UNDEF)
-	    DAQmxClearTask(m_taskDO);
-	if(m_taskDOCtr != TASK_UNDEF)
-	    DAQmxClearTask(m_taskDOCtr);
-	if(m_taskGateCtr != TASK_UNDEF)
-	    DAQmxClearTask(m_taskGateCtr); 
 
 	if(intfDO()->maxDORate(1) == 0)
 		throw XInterface::XInterfaceError(KAME::i18n("HW-timed transfer needed."), __FILE__, __LINE__);
@@ -78,6 +71,118 @@ XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XInterface::XInterfaceError &)
 	if(m_resolutionDO <= 0.0)
 		m_resolutionDO = 1.0 / intfDO()->maxDORate(1);
 	fprintf(stderr, "Using DO rate = %f[kHz]\n", 1.0/m_resolutionDO);
+
+//	setupTasksDO();
+		
+	m_suspendDO = true; 	
+	m_threadWriteDO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
+		 &XNIDAQmxPulser::executeWriteDO));
+	m_threadWriteDO->resume();
+
+/*	if(m_taskDOCtr != TASK_UNDEF)
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Reserve));
+	if(m_taskGateCtr != TASK_UNDEF)
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Reserve));
+	CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Reserve));
+*/
+}
+
+void
+XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
+{
+	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
+	
+	if(intfDO()->maxDORate(1) == 0)
+		throw XInterface::XInterfaceError(KAME::i18n("HW-timed transfer needed."), __FILE__, __LINE__);
+	if(intfAO()->maxAORate(2) == 0)
+		throw XInterface::XInterfaceError(KAME::i18n("HW-timed transfer needed."), __FILE__, __LINE__);
+	
+	unsigned int oversamp = 1;
+	if((m_resolutionDO <= 0.0) || (m_resolutionAO <= 0.0))
+	{
+		double do_rate = intfDO()->maxDORate(1);
+		double ao_rate = intfAO()->maxAORate(2);
+		if(ao_rate <= do_rate)
+			do_rate = ao_rate;
+		else {
+			oversamp = lrint(ao_rate / do_rate);
+			ao_rate = do_rate * oversamp;
+		}
+		m_resolutionDO = 1.0 / do_rate;
+		m_resolutionAO = 1.0 / ao_rate;
+	}
+	fprintf(stderr, "Using AO rate = %f[kHz]\n", 1.0/m_resolutionAO);
+
+//	setupTasksAODO();
+
+	m_suspendAO = true;
+	m_threadWriteAO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
+		 &XNIDAQmxPulser::executeWriteAO));
+	m_threadWriteAO->resume();
+
+/*	if(m_taskAO != TASK_UNDEF)
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Reserve));
+*/
+}
+
+void
+XNIDAQmxPulser::close() throw (XInterface::XInterfaceError &)
+{
+	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
+
+	stopPulseGen();
+	
+	if(m_threadWriteAO) {
+		m_threadWriteAO->terminate();
+	}
+	if(m_threadWriteDO) {
+		m_threadWriteDO->terminate();
+	}
+
+	XScopedLock<XRecursiveMutex> lockAO(m_mutexAO);
+	XScopedLock<XRecursiveMutex> lockDO(m_mutexDO);
+	
+	clearTasks();
+
+	m_resolutionDO = -1.0;    
+	m_resolutionAO = -1.0;    
+
+	intfDO()->stop();
+	intfAO()->stop();
+	intfCtr()->stop();
+}
+void 
+XNIDAQmxPulser::clearTasks() {
+	if(m_taskAO != TASK_UNDEF)
+	    DAQmxClearTask(m_taskAO);
+	if(m_taskDO != TASK_UNDEF)
+	    DAQmxClearTask(m_taskDO);
+	if(m_taskDOCtr != TASK_UNDEF)
+	    DAQmxClearTask(m_taskDOCtr);
+	if(m_taskGateCtr != TASK_UNDEF)
+	    DAQmxClearTask(m_taskGateCtr);
+	m_taskAO = TASK_UNDEF;
+	m_taskDO = TASK_UNDEF;
+	m_taskDOCtr = TASK_UNDEF;
+	m_taskGateCtr = TASK_UNDEF;
+}
+void
+XNIDAQmxPulser::setupTasks() {
+	if(haveQAMPorts()) {
+		setupTasksAODO();
+	}
+	else {
+		setupTasksDO();
+	}
+}
+void
+XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
+	if(m_taskDO != TASK_UNDEF)
+	    DAQmxClearTask(m_taskDO);
+	if(m_taskDOCtr != TASK_UNDEF)
+	    DAQmxClearTask(m_taskDOCtr);
+	if(m_taskGateCtr != TASK_UNDEF)
+	    DAQmxClearTask(m_taskGateCtr); 
 
 	float64 freq = 1e3 / resolution();
 
@@ -167,50 +272,11 @@ XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XInterface::XInterfaceError &)
 			CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskDOCtr, DAQmx_Val_High));
 		}
 	}
-	
-	m_suspendDO = true; 	
-	m_threadWriteDO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
-		 &XNIDAQmxPulser::executeWriteDO));
-	m_threadWriteDO->resume();
-
-/*	if(m_taskDOCtr != TASK_UNDEF)
-		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Reserve));
-	if(m_taskGateCtr != TASK_UNDEF)
-		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Reserve));
-	CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Reserve));
-*/
 }
-
 void
-XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
-{
-	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
-
-	stopPulseGen();
-	
+XNIDAQmxPulser::setupTasksAODO() {
 	if(m_taskAO != TASK_UNDEF)
 	    DAQmxClearTask(m_taskAO);
-	
-	if(intfDO()->maxDORate(1) == 0)
-		throw XInterface::XInterfaceError(KAME::i18n("HW-timed transfer needed."), __FILE__, __LINE__);
-	if(intfAO()->maxAORate(2) == 0)
-		throw XInterface::XInterfaceError(KAME::i18n("HW-timed transfer needed."), __FILE__, __LINE__);
-	
-	unsigned int oversamp = 1;
-	if((m_resolutionDO <= 0.0) || (m_resolutionAO <= 0.0))
-	{
-		double do_rate = intfDO()->maxDORate(1);
-		double ao_rate = intfAO()->maxAORate(2);
-		if(ao_rate <= do_rate)
-			do_rate = ao_rate;
-		else {
-			oversamp = lrint(ao_rate / do_rate);
-			ao_rate = do_rate * oversamp;
-		}
-		m_resolutionDO = 1.0 / do_rate;
-		m_resolutionAO = 1.0 / ao_rate;
-	}
-	fprintf(stderr, "Using AO rate = %f[kHz]\n", 1.0/m_resolutionAO);
 	
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskAO));
 	CHECK_DAQMX_RET(DAQmxCreateAOVoltageChan(m_taskAO,
@@ -277,53 +343,6 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 			formatString("%s/ao%d", intfAO()->devName(), ch).c_str(),
 			&m_lowerLimAO[ch]));
 	}
-
-	m_suspendAO = true;
-	m_threadWriteAO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
-		 &XNIDAQmxPulser::executeWriteAO));
-	m_threadWriteAO->resume();
-
-/*	if(m_taskAO != TASK_UNDEF)
-		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Reserve));
-*/
-}
-
-void
-XNIDAQmxPulser::close() throw (XInterface::XInterfaceError &)
-{
-	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
-
-	stopPulseGen();
-	
-	if(m_threadWriteAO) {
-		m_threadWriteAO->terminate();
-	}
-	if(m_threadWriteDO) {
-		m_threadWriteDO->terminate();
-	}
-
-	XScopedLock<XRecursiveMutex> lockAO(m_mutexAO);
-	XScopedLock<XRecursiveMutex> lockDO(m_mutexDO);
-	
-	if(m_taskAO != TASK_UNDEF)
-	    DAQmxClearTask(m_taskAO);
-	if(m_taskDO != TASK_UNDEF)
-	    DAQmxClearTask(m_taskDO);
-	if(m_taskDOCtr != TASK_UNDEF)
-	    DAQmxClearTask(m_taskDOCtr);
-	if(m_taskGateCtr != TASK_UNDEF)
-	    DAQmxClearTask(m_taskGateCtr);
-	m_taskAO = TASK_UNDEF;
-	m_taskDO = TASK_UNDEF;
-	m_taskDOCtr = TASK_UNDEF;
-	m_taskGateCtr = TASK_UNDEF;
-
-	m_resolutionDO = -1.0;    
-	m_resolutionAO = -1.0;    
-
-	intfDO()->stop();
-	intfAO()->stop();
-	intfCtr()->stop();
 }
 void
 XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
@@ -337,6 +356,8 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		
 		//Non-stop restart has not been implimented.
 		stopPulseGen();
+		
+		setupTasks();
 		
 		//unlock memory.
 		munlock(&m_genBufDO[0], m_genBufDO.size() * sizeof(tRawDO));
@@ -542,6 +563,8 @@ XNIDAQmxPulser::stopPulseGen()
 
 		m_running = false;
 	}
+	
+	clearTasks();
 }
 inline XNIDAQmxPulser::tRawAO
 XNIDAQmxPulser::aoVoltToRaw(int ch, float64 volt)
