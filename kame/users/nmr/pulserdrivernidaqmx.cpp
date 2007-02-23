@@ -173,12 +173,11 @@ XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XInterface::XInterfaceError &)
 		 &XNIDAQmxPulser::executeWriteDO));
 	m_threadWriteDO->resume();
 
-/*	if(m_taskDOCtr != TASK_UNDEF)
+	if(m_taskDOCtr != TASK_UNDEF)
 		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Reserve));
 	if(m_taskGateCtr != TASK_UNDEF)
 		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Reserve));
 	CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Reserve));
-*/
 }
 
 void
@@ -283,9 +282,8 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 		 &XNIDAQmxPulser::executeWriteAO));
 	m_threadWriteAO->resume();
 
-/*	if(m_taskAO != TASK_UNDEF)
+	if(m_taskAO != TASK_UNDEF)
 		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Reserve));
-*/
 }
 
 void
