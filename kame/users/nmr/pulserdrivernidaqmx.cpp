@@ -173,11 +173,12 @@ XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XInterface::XInterfaceError &)
 		 &XNIDAQmxPulser::executeWriteDO));
 	m_threadWriteDO->resume();
 
-	if(m_taskDOCtr != TASK_UNDEF)
+/*	if(m_taskDOCtr != TASK_UNDEF)
 		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Reserve));
 	if(m_taskGateCtr != TASK_UNDEF)
 		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Reserve));
 	CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Reserve));
+*/
 }
 
 void
@@ -282,8 +283,9 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 		 &XNIDAQmxPulser::executeWriteAO));
 	m_threadWriteAO->resume();
 
-	if(m_taskAO != TASK_UNDEF)
+/*	if(m_taskAO != TASK_UNDEF)
 		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Reserve));
+*/
 }
 
 void
@@ -425,28 +427,41 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			genBankAO();
 		genBankDO();
 
-		uInt32 samps;
+		int32 samps;
 		if(m_taskAO != TASK_UNDEF) {
 			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
 			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
-			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, m_genBufAO.size() / NUM_AO_CH,
-				false, 0.5, 
-				DAQmx_Val_GroupByScanNumber,
-				&m_genBufAO[0],
-				&samps, NULL));
-		   CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_CurrWritePos));
-			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
+			unsigned int size = m_genBufAO.size() / NUM_AO_CH;
+			for(unsigned int cnt = 0; cnt < size;) {
+				int32 samps;
+				samps = std::min(size - cnt, m_transferSizeHintAO);
+				CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, samps,
+					false, 0.5, 
+					DAQmx_Val_GroupByScanNumber,
+					&m_genBufAO[cnt * NUM_AO_CH],
+					&samps, NULL));
+				cnt += samps;
+				CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_CurrWritePos));
+				CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
+			}
+			genBankAO();
 		}
 		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_FirstSample));
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
-		CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, m_genBufDO.size(),
-				false, 0.5, 
-				DAQmx_Val_GroupByScanNumber,
-				&m_genBufDO[0],
-				&samps, NULL));
-		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_CurrWritePos));
-		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
-
+		unsigned int size = m_genBufDO.size();
+		for(unsigned int cnt = 0; cnt < size;) {
+			int32 samps;
+			samps = std::min(size - cnt, m_transferSizeHintDO);
+			CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, m_genBufDO.size(),
+					false, 0.5, 
+					DAQmx_Val_GroupByScanNumber,
+					&m_genBufDO[cnt],
+					&samps, NULL));
+			cnt += samps;
+			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_CurrWritePos));
+			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
+		}
+		genBankDO();
 		m_suspendAO = false;
 		m_suspendDO = false;
 	}
