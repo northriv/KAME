@@ -722,19 +722,19 @@ XNIDAQmxDSO::onSingleChanged(const shared_ptr<XValueNodeBase> &) {
 }
 void
 XNIDAQmxDSO::onTrigPosChanged(const shared_ptr<XValueNodeBase> &) {
-    setupTrigger();
+    setupTiming();
 }
 void
 XNIDAQmxDSO::onTrigSourceChanged(const shared_ptr<XValueNodeBase> &) {
-    setupTrigger();
+    setupTiming();
 }
 void
 XNIDAQmxDSO::onTrigLevelChanged(const shared_ptr<XValueNodeBase> &) {
-    setupTrigger();
+    setupTiming();
 }
 void
 XNIDAQmxDSO::onTrigFallingChanged(const shared_ptr<XValueNodeBase> &) {
-    setupTrigger();
+    setupTiming();
 }
 void
 XNIDAQmxDSO::onTimeWidthChanged(const shared_ptr<XValueNodeBase> &) {

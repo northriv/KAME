@@ -46,6 +46,10 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
 	}
 	m_virtualTrigger.reset(new XNIDAQmxInterface::VirtualTrigger(name, NUM_DO_PORTS));
 	XNIDAQmxInterface::VirtualTrigger::registerVirtualTrigger(m_virtualTrigger);
+	
+	m_pausingBlankBefore = 1;
+	m_pausingBlankAfter = 1;
+	m_pausingCount = (m_pausingBlankBefore + m_pausingBlankAfter) * 50;
 }
 
 XNIDAQmxPulser::~XNIDAQmxPulser()
@@ -335,6 +339,14 @@ XNIDAQmxPulser::setupTasksAODO() {
 			formatString("%s/ao%d", intfAO()->devName(), ch).c_str(),
 			&m_lowerLimAO[ch]));
 	}
+	
+	//override auto-setup.
+	if(std::string(intfAO()->productType()) == "PCI-6111") {
+		//DMA is slower than interrupts!
+		CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, 
+	    	formatString("%s/ao0:1", intfAO()->devName()).c_str(),
+			DAQmx_Val_Interrupts));
+	}	
 }
 void
 XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
@@ -634,8 +646,8 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated, const atomic<bool> &s
 				if(tryOutputSuspend(suspended, m_mutexAO, terminated))
 					return;
 			uInt32 space;
-				int ret = DAQmxGetWriteSpaceAvail(m_taskAO, &space);
-				if(!ret && (space >= (uInt32)samps))
+				CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskAO, &space));
+				if(space >= (uInt32)samps)
 					break;
 				usleep(lrint(1e3 * samps * dma_ao_period));
 			}
@@ -678,8 +690,8 @@ XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated, const atomic<bool> &s
 				if(tryOutputSuspend(suspended, m_mutexDO, terminated))
 					return;
 			uInt32 space;
-				int ret = DAQmxGetWriteSpaceAvail(m_taskDO, &space);
-				if(!ret && (space >= (uInt32)samps))
+				CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskDO, &space));
+				if(space >= (uInt32)samps)
 					break;
 				usleep(lrint(1e3 * samps * dma_do_period));
 			}
@@ -818,11 +830,6 @@ XNIDAQmxPulser::createNativePatterns()
   const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
 
 	m_pausingBit = selectedPorts(PORTSEL_PAUSING);
-	if(m_pausingBit) {
-		m_pausingBlankBefore = 2;
-		m_pausingBlankAfter = 1;
-		m_pausingCount = (m_pausingBlankBefore + m_pausingBlankAfter) * 20;
-	}
 	
   const tRawDO pausingbit = m_pausingBit;
   const uint64_t pausing_cnt = m_pausingCount;
