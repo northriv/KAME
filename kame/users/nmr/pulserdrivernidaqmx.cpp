@@ -389,7 +389,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			m_genLastPatItAO = m_genPatternListAO->begin();
 			m_genRestSampsAO = m_genPatternListAO->back().tonext;
 			m_genAOIndex = 0;
-			m_genBufAO.resize(m_bufSizeHintAO * NUM_AO_CH);
+			m_genBufAO.resize(m_bufSizeHintAO);
 		}
 		
 		//memory locks.
@@ -436,11 +436,8 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		}
 		
 		//prefilling of the buffers.
-		if(m_taskAO != TASK_UNDEF)
-			genBankAO();
-		genBankDO();
-
 		if(m_taskAO != TASK_UNDEF) {
+			genBankAO();
 			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
 			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
 			unsigned int size = m_genBufAO.size() / NUM_AO_CH;
@@ -458,6 +455,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			}
 			genBankAO();
 		}
+		genBankDO();
 		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_FirstSample));
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
 		unsigned int size = m_genBufDO.size();
@@ -477,6 +475,25 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		m_suspendAO = false;
 		m_suspendDO = false;
 	}
+	for(int i = 0;; i++) {
+		uInt32 space;
+		CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskDO, &space));
+		if(space == 0) break;
+		if(i > 400)
+			throw XInterface::XInterfaceError(KAME::i18n("Writing thread aborted."), __FILE__, __LINE__);
+		msecsleep(1);
+	}
+	if(m_taskAO != TASK_UNDEF) {
+		for(int i = 0;; i++) {
+			uInt32 space;
+			CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskAO, &space));
+			if(space == 0) break;
+			if(i > 400)
+				throw XInterface::XInterfaceError(KAME::i18n("Writing thread aborted."), __FILE__, __LINE__);
+			msecsleep(1);
+		}
+	}
+
 	if(!m_running) {
 		//slave must start before the master.
 		if(m_taskGateCtr != TASK_UNDEF)
@@ -633,7 +650,8 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated, const atomic<bool> &s
 	}
 	catch (XInterface::XInterfaceError &e) {
 		e.print(getLabel());
-		stopPulseGen();
+		m_suspendDO = true;
+		m_suspendAO = true;
 		return;
 	}
 	if(terminated)
@@ -676,7 +694,8 @@ XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated, const atomic<bool> &s
 	}
 	catch (XInterface::XInterfaceError &e) {
 		e.print(getLabel());
-		stopPulseGen();
+		m_suspendDO = true;
+		m_suspendAO = true;
  		return; 	
 	}
 	if(terminated)
@@ -733,7 +752,7 @@ XNIDAQmxPulser::genBankAO()
 	tRawAO *pAO = &m_genBufAO[0];
 	const tRawAO raw_ao0_zero = m_genAOZeroLevel[0];
 	const tRawAO raw_ao1_zero = m_genAOZeroLevel[1];
-	const unsigned int size = m_bufSizeHintAO;
+	const unsigned int size = m_bufSizeHintAO / NUM_AO_CH;
 	for(unsigned int samps_rest = size; samps_rest;) {
 		//number of samples to be written into buffer.
 		unsigned int gen_cnt = std::min((uint64_t)samps_rest, tonext);
