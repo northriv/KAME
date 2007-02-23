@@ -224,7 +224,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		m_virtualTrigger->setArmTerm(do_clk_src.c_str());
 	}
    
-	const unsigned int BUF_SIZE_HINT = lrint(65.536e-3 * freq * 4);
+	const unsigned int BUF_SIZE_HINT = lrint(65.536e-3 * freq * 2);
 	//M series needs an external sample clock and trigger for DO channels.
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO,
 		do_clk_src.c_str(),
@@ -301,7 +301,7 @@ XNIDAQmxPulser::setupTasksAODO() {
     	-1.0, 1.0, DAQmx_Val_Volts, NULL));
 		
 	float64 freq = 1e3 / resolutionQAM();
-	const unsigned int BUF_SIZE_HINT = lrint(8 * 65.536e-3 * freq);
+	const unsigned int BUF_SIZE_HINT = lrint(4 * 65.536e-3 * freq);
 	
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, "",
 		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
@@ -498,6 +498,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	if(m_taskAO != TASK_UNDEF) {
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
 	}
+	msecsleep(1);
 	if(m_taskGateCtr != TASK_UNDEF)
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
 	
