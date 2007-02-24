@@ -118,15 +118,6 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	fprintf(stderr, "Using AO rate = %f[kHz]\n", 1.0/m_resolutionAO);
 
 	setupTasksAODO();	
-	uInt32 bufsize;
-	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &bufsize));
-	if(!m_pausingBit & (bufsize < 8192uL))
-		throw XInterface::XInterfaceError(
-			KAME::i18n("Use the pausing feature for a cheap DAQmx board.\n"
-			+ KAME::i18n("Look at the port-selection table.")), __FILE__, __LINE__);
-	if(!m_pausingBit)
-		gWarnPrint(KAME::i18n("Use of the pausing feature is recommended.\n"
-			+ KAME::i18n("Look at the port-selection table.")));		
 
 	m_suspendAO = true;
 	m_threadWriteAO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
@@ -237,6 +228,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	m_transferSizeHintDO = std::min((unsigned int)bufsize / 2, m_bufSizeHintDO);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
 	
+	m_pausingBit = m_pausingBitNext;
 	if(m_pausingBit) {
 		m_pausingGateTerm = formatString("/%s/PFI4", intfCtr()->devName());
 		m_pausingCh = formatString("%s/ctr1", intfCtr()->devName());
@@ -357,13 +349,27 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		
 		stopPulseGen();
 		
-		if(CLEAR_TASKS_EVERYTIME) {
+		if(CLEAR_TASKS_EVERYTIME ||
+			(m_taskDO == TASK_UNDEF) ||
+			(m_pausingBit != m_pausingBitNext)) {
+			clearTasks();
 			if(haveQAMPorts())
 				setupTasksAODO();
 			else
 				setupTasksDO(false);
 		}
-		
+		if(m_taskAO != TASK_UNDEF) {
+			uInt32 bufsize;
+			CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &bufsize));
+			if(!m_pausingBit & (bufsize < 8192uL))
+				throw XInterface::XInterfaceError(
+					KAME::i18n("Use the pausing feature for a cheap DAQmx board.\n"
+					+ KAME::i18n("Look at the port-selection table.")), __FILE__, __LINE__);
+			if(!m_pausingBit)
+				gWarnPrint(KAME::i18n("Use of the pausing feature is recommended.\n"
+					+ KAME::i18n("Look at the port-selection table.")));
+		}
+
 		//unlock memory.
 	 	if(g_bUseMLock) {
 			munlock(&m_genBufDO[0], m_genBufDO.size() * sizeof(tRawDO));
@@ -519,18 +525,16 @@ XNIDAQmxPulser::stopPulseGen()
 		    DAQmxStopTask(m_taskGateCtr);
 		if(!CLEAR_TASKS_EVERYTIME) {
 			if(m_taskAO != TASK_UNDEF)
-			    DAQmxControlTask(m_taskAO, DAQmx_Val_Unreserve);
+			    DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Unreserve);
 			if(m_taskDOCtr != TASK_UNDEF)
-			    DAQmxControlTask(m_taskDOCtr, DAQmx_Val_Unreserve);
-		    DAQmxControlTask(m_taskDO, DAQmx_Val_Unreserve);
+			    DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Unreserve);
+		    DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Unreserve);
 			if(m_taskGateCtr != TASK_UNDEF)
-			    DAQmxControlTask(m_taskGateCtr, DAQmx_Val_Unreserve);
+			    DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Unreserve);
 		}
 
 		m_running = false;
 	}
-	if(CLEAR_TASKS_EVERYTIME)
-		clearTasks();
 }
 inline XNIDAQmxPulser::tRawAO
 XNIDAQmxPulser::aoVoltToRaw(int ch, float64 volt)
@@ -759,9 +763,9 @@ XNIDAQmxPulser::createNativePatterns()
 {
   const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
 
-	m_pausingBit = selectedPorts(PORTSEL_PAUSING);
+  m_pausingBitNext = selectedPorts(PORTSEL_PAUSING);
 	
-  const tRawDO pausingbit = m_pausingBit;
+  const tRawDO pausingbit = m_pausingBitNext;
   const uint64_t pausing_cnt = m_pausingCount;
   const uint64_t pausing_cnt_blank_before = m_pausingBlankBefore + m_pausingBlankAfter;
   const uint64_t pausing_cnt_blank_after = 1;
