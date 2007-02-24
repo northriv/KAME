@@ -680,25 +680,26 @@ XNIDAQmxPulser::genBankDO()
 		unsigned int gen_cnt = std::min((uint64_t)samps_rest, tonext);
 		//pattern of digital lines.
 		tRawDO patDO = PAT_DO_MASK & pat;
-		if(pausingbit && ((pat & PAT_QAM_PULSE_IDX_MASK) == 0)) {
-			patDO &= ~pausingbit;
-			if(tonext > pausing_period) {
-				//generate a pausing trigger.
-				patDO |= pausingbit;
-				for(unsigned int cnt = 0; cnt < pausing_cnt_blank_before; cnt++) {
-					*pDO++ = patDO;
-				}
-				patDO &= ~pausingbit;
-				for(unsigned int cnt = 0; cnt < pausing_cnt_blank_after; cnt++) {
-					*pDO++ = patDO;
-				}
-				tonext -= pausing_period;
-				if(samps_rest >= pausing_period)
-					samps_rest -= pausing_period;
-				else
-					samps_rest = 0;
-				continue;
+		if(pausingbit && ((pat & PAT_QAM_PULSE_IDX_MASK) == 0) &&
+			(tonext > pausing_period)) {
+			if(gen_cnt < pausing_cnt_blank_before + pausing_cnt_blank_after)
+				break;
+			gen_cnt = pausing_cnt_blank_before + pausing_cnt_blank_after;
+			//generate a pausing trigger.
+			patDO |= pausingbit;
+			for(unsigned int cnt = 0; cnt < pausing_cnt_blank_before; cnt++) {
+				*pDO++ = patDO;
 			}
+			patDO &= ~pausingbit;
+			for(unsigned int cnt = 0; cnt < pausing_cnt_blank_after; cnt++) {
+				*pDO++ = patDO;
+			}
+			tonext -= pausing_period;
+			if(samps_rest >= gen_cnt)
+				samps_rest -= gen_cnt;
+			else
+				samps_rest = 0;
+			continue;
 		}
 		//write digital pattern.
 		for(unsigned int cnt = 0; cnt < gen_cnt; cnt++) {
@@ -719,8 +720,9 @@ XNIDAQmxPulser::genBankDO()
 			tonext = it->tonext;
 		}
 	}
-	if(!pausingbit)
-		ASSERT(pDO == &m_genBufDO[m_genBufDO.size()]);
+	if(pausingbit)
+		m_genBufDO.resize((unsigned int)(pDO - &m_genBufDO[0]));
+	ASSERT(pDO == &m_genBufDO[m_genBufDO.size()]);
 	m_genRestSampsDO = tonext;
 	m_genLastPatItDO = it;
 }
@@ -734,9 +736,9 @@ XNIDAQmxPulser::genBankAO()
 	uint64_t tonext = m_genRestSampsAO;
 	unsigned int aoidx = m_genAOIndex;
 	const tRawDO pausingbit = m_pausingBit;
-	const uint64_t pausing_cnt = m_pausingCount;
-	const uint64_t pausing_cnt_blank_before = m_pausingBlankBefore + m_pausingBlankAfter;
-	const uint64_t pausing_cnt_blank_after = 1;
+	uint64_t pausing_cnt = m_pausingCount;
+	uint64_t pausing_cnt_blank_before = m_pausingBlankBefore + m_pausingBlankAfter;
+	uint64_t pausing_cnt_blank_after = 1;
 	pausing_cnt *= oversamp_ao;
 	pausing_cnt_blank_after *= oversamp_ao;
 	pausing_cnt_blank_before *= oversamp_ao;
@@ -751,25 +753,25 @@ XNIDAQmxPulser::genBankAO()
 		unsigned int gen_cnt = std::min((uint64_t)samps_rest, tonext);
 		//pattern of digital lines.
 		unsigned int pidx = patAO / (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE);
+		if((pidx == 0) && pausingbit &&
+			(tonext > pausing_period)) {
+			if(gen_cnt < pausing_cnt_blank_before + pausing_cnt_blank_after)
+				break;
+			gen_cnt = pausing_cnt_blank_before + pausing_cnt_blank_after;
+			for(unsigned int cnt = 0; cnt < gen_cnt; cnt++) {
+				*pAO++ = raw_ao0_zero;
+				*pAO++ = raw_ao1_zero;
+			}
+			tonext -= pausing_period;
+			if(samps_rest >= gen_cnt)
+				samps_rest -= gen_cnt;
+			else
+				samps_rest = 0;
+			continue;
+		}
 		if(pidx == 0) {
 			//write blank in analog lines.
 			aoidx = 0;
-			
-			if(pausingbit) {
-				if(tonext > pausing_period) {
-					gen_cnt = pausing_cnt_blank_before + pausing_cnt_blank_after;
-					for(unsigned int cnt = 0; cnt < gen_cnt; cnt++) {
-						*pAO++ = raw_ao0_zero;
-						*pAO++ = raw_ao1_zero;
-					}
-					tonext -= pausing_period;
-					if(samps_rest >= pausing_period)
-						samps_rest -= pausing_period;
-					else
-						samps_rest = 0;
-					continue;
-				}
-			}
 			for(unsigned int cnt = 0; cnt < gen_cnt; cnt++) {
 				*pAO++ = raw_ao0_zero;
 				*pAO++ = raw_ao1_zero;
@@ -801,8 +803,13 @@ XNIDAQmxPulser::genBankAO()
 			tonext = it->tonext;
 		}
 	}
-	if(!pausingbit)
-		ASSERT(pAO == &m_genBufAO[m_genBufAO.size()]);
+	if(pausingbit) {
+		auto unsigned int size = (pAO - &m_genBufAO[0]);
+		m_genBufAO.resize(size);
+		auto unsigned int rsize = m_genBufAO.size();
+	ASSERT(pAO == &m_genBufAO[m_genBufAO.size()]);
+	}
+	ASSERT(pAO == &m_genBufAO[m_genBufAO.size()]);
 	m_genRestSampsAO = tonext;
 	m_genLastPatItAO = it;
 	m_genAOIndex = aoidx;
