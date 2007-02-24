@@ -236,6 +236,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	    	m_pausingBlankBefore * resolution() * 1e-3,
 	    	m_pausingBlankAfter * resolution() * 1e-3, 
 	    	m_pausingCount * resolution() * 1e-3));
+		CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskGateCtr, 0, &XNIDAQmxPulser::_onTaskDone, this));
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskGateCtr,
 			 DAQmx_Val_FiniteSamps, 1));
 	    intfCtr()->synchronizeClock(m_taskGateCtr);
@@ -245,8 +246,6 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		CHECK_DAQMX_RET(DAQmxStopTask(m_taskGateCtr));
 		//set idle state to low.
 		CHECK_DAQMX_RET(DAQmxSetCOPulseIdleState(m_taskGateCtr, m_pausingCh.c_str(), DAQmx_Val_Low));
-
-		CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskGateCtr, 0, &XNIDAQmxPulser::_onTaskDone, this));
 
 	    CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskGateCtr,
 			m_pausingGateTerm.c_str(),
@@ -346,8 +345,12 @@ void
 XNIDAQmxPulser::onTaskDone(TaskHandle task, int32 status) {
 	if(status) 
 		gErrPrint(getLabel() + XNIDAQmxInterface::getNIDAQmxErrMessage(status));
-	m_suspendDO = true;
-	m_suspendAO = true;
+	switch(task) {
+	case m_taskAO:
+	case m_taskDO:
+		m_suspendDO = true;
+		m_suspendAO = true;
+	}
 }
 void
 XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
