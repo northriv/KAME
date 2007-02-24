@@ -15,6 +15,8 @@
 
 #ifdef HAVE_NI_DAQMX
 
+#define CLEAR_TASKS_EVERYTIME 0
+
 #include "interface.h"
 #include <klocale.h>
 
@@ -355,10 +357,12 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		
 		stopPulseGen();
 		
-		if(haveQAMPorts())
-			setupTasksAODO();
-		else
-			setupTasksDO(false);
+		if(CLEAR_TASKS_EVERYTIME) {
+			if(haveQAMPorts())
+				setupTasksAODO();
+			else
+				setupTasksDO(false);
+		}
 		
 		//unlock memory.
 	 	if(g_bUseMLock) {
@@ -513,11 +517,20 @@ XNIDAQmxPulser::stopPulseGen()
 	    DAQmxStopTask(m_taskDO);
 		if(m_taskGateCtr != TASK_UNDEF)
 		    DAQmxStopTask(m_taskGateCtr);
+		if(!CLEAR_TASKS_EVERYTIME) {
+			if(m_taskAO != TASK_UNDEF)
+			    DAQmxControlTask(m_taskAO, DAQmx_Val_Unreserve);
+			if(m_taskDOCtr != TASK_UNDEF)
+			    DAQmxControlTask(m_taskDOCtr, DAQmx_Val_Unreserve);
+		    DAQmxControlTask(m_taskDO, DAQmx_Val_Unreserve);
+			if(m_taskGateCtr != TASK_UNDEF)
+			    DAQmxControlTask(m_taskGateCtr, DAQmx_Val_Unreserve);
+		}
 
 		m_running = false;
 	}
-	
-	clearTasks();
+	if(CLEAR_TASKS_EVERYTIME)
+		clearTasks();
 }
 inline XNIDAQmxPulser::tRawAO
 XNIDAQmxPulser::aoVoltToRaw(int ch, float64 volt)

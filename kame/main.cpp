@@ -37,7 +37,7 @@ static KCmdLineOptions options[] =
   {
     { "logging", I18N_NOOP("log debuging info."), 0 },
     { "mlockall", I18N_NOOP("never cause swapping, perhaps you need 'ulimit -l <MB>'"), 0 },
-    { "mlock", I18N_NOOP("try use of mlock"), 0 },
+    { "nomlock", I18N_NOOP("never use mlock"), 0 },
     { "nodr", 0, 0 },
     { "nodirectrender", I18N_NOOP("do not use direct rendering"), 0 },
     { "+[File]", I18N_NOOP("measurement file to open"), 0 },

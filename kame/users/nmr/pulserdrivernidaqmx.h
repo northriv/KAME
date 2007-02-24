@@ -63,8 +63,7 @@ private:
 	void stopPulseGen();
 	
 	void clearTasks();
-	void setupTasks();
-	void setupTasksDO(bool use_ao_clock = false);
+	void setupTasksDO(bool use_ao_clock);
 	void setupTasksAODO();
 
  	typedef int16 tRawAO;
