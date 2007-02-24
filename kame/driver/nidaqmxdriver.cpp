@@ -291,7 +291,7 @@ char buf[256];
 		std::deque<std::string> pcidevs;
 		for(std::deque<std::string>::iterator it = list.begin(); it != list.end(); it++) {
 			// Device reset.
-//			DAQmxResetDevice(it->c_str());
+			DAQmxResetDevice(it->c_str());
 			// Search for master clock among PCI(e) devices.
 			int32 bus;
 			DAQmxGetDevBusType(it->c_str(), &bus);
