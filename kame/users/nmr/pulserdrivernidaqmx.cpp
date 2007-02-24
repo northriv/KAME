@@ -236,7 +236,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	    	m_pausingBlankBefore * resolution() * 1e-3,
 	    	m_pausingBlankAfter * resolution() * 1e-3, 
 	    	m_pausingCount * resolution() * 1e-3));
-		CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskGateCtr, 0, &XNIDAQmxPulser::_onTaskDone, this));
+//		CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskGateCtr, 0, &XNIDAQmxPulser::_onTaskDone, this));
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskGateCtr,
 			 DAQmx_Val_FiniteSamps, 1));
 	    intfCtr()->synchronizeClock(m_taskGateCtr);
@@ -342,12 +342,9 @@ XNIDAQmxPulser::_onTaskDone(TaskHandle task, int32 status, void *data) {
 	return status;
 }
 void
-XNIDAQmxPulser::onTaskDone(TaskHandle task, int32 status) {
-	if(status) 
+XNIDAQmxPulser::onTaskDone(TaskHandle /*task*/, int32 status) {
+	if(status) {
 		gErrPrint(getLabel() + XNIDAQmxInterface::getNIDAQmxErrMessage(status));
-	switch(task) {
-	case m_taskAO:
-	case m_taskDO:
 		m_suspendDO = true;
 		m_suspendAO = true;
 	}
