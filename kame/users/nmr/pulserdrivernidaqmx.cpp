@@ -15,7 +15,7 @@
 
 #ifdef HAVE_NI_DAQMX
 
-#define CLEAR_TASKS_EVERYTIME 0
+static const unsigned int CLEAR_TASKS_EVERYTIME = 0;
 
 #include "interface.h"
 #include <klocale.h>
@@ -118,6 +118,11 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	fprintf(stderr, "Using AO rate = %f[kHz]\n", 1.0/m_resolutionAO);
 
 	setupTasksAODO();	
+
+	m_suspendDO = true; 	
+	m_threadWriteDO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
+		 &XNIDAQmxPulser::executeWriteDO));
+	m_threadWriteDO->resume();
 
 	m_suspendAO = true;
 	m_threadWriteAO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),

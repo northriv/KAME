@@ -89,6 +89,7 @@ enum { NUM_AO_CH = 2};
 	unsigned int m_genAOIndex;
 	shared_ptr<XNIDAQmxInterface::VirtualTrigger> m_virtualTrigger;
 	unsigned int m_pausingBit;
+	unsigned int m_pausingBitNext;
 	unsigned int m_pausingCount;
 	unsigned int m_pausingBlankBefore;
 	unsigned int m_pausingBlankAfter;
