@@ -180,7 +180,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
     CHECK_DAQMX_RET(DAQmxCreateDOChan(m_taskDO, 
     	formatString("%s/port0", intfDO()->devName()).c_str(),
     	 "", DAQmx_Val_ChanForAllLines));
-   	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskDO, 0, &XNIDAQmxPulser::_onTaskDone, this));
+	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskDO, 0, &XNIDAQmxPulser::_onTaskDone, this));
 
 	std::string do_clk_src;
 	
@@ -221,7 +221,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	m_bufSizeHintDO = bufsize / 4;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &bufsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)bufsize);
-	m_transferSizeHintDO = std::min((unsigned int)bufsize / 2, m_bufSizeHintDO);
+	m_transferSizeHintDO = std::min((unsigned int)bufsize / 4, m_bufSizeHintDO);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
 	
 	m_pausingBit = m_pausingBitNext;
@@ -236,7 +236,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	    	m_pausingBlankBefore * resolution() * 1e-3,
 	    	m_pausingBlankAfter * resolution() * 1e-3, 
 	    	m_pausingCount * resolution() * 1e-3));
-	   	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskGateCtr, 0, &XNIDAQmxPulser::_onTaskDone, this));
+		CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskGateCtr, 0, &XNIDAQmxPulser::_onTaskDone, this));
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskGateCtr,
 			 DAQmx_Val_FiniteSamps, 1));
 	    intfCtr()->synchronizeClock(m_taskGateCtr);
@@ -269,10 +269,10 @@ XNIDAQmxPulser::setupTasksAODO() {
 	CHECK_DAQMX_RET(DAQmxCreateAOVoltageChan(m_taskAO,
     	formatString("%s/ao0:1", intfAO()->devName()).c_str(), "",
     	-1.0, 1.0, DAQmx_Val_Volts, NULL));
-   	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskAO, 0, &XNIDAQmxPulser::_onTaskDone, this));
+	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskAO, 0, &XNIDAQmxPulser::_onTaskDone, this));
 		
 	float64 freq = 1e3 / resolutionQAM();
-	const unsigned int BUF_SIZE_HINT = lrint(4 * 65.536e-3 * freq);
+	const unsigned int BUF_SIZE_HINT = lrint(8 * 65.536e-3 * freq);
 	
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, "",
 		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
@@ -310,7 +310,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &bufsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)bufsize);
 	
-	m_transferSizeHintAO = std::min((unsigned int)bufsize / 2, m_bufSizeHintAO);
+	m_transferSizeHintAO = std::min((unsigned int)bufsize / 4, m_bufSizeHintAO);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskAO, DAQmx_Val_DoNotAllowRegen));
 
 	for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
@@ -330,10 +330,10 @@ XNIDAQmxPulser::setupTasksAODO() {
 	
 	if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_DMA_AO) {
 		//DMA is slower than interrupts!
-/*		CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, 
+		CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, 
 	    	formatString("%s/ao0:1", intfAO()->devName()).c_str(),
 			DAQmx_Val_Interrupts));
-*/	}
+	}
 }
 int32
 XNIDAQmxPulser::_onTaskDone(TaskHandle task, int32 status, void *data) {
@@ -342,9 +342,9 @@ XNIDAQmxPulser::_onTaskDone(TaskHandle task, int32 status, void *data) {
 	return status;
 }
 void
-XNIDAQmxPulser::onTaskDone(TaskHandle task, int32 status) {
+XNIDAQmxPulser::onTaskDone(TaskHandle /*task*/, int32 status) {
 	if(status) 
-		gErrorPrint(getLabel() + getNIDAQmxErrMessage(status));
+		gErrPrint(getLabel() + XNIDAQmxInterface::getNIDAQmxErrMessage(status));
 	m_suspendDO = true;
 	m_suspendAO = true;
 }
