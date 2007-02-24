@@ -79,10 +79,8 @@ private:
 	static int32 _onTaskDone(TaskHandle task, int32 status, void*);
 	void onTaskDone(TaskHandle task, int32 status);
 
-	scoped_ptr<std::vector<GenPattern> > m_genPatternListAO;
-	scoped_ptr<std::vector<GenPattern> > m_genPatternListDO;
-	scoped_ptr<std::vector<GenPattern> > m_genPatternListNextAO;
-	scoped_ptr<std::vector<GenPattern> > m_genPatternListNextDO;
+	scoped_ptr<std::vector<GenPattern> > m_genPatternList;
+	scoped_ptr<std::vector<GenPattern> > m_genPatternListNext;
 	typedef std::vector<GenPattern>::iterator GenPatternIterator;
 
 	GenPatternIterator m_genLastPatItAO, m_genLastPatItDO;
