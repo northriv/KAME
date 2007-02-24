@@ -76,8 +76,8 @@ private:
 	      uint64_t time; //!< timesamp for physical time.
 	  };
 
-	static void _onTaskDone(TaskHandle task, int32 status, void*);
-	int32 onTaskDone(TaskHandle task, int32 status);
+	static int32 _onTaskDone(TaskHandle task, int32 status, void*);
+	void onTaskDone(TaskHandle task, int32 status);
 
 	scoped_ptr<std::vector<GenPattern> > m_genPatternListAO;
 	scoped_ptr<std::vector<GenPattern> > m_genPatternListDO;
