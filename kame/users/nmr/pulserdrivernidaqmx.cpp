@@ -51,7 +51,7 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
 	
 	m_pausingBlankBefore = 1;
 	m_pausingBlankAfter = 1;
-	m_pausingCount = (m_pausingBlankBefore + m_pausingBlankAfter) * 48;
+	m_pausingCount = (m_pausingBlankBefore + m_pausingBlankAfter) * 47;
 }
 
 XNIDAQmxPulser::~XNIDAQmxPulser()
@@ -231,7 +231,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		//set idle state to high level for synchronization.
 		CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskGateCtr));
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanTime(m_taskGateCtr, 
-	    	m_pausingCh.c_str(), "", DAQmx_Val_Seconds, DAQmx_Val_High, 
+	    	m_pausingCh.c_str(), "", DAQmx_Val_Seconds, DAQmx_Val_Low, 
 	    	m_pausingBlankBefore * resolution() * 1e-3,
 	    	m_pausingBlankAfter * resolution() * 1e-3, 
 	    	m_pausingCount * resolution() * 1e-3));
@@ -239,17 +239,10 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskGateCtr,
 			 DAQmx_Val_FiniteSamps, 1));
 	    intfCtr()->synchronizeClock(m_taskGateCtr);
-		CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
-		msecsleep(1);
-		CHECK_DAQMX_RET(DAQmxWaitUntilTaskDone(m_taskGateCtr, 3.0));
-		CHECK_DAQMX_RET(DAQmxStopTask(m_taskGateCtr));
-		//set idle state to low.
-		CHECK_DAQMX_RET(DAQmxSetCOPulseIdleState(m_taskGateCtr, m_pausingCh.c_str(), DAQmx_Val_Low));
 
 	    CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskGateCtr,
 			m_pausingGateTerm.c_str(),
 	    	DAQmx_Val_Rising));
-
 		CHECK_DAQMX_RET(DAQmxSetStartTrigRetriggerable(m_taskGateCtr, true));
 		
 		if(!use_ao_clock) {
@@ -271,7 +264,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskAO, 0, &XNIDAQmxPulser::_onTaskDone, this));
 		
 	float64 freq = 1e3 / resolutionQAM();
-	const unsigned int BUF_SIZE_HINT = lrint(8 * 65.536e-3 * freq);
+	const unsigned int BUF_SIZE_HINT = lrint(4 * 65.536e-3 * freq);
 	
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, "",
 		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
@@ -280,8 +273,15 @@ XNIDAQmxPulser::setupTasksAODO() {
     int oversamp = lrint(resolution() / resolutionQAM());
 	setupTasksDO(oversamp == 1);
     if(oversamp != 1) {
-		if(!m_pausingBit) {
-			//Synchronize ARM.
+		//Synchronize ARM.
+		if(m_pausingBit) {
+			CHECK_DAQMX_RET(DAQmxSetArmStartTrigType(m_taskDOCtr, DAQmx_Val_DigEdge));
+			CHECK_DAQMX_RET(DAQmxSetDigEdgeArmStartTrigSrc(m_taskDOCtr,
+				formatString("/%s/ao/StartTrigger", intfAO()->devName()).c_str()));
+			CHECK_DAQMX_RET(DAQmxSetDigEdgeArmStartTrigEdge(m_taskDOCtr,
+				DAQmx_Val_Rising));
+		}
+		else {
 			CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskDOCtr,
 				formatString("/%s/ao/StartTrigger", intfAO()->devName()).c_str(),
 				DAQmx_Val_Rising));
@@ -487,14 +487,21 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		m_suspendAO = false;
 		m_suspendDO = false;
 	}
+	
+	if(m_taskAO != TASK_UNDEF)
+	    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
+	if(m_taskDOCtr != TASK_UNDEF)
+	    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
+    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
+	CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
 	//slave must start before the master.
+	if(m_taskGateCtr != TASK_UNDEF)
+	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
 	if(m_taskDOCtr != TASK_UNDEF)
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
     CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
 	if(m_taskAO != TASK_UNDEF)
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
-	if(m_taskGateCtr != TASK_UNDEF)
-	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
 	
 	m_running = true;	
 }
@@ -803,12 +810,8 @@ XNIDAQmxPulser::genBankAO()
 			tonext = it->tonext;
 		}
 	}
-	if(pausingbit) {
-		auto unsigned int size = (pAO - &m_genBufAO[0]);
-		m_genBufAO.resize(size);
-		auto unsigned int rsize = m_genBufAO.size();
-	ASSERT(pAO == &m_genBufAO[m_genBufAO.size()]);
-	}
+	if(pausingbit)
+		m_genBufAO.resize((unsigned int)(pAO - &m_genBufAO[0]));
 	ASSERT(pAO == &m_genBufAO[m_genBufAO.size()]);
 	m_genRestSampsAO = tonext;
 	m_genLastPatItAO = it;
