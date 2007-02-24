@@ -83,13 +83,6 @@ XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XInterface::XInterfaceError &)
 	m_threadWriteDO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
 		 &XNIDAQmxPulser::executeWriteDO));
 	m_threadWriteDO->resume();
-
-/*	if(m_taskDOCtr != TASK_UNDEF)
-		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Reserve));
-	if(m_taskGateCtr != TASK_UNDEF)
-		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Reserve));
-	CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Reserve));
-*/
 }
 
 void
@@ -128,10 +121,6 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	m_threadWriteAO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
 		 &XNIDAQmxPulser::executeWriteAO));
 	m_threadWriteAO->resume();
-
-/*	if(m_taskAO != TASK_UNDEF)
-		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Reserve));
-*/
 }
 
 void
@@ -191,6 +180,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
     CHECK_DAQMX_RET(DAQmxCreateDOChan(m_taskDO, 
     	formatString("%s/port0", intfDO()->devName()).c_str(),
     	 "", DAQmx_Val_ChanForAllLines));
+   	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskDO, 0, &XNIDAQmxPulser::_onTaskDone, this));
 
 	std::string do_clk_src;
 	
@@ -206,6 +196,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskDOCtr, 
 	    	ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
 	    	freq, 0.5));
+	   	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskDOCtr, 0, &XNIDAQmxPulser::_onTaskDone, this));
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskDOCtr, DAQmx_Val_ContSamps, 1000));
 	    intfCtr()->synchronizeClock(m_taskDOCtr);
 		m_virtualTrigger->setArmTerm(do_clk_src.c_str());
@@ -245,6 +236,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	    	m_pausingBlankBefore * resolution() * 1e-3,
 	    	m_pausingBlankAfter * resolution() * 1e-3, 
 	    	m_pausingCount * resolution() * 1e-3));
+	   	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskGateCtr, 0, &XNIDAQmxPulser::_onTaskDone, this));
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskGateCtr,
 			 DAQmx_Val_FiniteSamps, 1));
 	    intfCtr()->synchronizeClock(m_taskGateCtr);
@@ -277,6 +269,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 	CHECK_DAQMX_RET(DAQmxCreateAOVoltageChan(m_taskAO,
     	formatString("%s/ao0:1", intfAO()->devName()).c_str(), "",
     	-1.0, 1.0, DAQmx_Val_Volts, NULL));
+   	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskAO, 0, &XNIDAQmxPulser::_onTaskDone, this));
 		
 	float64 freq = 1e3 / resolutionQAM();
 	const unsigned int BUF_SIZE_HINT = lrint(4 * 65.536e-3 * freq);
@@ -337,10 +330,21 @@ XNIDAQmxPulser::setupTasksAODO() {
 	
 	if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_DMA_AO) {
 		//DMA is slower than interrupts!
-		CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, 
+/*		CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, 
 	    	formatString("%s/ao0:1", intfAO()->devName()).c_str(),
 			DAQmx_Val_Interrupts));
-	}
+*/	}
+}
+int32
+XNIDAQmxPulser::_onTaskDone(TaskHandle task, int32 status, void *data) {
+	XNIDAQmxPulser *obj = reinterpret_cast<XNIDAQmxPulser*>(data);
+	obj->onTaskDone(task, status);
+	return status;
+}
+void
+XNIDAQmxPulser::onTaskDone(TaskHandle task, int32 status) {
+	if(status) 
+		gErrorPrint(getLabel() + getNIDAQmxErrMessage(status));
 }
 void
 XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
