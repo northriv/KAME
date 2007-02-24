@@ -345,6 +345,8 @@ void
 XNIDAQmxPulser::onTaskDone(TaskHandle task, int32 status) {
 	if(status) 
 		gErrorPrint(getLabel() + getNIDAQmxErrMessage(status));
+	m_suspendDO = true;
+	m_suspendAO = true;
 }
 void
 XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
