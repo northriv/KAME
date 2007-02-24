@@ -665,7 +665,7 @@ XNIDAQmxPulser::genBankDO()
 	GenPatternIterator it = m_genLastPatItDO;
 	tRawDO pat = it->pattern;
 	uint64_t tonext = m_genRestSampsDO;
-	const tRawDO pausingbit = m_pausingBitNext;
+	const tRawDO pausingbit = m_pausingBit;
 	const uint64_t pausing_cnt = m_pausingCount;
 	const uint64_t pausing_cnt_blank_before = m_pausingBlankBefore + m_pausingBlankAfter;
 	const uint64_t pausing_cnt_blank_after = 1;
@@ -727,14 +727,19 @@ XNIDAQmxPulser::genBankDO()
 void
 XNIDAQmxPulser::genBankAO()
 {
+	const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
+
 	GenPatternIterator it = m_genLastPatItAO;
 	unsigned int patAO = it->pattern;
 	uint64_t tonext = m_genRestSampsAO;
 	unsigned int aoidx = m_genAOIndex;
-	const tRawDO pausingbit = m_pausingBitNext;
+	const tRawDO pausingbit = m_pausingBit;
 	const uint64_t pausing_cnt = m_pausingCount;
 	const uint64_t pausing_cnt_blank_before = m_pausingBlankBefore + m_pausingBlankAfter;
 	const uint64_t pausing_cnt_blank_after = 1;
+	pausing_cnt *= oversamp_ao;
+	pausing_cnt_blank_after *= oversamp_ao;
+	pausing_cnt_blank_before *= oversamp_ao;
 	const uint64_t pausing_period = pausing_cnt + pausing_cnt_blank_before + pausing_cnt_blank_after;
 
 	tRawAO *pAO = &m_genBufAO[0];
@@ -752,6 +757,11 @@ XNIDAQmxPulser::genBankAO()
 			
 			if(pausingbit) {
 				if(tonext > pausing_period) {
+					gen_cnt = pausing_cnt_blank_before + pausing_cnt_blank_after;
+					for(unsigned int cnt = 0; cnt < gen_cnt; cnt++) {
+						*pAO++ = raw_ao0_zero;
+						*pAO++ = raw_ao1_zero;
+					}
 					tonext -= pausing_period;
 					if(samps_rest >= pausing_period)
 						samps_rest -= pausing_period;
@@ -791,7 +801,8 @@ XNIDAQmxPulser::genBankAO()
 			tonext = it->tonext;
 		}
 	}
-	ASSERT(pAO == &m_genBufAO[m_genBufAO.size()]);
+	if(!pausingbit)
+		ASSERT(pAO == &m_genBufAO[m_genBufAO.size()]);
 	m_genRestSampsAO = tonext;
 	m_genLastPatItAO = it;
 	m_genAOIndex = aoidx;
