@@ -246,12 +246,12 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	
 	if(m_pausingBit) {
 		m_pausingGateTerm = formatString("/%s/PFI4", intfCtr()->devName());
-		std::string gatectrdev = formatString("%s/ctr1", intfCtr()->devName());
+		m_pausingCh = formatString("%s/ctr1", intfCtr()->devName());
 		m_pausingSrcTerm = formatString("/%s/Ctr1InternalOutput", intfCtr()->devName());
 		//set idle state to high level for synchronization.
 		CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskGateCtr));
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanTime(m_taskGateCtr, 
-	    	gatectrdev.c_str(), "", DAQmx_Val_Seconds, DAQmx_Val_High, 
+	    	m_pausingCh.c_str(), "", DAQmx_Val_Seconds, DAQmx_Val_High, 
 	    	m_pausingBlankBefore * resolution() * 1e-3,
 	    	m_pausingBlankAfter * resolution() * 1e-3, 
 	    	m_pausingCount * resolution() * 1e-3));
@@ -262,17 +262,6 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		msecsleep(1);
 		CHECK_DAQMX_RET(DAQmxWaitUntilTaskDone(m_taskGateCtr, 3.0));
 		CHECK_DAQMX_RET(DAQmxStopTask(m_taskGateCtr));
-		int32 data;
-		CHECK_DAQMX_RET(DAQmxGetCOOutputState(m_taskGateCtr, gatectrdev.c_str(), &data));
-		ASSERT(data == DAQmx_Val_High);
-		//set idle state to low.
-		CHECK_DAQMX_RET(DAQmxSetCOPulseIdleState(m_taskGateCtr, gatectrdev.c_str(), DAQmx_Val_Low));
-
-	    CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskGateCtr,
-			m_pausingGateTerm.c_str(),
-	    	DAQmx_Val_Rising));
-
-		CHECK_DAQMX_RET(DAQmxSetStartTrigRetriggerable(m_taskGateCtr, true));
 		
 		if(!use_ao_clock) {
 			CHECK_DAQMX_RET(DAQmxSetPauseTrigType(m_taskDOCtr, DAQmx_Val_DigLvl));
@@ -350,9 +339,9 @@ XNIDAQmxPulser::setupTasksAODO() {
 	
 	if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_DMA_AO) {
 		//DMA is slower than interrupts!
-		CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, 
+/*		CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, 
 	    	formatString("%s/ao0:1", intfAO()->devName()).c_str(),
-			DAQmx_Val_Interrupts));
+			DAQmx_Val_Interrupts));*/
 	}
 }
 void
@@ -497,9 +486,23 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
     CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
 	if(m_taskAO != TASK_UNDEF)
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
-	msecsleep(100);
-	if(m_taskGateCtr != TASK_UNDEF)
+	if(m_taskGateCtr != TASK_UNDEF) {
+		CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
+		msecsleep(1);
+		CHECK_DAQMX_RET(DAQmxWaitUntilTaskDone(m_taskGateCtr, 3.0));
+		CHECK_DAQMX_RET(DAQmxStopTask(m_taskGateCtr));
+
+		//set idle state to low.
+		CHECK_DAQMX_RET(DAQmxSetCOPulseIdleState(m_taskGateCtr, m_pausingCh.c_str(), DAQmx_Val_Low));
+
+	    CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskGateCtr,
+			m_pausingGateTerm.c_str(),
+	    	DAQmx_Val_Rising));
+
+		CHECK_DAQMX_RET(DAQmxSetStartTrigRetriggerable(m_taskGateCtr, true));		
+
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
+	}
 	
 	m_running = true;	
 }
