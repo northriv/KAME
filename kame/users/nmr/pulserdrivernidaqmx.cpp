@@ -75,7 +75,6 @@ XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XInterface::XInterfaceError &)
 	if(m_resolutionDO <= 0.0)
 		m_resolutionDO = 1.0 / intfDO()->maxDORate(1);
 	fprintf(stderr, "Using DO rate = %f[kHz]\n", 1.0/m_resolutionDO);
-
 	setupTasksDO(use_ao_clock);
 		
 	m_suspendDO = true; 	
@@ -117,6 +116,15 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	fprintf(stderr, "Using AO rate = %f[kHz]\n", 1.0/m_resolutionAO);
 
 	setupTasksAODO();	
+	uInt32 bufsize;
+	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &bufsize));
+	if(!m_pausingBit & (bufsize < 8192uL))
+		throw XInterface::XInterfaceError(
+			KAME::i18n("Use the pausing feature for a cheap DAQmx board.\n"
+			+ KAME::i18n("Look at the port-selection table.")), __FILE__, __LINE__);
+	if(!m_pausingBit)
+		gWarnPrint(KAME::i18n("Use of the pausing feature is recommended.\n"
+			+ KAME::i18n("Look at the port-selection table.")));		
 
 	m_suspendAO = true;
 	m_threadWriteAO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
@@ -169,24 +177,7 @@ XNIDAQmxPulser::clearTasks() {
 	m_taskDOCtr = TASK_UNDEF;
 	m_taskGateCtr = TASK_UNDEF;
 }
-void
-XNIDAQmxPulser::setupTasks() {
-	if(haveQAMPorts()) {
-		setupTasksAODO();
-		uInt32 bufsize;
-		CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &bufsize));
-		if(!m_pausingBit & (bufsize < 8192uL))
-			throw XInterface::XInterfaceError(
-				KAME::i18n("Use the pausing feature for a cheap DAQmx board.\n"
-				+ KAME::i18n("Look at the port-selection table.")), __FILE__, __LINE__);
-		if(!m_pausingBit)
-			gWarnPrint(KAME::i18n("Use of the pausing feature is recommended.\n"
-				+ KAME::i18n("Look at the port-selection table.")));		
-	}
-	else {
-		setupTasksDO();
-	}
-}
+
 void
 XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	if(m_taskDO != TASK_UNDEF)
@@ -296,7 +287,7 @@ XNIDAQmxPulser::setupTasksAODO() {
     intfAO()->synchronizeClock(m_taskAO);
     
     int oversamp = lrint(resolution() / resolutionQAM());
-	openDO(oversamp == 1);
+	setupTasksDO(oversamp == 1);
     if(oversamp != 1) {
 		if(!m_pausingBit) {
 			//Synchronize ARM.
@@ -364,7 +355,10 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		
 		stopPulseGen();
 		
-		setupTasks();
+		if(haveQAMPorts())
+			setupTasksAODO();
+		else
+			setupTasksDO(false);
 		
 		//unlock memory.
 	 	if(g_bUseMLock) {
