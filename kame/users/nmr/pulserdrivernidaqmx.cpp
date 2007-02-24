@@ -263,7 +263,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		CHECK_DAQMX_RET(DAQmxWaitUntilTaskDone(m_taskGateCtr, 3.0));
 		CHECK_DAQMX_RET(DAQmxStopTask(m_taskGateCtr));
 		//set idle state to low.
-		CHECK_DAQMX_RET(DAQmxSetCOPulseIdleState(m_taskGateCtr, gatectrdev.c_str(), DAQmx_Val_Low));
+		CHECK_DAQMX_RET(DAQmxSetCOPulseIdleState(m_taskGateCtr, m_pausingCh.c_str(), DAQmx_Val_Low));
 
 	    CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskGateCtr,
 			m_pausingGateTerm.c_str(),
