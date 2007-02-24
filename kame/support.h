@@ -146,9 +146,10 @@ private:
 
 //! If true, Log all dbgPrint().
 extern bool g_bLogDbgPrint;
-//! If true, use mlockall MCL_FUTURE
+//! If true, use mlockall MCL_FUTURE.
 extern bool g_bMLockAlways;
-
+//! If true, use mlock.
+extern bool g_bUseMLock;
 //! round value to the nearest 10s. ex. 42.3 to 10, 120 to 100
 double roundlog10(double val);
 //! round value within demanded precision.

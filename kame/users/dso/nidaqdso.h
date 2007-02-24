@@ -96,22 +96,8 @@ enum {CAL_POLY_ORDER = 4};
   void acquire(const atomic<bool> &terminated);
 
   XRecursiveMutex m_readMutex;
-  class ScopedReadAILock;
-  friend class ScopedReadAILock;
-  class ScopedReadAILock {
-  public:
-  	ScopedReadAILock(XNIDAQmxDSO& obj) : m_obj(obj) {
-  		obj.m_suspendRead = true;
-  		obj.m_readMutex.lock();
-  		obj.m_suspendRead = false;
-  	}
-  	~ScopedReadAILock() {
-  		m_obj.m_readMutex.unlock();
-  	}
-  private: 		
-  	XNIDAQmxDSO &m_obj;
-  };
-  inline bool tryReadAISuspend();
+
+  inline bool tryReadAISuspend(const atomic<bool> &terminated);
 };
 
 #endif //HAVE_NI_DAQMX

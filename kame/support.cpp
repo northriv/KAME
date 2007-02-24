@@ -113,6 +113,7 @@ XKameError::msg() const
 
 bool g_bLogDbgPrint;
 bool g_bMLockAlways;
+bool g_bUseMLock;
 
 #include <iostream>
 #include <fstream>

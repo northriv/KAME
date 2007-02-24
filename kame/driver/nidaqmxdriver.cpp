@@ -19,21 +19,21 @@
 
 const XNIDAQmxInterface::ProductInfo
 XNIDAQmxInterface::sc_productInfoList[] = {
-	{"PCI-6110", "S", 5000uL, 2500uL, 0, 0},
-	{"PXI-6110", "S", 5000uL, 2500uL, 0, 0},
-	{"PCI-6111", "S", 5000uL, 2500uL, 0, 0},
-	{"PXI-6111", "S", 5000uL, 2500uL, 0, 0},
-	{"PCI-6115", "S", 10000uL, 2500uL, 10000uL, 10000uL},
-	{"PCI-6120", "S", 800uL, 2500uL, 10000uL, 10000uL},
-	{"PCI-6220", "M", 250uL, 0, 1000uL, 1000uL},
-	{"PXI-6220", "M", 250uL, 0, 1000uL, 1000uL},
-	{"PCI-6221", "M", 250uL, 740uL, 1000uL, 1000uL},
-	{"PXI-6221", "M", 250uL, 740uL, 1000uL, 1000uL},
-	{"PCI-6224", "M", 250uL, 0, 1000uL, 1000uL},
-	{"PXI-6224", "M", 250uL, 0, 1000uL, 1000uL},
-	{"PCI-6229", "M", 250uL, 625uL, 1000uL, 1000uL},
-	{"PXI-6229", "M", 250uL, 625uL, 1000uL, 1000uL},
-	{0, 0, 0, 0, 0, 0},
+	{"PCI-6110", "S", 0, 5000uL, 2500uL, 0, 0},
+	{"PXI-6110", "S", 0, 5000uL, 2500uL, 0, 0},
+	{"PCI-6111", "S", XNIDAQmxInterface::FLAG_BUGGY_DMA_AO, 5000uL, 2500uL, 0, 0},
+	{"PXI-6111", "S", XNIDAQmxInterface::FLAG_BUGGY_DMA_AO, 5000uL, 2500uL, 0, 0},
+	{"PCI-6115", "S", 0, 10000uL, 2500uL, 10000uL, 10000uL},
+	{"PCI-6120", "S", 0, 800uL, 2500uL, 10000uL, 10000uL},
+	{"PCI-6220", "M", 0, 250uL, 0, 1000uL, 1000uL},
+	{"PXI-6220", "M", 0, 250uL, 0, 1000uL, 1000uL},
+	{"PCI-6221", "M", 0, 250uL, 740uL, 1000uL, 1000uL},
+	{"PXI-6221", "M", 0, 250uL, 740uL, 1000uL, 1000uL},
+	{"PCI-6224", "M", 0, 250uL, 0, 1000uL, 1000uL},
+	{"PXI-6224", "M", 0, 250uL, 0, 1000uL, 1000uL},
+	{"PCI-6229", "M", 0, 250uL, 625uL, 1000uL, 1000uL},
+	{"PXI-6229", "M", 0, 250uL, 625uL, 1000uL, 1000uL},
+	{0, 0, 0, 0, 0, 0, 0},
 };
 
 //for synchronization.

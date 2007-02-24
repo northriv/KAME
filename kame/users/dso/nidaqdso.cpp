@@ -44,10 +44,12 @@ XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
     vFullScale1()->value("20");
     vFullScale2()->value("20");
     
-	const void *FIRST_OF_MLOCK_MEMBER = &m_recordBuf;
-	const void *LAST_OF_MLOCK_MEMBER = &m_acqCount;
-	//Suppress swapping.
-	mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);    
+ 	if(g_bUseMLock) {
+		const void *FIRST_OF_MLOCK_MEMBER = &m_recordBuf;
+		const void *LAST_OF_MLOCK_MEMBER = &m_acqCount;
+		//Suppress swapping.
+		mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);    
+ 	}
 }
 XNIDAQmxDSO::~XNIDAQmxDSO()
 {
@@ -130,6 +132,11 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 
 	m_acqCount = 0;
 
+	m_suspendRead = true;
+	m_threadReadAI.reset(new XThread<XNIDAQmxDSO>(shared_from_this(),
+		 &XNIDAQmxDSO::executeReadAI));
+	m_threadReadAI->resume();
+	
 	this->start();
 	
 	vOffset1()->setUIEnabled(false);
@@ -144,6 +151,10 @@ XNIDAQmxDSO::close() throw (XInterface::XInterfaceError &)
  	
 	clearAcquision();
  	
+	if(m_threadReadAI) {
+		m_threadReadAI->terminate();
+	}
+ 	
     m_analogTrigSrc.clear();
     trace1()->clear();
     trace2()->clear();
@@ -154,9 +165,7 @@ XNIDAQmxDSO::close() throw (XInterface::XInterfaceError &)
 void
 XNIDAQmxDSO::clearAcquision() {
 	XScopedLock<XInterface> lock(*interface());
-	if(m_threadReadAI) {
-		m_threadReadAI->terminate();
-	}
+	m_suspendRead = true;
  	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
 	
  	disableTrigger();
@@ -170,7 +179,8 @@ void
 XNIDAQmxDSO::disableTrigger()
 {
 	XScopedLock<XInterface> lock(*interface());
-	ScopedReadAILock lockRead(*this);
+	m_suspendRead = true;
+ 	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
 	
 	if(m_running) {
 		m_running = false;
@@ -193,7 +203,8 @@ void
 XNIDAQmxDSO::setupTrigger()
 {
 	XScopedLock<XInterface> lock(*interface());
-	ScopedReadAILock lockRead(*this);
+	m_suspendRead = true;
+ 	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
 	
 	disableTrigger();
 	
@@ -270,7 +281,8 @@ void
 XNIDAQmxDSO::setupTiming()
 {
 	XScopedLock<XInterface> lock(*interface());
-	ScopedReadAILock lockRead(*this);
+	m_suspendRead = true;
+ 	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
 
 	if(m_running) {
 		m_running = false;
@@ -284,8 +296,10 @@ XNIDAQmxDSO::setupTiming()
 	const unsigned int len = *recordLength();
 	m_record.resize(len * NUM_MAX_CH);
 	m_recordBuf.resize(len * NUM_MAX_CH);
-	mlock(&m_record[0], m_record.size() * sizeof(tRawAI));
-	mlock(&m_recordBuf[0], m_recordBuf.size() * sizeof(int32_t));    
+	if(g_bUseMLock) {
+		mlock(&m_record[0], m_record.size() * sizeof(tRawAI));
+		mlock(&m_recordBuf[0], m_recordBuf.size() * sizeof(int32_t));    
+	}
 
     CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_task,
         NULL, // internal source
@@ -310,7 +324,8 @@ void
 XNIDAQmxDSO::createChannels()
 {
 	XScopedLock<XInterface> lock(*interface());
-	ScopedReadAILock lockRead(*this);
+	m_suspendRead = true;
+ 	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
  	
 	clearAcquision();
 	
@@ -368,10 +383,6 @@ XNIDAQmxDSO::createChannels()
 
     setupTiming();
 	
-	m_threadReadAI.reset(new XThread<XNIDAQmxDSO>(shared_from_this(),
-		 &XNIDAQmxDSO::executeReadAI));
-	m_threadReadAI->resume();
-	
 	if(m_virtualTrigger) {
 		uInt32 num_ch;
 	    CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
@@ -384,7 +395,8 @@ XNIDAQmxDSO::createChannels()
 void
 XNIDAQmxDSO::onVirtualTrigStart(const shared_ptr<XNIDAQmxInterface::VirtualTrigger> &) {
 	XScopedLock<XInterface> lock(*interface());
-	ScopedReadAILock lockRead(*this);
+	m_suspendRead = true;
+ 	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
 
 	if(m_running) {
 		m_running = false;
@@ -397,6 +409,7 @@ XNIDAQmxDSO::onVirtualTrigStart(const shared_ptr<XNIDAQmxInterface::VirtualTrigg
     CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
     if(num_ch > 0) {
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_task));
+	    m_suspendRead = false;
 	    m_running = true;
     }
 }
@@ -404,18 +417,20 @@ void
 XNIDAQmxDSO::onForceTriggerTouched(const shared_ptr<XNode> &)
 {
 	XScopedLock<XInterface> lock(*interface());
-	ScopedReadAILock lockRead(*this);
+	m_suspendRead = true;
+ 	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
 
 	disableTrigger();
 
     CHECK_DAQMX_RET(DAQmxStartTask(m_task));
+	m_suspendRead = false;
     m_running = true;
 }
 inline bool
-XNIDAQmxDSO::tryReadAISuspend() {
+XNIDAQmxDSO::tryReadAISuspend(const atomic<bool> &terminated) {
 	if(m_suspendRead) {
 		m_readMutex.unlock();
-		while(m_suspendRead) msecsleep(10);
+		while(m_suspendRead && !terminated) msecsleep(10);
 		m_readMutex.lock();
 		return true;
 	}
@@ -430,6 +445,7 @@ XNIDAQmxDSO::executeReadAI(const atomic<bool> &terminated)
 	    }
 	    catch (XInterface::XInterfaceError &e) {
 	    	e.print(getLabel());
+	    	m_suspendRead = true;
 	    }
 	}
 	return NULL;
@@ -445,14 +461,14 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 		const unsigned int size = m_record.size() / NUM_MAX_CH;
 	
 		 if(!m_running) {
-			tryReadAISuspend();
+			tryReadAISuspend(terminated);
 			msecsleep(10);
 			return;
 		 }
 	
 	    CHECK_DAQMX_RET(DAQmxGetReadNumChans(m_task, &num_ch));
 	    if(num_ch == 0) {
-			tryReadAISuspend();
+			tryReadAISuspend(terminated);
 			msecsleep(10);
 			return;
 		 }
@@ -462,7 +478,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 		if(m_virtualTrigger) {
 			shared_ptr<XNIDAQmxInterface::VirtualTrigger> &vt(m_virtualTrigger);
 			while(!terminated) {
-				if(tryReadAISuspend())
+				if(tryReadAISuspend(terminated))
 					return;
 				uInt64 total_samps;
 				CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
@@ -505,7 +521,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 			int32 samps;
 			samps = std::min(size - cnt, num_samps);
 			while(!terminated) {
-				if(tryReadAISuspend())
+				if(tryReadAISuspend(terminated))
 					return;
 			uInt32 space;
 				int ret = DAQmxGetReadAvailSampPerChan(m_task, &space);
@@ -565,7 +581,8 @@ void
 XNIDAQmxDSO::startSequence()
 {
 	XScopedLock<XInterface> lock(*interface());
-	ScopedReadAILock lockRead(*this);
+	m_suspendRead = true;
+ 	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
 
     m_acqCount = 0;
     m_accumCount = 0;
@@ -574,8 +591,6 @@ XNIDAQmxDSO::startSequence()
 	m_recordLength = m_record.size() / NUM_MAX_CH;
     
 	if(m_virtualTrigger) {
-		CHECK_DAQMX_RET(DAQmxSetSampQuantSampMode(m_task, DAQmx_Val_ContSamps));
-		CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstSample));
 		if(m_running) {
 			uInt32 bufsize = std::max(m_recordLength * 4, (unsigned int)lrint(0.1 / m_interval));
 			CHECK_DAQMX_RET(DAQmxCfgInputBuffer(m_task, bufsize));
@@ -583,6 +598,10 @@ XNIDAQmxDSO::startSequence()
 			uInt64 total_samps;
 			CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
 			m_virtualTrigger->clear(total_samps, 1.0 / m_interval);
+		}
+		else {
+			CHECK_DAQMX_RET(DAQmxSetSampQuantSampMode(m_task, DAQmx_Val_ContSamps));
+			CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstSample));
 		}
 		if(!m_lsnOnVirtualTrigStart)
 			m_lsnOnVirtualTrigStart = m_virtualTrigger->onStart().connectWeak(false,
@@ -600,6 +619,7 @@ XNIDAQmxDSO::startSequence()
 	    CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
 	    if(num_ch > 0) {
 		    CHECK_DAQMX_RET(DAQmxStartTask(m_task));
+			m_suspendRead = false;
 		    m_running = true;
 	    }
 	}

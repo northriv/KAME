@@ -62,6 +62,12 @@ public:
   const char* productSeries() const {return m_productInfo->series;}
   //! e.g. "PCI", "PXI". Never "PCIe" or "PXIe".
   const char* busArchType() const;
+
+  enum {
+	FLAG_BUGGY_DMA_AO = 0x10u, FLAG_BUGGY_DMA_AI = 0x20u, 
+	FLAG_BUGGY_DMA_DI = 0x40u, FLAG_BUGGY_DMA_DO = 0x80u};
+  //! e.g. FLAG_BUGGY_DMA_AO.
+  int productFlags() const {return m_productInfo->flags;}
   //! \return 0 if hw timed transfer is not supported.
   double maxAIRate(unsigned int /*num_scans*/) const {return m_productInfo->ai_max_rate;}
   double maxAORate(unsigned int /*num_scans*/) const {return m_productInfo->ao_max_rate;}
@@ -140,6 +146,7 @@ private:
 	struct ProductInfo {
 	  	const char *type;
 	  	const char *series;
+	  	int flags;
 	  	unsigned long ai_max_rate; //!< [kHz]
 	  	unsigned long ao_max_rate; //!< [kHz]
 	  	unsigned long di_max_rate; //!< [kHz]

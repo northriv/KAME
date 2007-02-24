@@ -37,6 +37,7 @@ static KCmdLineOptions options[] =
   {
     { "logging", I18N_NOOP("log debuging info."), 0 },
     { "mlockall", I18N_NOOP("never cause swapping, perhaps you need 'ulimit -l <MB>'"), 0 },
+    { "mlock", I18N_NOOP("try use of mlock"), 0 },
     { "nodr", 0, 0 },
     { "nodirectrender", I18N_NOOP("do not use direct rendering"), 0 },
     { "+[File]", I18N_NOOP("measurement file to open"), 0 },
@@ -81,7 +82,10 @@ int main(int argc, char *argv[])
 				  	dbgPrint(formatString("MLOCKALL failed errno=%d.", errno));
 				  }
 			 }
-			 mlock(&aboutData, 4096); //reserve stack of main thread.
+
+            g_bUseMLock = args->isSet("mlock");
+            if(g_bUseMLock)
+				mlock(&aboutData, 4096uL); //reserve stack of main thread.
         
            QGLFormat f;
             f.setDirectRendering(args->isSet("directrender") );

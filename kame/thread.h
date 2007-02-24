@@ -150,7 +150,6 @@ class XThread
     shared_ptr<T> obj;
     void *(T::*func)(const atomic<bool> &);
     atomic<bool> is_terminated;
-    int mlock_flag;
   };
   shared_ptr<targ> m_startarg;
   static void * xthread_start_routine(void *);
@@ -165,7 +164,6 @@ XThread<T>::XThread(const shared_ptr<X> &t, void *(T::*func)(const atomic<bool> 
   ASSERT(m_startarg->obj);
   m_startarg->func = func;
   m_startarg->is_terminated = false;
-  m_startarg->mlock_flag = g_bMLockAlways ? (MCL_CURRENT | MCL_FUTURE) : 0;
 }
 
 template <class T>
@@ -184,16 +182,16 @@ void *
 XThread<T>::xthread_start_routine(void *x)
 {
   shared_ptr<targ> arg = ((targ *)x)->this_ptr;
-  int mlock_flag = arg->mlock_flag;
-  if(mlock_flag) {
-	  if(( mlockall(mlock_flag) == 0)) {
+  if(g_bMLockAlways) {
+      if(( mlockall(MCL_CURRENT | MCL_FUTURE ) == 0)) {
 	  	dbgPrint("MLOCKALL succeeded.");
-	  }
-	  else{
-	  	dbgPrint("MLOCKALL failed.");
+  }
+  else{
+  	dbgPrint(formatString("MLOCKALL failed."));
 	  }
   }
-  mlock(&arg, 4096); //reserve stack.
+  if(g_bUseMLock)
+	  mlock(&arg, 8192uL); //reserve stack.
 
   arg->this_ptr.reset();
   void *p = ((arg->obj.get())->*(arg->func))(arg->is_terminated);
