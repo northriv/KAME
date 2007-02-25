@@ -1,58 +1,23 @@
-#pirut or sudo yum -y install
-fftw2-devel, gsl-devel, fftw-devel?
+#HOW-TO for building KAME manually.
+
+#Use pirut or sudo yum -y install
+fftw2-devel, gsl-devel, fftw-devel
 compat-gcc-34-c++
 rpmdevtools
 (ccache)
+and so on.
 
+#Construct a setting for rpmbuild.
 fedora-buildrpmtree
 
-#if you need to make extra kernel-module packages
-#rpmbuild --define='kversion `uname -r`' --define='kvariants ""' --target=i686 \
-#-ba ~/rpmbuild/SPECS/nvidia-kmod.spec 
-
-#linux-gpib 3.2.08
+#For linux-gpib
 rpmbuild --target=`uname -m` --rebuild linux-gpib-kmod-{ver}.src.rpm
 rpmbuild --rebuild linux-gpib-{ver}.src.rpm
-#install the two rpms
+#install the rpms: linux-gpib-{ver}.*.rpm, kmod-linux-gpib-{ver}-*.*.rpm
 #see /usr/share/doc/linux-gpib/INSTALL
 
-#Install NI-DAQmx 8.0 for Linux
-#yum install yum-utils
+#see INSTALL.nidaqmx.fedora6 if you need National Instruments DAQmx support.
 
-su
-cd /usr/src/kernels/`uname -r`-`uname -m`
-sed -e 's/fatal("parse error in symbol dump file\\n");/return;/' scripts/mod/modpost.c > tmp
-mv -f tmp scripts/mod/modpost.c 
-make scripts
-cat <<EOF >> include/linux/config.h
-#include <linux/mm.h>
-#define VM_SHM 0
-#define put_page_testzero
-EOF
-cat include/linux/utsrelease.h >> include/linux/version.h 
-(cd include/asm; ln -s asm-offsets.h asm_offsets.h )
-cd (NIDAQ800-REDHAT directory)
-./INSTALL --accept-license
-cd (NIKAL-1.4 directory)
-./INSTALL --accept-license
-/usr/local/bin/updateNIDrivers
-rpm -Uvh labview82-rte* #for DAQmxTestPanels
-
-cd /usr/src/kernels/`uname -r`-`uname -m`
-rpm -e kernel-devel
-rm -fR include
-yum -y install kernel-devel
-#for DAQmxTestPanels
-(cd /usr/local/lib; ln -s LabVIEW-8.2/linux/libOSMesa.so.4 .)
-exit
-#SELinux (memory protection) allow textshlib...
-#SELinux (memory protection) allow execheap		
-LD_PRELOAD=/usr/local/lib/LabView-8.2/patchlib/libGL.so.1 /usr/local/bin/DAQmxTestPanels
-
-
-./mkrpm.sh kame-2.0.13.tar.bz2 
+rpmbuild -ba kame-*.spec or rpmbuild --rebuild kame-*.src.rpm
 #install the rpm
-
-#for cvs
-CVS_RSH=ssh CVSROOT=:ext:--@--:/Users/northriv/Documents/Projects/CVS cvs co kame
 

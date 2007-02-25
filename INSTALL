@@ -5,9 +5,13 @@ kdelibs and others depending on kdelibs
 ruby
 gsl
 fftw
-xerces-c++
 linux-gpib (optionally)
-FTGL (included in source tree)
+National Instruments DAQmx library (optionally)
+FTGL (must be included in source tree)
+mikachanfont (must be included in source tree)
+
+ftgl must be expanded to KAME root source directory.
+The document files and the font file of mikachanfont must be copied to (root-source)/kame/mikachanfont
 
 To build FTGL
 in directory FTGL/unix
@@ -15,6 +19,6 @@ in directory FTGL/unix
 make
 
 To build KAME
-./configure
+./configure (options)
 make
 make install
