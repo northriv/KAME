@@ -776,10 +776,12 @@ XNIDAQmxPulser::genBankAO()
 		else {
 			unsigned int pnum = (pat & PAT_QAM_MASK) / PAT_QAM_PHASE - (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE);
 			ASSERT(pnum < PAT_QAM_PULSE_IDX_MASK / PAT_QAM_PULSE_IDX);
+			if(!m_genPulseWaveAO[0][pnum].get() || !m_genPulseWaveAO[1][pnum].get() ||
+				(m_genPulseWaveAO[0][pnum]->size() < gen_cnt + aoidx) ||
+				(m_genPulseWaveAO[1][pnum]->size() < gen_cnt + aoidx))
+				throw XInterface::XInterfaceError(KAME::i18n("Invalid pulse patterns."), __FILE__, __LINE__);
 			tRawAO *pGenAO0 = &m_genPulseWaveAO[0][pnum]->at(aoidx);
 			tRawAO *pGenAO1 = &m_genPulseWaveAO[1][pnum]->at(aoidx);
-			ASSERT(m_genPulseWaveAO[0][pnum]->size());
-			ASSERT(m_genPulseWaveAO[1][pnum]->size());
 			for(unsigned int cnt = 0; cnt < gen_cnt; cnt++) {
 				*pAO++ = *pGenAO0++;
 				*pAO++ = *pGenAO1++;
