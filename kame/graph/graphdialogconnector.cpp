@@ -28,8 +28,8 @@ XQGraphDialogConnector::XQGraphDialogConnector
     (const shared_ptr<XGraph> &graph, DlgGraphSetup* item) :
     XQConnector(graph, item),
     m_pItem(item),
-    m_selPlot(createOrphan<XItemNode<XPlotList, XPlot> >("", true, graph->plots())),
-    m_selAxis(createOrphan<XItemNode<XAxisList, XAxis> >("", true, graph->axes())),
+    m_selPlot(createOrphan<XItemNode<XPlotList, XPlot> >("", true, graph->plots(), true)),
+    m_selAxis(createOrphan<XItemNode<XAxisList, XAxis> >("", true, graph->axes(), true)),
     m_conBackGround(xqcon_create<XKColorComboConnector>
         (graph->backGround(), m_pItem->m_clrBackGroundColor)),
     m_conPersistence(xqcon_create<XKDoubleNumInputConnector>

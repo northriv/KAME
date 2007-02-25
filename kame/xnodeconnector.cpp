@@ -470,10 +470,9 @@ XItemQConnector::~XItemQConnector() {
 }
 
 XQComboBoxConnector::XQComboBoxConnector(const shared_ptr<XItemNodeBase> &node,
-	 QComboBox *item, bool allow_unsel)
+	 QComboBox *item)
   : XItemQConnector(node, item),
-  m_node(node), m_pItem(item),
-  m_bAllowUnsel(allow_unsel) {
+  m_node(node), m_pItem(item) {
     connect(item, SIGNAL( activated(int) ), this, SLOT( onSelect(int) ) );
     onListChanged(node);
   }
@@ -515,7 +514,7 @@ XQComboBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
       }
       if(idx >= 0) {
           m_pItem->setCurrentItem(idx);
-          if(!m_bAllowUnsel) {
+          if(m_node->autoSetAny()) {
 	          int idx1 = findItem(KAME::i18n("(UNSEL)"));
 	          if(idx1 >= 0) {
 	            m_pItem->removeItem(idx1);

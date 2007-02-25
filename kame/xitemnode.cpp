@@ -14,9 +14,24 @@
 #include "xitemnode.h"
 #include <klocale.h>
 
-XItemNodeBase::XItemNodeBase(const char *name, bool runtime) : 
+XItemNodeBase::XItemNodeBase(const char *name, bool runtime, bool auto_set_any) : 
     XValueNodeBase(name, runtime)
 {
+	if(auto_set_any) {
+	    m_lsnTryAutoSet = onListChanged().connectWeak(
+	        false, shared_from_this(), 
+	        &XItemNodeBase::onTryAutoSet);
+	}
+}
+void
+XItemNodeBase::onTryAutoSet(const shared_ptr<XItemNodeBase>& node) {
+	if(!autoSetAny()) return;
+	std::string var = to_str();
+	if(var.length()) return;
+	shared_ptr<const std::deque<Item> > items = itemStrings();
+	if(items->size()) {
+		str(items->front().name);
+	}
 }
 
 void
@@ -24,8 +39,8 @@ _xpointeritemnode_throwConversionError() {
    throw XKameError(KAME::i18n("No item."), __FILE__, __LINE__);
 }
 
-XComboNode::XComboNode(const char *name, bool runtime)
-   : XItemNodeBase(name, runtime),
+XComboNode::XComboNode(const char *name, bool runtime, bool auto_set_any)
+   : XItemNodeBase(name, runtime, auto_set_any),
     m_strings(new std::deque<std::string>()),
     m_var(-1) {
 }
@@ -90,6 +105,7 @@ XComboNode::add(const std::string &str)
 void
 XComboNode::clear()
 {
+	value(-1);
     m_strings.reset(new std::deque<std::string>());
     onListChanged().talk(dynamic_pointer_cast<XItemNodeBase>(shared_from_this()));
 }

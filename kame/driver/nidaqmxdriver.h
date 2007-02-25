@@ -86,6 +86,7 @@ public:
   	float64 freq() const {return m_freq;} //!< [Hz].
   	unsigned int bits() const {return m_bits;}
   	void stop();
+  	void forceStamp(uint64_t now, float64 freq);
   	void stamp(uint64_t cnt) {
   		if(cnt < m_endOfBlank) return;
   		XScopedLock<XMutex> lock(m_mutex);

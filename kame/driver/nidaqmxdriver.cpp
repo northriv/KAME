@@ -137,6 +137,17 @@ XNIDAQmxInterface::VirtualTrigger::clear(uint64_t now, float64 _freq) {
 			m_stamps.pop_front();
 	}
 }
+void
+XNIDAQmxInterface::VirtualTrigger::forceStamp(uint64_t now, float64 _freq) {
+	if(_freq > freq())
+		now /= lrint(_freq / freq());
+	else
+		now *= lrint(freq() / _freq);
+
+	XScopedLock<XMutex> lock(m_mutex);
+	m_stamps.push_front(now);
+	std::sort(m_stamps.begin(), m_stamps.end());
+}
 
 const char *
 XNIDAQmxInterface::busArchType() const {

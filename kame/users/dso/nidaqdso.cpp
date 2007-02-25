@@ -193,11 +193,6 @@ XNIDAQmxDSO::disableTrigger()
     
     m_preTriggerPos = 0;
     m_trigRoute.reset();
-    //reset virtual trigger setup.
-	if(m_virtualTrigger)
-    	m_virtualTrigger->disconnect();
-    m_lsnOnVirtualTrigStart.reset();
-    m_virtualTrigger.reset();
 }
 void
 XNIDAQmxDSO::setupTrigger()
@@ -205,8 +200,6 @@ XNIDAQmxDSO::setupTrigger()
 	XScopedLock<XInterface> lock(*interface());
 	m_suspendRead = true;
  	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
-	
-	disableTrigger();
 	
     unsigned int pretrig = lrint(*trigPos() / 100.0 * *recordLength());
 	m_preTriggerPos = pretrig;
@@ -225,25 +218,11 @@ XNIDAQmxDSO::setupTrigger()
     
     int32 trig_spec = *trigFalling() ? DAQmx_Val_FallingSlope : DAQmx_Val_RisingSlope;
     
-    //setup virtual trigger.
-    if(m_virtualTriggerList) {
-	    for(XNIDAQmxInterface::VirtualTrigger::VirtualTriggerList_it
-	    	it = m_virtualTriggerList->begin(); it != m_virtualTriggerList->end(); it++) {
-			if(shared_ptr<XNIDAQmxInterface::VirtualTrigger> vt = it->lock()) {
-				for(unsigned int i = 0; i < vt->bits(); i++) {
-		    		if(src == formatString("%s/line%d", vt->label(), i)) {
-			    		m_virtualTrigger = vt;
-			    		vt->connect(
-			    			!*trigFalling() ? (1uL << i) : 0,
-			    			*trigFalling() ? (1uL << i) : 0);
-					    dtrig = vt->armTerm();
-					    trig_spec = DAQmx_Val_RisingSlope;
-					    pretrig = 0;				    
-					    CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_task, DAQmx_Val_OverwriteUnreadSamps));
-		    		}
-	    		}
-			}
-	    }
+    if(m_virtualTrigger) {
+	    dtrig = m_virtualTrigger->armTerm();
+	    trig_spec = DAQmx_Val_RisingSlope;
+	    pretrig = 0;				    
+	    CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_task, DAQmx_Val_OverwriteUnreadSamps));
     }
     
     //Small # of pretriggers is not allowed for ReferenceTrigger.
@@ -261,7 +240,12 @@ XNIDAQmxDSO::setupTrigger()
 	        CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_task,
 	            dtrig.c_str(), trig_spec));
 	    }
-	    DAQmxSetReadOverWrite(m_task, DAQmx_Val_DoNotOverwriteUnreadSamps);
+	    if(m_virtualTrigger) {
+			CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstSample));
+	    }
+		else {
+			CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_CurrReadPos));
+		}
     }
     else {
 	    if(atrig.length()) {
@@ -272,10 +256,37 @@ XNIDAQmxDSO::setupTrigger()
 	        CHECK_DAQMX_RET(DAQmxCfgDigEdgeRefTrig(m_task,
 	            dtrig.c_str(), trig_spec, pretrig));
 	    }
-	    CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_task, DAQmx_Val_OverwriteUnreadSamps));
+		CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstPretrigSamp));
     }
     
 	startSequence();
+}
+void
+XNIDAQmxDSO::setupVirtualTrigger()
+{
+    //reset virtual trigger setup.
+	if(m_virtualTrigger)
+    	m_virtualTrigger->disconnect();
+    m_lsnOnVirtualTrigStart.reset();
+    m_virtualTrigger.reset();
+
+    std::string src = trigSource()->to_str();
+    //setup virtual trigger.
+    if(m_virtualTriggerList) {
+	    for(XNIDAQmxInterface::VirtualTrigger::VirtualTriggerList_it
+	    	it = m_virtualTriggerList->begin(); it != m_virtualTriggerList->end(); it++) {
+			if(shared_ptr<XNIDAQmxInterface::VirtualTrigger> vt = it->lock()) {
+				for(unsigned int i = 0; i < vt->bits(); i++) {
+		    		if(src == formatString("%s/line%d", vt->label(), i)) {
+			    		m_virtualTrigger = vt;
+						m_virtualTrigger->connect(
+						!*trigFalling() ? (1uL << i) : 0,
+						*trigFalling() ? (1uL << i) : 0);
+		    		}
+	    		}
+			}
+	    }
+    }
 }
 void
 XNIDAQmxDSO::setupTiming()
@@ -293,6 +304,9 @@ XNIDAQmxDSO::setupTiming()
     CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
     if(num_ch == 0) return;
 
+	disableTrigger();
+	setupVirtualTrigger();
+
 	const unsigned int len = *recordLength();
 	m_record.resize(len * NUM_MAX_CH);
 	m_recordBuf.resize(len * NUM_MAX_CH);
@@ -305,7 +319,7 @@ XNIDAQmxDSO::setupTiming()
         NULL, // internal source
         len / *timeWidth(),
         DAQmx_Val_Rising,
-        DAQmx_Val_FiniteSamps,
+        !m_virtualTrigger ? DAQmx_Val_FiniteSamps : DAQmx_Val_ContSamps,
         len
         ));
 
@@ -316,8 +330,24 @@ XNIDAQmxDSO::setupTiming()
 //	dbgPrint(QString("Reference Clk rate = %1.").arg(rate));
     CHECK_DAQMX_RET(DAQmxGetSampClkRate(m_task, &rate));
     m_interval = 1.0 / rate;
+
+	uInt32 bufsize = m_recordLength;
+	if(m_virtualTrigger) {
+		bufsize = std::max(m_recordLength * 4, (unsigned int)lrint(0.1 / m_interval));
+		m_virtualTrigger->setBlankTerm(m_interval * m_recordLength);
+	}
+	CHECK_DAQMX_RET(DAQmxCfgInputBuffer(m_task, bufsize));
     
     setupTrigger();
+    
+	if(m_virtualTrigger) {
+		uInt32 num_ch;
+	    CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
+	    if(num_ch > 0) {
+		    CHECK_DAQMX_RET(DAQmxStartTask(m_task));
+		    m_running = true;
+	    }
+	}
 }
 void
 XNIDAQmxDSO::createChannels()
@@ -383,15 +413,6 @@ XNIDAQmxDSO::createChannels()
    	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_task, 0, &XNIDAQmxDSO::_onTaskDone, this));
 
     setupTiming();
-	
-	if(m_virtualTrigger) {
-		uInt32 num_ch;
-	    CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
-	    if(num_ch > 0) {
-		    CHECK_DAQMX_RET(DAQmxStartTask(m_task));
-		    m_running = true;
-	    }
-	}
 }
 void
 XNIDAQmxDSO::onVirtualTrigStart(const shared_ptr<XNIDAQmxInterface::VirtualTrigger> &) {
@@ -403,7 +424,8 @@ XNIDAQmxDSO::onVirtualTrigStart(const shared_ptr<XNIDAQmxInterface::VirtualTrigg
 		m_running = false;
     	DAQmxStopTask(m_task);
 	}
-
+	
+	fprintf(stderr, "Virtual trig start.\n");
     startSequence();
 
 	uInt32 num_ch;
@@ -434,7 +456,8 @@ XNIDAQmxDSO::onForceTriggerTouched(const shared_ptr<XNode> &)
 	m_suspendRead = true;
  	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
 
-	disableTrigger();
+	if(!m_virtualTrigger)
+		disableTrigger();
 
     CHECK_DAQMX_RET(DAQmxStartTask(m_task));
 	m_suspendRead = false;
@@ -518,13 +541,6 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 			}
 		}
 		else {
-			if(m_preTriggerPos) {
-				CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstPretrigSamp));
-			}
-			else {
-				CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_CurrReadPos));
-			}
-				
 		    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
 		}
 		if(terminated)
@@ -606,20 +622,13 @@ XNIDAQmxDSO::startSequence()
     
 	if(m_virtualTrigger) {
 		if(m_running) {
-			uInt32 bufsize = std::max(m_recordLength * 4, (unsigned int)lrint(0.1 / m_interval));
-			CHECK_DAQMX_RET(DAQmxCfgInputBuffer(m_task, bufsize));
-			m_virtualTrigger->setBlankTerm(m_interval * m_recordLength);
 			uInt64 total_samps;
 			CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
 			m_virtualTrigger->clear(total_samps, 1.0 / m_interval);
+			if(!m_lsnOnVirtualTrigStart)
+				m_lsnOnVirtualTrigStart = m_virtualTrigger->onStart().connectWeak(false,
+					shared_from_this(), &XNIDAQmxDSO::onVirtualTrigStart);
 		}
-		else {
-			CHECK_DAQMX_RET(DAQmxSetSampQuantSampMode(m_task, DAQmx_Val_ContSamps));
-			CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstSample));
-		}
-		if(!m_lsnOnVirtualTrigStart)
-			m_lsnOnVirtualTrigStart = m_virtualTrigger->onStart().connectWeak(false,
-				shared_from_this(), &XNIDAQmxDSO::onVirtualTrigStart);
 	}
 	else {
 		if(m_running) {
@@ -627,8 +636,6 @@ XNIDAQmxDSO::startSequence()
 		    if(m_task != TASK_UNDEF)
 		    	DAQmxStopTask(m_task);
 		}
-		CHECK_DAQMX_RET(DAQmxSetSampQuantSampMode(m_task, DAQmx_Val_FiniteSamps));
-		CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_CurrReadPos));
 		uInt32 num_ch;
 	    CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
 	    if(num_ch > 0) {

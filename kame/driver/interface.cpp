@@ -34,7 +34,7 @@ XInterface::XOpenInterfaceError::XOpenInterfaceError(const char *file, int line)
 XInterface::XInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) : 
     XNode(name, runtime), 
     m_driver(driver),
-    m_device(create<XComboNode>("Device", false)),
+    m_device(create<XComboNode>("Device", false, true)),
     m_port(create<XStringNode>("Port", false)),
     m_address(create<XUIntNode>("Address", false)),
     m_baudrate(create<XUIntNode>("BaudRate", false)),

@@ -22,7 +22,7 @@ class XItemNodeBase : public XValueNodeBase
 {
  XNODE_OBJECT
  protected:
-  explicit XItemNodeBase(const char *name, bool runtime = false);
+  explicit XItemNodeBase(const char *name, bool runtime = false, bool auto_set_any = false);
  public:
   virtual ~XItemNodeBase() {}
   
@@ -31,8 +31,11 @@ class XItemNodeBase : public XValueNodeBase
   };
   virtual shared_ptr<const std::deque<Item> > itemStrings() const = 0;
   XTalker<shared_ptr<XItemNodeBase> >  &onListChanged() {return m_tlkOnListChanged;}
+  bool autoSetAny() const {return m_lsnTryAutoSet;}
  private:
   XTalker<shared_ptr<XItemNodeBase> > m_tlkOnListChanged;
+  shared_ptr<XListener> m_lsnTryAutoSet;
+  void onTryAutoSet(const shared_ptr<XItemNodeBase>& node);
 };
 
 void
@@ -43,8 +46,8 @@ class XPointerItemNode : public XItemNodeBase
 {
  XNODE_OBJECT
  protected:
-  XPointerItemNode(const char *name, bool runtime, const shared_ptr<TL> &list)
-   :  XItemNodeBase(name, runtime)
+  XPointerItemNode(const char *name, bool runtime, const shared_ptr<TL> &list, bool auto_set_any = false)
+   :  XItemNodeBase(name, runtime, auto_set_any)
     , m_var(new shared_ptr<XNode>()), m_list(list) {
     m_lsnOnItemReleased = list->onRelease().connectWeak(
         false, shared_from_this(), 
@@ -90,7 +93,7 @@ class XPointerItemNode : public XItemNodeBase
   void onItemReleased(const shared_ptr<XNode>& node)
   {
       if(node == *m_var)
-            value(shared_ptr<XNode>());
+  	    value(shared_ptr<XNode>());
   }
   void lsnOnListChanged(const shared_ptr<XListNodeBase>&)
   {
@@ -104,8 +107,8 @@ class XItemNode : public XPointerItemNode<TL>
 {
  XNODE_OBJECT
  protected:
-  XItemNode(const char *name, bool runtime, const shared_ptr<TL> &list)
-   :  XPointerItemNode<TL>(name, runtime, list) {
+  XItemNode(const char *name, bool runtime, const shared_ptr<TL> &list, bool auto_set_any = false)
+   :  XPointerItemNode<TL>(name, runtime, list, auto_set_any) {
    }
  public:
   virtual ~XItemNode() {}
@@ -146,7 +149,7 @@ class XComboNode : public XItemNodeBase
 {
  XNODE_OBJECT
  protected:
-  explicit XComboNode(const char *name, bool runtime = false);
+  explicit XComboNode(const char *name, bool runtime = false, bool auto_set_any = false);
  public:
   virtual ~XComboNode() {}
   

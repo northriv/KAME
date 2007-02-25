@@ -31,7 +31,7 @@ XConCalTable::XConCalTable
     m_temp(createOrphan<XDoubleNode>("temp") ),
     m_value(createOrphan<XDoubleNode>("value") ),
     m_thermometer(createOrphan<XItemNode<XThermometerList, XThermometer> >(
-        "thermometer", false, list) ),
+        "thermometer", false, list, true) ),
     m_conThermo(xqcon_create<XQComboBoxConnector>(m_thermometer, (QComboBox *)form->cmbThermometer) ),
     m_conTemp(xqcon_create<XQLineEditConnector>(m_temp, form->edTemp, false)),
     m_conValue(xqcon_create<XQLineEditConnector>(m_value, form->edValue, false)),
