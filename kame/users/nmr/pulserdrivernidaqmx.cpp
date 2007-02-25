@@ -416,6 +416,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	 	//prepare pattern generation.
 		m_genLastPatItDO = m_genPatternList->begin();
 		m_genRestSampsDO = m_genPatternList->back().tonext;
+	 	m_genTotalCountDO = m_genPatternList->front().tonext;
 		m_genBufDO.resize(m_bufSizeHintDO);
 		if(m_taskAO != TASK_UNDEF) {
 			m_genLastPatItAO = m_genPatternList->begin();
@@ -663,6 +664,7 @@ XNIDAQmxPulser::genBankDO()
 	GenPatternIterator it = m_genLastPatItDO;
 	tRawDO pat = it->pattern;
 	uint64_t tonext = m_genRestSampsDO;
+	uint64_t total = m_genTotalCountDO;
 	const tRawDO pausingbit = m_pausingBit;
 	const uint64_t pausing_cnt = m_pausingCount;
 	const uint64_t pausing_cnt_blank_before = m_pausingBlankBefore + m_pausingBlankAfter;
@@ -713,9 +715,10 @@ XNIDAQmxPulser::genBankDO()
 				it = m_genPatternList->begin();
 //				printf("p.\n");
 			}
-			vt->changeValue(pat, (tRawDO)it->pattern, it->time);
+			vt->changeValue(pat, (tRawDO)it->pattern, total);
 			pat = it->pattern;
 			tonext = it->tonext;
+			total += tonext;
 		}
 	}
 	if(pausingbit)
@@ -723,6 +726,7 @@ XNIDAQmxPulser::genBankDO()
 	ASSERT(pDO == &m_genBufDO[m_genBufDO.size()]);
 	m_genRestSampsDO = tonext;
 	m_genLastPatItDO = it;
+	m_genTotalCountDO = total;
 }
 void
 XNIDAQmxPulser::genBankAO()
@@ -814,15 +818,13 @@ XNIDAQmxPulser::createNativePatterns()
 {
 	m_genPatternListNext.reset(new std::vector<GenPattern>);
 	uint32_t pat = m_relPatList.back().pattern;
-	uint64_t time = 0;
 	for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++)
 	{
 	 	uint64_t tonext = it->toappear;
 
-	 	GenPattern genpat(pat, tonext, time);
+	 	GenPattern genpat(pat, tonext);
   		m_genPatternListNext->push_back(genpat);
 	 	pat = it->pattern;
-	 	time = it->time;
 	}
 
 	if(haveQAMPorts()) {

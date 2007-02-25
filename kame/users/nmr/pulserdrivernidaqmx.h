@@ -69,11 +69,10 @@ private:
  	typedef int16 tRawAO;
 	typedef uInt16 tRawDO;
 	  struct GenPattern {
-	      GenPattern(uint32_t pat, uint64_t next, uint64_t t) :
-	        pattern(pat), tonext(next), time(t) {}
+	      GenPattern(uint32_t pat, uint64_t next) :
+	        pattern(pat), tonext(next) {}
 	      uint32_t pattern;
 	      uint64_t tonext; //!< in samps for buffer.
-	      uint64_t time; //!< timesamp for physical time.
 	  };
 
 	static int32 _onTaskDone(TaskHandle task, int32 status, void*);
@@ -100,6 +99,7 @@ enum { NUM_AO_CH = 2};
 	unsigned int m_bufSizeHintAO;
 	unsigned int m_transferSizeHintDO;
 	unsigned int m_transferSizeHintAO;
+	uint64_t m_genTotalCountDO;
 	atomic<bool> m_running;
 	atomic<bool> m_suspendDO, m_suspendAO;
 protected:	
