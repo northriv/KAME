@@ -95,7 +95,8 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 		if(ao_rate <= do_rate)
 			do_rate = ao_rate;
 		else {
-			int oversamp = lrint(ao_rate / do_rate);
+			//Oversampling is unstable.
+			int oversamp = 1; //lrint(ao_rate / do_rate);
 			ao_rate = do_rate * oversamp;
 		}
 		m_resolutionDO = 1.0 / do_rate;
@@ -320,10 +321,10 @@ XNIDAQmxPulser::setupTasksAODO() {
 			&m_lowerLimAO[ch]));
 	}
 	
-	CHECK_DAQMX_RET(DAQmxSetAOIdleOutputBehavior(m_taskAO,
+/*	CHECK_DAQMX_RET(DAQmxSetAOIdleOutputBehavior(m_taskAO,
 			formatString("%s/ao0:1", intfAO()->devName()).c_str(),
 			DAQmx_Val_ZeroVolts));
-	
+*/	
 	if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_DMA_AO) {
 		//DMA is slower than interrupts!
 /*		CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, 
@@ -744,7 +745,7 @@ XNIDAQmxPulser::genBankAO()
 	const unsigned int size = m_bufSizeHintAO / NUM_AO_CH;
 	for(unsigned int samps_rest = size; samps_rest >= oversamp_ao;) {
 		//number of samples to be written into buffer.
-		unsigned int gen_cnt = std::min((uint64_t)samps_rest, tonext);
+		unsigned int gen_cnt = std::min((uint64_t)samps_rest, tonext * oversamp_ao);
 		gen_cnt = (gen_cnt / oversamp_ao) * oversamp_ao;
 		//pattern of digital lines.
 		unsigned int pidx = (pat & PAT_QAM_PULSE_IDX_MASK) / PAT_QAM_PULSE_IDX;
