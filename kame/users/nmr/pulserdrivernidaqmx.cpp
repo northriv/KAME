@@ -56,14 +56,7 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
 
 XNIDAQmxPulser::~XNIDAQmxPulser()
 {
-	if(m_taskAO != TASK_UNDEF)
-	    DAQmxClearTask(m_taskAO);
-	if(m_taskDO != TASK_UNDEF)
-	    DAQmxClearTask(m_taskDO);
-	if(m_taskDOCtr != TASK_UNDEF)
-	    DAQmxClearTask(m_taskDOCtr);
-	if(m_taskGateCtr != TASK_UNDEF)
-	    DAQmxClearTask(m_taskGateCtr);
+	clearTasks();
 }
 
 void
@@ -327,6 +320,10 @@ XNIDAQmxPulser::setupTasksAODO() {
 			&m_lowerLimAO[ch]));
 	}
 	
+	CHECK_DAQMX_RET(DAQmxSetAOIdleOutputBehavior(m_taskAO,
+			formatString("%s/ao0:1", intfAO()->devName()).c_str(),
+			DAQmx_Val_ZeroVolts));
+	
 	if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_DMA_AO) {
 		//DMA is slower than interrupts!
 /*		CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, 
@@ -479,14 +476,14 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		genBankDO();
 		m_suspendAO = false;
 		m_suspendDO = false;
-	}
 	
-	if(m_taskAO != TASK_UNDEF)
-	    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
-	if(m_taskDOCtr != TASK_UNDEF)
-	    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
-    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
-	CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
+		if(m_taskAO != TASK_UNDEF)
+		    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
+		if(m_taskDOCtr != TASK_UNDEF)
+		    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
+	    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
+	}
 	//slave must start before the master.
 	if(m_taskGateCtr != TASK_UNDEF)
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
@@ -548,7 +545,7 @@ XNIDAQmxPulser::tryOutputSuspend(const atomic<bool> &flag,
 	XRecursiveMutex &mutex, const atomic<bool> &terminated) {
 	if(flag) {
 		mutex.unlock();
-		while(flag && !terminated) msecsleep(10);
+		while(flag && !terminated) msecsleep(30);
 		mutex.lock();
 		return true;
 	}
@@ -749,9 +746,8 @@ XNIDAQmxPulser::genBankAO()
 		//number of samples to be written into buffer.
 		unsigned int gen_cnt = std::min((uint64_t)samps_rest, tonext);
 		gen_cnt = (gen_cnt / oversamp_ao) * oversamp_ao;
-		unsigned int patAO = pat / PAT_QAM_PHASE;
 		//pattern of digital lines.
-		unsigned int pidx = patAO / (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE);
+		unsigned int pidx = (pat & PAT_QAM_PULSE_IDX_MASK) / PAT_QAM_PULSE_IDX;
 		if((pidx == 0) && pausingbit &&
 			(tonext > pausing_period)) {
 			if(gen_cnt < (pausing_cnt_blank_before + pausing_cnt_blank_after) * oversamp_ao)
@@ -777,8 +773,8 @@ XNIDAQmxPulser::genBankAO()
 			}
 		}
 		else {
-			unsigned int pnum = patAO - (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE);
-			ASSERT(pnum < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX);
+			unsigned int pnum = (pat & PAT_QAM_MASK) / PAT_QAM_PHASE - (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE);
+			ASSERT(pnum < PAT_QAM_PULSE_IDX_MASK / PAT_QAM_PULSE_IDX);
 			tRawAO *pGenAO0 = &m_genPulseWaveAO[0][pnum]->at(aoidx);
 			tRawAO *pGenAO1 = &m_genPulseWaveAO[1][pnum]->at(aoidx);
 			ASSERT(m_genPulseWaveAO[0][pnum]->size());
@@ -841,8 +837,8 @@ XNIDAQmxPulser::createNativePatterns()
 		}
 	    m_genAOZeroLevel[0] = aoVoltToRaw(0, 0.0);
 	    m_genAOZeroLevel[1] = aoVoltToRaw(1, 0.0);
+		std::complex<double> c(pow(10.0, *masterLevel()/20.0), 0);
 		for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX; i++) {
-			std::complex<double> c(pow(10.0, *masterLevel()/20.0), 0);
 			for(unsigned int qpsk = 0; qpsk < 4; qpsk++) {
 				const unsigned int pnum = i * (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE) + qpsk;
 				m_genPulseWaveNextAO[0][pnum].reset(new std::vector<tRawAO>);

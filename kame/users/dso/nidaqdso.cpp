@@ -305,7 +305,6 @@ XNIDAQmxDSO::setupTiming()
         NULL, // internal source
         len / *timeWidth(),
         DAQmx_Val_Rising,
-//        m_virtualTrigger ? DAQmx_Val_ContSamps : DAQmx_Val_FiniteSamps,
         DAQmx_Val_FiniteSamps,
         len
         ));
@@ -381,6 +380,8 @@ XNIDAQmxDSO::createChannels()
 		}
 */	}
 
+   	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_task, 0, &XNIDAQmxDSO::_onTaskDone, this));
+
     setupTiming();
 	
 	if(m_virtualTrigger) {
@@ -413,6 +414,19 @@ XNIDAQmxDSO::onVirtualTrigStart(const shared_ptr<XNIDAQmxInterface::VirtualTrigg
 	    m_running = true;
     }
 }
+int32
+XNIDAQmxDSO::_onTaskDone(TaskHandle task, int32 status, void *data) {
+	XNIDAQmxDSO *obj = reinterpret_cast<XNIDAQmxDSO*>(data);
+	obj->onTaskDone(task, status);
+	return status;
+}
+void
+XNIDAQmxDSO::onTaskDone(TaskHandle /*task*/, int32 status) {
+	if(status) {
+		gErrPrint(getLabel() + XNIDAQmxInterface::getNIDAQmxErrMessage(status));
+		m_suspendRead = true;
+	}
+}
 void
 XNIDAQmxDSO::onForceTriggerTouched(const shared_ptr<XNode> &)
 {
@@ -430,7 +444,7 @@ inline bool
 XNIDAQmxDSO::tryReadAISuspend(const atomic<bool> &terminated) {
 	if(m_suspendRead) {
 		m_readMutex.unlock();
-		while(m_suspendRead && !terminated) msecsleep(10);
+		while(m_suspendRead && !terminated) msecsleep(30);
 		m_readMutex.lock();
 		return true;
 	}
@@ -462,14 +476,14 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 	
 		 if(!m_running) {
 			tryReadAISuspend(terminated);
-			msecsleep(10);
+			msecsleep(30);
 			return;
 		 }
 	
 	    CHECK_DAQMX_RET(DAQmxGetReadNumChans(m_task, &num_ch));
 	    if(num_ch == 0) {
 			tryReadAISuspend(terminated);
-			msecsleep(10);
+			msecsleep(30);
 			return;
 		 }
 	    

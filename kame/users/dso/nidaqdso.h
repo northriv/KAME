@@ -94,6 +94,8 @@ enum {CAL_POLY_ORDER = 4};
   void setupTiming();
   void createChannels();
   void acquire(const atomic<bool> &terminated);
+	static int32 _onTaskDone(TaskHandle task, int32 status, void*);
+	void onTaskDone(TaskHandle task, int32 status);
 
   XRecursiveMutex m_readMutex;
 

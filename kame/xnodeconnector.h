@@ -358,7 +358,7 @@ class XQComboBoxConnector : public XItemQConnector
   XQCON_OBJECT
  protected:
   XQComboBoxConnector(const shared_ptr<XItemNodeBase> &node,
-    QComboBox *item);
+    QComboBox *item, bool allow_unsel = true);
  public:
   virtual ~XQComboBoxConnector() {}
  protected slots:
@@ -370,6 +370,7 @@ class XQComboBoxConnector : public XItemQConnector
   const shared_ptr<XItemNodeBase> m_node;
   QComboBox *const m_pItem;
   int findItem(const QString &);
+  bool m_bAllowUnsel;
 };
 
 class QListBox;
