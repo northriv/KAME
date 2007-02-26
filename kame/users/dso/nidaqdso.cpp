@@ -81,10 +81,10 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 //    	"RTSI0", "RTSI1", "RTSI2", "RTSI3", "RTSI4", "RTSI5", "RTSI6", "RTSI7", 
     	"Ctr0InternalOutput", "Ctr1InternalOutput",
     	//via PFI or RTSI
-    	"ao/SampleClock",
+/*    	"ao/SampleClock",
     	"ao/StartTrigger",
     	"ao/PauseTrigger",
-    	"Ctr0Source",
+*/    	"Ctr0Source",
     	"Ctr0Gate",
     	"Ctr1Source",
     	"Ctr1Gate",
@@ -101,13 +101,11 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
     	"Ctr0InternalOutput",
     	"OnboardClock",
     	//via PFI or RTSI
-    	"ao/SampleClock",
+/*    	"ao/SampleClock",
     	"ao/StartTrigger",
     	"ao/PauseTrigger",
-    	"Ctr0Source",
+*/    	"Ctr0Source",
     	"Ctr0Gate",
-    	"Ctr1Source",
-    	"Ctr1Gate",
     	 0L};
     	 const char **sc = sc_s;
     	 if(interface()->productSeries() == std::string("M"))
@@ -240,12 +238,6 @@ XNIDAQmxDSO::setupTrigger()
 	        CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_task,
 	            dtrig.c_str(), trig_spec));
 	    }
-	    if(m_virtualTrigger) {
-			CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstSample));
-	    }
-		else {
-			CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_CurrReadPos));
-		}
     }
     else {
 	    if(atrig.length()) {
@@ -256,7 +248,6 @@ XNIDAQmxDSO::setupTrigger()
 	        CHECK_DAQMX_RET(DAQmxCfgDigEdgeRefTrig(m_task,
 	            dtrig.c_str(), trig_spec, pretrig));
 	    }
-		CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstPretrigSamp));
     }
     
 	startSequence();
@@ -532,6 +523,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 	//				CHECK_DAQMX_RET(DAQmxGetReadCurrReadPos(m_task, &currpos));
 	//				int32 offset = ((lastcnt - currpos) % (uInt64)bufsize) - m_preTriggerPos;
 					int32 offset = ((lastcnt - m_preTriggerPos + (uInt64)bufsize) % (uInt64)bufsize);
+					CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstSample));
 				    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, offset));
 					vt->pop();
 					fprintf(stderr, "hit!\n");
@@ -541,6 +533,13 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 			}
 		}
 		else {
+			if(m_preTriggerPos) {
+				CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstPretrigSamp));
+			}
+			else {
+				CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_CurrReadPos));
+			}
+				
 		    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
 		}
 		if(terminated)
@@ -621,13 +620,13 @@ XNIDAQmxDSO::startSequence()
 	m_recordLength = m_record.size() / NUM_MAX_CH;
     
 	if(m_virtualTrigger) {
+		if(!m_lsnOnVirtualTrigStart)
+			m_lsnOnVirtualTrigStart = m_virtualTrigger->onStart().connectWeak(false,
+				shared_from_this(), &XNIDAQmxDSO::onVirtualTrigStart);
 		if(m_running) {
 			uInt64 total_samps;
 			CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
 			m_virtualTrigger->clear(total_samps, 1.0 / m_interval);
-			if(!m_lsnOnVirtualTrigStart)
-				m_lsnOnVirtualTrigStart = m_virtualTrigger->onStart().connectWeak(false,
-					shared_from_this(), &XNIDAQmxDSO::onVirtualTrigStart);
 		}
 	}
 	else {
@@ -765,23 +764,23 @@ XNIDAQmxDSO::onSingleChanged(const shared_ptr<XValueNodeBase> &) {
 }
 void
 XNIDAQmxDSO::onTrigPosChanged(const shared_ptr<XValueNodeBase> &) {
-    setupTiming();
+    createChannels();
 }
 void
 XNIDAQmxDSO::onTrigSourceChanged(const shared_ptr<XValueNodeBase> &) {
-    setupTiming();
+    createChannels();
 }
 void
 XNIDAQmxDSO::onTrigLevelChanged(const shared_ptr<XValueNodeBase> &) {
-    setupTiming();
+    createChannels();
 }
 void
 XNIDAQmxDSO::onTrigFallingChanged(const shared_ptr<XValueNodeBase> &) {
-    setupTiming();
+    createChannels();
 }
 void
 XNIDAQmxDSO::onTimeWidthChanged(const shared_ptr<XValueNodeBase> &) {
-    setupTiming();
+    createChannels();
 }
 void
 XNIDAQmxDSO::onTrace1Changed(const shared_ptr<XValueNodeBase> &) {
@@ -801,13 +800,15 @@ XNIDAQmxDSO::onVFullScale2Changed(const shared_ptr<XValueNodeBase> &) {
 }
 void
 XNIDAQmxDSO::onVOffset1Changed(const shared_ptr<XValueNodeBase> &) {
+    createChannels();
 }
 void
 XNIDAQmxDSO::onVOffset2Changed(const shared_ptr<XValueNodeBase> &) {
+    createChannels();
 }
 void
 XNIDAQmxDSO::onRecordLengthChanged(const shared_ptr<XValueNodeBase> &) {
-    setupTiming();
+    createChannels();
 }
 
 #endif //HAVE_NI_DAQMX
