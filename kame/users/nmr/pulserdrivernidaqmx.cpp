@@ -292,7 +292,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 	}
 
 	m_virtualTrigger->setArmTerm(
-		formatString("/%s/ao/StartTrigger", intfAO()->devName()).c_str());
+		formatString("/%s/ao/SampleClock", intfAO()->devName()).c_str());
 
 	//Buffer setup.
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, BUF_SIZE_HINT));
@@ -415,12 +415,12 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 
 	 	//prepare pattern generation.
 		m_genLastPatItDO = m_genPatternList->begin();
-		m_genRestSampsDO = m_genPatternList->back().tonext;
+		m_genRestSampsDO = m_genPatternList->front().tonext;
 	 	m_genTotalCountDO = m_genPatternList->front().tonext;
 		m_genBufDO.resize(m_bufSizeHintDO);
 		if(m_taskAO != TASK_UNDEF) {
 			m_genLastPatItAO = m_genPatternList->begin();
-			m_genRestSampsAO = m_genPatternList->back().tonext;
+			m_genRestSampsAO = m_genPatternList->front().tonext;
 			m_genAOIndex = 0;
 			m_genBufAO.resize(m_bufSizeHintAO);
 		}
@@ -435,6 +435,15 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];
 			mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);
 	 	}
+
+	
+		if(m_taskAO != TASK_UNDEF)
+		    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
+		if(m_taskDOCtr != TASK_UNDEF)
+		    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
+	    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
+		if(m_taskGateCtr != TASK_UNDEF)
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
 
 		//synchronize the software trigger.
 		m_virtualTrigger->start(1e3 / resolution());
@@ -478,13 +487,6 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		genBankDO();
 		m_suspendAO = false;
 		m_suspendDO = false;
-	
-		if(m_taskAO != TASK_UNDEF)
-		    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
-		if(m_taskDOCtr != TASK_UNDEF)
-		    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
-	    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
-		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
 	}
 	//slave must start before the master.
 	if(m_taskGateCtr != TASK_UNDEF)

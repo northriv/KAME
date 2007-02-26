@@ -76,8 +76,9 @@ XNIDAQmxInterface::VirtualTrigger::start(float64 freq) {
 	{
 		XScopedLock<XMutex> lock(m_mutex);
 		m_endOfBlank = 0;
-		m_blankTerm = lrint(0.02 * freq);
+		if(!m_blankTerm) m_blankTerm = lrint(0.02 * freq);
 		m_freq = freq;
+		m_stamps.clear();
 	}
 	onStart().talk(shared_from_this());
 }

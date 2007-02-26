@@ -325,20 +325,10 @@ XNIDAQmxDSO::setupTiming()
 	unsigned int bufsize = len;
 	if(m_virtualTrigger) {
 		bufsize = std::max(bufsize * 4, (unsigned int)lrint(0.1 / m_interval));
-		m_virtualTrigger->setBlankTerm(m_interval * m_recordLength);
 	}
 	CHECK_DAQMX_RET(DAQmxCfgInputBuffer(m_task, bufsize));
     
     setupTrigger();
-    
-	if(m_virtualTrigger) {
-		uInt32 num_ch;
-	    CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
-	    if(num_ch > 0) {
-		    CHECK_DAQMX_RET(DAQmxStartTask(m_task));
-		    m_running = true;
-	    }
-	}
 }
 void
 XNIDAQmxDSO::createChannels()
@@ -411,6 +401,7 @@ XNIDAQmxDSO::clearStoredVirtualTrigger() {
 	if(m_running)
 		CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
 	m_virtualTrigger->clear(total_samps, 1.0 / m_interval);
+		fprintf(stderr, "total %d\n", (int)total_samps);
 }
 void
 XNIDAQmxDSO::onVirtualTrigStart(const shared_ptr<XNIDAQmxInterface::VirtualTrigger> &) {
@@ -423,7 +414,7 @@ XNIDAQmxDSO::onVirtualTrigStart(const shared_ptr<XNIDAQmxInterface::VirtualTrigg
     	DAQmxStopTask(m_task);
 	}
 	
-	clearStoredVirtualTrigger();
+	m_virtualTrigger->setBlankTerm(m_interval * m_recordLength);
 	fprintf(stderr, "Virtual trig start.\n");
 
 	uInt32 num_ch;
@@ -649,6 +640,9 @@ XNIDAQmxDSO::startSequence()
 		if(m_running) {
 			clearStoredVirtualTrigger();
 			m_suspendRead = false;
+		}
+		else {
+			statusPrinter()->printMessage(KAME::i18n("Restart the trigger source."));
 		}
 	}
 	else {
