@@ -322,9 +322,9 @@ XNIDAQmxDSO::setupTiming()
     CHECK_DAQMX_RET(DAQmxGetSampClkRate(m_task, &rate));
     m_interval = 1.0 / rate;
 
-	uInt32 bufsize = m_recordLength;
+	unsigned int bufsize = len;
 	if(m_virtualTrigger) {
-		bufsize = std::max(m_recordLength * 4, (unsigned int)lrint(0.1 / m_interval));
+		bufsize = std::max(bufsize * 4, (unsigned int)lrint(0.1 / m_interval));
 		m_virtualTrigger->setBlankTerm(m_interval * m_recordLength);
 	}
 	CHECK_DAQMX_RET(DAQmxCfgInputBuffer(m_task, bufsize));
@@ -505,13 +505,14 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 	
 		if(m_virtualTrigger) {
 			shared_ptr<XNIDAQmxInterface::VirtualTrigger> &vt(m_virtualTrigger);
+			
 			while(!terminated) {
 				if(tryReadAISuspend(terminated))
 					return;
 				uInt64 total_samps;
 				CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
 				uint64_t lastcnt = vt->front(freq);
-				if(lastcnt && (lastcnt < total_samps)) {
+				if(lastcnt && (lastcnt + size < total_samps)) {
 					uInt32 bufsize;
 					CHECK_DAQMX_RET(DAQmxGetBufInputBufSize(m_task, &bufsize));
 					if(total_samps - lastcnt + m_preTriggerPos > bufsize * 4 / 5) {
@@ -519,12 +520,21 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 						gWarnPrint(KAME::i18n("Buffer Overflow."));
 						continue;
 					}
-	//				uInt64 currpos;
-	//				CHECK_DAQMX_RET(DAQmxGetReadCurrReadPos(m_task, &currpos));
-	//				int32 offset = ((lastcnt - currpos) % (uInt64)bufsize) - m_preTriggerPos;
-					int32 offset = ((lastcnt - m_preTriggerPos + (uInt64)bufsize) % (uInt64)bufsize);
-					CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstSample));
+				    //set read pos.
+				    int16 tmpbuf[NUM_MAX_CH];
+				    int32 samps;
+					CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_MostRecentSamp));
+				    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, -1));
+				    CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, 1,
+				        0, DAQmx_Val_GroupByScanNumber,
+				        tmpbuf, NUM_MAX_CH, &samps, NULL
+				        ));
+					CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_CurrReadPos));
+					uInt64 curr_rdpos;
+					CHECK_DAQMX_RET(DAQmxGetReadCurrReadPos(m_task, &curr_rdpos));
+					int32 offset = lastcnt - m_preTriggerPos - curr_rdpos;
 				    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, offset));
+					
 					vt->pop();
 					fprintf(stderr, "hit!\n");
 					break;
@@ -545,18 +555,20 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 		if(terminated)
 			return;
 	
-		const unsigned int num_samps = std::min(size, 1024u);
+		const unsigned int num_samps = std::min(size, 2048u);
 		for(; cnt < size;) {
 			int32 samps;
 			samps = std::min(size - cnt, num_samps);
-			while(!terminated) {
-				if(tryReadAISuspend(terminated))
-					return;
-			uInt32 space;
-				int ret = DAQmxGetReadAvailSampPerChan(m_task, &space);
-				if(!ret && (space >= (uInt32)samps))
-					break;
-				usleep(lrint(1e6 * (samps - space) * m_interval));
+			if(!m_virtualTrigger) {
+				while(!terminated) {
+					if(tryReadAISuspend(terminated))
+						return;
+				uInt32 space;
+					int ret = DAQmxGetReadAvailSampPerChan(m_task, &space);
+					if(!ret && (space >= (uInt32)samps))
+						break;
+					usleep(lrint(1e6 * (samps - space) * m_interval));
+				}
 			}
 			if(terminated)
 				return;
@@ -764,23 +776,23 @@ XNIDAQmxDSO::onSingleChanged(const shared_ptr<XValueNodeBase> &) {
 }
 void
 XNIDAQmxDSO::onTrigPosChanged(const shared_ptr<XValueNodeBase> &) {
-    createChannels();
+	setupTiming();
 }
 void
 XNIDAQmxDSO::onTrigSourceChanged(const shared_ptr<XValueNodeBase> &) {
-    createChannels();
+	setupTiming();
 }
 void
 XNIDAQmxDSO::onTrigLevelChanged(const shared_ptr<XValueNodeBase> &) {
-    createChannels();
+	setupTiming();
 }
 void
 XNIDAQmxDSO::onTrigFallingChanged(const shared_ptr<XValueNodeBase> &) {
-    createChannels();
+	setupTiming();
 }
 void
 XNIDAQmxDSO::onTimeWidthChanged(const shared_ptr<XValueNodeBase> &) {
-    createChannels();
+	setupTiming();
 }
 void
 XNIDAQmxDSO::onTrace1Changed(const shared_ptr<XValueNodeBase> &) {
@@ -808,7 +820,7 @@ XNIDAQmxDSO::onVOffset2Changed(const shared_ptr<XValueNodeBase> &) {
 }
 void
 XNIDAQmxDSO::onRecordLengthChanged(const shared_ptr<XValueNodeBase> &) {
-    createChannels();
+	setupTiming();
 }
 
 #endif //HAVE_NI_DAQMX
