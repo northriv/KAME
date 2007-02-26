@@ -191,6 +191,12 @@ XNIDAQmxDSO::disableTrigger()
     
     m_preTriggerPos = 0;
     m_trigRoute.reset();
+
+    //reset virtual trigger setup.
+	if(m_virtualTrigger)
+    	m_virtualTrigger->disconnect();
+    m_lsnOnVirtualTrigStart.reset();
+    m_virtualTrigger.reset();
 }
 void
 XNIDAQmxDSO::setupTrigger()
@@ -255,12 +261,6 @@ XNIDAQmxDSO::setupTrigger()
 void
 XNIDAQmxDSO::setupVirtualTrigger()
 {
-    //reset virtual trigger setup.
-	if(m_virtualTrigger)
-    	m_virtualTrigger->disconnect();
-    m_lsnOnVirtualTrigStart.reset();
-    m_virtualTrigger.reset();
-
     std::string src = trigSource()->to_str();
     //setup virtual trigger.
     if(m_virtualTriggerList) {
@@ -401,7 +401,6 @@ XNIDAQmxDSO::clearStoredVirtualTrigger() {
 	if(m_running)
 		CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
 	m_virtualTrigger->clear(total_samps, 1.0 / m_interval);
-		fprintf(stderr, "total %d\n", (int)total_samps);
 }
 void
 XNIDAQmxDSO::onVirtualTrigStart(const shared_ptr<XNIDAQmxInterface::VirtualTrigger> &) {
@@ -420,7 +419,7 @@ XNIDAQmxDSO::onVirtualTrigStart(const shared_ptr<XNIDAQmxInterface::VirtualTrigg
 	uInt32 num_ch;
     CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
     if(num_ch > 0) {
-	    CHECK_DAQMX_RET(DAQmxStartTask(m_task));
+		CHECK_DAQMX_RET(DAQmxStartTask(m_task));
 	    m_suspendRead = false;
 	    m_running = true;
     }
