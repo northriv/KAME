@@ -406,6 +406,13 @@ XNIDAQmxDSO::createChannels()
     setupTiming();
 }
 void
+XNIDAQmxDSO::clearStoredVirtualTrigger() {
+	uInt64 total_samps = 0;
+	if(m_running)
+		CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
+	m_virtualTrigger->clear(total_samps, 1.0 / m_interval);
+}
+void
 XNIDAQmxDSO::onVirtualTrigStart(const shared_ptr<XNIDAQmxInterface::VirtualTrigger> &) {
 	XScopedLock<XInterface> lock(*interface());
 	m_suspendRead = true;
@@ -416,8 +423,8 @@ XNIDAQmxDSO::onVirtualTrigStart(const shared_ptr<XNIDAQmxInterface::VirtualTrigg
     	DAQmxStopTask(m_task);
 	}
 	
+	clearStoredVirtualTrigger();
 	fprintf(stderr, "Virtual trig start.\n");
-    startSequence();
 
 	uInt32 num_ch;
     CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
@@ -530,16 +537,17 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 				        tmpbuf, NUM_MAX_CH, &samps, NULL
 				        ));
 					CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_CurrReadPos));
+				    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
 					uInt64 curr_rdpos;
 					CHECK_DAQMX_RET(DAQmxGetReadCurrReadPos(m_task, &curr_rdpos));
 					int32 offset = lastcnt - m_preTriggerPos - curr_rdpos;
 				    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, offset));
 					
 					vt->pop();
-					fprintf(stderr, "hit!\n");
+					fprintf(stderr, "hit! %d\n", (int)offset);
 					break;
 				}
-				usleep(lrint(1e6 * size * m_interval / 2));
+				usleep(lrint(1e6 * size * m_interval / 4));
 			}
 		}
 		else {
@@ -547,7 +555,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 				CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstPretrigSamp));
 			}
 			else {
-				CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_CurrReadPos));
+				CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstSample));
 			}
 				
 		    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
@@ -555,7 +563,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 		if(terminated)
 			return;
 	
-		const unsigned int num_samps = std::min(size, 2048u);
+		const unsigned int num_samps = std::min(size, 100u);
 		for(; cnt < size;) {
 			int32 samps;
 			samps = std::min(size - cnt, num_samps);
@@ -577,8 +585,11 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 		        &m_recordBuf[cnt * num_ch], samps * num_ch, &samps, NULL
 		        ));
 		    cnt += samps;
-			if(m_preTriggerPos && !m_virtualTrigger) {
+			if(!m_virtualTrigger) {
 				CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, cnt));
+			}
+			else {
+			    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
 			}
 		}
 	} //end of readMutex
@@ -636,9 +647,8 @@ XNIDAQmxDSO::startSequence()
 			m_lsnOnVirtualTrigStart = m_virtualTrigger->onStart().connectWeak(false,
 				shared_from_this(), &XNIDAQmxDSO::onVirtualTrigStart);
 		if(m_running) {
-			uInt64 total_samps;
-			CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
-			m_virtualTrigger->clear(total_samps, 1.0 / m_interval);
+			clearStoredVirtualTrigger();
+			m_suspendRead = false;
 		}
 	}
 	else {

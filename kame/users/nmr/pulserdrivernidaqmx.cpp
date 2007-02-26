@@ -292,7 +292,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 	}
 
 	m_virtualTrigger->setArmTerm(
-		formatString("/%s/ao/SampleClock", intfAO()->devName()).c_str());
+		formatString("/%s/ao/StartTrigger", intfAO()->devName()).c_str());
 
 	//Buffer setup.
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, BUF_SIZE_HINT));

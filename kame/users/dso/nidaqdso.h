@@ -91,6 +91,7 @@ enum {CAL_POLY_ORDER = 4};
   void setupAcquision();
   void disableTrigger();
   void setupTrigger();
+  void clearStoredVirtualTrigger();
   void setupVirtualTrigger();
   void setupTiming();
   void createChannels();
