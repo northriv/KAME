@@ -46,7 +46,7 @@ XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
     
  	if(g_bUseMLock) {
 		const void *FIRST_OF_MLOCK_MEMBER = &m_recordBuf;
-		const void *LAST_OF_MLOCK_MEMBER = &m_acqCount;
+		const void *LAST_OF_MLOCK_MEMBER = &m_task;
 		//Suppress swapping.
 		mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);    
  	}
@@ -128,7 +128,12 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 	    }
     }
 
-	m_acqCount = 0;
+	m_dsoRawRecord.reset(new DSORawRecord);
+	m_dsoRawRecordWork.reset(new DSORawRecord);
+	if(g_bUseMLock) {
+		mlock(m_dsoRawRecord.get(), sizeof(DSORawRecord));
+		mlock(m_dsoRawRecordWork.get(), sizeof(DSORawRecord));
+	}
 
 	m_suspendRead = true;
 	m_threadReadAI.reset(new XThread<XNIDAQmxDSO>(shared_from_this(),
@@ -158,6 +163,11 @@ XNIDAQmxDSO::close() throw (XInterface::XInterfaceError &)
     trace2()->clear();
     trigSource()->clear();
     
+	m_dsoRawRecord.reset();
+	m_dsoRawRecordWork.reset();
+	m_recordBuf.clear();
+	m_record_av.clear();
+
 	interface()->stop();
 }
 void
@@ -299,11 +309,24 @@ XNIDAQmxDSO::setupTiming()
 	setupSoftwareTrigger();
 
 	const unsigned int len = *recordLength();
-	m_record.resize(len * NUM_MAX_CH);
-	m_recordBuf.resize(len * NUM_MAX_CH);
+	{
+		shared_ptr<DSORawRecord> rec(m_dsoRawRecord);
+		rec->record.resize(len * num_ch);
+		rec->numCh = num_ch;
+		if(g_bUseMLock) {
+			mlock(&rec->record[0], rec->record.size() * sizeof(int32_t));
+		}
+	}
+	{
+		shared_ptr<DSORawRecord> rec(m_dsoRawRecordWork);
+		rec->record.resize(len * num_ch);
+		if(g_bUseMLock) {
+			mlock(&rec->record[0], rec->record.size() * sizeof(int32_t));
+		}
+	}
+	m_recordBuf.resize(len * num_ch);
 	if(g_bUseMLock) {
-		mlock(&m_record[0], m_record.size() * sizeof(tRawAI));
-		mlock(&m_recordBuf[0], m_recordBuf.size() * sizeof(int32_t));    
+		mlock(&m_recordBuf[0], m_recordBuf.size() * sizeof(tRawAI));    
 	}
 
     CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_task,
@@ -413,7 +436,8 @@ XNIDAQmxDSO::onSoftTrigStart(const shared_ptr<XNIDAQmxInterface::SoftwareTrigger
     	DAQmxStopTask(m_task);
 	}
 	
-	m_softwareTrigger->setBlankTerm(m_interval * m_recordLength);
+	shared_ptr<DSORawRecord> rec(m_dsoRawRecord);
+	m_softwareTrigger->setBlankTerm(m_interval * rec->recordLength);
 	fprintf(stderr, "Virtual trig start.\n");
 
 	uInt32 num_ch;
@@ -486,118 +510,119 @@ XNIDAQmxDSO::executeReadAI(const atomic<bool> &terminated)
 void
 XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 {
+	XScopedLock<XRecursiveMutex> lock(m_readMutex);
+  while(!terminated) {
+
+	 if(!m_running) {
+		tryReadAISuspend(terminated);
+		msecsleep(30);
+		return;
+	 }
+
     uInt32 num_ch;
+    CHECK_DAQMX_RET(DAQmxGetReadNumChans(m_task, &num_ch));
+    if(num_ch == 0) {
+		tryReadAISuspend(terminated);
+		msecsleep(30);
+		return;
+	 }
+    
+	shared_ptr<DSORawRecord> old_rec(m_dsoRawRecord);
+	if(num_ch != old_rec->numCh)
+		throw XInterface::XInterfaceError(KAME::i18n("Inconsistent channel number."), __FILE__, __LINE__);
+
+	const unsigned int size = m_recordBuf.size() / num_ch;
+	const float64 freq = 1.0 / m_interval;
 	unsigned int cnt = 0;
-	{
-		XScopedLock<XRecursiveMutex> lock(m_readMutex);
-	
-		const unsigned int size = m_record.size() / NUM_MAX_CH;
-	
-		 if(!m_running) {
-			tryReadAISuspend(terminated);
-			msecsleep(30);
-			return;
-		 }
-	
-	    CHECK_DAQMX_RET(DAQmxGetReadNumChans(m_task, &num_ch));
-	    if(num_ch == 0) {
-			tryReadAISuspend(terminated);
-			msecsleep(30);
-			return;
-		 }
-	    
-	    float64 freq = 1.0 / m_interval;
-	
-		if(m_softwareTrigger) {
-			shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &vt(m_softwareTrigger);
-			
-			while(!terminated) {
-				if(tryReadAISuspend(terminated))
-					return;
-				uInt64 total_samps;
-				CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
-				uint64_t lastcnt = vt->front(freq);
-				if(lastcnt && (lastcnt < total_samps)) {
-					uInt32 bufsize;
-					CHECK_DAQMX_RET(DAQmxGetBufInputBufSize(m_task, &bufsize));
-					if(total_samps - lastcnt + m_preTriggerPos > bufsize * 4 / 5) {
-						vt->pop();
-						gWarnPrint(KAME::i18n("Buffer Overflow."));
-						continue;
-					}
-				    //set read pos.
-				    int16 tmpbuf[NUM_MAX_CH];
-				    int32 samps;
-					CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_MostRecentSamp));
-				    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, -1));
-				    CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, 1,
-				        0, DAQmx_Val_GroupByScanNumber,
-				        tmpbuf, NUM_MAX_CH, &samps, NULL
-				        ));
-					CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_CurrReadPos));
-				    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
-					uInt64 curr_rdpos;
-					CHECK_DAQMX_RET(DAQmxGetReadCurrReadPos(m_task, &curr_rdpos));
-					int32 offset = lastcnt - m_preTriggerPos - curr_rdpos;
-				    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, offset));
-					
+
+	if(m_softwareTrigger) {
+		shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &vt(m_softwareTrigger);
+		
+		while(!terminated) {
+			if(tryReadAISuspend(terminated))
+				return;
+			uInt64 total_samps;
+			CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
+			uint64_t lastcnt = vt->front(freq);
+			if(lastcnt && (lastcnt < total_samps)) {
+				uInt32 bufsize;
+				CHECK_DAQMX_RET(DAQmxGetBufInputBufSize(m_task, &bufsize));
+				if(total_samps - lastcnt + m_preTriggerPos > bufsize * 4 / 5) {
 					vt->pop();
-					fprintf(stderr, "hit! %d %d %d\n", (int)offset, (int)lastcnt, (int)m_preTriggerPos);
-					break;
+					gWarnPrint(KAME::i18n("Buffer Overflow."));
+					continue;
 				}
-				usleep(lrint(1e6 * size * m_interval / 6));
+			    //set read pos.
+			    int16 tmpbuf[NUM_MAX_CH];
+			    int32 samps;
+				CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_MostRecentSamp));
+			    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, -1));
+			    CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, 1,
+			        0, DAQmx_Val_GroupByScanNumber,
+			        tmpbuf, NUM_MAX_CH, &samps, NULL
+			        ));
+				CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_CurrReadPos));
+			    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
+				uInt64 curr_rdpos;
+				CHECK_DAQMX_RET(DAQmxGetReadCurrReadPos(m_task, &curr_rdpos));
+				int32 offset = lastcnt - m_preTriggerPos - curr_rdpos;
+			    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, offset));
+				
+				vt->pop();
+//					fprintf(stderr, "hit! %d %d %d\n", (int)offset, (int)lastcnt, (int)m_preTriggerPos);
+				break;
 			}
+			usleep(lrint(1e6 * size * m_interval / 6));
+		}
+	}
+	else {
+		if(m_preTriggerPos) {
+			CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstPretrigSamp));
 		}
 		else {
-			if(m_preTriggerPos) {
-				CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstPretrigSamp));
-			}
-			else {
-				CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstSample));
-			}
-				
-		    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
+			CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstSample));
+		}
+			
+	    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
+	}
+	if(terminated)
+		return;
+
+	const unsigned int num_samps = std::min(size, 2048u);
+	for(; cnt < size;) {
+		int32 samps;
+		samps = std::min(size - cnt, num_samps);
+		while(!terminated) {
+			if(tryReadAISuspend(terminated))
+				return;
+		uInt32 space;
+			int ret = DAQmxGetReadAvailSampPerChan(m_task, &space);
+			if(!ret && (space >= (uInt32)samps))
+				break;
+			usleep(lrint(1e6 * (samps - space) * m_interval));
 		}
 		if(terminated)
 			return;
-	
-		const unsigned int num_samps = std::min(size, 2048u);
-		for(; cnt < size;) {
-			int32 samps;
-			samps = std::min(size - cnt, num_samps);
-			if(1) { //(!m_softwareTrigger) {
-				while(!terminated) {
-					if(tryReadAISuspend(terminated))
-						return;
-				uInt32 space;
-					int ret = DAQmxGetReadAvailSampPerChan(m_task, &space);
-					if(!ret && (space >= (uInt32)samps))
-						break;
-					usleep(lrint(1e6 * (samps - space) * m_interval));
-				}
-			}
-			if(terminated)
-				return;
-		    CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, samps,
-		        0.01, DAQmx_Val_GroupByScanNumber,
-		        &m_recordBuf[cnt * num_ch], samps * num_ch, &samps, NULL
-		        ));
-		    cnt += samps;
-			if(!m_softwareTrigger) {
-				CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, cnt));
-			}
-			else {
-			    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
-			}
+	    CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, samps,
+	        0.01, DAQmx_Val_GroupByScanNumber,
+	        &m_recordBuf[cnt * num_ch], samps * num_ch, &samps, NULL
+	        ));
+	    cnt += samps;
+		if(!m_softwareTrigger) {
+			CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, cnt));
 		}
-	} //end of readMutex
+		else {
+		    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
+		}
+	}
 
-	XScopedLock<XInterface> lock(*interface());
-	
 	const unsigned int av = *average();
 	const bool sseq = *singleSequence();
+	shared_ptr<DSORawRecord> new_rec(m_dsoRawRecordWork);
+	ASSERT(new_rec != old_rec);
+	unsigned int accumcnt = old_rec->accumCount;
 	
-    if(!sseq || ((unsigned int)m_accumCount < av)) {
+    if(!sseq || (accumcnt < av)) {
 		if(!m_softwareTrigger) {
 			if(m_running) {
 				m_running = false;
@@ -608,31 +633,63 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 		}
     }
 
-    m_recordLength = std::min(cnt, m_recordLength);
-      for(unsigned int i = 0; i < cnt * num_ch; i++) {
-        m_record[i] += m_recordBuf[i];
-      }
-    m_acqCount++;
-    m_accumCount++;
+    cnt = std::min(cnt, old_rec->recordLength);
+    new_rec->recordLength = cnt;
+//    num_ch = std::min(num_ch, old_rec->numCh);
+    new_rec->numCh = num_ch;
+    const unsigned int bufsize = new_rec->recordLength * num_ch;
+	tRawAI *pbuf = &m_recordBuf[0];
+	int32_t *pold = &(old_rec->record[0]);
+	int32_t *paccum = &(new_rec->record[0]);
+	//for optimization.
+	switch (num_ch) {
+	case 2:
+		for(unsigned int i = 0; i < cnt; i++) {
+		    *paccum++ = *pold++ + *pbuf++;
+		    *paccum++ = *pold++ + *pbuf++;
+		}
+		break;
+	default:
+		for(unsigned int i = 0; i < bufsize; i++)
+		    *paccum++ = *pold++ + *pbuf++;
+		break;
+	}
+    new_rec->acqCount = old_rec->acqCount + 1;
+    accumcnt++;
 
     while(!sseq && (av <= m_record_av.size()) && !m_record_av.empty())  {
-      for(unsigned int i = 0; i < m_record.size(); i++) {
-        m_record[i] -= m_record_av.front()[i];
-      }
+		int32_t *paccum = &(new_rec->record[0]);
+		tRawAI *psub = &(m_record_av.front()[0]);
+		switch (num_ch) {
+		case 2:
+			for(unsigned int i = 0; i < cnt; i++) {
+			    *paccum++ -= *psub++;
+			    *paccum++ -= *psub++;
+			}
+			break;
+		default:
+			for(unsigned int i = 0; i < bufsize; i++)
+			    *paccum++ -= *psub++;
+			break;
+		}
       m_record_av.pop_front();
-      m_accumCount--;
+      accumcnt--;
     }
+    new_rec->accumCount = accumcnt;
+    // substitute the record with the working set.
+    m_dsoRawRecordWork.swap(m_dsoRawRecord);
     
     if(!sseq) {
       m_record_av.push_back(m_recordBuf);
     }
-    if(sseq && (m_accumCount >= av))  {
+    if(sseq && (accumcnt >= av))  {
     	if(m_softwareTrigger) {
 			if(m_running) {
 				m_suspendRead = true;
 			}
     	}
     }
+  }
 }
 void
 XNIDAQmxDSO::startSequence()
@@ -641,11 +698,15 @@ XNIDAQmxDSO::startSequence()
 	m_suspendRead = true;
  	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
 
-    m_acqCount = 0;
-    m_accumCount = 0;
-	std::fill(m_record.begin(), m_record.end(), 0);
+	{
+		shared_ptr<DSORawRecord> rec(m_dsoRawRecord);
+		rec->acqCount = 0;
+		rec->accumCount = 0;
+		ASSERT(rec->numCh);
+		rec->recordLength = rec->record.size() / rec->numCh;
+		std::fill(rec->record.begin(), rec->record.end(), 0);
+	}
 	m_record_av.clear();   	
-	m_recordLength = m_record.size() / NUM_MAX_CH;
     
 	if(m_softwareTrigger) {
 		if(!m_lsnOnSoftTrigStart)
@@ -679,9 +740,9 @@ XNIDAQmxDSO::startSequence()
 int
 XNIDAQmxDSO::acqCount(bool *seq_busy)
 {
-	XScopedLock<XInterface> lock(*interface());
-    *seq_busy = ((unsigned int)m_acqCount < *average());
-    return m_acqCount;
+	shared_ptr<DSORawRecord> rec(m_dsoRawRecord);
+    *seq_busy = ((unsigned int)rec->acqCount < *average());
+    return rec->acqCount;
 }
 
 double
@@ -706,18 +767,12 @@ void
 XNIDAQmxDSO::getWave(std::deque<std::string> &)
 {
 	XScopedLock<XInterface> lock(*interface());
+	
+	shared_ptr<DSORawRecord> rec(m_dsoRawRecord);
 
- 	if(m_accumCount == 0) throw XInterface::XInterfaceError(KAME::i18n("No sample."), __FILE__, __LINE__);
-    uInt32 num_ch;
-    CHECK_DAQMX_RET(DAQmxGetReadNumChans(m_task, &num_ch));
-//    bool32 overload;
-//    CHECK_DAQMX_RET(DAQmxGetReadOverloadedChansExist(m_task, &overload), "Overload");
-//    if(overload) {
-//    	gWarnPrint(getLabel() + KAME::i18n(": Overload Detected!"));
-//    }
-    uInt32 len;
-//    CHECK_DAQMX_RET(DAQmxGetReadAvailSampPerChan(m_task, &len), "SampPerChan");
-	len = m_recordLength;
+ 	if(rec->accumCount == 0) throw XInterface::XInterfaceError(KAME::i18n("No sample."), __FILE__, __LINE__);
+    const uInt32 num_ch = rec->numCh;
+    const uInt32 len = rec->recordLength;
     
     char buf[2048];
     CHECK_DAQMX_RET(DAQmxGetReadChannelsToRead(m_task, buf, sizeof(buf)));
@@ -725,14 +780,14 @@ XNIDAQmxDSO::getWave(std::deque<std::string> &)
     push((uint32_t)num_ch);
     push((uint32_t)m_preTriggerPos);
     push((uint32_t)len);
-    push((uint32_t)m_accumCount);
+    push((uint32_t)rec->accumCount);
     push((double)m_interval);
     for(unsigned int ch = 0; ch < num_ch; ch++) {
 		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
 			push((double)m_coeffAI[ch][i]);
 		}
     }
-    int32_t *p = &m_record[0];
+    int32_t *p = &(rec->record[0]);
     const unsigned int size = len * num_ch;
     for(unsigned int i = 0; i < size; i++)
     	push(*p++);

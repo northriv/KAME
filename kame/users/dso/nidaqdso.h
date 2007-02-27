@@ -74,19 +74,23 @@ class XNIDAQmxDSO : public XNIDAQmxDriver<XDSO>
   atomic<bool> m_suspendRead;
   atomic<bool> m_running;
   std::vector<tRawAI> m_recordBuf;
-  std::vector<int32_t> m_record;
 enum {CAL_POLY_ORDER = 4};
-	float64 m_coeffAI[2][CAL_POLY_ORDER];
-	inline float64 aiRawToVolt(const float64 *pcoeff, float64 raw);
-  unsigned int m_accumCount;
+  float64 m_coeffAI[2][CAL_POLY_ORDER];
+  inline float64 aiRawToVolt(const float64 *pcoeff, float64 raw);
+  struct DSORawRecord {
+	  unsigned int numCh;
+	  unsigned int accumCount;
+	  unsigned int recordLength;
+	  int acqCount;
+	  std::vector<int32_t> record;
+  };
+  shared_ptr<DSORawRecord> m_dsoRawRecord, m_dsoRawRecordWork;
   //! for moving av.
   std::deque<std::vector<tRawAI> > m_record_av; 
-  unsigned int m_recordLength;
   std::deque<std::string> m_analogTrigSrc;
   TaskHandle m_task;
   double m_interval;
   unsigned int m_preTriggerPos;
-  int m_acqCount;
   void clearAcquision();
   void setupAcquision();
   void disableTrigger();

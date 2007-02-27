@@ -743,14 +743,13 @@ XNIDAQmxPulser::genBankDO()
 				it = m_genPatternList->begin();
 //				printf("p.\n");
 			}
+			tonext = it->tonext;
 			vt->changeValue(pat, (tRawDO)it->pattern, total);
 			pat = it->pattern;
-			tonext = it->tonext;
 			total += tonext;
 		}
 	}
-	if(pausingbit)
-		m_genBufDO.resize((unsigned int)(pDO - &m_genBufDO[0]));
+	m_genBufDO.resize((unsigned int)(pDO - &m_genBufDO[0]));
 	ASSERT(pDO == &m_genBufDO[m_genBufDO.size()]);
 	m_genRestSampsDO = tonext;
 	m_genLastPatItDO = it;

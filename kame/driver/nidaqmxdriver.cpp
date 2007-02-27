@@ -68,8 +68,16 @@ XNIDAQmxInterface::SoftwareTrigger::registerSoftwareTrigger(const shared_ptr<Sof
 XNIDAQmxInterface::SoftwareTrigger::SoftwareTrigger(const char *label, unsigned int bits)
  : m_label(label), m_bits(bits),
  m_risingEdgeMask(0u), m_fallingEdgeMask(0u) {
+ 	_clear();
 }
 XNIDAQmxInterface::SoftwareTrigger::~SoftwareTrigger() {
+}
+void
+XNIDAQmxInterface::SoftwareTrigger::_clear() {
+	while(!m_fastQueue.empty())
+		m_fastQueue.pop();
+	m_slowQueue.clear();
+	m_slowQueueSize = 0;
 }
 void
 XNIDAQmxInterface::SoftwareTrigger::stamp(uint64_t cnt) {
@@ -77,13 +85,14 @@ XNIDAQmxInterface::SoftwareTrigger::stamp(uint64_t cnt) {
 	if(cnt < m_endOfBlank) return;
 	if(cnt == 0) return; //ignore.
 	try {
-		m_stamps.push(cnt);
+		m_fastQueue.push(cnt);
 	}
-	catch (Queue::nospace_error&) {
-		throw XInterface::XInterfaceError(KAME::i18n("Software trigger overflows."), __FILE__, __LINE__);
+	catch (FastQueue::nospace_error&) {
+		XScopedLock<XMutex> lock(m_mutex);
+		m_slowQueue.push_back(cnt);
+		++m_slowQueueSize;
 	}
 	m_endOfBlank = cnt + m_blankTerm;
-	fprintf(stderr, "stamp!\n");
 }
 void
 XNIDAQmxInterface::SoftwareTrigger::start(float64 freq) {
@@ -92,9 +101,7 @@ XNIDAQmxInterface::SoftwareTrigger::start(float64 freq) {
 		m_endOfBlank = 0;
 		if(!m_blankTerm) m_blankTerm = lrint(0.02 * freq);
 		m_freq = freq;
-		while(!m_stamps.empty())
-			m_stamps.pop();
-		m_forcedStamp = 0uLL;
+		_clear();
 	}
 	onStart().talk(shared_from_this());
 }
@@ -102,17 +109,14 @@ XNIDAQmxInterface::SoftwareTrigger::start(float64 freq) {
 void
 XNIDAQmxInterface::SoftwareTrigger::stop() {
 	XScopedLock<XMutex> lock(m_mutex);
-	while(!m_stamps.empty())
-		m_stamps.pop();
+	_clear();
 	m_endOfBlank = (uint64_t)-1LL;
 }
 void
 XNIDAQmxInterface::SoftwareTrigger::connect(uint32_t rising_edge_mask, 
 	uint32_t falling_edge_mask) throw (XInterface::XInterfaceError &) {
 	XScopedLock<XMutex> lock(m_mutex);
-	while(!m_stamps.empty())
-		m_stamps.pop();
-	m_forcedStamp = 0uLL;
+	_clear();
 	if(m_risingEdgeMask || m_fallingEdgeMask)
 		throw XInterface::XInterfaceError(
 			KAME::i18n("Duplicated connection to virtual trigger is not supported."), __FILE__, __LINE__);
@@ -122,19 +126,31 @@ XNIDAQmxInterface::SoftwareTrigger::connect(uint32_t rising_edge_mask,
 void
 XNIDAQmxInterface::SoftwareTrigger::disconnect() {
 	XScopedLock<XMutex> lock(m_mutex);
-	while(!m_stamps.empty())
-		m_stamps.pop();
-	m_forcedStamp = 0uLL;
+	_clear();
 	m_risingEdgeMask = 0;
 	m_fallingEdgeMask = 0;
 }
 uint64_t
 XNIDAQmxInterface::SoftwareTrigger::front(float64 _freq) {
-	if(m_stamps.empty())
-		return 0uLL;
-	uint64_t cnt = m_stamps.front();
-	if(m_forcedStamp)
-		cnt = m_forcedStamp;
+	uint64_t cnt;
+	if(m_slowQueueSize) {
+		XScopedLock<XMutex> lock(m_mutex);
+		if(m_fastQueue.size()) {
+			if(m_fastQueue.front() < m_slowQueue.front())
+				cnt = m_fastQueue.front();
+			else
+				cnt = m_slowQueue.front();			
+		}
+		else
+			cnt = m_slowQueue.front();
+	}
+	else {
+		if(m_fastQueue.size()) {
+			cnt = m_fastQueue.front();
+		}
+		else
+			return 0uLL;
+	}
 	
 	if(_freq > freq())
 		cnt *= lrint(_freq / freq());
@@ -145,10 +161,28 @@ XNIDAQmxInterface::SoftwareTrigger::front(float64 _freq) {
 }
 void
 XNIDAQmxInterface::SoftwareTrigger::pop() {
-	if(m_forcedStamp)
-		m_forcedStamp = 0uLL;
-	else
-		m_stamps.pop();
+	if(m_slowQueueSize) {
+		XScopedLock<XMutex> lock(m_mutex);
+		if(m_fastQueue.size()) {
+			if(m_fastQueue.front() < m_slowQueue.front())
+				m_fastQueue.pop();
+			else {
+				m_slowQueue.pop_front();			
+				--m_slowQueueSize;
+			}
+		}
+		else {
+			m_slowQueue.pop_front();
+			--m_slowQueueSize;
+		}
+	}
+	else {
+		if(m_fastQueue.size()) {
+			m_fastQueue.pop();
+		}
+		else
+			ASSERT(0);
+	}
 }
 void
 XNIDAQmxInterface::SoftwareTrigger::clear(uint64_t now, float64 _freq) {
@@ -158,12 +192,12 @@ XNIDAQmxInterface::SoftwareTrigger::clear(uint64_t now, float64 _freq) {
 		now *= lrint(freq() / _freq);
 
 	XScopedLock<XMutex> lock(m_mutex);
-	if(m_stamps.size()) {
-		while(m_stamps.front() <= now)
-			m_stamps.pop();
+	while(m_fastQueue.size() && (m_fastQueue.front() <= now))
+		m_fastQueue.pop();
+	while(m_slowQueue.size() && (m_slowQueue.front() <= now)) {
+		m_slowQueue.pop_front();
+		--m_slowQueueSize;
 	}
-	if(m_forcedStamp <= now)
-		m_forcedStamp = 0uLL;
 }
 void
 XNIDAQmxInterface::SoftwareTrigger::forceStamp(uint64_t now, float64 _freq) {
@@ -172,8 +206,10 @@ XNIDAQmxInterface::SoftwareTrigger::forceStamp(uint64_t now, float64 _freq) {
 	else
 		now *= lrint(freq() / _freq);
 		
-	m_forcedStamp = now;
-	memoryBarrier();
+	XScopedLock<XMutex> lock(m_mutex);
+	++m_slowQueueSize;
+	m_slowQueue.push_front(now);
+	std::sort(m_slowQueue.begin(), m_slowQueue.end());
 }
 
 const char *
