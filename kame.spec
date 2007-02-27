@@ -6,10 +6,16 @@
 
 Name: kame
 
-%{!?without_nidamx:%global without_nidaqmx 0}
+%if 0%{?without_nidaqmx}
+%global kamerel wonidaqmx
+%global wnidaqmx_param no
+%else
+%global wnidaqmx_param yes
+%global without_nidaqmx 0
+%endif
 
 Version: 2.1.0
-Release: 3%{?without_nidaqmx:"wonidaqmx"}
+Release: 3%{?kamerel}
 License: GPL
 Group: Applications/Engineering
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
@@ -23,16 +29,17 @@ BuildPreReq: libart_lgpl-devel, zlib-devel, libpng-devel, libjpeg-devel
 BuildPreReq: gcc-c++ >= 3.3
 BuildPreReq: compat-gcc-34-c++
 BuildPreReq: linux-gpib-devel
+
+%if !%{without_nidaqmx}
+BuildPreReq: nidaqmxcapii
+Requires: nidaqmxef
+%endif
+
 Source0: %{name}-%{version}-%{kamedate}.tar.bz2
 Source1: ftgl-%{ftglver}.tar.gz
 Source2: mikachanfont-%{mikachanver}.tar.bz2
 
 Summary: KAME, K's adaptive measurement engine.
-
-%if ! %without_nidamx
- BuildPreReq: nidaqmx
- Require: nidaqmx
-%endif
 
 %description
 K's adaptive measurement engine. 
@@ -46,12 +53,12 @@ mv mikachanfont-%{mikachanver}/* kame/mikachanfont
 %build
 # build static FTGL
 pushd FTGL/unix
-CXX=g++34 ../configure --disable-shared --enable-static
-make %{?_smp_mflags}
+CXX=g++34 ./configure --disable-shared --enable-static
+make ##%%{?_smp_mflags}
 popd
 
-%configure --enable-debug %{?without_nidqmx:"--without-nidaqmx"}
-make %{?_smp_mflags}
+%configure --enable-debug --with-nidaqmx=%{wnidaqmx_param}
+make ##%%{?_smp_mflags}
 
 %install
 rm -rf $RPM_BUILD_ROOT
