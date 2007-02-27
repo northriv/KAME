@@ -588,7 +588,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 	if(terminated)
 		return;
 
-	const unsigned int num_samps = std::min(size, 2048u);
+	const unsigned int num_samps = std::min(size, 4096u);
 	for(; cnt < size;) {
 		int32 samps;
 		samps = std::min(size - cnt, num_samps);

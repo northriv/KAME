@@ -196,7 +196,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		m_softwareTrigger->setArmTerm(do_clk_src.c_str());
 	}
    
-	const unsigned int BUF_SIZE_HINT = (unsigned int)lrint(1.0 * freq);
+	const unsigned int BUF_SIZE_HINT = (unsigned int)lrint(0.5 * freq);
 	//M series needs an external sample clock and trigger for DO channels.
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO,
 		do_clk_src.c_str(),
@@ -212,7 +212,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	uInt32 bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d, freq = %f\n", (int)bufsize, freq);
-	m_bufSizeHintDO = bufsize / 4;
+	m_bufSizeHintDO = std::min((unsigned int)bufsize / 8, 16384u);
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &bufsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)bufsize);
 	m_transferSizeHintDO = std::min((unsigned int)bufsize / 4, m_bufSizeHintDO);
@@ -258,7 +258,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskAO, 0, &XNIDAQmxPulser::_onTaskDone, this));
 		
 	float64 freq = 1e3 / resolutionQAM();
-	const unsigned int BUF_SIZE_HINT = (unsigned int)lrint(1.0 * freq);
+	const unsigned int BUF_SIZE_HINT = (unsigned int)lrint(0.5 * freq);
 	
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, "",
 		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
@@ -299,7 +299,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 	uInt32 bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d\n", (int)bufsize);
-	m_bufSizeHintAO = bufsize / 4;
+	m_bufSizeHintAO = std::min((unsigned int)bufsize / 8, 16384u);
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &bufsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)bufsize);
 	

@@ -90,7 +90,7 @@ XNIDAQmxInterface::SoftwareTrigger::stamp(uint64_t cnt) {
 	catch (FastQueue::nospace_error&) {
 		XScopedLock<XMutex> lock(m_mutex);
 		m_slowQueue.push_back(cnt);
-		if(m_slowQueue.size() > 10000u)
+		if(m_slowQueue.size() > 100000u)
 			m_slowQueue.pop_front();
 		else
 			++m_slowQueueSize;
