@@ -327,10 +327,10 @@ XNIDAQmxPulser::setupTasksAODO() {
 */	
 	if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_DMA_AO) {
 		//DMA is slower than interrupts!
-/*		CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, 
+		CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, 
 	    	formatString("%s/ao0:1", intfAO()->devName()).c_str(),
 			DAQmx_Val_Interrupts));
-*/	}
+	}
 }
 int32
 XNIDAQmxPulser::_onTaskDone(TaskHandle task, int32 status, void *data) {
