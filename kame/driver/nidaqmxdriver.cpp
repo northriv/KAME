@@ -103,6 +103,8 @@ XNIDAQmxInterface::SoftwareTrigger::start(float64 freq) {
 void
 XNIDAQmxInterface::SoftwareTrigger::stop() {
 	XScopedLock<XMutex> lock(m_mutex);
+	while(!m_stamps.empty())
+		m_stamps.pop();
 	m_endOfBlank = (uint64_t)-1LL;
 }
 void
