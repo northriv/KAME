@@ -80,8 +80,7 @@ XNIDAQmxInterface::SoftwareTrigger::stamp(uint64_t cnt) {
 		m_stamps.push(cnt);
 	}
 	catch (Queue::nospace_error&) {
-		m_stamps.pop();
-		m_stamps.push(cnt);
+		throw XInterface::XInterfaceError(KAME::i18n("Software trigger overflows."), __FILE__, __LINE__);
 	}
 	m_endOfBlank = cnt + m_blankTerm;
 	fprintf(stderr, "stamp!\n");

@@ -126,7 +126,7 @@ public:
   	uint32_t m_risingEdgeMask, m_fallingEdgeMask;
   	uint64_t m_blankTerm, m_endOfBlank;
   	float64 m_freq; //!< [Hz].
-  	enum {QUEUE_SIZE = 100};
+  	enum {QUEUE_SIZE = 512};
 	typedef atomic_queue<uint64_t, QUEUE_SIZE> Queue;
   	Queue m_stamps;
 	uint64_t m_forcedStamp;

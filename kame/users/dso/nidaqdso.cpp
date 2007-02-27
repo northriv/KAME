@@ -324,7 +324,7 @@ XNIDAQmxDSO::setupTiming()
 
 	unsigned int bufsize = len;
 	if(m_softwareTrigger) {
-		bufsize = std::max(bufsize * 6, (unsigned int)lrint(0.5 / m_interval));
+		bufsize = std::max(bufsize * 8, (unsigned int)lrint(1.0 / m_interval));
 	}
 	CHECK_DAQMX_RET(DAQmxCfgInputBuffer(m_task, bufsize));
     
@@ -625,6 +625,13 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
     
     if(!sseq) {
       m_record_av.push_back(m_recordBuf);
+    }
+    if(sseq && (m_accumCount >= av))  {
+    	if(m_softwareTrigger) {
+			if(m_running) {
+				m_suspendRead = true;
+			}
+    	}
     }
 }
 void

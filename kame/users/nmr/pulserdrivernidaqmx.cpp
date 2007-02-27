@@ -196,7 +196,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		m_softwareTrigger->setArmTerm(do_clk_src.c_str());
 	}
    
-	const unsigned int BUF_SIZE_HINT = lrint(65.536e-3 * freq * 4);
+	const unsigned int BUF_SIZE_HINT = (unsigned int)lrint(1.0 * freq);
 	//M series needs an external sample clock and trigger for DO channels.
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO,
 		do_clk_src.c_str(),
@@ -258,7 +258,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskAO, 0, &XNIDAQmxPulser::_onTaskDone, this));
 		
 	float64 freq = 1e3 / resolutionQAM();
-	const unsigned int BUF_SIZE_HINT = lrint(8 * 65.536e-3 * freq);
+	const unsigned int BUF_SIZE_HINT = (unsigned int)lrint(1.0 * freq);
 	
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, "",
 		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
@@ -630,6 +630,9 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated, const atomic<bool> &s
 				&samps, NULL));
 			cnt += samps;
 		}
+		if(terminated)
+			return;
+	 	genBankAO();
 	}
 	catch (XInterface::XInterfaceError &e) {
 		e.print(getLabel());
@@ -637,9 +640,6 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated, const atomic<bool> &s
 		m_suspendAO = true;
 		return;
 	}
-	if(terminated)
-		return;
- 	genBankAO();
 	return;
 }
 void
@@ -674,6 +674,9 @@ XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated, const atomic<bool> &s
 				&samps, NULL));
 			cnt += samps;
 		}
+		if(terminated)
+			return;
+	 	genBankDO();
 	}
 	catch (XInterface::XInterfaceError &e) {
 		e.print(getLabel());
@@ -681,9 +684,6 @@ XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated, const atomic<bool> &s
 		m_suspendAO = true;
  		return; 	
 	}
-	if(terminated)
-		return;
- 	genBankDO();
 	return;
 }
 void
