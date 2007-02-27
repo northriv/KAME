@@ -123,4 +123,72 @@ private:
     atomic_pointer_queue<T, SIZE> m_queue;
 };
 
+//! Atomic FIFO
+template <typename T, unsigned int SIZE>
+class atomic_queue_reserved
+{
+public:
+    typedef typename atomic_pointer_queue<T, SIZE>::nospace_error nospace_error;
+    
+    atomic_queue_reserved() {
+    	for(unsigned int i = 0; i < SIZE; i++)
+    		m_obj[i] = new T;
+    }
+    ~atomic_queue_reserved() {
+        while(!empty()) pop();
+    	for(unsigned int i = 0; i < SIZE; i++) {
+    		ASSERT(m_obj[i]);
+    		delete m_obj[i];
+    	}
+    }
+    
+    void push(const T&t) {
+    	int i = m_queue.size();
+    	for(;;) {
+	    	for(; i < SIZE; i++) {
+	    		if(!m_obj[i]) continue;
+    			T *obj = atomicSwap((T*)0L, &m_obj[i]);
+    			if(obj) {
+    				*obj = t;
+					m_queue.push(obj);
+					return;
+    			}
+	    	}
+	    	i = 0;
+	    	if(m_queue.size() == SIZE)
+	    		throw nospace_error();
+	    }
+    }
+    //! This is not reentrant.
+    void pop() {
+        T *obj = m_queue.front();
+    	int i = m_queue.size();
+    	for(;;) {
+	    	for(; i >= 0; i--) {
+	    		if(m_obj[i]) continue;
+    			obj = atomicSwap(obj, &m_obj[i]);
+    			if(!obj) {
+    				m_queue.pop();
+    				return;
+    			}
+	    	}
+	    	i = SIZE - 1;
+	    }
+    }
+    //! This is not reentrant.
+    T &front() {
+        return *m_queue.front();
+    }
+    //! This is not reentrant.
+    bool empty() const {
+        return m_queue.empty();
+    }
+    unsigned int size() const {
+        return m_queue.size();
+    }
+private:
+    atomic_pointer_queue<T, SIZE> m_queue;
+    T *m_obj[SIZE];
+};
+
 #endif /*ATOMIC_QUEUE_H_*/
