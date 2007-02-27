@@ -65,10 +65,10 @@ class XNIDAQmxDSO : public XNIDAQmxDriver<XDSO>
  private:
  typedef int16 tRawAI;
   scoped_ptr<XNIDAQmxInterface::XNIDAQmxRoute> m_trigRoute;
-  shared_ptr<XNIDAQmxInterface::VirtualTrigger> m_virtualTrigger;
-  atomic_shared_ptr<XNIDAQmxInterface::VirtualTrigger::VirtualTriggerList> m_virtualTriggerList; 
-  shared_ptr<XListener> m_lsnOnVirtualTrigStart;
-  void onVirtualTrigStart(const shared_ptr<XNIDAQmxInterface::VirtualTrigger> &);
+  shared_ptr<XNIDAQmxInterface::SoftwareTrigger> m_softwareTrigger;
+  atomic_shared_ptr<XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList> m_softwareTriggerList; 
+  shared_ptr<XListener> m_lsnOnSoftTrigStart;
+  void onSoftTrigStart(const shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &);
   shared_ptr<XThread<XNIDAQmxDSO> > m_threadReadAI;
   void *executeReadAI(const atomic<bool> &);
   atomic<bool> m_suspendRead;
@@ -91,8 +91,8 @@ enum {CAL_POLY_ORDER = 4};
   void setupAcquision();
   void disableTrigger();
   void setupTrigger();
-  void clearStoredVirtualTrigger();
-  void setupVirtualTrigger();
+  void clearStoredSoftwareTrigger();
+  void setupSoftwareTrigger();
   void setupTiming();
   void createChannels();
   void acquire(const atomic<bool> &terminated);

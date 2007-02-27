@@ -46,8 +46,8 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
     for(unsigned int i = 0; i < sizeof(ports)/sizeof(int); i++) {
     	portSel(i)->value(ports[i]);
 	}
-	m_virtualTrigger.reset(new XNIDAQmxInterface::VirtualTrigger(name, NUM_DO_PORTS));
-	XNIDAQmxInterface::VirtualTrigger::registerVirtualTrigger(m_virtualTrigger);
+	m_softwareTrigger.reset(new XNIDAQmxInterface::SoftwareTrigger(name, NUM_DO_PORTS));
+	XNIDAQmxInterface::SoftwareTrigger::registerSoftwareTrigger(m_softwareTrigger);
 	
 	m_pausingBlankBefore = 1;
 	m_pausingBlankAfter = 1;
@@ -193,10 +193,10 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	   	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskDOCtr, 0, &XNIDAQmxPulser::_onTaskDone, this));
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskDOCtr, DAQmx_Val_ContSamps, 1000));
 	    intfCtr()->synchronizeClock(m_taskDOCtr);
-		m_virtualTrigger->setArmTerm(do_clk_src.c_str());
+		m_softwareTrigger->setArmTerm(do_clk_src.c_str());
 	}
    
-	const unsigned int BUF_SIZE_HINT = lrint(65.536e-3 * freq * 2);
+	const unsigned int BUF_SIZE_HINT = lrint(65.536e-3 * freq * 4);
 	//M series needs an external sample clock and trigger for DO channels.
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO,
 		do_clk_src.c_str(),
@@ -258,7 +258,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskAO, 0, &XNIDAQmxPulser::_onTaskDone, this));
 		
 	float64 freq = 1e3 / resolutionQAM();
-	const unsigned int BUF_SIZE_HINT = lrint(4 * 65.536e-3 * freq);
+	const unsigned int BUF_SIZE_HINT = lrint(8 * 65.536e-3 * freq);
 	
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, "",
 		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
@@ -291,7 +291,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskAO, DAQmx_Val_High));
 	}
 
-	m_virtualTrigger->setArmTerm(
+	m_softwareTrigger->setArmTerm(
 		formatString("/%s/ao/SampleClock", intfAO()->devName()).c_str());
 
 	//Buffer setup.
@@ -445,17 +445,34 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		if(m_taskGateCtr != TASK_UNDEF)
 			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
 
+		const unsigned int cnt_preample = 100;
+		m_genTotalCountDO += cnt_preample;
 		//synchronize the software trigger.
-		m_virtualTrigger->start(1e3 / resolution());
+		m_softwareTrigger->start(1e3 / resolution());
 
 		//prefilling of the buffers.
 		if(m_taskAO != TASK_UNDEF) {
-			genBankAO();
+			//write pre-ample.
+			const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
 			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
 			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
+			const unsigned int cnt_preample_ao = cnt_preample * oversamp_ao - 2;
+			for(unsigned int i = 0; i < cnt_preample_ao; i++) {
+				m_genBufAO[2*i] = m_genAOZeroLevel[0];
+				m_genBufAO[2*i + 1] = m_genAOZeroLevel[1];
+			}
+			int32 samps;
+			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, cnt_preample_ao,
+				false, 0.5, 
+				DAQmx_Val_GroupByScanNumber,
+				&m_genBufAO[0],
+				&samps, NULL));
+			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_CurrWritePos));
+			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
+			
+			genBankAO();
 			unsigned int size = m_genBufAO.size() / NUM_AO_CH;
 			for(unsigned int cnt = 0; cnt < size;) {
-				int32 samps;
 				samps = std::min(size - cnt, m_transferSizeHintAO);
 				CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, samps,
 					false, 0.5, 
@@ -463,17 +480,27 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 					&m_genBufAO[cnt * NUM_AO_CH],
 					&samps, NULL));
 				cnt += samps;
-				CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_CurrWritePos));
-				CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
 			}
 			genBankAO();
 		}
-		genBankDO();
+		//write pre-ample.
+		for(unsigned int i = 0; i < cnt_preample; i++) {
+			m_genBufDO[i] = 0;
+		}
 		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_FirstSample));
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
+		int32 samps;
+		CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, cnt_preample,
+				false, 0.5, 
+				DAQmx_Val_GroupByScanNumber,
+				&m_genBufDO[0],
+				&samps, NULL));
+		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_CurrWritePos));
+		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
+		
+		genBankDO();
 		unsigned int size = m_genBufDO.size();
 		for(unsigned int cnt = 0; cnt < size;) {
-			int32 samps;
 			samps = std::min(size - cnt, m_transferSizeHintDO);
 			CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, samps,
 					false, 0.5, 
@@ -481,19 +508,18 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 					&m_genBufDO[cnt],
 					&samps, NULL));
 			cnt += samps;
-			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_CurrWritePos));
-			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
 		}
 		genBankDO();
 		m_suspendAO = false;
 		m_suspendDO = false;
 	}
 	//slave must start before the master.
-	if(m_taskGateCtr != TASK_UNDEF)
-	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
 	if(m_taskDOCtr != TASK_UNDEF)
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
     CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
+	if(m_taskGateCtr != TASK_UNDEF)
+	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
+	msecsleep(1);
 	if(m_taskAO != TASK_UNDEF)
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
 	
@@ -509,7 +535,7 @@ XNIDAQmxPulser::stopPulseGen()
 	XScopedLock<XRecursiveMutex> lockAO(m_mutexAO);
 	XScopedLock<XRecursiveMutex> lockDO(m_mutexDO);
 
-	m_virtualTrigger->stop();
+	m_softwareTrigger->stop();
 
 	if(m_running) {
 		if(m_taskAO != TASK_UNDEF)
@@ -673,7 +699,7 @@ XNIDAQmxPulser::genBankDO()
 	const uint64_t pausing_cnt_blank_after = 1;
 	const uint64_t pausing_period = pausing_cnt + pausing_cnt_blank_before + pausing_cnt_blank_after;
 	
-	shared_ptr<XNIDAQmxInterface::VirtualTrigger> &vt = m_virtualTrigger;
+	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &vt = m_softwareTrigger;
 	
 	tRawDO *pDO = &m_genBufDO[0];
 	const unsigned int size = m_bufSizeHintDO;

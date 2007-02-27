@@ -43,18 +43,18 @@ static int g_daqmx_open_cnt;
 static XMutex g_daqmx_mutex;
 static std::deque<shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> > g_daqmx_sync_routes;
 
-atomic_shared_ptr<XNIDAQmxInterface::VirtualTrigger::VirtualTriggerList>
-XNIDAQmxInterface::VirtualTrigger::s_virtualTrigList;
+atomic_shared_ptr<XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList>
+XNIDAQmxInterface::SoftwareTrigger::s_virtualTrigList;
 
 void
-XNIDAQmxInterface::VirtualTrigger::registerVirtualTrigger(const shared_ptr<VirtualTrigger> &item)
+XNIDAQmxInterface::SoftwareTrigger::registerSoftwareTrigger(const shared_ptr<SoftwareTrigger> &item)
 {
      for(;;) {
-        atomic_shared_ptr<VirtualTriggerList> old_list(s_virtualTrigList);
-        atomic_shared_ptr<VirtualTriggerList> new_list(
-            old_list ? (new VirtualTriggerList(*old_list)) : (new VirtualTriggerList));
+        atomic_shared_ptr<SoftwareTriggerList> old_list(s_virtualTrigList);
+        atomic_shared_ptr<SoftwareTriggerList> new_list(
+            old_list ? (new SoftwareTriggerList(*old_list)) : (new SoftwareTriggerList));
         // clean-up dead listeners.
-        for(VirtualTriggerList_it it = new_list->begin(); it != new_list->end();) {
+        for(SoftwareTriggerList_it it = new_list->begin(); it != new_list->end();) {
             if(!it->lock())
                 it = new_list->erase(it);
             else
@@ -65,35 +65,53 @@ XNIDAQmxInterface::VirtualTrigger::registerVirtualTrigger(const shared_ptr<Virtu
     }	
 }
 
-XNIDAQmxInterface::VirtualTrigger::VirtualTrigger(const char *label, unsigned int bits)
+XNIDAQmxInterface::SoftwareTrigger::SoftwareTrigger(const char *label, unsigned int bits)
  : m_label(label), m_bits(bits),
  m_risingEdgeMask(0u), m_fallingEdgeMask(0u) {
 }
-XNIDAQmxInterface::VirtualTrigger::~VirtualTrigger() {
+XNIDAQmxInterface::SoftwareTrigger::~SoftwareTrigger() {
 }
 void
-XNIDAQmxInterface::VirtualTrigger::start(float64 freq) {
+XNIDAQmxInterface::SoftwareTrigger::stamp(uint64_t cnt) {
+	readBarrier();
+	if(cnt < m_endOfBlank) return;
+	if(cnt == 0) return; //ignore.
+	try {
+		m_stamps.push(cnt);
+	}
+	catch (Queue::nospace_error&) {
+		m_stamps.pop();
+		m_stamps.push(cnt);
+	}
+	m_endOfBlank = cnt + m_blankTerm;
+	fprintf(stderr, "stamp!\n");
+}
+void
+XNIDAQmxInterface::SoftwareTrigger::start(float64 freq) {
 	{
 		XScopedLock<XMutex> lock(m_mutex);
 		m_endOfBlank = 0;
 		if(!m_blankTerm) m_blankTerm = lrint(0.02 * freq);
 		m_freq = freq;
-		m_stamps.clear();
+		while(!m_stamps.empty())
+			m_stamps.pop();
+		m_forcedStamp = 0uLL;
 	}
 	onStart().talk(shared_from_this());
 }
 
 void
-XNIDAQmxInterface::VirtualTrigger::stop() {
+XNIDAQmxInterface::SoftwareTrigger::stop() {
 	XScopedLock<XMutex> lock(m_mutex);
-	m_stamps.clear();
 	m_endOfBlank = (uint64_t)-1LL;
 }
 void
-XNIDAQmxInterface::VirtualTrigger::connect(uint32_t rising_edge_mask, 
+XNIDAQmxInterface::SoftwareTrigger::connect(uint32_t rising_edge_mask, 
 	uint32_t falling_edge_mask) throw (XInterface::XInterfaceError &) {
 	XScopedLock<XMutex> lock(m_mutex);
-	m_stamps.clear();
+	while(!m_stamps.empty())
+		m_stamps.pop();
+	m_forcedStamp = 0uLL;
 	if(m_risingEdgeMask || m_fallingEdgeMask)
 		throw XInterface::XInterfaceError(
 			KAME::i18n("Duplicated connection to virtual trigger is not supported."), __FILE__, __LINE__);
@@ -101,18 +119,22 @@ XNIDAQmxInterface::VirtualTrigger::connect(uint32_t rising_edge_mask,
 	m_fallingEdgeMask = falling_edge_mask;
 }
 void
-XNIDAQmxInterface::VirtualTrigger::disconnect() {
+XNIDAQmxInterface::SoftwareTrigger::disconnect() {
 	XScopedLock<XMutex> lock(m_mutex);
-	m_stamps.clear();
+	while(!m_stamps.empty())
+		m_stamps.pop();
+	m_forcedStamp = 0uLL;
 	m_risingEdgeMask = 0;
 	m_fallingEdgeMask = 0;
 }
 uint64_t
-XNIDAQmxInterface::VirtualTrigger::front(float64 _freq) {
-	XScopedLock<XMutex> lock(m_mutex);
+XNIDAQmxInterface::SoftwareTrigger::front(float64 _freq) {
 	if(m_stamps.empty())
 		return 0uLL;
 	uint64_t cnt = m_stamps.front();
+	if(m_forcedStamp)
+		cnt = m_forcedStamp;
+	
 	if(_freq > freq())
 		cnt *= lrint(_freq / freq());
 	else
@@ -121,12 +143,14 @@ XNIDAQmxInterface::VirtualTrigger::front(float64 _freq) {
 	return cnt;
 }
 void
-XNIDAQmxInterface::VirtualTrigger::pop() {
-	XScopedLock<XMutex> lock(m_mutex);
-	m_stamps.pop_front();
+XNIDAQmxInterface::SoftwareTrigger::pop() {
+	if(m_forcedStamp)
+		m_forcedStamp = 0uLL;
+	else
+		m_stamps.pop();
 }
 void
-XNIDAQmxInterface::VirtualTrigger::clear(uint64_t now, float64 _freq) {
+XNIDAQmxInterface::SoftwareTrigger::clear(uint64_t now, float64 _freq) {
 	if(_freq > freq())
 		now /= lrint(_freq / freq());
 	else
@@ -135,19 +159,20 @@ XNIDAQmxInterface::VirtualTrigger::clear(uint64_t now, float64 _freq) {
 	XScopedLock<XMutex> lock(m_mutex);
 	if(m_stamps.size()) {
 		while(m_stamps.front() <= now)
-			m_stamps.pop_front();
+			m_stamps.pop();
 	}
+	if(m_forcedStamp <= now)
+		m_forcedStamp = 0uLL;
 }
 void
-XNIDAQmxInterface::VirtualTrigger::forceStamp(uint64_t now, float64 _freq) {
+XNIDAQmxInterface::SoftwareTrigger::forceStamp(uint64_t now, float64 _freq) {
 	if(_freq > freq())
 		now /= lrint(_freq / freq());
 	else
 		now *= lrint(freq() / _freq);
-
-	XScopedLock<XMutex> lock(m_mutex);
-	m_stamps.push_front(now);
-	std::sort(m_stamps.begin(), m_stamps.end());
+		
+	m_forcedStamp = now;
+	memoryBarrier();
 }
 
 const char *

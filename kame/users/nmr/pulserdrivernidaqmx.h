@@ -87,7 +87,7 @@ private:
 enum { NUM_AO_CH = 2};
 	tRawAO m_genAOZeroLevel[NUM_AO_CH];
 	unsigned int m_genAOIndex;
-	shared_ptr<XNIDAQmxInterface::VirtualTrigger> m_virtualTrigger;
+	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> m_softwareTrigger;
 	unsigned int m_pausingBit;
 	unsigned int m_pausingCount;
 	unsigned int m_pausingBlankBefore;

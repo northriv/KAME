@@ -24,6 +24,8 @@
 #include "driver.h"
 #include <NIDAQmx.h>
 
+#include "atomic_queue.h"
+
 class XNIDAQmxTask;
 
 class XNIDAQmxInterface : public XInterface
@@ -74,10 +76,10 @@ public:
   double maxDIRate(unsigned int /*num_scans*/) const {return m_productInfo->di_max_rate;}
   double maxDORate(unsigned int /*num_scans*/) const {return m_productInfo->do_max_rate;}
   
-  class VirtualTrigger : public enable_shared_from_this<VirtualTrigger> {
+  class SoftwareTrigger : public enable_shared_from_this<SoftwareTrigger> {
   public:
-  	VirtualTrigger(const char *label, unsigned int bits);
-  	~VirtualTrigger();
+  	SoftwareTrigger(const char *label, unsigned int bits);
+  	~SoftwareTrigger();
   	const char *label() const {return m_label.c_str();}
   	void setArmTerm(const char *arm_term) {m_armTerm = arm_term;}
   	const char *armTerm() const {return m_armTerm.c_str();}
@@ -87,22 +89,13 @@ public:
   	unsigned int bits() const {return m_bits;}
   	void stop();
   	void forceStamp(uint64_t now, float64 freq);
-  	void stamp(uint64_t cnt) {
-  		if(cnt < m_endOfBlank) return;
-  		XScopedLock<XMutex> lock(m_mutex);
-  		if(cnt < m_endOfBlank) return; //for barrier.
-  		if(cnt == 0) return; //ignore.
-  		m_stamps.push_back(cnt);
-  		if(m_stamps.size() > 100)
-  			m_stamps.pop_front();
-  		m_endOfBlank = cnt + m_blankTerm;
-  		fprintf(stderr, "stamp!\n");
-  	}
+  	void stamp(uint64_t cnt);
   	template <typename T>
   	void changeValue(T oldval, T val, uint64_t time) {
   		if(((m_risingEdgeMask & val) & (m_risingEdgeMask & ~oldval))
   			|| ((m_fallingEdgeMask & ~val) & (m_fallingEdgeMask & oldval))) {
-  				stamp(time);
+	  		if(time < m_endOfBlank) return;
+  			stamp(time);
   		}
   	}
   	void connect(uint32_t rising_edge_mask, 
@@ -110,22 +103,22 @@ public:
   	void disconnect();
   	//! \arg blankterm in seconds.
   	void setBlankTerm(float64 blankterm) {
-  		XScopedLock<XMutex> lock(m_mutex);
 		m_blankTerm = lrint(blankterm * freq());
+		memoryBarrier();
   	}
 	//! for restarting connected task.
-	XTalker<shared_ptr<VirtualTrigger> > &onStart() {return m_onstart;}
+	XTalker<shared_ptr<SoftwareTrigger> > &onStart() {return m_onstart;}
 	
   	void clear(uint64_t now, float64 freq);
   	uint64_t front(float64 freq);
   	void pop();
 
-	  typedef std::deque<weak_ptr<XNIDAQmxInterface::VirtualTrigger> > VirtualTriggerList;
-	  typedef VirtualTriggerList::iterator VirtualTriggerList_it;
-	  static const atomic_shared_ptr<VirtualTriggerList> &virtualTrigList() {
+	  typedef std::deque<weak_ptr<XNIDAQmxInterface::SoftwareTrigger> > SoftwareTriggerList;
+	  typedef SoftwareTriggerList::iterator SoftwareTriggerList_it;
+	  static const atomic_shared_ptr<SoftwareTriggerList> &virtualTrigList() {
 	  	return s_virtualTrigList;
 	  }
-	static void registerVirtualTrigger(const shared_ptr<VirtualTrigger> &);
+	static void registerSoftwareTrigger(const shared_ptr<SoftwareTrigger> &);
   private:
   	const std::string m_label;
   	std::string m_armTerm;
@@ -133,10 +126,13 @@ public:
   	uint32_t m_risingEdgeMask, m_fallingEdgeMask;
   	uint64_t m_blankTerm, m_endOfBlank;
   	float64 m_freq; //!< [Hz].
-  	std::deque<uint64_t> m_stamps;
+  	enum {QUEUE_SIZE = 100};
+	typedef atomic_queue<uint64_t, QUEUE_SIZE> Queue;
+  	Queue m_stamps;
+	uint64_t m_forcedStamp;
   	XMutex m_mutex;
-  	XTalker<shared_ptr<VirtualTrigger> > m_onstart;
-    static atomic_shared_ptr<VirtualTriggerList> s_virtualTrigList;
+  	XTalker<shared_ptr<SoftwareTrigger> > m_onstart;
+    static atomic_shared_ptr<SoftwareTriggerList> s_virtualTrigList;
   };
 protected:
   virtual void open() throw (XInterfaceError &);
@@ -152,7 +148,7 @@ private:
 	  	unsigned long di_max_rate; //!< [kHz]
 	  	unsigned long do_max_rate; //!< [kHz]
 	};
-	friend class VirtualTrigger;
+	friend class SoftwareTrigger;
 	std::string m_devname;
 	const ProductInfo* m_productInfo;
 	static const ProductInfo sc_productInfoList[];

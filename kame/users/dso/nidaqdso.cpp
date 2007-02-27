@@ -114,11 +114,11 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 	    	std::string str(formatString("/%s/%s", interface()->devName(), *it));
 	        trigSource()->add(str);
 	    }
-	    m_virtualTriggerList = XNIDAQmxInterface::VirtualTrigger::virtualTrigList();
-	    if(m_virtualTriggerList) {
-		    for(XNIDAQmxInterface::VirtualTrigger::VirtualTriggerList_it
-		    	it = m_virtualTriggerList->begin(); it != m_virtualTriggerList->end(); it++) {
-	    		if(shared_ptr<XNIDAQmxInterface::VirtualTrigger> vt = it->lock()) {
+	    m_softwareTriggerList = XNIDAQmxInterface::SoftwareTrigger::virtualTrigList();
+	    if(m_softwareTriggerList) {
+		    for(XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList_it
+		    	it = m_softwareTriggerList->begin(); it != m_softwareTriggerList->end(); it++) {
+	    		if(shared_ptr<XNIDAQmxInterface::SoftwareTrigger> vt = it->lock()) {
 					for(unsigned int i = 0; i < vt->bits(); i++) {
 				    	trigSource()->add(
 				    		formatString("%s/line%d", vt->label(), i));
@@ -193,10 +193,10 @@ XNIDAQmxDSO::disableTrigger()
     m_trigRoute.reset();
 
     //reset virtual trigger setup.
-	if(m_virtualTrigger)
-    	m_virtualTrigger->disconnect();
-    m_lsnOnVirtualTrigStart.reset();
-    m_virtualTrigger.reset();
+	if(m_softwareTrigger)
+    	m_softwareTrigger->disconnect();
+    m_lsnOnSoftTrigStart.reset();
+    m_softwareTrigger.reset();
 }
 void
 XNIDAQmxDSO::setupTrigger()
@@ -222,15 +222,15 @@ XNIDAQmxDSO::setupTrigger()
     
     int32 trig_spec = *trigFalling() ? DAQmx_Val_FallingSlope : DAQmx_Val_RisingSlope;
     
-    if(m_virtualTrigger) {
-	    dtrig = m_virtualTrigger->armTerm();
+    if(m_softwareTrigger) {
+	    dtrig = m_softwareTrigger->armTerm();
 	    trig_spec = DAQmx_Val_RisingSlope;
 	    pretrig = 0;				    
 	    CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_task, DAQmx_Val_OverwriteUnreadSamps));
     }
     
     //Small # of pretriggers is not allowed for ReferenceTrigger.
-    if(!m_virtualTrigger && (pretrig < 2)) {
+    if(!m_softwareTrigger && (pretrig < 2)) {
     	pretrig = 0;
 		m_preTriggerPos = pretrig;
     }
@@ -259,18 +259,18 @@ XNIDAQmxDSO::setupTrigger()
 	startSequence();
 }
 void
-XNIDAQmxDSO::setupVirtualTrigger()
+XNIDAQmxDSO::setupSoftwareTrigger()
 {
     std::string src = trigSource()->to_str();
     //setup virtual trigger.
-    if(m_virtualTriggerList) {
-	    for(XNIDAQmxInterface::VirtualTrigger::VirtualTriggerList_it
-	    	it = m_virtualTriggerList->begin(); it != m_virtualTriggerList->end(); it++) {
-			if(shared_ptr<XNIDAQmxInterface::VirtualTrigger> vt = it->lock()) {
+    if(m_softwareTriggerList) {
+	    for(XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList_it
+	    	it = m_softwareTriggerList->begin(); it != m_softwareTriggerList->end(); it++) {
+			if(shared_ptr<XNIDAQmxInterface::SoftwareTrigger> vt = it->lock()) {
 				for(unsigned int i = 0; i < vt->bits(); i++) {
 		    		if(src == formatString("%s/line%d", vt->label(), i)) {
-			    		m_virtualTrigger = vt;
-						m_virtualTrigger->connect(
+			    		m_softwareTrigger = vt;
+						m_softwareTrigger->connect(
 						!*trigFalling() ? (1uL << i) : 0,
 						*trigFalling() ? (1uL << i) : 0);
 		    		}
@@ -296,7 +296,7 @@ XNIDAQmxDSO::setupTiming()
     if(num_ch == 0) return;
 
 	disableTrigger();
-	setupVirtualTrigger();
+	setupSoftwareTrigger();
 
 	const unsigned int len = *recordLength();
 	m_record.resize(len * NUM_MAX_CH);
@@ -310,7 +310,7 @@ XNIDAQmxDSO::setupTiming()
         NULL, // internal source
         len / *timeWidth(),
         DAQmx_Val_Rising,
-        !m_virtualTrigger ? DAQmx_Val_FiniteSamps : DAQmx_Val_ContSamps,
+        !m_softwareTrigger ? DAQmx_Val_FiniteSamps : DAQmx_Val_ContSamps,
         len
         ));
 
@@ -323,8 +323,8 @@ XNIDAQmxDSO::setupTiming()
     m_interval = 1.0 / rate;
 
 	unsigned int bufsize = len;
-	if(m_virtualTrigger) {
-		bufsize = std::max(bufsize * 4, (unsigned int)lrint(0.1 / m_interval));
+	if(m_softwareTrigger) {
+		bufsize = std::max(bufsize * 6, (unsigned int)lrint(0.5 / m_interval));
 	}
 	CHECK_DAQMX_RET(DAQmxCfgInputBuffer(m_task, bufsize));
     
@@ -396,14 +396,14 @@ XNIDAQmxDSO::createChannels()
     setupTiming();
 }
 void
-XNIDAQmxDSO::clearStoredVirtualTrigger() {
+XNIDAQmxDSO::clearStoredSoftwareTrigger() {
 	uInt64 total_samps = 0;
 	if(m_running)
 		CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
-	m_virtualTrigger->clear(total_samps, 1.0 / m_interval);
+	m_softwareTrigger->clear(total_samps, 1.0 / m_interval);
 }
 void
-XNIDAQmxDSO::onVirtualTrigStart(const shared_ptr<XNIDAQmxInterface::VirtualTrigger> &) {
+XNIDAQmxDSO::onSoftTrigStart(const shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &) {
 	XScopedLock<XInterface> lock(*interface());
 	m_suspendRead = true;
  	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
@@ -413,7 +413,7 @@ XNIDAQmxDSO::onVirtualTrigStart(const shared_ptr<XNIDAQmxInterface::VirtualTrigg
     	DAQmxStopTask(m_task);
 	}
 	
-	m_virtualTrigger->setBlankTerm(m_interval * m_recordLength);
+	m_softwareTrigger->setBlankTerm(m_interval * m_recordLength);
 	fprintf(stderr, "Virtual trig start.\n");
 
 	uInt32 num_ch;
@@ -444,12 +444,20 @@ XNIDAQmxDSO::onForceTriggerTouched(const shared_ptr<XNode> &)
 	m_suspendRead = true;
  	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
 
-	if(!m_virtualTrigger)
+	if(m_softwareTrigger) {
+		if(m_running) {
+			uInt64 total_samps;
+			CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
+			m_softwareTrigger->forceStamp(total_samps, 1.0 / m_interval);
+			m_suspendRead = false;
+		}
+	}
+	else {
 		disableTrigger();
-
-    CHECK_DAQMX_RET(DAQmxStartTask(m_task));
-	m_suspendRead = false;
-    m_running = true;
+	    CHECK_DAQMX_RET(DAQmxStartTask(m_task));
+		m_suspendRead = false;
+	    m_running = true;
+	}
 }
 inline bool
 XNIDAQmxDSO::tryReadAISuspend(const atomic<bool> &terminated) {
@@ -500,8 +508,8 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 	    
 	    float64 freq = 1.0 / m_interval;
 	
-		if(m_virtualTrigger) {
-			shared_ptr<XNIDAQmxInterface::VirtualTrigger> &vt(m_virtualTrigger);
+		if(m_softwareTrigger) {
+			shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &vt(m_softwareTrigger);
 			
 			while(!terminated) {
 				if(tryReadAISuspend(terminated))
@@ -509,7 +517,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 				uInt64 total_samps;
 				CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
 				uint64_t lastcnt = vt->front(freq);
-				if(lastcnt && (lastcnt + size < total_samps)) {
+				if(lastcnt && (lastcnt < total_samps)) {
 					uInt32 bufsize;
 					CHECK_DAQMX_RET(DAQmxGetBufInputBufSize(m_task, &bufsize));
 					if(total_samps - lastcnt + m_preTriggerPos > bufsize * 4 / 5) {
@@ -534,10 +542,10 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 				    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, offset));
 					
 					vt->pop();
-					fprintf(stderr, "hit! %d\n", (int)offset);
+					fprintf(stderr, "hit! %d %d %d\n", (int)offset, (int)lastcnt, (int)m_preTriggerPos);
 					break;
 				}
-				usleep(lrint(1e6 * size * m_interval / 4));
+				usleep(lrint(1e6 * size * m_interval / 6));
 			}
 		}
 		else {
@@ -553,11 +561,11 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 		if(terminated)
 			return;
 	
-		const unsigned int num_samps = std::min(size, 100u);
+		const unsigned int num_samps = std::min(size, 2048u);
 		for(; cnt < size;) {
 			int32 samps;
 			samps = std::min(size - cnt, num_samps);
-			if(!m_virtualTrigger) {
+			if(1) { //(!m_softwareTrigger) {
 				while(!terminated) {
 					if(tryReadAISuspend(terminated))
 						return;
@@ -575,7 +583,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 		        &m_recordBuf[cnt * num_ch], samps * num_ch, &samps, NULL
 		        ));
 		    cnt += samps;
-			if(!m_virtualTrigger) {
+			if(!m_softwareTrigger) {
 				CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, cnt));
 			}
 			else {
@@ -590,7 +598,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 	const bool sseq = *singleSequence();
 	
     if(!sseq || ((unsigned int)m_accumCount < av)) {
-		if(!m_virtualTrigger) {
+		if(!m_softwareTrigger) {
 			if(m_running) {
 				m_running = false;
 		    	DAQmxStopTask(m_task);
@@ -632,16 +640,16 @@ XNIDAQmxDSO::startSequence()
 	m_record_av.clear();   	
 	m_recordLength = m_record.size() / NUM_MAX_CH;
     
-	if(m_virtualTrigger) {
-		if(!m_lsnOnVirtualTrigStart)
-			m_lsnOnVirtualTrigStart = m_virtualTrigger->onStart().connectWeak(false,
-				shared_from_this(), &XNIDAQmxDSO::onVirtualTrigStart);
+	if(m_softwareTrigger) {
+		if(!m_lsnOnSoftTrigStart)
+			m_lsnOnSoftTrigStart = m_softwareTrigger->onStart().connectWeak(false,
+				shared_from_this(), &XNIDAQmxDSO::onSoftTrigStart);
 		if(m_running) {
-			clearStoredVirtualTrigger();
+			clearStoredSoftwareTrigger();
 			m_suspendRead = false;
 		}
 		else {
-			statusPrinter()->printMessage(KAME::i18n("Restart the trigger source."));
+			statusPrinter()->printMessage(KAME::i18n("Restart the software-trigger source."));
 		}
 	}
 	else {
