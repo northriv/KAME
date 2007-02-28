@@ -445,7 +445,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		if(m_taskGateCtr != TASK_UNDEF)
 			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
 
-		const unsigned int cnt_preample = 100;
+		const unsigned int cnt_preample = 1000;
 		m_genTotalCountDO += cnt_preample;
 		//synchronize the software trigger.
 		m_softwareTrigger->start(1e3 / resolution());
