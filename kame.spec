@@ -15,7 +15,7 @@ Name: kame
 %endif
 
 Version: 2.1.2
-Release: 1%{?kamerel}
+Release: 2%{?kamerel}
 License: GPL
 Group: Applications/Engineering
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
