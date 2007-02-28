@@ -127,8 +127,8 @@ public:
 	  	uint32_t m_risingEdgeMask, m_fallingEdgeMask;
 	  	uint64_t m_blankTerm, m_endOfBlank;
 	  	float64 m_freq; //!< [Hz].
-	  	enum {QUEUE_SIZE = 16384};
-		typedef atomic_queue<uint64_t, QUEUE_SIZE> FastQueue;
+	  	enum {QUEUE_SIZE = 8192};
+		typedef atomic_queue_reserved<uint64_t, QUEUE_SIZE> FastQueue;
 	  	FastQueue m_fastQueue;
 		typedef std::deque<uint64_t> SlowQueue;
 	  	SlowQueue m_slowQueue;
