@@ -39,7 +39,7 @@ void my_assert(char const*s, int d) {
 #define SIZE 10000
 #define NUM_THREADS 8
 
-atomic_queue<int, (SIZE + 1) * NUM_THREADS> queue1;
+atomic_queue_reserved<int, (SIZE + 1) * NUM_THREADS> queue1;
 atomic_pointer_queue<int, (SIZE + 1) * NUM_THREADS> queue2;
 
 void *
@@ -65,12 +65,15 @@ pthread_t threads[NUM_THREADS];
 		pthread_create(&threads[i], NULL, start_routine, NULL);
 	}
 
+	int total = 0;
     for(int i =0; i < SIZE * NUM_THREADS; i++) {
     	while(queue1.empty()) usleep(1);
         int x = queue1.front();
+        total += x;
         queue1.pop();
     	while(queue2.empty()) usleep(1);
         int *t = queue2.front();
+        total += *t;
         queue2.pop();
         delete t;
         usleep(1);
@@ -80,8 +83,8 @@ pthread_t threads[NUM_THREADS];
 		pthread_join(threads[i], NULL);
 	}    
 
-    if(!queue1.empty() || !queue2.empty()) {
-    	printf("failed\n");
+    if(!queue1.empty() || !queue2.empty() || (total != SIZE*(SIZE-1)/2* NUM_THREADS*2)) {
+    	printf("failed total=%d, cal=%d\n", total, SIZE*(SIZE-1)/2* NUM_THREADS*2);
     	return -1;
     }
 	printf("succeeded\n");

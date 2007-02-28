@@ -87,7 +87,7 @@ start_routine(void *) {
     return 0;
 }
 
-#define NUM_THREADS 4
+#define NUM_THREADS 8
 
 int
 main(int argc, char **argv)

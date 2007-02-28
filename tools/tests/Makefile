@@ -1,13 +1,28 @@
 CXX=g++
-CFLAGS=-Wall -g3 -O1 -I/include/qt3 -I ../../kame -I/usr/local/include -I/usr/lib/qt-3.3/include -L/usr/local/lib -lnidaqmx
+CFLAGS=-g3 -O6 -msse3 -mfpmath=sse -march=prescott -g -I/sw/include/qt -I ../../kame -I/sw/include -I/usr/lib/qt-3.3/include -lpthread -DMACOSX
 
-all : nidaqmx_cont_ao_test nidaqmx_cont_co_test
+all : atomic_shared_ptr_test atomic_scoped_ptr_test atomic_queue_test
 clean :
-	rm -f nidaqmx_cont_ao_test nidaqmx_cont_co_test
+	rm -f atomic_shared_ptr_test atomic_scoped_ptr_test atomic_queue_test
 
-nidaqmx_cont_ao_test : nidaqmx_cont_ao_test.cpp
-	$(CXX) $(CFLAGS) nidaqmx_cont_ao_test.cpp -o nidaqmx_cont_ao_test
+atomic_shared_ptr_test : atomic_shared_ptr_test.cpp
+	$(CXX) $(CFLAGS) atomic_shared_ptr_test.cpp -o atomic_shared_ptr_test
+	$(CXX) $(CFLAGS) -DHAVE_CAS_2 atomic_shared_ptr_test.cpp -o atomic_shared_ptr_test_fake_cas2
 
-nidaqmx_cont_co_test : nidaqmx_cont_co_test.cpp
-	$(CXX) $(CFLAGS) nidaqmx_cont_co_test.cpp -o nidaqmx_cont_co_test
+atomic_scoped_ptr_test : atomic_scoped_ptr_test.cpp
+	$(CXX) $(CFLAGS) atomic_scoped_ptr_test.cpp -o atomic_scoped_ptr_test
+	$(CXX) $(CFLAGS) -DHAVE_CAS_2 atomic_scoped_ptr_test.cpp -o atomic_scoped_ptr_test_fake_cas2
+	
+atomic_queue_test : atomic_queue_test.cpp
+	$(CXX) $(CFLAGS) atomic_queue_test.cpp -o atomic_queue_test
+	$(CXX) $(CFLAGS) -DHAVE_CAS_2 atomic_queue_test.cpp -o atomic_queue_test_fake_cas2
+
+check : atomic_shared_ptr_test atomic_scoped_ptr_test atomic_queue_test
+	./atomic_shared_ptr_test && \
+	./atomic_shared_ptr_test_fake_cas2 && \
+	./atomic_scoped_ptr_test && \
+	./atomic_scoped_ptr_test_fake_cas2 && \
+	./atomic_queue_test && \
+	./atomic_queue_test_fake_cas2 && \
+	echo 'done.'
 	
