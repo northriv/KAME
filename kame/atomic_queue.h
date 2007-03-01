@@ -24,19 +24,24 @@ public:
     struct nospace_error {};
     
     atomic_pointer_queue() : m_pFirst(m_ptrs), m_pLast(m_ptrs), m_count(0) {
-        std::uninitialized_fill_n(m_ptrs, SIZE, (T*)0); 
+    	for(unsigned int i = 0; i < SIZE; i++)
+    		m_ptrs[i] = 0;
     }
 
     void push(T* t) {
         ASSERT(t);
+        readBarrier();
         for(;;) {
+        	if(size() == SIZE)
+                throw nospace_error();
             T **last = m_pLast;
             T **first = m_pFirst;
             while(*last != 0) {
                 last++;
-                if(last == m_ptrs + SIZE) last = m_ptrs;
+                if(last == &m_ptrs[SIZE]) last = m_ptrs;
                 if(last == first) {
-                    throw nospace_error();
+                	memoryBarrier();
+                	break;
                 }
             }
             if(atomicCompareAndSet((T*)0, t, last)) {
@@ -45,14 +50,15 @@ public:
                 break;
             }
         }
-        atomicInc(&m_count);
 		writeBarrier();
+        atomicInc(&m_count);
     }
     //! This is not reentrant.
     void pop() {
-        atomicDec(&m_count);
-        writeBarrier();
+        ASSERT(*m_pFirst);
         *m_pFirst = 0;
+        writeBarrier();
+        atomicDec(&m_count);
     }
     //! This is not reentrant.
     T *front() {
@@ -60,7 +66,8 @@ public:
         T **first = m_pFirst;        
         while(*first == 0) {
             first++;
-            if(first == m_ptrs + SIZE) first = m_ptrs;
+            if(first == &m_ptrs[SIZE])
+            	first = m_ptrs;
         }
         m_pFirst = first;
         return *first;
@@ -74,6 +81,56 @@ public:
         readBarrier();
         return m_count;
     }
+
+	//! Try to pop the front item.
+	//! \arg item to be released.
+	//! \return true if succeeded.
+    bool atomicPop(const T *item) {
+        if(atomicCompareAndSet((T*)item, (T*)0, m_pFirst)) {
+			writeBarrier();
+	        atomicDec(&m_count);
+        	return true;
+        }
+        return false;
+    }
+    //! Try to obtain the front item.
+    const T *atomicFront() {
+        if(empty())
+        	return 0L;
+        T **first = m_pFirst;        
+        while(*first == 0) {
+            first++;
+            if(first == &m_ptrs[SIZE]) {
+            	first = m_ptrs;
+	            if(empty())
+	            	return 0L;
+            }
+        }
+        m_pFirst = first;
+        return *first;
+    }
+    T *atomicPopAny() {
+        if(empty())
+        	return 0L;
+    	T **first = m_pFirst;
+    	for(;;) {
+    		if(*first) {
+				T *obj = atomicSwap((T*)0L, first);
+				if(obj) {
+		            m_pFirst = first;
+					writeBarrier();
+			        atomicDec(&m_count);
+					return obj;
+				}
+    		}
+            first++;
+            if(first == &m_ptrs[SIZE]) {
+            	first = m_ptrs;
+	            if(empty())
+	            	return 0L;
+            }
+    	}
+    }
 private:
     T *m_ptrs[SIZE];
     T **m_pFirst;
@@ -81,7 +138,7 @@ private:
     unsigned int m_count;
 };
 
-//! Atomic FIFO
+//! Atomic FIFO for copy-constructable class.
 template <typename T, unsigned int SIZE>
 class atomic_queue
 {
@@ -123,7 +180,7 @@ private:
     atomic_pointer_queue<T, SIZE> m_queue;
 };
 
-//! Atomic FIFO
+//! Atomic FIFO for copieable class.
 template <typename T, unsigned int SIZE>
 class atomic_queue_reserved
 {
@@ -131,49 +188,27 @@ public:
     typedef typename atomic_pointer_queue<T, SIZE>::nospace_error nospace_error;
     
     atomic_queue_reserved() {
-    	for(unsigned int i = 0; i < SIZE; i++)
-    		m_obj[i] = new T;
+    	for(unsigned int i = 0; i < SIZE; i++) {
+			m_reservoir.push(&m_array[i]);
+    	}
     }
     ~atomic_queue_reserved() {
         while(!empty()) pop();
-    	for(unsigned int i = 0; i < SIZE; i++) {
-    		ASSERT(m_obj[i]);
-    		delete m_obj[i];
-    	}
+        ASSERT(m_reservoir.size() == SIZE);
     }
     
     void push(const T&t) {
-    	int i = m_queue.size();
-    	for(;;) {
-	    	for(; i < SIZE; i++) {
-	    		if(!m_obj[i]) continue;
-    			T *obj = atomicSwap((T*)0L, &m_obj[i]);
-    			if(obj) {
-    				*obj = t;
-					m_queue.push(obj);
-					return;
-    			}
-	    	}
-	    	i = 0;
-	    	if(m_queue.size() == SIZE)
-	    		throw nospace_error();
-	    }
+    	T *obj = m_reservoir.atomicPopAny(); 
+    	if(!obj)
+    		throw nospace_error();
+    	*obj = t;
+    	m_queue.push(obj);
     }
     //! This is not reentrant.
     void pop() {
-        T *obj = m_queue.front();
-    	int i = m_queue.size();
-    	for(;;) {
-	    	for(; i >= 0; i--) {
-	    		if(m_obj[i]) continue;
-    			obj = atomicSwap(obj, &m_obj[i]);
-    			if(!obj) {
-    				m_queue.pop();
-    				return;
-    			}
-	    	}
-	    	i = SIZE - 1;
-	    }
+        T *t = m_queue.front();
+		m_queue.pop();
+		m_reservoir.push(t);
     }
     //! This is not reentrant.
     T &front() {
@@ -186,9 +221,24 @@ public:
     unsigned int size() const {
         return m_queue.size();
     }
+    
+	//! Try to pop the front item.
+	//! \arg item to be released.
+	//! \return true if succeeded.
+    bool atomicPop(const T *item) {
+        if(m_queue.atomicPop(item)) {
+			m_reservoir.push((T*)item);
+	    	return true;
+        }
+        return false;
+    }
+    //! Try to obtain the front item.
+    const T *atomicFront() {
+        return m_queue.atomicFront();
+    }
 private:
-    atomic_pointer_queue<T, SIZE> m_queue;
-    T *m_obj[SIZE];
+    atomic_pointer_queue<T, SIZE> m_queue, m_reservoir;
+    T m_array[SIZE];
 };
 
 #endif /*ATOMIC_QUEUE_H_*/

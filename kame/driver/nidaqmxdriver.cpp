@@ -74,8 +74,9 @@ XNIDAQmxInterface::SoftwareTrigger::~SoftwareTrigger() {
 }
 void
 XNIDAQmxInterface::SoftwareTrigger::_clear() {
-	while(!m_fastQueue.empty())
-		m_fastQueue.pop();
+	while(const uint64_t *t = m_fastQueue.atomicFront()) {
+		m_fastQueue.atomicPop(t);
+	}
 	m_slowQueue.clear();
 	m_slowQueueSize = 0;
 }
@@ -138,9 +139,9 @@ XNIDAQmxInterface::SoftwareTrigger::front(float64 _freq) {
 	uint64_t cnt;
 	if(m_slowQueueSize) {
 		XScopedLock<XMutex> lock(m_mutex);
-		if(m_fastQueue.size()) {
-			if(m_fastQueue.front() < m_slowQueue.front())
-				cnt = m_fastQueue.front();
+		if(const uint64_t *t = m_fastQueue.atomicFront()) {
+			if(*t < m_slowQueue.front())
+				cnt = *t;
 			else
 				cnt = m_slowQueue.front();			
 		}
@@ -148,9 +149,8 @@ XNIDAQmxInterface::SoftwareTrigger::front(float64 _freq) {
 			cnt = m_slowQueue.front();
 	}
 	else {
-		if(m_fastQueue.size()) {
-			cnt = m_fastQueue.front();
-		}
+		if(const uint64_t *t = m_fastQueue.atomicFront())
+			cnt = *t;
 		else
 			return 0uLL;
 	}
@@ -166,9 +166,9 @@ void
 XNIDAQmxInterface::SoftwareTrigger::pop() {
 	if(m_slowQueueSize) {
 		XScopedLock<XMutex> lock(m_mutex);
-		if(m_fastQueue.size()) {
-			if(m_fastQueue.front() < m_slowQueue.front())
-				m_fastQueue.pop();
+		if(const uint64_t *t = m_fastQueue.atomicFront()) {
+			if(*t < m_slowQueue.front())
+				m_fastQueue.atomicPop(t);
 			else {
 				m_slowQueue.pop_front();			
 				--m_slowQueueSize;
@@ -180,11 +180,9 @@ XNIDAQmxInterface::SoftwareTrigger::pop() {
 		}
 	}
 	else {
-		if(m_fastQueue.size()) {
-			m_fastQueue.pop();
-		}
-		else
-			ASSERT(0);
+		const uint64_t *t = m_fastQueue.atomicFront();
+		if(t)
+			m_fastQueue.atomicPop(t);
 	}
 }
 void
@@ -195,8 +193,12 @@ XNIDAQmxInterface::SoftwareTrigger::clear(uint64_t now, float64 _freq) {
 		now *= lrint(freq() / _freq);
 
 	XScopedLock<XMutex> lock(m_mutex);
-	while(m_fastQueue.size() && (m_fastQueue.front() <= now))
-		m_fastQueue.pop();
+	while(const uint64_t *t = m_fastQueue.atomicFront()) {
+		if(*t <= now)
+			m_fastQueue.atomicPop(t);
+		else
+			break;
+	}
 	while(m_slowQueue.size() && (m_slowQueue.front() <= now)) {
 		m_slowQueue.pop_front();
 		--m_slowQueueSize;
