@@ -39,16 +39,59 @@ void my_assert(char const*s, int d) {
 #define SIZE 10000
 #define NUM_THREADS 8
 
-atomic_queue_reserved<int, (SIZE + 1) * NUM_THREADS> queue1;
-atomic_pointer_queue<int, (SIZE + 1) * NUM_THREADS> queue2;
+atomic_queue<int, (SIZE + 100) * NUM_THREADS> queue1;
+atomic_pointer_queue<int, NUM_THREADS> queue2;
+atomic_queue_reserved<int, NUM_THREADS> queue3;
+
+atomic<int> g_queue2_total = 0, g_queue3_total = 0;
+atomic<int> g_cnt = 0;
 
 void *
 start_routine(void *) {
-        usleep(100);
-    for(int i = 0; i < SIZE; i++) {
+	try {
+    usleep(100);
+    for(int j = 0; j < SIZE; j++) {
+    	int i;
+    	for(;;) {
+	    	i = g_cnt;
+	    	if(g_cnt.compareAndSet(i, i+1)) break;
+    	}
+    	
         queue1.push(i);
+        queue3.push(i);
         queue2.push(new int(i));
+        g_queue2_total += i;
+        g_queue3_total += i;
         usleep(1);
+        for(;;) {
+	        int *t = (int*)queue2.atomicFront();
+	        if(t) {
+		        int x = *t;
+		        if(queue2.atomicPop(t)) {
+			        ASSERT(x >= 0);
+		        	*t = -100;
+		        	g_queue2_total -= x;
+		        	break;
+		        }
+	        }
+	    	printf("2");
+        }
+        for(;;) {
+	        int *t = (int*)queue3.atomicFront();
+	        if(t) {
+		        int x = *t;
+		        ASSERT(x >= 0);
+		        if(queue3.atomicPop(t)) {
+		        	g_queue3_total -= x;
+		        	break;
+		        }
+	        }
+	    	printf("3");
+        }
+	}
+	}
+	catch (...) {
+		printf("ahoh\n");
 	}
 }
 
@@ -60,34 +103,63 @@ main(int argc, char **argv)
     gettimeofday(&tv, 0);
     srand(tv.tv_usec);
 
+    for(int i = 0; i < NUM_THREADS; i++) {
+        queue3.push(i);
+        queue2.push(new int(i));
+        g_queue2_total += i;
+        g_queue3_total += i;
+    }
+    for(int i = 0; i < NUM_THREADS; i++) {
+        for(;;) {
+	        const int *t =queue2.atomicFront();
+	        if(t) {
+		        const int x = *t;
+		        if(queue2.atomicPop(t)) {
+		        	g_queue2_total -= x;
+		        	break;
+		        }
+	        }
+	    	printf("2");
+        }
+        for(;;) {
+	        const int *t =queue3.atomicFront();
+	        if(t) {
+		        const int x = *t;
+		        if(queue3.atomicPop(t)) {
+		        	g_queue3_total -= x;
+		        	break;
+		        }
+	        }
+	    	printf("3");
+        }
+	}
+
 pthread_t threads[NUM_THREADS];
 	for(int i = 0; i < NUM_THREADS; i++) {
 		pthread_create(&threads[i], NULL, start_routine, NULL);
 	}
 
-	int total = 0;
+	int64_t total = 0;
     for(int i =0; i < SIZE * NUM_THREADS; i++) {
     	while(queue1.empty()) usleep(1);
         int x = queue1.front();
         total += x;
         queue1.pop();
-    	while(queue2.empty()) usleep(1);
-        int *t = queue2.front();
-        total += *t;
-        queue2.pop();
-        delete t;
-        usleep(1);
     }
 
 	for(int i = 0; i < NUM_THREADS; i++) {
 		pthread_join(threads[i], NULL);
 	}    
 
-    if(!queue1.empty() || !queue2.empty() || (total != SIZE*(SIZE-1)/2* NUM_THREADS*2)) {
-    	printf("failed total=%d, cal=%d\n", total, SIZE*(SIZE-1)/2* NUM_THREADS*2);
-    	return -1;
+    if(!queue1.empty() || !queue2.empty() || !queue3.empty() || 
+    	(total != ((int64_t)SIZE* NUM_THREADS)*(SIZE* NUM_THREADS-1)/2) ||
+    	(g_queue3_total != 0) || (g_queue2_total != 0)) {
+    	printf("failed total=%lld, cal=%lld, queue2size=%d, queue2total=%d, queue3size=%d, queue3total=%d\n", 
+    		total,((int64_t)SIZE* NUM_THREADS)*(SIZE* NUM_THREADS-1)/2,
+			queue2.size(), (int)g_queue2_total, queue3.size(), (int)g_queue3_total);
     }
-	printf("succeeded\n");
+    else
+		printf("succeeded\n");
 
 	return 0;
 }
