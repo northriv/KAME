@@ -95,6 +95,8 @@ enum { NUM_AO_CH = 2};
 	std::string m_pausingCh;
 	std::string m_pausingSrcTerm;
 	std::string m_pausingGateTerm;
+	unsigned int m_bufSizeTotalDO;
+	unsigned int m_bufSizeTotalAO;
 	unsigned int m_bufSizeHintDO;
 	unsigned int m_bufSizeHintAO;
 	unsigned int m_transferSizeHintDO;

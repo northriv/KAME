@@ -203,21 +203,26 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
 //    intfDO()->synchronizeClock(m_taskDO);
 	
-	//Buffer setup.
-/*	CHECK_DAQMX_RET(DAQmxSetDODataXferReqCond(m_taskDO, 
-    	formatString("%s/port0", intfDO()->devName()).c_str(),
-		DAQmx_Val_OnBrdMemHalfFullOrLess));
-*/
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, BUF_SIZE_HINT));
 	uInt32 bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
+	m_bufSizeTotalDO = bufsize;
 	fprintf(stderr, "Using bufsize = %d, freq = %f\n", (int)bufsize, freq);
 	m_bufSizeHintDO = std::min((unsigned int)bufsize / 8, 16384u);
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &bufsize));
+	m_bufSizeTotalDO += bufsize;
 	fprintf(stderr, "On-board bufsize = %d\n", (int)bufsize);
-	m_bufSizeHintDO = std::max((unsigned int)bufsize, m_bufSizeHintDO);
+//	m_bufSizeHintDO = std::max((unsigned int)bufsize, m_bufSizeHintDO);
 	m_transferSizeHintDO = std::min((unsigned int)bufsize / 4, m_bufSizeHintDO);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
+
+    {
+    	char ch[256];
+    	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
+		CHECK_DAQMX_RET(DAQmxSetDODataXferReqCond(m_taskDO, ch,
+	//		DAQmx_Val_OnBrdMemHalfFullOrLess));
+			DAQmx_Val_OnBrdMemNotFull));
+    }
 	
 	if(m_pausingBit) {
 		m_pausingGateTerm = formatString("/%s/PFI4", intfCtr()->devName());
@@ -281,9 +286,6 @@ XNIDAQmxPulser::setupTasksAODO() {
 				formatString("/%s/ao/StartTrigger", intfAO()->devName()).c_str(),
 				DAQmx_Val_Rising));
 		}
-		//for debugging.
-		CHECK_DAQMX_RET(DAQmxExportSignal(m_taskAO, DAQmx_Val_StartTrigger,
-			formatString("/%s/PFI6", intfAO()->devName()).c_str() ));
     }
 	
 	if(m_pausingBit) {
@@ -299,14 +301,24 @@ XNIDAQmxPulser::setupTasksAODO() {
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, BUF_SIZE_HINT));
 	uInt32 bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
+	m_bufSizeTotalAO = bufsize;
 	fprintf(stderr, "Using bufsize = %d\n", (int)bufsize);
 	m_bufSizeHintAO = std::min((unsigned int)bufsize / 8, 16384u);
-	m_bufSizeHintAO = std::max((unsigned int)bufsize, m_bufSizeHintAO);
+//	m_bufSizeHintAO = std::max((unsigned int)bufsize, m_bufSizeHintAO);
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &bufsize));
+	m_bufSizeTotalAO += bufsize;
 	fprintf(stderr, "On-board bufsize = %d\n", (int)bufsize);
 	
 	m_transferSizeHintAO = std::min((unsigned int)bufsize / 4, m_bufSizeHintAO);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskAO, DAQmx_Val_DoNotAllowRegen));
+
+    {
+    	char ch[256];
+    	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskAO, ch, sizeof(ch)));
+		CHECK_DAQMX_RET(DAQmxSetDODataXferReqCond(m_taskAO, ch,
+	//		DAQmx_Val_OnBrdMemHalfFullOrLess));
+			DAQmx_Val_OnBrdMemNotFull));
+    }
 
 	for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
 	//obtain range info.
@@ -483,16 +495,20 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_CurrWritePos));
 			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
 			
-			genBankAO();
-			unsigned int size = m_genBufAO.size() / NUM_AO_CH;
-			for(unsigned int cnt = 0; cnt < size;) {
-				samps = std::min(size - cnt, m_transferSizeHintAO);
-				CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, samps,
-					false, 0.5, 
-					DAQmx_Val_GroupByScanNumber,
-					&m_genBufAO[cnt * NUM_AO_CH],
-					&samps, NULL));
-				cnt += samps;
+			unsigned int lps = std::min(NUM_AO_CH * (unsigned int)lrint(1e3 / resolutionQAM()), 
+				m_bufSizeTotalAO) / m_bufSizeHintAO;
+			for(unsigned int i = 0; i < lps; i++) {
+				genBankAO();
+				unsigned int size = m_genBufAO.size() / NUM_AO_CH;
+				for(unsigned int cnt = 0; cnt < size;) {
+					samps = std::min(size - cnt, m_transferSizeHintAO);
+					CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, samps,
+						false, 0.5, 
+						DAQmx_Val_GroupByScanNumber,
+						&m_genBufAO[cnt * NUM_AO_CH],
+						&samps, NULL));
+					cnt += samps;
+				}
 			}
 			genBankAO();
 		}
@@ -511,16 +527,20 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_CurrWritePos));
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
 		
-		genBankDO();
-		unsigned int size = m_genBufDO.size();
-		for(unsigned int cnt = 0; cnt < size;) {
-			samps = std::min(size - cnt, m_transferSizeHintDO);
-			CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, samps,
-					false, 0.5, 
-					DAQmx_Val_GroupByScanNumber,
-					&m_genBufDO[cnt],
-					&samps, NULL));
-			cnt += samps;
+		unsigned int lps = std::min((unsigned int)lrint(1e3 / resolution()), 
+			m_bufSizeTotalDO) / m_bufSizeHintDO;
+		for(unsigned int i = 0; i < lps; i++) {
+			genBankDO();
+			unsigned int size = m_genBufDO.size();
+			for(unsigned int cnt = 0; cnt < size;) {
+				samps = std::min(size - cnt, m_transferSizeHintDO);
+				CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, samps,
+						false, 0.5, 
+						DAQmx_Val_GroupByScanNumber,
+						&m_genBufDO[cnt],
+						&samps, NULL));
+				cnt += samps;
+			}
 		}
 		genBankDO();
 		m_suspendAO = false;

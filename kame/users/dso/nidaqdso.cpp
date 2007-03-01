@@ -338,6 +338,20 @@ XNIDAQmxDSO::setupTiming()
         ));
         
     interface()->synchronizeClock(m_task);
+    
+    {
+    	char ch[256];
+    	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_task, ch, sizeof(ch)));
+    	uInt32 thres;
+    	CHECK_DAQMX_RET(DAQmxGetBufInputOnbrdBufSize(m_task, &thres));
+    	thres = std::min(512uL, thres / 2);
+    	CHECK_DAQMX_RET(DAQmxSetAIDataXferCustomThreshold(m_task, ch, thres));
+    	CHECK_DAQMX_RET(DAQmxSetAIDataXferReqCond(m_task, ch, 
+    		m_softwareTrigger ? 
+    		DAQmx_Val_OnbrdMemCustomThreshold
+//    		DAQmx_Val_OnBrdMemMoreThanHalfFull
+    		 : DAQmx_Val_WhenAcqComplete));
+    }
 
     float64 rate;
 //    CHECK_DAQMX_RET(DAQmxGetRefClkRate(m_task, &rate));
@@ -849,28 +863,23 @@ XNIDAQmxDSO::onSingleChanged(const shared_ptr<XValueNodeBase> &) {
 }
 void
 XNIDAQmxDSO::onTrigPosChanged(const shared_ptr<XValueNodeBase> &) {
-//	setupTiming();
-    createChannels();
+	setupTiming();
 }
 void
 XNIDAQmxDSO::onTrigSourceChanged(const shared_ptr<XValueNodeBase> &) {
-//	setupTiming();
-    createChannels();
+	setupTiming();
 }
 void
 XNIDAQmxDSO::onTrigLevelChanged(const shared_ptr<XValueNodeBase> &) {
-//	setupTiming();
-    createChannels();
+	setupTiming();
 }
 void
 XNIDAQmxDSO::onTrigFallingChanged(const shared_ptr<XValueNodeBase> &) {
-//	setupTiming();
-    createChannels();
+	setupTiming();
 }
 void
 XNIDAQmxDSO::onTimeWidthChanged(const shared_ptr<XValueNodeBase> &) {
-//	setupTiming();
-    createChannels();
+	setupTiming();
 }
 void
 XNIDAQmxDSO::onTrace1Changed(const shared_ptr<XValueNodeBase> &) {
@@ -898,8 +907,7 @@ XNIDAQmxDSO::onVOffset2Changed(const shared_ptr<XValueNodeBase> &) {
 }
 void
 XNIDAQmxDSO::onRecordLengthChanged(const shared_ptr<XValueNodeBase> &) {
-//	setupTiming();
-    createChannels();
+	setupTiming();
 }
 
 #endif //HAVE_NI_DAQMX
