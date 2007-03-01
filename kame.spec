@@ -15,12 +15,12 @@ Name: kame
 %endif
 
 Version: 2.1.2
-Release: 2%{?kamerel}
+Release: 3%{?kamerel}
 License: GPL
 Group: Applications/Engineering
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Requires: qt >= %{qtver}, kdelibs >= %{kdever}
-Requires: libart_lgpl, gsl, fftw2, zlib
+Requires: libart_lgpl, gsl, fftw2, zlib, ruby
 Requires: linux-gpib
 BuildPreReq: ruby-devel, gsl, boost-devel, fftw2-devel
 BuildPreReq: libidn-devel
