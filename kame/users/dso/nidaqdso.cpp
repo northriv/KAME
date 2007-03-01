@@ -336,7 +336,7 @@ XNIDAQmxDSO::setupTiming()
         !m_softwareTrigger ? DAQmx_Val_FiniteSamps : DAQmx_Val_ContSamps,
         len
         ));
-
+        
     interface()->synchronizeClock(m_task);
 
     float64 rate;
@@ -849,23 +849,28 @@ XNIDAQmxDSO::onSingleChanged(const shared_ptr<XValueNodeBase> &) {
 }
 void
 XNIDAQmxDSO::onTrigPosChanged(const shared_ptr<XValueNodeBase> &) {
-	setupTiming();
+//	setupTiming();
+    createChannels();
 }
 void
 XNIDAQmxDSO::onTrigSourceChanged(const shared_ptr<XValueNodeBase> &) {
-	setupTiming();
+//	setupTiming();
+    createChannels();
 }
 void
 XNIDAQmxDSO::onTrigLevelChanged(const shared_ptr<XValueNodeBase> &) {
-	setupTiming();
+//	setupTiming();
+    createChannels();
 }
 void
 XNIDAQmxDSO::onTrigFallingChanged(const shared_ptr<XValueNodeBase> &) {
-	setupTiming();
+//	setupTiming();
+    createChannels();
 }
 void
 XNIDAQmxDSO::onTimeWidthChanged(const shared_ptr<XValueNodeBase> &) {
-	setupTiming();
+//	setupTiming();
+    createChannels();
 }
 void
 XNIDAQmxDSO::onTrace1Changed(const shared_ptr<XValueNodeBase> &) {
@@ -893,7 +898,8 @@ XNIDAQmxDSO::onVOffset2Changed(const shared_ptr<XValueNodeBase> &) {
 }
 void
 XNIDAQmxDSO::onRecordLengthChanged(const shared_ptr<XValueNodeBase> &) {
-	setupTiming();
+//	setupTiming();
+    createChannels();
 }
 
 #endif //HAVE_NI_DAQMX

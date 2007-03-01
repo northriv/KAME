@@ -13,6 +13,9 @@
  ***************************************************************************/
 #include "nidaqmxdriver.h"
 #include <sys/errno.h>
+#include <boost/math/common_factor.hpp>
+using boost::math::lcm;
+using boost::math::gcd;
 
 #ifdef HAVE_NI_DAQMX
 
@@ -155,10 +158,10 @@ XNIDAQmxInterface::SoftwareTrigger::front(float64 _freq) {
 			return 0uLL;
 	}
 	
-	if(_freq > freq())
-		cnt *= lrint(_freq / freq());
-	else
-		cnt /= lrint(freq() / _freq);
+	unsigned int freq_em= lrint(freq());
+	unsigned int freq_rc = lrint(_freq);
+	unsigned int _lcm = lcm(freq_em, freq_rc);
+	cnt = (cnt * (freq_rc / _lcm)) / (freq_em / _lcm);
 	ASSERT(cnt != 0);
 	return cnt;
 }
@@ -187,10 +190,10 @@ XNIDAQmxInterface::SoftwareTrigger::pop() {
 }
 void
 XNIDAQmxInterface::SoftwareTrigger::clear(uint64_t now, float64 _freq) {
-	if(_freq > freq())
-		now /= lrint(_freq / freq());
-	else
-		now *= lrint(freq() / _freq);
+	unsigned int freq_em= lrint(freq());
+	unsigned int freq_rc = lrint(_freq);
+	unsigned int _lcm = lcm(freq_em, freq_rc);
+	now = (now * (freq_em / _lcm)) / (freq_rc / _lcm);
 
 	XScopedLock<XMutex> lock(m_mutex);
 	while(const uint64_t *t = m_fastQueue.atomicFront()) {
@@ -206,10 +209,10 @@ XNIDAQmxInterface::SoftwareTrigger::clear(uint64_t now, float64 _freq) {
 }
 void
 XNIDAQmxInterface::SoftwareTrigger::forceStamp(uint64_t now, float64 _freq) {
-	if(_freq > freq())
-		now /= lrint(_freq / freq());
-	else
-		now *= lrint(freq() / _freq);
+	unsigned int freq_em= lrint(freq());
+	unsigned int freq_rc = lrint(_freq);
+	unsigned int _lcm = lcm(freq_em, freq_rc);
+	now = (now * (freq_em / _lcm)) / (freq_rc / _lcm);
 		
 	XScopedLock<XMutex> lock(m_mutex);
 	++m_slowQueueSize;

@@ -41,7 +41,7 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
 		portSel(i)->add("Pausing(PFI4)");
     const int ports[] = {
     	PORTSEL_GATE, PORTSEL_PREGATE, PORTSEL_TRIG1, PORTSEL_TRIG2,
-    	PORTSEL_GATE3, PORTSEL_COMB, PORTSEL_QSW, PORTSEL_ASW
+    	PORTSEL_GATE3, PORTSEL_COMB, PORTSEL_QSW, PORTSEL_PAUSING
     };
     for(unsigned int i = 0; i < sizeof(ports)/sizeof(int); i++) {
     	portSel(i)->value(ports[i]);
