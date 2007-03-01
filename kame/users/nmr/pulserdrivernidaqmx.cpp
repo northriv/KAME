@@ -215,6 +215,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	m_bufSizeHintDO = std::min((unsigned int)bufsize / 8, 16384u);
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &bufsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)bufsize);
+	m_bufSizeHintDO = std::max((unsigned int)bufsize, m_bufSizeHintDO);
 	m_transferSizeHintDO = std::min((unsigned int)bufsize / 4, m_bufSizeHintDO);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
 	
@@ -300,6 +301,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d\n", (int)bufsize);
 	m_bufSizeHintAO = std::min((unsigned int)bufsize / 8, 16384u);
+	m_bufSizeHintAO = std::max((unsigned int)bufsize, m_bufSizeHintAO);
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &bufsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)bufsize);
 	
@@ -369,6 +371,17 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 				setupTasksAODO();
 			else
 				setupTasksDO(false);
+		}
+		{
+			uInt32 bufsize;
+			CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &bufsize));
+			if(!m_pausingBit & (bufsize < 8192uL))
+				throw XInterface::XInterfaceError(
+					KAME::i18n("Use the pausing feature for a cheap DAQmx board.\n"
+					+ KAME::i18n("Look at the port-selection table.")), __FILE__, __LINE__);
+			if(!m_pausingBit)
+				gWarnPrint(KAME::i18n("Use of the pausing feature is recommended.\n"
+					+ KAME::i18n("Look at the port-selection table.")));
 		}
 		if(m_taskAO != TASK_UNDEF) {
 			uInt32 bufsize;
