@@ -1,5 +1,5 @@
 CXX=g++
-CFLAGS=-g3 -O1 -msse3 -mfpmath=sse -march=prescott -g -I/sw/include/qt -I ../../kame -I/sw/include -I/usr/lib/qt-3.3/include -lpthread -DMACOSX
+CFLAGS=-g3 -O6 -msse3 -mfpmath=sse -march=prescott -g -I/sw/include/qt -I ../../kame -I/sw/include -I/usr/lib/qt-3.3/include -lpthread -DMACOSX
 
 all : atomic_shared_ptr_test atomic_scoped_ptr_test atomic_queue_test
 clean :

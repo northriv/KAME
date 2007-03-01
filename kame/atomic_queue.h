@@ -30,7 +30,7 @@ public:
 
     void push(T* t) {
         ASSERT(t);
-        readBarrier();
+        memoryBarrier();
         for(;;) {
         	if(size() == SIZE)
                 throw nospace_error();
@@ -40,18 +40,18 @@ public:
                 last++;
                 if(last == &m_ptrs[SIZE]) last = m_ptrs;
                 if(last == first) {
-                	memoryBarrier();
                 	break;
                 }
             }
             if(atomicCompareAndSet((T*)0, t, last)) {
-		        memoryBarrier();
-                m_pLast = last;
-                break;
+		        writeBarrier();
+               m_pLast = last;
+               break;
             }
         }
 		writeBarrier();
-        atomicInc(&m_count);
+       atomicInc(&m_count);
+		writeBarrier();
     }
     //! This is not reentrant.
     void pop() {
@@ -59,6 +59,7 @@ public:
         *m_pFirst = 0;
         writeBarrier();
         atomicDec(&m_count);
+        writeBarrier();
     }
     //! This is not reentrant.
     T *front() {
@@ -70,6 +71,7 @@ public:
             	first = m_ptrs;
         }
         m_pFirst = first;
+        readBarrier();
         return *first;
     }
     //! This is not reentrant.
@@ -86,9 +88,11 @@ public:
 	//! \arg item to be released.
 	//! \return true if succeeded.
     bool atomicPop(const T *item) {
+    	ASSERT(item);
         if(atomicCompareAndSet((T*)item, (T*)0, m_pFirst)) {
 			writeBarrier();
-	        atomicDec(&m_count);
+	       atomicDec(&m_count);
+			writeBarrier();
         	return true;
         }
         return false;
@@ -107,6 +111,7 @@ public:
             }
         }
         m_pFirst = first;
+        readBarrier();
         return *first;
     }
     T *atomicPopAny() {
@@ -118,8 +123,9 @@ public:
 				T *obj = atomicSwap((T*)0L, first);
 				if(obj) {
 		            m_pFirst = first;
-					writeBarrier();
+					 writeBarrier();
 			        atomicDec(&m_count);
+					 memoryBarrier();
 					return obj;
 				}
     		}
@@ -152,6 +158,7 @@ public:
     
     void push(const T&t) {
         T *obj = new T(t);
+		 writeBarrier();
         try {
             m_queue.push(obj);
         }
@@ -202,16 +209,37 @@ public:
     	if(!obj)
     		throw nospace_error();
     	*obj = t;
-    	m_queue.push(obj);
+    	writeBarrier();
+    	try {
+	    	m_queue.push(obj);
+    	}
+    	catch (nospace_error&e) {
+	    	try {
+	    		memoryBarrier();
+	    		m_reservoir.push(obj);
+	    	}
+	    	catch (nospace_error&) {
+	    		abort();
+	    	}
+    		throw e;
+    	}
     }
     //! This is not reentrant.
     void pop() {
+    	readBarrier();    	
         T *t = m_queue.front();
 		m_queue.pop();
-		m_reservoir.push(t);
+    	writeBarrier();
+    	try {
+    		m_reservoir.push(t);
+    	}
+    	catch (nospace_error&) {
+    		abort();
+    	}
     }
     //! This is not reentrant.
     T &front() {
+    	readBarrier();    	
         return *m_queue.front();
     }
     //! This is not reentrant.
@@ -227,7 +255,13 @@ public:
 	//! \return true if succeeded.
     bool atomicPop(const T *item) {
         if(m_queue.atomicPop(item)) {
-			m_reservoir.push((T*)item);
+	    	writeBarrier();
+	    	try {
+				m_reservoir.push((T*)item);
+	    	}
+	    	catch (nospace_error&) {
+	    		abort();
+	    	}
 	    	return true;
         }
         return false;
@@ -237,7 +271,8 @@ public:
         return m_queue.atomicFront();
     }
 private:
-    atomic_pointer_queue<T, SIZE> m_queue, m_reservoir;
+	//!\todo extra size is needed!?
+    atomic_pointer_queue<T, SIZE + 4> m_queue, m_reservoir;
     T m_array[SIZE];
 };
 
