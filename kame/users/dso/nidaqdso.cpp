@@ -557,12 +557,10 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 				return;
 			uInt64 total_samps;
 			CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
-			uint64_t lastcnt = vt->front(freq);
-			if(lastcnt && (lastcnt < total_samps)) {
+			if(uint64_t lastcnt = vt->tryPopFront(total_samps, freq)) {
 				uInt32 bufsize;
 				CHECK_DAQMX_RET(DAQmxGetBufInputBufSize(m_task, &bufsize));
 				if(total_samps - lastcnt + m_preTriggerPos > bufsize * 4 / 5) {
-					vt->pop();
 					gWarnPrint(KAME::i18n("Buffer Overflow."));
 					continue;
 				}
@@ -581,8 +579,6 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 				CHECK_DAQMX_RET(DAQmxGetReadCurrReadPos(m_task, &curr_rdpos));
 				int32 offset = lastcnt - m_preTriggerPos - curr_rdpos;
 			    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, offset));
-				
-				vt->pop();
 //					fprintf(stderr, "hit! %d %d %d\n", (int)offset, (int)lastcnt, (int)m_preTriggerPos);
 				break;
 			}
