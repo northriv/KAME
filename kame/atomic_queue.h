@@ -17,25 +17,25 @@
 #include "atomic.h"
 #include <memory>
 
-template <typename T, unsigned int SIZE>
-class atomic_pointer_queue
+template <typename T, unsigned int SIZE, typename const_ref = T>
+class atomic_nonzero_value_queue
 {
 public:
     struct nospace_error {};
     
-    atomic_pointer_queue() : m_pFirst(m_ptrs), m_pLast(m_ptrs), m_count(0) {
+    atomic_nonzero_value_queue() : m_pFirst(m_ptrs), m_pLast(m_ptrs), m_count(0) {
     	for(unsigned int i = 0; i < SIZE; i++)
     		m_ptrs[i] = 0;
     }
 
-    void push(T* t) {
+    void push(T t) {
         ASSERT(t);
         memoryBarrier();
         for(;;) {
         	if(size() == SIZE)
                 throw nospace_error();
-            T **last = m_pLast;
-            T **first = m_pFirst;
+            T *last = m_pLast;
+            T *first = m_pFirst;
             while(*last != 0) {
                 last++;
                 if(last == &m_ptrs[SIZE]) last = m_ptrs;
@@ -43,7 +43,7 @@ public:
                 	break;
                 }
             }
-            if(atomicCompareAndSet((T*)0, t, last)) {
+            if(atomicCompareAndSet((T)0, t, last)) {
 		        writeBarrier();
                m_pLast = last;
                break;
@@ -62,9 +62,9 @@ public:
         writeBarrier();
     }
     //! This is not reentrant.
-    T *front() {
+    T front() {
         readBarrier();
-        T **first = m_pFirst;        
+        T *first = m_pFirst;        
         while(*first == 0) {
             first++;
             if(first == &m_ptrs[SIZE])
@@ -87,9 +87,9 @@ public:
 	//! Try to pop the front item.
 	//! \arg item to be released.
 	//! \return true if succeeded.
-    bool atomicPop(const T *item) {
+    bool atomicPop(const_ref item) {
     	ASSERT(item);
-        if(atomicCompareAndSet((T*)item, (T*)0, m_pFirst)) {
+        if(atomicCompareAndSet((T)item, (T)0, m_pFirst)) {
 			writeBarrier();
 	       atomicDec(&m_count);
 			writeBarrier();
@@ -98,10 +98,10 @@ public:
         return false;
     }
     //! Try to obtain the front item.
-    const T *atomicFront() {
+    const_ref atomicFront() {
         if(empty())
         	return 0L;
-        T **first = m_pFirst;        
+        T *first = m_pFirst;        
         while(*first == 0) {
             first++;
             if(first == &m_ptrs[SIZE]) {
@@ -114,13 +114,13 @@ public:
         readBarrier();
         return *first;
     }
-    T *atomicPopAny() {
+    T atomicPopAny() {
         if(empty())
         	return 0L;
-    	T **first = m_pFirst;
+    	T *first = m_pFirst;
     	for(;;) {
     		if(*first) {
-				T *obj = atomicSwap((T*)0L, first);
+				T obj = atomicSwap((T)0, first);
 				if(obj) {
 		            m_pFirst = first;
 					 writeBarrier();
@@ -138,11 +138,14 @@ public:
     	}
     }
 private:
-    T *m_ptrs[SIZE];
-    T **m_pFirst;
-    T **m_pLast;
+    T m_ptrs[SIZE];
+    T *m_pFirst;
+    T *m_pLast;
     unsigned int m_count;
 };
+
+template <typename T, unsigned int SIZE>
+class atomic_pointer_queue : public atomic_nonzero_value_queue<T*, SIZE, const T*> {};
 
 //! Atomic FIFO for copy-constructable class.
 template <typename T, unsigned int SIZE>
@@ -193,10 +196,12 @@ class atomic_queue_reserved
 {
 public:
     typedef typename atomic_pointer_queue<T, SIZE>::nospace_error nospace_error;
+    typedef ssize_t key;
     
     atomic_queue_reserved() {
+    	C_ASSERT(SIZE < (1 << (sizeof(key) * 8 - 8)));
     	for(unsigned int i = 0; i < SIZE; i++) {
-			m_reservoir.push(&m_array[i]);
+			m_reservoir.push(key_index_serial(i, 0));
     	}
     }
     ~atomic_queue_reserved() {
@@ -205,18 +210,21 @@ public:
     }
     
     void push(const T&t) {
-    	T *obj = m_reservoir.atomicPopAny(); 
-    	if(!obj)
+    	key pack = m_reservoir.atomicPopAny(); 
+    	if(!pack)
     		throw nospace_error();
-    	*obj = t;
+    	int idx = key2index(pack);
+    	m_array[idx] = t;
+    	int serial = key2serial(pack) + 1;
+    	pack = key_index_serial(idx, serial);
     	writeBarrier();
     	try {
-	    	m_queue.push(obj);
+	    	m_queue.push(pack);
     	}
     	catch (nospace_error&e) {
 	    	try {
 	    		memoryBarrier();
-	    		m_reservoir.push(obj);
+	    		m_reservoir.push(pack);
 	    	}
 	    	catch (nospace_error&) {
 	    		abort();
@@ -227,11 +235,11 @@ public:
     //! This is not reentrant.
     void pop() {
     	readBarrier();    	
-        T *t = m_queue.front();
+        key pack = m_queue.front();
 		m_queue.pop();
     	writeBarrier();
     	try {
-    		m_reservoir.push(t);
+    		m_reservoir.push(pack);
     	}
     	catch (nospace_error&) {
     		abort();
@@ -240,7 +248,7 @@ public:
     //! This is not reentrant.
     T &front() {
     	readBarrier();    	
-        return *m_queue.front();
+        return m_array[key2index(m_queue.front())];
     }
     //! This is not reentrant.
     bool empty() const {
@@ -253,11 +261,11 @@ public:
 	//! Try to pop the front item.
 	//! \arg item to be released.
 	//! \return true if succeeded.
-    bool atomicPop(const T *item) {
+    bool atomicPop(key item) {
         if(m_queue.atomicPop(item)) {
 	    	writeBarrier();
 	    	try {
-				m_reservoir.push((T*)item);
+				m_reservoir.push(item);
 	    	}
 	    	catch (nospace_error&) {
 	    		abort();
@@ -267,12 +275,17 @@ public:
         return false;
     }
     //! Try to obtain the front item.
-    const T *atomicFront() {
-        return m_queue.atomicFront();
+    key atomicFront(T *val) {
+        key pack = m_queue.atomicFront();
+        if(pack)
+        	*val = m_array[key2index(pack)];
+        return pack;
     }
 private:
-	//!\todo extra size is needed!?
-    atomic_pointer_queue<T, SIZE + 4> m_queue, m_reservoir;
+    int key2index(key i) {return (unsigned int)i / 0x100;}
+    int key2serial(key i) {return ((unsigned int)i % 0x100) - 1;}
+    key key_index_serial(int index, int serial) {return index * 0x100 + (serial % 0xff) + 1;}
+    atomic_nonzero_value_queue<key, SIZE> m_queue, m_reservoir;
     T m_array[SIZE];
 };
 

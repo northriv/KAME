@@ -77,7 +77,8 @@ XNIDAQmxInterface::SoftwareTrigger::~SoftwareTrigger() {
 }
 void
 XNIDAQmxInterface::SoftwareTrigger::_clear() {
-	while(const uint64_t *t = m_fastQueue.atomicFront()) {
+	uint64_t x;
+	while(FastQueue::key t = m_fastQueue.atomicFront(&x)) {
 		m_fastQueue.atomicPop(t);
 	}
 	m_slowQueue.clear();
@@ -142,9 +143,10 @@ XNIDAQmxInterface::SoftwareTrigger::front(float64 _freq) {
 	uint64_t cnt;
 	if(m_slowQueueSize) {
 		XScopedLock<XMutex> lock(m_mutex);
-		if(const uint64_t *t = m_fastQueue.atomicFront()) {
-			if(*t < m_slowQueue.front())
-				cnt = *t;
+		uint64_t x;
+		if(m_fastQueue.atomicFront(&x)) {
+			if(x < m_slowQueue.front())
+				cnt = x;
 			else
 				cnt = m_slowQueue.front();			
 		}
@@ -152,13 +154,14 @@ XNIDAQmxInterface::SoftwareTrigger::front(float64 _freq) {
 			cnt = m_slowQueue.front();
 	}
 	else {
-		if(const uint64_t *t = m_fastQueue.atomicFront())
-			cnt = *t;
+		uint64_t x;
+		if(m_fastQueue.atomicFront(&x))
+			cnt = x;
 		else
 			return 0uLL;
 	}
 	
-	unsigned int freq_em= lrint(freq());
+	unsigned int freq_em = lrint(freq());
 	unsigned int freq_rc = lrint(_freq);
 	unsigned int _gcd = gcd(freq_em, freq_rc);
 	cnt = (cnt * (freq_rc / _gcd)) / (freq_em / _gcd);
@@ -169,8 +172,9 @@ void
 XNIDAQmxInterface::SoftwareTrigger::pop() {
 	if(m_slowQueueSize) {
 		XScopedLock<XMutex> lock(m_mutex);
-		if(const uint64_t *t = m_fastQueue.atomicFront()) {
-			if(*t < m_slowQueue.front())
+		uint64_t x;
+		if(FastQueue::key t = m_fastQueue.atomicFront(&x)) {
+			if(x < m_slowQueue.front())
 				m_fastQueue.atomicPop(t);
 			else {
 				m_slowQueue.pop_front();			
@@ -183,7 +187,8 @@ XNIDAQmxInterface::SoftwareTrigger::pop() {
 		}
 	}
 	else {
-		const uint64_t *t = m_fastQueue.atomicFront();
+		uint64_t x;
+		FastQueue::key t= m_fastQueue.atomicFront(&x);
 		if(t)
 			m_fastQueue.atomicPop(t);
 	}
@@ -196,8 +201,9 @@ XNIDAQmxInterface::SoftwareTrigger::clear(uint64_t now, float64 _freq) {
 	now = (now * (freq_em / _gcd)) / (freq_rc / _gcd);
 
 	XScopedLock<XMutex> lock(m_mutex);
-	while(const uint64_t *t = m_fastQueue.atomicFront()) {
-		if(*t <= now)
+	uint64_t x;
+	while(FastQueue::key t = m_fastQueue.atomicFront(&x)) {
+		if(x <= now)
 			m_fastQueue.atomicPop(t);
 		else
 			break;

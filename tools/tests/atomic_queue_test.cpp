@@ -37,11 +37,12 @@ void my_assert(char const*s, int d) {
 }
 
 #define SIZE 100000
-#define NUM_THREADS 8
+#define NUM_THREADS 16
 
 atomic_queue<int, (SIZE + 100) * NUM_THREADS> queue1;
-atomic_pointer_queue<int, NUM_THREADS -1> queue2;
-atomic_queue_reserved<int, NUM_THREADS- 1> queue3;
+atomic_pointer_queue<int, NUM_THREADS - 1> queue2;
+atomic_queue_reserved<int, NUM_THREADS-  1> queue3;
+typedef atomic_queue_reserved<int, NUM_THREADS-  1>::key atomic_queue_reserved_key;
 
 atomic<int> g_queue1_total = 0, g_queue2_total = 0, g_queue3_total = 0;
 atomic<int> g_cnt = 0;
@@ -80,7 +81,6 @@ start_routine(void *) {
        {// for(;;) {
 	        int *t = (int*)queue2.atomicFront();
 	        if(t) {
-	        	ASSERT(t);
 		        int x = *t;
 		        if(queue2.atomicPop(t)) {
 			        ASSERT(x >= 0);
@@ -92,10 +92,10 @@ start_routine(void *) {
 //	    	printf("2");
         }
        {// for(;;) {
-	        int *t = (int*)queue3.atomicFront();
-	        if(t) {
-		        int x = *t;
-		        if(queue3.atomicPop(t)) {
+       	int x;
+	        atomic_queue_reserved_key key = queue3.atomicFront(&x);
+	        if(key) {
+		        if(queue3.atomicPop(key)) {
 		        	g_queue3_total -= x;
 //		        	break;
 		        }
@@ -142,10 +142,10 @@ main(int argc, char **argv)
 	//    	printf("2");
         }
        {// for(;;) {
-	        const int *t =queue3.atomicFront();
-	        if(t) {
-		        const int x = *t;
-		        if(queue3.atomicPop(t)) {
+       	int x;
+	        atomic_queue_reserved_key key =queue3.atomicFront(&x);
+	        if(key) {
+		        if(queue3.atomicPop(key)) {
 		        	g_queue3_total -= x;
 		//        	break;
 		        }
@@ -153,6 +153,14 @@ main(int argc, char **argv)
 	    	//printf("3");
         }
 	}
+
+    if(!queue1.empty() || !queue2.empty() || !queue3.empty() || 
+    	(g_queue1_total != 0) || (g_queue3_total != 0) || (g_queue2_total != 0)) {
+    	printf("failed queue1size=%d, queue1total=%d, queue2size=%d, queue2total=%d, queue3size=%d, queue3total=%d\n", 
+			queue1.size(), (int)g_queue1_total,
+			queue2.size(), (int)g_queue2_total,
+		   queue3.size(), (int)g_queue3_total);
+    }
 
 pthread_t threads[NUM_THREADS];
 	for(int i = 0; i < NUM_THREADS; i++) {
