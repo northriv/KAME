@@ -160,8 +160,8 @@ XNIDAQmxInterface::SoftwareTrigger::front(float64 _freq) {
 	
 	unsigned int freq_em= lrint(freq());
 	unsigned int freq_rc = lrint(_freq);
-	unsigned int _lcm = lcm(freq_em, freq_rc);
-	cnt = (cnt * (freq_rc / _lcm)) / (freq_em / _lcm);
+	unsigned int _gcd = gcd(freq_em, freq_rc);
+	cnt = (cnt * (freq_rc / _gcd)) / (freq_em / _gcd);
 	ASSERT(cnt != 0);
 	return cnt;
 }
@@ -192,8 +192,8 @@ void
 XNIDAQmxInterface::SoftwareTrigger::clear(uint64_t now, float64 _freq) {
 	unsigned int freq_em= lrint(freq());
 	unsigned int freq_rc = lrint(_freq);
-	unsigned int _lcm = lcm(freq_em, freq_rc);
-	now = (now * (freq_em / _lcm)) / (freq_rc / _lcm);
+	unsigned int _gcd = gcd(freq_em, freq_rc);
+	now = (now * (freq_em / _gcd)) / (freq_rc / _gcd);
 
 	XScopedLock<XMutex> lock(m_mutex);
 	while(const uint64_t *t = m_fastQueue.atomicFront()) {
@@ -211,8 +211,8 @@ void
 XNIDAQmxInterface::SoftwareTrigger::forceStamp(uint64_t now, float64 _freq) {
 	unsigned int freq_em= lrint(freq());
 	unsigned int freq_rc = lrint(_freq);
-	unsigned int _lcm = lcm(freq_em, freq_rc);
-	now = (now * (freq_em / _lcm)) / (freq_rc / _lcm);
+	unsigned int _gcd = gcd(freq_em, freq_rc);
+	now = (now * (freq_em / _gcd)) / (freq_rc / _gcd);
 		
 	XScopedLock<XMutex> lock(m_mutex);
 	++m_slowQueueSize;
