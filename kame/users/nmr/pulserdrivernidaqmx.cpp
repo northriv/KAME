@@ -216,7 +216,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	m_transferSizeHintDO = std::min((unsigned int)bufsize / 4, m_bufSizeHintDO);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
 
-    {
+	if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_DO) {
     	char ch[256];
     	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
 		CHECK_DAQMX_RET(DAQmxSetDODataXferReqCond(m_taskDO, ch,
@@ -312,7 +312,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 	m_transferSizeHintAO = std::min((unsigned int)bufsize / 4, m_bufSizeHintAO);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskAO, DAQmx_Val_DoNotAllowRegen));
 
-    {
+	if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AO) {
     	char ch[256];
     	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskAO, ch, sizeof(ch)));
 		CHECK_DAQMX_RET(DAQmxSetDODataXferReqCond(m_taskAO, ch,

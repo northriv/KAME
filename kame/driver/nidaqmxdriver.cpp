@@ -26,7 +26,11 @@ XNIDAQmxInterface::sc_productInfoList[] = {
 	{"PXI-6110", "S", 0, 5000uL, 2500uL, 0, 0},
 	{"PCI-6111", "S", XNIDAQmxInterface::FLAG_BUGGY_DMA_AO, 5000uL, 2500uL, 0, 0},
 	{"PXI-6111", "S", XNIDAQmxInterface::FLAG_BUGGY_DMA_AO, 5000uL, 2500uL, 0, 0},
-	{"PCI-6115", "S", 0, 10000uL, 2500uL, 5000uL, 5000uL},
+	{"PCI-6115", "S", 
+		XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AI | 
+		XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AO |
+		XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_DI |
+		XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_DO, 10000uL, 2500uL, 5000uL, 5000uL},
 	{"PCI-6120", "S", 0, 800uL, 2500uL, 5000uL, 5000uL},
 	{"PCI-6220", "M", 0, 250uL, 0, 1000uL, 1000uL},
 	{"PXI-6220", "M", 0, 250uL, 0, 1000uL, 1000uL},
