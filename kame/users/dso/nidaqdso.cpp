@@ -266,14 +266,20 @@ XNIDAQmxDSO::setupTrigger()
 	    }
     }
     
+	if(interface()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_DMA_AI) {
+    	char ch[256];
+    	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_task, ch, sizeof(ch)));
+		CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, ch,
+			DAQmx_Val_Interrupts));
+	}
 	if(interface()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AI) {
     	char ch[256];
     	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_task, ch, sizeof(ch)));
     	uInt32 bufsize;
     	CHECK_DAQMX_RET(DAQmxGetBufInputOnbrdBufSize(m_task, &bufsize));
     	CHECK_DAQMX_RET(DAQmxSetAIDataXferReqCond(m_task, ch, 
-			(m_softwareTrigger || (bufsize/2 < *recordLength())) ? DAQmx_Val_OnBrdMemNotEmpty
-				: DAQmx_Val_OnBrdMemMoreThanHalfFull));
+			(m_softwareTrigger || (bufsize/2 < m_recordBuf.size())) ? DAQmx_Val_OnBrdMemNotEmpty :
+				DAQmx_Val_OnBrdMemMoreThanHalfFull));
     }    
 	startSequence();
 }
