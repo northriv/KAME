@@ -481,7 +481,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
 			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
 			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
-			const unsigned int cnt_preample_ao = cnt_preample * oversamp_ao - 2;
+			const unsigned int cnt_preample_ao = cnt_preample * oversamp_ao - 0;
 			for(unsigned int i = 0; i < cnt_preample_ao; i++) {
 				m_genBufAO[2*i] = m_genAOZeroLevel[0];
 				m_genBufAO[2*i + 1] = m_genAOZeroLevel[1];
