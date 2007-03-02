@@ -206,8 +206,8 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	uInt32 onbrdsize, bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &onbrdsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
-	if(m_pausingBit)
-		buf_size_hint = std::min(buf_size_hint, (unsigned int)onbrdsize * 2);
+	if(!m_pausingBit)
+		buf_size_hint = std::max(buf_size_hint, (unsigned int)onbrdsize / 2);
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d, freq = %f\n", (int)bufsize, freq);
@@ -216,7 +216,13 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	m_transferSizeHintDO = std::min((unsigned int)onbrdsize / 4, m_bufSizeHintDO);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
 
-	if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_DO) {
+	if(intfDO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_DMA_DO) {
+    	char ch[256];
+    	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
+		CHECK_DAQMX_RET(DAQmxSetDODataXferMech(m_taskDO, ch,
+			DAQmx_Val_Interrupts));
+	}
+	if(intfDO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_DO) {
     	char ch[256];
     	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
 		CHECK_DAQMX_RET(DAQmxSetDODataXferReqCond(m_taskDO, ch,
@@ -301,8 +307,8 @@ XNIDAQmxPulser::setupTasksAODO() {
 	uInt32 onbrdsize, bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
-	if(m_pausingBit)
-		buf_size_hint = std::min(buf_size_hint, (unsigned int)onbrdsize * 2);
+	if(!m_pausingBit)
+		buf_size_hint = std::max(buf_size_hint, (unsigned int)onbrdsize / 2);
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d\n", (int)bufsize);
@@ -312,6 +318,12 @@ XNIDAQmxPulser::setupTasksAODO() {
 	m_transferSizeHintAO = std::min((unsigned int)onbrdsize / 4, m_bufSizeHintAO);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskAO, DAQmx_Val_DoNotAllowRegen));
 
+	if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_DMA_AO) {
+    	char ch[256];
+    	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskAO, ch, sizeof(ch)));
+		CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, ch,
+			DAQmx_Val_Interrupts));
+	}
 	if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AO) {
     	char ch[256];
     	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskAO, ch, sizeof(ch)));
@@ -339,12 +351,6 @@ XNIDAQmxPulser::setupTasksAODO() {
 			formatString("%s/ao0:1", intfAO()->devName()).c_str(),
 			DAQmx_Val_ZeroVolts));
 */	
-	if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_DMA_AO) {
-		//DMA is slower than interrupts!
-		CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, 
-	    	formatString("%s/ao0:1", intfAO()->devName()).c_str(),
-			DAQmx_Val_Interrupts));
-	}
 }
 int32
 XNIDAQmxPulser::_onTaskDone(TaskHandle task, int32 status, void *data) {
