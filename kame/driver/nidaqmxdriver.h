@@ -110,8 +110,7 @@ public:
 		XTalker<shared_ptr<SoftwareTrigger> > &onStart() {return m_onstart;}
 		
 	  	void clear(uint64_t now, float64 freq);
-	  	uint64_t front(float64 freq);
-	  	void pop();
+	  	uint64_t tryPopFront(uint64_t threshold, float64 freq);
 	
 		  typedef std::deque<weak_ptr<XNIDAQmxInterface::SoftwareTrigger> > SoftwareTriggerList;
 		  typedef SoftwareTriggerList::iterator SoftwareTriggerList_it;

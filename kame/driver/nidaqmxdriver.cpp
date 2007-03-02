@@ -139,60 +139,44 @@ XNIDAQmxInterface::SoftwareTrigger::disconnect() {
 	m_fallingEdgeMask = 0;
 }
 uint64_t
-XNIDAQmxInterface::SoftwareTrigger::front(float64 _freq) {
-	uint64_t cnt;
-	if(m_slowQueueSize) {
-		XScopedLock<XMutex> lock(m_mutex);
-		uint64_t x;
-		if(m_fastQueue.atomicFront(&x)) {
-			if(x < m_slowQueue.front())
-				cnt = x;
-			else
-				cnt = m_slowQueue.front();			
-		}
-		else
-			cnt = m_slowQueue.front();
-	}
-	else {
-		uint64_t x;
-		if(m_fastQueue.atomicFront(&x))
-			cnt = x;
-		else
-			return 0uLL;
-	}
-	
+XNIDAQmxInterface::SoftwareTrigger::tryPopFront(uint64_t threshold, float64 _freq) {
 	unsigned int freq_em = lrint(freq());
 	unsigned int freq_rc = lrint(_freq);
 	unsigned int _gcd = gcd(freq_em, freq_rc);
-	cnt = (cnt * (freq_rc / _gcd)) / (freq_em / _gcd);
-	ASSERT(cnt != 0);
-	return cnt;
-}
-void
-XNIDAQmxInterface::SoftwareTrigger::pop() {
+	
+	uint64_t cnt;
 	if(m_slowQueueSize) {
 		XScopedLock<XMutex> lock(m_mutex);
-		uint64_t x;
-		if(FastQueue::key t = m_fastQueue.atomicFront(&x)) {
-			if(x < m_slowQueue.front())
-				m_fastQueue.atomicPop(t);
-			else {
-				m_slowQueue.pop_front();			
-				--m_slowQueueSize;
+		if(FastQueue::key t = m_fastQueue.atomicFront(&cnt)) {
+			if(cnt < m_slowQueue.front()) {
+				cnt = (cnt * (freq_rc / _gcd)) / (freq_em / _gcd);
+				if(cnt >= threshold)
+					return 0uLL;
+				if(m_fastQueue.atomicPop(t))
+					return cnt;
+				return 0uLL;
 			}
 		}
-		else {
-			m_slowQueue.pop_front();
-			--m_slowQueueSize;
+		cnt = m_slowQueue.front();
+		cnt = (cnt * (freq_rc / _gcd)) / (freq_em / _gcd);
+		if(cnt >= threshold)
+			return 0uLL;
+		m_slowQueue.pop_front();			
+		--m_slowQueueSize;
+		return cnt;
+	}
+	if(FastQueue::key t = m_fastQueue.atomicFront(&cnt)) {
+		if(cnt < m_slowQueue.front()) {
+			cnt = (cnt * (freq_rc / _gcd)) / (freq_em / _gcd);
+			if(cnt >= threshold)
+				return 0uLL;
+			if(m_fastQueue.atomicPop(t))
+				return cnt;
 		}
 	}
-	else {
-		uint64_t x;
-		FastQueue::key t= m_fastQueue.atomicFront(&x);
-		if(t)
-			m_fastQueue.atomicPop(t);
-	}
+	return 0uLL;
 }
+
 void
 XNIDAQmxInterface::SoftwareTrigger::clear(uint64_t now, float64 _freq) {
 	unsigned int freq_em= lrint(freq());
