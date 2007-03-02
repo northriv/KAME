@@ -196,19 +196,19 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		m_softwareTrigger->setArmTerm(do_clk_src.c_str());
 	}
    
-	const unsigned int BUF_SIZE_HINT = (unsigned int)lrint(0.5 * freq);
+	unsigned int buf_size_hint = (unsigned int)lrint(0.5 * freq);
 	//M series needs an external sample clock and trigger for DO channels.
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO,
 		do_clk_src.c_str(),
-		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
+		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, buf_size_hint));
 //    intfDO()->synchronizeClock(m_taskDO);
 	
 	uInt32 onbrdsize, bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &onbrdsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
 	if(m_pausingBit)
-		BUF_SIZE_HINT = std::min(BUF_SIZE_HINT, (unsigned int)onbrdsize * 2);
-	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, BUF_SIZE_HINT));
+		buf_size_hint = std::min(buf_size_hint, (unsigned int)onbrdsize * 2);
+	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d, freq = %f\n", (int)bufsize, freq);
 	m_bufSizeHintDO = std::min((unsigned int)bufsize / 8, 16384u);
@@ -264,10 +264,10 @@ XNIDAQmxPulser::setupTasksAODO() {
 	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskAO, 0, &XNIDAQmxPulser::_onTaskDone, this));
 		
 	float64 freq = 1e3 / resolutionQAM();
-	const unsigned int BUF_SIZE_HINT = (unsigned int)lrint(0.5 * freq);
+	unsigned int buf_size_hint = (unsigned int)lrint(0.5 * freq);
 	
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, "",
-		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, BUF_SIZE_HINT));
+		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, buf_size_hint));
     intfAO()->synchronizeClock(m_taskAO);
     
     int oversamp = lrint(resolution() / resolutionQAM());
@@ -302,8 +302,8 @@ XNIDAQmxPulser::setupTasksAODO() {
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
 	if(m_pausingBit)
-		BUF_SIZE_HINT = std::min(BUF_SIZE_HINT, (unsigned int)onbrdsize * 2);
-	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, BUF_SIZE_HINT));
+		buf_size_hint = std::min(buf_size_hint, (unsigned int)onbrdsize * 2);
+	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d\n", (int)bufsize);
 	m_bufSizeHintAO = std::min((unsigned int)bufsize / 8, 16384u);
