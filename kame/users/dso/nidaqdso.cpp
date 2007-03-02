@@ -266,6 +266,15 @@ XNIDAQmxDSO::setupTrigger()
 	    }
     }
     
+	if(interface()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AI) {
+    	char ch[256];
+    	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_task, ch, sizeof(ch)));
+    	uInt32 bufsize;
+    	CHECK_DAQMX_RET(DAQmxGetBufInputOnbrdBufSize(m_task, &bufsize));
+    	CHECK_DAQMX_RET(DAQmxSetAIDataXferReqCond(m_task, ch, 
+			(m_softwareTrigger || (bufsize/2 < *recordLength())) ? DAQmx_Val_OnBrdMemNotEmpty
+				: DAQmx_Val_OnBrdMemMoreThanHalfFull));
+    }    
 	startSequence();
 }
 void
@@ -338,21 +347,6 @@ XNIDAQmxDSO::setupTiming()
         ));
         
     interface()->synchronizeClock(m_task);
-    
-	if(interface()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AI) {
-    	char ch[256];
-    	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_task, ch, sizeof(ch)));
-    	uInt32 thres;
-    	CHECK_DAQMX_RET(DAQmxGetBufInputOnbrdBufSize(m_task, &thres));
-    	thres = std::min(512uL, thres / 2);
-    	CHECK_DAQMX_RET(DAQmxSetAIDataXferReqCond(m_task, ch, 
-    		m_softwareTrigger ? 
-    		DAQmx_Val_OnbrdMemCustomThreshold
-//    		DAQmx_Val_OnBrdMemMoreThanHalfFull
-    		 : DAQmx_Val_WhenAcqComplete));
-    	if(m_softwareTrigger)
-	    	CHECK_DAQMX_RET(DAQmxSetAIDataXferCustomThreshold(m_task, ch, thres));
-    }
 
     float64 rate;
 //    CHECK_DAQMX_RET(DAQmxGetRefClkRate(m_task, &rate));

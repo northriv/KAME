@@ -496,7 +496,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
 			
 			unsigned int lps = std::max(std::min(NUM_AO_CH * (unsigned int)lrint(1e3 / resolutionQAM()), 
-				m_bufSizeTotalAO) / m_bufSizeHintAO, 1u);
+				m_bufSizeTotalAO / 2) / m_bufSizeHintAO, 1u);
 			for(unsigned int i = 0; i < lps; i++) {
 				genBankAO();
 				unsigned int size = m_genBufAO.size() / NUM_AO_CH;
@@ -528,7 +528,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
 		
 		unsigned int lps = std::max(std::min((unsigned int)lrint(1e3 / resolution()), 
-			m_bufSizeTotalDO) / m_bufSizeHintDO, 1u);
+			m_bufSizeTotalDO / 2) / m_bufSizeHintDO, 1u);
 		for(unsigned int i = 0; i < lps; i++) {
 			genBankDO();
 			unsigned int size = m_genBufDO.size();
