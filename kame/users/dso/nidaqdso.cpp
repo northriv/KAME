@@ -269,7 +269,7 @@ XNIDAQmxDSO::setupTrigger()
 	if(interface()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_DMA_AI) {
     	char ch[256];
     	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_task, ch, sizeof(ch)));
-		CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_task, ch,
+		CHECK_DAQMX_RET(DAQmxSetAIDataXferMech(m_task, ch,
 			DAQmx_Val_Interrupts));
 	}
 	if(interface()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AI) {

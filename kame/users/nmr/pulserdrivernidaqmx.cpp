@@ -327,7 +327,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 	if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AO) {
     	char ch[256];
     	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskAO, ch, sizeof(ch)));
-		CHECK_DAQMX_RET(DAQmxSetDODataXferReqCond(m_taskAO, ch,
+		CHECK_DAQMX_RET(DAQmxSetAODataXferReqCond(m_taskAO, ch,
 	//		DAQmx_Val_OnBrdMemHalfFullOrLess));
 			DAQmx_Val_OnBrdMemNotFull));
     }

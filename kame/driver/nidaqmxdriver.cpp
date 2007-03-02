@@ -30,6 +30,7 @@ XNIDAQmxInterface::sc_productInfoList[] = {
 		XNIDAQmxInterface::FLAG_BUGGY_DMA_AI | 
 		XNIDAQmxInterface::FLAG_BUGGY_DMA_AO |
 		XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AI | 
+		XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AO | 
 		XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_DI |
 		XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_DO, 10000uL, 2500uL, 5000uL, 5000uL},
 	{"PCI-6120", "S", 0, 800uL, 2500uL, 5000uL, 5000uL},
