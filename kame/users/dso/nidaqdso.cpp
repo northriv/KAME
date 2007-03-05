@@ -268,15 +268,13 @@ XNIDAQmxDSO::setupTrigger()
 	    }
     }
     
+	char ch[256];
+	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_task, ch, sizeof(ch)));
 	if(interface()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_DMA_AI) {
-    	char ch[256];
-    	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_task, ch, sizeof(ch)));
 		CHECK_DAQMX_RET(DAQmxSetAIDataXferMech(m_task, ch,
 			DAQmx_Val_Interrupts));
 	}
 	if(interface()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AI) {
-    	char ch[256];
-    	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_task, ch, sizeof(ch)));
     	uInt32 bufsize;
     	CHECK_DAQMX_RET(DAQmxGetBufInputOnbrdBufSize(m_task, &bufsize));
     	CHECK_DAQMX_RET(DAQmxSetAIDataXferReqCond(m_task, ch, 
@@ -346,13 +344,19 @@ XNIDAQmxDSO::setupTiming()
 		mlock(&m_recordBuf[0], m_recordBuf.size() * sizeof(tRawAI));    
 	}
 
-    CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_task,
-        NULL, // internal source
-        len / *timeWidth(),
-        DAQmx_Val_Rising,
-        !m_softwareTrigger ? DAQmx_Val_FiniteSamps : DAQmx_Val_ContSamps,
-        len
-        ));
+	unsigned int bufsize = len;
+	if(m_softwareTrigger) {
+		bufsize = std::max(bufsize * 8, (unsigned int)lrint((len / *timeWidth()) * 1.0));
+	}
+	CHECK_DAQMX_RET(DAQmxCfgInputBuffer(m_task, bufsize));
+    
+	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_task,
+	    NULL, // internal source
+	    len / *timeWidth(),
+	    DAQmx_Val_Rising,
+	    !m_softwareTrigger ? DAQmx_Val_FiniteSamps : DAQmx_Val_ContSamps,
+	    len
+	    ));
         
     interface()->synchronizeClock(m_task);
 
@@ -362,15 +366,6 @@ XNIDAQmxDSO::setupTiming()
     CHECK_DAQMX_RET(DAQmxGetSampClkRate(m_task, &rate));
     m_interval = 1.0 / rate;
 
-	unsigned int bufsize = len;
-	if(m_softwareTrigger) {
-		unsigned int onbrd_size;
-		CHECK_DAQMX_RET(DAQmxGetBufInputOnbrdBufSize(m_task, &onbrd_size));
-		bufsize = std::max(bufsize * 8, (unsigned int)lrint(1.0 / m_interval));
-		bufsize = std::max(bufsize, onbrd_size);
-	}
-	CHECK_DAQMX_RET(DAQmxCfgInputBuffer(m_task, bufsize));
-    
     setupTrigger();
 }
 void
@@ -437,6 +432,9 @@ XNIDAQmxDSO::createChannels()
    	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_task, 0, &XNIDAQmxDSO::_onTaskDone, this));
 
     setupTiming();
+		uInt32 onbrd_size = 1;
+		CHECK_DAQMX_RET(DAQmxGetBufInputOnbrdBufSize(m_task, &onbrd_size));
+			fprintf(stderr, "onbrd bufsize=%d\n", (int)onbrd_size);
 }
 void
 XNIDAQmxDSO::clearStoredSoftwareTrigger() {

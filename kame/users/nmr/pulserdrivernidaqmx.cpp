@@ -308,7 +308,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
 	if(!m_pausingBit)
-		buf_size_hint = std::max(buf_size_hint, (unsigned int)onbrdsize / 2);
+		buf_size_hint = std::max(buf_size_hint, (unsigned int)onbrdsize);
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d\n", (int)bufsize);
@@ -398,7 +398,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		{
 			uInt32 bufsize;
 			CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &bufsize));
-			if(!m_pausingBit & (bufsize < 8192uL))
+			if(!m_pausingBit & (bufsize < 1024uL))
 				throw XInterface::XInterfaceError(
 					KAME::i18n("Use the pausing feature for a cheap DAQmx board.\n"
 					+ KAME::i18n("Look at the port-selection table.")), __FILE__, __LINE__);
