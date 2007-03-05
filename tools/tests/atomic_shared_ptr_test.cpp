@@ -36,17 +36,20 @@ void my_assert(char const*s, int d) {
 #include "atomic_smart_ptr.h"
 #include "thread.cpp"
 
-int objcnt = 0;
+atomic<int> objcnt = 0;
+atomic<int> total = 0;
 
 class A {
 public:
 	A(int x) : m_x(x) {
 //		fprintf(stdout, "c", x);
-        atomicInc(&objcnt);
+       ++objcnt;
+       total += x;
 	}
 	virtual ~A() {
 //		fprintf(stdout, "d", m_x);
-        atomicDec(&objcnt);
+		--objcnt;
+       total -= m_x;
 	}
     virtual int x() const {return m_x;} 
 	
@@ -69,7 +72,8 @@ atomic_shared_ptr<A> gp1, gp2, gp3;
 
 void *
 start_routine(void *) {
-	for(int i = 0; i < 10000; i++) {
+	printf("start\n");
+	for(int i = 0; i < 100000; i++) {
     	atomic_shared_ptr<A> p1(new A(1));
     	atomic_shared_ptr<A> p2(new B(2));
     	atomic_shared_ptr<A> p3;
@@ -89,9 +93,8 @@ start_routine(void *) {
 	    		break;
     		printf("f");
     	}
-
-        usleep(10);
 	}
+	printf("finish\n");
     return 0;
 }
 
@@ -111,10 +114,15 @@ pthread_t threads[NUM_THREADS];
 	for(int i = 0; i < NUM_THREADS; i++) {
 		pthread_join(threads[i], NULL);
 	}
+	printf("join\n");
 	gp1.reset();
 	gp2.reset();
 	gp3.reset();
     if(objcnt != 0) {
+    	printf("failed\n");
+    	return -1;
+    }
+    if(total != 0) {
     	printf("failed\n");
     	return -1;
     }

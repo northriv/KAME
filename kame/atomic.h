@@ -40,10 +40,10 @@
     inline bool atomicCompareAndSet(T oldv, T newv, T *target ) {
        register unsigned char ret;
         asm volatile (
-                "  lock; cmpxchg%z1 %1,%2;"
+                "  lock; cmpxchg%z2 %2,%3;"
                 " sete %0" // ret = zflag ? 1 : 0
-                : "=q" (ret)
-                : "r" (newv), "m" (*target), "a" (oldv)
+                : "=q" (ret), "=a" (oldv)
+                : "r" (newv), "m" (*target), "1" (oldv)
                 : "memory");
         return ret;
     }
@@ -59,26 +59,21 @@
             uint32_t newv0, uint32_t newv1, uint32_t *target ) {
            unsigned char ret;
             asm volatile (
-           #ifdef MACOSX
-           //gcc in XCode cannot handle EBX correctly.
-                    " push %%ebx;"
                     " mov %6, %%ebx;"
-                    "  lock; cmpxchg8b %7;"
-                    " sete %0;" // ret = zflag ? 1 : 0
-                    " pop %%ebx"
-                    : "=r" (ret), "=&d" (oldv1), "=&a" (oldv0)
+                    " lock; cmpxchg8b %7;"
+                    " sete %0" // ret = zflag ? 1 : 0
+                    : "=r" (ret), "=d" (oldv1), "=a" (oldv0)
                     : "1" (oldv1), "2" (oldv0),
-                     "c" (newv1), "m" (newv0),
+                     "c" (newv1), "g" (newv0),
                      "m" (*target)
-            #else
-                    "  lock; cmpxchg8b %7;"
+                    : "memory", "%ebx");
+/*                    "  lock; cmpxchg8b %7;"
                     " sete %0;" // ret = zflag ? 1 : 0
-                    : "=r" (ret), "=&d" (oldv1), "=&a" (oldv0)
+                    : "=r" (ret), "=d" (oldv1), "=a" (oldv0)
                     : "1" (oldv1), "2" (oldv0),
                      "c" (newv1), "b" (newv0),
                      "m" (*target)
-            #endif
-                    : "memory");
+                    : "memory");*/
             return ret;
         }
         inline bool atomicCompareAndSet2(
