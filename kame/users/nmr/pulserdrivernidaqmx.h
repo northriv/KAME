@@ -90,8 +90,6 @@ enum { NUM_AO_CH = 2};
 	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> m_softwareTrigger;
 	unsigned int m_pausingBit;
 	unsigned int m_pausingCount;
-	unsigned int m_pausingBlankBefore;
-	unsigned int m_pausingBlankAfter;
 	std::string m_pausingCh;
 	std::string m_pausingSrcTerm;
 	std::string m_pausingGateTerm;

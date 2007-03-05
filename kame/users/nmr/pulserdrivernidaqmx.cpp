@@ -11,11 +11,15 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
  ***************************************************************************/
+//! \todo fast generation.
 #include "pulserdrivernidaqmx.h"
 
 #ifdef HAVE_NI_DAQMX
 
 static const unsigned int CLEAR_TASKS_EVERYTIME = 0;
+
+static const unsigned int PAUSING_BLANK_BEFORE = 1;
+static const unsigned int PAUSING_BLANK_AFTER = 1;
 
 #include "interface.h"
 #include <klocale.h>
@@ -28,7 +32,7 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers) :
     XNIDAQmxDriver<XPulser>(name, runtime, scalarentries, interfaces, thermometers, drivers),
-    m_pausingBit(0), m_pausingCount(0), m_pausingBlankBefore(0), m_pausingBlankAfter(0),
+    m_pausingBit(0), m_pausingCount(0), 
  	 m_running(false),
     m_resolutionDO(-1.0),
     m_resolutionAO(-1.0),
@@ -49,9 +53,7 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
 	m_softwareTrigger.reset(new XNIDAQmxInterface::SoftwareTrigger(name, NUM_DO_PORTS));
 	XNIDAQmxInterface::SoftwareTrigger::registerSoftwareTrigger(m_softwareTrigger);
 	
-	m_pausingBlankBefore = 1;
-	m_pausingBlankAfter = 1;
-	m_pausingCount = (m_pausingBlankBefore + m_pausingBlankAfter) * 47;
+	m_pausingCount = (PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER) * 47;
 }
 
 XNIDAQmxPulser::~XNIDAQmxPulser()
@@ -238,8 +240,8 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskGateCtr));
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanTime(m_taskGateCtr, 
 	    	m_pausingCh.c_str(), "", DAQmx_Val_Seconds, DAQmx_Val_Low, 
-	    	m_pausingBlankBefore * resolution() * 1e-3,
-	    	m_pausingBlankAfter * resolution() * 1e-3, 
+	    	PAUSING_BLANK_BEFORE * resolution() * 1e-3,
+	    	PAUSING_BLANK_AFTER * resolution() * 1e-3, 
 	    	m_pausingCount * resolution() * 1e-3));
 //		CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskGateCtr, 0, &XNIDAQmxPulser::_onTaskDone, this));
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskGateCtr,
@@ -359,9 +361,14 @@ XNIDAQmxPulser::_onTaskDone(TaskHandle task, int32 status, void *data) {
 	return status;
 }
 void
-XNIDAQmxPulser::onTaskDone(TaskHandle /*task*/, int32 status) {
+XNIDAQmxPulser::onTaskDone(TaskHandle task, int32 status) {
 	if(status) {
-		gErrPrint(getLabel() + XNIDAQmxInterface::getNIDAQmxErrMessage(status));
+		std::string str;
+		if(task == m_taskDO) { str = "DO"; }
+		if(task == m_taskDOCtr) { str = "DOCtr"; }
+		if(task == m_taskAO) { str = "AO"; }
+		if(task == m_taskGateCtr) { str = "GateCtr"; }
+		gErrPrint(getLabel() + str + "\n" + XNIDAQmxInterface::getNIDAQmxErrMessage(status));
 		m_suspendDO = true;
 		m_suspendAO = true;
 	}
@@ -738,7 +745,7 @@ XNIDAQmxPulser::genBankDO()
 	uint64_t total = m_genTotalCountDO;
 	const tRawDO pausingbit = m_pausingBit;
 	const uint64_t pausing_cnt = m_pausingCount;
-	const uint64_t pausing_cnt_blank_before = m_pausingBlankBefore + m_pausingBlankAfter;
+	const uint64_t pausing_cnt_blank_before = PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER;
 	const uint64_t pausing_cnt_blank_after = 1;
 	const uint64_t pausing_period = pausing_cnt + pausing_cnt_blank_before + pausing_cnt_blank_after;
 	
@@ -747,31 +754,31 @@ XNIDAQmxPulser::genBankDO()
 	tRawDO *pDO = &m_genBufDO[0];
 	const unsigned int size = m_bufSizeHintDO;
 	for(unsigned int samps_rest = size; samps_rest;) {
-		//number of samples to be written into buffer.
-		unsigned int gen_cnt = std::min((uint64_t)samps_rest, tonext);
 		//pattern of digital lines.
 		tRawDO patDO = PAT_DO_MASK & pat;
-		if(pausingbit && ((pat & PAT_QAM_PULSE_IDX_MASK) == 0) &&
-			(tonext > pausing_period)) {
-			if(gen_cnt < pausing_cnt_blank_before + pausing_cnt_blank_after)
-				break;
-			gen_cnt = pausing_cnt_blank_before + pausing_cnt_blank_after;
+		if(pausingbit && ((pat & PAT_QAM_PULSE_IDX_MASK) == 0))
 			//generate a pausing trigger.
-			patDO |= pausingbit;
-			for(unsigned int cnt = 0; cnt < pausing_cnt_blank_before; cnt++) {
-				*pDO++ = patDO;
+			unsigned int lps = (unsigned int)std::min(
+				(uint64_t)(samps_rest / (pausing_cnt_blank_before + pausing_cnt_blank_after)),
+				(tonext - 1) / pausing_period);
+			if(lps) {
+				samps_rest -= lps * (pausing_cnt_blank_before + pausing_cnt_blank_after);
+				tonext -= lps * pausing_period;
+				tRawDO patDO_or_p = patDO | pausingbit;
+				patDO &= ~pausingbit;
+				C_ASSERT(pausing_cnt_blank_before == 2);
+				C_ASSERT(pausing_cnt_blank_after == 1);
+				for(unsigned int lp = 0; lp < lps; lp++) {
+					*pDO++ = patDO_or_p;
+					*pDO++ = patDO_or_p;
+					*pDO++ = patDO;
+				}
 			}
-			patDO &= ~pausingbit;
-			for(unsigned int cnt = 0; cnt < pausing_cnt_blank_after; cnt++) {
-				*pDO++ = patDO;
-			}
-			tonext -= pausing_period;
-			if(samps_rest >= gen_cnt)
-				samps_rest -= gen_cnt;
-			else
-				samps_rest = 0;
-			continue;
+			if(samps_rest < pausing_cnt_blank_before + pausing_cnt_blank_after)
+				break; 
 		}
+		//number of samples to be written into buffer.
+		unsigned int gen_cnt = std::min((uint64_t)samps_rest, tonext);
 		//write digital pattern.
 		for(unsigned int cnt = 0; cnt < gen_cnt; cnt++) {
 			*pDO++ = patDO;
@@ -818,27 +825,28 @@ XNIDAQmxPulser::genBankAO()
 	const tRawAO raw_ao1_zero = m_genAOZeroLevel[1];
 	const unsigned int size = m_bufSizeHintAO / NUM_AO_CH;
 	for(unsigned int samps_rest = size; samps_rest >= oversamp_ao;) {
+		unsigned int pidx = (pat & PAT_QAM_PULSE_IDX_MASK) / PAT_QAM_PULSE_IDX;
+
+		if(pausingbit && (pidx == 0)) {
+			//generate a pausing trigger.
+			unsigned int lps = (unsigned int)std::min(
+				(uint64_t)(samps_rest / oversamp_ao / (pausing_cnt_blank_before + pausing_cnt_blank_after)),
+				(tonext - 1) / pausing_period);
+			if(lps) {
+				tonext -= lps * pausing_period;
+				lps *= oversamp_ao * (pausing_cnt_blank_before + pausing_cnt_blank_after);
+				samps_rest -= lps;
+				for(unsigned int lp = 0; lp < lps; lp++) {
+					*pAO++ = raw_ao0_zero;
+					*pAO++ = raw_ao1_zero;
+				}
+			}
+			if(samps_rest / oversamp_ao < pausing_cnt_blank_before + pausing_cnt_blank_after)
+				break; 
+		}
 		//number of samples to be written into buffer.
 		unsigned int gen_cnt = std::min((uint64_t)samps_rest, tonext * oversamp_ao);
 		gen_cnt = (gen_cnt / oversamp_ao) * oversamp_ao;
-		//pattern of digital lines.
-		unsigned int pidx = (pat & PAT_QAM_PULSE_IDX_MASK) / PAT_QAM_PULSE_IDX;
-		if((pidx == 0) && pausingbit &&
-			(tonext > pausing_period)) {
-			if(gen_cnt < (pausing_cnt_blank_before + pausing_cnt_blank_after) * oversamp_ao)
-				break;
-			gen_cnt = (pausing_cnt_blank_before + pausing_cnt_blank_after) * oversamp_ao;
-			for(unsigned int cnt = 0; cnt < gen_cnt; cnt++) {
-				*pAO++ = raw_ao0_zero;
-				*pAO++ = raw_ao1_zero;
-			}
-			tonext -= pausing_period;
-			if(samps_rest >= gen_cnt)
-				samps_rest -= gen_cnt;
-			else
-				samps_rest = 0;
-			continue;
-		}
 		if(pidx == 0) {
 			//write blank in analog lines.
 			aoidx = 0;

@@ -11,6 +11,9 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
  ***************************************************************************/
+//! \todo check jitter.
+//! \todo initial items, physical items.
+
 #include "nidaqdso.h"
 
 #ifdef HAVE_NI_DAQMX
