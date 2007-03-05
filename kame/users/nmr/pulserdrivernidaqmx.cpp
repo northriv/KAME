@@ -756,7 +756,7 @@ XNIDAQmxPulser::genBankDO()
 	for(unsigned int samps_rest = size; samps_rest;) {
 		//pattern of digital lines.
 		tRawDO patDO = PAT_DO_MASK & pat;
-		if(pausingbit && ((pat & PAT_QAM_PULSE_IDX_MASK) == 0))
+		if(pausingbit && ((pat & PAT_QAM_PULSE_IDX_MASK) == 0)) {
 			//generate a pausing trigger.
 			unsigned int lps = (unsigned int)std::min(
 				(uint64_t)(samps_rest / (pausing_cnt_blank_before + pausing_cnt_blank_after)),
@@ -816,7 +816,7 @@ XNIDAQmxPulser::genBankAO()
 	unsigned int aoidx = m_genAOIndex;
 	const tRawDO pausingbit = m_pausingBit;
 	uint64_t pausing_cnt = m_pausingCount;
-	uint64_t pausing_cnt_blank_before = m_pausingBlankBefore + m_pausingBlankAfter;
+	uint64_t pausing_cnt_blank_before = PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER;
 	uint64_t pausing_cnt_blank_after = 1;
 	const uint64_t pausing_period = pausing_cnt + pausing_cnt_blank_before + pausing_cnt_blank_after;
 
