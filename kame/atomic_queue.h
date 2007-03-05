@@ -30,26 +30,31 @@ public:
 
     void push(T t) {
         ASSERT(t);
-        memoryBarrier();
+        writeBarrier();
         for(;;) {
-        	if(size() == SIZE)
-                throw nospace_error();
+        	if(m_count == SIZE) {
+        		readBarrier();
+	        	if(m_count == SIZE)
+    	            throw nospace_error();
+        	}
             T *last = m_pLast;
             T *first = m_pFirst;
+            readBarrier();
             while(*last != 0) {
                 last++;
-                if(last == &m_ptrs[SIZE]) last = m_ptrs;
+                if(last == &m_ptrs[SIZE]) {
+                	readBarrier();
+                	last = m_ptrs;
+                }
                 if(last == first) {
                 	break;
                 }
             }
             if(atomicCompareAndSet((T)0, t, last)) {
-		        writeBarrier();
                m_pLast = last;
                break;
             }
         }
-		writeBarrier();
        atomicInc(&m_count);
 		writeBarrier();
     }
@@ -57,30 +62,32 @@ public:
     void pop() {
         ASSERT(*m_pFirst);
         *m_pFirst = 0;
-        writeBarrier();
         atomicDec(&m_count);
         writeBarrier();
     }
     //! This is not reentrant.
     T front() {
+        T *first = m_pFirst;
         readBarrier();
-        T *first = m_pFirst;        
         while(*first == 0) {
             first++;
-            if(first == &m_ptrs[SIZE])
+            if(first == &m_ptrs[SIZE]) {
             	first = m_ptrs;
+		        readBarrier();
+            }
         }
         m_pFirst = first;
-        readBarrier();
+        writeBarrier();
+		readBarrier();
         return *first;
     }
     //! This is not reentrant.
     bool empty() const {
-        readBarrier();
+    	readBarrier();
         return m_count == 0;
     }
     unsigned int size() const {
-        readBarrier();
+    	readBarrier();
         return m_count;
     }
 
@@ -90,7 +97,6 @@ public:
     bool atomicPop(const_ref item) {
     	ASSERT(item);
         if(atomicCompareAndSet((T)item, (T)0, m_pFirst)) {
-			writeBarrier();
 	       atomicDec(&m_count);
 			writeBarrier();
         	return true;
@@ -101,7 +107,8 @@ public:
     const_ref atomicFront() {
         if(empty())
         	return 0L;
-        T *first = m_pFirst;        
+        T *first = m_pFirst;
+        readBarrier();
         while(*first == 0) {
             first++;
             if(first == &m_ptrs[SIZE]) {
@@ -111,21 +118,22 @@ public:
             }
         }
         m_pFirst = first;
-        readBarrier();
+		readBarrier();
         return *first;
     }
     T atomicPopAny() {
         if(empty())
         	return 0L;
     	T *first = m_pFirst;
+    	readBarrier();
     	for(;;) {
     		if(*first) {
 				T obj = atomicSwap((T)0, first);
 				if(obj) {
 		            m_pFirst = first;
-					 writeBarrier();
 			        atomicDec(&m_count);
-					 memoryBarrier();
+					writeBarrier();
+					readBarrier();
 					return obj;
 				}
     		}
@@ -161,7 +169,6 @@ public:
     
     void push(const T&t) {
         T *obj = new T(t);
-		 writeBarrier();
         try {
             m_queue.push(obj);
         }
@@ -217,13 +224,11 @@ public:
     	m_array[idx] = t;
     	int serial = key2serial(pack) + 1;
     	pack = key_index_serial(idx, serial);
-    	writeBarrier();
     	try {
 	    	m_queue.push(pack);
     	}
     	catch (nospace_error&e) {
 	    	try {
-	    		memoryBarrier();
 	    		m_reservoir.push(pack);
 	    	}
 	    	catch (nospace_error&) {
@@ -234,10 +239,8 @@ public:
     }
     //! This is not reentrant.
     void pop() {
-    	readBarrier();    	
         key pack = m_queue.front();
 		m_queue.pop();
-    	writeBarrier();
     	try {
     		m_reservoir.push(pack);
     	}
@@ -247,7 +250,6 @@ public:
     }
     //! This is not reentrant.
     T &front() {
-    	readBarrier();    	
         return m_array[key2index(m_queue.front())];
     }
     //! This is not reentrant.
@@ -263,7 +265,6 @@ public:
 	//! \return true if succeeded.
     bool atomicPop(key item) {
         if(m_queue.atomicPop(item)) {
-	    	writeBarrier();
 	    	try {
 				m_reservoir.push(item);
 	    	}

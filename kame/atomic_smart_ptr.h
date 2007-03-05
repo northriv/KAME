@@ -40,6 +40,7 @@ class atomic_scoped_ptr
     ~atomic_scoped_ptr() { readBarrier(); delete m_ptr;}
 
     void reset(t_ptr t = 0) {
+        writeBarrier();
         t_ptr old = atomicSwap(t, &m_ptr);
         readBarrier();
         delete old;
@@ -91,6 +92,7 @@ class atomic_shared_ptr
     
     template<typename Y> explicit atomic_shared_ptr(Y *y) : m_ref(new Ref(y)) {
         m_ptr_instant = y;
+        writeBarrier();
     }
     
     atomic_shared_ptr(const atomic_shared_ptr &t) : m_ref(t._scan_()) {
