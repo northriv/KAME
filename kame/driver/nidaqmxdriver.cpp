@@ -154,7 +154,7 @@ XNIDAQmxInterface::SoftwareTrigger::tryPopFront(uint64_t threshold, float64 _fre
 	if(m_slowQueueSize) {
 		XScopedLock<XMutex> lock(m_mutex);
 		if(FastQueue::key t = m_fastQueue.atomicFront(&cnt)) {
-			if(cnt < m_slowQueue.front()) {
+			if((cnt < m_slowQueue.front()) || !m_slowQueueSize) {
 				cnt = (cnt * (freq_rc / _gcd)) / (freq_em / _gcd);
 				if(cnt >= threshold)
 					return 0uLL;
@@ -163,6 +163,8 @@ XNIDAQmxInterface::SoftwareTrigger::tryPopFront(uint64_t threshold, float64 _fre
 				return 0uLL;
 			}
 		}
+		if(!m_slowQueueSize)
+			return 0uLL;
 		cnt = m_slowQueue.front();
 		cnt = (cnt * (freq_rc / _gcd)) / (freq_em / _gcd);
 		if(cnt >= threshold)
