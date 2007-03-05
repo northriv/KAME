@@ -59,21 +59,25 @@
             uint32_t newv0, uint32_t newv1, uint32_t *target ) {
            unsigned char ret;
             asm volatile (
+           #ifdef MACOSX
+           //gcc in XCode cannot handle EBX correctly.
+                    " push %%ebx;"
+           #endif
                     " mov %6, %%ebx;"
                     " lock; cmpxchg8b %7;"
-                    " sete %0" // ret = zflag ? 1 : 0
+                    " sete %0;" // ret = zflag ? 1 : 0
+           #ifdef MACOSX
+                    " pop %%ebx;"
+           #endif
                     : "=r" (ret), "=d" (oldv1), "=a" (oldv0)
                     : "1" (oldv1), "2" (oldv0),
                      "c" (newv1), "g" (newv0),
                      "m" (*target)
+           #ifdef MACOSX
+                    : "memory");
+           #else
                     : "memory", "%ebx");
-/*                    "  lock; cmpxchg8b %7;"
-                    " sete %0;" // ret = zflag ? 1 : 0
-                    : "=r" (ret), "=d" (oldv1), "=a" (oldv0)
-                    : "1" (oldv1), "2" (oldv0),
-                     "c" (newv1), "b" (newv0),
-                     "m" (*target)
-                    : "memory");*/
+           #endif
             return ret;
         }
         inline bool atomicCompareAndSet2(
