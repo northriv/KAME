@@ -1,5 +1,6 @@
 base referer
-rect $class_x_t_d_s.html 36,306 94,333
-rect $class_x_primary_driver.html 8,157 122,183
-rect $class_x_driver.html 32,82 98,109
-rect $class_x_node.html 34,7 96,34
+rect $class_x_char_device_driver.html 8,306 202,333
+rect $class_x_primary_driver.html 48,157 162,184
+rect $class_x_driver.html 72,82 138,109
+rect $class_x_node.html 74,8 136,34
+rect $class_x_t_d_s.html 76,381 134,408

@@ -1,2 +1,3 @@
 base referer
-rect $class_x_pulser.html 17,7 86,34
+rect $class_x_char_device_driver.html 7,82 213,109
+rect $class_x_pulser.html 75,8 145,34

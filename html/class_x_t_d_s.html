@@ -5,21 +5,23 @@
 </head><body>
 <!-- 作成： Doxygen 1.4.3 -->
 <div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
-<h1>クラス XTDS</h1><!-- doxytag: class=<XTDS> --><!-- doxytag: inherits=<XDSO> -->Tektronix DSO.  
+<h1>クラス XTDS</h1><!-- doxytag: class=<XTDS> --><!-- doxytag: inherits=<XCharDeviceDriver&lt; XDSO &gt;> -->Tektronix DSO.  
 <a href="#_details">[詳細]</a>
 <p>
 <code>#include &lt;<a class="el" href="tds_8h-source.html">tds.h</a>&gt;</code>
 <p>
 XTDSに対する継承グラフ<p><center><img src="class_x_t_d_s__inherit__graph.png" border="0" usemap="#_x_t_d_s__inherit__map" alt="Inheritance graph"></center>
 <map name="_x_t_d_s__inherit__map">
-<area href="class_x_d_s_o.html" shape="rect" coords="36,231,94,258" alt="">
-<area href="class_x_primary_driver.html" shape="rect" coords="8,157,122,183" alt="">
-<area href="class_x_driver.html" shape="rect" coords="32,82,98,109" alt="">
-<area href="class_x_node.html" shape="rect" coords="34,7,96,34" alt="">
+<area href="class_x_char_device_driver.html" shape="rect" coords="8,306,202,333" alt="">
+<area href="class_x_d_s_o.html" shape="rect" coords="76,232,134,258" alt="">
+<area href="class_x_primary_driver.html" shape="rect" coords="48,157,162,184" alt="">
+<area href="class_x_driver.html" shape="rect" coords="72,82,138,109" alt="">
+<area href="class_x_node.html" shape="rect" coords="74,8,136,34" alt="">
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XTDSのコラボレーション図<p><center><img src="class_x_t_d_s__coll__graph.png" border="0" usemap="#_x_t_d_s__coll__map" alt="Collaboration graph"></center>
 <map name="_x_t_d_s__coll__map">
-<area href="class_x_d_s_o.html" shape="rect" coords="8,7,66,34" alt="">
+<area href="class_x_char_device_driver.html" shape="rect" coords="8,82,202,109" alt="">
+<area href="class_x_d_s_o.html" shape="rect" coords="76,8,134,34" alt="">
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_t_d_s-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
 <tr><td></td></tr>
@@ -34,62 +36,66 @@ XTDSに対する継承グラフ<p><center><img src="class_x_t_d_s__inherit__graph.png" bo
 virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b2">convertRaw</a> ()  throw (XRecordError&amp;)</td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">convert raw to record <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b3"></a><!-- doxytag: member=<XTDS::onAverageChanged> ref=<b3> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b3">onAverageChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b3"></a><!-- doxytag: member=<XTDS::onTrace1Changed> ref=<b3> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b3">onTrace1Changed</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b4"></a><!-- doxytag: member=<XTDS::onSingleChanged> ref=<b4> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b4">onSingleChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b4"></a><!-- doxytag: member=<XTDS::onTrace2Changed> ref=<b4> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b4">onTrace2Changed</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b5"></a><!-- doxytag: member=<XTDS::onTrigSourceChanged> ref=<b5> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b5">onTrigSourceChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b5"></a><!-- doxytag: member=<XTDS::onAverageChanged> ref=<b5> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b5">onAverageChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b6"></a><!-- doxytag: member=<XTDS::onTrigPosChanged> ref=<b6> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b6">onTrigPosChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b6"></a><!-- doxytag: member=<XTDS::onSingleChanged> ref=<b6> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b6">onSingleChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b7"></a><!-- doxytag: member=<XTDS::onTrigLevelChanged> ref=<b7> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b7">onTrigLevelChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b7"></a><!-- doxytag: member=<XTDS::onTrigSourceChanged> ref=<b7> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b7">onTrigSourceChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b8"></a><!-- doxytag: member=<XTDS::onTrigFallingChanged> ref=<b8> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b8">onTrigFallingChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b8"></a><!-- doxytag: member=<XTDS::onTrigPosChanged> ref=<b8> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b8">onTrigPosChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b9"></a><!-- doxytag: member=<XTDS::onTimeWidthChanged> ref=<b9> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b9">onTimeWidthChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b9"></a><!-- doxytag: member=<XTDS::onTrigLevelChanged> ref=<b9> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b9">onTrigLevelChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b10"></a><!-- doxytag: member=<XTDS::onVFullScale1Changed> ref=<b10> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b10">onVFullScale1Changed</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b10"></a><!-- doxytag: member=<XTDS::onTrigFallingChanged> ref=<b10> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b10">onTrigFallingChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b11"></a><!-- doxytag: member=<XTDS::onVFullScale2Changed> ref=<b11> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b11">onVFullScale2Changed</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b11"></a><!-- doxytag: member=<XTDS::onTimeWidthChanged> ref=<b11> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b11">onTimeWidthChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b12"></a><!-- doxytag: member=<XTDS::onVOffset1Changed> ref=<b12> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b12">onVOffset1Changed</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b12"></a><!-- doxytag: member=<XTDS::onVFullScale1Changed> ref=<b12> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b12">onVFullScale1Changed</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b13"></a><!-- doxytag: member=<XTDS::onVOffset2Changed> ref=<b13> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b13">onVOffset2Changed</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b13"></a><!-- doxytag: member=<XTDS::onVFullScale2Changed> ref=<b13> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b13">onVFullScale2Changed</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b14"></a><!-- doxytag: member=<XTDS::onRecordLengthChanged> ref=<b14> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b14">onRecordLengthChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b14"></a><!-- doxytag: member=<XTDS::onVOffset1Changed> ref=<b14> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b14">onVOffset1Changed</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b15"></a><!-- doxytag: member=<XTDS::onForceTriggerTouched> ref=<b15> args=<(const shared_ptr&lt; XNode &gt; &amp;)> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b15">onForceTriggerTouched</a> (const shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt; &amp;)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b15"></a><!-- doxytag: member=<XTDS::onVOffset2Changed> ref=<b15> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b15">onVOffset2Changed</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b16"></a><!-- doxytag: member=<XTDS::afterStart> ref=<b16> args=<()> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b16">afterStart</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b16"></a><!-- doxytag: member=<XTDS::onRecordLengthChanged> ref=<b16> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b16">onRecordLengthChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b17"></a><!-- doxytag: member=<XTDS::beforeStop> ref=<b17> args=<()> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b17">beforeStop</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b17"></a><!-- doxytag: member=<XTDS::onForceTriggerTouched> ref=<b17> args=<(const shared_ptr&lt; XNode &gt; &amp;)> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b17">onForceTriggerTouched</a> (const shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt; &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b18"></a><!-- doxytag: member=<XTDS::getTimeInterval> ref=<b18> args=<()> -->
-virtual double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b18">getTimeInterval</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b18"></a><!-- doxytag: member=<XTDS::open> ref=<b18> args=<()> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b18">open</a> ()  throw (XInterface::XInterfaceError &amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b19"></a><!-- doxytag: member=<XTDS::startSequence> ref=<b19> args=<()> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b19">startSequence</a> ()</td></tr>
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Be called just after opening interface. Call <a class="el" href="class_x_d_s_o.html#b1">start()</a> inside this routine appropriately. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b19"></a><!-- doxytag: member=<XTDS::getTimeInterval> ref=<b19> args=<()> -->
+virtual double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b19">getTimeInterval</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b20"></a><!-- doxytag: member=<XTDS::startSequence> ref=<b20> args=<()> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b20">startSequence</a> ()</td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">clear count or start sequence measurement <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top">virtual int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b20">acqCount</a> (bool *seq_busy)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">virtual int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b21">acqCount</a> (bool *seq_busy)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b21"></a><!-- doxytag: member=<XTDS::getWave> ref=<b21> args=<(std::deque&lt; std::string &gt; &amp;channels)> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b21">getWave</a> (std::deque&lt; std::string &gt; &amp;channels)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b22"></a><!-- doxytag: member=<XTDS::getWave> ref=<b22> args=<(std::deque&lt; std::string &gt; &amp;channels)> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_t_d_s.html#b22">getWave</a> (std::deque&lt; std::string &gt; &amp;channels)</td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">load waveform and settings from instrument <br></td></tr>
 </table>
@@ -98,8 +104,8 @@ Tektronix DSO.
 <p>
 
 <p>
- <a class="el" href="tds_8h-source.html">tds.h</a> の <a class="el" href="tds_8h-source.html#l00008">8</a> 行で定義されています。<hr><h2>関数</h2>
-<a class="anchor" name="b20"></a><!-- doxytag: member=<XTDS::acqCount> ref=<b20> args=<(bool *seq_busy)> --><p>
+ <a class="el" href="tds_8h-source.html">tds.h</a> の <a class="el" href="tds_8h-source.html#l00022">22</a> 行で定義されています。<hr><h2>関数</h2>
+<a class="anchor" name="b21"></a><!-- doxytag: member=<XTDS::acqCount> ref=<b21> args=<(bool *seq_busy)> --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
     <td class="mdRow">
@@ -131,14 +137,14 @@ Tektronix DSO.
 <p>
 <a class="el" href="class_x_d_s_o.html#b21">XDSO</a>を実装しています.
 <p>
- <a class="el" href="tds_8cpp-source.html">tds.cpp</a> の <a class="el" href="tds_8cpp-source.html#l00164">164</a> 行で定義されています。
+ <a class="el" href="tds_8cpp-source.html">tds.cpp</a> の <a class="el" href="tds_8cpp-source.html#l00179">179</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="primarydriver_8h-source.html#l00058">XPrimaryDriver::interface()</a>.    </td>
+参照先 <a class="el" href="chardevicedriver_8h-source.html#l00034">XCharDeviceDriver&lt; XDSO &gt;::interface()</a>.    </td>
   </tr>
 </table>
 <hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/users/dso/<a class="el" href="tds_8h-source.html">tds.h</a><li>kame/users/dso/<a class="el" href="tds_8cpp-source.html">tds.cpp</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 13:04:44 2007に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してWed Feb 28 04:17:21 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

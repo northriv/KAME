@@ -33840,7 +33840,6 @@ ac_link='rm -rf SunWS_cache; ${CXX-g++} -o conftest${ac_exeext} $CXXFLAGS $CPPFL
 
 
 
-CXXFLAGS="$CXXFLAGS $USE_EXCEPTIONS" 
 
 { echo "$as_me:$LINENO: checking for freetype2" >&5
 echo $ECHO_N "checking for freetype2... $ECHO_C" >&6; }

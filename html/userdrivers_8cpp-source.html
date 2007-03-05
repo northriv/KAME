@@ -7,68 +7,85 @@
 <div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
 <a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000012.html">users</a></div>
-<h1>userdrivers.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#include "users/testdriver.h"</span>
-<a name="l00002"></a>00002 <span class="preprocessor">#include "users/dmm/userdmm.h"</span>
-<a name="l00003"></a>00003 <span class="preprocessor">#include "users/dso/tds.h"</span>
-<a name="l00004"></a>00004 <span class="preprocessor">#include "users/dso/nidaqdso.h"</span>
-<a name="l00005"></a>00005 <span class="preprocessor">#include "tempcontrol/usertempcontrol.h"</span>
-<a name="l00006"></a>00006 <span class="preprocessor">#include "magnetps/usermagnetps.h"</span>
-<a name="l00007"></a>00007 <span class="preprocessor">#include "nmr/pulserdriverh8.h"</span>
-<a name="l00008"></a>00008 <span class="preprocessor">#include "nmr/pulserdriversh.h"</span>
-<a name="l00009"></a>00009 <span class="preprocessor">#include "nmr/nmrpulse.h"</span>
-<a name="l00010"></a>00010 <span class="preprocessor">#include "nmr/nmrspectrum.h"</span>
-<a name="l00011"></a>00011 <span class="preprocessor">#include "nmr/nmrfspectrum.h"</span>
-<a name="l00012"></a>00012 <span class="preprocessor">#include "nmr/nmrrelax.h"</span>
-<a name="l00013"></a>00013 <span class="preprocessor">#include "nmr/signalgenerator.h"</span>
-<a name="l00014"></a>00014 <span class="preprocessor">#include "lia/userlockinamp.h"</span>
-<a name="l00015"></a>00015 <span class="preprocessor">#include "dcsource/dcsource.h"</span>
-<a name="l00016"></a>00016 <span class="preprocessor">#include "funcsynth/userfuncsynth.h"</span>
-<a name="l00017"></a>00017 <span class="preprocessor">#include "montecarlo/kamemontecarlo.h"</span>
-<a name="l00018"></a>00018 <span class="comment">//---------------------------------------------------------------------------</span>
-<a name="l00019"></a>00019 
-<a name="l00020"></a>00020 <span class="preprocessor">#define LIST XDriverList</span>
-<a name="l00021"></a>00021 <span class="preprocessor"></span>DECLARE_TYPE_HOLDER
-<a name="l00022"></a>00022   
-<a name="l00023"></a>00023 REGISTER_TYPE(TestDriver);
-<a name="l00024"></a>00024 REGISTER_TYPE(KE2000);
-<a name="l00025"></a>00025 REGISTER_TYPE(KE2182);
-<a name="l00026"></a>00026 REGISTER_TYPE(HP34420A);
-<a name="l00027"></a>00027 REGISTER_TYPE(TDS);
-<a name="l00028"></a>00028 <span class="preprocessor">#ifdef HAVE_NI_DAQMX</span>
-<a name="l00029"></a>00029 <span class="preprocessor"></span>    REGISTER_TYPE(NIDAQmxDSO);
-<a name="l00030"></a>00030 <span class="preprocessor">#endif</span>
-<a name="l00031"></a>00031 <span class="preprocessor"></span>REGISTER_TYPE(CryoconM32);
-<a name="l00032"></a>00032 REGISTER_TYPE(CryoconM62);
-<a name="l00033"></a>00033 REGISTER_TYPE(LakeShore340);
-<a name="l00034"></a>00034 REGISTER_TYPE(AVS47IB);
-<a name="l00035"></a>00035 REGISTER_TYPE(ITC503);
-<a name="l00036"></a>00036 REGISTER_TYPE(PS120);
-<a name="l00037"></a>00037 REGISTER_TYPE(IPS120);
-<a name="l00038"></a>00038 REGISTER_TYPE(SR830);
-<a name="l00039"></a>00039 REGISTER_TYPE(AH2500A);
-<a name="l00040"></a>00040 REGISTER_TYPE(YK7651);
-<a name="l00041"></a>00041 REGISTER_TYPE(WAVEFACTORY);
-<a name="l00042"></a>00042 REGISTER_TYPE(H8Pulser); <span class="comment">//nmr stuff, remove me in lite version.</span>
-<a name="l00043"></a>00043 REGISTER_TYPE(SHPulser); <span class="comment">//nmr stuff, remove me in lite version.</span>
-<a name="l00044"></a>00044 REGISTER_TYPE(NMRPulseAnalyzer); <span class="comment">//nmr stuff, remove me in lite version.</span>
-<a name="l00045"></a>00045 REGISTER_TYPE(NMRSpectrum); <span class="comment">//nmr stuff, remove me in lite version.</span>
-<a name="l00046"></a>00046 REGISTER_TYPE(NMRFSpectrum); <span class="comment">//nmr stuff, remove me in lite version.</span>
-<a name="l00047"></a>00047 REGISTER_TYPE(NMRT1); <span class="comment">//nmr stuff, remove me in lite version.</span>
-<a name="l00048"></a>00048 REGISTER_TYPE(SG7130); <span class="comment">//nmr stuff, remove me in lite version.</span>
-<a name="l00049"></a>00049 REGISTER_TYPE(SG7200); <span class="comment">//nmr stuff, remove me in lite version.</span>
-<a name="l00050"></a>00050 REGISTER_TYPE(HP8643); <span class="comment">//nmr stuff, remove me in lite version.</span>
-<a name="l00051"></a>00051 REGISTER_TYPE(HP8648); <span class="comment">//nmr stuff, remove me in lite version.</span>
-<a name="l00052"></a>00052 REGISTER_TYPE(MonteCarloDriver);
-<a name="l00053"></a>00053 
-<a name="l00054"></a>00054 shared_ptr&lt;XNode&gt;
-<a name="l00055"></a>00055 <a class="code" href="class_x_custom_type_list_node.html#a1">XDriverList::createByTypename</a>(<span class="keyword">const</span> std::string &amp;type, <span class="keyword">const</span> std::string&amp; name) {
-<a name="l00056"></a>00056     shared_ptr&lt;XNode&gt; ptr = (*creator(type))
-<a name="l00057"></a>00057         (name.c_str(), <span class="keyword">false</span>, <a class="code" href="class_x_driver_list.html#r0">m_scalarentries</a>, <a class="code" href="class_x_driver_list.html#r1">m_interfaces</a>, <a class="code" href="class_x_driver_list.html#r2">m_thermometers</a>,
-<a name="l00058"></a>00058                 dynamic_pointer_cast&lt;XDriverList&gt;(shared_from_this()));
-<a name="l00059"></a>00059     <span class="keywordflow">if</span>(ptr) <a class="code" href="class_x_list_node_base.html#a7">insert</a>(ptr);
-<a name="l00060"></a>00060     <span class="keywordflow">return</span> ptr;
-<a name="l00061"></a>00061 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 13:04:36 2007に生成されました。&nbsp;
+<h1>userdrivers.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
+<a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
+<a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
+<a name="l00004"></a>00004 <span class="comment">                </span>
+<a name="l00005"></a>00005 <span class="comment">                This program is free software; you can redistribute it and/or</span>
+<a name="l00006"></a>00006 <span class="comment">                modify it under the terms of the GNU Library General Public</span>
+<a name="l00007"></a>00007 <span class="comment">                License as published by the Free Software Foundation; either</span>
+<a name="l00008"></a>00008 <span class="comment">                version 2 of the License, or (at your option) any later version.</span>
+<a name="l00009"></a>00009 <span class="comment">                </span>
+<a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
+<a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
+<a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
+<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00014"></a>00014 <span class="preprocessor">#include "users/testdriver.h"</span>
+<a name="l00015"></a>00015 <span class="preprocessor">#include "users/dmm/userdmm.h"</span>
+<a name="l00016"></a>00016 <span class="preprocessor">#include "users/dso/tds.h"</span>
+<a name="l00017"></a>00017 <span class="preprocessor">#include "users/dso/nidaqdso.h"</span>
+<a name="l00018"></a>00018 <span class="preprocessor">#include "tempcontrol/usertempcontrol.h"</span>
+<a name="l00019"></a>00019 <span class="preprocessor">#include "magnetps/usermagnetps.h"</span>
+<a name="l00020"></a>00020 <span class="preprocessor">#include "nmr/pulserdriverh8.h"</span>
+<a name="l00021"></a>00021 <span class="preprocessor">#include "nmr/pulserdriversh.h"</span>
+<a name="l00022"></a>00022 <span class="preprocessor">#include "nmr/pulserdrivernidaq.h"</span>
+<a name="l00023"></a>00023 <span class="preprocessor">#include "nmr/nmrpulse.h"</span>
+<a name="l00024"></a>00024 <span class="preprocessor">#include "nmr/nmrspectrum.h"</span>
+<a name="l00025"></a>00025 <span class="preprocessor">#include "nmr/nmrfspectrum.h"</span>
+<a name="l00026"></a>00026 <span class="preprocessor">#include "nmr/nmrrelax.h"</span>
+<a name="l00027"></a>00027 <span class="preprocessor">#include "nmr/signalgenerator.h"</span>
+<a name="l00028"></a>00028 <span class="preprocessor">#include "lia/userlockinamp.h"</span>
+<a name="l00029"></a>00029 <span class="preprocessor">#include "dcsource/dcsource.h"</span>
+<a name="l00030"></a>00030 <span class="preprocessor">#include "funcsynth/userfuncsynth.h"</span>
+<a name="l00031"></a>00031 <span class="preprocessor">#include "montecarlo/kamemontecarlo.h"</span>
+<a name="l00032"></a>00032 <span class="comment">//---------------------------------------------------------------------------</span>
+<a name="l00033"></a>00033 
+<a name="l00034"></a>00034 <span class="preprocessor">#define LIST XDriverList</span>
+<a name="l00035"></a>00035 <span class="preprocessor"></span>DECLARE_TYPE_HOLDER
+<a name="l00036"></a>00036   
+<a name="l00037"></a>00037 REGISTER_TYPE(KE2000, <span class="stringliteral">"Keithley 2000/2001 DMM"</span>);
+<a name="l00038"></a>00038 REGISTER_TYPE(KE2182, <span class="stringliteral">"Keithley 2182 nanovolt meter"</span>);
+<a name="l00039"></a>00039 REGISTER_TYPE(HP34420A, <span class="stringliteral">"Agilent 34420A nanovolt meter"</span>);
+<a name="l00040"></a>00040 REGISTER_TYPE(CryoconM32, <span class="stringliteral">"Cryocon M32 temp. controller"</span>);
+<a name="l00041"></a>00041 REGISTER_TYPE(CryoconM62, <span class="stringliteral">"Cryocon M62 temp. controller"</span>);
+<a name="l00042"></a>00042 REGISTER_TYPE(LakeShore340, <span class="stringliteral">"LakeShore 340 temp. controller"</span>);
+<a name="l00043"></a>00043 REGISTER_TYPE(AVS47IB, <span class="stringliteral">"Picowatt AVS-47 bridge"</span>);
+<a name="l00044"></a>00044 REGISTER_TYPE(ITC503, <span class="stringliteral">"Oxford ITC-503 temp. controller"</span>);
+<a name="l00045"></a>00045 REGISTER_TYPE(PS120, <span class="stringliteral">"Oxford PS-120 magnet power supply"</span>);
+<a name="l00046"></a>00046 REGISTER_TYPE(IPS120, <span class="stringliteral">"Oxford IPS-120 magnet power supply"</span>);
+<a name="l00047"></a>00047 REGISTER_TYPE(SR830, <span class="stringliteral">"Stanford Research SR830 lock-in amp."</span>);
+<a name="l00048"></a>00048 REGISTER_TYPE(AH2500A, <span class="stringliteral">"Andeen-Hagerling 2500A capacitance bridge"</span>);
+<a name="l00049"></a>00049 REGISTER_TYPE(YK7651, <span class="stringliteral">"YOKOGAWA 7651 dc source"</span>);
+<a name="l00050"></a>00050 REGISTER_TYPE(WAVEFACTORY, <span class="stringliteral">"NF WAVE-FACTORY pulse generator"</span>);
+<a name="l00051"></a>00051 REGISTER_TYPE(SG7130, <span class="stringliteral">"KENWOOD SG7130 signal generator"</span>);
+<a name="l00052"></a>00052 REGISTER_TYPE(SG7200, <span class="stringliteral">"KENWOOD SG7200 signal generator"</span>);
+<a name="l00053"></a>00053 REGISTER_TYPE(HP8643, <span class="stringliteral">"Agilent 8643 signal generator"</span>);
+<a name="l00054"></a>00054 REGISTER_TYPE(HP8648, <span class="stringliteral">"Agilent 8648 signal generator"</span>);
+<a name="l00055"></a>00055 REGISTER_TYPE(TDS, <span class="stringliteral">"Tektronix DSO"</span>);
+<a name="l00056"></a>00056 <span class="preprocessor">#ifdef HAVE_NI_DAQMX</span>
+<a name="l00057"></a>00057 <span class="preprocessor"></span>    REGISTER_TYPE(NIDAQmxDSO, <span class="stringliteral">"National Instruments DAQ as DSO"</span>);
+<a name="l00058"></a>00058     REGISTER_TYPE(NIDAQSSeriesPulser, <span class="stringliteral">"NMR pulser NI-DAQ S Series"</span>);
+<a name="l00059"></a>00059     REGISTER_TYPE(NIDAQDOPulser, <span class="stringliteral">"NMR pulser NI-DAQ digital port only"</span>);
+<a name="l00060"></a>00060     REGISTER_TYPE(NIDAQMSeriesWithSSeriesPulser, <span class="stringliteral">"NMR pulser NI-DAQ M Series with S Series"</span>);
+<a name="l00061"></a>00061 <span class="preprocessor">#endif</span>
+<a name="l00062"></a>00062 <span class="preprocessor"></span>REGISTER_TYPE(H8Pulser, <span class="stringliteral">"NMR pulser handmade-H8"</span>);
+<a name="l00063"></a>00063 REGISTER_TYPE(SHPulser, <span class="stringliteral">"NMR pulser handmade-SH2"</span>);
+<a name="l00064"></a>00064 REGISTER_TYPE(NMRPulseAnalyzer, <span class="stringliteral">"NMR FID/echo analyzer"</span>);
+<a name="l00065"></a>00065 REGISTER_TYPE(NMRSpectrum, <span class="stringliteral">"NMR field-swept spectrum measurement"</span>);
+<a name="l00066"></a>00066 REGISTER_TYPE(NMRFSpectrum, <span class="stringliteral">"NMR frequency-swept spectrum measurement"</span>);
+<a name="l00067"></a>00067 REGISTER_TYPE(NMRT1, <span class="stringliteral">"NMR relaxation measurement"</span>);
+<a name="l00068"></a>00068 REGISTER_TYPE(TestDriver, <span class="stringliteral">"Test driver: random number generation"</span>);
+<a name="l00069"></a>00069 REGISTER_TYPE(MonteCarloDriver, <span class="stringliteral">"Monte-Carlo simulation"</span>);
+<a name="l00070"></a>00070 
+<a name="l00071"></a>00071 shared_ptr&lt;XNode&gt;
+<a name="l00072"></a>00072 <a class="code" href="class_x_custom_type_list_node.html#a1">XDriverList::createByTypename</a>(<span class="keyword">const</span> std::string &amp;type, <span class="keyword">const</span> std::string&amp; name) {
+<a name="l00073"></a>00073     shared_ptr&lt;XNode&gt; ptr = (*creator(type))
+<a name="l00074"></a>00074         (name.c_str(), <span class="keyword">false</span>, <a class="code" href="class_x_driver_list.html#r0">m_scalarentries</a>, <a class="code" href="class_x_driver_list.html#r1">m_interfaces</a>, <a class="code" href="class_x_driver_list.html#r2">m_thermometers</a>,
+<a name="l00075"></a>00075                 dynamic_pointer_cast&lt;XDriverList&gt;(shared_from_this()));
+<a name="l00076"></a>00076     <span class="keywordflow">if</span>(ptr) <a class="code" href="class_x_list_node_base.html#a7">insert</a>(ptr);
+<a name="l00077"></a>00077     <span class="keywordflow">return</span> ptr;
+<a name="l00078"></a>00078 }
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してWed Feb 28 04:17:16 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

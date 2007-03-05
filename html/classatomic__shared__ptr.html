@@ -105,7 +105,7 @@ This is an improved version of boost::shared_ptr&lt;&gt;. atomic_shared_ptr&lt;&
 <p>
 
 <p>
- <a class="el" href="atomic__smart__ptr_8h-source.html">atomic_smart_ptr.h</a> の <a class="el" href="atomic__smart__ptr_8h-source.html#l00071">71</a> 行で定義されています。<hr><h2>関数</h2>
+ <a class="el" href="atomic__smart__ptr_8h-source.html">atomic_smart_ptr.h</a> の <a class="el" href="atomic__smart__ptr_8h-source.html#l00084">84</a> 行で定義されています。<hr><h2>関数</h2>
 <a class="anchor" name="a16"></a><!-- doxytag: member=<atomic_shared_ptr::_scan_> ref=<a16> args=<() const > --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
@@ -136,9 +136,9 @@ template&lt;typename T&gt; </td>
 <p>
 internal functions below. atomically scan <em>Ref</em> and increase global reference counter. 
 <p>
- <a class="el" href="atomic__smart__ptr_8h-source.html">atomic_smart_ptr.h</a> の <a class="el" href="atomic__smart__ptr_8h-source.html#l00194">194</a> 行で定義されています。
+ <a class="el" href="atomic__smart__ptr_8h-source.html">atomic_smart_ptr.h</a> の <a class="el" href="atomic__smart__ptr_8h-source.html#l00207">207</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="atomic__smart__ptr_8h-source.html#l00296">atomic_shared_ptr&lt; T &gt;::_leave_scan_()</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00262">atomic_shared_ptr&lt; T &gt;::_reserve_scan_()</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00064">atomic_shared_ptr_ref&lt; T &gt;::refcnt</a>, と atomic_shared_ptr&lt; T &gt;::RefcntNSerial::split.    </td>
+参照先 <a class="el" href="atomic__smart__ptr_8h-source.html#l00309">atomic_shared_ptr&lt; T &gt;::_leave_scan_()</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00275">atomic_shared_ptr&lt; T &gt;::_reserve_scan_()</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00077">atomic_shared_ptr_ref&lt; T &gt;::refcnt</a>, と atomic_shared_ptr&lt; T &gt;::RefcntNSerial::split.    </td>
   </tr>
 </table>
 <a class="anchor" name="a10"></a><!-- doxytag: member=<atomic_shared_ptr::compareAndSwap> ref=<a10> args=<(const atomic_shared_ptr &amp;oldr, atomic_shared_ptr &amp;r)> --><p>
@@ -182,11 +182,11 @@ template&lt;typename T&gt; </td>
 <dl compact><dt><b>戻り値:</b></dt><dd>true if succeeded.</dd></dl>
 
 <p>
- <a class="el" href="atomic__smart__ptr_8h-source.html">atomic_smart_ptr.h</a> の <a class="el" href="atomic__smart__ptr_8h-source.html#l00403">403</a> 行で定義されています。
+ <a class="el" href="atomic__smart__ptr_8h-source.html">atomic_smart_ptr.h</a> の <a class="el" href="atomic__smart__ptr_8h-source.html#l00416">416</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="atomic__smart__ptr_8h-source.html#l00296">atomic_shared_ptr&lt; T &gt;::_leave_scan_()</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00262">atomic_shared_ptr&lt; T &gt;::_reserve_scan_()</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00143">atomic_shared_ptr&lt; T &gt;::RefcntNSerial::both</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00133">atomic_shared_ptr&lt; T &gt;::m_ptr_instant</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00175">atomic_shared_ptr&lt; T &gt;::m_ref</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00177">atomic_shared_ptr&lt; T &gt;::m_updatemutex</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00167">atomic_shared_ptr&lt; T &gt;::_RefLocal::pref</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00171">atomic_shared_ptr&lt; T &gt;::_RefLocal::pref_old</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00064">atomic_shared_ptr_ref&lt; T &gt;::refcnt</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00169">atomic_shared_ptr&lt; T &gt;::_RefLocal::refcnt_n_serial</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00172">atomic_shared_ptr&lt; T &gt;::_RefLocal::serial_update</a>, と atomic_shared_ptr&lt; T &gt;::RefcntNSerial::split.
+参照先 <a class="el" href="atomic__smart__ptr_8h-source.html#l00309">atomic_shared_ptr&lt; T &gt;::_leave_scan_()</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00275">atomic_shared_ptr&lt; T &gt;::_reserve_scan_()</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00156">atomic_shared_ptr&lt; T &gt;::RefcntNSerial::both</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00146">atomic_shared_ptr&lt; T &gt;::m_ptr_instant</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00188">atomic_shared_ptr&lt; T &gt;::m_ref</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00190">atomic_shared_ptr&lt; T &gt;::m_updatemutex</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00180">atomic_shared_ptr&lt; T &gt;::_RefLocal::pref</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00184">atomic_shared_ptr&lt; T &gt;::_RefLocal::pref_old</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00077">atomic_shared_ptr_ref&lt; T &gt;::refcnt</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00182">atomic_shared_ptr&lt; T &gt;::_RefLocal::refcnt_n_serial</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00185">atomic_shared_ptr&lt; T &gt;::_RefLocal::serial_update</a>, と atomic_shared_ptr&lt; T &gt;::RefcntNSerial::split.
 <p>
-参照元 <a class="el" href="xitemnode_8cpp-source.html#l00065">XComboNode::add()</a>, <a class="el" href="xsignal_8h-source.html#l00298">XTalker&lt; tArg &gt;::disconnect()</a>, <a class="el" href="xnode_8cpp-source.html#l00038">XNode::insert()</a>, <a class="el" href="xlistnode_8cpp-source.html#l00041">XListNodeBase::move()</a>, と <a class="el" href="xnode_8cpp-source.html#l00065">XNode::releaseChild()</a>.    </td>
+参照元 <a class="el" href="xitemnode_8cpp-source.html#l00093">XComboNode::add()</a>, <a class="el" href="xsignal_8h-source.html#l00311">XTalker&lt; tArg &gt;::disconnect()</a>, <a class="el" href="xnode_8cpp-source.html#l00049">XNode::insert()</a>, <a class="el" href="xlistnode_8cpp-source.html#l00054">XListNodeBase::move()</a>, と <a class="el" href="xnode_8cpp-source.html#l00076">XNode::releaseChild()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="a6"></a><!-- doxytag: member=<atomic_shared_ptr::operator=> ref=<a6> args=<(const atomic_shared_ptr&lt; Y &gt; &amp;y)> --><p>
@@ -229,7 +229,7 @@ template&lt;typename Y&gt; </td>
 </dl>
 
 <p>
- <a class="el" href="atomic__smart__ptr_8h-source.html">atomic_smart_ptr.h</a> の <a class="el" href="atomic__smart__ptr_8h-source.html#l00099">99</a> 行で定義されています。    </td>
+ <a class="el" href="atomic__smart__ptr_8h-source.html">atomic_smart_ptr.h</a> の <a class="el" href="atomic__smart__ptr_8h-source.html#l00112">112</a> 行で定義されています。    </td>
   </tr>
 </table>
 <a class="anchor" name="a5"></a><!-- doxytag: member=<atomic_shared_ptr::operator=> ref=<a5> args=<(const atomic_shared_ptr &amp;t)> --><p>
@@ -268,7 +268,7 @@ template&lt;typename T&gt; </td>
 </dl>
 
 <p>
- <a class="el" href="atomic__smart__ptr_8h-source.html">atomic_smart_ptr.h</a> の <a class="el" href="atomic__smart__ptr_8h-source.html#l00094">94</a> 行で定義されています。    </td>
+ <a class="el" href="atomic__smart__ptr_8h-source.html">atomic_smart_ptr.h</a> の <a class="el" href="atomic__smart__ptr_8h-source.html#l00107">107</a> 行で定義されています。    </td>
   </tr>
 </table>
 <a class="anchor" name="a8"></a><!-- doxytag: member=<atomic_shared_ptr::reset> ref=<a8> args=<(Y *y)> --><p>
@@ -311,7 +311,7 @@ template&lt;typename Y&gt; </td>
 </dl>
 
 <p>
- <a class="el" href="atomic__smart__ptr_8h-source.html">atomic_smart_ptr.h</a> の <a class="el" href="atomic__smart__ptr_8h-source.html#l00108">108</a> 行で定義されています。    </td>
+ <a class="el" href="atomic__smart__ptr_8h-source.html">atomic_smart_ptr.h</a> の <a class="el" href="atomic__smart__ptr_8h-source.html#l00121">121</a> 行で定義されています。    </td>
   </tr>
 </table>
 <a class="anchor" name="a9"></a><!-- doxytag: member=<atomic_shared_ptr::swap> ref=<a9> args=<(atomic_shared_ptr &amp;)> --><p>
@@ -350,16 +350,16 @@ template&lt;typename T&gt; </td>
 </dl>
 
 <p>
- <a class="el" href="atomic__smart__ptr_8h-source.html">atomic_smart_ptr.h</a> の <a class="el" href="atomic__smart__ptr_8h-source.html#l00334">334</a> 行で定義されています。
+ <a class="el" href="atomic__smart__ptr_8h-source.html">atomic_smart_ptr.h</a> の <a class="el" href="atomic__smart__ptr_8h-source.html#l00347">347</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="atomic__smart__ptr_8h-source.html#l00296">atomic_shared_ptr&lt; T &gt;::_leave_scan_()</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00262">atomic_shared_ptr&lt; T &gt;::_reserve_scan_()</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00143">atomic_shared_ptr&lt; T &gt;::RefcntNSerial::both</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00133">atomic_shared_ptr&lt; T &gt;::m_ptr_instant</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00175">atomic_shared_ptr&lt; T &gt;::m_ref</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00177">atomic_shared_ptr&lt; T &gt;::m_updatemutex</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00167">atomic_shared_ptr&lt; T &gt;::_RefLocal::pref</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00171">atomic_shared_ptr&lt; T &gt;::_RefLocal::pref_old</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00064">atomic_shared_ptr_ref&lt; T &gt;::refcnt</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00169">atomic_shared_ptr&lt; T &gt;::_RefLocal::refcnt_n_serial</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00172">atomic_shared_ptr&lt; T &gt;::_RefLocal::serial_update</a>, と atomic_shared_ptr&lt; T &gt;::RefcntNSerial::split.
+参照先 <a class="el" href="atomic__smart__ptr_8h-source.html#l00309">atomic_shared_ptr&lt; T &gt;::_leave_scan_()</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00275">atomic_shared_ptr&lt; T &gt;::_reserve_scan_()</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00156">atomic_shared_ptr&lt; T &gt;::RefcntNSerial::both</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00146">atomic_shared_ptr&lt; T &gt;::m_ptr_instant</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00188">atomic_shared_ptr&lt; T &gt;::m_ref</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00190">atomic_shared_ptr&lt; T &gt;::m_updatemutex</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00180">atomic_shared_ptr&lt; T &gt;::_RefLocal::pref</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00184">atomic_shared_ptr&lt; T &gt;::_RefLocal::pref_old</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00077">atomic_shared_ptr_ref&lt; T &gt;::refcnt</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00182">atomic_shared_ptr&lt; T &gt;::_RefLocal::refcnt_n_serial</a>, <a class="el" href="atomic__smart__ptr_8h-source.html#l00185">atomic_shared_ptr&lt; T &gt;::_RefLocal::serial_update</a>, と atomic_shared_ptr&lt; T &gt;::RefcntNSerial::split.
 <p>
-参照元 <a class="el" href="xlistnode_8cpp-source.html#l00008">XListNodeBase::clearChildren()</a>.    </td>
+参照元 <a class="el" href="xlistnode_8cpp-source.html#l00021">XListNodeBase::clearChildren()</a>.    </td>
   </tr>
 </table>
 <hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/<a class="el" href="atomic__smart__ptr_8h-source.html">atomic_smart_ptr.h</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 13:04:39 2007に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してWed Feb 28 04:17:18 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

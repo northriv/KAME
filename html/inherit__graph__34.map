@@ -1,2 +1,14 @@
 base referer
-rect $struct_x_list_node_base_1_1_move_event.html 9,8 195,34
+rect $struct_x_kame_error.html 9,159 105,186
+rect $struct_x_driver_1_1_x_record_error.html 214,58 372,85
+rect $struct_x_interface_1_1_x_interface_error.html 202,159 384,186
+rect $struct_x_raw_stream_record_reader_1_1_x_record_error.html 154,286 432,313
+rect $struct_x_driver_1_1_x_buffer_underflow_record_error.html 514,7 765,34
+rect $struct_x_driver_1_1_x_skipped_record_error.html 537,58 742,85
+rect $struct_x_interface_1_1_x_comm_error.html 556,109 724,135
+rect $struct_x_interface_1_1_x_conv_error.html 560,159 720,186
+rect $struct_x_interface_1_1_x_open_interface_error.html 533,210 746,237
+rect $struct_x_raw_stream_record_reader_1_1_x_broken_record_error.html 480,261 800,287
+rect $struct_x_raw_stream_record_reader_1_1_x_i_o_error.html 516,311 764,338
+rect $struct_x_raw_stream_record_reader_1_1_x_no_driver_error.html 497,362 782,389
+rect $struct_x_raw_stream_record_reader_1_1_x_buffer_overflow_error.html 849,311 1169,338

@@ -1,0 +1,466 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: kame/driver/nidaqmxdriver.cpp ソースファイル</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<div class="nav">
+<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000003.html">driver</a></div>
+<h1>nidaqmxdriver.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
+<a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
+<a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
+<a name="l00004"></a>00004 <span class="comment">                </span>
+<a name="l00005"></a>00005 <span class="comment">                This program is free software; you can redistribute it and/or</span>
+<a name="l00006"></a>00006 <span class="comment">                modify it under the terms of the GNU Library General Public</span>
+<a name="l00007"></a>00007 <span class="comment">                License as published by the Free Software Foundation; either</span>
+<a name="l00008"></a>00008 <span class="comment">                version 2 of the License, or (at your option) any later version.</span>
+<a name="l00009"></a>00009 <span class="comment">                </span>
+<a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
+<a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
+<a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
+<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00014"></a>00014 <span class="preprocessor">#include "nidaqmxdriver.h"</span>
+<a name="l00015"></a>00015 <span class="preprocessor">#include &lt;sys/errno.h&gt;</span>
+<a name="l00016"></a>00016 
+<a name="l00017"></a>00017 <span class="preprocessor">#ifdef HAVE_NI_DAQMX</span>
+<a name="l00018"></a>00018 <span class="preprocessor"></span>
+<a name="l00019"></a>00019 
+<a name="l00020"></a>00020 <span class="keyword">const</span> XNIDAQmxInterface::ProductInfo
+<a name="l00021"></a>00021 XNIDAQmxInterface::sc_productInfoList[] = {
+<a name="l00022"></a>00022         {<span class="stringliteral">"PCI-6110"</span>, <span class="stringliteral">"S"</span>, 0, 5000uL, 2500uL, 0, 0},
+<a name="l00023"></a>00023         {<span class="stringliteral">"PXI-6110"</span>, <span class="stringliteral">"S"</span>, 0, 5000uL, 2500uL, 0, 0},
+<a name="l00024"></a>00024         {<span class="stringliteral">"PCI-6111"</span>, <span class="stringliteral">"S"</span>, XNIDAQmxInterface::FLAG_BUGGY_DMA_AO, 5000uL, 2500uL, 0, 0},
+<a name="l00025"></a>00025         {<span class="stringliteral">"PXI-6111"</span>, <span class="stringliteral">"S"</span>, XNIDAQmxInterface::FLAG_BUGGY_DMA_AO, 5000uL, 2500uL, 0, 0},
+<a name="l00026"></a>00026         {<span class="stringliteral">"PCI-6115"</span>, <span class="stringliteral">"S"</span>, 0, 10000uL, 2500uL, 10000uL, 10000uL},
+<a name="l00027"></a>00027         {<span class="stringliteral">"PCI-6120"</span>, <span class="stringliteral">"S"</span>, 0, 800uL, 2500uL, 10000uL, 10000uL},
+<a name="l00028"></a>00028         {<span class="stringliteral">"PCI-6220"</span>, <span class="stringliteral">"M"</span>, 0, 250uL, 0, 1000uL, 1000uL},
+<a name="l00029"></a>00029         {<span class="stringliteral">"PXI-6220"</span>, <span class="stringliteral">"M"</span>, 0, 250uL, 0, 1000uL, 1000uL},
+<a name="l00030"></a>00030         {<span class="stringliteral">"PCI-6221"</span>, <span class="stringliteral">"M"</span>, 0, 250uL, 740uL, 1000uL, 1000uL},
+<a name="l00031"></a>00031         {<span class="stringliteral">"PXI-6221"</span>, <span class="stringliteral">"M"</span>, 0, 250uL, 740uL, 1000uL, 1000uL},
+<a name="l00032"></a>00032         {<span class="stringliteral">"PCI-6224"</span>, <span class="stringliteral">"M"</span>, 0, 250uL, 0, 1000uL, 1000uL},
+<a name="l00033"></a>00033         {<span class="stringliteral">"PXI-6224"</span>, <span class="stringliteral">"M"</span>, 0, 250uL, 0, 1000uL, 1000uL},
+<a name="l00034"></a>00034         {<span class="stringliteral">"PCI-6229"</span>, <span class="stringliteral">"M"</span>, 0, 250uL, 625uL, 1000uL, 1000uL},
+<a name="l00035"></a>00035         {<span class="stringliteral">"PXI-6229"</span>, <span class="stringliteral">"M"</span>, 0, 250uL, 625uL, 1000uL, 1000uL},
+<a name="l00036"></a>00036         {0, 0, 0, 0, 0, 0, 0},
+<a name="l00037"></a>00037 };
+<a name="l00038"></a>00038 
+<a name="l00039"></a>00039 <span class="comment">//for synchronization.</span>
+<a name="l00040"></a>00040 <span class="keyword">static</span> std::string g_pciClockMaster(<span class="stringliteral">""</span>);
+<a name="l00041"></a>00041 <span class="keyword">static</span> float64 g_pciClockMasterRate = 0.0;
+<a name="l00042"></a>00042 <span class="keyword">static</span> <span class="keywordtype">int</span> g_daqmx_open_cnt;
+<a name="l00043"></a>00043 <span class="keyword">static</span> <a class="code" href="class_x_mutex.html">XMutex</a> g_daqmx_mutex;
+<a name="l00044"></a>00044 <span class="keyword">static</span> std::deque&lt;shared_ptr&lt;XNIDAQmxInterface::XNIDAQmxRoute&gt; &gt; g_daqmx_sync_routes;
+<a name="l00045"></a>00045 
+<a name="l00046"></a>00046 <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList&gt;</a>
+<a name="l00047"></a>00047 XNIDAQmxInterface::SoftwareTrigger::s_virtualTrigList;
+<a name="l00048"></a>00048 
+<a name="l00049"></a>00049 <span class="keywordtype">void</span>
+<a name="l00050"></a>00050 XNIDAQmxInterface::SoftwareTrigger::registerSoftwareTrigger(<span class="keyword">const</span> shared_ptr&lt;SoftwareTrigger&gt; &amp;item)
+<a name="l00051"></a>00051 {
+<a name="l00052"></a>00052      <span class="keywordflow">for</span>(;;) {
+<a name="l00053"></a>00053         <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;SoftwareTriggerList&gt;</a> old_list(s_virtualTrigList);
+<a name="l00054"></a>00054         <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;SoftwareTriggerList&gt;</a> new_list(
+<a name="l00055"></a>00055             old_list ? (<span class="keyword">new</span> SoftwareTriggerList(*old_list)) : (<span class="keyword">new</span> SoftwareTriggerList));
+<a name="l00056"></a>00056         <span class="comment">// clean-up dead listeners.</span>
+<a name="l00057"></a>00057         <span class="keywordflow">for</span>(SoftwareTriggerList_it it = new_list-&gt;begin(); it != new_list-&gt;end();) {
+<a name="l00058"></a>00058             <span class="keywordflow">if</span>(!it-&gt;lock())
+<a name="l00059"></a>00059                 it = new_list-&gt;erase(it);
+<a name="l00060"></a>00060             <span class="keywordflow">else</span>
+<a name="l00061"></a>00061                 it++;
+<a name="l00062"></a>00062         }
+<a name="l00063"></a>00063         new_list-&gt;push_back(item);
+<a name="l00064"></a>00064         <span class="keywordflow">if</span>(new_list.compareAndSwap(old_list, s_virtualTrigList)) <span class="keywordflow">break</span>;
+<a name="l00065"></a>00065     }   
+<a name="l00066"></a>00066 }
+<a name="l00067"></a>00067 
+<a name="l00068"></a>00068 XNIDAQmxInterface::SoftwareTrigger::SoftwareTrigger(<span class="keyword">const</span> <span class="keywordtype">char</span> *label, <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> bits)
+<a name="l00069"></a>00069  : m_label(label), m_bits(bits),
+<a name="l00070"></a>00070  m_risingEdgeMask(0u), m_fallingEdgeMask(0u) {
+<a name="l00071"></a>00071         _clear();
+<a name="l00072"></a>00072 }
+<a name="l00073"></a>00073 XNIDAQmxInterface::SoftwareTrigger::~SoftwareTrigger() {
+<a name="l00074"></a>00074 }
+<a name="l00075"></a>00075 <span class="keywordtype">void</span>
+<a name="l00076"></a>00076 XNIDAQmxInterface::SoftwareTrigger::_clear() {
+<a name="l00077"></a>00077         <span class="keywordflow">while</span>(!m_fastQueue.empty())
+<a name="l00078"></a>00078                 m_fastQueue.pop();
+<a name="l00079"></a>00079         m_slowQueue.clear();
+<a name="l00080"></a>00080         m_slowQueueSize = 0;
+<a name="l00081"></a>00081 }
+<a name="l00082"></a>00082 <span class="keywordtype">void</span>
+<a name="l00083"></a>00083 XNIDAQmxInterface::SoftwareTrigger::stamp(uint64_t cnt) {
+<a name="l00084"></a>00084         readBarrier();
+<a name="l00085"></a>00085         <span class="keywordflow">if</span>(cnt &lt; m_endOfBlank) <span class="keywordflow">return</span>;
+<a name="l00086"></a>00086         <span class="keywordflow">if</span>(cnt == 0) <span class="keywordflow">return</span>; <span class="comment">//ignore.</span>
+<a name="l00087"></a>00087         <span class="keywordflow">try</span> {
+<a name="l00088"></a>00088                 m_fastQueue.push(cnt);
+<a name="l00089"></a>00089         }
+<a name="l00090"></a>00090         <span class="keywordflow">catch</span> (FastQueue::nospace_error&amp;) {
+<a name="l00091"></a>00091                 <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> lock(m_mutex);
+<a name="l00092"></a>00092                 m_slowQueue.push_back(cnt);
+<a name="l00093"></a>00093                 <span class="keywordflow">if</span>(m_slowQueue.size() &gt; 100000u)
+<a name="l00094"></a>00094                         m_slowQueue.pop_front();
+<a name="l00095"></a>00095                 <span class="keywordflow">else</span>
+<a name="l00096"></a>00096                         ++m_slowQueueSize;
+<a name="l00097"></a>00097         }
+<a name="l00098"></a>00098         m_endOfBlank = cnt + m_blankTerm;
+<a name="l00099"></a>00099 }
+<a name="l00100"></a>00100 <span class="keywordtype">void</span>
+<a name="l00101"></a>00101 XNIDAQmxInterface::SoftwareTrigger::start(float64 freq) {
+<a name="l00102"></a>00102         {
+<a name="l00103"></a>00103                 <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> lock(m_mutex);
+<a name="l00104"></a>00104                 m_endOfBlank = 0;
+<a name="l00105"></a>00105                 <span class="keywordflow">if</span>(!m_blankTerm) m_blankTerm = lrint(0.02 * freq);
+<a name="l00106"></a>00106                 m_freq = freq;
+<a name="l00107"></a>00107                 _clear();
+<a name="l00108"></a>00108         }
+<a name="l00109"></a>00109         onStart().talk(shared_from_this());
+<a name="l00110"></a>00110 }
+<a name="l00111"></a>00111 
+<a name="l00112"></a>00112 <span class="keywordtype">void</span>
+<a name="l00113"></a>00113 XNIDAQmxInterface::SoftwareTrigger::stop() {
+<a name="l00114"></a>00114         <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> lock(m_mutex);
+<a name="l00115"></a>00115         _clear();
+<a name="l00116"></a>00116         m_endOfBlank = (uint64_t)-1LL;
+<a name="l00117"></a>00117 }
+<a name="l00118"></a>00118 <span class="keywordtype">void</span>
+<a name="l00119"></a>00119 XNIDAQmxInterface::SoftwareTrigger::connect(uint32_t rising_edge_mask, 
+<a name="l00120"></a>00120         uint32_t falling_edge_mask) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterface::XInterfaceError</a> &amp;) {
+<a name="l00121"></a>00121         <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> lock(m_mutex);
+<a name="l00122"></a>00122         _clear();
+<a name="l00123"></a>00123         <span class="keywordflow">if</span>(m_risingEdgeMask || m_fallingEdgeMask)
+<a name="l00124"></a>00124                 <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterface::XInterfaceError</a>(
+<a name="l00125"></a>00125                         <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Duplicated connection to virtual trigger is not supported."</span>), __FILE__, __LINE__);
+<a name="l00126"></a>00126         m_risingEdgeMask = rising_edge_mask;
+<a name="l00127"></a>00127         m_fallingEdgeMask = falling_edge_mask;
+<a name="l00128"></a>00128 }
+<a name="l00129"></a>00129 <span class="keywordtype">void</span>
+<a name="l00130"></a>00130 XNIDAQmxInterface::SoftwareTrigger::disconnect() {
+<a name="l00131"></a>00131         <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> lock(m_mutex);
+<a name="l00132"></a>00132         _clear();
+<a name="l00133"></a>00133         m_risingEdgeMask = 0;
+<a name="l00134"></a>00134         m_fallingEdgeMask = 0;
+<a name="l00135"></a>00135 }
+<a name="l00136"></a>00136 uint64_t
+<a name="l00137"></a>00137 XNIDAQmxInterface::SoftwareTrigger::front(float64 _freq) {
+<a name="l00138"></a>00138         uint64_t cnt;
+<a name="l00139"></a>00139         <span class="keywordflow">if</span>(m_slowQueueSize) {
+<a name="l00140"></a>00140                 <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> lock(m_mutex);
+<a name="l00141"></a>00141                 <span class="keywordflow">if</span>(m_fastQueue.size()) {
+<a name="l00142"></a>00142                         <span class="keywordflow">if</span>(m_fastQueue.front() &lt; m_slowQueue.front())
+<a name="l00143"></a>00143                                 cnt = m_fastQueue.front();
+<a name="l00144"></a>00144                         <span class="keywordflow">else</span>
+<a name="l00145"></a>00145                                 cnt = m_slowQueue.front();                      
+<a name="l00146"></a>00146                 }
+<a name="l00147"></a>00147                 <span class="keywordflow">else</span>
+<a name="l00148"></a>00148                         cnt = m_slowQueue.front();
+<a name="l00149"></a>00149         }
+<a name="l00150"></a>00150         <span class="keywordflow">else</span> {
+<a name="l00151"></a>00151                 <span class="keywordflow">if</span>(m_fastQueue.size()) {
+<a name="l00152"></a>00152                         cnt = m_fastQueue.front();
+<a name="l00153"></a>00153                 }
+<a name="l00154"></a>00154                 <span class="keywordflow">else</span>
+<a name="l00155"></a>00155                         <span class="keywordflow">return</span> 0uLL;
+<a name="l00156"></a>00156         }
+<a name="l00157"></a>00157         
+<a name="l00158"></a>00158         <span class="keywordflow">if</span>(_freq &gt; freq())
+<a name="l00159"></a>00159                 cnt *= lrint(_freq / freq());
+<a name="l00160"></a>00160         <span class="keywordflow">else</span>
+<a name="l00161"></a>00161                 cnt /= lrint(freq() / _freq);
+<a name="l00162"></a>00162         ASSERT(cnt != 0);
+<a name="l00163"></a>00163         <span class="keywordflow">return</span> cnt;
+<a name="l00164"></a>00164 }
+<a name="l00165"></a>00165 <span class="keywordtype">void</span>
+<a name="l00166"></a>00166 XNIDAQmxInterface::SoftwareTrigger::pop() {
+<a name="l00167"></a>00167         <span class="keywordflow">if</span>(m_slowQueueSize) {
+<a name="l00168"></a>00168                 <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> lock(m_mutex);
+<a name="l00169"></a>00169                 <span class="keywordflow">if</span>(m_fastQueue.size()) {
+<a name="l00170"></a>00170                         <span class="keywordflow">if</span>(m_fastQueue.front() &lt; m_slowQueue.front())
+<a name="l00171"></a>00171                                 m_fastQueue.pop();
+<a name="l00172"></a>00172                         <span class="keywordflow">else</span> {
+<a name="l00173"></a>00173                                 m_slowQueue.pop_front();                        
+<a name="l00174"></a>00174                                 --m_slowQueueSize;
+<a name="l00175"></a>00175                         }
+<a name="l00176"></a>00176                 }
+<a name="l00177"></a>00177                 <span class="keywordflow">else</span> {
+<a name="l00178"></a>00178                         m_slowQueue.pop_front();
+<a name="l00179"></a>00179                         --m_slowQueueSize;
+<a name="l00180"></a>00180                 }
+<a name="l00181"></a>00181         }
+<a name="l00182"></a>00182         <span class="keywordflow">else</span> {
+<a name="l00183"></a>00183                 <span class="keywordflow">if</span>(m_fastQueue.size()) {
+<a name="l00184"></a>00184                         m_fastQueue.pop();
+<a name="l00185"></a>00185                 }
+<a name="l00186"></a>00186                 <span class="keywordflow">else</span>
+<a name="l00187"></a>00187                         ASSERT(0);
+<a name="l00188"></a>00188         }
+<a name="l00189"></a>00189 }
+<a name="l00190"></a>00190 <span class="keywordtype">void</span>
+<a name="l00191"></a>00191 XNIDAQmxInterface::SoftwareTrigger::clear(uint64_t now, float64 _freq) {
+<a name="l00192"></a>00192         <span class="keywordflow">if</span>(_freq &gt; freq())
+<a name="l00193"></a>00193                 now /= lrint(_freq / freq());
+<a name="l00194"></a>00194         <span class="keywordflow">else</span>
+<a name="l00195"></a>00195                 now *= lrint(freq() / _freq);
+<a name="l00196"></a>00196 
+<a name="l00197"></a>00197         <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> lock(m_mutex);
+<a name="l00198"></a>00198         <span class="keywordflow">while</span>(m_fastQueue.size() &amp;&amp; (m_fastQueue.front() &lt;= now))
+<a name="l00199"></a>00199                 m_fastQueue.pop();
+<a name="l00200"></a>00200         <span class="keywordflow">while</span>(m_slowQueue.size() &amp;&amp; (m_slowQueue.front() &lt;= now)) {
+<a name="l00201"></a>00201                 m_slowQueue.pop_front();
+<a name="l00202"></a>00202                 --m_slowQueueSize;
+<a name="l00203"></a>00203         }
+<a name="l00204"></a>00204 }
+<a name="l00205"></a>00205 <span class="keywordtype">void</span>
+<a name="l00206"></a>00206 XNIDAQmxInterface::SoftwareTrigger::forceStamp(uint64_t now, float64 _freq) {
+<a name="l00207"></a>00207         <span class="keywordflow">if</span>(_freq &gt; freq())
+<a name="l00208"></a>00208                 now /= lrint(_freq / freq());
+<a name="l00209"></a>00209         <span class="keywordflow">else</span>
+<a name="l00210"></a>00210                 now *= lrint(freq() / _freq);
+<a name="l00211"></a>00211                 
+<a name="l00212"></a>00212         <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> lock(m_mutex);
+<a name="l00213"></a>00213         ++m_slowQueueSize;
+<a name="l00214"></a>00214         m_slowQueue.push_front(now);
+<a name="l00215"></a>00215         std::sort(m_slowQueue.begin(), m_slowQueue.end());
+<a name="l00216"></a>00216 }
+<a name="l00217"></a>00217 
+<a name="l00218"></a>00218 <span class="keyword">const</span> <span class="keywordtype">char</span> *
+<a name="l00219"></a>00219 XNIDAQmxInterface::busArchType()<span class="keyword"> const </span>{
+<a name="l00220"></a>00220         int32 bus;
+<a name="l00221"></a>00221         DAQmxGetDevBusType(devName(), &amp;bus);
+<a name="l00222"></a>00222         <span class="keywordflow">switch</span>(bus) {
+<a name="l00223"></a>00223         <span class="keywordflow">case</span> DAQmx_Val_PCI:
+<a name="l00224"></a>00224         <span class="keywordflow">case</span> DAQmx_Val_PCIe:
+<a name="l00225"></a>00225                 <span class="keywordflow">return</span> <span class="stringliteral">"PCI"</span>;
+<a name="l00226"></a>00226         <span class="keywordflow">case</span> DAQmx_Val_PXI:
+<a name="l00227"></a>00227 <span class="comment">//      case DAQmx_Val_PXIe:</span>
+<a name="l00228"></a>00228                 <span class="keywordflow">return</span> <span class="stringliteral">"PXI"</span>;
+<a name="l00229"></a>00229         <span class="keywordflow">case</span> DAQmx_Val_USB:
+<a name="l00230"></a>00230                 <span class="keywordflow">return</span> <span class="stringliteral">"USB"</span>;
+<a name="l00231"></a>00231         <span class="keywordflow">default</span>:
+<a name="l00232"></a>00232                 <span class="keywordflow">return</span> <span class="stringliteral">"Unknown"</span>;
+<a name="l00233"></a>00233         }
+<a name="l00234"></a>00234 }
+<a name="l00235"></a>00235 <span class="keywordtype">void</span>
+<a name="l00236"></a>00236 XNIDAQmxInterface::synchronizeClock(TaskHandle task)
+<a name="l00237"></a>00237 {
+<a name="l00238"></a>00238         <span class="keyword">const</span> float64 rate = g_pciClockMasterRate;
+<a name="l00239"></a>00239         <span class="keyword">const</span> std::string src = formatString(<span class="stringliteral">"/%s/RTSI7"</span>, devName());
+<a name="l00240"></a>00240 
+<a name="l00241"></a>00241         <span class="keywordflow">if</span>(devName() == g_pciClockMaster) {
+<a name="l00242"></a>00242                 <span class="keywordflow">return</span>;
+<a name="l00243"></a>00243         }
+<a name="l00244"></a>00244         
+<a name="l00245"></a>00245         <span class="keywordflow">if</span>(productSeries() == std::string(<span class="stringliteral">"M"</span>)) {
+<a name="l00246"></a>00246                 <span class="keywordflow">if</span>(busArchType() == std::string(<span class="stringliteral">"PCI"</span>)) {
+<a name="l00247"></a>00247                         CHECK_DAQMX_RET(DAQmxSetRefClkSrc(task, src.c_str()));
+<a name="l00248"></a>00248                         CHECK_DAQMX_RET(DAQmxSetRefClkRate(task, rate));
+<a name="l00249"></a>00249                 }
+<a name="l00250"></a>00250                 <span class="keywordflow">if</span>(busArchType() == std::string(<span class="stringliteral">"PXI"</span>)) {
+<a name="l00251"></a>00251                         CHECK_DAQMX_RET(DAQmxSetRefClkSrc(task,<span class="stringliteral">"PXI_Clk10"</span>));
+<a name="l00252"></a>00252                         CHECK_DAQMX_RET(DAQmxSetRefClkRate(task, 10e6));
+<a name="l00253"></a>00253                 }
+<a name="l00254"></a>00254         }
+<a name="l00255"></a>00255         <span class="keywordflow">if</span>(productSeries() == std::string(<span class="stringliteral">"S"</span>)) {
+<a name="l00256"></a>00256                 <span class="keywordflow">if</span>(busArchType() == std::string(<span class="stringliteral">"PCI"</span>)) {
+<a name="l00257"></a>00257                         CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(task, src.c_str()));
+<a name="l00258"></a>00258                         CHECK_DAQMX_RET(DAQmxSetMasterTimebaseRate(task, rate));
+<a name="l00259"></a>00259                 }
+<a name="l00260"></a>00260                 <span class="keywordflow">if</span>(busArchType() == std::string(<span class="stringliteral">"PXI"</span>)) {
+<a name="l00261"></a>00261                         CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(task,<span class="stringliteral">"PXI_Clk10"</span>));
+<a name="l00262"></a>00262                         CHECK_DAQMX_RET(DAQmxSetMasterTimebaseRate(task, 10e6));
+<a name="l00263"></a>00263                 }
+<a name="l00264"></a>00264         }
+<a name="l00265"></a>00265 }
+<a name="l00266"></a>00266 
+<a name="l00267"></a>00267 QString
+<a name="l00268"></a>00268 XNIDAQmxInterface::getNIDAQmxErrMessage()
+<a name="l00269"></a>00269 {
+<a name="l00270"></a>00270 <span class="keywordtype">char</span> str[2048];
+<a name="l00271"></a>00271         DAQmxGetExtendedErrorInfo(str, <span class="keyword">sizeof</span>(str));
+<a name="l00272"></a>00272         errno = 0;
+<a name="l00273"></a>00273         <span class="keywordflow">return</span> QString(str);
+<a name="l00274"></a>00274 }
+<a name="l00275"></a>00275 QString
+<a name="l00276"></a>00276 XNIDAQmxInterface::getNIDAQmxErrMessage(<span class="keywordtype">int</span> status)
+<a name="l00277"></a>00277 {
+<a name="l00278"></a>00278 <span class="keywordtype">char</span> str[2048];
+<a name="l00279"></a>00279         DAQmxGetErrorString(status, str, <span class="keyword">sizeof</span>(str));
+<a name="l00280"></a>00280         errno = 0;
+<a name="l00281"></a>00281         <span class="keywordflow">return</span> QString(str);
+<a name="l00282"></a>00282 }
+<a name="l00283"></a>00283 <span class="keywordtype">int</span>
+<a name="l00284"></a>00284 XNIDAQmxInterface::checkDAQmxError(<span class="keywordtype">int</span> ret, <span class="keyword">const</span> <span class="keywordtype">char</span>*file, <span class="keywordtype">int</span> line) {
+<a name="l00285"></a>00285         <span class="keywordflow">if</span>(ret &gt;= 0) <span class="keywordflow">return</span> ret;
+<a name="l00286"></a>00286         errno = 0;
+<a name="l00287"></a>00287         <span class="keywordflow">throw</span> <a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterface::XInterfaceError</a>(getNIDAQmxErrMessage(), file, line);
+<a name="l00288"></a>00288         <span class="keywordflow">return</span> 0;
+<a name="l00289"></a>00289 }
+<a name="l00290"></a>00290 
+<a name="l00291"></a>00291 <span class="keywordtype">void</span>
+<a name="l00292"></a>00292 XNIDAQmxInterface::parseList(<span class="keyword">const</span> <span class="keywordtype">char</span> *str, std::deque&lt;std::string&gt; &amp;list)
+<a name="l00293"></a>00293 {
+<a name="l00294"></a>00294         list.clear();
+<a name="l00295"></a>00295         std::string org(str);
+<a name="l00296"></a>00296         <span class="keyword">const</span> <span class="keywordtype">char</span> *del = <span class="stringliteral">", \t"</span>;
+<a name="l00297"></a>00297         <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> pos = 0; pos != std::string::npos; ) {
+<a name="l00298"></a>00298                 <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> spos = org.find_first_not_of(del, pos);
+<a name="l00299"></a>00299                 <span class="keywordflow">if</span>(spos == std::string::npos) <span class="keywordflow">break</span>;
+<a name="l00300"></a>00300                 pos = org.find_first_of(del, spos);
+<a name="l00301"></a>00301                 <span class="keywordflow">if</span>(pos == std::string::npos)
+<a name="l00302"></a>00302                         list.push_back(org.substr(spos));
+<a name="l00303"></a>00303                 <span class="keywordflow">else</span>
+<a name="l00304"></a>00304                         list.push_back(org.substr(spos, pos - spos));
+<a name="l00305"></a>00305         }
+<a name="l00306"></a>00306 }
+<a name="l00307"></a>00307 
+<a name="l00308"></a>00308 
+<a name="l00309"></a>00309 XNIDAQmxInterface::XNIDAQmxInterface(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;driver) : 
+<a name="l00310"></a>00310     <a class="code" href="class_x_interface.html">XInterface</a>(name, runtime, driver)
+<a name="l00311"></a>00311 {
+<a name="l00312"></a>00312 <span class="keywordtype">char</span> buf[2048];
+<a name="l00313"></a>00313         CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, <span class="keyword">sizeof</span>(buf)));
+<a name="l00314"></a>00314 std::deque&lt;std::string&gt; list;
+<a name="l00315"></a>00315         parseList(buf, list);
+<a name="l00316"></a>00316         <span class="keywordflow">for</span>(std::deque&lt;std::string&gt;::iterator it = list.begin(); it != list.end(); it++) {
+<a name="l00317"></a>00317                 CHECK_DAQMX_RET(DAQmxGetDevProductType(it-&gt;c_str(), buf, <span class="keyword">sizeof</span>(buf)));
+<a name="l00318"></a>00318                 device()-&gt;add(*it + <span class="stringliteral">" ["</span> + buf + <span class="stringliteral">"]"</span>);
+<a name="l00319"></a>00319         }
+<a name="l00320"></a>00320 }
+<a name="l00321"></a>00321 XNIDAQmxInterface::XNIDAQmxRoute::XNIDAQmxRoute(<span class="keyword">const</span> <span class="keywordtype">char</span>*src, <span class="keyword">const</span> <span class="keywordtype">char</span>*dst, <span class="keywordtype">int</span> *pret)
+<a name="l00322"></a>00322  : m_src(src), m_dst(dst)
+<a name="l00323"></a>00323 {
+<a name="l00324"></a>00324         <span class="keywordflow">if</span>(pret) {
+<a name="l00325"></a>00325         <span class="keywordtype">int</span> ret = 0;
+<a name="l00326"></a>00326             ret = DAQmxConnectTerms(src, dst, DAQmx_Val_DoNotInvertPolarity);
+<a name="l00327"></a>00327             <span class="keywordflow">if</span>(ret &lt; 0)
+<a name="l00328"></a>00328                         m_src.clear();
+<a name="l00329"></a>00329                 *pret = ret;
+<a name="l00330"></a>00330         }
+<a name="l00331"></a>00331         <span class="keywordflow">else</span> {
+<a name="l00332"></a>00332                 <span class="keywordflow">try</span> {
+<a name="l00333"></a>00333                     CHECK_DAQMX_ERROR(DAQmxConnectTerms(src, dst, DAQmx_Val_DoNotInvertPolarity));
+<a name="l00334"></a>00334                     dbgPrint(QString(<span class="stringliteral">"Connect route from %1 to %2."</span>).arg(src).arg(dst));
+<a name="l00335"></a>00335                 }
+<a name="l00336"></a>00336                 <span class="keywordflow">catch</span> (<a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterface::XInterfaceError</a> &amp;e) {
+<a name="l00337"></a>00337                         e.<a class="code" href="struct_x_kame_error.html#a1">print</a>();
+<a name="l00338"></a>00338                         m_src.clear();
+<a name="l00339"></a>00339                 }
+<a name="l00340"></a>00340         }
+<a name="l00341"></a>00341 }
+<a name="l00342"></a>00342 XNIDAQmxInterface::XNIDAQmxRoute::~XNIDAQmxRoute()
+<a name="l00343"></a>00343 {
+<a name="l00344"></a>00344         <span class="keywordflow">if</span>(!m_src.length()) <span class="keywordflow">return</span>;
+<a name="l00345"></a>00345         <span class="keywordflow">try</span> {
+<a name="l00346"></a>00346             CHECK_DAQMX_RET(DAQmxDisconnectTerms(m_src.c_str(), m_dst.c_str()));
+<a name="l00347"></a>00347             dbgPrint(QString(<span class="stringliteral">"Disconnect route from %1 to %2."</span>).arg(m_src).arg(m_dst));
+<a name="l00348"></a>00348         }
+<a name="l00349"></a>00349         <span class="keywordflow">catch</span> (<a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterface::XInterfaceError</a> &amp;e) {
+<a name="l00350"></a>00350                 e.<a class="code" href="struct_x_kame_error.html#a1">print</a>();
+<a name="l00351"></a>00351         }
+<a name="l00352"></a>00352 }
+<a name="l00353"></a>00353 <span class="keywordtype">void</span>
+<a name="l00354"></a>00354 XNIDAQmxInterface::open() throw (XInterfaceError &amp;)
+<a name="l00355"></a>00355 {
+<a name="l00356"></a>00356 <span class="keywordtype">char</span> buf[256];
+<a name="l00357"></a>00357 
+<a name="l00358"></a>00358         <span class="keywordflow">if</span>(sscanf(device()-&gt;to_str().c_str(), <span class="stringliteral">"%256s"</span>, buf) != 1)
+<a name="l00359"></a>00359                 <span class="keywordflow">throw</span> XOpenInterfaceError(__FILE__, __LINE__);
+<a name="l00360"></a>00360 
+<a name="l00361"></a>00361         <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> lock(g_daqmx_mutex);
+<a name="l00362"></a>00362         <span class="keywordflow">if</span>(g_daqmx_open_cnt == 0) {
+<a name="l00363"></a>00363 <span class="comment">//          CHECK_DAQMX_RET(DAQmxCreateTask("", &amp;g_task_sync_master));</span>
+<a name="l00364"></a>00364         <span class="keywordtype">char</span> buf[2048];         
+<a name="l00365"></a>00365                 CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, <span class="keyword">sizeof</span>(buf)));
+<a name="l00366"></a>00366         std::deque&lt;std::string&gt; list;
+<a name="l00367"></a>00367                 XNIDAQmxInterface::parseList(buf, list);
+<a name="l00368"></a>00368                 std::deque&lt;std::string&gt; pcidevs;
+<a name="l00369"></a>00369                 <span class="keywordflow">for</span>(std::deque&lt;std::string&gt;::iterator it = list.begin(); it != list.end(); it++) {
+<a name="l00370"></a>00370                         <span class="comment">// Device reset.</span>
+<a name="l00371"></a>00371                         DAQmxResetDevice(it-&gt;c_str());
+<a name="l00372"></a>00372                         <span class="comment">// Search for master clock among PCI(e) devices.</span>
+<a name="l00373"></a>00373                         int32 bus;
+<a name="l00374"></a>00374                         DAQmxGetDevBusType(it-&gt;c_str(), &amp;bus);
+<a name="l00375"></a>00375                         <span class="keywordflow">if</span>((bus == DAQmx_Val_PCI) || (bus == DAQmx_Val_PCIe)) {
+<a name="l00376"></a>00376                                 pcidevs.push_back(*it);
+<a name="l00377"></a>00377                         }
+<a name="l00378"></a>00378                 }
+<a name="l00379"></a>00379                 <span class="keywordflow">if</span>(pcidevs.size() &gt; 1) {
+<a name="l00380"></a>00380                         <span class="keywordflow">for</span>(std::deque&lt;std::string&gt;::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
+<a name="l00381"></a>00381                                 CHECK_DAQMX_RET(DAQmxGetDevProductType(it-&gt;c_str(), buf, <span class="keyword">sizeof</span>(buf)));
+<a name="l00382"></a>00382                                 std::string type = buf;
+<a name="l00383"></a>00383                                 <span class="keywordflow">for</span>(<span class="keyword">const</span> ProductInfo *pit = sc_productInfoList; pit-&gt;type; pit++) {
+<a name="l00384"></a>00384                                         <span class="keywordflow">if</span>((pit-&gt;type == type) &amp;&amp; (pit-&gt;series == std::string(<span class="stringliteral">"S"</span>))) {
+<a name="l00385"></a>00385                                                 <span class="comment">//M series device cannot export 20MHzTimebase freely.</span>
+<a name="l00386"></a>00386                                                 <span class="comment">//RTSI synchronizations.</span>
+<a name="l00387"></a>00387                                                 shared_ptr&lt;XNIDAQmxInterface::XNIDAQmxRoute&gt; route;
+<a name="l00388"></a>00388                                                 float64 freq = 20.0e6;
+<a name="l00389"></a>00389                                                 route.reset(<span class="keyword">new</span> XNIDAQmxInterface::XNIDAQmxRoute(
+<a name="l00390"></a>00390                                                         formatString(<span class="stringliteral">"/%s/20MHzTimebase"</span>, it-&gt;c_str()).c_str(),
+<a name="l00391"></a>00391                                                         formatString(<span class="stringliteral">"/%s/RTSI7"</span>, it-&gt;c_str()).c_str()));
+<a name="l00392"></a>00392                                                 g_daqmx_sync_routes.push_back(route);
+<a name="l00393"></a>00393                                                 fprintf(stderr, <span class="stringliteral">"20MHz Reference Clock exported from %s\n"</span>, it-&gt;c_str());
+<a name="l00394"></a>00394                                                 g_pciClockMaster = *it;
+<a name="l00395"></a>00395                                                 g_pciClockMasterRate = freq;
+<a name="l00396"></a>00396                                                 <span class="keywordflow">break</span>;
+<a name="l00397"></a>00397                                         }
+<a name="l00398"></a>00398                                 }
+<a name="l00399"></a>00399                         }
+<a name="l00400"></a>00400                         <span class="keywordflow">if</span>(!g_pciClockMaster.length()) {
+<a name="l00401"></a>00401                                 <span class="keywordflow">for</span>(std::deque&lt;std::string&gt;::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
+<a name="l00402"></a>00402                                         <span class="comment">//Assuming M series only.</span>
+<a name="l00403"></a>00403                                         CHECK_DAQMX_RET(DAQmxGetDevProductType(it-&gt;c_str(), buf, <span class="keyword">sizeof</span>(buf)));
+<a name="l00404"></a>00404                                         std::string type = buf;
+<a name="l00405"></a>00405                                         <span class="keywordflow">for</span>(<span class="keyword">const</span> ProductInfo *pit = sc_productInfoList; pit-&gt;type; pit++) {
+<a name="l00406"></a>00406                                                 <span class="keywordflow">if</span>((pit-&gt;type == type) &amp;&amp; (pit-&gt;series == std::string(<span class="stringliteral">"M"</span>))) {
+<a name="l00407"></a>00407                                                         <span class="comment">//RTSI synchronizations.</span>
+<a name="l00408"></a>00408                                                         shared_ptr&lt;XNIDAQmxInterface::XNIDAQmxRoute&gt; route;
+<a name="l00409"></a>00409                                                         float64 freq = 10.0e6;
+<a name="l00410"></a>00410                                                         route.reset(<span class="keyword">new</span> XNIDAQmxInterface::XNIDAQmxRoute(
+<a name="l00411"></a>00411                                                                 formatString(<span class="stringliteral">"/%s/10MHzRefClock"</span>, it-&gt;c_str()).c_str(),
+<a name="l00412"></a>00412                                                                 formatString(<span class="stringliteral">"/%s/RTSI7"</span>, it-&gt;c_str()).c_str()));
+<a name="l00413"></a>00413                                                         g_daqmx_sync_routes.push_back(route);
+<a name="l00414"></a>00414                                                         fprintf(stderr, <span class="stringliteral">"10MHz Reference Clock exported from %s\n"</span>, it-&gt;c_str());
+<a name="l00415"></a>00415                                                         g_pciClockMaster = *it;
+<a name="l00416"></a>00416                                                         g_pciClockMasterRate = freq;
+<a name="l00417"></a>00417                                                         <span class="keywordflow">break</span>;
+<a name="l00418"></a>00418                                                 }
+<a name="l00419"></a>00419                                         }
+<a name="l00420"></a>00420                                 }
+<a name="l00421"></a>00421                         }
+<a name="l00422"></a>00422                 }
+<a name="l00423"></a>00423         }
+<a name="l00424"></a>00424         g_daqmx_open_cnt++;
+<a name="l00425"></a>00425 
+<a name="l00426"></a>00426         std::string devname = buf;
+<a name="l00427"></a>00427         CHECK_DAQMX_RET(DAQmxGetDevProductType(devname.c_str(), buf, <span class="keyword">sizeof</span>(buf)));
+<a name="l00428"></a>00428         std::string type = buf;
+<a name="l00429"></a>00429         
+<a name="l00430"></a>00430         <span class="keywordflow">for</span>(<span class="keyword">const</span> ProductInfo *it = sc_productInfoList; it-&gt;type; it++) {
+<a name="l00431"></a>00431                 <span class="keywordflow">if</span>(it-&gt;type == type) {
+<a name="l00432"></a>00432                         m_productInfo = it;
+<a name="l00433"></a>00433                         m_devname = devname;
+<a name="l00434"></a>00434                         <span class="keywordflow">return</span>;
+<a name="l00435"></a>00435                 }
+<a name="l00436"></a>00436         }
+<a name="l00437"></a>00437         <span class="keywordflow">throw</span> XInterfaceError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"No device info. for product [%1]."</span>).arg(type), __FILE__, __LINE__);
+<a name="l00438"></a>00438 }
+<a name="l00439"></a>00439 <span class="keywordtype">void</span>
+<a name="l00440"></a>00440 XNIDAQmxInterface::close() throw (XInterfaceError &amp;)
+<a name="l00441"></a>00441 {
+<a name="l00442"></a>00442         <span class="keywordflow">if</span>(m_devname.length()) {
+<a name="l00443"></a>00443                 m_devname.clear();
+<a name="l00444"></a>00444 
+<a name="l00445"></a>00445                 <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> lock(g_daqmx_mutex);
+<a name="l00446"></a>00446                 g_daqmx_open_cnt--;
+<a name="l00447"></a>00447                 <span class="keywordflow">if</span>(g_daqmx_open_cnt == 0) {
+<a name="l00448"></a>00448                         g_daqmx_sync_routes.clear();
+<a name="l00449"></a>00449                 }
+<a name="l00450"></a>00450         }
+<a name="l00451"></a>00451 }
+<a name="l00452"></a>00452 <span class="preprocessor">#endif //HAVE_NI_DAQMX</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してWed Feb 28 04:17:10 2007に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+</body>
+</html>

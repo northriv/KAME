@@ -7,355 +7,368 @@
 <div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
 <a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000006.html">graph</a></div>
-<h1>xwavengraph.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#include "xwavengraph.h"</span>
-<a name="l00002"></a>00002 
-<a name="l00003"></a>00003 <span class="preprocessor">#include "forms/graphnurlform.h"</span>
-<a name="l00004"></a>00004 <span class="preprocessor">#include "graphwidget.h"</span>
-<a name="l00005"></a>00005 <span class="preprocessor">#include "graph.h"</span>
-<a name="l00006"></a>00006 
-<a name="l00007"></a>00007 <span class="preprocessor">#include &lt;kurlrequester.h&gt;</span>
-<a name="l00008"></a>00008 <span class="preprocessor">#include &lt;qpushbutton.h&gt;</span>
-<a name="l00009"></a>00009 <span class="preprocessor">#include &lt;kiconloader.h&gt;</span>
-<a name="l00010"></a>00010 <span class="preprocessor">#include &lt;kapplication.h&gt;</span>
-<a name="l00011"></a>00011 <span class="preprocessor">#include &lt;qstatusbar.h&gt;</span>
-<a name="l00012"></a>00012 <span class="preprocessor">#include &lt;klocale.h&gt;</span>
-<a name="l00013"></a>00013 
-<a name="l00014"></a>00014 <span class="preprocessor">#define OFSMODE std::ios::out | std::ios::app | std::ios::ate</span>
-<a name="l00015"></a>00015 <span class="preprocessor"></span>
-<a name="l00016"></a>00016 <span class="comment">//---------------------------------------------------------------------------</span>
-<a name="l00017"></a>00017 
-<a name="l00018"></a><a class="code" href="class_x_wave_n_graph.html#b0">00018</a> <a class="code" href="class_x_wave_n_graph.html#b0">XWaveNGraph::XWaveNGraph</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, FrmGraphNURL *item)
-<a name="l00019"></a>00019   : <a class="code" href="class_x_node.html">XNode</a>(name, runtime),
-<a name="l00020"></a>00020   m_btnDump(item-&gt;m_btnDump),
-<a name="l00021"></a>00021   <a class="code" href="class_x_q_graph_painter.html#r1">m_graph</a>(create&lt;<a class="code" href="class_x_graph.html">XGraph</a>&gt;(name, false)),
-<a name="l00022"></a>00022   m_dump(create&lt;<a class="code" href="class_x_node.html">XNode</a>&gt;(<span class="stringliteral">"Dump"</span>, true)),
-<a name="l00023"></a>00023   m_filename(create&lt;<a class="code" href="class_x_string_node.html">XStringNode</a>&gt;(<span class="stringliteral">"FileName"</span>, true))
-<a name="l00024"></a>00024 {
-<a name="l00025"></a>00025   item-&gt;m_graphwidget-&gt;setGraph(<a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>);
-<a name="l00026"></a>00026   item-&gt;statusBar()-&gt;hide();
-<a name="l00027"></a>00027   <a class="code" href="class_x_wave_n_graph.html#r19">m_conFilename</a> = xqcon_create&lt;XKURLReqConnector&gt;(<a class="code" href="class_x_wave_n_graph.html#r14">m_filename</a>, item-&gt;m_url,
-<a name="l00028"></a>00028                       <span class="stringliteral">"*.dat|Data files (*.dat)\n*.*|All files (*.*)"</span>, <span class="keyword">true</span>);
-<a name="l00029"></a>00029   <a class="code" href="class_x_wave_n_graph.html#r20">m_conDump</a> = xqcon_create&lt;XQButtonConnector&gt;(<a class="code" href="class_x_wave_n_graph.html#r13">m_dump</a>, item-&gt;m_btnDump);
-<a name="l00030"></a>00030   <a class="code" href="class_x_wave_n_graph.html#d0">init</a>();
-<a name="l00031"></a>00031 }
-<a name="l00032"></a><a class="code" href="class_x_wave_n_graph.html#b1">00032</a> <a class="code" href="class_x_wave_n_graph.html#b0">XWaveNGraph::XWaveNGraph</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, 
-<a name="l00033"></a>00033         <a class="code" href="class_x_q_graph.html">XQGraph</a> *graphwidget, KURLRequester *urlreq, QPushButton *btndump)
-<a name="l00034"></a>00034   : <a class="code" href="class_x_node.html">XNode</a>(name, runtime),
-<a name="l00035"></a>00035   m_btnDump(btndump),
-<a name="l00036"></a>00036   <a class="code" href="class_x_q_graph_painter.html#r1">m_graph</a>(create&lt;<a class="code" href="class_x_graph.html">XGraph</a>&gt;(name, false)),
-<a name="l00037"></a>00037   m_dump(create&lt;<a class="code" href="class_x_node.html">XNode</a>&gt;(<span class="stringliteral">"Dump"</span>, true)),
-<a name="l00038"></a>00038   m_filename(create&lt;<a class="code" href="class_x_string_node.html">XStringNode</a>&gt;(<span class="stringliteral">"FileName"</span>, true))
-<a name="l00039"></a>00039 {
-<a name="l00040"></a>00040   graphwidget-&gt;<a class="code" href="class_x_q_graph.html#a2">setGraph</a>(<a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>);
-<a name="l00041"></a>00041   <a class="code" href="class_x_wave_n_graph.html#r19">m_conFilename</a> = xqcon_create&lt;XKURLReqConnector&gt;(<a class="code" href="class_x_wave_n_graph.html#r14">m_filename</a>, urlreq,
-<a name="l00042"></a>00042                       <span class="stringliteral">"*.dat|Data files (*.dat)\n*.*|All files (*.*)"</span>, <span class="keyword">true</span>);
-<a name="l00043"></a>00043   <a class="code" href="class_x_wave_n_graph.html#r20">m_conDump</a> = xqcon_create&lt;XQButtonConnector&gt;(<a class="code" href="class_x_wave_n_graph.html#r13">m_dump</a>, btndump);
-<a name="l00044"></a>00044   <a class="code" href="class_x_wave_n_graph.html#d0">init</a>();
-<a name="l00045"></a>00045 }
-<a name="l00046"></a>00046 <span class="keywordtype">void</span>
-<a name="l00047"></a><a class="code" href="class_x_wave_n_graph.html#d0">00047</a> <a class="code" href="class_x_wave_n_graph.html#d0">XWaveNGraph::init</a>()
-<a name="l00048"></a>00048 {
-<a name="l00049"></a>00049   <a class="code" href="class_x_wave_n_graph.html#r4">m_btnDump</a>-&gt;setIconSet( KApplication::kApplication()-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"filesave"</span>, 
-<a name="l00050"></a>00050             KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );
-<a name="l00051"></a>00051   <a class="code" href="class_x_wave_n_graph.html#r16">m_lsnOnFilenameChanged</a> = <a class="code" href="class_x_wave_n_graph.html#a27">filename</a>()-&gt;onValueChanged().connectWeak(
-<a name="l00052"></a>00052     <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_wave_n_graph.html#d3">XWaveNGraph::onFilenameChanged</a>);
-<a name="l00053"></a>00053     
-<a name="l00054"></a>00054   <a class="code" href="class_x_wave_n_graph.html#a26">dump</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00055"></a>00055   
-<a name="l00056"></a>00056   <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;persistence()-&gt;value(0.0);
-<a name="l00057"></a>00057 }
-<a name="l00058"></a><a class="code" href="class_x_wave_n_graph.html#a0">00058</a> <a class="code" href="class_x_wave_n_graph.html#a0">XWaveNGraph::~XWaveNGraph</a>()
-<a name="l00059"></a>00059 {
-<a name="l00060"></a>00060   <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>) <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;plots()-&gt;releaseChild(<a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>);
-<a name="l00061"></a>00061   <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>) <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;plots()-&gt;releaseChild(<a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>);
-<a name="l00062"></a>00062   <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a>) <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;axes()-&gt;releaseChild(<a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a>);
-<a name="l00063"></a>00063   <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r12">m_axisz</a>) <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;axes()-&gt;releaseChild(<a class="code" href="class_x_wave_n_graph.html#r12">m_axisz</a>);
-<a name="l00064"></a>00064   <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r10">m_axisy2</a>) <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;axes()-&gt;releaseChild(<a class="code" href="class_x_wave_n_graph.html#r10">m_axisy2</a>);
-<a name="l00065"></a>00065   <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a>.close();
-<a name="l00066"></a>00066 }
-<a name="l00067"></a>00067 
-<a name="l00068"></a>00068 <span class="keywordtype">void</span>
-<a name="l00069"></a><a class="code" href="class_x_wave_n_graph.html#a4">00069</a> <a class="code" href="class_x_wave_n_graph.html#a4">XWaveNGraph::selectAxes</a>(<span class="keywordtype">int</span> x, <span class="keywordtype">int</span> y1, <span class="keywordtype">int</span> y2, <span class="keywordtype">int</span> weight, <span class="keywordtype">int</span> z)
-<a name="l00070"></a>00070 {
-<a name="l00071"></a>00071   <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XRecursiveRWLock&gt;</a> lock(<a class="code" href="class_x_wave_n_graph.html#r0">m_mutex</a>);
-<a name="l00072"></a>00072   {  
-<a name="l00073"></a>00073       <a class="code" href="class_x_wave_n_graph.html#r21">m_colx</a> = x;
-<a name="l00074"></a>00074       <a class="code" href="class_x_wave_n_graph.html#r22">m_coly1</a> = y1;
-<a name="l00075"></a>00075       <a class="code" href="class_x_wave_n_graph.html#r23">m_coly2</a> = y2;
-<a name="l00076"></a>00076       <a class="code" href="class_x_wave_n_graph.html#r24">m_colweight</a> = weight;
-<a name="l00077"></a>00077       <a class="code" href="class_x_wave_n_graph.html#r25">m_colz</a> = z;
-<a name="l00078"></a>00078     
-<a name="l00079"></a>00079       <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XGraph&gt;</a> lock(*<a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>);
-<a name="l00080"></a>00080       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>) <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;plots()-&gt;releaseChild(<a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>);
-<a name="l00081"></a>00081       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>) <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;plots()-&gt;releaseChild(<a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>);
-<a name="l00082"></a>00082       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a>) <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;axes()-&gt;releaseChild(<a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a>);
-<a name="l00083"></a>00083       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r12">m_axisz</a>) <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;axes()-&gt;releaseChild(<a class="code" href="class_x_wave_n_graph.html#r12">m_axisz</a>);
-<a name="l00084"></a>00084       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r10">m_axisy2</a>) <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;axes()-&gt;releaseChild(<a class="code" href="class_x_wave_n_graph.html#r10">m_axisy2</a>);
-<a name="l00085"></a>00085       <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>.reset();
-<a name="l00086"></a>00086       <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>.reset();
-<a name="l00087"></a>00087       <a class="code" href="class_x_wave_n_graph.html#r10">m_axisy2</a>.reset();
-<a name="l00088"></a>00088       <a class="code" href="class_x_wave_n_graph.html#r12">m_axisz</a>.reset();
-<a name="l00089"></a>00089       <a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a>.reset();
-<a name="l00090"></a>00090         
-<a name="l00091"></a>00091      <span class="comment">// m_graph-&gt;setName(getName());</span>
-<a name="l00092"></a>00092       <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;label()-&gt;value(<a class="code" href="class_x_node.html#a7">getLabel</a>());
-<a name="l00093"></a>00093     
-<a name="l00094"></a>00094       <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a> = <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;plots()-&gt;create&lt;<a class="code" href="class_x_x_y_plot.html">XXYPlot</a>&gt;(<span class="stringliteral">"Plot1"</span>, <span class="keyword">true</span>, <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>);
-<a name="l00095"></a>00095       <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Plot1"</span>));
-<a name="l00096"></a>00096     
-<a name="l00097"></a>00097       <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> axes_list(<a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;axes()-&gt;children());
-<a name="l00098"></a>00098       <a class="code" href="class_x_wave_n_graph.html#r8">m_axisx</a> = dynamic_pointer_cast&lt;XAxis&gt;(axes_list-&gt;at(0));
-<a name="l00099"></a>00099       <a class="code" href="class_x_wave_n_graph.html#r9">m_axisy</a> = dynamic_pointer_cast&lt;XAxis&gt;(axes_list-&gt;at(1));
-<a name="l00100"></a>00100       <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;axisX()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r8">m_axisx</a>);
-<a name="l00101"></a>00101       <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;axisY()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r9">m_axisy</a>);
-<a name="l00102"></a>00102       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r25">m_colz</a> &gt;= 0) {
-<a name="l00103"></a>00103           <a class="code" href="class_x_wave_n_graph.html#r12">m_axisz</a> = <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;axes()-&gt;create&lt;<a class="code" href="class_x_axis.html">XAxis</a>&gt;(<span class="stringliteral">"Z Axis"</span>, <span class="keyword">true</span>, XAxis::DirAxisZ, <span class="keyword">true</span>, <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>);
-<a name="l00104"></a>00104           <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;axisZ()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r12">m_axisz</a>);
-<a name="l00105"></a>00105       }
-<a name="l00106"></a>00106       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r24">m_colweight</a> &gt;= 0) {
-<a name="l00107"></a>00107           <a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a> = <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;axes()-&gt;create&lt;<a class="code" href="class_x_axis.html">XAxis</a>&gt;(<span class="stringliteral">"Weight"</span>, <span class="keyword">true</span>, XAxis::AxisWeight, <span class="keyword">true</span>, <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>);
-<a name="l00108"></a>00108           <a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a>-&gt;autoScale()-&gt;value(<span class="keyword">false</span>);
-<a name="l00109"></a>00109           <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;axisW()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a>);
-<a name="l00110"></a>00110       }
-<a name="l00111"></a>00111       <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;maxCount()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#a5">rowCount</a>());
-<a name="l00112"></a>00112       <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;maxCount()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00113"></a>00113       <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;clearPoints()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00114"></a>00114       <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;intensity()-&gt;value(2.0);
-<a name="l00115"></a>00115       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r23">m_coly2</a> &gt;= 0)
-<a name="l00116"></a>00116         {
-<a name="l00117"></a>00117           <a class="code" href="class_x_wave_n_graph.html#r10">m_axisy2</a> = <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;axes()-&gt;create&lt;<a class="code" href="class_x_axis.html">XAxis</a>&gt;(<span class="stringliteral">"Y2 Axis"</span>, <span class="keyword">true</span>, XAxis::DirAxisY, <span class="keyword">true</span>, <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>);
-<a name="l00118"></a>00118           <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a> = <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;plots()-&gt;create&lt;<a class="code" href="class_x_x_y_plot.html">XXYPlot</a>&gt;(<span class="stringliteral">"Plot2"</span>, <span class="keyword">true</span>, <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>);
-<a name="l00119"></a>00119           <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Plot2"</span>));
-<a name="l00120"></a>00120           <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;axisX()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r8">m_axisx</a>);
-<a name="l00121"></a>00121           <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;axisY()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r10">m_axisy2</a>);
-<a name="l00122"></a>00122           <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r25">m_colz</a> &gt;= 0) {
-<a name="l00123"></a>00123               <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;axisZ()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r12">m_axisz</a>);
-<a name="l00124"></a>00124           }
-<a name="l00125"></a>00125           <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r24">m_colweight</a> &gt;= 0) {
-<a name="l00126"></a>00126               <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;axisW()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a>);
-<a name="l00127"></a>00127           }
-<a name="l00128"></a>00128           <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;pointColor()-&gt;value(clGreen);
-<a name="l00129"></a>00129           <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;lineColor()-&gt;value(clGreen);
-<a name="l00130"></a>00130           <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;barColor()-&gt;value(clGreen);
-<a name="l00131"></a>00131           <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;displayMajorGrid()-&gt;value(<span class="keyword">false</span>);
-<a name="l00132"></a>00132           <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;maxCount()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#a5">rowCount</a>());
-<a name="l00133"></a>00133           <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;maxCount()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00134"></a>00134           <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;clearPoints()-&gt;setUIEnabled(<span class="keyword">false</span>);
-<a name="l00135"></a>00135               <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;intensity()-&gt;value(2.0);
-<a name="l00136"></a>00136         }
-<a name="l00137"></a>00137   }
-<a name="l00138"></a>00138 }
-<a name="l00139"></a>00139 
-<a name="l00140"></a>00140 <span class="keywordtype">void</span>
-<a name="l00141"></a><a class="code" href="class_x_wave_n_graph.html#a2">00141</a> <a class="code" href="class_x_wave_n_graph.html#a2">XWaveNGraph::setColCount</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> n, <span class="keyword">const</span> <span class="keywordtype">char</span> **labels)
-<a name="l00142"></a>00142 {
-<a name="l00143"></a>00143   <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XRecursiveRWLock&gt;</a> lock(<a class="code" href="class_x_wave_n_graph.html#r0">m_mutex</a>);
-<a name="l00144"></a>00144   <a class="code" href="class_x_wave_n_graph.html#r1">m_colcnt</a> = n;
-<a name="l00145"></a>00145   <a class="code" href="class_x_wave_n_graph.html#r2">m_labels</a>.resize(<a class="code" href="class_x_wave_n_graph.html#r1">m_colcnt</a>);
-<a name="l00146"></a>00146   <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; n; i++) {
-<a name="l00147"></a>00147     <a class="code" href="class_x_wave_n_graph.html#r2">m_labels</a>[i] = labels[i];
-<a name="l00148"></a>00148   }
-<a name="l00149"></a>00149 }
-<a name="l00150"></a>00150 <span class="keywordtype">void</span>
-<a name="l00151"></a><a class="code" href="class_x_wave_n_graph.html#a3">00151</a> <a class="code" href="class_x_wave_n_graph.html#a3">XWaveNGraph::setLabel</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> col, <span class="keyword">const</span> <span class="keywordtype">char</span> *label)
-<a name="l00152"></a>00152 {
-<a name="l00153"></a>00153     <a class="code" href="class_x_wave_n_graph.html#r2">m_labels</a>[col] = label;
-<a name="l00154"></a>00154 }
-<a name="l00155"></a>00155 <span class="keywordtype">void</span>
-<a name="l00156"></a><a class="code" href="class_x_wave_n_graph.html#a1">00156</a> <a class="code" href="class_x_wave_n_graph.html#a1">XWaveNGraph::setRowCount</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> n) {
-<a name="l00157"></a>00157   <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XRecursiveRWLock&gt;</a> lock(<a class="code" href="class_x_wave_n_graph.html#r0">m_mutex</a>);
-<a name="l00158"></a>00158   <a class="code" href="class_x_wave_n_graph.html#r3">m_cols</a>.resize(<a class="code" href="class_x_wave_n_graph.html#r1">m_colcnt</a> * n);
-<a name="l00159"></a>00159   <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>) <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;maxCount()-&gt;value(n);
-<a name="l00160"></a>00160   <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>) <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;maxCount()-&gt;value(n);
-<a name="l00161"></a>00161 }
-<a name="l00162"></a>00162 
+<h1>xwavengraph.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
+<a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
+<a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
+<a name="l00004"></a>00004 <span class="comment">                </span>
+<a name="l00005"></a>00005 <span class="comment">                This program is free software; you can redistribute it and/or</span>
+<a name="l00006"></a>00006 <span class="comment">                modify it under the terms of the GNU Library General Public</span>
+<a name="l00007"></a>00007 <span class="comment">                License as published by the Free Software Foundation; either</span>
+<a name="l00008"></a>00008 <span class="comment">                version 2 of the License, or (at your option) any later version.</span>
+<a name="l00009"></a>00009 <span class="comment">                </span>
+<a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
+<a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
+<a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
+<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00014"></a>00014 <span class="preprocessor">#include "xwavengraph.h"</span>
+<a name="l00015"></a>00015 
+<a name="l00016"></a>00016 <span class="preprocessor">#include "forms/graphnurlform.h"</span>
+<a name="l00017"></a>00017 <span class="preprocessor">#include "graphwidget.h"</span>
+<a name="l00018"></a>00018 <span class="preprocessor">#include "graph.h"</span>
+<a name="l00019"></a>00019 
+<a name="l00020"></a>00020 <span class="preprocessor">#include &lt;kurlrequester.h&gt;</span>
+<a name="l00021"></a>00021 <span class="preprocessor">#include &lt;qpushbutton.h&gt;</span>
+<a name="l00022"></a>00022 <span class="preprocessor">#include &lt;kiconloader.h&gt;</span>
+<a name="l00023"></a>00023 <span class="preprocessor">#include &lt;kapplication.h&gt;</span>
+<a name="l00024"></a>00024 <span class="preprocessor">#include &lt;qstatusbar.h&gt;</span>
+<a name="l00025"></a>00025 <span class="preprocessor">#include &lt;klocale.h&gt;</span>
+<a name="l00026"></a>00026 
+<a name="l00027"></a>00027 <span class="preprocessor">#define OFSMODE std::ios::out | std::ios::app | std::ios::ate</span>
+<a name="l00028"></a>00028 <span class="preprocessor"></span>
+<a name="l00029"></a>00029 <span class="comment">//---------------------------------------------------------------------------</span>
+<a name="l00030"></a>00030 
+<a name="l00031"></a><a class="code" href="class_x_wave_n_graph.html#b0">00031</a> <a class="code" href="class_x_wave_n_graph.html#b0">XWaveNGraph::XWaveNGraph</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, FrmGraphNURL *item)
+<a name="l00032"></a>00032   : <a class="code" href="class_x_node.html">XNode</a>(name, runtime),
+<a name="l00033"></a>00033   m_btnDump(item-&gt;m_btnDump),
+<a name="l00034"></a>00034   <a class="code" href="class_x_q_graph_painter.html#r1">m_graph</a>(create&lt;<a class="code" href="class_x_graph.html">XGraph</a>&gt;(name, false)),
+<a name="l00035"></a>00035   m_dump(create&lt;<a class="code" href="class_x_node.html">XNode</a>&gt;(<span class="stringliteral">"Dump"</span>, true)),
+<a name="l00036"></a>00036   m_filename(create&lt;<a class="code" href="class_x_string_node.html">XStringNode</a>&gt;(<span class="stringliteral">"FileName"</span>, true))
+<a name="l00037"></a>00037 {
+<a name="l00038"></a>00038   item-&gt;m_graphwidget-&gt;setGraph(<a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>);
+<a name="l00039"></a>00039   item-&gt;statusBar()-&gt;hide();
+<a name="l00040"></a>00040   <a class="code" href="class_x_wave_n_graph.html#r19">m_conFilename</a> = xqcon_create&lt;XKURLReqConnector&gt;(<a class="code" href="class_x_wave_n_graph.html#r14">m_filename</a>, item-&gt;m_url,
+<a name="l00041"></a>00041                       <span class="stringliteral">"*.dat|Data files (*.dat)\n*.*|All files (*.*)"</span>, <span class="keyword">true</span>);
+<a name="l00042"></a>00042   <a class="code" href="class_x_wave_n_graph.html#r20">m_conDump</a> = xqcon_create&lt;XQButtonConnector&gt;(<a class="code" href="class_x_wave_n_graph.html#r13">m_dump</a>, item-&gt;m_btnDump);
+<a name="l00043"></a>00043   <a class="code" href="class_x_wave_n_graph.html#d0">init</a>();
+<a name="l00044"></a>00044 }
+<a name="l00045"></a><a class="code" href="class_x_wave_n_graph.html#b1">00045</a> <a class="code" href="class_x_wave_n_graph.html#b0">XWaveNGraph::XWaveNGraph</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, 
+<a name="l00046"></a>00046         <a class="code" href="class_x_q_graph.html">XQGraph</a> *graphwidget, KURLRequester *urlreq, QPushButton *btndump)
+<a name="l00047"></a>00047   : <a class="code" href="class_x_node.html">XNode</a>(name, runtime),
+<a name="l00048"></a>00048   m_btnDump(btndump),
+<a name="l00049"></a>00049   <a class="code" href="class_x_q_graph_painter.html#r1">m_graph</a>(create&lt;<a class="code" href="class_x_graph.html">XGraph</a>&gt;(name, false)),
+<a name="l00050"></a>00050   m_dump(create&lt;<a class="code" href="class_x_node.html">XNode</a>&gt;(<span class="stringliteral">"Dump"</span>, true)),
+<a name="l00051"></a>00051   m_filename(create&lt;<a class="code" href="class_x_string_node.html">XStringNode</a>&gt;(<span class="stringliteral">"FileName"</span>, true))
+<a name="l00052"></a>00052 {
+<a name="l00053"></a>00053   graphwidget-&gt;<a class="code" href="class_x_q_graph.html#a2">setGraph</a>(<a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>);
+<a name="l00054"></a>00054   <a class="code" href="class_x_wave_n_graph.html#r19">m_conFilename</a> = xqcon_create&lt;XKURLReqConnector&gt;(<a class="code" href="class_x_wave_n_graph.html#r14">m_filename</a>, urlreq,
+<a name="l00055"></a>00055                       <span class="stringliteral">"*.dat|Data files (*.dat)\n*.*|All files (*.*)"</span>, <span class="keyword">true</span>);
+<a name="l00056"></a>00056   <a class="code" href="class_x_wave_n_graph.html#r20">m_conDump</a> = xqcon_create&lt;XQButtonConnector&gt;(<a class="code" href="class_x_wave_n_graph.html#r13">m_dump</a>, btndump);
+<a name="l00057"></a>00057   <a class="code" href="class_x_wave_n_graph.html#d0">init</a>();
+<a name="l00058"></a>00058 }
+<a name="l00059"></a>00059 <span class="keywordtype">void</span>
+<a name="l00060"></a><a class="code" href="class_x_wave_n_graph.html#d0">00060</a> <a class="code" href="class_x_wave_n_graph.html#d0">XWaveNGraph::init</a>()
+<a name="l00061"></a>00061 {
+<a name="l00062"></a>00062   <a class="code" href="class_x_wave_n_graph.html#r4">m_btnDump</a>-&gt;setIconSet( KApplication::kApplication()-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"filesave"</span>, 
+<a name="l00063"></a>00063             KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );
+<a name="l00064"></a>00064   <a class="code" href="class_x_wave_n_graph.html#r16">m_lsnOnFilenameChanged</a> = <a class="code" href="class_x_wave_n_graph.html#a27">filename</a>()-&gt;onValueChanged().connectWeak(
+<a name="l00065"></a>00065     <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_wave_n_graph.html#d3">XWaveNGraph::onFilenameChanged</a>);
+<a name="l00066"></a>00066     
+<a name="l00067"></a>00067   <a class="code" href="class_x_wave_n_graph.html#a26">dump</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00068"></a>00068   
+<a name="l00069"></a>00069   <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;persistence()-&gt;value(0.0);
+<a name="l00070"></a>00070 }
+<a name="l00071"></a><a class="code" href="class_x_wave_n_graph.html#a0">00071</a> <a class="code" href="class_x_wave_n_graph.html#a0">XWaveNGraph::~XWaveNGraph</a>()
+<a name="l00072"></a>00072 {
+<a name="l00073"></a>00073   <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>) <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;plots()-&gt;releaseChild(<a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>);
+<a name="l00074"></a>00074   <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>) <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;plots()-&gt;releaseChild(<a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>);
+<a name="l00075"></a>00075   <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a>) <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;axes()-&gt;releaseChild(<a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a>);
+<a name="l00076"></a>00076   <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r12">m_axisz</a>) <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;axes()-&gt;releaseChild(<a class="code" href="class_x_wave_n_graph.html#r12">m_axisz</a>);
+<a name="l00077"></a>00077   <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r10">m_axisy2</a>) <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;axes()-&gt;releaseChild(<a class="code" href="class_x_wave_n_graph.html#r10">m_axisy2</a>);
+<a name="l00078"></a>00078   <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a>.close();
+<a name="l00079"></a>00079 }
+<a name="l00080"></a>00080 
+<a name="l00081"></a>00081 <span class="keywordtype">void</span>
+<a name="l00082"></a><a class="code" href="class_x_wave_n_graph.html#a4">00082</a> <a class="code" href="class_x_wave_n_graph.html#a4">XWaveNGraph::selectAxes</a>(<span class="keywordtype">int</span> x, <span class="keywordtype">int</span> y1, <span class="keywordtype">int</span> y2, <span class="keywordtype">int</span> weight, <span class="keywordtype">int</span> z)
+<a name="l00083"></a>00083 {
+<a name="l00084"></a>00084   <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XRecursiveRWLock&gt;</a> lock(<a class="code" href="class_x_wave_n_graph.html#r0">m_mutex</a>);
+<a name="l00085"></a>00085   {  
+<a name="l00086"></a>00086       <a class="code" href="class_x_wave_n_graph.html#r21">m_colx</a> = x;
+<a name="l00087"></a>00087       <a class="code" href="class_x_wave_n_graph.html#r22">m_coly1</a> = y1;
+<a name="l00088"></a>00088       <a class="code" href="class_x_wave_n_graph.html#r23">m_coly2</a> = y2;
+<a name="l00089"></a>00089       <a class="code" href="class_x_wave_n_graph.html#r24">m_colweight</a> = weight;
+<a name="l00090"></a>00090       <a class="code" href="class_x_wave_n_graph.html#r25">m_colz</a> = z;
+<a name="l00091"></a>00091     
+<a name="l00092"></a>00092       <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XGraph&gt;</a> lock(*<a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>);
+<a name="l00093"></a>00093       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>) <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;plots()-&gt;releaseChild(<a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>);
+<a name="l00094"></a>00094       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>) <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;plots()-&gt;releaseChild(<a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>);
+<a name="l00095"></a>00095       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a>) <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;axes()-&gt;releaseChild(<a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a>);
+<a name="l00096"></a>00096       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r12">m_axisz</a>) <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;axes()-&gt;releaseChild(<a class="code" href="class_x_wave_n_graph.html#r12">m_axisz</a>);
+<a name="l00097"></a>00097       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r10">m_axisy2</a>) <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;axes()-&gt;releaseChild(<a class="code" href="class_x_wave_n_graph.html#r10">m_axisy2</a>);
+<a name="l00098"></a>00098       <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>.reset();
+<a name="l00099"></a>00099       <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>.reset();
+<a name="l00100"></a>00100       <a class="code" href="class_x_wave_n_graph.html#r10">m_axisy2</a>.reset();
+<a name="l00101"></a>00101       <a class="code" href="class_x_wave_n_graph.html#r12">m_axisz</a>.reset();
+<a name="l00102"></a>00102       <a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a>.reset();
+<a name="l00103"></a>00103         
+<a name="l00104"></a>00104      <span class="comment">// m_graph-&gt;setName(getName());</span>
+<a name="l00105"></a>00105       <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;label()-&gt;value(<a class="code" href="class_x_node.html#a7">getLabel</a>());
+<a name="l00106"></a>00106     
+<a name="l00107"></a>00107       <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a> = <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;plots()-&gt;create&lt;<a class="code" href="class_x_x_y_plot.html">XXYPlot</a>&gt;(<span class="stringliteral">"Plot1"</span>, <span class="keyword">true</span>, <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>);
+<a name="l00108"></a>00108       <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Plot1"</span>));
+<a name="l00109"></a>00109     
+<a name="l00110"></a>00110       <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> axes_list(<a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;axes()-&gt;children());
+<a name="l00111"></a>00111       <a class="code" href="class_x_wave_n_graph.html#r8">m_axisx</a> = dynamic_pointer_cast&lt;XAxis&gt;(axes_list-&gt;at(0));
+<a name="l00112"></a>00112       <a class="code" href="class_x_wave_n_graph.html#r9">m_axisy</a> = dynamic_pointer_cast&lt;XAxis&gt;(axes_list-&gt;at(1));
+<a name="l00113"></a>00113       <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;axisX()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r8">m_axisx</a>);
+<a name="l00114"></a>00114       <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;axisY()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r9">m_axisy</a>);
+<a name="l00115"></a>00115       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r25">m_colz</a> &gt;= 0) {
+<a name="l00116"></a>00116           <a class="code" href="class_x_wave_n_graph.html#r12">m_axisz</a> = <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;axes()-&gt;create&lt;<a class="code" href="class_x_axis.html">XAxis</a>&gt;(<span class="stringliteral">"Z Axis"</span>, <span class="keyword">true</span>, XAxis::DirAxisZ, <span class="keyword">true</span>, <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>);
+<a name="l00117"></a>00117           <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;axisZ()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r12">m_axisz</a>);
+<a name="l00118"></a>00118       }
+<a name="l00119"></a>00119       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r24">m_colweight</a> &gt;= 0) {
+<a name="l00120"></a>00120           <a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a> = <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;axes()-&gt;create&lt;<a class="code" href="class_x_axis.html">XAxis</a>&gt;(<span class="stringliteral">"Weight"</span>, <span class="keyword">true</span>, XAxis::AxisWeight, <span class="keyword">true</span>, <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>);
+<a name="l00121"></a>00121           <a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a>-&gt;autoScale()-&gt;value(<span class="keyword">false</span>);
+<a name="l00122"></a>00122           <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;axisW()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a>);
+<a name="l00123"></a>00123       }
+<a name="l00124"></a>00124       <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;maxCount()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#a5">rowCount</a>());
+<a name="l00125"></a>00125       <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;maxCount()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00126"></a>00126       <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;clearPoints()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00127"></a>00127       <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;intensity()-&gt;value(2.0);
+<a name="l00128"></a>00128       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r23">m_coly2</a> &gt;= 0)
+<a name="l00129"></a>00129         {
+<a name="l00130"></a>00130           <a class="code" href="class_x_wave_n_graph.html#r10">m_axisy2</a> = <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;axes()-&gt;create&lt;<a class="code" href="class_x_axis.html">XAxis</a>&gt;(<span class="stringliteral">"Y2 Axis"</span>, <span class="keyword">true</span>, XAxis::DirAxisY, <span class="keyword">true</span>, <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>);
+<a name="l00131"></a>00131           <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a> = <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;plots()-&gt;create&lt;<a class="code" href="class_x_x_y_plot.html">XXYPlot</a>&gt;(<span class="stringliteral">"Plot2"</span>, <span class="keyword">true</span>, <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>);
+<a name="l00132"></a>00132           <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Plot2"</span>));
+<a name="l00133"></a>00133           <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;axisX()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r8">m_axisx</a>);
+<a name="l00134"></a>00134           <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;axisY()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r10">m_axisy2</a>);
+<a name="l00135"></a>00135           <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r25">m_colz</a> &gt;= 0) {
+<a name="l00136"></a>00136               <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;axisZ()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r12">m_axisz</a>);
+<a name="l00137"></a>00137           }
+<a name="l00138"></a>00138           <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r24">m_colweight</a> &gt;= 0) {
+<a name="l00139"></a>00139               <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;axisW()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a>);
+<a name="l00140"></a>00140           }
+<a name="l00141"></a>00141           <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;pointColor()-&gt;value(clGreen);
+<a name="l00142"></a>00142           <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;lineColor()-&gt;value(clGreen);
+<a name="l00143"></a>00143           <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;barColor()-&gt;value(clGreen);
+<a name="l00144"></a>00144           <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;displayMajorGrid()-&gt;value(<span class="keyword">false</span>);
+<a name="l00145"></a>00145           <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;maxCount()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#a5">rowCount</a>());
+<a name="l00146"></a>00146           <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;maxCount()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00147"></a>00147           <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;clearPoints()-&gt;setUIEnabled(<span class="keyword">false</span>);
+<a name="l00148"></a>00148               <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;intensity()-&gt;value(2.0);
+<a name="l00149"></a>00149         }
+<a name="l00150"></a>00150   }
+<a name="l00151"></a>00151 }
+<a name="l00152"></a>00152 
+<a name="l00153"></a>00153 <span class="keywordtype">void</span>
+<a name="l00154"></a><a class="code" href="class_x_wave_n_graph.html#a2">00154</a> <a class="code" href="class_x_wave_n_graph.html#a2">XWaveNGraph::setColCount</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> n, <span class="keyword">const</span> <span class="keywordtype">char</span> **labels)
+<a name="l00155"></a>00155 {
+<a name="l00156"></a>00156   <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XRecursiveRWLock&gt;</a> lock(<a class="code" href="class_x_wave_n_graph.html#r0">m_mutex</a>);
+<a name="l00157"></a>00157   <a class="code" href="class_x_wave_n_graph.html#r1">m_colcnt</a> = n;
+<a name="l00158"></a>00158   <a class="code" href="class_x_wave_n_graph.html#r2">m_labels</a>.resize(<a class="code" href="class_x_wave_n_graph.html#r1">m_colcnt</a>);
+<a name="l00159"></a>00159   <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; n; i++) {
+<a name="l00160"></a>00160     <a class="code" href="class_x_wave_n_graph.html#r2">m_labels</a>[i] = labels[i];
+<a name="l00161"></a>00161   }
+<a name="l00162"></a>00162 }
 <a name="l00163"></a>00163 <span class="keywordtype">void</span>
-<a name="l00164"></a><a class="code" href="class_x_wave_n_graph.html#a9">00164</a> <a class="code" href="class_x_wave_n_graph.html#a9">XWaveNGraph::readLock</a>()<span class="keyword"> const</span>
-<a name="l00165"></a>00165 <span class="keyword"></span>{
-<a name="l00166"></a>00166     <a class="code" href="class_x_wave_n_graph.html#r0">m_mutex</a>.<a class="code" href="class_x_recursive_r_w_lock.html#a2">readLock</a>();
+<a name="l00164"></a><a class="code" href="class_x_wave_n_graph.html#a3">00164</a> <a class="code" href="class_x_wave_n_graph.html#a3">XWaveNGraph::setLabel</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> col, <span class="keyword">const</span> <span class="keywordtype">char</span> *label)
+<a name="l00165"></a>00165 {
+<a name="l00166"></a>00166     <a class="code" href="class_x_wave_n_graph.html#r2">m_labels</a>[col] = label;
 <a name="l00167"></a>00167 }
 <a name="l00168"></a>00168 <span class="keywordtype">void</span>
-<a name="l00169"></a><a class="code" href="class_x_wave_n_graph.html#a10">00169</a> <a class="code" href="class_x_wave_n_graph.html#a10">XWaveNGraph::readUnlock</a>()<span class="keyword"> const</span>
-<a name="l00170"></a>00170 <span class="keyword"></span>{
-<a name="l00171"></a>00171     <a class="code" href="class_x_wave_n_graph.html#r0">m_mutex</a>.<a class="code" href="class_x_recursive_r_w_lock.html#a3">readUnlock</a>();
-<a name="l00172"></a>00172 }
-<a name="l00173"></a>00173 <span class="keywordtype">void</span>
-<a name="l00174"></a><a class="code" href="class_x_wave_n_graph.html#a11">00174</a> <a class="code" href="class_x_wave_n_graph.html#a11">XWaveNGraph::writeLock</a>()
-<a name="l00175"></a>00175 {
-<a name="l00176"></a>00176   <a class="code" href="class_x_wave_n_graph.html#r0">m_mutex</a>.<a class="code" href="class_x_recursive_r_w_lock.html#a4">writeLock</a>();
-<a name="l00177"></a>00177   <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;lock();
-<a name="l00178"></a>00178 }
-<a name="l00179"></a>00179 
-<a name="l00180"></a>00180 <span class="keywordtype">void</span>
-<a name="l00181"></a><a class="code" href="class_x_wave_n_graph.html#a12">00181</a> <a class="code" href="class_x_wave_n_graph.html#a12">XWaveNGraph::writeUnlock</a>(<span class="keywordtype">bool</span> updategraph)
-<a name="l00182"></a>00182 {
-<a name="l00183"></a>00183   <span class="keywordflow">if</span>(updategraph) {
-<a name="l00184"></a>00184       <a class="code" href="class_x_wave_n_graph.html#r0">m_mutex</a>.<a class="code" href="class_x_recursive_r_w_lock.html#a6">writeUnlockNReadLock</a>();
-<a name="l00185"></a>00185       <a class="code" href="class_x_wave_n_graph.html#d1">drawGraph</a>();
-<a name="l00186"></a>00186       <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;unlock();
-<a name="l00187"></a>00187       <a class="code" href="class_x_wave_n_graph.html#r0">m_mutex</a>.<a class="code" href="class_x_recursive_r_w_lock.html#a3">readUnlock</a>();
-<a name="l00188"></a>00188     }
-<a name="l00189"></a>00189   <span class="keywordflow">else</span> {
-<a name="l00190"></a>00190       <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;unlock();
-<a name="l00191"></a>00191       <a class="code" href="class_x_wave_n_graph.html#r0">m_mutex</a>.<a class="code" href="class_x_recursive_r_w_lock.html#a5">writeUnlock</a>();
-<a name="l00192"></a>00192   }
-<a name="l00193"></a>00193 }
-<a name="l00194"></a>00194 
-<a name="l00195"></a>00195 <span class="keywordtype">int</span>
-<a name="l00196"></a><a class="code" href="class_x_wave_n_graph.html#a13">00196</a> <a class="code" href="class_x_wave_n_graph.html#a13">XWaveNGraph::colX</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_wave_n_graph.html#r21">m_colx</a>;}
-<a name="l00197"></a>00197 <span class="keywordtype">int</span>
-<a name="l00198"></a><a class="code" href="class_x_wave_n_graph.html#a14">00198</a> <a class="code" href="class_x_wave_n_graph.html#a14">XWaveNGraph::colY1</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_wave_n_graph.html#r22">m_coly1</a>;}
-<a name="l00199"></a>00199 <span class="keywordtype">int</span>
-<a name="l00200"></a><a class="code" href="class_x_wave_n_graph.html#a15">00200</a> <a class="code" href="class_x_wave_n_graph.html#a15">XWaveNGraph::colY2</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_wave_n_graph.html#r23">m_coly2</a>;}
-<a name="l00201"></a>00201 <span class="keywordtype">int</span>
-<a name="l00202"></a><a class="code" href="class_x_wave_n_graph.html#a16">00202</a> <a class="code" href="class_x_wave_n_graph.html#a16">XWaveNGraph::colWeight</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_wave_n_graph.html#r24">m_colweight</a>;}
-<a name="l00203"></a>00203 <span class="keywordtype">int</span>
-<a name="l00204"></a><a class="code" href="class_x_wave_n_graph.html#a17">00204</a> <a class="code" href="class_x_wave_n_graph.html#a17">XWaveNGraph::colZ</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_wave_n_graph.html#r25">m_colz</a>;}
-<a name="l00205"></a>00205 <span class="keywordtype">void</span>
-<a name="l00206"></a><a class="code" href="class_x_wave_n_graph.html#d3">00206</a> <a class="code" href="class_x_wave_n_graph.html#d3">XWaveNGraph::onFilenameChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
-<a name="l00207"></a>00207 {
-<a name="l00208"></a>00208   <a class="code" href="class_x_wave_n_graph.html#r4">m_btnDump</a>-&gt;setIconSet( KApplication::kApplication()-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"filesave"</span>, 
-<a name="l00209"></a>00209             KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );
-<a name="l00210"></a>00210 
-<a name="l00211"></a>00211    {   <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> lock(<a class="code" href="class_x_wave_n_graph.html#r18">m_filemutex</a>);
-<a name="l00212"></a>00212       
-<a name="l00213"></a>00213       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a>.is_open()) <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a>.close();
-<a name="l00214"></a>00214       <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a>.clear();
-<a name="l00215"></a>00215       <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a>.open((<span class="keyword">const</span> <span class="keywordtype">char</span>*)QString(<a class="code" href="class_x_wave_n_graph.html#a27">filename</a>()-&gt;to_str()).local8Bit(), OFSMODE);
-<a name="l00216"></a>00216     
-<a name="l00217"></a>00217       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a>.good()) {
-<a name="l00218"></a>00218           <a class="code" href="class_x_wave_n_graph.html#r15">m_lsnOnDumpTouched</a> = <a class="code" href="class_x_wave_n_graph.html#a26">dump</a>()-&gt;onTouch().connectWeak(
-<a name="l00219"></a>00219             <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_wave_n_graph.html#d2">XWaveNGraph::onDumpTouched</a>);
-<a name="l00220"></a>00220           <a class="code" href="class_x_wave_n_graph.html#a26">dump</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
-<a name="l00221"></a>00221       }
-<a name="l00222"></a>00222       <span class="keywordflow">else</span> {
-<a name="l00223"></a>00223           <a class="code" href="class_x_wave_n_graph.html#r15">m_lsnOnDumpTouched</a>.reset();
-<a name="l00224"></a>00224           <a class="code" href="class_x_wave_n_graph.html#a26">dump</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);      
-<a name="l00225"></a>00225       }
-<a name="l00226"></a>00226   }
-<a name="l00227"></a>00227 }
-<a name="l00228"></a>00228 <span class="keywordtype">void</span>
-<a name="l00229"></a><a class="code" href="class_x_wave_n_graph.html#d2">00229</a> <a class="code" href="class_x_wave_n_graph.html#d2">XWaveNGraph::onDumpTouched</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;)
-<a name="l00230"></a>00230 {
-<a name="l00231"></a>00231   <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> filelock(<a class="code" href="class_x_wave_n_graph.html#r18">m_filemutex</a>);
-<a name="l00232"></a>00232   <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a>.good()) {
-<a name="l00233"></a>00233     <a class="code" href="struct_x_scoped_read_lock.html">XScopedReadLock&lt;XRecursiveRWLock&gt;</a> lock(<a class="code" href="class_x_wave_n_graph.html#r0">m_mutex</a>);
-<a name="l00234"></a>00234     
-<a name="l00235"></a>00235     <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a> &lt;&lt; <span class="stringliteral">"#dumping...  "</span>
-<a name="l00236"></a>00236         &lt;&lt; (<a class="code" href="class_x_time.html#e0">XTime::now</a>()).getTimeFmtStr(<span class="stringliteral">"%Y/%m/%d %H:%M:%S"</span>)
-<a name="l00237"></a>00237         &lt;&lt; std::endl;
-<a name="l00238"></a>00238     <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a> &lt;&lt; <span class="stringliteral">"#"</span>;
-<a name="l00239"></a>00239     <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="class_x_wave_n_graph.html#a6">colCount</a>(); i++)
-<a name="l00240"></a>00240     {
-<a name="l00241"></a>00241             <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a> &lt;&lt; <a class="code" href="class_x_wave_n_graph.html#r2">m_labels</a>[i] &lt;&lt; <span class="stringliteral">" "</span>;
-<a name="l00242"></a>00242     }
-<a name="l00243"></a>00243     <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a> &lt;&lt; std::endl;
-<a name="l00244"></a>00244     
-<a name="l00245"></a>00245     <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="class_x_wave_n_graph.html#a5">rowCount</a>(); i++)
-<a name="l00246"></a>00246     {
-<a name="l00247"></a>00247             <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#a16">colWeight</a>() &gt;= 0)
-<a name="l00248"></a>00248             <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#a7">cols</a>(<a class="code" href="class_x_wave_n_graph.html#a16">colWeight</a>())[i] &lt; 1e-20) <span class="keywordflow">continue</span>;
-<a name="l00249"></a>00249             <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> j = 0; j &lt; <a class="code" href="class_x_wave_n_graph.html#a6">colCount</a>(); j++)
-<a name="l00250"></a>00250             {
-<a name="l00251"></a>00251                 <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a> &lt;&lt; <a class="code" href="class_x_wave_n_graph.html#a7">cols</a>(j)[i] &lt;&lt; <span class="stringliteral">" "</span>;
-<a name="l00252"></a>00252             }
-<a name="l00253"></a>00253             <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a> &lt;&lt; std::endl;
-<a name="l00254"></a>00254     }
-<a name="l00255"></a>00255     <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a> &lt;&lt; std::endl;
-<a name="l00256"></a>00256     
-<a name="l00257"></a>00257     <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a>.flush();
-<a name="l00258"></a>00258 
-<a name="l00259"></a>00259     <a class="code" href="class_x_wave_n_graph.html#r4">m_btnDump</a>-&gt;setIconSet( KApplication::kApplication()-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"redo"</span>, 
-<a name="l00260"></a>00260             KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );
-<a name="l00261"></a>00261   }
-<a name="l00262"></a>00262 }
-<a name="l00263"></a>00263 <span class="keywordtype">void</span>
-<a name="l00264"></a><a class="code" href="class_x_wave_n_graph.html#a8">00264</a> <a class="code" href="class_x_wave_n_graph.html#a8">XWaveNGraph::clear</a>()
-<a name="l00265"></a>00265 {
-<a name="l00266"></a>00266   <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XWaveNGraph&gt;</a> lock(*<span class="keyword">this</span>);
-<a name="l00267"></a>00267   <a class="code" href="class_x_wave_n_graph.html#a1">setRowCount</a>(0);
-<a name="l00268"></a>00268   { <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XGraph&gt;</a> lock(*<a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>);
-<a name="l00269"></a>00269       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>) <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;clearAllPoints();
-<a name="l00270"></a>00270       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>) <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;clearAllPoints();
-<a name="l00271"></a>00271       <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;requestUpdate();
-<a name="l00272"></a>00272   }
-<a name="l00273"></a>00273 }
-<a name="l00274"></a>00274 <span class="keywordtype">void</span>
-<a name="l00275"></a><a class="code" href="class_x_wave_n_graph.html#d1">00275</a> <a class="code" href="class_x_wave_n_graph.html#d1">XWaveNGraph::drawGraph</a>()
-<a name="l00276"></a>00276 {
-<a name="l00277"></a>00277   <a class="code" href="struct_x_scoped_read_lock.html">XScopedReadLock&lt;XRecursiveRWLock&gt;</a> lock(<a class="code" href="class_x_wave_n_graph.html#r0">m_mutex</a>);
-<a name="l00278"></a>00278   {
-<a name="l00279"></a>00279 
-<a name="l00280"></a>00280       ASSERT(<a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>);
-<a name="l00281"></a>00281         
-<a name="l00282"></a>00282       <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XGraph&gt;</a> lock(*<a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>);
-<a name="l00283"></a>00283       
-<a name="l00284"></a>00284       <a class="code" href="class_x_wave_n_graph.html#r8">m_axisx</a>-&gt;label()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r2">m_labels</a>[<a class="code" href="class_x_wave_n_graph.html#r21">m_colx</a>]);
-<a name="l00285"></a>00285       <a class="code" href="class_x_wave_n_graph.html#r9">m_axisy</a>-&gt;label()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r2">m_labels</a>[<a class="code" href="class_x_wave_n_graph.html#r22">m_coly1</a>]);
-<a name="l00286"></a>00286       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#a15">colY2</a>() &gt; 0)
-<a name="l00287"></a>00287         <a class="code" href="class_x_wave_n_graph.html#r10">m_axisy2</a>-&gt;label()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r2">m_labels</a>[<a class="code" href="class_x_wave_n_graph.html#r23">m_coly2</a>]);
-<a name="l00288"></a>00288       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#a17">colZ</a>() &gt; 0)
-<a name="l00289"></a>00289         <a class="code" href="class_x_wave_n_graph.html#r12">m_axisz</a>-&gt;label()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r2">m_labels</a>[<a class="code" href="class_x_wave_n_graph.html#r25">m_colz</a>]);
-<a name="l00290"></a>00290       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#a16">colWeight</a>() &gt; 0)
-<a name="l00291"></a>00291         <a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a>-&gt;label()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r2">m_labels</a>[<a class="code" href="class_x_wave_n_graph.html#r24">m_colweight</a>]);
-<a name="l00292"></a>00292         
-<a name="l00293"></a>00293       <span class="keywordtype">int</span> rowcnt = <a class="code" href="class_x_wave_n_graph.html#a5">rowCount</a>();
-<a name="l00294"></a>00294       <span class="keywordtype">double</span> *colx = <a class="code" href="class_x_wave_n_graph.html#a7">cols</a>(<a class="code" href="class_x_wave_n_graph.html#a13">colX</a>());
-<a name="l00295"></a>00295       <span class="keywordtype">double</span> *coly1 = <a class="code" href="class_x_wave_n_graph.html#a7">cols</a>(<a class="code" href="class_x_wave_n_graph.html#a14">colY1</a>());
-<a name="l00296"></a>00296       <span class="keywordtype">double</span> *coly2 = (<a class="code" href="class_x_wave_n_graph.html#a15">colY2</a>() &gt; 0) ? <a class="code" href="class_x_wave_n_graph.html#a7">cols</a>(<a class="code" href="class_x_wave_n_graph.html#a15">colY2</a>()) : NULL;
-<a name="l00297"></a>00297       <span class="keywordtype">double</span> *colweight = (<a class="code" href="class_x_wave_n_graph.html#a16">colWeight</a>() &gt;= 0) ? <a class="code" href="class_x_wave_n_graph.html#a7">cols</a>(<a class="code" href="class_x_wave_n_graph.html#a16">colWeight</a>()) : NULL;
-<a name="l00298"></a>00298       <span class="keywordtype">double</span> *colz = (<a class="code" href="class_x_wave_n_graph.html#a17">colZ</a>() &gt;= 0) ? <a class="code" href="class_x_wave_n_graph.html#a7">cols</a>(<a class="code" href="class_x_wave_n_graph.html#a17">colZ</a>()) : NULL;
-<a name="l00299"></a>00299     
-<a name="l00300"></a>00300       <span class="keywordflow">if</span>(colweight) {
-<a name="l00301"></a>00301               <span class="keywordtype">double</span> weight_max = 0.0;
-<a name="l00302"></a>00302               <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; rowcnt; i++)
-<a name="l00303"></a>00303                         weight_max = std::max(weight_max, colweight[i]);
-<a name="l00304"></a>00304               <a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a>-&gt;maxValue()-&gt;value(weight_max);
-<a name="l00305"></a>00305               <a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a>-&gt;minValue()-&gt;value(-0.25*weight_max);
-<a name="l00306"></a>00306       }
-<a name="l00307"></a>00307             
-<a name="l00308"></a>00308       std::deque&lt;XGraph::ValPoint&gt; &amp;points_plot1(<a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;points());
-<a name="l00309"></a>00309       points_plot1.clear();
-<a name="l00310"></a>00310       <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; rowcnt; i++)
-<a name="l00311"></a>00311         {
-<a name="l00312"></a>00312           <span class="keywordtype">double</span> z = 0.0;
-<a name="l00313"></a>00313           <span class="keywordflow">if</span>(colz)
-<a name="l00314"></a>00314             z = colz[i];
-<a name="l00315"></a>00315           <span class="keywordflow">if</span>(colweight) {
-<a name="l00316"></a>00316                 <span class="keywordflow">if</span>(colweight[i] &gt; 0)
-<a name="l00317"></a>00317                points_plot1.push_back( <a class="code" href="struct_vector4.html">XGraph::ValPoint</a>(colx[i], coly1[i], z, colweight[i]) );
-<a name="l00318"></a>00318           }
-<a name="l00319"></a>00319           <span class="keywordflow">else</span>
-<a name="l00320"></a>00320                points_plot1.push_back( <a class="code" href="struct_vector4.html">XGraph::ValPoint</a>(colx[i], coly1[i], z) );
-<a name="l00321"></a>00321         }
-<a name="l00322"></a>00322       <span class="keywordflow">if</span>(coly2)
-<a name="l00323"></a>00323         {
-<a name="l00324"></a>00324           std::deque&lt;XGraph::ValPoint&gt; &amp;points_plot2 = <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;points();
-<a name="l00325"></a>00325           points_plot2.clear();
-<a name="l00326"></a>00326           <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; rowcnt; i++)
-<a name="l00327"></a>00327           {
-<a name="l00328"></a>00328               <span class="keywordtype">double</span> z = 0.0;
-<a name="l00329"></a>00329               <span class="keywordflow">if</span>(colz)
-<a name="l00330"></a>00330                 z = colz[i];
-<a name="l00331"></a>00331               <span class="keywordflow">if</span>(colweight) {
-<a name="l00332"></a>00332                         <span class="keywordflow">if</span>(colweight[i] &gt; 0)
-<a name="l00333"></a>00333                    points_plot2.push_back( <a class="code" href="struct_vector4.html">XGraph::ValPoint</a>(colx[i], coly2[i], z, colweight[i]) );
-<a name="l00334"></a>00334               }
-<a name="l00335"></a>00335               <span class="keywordflow">else</span>
-<a name="l00336"></a>00336                    points_plot2.push_back( <a class="code" href="struct_vector4.html">XGraph::ValPoint</a>(colx[i], coly2[i], z) );
-<a name="l00337"></a>00337           }
-<a name="l00338"></a>00338         }
-<a name="l00339"></a>00339       <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;requestUpdate();
-<a name="l00340"></a>00340   }
-<a name="l00341"></a>00341 }
-<a name="l00342"></a>00342 
-<a name="l00343"></a>00343 <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>
-<a name="l00344"></a><a class="code" href="class_x_wave_n_graph.html#a5">00344</a> <a class="code" href="class_x_wave_n_graph.html#a5">XWaveNGraph::rowCount</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_wave_n_graph.html#r1">m_colcnt</a> ? <a class="code" href="class_x_wave_n_graph.html#r3">m_cols</a>.size() / <a class="code" href="class_x_wave_n_graph.html#r1">m_colcnt</a> : 0;}
-<a name="l00345"></a>00345 <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>
-<a name="l00346"></a><a class="code" href="class_x_wave_n_graph.html#a6">00346</a> <a class="code" href="class_x_wave_n_graph.html#a6">XWaveNGraph::colCount</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_wave_n_graph.html#r1">m_colcnt</a>;}
-<a name="l00347"></a>00347 <span class="keywordtype">double</span> *
-<a name="l00348"></a><a class="code" href="class_x_wave_n_graph.html#a7">00348</a> <a class="code" href="class_x_wave_n_graph.html#a7">XWaveNGraph::cols</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> n) {<span class="keywordflow">return</span> &amp;(<a class="code" href="class_x_wave_n_graph.html#r3">m_cols</a>[<a class="code" href="class_x_wave_n_graph.html#a5">rowCount</a>() * n]);}
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 13:04:30 2007に生成されました。&nbsp;
+<a name="l00169"></a><a class="code" href="class_x_wave_n_graph.html#a1">00169</a> <a class="code" href="class_x_wave_n_graph.html#a1">XWaveNGraph::setRowCount</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> n) {
+<a name="l00170"></a>00170   <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XRecursiveRWLock&gt;</a> lock(<a class="code" href="class_x_wave_n_graph.html#r0">m_mutex</a>);
+<a name="l00171"></a>00171   <a class="code" href="class_x_wave_n_graph.html#r3">m_cols</a>.resize(<a class="code" href="class_x_wave_n_graph.html#r1">m_colcnt</a> * n);
+<a name="l00172"></a>00172   <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>) <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;maxCount()-&gt;value(n);
+<a name="l00173"></a>00173   <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>) <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;maxCount()-&gt;value(n);
+<a name="l00174"></a>00174 }
+<a name="l00175"></a>00175 
+<a name="l00176"></a>00176 <span class="keywordtype">void</span>
+<a name="l00177"></a><a class="code" href="class_x_wave_n_graph.html#a9">00177</a> <a class="code" href="class_x_wave_n_graph.html#a9">XWaveNGraph::readLock</a>()<span class="keyword"> const</span>
+<a name="l00178"></a>00178 <span class="keyword"></span>{
+<a name="l00179"></a>00179     <a class="code" href="class_x_wave_n_graph.html#r0">m_mutex</a>.<a class="code" href="class_x_recursive_r_w_lock.html#a2">readLock</a>();
+<a name="l00180"></a>00180 }
+<a name="l00181"></a>00181 <span class="keywordtype">void</span>
+<a name="l00182"></a><a class="code" href="class_x_wave_n_graph.html#a10">00182</a> <a class="code" href="class_x_wave_n_graph.html#a10">XWaveNGraph::readUnlock</a>()<span class="keyword"> const</span>
+<a name="l00183"></a>00183 <span class="keyword"></span>{
+<a name="l00184"></a>00184     <a class="code" href="class_x_wave_n_graph.html#r0">m_mutex</a>.<a class="code" href="class_x_recursive_r_w_lock.html#a3">readUnlock</a>();
+<a name="l00185"></a>00185 }
+<a name="l00186"></a>00186 <span class="keywordtype">void</span>
+<a name="l00187"></a><a class="code" href="class_x_wave_n_graph.html#a11">00187</a> <a class="code" href="class_x_wave_n_graph.html#a11">XWaveNGraph::writeLock</a>()
+<a name="l00188"></a>00188 {
+<a name="l00189"></a>00189   <a class="code" href="class_x_wave_n_graph.html#r0">m_mutex</a>.<a class="code" href="class_x_recursive_r_w_lock.html#a4">writeLock</a>();
+<a name="l00190"></a>00190   <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;lock();
+<a name="l00191"></a>00191 }
+<a name="l00192"></a>00192 
+<a name="l00193"></a>00193 <span class="keywordtype">void</span>
+<a name="l00194"></a><a class="code" href="class_x_wave_n_graph.html#a12">00194</a> <a class="code" href="class_x_wave_n_graph.html#a12">XWaveNGraph::writeUnlock</a>(<span class="keywordtype">bool</span> updategraph)
+<a name="l00195"></a>00195 {
+<a name="l00196"></a>00196   <span class="keywordflow">if</span>(updategraph) {
+<a name="l00197"></a>00197       <a class="code" href="class_x_wave_n_graph.html#r0">m_mutex</a>.<a class="code" href="class_x_recursive_r_w_lock.html#a6">writeUnlockNReadLock</a>();
+<a name="l00198"></a>00198       <a class="code" href="class_x_wave_n_graph.html#d1">drawGraph</a>();
+<a name="l00199"></a>00199       <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;unlock();
+<a name="l00200"></a>00200       <a class="code" href="class_x_wave_n_graph.html#r0">m_mutex</a>.<a class="code" href="class_x_recursive_r_w_lock.html#a3">readUnlock</a>();
+<a name="l00201"></a>00201     }
+<a name="l00202"></a>00202   <span class="keywordflow">else</span> {
+<a name="l00203"></a>00203       <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;unlock();
+<a name="l00204"></a>00204       <a class="code" href="class_x_wave_n_graph.html#r0">m_mutex</a>.<a class="code" href="class_x_recursive_r_w_lock.html#a5">writeUnlock</a>();
+<a name="l00205"></a>00205   }
+<a name="l00206"></a>00206 }
+<a name="l00207"></a>00207 
+<a name="l00208"></a>00208 <span class="keywordtype">int</span>
+<a name="l00209"></a><a class="code" href="class_x_wave_n_graph.html#a13">00209</a> <a class="code" href="class_x_wave_n_graph.html#a13">XWaveNGraph::colX</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_wave_n_graph.html#r21">m_colx</a>;}
+<a name="l00210"></a>00210 <span class="keywordtype">int</span>
+<a name="l00211"></a><a class="code" href="class_x_wave_n_graph.html#a14">00211</a> <a class="code" href="class_x_wave_n_graph.html#a14">XWaveNGraph::colY1</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_wave_n_graph.html#r22">m_coly1</a>;}
+<a name="l00212"></a>00212 <span class="keywordtype">int</span>
+<a name="l00213"></a><a class="code" href="class_x_wave_n_graph.html#a15">00213</a> <a class="code" href="class_x_wave_n_graph.html#a15">XWaveNGraph::colY2</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_wave_n_graph.html#r23">m_coly2</a>;}
+<a name="l00214"></a>00214 <span class="keywordtype">int</span>
+<a name="l00215"></a><a class="code" href="class_x_wave_n_graph.html#a16">00215</a> <a class="code" href="class_x_wave_n_graph.html#a16">XWaveNGraph::colWeight</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_wave_n_graph.html#r24">m_colweight</a>;}
+<a name="l00216"></a>00216 <span class="keywordtype">int</span>
+<a name="l00217"></a><a class="code" href="class_x_wave_n_graph.html#a17">00217</a> <a class="code" href="class_x_wave_n_graph.html#a17">XWaveNGraph::colZ</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_wave_n_graph.html#r25">m_colz</a>;}
+<a name="l00218"></a>00218 <span class="keywordtype">void</span>
+<a name="l00219"></a><a class="code" href="class_x_wave_n_graph.html#d3">00219</a> <a class="code" href="class_x_wave_n_graph.html#d3">XWaveNGraph::onFilenameChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
+<a name="l00220"></a>00220 {
+<a name="l00221"></a>00221   <a class="code" href="class_x_wave_n_graph.html#r4">m_btnDump</a>-&gt;setIconSet( KApplication::kApplication()-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"filesave"</span>, 
+<a name="l00222"></a>00222             KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );
+<a name="l00223"></a>00223 
+<a name="l00224"></a>00224    {   <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> lock(<a class="code" href="class_x_wave_n_graph.html#r18">m_filemutex</a>);
+<a name="l00225"></a>00225       
+<a name="l00226"></a>00226       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a>.is_open()) <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a>.close();
+<a name="l00227"></a>00227       <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a>.clear();
+<a name="l00228"></a>00228       <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a>.open((<span class="keyword">const</span> <span class="keywordtype">char</span>*)QString(<a class="code" href="class_x_wave_n_graph.html#a27">filename</a>()-&gt;to_str()).local8Bit(), OFSMODE);
+<a name="l00229"></a>00229     
+<a name="l00230"></a>00230       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a>.good()) {
+<a name="l00231"></a>00231           <a class="code" href="class_x_wave_n_graph.html#r15">m_lsnOnDumpTouched</a> = <a class="code" href="class_x_wave_n_graph.html#a26">dump</a>()-&gt;onTouch().connectWeak(
+<a name="l00232"></a>00232             <span class="keyword">false</span>, shared_from_this(), &amp;<a class="code" href="class_x_wave_n_graph.html#d2">XWaveNGraph::onDumpTouched</a>);
+<a name="l00233"></a>00233           <a class="code" href="class_x_wave_n_graph.html#a26">dump</a>()-&gt;setUIEnabled(<span class="keyword">true</span>);
+<a name="l00234"></a>00234       }
+<a name="l00235"></a>00235       <span class="keywordflow">else</span> {
+<a name="l00236"></a>00236           <a class="code" href="class_x_wave_n_graph.html#r15">m_lsnOnDumpTouched</a>.reset();
+<a name="l00237"></a>00237           <a class="code" href="class_x_wave_n_graph.html#a26">dump</a>()-&gt;setUIEnabled(<span class="keyword">false</span>);      
+<a name="l00238"></a>00238       }
+<a name="l00239"></a>00239   }
+<a name="l00240"></a>00240 }
+<a name="l00241"></a>00241 <span class="keywordtype">void</span>
+<a name="l00242"></a><a class="code" href="class_x_wave_n_graph.html#d2">00242</a> <a class="code" href="class_x_wave_n_graph.html#d2">XWaveNGraph::onDumpTouched</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;)
+<a name="l00243"></a>00243 {
+<a name="l00244"></a>00244   <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> filelock(<a class="code" href="class_x_wave_n_graph.html#r18">m_filemutex</a>);
+<a name="l00245"></a>00245   <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a>.good()) {
+<a name="l00246"></a>00246     <a class="code" href="struct_x_scoped_read_lock.html">XScopedReadLock&lt;XRecursiveRWLock&gt;</a> lock(<a class="code" href="class_x_wave_n_graph.html#r0">m_mutex</a>);
+<a name="l00247"></a>00247     
+<a name="l00248"></a>00248     <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a> &lt;&lt; <span class="stringliteral">"#dumping...  "</span>
+<a name="l00249"></a>00249         &lt;&lt; (<a class="code" href="class_x_time.html#e0">XTime::now</a>()).getTimeFmtStr(<span class="stringliteral">"%Y/%m/%d %H:%M:%S"</span>)
+<a name="l00250"></a>00250         &lt;&lt; std::endl;
+<a name="l00251"></a>00251     <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a> &lt;&lt; <span class="stringliteral">"#"</span>;
+<a name="l00252"></a>00252     <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="class_x_wave_n_graph.html#a6">colCount</a>(); i++)
+<a name="l00253"></a>00253     {
+<a name="l00254"></a>00254             <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a> &lt;&lt; <a class="code" href="class_x_wave_n_graph.html#r2">m_labels</a>[i] &lt;&lt; <span class="stringliteral">" "</span>;
+<a name="l00255"></a>00255     }
+<a name="l00256"></a>00256     <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a> &lt;&lt; std::endl;
+<a name="l00257"></a>00257     
+<a name="l00258"></a>00258     <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="class_x_wave_n_graph.html#a5">rowCount</a>(); i++)
+<a name="l00259"></a>00259     {
+<a name="l00260"></a>00260             <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#a16">colWeight</a>() &gt;= 0)
+<a name="l00261"></a>00261             <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#a7">cols</a>(<a class="code" href="class_x_wave_n_graph.html#a16">colWeight</a>())[i] &lt; 1e-20) <span class="keywordflow">continue</span>;
+<a name="l00262"></a>00262             <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> j = 0; j &lt; <a class="code" href="class_x_wave_n_graph.html#a6">colCount</a>(); j++)
+<a name="l00263"></a>00263             {
+<a name="l00264"></a>00264                 <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a> &lt;&lt; <a class="code" href="class_x_wave_n_graph.html#a7">cols</a>(j)[i] &lt;&lt; <span class="stringliteral">" "</span>;
+<a name="l00265"></a>00265             }
+<a name="l00266"></a>00266             <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a> &lt;&lt; std::endl;
+<a name="l00267"></a>00267     }
+<a name="l00268"></a>00268     <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a> &lt;&lt; std::endl;
+<a name="l00269"></a>00269     
+<a name="l00270"></a>00270     <a class="code" href="class_x_wave_n_graph.html#r17">m_stream</a>.flush();
+<a name="l00271"></a>00271 
+<a name="l00272"></a>00272     <a class="code" href="class_x_wave_n_graph.html#r4">m_btnDump</a>-&gt;setIconSet( KApplication::kApplication()-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"redo"</span>, 
+<a name="l00273"></a>00273             KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );
+<a name="l00274"></a>00274   }
+<a name="l00275"></a>00275 }
+<a name="l00276"></a>00276 <span class="keywordtype">void</span>
+<a name="l00277"></a><a class="code" href="class_x_wave_n_graph.html#a8">00277</a> <a class="code" href="class_x_wave_n_graph.html#a8">XWaveNGraph::clear</a>()
+<a name="l00278"></a>00278 {
+<a name="l00279"></a>00279   <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XWaveNGraph&gt;</a> lock(*<span class="keyword">this</span>);
+<a name="l00280"></a>00280   <a class="code" href="class_x_wave_n_graph.html#a1">setRowCount</a>(0);
+<a name="l00281"></a>00281   { <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XGraph&gt;</a> lock(*<a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>);
+<a name="l00282"></a>00282       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>) <a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;clearAllPoints();
+<a name="l00283"></a>00283       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>) <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;clearAllPoints();
+<a name="l00284"></a>00284       <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;requestUpdate();
+<a name="l00285"></a>00285   }
+<a name="l00286"></a>00286 }
+<a name="l00287"></a>00287 <span class="keywordtype">void</span>
+<a name="l00288"></a><a class="code" href="class_x_wave_n_graph.html#d1">00288</a> <a class="code" href="class_x_wave_n_graph.html#d1">XWaveNGraph::drawGraph</a>()
+<a name="l00289"></a>00289 {
+<a name="l00290"></a>00290   <a class="code" href="struct_x_scoped_read_lock.html">XScopedReadLock&lt;XRecursiveRWLock&gt;</a> lock(<a class="code" href="class_x_wave_n_graph.html#r0">m_mutex</a>);
+<a name="l00291"></a>00291   {
+<a name="l00292"></a>00292 
+<a name="l00293"></a>00293       ASSERT(<a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>);
+<a name="l00294"></a>00294         
+<a name="l00295"></a>00295       <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XGraph&gt;</a> lock(*<a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>);
+<a name="l00296"></a>00296       
+<a name="l00297"></a>00297       <a class="code" href="class_x_wave_n_graph.html#r8">m_axisx</a>-&gt;label()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r2">m_labels</a>[<a class="code" href="class_x_wave_n_graph.html#r21">m_colx</a>]);
+<a name="l00298"></a>00298       <a class="code" href="class_x_wave_n_graph.html#r9">m_axisy</a>-&gt;label()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r2">m_labels</a>[<a class="code" href="class_x_wave_n_graph.html#r22">m_coly1</a>]);
+<a name="l00299"></a>00299       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#a15">colY2</a>() &gt; 0)
+<a name="l00300"></a>00300         <a class="code" href="class_x_wave_n_graph.html#r10">m_axisy2</a>-&gt;label()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r2">m_labels</a>[<a class="code" href="class_x_wave_n_graph.html#r23">m_coly2</a>]);
+<a name="l00301"></a>00301       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#a17">colZ</a>() &gt; 0)
+<a name="l00302"></a>00302         <a class="code" href="class_x_wave_n_graph.html#r12">m_axisz</a>-&gt;label()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r2">m_labels</a>[<a class="code" href="class_x_wave_n_graph.html#r25">m_colz</a>]);
+<a name="l00303"></a>00303       <span class="keywordflow">if</span>(<a class="code" href="class_x_wave_n_graph.html#a16">colWeight</a>() &gt; 0)
+<a name="l00304"></a>00304         <a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a>-&gt;label()-&gt;value(<a class="code" href="class_x_wave_n_graph.html#r2">m_labels</a>[<a class="code" href="class_x_wave_n_graph.html#r24">m_colweight</a>]);
+<a name="l00305"></a>00305         
+<a name="l00306"></a>00306       <span class="keywordtype">int</span> rowcnt = <a class="code" href="class_x_wave_n_graph.html#a5">rowCount</a>();
+<a name="l00307"></a>00307       <span class="keywordtype">double</span> *colx = <a class="code" href="class_x_wave_n_graph.html#a7">cols</a>(<a class="code" href="class_x_wave_n_graph.html#a13">colX</a>());
+<a name="l00308"></a>00308       <span class="keywordtype">double</span> *coly1 = <a class="code" href="class_x_wave_n_graph.html#a7">cols</a>(<a class="code" href="class_x_wave_n_graph.html#a14">colY1</a>());
+<a name="l00309"></a>00309       <span class="keywordtype">double</span> *coly2 = (<a class="code" href="class_x_wave_n_graph.html#a15">colY2</a>() &gt; 0) ? <a class="code" href="class_x_wave_n_graph.html#a7">cols</a>(<a class="code" href="class_x_wave_n_graph.html#a15">colY2</a>()) : NULL;
+<a name="l00310"></a>00310       <span class="keywordtype">double</span> *colweight = (<a class="code" href="class_x_wave_n_graph.html#a16">colWeight</a>() &gt;= 0) ? <a class="code" href="class_x_wave_n_graph.html#a7">cols</a>(<a class="code" href="class_x_wave_n_graph.html#a16">colWeight</a>()) : NULL;
+<a name="l00311"></a>00311       <span class="keywordtype">double</span> *colz = (<a class="code" href="class_x_wave_n_graph.html#a17">colZ</a>() &gt;= 0) ? <a class="code" href="class_x_wave_n_graph.html#a7">cols</a>(<a class="code" href="class_x_wave_n_graph.html#a17">colZ</a>()) : NULL;
+<a name="l00312"></a>00312     
+<a name="l00313"></a>00313       <span class="keywordflow">if</span>(colweight) {
+<a name="l00314"></a>00314               <span class="keywordtype">double</span> weight_max = 0.0;
+<a name="l00315"></a>00315               <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; rowcnt; i++)
+<a name="l00316"></a>00316                         weight_max = std::max(weight_max, colweight[i]);
+<a name="l00317"></a>00317               <a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a>-&gt;maxValue()-&gt;value(weight_max);
+<a name="l00318"></a>00318               <a class="code" href="class_x_wave_n_graph.html#r11">m_axisw</a>-&gt;minValue()-&gt;value(-0.25*weight_max);
+<a name="l00319"></a>00319       }
+<a name="l00320"></a>00320             
+<a name="l00321"></a>00321       std::deque&lt;XGraph::ValPoint&gt; &amp;points_plot1(<a class="code" href="class_x_wave_n_graph.html#r6">m_plot1</a>-&gt;points());
+<a name="l00322"></a>00322       points_plot1.clear();
+<a name="l00323"></a>00323       <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; rowcnt; i++)
+<a name="l00324"></a>00324         {
+<a name="l00325"></a>00325           <span class="keywordtype">double</span> z = 0.0;
+<a name="l00326"></a>00326           <span class="keywordflow">if</span>(colz)
+<a name="l00327"></a>00327             z = colz[i];
+<a name="l00328"></a>00328           <span class="keywordflow">if</span>(colweight) {
+<a name="l00329"></a>00329                 <span class="keywordflow">if</span>(colweight[i] &gt; 0)
+<a name="l00330"></a>00330                points_plot1.push_back( <a class="code" href="struct_vector4.html">XGraph::ValPoint</a>(colx[i], coly1[i], z, colweight[i]) );
+<a name="l00331"></a>00331           }
+<a name="l00332"></a>00332           <span class="keywordflow">else</span>
+<a name="l00333"></a>00333                points_plot1.push_back( <a class="code" href="struct_vector4.html">XGraph::ValPoint</a>(colx[i], coly1[i], z) );
+<a name="l00334"></a>00334         }
+<a name="l00335"></a>00335       <span class="keywordflow">if</span>(coly2)
+<a name="l00336"></a>00336         {
+<a name="l00337"></a>00337           std::deque&lt;XGraph::ValPoint&gt; &amp;points_plot2 = <a class="code" href="class_x_wave_n_graph.html#r7">m_plot2</a>-&gt;points();
+<a name="l00338"></a>00338           points_plot2.clear();
+<a name="l00339"></a>00339           <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; rowcnt; i++)
+<a name="l00340"></a>00340           {
+<a name="l00341"></a>00341               <span class="keywordtype">double</span> z = 0.0;
+<a name="l00342"></a>00342               <span class="keywordflow">if</span>(colz)
+<a name="l00343"></a>00343                 z = colz[i];
+<a name="l00344"></a>00344               <span class="keywordflow">if</span>(colweight) {
+<a name="l00345"></a>00345                         <span class="keywordflow">if</span>(colweight[i] &gt; 0)
+<a name="l00346"></a>00346                    points_plot2.push_back( <a class="code" href="struct_vector4.html">XGraph::ValPoint</a>(colx[i], coly2[i], z, colweight[i]) );
+<a name="l00347"></a>00347               }
+<a name="l00348"></a>00348               <span class="keywordflow">else</span>
+<a name="l00349"></a>00349                    points_plot2.push_back( <a class="code" href="struct_vector4.html">XGraph::ValPoint</a>(colx[i], coly2[i], z) );
+<a name="l00350"></a>00350           }
+<a name="l00351"></a>00351         }
+<a name="l00352"></a>00352       <a class="code" href="class_x_wave_n_graph.html#r5">m_graph</a>-&gt;requestUpdate();
+<a name="l00353"></a>00353   }
+<a name="l00354"></a>00354 }
+<a name="l00355"></a>00355 
+<a name="l00356"></a>00356 <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>
+<a name="l00357"></a><a class="code" href="class_x_wave_n_graph.html#a5">00357</a> <a class="code" href="class_x_wave_n_graph.html#a5">XWaveNGraph::rowCount</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_wave_n_graph.html#r1">m_colcnt</a> ? <a class="code" href="class_x_wave_n_graph.html#r3">m_cols</a>.size() / <a class="code" href="class_x_wave_n_graph.html#r1">m_colcnt</a> : 0;}
+<a name="l00358"></a>00358 <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>
+<a name="l00359"></a><a class="code" href="class_x_wave_n_graph.html#a6">00359</a> <a class="code" href="class_x_wave_n_graph.html#a6">XWaveNGraph::colCount</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_wave_n_graph.html#r1">m_colcnt</a>;}
+<a name="l00360"></a>00360 <span class="keywordtype">double</span> *
+<a name="l00361"></a><a class="code" href="class_x_wave_n_graph.html#a7">00361</a> <a class="code" href="class_x_wave_n_graph.html#a7">XWaveNGraph::cols</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> n) {<span class="keywordflow">return</span> &amp;(<a class="code" href="class_x_wave_n_graph.html#r3">m_cols</a>[<a class="code" href="class_x_wave_n_graph.html#a5">rowCount</a>() * n]);}
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してWed Feb 28 04:17:12 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

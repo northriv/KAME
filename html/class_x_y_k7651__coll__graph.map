@@ -1,4 +1,5 @@
 base referer
+rect $class_x_char_device_driver.html 132,176 361,202
 rect $class_x_d_c_source.html 200,98 293,125
 rect $class_x_primary_driver.html 8,8 122,34
 rect $classqshared__ptr.html 146,8 346,34

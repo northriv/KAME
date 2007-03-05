@@ -12,21 +12,40 @@
 <p>
 XPulserに対する継承グラフ<p><center><img src="class_x_pulser__inherit__graph.png" border="0" usemap="#_x_pulser__inherit__map" alt="Inheritance graph"></center>
 <map name="_x_pulser__inherit__map">
-<area href="class_x_h8_pulser.html" shape="rect" coords="8,306,96,333" alt="">
-<area href="class_x_s_h_pulser.html" shape="rect" coords="120,306,208,333" alt="">
-<area href="class_x_primary_driver.html" shape="rect" coords="50,157,165,183" alt="">
-<area href="class_x_driver.html" shape="rect" coords="74,82,141,109" alt="">
-<area href="class_x_node.html" shape="rect" coords="77,7,138,34" alt="">
+<area href="class_x_char_device_driver.html" shape="rect" coords="7,306,213,333" alt="">
+<area href="class_x_primary_driver.html" shape="rect" coords="53,157,167,184" alt="">
+<area href="class_x_driver.html" shape="rect" coords="77,82,143,109" alt="">
+<area href="class_x_node.html" shape="rect" coords="79,8,141,34" alt="">
+<area href="class_x_h8_pulser.html" shape="rect" coords="10,381,98,408" alt="">
+<area href="class_x_s_h_pulser.html" shape="rect" coords="122,381,210,408" alt="">
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XPulserのコラボレーション図<p><center><img src="class_x_pulser__coll__graph.png" border="0" usemap="#_x_pulser__coll__map" alt="Collaboration graph"></center>
 <map name="_x_pulser__coll__map">
-<area href="class_x_primary_driver.html" shape="rect" coords="73,31,187,58" alt="">
-<area href="classqshared__ptr.html" shape="rect" coords="26,85,234,111" alt="">
-<area href="classqshared__ptr.html" shape="rect" coords="41,149,219,175" alt="">
-<area href="classqshared__ptr.html" shape="rect" coords="9,213,251,239" alt="">
+<area href="class_x_primary_driver.html" shape="rect" coords="73,22,188,49" alt="">
+<area href="classqshared__ptr.html" shape="rect" coords="26,76,234,102" alt="">
+<area href="classqshared__ptr.html" shape="rect" coords="41,140,220,166" alt="">
+<area href="classqshared__ptr.html" shape="rect" coords="9,204,252,230" alt="">
 </map>
 <center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_pulser-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
 <tr><td></td></tr>
+<tr><td colspan="2"><br><h2>Public 型</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">enum &nbsp;</td><td class="memItemRight" valign="bottom">{ <b>N_COMB_MODE_OFF</b> =  0, 
+<b>N_COMB_MODE_ON</b> =  1, 
+<b>N_COMB_MODE_P1_ALT</b> =  2, 
+<b>N_COMB_MODE_COMB_ALT</b> =  3
+ }</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">enum &nbsp;</td><td class="memItemRight" valign="bottom">{ <b>N_RT_MODE_FIXREP</b> =  0, 
+<b>N_RT_MODE_FIXREST</b> =  1
+ }</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">enum &nbsp;</td><td class="memItemRight" valign="bottom">{ <b>MAX_NUM_PHASE_CYCLE</b> =  16
+ }</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">enum &nbsp;</td><td class="memItemRight" valign="bottom">{ <b>NUM_DO_PORTS</b> =  16
+ }</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight"># of digital-pulse ports. <br></td></tr>
 <tr><td colspan="2"><br><h2>Public メソッド</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a0"></a><!-- doxytag: member=<XPulser::~XPulser> ref=<a0> args=<()> -->
 virtual&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a0">~XPulser</a> ()</td></tr>
@@ -37,7 +56,6 @@ virtual&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="c
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a2"></a><!-- doxytag: member=<XPulser::output> ref=<a2> args=<() const > -->
 const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a2">output</a> () const </td></tr>
 
-<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">driver specific part below <br></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top">const shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a3">combMode</a> () const </td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top">const shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a4">rtMode</a> () const </td></tr>
@@ -138,138 +156,116 @@ const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</
 const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a28">masterLevel</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">[dB] <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a29"></a><!-- doxytag: member=<XPulser::aswFilter> ref=<a29> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a29">aswFilter</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a29"></a><!-- doxytag: member=<XPulser::induceEmission> ref=<a29> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a29">induceEmission</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a30"></a><!-- doxytag: member=<XPulser::induceEmission> ref=<a30> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a30">induceEmission</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a30"></a><!-- doxytag: member=<XPulser::induceEmissionPhase> ref=<a30> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a30">induceEmissionPhase</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a31"></a><!-- doxytag: member=<XPulser::induceEmissionPhase> ref=<a31> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a31">induceEmissionPhase</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a31"></a><!-- doxytag: member=<XPulser::qamOffset1> ref=<a31> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a31">qamOffset1</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a32"></a><!-- doxytag: member=<XPulser::portLevel8> ref=<a32> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a32">portLevel8</a> () const </td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a33"></a><!-- doxytag: member=<XPulser::portLevel9> ref=<a33> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a33">portLevel9</a> () const </td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a34"></a><!-- doxytag: member=<XPulser::portLevel10> ref=<a34> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a34">portLevel10</a> () const </td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a35"></a><!-- doxytag: member=<XPulser::portLevel11> ref=<a35> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a35">portLevel11</a> () const </td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a36"></a><!-- doxytag: member=<XPulser::portLevel12> ref=<a36> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a36">portLevel12</a> () const </td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a37"></a><!-- doxytag: member=<XPulser::portLevel13> ref=<a37> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a37">portLevel13</a> () const </td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a38"></a><!-- doxytag: member=<XPulser::portLevel14> ref=<a38> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a38">portLevel14</a> () const </td></tr>
-
-<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">[V] <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a39"></a><!-- doxytag: member=<XPulser::qamOffset1> ref=<a39> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a39">qamOffset1</a> () const </td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a40"></a><!-- doxytag: member=<XPulser::qamOffset2> ref=<a40> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a40">qamOffset2</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a32"></a><!-- doxytag: member=<XPulser::qamOffset2> ref=<a32> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a32">qamOffset2</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">[F.S.] <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a41"></a><!-- doxytag: member=<XPulser::qamLevel1> ref=<a41> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a41">qamLevel1</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a33"></a><!-- doxytag: member=<XPulser::qamLevel1> ref=<a33> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a33">qamLevel1</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a42"></a><!-- doxytag: member=<XPulser::qamLevel2> ref=<a42> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a42">qamLevel2</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a34"></a><!-- doxytag: member=<XPulser::qamLevel2> ref=<a34> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a34">qamLevel2</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">&lt; Quadrature Amplitude Modulation. Amplitude compensation factor. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a43"></a><!-- doxytag: member=<XPulser::qamDelay1> ref=<a43> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a43">qamDelay1</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a35"></a><!-- doxytag: member=<XPulser::qamDelay1> ref=<a35> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a35">qamDelay1</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a44"></a><!-- doxytag: member=<XPulser::qamDelay2> ref=<a44> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a44">qamDelay2</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a36"></a><!-- doxytag: member=<XPulser::qamDelay2> ref=<a36> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a36">qamDelay2</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">&lt; Delaying compensation [us]. [us] <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a45"></a><!-- doxytag: member=<XPulser::difFreq> ref=<a45> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a45">difFreq</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a37"></a><!-- doxytag: member=<XPulser::difFreq> ref=<a37> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a37">difFreq</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">[MHz] <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a46"></a><!-- doxytag: member=<XPulser::qswDelay> ref=<a46> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a46">qswDelay</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a38"></a><!-- doxytag: member=<XPulser::qswDelay> ref=<a38> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a38">qswDelay</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Q-switch setting, period after the end-edge of pulses [us]. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a47"></a><!-- doxytag: member=<XPulser::qswWidth> ref=<a47> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a47">qswWidth</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a39"></a><!-- doxytag: member=<XPulser::qswWidth> ref=<a39> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a39">qswWidth</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Q-switch setting, width of suppression [us]. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a48"></a><!-- doxytag: member=<XPulser::qswPiPulseOnly> ref=<a48> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a48">qswPiPulseOnly</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a40"></a><!-- doxytag: member=<XPulser::qswPiPulseOnly> ref=<a40> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a40">qswPiPulseOnly</a> () const </td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Q-switch setting, use QSW only for pi pulses. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a49"></a><!-- doxytag: member=<XPulser::invertPhase> ref=<a49> args=<() const > -->
-const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a49">invertPhase</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a41"></a><!-- doxytag: member=<XPulser::invertPhase> ref=<a41> args=<() const > -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a41">invertPhase</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a50"></a><!-- doxytag: member=<XPulser::combModeRecorded> ref=<a50> args=<() const > -->
-short&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a50">combModeRecorded</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a42"></a><!-- doxytag: member=<XPulser::portSel> ref=<a42> args=<(unsigned int port) const > -->
+const shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a42">portSel</a> (unsigned int port) const </td></tr>
 
-<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">ver 1 records <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a51"></a><!-- doxytag: member=<XPulser::rtimeRecorded> ref=<a51> args=<() const > -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a51">rtimeRecorded</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a43"></a><!-- doxytag: member=<XPulser::combModeRecorded> ref=<a43> args=<() const > -->
+short&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a43">combModeRecorded</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a52"></a><!-- doxytag: member=<XPulser::tauRecorded> ref=<a52> args=<() const > -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a52">tauRecorded</a> () const </td></tr>
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">ver 1 records. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a44"></a><!-- doxytag: member=<XPulser::rtimeRecorded> ref=<a44> args=<() const > -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a44">rtimeRecorded</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a53"></a><!-- doxytag: member=<XPulser::pw1Recorded> ref=<a53> args=<() const > -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a53">pw1Recorded</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a45"></a><!-- doxytag: member=<XPulser::tauRecorded> ref=<a45> args=<() const > -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a45">tauRecorded</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a54"></a><!-- doxytag: member=<XPulser::pw2Recorded> ref=<a54> args=<() const > -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a54">pw2Recorded</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a46"></a><!-- doxytag: member=<XPulser::pw1Recorded> ref=<a46> args=<() const > -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a46">pw1Recorded</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a55"></a><!-- doxytag: member=<XPulser::combP1Recorded> ref=<a55> args=<() const > -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a55">combP1Recorded</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a47"></a><!-- doxytag: member=<XPulser::pw2Recorded> ref=<a47> args=<() const > -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a47">pw2Recorded</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a56"></a><!-- doxytag: member=<XPulser::altSepRecorded> ref=<a56> args=<() const > -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a56">altSepRecorded</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a48"></a><!-- doxytag: member=<XPulser::combP1Recorded> ref=<a48> args=<() const > -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a48">combP1Recorded</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a57"></a><!-- doxytag: member=<XPulser::combP1AltRecorded> ref=<a57> args=<() const > -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a57">combP1AltRecorded</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a49"></a><!-- doxytag: member=<XPulser::altSepRecorded> ref=<a49> args=<() const > -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a49">altSepRecorded</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a58"></a><!-- doxytag: member=<XPulser::aswSetupRecorded> ref=<a58> args=<() const > -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a58">aswSetupRecorded</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a50"></a><!-- doxytag: member=<XPulser::combP1AltRecorded> ref=<a50> args=<() const > -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a50">combP1AltRecorded</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a59"></a><!-- doxytag: member=<XPulser::aswHoldRecorded> ref=<a59> args=<() const > -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a59">aswHoldRecorded</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a51"></a><!-- doxytag: member=<XPulser::aswSetupRecorded> ref=<a51> args=<() const > -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a51">aswSetupRecorded</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a60"></a><!-- doxytag: member=<XPulser::difFreqRecorded> ref=<a60> args=<() const > -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a60">difFreqRecorded</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a52"></a><!-- doxytag: member=<XPulser::aswHoldRecorded> ref=<a52> args=<() const > -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a52">aswHoldRecorded</a> () const </td></tr>
 
-<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">ver 2 records <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a61"></a><!-- doxytag: member=<XPulser::combPWRecorded> ref=<a61> args=<() const > -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a61">combPWRecorded</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a53"></a><!-- doxytag: member=<XPulser::difFreqRecorded> ref=<a53> args=<() const > -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a53">difFreqRecorded</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a62"></a><!-- doxytag: member=<XPulser::combPTRecorded> ref=<a62> args=<() const > -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a62">combPTRecorded</a> () const </td></tr>
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">ver 2 records. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a54"></a><!-- doxytag: member=<XPulser::combPWRecorded> ref=<a54> args=<() const > -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a54">combPWRecorded</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a63"></a><!-- doxytag: member=<XPulser::echoNumRecorded> ref=<a63> args=<() const > -->
-unsigned short&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a63">echoNumRecorded</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a55"></a><!-- doxytag: member=<XPulser::combPTRecorded> ref=<a55> args=<() const > -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a55">combPTRecorded</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a64"></a><!-- doxytag: member=<XPulser::combNumRecorded> ref=<a64> args=<() const > -->
-unsigned short&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a64">combNumRecorded</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a56"></a><!-- doxytag: member=<XPulser::echoNumRecorded> ref=<a56> args=<() const > -->
+unsigned short&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a56">echoNumRecorded</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a65"></a><!-- doxytag: member=<XPulser::rtModeRecorded> ref=<a65> args=<() const > -->
-short&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a65">rtModeRecorded</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a57"></a><!-- doxytag: member=<XPulser::combNumRecorded> ref=<a57> args=<() const > -->
+unsigned short&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a57">combNumRecorded</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a66"></a><!-- doxytag: member=<XPulser::numPhaseCycleRecorded> ref=<a66> args=<() const > -->
-unsigned short&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a66">numPhaseCycleRecorded</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a58"></a><!-- doxytag: member=<XPulser::rtModeRecorded> ref=<a58> args=<() const > -->
+short&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a58">rtModeRecorded</a> () const </td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a67"></a><!-- doxytag: member=<XPulser::invertPhaseRecorded> ref=<a67> args=<() const > -->
-bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a67">invertPhaseRecorded</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a59"></a><!-- doxytag: member=<XPulser::numPhaseCycleRecorded> ref=<a59> args=<() const > -->
+unsigned short&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a59">numPhaseCycleRecorded</a> () const </td></tr>
 
-<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">ver 3 records <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a68"></a><!-- doxytag: member=<XPulser::periodicTermRecorded> ref=<a68> args=<() const > -->
-double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a68">periodicTermRecorded</a> () const </td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a60"></a><!-- doxytag: member=<XPulser::invertPhaseRecorded> ref=<a60> args=<() const > -->
+bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a60">invertPhaseRecorded</a> () const </td></tr>
 
-<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">periodic term of one cycle [ms] <br></td></tr>
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">ver 3 records [experimental]. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a61"></a><!-- doxytag: member=<XPulser::periodicTermRecorded> ref=<a61> args=<() const > -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#a61">periodicTermRecorded</a> () const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">periodic term of one cycle [ms]. <br></td></tr>
 <tr><td colspan="2"><br><h2>Protected 型</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="x0"></a><!-- doxytag: member=<XPulser::RelPatList> ref=<x0> args=<> -->
 typedef std::deque&lt; <a class="el" href="struct_x_pulser_1_1_rel_pat.html">RelPat</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#x0">RelPatList</a></td></tr>
@@ -280,43 +276,96 @@ typedef RelPatList::iterator&nbsp;</td><td class="memItemRight" valign="bottom">
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="x2"></a><!-- doxytag: member=<XPulser::tpulsefunc> ref=<x2> args=<)(double x)> -->
 typedef double(*&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#x2">tpulsefunc</a> )(double x)</td></tr>
 
+<tr><td class="memItemLeft" nowrap align="right" valign="top">enum &nbsp;</td><td class="memItemRight" valign="bottom">{ <br>
+&nbsp;&nbsp;<b>PORTSEL_UNSEL</b> =  -1, 
+<b>PORTSEL_GATE</b> =  0, 
+<b>PORTSEL_PREGATE</b> =  1, 
+<b>PORTSEL_GATE3</b> =  2, 
+<br>
+&nbsp;&nbsp;<b>PORTSEL_TRIG1</b> =  3, 
+<b>PORTSEL_TRIG2</b> =  4, 
+<b>PORTSEL_ASW</b> =  5, 
+<b>PORTSEL_QSW</b> =  6, 
+<br>
+&nbsp;&nbsp;<b>PORTSEL_PULSE1</b> =  7, 
+<b>PORTSEL_PULSE2</b> =  8, 
+<b>PORTSEL_COMB</b> =  9, 
+<b>PORTSEL_COMB_FM</b> =  10, 
+<br>
+&nbsp;&nbsp;<b>PORTSEL_QPSK_A</b> =  11, 
+<b>PORTSEL_QPSK_B</b> =  12, 
+<b>PORTSEL_QPSK_OLD_NONINV</b> =  13, 
+<b>PORTSEL_QPSK_OLD_INV</b> =  14, 
+<br>
+&nbsp;&nbsp;<b>PORTSEL_QPSK_OLD_PSGATE</b> =  15
+<br>
+ }</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">indice for return values of <a class="el" href="class_x_pulser.html#a42">portSel()</a>. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">enum &nbsp;</td><td class="memItemRight" valign="bottom">{ <br>
+&nbsp;&nbsp;<b>PAT_DO_MASK</b> =  (1 &lt;&lt; NUM_DO_PORTS) - 1, 
+<b>PAT_QAM_PHASE</b> =  (1 &lt;&lt; NUM_DO_PORTS), 
+<b>PAT_QAM_PHASE_MASK</b> =  PAT_QAM_PHASE * 3, 
+<b>PAT_QAM_PULSE_IDX</b> =  PAT_QAM_PHASE * 4, 
+<br>
+&nbsp;&nbsp;<b>PAT_QAM_PULSE_IDX_P1</b> =  PAT_QAM_PULSE_IDX * 1, 
+<b>PAT_QAM_PULSE_IDX_P2</b> =  PAT_QAM_PULSE_IDX * 2, 
+<b>PAT_QAM_PULSE_IDX_PCOMB</b> =  PAT_QAM_PULSE_IDX * 3, 
+<b>PAT_QAM_PULSE_IDX_INDUCE_EMISSION</b> =  PAT_QAM_PULSE_IDX * 4, 
+<br>
+&nbsp;&nbsp;<b>PAT_QAM_PULSE_IDX_MASK</b> =  PAT_QAM_PULSE_IDX * 15, 
+<b>PAT_QAM_MASK</b> =  PAT_QAM_PHASE_MASK | PAT_QAM_PULSE_IDX_MASK
+<br>
+ }</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">for RelPatList patterns.  <a href="class_x_pulser.html#x31">[詳細]</a><br></td></tr>
 <tr><td colspan="2"><br><h2>Protected メソッド</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b0"></a><!-- doxytag: member=<XPulser::XPulser> ref=<b0> args=<(const char *name, bool runtime, const shared_ptr&lt; XScalarEntryList &gt; &amp;scalarentries, const shared_ptr&lt; XInterfaceList &gt; &amp;interfaces, const shared_ptr&lt; XThermometerList &gt; &amp;thermometers, const shared_ptr&lt; XDriverList &gt; &amp;drivers)> -->
 &nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b0">XPulser</a> (const char *name, bool runtime, const shared_ptr&lt; <a class="el" href="class_x_scalar_entry_list.html">XScalarEntryList</a> &gt; &amp;scalarentries, const shared_ptr&lt; <a class="el" href="class_x_interface_list.html">XInterfaceList</a> &gt; &amp;interfaces, const shared_ptr&lt; <a class="el" href="class_x_thermometer_list.html">XThermometerList</a> &gt; &amp;thermometers, const shared_ptr&lt; <a class="el" href="class_x_driver_list.html">XDriverList</a> &gt; &amp;drivers)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b1"></a><!-- doxytag: member=<XPulser::start> ref=<b1> args=<()> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b1">start</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">unsigned int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b1">selectedPorts</a> (int func) const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b2"></a><!-- doxytag: member=<XPulser::start> ref=<b2> args=<()> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b2">start</a> ()</td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Start up your threads, connect GUI, and activate signals. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top">virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b2">stop</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b3">stop</a> ()</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top">virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b3">analyzeRaw</a> ()  throw (XRecordError&amp;)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b4">analyzeRaw</a> ()  throw (XRecordError&amp;)</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top">virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b4">visualize</a> ()</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b5">visualize</a> ()</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b5"></a><!-- doxytag: member=<XPulser::changeOutput> ref=<b5> args=<(bool output)=0> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b5">changeOutput</a> (bool output)=0</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b6">writeRaw</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b7"></a><!-- doxytag: member=<XPulser::pulseFunc> ref=<b7> args=<(const std::string &amp;str) const > -->
+<a class="el" href="class_x_pulser.html#x2">tpulsefunc</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b7">pulseFunc</a> (const std::string &amp;str) const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b8"></a><!-- doxytag: member=<XPulser::changeOutput> ref=<b8> args=<(bool output, unsigned int blankpattern)=0> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b8">changeOutput</a> (bool output, unsigned int blankpattern)=0</td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">send patterns to pulser or turn-off <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b6"></a><!-- doxytag: member=<XPulser::createNativePatterns> ref=<b6> args=<()=0> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b6">createNativePatterns</a> ()=0</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b9"></a><!-- doxytag: member=<XPulser::createNativePatterns> ref=<b9> args=<()=0> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b9">createNativePatterns</a> ()=0</td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">convert RelPatList to native patterns <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b7"></a><!-- doxytag: member=<XPulser::resolution> ref=<b7> args=<()=0> -->
-virtual double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b7">resolution</a> ()=0</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b10"></a><!-- doxytag: member=<XPulser::resolution> ref=<b10> args=<() const =0> -->
+virtual double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b10">resolution</a> () const =0</td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">time resolution [ms] <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b8"></a><!-- doxytag: member=<XPulser::rawToRelPat> ref=<b8> args=<()=0> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b8">rawToRelPat</a> ()=0  throw (XRecordError&amp;)</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b11"></a><!-- doxytag: member=<XPulser::resolutionQAM> ref=<b11> args=<() const =0> -->
+virtual double&nbsp;</td><td class="memItemRight" valign="bottom"><b>resolutionQAM</b> () const =0</td></tr>
 
-<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">create RelPatList <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b9"></a><!-- doxytag: member=<XPulser::afterStart> ref=<b9> args=<()=0> -->
-virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><b>afterStart</b> ()=0</td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b12"></a><!-- doxytag: member=<XPulser::minPulseWidth> ref=<b12> args=<() const =0> -->
+virtual double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b12">minPulseWidth</a> () const =0</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b10">writeRaw</a> ()</td></tr>
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">minimum period of pulses [ms] <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b13"></a><!-- doxytag: member=<XPulser::haveQAMPorts> ref=<b13> args=<() const =0> -->
+virtual bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b13">haveQAMPorts</a> () const =0</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b11"></a><!-- doxytag: member=<XPulser::pulseFunc> ref=<b11> args=<(const std::string &amp;str)> -->
-<a class="el" href="class_x_pulser.html#x2">tpulsefunc</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b11">pulseFunc</a> (const std::string &amp;str)</td></tr>
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">existense of AO ports. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b14"></a><!-- doxytag: member=<XPulser::qamWaveForm> ref=<b14> args=<(unsigned int idx) const > -->
+const std::vector&lt; std::complex&lt;<br>
+ double &gt; &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#b14">qamWaveForm</a> (unsigned int idx) const </td></tr>
 
 <tr><td colspan="2"><br><h2>Static Protected メソッド</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="f0"></a><!-- doxytag: member=<XPulser::pulseFuncRect> ref=<f0> args=<(double x)> -->
@@ -428,331 +477,319 @@ void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#d1">onPulseChanged</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
 
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d2"></a><!-- doxytag: member=<XPulser::rawToRelPat> ref=<d2> args=<()> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#d2">rawToRelPat</a> ()  throw (XRecordError&amp;)</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">create RelPatList <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d3"></a><!-- doxytag: member=<XPulser::makeWaveForm> ref=<d3> args=<(unsigned int pnum_minus_1, double pw, unsigned int to_center, tpulsefunc func, double dB, double freq=0.0, double phase=0.0)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#d3">makeWaveForm</a> (unsigned int pnum_minus_1, double pw, unsigned int to_center, <a class="el" href="class_x_pulser.html#x2">tpulsefunc</a> func, double dB, double freq=0.0, double phase=0.0)</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">prepare waveforms for QAM. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d4"></a><!-- doxytag: member=<XPulser::rintTermMilliSec> ref=<d4> args=<(double msec) const > -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#d4">rintTermMilliSec</a> (double msec) const </td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">truncate time by <a class="el" href="class_x_pulser.html#b10">resolution()</a>. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d5"></a><!-- doxytag: member=<XPulser::rintTermMicroSec> ref=<d5> args=<(double usec) const > -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#d5">rintTermMicroSec</a> (double usec) const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d6"></a><!-- doxytag: member=<XPulser::ceilSampsMicroSec> ref=<d6> args=<(double us) const > -->
+uint64_t&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#d6">ceilSampsMicroSec</a> (double us) const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d7"></a><!-- doxytag: member=<XPulser::rintSampsMicroSec> ref=<d7> args=<(double us) const > -->
+uint64_t&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#d7">rintSampsMicroSec</a> (double us) const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d8"></a><!-- doxytag: member=<XPulser::rintSampsMilliSec> ref=<d8> args=<(double ms) const > -->
+uint64_t&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#d8">rintSampsMilliSec</a> (double ms) const </td></tr>
+
 <tr><td colspan="2"><br><h2>Private 変数</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r0"></a><!-- doxytag: member=<XPulser::m_output> ref=<r0> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r0">m_output</a></td></tr>
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r0">m_output</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top">shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r1">m_combMode</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">const shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r1">m_combMode</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top">shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r2">m_rtMode</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">const shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r2">m_rtMode</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r3"></a><!-- doxytag: member=<XPulser::m_numPhaseCycle> ref=<r3> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r3">m_numPhaseCycle</a></td></tr>
-
-<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">How many cycles in phase cycling. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r4"></a><!-- doxytag: member=<XPulser::m_rt> ref=<r4> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r4">m_rt</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r3"></a><!-- doxytag: member=<XPulser::m_rt> ref=<r3> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r3">m_rt</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Repetition/Rest Time [ms]. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r5"></a><!-- doxytag: member=<XPulser::m_tau> ref=<r5> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r5">m_tau</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r4"></a><!-- doxytag: member=<XPulser::m_tau> ref=<r4> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r4">m_tau</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">[us] <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r6"></a><!-- doxytag: member=<XPulser::m_combPW> ref=<r6> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r6">m_combPW</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r5"></a><!-- doxytag: member=<XPulser::m_combPW> ref=<r5> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r5">m_combPW</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r7"></a><!-- doxytag: member=<XPulser::m_pw1> ref=<r7> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r7">m_pw1</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r6"></a><!-- doxytag: member=<XPulser::m_pw1> ref=<r6> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r6">m_pw1</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r8"></a><!-- doxytag: member=<XPulser::m_pw2> ref=<r8> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r8">m_pw2</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r7"></a><!-- doxytag: member=<XPulser::m_pw2> ref=<r7> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r7">m_pw2</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">PulseWidths [us]. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r8"></a><!-- doxytag: member=<XPulser::m_combNum> ref=<r8> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XUIntNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r8">m_combNum</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight"># of comb pulses <br></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r9"></a><!-- doxytag: member=<XPulser::m_combPT> ref=<r9> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r9">m_combPT</a></td></tr>
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r9">m_combPT</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Comb pulse periodic term [us]. <br></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r10"></a><!-- doxytag: member=<XPulser::m_combP1> ref=<r10> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r10">m_combP1</a></td></tr>
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r10">m_combP1</a></td></tr>
 
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r11"></a><!-- doxytag: member=<XPulser::m_combP1Alt> ref=<r11> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r11">m_combP1Alt</a></td></tr>
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r11">m_combP1Alt</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">P1 and P1 alternative. <br></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r12"></a><!-- doxytag: member=<XPulser::m_aswSetup> ref=<r12> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r12">m_aswSetup</a></td></tr>
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r12">m_aswSetup</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Analog switch setting, setup(proceeding) time before the first spin echo. <br></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r13"></a><!-- doxytag: member=<XPulser::m_aswHold> ref=<r13> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r13">m_aswHold</a></td></tr>
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r13">m_aswHold</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Analog switch setting, hold time after the last spin echo. <br></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r14"></a><!-- doxytag: member=<XPulser::m_altSep> ref=<r14> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r14">m_altSep</a></td></tr>
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r14">m_altSep</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Separation time in DSO record, cause a shift of trigger of DSO in alternatively mode. <br></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r15"></a><!-- doxytag: member=<XPulser::m_g2Setup> ref=<r15> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r15">m_g2Setup</a></td></tr>
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r15">m_g2Setup</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Setup time of pre-gating port and QPSK. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r16"></a><!-- doxytag: member=<XPulser::m_combNum> ref=<r16> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_value_node.html">XUIntNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r16">m_combNum</a></td></tr>
-
-<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight"># of comb pulses <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r17"></a><!-- doxytag: member=<XPulser::m_echoNum> ref=<r17> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_value_node.html">XUIntNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r17">m_echoNum</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r16"></a><!-- doxytag: member=<XPulser::m_echoNum> ref=<r16> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XUIntNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r16">m_echoNum</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight"># of Spin echoes (i.e. pi pulses) <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r18"></a><!-- doxytag: member=<XPulser::m_drivenEquilibrium> ref=<r18> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r18">m_drivenEquilibrium</a></td></tr>
-
-<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">polarize spins after pulse sequence or not <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r19"></a><!-- doxytag: member=<XPulser::m_combOffRes> ref=<r19> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r19">m_combOffRes</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r17"></a><!-- doxytag: member=<XPulser::m_combOffRes> ref=<r17> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r17">m_combOffRes</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">off-resonance comb pulses <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r20"></a><!-- doxytag: member=<XPulser::m_combFunc> ref=<r20> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r20">m_combFunc</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r18"></a><!-- doxytag: member=<XPulser::m_drivenEquilibrium> ref=<r18> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r18">m_drivenEquilibrium</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r21"></a><!-- doxytag: member=<XPulser::m_p1Func> ref=<r21> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r21">m_p1Func</a></td></tr>
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">polarize spins after pulse sequence or not <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r19"></a><!-- doxytag: member=<XPulser::m_numPhaseCycle> ref=<r19> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r19">m_numPhaseCycle</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r22"></a><!-- doxytag: member=<XPulser::m_p2Func> ref=<r22> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r22">m_p2Func</a></td></tr>
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">How many cycles in phase cycling. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r20"></a><!-- doxytag: member=<XPulser::m_p1Func> ref=<r20> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r20">m_p1Func</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r21"></a><!-- doxytag: member=<XPulser::m_p2Func> ref=<r21> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r21">m_p2Func</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r22"></a><!-- doxytag: member=<XPulser::m_combFunc> ref=<r22> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r22">m_combFunc</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">Pulse Modulation. <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r23"></a><!-- doxytag: member=<XPulser::m_combLevel> ref=<r23> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r23">m_combLevel</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r23"></a><!-- doxytag: member=<XPulser::m_p1Level> ref=<r23> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r23">m_p1Level</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r24"></a><!-- doxytag: member=<XPulser::m_p1Level> ref=<r24> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r24">m_p1Level</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r24"></a><!-- doxytag: member=<XPulser::m_p2Level> ref=<r24> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r24">m_p2Level</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r25"></a><!-- doxytag: member=<XPulser::m_p2Level> ref=<r25> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r25">m_p2Level</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r25"></a><!-- doxytag: member=<XPulser::m_combLevel> ref=<r25> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r25">m_combLevel</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">[dB], Pulse Modulation <br></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r26"></a><!-- doxytag: member=<XPulser::m_masterLevel> ref=<r26> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r26">m_masterLevel</a></td></tr>
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r26">m_masterLevel</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">[dB] <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r27"></a><!-- doxytag: member=<XPulser::m_aswFilter> ref=<r27> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r27">m_aswFilter</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r27"></a><!-- doxytag: member=<XPulser::m_qamOffset1> ref=<r27> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r27">m_qamOffset1</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r28"></a><!-- doxytag: member=<XPulser::m_portLevel8> ref=<r28> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r28">m_portLevel8</a></td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r29"></a><!-- doxytag: member=<XPulser::m_portLevel9> ref=<r29> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r29">m_portLevel9</a></td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r30"></a><!-- doxytag: member=<XPulser::m_portLevel10> ref=<r30> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r30">m_portLevel10</a></td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r31"></a><!-- doxytag: member=<XPulser::m_portLevel11> ref=<r31> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r31">m_portLevel11</a></td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r32"></a><!-- doxytag: member=<XPulser::m_portLevel12> ref=<r32> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r32">m_portLevel12</a></td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r33"></a><!-- doxytag: member=<XPulser::m_portLevel13> ref=<r33> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r33">m_portLevel13</a></td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r34"></a><!-- doxytag: member=<XPulser::m_portLevel14> ref=<r34> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r34">m_portLevel14</a></td></tr>
-
-<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">[V] <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r35"></a><!-- doxytag: member=<XPulser::m_qamOffset1> ref=<r35> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r35">m_qamOffset1</a></td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r36"></a><!-- doxytag: member=<XPulser::m_qamOffset2> ref=<r36> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r36">m_qamOffset2</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r28"></a><!-- doxytag: member=<XPulser::m_qamOffset2> ref=<r28> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r28">m_qamOffset2</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">[F.S.] <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r37"></a><!-- doxytag: member=<XPulser::m_qamLevel1> ref=<r37> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r37">m_qamLevel1</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r29"></a><!-- doxytag: member=<XPulser::m_qamLevel1> ref=<r29> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r29">m_qamLevel1</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r38"></a><!-- doxytag: member=<XPulser::m_qamLevel2> ref=<r38> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r38">m_qamLevel2</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r30"></a><!-- doxytag: member=<XPulser::m_qamLevel2> ref=<r30> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r30">m_qamLevel2</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r39"></a><!-- doxytag: member=<XPulser::m_qamDelay1> ref=<r39> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r39">m_qamDelay1</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r31"></a><!-- doxytag: member=<XPulser::m_qamDelay1> ref=<r31> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r31">m_qamDelay1</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r40"></a><!-- doxytag: member=<XPulser::m_qamDelay2> ref=<r40> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r40">m_qamDelay2</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r32"></a><!-- doxytag: member=<XPulser::m_qamDelay2> ref=<r32> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r32">m_qamDelay2</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">[us] <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r41"></a><!-- doxytag: member=<XPulser::m_difFreq> ref=<r41> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r41">m_difFreq</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r33"></a><!-- doxytag: member=<XPulser::m_difFreq> ref=<r33> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r33">m_difFreq</a></td></tr>
 
 <tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">[MHz] <br></td></tr>
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r42"></a><!-- doxytag: member=<XPulser::m_induceEmission> ref=<r42> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r42">m_induceEmission</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r34"></a><!-- doxytag: member=<XPulser::m_induceEmission> ref=<r34> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r34">m_induceEmission</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r43"></a><!-- doxytag: member=<XPulser::m_induceEmissionPhase> ref=<r43> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r43">m_induceEmissionPhase</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r35"></a><!-- doxytag: member=<XPulser::m_induceEmissionPhase> ref=<r35> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r35">m_induceEmissionPhase</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r44"></a><!-- doxytag: member=<XPulser::m_qswDelay> ref=<r44> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r44">m_qswDelay</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r36"></a><!-- doxytag: member=<XPulser::m_qswDelay> ref=<r36> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r36">m_qswDelay</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r45"></a><!-- doxytag: member=<XPulser::m_qswWidth> ref=<r45> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r45">m_qswWidth</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r37"></a><!-- doxytag: member=<XPulser::m_qswWidth> ref=<r37> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_double_node.html">XDoubleNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r37">m_qswWidth</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r46"></a><!-- doxytag: member=<XPulser::m_qswPiPulseOnly> ref=<r46> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r46">m_qswPiPulseOnly</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r38"></a><!-- doxytag: member=<XPulser::m_invertPhase> ref=<r38> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r38">m_invertPhase</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r47"></a><!-- doxytag: member=<XPulser::m_invertPhase> ref=<r47> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r47">m_invertPhase</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r39"></a><!-- doxytag: member=<XPulser::m_qswPiPulseOnly> ref=<r39> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_value_node.html">XBoolNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r39">m_qswPiPulseOnly</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r48"></a><!-- doxytag: member=<XPulser::m_moreConfigShow> ref=<r48> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r48">m_moreConfigShow</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r40"></a><!-- doxytag: member=<XPulser::m_portSel> ref=<r40> args=<[NUM_DO_PORTS]> -->
+shared_ptr&lt; <a class="el" href="class_x_combo_node.html">XComboNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r40">m_portSel</a> [NUM_DO_PORTS]</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r49"></a><!-- doxytag: member=<XPulser::m_conOutput> ref=<r49> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r49">m_conOutput</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r41"></a><!-- doxytag: member=<XPulser::m_moreConfigShow> ref=<r41> args=<> -->
+const shared_ptr&lt; <a class="el" href="class_x_node.html">XNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r41">m_moreConfigShow</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r50"></a><!-- doxytag: member=<XPulser::m_conCombMode> ref=<r50> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r50">m_conCombMode</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r42"></a><!-- doxytag: member=<XPulser::m_conOutput> ref=<r42> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r42">m_conOutput</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r51"></a><!-- doxytag: member=<XPulser::m_conRTMode> ref=<r51> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r51">m_conRTMode</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r43"></a><!-- doxytag: member=<XPulser::m_conCombMode> ref=<r43> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r43">m_conCombMode</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r52"></a><!-- doxytag: member=<XPulser::m_conRT> ref=<r52> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r52">m_conRT</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r44"></a><!-- doxytag: member=<XPulser::m_conRTMode> ref=<r44> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r44">m_conRTMode</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r53"></a><!-- doxytag: member=<XPulser::m_conTau> ref=<r53> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r53">m_conTau</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r45"></a><!-- doxytag: member=<XPulser::m_conRT> ref=<r45> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r45">m_conRT</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r54"></a><!-- doxytag: member=<XPulser::m_conCombPW> ref=<r54> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r54">m_conCombPW</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r46"></a><!-- doxytag: member=<XPulser::m_conTau> ref=<r46> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r46">m_conTau</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r55"></a><!-- doxytag: member=<XPulser::m_conPW1> ref=<r55> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r55">m_conPW1</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r47"></a><!-- doxytag: member=<XPulser::m_conCombPW> ref=<r47> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r47">m_conCombPW</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r56"></a><!-- doxytag: member=<XPulser::m_conPW2> ref=<r56> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r56">m_conPW2</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r48"></a><!-- doxytag: member=<XPulser::m_conPW1> ref=<r48> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r48">m_conPW1</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r57"></a><!-- doxytag: member=<XPulser::m_conCombNum> ref=<r57> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r57">m_conCombNum</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r49"></a><!-- doxytag: member=<XPulser::m_conPW2> ref=<r49> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r49">m_conPW2</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r58"></a><!-- doxytag: member=<XPulser::m_conCombPT> ref=<r58> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r58">m_conCombPT</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r50"></a><!-- doxytag: member=<XPulser::m_conCombNum> ref=<r50> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r50">m_conCombNum</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r59"></a><!-- doxytag: member=<XPulser::m_conCombP1> ref=<r59> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r59">m_conCombP1</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r51"></a><!-- doxytag: member=<XPulser::m_conCombPT> ref=<r51> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r51">m_conCombPT</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r60"></a><!-- doxytag: member=<XPulser::m_conCombP1Alt> ref=<r60> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r60">m_conCombP1Alt</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r52"></a><!-- doxytag: member=<XPulser::m_conCombP1> ref=<r52> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r52">m_conCombP1</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r61"></a><!-- doxytag: member=<XPulser::m_conASWHold> ref=<r61> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r61">m_conASWHold</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r53"></a><!-- doxytag: member=<XPulser::m_conCombP1Alt> ref=<r53> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r53">m_conCombP1Alt</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r62"></a><!-- doxytag: member=<XPulser::m_conASWSetup> ref=<r62> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r62">m_conASWSetup</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r54"></a><!-- doxytag: member=<XPulser::m_conASWHold> ref=<r54> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r54">m_conASWHold</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r63"></a><!-- doxytag: member=<XPulser::m_conALTSep> ref=<r63> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r63">m_conALTSep</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r55"></a><!-- doxytag: member=<XPulser::m_conASWSetup> ref=<r55> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r55">m_conASWSetup</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r64"></a><!-- doxytag: member=<XPulser::m_conG2Setup> ref=<r64> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r64">m_conG2Setup</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r56"></a><!-- doxytag: member=<XPulser::m_conALTSep> ref=<r56> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r56">m_conALTSep</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r65"></a><!-- doxytag: member=<XPulser::m_conEchoNum> ref=<r65> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r65">m_conEchoNum</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r57"></a><!-- doxytag: member=<XPulser::m_conG2Setup> ref=<r57> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r57">m_conG2Setup</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r66"></a><!-- doxytag: member=<XPulser::m_conDrivenEquilibrium> ref=<r66> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r66">m_conDrivenEquilibrium</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r58"></a><!-- doxytag: member=<XPulser::m_conEchoNum> ref=<r58> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r58">m_conEchoNum</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r67"></a><!-- doxytag: member=<XPulser::m_conNumPhaseCycle> ref=<r67> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r67">m_conNumPhaseCycle</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r59"></a><!-- doxytag: member=<XPulser::m_conDrivenEquilibrium> ref=<r59> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r59">m_conDrivenEquilibrium</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r68"></a><!-- doxytag: member=<XPulser::m_conCombOffRes> ref=<r68> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r68">m_conCombOffRes</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r60"></a><!-- doxytag: member=<XPulser::m_conNumPhaseCycle> ref=<r60> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r60">m_conNumPhaseCycle</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r69"></a><!-- doxytag: member=<XPulser::m_conCombFunc> ref=<r69> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r69">m_conCombFunc</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r61"></a><!-- doxytag: member=<XPulser::m_conCombOffRes> ref=<r61> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r61">m_conCombOffRes</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r70"></a><!-- doxytag: member=<XPulser::m_conP1Func> ref=<r70> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r70">m_conP1Func</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r62"></a><!-- doxytag: member=<XPulser::m_conInvertPhase> ref=<r62> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r62">m_conInvertPhase</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r71"></a><!-- doxytag: member=<XPulser::m_conP2Func> ref=<r71> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r71">m_conP2Func</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r63"></a><!-- doxytag: member=<XPulser::m_conCombFunc> ref=<r63> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r63">m_conCombFunc</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r72"></a><!-- doxytag: member=<XPulser::m_conCombLevel> ref=<r72> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r72">m_conCombLevel</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r64"></a><!-- doxytag: member=<XPulser::m_conP1Func> ref=<r64> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r64">m_conP1Func</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r73"></a><!-- doxytag: member=<XPulser::m_conP1Level> ref=<r73> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r73">m_conP1Level</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r65"></a><!-- doxytag: member=<XPulser::m_conP2Func> ref=<r65> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r65">m_conP2Func</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r74"></a><!-- doxytag: member=<XPulser::m_conP2Level> ref=<r74> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r74">m_conP2Level</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r66"></a><!-- doxytag: member=<XPulser::m_conCombLevel> ref=<r66> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r66">m_conCombLevel</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r75"></a><!-- doxytag: member=<XPulser::m_conMasterLevel> ref=<r75> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r75">m_conMasterLevel</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r67"></a><!-- doxytag: member=<XPulser::m_conP1Level> ref=<r67> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r67">m_conP1Level</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r76"></a><!-- doxytag: member=<XPulser::m_conASWFilter> ref=<r76> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r76">m_conASWFilter</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r68"></a><!-- doxytag: member=<XPulser::m_conP2Level> ref=<r68> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r68">m_conP2Level</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r77"></a><!-- doxytag: member=<XPulser::m_conPortLevel8> ref=<r77> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r77">m_conPortLevel8</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r69"></a><!-- doxytag: member=<XPulser::m_conMasterLevel> ref=<r69> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r69">m_conMasterLevel</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r78"></a><!-- doxytag: member=<XPulser::m_conPortLevel9> ref=<r78> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r78">m_conPortLevel9</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r70"></a><!-- doxytag: member=<XPulser::m_conQAMOffset1> ref=<r70> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r70">m_conQAMOffset1</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r79"></a><!-- doxytag: member=<XPulser::m_conPortLevel10> ref=<r79> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r79">m_conPortLevel10</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r71"></a><!-- doxytag: member=<XPulser::m_conQAMOffset2> ref=<r71> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r71">m_conQAMOffset2</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r80"></a><!-- doxytag: member=<XPulser::m_conPortLevel11> ref=<r80> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r80">m_conPortLevel11</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r72"></a><!-- doxytag: member=<XPulser::m_conQAMLevel1> ref=<r72> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r72">m_conQAMLevel1</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r81"></a><!-- doxytag: member=<XPulser::m_conPortLevel12> ref=<r81> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r81">m_conPortLevel12</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r73"></a><!-- doxytag: member=<XPulser::m_conQAMLevel2> ref=<r73> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r73">m_conQAMLevel2</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r82"></a><!-- doxytag: member=<XPulser::m_conPortLevel13> ref=<r82> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r82">m_conPortLevel13</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r74"></a><!-- doxytag: member=<XPulser::m_conQAMDelay1> ref=<r74> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r74">m_conQAMDelay1</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r83"></a><!-- doxytag: member=<XPulser::m_conPortLevel14> ref=<r83> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r83">m_conPortLevel14</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r75"></a><!-- doxytag: member=<XPulser::m_conQAMDelay2> ref=<r75> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r75">m_conQAMDelay2</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r84"></a><!-- doxytag: member=<XPulser::m_conQAMOffset1> ref=<r84> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r84">m_conQAMOffset1</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r76"></a><!-- doxytag: member=<XPulser::m_conMoreConfigShow> ref=<r76> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r76">m_conMoreConfigShow</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r85"></a><!-- doxytag: member=<XPulser::m_conQAMOffset2> ref=<r85> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r85">m_conQAMOffset2</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r77"></a><!-- doxytag: member=<XPulser::m_conDIFFreq> ref=<r77> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r77">m_conDIFFreq</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r86"></a><!-- doxytag: member=<XPulser::m_conQAMLevel1> ref=<r86> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r86">m_conQAMLevel1</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r78"></a><!-- doxytag: member=<XPulser::m_conInduceEmission> ref=<r78> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r78">m_conInduceEmission</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r87"></a><!-- doxytag: member=<XPulser::m_conQAMLevel2> ref=<r87> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r87">m_conQAMLevel2</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r79"></a><!-- doxytag: member=<XPulser::m_conInduceEmissionPhase> ref=<r79> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r79">m_conInduceEmissionPhase</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r88"></a><!-- doxytag: member=<XPulser::m_conQAMDelay1> ref=<r88> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r88">m_conQAMDelay1</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r80"></a><!-- doxytag: member=<XPulser::m_conQSWDelay> ref=<r80> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r80">m_conQSWDelay</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r89"></a><!-- doxytag: member=<XPulser::m_conQAMDelay2> ref=<r89> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r89">m_conQAMDelay2</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r81"></a><!-- doxytag: member=<XPulser::m_conQSWWidth> ref=<r81> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r81">m_conQSWWidth</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r90"></a><!-- doxytag: member=<XPulser::m_conMoreConfigShow> ref=<r90> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r90">m_conMoreConfigShow</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r82"></a><!-- doxytag: member=<XPulser::m_conQSWPiPulseOnly> ref=<r82> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r82">m_conQSWPiPulseOnly</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r91"></a><!-- doxytag: member=<XPulser::m_conDIFFreq> ref=<r91> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r91">m_conDIFFreq</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r83"></a><!-- doxytag: member=<XPulser::m_conPortSel> ref=<r83> args=<[NUM_DO_PORTS]> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r83">m_conPortSel</a> [NUM_DO_PORTS]</td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r92"></a><!-- doxytag: member=<XPulser::m_conInduceEmission> ref=<r92> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r92">m_conInduceEmission</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r84"></a><!-- doxytag: member=<XPulser::m_lsnOnPulseChanged> ref=<r84> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r84">m_lsnOnPulseChanged</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r93"></a><!-- doxytag: member=<XPulser::m_conInduceEmissionPhase> ref=<r93> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r93">m_conInduceEmissionPhase</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r85"></a><!-- doxytag: member=<XPulser::m_lsnOnMoreConfigShow> ref=<r85> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r85">m_lsnOnMoreConfigShow</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r94"></a><!-- doxytag: member=<XPulser::m_conQSWDelay> ref=<r94> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r94">m_conQSWDelay</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r86"></a><!-- doxytag: member=<XPulser::m_form> ref=<r86> args=<> -->
+const <a class="el" href="classqshared__ptr.html">qshared_ptr</a>&lt; FrmPulser &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r86">m_form</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r95"></a><!-- doxytag: member=<XPulser::m_conQSWWidth> ref=<r95> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r95">m_conQSWWidth</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r87"></a><!-- doxytag: member=<XPulser::m_formMore> ref=<r87> args=<> -->
+const <a class="el" href="classqshared__ptr.html">qshared_ptr</a>&lt; FrmPulserMore &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r87">m_formMore</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r96"></a><!-- doxytag: member=<XPulser::m_conQSWPiPulseOnly> ref=<r96> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r96">m_conQSWPiPulseOnly</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r88"></a><!-- doxytag: member=<XPulser::m_conPulserDriver> ref=<r88> args=<> -->
+<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r88">m_conPulserDriver</a></td></tr>
 
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r97"></a><!-- doxytag: member=<XPulser::m_lsnOnPulseChanged> ref=<r97> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r97">m_lsnOnPulseChanged</a></td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r98"></a><!-- doxytag: member=<XPulser::m_lsnOnMoreConfigShow> ref=<r98> args=<> -->
-shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r98">m_lsnOnMoreConfigShow</a></td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r99"></a><!-- doxytag: member=<XPulser::m_form> ref=<r99> args=<> -->
-<a class="el" href="classqshared__ptr.html">qshared_ptr</a>&lt; FrmPulser &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r99">m_form</a></td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r100"></a><!-- doxytag: member=<XPulser::m_formMore> ref=<r100> args=<> -->
-<a class="el" href="classqshared__ptr.html">qshared_ptr</a>&lt; FrmPulserMore &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r100">m_formMore</a></td></tr>
-
-<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r101"></a><!-- doxytag: member=<XPulser::m_conPulserDriver> ref=<r101> args=<> -->
-<a class="el" href="classqshared__ptr.html">xqcon_ptr</a>&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r101">m_conPulserDriver</a></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r89"></a><!-- doxytag: member=<XPulser::m_qamWaveForm> ref=<r89> args=<[PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX]> -->
+std::vector&lt; std::complex&lt;<br>
+ double &gt; &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_pulser.html#r89">m_qamWaveForm</a> [PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX]</td></tr>
 
 <tr><td colspan="2"><br><h2>フレンド</h2></td></tr>
 <tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="n0"></a><!-- doxytag: member=<XPulser::XQPulserDriverConnector> ref=<n0> args=<> -->
@@ -767,8 +804,115 @@ Base class of NMR Pulsers.
 <p>
 
 <p>
- <a class="el" href="pulserdriver_8h-source.html">pulserdriver.h</a> の <a class="el" href="pulserdriver_8h-source.html#l00033">33</a> 行で定義されています。<hr><h2>関数</h2>
-<a class="anchor" name="b3"></a><!-- doxytag: member=<XPulser::analyzeRaw> ref=<b3> args=<()> --><p>
+ <a class="el" href="pulserdriver_8h-source.html">pulserdriver.h</a> の <a class="el" href="pulserdriver_8h-source.html#l00031">31</a> 行で定義されています。<hr><h2>列挙型</h2>
+<a class="anchor" name="w8"></a><!-- doxytag: member=<XPulser::@0> ref=<w8> args=<> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">anonymous enum          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+<dl compact><dt><b>参照:</b></dt><dd><a class="el" href="class_x_pulser.html#a3">combMode()</a>, <a class="el" href="class_x_pulser.html#a43">combModeRecorded()</a>.</dd></dl>
+
+<p>
+ <a class="el" href="pulserdriver_8h-source.html">pulserdriver.h</a> の <a class="el" href="pulserdriver_8h-source.html#l00049">49</a> 行で定義されています。    </td>
+  </tr>
+</table>
+<a class="anchor" name="w9"></a><!-- doxytag: member=<XPulser::@1> ref=<w9> args=<> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">anonymous enum          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+<dl compact><dt><b>参照:</b></dt><dd><a class="el" href="class_x_pulser.html#a4">rtMode()</a>, <a class="el" href="class_x_pulser.html#a58">rtModeRecorded()</a>.</dd></dl>
+
+<p>
+ <a class="el" href="pulserdriver_8h-source.html">pulserdriver.h</a> の <a class="el" href="pulserdriver_8h-source.html#l00051">51</a> 行で定義されています。    </td>
+  </tr>
+</table>
+<a class="anchor" name="w10"></a><!-- doxytag: member=<XPulser::@2> ref=<w10> args=<> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">anonymous enum          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+<dl compact><dt><b>参照:</b></dt><dd><a class="el" href="class_x_pulser.html#a5">numPhaseCycle()</a>, <a class="el" href="class_x_pulser.html#a59">numPhaseCycleRecorded()</a>.</dd></dl>
+
+<p>
+ <a class="el" href="pulserdriver_8h-source.html">pulserdriver.h</a> の <a class="el" href="pulserdriver_8h-source.html#l00053">53</a> 行で定義されています。    </td>
+  </tr>
+</table>
+<a class="anchor" name="x31"></a><!-- doxytag: member=<XPulser::@5> ref=<x31> args=<> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">anonymous enum<code> [protected]</code>          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+for RelPatList patterns. 
+<p>
+<dl compact><dt><b>参照:</b></dt><dd><a class="el" href="class_x_pulser.html#x0">RelPatList</a>.</dd></dl>
+
+<p>
+ <a class="el" href="pulserdriver_8h-source.html">pulserdriver.h</a> の <a class="el" href="pulserdriver_8h-source.html#l00143">143</a> 行で定義されています。    </td>
+  </tr>
+</table>
+<hr><h2>関数</h2>
+<a class="anchor" name="b4"></a><!-- doxytag: member=<XPulser::analyzeRaw> ref=<b4> args=<()> --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
     <td class="mdRow">
@@ -794,11 +938,11 @@ Base class of NMR Pulsers.
 <p>
 this is called when raw is written unless dependency is broken convert raw to record 
 <p>
-<a class="el" href="class_x_primary_driver.html#b1">XPrimaryDriver</a>を実装しています.
+<a class="el" href="class_x_primary_driver.html#b3">XPrimaryDriver</a>を実装しています.
 <p>
- <a class="el" href="pulserdriver_8cpp-source.html">pulserdriver.cpp</a> の <a class="el" href="pulserdriver_8cpp-source.html#l00557">557</a> 行で定義されています。
+ <a class="el" href="pulserdriver_8cpp-source.html">pulserdriver.cpp</a> の <a class="el" href="pulserdriver_8cpp-source.html#l00591">591</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="pulserdriver_8h-source.html#l00066">combNum()</a>, <a class="el" href="pulserdriver_8h-source.html#l00059">combPT()</a>, <a class="el" href="pulserdriver_8h-source.html#l00056">combPW()</a>, <a class="el" href="pulserdriver_8h-source.html#l00093">difFreq()</a>, <a class="el" href="pulserdriver_8h-source.html#l00067">echoNum()</a>, <a class="el" href="pulserdriver_8h-source.html#l00156">m_altSepRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00159">m_aswHoldRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00158">m_aswSetupRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00150">m_combModeRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00165">m_combNumRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00157">m_combP1AltRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00155">m_combP1Recorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00163">m_combPTRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00162">m_combPWRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00161">m_difFreqRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00164">m_echoNumRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00169">m_invertPhaseRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00167">m_numPhaseCycleRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00153">m_pw1Recorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00154">m_pw2Recorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00151">m_rtimeRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00166">m_rtModeRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00152">m_tauRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00053">numPhaseCycle()</a>, <a class="el" href="class_x_pulser.html#b8">rawToRelPat()</a>, と <a class="el" href="pulserdriver_8h-source.html#l00052">rtMode()</a>.    </td>
+参照先 <a class="el" href="pulserdriver_8h-source.html#l00075">combNum()</a>, <a class="el" href="pulserdriver_8h-source.html#l00068">combPT()</a>, <a class="el" href="pulserdriver_8h-source.html#l00065">combPW()</a>, <a class="el" href="pulserdriver_8h-source.html#l00094">difFreq()</a>, <a class="el" href="pulserdriver_8h-source.html#l00076">echoNum()</a>, <a class="el" href="pulserdriver_8h-source.html#l00178">m_altSepRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00181">m_aswHoldRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00180">m_aswSetupRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00172">m_combModeRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00187">m_combNumRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00179">m_combP1AltRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00177">m_combP1Recorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00185">m_combPTRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00184">m_combPWRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00183">m_difFreqRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00186">m_echoNumRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00191">m_invertPhaseRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00189">m_numPhaseCycleRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00175">m_pw1Recorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00176">m_pw2Recorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00173">m_rtimeRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00188">m_rtModeRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00174">m_tauRecorded</a>, <a class="el" href="pulserdriver_8h-source.html#l00062">numPhaseCycle()</a>, <a class="el" href="pulserdriver_8cpp-source.html#l00762">rawToRelPat()</a>, と <a class="el" href="pulserdriver_8h-source.html#l00061">rtMode()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="a3"></a><!-- doxytag: member=<XPulser::combMode> ref=<a3> args=<() const > --><p>
@@ -827,11 +971,11 @@ this is called when raw is written unless dependency is broken convert raw to re
 <p>
 see above definitions in header file 
 <p>
- <a class="el" href="pulserdriver_8h-source.html">pulserdriver.h</a> の <a class="el" href="pulserdriver_8h-source.html#l00049">49</a> 行で定義されています。
+ <a class="el" href="pulserdriver_8h-source.html">pulserdriver.h</a> の <a class="el" href="pulserdriver_8h-source.html#l00058">58</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="pulserdriver_8h-source.html#l00206">m_combMode</a>.
+参照先 <a class="el" href="pulserdriver_8h-source.html#l00245">m_combMode</a>.
 <p>
-参照元 <a class="el" href="pulserdriver_8cpp-source.html#l00630">onPulseChanged()</a>, <a class="el" href="pulserdriver_8cpp-source.html#l00393">start()</a>, <a class="el" href="pulserdriver_8cpp-source.html#l00498">stop()</a>, と <a class="el" href="pulserdriver_8cpp-source.html#l00118">XPulser()</a>.    </td>
+参照元 <a class="el" href="pulserdriver_8cpp-source.html#l00643">onPulseChanged()</a>, <a class="el" href="pulserdriver_8cpp-source.html#l00413">start()</a>, <a class="el" href="pulserdriver_8cpp-source.html#l00511">stop()</a>, と <a class="el" href="pulserdriver_8cpp-source.html#l00137">XPulser()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="d1"></a><!-- doxytag: member=<XPulser::onPulseChanged> ref=<d1> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> --><p>
@@ -863,11 +1007,11 @@ ver 1 records below<p>
 ver 2 records below<p>
 ver 3 records below
 <p>
- <a class="el" href="pulserdriver_8cpp-source.html">pulserdriver.cpp</a> の <a class="el" href="pulserdriver_8cpp-source.html#l00630">630</a> 行で定義されています。
+ <a class="el" href="pulserdriver_8cpp-source.html">pulserdriver.cpp</a> の <a class="el" href="pulserdriver_8cpp-source.html#l00643">643</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="pulserdriver_8h-source.html#l00064">altSep()</a>, <a class="el" href="pulserdriver_8h-source.html#l00063">aswHold()</a>, <a class="el" href="pulserdriver_8h-source.html#l00062">aswSetup()</a>, <a class="el" href="primarydriver_8h-source.html#l00039">XPrimaryDriver::clearRaw()</a>, <a class="el" href="pulserdriver_8h-source.html#l00049">combMode()</a>, <a class="el" href="pulserdriver_8h-source.html#l00066">combNum()</a>, <a class="el" href="pulserdriver_8h-source.html#l00060">combP1()</a>, <a class="el" href="pulserdriver_8h-source.html#l00061">combP1Alt()</a>, <a class="el" href="pulserdriver_8h-source.html#l00059">combPT()</a>, <a class="el" href="pulserdriver_8h-source.html#l00056">combPW()</a>, <a class="el" href="pulserdriver_8h-source.html#l00093">difFreq()</a>, <a class="el" href="pulserdriver_8h-source.html#l00067">echoNum()</a>, <a class="el" href="primarydriver_8cpp-source.html#l00030">XPrimaryDriver::finishWritingRaw()</a>, <a class="el" href="pulserdriver_8h-source.html#l00097">invertPhase()</a>, <a class="el" href="xtime_8cpp-source.html#l00040">XTime::now()</a>, <a class="el" href="pulserdriver_8h-source.html#l00053">numPhaseCycle()</a>, <a class="el" href="pulserdriver_8h-source.html#l00048">output()</a>, <a class="el" href="pulserdriver_8h-source.html#l00057">pw1()</a>, <a class="el" href="pulserdriver_8h-source.html#l00058">pw2()</a>, <a class="el" href="pulserdriver_8h-source.html#l00054">rtime()</a>, <a class="el" href="pulserdriver_8h-source.html#l00052">rtMode()</a>, と <a class="el" href="pulserdriver_8h-source.html#l00055">tau()</a>.
+参照先 <a class="el" href="pulserdriver_8h-source.html#l00073">altSep()</a>, <a class="el" href="pulserdriver_8h-source.html#l00072">aswHold()</a>, <a class="el" href="pulserdriver_8h-source.html#l00071">aswSetup()</a>, <a class="el" href="class_x_pulser.html#b8">changeOutput()</a>, <a class="el" href="primarydriver_8h-source.html#l00064">XPrimaryDriver::clearRaw()</a>, <a class="el" href="pulserdriver_8h-source.html#l00058">combMode()</a>, <a class="el" href="pulserdriver_8h-source.html#l00075">combNum()</a>, <a class="el" href="pulserdriver_8h-source.html#l00069">combP1()</a>, <a class="el" href="pulserdriver_8h-source.html#l00070">combP1Alt()</a>, <a class="el" href="pulserdriver_8h-source.html#l00068">combPT()</a>, <a class="el" href="pulserdriver_8h-source.html#l00065">combPW()</a>, <a class="el" href="class_x_pulser.html#b9">createNativePatterns()</a>, <a class="el" href="pulserdriver_8h-source.html#l00094">difFreq()</a>, <a class="el" href="pulserdriver_8h-source.html#l00076">echoNum()</a>, <a class="el" href="primarydriver_8cpp-source.html#l00030">XPrimaryDriver::finishWritingRaw()</a>, <a class="el" href="xnode_8h-source.html#l00070">XNode::getLabel()</a>, <a class="el" href="support_8cpp-source.html#l00306">KAME::i18n()</a>, <a class="el" href="pulserdriver_8h-source.html#l00098">invertPhase()</a>, <a class="el" href="xtime_8cpp-source.html#l00053">XTime::now()</a>, <a class="el" href="pulserdriver_8h-source.html#l00062">numPhaseCycle()</a>, <a class="el" href="pulserdriver_8h-source.html#l00057">output()</a>, <a class="el" href="support_8cpp-source.html#l00083">XKameError::print()</a>, <a class="el" href="pulserdriver_8h-source.html#l00066">pw1()</a>, <a class="el" href="pulserdriver_8h-source.html#l00067">pw2()</a>, <a class="el" href="pulserdriver_8cpp-source.html#l00571">rintTermMicroSec()</a>, <a class="el" href="pulserdriver_8cpp-source.html#l00566">rintTermMilliSec()</a>, <a class="el" href="pulserdriver_8h-source.html#l00063">rtime()</a>, <a class="el" href="pulserdriver_8h-source.html#l00061">rtMode()</a>, <a class="el" href="pulserdriver_8cpp-source.html#l00752">selectedPorts()</a>, と <a class="el" href="pulserdriver_8h-source.html#l00064">tau()</a>.
 <p>
-参照元 <a class="el" href="pulserdriver_8cpp-source.html#l00393">start()</a>.    </td>
+参照元 <a class="el" href="pulserdriver_8cpp-source.html#l00413">start()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="a4"></a><!-- doxytag: member=<XPulser::rtMode> ref=<a4> args=<() const > --><p>
@@ -896,11 +1040,49 @@ ver 3 records below
 <p>
 Control period to next pulse sequence Fix Repetition Time or Fix Rest Time which means time between pulse sequences 
 <p>
- <a class="el" href="pulserdriver_8h-source.html">pulserdriver.h</a> の <a class="el" href="pulserdriver_8h-source.html#l00052">52</a> 行で定義されています。
+ <a class="el" href="pulserdriver_8h-source.html">pulserdriver.h</a> の <a class="el" href="pulserdriver_8h-source.html#l00061">61</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="pulserdriver_8h-source.html#l00209">m_rtMode</a>.
+参照先 <a class="el" href="pulserdriver_8h-source.html#l00248">m_rtMode</a>.
 <p>
-参照元 <a class="el" href="pulserdriver_8cpp-source.html#l00557">analyzeRaw()</a>, <a class="el" href="pulserdriver_8cpp-source.html#l00630">onPulseChanged()</a>, <a class="el" href="pulserdriver_8cpp-source.html#l00393">start()</a>, <a class="el" href="pulserdriver_8cpp-source.html#l00498">stop()</a>, と <a class="el" href="pulserdriver_8cpp-source.html#l00118">XPulser()</a>.    </td>
+参照元 <a class="el" href="pulserdriver_8cpp-source.html#l00591">analyzeRaw()</a>, <a class="el" href="pulserdriver_8cpp-source.html#l00643">onPulseChanged()</a>, <a class="el" href="pulserdriver_8cpp-source.html#l00413">start()</a>, <a class="el" href="pulserdriver_8cpp-source.html#l00511">stop()</a>, と <a class="el" href="pulserdriver_8cpp-source.html#l00137">XPulser()</a>.    </td>
+  </tr>
+</table>
+<a class="anchor" name="b1"></a><!-- doxytag: member=<XPulser::selectedPorts> ref=<b1> args=<(int func) const > --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">unsigned int XPulser::selectedPorts           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="md" nowrap valign="top">int&nbsp;</td>
+          <td class="mdname1" valign="top" nowrap> <em>func</em>          </td>
+          <td class="md" valign="top">&nbsp;)&nbsp;</td>
+          <td class="md" nowrap> const<code> [protected]</code></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+<ul>
+<li>func e.g. PORTSEL_GATE. <dl compact><dt><b>戻り値:</b></dt><dd>bit mask. </dd></dl>
+</li>
+</ul>
+
+<p>
+ <a class="el" href="pulserdriver_8cpp-source.html">pulserdriver.cpp</a> の <a class="el" href="pulserdriver_8cpp-source.html#l00752">752</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="pulserdriver_8h-source.html#l00099">portSel()</a>.
+<p>
+参照元 <a class="el" href="pulserdriver_8cpp-source.html#l00643">onPulseChanged()</a>, と <a class="el" href="pulserdriver_8cpp-source.html#l00762">rawToRelPat()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="a1"></a><!-- doxytag: member=<XPulser::showForms> ref=<a1> args=<()> --><p>
@@ -933,12 +1115,12 @@ impliment form-&gt;show() here
 <p>
 <a class="el" href="class_x_primary_driver.html#a1">XPrimaryDriver</a>を実装しています.
 <p>
- <a class="el" href="pulserdriver_8cpp-source.html">pulserdriver.cpp</a> の <a class="el" href="pulserdriver_8cpp-source.html#l00380">380</a> 行で定義されています。
+ <a class="el" href="pulserdriver_8cpp-source.html">pulserdriver.cpp</a> の <a class="el" href="pulserdriver_8cpp-source.html#l00400">400</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="pulserdriver_8h-source.html#l00272">m_form</a>.    </td>
+参照先 <a class="el" href="pulserdriver_8h-source.html#l00303">m_form</a>.    </td>
   </tr>
 </table>
-<a class="anchor" name="b2"></a><!-- doxytag: member=<XPulser::stop> ref=<b2> args=<()> --><p>
+<a class="anchor" name="b3"></a><!-- doxytag: member=<XPulser::stop> ref=<b3> args=<()> --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
     <td class="mdRow">
@@ -964,14 +1146,14 @@ impliment form-&gt;show() here
 <p>
 Shut down your threads, unconnect GUI, and deactivate signals this may be called even if driver has already stopped. 
 <p>
-<a class="el" href="class_x_driver.html#b2">XDriver</a>を実装しています.
+<a class="el" href="class_x_primary_driver.html#a3">XPrimaryDriver</a>を実装しています.
 <p>
- <a class="el" href="pulserdriver_8cpp-source.html">pulserdriver.cpp</a> の <a class="el" href="pulserdriver_8cpp-source.html#l00498">498</a> 行で定義されています。
+ <a class="el" href="pulserdriver_8cpp-source.html">pulserdriver.cpp</a> の <a class="el" href="pulserdriver_8cpp-source.html#l00511">511</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="pulserdriver_8h-source.html#l00064">altSep()</a>, <a class="el" href="pulserdriver_8h-source.html#l00077">aswFilter()</a>, <a class="el" href="pulserdriver_8h-source.html#l00063">aswHold()</a>, <a class="el" href="pulserdriver_8h-source.html#l00062">aswSetup()</a>, <a class="el" href="pulserdriver_8h-source.html#l00070">combFunc()</a>, <a class="el" href="pulserdriver_8h-source.html#l00073">combLevel()</a>, <a class="el" href="pulserdriver_8h-source.html#l00049">combMode()</a>, <a class="el" href="pulserdriver_8h-source.html#l00066">combNum()</a>, <a class="el" href="pulserdriver_8h-source.html#l00069">combOffRes()</a>, <a class="el" href="pulserdriver_8h-source.html#l00060">combP1()</a>, <a class="el" href="pulserdriver_8h-source.html#l00061">combP1Alt()</a>, <a class="el" href="pulserdriver_8h-source.html#l00059">combPT()</a>, <a class="el" href="pulserdriver_8h-source.html#l00056">combPW()</a>, <a class="el" href="pulserdriver_8h-source.html#l00093">difFreq()</a>, <a class="el" href="pulserdriver_8h-source.html#l00068">drivenEquilibrium()</a>, <a class="el" href="pulserdriver_8h-source.html#l00067">echoNum()</a>, <a class="el" href="pulserdriver_8h-source.html#l00065">g2Setup()</a>, <a class="el" href="pulserdriver_8h-source.html#l00078">induceEmission()</a>, <a class="el" href="pulserdriver_8h-source.html#l00079">induceEmissionPhase()</a>, <a class="el" href="primarydriver_8h-source.html#l00058">XPrimaryDriver::interface()</a>, <a class="el" href="pulserdriver_8h-source.html#l00097">invertPhase()</a>, <a class="el" href="pulserdriver_8h-source.html#l00268">m_lsnOnPulseChanged</a>, <a class="el" href="pulserdriver_8h-source.html#l00076">masterLevel()</a>, <a class="el" href="pulserdriver_8h-source.html#l00053">numPhaseCycle()</a>, <a class="el" href="pulserdriver_8h-source.html#l00048">output()</a>, <a class="el" href="pulserdriver_8h-source.html#l00071">p1Func()</a>, <a class="el" href="pulserdriver_8h-source.html#l00074">p1Level()</a>, <a class="el" href="pulserdriver_8h-source.html#l00072">p2Func()</a>, <a class="el" href="pulserdriver_8h-source.html#l00075">p2Level()</a>, <a class="el" href="pulserdriver_8h-source.html#l00082">portLevel10()</a>, <a class="el" href="pulserdriver_8h-source.html#l00083">portLevel11()</a>, <a class="el" href="pulserdriver_8h-source.html#l00084">portLevel12()</a>, <a class="el" href="pulserdriver_8h-source.html#l00085">portLevel13()</a>, <a class="el" href="pulserdriver_8h-source.html#l00086">portLevel14()</a>, <a class="el" href="pulserdriver_8h-source.html#l00080">portLevel8()</a>, <a class="el" href="pulserdriver_8h-source.html#l00081">portLevel9()</a>, <a class="el" href="pulserdriver_8h-source.html#l00057">pw1()</a>, <a class="el" href="pulserdriver_8h-source.html#l00058">pw2()</a>, <a class="el" href="pulserdriver_8h-source.html#l00091">qamDelay1()</a>, <a class="el" href="pulserdriver_8h-source.html#l00092">qamDelay2()</a>, <a class="el" href="pulserdriver_8h-source.html#l00089">qamLevel1()</a>, <a class="el" href="pulserdriver_8h-source.html#l00090">qamLevel2()</a>, <a class="el" href="pulserdriver_8h-source.html#l00087">qamOffset1()</a>, <a class="el" href="pulserdriver_8h-source.html#l00088">qamOffset2()</a>, <a class="el" href="pulserdriver_8h-source.html#l00094">qswDelay()</a>, <a class="el" href="pulserdriver_8h-source.html#l00096">qswPiPulseOnly()</a>, <a class="el" href="pulserdriver_8h-source.html#l00095">qswWidth()</a>, <a class="el" href="pulserdriver_8h-source.html#l00054">rtime()</a>, <a class="el" href="pulserdriver_8h-source.html#l00052">rtMode()</a>, と <a class="el" href="pulserdriver_8h-source.html#l00055">tau()</a>.    </td>
+参照先 <a class="el" href="class_x_primary_driver.html#b2">XPrimaryDriver::afterStop()</a>, <a class="el" href="pulserdriver_8h-source.html#l00073">altSep()</a>, <a class="el" href="pulserdriver_8h-source.html#l00072">aswHold()</a>, <a class="el" href="pulserdriver_8h-source.html#l00071">aswSetup()</a>, <a class="el" href="pulserdriver_8h-source.html#l00079">combFunc()</a>, <a class="el" href="pulserdriver_8h-source.html#l00082">combLevel()</a>, <a class="el" href="pulserdriver_8h-source.html#l00058">combMode()</a>, <a class="el" href="pulserdriver_8h-source.html#l00075">combNum()</a>, <a class="el" href="pulserdriver_8h-source.html#l00078">combOffRes()</a>, <a class="el" href="pulserdriver_8h-source.html#l00069">combP1()</a>, <a class="el" href="pulserdriver_8h-source.html#l00070">combP1Alt()</a>, <a class="el" href="pulserdriver_8h-source.html#l00068">combPT()</a>, <a class="el" href="pulserdriver_8h-source.html#l00065">combPW()</a>, <a class="el" href="pulserdriver_8h-source.html#l00094">difFreq()</a>, <a class="el" href="pulserdriver_8h-source.html#l00077">drivenEquilibrium()</a>, <a class="el" href="pulserdriver_8h-source.html#l00076">echoNum()</a>, <a class="el" href="pulserdriver_8h-source.html#l00074">g2Setup()</a>, <a class="el" href="pulserdriver_8h-source.html#l00086">induceEmission()</a>, <a class="el" href="pulserdriver_8h-source.html#l00087">induceEmissionPhase()</a>, <a class="el" href="pulserdriver_8h-source.html#l00098">invertPhase()</a>, <a class="el" href="pulserdriver_8h-source.html#l00299">m_lsnOnPulseChanged</a>, <a class="el" href="pulserdriver_8h-source.html#l00279">m_portSel</a>, <a class="el" href="pulserdriver_8h-source.html#l00085">masterLevel()</a>, <a class="el" href="pulserdriver_8h-source.html#l00062">numPhaseCycle()</a>, <a class="el" href="pulserdriver_8h-source.html#l00057">output()</a>, <a class="el" href="pulserdriver_8h-source.html#l00080">p1Func()</a>, <a class="el" href="pulserdriver_8h-source.html#l00083">p1Level()</a>, <a class="el" href="pulserdriver_8h-source.html#l00081">p2Func()</a>, <a class="el" href="pulserdriver_8h-source.html#l00084">p2Level()</a>, <a class="el" href="pulserdriver_8h-source.html#l00066">pw1()</a>, <a class="el" href="pulserdriver_8h-source.html#l00067">pw2()</a>, <a class="el" href="pulserdriver_8h-source.html#l00092">qamDelay1()</a>, <a class="el" href="pulserdriver_8h-source.html#l00093">qamDelay2()</a>, <a class="el" href="pulserdriver_8h-source.html#l00090">qamLevel1()</a>, <a class="el" href="pulserdriver_8h-source.html#l00091">qamLevel2()</a>, <a class="el" href="pulserdriver_8h-source.html#l00088">qamOffset1()</a>, <a class="el" href="pulserdriver_8h-source.html#l00089">qamOffset2()</a>, <a class="el" href="pulserdriver_8h-source.html#l00095">qswDelay()</a>, <a class="el" href="pulserdriver_8h-source.html#l00097">qswPiPulseOnly()</a>, <a class="el" href="pulserdriver_8h-source.html#l00096">qswWidth()</a>, <a class="el" href="pulserdriver_8h-source.html#l00063">rtime()</a>, <a class="el" href="pulserdriver_8h-source.html#l00061">rtMode()</a>, と <a class="el" href="pulserdriver_8h-source.html#l00064">tau()</a>.    </td>
   </tr>
 </table>
-<a class="anchor" name="b4"></a><!-- doxytag: member=<XPulser::visualize> ref=<b4> args=<()> --><p>
+<a class="anchor" name="b5"></a><!-- doxytag: member=<XPulser::visualize> ref=<b5> args=<()> --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
     <td class="mdRow">
@@ -995,16 +1177,14 @@ Shut down your threads, unconnect GUI, and deactivate signals this may be called
     <td>
 
 <p>
-this is called after analyze() or <a class="el" href="class_x_pulser.html#b3">analyzeRaw()</a> record is readLocked 
+this is called after analyze() or <a class="el" href="class_x_pulser.html#b4">analyzeRaw()</a> record is readLocked 
 <p>
-<a class="el" href="class_x_driver.html#b3">XDriver</a>を実装しています.
+<a class="el" href="class_x_driver.html#b1">XDriver</a>を実装しています.
 <p>
- <a class="el" href="pulserdriver_8cpp-source.html">pulserdriver.cpp</a> の <a class="el" href="pulserdriver_8cpp-source.html#l00602">602</a> 行で定義されています。
-<p>
-参照先 <a class="el" href="class_x_pulser.html#b5">changeOutput()</a>, <a class="el" href="class_x_pulser.html#b6">createNativePatterns()</a>, <a class="el" href="xnode_8h-source.html#l00057">XNode::getLabel()</a>, <a class="el" href="support_8cpp-source.html#l00291">KAME::i18n()</a>, <a class="el" href="primarydriver_8h-source.html#l00058">XPrimaryDriver::interface()</a>, <a class="el" href="support_8cpp-source.html#l00070">XKameError::print()</a>, と <a class="el" href="driver_8h-source.html#l00045">XDriver::time()</a>.    </td>
+ <a class="el" href="pulserdriver_8cpp-source.html">pulserdriver.cpp</a> の <a class="el" href="pulserdriver_8cpp-source.html#l00636">636</a> 行で定義されています。    </td>
   </tr>
 </table>
-<a class="anchor" name="b10"></a><!-- doxytag: member=<XPulser::writeRaw> ref=<b10> args=<()> --><p>
+<a class="anchor" name="b6"></a><!-- doxytag: member=<XPulser::writeRaw> ref=<b6> args=<()> --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
     <td class="mdRow">
@@ -1028,7 +1208,7 @@ this is called after analyze() or <a class="el" href="class_x_pulser.html#b3">an
     <td>
 
 <p>
-push parameters. use this after <a class="el" href="class_x_primary_driver.html#b2">clearRaw()</a>     </td>
+push parameters. use this after <a class="el" href="class_x_primary_driver.html#b4">clearRaw()</a>     </td>
   </tr>
 </table>
 <hr><h2>変数</h2>
@@ -1038,7 +1218,7 @@ push parameters. use this after <a class="el" href="class_x_primary_driver.html#
     <td class="mdRow">
       <table cellpadding="0" cellspacing="0" border="0">
         <tr>
-          <td class="md" nowrap valign="top">shared_ptr&lt;<a class="el" href="class_x_combo_node.html">XComboNode</a>&gt; <a class="el" href="class_x_pulser.html#r1">XPulser::m_combMode</a><code> [private]</code>          </td>
+          <td class="md" nowrap valign="top">const shared_ptr&lt;<a class="el" href="class_x_combo_node.html">XComboNode</a>&gt; <a class="el" href="class_x_pulser.html#r1">XPulser::m_combMode</a><code> [private]</code>          </td>
         </tr>
       </table>
     </td>
@@ -1054,9 +1234,9 @@ push parameters. use this after <a class="el" href="class_x_primary_driver.html#
 <p>
 see above definitions in header file 
 <p>
- <a class="el" href="pulserdriver_8h-source.html">pulserdriver.h</a> の <a class="el" href="pulserdriver_8h-source.html#l00206">206</a> 行で定義されています。
+ <a class="el" href="pulserdriver_8h-source.html">pulserdriver.h</a> の <a class="el" href="pulserdriver_8h-source.html#l00245">245</a> 行で定義されています。
 <p>
-参照元 <a class="el" href="pulserdriver_8h-source.html#l00049">combMode()</a>, と <a class="el" href="pulserdriver_8cpp-source.html#l00118">XPulser()</a>.    </td>
+参照元 <a class="el" href="pulserdriver_8h-source.html#l00058">combMode()</a>, と <a class="el" href="pulserdriver_8cpp-source.html#l00137">XPulser()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="r2"></a><!-- doxytag: member=<XPulser::m_rtMode> ref=<r2> args=<> --><p>
@@ -1065,7 +1245,7 @@ see above definitions in header file
     <td class="mdRow">
       <table cellpadding="0" cellspacing="0" border="0">
         <tr>
-          <td class="md" nowrap valign="top">shared_ptr&lt;<a class="el" href="class_x_combo_node.html">XComboNode</a>&gt; <a class="el" href="class_x_pulser.html#r2">XPulser::m_rtMode</a><code> [private]</code>          </td>
+          <td class="md" nowrap valign="top">const shared_ptr&lt;<a class="el" href="class_x_combo_node.html">XComboNode</a>&gt; <a class="el" href="class_x_pulser.html#r2">XPulser::m_rtMode</a><code> [private]</code>          </td>
         </tr>
       </table>
     </td>
@@ -1081,14 +1261,14 @@ see above definitions in header file
 <p>
 Control period to next pulse sequence Fix Repetition Time or Fix Rest Time which means time between pulse sequences 
 <p>
- <a class="el" href="pulserdriver_8h-source.html">pulserdriver.h</a> の <a class="el" href="pulserdriver_8h-source.html#l00209">209</a> 行で定義されています。
+ <a class="el" href="pulserdriver_8h-source.html">pulserdriver.h</a> の <a class="el" href="pulserdriver_8h-source.html#l00248">248</a> 行で定義されています。
 <p>
-参照元 <a class="el" href="pulserdriver_8h-source.html#l00052">rtMode()</a>, と <a class="el" href="pulserdriver_8cpp-source.html#l00118">XPulser()</a>.    </td>
+参照元 <a class="el" href="pulserdriver_8h-source.html#l00061">rtMode()</a>, と <a class="el" href="pulserdriver_8cpp-source.html#l00137">XPulser()</a>.    </td>
   </tr>
 </table>
 <hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/users/nmr/<a class="el" href="pulserdriver_8h-source.html">pulserdriver.h</a><li>kame/users/nmr/<a class="el" href="pulserdriver_8cpp-source.html">pulserdriver.cpp</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 13:04:43 2007に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してWed Feb 28 04:17:20 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

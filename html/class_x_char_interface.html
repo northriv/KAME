@@ -1,0 +1,314 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: クラス XCharInterface</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<h1>クラス XCharInterface</h1><!-- doxytag: class=<XCharInterface> --><!-- doxytag: inherits=<XInterface> -->Standard interface for character devices. e.g. GPIB, serial port, ....  
+<a href="#_details">[詳細]</a>
+<p>
+<code>#include &lt;<a class="el" href="charinterface_8h-source.html">charinterface.h</a>&gt;</code>
+<p>
+XCharInterfaceに対する継承グラフ<p><center><img src="class_x_char_interface__inherit__graph.png" border="0" usemap="#_x_char_interface__inherit__map" alt="Inheritance graph"></center>
+<map name="_x_char_interface__inherit__map">
+<area href="class_x_oxford_interface.html" shape="rect" coords="8,232,130,258" alt="">
+<area href="class_x_interface.html" shape="rect" coords="28,82,110,109" alt="">
+<area href="class_x_node.html" shape="rect" coords="38,8,100,34" alt="">
+</map>
+<center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center>XCharInterfaceのコラボレーション図<p><center><img src="class_x_char_interface__coll__graph.png" border="0" usemap="#_x_char_interface__coll__map" alt="Collaboration graph"></center>
+<map name="_x_char_interface__coll__map">
+<area href="class_x_interface.html" shape="rect" coords="558,458,641,485" alt="">
+<area href="class_x_node.html" shape="rect" coords="569,381,630,408" alt="">
+<area href="class_x_talker.html" shape="rect" coords="7,290,223,317" alt="">
+<area href="class___x_talker_base.html" shape="rect" coords="113,189,217,216" alt="">
+<area href="class_x_talker.html" shape="rect" coords="247,290,485,317" alt="">
+<area href="classatomic.html" shape="rect" coords="110,98,219,125" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="270,189,494,216" alt="">
+<area href="structatomic__shared__ptr_1_1___ref_local.html" shape="rect" coords="310,98,539,125" alt="">
+<area href="classatomic__shared__ptr.html" shape="rect" coords="591,189,799,216" alt="">
+<area href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html" shape="rect" coords="298,8,551,34" alt="">
+<area href="class_x_mutex.html" shape="rect" coords="662,98,729,125" alt="">
+<area href="class_x_recursive_mutex.html" shape="rect" coords="777,240,905,266" alt="">
+<area href="class_x_thread_local.html" shape="rect" coords="509,290,690,317" alt="">
+</map>
+<center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_char_interface-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
+<tr><td></td></tr>
+<tr><td colspan="2"><br><h2>Public メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a0"></a><!-- doxytag: member=<XCharInterface::~XCharInterface> ref=<a0> args=<()> -->
+virtual&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a0">~XCharInterface</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">const std::vector&lt; char &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a1">buffer</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a2"></a><!-- doxytag: member=<XCharInterface::scanf> ref=<a2> args=<(const char *format,...) const __attribute__((format(scanf> -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a2">scanf</a> (const char *format,...) const __attribute__((format(scanf</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">error-check is user's responsibility. <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a3"></a><!-- doxytag: member=<XCharInterface::toDouble> ref=<a3> args=<() const > -->
+int double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a3">toDouble</a> () const   throw (XConvError &amp;)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a4"></a><!-- doxytag: member=<XCharInterface::toInt> ref=<a4> args=<() const > -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a4">toInt</a> () const   throw (XConvError &amp;)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a5"></a><!-- doxytag: member=<XCharInterface::toUInt> ref=<a5> args=<() const > -->
+unsigned int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a5">toUInt</a> () const   throw (XConvError &amp;)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a6"></a><!-- doxytag: member=<XCharInterface::send> ref=<a6> args=<(const std::string &amp;str)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a6">send</a> (const std::string &amp;str)  throw (XCommError &amp;)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a7"></a><!-- doxytag: member=<XCharInterface::send> ref=<a7> args=<(const char *str)> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a7">send</a> (const char *str)  throw (XCommError &amp;)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a8">sendf</a> (const char *format,...) __attribute__((format(printf  throw (XInterfaceError &amp;)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a9"></a><!-- doxytag: member=<XCharInterface::write> ref=<a9> args=<(const char *sendbuf, int size)> -->
+void virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a9">write</a> (const char *sendbuf, int size)  throw (XCommError &amp;)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a10"></a><!-- doxytag: member=<XCharInterface::receive> ref=<a10> args=<()> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a10">receive</a> ()  throw (XCommError &amp;)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a11"></a><!-- doxytag: member=<XCharInterface::receive> ref=<a11> args=<(unsigned int length)> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a11">receive</a> (unsigned int length)  throw (XCommError &amp;)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a12"></a><!-- doxytag: member=<XCharInterface::query> ref=<a12> args=<(const std::string &amp;str)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a12">query</a> (const std::string &amp;str)  throw (XCommError &amp;)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a13"></a><!-- doxytag: member=<XCharInterface::query> ref=<a13> args=<(const char *str)> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a13">query</a> (const char *str)  throw (XCommError &amp;)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a14">queryf</a> (const char *format,...) __attribute__((format(printf  throw (XInterfaceError &amp;)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a15"></a><!-- doxytag: member=<XCharInterface::setEOS> ref=<a15> args=<(const char *str)> -->
+void void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a15">setEOS</a> (const char *str)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a16"></a><!-- doxytag: member=<XCharInterface::setGPIBUseSerialPollOnWrite> ref=<a16> args=<(bool x)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a16">setGPIBUseSerialPollOnWrite</a> (bool x)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a17"></a><!-- doxytag: member=<XCharInterface::setGPIBUseSerialPollOnRead> ref=<a17> args=<(bool x)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a17">setGPIBUseSerialPollOnRead</a> (bool x)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a18"></a><!-- doxytag: member=<XCharInterface::setGPIBWaitBeforeWrite> ref=<a18> args=<(int msec)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a18">setGPIBWaitBeforeWrite</a> (int msec)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a19"></a><!-- doxytag: member=<XCharInterface::setGPIBWaitBeforeRead> ref=<a19> args=<(int msec)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a19">setGPIBWaitBeforeRead</a> (int msec)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a20"></a><!-- doxytag: member=<XCharInterface::setGPIBWaitBeforeSPoll> ref=<a20> args=<(int msec)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a20">setGPIBWaitBeforeSPoll</a> (int msec)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a21"></a><!-- doxytag: member=<XCharInterface::setGPIBMAVbit> ref=<a21> args=<(unsigned char x)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a21">setGPIBMAVbit</a> (unsigned char x)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a22"></a><!-- doxytag: member=<XCharInterface::eos> ref=<a22> args=<() const > -->
+const std::string &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a22">eos</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a23"></a><!-- doxytag: member=<XCharInterface::gpibUseSerialPollOnWrite> ref=<a23> args=<() const > -->
+bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a23">gpibUseSerialPollOnWrite</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a24"></a><!-- doxytag: member=<XCharInterface::gpibUseSerialPollOnRead> ref=<a24> args=<() const > -->
+bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a24">gpibUseSerialPollOnRead</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a25"></a><!-- doxytag: member=<XCharInterface::gpibWaitBeforeWrite> ref=<a25> args=<() const > -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a25">gpibWaitBeforeWrite</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a26"></a><!-- doxytag: member=<XCharInterface::gpibWaitBeforeRead> ref=<a26> args=<() const > -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a26">gpibWaitBeforeRead</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a27"></a><!-- doxytag: member=<XCharInterface::gpibWaitBeforeSPoll> ref=<a27> args=<() const > -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a27">gpibWaitBeforeSPoll</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a28"></a><!-- doxytag: member=<XCharInterface::gpibMAVbit> ref=<a28> args=<() const > -->
+unsigned char&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a28">gpibMAVbit</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a29"></a><!-- doxytag: member=<XCharInterface::isOpened> ref=<a29> args=<() const > -->
+virtual bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#a29">isOpened</a> () const </td></tr>
+
+<tr><td colspan="2"><br><h2>Protected メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b0"></a><!-- doxytag: member=<XCharInterface::XCharInterface> ref=<b0> args=<(const char *name, bool runtime, const shared_ptr&lt; XDriver &gt; &amp;driver)> -->
+&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#b0">XCharInterface</a> (const char *name, bool runtime, const shared_ptr&lt; <a class="el" href="class_x_driver.html">XDriver</a> &gt; &amp;driver)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b1"></a><!-- doxytag: member=<XCharInterface::open> ref=<b1> args=<()> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#b1">open</a> ()  throw (XInterfaceError &amp;)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="b2"></a><!-- doxytag: member=<XCharInterface::close> ref=<b2> args=<()> -->
+virtual void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#b2">close</a> ()  throw (XInterfaceError &amp;)</td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">This can be called even if has already closed. <br></td></tr>
+<tr><td colspan="2"><br><h2>Private メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d0"></a><!-- doxytag: member=<XCharInterface::onSendRequested> ref=<d0> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#d0">onSendRequested</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d1"></a><!-- doxytag: member=<XCharInterface::onQueryRequested> ref=<d1> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;)> -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#d1">onQueryRequested</a> (const shared_ptr&lt; <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a> &gt; &amp;)</td></tr>
+
+<tr><td colspan="2"><br><h2>Private 変数</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r0"></a><!-- doxytag: member=<XCharInterface::m_eos> ref=<r0> args=<> -->
+std::string&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#r0">m_eos</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r1"></a><!-- doxytag: member=<XCharInterface::m_bGPIBUseSerialPollOnWrite> ref=<r1> args=<> -->
+bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#r1">m_bGPIBUseSerialPollOnWrite</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r2"></a><!-- doxytag: member=<XCharInterface::m_bGPIBUseSerialPollOnRead> ref=<r2> args=<> -->
+bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#r2">m_bGPIBUseSerialPollOnRead</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r3"></a><!-- doxytag: member=<XCharInterface::m_gpibWaitBeforeWrite> ref=<r3> args=<> -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#r3">m_gpibWaitBeforeWrite</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r4"></a><!-- doxytag: member=<XCharInterface::m_gpibWaitBeforeRead> ref=<r4> args=<> -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#r4">m_gpibWaitBeforeRead</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r5"></a><!-- doxytag: member=<XCharInterface::m_gpibWaitBeforeSPoll> ref=<r5> args=<> -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#r5">m_gpibWaitBeforeSPoll</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r6"></a><!-- doxytag: member=<XCharInterface::m_gpibMAVbit> ref=<r6> args=<> -->
+unsigned char&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#r6">m_gpibMAVbit</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r7"></a><!-- doxytag: member=<XCharInterface::m_xport> ref=<r7> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_port.html">XPort</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#r7">m_xport</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">don't check if zero <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r8"></a><!-- doxytag: member=<XCharInterface::m_script_send> ref=<r8> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_string_node.html">XStringNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#r8">m_script_send</a></td></tr>
+
+<tr><td class="mdescLeft">&nbsp;</td><td class="mdescRight">for scripting <br></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r9"></a><!-- doxytag: member=<XCharInterface::m_script_query> ref=<r9> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_string_node.html">XStringNode</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#r9">m_script_query</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r10"></a><!-- doxytag: member=<XCharInterface::m_lsnOnSendRequested> ref=<r10> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#r10">m_lsnOnSendRequested</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="r11"></a><!-- doxytag: member=<XCharInterface::m_lsnOnQueryRequested> ref=<r11> args=<> -->
+shared_ptr&lt; <a class="el" href="class_x_listener.html">XListener</a> &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_char_interface.html#r11">m_lsnOnQueryRequested</a></td></tr>
+
+</table>
+<hr><a name="_details"></a><h2>説明</h2>
+Standard interface for character devices. e.g. GPIB, serial port, .... 
+<p>
+
+<p>
+ <a class="el" href="charinterface_8h-source.html">charinterface.h</a> の <a class="el" href="charinterface_8h-source.html#l00023">23</a> 行で定義されています。<hr><h2>関数</h2>
+<a class="anchor" name="a1"></a><!-- doxytag: member=<XCharInterface::buffer> ref=<a1> args=<() const > --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">const std::vector&lt; char &gt; &amp; XCharInterface::buffer           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="mdname1" valign="top" nowrap>          </td>
+          <td class="md" valign="top">&nbsp;)&nbsp;</td>
+          <td class="md" nowrap> const</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+Buffer is Thread-Local-Strage. Therefore, be careful when you access multi-interfaces in one thread. <dl compact><dt><b>参照:</b></dt><dd><a class="el" href="class_x_thread_local.html">XThreadLocal</a> </dd></dl>
+
+<p>
+ <a class="el" href="charinterface_8cpp-source.html">charinterface.cpp</a> の <a class="el" href="charinterface_8cpp-source.html#l00127">127</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="charinterface_8h-source.html#l00088">m_xport</a>.
+<p>
+参照元 <a class="el" href="charinterface_8cpp-source.html#l00185">receive()</a>, <a class="el" href="charinterface_8cpp-source.html#l00093">scanf()</a>, <a class="el" href="charinterface_8cpp-source.html#l00105">toDouble()</a>, <a class="el" href="charinterface_8cpp-source.html#l00112">toInt()</a>, と <a class="el" href="charinterface_8cpp-source.html#l00119">toUInt()</a>.    </td>
+  </tr>
+</table>
+<a class="anchor" name="a14"></a><!-- doxytag: member=<XCharInterface::queryf> ref=<a14> args=<(const char *format,...) __attribute__((format(printf> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">void XCharInterface::queryf           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="md" nowrap valign="top">const char *&nbsp;</td>
+          <td class="mdname" nowrap> <em>fmt</em>, </td>
+        </tr>
+        <tr>
+          <td class="md" nowrap align="right"></td>
+          <td class="md"></td>
+          <td class="md" nowrap>&nbsp;</td>
+          <td class="mdname" nowrap> <em>...</em></td>
+        </tr>
+        <tr>
+          <td class="md"></td>
+          <td class="md">)&nbsp;</td>
+          <td class="md" colspan="2">  throw (XInterfaceError &amp;)</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+format version of <a class="el" href="class_x_char_interface.html#a12">query()</a> <dl compact><dt><b>参照:</b></dt><dd>printf() </dd></dl>
+
+<p>
+ <a class="el" href="charinterface_8cpp-source.html">charinterface.cpp</a> の <a class="el" href="charinterface_8cpp-source.html#l00227">227</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="charinterface_8cpp-source.html#l00215">query()</a>.    </td>
+  </tr>
+</table>
+<a class="anchor" name="a8"></a><!-- doxytag: member=<XCharInterface::sendf> ref=<a8> args=<(const char *format,...) __attribute__((format(printf> --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">void XCharInterface::sendf           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="md" nowrap valign="top">const char *&nbsp;</td>
+          <td class="mdname" nowrap> <em>fmt</em>, </td>
+        </tr>
+        <tr>
+          <td class="md" nowrap align="right"></td>
+          <td class="md"></td>
+          <td class="md" nowrap>&nbsp;</td>
+          <td class="mdname" nowrap> <em>...</em></td>
+        </tr>
+        <tr>
+          <td class="md"></td>
+          <td class="md">)&nbsp;</td>
+          <td class="md" colspan="2">  throw (XInterfaceError &amp;)</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+format version of <a class="el" href="class_x_char_interface.html#a6">send()</a> <dl compact><dt><b>参照:</b></dt><dd>printf() </dd></dl>
+
+<p>
+ <a class="el" href="charinterface_8cpp-source.html">charinterface.cpp</a> の <a class="el" href="charinterface_8cpp-source.html#l00148">148</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="charinterface_8cpp-source.html#l00130">send()</a>.    </td>
+  </tr>
+</table>
+<hr>このクラスの説明は次のファイルから生成されました:<ul>
+<li>kame/driver/<a class="el" href="charinterface_8h-source.html">charinterface.h</a><li>kame/driver/<a class="el" href="charinterface_8cpp-source.html">charinterface.cpp</a></ul>
+<hr size="1"><address style="align: right;"><small>KAME2に対してWed Feb 28 04:17:18 2007に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+</body>
+</html>

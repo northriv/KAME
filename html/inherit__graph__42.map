@@ -1,3 +1,2 @@
 base referer
-rect $class_x_port.html 9,8 65,34
-rect $class_x_dummy_port.html 116,8 217,34
+rect $struct_x_plot_1_1t_canvas_point.html 9,8 150,34

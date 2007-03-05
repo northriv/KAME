@@ -126,7 +126,7 @@ Base class for all instrument drivers.
 <p>
 
 <p>
- <a class="el" href="secondarydriver_8h-source.html">secondarydriver.h</a> の <a class="el" href="secondarydriver_8h-source.html#l00008">8</a> 行で定義されています。<hr><h2>関数</h2>
+ <a class="el" href="secondarydriver_8h-source.html">secondarydriver.h</a> の <a class="el" href="secondarydriver_8h-source.html#l00021">21</a> 行で定義されています。<hr><h2>関数</h2>
 <a class="anchor" name="b3"></a><!-- doxytag: member=<XSecondaryDriver::analyze> ref=<b3> args=<(const shared_ptr&lt; XDriver &gt; &amp;emitter)=0> --><p>
 <table class="mdTable" cellpadding="2" cellspacing="0">
   <tr>
@@ -156,7 +156,7 @@ this is called when connected driver emit a signal unless dependency is broken a
 <p>
 <a class="el" href="class_x_n_m_r_f_spectrum.html#b1">XNMRFSpectrum</a>, <a class="el" href="class_x_n_m_r_pulse_analyzer.html#b1">XNMRPulseAnalyzer</a>, <a class="el" href="class_x_n_m_r_t1.html#b1">XNMRT1</a>, と <a class="el" href="class_x_n_m_r_spectrum.html#b1">XNMRSpectrum</a>で実装されています.
 <p>
-参照元 <a class="el" href="secondarydriver_8cpp-source.html#l00050">onConnectedRecorded()</a>.    </td>
+参照元 <a class="el" href="secondarydriver_8cpp-source.html#l00063">onConnectedRecorded()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="d4"></a><!-- doxytag: member=<XSecondaryDriver::beforeItemChanged> ref=<d4> args=<(const shared_ptr&lt; XValueNodeBase &gt; &amp;item)> --><p>
@@ -184,13 +184,13 @@ this is called when connected driver emit a signal unless dependency is broken a
     <td>
 
 <p>
-changes in items are not allowed while <a class="el" href="class_x_driver.html#a4">onRecord()</a> is emitting
+changes in items are not allowed while <a class="el" href="class_x_driver.html#a2">onRecord()</a> is emitting
 <p>
- <a class="el" href="secondarydriver_8cpp-source.html">secondarydriver.cpp</a> の <a class="el" href="secondarydriver_8cpp-source.html#l00118">118</a> 行で定義されています。
+ <a class="el" href="secondarydriver_8cpp-source.html">secondarydriver.cpp</a> の <a class="el" href="secondarydriver_8cpp-source.html#l00131">131</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="secondarydriver_8h-source.html#l00060">m_connection</a>, <a class="el" href="secondarydriver_8h-source.html#l00061">m_connection_check_deep_dep</a>, <a class="el" href="secondarydriver_8h-source.html#l00062">m_connection_mutex</a>, <a class="el" href="secondarydriver_8h-source.html#l00064">m_lsnOnRecord</a>, と <a class="el" href="rwlock_8cpp-source.html#l00028">XRWLock::writeLock()</a>.
+参照先 <a class="el" href="secondarydriver_8h-source.html#l00073">m_connection</a>, <a class="el" href="secondarydriver_8h-source.html#l00074">m_connection_check_deep_dep</a>, <a class="el" href="secondarydriver_8h-source.html#l00075">m_connection_mutex</a>, <a class="el" href="secondarydriver_8h-source.html#l00077">m_lsnOnRecord</a>, と <a class="el" href="rwlock_8cpp-source.html#l00041">XRWLock::writeLock()</a>.
 <p>
-参照元 <a class="el" href="secondarydriver_8cpp-source.html#l00095">connect()</a>.    </td>
+参照元 <a class="el" href="secondarydriver_8cpp-source.html#l00108">connect()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="b5"></a><!-- doxytag: member=<XSecondaryDriver::checkDependency> ref=<b5> args=<(const shared_ptr&lt; XDriver &gt; &amp;emitter) const =0> --><p>
@@ -223,7 +223,7 @@ check connected drivers have valid time <dl compact><dt><b>戻り値:</b></dt><dd>t
 <p>
 <a class="el" href="class_x_n_m_r_f_spectrum.html#b3">XNMRFSpectrum</a>, <a class="el" href="class_x_n_m_r_pulse_analyzer.html#b3">XNMRPulseAnalyzer</a>, <a class="el" href="class_x_n_m_r_t1.html#b3">XNMRT1</a>, と <a class="el" href="class_x_n_m_r_spectrum.html#b3">XNMRSpectrum</a>で実装されています.
 <p>
-参照元 <a class="el" href="secondarydriver_8cpp-source.html#l00050">onConnectedRecorded()</a>.    </td>
+参照元 <a class="el" href="secondarydriver_8cpp-source.html#l00063">onConnectedRecorded()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="d3"></a><!-- doxytag: member=<XSecondaryDriver::onConnectedRecorded> ref=<d3> args=<(const shared_ptr&lt; XDriver &gt; &amp;)> --><p>
@@ -253,11 +253,11 @@ check connected drivers have valid time <dl compact><dt><b>戻り値:</b></dt><dd>t
 <p>
 called by connected drivers does dependency checks, readLock all connected drivers, write and finally call purely virtual function <a class="el" href="class_x_secondary_driver.html#b3">analyze()</a>; 
 <p>
- <a class="el" href="secondarydriver_8cpp-source.html">secondarydriver.cpp</a> の <a class="el" href="secondarydriver_8cpp-source.html#l00050">50</a> 行で定義されています。
+ <a class="el" href="secondarydriver_8cpp-source.html">secondarydriver.cpp</a> の <a class="el" href="secondarydriver_8cpp-source.html#l00063">63</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="driver_8cpp-source.html#l00072">XDriver::abortRecording()</a>, <a class="el" href="class_x_secondary_driver.html#b3">analyze()</a>, <a class="el" href="secondarydriver_8cpp-source.html#l00015">checkDeepDependency()</a>, <a class="el" href="class_x_secondary_driver.html#b5">checkDependency()</a>, <a class="el" href="driver_8cpp-source.html#l00065">XDriver::finishRecordingNReadLock()</a>, <a class="el" href="xnode_8h-source.html#l00057">XNode::getLabel()</a>, <a class="el" href="support_8cpp-source.html#l00291">KAME::i18n()</a>, <a class="el" href="secondarydriver_8h-source.html#l00060">m_connection</a>, <a class="el" href="secondarydriver_8h-source.html#l00057">m_dependency</a>, <a class="el" href="secondarydriver_8cpp-source.html#l00031">readLockAllConnections()</a>, <a class="el" href="secondarydriver_8cpp-source.html#l00038">readUnlockAllConnections()</a>, <a class="el" href="driver_8cpp-source.html#l00052">XDriver::readUnlockRecord()</a>, <a class="el" href="driver_8cpp-source.html#l00061">XDriver::startRecording()</a>, と <a class="el" href="class_x_secondary_driver.html#b4">visualize()</a>.
+参照先 <a class="el" href="driver_8cpp-source.html#l00062">XDriver::abortRecording()</a>, <a class="el" href="class_x_secondary_driver.html#b3">analyze()</a>, <a class="el" href="secondarydriver_8cpp-source.html#l00028">checkDeepDependency()</a>, <a class="el" href="class_x_secondary_driver.html#b5">checkDependency()</a>, <a class="el" href="driver_8cpp-source.html#l00055">XDriver::finishRecordingNReadLock()</a>, <a class="el" href="xnode_8h-source.html#l00070">XNode::getLabel()</a>, <a class="el" href="support_8cpp-source.html#l00306">KAME::i18n()</a>, <a class="el" href="secondarydriver_8h-source.html#l00073">m_connection</a>, <a class="el" href="secondarydriver_8h-source.html#l00070">m_dependency</a>, <a class="el" href="secondarydriver_8cpp-source.html#l00044">readLockAllConnections()</a>, <a class="el" href="secondarydriver_8cpp-source.html#l00051">readUnlockAllConnections()</a>, <a class="el" href="driver_8cpp-source.html#l00042">XDriver::readUnlockRecord()</a>, <a class="el" href="driver_8cpp-source.html#l00051">XDriver::startRecording()</a>, と <a class="el" href="class_x_secondary_driver.html#b4">visualize()</a>.
 <p>
-参照元 <a class="el" href="secondarydriver_8cpp-source.html#l00151">onItemChanged()</a>, と <a class="el" href="secondarydriver_8cpp-source.html#l00045">requestAnalysis()</a>.    </td>
+参照元 <a class="el" href="secondarydriver_8cpp-source.html#l00164">onItemChanged()</a>, と <a class="el" href="secondarydriver_8cpp-source.html#l00058">requestAnalysis()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="b2"></a><!-- doxytag: member=<XSecondaryDriver::requestAnalysis> ref=<b2> args=<()> --><p>
@@ -287,11 +287,11 @@ called by connected drivers does dependency checks, readLock all connected drive
 check dependencies and lock all records and analyze null pointer will be passed to <a class="el" href="class_x_secondary_driver.html#b3">analyze()</a> emitter is driver itself. <dl compact><dt><b>参照:</b></dt><dd><a class="el" href="class_x_secondary_driver.html#b3">analyze()</a>, <a class="el" href="class_x_secondary_driver.html#b5">checkDependency()</a> </dd></dl>
 
 <p>
- <a class="el" href="secondarydriver_8cpp-source.html">secondarydriver.cpp</a> の <a class="el" href="secondarydriver_8cpp-source.html#l00045">45</a> 行で定義されています。
+ <a class="el" href="secondarydriver_8cpp-source.html">secondarydriver.cpp</a> の <a class="el" href="secondarydriver_8cpp-source.html#l00058">58</a> 行で定義されています。
 <p>
-参照先 <a class="el" href="secondarydriver_8cpp-source.html#l00050">onConnectedRecorded()</a>.
+参照先 <a class="el" href="secondarydriver_8cpp-source.html#l00063">onConnectedRecorded()</a>.
 <p>
-参照元 <a class="el" href="nmrpulse_8cpp-source.html#l00396">XNMRPulseAnalyzer::onAvgClear()</a>, <a class="el" href="nmrspectrum_8cpp-source.html#l00100">XNMRSpectrum::onClear()</a>, <a class="el" href="nmrfspectrum_8cpp-source.html#l00102">XNMRFSpectrum::onClear()</a>, <a class="el" href="nmrrelax_8cpp-source.html#l00196">XNMRT1::onClearAll()</a>, <a class="el" href="nmrspectrum_8cpp-source.html#l00093">XNMRSpectrum::onCondChanged()</a>, <a class="el" href="nmrrelax_8cpp-source.html#l00217">XNMRT1::onCondChanged()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00402">XNMRPulseAnalyzer::onCondChanged()</a>, <a class="el" href="nmrfspectrum_8cpp-source.html#l00097">XNMRFSpectrum::onCondChanged()</a>, と <a class="el" href="nmrrelax_8cpp-source.html#l00202">XNMRT1::onResetFit()</a>.    </td>
+参照元 <a class="el" href="nmrpulse_8cpp-source.html#l00409">XNMRPulseAnalyzer::onAvgClear()</a>, <a class="el" href="nmrspectrum_8cpp-source.html#l00113">XNMRSpectrum::onClear()</a>, <a class="el" href="nmrfspectrum_8cpp-source.html#l00115">XNMRFSpectrum::onClear()</a>, <a class="el" href="nmrrelax_8cpp-source.html#l00209">XNMRT1::onClearAll()</a>, <a class="el" href="nmrspectrum_8cpp-source.html#l00106">XNMRSpectrum::onCondChanged()</a>, <a class="el" href="nmrrelax_8cpp-source.html#l00230">XNMRT1::onCondChanged()</a>, <a class="el" href="nmrpulse_8cpp-source.html#l00415">XNMRPulseAnalyzer::onCondChanged()</a>, <a class="el" href="nmrfspectrum_8cpp-source.html#l00110">XNMRFSpectrum::onCondChanged()</a>, と <a class="el" href="nmrrelax_8cpp-source.html#l00215">XNMRT1::onResetFit()</a>.    </td>
   </tr>
 </table>
 <a class="anchor" name="b4"></a><!-- doxytag: member=<XSecondaryDriver::visualize> ref=<b4> args=<()=0> --><p>
@@ -320,16 +320,16 @@ check dependencies and lock all records and analyze null pointer will be passed 
 <p>
 this is called after <a class="el" href="class_x_secondary_driver.html#b3">analyze()</a> or analyzeRaw() record is readLocked this must be reentrant unlike <a class="el" href="class_x_secondary_driver.html#b3">analyze()</a> 
 <p>
-<a class="el" href="class_x_driver.html#b3">XDriver</a>を実装しています.
+<a class="el" href="class_x_driver.html#b1">XDriver</a>を実装しています.
 <p>
 <a class="el" href="class_x_n_m_r_f_spectrum.html#b2">XNMRFSpectrum</a>, <a class="el" href="class_x_n_m_r_pulse_analyzer.html#b2">XNMRPulseAnalyzer</a>, <a class="el" href="class_x_n_m_r_t1.html#b2">XNMRT1</a>, と <a class="el" href="class_x_n_m_r_spectrum.html#b2">XNMRSpectrum</a>で実装されています.
 <p>
-参照元 <a class="el" href="secondarydriver_8cpp-source.html#l00050">onConnectedRecorded()</a>.    </td>
+参照元 <a class="el" href="secondarydriver_8cpp-source.html#l00063">onConnectedRecorded()</a>.    </td>
   </tr>
 </table>
 <hr>このクラスの説明は次のファイルから生成されました:<ul>
 <li>kame/driver/<a class="el" href="secondarydriver_8h-source.html">secondarydriver.h</a><li>kame/driver/<a class="el" href="secondarydriver_8cpp-source.html">secondarydriver.cpp</a></ul>
-<hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 13:04:44 2007に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してWed Feb 28 04:17:21 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

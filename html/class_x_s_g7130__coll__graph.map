@@ -1,6 +1,7 @@
 base referer
-rect $class_x_s_g7200.html 186,176 266,202
+rect $class_x_s_g7200.html 186,253 266,279
+rect $class_x_char_device_driver.html 133,175 320,202
 rect $class_x_s_g.html 201,98 252,125
-rect $class_x_primary_driver.html 8,8 122,34
-rect $classqshared__ptr.html 146,8 306,34
-rect $classqshared__ptr.html 330,8 573,34
+rect $class_x_primary_driver.html 8,7 122,34
+rect $classqshared__ptr.html 146,7 306,34
+rect $classqshared__ptr.html 330,7 573,34

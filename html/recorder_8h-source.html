@@ -7,103 +7,116 @@
 <div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
 <a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000001.html">analyzer</a></div>
-<h1>recorder.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">//---------------------------------------------------------------------------</span>
-<a name="l00002"></a>00002 
-<a name="l00003"></a>00003 <span class="preprocessor">#ifndef recorderH</span>
-<a name="l00004"></a>00004 <span class="preprocessor"></span><span class="preprocessor">#define recorderH</span>
-<a name="l00005"></a>00005 <span class="preprocessor"></span><span class="comment">//---------------------------------------------------------------------------</span>
-<a name="l00006"></a>00006 <span class="preprocessor">#include "xnode.h"</span>
-<a name="l00007"></a>00007 <span class="preprocessor">#include "xnodeconnector.h"</span>
-<a name="l00008"></a>00008 <span class="preprocessor">#include "driver.h"</span>
-<a name="l00009"></a>00009 
-<a name="l00010"></a>00010 <span class="preprocessor">#include &lt;fstream&gt;</span>
-<a name="l00011"></a>00011 
-<a name="l00012"></a>00012 <span class="preprocessor">#define MAX_RAW_RECORD_SIZE 100000</span>
-<a name="l00013"></a>00013 <span class="preprocessor"></span>
-<a name="l00014"></a><a class="code" href="class_x_raw_stream.html">00014</a> <span class="keyword">class </span><a class="code" href="class_x_raw_stream.html">XRawStream</a> : <span class="keyword">public</span> <a class="code" href="class_x_node.html">XNode</a>
-<a name="l00015"></a>00015 {
-<a name="l00016"></a>00016  XNODE_OBJECT
-<a name="l00017"></a>00017  <span class="keyword">protected</span>:
-<a name="l00018"></a>00018   <a class="code" href="class_x_raw_stream.html#b0">XRawStream</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;driverlist);
-<a name="l00019"></a>00019  <span class="keyword">public</span>:
-<a name="l00020"></a>00020   <span class="keyword">virtual</span> <a class="code" href="class_x_raw_stream.html#a0">~XRawStream</a>();
-<a name="l00021"></a><a class="code" href="class_x_raw_stream.html#a1">00021</a>   <span class="keyword">const</span> shared_ptr&lt;XStringNode&gt; &amp;<a class="code" href="class_x_raw_stream.html#a1">filename</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_raw_stream.html#r0">m_filename</a>;}  
-<a name="l00022"></a>00022  <span class="keyword">protected</span>:
-<a name="l00023"></a><a class="code" href="class_x_raw_stream.html#p0">00023</a>   shared_ptr&lt;XDriverList&gt; <a class="code" href="class_x_raw_stream.html#p0">m_drivers</a>;
-<a name="l00025"></a><a class="code" href="class_x_raw_stream.html#p1">00025</a>   <span class="keywordtype">void</span> *<a class="code" href="class_x_raw_stream.html#p1">m_pGFD</a>;
-<a name="l00026"></a><a class="code" href="class_x_raw_stream.html#p2">00026</a>   <a class="code" href="class_x_mutex.html">XMutex</a> <a class="code" href="class_x_raw_stream.html#p2">m_filemutex</a>;
-<a name="l00027"></a>00027  <span class="keyword">private</span>:
-<a name="l00028"></a><a class="code" href="class_x_raw_stream.html#r0">00028</a>   shared_ptr&lt;XStringNode&gt; <a class="code" href="class_x_raw_stream.html#r0">m_filename</a>;
-<a name="l00029"></a>00029 
-<a name="l00030"></a>00030 };
-<a name="l00031"></a><a class="code" href="class_x_raw_stream_recorder.html">00031</a> <span class="keyword">class </span><a class="code" href="class_x_raw_stream_recorder.html">XRawStreamRecorder</a> : <span class="keyword">public</span> <a class="code" href="class_x_raw_stream.html">XRawStream</a>
-<a name="l00032"></a>00032 {
-<a name="l00033"></a>00033  XNODE_OBJECT
-<a name="l00034"></a>00034  <span class="keyword">protected</span>:
-<a name="l00035"></a>00035   <a class="code" href="class_x_raw_stream_recorder.html#b0">XRawStreamRecorder</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;driverlist);
-<a name="l00036"></a>00036  <span class="keyword">public</span>:
-<a name="l00037"></a><a class="code" href="class_x_raw_stream_recorder.html#a0">00037</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_raw_stream_recorder.html#a0">~XRawStreamRecorder</a>() {}
-<a name="l00038"></a><a class="code" href="class_x_raw_stream_recorder.html#a1">00038</a>   <span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; &amp;<a class="code" href="class_x_raw_stream_recorder.html#a1">recording</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_raw_stream_recorder.html#r5">m_recording</a>;}
-<a name="l00039"></a>00039  <span class="keyword">protected</span>:
-<a name="l00040"></a>00040   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_raw_stream_recorder.html#b1">onCatch</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
-<a name="l00041"></a>00041   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_raw_stream_recorder.html#b2">onRelease</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);  
-<a name="l00042"></a>00042  <span class="keyword">private</span>:
-<a name="l00043"></a>00043   <span class="keywordtype">void</span> <a class="code" href="class_x_raw_stream_recorder.html#d0">onOpen</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00044"></a>00044   
-<a name="l00045"></a><a class="code" href="class_x_raw_stream_recorder.html#r0">00045</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_raw_stream_recorder.html#r0">m_lsnOnRecord</a>;
-<a name="l00046"></a><a class="code" href="class_x_raw_stream_recorder.html#r1">00046</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_raw_stream_recorder.html#r1">m_lsnOnCatch</a>;
-<a name="l00047"></a><a class="code" href="class_x_raw_stream_recorder.html#r2">00047</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_raw_stream_recorder.html#r2">m_lsnOnRelease</a>;
-<a name="l00048"></a><a class="code" href="class_x_raw_stream_recorder.html#r3">00048</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_raw_stream_recorder.html#r3">m_lsnOnFlush</a>;
-<a name="l00049"></a><a class="code" href="class_x_raw_stream_recorder.html#r4">00049</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_raw_stream_recorder.html#r4">m_lsnOnOpen</a>;
-<a name="l00050"></a>00050   
-<a name="l00051"></a>00051   <span class="keywordtype">void</span> <a class="code" href="class_x_raw_stream_recorder.html#d1">onRecord</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;driver);
-<a name="l00052"></a>00052   <span class="keywordtype">void</span> <a class="code" href="class_x_raw_stream_recorder.html#d2">onFlush</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00053"></a><a class="code" href="class_x_raw_stream_recorder.html#r5">00053</a>   shared_ptr&lt;XBoolNode&gt; <a class="code" href="class_x_raw_stream_recorder.html#r5">m_recording</a>;
-<a name="l00054"></a>00054 };
-<a name="l00055"></a>00055 
-<a name="l00056"></a>00056 
-<a name="l00057"></a>00057 <span class="keyword">class </span><a class="code" href="class_x_scalar_entry_list.html">XScalarEntryList</a>;
-<a name="l00058"></a>00058 
-<a name="l00059"></a><a class="code" href="class_x_text_writer.html">00059</a> <span class="keyword">class </span><a class="code" href="class_x_text_writer.html">XTextWriter</a> : <span class="keyword">public</span> <a class="code" href="class_x_node.html">XNode</a>
-<a name="l00060"></a>00060 {
-<a name="l00061"></a>00061  XNODE_OBJECT
-<a name="l00062"></a>00062  <span class="keyword">protected</span>:
-<a name="l00063"></a>00063   <a class="code" href="class_x_text_writer.html#b0">XTextWriter</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
-<a name="l00064"></a>00064      <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;driverlist, <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;entrylist);
-<a name="l00065"></a>00065  <span class="keyword">public</span>:
-<a name="l00066"></a><a class="code" href="class_x_text_writer.html#a0">00066</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_text_writer.html#a0">~XTextWriter</a>() {}
-<a name="l00067"></a>00067 
-<a name="l00068"></a><a class="code" href="class_x_text_writer.html#a1">00068</a>   <span class="keyword">const</span> shared_ptr&lt;XStringNode&gt; &amp;<a class="code" href="class_x_text_writer.html#a1">filename</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_text_writer.html#r2">m_filename</a>;}
-<a name="l00069"></a><a class="code" href="class_x_text_writer.html#a2">00069</a>   <span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; &amp;<a class="code" href="class_x_text_writer.html#a2">recording</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_text_writer.html#r4">m_recording</a>;}
-<a name="l00070"></a><a class="code" href="class_x_text_writer.html#a3">00070</a>   <span class="keyword">const</span> shared_ptr&lt;XStringNode&gt; &amp;<a class="code" href="class_x_text_writer.html#a3">lastLine</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_text_writer.html#r3">m_lastLine</a>;}
+<h1>recorder.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
+<a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
+<a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
+<a name="l00004"></a>00004 <span class="comment">                </span>
+<a name="l00005"></a>00005 <span class="comment">                This program is free software; you can redistribute it and/or</span>
+<a name="l00006"></a>00006 <span class="comment">                modify it under the terms of the GNU Library General Public</span>
+<a name="l00007"></a>00007 <span class="comment">                License as published by the Free Software Foundation; either</span>
+<a name="l00008"></a>00008 <span class="comment">                version 2 of the License, or (at your option) any later version.</span>
+<a name="l00009"></a>00009 <span class="comment">                </span>
+<a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
+<a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
+<a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
+<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00014"></a>00014 <span class="comment">//---------------------------------------------------------------------------</span>
+<a name="l00015"></a>00015 
+<a name="l00016"></a>00016 <span class="preprocessor">#ifndef recorderH</span>
+<a name="l00017"></a>00017 <span class="preprocessor"></span><span class="preprocessor">#define recorderH</span>
+<a name="l00018"></a>00018 <span class="preprocessor"></span><span class="comment">//---------------------------------------------------------------------------</span>
+<a name="l00019"></a>00019 <span class="preprocessor">#include "xnode.h"</span>
+<a name="l00020"></a>00020 <span class="preprocessor">#include "xnodeconnector.h"</span>
+<a name="l00021"></a>00021 <span class="preprocessor">#include "driver.h"</span>
+<a name="l00022"></a>00022 
+<a name="l00023"></a>00023 <span class="preprocessor">#include &lt;fstream&gt;</span>
+<a name="l00024"></a>00024 
+<a name="l00025"></a>00025 <span class="preprocessor">#define MAX_RAW_RECORD_SIZE 100000</span>
+<a name="l00026"></a>00026 <span class="preprocessor"></span>
+<a name="l00027"></a><a class="code" href="class_x_raw_stream.html">00027</a> <span class="keyword">class </span><a class="code" href="class_x_raw_stream.html">XRawStream</a> : <span class="keyword">public</span> <a class="code" href="class_x_node.html">XNode</a>
+<a name="l00028"></a>00028 {
+<a name="l00029"></a>00029  XNODE_OBJECT
+<a name="l00030"></a>00030  <span class="keyword">protected</span>:
+<a name="l00031"></a>00031   <a class="code" href="class_x_raw_stream.html#b0">XRawStream</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;driverlist);
+<a name="l00032"></a>00032  <span class="keyword">public</span>:
+<a name="l00033"></a>00033   <span class="keyword">virtual</span> <a class="code" href="class_x_raw_stream.html#a0">~XRawStream</a>();
+<a name="l00034"></a><a class="code" href="class_x_raw_stream.html#a1">00034</a>   <span class="keyword">const</span> shared_ptr&lt;XStringNode&gt; &amp;<a class="code" href="class_x_raw_stream.html#a1">filename</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_raw_stream.html#r0">m_filename</a>;}  
+<a name="l00035"></a>00035  <span class="keyword">protected</span>:
+<a name="l00036"></a><a class="code" href="class_x_raw_stream.html#p0">00036</a>   shared_ptr&lt;XDriverList&gt; <a class="code" href="class_x_raw_stream.html#p0">m_drivers</a>;
+<a name="l00038"></a><a class="code" href="class_x_raw_stream.html#p1">00038</a>   <span class="keywordtype">void</span> *<a class="code" href="class_x_raw_stream.html#p1">m_pGFD</a>;
+<a name="l00039"></a><a class="code" href="class_x_raw_stream.html#p2">00039</a>   <a class="code" href="class_x_mutex.html">XMutex</a> <a class="code" href="class_x_raw_stream.html#p2">m_filemutex</a>;
+<a name="l00040"></a>00040  <span class="keyword">private</span>:
+<a name="l00041"></a><a class="code" href="class_x_raw_stream.html#r0">00041</a>   shared_ptr&lt;XStringNode&gt; <a class="code" href="class_x_raw_stream.html#r0">m_filename</a>;
+<a name="l00042"></a>00042 
+<a name="l00043"></a>00043 };
+<a name="l00044"></a><a class="code" href="class_x_raw_stream_recorder.html">00044</a> <span class="keyword">class </span><a class="code" href="class_x_raw_stream_recorder.html">XRawStreamRecorder</a> : <span class="keyword">public</span> <a class="code" href="class_x_raw_stream.html">XRawStream</a>
+<a name="l00045"></a>00045 {
+<a name="l00046"></a>00046  XNODE_OBJECT
+<a name="l00047"></a>00047  <span class="keyword">protected</span>:
+<a name="l00048"></a>00048   <a class="code" href="class_x_raw_stream_recorder.html#b0">XRawStreamRecorder</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;driverlist);
+<a name="l00049"></a>00049  <span class="keyword">public</span>:
+<a name="l00050"></a><a class="code" href="class_x_raw_stream_recorder.html#a0">00050</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_raw_stream_recorder.html#a0">~XRawStreamRecorder</a>() {}
+<a name="l00051"></a><a class="code" href="class_x_raw_stream_recorder.html#a1">00051</a>   <span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; &amp;<a class="code" href="class_x_raw_stream_recorder.html#a1">recording</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_raw_stream_recorder.html#r5">m_recording</a>;}
+<a name="l00052"></a>00052  <span class="keyword">protected</span>:
+<a name="l00053"></a>00053   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_raw_stream_recorder.html#b1">onCatch</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
+<a name="l00054"></a>00054   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_raw_stream_recorder.html#b2">onRelease</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);  
+<a name="l00055"></a>00055  <span class="keyword">private</span>:
+<a name="l00056"></a>00056   <span class="keywordtype">void</span> <a class="code" href="class_x_raw_stream_recorder.html#d0">onOpen</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00057"></a>00057   
+<a name="l00058"></a><a class="code" href="class_x_raw_stream_recorder.html#r0">00058</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_raw_stream_recorder.html#r0">m_lsnOnRecord</a>;
+<a name="l00059"></a><a class="code" href="class_x_raw_stream_recorder.html#r1">00059</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_raw_stream_recorder.html#r1">m_lsnOnCatch</a>;
+<a name="l00060"></a><a class="code" href="class_x_raw_stream_recorder.html#r2">00060</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_raw_stream_recorder.html#r2">m_lsnOnRelease</a>;
+<a name="l00061"></a><a class="code" href="class_x_raw_stream_recorder.html#r3">00061</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_raw_stream_recorder.html#r3">m_lsnOnFlush</a>;
+<a name="l00062"></a><a class="code" href="class_x_raw_stream_recorder.html#r4">00062</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_raw_stream_recorder.html#r4">m_lsnOnOpen</a>;
+<a name="l00063"></a>00063   
+<a name="l00064"></a>00064   <span class="keywordtype">void</span> <a class="code" href="class_x_raw_stream_recorder.html#d1">onRecord</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;driver);
+<a name="l00065"></a>00065   <span class="keywordtype">void</span> <a class="code" href="class_x_raw_stream_recorder.html#d2">onFlush</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00066"></a><a class="code" href="class_x_raw_stream_recorder.html#r5">00066</a>   <span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; <a class="code" href="class_x_raw_stream_recorder.html#r5">m_recording</a>;
+<a name="l00067"></a>00067 };
+<a name="l00068"></a>00068 
+<a name="l00069"></a>00069 
+<a name="l00070"></a>00070 <span class="keyword">class </span><a class="code" href="class_x_scalar_entry_list.html">XScalarEntryList</a>;
 <a name="l00071"></a>00071 
-<a name="l00072"></a>00072  <span class="keyword">protected</span>:
-<a name="l00073"></a>00073   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_text_writer.html#b1">onCatch</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
-<a name="l00074"></a>00074   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_text_writer.html#b2">onRelease</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);  
-<a name="l00075"></a>00075  <span class="keyword">private</span>:
-<a name="l00076"></a><a class="code" href="class_x_text_writer.html#r0">00076</a>   shared_ptr&lt;XDriverList&gt; <a class="code" href="class_x_text_writer.html#r0">m_drivers</a>;
-<a name="l00077"></a><a class="code" href="class_x_text_writer.html#r1">00077</a>   shared_ptr&lt;XScalarEntryList&gt; <a class="code" href="class_x_text_writer.html#r1">m_entries</a>;
-<a name="l00078"></a><a class="code" href="class_x_text_writer.html#r2">00078</a>   shared_ptr&lt;XStringNode&gt; <a class="code" href="class_x_text_writer.html#r2">m_filename</a>;
-<a name="l00079"></a><a class="code" href="class_x_text_writer.html#r3">00079</a>   shared_ptr&lt;XStringNode&gt; <a class="code" href="class_x_text_writer.html#r3">m_lastLine</a>;
-<a name="l00080"></a><a class="code" href="class_x_text_writer.html#r4">00080</a>   shared_ptr&lt;XBoolNode&gt; <a class="code" href="class_x_text_writer.html#r4">m_recording</a>;
-<a name="l00081"></a><a class="code" href="class_x_text_writer.html#r5">00081</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_text_writer.html#r5">m_lsnOnRecord</a>;
-<a name="l00082"></a><a class="code" href="class_x_text_writer.html#r6">00082</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_text_writer.html#r6">m_lsnOnFlush</a>;
-<a name="l00083"></a><a class="code" href="class_x_text_writer.html#r7">00083</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_text_writer.html#r7">m_lsnOnCatch</a>;
-<a name="l00084"></a><a class="code" href="class_x_text_writer.html#r8">00084</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_text_writer.html#r8">m_lsnOnRelease</a>; 
-<a name="l00085"></a><a class="code" href="class_x_text_writer.html#r9">00085</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_text_writer.html#r9">m_lsnOnLastLineChanged</a>; 
-<a name="l00086"></a><a class="code" href="class_x_text_writer.html#r10">00086</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_text_writer.html#r10">m_lsnOnFilenameChanged</a>;
-<a name="l00087"></a>00087   <span class="keywordtype">void</span> <a class="code" href="class_x_text_writer.html#d0">onRecord</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;driver);
-<a name="l00088"></a>00088   <span class="keywordtype">void</span> <a class="code" href="class_x_text_writer.html#d1">onFlush</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00089"></a>00089   <span class="keywordtype">void</span> <a class="code" href="class_x_text_writer.html#d2">onLastLineChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00090"></a>00090   <span class="keywordtype">void</span> <a class="code" href="class_x_text_writer.html#d3">onFilenameChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00091"></a>00091     
-<a name="l00092"></a><a class="code" href="class_x_text_writer.html#r11">00092</a>   std::fstream <a class="code" href="class_x_text_writer.html#r11">m_stream</a>;
-<a name="l00093"></a><a class="code" href="class_x_text_writer.html#r12">00093</a>   <a class="code" href="class_x_recursive_mutex.html">XRecursiveMutex</a> <a class="code" href="class_x_text_writer.html#r12">m_filemutex</a>;
-<a name="l00094"></a>00094 };
-<a name="l00095"></a>00095 
-<a name="l00096"></a>00096 
-<a name="l00097"></a>00097 <span class="preprocessor">#endif</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 13:04:27 2007に生成されました。&nbsp;
+<a name="l00072"></a><a class="code" href="class_x_text_writer.html">00072</a> <span class="keyword">class </span><a class="code" href="class_x_text_writer.html">XTextWriter</a> : <span class="keyword">public</span> <a class="code" href="class_x_node.html">XNode</a>
+<a name="l00073"></a>00073 {
+<a name="l00074"></a>00074  XNODE_OBJECT
+<a name="l00075"></a>00075  <span class="keyword">protected</span>:
+<a name="l00076"></a>00076   <a class="code" href="class_x_text_writer.html#b0">XTextWriter</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
+<a name="l00077"></a>00077      <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;driverlist, <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;entrylist);
+<a name="l00078"></a>00078  <span class="keyword">public</span>:
+<a name="l00079"></a><a class="code" href="class_x_text_writer.html#a0">00079</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_text_writer.html#a0">~XTextWriter</a>() {}
+<a name="l00080"></a>00080 
+<a name="l00081"></a><a class="code" href="class_x_text_writer.html#a1">00081</a>   <span class="keyword">const</span> shared_ptr&lt;XStringNode&gt; &amp;<a class="code" href="class_x_text_writer.html#a1">filename</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_text_writer.html#r2">m_filename</a>;}
+<a name="l00082"></a><a class="code" href="class_x_text_writer.html#a2">00082</a>   <span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; &amp;<a class="code" href="class_x_text_writer.html#a2">recording</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_text_writer.html#r4">m_recording</a>;}
+<a name="l00083"></a><a class="code" href="class_x_text_writer.html#a3">00083</a>   <span class="keyword">const</span> shared_ptr&lt;XStringNode&gt; &amp;<a class="code" href="class_x_text_writer.html#a3">lastLine</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_text_writer.html#r3">m_lastLine</a>;}
+<a name="l00084"></a>00084 
+<a name="l00085"></a>00085  <span class="keyword">protected</span>:
+<a name="l00086"></a>00086   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_text_writer.html#b1">onCatch</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
+<a name="l00087"></a>00087   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_text_writer.html#b2">onRelease</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);  
+<a name="l00088"></a>00088  <span class="keyword">private</span>:
+<a name="l00089"></a><a class="code" href="class_x_text_writer.html#r0">00089</a>   <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; <a class="code" href="class_x_text_writer.html#r0">m_drivers</a>;
+<a name="l00090"></a><a class="code" href="class_x_text_writer.html#r1">00090</a>   <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; <a class="code" href="class_x_text_writer.html#r1">m_entries</a>;
+<a name="l00091"></a><a class="code" href="class_x_text_writer.html#r2">00091</a>   <span class="keyword">const</span> shared_ptr&lt;XStringNode&gt; <a class="code" href="class_x_text_writer.html#r2">m_filename</a>;
+<a name="l00092"></a><a class="code" href="class_x_text_writer.html#r3">00092</a>   <span class="keyword">const</span> shared_ptr&lt;XStringNode&gt; <a class="code" href="class_x_text_writer.html#r3">m_lastLine</a>;
+<a name="l00093"></a><a class="code" href="class_x_text_writer.html#r4">00093</a>   <span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; <a class="code" href="class_x_text_writer.html#r4">m_recording</a>;
+<a name="l00094"></a><a class="code" href="class_x_text_writer.html#r5">00094</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_text_writer.html#r5">m_lsnOnRecord</a>;
+<a name="l00095"></a><a class="code" href="class_x_text_writer.html#r6">00095</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_text_writer.html#r6">m_lsnOnFlush</a>;
+<a name="l00096"></a><a class="code" href="class_x_text_writer.html#r7">00096</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_text_writer.html#r7">m_lsnOnCatch</a>;
+<a name="l00097"></a><a class="code" href="class_x_text_writer.html#r8">00097</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_text_writer.html#r8">m_lsnOnRelease</a>; 
+<a name="l00098"></a><a class="code" href="class_x_text_writer.html#r9">00098</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_text_writer.html#r9">m_lsnOnLastLineChanged</a>; 
+<a name="l00099"></a><a class="code" href="class_x_text_writer.html#r10">00099</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_text_writer.html#r10">m_lsnOnFilenameChanged</a>;
+<a name="l00100"></a>00100   <span class="keywordtype">void</span> <a class="code" href="class_x_text_writer.html#d0">onRecord</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;driver);
+<a name="l00101"></a>00101   <span class="keywordtype">void</span> <a class="code" href="class_x_text_writer.html#d1">onFlush</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00102"></a>00102   <span class="keywordtype">void</span> <a class="code" href="class_x_text_writer.html#d2">onLastLineChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00103"></a>00103   <span class="keywordtype">void</span> <a class="code" href="class_x_text_writer.html#d3">onFilenameChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00104"></a>00104     
+<a name="l00105"></a><a class="code" href="class_x_text_writer.html#r11">00105</a>   std::fstream <a class="code" href="class_x_text_writer.html#r11">m_stream</a>;
+<a name="l00106"></a><a class="code" href="class_x_text_writer.html#r12">00106</a>   <a class="code" href="class_x_recursive_mutex.html">XRecursiveMutex</a> <a class="code" href="class_x_text_writer.html#r12">m_filemutex</a>;
+<a name="l00107"></a>00107 };
+<a name="l00108"></a>00108 
+<a name="l00109"></a>00109 
+<a name="l00110"></a>00110 <span class="preprocessor">#endif</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してWed Feb 28 04:17:10 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

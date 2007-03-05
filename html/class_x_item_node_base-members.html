@@ -7,6 +7,7 @@
 <div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <h1>XItemNodeBase メンバ一覧</h1>これは全メンバの一覧です。<a class="el" href="class_x_item_node_base.html">XItemNodeBase</a>継承メンバも含んでいます。<p><table>
   <tr bgcolor="#f0f0f0"><td><b>_str</b>(const std::string &amp;str)=0 (次で定義されています。 <a class="el" href="class_x_value_node_base.html">XValueNodeBase</a>)</td><td><a class="el" href="class_x_value_node_base.html">XValueNodeBase</a></td><td><code> [protected, pure virtual]</code></td></tr>
+  <tr class="memlist"><td><a class="el" href="class_x_item_node_base.html#a3">autoSetAny</a>() const </td><td><a class="el" href="class_x_item_node_base.html">XItemNodeBase</a></td><td><code> [inline]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_value_node_base.html#a4">beforeValueChanged</a>()</td><td><a class="el" href="class_x_value_node_base.html">XValueNodeBase</a></td><td><code> [inline]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_node.html#a10">children</a>() const </td><td><a class="el" href="class_x_node.html">XNode</a></td><td><code> [inline]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_node.html#a11">clearChildren</a>()</td><td><a class="el" href="class_x_node.html">XNode</a></td><td></td></tr>
@@ -24,6 +25,7 @@
   <tr class="memlist"><td><a class="el" href="class_x_node.html#a14">isUIEnabled</a>() const </td><td><a class="el" href="class_x_node.html">XNode</a></td><td><code> [inline]</code></td></tr>
   <tr bgcolor="#f0f0f0"><td><b>itemStrings</b>() const =0 (次で定義されています。 <a class="el" href="class_x_item_node_base.html">XItemNodeBase</a>)</td><td><a class="el" href="class_x_item_node_base.html">XItemNodeBase</a></td><td><code> [pure virtual]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_node.html#p0">m_children</a></td><td><a class="el" href="class_x_node.html">XNode</a></td><td><code> [protected]</code></td></tr>
+  <tr class="memlist"><td><a class="el" href="class_x_item_node_base.html#r1">m_lsnTryAutoSet</a></td><td><a class="el" href="class_x_item_node_base.html">XItemNodeBase</a></td><td><code> [private]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_value_node_base.html#p0">m_tlkBeforeValueChanged</a></td><td><a class="el" href="class_x_value_node_base.html">XValueNodeBase</a></td><td><code> [protected]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_item_node_base.html#r0">m_tlkOnListChanged</a></td><td><a class="el" href="class_x_item_node_base.html">XItemNodeBase</a></td><td><code> [private]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_node.html#p1">m_tlkOnTouch</a></td><td><a class="el" href="class_x_node.html">XNode</a></td><td><code> [protected]</code></td></tr>
@@ -33,6 +35,7 @@
   <tr class="memlist"><td><a class="el" href="class_x_node.html#w0">NodeList</a> typedef</td><td><a class="el" href="class_x_node.html">XNode</a></td><td></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_item_node_base.html#a2">onListChanged</a>()</td><td><a class="el" href="class_x_item_node_base.html">XItemNodeBase</a></td><td><code> [inline]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_node.html#a17">onTouch</a>()</td><td><a class="el" href="class_x_node.html">XNode</a></td><td><code> [inline]</code></td></tr>
+  <tr class="memlist"><td><a class="el" href="class_x_item_node_base.html#d0">onTryAutoSet</a>(const shared_ptr&lt; XItemNodeBase &gt; &amp;node)</td><td><a class="el" href="class_x_item_node_base.html">XItemNodeBase</a></td><td><code> [private]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_node.html#a18">onUIEnabled</a>()</td><td><a class="el" href="class_x_node.html">XNode</a></td><td><code> [inline]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_value_node_base.html#a5">onValueChanged</a>()</td><td><a class="el" href="class_x_value_node_base.html">XValueNodeBase</a></td><td><code> [inline]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_node.html#a12">releaseChild</a>(const shared_ptr&lt; XNode &gt; &amp;node)</td><td><a class="el" href="class_x_node.html">XNode</a></td><td></td></tr>
@@ -43,12 +46,12 @@
   <tr class="memlist"><td><a class="el" href="class_x_value_node_base.html#a0">to_str</a>() const =0</td><td><a class="el" href="class_x_value_node_base.html">XValueNodeBase</a></td><td><code> [pure virtual]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_node.html#a16">touch</a>()</td><td><a class="el" href="class_x_node.html">XNode</a></td><td></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_value_node_base.html#w0">Validator</a> typedef</td><td><a class="el" href="class_x_value_node_base.html">XValueNodeBase</a></td><td></td></tr>
-  <tr class="memlist"><td><a class="el" href="class_x_item_node_base.html#b0">XItemNodeBase</a>(const char *name, bool runtime=false)</td><td><a class="el" href="class_x_item_node_base.html">XItemNodeBase</a></td><td><code> [explicit, protected]</code></td></tr>
+  <tr class="memlist"><td><a class="el" href="class_x_item_node_base.html#b0">XItemNodeBase</a>(const char *name, bool runtime=false, bool auto_set_any=false)</td><td><a class="el" href="class_x_item_node_base.html">XItemNodeBase</a></td><td><code> [explicit, protected]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_node.html#b0">XNode</a>(const char *name, bool runtime=false)</td><td><a class="el" href="class_x_node.html">XNode</a></td><td><code> [explicit, protected]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_value_node_base.html#b0">XValueNodeBase</a>(const char *name, bool runtime=false)</td><td><a class="el" href="class_x_value_node_base.html">XValueNodeBase</a></td><td><code> [explicit, protected]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_item_node_base.html#a0">~XItemNodeBase</a>()</td><td><a class="el" href="class_x_item_node_base.html">XItemNodeBase</a></td><td><code> [inline, virtual]</code></td></tr>
   <tr class="memlist"><td><a class="el" href="class_x_node.html#a0">~XNode</a>()</td><td><a class="el" href="class_x_node.html">XNode</a></td><td><code> [virtual]</code></td></tr>
-</table><hr size="1"><address style="align: right;"><small>KAME2に対してSun Jan 21 13:04:40 2007に生成されました。&nbsp;
+</table><hr size="1"><address style="align: right;"><small>KAME2に対してWed Feb 28 04:17:19 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>
