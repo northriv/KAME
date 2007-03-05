@@ -1,4 +1,3 @@
-####### kdevelop will overwrite this part!!! (begin)##########
 noinst_LIBRARIES = libthermometer.a
 
 INCLUDES = -I$(top_srcdir)/kame \

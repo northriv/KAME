@@ -1,4 +1,3 @@
-####### kdevelop will overwrite this part!!! (begin)##########
 noinst_LIBRARIES = libanalyzer.a
 
 INCLUDES = -I$(top_srcdir)/kame -I$(top_srcdir)/kame/analyzer \

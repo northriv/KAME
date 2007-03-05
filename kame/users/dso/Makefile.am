@@ -1,4 +1,3 @@
-####### kdevelop will overwrite this part!!! (begin)##########
 noinst_LIBRARIES = libdso.a
 
 INCLUDES = -I$(top_srcdir)/. \
@@ -15,6 +14,11 @@ libdso_a_SOURCES = fir.cpp fir.h \
 	nidaqdso.cpp nidaqdso.h \
 	dso.cpp dso.h \
 	tds.cpp tds.h
+
+libdso_a_CXXFLAGS = $(CXXFLAGS) \
+	-O6  \
+	-funroll-loops -fomit-frame-pointer -funswitch-loops -finline-functions -fgcse-after-reload \
+	-ffast-math -fno-tree-vectorize -ftree-vectorizer-verbose=3 -fno-unsafe-math-optimizations
 
 METASOURCES = AUTO
 

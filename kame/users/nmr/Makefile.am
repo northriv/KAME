@@ -21,5 +21,10 @@ libnmr_a_SOURCES = pulserdriver.cpp pulserdriver.h \
 	nmrrelax.cpp nmrrelax.h \
 	signalgenerator.cpp signalgenerator.h
 
+#libnmr_a_CXXFLAGS = $(CXXFLAGS) \
+#	-O6  \
+#	-funroll-loops -fomit-frame-pointer -funswitch-loops -finline-functions -fgcse-after-reload \
+#	-ffast-math -fno-tree-vectorize -ftree-vectorizer-verbose=3 -fno-unsafe-math-optimizations
+
 SUBDIRS = forms
 METASOURCES = AUTO

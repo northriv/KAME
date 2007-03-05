@@ -243,7 +243,6 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	    	PAUSING_BLANK_BEFORE * resolution() * 1e-3,
 	    	PAUSING_BLANK_AFTER * resolution() * 1e-3, 
 	    	m_pausingCount * resolution() * 1e-3));
-//		CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskGateCtr, 0, &XNIDAQmxPulser::_onTaskDone, this));
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskGateCtr,
 			 DAQmx_Val_FiniteSamps, 1));
 	    intfCtr()->synchronizeClock(m_taskGateCtr);
@@ -758,14 +757,15 @@ XNIDAQmxPulser::genBankDO()
 		tRawDO patDO = PAT_DO_MASK & pat;
 		if(pausingbit && ((pat & PAT_QAM_PULSE_IDX_MASK) == 0)) {
 			//generate a pausing trigger.
+			ASSERT(tonext > 0);
 			unsigned int lps = (unsigned int)std::min(
 				(uint64_t)(samps_rest / (pausing_cnt_blank_before + pausing_cnt_blank_after)),
 				(tonext - 1) / pausing_period);
+			patDO &= ~pausingbit;
 			if(lps) {
 				samps_rest -= lps * (pausing_cnt_blank_before + pausing_cnt_blank_after);
 				tonext -= lps * pausing_period;
 				tRawDO patDO_or_p = patDO | pausingbit;
-				patDO &= ~pausingbit;
 				C_ASSERT(pausing_cnt_blank_before == 2);
 				C_ASSERT(pausing_cnt_blank_after == 1);
 				for(unsigned int lp = 0; lp < lps; lp++) {
@@ -829,6 +829,7 @@ XNIDAQmxPulser::genBankAO()
 
 		if(pausingbit && (pidx == 0)) {
 			//generate a pausing trigger.
+			ASSERT(tonext > 0);
 			unsigned int lps = (unsigned int)std::min(
 				(uint64_t)(samps_rest / oversamp_ao / (pausing_cnt_blank_before + pausing_cnt_blank_after)),
 				(tonext - 1) / pausing_period);
