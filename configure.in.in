@@ -4,7 +4,7 @@ AM_INIT_AUTOMAKE(kame,2.1)
 
 AC_LANG_CPLUSPLUS
 
-dnl CXXFLAGS="$CXXFLAGS $USE_EXCEPTIONS"
+CXXFLAGS="$CXXFLAGS $USE_EXCEPTIONS"
 
 AC_MSG_CHECKING(for freetype2)
 if freetype-config --libs > /dev/null 2>&1; then

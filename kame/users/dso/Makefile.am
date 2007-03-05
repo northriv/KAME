@@ -15,10 +15,10 @@ libdso_a_SOURCES = fir.cpp fir.h \
 	dso.cpp dso.h \
 	tds.cpp tds.h
 
-libdso_a_CXXFLAGS = $(CXXFLAGS) \
-	-O6  \
-	-funroll-loops -fomit-frame-pointer -funswitch-loops -finline-functions -fgcse-after-reload \
-	-ffast-math -fno-tree-vectorize -ftree-vectorizer-verbose=3 -fno-unsafe-math-optimizations
+#AM_CXXFLAGS = $(CXXFLAGS) \
+#	-O6  \
+#	-funroll-loops -fomit-frame-pointer -funswitch-loops -finline-functions -fgcse-after-reload \
+#	-ffast-math -fno-tree-vectorize -ftree-vectorizer-verbose=3 -fno-unsafe-math-optimizations
 
 METASOURCES = AUTO
 

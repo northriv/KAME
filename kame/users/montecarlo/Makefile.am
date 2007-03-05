@@ -7,7 +7,7 @@ INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_builddir)/kame/users/montecarlo/forms \
 	$(all_includes)
 
-libmontecarlo_a_CXXFLAGS = $(CXXFLAGS) \
+AM_CXXFLAGS = $(CXXFLAGS) \
 	-O6  \
 	-funroll-loops -fomit-frame-pointer -funswitch-loops -finline-functions -fgcse-after-reload \
 	-ffast-math -fno-tree-vectorize -ftree-vectorizer-verbose=3 -fno-unsafe-math-optimizations

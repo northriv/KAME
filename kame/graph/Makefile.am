@@ -8,15 +8,13 @@ libgraph_a_SOURCES = graph.cpp graph.h \
 	graphdialogconnector.cpp graphdialogconnector.h \
 	graphpainter.cpp graphpaintergl.cpp graphpainter.h \
 	graphwidget.cpp graphwidget.h \
-	xwavengraph.cpp xwavengraph.h 
+	xwavengraph.cpp xwavengraph.h
 
-libgraph_a_CXXFLAGS = $(CXXFLAGS) \
-	-O6  \
-	-funroll-loops -fomit-frame-pointer -funswitch-loops -finline-functions -fgcse-after-reload \
-	-ffast-math -fno-tree-vectorize -ftree-vectorizer-verbose=3 -fno-unsafe-math-optimizations
-	
 METASOURCES = AUTO
 
 SUBDIRS = forms
 
-noinst_HEADERS = graphpainter.h
+AM_CXXFLAGS = $(CXXFLAGS) \
+	-O3 \
+	-funroll-loops -fomit-frame-pointer -funswitch-loops -finline-functions -fgcse-after-reload \
+	-ffast-math -fno-tree-vectorize -ftree-vectorizer-verbose=3 -fno-unsafe-math-optimizations
