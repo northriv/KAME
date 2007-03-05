@@ -65,10 +65,10 @@
            #endif
                     " mov %6, %%ebx;"
                     " lock; cmpxchg8b %7;"
-                    " sete %0;" // ret = zflag ? 1 : 0
            #ifdef MACOSX
                     " pop %%ebx;"
            #endif
+                    " sete %0;" // ret = zflag ? 1 : 0
                     : "=r" (ret), "=d" (oldv1), "=a" (oldv0)
                     : "1" (oldv1), "2" (oldv0),
                      "c" (newv1), "g" (newv0),
