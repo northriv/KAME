@@ -364,7 +364,10 @@ XNIDAQmxDSO::setupTiming()
 
 	unsigned int bufsize = len;
 	if(m_softwareTrigger) {
+		unsigned int onbrd_size;
+		CHECK_DAQMX_RET(DAQmxGetBufInputOnbrdBufSize(m_task, &onbrd_size));
 		bufsize = std::max(bufsize * 8, (unsigned int)lrint(1.0 / m_interval));
+		bufsize = std::max(bufsize, onbrd_size);
 	}
 	CHECK_DAQMX_RET(DAQmxCfgInputBuffer(m_task, bufsize));
     
