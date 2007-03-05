@@ -11,7 +11,6 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
  ***************************************************************************/
-//! \todo fast generation.
 #include "pulserdrivernidaqmx.h"
 
 #ifdef HAVE_NI_DAQMX
