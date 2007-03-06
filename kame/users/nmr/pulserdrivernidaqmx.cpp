@@ -562,9 +562,9 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		m_suspendDO = false;
 	}
 	//slave must start before the master.
+    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
 	if(m_taskDOCtr != TASK_UNDEF)
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
-    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
 	if(m_taskGateCtr != TASK_UNDEF)
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
 	msecsleep(1);
