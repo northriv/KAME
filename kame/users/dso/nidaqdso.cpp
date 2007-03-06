@@ -618,7 +618,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 		if(terminated)
 			return;
 	    CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, samps,
-	        0.0, DAQmx_Val_GroupByScanNumber,
+	        2.0 * m_interval * samps, DAQmx_Val_GroupByScanNumber,
 	        &m_recordBuf[cnt * num_ch], samps * num_ch, &samps, NULL
 	        ));
 	    cnt += samps;
@@ -844,23 +844,23 @@ XNIDAQmxDSO::onSingleChanged(const shared_ptr<XValueNodeBase> &) {
 }
 void
 XNIDAQmxDSO::onTrigPosChanged(const shared_ptr<XValueNodeBase> &) {
-	setupTiming();
+    createChannels();
 }
 void
 XNIDAQmxDSO::onTrigSourceChanged(const shared_ptr<XValueNodeBase> &) {
-	setupTiming();
+    createChannels();
 }
 void
 XNIDAQmxDSO::onTrigLevelChanged(const shared_ptr<XValueNodeBase> &) {
-	setupTiming();
+    createChannels();
 }
 void
 XNIDAQmxDSO::onTrigFallingChanged(const shared_ptr<XValueNodeBase> &) {
-	setupTiming();
+    createChannels();
 }
 void
 XNIDAQmxDSO::onTimeWidthChanged(const shared_ptr<XValueNodeBase> &) {
-	setupTiming();
+    createChannels();
 }
 void
 XNIDAQmxDSO::onTrace1Changed(const shared_ptr<XValueNodeBase> &) {
@@ -888,7 +888,7 @@ XNIDAQmxDSO::onVOffset2Changed(const shared_ptr<XValueNodeBase> &) {
 }
 void
 XNIDAQmxDSO::onRecordLengthChanged(const shared_ptr<XValueNodeBase> &) {
-	setupTiming();
+    createChannels();
 }
 
 #endif //HAVE_NI_DAQMX
