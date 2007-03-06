@@ -823,8 +823,8 @@ XNIDAQmxDSO::convertRaw() throw (XRecordError&)
     }
 
 	const float64 prop = 1.0 / accumCount;
-	for(unsigned int j = 0; j < num_ch; j++) {
-	    for(unsigned int i = 0; i < len; i++)
+    for(unsigned int i = 0; i < len; i++) {
+		for(unsigned int j = 0; j < num_ch; j++)
         	  *(wave[j])++ = aiRawToVolt(coeff[j], pop<int32_t>() * prop);
 	}
 }
