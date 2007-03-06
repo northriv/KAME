@@ -314,7 +314,8 @@ XNIDAQmxPulser::setupTasksAODO() {
 	}
 	buf_size_hint = std::max(buf_size_hint, (unsigned int)onbrdsize);
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, buf_size_hint));
-	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
+//	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
+	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d\n", (int)bufsize);
 	m_bufSizeHintAO = bufsize / 8;
 	if(m_pausingBit)
