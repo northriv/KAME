@@ -216,20 +216,21 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		m_bufSizeHintDO = std::min(m_bufSizeHintDO, 16384u);
 	m_transferSizeHintDO = std::min((unsigned int)onbrdsize / 4, m_bufSizeHintDO);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
-
-	if(intfDO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_DMA_DO) {
+	
+	{
     	char ch[256];
     	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
-		CHECK_DAQMX_RET(DAQmxSetDODataXferMech(m_taskDO, ch,
-			DAQmx_Val_Interrupts));
+		if(intfDO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_DMA_DO) {
+			CHECK_DAQMX_RET(DAQmxSetDODataXferMech(m_taskDO, ch,
+				DAQmx_Val_Interrupts));
+		}
+		if(intfDO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_DO) {
+			CHECK_DAQMX_RET(DAQmxSetDODataXferReqCond(m_taskDO, ch,
+		//		DAQmx_Val_OnBrdMemHalfFullOrLess));
+				DAQmx_Val_OnBrdMemNotFull));
+	    }
+    	CHECK_DAQMX_RET(DAQmxSetSampClkDigFltrEnable(m_taskDO, false));
 	}
-	if(intfDO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_DO) {
-    	char ch[256];
-    	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
-		CHECK_DAQMX_RET(DAQmxSetDODataXferReqCond(m_taskDO, ch,
-	//		DAQmx_Val_OnBrdMemHalfFullOrLess));
-			DAQmx_Val_OnBrdMemNotFull));
-    }
 	
 	if(m_pausingBit) {
 		m_pausingGateTerm = formatString("/%s/PFI4", intfCtr()->devName());
@@ -323,19 +324,20 @@ XNIDAQmxPulser::setupTasksAODO() {
 	m_transferSizeHintAO = std::min((unsigned int)onbrdsize / 4, m_bufSizeHintAO);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskAO, DAQmx_Val_DoNotAllowRegen));
 
-	if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_DMA_AO) {
-    	char ch[256];
-    	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskAO, ch, sizeof(ch)));
-		CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, ch,
-			DAQmx_Val_Interrupts));
+	{
+		char ch[256];
+		CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskAO, ch, sizeof(ch)));
+		if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_DMA_AO) {
+			CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, ch,
+				DAQmx_Val_Interrupts));
+		}
+		if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AO) {
+			CHECK_DAQMX_RET(DAQmxSetAODataXferReqCond(m_taskAO, ch,
+		//		DAQmx_Val_OnBrdMemHalfFullOrLess));
+				DAQmx_Val_OnBrdMemNotFull));
+	    }
+		CHECK_DAQMX_RET(DAQmxSetAOReglitchEnable(m_taskAO, ch, false));
 	}
-	if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AO) {
-    	char ch[256];
-    	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskAO, ch, sizeof(ch)));
-		CHECK_DAQMX_RET(DAQmxSetAODataXferReqCond(m_taskAO, ch,
-	//		DAQmx_Val_OnBrdMemHalfFullOrLess));
-			DAQmx_Val_OnBrdMemNotFull));
-    }
 
 	for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
 	//obtain range info.
