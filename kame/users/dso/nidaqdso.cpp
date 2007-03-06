@@ -600,7 +600,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 	if(terminated)
 		return;
 
-	const unsigned int num_samps = std::min(size, 4096u);
+	const unsigned int num_samps = std::min(size, 8192u);
 	for(; cnt < size;) {
 		int32 samps;
 		samps = std::min(size - cnt, num_samps);
@@ -618,7 +618,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 		if(terminated)
 			return;
 	    CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, samps,
-	        2.0 * samps * m_interval, DAQmx_Val_GroupByScanNumber,
+	        0.0, DAQmx_Val_GroupByScanNumber,
 	        &m_recordBuf[cnt * num_ch], samps * num_ch, &samps, NULL
 	        ));
 	    cnt += samps;
