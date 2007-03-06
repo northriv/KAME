@@ -80,33 +80,20 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 	    const char* sc_m[] = {
 	    "PFI0", "PFI1", "PFI2", "PFI3", "PFI4", "PFI5", "PFI6", "PFI7",
 	    "PFI8", "PFI9", "PFI10", "PFI11", "PFI12", "PFI13", "PFI14", "PFI15",
-//    	"RTSI0", "RTSI1", "RTSI2", "RTSI3", "RTSI4", "RTSI5", "RTSI6", "RTSI7", 
     	"Ctr0InternalOutput", "Ctr1InternalOutput",
-    	//via PFI or RTSI
-/*    	"ao/SampleClock",
-    	"ao/StartTrigger",
-    	"ao/PauseTrigger",
-*/    	"Ctr0Source",
+    	"Ctr0Source",
     	"Ctr0Gate",
     	"Ctr1Source",
     	"Ctr1Gate",
     	"FrequencyOutput",
-    	"di/SampleClock",
-    	"do/SampleClock",
     	 0L};
     	 //S series
 	    const char* sc_s[] = {
-	    //internally
 	    "PFI0", "PFI1", "PFI2", "PFI3", "PFI4", "PFI5", "PFI6", "PFI7",
 	    "PFI8", "PFI9",
-//    	"RTSI0", "RTSI1", "RTSI2", "RTSI3", "RTSI4", "RTSI5", "RTSI6",
     	"Ctr0InternalOutput",
     	"OnboardClock",
-    	//via PFI or RTSI
-/*    	"ao/SampleClock",
-    	"ao/StartTrigger",
-    	"ao/PauseTrigger",
-*/    	"Ctr0Source",
+    	"Ctr0Source",
     	"Ctr0Gate",
     	 0L};
     	 const char **sc = sc_s;
@@ -348,18 +335,30 @@ XNIDAQmxDSO::setupTiming()
 	if(m_softwareTrigger) {
 		bufsize = std::max(bufsize * 8, (unsigned int)lrint((len / *timeWidth()) * 1.0));
 	}
-	CHECK_DAQMX_RET(DAQmxCfgInputBuffer(m_task, bufsize));
     
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_task,
 	    NULL, // internal source
 	    len / *timeWidth(),
 	    DAQmx_Val_Rising,
 	    !m_softwareTrigger ? DAQmx_Val_FiniteSamps : DAQmx_Val_ContSamps,
-	    len
+	    bufsize
 	    ));
         
     interface()->synchronizeClock(m_task);
 
+	{
+		uInt32 size;
+		CHECK_DAQMX_RET(DAQmxGetBufInputBufSize(m_task, &size));
+		fprintf(stderr, "Using buffer size of %d\n", (int)size);
+		if(size != bufsize) {
+			fprintf(stderr, "Try to modify buffer size from %d to %d\n", (int)size, (int)bufsize);
+			CHECK_DAQMX_RET(DAQmxCfgInputBuffer(m_task, bufsize));
+		}
+		uInt32 onbrd_size;
+		CHECK_DAQMX_RET(DAQmxGetBufInputOnbrdBufSize(m_task, &onbrd_size));
+		fprintf(stderr, "Using on-brd bufsize=%d\n", (int)onbrd_size);
+	}
+	
     float64 rate;
 //    CHECK_DAQMX_RET(DAQmxGetRefClkRate(m_task, &rate));
 //	dbgPrint(QString("Reference Clk rate = %1.").arg(rate));
@@ -432,9 +431,6 @@ XNIDAQmxDSO::createChannels()
    	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_task, 0, &XNIDAQmxDSO::_onTaskDone, this));
 
     setupTiming();
-		uInt32 onbrd_size = 1;
-		CHECK_DAQMX_RET(DAQmxGetBufInputOnbrdBufSize(m_task, &onbrd_size));
-			fprintf(stderr, "onbrd bufsize=%d\n", (int)onbrd_size);
 }
 void
 XNIDAQmxDSO::clearStoredSoftwareTrigger() {
@@ -656,38 +652,34 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 	int32_t *pold = &(old_rec->record[0]);
 	int32_t *paccum = &(new_rec->record[0]);
 	//for optimization.
-	switch (num_ch) {
-	case 2:
-		for(unsigned int i = 0; i < cnt; i++) {
-		    *paccum++ = *pold++ + *pbuf++;
-		    *paccum++ = *pold++ + *pbuf++;
-		}
-		break;
-	default:
-		for(unsigned int i = 0; i < bufsize; i++)
-		    *paccum++ = *pold++ + *pbuf++;
-		break;
+	unsigned int div = bufsize / 4;
+	unsigned int rest = bufsize % 4;
+	for(unsigned int i = 0; i < div; i++) {
+	    *paccum++ = *pold++ + *pbuf++;
+	    *paccum++ = *pold++ + *pbuf++;
+	    *paccum++ = *pold++ + *pbuf++;
+	    *paccum++ = *pold++ + *pbuf++;
 	}
+	for(unsigned int i = 0; i < rest; i++)
+	    *paccum++ = *pold++ + *pbuf++;
     new_rec->acqCount = old_rec->acqCount + 1;
     accumcnt++;
 
     while(!sseq && (av <= m_record_av.size()) && !m_record_av.empty())  {
 		int32_t *paccum = &(new_rec->record[0]);
 		tRawAI *psub = &(m_record_av.front()[0]);
-		switch (num_ch) {
-		case 2:
-			for(unsigned int i = 0; i < cnt; i++) {
-			    *paccum++ -= *psub++;
-			    *paccum++ -= *psub++;
-			}
-			break;
-		default:
-			for(unsigned int i = 0; i < bufsize; i++)
-			    *paccum++ -= *psub++;
-			break;
+		unsigned int div = bufsize / 4;
+		unsigned int rest = bufsize % 4;
+		for(unsigned int i = 0; i < div; i++) {
+		    *paccum++ -= *psub++;
+		    *paccum++ -= *psub++;
+		    *paccum++ -= *psub++;
+		    *paccum++ -= *psub++;
 		}
-      m_record_av.pop_front();
-      accumcnt--;
+		for(unsigned int i = 0; i < rest; i++)
+		    *paccum++ -= *psub++;
+		m_record_av.pop_front();
+		accumcnt--;
     }
     new_rec->accumCount = accumcnt;
     // substitute the record with the working set.
@@ -831,25 +823,10 @@ XNIDAQmxDSO::convertRaw() throw (XRecordError&)
     }
 
 	const float64 prop = 1.0 / accumCount;
-	//for optimaization: -funroll-loops.
-	switch(num_ch) {
-	case 1:
-	    for(unsigned int i = 0; i < len; i++) {
-    	  *(wave[0])++ = aiRawToVolt(coeff[0], pop<int32_t>() * prop);
-    	}
-    	break;
-	case 2:
-	    for(unsigned int i = 0; i < len; i++) {
-    	  *(wave[0])++ = aiRawToVolt(coeff[0], pop<int32_t>() * prop);
-    	  *(wave[1])++ = aiRawToVolt(coeff[1], pop<int32_t>() * prop);
-    	}
-    	break;
-	default:
-	    for(unsigned int i = 0; i < len; i++) {
- 			for(unsigned int j = 0; j < num_ch; j++)
-	        	  *(wave[j])++ = aiRawToVolt(coeff[j], pop<int32_t>() * prop);
-    	}
-    }
+	for(unsigned int j = 0; j < num_ch; j++) {
+	    for(unsigned int i = 0; i < len; i++)
+        	  *(wave[j])++ = aiRawToVolt(coeff[j], pop<int32_t>() * prop);
+	}
 }
 
 void 

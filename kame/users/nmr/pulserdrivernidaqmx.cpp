@@ -207,13 +207,13 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	uInt32 onbrdsize, bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &onbrdsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
-	if(!m_pausingBit)
-		buf_size_hint = std::max(buf_size_hint, (unsigned int)onbrdsize / 2);
+	buf_size_hint = std::max(buf_size_hint, (unsigned int)onbrdsize);
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d, freq = %f\n", (int)bufsize, freq);
-	m_bufSizeHintDO = std::min((unsigned int)bufsize / 8, 16384u);
-//	m_bufSizeHintDO = std::max((unsigned int)bufsize, m_bufSizeHintDO);
+	m_bufSizeHintDO = bufsize / 8;
+	if(m_pausingBit)
+		m_bufSizeHintDO = std::min(m_bufSizeHintDO, 16384u);
 	m_transferSizeHintDO = std::min((unsigned int)onbrdsize / 4, m_bufSizeHintDO);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
 
@@ -307,13 +307,13 @@ XNIDAQmxPulser::setupTasksAODO() {
 	uInt32 onbrdsize, bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
-	if(!m_pausingBit)
-		buf_size_hint = std::max(buf_size_hint, (unsigned int)onbrdsize);
+	buf_size_hint = std::max(buf_size_hint, (unsigned int)onbrdsize);
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d\n", (int)bufsize);
-	m_bufSizeHintAO = std::min((unsigned int)bufsize / 8, 16384u);
-//	m_bufSizeHintAO = std::max((unsigned int)bufsize, m_bufSizeHintAO);
+	m_bufSizeHintAO = bufsize / 8;
+	if(m_pausingBit)
+		m_bufSizeHintAO = std::min(m_bufSizeHintAO, 16384u);
 	
 	m_transferSizeHintAO = std::min((unsigned int)onbrdsize / 4, m_bufSizeHintAO);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskAO, DAQmx_Val_DoNotAllowRegen));
