@@ -307,6 +307,11 @@ XNIDAQmxPulser::setupTasksAODO() {
 	uInt32 onbrdsize, bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
+	if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_AIO_FIFO_SIZE) {
+		CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskAO, std::min(buf_size_hint * 2, (unsigned int)onbrdsize / 2)));
+		CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
+		fprintf(stderr, "On-board bufsize is modified to %d\n", (int)onbrdsize);
+	}
 	buf_size_hint = std::max(buf_size_hint, (unsigned int)onbrdsize);
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
