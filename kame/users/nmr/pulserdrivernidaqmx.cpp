@@ -229,7 +229,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		//		DAQmx_Val_OnBrdMemHalfFullOrLess));
 				DAQmx_Val_OnBrdMemNotFull));
 	    }
-    	CHECK_DAQMX_RET(DAQmxSetSampClkDigFltrEnable(m_taskDO, false));
+    	CHECK_DAQMX_RET(DAQmxSetSampClkDigSyncEnable(m_taskDO, false));
 	}
 	
 	if(m_pausingBit) {
@@ -337,6 +337,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 				DAQmx_Val_OnBrdMemNotFull));
 	    }
 		CHECK_DAQMX_RET(DAQmxSetAOReglitchEnable(m_taskAO, ch, false));
+    	CHECK_DAQMX_RET(DAQmxSetSampClkDigSyncEnable(m_taskAO, false));
 	}
 
 	for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
