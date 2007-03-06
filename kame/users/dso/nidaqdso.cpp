@@ -429,6 +429,8 @@ XNIDAQmxDSO::createChannels()
 */	}
 
    	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_task, 0, &XNIDAQmxDSO::_onTaskDone, this));
+   	
+	CHECK_DAQMX_RET(DAQmxSetRealTimeReportMissedSamp(m_task, true));
 
     setupTiming();
 }
@@ -602,19 +604,21 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 	for(; cnt < size;) {
 		int32 samps;
 		samps = std::min(size - cnt, num_samps);
-		while(!terminated) {
-			if(tryReadAISuspend(terminated))
-				return;
-		uInt32 space;
-			int ret = DAQmxGetReadAvailSampPerChan(m_task, &space);
-			if(!ret && (space >= (uInt32)samps))
-				break;
-			usleep(lrint(1e6 * (samps - space) * m_interval));
+		if(!m_softwareTrigger) {
+			while(!terminated) {
+				if(tryReadAISuspend(terminated))
+					return;
+			uInt32 space;
+				int ret = DAQmxGetReadAvailSampPerChan(m_task, &space);
+				if(!ret && (space >= (uInt32)samps))
+					break;
+				usleep(lrint(1e6 * (samps - space) * m_interval));
+			}
 		}
 		if(terminated)
 			return;
 	    CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, samps,
-	        0.01, DAQmx_Val_GroupByScanNumber,
+	        2.0 * samps * m_interval, DAQmx_Val_GroupByScanNumber,
 	        &m_recordBuf[cnt * num_ch], samps * num_ch, &samps, NULL
 	        ));
 	    cnt += samps;
