@@ -306,7 +306,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 	uInt32 onbrdsize, bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
-	if(onbrdsize > buf_size_hint * 2) {
+	if(m_pausingBit && (onbrdsize > buf_size_hint * 2)) {
 		CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskAO, buf_size_hint * 2));
 		CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
 		fprintf(stderr, "On-board bufsize is modified to %d\n", (int)onbrdsize);
