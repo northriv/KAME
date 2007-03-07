@@ -781,7 +781,8 @@ XNIDAQmxDSO::getWave(std::deque<std::string> &)
 	
 	shared_ptr<DSORawRecord> rec(m_dsoRawRecord);
 
- 	if(rec->accumCount == 0) throw XInterface::XInterfaceError(KAME::i18n("No sample."), __FILE__, __LINE__);
+ 	if(rec->accumCount == 0)
+ 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
     const uInt32 num_ch = rec->numCh;
     const uInt32 len = rec->recordLength;
     

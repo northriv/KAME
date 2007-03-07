@@ -320,7 +320,7 @@ XDSO::execute(const atomic<bool> &terminated)
       std::deque<std::string> channels;
       channels.push_back(trace1()->to_str());
       if(channels.front().empty()) {
-            gErrPrint(getLabel() + " " + KAME::i18n("Select traces!."));
+            statusPrinter()->printMessage(getLabel() + " " + KAME::i18n("Select traces!."));
             continue;
       }
       channels.push_back(trace2()->to_str());
@@ -332,6 +332,9 @@ XDSO::execute(const atomic<bool> &terminated)
       // try/catch exception of communication errors
 	  try {
 	      getWave(channels);
+	  }
+	  catch (XDriver::XSkippedRecordError&) {
+			continue;
 	  }
 	  catch (XKameError &e) {
 	      e.print(getLabel());
