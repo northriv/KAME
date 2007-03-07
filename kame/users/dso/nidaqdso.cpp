@@ -337,6 +337,8 @@ XNIDAQmxDSO::setupTiming()
 	}
     
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_task,
+//! debug!
+//		formatString("/%s/Ctr0InternalOutput", interface()->devName()),
 	    NULL, // internal source
 	    len / *timeWidth(),
 	    DAQmx_Val_Rising,

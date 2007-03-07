@@ -28,9 +28,9 @@ XNIDAQmxInterface::sc_productInfoList[] = {
 	{"PXI-6111", "S", XNIDAQmxInterface::FLAG_BUGGY_DMA_AO, 5000uL, 1000uL, 0, 0},
 	{"PCI-6115", "S", 
 //		XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AI |
-//		XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AO | 
+		XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AO | 
 //		XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_DI |
-//		XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_DO |
+		XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_DO |
 		XNIDAQmxInterface::FLAG_BUGGY_AIO_FIFO_SIZE,
 		10000uL, 2500uL, 1000uL, 1000uL},
 	{"PCI-6120", "S", 0, 800uL, 2500uL, 5000uL, 5000uL},
@@ -191,6 +191,7 @@ XNIDAQmxInterface::SoftwareTrigger::clear(uint64_t now, float64 _freq) {
 	unsigned int freq_em= lrint(freq());
 	unsigned int freq_rc = lrint(_freq);
 	unsigned int _gcd = gcd(freq_em, freq_rc);
+	fprintf("Clear soft-trigger stamps with GCD:%u\n", _gcd);
 	now = (now * (freq_em / _gcd)) / (freq_rc / _gcd);
 
 	XScopedLock<XMutex> lock(m_mutex);
@@ -399,6 +400,8 @@ char buf[256];
 						break;
 					}
 				}
+				if(g_pciClockMaster.length())
+					break;
 			}
 			if(!g_pciClockMaster.length()) {
 				for(std::deque<std::string>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
@@ -449,6 +452,7 @@ XNIDAQmxInterface::close() throw (XInterfaceError &)
 		g_daqmx_open_cnt--;
 		if(g_daqmx_open_cnt == 0) {
 			g_daqmx_sync_routes.clear();
+			g_pciClockMaster.clear();
 		}
 	}
 }

@@ -31,10 +31,8 @@ XNIDAQMSeriesWithSSeriesPulser::XNIDAQMSeriesWithSSeriesPulser(const char *name,
     m_ao_interface->control()->setUIEnabled(false);
 }
 void
-XNIDAQSSeriesPulser::open() throw (XInterface::XInterfaceError &)
+XNIDAQAODOPulser::open() throw (XInterface::XInterfaceError &)
 {
-	if(std::string(interface()->productSeries()) != "S")
-		throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
  	openAODO();
 	this->start();	
 }

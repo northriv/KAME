@@ -18,11 +18,11 @@
 
 #ifdef HAVE_NI_DAQMX
 
-class XNIDAQSSeriesPulser : public XNIDAQmxPulser
+class XNIDAQAODOPulser : public XNIDAQmxPulser
 {
  XNODE_OBJECT
  protected:
-  XNIDAQSSeriesPulser(const char *name, bool runtime,
+  XNIDAQAODOPulser(const char *name, bool runtime,
    const shared_ptr<XScalarEntryList> &scalarentries,
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
@@ -30,7 +30,7 @@ class XNIDAQSSeriesPulser : public XNIDAQmxPulser
    : XNIDAQmxPulser(name, runtime, scalarentries, interfaces, thermometers, drivers) {
    }
  public:
-  virtual ~XNIDAQSSeriesPulser() {}
+  virtual ~XNIDAQAODOPulser() {}
 
  protected:
 	virtual void open() throw (XInterface::XInterfaceError &);
