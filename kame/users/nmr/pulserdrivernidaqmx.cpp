@@ -207,14 +207,14 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	uInt32 onbrdsize, bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &onbrdsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
-	buf_size_hint = std::max(buf_size_hint, (unsigned int)onbrdsize);
+	buf_size_hint = (1 + buf_size_hint / (onbrdsize / 2)) * (onbrdsize / 2);
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d, freq = %f\n", (int)bufsize, freq);
 	m_bufSizeHintDO = bufsize / 8;
 	if(m_pausingBit)
 		m_bufSizeHintDO = std::min(m_bufSizeHintDO, 16384u);
-	m_transferSizeHintDO = std::min((unsigned int)onbrdsize / 4, m_bufSizeHintDO);
+	m_transferSizeHintDO = std::min((unsigned int)onbrdsize / 4, m_bufSizeHintDO / 4);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
 	
 	{
@@ -226,8 +226,8 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		}
 		if(intfDO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_DO) {
 			CHECK_DAQMX_RET(DAQmxSetDODataXferReqCond(m_taskDO, ch,
-				DAQmx_Val_OnBrdMemHalfFullOrLess));
-//				DAQmx_Val_OnBrdMemNotFull));
+		//		DAQmx_Val_OnBrdMemHalfFullOrLess));
+				DAQmx_Val_OnBrdMemNotFull));
 	    }
 	}
 	
@@ -307,12 +307,12 @@ XNIDAQmxPulser::setupTasksAODO() {
 	uInt32 onbrdsize, bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
-	if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_AIO_FIFO_SIZE) {
-		CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskAO, std::min(buf_size_hint * 2, (unsigned int)onbrdsize / 2)));
+	if(onbrdsize > buf_size_hint * 2) {
+		CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskAO, buf_size_hint * 2));
 		CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
 		fprintf(stderr, "On-board bufsize is modified to %d\n", (int)onbrdsize);
 	}
-	buf_size_hint = std::max(buf_size_hint, (unsigned int)onbrdsize);
+	buf_size_hint = (1 + buf_size_hint / (onbrdsize / 2)) * (onbrdsize / 2);
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d\n", (int)bufsize);
@@ -320,7 +320,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 	if(m_pausingBit)
 		m_bufSizeHintAO = std::min(m_bufSizeHintAO, 16384u);
 	
-	m_transferSizeHintAO = std::min((unsigned int)onbrdsize / 4, m_bufSizeHintAO);
+	m_transferSizeHintAO = std::min((unsigned int)onbrdsize / 4, m_bufSizeHintAO / 4);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskAO, DAQmx_Val_DoNotAllowRegen));
 
 	{
@@ -332,8 +332,8 @@ XNIDAQmxPulser::setupTasksAODO() {
 		}
 		if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AO) {
 			CHECK_DAQMX_RET(DAQmxSetAODataXferReqCond(m_taskAO, ch,
-				DAQmx_Val_OnBrdMemHalfFullOrLess));
-//				DAQmx_Val_OnBrdMemNotFull));
+		//		DAQmx_Val_OnBrdMemHalfFullOrLess));
+				DAQmx_Val_OnBrdMemNotFull));
 	    }
 		CHECK_DAQMX_RET(DAQmxSetAOReglitchEnable(m_taskAO, ch, false));
 	}
@@ -372,7 +372,7 @@ XNIDAQmxPulser::onTaskDone(TaskHandle task, int32 status) {
 		if(task == m_taskDOCtr) { str = "DOCtr"; }
 		if(task == m_taskAO) { str = "AO"; }
 		if(task == m_taskGateCtr) { str = "GateCtr"; }
-		gErrPrint(getLabel() + str + "\n" + XNIDAQmxInterface::getNIDAQmxErrMessage(status));
+		gErrPrint(getLabel() + "\n" + str + "\n" + XNIDAQmxInterface::getNIDAQmxErrMessage(status));
 		m_suspendDO = true;
 		m_suspendAO = true;
 	}
@@ -516,9 +516,9 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 				genBankAO();
 				unsigned int size = m_genBufAO.size() / NUM_AO_CH;
 				for(unsigned int cnt = 0; cnt < size;) {
-					samps = std::min(size - cnt, m_transferSizeHintAO);
+					samps = std::min(size - cnt, m_transferSizeHintAO / NUM_AO_CH);
 					CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, samps,
-						false, 0.5, 
+						false, 0.0,
 						DAQmx_Val_GroupByScanNumber,
 						&m_genBufAO[cnt * NUM_AO_CH],
 						&samps, NULL));
@@ -539,7 +539,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
 		int32 samps;
 		CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, cnt_preample,
-				false, 0.5, 
+				false, 0.0, 
 				DAQmx_Val_GroupByScanNumber,
 				&m_genBufDO[0],
 				&samps, NULL));
@@ -552,7 +552,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			for(unsigned int cnt = 0; cnt < size;) {
 				samps = std::min(size - cnt, m_transferSizeHintDO);
 				CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, samps,
-						false, 0.5, 
+						false, 0.0, 
 						DAQmx_Val_GroupByScanNumber,
 						&m_genBufDO[cnt],
 						&samps, NULL));
@@ -567,6 +567,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		m_suspendAO = false;
 		m_suspendDO = false;
 	}
+	fprintf(stderr, "Prefilling done.\n");
 	//slave must start before the master.
     CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
 	if(m_taskDOCtr != TASK_UNDEF)
@@ -574,6 +575,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	if(m_taskGateCtr != TASK_UNDEF)
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
 	msecsleep(1);
+	fprintf(stderr, "Starting AO....\n");
 	if(m_taskAO != TASK_UNDEF)
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
 	
@@ -663,10 +665,9 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated, const atomic<bool> &s
  	const double dma_ao_period = resolutionQAM();
 	const unsigned int size = m_genBufAO.size() / NUM_AO_CH;
 	try {
-		const unsigned int num_samps = m_transferSizeHintAO;
 		for(unsigned int cnt = 0; cnt < size;) {
 			int32 samps;
-			samps = size; //std::min(size - cnt, num_samps);
+			samps = std::min(size - cnt, m_transferSizeHintAO / NUM_AO_CH);
 			while(!terminated) {
 				if(tryOutputSuspend(suspended, m_mutexAO, terminated))
 					return;
@@ -679,12 +680,13 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated, const atomic<bool> &s
 			if(terminated)
 				break;
 			int32 written;
-			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, samps, false, DAQmx_Val_WaitInfinitely, 
+			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, samps, false, 0.0, 
 				DAQmx_Val_GroupByScanNumber,
 				&m_genBufAO[cnt * NUM_AO_CH],
 				&written, NULL));
-			ASSERT(written == samps);
-			cnt += samps;
+			if(written != samps)
+				fprintf(stderr, "%d != %d\n", (int)written, (int)samps);
+			cnt += written;
 		}
 		if(terminated)
 			return;
@@ -709,10 +711,9 @@ XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated, const atomic<bool> &s
  	const double dma_do_period = resolution();
 	const unsigned int size = m_genBufDO.size();
 	try {
-		const unsigned int num_samps = m_transferSizeHintDO;
 		for(unsigned int cnt = 0; cnt < size;) {
 			int32 samps;
-			samps = size; //std::min(size - cnt, num_samps);
+			samps = std::min(size - cnt, m_transferSizeHintDO);
 			while(!terminated) {
 				if(tryOutputSuspend(suspended, m_mutexDO, terminated))
 					return;
@@ -725,12 +726,13 @@ XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated, const atomic<bool> &s
 			if(terminated)
 				break;
 			int32 written;
-			CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, samps, false, 0, 
+			CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, samps, false, 0.0, 
 				DAQmx_Val_GroupByScanNumber,
 				&m_genBufDO[cnt],
 				&written, NULL));
-			ASSERT(written == samps);
-			cnt += samps;
+			if(written != samps)
+				fprintf(stderr, "%d != %d\n", (int)written, (int)samps);
+			cnt += written;
 		}
 		if(terminated)
 			return;

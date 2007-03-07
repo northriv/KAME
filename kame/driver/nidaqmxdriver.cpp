@@ -28,10 +28,10 @@ XNIDAQmxInterface::sc_productInfoList[] = {
 	{"PXI-6111", "S", XNIDAQmxInterface::FLAG_BUGGY_DMA_AO, 5000uL, 1000uL, 0, 0},
 	{"PCI-6115", "S", 
 //		XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AI |
-		XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AO | 
+//		XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AO | 
 //		XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_DI |
-		XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_DO |
-		XNIDAQmxInterface::FLAG_BUGGY_AIO_FIFO_SIZE,
+//		XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_DO |
+	0,
 		10000uL, 2500uL, 1000uL, 1000uL},
 	{"PCI-6120", "S", 0, 800uL, 2500uL, 5000uL, 5000uL},
 	{"PCI-6220", "M", 0, 250uL, 0, 1000uL, 1000uL},
@@ -175,13 +175,11 @@ XNIDAQmxInterface::SoftwareTrigger::tryPopFront(uint64_t threshold, float64 _fre
 		return cnt;
 	}
 	if(FastQueue::key t = m_fastQueue.atomicFront(&cnt)) {
-		if(cnt < m_slowQueue.front()) {
-			cnt = (cnt * (freq_rc / _gcd)) / (freq_em / _gcd);
-			if(cnt >= threshold)
-				return 0uLL;
-			if(m_fastQueue.atomicPop(t))
-				return cnt;
-		}
+		cnt = (cnt * (freq_rc / _gcd)) / (freq_em / _gcd);
+		if(cnt >= threshold)
+			return 0uLL;
+		if(m_fastQueue.atomicPop(t))
+			return cnt;
 	}
 	return 0uLL;
 }
@@ -191,7 +189,7 @@ XNIDAQmxInterface::SoftwareTrigger::clear(uint64_t now, float64 _freq) {
 	unsigned int freq_em= lrint(freq());
 	unsigned int freq_rc = lrint(_freq);
 	unsigned int _gcd = gcd(freq_em, freq_rc);
-	fprintf("Clear soft-trigger stamps with GCD:%u\n", _gcd);
+//	fprintf(stderr, "Clear soft-trigger stamps with GCD:%u\n", _gcd);
 	now = (now * (freq_em / _gcd)) / (freq_rc / _gcd);
 
 	XScopedLock<XMutex> lock(m_mutex);
