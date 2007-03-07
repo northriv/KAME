@@ -331,9 +331,13 @@ XNIDAQmxDSO::setupTiming()
 		mlock(&m_recordBuf[0], m_recordBuf.size() * sizeof(tRawAI));    
 	}
 
+	uInt32 onbrd_size;
+	CHECK_DAQMX_RET(DAQmxGetBufInputOnbrdBufSize(m_task, &onbrd_size));
+	fprintf(stderr, "Using on-brd bufsize=%d\n", (int)onbrd_size);
 	unsigned int bufsize = len;
 	if(m_softwareTrigger) {
 		bufsize = std::max(bufsize * 8, (unsigned int)lrint((len / *timeWidth()) * 1.0));
+		bufsize = std::max(bufsize, (unsigned int)onbrd_size);
 	}
     
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_task,
@@ -356,9 +360,6 @@ XNIDAQmxDSO::setupTiming()
 			fprintf(stderr, "Try to modify buffer size from %d to %d\n", (int)size, (int)bufsize);
 			CHECK_DAQMX_RET(DAQmxCfgInputBuffer(m_task, bufsize));
 		}
-		uInt32 onbrd_size;
-		CHECK_DAQMX_RET(DAQmxGetBufInputOnbrdBufSize(m_task, &onbrd_size));
-		fprintf(stderr, "Using on-brd bufsize=%d\n", (int)onbrd_size);
 	}
 	
     float64 rate;
@@ -606,21 +607,19 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 	for(; cnt < size;) {
 		int32 samps;
 		samps = std::min(size - cnt, num_samps);
-		if(!m_softwareTrigger) {
-			while(!terminated) {
-				if(tryReadAISuspend(terminated))
-					return;
-			uInt32 space;
-				int ret = DAQmxGetReadAvailSampPerChan(m_task, &space);
-				if(!ret && (space >= (uInt32)samps))
-					break;
-				usleep(lrint(1e6 * (samps - space) * m_interval));
-			}
+		while(!terminated) {
+			if(tryReadAISuspend(terminated))
+				return;
+		uInt32 space;
+			int ret = DAQmxGetReadAvailSampPerChan(m_task, &space);
+			if(!ret && (space >= (uInt32)samps))
+				break;
+			usleep(lrint(1e6 * (samps - space) * m_interval));
 		}
 		if(terminated)
 			return;
 	    CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, samps,
-	        2.0 * m_interval * samps, DAQmx_Val_GroupByScanNumber,
+	        0.0, DAQmx_Val_GroupByScanNumber,
 	        &m_recordBuf[cnt * num_ch], samps * num_ch, &samps, NULL
 	        ));
 	    cnt += samps;

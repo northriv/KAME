@@ -69,8 +69,7 @@ public:
 	FLAG_BUGGY_DMA_AO = 0x10u, FLAG_BUGGY_DMA_AI = 0x20u, 
 	FLAG_BUGGY_DMA_DI = 0x40u, FLAG_BUGGY_DMA_DO = 0x80u,
 	FLAG_BUGGY_XFER_COND_AO = 0x100u, FLAG_BUGGY_XFER_COND_AI = 0x200u,
-	FLAG_BUGGY_XFER_COND_DI = 0x400u, FLAG_BUGGY_XFER_COND_DO = 0x800u,
-	FLAG_BUGGY_AIO_FIFO_SIZE = 0x1000u};
+	FLAG_BUGGY_XFER_COND_DI = 0x400u, FLAG_BUGGY_XFER_COND_DO = 0x800u};
   //! e.g. FLAG_BUGGY_DMA_AO.
   int productFlags() const {return m_productInfo->flags;}
   //! \return 0 if hw timed transfer is not supported.

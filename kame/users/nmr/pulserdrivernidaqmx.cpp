@@ -44,7 +44,7 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
 		portSel(i)->add("Pausing(PFI4)");
     const int ports[] = {
     	PORTSEL_GATE, PORTSEL_PREGATE, PORTSEL_TRIG1, PORTSEL_TRIG2,
-    	PORTSEL_GATE3, PORTSEL_COMB, PORTSEL_QSW, PORTSEL_PAUSING
+    	PORTSEL_GATE3, PORTSEL_COMB, PORTSEL_QSW, PORTSEL_ASW
     };
     for(unsigned int i = 0; i < sizeof(ports)/sizeof(int); i++) {
     	portSel(i)->value(ports[i]);
@@ -207,7 +207,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	uInt32 onbrdsize, bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &onbrdsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
-	buf_size_hint = (1 + buf_size_hint / (onbrdsize / 2)) * (onbrdsize / 2);
+	buf_size_hint = (1 + buf_size_hint / onbrdsize) * onbrdsize;
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d, freq = %f\n", (int)bufsize, freq);
@@ -226,7 +226,6 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		}
 		if(intfDO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_DO) {
 			CHECK_DAQMX_RET(DAQmxSetDODataXferReqCond(m_taskDO, ch,
-		//		DAQmx_Val_OnBrdMemHalfFullOrLess));
 				DAQmx_Val_OnBrdMemNotFull));
 	    }
 	}
@@ -312,7 +311,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 		CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
 		fprintf(stderr, "On-board bufsize is modified to %d\n", (int)onbrdsize);
 	}
-	buf_size_hint = (1 + buf_size_hint / (onbrdsize / 2)) * (onbrdsize / 2);
+	buf_size_hint = (1 + buf_size_hint / onbrdsize) * onbrdsize;
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d\n", (int)bufsize);
@@ -332,7 +331,6 @@ XNIDAQmxPulser::setupTasksAODO() {
 		}
 		if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AO) {
 			CHECK_DAQMX_RET(DAQmxSetAODataXferReqCond(m_taskAO, ch,
-		//		DAQmx_Val_OnBrdMemHalfFullOrLess));
 				DAQmx_Val_OnBrdMemNotFull));
 	    }
 		CHECK_DAQMX_RET(DAQmxSetAOReglitchEnable(m_taskAO, ch, false));
@@ -404,7 +402,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		{
 			uInt32 bufsize;
 			CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &bufsize));
-			if(!m_pausingBit & (bufsize < 1024uL))
+			if(!m_pausingBit & (bufsize < 2047uL))
 				throw XInterface::XInterfaceError(
 					KAME::i18n("Use the pausing feature for a cheap DAQmx board.\n"
 					+ KAME::i18n("Look at the port-selection table.")), __FILE__, __LINE__);
