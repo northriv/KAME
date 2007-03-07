@@ -164,7 +164,7 @@ class XComboNode : public XItemNodeBase
   virtual void _str(const std::string &value) throw (XKameError &);
  private:
   atomic_shared_ptr<std::deque<std::string> > m_strings;
-  atomic<int> m_var;
+  atomic_shared_ptr<std::pair<std::string, int> > m_var;
   XRecursiveMutex m_write_mutex;
 };
 

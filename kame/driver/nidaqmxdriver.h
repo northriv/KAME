@@ -59,9 +59,15 @@ public:
   };
 	
   //! e.g. "PCI-6111".
-  const char* productType() const {return m_productInfo->type;}
+  const char* productType() const {
+  	ProductInfo* p = m_productInfo;
+  	return p ? p->type : 0L;
+  }
   //! e.g. "S", "M".
-  const char* productSeries() const {return m_productInfo->series;}
+  const char* productSeries() const {
+  	ProductInfo* p = m_productInfo;
+  	return p ? p->type : 0L;
+  }
   //! e.g. "PCI", "PXI". Never "PCIe" or "PXIe".
   const char* busArchType() const;
 
@@ -79,9 +85,11 @@ public:
   double maxDORate(unsigned int /*num_scans*/) const {return m_productInfo->do_max_rate;}
 	  
   class SoftwareTrigger : public enable_shared_from_this<SoftwareTrigger> {
-	  public:
+	  protected:
 	  	SoftwareTrigger(const char *label, unsigned int bits);
+	  public:
 	  	~SoftwareTrigger();
+	  	static shared_ptr<SoftwareTrigger> create(const char *label, unsigned int bits);
 	  	const char *label() const {return m_label.c_str();}
 	  	void setArmTerm(const char *arm_term) {m_armTerm = arm_term;}
 	  	const char *armTerm() const {return m_armTerm.c_str();}
@@ -109,7 +117,9 @@ public:
 			memoryBarrier();
 	  	}
 		//! for restarting connected task.
-		XTalker<shared_ptr<SoftwareTrigger> > &onStart() {return m_onstart;}
+		XTalker<shared_ptr<SoftwareTrigger> > &onStart() {return m_onStart;}
+		//! for changeing list.
+		XTalker<shared_ptr<SoftwareTrigger> > &onChange() {return m_onChange;}
 		
 	  	void clear(uint64_t now, float64 freq);
 	  	uint64_t tryPopFront(uint64_t threshold, float64 freq);
@@ -119,7 +129,6 @@ public:
 		  static const atomic_shared_ptr<SoftwareTriggerList> &virtualTrigList() {
 		  	return s_virtualTrigList;
 		  }
-		static void registerSoftwareTrigger(const shared_ptr<SoftwareTrigger> &);
 	  private:
 	    void _clear();
 	  	const std::string m_label;
@@ -135,7 +144,7 @@ public:
 	  	SlowQueue m_slowQueue;
 	  	atomic<unsigned int> m_slowQueueSize;
 	  	XMutex m_mutex;
-	  	XTalker<shared_ptr<SoftwareTrigger> > m_onstart;
+	  	XTalker<shared_ptr<SoftwareTrigger> > m_onStart, m_onChange;
 	    static atomic_shared_ptr<SoftwareTriggerList> s_virtualTrigList;
   };
 protected:

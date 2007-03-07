@@ -49,8 +49,7 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
     for(unsigned int i = 0; i < sizeof(ports)/sizeof(int); i++) {
     	portSel(i)->value(ports[i]);
 	}
-	m_softwareTrigger.reset(new XNIDAQmxInterface::SoftwareTrigger(name, NUM_DO_PORTS));
-	XNIDAQmxInterface::SoftwareTrigger::registerSoftwareTrigger(m_softwareTrigger);
+	m_softwareTrigger = XNIDAQmxInterface::SoftwareTrigger::create(name, NUM_DO_PORTS);
 	
 	m_pausingCount = (PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER) * 47;
 }

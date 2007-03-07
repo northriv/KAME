@@ -57,25 +57,20 @@ XNIDAQmxDSO::~XNIDAQmxDSO()
 {
 	clearAcquision();
 }
-
 void
-XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
-{
-	XScopedLock<XInterface> lock(*interface());
-	m_running = false;
-    char buf[2048];
-    {
-	    DAQmxGetDevAIPhysicalChans(interface()->devName(), buf, sizeof(buf));
-	    std::deque<std::string> chans;
-	    XNIDAQmxInterface::parseList(buf, chans);
-	    for(std::deque<std::string>::iterator it = chans.begin(); it != chans.end(); it++) {
-	        trace1()->add(it->c_str());
-	        trace2()->add(it->c_str());
-	        m_analogTrigSrc.push_back(*it);
-	        trigSource()->add(it->c_str());
-    	}
-    }
-    {
+XNIDAQmxDSO::onSoftTrigChanged(const shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &) {
+    trigSource()->clear();
+	std::string series = interface()->productSeries();
+	{
+	    char buf[2048];
+	    {
+		    DAQmxGetDevAIPhysicalChans(interface()->devName(), buf, sizeof(buf));
+		    std::deque<std::string> chans;
+		    XNIDAQmxInterface::parseList(buf, chans);
+		    for(std::deque<std::string>::iterator it = chans.begin(); it != chans.end(); it++) {
+		        trigSource()->add(it->c_str());
+	    	}
+	    }
 		//M series
 	    const char* sc_m[] = {
 	    "PFI0", "PFI1", "PFI2", "PFI3", "PFI4", "PFI5", "PFI6", "PFI7",
@@ -96,26 +91,42 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
     	"Ctr0Source",
     	"Ctr0Gate",
     	 0L};
-    	 const char **sc = sc_s;
-    	 if(interface()->productSeries() == std::string("M"))
-    	 	sc = sc_m;
+    	 const char **sc = sc_m;
+    	 if(series == "S")
+    	 	sc = sc_s;
 	    for(const char**it = sc; *it; it++) {
 	    	std::string str(formatString("/%s/%s", interface()->devName(), *it));
 	        trigSource()->add(str);
 	    }
-	    m_softwareTriggerList = XNIDAQmxInterface::SoftwareTrigger::virtualTrigList();
-	    if(m_softwareTriggerList) {
-		    for(XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList_it
-		    	it = m_softwareTriggerList->begin(); it != m_softwareTriggerList->end(); it++) {
-	    		if(shared_ptr<XNIDAQmxInterface::SoftwareTrigger> vt = it->lock()) {
-					for(unsigned int i = 0; i < vt->bits(); i++) {
-				    	trigSource()->add(
-				    		formatString("%s/line%d", vt->label(), i));
-					}
-	    		}
-		    }
+		atomic_shared_ptr<XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList> 
+			list(XNIDAQmxInterface::SoftwareTrigger::virtualTrigList());
+	    for(XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList_it
+	    	it = list->begin(); it != list->end(); it++) {
+    		if(shared_ptr<XNIDAQmxInterface::SoftwareTrigger> vt = it->lock()) {
+				for(unsigned int i = 0; i < vt->bits(); i++) {
+			    	trigSource()->add(
+			    		formatString("%s/line%d", vt->label(), i));
+				}
+    		}
 	    }
     }
+}
+void
+XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
+{
+	XScopedLock<XInterface> lock(*interface());
+	m_running = false;
+    char buf[2048];
+    {
+	    DAQmxGetDevAIPhysicalChans(interface()->devName(), buf, sizeof(buf));
+	    std::deque<std::string> chans;
+	    XNIDAQmxInterface::parseList(buf, chans);
+	    for(std::deque<std::string>::iterator it = chans.begin(); it != chans.end(); it++) {
+	        trace1()->add(it->c_str());
+	        trace2()->add(it->c_str());
+    	}
+    }
+    onSoftTrigChanged(shared_ptr<XNIDAQmxInterface::SoftwareTrigger>());
 
 	m_dsoRawRecord.reset(new DSORawRecord);
 	m_dsoRawRecordWork.reset(new DSORawRecord);
@@ -134,6 +145,9 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 	vOffset1()->setUIEnabled(false);
 	vOffset2()->setUIEnabled(false);
 
+ 	
+	m_lsnOnSoftTrigChanged = m_softwareTrigger->onChange().connectWeak(true,
+		shared_from_this(), &XNIDAQmxDSO::onSoftTrigChanged, true);
 //    createChannels();
 }
 void
@@ -141,6 +155,8 @@ XNIDAQmxDSO::close() throw (XInterface::XInterfaceError &)
 {
 	XScopedLock<XInterface> lock(*interface());
  	
+    m_lsnOnSoftTrigChanged.reset();
+
 	clearAcquision();
  	
 	if(m_threadReadAI) {
@@ -150,7 +166,6 @@ XNIDAQmxDSO::close() throw (XInterface::XInterfaceError &)
     m_analogTrigSrc.clear();
     trace1()->clear();
     trace2()->clear();
-    trigSource()->clear();
     
 	m_dsoRawRecord.reset();
 	m_dsoRawRecordWork.reset();
@@ -194,7 +209,7 @@ XNIDAQmxDSO::disableTrigger()
     //reset virtual trigger setup.
 	if(m_softwareTrigger)
     	m_softwareTrigger->disconnect();
-    m_lsnOnSoftTrigStart.reset();
+    m_lsnOnSoftTrigStarted.reset();
     m_softwareTrigger.reset();
 }
 void
@@ -275,20 +290,20 @@ XNIDAQmxDSO::setupSoftwareTrigger()
 {
     std::string src = trigSource()->to_str();
     //setup virtual trigger.
-    if(m_softwareTriggerList) {
-	    for(XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList_it
-	    	it = m_softwareTriggerList->begin(); it != m_softwareTriggerList->end(); it++) {
-			if(shared_ptr<XNIDAQmxInterface::SoftwareTrigger> vt = it->lock()) {
-				for(unsigned int i = 0; i < vt->bits(); i++) {
-		    		if(src == formatString("%s/line%d", vt->label(), i)) {
-			    		m_softwareTrigger = vt;
-						m_softwareTrigger->connect(
-						!*trigFalling() ? (1uL << i) : 0,
-						*trigFalling() ? (1uL << i) : 0);
-		    		}
+	atomic_shared_ptr<XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList> 
+		list(XNIDAQmxInterface::SoftwareTrigger::virtualTrigList());
+    for(XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList_it
+    	it = list->begin(); it != list->end(); it++) {
+		if(shared_ptr<XNIDAQmxInterface::SoftwareTrigger> vt = it->lock()) {
+			for(unsigned int i = 0; i < vt->bits(); i++) {
+	    		if(src == formatString("%s/line%d", vt->label(), i)) {
+		    		m_softwareTrigger = vt;
+					m_softwareTrigger->connect(
+					!*trigFalling() ? (1uL << i) : 0,
+					*trigFalling() ? (1uL << i) : 0);
 	    		}
-			}
-	    }
+    		}
+		}
     }
 }
 void
@@ -445,7 +460,7 @@ XNIDAQmxDSO::clearStoredSoftwareTrigger() {
 	m_softwareTrigger->clear(total_samps, 1.0 / m_interval);
 }
 void
-XNIDAQmxDSO::onSoftTrigStart(const shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &) {
+XNIDAQmxDSO::onSoftTrigStarted(const shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &) {
 	XScopedLock<XInterface> lock(*interface());
 	m_suspendRead = true;
  	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
@@ -720,9 +735,9 @@ XNIDAQmxDSO::startSequence()
 	m_record_av.clear();   	
     
 	if(m_softwareTrigger) {
-		if(!m_lsnOnSoftTrigStart)
-			m_lsnOnSoftTrigStart = m_softwareTrigger->onStart().connectWeak(false,
-				shared_from_this(), &XNIDAQmxDSO::onSoftTrigStart);
+		if(!m_lsnOnSoftTrigStarted)
+			m_lsnOnSoftTrigStarted = m_softwareTrigger->onStart().connectWeak(false,
+				shared_from_this(), &XNIDAQmxDSO::onSoftTrigStarted);
 		if(m_running) {
 			clearStoredSoftwareTrigger();
 			m_suspendRead = false;

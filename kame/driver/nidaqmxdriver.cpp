@@ -26,7 +26,7 @@ XNIDAQmxInterface::sc_productInfoList[] = {
 	{"PXI-6110", "S", 0, 5000uL, 2500uL, 0, 0},
 	{"PCI-6111", "S", 0, 5000uL, 1000uL, 0, 0},
 	{"PXI-6111", "S", 0, 5000uL, 1000uL, 0, 0},
-	{"PCI-6115", "S", 0,	10000uL, 2500uL, 10000uL, 10000uL},
+	{"PCI-6115", "S", 0, 10000uL, 2500uL, 10000uL, 10000uL},
 	{"PCI-6120", "S", 0, 800uL, 2500uL, 5000uL, 5000uL},
 	{"PCI-6220", "M", 0, 250uL, 0, 1000uL, 1000uL},
 	{"PXI-6220", "M", 0, 250uL, 0, 1000uL, 1000uL},
@@ -40,22 +40,24 @@ XNIDAQmxInterface::sc_productInfoList[] = {
 };
 
 //for synchronization.
-static std::string g_pciClockMaster("");
+static std::string g_pciClockMaster;
 static float64 g_pciClockMasterRate = 0.0;
 static int g_daqmx_open_cnt;
 static XMutex g_daqmx_mutex;
 static std::deque<shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> > g_daqmx_sync_routes;
 
 atomic_shared_ptr<XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList>
-XNIDAQmxInterface::SoftwareTrigger::s_virtualTrigList;
+XNIDAQmxInterface::SoftwareTrigger::s_virtualTrigList(new XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList);
 
-void
-XNIDAQmxInterface::SoftwareTrigger::registerSoftwareTrigger(const shared_ptr<SoftwareTrigger> &item)
+shared_ptr<SoftwareTrigger>
+XNIDAQmxInterface::SoftwareTrigger::create(const char *label, unsigned int bits)
 {
+	shared_ptr<SoftwareTrigger> p(new SoftwareTrigger(label, bits));
+	
+	//atomically register.
      for(;;) {
         atomic_shared_ptr<SoftwareTriggerList> old_list(s_virtualTrigList);
-        atomic_shared_ptr<SoftwareTriggerList> new_list(
-            old_list ? (new SoftwareTriggerList(*old_list)) : (new SoftwareTriggerList));
+        atomic_shared_ptr<SoftwareTriggerList> new_list(new SoftwareTriggerList(*old_list));
         // clean-up dead listeners.
         for(SoftwareTriggerList_it it = new_list->begin(); it != new_list->end();) {
             if(!it->lock())
@@ -63,9 +65,11 @@ XNIDAQmxInterface::SoftwareTrigger::registerSoftwareTrigger(const shared_ptr<Sof
             else
                 it++;
         }
-        new_list->push_back(item);
+        new_list->push_back(p);
         if(new_list.compareAndSwap(old_list, s_virtualTrigList)) break;
-    }	
+    }
+    onChange()->talk(p);
+   	return p;
 }
 
 XNIDAQmxInterface::SoftwareTrigger::SoftwareTrigger(const char *label, unsigned int bits)
@@ -74,6 +78,7 @@ XNIDAQmxInterface::SoftwareTrigger::SoftwareTrigger(const char *label, unsigned 
  	_clear();
 }
 XNIDAQmxInterface::SoftwareTrigger::~SoftwareTrigger() {
+    onChange()->talk(shared_from_this());
 }
 void
 XNIDAQmxInterface::SoftwareTrigger::_clear() {
@@ -303,7 +308,8 @@ XNIDAQmxInterface::parseList(const char *str, std::deque<std::string> &list)
 
 
 XNIDAQmxInterface::XNIDAQmxInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) : 
-    XInterface(name, runtime, driver)
+    XInterface(name, runtime, driver),
+    m_productInfo(0L)
 {
 char buf[2048];
 	CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
@@ -425,6 +431,7 @@ char buf[256];
 	CHECK_DAQMX_RET(DAQmxGetDevProductType(devname.c_str(), buf, sizeof(buf)));
 	std::string type = buf;
 	
+	m_productInfo = NULL;
 	for(const ProductInfo *it = sc_productInfoList; it->type; it++) {
 		if(it->type == type) {
 			m_productInfo = it;
@@ -437,6 +444,7 @@ char buf[256];
 void
 XNIDAQmxInterface::close() throw (XInterfaceError &)
 {
+	m_productInfo = NULL;
 	if(m_devname.length()) {
 		m_devname.clear();
 

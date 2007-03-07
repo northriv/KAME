@@ -66,9 +66,9 @@ class XNIDAQmxDSO : public XNIDAQmxDriver<XDSO>
  typedef int16 tRawAI;
   scoped_ptr<XNIDAQmxInterface::XNIDAQmxRoute> m_trigRoute;
   shared_ptr<XNIDAQmxInterface::SoftwareTrigger> m_softwareTrigger;
-  atomic_shared_ptr<XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList> m_softwareTriggerList; 
-  shared_ptr<XListener> m_lsnOnSoftTrigStart;
-  void onSoftTrigStart(const shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &);
+  shared_ptr<XListener> m_lsnOnSoftTrigStarted, m_lsnOnSoftTrigChanged;
+  void onSoftTrigStarted(const shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &);
+  void onSoftTrigChanged(const shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &);
   shared_ptr<XThread<XNIDAQmxDSO> > m_threadReadAI;
   void *executeReadAI(const atomic<bool> &);
   atomic<bool> m_suspendRead;
@@ -87,7 +87,6 @@ enum {CAL_POLY_ORDER = 4};
   shared_ptr<DSORawRecord> m_dsoRawRecord, m_dsoRawRecordWork;
   //! for moving av.
   std::deque<std::vector<tRawAI> > m_record_av; 
-  std::deque<std::string> m_analogTrigSrc;
   TaskHandle m_task;
   double m_interval;
   unsigned int m_preTriggerPos;
