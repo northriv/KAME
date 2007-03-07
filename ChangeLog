@@ -1,3 +1,8 @@
+* Tue Mar 7 2007 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.1.2-4)
+- Software trigger.
+- Rewritten atomic stuffs.
+
 * Fri Mar 2 2007 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
 - (2.1.2-3)
 - Support for NI PCI-6115.

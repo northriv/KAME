@@ -1,5 +1,5 @@
 CXX=g++
-CFLAGS=-g3 -O6 -msse3 -mfpmath=sse -march=prescott -g  -I/sw/include/qt -I ../../kame -I/sw/include -I/usr/lib/qt-3.3/include -lpthread -DMACOSX 	-O3 \
+CFLAGS=-g3 -O6 -msse3 -mfpmath=sse -march=prescott -g  -I/sw/include/qt -I ../../kame -I/sw/include -I/usr/lib/qt-3.3/include -lpthread -DMACOSX  \
 	-funroll-loops -fomit-frame-pointer -funswitch-loops -finline-functions -fgcse-after-reload \
 	-ffast-math -fno-tree-vectorize -ftree-vectorizer-verbose=3 -fno-unsafe-math-optimizations
 
