@@ -66,7 +66,7 @@ public:
   //! e.g. "S", "M".
   const char* productSeries() const {
   	const ProductInfo* p = m_productInfo;
-  	return p ? p->type : 0L;
+  	return p ? p->series : 0L;
   }
   //! e.g. "PCI", "PXI". Never "PCIe" or "PXIe".
   const char* busArchType() const;

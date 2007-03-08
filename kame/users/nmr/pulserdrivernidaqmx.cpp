@@ -510,7 +510,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_CurrWritePos));
 			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
 			uInt32 bufsize;
-			CHECK_DAQMX_RET(DAQmxGetOutputBufSize(m_taskAO, &bufsize));
+			CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
 			for(;;) {
 				genBankAO();
 				unsigned int size = m_genBufAO.size() / NUM_AO_CH;
@@ -545,7 +545,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_CurrWritePos));
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
 		uInt32 bufsize;
-		CHECK_DAQMX_RET(DAQmxGetOutputBufSize(m_taskDO, &bufsize));
+		CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
 		for(;;) {
 			genBankDO();
 			unsigned int size = m_genBufDO.size();
