@@ -190,7 +190,6 @@ XNIDAQmxInterface::SoftwareTrigger::clear(uint64_t now, float64 _freq) {
 	unsigned int freq_em= lrint(freq());
 	unsigned int freq_rc = lrint(_freq);
 	unsigned int _gcd = gcd(freq_em, freq_rc);
-//	fprintf(stderr, "Clear soft-trigger stamps with GCD:%u\n", _gcd);
 	now = (now * (freq_em / _gcd)) / (freq_rc / _gcd);
 
 	XScopedLock<XMutex> lock(m_mutex);
