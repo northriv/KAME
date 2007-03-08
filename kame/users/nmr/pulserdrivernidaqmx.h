@@ -107,7 +107,10 @@ protected:
 private:
 enum {PORTSEL_PAUSING = 16};
 	std::vector<tRawDO> m_genBufDO;
-	std::vector<tRawAO> m_genBufAO;
+	typedef tRawAO[NUM_AO_CH] tRawAOSet;
+	std::vector<tRawAOSet> m_genBufAO;
+	inline tRawDO *fillDO(tRawDO* p, tRawDO x, unsigned int cnt);
+	inline tRawAOSet *fillDO(tRawAOSet* p, tRawAOSet x, unsigned int cnt);
 	scoped_ptr<std::vector<tRawAO> > m_genPulseWaveAO[NUM_AO_CH][PAT_QAM_MASK / PAT_QAM_PHASE];
 	scoped_ptr<std::vector<tRawAO> > m_genPulseWaveNextAO[NUM_AO_CH][PAT_QAM_MASK / PAT_QAM_PHASE];
 enum { CAL_POLY_ORDER = 4};

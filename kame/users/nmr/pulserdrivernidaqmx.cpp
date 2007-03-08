@@ -382,6 +382,19 @@ XNIDAQmxPulser::onTaskDone(TaskHandle task, int32 status) {
 		m_suspendAO = true;
 	}
 }
+XNIDAQmxPulser::tRawDO *
+XNIDAQmxPulser::fillDO(tRawDO* p, tRawDO x, unsigned int cnt) {
+	for(int i =  0; i < cnt; i++)
+		*p++ = x;
+	return p;
+}
+(XNIDAQmxPulser::tRawAOSet *
+XNIDAQmxPulser::fillDO(tRawAOSet* p, tRawAOSet x, unsigned int cnt) {
+	for(int i =  0; i < cnt; i++)
+		*p++ = x;
+	return p;
+}
+
 void
 XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 {
@@ -448,7 +461,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			m_genLastPatItAO = m_genPatternList->begin();
 			m_genRestSampsAO = m_genPatternList->front().tonext;
 			m_genAOIndex = 0;
-			m_genBufAO.resize(m_bufSizeHintAO * NUM_AO_CH);
+			m_genBufAO.resize(m_bufSizeHintAO);
 		}
 		
 		if(m_taskAO != TASK_UNDEF)
@@ -471,15 +484,12 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
 			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
 			const unsigned int cnt_preample_ao = cnt_preample * oversamp_ao - 0;
-			for(unsigned int i = 0; i < cnt_preample_ao; i++) {
-				m_genBufAO[2*i] = m_genAOZeroLevel[0];
-				m_genBufAO[2*i + 1] = m_genAOZeroLevel[1];
-			}
+			fillAO(&m_genBufAO[0], 0, cnt_preample_ao);
 			int32 samps;
 			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, cnt_preample_ao,
 				false, 0.5, 
 				DAQmx_Val_GroupByScanNumber,
-				&m_genBufAO[0],
+				&m_genBufAO[0][0],
 				&samps, NULL));
 			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_CurrWritePos));
 			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
@@ -487,13 +497,13 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
 			for(;;) {
 				genBankAO();
-				unsigned int size = m_genBufAO.size() / NUM_AO_CH;
+				unsigned int size = m_genBufAO.size();
 				for(unsigned int cnt = 0; cnt < size;) {
 					samps = std::min(size - cnt, m_transferSizeHintAO);
 					CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, samps,
 						false, 0.0,
 						DAQmx_Val_GroupByScanNumber,
-						&m_genBufAO[cnt * NUM_AO_CH],
+						&m_genBufAO[cnt][0],
 						&samps, NULL));
 					cnt += samps;
 				}
@@ -505,9 +515,8 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			genBankAO();
 		}
 		//write pre-ample.
-		for(unsigned int i = 0; i < cnt_preample; i++) {
-			m_genBufDO[i] = 0;
-		}
+		fillDO(&m_genBufDO[0], 0, cnt_preample);
+		
 		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_FirstSample));
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
 		int32 samps;
@@ -637,7 +646,7 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated, const atomic<bool> &s
 		return;
 
  	const double dma_ao_period = resolutionQAM();
-	const unsigned int size = m_genBufAO.size() / NUM_AO_CH;
+	const unsigned int size = m_genBufAO.size();
 	try {
 		for(unsigned int cnt = 0; cnt < size;) {
 			int32 samps;
@@ -656,7 +665,7 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated, const atomic<bool> &s
 			int32 written;
 			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, samps, false, 0.0, 
 				DAQmx_Val_GroupByScanNumber,
-				&m_genBufAO[cnt * NUM_AO_CH],
+				&m_genBufAO[cnt],
 				&written, NULL));
 			if(written != samps)
 				fprintf(stderr, "%d != %d\n", (int)written, (int)samps);
@@ -765,21 +774,7 @@ XNIDAQmxPulser::genBankDO()
 		//number of samples to be written into buffer.
 		unsigned int gen_cnt = std::min((uint64_t)samps_rest, tonext);
 		//write digital pattern.
-		unsigned int wlpsrest = gen_cnt % 8;
-		unsigned int wlps = gen_cnt / 8;
-		for(unsigned int cnt = 0; cnt < wlps; cnt++) {
-			*pDO++ = patDO;
-			*pDO++ = patDO;
-			*pDO++ = patDO;
-			*pDO++ = patDO;
-			*pDO++ = patDO;
-			*pDO++ = patDO;
-			*pDO++ = patDO;
-			*pDO++ = patDO;
-		}
-		for(unsigned int cnt = 0; cnt < wlpsrest; cnt++) {
-			*pDO++ = patDO;
-		}
+		pDO = fillDO(pDO, patDO, gen_cnt);
 		
 		tonext -= gen_cnt;
 		samps_rest -= gen_cnt;
@@ -818,8 +813,7 @@ XNIDAQmxPulser::genBankAO()
 	const uint64_t pausing_period = pausing_cnt + pausing_cnt_blank_before + pausing_cnt_blank_after;
 
 	tRawAO *pAO = &m_genBufAO[0];
-	const tRawAO raw_ao0_zero = m_genAOZeroLevel[0];
-	const tRawAO raw_ao1_zero = m_genAOZeroLevel[1];
+	const tRawAOSet raw_zero = m_genAOZeroLevel;
 	const unsigned int size = m_bufSizeHintAO;
 	for(unsigned int samps_rest = size; samps_rest >= oversamp_ao;) {
 		unsigned int pidx = (pat & PAT_QAM_PULSE_IDX_MASK) / PAT_QAM_PULSE_IDX;
@@ -834,10 +828,7 @@ XNIDAQmxPulser::genBankAO()
 				tonext -= lps * pausing_period;
 				lps *= oversamp_ao * (pausing_cnt_blank_before + pausing_cnt_blank_after);
 				samps_rest -= lps;
-				for(unsigned int lp = 0; lp < lps; lp++) {
-					*pAO++ = raw_ao0_zero;
-					*pAO++ = raw_ao1_zero;
-				}
+				pAO = fillAO(pAO, raw_zero, lps);
 			}
 			if(samps_rest / oversamp_ao < pausing_cnt_blank_before + pausing_cnt_blank_after)
 				break; 
@@ -848,22 +839,7 @@ XNIDAQmxPulser::genBankAO()
 		if(pidx == 0) {
 			//write blank in analog lines.
 			aoidx = 0;
-			unsigned int wlpsrest = gen_cnt % 4;
-			unsigned int wlps = gen_cnt / 4;
-			for(unsigned int cnt = 0; cnt < wlps; cnt++) {
-				*pAO++ = raw_ao0_zero;
-				*pAO++ = raw_ao1_zero;
-				*pAO++ = raw_ao0_zero;
-				*pAO++ = raw_ao1_zero;
-				*pAO++ = raw_ao0_zero;
-				*pAO++ = raw_ao1_zero;
-				*pAO++ = raw_ao0_zero;
-				*pAO++ = raw_ao1_zero;
-			}
-			for(unsigned int cnt = 0; cnt < wlpsrest; cnt++) {
-				*pAO++ = raw_ao0_zero;
-				*pAO++ = raw_ao1_zero;
-			}
+			pAO = fillAO(pAO, raw_zero, gen_cnt);
 		}
 		else {
 			unsigned int pnum = (pat & PAT_QAM_MASK) / PAT_QAM_PHASE - (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE);
