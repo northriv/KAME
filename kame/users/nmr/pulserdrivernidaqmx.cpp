@@ -499,7 +499,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 				}
 			uInt32 space;
 				CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskAO, &space));
-				if(space < bufsize / 2)
+				if((int)space < std::max((int)bufsize - (int)lrint(1e3 / resolutionQAM()), (int)m_bufSizeHintAO))
 					break;
 			}
 			genBankAO();
@@ -534,7 +534,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			}
 		uInt32 space;
 			CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskDO, &space));
-			if(space < bufsize / 2)
+			if((int)space < std::max((int)bufsize - (int)lrint(1e3 / resolution()), (int)m_bufSizeHintDO))
 				break;
 		}
 		genBankDO();
