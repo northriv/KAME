@@ -85,7 +85,6 @@ private:
 	GenPatternIterator m_genLastPatItAO, m_genLastPatItDO;
 	uint64_t m_genRestSampsAO, m_genRestSampsDO;
 enum { NUM_AO_CH = 2};
-	tRawAO m_genAOZeroLevel[NUM_AO_CH];
 	unsigned int m_genAOIndex;
 	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> m_softwareTrigger;
 	unsigned int m_pausingBit;
@@ -107,19 +106,20 @@ protected:
 private:
 enum {PORTSEL_PAUSING = 16};
 	std::vector<tRawDO> m_genBufDO;
-	typedef tRawAO[NUM_AO_CH] tRawAOSet;
+	typedef struct {tRawAO ch[NUM_AO_CH];} tRawAOSet;
 	std::vector<tRawAOSet> m_genBufAO;
-	inline tRawDO *fillDO(tRawDO* p, tRawDO x, unsigned int cnt);
-	inline tRawAOSet *fillDO(tRawAOSet* p, tRawAOSet x, unsigned int cnt);
-	scoped_ptr<std::vector<tRawAO> > m_genPulseWaveAO[NUM_AO_CH][PAT_QAM_MASK / PAT_QAM_PHASE];
-	scoped_ptr<std::vector<tRawAO> > m_genPulseWaveNextAO[NUM_AO_CH][PAT_QAM_MASK / PAT_QAM_PHASE];
+	tRawAOSet m_genAOZeroLevel;
+	template <typename T>
+	inline T *fastFill(T* p, T x, unsigned int cnt);
+	scoped_ptr<std::vector<tRawAOSet> > m_genPulseWaveAO[PAT_QAM_MASK / PAT_QAM_PHASE];
+	scoped_ptr<std::vector<tRawAOSet> > m_genPulseWaveNextAO[PAT_QAM_MASK / PAT_QAM_PHASE];
 enum { CAL_POLY_ORDER = 4};
-	float64 m_coeffAO[NUM_AO_CH][CAL_POLY_ORDER];
-	float64 m_coeffAODev[NUM_AO_CH][CAL_POLY_ORDER];
-	float64 m_upperLimAO[NUM_AO_CH];
-	float64 m_lowerLimAO[NUM_AO_CH];
+	double m_coeffAO[NUM_AO_CH][CAL_POLY_ORDER];
+	double m_coeffAODev[NUM_AO_CH][CAL_POLY_ORDER];
+	double m_upperLimAO[NUM_AO_CH];
+	double m_lowerLimAO[NUM_AO_CH];
 	
-	inline tRawAO aoVoltToRaw(int ch, float64 volt);
+	inline tRawAOSet aoVoltToRaw(const std::complex<double> &volt);
 	void genBankDO();
 	void genBankAO();
 	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriteAO;
