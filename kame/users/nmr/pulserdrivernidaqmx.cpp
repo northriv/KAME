@@ -57,6 +57,7 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
 XNIDAQmxPulser::~XNIDAQmxPulser()
 {
 	clearTasks();
+	XNIDAQmxInterface::SoftwareTrigger::unregister(m_softwareTrigger);
 }
 
 void

@@ -102,12 +102,10 @@ XNIDAQmxDSO::onSoftTrigChanged(const shared_ptr<XNIDAQmxInterface::SoftwareTrigg
 			list(XNIDAQmxInterface::SoftwareTrigger::virtualTrigList());
 	    for(XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList_it
 	    	it = list->begin(); it != list->end(); it++) {
-    		if(shared_ptr<XNIDAQmxInterface::SoftwareTrigger> vt = it->lock()) {
-				for(unsigned int i = 0; i < vt->bits(); i++) {
-			    	trigSource()->add(
-			    		formatString("%s/line%d", vt->label(), i));
-				}
-    		}
+			for(unsigned int i = 0; i < (*it)->bits(); i++) {
+		    	trigSource()->add(
+		    		formatString("%s/line%d", (*it)->label(), i));
+			}
 	    }
     }
 }
@@ -146,9 +144,9 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 	vOffset2()->setUIEnabled(false);
 
  	
-	m_lsnOnSoftTrigChanged = m_softwareTrigger->onChange().connectWeak(true,
+	m_lsnOnSoftTrigChanged = XNIDAQmxInterface::SoftwareTrigger::onChange().connectWeak(true,
 		shared_from_this(), &XNIDAQmxDSO::onSoftTrigChanged, true);
-//    createChannels();
+    createChannels();
 }
 void
 XNIDAQmxDSO::close() throw (XInterface::XInterfaceError &)
@@ -163,7 +161,6 @@ XNIDAQmxDSO::close() throw (XInterface::XInterfaceError &)
 		m_threadReadAI->terminate();
 	}
  	
-    m_analogTrigSrc.clear();
     trace1()->clear();
     trace2()->clear();
     
@@ -226,13 +223,18 @@ XNIDAQmxDSO::setupTrigger()
     std::string dtrig;
     std::string src = trigSource()->to_str();
 
-    if(std::find(m_analogTrigSrc.begin(), m_analogTrigSrc.end(), src)
-         != m_analogTrigSrc.end()) {
-         atrig = src;
+    char buf[2048];
+    {
+	    DAQmxGetDevAIPhysicalChans(interface()->devName(), buf, sizeof(buf));
+	    std::deque<std::string> chans;
+	    XNIDAQmxInterface::parseList(buf, chans);
+	    for(std::deque<std::string>::iterator it = chans.begin(); it != chans.end(); it++) {
+	    	if(src == *it)
+	    		atrig = *it;
+    	}
     }
-    else {
+    if(!atrig.length())
          dtrig = src;
-    }
     
     int32 trig_spec = *trigFalling() ? DAQmx_Val_FallingSlope : DAQmx_Val_RisingSlope;
     
@@ -294,14 +296,12 @@ XNIDAQmxDSO::setupSoftwareTrigger()
 		list(XNIDAQmxInterface::SoftwareTrigger::virtualTrigList());
     for(XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList_it
     	it = list->begin(); it != list->end(); it++) {
-		if(shared_ptr<XNIDAQmxInterface::SoftwareTrigger> vt = it->lock()) {
-			for(unsigned int i = 0; i < vt->bits(); i++) {
-	    		if(src == formatString("%s/line%d", vt->label(), i)) {
-		    		m_softwareTrigger = vt;
-					m_softwareTrigger->connect(
-					!*trigFalling() ? (1uL << i) : 0,
-					*trigFalling() ? (1uL << i) : 0);
-	    		}
+		for(unsigned int i = 0; i < (*it)->bits(); i++) {
+    		if(src == formatString("%s/line%d", (*it)->label(), i)) {
+	    		m_softwareTrigger = *it;
+				m_softwareTrigger->connect(
+				!*trigFalling() ? (1uL << i) : 0,
+				*trigFalling() ? (1uL << i) : 0);
     		}
 		}
     }
@@ -433,6 +433,10 @@ XNIDAQmxDSO::createChannels()
 			m_coeffAI[1], CAL_POLY_ORDER));
     }
 
+	uInt32 num_ch;
+	CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
+	if(num_ch == 0) 
+		return;
 	{
 /*		char chans[256];
 		CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_task, chans, sizeof(chans)));
@@ -446,7 +450,7 @@ XNIDAQmxDSO::createChannels()
 		}
 */	}
 
-   	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_task, 0, &XNIDAQmxDSO::_onTaskDone, this));
+	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_task, 0, &XNIDAQmxDSO::_onTaskDone, this));
    	
 	CHECK_DAQMX_RET(DAQmxSetRealTimeReportMissedSamp(m_task, true));
 

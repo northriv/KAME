@@ -48,8 +48,9 @@ static std::deque<shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> > g_daqmx_sync_ro
 
 atomic_shared_ptr<XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList>
 XNIDAQmxInterface::SoftwareTrigger::s_virtualTrigList(new XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList);
-
-shared_ptr<SoftwareTrigger>
+XTalker<shared_ptr<XNIDAQmxInterface::SoftwareTrigger> >
+	XNIDAQmxInterface::SoftwareTrigger::s_onChange;
+shared_ptr<XNIDAQmxInterface::SoftwareTrigger>
 XNIDAQmxInterface::SoftwareTrigger::create(const char *label, unsigned int bits)
 {
 	shared_ptr<SoftwareTrigger> p(new SoftwareTrigger(label, bits));
@@ -58,18 +59,11 @@ XNIDAQmxInterface::SoftwareTrigger::create(const char *label, unsigned int bits)
      for(;;) {
         atomic_shared_ptr<SoftwareTriggerList> old_list(s_virtualTrigList);
         atomic_shared_ptr<SoftwareTriggerList> new_list(new SoftwareTriggerList(*old_list));
-        // clean-up dead listeners.
-        for(SoftwareTriggerList_it it = new_list->begin(); it != new_list->end();) {
-            if(!it->lock())
-                it = new_list->erase(it);
-            else
-                it++;
-        }
         new_list->push_back(p);
         if(new_list.compareAndSwap(old_list, s_virtualTrigList)) break;
     }
-    onChange()->talk(p);
-   	return p;
+    onChange().talk(p);
+    return p;
 }
 
 XNIDAQmxInterface::SoftwareTrigger::SoftwareTrigger(const char *label, unsigned int bits)
@@ -77,8 +71,16 @@ XNIDAQmxInterface::SoftwareTrigger::SoftwareTrigger(const char *label, unsigned 
  m_risingEdgeMask(0u), m_fallingEdgeMask(0u) {
  	_clear();
 }
-XNIDAQmxInterface::SoftwareTrigger::~SoftwareTrigger() {
-    onChange()->talk(shared_from_this());
+void
+XNIDAQmxInterface::SoftwareTrigger::unregister(const shared_ptr<SoftwareTrigger> &p) {
+	//atomically unregister.
+	for(;;) {
+		atomic_shared_ptr<SoftwareTriggerList> old_list(s_virtualTrigList);
+		atomic_shared_ptr<SoftwareTriggerList> new_list(new SoftwareTriggerList(*old_list));
+		new_list->erase(std::find(new_list->begin(), new_list->end(), p));
+		if(new_list.compareAndSwap(old_list, s_virtualTrigList)) break;
+	}
+	onChange().talk(p);
 }
 void
 XNIDAQmxInterface::SoftwareTrigger::_clear() {

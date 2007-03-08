@@ -60,12 +60,12 @@ public:
 	
   //! e.g. "PCI-6111".
   const char* productType() const {
-  	ProductInfo* p = m_productInfo;
+  	const ProductInfo* p = m_productInfo;
   	return p ? p->type : 0L;
   }
   //! e.g. "S", "M".
   const char* productSeries() const {
-  	ProductInfo* p = m_productInfo;
+  	const ProductInfo* p = m_productInfo;
   	return p ? p->type : 0L;
   }
   //! e.g. "PCI", "PXI". Never "PCIe" or "PXIe".
@@ -86,66 +86,67 @@ public:
 	  
   class SoftwareTrigger : public enable_shared_from_this<SoftwareTrigger> {
 	  protected:
-	  	SoftwareTrigger(const char *label, unsigned int bits);
+			SoftwareTrigger(const char *label, unsigned int bits);
 	  public:
-	  	~SoftwareTrigger();
-	  	static shared_ptr<SoftwareTrigger> create(const char *label, unsigned int bits);
-	  	const char *label() const {return m_label.c_str();}
-	  	void setArmTerm(const char *arm_term) {m_armTerm = arm_term;}
-	  	const char *armTerm() const {return m_armTerm.c_str();}
-	
-	  	void start(float64 freq);
-	  	float64 freq() const {return m_freq;} //!< [Hz].
-	  	unsigned int bits() const {return m_bits;}
-	  	void stop();
-	  	void forceStamp(uint64_t now, float64 freq);
-	  	void stamp(uint64_t cnt);
-	  	template <typename T>
-	  	void changeValue(T oldval, T val, uint64_t time) {
-	  		if(((m_risingEdgeMask & val) & (m_risingEdgeMask & ~oldval))
-	  			|| ((m_fallingEdgeMask & ~val) & (m_fallingEdgeMask & oldval))) {
-		  		if(time < m_endOfBlank) return;
-	  			stamp(time);
-	  		}
-	  	}
-	  	void connect(uint32_t rising_edge_mask, 
-	  		uint32_t falling_edge_mask) throw (XInterface::XInterfaceError &);
-	  	void disconnect();
-	  	//! \arg blankterm in seconds.
-	  	void setBlankTerm(float64 blankterm) {
-			m_blankTerm = lrint(blankterm * freq());
-			memoryBarrier();
-	  	}
-		//! for restarting connected task.
-		XTalker<shared_ptr<SoftwareTrigger> > &onStart() {return m_onStart;}
-		//! for changeing list.
-		XTalker<shared_ptr<SoftwareTrigger> > &onChange() {return m_onChange;}
-		
-	  	void clear(uint64_t now, float64 freq);
-	  	uint64_t tryPopFront(uint64_t threshold, float64 freq);
-	
-		  typedef std::deque<weak_ptr<XNIDAQmxInterface::SoftwareTrigger> > SoftwareTriggerList;
-		  typedef SoftwareTriggerList::iterator SoftwareTriggerList_it;
-		  static const atomic_shared_ptr<SoftwareTriggerList> &virtualTrigList() {
-		  	return s_virtualTrigList;
-		  }
+			static shared_ptr<SoftwareTrigger> create(const char *label, unsigned int bits);
+			static void unregister(const shared_ptr<SoftwareTrigger> &);
+			const char *label() const {return m_label.c_str();}
+			void setArmTerm(const char *arm_term) {m_armTerm = arm_term;}
+			const char *armTerm() const {return m_armTerm.c_str();}
+			
+			void start(float64 freq);
+			float64 freq() const {return m_freq;} //!< [Hz].
+			unsigned int bits() const {return m_bits;}
+			void stop();
+			void forceStamp(uint64_t now, float64 freq);
+			void stamp(uint64_t cnt);
+			template <typename T>
+			void changeValue(T oldval, T val, uint64_t time) {
+				if(((m_risingEdgeMask & val) & (m_risingEdgeMask & ~oldval))
+					|| ((m_fallingEdgeMask & ~val) & (m_fallingEdgeMask & oldval))) {
+			  		if(time < m_endOfBlank) return;
+					stamp(time);
+				}
+			}
+			void connect(uint32_t rising_edge_mask, 
+				uint32_t falling_edge_mask) throw (XInterface::XInterfaceError &);
+			void disconnect();
+			//! \arg blankterm in seconds.
+			void setBlankTerm(float64 blankterm) {
+				m_blankTerm = lrint(blankterm * freq());
+				memoryBarrier();
+			}
+			//! for restarting connected task.
+			XTalker<shared_ptr<SoftwareTrigger> > &onStart() {return m_onStart;}
+			//! for changeing list.
+			static XTalker<shared_ptr<SoftwareTrigger> > &onChange() {return s_onChange;}
+			
+			void clear(uint64_t now, float64 freq);
+			uint64_t tryPopFront(uint64_t threshold, float64 freq);
+			
+			typedef std::deque<shared_ptr<XNIDAQmxInterface::SoftwareTrigger> > SoftwareTriggerList;
+			typedef SoftwareTriggerList::iterator SoftwareTriggerList_it;
+			static const atomic_shared_ptr<SoftwareTriggerList> &virtualTrigList() {
+			  	return s_virtualTrigList;
+			}
 	  private:
-	    void _clear();
-	  	const std::string m_label;
-	  	std::string m_armTerm;
-	  	unsigned int m_bits;
-	  	uint32_t m_risingEdgeMask, m_fallingEdgeMask;
-	  	uint64_t m_blankTerm, m_endOfBlank;
-	  	float64 m_freq; //!< [Hz].
-	  	enum {QUEUE_SIZE = 8192};
-		typedef atomic_queue_reserved<uint64_t, QUEUE_SIZE> FastQueue;
-	  	FastQueue m_fastQueue;
-		typedef std::deque<uint64_t> SlowQueue;
-	  	SlowQueue m_slowQueue;
-	  	atomic<unsigned int> m_slowQueueSize;
-	  	XMutex m_mutex;
-	  	XTalker<shared_ptr<SoftwareTrigger> > m_onStart, m_onChange;
-	    static atomic_shared_ptr<SoftwareTriggerList> s_virtualTrigList;
+			void _clear();
+			const std::string m_label;
+			std::string m_armTerm;
+			unsigned int m_bits;
+			uint32_t m_risingEdgeMask, m_fallingEdgeMask;
+			uint64_t m_blankTerm, m_endOfBlank;
+			float64 m_freq; //!< [Hz].
+			enum {QUEUE_SIZE = 8192};
+			typedef atomic_queue_reserved<uint64_t, QUEUE_SIZE> FastQueue;
+			FastQueue m_fastQueue;
+			typedef std::deque<uint64_t> SlowQueue;
+			SlowQueue m_slowQueue;
+			atomic<unsigned int> m_slowQueueSize;
+			XMutex m_mutex;
+			XTalker<shared_ptr<SoftwareTrigger> > m_onStart;
+			static XTalker<shared_ptr<SoftwareTrigger> > s_onChange;
+			static atomic_shared_ptr<SoftwareTriggerList> s_virtualTrigList;
   };
 protected:
   virtual void open() throw (XInterfaceError &);

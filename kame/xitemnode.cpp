@@ -48,18 +48,24 @@ XComboNode::XComboNode(const char *name, bool runtime, bool auto_set_any)
 void
 XComboNode::_str(const std::string &var) throw (XKameError &)
 {
+    shared_ptr<XValueNodeBase> ptr = 
+        dynamic_pointer_cast<XValueNodeBase>(shared_from_this());
+    XScopedLock<XRecursiveMutex> lock(m_write_mutex);
+    m_tlkBeforeValueChanged.talk(ptr);
   if(var.length()) {
 	  atomic_shared_ptr<const std::deque<std::string> > strings(m_strings);
 	  unsigned int i = 0;
 	  for(std::deque<std::string>::const_iterator it = strings->begin(); it != strings->end(); it++) {
 	        if(*it == var) {
 	            m_var.reset(new std::pair<std::string, int>(var, i));
+			    m_tlkOnValueChanged.talk(ptr);
 	            return;
 	        }
 	        i++;
 	   }
   }
    m_var.reset(new std::pair<std::string, int>(var, -1));
+   m_tlkOnValueChanged.talk(ptr);
 }
 
 void
