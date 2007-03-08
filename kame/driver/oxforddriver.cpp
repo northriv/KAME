@@ -20,7 +20,11 @@ XOxfordInterface::XOxfordInterface
     setEOS("\r\n");
     setGPIBWaitBeforeSPoll(10);
 }
-
+void
+XOxfordInterface::send(const std::string &str) throw (XCommError &)
+{
+    this->send(str.c_str());
+}
 void
 XOxfordInterface::send(const char *str) throw (XInterface::XCommError &)
 {
@@ -33,7 +37,11 @@ XOxfordInterface::send(const char *str) throw (XInterface::XCommError &)
       query(str);
   }
 }
-
+void
+XOxfordInterface::query(const std::string &str) throw (XCommError &)
+{
+    query(str.c_str());
+}
 void
 XOxfordInterface::query(const char *str) throw (XInterface::XCommError &)
 {

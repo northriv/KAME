@@ -27,6 +27,7 @@ protected:
   virtual void open() throw (XInterfaceError &);
   virtual void close() throw (XInterfaceError &);
   
+  void send(const std::string &str) throw (XCommError &);
   virtual void send(const char *str) throw (XCommError &);
   //! don't use me
   virtual void write(const char *, int) throw (XCommError &) {
@@ -34,6 +35,7 @@ protected:
   }
   virtual void receive() throw (XCommError &);
   virtual void receive(int length) throw (XCommError &);
+  void query(const std::string &str) throw (XCommError &);
   virtual void query(const char *str) throw (XCommError &);
 };
 
