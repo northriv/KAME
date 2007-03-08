@@ -24,7 +24,7 @@
 
 #define TASK_UNDEF ((TaskHandle)-1)
 #define NUM_MAX_CH 2
-//---------------------------------------------------------------------------
+
 XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
    const shared_ptr<XScalarEntryList> &scalarentries,
    const shared_ptr<XInterfaceList> &interfaces,

@@ -25,6 +25,9 @@ static const unsigned int PAUSING_BLANK_AFTER = 1;
 
 static const TaskHandle TASK_UNDEF = ((TaskHandle)-1);
 
+template <typename T>
+inline T *fastFill(T* p, T x, unsigned int cnt);
+
 XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
    const shared_ptr<XScalarEntryList> &scalarentries,
    const shared_ptr<XInterfaceList> &interfaces,
@@ -383,8 +386,8 @@ XNIDAQmxPulser::onTaskDone(TaskHandle task, int32 status) {
 	}
 }
 template <typename T>
-T *
-XNIDAQmxPulser::fastFill(T* p, T x, unsigned int cnt) {
+inline T *
+fastFill(T* p, T x, unsigned int cnt) {
 	if(cnt > 100) {
 		for(;(int)p % (sizeof(uint64_t) / sizeof(T)); cnt--)
 			*p++ = x;

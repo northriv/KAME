@@ -109,8 +109,6 @@ enum {PORTSEL_PAUSING = 16};
 	typedef struct {tRawAO ch[NUM_AO_CH];} tRawAOSet;
 	std::vector<tRawAOSet> m_genBufAO;
 	tRawAOSet m_genAOZeroLevel;
-	template <typename T>
-	inline T *fastFill(T* p, T x, unsigned int cnt);
 	scoped_ptr<std::vector<tRawAOSet> > m_genPulseWaveAO[PAT_QAM_MASK / PAT_QAM_PHASE];
 	scoped_ptr<std::vector<tRawAOSet> > m_genPulseWaveNextAO[PAT_QAM_MASK / PAT_QAM_PHASE];
 enum { CAL_POLY_ORDER = 4};
