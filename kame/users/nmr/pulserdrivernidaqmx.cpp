@@ -765,7 +765,19 @@ XNIDAQmxPulser::genBankDO()
 		//number of samples to be written into buffer.
 		unsigned int gen_cnt = std::min((uint64_t)samps_rest, tonext);
 		//write digital pattern.
-		for(unsigned int cnt = 0; cnt < gen_cnt; cnt++) {
+		unsigned int wlpsrest = gen_cnt % 8;
+		unsigned int wlps = gen_cnt / 8;
+		for(unsigned int cnt = 0; cnt < wlps; cnt++) {
+			*pDO++ = patDO;
+			*pDO++ = patDO;
+			*pDO++ = patDO;
+			*pDO++ = patDO;
+			*pDO++ = patDO;
+			*pDO++ = patDO;
+			*pDO++ = patDO;
+			*pDO++ = patDO;
+		}
+		for(unsigned int cnt = 0; cnt < wlpsrest; cnt++) {
 			*pDO++ = patDO;
 		}
 		
@@ -836,7 +848,19 @@ XNIDAQmxPulser::genBankAO()
 		if(pidx == 0) {
 			//write blank in analog lines.
 			aoidx = 0;
-			for(unsigned int cnt = 0; cnt < gen_cnt; cnt++) {
+			unsigned int wlpsrest = gen_cnt % 4;
+			unsigned int wlps = gen_cnt / 4;
+			for(unsigned int cnt = 0; cnt < wlps; cnt++) {
+				*pAO++ = raw_ao0_zero;
+				*pAO++ = raw_ao1_zero;
+				*pAO++ = raw_ao0_zero;
+				*pAO++ = raw_ao1_zero;
+				*pAO++ = raw_ao0_zero;
+				*pAO++ = raw_ao1_zero;
+				*pAO++ = raw_ao0_zero;
+				*pAO++ = raw_ao1_zero;
+			}
+			for(unsigned int cnt = 0; cnt < wlpsrest; cnt++) {
 				*pAO++ = raw_ao0_zero;
 				*pAO++ = raw_ao1_zero;
 			}
