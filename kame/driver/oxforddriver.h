@@ -38,7 +38,7 @@ protected:
 };
 
 template <class tDriver>
-class XOxfordDriver : public XCharDeviceDriver<tDriver>
+class XOxfordDriver : public XCharDeviceDriver<tDriver, XOxfordInterface>
 {
  XNODE_OBJECT
 protected:

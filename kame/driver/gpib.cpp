@@ -191,7 +191,7 @@ XNIGPIBPort::write(const char *sendbuf, int size) throw (XInterface::XCommError 
           switch(ThreadIberr()) {
           case EDVR:
           case EFSO:
-            if(i < 3) {
+            if(i < 2) {
               dbgPrint("EDVR/EFSO, try to continue");
               msecsleep(10 * i + 10);
               continue;
@@ -252,7 +252,7 @@ XNIGPIBPort::gpib_receive(unsigned int est_length, unsigned int max_length)
              switch(ThreadIberr()) {
               case EDVR:
               case EFSO:
-                if(i < 3) {
+                if(i < 2) {
                   dbgPrint("EDVR/EFSO, try to continue");
                   msecsleep(10 * i + 10);
                   continue;
@@ -290,7 +290,7 @@ XNIGPIBPort::gpib_spoll_before_read() throw (XInterface::XCommError &)
     {
         for(int i = 0; ; i++)
         {
-          if(i > 20)
+          if(i > 10)
             {
               throw XInterface::XCommError(
                     gpibStatus(KAME::i18n("too many spoll timeouts")), __FILE__, __LINE__);
@@ -329,7 +329,7 @@ XNIGPIBPort::gpib_spoll_before_write() throw (XInterface::XCommError &)
   {
     for(int i = 0; ; i++)
     {
-      if(i > 10)
+      if(i > 3)
         {
           throw XInterface::XCommError(
                 gpibStatus(KAME::i18n("too many spoll timeouts")), __FILE__, __LINE__);
