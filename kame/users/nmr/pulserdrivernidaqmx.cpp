@@ -52,6 +52,13 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
 	m_softwareTrigger = XNIDAQmxInterface::SoftwareTrigger::create(name, NUM_DO_PORTS);
 	
 	m_pausingCount = (PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER) * 47;
+	
+	//memory locks.
+ 	if(g_bUseMLock) {
+	const void *FIRST_OF_MLOCK_MEMBER = &m_genPatternList;
+	const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];
+		mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);
+ 	}
 }
 
 XNIDAQmxPulser::~XNIDAQmxPulser()
@@ -422,34 +429,13 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 					+ KAME::i18n("Look at the port-selection table.")));
 		}
 
-		//unlock memory.
-	 	if(g_bUseMLock) {
-			munlock(&m_genBufDO[0], m_genBufDO.size() * sizeof(tRawDO));
-			munlock(&m_genBufAO[0], m_genBufAO.size() * sizeof(tRawAO));
-			if(m_genPatternList.get())
-				munlock(&m_genPatternList->at(0), m_genPatternList->size() * sizeof(GenPattern));
-		 	for(unsigned int i = 0; i < NUM_AO_CH; i++) {
-		 		for(unsigned int j = 0; j < PAT_QAM_MASK / PAT_QAM_PHASE; j++) {
-		 			if(m_genPulseWaveAO[i][j].get() && m_genPulseWaveAO[i][j]->size())
-		 				munlock(&m_genPulseWaveAO[i][j]->at(0), m_genPulseWaveAO[i][j]->size() * sizeof(tRawAO));
-		 		}
-		 	}
-	 	}
 		//swap generated pattern lists to new ones.
 	 	m_genPatternList.reset();
 	 	m_genPatternListNext.swap(m_genPatternList);
-	 	if(g_bUseMLock) {
-			if(m_genPatternList.get())
-				mlock(&m_genPatternList->at(0), m_genPatternList->size() * sizeof(GenPattern));
-	 	}
 	 	for(unsigned int i = 0; i < NUM_AO_CH; i++) {
 	 		for(unsigned int j = 0; j < PAT_QAM_MASK / PAT_QAM_PHASE; j++) {
 	 			m_genPulseWaveAO[i][j].reset();
 	 			m_genPulseWaveNextAO[i][j].swap(m_genPulseWaveAO[i][j]);
-			 	if(g_bUseMLock) {
-		 			if(m_genPulseWaveAO[i][j].get() && m_genPulseWaveAO[i][j]->size())
-		 				mlock(&m_genPulseWaveAO[i][j]->at(0), m_genPulseWaveAO[i][j]->size() * sizeof(tRawAO));
-			 	}
 	 		}
 	 	}
 
@@ -465,18 +451,6 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			m_genBufAO.resize(m_bufSizeHintAO * NUM_AO_CH);
 		}
 		
-		//memory locks.
-	 	if(g_bUseMLock) {
-			mlock(&m_genBufDO[0], m_genBufDO.size() * sizeof(tRawDO));
-			if(m_taskAO != TASK_UNDEF) {
-				mlock(&m_genBufAO[0], m_genBufAO.size() * sizeof(tRawAO));
-			}
-		const void *FIRST_OF_MLOCK_MEMBER = &m_genPatternList;
-		const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];
-			mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);
-	 	}
-
-	
 		if(m_taskAO != TASK_UNDEF)
 		    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
 		if(m_taskDOCtr != TASK_UNDEF)
@@ -574,8 +548,8 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
 	if(m_taskGateCtr != TASK_UNDEF)
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
-	msecsleep(1);
 	fprintf(stderr, "Starting AO....\n");
+	msecsleep(10);
 	if(m_taskAO != TASK_UNDEF)
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
 	
