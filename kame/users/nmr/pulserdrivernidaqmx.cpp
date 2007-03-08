@@ -509,12 +509,13 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 				&samps, NULL));
 			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_CurrWritePos));
 			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
-			
+			uInt32 bufsize;
+			CHECK_DAQMX_RET(DAQmxGetOutputBufSize(m_taskAO, &bufsize));
 			for(;;) {
 				genBankAO();
 				unsigned int size = m_genBufAO.size() / NUM_AO_CH;
 				for(unsigned int cnt = 0; cnt < size;) {
-					samps = std::min(size - cnt, m_transferSizeHintAO / NUM_AO_CH);
+					samps = std::min(size - cnt, m_transferSizeHintAO);
 					CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, samps,
 						false, 0.0,
 						DAQmx_Val_GroupByScanNumber,
@@ -524,7 +525,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 				}
 			uInt32 space;
 				CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskAO, &space));
-				if(space < (uInt32)m_bufSizeHintAO / NUM_AO_CH)
+				if(space < bufsize / 2)
 					break;
 			}
 			genBankAO();
@@ -543,7 +544,8 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 				&samps, NULL));
 		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_CurrWritePos));
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
-		
+		uInt32 bufsize;
+		CHECK_DAQMX_RET(DAQmxGetOutputBufSize(m_taskDO, &bufsize));
 		for(;;) {
 			genBankDO();
 			unsigned int size = m_genBufDO.size();
@@ -558,7 +560,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			}
 		uInt32 space;
 			CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskDO, &space));
-			if(space < (uInt32)m_bufSizeHintDO)
+			if(space < bufsize / 2)
 				break;
 		}
 		genBankDO();
@@ -665,7 +667,7 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated, const atomic<bool> &s
 	try {
 		for(unsigned int cnt = 0; cnt < size;) {
 			int32 samps;
-			samps = std::min(size - cnt, m_transferSizeHintAO / NUM_AO_CH);
+			samps = std::min(size - cnt, m_transferSizeHintAO);
 			while(!terminated) {
 				if(tryOutputSuspend(suspended, m_mutexAO, terminated))
 					return;
@@ -832,7 +834,7 @@ XNIDAQmxPulser::genBankAO()
 	tRawAO *pAO = &m_genBufAO[0];
 	const tRawAO raw_ao0_zero = m_genAOZeroLevel[0];
 	const tRawAO raw_ao1_zero = m_genAOZeroLevel[1];
-	const unsigned int size = m_bufSizeHintAO / NUM_AO_CH;
+	const unsigned int size = m_bufSizeHintAO;
 	for(unsigned int samps_rest = size; samps_rest >= oversamp_ao;) {
 		unsigned int pidx = (pat & PAT_QAM_PULSE_IDX_MASK) / PAT_QAM_PULSE_IDX;
 
