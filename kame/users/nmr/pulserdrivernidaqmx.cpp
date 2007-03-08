@@ -462,7 +462,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			m_genLastPatItAO = m_genPatternList->begin();
 			m_genRestSampsAO = m_genPatternList->front().tonext;
 			m_genAOIndex = 0;
-			m_genBufAO.resize(m_bufSizeHintAO);
+			m_genBufAO.resize(m_bufSizeHintAO * NUM_AO_CH);
 		}
 		
 		//memory locks.
