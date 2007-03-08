@@ -47,7 +47,7 @@ class XCharDeviceDriver : public tDriver
 };
 
 template<class tDriver, class tInterface>
-XCharDeviceDriver<tDriver>::XCharDeviceDriver(const char *name, bool runtime, 
+XCharDeviceDriver<tDriver, tInterface>::XCharDeviceDriver(const char *name, bool runtime, 
    const shared_ptr<XScalarEntryList> &scalarentries,
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
@@ -64,7 +64,7 @@ XCharDeviceDriver<tDriver>::XCharDeviceDriver(const char *name, bool runtime,
 }
 template<class tDriver, class tInterface>
 void
-XCharDeviceDriver<tDriver>::onOpen(const shared_ptr<XInterface> &)
+XCharDeviceDriver<tDriver, tInterface>::onOpen(const shared_ptr<XInterface> &)
 {
 	try {
 		open();
@@ -76,7 +76,7 @@ XCharDeviceDriver<tDriver>::onOpen(const shared_ptr<XInterface> &)
 }
 template<class tDriver, class tInterface>
 void
-XCharDeviceDriver<tDriver>::onClose(const shared_ptr<XInterface> &)
+XCharDeviceDriver<tDriver, tInterface>::onClose(const shared_ptr<XInterface> &)
 {
 	try {
 		this->stop();

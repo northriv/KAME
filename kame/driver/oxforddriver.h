@@ -47,7 +47,7 @@ protected:
    const shared_ptr<XInterfaceList> &interfaces,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers)
-   : XCharDeviceDriver<tDriver>(name, runtime, scalarentries, interfaces, thermometers, drivers) {}
+   : XCharDeviceDriver<tDriver, XOxfordInterface>(name, runtime, scalarentries, interfaces, thermometers, drivers) {}
   double read(int arg) throw (XInterface::XInterfaceError &);
  protected:
  private:
