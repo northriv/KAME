@@ -734,7 +734,7 @@ XNIDAQmxDSO::startSequence()
 		rec->accumCount = 0;
 		ASSERT(rec->numCh);
 		rec->recordLength = rec->record.size() / rec->numCh;
-		memset(&rec->record[0], 0, rec->record.size() * sizeof(tRawAI));
+		memset(&rec->record[0], 0, rec->record.size() * sizeof(int32_t));
 	}
 	m_record_av.clear();   	
     
@@ -824,7 +824,8 @@ XNIDAQmxDSO::getWave(std::deque<std::string> &)
     	push(*p++);
     std::string str(buf);
     rawData().insert(rawData().end(), str.begin(), str.end());
-    push((char)0);
+    str = ""; //reserved/
+    rawData().insert(rawData().end(), str.begin(), str.end());
 }
 void
 XNIDAQmxDSO::convertRaw() throw (XRecordError&)

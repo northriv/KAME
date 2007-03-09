@@ -99,8 +99,10 @@ XComboNode::add(const std::string &str)
     }
     onListChanged().talk(dynamic_pointer_cast<XItemNodeBase>(shared_from_this()));
     std::string var = to_str();
-    if(var == str)
-    	value(str);
+    if(var == str) {
+		value(str);
+		onListChanged().talk(dynamic_pointer_cast<XItemNodeBase>(shared_from_this()));
+    }
 }
 
 void
