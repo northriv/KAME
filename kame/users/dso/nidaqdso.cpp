@@ -734,7 +734,7 @@ XNIDAQmxDSO::startSequence()
 		rec->accumCount = 0;
 		ASSERT(rec->numCh);
 		rec->recordLength = rec->record.size() / rec->numCh;
-		std::fill(rec->record.begin(), rec->record.end(), 0);
+		memset(&rec->record[0], 0, rec->record.size() * sizeof(tRawAI));
 	}
 	m_record_av.clear();   	
     

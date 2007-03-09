@@ -145,7 +145,7 @@ class XNMRPulseAnalyzer : public XSecondaryDriver
   //! Phase Inversion Cycling
   const shared_ptr<XBoolNode> m_picEnabled;
   const shared_ptr<XItemNode<XDriverList, XPulser> > m_pulser;
-  unsigned int m_piccnt;
+  unsigned int m_picInverted;
   std::deque<std::complex<double> > m_picRawWaveSum;
   
   //! Records
