@@ -109,7 +109,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
   m_avgClear(create<XNode>("AvgClear", true)),
   m_picEnabled(create<XBoolNode>("PICEnabled", false)),
   m_pulser(create<XItemNode<XDriverList, XPulser> >("Pulser", false, drivers, true)),
-  m_picInverted(false),
+  m_piccnt(0),
   m_form(new FrmNMRPulse(g_pFrmMain)),
   m_statusPrinter(XStatusPrinter::create(m_form.get())),
   m_fftForm(new FrmGraphNURL(g_pFrmMain)),
@@ -498,7 +498,7 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
   if(avgclear) {
       std::fill(m_rawWaveSum.begin(), m_rawWaveSum.end(), 0.0 );
       m_avcount = 0;
-      m_picInverted = false;
+      m_piccnt = 0;
     }
 
   int bgpos = lrint((*bgPos() - *fromTrig()) / 1000 / interval);
@@ -558,16 +558,13 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
     gErrPrint(getLabel() + ": " + KAME::i18n("No Pulser!"));
   }
 
+  if(!picenabled || (m_piccnt == 0)) {
+	  std::fill(m_picRawWaveSum.begin(), m_picRawWaveSum.end(), std::complex<double>(0.0,0.0));
+  }
+  bool inverted = false;
   if(picenabled) {
 	ASSERT( _pulser->time() );
-    m_picInverted = _pulser->invertPhaseRecorded();
-  }
-  else {
-    m_picInverted = false;
-  }
-  const bool inverted = m_picInverted;
-  if(!inverted) {
-	  std::fill(m_picRawWaveSum.begin(), m_picRawWaveSum.end(), std::complex<double>(0.0,0.0));
+    inverted = _pulser->invertPhaseRecorded();
   }
   {
 	  const double *rawwavecos, *rawwavesin = NULL;
@@ -577,17 +574,20 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
 	  for(unsigned int i = 0; i < _dso->lengthRecorded(); i++) {
 	  	m_picRawWaveSum[i] += std::complex<double>(rawwavecos[i], rawwavesin[i]) * (inverted ? -1.0 : 1.0);
 	  }
+ 	  m_piccnt++;
   }
   
   if(picenabled) {
-	ASSERT( _pulser->time() );
-    _pulser->invertPhase()->value(!inverted);
-    if(!inverted)
+	  if(m_piccnt < 2) {
+  		ASSERT( _pulser->time() );
+        _pulser->invertPhase()->value(!inverted);
 	    throw XSkippedRecordError(__FILE__, __LINE__);
-	for(int i = 0; i < length; i++) {
-  		m_picRawWaveSum[i] /= 2;
-	}
+      }
   }
+  for(int i = 0; i < length; i++) {
+  	m_picRawWaveSum[i] /= (double)m_piccnt;
+  }
+  m_piccnt = 0;
   
   for(int i = 1; i < numechoes; i++)
   {

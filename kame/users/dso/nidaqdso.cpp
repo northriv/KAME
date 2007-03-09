@@ -819,9 +819,10 @@ XNIDAQmxDSO::getWave(std::deque<std::string> &)
 		}
     }
     int32_t *p = &(rec->record[0]);
+    std::vector<char> &raw_data(rawData());
     const unsigned int size = len * num_ch;
     for(unsigned int i = 0; i < size; i++)
-    	push(*p++);
+    	push(*p++, raw_data);
     std::string str(buf);
     rawData().insert(rawData().end(), str.begin(), str.end());
     str = ""; //reserved/
@@ -848,10 +849,11 @@ XNIDAQmxDSO::convertRaw() throw (XRecordError&)
 		wave[j] = waveDisp(j);
     }
 
+    std::vector<char>::iterator &raw_data_it(rawDataPopIterator());
 	const float64 prop = 1.0 / accumCount;
     for(unsigned int i = 0; i < len; i++) {
 		for(unsigned int j = 0; j < num_ch; j++)
-        	  *(wave[j])++ = aiRawToVolt(coeff[j], pop<int32_t>() * prop);
+        	  *(wave[j])++ = aiRawToVolt(coeff[j], pop<int32_t>(raw_data_it) * prop);
 	}
 }
 

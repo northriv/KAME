@@ -558,8 +558,6 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 				break;
 		}
 		genBankDO();
-		m_suspendAO = false;
-		m_suspendDO = false;
 	}
 	fprintf(stderr, "Prefilling done.\n");
 	//slave must start before the master.
@@ -568,11 +566,11 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
 	if(m_taskGateCtr != TASK_UNDEF)
 	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
+	m_suspendDO = false;
 	fprintf(stderr, "Starting AO....\n");
-	msecsleep(10);
 	if(m_taskAO != TASK_UNDEF)
-	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
-	
+	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));	
+	m_suspendAO = false;
 	m_running = true;	
 }
 void

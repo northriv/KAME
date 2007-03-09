@@ -830,9 +830,8 @@ XPulser::rawToRelPat() throw (XRecordError&)
   	((qpskOLD[__qpsk(phase)] & 2) ? qpsknoninvmask : 0) | \
   	((qpskOLD[__qpsk(phase)] & 4) ? qpskinvmask : 0) | \
   	(__qpsk(phase) * PAT_QAM_PHASE))
-  #define _qpskinv(phase) (_qpsk((phase) + 2) % 4)
   const unsigned int qpsk[4] = {_qpsk(0), _qpsk(1), _qpsk(2), _qpsk(3)};
-  const unsigned int qpskinv[4] = {_qpskinv(0), _qpskinv(1), _qpskinv(2), _qpskinv(3)};
+  const unsigned int qpskinv[4] = {_qpsk(2), _qpsk(3), _qpsk(0), _qpsk(1)};
 
   //comb phases
   const uint32_t comb[MAX_NUM_PHASE_CYCLE] = {
