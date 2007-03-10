@@ -51,13 +51,13 @@ XRubyThreadConnector::XRubyThreadConnector(
     m_pForm->m_ptxtDefout->setTextFormat(Qt::LogText);    
     
     m_lsnOnResumeTouched = m_resume->onTouch().connectWeak(
-        false, shared_from_this(), &XRubyThreadConnector::onResumeTouched);
+        shared_from_this(), &XRubyThreadConnector::onResumeTouched);
     m_lsnOnKillTouched = m_kill->onTouch().connectWeak(
-        false, shared_from_this(), &XRubyThreadConnector::onKillTouched);
+        shared_from_this(), &XRubyThreadConnector::onKillTouched);
     m_lsnOnDefout = rbthread->onMessageOut().connectWeak(
-        true, shared_from_this(), &XRubyThreadConnector::onDefout, false);
+        shared_from_this(), &XRubyThreadConnector::onDefout, XListener::FLAG_MAIN_THREAD_CALL);
     m_lsnOnStatusChanged = rbthread->status()->onValueChanged().connectWeak(
-        false, shared_from_this(), &XRubyThreadConnector::onStatusChanged);
+        shared_from_this(), &XRubyThreadConnector::onStatusChanged);
         
     form->setIcon(*g_pIconScript);
     form->setCaption(rbthread->getLabel());

@@ -56,7 +56,7 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
   m_periodicTerm(0)
 {
     m_lsnOnOpen = filename()->onValueChanged().connectWeak(
-        false, shared_from_this(), &XRawStreamRecordReader::onOpen);
+        shared_from_this(), &XRawStreamRecordReader::onOpen);
     m_speed->add(SPEED_FASTEST);
     m_speed->add(SPEED_FAST);
     m_speed->add(SPEED_NORMAL);
@@ -64,16 +64,21 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
     m_speed->value(SPEED_FAST);
     
     m_lsnFirst = m_first->onTouch().connectWeak(
-           true, shared_from_this(), &XRawStreamRecordReader::onFirst, true, RECORDREADER_DELAY);
+           shared_from_this(), &XRawStreamRecordReader::onFirst,
+           XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
     m_lsnBack = m_back->onTouch().connectWeak(
-           true, shared_from_this(), &XRawStreamRecordReader::onBack, true, RECORDREADER_DELAY);
+           shared_from_this(), &XRawStreamRecordReader::onBack,
+           XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
     m_lsnNext = m_next->onTouch().connectWeak(
-           true, shared_from_this(), &XRawStreamRecordReader::onNext, true, RECORDREADER_DELAY);
+           shared_from_this(), &XRawStreamRecordReader::onNext,
+           XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
     m_lsnStop = m_stop->onTouch().connectWeak(
-           true, shared_from_this(), &XRawStreamRecordReader::onStop, true, RECORDREADER_DELAY);
+           shared_from_this(), &XRawStreamRecordReader::onStop,
+           XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
     m_lsnPlayCond = m_fastForward->onValueChanged().connectWeak(
-           true, shared_from_this(), 
-           &XRawStreamRecordReader::onPlayCondChanged, true, RECORDREADER_DELAY);
+           shared_from_this(), 
+           &XRawStreamRecordReader::onPlayCondChanged,
+           XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
     m_rewind->onValueChanged().connect(m_lsnPlayCond);
     m_speed->onValueChanged().connect(m_lsnPlayCond);
     

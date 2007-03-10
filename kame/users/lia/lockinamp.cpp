@@ -169,13 +169,13 @@ XLIA::execute(const atomic<bool> &terminated)
 {
 
   m_lsnOutput = output()->onValueChanged().connectWeak(
-                          false, shared_from_this(), &XLIA::onOutputChanged);
+                          shared_from_this(), &XLIA::onOutputChanged);
   m_lsnFreq = frequency()->onValueChanged().connectWeak(
-                          false, shared_from_this(), &XLIA::onFreqChanged);
+                          shared_from_this(), &XLIA::onFreqChanged);
   m_lsnSens = sensitivity()->onValueChanged().connectWeak(
-                        false, shared_from_this(), &XLIA::onSensitivityChanged);
+                        shared_from_this(), &XLIA::onSensitivityChanged);
   m_lsnTimeConst = timeConst()->onValueChanged().connectWeak(
-                         false, shared_from_this(), &XLIA::onTimeConstChanged);
+                         shared_from_this(), &XLIA::onTimeConstChanged);
 
   while(!terminated)
     {

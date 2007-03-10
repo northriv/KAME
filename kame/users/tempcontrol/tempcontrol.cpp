@@ -88,7 +88,7 @@ XTempControl::XTempControl(const char *name, bool runtime,
   m_targetTemp->setUIEnabled(false);
 
   m_lsnOnSetupChannelChanged = m_setupChannel->onValueChanged().connectWeak(
-                  false, shared_from_this(), &XTempControl::onSetupChannelChanged);
+                  shared_from_this(), &XTempControl::onSetupChannelChanged);
 
   m_form->statusBar()->hide();
   m_form->setCaption(KAME::i18n("TempControl - ") + getLabel() );
@@ -171,7 +171,7 @@ XTempControl::onSetupChannelChanged(const shared_ptr<XValueNodeBase> &)
   m_conExcitation = xqcon_create<XQComboBoxConnector>(
 	    channel->excitation(), m_form->m_cmbExcitation);
   m_lsnOnExcitationChanged = channel->excitation()->onValueChanged().connectWeak(
-			    false, shared_from_this(), &XTempControl::onExcitationChanged);
+			    shared_from_this(), &XTempControl::onExcitationChanged);
 }
 
 void
@@ -239,21 +239,21 @@ XTempControl::execute(const atomic<bool> &terminated)
   XTime lasttime = XTime::now();
   
   m_lsnOnPChanged = prop()->onValueChanged().connectWeak(
-                false, shared_from_this(), &XTempControl::onPChanged);
+                shared_from_this(), &XTempControl::onPChanged);
   m_lsnOnIChanged = interval()->onValueChanged().connectWeak(
-                false, shared_from_this(), &XTempControl::onIChanged);
+                shared_from_this(), &XTempControl::onIChanged);
   m_lsnOnDChanged = deriv()->onValueChanged().connectWeak(
-                false, shared_from_this(), &XTempControl::onDChanged);
+                shared_from_this(), &XTempControl::onDChanged);
   m_lsnOnTargetTempChanged = targetTemp()->onValueChanged().connectWeak(
-                false, shared_from_this(), &XTempControl::onTargetTempChanged);
+                shared_from_this(), &XTempControl::onTargetTempChanged);
   m_lsnOnManualPowerChanged = manualPower()->onValueChanged().connectWeak(
-                false, shared_from_this(), &XTempControl::onManualPowerChanged);
+                shared_from_this(), &XTempControl::onManualPowerChanged);
   m_lsnOnHeaterModeChanged = heaterMode()->onValueChanged().connectWeak(
-                false, shared_from_this(), &XTempControl::onHeaterModeChanged);
+                shared_from_this(), &XTempControl::onHeaterModeChanged);
   m_lsnOnPowerRangeChanged = powerRange()->onValueChanged().connectWeak(
-                false, shared_from_this(), &XTempControl::onPowerRangeChanged);
+                shared_from_this(), &XTempControl::onPowerRangeChanged);
   m_lsnOnCurrentChannelChanged = m_currentChannel->onValueChanged().connectWeak(
-                false, shared_from_this(), &XTempControl::onCurrentChannelChanged);
+                shared_from_this(), &XTempControl::onCurrentChannelChanged);
     
   while(!terminated)
     {

@@ -159,7 +159,7 @@ XMagnetPS::execute(const atomic<bool> &terminated)
 
   if(is_pcs_fitted ) allowPersistent()->setUIEnabled(true);
   m_lsnRate = sweepRate()->onValueChanged().connectWeak(
-                        false, shared_from_this(), &XMagnetPS::onRateChanged);
+                        shared_from_this(), &XMagnetPS::onRateChanged);
 
   
     while(!terminated)

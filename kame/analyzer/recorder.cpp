@@ -43,13 +43,13 @@ XRawStreamRecorder::XRawStreamRecorder(const char *name, bool runtime, const sha
     recording()->value(false);
     
     m_lsnOnOpen = filename()->onValueChanged().connectWeak(
-        false, shared_from_this(), &XRawStreamRecorder::onOpen);
+        shared_from_this(), &XRawStreamRecorder::onOpen);
     m_lsnOnFlush = recording()->onValueChanged().connectWeak(
-        false, shared_from_this(), &XRawStreamRecorder::onFlush);
+        shared_from_this(), &XRawStreamRecorder::onFlush);
     m_lsnOnCatch = m_drivers->onCatch().connectWeak(
-        false, shared_from_this(), &XRawStreamRecorder::onCatch);
+        shared_from_this(), &XRawStreamRecorder::onCatch);
     m_lsnOnRelease = m_drivers->onRelease().connectWeak(
-        false, shared_from_this(), &XRawStreamRecorder::onRelease);
+        shared_from_this(), &XRawStreamRecorder::onRelease);
 }
 void
 XRawStreamRecorder::onCatch(const shared_ptr<XNode> &node)
@@ -59,7 +59,7 @@ XRawStreamRecorder::onCatch(const shared_ptr<XNode> &node)
         driver->onRecord().connect(m_lsnOnRecord);
     else
         m_lsnOnRecord = driver->onRecord().connectWeak(
-            false, shared_from_this(), &XRawStreamRecorder::onRecord);
+            shared_from_this(), &XRawStreamRecorder::onRecord);
 }
 void
 XRawStreamRecorder::onRelease(const shared_ptr<XNode> &node)
@@ -138,11 +138,11 @@ XTextWriter::XTextWriter(const char *name, bool runtime,
     lastLine()->setUIEnabled(false);
   
     m_lsnOnFilenameChanged = filename()->onValueChanged().connectWeak(
-        false, shared_from_this(), &XTextWriter::onFilenameChanged);
+        shared_from_this(), &XTextWriter::onFilenameChanged);
     m_lsnOnCatch = m_drivers->onCatch().connectWeak(
-        false, shared_from_this(), &XTextWriter::onCatch);
+        shared_from_this(), &XTextWriter::onCatch);
     m_lsnOnRelease = m_drivers->onRelease().connectWeak(
-        false, shared_from_this(), &XTextWriter::onRelease);
+        shared_from_this(), &XTextWriter::onRelease);
 }
 void
 XTextWriter::onCatch(const shared_ptr<XNode> &node)
@@ -152,7 +152,7 @@ XTextWriter::onCatch(const shared_ptr<XNode> &node)
         driver->onRecord().connect(m_lsnOnRecord);
     else
         m_lsnOnRecord = driver->onRecord().connectWeak(
-            false, shared_from_this(), &XTextWriter::onRecord);
+            shared_from_this(), &XTextWriter::onRecord);
 }
 void
 XTextWriter::onRelease(const shared_ptr<XNode> &node)
@@ -232,9 +232,9 @@ XTextWriter::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
 
   if(m_stream.good()) {
     m_lsnOnFlush = recording()->onValueChanged().connectWeak(
-        false, shared_from_this(), &XTextWriter::onFlush);
+        shared_from_this(), &XTextWriter::onFlush);
     m_lsnOnLastLineChanged = lastLine()->onValueChanged().connectWeak(
-        false, shared_from_this(), &XTextWriter::onLastLineChanged);
+        shared_from_this(), &XTextWriter::onLastLineChanged);
     lastLine()->setUIEnabled(true);
 
     std::string buf;

@@ -109,7 +109,7 @@ XDMM::execute(const atomic<bool> &terminated)
         
     m_lsnOnFunctionChanged = 
         function()->onValueChanged().connectWeak(
-                        false, shared_from_this(), &XDMM::onFunctionChanged);    
+                        shared_from_this(), &XDMM::onFunctionChanged);    
   while(!terminated)
     {
       msecsleep(*waitInms());

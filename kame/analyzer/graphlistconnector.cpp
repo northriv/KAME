@@ -64,9 +64,9 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, QTa
 
   
   m_lsnNewGraph = m_newGraph->onTouch().connectWeak(
-        true, shared_from_this(), &XGraphListConnector::onNewGraph);
+        shared_from_this(), &XGraphListConnector::onNewGraph, XListener::FLAG_MAIN_THREAD_CALL);
   m_lsnDeleteGraph = m_deleteGraph->onTouch().connectWeak(
-        true, shared_from_this(), &XGraphListConnector::onDeleteGraph);
+        shared_from_this(), &XGraphListConnector::onDeleteGraph, XListener::FLAG_MAIN_THREAD_CALL);
 }
 
 void

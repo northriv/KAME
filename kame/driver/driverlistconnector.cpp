@@ -59,10 +59,10 @@ XDriverListConnector::XDriverListConnector
         onCatch(*it);
   }
 
-  m_lsnOnCreateTouched = m_create->onTouch().connectWeak(true, shared_from_this(),
-    &XDriverListConnector::onCreateTouched);
-  m_lsnOnReleaseTouched = m_release->onTouch().connectWeak(true, shared_from_this(),
-    &XDriverListConnector::onReleaseTouched);
+  m_lsnOnCreateTouched = m_create->onTouch().connectWeak(shared_from_this(),
+    &XDriverListConnector::onCreateTouched, XListener::FLAG_MAIN_THREAD_CALL);
+  m_lsnOnReleaseTouched = m_release->onTouch().connectWeak(shared_from_this(),
+    &XDriverListConnector::onReleaseTouched, XListener::FLAG_MAIN_THREAD_CALL);
 }
 
 void
@@ -72,7 +72,7 @@ XDriverListConnector::onCatch(const shared_ptr<XNode> &node) {
     driver->onRecord().connect(m_lsnOnRecord);
   else
     m_lsnOnRecord = driver->onRecord().connectWeak(
-        false, shared_from_this(), &XDriverListConnector::onRecord);
+        shared_from_this(), &XDriverListConnector::onRecord);
   
   int i = m_pItem->numRows();
   m_pItem->insertRows(i);
@@ -86,7 +86,8 @@ XDriverListConnector::onCatch(const shared_ptr<XNode> &node) {
   m_cons.back()->driver = driver;
   m_cons.back()->tlkOnRecordRedirected.reset(new XTalker<tcons::tlisttext>);
   m_cons.back()->lsnOnRecordRedirected = m_cons.back()->tlkOnRecordRedirected->connectWeak(
-        true, m_cons.back(), &XDriverListConnector::tcons::onRecordRedirected, true, 30);
+        m_cons.back(), &XDriverListConnector::tcons::onRecordRedirected
+        , XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
 
   ASSERT(m_pItem->numRows() == (int)m_cons.size());
 }

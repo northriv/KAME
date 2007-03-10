@@ -39,6 +39,7 @@
 
 #include "kame.h"
 #include "xsignal.h"
+#include "xscheduler.h"
 #include "measure.h"
 #include "interface.h"
 #include "xrubysupport.h"

@@ -307,7 +307,7 @@ XTDS::convertRaw() throw (XRecordError&) {
         	{
         	  double val = *((unsigned char *)cp) * 0x100;
         	  val += *((unsigned char *)cp + 1);
-        	  *(wave++) += yin[j] * (val - yoff[j] - 0.5);
+        	  *(wave++) = yin[j] * (val - yoff[j] - 0.5);
         	  cp += 2;
         	}
       for(; i < width; i++) {

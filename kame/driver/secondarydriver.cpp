@@ -111,20 +111,20 @@ XSecondaryDriver::connect(const shared_ptr<XItemNodeBase> &item, bool check_deep
         item->beforeValueChanged().connect(m_lsnBeforeItemChanged);
     else
         m_lsnBeforeItemChanged = item->beforeValueChanged().connectWeak(
-                false, shared_from_this(), &XSecondaryDriver::beforeItemChanged);
+                shared_from_this(), &XSecondaryDriver::beforeItemChanged);
 	if(check_deep_dep) {
 	    if(m_lsnOnItemChangedCheckDeepDep)
 	        item->onValueChanged().connect(m_lsnOnItemChangedCheckDeepDep);
 	    else
 	        m_lsnOnItemChangedCheckDeepDep = item->onValueChanged().connectWeak(
-	                false, shared_from_this(), &XSecondaryDriver::onItemChangedCheckDeepDep);
+	             shared_from_this(), &XSecondaryDriver::onItemChangedCheckDeepDep);
 	}
 	else {
 	    if(m_lsnOnItemChanged)
 	        item->onValueChanged().connect(m_lsnOnItemChanged);
 	    else
 	        m_lsnOnItemChanged = item->onValueChanged().connectWeak(
-	                false, shared_from_this(), &XSecondaryDriver::onItemChanged);
+	           shared_from_this(), &XSecondaryDriver::onItemChanged);
 	}
 }
 void
@@ -173,7 +173,7 @@ XSecondaryDriver::onItemChanged(const shared_ptr<XValueNodeBase> &node) {
             driver->onRecord().connect(m_lsnOnRecord);
         else
             m_lsnOnRecord = driver->onRecord().connectWeak(
-                false, shared_from_this(), &XSecondaryDriver::onConnectedRecorded);
+                shared_from_this(), &XSecondaryDriver::onConnectedRecorded);
     }
 
     m_connection_mutex.writeUnlock();

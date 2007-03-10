@@ -28,7 +28,8 @@ XQPulserDriverConnector::XQPulserDriverConnector(
 {
   shared_ptr<XPulser> pulser(node);    
   m_lsnOnPulseChanged = pulser->onRecord().connectWeak(
-         true, shared_from_this(), &XQPulserDriverConnector::onPulseChanged, true, 50);
+         shared_from_this(), &XQPulserDriverConnector::onPulseChanged,
+         XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
   
   m_pTable->setNumCols(3);
   double def = 50;

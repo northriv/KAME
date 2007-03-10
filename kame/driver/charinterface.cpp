@@ -48,9 +48,9 @@ XCharInterface::XCharInterface(const char *name, bool runtime, const shared_ptr<
   baudrate()->value(9600);
   
   m_lsnOnSendRequested = m_script_send->onValueChanged().connectWeak(
-            false, shared_from_this(), &XCharInterface::onSendRequested);
+            shared_from_this(), &XCharInterface::onSendRequested);
   m_lsnOnQueryRequested = m_script_query->onValueChanged().connectWeak(
-            false, shared_from_this(), &XCharInterface::onQueryRequested);
+            shared_from_this(), &XCharInterface::onQueryRequested);
 }
 void
 XCharInterface::setEOS(const char *str) {

@@ -304,7 +304,8 @@ XPulser::XPulser(const char *name, bool runtime,
   m_conMoreConfigShow = xqcon_create<XQButtonConnector>(
         m_moreConfigShow, m_form->m_btnMoreConfig);
   m_lsnOnMoreConfigShow = m_moreConfigShow->onTouch().connectWeak(
-                      true, shared_from_this(), &XPulser::onMoreConfigShow, true);
+                      shared_from_this(), &XPulser::onMoreConfigShow,
+                      XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
   
   m_conOutput = xqcon_create<XQToggleButtonConnector>(m_output, m_form->m_ckbOutput);
   m_conCombMode = xqcon_create<XQComboBoxConnector>(m_combMode, m_form->m_cmbCombMode);
@@ -461,7 +462,7 @@ XPulser::start()
   }
 
   m_lsnOnPulseChanged = combMode()->onValueChanged().connectWeak(
-                         false, shared_from_this(), &XPulser::onPulseChanged);
+                         shared_from_this(), &XPulser::onPulseChanged);
   rtime()->onValueChanged().connect(m_lsnOnPulseChanged);
   tau()->onValueChanged().connect(m_lsnOnPulseChanged);
   combPW()->onValueChanged().connect(m_lsnOnPulseChanged);

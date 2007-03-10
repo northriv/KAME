@@ -121,7 +121,7 @@ XEntryListConnector::onCatch(const shared_ptr<XNode> &node)
     driver->onRecord().connect(m_lsnOnRecord);
   else
     m_lsnOnRecord = driver->onRecord().connectWeak(
-        false, shared_from_this(), &XEntryListConnector::onRecord);
+        shared_from_this(), &XEntryListConnector::onRecord);
 
   m_cons.push_back(shared_ptr<tcons>(new tcons));
   m_cons.back()->entry = entry;
@@ -136,7 +136,8 @@ XEntryListConnector::onCatch(const shared_ptr<XNode> &node)
   m_cons.back()->driver = driver;
   m_cons.back()->tlkOnRecordRedirected.reset(new XTalker<tcons::tlisttext>);
   m_cons.back()->lsnOnRecordRedirected = m_cons.back()->tlkOnRecordRedirected->connectWeak(
-        true, m_cons.back(), &XEntryListConnector::tcons::onRecordRedirected, true, 30);
+        m_cons.back(), &XEntryListConnector::tcons::onRecordRedirected,
+        XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
   
 
   ASSERT(m_pItem->numRows() == (int)m_cons.size());

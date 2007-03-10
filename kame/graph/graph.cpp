@@ -64,7 +64,7 @@ XGraph::XGraph(const char *name, bool runtime) :
     XNode(name, runtime),
     m_bUpdateScheduled(false),
     m_label(create<XStringNode>("Label", true)),
-    m_lsnPropertyChanged(label()->onValueChanged().connectWeak(false, shared_from_this(),
+    m_lsnPropertyChanged(label()->onValueChanged().connectWeak(shared_from_this(),
         &XGraph::onPropertyChanged)),
     m_axes(create<XAxisList>("Axes", true)),
     m_plots(create<XPlotList>("Plots", true)),
@@ -224,9 +224,9 @@ XPlot::XPlot(const char *name, bool runtime, const shared_ptr<XGraph> &graph)
   colorPlotColorLow()->value(clBlue);
     
   m_lsnMaxCount = maxCount()->onValueChanged().connectWeak
-        (false, shared_from_this(), &XPlot::onSetMaxCount);
+        (shared_from_this(), &XPlot::onSetMaxCount);
   m_lsnClearPoints = clearPoints()->onTouch().connectWeak
-        (false, shared_from_this(), &XPlot::onClearPoints);
+        (shared_from_this(), &XPlot::onClearPoints);
 
   drawLines()->onValueChanged().connect(graph->lsnPropertyChanged());
   drawBars()->onValueChanged().connect(graph->lsnPropertyChanged());

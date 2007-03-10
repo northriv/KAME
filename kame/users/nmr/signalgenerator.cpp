@@ -61,13 +61,13 @@ XSG::start()
   m_fmON->setUIEnabled(true);
         
   m_lsnOLevel = oLevel()->onValueChanged().connectWeak(
-                         false, shared_from_this(), &XSG::onOLevelChanged);
+                         shared_from_this(), &XSG::onOLevelChanged);
   m_lsnFreq = freq()->onValueChanged().connectWeak(
-                         false, shared_from_this(), &XSG::onFreqChanged);
+                         shared_from_this(), &XSG::onFreqChanged);
   m_lsnAMON = amON()->onValueChanged().connectWeak(
-                         false, shared_from_this(), &XSG::onAMONChanged);
+                         shared_from_this(), &XSG::onAMONChanged);
   m_lsnFMON = fmON()->onValueChanged().connectWeak(
-                         false, shared_from_this(), &XSG::onFMONChanged);
+                         shared_from_this(), &XSG::onFMONChanged);
 }
 void
 XSG::stop()

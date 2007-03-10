@@ -97,7 +97,8 @@ XInterfaceListConnector::onCatch(const shared_ptr<XNode> &node) {
   con.conaddr = xqcon_create<XQSpinBoxConnector>(interface->address(), numAddr);
   m_pItem->setCellWidget(i, 4, numAddr);
   con.lsnOnControlChanged = interface->control()->onValueChanged().connectWeak(
-        true, shared_from_this(), &XInterfaceListConnector::onControlChanged, true);
+        shared_from_this(), &XInterfaceListConnector::onControlChanged,
+		XListener::FLAG_MAIN_THREAD_CALL);
   m_cons.push_back(con);
   onControlChanged(interface->control());
 }

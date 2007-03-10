@@ -4,6 +4,7 @@ kame_SOURCES = measure.cpp measure.h \
 	kame.cpp kame.h \
 	xnodeconnector.cpp xnodeconnector.h \
 	xsignal.cpp xsignal.h xsignal_prv.h \
+	xscheduler.cpp xscheduler.h \
 	thread.cpp thread.h \
 	atomic.h atomic_smart_ptr.h atomic_queue.h \
 	threadlocal.cpp threadlocal.h \

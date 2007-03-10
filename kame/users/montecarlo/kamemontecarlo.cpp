@@ -214,12 +214,12 @@ XMonteCarloDriver::start()
     m_lastMagnetization = m_loop->magnetization().innerProduct(field_dir);
 
     m_lsnTargetChanged = m_targetTemp->onValueChanged().connectWeak(
-                  false, shared_from_this(), &XMonteCarloDriver::onTargetChanged);
+                  shared_from_this(), &XMonteCarloDriver::onTargetChanged);
     m_targetField->onValueChanged().connect(m_lsnTargetChanged);
     m_lsnStepTouched = m_step->onTouch().connectWeak(
-                  false, shared_from_this(), &XMonteCarloDriver::onStepTouched);
+                  shared_from_this(), &XMonteCarloDriver::onStepTouched);
     m_lsnGraphChanged = m_graph3D->onValueChanged().connectWeak(
-                  false, shared_from_this(), &XMonteCarloDriver::onGraphChanged);
+                  shared_from_this(), &XMonteCarloDriver::onGraphChanged);
 
     if(m_fftlen > 0)
         fftwnd_destroy_plan(m_fftplan);

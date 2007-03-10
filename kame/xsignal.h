@@ -14,11 +14,6 @@
 #ifndef signalH
 #define signalH
 
-/*!
-* M/M Signal & Slot system
-* Listener is called by the current thread or will be called by the main thread.
-*/
-
 #include "support.h"
 #include "xtime.h"
 #include "thread.h"
@@ -45,16 +40,18 @@ class XListener
   //! use this with owner's responsibility.
   //! \sa mask(), _XTalkerBase::unmask()
   void unmask();
+  //! \return an appropriate delay for delayed transactions.
+  unsigned int delay_ms() const;
   
-  unsigned int delay_ms() const {return m_delay_ms;}
+  enum FLAGS {
+  	FLAG_MAIN_THREAD_CALL = 0x01, FLAG_AVOID_DUP = 0x02, FLAG_MASKED = 0x04,
+  	FLAG_DELAY_SHORT = 0x100, FLAG_DELAY_ADAPTIVE = 0x200
+  };
  protected:
   template <class tArg>
   friend class XTalker;
-  XListener(bool mainthreadcall, bool avoid_dup, unsigned int delay_ms);
-  const bool m_bMainThreadCall;
-  const bool m_bAvoidDup;
-  const unsigned int m_delay_ms;
-  atomic<bool> m_bMasked;
+  XListener(FLAGS flags);
+  atomic<FLAGS> m_flags;
 };
 
 #include "xsignal_prv.h"
@@ -87,6 +84,8 @@ struct _XTransaction
     virtual bool talkBuffered() = 0;
 };
 
+void registerTransactionList(_XTransaction *);
+
 //! M/M Listener and Talker model
 //! \sa XListener, XSignalStore
 //! \p tArg: value which will be derivered
@@ -95,64 +94,42 @@ template <class tArg>
 class XTalker : public _XTalkerBase
 {
  public:
-  XTalker();
-  virtual ~XTalker();
+  XTalker() {}
+  virtual ~XTalker() {}
   
   //! Associate XTalker to XListener
   //! Talker will call user member function of \a listener.
   //! This function can be called over once.
   //! \sa disconnect(), mask(), unmask()
   //! XListener holds a pointer of a static function
-  //! \param mainthreadcall if true, listener is called by the main thread.
-  //!        this is useful to handle with GUI.
   //! \param func a pointer to static function
-  //! \param avoid_dup If \a mainthreadcall is true,
-  //!        when stored signals to the listener are duplicated,
-  //!        this signal is copied to the first request.
-  //! \param delay_ms If non-zero, this signal is buffered at least this \a delay_ms.
-  //!        ignored if avoid_dup is false.
+  //! \param flags \sa XListener::FLAGS
   //! \return shared_ptr to \p XListener.
-  shared_ptr<XListener> connectStatic(bool mainthreadcall, 
-    void (*func)(const tArg &),
-    bool avoid_dup = false, unsigned int delay_ms = 0);
+  shared_ptr<XListener> connectStatic(void (*func)(const tArg &), int flags = 0);
   //! Associate XTalker to XListener
   //! Talker will call user member function of \a listener.
   //! This function can be called over once.
   //! \sa disconnect(), mask(), unmask()
   //! XListener holds weak_ptr() of the instance
-  //! \param mainthreadcall if true, listener is called by the main thread.
-  //!        this is useful to handle with GUI.
   //! \param obj a pointer to object
   //! \param func a pointer to member function
-  //! \param avoid_dup If \a mainthreadcall is true,
-  //!        when stored signals to the listener are duplicated,
-  //!        this signal is copied to the first request.
-  //! \param delay_ms If non-zero, this signal is buffered at least this \a delay_ms.
-  //!        ignored if avoid_dup is false.
+  //! \param flags \sa XListener::FLAGS
   //! \return shared_ptr to \p XListener.
   template <class tObj, class tClass>
-  shared_ptr<XListener> connectWeak(bool mainthreadcall, const shared_ptr<tObj> &obj,
-    void (tClass::*func)(const tArg &),
-    bool avoid_dup = false, unsigned int delay_ms = 0);
+  shared_ptr<XListener> connectWeak(const shared_ptr<tObj> &obj,
+    void (tClass::*func)(const tArg &), int flags = 0);
   //! Associate XTalker to XListener
   //! Talker will call user member function of \a listener.
   //! This function can be called over once.
   //! \sa disconnect(), mask(), unmask()
   //! XListener holds shared_ptr() of the instance
-  //! \param mainthreadcall if true, listener is called by the main thread.
-  //!        this is useful to handle with GUI.
   //! \param obj a pointer to object
   //! \param func a pointer to member function
-  //! \param avoid_dup If \a mainthreadcall is true,
-  //!        when stored signals to the listener are duplicated,
-  //!        this signal is copied to the first request.
-  //! \param delay_ms If non-zero, this signal is buffered at least this \a delay_ms.
-  //!        ignored if avoid_dup is false.
+  //! \param flags \sa XListener::FLAGS
   //! \return shared_ptr to \p XListener.
   template <class tObj, class tClass>
-  shared_ptr<XListener> connectShared(bool mainthreadcall, const shared_ptr<tObj> &obj,
-    void (tClass::*func)(const tArg &),
-    bool avoid_dup = false, unsigned int delay_ms = 0);
+  shared_ptr<XListener> connectShared(const shared_ptr<tObj> &obj,
+    void (tClass::*func)(const tArg &), int flags = 0);
     
   void connect(const shared_ptr<XListener> &);
   void disconnect(const shared_ptr<XListener> &);
@@ -173,15 +150,13 @@ class XTalker : public _XTalkerBase
   atomic_shared_ptr<ListenerList> m_listeners;
   void connect(const shared_ptr<Listener> &);
   
-  struct Transaction : public _XTransaction
-  {   
+  struct Transaction : public _XTransaction {   
         Transaction(const shared_ptr<Listener> &l) :
              _XTransaction(), listener(l) {}
         const shared_ptr<Listener> listener;
         virtual bool talkBuffered() = 0;
   };
-  struct TransactionAllowDup : public XTalker<tArg>::Transaction
-  {   
+  struct TransactionAllowDup : public XTalker<tArg>::Transaction {   
         TransactionAllowDup(const shared_ptr<Listener> &l, const tArg &a) :
              XTalker<tArg>::Transaction(l), arg(a) {}
         const tArg arg;
@@ -190,8 +165,7 @@ class XTalker : public _XTalkerBase
             return false;
         }
   };
-  struct TransactionAvoidDup : public XTalker<tArg>::Transaction
-  {   
+  struct TransactionAvoidDup : public XTalker<tArg>::Transaction {   
         TransactionAvoidDup(const shared_ptr<Listener> &l) :
              XTalker<tArg>::Transaction(l) {}
         virtual bool talkBuffered() {
@@ -212,85 +186,50 @@ class XTalker : public _XTalkerBase
   };  
 };
 
-template <typename T, unsigned int SIZE> class atomic_pointer_queue;
-
-//! Synchronize requests in talkers with main-thread
-//! \sa XTalker, XListener
-class XSignalBuffer
-{
- public:
-  XSignalBuffer();
-  ~XSignalBuffer();
-  //! Called by XTalker
-  void registerTransactionList(_XTransaction *);
-  //! be called by thread pool
-  bool synchronize(); //return true if not busy
-  
- private:
-  typedef atomic_pointer_queue<_XTransaction, 10000> Queue;
-  const scoped_ptr<Queue> m_queue;
-  atomic<unsigned long> m_queue_oldest_timestamp;
-};
-
-extern shared_ptr<XSignalBuffer> g_signalBuffer;
-
 // template definitions below.
-
-template <class tArg>
-XTalker<tArg>::XTalker()
- : m_listeners() {  
-}
-template <class tArg>
-XTalker<tArg>::~XTalker() {
-}
 template <class tArg>
 shared_ptr<XListener>
-XTalker<tArg>::connectStatic(bool mainthreadcall, 
+XTalker<tArg>::connectStatic(
     void (*func)(const tArg &),
-    bool avoid_dup, unsigned int delay_ms)
-{
+    int flags) {
     shared_ptr<Listener> listener(
-        new _XListenerStatic<tArg>(func, mainthreadcall, avoid_dup, delay_ms) );
+        new _XListenerStatic<tArg>(func, (XListener::FLAGS)flags) );
     connect(listener);
     return listener;
 }
 template <class tArg>
 template <class tObj, class tClass>
 shared_ptr<XListener>
-XTalker<tArg>::connectShared(bool mainthreadcall, const shared_ptr<tObj> &obj,
+XTalker<tArg>::connectShared(const shared_ptr<tObj> &obj,
     void (tClass::*func)(const tArg &),
-    bool avoid_dup, unsigned int delay_ms)
-{
+    int flags) {
     shared_ptr<Listener> listener(
         new _XListenerShared<tClass, tArg>(
-        dynamic_pointer_cast<tClass>(obj), func, mainthreadcall, avoid_dup, delay_ms) );
+        dynamic_pointer_cast<tClass>(obj), func, (XListener::FLAGS)flags) );
     connect(listener);
     return listener;
 }
 template <class tArg>
 template <class tObj, class tClass>
 shared_ptr<XListener>
-XTalker<tArg>::connectWeak(bool mainthreadcall, const shared_ptr<tObj> &obj,
+XTalker<tArg>::connectWeak(const shared_ptr<tObj> &obj,
     void (tClass::*func)(const tArg &),
-    bool avoid_dup, unsigned int delay_ms)
-{
+    int flags) {
     shared_ptr<Listener> listener(
         new _XListenerWeak<tClass, tArg>(
-        dynamic_pointer_cast<tClass>(obj), func, mainthreadcall, avoid_dup, delay_ms) );
+        dynamic_pointer_cast<tClass>(obj), func, (XListener::FLAGS)flags) );
     connect(listener);
     return listener;
 }
 template <class tArg>
 void
-XTalker<tArg>::connect(const shared_ptr<XListener> &lx)
-{
+XTalker<tArg>::connect(const shared_ptr<XListener> &lx) {
     shared_ptr<Listener> listener = dynamic_pointer_cast<Listener>(lx);
     connect(listener);
 }
 template <class tArg>
 void
-XTalker<tArg>::connect(const shared_ptr<Listener> &lx)
-{
+XTalker<tArg>::connect(const shared_ptr<Listener> &lx) {
     for(;;) {
         atomic_shared_ptr<ListenerList> old_list(m_listeners);
         atomic_shared_ptr<ListenerList> new_list(
@@ -308,8 +247,7 @@ XTalker<tArg>::connect(const shared_ptr<Listener> &lx)
 }
 template <class tArg>
 void
-XTalker<tArg>::disconnect(const shared_ptr<XListener> &lx)
-{
+XTalker<tArg>::disconnect(const shared_ptr<XListener> &lx) {
     for(;;) {
         atomic_shared_ptr<ListenerList> old_list(m_listeners);
         atomic_shared_ptr<ListenerList> new_list(
@@ -331,19 +269,16 @@ XTalker<tArg>::disconnect(const shared_ptr<XListener> &lx)
 
 template <class tArg>
 void
-XTalker<tArg>::talk(const tArg &arg)
-{
+XTalker<tArg>::talk(const tArg &arg) {
   if(m_bMasked) return;  
-  
   if(empty()) return;
   atomic_shared_ptr<ListenerList> list(m_listeners);
   if(!list) return;
-
   for(ListenerList_it it = list->begin(); it != list->end(); it++)
   {
     if(shared_ptr<Listener> listener = it->lock()) {
-        if(!listener->m_bMasked) {
-            if(isMainThread() || !listener->m_bMainThreadCall) {
+        if((listener->m_flags & XListener::FLAG_MASKED) == 0) {
+            if(isMainThread() || ((listener->m_flags & XListener::FLAG_MAIN_THREAD_CALL) == 0)) {
                 try {
                   (*listener)(arg);
                 }
@@ -358,17 +293,15 @@ XTalker<tArg>::talk(const tArg &arg)
 //                }
             }
             else {
-        		   if(listener->m_bAvoidDup) {
-                    atomic_scoped_ptr<tArg> newarg(new tArg(arg) );
+    		   if(listener->m_flags & XListener::FLAG_AVOID_DUP) {
+                atomic_scoped_ptr<tArg> newarg(new tArg(arg) );
                     newarg.swap(listener->arg);
-                    if(!newarg.get()) {
-                         g_signalBuffer->registerTransactionList(
-                            new TransactionAvoidDup(listener));
-                    }
-        		    }
+	                if(!newarg.get()) {
+	                     registerTransactionList(new TransactionAvoidDup(listener));
+	                }
+    		    }
                 else {
-                     g_signalBuffer->registerTransactionList(
-                            new TransactionAllowDup(listener, arg));
+                     registerTransactionList(new TransactionAllowDup(listener, arg));
           		}
             }
         }

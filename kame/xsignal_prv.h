@@ -18,8 +18,8 @@ template <class Arg>
 class _XListenerImpl : public XListener
 {
  protected:
-  _XListenerImpl(bool mainthreadcall, bool avoid_dup, unsigned int _delay_ms)
-    : XListener(mainthreadcall, avoid_dup, _delay_ms), arg() {}
+  _XListenerImpl(XListener::FLAGS flags)
+    : XListener(flags), arg() {}
  public:
   virtual ~_XListenerImpl() {}
   virtual void operator() (const Arg &) const = 0;
@@ -32,8 +32,8 @@ class _XListenerStatic : public _XListenerImpl<Arg>
   friend class XTalker<Arg>;
  protected:
   _XListenerStatic(void (*func)(const Arg &),
-    bool mainthreadcall, bool avoid_dup, unsigned int _delay_ms) :
-    _XListenerImpl<Arg>(mainthreadcall, avoid_dup, _delay_ms), m_func(func) {
+    XListener::FLAGS flags) :
+    _XListenerImpl<Arg>(flags), m_func(func) {
     }
  public:
   virtual void operator() (const Arg &x) const {
@@ -48,8 +48,8 @@ class _XListenerWeak : public _XListenerImpl<Arg>
   friend class XTalker<Arg>;
  protected:
   _XListenerWeak(const shared_ptr<tClass> &obj, void (tClass::*func)(const Arg &),
-    bool mainthreadcall, bool avoid_dup, unsigned int _delay_ms) :
-    _XListenerImpl<Arg>(mainthreadcall, avoid_dup, _delay_ms), m_func(func), m_obj(obj) {
+    XListener::FLAGS flags) :
+    _XListenerImpl<Arg>(flags), m_func(func), m_obj(obj) {
         ASSERT(obj);
     }
  public:
@@ -66,8 +66,8 @@ class _XListenerShared : public _XListenerImpl<Arg>
   friend class XTalker<Arg>;
  protected:
   _XListenerShared(const shared_ptr<tClass> &obj, void (tClass::*func)(const Arg &),
-    bool mainthreadcall, bool avoid_dup, unsigned int delay_ms) :
-    _XListenerImpl<Arg>(mainthreadcall, avoid_dup, delay_ms), m_obj(obj), m_func(func)   {
+    XListener::FLAGS flags) :
+    _XListenerImpl<Arg>(flags), m_obj(obj), m_func(func)   {
         ASSERT(obj);
    }
  public:

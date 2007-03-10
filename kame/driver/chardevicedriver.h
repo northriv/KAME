@@ -57,9 +57,9 @@ XCharDeviceDriver<tDriver, tInterface>::XCharDeviceDriver(const char *name, bool
             dynamic_pointer_cast<XDriver>(this->shared_from_this())))
 {
     interfaces->insert(m_interface);
-    m_lsnOnOpen = interface()->onOpen().connectWeak(false,
+    m_lsnOnOpen = interface()->onOpen().connectWeak(
     	 this->shared_from_this(), &XCharDeviceDriver<tDriver, tInterface>::onOpen);
-    m_lsnOnClose = interface()->onClose().connectWeak(false, 
+    m_lsnOnClose = interface()->onClose().connectWeak( 
     	this->shared_from_this(), &XCharDeviceDriver<tDriver, tInterface>::onClose);
 }
 template<class tDriver, class tInterface>

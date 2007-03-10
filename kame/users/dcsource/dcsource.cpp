@@ -58,11 +58,11 @@ XDCSource::start()
   m_value->setUIEnabled(true);
         
   m_lsnOutput = output()->onValueChanged().connectWeak(
-                          false, shared_from_this(), &XDCSource::onOutputChanged);
+                          shared_from_this(), &XDCSource::onOutputChanged);
   m_lsnFunction = function()->onValueChanged().connectWeak(
-                          false, shared_from_this(), &XDCSource::onFunctionChanged);
+                          shared_from_this(), &XDCSource::onFunctionChanged);
   m_lsnValue = value()->onValueChanged().connectWeak(
-                        false, shared_from_this(), &XDCSource::onValueChanged);
+                        shared_from_this(), &XDCSource::onValueChanged);
 }
 void
 XDCSource::stop()

@@ -204,12 +204,14 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
   }
   
   m_lsnOnAvgClear = m_avgClear->onTouch().connectWeak(
-                   false, shared_from_this(), &XNMRPulseAnalyzer::onAvgClear);
+                   shared_from_this(), &XNMRPulseAnalyzer::onAvgClear);
   m_lsnOnFFTShow = m_fftShow->onTouch().connectWeak(
-                  true, shared_from_this(), &XNMRPulseAnalyzer::onFFTShow, true);
+                  shared_from_this(), &XNMRPulseAnalyzer::onFFTShow,
+                  XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
   
   m_lsnOnCondChanged = fromTrig()->onValueChanged().connectWeak(
-                     true, shared_from_this(), &XNMRPulseAnalyzer::onCondChanged, true);
+                     shared_from_this(), &XNMRPulseAnalyzer::onCondChanged,
+                     XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
   width()->onValueChanged().connect(m_lsnOnCondChanged);
   phaseAdv()->onValueChanged().connect(m_lsnOnCondChanged);
   useDNR()->onValueChanged().connect(m_lsnOnCondChanged);

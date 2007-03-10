@@ -18,7 +18,6 @@
 
 #define SELECT_WIDTH 0.08
 #define SELECT_DEPTH 0.05
-#define GRAPH_RENDER_DELAY 20
 
 using std::min;
 using std::max;
@@ -40,7 +39,8 @@ XQGraphPainter::XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item) :
 	openFont();
 	item->m_painter.reset(this);
 	m_lsnRedraw = graph->onUpdate().connectWeak(
-        true, shared_from_this(), &XQGraphPainter::onRedraw, true, GRAPH_RENDER_DELAY);
+        shared_from_this(), &XQGraphPainter::onRedraw,
+        XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
 }
 
 float

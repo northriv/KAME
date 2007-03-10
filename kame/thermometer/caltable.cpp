@@ -40,13 +40,13 @@ XConCalTable::XConCalTable
     m_waveform(new FrmGraphNURL(g_pFrmMain)),
     m_wave(createOrphan<XWaveNGraph>("Waveform", true, m_waveform.get()))
 {
-  m_lsnTemp = temp()->onValueChanged().connectWeak(false, 
+  m_lsnTemp = temp()->onValueChanged().connectWeak(
     shared_from_this(),
     &XConCalTable::onTempChanged);
-  m_lsnValue = value()->onValueChanged().connectWeak(false,
+  m_lsnValue = value()->onValueChanged().connectWeak(
     shared_from_this(),
     &XConCalTable::onValueChanged);
-  m_lsnDisplay = display()->onTouch().connectWeak(false,
+  m_lsnDisplay = display()->onTouch().connectWeak(
     shared_from_this(),
     &XConCalTable::onDisplayTouched);
 

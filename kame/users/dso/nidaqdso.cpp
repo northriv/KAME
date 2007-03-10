@@ -144,8 +144,9 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 	vOffset2()->setUIEnabled(false);
 
  	
-	m_lsnOnSoftTrigChanged = XNIDAQmxInterface::SoftwareTrigger::onChange().connectWeak(true,
-		shared_from_this(), &XNIDAQmxDSO::onSoftTrigChanged, true);
+	m_lsnOnSoftTrigChanged = XNIDAQmxInterface::SoftwareTrigger::onChange().connectWeak(
+		shared_from_this(), &XNIDAQmxDSO::onSoftTrigChanged,
+		XListener::FLAG_MAIN_THREAD_CALL);
     createChannels();
 }
 void
@@ -740,7 +741,7 @@ XNIDAQmxDSO::startSequence()
     
 	if(m_softwareTrigger) {
 		if(!m_lsnOnSoftTrigStarted)
-			m_lsnOnSoftTrigStarted = m_softwareTrigger->onStart().connectWeak(false,
+			m_lsnOnSoftTrigStarted = m_softwareTrigger->onStart().connectWeak(
 				shared_from_this(), &XNIDAQmxDSO::onSoftTrigStarted);
 		if(m_running) {
 			clearStoredSoftwareTrigger();

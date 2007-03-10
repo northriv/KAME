@@ -41,7 +41,7 @@ XInterface::XInterface(const char *name, bool runtime, const shared_ptr<XDriver>
     m_control(create<XBoolNode>("Control", true))
 {
   lsnOnControlChanged = control()->onValueChanged().connectWeak(
-        false, shared_from_this(), &XInterface::onControlChanged);
+        shared_from_this(), &XInterface::onControlChanged);
 }
 
 std::string

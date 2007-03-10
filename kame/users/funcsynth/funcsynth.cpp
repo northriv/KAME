@@ -79,21 +79,21 @@ XFuncSynth::start()
     m_offset->setUIEnabled(true);
         
   m_lsnOutput = output()->onValueChanged().connectWeak(
-                        false, shared_from_this(), &XFuncSynth::onOutputChanged);
+                        shared_from_this(), &XFuncSynth::onOutputChanged);
   m_lsnTrig = trig()->onTouch().connectWeak(
-                        false, shared_from_this(), &XFuncSynth::onTrigTouched);
+                        shared_from_this(), &XFuncSynth::onTrigTouched);
   m_lsnMode = mode()->onValueChanged().connectWeak(
-                        false, shared_from_this(), &XFuncSynth::onModeChanged);
+                        shared_from_this(), &XFuncSynth::onModeChanged);
   m_lsnFreq = freq()->onValueChanged().connectWeak(
-                        false, shared_from_this(), &XFuncSynth::onFreqChanged);
+                        shared_from_this(), &XFuncSynth::onFreqChanged);
   m_lsnFunction = function()->onValueChanged().connectWeak(
-                        false, shared_from_this(), &XFuncSynth::onFunctionChanged);
+                        shared_from_this(), &XFuncSynth::onFunctionChanged);
   m_lsnAmp = amp()->onValueChanged().connectWeak(
-                        false, shared_from_this(), &XFuncSynth::onAmpChanged);
+                        shared_from_this(), &XFuncSynth::onAmpChanged);
   m_lsnPhase = phase()->onValueChanged().connectWeak(
-                        false, shared_from_this(), &XFuncSynth::onPhaseChanged);
+                        shared_from_this(), &XFuncSynth::onPhaseChanged);
   m_lsnOffset = offset()->onValueChanged().connectWeak(
-                        false, shared_from_this(), &XFuncSynth::onOffsetChanged);
+                        shared_from_this(), &XFuncSynth::onOffsetChanged);
 }
 void
 XFuncSynth::stop()

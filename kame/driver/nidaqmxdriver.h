@@ -71,20 +71,20 @@ public:
   //! e.g. "PCI", "PXI". Never "PCIe" or "PXIe".
   const char* busArchType() const;
 
-  enum {
+  enum FLAGS {
 	FLAG_BUGGY_DMA_AO = 0x10u, FLAG_BUGGY_DMA_AI = 0x20u, 
 	FLAG_BUGGY_DMA_DI = 0x40u, FLAG_BUGGY_DMA_DO = 0x80u,
 	FLAG_BUGGY_XFER_COND_AO = 0x100u, FLAG_BUGGY_XFER_COND_AI = 0x200u,
 	FLAG_BUGGY_XFER_COND_DI = 0x400u, FLAG_BUGGY_XFER_COND_DO = 0x800u};
   //! e.g. FLAG_BUGGY_DMA_AO.
-  int productFlags() const {return m_productInfo->flags;}
+  FLAGS productFlags() const {return m_productInfo->flags;}
   //! \return 0 if hw timed transfer is not supported.
   double maxAIRate(unsigned int /*num_scans*/) const {return m_productInfo->ai_max_rate;}
   double maxAORate(unsigned int /*num_scans*/) const {return m_productInfo->ao_max_rate;}
   double maxDIRate(unsigned int /*num_scans*/) const {return m_productInfo->di_max_rate;}
   double maxDORate(unsigned int /*num_scans*/) const {return m_productInfo->do_max_rate;}
 	  
-  class SoftwareTrigger : public enable_shared_from_this<SoftwareTrigger> {
+	class SoftwareTrigger : public enable_shared_from_this<SoftwareTrigger> {
 	  protected:
 			SoftwareTrigger(const char *label, unsigned int bits);
 	  public:
@@ -147,7 +147,7 @@ public:
 			XTalker<shared_ptr<SoftwareTrigger> > m_onStart;
 			static XTalker<shared_ptr<SoftwareTrigger> > s_onChange;
 			static atomic_shared_ptr<SoftwareTriggerList> s_virtualTrigList;
-  };
+	};
 protected:
   virtual void open() throw (XInterfaceError &);
   //! This can be called even if has already closed.
@@ -156,7 +156,7 @@ private:
 	struct ProductInfo {
 	  	const char *type;
 	  	const char *series;
-	  	int flags;
+	  	FLAGS flags;
 	  	unsigned long ai_max_rate; //!< [kHz]
 	  	unsigned long ao_max_rate; //!< [kHz]
 	  	unsigned long di_max_rate; //!< [kHz]
@@ -214,9 +214,9 @@ XNIDAQmxDriver<tDriver>::XNIDAQmxDriver(const char *name, bool runtime,
             dynamic_pointer_cast<XDriver>(this->shared_from_this())))
 {
     interfaces->insert(m_interface);
-    m_lsnOnOpen = interface()->onOpen().connectWeak(false,
+    m_lsnOnOpen = interface()->onOpen().connectWeak(
     	 this->shared_from_this(), &XNIDAQmxDriver<tDriver>::onOpen);
-    m_lsnOnClose = interface()->onClose().connectWeak(false, 
+    m_lsnOnClose = interface()->onClose().connectWeak( 
     	this->shared_from_this(), &XNIDAQmxDriver<tDriver>::onClose);
 }
 template<class tDriver>

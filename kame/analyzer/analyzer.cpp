@@ -98,7 +98,7 @@ XValChart::XValChart(const char *name, bool runtime, const shared_ptr<XScalarEnt
     m_graph->label()->value(entry->getLabel());
 
     m_lsnOnRecord = entry->driver()->onRecord().connectWeak(
-        false, shared_from_this(), &XValChart::onRecord);
+        shared_from_this(), &XValChart::onRecord);
 }
 void
 XValChart::onRecord(const shared_ptr<XDriver> &driver)
@@ -121,9 +121,9 @@ XChartList::XChartList(const char *name, bool runtime, const shared_ptr<XScalarE
   m_entries(entries)
 {
     m_lsnOnCatchEntry = entries->onCatch().connectWeak(
-        false, shared_from_this(), &XChartList::onCatchEntry);
+        shared_from_this(), &XChartList::onCatchEntry);
     m_lsnOnReleaseEntry = entries->onRelease().connectWeak(
-        false, shared_from_this(), &XChartList::onReleaseEntry);
+        shared_from_this(), &XChartList::onReleaseEntry);
 }
 
 void
@@ -158,7 +158,8 @@ XValGraph::XValGraph(const char *name, bool runtime,
     m_axisZ(create<tAxis>("AxisZ", false, entries))
 {
     m_lsnAxisChanged = axisX()->onValueChanged().connectWeak(
-        true, shared_from_this(), &XValGraph::onAxisChanged, true);
+        shared_from_this(), &XValGraph::onAxisChanged,
+           XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
     axisY1()->onValueChanged().connect(m_lsnAxisChanged);
     axisZ()->onValueChanged().connect(m_lsnAxisChanged);
 }
@@ -218,12 +219,12 @@ XValGraph::onAxisChanged(const shared_ptr<XValueNodeBase> &)
   m_graph->label()->value(getLabel());
 
   m_lsnLiveChanged = entryx->value()->onValueChanged().connectWeak(
-    false, shared_from_this(), &XValGraph::onLiveChanged);
+    shared_from_this(), &XValGraph::onLiveChanged);
   entryy1->value()->onValueChanged().connect(m_lsnLiveChanged);
   if(entryz) entryz->value()->onValueChanged().connect(m_lsnLiveChanged);
   
   m_lsnStoreChanged = entryx->storedValue()->onValueChanged().connectWeak(
-    false, shared_from_this(), &XValGraph::onStoreChanged);
+    shared_from_this(), &XValGraph::onStoreChanged);
   entryy1->storedValue()->onValueChanged().connect(m_lsnStoreChanged);
   if(entryz) entryz->storedValue()->onValueChanged().connect(m_lsnStoreChanged);
   

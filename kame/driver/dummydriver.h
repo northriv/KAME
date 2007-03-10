@@ -71,9 +71,9 @@ XDummyDriver<tDriver>::XDummyDriver(const char *name, bool runtime,
             dynamic_pointer_cast<XDriver>(this->shared_from_this())))
 {
     interfaces->insert(m_interface);
-    m_lsnOnOpen = interface()->onOpen().connectWeak(false,
+    m_lsnOnOpen = interface()->onOpen().connectWeak(
     	this->shared_from_this(), &XDummyDriver<tDriver>::onOpen);
-    m_lsnOnClose = interface()->onClose().connectWeak(false,
+    m_lsnOnClose = interface()->onClose().connectWeak(
     	this->shared_from_this(), &XDummyDriver<tDriver>::onClose);
 }
 template<class tDriver>

@@ -84,7 +84,8 @@ XQConnector::XQConnector(const shared_ptr<XNode> &node, QWidget *item)
     ASSERT(item);
     XQConnector::s_thisCreating.push_back(shared_ptr<XQConnector>(this));
     m_lsnUIEnabled = node->onUIEnabled().connectWeak
-        (true, shared_from_this(), &XQConnector::onUIEnabled, true, UI_DISP_DELAY);
+        (shared_from_this(), &XQConnector::onUIEnabled,
+        XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
     onUIEnabled(node);
     dbgPrint(QString("connector %1 created., addr=0x%2, size=0x%3")
             .arg(name())
@@ -117,7 +118,7 @@ XQButtonConnector::XQButtonConnector(const shared_ptr<XNode> &node, QButton *ite
   {
     connect(item, SIGNAL( clicked() ), this, SLOT( onClick() ) );
     m_lsnTouch = node->onTouch().connectWeak
-        (true, shared_from_this(), &XQButtonConnector::onTouch, false);
+        (shared_from_this(), &XQButtonConnector::onTouch, XListener::FLAG_MAIN_THREAD_CALL);
   }
 XQButtonConnector::~XQButtonConnector() {
 }
@@ -132,9 +133,11 @@ XQButtonConnector::onTouch(const shared_ptr<XNode> &) {
 XValueQConnector::XValueQConnector(const shared_ptr<XValueNodeBase> &node, QWidget *item)
   : XQConnector(node, item) {
     m_lsnBeforeValueChanged = node->beforeValueChanged().connectWeak(
-        true, shared_from_this(), &XValueQConnector::beforeValueChanged, true, UI_DISP_DELAY);
+        shared_from_this(), &XValueQConnector::beforeValueChanged,
+        XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
     m_lsnValueChanged = node->onValueChanged().connectWeak(
-        true, shared_from_this(), &XValueQConnector::onValueChanged, true, UI_DISP_DELAY);
+        shared_from_this(), &XValueQConnector::onValueChanged,
+        XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
   }
 XValueQConnector::~XValueQConnector() {
 }
@@ -413,12 +416,12 @@ XListQConnector::XListQConnector(const shared_ptr<XListNodeBase> &node, QTable *
   : XQConnector(node, item),
   m_pItem(item), m_list(node) {
     m_lsnMove = node->onMove().connectWeak
-        (true, shared_from_this(),
-                     &XListQConnector::onMove, false);
+        (shared_from_this(),
+         &XListQConnector::onMove, XListener::FLAG_MAIN_THREAD_CALL);
     m_lsnCatch = node->onCatch().connectWeak
-          (true, shared_from_this(), &XListQConnector::onCatch);
+          (shared_from_this(), &XListQConnector::onCatch, XListener::FLAG_MAIN_THREAD_CALL);
     m_lsnRelease = node->onRelease().connectWeak
-          (true, shared_from_this(), &XListQConnector::onRelease);
+          (shared_from_this(), &XListQConnector::onRelease, XListener::FLAG_MAIN_THREAD_CALL);
     m_pItem->setReadOnly(true);
 
     m_pItem->setSelectionMode(QTable::SingleRow);
@@ -464,7 +467,8 @@ XListQConnector::onMove(const XListNodeBase::MoveEvent &e)
 XItemQConnector::XItemQConnector(const shared_ptr<XItemNodeBase> &node, QWidget *item)
   : XValueQConnector(node, item) {
     m_lsnListChanged = node->onListChanged().connectWeak
-        (true, shared_from_this(), &XItemQConnector::onListChanged, true, UI_DISP_DELAY);
+        (shared_from_this(), &XItemQConnector::onListChanged,
+        XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
   }
 XItemQConnector::~XItemQConnector() {
 }
@@ -634,7 +638,8 @@ XStatusPrinter::XStatusPrinter(QMainWindow *window)
     XStatusPrinter::s_thisCreating.push_back(shared_ptr<XStatusPrinter>(this));
 	m_pBar->hide();
 	m_lsn = m_tlkTalker.connectWeak(
-        true, shared_from_this(), &XStatusPrinter::print, true, UI_DISP_DELAY);
+        shared_from_this(), &XStatusPrinter::print,
+        XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
 }
 XStatusPrinter::~XStatusPrinter() {
 }

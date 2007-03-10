@@ -19,7 +19,7 @@ XItemNodeBase::XItemNodeBase(const char *name, bool runtime, bool auto_set_any) 
 {
 	if(auto_set_any) {
 	    m_lsnTryAutoSet = onListChanged().connectWeak(
-	        false, shared_from_this(), 
+	        shared_from_this(), 
 	        &XItemNodeBase::onTryAutoSet);
 	}
 }

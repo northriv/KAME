@@ -96,7 +96,7 @@ XDSO::XDSO(const char *name, bool runtime,
   firSharpness()->value(4.5);
   
   m_lsnOnCondChanged = firEnabled()->onValueChanged().connectWeak(
-                        false, shared_from_this(), &XDSO::onCondChanged);
+                        shared_from_this(), &XDSO::onCondChanged);
   firBandWidth()->onValueChanged().connect(m_lsnOnCondChanged);
   firCenterFreq()->onValueChanged().connect(m_lsnOnCondChanged);
   firSharpness()->onValueChanged().connect(m_lsnOnCondChanged);
@@ -108,7 +108,7 @@ XDSO::XDSO(const char *name, bool runtime,
   }
   fetchMode()->value(FETCHMODE_SEQ);
   
-  average()->setUIEnabled(false);
+//  average()->setUIEnabled(false);
   singleSequence()->setUIEnabled(false);
 //  fetchMode()->setUIEnabled(false);
   timeWidth()->setUIEnabled(false);
@@ -255,35 +255,35 @@ XDSO::execute(const atomic<bool> &terminated)
   int last_count = 0;
   
   m_lsnOnAverageChanged = average()->onValueChanged().connectWeak(
-                           false, shared_from_this(), &XDSO::onAverageChanged);
+                           shared_from_this(), &XDSO::onAverageChanged);
   m_lsnOnSingleChanged = singleSequence()->onValueChanged().connectWeak(
-                          false, shared_from_this(), &XDSO::onSingleChanged);
+                          shared_from_this(), &XDSO::onSingleChanged);
   m_lsnOnTimeWidthChanged = timeWidth()->onValueChanged().connectWeak(
-                          false, shared_from_this(), &XDSO::onTimeWidthChanged);
+                          shared_from_this(), &XDSO::onTimeWidthChanged);
   m_lsnOnTrigSourceChanged = trigSource()->onValueChanged().connectWeak(
-                          false, shared_from_this(), &XDSO::onTrigSourceChanged);
+                          shared_from_this(), &XDSO::onTrigSourceChanged);
   m_lsnOnTrigPosChanged = trigPos()->onValueChanged().connectWeak(
-                          false, shared_from_this(), &XDSO::onTrigPosChanged);
+                          shared_from_this(), &XDSO::onTrigPosChanged);
   m_lsnOnTrigLevelChanged = trigLevel()->onValueChanged().connectWeak(
-                          false, shared_from_this(), &XDSO::onTrigLevelChanged);
+                          shared_from_this(), &XDSO::onTrigLevelChanged);
   m_lsnOnTrigFallingChanged = trigFalling()->onValueChanged().connectWeak(
-                          false, shared_from_this(), &XDSO::onTrigFallingChanged);
+                          shared_from_this(), &XDSO::onTrigFallingChanged);
   m_lsnOnTrace1Changed = trace1()->onValueChanged().connectWeak(
-                          false, shared_from_this(), &XDSO::onTrace1Changed);
+                          shared_from_this(), &XDSO::onTrace1Changed);
   m_lsnOnTrace2Changed = trace2()->onValueChanged().connectWeak(
-                          false, shared_from_this(), &XDSO::onTrace2Changed);
+                          shared_from_this(), &XDSO::onTrace2Changed);
   m_lsnOnVFullScale1Changed = vFullScale1()->onValueChanged().connectWeak(
-                          false, shared_from_this(), &XDSO::onVFullScale1Changed);
+                          shared_from_this(), &XDSO::onVFullScale1Changed);
   m_lsnOnVFullScale2Changed = vFullScale2()->onValueChanged().connectWeak(
-                          false, shared_from_this(), &XDSO::onVFullScale2Changed);
+                          shared_from_this(), &XDSO::onVFullScale2Changed);
   m_lsnOnVOffset1Changed = vOffset1()->onValueChanged().connectWeak(
-                          false, shared_from_this(), &XDSO::onVOffset1Changed);
+                          shared_from_this(), &XDSO::onVOffset1Changed);
   m_lsnOnVOffset2Changed = vOffset2()->onValueChanged().connectWeak(
-                          false, shared_from_this(), &XDSO::onVOffset2Changed);
+                          shared_from_this(), &XDSO::onVOffset2Changed);
   m_lsnOnForceTriggerTouched = forceTrigger()->onTouch().connectWeak(
-                          false, shared_from_this(), &XDSO::onForceTriggerTouched);
+                          shared_from_this(), &XDSO::onForceTriggerTouched);
   m_lsnOnRecordLengthChanged = recordLength()->onValueChanged().connectWeak(
-                          false, shared_from_this(), &XDSO::onRecordLengthChanged);
+                          shared_from_this(), &XDSO::onRecordLengthChanged);
 
   while(!terminated) {
 	  const int fetch_mode = *fetchMode();

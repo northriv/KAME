@@ -36,8 +36,8 @@ XRuby::XRuby(const char *name, bool runtime, const shared_ptr<XMeasure> &measure
   m_measure(measure), 
   m_thread(shared_from_this(), &XRuby::execute)
 {
-    m_lsnCreateChild = m_tlkCreateChild.connectWeak(true, shared_from_this(),
-        &XRuby::onCreateChild);
+    m_lsnCreateChild = m_tlkCreateChild.connectWeak(shared_from_this(),
+        &XRuby::onCreateChild, XListener::FLAG_MAIN_THREAD_CALL);
 }
 XRuby::~XRuby()
 {

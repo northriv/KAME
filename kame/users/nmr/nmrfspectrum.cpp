@@ -79,11 +79,12 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
   freqStep()->value(1);
 
   m_lsnOnClear = m_clear->onTouch().connectWeak(
-                   false, shared_from_this(), &XNMRFSpectrum::onClear);
+                   shared_from_this(), &XNMRFSpectrum::onClear);
   m_lsnOnActiveChanged = active()->onValueChanged().connectWeak(  
-                            false, shared_from_this(), &XNMRFSpectrum::onActiveChanged);
+                            shared_from_this(), &XNMRFSpectrum::onActiveChanged);
   m_lsnOnCondChanged = centerFreq()->onValueChanged().connectWeak(
-                     true, shared_from_this(), &XNMRFSpectrum::onCondChanged, true);
+                     shared_from_this(), &XNMRFSpectrum::onCondChanged,
+                     XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
   m_bandWidth->onValueChanged().connect(m_lsnOnCondChanged);
   m_freqSpan->onValueChanged().connect(m_lsnOnCondChanged);
   m_freqStep->onValueChanged().connect(m_lsnOnCondChanged);

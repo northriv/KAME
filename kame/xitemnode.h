@@ -50,10 +50,10 @@ class XPointerItemNode : public XItemNodeBase
    :  XItemNodeBase(name, runtime, auto_set_any)
     , m_var(new shared_ptr<XNode>()), m_list(list) {
     m_lsnOnItemReleased = list->onRelease().connectWeak(
-        false, shared_from_this(), 
+        shared_from_this(), 
         &XPointerItemNode<TL>::onItemReleased);
     m_lsnOnListChanged = list->onListChanged().connectWeak(
-        false, shared_from_this(), 
+        shared_from_this(), 
         &XPointerItemNode<TL>::lsnOnListChanged);
     }
  public:

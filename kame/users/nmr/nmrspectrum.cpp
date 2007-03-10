@@ -75,9 +75,10 @@ XNMRSpectrum::XNMRSpectrum(const char *name, bool runtime,
   fieldMax()->value(0.1);
 
   m_lsnOnClear = m_clear->onTouch().connectWeak(
-                   false, shared_from_this(), &XNMRSpectrum::onClear);
+                   shared_from_this(), &XNMRSpectrum::onClear);
   m_lsnOnCondChanged = centerFreq()->onValueChanged().connectWeak(
-                     true, shared_from_this(), &XNMRSpectrum::onCondChanged, true);
+                     shared_from_this(), &XNMRSpectrum::onCondChanged,
+                     XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
   m_bandWidth->onValueChanged().connect(m_lsnOnCondChanged);
   m_resolution->onValueChanged().connect(m_lsnOnCondChanged);
   m_fieldFactor->onValueChanged().connect(m_lsnOnCondChanged);

@@ -180,9 +180,9 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
     m_conPulse2 = xqcon_create<XQComboBoxConnector>(m_pulse2, m_form->m_cmbPulse2);
         
   m_lsnOnActiveChanged = active()->onValueChanged().connectWeak(
-                            false, shared_from_this(), &XNMRT1::onActiveChanged);
+                            shared_from_this(), &XNMRT1::onActiveChanged);
   m_lsnOnCondChanged = p1Max()->onValueChanged().connectWeak(
-						    false, shared_from_this(), &XNMRT1::onCondChanged);
+						    shared_from_this(), &XNMRT1::onCondChanged);
   p1Min()->onValueChanged().connect(m_lsnOnCondChanged);
   phase()->onValueChanged().connect(m_lsnOnCondChanged);
   smoothSamples()->onValueChanged().connect(m_lsnOnCondChanged);
@@ -194,9 +194,9 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
   t2Mode()->onValueChanged().connect(m_lsnOnCondChanged);
   
   m_lsnOnClearAll = m_clearAll->onTouch().connectWeak(
-        false, shared_from_this(), &XNMRT1::onClearAll);
+        shared_from_this(), &XNMRT1::onClearAll);
   m_lsnOnResetFit = m_resetFit->onTouch().connectWeak(
-        false, shared_from_this(), &XNMRT1::onResetFit);
+        shared_from_this(), &XNMRT1::onResetFit);
 }
 void
 XNMRT1::showForms()
