@@ -297,11 +297,11 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
   
   const bool t2mode = *t2Mode();
   const shared_ptr<XNMRPulseAnalyzer> _pulse1 = *pulse1();
-  ASSERT( _pulse1 );
-  ASSERT( _pulse1->time() );
     
   // read spectra from NMRPulseAnalyzers
   if( emitter != shared_from_this() ) {
+	  ASSERT( _pulse1 );
+	  ASSERT( _pulse1->time() );
       shared_ptr<XPulser> _pulser = *pulser();
       shared_ptr<XNMRPulseAnalyzer> _pulse2 = *pulse2();
       ASSERT( _pulser );

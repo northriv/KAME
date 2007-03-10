@@ -24,8 +24,7 @@ public:
     struct nospace_error {};
     
     atomic_nonzero_value_queue() : m_pFirst(m_ptrs), m_pLast(m_ptrs), m_count(0) {
-    	for(unsigned int i = 0; i < SIZE; i++)
-    		m_ptrs[i] = 0;
+    	memset(m_ptrs, 0, SIZE * sizeof(T));
     }
 
     void push(T t) {
