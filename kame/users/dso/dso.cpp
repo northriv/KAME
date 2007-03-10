@@ -234,16 +234,16 @@ XDSO::visualize()
           
       m_waveForm->setRowCount(length);
     
-      double *const times = m_waveForm->cols(0);
-      for(unsigned int i = 0; i < length; i++)
-        {
-          times[i] = (i - trigPosDisp()) * timeIntervalDisp();
+      double *times = m_waveForm->cols(0);
+      double tint = timeIntervalDisp();
+      double t = -trigPosDisp() * tint;
+      for(unsigned int i = 0; i < length; i++) {
+          *times++ = t;
+          t += tint;
         }
         
       for(unsigned int i = 0; i < num_channels; i++) {
-        for(unsigned int k = 0; k < length; k++) {
-            m_waveForm->cols(i + 1)[k] = waveDisp(i)[k];
-        }
+      	 memcpy(m_waveForm->cols(i + 1), waveDisp(i), length * sizeof(double));
       }
   }
 }
@@ -411,8 +411,7 @@ XDSO::convertRawToDisp() throw (XRecordError&) {
      for(unsigned int i = 0; i < num_channels; i++) {
         m_fir.doFIR(waveDisp(i), 
                 &buf[0], length);
-        for(unsigned int j = 0; j < length; j++)
-             waveDisp(i)[j] = buf[j];
+        memcpy(waveDisp(i), &buf[0], length * sizeof(double));
      }
   }
 }
@@ -431,5 +430,5 @@ XDSO::analyzeRaw() throw (XRecordError&) {
 	m_wavesRecorded.resize(m_wavesDisp.size());
 	m_trigPosRecorded = m_trigPosDisp;
 	m_timeIntervalRecorded = m_timeIntervalDisp;
-    std::copy(m_wavesDisp.begin(), m_wavesDisp.end(), m_wavesRecorded.begin());
+	memcpy(&m_wavesRecorded[0], &m_wavesDisp[0], lengthDisp() * sizeof(double));
 }
