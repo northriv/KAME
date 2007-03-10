@@ -430,5 +430,5 @@ XDSO::analyzeRaw() throw (XRecordError&) {
 	m_wavesRecorded.resize(m_wavesDisp.size());
 	m_trigPosRecorded = m_trigPosDisp;
 	m_timeIntervalRecorded = m_timeIntervalDisp;
-	memcpy(&m_wavesRecorded[0], &m_wavesDisp[0], lengthDisp() * sizeof(double));
+	memcpy(&m_wavesRecorded[0], &m_wavesDisp[0], m_wavesDisp.size() * sizeof(double));
 }
