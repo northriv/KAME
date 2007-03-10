@@ -63,6 +63,7 @@ XDSO::XDSO(const char *name, bool runtime,
   m_waveForm(create<XWaveNGraph>("WaveForm", false, 
         m_form->m_graphwidget, m_form->m_urlDump, m_form->m_btnDump)),
   m_numChannelsDisp(0),
+  m_rawDisplayOnly(false),
   m_conAverage(xqcon_create<XQLineEditConnector>(m_average, m_form->m_edAverage)),
   m_conSingle(xqcon_create<XQToggleButtonConnector>(m_singleSequence, m_form->m_ckbSingleSeq)),
   m_conTrace1(xqcon_create<XQComboBoxConnector>(m_trace1, m_form->m_cmbTrace1)),
@@ -357,6 +358,7 @@ XDSO::execute(const atomic<bool> &terminated)
 	      }
 	  }
     }
+    m_rawDisplayOnly = false;
 
   m_lsnOnAverageChanged.reset();
   m_lsnOnSingleChanged.reset();

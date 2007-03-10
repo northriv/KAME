@@ -13,6 +13,7 @@
  ***************************************************************************/
 #include "xsignal.h"
 #include "atomic_queue.h"
+#include "xscheduler.h"
 
 threadid_t g_main_thread_id = threadID();
 
@@ -49,11 +50,12 @@ XListener::unmask() {
 
 unsigned int
 XListener::delay_ms() const {
-	if(m_flags & FLAG_DELAY_SHORT)
-		return 10;
+	unsigned int delay = std::min(20u, g_adaptiveDelay);
 	if(m_flags & FLAG_DELAY_ADAPTIVE)
-		return 50;
-	return 20;
+		delay = g_adaptiveDelay;
+	if(m_flags & FLAG_DELAY_SHORT)
+		delay /= 4;
+	return delay;
 }
 
 _XTalkerBase::_XTalkerBase() : m_bMasked(false) {}

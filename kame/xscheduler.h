@@ -26,14 +26,17 @@ class XSignalBuffer
   //! Called by XTalker
   void registerTransactionList(_XTransaction *);
   //! be called by thread pool
-  bool synchronize(); //return true if not busy
-  
+  bool synchronize(); //!< \return true if not busy
  private:
-  typedef atomic_pointer_queue<_XTransaction, 10000> Queue;
-  const scoped_ptr<Queue> m_queue;
-  atomic<unsigned long> m_queue_oldest_timestamp;
+  typedef atomic_pointer_queue<_XTransaction, 1000> Queue;
+  typedef std::deque<std::pair<_XTransaction*, unsigned long> > SkippedQueue;
+  _XTransaction *popOldest();
+  Queue m_queue;
+  SkippedQueue m_skippedQueue;
+  atomic<unsigned long> m_oldest_timestamp;
 };
 
+extern unsigned int g_adaptiveDelay; //!< ms.
 extern shared_ptr<XSignalBuffer> g_signalBuffer;
 
 #endif /*XSCHEDULER_H_*/

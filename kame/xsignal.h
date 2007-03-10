@@ -288,9 +288,6 @@ XTalker<tArg>::talk(const tArg &arg) {
                 catch (std::bad_alloc &) {
                     gErrPrint("Memory Allocation Failed!");
                 }
-//                catch (...) {
-//                    gErrPrint("Unhandled Exception Occurs!");
-//                }
             }
             else {
     		   if(listener->m_flags & XListener::FLAG_AVOID_DUP) {
