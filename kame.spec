@@ -14,8 +14,8 @@ Name: kame
 %global without_nidaqmx 0
 %endif
 
-Version: 2.1.3
-Release: 2%{?kamerel}
+Version: 2.1.4
+Release: 1%{?kamerel}
 License: GPL
 Group: Applications/Engineering
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
