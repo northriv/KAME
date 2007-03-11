@@ -527,14 +527,14 @@ XQComboBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
       }
       else {
           if(m_node->autoSetAny()) {
-	          int idx1 = findItem(KAME::i18n("(UNSEL)"));
-	          if(idx1 < 0) {
+	          int idx = findItem(KAME::i18n("(UNSEL)"));
+	          if(idx < 0) {
 	            m_pItem->insertItem(KAME::i18n("(UNSEL)"));
 	           }
            }
-          idx1 = findItem(KAME::i18n("(UNSEL)"));
-          ASSERT(idx1 >= 0);
-          m_pItem->setCurrentItem(idx1);
+          int idx = findItem(KAME::i18n("(UNSEL)"));
+          ASSERT(idx >= 0);
+          m_pItem->setCurrentItem(idx);
       }
       m_pItem->blockSignals(false);
 }
