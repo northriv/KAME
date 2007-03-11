@@ -522,14 +522,16 @@ XQComboBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
 	          int idx1 = findItem(KAME::i18n("(UNSEL)"));
 	          if(idx1 >= 0) {
 	            m_pItem->removeItem(idx1);
-	          }
+	           }
           }
       }
       else {
-          int idx1 = findItem(KAME::i18n("(UNSEL)"));
-          if(idx1 < 0) {
-            m_pItem->insertItem(KAME::i18n("(UNSEL)"));
-          }
+          if(m_node->autoSetAny()) {
+	          int idx1 = findItem(KAME::i18n("(UNSEL)"));
+	          if(idx1 < 0) {
+	            m_pItem->insertItem(KAME::i18n("(UNSEL)"));
+	           }
+           }
           idx1 = findItem(KAME::i18n("(UNSEL)"));
           ASSERT(idx1 >= 0);
           m_pItem->setCurrentItem(idx1);
@@ -552,6 +554,8 @@ XQComboBoxConnector::onListChanged(const shared_ptr<XItemNodeBase> &)
             exist = true;
         }
       }
+      if(!m_node->autoSetAny())
+	      m_pItem->insertItem(KAME::i18n("(UNSEL)"));
       onValueChanged(m_node);
 }
 
