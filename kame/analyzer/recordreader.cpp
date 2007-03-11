@@ -45,7 +45,7 @@ XRawStreamRecordReader::XNoDriverError::
          
 XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist)
   : XRawStream(name, runtime, driverlist),
-  m_speed(create<XComboNode>("Speed", true)),
+  m_speed(create<XComboNode>("Speed", true, true)),
   m_fastForward(create<XBoolNode>("FastForward", true)),
   m_rewind(create<XBoolNode>("Rewind", true)),
   m_stop(create<XNode>("Stop", true)),
