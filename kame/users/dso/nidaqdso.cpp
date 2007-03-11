@@ -322,6 +322,7 @@ XNIDAQmxDSO::setupTiming()
 	for(unsigned int i = 0; i < 2; i++) {
 		DSORawRecord &rec = m_dsoRawRecordBanks[i];
 		rec.record.resize(len * num_ch);
+		rec.numCh = num_ch;
 		if(g_bUseMLock) {
 			mlock(&rec.record[0], rec.record.size() * sizeof(int32_t));
 		}
@@ -550,7 +551,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 		return;
 	 }
     
-	const DSORawRecord &old_rec(m_dsoRawRecordBanks[m_dsoRawRecordLatest]);
+	const DSORawRecord &old_rec(m_dsoRawRecordBanks[m_dsoRawRecordBankLatest]);
 	if(num_ch != old_rec.numCh)
 		throw XInterface::XInterfaceError(KAME::i18n("Inconsistent channel number."), __FILE__, __LINE__);
 
@@ -669,8 +670,8 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
     new_rec.numCh = num_ch;
     const unsigned int bufsize = new_rec.recordLength * num_ch;
 	tRawAI *pbuf = &m_recordBuf[0];
-	int32_t *pold = &(old_rec.record[0]);
-	int32_t *paccum = &(new_rec.record[0]);
+	const int32_t *pold = &old_rec.record[0];
+	int32_t *paccum = &new_rec.record[0];
 	//for optimization.
 	unsigned int div = bufsize / 4;
 	unsigned int rest = bufsize % 4;
@@ -701,7 +702,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 		m_record_av.pop_front();
 		accumcnt--;
     }
-    new_rec->accumCount = accumcnt;
+    new_rec.accumCount = accumcnt;
     // substitute the record with the working set.
     m_dsoRawRecordBankLatest = bank;
     writeBarrier();
@@ -734,7 +735,7 @@ XNIDAQmxDSO::startSequence()
 		}
 		DSORawRecord &rec(m_dsoRawRecordBanks[0]);
 		ASSERT(rec.numCh);
-		rec.recordLength = rec.record.size() / rec->numCh;
+		rec.recordLength = rec.record.size() / rec.numCh;
 		memset(&rec.record[0], 0, rec.record.size() * sizeof(int32_t));
 	}
 	m_record_av.clear();   	
@@ -771,9 +772,9 @@ XNIDAQmxDSO::startSequence()
 int
 XNIDAQmxDSO::acqCount(bool *seq_busy)
 {
-	shared_ptr<DSORawRecord> rec(m_dsoRawRecord);
-    *seq_busy = ((unsigned int)rec->acqCount < *average());
-    return rec->acqCount;
+	const DSORawRecord &rec(m_dsoRawRecordBanks[m_dsoRawRecordBankLatest]);
+    *seq_busy = ((unsigned int)rec.acqCount < *average());
+    return rec.acqCount;
 }
 
 double
@@ -810,10 +811,12 @@ XNIDAQmxDSO::getWave(std::deque<std::string> &)
 	}
   	readBarrier();
 	ASSERT((bank >= 0) && (bank < 2));
-	const DSORawRecord &rec(m_dsoRawRecordBanks[bank]);
+	DSORawRecord &rec(m_dsoRawRecordBanks[bank]);
 
- 	if(rec.accumCount == 0)
+ 	if(rec.accumCount == 0) {
+		rec.unlock();
  		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+ 	}
     const uInt32 num_ch = rec.numCh;
     const uInt32 len = rec.recordLength;
     
@@ -830,7 +833,7 @@ XNIDAQmxDSO::getWave(std::deque<std::string> &)
 			push((double)m_coeffAI[ch][i]);
 		}
     }
-    int32_t *p = &(rec.record[0]);
+    const int32_t *p = &(rec.record[0]);
     std::vector<char> &raw_data(rawData());
     const unsigned int size = len * num_ch;
     for(unsigned int i = 0; i < size; i++)

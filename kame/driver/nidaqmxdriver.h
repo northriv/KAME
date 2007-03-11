@@ -77,7 +77,7 @@ public:
 	FLAG_BUGGY_XFER_COND_AO = 0x100u, FLAG_BUGGY_XFER_COND_AI = 0x200u,
 	FLAG_BUGGY_XFER_COND_DI = 0x400u, FLAG_BUGGY_XFER_COND_DO = 0x800u};
   //! e.g. FLAG_BUGGY_DMA_AO.
-  FLAGS productFlags() const {return m_productInfo->flags;}
+  int productFlags() const {return m_productInfo->flags;}
   //! \return 0 if hw timed transfer is not supported.
   double maxAIRate(unsigned int /*num_scans*/) const {return m_productInfo->ai_max_rate;}
   double maxAORate(unsigned int /*num_scans*/) const {return m_productInfo->ao_max_rate;}
@@ -156,7 +156,7 @@ private:
 	struct ProductInfo {
 	  	const char *type;
 	  	const char *series;
-	  	FLAGS flags;
+	  	int flags;
 	  	unsigned long ai_max_rate; //!< [kHz]
 	  	unsigned long ao_max_rate; //!< [kHz]
 	  	unsigned long di_max_rate; //!< [kHz]

@@ -93,7 +93,6 @@ XQGraphPainter::openFont()
 	    {
 		    gErrPrint(KAME::i18n("No Fontfile!!"));
 	    }
-	    fprintf(stderr, filename.ascii() );
 		s_pFont = new FTGLPixmapFont(filename.ascii() );
 		ASSERT(s_pFont->Error() == 0);
 		s_pFont->CharMap(ft_encoding_unicode);

@@ -83,7 +83,7 @@ enum {CAL_POLY_ORDER = 4};
 	  unsigned int recordLength;
 	  int acqCount;
 	  std::vector<int32_t> record;
-	  atomic<bool> locked;
+	  atomic<int> locked;
 	  bool tryLock() {
 	  	return locked.compareAndSet(false, true);
 	  }
