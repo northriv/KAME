@@ -62,7 +62,7 @@ XWaveNGraph::init()
   m_btnDump->setIconSet( KApplication::kApplication()->iconLoader()->loadIconSet("filesave", 
             KIcon::Toolbar, KIcon::SizeSmall, true ) );
   m_lsnOnFilenameChanged = filename()->onValueChanged().connectWeak(
-    shared_from_this(), &XWaveNGraph::onFilenameChanged);
+    shared_from_this(), &XWaveNGraph::onFilenameChanged, XListener::FLAG_MAIN_THREAD_CALL);
     
   dump()->setUIEnabled(false);
   
@@ -229,7 +229,7 @@ XWaveNGraph::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
     
       if(m_stream.good()) {
           m_lsnOnDumpTouched = dump()->onTouch().connectWeak(
-            shared_from_this(), &XWaveNGraph::onDumpTouched);
+            shared_from_this(), &XWaveNGraph::onDumpTouched, XListener::FLAG_MAIN_THREAD_CALL);
           dump()->setUIEnabled(true);
       }
       else {

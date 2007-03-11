@@ -210,8 +210,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
                   XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
   
   m_lsnOnCondChanged = fromTrig()->onValueChanged().connectWeak(
-                     shared_from_this(), &XNMRPulseAnalyzer::onCondChanged,
-                     XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
+                     shared_from_this(), &XNMRPulseAnalyzer::onCondChanged);
   width()->onValueChanged().connect(m_lsnOnCondChanged);
   phaseAdv()->onValueChanged().connect(m_lsnOnCondChanged);
   useDNR()->onValueChanged().connect(m_lsnOnCondChanged);

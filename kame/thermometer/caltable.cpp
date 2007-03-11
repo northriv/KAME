@@ -48,7 +48,7 @@ XConCalTable::XConCalTable
     &XConCalTable::onValueChanged);
   m_lsnDisplay = display()->onTouch().connectWeak(
     shared_from_this(),
-    &XConCalTable::onDisplayTouched);
+    &XConCalTable::onDisplayTouched, XListener::FLAG_MAIN_THREAD_CALL);
 
   m_waveform->setCaption(KAME::i18n("Thermometer Calibration"));
   {

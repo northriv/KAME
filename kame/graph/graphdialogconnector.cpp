@@ -41,9 +41,9 @@ XQGraphDialogConnector::XQGraphDialogConnector
     m_pItem->m_dblPersistence->setRange(0.0, 1.0, 0.1, true);
     
     m_lsnAxisChanged = m_selAxis->onValueChanged().connectWeak
-        (shared_from_this(), &XQGraphDialogConnector::onSelAxisChanged);
+        (shared_from_this(), &XQGraphDialogConnector::onSelAxisChanged, XListener::FLAG_MAIN_THREAD_CALL);
     m_lsnPlotChanged = m_selPlot->onValueChanged().connectWeak
-        (shared_from_this(), &XQGraphDialogConnector::onSelPlotChanged);
+        (shared_from_this(), &XQGraphDialogConnector::onSelPlotChanged, XListener::FLAG_MAIN_THREAD_CALL);
 
     m_pItem->show();
 }   
