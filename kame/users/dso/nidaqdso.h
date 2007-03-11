@@ -83,8 +83,17 @@ enum {CAL_POLY_ORDER = 4};
 	  unsigned int recordLength;
 	  int acqCount;
 	  std::vector<int32_t> record;
+	  atomic<bool> locked;
+	  bool tryLock() {
+	  	return locked.compareAndSet(false, true);
+	  }
+	  void unlock() {
+	  	ASSERT(locked);
+	  	locked = false;
+	  }
   };
-  shared_ptr<DSORawRecord> m_dsoRawRecord, m_dsoRawRecordWork;
+  DSORawRecord m_dsoRawRecordBanks[2];
+  int m_dsoRawRecordBankLatest;
   //! for moving av.
   std::deque<std::vector<tRawAI> > m_record_av; 
   TaskHandle m_task;

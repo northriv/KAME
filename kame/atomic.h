@@ -264,8 +264,8 @@ class atomic
     atomic &operator--() {atomicDecAndTest(&m_var); writeBarrier(); return *this;}
     atomic &operator+=(T t) {atomicAdd(&m_var, t); writeBarrier(); return *this;}
     atomic &operator-=(T t) {atomicAdd(&m_var, -t); writeBarrier(); return *this;}
-    static T swap(T newv, atomic &t) {
-        T old = atomicSwap(newv, &t.m_var);
+    T swap(T newv) {
+        T old = atomicSwap(newv, &m_var);
         writeBarrier();
         return old;
     }

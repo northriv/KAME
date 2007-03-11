@@ -109,7 +109,7 @@ XDSO::XDSO(const char *name, bool runtime,
   }
   fetchMode()->value(FETCHMODE_SEQ);
   
-//  average()->setUIEnabled(false);
+  average()->setUIEnabled(false);
   singleSequence()->setUIEnabled(false);
 //  fetchMode()->setUIEnabled(false);
   timeWidth()->setUIEnabled(false);

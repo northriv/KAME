@@ -31,6 +31,7 @@ XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
    const shared_ptr<XThermometerList> &thermometers,
    const shared_ptr<XDriverList> &drivers) :
  XNIDAQmxDriver<XDSO>(name, runtime, scalarentries, interfaces, thermometers, drivers),
+ m_dsoRawRecordBankLatest(0),
  m_task(TASK_UNDEF)
 {
 	recordLength()->value(2000);
@@ -126,13 +127,6 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
     }
     onSoftTrigChanged(shared_ptr<XNIDAQmxInterface::SoftwareTrigger>());
 
-	m_dsoRawRecord.reset(new DSORawRecord);
-	m_dsoRawRecordWork.reset(new DSORawRecord);
-	if(g_bUseMLock) {
-		mlock(m_dsoRawRecord.get(), sizeof(DSORawRecord));
-		mlock(m_dsoRawRecordWork.get(), sizeof(DSORawRecord));
-	}
-
 	m_suspendRead = true;
 	m_threadReadAI.reset(new XThread<XNIDAQmxDSO>(shared_from_this(),
 		 &XNIDAQmxDSO::executeReadAI));
@@ -165,8 +159,6 @@ XNIDAQmxDSO::close() throw (XInterface::XInterfaceError &)
     trace1()->clear();
     trace2()->clear();
     
-	m_dsoRawRecord.reset();
-	m_dsoRawRecordWork.reset();
 	m_recordBuf.clear();
 	m_record_av.clear();
 
@@ -327,19 +319,11 @@ XNIDAQmxDSO::setupTiming()
 	setupSoftwareTrigger();
 
 	const unsigned int len = *recordLength();
-	{
-		shared_ptr<DSORawRecord> rec(m_dsoRawRecord);
-		rec->record.resize(len * num_ch);
-		rec->numCh = num_ch;
+	for(unsigned int i = 0; i < 2; i++) {
+		DSORawRecord &rec = m_dsoRawRecordBanks[i];
+		rec.record.resize(len * num_ch);
 		if(g_bUseMLock) {
-			mlock(&rec->record[0], rec->record.size() * sizeof(int32_t));
-		}
-	}
-	{
-		shared_ptr<DSORawRecord> rec(m_dsoRawRecordWork);
-		rec->record.resize(len * num_ch);
-		if(g_bUseMLock) {
-			mlock(&rec->record[0], rec->record.size() * sizeof(int32_t));
+			mlock(&rec.record[0], rec.record.size() * sizeof(int32_t));
 		}
 	}
 	m_recordBuf.resize(len * num_ch);
@@ -475,8 +459,8 @@ XNIDAQmxDSO::onSoftTrigStarted(const shared_ptr<XNIDAQmxInterface::SoftwareTrigg
     	DAQmxStopTask(m_task);
 	}
 	
-	shared_ptr<DSORawRecord> rec(m_dsoRawRecord);
-	m_softwareTrigger->setBlankTerm(m_interval * rec->recordLength);
+	const DSORawRecord &rec(m_dsoRawRecordBanks[m_dsoRawRecordBankLatest]);
+	m_softwareTrigger->setBlankTerm(m_interval * rec.recordLength);
 	fprintf(stderr, "Virtual trig start.\n");
 
 	uInt32 num_ch;
@@ -566,8 +550,8 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 		return;
 	 }
     
-	shared_ptr<DSORawRecord> old_rec(m_dsoRawRecord);
-	if(num_ch != old_rec->numCh)
+	const DSORawRecord &old_rec(m_dsoRawRecordBanks[m_dsoRawRecordLatest]);
+	if(num_ch != old_rec.numCh)
 		throw XInterface::XInterfaceError(KAME::i18n("Inconsistent channel number."), __FILE__, __LINE__);
 
 	const unsigned int size = m_recordBuf.size() / num_ch;
@@ -653,9 +637,20 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 
 	const unsigned int av = *average();
 	const bool sseq = *singleSequence();
-	shared_ptr<DSORawRecord> new_rec(m_dsoRawRecordWork);
-	ASSERT(new_rec != old_rec);
-	unsigned int accumcnt = old_rec->accumCount;
+	//obtain unlocked bank.
+	int bank;
+	for(;;) {
+		bank = 1 - m_dsoRawRecordBankLatest;
+		if(m_dsoRawRecordBanks[bank].tryLock())
+			break;
+		bank = m_dsoRawRecordBankLatest;
+		if(m_dsoRawRecordBanks[bank].tryLock())
+			break;
+	}
+	writeBarrier();
+	ASSERT((bank >= 0) && (bank < 2));
+	DSORawRecord &new_rec(m_dsoRawRecordBanks[bank]);
+	unsigned int accumcnt = old_rec.accumCount;
 	
     if(!sseq || (accumcnt < av)) {
 		if(!m_softwareTrigger) {
@@ -668,14 +663,14 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 		}
     }
 
-    cnt = std::min(cnt, old_rec->recordLength);
-    new_rec->recordLength = cnt;
+    cnt = std::min(cnt, old_rec.recordLength);
+    new_rec.recordLength = cnt;
 //    num_ch = std::min(num_ch, old_rec->numCh);
-    new_rec->numCh = num_ch;
-    const unsigned int bufsize = new_rec->recordLength * num_ch;
+    new_rec.numCh = num_ch;
+    const unsigned int bufsize = new_rec.recordLength * num_ch;
 	tRawAI *pbuf = &m_recordBuf[0];
-	int32_t *pold = &(old_rec->record[0]);
-	int32_t *paccum = &(new_rec->record[0]);
+	int32_t *pold = &(old_rec.record[0]);
+	int32_t *paccum = &(new_rec.record[0]);
 	//for optimization.
 	unsigned int div = bufsize / 4;
 	unsigned int rest = bufsize % 4;
@@ -687,11 +682,11 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 	}
 	for(unsigned int i = 0; i < rest; i++)
 	    *paccum++ = *pold++ + *pbuf++;
-    new_rec->acqCount = old_rec->acqCount + 1;
+    new_rec.acqCount = old_rec.acqCount + 1;
     accumcnt++;
 
     while(!sseq && (av <= m_record_av.size()) && !m_record_av.empty())  {
-		int32_t *paccum = &(new_rec->record[0]);
+		int32_t *paccum = &(new_rec.record[0]);
 		tRawAI *psub = &(m_record_av.front()[0]);
 		unsigned int div = bufsize / 4;
 		unsigned int rest = bufsize % 4;
@@ -708,8 +703,9 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
     }
     new_rec->accumCount = accumcnt;
     // substitute the record with the working set.
-    m_dsoRawRecordWork.swap(m_dsoRawRecord);
-    
+    m_dsoRawRecordBankLatest = bank;
+    writeBarrier();
+	new_rec.unlock();
     if(!sseq) {
       m_record_av.push_back(m_recordBuf);
     }
@@ -730,12 +726,16 @@ XNIDAQmxDSO::startSequence()
  	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
 
 	{
-		shared_ptr<DSORawRecord> rec(m_dsoRawRecord);
-		rec->acqCount = 0;
-		rec->accumCount = 0;
-		ASSERT(rec->numCh);
-		rec->recordLength = rec->record.size() / rec->numCh;
-		memset(&rec->record[0], 0, rec->record.size() * sizeof(int32_t));
+		m_dsoRawRecordBankLatest = 0;
+		for(unsigned int i = 0; i < 2; i++) {
+			DSORawRecord &rec(m_dsoRawRecordBanks[i]);
+			rec.acqCount = 0;
+			rec.accumCount = 0;
+		}
+		DSORawRecord &rec(m_dsoRawRecordBanks[0]);
+		ASSERT(rec.numCh);
+		rec.recordLength = rec.record.size() / rec->numCh;
+		memset(&rec.record[0], 0, rec.record.size() * sizeof(int32_t));
 	}
 	m_record_av.clear();   	
     
@@ -799,12 +799,23 @@ XNIDAQmxDSO::getWave(std::deque<std::string> &)
 {
 	XScopedLock<XInterface> lock(*interface());
 	
-	shared_ptr<DSORawRecord> rec(m_dsoRawRecord);
+	int bank;
+	for(;;) {
+		bank = m_dsoRawRecordBankLatest;
+		if(m_dsoRawRecordBanks[bank].tryLock())
+			break;
+		bank = 1 - bank;
+		if(m_dsoRawRecordBanks[bank].tryLock())
+			break;
+	}
+  	readBarrier();
+	ASSERT((bank >= 0) && (bank < 2));
+	const DSORawRecord &rec(m_dsoRawRecordBanks[bank]);
 
- 	if(rec->accumCount == 0)
+ 	if(rec.accumCount == 0)
  		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
-    const uInt32 num_ch = rec->numCh;
-    const uInt32 len = rec->recordLength;
+    const uInt32 num_ch = rec.numCh;
+    const uInt32 len = rec.recordLength;
     
     char buf[2048];
     CHECK_DAQMX_RET(DAQmxGetReadChannelsToRead(m_task, buf, sizeof(buf)));
@@ -812,14 +823,14 @@ XNIDAQmxDSO::getWave(std::deque<std::string> &)
     push((uint32_t)num_ch);
     push((uint32_t)m_preTriggerPos);
     push((uint32_t)len);
-    push((uint32_t)rec->accumCount);
+    push((uint32_t)rec.accumCount);
     push((double)m_interval);
     for(unsigned int ch = 0; ch < num_ch; ch++) {
 		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
 			push((double)m_coeffAI[ch][i]);
 		}
     }
-    int32_t *p = &(rec->record[0]);
+    int32_t *p = &(rec.record[0]);
     std::vector<char> &raw_data(rawData());
     const unsigned int size = len * num_ch;
     for(unsigned int i = 0; i < size; i++)
@@ -828,6 +839,8 @@ XNIDAQmxDSO::getWave(std::deque<std::string> &)
     rawData().insert(rawData().end(), str.begin(), str.end());
     str = ""; //reserved/
     rawData().insert(rawData().end(), str.begin(), str.end());
+
+	rec.unlock();
 }
 void
 XNIDAQmxDSO::convertRaw() throw (XRecordError&)
