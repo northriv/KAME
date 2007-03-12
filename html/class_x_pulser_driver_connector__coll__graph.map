@@ -1,5 +1,0 @@
-base referer
-rect $class_x_pulser.html 141,189 210,216
-rect $class_x_q_connector.html 8,8 112,34
-rect $class_x_q_graph.html 136,8 216,34
-rect $class_x_x_y_plot.html 240,8 312,34

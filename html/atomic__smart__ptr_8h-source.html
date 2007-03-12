@@ -2,20 +2,11 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/atomic_smart_ptr.h ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
-<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.5.1 -->
-<div class="tabs">
-  <ul>
-    <li><a href="main.html"><span>メインページ</span></a></li>
-    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
-    <li><a href="classes.html"><span>クラス</span></a></li>
-    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
-    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
-    <li><a href="pages.html"><span>関連ページ</span></a></li>
-  </ul></div>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
-<a class="el" href="dir_86f25382698e49ecc2836ac98faed978.html">kame</a></div>
+<a class="el" href="dir_000000.html">kame</a></div>
 <h1>atomic_smart_ptr.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
 <a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
@@ -44,48 +35,48 @@
 <a name="l00029"></a>00029 <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
 <a name="l00030"></a><a class="code" href="classatomic__scoped__ptr.html">00030</a> <span class="keyword">class </span><a class="code" href="classatomic__scoped__ptr.html">atomic_scoped_ptr</a>
 <a name="l00031"></a>00031 {
-<a name="l00032"></a><a class="code" href="classatomic__scoped__ptr.html#60a72ad4e8019d0d25ae8c3810d246a9">00032</a>     <span class="keyword">typedef</span> T* <a class="code" href="classatomic__scoped__ptr.html#60a72ad4e8019d0d25ae8c3810d246a9">t_ptr</a>;
+<a name="l00032"></a><a class="code" href="classatomic__scoped__ptr.html#y0">00032</a>     <span class="keyword">typedef</span> T* <a class="code" href="classatomic__scoped__ptr.html#y0">t_ptr</a>;
 <a name="l00033"></a>00033  <span class="keyword">public</span>:
-<a name="l00034"></a><a class="code" href="classatomic__scoped__ptr.html#10b85ae0d1f9ed4f43ebb48afd597ff9">00034</a>     <a class="code" href="classatomic__scoped__ptr.html#10b85ae0d1f9ed4f43ebb48afd597ff9">atomic_scoped_ptr</a>() : <a class="code" href="classatomic__scoped__ptr.html#7f5462d4d2f9d0e8752bcd59b63b7763">m_ptr</a>(0) {
+<a name="l00034"></a><a class="code" href="classatomic__scoped__ptr.html#a0">00034</a>     <a class="code" href="classatomic__scoped__ptr.html#a0">atomic_scoped_ptr</a>() : <a class="code" href="classatomic__scoped__ptr.html#r0">m_ptr</a>(0) {
 <a name="l00035"></a>00035     }
 <a name="l00036"></a>00036     
-<a name="l00037"></a><a class="code" href="classatomic__scoped__ptr.html#d4afc4a635fd3db40b52228a6dd9f925">00037</a>     <span class="keyword">explicit</span> <a class="code" href="classatomic__scoped__ptr.html#10b85ae0d1f9ed4f43ebb48afd597ff9">atomic_scoped_ptr</a>(<a class="code" href="classatomic__scoped__ptr.html#60a72ad4e8019d0d25ae8c3810d246a9">t_ptr</a> t) : <a class="code" href="classatomic__scoped__ptr.html#7f5462d4d2f9d0e8752bcd59b63b7763">m_ptr</a>(t) {
+<a name="l00037"></a><a class="code" href="classatomic__scoped__ptr.html#a1">00037</a>     <span class="keyword">explicit</span> <a class="code" href="classatomic__scoped__ptr.html#a0">atomic_scoped_ptr</a>(<a class="code" href="classatomic__scoped__ptr.html#y0">t_ptr</a> t) : <a class="code" href="classatomic__scoped__ptr.html#r0">m_ptr</a>(t) {
 <a name="l00038"></a>00038     }
 <a name="l00039"></a>00039     
-<a name="l00040"></a><a class="code" href="classatomic__scoped__ptr.html#328545148249af6ecece00cdc08f8e15">00040</a>     <a class="code" href="classatomic__scoped__ptr.html#328545148249af6ecece00cdc08f8e15">~atomic_scoped_ptr</a>() { readBarrier(); <span class="keyword">delete</span> <a class="code" href="classatomic__scoped__ptr.html#7f5462d4d2f9d0e8752bcd59b63b7763">m_ptr</a>;}
+<a name="l00040"></a><a class="code" href="classatomic__scoped__ptr.html#a2">00040</a>     <a class="code" href="classatomic__scoped__ptr.html#a2">~atomic_scoped_ptr</a>() { readBarrier(); <span class="keyword">delete</span> <a class="code" href="classatomic__scoped__ptr.html#r0">m_ptr</a>;}
 <a name="l00041"></a>00041 
-<a name="l00042"></a><a class="code" href="classatomic__scoped__ptr.html#c821042d10e2cd9bc5652a46346e773a">00042</a>     <span class="keywordtype">void</span> <a class="code" href="classatomic__scoped__ptr.html#c821042d10e2cd9bc5652a46346e773a">reset</a>(<a class="code" href="classatomic__scoped__ptr.html#60a72ad4e8019d0d25ae8c3810d246a9">t_ptr</a> t = 0) {
+<a name="l00042"></a><a class="code" href="classatomic__scoped__ptr.html#a3">00042</a>     <span class="keywordtype">void</span> <a class="code" href="classatomic__scoped__ptr.html#a3">reset</a>(<a class="code" href="classatomic__scoped__ptr.html#y0">t_ptr</a> t = 0) {
 <a name="l00043"></a>00043         writeBarrier();
-<a name="l00044"></a>00044         <a class="code" href="classatomic__scoped__ptr.html#60a72ad4e8019d0d25ae8c3810d246a9">t_ptr</a> old = atomicSwap(t, &amp;<a class="code" href="classatomic__scoped__ptr.html#7f5462d4d2f9d0e8752bcd59b63b7763">m_ptr</a>);
+<a name="l00044"></a>00044         <a class="code" href="classatomic__scoped__ptr.html#y0">t_ptr</a> old = atomicSwap(t, &amp;<a class="code" href="classatomic__scoped__ptr.html#r0">m_ptr</a>);
 <a name="l00045"></a>00045         readBarrier();
 <a name="l00046"></a>00046         <span class="keyword">delete</span> old;
 <a name="l00047"></a>00047     }
-<a name="l00050"></a><a class="code" href="classatomic__scoped__ptr.html#2ba72b89616bf71f4d1eb8d1add21a1e">00050</a>     <span class="keywordtype">void</span> <a class="code" href="classatomic__scoped__ptr.html#2ba72b89616bf71f4d1eb8d1add21a1e">swap</a>(<a class="code" href="classatomic__scoped__ptr.html">atomic_scoped_ptr</a> &amp;x) {
-<a name="l00051"></a>00051         <a class="code" href="classatomic__scoped__ptr.html#7f5462d4d2f9d0e8752bcd59b63b7763">m_ptr</a> = atomicSwap(<a class="code" href="classatomic__scoped__ptr.html#7f5462d4d2f9d0e8752bcd59b63b7763">m_ptr</a>, &amp;x.<a class="code" href="classatomic__scoped__ptr.html#7f5462d4d2f9d0e8752bcd59b63b7763">m_ptr</a>);
+<a name="l00050"></a><a class="code" href="classatomic__scoped__ptr.html#a4">00050</a>     <span class="keywordtype">void</span> <a class="code" href="classatomic__scoped__ptr.html#a4">swap</a>(<a class="code" href="classatomic__scoped__ptr.html">atomic_scoped_ptr</a> &amp;x) {
+<a name="l00051"></a>00051         <a class="code" href="classatomic__scoped__ptr.html#r0">m_ptr</a> = atomicSwap(<a class="code" href="classatomic__scoped__ptr.html#r0">m_ptr</a>, &amp;x.<a class="code" href="classatomic__scoped__ptr.html#r0">m_ptr</a>);
 <a name="l00052"></a>00052         memoryBarrier();
 <a name="l00053"></a>00053     }
 <a name="l00054"></a>00054     
-<a name="l00056"></a><a class="code" href="classatomic__scoped__ptr.html#0a348c612b884791241350e112714268">00056</a>     T &amp;<a class="code" href="classatomic__scoped__ptr.html#0a348c612b884791241350e112714268">operator*</a>()<span class="keyword"> const </span>{ ASSERT(<a class="code" href="classatomic__scoped__ptr.html#7f5462d4d2f9d0e8752bcd59b63b7763">m_ptr</a>); <span class="keywordflow">return</span> (T&amp;)*<a class="code" href="classatomic__scoped__ptr.html#7f5462d4d2f9d0e8752bcd59b63b7763">m_ptr</a>;}
+<a name="l00056"></a><a class="code" href="classatomic__scoped__ptr.html#a5">00056</a>     T &amp;<a class="code" href="classatomic__scoped__ptr.html#a5">operator*</a>()<span class="keyword"> const </span>{ ASSERT(<a class="code" href="classatomic__scoped__ptr.html#r0">m_ptr</a>); <span class="keywordflow">return</span> (T&amp;)*<a class="code" href="classatomic__scoped__ptr.html#r0">m_ptr</a>;}
 <a name="l00057"></a>00057 
-<a name="l00058"></a><a class="code" href="classatomic__scoped__ptr.html#5595676a8acc3d21bcecd9d0ab218218">00058</a>     <a class="code" href="classatomic__scoped__ptr.html#60a72ad4e8019d0d25ae8c3810d246a9">t_ptr</a> <a class="code" href="classatomic__scoped__ptr.html#5595676a8acc3d21bcecd9d0ab218218">operator-&gt;</a>()<span class="keyword"> const </span>{ ASSERT(<a class="code" href="classatomic__scoped__ptr.html#7f5462d4d2f9d0e8752bcd59b63b7763">m_ptr</a>); <span class="keywordflow">return</span> (<a class="code" href="classatomic__scoped__ptr.html#60a72ad4e8019d0d25ae8c3810d246a9">t_ptr</a>)<a class="code" href="classatomic__scoped__ptr.html#7f5462d4d2f9d0e8752bcd59b63b7763">m_ptr</a>;}
+<a name="l00058"></a><a class="code" href="classatomic__scoped__ptr.html#a6">00058</a>     <a class="code" href="classatomic__scoped__ptr.html#y0">t_ptr</a> <a class="code" href="classatomic__scoped__ptr.html#a6">operator-&gt;</a>()<span class="keyword"> const </span>{ ASSERT(<a class="code" href="classatomic__scoped__ptr.html#r0">m_ptr</a>); <span class="keywordflow">return</span> (<a class="code" href="classatomic__scoped__ptr.html#y0">t_ptr</a>)<a class="code" href="classatomic__scoped__ptr.html#r0">m_ptr</a>;}
 <a name="l00059"></a>00059     
-<a name="l00060"></a><a class="code" href="classatomic__scoped__ptr.html#ebff5c5f3fb9178829df3d8695f59072">00060</a>     <a class="code" href="classatomic__scoped__ptr.html#60a72ad4e8019d0d25ae8c3810d246a9">t_ptr</a> <a class="code" href="classatomic__scoped__ptr.html#ebff5c5f3fb9178829df3d8695f59072">get</a>()<span class="keyword"> const </span>{
-<a name="l00061"></a>00061         <span class="keywordflow">return</span> (<a class="code" href="classatomic__scoped__ptr.html#60a72ad4e8019d0d25ae8c3810d246a9">t_ptr</a> )<a class="code" href="classatomic__scoped__ptr.html#7f5462d4d2f9d0e8752bcd59b63b7763">m_ptr</a>;
+<a name="l00060"></a><a class="code" href="classatomic__scoped__ptr.html#a7">00060</a>     <a class="code" href="classatomic__scoped__ptr.html#y0">t_ptr</a> <a class="code" href="classatomic__scoped__ptr.html#a7">get</a>()<span class="keyword"> const </span>{
+<a name="l00061"></a>00061         <span class="keywordflow">return</span> (<a class="code" href="classatomic__scoped__ptr.html#y0">t_ptr</a> )<a class="code" href="classatomic__scoped__ptr.html#r0">m_ptr</a>;
 <a name="l00062"></a>00062     }
 <a name="l00063"></a>00063  <span class="keyword">private</span>:
-<a name="l00064"></a><a class="code" href="classatomic__scoped__ptr.html#2aa5f9b5d01f8b8e574a7502e126263b">00064</a>     <a class="code" href="classatomic__scoped__ptr.html#10b85ae0d1f9ed4f43ebb48afd597ff9">atomic_scoped_ptr</a>(<span class="keyword">const</span> <a class="code" href="classatomic__scoped__ptr.html">atomic_scoped_ptr</a> &amp;) {}
-<a name="l00065"></a><a class="code" href="classatomic__scoped__ptr.html#e6a4304ea82e091b32b94e4dcf403913">00065</a>     <a class="code" href="classatomic__scoped__ptr.html">atomic_scoped_ptr</a>&amp; <a class="code" href="classatomic__scoped__ptr.html#e6a4304ea82e091b32b94e4dcf403913">operator=</a>(<span class="keyword">const</span> <a class="code" href="classatomic__scoped__ptr.html">atomic_scoped_ptr</a> &amp;) {<span class="keywordflow">return</span> *<span class="keyword">this</span>;}
+<a name="l00064"></a><a class="code" href="classatomic__scoped__ptr.html#d0">00064</a>     <a class="code" href="classatomic__scoped__ptr.html#a0">atomic_scoped_ptr</a>(<span class="keyword">const</span> <a class="code" href="classatomic__scoped__ptr.html">atomic_scoped_ptr</a> &amp;) {}
+<a name="l00065"></a><a class="code" href="classatomic__scoped__ptr.html#d1">00065</a>     <a class="code" href="classatomic__scoped__ptr.html">atomic_scoped_ptr</a>&amp; <a class="code" href="classatomic__scoped__ptr.html#d1">operator=</a>(<span class="keyword">const</span> <a class="code" href="classatomic__scoped__ptr.html">atomic_scoped_ptr</a> &amp;) {<span class="keywordflow">return</span> *<span class="keyword">this</span>;}
 <a name="l00066"></a>00066     
-<a name="l00067"></a><a class="code" href="classatomic__scoped__ptr.html#7f5462d4d2f9d0e8752bcd59b63b7763">00067</a>     <a class="code" href="classatomic__scoped__ptr.html#60a72ad4e8019d0d25ae8c3810d246a9">t_ptr</a> <a class="code" href="classatomic__scoped__ptr.html#7f5462d4d2f9d0e8752bcd59b63b7763">m_ptr</a>;
+<a name="l00067"></a><a class="code" href="classatomic__scoped__ptr.html#r0">00067</a>     <a class="code" href="classatomic__scoped__ptr.html#y0">t_ptr</a> <a class="code" href="classatomic__scoped__ptr.html#r0">m_ptr</a>;
 <a name="l00068"></a>00068 };
 <a name="l00069"></a>00069 
 <a name="l00071"></a>00071 <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
 <a name="l00072"></a><a class="code" href="structatomic__shared__ptr__ref.html">00072</a> <span class="keyword">struct </span><a class="code" href="structatomic__shared__ptr__ref.html">atomic_shared_ptr_ref</a> {
 <a name="l00073"></a>00073     <span class="keyword">template</span> &lt;<span class="keyword">class</span> Y&gt;
-<a name="l00074"></a><a class="code" href="structatomic__shared__ptr__ref.html#3905abcb451f56856c34a775e1ab4096">00074</a>     <a class="code" href="structatomic__shared__ptr__ref.html#3905abcb451f56856c34a775e1ab4096">atomic_shared_ptr_ref</a>(Y *p) : <a class="code" href="structatomic__shared__ptr__ref.html#e8473296323eb0f761e246d0c233f82d">ptr</a>(p), <a class="code" href="structatomic__shared__ptr__ref.html#1bd36c8fedcf1dcafed789dbdb9ef3d5">refcnt</a>(1) {}
-<a name="l00075"></a><a class="code" href="structatomic__shared__ptr__ref.html#f486f579d20e5cc535920c07a05d0379">00075</a>     <a class="code" href="structatomic__shared__ptr__ref.html#f486f579d20e5cc535920c07a05d0379">~atomic_shared_ptr_ref</a>() { ASSERT(<a class="code" href="structatomic__shared__ptr__ref.html#1bd36c8fedcf1dcafed789dbdb9ef3d5">refcnt</a> == 0); <span class="keyword">delete</span> <a class="code" href="structatomic__shared__ptr__ref.html#e8473296323eb0f761e246d0c233f82d">ptr</a>; }
-<a name="l00076"></a><a class="code" href="structatomic__shared__ptr__ref.html#e8473296323eb0f761e246d0c233f82d">00076</a>     T *<a class="code" href="structatomic__shared__ptr__ref.html#e8473296323eb0f761e246d0c233f82d">ptr</a>;
-<a name="l00078"></a><a class="code" href="structatomic__shared__ptr__ref.html#1bd36c8fedcf1dcafed789dbdb9ef3d5">00078</a>     <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <a class="code" href="structatomic__shared__ptr__ref.html#1bd36c8fedcf1dcafed789dbdb9ef3d5">refcnt</a>;
+<a name="l00074"></a><a class="code" href="structatomic__shared__ptr__ref.html#a0">00074</a>     <a class="code" href="structatomic__shared__ptr__ref.html#a0">atomic_shared_ptr_ref</a>(Y *p) : <a class="code" href="structatomic__shared__ptr__ref.html#o0">ptr</a>(p), <a class="code" href="structatomic__shared__ptr__ref.html#o1">refcnt</a>(1) {}
+<a name="l00075"></a><a class="code" href="structatomic__shared__ptr__ref.html#a1">00075</a>     <a class="code" href="structatomic__shared__ptr__ref.html#a1">~atomic_shared_ptr_ref</a>() { ASSERT(<a class="code" href="structatomic__shared__ptr__ref.html#o1">refcnt</a> == 0); <span class="keyword">delete</span> <a class="code" href="structatomic__shared__ptr__ref.html#o0">ptr</a>; }
+<a name="l00076"></a><a class="code" href="structatomic__shared__ptr__ref.html#o0">00076</a>     T *<a class="code" href="structatomic__shared__ptr__ref.html#o0">ptr</a>;
+<a name="l00078"></a><a class="code" href="structatomic__shared__ptr__ref.html#o1">00078</a>     <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <a class="code" href="structatomic__shared__ptr__ref.html#o1">refcnt</a>;
 <a name="l00079"></a>00079 };
 <a name="l00080"></a>00080 
 <a name="l00081"></a>00081 
@@ -93,163 +84,163 @@
 <a name="l00085"></a><a class="code" href="classatomic__shared__ptr.html">00085</a> <span class="keyword">class </span><a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr</a>
 <a name="l00086"></a>00086 {
 <a name="l00087"></a>00087  <span class="keyword">public</span>:
-<a name="l00088"></a><a class="code" href="classatomic__shared__ptr.html#c513776ff57656b6d94c0eba77905a5c">00088</a>     <span class="keyword">typedef</span> <a class="code" href="structatomic__shared__ptr__ref.html">atomic_shared_ptr_ref&lt;T&gt;</a> <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a>;
+<a name="l00088"></a><a class="code" href="classatomic__shared__ptr.html#w0">00088</a>     <span class="keyword">typedef</span> <a class="code" href="structatomic__shared__ptr__ref.html">atomic_shared_ptr_ref&lt;T&gt;</a> <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a>;
 <a name="l00089"></a>00089     
-<a name="l00090"></a><a class="code" href="classatomic__shared__ptr.html#fdef7207217e0d5348c0c8f15c60b1d4">00090</a>     <a class="code" href="classatomic__shared__ptr.html#fdef7207217e0d5348c0c8f15c60b1d4">atomic_shared_ptr</a>() : <a class="code" href="classatomic__shared__ptr.html#8b6259ba5d36b2c5a13ab466ee4abc51">m_ptr_instant</a>(0) {
+<a name="l00090"></a><a class="code" href="classatomic__shared__ptr.html#a0">00090</a>     <a class="code" href="classatomic__shared__ptr.html#a0">atomic_shared_ptr</a>() : <a class="code" href="classatomic__shared__ptr.html#r0">m_ptr_instant</a>(0) {
 <a name="l00091"></a>00091     }
 <a name="l00092"></a>00092     
-<a name="l00093"></a><a class="code" href="classatomic__shared__ptr.html#7b78dd757969433e764214d7487e39de">00093</a>     <span class="keyword">template</span>&lt;<span class="keyword">typename</span> Y&gt; <span class="keyword">explicit</span> <a class="code" href="classatomic__shared__ptr.html#fdef7207217e0d5348c0c8f15c60b1d4">atomic_shared_ptr</a>(Y *y) : <a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>(new <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a>(y)) {
-<a name="l00094"></a>00094         <a class="code" href="classatomic__shared__ptr.html#8b6259ba5d36b2c5a13ab466ee4abc51">m_ptr_instant</a> = y;
+<a name="l00093"></a><a class="code" href="classatomic__shared__ptr.html#a1">00093</a>     <span class="keyword">template</span>&lt;<span class="keyword">typename</span> Y&gt; <span class="keyword">explicit</span> <a class="code" href="classatomic__shared__ptr.html#a0">atomic_shared_ptr</a>(Y *y) : <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>(new <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a>(y)) {
+<a name="l00094"></a>00094         <a class="code" href="classatomic__shared__ptr.html#r0">m_ptr_instant</a> = y;
 <a name="l00095"></a>00095         writeBarrier();
 <a name="l00096"></a>00096     }
 <a name="l00097"></a>00097     
-<a name="l00098"></a><a class="code" href="classatomic__shared__ptr.html#21a21c5adee5fce13141cc48228ca7f2">00098</a>     <a class="code" href="classatomic__shared__ptr.html#fdef7207217e0d5348c0c8f15c60b1d4">atomic_shared_ptr</a>(<span class="keyword">const</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr</a> &amp;t) : <a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>(t.<a class="code" href="classatomic__shared__ptr.html#563311ef816188b53b4c41a4432b21a3">_scan_</a>()) {
-<a name="l00099"></a>00099         <a class="code" href="classatomic__shared__ptr.html#8b6259ba5d36b2c5a13ab466ee4abc51">m_ptr_instant</a> = !<a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#5e11c7de0e0a91bdf6e5097f8e71cec2">pref</a> ? 0 : <a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#5e11c7de0e0a91bdf6e5097f8e71cec2">pref</a>-&gt;ptr;
+<a name="l00098"></a><a class="code" href="classatomic__shared__ptr.html#a2">00098</a>     <a class="code" href="classatomic__shared__ptr.html#a0">atomic_shared_ptr</a>(<span class="keyword">const</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr</a> &amp;t) : <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>(t.<a class="code" href="classatomic__shared__ptr.html#a16">_scan_</a>()) {
+<a name="l00099"></a>00099         <a class="code" href="classatomic__shared__ptr.html#r0">m_ptr_instant</a> = !<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a> ? 0 : <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>-&gt;ptr;
 <a name="l00100"></a>00100     }
-<a name="l00101"></a><a class="code" href="classatomic__shared__ptr.html#22bcff80908726685abef156c6843fdc">00101</a>     <span class="keyword">template</span>&lt;<span class="keyword">typename</span> Y&gt; <a class="code" href="classatomic__shared__ptr.html#fdef7207217e0d5348c0c8f15c60b1d4">atomic_shared_ptr</a>(<span class="keyword">const</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;Y&gt;</a> &amp;y)
-<a name="l00102"></a>00102      : <a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>((typename <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr</a>::<a class="code" href="structatomic__shared__ptr__ref.html">Ref</a>*)y.<a class="code" href="classatomic__shared__ptr.html#563311ef816188b53b4c41a4432b21a3">_scan_</a>()) {
-<a name="l00103"></a>00103         <a class="code" href="classatomic__shared__ptr.html#8b6259ba5d36b2c5a13ab466ee4abc51">m_ptr_instant</a> = !<a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#5e11c7de0e0a91bdf6e5097f8e71cec2">pref</a> ? 0 : ((<span class="keyword">typename</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;Y&gt;::Ref</a> *)<a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#5e11c7de0e0a91bdf6e5097f8e71cec2">pref</a>)-&gt;ptr;
+<a name="l00101"></a><a class="code" href="classatomic__shared__ptr.html#a3">00101</a>     <span class="keyword">template</span>&lt;<span class="keyword">typename</span> Y&gt; <a class="code" href="classatomic__shared__ptr.html#a0">atomic_shared_ptr</a>(<span class="keyword">const</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;Y&gt;</a> &amp;y)
+<a name="l00102"></a>00102      : <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>((typename <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr</a>::<a class="code" href="structatomic__shared__ptr__ref.html">Ref</a>*)y.<a class="code" href="classatomic__shared__ptr.html#a16">_scan_</a>()) {
+<a name="l00103"></a>00103         <a class="code" href="classatomic__shared__ptr.html#r0">m_ptr_instant</a> = !<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a> ? 0 : ((<span class="keyword">typename</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;Y&gt;</a><a class="code" href="structatomic__shared__ptr__ref.html">::Ref</a> *)<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>)-&gt;ptr;
 <a name="l00104"></a>00104     }
 <a name="l00105"></a>00105 
-<a name="l00106"></a>00106     <a class="code" href="classatomic__shared__ptr.html#b443b95adcdfcf7788a645b2a45949b8">~atomic_shared_ptr</a>();
+<a name="l00106"></a>00106     <a class="code" href="classatomic__shared__ptr.html#a4">~atomic_shared_ptr</a>();
 <a name="l00107"></a>00107 
-<a name="l00109"></a><a class="code" href="classatomic__shared__ptr.html#b55a02882e7a57f86e4b6c4fa0fb8afa">00109</a>     <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr</a> &amp;<a class="code" href="classatomic__shared__ptr.html#b55a02882e7a57f86e4b6c4fa0fb8afa">operator=</a>(<span class="keyword">const</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr</a> &amp;t) {
-<a name="l00110"></a>00110         <a class="code" href="classatomic__shared__ptr.html#fdef7207217e0d5348c0c8f15c60b1d4">atomic_shared_ptr</a>(t).swap(*<span class="keyword">this</span>);
+<a name="l00109"></a><a class="code" href="classatomic__shared__ptr.html#a5">00109</a>     <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr</a> &amp;<a class="code" href="classatomic__shared__ptr.html#a5">operator=</a>(<span class="keyword">const</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr</a> &amp;t) {
+<a name="l00110"></a>00110         <a class="code" href="classatomic__shared__ptr.html#a0">atomic_shared_ptr</a>(t).swap(*<span class="keyword">this</span>);
 <a name="l00111"></a>00111         <span class="keywordflow">return</span> *<span class="keyword">this</span>;
 <a name="l00112"></a>00112     }
-<a name="l00114"></a><a class="code" href="classatomic__shared__ptr.html#1ca0d7bfc1b0ef30280f0bde49bf59e7">00114</a>     <span class="keyword">template</span>&lt;<span class="keyword">typename</span> Y&gt; <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr</a> &amp;<a class="code" href="classatomic__shared__ptr.html#b55a02882e7a57f86e4b6c4fa0fb8afa">operator=</a>(<span class="keyword">const</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;Y&gt;</a> &amp;y) {
-<a name="l00115"></a>00115         <a class="code" href="classatomic__shared__ptr.html#fdef7207217e0d5348c0c8f15c60b1d4">atomic_shared_ptr</a>(y).swap(*<span class="keyword">this</span>);
+<a name="l00114"></a><a class="code" href="classatomic__shared__ptr.html#a6">00114</a>     <span class="keyword">template</span>&lt;<span class="keyword">typename</span> Y&gt; <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr</a> &amp;<a class="code" href="classatomic__shared__ptr.html#a5">operator=</a>(<span class="keyword">const</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;Y&gt;</a> &amp;y) {
+<a name="l00115"></a>00115         <a class="code" href="classatomic__shared__ptr.html#a0">atomic_shared_ptr</a>(y).swap(*<span class="keyword">this</span>);
 <a name="l00116"></a>00116         <span class="keywordflow">return</span> *<span class="keyword">this</span>;
 <a name="l00117"></a>00117     }
-<a name="l00119"></a><a class="code" href="classatomic__shared__ptr.html#fa6a4489f2b8514e5f59a135cd55f90b">00119</a>     <span class="keywordtype">void</span> <a class="code" href="classatomic__shared__ptr.html#fa6a4489f2b8514e5f59a135cd55f90b">reset</a>() {
-<a name="l00120"></a>00120         <a class="code" href="classatomic__shared__ptr.html#fdef7207217e0d5348c0c8f15c60b1d4">atomic_shared_ptr</a>().swap(*<span class="keyword">this</span>);
+<a name="l00119"></a><a class="code" href="classatomic__shared__ptr.html#a7">00119</a>     <span class="keywordtype">void</span> <a class="code" href="classatomic__shared__ptr.html#a7">reset</a>() {
+<a name="l00120"></a>00120         <a class="code" href="classatomic__shared__ptr.html#a0">atomic_shared_ptr</a>().swap(*<span class="keyword">this</span>);
 <a name="l00121"></a>00121     }
-<a name="l00123"></a><a class="code" href="classatomic__shared__ptr.html#166445c0916e379b3df6e04674999498">00123</a>     <span class="keyword">template</span>&lt;<span class="keyword">typename</span> Y&gt; <span class="keywordtype">void</span> <a class="code" href="classatomic__shared__ptr.html#fa6a4489f2b8514e5f59a135cd55f90b">reset</a>(Y *y) {
-<a name="l00124"></a>00124         <a class="code" href="classatomic__shared__ptr.html#fdef7207217e0d5348c0c8f15c60b1d4">atomic_shared_ptr</a>(y).swap(*<span class="keyword">this</span>);
+<a name="l00123"></a><a class="code" href="classatomic__shared__ptr.html#a8">00123</a>     <span class="keyword">template</span>&lt;<span class="keyword">typename</span> Y&gt; <span class="keywordtype">void</span> <a class="code" href="classatomic__shared__ptr.html#a7">reset</a>(Y *y) {
+<a name="l00124"></a>00124         <a class="code" href="classatomic__shared__ptr.html#a0">atomic_shared_ptr</a>(y).swap(*<span class="keyword">this</span>);
 <a name="l00125"></a>00125     }
 <a name="l00126"></a>00126     
-<a name="l00129"></a>00129     <span class="keywordtype">void</span> <a class="code" href="classatomic__shared__ptr.html#1724386c0ac8fcd50598f3fb73fbd9a3">swap</a>(<a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr</a> &amp;);
+<a name="l00129"></a>00129     <span class="keywordtype">void</span> <a class="code" href="classatomic__shared__ptr.html#a9">swap</a>(<a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr</a> &amp;);
 <a name="l00130"></a>00130 
-<a name="l00132"></a>00132     <span class="keywordtype">bool</span> <a class="code" href="classatomic__shared__ptr.html#e1ba6ec0e548ef5f5b9dae4ef31aff82">compareAndSwap</a>(<span class="keyword">const</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr</a> &amp;oldr, <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr</a> &amp;r);
+<a name="l00132"></a>00132     <span class="keywordtype">bool</span> <a class="code" href="classatomic__shared__ptr.html#a10">compareAndSwap</a>(<span class="keyword">const</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr</a> &amp;oldr, <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr</a> &amp;r);
 <a name="l00133"></a>00133     
-<a name="l00135"></a><a class="code" href="classatomic__shared__ptr.html#6ad94b72820337241542807741e7d76b">00135</a>     T &amp;<a class="code" href="classatomic__shared__ptr.html#6ad94b72820337241542807741e7d76b">operator*</a>()<span class="keyword"> const </span>{ ASSERT(<a class="code" href="classatomic__shared__ptr.html#8b6259ba5d36b2c5a13ab466ee4abc51">m_ptr_instant</a>); <span class="keywordflow">return</span> *<a class="code" href="classatomic__shared__ptr.html#8b6259ba5d36b2c5a13ab466ee4abc51">m_ptr_instant</a>;}
+<a name="l00135"></a><a class="code" href="classatomic__shared__ptr.html#a11">00135</a>     T &amp;<a class="code" href="classatomic__shared__ptr.html#a11">operator*</a>()<span class="keyword"> const </span>{ ASSERT(<a class="code" href="classatomic__shared__ptr.html#r0">m_ptr_instant</a>); <span class="keywordflow">return</span> *<a class="code" href="classatomic__shared__ptr.html#r0">m_ptr_instant</a>;}
 <a name="l00136"></a>00136 
-<a name="l00137"></a><a class="code" href="classatomic__shared__ptr.html#f75dc059f5e5af864b0428735c1968bb">00137</a>     T *<a class="code" href="classatomic__shared__ptr.html#f75dc059f5e5af864b0428735c1968bb">operator-&gt;</a>()<span class="keyword"> const </span>{ ASSERT(<a class="code" href="classatomic__shared__ptr.html#8b6259ba5d36b2c5a13ab466ee4abc51">m_ptr_instant</a>); <span class="keywordflow">return</span> <a class="code" href="classatomic__shared__ptr.html#8b6259ba5d36b2c5a13ab466ee4abc51">m_ptr_instant</a>;}
+<a name="l00137"></a><a class="code" href="classatomic__shared__ptr.html#a12">00137</a>     T *<a class="code" href="classatomic__shared__ptr.html#a12">operator-&gt;</a>()<span class="keyword"> const </span>{ ASSERT(<a class="code" href="classatomic__shared__ptr.html#r0">m_ptr_instant</a>); <span class="keywordflow">return</span> <a class="code" href="classatomic__shared__ptr.html#r0">m_ptr_instant</a>;}
 <a name="l00138"></a>00138     
-<a name="l00139"></a><a class="code" href="classatomic__shared__ptr.html#b206ae62e38a2d3cc58f58fc757a5a67">00139</a>     T *<a class="code" href="classatomic__shared__ptr.html#b206ae62e38a2d3cc58f58fc757a5a67">get</a>()<span class="keyword"> const </span>{
-<a name="l00140"></a>00140         <span class="keywordflow">return</span> <a class="code" href="classatomic__shared__ptr.html#8b6259ba5d36b2c5a13ab466ee4abc51">m_ptr_instant</a>;
+<a name="l00139"></a><a class="code" href="classatomic__shared__ptr.html#a13">00139</a>     T *<a class="code" href="classatomic__shared__ptr.html#a13">get</a>()<span class="keyword"> const </span>{
+<a name="l00140"></a>00140         <span class="keywordflow">return</span> <a class="code" href="classatomic__shared__ptr.html#r0">m_ptr_instant</a>;
 <a name="l00141"></a>00141     }
 <a name="l00142"></a>00142 
-<a name="l00143"></a><a class="code" href="classatomic__shared__ptr.html#b256346417a1d672b8c060c80c261836">00143</a>     <span class="keywordtype">bool</span> <a class="code" href="classatomic__shared__ptr.html#b256346417a1d672b8c060c80c261836">operator!</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> !<a class="code" href="classatomic__shared__ptr.html#8b6259ba5d36b2c5a13ab466ee4abc51">m_ptr_instant</a>;}
-<a name="l00144"></a><a class="code" href="classatomic__shared__ptr.html#b793c5dd87cd8fba8b6cf077c885975d">00144</a>     <a class="code" href="classatomic__shared__ptr.html#b793c5dd87cd8fba8b6cf077c885975d">operator bool</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="classatomic__shared__ptr.html#8b6259ba5d36b2c5a13ab466ee4abc51">m_ptr_instant</a>;}    
+<a name="l00143"></a><a class="code" href="classatomic__shared__ptr.html#a14">00143</a>     <span class="keywordtype">bool</span> <a class="code" href="classatomic__shared__ptr.html#a14">operator!</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> !<a class="code" href="classatomic__shared__ptr.html#r0">m_ptr_instant</a>;}
+<a name="l00144"></a><a class="code" href="classatomic__shared__ptr.html#a15">00144</a>     <a class="code" href="classatomic__shared__ptr.html#a15">operator bool</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="classatomic__shared__ptr.html#r0">m_ptr_instant</a>;}    
 <a name="l00145"></a>00145 
 <a name="l00146"></a>00146  <span class="keyword">private</span>:
-<a name="l00148"></a><a class="code" href="classatomic__shared__ptr.html#8b6259ba5d36b2c5a13ab466ee4abc51">00148</a>     T *<a class="code" href="classatomic__shared__ptr.html#8b6259ba5d36b2c5a13ab466ee4abc51">m_ptr_instant</a>;
+<a name="l00148"></a><a class="code" href="classatomic__shared__ptr.html#r0">00148</a>     T *<a class="code" href="classatomic__shared__ptr.html#r0">m_ptr_instant</a>;
 <a name="l00149"></a>00149 
 <a name="l00150"></a><a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">00150</a>     <span class="keyword">typedef</span> <span class="keyword">union </span>{
 <a name="l00151"></a>00151         <span class="keyword">struct </span>{
 <a name="l00152"></a>00152 <span class="preprocessor">        #if SIZEOF_INT == 4</span>
-<a name="l00153"></a>00153 <span class="preprocessor"></span>            uint16_t refcnt, serial; 
+<a name="l00153"></a><a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o1">00153</a> <span class="preprocessor"></span>            uint16_t refcnt, serial; 
 <a name="l00154"></a>00154 <span class="preprocessor">        #elif SIZEOF_INT == 8</span>
-<a name="l00155"></a>00155 <span class="preprocessor"></span>            uint32_t refcnt, serial; 
+<a name="l00155"></a><a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o3">00155</a> <span class="preprocessor"></span>            uint32_t refcnt, serial; 
 <a name="l00156"></a>00156 <span class="preprocessor">        #endif</span>
 <a name="l00157"></a>00157 <span class="preprocessor"></span>        } split;
-<a name="l00158"></a><a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#1df7f3df1d4d634e738ffb7caf5700b6">00158</a>         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> both;
+<a name="l00158"></a><a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">00158</a>         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> both;
 <a name="l00159"></a>00159      } <a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a>;
 <a name="l00160"></a>00160  <span class="keyword">public</span>:
-<a name="l00163"></a>00163     <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *<a class="code" href="classatomic__shared__ptr.html#563311ef816188b53b4c41a4432b21a3">_scan_</a>() <span class="keyword">const</span>;
-<a name="l00165"></a>00165     <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *<a class="code" href="classatomic__shared__ptr.html#9a69a05764e52451651389dda5f7ede7">_reserve_scan_</a>(<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> *) <span class="keyword">const</span>;    
-<a name="l00167"></a>00167     <span class="keywordtype">void</span> <a class="code" href="classatomic__shared__ptr.html#266788c1425e6aa60d9cd69bd4797c32">_leave_scan_</a>(<a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *, <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> serial) <span class="keyword">const</span>;    
+<a name="l00163"></a>00163     <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *<a class="code" href="classatomic__shared__ptr.html#a16">_scan_</a>() <span class="keyword">const</span>;
+<a name="l00165"></a>00165     <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *<a class="code" href="classatomic__shared__ptr.html#a17">_reserve_scan_</a>(<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> *) <span class="keyword">const</span>;    
+<a name="l00167"></a>00167     <span class="keywordtype">void</span> <a class="code" href="classatomic__shared__ptr.html#a18">_leave_scan_</a>(<a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *, <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> serial) <span class="keyword">const</span>;    
 <a name="l00168"></a>00168  <span class="keyword">private</span>:
 <a name="l00169"></a><a class="code" href="structatomic__shared__ptr_1_1___ref_local.html">00169</a>     <span class="keyword">struct </span><a class="code" href="structatomic__shared__ptr_1_1___ref_local.html">_RefLocal</a> {
-<a name="l00170"></a><a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#810da68ffb09dd30a5777d27d13ed9b6">00170</a>         <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#d608a4a7f5cf944880671c74ad875e62">_RefLocal</a>(<a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *r) : <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#5e11c7de0e0a91bdf6e5097f8e71cec2">pref</a>(r)
+<a name="l00170"></a><a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#a0">00170</a>         <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#a1">_RefLocal</a>(<a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *r) : <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>(r)
 <a name="l00171"></a>00171         #if defined ATOMIC_SMART_PTR_USE_LOCKFREE_READ
-<a name="l00172"></a>00172             , <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#c5b95792f7403cf47f41a7c7bb0806c4">pref_old</a>(r), <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#3373ecde5ef3710fd688758b80c4e3e4">serial_update</a>(0)
+<a name="l00172"></a>00172             , <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o2">pref_old</a>(r), <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o3">serial_update</a>(0)
 <a name="l00173"></a>00173         #endif
-<a name="l00174"></a>00174             { <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#8f908266d64302e3cea23ae3f4cb37a5">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#1df7f3df1d4d634e738ffb7caf5700b6">both</a> = 0; }
-<a name="l00175"></a><a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#d608a4a7f5cf944880671c74ad875e62">00175</a>         <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#d608a4a7f5cf944880671c74ad875e62">_RefLocal</a>() : <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#5e11c7de0e0a91bdf6e5097f8e71cec2">pref</a>(0)
+<a name="l00174"></a>00174             { <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a> = 0; }
+<a name="l00175"></a><a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#a1">00175</a>         <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#a1">_RefLocal</a>() : <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>(0)
 <a name="l00176"></a>00176         #if defined ATOMIC_SMART_PTR_USE_LOCKFREE_READ
-<a name="l00177"></a>00177             , <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#c5b95792f7403cf47f41a7c7bb0806c4">pref_old</a>(0), <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#3373ecde5ef3710fd688758b80c4e3e4">serial_update</a>(0)
+<a name="l00177"></a>00177             , <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o2">pref_old</a>(0), <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o3">serial_update</a>(0)
 <a name="l00178"></a>00178         #endif
-<a name="l00179"></a>00179             { <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#8f908266d64302e3cea23ae3f4cb37a5">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#1df7f3df1d4d634e738ffb7caf5700b6">both</a> = 0; }
-<a name="l00180"></a><a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#4f011fc557b6f61d4451255e6a493054">00180</a>         <span class="keyword">typedef</span> <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a>* <a class="code" href="structatomic__shared__ptr__ref.html">Ref_ptr</a>;
-<a name="l00182"></a><a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#5e11c7de0e0a91bdf6e5097f8e71cec2">00182</a>         <a class="code" href="structatomic__shared__ptr__ref.html">Ref_ptr</a> <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#5e11c7de0e0a91bdf6e5097f8e71cec2">pref</a>;
-<a name="l00184"></a><a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#8f908266d64302e3cea23ae3f4cb37a5">00184</a>         <a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#8f908266d64302e3cea23ae3f4cb37a5">refcnt_n_serial</a>;
+<a name="l00179"></a>00179             { <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a> = 0; }
+<a name="l00180"></a><a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#w0">00180</a>         <span class="keyword">typedef</span> <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a>* <a class="code" href="structatomic__shared__ptr__ref.html">Ref_ptr</a>;
+<a name="l00182"></a><a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">00182</a>         <a class="code" href="structatomic__shared__ptr__ref.html">Ref_ptr</a> <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>;
+<a name="l00184"></a><a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">00184</a>         <a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>;
 <a name="l00185"></a>00185 <span class="preprocessor">        #ifdef ATOMIC_SMART_PTR_USE_LOCKFREE_READ</span>
-<a name="l00186"></a><a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#c5b95792f7403cf47f41a7c7bb0806c4">00186</a> <span class="preprocessor"></span>            <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#c5b95792f7403cf47f41a7c7bb0806c4">pref_old</a>;
-<a name="l00187"></a><a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#3373ecde5ef3710fd688758b80c4e3e4">00187</a>             <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#3373ecde5ef3710fd688758b80c4e3e4">serial_update</a>;
+<a name="l00186"></a><a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o2">00186</a> <span class="preprocessor"></span>            <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o2">pref_old</a>;
+<a name="l00187"></a><a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o3">00187</a>             <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o3">serial_update</a>;
 <a name="l00188"></a>00188 <span class="preprocessor">        #endif</span>
 <a name="l00189"></a>00189 <span class="preprocessor"></span>    };
-<a name="l00190"></a><a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">00190</a>     <span class="keyword">mutable</span> _RefLocal <a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>;
+<a name="l00190"></a><a class="code" href="classatomic__shared__ptr.html#r1">00190</a>     <span class="keyword">mutable</span> _RefLocal <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>;
 <a name="l00191"></a>00191 <span class="preprocessor">    #ifdef ATOMIC_SMART_PTR_USE_LOCKFREE_READ</span>
-<a name="l00192"></a><a class="code" href="classatomic__shared__ptr.html#f4dd6c8e66ea4aae3ac51f70fc176b15">00192</a> <span class="preprocessor"></span>        <a class="code" href="class_x_mutex.html">XMutex</a> <a class="code" href="classatomic__shared__ptr.html#f4dd6c8e66ea4aae3ac51f70fc176b15">m_updatemutex</a>;
+<a name="l00192"></a><a class="code" href="classatomic__shared__ptr.html#r2">00192</a> <span class="preprocessor"></span>        <a class="code" href="class_x_mutex.html">XMutex</a> <a class="code" href="classatomic__shared__ptr.html#r2">m_updatemutex</a>;
 <a name="l00193"></a>00193 <span class="preprocessor">    #endif</span>
 <a name="l00194"></a>00194 <span class="preprocessor"></span>};
 <a name="l00195"></a>00195 
 <a name="l00196"></a>00196 <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
-<a name="l00197"></a><a class="code" href="classatomic__shared__ptr.html#b443b95adcdfcf7788a645b2a45949b8">00197</a> <a class="code" href="classatomic__shared__ptr.html#b443b95adcdfcf7788a645b2a45949b8">atomic_shared_ptr&lt;T&gt;::~atomic_shared_ptr</a>() {
+<a name="l00197"></a><a class="code" href="classatomic__shared__ptr.html#a4">00197</a> <a class="code" href="classatomic__shared__ptr.html#a4">atomic_shared_ptr&lt;T&gt;::~atomic_shared_ptr</a>() {
 <a name="l00198"></a>00198         readBarrier();
-<a name="l00199"></a>00199         ASSERT(<a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#8f908266d64302e3cea23ae3f4cb37a5">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.refcnt == 0);
-<a name="l00200"></a>00200         <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *pref = <a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#5e11c7de0e0a91bdf6e5097f8e71cec2">pref</a>;
+<a name="l00199"></a>00199         ASSERT(<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt == 0);
+<a name="l00200"></a>00200         <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *pref = <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>;
 <a name="l00201"></a>00201         <span class="keywordflow">if</span>(!pref) <span class="keywordflow">return</span>;
-<a name="l00202"></a>00202         <span class="keywordflow">if</span>(atomicDecAndTest(&amp;pref-&gt;<a class="code" href="structatomic__shared__ptr__ref.html#1bd36c8fedcf1dcafed789dbdb9ef3d5">refcnt</a>)) {
+<a name="l00202"></a>00202         <span class="keywordflow">if</span>(atomicDecAndTest(&amp;pref-&gt;<a class="code" href="structatomic__shared__ptr__ref.html#o1">refcnt</a>)) {
 <a name="l00203"></a>00203                 memoryBarrier();
 <a name="l00204"></a>00204                 <span class="keyword">delete</span> pref;
 <a name="l00205"></a>00205         }
 <a name="l00206"></a>00206 }
 <a name="l00207"></a>00207 
 <a name="l00208"></a>00208 <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
-<a name="l00209"></a><a class="code" href="classatomic__shared__ptr.html#563311ef816188b53b4c41a4432b21a3">00209</a> <span class="keyword">typename</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;T&gt;::Ref</a> *<a class="code" href="classatomic__shared__ptr.html#563311ef816188b53b4c41a4432b21a3">atomic_shared_ptr&lt;T&gt;::_scan_</a>()<span class="keyword"> const </span>{
+<a name="l00209"></a><a class="code" href="classatomic__shared__ptr.html#a16">00209</a> <span class="keyword">typename</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;T&gt;</a><a class="code" href="structatomic__shared__ptr__ref.html">::Ref</a> *<a class="code" href="classatomic__shared__ptr.html#a16">atomic_shared_ptr&lt;T&gt;::_scan_</a>()<span class="keyword"> const </span>{
 <a name="l00210"></a>00210     <a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> rs;
-<a name="l00211"></a>00211     <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *pref = <a class="code" href="classatomic__shared__ptr.html#9a69a05764e52451651389dda5f7ede7">_reserve_scan_</a>(&amp;rs);
+<a name="l00211"></a>00211     <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *pref = <a class="code" href="classatomic__shared__ptr.html#a17">_reserve_scan_</a>(&amp;rs);
 <a name="l00212"></a>00212     <span class="keywordflow">if</span>(!pref) <span class="keywordflow">return</span> 0;
-<a name="l00213"></a>00213     atomicInc(&amp;pref-&gt;<a class="code" href="structatomic__shared__ptr__ref.html#1bd36c8fedcf1dcafed789dbdb9ef3d5">refcnt</a>);
-<a name="l00214"></a>00214     <a class="code" href="classatomic__shared__ptr.html#266788c1425e6aa60d9cd69bd4797c32">_leave_scan_</a>(pref, rs.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.serial);
+<a name="l00213"></a>00213     atomicInc(&amp;pref-&gt;<a class="code" href="structatomic__shared__ptr__ref.html#o1">refcnt</a>);
+<a name="l00214"></a>00214     <a class="code" href="classatomic__shared__ptr.html#a18">_leave_scan_</a>(pref, rs.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.serial);
 <a name="l00215"></a>00215     <span class="keywordflow">return</span> pref;
 <a name="l00216"></a>00216 }
 <a name="l00217"></a>00217 
 <a name="l00218"></a>00218 <span class="preprocessor">#ifdef ATOMIC_SMART_PTR_USE_CAS2</span>
 <a name="l00219"></a>00219 <span class="preprocessor"></span><span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
-<a name="l00220"></a>00220 <span class="keyword">typename</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;T&gt;::Ref</a> *
-<a name="l00221"></a>00221 <a class="code" href="classatomic__shared__ptr.html#9a69a05764e52451651389dda5f7ede7">atomic_shared_ptr&lt;T&gt;::_reserve_scan_</a>(RefcntNSerial *rs)<span class="keyword"> const </span>{
-<a name="l00222"></a>00222         <a class="code" href="classatomic__shared__ptr.html#c513776ff57656b6d94c0eba77905a5c">Ref</a> *pref;
-<a name="l00223"></a>00223         RefcntNSerial rs_new;
+<a name="l00220"></a>00220 <span class="keyword">typename</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;T&gt;</a>::Ref *
+<a name="l00221"></a><a class="code" href="classatomic__shared__ptr.html#a17">00221</a> <a class="code" href="classatomic__shared__ptr.html#a17">atomic_shared_ptr&lt;T&gt;::_reserve_scan_</a>(<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> *rs)<span class="keyword"> const </span>{
+<a name="l00222"></a>00222         <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *pref;
+<a name="l00223"></a>00223         <a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> rs_new;
 <a name="l00224"></a>00224         <span class="keywordflow">for</span>(;;) {
-<a name="l00225"></a>00225                 pref = <a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#5e11c7de0e0a91bdf6e5097f8e71cec2">pref</a>;
-<a name="l00226"></a>00226                 RefcntNSerial rs_old;
-<a name="l00227"></a>00227                 rs_old.both = <a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#8f908266d64302e3cea23ae3f4cb37a5">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#1df7f3df1d4d634e738ffb7caf5700b6">both</a>;
+<a name="l00225"></a>00225                 pref = <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>;
+<a name="l00226"></a>00226                 <a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> rs_old;
+<a name="l00227"></a>00227                 rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a> = <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a>;
 <a name="l00228"></a>00228                 <span class="keywordflow">if</span>(!pref) {
 <a name="l00229"></a>00229                         <span class="comment">// target is null.</span>
-<a name="l00230"></a>00230                         rs-&gt;both = rs_old.both;
+<a name="l00230"></a>00230                         rs-&gt;<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a> = rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a>;
 <a name="l00231"></a>00231                         <span class="keywordflow">return</span> 0;
 <a name="l00232"></a>00232                 }
 <a name="l00233"></a>00233                 rs_new = rs_old;
-<a name="l00234"></a>00234                 rs_new.split.refcnt++;
-<a name="l00235"></a>00235                 C_ASSERT(<span class="keyword">sizeof</span>(<a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>) == <span class="keyword">sizeof</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>) * 2);
+<a name="l00234"></a>00234                 rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt++;
+<a name="l00235"></a>00235                 C_ASSERT(<span class="keyword">sizeof</span>(<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>) == <span class="keyword">sizeof</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>) * 2);
 <a name="l00236"></a>00236                 <span class="comment">// try to increase local reference counter w/ same serial.</span>
 <a name="l00237"></a>00237                 <span class="keywordflow">if</span>(atomicCompareAndSet2(
-<a name="l00238"></a>00238                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)pref, rs_old.both,
-<a name="l00239"></a>00239                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)pref, rs_new.both,
+<a name="l00238"></a>00238                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)pref, rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a>,
+<a name="l00239"></a>00239                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)pref, rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a>,
 <a name="l00240"></a>00240                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>*)&amp;m_ref))
 <a name="l00241"></a>00241                 <span class="keywordflow">break</span>;
 <a name="l00242"></a>00242         }
-<a name="l00243"></a>00243         rs-&gt;both = rs_new.both;
+<a name="l00243"></a>00243         rs-&gt;<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a> = rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a>;
 <a name="l00244"></a>00244         <span class="keywordflow">return</span> pref;
 <a name="l00245"></a>00245 }
 <a name="l00246"></a>00246 <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
 <a name="l00247"></a>00247 <span class="keywordtype">void</span>
-<a name="l00248"></a>00248 <a class="code" href="classatomic__shared__ptr.html#266788c1425e6aa60d9cd69bd4797c32">atomic_shared_ptr&lt;T&gt;::_leave_scan_</a>(Ref *pref, <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> serial)<span class="keyword"> const </span>{
+<a name="l00248"></a><a class="code" href="classatomic__shared__ptr.html#a18">00248</a> <a class="code" href="classatomic__shared__ptr.html#a18">atomic_shared_ptr&lt;T&gt;::_leave_scan_</a>(<a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *pref, <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> serial)<span class="keyword"> const </span>{
 <a name="l00249"></a>00249         <span class="keywordflow">for</span>(;;) {
-<a name="l00250"></a>00250                 RefcntNSerial rs_old;
-<a name="l00251"></a>00251                 rs_old.both = m_ref.refcnt_n_serial.both;
-<a name="l00252"></a>00252                 rs_old.split.serial = serial;
-<a name="l00253"></a>00253                 RefcntNSerial rs_new = rs_old;
-<a name="l00254"></a>00254                 rs_new.split.refcnt--;
+<a name="l00250"></a>00250                 <a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> rs_old;
+<a name="l00251"></a>00251                 rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a> = <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a>;
+<a name="l00252"></a>00252                 rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.serial = serial;
+<a name="l00253"></a>00253                 <a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> rs_new = rs_old;
+<a name="l00254"></a>00254                 rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt--;
 <a name="l00255"></a>00255                 <span class="comment">// try to dec. reference counter and change serial if stored pointer is unchanged.</span>
 <a name="l00256"></a>00256                 <span class="keywordflow">if</span>(atomicCompareAndSet2(
-<a name="l00257"></a>00257                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)pref, rs_old.both,
-<a name="l00258"></a>00258                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)pref, rs_new.both,
-<a name="l00259"></a>00259                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>*)&amp;m_ref))
+<a name="l00257"></a>00257                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)pref, rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a>,
+<a name="l00258"></a>00258                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)pref, rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a>,
+<a name="l00259"></a>00259                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>*)&amp;<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>))
 <a name="l00260"></a>00260                             <span class="keywordflow">break</span>;
 <a name="l00261"></a>00261                 <span class="keywordflow">if</span>((pref != m_ref.pref) || (serial != m_ref.refcnt_n_serial.split.serial)) {
 <a name="l00262"></a>00262                         <span class="comment">// local reference of this context has released by other processes.</span>
@@ -266,24 +257,24 @@
 <a name="l00273"></a>00273 <span class="preprocessor">#elif defined ATOMIC_SMART_PTR_USE_LOCKFREE_READ</span>
 <a name="l00274"></a>00274 <span class="preprocessor"></span>
 <a name="l00275"></a>00275 <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
-<a name="l00276"></a>00276 <span class="keyword">typename</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;T&gt;::Ref</a> *
-<a name="l00277"></a><a class="code" href="classatomic__shared__ptr.html#9a69a05764e52451651389dda5f7ede7">00277</a> <a class="code" href="classatomic__shared__ptr.html#9a69a05764e52451651389dda5f7ede7">atomic_shared_ptr&lt;T&gt;::_reserve_scan_</a>(<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> *rs)<span class="keyword"> const </span>{
-<a name="l00278"></a>00278     <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *pref;
-<a name="l00279"></a>00279     <a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> rs_new;
+<a name="l00276"></a>00276 <span class="keyword">typename</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;T&gt;</a>::Ref *
+<a name="l00277"></a>00277 <a class="code" href="classatomic__shared__ptr.html#a17">atomic_shared_ptr&lt;T&gt;::_reserve_scan_</a>(RefcntNSerial *rs)<span class="keyword"> const </span>{
+<a name="l00278"></a>00278     <a class="code" href="classatomic__shared__ptr.html#w0">Ref</a> *pref;
+<a name="l00279"></a>00279     RefcntNSerial rs_new;
 <a name="l00280"></a>00280     <span class="keywordflow">for</span>(;;) {
 <a name="l00281"></a>00281         readBarrier();
-<a name="l00282"></a>00282         <a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> rs1 = m_ref.refcnt_n_serial;
+<a name="l00282"></a>00282         RefcntNSerial rs1 = <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>;
 <a name="l00283"></a>00283         readBarrier();
-<a name="l00284"></a>00284         <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *pref_new = m_ref.pref;
+<a name="l00284"></a>00284         <a class="code" href="classatomic__shared__ptr.html#w0">Ref</a> *pref_new = <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>;
 <a name="l00285"></a>00285         readBarrier();
-<a name="l00286"></a>00286         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> serial1 = m_ref.serial_update;
+<a name="l00286"></a>00286         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> serial1 = <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o3">serial_update</a>;
 <a name="l00287"></a>00287         readBarrier();
-<a name="l00288"></a>00288         <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *pref_old = m_ref.pref_old;
+<a name="l00288"></a>00288         <a class="code" href="classatomic__shared__ptr.html#w0">Ref</a> *pref_old = <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o2">pref_old</a>;
 <a name="l00289"></a>00289         readBarrier();
-<a name="l00290"></a>00290         <a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> rs2 = m_ref.refcnt_n_serial;
-<a name="l00291"></a>00291         <span class="keywordflow">if</span>((rs1.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.serial != rs2.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.serial)) <span class="keywordflow">continue</span>;
+<a name="l00290"></a>00290         RefcntNSerial rs2 = <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>;
+<a name="l00291"></a>00291         <span class="keywordflow">if</span>((rs1.split.serial != rs2.split.serial)) <span class="keywordflow">continue</span>;
 <a name="l00292"></a>00292         rs_new = rs2;
-<a name="l00293"></a>00293         <span class="keywordflow">if</span>(rs2.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.serial == serial1) {
+<a name="l00293"></a>00293         <span class="keywordflow">if</span>(rs2.split.serial == serial1) {
 <a name="l00294"></a>00294             pref = pref_new;
 <a name="l00295"></a>00295         }
 <a name="l00296"></a>00296         <span class="keywordflow">else</span> {
@@ -292,8 +283,8 @@
 <a name="l00299"></a>00299         <span class="keywordflow">if</span>(!pref) {
 <a name="l00300"></a>00300             <span class="keywordflow">break</span>;
 <a name="l00301"></a>00301         }
-<a name="l00302"></a>00302         rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.refcnt++;
-<a name="l00303"></a>00303         <span class="keywordflow">if</span>(atomicCompareAndSet(rs2.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#1df7f3df1d4d634e738ffb7caf5700b6">both</a>, rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#1df7f3df1d4d634e738ffb7caf5700b6">both</a>, &amp;m_ref.refcnt_n_serial.both))
+<a name="l00302"></a>00302         rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt++;
+<a name="l00303"></a>00303         <span class="keywordflow">if</span>(atomicCompareAndSet(rs2.both, rs_new.both, &amp;<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a>))
 <a name="l00304"></a>00304             <span class="keywordflow">break</span>;
 <a name="l00305"></a>00305     }
 <a name="l00306"></a>00306     *rs = rs_new;
@@ -301,32 +292,32 @@
 <a name="l00308"></a>00308 }
 <a name="l00309"></a>00309 <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
 <a name="l00310"></a>00310 <span class="keywordtype">void</span>
-<a name="l00311"></a><a class="code" href="classatomic__shared__ptr.html#266788c1425e6aa60d9cd69bd4797c32">00311</a> <a class="code" href="classatomic__shared__ptr.html#266788c1425e6aa60d9cd69bd4797c32">atomic_shared_ptr&lt;T&gt;::_leave_scan_</a>(<a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *pref, <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> serial)<span class="keyword"> const </span>{
+<a name="l00311"></a>00311 <a class="code" href="classatomic__shared__ptr.html#a18">atomic_shared_ptr&lt;T&gt;::_leave_scan_</a>(Ref *pref, <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> serial)<span class="keyword"> const </span>{
 <a name="l00312"></a>00312         <span class="keywordflow">for</span>(;;) {
-<a name="l00313"></a>00313                 <a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> rs_new;
+<a name="l00313"></a>00313                 RefcntNSerial rs_new;
 <a name="l00314"></a>00314                 
 <a name="l00315"></a>00315                 readBarrier();
-<a name="l00316"></a>00316                 <a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> rs1 = m_ref.refcnt_n_serial;
+<a name="l00316"></a>00316                 RefcntNSerial rs1 = <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>;
 <a name="l00317"></a>00317                 readBarrier();
-<a name="l00318"></a>00318                 <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *pref_new = m_ref.pref;
+<a name="l00318"></a>00318                 <a class="code" href="classatomic__shared__ptr.html#w0">Ref</a> *pref_new = <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>;
 <a name="l00319"></a>00319                 readBarrier();
-<a name="l00320"></a>00320                 <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> serial1 = m_ref.serial_update;
+<a name="l00320"></a>00320                 <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> serial1 = <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o3">serial_update</a>;
 <a name="l00321"></a>00321                 readBarrier();
-<a name="l00322"></a>00322                 <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *pref_old = m_ref.pref_old;
+<a name="l00322"></a>00322                 <a class="code" href="classatomic__shared__ptr.html#w0">Ref</a> *pref_old = <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o2">pref_old</a>;
 <a name="l00323"></a>00323                 readBarrier();
-<a name="l00324"></a>00324                 <a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> rs2 = m_ref.refcnt_n_serial;
-<a name="l00325"></a>00325                 <span class="keywordflow">if</span>((rs1.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.serial != rs2.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.serial)) <span class="keywordflow">continue</span>;
+<a name="l00324"></a>00324                 RefcntNSerial rs2 = <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>;
+<a name="l00325"></a>00325                 <span class="keywordflow">if</span>((rs1.split.serial != rs2.split.serial)) <span class="keywordflow">continue</span>;
 <a name="l00326"></a>00326                 rs_new = rs2;
-<a name="l00327"></a>00327                 <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *pref_now;
-<a name="l00328"></a>00328                 <span class="keywordflow">if</span>(rs2.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.serial == serial1) {
+<a name="l00327"></a>00327                 <a class="code" href="classatomic__shared__ptr.html#w0">Ref</a> *pref_now;
+<a name="l00328"></a>00328                 <span class="keywordflow">if</span>(rs2.split.serial == serial1) {
 <a name="l00329"></a>00329                         pref_now = pref_new;
 <a name="l00330"></a>00330                 }
 <a name="l00331"></a>00331                 <span class="keywordflow">else</span> {
 <a name="l00332"></a>00332                     pref_now = pref_old;
 <a name="l00333"></a>00333                 }
-<a name="l00334"></a>00334                 <span class="keywordflow">if</span>((pref != pref_now) || (rs2.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.serial != serial)) {
+<a name="l00334"></a>00334                 <span class="keywordflow">if</span>((pref != pref_now) || (rs2.split.serial != serial)) {
 <a name="l00335"></a>00335                         readBarrier();
-<a name="l00336"></a>00336                         <span class="keywordflow">if</span>(atomicDecAndTest((<span class="keywordtype">int</span>*)&amp;pref-&gt;<a class="code" href="structatomic__shared__ptr__ref.html#1bd36c8fedcf1dcafed789dbdb9ef3d5">refcnt</a>)) {
+<a name="l00336"></a>00336                         <span class="keywordflow">if</span>(atomicDecAndTest((<span class="keywordtype">int</span>*)&amp;pref-&gt;refcnt)) {
 <a name="l00337"></a>00337                                 memoryBarrier();
 <a name="l00338"></a>00338                                 <span class="keyword">delete</span> pref;
 <a name="l00339"></a>00339                         }
@@ -334,8 +325,8 @@
 <a name="l00341"></a>00341                         <span class="keywordflow">break</span>;
 <a name="l00342"></a>00342                 }
 <a name="l00343"></a>00343                 readBarrier();
-<a name="l00344"></a>00344                 rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.refcnt--;
-<a name="l00345"></a>00345                 <span class="keywordflow">if</span>(atomicCompareAndSet(rs2.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#1df7f3df1d4d634e738ffb7caf5700b6">both</a>, rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#1df7f3df1d4d634e738ffb7caf5700b6">both</a>, &amp;m_ref.refcnt_n_serial.both))
+<a name="l00344"></a>00344                 rs_new.split.refcnt--;
+<a name="l00345"></a>00345                 <span class="keywordflow">if</span>(atomicCompareAndSet(rs2.both, rs_new.both, &amp;<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a>))
 <a name="l00346"></a>00346                         <span class="keywordflow">break</span>;
 <a name="l00347"></a>00347         }
 <a name="l00348"></a>00348         writeBarrier();
@@ -345,148 +336,148 @@
 <a name="l00352"></a>00352 <span class="preprocessor"></span>    
 <a name="l00353"></a>00353 <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
 <a name="l00354"></a>00354 <span class="keywordtype">void</span>
-<a name="l00355"></a><a class="code" href="classatomic__shared__ptr.html#1724386c0ac8fcd50598f3fb73fbd9a3">00355</a> <a class="code" href="classatomic__shared__ptr.html#1724386c0ac8fcd50598f3fb73fbd9a3">atomic_shared_ptr&lt;T&gt;::swap</a>(<a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;T&gt;</a> &amp;r) {
+<a name="l00355"></a><a class="code" href="classatomic__shared__ptr.html#a9">00355</a> <a class="code" href="classatomic__shared__ptr.html#a9">atomic_shared_ptr&lt;T&gt;::swap</a>(<a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;T&gt;</a> &amp;r) {
 <a name="l00356"></a>00356         <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *pref;
 <a name="l00357"></a>00357         T *oldptr = 0;
-<a name="l00358"></a>00358         <span class="keywordflow">if</span>(m_ref.pref) {
+<a name="l00358"></a>00358         <span class="keywordflow">if</span>(<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>) {
 <a name="l00359"></a>00359         <span class="comment">// Release local reference.</span>
-<a name="l00360"></a>00360                 <span class="keywordflow">if</span>(m_ref.refcnt_n_serial.split.refcnt)
-<a name="l00361"></a>00361                     atomicAdd(&amp;m_ref.pref-&gt;refcnt, (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)m_ref.refcnt_n_serial.split.refcnt);
-<a name="l00362"></a>00362                 m_ref.refcnt_n_serial.split.serial++;
-<a name="l00363"></a>00363                 oldptr = m_ref.pref-&gt;ptr;
+<a name="l00360"></a>00360                 <span class="keywordflow">if</span>(<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt)
+<a name="l00361"></a>00361                     atomicAdd(&amp;<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>-&gt;refcnt, (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt);
+<a name="l00362"></a>00362                 <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.serial++;
+<a name="l00363"></a>00363                 oldptr = <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>-&gt;ptr;
 <a name="l00364"></a>00364         }
-<a name="l00365"></a>00365         m_ref.refcnt_n_serial.split.refcnt = 0;
+<a name="l00365"></a>00365         <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt = 0;
 <a name="l00366"></a>00366 <span class="preprocessor">#ifdef ATOMIC_SMART_PTR_USE_CAS2</span>
 <a name="l00367"></a>00367 <span class="preprocessor"></span>        <span class="keywordflow">for</span>(;;) {
 <a name="l00368"></a>00368                 <a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> rs_old, rs_new;
-<a name="l00369"></a>00369                 pref = r.<a class="code" href="classatomic__shared__ptr.html#9a69a05764e52451651389dda5f7ede7">_reserve_scan_</a>(&amp;rs_old);
+<a name="l00369"></a>00369                 pref = r.<a class="code" href="classatomic__shared__ptr.html#a17">_reserve_scan_</a>(&amp;rs_old);
 <a name="l00370"></a>00370                 <span class="keywordflow">if</span>(pref) {
-<a name="l00371"></a>00371                         ASSERT(rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.refcnt);
-<a name="l00372"></a>00372                         atomicAdd(&amp;pref-&gt;<a class="code" href="structatomic__shared__ptr__ref.html#1bd36c8fedcf1dcafed789dbdb9ef3d5">refcnt</a>, (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)(rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.refcnt - 1));
+<a name="l00371"></a>00371                         ASSERT(rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt);
+<a name="l00372"></a>00372                         atomicAdd(&amp;pref-&gt;<a class="code" href="structatomic__shared__ptr__ref.html#o1">refcnt</a>, (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)(rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt - 1));
 <a name="l00373"></a>00373                 }
-<a name="l00374"></a>00374                 rs_new.split.refcnt = 0;
-<a name="l00375"></a>00375                 rs_new.split.serial = rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.serial + 1;
+<a name="l00374"></a>00374                 rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt = 0;
+<a name="l00375"></a>00375                 rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.serial = rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.serial + 1;
 <a name="l00376"></a>00376                 <span class="keywordflow">if</span>(atomicCompareAndSet2(
-<a name="l00377"></a>00377                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)pref, rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#1df7f3df1d4d634e738ffb7caf5700b6">both</a>,
-<a name="l00378"></a>00378                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)m_ref.pref, rs_new.both,
-<a name="l00379"></a>00379                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>*)&amp;r.<a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>))
+<a name="l00377"></a>00377                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)pref, rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a>,
+<a name="l00378"></a>00378                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>, rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a>,
+<a name="l00379"></a>00379                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>*)&amp;r.<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>))
 <a name="l00380"></a>00380                                 <span class="keywordflow">break</span>;
 <a name="l00381"></a>00381                 <span class="keywordflow">if</span>(pref) {
-<a name="l00382"></a>00382                         ASSERT(rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.refcnt);
-<a name="l00383"></a>00383                         atomicAdd((<span class="keywordtype">int</span>*)&amp;pref-&gt;refcnt, - (<span class="keywordtype">int</span>)(rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.refcnt - 1));
-<a name="l00384"></a>00384                         r.<a class="code" href="classatomic__shared__ptr.html#266788c1425e6aa60d9cd69bd4797c32">_leave_scan_</a>(pref, rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.serial);
+<a name="l00382"></a>00382                         ASSERT(rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt);
+<a name="l00383"></a>00383                         atomicAdd((<span class="keywordtype">int</span>*)&amp;pref-&gt;refcnt, - (<span class="keywordtype">int</span>)(rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt - 1));
+<a name="l00384"></a>00384                         r.<a class="code" href="classatomic__shared__ptr.html#a18">_leave_scan_</a>(pref, rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.serial);
 <a name="l00385"></a>00385                 }
 <a name="l00386"></a>00386         }
 <a name="l00387"></a>00387 <span class="preprocessor">#elif defined ATOMIC_SMART_PTR_USE_LOCKFREE_READ</span>
-<a name="l00388"></a>00388 <span class="preprocessor"></span>    m_ref.serial_update = m_ref.refcnt_n_serial.split.serial;
-<a name="l00389"></a>00389     { <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> lock(r.<a class="code" href="classatomic__shared__ptr.html#f4dd6c8e66ea4aae3ac51f70fc176b15">m_updatemutex</a>);
-<a name="l00390"></a>00390         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> serial = ++r.<a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#3373ecde5ef3710fd688758b80c4e3e4">serial_update</a>;
+<a name="l00388"></a>00388 <span class="preprocessor"></span>    <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o3">serial_update</a> = <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.serial;
+<a name="l00389"></a>00389     { <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> lock(r.<a class="code" href="classatomic__shared__ptr.html#r2">m_updatemutex</a>);
+<a name="l00390"></a>00390         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> serial = ++r.<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o3">serial_update</a>;
 <a name="l00391"></a>00391         writeBarrier();
-<a name="l00392"></a>00392         pref = r.<a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#5e11c7de0e0a91bdf6e5097f8e71cec2">pref</a>;
-<a name="l00393"></a>00393         r.<a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#5e11c7de0e0a91bdf6e5097f8e71cec2">pref</a> = m_ref.pref;
+<a name="l00392"></a>00392         pref = r.<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>;
+<a name="l00393"></a>00393         r.<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a> = <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>;
 <a name="l00394"></a>00394         writeBarrier();
 <a name="l00395"></a>00395         <a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> rs_new;
-<a name="l00396"></a>00396         rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.serial = serial;
-<a name="l00397"></a>00397         rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.refcnt = 0;
+<a name="l00396"></a>00396         rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.serial = serial;
+<a name="l00397"></a>00397         rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt = 0;
 <a name="l00398"></a>00398         <span class="keywordflow">for</span>(;;) {
-<a name="l00399"></a>00399             <a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> rs_old = r.<a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#8f908266d64302e3cea23ae3f4cb37a5">refcnt_n_serial</a>;
+<a name="l00399"></a>00399             <a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> rs_old = r.<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>;
 <a name="l00400"></a>00400             <span class="keywordflow">if</span>(pref)
-<a name="l00401"></a>00401                 <span class="keywordflow">if</span>(rs_old.split.refcnt)
-<a name="l00402"></a>00402                     atomicAdd((<span class="keywordtype">int</span>*)&amp;pref-&gt;refcnt, (<span class="keywordtype">int</span>)rs_old.split.refcnt);
-<a name="l00403"></a>00403             <span class="keywordflow">if</span>(atomicCompareAndSet(rs_old.both, rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#1df7f3df1d4d634e738ffb7caf5700b6">both</a>, 
-<a name="l00404"></a>00404                     &amp;r.<a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#8f908266d64302e3cea23ae3f4cb37a5">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#1df7f3df1d4d634e738ffb7caf5700b6">both</a>))
+<a name="l00401"></a>00401                 <span class="keywordflow">if</span>(rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt)
+<a name="l00402"></a>00402                     atomicAdd((<span class="keywordtype">int</span>*)&amp;pref-&gt;<a class="code" href="structatomic__shared__ptr__ref.html#o1">refcnt</a>, (<span class="keywordtype">int</span>)rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt);
+<a name="l00403"></a>00403             <span class="keywordflow">if</span>(atomicCompareAndSet(rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a>, rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a>, 
+<a name="l00404"></a>00404                     &amp;r.<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a>))
 <a name="l00405"></a>00405                     <span class="keywordflow">break</span>;
 <a name="l00406"></a>00406             <span class="keywordflow">if</span>(pref)
-<a name="l00407"></a>00407                 <span class="keywordflow">if</span>(rs_old.split.refcnt)
-<a name="l00408"></a>00408                     atomicAdd((<span class="keywordtype">int</span>*)&amp;pref-&gt;refcnt, -(<span class="keywordtype">int</span>)rs_old.split.refcnt);
+<a name="l00407"></a>00407                 <span class="keywordflow">if</span>(rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt)
+<a name="l00408"></a>00408                     atomicAdd((<span class="keywordtype">int</span>*)&amp;pref-&gt;<a class="code" href="structatomic__shared__ptr__ref.html#o1">refcnt</a>, -(<span class="keywordtype">int</span>)rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt);
 <a name="l00409"></a>00409          }
 <a name="l00410"></a>00410         writeBarrier();
-<a name="l00411"></a>00411         r.<a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#c5b95792f7403cf47f41a7c7bb0806c4">pref_old</a> = m_ref.pref;
+<a name="l00411"></a>00411         r.<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o2">pref_old</a> = <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>;
 <a name="l00412"></a>00412     }
-<a name="l00413"></a>00413     m_ref.pref_old = pref;
+<a name="l00413"></a>00413     <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o2">pref_old</a> = pref;
 <a name="l00414"></a>00414 <span class="preprocessor">#endif </span>
-<a name="l00415"></a>00415 <span class="preprocessor"></span>    m_ref.pref = pref;
-<a name="l00416"></a>00416     <a class="code" href="classatomic__shared__ptr.html#8b6259ba5d36b2c5a13ab466ee4abc51">m_ptr_instant</a> = !m_ref.pref ? 0 : m_ref.pref-&gt;ptr;
-<a name="l00417"></a>00417     r.<a class="code" href="classatomic__shared__ptr.html#8b6259ba5d36b2c5a13ab466ee4abc51">m_ptr_instant</a> = oldptr;
+<a name="l00415"></a>00415 <span class="preprocessor"></span>    <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a> = pref;
+<a name="l00416"></a>00416     <a class="code" href="classatomic__shared__ptr.html#r0">m_ptr_instant</a> = !<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a> ? 0 : <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>-&gt;ptr;
+<a name="l00417"></a>00417     r.<a class="code" href="classatomic__shared__ptr.html#r0">m_ptr_instant</a> = oldptr;
 <a name="l00418"></a>00418 }
 <a name="l00419"></a>00419 
 <a name="l00420"></a>00420 <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
 <a name="l00421"></a>00421 <span class="keywordtype">bool</span>
-<a name="l00422"></a><a class="code" href="classatomic__shared__ptr.html#e1ba6ec0e548ef5f5b9dae4ef31aff82">00422</a> <a class="code" href="classatomic__shared__ptr.html#e1ba6ec0e548ef5f5b9dae4ef31aff82">atomic_shared_ptr&lt;T&gt;::compareAndSwap</a>(<span class="keyword">const</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;T&gt;</a> &amp;oldr, <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;T&gt;</a> &amp;r) {
+<a name="l00422"></a><a class="code" href="classatomic__shared__ptr.html#a10">00422</a> <a class="code" href="classatomic__shared__ptr.html#a10">atomic_shared_ptr&lt;T&gt;::compareAndSwap</a>(<span class="keyword">const</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;T&gt;</a> &amp;oldr, <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;T&gt;</a> &amp;r) {
 <a name="l00423"></a>00423     <a class="code" href="structatomic__shared__ptr__ref.html">Ref</a> *pref;
 <a name="l00424"></a>00424     T *oldptr = 0;
-<a name="l00425"></a>00425     <span class="keywordflow">if</span>(m_ref.pref) {
+<a name="l00425"></a>00425     <span class="keywordflow">if</span>(<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>) {
 <a name="l00426"></a>00426     <span class="comment">// Release local reference.</span>
-<a name="l00427"></a>00427         <span class="keywordflow">if</span>(m_ref.refcnt_n_serial.split.refcnt)
-<a name="l00428"></a>00428             atomicAdd(&amp;m_ref.pref-&gt;refcnt, (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)m_ref.refcnt_n_serial.split.refcnt);
-<a name="l00429"></a>00429         m_ref.refcnt_n_serial.split.serial++;
-<a name="l00430"></a>00430         oldptr = m_ref.pref-&gt;ptr;
+<a name="l00427"></a>00427         <span class="keywordflow">if</span>(<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt)
+<a name="l00428"></a>00428             atomicAdd(&amp;<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>-&gt;refcnt, (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt);
+<a name="l00429"></a>00429         <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.serial++;
+<a name="l00430"></a>00430         oldptr = <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>-&gt;ptr;
 <a name="l00431"></a>00431     }
-<a name="l00432"></a>00432     m_ref.refcnt_n_serial.split.refcnt = 0;
+<a name="l00432"></a>00432     <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt = 0;
 <a name="l00433"></a>00433 <span class="preprocessor">#ifdef ATOMIC_SMART_PTR_USE_CAS2</span>
 <a name="l00434"></a>00434 <span class="preprocessor"></span>        <span class="keywordflow">for</span>(;;) {
 <a name="l00435"></a>00435                 <a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> rs_old, rs_new;
-<a name="l00436"></a>00436                 pref = r.<a class="code" href="classatomic__shared__ptr.html#9a69a05764e52451651389dda5f7ede7">_reserve_scan_</a>(&amp;rs_old);
-<a name="l00437"></a>00437                 <span class="keywordflow">if</span>(pref != oldr.<a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#5e11c7de0e0a91bdf6e5097f8e71cec2">pref</a>) {
+<a name="l00436"></a>00436                 pref = r.<a class="code" href="classatomic__shared__ptr.html#a17">_reserve_scan_</a>(&amp;rs_old);
+<a name="l00437"></a>00437                 <span class="keywordflow">if</span>(pref != oldr.<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>) {
 <a name="l00438"></a>00438                         <span class="keywordflow">if</span>(pref)
-<a name="l00439"></a>00439                                 r.<a class="code" href="classatomic__shared__ptr.html#266788c1425e6aa60d9cd69bd4797c32">_leave_scan_</a>(pref, rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.serial);
+<a name="l00439"></a>00439                                 r.<a class="code" href="classatomic__shared__ptr.html#a18">_leave_scan_</a>(pref, rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.serial);
 <a name="l00440"></a>00440                         <span class="keywordflow">return</span> <span class="keyword">false</span>;
 <a name="l00441"></a>00441                 }
 <a name="l00442"></a>00442                 <span class="keywordflow">if</span>(pref) {
-<a name="l00443"></a>00443                         ASSERT(rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.refcnt);
-<a name="l00444"></a>00444                         atomicAdd(&amp;pref-&gt;<a class="code" href="structatomic__shared__ptr__ref.html#1bd36c8fedcf1dcafed789dbdb9ef3d5">refcnt</a>, (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)(rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.refcnt - 1));
+<a name="l00443"></a>00443                         ASSERT(rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt);
+<a name="l00444"></a>00444                         atomicAdd(&amp;pref-&gt;<a class="code" href="structatomic__shared__ptr__ref.html#o1">refcnt</a>, (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)(rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt - 1));
 <a name="l00445"></a>00445                 }
-<a name="l00446"></a>00446                 rs_new.split.refcnt = 0;
-<a name="l00447"></a>00447                 rs_new.split.serial = rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.serial + 1;
+<a name="l00446"></a>00446                 rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt = 0;
+<a name="l00447"></a>00447                 rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.serial = rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.serial + 1;
 <a name="l00448"></a>00448                 <span class="keywordflow">if</span>(atomicCompareAndSet2(
-<a name="l00449"></a>00449                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)pref, rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#1df7f3df1d4d634e738ffb7caf5700b6">both</a>,
-<a name="l00450"></a>00450                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)m_ref.pref, rs_new.both,
-<a name="l00451"></a>00451                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>*)&amp;r.<a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>))
+<a name="l00449"></a>00449                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)pref, rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a>,
+<a name="l00450"></a>00450                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>, rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a>,
+<a name="l00451"></a>00451                         (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>*)&amp;r.<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>))
 <a name="l00452"></a>00452                                 <span class="keywordflow">break</span>;
 <a name="l00453"></a>00453                 <span class="keywordflow">if</span>(pref) {
-<a name="l00454"></a>00454                         ASSERT(rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.refcnt);
-<a name="l00455"></a>00455                         atomicAdd((<span class="keywordtype">int</span>*)&amp;pref-&gt;refcnt, - (<span class="keywordtype">int</span>)(rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.refcnt - 1));
-<a name="l00456"></a>00456                         r.<a class="code" href="classatomic__shared__ptr.html#266788c1425e6aa60d9cd69bd4797c32">_leave_scan_</a>(pref, rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.serial);
+<a name="l00454"></a>00454                         ASSERT(rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt);
+<a name="l00455"></a>00455                         atomicAdd((<span class="keywordtype">int</span>*)&amp;pref-&gt;refcnt, - (<span class="keywordtype">int</span>)(rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt - 1));
+<a name="l00456"></a>00456                         r.<a class="code" href="classatomic__shared__ptr.html#a18">_leave_scan_</a>(pref, rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.serial);
 <a name="l00457"></a>00457                 }
 <a name="l00458"></a>00458         }
 <a name="l00459"></a>00459 <span class="preprocessor">#elif defined ATOMIC_SMART_PTR_USE_LOCKFREE_READ</span>
-<a name="l00460"></a>00460 <span class="preprocessor"></span>    m_ref.serial_update = m_ref.refcnt_n_serial.split.serial;
-<a name="l00461"></a>00461     { <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> lock(r.<a class="code" href="classatomic__shared__ptr.html#f4dd6c8e66ea4aae3ac51f70fc176b15">m_updatemutex</a>);
-<a name="l00462"></a>00462         pref = r.<a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#5e11c7de0e0a91bdf6e5097f8e71cec2">pref</a>;
-<a name="l00463"></a>00463         <span class="keywordflow">if</span>(pref != oldr.<a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#5e11c7de0e0a91bdf6e5097f8e71cec2">pref</a>) <span class="keywordflow">return</span> <span class="keyword">false</span>;
-<a name="l00464"></a>00464         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> serial = ++r.<a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#3373ecde5ef3710fd688758b80c4e3e4">serial_update</a>;
+<a name="l00460"></a>00460 <span class="preprocessor"></span>    <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o3">serial_update</a> = <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.serial;
+<a name="l00461"></a>00461     { <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> lock(r.<a class="code" href="classatomic__shared__ptr.html#r2">m_updatemutex</a>);
+<a name="l00462"></a>00462         pref = r.<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>;
+<a name="l00463"></a>00463         <span class="keywordflow">if</span>(pref != oldr.<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>) <span class="keywordflow">return</span> <span class="keyword">false</span>;
+<a name="l00464"></a>00464         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> serial = ++r.<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o3">serial_update</a>;
 <a name="l00465"></a>00465         writeBarrier();
-<a name="l00466"></a>00466         r.<a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#5e11c7de0e0a91bdf6e5097f8e71cec2">pref</a> = m_ref.pref;
+<a name="l00466"></a>00466         r.<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a> = <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>;
 <a name="l00467"></a>00467         writeBarrier();
 <a name="l00468"></a>00468         <a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> rs_new;
-<a name="l00469"></a>00469         rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.serial = serial;
-<a name="l00470"></a>00470         rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#ed4e3a2f9ad3aac50faa33f1b5354f2e">split</a>.refcnt = 0;
+<a name="l00469"></a>00469         rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.serial = serial;
+<a name="l00470"></a>00470         rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt = 0;
 <a name="l00471"></a>00471         <span class="keywordflow">for</span>(;;) {
-<a name="l00472"></a>00472             <a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> rs_old = r.<a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#8f908266d64302e3cea23ae3f4cb37a5">refcnt_n_serial</a>;
+<a name="l00472"></a>00472             <a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">RefcntNSerial</a> rs_old = r.<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>;
 <a name="l00473"></a>00473             <span class="keywordflow">if</span>(pref)
-<a name="l00474"></a>00474                 <span class="keywordflow">if</span>(rs_old.split.refcnt)
-<a name="l00475"></a>00475                     atomicAdd((<span class="keywordtype">int</span>*)&amp;pref-&gt;refcnt, (<span class="keywordtype">int</span>)rs_old.split.refcnt);
-<a name="l00476"></a>00476             <span class="keywordflow">if</span>(atomicCompareAndSet(rs_old.both, rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#1df7f3df1d4d634e738ffb7caf5700b6">both</a>, 
-<a name="l00477"></a>00477                     &amp;r.<a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#8f908266d64302e3cea23ae3f4cb37a5">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#1df7f3df1d4d634e738ffb7caf5700b6">both</a>))
+<a name="l00474"></a>00474                 <span class="keywordflow">if</span>(rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt)
+<a name="l00475"></a>00475                     atomicAdd((<span class="keywordtype">int</span>*)&amp;pref-&gt;<a class="code" href="structatomic__shared__ptr__ref.html#o1">refcnt</a>, (<span class="keywordtype">int</span>)rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt);
+<a name="l00476"></a>00476             <span class="keywordflow">if</span>(atomicCompareAndSet(rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a>, rs_new.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a>, 
+<a name="l00477"></a>00477                     &amp;r.<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o1">refcnt_n_serial</a>.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o5">both</a>))
 <a name="l00478"></a>00478                     <span class="keywordflow">break</span>;
 <a name="l00479"></a>00479             <span class="keywordflow">if</span>(pref)
-<a name="l00480"></a>00480                 <span class="keywordflow">if</span>(rs_old.split.refcnt)
-<a name="l00481"></a>00481                     atomicAdd((<span class="keywordtype">int</span>*)&amp;pref-&gt;refcnt, -(<span class="keywordtype">int</span>)rs_old.split.refcnt);
+<a name="l00480"></a>00480                 <span class="keywordflow">if</span>(rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt)
+<a name="l00481"></a>00481                     atomicAdd((<span class="keywordtype">int</span>*)&amp;pref-&gt;<a class="code" href="structatomic__shared__ptr__ref.html#o1">refcnt</a>, -(<span class="keywordtype">int</span>)rs_old.<a class="code" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html#o4">split</a>.refcnt);
 <a name="l00482"></a>00482          }
 <a name="l00483"></a>00483         writeBarrier();
-<a name="l00484"></a>00484         r.<a class="code" href="classatomic__shared__ptr.html#ffa04d1a44a92c8818f5c1d120fe496a">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#c5b95792f7403cf47f41a7c7bb0806c4">pref_old</a> = m_ref.pref;
+<a name="l00484"></a>00484         r.<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o2">pref_old</a> = <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>;
 <a name="l00485"></a>00485     }
-<a name="l00486"></a>00486     m_ref.pref_old = pref;
+<a name="l00486"></a>00486     <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o2">pref_old</a> = pref;
 <a name="l00487"></a>00487 <span class="preprocessor">#endif </span>
-<a name="l00488"></a>00488 <span class="preprocessor"></span>    m_ref.pref = pref;
-<a name="l00489"></a>00489     <a class="code" href="classatomic__shared__ptr.html#8b6259ba5d36b2c5a13ab466ee4abc51">m_ptr_instant</a> = !m_ref.pref ? 0 : m_ref.pref-&gt;ptr;
-<a name="l00490"></a>00490     r.<a class="code" href="classatomic__shared__ptr.html#8b6259ba5d36b2c5a13ab466ee4abc51">m_ptr_instant</a> = oldptr;
+<a name="l00488"></a>00488 <span class="preprocessor"></span>    <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a> = pref;
+<a name="l00489"></a>00489     <a class="code" href="classatomic__shared__ptr.html#r0">m_ptr_instant</a> = !<a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a> ? 0 : <a class="code" href="classatomic__shared__ptr.html#r1">m_ref</a>.<a class="code" href="structatomic__shared__ptr_1_1___ref_local.html#o0">pref</a>-&gt;ptr;
+<a name="l00490"></a>00490     r.<a class="code" href="classatomic__shared__ptr.html#r0">m_ptr_instant</a> = oldptr;
 <a name="l00491"></a>00491     <span class="keywordflow">return</span> <span class="keyword">true</span>;
 <a name="l00492"></a>00492 }
 <a name="l00493"></a>00493 
 <a name="l00494"></a>00494 <span class="preprocessor">#endif </span><span class="comment">/*ATOMIC_SMART_PTR_H_*/</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 17:09:00 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:33 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.5.1 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>
 </html>

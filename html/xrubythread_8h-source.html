@@ -2,20 +2,11 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/script/xrubythread.h ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
-<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.5.1 -->
-<div class="tabs">
-  <ul>
-    <li><a href="main.html"><span>メインページ</span></a></li>
-    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
-    <li><a href="classes.html"><span>クラス</span></a></li>
-    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
-    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
-    <li><a href="pages.html"><span>関連ページ</span></a></li>
-  </ul></div>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
-<a class="el" href="dir_86f25382698e49ecc2836ac98faed978.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_6b7357a7c4a1ed6258afa492af8bdda5.html">script</a></div>
+<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000008.html">script</a></div>
 <h1>xrubythread.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
 <a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
@@ -53,32 +44,32 @@
 <a name="l00035"></a>00035 {
 <a name="l00036"></a>00036  XNODE_OBJECT
 <a name="l00037"></a>00037  <span class="keyword">protected</span>:
-<a name="l00038"></a>00038   <a class="code" href="class_x_ruby_thread.html#19d256ee919df2860d82b03d2479cfea">XRubyThread</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> QString &amp;<a class="code" href="class_x_ruby_thread.html#b81ebed1d2131fe4e4bf1944b394d7f6">filename</a>);
+<a name="l00038"></a>00038   <a class="code" href="class_x_ruby_thread.html#b0">XRubyThread</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> QString &amp;<a class="code" href="class_x_ruby_thread.html#a7">filename</a>);
 <a name="l00039"></a>00039  <span class="keyword">public</span>:
-<a name="l00040"></a><a class="code" href="class_x_ruby_thread.html#0802dc93d6f6adccbb1e5290f4e1a5f0">00040</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_ruby_thread.html#0802dc93d6f6adccbb1e5290f4e1a5f0">~XRubyThread</a>() {}
+<a name="l00040"></a><a class="code" href="class_x_ruby_thread.html#a0">00040</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_ruby_thread.html#a0">~XRubyThread</a>() {}
 <a name="l00041"></a>00041 
-<a name="l00042"></a>00042   <span class="keywordtype">bool</span> <a class="code" href="class_x_ruby_thread.html#cfc0cb5bbdfb74338531da4f279808a1">isRunning</a>() <span class="keyword">const</span>;
-<a name="l00043"></a>00043   <span class="keywordtype">bool</span> <a class="code" href="class_x_ruby_thread.html#17e8d170cfb4050f58d2c5769835266a">isAlive</a>() <span class="keyword">const</span>;
-<a name="l00044"></a>00044   <span class="keywordtype">void</span> <a class="code" href="class_x_ruby_thread.html#930055f16c78ad5045d4f28b507b03e9">kill</a>();
-<a name="l00045"></a>00045   <span class="keywordtype">void</span> <a class="code" href="class_x_ruby_thread.html#9485d6c69e02eda3a13a336d46b3e8e1">resume</a>();
+<a name="l00042"></a>00042   <span class="keywordtype">bool</span> <a class="code" href="class_x_ruby_thread.html#a1">isRunning</a>() <span class="keyword">const</span>;
+<a name="l00043"></a>00043   <span class="keywordtype">bool</span> <a class="code" href="class_x_ruby_thread.html#a2">isAlive</a>() <span class="keyword">const</span>;
+<a name="l00044"></a>00044   <span class="keywordtype">void</span> <a class="code" href="class_x_ruby_thread.html#a3">kill</a>();
+<a name="l00045"></a>00045   <span class="keywordtype">void</span> <a class="code" href="class_x_ruby_thread.html#a4">resume</a>();
 <a name="l00046"></a>00046   
-<a name="l00047"></a><a class="code" href="class_x_ruby_thread.html#dc70cdf10a082f771c51be767979cff3">00047</a>    <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;std::string&gt;</a> &gt; &amp;<a class="code" href="class_x_ruby_thread.html#dc70cdf10a082f771c51be767979cff3">onMessageOut</a>() {<span class="keywordflow">return</span> <a class="code" href="class_x_ruby_thread.html#1dcd3c787a0d26b5486c8dbcf93ae4f6">m_tlkOnMessageOut</a>;}
-<a name="l00048"></a><a class="code" href="class_x_ruby_thread.html#a94787ccb5c4cfad6321dbc7aa5008c6">00048</a>   <span class="keyword">const</span> shared_ptr&lt;XStringNode&gt; &amp;<a class="code" href="class_x_ruby_thread.html#a94787ccb5c4cfad6321dbc7aa5008c6">status</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_ruby_thread.html#30565ecc1c3ba3d82670eca2a9dd3b7f">m_status</a>;}
-<a name="l00049"></a><a class="code" href="class_x_ruby_thread.html#b81ebed1d2131fe4e4bf1944b394d7f6">00049</a>   <span class="keyword">const</span> shared_ptr&lt;XStringNode&gt; &amp;<a class="code" href="class_x_ruby_thread.html#b81ebed1d2131fe4e4bf1944b394d7f6">filename</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_ruby_thread.html#e0148b82710c9818119dd028bddbc423">m_filename</a>;}
+<a name="l00047"></a><a class="code" href="class_x_ruby_thread.html#a5">00047</a>    <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;std::string&gt;</a> &gt; &amp;<a class="code" href="class_x_ruby_thread.html#a5">onMessageOut</a>() {<span class="keywordflow">return</span> <a class="code" href="class_x_ruby_thread.html#r0">m_tlkOnMessageOut</a>;}
+<a name="l00048"></a><a class="code" href="class_x_ruby_thread.html#a6">00048</a>   <span class="keyword">const</span> shared_ptr&lt;XStringNode&gt; &amp;<a class="code" href="class_x_ruby_thread.html#a6">status</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_ruby_thread.html#r2">m_status</a>;}
+<a name="l00049"></a><a class="code" href="class_x_ruby_thread.html#a7">00049</a>   <span class="keyword">const</span> shared_ptr&lt;XStringNode&gt; &amp;<a class="code" href="class_x_ruby_thread.html#a7">filename</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_ruby_thread.html#r1">m_filename</a>;}
 <a name="l00050"></a>00050 <span class="comment">//  shared_ptr&lt;XStringNode&gt; &amp;action() const {return m_action;}</span>
-<a name="l00051"></a><a class="code" href="class_x_ruby_thread.html#c7707d9f1373ce88068fd3c85888226e">00051</a>   <span class="keyword">const</span> shared_ptr&lt;XIntNode&gt; &amp;<a class="code" href="class_x_ruby_thread.html#c7707d9f1373ce88068fd3c85888226e">threadID</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_ruby_thread.html#a1117a4c0b2a72485e70d45cfd524bc6">m_threadID</a>;}
+<a name="l00051"></a><a class="code" href="class_x_ruby_thread.html#a8">00051</a>   <span class="keyword">const</span> shared_ptr&lt;XIntNode&gt; &amp;<a class="code" href="class_x_ruby_thread.html#a8">threadID</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_ruby_thread.html#r4">m_threadID</a>;}
 <a name="l00052"></a>00052  <span class="keyword">private</span>:
-<a name="l00053"></a><a class="code" href="class_x_ruby_thread.html#1dcd3c787a0d26b5486c8dbcf93ae4f6">00053</a>   <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;std::string&gt;</a> &gt; <a class="code" href="class_x_ruby_thread.html#1dcd3c787a0d26b5486c8dbcf93ae4f6">m_tlkOnMessageOut</a>;
-<a name="l00054"></a><a class="code" href="class_x_ruby_thread.html#e0148b82710c9818119dd028bddbc423">00054</a>   <span class="keyword">const</span> shared_ptr&lt;XStringNode&gt; <a class="code" href="class_x_ruby_thread.html#e0148b82710c9818119dd028bddbc423">m_filename</a>;
-<a name="l00055"></a><a class="code" href="class_x_ruby_thread.html#30565ecc1c3ba3d82670eca2a9dd3b7f">00055</a>   shared_ptr&lt;XStringNode&gt; <a class="code" href="class_x_ruby_thread.html#30565ecc1c3ba3d82670eca2a9dd3b7f">m_status</a>;
-<a name="l00056"></a><a class="code" href="class_x_ruby_thread.html#3009bd46dc78053f872c6087ffcc86a0">00056</a>   shared_ptr&lt;XStringNode&gt; <a class="code" href="class_x_ruby_thread.html#3009bd46dc78053f872c6087ffcc86a0">m_action</a>;
-<a name="l00057"></a><a class="code" href="class_x_ruby_thread.html#a1117a4c0b2a72485e70d45cfd524bc6">00057</a>   shared_ptr&lt;XIntNode&gt; <a class="code" href="class_x_ruby_thread.html#a1117a4c0b2a72485e70d45cfd524bc6">m_threadID</a>;
+<a name="l00053"></a><a class="code" href="class_x_ruby_thread.html#r0">00053</a>   <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;std::string&gt;</a> &gt; <a class="code" href="class_x_ruby_thread.html#r0">m_tlkOnMessageOut</a>;
+<a name="l00054"></a><a class="code" href="class_x_ruby_thread.html#r1">00054</a>   <span class="keyword">const</span> shared_ptr&lt;XStringNode&gt; <a class="code" href="class_x_ruby_thread.html#r1">m_filename</a>;
+<a name="l00055"></a><a class="code" href="class_x_ruby_thread.html#r2">00055</a>   shared_ptr&lt;XStringNode&gt; <a class="code" href="class_x_ruby_thread.html#r2">m_status</a>;
+<a name="l00056"></a><a class="code" href="class_x_ruby_thread.html#r3">00056</a>   shared_ptr&lt;XStringNode&gt; <a class="code" href="class_x_ruby_thread.html#r3">m_action</a>;
+<a name="l00057"></a><a class="code" href="class_x_ruby_thread.html#r4">00057</a>   shared_ptr&lt;XIntNode&gt; <a class="code" href="class_x_ruby_thread.html#r4">m_threadID</a>;
 <a name="l00058"></a>00058 };
 <a name="l00059"></a>00059 
 <a name="l00060"></a>00060 <span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00061"></a>00061 <span class="preprocessor">#endif</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 17:09:01 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:35 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.5.1 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>
 </html>

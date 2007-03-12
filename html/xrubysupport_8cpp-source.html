@@ -2,20 +2,11 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/script/xrubysupport.cpp ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
-<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.5.1 -->
-<div class="tabs">
-  <ul>
-    <li><a href="main.html"><span>メインページ</span></a></li>
-    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
-    <li><a href="classes.html"><span>クラス</span></a></li>
-    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
-    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
-    <li><a href="pages.html"><span>関連ページ</span></a></li>
-  </ul></div>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
-<a class="el" href="dir_86f25382698e49ecc2836ac98faed978.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_6b7357a7c4a1ed6258afa492af8bdda5.html">script</a></div>
+<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000008.html">script</a></div>
 <h1>xrubysupport.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
 <a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
@@ -49,67 +40,67 @@
 <a name="l00031"></a>00031     <span class="keywordflow">return</span> rb_str_new2(str.c_str());
 <a name="l00032"></a>00032 }
 <a name="l00033"></a>00033 
-<a name="l00034"></a><a class="code" href="class_x_ruby.html#b5f075c4e2ffa4a03f793406d0d8d69a">00034</a> <a class="code" href="class_x_ruby.html#b5f075c4e2ffa4a03f793406d0d8d69a">XRuby::XRuby</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XMeasure&gt; &amp;measure)
+<a name="l00034"></a><a class="code" href="class_x_ruby.html#b0">00034</a> <a class="code" href="class_x_ruby.html#b0">XRuby::XRuby</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XMeasure&gt; &amp;measure)
 <a name="l00035"></a>00035   : <a class="code" href="class_x_alias_list_node.html">XAliasListNode</a>&lt;<a class="code" href="class_x_ruby_thread.html">XRubyThread</a>&gt;(name, runtime),
 <a name="l00036"></a>00036   m_measure(measure), 
 <a name="l00037"></a>00037   m_thread(shared_from_this(), &amp;<a class="code" href="class_x_ruby.html">XRuby</a>::execute)
 <a name="l00038"></a>00038 {
-<a name="l00039"></a>00039     <a class="code" href="class_x_ruby.html#3a548f0cd0e1b3b8237161baf54f61db">m_lsnCreateChild</a> = <a class="code" href="class_x_ruby.html#ef8766a174237ea214b9de25f8159b85">m_tlkCreateChild</a>.connectWeak(shared_from_this(),
-<a name="l00040"></a>00040         &amp;<a class="code" href="class_x_ruby.html#e45f609eb6343047fefdf3dda46c853f">XRuby::onCreateChild</a>, XListener::FLAG_MAIN_THREAD_CALL);
+<a name="l00039"></a>00039     <a class="code" href="class_x_ruby.html#r4">m_lsnCreateChild</a> = <a class="code" href="class_x_ruby.html#r3">m_tlkCreateChild</a>.<a class="code" href="class_x_talker.html#a3">connectWeak</a>(shared_from_this(),
+<a name="l00040"></a>00040         &amp;<a class="code" href="class_x_ruby.html#d0">XRuby::onCreateChild</a>, XListener::FLAG_MAIN_THREAD_CALL);
 <a name="l00041"></a>00041 }
-<a name="l00042"></a><a class="code" href="class_x_ruby.html#4f867a437685db2ed0f7a043d1eb6d5d">00042</a> <a class="code" href="class_x_ruby.html#4f867a437685db2ed0f7a043d1eb6d5d">XRuby::~XRuby</a>()
+<a name="l00042"></a><a class="code" href="class_x_ruby.html#a0">00042</a> <a class="code" href="class_x_ruby.html#a0">XRuby::~XRuby</a>()
 <a name="l00043"></a>00043 {
 <a name="l00044"></a>00044 }
 <a name="l00045"></a>00045 <span class="keywordtype">void</span>
-<a name="l00046"></a><a class="code" href="class_x_ruby.html#31dc5e820c15e0c20b94c3cece6635fc">00046</a> <a class="code" href="class_x_ruby.html#31dc5e820c15e0c20b94c3cece6635fc">XRuby::rnode_free</a>(<span class="keywordtype">void</span> *rnode)
+<a name="l00046"></a><a class="code" href="class_x_ruby.html#h0">00046</a> <a class="code" href="class_x_ruby.html#h0">XRuby::rnode_free</a>(<span class="keywordtype">void</span> *rnode)
 <a name="l00047"></a>00047 {
 <a name="l00048"></a>00048     <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>* st = reinterpret_cast&lt;struct rnode_ptr*&gt;(rnode);
 <a name="l00049"></a>00049     <span class="keyword">delete</span> st;
 <a name="l00050"></a>00050 }
 <a name="l00051"></a>00051 
 <a name="l00052"></a>00052 VALUE
-<a name="l00053"></a><a class="code" href="class_x_ruby.html#801a32a0717d9b4e4e5cab471abd559d">00053</a> <a class="code" href="class_x_ruby.html#801a32a0717d9b4e4e5cab471abd559d">XRuby::rnode_create</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node, <a class="code" href="class_x_ruby.html">XRuby</a> *xruby)
+<a name="l00053"></a><a class="code" href="class_x_ruby.html#h5">00053</a> <a class="code" href="class_x_ruby.html#h5">XRuby::rnode_create</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node, <a class="code" href="class_x_ruby.html">XRuby</a> *xruby)
 <a name="l00054"></a>00054 {
 <a name="l00055"></a>00055 
 <a name="l00056"></a>00056   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st
 <a name="l00057"></a>00057      = <span class="keyword">new</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>;
 <a name="l00058"></a>00058 
-<a name="l00059"></a>00059   st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a> = node;
-<a name="l00060"></a>00060   st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#a6769fc6038a89b035ed07b59b7e4122">xruby</a> = xruby;
+<a name="l00059"></a>00059   st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a> = node;
+<a name="l00060"></a>00060   st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o1">xruby</a> = xruby;
 <a name="l00061"></a>00061   VALUE rnew;
 <a name="l00062"></a>00062   shared_ptr&lt;XValueNodeBase&gt; vnode = dynamic_pointer_cast&lt;XValueNodeBase&gt;(node);
 <a name="l00063"></a>00063   <span class="keywordflow">if</span>(vnode)
 <a name="l00064"></a>00064   {
-<a name="l00065"></a>00065       rnew = Data_Wrap_Struct(xruby-&gt;<a class="code" href="class_x_ruby.html#357c1deb431b0789d8c792b0126e9be6">rbClassValueNode</a>, 0, <a class="code" href="class_x_ruby.html#31dc5e820c15e0c20b94c3cece6635fc">rnode_free</a>, st);
+<a name="l00065"></a>00065       rnew = Data_Wrap_Struct(xruby-&gt;<a class="code" href="class_x_ruby.html#r1">rbClassValueNode</a>, 0, <a class="code" href="class_x_ruby.html#h0">rnode_free</a>, st);
 <a name="l00066"></a>00066   }
 <a name="l00067"></a>00067   <span class="keywordflow">else</span>
 <a name="l00068"></a>00068   {
 <a name="l00069"></a>00069       shared_ptr&lt;XListNodeBase&gt; lnode = dynamic_pointer_cast&lt;XListNodeBase&gt;(node);
 <a name="l00070"></a>00070       <span class="keywordflow">if</span>(lnode)
 <a name="l00071"></a>00071       {
-<a name="l00072"></a>00072           rnew = Data_Wrap_Struct(xruby-&gt;<a class="code" href="class_x_ruby.html#8fd6a751e2eab65e3ce1c52ae2b74c7d">rbClassListNode</a>, 0, <a class="code" href="class_x_ruby.html#31dc5e820c15e0c20b94c3cece6635fc">rnode_free</a>, st);
+<a name="l00072"></a>00072           rnew = Data_Wrap_Struct(xruby-&gt;<a class="code" href="class_x_ruby.html#r2">rbClassListNode</a>, 0, <a class="code" href="class_x_ruby.html#h0">rnode_free</a>, st);
 <a name="l00073"></a>00073       }
 <a name="l00074"></a>00074       <span class="keywordflow">else</span>
 <a name="l00075"></a>00075       {
-<a name="l00076"></a>00076           rnew = Data_Wrap_Struct(xruby-&gt;<a class="code" href="class_x_ruby.html#bdcbc675dd343883e27d00dfaa0e8bef">rbClassNode</a>, 0, <a class="code" href="class_x_ruby.html#31dc5e820c15e0c20b94c3cece6635fc">rnode_free</a>, st);
+<a name="l00076"></a>00076           rnew = Data_Wrap_Struct(xruby-&gt;<a class="code" href="class_x_ruby.html#r0">rbClassNode</a>, 0, <a class="code" href="class_x_ruby.html#h0">rnode_free</a>, st);
 <a name="l00077"></a>00077       }
 <a name="l00078"></a>00078   }
 <a name="l00079"></a>00079   <span class="keywordflow">return</span> rnew;
 <a name="l00080"></a>00080 }
 <a name="l00081"></a>00081 VALUE
-<a name="l00082"></a><a class="code" href="class_x_ruby.html#5cacdce99649c7077df80222060e6737">00082</a> <a class="code" href="class_x_ruby.html#5cacdce99649c7077df80222060e6737">XRuby::rnode_child</a>(VALUE <span class="keyword">self</span>, VALUE var)
+<a name="l00082"></a><a class="code" href="class_x_ruby.html#h9">00082</a> <a class="code" href="class_x_ruby.html#h9">XRuby::rnode_child</a>(VALUE <span class="keyword">self</span>, VALUE var)
 <a name="l00083"></a>00083 {
 <a name="l00084"></a>00084   shared_ptr&lt;XNode&gt; child;
 <a name="l00085"></a>00085   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
 <a name="l00086"></a>00086   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00087"></a>00087   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a>.lock()) {
+<a name="l00087"></a>00087   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>.lock()) {
 <a name="l00088"></a>00088       <span class="keywordflow">switch</span> (TYPE(var)) {
 <a name="l00089"></a>00089        <span class="keywordtype">int</span> idx;
 <a name="l00090"></a>00090       <span class="keywordflow">case</span> T_FIXNUM:
 <a name="l00091"></a>00091         idx = NUM2INT(var);
 <a name="l00092"></a>00092         { <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const NodeList&gt;</a> list = node-&gt;children();
 <a name="l00093"></a>00093             <span class="keywordflow">if</span>(list) { 
-<a name="l00094"></a>00094                 <span class="keywordflow">if</span> ((idx &gt;= 0) &amp;&amp; (idx &lt; (<span class="keywordtype">int</span>)list-&gt;size()))
+<a name="l00094"></a>00094                 <span class="keywordflow">if</span> ((idx &gt;= 0) &amp;&amp; (idx &lt; (int)list-&gt;size()))
 <a name="l00095"></a>00095                     child = list-&gt;at(idx);
 <a name="l00096"></a>00096             }
 <a name="l00097"></a>00097         }
@@ -140,10 +131,10 @@
 <a name="l00122"></a>00122       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
 <a name="l00123"></a>00123       <span class="keywordflow">return</span> Qnil;
 <a name="l00124"></a>00124   }
-<a name="l00125"></a>00125   <span class="keywordflow">return</span> <a class="code" href="class_x_ruby.html#801a32a0717d9b4e4e5cab471abd559d">rnode_create</a>(child, st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#a6769fc6038a89b035ed07b59b7e4122">xruby</a> );
+<a name="l00125"></a>00125   <span class="keywordflow">return</span> <a class="code" href="class_x_ruby.html#h5">rnode_create</a>(child, st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o1">xruby</a> );
 <a name="l00126"></a>00126 }
 <a name="l00127"></a>00127 VALUE
-<a name="l00128"></a><a class="code" href="class_x_ruby.html#1e242123b8a58268e40e0cd47004be21">00128</a> <a class="code" href="class_x_ruby.html#1e242123b8a58268e40e0cd47004be21">XRuby::rlistnode_create_child</a>(VALUE <span class="keyword">self</span>, VALUE rbtype, VALUE rbname)
+<a name="l00128"></a><a class="code" href="class_x_ruby.html#h14">00128</a> <a class="code" href="class_x_ruby.html#h14">XRuby::rlistnode_create_child</a>(VALUE <span class="keyword">self</span>, VALUE rbtype, VALUE rbname)
 <a name="l00129"></a>00129 {
 <a name="l00130"></a>00130   Check_Type(rbtype, T_STRING);
 <a name="l00131"></a>00131   <span class="keywordflow">if</span>(TYPE(rbtype) != T_STRING) <span class="keywordflow">return</span> Qnil;
@@ -155,7 +146,7 @@
 <a name="l00137"></a>00137   shared_ptr&lt;XNode&gt; child;
 <a name="l00138"></a>00138   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
 <a name="l00139"></a>00139   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00140"></a>00140   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a>.lock()) {
+<a name="l00140"></a>00140   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>.lock()) {
 <a name="l00141"></a>00141       <span class="keywordflow">if</span>( node-&gt;isRunTime() )
 <a name="l00142"></a>00142       {
 <a name="l00143"></a>00143           rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node %s is run-time node!\n"</span>, node-&gt;getName().c_str());
@@ -183,7 +174,7 @@
 <a name="l00165"></a>00165             x-&gt;lnode = lnode;
 <a name="l00166"></a>00166             x-&gt;type = type;
 <a name="l00167"></a>00167             x-&gt;name = name;
-<a name="l00168"></a>00168             st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#a6769fc6038a89b035ed07b59b7e4122">xruby</a>-&gt;<a class="code" href="class_x_ruby.html#ef8766a174237ea214b9de25f8159b85">m_tlkCreateChild</a>.talk(x);
+<a name="l00168"></a>00168             st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o1">xruby</a>-&gt;<a class="code" href="class_x_ruby.html#r3">m_tlkCreateChild</a>.<a class="code" href="class_x_talker.html#a7">talk</a>(x);
 <a name="l00169"></a>00169             <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XCondition&gt;</a> lock(x-&gt;cond);
 <a name="l00170"></a>00170             <span class="keywordflow">while</span>(x-&gt;lnode) {
 <a name="l00171"></a>00171                 x-&gt;cond.wait();
@@ -200,10 +191,10 @@
 <a name="l00182"></a>00182       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
 <a name="l00183"></a>00183       <span class="keywordflow">return</span> Qnil;
 <a name="l00184"></a>00184   }
-<a name="l00185"></a>00185   <span class="keywordflow">return</span> <a class="code" href="class_x_ruby.html#801a32a0717d9b4e4e5cab471abd559d">rnode_create</a>(child, st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#a6769fc6038a89b035ed07b59b7e4122">xruby</a> );
+<a name="l00185"></a>00185   <span class="keywordflow">return</span> <a class="code" href="class_x_ruby.html#h5">rnode_create</a>(child, st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o1">xruby</a> );
 <a name="l00186"></a>00186 }
 <a name="l00187"></a>00187 <span class="keywordtype">void</span>
-<a name="l00188"></a><a class="code" href="class_x_ruby.html#e45f609eb6343047fefdf3dda46c853f">00188</a> <a class="code" href="class_x_ruby.html#e45f609eb6343047fefdf3dda46c853f">XRuby::onCreateChild</a>(<span class="keyword">const</span> shared_ptr&lt;tCreateChild&gt; &amp;x) 
+<a name="l00188"></a><a class="code" href="class_x_ruby.html#d0">00188</a> <a class="code" href="class_x_ruby.html#d0">XRuby::onCreateChild</a>(<span class="keyword">const</span> shared_ptr&lt;tCreateChild&gt; &amp;x) 
 <a name="l00189"></a>00189 {
 <a name="l00190"></a>00190     x-&gt;child = x-&gt;lnode-&gt;createByTypename(x-&gt;type, x-&gt;name);
 <a name="l00191"></a>00191     x-&gt;lnode.reset();
@@ -211,11 +202,11 @@
 <a name="l00193"></a>00193     x-&gt;cond.signal();
 <a name="l00194"></a>00194 }
 <a name="l00195"></a>00195 VALUE
-<a name="l00196"></a><a class="code" href="class_x_ruby.html#5ead2fb9d0a9beba729ef63e0b0af341">00196</a> <a class="code" href="class_x_ruby.html#5ead2fb9d0a9beba729ef63e0b0af341">XRuby::rlistnode_release_child</a>(VALUE <span class="keyword">self</span>, VALUE rbchild)
+<a name="l00196"></a><a class="code" href="class_x_ruby.html#h15">00196</a> <a class="code" href="class_x_ruby.html#h15">XRuby::rlistnode_release_child</a>(VALUE <span class="keyword">self</span>, VALUE rbchild)
 <a name="l00197"></a>00197 {
 <a name="l00198"></a>00198   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
 <a name="l00199"></a>00199   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00200"></a>00200   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a>.lock()) {
+<a name="l00200"></a>00200   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>.lock()) {
 <a name="l00201"></a>00201       <span class="keywordflow">if</span>(!node-&gt;isUIEnabled() )
 <a name="l00202"></a>00202       {
 <a name="l00203"></a>00203           rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node %s is read-only!\n"</span>, node-&gt;getName().c_str());
@@ -231,7 +222,7 @@
 <a name="l00213"></a>00213         }
 <a name="l00214"></a>00214       <span class="keyword">struct </span>rnode_ptr *st_child;
 <a name="l00215"></a>00215       Data_Get_Struct(rbchild, <span class="keyword">struct</span> rnode_ptr, st_child);
-<a name="l00216"></a>00216       <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; child = st_child-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a>.lock()) {
+<a name="l00216"></a>00216       <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; child = st_child-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>.lock()) {
 <a name="l00217"></a>00217             lnode-&gt;releaseChild(child);
 <a name="l00218"></a>00218       }
 <a name="l00219"></a>00219       <span class="keywordflow">else</span> {
@@ -247,11 +238,11 @@
 <a name="l00229"></a>00229 }
 <a name="l00230"></a>00230 
 <a name="l00231"></a>00231 VALUE
-<a name="l00232"></a><a class="code" href="class_x_ruby.html#8dbb384e96283696098eed3f43db603e">00232</a> <a class="code" href="class_x_ruby.html#8dbb384e96283696098eed3f43db603e">XRuby::rnode_name</a>(VALUE <span class="keyword">self</span>)
+<a name="l00232"></a><a class="code" href="class_x_ruby.html#h6">00232</a> <a class="code" href="class_x_ruby.html#h6">XRuby::rnode_name</a>(VALUE <span class="keyword">self</span>)
 <a name="l00233"></a>00233 {
 <a name="l00234"></a>00234   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
 <a name="l00235"></a>00235   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00236"></a>00236   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a>.lock()) {
+<a name="l00236"></a>00236   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>.lock()) {
 <a name="l00237"></a>00237       <span class="keywordflow">return</span> string2RSTRING(node-&gt;getName());
 <a name="l00238"></a>00238   }
 <a name="l00239"></a>00239   <span class="keywordflow">else</span> {
@@ -260,11 +251,11 @@
 <a name="l00242"></a>00242   }
 <a name="l00243"></a>00243 }
 <a name="l00244"></a>00244 VALUE
-<a name="l00245"></a><a class="code" href="class_x_ruby.html#eb206c3ae43aa6fb68ab0aa6ac16f4d4">00245</a> <a class="code" href="class_x_ruby.html#eb206c3ae43aa6fb68ab0aa6ac16f4d4">XRuby::rnode_count</a>(VALUE <span class="keyword">self</span>)
+<a name="l00245"></a><a class="code" href="class_x_ruby.html#h8">00245</a> <a class="code" href="class_x_ruby.html#h8">XRuby::rnode_count</a>(VALUE <span class="keyword">self</span>)
 <a name="l00246"></a>00246 {
 <a name="l00247"></a>00247   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
 <a name="l00248"></a>00248   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00249"></a>00249   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a>.lock()) {
+<a name="l00249"></a>00249   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>.lock()) {
 <a name="l00250"></a>00250       <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const NodeList&gt;</a> list = node-&gt;children();
 <a name="l00251"></a>00251       VALUE count = INT2NUM(list ? list-&gt;size() : 0);
 <a name="l00252"></a>00252       <span class="keywordflow">return</span> count;
@@ -275,11 +266,11 @@
 <a name="l00257"></a>00257   }
 <a name="l00258"></a>00258 }
 <a name="l00259"></a>00259 VALUE
-<a name="l00260"></a><a class="code" href="class_x_ruby.html#e7402ab445a84cb6e23b9a9d1e249738">00260</a> <a class="code" href="class_x_ruby.html#e7402ab445a84cb6e23b9a9d1e249738">XRuby::rnode_touch</a>(VALUE <span class="keyword">self</span>)
+<a name="l00260"></a><a class="code" href="class_x_ruby.html#h7">00260</a> <a class="code" href="class_x_ruby.html#h7">XRuby::rnode_touch</a>(VALUE <span class="keyword">self</span>)
 <a name="l00261"></a>00261 {
 <a name="l00262"></a>00262   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
 <a name="l00263"></a>00263   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00264"></a>00264   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a>.lock()) {
+<a name="l00264"></a>00264   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>.lock()) {
 <a name="l00265"></a>00265       dbgPrint(QString(<span class="stringliteral">"Ruby, Node %1, touching."</span>));
 <a name="l00266"></a>00266       <span class="keywordflow">if</span>(node-&gt;isUIEnabled() )
 <a name="l00267"></a>00267           node-&gt;touch();
@@ -293,11 +284,11 @@
 <a name="l00275"></a>00275   }
 <a name="l00276"></a>00276 }
 <a name="l00277"></a>00277 VALUE
-<a name="l00278"></a><a class="code" href="class_x_ruby.html#35e2ba22b0573b47e7ef57c202a89eee">00278</a> <a class="code" href="class_x_ruby.html#35e2ba22b0573b47e7ef57c202a89eee">XRuby::rvaluenode_set</a>(VALUE <span class="keyword">self</span>, VALUE var)
+<a name="l00278"></a><a class="code" href="class_x_ruby.html#h10">00278</a> <a class="code" href="class_x_ruby.html#h10">XRuby::rvaluenode_set</a>(VALUE <span class="keyword">self</span>, VALUE var)
 <a name="l00279"></a>00279 {
 <a name="l00280"></a>00280   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
 <a name="l00281"></a>00281   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00282"></a>00282   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a>.lock()) {
+<a name="l00282"></a>00282   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>.lock()) {
 <a name="l00283"></a>00283       shared_ptr&lt;XValueNodeBase&gt; vnode = dynamic_pointer_cast&lt;XValueNodeBase&gt;(node);
 <a name="l00284"></a>00284       ASSERT(vnode);
 <a name="l00285"></a>00285       dbgPrint(QString(<span class="stringliteral">"Ruby, Node %1, setting new value."</span>).arg(node-&gt;getName()) );
@@ -307,14 +298,14 @@
 <a name="l00289"></a>00289           rb_warning(<span class="stringliteral">"Node %s is read-only!\n"</span>, node-&gt;getName().c_str());
 <a name="l00290"></a>00290           <span class="keywordflow">return</span> Qnil;
 <a name="l00291"></a>00291       }
-<a name="l00292"></a>00292       <span class="keywordflow">if</span>(<a class="code" href="class_x_ruby.html#a818c747cb3fe1976737e7cd14fb1925">XRuby::strOnNode</a>(vnode, var))
+<a name="l00292"></a>00292       <span class="keywordflow">if</span>(<a class="code" href="class_x_ruby.html#h3">XRuby::strOnNode</a>(vnode, var))
 <a name="l00293"></a>00293         {
 <a name="l00294"></a>00294           <span class="keywordflow">return</span> Qnil;
 <a name="l00295"></a>00295         }
 <a name="l00296"></a>00296       <span class="keywordflow">else</span>
 <a name="l00297"></a>00297         {
 <a name="l00298"></a>00298           dbgPrint(QString(<span class="stringliteral">"Ruby, Node %1, new value: %2."</span>).arg(node-&gt;getName()).arg(vnode-&gt;to_str()) );
-<a name="l00299"></a>00299           <span class="keywordflow">return</span> <a class="code" href="class_x_ruby.html#844b796abc9683360227d3cf04ce7c8a">XRuby::getValueOfNode</a>(vnode);
+<a name="l00299"></a>00299           <span class="keywordflow">return</span> <a class="code" href="class_x_ruby.html#h4">XRuby::getValueOfNode</a>(vnode);
 <a name="l00300"></a>00300         }
 <a name="l00301"></a>00301   }
 <a name="l00302"></a>00302   <span class="keywordflow">else</span> {
@@ -323,11 +314,11 @@
 <a name="l00305"></a>00305   }
 <a name="l00306"></a>00306 }
 <a name="l00307"></a>00307 VALUE
-<a name="l00308"></a><a class="code" href="class_x_ruby.html#37386cf2e6cd84f2811228b0d0a8a0c3">00308</a> <a class="code" href="class_x_ruby.html#37386cf2e6cd84f2811228b0d0a8a0c3">XRuby::rvaluenode_load</a>(VALUE <span class="keyword">self</span>, VALUE var)
+<a name="l00308"></a><a class="code" href="class_x_ruby.html#h11">00308</a> <a class="code" href="class_x_ruby.html#h11">XRuby::rvaluenode_load</a>(VALUE <span class="keyword">self</span>, VALUE var)
 <a name="l00309"></a>00309 {
 <a name="l00310"></a>00310   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
 <a name="l00311"></a>00311   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00312"></a>00312   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a>.lock()) {
+<a name="l00312"></a>00312   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>.lock()) {
 <a name="l00313"></a>00313       shared_ptr&lt;XValueNodeBase&gt; vnode = dynamic_pointer_cast&lt;XValueNodeBase&gt;(node);
 <a name="l00314"></a>00314       ASSERT(vnode);
 <a name="l00315"></a>00315       dbgPrint(QString(<span class="stringliteral">"Ruby, Node %1, loading new value."</span>).arg(node-&gt;getName()) );
@@ -336,14 +327,14 @@
 <a name="l00318"></a>00318           rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node %s is run-time node!\n"</span>, node-&gt;getName().c_str());
 <a name="l00319"></a>00319           <span class="keywordflow">return</span> Qnil;
 <a name="l00320"></a>00320       }
-<a name="l00321"></a>00321       <span class="keywordflow">if</span>(<a class="code" href="class_x_ruby.html#a818c747cb3fe1976737e7cd14fb1925">XRuby::strOnNode</a>(vnode, var))
+<a name="l00321"></a>00321       <span class="keywordflow">if</span>(<a class="code" href="class_x_ruby.html#h3">XRuby::strOnNode</a>(vnode, var))
 <a name="l00322"></a>00322         {
 <a name="l00323"></a>00323           <span class="keywordflow">return</span> Qnil;
 <a name="l00324"></a>00324         }
 <a name="l00325"></a>00325       <span class="keywordflow">else</span>
 <a name="l00326"></a>00326         {
 <a name="l00327"></a>00327           dbgPrint(QString(<span class="stringliteral">"Ruby, Node %1, new value: %2."</span>).arg(node-&gt;getName()).arg(vnode-&gt;to_str()) );
-<a name="l00328"></a>00328           <span class="keywordflow">return</span> <a class="code" href="class_x_ruby.html#844b796abc9683360227d3cf04ce7c8a">XRuby::getValueOfNode</a>(vnode);
+<a name="l00328"></a>00328           <span class="keywordflow">return</span> <a class="code" href="class_x_ruby.html#h4">XRuby::getValueOfNode</a>(vnode);
 <a name="l00329"></a>00329         }
 <a name="l00330"></a>00330   }
 <a name="l00331"></a>00331   <span class="keywordflow">else</span> {
@@ -352,14 +343,14 @@
 <a name="l00334"></a>00334   }
 <a name="l00335"></a>00335 }
 <a name="l00336"></a>00336 VALUE
-<a name="l00337"></a><a class="code" href="class_x_ruby.html#8d24a142da6d2325f4beaf3d0fc191d2">00337</a> <a class="code" href="class_x_ruby.html#8d24a142da6d2325f4beaf3d0fc191d2">XRuby::rvaluenode_get</a>(VALUE <span class="keyword">self</span>)
+<a name="l00337"></a><a class="code" href="class_x_ruby.html#h12">00337</a> <a class="code" href="class_x_ruby.html#h12">XRuby::rvaluenode_get</a>(VALUE <span class="keyword">self</span>)
 <a name="l00338"></a>00338 {
 <a name="l00339"></a>00339   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
 <a name="l00340"></a>00340   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00341"></a>00341   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a>.lock()) {
+<a name="l00341"></a>00341   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>.lock()) {
 <a name="l00342"></a>00342       shared_ptr&lt;XValueNodeBase&gt; vnode = dynamic_pointer_cast&lt;XValueNodeBase&gt;(node);
 <a name="l00343"></a>00343       ASSERT(vnode);
-<a name="l00344"></a>00344       <span class="keywordflow">return</span> <a class="code" href="class_x_ruby.html#844b796abc9683360227d3cf04ce7c8a">XRuby::getValueOfNode</a>(vnode);
+<a name="l00344"></a>00344       <span class="keywordflow">return</span> <a class="code" href="class_x_ruby.html#h4">XRuby::getValueOfNode</a>(vnode);
 <a name="l00345"></a>00345   }
 <a name="l00346"></a>00346   <span class="keywordflow">else</span> {
 <a name="l00347"></a>00347       rb_raise(rb_eRuntimeError, <span class="stringliteral">"Node no longer exists\n"</span>);
@@ -367,11 +358,11 @@
 <a name="l00349"></a>00349   }
 <a name="l00350"></a>00350 }
 <a name="l00351"></a>00351 VALUE
-<a name="l00352"></a><a class="code" href="class_x_ruby.html#3fb4003898068bfd83f12a978bb50eac">00352</a> <a class="code" href="class_x_ruby.html#3fb4003898068bfd83f12a978bb50eac">XRuby::rvaluenode_to_str</a>(VALUE <span class="keyword">self</span>)
+<a name="l00352"></a><a class="code" href="class_x_ruby.html#h13">00352</a> <a class="code" href="class_x_ruby.html#h13">XRuby::rvaluenode_to_str</a>(VALUE <span class="keyword">self</span>)
 <a name="l00353"></a>00353 {
 <a name="l00354"></a>00354   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
 <a name="l00355"></a>00355   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00356"></a>00356   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#c0a31380c487f69355f416e7c377dae3">ptr</a>.lock()) {
+<a name="l00356"></a>00356   <span class="keywordflow">if</span>(shared_ptr&lt;XNode&gt; node = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o0">ptr</a>.lock()) {
 <a name="l00357"></a>00357       shared_ptr&lt;XValueNodeBase&gt; vnode = dynamic_pointer_cast&lt;XValueNodeBase&gt;(node);
 <a name="l00358"></a>00358       ASSERT(vnode);
 <a name="l00359"></a>00359       <span class="keywordflow">return</span> string2RSTRING(vnode-&gt;to_str());
@@ -383,7 +374,7 @@
 <a name="l00365"></a>00365 }
 <a name="l00366"></a>00366 
 <a name="l00367"></a>00367 <span class="keywordtype">int</span>
-<a name="l00368"></a><a class="code" href="class_x_ruby.html#a818c747cb3fe1976737e7cd14fb1925">00368</a> <a class="code" href="class_x_ruby.html#a818c747cb3fe1976737e7cd14fb1925">XRuby::strOnNode</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node, VALUE value)
+<a name="l00368"></a><a class="code" href="class_x_ruby.html#h3">00368</a> <a class="code" href="class_x_ruby.html#h3">XRuby::strOnNode</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node, VALUE value)
 <a name="l00369"></a>00369 {
 <a name="l00370"></a>00370   <span class="keywordtype">double</span> dbl = 0;
 <a name="l00371"></a>00371   <span class="keywordtype">int</span> integer = 0;
@@ -433,7 +424,7 @@
 <a name="l00415"></a>00415     }
 <a name="l00416"></a>00416     <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
 <a name="l00417"></a>00417         rb_raise(rb_eRuntimeError, <span class="stringliteral">"Validation error %s on %s\n"</span>
-<a name="l00418"></a>00418         , (<span class="keyword">const</span> <span class="keywordtype">char</span>*)e.<a class="code" href="struct_x_kame_error.html#779095423f73f04261fb8e214602e29f">msg</a>().utf8(), node-&gt;getName().c_str());
+<a name="l00418"></a>00418         , (<span class="keyword">const</span> <span class="keywordtype">char</span>*)e.<a class="code" href="struct_x_kame_error.html#a3">msg</a>().utf8(), node-&gt;getName().c_str());
 <a name="l00419"></a>00419         <span class="keywordflow">return</span> -1;
 <a name="l00420"></a>00420     }
 <a name="l00421"></a>00421     <span class="keywordflow">return</span> 0;
@@ -455,7 +446,7 @@
 <a name="l00437"></a>00437   <span class="keywordflow">return</span> -1;
 <a name="l00438"></a>00438 }
 <a name="l00439"></a>00439 VALUE
-<a name="l00440"></a><a class="code" href="class_x_ruby.html#844b796abc9683360227d3cf04ce7c8a">00440</a> <a class="code" href="class_x_ruby.html#844b796abc9683360227d3cf04ce7c8a">XRuby::getValueOfNode</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node)
+<a name="l00440"></a><a class="code" href="class_x_ruby.html#h4">00440</a> <a class="code" href="class_x_ruby.html#h4">XRuby::getValueOfNode</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node)
 <a name="l00441"></a>00441 {
 <a name="l00442"></a>00442   shared_ptr&lt;XDoubleNode&gt; dnode = dynamic_pointer_cast&lt;XDoubleNode&gt;(node);
 <a name="l00443"></a>00443   shared_ptr&lt;XIntNode&gt; inode = dynamic_pointer_cast&lt;XIntNode&gt;(node);
@@ -471,14 +462,14 @@
 <a name="l00453"></a>00453 }
 <a name="l00454"></a>00454 
 <a name="l00455"></a>00455 VALUE
-<a name="l00456"></a><a class="code" href="class_x_ruby.html#0941da058643c7d60b6f99403a8696ec">00456</a> <a class="code" href="class_x_ruby.html#0941da058643c7d60b6f99403a8696ec">XRuby::my_rbdefout</a>(VALUE <span class="keyword">self</span>, VALUE str, VALUE threadid)
+<a name="l00456"></a><a class="code" href="class_x_ruby.html#h1">00456</a> <a class="code" href="class_x_ruby.html#h1">XRuby::my_rbdefout</a>(VALUE <span class="keyword">self</span>, VALUE str, VALUE threadid)
 <a name="l00457"></a>00457 {
 <a name="l00458"></a>00458   <span class="keywordtype">int</span> <span class="keywordtype">id</span> = NUM2INT(threadid);
 <a name="l00459"></a>00459   shared_ptr&lt;std::string&gt; sstr(<span class="keyword">new</span> std::string(RSTRING(str)-&gt;ptr));
 <a name="l00460"></a>00460   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
 <a name="l00461"></a>00461   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
 <a name="l00462"></a>00462   shared_ptr&lt;XRubyThread&gt; rubythread;
-<a name="l00463"></a>00463   <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const NodeList&gt;</a> list = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#a6769fc6038a89b035ed07b59b7e4122">xruby</a>-&gt;<a class="code" href="class_x_node.html#447304f53812168564c94eed4a86bbfd">children</a>();
+<a name="l00463"></a>00463   <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const NodeList&gt;</a> list = st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o1">xruby</a>-&gt;<a class="code" href="class_x_node.html#a10">children</a>();
 <a name="l00464"></a>00464   <span class="keywordflow">if</span>(list) { 
 <a name="l00465"></a>00465       <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; list-&gt;size(); i++) {
 <a name="l00466"></a>00466         shared_ptr&lt;XRubyThread&gt; th = dynamic_pointer_cast&lt;XRubyThread&gt;(list-&gt;at(i));
@@ -497,15 +488,15 @@
 <a name="l00479"></a>00479   <span class="keywordflow">return</span> Qnil;
 <a name="l00480"></a>00480 }
 <a name="l00481"></a>00481 VALUE
-<a name="l00482"></a><a class="code" href="class_x_ruby.html#f8a230dbc73b02508db5b504725c3b61">00482</a> <a class="code" href="class_x_ruby.html#f8a230dbc73b02508db5b504725c3b61">XRuby::is_main_terminated</a>(VALUE <span class="keyword">self</span>)
+<a name="l00482"></a><a class="code" href="class_x_ruby.html#h2">00482</a> <a class="code" href="class_x_ruby.html#h2">XRuby::is_main_terminated</a>(VALUE <span class="keyword">self</span>)
 <a name="l00483"></a>00483 {
 <a name="l00484"></a>00484   <span class="keyword">struct </span><a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a> *st;
 <a name="l00485"></a>00485   Data_Get_Struct(<span class="keyword">self</span>, <span class="keyword">struct</span> <a class="code" href="struct_x_ruby_1_1rnode__ptr.html">rnode_ptr</a>, st);
-<a name="l00486"></a>00486   <span class="keywordflow">return</span> (st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#a6769fc6038a89b035ed07b59b7e4122">xruby</a>-&gt;<a class="code" href="class_x_ruby.html#439ebbf8985c524d1bcb55555910bffc">m_thread</a>.<a class="code" href="class_x_thread.html#a8056b5f971cb0c8f1f74b35be3d87b4">isTerminated</a>()) ? Qtrue : Qfalse;
+<a name="l00486"></a>00486   <span class="keywordflow">return</span> (st-&gt;<a class="code" href="struct_x_ruby_1_1rnode__ptr.html#o1">xruby</a>-&gt;<a class="code" href="class_x_ruby.html#r6">m_thread</a>.<a class="code" href="class_x_thread.html#a5">isTerminated</a>()) ? Qtrue : Qfalse;
 <a name="l00487"></a>00487 }
 <a name="l00488"></a>00488 
 <a name="l00489"></a>00489 <span class="keywordtype">void</span> *
-<a name="l00490"></a><a class="code" href="class_x_ruby.html#764f44fcd9156bb86ce97b8bf1d3c437">00490</a> <a class="code" href="class_x_ruby.html#764f44fcd9156bb86ce97b8bf1d3c437">XRuby::execute</a>(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;terminated)
+<a name="l00490"></a><a class="code" href="class_x_ruby.html#b1">00490</a> <a class="code" href="class_x_ruby.html#b1">XRuby::execute</a>(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;terminated)
 <a name="l00491"></a>00491 {
 <a name="l00492"></a>00492     
 <a name="l00493"></a>00493   <span class="keywordflow">while</span> (!terminated) {
@@ -514,38 +505,38 @@
 <a name="l00496"></a>00496       
 <a name="l00497"></a>00497       ruby_init_loadpath();
 <a name="l00498"></a>00498       
-<a name="l00499"></a>00499       <a class="code" href="class_x_ruby.html#bdcbc675dd343883e27d00dfaa0e8bef">rbClassNode</a> = rb_define_class(<span class="stringliteral">"XNode"</span>, rb_cObject);
-<a name="l00500"></a>00500       rb_global_variable(&amp;<a class="code" href="class_x_ruby.html#bdcbc675dd343883e27d00dfaa0e8bef">rbClassNode</a>);
+<a name="l00499"></a>00499       <a class="code" href="class_x_ruby.html#r0">rbClassNode</a> = rb_define_class(<span class="stringliteral">"XNode"</span>, rb_cObject);
+<a name="l00500"></a>00500       rb_global_variable(&amp;<a class="code" href="class_x_ruby.html#r0">rbClassNode</a>);
 <a name="l00501"></a>00501       <span class="keyword">typedef</span> VALUE(*fp)(...);
-<a name="l00502"></a>00502       rb_define_method(<a class="code" href="class_x_ruby.html#bdcbc675dd343883e27d00dfaa0e8bef">rbClassNode</a>, <span class="stringliteral">"name"</span>, (fp)<a class="code" href="class_x_ruby.html#8dbb384e96283696098eed3f43db603e">rnode_name</a>, 0);
-<a name="l00503"></a>00503       rb_define_method(<a class="code" href="class_x_ruby.html#bdcbc675dd343883e27d00dfaa0e8bef">rbClassNode</a>, <span class="stringliteral">"touch"</span>, (fp)<a class="code" href="class_x_ruby.html#e7402ab445a84cb6e23b9a9d1e249738">rnode_touch</a>, 0);
-<a name="l00504"></a>00504       rb_define_method(<a class="code" href="class_x_ruby.html#bdcbc675dd343883e27d00dfaa0e8bef">rbClassNode</a>, <span class="stringliteral">"child"</span>, (fp)<a class="code" href="class_x_ruby.html#5cacdce99649c7077df80222060e6737">rnode_child</a>, 1);
+<a name="l00502"></a>00502       rb_define_method(<a class="code" href="class_x_ruby.html#r0">rbClassNode</a>, <span class="stringliteral">"name"</span>, (fp)<a class="code" href="class_x_ruby.html#h6">rnode_name</a>, 0);
+<a name="l00503"></a>00503       rb_define_method(<a class="code" href="class_x_ruby.html#r0">rbClassNode</a>, <span class="stringliteral">"touch"</span>, (fp)<a class="code" href="class_x_ruby.html#h7">rnode_touch</a>, 0);
+<a name="l00504"></a>00504       rb_define_method(<a class="code" href="class_x_ruby.html#r0">rbClassNode</a>, <span class="stringliteral">"child"</span>, (fp)<a class="code" href="class_x_ruby.html#h9">rnode_child</a>, 1);
 <a name="l00505"></a>00505 <span class="comment">//      rb_define_method(rbClassNode, "[]", (fp)rnode_child, 1);</span>
-<a name="l00506"></a>00506       rb_define_method(<a class="code" href="class_x_ruby.html#bdcbc675dd343883e27d00dfaa0e8bef">rbClassNode</a>, <span class="stringliteral">"count"</span>, (fp)<a class="code" href="class_x_ruby.html#eb206c3ae43aa6fb68ab0aa6ac16f4d4">rnode_count</a>, 0);
-<a name="l00507"></a>00507       <a class="code" href="class_x_ruby.html#357c1deb431b0789d8c792b0126e9be6">rbClassValueNode</a> = rb_define_class(<span class="stringliteral">"XValueNode"</span>, <a class="code" href="class_x_ruby.html#bdcbc675dd343883e27d00dfaa0e8bef">rbClassNode</a>);
-<a name="l00508"></a>00508       rb_global_variable(&amp;<a class="code" href="class_x_ruby.html#357c1deb431b0789d8c792b0126e9be6">rbClassValueNode</a>);
-<a name="l00509"></a>00509       rb_define_method(<a class="code" href="class_x_ruby.html#357c1deb431b0789d8c792b0126e9be6">rbClassValueNode</a>, <span class="stringliteral">"internal_set"</span>, (fp)<a class="code" href="class_x_ruby.html#35e2ba22b0573b47e7ef57c202a89eee">rvaluenode_set</a>, 1);
-<a name="l00510"></a>00510       rb_define_method(<a class="code" href="class_x_ruby.html#357c1deb431b0789d8c792b0126e9be6">rbClassValueNode</a>, <span class="stringliteral">"internal_load"</span>, (fp)<a class="code" href="class_x_ruby.html#37386cf2e6cd84f2811228b0d0a8a0c3">rvaluenode_load</a>, 1);
-<a name="l00511"></a>00511       rb_define_method(<a class="code" href="class_x_ruby.html#357c1deb431b0789d8c792b0126e9be6">rbClassValueNode</a>, <span class="stringliteral">"internal_get"</span>, (fp)<a class="code" href="class_x_ruby.html#8d24a142da6d2325f4beaf3d0fc191d2">rvaluenode_get</a>, 0);
-<a name="l00512"></a>00512       rb_define_method(<a class="code" href="class_x_ruby.html#357c1deb431b0789d8c792b0126e9be6">rbClassValueNode</a>, <span class="stringliteral">"to_str"</span>, (fp)<a class="code" href="class_x_ruby.html#3fb4003898068bfd83f12a978bb50eac">rvaluenode_to_str</a>, 0);
-<a name="l00513"></a>00513       <a class="code" href="class_x_ruby.html#8fd6a751e2eab65e3ce1c52ae2b74c7d">rbClassListNode</a> = rb_define_class(<span class="stringliteral">"XListNode"</span>, <a class="code" href="class_x_ruby.html#bdcbc675dd343883e27d00dfaa0e8bef">rbClassNode</a>);
-<a name="l00514"></a>00514       rb_global_variable(&amp;<a class="code" href="class_x_ruby.html#8fd6a751e2eab65e3ce1c52ae2b74c7d">rbClassListNode</a>);
-<a name="l00515"></a>00515       rb_define_method(<a class="code" href="class_x_ruby.html#8fd6a751e2eab65e3ce1c52ae2b74c7d">rbClassListNode</a>, <span class="stringliteral">"internal_create"</span>, (fp)<a class="code" href="class_x_ruby.html#1e242123b8a58268e40e0cd47004be21">rlistnode_create_child</a>, 2);
-<a name="l00516"></a>00516       rb_define_method(<a class="code" href="class_x_ruby.html#8fd6a751e2eab65e3ce1c52ae2b74c7d">rbClassListNode</a>, <span class="stringliteral">"release"</span>, (fp)<a class="code" href="class_x_ruby.html#5ead2fb9d0a9beba729ef63e0b0af341">rlistnode_release_child</a>, 1);
+<a name="l00506"></a>00506       rb_define_method(<a class="code" href="class_x_ruby.html#r0">rbClassNode</a>, <span class="stringliteral">"count"</span>, (fp)<a class="code" href="class_x_ruby.html#h8">rnode_count</a>, 0);
+<a name="l00507"></a>00507       <a class="code" href="class_x_ruby.html#r1">rbClassValueNode</a> = rb_define_class(<span class="stringliteral">"XValueNode"</span>, <a class="code" href="class_x_ruby.html#r0">rbClassNode</a>);
+<a name="l00508"></a>00508       rb_global_variable(&amp;<a class="code" href="class_x_ruby.html#r1">rbClassValueNode</a>);
+<a name="l00509"></a>00509       rb_define_method(<a class="code" href="class_x_ruby.html#r1">rbClassValueNode</a>, <span class="stringliteral">"internal_set"</span>, (fp)<a class="code" href="class_x_ruby.html#h10">rvaluenode_set</a>, 1);
+<a name="l00510"></a>00510       rb_define_method(<a class="code" href="class_x_ruby.html#r1">rbClassValueNode</a>, <span class="stringliteral">"internal_load"</span>, (fp)<a class="code" href="class_x_ruby.html#h11">rvaluenode_load</a>, 1);
+<a name="l00511"></a>00511       rb_define_method(<a class="code" href="class_x_ruby.html#r1">rbClassValueNode</a>, <span class="stringliteral">"internal_get"</span>, (fp)<a class="code" href="class_x_ruby.html#h12">rvaluenode_get</a>, 0);
+<a name="l00512"></a>00512       rb_define_method(<a class="code" href="class_x_ruby.html#r1">rbClassValueNode</a>, <span class="stringliteral">"to_str"</span>, (fp)<a class="code" href="class_x_ruby.html#h13">rvaluenode_to_str</a>, 0);
+<a name="l00513"></a>00513       <a class="code" href="class_x_ruby.html#r2">rbClassListNode</a> = rb_define_class(<span class="stringliteral">"XListNode"</span>, <a class="code" href="class_x_ruby.html#r0">rbClassNode</a>);
+<a name="l00514"></a>00514       rb_global_variable(&amp;<a class="code" href="class_x_ruby.html#r2">rbClassListNode</a>);
+<a name="l00515"></a>00515       rb_define_method(<a class="code" href="class_x_ruby.html#r2">rbClassListNode</a>, <span class="stringliteral">"internal_create"</span>, (fp)<a class="code" href="class_x_ruby.html#h14">rlistnode_create_child</a>, 2);
+<a name="l00516"></a>00516       rb_define_method(<a class="code" href="class_x_ruby.html#r2">rbClassListNode</a>, <span class="stringliteral">"release"</span>, (fp)<a class="code" href="class_x_ruby.html#h15">rlistnode_release_child</a>, 1);
 <a name="l00517"></a>00517       
 <a name="l00518"></a>00518       {
-<a name="l00519"></a>00519           shared_ptr&lt;XMeasure&gt; measure = <a class="code" href="class_x_ruby.html#14c545d6dff70b165a701b4ca921fbd4">m_measure</a>.lock();
+<a name="l00519"></a>00519           shared_ptr&lt;XMeasure&gt; measure = <a class="code" href="class_x_ruby.html#r5">m_measure</a>.lock();
 <a name="l00520"></a>00520           ASSERT(measure);
 <a name="l00521"></a>00521           std::string name = measure-&gt;getName();
 <a name="l00522"></a>00522           name[0] = toupper(name[0]);
-<a name="l00523"></a>00523           VALUE rbRootNode = <a class="code" href="class_x_ruby.html#801a32a0717d9b4e4e5cab471abd559d">rnode_create</a>(measure, <span class="keyword">this</span>);
+<a name="l00523"></a>00523           VALUE rbRootNode = <a class="code" href="class_x_ruby.html#h5">rnode_create</a>(measure, <span class="keyword">this</span>);
 <a name="l00524"></a>00524           rb_define_global_const(name.c_str(), rbRootNode);
 <a name="l00525"></a>00525           rb_define_global_const(<span class="stringliteral">"RootNode"</span>, rbRootNode);
 <a name="l00526"></a>00526       }
 <a name="l00527"></a>00527       {
-<a name="l00528"></a>00528           VALUE rbRubyThreads = <a class="code" href="class_x_ruby.html#801a32a0717d9b4e4e5cab471abd559d">rnode_create</a>(shared_from_this(), <span class="keyword">this</span>);
-<a name="l00529"></a>00529           rb_define_singleton_method(rbRubyThreads, <span class="stringliteral">"my_rbdefout"</span>, (fp)<a class="code" href="class_x_ruby.html#0941da058643c7d60b6f99403a8696ec">my_rbdefout</a>, 2);
-<a name="l00530"></a>00530           rb_define_singleton_method(rbRubyThreads, <span class="stringliteral">"is_main_terminated"</span>, (fp)<a class="code" href="class_x_ruby.html#f8a230dbc73b02508db5b504725c3b61">is_main_terminated</a>, 0);
+<a name="l00528"></a>00528           VALUE rbRubyThreads = <a class="code" href="class_x_ruby.html#h5">rnode_create</a>(shared_from_this(), <span class="keyword">this</span>);
+<a name="l00529"></a>00529           rb_define_singleton_method(rbRubyThreads, <span class="stringliteral">"my_rbdefout"</span>, (fp)<a class="code" href="class_x_ruby.html#h1">my_rbdefout</a>, 2);
+<a name="l00530"></a>00530           rb_define_singleton_method(rbRubyThreads, <span class="stringliteral">"is_main_terminated"</span>, (fp)<a class="code" href="class_x_ruby.html#h2">is_main_terminated</a>, 0);
 <a name="l00531"></a>00531           rb_define_global_const(<span class="stringliteral">"XRubyThreads"</span>, rbRubyThreads);
 <a name="l00532"></a>00532       }
 <a name="l00533"></a>00533       
@@ -566,8 +557,8 @@
 <a name="l00548"></a>00548   }
 <a name="l00549"></a>00549   <span class="keywordflow">return</span> NULL;
 <a name="l00550"></a>00550 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 17:09:01 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:35 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.5.1 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>
 </html>

@@ -1,6 +1,0 @@
-base referer
-rect $class_x_axis_list.html 7,232 141,258
-rect $class_x_plot_list.html 165,232 295,258
-rect $class_x_thermometer_list.html 319,232 565,258
-rect $class_x_list_node_base.html 174,82 286,109
-rect $class_x_node.html 199,8 261,34

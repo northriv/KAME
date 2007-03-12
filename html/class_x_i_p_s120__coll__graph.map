@@ -1,5 +1,5 @@
 base referer
-rect $class_x_p_s120.html 86,231 158,258
-rect $class_x_oxford_driver.html 22,157 222,183
-rect $class_x_char_device_driver.html 7,82 237,109
-rect $class_x_magnet_p_s.html 75,7 169,34
+rect $class_x_p_s120.html 140,231 212,258
+rect $class_x_oxford_driver.html 76,157 276,183
+rect $class_x_char_device_driver.html 8,82 344,109
+rect $class_x_magnet_p_s.html 129,7 222,34

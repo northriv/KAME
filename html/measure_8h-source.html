@@ -2,20 +2,11 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/measure.h ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
-<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.5.1 -->
-<div class="tabs">
-  <ul>
-    <li><a href="main.html"><span>メインページ</span></a></li>
-    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
-    <li><a href="classes.html"><span>クラス</span></a></li>
-    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
-    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
-    <li><a href="pages.html"><span>関連ページ</span></a></li>
-  </ul></div>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
-<a class="el" href="dir_86f25382698e49ecc2836ac98faed978.html">kame</a></div>
+<a class="el" href="dir_000000.html">kame</a></div>
 <h1>measure.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
 <a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
@@ -53,53 +44,53 @@
 <a name="l00039"></a>00039 {
 <a name="l00040"></a>00040  XNODE_OBJECT
 <a name="l00041"></a>00041  <span class="keyword">protected</span>:
-<a name="l00042"></a>00042   <a class="code" href="class_x_measure.html#76f3eca15ac25cf2f093bfe49bab5dc3">XMeasure</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime);
+<a name="l00042"></a>00042   <a class="code" href="class_x_measure.html#b0">XMeasure</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime);
 <a name="l00043"></a>00043  <span class="keyword">public</span>:
-<a name="l00044"></a>00044   <span class="keyword">virtual</span> <a class="code" href="class_x_measure.html#bd303cbc17abb96bbc851299216896fe">~XMeasure</a>();
+<a name="l00044"></a>00044   <span class="keyword">virtual</span> <a class="code" href="class_x_measure.html#a0">~XMeasure</a>();
 <a name="l00045"></a>00045 
-<a name="l00047"></a>00047   <span class="keywordtype">void</span> <a class="code" href="class_x_measure.html#95857caf82fd9b63576a21d01194f128">initialize</a>();
-<a name="l00049"></a>00049   <span class="keywordtype">void</span> <a class="code" href="class_x_measure.html#0edba84d3e39824208d209b8805b4b04">terminate</a>();
-<a name="l00051"></a>00051   <span class="keywordtype">void</span> <a class="code" href="class_x_measure.html#70b34a1a17af15444d3886da5310ea20">stop</a>();
+<a name="l00047"></a>00047   <span class="keywordtype">void</span> <a class="code" href="class_x_measure.html#a1">initialize</a>();
+<a name="l00049"></a>00049   <span class="keywordtype">void</span> <a class="code" href="class_x_measure.html#a2">terminate</a>();
+<a name="l00051"></a>00051   <span class="keywordtype">void</span> <a class="code" href="class_x_measure.html#a3">stop</a>();
 <a name="l00052"></a>00052 
-<a name="l00053"></a><a class="code" href="class_x_measure.html#295bf92740627adfe382285348e1dd16">00053</a>   <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;<a class="code" href="class_x_measure.html#295bf92740627adfe382285348e1dd16">thermometerList</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_measure.html#32a0eb110be9f604e4f7bbf558296261">m_thermometers</a>;}
-<a name="l00054"></a><a class="code" href="class_x_measure.html#c59dbf28fcfd0b1756c9743113f1dc03">00054</a>   <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;<a class="code" href="class_x_measure.html#c59dbf28fcfd0b1756c9743113f1dc03">driverList</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_measure.html#3d14774d4260e94508a09861030a079e">m_drivers</a>;}
-<a name="l00055"></a><a class="code" href="class_x_measure.html#747e0743e6d1ec1b6146dbc33b30a2ce">00055</a>   <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;<a class="code" href="class_x_measure.html#747e0743e6d1ec1b6146dbc33b30a2ce">interfaceList</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_measure.html#ab4b5bd65d556bdbf673630a626b8a63">m_interfaces</a>;} 
-<a name="l00056"></a><a class="code" href="class_x_measure.html#47b0d06daf70a6d4e1512d7a07ebf986">00056</a>   <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;<a class="code" href="class_x_measure.html#47b0d06daf70a6d4e1512d7a07ebf986">scalarEntryList</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_measure.html#68a1ebd457fdace8209ae62d35016dfe">m_scalarEntries</a>;}
-<a name="l00057"></a><a class="code" href="class_x_measure.html#d2ae1298fd31e622adc37a06bfda427a">00057</a>   <span class="keyword">const</span> shared_ptr&lt;XGraphList&gt; &amp;<a class="code" href="class_x_measure.html#d2ae1298fd31e622adc37a06bfda427a">graphList</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_measure.html#19519a4bcf79b00f6440367f22dfde8d">m_graphList</a>;}
-<a name="l00058"></a><a class="code" href="class_x_measure.html#6828dd1a6a3517af36ccd443849e1ce7">00058</a>   <span class="keyword">const</span> shared_ptr&lt;XChartList&gt; &amp;<a class="code" href="class_x_measure.html#6828dd1a6a3517af36ccd443849e1ce7">chartList</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_measure.html#b528119e8ea2fea039ad67654185d12a">m_chartList</a>;}
-<a name="l00059"></a><a class="code" href="class_x_measure.html#d4f58c407e8f7e7409a3f39270087697">00059</a>   <span class="keyword">const</span> shared_ptr&lt;XTextWriter&gt; &amp;<a class="code" href="class_x_measure.html#d4f58c407e8f7e7409a3f39270087697">textWriter</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_measure.html#6de446d3bbfe5272840df32493fd4a2f">m_textWriter</a>;}
-<a name="l00060"></a><a class="code" href="class_x_measure.html#222cf2b4f32248ac5557f6a7d9201929">00060</a>   <span class="keyword">const</span> shared_ptr&lt;XRawStreamRecorder&gt; &amp;<a class="code" href="class_x_measure.html#222cf2b4f32248ac5557f6a7d9201929">rawStreamRecorder</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_measure.html#d182c4060877de4cd8fba185cbbfb214">m_rawStreamRecorder</a>;}
-<a name="l00061"></a><a class="code" href="class_x_measure.html#20ff9f27036c88305567043ba730e6c0">00061</a>   <span class="keyword">const</span> shared_ptr&lt;XRawStreamRecordReader&gt; &amp;<a class="code" href="class_x_measure.html#20ff9f27036c88305567043ba730e6c0">rawStreamRecordReader</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_measure.html#30a28c411bd894d8ae5f41deefb83ad7">m_rawStreamRecordReader</a>;}
+<a name="l00053"></a><a class="code" href="class_x_measure.html#a4">00053</a>   <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;<a class="code" href="class_x_measure.html#a4">thermometerList</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_measure.html#r1">m_thermometers</a>;}
+<a name="l00054"></a><a class="code" href="class_x_measure.html#a5">00054</a>   <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;<a class="code" href="class_x_measure.html#a5">driverList</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_measure.html#r6">m_drivers</a>;}
+<a name="l00055"></a><a class="code" href="class_x_measure.html#a6">00055</a>   <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;<a class="code" href="class_x_measure.html#a6">interfaceList</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_measure.html#r5">m_interfaces</a>;} 
+<a name="l00056"></a><a class="code" href="class_x_measure.html#a7">00056</a>   <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;<a class="code" href="class_x_measure.html#a7">scalarEntryList</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_measure.html#r2">m_scalarEntries</a>;}
+<a name="l00057"></a><a class="code" href="class_x_measure.html#a8">00057</a>   <span class="keyword">const</span> shared_ptr&lt;XGraphList&gt; &amp;<a class="code" href="class_x_measure.html#a8">graphList</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_measure.html#r3">m_graphList</a>;}
+<a name="l00058"></a><a class="code" href="class_x_measure.html#a9">00058</a>   <span class="keyword">const</span> shared_ptr&lt;XChartList&gt; &amp;<a class="code" href="class_x_measure.html#a9">chartList</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_measure.html#r4">m_chartList</a>;}
+<a name="l00059"></a><a class="code" href="class_x_measure.html#a10">00059</a>   <span class="keyword">const</span> shared_ptr&lt;XTextWriter&gt; &amp;<a class="code" href="class_x_measure.html#a10">textWriter</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_measure.html#r7">m_textWriter</a>;}
+<a name="l00060"></a><a class="code" href="class_x_measure.html#a11">00060</a>   <span class="keyword">const</span> shared_ptr&lt;XRawStreamRecorder&gt; &amp;<a class="code" href="class_x_measure.html#a11">rawStreamRecorder</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_measure.html#r8">m_rawStreamRecorder</a>;}
+<a name="l00061"></a><a class="code" href="class_x_measure.html#a12">00061</a>   <span class="keyword">const</span> shared_ptr&lt;XRawStreamRecordReader&gt; &amp;<a class="code" href="class_x_measure.html#a12">rawStreamRecordReader</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_measure.html#r9">m_rawStreamRecordReader</a>;}
 <a name="l00062"></a>00062   
-<a name="l00063"></a><a class="code" href="class_x_measure.html#a616e6c8d7819b09493394283d4c09e8">00063</a>   <span class="keyword">const</span> shared_ptr&lt;XRuby&gt; &amp;<a class="code" href="class_x_measure.html#a616e6c8d7819b09493394283d4c09e8">ruby</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_measure.html#d46af214b1638e399d4b49603f90794d">m_ruby</a>;}
+<a name="l00063"></a><a class="code" href="class_x_measure.html#a13">00063</a>   <span class="keyword">const</span> shared_ptr&lt;XRuby&gt; &amp;<a class="code" href="class_x_measure.html#a13">ruby</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_measure.html#r0">m_ruby</a>;}
 <a name="l00064"></a>00064  <span class="keyword">private</span>:
-<a name="l00065"></a><a class="code" href="class_x_measure.html#d46af214b1638e399d4b49603f90794d">00065</a>   shared_ptr&lt;XRuby&gt; <a class="code" href="class_x_measure.html#d46af214b1638e399d4b49603f90794d">m_ruby</a>;
+<a name="l00065"></a><a class="code" href="class_x_measure.html#r0">00065</a>   shared_ptr&lt;XRuby&gt; <a class="code" href="class_x_measure.html#r0">m_ruby</a>;
 <a name="l00066"></a>00066  
-<a name="l00067"></a><a class="code" href="class_x_measure.html#32a0eb110be9f604e4f7bbf558296261">00067</a>   <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; <a class="code" href="class_x_measure.html#32a0eb110be9f604e4f7bbf558296261">m_thermometers</a>;
-<a name="l00068"></a><a class="code" href="class_x_measure.html#68a1ebd457fdace8209ae62d35016dfe">00068</a>   <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; <a class="code" href="class_x_measure.html#68a1ebd457fdace8209ae62d35016dfe">m_scalarEntries</a>;
-<a name="l00069"></a><a class="code" href="class_x_measure.html#19519a4bcf79b00f6440367f22dfde8d">00069</a>   <span class="keyword">const</span> shared_ptr&lt;XGraphList&gt; <a class="code" href="class_x_measure.html#19519a4bcf79b00f6440367f22dfde8d">m_graphList</a>;
-<a name="l00070"></a><a class="code" href="class_x_measure.html#b528119e8ea2fea039ad67654185d12a">00070</a>   <span class="keyword">const</span> shared_ptr&lt;XChartList&gt; <a class="code" href="class_x_measure.html#b528119e8ea2fea039ad67654185d12a">m_chartList</a>;
-<a name="l00071"></a><a class="code" href="class_x_measure.html#ab4b5bd65d556bdbf673630a626b8a63">00071</a>   <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; <a class="code" href="class_x_measure.html#ab4b5bd65d556bdbf673630a626b8a63">m_interfaces</a>;
-<a name="l00072"></a><a class="code" href="class_x_measure.html#3d14774d4260e94508a09861030a079e">00072</a>   <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; <a class="code" href="class_x_measure.html#3d14774d4260e94508a09861030a079e">m_drivers</a>;
-<a name="l00073"></a><a class="code" href="class_x_measure.html#6de446d3bbfe5272840df32493fd4a2f">00073</a>   <span class="keyword">const</span> shared_ptr&lt;XTextWriter&gt; <a class="code" href="class_x_measure.html#6de446d3bbfe5272840df32493fd4a2f">m_textWriter</a>;
-<a name="l00074"></a><a class="code" href="class_x_measure.html#d182c4060877de4cd8fba185cbbfb214">00074</a>   <span class="keyword">const</span> shared_ptr&lt;XRawStreamRecorder&gt; <a class="code" href="class_x_measure.html#d182c4060877de4cd8fba185cbbfb214">m_rawStreamRecorder</a>;
-<a name="l00075"></a><a class="code" href="class_x_measure.html#30a28c411bd894d8ae5f41deefb83ad7">00075</a>   <span class="keyword">const</span> shared_ptr&lt;XRawStreamRecordReader&gt; <a class="code" href="class_x_measure.html#30a28c411bd894d8ae5f41deefb83ad7">m_rawStreamRecordReader</a>;
+<a name="l00067"></a><a class="code" href="class_x_measure.html#r1">00067</a>   <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; <a class="code" href="class_x_measure.html#r1">m_thermometers</a>;
+<a name="l00068"></a><a class="code" href="class_x_measure.html#r2">00068</a>   <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; <a class="code" href="class_x_measure.html#r2">m_scalarEntries</a>;
+<a name="l00069"></a><a class="code" href="class_x_measure.html#r3">00069</a>   <span class="keyword">const</span> shared_ptr&lt;XGraphList&gt; <a class="code" href="class_x_measure.html#r3">m_graphList</a>;
+<a name="l00070"></a><a class="code" href="class_x_measure.html#r4">00070</a>   <span class="keyword">const</span> shared_ptr&lt;XChartList&gt; <a class="code" href="class_x_measure.html#r4">m_chartList</a>;
+<a name="l00071"></a><a class="code" href="class_x_measure.html#r5">00071</a>   <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; <a class="code" href="class_x_measure.html#r5">m_interfaces</a>;
+<a name="l00072"></a><a class="code" href="class_x_measure.html#r6">00072</a>   <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; <a class="code" href="class_x_measure.html#r6">m_drivers</a>;
+<a name="l00073"></a><a class="code" href="class_x_measure.html#r7">00073</a>   <span class="keyword">const</span> shared_ptr&lt;XTextWriter&gt; <a class="code" href="class_x_measure.html#r7">m_textWriter</a>;
+<a name="l00074"></a><a class="code" href="class_x_measure.html#r8">00074</a>   <span class="keyword">const</span> shared_ptr&lt;XRawStreamRecorder&gt; <a class="code" href="class_x_measure.html#r8">m_rawStreamRecorder</a>;
+<a name="l00075"></a><a class="code" href="class_x_measure.html#r9">00075</a>   <span class="keyword">const</span> shared_ptr&lt;XRawStreamRecordReader&gt; <a class="code" href="class_x_measure.html#r9">m_rawStreamRecordReader</a>;
 <a name="l00076"></a>00076   
-<a name="l00077"></a><a class="code" href="class_x_measure.html#a74f7abffa8d307ad2d57700d9615126">00077</a>   <span class="keyword">const</span> <a class="code" href="classqshared__ptr.html">xqcon_ptr</a> <a class="code" href="class_x_measure.html#be58af4e49c7fa6b6dfd141d1d0108bb">m_conRecordReader</a>,
-<a name="l00078"></a>00078    <a class="code" href="class_x_measure.html#bf1928a5b02d5f0df62e97e4fcd36f7b">m_conDrivers</a>, <a class="code" href="class_x_measure.html#21aa446780d3a72ab58d43afd157ff80">m_conInterfaces</a>, <a class="code" href="class_x_measure.html#cc8fdd31a51eb7d891c5fedccb7b9c8d">m_conEntries</a>, <a class="code" href="class_x_measure.html#f5fbf942aee283c02cf73b2aa6defc3b">m_conGraphs</a>,
-<a name="l00079"></a>00079    <a class="code" href="class_x_measure.html#ca3d42cf594bc333359f919b56636fbd">m_conTextWrite</a>, <a class="code" href="class_x_measure.html#e11ed42d26165494339a063b939a43df">m_conTextURL</a>, <a class="code" href="class_x_measure.html#417782823bb48c638954a1cb54d460fd">m_conTextLastLine</a>,
-<a name="l00080"></a>00080    <a class="code" href="class_x_measure.html#7ce989dfdebb1449dbd0f6282c9a1ad3">m_conBinURL</a>, <a class="code" href="class_x_measure.html#bab5338e6c8d230f0129807032dd55f1">m_conBinWrite</a>, <a class="code" href="class_x_measure.html#a74f7abffa8d307ad2d57700d9615126">m_conUrlRubyThread</a>,
-<a name="l00081"></a>00081    <a class="code" href="class_x_measure.html#eadec15a71ab91ba9be850dd2806b48d">m_conCalTable</a>;
-<a name="l00082"></a><a class="code" href="class_x_measure.html#e3e0c830a7a432cdb3b888be8e68c232">00082</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_measure.html#e3e0c830a7a432cdb3b888be8e68c232">m_lsnOnReleaseDriver</a>;
-<a name="l00083"></a>00083   <span class="keywordtype">void</span> <a class="code" href="class_x_measure.html#4177ba6dde9cca972ae59874b94e47af">onReleaseDriver</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;driver);
+<a name="l00077"></a><a class="code" href="class_x_measure.html#r20">00077</a>   <span class="keyword">const</span> <a class="code" href="classqshared__ptr.html">xqcon_ptr</a> <a class="code" href="class_x_measure.html#r10">m_conRecordReader</a>,
+<a name="l00078"></a>00078    <a class="code" href="class_x_measure.html#r11">m_conDrivers</a>, <a class="code" href="class_x_measure.html#r12">m_conInterfaces</a>, <a class="code" href="class_x_measure.html#r13">m_conEntries</a>, <a class="code" href="class_x_measure.html#r14">m_conGraphs</a>,
+<a name="l00079"></a>00079    <a class="code" href="class_x_measure.html#r15">m_conTextWrite</a>, <a class="code" href="class_x_measure.html#r16">m_conTextURL</a>, <a class="code" href="class_x_measure.html#r17">m_conTextLastLine</a>,
+<a name="l00080"></a>00080    <a class="code" href="class_x_measure.html#r18">m_conBinURL</a>, <a class="code" href="class_x_measure.html#r19">m_conBinWrite</a>, <a class="code" href="class_x_measure.html#r20">m_conUrlRubyThread</a>,
+<a name="l00081"></a>00081    <a class="code" href="class_x_measure.html#r21">m_conCalTable</a>;
+<a name="l00082"></a><a class="code" href="class_x_measure.html#r22">00082</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_measure.html#r22">m_lsnOnReleaseDriver</a>;
+<a name="l00083"></a>00083   <span class="keywordtype">void</span> <a class="code" href="class_x_measure.html#d0">onReleaseDriver</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;driver);
 <a name="l00084"></a>00084 };
 <a name="l00085"></a>00085 
 <a name="l00088"></a>00088 <span class="keyword">extern</span> shared_ptr&lt;XStatusPrinter&gt; g_statusPrinter;
 <a name="l00089"></a>00089 
 <a name="l00090"></a>00090 <span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00091"></a>00091 <span class="preprocessor">#endif</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 17:09:01 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:35 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.5.1 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>
 </html>

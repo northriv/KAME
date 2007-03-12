@@ -2,20 +2,11 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/xsignal.cpp ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
-<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.5.1 -->
-<div class="tabs">
-  <ul>
-    <li><a href="main.html"><span>メインページ</span></a></li>
-    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
-    <li><a href="classes.html"><span>クラス</span></a></li>
-    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
-    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
-    <li><a href="pages.html"><span>関連ページ</span></a></li>
-  </ul></div>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
-<a class="el" href="dir_86f25382698e49ecc2836ac98faed978.html">kame</a></div>
+<a class="el" href="dir_000000.html">kame</a></div>
 <h1>xsignal.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
 <a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
@@ -39,7 +30,7 @@
 <a name="l00021"></a>00021     <span class="keywordflow">return</span> pthread_equal(threadID(), g_main_thread_id);
 <a name="l00022"></a>00022 }
 <a name="l00023"></a>00023 
-<a name="l00024"></a><a class="code" href="class_x_listener.html#661d82dae9f75bf80ba31cd0c3b053fc">00024</a> <a class="code" href="class_x_listener.html#661d82dae9f75bf80ba31cd0c3b053fc">XListener::XListener</a>(<a class="code" href="class_x_listener.html#c04a99211ea68063fc7ab8e4cdc9266e">FLAGS</a> flags) :
+<a name="l00024"></a><a class="code" href="class_x_listener.html#b0">00024</a> <a class="code" href="class_x_listener.html#b0">XListener::XListener</a>(FLAGS flags) :
 <a name="l00025"></a>00025         m_flags(flags) {
 <a name="l00026"></a>00026     <span class="keywordflow">if</span>(flags &amp; FLAG_AVOID_DUP) {
 <a name="l00027"></a>00027         ASSERT(flags &amp; FLAG_MAIN_THREAD_CALL);
@@ -48,48 +39,48 @@
 <a name="l00030"></a>00030         ASSERT(flags &amp; FLAG_AVOID_DUP);
 <a name="l00031"></a>00031     }
 <a name="l00032"></a>00032 }
-<a name="l00033"></a><a class="code" href="class_x_listener.html#20c34936dcb3e6626b5260f6b0eeaf0d">00033</a> <a class="code" href="class_x_listener.html#20c34936dcb3e6626b5260f6b0eeaf0d">XListener::~XListener</a>() {}
+<a name="l00033"></a><a class="code" href="class_x_listener.html#a0">00033</a> <a class="code" href="class_x_listener.html#a0">XListener::~XListener</a>() {}
 <a name="l00034"></a>00034 <span class="keywordtype">void</span>
-<a name="l00035"></a><a class="code" href="class_x_listener.html#58154809ed1208fb6620e10d09baae98">00035</a> <a class="code" href="class_x_listener.html#58154809ed1208fb6620e10d09baae98">XListener::mask</a>() {
+<a name="l00035"></a><a class="code" href="class_x_listener.html#a1">00035</a> <a class="code" href="class_x_listener.html#a1">XListener::mask</a>() {
 <a name="l00036"></a>00036     <span class="keywordflow">for</span>(;;) {
-<a name="l00037"></a>00037         <a class="code" href="class_x_listener.html#c04a99211ea68063fc7ab8e4cdc9266e">FLAGS</a> old = <a class="code" href="class_x_listener.html#6fdf19e61ed4a99caa8c79106b91f53d">m_flags</a>;
-<a name="l00038"></a>00038             <span class="keywordflow">if</span>(<a class="code" href="class_x_listener.html#6fdf19e61ed4a99caa8c79106b91f53d">m_flags</a>.compareAndSet(old, (<a class="code" href="class_x_listener.html#c04a99211ea68063fc7ab8e4cdc9266e">FLAGS</a>)(old | FLAG_MASKED)))
+<a name="l00037"></a>00037         <a class="code" href="class_x_listener.html#w5">FLAGS</a> old = <a class="code" href="class_x_listener.html#p0">m_flags</a>;
+<a name="l00038"></a>00038             <span class="keywordflow">if</span>(<a class="code" href="class_x_listener.html#p0">m_flags</a>.<a class="code" href="classatomic.html#a13">compareAndSet</a>(old, (<a class="code" href="class_x_listener.html#w5">FLAGS</a>)(old | FLAG_MASKED)))
 <a name="l00039"></a>00039                 <span class="keywordflow">break</span>;
 <a name="l00040"></a>00040     }
 <a name="l00041"></a>00041 }
 <a name="l00042"></a>00042 <span class="keywordtype">void</span>
-<a name="l00043"></a><a class="code" href="class_x_listener.html#ef059af08b3c1c4cf53fc4715014b5a4">00043</a> <a class="code" href="class_x_listener.html#ef059af08b3c1c4cf53fc4715014b5a4">XListener::unmask</a>() {
+<a name="l00043"></a><a class="code" href="class_x_listener.html#a2">00043</a> <a class="code" href="class_x_listener.html#a2">XListener::unmask</a>() {
 <a name="l00044"></a>00044     <span class="keywordflow">for</span>(;;) {
-<a name="l00045"></a>00045         <a class="code" href="class_x_listener.html#c04a99211ea68063fc7ab8e4cdc9266e">FLAGS</a> old = <a class="code" href="class_x_listener.html#6fdf19e61ed4a99caa8c79106b91f53d">m_flags</a>;
-<a name="l00046"></a>00046             <span class="keywordflow">if</span>(<a class="code" href="class_x_listener.html#6fdf19e61ed4a99caa8c79106b91f53d">m_flags</a>.compareAndSet(old, (<a class="code" href="class_x_listener.html#c04a99211ea68063fc7ab8e4cdc9266e">FLAGS</a>)(old &amp; ~FLAG_MASKED)))
+<a name="l00045"></a>00045         <a class="code" href="class_x_listener.html#w5">FLAGS</a> old = <a class="code" href="class_x_listener.html#p0">m_flags</a>;
+<a name="l00046"></a>00046             <span class="keywordflow">if</span>(<a class="code" href="class_x_listener.html#p0">m_flags</a>.<a class="code" href="classatomic.html#a13">compareAndSet</a>(old, (<a class="code" href="class_x_listener.html#w5">FLAGS</a>)(old &amp; ~FLAG_MASKED)))
 <a name="l00047"></a>00047                 <span class="keywordflow">break</span>;
 <a name="l00048"></a>00048     }
 <a name="l00049"></a>00049 }
 <a name="l00050"></a>00050 
 <a name="l00051"></a>00051 <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>
-<a name="l00052"></a><a class="code" href="class_x_listener.html#896dd3dc37ae9a154bd955d2c73f2fa2">00052</a> <a class="code" href="class_x_listener.html#896dd3dc37ae9a154bd955d2c73f2fa2">XListener::delay_ms</a>()<span class="keyword"> const </span>{
+<a name="l00052"></a><a class="code" href="class_x_listener.html#a3">00052</a> <a class="code" href="class_x_listener.html#a3">XListener::delay_ms</a>()<span class="keyword"> const </span>{
 <a name="l00053"></a>00053         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> delay = std::min(20u, g_adaptiveDelay);
-<a name="l00054"></a>00054         <span class="keywordflow">if</span>(<a class="code" href="class_x_listener.html#6fdf19e61ed4a99caa8c79106b91f53d">m_flags</a> &amp; FLAG_DELAY_ADAPTIVE)
+<a name="l00054"></a>00054         <span class="keywordflow">if</span>(<a class="code" href="class_x_listener.html#p0">m_flags</a> &amp; FLAG_DELAY_ADAPTIVE)
 <a name="l00055"></a>00055                 delay = g_adaptiveDelay;
-<a name="l00056"></a>00056         <span class="keywordflow">if</span>(<a class="code" href="class_x_listener.html#6fdf19e61ed4a99caa8c79106b91f53d">m_flags</a> &amp; FLAG_DELAY_SHORT)
+<a name="l00056"></a>00056         <span class="keywordflow">if</span>(<a class="code" href="class_x_listener.html#p0">m_flags</a> &amp; FLAG_DELAY_SHORT)
 <a name="l00057"></a>00057                 delay /= 4;
 <a name="l00058"></a>00058         <span class="keywordflow">return</span> delay;
 <a name="l00059"></a>00059 }
 <a name="l00060"></a>00060 
-<a name="l00061"></a><a class="code" href="class___x_talker_base.html#06577fe18cc009469085d32d8d70dece">00061</a> <a class="code" href="class___x_talker_base.html#06577fe18cc009469085d32d8d70dece">_XTalkerBase::_XTalkerBase</a>() : m_bMasked(false) {}
-<a name="l00062"></a><a class="code" href="class___x_talker_base.html#f6465b0aad4639cbc1e82bc24ecb923f">00062</a> <a class="code" href="class___x_talker_base.html#f6465b0aad4639cbc1e82bc24ecb923f">_XTalkerBase::~_XTalkerBase</a>() {}
+<a name="l00061"></a><a class="code" href="class___x_talker_base.html#b0">00061</a> <a class="code" href="class___x_talker_base.html#b0">_XTalkerBase::_XTalkerBase</a>() : m_bMasked(false) {}
+<a name="l00062"></a><a class="code" href="class___x_talker_base.html#a0">00062</a> <a class="code" href="class___x_talker_base.html#a0">_XTalkerBase::~_XTalkerBase</a>() {}
 <a name="l00063"></a>00063 <span class="keywordtype">void</span>
-<a name="l00064"></a><a class="code" href="class___x_talker_base.html#347b128740ff548f0719371c568bbb39">00064</a> <a class="code" href="class___x_talker_base.html#347b128740ff548f0719371c568bbb39">_XTalkerBase::mask</a>() {
-<a name="l00065"></a>00065     ASSERT(!<a class="code" href="class___x_talker_base.html#b83fa13991c8a33c6c3b033c7b9cbb4f">m_bMasked</a>);
-<a name="l00066"></a>00066     <a class="code" href="class___x_talker_base.html#b83fa13991c8a33c6c3b033c7b9cbb4f">m_bMasked</a> = <span class="keyword">true</span>;
+<a name="l00064"></a><a class="code" href="class___x_talker_base.html#a1">00064</a> <a class="code" href="class___x_talker_base.html#a1">_XTalkerBase::mask</a>() {
+<a name="l00065"></a>00065     ASSERT(!<a class="code" href="class___x_talker_base.html#p0">m_bMasked</a>);
+<a name="l00066"></a>00066     <a class="code" href="class___x_talker_base.html#p0">m_bMasked</a> = <span class="keyword">true</span>;
 <a name="l00067"></a>00067 }
 <a name="l00068"></a>00068 <span class="keywordtype">void</span>
-<a name="l00069"></a><a class="code" href="class___x_talker_base.html#ed3c8020c34c2fa769ad5bfd3a6b2458">00069</a> <a class="code" href="class___x_talker_base.html#ed3c8020c34c2fa769ad5bfd3a6b2458">_XTalkerBase::unmask</a>() {
-<a name="l00070"></a>00070     ASSERT(<a class="code" href="class___x_talker_base.html#b83fa13991c8a33c6c3b033c7b9cbb4f">m_bMasked</a>);
-<a name="l00071"></a>00071     <a class="code" href="class___x_talker_base.html#b83fa13991c8a33c6c3b033c7b9cbb4f">m_bMasked</a> = <span class="keyword">false</span>;
+<a name="l00069"></a><a class="code" href="class___x_talker_base.html#a2">00069</a> <a class="code" href="class___x_talker_base.html#a2">_XTalkerBase::unmask</a>() {
+<a name="l00070"></a>00070     ASSERT(<a class="code" href="class___x_talker_base.html#p0">m_bMasked</a>);
+<a name="l00071"></a>00071     <a class="code" href="class___x_talker_base.html#p0">m_bMasked</a> = <span class="keyword">false</span>;
 <a name="l00072"></a>00072 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 17:09:04 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:40 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.5.1 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>
 </html>

@@ -2,20 +2,11 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/script/xrubywriter.cpp ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
-<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.5.1 -->
-<div class="tabs">
-  <ul>
-    <li><a href="main.html"><span>メインページ</span></a></li>
-    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
-    <li><a href="classes.html"><span>クラス</span></a></li>
-    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
-    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
-    <li><a href="pages.html"><span>関連ページ</span></a></li>
-  </ul></div>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
-<a class="el" href="dir_86f25382698e49ecc2836ac98faed978.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_6b7357a7c4a1ed6258afa492af8bdda5.html">script</a></div>
+<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000008.html">script</a></div>
 <h1>xrubywriter.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
 <a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
@@ -35,32 +26,32 @@
 <a name="l00017"></a>00017 <span class="preprocessor">#include "xitemnode.h"</span>
 <a name="l00018"></a>00018 <span class="preprocessor">#include "xlistnode.h"</span>
 <a name="l00019"></a>00019 
-<a name="l00020"></a><a class="code" href="class_x_ruby_writer.html#c15cd4571cc5bd1b3deb923a9351d5ac">00020</a> <a class="code" href="class_x_ruby_writer.html#c15cd4571cc5bd1b3deb923a9351d5ac">XRubyWriter::XRubyWriter</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;root, std::ofstream &amp;ofs)
+<a name="l00020"></a><a class="code" href="class_x_ruby_writer.html#a0">00020</a> <a class="code" href="class_x_ruby_writer.html#a0">XRubyWriter::XRubyWriter</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;root, std::ofstream &amp;ofs)
 <a name="l00021"></a>00021  : m_root(root), m_ofs(ofs)
 <a name="l00022"></a>00022 {
 <a name="l00023"></a>00023     ASSERT(ofs.good());
 <a name="l00024"></a>00024     ofs &lt;&lt; <span class="stringliteral">"# KAME2 measurement configuration file"</span> &lt;&lt; std::endl
 <a name="l00025"></a>00025         &lt;&lt; <span class="stringliteral">"# Automatically created. KAME version. "</span> VERSION &lt;&lt; std::endl
-<a name="l00026"></a>00026         &lt;&lt; <span class="stringliteral">"# date: "</span> &lt;&lt; <a class="code" href="class_x_time.html#c379a0eebc8202c724609985cf7782ac">XTime::now</a>().<a class="code" href="class_x_time.html#8ed8dbef28ffb5424874589e153731bc">getTimeStr</a>() &lt;&lt; std::endl;
+<a name="l00026"></a>00026         &lt;&lt; <span class="stringliteral">"# date: "</span> &lt;&lt; <a class="code" href="class_x_time.html#e0">XTime::now</a>().<a class="code" href="class_x_time.html#a19">getTimeStr</a>() &lt;&lt; std::endl;
 <a name="l00027"></a>00027     ofs &lt;&lt; <span class="stringliteral">"x = Array.new"</span> &lt;&lt; std::endl;
 <a name="l00028"></a>00028 }
-<a name="l00029"></a><a class="code" href="class_x_ruby_writer.html#a8feea76146b533609e19a94b996f83d">00029</a> <a class="code" href="class_x_ruby_writer.html#a8feea76146b533609e19a94b996f83d">XRubyWriter::~XRubyWriter</a>()
+<a name="l00029"></a><a class="code" href="class_x_ruby_writer.html#a1">00029</a> <a class="code" href="class_x_ruby_writer.html#a1">XRubyWriter::~XRubyWriter</a>()
 <a name="l00030"></a>00030 {
-<a name="l00031"></a>00031     <a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a>.flush();
+<a name="l00031"></a>00031     <a class="code" href="class_x_ruby_writer.html#r1">m_ofs</a>.flush();
 <a name="l00032"></a>00032 }
 <a name="l00033"></a>00033 <span class="keywordtype">void</span> 
-<a name="l00034"></a><a class="code" href="class_x_ruby_writer.html#2f1e50f8a71f6b1cadca6c330113e661">00034</a> <a class="code" href="class_x_ruby_writer.html#2f1e50f8a71f6b1cadca6c330113e661">XRubyWriter::write</a>()
+<a name="l00034"></a><a class="code" href="class_x_ruby_writer.html#a2">00034</a> <a class="code" href="class_x_ruby_writer.html#a2">XRubyWriter::write</a>()
 <a name="l00035"></a>00035 {
-<a name="l00036"></a>00036     std::string name = <a class="code" href="class_x_ruby_writer.html#f967ffa6e6939b68ec722e8e9c6117cb">m_root</a>-&gt;getName();
+<a name="l00036"></a>00036     std::string name = <a class="code" href="class_x_ruby_writer.html#r0">m_root</a>-&gt;getName();
 <a name="l00037"></a>00037     name[0] = toupper(name[0]);
-<a name="l00038"></a>00038     <a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a> &lt;&lt; <span class="stringliteral">"x &lt;&lt; "</span> 
+<a name="l00038"></a>00038     <a class="code" href="class_x_ruby_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"x &lt;&lt; "</span> 
 <a name="l00039"></a>00039         &lt;&lt; name
 <a name="l00040"></a>00040         &lt;&lt; std::endl;
-<a name="l00041"></a>00041     <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> list = <a class="code" href="class_x_ruby_writer.html#f967ffa6e6939b68ec722e8e9c6117cb">m_root</a>-&gt;children();
-<a name="l00042"></a>00042     <a class="code" href="class_x_ruby_writer.html#2f1e50f8a71f6b1cadca6c330113e661">write</a>(<a class="code" href="class_x_ruby_writer.html#f967ffa6e6939b68ec722e8e9c6117cb">m_root</a>, list, <span class="keyword">false</span>, 0);
+<a name="l00041"></a>00041     <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> list = <a class="code" href="class_x_ruby_writer.html#r0">m_root</a>-&gt;children();
+<a name="l00042"></a>00042     <a class="code" href="class_x_ruby_writer.html#a2">write</a>(<a class="code" href="class_x_ruby_writer.html#r0">m_root</a>, list, <span class="keyword">false</span>, 0);
 <a name="l00043"></a>00043 }
 <a name="l00044"></a>00044 <span class="keywordtype">void</span> 
-<a name="l00045"></a><a class="code" href="class_x_ruby_writer.html#b2d8069995ae4e3203d27f1da28913e4">00045</a> <a class="code" href="class_x_ruby_writer.html#2f1e50f8a71f6b1cadca6c330113e661">XRubyWriter::write</a>(
+<a name="l00045"></a><a class="code" href="class_x_ruby_writer.html#d0">00045</a> <a class="code" href="class_x_ruby_writer.html#a2">XRubyWriter::write</a>(
 <a name="l00046"></a>00046     <span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node, <span class="keyword">const</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> &amp;list,
 <a name="l00047"></a>00047     <span class="keywordtype">bool</span> ghost, <span class="keywordtype">int</span> level)
 <a name="l00048"></a>00048 {
@@ -68,27 +59,27 @@
 <a name="l00050"></a>00050     shared_ptr&lt;XValueNodeBase&gt; vnode = dynamic_pointer_cast&lt;XValueNodeBase&gt;(node);
 <a name="l00051"></a>00051     <span class="keywordflow">if</span>(vnode) {
 <a name="l00052"></a>00052         <span class="keywordflow">if</span>(list) {
-<a name="l00053"></a>00053             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j = 0; j &lt; level; j++) <a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a> &lt;&lt; <span class="stringliteral">"\t"</span>;
+<a name="l00053"></a>00053             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j = 0; j &lt; level; j++) <a class="code" href="class_x_ruby_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"\t"</span>;
 <a name="l00054"></a>00054             <span class="keywordflow">if</span>(ghost)
-<a name="l00055"></a>00055                 <a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a> &lt;&lt; <span class="stringliteral">"# "</span>;
-<a name="l00056"></a>00056             <a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a> &lt;&lt; <span class="stringliteral">"x.last"</span>;
+<a name="l00055"></a>00055                 <a class="code" href="class_x_ruby_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"# "</span>;
+<a name="l00056"></a>00056             <a class="code" href="class_x_ruby_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"x.last"</span>;
 <a name="l00057"></a>00057         }
 <a name="l00058"></a>00058         <span class="keywordflow">else</span> {
 <a name="l00059"></a>00059             <span class="keywordflow">if</span>(ghost)
-<a name="l00060"></a>00060                 <a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a> &lt;&lt; <span class="stringliteral">"\t# "</span>;
+<a name="l00060"></a>00060                 <a class="code" href="class_x_ruby_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"\t# "</span>;
 <a name="l00061"></a>00061         }
 <a name="l00062"></a>00062         QString s(vnode-&gt;to_str());
 <a name="l00063"></a>00063         s.replace( QChar(<span class="charliteral">'\\'</span>), <span class="stringliteral">"\\\\"</span>);
 <a name="l00064"></a>00064         s.replace( QChar(<span class="charliteral">'\n'</span>), <span class="stringliteral">"\\n"</span>);
 <a name="l00065"></a>00065         s.replace( QChar(<span class="charliteral">'\r'</span>), <span class="stringliteral">"\\r"</span>);
 <a name="l00066"></a>00066         s.replace( QChar(<span class="charliteral">'\t'</span>), <span class="stringliteral">"\\t"</span>);
-<a name="l00067"></a>00067         <a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a> &lt;&lt; <span class="stringliteral">".load(\""</span> 
+<a name="l00067"></a>00067         <a class="code" href="class_x_ruby_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">".load(\""</span> 
 <a name="l00068"></a>00068             &lt;&lt; (<span class="keyword">const</span> <span class="keywordtype">char</span> *)s.utf8()
 <a name="l00069"></a>00069             &lt;&lt; <span class="stringliteral">"\")"</span> 
 <a name="l00070"></a>00070             &lt;&lt; std::endl;
 <a name="l00071"></a>00071     }
 <a name="l00072"></a>00072     <span class="keywordflow">else</span>
-<a name="l00073"></a>00073         <span class="keywordflow">if</span>(!list) {<a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a> &lt;&lt; std::endl;}
+<a name="l00073"></a>00073         <span class="keywordflow">if</span>(!list) {<a class="code" href="class_x_ruby_writer.html#r1">m_ofs</a> &lt;&lt; std::endl;}
 <a name="l00074"></a>00074         
 <a name="l00075"></a>00075     shared_ptr&lt;XListNodeBase&gt; lnode = dynamic_pointer_cast&lt;XListNodeBase&gt;(node);
 <a name="l00076"></a>00076     <span class="keywordtype">bool</span> write_typename = <span class="keyword">false</span>;
@@ -102,48 +93,48 @@
 <a name="l00084"></a>00084     <span class="keywordflow">if</span>(list) {
 <a name="l00085"></a>00085         <span class="keywordflow">for</span>(XNode::NodeList::const_iterator it = list-&gt;begin(); it != list-&gt;end(); it++) {
 <a name="l00086"></a>00086             shared_ptr&lt;XNode&gt; child = *it;
-<a name="l00087"></a>00087             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j = 0; j &lt; level; j++) <a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a> &lt;&lt; <span class="stringliteral">"\t"</span>;
+<a name="l00087"></a>00087             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j = 0; j &lt; level; j++) <a class="code" href="class_x_ruby_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"\t"</span>;
 <a name="l00088"></a>00088             <span class="keywordflow">if</span>(ghost)
-<a name="l00089"></a>00089                 <a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a> &lt;&lt; <span class="stringliteral">"# "</span>;
+<a name="l00089"></a>00089                 <a class="code" href="class_x_ruby_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"# "</span>;
 <a name="l00090"></a>00090             <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> child_list = child-&gt;children();
 <a name="l00091"></a>00091             <span class="keywordflow">if</span>(child_list) {
-<a name="l00092"></a>00092                 <a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a> &lt;&lt; <span class="stringliteral">"x &lt;&lt; "</span>;
+<a name="l00092"></a>00092                 <a class="code" href="class_x_ruby_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"x &lt;&lt; "</span>;
 <a name="l00093"></a>00093             }
 <a name="l00094"></a>00094             <span class="keywordflow">if</span>(lnode) {
-<a name="l00095"></a>00095                 <a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a> &lt;&lt; <span class="stringliteral">"x.last.create("</span>;
+<a name="l00095"></a>00095                 <a class="code" href="class_x_ruby_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"x.last.create("</span>;
 <a name="l00096"></a>00096                 <span class="keywordflow">if</span>(write_typename || child-&gt;getName().length()) {
-<a name="l00097"></a>00097                     <a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a> &lt;&lt; <span class="stringliteral">"\""</span>
+<a name="l00097"></a>00097                     <a class="code" href="class_x_ruby_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"\""</span>
 <a name="l00098"></a>00098                         &lt;&lt; (write_typename ? child-&gt;getTypename().c_str() : <span class="stringliteral">""</span>)
 <a name="l00099"></a>00099                         &lt;&lt; <span class="stringliteral">"\""</span>;
 <a name="l00100"></a>00100                 }
 <a name="l00101"></a>00101                 <span class="keywordflow">if</span>(child-&gt;getName().length()) {
-<a name="l00102"></a>00102                     <a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a> &lt;&lt; <span class="stringliteral">",\""</span>
+<a name="l00102"></a>00102                     <a class="code" href="class_x_ruby_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">",\""</span>
 <a name="l00103"></a>00103                         &lt;&lt; child-&gt;getName()
 <a name="l00104"></a>00104                         &lt;&lt; <span class="stringliteral">"\""</span>;
 <a name="l00105"></a>00105                 }
-<a name="l00106"></a>00106                 <a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a> &lt;&lt;  <span class="stringliteral">")"</span>;
+<a name="l00106"></a>00106                 <a class="code" href="class_x_ruby_writer.html#r1">m_ofs</a> &lt;&lt;  <span class="stringliteral">")"</span>;
 <a name="l00107"></a>00107             }
 <a name="l00108"></a>00108             <span class="keywordflow">else</span> {
 <a name="l00109"></a>00109                 <span class="keywordflow">if</span>(child-&gt;getName().length()) {
-<a name="l00110"></a>00110                     <a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a> &lt;&lt; <span class="stringliteral">"x.last[\""</span>
+<a name="l00110"></a>00110                     <a class="code" href="class_x_ruby_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"x.last[\""</span>
 <a name="l00111"></a>00111                         &lt;&lt; child-&gt;getName()
 <a name="l00112"></a>00112                         &lt;&lt;  <span class="stringliteral">"\"]"</span>;
 <a name="l00113"></a>00113                 }
 <a name="l00114"></a>00114                 <span class="keywordflow">else</span> {
-<a name="l00115"></a>00115                     <a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a> &lt;&lt; <span class="stringliteral">"x.last["</span>
+<a name="l00115"></a>00115                     <a class="code" href="class_x_ruby_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"x.last["</span>
 <a name="l00116"></a>00116                         &lt;&lt; idx
 <a name="l00117"></a>00117                         &lt;&lt;  <span class="stringliteral">"]"</span>;
 <a name="l00118"></a>00118                 }
 <a name="l00119"></a>00119             }
 <a name="l00120"></a>00120             <span class="keywordflow">if</span>(child_list) {
-<a name="l00121"></a>00121                 <a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a> &lt;&lt; std::endl;
+<a name="l00121"></a>00121                 <a class="code" href="class_x_ruby_writer.html#r1">m_ofs</a> &lt;&lt; std::endl;
 <a name="l00122"></a>00122             }
-<a name="l00123"></a>00123             <a class="code" href="class_x_ruby_writer.html#2f1e50f8a71f6b1cadca6c330113e661">write</a>(child, child_list, ghost, level + 1);
+<a name="l00123"></a>00123             <a class="code" href="class_x_ruby_writer.html#a2">write</a>(child, child_list, ghost, level + 1);
 <a name="l00124"></a>00124             <span class="keywordflow">if</span>(child_list) {
-<a name="l00125"></a>00125                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j = 0; j &lt; level; j++) <a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a> &lt;&lt; <span class="stringliteral">"\t"</span>;
+<a name="l00125"></a>00125                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j = 0; j &lt; level; j++) <a class="code" href="class_x_ruby_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"\t"</span>;
 <a name="l00126"></a>00126                 <span class="keywordflow">if</span>(ghost)
-<a name="l00127"></a>00127                     <a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a> &lt;&lt; <span class="stringliteral">"# "</span>;
-<a name="l00128"></a>00128                 <a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a> &lt;&lt; <span class="stringliteral">"x.pop"</span>
+<a name="l00127"></a>00127                     <a class="code" href="class_x_ruby_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"# "</span>;
+<a name="l00128"></a>00128                 <a class="code" href="class_x_ruby_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"x.pop"</span>
 <a name="l00129"></a>00129                       &lt;&lt; std::endl;
 <a name="l00130"></a>00130             }
 <a name="l00131"></a>00131             
@@ -151,8 +142,8 @@
 <a name="l00133"></a>00133         }
 <a name="l00134"></a>00134     }
 <a name="l00135"></a>00135 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 17:09:01 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:35 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.5.1 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>
 </html>

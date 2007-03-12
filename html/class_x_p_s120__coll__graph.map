@@ -1,4 +1,4 @@
 base referer
-rect $class_x_oxford_driver.html 22,157 222,184
-rect $class_x_char_device_driver.html 7,82 237,109
-rect $class_x_magnet_p_s.html 75,8 169,34
+rect $class_x_oxford_driver.html 76,157 276,184
+rect $class_x_char_device_driver.html 8,82 344,109
+rect $class_x_magnet_p_s.html 129,8 222,34

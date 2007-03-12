@@ -2,20 +2,11 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/driver/nidaqmxdriver.h ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
-<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.5.1 -->
-<div class="tabs">
-  <ul>
-    <li><a href="main.html"><span>メインページ</span></a></li>
-    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
-    <li><a href="classes.html"><span>クラス</span></a></li>
-    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
-    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
-    <li><a href="pages.html"><span>関連ページ</span></a></li>
-  </ul></div>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
-<a class="el" href="dir_86f25382698e49ecc2836ac98faed978.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_948a01b9803ca72c7103e03c532fe5f9.html">driver</a></div>
+<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000003.html">driver</a></div>
 <h1>nidaqmxdriver.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
 <a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
@@ -46,132 +37,132 @@
 <a name="l00028"></a>00028 
 <a name="l00029"></a>00029 <span class="keyword">class </span>XNIDAQmxTask;
 <a name="l00030"></a>00030 
-<a name="l00031"></a>00031 <span class="keyword">class </span>XNIDAQmxInterface : <span class="keyword">public</span> <a class="code" href="class_x_interface.html">XInterface</a>
+<a name="l00031"></a><a class="code" href="class_x_n_i_d_a_qmx_interface.html">00031</a> <span class="keyword">class </span><a class="code" href="class_x_n_i_d_a_qmx_interface.html">XNIDAQmxInterface</a> : <span class="keyword">public</span> <a class="code" href="class_x_interface.html">XInterface</a>
 <a name="l00032"></a>00032 {
 <a name="l00033"></a>00033  XNODE_OBJECT
 <a name="l00034"></a>00034 <span class="keyword">protected</span>:
-<a name="l00035"></a>00035  XNIDAQmxInterface(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;driver);
+<a name="l00035"></a>00035  <a class="code" href="class_x_n_i_d_a_qmx_interface.html#b0">XNIDAQmxInterface</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;<a class="code" href="class_x_interface.html#a3">driver</a>);
 <a name="l00036"></a>00036 <span class="keyword">public</span>:
-<a name="l00037"></a>00037  <span class="keyword">virtual</span> ~XNIDAQmxInterface() {}
+<a name="l00037"></a><a class="code" href="class_x_n_i_d_a_qmx_interface.html#a0">00037</a>  <span class="keyword">virtual</span> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#a0">~XNIDAQmxInterface</a>() {}
 <a name="l00038"></a>00038  
-<a name="l00039"></a>00039   <span class="keyword">static</span> QString getNIDAQmxErrMessage();
-<a name="l00040"></a>00040   <span class="keyword">static</span> QString getNIDAQmxErrMessage(<span class="keywordtype">int</span> status);
-<a name="l00041"></a>00041   <span class="keyword">static</span> <span class="keywordtype">int</span> checkDAQmxError(<span class="keywordtype">int</span> ret, <span class="keyword">const</span> <span class="keywordtype">char</span>*file, <span class="keywordtype">int</span> line);
+<a name="l00039"></a>00039   <span class="keyword">static</span> QString <a class="code" href="class_x_n_i_d_a_qmx_interface.html#e0">getNIDAQmxErrMessage</a>();
+<a name="l00040"></a>00040   <span class="keyword">static</span> QString <a class="code" href="class_x_n_i_d_a_qmx_interface.html#e0">getNIDAQmxErrMessage</a>(<span class="keywordtype">int</span> status);
+<a name="l00041"></a>00041   <span class="keyword">static</span> <span class="keywordtype">int</span> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#e2">checkDAQmxError</a>(<span class="keywordtype">int</span> ret, <span class="keyword">const</span> <span class="keywordtype">char</span>*file, <span class="keywordtype">int</span> line);
 <a name="l00042"></a>00042 
-<a name="l00043"></a>00043   <span class="keyword">virtual</span> <span class="keywordtype">bool</span> isOpened()<span class="keyword"> const </span>{<span class="keywordflow">return</span> m_devname.length();}
+<a name="l00043"></a><a class="code" href="class_x_n_i_d_a_qmx_interface.html#a1">00043</a>   <span class="keyword">virtual</span> <span class="keywordtype">bool</span> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#a1">isOpened</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#r0">m_devname</a>.length();}
 <a name="l00044"></a>00044   
-<a name="l00046"></a>00046   <span class="keyword">const</span> <span class="keywordtype">char</span>*devName()<span class="keyword"> const </span>{<span class="keywordflow">return</span> m_devname.c_str();}
-<a name="l00048"></a>00048   <span class="keyword">static</span> <span class="keywordtype">void</span> parseList(<span class="keyword">const</span> <span class="keywordtype">char</span> *list, std::deque&lt;std::string&gt; &amp;buf);
+<a name="l00046"></a><a class="code" href="class_x_n_i_d_a_qmx_interface.html#a2">00046</a>   <span class="keyword">const</span> <span class="keywordtype">char</span>*<a class="code" href="class_x_n_i_d_a_qmx_interface.html#a2">devName</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#r0">m_devname</a>.c_str();}
+<a name="l00048"></a>00048   <span class="keyword">static</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#e3">parseList</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *list, std::deque&lt;std::string&gt; &amp;buf);
 <a name="l00049"></a>00049   
-<a name="l00051"></a>00051   <span class="keywordtype">void</span> synchronizeClock(TaskHandle task);
+<a name="l00051"></a>00051   <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#a3">synchronizeClock</a>(TaskHandle task);
 <a name="l00052"></a>00052     
-<a name="l00053"></a>00053   <span class="keyword">class </span>XNIDAQmxRoute {
+<a name="l00053"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_x_n_i_d_a_qmx_route.html">00053</a>   <span class="keyword">class </span><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_x_n_i_d_a_qmx_route.html">XNIDAQmxRoute</a> {
 <a name="l00054"></a>00054           <span class="keyword">public</span>:
-<a name="l00055"></a>00055                 XNIDAQmxRoute(<span class="keyword">const</span> <span class="keywordtype">char</span>*src, <span class="keyword">const</span> <span class="keywordtype">char</span>*dst, <span class="keywordtype">int</span> *ret = NULL);
-<a name="l00056"></a>00056                 ~XNIDAQmxRoute();
+<a name="l00055"></a>00055                 <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_x_n_i_d_a_qmx_route.html#a0">XNIDAQmxRoute</a>(<span class="keyword">const</span> <span class="keywordtype">char</span>*src, <span class="keyword">const</span> <span class="keywordtype">char</span>*dst, <span class="keywordtype">int</span> *ret = NULL);
+<a name="l00056"></a>00056                 <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_x_n_i_d_a_qmx_route.html#a1">~XNIDAQmxRoute</a>();
 <a name="l00057"></a>00057           <span class="keyword">private</span>:
-<a name="l00058"></a>00058                 std::string m_src, m_dst;
+<a name="l00058"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_x_n_i_d_a_qmx_route.html#r0">00058</a>                 std::string <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_x_n_i_d_a_qmx_route.html#r0">m_src</a>, <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_x_n_i_d_a_qmx_route.html#r1">m_dst</a>;
 <a name="l00059"></a>00059   };
 <a name="l00060"></a>00060         
-<a name="l00062"></a>00062   <span class="keyword">const</span> <span class="keywordtype">char</span>* productType()<span class="keyword"> const </span>{
-<a name="l00063"></a>00063         <span class="keyword">const</span> ProductInfo* p = m_productInfo;
-<a name="l00064"></a>00064         <span class="keywordflow">return</span> p ? p-&gt;type : 0L;
+<a name="l00062"></a><a class="code" href="class_x_n_i_d_a_qmx_interface.html#a4">00062</a>   <span class="keyword">const</span> <span class="keywordtype">char</span>* <a class="code" href="class_x_n_i_d_a_qmx_interface.html#a4">productType</a>()<span class="keyword"> const </span>{
+<a name="l00063"></a>00063         <span class="keyword">const</span> <a class="code" href="struct_x_n_i_d_a_qmx_interface_1_1_product_info.html">ProductInfo</a>* p = <a class="code" href="class_x_n_i_d_a_qmx_interface.html#r1">m_productInfo</a>;
+<a name="l00064"></a>00064         <span class="keywordflow">return</span> p ? p-&gt;<a class="code" href="struct_x_n_i_d_a_qmx_interface_1_1_product_info.html#o0">type</a> : 0L;
 <a name="l00065"></a>00065   }
-<a name="l00067"></a>00067   <span class="keyword">const</span> <span class="keywordtype">char</span>* productSeries()<span class="keyword"> const </span>{
-<a name="l00068"></a>00068         <span class="keyword">const</span> ProductInfo* p = m_productInfo;
-<a name="l00069"></a>00069         <span class="keywordflow">return</span> p ? p-&gt;series : 0L;
+<a name="l00067"></a><a class="code" href="class_x_n_i_d_a_qmx_interface.html#a5">00067</a>   <span class="keyword">const</span> <span class="keywordtype">char</span>* <a class="code" href="class_x_n_i_d_a_qmx_interface.html#a5">productSeries</a>()<span class="keyword"> const </span>{
+<a name="l00068"></a>00068         <span class="keyword">const</span> <a class="code" href="struct_x_n_i_d_a_qmx_interface_1_1_product_info.html">ProductInfo</a>* p = <a class="code" href="class_x_n_i_d_a_qmx_interface.html#r1">m_productInfo</a>;
+<a name="l00069"></a>00069         <span class="keywordflow">return</span> p ? p-&gt;<a class="code" href="struct_x_n_i_d_a_qmx_interface_1_1_product_info.html#o1">series</a> : 0L;
 <a name="l00070"></a>00070   }
-<a name="l00072"></a>00072   <span class="keyword">const</span> <span class="keywordtype">char</span>* busArchType() <span class="keyword">const</span>;
+<a name="l00072"></a>00072   <span class="keyword">const</span> <span class="keywordtype">char</span>* <a class="code" href="class_x_n_i_d_a_qmx_interface.html#a6">busArchType</a>() <span class="keyword">const</span>;
 <a name="l00073"></a>00073 
-<a name="l00074"></a>00074   <span class="keyword">enum</span> FLAGS {
+<a name="l00074"></a><a class="code" href="class_x_n_i_d_a_qmx_interface.html#w8">00074</a>   <span class="keyword">enum</span> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#w8">FLAGS</a> {
 <a name="l00075"></a>00075         FLAG_BUGGY_DMA_AO = 0x10u, FLAG_BUGGY_DMA_AI = 0x20u, 
 <a name="l00076"></a>00076         FLAG_BUGGY_DMA_DI = 0x40u, FLAG_BUGGY_DMA_DO = 0x80u,
 <a name="l00077"></a>00077         FLAG_BUGGY_XFER_COND_AO = 0x100u, FLAG_BUGGY_XFER_COND_AI = 0x200u,
 <a name="l00078"></a>00078         FLAG_BUGGY_XFER_COND_DI = 0x400u, FLAG_BUGGY_XFER_COND_DO = 0x800u};
-<a name="l00080"></a>00080   <span class="keywordtype">int</span> productFlags()<span class="keyword"> const </span>{<span class="keywordflow">return</span> m_productInfo-&gt;flags;}
-<a name="l00082"></a>00082   <span class="keywordtype">double</span> maxAIRate(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <span class="comment">/*num_scans*/</span>)<span class="keyword"> const </span>{<span class="keywordflow">return</span> m_productInfo-&gt;ai_max_rate;}
-<a name="l00083"></a>00083   <span class="keywordtype">double</span> maxAORate(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <span class="comment">/*num_scans*/</span>)<span class="keyword"> const </span>{<span class="keywordflow">return</span> m_productInfo-&gt;ao_max_rate;}
-<a name="l00084"></a>00084   <span class="keywordtype">double</span> maxDIRate(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <span class="comment">/*num_scans*/</span>)<span class="keyword"> const </span>{<span class="keywordflow">return</span> m_productInfo-&gt;di_max_rate;}
-<a name="l00085"></a>00085   <span class="keywordtype">double</span> maxDORate(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <span class="comment">/*num_scans*/</span>)<span class="keyword"> const </span>{<span class="keywordflow">return</span> m_productInfo-&gt;do_max_rate;}
+<a name="l00080"></a><a class="code" href="class_x_n_i_d_a_qmx_interface.html#a7">00080</a>   <span class="keywordtype">int</span> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#a7">productFlags</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#r1">m_productInfo</a>-&gt;<a class="code" href="struct_x_n_i_d_a_qmx_interface_1_1_product_info.html#o2">flags</a>;}
+<a name="l00082"></a><a class="code" href="class_x_n_i_d_a_qmx_interface.html#a8">00082</a>   <span class="keywordtype">double</span> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#a8">maxAIRate</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <span class="comment">/*num_scans*/</span>)<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#r1">m_productInfo</a>-&gt;<a class="code" href="struct_x_n_i_d_a_qmx_interface_1_1_product_info.html#o3">ai_max_rate</a>;}
+<a name="l00083"></a><a class="code" href="class_x_n_i_d_a_qmx_interface.html#a9">00083</a>   <span class="keywordtype">double</span> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#a9">maxAORate</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <span class="comment">/*num_scans*/</span>)<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#r1">m_productInfo</a>-&gt;<a class="code" href="struct_x_n_i_d_a_qmx_interface_1_1_product_info.html#o4">ao_max_rate</a>;}
+<a name="l00084"></a><a class="code" href="class_x_n_i_d_a_qmx_interface.html#a10">00084</a>   <span class="keywordtype">double</span> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#a10">maxDIRate</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <span class="comment">/*num_scans*/</span>)<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#r1">m_productInfo</a>-&gt;<a class="code" href="struct_x_n_i_d_a_qmx_interface_1_1_product_info.html#o5">di_max_rate</a>;}
+<a name="l00085"></a><a class="code" href="class_x_n_i_d_a_qmx_interface.html#a11">00085</a>   <span class="keywordtype">double</span> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#a11">maxDORate</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <span class="comment">/*num_scans*/</span>)<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#r1">m_productInfo</a>-&gt;<a class="code" href="struct_x_n_i_d_a_qmx_interface_1_1_product_info.html#o6">do_max_rate</a>;}
 <a name="l00086"></a>00086           
-<a name="l00087"></a>00087         <span class="keyword">class </span>SoftwareTrigger : <span class="keyword">public</span> enable_shared_from_this&lt;SoftwareTrigger&gt; {
+<a name="l00087"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html">00087</a>         <span class="keyword">class </span><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html">SoftwareTrigger</a> : <span class="keyword">public</span> enable_shared_from_this&lt;SoftwareTrigger&gt; {
 <a name="l00088"></a>00088           <span class="keyword">protected</span>:
-<a name="l00089"></a>00089                         SoftwareTrigger(<span class="keyword">const</span> <span class="keywordtype">char</span> *label, <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> bits);
+<a name="l00089"></a>00089                         <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#b0">SoftwareTrigger</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a0">label</a>, <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a5">bits</a>);
 <a name="l00090"></a>00090           <span class="keyword">public</span>:
-<a name="l00091"></a>00091                         <span class="keyword">static</span> shared_ptr&lt;SoftwareTrigger&gt; create(<span class="keyword">const</span> <span class="keywordtype">char</span> *label, <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> bits);
-<a name="l00092"></a>00092                         <span class="keyword">static</span> <span class="keywordtype">void</span> unregister(<span class="keyword">const</span> shared_ptr&lt;SoftwareTrigger&gt; &amp;);
-<a name="l00093"></a>00093                         <span class="keyword">const</span> <span class="keywordtype">char</span> *label()<span class="keyword"> const </span>{<span class="keywordflow">return</span> m_label.c_str();}
-<a name="l00094"></a>00094                         <span class="keywordtype">void</span> setArmTerm(<span class="keyword">const</span> <span class="keywordtype">char</span> *arm_term) {m_armTerm = arm_term;}
-<a name="l00095"></a>00095                         <span class="keyword">const</span> <span class="keywordtype">char</span> *armTerm()<span class="keyword"> const </span>{<span class="keywordflow">return</span> m_armTerm.c_str();}
+<a name="l00091"></a>00091                         <span class="keyword">static</span> shared_ptr&lt;SoftwareTrigger&gt; <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#e0">create</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *label, <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> bits);
+<a name="l00092"></a>00092                         <span class="keyword">static</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#e1">unregister</a>(<span class="keyword">const</span> shared_ptr&lt;SoftwareTrigger&gt; &amp;);
+<a name="l00093"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a0">00093</a>                         <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a0">label</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r0">m_label</a>.c_str();}
+<a name="l00094"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a1">00094</a>                         <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a1">setArmTerm</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *arm_term) {<a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r1">m_armTerm</a> = arm_term;}
+<a name="l00095"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a2">00095</a>                         <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a2">armTerm</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r1">m_armTerm</a>.c_str();}
 <a name="l00096"></a>00096                         
-<a name="l00097"></a>00097                         <span class="keywordtype">void</span> start(float64 freq);
-<a name="l00098"></a>00098                         float64 freq()<span class="keyword"> const </span>{<span class="keywordflow">return</span> m_freq;} 
-<a name="l00099"></a>00099                         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> bits()<span class="keyword"> const </span>{<span class="keywordflow">return</span> m_bits;}
-<a name="l00100"></a>00100                         <span class="keywordtype">void</span> stop();
-<a name="l00101"></a>00101                         <span class="keywordtype">void</span> forceStamp(uint64_t now, float64 freq);
-<a name="l00102"></a>00102                         <span class="keywordtype">void</span> stamp(uint64_t cnt);
+<a name="l00097"></a>00097                         <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a3">start</a>(float64 <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a4">freq</a>);
+<a name="l00098"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a4">00098</a>                         float64 <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a4">freq</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r7">m_freq</a>;} 
+<a name="l00099"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a5">00099</a>                         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a5">bits</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r2">m_bits</a>;}
+<a name="l00100"></a>00100                         <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a6">stop</a>();
+<a name="l00101"></a>00101                         <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a7">forceStamp</a>(uint64_t now, float64 <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a4">freq</a>);
+<a name="l00102"></a>00102                         <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a8">stamp</a>(uint64_t cnt);
 <a name="l00103"></a>00103                         <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
-<a name="l00104"></a>00104                         <span class="keywordtype">void</span> changeValue(T oldval, T val, uint64_t time) {
-<a name="l00105"></a>00105                                 <span class="keywordflow">if</span>(((m_risingEdgeMask &amp; val) &amp; (m_risingEdgeMask &amp; ~oldval))
-<a name="l00106"></a>00106                                         || ((m_fallingEdgeMask &amp; ~val) &amp; (m_fallingEdgeMask &amp; oldval))) {
-<a name="l00107"></a>00107                                         <span class="keywordflow">if</span>(time &lt; m_endOfBlank) <span class="keywordflow">return</span>;
-<a name="l00108"></a>00108                                         stamp(time);
+<a name="l00104"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a9">00104</a>                         <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a9">changeValue</a>(T oldval, T val, uint64_t time) {
+<a name="l00105"></a>00105                                 <span class="keywordflow">if</span>(((<a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r3">m_risingEdgeMask</a> &amp; val) &amp; (<a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r3">m_risingEdgeMask</a> &amp; ~oldval))
+<a name="l00106"></a>00106                                         || ((<a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r4">m_fallingEdgeMask</a> &amp; ~val) &amp; (<a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r4">m_fallingEdgeMask</a> &amp; oldval))) {
+<a name="l00107"></a>00107                                         <span class="keywordflow">if</span>(time &lt; <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r6">m_endOfBlank</a>) <span class="keywordflow">return</span>;
+<a name="l00108"></a>00108                                         <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a8">stamp</a>(time);
 <a name="l00109"></a>00109                                 }
 <a name="l00110"></a>00110                         }
-<a name="l00111"></a>00111                         <span class="keywordtype">void</span> connect(uint32_t rising_edge_mask, 
+<a name="l00111"></a>00111                         <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a10">connect</a>(uint32_t rising_edge_mask, 
 <a name="l00112"></a>00112                                 uint32_t falling_edge_mask) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterface::XInterfaceError</a> &amp;);
-<a name="l00113"></a>00113                         <span class="keywordtype">void</span> disconnect();
-<a name="l00115"></a>00115                         <span class="keywordtype">void</span> setBlankTerm(float64 blankterm) {
-<a name="l00116"></a>00116                                 m_blankTerm = lrint(blankterm * freq());
+<a name="l00113"></a>00113                         <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a11">disconnect</a>();
+<a name="l00115"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a12">00115</a>                         <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a12">setBlankTerm</a>(float64 blankterm) {
+<a name="l00116"></a>00116                                 <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r5">m_blankTerm</a> = lrint(blankterm * <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a4">freq</a>());
 <a name="l00117"></a>00117                                 memoryBarrier();
 <a name="l00118"></a>00118                         }
-<a name="l00120"></a>00120                         <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;SoftwareTrigger&gt;</a> &gt; &amp;onStart() {<span class="keywordflow">return</span> m_onStart;}
-<a name="l00122"></a>00122                         <span class="keyword">static</span> <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;SoftwareTrigger&gt;</a> &gt; &amp;onChange() {<span class="keywordflow">return</span> s_onChange;}
+<a name="l00120"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a13">00120</a>                         <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;SoftwareTrigger&gt;</a> &gt; &amp;<a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a13">onStart</a>() {<span class="keywordflow">return</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r12">m_onStart</a>;}
+<a name="l00122"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#e2">00122</a>                         <span class="keyword">static</span> <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;SoftwareTrigger&gt;</a> &gt; &amp;<a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#e2">onChange</a>() {<span class="keywordflow">return</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#v0">s_onChange</a>;}
 <a name="l00123"></a>00123                         
-<a name="l00124"></a>00124                         <span class="keywordtype">void</span> clear(uint64_t now, float64 freq);
-<a name="l00125"></a>00125                         uint64_t tryPopFront(uint64_t threshold, float64 freq);
+<a name="l00124"></a>00124                         <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a14">clear</a>(uint64_t now, float64 <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a4">freq</a>);
+<a name="l00125"></a>00125                         uint64_t <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a15">tryPopFront</a>(uint64_t threshold, float64 <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a4">freq</a>);
 <a name="l00126"></a>00126                         
-<a name="l00127"></a>00127                         <span class="keyword">typedef</span> std::deque&lt;shared_ptr&lt;XNIDAQmxInterface::SoftwareTrigger&gt; &gt; SoftwareTriggerList;
-<a name="l00128"></a>00128                         <span class="keyword">typedef</span> SoftwareTriggerList::iterator SoftwareTriggerList_it;
-<a name="l00129"></a>00129                         <span class="keyword">static</span> <span class="keyword">const</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;SoftwareTriggerList&gt;</a> &amp;virtualTrigList() {
+<a name="l00127"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#w0">00127</a>                         <span class="keyword">typedef</span> std::deque&lt;shared_ptr&lt;XNIDAQmxInterface::SoftwareTrigger&gt; &gt; <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#w0">SoftwareTriggerList</a>;
+<a name="l00128"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#w1">00128</a>                         <span class="keyword">typedef</span> SoftwareTriggerList::iterator <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#w1">SoftwareTriggerList_it</a>;
+<a name="l00129"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#e3">00129</a>                         <span class="keyword">static</span> <span class="keyword">const</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;SoftwareTriggerList&gt;</a> &amp;<a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#e3">virtualTrigList</a>() {
 <a name="l00130"></a>00130                                 <span class="keywordflow">return</span> s_virtualTrigList;
 <a name="l00131"></a>00131                         }
 <a name="l00132"></a>00132           <span class="keyword">private</span>:
-<a name="l00133"></a>00133                         <span class="keywordtype">void</span> _clear();
-<a name="l00134"></a>00134                         <span class="keyword">const</span> std::string m_label;
-<a name="l00135"></a>00135                         std::string m_armTerm;
-<a name="l00136"></a>00136                         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> m_bits;
-<a name="l00137"></a>00137                         uint32_t m_risingEdgeMask, m_fallingEdgeMask;
-<a name="l00138"></a>00138                         uint64_t m_blankTerm, m_endOfBlank;
-<a name="l00139"></a>00139                         float64 m_freq; 
+<a name="l00133"></a>00133                         <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#d0">_clear</a>();
+<a name="l00134"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r0">00134</a>                         <span class="keyword">const</span> std::string <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r0">m_label</a>;
+<a name="l00135"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r1">00135</a>                         std::string <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r1">m_armTerm</a>;
+<a name="l00136"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r2">00136</a>                         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r2">m_bits</a>;
+<a name="l00137"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r3">00137</a>                         uint32_t <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r3">m_risingEdgeMask</a>, <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r4">m_fallingEdgeMask</a>;
+<a name="l00138"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r6">00138</a>                         uint64_t <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r5">m_blankTerm</a>, <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r6">m_endOfBlank</a>;
+<a name="l00139"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r7">00139</a>                         float64 <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r7">m_freq</a>; 
 <a name="l00140"></a>00140                         <span class="keyword">enum</span> {QUEUE_SIZE = 8192};
-<a name="l00141"></a>00141                         <span class="keyword">typedef</span> <a class="code" href="classatomic__queue__reserved.html">atomic_queue_reserved&lt;uint64_t, QUEUE_SIZE&gt;</a> FastQueue;
-<a name="l00142"></a>00142                         FastQueue m_fastQueue;
-<a name="l00143"></a>00143                         <span class="keyword">typedef</span> std::deque&lt;uint64_t&gt; SlowQueue;
-<a name="l00144"></a>00144                         SlowQueue m_slowQueue;
-<a name="l00145"></a>00145                         <a class="code" href="classatomic.html">atomic&lt;unsigned int&gt;</a> m_slowQueueSize;
-<a name="l00146"></a>00146                         <a class="code" href="class_x_mutex.html">XMutex</a> m_mutex;
-<a name="l00147"></a>00147                         <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;SoftwareTrigger&gt;</a> &gt; m_onStart;
-<a name="l00148"></a>00148                         <span class="keyword">static</span> <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;SoftwareTrigger&gt;</a> &gt; s_onChange;
+<a name="l00141"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#y0">00141</a>                         <span class="keyword">typedef</span> <a class="code" href="classatomic__queue__reserved.html">atomic_queue_reserved&lt;uint64_t, QUEUE_SIZE&gt;</a> <a class="code" href="classatomic__queue__reserved.html">FastQueue</a>;
+<a name="l00142"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r8">00142</a>                         <a class="code" href="classatomic__queue__reserved.html">FastQueue</a> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r8">m_fastQueue</a>;
+<a name="l00143"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#y1">00143</a>                         <span class="keyword">typedef</span> std::deque&lt;uint64_t&gt; <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#y1">SlowQueue</a>;
+<a name="l00144"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r9">00144</a>                         <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#y1">SlowQueue</a> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r9">m_slowQueue</a>;
+<a name="l00145"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r10">00145</a>                         <a class="code" href="classatomic.html">atomic&lt;unsigned int&gt;</a> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r10">m_slowQueueSize</a>;
+<a name="l00146"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r11">00146</a>                         <a class="code" href="class_x_mutex.html">XMutex</a> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r11">m_mutex</a>;
+<a name="l00147"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r12">00147</a>                         <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;SoftwareTrigger&gt;</a> &gt; <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#r12">m_onStart</a>;
+<a name="l00148"></a>00148                         <span class="keyword">static</span> <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;SoftwareTrigger&gt;</a> &gt; <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#v0">s_onChange</a>;
 <a name="l00149"></a>00149                         <span class="keyword">static</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;SoftwareTriggerList&gt;</a> s_virtualTrigList;
 <a name="l00150"></a>00150         };
 <a name="l00151"></a>00151 <span class="keyword">protected</span>:
-<a name="l00152"></a>00152   <span class="keyword">virtual</span> <span class="keywordtype">void</span> open() throw (XInterfaceError &amp;);
-<a name="l00154"></a>00154   virtual <span class="keywordtype">void</span> close() throw (XInterfaceError &amp;);
+<a name="l00152"></a>00152   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#b1">open</a>() throw (XInterfaceError &amp;);
+<a name="l00154"></a>00154   virtual <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#b2">close</a>() throw (XInterfaceError &amp;);
 <a name="l00155"></a>00155 private:
-<a name="l00156"></a>00156         struct ProductInfo {
-<a name="l00157"></a>00157                 <span class="keyword">const</span> <span class="keywordtype">char</span> *type;
-<a name="l00158"></a>00158                 <span class="keyword">const</span> <span class="keywordtype">char</span> *series;
-<a name="l00159"></a>00159                 <span class="keywordtype">int</span> flags;
-<a name="l00160"></a>00160                 <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> ai_max_rate; 
-<a name="l00161"></a>00161                 <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> ao_max_rate; 
-<a name="l00162"></a>00162                 <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> di_max_rate; 
-<a name="l00163"></a>00163                 <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> do_max_rate; 
+<a name="l00156"></a><a class="code" href="struct_x_n_i_d_a_qmx_interface_1_1_product_info.html">00156</a>         struct <a class="code" href="struct_x_n_i_d_a_qmx_interface_1_1_product_info.html">ProductInfo</a> {
+<a name="l00157"></a><a class="code" href="struct_x_n_i_d_a_qmx_interface_1_1_product_info.html#o0">00157</a>                 <span class="keyword">const</span> <span class="keywordtype">char</span> *type;
+<a name="l00158"></a><a class="code" href="struct_x_n_i_d_a_qmx_interface_1_1_product_info.html#o1">00158</a>                 <span class="keyword">const</span> <span class="keywordtype">char</span> *series;
+<a name="l00159"></a><a class="code" href="struct_x_n_i_d_a_qmx_interface_1_1_product_info.html#o2">00159</a>                 <span class="keywordtype">int</span> flags;
+<a name="l00160"></a><a class="code" href="struct_x_n_i_d_a_qmx_interface_1_1_product_info.html#o3">00160</a>                 <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> ai_max_rate; 
+<a name="l00161"></a><a class="code" href="struct_x_n_i_d_a_qmx_interface_1_1_product_info.html#o4">00161</a>                 <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> ao_max_rate; 
+<a name="l00162"></a><a class="code" href="struct_x_n_i_d_a_qmx_interface_1_1_product_info.html#o5">00162</a>                 <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> di_max_rate; 
+<a name="l00163"></a><a class="code" href="struct_x_n_i_d_a_qmx_interface_1_1_product_info.html#o6">00163</a>                 <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> do_max_rate; 
 <a name="l00164"></a>00164         };
-<a name="l00165"></a>00165         <span class="keyword">friend</span> <span class="keyword">class </span>SoftwareTrigger;
-<a name="l00166"></a>00166         std::string m_devname;
-<a name="l00167"></a>00167         <span class="keyword">const</span> ProductInfo* m_productInfo;
-<a name="l00168"></a>00168         <span class="keyword">static</span> <span class="keyword">const</span> ProductInfo sc_productInfoList[];
+<a name="l00165"></a><a class="code" href="class_x_n_i_d_a_qmx_interface.html#n0">00165</a>         <span class="keyword">friend</span> <span class="keyword">class </span><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html">SoftwareTrigger</a>;
+<a name="l00166"></a><a class="code" href="class_x_n_i_d_a_qmx_interface.html#r0">00166</a>         std::string <a class="code" href="class_x_n_i_d_a_qmx_interface.html#r0">m_devname</a>;
+<a name="l00167"></a><a class="code" href="class_x_n_i_d_a_qmx_interface.html#r1">00167</a>         <span class="keyword">const</span> <a class="code" href="struct_x_n_i_d_a_qmx_interface_1_1_product_info.html">ProductInfo</a>* <a class="code" href="class_x_n_i_d_a_qmx_interface.html#r1">m_productInfo</a>;
+<a name="l00168"></a>00168         <span class="keyword">static</span> <span class="keyword">const</span> <a class="code" href="struct_x_n_i_d_a_qmx_interface_1_1_product_info.html">ProductInfo</a> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#v0">sc_productInfoList</a>[];
 <a name="l00169"></a>00169 };
 <a name="l00170"></a>00170 
 <a name="l00171"></a>00171 <span class="preprocessor">#define CHECK_DAQMX_ERROR(ret) XNIDAQmxInterface::checkDAQmxError(ret, __FILE__, __LINE__)</span>
@@ -183,73 +174,73 @@
 <a name="l00177"></a>00177 <span class="preprocessor">        if(CHECK_DAQMX_ERROR(_code) &gt; 0) {gWarnPrint(XNIDAQmxInterface::getNIDAQmxErrMessage(_code)); } }</span>
 <a name="l00178"></a>00178 <span class="preprocessor"></span>
 <a name="l00179"></a>00179 <span class="keyword">template</span>&lt;<span class="keyword">class</span> tDriver&gt;
-<a name="l00180"></a>00180 <span class="keyword">class </span>XNIDAQmxDriver : <span class="keyword">public</span> tDriver
+<a name="l00180"></a><a class="code" href="class_x_n_i_d_a_qmx_driver.html">00180</a> <span class="keyword">class </span><a class="code" href="class_x_n_i_d_a_qmx_driver.html">XNIDAQmxDriver</a> : <span class="keyword">public</span> tDriver
 <a name="l00181"></a>00181 {
 <a name="l00182"></a>00182  XNODE_OBJECT
 <a name="l00183"></a>00183  <span class="keyword">protected</span>:
-<a name="l00184"></a>00184   XNIDAQmxDriver(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, 
+<a name="l00184"></a>00184   <a class="code" href="class_x_n_i_d_a_qmx_driver.html#b0">XNIDAQmxDriver</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, 
 <a name="l00185"></a>00185    <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
 <a name="l00186"></a>00186    <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
 <a name="l00187"></a>00187    <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
 <a name="l00188"></a>00188    <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers);
 <a name="l00189"></a>00189  <span class="keyword">public</span>:
-<a name="l00190"></a>00190   <span class="keyword">virtual</span> ~XNIDAQmxDriver() {}
+<a name="l00190"></a><a class="code" href="class_x_n_i_d_a_qmx_driver.html#a0">00190</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_n_i_d_a_qmx_driver.html#a0">~XNIDAQmxDriver</a>() {}
 <a name="l00191"></a>00191  <span class="keyword">protected</span>:
-<a name="l00192"></a>00192   <span class="keyword">const</span> shared_ptr&lt;XNIDAQmxInterface&gt; &amp;interface()<span class="keyword"> const </span>{<span class="keywordflow">return</span> m_interface;}
-<a name="l00194"></a>00194   <span class="keyword">virtual</span> <span class="keywordtype">void</span> open() throw (<a class="code" href="class_x_interface.html">XInterface</a>::XInterfaceError &amp;) {this-&gt;start();}
-<a name="l00196"></a>00196   <span class="keyword">virtual</span> <span class="keywordtype">void</span> close() throw (<a class="code" href="class_x_interface.html">XInterface</a>::XInterfaceError &amp;) {interface()-&gt;stop();}
-<a name="l00197"></a>00197   <span class="keywordtype">void</span> onOpen(<span class="keyword">const</span> shared_ptr&lt;XInterface&gt; &amp;);
-<a name="l00198"></a>00198   <span class="keywordtype">void</span> onClose(<span class="keyword">const</span> shared_ptr&lt;XInterface&gt; &amp;);
-<a name="l00200"></a>00200   <span class="keyword">virtual</span> <span class="keywordtype">void</span> afterStop() {close();}
+<a name="l00192"></a><a class="code" href="class_x_n_i_d_a_qmx_driver.html#b1">00192</a>   <span class="keyword">const</span> shared_ptr&lt;XNIDAQmxInterface&gt; &amp;<a class="code" href="class_x_n_i_d_a_qmx_driver.html#b1">interface</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_n_i_d_a_qmx_driver.html#r2">m_interface</a>;}
+<a name="l00194"></a><a class="code" href="class_x_n_i_d_a_qmx_driver.html#b2">00194</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_driver.html#b2">open</a>() throw (<a class="code" href="class_x_interface.html">XInterface</a>::XInterfaceError &amp;) {this-&gt;start();}
+<a name="l00196"></a><a class="code" href="class_x_n_i_d_a_qmx_driver.html#b3">00196</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_driver.html#b3">close</a>() throw (<a class="code" href="class_x_interface.html">XInterface</a>::XInterfaceError &amp;) {<a class="code" href="class_x_n_i_d_a_qmx_driver.html#b1">interface</a>()-&gt;stop();}
+<a name="l00197"></a>00197   <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_driver.html#b4">onOpen</a>(<span class="keyword">const</span> shared_ptr&lt;XInterface&gt; &amp;);
+<a name="l00198"></a>00198   <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_driver.html#b5">onClose</a>(<span class="keyword">const</span> shared_ptr&lt;XInterface&gt; &amp;);
+<a name="l00200"></a><a class="code" href="class_x_n_i_d_a_qmx_driver.html#b6">00200</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_driver.html#b6">afterStop</a>() {<a class="code" href="class_x_n_i_d_a_qmx_driver.html#b3">close</a>();}
 <a name="l00201"></a>00201  <span class="keyword">private</span>:
-<a name="l00202"></a>00202   shared_ptr&lt;XListener&gt; m_lsnOnOpen, m_lsnOnClose;
+<a name="l00202"></a><a class="code" href="class_x_n_i_d_a_qmx_driver.html#r0">00202</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_n_i_d_a_qmx_driver.html#r0">m_lsnOnOpen</a>, <a class="code" href="class_x_n_i_d_a_qmx_driver.html#r1">m_lsnOnClose</a>;
 <a name="l00203"></a>00203   
-<a name="l00204"></a>00204   <span class="keyword">const</span> shared_ptr&lt;XNIDAQmxInterface&gt; m_interface;
+<a name="l00204"></a><a class="code" href="class_x_n_i_d_a_qmx_driver.html#r2">00204</a>   <span class="keyword">const</span> shared_ptr&lt;XNIDAQmxInterface&gt; <a class="code" href="class_x_n_i_d_a_qmx_driver.html#r2">m_interface</a>;
 <a name="l00205"></a>00205 };
 <a name="l00206"></a>00206 <span class="keyword">template</span>&lt;<span class="keyword">class</span> tDriver&gt;
-<a name="l00207"></a>00207 XNIDAQmxDriver&lt;tDriver&gt;::XNIDAQmxDriver(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, 
+<a name="l00207"></a><a class="code" href="class_x_n_i_d_a_qmx_driver.html#b0">00207</a> <a class="code" href="class_x_n_i_d_a_qmx_driver.html#b0">XNIDAQmxDriver&lt;tDriver&gt;::XNIDAQmxDriver</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, 
 <a name="l00208"></a>00208    <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
 <a name="l00209"></a>00209    <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
 <a name="l00210"></a>00210    <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
 <a name="l00211"></a>00211    <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers) :
 <a name="l00212"></a>00212     tDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
-<a name="l00213"></a>00213         m_interface(<a class="code" href="class_x_node.html">XNode</a>::create&lt;XNIDAQmxInterface&gt;(<span class="stringliteral">"Interface"</span>, false,
+<a name="l00213"></a>00213         m_interface(<a class="code" href="class_x_node.html">XNode</a>::create&lt;<a class="code" href="class_x_n_i_d_a_qmx_interface.html">XNIDAQmxInterface</a>&gt;(<span class="stringliteral">"Interface"</span>, false,
 <a name="l00214"></a>00214             dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(this-&gt;shared_from_this())))
 <a name="l00215"></a>00215 {
-<a name="l00216"></a>00216     interfaces-&gt;insert(m_interface);
-<a name="l00217"></a>00217     m_lsnOnOpen = interface()-&gt;onOpen().connectWeak(
-<a name="l00218"></a>00218          this-&gt;shared_from_this(), &amp;XNIDAQmxDriver&lt;tDriver&gt;::onOpen);
-<a name="l00219"></a>00219     m_lsnOnClose = interface()-&gt;onClose().connectWeak( 
-<a name="l00220"></a>00220         this-&gt;shared_from_this(), &amp;XNIDAQmxDriver&lt;tDriver&gt;::onClose);
+<a name="l00216"></a>00216     interfaces-&gt;insert(<a class="code" href="class_x_n_i_d_a_qmx_driver.html#r2">m_interface</a>);
+<a name="l00217"></a>00217     <a class="code" href="class_x_n_i_d_a_qmx_driver.html#r0">m_lsnOnOpen</a> = <a class="code" href="class_x_n_i_d_a_qmx_driver.html#b1">interface</a>()-&gt;onOpen().connectWeak(
+<a name="l00218"></a>00218          this-&gt;shared_from_this(), &amp;<a class="code" href="class_x_n_i_d_a_qmx_driver.html">XNIDAQmxDriver&lt;tDriver&gt;</a><a class="code" href="class_x_n_i_d_a_qmx_driver.html#b4">::onOpen</a>);
+<a name="l00219"></a>00219     <a class="code" href="class_x_n_i_d_a_qmx_driver.html#r1">m_lsnOnClose</a> = <a class="code" href="class_x_n_i_d_a_qmx_driver.html#b1">interface</a>()-&gt;onClose().connectWeak( 
+<a name="l00220"></a>00220         this-&gt;shared_from_this(), &amp;<a class="code" href="class_x_n_i_d_a_qmx_driver.html">XNIDAQmxDriver&lt;tDriver&gt;</a><a class="code" href="class_x_n_i_d_a_qmx_driver.html#b5">::onClose</a>);
 <a name="l00221"></a>00221 }
 <a name="l00222"></a>00222 <span class="keyword">template</span>&lt;<span class="keyword">class</span> tDriver&gt;
 <a name="l00223"></a>00223 <span class="keywordtype">void</span>
-<a name="l00224"></a>00224 XNIDAQmxDriver&lt;tDriver&gt;::onOpen(<span class="keyword">const</span> shared_ptr&lt;XInterface&gt; &amp;)
+<a name="l00224"></a><a class="code" href="class_x_n_i_d_a_qmx_driver.html#b4">00224</a> <a class="code" href="class_x_n_i_d_a_qmx_driver.html#b4">XNIDAQmxDriver&lt;tDriver&gt;::onOpen</a>(<span class="keyword">const</span> shared_ptr&lt;XInterface&gt; &amp;)
 <a name="l00225"></a>00225 {
 <a name="l00226"></a>00226         <span class="keywordflow">try</span> {
-<a name="l00227"></a>00227                 open();
+<a name="l00227"></a>00227                 <a class="code" href="class_x_n_i_d_a_qmx_driver.html#b2">open</a>();
 <a name="l00228"></a>00228         }
 <a name="l00229"></a>00229         <span class="keywordflow">catch</span> (<a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterface::XInterfaceError</a>&amp; e) {
-<a name="l00230"></a>00230                 e.<a class="code" href="struct_x_kame_error.html#9a84ebcb9d45b52654fd1d071450a5ee">print</a>(this-&gt;getLabel() + <a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">": Opening interface failed, because "</span>));
-<a name="l00231"></a>00231                 close();
+<a name="l00230"></a>00230                 e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(this-&gt;getLabel() + <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">": Opening interface failed, because "</span>));
+<a name="l00231"></a>00231                 <a class="code" href="class_x_n_i_d_a_qmx_driver.html#b3">close</a>();
 <a name="l00232"></a>00232         }
 <a name="l00233"></a>00233 }
 <a name="l00234"></a>00234 <span class="keyword">template</span>&lt;<span class="keyword">class</span> tDriver&gt;
 <a name="l00235"></a>00235 <span class="keywordtype">void</span>
-<a name="l00236"></a>00236 XNIDAQmxDriver&lt;tDriver&gt;::onClose(<span class="keyword">const</span> shared_ptr&lt;XInterface&gt; &amp;)
+<a name="l00236"></a><a class="code" href="class_x_n_i_d_a_qmx_driver.html#b5">00236</a> <a class="code" href="class_x_n_i_d_a_qmx_driver.html#b5">XNIDAQmxDriver&lt;tDriver&gt;::onClose</a>(<span class="keyword">const</span> shared_ptr&lt;XInterface&gt; &amp;)
 <a name="l00237"></a>00237 {
 <a name="l00238"></a>00238         <span class="keywordflow">try</span> {
 <a name="l00239"></a>00239                 this-&gt;stop();
 <a name="l00240"></a>00240         }
 <a name="l00241"></a>00241         <span class="keywordflow">catch</span> (<a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterface::XInterfaceError</a>&amp; e) {
-<a name="l00242"></a>00242                 e.<a class="code" href="struct_x_kame_error.html#9a84ebcb9d45b52654fd1d071450a5ee">print</a>(this-&gt;getLabel() + <a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">": Stopping driver failed, because "</span>));
+<a name="l00242"></a>00242                 e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(this-&gt;getLabel() + <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">": Stopping driver failed, because "</span>));
 <a name="l00243"></a>00243         }
 <a name="l00244"></a>00244 }
 <a name="l00245"></a>00245 <span class="preprocessor">#endif //HAVE_NI_DAQMX</span>
 <a name="l00246"></a>00246 <span class="preprocessor"></span>
 <a name="l00247"></a>00247 <span class="preprocessor">#endif </span><span class="comment">/*NIDAQMXDRIVER_H_*/</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 17:09:00 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:34 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.5.1 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>
 </html>

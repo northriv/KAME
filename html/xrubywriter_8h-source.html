@@ -2,20 +2,11 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/script/xrubywriter.h ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
-<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.5.1 -->
-<div class="tabs">
-  <ul>
-    <li><a href="main.html"><span>メインページ</span></a></li>
-    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
-    <li><a href="classes.html"><span>クラス</span></a></li>
-    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
-    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
-    <li><a href="pages.html"><span>関連ページ</span></a></li>
-  </ul></div>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
-<a class="el" href="dir_86f25382698e49ecc2836ac98faed978.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_6b7357a7c4a1ed6258afa492af8bdda5.html">script</a></div>
+<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000008.html">script</a></div>
 <h1>xrubywriter.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
 <a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
@@ -37,20 +28,20 @@
 <a name="l00019"></a><a class="code" href="class_x_ruby_writer.html">00019</a> <span class="keyword">class </span><a class="code" href="class_x_ruby_writer.html">XRubyWriter</a> 
 <a name="l00020"></a>00020 {
 <a name="l00021"></a>00021 <span class="keyword">public</span>:
-<a name="l00022"></a>00022     <a class="code" href="class_x_ruby_writer.html#c15cd4571cc5bd1b3deb923a9351d5ac">XRubyWriter</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;root, std::ofstream &amp;ofs);
-<a name="l00023"></a>00023     <a class="code" href="class_x_ruby_writer.html#a8feea76146b533609e19a94b996f83d">~XRubyWriter</a>();
-<a name="l00024"></a>00024     <span class="keywordtype">void</span> <a class="code" href="class_x_ruby_writer.html#2f1e50f8a71f6b1cadca6c330113e661">write</a>();
+<a name="l00022"></a>00022     <a class="code" href="class_x_ruby_writer.html#a0">XRubyWriter</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;root, std::ofstream &amp;ofs);
+<a name="l00023"></a>00023     <a class="code" href="class_x_ruby_writer.html#a1">~XRubyWriter</a>();
+<a name="l00024"></a>00024     <span class="keywordtype">void</span> <a class="code" href="class_x_ruby_writer.html#a2">write</a>();
 <a name="l00025"></a>00025 <span class="keyword">private</span>:
-<a name="l00026"></a>00026     <span class="keywordtype">void</span> <a class="code" href="class_x_ruby_writer.html#2f1e50f8a71f6b1cadca6c330113e661">write</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node,
+<a name="l00026"></a>00026     <span class="keywordtype">void</span> <a class="code" href="class_x_ruby_writer.html#a2">write</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node,
 <a name="l00027"></a>00027          <span class="keyword">const</span> <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> &amp;list, <span class="keywordtype">bool</span> ghost, <span class="keywordtype">int</span> level);
-<a name="l00028"></a><a class="code" href="class_x_ruby_writer.html#f967ffa6e6939b68ec722e8e9c6117cb">00028</a>     shared_ptr&lt;XNode&gt; <a class="code" href="class_x_ruby_writer.html#f967ffa6e6939b68ec722e8e9c6117cb">m_root</a>;
-<a name="l00029"></a><a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">00029</a>     std::ofstream &amp;<a class="code" href="class_x_ruby_writer.html#6ce2eade03e2e3825e618962eee181c1">m_ofs</a>;    
+<a name="l00028"></a><a class="code" href="class_x_ruby_writer.html#r0">00028</a>     shared_ptr&lt;XNode&gt; <a class="code" href="class_x_ruby_writer.html#r0">m_root</a>;
+<a name="l00029"></a><a class="code" href="class_x_ruby_writer.html#r1">00029</a>     std::ofstream &amp;<a class="code" href="class_x_ruby_writer.html#r1">m_ofs</a>;    
 <a name="l00030"></a>00030 };
 <a name="l00031"></a>00031 
 <a name="l00032"></a>00032 
 <a name="l00033"></a>00033 <span class="preprocessor">#endif </span><span class="comment">/*XRUBYWRITER_H_*/</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 17:09:01 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:35 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.5.1 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>
 </html>

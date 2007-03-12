@@ -2,20 +2,11 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/driver/charinterface.cpp ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
-<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.5.1 -->
-<div class="tabs">
-  <ul>
-    <li><a href="main.html"><span>メインページ</span></a></li>
-    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
-    <li><a href="classes.html"><span>クラス</span></a></li>
-    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
-    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
-    <li><a href="pages.html"><span>関連ページ</span></a></li>
-  </ul></div>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
-<a class="el" href="dir_86f25382698e49ecc2836ac98faed978.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_948a01b9803ca72c7103e03c532fe5f9.html">driver</a></div>
+<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000003.html">driver</a></div>
 <h1>charinterface.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
 <a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
@@ -44,10 +35,10 @@
 <a name="l00026"></a>00026 <span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00027"></a>00027 <span class="preprocessor">#define SNPRINT_BUF_SIZE 128</span>
 <a name="l00028"></a>00028 <span class="preprocessor"></span>
-<a name="l00029"></a>00029 <a class="code" href="class_x_thread_local.html">XThreadLocal&lt;std::vector&lt;char&gt;</a> &gt; <a class="code" href="class_x_port.html#07a033ba6a81f52807340ff366dd3526">XPort::s_tlBuffer</a>;
+<a name="l00029"></a><a class="code" href="class_x_port.html#t0">00029</a> <a class="code" href="class_x_thread_local.html">XThreadLocal&lt;std::vector&lt;char&gt;</a> &gt; <a class="code" href="class_x_port.html#t0">XPort::s_tlBuffer</a>;
 <a name="l00030"></a>00030 
 <a name="l00031"></a>00031 
-<a name="l00032"></a><a class="code" href="class_x_char_interface.html#c955819b6ae2d4e8f441ea0390895e83">00032</a> <a class="code" href="class_x_char_interface.html#c955819b6ae2d4e8f441ea0390895e83">XCharInterface::XCharInterface</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;driver) : 
+<a name="l00032"></a><a class="code" href="class_x_char_interface.html#b0">00032</a> <a class="code" href="class_x_char_interface.html#b0">XCharInterface::XCharInterface</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;driver) : 
 <a name="l00033"></a>00033     <a class="code" href="class_x_interface.html">XInterface</a>(name, runtime, driver), 
 <a name="l00034"></a>00034     m_bGPIBUseSerialPollOnWrite(true),
 <a name="l00035"></a>00035     m_bGPIBUseSerialPollOnRead(true),
@@ -59,38 +50,38 @@
 <a name="l00041"></a>00041     m_script_query(create&lt;<a class="code" href="class_x_string_node.html">XStringNode</a>&gt;(<span class="stringliteral">"Query"</span>, true))
 <a name="l00042"></a>00042 {
 <a name="l00043"></a>00043 <span class="preprocessor">#ifdef USE_GPIB</span>
-<a name="l00044"></a>00044 <span class="preprocessor"></span>  <a class="code" href="class_x_interface.html#855804422ccb5fd68dffd7d86400568a">device</a>()-&gt;add(<span class="stringliteral">"GPIB"</span>);
+<a name="l00044"></a>00044 <span class="preprocessor"></span>  <a class="code" href="class_x_interface.html#a4">device</a>()-&gt;add(<span class="stringliteral">"GPIB"</span>);
 <a name="l00045"></a>00045 <span class="preprocessor">#endif</span>
-<a name="l00046"></a>00046 <span class="preprocessor"></span>  <a class="code" href="class_x_interface.html#855804422ccb5fd68dffd7d86400568a">device</a>()-&gt;add(<span class="stringliteral">"SERIAL"</span>);
-<a name="l00047"></a>00047   <a class="code" href="class_x_interface.html#855804422ccb5fd68dffd7d86400568a">device</a>()-&gt;add(<span class="stringliteral">"DUMMY"</span>);
-<a name="l00048"></a>00048   <a class="code" href="class_x_interface.html#cdc5b44afb9b1de8ce5cbda48aaf840b">baudrate</a>()-&gt;value(9600);
+<a name="l00046"></a>00046 <span class="preprocessor"></span>  <a class="code" href="class_x_interface.html#a4">device</a>()-&gt;add(<span class="stringliteral">"SERIAL"</span>);
+<a name="l00047"></a>00047   <a class="code" href="class_x_interface.html#a4">device</a>()-&gt;add(<span class="stringliteral">"DUMMY"</span>);
+<a name="l00048"></a>00048   <a class="code" href="class_x_interface.html#a7">baudrate</a>()-&gt;value(9600);
 <a name="l00049"></a>00049   
-<a name="l00050"></a>00050   <a class="code" href="class_x_char_interface.html#f4f62ce0ad7ec0b25feb30933f17ff78">m_lsnOnSendRequested</a> = <a class="code" href="class_x_char_interface.html#7a0cc602a799509b86f093ffa39558e0">m_script_send</a>-&gt;onValueChanged().connectWeak(
-<a name="l00051"></a>00051             shared_from_this(), &amp;<a class="code" href="class_x_char_interface.html#d253f04383219e3422688336a733cfcc">XCharInterface::onSendRequested</a>);
-<a name="l00052"></a>00052   <a class="code" href="class_x_char_interface.html#f1e9ed23072af022d260ab7a7aacb0f5">m_lsnOnQueryRequested</a> = <a class="code" href="class_x_char_interface.html#a451f09d70b243027e939f76cf5eb775">m_script_query</a>-&gt;onValueChanged().connectWeak(
-<a name="l00053"></a>00053             shared_from_this(), &amp;<a class="code" href="class_x_char_interface.html#9a1570cbbec81b4ded277141532724ae">XCharInterface::onQueryRequested</a>);
+<a name="l00050"></a>00050   <a class="code" href="class_x_char_interface.html#r10">m_lsnOnSendRequested</a> = <a class="code" href="class_x_char_interface.html#r8">m_script_send</a>-&gt;onValueChanged().connectWeak(
+<a name="l00051"></a>00051             shared_from_this(), &amp;<a class="code" href="class_x_char_interface.html#d0">XCharInterface::onSendRequested</a>);
+<a name="l00052"></a>00052   <a class="code" href="class_x_char_interface.html#r11">m_lsnOnQueryRequested</a> = <a class="code" href="class_x_char_interface.html#r9">m_script_query</a>-&gt;onValueChanged().connectWeak(
+<a name="l00053"></a>00053             shared_from_this(), &amp;<a class="code" href="class_x_char_interface.html#d1">XCharInterface::onQueryRequested</a>);
 <a name="l00054"></a>00054 }
 <a name="l00055"></a>00055 <span class="keywordtype">void</span>
-<a name="l00056"></a><a class="code" href="class_x_char_interface.html#977a5b2134ec932a475506171f59a0ce">00056</a> <a class="code" href="class_x_char_interface.html#977a5b2134ec932a475506171f59a0ce">XCharInterface::setEOS</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *str) {
-<a name="l00057"></a>00057     <a class="code" href="class_x_char_interface.html#4bd062a0118db9b2c5fd765cdd4d2fe1">m_eos</a> = str;
+<a name="l00056"></a><a class="code" href="class_x_char_interface.html#a15">00056</a> <a class="code" href="class_x_char_interface.html#a15">XCharInterface::setEOS</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *str) {
+<a name="l00057"></a>00057     <a class="code" href="class_x_char_interface.html#r0">m_eos</a> = str;
 <a name="l00058"></a>00058 }
 <a name="l00059"></a>00059          
 <a name="l00060"></a>00060 <span class="keywordtype">void</span>
-<a name="l00061"></a><a class="code" href="class_x_char_interface.html#0b02b2da74bcb63fe4ca93511296ec32">00061</a> <a class="code" href="class_x_char_interface.html#0b02b2da74bcb63fe4ca93511296ec32">XCharInterface::open</a>() throw (XInterfaceError &amp;)
+<a name="l00061"></a><a class="code" href="class_x_char_interface.html#b1">00061</a> <a class="code" href="class_x_char_interface.html#b1">XCharInterface::open</a>() throw (XInterfaceError &amp;)
 <a name="l00062"></a>00062 {        
-<a name="l00063"></a>00063       <a class="code" href="class_x_char_interface.html#50c391333d33d932ca1585b748e79c8e">m_xport</a>.reset();
+<a name="l00063"></a>00063       <a class="code" href="class_x_char_interface.html#r7">m_xport</a>.reset();
 <a name="l00064"></a>00064     
 <a name="l00065"></a>00065       {
-<a name="l00066"></a>00066       shared_ptr&lt;XPort&gt; <a class="code" href="class_x_interface.html#a3e645d8191b45caafb3b6a16d564612">port</a>;
+<a name="l00066"></a>00066       shared_ptr&lt;XPort&gt; <a class="code" href="class_x_interface.html#a5">port</a>;
 <a name="l00067"></a>00067 <span class="preprocessor">        #ifdef USE_GPIB</span>
-<a name="l00068"></a>00068 <span class="preprocessor"></span>          <span class="keywordflow">if</span>(<a class="code" href="class_x_interface.html#855804422ccb5fd68dffd7d86400568a">device</a>()-&gt;to_str() == <span class="stringliteral">"GPIB"</span>) {
-<a name="l00069"></a>00069             port.reset(<span class="keyword">new</span> XGPIBPort(<span class="keyword">this</span>));
+<a name="l00068"></a>00068 <span class="preprocessor"></span>          <span class="keywordflow">if</span>(<a class="code" href="class_x_interface.html#a4">device</a>()-&gt;to_str() == <span class="stringliteral">"GPIB"</span>) {
+<a name="l00069"></a>00069             port.reset(<span class="keyword">new</span> <a class="code" href="class_x_n_i_g_p_i_b_port.html">XGPIBPort</a>(<span class="keyword">this</span>));
 <a name="l00070"></a>00070           }
 <a name="l00071"></a>00071 <span class="preprocessor">        #endif</span>
-<a name="l00072"></a>00072 <span class="preprocessor"></span>          <span class="keywordflow">if</span>(<a class="code" href="class_x_interface.html#855804422ccb5fd68dffd7d86400568a">device</a>()-&gt;to_str() == <span class="stringliteral">"SERIAL"</span>) {
-<a name="l00073"></a>00073             port.reset(<span class="keyword">new</span> XSerialPort(<span class="keyword">this</span>));
+<a name="l00072"></a>00072 <span class="preprocessor"></span>          <span class="keywordflow">if</span>(<a class="code" href="class_x_interface.html#a4">device</a>()-&gt;to_str() == <span class="stringliteral">"SERIAL"</span>) {
+<a name="l00073"></a>00073             port.reset(<span class="keyword">new</span> <a class="code" href="class_x_posix_serial_port.html">XSerialPort</a>(<span class="keyword">this</span>));
 <a name="l00074"></a>00074           }
-<a name="l00075"></a>00075           <span class="keywordflow">if</span>(<a class="code" href="class_x_interface.html#855804422ccb5fd68dffd7d86400568a">device</a>()-&gt;to_str() == <span class="stringliteral">"DUMMY"</span>) {
+<a name="l00075"></a>00075           <span class="keywordflow">if</span>(<a class="code" href="class_x_interface.html#a4">device</a>()-&gt;to_str() == <span class="stringliteral">"DUMMY"</span>) {
 <a name="l00076"></a>00076             port.reset(<span class="keyword">new</span> <a class="code" href="class_x_dummy_port.html">XDummyPort</a>(<span class="keyword">this</span>));
 <a name="l00077"></a>00077           }
 <a name="l00078"></a>00078           
@@ -99,58 +90,58 @@
 <a name="l00081"></a>00081           }
 <a name="l00082"></a>00082           
 <a name="l00083"></a>00083           port-&gt;open();
-<a name="l00084"></a>00084           <a class="code" href="class_x_char_interface.html#50c391333d33d932ca1585b748e79c8e">m_xport</a>.swap(port);
+<a name="l00084"></a>00084           <a class="code" href="class_x_char_interface.html#r7">m_xport</a>.swap(port);
 <a name="l00085"></a>00085       }
 <a name="l00086"></a>00086 }
 <a name="l00087"></a>00087 <span class="keywordtype">void</span>
-<a name="l00088"></a><a class="code" href="class_x_char_interface.html#151391ad77d7a93c41debe008d840c06">00088</a> <a class="code" href="class_x_char_interface.html#151391ad77d7a93c41debe008d840c06">XCharInterface::close</a>() throw (XInterfaceError &amp;)
+<a name="l00088"></a><a class="code" href="class_x_char_interface.html#b2">00088</a> <a class="code" href="class_x_char_interface.html#b2">XCharInterface::close</a>() throw (XInterfaceError &amp;)
 <a name="l00089"></a>00089 {
-<a name="l00090"></a>00090   <a class="code" href="class_x_char_interface.html#50c391333d33d932ca1585b748e79c8e">m_xport</a>.reset();
+<a name="l00090"></a>00090   <a class="code" href="class_x_char_interface.html#r7">m_xport</a>.reset();
 <a name="l00091"></a>00091 }
 <a name="l00092"></a>00092 <span class="keywordtype">int</span>
-<a name="l00093"></a><a class="code" href="class_x_char_interface.html#43c41831f0d6e3c6fff040b5eeebb3be">00093</a> <a class="code" href="class_x_char_interface.html#43c41831f0d6e3c6fff040b5eeebb3be">XCharInterface::scanf</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *fmt, ...)<span class="keyword"> const </span>{
+<a name="l00093"></a><a class="code" href="class_x_char_interface.html#a2">00093</a> <a class="code" href="class_x_char_interface.html#a2">XCharInterface::scanf</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *fmt, ...)<span class="keyword"> const </span>{
 <a name="l00094"></a>00094   <span class="keywordtype">int</span> ret;
 <a name="l00095"></a>00095   va_list ap;
 <a name="l00096"></a>00096 
 <a name="l00097"></a>00097   va_start(ap, fmt);
 <a name="l00098"></a>00098 
-<a name="l00099"></a>00099   ret = vsscanf(&amp;<a class="code" href="class_x_char_interface.html#106a5a385c914ade8478cc7fd18fbf89">buffer</a>()[0], fmt, ap);
+<a name="l00099"></a>00099   ret = vsscanf(&amp;<a class="code" href="class_x_char_interface.html#a1">buffer</a>()[0], fmt, ap);
 <a name="l00100"></a>00100 
 <a name="l00101"></a>00101   va_end(ap);
 <a name="l00102"></a>00102   <span class="keywordflow">return</span> ret;    
 <a name="l00103"></a>00103 }
 <a name="l00104"></a>00104 <span class="keywordtype">double</span>
-<a name="l00105"></a><a class="code" href="class_x_char_interface.html#b035191160c645a0fe406159393e8c3f">00105</a> <a class="code" href="class_x_char_interface.html#b035191160c645a0fe406159393e8c3f">XCharInterface::toDouble</a>() const throw (<a class="code" href="class_x_char_interface.html">XCharInterface</a>::XConvError &amp;) {
+<a name="l00105"></a><a class="code" href="class_x_char_interface.html#a3">00105</a> <a class="code" href="class_x_char_interface.html#a3">XCharInterface::toDouble</a>() const throw (<a class="code" href="class_x_char_interface.html">XCharInterface</a>::XConvError &amp;) {
 <a name="l00106"></a>00106     <span class="keywordtype">double</span> x;
-<a name="l00107"></a>00107     <span class="keywordtype">int</span> ret = sscanf(&amp;<a class="code" href="class_x_char_interface.html#106a5a385c914ade8478cc7fd18fbf89">buffer</a>()[0], <span class="stringliteral">"%lf"</span>, &amp;x);
+<a name="l00107"></a>00107     <span class="keywordtype">int</span> ret = sscanf(&amp;<a class="code" href="class_x_char_interface.html#a1">buffer</a>()[0], <span class="stringliteral">"%lf"</span>, &amp;x);
 <a name="l00108"></a>00108     <span class="keywordflow">if</span>(ret != 1) <span class="keywordflow">throw</span> XConvError(__FILE__, __LINE__);
 <a name="l00109"></a>00109     <span class="keywordflow">return</span> x;
 <a name="l00110"></a>00110 }
 <a name="l00111"></a>00111 <span class="keywordtype">int</span>
-<a name="l00112"></a><a class="code" href="class_x_char_interface.html#d0f0284f5abc5bb0b240e4fa6f524fa4">00112</a> <a class="code" href="class_x_char_interface.html#d0f0284f5abc5bb0b240e4fa6f524fa4">XCharInterface::toInt</a>() const throw (<a class="code" href="class_x_char_interface.html">XCharInterface</a>::XConvError &amp;) {
+<a name="l00112"></a><a class="code" href="class_x_char_interface.html#a4">00112</a> <a class="code" href="class_x_char_interface.html#a4">XCharInterface::toInt</a>() const throw (<a class="code" href="class_x_char_interface.html">XCharInterface</a>::XConvError &amp;) {
 <a name="l00113"></a>00113     <span class="keywordtype">int</span> x;
-<a name="l00114"></a>00114     <span class="keywordtype">int</span> ret = sscanf(&amp;<a class="code" href="class_x_char_interface.html#106a5a385c914ade8478cc7fd18fbf89">buffer</a>()[0], <span class="stringliteral">"%d"</span>, &amp;x);
+<a name="l00114"></a>00114     <span class="keywordtype">int</span> ret = sscanf(&amp;<a class="code" href="class_x_char_interface.html#a1">buffer</a>()[0], <span class="stringliteral">"%d"</span>, &amp;x);
 <a name="l00115"></a>00115     <span class="keywordflow">if</span>(ret != 1) <span class="keywordflow">throw</span> XConvError(__FILE__, __LINE__);
 <a name="l00116"></a>00116     <span class="keywordflow">return</span> x;
 <a name="l00117"></a>00117 }
 <a name="l00118"></a>00118 <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>
-<a name="l00119"></a><a class="code" href="class_x_char_interface.html#2082e75525d709949fcb2524ebba8582">00119</a> <a class="code" href="class_x_char_interface.html#2082e75525d709949fcb2524ebba8582">XCharInterface::toUInt</a>() const throw (<a class="code" href="class_x_char_interface.html">XCharInterface</a>::XConvError &amp;) {
+<a name="l00119"></a><a class="code" href="class_x_char_interface.html#a5">00119</a> <a class="code" href="class_x_char_interface.html#a5">XCharInterface::toUInt</a>() const throw (<a class="code" href="class_x_char_interface.html">XCharInterface</a>::XConvError &amp;) {
 <a name="l00120"></a>00120     <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> x;
-<a name="l00121"></a>00121     <span class="keywordtype">int</span> ret = sscanf(&amp;<a class="code" href="class_x_char_interface.html#106a5a385c914ade8478cc7fd18fbf89">buffer</a>()[0], <span class="stringliteral">"%u"</span>, &amp;x);
+<a name="l00121"></a>00121     <span class="keywordtype">int</span> ret = sscanf(&amp;<a class="code" href="class_x_char_interface.html#a1">buffer</a>()[0], <span class="stringliteral">"%u"</span>, &amp;x);
 <a name="l00122"></a>00122     <span class="keywordflow">if</span>(ret != 1) <span class="keywordflow">throw</span> XConvError(__FILE__, __LINE__);
 <a name="l00123"></a>00123     <span class="keywordflow">return</span> x;
 <a name="l00124"></a>00124 }
 <a name="l00125"></a>00125 
 <a name="l00126"></a>00126 <span class="keyword">const</span> std::vector&lt;char&gt; &amp;
-<a name="l00127"></a><a class="code" href="class_x_char_interface.html#106a5a385c914ade8478cc7fd18fbf89">00127</a> <a class="code" href="class_x_char_interface.html#106a5a385c914ade8478cc7fd18fbf89">XCharInterface::buffer</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_char_interface.html#50c391333d33d932ca1585b748e79c8e">m_xport</a>-&gt;buffer();}
+<a name="l00127"></a><a class="code" href="class_x_char_interface.html#a1">00127</a> <a class="code" href="class_x_char_interface.html#a1">XCharInterface::buffer</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_char_interface.html#r7">m_xport</a>-&gt;buffer();}
 <a name="l00128"></a>00128 
 <a name="l00129"></a>00129 <span class="keywordtype">void</span>
-<a name="l00130"></a><a class="code" href="class_x_char_interface.html#6b7e79ba78fdfa849a45707f041dc762">00130</a> <a class="code" href="class_x_char_interface.html#6b7e79ba78fdfa849a45707f041dc762">XCharInterface::send</a>(<span class="keyword">const</span> std::string &amp;str) <span class="keywordflow">throw</span> (XCommError &amp;)
+<a name="l00130"></a><a class="code" href="class_x_char_interface.html#a6">00130</a> <a class="code" href="class_x_char_interface.html#a6">XCharInterface::send</a>(<span class="keyword">const</span> std::string &amp;str) <span class="keywordflow">throw</span> (XCommError &amp;)
 <a name="l00131"></a>00131 {
 <a name="l00132"></a>00132     this-&gt;send(str.c_str());
 <a name="l00133"></a>00133 }
 <a name="l00134"></a>00134 <span class="keywordtype">void</span>
-<a name="l00135"></a><a class="code" href="class_x_char_interface.html#8c9aa2c81eb913b4cd81be4d7eb0c62e">00135</a> <a class="code" href="class_x_char_interface.html#6b7e79ba78fdfa849a45707f041dc762">XCharInterface::send</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *str) <span class="keywordflow">throw</span> (XCommError &amp;)
+<a name="l00135"></a><a class="code" href="class_x_char_interface.html#a7">00135</a> <a class="code" href="class_x_char_interface.html#a6">XCharInterface::send</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *str) <span class="keywordflow">throw</span> (XCommError &amp;)
 <a name="l00136"></a>00136 {
 <a name="l00137"></a>00137   <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XCharInterface&gt;</a> lock(*<span class="keyword">this</span>);
 <a name="l00138"></a>00138   <span class="keywordflow">try</span> {
@@ -158,12 +149,12 @@
 <a name="l00140"></a>00140       m_xport-&gt;send(str);
 <a name="l00141"></a>00141   }
 <a name="l00142"></a>00142   <span class="keywordflow">catch</span> (XCommError &amp;e) {
-<a name="l00143"></a>00143       e.print(driver()-&gt;getLabel() + <a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">" SendError, because "</span>));
+<a name="l00143"></a>00143       e.print(driver()-&gt;getLabel() + <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">" SendError, because "</span>));
 <a name="l00144"></a>00144       <span class="keywordflow">throw</span> e;
 <a name="l00145"></a>00145   }
 <a name="l00146"></a>00146 }
 <a name="l00147"></a>00147 <span class="keywordtype">void</span>
-<a name="l00148"></a><a class="code" href="class_x_char_interface.html#35a41db10364f1f616d253114ae1d1cb">00148</a> <a class="code" href="class_x_char_interface.html#35a41db10364f1f616d253114ae1d1cb">XCharInterface::sendf</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *fmt, ...) throw (XInterfaceError &amp;)
+<a name="l00148"></a><a class="code" href="class_x_char_interface.html#a8">00148</a> <a class="code" href="class_x_char_interface.html#a8">XCharInterface::sendf</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *fmt, ...) throw (XInterfaceError &amp;)
 <a name="l00149"></a>00149 {
 <a name="l00150"></a>00150   va_list ap;
 <a name="l00151"></a>00151   <span class="keywordtype">int</span> buf_size = SNPRINT_BUF_SIZE;
@@ -184,10 +175,10 @@
 <a name="l00166"></a>00166       buf_size *= 2;
 <a name="l00167"></a>00167   }
 <a name="l00168"></a>00168   
-<a name="l00169"></a>00169   this-&gt;<a class="code" href="class_x_char_interface.html#6b7e79ba78fdfa849a45707f041dc762">send</a>(&amp;buf[0]);
+<a name="l00169"></a>00169   this-&gt;<a class="code" href="class_x_char_interface.html#a6">send</a>(&amp;buf[0]);
 <a name="l00170"></a>00170 }
 <a name="l00171"></a>00171 <span class="keywordtype">void</span>
-<a name="l00172"></a><a class="code" href="class_x_char_interface.html#c8673d1d7fc8164d761cd754ce9670e0">00172</a> <a class="code" href="class_x_char_interface.html#c8673d1d7fc8164d761cd754ce9670e0">XCharInterface::write</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *sendbuf, <span class="keywordtype">int</span> size) <span class="keywordflow">throw</span> (XCommError &amp;)
+<a name="l00172"></a><a class="code" href="class_x_char_interface.html#a9">00172</a> <a class="code" href="class_x_char_interface.html#a9">XCharInterface::write</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *sendbuf, <span class="keywordtype">int</span> size) <span class="keywordflow">throw</span> (XCommError &amp;)
 <a name="l00173"></a>00173 {
 <a name="l00174"></a>00174   <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XCharInterface&gt;</a> lock(*<span class="keyword">this</span>);
 <a name="l00175"></a>00175   <span class="keywordflow">try</span> {
@@ -195,28 +186,28 @@
 <a name="l00177"></a>00177       m_xport-&gt;write(sendbuf, size);
 <a name="l00178"></a>00178   }
 <a name="l00179"></a>00179   <span class="keywordflow">catch</span> (XCommError &amp;e) {
-<a name="l00180"></a>00180       e.print(driver()-&gt;getLabel() + <a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">" SendError, because "</span>));
+<a name="l00180"></a>00180       e.print(driver()-&gt;getLabel() + <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">" SendError, because "</span>));
 <a name="l00181"></a>00181       <span class="keywordflow">throw</span> e;
 <a name="l00182"></a>00182   }
 <a name="l00183"></a>00183 }
 <a name="l00184"></a>00184 <span class="keywordtype">void</span>
-<a name="l00185"></a><a class="code" href="class_x_char_interface.html#2102ecd00f11441cc8acf9cf4c78faf1">00185</a> <a class="code" href="class_x_char_interface.html#2102ecd00f11441cc8acf9cf4c78faf1">XCharInterface::receive</a>() throw (XCommError &amp;)
+<a name="l00185"></a><a class="code" href="class_x_char_interface.html#a10">00185</a> <a class="code" href="class_x_char_interface.html#a10">XCharInterface::receive</a>() throw (XCommError &amp;)
 <a name="l00186"></a>00186 {
-<a name="l00187"></a>00187   <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XCharInterface&gt;</a> <a class="code" href="class_x_interface.html#830eb8c9db74afce1dd834c2e55e23f8">lock</a>(*<span class="keyword">this</span>);
+<a name="l00187"></a>00187   <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XCharInterface&gt;</a> <a class="code" href="class_x_interface.html#a9">lock</a>(*<span class="keyword">this</span>);
 <a name="l00188"></a>00188   <span class="keywordflow">try</span> {
-<a name="l00189"></a>00189       dbgPrint(<a class="code" href="class_x_interface.html#a7160c7f5c8a8c65105c553754456044">driver</a>()-&gt;<a class="code" href="class_x_interface.html#ce3d51cff41d356c695378d713112f67">getLabel</a>() + <span class="stringliteral">" Receiving..."</span>);
-<a name="l00190"></a>00190       <a class="code" href="class_x_char_interface.html#50c391333d33d932ca1585b748e79c8e">m_xport</a>-&gt;receive();
-<a name="l00191"></a>00191       ASSERT(<a class="code" href="class_x_char_interface.html#106a5a385c914ade8478cc7fd18fbf89">buffer</a>().size());
-<a name="l00192"></a>00192       dbgPrint(<a class="code" href="class_x_interface.html#a7160c7f5c8a8c65105c553754456044">driver</a>()-&gt;<a class="code" href="class_x_interface.html#ce3d51cff41d356c695378d713112f67">getLabel</a>() + <span class="stringliteral">" Received;\""</span> + 
-<a name="l00193"></a>00193         dumpCString((<span class="keyword">const</span> <span class="keywordtype">char</span>*)&amp;<a class="code" href="class_x_char_interface.html#106a5a385c914ade8478cc7fd18fbf89">buffer</a>()[0]) + <span class="stringliteral">"\""</span>);
+<a name="l00189"></a>00189       dbgPrint(<a class="code" href="class_x_interface.html#a3">driver</a>()-&gt;<a class="code" href="class_x_interface.html#a2">getLabel</a>() + <span class="stringliteral">" Receiving..."</span>);
+<a name="l00190"></a>00190       <a class="code" href="class_x_char_interface.html#r7">m_xport</a>-&gt;receive();
+<a name="l00191"></a>00191       ASSERT(<a class="code" href="class_x_char_interface.html#a1">buffer</a>().size());
+<a name="l00192"></a>00192       dbgPrint(<a class="code" href="class_x_interface.html#a3">driver</a>()-&gt;<a class="code" href="class_x_interface.html#a2">getLabel</a>() + <span class="stringliteral">" Received;\""</span> + 
+<a name="l00193"></a>00193         dumpCString((<span class="keyword">const</span> <span class="keywordtype">char</span>*)&amp;<a class="code" href="class_x_char_interface.html#a1">buffer</a>()[0]) + <span class="stringliteral">"\""</span>);
 <a name="l00194"></a>00194   }
 <a name="l00195"></a>00195   <span class="keywordflow">catch</span> (XCommError &amp;e) {
-<a name="l00196"></a>00196         e.print(<a class="code" href="class_x_interface.html#a7160c7f5c8a8c65105c553754456044">driver</a>()-&gt;<a class="code" href="class_x_interface.html#ce3d51cff41d356c695378d713112f67">getLabel</a>() + <a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">" ReceiveError, because "</span>));
+<a name="l00196"></a>00196         e.print(<a class="code" href="class_x_interface.html#a3">driver</a>()-&gt;<a class="code" href="class_x_interface.html#a2">getLabel</a>() + <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">" ReceiveError, because "</span>));
 <a name="l00197"></a>00197         <span class="keywordflow">throw</span> e;
 <a name="l00198"></a>00198   }
 <a name="l00199"></a>00199 }
 <a name="l00200"></a>00200 <span class="keywordtype">void</span>
-<a name="l00201"></a><a class="code" href="class_x_char_interface.html#3ae71a45aeec0b5e73c4b80795f6fc1c">00201</a> <a class="code" href="class_x_char_interface.html#2102ecd00f11441cc8acf9cf4c78faf1">XCharInterface::receive</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> length) <span class="keywordflow">throw</span> (XCommError &amp;)
+<a name="l00201"></a><a class="code" href="class_x_char_interface.html#a11">00201</a> <a class="code" href="class_x_char_interface.html#a10">XCharInterface::receive</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> length) <span class="keywordflow">throw</span> (XCommError &amp;)
 <a name="l00202"></a>00202 {
 <a name="l00203"></a>00203   <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XCharInterface&gt;</a> lock(*<span class="keyword">this</span>);
 <a name="l00204"></a>00204   <span class="keywordflow">try</span> {
@@ -225,24 +216,24 @@
 <a name="l00207"></a>00207       dbgPrint(driver()-&gt;getLabel() + QString(<span class="stringliteral">"%1 bytes Received."</span>).arg(buffer().size())); 
 <a name="l00208"></a>00208   }
 <a name="l00209"></a>00209   <span class="keywordflow">catch</span> (XCommError &amp;e) {
-<a name="l00210"></a>00210       e.print(driver()-&gt;getLabel() + <a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">" ReceiveError, because "</span>));
+<a name="l00210"></a>00210       e.print(driver()-&gt;getLabel() + <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">" ReceiveError, because "</span>));
 <a name="l00211"></a>00211       <span class="keywordflow">throw</span> e;
 <a name="l00212"></a>00212   }
 <a name="l00213"></a>00213 }
 <a name="l00214"></a>00214 <span class="keywordtype">void</span>
-<a name="l00215"></a><a class="code" href="class_x_char_interface.html#2ea9f8185baf9c41fde04e4db748d4e3">00215</a> <a class="code" href="class_x_char_interface.html#2ea9f8185baf9c41fde04e4db748d4e3">XCharInterface::query</a>(<span class="keyword">const</span> std::string &amp;str) <span class="keywordflow">throw</span> (XCommError &amp;)
+<a name="l00215"></a><a class="code" href="class_x_char_interface.html#a12">00215</a> <a class="code" href="class_x_char_interface.html#a12">XCharInterface::query</a>(<span class="keyword">const</span> std::string &amp;str) <span class="keywordflow">throw</span> (XCommError &amp;)
 <a name="l00216"></a>00216 {
 <a name="l00217"></a>00217     query(str.c_str());
 <a name="l00218"></a>00218 }
 <a name="l00219"></a>00219 <span class="keywordtype">void</span>
-<a name="l00220"></a><a class="code" href="class_x_char_interface.html#6e8bad9ea9910593d204756f8578b633">00220</a> <a class="code" href="class_x_char_interface.html#2ea9f8185baf9c41fde04e4db748d4e3">XCharInterface::query</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *str) <span class="keywordflow">throw</span> (XCommError &amp;)
+<a name="l00220"></a><a class="code" href="class_x_char_interface.html#a13">00220</a> <a class="code" href="class_x_char_interface.html#a12">XCharInterface::query</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *str) <span class="keywordflow">throw</span> (XCommError &amp;)
 <a name="l00221"></a>00221 {
 <a name="l00222"></a>00222   <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XCharInterface&gt;</a> lock(*<span class="keyword">this</span>);
 <a name="l00223"></a>00223   send(str);
 <a name="l00224"></a>00224   receive();
 <a name="l00225"></a>00225 }
 <a name="l00226"></a>00226 <span class="keywordtype">void</span>
-<a name="l00227"></a><a class="code" href="class_x_char_interface.html#5abbc1f27a56897e9ed9d645b5032b34">00227</a> <a class="code" href="class_x_char_interface.html#5abbc1f27a56897e9ed9d645b5032b34">XCharInterface::queryf</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *fmt, ...) throw (XInterfaceError &amp;)
+<a name="l00227"></a><a class="code" href="class_x_char_interface.html#a14">00227</a> <a class="code" href="class_x_char_interface.html#a14">XCharInterface::queryf</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *fmt, ...) throw (XInterfaceError &amp;)
 <a name="l00228"></a>00228 {
 <a name="l00229"></a>00229   va_list ap;
 <a name="l00230"></a>00230   <span class="keywordtype">int</span> buf_size = SNPRINT_BUF_SIZE;
@@ -263,39 +254,39 @@
 <a name="l00245"></a>00245       buf_size *= 2;
 <a name="l00246"></a>00246   }
 <a name="l00247"></a>00247 
-<a name="l00248"></a>00248   this-&gt;<a class="code" href="class_x_char_interface.html#2ea9f8185baf9c41fde04e4db748d4e3">query</a>(&amp;buf[0]);
+<a name="l00248"></a>00248   this-&gt;<a class="code" href="class_x_char_interface.html#a12">query</a>(&amp;buf[0]);
 <a name="l00249"></a>00249 }
 <a name="l00250"></a>00250 <span class="keywordtype">void</span>
-<a name="l00251"></a><a class="code" href="class_x_char_interface.html#d253f04383219e3422688336a733cfcc">00251</a> <a class="code" href="class_x_char_interface.html#d253f04383219e3422688336a733cfcc">XCharInterface::onSendRequested</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
+<a name="l00251"></a><a class="code" href="class_x_char_interface.html#d0">00251</a> <a class="code" href="class_x_char_interface.html#d0">XCharInterface::onSendRequested</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
 <a name="l00252"></a>00252 {
-<a name="l00253"></a>00253 shared_ptr&lt;XPort&gt; <a class="code" href="class_x_interface.html#a3e645d8191b45caafb3b6a16d564612">port</a> = <a class="code" href="class_x_char_interface.html#50c391333d33d932ca1585b748e79c8e">m_xport</a>;
+<a name="l00253"></a>00253 shared_ptr&lt;XPort&gt; <a class="code" href="class_x_interface.html#a5">port</a> = <a class="code" href="class_x_char_interface.html#r7">m_xport</a>;
 <a name="l00254"></a>00254     <span class="keywordflow">if</span>(!port)
-<a name="l00255"></a>00255        <span class="keywordflow">throw</span> XInterfaceError(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Port is not opened."</span>), __FILE__, __LINE__);
-<a name="l00256"></a>00256     port-&gt;send(<a class="code" href="class_x_char_interface.html#7a0cc602a799509b86f093ffa39558e0">m_script_send</a>-&gt;to_str().c_str());
+<a name="l00255"></a>00255        <span class="keywordflow">throw</span> XInterfaceError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Port is not opened."</span>), __FILE__, __LINE__);
+<a name="l00256"></a>00256     port-&gt;send(<a class="code" href="class_x_char_interface.html#r8">m_script_send</a>-&gt;to_str().c_str());
 <a name="l00257"></a>00257 }
 <a name="l00258"></a>00258 <span class="keywordtype">void</span>
-<a name="l00259"></a><a class="code" href="class_x_char_interface.html#9a1570cbbec81b4ded277141532724ae">00259</a> <a class="code" href="class_x_char_interface.html#9a1570cbbec81b4ded277141532724ae">XCharInterface::onQueryRequested</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
+<a name="l00259"></a><a class="code" href="class_x_char_interface.html#d1">00259</a> <a class="code" href="class_x_char_interface.html#d1">XCharInterface::onQueryRequested</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
 <a name="l00260"></a>00260 {
-<a name="l00261"></a>00261 shared_ptr&lt;XPort&gt; <a class="code" href="class_x_interface.html#a3e645d8191b45caafb3b6a16d564612">port</a> = <a class="code" href="class_x_char_interface.html#50c391333d33d932ca1585b748e79c8e">m_xport</a>;    
+<a name="l00261"></a>00261 shared_ptr&lt;XPort&gt; <a class="code" href="class_x_interface.html#a5">port</a> = <a class="code" href="class_x_char_interface.html#r7">m_xport</a>;    
 <a name="l00262"></a>00262     <span class="keywordflow">if</span>(!port)
-<a name="l00263"></a>00263        <span class="keywordflow">throw</span> XInterfaceError(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Port is not opened."</span>), __FILE__, __LINE__);
-<a name="l00264"></a>00264     <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XCharInterface&gt;</a> <a class="code" href="class_x_interface.html#830eb8c9db74afce1dd834c2e55e23f8">lock</a>(*<span class="keyword">this</span>);
-<a name="l00265"></a>00265     port-&gt;send(<a class="code" href="class_x_char_interface.html#a451f09d70b243027e939f76cf5eb775">m_script_query</a>-&gt;to_str().c_str());
+<a name="l00263"></a>00263        <span class="keywordflow">throw</span> XInterfaceError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Port is not opened."</span>), __FILE__, __LINE__);
+<a name="l00264"></a>00264     <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XCharInterface&gt;</a> <a class="code" href="class_x_interface.html#a9">lock</a>(*<span class="keyword">this</span>);
+<a name="l00265"></a>00265     port-&gt;send(<a class="code" href="class_x_char_interface.html#r9">m_script_query</a>-&gt;to_str().c_str());
 <a name="l00266"></a>00266     port-&gt;receive();
-<a name="l00267"></a>00267     <a class="code" href="class_x_char_interface.html#f1e9ed23072af022d260ab7a7aacb0f5">m_lsnOnQueryRequested</a>-&gt;mask();
-<a name="l00268"></a>00268     <a class="code" href="class_x_char_interface.html#a451f09d70b243027e939f76cf5eb775">m_script_query</a>-&gt;value(std::string(&amp;port-&gt;buffer()[0]));
-<a name="l00269"></a>00269     <a class="code" href="class_x_char_interface.html#f1e9ed23072af022d260ab7a7aacb0f5">m_lsnOnQueryRequested</a>-&gt;unmask();
+<a name="l00267"></a>00267     <a class="code" href="class_x_char_interface.html#r11">m_lsnOnQueryRequested</a>-&gt;mask();
+<a name="l00268"></a>00268     <a class="code" href="class_x_char_interface.html#r9">m_script_query</a>-&gt;value(std::string(&amp;port-&gt;buffer()[0]));
+<a name="l00269"></a>00269     <a class="code" href="class_x_char_interface.html#r11">m_lsnOnQueryRequested</a>-&gt;unmask();
 <a name="l00270"></a>00270 }
 <a name="l00271"></a>00271 
-<a name="l00272"></a><a class="code" href="class_x_port.html#5c21e105c57edae053df1f797398c528">00272</a> <a class="code" href="class_x_port.html#5c21e105c57edae053df1f797398c528">XPort::XPort</a>(<a class="code" href="class_x_char_interface.html">XCharInterface</a> *interface)
+<a name="l00272"></a><a class="code" href="class_x_port.html#a0">00272</a> <a class="code" href="class_x_port.html#a0">XPort::XPort</a>(<a class="code" href="class_x_char_interface.html">XCharInterface</a> *interface)
 <a name="l00273"></a>00273  : m_pInterface(interface)
 <a name="l00274"></a>00274 {
 <a name="l00275"></a>00275 }
-<a name="l00276"></a><a class="code" href="class_x_port.html#248be0f9423e1480a9c3d2aa084eb32b">00276</a> <a class="code" href="class_x_port.html#248be0f9423e1480a9c3d2aa084eb32b">XPort::~XPort</a>()
+<a name="l00276"></a><a class="code" href="class_x_port.html#a1">00276</a> <a class="code" href="class_x_port.html#a1">XPort::~XPort</a>()
 <a name="l00277"></a>00277 {
 <a name="l00278"></a>00278 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 17:09:00 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:34 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.5.1 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>
 </html>

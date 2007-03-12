@@ -2,20 +2,11 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/atomic.h ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
-<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.5.1 -->
-<div class="tabs">
-  <ul>
-    <li><a href="main.html"><span>メインページ</span></a></li>
-    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
-    <li><a href="classes.html"><span>クラス</span></a></li>
-    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
-    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
-    <li><a href="pages.html"><span>関連ページ</span></a></li>
-  </ul></div>
+<!-- 作成： Doxygen 1.4.3 -->
+<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
 <div class="nav">
-<a class="el" href="dir_86f25382698e49ecc2836ac98faed978.html">kame</a></div>
+<a class="el" href="dir_000000.html">kame</a></div>
 <h1>atomic.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
 <a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
@@ -36,8 +27,9 @@
 <a name="l00018"></a>00018 
 <a name="l00020"></a>00020 
 <a name="l00021"></a>00021 <span class="preprocessor">#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__</span>
-<a name="l00023"></a>00023 <span class="preprocessor">     inline void readBarrier() {</span>
-<a name="l00024"></a>00024 <span class="preprocessor"></span>            <span class="keyword">asm</span> <span class="keyword">volatile</span>( <span class="stringliteral">"lfence"</span> ::: <span class="stringliteral">"memory"</span> );
+<a name="l00022"></a>00022 <span class="preprocessor"></span>
+<a name="l00023"></a>00023      <span class="keyword">inline</span> <span class="keywordtype">void</span> readBarrier() {
+<a name="l00024"></a>00024             <span class="keyword">asm</span> <span class="keyword">volatile</span>( <span class="stringliteral">"lfence"</span> ::: <span class="stringliteral">"memory"</span> );
 <a name="l00025"></a>00025      }
 <a name="l00026"></a>00026      <span class="keyword">inline</span> <span class="keywordtype">void</span> writeBarrier() {
 <a name="l00027"></a>00027             <span class="keyword">asm</span> <span class="keyword">volatile</span>( <span class="stringliteral">"sfence"</span> ::: <span class="stringliteral">"memory"</span> );
@@ -153,8 +145,9 @@
 <a name="l00146"></a>00146     }
 <a name="l00147"></a>00147 <span class="preprocessor">#else</span>
 <a name="l00148"></a>00148 <span class="preprocessor"></span><span class="preprocessor">    #if defined __ppc__ || defined __POWERPC__ || defined __powerpc__</span>
-<a name="l00150"></a>00150 <span class="preprocessor">         inline void readBarrier() {</span>
-<a name="l00151"></a>00151 <span class="preprocessor"></span>            <span class="keyword">asm</span> <span class="keyword">volatile</span>( <span class="stringliteral">"isync"</span> ::: <span class="stringliteral">"memory"</span> );
+<a name="l00149"></a>00149 <span class="preprocessor"></span>
+<a name="l00150"></a>00150          <span class="keyword">inline</span> <span class="keywordtype">void</span> readBarrier() {
+<a name="l00151"></a>00151             <span class="keyword">asm</span> <span class="keyword">volatile</span>( <span class="stringliteral">"isync"</span> ::: <span class="stringliteral">"memory"</span> );
 <a name="l00152"></a>00152          }
 <a name="l00153"></a>00153          <span class="keyword">inline</span> <span class="keywordtype">void</span> writeBarrier() {
 <a name="l00154"></a>00154             <span class="keyword">asm</span> <span class="keyword">volatile</span>( <span class="stringliteral">"osync"</span> ::: <span class="stringliteral">"memory"</span> );
@@ -255,43 +248,43 @@
 <a name="l00254"></a><a class="code" href="classatomic.html">00254</a> <span class="keyword">class </span><a class="code" href="classatomic.html">atomic</a>
 <a name="l00255"></a>00255 {
 <a name="l00256"></a>00256  <span class="keyword">public</span>:
-<a name="l00257"></a><a class="code" href="classatomic.html#4775d4e75aec921585bac7a1bd0728e3">00257</a>     <a class="code" href="classatomic.html#4775d4e75aec921585bac7a1bd0728e3">atomic</a>() : <a class="code" href="classatomic.html#c7b212fc1d492f99ce7c2159c528d506">m_var</a>(0) {}
-<a name="l00258"></a><a class="code" href="classatomic.html#0052dafe2f4abf518c8598de22306221">00258</a>     <a class="code" href="classatomic.html#4775d4e75aec921585bac7a1bd0728e3">atomic</a>(T t) : <a class="code" href="classatomic.html#c7b212fc1d492f99ce7c2159c528d506">m_var</a>(t) {}
-<a name="l00259"></a><a class="code" href="classatomic.html#cda8ff9bbf00f7bb145e34b1814c8bfe">00259</a>     <a class="code" href="classatomic.html#4775d4e75aec921585bac7a1bd0728e3">atomic</a>(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic</a> &amp;t) : <a class="code" href="classatomic.html#c7b212fc1d492f99ce7c2159c528d506">m_var</a>(t) {}
-<a name="l00260"></a><a class="code" href="classatomic.html#94eca57a46e15341a49023b84f23545a">00260</a>     <a class="code" href="classatomic.html#94eca57a46e15341a49023b84f23545a">~atomic</a>() {}
-<a name="l00261"></a><a class="code" href="classatomic.html#77a2916a0442109b42866cd1db98e09c">00261</a>     <a class="code" href="classatomic.html#77a2916a0442109b42866cd1db98e09c">operator T</a>()<span class="keyword"> const </span>{readBarrier(); <span class="keywordflow">return</span> <a class="code" href="classatomic.html#c7b212fc1d492f99ce7c2159c528d506">m_var</a>;}
-<a name="l00262"></a><a class="code" href="classatomic.html#063e1cebb19a0d4a908becd25ef500e0">00262</a>     <a class="code" href="classatomic.html">atomic</a> &amp;<a class="code" href="classatomic.html#063e1cebb19a0d4a908becd25ef500e0">operator=</a>(T t) {<a class="code" href="classatomic.html#c7b212fc1d492f99ce7c2159c528d506">m_var</a> = t; writeBarrier(); <span class="keywordflow">return</span> *<span class="keyword">this</span>;}
-<a name="l00263"></a><a class="code" href="classatomic.html#7e5cf4a9c51c796aeb2d8ad4cf3e4914">00263</a>     <a class="code" href="classatomic.html">atomic</a> &amp;<a class="code" href="classatomic.html#7e5cf4a9c51c796aeb2d8ad4cf3e4914">operator++</a>() {atomicInc(&amp;<a class="code" href="classatomic.html#c7b212fc1d492f99ce7c2159c528d506">m_var</a>); writeBarrier(); <span class="keywordflow">return</span> *<span class="keyword">this</span>;}
-<a name="l00264"></a><a class="code" href="classatomic.html#35cebb7b5e63dc429101d4170d12fd45">00264</a>     <a class="code" href="classatomic.html">atomic</a> &amp;<a class="code" href="classatomic.html#35cebb7b5e63dc429101d4170d12fd45">operator--</a>() {atomicDecAndTest(&amp;<a class="code" href="classatomic.html#c7b212fc1d492f99ce7c2159c528d506">m_var</a>); writeBarrier(); <span class="keywordflow">return</span> *<span class="keyword">this</span>;}
-<a name="l00265"></a><a class="code" href="classatomic.html#86b53cfdd87ca455d0f19b7eff7d8fa8">00265</a>     <a class="code" href="classatomic.html">atomic</a> &amp;<a class="code" href="classatomic.html#86b53cfdd87ca455d0f19b7eff7d8fa8">operator+=</a>(T t) {atomicAdd(&amp;<a class="code" href="classatomic.html#c7b212fc1d492f99ce7c2159c528d506">m_var</a>, t); writeBarrier(); <span class="keywordflow">return</span> *<span class="keyword">this</span>;}
-<a name="l00266"></a><a class="code" href="classatomic.html#b0ee68c879708aaf6db66c4ae31c290d">00266</a>     <a class="code" href="classatomic.html">atomic</a> &amp;<a class="code" href="classatomic.html#b0ee68c879708aaf6db66c4ae31c290d">operator-=</a>(T t) {atomicAdd(&amp;<a class="code" href="classatomic.html#c7b212fc1d492f99ce7c2159c528d506">m_var</a>, -t); writeBarrier(); <span class="keywordflow">return</span> *<span class="keyword">this</span>;}
-<a name="l00267"></a><a class="code" href="classatomic.html#1354c9daec1efc2c2b95f609ae4415df">00267</a>     T <a class="code" href="classatomic.html#1354c9daec1efc2c2b95f609ae4415df">swap</a>(T newv) {
-<a name="l00268"></a>00268         T old = atomicSwap(newv, &amp;<a class="code" href="classatomic.html#c7b212fc1d492f99ce7c2159c528d506">m_var</a>);
+<a name="l00257"></a><a class="code" href="classatomic.html#a0">00257</a>     <a class="code" href="classatomic.html#a0">atomic</a>() : <a class="code" href="classatomic.html#r0">m_var</a>(0) {}
+<a name="l00258"></a><a class="code" href="classatomic.html#a1">00258</a>     <a class="code" href="classatomic.html#a0">atomic</a>(T t) : <a class="code" href="classatomic.html#r0">m_var</a>(t) {}
+<a name="l00259"></a><a class="code" href="classatomic.html#a2">00259</a>     <a class="code" href="classatomic.html#a0">atomic</a>(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic</a> &amp;t) : <a class="code" href="classatomic.html#r0">m_var</a>(t) {}
+<a name="l00260"></a><a class="code" href="classatomic.html#a3">00260</a>     <a class="code" href="classatomic.html#a3">~atomic</a>() {}
+<a name="l00261"></a><a class="code" href="classatomic.html#a4">00261</a>     <a class="code" href="classatomic.html#a4">operator T</a>()<span class="keyword"> const </span>{readBarrier(); <span class="keywordflow">return</span> <a class="code" href="classatomic.html#r0">m_var</a>;}
+<a name="l00262"></a><a class="code" href="classatomic.html#a5">00262</a>     <a class="code" href="classatomic.html">atomic</a> &amp;<a class="code" href="classatomic.html#a5">operator=</a>(T t) {<a class="code" href="classatomic.html#r0">m_var</a> = t; writeBarrier(); <span class="keywordflow">return</span> *<span class="keyword">this</span>;}
+<a name="l00263"></a><a class="code" href="classatomic.html#a6">00263</a>     <a class="code" href="classatomic.html">atomic</a> &amp;<a class="code" href="classatomic.html#a6">operator++</a>() {atomicInc(&amp;<a class="code" href="classatomic.html#r0">m_var</a>); writeBarrier(); <span class="keywordflow">return</span> *<span class="keyword">this</span>;}
+<a name="l00264"></a><a class="code" href="classatomic.html#a7">00264</a>     <a class="code" href="classatomic.html">atomic</a> &amp;<a class="code" href="classatomic.html#a7">operator--</a>() {atomicDecAndTest(&amp;<a class="code" href="classatomic.html#r0">m_var</a>); writeBarrier(); <span class="keywordflow">return</span> *<span class="keyword">this</span>;}
+<a name="l00265"></a><a class="code" href="classatomic.html#a8">00265</a>     <a class="code" href="classatomic.html">atomic</a> &amp;<a class="code" href="classatomic.html#a8">operator+=</a>(T t) {atomicAdd(&amp;<a class="code" href="classatomic.html#r0">m_var</a>, t); writeBarrier(); <span class="keywordflow">return</span> *<span class="keyword">this</span>;}
+<a name="l00266"></a><a class="code" href="classatomic.html#a9">00266</a>     <a class="code" href="classatomic.html">atomic</a> &amp;<a class="code" href="classatomic.html#a9">operator-=</a>(T t) {atomicAdd(&amp;<a class="code" href="classatomic.html#r0">m_var</a>, -t); writeBarrier(); <span class="keywordflow">return</span> *<span class="keyword">this</span>;}
+<a name="l00267"></a><a class="code" href="classatomic.html#a10">00267</a>     T <a class="code" href="classatomic.html#a10">swap</a>(T newv) {
+<a name="l00268"></a>00268         T old = atomicSwap(newv, &amp;<a class="code" href="classatomic.html#r0">m_var</a>);
 <a name="l00269"></a>00269         writeBarrier();
 <a name="l00270"></a>00270         <span class="keywordflow">return</span> old;
 <a name="l00271"></a>00271     }
-<a name="l00272"></a><a class="code" href="classatomic.html#c42f12da7979c9c9ebb936e958989522">00272</a>     <span class="keywordtype">bool</span> <a class="code" href="classatomic.html#c42f12da7979c9c9ebb936e958989522">decAndTest</a>() {
-<a name="l00273"></a>00273         <span class="keywordtype">bool</span> ret = atomicDecAndTest(&amp;<a class="code" href="classatomic.html#c7b212fc1d492f99ce7c2159c528d506">m_var</a>);
+<a name="l00272"></a><a class="code" href="classatomic.html#a11">00272</a>     <span class="keywordtype">bool</span> <a class="code" href="classatomic.html#a11">decAndTest</a>() {
+<a name="l00273"></a>00273         <span class="keywordtype">bool</span> ret = atomicDecAndTest(&amp;<a class="code" href="classatomic.html#r0">m_var</a>);
 <a name="l00274"></a>00274         writeBarrier();
 <a name="l00275"></a>00275         <span class="keywordflow">return</span> ret;
 <a name="l00276"></a>00276     }
-<a name="l00277"></a><a class="code" href="classatomic.html#f7f6278873877ac4b692006e9c713d71">00277</a>     <span class="keywordtype">bool</span> <a class="code" href="classatomic.html#f7f6278873877ac4b692006e9c713d71">addAndTest</a>(T t) {
-<a name="l00278"></a>00278         <span class="keywordtype">bool</span> ret = atomicAddAndTest(&amp;<a class="code" href="classatomic.html#c7b212fc1d492f99ce7c2159c528d506">m_var</a>, t);
+<a name="l00277"></a><a class="code" href="classatomic.html#a12">00277</a>     <span class="keywordtype">bool</span> <a class="code" href="classatomic.html#a12">addAndTest</a>(T t) {
+<a name="l00278"></a>00278         <span class="keywordtype">bool</span> ret = atomicAddAndTest(&amp;<a class="code" href="classatomic.html#r0">m_var</a>, t);
 <a name="l00279"></a>00279         writeBarrier();
 <a name="l00280"></a>00280         <span class="keywordflow">return</span> ret;
 <a name="l00281"></a>00281     }
-<a name="l00282"></a><a class="code" href="classatomic.html#2ef10c5ab7a5b1e60b654aeae2d6ee7d">00282</a>     <span class="keywordtype">bool</span> <a class="code" href="classatomic.html#2ef10c5ab7a5b1e60b654aeae2d6ee7d">compareAndSet</a>(T oldv, T newv) {
-<a name="l00283"></a>00283         <span class="keywordtype">bool</span> ret = atomicCompareAndSet(oldv, newv, &amp;<a class="code" href="classatomic.html#c7b212fc1d492f99ce7c2159c528d506">m_var</a>);
+<a name="l00282"></a><a class="code" href="classatomic.html#a13">00282</a>     <span class="keywordtype">bool</span> <a class="code" href="classatomic.html#a13">compareAndSet</a>(T oldv, T newv) {
+<a name="l00283"></a>00283         <span class="keywordtype">bool</span> ret = atomicCompareAndSet(oldv, newv, &amp;<a class="code" href="classatomic.html#r0">m_var</a>);
 <a name="l00284"></a>00284         writeBarrier();
 <a name="l00285"></a>00285         <span class="keywordflow">return</span> ret;
 <a name="l00286"></a>00286     }
 <a name="l00287"></a>00287  <span class="keyword">private</span>:
-<a name="l00288"></a><a class="code" href="classatomic.html#c7b212fc1d492f99ce7c2159c528d506">00288</a>     T <a class="code" href="classatomic.html#c7b212fc1d492f99ce7c2159c528d506">m_var</a>;
+<a name="l00288"></a><a class="code" href="classatomic.html#r0">00288</a>     T <a class="code" href="classatomic.html#r0">m_var</a>;
 <a name="l00289"></a>00289 };
 <a name="l00290"></a>00290 
 <a name="l00291"></a>00291 <span class="preprocessor">#endif </span><span class="comment">/*ATOMIC_H_*/</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 17:08:59 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:33 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.5.1 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>
 </html>
