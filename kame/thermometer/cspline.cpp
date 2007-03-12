@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #include "cspline.h"
 #include <vector>
 

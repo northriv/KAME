@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #ifndef GRAPHWIDGET_H
 #define GRAPHWIDGET_H
 
@@ -23,31 +23,31 @@ class XQGraphPainter;
 
 class XQGraph : public QGLWidget
 {
-  Q_OBJECT
+	Q_OBJECT
 
- public:
-  XQGraph( QWidget* parent = 0, const char* name = 0, WFlags fl = 0 );
-  virtual ~XQGraph();
-  //! register XGraph instance just after creating
-  void setGraph(const shared_ptr<XGraph> &);
+public:
+	XQGraph( QWidget* parent = 0, const char* name = 0, WFlags fl = 0 );
+	virtual ~XQGraph();
+	//! register XGraph instance just after creating
+	void setGraph(const shared_ptr<XGraph> &);
 
- protected:
-  virtual void mousePressEvent ( QMouseEvent*);
-  virtual void mouseReleaseEvent ( QMouseEvent*);
-  virtual void mouseDoubleClickEvent ( QMouseEvent*);
-  virtual void mouseMoveEvent ( QMouseEvent*);
-  virtual void wheelEvent ( QWheelEvent *);
-  virtual void showEvent ( QShowEvent * );
-  virtual void hideEvent ( QHideEvent * );  
-  //! openGL stuff
-  virtual void initializeGL ();
-  virtual void resizeGL ( int width, int height );
-  virtual void paintGL ();
- private:  
-  friend class XQGraphPainter;
-  shared_ptr<XGraph> m_graph;
-  shared_ptr<XQGraphPainter> m_painter;
-  xqcon_ptr m_conDialog;
+protected:
+	virtual void mousePressEvent ( QMouseEvent*);
+	virtual void mouseReleaseEvent ( QMouseEvent*);
+	virtual void mouseDoubleClickEvent ( QMouseEvent*);
+	virtual void mouseMoveEvent ( QMouseEvent*);
+	virtual void wheelEvent ( QWheelEvent *);
+	virtual void showEvent ( QShowEvent * );
+	virtual void hideEvent ( QHideEvent * );  
+	//! openGL stuff
+	virtual void initializeGL ();
+	virtual void resizeGL ( int width, int height );
+	virtual void paintGL ();
+private:  
+	friend class XQGraphPainter;
+	shared_ptr<XGraph> m_graph;
+	shared_ptr<XQGraphPainter> m_painter;
+	xqcon_ptr m_conDialog;
 };
 
 #endif // GRAPHWIDGET_H

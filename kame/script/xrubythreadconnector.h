@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #ifndef XRUBYTHREADCONNECTOR_H_
 #define XRUBYTHREADCONNECTOR_H_
 
@@ -22,17 +22,17 @@ class FrmRubyThread;
 
 class XRubyThreadConnector : public XQConnector
 {
- Q_OBJECT
- XQCON_OBJECT
- protected:
+	Q_OBJECT
+	XQCON_OBJECT
+protected:
     XRubyThreadConnector(const shared_ptr<XRubyThread> &rbthread, FrmRubyThread *form,
-            const shared_ptr<XRuby> &rbsupport);
- public: 
+						 const shared_ptr<XRuby> &rbsupport);
+public: 
     virtual ~XRubyThreadConnector();
     
-  const   shared_ptr<XBoolNode> &resume() const {return m_resume;}
-  const   shared_ptr<XNode> &kill() const {return m_kill;}
- private:
+	const   shared_ptr<XBoolNode> &resume() const {return m_resume;}
+	const   shared_ptr<XNode> &kill() const {return m_kill;}
+private:
     const shared_ptr<XBoolNode> m_resume;
     const shared_ptr<XNode> m_kill;
     shared_ptr<XListener> m_lsnOnResumeTouched;

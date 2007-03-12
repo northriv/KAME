@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #include "xdotwriter.h"
 #include <fstream>
 #include "config.h"
@@ -18,7 +18,7 @@
 #include "xlistnode.h"
 
 XDotWriter::XDotWriter(const shared_ptr<XNode> &root, std::ofstream &ofs)
- : m_root(root), m_ofs(ofs), m_unnamedcnt(0)
+	: m_root(root), m_ofs(ofs), m_unnamedcnt(0)
 {
     ASSERT(ofs.good());
     ofs << "/* KAME2 measurement configuration file" << std::endl
@@ -58,20 +58,20 @@ XDotWriter::write(const shared_ptr<XNode> &node)
     int unnamed = 0;
     atomic_shared_ptr<const XNode::NodeList> list(m_root->children());
     if(list) { 
-      for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
-        shared_ptr<XNode> child = *it;
+		for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+			shared_ptr<XNode> child = *it;
            
-        if(child->getName().empty()) {
-            unnamed++;
-        }
-        else {
-            m_ofs << "obj_" << (int)child.get()
-                  << " -> "
-                  << "obj_" << (int)node.get()
-                  << std::endl;
-            write(child);
-        }
-      }
+			if(child->getName().empty()) {
+				unnamed++;
+			}
+			else {
+				m_ofs << "obj_" << (int)child.get()
+					  << " -> "
+					  << "obj_" << (int)node.get()
+					  << std::endl;
+				write(child);
+			}
+		}
     }
     if(unnamed) {
         m_unnamedcnt++;

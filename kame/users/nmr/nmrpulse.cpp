@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 //---------------------------------------------------------------------------
 #include "nmrpulse.h"
 #include "forms/nmrpulseform.h"
@@ -81,329 +81,329 @@ double XNMRPulseAnalyzer::windowFuncKaiser3(double x) {
 
 //---------------------------------------------------------------------------
 XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
-   const shared_ptr<XScalarEntryList> &scalarentries,
-   const shared_ptr<XInterfaceList> &interfaces,
-   const shared_ptr<XThermometerList> &thermometers,
-   const shared_ptr<XDriverList> &drivers)
-  : XSecondaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
-  m_entryCosAv(create<XScalarEntry>("CosAv", false,
-    dynamic_pointer_cast<XDriver>(shared_from_this()))),
-  m_entrySinAv(create<XScalarEntry>("SinAv", false,
-    dynamic_pointer_cast<XDriver>(shared_from_this()))),
-  m_dso(create<XItemNode<XDriverList, XDSO> >("DSO", false, drivers, true)),
-  m_fromTrig(create<XDoubleNode>("FromTrig", false)),
-  m_width(create<XDoubleNode>("Width", false)),
-  m_phaseAdv(create<XDoubleNode>("PhaseAdv", false)),
-  m_useDNR(create<XBoolNode>("UseDNR", false)),
-  m_bgPos(create<XDoubleNode>("BGPos", false)),
-  m_bgWidth(create<XDoubleNode>("BGWidth", false)),
-  m_fftPos(create<XDoubleNode>("FFTPos", false)),
-  m_fftLen(create<XUIntNode>("FFTLen", false)),
-  m_windowFunc(create<XComboNode>("WindowFunc", false, true)),
-  m_difFreq(create<XDoubleNode>("DIFFreq", false)),
-  m_exAvgIncr(create<XBoolNode>("ExAvgIncr", false)),
-  m_extraAvg(create<XUIntNode>("ExtraAvg", false)),
-  m_numEcho(create<XUIntNode>("NumEcho", false)),
-  m_echoPeriod(create<XDoubleNode>("EchoPeriod", false)),
-  m_fftShow(create<XNode>("FFTShow", true)),
-  m_avgClear(create<XNode>("AvgClear", true)),
-  m_picEnabled(create<XBoolNode>("PICEnabled", false)),
-  m_pulser(create<XItemNode<XDriverList, XPulser> >("Pulser", false, drivers, true)),
-  m_piccnt(0),
-  m_form(new FrmNMRPulse(g_pFrmMain)),
-  m_statusPrinter(XStatusPrinter::create(m_form.get())),
-  m_fftForm(new FrmGraphNURL(g_pFrmMain)),
-  m_waveGraph(create<XWaveNGraph>("Wave", true,
-         m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)),
-  m_ftWaveGraph(create<XWaveNGraph>("Spectrum", true, m_fftForm.get())),
-  m_dnrsubfftlen(-1),
-  m_dnrpulsefftlen(-1),
-  m_fftlen(-1)
+									 const shared_ptr<XScalarEntryList> &scalarentries,
+									 const shared_ptr<XInterfaceList> &interfaces,
+									 const shared_ptr<XThermometerList> &thermometers,
+									 const shared_ptr<XDriverList> &drivers)
+	: XSecondaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
+	  m_entryCosAv(create<XScalarEntry>("CosAv", false,
+										dynamic_pointer_cast<XDriver>(shared_from_this()))),
+	  m_entrySinAv(create<XScalarEntry>("SinAv", false,
+										dynamic_pointer_cast<XDriver>(shared_from_this()))),
+	  m_dso(create<XItemNode<XDriverList, XDSO> >("DSO", false, drivers, true)),
+	  m_fromTrig(create<XDoubleNode>("FromTrig", false)),
+	  m_width(create<XDoubleNode>("Width", false)),
+	  m_phaseAdv(create<XDoubleNode>("PhaseAdv", false)),
+	  m_useDNR(create<XBoolNode>("UseDNR", false)),
+	  m_bgPos(create<XDoubleNode>("BGPos", false)),
+	  m_bgWidth(create<XDoubleNode>("BGWidth", false)),
+	  m_fftPos(create<XDoubleNode>("FFTPos", false)),
+	  m_fftLen(create<XUIntNode>("FFTLen", false)),
+	  m_windowFunc(create<XComboNode>("WindowFunc", false, true)),
+	  m_difFreq(create<XDoubleNode>("DIFFreq", false)),
+	  m_exAvgIncr(create<XBoolNode>("ExAvgIncr", false)),
+	  m_extraAvg(create<XUIntNode>("ExtraAvg", false)),
+	  m_numEcho(create<XUIntNode>("NumEcho", false)),
+	  m_echoPeriod(create<XDoubleNode>("EchoPeriod", false)),
+	  m_fftShow(create<XNode>("FFTShow", true)),
+	  m_avgClear(create<XNode>("AvgClear", true)),
+	  m_picEnabled(create<XBoolNode>("PICEnabled", false)),
+	  m_pulser(create<XItemNode<XDriverList, XPulser> >("Pulser", false, drivers, true)),
+	  m_piccnt(0),
+	  m_form(new FrmNMRPulse(g_pFrmMain)),
+	  m_statusPrinter(XStatusPrinter::create(m_form.get())),
+	  m_fftForm(new FrmGraphNURL(g_pFrmMain)),
+	  m_waveGraph(create<XWaveNGraph>("Wave", true,
+									  m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)),
+	  m_ftWaveGraph(create<XWaveNGraph>("Spectrum", true, m_fftForm.get())),
+	  m_dnrsubfftlen(-1),
+	  m_dnrpulsefftlen(-1),
+	  m_fftlen(-1)
 {
     m_form->m_btnAvgClear->setIconSet(
-             KApplication::kApplication()->iconLoader()->loadIconSet("editdelete", 
-            KIcon::Toolbar, KIcon::SizeSmall, true ) );      
+		KApplication::kApplication()->iconLoader()->loadIconSet("editdelete", 
+																KIcon::Toolbar, KIcon::SizeSmall, true ) );      
     m_form->m_btnFFT->setIconSet(
-             KApplication::kApplication()->iconLoader()->loadIconSet("graph", 
-            KIcon::Toolbar, KIcon::SizeSmall, true ) );      
+		KApplication::kApplication()->iconLoader()->loadIconSet("graph", 
+																KIcon::Toolbar, KIcon::SizeSmall, true ) );      
     
-  connect(dso());
-  connect(pulser());
+	connect(dso());
+	connect(pulser());
 
 
-  scalarentries->insert(entryCosAv());
-  scalarentries->insert(entrySinAv());
+	scalarentries->insert(entryCosAv());
+	scalarentries->insert(entrySinAv());
   
-  fromTrig()->value(-0.005);
-  width()->value(0.02);
-  bgPos()->value(0.03);
-  bgWidth()->value(0.03);
-  fftPos()->value(0.004);
-  fftLen()->value(16384);
-  numEcho()->value(1);
-  windowFunc()->add(WINDOW_FUNC_RECT);
-  windowFunc()->add(WINDOW_FUNC_HANNING);
-  windowFunc()->add(WINDOW_FUNC_HAMMING);
-  windowFunc()->add(WINDOW_FUNC_BLACKMAN);
-  windowFunc()->add(WINDOW_FUNC_BLACKMAN_HARRIS);
-  windowFunc()->add(WINDOW_FUNC_FLATTOP);
-  windowFunc()->add(WINDOW_FUNC_KAISER_1);
-  windowFunc()->add(WINDOW_FUNC_KAISER_2);
-  windowFunc()->add(WINDOW_FUNC_KAISER_3);
-  windowFunc()->value(WINDOW_FUNC_RECT);
+	fromTrig()->value(-0.005);
+	width()->value(0.02);
+	bgPos()->value(0.03);
+	bgWidth()->value(0.03);
+	fftPos()->value(0.004);
+	fftLen()->value(16384);
+	numEcho()->value(1);
+	windowFunc()->add(WINDOW_FUNC_RECT);
+	windowFunc()->add(WINDOW_FUNC_HANNING);
+	windowFunc()->add(WINDOW_FUNC_HAMMING);
+	windowFunc()->add(WINDOW_FUNC_BLACKMAN);
+	windowFunc()->add(WINDOW_FUNC_BLACKMAN_HARRIS);
+	windowFunc()->add(WINDOW_FUNC_FLATTOP);
+	windowFunc()->add(WINDOW_FUNC_KAISER_1);
+	windowFunc()->add(WINDOW_FUNC_KAISER_2);
+	windowFunc()->add(WINDOW_FUNC_KAISER_3);
+	windowFunc()->value(WINDOW_FUNC_RECT);
 
-  m_form->setCaption(KAME::i18n("NMR Pulse - ") + getLabel() );
+	m_form->setCaption(KAME::i18n("NMR Pulse - ") + getLabel() );
 
-  m_fftForm->setCaption(KAME::i18n("NMR-FFT - ") + getLabel() );
+	m_fftForm->setCaption(KAME::i18n("NMR-FFT - ") + getLabel() );
 
-  m_conAvgClear = xqcon_create<XQButtonConnector>(m_avgClear, m_form->m_btnAvgClear);
-  m_conFFTShow = xqcon_create<XQButtonConnector>(m_fftShow, m_form->m_btnFFT);
+	m_conAvgClear = xqcon_create<XQButtonConnector>(m_avgClear, m_form->m_btnAvgClear);
+	m_conFFTShow = xqcon_create<XQButtonConnector>(m_fftShow, m_form->m_btnFFT);
     
-  m_conFromTrig = xqcon_create<XQLineEditConnector>(fromTrig(), m_form->m_edPos);
-  m_conWidth = xqcon_create<XQLineEditConnector>(width(), m_form->m_edWidth);
-  m_form->m_numPhaseAdv->setRange(-180.0, 180.0, 1.0, true);
-  m_conPhaseAdv = xqcon_create<XKDoubleNumInputConnector>(phaseAdv(), m_form->m_numPhaseAdv);
-  m_conUseDNR = xqcon_create<XQToggleButtonConnector>(useDNR(), m_form->m_ckbDNR);
-  m_conBGPos = xqcon_create<XQLineEditConnector>(bgPos(), m_form->m_edBGPos);
-  m_conBGWidth = xqcon_create<XQLineEditConnector>(bgWidth(), m_form->m_edBGWidth);
-  m_conFFTPos = xqcon_create<XQLineEditConnector>(fftPos(), m_form->m_edFFTPos);
-  m_conFFTLen = xqcon_create<XQLineEditConnector>(fftLen(), m_form->m_edFFTLen);
-  m_conExtraAv = xqcon_create<XQSpinBoxConnector>(extraAvg(), m_form->m_numExtraAvg);
-  m_conExAvgIncr = xqcon_create<XQToggleButtonConnector>(exAvgIncr(), m_form->m_ckbIncrAvg);
-  m_conNumEcho = xqcon_create<XQSpinBoxConnector>(numEcho(), m_form->m_numEcho);
-  m_conEchoPeriod = xqcon_create<XQLineEditConnector>(echoPeriod(), m_form->m_edEchoPeriod);
-  m_conWindowFunc = xqcon_create<XQComboBoxConnector>(windowFunc(), m_form->m_cmbWindowFunc);
-  m_conDIFFreq = xqcon_create<XQLineEditConnector>(difFreq(), m_form->m_edDIFFreq);
+	m_conFromTrig = xqcon_create<XQLineEditConnector>(fromTrig(), m_form->m_edPos);
+	m_conWidth = xqcon_create<XQLineEditConnector>(width(), m_form->m_edWidth);
+	m_form->m_numPhaseAdv->setRange(-180.0, 180.0, 1.0, true);
+	m_conPhaseAdv = xqcon_create<XKDoubleNumInputConnector>(phaseAdv(), m_form->m_numPhaseAdv);
+	m_conUseDNR = xqcon_create<XQToggleButtonConnector>(useDNR(), m_form->m_ckbDNR);
+	m_conBGPos = xqcon_create<XQLineEditConnector>(bgPos(), m_form->m_edBGPos);
+	m_conBGWidth = xqcon_create<XQLineEditConnector>(bgWidth(), m_form->m_edBGWidth);
+	m_conFFTPos = xqcon_create<XQLineEditConnector>(fftPos(), m_form->m_edFFTPos);
+	m_conFFTLen = xqcon_create<XQLineEditConnector>(fftLen(), m_form->m_edFFTLen);
+	m_conExtraAv = xqcon_create<XQSpinBoxConnector>(extraAvg(), m_form->m_numExtraAvg);
+	m_conExAvgIncr = xqcon_create<XQToggleButtonConnector>(exAvgIncr(), m_form->m_ckbIncrAvg);
+	m_conNumEcho = xqcon_create<XQSpinBoxConnector>(numEcho(), m_form->m_numEcho);
+	m_conEchoPeriod = xqcon_create<XQLineEditConnector>(echoPeriod(), m_form->m_edEchoPeriod);
+	m_conWindowFunc = xqcon_create<XQComboBoxConnector>(windowFunc(), m_form->m_cmbWindowFunc);
+	m_conDIFFreq = xqcon_create<XQLineEditConnector>(difFreq(), m_form->m_edDIFFreq);
 
-  m_conPICEnabled = xqcon_create<XQToggleButtonConnector>(m_picEnabled, m_form->m_ckbPICEnabled);
+	m_conPICEnabled = xqcon_create<XQToggleButtonConnector>(m_picEnabled, m_form->m_ckbPICEnabled);
   
-  m_conPulser = xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser);
-  m_conDSO = xqcon_create<XQComboBoxConnector>(dso(), m_form->m_cmbDSO);
+	m_conPulser = xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser);
+	m_conDSO = xqcon_create<XQComboBoxConnector>(dso(), m_form->m_cmbDSO);
       
-  {
-      const char *labels[] = {"Time [ms]", "Cos [V]", "Sin [V]"};
-      waveGraph()->setColCount(3, labels);
-      waveGraph()->selectAxes(0, 1, 2);
-      waveGraph()->plot1()->label()->value(KAME::i18n("real part"));
-      waveGraph()->plot1()->drawPoints()->value(false);
-      waveGraph()->plot2()->label()->value(KAME::i18n("imag. part"));
-      waveGraph()->plot2()->drawPoints()->value(false);
-      waveGraph()->clear();
-  }
-  {
-      const char *labels[] = {"Freq. [kHz]", "Re. [V]", "Im. [V]", "Abs. [V]", "Phase [deg]"};
-      ftWaveGraph()->setColCount(5, labels);
-      ftWaveGraph()->selectAxes(0, 3, 4);
-      ftWaveGraph()->plot1()->label()->value(KAME::i18n("abs."));
-      ftWaveGraph()->plot1()->drawBars()->value(true);
-      ftWaveGraph()->plot1()->drawLines()->value(false);
-      ftWaveGraph()->plot1()->drawPoints()->value(false);
-      ftWaveGraph()->plot2()->label()->value(KAME::i18n("phase"));
-      ftWaveGraph()->plot2()->drawPoints()->value(false); 
-      ftWaveGraph()->clear();
-  }
+	{
+		const char *labels[] = {"Time [ms]", "Cos [V]", "Sin [V]"};
+		waveGraph()->setColCount(3, labels);
+		waveGraph()->selectAxes(0, 1, 2);
+		waveGraph()->plot1()->label()->value(KAME::i18n("real part"));
+		waveGraph()->plot1()->drawPoints()->value(false);
+		waveGraph()->plot2()->label()->value(KAME::i18n("imag. part"));
+		waveGraph()->plot2()->drawPoints()->value(false);
+		waveGraph()->clear();
+	}
+	{
+		const char *labels[] = {"Freq. [kHz]", "Re. [V]", "Im. [V]", "Abs. [V]", "Phase [deg]"};
+		ftWaveGraph()->setColCount(5, labels);
+		ftWaveGraph()->selectAxes(0, 3, 4);
+		ftWaveGraph()->plot1()->label()->value(KAME::i18n("abs."));
+		ftWaveGraph()->plot1()->drawBars()->value(true);
+		ftWaveGraph()->plot1()->drawLines()->value(false);
+		ftWaveGraph()->plot1()->drawPoints()->value(false);
+		ftWaveGraph()->plot2()->label()->value(KAME::i18n("phase"));
+		ftWaveGraph()->plot2()->drawPoints()->value(false); 
+		ftWaveGraph()->clear();
+	}
   
-  m_lsnOnAvgClear = m_avgClear->onTouch().connectWeak(
-                   shared_from_this(), &XNMRPulseAnalyzer::onAvgClear);
-  m_lsnOnFFTShow = m_fftShow->onTouch().connectWeak(
-                  shared_from_this(), &XNMRPulseAnalyzer::onFFTShow,
-                  XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
+	m_lsnOnAvgClear = m_avgClear->onTouch().connectWeak(
+		shared_from_this(), &XNMRPulseAnalyzer::onAvgClear);
+	m_lsnOnFFTShow = m_fftShow->onTouch().connectWeak(
+		shared_from_this(), &XNMRPulseAnalyzer::onFFTShow,
+		XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
   
-  m_lsnOnCondChanged = fromTrig()->onValueChanged().connectWeak(
-                     shared_from_this(), &XNMRPulseAnalyzer::onCondChanged);
-  width()->onValueChanged().connect(m_lsnOnCondChanged);
-  phaseAdv()->onValueChanged().connect(m_lsnOnCondChanged);
-  useDNR()->onValueChanged().connect(m_lsnOnCondChanged);
-  bgPos()->onValueChanged().connect(m_lsnOnCondChanged);
-  bgWidth()->onValueChanged().connect(m_lsnOnCondChanged);
-  fftPos()->onValueChanged().connect(m_lsnOnCondChanged);
-  fftLen()->onValueChanged().connect(m_lsnOnCondChanged);
-  extraAvg()->onValueChanged().connect(m_lsnOnCondChanged);
-  exAvgIncr()->onValueChanged().connect(m_lsnOnCondChanged);
-  numEcho()->onValueChanged().connect(m_lsnOnCondChanged);
-  echoPeriod()->onValueChanged().connect(m_lsnOnCondChanged);
-  windowFunc()->onValueChanged().connect(m_lsnOnCondChanged);
-  difFreq()->onValueChanged().connect(m_lsnOnCondChanged); 
+	m_lsnOnCondChanged = fromTrig()->onValueChanged().connectWeak(
+		shared_from_this(), &XNMRPulseAnalyzer::onCondChanged);
+	width()->onValueChanged().connect(m_lsnOnCondChanged);
+	phaseAdv()->onValueChanged().connect(m_lsnOnCondChanged);
+	useDNR()->onValueChanged().connect(m_lsnOnCondChanged);
+	bgPos()->onValueChanged().connect(m_lsnOnCondChanged);
+	bgWidth()->onValueChanged().connect(m_lsnOnCondChanged);
+	fftPos()->onValueChanged().connect(m_lsnOnCondChanged);
+	fftLen()->onValueChanged().connect(m_lsnOnCondChanged);
+	extraAvg()->onValueChanged().connect(m_lsnOnCondChanged);
+	exAvgIncr()->onValueChanged().connect(m_lsnOnCondChanged);
+	numEcho()->onValueChanged().connect(m_lsnOnCondChanged);
+	echoPeriod()->onValueChanged().connect(m_lsnOnCondChanged);
+	windowFunc()->onValueChanged().connect(m_lsnOnCondChanged);
+	difFreq()->onValueChanged().connect(m_lsnOnCondChanged); 
 }
 XNMRPulseAnalyzer::~XNMRPulseAnalyzer() {
-      if(m_fftlen >= 0)  fftw_destroy_plan(m_fftplan);
-      if(m_dnrpulsefftlen >= 0)  fftw_destroy_plan(m_dnrpulsefftplan);
-      if(m_dnrsubfftlen >= 0)  fftw_destroy_plan(m_dnrsubfftplan);
+	if(m_fftlen >= 0)  fftw_destroy_plan(m_fftplan);
+	if(m_dnrpulsefftlen >= 0)  fftw_destroy_plan(m_dnrpulsefftplan);
+	if(m_dnrsubfftlen >= 0)  fftw_destroy_plan(m_dnrsubfftplan);
 }
 void
 XNMRPulseAnalyzer::onFFTShow(const shared_ptr<XNode> &)
 {
-   m_fftForm->show();
-   m_fftForm->raise();
+	m_fftForm->show();
+	m_fftForm->raise();
 }
 void
 XNMRPulseAnalyzer::showForms()
 {
-   m_form->show();
-   m_form->raise();
+	m_form->show();
+	m_form->raise();
 }
 
 void
 XNMRPulseAnalyzer::backgroundSub(const std::deque<std::complex<double> > &wave,
-     int pos, int length, int bgpos, int bglength, twindowfunc windowfunc)
+								 int pos, int length, int bgpos, int bglength, twindowfunc windowfunc)
 {
 	if(*useDNR() && (bglength > 0))
     {
-	const int dnrlen = bglength;
-	const int dnrpos = bgpos;
+		const int dnrlen = bglength;
+		const int dnrpos = bgpos;
 
-      //FFT plan for subtraction
-    if(m_dnrsubfftlen != dnrlen)
-    {
-      if(m_dnrsubfftlen >= 0) fftw_destroy_plan(m_dnrsubfftplan);
-      m_dnrsubfftlen = dnrlen;
-      m_dnrsubfftin.resize(m_dnrsubfftlen);
-      m_dnrsubfftout.resize(m_dnrsubfftlen);
-      m_dnrsubfftplan = fftw_create_plan(m_dnrsubfftlen, FFTW_FORWARD, FFTW_ESTIMATE);
-    }
-    //IFFT plan for the subtracted
-    if(m_dnrpulsefftlen != std::max(dnrlen, length))
-    {
-      if(m_dnrpulsefftlen >= 0)  fftw_destroy_plan(m_dnrpulsefftplan);
-      m_dnrpulsefftlen = std::max(dnrlen, length);
-      m_dnrpulsefftin.resize(m_dnrpulsefftlen);
-      m_dnrpulsefftout.resize(m_dnrpulsefftlen);
-      m_dnrpulsefftplan = fftw_create_plan(m_dnrpulsefftlen, FFTW_BACKWARD, FFTW_ESTIMATE);
-    }
+		//FFT plan for subtraction
+		if(m_dnrsubfftlen != dnrlen)
+		{
+			if(m_dnrsubfftlen >= 0) fftw_destroy_plan(m_dnrsubfftplan);
+			m_dnrsubfftlen = dnrlen;
+			m_dnrsubfftin.resize(m_dnrsubfftlen);
+			m_dnrsubfftout.resize(m_dnrsubfftlen);
+			m_dnrsubfftplan = fftw_create_plan(m_dnrsubfftlen, FFTW_FORWARD, FFTW_ESTIMATE);
+		}
+		//IFFT plan for the subtracted
+		if(m_dnrpulsefftlen != std::max(dnrlen, length))
+		{
+			if(m_dnrpulsefftlen >= 0)  fftw_destroy_plan(m_dnrpulsefftplan);
+			m_dnrpulsefftlen = std::max(dnrlen, length);
+			m_dnrpulsefftin.resize(m_dnrpulsefftlen);
+			m_dnrpulsefftout.resize(m_dnrpulsefftlen);
+			m_dnrpulsefftplan = fftw_create_plan(m_dnrpulsefftlen, FFTW_BACKWARD, FFTW_ESTIMATE);
+		}
 
-    for(int i = 0; i < m_dnrsubfftlen; i++)
-    {
-      m_dnrsubfftin[i].re = std::real(wave[i + pos + dnrpos]);
-      m_dnrsubfftin[i].im = std::imag(wave[i + pos + dnrpos]);
-    }
-    fftw_one(m_dnrsubfftplan, &m_dnrsubfftin[0], &m_dnrsubfftout[0]);
+		for(int i = 0; i < m_dnrsubfftlen; i++)
+		{
+			m_dnrsubfftin[i].re = std::real(wave[i + pos + dnrpos]);
+			m_dnrsubfftin[i].im = std::imag(wave[i + pos + dnrpos]);
+		}
+		fftw_one(m_dnrsubfftplan, &m_dnrsubfftin[0], &m_dnrsubfftout[0]);
 
-    //calcurate noise level
-	double nlevel = 0.0;
-	int nlevel_cnt = 0;
+		//calcurate noise level
+		double nlevel = 0.0;
+		int nlevel_cnt = 0;
 #define NOISE_BW 20
-	for(int i = 0; i < m_dnrsubfftlen; i++)
-    {
-      int k = (i < m_dnrsubfftlen/2) ? i : (i - m_dnrsubfftlen);
-      if((abs(k) < NOISE_BW) && (k != 0))
-        { 
-          nlevel += sqrt(m_dnrsubfftout[i].re * m_dnrsubfftout[i].re
-                 + m_dnrsubfftout[i].im * m_dnrsubfftout[i].im);
-          nlevel_cnt++;
-        }
-    }
-    nlevel /= nlevel_cnt;
-    nlevel *= 2.0; //Threshold value
+		for(int i = 0; i < m_dnrsubfftlen; i++)
+		{
+			int k = (i < m_dnrsubfftlen/2) ? i : (i - m_dnrsubfftlen);
+			if((abs(k) < NOISE_BW) && (k != 0))
+			{ 
+				nlevel += sqrt(m_dnrsubfftout[i].re * m_dnrsubfftout[i].re
+							   + m_dnrsubfftout[i].im * m_dnrsubfftout[i].im);
+				nlevel_cnt++;
+			}
+		}
+		nlevel /= nlevel_cnt;
+		nlevel *= 2.0; //Threshold value
 
-    for(int i = 0; i < m_dnrpulsefftlen; i++)
-    {
-      m_dnrpulsefftin[i].re = 0.0;
-      m_dnrpulsefftin[i].im = 0.0;
-    }        
+		for(int i = 0; i < m_dnrpulsefftlen; i++)
+		{
+			m_dnrpulsefftin[i].re = 0.0;
+			m_dnrpulsefftin[i].im = 0.0;
+		}        
 
-    m_noisePower = 0.0;
-    for(int i = 0; i < m_dnrsubfftlen; i++)
-    {
-      int k = (i < m_dnrsubfftlen/2) ? i : (i - m_dnrsubfftlen);
-      if((k != 0)
-         && (sqrt(m_dnrsubfftout[i].re * m_dnrsubfftout[i].re + m_dnrsubfftout[i].im * m_dnrsubfftout[i].im) < nlevel))
-	  {
-          m_noisePower += m_dnrsubfftout[i].re * m_dnrsubfftout[i].re 
+		m_noisePower = 0.0;
+		for(int i = 0; i < m_dnrsubfftlen; i++)
+		{
+			int k = (i < m_dnrsubfftlen/2) ? i : (i - m_dnrsubfftlen);
+			if((k != 0)
+			   && (sqrt(m_dnrsubfftout[i].re * m_dnrsubfftout[i].re + m_dnrsubfftout[i].im * m_dnrsubfftout[i].im) < nlevel))
+			{
+				m_noisePower += m_dnrsubfftout[i].re * m_dnrsubfftout[i].re 
                     + m_dnrsubfftout[i].im * m_dnrsubfftout[i].im;
-          continue;            
-      }
-      const double dphase = - 2 * PI * dnrpos * i / m_dnrsubfftlen;
+				continue;            
+			}
+			const double dphase = - 2 * PI * dnrpos * i / m_dnrsubfftlen;
 
-      const double cx = cos(dphase) / m_dnrsubfftlen;
-      const double sx = sin(dphase) / m_dnrsubfftlen;
-      const int j = i * (m_dnrpulsefftlen - 1) / (m_dnrsubfftlen - 1);
-      ASSERT((j >= 0) || (j < m_dnrpulsefftlen));
-      m_dnrpulsefftin[j].re += cx * m_dnrsubfftout[i].re - sx * m_dnrsubfftout[i].im;
-      m_dnrpulsefftin[j].im += cx * m_dnrsubfftout[i].im + sx * m_dnrsubfftout[i].re;
-    }
-    m_noisePower /= bglength*bglength;   
+			const double cx = cos(dphase) / m_dnrsubfftlen;
+			const double sx = sin(dphase) / m_dnrsubfftlen;
+			const int j = i * (m_dnrpulsefftlen - 1) / (m_dnrsubfftlen - 1);
+			ASSERT((j >= 0) || (j < m_dnrpulsefftlen));
+			m_dnrpulsefftin[j].re += cx * m_dnrsubfftout[i].re - sx * m_dnrsubfftout[i].im;
+			m_dnrpulsefftin[j].im += cx * m_dnrsubfftout[i].im + sx * m_dnrsubfftout[i].re;
+		}
+		m_noisePower /= bglength*bglength;   
 
-	fftw_one(m_dnrpulsefftplan, &m_dnrpulsefftin[0], &m_dnrpulsefftout[0]);
-    for(int i = 0; i < length; i++)
-    {
-      const int j = i % m_dnrpulsefftlen;
-      std::complex<double> c(m_dnrpulsefftout[j].re, m_dnrpulsefftout[j].im);
-      m_wave[i] = wave[pos + i] - c;
+		fftw_one(m_dnrpulsefftplan, &m_dnrpulsefftin[0], &m_dnrpulsefftout[0]);
+		for(int i = 0; i < length; i++)
+		{
+			const int j = i % m_dnrpulsefftlen;
+			std::complex<double> c(m_dnrpulsefftout[j].re, m_dnrpulsefftout[j].im);
+			m_wave[i] = wave[pos + i] - c;
 //    WaveRe[i] = dnrpulsefftout[j].re;
 //    WaveIm[i] = dnrpulsefftout[j].im;
-    }
-  }
-  else
-  {
-      std::complex<double> bg = 0;
-      m_noisePower = 1.0;
-      if(bglength)
-    {
-      double normalize = 0.0;
-          for(int i = 0; i < bglength; i++)
-        {
-        double z = windowfunc( (double)i / bglength - 0.5);
-          bg += z * wave[pos + i + bgpos];
-          normalize += z;
-        }
-          bg /= normalize;
+		}
+	}
+	else
+	{
+		std::complex<double> bg = 0;
+		m_noisePower = 1.0;
+		if(bglength)
+		{
+			double normalize = 0.0;
+			for(int i = 0; i < bglength; i++)
+			{
+				double z = windowfunc( (double)i / bglength - 0.5);
+				bg += z * wave[pos + i + bgpos];
+				normalize += z;
+			}
+			bg /= normalize;
 
-          m_noisePower = 0.0;
-          for(int i = bgpos; i < bgpos + bglength; i++)
-        {
-              m_noisePower += std::norm(wave[pos + i] - bg);
-        }
-          m_noisePower /= bglength;
-    }
+			m_noisePower = 0.0;
+			for(int i = bgpos; i < bgpos + bglength; i++)
+			{
+				m_noisePower += std::norm(wave[pos + i] - bg);
+			}
+			m_noisePower /= bglength;
+		}
 
-    for(int i = 0; i < length; i++)
-    {
-      m_wave[i] = wave[pos + i] - bg;
-    }
-  }            
+		for(int i = 0; i < length; i++)
+		{
+			m_wave[i] = wave[pos + i] - bg;
+		}
+	}            
 }
 void
 XNMRPulseAnalyzer::rotNFFT(int ftpos, 
-    double ph, std::deque<std::complex<double> > &wave, 
-    std::deque<std::complex<double> > &ftwave, twindowfunc windowfunc, int diffreq)
+						   double ph, std::deque<std::complex<double> > &wave, 
+						   std::deque<std::complex<double> > &ftwave, twindowfunc windowfunc, int diffreq)
 {
-const int length = wave.size();
-  //phase advance
-  std::complex<double> cph(cos(ph), sin(ph));
-  for(int i = 0; i < length; i++)
+	const int length = wave.size();
+	//phase advance
+	std::complex<double> cph(cos(ph), sin(ph));
+	for(int i = 0; i < length; i++)
     {
-      wave[i] *= cph;
+		wave[i] *= cph;
     }
 
-  //fft
-  for(int i = 0; i < m_fftlen; i++)
+	//fft
+	for(int i = 0; i < m_fftlen; i++)
     {
-      const int j = (ftpos + i >= m_fftlen) ? (ftpos + i - m_fftlen) : (ftpos + i);
-      const double z = windowfunc((j - ftpos) / (double)length);
-      if((j >= length) || (j < 0)) {
+		const int j = (ftpos + i >= m_fftlen) ? (ftpos + i - m_fftlen) : (ftpos + i);
+		const double z = windowfunc((j - ftpos) / (double)length);
+		if((j >= length) || (j < 0)) {
             m_fftin[i].re = 0;
             m_fftin[i].im = 0;
-      }
-      else {
-         wave[j] *= z;
-         m_fftin[i].re = std::real(wave[j]);
-         m_fftin[i].im = std::imag(wave[j]);
-      }
+		}
+		else {
+			wave[j] *= z;
+			m_fftin[i].re = std::real(wave[j]);
+			m_fftin[i].im = std::imag(wave[j]);
+		}
     }
     
-  fftw_one(m_fftplan, &m_fftin[0], &m_fftout[0]);
+	fftw_one(m_fftplan, &m_fftin[0], &m_fftout[0]);
 
-  for(int i = 0; i < m_fftlen; i++)
+	for(int i = 0; i < m_fftlen; i++)
     {
-      const int k = i + diffreq;
-      if((k >= 0) && (k < m_fftlen)) {
-          const int j = (k < m_fftlen / 2) ? (m_fftlen / 2 + k) : (k - m_fftlen / 2);
-          const double normalize = 1.0 / length;
-          ftwave[i] = std::complex<double>(m_fftout[j].re * normalize, m_fftout[j].im * normalize);
-      }
-      else {
-         ftwave[i] = 0;
-      }
+		const int k = i + diffreq;
+		if((k >= 0) && (k < m_fftlen)) {
+			const int j = (k < m_fftlen / 2) ? (m_fftlen / 2 + k) : (k - m_fftlen / 2);
+			const double normalize = 1.0 / length;
+			ftwave[i] = std::complex<double>(m_fftout[j].re * normalize, m_fftout[j].im * normalize);
+		}
+		else {
+			ftwave[i] = 0;
+		}
     }
 }
 void
@@ -431,253 +431,253 @@ XNMRPulseAnalyzer::checkDependency(const shared_ptr<XDriver> &emitter) const {
 void
 XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
 {
-  const shared_ptr<XDSO> _dso = *dso();
-  ASSERT( _dso );
-  ASSERT( _dso->time() );
+	const shared_ptr<XDSO> _dso = *dso();
+	ASSERT( _dso );
+	ASSERT( _dso->time() );
   
-  if(_dso->numChannelsRecorded() < 1) {
-    throw XRecordError(KAME::i18n("No record in DSO"), __FILE__, __LINE__);
-  }
-  if(_dso->numChannelsRecorded() < 2) {
-    throw XRecordError(KAME::i18n("Two channels needed in DSO"), __FILE__, __LINE__);
-  }
+	if(_dso->numChannelsRecorded() < 1) {
+		throw XRecordError(KAME::i18n("No record in DSO"), __FILE__, __LINE__);
+	}
+	if(_dso->numChannelsRecorded() < 2) {
+		throw XRecordError(KAME::i18n("Two channels needed in DSO"), __FILE__, __LINE__);
+	}
 
-  const double interval = _dso->timeIntervalRecorded();
+	const double interval = _dso->timeIntervalRecorded();
   
-  if(interval <= 0) {
-    throw XRecordError(KAME::i18n("Invalid time interval in waveforms."), __FILE__, __LINE__);
-  }
-  //[sec]
-  m_interval = interval;
-  //[Hz]
-  m_dFreq = 1.0 / m_fftlen / interval;
-  int pos = lrint(*fromTrig() *1e-3 / interval + _dso->trigPosRecorded());
-  //[sec]
-  m_startTime = (pos - _dso->trigPosRecorded()) * interval;
+	if(interval <= 0) {
+		throw XRecordError(KAME::i18n("Invalid time interval in waveforms."), __FILE__, __LINE__);
+	}
+	//[sec]
+	m_interval = interval;
+	//[Hz]
+	m_dFreq = 1.0 / m_fftlen / interval;
+	int pos = lrint(*fromTrig() *1e-3 / interval + _dso->trigPosRecorded());
+	//[sec]
+	m_startTime = (pos - _dso->trigPosRecorded()) * interval;
   
-  if(pos >= (int)_dso->lengthRecorded()) {
-    throw XRecordError(KAME::i18n("Position beyond waveforms."), __FILE__, __LINE__);
-  }
-  if(pos < 0) {
-    throw XRecordError(KAME::i18n("Position beyond waveforms."), __FILE__, __LINE__);
-  }
-  int length = lrint(*width() / 1000 /  interval);
-  if(pos + length >= (int)_dso->lengthRecorded()) {
-    throw XRecordError(KAME::i18n("Invalid length."), __FILE__, __LINE__);
-  }  
-  if(length <= 0) {
-    throw XRecordError(KAME::i18n("Invalid length."), __FILE__, __LINE__);
-  }
+	if(pos >= (int)_dso->lengthRecorded()) {
+		throw XRecordError(KAME::i18n("Position beyond waveforms."), __FILE__, __LINE__);
+	}
+	if(pos < 0) {
+		throw XRecordError(KAME::i18n("Position beyond waveforms."), __FILE__, __LINE__);
+	}
+	int length = lrint(*width() / 1000 /  interval);
+	if(pos + length >= (int)_dso->lengthRecorded()) {
+		throw XRecordError(KAME::i18n("Invalid length."), __FILE__, __LINE__);
+	}  
+	if(length <= 0) {
+		throw XRecordError(KAME::i18n("Invalid length."), __FILE__, __LINE__);
+	}
 
-  const bool skip = (m_timeClearRequested > _dso->timeAwared());
-  bool avgclear = skip;
+	const bool skip = (m_timeClearRequested > _dso->timeAwared());
+	bool avgclear = skip;
 
-  if((int)*fftLen() != m_fftlen)
+	if((int)*fftLen() != m_fftlen)
     {
-      if(m_fftlen >= 0)  fftw_destroy_plan(m_fftplan);
-      m_fftlen = *fftLen();
-      if(lrint(pow(2.0f, rintf(logf((float)m_fftlen) / logf(2.0f)))) != m_fftlen )
+		if(m_fftlen >= 0)  fftw_destroy_plan(m_fftplan);
+		m_fftlen = *fftLen();
+		if(lrint(pow(2.0f, rintf(logf((float)m_fftlen) / logf(2.0f)))) != m_fftlen )
             m_statusPrinter->printWarning(KAME::i18n("FFT length is not a power of 2."), true);
-      m_fftin.resize(m_fftlen);
-      m_fftout.resize(m_fftlen);
-      m_fftplan = fftw_create_plan(m_fftlen, FFTW_FORWARD, FFTW_ESTIMATE);
-      m_ftWave.resize(m_fftlen);
-      m_ftWaveSum.resize(m_fftlen);
+		m_fftin.resize(m_fftlen);
+		m_fftout.resize(m_fftlen);
+		m_fftplan = fftw_create_plan(m_fftlen, FFTW_FORWARD, FFTW_ESTIMATE);
+		m_ftWave.resize(m_fftlen);
+		m_ftWaveSum.resize(m_fftlen);
     }
-  if(length > (int)m_wave.size()) {
-      avgclear = true;
+	if(length > (int)m_wave.size()) {
+		avgclear = true;
     }
-  m_wave.resize(length);
-  m_waveSum.resize(length);
-  m_rawWaveSum.resize(length);
-  if(!*exAvgIncr() && (*extraAvg() < m_waveAv.size())) {
-      avgclear = true;
+	m_wave.resize(length);
+	m_waveSum.resize(length);
+	m_rawWaveSum.resize(length);
+	if(!*exAvgIncr() && (*extraAvg() < m_waveAv.size())) {
+		avgclear = true;
     }
-  if(avgclear || *exAvgIncr()) {
-      m_waveAv.clear();
+	if(avgclear || *exAvgIncr()) {
+		m_waveAv.clear();
     }
-  if(avgclear) {
-      std::fill(m_rawWaveSum.begin(), m_rawWaveSum.end(), 0.0 );
-      m_avcount = 0;
-      m_piccnt = 0;
+	if(avgclear) {
+		std::fill(m_rawWaveSum.begin(), m_rawWaveSum.end(), 0.0 );
+		m_avcount = 0;
+		m_piccnt = 0;
     }
 
-  int bgpos = lrint((*bgPos() - *fromTrig()) / 1000 / interval);
-  if(pos + bgpos >= (int)_dso->lengthRecorded()) {
-    throw XRecordError(KAME::i18n("Position for BG. sub. beyond waveforms."), __FILE__, __LINE__);
-  }  
-  if(bgpos < 0) {
-    throw XRecordError(KAME::i18n("Position for BG. sub. beyond waveforms."), __FILE__, __LINE__);
-  }  
-  int bglength = lrint(*bgWidth() / 1000 /  interval);
-  if(pos + bgpos + bglength >= (int)_dso->lengthRecorded()) {
-    throw XRecordError(KAME::i18n("Invalid Length for BG. sub."), __FILE__, __LINE__);
-  }  
-  if(bglength < 0) {
-    throw XRecordError(KAME::i18n("Invalid Length for BG. sub."), __FILE__, __LINE__);
-  }  
+	int bgpos = lrint((*bgPos() - *fromTrig()) / 1000 / interval);
+	if(pos + bgpos >= (int)_dso->lengthRecorded()) {
+		throw XRecordError(KAME::i18n("Position for BG. sub. beyond waveforms."), __FILE__, __LINE__);
+	}  
+	if(bgpos < 0) {
+		throw XRecordError(KAME::i18n("Position for BG. sub. beyond waveforms."), __FILE__, __LINE__);
+	}  
+	int bglength = lrint(*bgWidth() / 1000 /  interval);
+	if(pos + bgpos + bglength >= (int)_dso->lengthRecorded()) {
+		throw XRecordError(KAME::i18n("Invalid Length for BG. sub."), __FILE__, __LINE__);
+	}  
+	if(bglength < 0) {
+		throw XRecordError(KAME::i18n("Invalid Length for BG. sub."), __FILE__, __LINE__);
+	}  
   
-  if(bglength < length*1.5)
-     m_statusPrinter->printWarning(KAME::i18n("Maybe, length for BG. sub. is too short."));
-  if((bgpos < length) && (bgpos > 0))
-     m_statusPrinter->printWarning(KAME::i18n("Maybe, position for BG. sub. is overrapped against echoes"), true);
+	if(bglength < length*1.5)
+		m_statusPrinter->printWarning(KAME::i18n("Maybe, length for BG. sub. is too short."));
+	if((bgpos < length) && (bgpos > 0))
+		m_statusPrinter->printWarning(KAME::i18n("Maybe, position for BG. sub. is overrapped against echoes"), true);
   
-  int echoperiod = lrint(*echoPeriod() / 1000 /interval);
-  int numechoes = *numEcho();
-  bool bg_after_last_echo = (echoperiod < bgpos + bglength);
-  if(numechoes > 1)
-  {
-    if(pos + echoperiod * (numechoes - 1) + length >= (int)_dso->lengthRecorded()) {
-        throw XRecordError(KAME::i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
-    }
-    if(echoperiod < length) {
-        throw XRecordError(KAME::i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
-    }
-    if(!bg_after_last_echo)
-    {
-        if(bgpos + bglength > echoperiod) {
-            throw XRecordError(KAME::i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
-        }
-        if(pos + echoperiod * (numechoes - 1) + bgpos + bglength >= (int)_dso->lengthRecorded()) {
-            throw XRecordError(KAME::i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
-        }       
-    }
-  }
+	int echoperiod = lrint(*echoPeriod() / 1000 /interval);
+	int numechoes = *numEcho();
+	bool bg_after_last_echo = (echoperiod < bgpos + bglength);
+	if(numechoes > 1)
+	{
+		if(pos + echoperiod * (numechoes - 1) + length >= (int)_dso->lengthRecorded()) {
+			throw XRecordError(KAME::i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
+		}
+		if(echoperiod < length) {
+			throw XRecordError(KAME::i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
+		}
+		if(!bg_after_last_echo)
+		{
+			if(bgpos + bglength > echoperiod) {
+				throw XRecordError(KAME::i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
+			}
+			if(pos + echoperiod * (numechoes - 1) + bgpos + bglength >= (int)_dso->lengthRecorded()) {
+				throw XRecordError(KAME::i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
+			}       
+		}
+	}
   
-  if(skip) {
-    ftWaveGraph()->clear();
-    waveGraph()->clear();
-    throw XSkippedRecordError(__FILE__, __LINE__);
-  }
+	if(skip) {
+		ftWaveGraph()->clear();
+		waveGraph()->clear();
+		throw XSkippedRecordError(__FILE__, __LINE__);
+	}
   
-  m_picRawWaveSum.resize(_dso->lengthRecorded());
-  // Phase Inversion Cycling
-  shared_ptr<XPulser> _pulser(*pulser());
-  bool picenabled = *m_picEnabled;
-  if(picenabled && !_pulser) {
-    picenabled = false;
-    gErrPrint(getLabel() + ": " + KAME::i18n("No Pulser!"));
-  }
+	m_picRawWaveSum.resize(_dso->lengthRecorded());
+	// Phase Inversion Cycling
+	shared_ptr<XPulser> _pulser(*pulser());
+	bool picenabled = *m_picEnabled;
+	if(picenabled && !_pulser) {
+		picenabled = false;
+		gErrPrint(getLabel() + ": " + KAME::i18n("No Pulser!"));
+	}
 
-  if(!picenabled || (m_piccnt == 0)) {
-	  std::fill(m_picRawWaveSum.begin(), m_picRawWaveSum.end(), std::complex<double>(0.0,0.0));
-  }
-  bool inverted = false;
-  if(picenabled) {
-	ASSERT( _pulser->time() );
-    inverted = _pulser->invertPhaseRecorded();
-  }
-  {
-	  const double *rawwavecos, *rawwavesin = NULL;
-	  ASSERT( _dso->numChannelsRecorded() );
-	  rawwavecos = _dso->waveRecorded(0);
-      rawwavesin = _dso->waveRecorded(1);
-	  for(unsigned int i = 0; i < _dso->lengthRecorded(); i++) {
-	  	m_picRawWaveSum[i] += std::complex<double>(rawwavecos[i], rawwavesin[i]) * (inverted ? -1.0 : 1.0);
-	  }
- 	  m_piccnt++;
-  }
+	if(!picenabled || (m_piccnt == 0)) {
+		std::fill(m_picRawWaveSum.begin(), m_picRawWaveSum.end(), std::complex<double>(0.0,0.0));
+	}
+	bool inverted = false;
+	if(picenabled) {
+		ASSERT( _pulser->time() );
+		inverted = _pulser->invertPhaseRecorded();
+	}
+	{
+		const double *rawwavecos, *rawwavesin = NULL;
+		ASSERT( _dso->numChannelsRecorded() );
+		rawwavecos = _dso->waveRecorded(0);
+		rawwavesin = _dso->waveRecorded(1);
+		for(unsigned int i = 0; i < _dso->lengthRecorded(); i++) {
+			m_picRawWaveSum[i] += std::complex<double>(rawwavecos[i], rawwavesin[i]) * (inverted ? -1.0 : 1.0);
+		}
+		m_piccnt++;
+	}
   
-  if(picenabled) {
-	  if(m_piccnt < 2) {
-  		ASSERT( _pulser->time() );
-        _pulser->invertPhase()->value(!inverted);
-	    throw XSkippedRecordError(__FILE__, __LINE__);
-      }
-  }
-  for(int i = 0; i < length; i++) {
-  	m_picRawWaveSum[i] /= (double)m_piccnt;
-  }
-  m_piccnt = 0;
+	if(picenabled) {
+		if(m_piccnt < 2) {
+			ASSERT( _pulser->time() );
+			_pulser->invertPhase()->value(!inverted);
+			throw XSkippedRecordError(__FILE__, __LINE__);
+		}
+	}
+	for(int i = 0; i < length; i++) {
+		m_picRawWaveSum[i] /= (double)m_piccnt;
+	}
+	m_piccnt = 0;
   
-  for(int i = 1; i < numechoes; i++)
-  {
-      int rpos = pos + i * echoperiod;
-      for(int j = 0;
-         j < (!bg_after_last_echo ? std::max(bgpos + bglength, length) : length) ; j++)
-      {
-          int k = rpos + j;
-          ASSERT(k < (int)_dso->lengthRecorded());
-          m_picRawWaveSum[pos + j] += m_picRawWaveSum[k];
-      }
-  }
+	for(int i = 1; i < numechoes; i++)
+	{
+		int rpos = pos + i * echoperiod;
+		for(int j = 0;
+			j < (!bg_after_last_echo ? std::max(bgpos + bglength, length) : length) ; j++)
+		{
+			int k = rpos + j;
+			ASSERT(k < (int)_dso->lengthRecorded());
+			m_picRawWaveSum[pos + j] += m_picRawWaveSum[k];
+		}
+	}
 
-  //Windowing
-  twindowfunc windowfunc = &windowFuncRect;
-  if(windowFunc()->to_str() == WINDOW_FUNC_HANNING) windowfunc = &windowFuncHanning;
-  if(windowFunc()->to_str() == WINDOW_FUNC_HAMMING) windowfunc = &windowFuncHamming;
-  if(windowFunc()->to_str() == WINDOW_FUNC_FLATTOP) windowfunc = &windowFuncFlatTop;
-  if(windowFunc()->to_str() == WINDOW_FUNC_BLACKMAN) windowfunc = &windowFuncBlackman;
-  if(windowFunc()->to_str() == WINDOW_FUNC_BLACKMAN_HARRIS) windowfunc = &windowFuncBlackmanHarris;
-  if(windowFunc()->to_str() == WINDOW_FUNC_KAISER_1) windowfunc = &windowFuncKaiser1;
-  if(windowFunc()->to_str() == WINDOW_FUNC_KAISER_2) windowfunc = &windowFuncKaiser2;
-  if(windowFunc()->to_str() == WINDOW_FUNC_KAISER_3) windowfunc = &windowFuncKaiser3;
+	//Windowing
+	twindowfunc windowfunc = &windowFuncRect;
+	if(windowFunc()->to_str() == WINDOW_FUNC_HANNING) windowfunc = &windowFuncHanning;
+	if(windowFunc()->to_str() == WINDOW_FUNC_HAMMING) windowfunc = &windowFuncHamming;
+	if(windowFunc()->to_str() == WINDOW_FUNC_FLATTOP) windowfunc = &windowFuncFlatTop;
+	if(windowFunc()->to_str() == WINDOW_FUNC_BLACKMAN) windowfunc = &windowFuncBlackman;
+	if(windowFunc()->to_str() == WINDOW_FUNC_BLACKMAN_HARRIS) windowfunc = &windowFuncBlackmanHarris;
+	if(windowFunc()->to_str() == WINDOW_FUNC_KAISER_1) windowfunc = &windowFuncKaiser1;
+	if(windowFunc()->to_str() == WINDOW_FUNC_KAISER_2) windowfunc = &windowFuncKaiser2;
+	if(windowFunc()->to_str() == WINDOW_FUNC_KAISER_3) windowfunc = &windowFuncKaiser3;
   
-  //background subtraction or dynamic noise reduction
-  //write echo into m_wave
-  backgroundSub(m_picRawWaveSum, pos, length, bgpos, bglength, windowfunc);
+	//background subtraction or dynamic noise reduction
+	//write echo into m_wave
+	backgroundSub(m_picRawWaveSum, pos, length, bgpos, bglength, windowfunc);
   
     while(!*exAvgIncr() && (*extraAvg() <= m_waveAv.size()) && !m_waveAv.empty())  {
-      for(int i = 0; i < length; i++) {
-        m_rawWaveSum[i] -= m_waveAv.front()[i];
+		for(int i = 0; i < length; i++) {
+			m_rawWaveSum[i] -= m_waveAv.front()[i];
         }
-      m_waveAv.pop_front();
-      m_avcount--;
+		m_waveAv.pop_front();
+		m_avcount--;
     }
     
     for(int i = 0; i < length; i++) {
-      m_rawWaveSum[i] += m_wave[i];
+		m_rawWaveSum[i] += m_wave[i];
     }
     m_avcount++;
     if(!*exAvgIncr()) {
-      m_waveAv.push_back(m_wave);
+		m_waveAv.push_back(m_wave);
     }
    
-  int ftpos = lrint(*fftPos() * 1e-3 / interval + _dso->trigPosRecorded() - pos);  
-  if((windowfunc != &windowFuncRect) && (abs(ftpos - length/2) > length*0.1))
-     m_statusPrinter->printWarning(KAME::i18n("FFTPos is off-centered for window func."));  
-  double ph = *phaseAdv() * PI / 180;
+	int ftpos = lrint(*fftPos() * 1e-3 / interval + _dso->trigPosRecorded() - pos);  
+	if((windowfunc != &windowFuncRect) && (abs(ftpos - length/2) > length*0.1))
+		m_statusPrinter->printWarning(KAME::i18n("FFTPos is off-centered for window func."));  
+	double ph = *phaseAdv() * PI / 180;
 
-  rotNFFT(ftpos, ph, m_wave, m_ftWave, windowfunc, lrint(*difFreq() * 1000.0 / dFreq()) ); 
+	rotNFFT(ftpos, ph, m_wave, m_ftWave, windowfunc, lrint(*difFreq() * 1000.0 / dFreq()) ); 
   
     entryCosAv()->value(std::real(m_ftWave[m_fftlen / 2]));
     entrySinAv()->value(std::imag(m_ftWave[m_fftlen / 2])); 
   
-  std::copy(m_rawWaveSum.begin(), m_rawWaveSum.end(), m_waveSum.begin() );
-  rotNFFT(ftpos, ph, m_waveSum, m_ftWaveSum, windowfunc, lrint(*difFreq() * 1000.0 / dFreq())); 
+	std::copy(m_rawWaveSum.begin(), m_rawWaveSum.end(), m_waveSum.begin() );
+	rotNFFT(ftpos, ph, m_waveSum, m_ftWaveSum, windowfunc, lrint(*difFreq() * 1000.0 / dFreq())); 
 }
 void
 XNMRPulseAnalyzer::visualize()
 {
-  if(!time()) {
-      ftWaveGraph()->clear();
-      waveGraph()->clear();
-      return;
-  }
+	if(!time()) {
+		ftWaveGraph()->clear();
+		waveGraph()->clear();
+		return;
+	}
 
-  const unsigned int length = m_wave.size();
-  {   XScopedWriteLock<XWaveNGraph> lock(*ftWaveGraph());
-      ftWaveGraph()->setRowCount(m_fftlen);
-      for(int i = 0; i < m_fftlen; i++)
-        {
-          double normalize = 1.0 / m_avcount;
-          ftWaveGraph()->cols(0)[i]
-                = 0.001 * (double)(i - m_fftlen / 2) / m_fftlen / m_interval;
-          ftWaveGraph()->cols(1)[i] = std::real(m_ftWaveSum[i]) * normalize;
-          ftWaveGraph()->cols(2)[i] = std::imag(m_ftWaveSum[i]) * normalize;
-          ftWaveGraph()->cols(3)[i] = std::abs(m_ftWaveSum[i]) * normalize;
-          ftWaveGraph()->cols(4)[i] = std::arg(m_ftWaveSum[i]) / PI * 180;
-        }
-  }
+	const unsigned int length = m_wave.size();
+	{   XScopedWriteLock<XWaveNGraph> lock(*ftWaveGraph());
+	ftWaveGraph()->setRowCount(m_fftlen);
+	for(int i = 0; i < m_fftlen; i++)
+	{
+		double normalize = 1.0 / m_avcount;
+		ftWaveGraph()->cols(0)[i]
+			= 0.001 * (double)(i - m_fftlen / 2) / m_fftlen / m_interval;
+		ftWaveGraph()->cols(1)[i] = std::real(m_ftWaveSum[i]) * normalize;
+		ftWaveGraph()->cols(2)[i] = std::imag(m_ftWaveSum[i]) * normalize;
+		ftWaveGraph()->cols(3)[i] = std::abs(m_ftWaveSum[i]) * normalize;
+		ftWaveGraph()->cols(4)[i] = std::arg(m_ftWaveSum[i]) / PI * 180;
+	}
+	}
 
-  {   XScopedWriteLock<XWaveNGraph> lock(*waveGraph());
-      waveGraph()->setRowCount(length);
-      for(unsigned int i = 0; i < length; i++)
-        {
-          waveGraph()->cols(0)[i] = (startTime() + i * m_interval) * 1e3;
-          waveGraph()->cols(1)[i] = (std::real(m_waveSum[i]) / m_avcount);
-          waveGraph()->cols(2)[i] = (std::imag(m_waveSum[i]) / m_avcount);
-        }
-  }
+	{   XScopedWriteLock<XWaveNGraph> lock(*waveGraph());
+	waveGraph()->setRowCount(length);
+	for(unsigned int i = 0; i < length; i++)
+	{
+		waveGraph()->cols(0)[i] = (startTime() + i * m_interval) * 1e3;
+		waveGraph()->cols(1)[i] = (std::real(m_waveSum[i]) / m_avcount);
+		waveGraph()->cols(2)[i] = (std::imag(m_waveSum[i]) / m_avcount);
+	}
+	}
 }
 

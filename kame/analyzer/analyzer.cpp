@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 //---------------------------------------------------------------------------
 #include "graphform.h"
 #include "graphwidget.h"
@@ -24,19 +24,19 @@
 
 //---------------------------------------------------------------------------
 XScalarEntry::XScalarEntry(const char *name, bool runtime, const shared_ptr<XDriver> &driver,
-    const char *format)
-  : XNode(name, runtime),
-  m_driver(driver),
-  m_delta(create<XDoubleNode>("Delta", false)),
-  m_store(create<XBoolNode>("Store", false)),
-  m_value(create<XDoubleNode>("Value", true)),
-  m_storedValue(create<XDoubleNode>("StoredValue", true)),
-  m_bTriggered(false)
+						   const char *format)
+	: XNode(name, runtime),
+	  m_driver(driver),
+	  m_delta(create<XDoubleNode>("Delta", false)),
+	  m_store(create<XBoolNode>("Store", false)),
+	  m_value(create<XDoubleNode>("Value", true)),
+	  m_storedValue(create<XDoubleNode>("StoredValue", true)),
+	  m_bTriggered(false)
 {
-  m_delta->setFormat(format);
-  m_storedValue->setFormat(format);
-  m_value->setFormat(format);
-  store()->value(false);
+	m_delta->setFormat(format);
+	m_storedValue->setFormat(format);
+	m_value->setFormat(format);
+	store()->value(false);
 }
 bool
 XScalarEntry::isTriggered() const
@@ -53,24 +53,24 @@ XScalarEntry::storeValue()
 std::string
 XScalarEntry::getLabel() const
 {
-  return driver()->getLabel() + "-" + XNode::getLabel();
+	return driver()->getLabel() + "-" + XNode::getLabel();
 }
 
 void
 XScalarEntry::value(double val)
 {
-  if((*delta() != 0) && (fabs(val - *storedValue()) > *delta()))
+	if((*delta() != 0) && (fabs(val - *storedValue()) > *delta()))
     {
         m_bTriggered = true;
     }
-  value()->value(val);
+	value()->value(val);
 }
 
 XValChart::XValChart(const char *name, bool runtime, const shared_ptr<XScalarEntry> &entry)
- : XNode(name, runtime),
-    m_entry(entry),
-    m_graph(create<XGraph>(name, false)),
-    m_graphForm(new FrmGraph(g_pFrmMain))
+	: XNode(name, runtime),
+	  m_entry(entry),
+	  m_graph(create<XGraph>(name, false)),
+	  m_graphForm(new FrmGraph(g_pFrmMain))
 {
     m_graphForm->statusBar()->hide();
     m_graphForm->m_graphwidget->setGraph(m_graph);
@@ -103,7 +103,7 @@ XValChart::XValChart(const char *name, bool runtime, const shared_ptr<XScalarEnt
 void
 XValChart::onRecord(const shared_ptr<XDriver> &driver)
 {
-  double val;
+	double val;
     val = *m_entry->value();
     XTime time = driver->time();
     if(time)
@@ -112,13 +112,13 @@ XValChart::onRecord(const shared_ptr<XDriver> &driver)
 void
 XValChart::showChart(void)
 {
-  m_graphForm->setCaption(KAME::i18n("Chart - ") + getLabel() );
-  m_graphForm->show();
+	m_graphForm->setCaption(KAME::i18n("Chart - ") + getLabel() );
+	m_graphForm->show();
 }
 
 XChartList::XChartList(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries)
-  : XAliasListNode<XValChart>(name, runtime),
-  m_entries(entries)
+	: XAliasListNode<XValChart>(name, runtime),
+	  m_entries(entries)
 {
     m_lsnOnCatchEntry = entries->onCatch().connectWeak(
         shared_from_this(), &XChartList::onCatchEntry);
@@ -135,31 +135,31 @@ XChartList::onCatchEntry(const shared_ptr<XNode> &node)
 void
 XChartList::onReleaseEntry(const shared_ptr<XNode> &node)
 {
-  shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(node);
+	shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(node);
 
-  shared_ptr<XValChart> valchart;
-  atomic_shared_ptr<const XNode::NodeList> list(children());
-  if(list) {
-      for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
-          shared_ptr<XValChart> chart = dynamic_pointer_cast<XValChart>(*it);
-          if(chart->entry() == entry) valchart = chart;
-      }
-  }
-  if(valchart) releaseChild(valchart);
+	shared_ptr<XValChart> valchart;
+	atomic_shared_ptr<const XNode::NodeList> list(children());
+	if(list) {
+		for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+			shared_ptr<XValChart> chart = dynamic_pointer_cast<XValChart>(*it);
+			if(chart->entry() == entry) valchart = chart;
+		}
+	}
+	if(valchart) releaseChild(valchart);
 }
 
 XValGraph::XValGraph(const char *name, bool runtime,
-     const shared_ptr<XScalarEntryList> &entries)
-  : XNode(name, runtime),
-    m_graph(),
-    m_graphForm(),
-    m_axisX(create<tAxis>("AxisX", false, entries)),
-    m_axisY1(create<tAxis>("AxisY1", false, entries)),
-    m_axisZ(create<tAxis>("AxisZ", false, entries))
+					 const shared_ptr<XScalarEntryList> &entries)
+	: XNode(name, runtime),
+	  m_graph(),
+	  m_graphForm(),
+	  m_axisX(create<tAxis>("AxisX", false, entries)),
+	  m_axisY1(create<tAxis>("AxisY1", false, entries)),
+	  m_axisZ(create<tAxis>("AxisZ", false, entries))
 {
     m_lsnAxisChanged = axisX()->onValueChanged().connectWeak(
         shared_from_this(), &XValGraph::onAxisChanged,
-           XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
+		XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
     axisY1()->onValueChanged().connect(m_lsnAxisChanged);
     axisZ()->onValueChanged().connect(m_lsnAxisChanged);
 }
@@ -170,78 +170,78 @@ XValGraph::onAxisChanged(const shared_ptr<XValueNodeBase> &)
     shared_ptr<XScalarEntry> entryy1 = *axisY1();
     shared_ptr<XScalarEntry> entryz = *axisZ();
     
-  if(m_graph) releaseChild(m_graph);
-  m_graph = create<XGraph>(getName().c_str(), false);
-  m_graphForm.reset(new FrmGraph(g_pFrmMain));
-  m_graphForm->statusBar()->hide();
-  m_graphForm->m_graphwidget->setGraph(m_graph);
+	if(m_graph) releaseChild(m_graph);
+	m_graph = create<XGraph>(getName().c_str(), false);
+	m_graphForm.reset(new FrmGraph(g_pFrmMain));
+	m_graphForm->statusBar()->hide();
+	m_graphForm->m_graphwidget->setGraph(m_graph);
 
-  if(!entryx || !entryy1) return;
+	if(!entryx || !entryy1) return;
   
-  m_livePlot = 
-	m_graph->plots()->create<XXYPlot>((m_graph->getName() + "-Live").c_str(), false, m_graph);
-  m_livePlot->label()->value(m_graph->getLabel() + " Live");
-  m_storePlot = 
-    m_graph->plots()->create<XXYPlot>((m_graph->getName() + "-Stored").c_str(), false, m_graph);
-  m_storePlot->label()->value(m_graph->getLabel() + " Stored");
+	m_livePlot = 
+		m_graph->plots()->create<XXYPlot>((m_graph->getName() + "-Live").c_str(), false, m_graph);
+	m_livePlot->label()->value(m_graph->getLabel() + " Live");
+	m_storePlot = 
+		m_graph->plots()->create<XXYPlot>((m_graph->getName() + "-Stored").c_str(), false, m_graph);
+	m_storePlot->label()->value(m_graph->getLabel() + " Stored");
 
-  atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
-  shared_ptr<XAxis> axisx = dynamic_pointer_cast<XAxis>(axes_list->at(0));
-  shared_ptr<XAxis> axisy = dynamic_pointer_cast<XAxis>(axes_list->at(1));
+	atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+	shared_ptr<XAxis> axisx = dynamic_pointer_cast<XAxis>(axes_list->at(0));
+	shared_ptr<XAxis> axisy = dynamic_pointer_cast<XAxis>(axes_list->at(1));
   
-  axisx->ticLabelFormat()->value(entryx->value()->format());
-  axisy->ticLabelFormat()->value(entryy1->value()->format());
-  m_livePlot->axisX()->value(axisx);
-  m_livePlot->axisY()->value(axisy);
-  m_storePlot->axisX()->value(axisx);
-  m_storePlot->axisY()->value(axisy);
+	axisx->ticLabelFormat()->value(entryx->value()->format());
+	axisy->ticLabelFormat()->value(entryy1->value()->format());
+	m_livePlot->axisX()->value(axisx);
+	m_livePlot->axisY()->value(axisy);
+	m_storePlot->axisX()->value(axisx);
+	m_storePlot->axisY()->value(axisy);
   
-  axisx->length()->value(0.95 - *axisx->x());
-  axisy->length()->value(0.90 - *axisy->y());
-  if(entryz) {
-	shared_ptr<XAxis> axisz = m_graph->axes()->create<XAxis>(
+	axisx->length()->value(0.95 - *axisx->x());
+	axisy->length()->value(0.90 - *axisy->y());
+	if(entryz) {
+		shared_ptr<XAxis> axisz = m_graph->axes()->create<XAxis>(
             "Z Axis", false, XAxis::DirAxisZ, false, m_graph);
-    axisz->ticLabelFormat()->value(entryz->value()->format());
-	m_livePlot->axisZ()->value(axisz);
-	m_storePlot->axisZ()->value(axisz);
+		axisz->ticLabelFormat()->value(entryz->value()->format());
+		m_livePlot->axisZ()->value(axisz);
+		m_storePlot->axisZ()->value(axisz);
 //	axisz->label()->value("Z Axis");
-	axisz->label()->value(entryz->getLabel());
-  }
+		axisz->label()->value(entryz->getLabel());
+	}
   
-  m_storePlot->pointColor()->value(clGreen);
-  m_storePlot->lineColor()->value(clGreen);
-  m_storePlot->barColor()->value(clGreen);
-  m_storePlot->displayMajorGrid()->value(false);
-  m_livePlot->maxCount()->value(4000);
-  m_storePlot->maxCount()->value(4000);
-  axisx->label()->value(entryx->getLabel());
-  axisy->label()->value(entryy1->getLabel());
-  m_graph->label()->value(getLabel());
+	m_storePlot->pointColor()->value(clGreen);
+	m_storePlot->lineColor()->value(clGreen);
+	m_storePlot->barColor()->value(clGreen);
+	m_storePlot->displayMajorGrid()->value(false);
+	m_livePlot->maxCount()->value(4000);
+	m_storePlot->maxCount()->value(4000);
+	axisx->label()->value(entryx->getLabel());
+	axisy->label()->value(entryy1->getLabel());
+	m_graph->label()->value(getLabel());
 
-  m_lsnLiveChanged = entryx->value()->onValueChanged().connectWeak(
-    shared_from_this(), &XValGraph::onLiveChanged);
-  entryy1->value()->onValueChanged().connect(m_lsnLiveChanged);
-  if(entryz) entryz->value()->onValueChanged().connect(m_lsnLiveChanged);
+	m_lsnLiveChanged = entryx->value()->onValueChanged().connectWeak(
+		shared_from_this(), &XValGraph::onLiveChanged);
+	entryy1->value()->onValueChanged().connect(m_lsnLiveChanged);
+	if(entryz) entryz->value()->onValueChanged().connect(m_lsnLiveChanged);
   
-  m_lsnStoreChanged = entryx->storedValue()->onValueChanged().connectWeak(
-    shared_from_this(), &XValGraph::onStoreChanged);
-  entryy1->storedValue()->onValueChanged().connect(m_lsnStoreChanged);
-  if(entryz) entryz->storedValue()->onValueChanged().connect(m_lsnStoreChanged);
+	m_lsnStoreChanged = entryx->storedValue()->onValueChanged().connectWeak(
+		shared_from_this(), &XValGraph::onStoreChanged);
+	entryy1->storedValue()->onValueChanged().connect(m_lsnStoreChanged);
+	if(entryz) entryz->storedValue()->onValueChanged().connect(m_lsnStoreChanged);
   
-  showGraph();
+	showGraph();
 }
 
 void
 XValGraph::clearAllPoints()
 {
-  if(!m_graph) return;
-  m_storePlot->clearAllPoints();
-  m_livePlot->clearAllPoints();
+	if(!m_graph) return;
+	m_storePlot->clearAllPoints();
+	m_livePlot->clearAllPoints();
 }
 void
 XValGraph::onLiveChanged(const shared_ptr<XValueNodeBase> &)
 {
-  double x, y, z = 0.0;
+	double x, y, z = 0.0;
     shared_ptr<XScalarEntry> entryx = *axisX();
     shared_ptr<XScalarEntry> entryy1 = *axisY1();
     shared_ptr<XScalarEntry> entryz = *axisZ();
@@ -256,7 +256,7 @@ XValGraph::onLiveChanged(const shared_ptr<XValueNodeBase> &)
 void
 XValGraph::onStoreChanged(const shared_ptr<XValueNodeBase> &)
 {
-  double x, y, z = 0.0;
+	double x, y, z = 0.0;
     shared_ptr<XScalarEntry> entryx = *axisX();
     shared_ptr<XScalarEntry> entryy1 = *axisY1();
     shared_ptr<XScalarEntry> entryz = *axisZ();
@@ -271,15 +271,15 @@ XValGraph::onStoreChanged(const shared_ptr<XValueNodeBase> &)
 void
 XValGraph::showGraph()
 {
-  if(m_graphForm) {
-       m_graphForm->setCaption(KAME::i18n("Graph - ") + getLabel() );
-       m_graphForm->show();
-  }
+	if(m_graphForm) {
+		m_graphForm->setCaption(KAME::i18n("Graph - ") + getLabel() );
+		m_graphForm->show();
+	}
 }
 
 XGraphList::XGraphList(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries)
-  : XCustomTypeListNode<XValGraph>(name, runtime),
-    m_entries(entries)
+	: XCustomTypeListNode<XValGraph>(name, runtime),
+	  m_entries(entries)
 {
 }
 

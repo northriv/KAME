@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 //---------------------------------------------------------------------------
 #include "analyzer.h"
 #include "xnodeconnector.h"
@@ -49,10 +49,10 @@ static const FFTAxis c_fftaxes[] = {
 #define GRAPH_REAL_H_48f_SITE "H-at-48f-site"
 
 XMonteCarloDriver::XMonteCarloDriver(const char *name, bool runtime, 
-   const shared_ptr<XScalarEntryList> &scalarentries,
-   const shared_ptr<XInterfaceList> &interfaces,
-   const shared_ptr<XThermometerList> &thermometers,
-   const shared_ptr<XDriverList> &drivers) :
+									 const shared_ptr<XScalarEntryList> &scalarentries,
+									 const shared_ptr<XInterfaceList> &interfaces,
+									 const shared_ptr<XThermometerList> &thermometers,
+									 const shared_ptr<XDriverList> &drivers) :
     XDummyDriver<XPrimaryDriver>(name, runtime, scalarentries, interfaces, thermometers, drivers),
     m_targetTemp(create<XDoubleNode>("TargetTemp", false)),
     m_targetField(create<XDoubleNode>("TargetField", false)),
@@ -68,48 +68,48 @@ XMonteCarloDriver::XMonteCarloDriver(const char *name, bool runtime,
     m_step(create<XNode>("Step", true)),
     m_graph3D(create<XComboNode>("Graph3D", false, true)),
     m_entryT(create<XScalarEntry>("Temp", false, 
-        dynamic_pointer_cast<XDriver>(shared_from_this()), "%.6g")),
+								  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.6g")),
     m_entryH(create<XScalarEntry>("Field", false,
-        dynamic_pointer_cast<XDriver>(shared_from_this()), "%.6g")),
+								  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.6g")),
     m_entryU(create<XScalarEntry>("U", false,
-        dynamic_pointer_cast<XDriver>(shared_from_this()), "%.6g")),
+								  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.6g")),
     m_entryC(create<XScalarEntry>("C", false,
-        dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4g")),
+								  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4g")),
     m_entryCoT(create<XScalarEntry>("CoverT", false,
-        dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4g")),
+									dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4g")),
     m_entryS(create<XScalarEntry>("S", false,
-        dynamic_pointer_cast<XDriver>(shared_from_this()), "%.6g")),
+								  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.6g")),
     m_entryM(create<XScalarEntry>("M", false,
-        dynamic_pointer_cast<XDriver>(shared_from_this()), "%.6g")),
+								  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.6g")),
     m_entry2in2(create<XScalarEntry>("2in2", false,
-        dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4g")),
+									 dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4g")),
     m_entry1in3(create<XScalarEntry>("1in3", false,
-        dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4g")),
+									 dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4g")),
     m_form(new FrmMonteCarlo(g_pFrmMain)),
     m_wave3D(create<XWaveNGraph>("Wave3D", false, 
-        m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)),
+								 m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)),
     m_statusPrinter(XStatusPrinter::create(m_form.get())),
     m_fftlen(-1)
 {
-  scalarentries->insert(m_entryT);
-  scalarentries->insert(m_entryH);
-  scalarentries->insert(m_entryU);
-  scalarentries->insert(m_entryC);
-  scalarentries->insert(m_entryCoT);
-  scalarentries->insert(m_entryS);
-  scalarentries->insert(m_entryM);
-  scalarentries->insert(m_entry2in2);
-  scalarentries->insert(m_entry1in3);
-  m_targetTemp->value(100.0);
-  m_hdirx->value(1.0);
-  m_hdiry->value(1.0);
-  m_hdirz->value(1.0);
-  m_L->value(8);
-  m_cutoffReal->value(4.0);
-  m_cutoffRec->value(2.0);
-  m_alpha->value(0.5);
-  m_minTests->value(1.0);
-  m_minFlips->value(0.2);
+	scalarentries->insert(m_entryT);
+	scalarentries->insert(m_entryH);
+	scalarentries->insert(m_entryU);
+	scalarentries->insert(m_entryC);
+	scalarentries->insert(m_entryCoT);
+	scalarentries->insert(m_entryS);
+	scalarentries->insert(m_entryM);
+	scalarentries->insert(m_entry2in2);
+	scalarentries->insert(m_entry1in3);
+	m_targetTemp->value(100.0);
+	m_hdirx->value(1.0);
+	m_hdiry->value(1.0);
+	m_hdirz->value(1.0);
+	m_L->value(8);
+	m_cutoffReal->value(4.0);
+	m_cutoffRec->value(2.0);
+	m_alpha->value(0.5);
+	m_minTests->value(1.0);
+	m_minFlips->value(0.2);
   
 //  for(const FFTAxis *axis = c_fftaxes; axis->desc; axis++) {
 //    m_fftAxisX->add(axis->desc);
@@ -118,31 +118,31 @@ XMonteCarloDriver::XMonteCarloDriver(const char *name, bool runtime,
 //  m_fftAxisX->value(0);
 //  m_fftAxisY->value(1);
   
-  m_graph3D->add(GRAPH_3D_FFT_INTENS_ABS);
-  m_graph3D->add(GRAPH_3D_FFT_INTENS_X);
-  m_graph3D->add(GRAPH_3D_FFT_INTENS_Y);
-  m_graph3D->add(GRAPH_3D_FFT_INTENS_Z);
-  m_graph3D->add(GRAPH_3D_FFT_INTENS_M);
-  m_graph3D->add(GRAPH_REAL_M);
-  m_graph3D->add(GRAPH_REAL_H);
-  m_graph3D->add(GRAPH_REAL_P);
-  m_graph3D->add(GRAPH_REAL_H_B_SITE);
-  m_graph3D->add(GRAPH_REAL_H_8a_SITE);
-  m_graph3D->add(GRAPH_REAL_H_48f_SITE);
+	m_graph3D->add(GRAPH_3D_FFT_INTENS_ABS);
+	m_graph3D->add(GRAPH_3D_FFT_INTENS_X);
+	m_graph3D->add(GRAPH_3D_FFT_INTENS_Y);
+	m_graph3D->add(GRAPH_3D_FFT_INTENS_Z);
+	m_graph3D->add(GRAPH_3D_FFT_INTENS_M);
+	m_graph3D->add(GRAPH_REAL_M);
+	m_graph3D->add(GRAPH_REAL_H);
+	m_graph3D->add(GRAPH_REAL_P);
+	m_graph3D->add(GRAPH_REAL_H_B_SITE);
+	m_graph3D->add(GRAPH_REAL_H_8a_SITE);
+	m_graph3D->add(GRAPH_REAL_H_48f_SITE);
   
-  m_conLength = xqcon_create<XQLineEditConnector>(m_L, m_form->m_edLength);
-  m_conCutoffReal = xqcon_create<XQLineEditConnector>(m_cutoffReal, m_form->m_edCutoffReal);
-  m_conCutoffRec = xqcon_create<XQLineEditConnector>(m_cutoffRec, m_form->m_edCutoffRec);
-  m_conAlpha = xqcon_create<XQLineEditConnector>(m_alpha, m_form->m_edAlpha);
-  m_conTargetTemp = xqcon_create<XQLineEditConnector>(m_targetTemp, m_form->m_edTargetTemp);
-  m_conTargetField = xqcon_create<XQLineEditConnector>(m_targetField, m_form->m_edTargetField);
-  m_conHDirX = xqcon_create<XQLineEditConnector>(m_hdirx, m_form->m_edHDirX);
-  m_conHDirY = xqcon_create<XQLineEditConnector>(m_hdiry, m_form->m_edHDirY);
-  m_conHDirZ = xqcon_create<XQLineEditConnector>(m_hdirz, m_form->m_edHDirZ);
-  m_conMinTests = xqcon_create<XQLineEditConnector>(m_minTests, m_form->m_edMinTests);
-  m_conMinFlips = xqcon_create<XQLineEditConnector>(m_minFlips, m_form->m_edMinFlips);
-  m_conStep = xqcon_create<XQButtonConnector>(m_step, m_form->m_btnStep);
-  m_conGraph3D = xqcon_create<XQComboBoxConnector>(m_graph3D, m_form->m_cmbGraph3D);
+	m_conLength = xqcon_create<XQLineEditConnector>(m_L, m_form->m_edLength);
+	m_conCutoffReal = xqcon_create<XQLineEditConnector>(m_cutoffReal, m_form->m_edCutoffReal);
+	m_conCutoffRec = xqcon_create<XQLineEditConnector>(m_cutoffRec, m_form->m_edCutoffRec);
+	m_conAlpha = xqcon_create<XQLineEditConnector>(m_alpha, m_form->m_edAlpha);
+	m_conTargetTemp = xqcon_create<XQLineEditConnector>(m_targetTemp, m_form->m_edTargetTemp);
+	m_conTargetField = xqcon_create<XQLineEditConnector>(m_targetField, m_form->m_edTargetField);
+	m_conHDirX = xqcon_create<XQLineEditConnector>(m_hdirx, m_form->m_edHDirX);
+	m_conHDirY = xqcon_create<XQLineEditConnector>(m_hdiry, m_form->m_edHDirY);
+	m_conHDirZ = xqcon_create<XQLineEditConnector>(m_hdirz, m_form->m_edHDirZ);
+	m_conMinTests = xqcon_create<XQLineEditConnector>(m_minTests, m_form->m_edMinTests);
+	m_conMinFlips = xqcon_create<XQLineEditConnector>(m_minFlips, m_form->m_edMinFlips);
+	m_conStep = xqcon_create<XQButtonConnector>(m_step, m_form->m_btnStep);
+	m_conGraph3D = xqcon_create<XQComboBoxConnector>(m_graph3D, m_form->m_cmbGraph3D);
 
     m_L->setUIEnabled(true);
     m_cutoffReal->setUIEnabled(true);
@@ -156,30 +156,30 @@ XMonteCarloDriver::XMonteCarloDriver(const char *name, bool runtime,
     m_targetField->setUIEnabled(true);
 
     const char *s_trace_names[] = {
-      "h or x", "k or y", "l or z", "intens.", "hx", "hy", "hz", "site"
+		"h or x", "k or y", "l or z", "intens.", "hx", "hy", "hz", "site"
     };
-  m_wave3D->setColCount(8, s_trace_names); 
-  m_wave3D->selectAxes(0, 1, -1, 3, 2);
-  m_wave3D->clear();
-  m_wave3D->plot1()->drawLines()->value(false);
+	m_wave3D->setColCount(8, s_trace_names); 
+	m_wave3D->selectAxes(0, 1, -1, 3, 2);
+	m_wave3D->clear();
+	m_wave3D->plot1()->drawLines()->value(false);
 
-  m_wave3D->graph()->backGround()->value(QColor(0,0,0).rgb());
-  m_wave3D->plot1()->intensity()->value(2);
-  m_wave3D->plot1()->colorPlot()->value(true);
-  m_wave3D->plot1()->colorPlotColorHigh()->value(QColor(0xFF, 0xFF, 0x2F).rgb());
-  m_wave3D->plot1()->colorPlotColorLow()->value(QColor(0x00, 0x00, 0xFF).rgb());
-  m_wave3D->plot1()->pointColor()->value(QColor(0x00, 0xFF, 0x00).rgb());
-  m_wave3D->plot1()->majorGridColor()->value(QColor(0x4A, 0x4A, 0x4A).rgb());
-  m_wave3D->graph()->titleColor()->value(clWhite);
-  m_wave3D->axisx()->ticColor()->value(clWhite);
-  m_wave3D->axisx()->labelColor()->value(clWhite);
-  m_wave3D->axisx()->ticLabelColor()->value(clWhite);  
-  m_wave3D->axisy()->ticColor()->value(clWhite);
-  m_wave3D->axisy()->labelColor()->value(clWhite);
-  m_wave3D->axisy()->ticLabelColor()->value(clWhite);  
-  m_wave3D->axisz()->ticColor()->value(clWhite);
-  m_wave3D->axisz()->labelColor()->value(clWhite);
-  m_wave3D->axisz()->ticLabelColor()->value(clWhite);  
+	m_wave3D->graph()->backGround()->value(QColor(0,0,0).rgb());
+	m_wave3D->plot1()->intensity()->value(2);
+	m_wave3D->plot1()->colorPlot()->value(true);
+	m_wave3D->plot1()->colorPlotColorHigh()->value(QColor(0xFF, 0xFF, 0x2F).rgb());
+	m_wave3D->plot1()->colorPlotColorLow()->value(QColor(0x00, 0x00, 0xFF).rgb());
+	m_wave3D->plot1()->pointColor()->value(QColor(0x00, 0xFF, 0x00).rgb());
+	m_wave3D->plot1()->majorGridColor()->value(QColor(0x4A, 0x4A, 0x4A).rgb());
+	m_wave3D->graph()->titleColor()->value(clWhite);
+	m_wave3D->axisx()->ticColor()->value(clWhite);
+	m_wave3D->axisx()->labelColor()->value(clWhite);
+	m_wave3D->axisx()->ticLabelColor()->value(clWhite);  
+	m_wave3D->axisy()->ticColor()->value(clWhite);
+	m_wave3D->axisy()->labelColor()->value(clWhite);
+	m_wave3D->axisy()->ticLabelColor()->value(clWhite);  
+	m_wave3D->axisz()->ticColor()->value(clWhite);
+	m_wave3D->axisz()->labelColor()->value(clWhite);
+	m_wave3D->axisz()->ticLabelColor()->value(clWhite);  
 }
 
 void
@@ -214,12 +214,12 @@ XMonteCarloDriver::start()
     m_lastMagnetization = m_loop->magnetization().innerProduct(field_dir);
 
     m_lsnTargetChanged = m_targetTemp->onValueChanged().connectWeak(
-                  shared_from_this(), &XMonteCarloDriver::onTargetChanged);
+		shared_from_this(), &XMonteCarloDriver::onTargetChanged);
     m_targetField->onValueChanged().connect(m_lsnTargetChanged);
     m_lsnStepTouched = m_step->onTouch().connectWeak(
-                  shared_from_this(), &XMonteCarloDriver::onStepTouched);
+		shared_from_this(), &XMonteCarloDriver::onStepTouched);
     m_lsnGraphChanged = m_graph3D->onValueChanged().connectWeak(
-                  shared_from_this(), &XMonteCarloDriver::onGraphChanged);
+		shared_from_this(), &XMonteCarloDriver::onGraphChanged);
 
     if(m_fftlen > 0)
         fftwnd_destroy_plan(m_fftplan);
@@ -299,67 +299,67 @@ XMonteCarloDriver::analyzeRaw() throw (XRecordError&)
 void
 XMonteCarloDriver::visualize()
 {
- //! impliment extra codes which do not need write-lock of record
- //! record is read-locked
-  if(!time()) {
-      m_wave3D->clear();
-      return;
-  }
+	//! impliment extra codes which do not need write-lock of record
+	//! record is read-locked
+	if(!time()) {
+		m_wave3D->clear();
+		return;
+	}
     
-  bool fftx = false;
-  bool ffty = false;
-  bool fftz = false;
-  bool fft_intens_abs = false;
-  bool along_field_dir = false;
-  bool calch = false;
-  bool calcp = false;
-  bool calcasite = false;
-  bool calcbsite = false;
-  bool calc8asite = false;
-  bool calc48fsite = false;
-  if(m_graph3D->to_str() == GRAPH_3D_FFT_INTENS_ABS) {
-    fftx = true;
-    ffty = true;
-    fftz = true;
-    fft_intens_abs = true;
-  }
-  if(m_graph3D->to_str() == GRAPH_3D_FFT_INTENS_X) {
-    fftx = true;
-  }
-  if(m_graph3D->to_str() == GRAPH_3D_FFT_INTENS_Y) {
-    ffty = true;
-  }
-  if(m_graph3D->to_str() == GRAPH_3D_FFT_INTENS_Z) {
-    fftz = true;
-  }
-  if(m_graph3D->to_str() == GRAPH_3D_FFT_INTENS_M) {
-    fftx = true;
-    ffty = true;
-    fftz = true;
-    along_field_dir = true;
-  }
-  if(m_graph3D->to_str() == GRAPH_REAL_M) {
-    calcasite = true;
-    along_field_dir = true;
-  }
-  if(m_graph3D->to_str() == GRAPH_REAL_H) {
-    calcasite = true;
-    calch = true;
-  }
-  if(m_graph3D->to_str() == GRAPH_REAL_P) {
-    calcasite = true;
-    calch = true;
-    calcp = true;
-  }
-  if(m_graph3D->to_str() == GRAPH_REAL_H_B_SITE) {
-    calcbsite = true;
-  }
-  if(m_graph3D->to_str() == GRAPH_REAL_H_8a_SITE) {
-    calc8asite = true;
-  }
-  if(m_graph3D->to_str() == GRAPH_REAL_H_48f_SITE) {
-    calc48fsite = true;
-  }
+	bool fftx = false;
+	bool ffty = false;
+	bool fftz = false;
+	bool fft_intens_abs = false;
+	bool along_field_dir = false;
+	bool calch = false;
+	bool calcp = false;
+	bool calcasite = false;
+	bool calcbsite = false;
+	bool calc8asite = false;
+	bool calc48fsite = false;
+	if(m_graph3D->to_str() == GRAPH_3D_FFT_INTENS_ABS) {
+		fftx = true;
+		ffty = true;
+		fftz = true;
+		fft_intens_abs = true;
+	}
+	if(m_graph3D->to_str() == GRAPH_3D_FFT_INTENS_X) {
+		fftx = true;
+	}
+	if(m_graph3D->to_str() == GRAPH_3D_FFT_INTENS_Y) {
+		ffty = true;
+	}
+	if(m_graph3D->to_str() == GRAPH_3D_FFT_INTENS_Z) {
+		fftz = true;
+	}
+	if(m_graph3D->to_str() == GRAPH_3D_FFT_INTENS_M) {
+		fftx = true;
+		ffty = true;
+		fftz = true;
+		along_field_dir = true;
+	}
+	if(m_graph3D->to_str() == GRAPH_REAL_M) {
+		calcasite = true;
+		along_field_dir = true;
+	}
+	if(m_graph3D->to_str() == GRAPH_REAL_H) {
+		calcasite = true;
+		calch = true;
+	}
+	if(m_graph3D->to_str() == GRAPH_REAL_P) {
+		calcasite = true;
+		calch = true;
+		calcp = true;
+	}
+	if(m_graph3D->to_str() == GRAPH_REAL_H_B_SITE) {
+		calcbsite = true;
+	}
+	if(m_graph3D->to_str() == GRAPH_REAL_H_8a_SITE) {
+		calc8asite = true;
+	}
+	if(m_graph3D->to_str() == GRAPH_REAL_H_48f_SITE) {
+		calc48fsite = true;
+	}
 
     int size = m_store->length();
     std::vector<char> spins(size*size*size*16);
@@ -368,215 +368,215 @@ XMonteCarloDriver::visualize()
     std::vector<double> probabilities;
     if(calcp) probabilities.resize(size*size*size*16);
     m_store->write((char*)&spins[0]
-        , fields.size() ? &fields[0] : 0, probabilities.size() ? &probabilities[0] : 0);
+				   , fields.size() ? &fields[0] : 0, probabilities.size() ? &probabilities[0] : 0);
     for(int d = 0; d < 3; d++) {
         for(int site = 0; site < 16; site++) {
             const int *pos = cg_ASitePositions[site];
             int ising = cg_ASiteIsingAxes[site][d];
             for(int k = 0; k < size; k++) {
-            for(int j = 0; j < size; j++) {
-            for(int i = 0; i < size; i++) {
-                int fftidx = m_fftlen*(m_fftlen*(4*k+pos[2]) + 4*j+pos[1]) + 4*i + pos[0];
-                int spin = spins[size*(size*(size*site + k) + j) + i];
-                m_fftin[d][fftidx].re = spin* ising / sqrt(3.0);
-            }
-            }
+				for(int j = 0; j < size; j++) {
+					for(int i = 0; i < size; i++) {
+						int fftidx = m_fftlen*(m_fftlen*(4*k+pos[2]) + 4*j+pos[1]) + 4*i + pos[0];
+						int spin = spins[size*(size*(size*site + k) + j) + i];
+						m_fftin[d][fftidx].re = spin* ising / sqrt(3.0);
+					}
+				}
             }
         }
     }
     
-  MonteCarlo::Vector3<double> field_dir(*m_hdirx,*m_hdiry,*m_hdirz);
-  field_dir.normalize();
+	MonteCarlo::Vector3<double> field_dir(*m_hdirx,*m_hdiry,*m_hdirz);
+	field_dir.normalize();
     
 
-  if(fftx || ffty || fftz)
-  {
-    fftwnd_one(m_fftplan, &m_fftin[0][0], &m_fftout[0][0]);
-    fftwnd_one(m_fftplan, &m_fftin[1][0], &m_fftout[1][0]);
-    fftwnd_one(m_fftplan, &m_fftin[2][0], &m_fftout[2][0]);
+	if(fftx || ffty || fftz)
+	{
+		fftwnd_one(m_fftplan, &m_fftin[0][0], &m_fftout[0][0]);
+		fftwnd_one(m_fftplan, &m_fftin[1][0], &m_fftout[1][0]);
+		fftwnd_one(m_fftplan, &m_fftin[2][0], &m_fftout[2][0]);
     
-      XScopedWriteLock<XWaveNGraph> lock(*m_wave3D);
-      m_wave3D->setRowCount(m_fftlen * m_fftlen * m_fftlen );
+		XScopedWriteLock<XWaveNGraph> lock(*m_wave3D);
+		m_wave3D->setRowCount(m_fftlen * m_fftlen * m_fftlen );
         double normalize = A_MOMENT / m_fftlen / m_fftlen / m_fftlen;
         int idx = 0;
         for(int l = 0; l < m_fftlen; l++) {
-        for(int k = 0; k < m_fftlen; k++) {
-        for(int h = 0; h < m_fftlen; h++) {
-            int qidx = m_fftlen*(m_fftlen*l + k) + h;
-            fftw_complex ix = m_fftout[0][qidx];
-            fftw_complex iy = m_fftout[1][qidx];
-            fftw_complex iz = m_fftout[2][qidx];
-            m_wave3D->cols(0)[idx] = (double)h * 8.0/m_fftlen;
-            m_wave3D->cols(1)[idx] = (double)k * 8.0/m_fftlen;
-            m_wave3D->cols(2)[idx] = (double)l * 8.0/m_fftlen;
-            double v = 0.0;
-            if(along_field_dir) {
-                double vr = field_dir.innerProduct(MonteCarlo::Vector3<double>
-                    (ix.re, iy.re, iz.re));
-                double vi = field_dir.innerProduct(MonteCarlo::Vector3<double>
-                    (ix.im, iy.im, iz.im));
-                v = vr*vr + vi * vi;
-            }
-            else {
-                if(fftx) v+= ix.re*ix.re + ix.im*ix.im;
-                if(ffty) v+= iy.re*iy.re + iy.im*iy.im;
-                if(fftz) v+= iz.re*iz.re + iz.im*iz.im;
-            }
-            v = sqrt(v);
-            m_wave3D->cols(3)[idx] = v * normalize;
-            m_wave3D->cols(4)[idx] = (ix.re*ix.re + ix.im*ix.im) * normalize;
-            m_wave3D->cols(5)[idx] = (iy.re*iy.re + iy.im*iy.im) * normalize;
-            m_wave3D->cols(6)[idx] = (iz.re*iz.re + iz.im*iz.im) * normalize;
-            m_wave3D->cols(7)[idx] = 0;
-            idx++;
+			for(int k = 0; k < m_fftlen; k++) {
+				for(int h = 0; h < m_fftlen; h++) {
+					int qidx = m_fftlen*(m_fftlen*l + k) + h;
+					fftw_complex ix = m_fftout[0][qidx];
+					fftw_complex iy = m_fftout[1][qidx];
+					fftw_complex iz = m_fftout[2][qidx];
+					m_wave3D->cols(0)[idx] = (double)h * 8.0/m_fftlen;
+					m_wave3D->cols(1)[idx] = (double)k * 8.0/m_fftlen;
+					m_wave3D->cols(2)[idx] = (double)l * 8.0/m_fftlen;
+					double v = 0.0;
+					if(along_field_dir) {
+						double vr = field_dir.innerProduct(MonteCarlo::Vector3<double>
+														   (ix.re, iy.re, iz.re));
+						double vi = field_dir.innerProduct(MonteCarlo::Vector3<double>
+														   (ix.im, iy.im, iz.im));
+						v = vr*vr + vi * vi;
+					}
+					else {
+						if(fftx) v+= ix.re*ix.re + ix.im*ix.im;
+						if(ffty) v+= iy.re*iy.re + iy.im*iy.im;
+						if(fftz) v+= iz.re*iz.re + iz.im*iz.im;
+					}
+					v = sqrt(v);
+					m_wave3D->cols(3)[idx] = v * normalize;
+					m_wave3D->cols(4)[idx] = (ix.re*ix.re + ix.im*ix.im) * normalize;
+					m_wave3D->cols(5)[idx] = (iy.re*iy.re + iy.im*iy.im) * normalize;
+					m_wave3D->cols(6)[idx] = (iz.re*iz.re + iz.im*iz.im) * normalize;
+					m_wave3D->cols(7)[idx] = 0;
+					idx++;
+				}
+			}
         }
-        }
-        }
-  }
-  if(calcasite)
-  {   XScopedWriteLock<XWaveNGraph> lock(*m_wave3D);
-     int idx = 0;
-      m_wave3D->setRowCount(16*size*size*size);
-        for(int site = 0; site < 16; site++) {
-            const int *pos = cg_ASitePositions[site];
-            for(int k = 0; k < size; k++) {
+	}
+	if(calcasite)
+	{   XScopedWriteLock<XWaveNGraph> lock(*m_wave3D);
+	int idx = 0;
+	m_wave3D->setRowCount(16*size*size*size);
+	for(int site = 0; site < 16; site++) {
+		const int *pos = cg_ASitePositions[site];
+		for(int k = 0; k < size; k++) {
             for(int j = 0; j < size; j++) {
-            for(int i = 0; i < size; i++) {
-                int sidx = size*(size*(size*site + k) + j) + i;
-                int fftidx = m_fftlen*(m_fftlen*(4*k+pos[2]) + 4*j+pos[1]) + 4*i + pos[0];
-                double x = i + pos[0] * 0.25;
-                double y = j + pos[1] * 0.25;
-                double z = k + pos[2] * 0.25;
-                m_wave3D->cols(0)[idx] = x;
-                m_wave3D->cols(1)[idx] = y;
-                m_wave3D->cols(2)[idx] = z;
-                double sx = m_fftin[0][fftidx].re;
-                double sy = m_fftin[1][fftidx].re;
-                double sz = m_fftin[2][fftidx].re;
-                double v = 0.0;
-                if(along_field_dir) {
-                    v = field_dir.innerProduct(MonteCarlo::Vector3<double>
-                        (sx,sy,sz)) * A_MOMENT;
-                }
-                else
-                    if(calcp) {
-                        v = probabilities[sidx];
-                    }
-                    else
-                        if(calch) {
-                            v = fields[sidx];
-                        }
-                m_wave3D->cols(3)[idx] = v;
-                m_wave3D->cols(4)[idx] = sx;
-                m_wave3D->cols(5)[idx] = sy;
-                m_wave3D->cols(6)[idx] = sz;
-                m_wave3D->cols(7)[idx] = site;
-                idx++;
+				for(int i = 0; i < size; i++) {
+					int sidx = size*(size*(size*site + k) + j) + i;
+					int fftidx = m_fftlen*(m_fftlen*(4*k+pos[2]) + 4*j+pos[1]) + 4*i + pos[0];
+					double x = i + pos[0] * 0.25;
+					double y = j + pos[1] * 0.25;
+					double z = k + pos[2] * 0.25;
+					m_wave3D->cols(0)[idx] = x;
+					m_wave3D->cols(1)[idx] = y;
+					m_wave3D->cols(2)[idx] = z;
+					double sx = m_fftin[0][fftidx].re;
+					double sy = m_fftin[1][fftidx].re;
+					double sz = m_fftin[2][fftidx].re;
+					double v = 0.0;
+					if(along_field_dir) {
+						v = field_dir.innerProduct(MonteCarlo::Vector3<double>
+												   (sx,sy,sz)) * A_MOMENT;
+					}
+					else
+						if(calcp) {
+							v = probabilities[sidx];
+						}
+						else
+							if(calch) {
+								v = fields[sidx];
+							}
+					m_wave3D->cols(3)[idx] = v;
+					m_wave3D->cols(4)[idx] = sx;
+					m_wave3D->cols(5)[idx] = sy;
+					m_wave3D->cols(6)[idx] = sz;
+					m_wave3D->cols(7)[idx] = site;
+					idx++;
+				}
             }
-            }
-            }
-        }
-  }
-  if(calcbsite)
-  {
-     std::vector<MonteCarlo::Vector3<double> > fields(16*size*size*size);
-     m_store->write_bsite(&fields[0]);
-     XScopedWriteLock<XWaveNGraph> lock(*m_wave3D);
-     int idx = 0;
-      m_wave3D->setRowCount(16*size*size*size);
+		}
+	}
+	}
+	if(calcbsite)
+	{
+		std::vector<MonteCarlo::Vector3<double> > fields(16*size*size*size);
+		m_store->write_bsite(&fields[0]);
+		XScopedWriteLock<XWaveNGraph> lock(*m_wave3D);
+		int idx = 0;
+		m_wave3D->setRowCount(16*size*size*size);
         for(int site = 0; site < 16; site++) {
             const int *pos = cg_BSitePositions[site];
             for(int k = 0; k < size; k++) {
-            for(int j = 0; j < size; j++) {
-            for(int i = 0; i < size; i++) {
-                int sidx = size*(size*(size*site + k) + j) + i;
-                MonteCarlo::Vector3<double> h(fields[sidx]);
-                double x = i + pos[0] * 0.25;
-                double y = j + pos[1] * 0.25;
-                double z = k + pos[2] * 0.25;
-                m_wave3D->cols(0)[idx] = x;
-                m_wave3D->cols(1)[idx] = y;
-                m_wave3D->cols(2)[idx] = z;
-                m_wave3D->cols(3)[idx] = h.abs();
-                m_wave3D->cols(4)[idx] = h.x;
-                m_wave3D->cols(5)[idx] = h.y;
-                m_wave3D->cols(6)[idx] = h.z;
-                m_wave3D->cols(7)[idx] = site;
-                idx++;
-            }
-            }
+				for(int j = 0; j < size; j++) {
+					for(int i = 0; i < size; i++) {
+						int sidx = size*(size*(size*site + k) + j) + i;
+						MonteCarlo::Vector3<double> h(fields[sidx]);
+						double x = i + pos[0] * 0.25;
+						double y = j + pos[1] * 0.25;
+						double z = k + pos[2] * 0.25;
+						m_wave3D->cols(0)[idx] = x;
+						m_wave3D->cols(1)[idx] = y;
+						m_wave3D->cols(2)[idx] = z;
+						m_wave3D->cols(3)[idx] = h.abs();
+						m_wave3D->cols(4)[idx] = h.x;
+						m_wave3D->cols(5)[idx] = h.y;
+						m_wave3D->cols(6)[idx] = h.z;
+						m_wave3D->cols(7)[idx] = site;
+						idx++;
+					}
+				}
             }
         }
-  }
-  if(calc8asite)
-  {
-     std::vector<MonteCarlo::Vector3<double> > fields(8*size*size*size);
-     m_store->write_8asite(&fields[0]);
-     XScopedWriteLock<XWaveNGraph> lock(*m_wave3D);
-     int idx = 0;
-      m_wave3D->setRowCount(8*size*size*size);
+	}
+	if(calc8asite)
+	{
+		std::vector<MonteCarlo::Vector3<double> > fields(8*size*size*size);
+		m_store->write_8asite(&fields[0]);
+		XScopedWriteLock<XWaveNGraph> lock(*m_wave3D);
+		int idx = 0;
+		m_wave3D->setRowCount(8*size*size*size);
         for(int site = 0; site < 8; site++) {
             const int *pos = cg_8aSitePositions[site];
             for(int k = 0; k < size; k++) {
-            for(int j = 0; j < size; j++) {
-            for(int i = 0; i < size; i++) {
-                int sidx = size*(size*(size*site + k) + j) + i;
-                MonteCarlo::Vector3<double> h(fields[sidx]);
-                double x = i + pos[0] * 0.125;
-                double y = j + pos[1] * 0.125;
-                double z = k + pos[2] * 0.125;
-                m_wave3D->cols(0)[idx] = x;
-                m_wave3D->cols(1)[idx] = y;
-                m_wave3D->cols(2)[idx] = z;
-                m_wave3D->cols(3)[idx] = h.abs();
-                m_wave3D->cols(4)[idx] = h.x;
-                m_wave3D->cols(5)[idx] = h.y;
-                m_wave3D->cols(6)[idx] = h.z;
-                m_wave3D->cols(7)[idx] = site;
-                idx++;
-            }
-            }
+				for(int j = 0; j < size; j++) {
+					for(int i = 0; i < size; i++) {
+						int sidx = size*(size*(size*site + k) + j) + i;
+						MonteCarlo::Vector3<double> h(fields[sidx]);
+						double x = i + pos[0] * 0.125;
+						double y = j + pos[1] * 0.125;
+						double z = k + pos[2] * 0.125;
+						m_wave3D->cols(0)[idx] = x;
+						m_wave3D->cols(1)[idx] = y;
+						m_wave3D->cols(2)[idx] = z;
+						m_wave3D->cols(3)[idx] = h.abs();
+						m_wave3D->cols(4)[idx] = h.x;
+						m_wave3D->cols(5)[idx] = h.y;
+						m_wave3D->cols(6)[idx] = h.z;
+						m_wave3D->cols(7)[idx] = site;
+						idx++;
+					}
+				}
             }
         }
-  }
-  if(calc48fsite)
-  {
-     std::vector<MonteCarlo::Vector3<double> > fields(48*size*size*size);
-     m_store->write_48fsite(&fields[0]);
-     XScopedWriteLock<XWaveNGraph> lock(*m_wave3D);
-     int idx = 0;
-      m_wave3D->setRowCount(48*size*size*size);
+	}
+	if(calc48fsite)
+	{
+		std::vector<MonteCarlo::Vector3<double> > fields(48*size*size*size);
+		m_store->write_48fsite(&fields[0]);
+		XScopedWriteLock<XWaveNGraph> lock(*m_wave3D);
+		int idx = 0;
+		m_wave3D->setRowCount(48*size*size*size);
         for(int site = 0; site < 48; site++) {
             const double *pos = cg_48fSitePositions[site];
             for(int k = 0; k < size; k++) {
-            for(int j = 0; j < size; j++) {
-            for(int i = 0; i < size; i++) {
-                int sidx = size*(size*(size*site + k) + j) + i;
-                MonteCarlo::Vector3<double> h(fields[sidx]);
-                double x = i + pos[0] * 0.125;
-                double y = j + pos[1] * 0.125;
-                double z = k + pos[2] * 0.125;
-                m_wave3D->cols(0)[idx] = x;
-                m_wave3D->cols(1)[idx] = y;
-                m_wave3D->cols(2)[idx] = z;
-                m_wave3D->cols(3)[idx] = h.abs();
-                m_wave3D->cols(4)[idx] = h.x;
-                m_wave3D->cols(5)[idx] = h.y;
-                m_wave3D->cols(6)[idx] = h.z;
-                m_wave3D->cols(7)[idx] = site;
-                idx++;
-            }
-            }
+				for(int j = 0; j < size; j++) {
+					for(int i = 0; i < size; i++) {
+						int sidx = size*(size*(size*site + k) + j) + i;
+						MonteCarlo::Vector3<double> h(fields[sidx]);
+						double x = i + pos[0] * 0.125;
+						double y = j + pos[1] * 0.125;
+						double z = k + pos[2] * 0.125;
+						m_wave3D->cols(0)[idx] = x;
+						m_wave3D->cols(1)[idx] = y;
+						m_wave3D->cols(2)[idx] = z;
+						m_wave3D->cols(3)[idx] = h.abs();
+						m_wave3D->cols(4)[idx] = h.x;
+						m_wave3D->cols(5)[idx] = h.y;
+						m_wave3D->cols(6)[idx] = h.z;
+						m_wave3D->cols(7)[idx] = site;
+						idx++;
+					}
+				}
             }
         }
-  }
+	}
 }
 void
 XMonteCarloDriver::onGraphChanged(const shared_ptr<XValueNodeBase> &)
 {
-  readLockRecord();
-  visualize();
-  readUnlockRecord();
+	readLockRecord();
+	visualize();
+	readUnlockRecord();
   
 }
 void

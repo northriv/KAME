@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #ifndef XNODECONNECTOR_PRV_H_
 #define XNODECONNECTOR_PRV_H_
 
@@ -27,7 +27,7 @@ void _sharedPtrQDeleter(QObject *);
 template <class T>
 class qshared_ptr : public shared_ptr<T>
 {
- public:
+public:
     qshared_ptr() : shared_ptr<T>() {}
     template <class Y>
     qshared_ptr(const qshared_ptr<Y> &p) 
@@ -35,8 +35,8 @@ class qshared_ptr : public shared_ptr<T>
     template <class Y>
     explicit qshared_ptr(Y * p) 
         : shared_ptr<T>(p, _sharedPtrQDeleter) {
-            ASSERT(isMainThread());
-         }
+		ASSERT(isMainThread());
+	}
     template <class Y>
     qshared_ptr<T> &operator=(const qshared_ptr<Y> &p) {
         shared_ptr<T>::operator=(p);
@@ -48,16 +48,16 @@ class XQConnector;
 
 class _XQConnectorHolder : public QObject
 {
-  Q_OBJECT
- public:
-  _XQConnectorHolder(XQConnector *con);
-  ~_XQConnectorHolder();
-  bool isAlive() const;
- private slots:
- protected slots:
-  void destroyed ();
- protected:
-  shared_ptr<XQConnector> m_connector;
+	Q_OBJECT
+public:
+	_XQConnectorHolder(XQConnector *con);
+	~_XQConnectorHolder();
+	bool isAlive() const;
+private slots:
+		protected slots:
+void destroyed ();
+protected:
+	shared_ptr<XQConnector> m_connector;
 };
 
 typedef qshared_ptr<_XQConnectorHolder> xqcon_ptr;
@@ -66,21 +66,21 @@ typedef qshared_ptr<_XQConnectorHolder> xqcon_ptr;
 template <class T, class A, class B>
 xqcon_ptr xqcon_create(const shared_ptr<A> &a, B *b) {
     xqcon_ptr pHolder(new _XQConnectorHolder( new
-          T(a, b)));
+											  T(a, b)));
     return pHolder;
 }
 //! function for creating XQConnector instances
 template <class T, class A, class B, typename C>
 xqcon_ptr xqcon_create(const shared_ptr<A> &a, B *b, C c) {
     xqcon_ptr pHolder(new _XQConnectorHolder( new
-          T(a, b, c)));        
+											  T(a, b, c)));        
     return pHolder;
 }
 //! function for creating XQConnector instances
 template <class T, class A, class B, typename C, typename D>
 xqcon_ptr xqcon_create(const shared_ptr<A> &a, B *b, C c, D d) {
     xqcon_ptr pHolder(new _XQConnectorHolder( new
-          T(a, b, c, d)));        
+											  T(a, b, c, d)));        
     return pHolder;
 }
 

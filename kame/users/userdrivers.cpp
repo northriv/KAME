@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #include "users/testdriver.h"
 #include "users/dmm/userdmm.h"
 #include "users/dso/tds.h"
@@ -54,10 +54,10 @@ REGISTER_TYPE(HP8643, "Agilent 8643 signal generator");
 REGISTER_TYPE(HP8648, "Agilent 8648 signal generator");
 REGISTER_TYPE(TDS, "Tektronix DSO");
 #ifdef HAVE_NI_DAQMX
-    REGISTER_TYPE(NIDAQmxDSO, "National Instruments DAQ as DSO");
-    REGISTER_TYPE(NIDAQAODOPulser, "NMR pulser NI-DAQ analog/digital output");
-    REGISTER_TYPE(NIDAQDOPulser, "NMR pulser NI-DAQ digital output only");
-    REGISTER_TYPE(NIDAQMSeriesWithSSeriesPulser, "NMR pulser NI-DAQ M Series with S Series");
+REGISTER_TYPE(NIDAQmxDSO, "National Instruments DAQ as DSO");
+REGISTER_TYPE(NIDAQAODOPulser, "NMR pulser NI-DAQ analog/digital output");
+REGISTER_TYPE(NIDAQDOPulser, "NMR pulser NI-DAQ digital output only");
+REGISTER_TYPE(NIDAQMSeriesWithSSeriesPulser, "NMR pulser NI-DAQ M Series with S Series");
 #endif
 REGISTER_TYPE(H8Pulser, "NMR pulser handmade-H8");
 REGISTER_TYPE(SHPulser, "NMR pulser handmade-SH2");
@@ -72,7 +72,7 @@ shared_ptr<XNode>
 XDriverList::createByTypename(const std::string &type, const std::string& name) {
     shared_ptr<XNode> ptr = (*creator(type))
         (name.c_str(), false, m_scalarentries, m_interfaces, m_thermometers,
-                dynamic_pointer_cast<XDriverList>(shared_from_this()));
+		 dynamic_pointer_cast<XDriverList>(shared_from_this()));
     if(ptr) insert(ptr);
     return ptr;
 }

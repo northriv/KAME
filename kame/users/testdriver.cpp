@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 //---------------------------------------------------------------------------
 #include "testdriver.h"
 #include "analyzer.h"
@@ -18,18 +18,18 @@
 #include <qstatusbar.h>
 
 XTestDriver::XTestDriver(const char *name, bool runtime, 
-   const shared_ptr<XScalarEntryList> &scalarentries,
-   const shared_ptr<XInterfaceList> &interfaces,
-   const shared_ptr<XThermometerList> &thermometers,
-   const shared_ptr<XDriverList> &drivers) :
+						 const shared_ptr<XScalarEntryList> &scalarentries,
+						 const shared_ptr<XInterfaceList> &interfaces,
+						 const shared_ptr<XThermometerList> &thermometers,
+						 const shared_ptr<XDriverList> &drivers) :
     XDummyDriver<XPrimaryDriver>(name, runtime, scalarentries, interfaces, thermometers, drivers),
     m_entryX(create<XScalarEntry>("X", false, 
-        dynamic_pointer_cast<XDriver>(shared_from_this()), "%.3g")),
+								  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.3g")),
     m_entryY(create<XScalarEntry>("Y", false,
-        dynamic_pointer_cast<XDriver>(shared_from_this()), "%+.4f[K]"))
+								  dynamic_pointer_cast<XDriver>(shared_from_this()), "%+.4f[K]"))
 {
-  scalarentries->insert(m_entryX);
-  scalarentries->insert(m_entryY);
+	scalarentries->insert(m_entryX);
+	scalarentries->insert(m_entryY);
 }
 
 void
@@ -60,24 +60,24 @@ XTestDriver::analyzeRaw() throw (XRecordError&)
 void
 XTestDriver::visualize()
 {
- //! impliment extra codes which do not need write-lock of record
- //! record is read-locked
+	//! impliment extra codes which do not need write-lock of record
+	//! record is read-locked
 }
 
 void *
 XTestDriver::execute(const atomic<bool> &terminated)
 {
-  while(!terminated)
+	while(!terminated)
     {
-      msecsleep(10);
-      double x = (double)KAME::rand() / RAND_MAX - 0.2;
-      double y = (double)KAME::rand() / RAND_MAX - 0.2;
-      clearRaw();
-      push(x);
-      push(y);
-      finishWritingRaw(XTime::now(), XTime::now());
+		msecsleep(10);
+		double x = (double)KAME::rand() / RAND_MAX - 0.2;
+		double y = (double)KAME::rand() / RAND_MAX - 0.2;
+		clearRaw();
+		push(x);
+		push(y);
+		finishWritingRaw(XTime::now(), XTime::now());
     }
-  afterStop();
-  return NULL;
+	afterStop();
+	return NULL;
 }
 

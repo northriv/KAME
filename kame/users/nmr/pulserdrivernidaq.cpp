@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #include "pulserdrivernidaq.h"
 
 #ifdef HAVE_NI_DAQMX
@@ -19,13 +19,13 @@
 #include <klocale.h>
 
 XNIDAQMSeriesWithSSeriesPulser::XNIDAQMSeriesWithSSeriesPulser(const char *name, bool runtime,
-   const shared_ptr<XScalarEntryList> &scalarentries,
-   const shared_ptr<XInterfaceList> &interfaces,
-   const shared_ptr<XThermometerList> &thermometers,
-   const shared_ptr<XDriverList> &drivers) :
+															   const shared_ptr<XScalarEntryList> &scalarentries,
+															   const shared_ptr<XInterfaceList> &interfaces,
+															   const shared_ptr<XThermometerList> &thermometers,
+															   const shared_ptr<XDriverList> &drivers) :
     XNIDAQmxPulser(name, runtime, scalarentries, interfaces, thermometers, drivers),
 	m_ao_interface(XNode::create<XNIDAQmxInterface>("SubInterface", false,
-            dynamic_pointer_cast<XDriver>(this->shared_from_this())))
+													dynamic_pointer_cast<XDriver>(this->shared_from_this())))
 {
     interfaces->insert(m_ao_interface);
     m_ao_interface->control()->setUIEnabled(false);

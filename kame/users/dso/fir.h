@@ -10,9 +10,9 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 /*
-Finite Impulse Response Filter
+  Finite Impulse Response Filter
 */
 
 
@@ -21,9 +21,9 @@ Finite Impulse Response Filter
 
 #include <vector>
 
-  class FIR
- {
- public:
+class FIR
+{
+public:
  	FIR();
 	~FIR();
 	//! makes coeff. for BPF. Window func. method.
@@ -35,7 +35,7 @@ Finite Impulse Response Filter
 	//! \param dst a pointer to dst
 	//! \param len length
 	int doFIR(double *src, double *dst, int len);
- private:
+private:
  	float oneFIR(float x, float *z, float *coeff, int taps);
 	int m_Taps; ///< a number of taps divided by 2
 	double m_BandWidth;

@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 //---------------------------------------------------------------------------
 
 #include "recorder.h"
@@ -25,10 +25,10 @@
 #define OFSMODE std::ios::out | std::ios::app | std::ios::ate
 
 XRawStream::XRawStream(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist)
- : XNode(name, runtime),
-    m_drivers(driverlist),
-    m_pGFD(0),
-    m_filename(create<XStringNode>("Filename", true))
+	: XNode(name, runtime),
+	  m_drivers(driverlist),
+	  m_pGFD(0),
+	  m_filename(create<XStringNode>("Filename", true))
 {
 }
 XRawStream::~XRawStream()
@@ -37,8 +37,8 @@ XRawStream::~XRawStream()
 }    
 
 XRawStreamRecorder::XRawStreamRecorder(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist)
- : XRawStream(name, runtime, driverlist),
-    m_recording(create<XBoolNode>("Recording", true))
+	: XRawStream(name, runtime, driverlist),
+	  m_recording(create<XBoolNode>("Recording", true))
 {
     recording()->value(false);
     
@@ -70,18 +70,18 @@ XRawStreamRecorder::onRelease(const shared_ptr<XNode> &node)
 void
 XRawStreamRecorder::onOpen(const shared_ptr<XValueNodeBase> &)
 {
-  if(m_pGFD) gzclose(m_pGFD);
-  m_pGFD = gzopen(QString(filename()->to_str()).local8Bit(), "wb");
+	if(m_pGFD) gzclose(m_pGFD);
+	m_pGFD = gzopen(QString(filename()->to_str()).local8Bit(), "wb");
 }
 void
 XRawStreamRecorder::onFlush(const shared_ptr<XValueNodeBase> &)
 {
-  if(!*recording())
-     if(m_pGFD) {
-        m_filemutex.lock();    
-        gzflush(m_pGFD, Z_FULL_FLUSH);
-        m_filemutex.unlock();    
-     }
+	if(!*recording())
+		if(m_pGFD) {
+			m_filemutex.lock();    
+			gzflush(m_pGFD, Z_FULL_FLUSH);
+			m_filemutex.unlock();    
+		}
 }
 void
 XRawStreamRecorder::onRecord(const shared_ptr<XDriver> &d)
@@ -126,13 +126,13 @@ XRawStreamRecorder::onRecord(const shared_ptr<XDriver> &d)
 
 
 XTextWriter::XTextWriter(const char *name, bool runtime,
-     const shared_ptr<XDriverList> &driverlist, const shared_ptr<XScalarEntryList> &entrylist)
-  : XNode(name, runtime),
-    m_drivers(driverlist),
-    m_entries(entrylist),
-    m_filename(create<XStringNode>("Filename", true)),
-    m_lastLine(create<XStringNode>("LastLine", true)),
-    m_recording(create<XBoolNode>("Recording", true))
+						 const shared_ptr<XDriverList> &driverlist, const shared_ptr<XScalarEntryList> &entrylist)
+	: XNode(name, runtime),
+	  m_drivers(driverlist),
+	  m_entries(entrylist),
+	  m_filename(create<XStringNode>("Filename", true)),
+	  m_lastLine(create<XStringNode>("LastLine", true)),
+	  m_recording(create<XBoolNode>("Recording", true))
 {
     recording()->value(false);
     lastLine()->setUIEnabled(false);
@@ -162,19 +162,19 @@ XTextWriter::onRelease(const shared_ptr<XNode> &node)
 }
 void
 XTextWriter::onLastLineChanged(const shared_ptr<XValueNodeBase> &) {
-  XScopedLock<XRecursiveMutex> lock(m_filemutex);  
-  if(m_stream.good())
-  {
+	XScopedLock<XRecursiveMutex> lock(m_filemutex);  
+	if(m_stream.good())
+	{
         m_stream << lastLine()->to_str()
-                << std::endl;
-  }
+				 << std::endl;
+	}
 }
 void
 XTextWriter::onRecord(const shared_ptr<XDriver> &driver)
 {
-     if(*recording() == true)
+	if(*recording() == true)
 	{
-	  if(driver->time())
+		if(driver->time())
 	    {
             XTime triggered_time;
             std::deque<shared_ptr<XScalarEntry> > locked_entries;
@@ -182,35 +182,35 @@ XTextWriter::onRecord(const shared_ptr<XDriver> &driver)
             atomic_shared_ptr<const XNode::NodeList> list(m_entries->children());
             if(list) { 
                 for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
-                      shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(*it);
-                      if(!*entry->store()) continue;
-                      shared_ptr<XDriver> d(entry->driver());
-                      if(!d) continue;
-                      locked_entries.push_back(entry);
-                      d->readLockRecord();
-                      if(entry->isTriggered()) triggered_time = entry->driver()->time();
+					shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(*it);
+					if(!*entry->store()) continue;
+					shared_ptr<XDriver> d(entry->driver());
+					if(!d) continue;
+					locked_entries.push_back(entry);
+					d->readLockRecord();
+					if(entry->isTriggered()) triggered_time = entry->driver()->time();
                 }
             }
             if(triggered_time) {
-                    XRecordDependency dep;
-                    for(std::deque<shared_ptr<XScalarEntry> >::iterator it = locked_entries.begin();
-                        it != locked_entries.end(); it++) {
-                          shared_ptr<XDriver> d((*it)->driver());
-                          if(!d) continue;
-                          dep.merge(d);
-                          if(dep.isConflict()) break;
-                    }
-                    if(!dep.isConflict()) {
-                        std::string buf;
-                        for(std::deque<shared_ptr<XScalarEntry> >::iterator it = locked_entries.begin();
-                            it != locked_entries.end(); it++) {
-                              if(!*(*it)->store()) continue;
-                              (*it)->storeValue();
-                              buf.append((*it)->storedValue()->to_str() + " ");
-                        }
-                    	    buf.append(driver->time().getTimeFmtStr("%Y/%m/%d %H:%M:%S"));
-            	            lastLine()->value(buf);
-                    }
+				XRecordDependency dep;
+				for(std::deque<shared_ptr<XScalarEntry> >::iterator it = locked_entries.begin();
+					it != locked_entries.end(); it++) {
+					shared_ptr<XDriver> d((*it)->driver());
+					if(!d) continue;
+					dep.merge(d);
+					if(dep.isConflict()) break;
+				}
+				if(!dep.isConflict()) {
+					std::string buf;
+					for(std::deque<shared_ptr<XScalarEntry> >::iterator it = locked_entries.begin();
+						it != locked_entries.end(); it++) {
+						if(!*(*it)->store()) continue;
+						(*it)->storeValue();
+						buf.append((*it)->storedValue()->to_str() + " ");
+					}
+					buf.append(driver->time().getTimeFmtStr("%Y/%m/%d %H:%M:%S"));
+					lastLine()->value(buf);
+				}
             }
             for(std::deque<shared_ptr<XScalarEntry> >::iterator it = locked_entries.begin();
                 it != locked_entries.end(); it++) {
@@ -218,52 +218,52 @@ XTextWriter::onRecord(const shared_ptr<XDriver> &driver)
                 if(!d) continue;
                 d->readUnlockRecord();
             }
-    	    }
+		}
 	}
 }
 
 void
 XTextWriter::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
 {
-  XScopedLock<XRecursiveMutex> lock(m_filemutex);  
-  if(m_stream.is_open()) m_stream.close();
-  m_stream.clear();
-  m_stream.open((const char*)QString(filename()->to_str()).local8Bit(), OFSMODE);
+	XScopedLock<XRecursiveMutex> lock(m_filemutex);  
+	if(m_stream.is_open()) m_stream.close();
+	m_stream.clear();
+	m_stream.open((const char*)QString(filename()->to_str()).local8Bit(), OFSMODE);
 
-  if(m_stream.good()) {
-    m_lsnOnFlush = recording()->onValueChanged().connectWeak(
-        shared_from_this(), &XTextWriter::onFlush);
-    m_lsnOnLastLineChanged = lastLine()->onValueChanged().connectWeak(
-        shared_from_this(), &XTextWriter::onLastLineChanged);
-    lastLine()->setUIEnabled(true);
+	if(m_stream.good()) {
+		m_lsnOnFlush = recording()->onValueChanged().connectWeak(
+			shared_from_this(), &XTextWriter::onFlush);
+		m_lsnOnLastLineChanged = lastLine()->onValueChanged().connectWeak(
+			shared_from_this(), &XTextWriter::onLastLineChanged);
+		lastLine()->setUIEnabled(true);
 
-    std::string buf;
-    buf = "#";
-    atomic_shared_ptr<const XNode::NodeList> list(m_entries->children());
-    if(list) { 
-        for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
-          shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(*it);
-          if(!*entry->store()) continue;
-          buf.append(entry->getLabel());
-          buf.append(" ");
-        }
-    }
-    buf.append("Time");
-    lastLine()->value(buf);
-  }
-  else {
-    m_lsnOnFlush.reset();
-    m_lsnOnLastLineChanged.reset();
-    lastLine()->setUIEnabled(false);
-  }
+		std::string buf;
+		buf = "#";
+		atomic_shared_ptr<const XNode::NodeList> list(m_entries->children());
+		if(list) { 
+			for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+				shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(*it);
+				if(!*entry->store()) continue;
+				buf.append(entry->getLabel());
+				buf.append(" ");
+			}
+		}
+		buf.append("Time");
+		lastLine()->value(buf);
+	}
+	else {
+		m_lsnOnFlush.reset();
+		m_lsnOnLastLineChanged.reset();
+		lastLine()->setUIEnabled(false);
+	}
 }
 void
 XTextWriter::onFlush(const shared_ptr<XValueNodeBase> &)
 {
     lastLine()->setUIEnabled(*recording());
 	if(!*recording()) {
-      XScopedLock<XRecursiveMutex> lock(m_filemutex);  
-  	  if(m_stream.good())
-             m_stream.flush();
+		XScopedLock<XRecursiveMutex> lock(m_filemutex);  
+		if(m_stream.good())
+			m_stream.flush();
 	}
 }

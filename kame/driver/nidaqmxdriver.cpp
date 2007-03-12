@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #include "nidaqmxdriver.h"
 #include <sys/errno.h>
 #include <boost/math/common_factor.hpp>
@@ -49,14 +49,14 @@ static std::deque<shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> > g_daqmx_sync_ro
 atomic_shared_ptr<XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList>
 XNIDAQmxInterface::SoftwareTrigger::s_virtualTrigList(new XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList);
 XTalker<shared_ptr<XNIDAQmxInterface::SoftwareTrigger> >
-	XNIDAQmxInterface::SoftwareTrigger::s_onChange;
+XNIDAQmxInterface::SoftwareTrigger::s_onChange;
 shared_ptr<XNIDAQmxInterface::SoftwareTrigger>
 XNIDAQmxInterface::SoftwareTrigger::create(const char *label, unsigned int bits)
 {
 	shared_ptr<SoftwareTrigger> p(new SoftwareTrigger(label, bits));
 	
 	//atomically register.
-     for(;;) {
+	for(;;) {
         atomic_shared_ptr<SoftwareTriggerList> old_list(s_virtualTrigList);
         atomic_shared_ptr<SoftwareTriggerList> new_list(new SoftwareTriggerList(*old_list));
         new_list->push_back(p);
@@ -67,8 +67,8 @@ XNIDAQmxInterface::SoftwareTrigger::create(const char *label, unsigned int bits)
 }
 
 XNIDAQmxInterface::SoftwareTrigger::SoftwareTrigger(const char *label, unsigned int bits)
- : m_label(label), m_bits(bits),
- m_risingEdgeMask(0u), m_fallingEdgeMask(0u) {
+	: m_label(label), m_bits(bits),
+	  m_risingEdgeMask(0u), m_fallingEdgeMask(0u) {
  	_clear();
 }
 void
@@ -130,7 +130,7 @@ XNIDAQmxInterface::SoftwareTrigger::stop() {
 }
 void
 XNIDAQmxInterface::SoftwareTrigger::connect(uint32_t rising_edge_mask, 
-	uint32_t falling_edge_mask) throw (XInterface::XInterfaceError &) {
+											uint32_t falling_edge_mask) throw (XInterface::XInterfaceError &) {
 	XScopedLock<XMutex> lock(m_mutex);
 	_clear();
 	if(m_risingEdgeMask || m_fallingEdgeMask)
@@ -269,7 +269,7 @@ XNIDAQmxInterface::synchronizeClock(TaskHandle task)
 QString
 XNIDAQmxInterface::getNIDAQmxErrMessage()
 {
-char str[2048];
+	char str[2048];
 	DAQmxGetExtendedErrorInfo(str, sizeof(str));
 	errno = 0;
 	return QString(str);
@@ -277,7 +277,7 @@ char str[2048];
 QString
 XNIDAQmxInterface::getNIDAQmxErrMessage(int status)
 {
-char str[2048];
+	char str[2048];
 	DAQmxGetErrorString(status, str, sizeof(str));
 	errno = 0;
 	return QString(str);
@@ -312,9 +312,9 @@ XNIDAQmxInterface::XNIDAQmxInterface(const char *name, bool runtime, const share
     XInterface(name, runtime, driver),
     m_productInfo(0L)
 {
-char buf[2048];
+	char buf[2048];
 	CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
-std::deque<std::string> list;
+	std::deque<std::string> list;
 	parseList(buf, list);
 	for(std::deque<std::string>::iterator it = list.begin(); it != list.end(); it++) {
 		CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
@@ -322,10 +322,10 @@ std::deque<std::string> list;
 	}
 }
 XNIDAQmxInterface::XNIDAQmxRoute::XNIDAQmxRoute(const char*src, const char*dst, int *pret)
- : m_src(src), m_dst(dst)
+	: m_src(src), m_dst(dst)
 {
 	if(pret) {
-	int ret = 0;
+		int ret = 0;
 	    ret = DAQmxConnectTerms(src, dst, DAQmx_Val_DoNotInvertPolarity);
 	    if(ret < 0)
 			m_src.clear();
@@ -356,17 +356,17 @@ XNIDAQmxInterface::XNIDAQmxRoute::~XNIDAQmxRoute()
 void
 XNIDAQmxInterface::open() throw (XInterfaceError &)
 {
-char buf[256];
+	char buf[256];
 
 	if(sscanf(device()->to_str().c_str(), "%256s", buf) != 1)
-          	throw XOpenInterfaceError(__FILE__, __LINE__);
+		throw XOpenInterfaceError(__FILE__, __LINE__);
 
 	XScopedLock<XMutex> lock(g_daqmx_mutex);
 	if(g_daqmx_open_cnt == 0) {
 //	    CHECK_DAQMX_RET(DAQmxCreateTask("", &g_task_sync_master));
-	char buf[2048];		
+		char buf[2048];		
 		CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
-	std::deque<std::string> list;
+		std::deque<std::string> list;
 		XNIDAQmxInterface::parseList(buf, list);
 		std::deque<std::string> pcidevs;
 		for(std::deque<std::string>::iterator it = list.begin(); it != list.end(); it++) {
@@ -390,8 +390,8 @@ char buf[256];
 						shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
 						float64 freq = 20.0e6;
 						route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
-							formatString("/%s/20MHzTimebase", it->c_str()).c_str(),
-							formatString("/%s/RTSI7", it->c_str()).c_str()));
+										formatString("/%s/20MHzTimebase", it->c_str()).c_str(),
+										formatString("/%s/RTSI7", it->c_str()).c_str()));
 						g_daqmx_sync_routes.push_back(route);
 						fprintf(stderr, "20MHz Reference Clock exported from %s\n", it->c_str());
 						g_pciClockMaster = *it;
@@ -413,8 +413,8 @@ char buf[256];
 							shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
 							float64 freq = 10.0e6;
 							route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
-								formatString("/%s/10MHzRefClock", it->c_str()).c_str(),
-								formatString("/%s/RTSI7", it->c_str()).c_str()));
+											formatString("/%s/10MHzRefClock", it->c_str()).c_str(),
+											formatString("/%s/RTSI7", it->c_str()).c_str()));
 							g_daqmx_sync_routes.push_back(route);
 							fprintf(stderr, "10MHz Reference Clock exported from %s\n", it->c_str());
 							g_pciClockMaster = *it;

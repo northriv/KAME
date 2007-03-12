@@ -10,15 +10,15 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #include "secondarydriver.h"
 #include <klocale.h>
 
 XSecondaryDriver::XSecondaryDriver(const char *name, bool runtime, 
-   const shared_ptr<XScalarEntryList> &scalarentries,
-   const shared_ptr<XInterfaceList> &interfaces,
-   const shared_ptr<XThermometerList> &thermometers,
-   const shared_ptr<XDriverList> &drivers) :
+								   const shared_ptr<XScalarEntryList> &scalarentries,
+								   const shared_ptr<XInterfaceList> &interfaces,
+								   const shared_ptr<XThermometerList> &thermometers,
+								   const shared_ptr<XDriverList> &drivers) :
     XDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
     m_dependency(new XRecordDependency())
 {
@@ -65,7 +65,7 @@ XSecondaryDriver::onConnectedRecorded(const shared_ptr<XDriver> &driver)
     readLockAllConnections();
     //! check if emitter has already connected or if self-emission
     if((std::find(m_connection.begin(), m_connection.end(), driver)
-             != m_connection.end()) 
+		!= m_connection.end()) 
        || (driver == shared_from_this())) {
         //! driver-side dependency check
         if(checkDependency(driver)) {
@@ -82,8 +82,8 @@ XSecondaryDriver::onConnectedRecorded(const shared_ptr<XDriver> &driver)
                 	skipped = true;
                 }
                 catch (XRecordError& e) {
-                     time_recorded = XTime(); //record is invalid
-                     e.print(getLabel() + ": " + KAME::i18n("Record Error, because "));
+					time_recorded = XTime(); //record is invalid
+					e.print(getLabel() + ": " + KAME::i18n("Record Error, because "));
                 }
                 readUnlockAllConnections();
                 if(skipped)
@@ -111,20 +111,20 @@ XSecondaryDriver::connect(const shared_ptr<XItemNodeBase> &item, bool check_deep
         item->beforeValueChanged().connect(m_lsnBeforeItemChanged);
     else
         m_lsnBeforeItemChanged = item->beforeValueChanged().connectWeak(
-                shared_from_this(), &XSecondaryDriver::beforeItemChanged);
+			shared_from_this(), &XSecondaryDriver::beforeItemChanged);
 	if(check_deep_dep) {
 	    if(m_lsnOnItemChangedCheckDeepDep)
 	        item->onValueChanged().connect(m_lsnOnItemChangedCheckDeepDep);
 	    else
 	        m_lsnOnItemChangedCheckDeepDep = item->onValueChanged().connectWeak(
-	             shared_from_this(), &XSecondaryDriver::onItemChangedCheckDeepDep);
+				shared_from_this(), &XSecondaryDriver::onItemChangedCheckDeepDep);
 	}
 	else {
 	    if(m_lsnOnItemChanged)
 	        item->onValueChanged().connect(m_lsnOnItemChanged);
 	    else
 	        m_lsnOnItemChanged = item->onValueChanged().connectWeak(
-	           shared_from_this(), &XSecondaryDriver::onItemChanged);
+				shared_from_this(), &XSecondaryDriver::onItemChanged);
 	}
 }
 void
@@ -133,7 +133,7 @@ XSecondaryDriver::beforeItemChanged(const shared_ptr<XValueNodeBase> &node) {
     m_connection_mutex.writeLock();
 
     shared_ptr<XPointerItemNode<XDriverList> > item =
-         dynamic_pointer_cast<XPointerItemNode<XDriverList> >(node);
+		dynamic_pointer_cast<XPointerItemNode<XDriverList> >(node);
     shared_ptr<XNode> nd = *item;
     shared_ptr<XDriver> driver = dynamic_pointer_cast<XDriver>(nd);
 

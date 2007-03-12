@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #ifndef XSCHEDULER_H_
 #define XSCHEDULER_H_
 #include "xsignal.h"
@@ -20,20 +20,20 @@
 //! \sa XTalker, XListener
 class XSignalBuffer
 {
- public:
-  XSignalBuffer();
-  ~XSignalBuffer();
-  //! Called by XTalker
-  void registerTransactionList(_XTransaction *);
-  //! be called by thread pool
-  bool synchronize(); //!< \return true if not busy
- private:
-  typedef atomic_pointer_queue<_XTransaction, 1000> Queue;
-  typedef std::deque<std::pair<_XTransaction*, unsigned long> > SkippedQueue;
-  _XTransaction *popOldest();
-  Queue m_queue;
-  SkippedQueue m_skippedQueue;
-  atomic<unsigned long> m_oldest_timestamp;
+public:
+	XSignalBuffer();
+	~XSignalBuffer();
+	//! Called by XTalker
+	void registerTransactionList(_XTransaction *);
+	//! be called by thread pool
+	bool synchronize(); //!< \return true if not busy
+private:
+	typedef atomic_pointer_queue<_XTransaction, 1000> Queue;
+	typedef std::deque<std::pair<_XTransaction*, unsigned long> > SkippedQueue;
+	_XTransaction *popOldest();
+	Queue m_queue;
+	SkippedQueue m_skippedQueue;
+	atomic<unsigned long> m_oldest_timestamp;
 };
 
 extern unsigned int g_adaptiveDelay; //!< ms.

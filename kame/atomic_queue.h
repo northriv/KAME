@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #ifndef ATOMIC_QUEUE_H_
 #define ATOMIC_QUEUE_H_
 
@@ -50,11 +50,11 @@ public:
                 }
             }
             if(atomicCompareAndSet((T)0, t, last)) {
-               m_pLast = last;
-               break;
+				m_pLast = last;
+				break;
             }
         }
-       atomicInc(&m_count);
+		atomicInc(&m_count);
 		writeBarrier();
     }
     //! This is not reentrant.
@@ -96,7 +96,7 @@ public:
     bool atomicPop(const_ref item) {
     	ASSERT(item);
         if(atomicCompareAndSet((T)item, (T)0, m_pFirst)) {
-	       atomicDec(&m_count);
+			atomicDec(&m_count);
 			writeBarrier();
         	return true;
         }

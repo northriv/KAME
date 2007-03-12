@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 //---------------------------------------------------------------------------
 #include "measure.h"
 #include "interface.h"
@@ -22,13 +22,13 @@
 //---------------------------------------------------------------------------
 
 XInterface::XInterfaceError::XInterfaceError(const QString &msg, const char *file, int line)
- : XKameError(msg, file, line) {}
+	: XKameError(msg, file, line) {}
 XInterface::XConvError::XConvError(const char *file, int line)
- : XInterfaceError(KAME::i18n("Conversion Error"), file, line) {}
+	: XInterfaceError(KAME::i18n("Conversion Error"), file, line) {}
 XInterface::XCommError::XCommError(const QString &msg, const char *file, int line)
-     :  XInterfaceError(KAME::i18n("Communication Error") + ", " + msg, file, line) {}
+	:  XInterfaceError(KAME::i18n("Communication Error") + ", " + msg, file, line) {}
 XInterface::XOpenInterfaceError::XOpenInterfaceError(const char *file, int line)
-     :  XInterfaceError(KAME::i18n("Open Interface Error"), file, line) {}
+	:  XInterfaceError(KAME::i18n("Open Interface Error"), file, line) {}
 
 
 XInterface::XInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) : 
@@ -40,7 +40,7 @@ XInterface::XInterface(const char *name, bool runtime, const shared_ptr<XDriver>
     m_baudrate(create<XUIntNode>("BaudRate", false)),
     m_control(create<XBoolNode>("Control", true))
 {
-  lsnOnControlChanged = control()->onValueChanged().connectWeak(
+	lsnOnControlChanged = control()->onValueChanged().connectWeak(
         shared_from_this(), &XInterface::onControlChanged);
 }
 
@@ -69,53 +69,53 @@ XInterface::onControlChanged(const shared_ptr<XValueNodeBase> &)
 void
 XInterface::start()
 {
-  XScopedLock<XInterface> lock(*this);
-  try {
-      if(isOpened()) {
-	      gErrPrint(getLabel() + KAME::i18n("Port has already opened"));
-	      return;
-      }
-      open();
-  }
-  catch (XInterfaceError &e) {
+	XScopedLock<XInterface> lock(*this);
+	try {
+		if(isOpened()) {
+			gErrPrint(getLabel() + KAME::i18n("Port has already opened"));
+			return;
+		}
+		open();
+	}
+	catch (XInterfaceError &e) {
         e.print(getLabel() + KAME::i18n(": Opening interface failed, because "));
 		lsnOnControlChanged->mask();
 		control()->value(false);
 		lsnOnControlChanged->unmask();
 		return;
-  }
+	}
 
-  device()->setUIEnabled(false);
-  port()->setUIEnabled(false);
-  address()->setUIEnabled(false);
-  baudrate()->setUIEnabled(false);
+	device()->setUIEnabled(false);
+	port()->setUIEnabled(false);
+	address()->setUIEnabled(false);
+	baudrate()->setUIEnabled(false);
 
-  lsnOnControlChanged->mask();
-  control()->value(true);
-  lsnOnControlChanged->unmask();
+	lsnOnControlChanged->mask();
+	control()->value(true);
+	lsnOnControlChanged->unmask();
 	
-  m_tlkOnOpen.talk(dynamic_pointer_cast<XInterface>(shared_from_this()));
+	m_tlkOnOpen.talk(dynamic_pointer_cast<XInterface>(shared_from_this()));
 }
 void
 XInterface::stop()
 {
-  XScopedLock<XInterface> lock(*this);
+	XScopedLock<XInterface> lock(*this);
   
-  try {
-      close();
-  }
-  catch (XInterfaceError &e) {
+	try {
+		close();
+	}
+	catch (XInterfaceError &e) {
         e.print(getLabel() + KAME::i18n(": Closing port failed, because"));
-  }
+	}
 
-  device()->setUIEnabled(true);
-  port()->setUIEnabled(true);
-  address()->setUIEnabled(true);
-  baudrate()->setUIEnabled(true);
+	device()->setUIEnabled(true);
+	port()->setUIEnabled(true);
+	address()->setUIEnabled(true);
+	baudrate()->setUIEnabled(true);
 
 	lsnOnControlChanged->mask();
 	control()->value(false);
 	lsnOnControlChanged->unmask();
 
-  //g_statusPrinter->clear();
+	//g_statusPrinter->clear();
 }

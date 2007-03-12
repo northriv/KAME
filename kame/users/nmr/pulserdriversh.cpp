@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #include "pulserdriversh.h"
 #include "charinterface.h"
 #include <klocale.h>
@@ -23,7 +23,7 @@ using std::min;
 static const double DMA_PERIOD = (1.0/(28.64e3/2));
 
 double XSHPulser::resolution() const {
-     return DMA_PERIOD;
+	return DMA_PERIOD;
 }
 
 //[ms]
@@ -89,10 +89,10 @@ static const unsigned char PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_LEVEL = 0xf;
 static const unsigned char PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_DELAY = 0x10;
 
 XSHPulser::XSHPulser(const char *name, bool runtime,
-   const shared_ptr<XScalarEntryList> &scalarentries,
-   const shared_ptr<XInterfaceList> &interfaces,
-   const shared_ptr<XThermometerList> &thermometers,
-   const shared_ptr<XDriverList> &drivers) :
+					 const shared_ptr<XScalarEntryList> &scalarentries,
+					 const shared_ptr<XInterfaceList> &interfaces,
+					 const shared_ptr<XThermometerList> &thermometers,
+					 const shared_ptr<XDriverList> &drivers) :
     XCharDeviceDriver<XPulser>(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
     interface()->setEOS("\n");
@@ -111,18 +111,18 @@ XSHPulser::XSHPulser(const char *name, bool runtime,
 void
 XSHPulser::createNativePatterns()
 {
-  //dry-run to determin LastPattern, DMATime
-  m_dmaTerm = 0;
-  m_lastPattern = 0;
-  uint32_t pat = 0;
-  insertPreamble((unsigned short)pat);
-  for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++)
-  {
-    pulseAdd(it->toappear, it->pattern, (it == m_relPatList.begin() ) );
-    pat = it->pattern;
-  }
+	//dry-run to determin LastPattern, DMATime
+	m_dmaTerm = 0;
+	m_lastPattern = 0;
+	uint32_t pat = 0;
+	insertPreamble((unsigned short)pat);
+	for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++)
+	{
+		pulseAdd(it->toappear, it->pattern, (it == m_relPatList.begin() ) );
+		pat = it->pattern;
+	}
   
-  insertPreamble((unsigned short)pat);
+	insertPreamble((unsigned short)pat);
 
 	for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX; i++) {
 	  	const unsigned short word = qamWaveForm(i).size();
@@ -132,7 +132,7 @@ XSHPulser::createNativePatterns()
 		m_zippedPatterns.push_back((unsigned char)(word / 0x100) );
 		m_zippedPatterns.push_back((unsigned char)(word % 0x100) );
 		for(std::vector<std::complex<double> >::const_iterator it = 
-			qamWaveForm(i).begin(); it != qamWaveForm(i).end(); it++) {
+				qamWaveForm(i).begin(); it != qamWaveForm(i).end(); it++) {
 			double x = max(min(it->real() * 125.0, 124.0), -124.0);
 			double y = max(min(it->imag() * 125.0, 124.0), -124.0);
 			m_zippedPatterns.push_back( (unsigned char)(char)x );	
@@ -140,17 +140,17 @@ XSHPulser::createNativePatterns()
 		}
 	}
 	
-  m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DO);
-  m_zippedPatterns.push_back(0);
-  m_zippedPatterns.push_back(0);
-  for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++)
-  {
-    pulseAdd(it->toappear, it->pattern, (it == m_relPatList.begin() ) );
-    pat = it->pattern;
-  }
-  finishPulse();
+	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DO);
+	m_zippedPatterns.push_back(0);
+	m_zippedPatterns.push_back(0);
+	for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++)
+	{
+		pulseAdd(it->toappear, it->pattern, (it == m_relPatList.begin() ) );
+		pat = it->pattern;
+	}
+	finishPulse();
 
-  m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_END);
+	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_END);
 }
 
 int
@@ -168,9 +168,9 @@ XSHPulser::setAUX2DA(double volt, int addr)
 int
 XSHPulser::insertPreamble(unsigned short startpattern)
 {
-const double masterlevel = pow(10.0, *masterLevel() / 20.0);
-const double qamlevel1 = *qamLevel1();
-const double qamlevel2 = *qamLevel2();
+	const double masterlevel = pow(10.0, *masterLevel() / 20.0);
+	const double qamlevel1 = *qamLevel1();
+	const double qamlevel2 = *qamLevel2();
 	m_zippedPatterns.clear();
 	
 	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_OFFSET);
@@ -186,7 +186,7 @@ const double qamlevel2 = *qamLevel2();
 	m_zippedPatterns.push_back((unsigned char)(signed char)rint(0) );
 	m_zippedPatterns.push_back((unsigned char)(signed char)rint(0) );
 	
-uint32_t len;	
+	uint32_t len;	
 	//wait for 1 ms
 	len = lrint(1.0 / MTU_PERIOD);
 	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_WAIT_LONG);
@@ -247,127 +247,127 @@ XSHPulser::finishPulse(void)
 int
 XSHPulser::pulseAdd(uint64_t term, uint32_t pattern, bool firsttime)
 {
-  const double msec = term * resolution();
-  int64_t mtu_term = term * llrint(resolution() / MTU_PERIOD);
-  if( (msec > MIN_MTU_LEN) && ((m_lastPattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX == 0) ) {
-  //insert long wait
-	if(!firsttime) {
-		m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_END);
+	const double msec = term * resolution();
+	int64_t mtu_term = term * llrint(resolution() / MTU_PERIOD);
+	if( (msec > MIN_MTU_LEN) && ((m_lastPattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX == 0) ) {
+		//insert long wait
+		if(!firsttime) {
+			m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_END);
+		}
+		mtu_term += m_dmaTerm;
+		uint32_t ulen = (uint32_t)(mtu_term / 0x10000uLL);
+		unsigned short ulenh = (unsigned short)(ulen / 0x10000uL);
+		unsigned short ulenl = (unsigned short)(ulen % 0x10000uL);	
+		unsigned short dlen = (uint32_t)(mtu_term % 0x10000uLL);
+		if(ulenh) {
+			m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_WAIT_LONG_LONG);
+			m_zippedPatterns.push_back((unsigned char)(dlen / 0x100) );
+			m_zippedPatterns.push_back((unsigned char)(dlen % 0x100) );
+			m_zippedPatterns.push_back((unsigned char)(ulenh / 0x100) );
+			m_zippedPatterns.push_back((unsigned char)(ulenh % 0x100) );
+			m_zippedPatterns.push_back((unsigned char)(ulenl / 0x100) );
+			m_zippedPatterns.push_back((unsigned char)(ulenl % 0x100) );
+		}
+		else { if(ulenl) {
+			m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_WAIT_LONG);
+			m_zippedPatterns.push_back((unsigned char)(dlen / 0x100) );
+			m_zippedPatterns.push_back((unsigned char)(dlen % 0x100) );
+			m_zippedPatterns.push_back((unsigned char)(ulenl / 0x100) );
+			m_zippedPatterns.push_back((unsigned char)(ulenl % 0x100) );
+		}
+		else {
+			m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_WAIT);
+			m_zippedPatterns.push_back((unsigned char)(dlen / 0x100) );
+			m_zippedPatterns.push_back((unsigned char)(dlen % 0x100) );
+		}
+		}
+		mtu_term -= ulen*0x10000uL + dlen;
+		mtu_term = max(0LL, mtu_term);
+		m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_SET);
+		m_zippedPatterns.push_back((unsigned char)(m_lastPattern / 0x100) );
+		m_zippedPatterns.push_back((unsigned char)(m_lastPattern % 0x100) );
+		m_dmaTerm = 0;
 	}
-	mtu_term += m_dmaTerm;
-	uint32_t ulen = (uint32_t)(mtu_term / 0x10000uLL);
-	unsigned short ulenh = (unsigned short)(ulen / 0x10000uL);
-	unsigned short ulenl = (unsigned short)(ulen % 0x10000uL);	
-	unsigned short dlen = (uint32_t)(mtu_term % 0x10000uLL);
-	if(ulenh) {
-		m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_WAIT_LONG_LONG);
-		m_zippedPatterns.push_back((unsigned char)(dlen / 0x100) );
-		m_zippedPatterns.push_back((unsigned char)(dlen % 0x100) );
-		m_zippedPatterns.push_back((unsigned char)(ulenh / 0x100) );
-		m_zippedPatterns.push_back((unsigned char)(ulenh % 0x100) );
-		m_zippedPatterns.push_back((unsigned char)(ulenl / 0x100) );
-		m_zippedPatterns.push_back((unsigned char)(ulenl % 0x100) );
+	m_dmaTerm += mtu_term;
+	unsigned long pos_l = m_dmaTerm / llrint(resolution() / MTU_PERIOD);
+	if(pos_l >= 0x7000u)
+		throw XInterface::XInterfaceError(KAME::i18n("Too long DMA."), __FILE__, __LINE__);
+	unsigned short pos = (unsigned short)pos_l;
+	unsigned short len = mtu_term / llrint(resolution() / MTU_PERIOD);
+	if( ((m_lastPattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX == 0) && ((pattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX > 0) ) {
+		unsigned short word = m_zippedPatterns.size() - m_waveformPos[(pattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX - 1];
+		m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_COPY_HBURST);
+		m_zippedPatterns.push_back((unsigned char)((pattern & PAT_QAM_PHASE_MASK)/PAT_QAM_PHASE));
+		m_zippedPatterns.push_back((unsigned char)(pos / 0x100) );
+		m_zippedPatterns.push_back((unsigned char)(pos % 0x100) );
+		m_zippedPatterns.push_back((unsigned char)(word / 0x100) );
+		m_zippedPatterns.push_back((unsigned char)(word % 0x100) );
 	}
-	else { if(ulenl) {
-		m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_WAIT_LONG);
-		m_zippedPatterns.push_back((unsigned char)(dlen / 0x100) );
-		m_zippedPatterns.push_back((unsigned char)(dlen % 0x100) );
-		m_zippedPatterns.push_back((unsigned char)(ulenl / 0x100) );
-		m_zippedPatterns.push_back((unsigned char)(ulenl % 0x100) );
-	  }
-	 else {
-		m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_WAIT);
-		m_zippedPatterns.push_back((unsigned char)(dlen / 0x100) );
-		m_zippedPatterns.push_back((unsigned char)(dlen % 0x100) );
-	  }
+	if(len > PATTERN_ZIPPED_COMMAND_DMA_LSET_END - PATTERN_ZIPPED_COMMAND_DMA_LSET_START) {
+		m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_LSET_LONG);
+		m_zippedPatterns.push_back((unsigned char)(len / 0x100) );
+		m_zippedPatterns.push_back((unsigned char)(len % 0x100) );
+		m_zippedPatterns.push_back((unsigned char)(pattern / 0x100) );
+		m_zippedPatterns.push_back((unsigned char)(pattern % 0x100) );
 	}
-	mtu_term -= ulen*0x10000uL + dlen;
-	mtu_term = max(0LL, mtu_term);
-	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_SET);
-	m_zippedPatterns.push_back((unsigned char)(m_lastPattern / 0x100) );
-	m_zippedPatterns.push_back((unsigned char)(m_lastPattern % 0x100) );
-	m_dmaTerm = 0;
-  }
-  m_dmaTerm += mtu_term;
-  unsigned long pos_l = m_dmaTerm / llrint(resolution() / MTU_PERIOD);
-  if(pos_l >= 0x7000u)
-     throw XInterface::XInterfaceError(KAME::i18n("Too long DMA."), __FILE__, __LINE__);
-  unsigned short pos = (unsigned short)pos_l;
-  unsigned short len = mtu_term / llrint(resolution() / MTU_PERIOD);
-  if( ((m_lastPattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX == 0) && ((pattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX > 0) ) {
-	unsigned short word = m_zippedPatterns.size() - m_waveformPos[(pattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX - 1];
-	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_COPY_HBURST);
-	m_zippedPatterns.push_back((unsigned char)((pattern & PAT_QAM_PHASE_MASK)/PAT_QAM_PHASE));
-	m_zippedPatterns.push_back((unsigned char)(pos / 0x100) );
-	m_zippedPatterns.push_back((unsigned char)(pos % 0x100) );
-	m_zippedPatterns.push_back((unsigned char)(word / 0x100) );
-	m_zippedPatterns.push_back((unsigned char)(word % 0x100) );
-  }
-  if(len > PATTERN_ZIPPED_COMMAND_DMA_LSET_END - PATTERN_ZIPPED_COMMAND_DMA_LSET_START) {
-	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_LSET_LONG);
-	m_zippedPatterns.push_back((unsigned char)(len / 0x100) );
-	m_zippedPatterns.push_back((unsigned char)(len % 0x100) );
-	m_zippedPatterns.push_back((unsigned char)(pattern / 0x100) );
-	m_zippedPatterns.push_back((unsigned char)(pattern % 0x100) );
-  }
-  else {
-	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_LSET_START + (unsigned char)len);
-	m_zippedPatterns.push_back((unsigned char)(pattern / 0x100) );
-	m_zippedPatterns.push_back((unsigned char)(pattern % 0x100) );
-  }
-  m_lastPattern = pattern;
-  return 0;
+	else {
+		m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_LSET_START + (unsigned char)len);
+		m_zippedPatterns.push_back((unsigned char)(pattern / 0x100) );
+		m_zippedPatterns.push_back((unsigned char)(pattern % 0x100) );
+	}
+	m_lastPattern = pattern;
+	return 0;
 }
 
 void
 XSHPulser::changeOutput(bool output, unsigned int /*blankpattern*/)
 {
-  if(output)
+	if(output)
     {
-      if(m_zippedPatterns.empty() )
-              throw XInterface::XInterfaceError(KAME::i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
-      for(unsigned int retry = 0; ; retry++) {
-          try {
-              interface()->write("!", 1); //poff
-              interface()->receive();
-              char buf[3];
-              if((interface()->scanf("Pulse %3s", buf) != 1) || strncmp(buf, "Off", 3))
+		if(m_zippedPatterns.empty() )
+			throw XInterface::XInterfaceError(KAME::i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
+		for(unsigned int retry = 0; ; retry++) {
+			try {
+				interface()->write("!", 1); //poff
+				interface()->receive();
+				char buf[3];
+				if((interface()->scanf("Pulse %3s", buf) != 1) || strncmp(buf, "Off", 3))
                     throw XInterface::XConvError(__FILE__, __LINE__);
-              unsigned int size = m_zippedPatterns.size();
-              interface()->sendf("$pload %x", size );
-              interface()->receive();
-              interface()->write(">", 1);
-              unsigned short sum = 0;
-              for(unsigned int i = 0; i < m_zippedPatterns.size(); i++) {
-        	       sum += m_zippedPatterns[i];
-              } 
-              msecsleep(1);
-              interface()->write((char*)&m_zippedPatterns[0], size);
+				unsigned int size = m_zippedPatterns.size();
+				interface()->sendf("$pload %x", size );
+				interface()->receive();
+				interface()->write(">", 1);
+				unsigned short sum = 0;
+				for(unsigned int i = 0; i < m_zippedPatterns.size(); i++) {
+					sum += m_zippedPatterns[i];
+				} 
+				msecsleep(1);
+				interface()->write((char*)&m_zippedPatterns[0], size);
           
-              interface()->receive();
-              unsigned int ret;
-              if(interface()->scanf("%x", &ret) != 1)
+				interface()->receive();
+				unsigned int ret;
+				if(interface()->scanf("%x", &ret) != 1)
                     throw XInterface::XConvError(__FILE__, __LINE__);
-              if(ret != sum)
+				if(ret != sum)
                     throw XInterface::XInterfaceError(KAME::i18n("Pulser Check Sum Error"), __FILE__, __LINE__);
-              interface()->send("$pon");
-              interface()->receive();
-              if((interface()->scanf("Pulse %2s", buf) != 1) || strncmp(buf, "On", 2))
+				interface()->send("$pon");
+				interface()->receive();
+				if((interface()->scanf("Pulse %2s", buf) != 1) || strncmp(buf, "On", 2))
                     throw XInterface::XConvError(__FILE__, __LINE__);
-          }
-          catch (XKameError &e) {
-              if(retry > 1) throw e;
-              e.print(getLabel() + ": " + KAME::i18n("try to continue") + ", ");
-              continue;
-          }
-          break;
-      }
+			}
+			catch (XKameError &e) {
+				if(retry > 1) throw e;
+				e.print(getLabel() + ": " + KAME::i18n("try to continue") + ", ");
+				continue;
+			}
+			break;
+		}
     }
-  else
+	else
     {
-      interface()->write("!", 1); //poff
-      interface()->receive();
+		interface()->write("!", 1); //poff
+		interface()->receive();
     }
-  return;
+	return;
 }
 

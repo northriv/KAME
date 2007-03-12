@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #include "xrubywriter.h"
 #include <fstream>
 #include "config.h"
@@ -18,7 +18,7 @@
 #include "xlistnode.h"
 
 XRubyWriter::XRubyWriter(const shared_ptr<XNode> &root, std::ofstream &ofs)
- : m_root(root), m_ofs(ofs)
+	: m_root(root), m_ofs(ofs)
 {
     ASSERT(ofs.good());
     ofs << "# KAME2 measurement configuration file" << std::endl
@@ -36,8 +36,8 @@ XRubyWriter::write()
     std::string name = m_root->getName();
     name[0] = toupper(name[0]);
     m_ofs << "x << " 
-        << name
-        << std::endl;
+		  << name
+		  << std::endl;
     atomic_shared_ptr<const XNode::NodeList> list = m_root->children();
     write(m_root, list, false, 0);
 }
@@ -65,9 +65,9 @@ XRubyWriter::write(
         s.replace( QChar('\r'), "\\r");
         s.replace( QChar('\t'), "\\t");
         m_ofs << ".load(\"" 
-            << (const char *)s.utf8()
-            << "\")" 
-            << std::endl;
+			  << (const char *)s.utf8()
+			  << "\")" 
+			  << std::endl;
     }
     else
         if(!list) {m_ofs << std::endl;}
@@ -95,26 +95,26 @@ XRubyWriter::write(
                 m_ofs << "x.last.create(";
                 if(write_typename || child->getName().length()) {
                     m_ofs << "\""
-                        << (write_typename ? child->getTypename().c_str() : "")
-                        << "\"";
+						  << (write_typename ? child->getTypename().c_str() : "")
+						  << "\"";
                 }
                 if(child->getName().length()) {
                     m_ofs << ",\""
-                        << child->getName()
-                        << "\"";
+						  << child->getName()
+						  << "\"";
                 }
                 m_ofs <<  ")";
             }
             else {
                 if(child->getName().length()) {
                     m_ofs << "x.last[\""
-                        << child->getName()
-                        <<  "\"]";
+						  << child->getName()
+						  <<  "\"]";
                 }
                 else {
                     m_ofs << "x.last["
-                        << idx
-                        <<  "]";
+						  << idx
+						  <<  "]";
                 }
             }
             if(child_list) {

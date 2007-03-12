@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #include "fir.h"
 #include "support.h"
 #include <algorithm> 
@@ -27,10 +27,10 @@ FIR::~FIR()
 float
 FIR::oneFIR(float x, float *z, float *m_Coeff, int taps)
 {
-float zo = x;
-float y = 0;
+	float zo = x;
+	float y = 0;
 	for(int i = -taps; i <= taps; i++) {
-	float z1;
+		float z1;
 		z1 = *z;
 		*(z++) = zo;
 		y += zo * *(m_Coeff++);
@@ -55,8 +55,8 @@ FIR::setupBPF(int taps, double bandwidth, double center)
 			float omega = PI*bandwidth;
 			float omega2 = 2 * PI * center;
 			for(int i = -taps; i < 0; i++) {
-			float x = i*omega;
-			//sinc(x) * Hamming window
+				float x = i*omega;
+				//sinc(x) * Hamming window
 				m_Coeff[taps + i] = sinf(x)/x*(0.54 + 0.46*cosf(PI*(float)i/taps));
 			}
 			//mirroring

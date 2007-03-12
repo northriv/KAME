@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #ifndef XRUBYWRITER_H_
 #define XRUBYWRITER_H_
 
@@ -24,7 +24,7 @@ public:
     void write();
 private:
     void write(const shared_ptr<XNode> &node,
-         const atomic_shared_ptr<const XNode::NodeList> &list, bool ghost, int level);
+			   const atomic_shared_ptr<const XNode::NodeList> &list, bool ghost, int level);
     shared_ptr<XNode> m_root;
     std::ofstream &m_ofs;    
 };

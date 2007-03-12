@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #ifndef XTIME_H_
 #define XTIME_H_
 
@@ -25,7 +25,7 @@ unsigned long timeStamp();
 
 class XTime
 {
- public:
+public:
     XTime() : tv_sec(0), tv_usec(0) {}
     XTime(long sec, long usec) : tv_sec(sec), tv_usec(usec) {}
     XTime(const XTime &x) :
@@ -98,8 +98,8 @@ class XTime
     static XTime now();
     std::string getTimeStr(bool subsecond = true) const;
     std::string getTimeFmtStr(const char *fmt, bool subsecond = true) const
-       __attribute__ ((format(strftime,2, 0)));
- private:
+		__attribute__ ((format(strftime,2, 0)));
+private:
     long tv_sec;
     long tv_usec;
 };

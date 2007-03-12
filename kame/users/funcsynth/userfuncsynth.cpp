@@ -10,17 +10,17 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #include "userfuncsynth.h"
 #include "charinterface.h"
 #include "analyzer.h"
 #include <klocale.h>
 
 XWAVEFACTORY::XWAVEFACTORY(const char *name, bool runtime, 
-   const shared_ptr<XScalarEntryList> &scalarentries,
-   const shared_ptr<XInterfaceList> &interfaces,
-   const shared_ptr<XThermometerList> &thermometers,
-   const shared_ptr<XDriverList> &drivers) : 
+						   const shared_ptr<XScalarEntryList> &scalarentries,
+						   const shared_ptr<XInterfaceList> &interfaces,
+						   const shared_ptr<XThermometerList> &thermometers,
+						   const shared_ptr<XDriverList> &drivers) : 
     XCharDeviceDriver<XFuncSynth>(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
 	function()->add("SINUSOID");
@@ -38,15 +38,15 @@ XWAVEFACTORY::XWAVEFACTORY(const char *name, bool runtime,
 	mode()->add("DC");
 }
 /*
-double
-XWAVEFACTORY::Read(void)
-{
-string buf;
-	Query("?PHS", &buf);
-double x = 0;
-	sscanf(buf.c_str(), "%*s %lf", &x);
-	return x;
-}
+  double
+  XWAVEFACTORY::Read(void)
+  {
+  string buf;
+  Query("?PHS", &buf);
+  double x = 0;
+  sscanf(buf.c_str(), "%*s %lf", &x);
+  return x;
+  }
 */
 void
 XWAVEFACTORY::onOutputChanged(const shared_ptr<XValueNodeBase> &)

@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #include "xitemnode.h"
 #include <klocale.h>
 
@@ -36,13 +36,13 @@ XItemNodeBase::onTryAutoSet(const shared_ptr<XItemNodeBase>&) {
 
 void
 _xpointeritemnode_throwConversionError() {
-   throw XKameError(KAME::i18n("No item."), __FILE__, __LINE__);
+	throw XKameError(KAME::i18n("No item."), __FILE__, __LINE__);
 }
 
 XComboNode::XComboNode(const char *name, bool runtime, bool auto_set_any)
-   : XItemNodeBase(name, runtime, auto_set_any),
-    m_strings(new std::deque<std::string>()),
-    m_var(new std::pair<std::string, int>("", -1)) {
+	: XItemNodeBase(name, runtime, auto_set_any),
+	  m_strings(new std::deque<std::string>()),
+	  m_var(new std::pair<std::string, int>("", -1)) {
 }
 
 void
@@ -52,20 +52,20 @@ XComboNode::_str(const std::string &var) throw (XKameError &)
         dynamic_pointer_cast<XValueNodeBase>(shared_from_this());
     XScopedLock<XRecursiveMutex> lock(m_write_mutex);
     m_tlkBeforeValueChanged.talk(ptr);
-  if(var.length()) {
-	  atomic_shared_ptr<const std::deque<std::string> > strings(m_strings);
-	  unsigned int i = 0;
-	  for(std::deque<std::string>::const_iterator it = strings->begin(); it != strings->end(); it++) {
+	if(var.length()) {
+		atomic_shared_ptr<const std::deque<std::string> > strings(m_strings);
+		unsigned int i = 0;
+		for(std::deque<std::string>::const_iterator it = strings->begin(); it != strings->end(); it++) {
 	        if(*it == var) {
 	            m_var.reset(new std::pair<std::string, int>(var, i));
 			    m_tlkOnValueChanged.talk(ptr);
 	            return;
 	        }
 	        i++;
-	   }
-  }
-   m_var.reset(new std::pair<std::string, int>(var, -1));
-   m_tlkOnValueChanged.talk(ptr);
+		}
+	}
+	m_var.reset(new std::pair<std::string, int>(var, -1));
+	m_tlkOnValueChanged.talk(ptr);
 }
 
 void
@@ -91,11 +91,11 @@ void
 XComboNode::add(const std::string &str)
 {
     for(;;) {
-      atomic_shared_ptr<std::deque<std::string> > old_strings(m_strings);
-      atomic_shared_ptr<std::deque<std::string> > new_strings(new std::deque<std::string>(*old_strings));
-      new_strings->push_back(str);
-      if(new_strings.compareAndSwap(old_strings, m_strings))
-        break;
+		atomic_shared_ptr<std::deque<std::string> > old_strings(m_strings);
+		atomic_shared_ptr<std::deque<std::string> > new_strings(new std::deque<std::string>(*old_strings));
+		new_strings->push_back(str);
+		if(new_strings.compareAndSwap(old_strings, m_strings))
+			break;
     }
     onListChanged().talk(dynamic_pointer_cast<XItemNodeBase>(shared_from_this()));
     std::string var = to_str();
@@ -119,7 +119,7 @@ XComboNode::itemStrings() const
     shared_ptr<std::deque<XItemNodeBase::Item> > items(new std::deque<XItemNodeBase::Item>());
     atomic_shared_ptr<const std::deque<std::string> > strings(m_strings);
     for(std::deque<std::string>::const_iterator it = strings->begin(); it != strings->end(); it++) {
-    XItemNodeBase::Item item;
+		XItemNodeBase::Item item;
         item.name = *it;
         item.label = *it;
         items->push_back(item);

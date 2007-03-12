@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #include "dummyport.h"
 
 XDummyPort::XDummyPort(XCharInterface *interface) :
@@ -31,7 +31,7 @@ void
 XDummyPort::send(const char *str) throw (XInterface::XCommError &)
 {
     m_stream << "send:"
-        << str << std::endl;
+			 << str << std::endl;
 }
 void
 XDummyPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &)
@@ -44,7 +44,7 @@ void
 XDummyPort::receive() throw (XInterface::XCommError &)
 {
     m_stream << "receive:"
-         << std::endl;
+			 << std::endl;
     buffer().resize(1);
     buffer()[0] = '\0';
 }
@@ -52,7 +52,7 @@ void
 XDummyPort::receive(unsigned int length) throw (XInterface::XCommError &)
 {
     m_stream << "receive length = :"
-        << length << std::endl;
+			 << length << std::endl;
     buffer().resize(length);
     buffer()[0] = '\0';
 }

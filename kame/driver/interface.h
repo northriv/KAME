@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #ifndef INTERFACE_H_
 #define INTERFACE_H_
 
@@ -24,78 +24,78 @@ class XDriver;
 //! \sa XCharInterface
 class XInterface : public XNode
 {
- XNODE_OBJECT
+	XNODE_OBJECT
 protected:
- XInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
+	XInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
 public:
- virtual ~XInterface() {}
+	virtual ~XInterface() {}
  
- struct XInterfaceError : public XKameError {
-    XInterfaceError(const QString &msg, const char *file, int line);
- };
- struct XConvError : public XInterfaceError {
-    XConvError(const char *file, int line);
- };
- struct XCommError : public XInterfaceError {
-    XCommError(const QString &, const char *file, int line);
- };
- struct XOpenInterfaceError : public XInterfaceError {
-    XOpenInterfaceError(const char *file, int line);
- };
+	struct XInterfaceError : public XKameError {
+		XInterfaceError(const QString &msg, const char *file, int line);
+	};
+	struct XConvError : public XInterfaceError {
+		XConvError(const char *file, int line);
+	};
+	struct XCommError : public XInterfaceError {
+		XCommError(const QString &, const char *file, int line);
+	};
+	struct XOpenInterfaceError : public XInterfaceError {
+		XOpenInterfaceError(const char *file, int line);
+	};
  
- void setLabel(const std::string& str) {m_label = str;}
- virtual std::string getLabel() const;
+	void setLabel(const std::string& str) {m_label = str;}
+	virtual std::string getLabel() const;
  
- shared_ptr<XDriver> driver() const {return m_driver.lock();}
- //! type of interface or driver.
- const shared_ptr<XComboNode> &device() const {return m_device;}
-  //! port number or device name.
- const shared_ptr<XStringNode> &port() const {return m_port;}
-  //! e.g. GPIB address.
- const shared_ptr<XUIntNode> &address() const {return m_address;}
-  //! e.g. Serial port baud rate.
- const shared_ptr<XUIntNode> &baudrate() const {return m_baudrate;}
- //! True if interface is opened. Start/stop interface.
- const shared_ptr<XBoolNode> &control() const {return m_control;}
+	shared_ptr<XDriver> driver() const {return m_driver.lock();}
+	//! type of interface or driver.
+	const shared_ptr<XComboNode> &device() const {return m_device;}
+	//! port number or device name.
+	const shared_ptr<XStringNode> &port() const {return m_port;}
+	//! e.g. GPIB address.
+	const shared_ptr<XUIntNode> &address() const {return m_address;}
+	//! e.g. Serial port baud rate.
+	const shared_ptr<XUIntNode> &baudrate() const {return m_baudrate;}
+	//! True if interface is opened. Start/stop interface.
+	const shared_ptr<XBoolNode> &control() const {return m_control;}
 
-  void lock() {m_mutex.lock();}
-  void unlock() {m_mutex.unlock();}
-  bool isLocked() const {return m_mutex.isLockedByCurrentThread();}
+	void lock() {m_mutex.lock();}
+	void unlock() {m_mutex.unlock();}
+	bool isLocked() const {return m_mutex.isLockedByCurrentThread();}
 
-  XRecursiveMutex &mutex() {return m_mutex;}
+	XRecursiveMutex &mutex() {return m_mutex;}
     
-  virtual bool isOpened() const = 0;
+	virtual bool isOpened() const = 0;
 
-  void start();
-  void stop();
+	void start();
+	void stop();
   
-  XTalker<shared_ptr<XInterface> > &onOpen() {return m_tlkOnOpen;}
-  XTalker<shared_ptr<XInterface> > &onClose() {return m_tlkOnClose;}
+	XTalker<shared_ptr<XInterface> > &onOpen() {return m_tlkOnOpen;}
+	XTalker<shared_ptr<XInterface> > &onClose() {return m_tlkOnClose;}
 protected:  
-  virtual void open() throw (XInterfaceError &) = 0;
-  //! This can be called even if has already closed.
-  virtual void close() throw (XInterfaceError &) = 0;
+	virtual void open() throw (XInterfaceError &) = 0;
+	//! This can be called even if has already closed.
+	virtual void close() throw (XInterfaceError &) = 0;
 private:
-  void onControlChanged(const shared_ptr<XValueNodeBase> &);
+	void onControlChanged(const shared_ptr<XValueNodeBase> &);
 
-  const weak_ptr<XDriver> m_driver;
-  const shared_ptr<XComboNode> m_device;
-  const shared_ptr<XStringNode> m_port;
-  const shared_ptr<XUIntNode> m_address;
-  const shared_ptr<XUIntNode> m_baudrate;
-  const shared_ptr<XBoolNode> m_control;
+	const weak_ptr<XDriver> m_driver;
+	const shared_ptr<XComboNode> m_device;
+	const shared_ptr<XStringNode> m_port;
+	const shared_ptr<XUIntNode> m_address;
+	const shared_ptr<XUIntNode> m_baudrate;
+	const shared_ptr<XBoolNode> m_control;
 
-  shared_ptr<XListener> lsnOnControlChanged;
-  XTalker<shared_ptr<XInterface> > m_tlkOnOpen, m_tlkOnClose;
+	shared_ptr<XListener> lsnOnControlChanged;
+	XTalker<shared_ptr<XInterface> > m_tlkOnOpen, m_tlkOnClose;
       
-  XRecursiveMutex m_mutex;
+	XRecursiveMutex m_mutex;
   
-  std::string m_label;
+	std::string m_label;
 };
 
 class XInterfaceList : public XAliasListNode<XInterface>
 {
- XNODE_OBJECT
+	XNODE_OBJECT
 protected:
     XInterfaceList(const char *name, bool runtime) : XAliasListNode<XInterface>(name, runtime) {}
 };

@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #include "xlistnode.h"
 
 XListNodeBase::XListNodeBase(const char *name, bool runtime) :
@@ -20,19 +20,19 @@ XListNodeBase::XListNodeBase(const char *name, bool runtime) :
 void
 XListNodeBase::clearChildren()
 {
-  atomic_shared_ptr<NodeList> old_list;
-  old_list.swap(m_children);
+	atomic_shared_ptr<NodeList> old_list;
+	old_list.swap(m_children);
 
-  if(!old_list) return;
-  for(;;)
+	if(!old_list) return;
+	for(;;)
     {
-      if(old_list->empty())
+		if(old_list->empty())
             break;
-      onRelease().talk(old_list->back());
+		onRelease().talk(old_list->back());
         
-      old_list->pop_back();
+		old_list->pop_back();
     }
-  onListChanged().talk(dynamic_pointer_cast<XListNodeBase>(shared_from_this()));
+	onListChanged().talk(dynamic_pointer_cast<XListNodeBase>(shared_from_this()));
 }
 int
 XListNodeBase::releaseChild(const shared_ptr<XNode> &node)
@@ -46,9 +46,9 @@ XListNodeBase::releaseChild(const shared_ptr<XNode> &node)
 void
 XListNodeBase::insert(const shared_ptr<XNode> &ptr)
 {
-  XNode::insert(ptr);
-  onCatch().talk(ptr);
-  onListChanged().talk(dynamic_pointer_cast<XListNodeBase>(shared_from_this()));
+	XNode::insert(ptr);
+	onCatch().talk(ptr);
+	onListChanged().talk(dynamic_pointer_cast<XListNodeBase>(shared_from_this()));
 }
 void
 XListNodeBase::move(unsigned int src_idx, unsigned int dst_idx)

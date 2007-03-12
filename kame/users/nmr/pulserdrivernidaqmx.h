@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #ifndef PULSERDRIVERNIDAQMX_H_
 #define PULSERDRIVERNIDAQMX_H_
 
@@ -24,24 +24,24 @@
 
 class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
 {
- XNODE_OBJECT
- protected:
-  XNIDAQmxPulser(const char *name, bool runtime,
-   const shared_ptr<XScalarEntryList> &scalarentries,
-   const shared_ptr<XInterfaceList> &interfaces,
-   const shared_ptr<XThermometerList> &thermometers,
-   const shared_ptr<XDriverList> &drivers);
- public:
-  virtual ~XNIDAQmxPulser();
+	XNODE_OBJECT
+protected:
+	XNIDAQmxPulser(const char *name, bool runtime,
+				   const shared_ptr<XScalarEntryList> &scalarentries,
+				   const shared_ptr<XInterfaceList> &interfaces,
+				   const shared_ptr<XThermometerList> &thermometers,
+				   const shared_ptr<XDriverList> &drivers);
+public:
+	virtual ~XNIDAQmxPulser();
 
- protected:
+protected:
 	virtual void open() throw (XInterface::XInterfaceError &) = 0;
 	virtual void close() throw (XInterface::XInterfaceError &);
 	
     //! time resolution [ms]
     virtual double resolution() const {return m_resolutionDO;}
     double resolutionQAM() const {return m_resolutionAO;}
-     //! existense of AO ports.
+	//! existense of AO ports.
     virtual bool haveQAMPorts() const = 0;
 
  	virtual const shared_ptr<XNIDAQmxInterface> &intfDO() const {return interface();}
@@ -68,12 +68,12 @@ private:
 
  	typedef int16 tRawAO;
 	typedef uInt16 tRawDO;
-	  struct GenPattern {
-	      GenPattern(uint32_t pat, uint64_t next) :
+	struct GenPattern {
+		GenPattern(uint32_t pat, uint64_t next) :
 	        pattern(pat), tonext(next) {}
-	      uint32_t pattern;
-	      uint64_t tonext; //!< in samps for buffer.
-	  };
+		uint32_t pattern;
+		uint64_t tonext; //!< in samps for buffer.
+	};
 
 	static int32 _onTaskDone(TaskHandle task, int32 status, void*);
 	void onTaskDone(TaskHandle task, int32 status);
@@ -84,7 +84,7 @@ private:
 
 	GenPatternIterator m_genLastPatItAO, m_genLastPatItDO;
 	uint64_t m_genRestSampsAO, m_genRestSampsDO;
-enum { NUM_AO_CH = 2};
+	enum { NUM_AO_CH = 2};
 	unsigned int m_genAOIndex;
 	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> m_softwareTrigger;
 	unsigned int m_pausingBit;
@@ -102,16 +102,16 @@ enum { NUM_AO_CH = 2};
 protected:	
 	double m_resolutionDO, m_resolutionAO;
 	TaskHandle m_taskAO, m_taskDO,
-		 m_taskDOCtr, m_taskGateCtr;
+		m_taskDOCtr, m_taskGateCtr;
 private:
-enum {PORTSEL_PAUSING = 16};
+	enum {PORTSEL_PAUSING = 16};
 	std::vector<tRawDO> m_genBufDO;
 	typedef struct {tRawAO ch[NUM_AO_CH];} tRawAOSet;
 	std::vector<tRawAOSet> m_genBufAO;
 	tRawAOSet m_genAOZeroLevel;
 	scoped_ptr<std::vector<tRawAOSet> > m_genPulseWaveAO[PAT_QAM_MASK / PAT_QAM_PHASE];
 	scoped_ptr<std::vector<tRawAOSet> > m_genPulseWaveNextAO[PAT_QAM_MASK / PAT_QAM_PHASE];
-enum { CAL_POLY_ORDER = 4};
+	enum { CAL_POLY_ORDER = 4};
 	double m_coeffAO[NUM_AO_CH][CAL_POLY_ORDER];
 	double m_coeffAODev[NUM_AO_CH][CAL_POLY_ORDER];
 	double m_upperLimAO[NUM_AO_CH];
@@ -127,12 +127,12 @@ enum { CAL_POLY_ORDER = 4};
 	void *executeWriteAO(const atomic<bool> &);
 	void *executeWriteDO(const atomic<bool> &);
 	
-  int makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
-  XRecursiveMutex m_totalLock;
-  XRecursiveMutex m_mutexAO, m_mutexDO;
+	int makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
+	XRecursiveMutex m_totalLock;
+	XRecursiveMutex m_mutexAO, m_mutexDO;
   
-  inline bool tryOutputSuspend(const atomic<bool> &flag,
-  	 XRecursiveMutex &mutex, const atomic<bool> &terminated);
+	inline bool tryOutputSuspend(const atomic<bool> &flag,
+								 XRecursiveMutex &mutex, const atomic<bool> &terminated);
 };
 
 #endif //HAVE_NI_DAQMX

@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #ifndef THREADLOCAL_H_
 #define THREADLOCAL_H_
 
@@ -40,19 +40,19 @@ private:
 
 #ifdef USE__THREAD_TLS
 
-    template <typename T>
-    class XThreadLocalPOD
-    {
-    public:
-        XThreadLocalPOD() {}
-        ~XThreadLocalPOD() {}
-        //! \return return thread local object. Create an object if not allocated.
-        T &operator*() const {return m_var;}
-        //! \sa operator T&()
-        T *operator->() const {return &m_var;}
-    private:
-        static __thread T m_var;
-    };
+template <typename T>
+class XThreadLocalPOD
+{
+public:
+	XThreadLocalPOD() {}
+	~XThreadLocalPOD() {}
+	//! \return return thread local object. Create an object if not allocated.
+	T &operator*() const {return m_var;}
+	//! \sa operator T&()
+	T *operator->() const {return &m_var;}
+private:
+	static __thread T m_var;
+};
     
 #endif /*USE__THREAD_TLS*/
 
@@ -69,26 +69,26 @@ XThreadLocal<T>::~XThreadLocal() {
 template <typename T>
 void
 XThreadLocal<T>::delete_tls(void *var) {
-        delete reinterpret_cast<T*>(var);
+	delete reinterpret_cast<T*>(var);
 }
 template <typename T>
 T &XThreadLocal<T>::operator*() const {
     void *p = pthread_getspecific(m_key);
     if(p == NULL) {
         int ret = pthread_setspecific(m_key, p = 
-    #ifdef HAVE_LIBGCCPP
-            new (NoGC) T);
-    #else
-            new T);
-    #endif
-        ASSERT(!ret);
-    }
-    return *reinterpret_cast<T*>(p);
+#ifdef HAVE_LIBGCCPP
+									  new (NoGC) T);
+#else
+		new T);
+#endif
+	ASSERT(!ret);
+}
+return *reinterpret_cast<T*>(p);
 }
 template <typename T>
 T *
 XThreadLocal<T>::operator->() const {
-    return &(**this);
+return &(**this);
 }
         
 #endif /*THREADLOCAL_H_*/

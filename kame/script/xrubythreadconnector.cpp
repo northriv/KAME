@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #include "xrubythreadconnector.h"
 #include "xrubysupport.h"
 #include "xrubythread.h"
@@ -32,20 +32,20 @@ XRubyThreadConnector::XRubyThreadConnector(
     m_rubyThread(rbthread),
     m_rubySupport(rbsupport),
     m_conFilename(xqcon_create<XQLabelConnector>(
-        rbthread->filename(), form->m_plblFilename)),
+					  rbthread->filename(), form->m_plblFilename)),
     m_conStatus(xqcon_create<XQLabelConnector>(
-        rbthread->status(), form->m_plblStatus)),
+					rbthread->status(), form->m_plblStatus)),
     m_conResume(xqcon_create<XQButtonConnector>(
-        m_resume, (form->m_pbtnResume))),
+					m_resume, (form->m_pbtnResume))),
     m_conKill(xqcon_create<XQButtonConnector>(
-        m_kill, (form->m_pbtnKill)))
+				  m_kill, (form->m_pbtnKill)))
 {
     form->m_pbtnResume->setIconSet(
-             KApplication::kApplication()->iconLoader()->loadIconSet("exec", 
-            KIcon::Toolbar, KIcon::SizeSmall, true ) );  
+		KApplication::kApplication()->iconLoader()->loadIconSet("exec", 
+																KIcon::Toolbar, KIcon::SizeSmall, true ) );  
     form->m_pbtnKill->setIconSet(
-             KApplication::kApplication()->iconLoader()->loadIconSet("stop", 
-            KIcon::Toolbar, KIcon::SizeSmall, true ) );  
+		KApplication::kApplication()->iconLoader()->loadIconSet("stop", 
+																KIcon::Toolbar, KIcon::SizeSmall, true ) );  
             
     m_pForm->m_ptxtDefout->setMaxLogLines(10000);
     m_pForm->m_ptxtDefout->setTextFormat(Qt::LogText);    

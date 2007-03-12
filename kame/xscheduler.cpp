@@ -10,8 +10,8 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
- #include "xscheduler.h"
+***************************************************************************/
+#include "xscheduler.h"
  
 shared_ptr<XSignalBuffer> g_signalBuffer;
 unsigned int g_adaptiveDelay = 20;
@@ -22,7 +22,7 @@ registerTransactionList(_XTransaction *transaction) {
 }
 
 XSignalBuffer::XSignalBuffer()
- : m_oldest_timestamp(timeStamp()) {
+	: m_oldest_timestamp(timeStamp()) {
 }
 XSignalBuffer::~XSignalBuffer() {
 }
@@ -71,29 +71,29 @@ XSignalBuffer::registerTransactionList(_XTransaction *transaction)
     ASSERT(!isMainThread());
     for(;;) {
     	for(unsigned int i = 0; i < 20; i++) {
-    	  unsigned long cost = 0;
-    	  if(!m_queue.empty()) {
-    		  cost += time - m_oldest_timestamp;
-    	  }
-    	  if(cost > 100000uL) {
-	    	  if(g_adaptiveDelay < 300) {
-	    	  	atomicInc(&g_adaptiveDelay);
-	    	  }
-    	  }
-    	  if(cost < 10000uL) {
-    	  	  for(;;) {
-    	  	  	unsigned int delay = g_adaptiveDelay;
-    	  	  	if(delay == 0) break;
-		    	 if(atomicCompareAndSet(delay, delay - 1, &g_adaptiveDelay)) {
-		    	  	break;
-		    	 }
-    	  	  }
-    	  }
-    	  if(cost < 50000uL) {
-            break;
-          }
-    	  msecsleep(std::min(cost * i / 1000000uL, 10uL));
-	      time = timeStamp();
+			unsigned long cost = 0;
+			if(!m_queue.empty()) {
+				cost += time - m_oldest_timestamp;
+			}
+			if(cost > 100000uL) {
+				if(g_adaptiveDelay < 300) {
+					atomicInc(&g_adaptiveDelay);
+				}
+			}
+			if(cost < 10000uL) {
+				for(;;) {
+					unsigned int delay = g_adaptiveDelay;
+					if(delay == 0) break;
+					if(atomicCompareAndSet(delay, delay - 1, &g_adaptiveDelay)) {
+						break;
+					}
+				}
+			}
+			if(cost < 50000uL) {
+				break;
+			}
+			msecsleep(std::min(cost * i / 1000000uL, 10uL));
+			time = timeStamp();
     	}
         try {
             bool empty = m_queue.empty();
@@ -109,44 +109,44 @@ XSignalBuffer::registerTransactionList(_XTransaction *transaction)
 bool
 XSignalBuffer::synchronize()
 {
-  bool dotalk = true;
-  XTime time_start(XTime::now());
-  unsigned long time_stamp_start(timeStamp());
-  unsigned long clock_in_ms = 1000;
-  unsigned int skipped_cnt = 0;
+	bool dotalk = true;
+	XTime time_start(XTime::now());
+	unsigned long time_stamp_start(timeStamp());
+	unsigned long clock_in_ms = 1000;
+	unsigned int skipped_cnt = 0;
   
-  for(;;) {
-	if(m_queue.empty() && (m_skippedQueue.size() <= skipped_cnt)) {
-		dotalk = !m_skippedQueue.empty();
-		break;
+	for(;;) {
+		if(m_queue.empty() && (m_skippedQueue.size() <= skipped_cnt)) {
+			dotalk = !m_skippedQueue.empty();
+			break;
+		}
+		_XTransaction *transaction = popOldest();
+		if(!transaction) {
+			dotalk = false;
+			break;
+		}
+		bool skip = false;
+		try {
+			skip = transaction->talkBuffered();  
+		}
+		catch (XKameError &e) {
+			e.print();
+		}
+		catch (std::bad_alloc &) {
+			gErrPrint("Memory Allocation Failed!");
+		}
+		if(skip) {
+			m_skippedQueue.push_back(std::pair<_XTransaction*, unsigned long>(transaction, timeStamp()));
+			skipped_cnt++;
+		}
+		else {
+			delete transaction;
+		}
+		if((timeStamp() - time_stamp_start) / clock_in_ms > 30uL) break;
 	}
-    _XTransaction *transaction = popOldest();
-    if(!transaction) {
-    	dotalk = false;
-    	break;
-    }
-    bool skip = false;
-    try {
-        skip = transaction->talkBuffered();  
-    }
-    catch (XKameError &e) {
-        e.print();
-    }
-    catch (std::bad_alloc &) {
-        gErrPrint("Memory Allocation Failed!");
-    }
-	if(skip) {
-		m_skippedQueue.push_back(std::pair<_XTransaction*, unsigned long>(transaction, timeStamp()));
-        skipped_cnt++;
-	}
-    else {
-        delete transaction;
-    }
-    if((timeStamp() - time_stamp_start) / clock_in_ms > 30uL) break;
-  }
-  unsigned int msec = XTime::now().diff_msec(time_start);
-  if(msec > 10)
-      clock_in_ms = (timeStamp() - time_stamp_start) / msec;
-  return !dotalk;
+	unsigned int msec = XTime::now().diff_msec(time_start);
+	if(msec > 10)
+		clock_in_ms = (timeStamp() - time_stamp_start) / msec;
+	return !dotalk;
 }
 

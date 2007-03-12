@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 //Every KAME source must include this header
 //---------------------------------------------------------------------------
 
@@ -22,82 +22,82 @@
 #endif
 
 #ifdef WORDS_BIGENDIAN
-    #ifndef __BIG_ENDIAN__
-        #define __BIG_ENDIAN__
-    #endif
+#ifndef __BIG_ENDIAN__
+#define __BIG_ENDIAN__
+#endif
 #endif
 
 #if SIZEOF_SHORT != 2
- #error sizeof short is not 2.
+#error sizeof short is not 2.
 #endif
 #if SIZEOF_FLOAT != 4
- #error sizeof float is not 4.
+#error sizeof float is not 4.
 #endif
 #if SIZEOF_DOUBLE != 8
- #error sizeof double is not 8.
+#error sizeof double is not 8.
 #endif
 /*
-    #if SIZEOF_LONG == 4
-     typedef long int int32_t;
-     typedef unsigned long int uint32_t;
-    #else
-        #if SIZEOF_INT == 4
-          typedef int int32_t;
-          typedef unsigned int uint32_t;
-        #else
-          #error Could not define 32bit integer.
-        #endif
-    #endif
+  #if SIZEOF_LONG == 4
+  typedef long int int32_t;
+  typedef unsigned long int uint32_t;
+  #else
+  #if SIZEOF_INT == 4
+  typedef int int32_t;
+  typedef unsigned int uint32_t;
+  #else
+  #error Could not define 32bit integer.
+  #endif
+  #endif
 */
 
 #ifdef HAVE_LIBGCCPP
-    //Boehm GC stuff
-    #define GC_OPERATOR_NEW_ARRAY
-    #define GC_NAME_CONFLICT
-    //default size results in falure; "too many root sets", see private/gc_priv.h
-    #define LARGE_CONFIG
-    #ifdef __linux__
-        #define GC_LINUX_THREADS
-        #define _REENTRANT
-    #endif
-    #define GC_DEBUG
-    #include <gc_cpp.h>
-    #include <gc_allocator.h>
-    #if defined MACOSX
-    // for buggy pthread library of GC
-        #define BUGGY_PTHRAD_COND_WAIT_USEC 10000
-        #define BUGGY_PTHRAD_COND
-    #endif
-    class kame_gc : public gc {
-    public:
-        void *operator new(size_t size);
-        void operator delete(void *obj);
-    };
+//Boehm GC stuff
+#define GC_OPERATOR_NEW_ARRAY
+#define GC_NAME_CONFLICT
+//default size results in falure; "too many root sets", see private/gc_priv.h
+#define LARGE_CONFIG
+#ifdef __linux__
+#define GC_LINUX_THREADS
+#define _REENTRANT
+#endif
+#define GC_DEBUG
+#include <gc_cpp.h>
+#include <gc_allocator.h>
+#if defined MACOSX
+// for buggy pthread library of GC
+#define BUGGY_PTHRAD_COND_WAIT_USEC 10000
+#define BUGGY_PTHRAD_COND
+#endif
+class kame_gc : public gc {
+public:
+	void *operator new(size_t size);
+	void operator delete(void *obj);
+};
 #else
- #if defined __WIN32__ || defined WINDOWS
- #else
-    #include <pthread.h>
- #endif
+#if defined __WIN32__ || defined WINDOWS
+#else
+#include <pthread.h>
+#endif
 #endif
 
 #define DEBUG_XTHREAD 1
 
 #ifdef DEBUG_XTHREAD
 #else
-  #define DEBUG_XTHREAD 0
+#define DEBUG_XTHREAD 0
 #endif
 #undef ASSERT
 #ifdef NDEBUG
- #define ASSERT(expr)
- #define C_ASSERT(expr)
+#define ASSERT(expr)
+#define C_ASSERT(expr)
 #else
- #define ASSERT(expr) _my_assert((expr), __FILE__, __LINE__)
- #define C_ASSERT(expr) _my_cassert(sizeof(char [ ( expr ) ? 1 : -1 ]))
- void my_assert(const char *file, int line);
- inline void _my_assert(bool var, const char *file, int line) {
+#define ASSERT(expr) _my_assert((expr), __FILE__, __LINE__)
+#define C_ASSERT(expr) _my_cassert(sizeof(char [ ( expr ) ? 1 : -1 ]))
+void my_assert(const char *file, int line);
+inline void _my_assert(bool var, const char *file, int line) {
     if (!var) my_assert(file, line);
- }
- inline void _my_cassert(size_t ) {}
+}
+inline void _my_cassert(size_t ) {}
 #endif
 
 //boost
@@ -161,7 +161,7 @@ std::string dumpCString(const char *cstr);
 
 //! \sa printf()
 std::string formatString(const char *format, ...)
-     __attribute__ ((format(printf,1,2)));
+	__attribute__ ((format(printf,1,2)));
 
 std::string formatDouble(const char *fmt, double val);
 //! validator

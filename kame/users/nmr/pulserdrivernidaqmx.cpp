@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #include "pulserdrivernidaqmx.h"
 
 #ifdef HAVE_NI_DAQMX
@@ -29,19 +29,19 @@ template <typename T>
 inline T *fastFill(T* p, T x, unsigned int cnt);
 
 XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
-   const shared_ptr<XScalarEntryList> &scalarentries,
-   const shared_ptr<XInterfaceList> &interfaces,
-   const shared_ptr<XThermometerList> &thermometers,
-   const shared_ptr<XDriverList> &drivers) :
+							   const shared_ptr<XScalarEntryList> &scalarentries,
+							   const shared_ptr<XInterfaceList> &interfaces,
+							   const shared_ptr<XThermometerList> &thermometers,
+							   const shared_ptr<XDriverList> &drivers) :
     XNIDAQmxDriver<XPulser>(name, runtime, scalarentries, interfaces, thermometers, drivers),
     m_pausingBit(0), m_pausingCount(0), 
- 	 m_running(false),
+	m_running(false),
     m_resolutionDO(-1.0),
     m_resolutionAO(-1.0),
-	 m_taskAO(TASK_UNDEF),
-	 m_taskDO(TASK_UNDEF),
- 	 m_taskDOCtr(TASK_UNDEF),
- 	 m_taskGateCtr(TASK_UNDEF)
+	m_taskAO(TASK_UNDEF),
+	m_taskDO(TASK_UNDEF),
+	m_taskDOCtr(TASK_UNDEF),
+	m_taskGateCtr(TASK_UNDEF)
 {
 	for(unsigned int i = 0; i < NUM_DO_PORTS; i++)
 		portSel(i)->add("Pausing(PFI4)");
@@ -58,8 +58,8 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
 	
 	//memory locks.
  	if(g_bUseMLock) {
-	const void *FIRST_OF_MLOCK_MEMBER = &m_genPatternList;
-	const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];
+		const void *FIRST_OF_MLOCK_MEMBER = &m_genPatternList;
+		const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];
 		mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);
  	}
 }
@@ -85,7 +85,7 @@ XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XInterface::XInterfaceError &)
 		
 	m_suspendDO = true; 	
 	m_threadWriteDO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
-		 &XNIDAQmxPulser::executeWriteDO));
+													  &XNIDAQmxPulser::executeWriteDO));
 	m_threadWriteDO->resume();
 }
 
@@ -119,12 +119,12 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 
 	m_suspendDO = true; 	
 	m_threadWriteDO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
-		 &XNIDAQmxPulser::executeWriteDO));
+													  &XNIDAQmxPulser::executeWriteDO));
 	m_threadWriteDO->resume();
 
 	m_suspendAO = true;
 	m_threadWriteAO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
-		 &XNIDAQmxPulser::executeWriteAO));
+													  &XNIDAQmxPulser::executeWriteAO));
 	m_threadWriteAO->resume();
 }
 
@@ -183,8 +183,8 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 
 	CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDO));
     CHECK_DAQMX_RET(DAQmxCreateDOChan(m_taskDO, 
-    	formatString("%s/port0", intfDO()->devName()).c_str(),
-    	 "", DAQmx_Val_ChanForAllLines));
+									  formatString("%s/port0", intfDO()->devName()).c_str(),
+									  "", DAQmx_Val_ChanForAllLines));
 	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskDO, 0, &XNIDAQmxPulser::_onTaskDone, this));
 
 	std::string do_clk_src;
@@ -199,8 +199,8 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		//Continuous pulse train generation. Duty = 50%.
 	    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDOCtr));
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskDOCtr, 
-	    	ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
-	    	freq, 0.5));
+												   ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
+												   freq, 0.5));
 	   	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskDOCtr, 0, &XNIDAQmxPulser::_onTaskDone, this));
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskDOCtr, DAQmx_Val_ContSamps, 1000));
 	    intfCtr()->synchronizeClock(m_taskDOCtr);
@@ -210,8 +210,8 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	unsigned int buf_size_hint = (unsigned int)lrint(2.0 * freq);
 	//M series needs an external sample clock and trigger for DO channels.
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO,
-		do_clk_src.c_str(),
-		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, buf_size_hint));
+										  do_clk_src.c_str(),
+										  freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, buf_size_hint));
 //    intfDO()->synchronizeClock(m_taskDO);
 	
 	uInt32 onbrdsize, bufsize;
@@ -232,11 +232,11 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
     	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
 		if(intfDO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_DMA_DO) {
 			CHECK_DAQMX_RET(DAQmxSetDODataXferMech(m_taskDO, ch,
-				DAQmx_Val_Interrupts));
+												   DAQmx_Val_Interrupts));
 		}
 		if(intfDO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_DO) {
 			CHECK_DAQMX_RET(DAQmxSetDODataXferReqCond(m_taskDO, ch,
-				DAQmx_Val_OnBrdMemNotFull));
+													  DAQmx_Val_OnBrdMemNotFull));
 	    }
 	}
 	
@@ -247,17 +247,17 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		//set idle state to high level for synchronization.
 		CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskGateCtr));
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanTime(m_taskGateCtr, 
-	    	m_pausingCh.c_str(), "", DAQmx_Val_Seconds, DAQmx_Val_Low, 
-	    	PAUSING_BLANK_BEFORE * resolution() * 1e-3,
-	    	PAUSING_BLANK_AFTER * resolution() * 1e-3, 
-	    	m_pausingCount * resolution() * 1e-3));
+												   m_pausingCh.c_str(), "", DAQmx_Val_Seconds, DAQmx_Val_Low, 
+												   PAUSING_BLANK_BEFORE * resolution() * 1e-3,
+												   PAUSING_BLANK_AFTER * resolution() * 1e-3, 
+												   m_pausingCount * resolution() * 1e-3));
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskGateCtr,
-			 DAQmx_Val_FiniteSamps, 1));
+											   DAQmx_Val_FiniteSamps, 1));
 	    intfCtr()->synchronizeClock(m_taskGateCtr);
 
 	    CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskGateCtr,
-			m_pausingGateTerm.c_str(),
-	    	DAQmx_Val_Rising));
+												 m_pausingGateTerm.c_str(),
+												 DAQmx_Val_Rising));
 		CHECK_DAQMX_RET(DAQmxSetStartTrigRetriggerable(m_taskGateCtr, true));
 		
 		if(!use_ao_clock) {
@@ -274,15 +274,15 @@ XNIDAQmxPulser::setupTasksAODO() {
 	
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskAO));
 	CHECK_DAQMX_RET(DAQmxCreateAOVoltageChan(m_taskAO,
-    	formatString("%s/ao0:1", intfAO()->devName()).c_str(), "",
-    	-1.0, 1.0, DAQmx_Val_Volts, NULL));
+											 formatString("%s/ao0:1", intfAO()->devName()).c_str(), "",
+											 -1.0, 1.0, DAQmx_Val_Volts, NULL));
 	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskAO, 0, &XNIDAQmxPulser::_onTaskDone, this));
 		
 	float64 freq = 1e3 / resolutionQAM();
 	unsigned int buf_size_hint = (unsigned int)lrint(2.0 * freq);
 	
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, "",
-		freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, buf_size_hint));
+										  freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, buf_size_hint));
     intfAO()->synchronizeClock(m_taskAO);
     
     int oversamp = lrint(resolution() / resolutionQAM());
@@ -292,14 +292,14 @@ XNIDAQmxPulser::setupTasksAODO() {
 		if(m_pausingBit) {
 			CHECK_DAQMX_RET(DAQmxSetArmStartTrigType(m_taskDOCtr, DAQmx_Val_DigEdge));
 			CHECK_DAQMX_RET(DAQmxSetDigEdgeArmStartTrigSrc(m_taskDOCtr,
-				formatString("/%s/ao/StartTrigger", intfAO()->devName()).c_str()));
+														   formatString("/%s/ao/StartTrigger", intfAO()->devName()).c_str()));
 			CHECK_DAQMX_RET(DAQmxSetDigEdgeArmStartTrigEdge(m_taskDOCtr,
-				DAQmx_Val_Rising));
+															DAQmx_Val_Rising));
 		}
 		else {
 			CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskDOCtr,
-				formatString("/%s/ao/StartTrigger", intfAO()->devName()).c_str(),
-				DAQmx_Val_Rising));
+													 formatString("/%s/ao/StartTrigger", intfAO()->devName()).c_str(),
+													 DAQmx_Val_Rising));
 		}
     }
 	
@@ -337,33 +337,33 @@ XNIDAQmxPulser::setupTasksAODO() {
 		CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskAO, ch, sizeof(ch)));
 		if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_DMA_AO) {
 			CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, ch,
-				DAQmx_Val_Interrupts));
+												   DAQmx_Val_Interrupts));
 		}
 		if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AO) {
 			CHECK_DAQMX_RET(DAQmxSetAODataXferReqCond(m_taskAO, ch,
-				DAQmx_Val_OnBrdMemNotFull));
+													  DAQmx_Val_OnBrdMemNotFull));
 	    }
 		CHECK_DAQMX_RET(DAQmxSetAOReglitchEnable(m_taskAO, ch, false));
 	}
 
 	for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
-	//obtain range info.
+		//obtain range info.
 		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++)
 			m_coeffAODev[ch][i] = 0.0;
 		CHECK_DAQMX_RET(DAQmxGetAODevScalingCoeff(m_taskAO, 
-			formatString("%s/ao%d", intfAO()->devName(), ch).c_str(),
-			m_coeffAODev[ch], CAL_POLY_ORDER));
+												  formatString("%s/ao%d", intfAO()->devName(), ch).c_str(),
+												  m_coeffAODev[ch], CAL_POLY_ORDER));
 		CHECK_DAQMX_RET(DAQmxGetAODACRngHigh(m_taskAO,
-			formatString("%s/ao%d", intfAO()->devName(), ch).c_str(),
-			&m_upperLimAO[ch]));
+											 formatString("%s/ao%d", intfAO()->devName(), ch).c_str(),
+											 &m_upperLimAO[ch]));
 		CHECK_DAQMX_RET(DAQmxGetAODACRngLow(m_taskAO,
-			formatString("%s/ao%d", intfAO()->devName(), ch).c_str(),
-			&m_lowerLimAO[ch]));
+											formatString("%s/ao%d", intfAO()->devName(), ch).c_str(),
+											&m_lowerLimAO[ch]));
 	}
 	
 /*	CHECK_DAQMX_RET(DAQmxSetAOIdleOutputBehavior(m_taskAO,
-			formatString("%s/ao0:1", intfAO()->devName()).c_str(),
-			DAQmx_Val_ZeroVolts));
+	formatString("%s/ao0:1", intfAO()->devName()).c_str(),
+	DAQmx_Val_ZeroVolts));
 */	
 }
 int32
@@ -423,8 +423,8 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		unsigned int pausingbitnext = selectedPorts(PORTSEL_PAUSING);
 	
 		if(CLEAR_TASKS_EVERYTIME ||
-			(m_taskDO == TASK_UNDEF) ||
-			(m_pausingBit != pausingbitnext)) {
+		   (m_taskDO == TASK_UNDEF) ||
+		   (m_pausingBit != pausingbitnext)) {
 			m_pausingBit = pausingbitnext;
 			clearTasks();
 			if(haveQAMPorts())
@@ -438,10 +438,10 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			if(!m_pausingBit & (bufsize < 2047uL))
 				throw XInterface::XInterfaceError(
 					KAME::i18n("Use the pausing feature for a cheap DAQmx board.\n"
-					+ KAME::i18n("Look at the port-selection table.")), __FILE__, __LINE__);
+							   + KAME::i18n("Look at the port-selection table.")), __FILE__, __LINE__);
 			if(!m_pausingBit)
 				gWarnPrint(KAME::i18n("Use of the pausing feature is recommended.\n"
-					+ KAME::i18n("Look at the port-selection table.")));
+									  + KAME::i18n("Look at the port-selection table.")));
 		}
 		if(m_taskAO != TASK_UNDEF) {
 			uInt32 bufsize;
@@ -449,10 +449,10 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			if(!m_pausingBit & (bufsize < 8192uL))
 				throw XInterface::XInterfaceError(
 					KAME::i18n("Use the pausing feature for a cheap DAQmx board.\n"
-					+ KAME::i18n("Look at the port-selection table.")), __FILE__, __LINE__);
+							   + KAME::i18n("Look at the port-selection table.")), __FILE__, __LINE__);
 			if(!m_pausingBit)
 				gWarnPrint(KAME::i18n("Use of the pausing feature is recommended.\n"
-					+ KAME::i18n("Look at the port-selection table.")));
+									  + KAME::i18n("Look at the port-selection table.")));
 		}
 
 		//swap generated pattern lists to new ones.
@@ -498,10 +498,10 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			fastFill(&m_genBufAO[0], m_genAOZeroLevel, cnt_preample_ao);
 			int32 samps;
 			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, cnt_preample_ao,
-				false, 0.5, 
-				DAQmx_Val_GroupByScanNumber,
-				m_genBufAO[0].ch,
-				&samps, NULL));
+												false, 0.5, 
+												DAQmx_Val_GroupByScanNumber,
+												m_genBufAO[0].ch,
+												&samps, NULL));
 			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_CurrWritePos));
 			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
 			uInt32 bufsize;
@@ -512,13 +512,13 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 				for(unsigned int cnt = 0; cnt < size;) {
 					samps = std::min(size - cnt, m_transferSizeHintAO);
 					CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, samps,
-						false, 0.0,
-						DAQmx_Val_GroupByScanNumber,
-						m_genBufAO[cnt].ch,
-						&samps, NULL));
+														false, 0.0,
+														DAQmx_Val_GroupByScanNumber,
+														m_genBufAO[cnt].ch,
+														&samps, NULL));
 					cnt += samps;
 				}
-			uInt32 space;
+				uInt32 space;
 				CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskAO, &space));
 				if((int)space < std::max((int)bufsize - (int)lrint(1e3 / resolutionQAM()), (int)m_bufSizeHintAO))
 					break;
@@ -532,10 +532,10 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
 		int32 samps;
 		CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, cnt_preample,
-				false, 0.0, 
-				DAQmx_Val_GroupByScanNumber,
-				&m_genBufDO[0],
-				&samps, NULL));
+											 false, 0.0, 
+											 DAQmx_Val_GroupByScanNumber,
+											 &m_genBufDO[0],
+											 &samps, NULL));
 		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_CurrWritePos));
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
 		uInt32 bufsize;
@@ -546,13 +546,13 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			for(unsigned int cnt = 0; cnt < size;) {
 				samps = std::min(size - cnt, m_transferSizeHintDO);
 				CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, samps,
-						false, 0.0, 
-						DAQmx_Val_GroupByScanNumber,
-						&m_genBufDO[cnt],
-						&samps, NULL));
+													 false, 0.0, 
+													 DAQmx_Val_GroupByScanNumber,
+													 &m_genBufDO[cnt],
+													 &samps, NULL));
 				cnt += samps;
 			}
-		uInt32 space;
+			uInt32 space;
 			CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskDO, &space));
 			if((int)space < std::max((int)bufsize - (int)lrint(1e3 / resolution()), (int)m_bufSizeHintDO))
 				break;
@@ -625,7 +625,7 @@ XNIDAQmxPulser::aoVoltToRaw(const std::complex<double> &volt)
 }
 inline bool
 XNIDAQmxPulser::tryOutputSuspend(const atomic<bool> &flag, 
-	XRecursiveMutex &mutex, const atomic<bool> &terminated) {
+								 XRecursiveMutex &mutex, const atomic<bool> &terminated) {
 	if(flag) {
 		mutex.unlock();
 		while(flag && !terminated) msecsleep(30);
@@ -668,7 +668,7 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated, const atomic<bool> &s
 			while(!terminated) {
 				if(tryOutputSuspend(suspended, m_mutexAO, terminated))
 					return;
-			uInt32 space;
+				uInt32 space;
 				CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskAO, &space));
 				if(space >= (uInt32)samps)
 					break;
@@ -678,9 +678,9 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated, const atomic<bool> &s
 				break;
 			int32 written;
 			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, samps, false, 0.0, 
-				DAQmx_Val_GroupByScanNumber,
-				m_genBufAO[cnt].ch,
-				&written, NULL));
+												DAQmx_Val_GroupByScanNumber,
+												m_genBufAO[cnt].ch,
+												&written, NULL));
 			if(written != samps)
 				fprintf(stderr, "%d != %d\n", (int)written, (int)samps);
 			cnt += written;
@@ -714,7 +714,7 @@ XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated, const atomic<bool> &s
 			while(!terminated) {
 				if(tryOutputSuspend(suspended, m_mutexDO, terminated))
 					return;
-			uInt32 space;
+				uInt32 space;
 				CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskDO, &space));
 				if(space >= (uInt32)samps)
 					break;
@@ -724,9 +724,9 @@ XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated, const atomic<bool> &s
 				break;
 			int32 written;
 			CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, samps, false, 0.0, 
-				DAQmx_Val_GroupByScanNumber,
-				&m_genBufDO[cnt],
-				&written, NULL));
+												 DAQmx_Val_GroupByScanNumber,
+												 &m_genBufDO[cnt],
+												 &written, NULL));
 			if(written != samps)
 				fprintf(stderr, "%d != %d\n", (int)written, (int)samps);
 			cnt += written;
@@ -859,11 +859,11 @@ XNIDAQmxPulser::genBankAO()
 			unsigned int pnum = (pat & PAT_QAM_MASK) / PAT_QAM_PHASE - (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE);
 			ASSERT(pnum < PAT_QAM_PULSE_IDX_MASK / PAT_QAM_PULSE_IDX);
 			if(!m_genPulseWaveAO[pnum].get() ||
-				(m_genPulseWaveAO[pnum]->size() < gen_cnt + aoidx))
+			   (m_genPulseWaveAO[pnum]->size() < gen_cnt + aoidx))
 				throw XInterface::XInterfaceError(KAME::i18n("Invalid pulse patterns."), __FILE__, __LINE__);
 			tRawAOSet *pGenAO = &m_genPulseWaveAO[pnum]->at(aoidx);
 /*			for(unsigned int cnt = 0; cnt < gen_cnt; cnt++)
-				*pAO++ = *pGenAO++;*/
+ *pAO++ = *pGenAO++;*/
 			memcpy(pAO, pGenAO, gen_cnt * sizeof(tRawAOSet));
 			pAO += gen_cnt;
 			aoidx += gen_cnt;
@@ -908,7 +908,7 @@ XNIDAQmxPulser::createNativePatterns()
 		const double level[] = {*qamLevel1(), *qamLevel2()};
 		  			  	
 		for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
-		//arrange range info.
+			//arrange range info.
 			double x = 1.0;
 			for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
 				m_coeffAO[ch][i] = m_coeffAODev[ch][i] * x
@@ -923,7 +923,7 @@ XNIDAQmxPulser::createNativePatterns()
 				const unsigned int pnum = i * (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE) + qpsk;
 				m_genPulseWaveNextAO[pnum].reset(new std::vector<tRawAOSet>);
 				for(std::vector<std::complex<double> >::const_iterator it = 
-					qamWaveForm(i).begin(); it != qamWaveForm(i).end(); it++) {
+						qamWaveForm(i).begin(); it != qamWaveForm(i).end(); it++) {
 					std::complex<double> z(*it * c);
 					m_genPulseWaveNextAO[pnum]->push_back(aoVoltToRaw(z));
 				}
@@ -937,17 +937,17 @@ XNIDAQmxPulser::createNativePatterns()
 void
 XNIDAQmxPulser::changeOutput(bool output, unsigned int /*blankpattern*/)
 {
-  if(output)
+	if(output)
     {
-      if(!m_genPatternListNext || m_genPatternListNext->empty() )
-              throw XInterface::XInterfaceError(KAME::i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
-	  startPulseGen();
+		if(!m_genPatternListNext || m_genPatternListNext->empty() )
+			throw XInterface::XInterfaceError(KAME::i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
+		startPulseGen();
     }
-  else
+	else
     {
-      stopPulseGen();
+		stopPulseGen();
     }
-  return;
+	return;
 }
 
 #endif //HAVE_NI_DAQMX

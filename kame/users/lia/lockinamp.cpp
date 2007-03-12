@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 //---------------------------------------------------------------------------
 #include "forms/lockinampform.h"
 #include "lockinamp.h"
@@ -23,15 +23,15 @@
 #include <klocale.h>
 
 XLIA::XLIA(const char *name, bool runtime, 
-   const shared_ptr<XScalarEntryList> &scalarentries,
-   const shared_ptr<XInterfaceList> &interfaces,
-   const shared_ptr<XThermometerList> &thermometers,
-   const shared_ptr<XDriverList> &drivers) : 
+		   const shared_ptr<XScalarEntryList> &scalarentries,
+		   const shared_ptr<XInterfaceList> &interfaces,
+		   const shared_ptr<XThermometerList> &thermometers,
+		   const shared_ptr<XDriverList> &drivers) : 
     XPrimaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
     m_valueX(create<XScalarEntry>("ValueX", false, 
-        dynamic_pointer_cast<XDriver>(shared_from_this()))),
+								  dynamic_pointer_cast<XDriver>(shared_from_this()))),
     m_valueY(create<XScalarEntry>("ValueY", false, 
-        dynamic_pointer_cast<XDriver>(shared_from_this()))),
+								  dynamic_pointer_cast<XDriver>(shared_from_this()))),
     m_output(create<XDoubleNode>("Output", false)),
     m_frequency(create<XDoubleNode>("Frequency", false)),
     m_sensitivity(create<XComboNode>("Sensitivity", false, true)),
@@ -41,29 +41,29 @@ XLIA::XLIA(const char *name, bool runtime,
     m_fetchFreq(create<XDoubleNode>("FetchFreq", false)),
     m_form(new FrmLIA(g_pFrmMain))
 {
-  fetchFreq()->value(1);
+	fetchFreq()->value(1);
   
-  scalarentries->insert(m_valueX);
-  scalarentries->insert(m_valueY);
+	scalarentries->insert(m_valueX);
+	scalarentries->insert(m_valueY);
 
-  m_form->statusBar()->hide();
-  m_form->setCaption(KAME::i18n("Lock-in-Amp - ") + getLabel() );
+	m_form->statusBar()->hide();
+	m_form->setCaption(KAME::i18n("Lock-in-Amp - ") + getLabel() );
 
-  m_output->setUIEnabled(false);
-  m_frequency->setUIEnabled(false);
-  m_sensitivity->setUIEnabled(false);
-  m_timeConst->setUIEnabled(false);
-  m_autoScaleX->setUIEnabled(false);
-  m_autoScaleY->setUIEnabled(false);
-  m_fetchFreq->setUIEnabled(false);
+	m_output->setUIEnabled(false);
+	m_frequency->setUIEnabled(false);
+	m_sensitivity->setUIEnabled(false);
+	m_timeConst->setUIEnabled(false);
+	m_autoScaleX->setUIEnabled(false);
+	m_autoScaleY->setUIEnabled(false);
+	m_fetchFreq->setUIEnabled(false);
 
-  m_conSens = xqcon_create<XQComboBoxConnector>(m_sensitivity, m_form->m_cmbSens);
-  m_conTimeConst = xqcon_create<XQComboBoxConnector>(m_timeConst, m_form->m_cmbTimeConst);
-  m_conFreq = xqcon_create<XQLineEditConnector>(m_frequency, m_form->m_edFreq);
-  m_conOutput = xqcon_create<XQLineEditConnector>(m_output, m_form->m_edOutput);
-  m_conAutoScaleX = xqcon_create<XQToggleButtonConnector>(m_autoScaleX, m_form->m_ckbAutoScaleX);
-  m_conAutoScaleY = xqcon_create<XQToggleButtonConnector>(m_autoScaleY, m_form->m_ckbAutoScaleY);
-  m_conFetchFreq = xqcon_create<XQLineEditConnector>(m_fetchFreq, m_form->m_edFetchFreq);
+	m_conSens = xqcon_create<XQComboBoxConnector>(m_sensitivity, m_form->m_cmbSens);
+	m_conTimeConst = xqcon_create<XQComboBoxConnector>(m_timeConst, m_form->m_cmbTimeConst);
+	m_conFreq = xqcon_create<XQLineEditConnector>(m_frequency, m_form->m_edFreq);
+	m_conOutput = xqcon_create<XQLineEditConnector>(m_output, m_form->m_edOutput);
+	m_conAutoScaleX = xqcon_create<XQToggleButtonConnector>(m_autoScaleX, m_form->m_ckbAutoScaleX);
+	m_conAutoScaleY = xqcon_create<XQToggleButtonConnector>(m_autoScaleY, m_form->m_ckbAutoScaleY);
+	m_conFetchFreq = xqcon_create<XQLineEditConnector>(m_fetchFreq, m_form->m_edFetchFreq);
 }
 
 void
@@ -78,25 +78,25 @@ XLIA::start()
 {
     m_thread.reset(new XThread<XLIA>(shared_from_this(), &XLIA::execute));
     m_thread->resume();
-  m_output->setUIEnabled(true);
-  m_frequency->setUIEnabled(true);
-  m_sensitivity->setUIEnabled(true);
-  m_timeConst->setUIEnabled(true);
-  m_autoScaleX->setUIEnabled(true);
-  m_autoScaleY->setUIEnabled(true);
-  m_fetchFreq->setUIEnabled(true);
+	m_output->setUIEnabled(true);
+	m_frequency->setUIEnabled(true);
+	m_sensitivity->setUIEnabled(true);
+	m_timeConst->setUIEnabled(true);
+	m_autoScaleX->setUIEnabled(true);
+	m_autoScaleY->setUIEnabled(true);
+	m_fetchFreq->setUIEnabled(true);
         
 }
 void
 XLIA::stop()
 {  
-  m_output->setUIEnabled(false);
-  m_frequency->setUIEnabled(false);
-  m_sensitivity->setUIEnabled(false);
-  m_timeConst->setUIEnabled(false);
-  m_autoScaleX->setUIEnabled(false);
-  m_autoScaleY->setUIEnabled(false);
-  m_fetchFreq->setUIEnabled(false);
+	m_output->setUIEnabled(false);
+	m_frequency->setUIEnabled(false);
+	m_sensitivity->setUIEnabled(false);
+	m_timeConst->setUIEnabled(false);
+	m_autoScaleX->setUIEnabled(false);
+	m_autoScaleY->setUIEnabled(false);
+	m_fetchFreq->setUIEnabled(false);
   	
     if(m_thread) m_thread->terminate();
 //    m_thread->waitFor();
@@ -115,8 +115,8 @@ XLIA::analyzeRaw() throw (XRecordError&)
 void
 XLIA::visualize()
 {
- //! impliment extra codes which do not need write-lock of record
- //! record is read-locked
+	//! impliment extra codes which do not need write-lock of record
+	//! record is read-locked
 }
 
 void 
@@ -168,46 +168,46 @@ void *
 XLIA::execute(const atomic<bool> &terminated)
 {
 
-  m_lsnOutput = output()->onValueChanged().connectWeak(
-                          shared_from_this(), &XLIA::onOutputChanged);
-  m_lsnFreq = frequency()->onValueChanged().connectWeak(
-                          shared_from_this(), &XLIA::onFreqChanged);
-  m_lsnSens = sensitivity()->onValueChanged().connectWeak(
-                        shared_from_this(), &XLIA::onSensitivityChanged);
-  m_lsnTimeConst = timeConst()->onValueChanged().connectWeak(
-                         shared_from_this(), &XLIA::onTimeConstChanged);
+	m_lsnOutput = output()->onValueChanged().connectWeak(
+		shared_from_this(), &XLIA::onOutputChanged);
+	m_lsnFreq = frequency()->onValueChanged().connectWeak(
+		shared_from_this(), &XLIA::onFreqChanged);
+	m_lsnSens = sensitivity()->onValueChanged().connectWeak(
+		shared_from_this(), &XLIA::onSensitivityChanged);
+	m_lsnTimeConst = timeConst()->onValueChanged().connectWeak(
+		shared_from_this(), &XLIA::onTimeConstChanged);
 
-  while(!terminated)
+	while(!terminated)
     {
-      double fetch_freq = *fetchFreq();
-      double wait = 0;
-      if(fetch_freq > 0) {
-         sscanf(timeConst()->to_str().c_str(), "%lf", &wait);
-         wait *= 1000.0 / fetch_freq;
-      }
-      if(wait > 0) msecsleep(lrint(wait));
+		double fetch_freq = *fetchFreq();
+		double wait = 0;
+		if(fetch_freq > 0) {
+			sscanf(timeConst()->to_str().c_str(), "%lf", &wait);
+			wait *= 1000.0 / fetch_freq;
+		}
+		if(wait > 0) msecsleep(lrint(wait));
       
-      double x, y;
-      XTime time_awared = XTime::now();
-      // try/catch exception of communication errors
-      try {
-          get(&x, &y);
-      }
-      catch (XKameError &e) {
-          e.print(getLabel() + " " + KAME::i18n("Read Error, "));
-          continue;
-      }
-      clearRaw();
-      push(x);
-      push(y);
-      finishWritingRaw(time_awared, XTime::now());
+		double x, y;
+		XTime time_awared = XTime::now();
+		// try/catch exception of communication errors
+		try {
+			get(&x, &y);
+		}
+		catch (XKameError &e) {
+			e.print(getLabel() + " " + KAME::i18n("Read Error, "));
+			continue;
+		}
+		clearRaw();
+		push(x);
+		push(y);
+		finishWritingRaw(time_awared, XTime::now());
     }
   
-  m_lsnOutput.reset();
-  m_lsnFreq.reset();
-  m_lsnSens.reset();
-  m_lsnTimeConst.reset();
+	m_lsnOutput.reset();
+	m_lsnFreq.reset();
+	m_lsnSens.reset();
+	m_lsnTimeConst.reset();
 
-  afterStop();
-  return NULL;
+	afterStop();
+	return NULL;
 }

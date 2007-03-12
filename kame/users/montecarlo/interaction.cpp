@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #include "montecarlo.h"
 using std::vector;
 using std::complex;
@@ -97,7 +97,7 @@ MonteCarlo::dipoleFieldRec(const Vector3<double> &v, int site2, Vector3<double> 
 }
 int
 MonteCarlo::setupField(int size, double dfactor,
-         double radius, double radius_rec, double alpha)
+					   double radius, double radius_rec, double alpha)
 {
     s_bAborting = false;
     s_L = size;
@@ -123,7 +123,7 @@ MonteCarlo::setupField(int size, double dfactor,
     s_cutoff_rec_radius = radius_rec;
 
     for(int site2 = 0; site2 < 16; site2++) {
-    #ifdef PACK_4FLOAT
+#ifdef PACK_4FLOAT
         int size = (cutoff_real*2+1)*(cutoff_real*2+1)*((cutoff_real*2 + 3)/4 + 1);
         for(int al = 0; al < 4; al++) {
             for(int site1 = 0; site1 < 16; site1++) {
@@ -145,7 +145,7 @@ MonteCarlo::setupField(int size, double dfactor,
                 }
             }
         }
-    #else
+#else
         int size = (cutoff_real*2+1)*(cutoff_real*2+1)*(cutoff_real*2+1);
         for(int site1 = 0; site1 < 16; site1++) {
             s_fields_real[site1][site2].clear();
@@ -165,7 +165,7 @@ MonteCarlo::setupField(int size, double dfactor,
                 s_fields_real_48f[site1][site2][d].resize(size, 0.0);
             }
         }
-    #endif
+#endif
     }
 
 
@@ -179,50 +179,50 @@ MonteCarlo::setupField(int size, double dfactor,
         Vector3<double> d1(s_ASiteIsingVector[site1]);
         for(int site2 = 0; site2 < 16; site2++) {
             for(int dk = -cutoff_real; dk <= cutoff_real; dk++) {
-            for(int dj = -cutoff_real; dj <= cutoff_real; dj++) {
-            for(int di = -cutoff_real; di <= cutoff_real; di++) {                
-                VectorInt v = distance(site1,site2,di,dj,dk);
-                int r2int = v.x*v.x + v.y*v.y + v.z*v.z;
-                if(r2int == 0) {
-                    continue;
-                }
-                Vector3<double> hdip;
-                if(!dipoleFieldReal(v, site2, &hdip))
-                     continue;
-                double hdip_d1 = d1.innerProduct(hdip);
-                ASSERT(fabs(hdip_d1) < 1.0);
-    //            fprintf(stderr, "%g\n",h);
+				for(int dj = -cutoff_real; dj <= cutoff_real; dj++) {
+					for(int di = -cutoff_real; di <= cutoff_real; di++) {                
+						VectorInt v = distance(site1,site2,di,dj,dk);
+						int r2int = v.x*v.x + v.y*v.y + v.z*v.z;
+						if(r2int == 0) {
+							continue;
+						}
+						Vector3<double> hdip;
+						if(!dipoleFieldReal(v, site2, &hdip))
+							continue;
+						double hdip_d1 = d1.innerProduct(hdip);
+						ASSERT(fabs(hdip_d1) < 1.0);
+						//            fprintf(stderr, "%g\n",h);
 
-                //counts for real-space.
-                cnt_n_r2[r2int]++;
-                addFieldsReal(hdip_d1, s_fields_real[site1][site2], di, dj, dk);
+						//counts for real-space.
+						cnt_n_r2[r2int]++;
+						addFieldsReal(hdip_d1, s_fields_real[site1][site2], di, dj, dk);
                 
-                cnt_n++;
-                // Nearest neighbor.
-                if(r2int <= 2*1*1) {
-                    ASSERT(r2int == 2);
-                    Vector3<double> d2(s_ASiteIsingVector[site2]);
+						cnt_n++;
+						// Nearest neighbor.
+						if(r2int <= 2*1*1) {
+							ASSERT(r2int == 2);
+							Vector3<double> d2(s_ASiteIsingVector[site2]);
     
-                    d_nn += hdip_d1 / (K_B / (A_MOMENT * MU_B)) * 3.0 * (d1.innerProduct(d2));
-                    addFieldsReal(
-                        J_NN * K_B / (A_MOMENT * MU_B) * 3.0 * (d1.innerProduct(d2))
-                        , s_fields_real[site1][site2], di, dj, dk);
-    //                fprintf(stderr, "%g\n",g_fields[didx]);
-                    cnt_nn++;
-                    continue;
-                }
-                // Next nearest neighbor.
-                if(r2int <= 6) {
-                    cnt_nnn++;
-                    continue;
-                }
-                // 3rd nearest neighbor.
-                if(r2int <= 8) {
-                    cnt_3nn++;
-                    continue;
-                }
-            }
-            }
+							d_nn += hdip_d1 / (K_B / (A_MOMENT * MU_B)) * 3.0 * (d1.innerProduct(d2));
+							addFieldsReal(
+								J_NN * K_B / (A_MOMENT * MU_B) * 3.0 * (d1.innerProduct(d2))
+								, s_fields_real[site1][site2], di, dj, dk);
+							//                fprintf(stderr, "%g\n",g_fields[didx]);
+							cnt_nn++;
+							continue;
+						}
+						// Next nearest neighbor.
+						if(r2int <= 6) {
+							cnt_nnn++;
+							continue;
+						}
+						// 3rd nearest neighbor.
+						if(r2int <= 8) {
+							cnt_3nn++;
+							continue;
+						}
+					}
+				}
             }
         }
     }
@@ -230,60 +230,60 @@ MonteCarlo::setupField(int size, double dfactor,
     for(int site1 = 0; site1 < 16; site1++) {
         for(int site2 = 0; site2 < 16; site2++) {
             for(int dk = -cutoff_real; dk <= cutoff_real; dk++) {
-            for(int dj = -cutoff_real; dj <= cutoff_real; dj++) {
-            for(int di = -cutoff_real; di <= cutoff_real; di++) {                
-                Vector3<double> v;
-                v.x = 4*di + cg_ASitePositions[site2][0] - cg_BSitePositions[site1][0];
-                v.y = 4*dj + cg_ASitePositions[site2][1] - cg_BSitePositions[site1][1];
-                v.z = 4*dk + cg_ASitePositions[site2][2] - cg_BSitePositions[site1][2];
-                Vector3<double> hdip;
-                if(!dipoleFieldReal(v, site2, &hdip))
-                     continue;
-                addFieldsReal(hdip.x, s_fields_real_B[site1][site2][0], di, dj, dk);
-                addFieldsReal(hdip.y, s_fields_real_B[site1][site2][1], di, dj, dk);
-                addFieldsReal(hdip.z, s_fields_real_B[site1][site2][2], di, dj, dk);
-            }
-            }
+				for(int dj = -cutoff_real; dj <= cutoff_real; dj++) {
+					for(int di = -cutoff_real; di <= cutoff_real; di++) {                
+						Vector3<double> v;
+						v.x = 4*di + cg_ASitePositions[site2][0] - cg_BSitePositions[site1][0];
+						v.y = 4*dj + cg_ASitePositions[site2][1] - cg_BSitePositions[site1][1];
+						v.z = 4*dk + cg_ASitePositions[site2][2] - cg_BSitePositions[site1][2];
+						Vector3<double> hdip;
+						if(!dipoleFieldReal(v, site2, &hdip))
+							continue;
+						addFieldsReal(hdip.x, s_fields_real_B[site1][site2][0], di, dj, dk);
+						addFieldsReal(hdip.y, s_fields_real_B[site1][site2][1], di, dj, dk);
+						addFieldsReal(hdip.z, s_fields_real_B[site1][site2][2], di, dj, dk);
+					}
+				}
             }
         }
     }
     for(int site1 = 0; site1 < 8; site1++) {
         for(int site2 = 0; site2 < 16; site2++) {
             for(int dk = -cutoff_real; dk <= cutoff_real; dk++) {
-            for(int dj = -cutoff_real; dj <= cutoff_real; dj++) {
-            for(int di = -cutoff_real; di <= cutoff_real; di++) {                
-                Vector3<double> v;
-                v.x = 4*di + cg_ASitePositions[site2][0] - cg_8aSitePositions[site1][0];
-                v.y = 4*dj + cg_ASitePositions[site2][1] - cg_8aSitePositions[site1][1];
-                v.z = 4*dk + cg_ASitePositions[site2][2] - cg_8aSitePositions[site1][2];
-                Vector3<double> hdip;
-                if(!dipoleFieldReal(v, site2, &hdip))
-                     continue;
-                addFieldsReal(hdip.x, s_fields_real_8a[site1][site2][0], di, dj, dk);
-                addFieldsReal(hdip.y, s_fields_real_8a[site1][site2][1], di, dj, dk);
-                addFieldsReal(hdip.z, s_fields_real_8a[site1][site2][2], di, dj, dk);
-            }
-            }
+				for(int dj = -cutoff_real; dj <= cutoff_real; dj++) {
+					for(int di = -cutoff_real; di <= cutoff_real; di++) {                
+						Vector3<double> v;
+						v.x = 4*di + cg_ASitePositions[site2][0] - cg_8aSitePositions[site1][0];
+						v.y = 4*dj + cg_ASitePositions[site2][1] - cg_8aSitePositions[site1][1];
+						v.z = 4*dk + cg_ASitePositions[site2][2] - cg_8aSitePositions[site1][2];
+						Vector3<double> hdip;
+						if(!dipoleFieldReal(v, site2, &hdip))
+							continue;
+						addFieldsReal(hdip.x, s_fields_real_8a[site1][site2][0], di, dj, dk);
+						addFieldsReal(hdip.y, s_fields_real_8a[site1][site2][1], di, dj, dk);
+						addFieldsReal(hdip.z, s_fields_real_8a[site1][site2][2], di, dj, dk);
+					}
+				}
             }
         }
     }
     for(int site1 = 0; site1 < 48; site1++) {
         for(int site2 = 0; site2 < 16; site2++) {
             for(int dk = -cutoff_real; dk <= cutoff_real; dk++) {
-            for(int dj = -cutoff_real; dj <= cutoff_real; dj++) {
-            for(int di = -cutoff_real; di <= cutoff_real; di++) {                
-                Vector3<double> v;
-                v.x = 4*di + cg_ASitePositions[site2][0] - cg_48fSitePositions[site1][0];
-                v.y = 4*dj + cg_ASitePositions[site2][1] - cg_48fSitePositions[site1][1];
-                v.z = 4*dk + cg_ASitePositions[site2][2] - cg_48fSitePositions[site1][2];
-                Vector3<double> hdip;
-                if(!dipoleFieldReal(v, site2, &hdip))
-                     continue;
-                addFieldsReal(hdip.x, s_fields_real_48f[site1][site2][0], di, dj, dk);
-                addFieldsReal(hdip.y, s_fields_real_48f[site1][site2][1], di, dj, dk);
-                addFieldsReal(hdip.z, s_fields_real_48f[site1][site2][2], di, dj, dk);
-            }
-            }
+				for(int dj = -cutoff_real; dj <= cutoff_real; dj++) {
+					for(int di = -cutoff_real; di <= cutoff_real; di++) {                
+						Vector3<double> v;
+						v.x = 4*di + cg_ASitePositions[site2][0] - cg_48fSitePositions[site1][0];
+						v.y = 4*dj + cg_ASitePositions[site2][1] - cg_48fSitePositions[site1][1];
+						v.z = 4*dk + cg_ASitePositions[site2][2] - cg_48fSitePositions[site1][2];
+						Vector3<double> hdip;
+						if(!dipoleFieldReal(v, site2, &hdip))
+							continue;
+						addFieldsReal(hdip.x, s_fields_real_48f[site1][site2][0], di, dj, dk);
+						addFieldsReal(hdip.y, s_fields_real_48f[site1][site2][1], di, dj, dk);
+						addFieldsReal(hdip.z, s_fields_real_48f[site1][site2][2], di, dj, dk);
+					}
+				}
             }
         }
     }
@@ -322,16 +322,16 @@ MonteCarlo::setupField(int size, double dfactor,
             s_fields_rec[site1][site2].resize(rec_size);
 
             for(int kz = 0; kz <= cutoff_rec; kz++) {
-            for(int ky = -cutoff_rec; ky <= cutoff_rec; ky++) {
-            for(int kx = -cutoff_rec; kx <= cutoff_rec; kx++) {
-                VectorInt v(kx, ky, kz);
-                Vector3<double> hdip;
-                if(!dipoleFieldRec(v, site2, &hdip))
-                    continue;             
-                int ridx = reciprocal_index(kx,ky,kz);
-                s_fields_rec[site1][site2][ridx] = hdip.innerProduct(d1);
-            }
-            }
+				for(int ky = -cutoff_rec; ky <= cutoff_rec; ky++) {
+					for(int kx = -cutoff_rec; kx <= cutoff_rec; kx++) {
+						VectorInt v(kx, ky, kz);
+						Vector3<double> hdip;
+						if(!dipoleFieldRec(v, site2, &hdip))
+							continue;             
+						int ridx = reciprocal_index(kx,ky,kz);
+						s_fields_rec[site1][site2][ridx] = hdip.innerProduct(d1);
+					}
+				}
             }
         }
     }
@@ -340,61 +340,61 @@ MonteCarlo::setupField(int size, double dfactor,
         s_fields_rec_generic[site2].resize(rec_size);
 
         for(int kz = 0; kz <= cutoff_rec; kz++) {
-        for(int ky = -cutoff_rec; ky <= cutoff_rec; ky++) {
-        for(int kx = -cutoff_rec; kx <= cutoff_rec; kx++) {
-            VectorInt v(kx, ky, kz);
-            Vector3<double> hdip;
-            if(!dipoleFieldRec(v, site2, &hdip))
-                continue;             
-            int ridx = reciprocal_index(kx,ky,kz);
-            s_fields_rec_generic[site2][ridx] = hdip;
-        }
-        }
+			for(int ky = -cutoff_rec; ky <= cutoff_rec; ky++) {
+				for(int kx = -cutoff_rec; kx <= cutoff_rec; kx++) {
+					VectorInt v(kx, ky, kz);
+					Vector3<double> hdip;
+					if(!dipoleFieldRec(v, site2, &hdip))
+						continue;             
+					int ridx = reciprocal_index(kx,ky,kz);
+					s_fields_rec_generic[site2][ridx] = hdip;
+				}
+			}
         }
     }
     // For self-energy correction.
     s_fields_rec_sum = accumulate(s_fields_rec[0][0].begin(), s_fields_rec[0][0].end(), 0.0);
 
     for(int site1 = 0; site1 < 16; site1++) {
-    s_exp_ph[site1].clear();
-    if(rec_size*s_num_spins*sizeof(double) < 500000000) {
-        //create deep cache.
-        s_exp_ph[site1].resize(rec_size * s_num_spins / 16);
+		s_exp_ph[site1].clear();
+		if(rec_size*s_num_spins*sizeof(double) < 500000000) {
+			//create deep cache.
+			s_exp_ph[site1].resize(rec_size * s_num_spins / 16);
     
-        Vector3<double> pos1(cg_ASitePositions[site1]);
-        pos1 *= LATTICE_CONST / 4.0;
-        for(int k = 0; k < s_L; k++) {
-        for(int j = 0; j < s_L; j++) {
-        for(int i = 0; i < s_L; i++) {
-            int lidx = lattice_index(i,j,k);
-            double phx = 2*M_PI / (LATTICE_CONST * s_L) * (i * LATTICE_CONST + pos1.x);
-            double phy = 2*M_PI / (LATTICE_CONST * s_L) * (j * LATTICE_CONST + pos1.y);
-            double phz = 2*M_PI / (LATTICE_CONST * s_L) * (k * LATTICE_CONST + pos1.z);
-            complex<double> exp_i_rx = exp(complex<double>(0.0, phx));
-            complex<double> exp_i_ry = exp(complex<double>(0.0, phy));
-            complex<double> exp_i_rz = exp(complex<double>(0.0, phz));
+			Vector3<double> pos1(cg_ASitePositions[site1]);
+			pos1 *= LATTICE_CONST / 4.0;
+			for(int k = 0; k < s_L; k++) {
+				for(int j = 0; j < s_L; j++) {
+					for(int i = 0; i < s_L; i++) {
+						int lidx = lattice_index(i,j,k);
+						double phx = 2*M_PI / (LATTICE_CONST * s_L) * (i * LATTICE_CONST + pos1.x);
+						double phy = 2*M_PI / (LATTICE_CONST * s_L) * (j * LATTICE_CONST + pos1.y);
+						double phz = 2*M_PI / (LATTICE_CONST * s_L) * (k * LATTICE_CONST + pos1.z);
+						complex<double> exp_i_rx = exp(complex<double>(0.0, phx));
+						complex<double> exp_i_ry = exp(complex<double>(0.0, phy));
+						complex<double> exp_i_rz = exp(complex<double>(0.0, phz));
                 
-            complex<double> exp_ikrz = exp(complex<double>(0.0, -cutoff_rec * (phx + phy)));
-            for(int kz = 0; kz <= cutoff_rec; kz++) {
-            complex<double> exp_ikryz = exp_ikrz;
-            for(int ky = -cutoff_rec; ky <= cutoff_rec; ky++) {
-            complex<double> exp_ikr = exp_ikryz;
-            for(int kx = -cutoff_rec; kx <= cutoff_rec; kx++) {
-                int ridx = reciprocal_index(kx,ky,kz);
-                s_exp_ph[site1][lidx * rec_size + ridx] = exp_ikr;
-                exp_ikr *= exp_i_rx;
-            }
-            exp_ikryz *= exp_i_ry;
-            }
-            exp_ikrz *= exp_i_rz;
-            }
-            ASSERT(abs(complex<double>(s_exp_ph[site1][(lidx+1) * rec_size-1])
-                /exp(complex<double>(0.0, (cutoff_rec) * (phx + phy + phz)))
-                - complex<double>(1.0,0)) < 1e-6);
-        }
-        }
-        }
-    }
+						complex<double> exp_ikrz = exp(complex<double>(0.0, -cutoff_rec * (phx + phy)));
+						for(int kz = 0; kz <= cutoff_rec; kz++) {
+							complex<double> exp_ikryz = exp_ikrz;
+							for(int ky = -cutoff_rec; ky <= cutoff_rec; ky++) {
+								complex<double> exp_ikr = exp_ikryz;
+								for(int kx = -cutoff_rec; kx <= cutoff_rec; kx++) {
+									int ridx = reciprocal_index(kx,ky,kz);
+									s_exp_ph[site1][lidx * rec_size + ridx] = exp_ikr;
+									exp_ikr *= exp_i_rx;
+								}
+								exp_ikryz *= exp_i_ry;
+							}
+							exp_ikrz *= exp_i_rz;
+						}
+						ASSERT(abs(complex<double>(s_exp_ph[site1][(lidx+1) * rec_size-1])
+								   /exp(complex<double>(0.0, (cutoff_rec) * (phx + phy + phz)))
+								   - complex<double>(1.0,0)) < 1e-6);
+					}
+				}
+			}
+		}
     }
 
     return cnt_n;
@@ -422,9 +422,9 @@ MonteCarlo::iterate_real_redirected(int cnt, const FieldRealArray &array, int i,
 //            ASSERT(pspin == &m_spins_real[site2][spins_real_index(i - cutoff,(j+s_L+dj) % s_L,(k+s_L+dk) % s_L)]);
             for(int n = 0; n < (cnt + 2) / 4 + 1; n++) {
                 asm ("movaps %0, %%xmm1;"
-                    "movaps %1, %%xmm2;"
-                    "mulps %%xmm1, %%xmm2;"
-                    "addps %%xmm2, %%xmm3"
+					 "movaps %1, %%xmm2;"
+					 "mulps %%xmm1, %%xmm2;"
+					 "addps %%xmm2, %%xmm3"
                      :
                      : "m" (pspin[n]), "m" (pfield[n])
                      : "%xmm1", "%xmm2", "%xmm3");
@@ -606,30 +606,30 @@ MonteCarlo::iterate_rec(int site1, int i, int j, int k, int site2)
 void
 MonteCarlo::execute()
 {
-  for(;;) {
-    int left = m_hint_site2_left;
-    if(left <= 1) {
-       XScopedLock<XCondition> lock(m_thread_pool_cond);
-       if(m_bTerminated)
-            break;
-       m_thread_pool_cond.wait();
-       continue;
-    }
-    if(!m_hint_site2_left.compareAndSet(left, left - 1))
-        continue;
+	for(;;) {
+		int left = m_hint_site2_left;
+		if(left <= 1) {
+			XScopedLock<XCondition> lock(m_thread_pool_cond);
+			if(m_bTerminated)
+				break;
+			m_thread_pool_cond.wait();
+			continue;
+		}
+		if(!m_hint_site2_left.compareAndSet(left, left - 1))
+			continue;
     
-    int site2 = m_hint_sec_cache_miss[left - 1];
-    ASSERT(site2 < 16);
+		int site2 = m_hint_sec_cache_miss[left - 1];
+		ASSERT(site2 < 16);
 
-    readBarrier();
-    m_hint_fields[site2] = iterate_interactions(
-        m_hint_spin1_site, m_hint_spin1_lattice_index, site2);
-    memoryBarrier();
-    if(m_hint_site2_not_done.decAndTest()) {
-        XScopedLock<XCondition> lock(m_hint_site2_last_cond);
-        m_hint_site2_last_cond.signal();
-    }
-  }
+		readBarrier();
+		m_hint_fields[site2] = iterate_interactions(
+			m_hint_spin1_site, m_hint_spin1_lattice_index, site2);
+		memoryBarrier();
+		if(m_hint_site2_not_done.decAndTest()) {
+			XScopedLock<XCondition> lock(m_hint_site2_last_cond);
+			m_hint_site2_last_cond.signal();
+		}
+	}
 }
 
 double
@@ -647,7 +647,7 @@ MonteCarlo::hinteraction_miscache(int sec_cache_miss_cnt, int site1, int lidx)
     m_hint_site2_left = sec_cache_miss_cnt;
     {
 //    XScopedLock<XCondition> lock(m_thread_pool_cond);
-    m_thread_pool_cond.broadcast();
+		m_thread_pool_cond.broadcast();
     }
 
     for(;;) {

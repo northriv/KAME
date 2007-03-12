@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #ifndef MONTECARLO_H_
 #define MONTECARLO_H_
 
@@ -89,30 +89,30 @@ public:
         }
         //! square of distance between this and a point
         T distance2(const Vector3<T> &s1) const {
-        T x1 = x - s1.x;
-        T y1 = y - s1.y;
-        T z1 = z - s1.z;
+			T x1 = x - s1.x;
+			T y1 = y - s1.y;
+			T z1 = z - s1.z;
             return x1*x1 + y1*y1 + z1*z1;
         }
         //! square of distance between this and a line from s1 to s2
         T distance2(const Vector3<T> &s1, const Vector3<T> &s2) const  {
-        T x1 = x - s1.x;
-        T y1 = y - s1.y;
-        T z1 = z - s1.z;
-        T x2 = s2.x - s1.x;
-        T y2 = s2.y - s1.y;
-        T z2 = s2.z - s1.z;
-        T zbab = x1*x2 + y1*y2 + z1*z2;
-        T ab2 = x2*x2 + y2*y2 + z2*z2;
-        T zb2 = x1*x1 + y1*y1 + z1*z1;
-        return (zb2*ab2 - zbab*zbab) / ab2;
+			T x1 = x - s1.x;
+			T y1 = y - s1.y;
+			T z1 = z - s1.z;
+			T x2 = s2.x - s1.x;
+			T y2 = s2.y - s1.y;
+			T z2 = s2.z - s1.z;
+			T zbab = x1*x2 + y1*y2 + z1*z2;
+			T ab2 = x2*x2 + y2*y2 + z2*z2;
+			T zb2 = x1*x1 + y1*y1 + z1*z1;
+			return (zb2*ab2 - zbab*zbab) / ab2;
         }
         void normalize() {
             T ir = (T)1.0 / sqrt(x*x + y*y + z*z);
             x *= ir; y *= ir; z *= ir;
         }
         Vector3 &vectorProduct(const Vector3 &s1) {
-        Vector3 s2;
+			Vector3 s2;
             s2.x = y * s1.z - z * s1.y;
             s2.y = z * s1.x - x * s1.z;
             s2.z = x * s1.y - y * s1.x;
@@ -134,7 +134,7 @@ public:
     //! \arg flips # of flipping to be performed. # done is returned.
     //! \arg tests Min # of tests to be performed. # done is returned.
     double exec(double temp, Vector3<double> field,
-         int *flips, long double *tests, double *DUav, Vector3<double> *Mav);
+				int *flips, long double *tests, double *DUav, Vector3<double> *Mav);
     //! randomize spins
     void randomize();
     //! [mu_B/A site]
@@ -166,14 +166,14 @@ public:
     //! \arg alpha Ewald convergence factor [1/L].
     //! \return # of interactions.
     static int setupField(int size, double dfactor,
-         double cutoff_real, double cutoff_rec, double alpha);
+						  double cutoff_real, double cutoff_rec, double alpha);
     //! read snapshot.
     void read(std::istream &);
     void read(const char *spins, double temp, Vector3<double> field);
     //! write snapshot.
     void write(std::ostream &);
     void write(char *spins, 
-        double *fields = 0, double *probabilities = 0);
+			   double *fields = 0, double *probabilities = 0);
     void write_bsite(Vector3<double> *fields);
     void write_8asite(Vector3<double> *fields);
     void write_48fsite(Vector3<double> *fields);
@@ -408,47 +408,47 @@ MonteCarlo::lattice_index(int i, int j, int k) {
     return s_L*(s_L*k + j) + i;
 }
 #ifdef PACK_4FLOAT
-    inline int
-    MonteCarlo::spins_real_index(int i, int j, int k) {
-        int l = ((3 * s_L - 1) / 4 + 1) * 4;
-        return 3*l*(s_L*k + j) + s_L + i;
-    }
-    inline int
-    MonteCarlo::spins_real_index(int lidx) {
-        int l = ((3 * s_L - 1) / 4 + 1) * 4;
-        return 3*l*(lidx / s_L) + s_L + (lidx % s_L);
-    }
-    inline MonteCarlo::Spin
-    MonteCarlo::readSpin(int site, int sidx) {
-        int r = sidx / 4;
-        int c = sidx % 4;
-        return m_spins_real[site][r].x[c];
-    }
-    inline void
-    MonteCarlo::writeSpin(Spin v, int site, int sidx) {
-        m_spins_real[site][sidx / 4].x[sidx % 4] = v;
-        m_spins_real[site][(sidx - s_L) / 4].x[(sidx - s_L) % 4] = v;
-        m_spins_real[site][(sidx + s_L) / 4].x[(sidx + s_L) % 4] = v;
-    }
+inline int
+MonteCarlo::spins_real_index(int i, int j, int k) {
+	int l = ((3 * s_L - 1) / 4 + 1) * 4;
+	return 3*l*(s_L*k + j) + s_L + i;
+}
+inline int
+MonteCarlo::spins_real_index(int lidx) {
+	int l = ((3 * s_L - 1) / 4 + 1) * 4;
+	return 3*l*(lidx / s_L) + s_L + (lidx % s_L);
+}
+inline MonteCarlo::Spin
+MonteCarlo::readSpin(int site, int sidx) {
+	int r = sidx / 4;
+	int c = sidx % 4;
+	return m_spins_real[site][r].x[c];
+}
+inline void
+MonteCarlo::writeSpin(Spin v, int site, int sidx) {
+	m_spins_real[site][sidx / 4].x[sidx % 4] = v;
+	m_spins_real[site][(sidx - s_L) / 4].x[(sidx - s_L) % 4] = v;
+	m_spins_real[site][(sidx + s_L) / 4].x[(sidx + s_L) % 4] = v;
+}
 #else
-    inline int
-    MonteCarlo::spins_real_index(int i, int j, int k) {
-        return 3*s_L*(s_L*k + j) + i + s_L;
-    }
-    inline int
-    MonteCarlo::spins_real_index(int lidx) {
-        return lidx * 3 -  (lidx % s_L) * 2 + s_L;
-    }
-    inline MonteCarlo::Spin
-    MonteCarlo::readSpin(int site, int sidx) {
-        return m_spins_real[site][sidx];
-    }
-    inline void
-    MonteCarlo::writeSpin(Spin v, int site, int sidx) {
-        m_spins_real[site][sidx - s_L] = v;
-        m_spins_real[site][sidx] = v;
-        m_spins_real[site][sidx + s_L] = v;
-    }
+inline int
+MonteCarlo::spins_real_index(int i, int j, int k) {
+	return 3*s_L*(s_L*k + j) + i + s_L;
+}
+inline int
+MonteCarlo::spins_real_index(int lidx) {
+	return lidx * 3 -  (lidx % s_L) * 2 + s_L;
+}
+inline MonteCarlo::Spin
+MonteCarlo::readSpin(int site, int sidx) {
+	return m_spins_real[site][sidx];
+}
+inline void
+MonteCarlo::writeSpin(Spin v, int site, int sidx) {
+	m_spins_real[site][sidx - s_L] = v;
+	m_spins_real[site][sidx] = v;
+	m_spins_real[site][sidx + s_L] = v;
+}
 #endif
 //! unit is 1/4 lattice const.
 inline MonteCarlo::VectorInt
@@ -473,7 +473,7 @@ MonteCarlo::iterate_interactions(int site1, int lidx, int site2)
     double h = iterate_rec(site1, i, j, k, site2);    
         
     if(m_third_cache_enabled &&
-        (m_field_third_cached_sane[site2][lidx] & (1u << site1))) {
+	   (m_field_third_cached_sane[site2][lidx] & (1u << site1))) {
         ++m_third_cache_hit;
         h += m_field_third_cached[site1][site2][lidx];
     }
@@ -507,7 +507,7 @@ MonteCarlo::hinteraction(int site1, int lidx)
     int sec_cache_miss_cnt = 0;
     for(int site2 = 0; site2 < 16; site2++) {
         if(m_sec_cache_enabled &&
-            (m_field_sec_cached_sane[site2][lidx] & (1u << site1))) {
+		   (m_field_sec_cached_sane[site2][lidx] & (1u << site1))) {
             m_sec_cache_hit++;
             h +=  m_field_sec_cached[site1][site2][lidx];
         }

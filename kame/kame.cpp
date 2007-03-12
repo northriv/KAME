@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #include <qtimer.h>
 #include <qmessagebox.h>
 #include <kmessagebox.h>
@@ -58,9 +58,9 @@
 QWidget *g_pFrmMain = 0L;
 
 FrmKameMain::FrmKameMain()
- :KMdiMainFrm(NULL, "kame", KMdi::IDEAlMode)
- {    
- KApplication *app = KApplication::kApplication();   
+	:KMdiMainFrm(NULL, "kame", KMdi::IDEAlMode)
+{    
+	KApplication *app = KApplication::kApplication();   
     
     g_pFrmMain = this;
     
@@ -73,67 +73,67 @@ FrmKameMain::FrmKameMain()
     m_pFrmDriver = new FrmDriver(this, "Drivers");
     m_pFrmDriver->setIcon(*g_pIconDriver);
     KMdiToolViewAccessor *accessor = addToolWindow( m_pFrmDriver, KDockWidget::DockLeft, 
-         getMainDockWidget(), 50, m_pFrmDriver->caption() );
+													getMainDockWidget(), 50, m_pFrmDriver->caption() );
     accessor->show();
     
     m_pFrmInterface = new FrmInterface(this, "Interfaces");
     m_pFrmInterface->setIcon(*g_pIconInterface);
     accessor = addToolWindow( m_pFrmInterface, KDockWidget::DockRight,
-         getMainDockWidget(), 50, m_pFrmInterface->caption() );
+							  getMainDockWidget(), 50, m_pFrmInterface->caption() );
     accessor->show();
     
     m_pFrmScalarEntry = new FrmEntry(this, "Scalar Entries");
     m_pFrmScalarEntry->setIcon(*g_pIconScalar);
     accessor = addToolWindow( m_pFrmScalarEntry, KDockWidget::DockRight, 
-         getMainDockWidget(), 50, m_pFrmScalarEntry->caption() );
+							  getMainDockWidget(), 50, m_pFrmScalarEntry->caption() );
     
     m_pFrmGraphList = new FrmGraphList(this, "Graph");
     m_pFrmGraphList->setIcon(*g_pIconGraph);
     accessor = addToolWindow( m_pFrmGraphList, KDockWidget::DockLeft,
-         getMainDockWidget(), 30, m_pFrmGraphList->caption() );
+							  getMainDockWidget(), 30, m_pFrmGraphList->caption() );
         
     m_pFrmRecordReader = new FrmRecordReader(this, "RawStreamReader");
     m_pFrmRecordReader->setIcon(*g_pIconReader);
     accessor = addToolWindow( m_pFrmRecordReader, KDockWidget::DockRight,
-         getMainDockWidget(), 20,m_pFrmRecordReader->caption() );
+							  getMainDockWidget(), 20,m_pFrmRecordReader->caption() );
     
     m_pFrmCalTable = new FrmCalTable(this, "Thermometers");
 //     frmCalTable->setIcon(*IconKame48x48);
     m_pFrmCalTable->setIcon(app->iconLoader()->loadIcon("contents", KIcon::Toolbar, 0, KIcon::DefaultState, 0, false ) );
     accessor = addToolWindow( m_pFrmCalTable, KDockWidget::DockLeft, 
-         getMainDockWidget(), 20, m_pFrmCalTable->caption() );    
+							  getMainDockWidget(), 20, m_pFrmCalTable->caption() );    
         
     // actions
     m_pFileOpenAction = new QAction( this, "fileOpenAction" );
 //     fileOpenAction->setIconSet( QIconSet( *IconKame48x48 ) );
     m_pFileOpenAction->setIconSet( app->iconLoader()->loadIconSet("fileopen", 
-            KIcon::Toolbar, 0, false ) );
+																  KIcon::Toolbar, 0, false ) );
     m_pFileSaveAction = new QAction( this, "fileSaveAction" );
     m_pFileSaveAction->setEnabled( TRUE );
     m_pFileSaveAction->setIconSet( app->iconLoader()->loadIconSet("filesave", 
-            KIcon::Toolbar, 0, false ) );
+																  KIcon::Toolbar, 0, false ) );
     m_pFileCloseAction = new QAction( this, "fileCloseAction" );
     m_pFileCloseAction->setEnabled( TRUE );
 //     fileCloseAction->setIconSet( QIconSet( *IconClose48x48 ) );
     m_pFileCloseAction->setIconSet( app->iconLoader()->loadIconSet("fileclose", 
-            KIcon::Toolbar, 0, false ) );
+																   KIcon::Toolbar, 0, false ) );
     m_pFileExitAction = new QAction( this, "fileExitAction" );
 //     fileExitAction->setIconSet( QIconSet( *IconStop48x48 ) );
     m_pFileExitAction->setIconSet( app->iconLoader()->loadIconSet("exit", 
-            KIcon::Toolbar, 0, false ) );
+																  KIcon::Toolbar, 0, false ) );
     m_pHelpContentsAction = new QAction( this, "helpContentsAction" );
     m_pHelpIndexAction = new QAction( this, "helpIndexAction" );
     m_pHelpAboutAction = new QAction( this, "helpAboutAction" );
     m_pHelpAboutAction->setIconSet( app->iconLoader()->loadIconSet("info", 
-            KIcon::Toolbar, 0, false ) );
+																   KIcon::Toolbar, 0, false ) );
     m_pFileLogAction = new QAction( this, "fileLogAction" );
     m_pFileLogAction->setToggleAction( true );
     m_pFileLogAction->setOn( g_bLogDbgPrint );
     m_pFileLogAction->setIconSet( app->iconLoader()->loadIconSet("toggle_log", 
-            KIcon::Toolbar, 0, false ) );
+																 KIcon::Toolbar, 0, false ) );
 //    m_pMesRunAction = new QAction( this, "mesRunAction" );
 //    m_pMesRunAction->setEnabled( TRUE );
- //   m_pMesRunAction->setIconSet( QIconSet( *g_pIconDriver) );
+	//   m_pMesRunAction->setIconSet( QIconSet( *g_pIconDriver) );
     m_pMesStopAction = new QAction( this, "mesStopAction" );
     m_pMesStopAction->setEnabled( TRUE );
     m_pMesStopAction->setIconSet( QIconSet( *g_pIconStop) );
@@ -143,7 +143,7 @@ FrmKameMain::FrmKameMain()
     m_pScriptDotSaveAction = new QAction( this, "scriptDotSaveAction" );
     m_pScriptDotSaveAction->setEnabled( TRUE );
     m_pScriptDotSaveAction->setIconSet( app->iconLoader()->loadIconSet("filesave", 
-            KIcon::Toolbar, 0, false ) );
+																	   KIcon::Toolbar, 0, false ) );
 
     // toolbars
     m_pToolbar = new QToolBar( QString(""), this, DockTop ); 
@@ -243,20 +243,20 @@ FrmKameMain::FrmKameMain()
     connect( m_pScriptDotSaveAction, SIGNAL( activated() ), this, SLOT( scriptDotSaveAction_activated() ) );
     connect( m_pFileLogAction, SIGNAL( toggled(bool) ), this, SLOT( fileLogAction_toggled(bool) ) );
     
-   connect(app, SIGNAL(aboutToQuit()), this, SLOT(aboutToQuit()));
-   connect(app, SIGNAL( lastWindowClosed() ), app, SLOT( quit() ) );
+	connect(app, SIGNAL(aboutToQuit()), this, SLOT(aboutToQuit()));
+	connect(app, SIGNAL( lastWindowClosed() ), app, SLOT( quit() ) );
    
-   m_pTimer = new QTimer(this);
-   connect(m_pTimer, SIGNAL (timeout() ), this, SLOT(processSignals()));
-   m_pTimer->start(1);
+	m_pTimer = new QTimer(this);
+	connect(m_pTimer, SIGNAL (timeout() ), this, SLOT(processSignals()));
+	m_pTimer->start(1);
 }
 
 FrmKameMain::~FrmKameMain()
 {
-  m_pTimer->stop();
+	m_pTimer->stop();
 
-  m_measure.reset();
-  g_signalBuffer.reset();
+	m_measure.reset();
+	g_signalBuffer.reset();
 }
 
 void
@@ -265,71 +265,71 @@ FrmKameMain::aboutToQuit() {
 
 void
 FrmKameMain::processSignals() {
-  bool idle = g_signalBuffer->synchronize();
-  if(idle) {
+	bool idle = g_signalBuffer->synchronize();
+	if(idle) {
 #ifdef HAVE_LIBGCCPP
-static XTime last = XTime::now();
-    if(XTime::now() - last > 3) {
-        GC_gcollect();
-        last = XTime::now();
-    }
+		static XTime last = XTime::now();
+		if(XTime::now() - last > 3) {
+			GC_gcollect();
+			last = XTime::now();
+		}
 #endif    
-  }
+	}
 }
 
 void
 FrmKameMain::closeEvent( QCloseEvent* ce )
 {
-   bool opened = false;
-   atomic_shared_ptr<const XNode::NodeList> list(m_measure->interfaceList()->children());
-   if(list) { 
-       for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
-         shared_ptr<XInterface> _interface = dynamic_pointer_cast<XInterface>(*it);
-         if(_interface->isOpened()) opened = true;
-       }
-   }
-   if(opened) {
-       QMessageBox::warning( this, "KAME", KAME::i18n("Stop running first.") );
-       ce->ignore();
-   }
-   else {
-    ce->accept();
-    printf("quit\n");
-    m_conMeasRubyThread.reset();
-    m_measure->terminate();
+	bool opened = false;
+	atomic_shared_ptr<const XNode::NodeList> list(m_measure->interfaceList()->children());
+	if(list) { 
+		for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+			shared_ptr<XInterface> _interface = dynamic_pointer_cast<XInterface>(*it);
+			if(_interface->isOpened()) opened = true;
+		}
+	}
+	if(opened) {
+		QMessageBox::warning( this, "KAME", KAME::i18n("Stop running first.") );
+		ce->ignore();
+	}
+	else {
+		ce->accept();
+		printf("quit\n");
+		m_conMeasRubyThread.reset();
+		m_measure->terminate();
    
-    m_measure.reset();
-   }
+		m_measure.reset();
+	}
 }
 
 void FrmKameMain::fileCloseAction_activated()
 {
-  m_conMeasRubyThread.reset();
-  m_measure->terminate();
+	m_conMeasRubyThread.reset();
+	m_measure->terminate();
 }
 
 
 void FrmKameMain::fileExitAction_activated()
 {
-  close();
+	close();
 }
 
 int
 FrmKameMain::openMes(const QString &filename)
 {
-  if(!filename.isEmpty())
+	if(!filename.isEmpty())
     {
-          shared_ptr<XRubyThread> rbthread = m_measure->ruby()->
+		shared_ptr<XRubyThread> rbthread = m_measure->ruby()->
             create<XRubyThread>("Open Measurement", true, filename );
-          FrmRubyThread* form = new FrmRubyThread(this);
-          m_conMeasRubyThread = xqcon_create<XRubyThreadConnector>(
-                rbthread, form, m_measure->ruby());
-          KMdiChildView *view = createWrapper(form, form->caption(), form->caption());
-          addWindow(view);
-          while(rbthread->isAlive()) {
+		FrmRubyThread* form = new FrmRubyThread(this);
+		m_conMeasRubyThread = xqcon_create<XRubyThreadConnector>(
+			rbthread, form, m_measure->ruby());
+		KMdiChildView *view = createWrapper(form, form->caption(), form->caption());
+		addWindow(view);
+		while(rbthread->isAlive()) {
             KApplication::kApplication()->processEvents();
             g_signalBuffer->synchronize();
-          }
+		}
 //          closeWindow(view);
 
 //        m_pMesRunAction->setEnabled(true);
@@ -344,27 +344,27 @@ FrmKameMain::openMes(const QString &filename)
 
 void FrmKameMain::fileOpenAction_activated()
 {
-  QString filename = KFileDialog::getOpenFileName (
-					   "",
-                        "*.kam|KAME2 Measurement files (*.kam)\n"
-                        "*.mes|KAME1 Measurement files (*.mes)\n"
-                        "*.*|All files (*.*)",
-					   this,
-					   KAME::i18n("Open Measurement File"));
-  openMes(filename);
+	QString filename = KFileDialog::getOpenFileName (
+		"",
+		"*.kam|KAME2 Measurement files (*.kam)\n"
+		"*.mes|KAME1 Measurement files (*.mes)\n"
+		"*.*|All files (*.*)",
+		this,
+		KAME::i18n("Open Measurement File"));
+	openMes(filename);
 }
 
 
 void FrmKameMain::fileSaveAction_activated()
 {
-  QString filename = KFileDialog::getSaveFileName (
-					   "",
-                        "*.kam|KAME2 Measurement files (*.kam)\n"
-					   "*.mes|KAME1 Measurement files (*.mes)\n"
-                        "*.*|All files (*.*)",
-					   this,
-					   KAME::i18n("Save Measurement File") );
-  if(!filename.isEmpty())
+	QString filename = KFileDialog::getSaveFileName (
+		"",
+		"*.kam|KAME2 Measurement files (*.kam)\n"
+		"*.mes|KAME1 Measurement files (*.mes)\n"
+		"*.*|All files (*.*)",
+		this,
+		KAME::i18n("Save Measurement File") );
+	if(!filename.isEmpty())
     {
         std::ofstream ofs(filename.local8Bit(), std::ios::out);
         if(ofs.good()) {
@@ -377,8 +377,8 @@ void FrmKameMain::fileSaveAction_activated()
 
 void FrmKameMain::helpAboutAction_activated()
 {
-  KMessageBox::about( this,
-		      KAME::i18n("K's Adaptive Measurement Engine."), "KAME");
+	KMessageBox::about( this,
+						KAME::i18n("K's Adaptive Measurement Engine."), "KAME");
 }
 
 void FrmKameMain::helpContentsAction_activated()
@@ -392,47 +392,47 @@ void FrmKameMain::helpIndexAction_activated()
 }
 
 /*
-void FrmKameMain::mesRunAction_activated()
-{
+  void FrmKameMain::mesRunAction_activated()
+  {
   m_pMesRunAction->setEnabled(false);
   m_pMesStopAction->setEnabled(true);
   m_pFileCloseAction->setEnabled(false);
   m_pFileExitAction->setEnabled(false);
   m_measure->start();
-}
+  }
 */
 
 void FrmKameMain::mesStopAction_activated()
 {
-  m_measure->stop();
+	m_measure->stop();
 /*
  *   m_pMesRunAction->setEnabled(true);
-  m_pMesStopAction->setEnabled(false);
-  m_pFileCloseAction->setEnabled(true);
-  m_pFileExitAction->setEnabled(true);
-  */
+ m_pMesStopAction->setEnabled(false);
+ m_pFileCloseAction->setEnabled(true);
+ m_pFileExitAction->setEnabled(true);
+*/
 }
 
 
 void FrmKameMain::scriptRunAction_activated()
 {
-  QString filename = KFileDialog::getOpenFileName (
-					   "",
-					   "*.seq|KAME Script files (*.seq)",
-					   this,
-					   KAME::i18n("Open Script File") );
-  if(!filename.isEmpty())
+	QString filename = KFileDialog::getOpenFileName (
+		"",
+		"*.seq|KAME Script files (*.seq)",
+		this,
+		KAME::i18n("Open Script File") );
+	if(!filename.isEmpty())
     {
-      static unsigned int thread_no = 1;
-      shared_ptr<XRubyThread> rbthread = m_measure->ruby()->
+		static unsigned int thread_no = 1;
+		shared_ptr<XRubyThread> rbthread = m_measure->ruby()->
             create<XRubyThread>(QString().sprintf("Thread%d", thread_no).latin1(), true, filename );
-      thread_no++;
-      FrmRubyThread* form = new FrmRubyThread(this);
-      m_conRubyThreadList.push_back(xqcon_create<XRubyThreadConnector>(
-            rbthread, form, m_measure->ruby()));
-      addWindow(createWrapper(form, form->caption(), form->caption()));
-      // erase unused xqcon_ptr
-      for(std::deque<xqcon_ptr>::iterator it = m_conRubyThreadList.begin();
+		thread_no++;
+		FrmRubyThread* form = new FrmRubyThread(this);
+		m_conRubyThreadList.push_back(xqcon_create<XRubyThreadConnector>(
+										  rbthread, form, m_measure->ruby()));
+		addWindow(createWrapper(form, form->caption(), form->caption()));
+		// erase unused xqcon_ptr
+		for(std::deque<xqcon_ptr>::iterator it = m_conRubyThreadList.begin();
             it != m_conRubyThreadList.end(); ) {
             if((*it)->isAlive()) {
                 it++;
@@ -440,19 +440,19 @@ void FrmKameMain::scriptRunAction_activated()
             else {
                 it = m_conRubyThreadList.erase(it);
             }
-       }
+		}
     }
 }
 
 void FrmKameMain::scriptDotSaveAction_activated()
 {
-  QString filename = KFileDialog::getSaveFileName (
-                       "",
-                        "*.dot|Graphviz dot files (*.dot)\n"
-                        "*.*|All files (*.*)",
-                       this,
-                       KAME::i18n("Save Graphviz dot File") );
-  if(!filename.isEmpty())
+	QString filename = KFileDialog::getSaveFileName (
+		"",
+		"*.dot|Graphviz dot files (*.dot)\n"
+		"*.*|All files (*.*)",
+		this,
+		KAME::i18n("Save Graphviz dot File") );
+	if(!filename.isEmpty())
     {
         std::ofstream ofs(filename.local8Bit(), std::ios::out);
         if(ofs.good()) {
@@ -464,6 +464,6 @@ void FrmKameMain::scriptDotSaveAction_activated()
 
 void FrmKameMain::fileLogAction_toggled( bool var)
 {
-  g_bLogDbgPrint = var;
+	g_bLogDbgPrint = var;
 }
 

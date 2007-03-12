@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #include "graphpainter.h"
 #include "FTGLPixmapFont.h"
 #include "graphwidget.h"
@@ -68,15 +68,15 @@ using std::max;
 
 #undef USE_ICONV_WCHART // this is portable, however, it likely depends on the current locale.
 #if defined MACOSX
-    #define USE_ICONV_UCS4_AS_WCHART
+#define USE_ICONV_UCS4_AS_WCHART
 //    #define USE_ICONV_WCHART
 #endif
 #if defined __linux__
 //    #define USE_ICONV_WCHART
-    #define USE_ICONV_UCS4_AS_WCHART
+#define USE_ICONV_UCS4_AS_WCHART
 #endif
 #if defined WINDOWS
-    #define USE_ICONV_UCS2_AS_WCHART
+#define USE_ICONV_UCS2_AS_WCHART
 #endif
 
 static iconv_t s_iconv_cd = (iconv_t)-1;
@@ -88,8 +88,8 @@ void
 XQGraphPainter::openFont()
 {
 	if(s_fontRefCount == 0) {
-  QString filename = ::locate("appdata", FONT_FILE);
-	  if(!filename)
+		QString filename = ::locate("appdata", FONT_FILE);
+		if(!filename)
 	    {
 		    gErrPrint(KAME::i18n("No Fontfile!!"));
 	    }
@@ -99,51 +99,51 @@ XQGraphPainter::openFont()
 		
         setlocale(LC_CTYPE, KApplication::kApplication()->config()->locale().latin1());
 #ifdef USE_ICONV_SRC_UTF8
-    #define ICONV_SRC "UTF-8"
+#define ICONV_SRC "UTF-8"
 #endif
 #ifdef USE_ICONV_SRC_UCS2
-    #ifdef __BIG_ENDIAN__
-        #define ICONV_SRC "UCS-2BE"
-    #else
-        #define ICONV_SRC "UCS-2LE"
-    #endif
+#ifdef __BIG_ENDIAN__
+#define ICONV_SRC "UCS-2BE"
+#else
+#define ICONV_SRC "UCS-2LE"
+#endif
 #endif
 #ifndef ICONV_SRC
-    #error
+#error
 #endif
 #ifdef USE_ICONV_WCHART
-    #define ICONV_DST "WCHAR_T"
+#define ICONV_DST "WCHAR_T"
 #endif
 #ifdef USE_ICONV_UCS4_AS_WCHART
-    C_ASSERT(sizeof(wchar_t) == 4);
-    #ifdef __BIG_ENDIAN__
-        #define ICONV_DST "UCS-4BE"
-    #else
-        #define ICONV_DST "UCS-4LE"
-    #endif
+		C_ASSERT(sizeof(wchar_t) == 4);
+#ifdef __BIG_ENDIAN__
+#define ICONV_DST "UCS-4BE"
+#else
+#define ICONV_DST "UCS-4LE"
+#endif
 #endif
 #ifdef USE_ICONV_UCS2_AS_WCHART
-    C_ASSERT(sizeof(wchar_t) == 2);
-    #ifdef __BIG_ENDIAN__
-        #define ICONV_DST "UCS-2BE"
-    #else
-        #define ICONV_DST "UCS-2LE"
-    #endif
+		C_ASSERT(sizeof(wchar_t) == 2);
+#ifdef __BIG_ENDIAN__
+#define ICONV_DST "UCS-2BE"
+#else
+#define ICONV_DST "UCS-2LE"
+#endif
 #endif
 #ifndef ICONV_DST
-    #error
+#error
 #endif
         s_iconv_cd = iconv_open(ICONV_DST, ICONV_SRC);
 		ASSERT(s_iconv_cd != (iconv_t)(-1));
         /*
-        int arg = 1;
-        if(iconvctl(s_iconv_cd, ICONV_SET_TRANSLITERATE, &arg)) {
-            XKameError::print(KAME::i18n("iconv error"), __FILE__, __LINE__, errno);
-        }
-        int arg = 1;
-        if(iconvctl(s_utf8toWCHART, ICONV_SET_DISCARD_ILSEQ, &arg)) {
-            XKameError::print(KAME::i18n("iconv error"), __FILE__, __LINE__, errno);
-        }
+		  int arg = 1;
+		  if(iconvctl(s_iconv_cd, ICONV_SET_TRANSLITERATE, &arg)) {
+		  XKameError::print(KAME::i18n("iconv error"), __FILE__, __LINE__, errno);
+		  }
+		  int arg = 1;
+		  if(iconvctl(s_utf8toWCHART, ICONV_SET_DISCARD_ILSEQ, &arg)) {
+		  XKameError::print(KAME::i18n("iconv error"), __FILE__, __LINE__, errno);
+		  }
         */
 	}
 	s_fontRefCount++;
@@ -186,18 +186,18 @@ XQGraphPainter::string2wstring(const std::string &str)
     int insize = qstr.length() * sizeof(unsigned short);
 #endif //USE_ICONV_SRC_UCS2
     size_t ret = iconv(s_iconv_cd,
-    #ifdef __linux__
-    // Linux iconv needs char** instead of const char**
-     const_cast<char**>
-    #endif
-     (&inbuf), (size_t*)&insize,
-        &outp, (size_t*)&outsize);
+#ifdef __linux__
+					   // Linux iconv needs char** instead of const char**
+					   const_cast<char**>
+#endif
+					   (&inbuf), (size_t*)&insize,
+					   &outp, (size_t*)&outsize);
 	if(ret == (size_t)(-1)) {
-            XKameError::print(
-                KAME::i18n("iconv error, probably locale is not correct."),
-                 __FILE__, __LINE__, errno);
-            iconv(s_iconv_cd, NULL, NULL, NULL, NULL); //reset 
-            return std::wstring(L"iconv-err"); 
+		XKameError::print(
+			KAME::i18n("iconv error, probably locale is not correct."),
+			__FILE__, __LINE__, errno);
+		iconv(s_iconv_cd, NULL, NULL, NULL, NULL); //reset 
+		return std::wstring(L"iconv-err"); 
     }
     ASSERT(outp <= (char*)&buf[sizeof(buf)/sizeof(wchar_t) - 1]);
 	*((wchar_t *)outp) = L'\0';
@@ -207,7 +207,7 @@ XQGraphPainter::string2wstring(const std::string &str)
 int
 XQGraphPainter::windowToScreen(int x, int y, double z, XGraph::ScrPoint *scr)
 {
-GLdouble nx, ny, nz;
+	GLdouble nx, ny, nz;
  	int ret = gluUnProject((double)x, (double)m_viewport[3] - y, z, m_model, m_proj, m_viewport, &nx, &ny, &nz);
 	scr->x = nx;
 	scr->y = ny;
@@ -217,7 +217,7 @@ GLdouble nx, ny, nz;
 int
 XQGraphPainter::screenToWindow(const XGraph::ScrPoint &scr, double *x, double *y, double *z)
 {
-GLdouble nx, ny, nz;
+	GLdouble nx, ny, nz;
 	int ret = gluProject(scr.x, scr.y, scr.z, m_model, m_proj, m_viewport, &nx, &ny, &nz);
 	*x = nx;
 	*y = m_viewport[3] - ny;
@@ -307,11 +307,11 @@ XQGraphPainter::selectFont(const std::string &str, const XGraph::ScrPoint &start
 	s4 -= wo2;
 	double x3, y3, z3;
 	if(screenToWindow(s4, &x3, &y3, &z3)) return -1;	
-int align = 0;
+	int align = 0;
 // width and height, restrict text
-double w = fabs(x3 - x2), h = fabs(y3 - y2);	
+	double w = fabs(x3 - x2), h = fabs(y3 - y2);	
 	if( fabs(x - x1) > fabs( y - y1) ) {
-	//dir is horizontal
+		//dir is horizontal
 		align |= AlignVCenter;
 		h = min(h, 2 * min(y, m_pItem->height() - y));
 		if( x > x1 ) {
@@ -324,7 +324,7 @@ double w = fabs(x3 - x2), h = fabs(y3 - y2);
 		}
 	}
 	else {
-	//dir is vertical
+		//dir is vertical
 		align |= AlignHCenter;
 		w = min(w, 2 * min(x, m_pItem->width() - x));
 		if( y < y1 ) {
@@ -336,15 +336,15 @@ double w = fabs(x3 - x2), h = fabs(y3 - y2);
 			h = y;
 		}
 	}
-float llx, lly, llz, urx, ury, urz;
-std::wstring wstr = string2wstring(str);
+	float llx, lly, llz, urx, ury, urz;
+	std::wstring wstr = string2wstring(str);
 	m_curFontSize = DEFAULT_FONT_SIZE + sizehint;
 	m_curAlign = align;
     
 	for(;;) {
  		s_pFont->FaceSize(m_curFontSize);
 		s_pFont->BBox(wstr.c_str(), llx, lly, llz, urx, ury, urz);
-                if(m_curFontSize < DEFAULT_FONT_SIZE + sizehint - 4) return -1;
+		if(m_curFontSize < DEFAULT_FONT_SIZE + sizehint - 4) return -1;
 		if((urx < w ) && (ury < h)) break;
 		m_curFontSize--;
 	}
@@ -354,8 +354,8 @@ std::wstring wstr = string2wstring(str);
 }void
 XQGraphPainter::drawText(const XGraph::ScrPoint &p, const std::string &str)
 {
-float llx, lly, llz, urx, ury, urz;
-std::wstring wstr = string2wstring(str);
+	float llx, lly, llz, urx, ury, urz;
+	std::wstring wstr = string2wstring(str);
 
 	glRasterPos3f(p.x, p.y, p.z);
     checkGLError();
@@ -426,51 +426,51 @@ XQGraphPainter::viewRotate(double angle, double x, double y, double z, bool init
 
 double
 XQGraphPainter::selectGL(int x, int y, int dx, int dy, GLint list,
-	 XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy )
+						 XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy )
 {
-      m_pItem->makeCurrent();
+	m_pItem->makeCurrent();
       
-      glGetError(); //reset error
+	glGetError(); //reset error
       
-GLuint selections[MAX_SELECTION];
-      glGetDoublev(GL_PROJECTION_MATRIX, m_proj);
-      glGetDoublev(GL_MODELVIEW_MATRIX, m_model);
-      glGetIntegerv(GL_VIEWPORT, m_viewport);
-      glSelectBuffer(MAX_SELECTION, selections);
-      glRenderMode(GL_SELECT);
-      glInitNames();
-      glPushName((unsigned int)-1);
-      glMatrixMode(GL_PROJECTION);
-      glPushMatrix();
-      //pick up small region
-      glLoadIdentity();
-      gluPickMatrix((double)x, (double)m_viewport[3] - y, (double)dx, (double)dy, m_viewport);
-      glMultMatrixd(m_proj);
+	GLuint selections[MAX_SELECTION];
+	glGetDoublev(GL_PROJECTION_MATRIX, m_proj);
+	glGetDoublev(GL_MODELVIEW_MATRIX, m_model);
+	glGetIntegerv(GL_VIEWPORT, m_viewport);
+	glSelectBuffer(MAX_SELECTION, selections);
+	glRenderMode(GL_SELECT);
+	glInitNames();
+	glPushName((unsigned int)-1);
+	glMatrixMode(GL_PROJECTION);
+	glPushMatrix();
+	//pick up small region
+	glLoadIdentity();
+	gluPickMatrix((double)x, (double)m_viewport[3] - y, (double)dx, (double)dy, m_viewport);
+	glMultMatrixd(m_proj);
       
-      glEnable(GL_DEPTH_TEST);
-      glLoadName(1);
-      glCallList(list);
+	glEnable(GL_DEPTH_TEST);
+	glLoadName(1);
+	glCallList(list);
       
-      glMatrixMode(GL_PROJECTION);
-      glPopMatrix();
-      int hits = glRenderMode(GL_RENDER);
-      double zmin = 1.1;
-      double zmax = -0.1;
-      GLuint *ptr = selections;
-      for (int i = 0; i < hits; i++) {
+	glMatrixMode(GL_PROJECTION);
+	glPopMatrix();
+	int hits = glRenderMode(GL_RENDER);
+	double zmin = 1.1;
+	double zmax = -0.1;
+	GLuint *ptr = selections;
+	for (int i = 0; i < hits; i++) {
     	double zmin1 = (double)ptr[1] / (double)0xffffffffu;
     	double zmax1  = (double)ptr[2] / (double)0xffffffffu;
     	int n = ptr[0];
     	ptr += 3;
     	for (int j = 0; j < n; j++) {
-    	  int k = *(ptr++);
+			int k = *(ptr++);
     	  	if(k != -1) {
     			zmin = min(zmin1, zmin);
     			zmax = max(zmax1, zmax);
     		}
     	}
-      }
-     if((zmin < 1.0) && (zmax > 0.0) ) {
+	}
+	if((zmin < 1.0) && (zmax > 0.0) ) {
         windowToScreen(x, y, zmin, scr);
         windowToScreen(x + 1, y, zmin, dsdx);
         windowToScreen(x, y + 1, zmin, dsdy);
@@ -481,19 +481,19 @@ GLuint selections[MAX_SELECTION];
 
 double
 XQGraphPainter::selectPlane(int x, int y, int dx, int dy,
-  	 XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy )
+							XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy )
 {
 	return selectGL(x, y, dx, dy, m_listplanes, scr, dsdx, dsdy);
 }
 double
 XQGraphPainter::selectAxis(int x, int y, int dx, int dy,
-  	 XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy )
+						   XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy )
 {
 	return selectGL(x, y, dx, dy, m_listaxes, scr, dsdx, dsdy);
 }
 double
 XQGraphPainter::selectPoint(int x, int y, int dx, int dy,
-  	 XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy )
+							XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy )
 {
 	return selectGL(x, y, dx, dy, m_listpoints, scr, dsdx, dsdy);
 }
@@ -546,7 +546,7 @@ XQGraphPainter::paintGL ()
     glMatrixMode(GL_PROJECTION);
     glViewport( 0, 0, (GLint)m_pItem->width(), (GLint)m_pItem->height() );
     glGetDoublev(GL_PROJECTION_MATRIX, m_proj);
-        glGetDoublev(GL_MODELVIEW_MATRIX, m_model);
+	glGetDoublev(GL_MODELVIEW_MATRIX, m_model);
     glGetIntegerv(GL_VIEWPORT, m_viewport);
 
     checkGLError(); 
@@ -632,7 +632,7 @@ XQGraphPainter::paintGL ()
     
     double persist = *m_graph->persistence();
     if(persist > 0) {
-		#define OFFSET 0.1
+#define OFFSET 0.1
 		double tau = persist / (-log(OFFSET)) * 0.4;
 		double scale = exp(-(time_started - m_updatedTime)/tau);
 		double offset = -OFFSET*(1.0-scale);
@@ -665,7 +665,7 @@ XQGraphPainter::paintGL ()
 				glRasterPos2i(0,0);
 			    checkGLError(); 
 				glDrawPixels((GLint)m_pItem->width(), (GLint)m_pItem->height(), 
-					GL_RGBA, GL_UNSIGNED_BYTE, &m_lastFrame[0]);
+							 GL_RGBA, GL_UNSIGNED_BYTE, &m_lastFrame[0]);
 			    checkGLError(); 
 				glPixelTransferf(GL_ALPHA_SCALE, 1.0);
 			    checkGLError(); 
@@ -673,7 +673,7 @@ XQGraphPainter::paintGL ()
 			    checkGLError(); 
 			}
 			glReadPixels(0, 0, (GLint)m_pItem->width(), (GLint)m_pItem->height(),
-				GL_RGBA, GL_UNSIGNED_BYTE, &m_lastFrame[0]);
+						 GL_RGBA, GL_UNSIGNED_BYTE, &m_lastFrame[0]);
 		    checkGLError();     
 		}
 		m_updatedTime = time_started;

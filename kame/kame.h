@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #ifndef KAME_H
 #define KAME_H
 
@@ -41,8 +41,8 @@ class XMeasure;
  */
 class FrmKameMain : public KMdiMainFrm
 {
-  Q_OBJECT
- public:
+	Q_OBJECT
+public:
     FrmKameMain();
     ~FrmKameMain();
     
@@ -73,8 +73,8 @@ class FrmKameMain : public KMdiMainFrm
     FrmEntry *m_pFrmScalarEntry;
     
     int openMes(const QString &filename);
- public slots:
-    virtual void fileCloseAction_activated();
+public slots:
+virtual void fileCloseAction_activated();
     virtual void fileExitAction_activated();
     virtual void fileOpenAction_activated();
     virtual void fileSaveAction_activated();
@@ -86,10 +86,10 @@ class FrmKameMain : public KMdiMainFrm
     virtual void scriptRunAction_activated();
     virtual void scriptDotSaveAction_activated();
     virtual void fileLogAction_toggled( bool var );
- protected slots:
-   virtual void aboutToQuit();
-   virtual void processSignals();
- private:
+protected slots:
+virtual void aboutToQuit();
+	virtual void processSignals();
+private:
     void closeEvent( QCloseEvent* ce );
     QTimer *m_pTimer;
     shared_ptr<XMeasure> m_measure;

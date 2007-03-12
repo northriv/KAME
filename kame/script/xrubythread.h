@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #ifndef xrubythreadH
 #define xrubythreadH
 //---------------------------------------------------------------------------
@@ -33,28 +33,28 @@ extern "C" {
 //---------------------------------------------------------------------------
 class XRubyThread : public XNode
 {
- XNODE_OBJECT
- protected:
-  XRubyThread(const char *name, bool runtime, const QString &filename);
- public:
-  virtual ~XRubyThread() {}
+	XNODE_OBJECT
+protected:
+	XRubyThread(const char *name, bool runtime, const QString &filename);
+public:
+	virtual ~XRubyThread() {}
 
-  bool isRunning() const;
-  bool isAlive() const;
-  void kill();
-  void resume();
+	bool isRunning() const;
+	bool isAlive() const;
+	void kill();
+	void resume();
   
-   XTalker<shared_ptr<std::string> > &onMessageOut() {return m_tlkOnMessageOut;}
-  const shared_ptr<XStringNode> &status() const {return m_status;}
-  const shared_ptr<XStringNode> &filename() const {return m_filename;}
+	XTalker<shared_ptr<std::string> > &onMessageOut() {return m_tlkOnMessageOut;}
+	const shared_ptr<XStringNode> &status() const {return m_status;}
+	const shared_ptr<XStringNode> &filename() const {return m_filename;}
 //  shared_ptr<XStringNode> &action() const {return m_action;}
-  const shared_ptr<XIntNode> &threadID() const {return m_threadID;}
- private:
-  XTalker<shared_ptr<std::string> > m_tlkOnMessageOut;
-  const shared_ptr<XStringNode> m_filename;
-  shared_ptr<XStringNode> m_status;
-  shared_ptr<XStringNode> m_action;
-  shared_ptr<XIntNode> m_threadID;
+	const shared_ptr<XIntNode> &threadID() const {return m_threadID;}
+private:
+	XTalker<shared_ptr<std::string> > m_tlkOnMessageOut;
+	const shared_ptr<XStringNode> m_filename;
+	shared_ptr<XStringNode> m_status;
+	shared_ptr<XStringNode> m_action;
+	shared_ptr<XIntNode> m_threadID;
 };
 
 //---------------------------------------------------------------------------

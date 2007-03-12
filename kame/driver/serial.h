@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #ifndef SERIAL_H_
 #define SERIAL_H_
 
@@ -21,7 +21,7 @@
 #endif //__linux__ || LINUX
 
 #if defined WINDOWS || defined __WIN32__
- #define SERIAL_WIN32
+#define SERIAL_WIN32
 #endif // WINDOWS || __WIN32__
 
 #if defined SERIAL_WIN32 || defined SERIAL_POSIX
@@ -33,16 +33,16 @@
 class XPosixSerialPort : public XPort
 {
 public:
- XPosixSerialPort(XCharInterface *interface);
- virtual ~XPosixSerialPort();
+	XPosixSerialPort(XCharInterface *interface);
+	virtual ~XPosixSerialPort();
  
-  virtual void open() throw (XInterface::XCommError &);
-  virtual void send(const char *str) throw (XInterface::XCommError &);
-  virtual void write(const char *sendbuf, int size) throw (XInterface::XCommError &);
-  virtual void receive() throw (XInterface::XCommError &);
-  virtual void receive(unsigned int length) throw (XInterface::XCommError &);  
+	virtual void open() throw (XInterface::XCommError &);
+	virtual void send(const char *str) throw (XInterface::XCommError &);
+	virtual void write(const char *sendbuf, int size) throw (XInterface::XCommError &);
+	virtual void receive() throw (XInterface::XCommError &);
+	virtual void receive(unsigned int length) throw (XInterface::XCommError &);  
 private:
-  int m_scifd;
+	int m_scifd;
 };
 
 typedef XPosixSerialPort XSerialPort;

@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 //---------------------------------------------------------------------------
 #ifndef pulserdriverH
 #define pulserdriverH
@@ -30,19 +30,19 @@ class XQPulserDriverConnector;
 //! Base class of NMR Pulsers
 class XPulser : public XPrimaryDriver
 {	
- XNODE_OBJECT
- protected:
-  XPulser(const char *name, bool runtime,
-   const shared_ptr<XScalarEntryList> &scalarentries,
-   const shared_ptr<XInterfaceList> &interfaces,
-   const shared_ptr<XThermometerList> &thermometers,
-   const shared_ptr<XDriverList> &drivers);
- public:
-  virtual ~XPulser() {}
-  //! show all forms belonging to driver
-  virtual void showForms();
+	XNODE_OBJECT
+protected:
+	XPulser(const char *name, bool runtime,
+			const shared_ptr<XScalarEntryList> &scalarentries,
+			const shared_ptr<XInterfaceList> &interfaces,
+			const shared_ptr<XThermometerList> &thermometers,
+			const shared_ptr<XDriverList> &drivers);
+public:
+	virtual ~XPulser() {}
+	//! show all forms belonging to driver
+	virtual void showForms();
 
-  //! driver specific part below
+	//! driver specific part below
 
     
     //! \sa combMode(), combModeRecorded().
@@ -56,8 +56,8 @@ class XPulser : public XPrimaryDriver
 	
 	const shared_ptr<XBoolNode> &output() const {return m_output;}
  	const shared_ptr<XComboNode> &combMode() const {return m_combMode;} //!< see above definitions in header file
-      //! Control period to next pulse sequence
-      //! Fix Repetition Time or Fix Rest Time which means time between pulse sequences 
+	//! Control period to next pulse sequence
+	//! Fix Repetition Time or Fix Rest Time which means time between pulse sequences 
  	const shared_ptr<XComboNode> &rtMode() const {return m_rtMode;}
     const shared_ptr<XComboNode> &numPhaseCycle() const {return m_numPhaseCycle;} //!< How many cycles in phase cycling
     const shared_ptr<XDoubleNode> &rtime() const {return m_rt;} //!< Repetition/Rest Time [ms]
@@ -125,48 +125,48 @@ class XPulser : public XPrimaryDriver
     
     //! periodic term of one cycle [ms].
     double periodicTermRecorded() const;
- protected:
+protected:
 	//! indice for return values of portSel().
-  enum {PORTSEL_UNSEL = -1,
-  	PORTSEL_GATE = 0, PORTSEL_PREGATE = 1, PORTSEL_GATE3 = 2,
-  	PORTSEL_TRIG1 = 3, PORTSEL_TRIG2 = 4, PORTSEL_ASW = 5, PORTSEL_QSW = 6,
-  	PORTSEL_PULSE1 = 7, PORTSEL_PULSE2 = 8, 
-  	PORTSEL_COMB = 9, PORTSEL_COMB_FM = 10,
-  	PORTSEL_QPSK_A = 11, PORTSEL_QPSK_B = 12,
-  	PORTSEL_QPSK_OLD_NONINV = 13, PORTSEL_QPSK_OLD_INV = 14,
-  	PORTSEL_QPSK_OLD_PSGATE = 15,
-  	/*PORTSEL_PAUSING = 16*/};
-  //! \arg func e.g. PORTSEL_GATE.
-  //! \return bit mask.
-  unsigned int selectedPorts(int func) const;
+	enum {PORTSEL_UNSEL = -1,
+		  PORTSEL_GATE = 0, PORTSEL_PREGATE = 1, PORTSEL_GATE3 = 2,
+		  PORTSEL_TRIG1 = 3, PORTSEL_TRIG2 = 4, PORTSEL_ASW = 5, PORTSEL_QSW = 6,
+		  PORTSEL_PULSE1 = 7, PORTSEL_PULSE2 = 8, 
+		  PORTSEL_COMB = 9, PORTSEL_COMB_FM = 10,
+		  PORTSEL_QPSK_A = 11, PORTSEL_QPSK_B = 12,
+		  PORTSEL_QPSK_OLD_NONINV = 13, PORTSEL_QPSK_OLD_INV = 14,
+		  PORTSEL_QPSK_OLD_PSGATE = 15,
+		  /*PORTSEL_PAUSING = 16*/};
+	//! \arg func e.g. PORTSEL_GATE.
+	//! \return bit mask.
+	unsigned int selectedPorts(int func) const;
   	//! for RelPatList patterns. \sa RelPatList.
-  enum {PAT_DO_MASK = (1 << NUM_DO_PORTS) - 1,
-  	PAT_QAM_PHASE = (1 << NUM_DO_PORTS),
-  	PAT_QAM_PHASE_MASK = PAT_QAM_PHASE * 3,
-  	PAT_QAM_PULSE_IDX = PAT_QAM_PHASE * 4,
-  	PAT_QAM_PULSE_IDX_P1 = PAT_QAM_PULSE_IDX * 1,
-  	PAT_QAM_PULSE_IDX_P2 = PAT_QAM_PULSE_IDX * 2,
-  	PAT_QAM_PULSE_IDX_PCOMB = PAT_QAM_PULSE_IDX * 3,
-  	PAT_QAM_PULSE_IDX_INDUCE_EMISSION = PAT_QAM_PULSE_IDX * 4,
-  	PAT_QAM_PULSE_IDX_MASK = PAT_QAM_PULSE_IDX * 15,
-  	PAT_QAM_MASK = PAT_QAM_PHASE_MASK | PAT_QAM_PULSE_IDX_MASK,
+	enum {PAT_DO_MASK = (1 << NUM_DO_PORTS) - 1,
+		  PAT_QAM_PHASE = (1 << NUM_DO_PORTS),
+		  PAT_QAM_PHASE_MASK = PAT_QAM_PHASE * 3,
+		  PAT_QAM_PULSE_IDX = PAT_QAM_PHASE * 4,
+		  PAT_QAM_PULSE_IDX_P1 = PAT_QAM_PULSE_IDX * 1,
+		  PAT_QAM_PULSE_IDX_P2 = PAT_QAM_PULSE_IDX * 2,
+		  PAT_QAM_PULSE_IDX_PCOMB = PAT_QAM_PULSE_IDX * 3,
+		  PAT_QAM_PULSE_IDX_INDUCE_EMISSION = PAT_QAM_PULSE_IDX * 4,
+		  PAT_QAM_PULSE_IDX_MASK = PAT_QAM_PULSE_IDX * 15,
+		  PAT_QAM_MASK = PAT_QAM_PHASE_MASK | PAT_QAM_PULSE_IDX_MASK,
   	};
  
-  //! Start up your threads, connect GUI, and activate signals
-  virtual void start();
-  //! Shut down your threads, unconnect GUI, and deactivate signals
-  //! this may be called even if driver has already stopped.
-  virtual void stop();
+	//! Start up your threads, connect GUI, and activate signals
+	virtual void start();
+	//! Shut down your threads, unconnect GUI, and deactivate signals
+	//! this may be called even if driver has already stopped.
+	virtual void stop();
   
-  //! this is called when raw is written 
-  //! unless dependency is broken
-  //! convert raw to record
-  virtual void analyzeRaw() throw (XRecordError&);
-  //! this is called after analyze() or analyzeRaw()
-  //! record is readLocked
-  virtual void visualize();
+	//! this is called when raw is written 
+	//! unless dependency is broken
+	//! convert raw to record
+	virtual void analyzeRaw() throw (XRecordError&);
+	//! this is called after analyze() or analyzeRaw()
+	//! record is readLocked
+	virtual void visualize();
 
-  friend class XQPulserDriverConnector;
+	friend class XQPulserDriverConnector;
   
     //! ver 1 records
     short m_combModeRecorded;
@@ -190,38 +190,38 @@ class XPulser : public XPrimaryDriver
     //! ver 3 records
     bool m_invertPhaseRecorded;
 
-  struct RelPat {
-      RelPat(uint32_t pat, uint64_t t, uint64_t toapp) :
-        pattern(pat), time(t), toappear(toapp) {}
-      uint32_t pattern;
-      uint64_t time; //!< unit of resolution().
-      uint64_t toappear; //!< term between this pattern and the previous. unit of resolution().
-  };
+	struct RelPat {
+		RelPat(uint32_t pat, uint64_t t, uint64_t toapp) :
+			pattern(pat), time(t), toappear(toapp) {}
+		uint32_t pattern;
+		uint64_t time; //!< unit of resolution().
+		uint64_t toappear; //!< term between this pattern and the previous. unit of resolution().
+	};
 
-  typedef std::deque<RelPat> RelPatList;
-  RelPatList m_relPatList;
-  typedef RelPatList::iterator RelPatListIterator;
+	typedef std::deque<RelPat> RelPatList;
+	RelPatList m_relPatList;
+	typedef RelPatList::iterator RelPatListIterator;
 
-  //! push parameters.
-  //! use this after clearRaw()
-  void writeRaw();
+	//! push parameters.
+	//! use this after clearRaw()
+	void writeRaw();
   
-  typedef double (*tpulsefunc)(double x);
-  tpulsefunc pulseFunc(const std::string &str) const;
-  static double pulseFuncRect(double x);
-  static double pulseFuncHanning(double x);
-  static double pulseFuncHamming(double x);
-  static double pulseFuncBlackman(double x);
-  static double pulseFuncBlackmanHarris(double x);
-  static double pulseFuncKaiser(double x, double alpha);
-  static double pulseFuncKaiser1(double x);
-  static double pulseFuncKaiser2(double x);
-  static double pulseFuncKaiser3(double x);
-  static double pulseFuncFlatTop(double x);
-  static double pulseFuncFlatTopLong(double x);
-  static double pulseFuncFlatTopLongLong(double x);
-  static double pulseFuncHalfCos(double x);
-  static double pulseFuncChoppedHalfCos(double x);
+	typedef double (*tpulsefunc)(double x);
+	tpulsefunc pulseFunc(const std::string &str) const;
+	static double pulseFuncRect(double x);
+	static double pulseFuncHanning(double x);
+	static double pulseFuncHamming(double x);
+	static double pulseFuncBlackman(double x);
+	static double pulseFuncBlackmanHarris(double x);
+	static double pulseFuncKaiser(double x, double alpha);
+	static double pulseFuncKaiser1(double x);
+	static double pulseFuncKaiser2(double x);
+	static double pulseFuncKaiser3(double x);
+	static double pulseFuncFlatTop(double x);
+	static double pulseFuncFlatTopLong(double x);
+	static double pulseFuncFlatTopLongLong(double x);
+	static double pulseFuncHalfCos(double x);
+	static double pulseFuncChoppedHalfCos(double x);
   
   
     //! send patterns to pulser or turn-off
@@ -237,14 +237,14 @@ class XPulser : public XPrimaryDriver
     virtual bool haveQAMPorts() const = 0;
 
   	const std::vector<std::complex<double> > &qamWaveForm(unsigned int idx) const
-  	 	 {return m_qamWaveForm[idx];}
+		{return m_qamWaveForm[idx];}
 
   
- private:
+private:
     const shared_ptr<XBoolNode> m_output;
     const shared_ptr<XComboNode> m_combMode; //!< see above definitions in header file
-      //! Control period to next pulse sequence
-      //! Fix Repetition Time or Fix Rest Time which means time between pulse sequences 
+	//! Control period to next pulse sequence
+	//! Fix Repetition Time or Fix Rest Time which means time between pulse sequences 
     const shared_ptr<XComboNode> m_rtMode;
     const shared_ptr<XDoubleNode> m_rt; //!< Repetition/Rest Time [ms]
     const shared_ptr<XDoubleNode> m_tau;  //!< [us]
@@ -278,50 +278,50 @@ class XPulser : public XPrimaryDriver
     const shared_ptr<XBoolNode> m_qswPiPulseOnly;
     shared_ptr<XComboNode> m_portSel[NUM_DO_PORTS];
     
-  const shared_ptr<XNode> m_moreConfigShow;
-  xqcon_ptr m_conOutput;
-  xqcon_ptr m_conCombMode, m_conRTMode;
-  xqcon_ptr m_conRT, m_conTau, m_conCombPW, m_conPW1, m_conPW2,
-    m_conCombNum, m_conCombPT, m_conCombP1, m_conCombP1Alt,
-    m_conASWHold, m_conASWSetup, m_conALTSep, m_conG2Setup,
-    m_conEchoNum, m_conDrivenEquilibrium, m_conNumPhaseCycle, m_conCombOffRes, m_conInvertPhase,
-    m_conCombFunc, m_conP1Func, m_conP2Func,
-    m_conCombLevel, m_conP1Level, m_conP2Level,
-    m_conMasterLevel,
-    m_conQAMOffset1, m_conQAMOffset2,
-    m_conQAMLevel1, m_conQAMLevel2,
-    m_conQAMDelay1, m_conQAMDelay2,
-    m_conMoreConfigShow,
-    m_conDIFFreq,
-    m_conInduceEmission, m_conInduceEmissionPhase,
-    m_conQSWDelay, m_conQSWWidth, m_conQSWPiPulseOnly;
-   xqcon_ptr m_conPortSel[NUM_DO_PORTS];
-  shared_ptr<XListener> m_lsnOnPulseChanged;
-  shared_ptr<XListener> m_lsnOnMoreConfigShow;
-  void onMoreConfigShow(const shared_ptr<XNode> &);
+	const shared_ptr<XNode> m_moreConfigShow;
+	xqcon_ptr m_conOutput;
+	xqcon_ptr m_conCombMode, m_conRTMode;
+	xqcon_ptr m_conRT, m_conTau, m_conCombPW, m_conPW1, m_conPW2,
+		m_conCombNum, m_conCombPT, m_conCombP1, m_conCombP1Alt,
+		m_conASWHold, m_conASWSetup, m_conALTSep, m_conG2Setup,
+		m_conEchoNum, m_conDrivenEquilibrium, m_conNumPhaseCycle, m_conCombOffRes, m_conInvertPhase,
+		m_conCombFunc, m_conP1Func, m_conP2Func,
+		m_conCombLevel, m_conP1Level, m_conP2Level,
+		m_conMasterLevel,
+		m_conQAMOffset1, m_conQAMOffset2,
+		m_conQAMLevel1, m_conQAMLevel2,
+		m_conQAMDelay1, m_conQAMDelay2,
+		m_conMoreConfigShow,
+		m_conDIFFreq,
+		m_conInduceEmission, m_conInduceEmissionPhase,
+		m_conQSWDelay, m_conQSWWidth, m_conQSWPiPulseOnly;
+	xqcon_ptr m_conPortSel[NUM_DO_PORTS];
+	shared_ptr<XListener> m_lsnOnPulseChanged;
+	shared_ptr<XListener> m_lsnOnMoreConfigShow;
+	void onMoreConfigShow(const shared_ptr<XNode> &);
 
-  const qshared_ptr<FrmPulser> m_form;
-  const qshared_ptr<FrmPulserMore> m_formMore;
+	const qshared_ptr<FrmPulser> m_form;
+	const qshared_ptr<FrmPulserMore> m_formMore;
   
-  xqcon_ptr m_conPulserDriver;
+	xqcon_ptr m_conPulserDriver;
     
-  void onPulseChanged(const shared_ptr<XValueNodeBase> &);
+	void onPulseChanged(const shared_ptr<XValueNodeBase> &);
 
-  //! create RelPatList
-  void rawToRelPat() throw (XRecordError&);
+	//! create RelPatList
+	void rawToRelPat() throw (XRecordError&);
 
-  //! prepare waveforms for QAM.
-  void makeWaveForm(unsigned int pnum_minus_1, 
-	 double pw, unsigned int to_center,
-  	 tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
-  std::vector<std::complex<double> > m_qamWaveForm[PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX];
+	//! prepare waveforms for QAM.
+	void makeWaveForm(unsigned int pnum_minus_1, 
+					  double pw, unsigned int to_center,
+					  tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
+	std::vector<std::complex<double> > m_qamWaveForm[PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX];
   
-  //! truncate time by resolution().
-  inline double rintTermMilliSec(double msec) const;
-  inline double rintTermMicroSec(double usec) const;
-  inline uint64_t ceilSampsMicroSec(double us) const;
-  inline uint64_t rintSampsMicroSec(double us) const;
-  inline uint64_t rintSampsMilliSec(double ms) const;
- };
+	//! truncate time by resolution().
+	inline double rintTermMilliSec(double msec) const;
+	inline double rintTermMicroSec(double usec) const;
+	inline uint64_t ceilSampsMicroSec(double us) const;
+	inline uint64_t rintSampsMicroSec(double us) const;
+	inline uint64_t rintSampsMilliSec(double ms) const;
+};
 
 #endif

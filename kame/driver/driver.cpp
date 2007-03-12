@@ -10,7 +10,7 @@
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
- ***************************************************************************/
+***************************************************************************/
 #include "driver.h"
 #include "interface.h"
 #include <klocale.h>
@@ -19,21 +19,21 @@ XDriver::XBufferUnderflowRecordError::XBufferUnderflowRecordError(const char *fi
     XRecordError(KAME::i18n("Buffer Underflow."), file, line) {}
 
 XDriverList::XDriverList(const char *name, bool runtime,
-   const shared_ptr<XScalarEntryList> &scalarentries,
-   const shared_ptr<XInterfaceList> &interfaces,
-   const shared_ptr<XThermometerList> &thermometers) :
-        XCustomTypeListNode<XDriver>(name, runtime), 
-        m_scalarentries(scalarentries),
-        m_interfaces(interfaces),
-        m_thermometers(thermometers)
+						 const shared_ptr<XScalarEntryList> &scalarentries,
+						 const shared_ptr<XInterfaceList> &interfaces,
+						 const shared_ptr<XThermometerList> &thermometers) :
+	XCustomTypeListNode<XDriver>(name, runtime), 
+	m_scalarentries(scalarentries),
+	m_interfaces(interfaces),
+	m_thermometers(thermometers)
 {
 }
 
 XDriver::XDriver(const char *name, bool runtime, 
-   const shared_ptr<XScalarEntryList> &,
-   const shared_ptr<XInterfaceList> &,
-   const shared_ptr<XThermometerList> &,
-   const shared_ptr<XDriverList> &) :
+				 const shared_ptr<XScalarEntryList> &,
+				 const shared_ptr<XInterfaceList> &,
+				 const shared_ptr<XThermometerList> &,
+				 const shared_ptr<XDriverList> &) :
     XNode(name, runtime)
 {
 }
