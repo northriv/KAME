@@ -104,13 +104,17 @@ class XNode
 		return ary
 	end
 	def [](key)
-		begin
+		if $SAFE != 0 then
+			begin
+				self.child(key)
+		    rescue RuntimeError
+			     $! = RuntimeError.new("unknown exception raised") unless $!
+			     print_exception($!)
+			     XFakeNode.new()
+		 	end
+		 else
 			self.child(key)
-	    rescue RuntimeError
-		     $! = RuntimeError.new("unknown exception raised") unless $!
-		     print_exception($!)
-		     XFakeNode.new()
-	 	end
+		 end
 	end
 	#element substitution
 	def []=(key, value)
@@ -122,6 +126,44 @@ class XValueNode
 	#implicit conversion to Number
 	def to_int
 		return self.get()
+	end
+	def set(value)
+		if $SAFE != 0 then
+			begin
+				self.internal_set(value)
+		    rescue RuntimeError
+			     $! = RuntimeError.new("unknown exception raised") unless $!
+			     print_exception($!)
+			     nil
+		 	end
+		 else
+			self.internal_set(value)
+		 end
+	end
+	def get
+		if $SAFE != 0 then
+			begin
+				self.internal_get()
+		    rescue RuntimeError
+			     $! = RuntimeError.new("unknown exception raised") unless $!
+			     print_exception($!)
+			     nil
+		 	end
+		 else
+			self.internal_get()
+		 end
+	end
+	def load(value)
+		if $SAFE != 0 then
+			begin
+				self.internal_load(value)
+		    rescue RuntimeError
+			     $! = RuntimeError.new("unknown exception raised") unless $!
+			     print_exception($!)
+		 	end
+		else
+			self.internal_load(value)
+		end
 	end
 	#alias to set()
 	def value=(value)
@@ -135,28 +177,25 @@ class XValueNode
 	def value()
 		self.get()
 	end
-	def load(value)
-		begin
-			self.internal_load(value)
-	    rescue RuntimeError
-		     $! = RuntimeError.new("unknown exception raised") unless $!
-		     print_exception($!)
-	 	end
-	end
 end
 
 class XListNode
 	def create(*arg)
-		begin
-			type = ""
-			name = ""
-			type = arg[0] if arg.size >= 1
-			name = arg[1] if arg.size >= 2
+		type = ""
+		name = ""
+		type = arg[0] if arg.size >= 1
+		name = arg[1] if arg.size >= 2
+		if $SAFE != 0 then
+			begin
+				self.internal_create(type, name)
+		    rescue RuntimeError
+			     $! = RuntimeError.new("unknown exception raised") unless $!
+			     print_exception($!)
+			     XFakeNode.new()
+		 	end
+		 else
 			self.internal_create(type, name)
-	    rescue RuntimeError
-		     $! = RuntimeError.new("unknown exception raised") unless $!
-		     print_exception($!)
-	 	end
+		 end
 	end
 end
 
@@ -206,12 +245,15 @@ begin
          	  sleep(0.5)
 		      xrbthread_action.value = ""
 			  print "Starting a new thread\n"
-			  print "Loading #{xrbthread_filename.get()}.\n";
+			  filename = xrbthread_filename.value()
+			  print "Loading #{filename}.\n";
 		      thread = Thread.new {
 		          Thread.pass
 		          begin
 		             print thread.inspect + "\n"
-		             load xrbthread_filename.value
+					 filename.untaint
+					 $SAFE = (/\.seq/i =~ filename) ? 0 : 3
+		             load filename
 		             print thread.to_s + " Finished.\n"
 		          rescue ScriptError, StandardError
 		    		     $! = RuntimeError.new("unknown exception raised") unless $!
