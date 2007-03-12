@@ -52,16 +52,16 @@ XEntryListConnector::XEntryListConnector
 void
 XEntryListConnector::onRecord(const shared_ptr<XDriver> &driver)
 {
-  for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++)
-    {
-      if((*it)->entry->driver() == driver)
-	   {
-        	   tcons::tlisttext text;
-            text.label = (*it)->label;
-            text.str.reset(new std::string((*it)->entry->value()->to_str()));
-            (*it)->tlkOnRecordRedirected->talk(text);
-    	   }
-    }
+	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++)
+	{
+		if((*it)->entry->driver() == driver)
+		{
+			tcons::tlisttext text;
+			text.label = (*it)->label;
+			text.str.reset(new std::string((*it)->entry->value()->to_str()));
+			(*it)->tlkOnRecordRedirected->talk(text);
+		}
+	}
 }
 void
 XEntryListConnector::tcons::onRecordRedirected(const tlisttext &text)
@@ -71,21 +71,21 @@ XEntryListConnector::tcons::onRecordRedirected(const tlisttext &text)
 
 void
 XEntryListConnector::clicked ( int row, int col, int, const QPoint& ) {
-      switch(col) {
-      case 0:
-      case 1:
-        {
-          atomic_shared_ptr<const XNode::NodeList> list(m_chartList->children());
-          if(list) {
-              if((row >= 0) && (row < (int)list->size())) {
-                 dynamic_pointer_cast<XValChart>(list->at(row))->showChart();
-              }
-          }
-        }
-        break;
-      default:
-        break;
-      }
+	switch(col) {
+	case 0:
+	case 1:
+		{
+			atomic_shared_ptr<const XNode::NodeList> list(m_chartList->children());
+			if(list) {
+				if((row >= 0) && (row < (int)list->size())) {
+					dynamic_pointer_cast<XValChart>(list->at(row))->showChart();
+				}
+			}
+		}
+		break;
+	default:
+		break;
+	}
 }
 void
 XEntryListConnector::onRelease(const shared_ptr<XNode> &node)
@@ -136,8 +136,8 @@ XEntryListConnector::onCatch(const shared_ptr<XNode> &node)
   m_cons.back()->driver = driver;
   m_cons.back()->tlkOnRecordRedirected.reset(new XTalker<tcons::tlisttext>);
   m_cons.back()->lsnOnRecordRedirected = m_cons.back()->tlkOnRecordRedirected->connectWeak(
-        m_cons.back(), &XEntryListConnector::tcons::onRecordRedirected,
-        XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
+	m_cons.back(), &XEntryListConnector::tcons::onRecordRedirected,
+	XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
   
 
   ASSERT(m_pItem->numRows() == (int)m_cons.size());

@@ -33,32 +33,32 @@
 template <typename T>
 struct Vector4 {
     Vector4() : x(0), y(0), z(0), w(1) {}
-    Vector4(const Vector4<T> &v) : x(v.x), y(v.y), z(v.z), w(v.w) {}
+    Vector4(const Vector4 &v) : x(v.x), y(v.y), z(v.z), w(v.w) {}
     Vector4(T nx, T ny, T nz = 0, T nw = 1) : x(nx), y(ny), z(nz), w(nw) {} 
     T x, y, z, w;
     //! operators below do not take weights into account.
-    bool operator==(const Vector4<T> &s1)  const {return ((x == s1.x) && (y == s1.y) && (z == s1.z));}
-    Vector4<T> &operator+=(const Vector4<T> &s1) {
+    bool operator==(const Vector4 &s1)  const {return ((x == s1.x) && (y == s1.y) && (z == s1.z));}
+    Vector4 &operator+=(const Vector4<T> &s1) {
         x += s1.x; y += s1.y; z += s1.z;
         return *this;
     }
-    Vector4<T> &operator-=(const Vector4<T> &s1) {
+    Vector4 &operator-=(const Vector4 &s1) {
         x -= s1.x; y -= s1.y; z -= s1.z;
         return *this;
     }
-    Vector4<T> &operator*=(T k) {
+    Vector4 &operator*=(T k) {
         x *= k; y *= k; z *= k;
         return *this;
     }
     //! square of distance between this and a point
-    T distance2(const Vector4<T> &s1) const {
+    T distance2(const Vector4 &s1) const {
     T x1 = x - s1.x;
     T y1 = y - s1.y;
     T z1 = z - s1.z;
         return x1*x1 + y1*y1 + z1*z1;
     }
     //! square of distance between this and a line from s1 to s2
-    T distance2(const Vector4<T> &s1, const Vector4<T> &s2) const  {
+    T distance2(const Vector4 &s1, const Vector4 &s2) const  {
     T x1 = x - s1.x;
     T y1 = y - s1.y;
     T z1 = z - s1.z;
@@ -74,15 +74,15 @@ struct Vector4 {
         T ir = (T)1.0 / sqrtf(x*x + y*y + z*z);
         x *= ir; y *= ir; z *= ir;
     }
-    Vector4<T> &vectorProduct(const Vector4<T> &s1) {
-    Vector4<T> s2;
+    Vector4 &vectorProduct(const Vector4 &s1) {
+    Vector4 s2;
         s2.x = y * s1.z - z * s1.y;
         s2.y = z * s1.x - x * s1.z;
         s2.z = x * s1.y - y * s1.x;
         *this = s2;
         return *this;
     }
-    T innerProduct(const Vector4<T> &s1) const {
+    T innerProduct(const Vector4 &s1) const {
         return x * s1.x + y * s1.y + z * s1.z;
     }
 }; 
