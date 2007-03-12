@@ -1,6 +1,6 @@
 #!/bin/bash
 kame_date=`date +'%Y%m%d'`
-version=2.1.4
+version=2.1.5
 file=kame-$version-$kame_date
 dir=../2.1-backups/$file
 mkdir -p $dir

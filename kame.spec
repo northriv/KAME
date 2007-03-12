@@ -14,7 +14,7 @@ Name: kame
 %global without_nidaqmx 0
 %endif
 
-Version: 2.1.4
+Version: 2.1.5
 Release: 1%{?kamerel}
 License: GPL
 Group: Applications/Engineering

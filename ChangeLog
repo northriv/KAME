@@ -1,3 +1,8 @@
+* Mon Mar 12 2007 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.1.5-1)
+- Ruby: $SAFE = 3 and begin .. rescue for loading .kame files.
+- xnidaqmxpulser.cpp : increase buf size to 2sec.
+
 * Sun Mar 11 2007 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
 - (2.1.4-1)
 - Fixed TDS.
