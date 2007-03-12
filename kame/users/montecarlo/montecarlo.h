@@ -65,24 +65,25 @@ public:
         Vector3(T nx, T ny) : x(nx), y(ny), z(0) {} 
         Vector3(T nx, T ny, T nz) : x(nx), y(ny), z(nz) {} 
         template <typename X>
-        Vector3(const Vector3<X> &x) : x(x.x), y(x.y), z(x.z) {} 
+        Vector3(const Vector3<X> &r) : x(r.x), y(r.y), z(r.z) {} 
         template <typename X>
         Vector3(const X n[3]) : x(n[0]), y(n[1]), z(n[2]) {} 
         T x; T y; T z;
         
-        bool operator==(const Vector3<T> &s1)  const {return ((x == s1.x) && (y == s1.y) && (z == s1.z));}
+        bool operator==(const Vector3 &s1) const
+        	{return ((x == s1.x) && (y == s1.y) && (z == s1.z));}
         template<typename X>
-        Vector3<T> &operator+=(const Vector3<X> &s1) {
+        Vector3 &operator+=(const Vector3<X> &s1) {
             x += s1.x; y += s1.y; z += s1.z;
             return *this;
         }
         template<typename X>
-        Vector3<T> &operator-=(const Vector3<X> &s1) {
+        Vector3 &operator-=(const Vector3<X> &s1) {
             x -= s1.x; y -= s1.y; z -= s1.z;
             return *this;
         }
         template<typename X>
-        Vector3<T> &operator*=(X k) {
+        Vector3 &operator*=(const X &k) {
             x *= k; y *= k; z *= k;
             return *this;
         }
@@ -107,18 +108,18 @@ public:
         return (zb2*ab2 - zbab*zbab) / ab2;
         }
         void normalize() {
-            T ir = (T)1.0 / sqrtf(x*x + y*y + z*z);
+            T ir = (T)1.0 / sqrt(x*x + y*y + z*z);
             x *= ir; y *= ir; z *= ir;
         }
-        Vector3<T> &vectorProduct(const Vector3<T> &s1) {
-        Vector3<T> s2;
+        Vector3 &vectorProduct(const Vector3 &s1) {
+        Vector3 s2;
             s2.x = y * s1.z - z * s1.y;
             s2.y = z * s1.x - x * s1.z;
             s2.z = x * s1.y - y * s1.x;
             *this = s2;
             return *this;
         }
-        T innerProduct(const Vector3<T> &s1) const {
+        T innerProduct(const Vector3 &s1) const {
             return x * s1.x + y * s1.y + z * s1.z;
         }
         T abs() const {
@@ -251,8 +252,8 @@ private:
     //! Demagnetization D factor.
     static double s_dfactor;
     //! \return true if included.
-    static int dipoleFieldReal(VectorInt dist_times_4, int site2, Vector3<double> *ret);
-    static int dipoleFieldRec(VectorInt k, int site2, Vector3<double> *ret);
+    static int dipoleFieldReal(const Vector3<double> &dist_times_4, int site2, Vector3<double> *ret);
+    static int dipoleFieldRec(const Vector3<double> &k, int site2, Vector3<double> *ret);
 
     typedef float Spin;
 

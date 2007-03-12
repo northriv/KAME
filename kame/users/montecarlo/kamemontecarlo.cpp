@@ -191,7 +191,7 @@ XMonteCarloDriver::showForms() {
 void
 XMonteCarloDriver::start()
 {
-    int num_interaction = MonteCarlo::setupField(*m_L, 0.0, *m_cutoffReal, *m_cutoffRec, *m_alpha);
+    MonteCarlo::setupField(*m_L, 0.0, *m_cutoffReal, *m_cutoffRec, *m_alpha);
     m_L->setUIEnabled(false);
     m_loop.reset(new MonteCarlo(2));
     m_store.reset(new MonteCarlo(1));
@@ -250,7 +250,7 @@ XMonteCarloDriver::stop()
 void
 XMonteCarloDriver::analyzeRaw() throw (XRecordError&)
 {
-    int size = MonteCarlo::length();
+    unsigned int size = MonteCarlo::length();
     if(rawData().size() != size*size*size*16)
         throw XRecordError("Size Mismatch", __FILE__, __LINE__);
     MonteCarlo::Vector3<double> field_dir(*m_hdirx,*m_hdiry,*m_hdirz);
@@ -439,12 +439,10 @@ XMonteCarloDriver::visualize()
       m_wave3D->setRowCount(16*size*size*size);
         for(int site = 0; site < 16; site++) {
             const int *pos = cg_ASitePositions[site];
-            const int *ising = cg_ASiteIsingAxes[site];
             for(int k = 0; k < size; k++) {
             for(int j = 0; j < size; j++) {
             for(int i = 0; i < size; i++) {
                 int sidx = size*(size*(size*site + k) + j) + i;
-                int spin = spins[sidx];
                 int fftidx = m_fftlen*(m_fftlen*(4*k+pos[2]) + 4*j+pos[1]) + 4*i + pos[0];
                 double x = i + pos[0] * 0.25;
                 double y = j + pos[1] * 0.25;
@@ -598,7 +596,7 @@ XMonteCarloDriver::onStepTouched(const shared_ptr<XNode> &)
 void
 XMonteCarloDriver::execute(int flips, long double tests)
 {
-    int size = m_loop->length();
+    unsigned int size = m_loop->length();
     MonteCarlo::Vector3<double> field_dir(*m_hdirx,*m_hdiry,*m_hdirz);
     field_dir.normalize();
     MonteCarlo::Vector3<double> field(field_dir);

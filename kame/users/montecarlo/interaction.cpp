@@ -41,9 +41,9 @@ MonteCarlo::xthread_start_routine(void *x)
     return NULL;
 }
 int
-MonteCarlo::dipoleFieldReal(VectorInt v, int site2, Vector3<double> *ret)
+MonteCarlo::dipoleFieldReal(const Vector3<double> &v, int site2, Vector3<double> *ret)
 {
-    int r2int = v.x*v.x + v.y*v.y + v.z*v.z;
+    double r2int = v.x*v.x + v.y*v.y + v.z*v.z;
     // spherical boundary
     if(r2int - 0.01 > (4*s_cutoff_real_radius)*(4*s_cutoff_real_radius)) {
         return false;
@@ -68,10 +68,9 @@ MonteCarlo::dipoleFieldReal(VectorInt v, int site2, Vector3<double> *ret)
     return true;
 }
 int
-MonteCarlo::dipoleFieldRec(VectorInt v, int site2, Vector3<double> *ret)
+MonteCarlo::dipoleFieldRec(const Vector3<double> &v, int site2, Vector3<double> *ret)
 {
-    int k2int = v.x*v.x + v.y*v.y + v.z*v.z;
-    int ridx = reciprocal_index(v.x,v.y,v.z);
+    double k2int = v.x*v.x + v.y*v.y + v.z*v.z;
     if(k2int >= s_cutoff_rec_radius*s_cutoff_rec_radius) {
         return false;
     }
@@ -233,7 +232,7 @@ MonteCarlo::setupField(int size, double dfactor,
             for(int dk = -cutoff_real; dk <= cutoff_real; dk++) {
             for(int dj = -cutoff_real; dj <= cutoff_real; dj++) {
             for(int di = -cutoff_real; di <= cutoff_real; di++) {                
-                VectorInt v;
+                Vector3<double> v;
                 v.x = 4*di + cg_ASitePositions[site2][0] - cg_BSitePositions[site1][0];
                 v.y = 4*dj + cg_ASitePositions[site2][1] - cg_BSitePositions[site1][1];
                 v.z = 4*dk + cg_ASitePositions[site2][2] - cg_BSitePositions[site1][2];
@@ -253,7 +252,7 @@ MonteCarlo::setupField(int size, double dfactor,
             for(int dk = -cutoff_real; dk <= cutoff_real; dk++) {
             for(int dj = -cutoff_real; dj <= cutoff_real; dj++) {
             for(int di = -cutoff_real; di <= cutoff_real; di++) {                
-                VectorInt v;
+                Vector3<double> v;
                 v.x = 4*di + cg_ASitePositions[site2][0] - cg_8aSitePositions[site1][0];
                 v.y = 4*dj + cg_ASitePositions[site2][1] - cg_8aSitePositions[site1][1];
                 v.z = 4*dk + cg_ASitePositions[site2][2] - cg_8aSitePositions[site1][2];
@@ -273,7 +272,7 @@ MonteCarlo::setupField(int size, double dfactor,
             for(int dk = -cutoff_real; dk <= cutoff_real; dk++) {
             for(int dj = -cutoff_real; dj <= cutoff_real; dj++) {
             for(int di = -cutoff_real; di <= cutoff_real; di++) {                
-                VectorInt v;
+                Vector3<double> v;
                 v.x = 4*di + cg_ASitePositions[site2][0] - cg_48fSitePositions[site1][0];
                 v.y = 4*dj + cg_ASitePositions[site2][1] - cg_48fSitePositions[site1][1];
                 v.z = 4*dk + cg_ASitePositions[site2][2] - cg_48fSitePositions[site1][2];
@@ -517,7 +516,6 @@ MonteCarlo::iterate_rec_generic(Vector3<double> pos1, int i, int j, int k, int s
     complex<Spin> *pspin = &m_spins_rec[site2][0];
     const Vector3<Spin> *pfield = &s_fields_rec_generic[site2][0];
     
-    int lidx = lattice_index(i,j,k);
     double phx = 2*M_PI / (LATTICE_CONST * s_L) * (i * LATTICE_CONST + pos1.x);
     double phy = 2*M_PI / (LATTICE_CONST * s_L) * (j * LATTICE_CONST + pos1.y);
     double phz = 2*M_PI / (LATTICE_CONST * s_L) * (k * LATTICE_CONST + pos1.z);
