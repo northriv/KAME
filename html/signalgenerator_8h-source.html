@@ -2,11 +2,20 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/users/nmr/signalgenerator.h ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.5.1 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000012.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000027.html">nmr</a></div>
+<a class="el" href="dir_86f25382698e49ecc2836ac98faed978.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_1b092230b1fd5a3e6d578edf1ed86c7f.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_31b09b643b82741926021f1ae3b49441.html">nmr</a></div>
 <h1>signalgenerator.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
 <a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
@@ -34,65 +43,65 @@
 <a name="l00025"></a>00025 {
 <a name="l00026"></a>00026  XNODE_OBJECT
 <a name="l00027"></a>00027  <span class="keyword">protected</span>:
-<a name="l00028"></a>00028   <a class="code" href="class_x_s_g.html#b0">XSG</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
+<a name="l00028"></a>00028   <a class="code" href="class_x_s_g.html#3da8dd8a98b551f952646e5fcb000bf3">XSG</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
 <a name="l00029"></a>00029    <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
 <a name="l00030"></a>00030    <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
 <a name="l00031"></a>00031    <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
 <a name="l00032"></a>00032    <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers);
 <a name="l00033"></a>00033  <span class="keyword">public</span>:
-<a name="l00035"></a><a class="code" href="class_x_s_g.html#a0">00035</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_s_g.html#a0">~XSG</a>() {}
-<a name="l00037"></a>00037   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_s_g.html#a1">showForms</a>();
+<a name="l00035"></a><a class="code" href="class_x_s_g.html#83ff51ef3de513eaaaf1c73211577612">00035</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_s_g.html#83ff51ef3de513eaaaf1c73211577612">~XSG</a>() {}
+<a name="l00037"></a>00037   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_s_g.html#fd4755dd5059b579185c94435786ade5">showForms</a>();
 <a name="l00038"></a>00038  <span class="keyword">protected</span>:
-<a name="l00040"></a>00040   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_s_g.html#b1">start</a>();
-<a name="l00043"></a>00043   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_s_g.html#b2">stop</a>();
+<a name="l00040"></a>00040   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_s_g.html#9376ac9c68aedd9ecfc9630d7aedc8f7">start</a>();
+<a name="l00043"></a>00043   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_s_g.html#e60c896d739cabf8411ab2a294e0f2a3">stop</a>();
 <a name="l00044"></a>00044   
-<a name="l00048"></a>00048   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_s_g.html#b3">analyzeRaw</a>() throw (XRecordError&amp;);
-<a name="l00051"></a>00051   virtual <span class="keywordtype">void</span> <a class="code" href="class_x_s_g.html#b4">visualize</a>();
+<a name="l00048"></a>00048   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_s_g.html#63835a7ffad2266fb49f851a483a7eda">analyzeRaw</a>() throw (XRecordError&amp;);
+<a name="l00051"></a>00051   virtual <span class="keywordtype">void</span> <a class="code" href="class_x_s_g.html#5b1d579028b42b3e38755068efe5b34d">visualize</a>();
 <a name="l00052"></a>00052  public:
-<a name="l00054"></a><a class="code" href="class_x_s_g.html#a2">00054</a>   const shared_ptr&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt; &amp;<a class="code" href="class_x_s_g.html#a2">freq</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_s_g.html#r0">m_freq</a>;} 
-<a name="l00055"></a><a class="code" href="class_x_s_g.html#a3">00055</a>   <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_s_g.html#a3">oLevel</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_s_g.html#r1">m_oLevel</a>;} 
-<a name="l00056"></a><a class="code" href="class_x_s_g.html#a4">00056</a>   <span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; &amp;<a class="code" href="class_x_s_g.html#a4">fmON</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_s_g.html#r2">m_fmON</a>;} 
-<a name="l00057"></a><a class="code" href="class_x_s_g.html#a5">00057</a>   <span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; &amp;<a class="code" href="class_x_s_g.html#a5">amON</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_s_g.html#r3">m_amON</a>;} 
+<a name="l00054"></a><a class="code" href="class_x_s_g.html#5df297ab706b2c08edb94c9a6f528be0">00054</a>   const shared_ptr&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt; &amp;<a class="code" href="class_x_s_g.html#5df297ab706b2c08edb94c9a6f528be0">freq</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_s_g.html#9d8327d94cc26c2ba83431eaa6500e6a">m_freq</a>;} 
+<a name="l00055"></a><a class="code" href="class_x_s_g.html#aebd1187cbaf880fca70b3ddf6b4d42c">00055</a>   <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_s_g.html#aebd1187cbaf880fca70b3ddf6b4d42c">oLevel</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_s_g.html#5cbec3a95a9ff8a3ad6f7c3b6c123abb">m_oLevel</a>;} 
+<a name="l00056"></a><a class="code" href="class_x_s_g.html#5b90e3770b1d914b651ef92752e55118">00056</a>   <span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; &amp;<a class="code" href="class_x_s_g.html#5b90e3770b1d914b651ef92752e55118">fmON</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_s_g.html#6e946c0b2245b727781a066b9c6ecf0f">m_fmON</a>;} 
+<a name="l00057"></a><a class="code" href="class_x_s_g.html#96953fa61a944ab780c1cf0670307e12">00057</a>   <span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; &amp;<a class="code" href="class_x_s_g.html#96953fa61a944ab780c1cf0670307e12">amON</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_s_g.html#f0c46d5a058169c4efeaf40bbda42e20">m_amON</a>;} 
 <a name="l00058"></a>00058     
-<a name="l00059"></a><a class="code" href="class_x_s_g.html#a6">00059</a>   <span class="keywordtype">double</span> <a class="code" href="class_x_s_g.html#a6">freqRecorded</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_s_g.html#r4">m_freqRecorded</a>;} 
+<a name="l00059"></a><a class="code" href="class_x_s_g.html#e3f56f505e03eae900e29931f79c0ad5">00059</a>   <span class="keywordtype">double</span> <a class="code" href="class_x_s_g.html#e3f56f505e03eae900e29931f79c0ad5">freqRecorded</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_s_g.html#186e698ea4183d73e6b3fdee6b7c6519">m_freqRecorded</a>;} 
 <a name="l00060"></a>00060  <span class="keyword">protected</span>:
 <a name="l00061"></a>00061   <span class="keyword">virtual</span> <span class="keywordtype">void</span> changeFreq(<span class="keywordtype">double</span> mhz) = 0;
 <a name="l00062"></a>00062   <span class="keyword">virtual</span> <span class="keywordtype">void</span> onOLevelChanged(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) = 0;
 <a name="l00063"></a>00063   <span class="keyword">virtual</span> <span class="keywordtype">void</span> onFMONChanged(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) = 0;
 <a name="l00064"></a>00064   <span class="keyword">virtual</span> <span class="keywordtype">void</span> onAMONChanged(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;) = 0;
 <a name="l00065"></a>00065  <span class="keyword">private</span>:
-<a name="l00066"></a>00066   <span class="keywordtype">void</span> <a class="code" href="class_x_s_g.html#d0">onFreqChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00066"></a>00066   <span class="keywordtype">void</span> <a class="code" href="class_x_s_g.html#bf5b980654a7dbce0d6970f8a2b23309">onFreqChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
 <a name="l00067"></a>00067   
-<a name="l00068"></a><a class="code" href="class_x_s_g.html#r0">00068</a>   <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; <a class="code" href="class_x_s_g.html#r0">m_freq</a>;
-<a name="l00069"></a><a class="code" href="class_x_s_g.html#r1">00069</a>   <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; <a class="code" href="class_x_s_g.html#r1">m_oLevel</a>;
-<a name="l00070"></a><a class="code" href="class_x_s_g.html#r2">00070</a>   <span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; <a class="code" href="class_x_s_g.html#r2">m_fmON</a>;
-<a name="l00071"></a><a class="code" href="class_x_s_g.html#r3">00071</a>   <span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; <a class="code" href="class_x_s_g.html#r3">m_amON</a>;
+<a name="l00068"></a><a class="code" href="class_x_s_g.html#9d8327d94cc26c2ba83431eaa6500e6a">00068</a>   <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; <a class="code" href="class_x_s_g.html#9d8327d94cc26c2ba83431eaa6500e6a">m_freq</a>;
+<a name="l00069"></a><a class="code" href="class_x_s_g.html#5cbec3a95a9ff8a3ad6f7c3b6c123abb">00069</a>   <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; <a class="code" href="class_x_s_g.html#5cbec3a95a9ff8a3ad6f7c3b6c123abb">m_oLevel</a>;
+<a name="l00070"></a><a class="code" href="class_x_s_g.html#6e946c0b2245b727781a066b9c6ecf0f">00070</a>   <span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; <a class="code" href="class_x_s_g.html#6e946c0b2245b727781a066b9c6ecf0f">m_fmON</a>;
+<a name="l00071"></a><a class="code" href="class_x_s_g.html#f0c46d5a058169c4efeaf40bbda42e20">00071</a>   <span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; <a class="code" href="class_x_s_g.html#f0c46d5a058169c4efeaf40bbda42e20">m_amON</a>;
 <a name="l00072"></a>00072   
-<a name="l00073"></a><a class="code" href="class_x_s_g.html#r4">00073</a>   <span class="keywordtype">double</span> <a class="code" href="class_x_s_g.html#r4">m_freqRecorded</a>;
+<a name="l00073"></a><a class="code" href="class_x_s_g.html#186e698ea4183d73e6b3fdee6b7c6519">00073</a>   <span class="keywordtype">double</span> <a class="code" href="class_x_s_g.html#186e698ea4183d73e6b3fdee6b7c6519">m_freqRecorded</a>;
 <a name="l00074"></a>00074   
-<a name="l00075"></a><a class="code" href="class_x_s_g.html#r6">00075</a>   <a class="code" href="classqshared__ptr.html">xqcon_ptr</a> <a class="code" href="class_x_s_g.html#r5">m_conFreq</a>, <a class="code" href="class_x_s_g.html#r6">m_conOLevel</a>, <a class="code" href="class_x_s_g.html#r7">m_conFMON</a>, <a class="code" href="class_x_s_g.html#r8">m_conAMON</a>;
-<a name="l00076"></a><a class="code" href="class_x_s_g.html#r10">00076</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_s_g.html#r9">m_lsnFreq</a>, <a class="code" href="class_x_s_g.html#r10">m_lsnOLevel</a>, <a class="code" href="class_x_s_g.html#r11">m_lsnFMON</a>, <a class="code" href="class_x_s_g.html#r12">m_lsnAMON</a>;
+<a name="l00075"></a><a class="code" href="class_x_s_g.html#d82e213f7b06f12664f039a9c8acad83">00075</a>   <a class="code" href="classqshared__ptr.html">xqcon_ptr</a> <a class="code" href="class_x_s_g.html#c83dd025244612ab117448f4588c320d">m_conFreq</a>, <a class="code" href="class_x_s_g.html#d82e213f7b06f12664f039a9c8acad83">m_conOLevel</a>, <a class="code" href="class_x_s_g.html#617a8d8851d47d8f6ef9d33869f46126">m_conFMON</a>, <a class="code" href="class_x_s_g.html#a0a7da47c806a21d27472e25206d3e1b">m_conAMON</a>;
+<a name="l00076"></a><a class="code" href="class_x_s_g.html#3ba524e3b84fa9eff15844525f16193b">00076</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_s_g.html#5266142e68b95df3b0b8c045fa9039ed">m_lsnFreq</a>, <a class="code" href="class_x_s_g.html#3ba524e3b84fa9eff15844525f16193b">m_lsnOLevel</a>, <a class="code" href="class_x_s_g.html#37aec07770f20619a2d4953970ae21db">m_lsnFMON</a>, <a class="code" href="class_x_s_g.html#249e35686fe208709f4036042f4b4d64">m_lsnAMON</a>;
 <a name="l00077"></a>00077   
-<a name="l00078"></a><a class="code" href="class_x_s_g.html#r13">00078</a>   <span class="keyword">const</span> <a class="code" href="classqshared__ptr.html">qshared_ptr&lt;FrmSG&gt;</a> <a class="code" href="class_x_s_g.html#r13">m_form</a>;
+<a name="l00078"></a><a class="code" href="class_x_s_g.html#b3e07e1fd12dd15bffdef3521767b17f">00078</a>   <span class="keyword">const</span> <a class="code" href="classqshared__ptr.html">qshared_ptr&lt;FrmSG&gt;</a> <a class="code" href="class_x_s_g.html#b3e07e1fd12dd15bffdef3521767b17f">m_form</a>;
 <a name="l00079"></a>00079 };<span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00080"></a>00080 
 <a name="l00082"></a><a class="code" href="class_x_s_g7200.html">00082</a> <span class="keyword">class </span><a class="code" href="class_x_s_g7200.html">XSG7200</a> : <span class="keyword">public</span> <a class="code" href="class_x_char_device_driver.html">XCharDeviceDriver</a>&lt;XSG&gt;
 <a name="l00083"></a>00083 {
 <a name="l00084"></a>00084  XNODE_OBJECT
 <a name="l00085"></a>00085  <span class="keyword">protected</span>:
-<a name="l00086"></a>00086   <a class="code" href="class_x_s_g7200.html#b0">XSG7200</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
+<a name="l00086"></a>00086   <a class="code" href="class_x_s_g7200.html#ec73aaca6869458c18b460ce1ea498d5">XSG7200</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
 <a name="l00087"></a>00087    <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
 <a name="l00088"></a>00088    <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
 <a name="l00089"></a>00089    <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
 <a name="l00090"></a>00090    <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers);
 <a name="l00091"></a>00091  <span class="keyword">public</span>:
-<a name="l00092"></a><a class="code" href="class_x_s_g7200.html#a0">00092</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_s_g7200.html#a0">~XSG7200</a>() {}
+<a name="l00092"></a><a class="code" href="class_x_s_g7200.html#a63eb01de9c1228bf23b8d484039a8ec">00092</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_s_g7200.html#a63eb01de9c1228bf23b8d484039a8ec">~XSG7200</a>() {}
 <a name="l00093"></a>00093 
 <a name="l00094"></a>00094  <span class="keyword">protected</span>:
-<a name="l00095"></a>00095   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_s_g7200.html#b1">changeFreq</a>(<span class="keywordtype">double</span> mhz);
-<a name="l00096"></a>00096   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_s_g7200.html#b2">onOLevelChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00097"></a>00097   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_s_g7200.html#b3">onFMONChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00098"></a>00098   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_s_g7200.html#b4">onAMONChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00095"></a>00095   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_s_g7200.html#235cd1790056004387c8cf41ae9837c5">changeFreq</a>(<span class="keywordtype">double</span> mhz);
+<a name="l00096"></a>00096   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_s_g7200.html#ab8140e69b928eeacd5647a6ac250b67">onOLevelChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00097"></a>00097   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_s_g7200.html#0798295e46e35b99fde588bb80275816">onFMONChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00098"></a>00098   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_s_g7200.html#5fa0ad341606be6505e57254af2c12ea">onAMONChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
 <a name="l00099"></a>00099  <span class="keyword">private</span>:
 <a name="l00100"></a>00100 };
 <a name="l00101"></a>00101 
@@ -100,31 +109,31 @@
 <a name="l00104"></a>00104 {
 <a name="l00105"></a>00105  XNODE_OBJECT
 <a name="l00106"></a>00106  <span class="keyword">protected</span>:
-<a name="l00107"></a>00107   <a class="code" href="class_x_s_g7130.html#b0">XSG7130</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
+<a name="l00107"></a>00107   <a class="code" href="class_x_s_g7130.html#658e37026f92a265daa7aebeac647a4a">XSG7130</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
 <a name="l00108"></a>00108    <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
 <a name="l00109"></a>00109    <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
 <a name="l00110"></a>00110    <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
 <a name="l00111"></a>00111    <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers);
 <a name="l00112"></a>00112  <span class="keyword">public</span>:
-<a name="l00113"></a><a class="code" href="class_x_s_g7130.html#a0">00113</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_s_g7130.html#a0">~XSG7130</a>() {}
+<a name="l00113"></a><a class="code" href="class_x_s_g7130.html#2827147198b7ccc3714f18806a5332a2">00113</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_s_g7130.html#2827147198b7ccc3714f18806a5332a2">~XSG7130</a>() {}
 <a name="l00114"></a>00114 };
 <a name="l00115"></a>00115 
 <a name="l00117"></a><a class="code" href="class_x_h_p8643.html">00117</a> <span class="keyword">class </span><a class="code" href="class_x_h_p8643.html">XHP8643</a> : <span class="keyword">public</span> <a class="code" href="class_x_char_device_driver.html">XCharDeviceDriver</a>&lt;XSG&gt;
 <a name="l00118"></a>00118 {
 <a name="l00119"></a>00119  XNODE_OBJECT
 <a name="l00120"></a>00120  <span class="keyword">protected</span>:
-<a name="l00121"></a>00121   <a class="code" href="class_x_h_p8643.html#b0">XHP8643</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
+<a name="l00121"></a>00121   <a class="code" href="class_x_h_p8643.html#81a40411732d8dc6e7d6550afa81d02b">XHP8643</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
 <a name="l00122"></a>00122    <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
 <a name="l00123"></a>00123    <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
 <a name="l00124"></a>00124    <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
 <a name="l00125"></a>00125    <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers);
 <a name="l00126"></a>00126  <span class="keyword">public</span>:
-<a name="l00127"></a><a class="code" href="class_x_h_p8643.html#a0">00127</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_h_p8643.html#a0">~XHP8643</a>() {}
+<a name="l00127"></a><a class="code" href="class_x_h_p8643.html#9be28b11ebe084bac78115b0a845d32c">00127</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_h_p8643.html#9be28b11ebe084bac78115b0a845d32c">~XHP8643</a>() {}
 <a name="l00128"></a>00128  <span class="keyword">protected</span>:
-<a name="l00129"></a>00129   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_h_p8643.html#b1">changeFreq</a>(<span class="keywordtype">double</span> mhz);
-<a name="l00130"></a>00130   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_h_p8643.html#b2">onOLevelChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00131"></a>00131   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_h_p8643.html#b3">onFMONChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00132"></a>00132   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_h_p8643.html#b4">onAMONChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00129"></a>00129   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_h_p8643.html#9f18df871041c248aba82298155ab349">changeFreq</a>(<span class="keywordtype">double</span> mhz);
+<a name="l00130"></a>00130   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_h_p8643.html#0b66575f1372972ece883a531dba85bc">onOLevelChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00131"></a>00131   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_h_p8643.html#d19852872991f1d58e60ed6eed0af5fb">onFMONChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00132"></a>00132   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_h_p8643.html#26e21f7c97e91a954554f4b3810379c7">onAMONChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
 <a name="l00133"></a>00133  <span class="keyword">private</span>:
 <a name="l00134"></a>00134 };
 <a name="l00135"></a>00135 
@@ -132,21 +141,21 @@
 <a name="l00138"></a>00138 {
 <a name="l00139"></a>00139  XNODE_OBJECT
 <a name="l00140"></a>00140  <span class="keyword">protected</span>:
-<a name="l00141"></a>00141   <a class="code" href="class_x_h_p8648.html#b0">XHP8648</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
+<a name="l00141"></a>00141   <a class="code" href="class_x_h_p8648.html#2c1b7f8885756ffe94de1f773b034b9d">XHP8648</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
 <a name="l00142"></a>00142    <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
 <a name="l00143"></a>00143    <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
 <a name="l00144"></a>00144    <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
 <a name="l00145"></a>00145    <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers);
 <a name="l00146"></a>00146  <span class="keyword">public</span>:
-<a name="l00147"></a><a class="code" href="class_x_h_p8648.html#a0">00147</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_h_p8648.html#a0">~XHP8648</a>() {}
+<a name="l00147"></a><a class="code" href="class_x_h_p8648.html#22682cffb4e6caa9c183ae5234469574">00147</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_h_p8648.html#22682cffb4e6caa9c183ae5234469574">~XHP8648</a>() {}
 <a name="l00148"></a>00148  <span class="keyword">protected</span>:
-<a name="l00149"></a>00149   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_h_p8648.html#b1">onOLevelChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00149"></a>00149   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_h_p8648.html#699d0213a7831cc215695b13433e11f1">onOLevelChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
 <a name="l00150"></a>00150  <span class="keyword">private</span>:
 <a name="l00151"></a>00151 };
 <a name="l00152"></a>00152 
 <a name="l00153"></a>00153 <span class="preprocessor">#endif</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してWed Feb 28 04:17:16 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 17:09:03 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.5.1 </small></address>
 </body>
 </html>

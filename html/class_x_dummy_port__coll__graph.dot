@@ -1,0 +1,31 @@
+digraph G
+{
+  edge [fontname="FreeSans.ttf",fontsize=10,labelfontname="FreeSans.ttf",labelfontsize=10];
+  node [fontname="FreeSans.ttf",fontsize=10,shape=record];
+  Node1 [label="XDummyPort",height=0.2,width=0.4,color="black", fillcolor="grey75", style="filled" fontcolor="black"];
+  Node2 -> Node1 [dir=back,color="midnightblue",fontsize=10,style="solid",fontname="FreeSans.ttf"];
+  Node2 [label="XPort",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$class_x_port.html"];
+  Node3 -> Node2 [dir=back,color="darkorchid3",fontsize=10,style="dashed",label="s_tlBuffer",fontname="FreeSans.ttf"];
+  Node3 [label="XThreadLocal\< std::vector\< char \> \>",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$class_x_thread_local.html"];
+  Node4 -> Node2 [dir=back,color="darkorchid3",fontsize=10,style="dashed",label="m_pInterface",fontname="FreeSans.ttf"];
+  Node4 [label="XCharInterface",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$class_x_char_interface.html"];
+  Node5 -> Node4 [dir=back,color="midnightblue",fontsize=10,style="solid",fontname="FreeSans.ttf"];
+  Node5 [label="XInterface",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$class_x_interface.html"];
+  Node6 -> Node5 [dir=back,color="midnightblue",fontsize=10,style="solid",fontname="FreeSans.ttf"];
+  Node6 [label="XNode",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$class_x_node.html"];
+  Node7 -> Node6 [dir=back,color="darkorchid3",fontsize=10,style="dashed",label="m_tlkOnUIEnabled\nm_tlkOnTouch",fontname="FreeSans.ttf"];
+  Node7 [label="XTalker\< shared_ptr\< XNode \> \>",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$class_x_talker.html"];
+  Node8 -> Node7 [dir=back,color="midnightblue",fontsize=10,style="solid",fontname="FreeSans.ttf"];
+  Node8 [label="_XTalkerBase",height=0.2,width=0.4,color="red", fillcolor="white", style="filled",URL="$class___x_talker_base.html"];
+  Node9 -> Node7 [dir=back,color="darkorchid3",fontsize=10,style="dashed",label="m_listeners",fontname="FreeSans.ttf"];
+  Node9 [label="atomic_shared_ptr\< ListenerList \>",height=0.2,width=0.4,color="red", fillcolor="white", style="filled",URL="$classatomic__shared__ptr.html"];
+  Node10 -> Node9 [dir=back,color="darkorchid3",fontsize=10,style="dashed",label="m_updatemutex",fontname="FreeSans.ttf"];
+  Node10 [label="XMutex",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$class_x_mutex.html"];
+  Node11 -> Node5 [dir=back,color="darkorchid3",fontsize=10,style="dashed",label="m_tlkOnOpen\nm_tlkOnClose",fontname="FreeSans.ttf"];
+  Node11 [label="XTalker\< shared_ptr\< XInterface \> \>",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$class_x_talker.html"];
+  Node8 -> Node11 [dir=back,color="midnightblue",fontsize=10,style="solid",fontname="FreeSans.ttf"];
+  Node9 -> Node11 [dir=back,color="darkorchid3",fontsize=10,style="dashed",label="m_listeners",fontname="FreeSans.ttf"];
+  Node12 -> Node5 [dir=back,color="darkorchid3",fontsize=10,style="dashed",label="m_mutex",fontname="FreeSans.ttf"];
+  Node12 [label="XRecursiveMutex",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$class_x_recursive_mutex.html"];
+  Node10 -> Node12 [dir=back,color="darkorchid3",fontsize=10,style="dashed",label="m_mutex",fontname="FreeSans.ttf"];
+}

@@ -2,11 +2,20 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/driver/interface.h ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.5.1 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000003.html">driver</a></div>
+<a class="el" href="dir_86f25382698e49ecc2836ac98faed978.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_948a01b9803ca72c7103e03c532fe5f9.html">driver</a></div>
 <h1>interface.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
 <a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
@@ -33,77 +42,77 @@
 <a name="l00026"></a>00026 {
 <a name="l00027"></a>00027  XNODE_OBJECT
 <a name="l00028"></a>00028 <span class="keyword">protected</span>:
-<a name="l00029"></a>00029  <a class="code" href="class_x_interface.html#b0">XInterface</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;<a class="code" href="class_x_interface.html#a3">driver</a>);
+<a name="l00029"></a>00029  <a class="code" href="class_x_interface.html#a1d6076c481b4ed1707d0be618bb953d">XInterface</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;<a class="code" href="class_x_interface.html#a7160c7f5c8a8c65105c553754456044">driver</a>);
 <a name="l00030"></a>00030 <span class="keyword">public</span>:
-<a name="l00031"></a><a class="code" href="class_x_interface.html#a0">00031</a>  <span class="keyword">virtual</span> <a class="code" href="class_x_interface.html#a0">~XInterface</a>() {}
+<a name="l00031"></a><a class="code" href="class_x_interface.html#9be13386102ecf74f66bd93fc5cd7114">00031</a>  <span class="keyword">virtual</span> <a class="code" href="class_x_interface.html#9be13386102ecf74f66bd93fc5cd7114">~XInterface</a>() {}
 <a name="l00032"></a>00032  
 <a name="l00033"></a><a class="code" href="struct_x_interface_1_1_x_interface_error.html">00033</a>  <span class="keyword">struct </span><a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterfaceError</a> : <span class="keyword">public</span> <a class="code" href="struct_x_kame_error.html">XKameError</a> {
-<a name="l00034"></a>00034     <a class="code" href="struct_x_interface_1_1_x_interface_error.html#a0">XInterfaceError</a>(<span class="keyword">const</span> QString &amp;<a class="code" href="struct_x_kame_error.html#a3">msg</a>, <span class="keyword">const</span> <span class="keywordtype">char</span> *file, <span class="keywordtype">int</span> line);
+<a name="l00034"></a>00034     <a class="code" href="struct_x_interface_1_1_x_interface_error.html#de3bf73ada65a870a3622f1bb651173d">XInterfaceError</a>(<span class="keyword">const</span> QString &amp;<a class="code" href="struct_x_kame_error.html#779095423f73f04261fb8e214602e29f">msg</a>, <span class="keyword">const</span> <span class="keywordtype">char</span> *file, <span class="keywordtype">int</span> line);
 <a name="l00035"></a>00035  };
 <a name="l00036"></a><a class="code" href="struct_x_interface_1_1_x_conv_error.html">00036</a>  <span class="keyword">struct </span><a class="code" href="struct_x_interface_1_1_x_conv_error.html">XConvError</a> : <span class="keyword">public</span> <a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterfaceError</a> {
-<a name="l00037"></a>00037     <a class="code" href="struct_x_interface_1_1_x_conv_error.html#a0">XConvError</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *file, <span class="keywordtype">int</span> line);
+<a name="l00037"></a>00037     <a class="code" href="struct_x_interface_1_1_x_conv_error.html#a09f27c395149e684fe13e9ea0b548ba">XConvError</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *file, <span class="keywordtype">int</span> line);
 <a name="l00038"></a>00038  };
 <a name="l00039"></a><a class="code" href="struct_x_interface_1_1_x_comm_error.html">00039</a>  <span class="keyword">struct </span><a class="code" href="struct_x_interface_1_1_x_comm_error.html">XCommError</a> : <span class="keyword">public</span> <a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterfaceError</a> {
-<a name="l00040"></a>00040     <a class="code" href="struct_x_interface_1_1_x_comm_error.html#a0">XCommError</a>(<span class="keyword">const</span> QString &amp;, <span class="keyword">const</span> <span class="keywordtype">char</span> *file, <span class="keywordtype">int</span> line);
+<a name="l00040"></a>00040     <a class="code" href="struct_x_interface_1_1_x_comm_error.html#462eb5765f4060a88de6ba3d3194b8ab">XCommError</a>(<span class="keyword">const</span> QString &amp;, <span class="keyword">const</span> <span class="keywordtype">char</span> *file, <span class="keywordtype">int</span> line);
 <a name="l00041"></a>00041  };
 <a name="l00042"></a><a class="code" href="struct_x_interface_1_1_x_open_interface_error.html">00042</a>  <span class="keyword">struct </span><a class="code" href="struct_x_interface_1_1_x_open_interface_error.html">XOpenInterfaceError</a> : <span class="keyword">public</span> <a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterfaceError</a> {
-<a name="l00043"></a>00043     <a class="code" href="struct_x_interface_1_1_x_open_interface_error.html#a0">XOpenInterfaceError</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *file, <span class="keywordtype">int</span> line);
+<a name="l00043"></a>00043     <a class="code" href="struct_x_interface_1_1_x_open_interface_error.html#ba469b6d93d8b551c6bc47a408b9b7ef">XOpenInterfaceError</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *file, <span class="keywordtype">int</span> line);
 <a name="l00044"></a>00044  };
 <a name="l00045"></a>00045  
-<a name="l00046"></a><a class="code" href="class_x_interface.html#a1">00046</a>  <span class="keywordtype">void</span> <a class="code" href="class_x_interface.html#a1">setLabel</a>(<span class="keyword">const</span> std::string&amp; str) {<a class="code" href="class_x_interface.html#r10">m_label</a> = str;}
-<a name="l00047"></a>00047  <span class="keyword">virtual</span> std::string <a class="code" href="class_x_interface.html#a2">getLabel</a>() <span class="keyword">const</span>;
+<a name="l00046"></a><a class="code" href="class_x_interface.html#bc19a057912c7f2437856067defbd407">00046</a>  <span class="keywordtype">void</span> <a class="code" href="class_x_interface.html#bc19a057912c7f2437856067defbd407">setLabel</a>(<span class="keyword">const</span> std::string&amp; str) {<a class="code" href="class_x_interface.html#8ae66a0eaaa1373afd5683d3e884a4a3">m_label</a> = str;}
+<a name="l00047"></a>00047  <span class="keyword">virtual</span> std::string <a class="code" href="class_x_interface.html#ce3d51cff41d356c695378d713112f67">getLabel</a>() <span class="keyword">const</span>;
 <a name="l00048"></a>00048  
-<a name="l00049"></a><a class="code" href="class_x_interface.html#a3">00049</a>  shared_ptr&lt;XDriver&gt; <a class="code" href="class_x_interface.html#a3">driver</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_interface.html#r0">m_driver</a>.lock();}
-<a name="l00051"></a><a class="code" href="class_x_interface.html#a4">00051</a>  <span class="keyword">const</span> shared_ptr&lt;XComboNode&gt; &amp;<a class="code" href="class_x_interface.html#a4">device</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_interface.html#r1">m_device</a>;}
-<a name="l00053"></a><a class="code" href="class_x_interface.html#a5">00053</a>  <span class="keyword">const</span> shared_ptr&lt;XStringNode&gt; &amp;<a class="code" href="class_x_interface.html#a5">port</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_interface.html#r2">m_port</a>;}
-<a name="l00055"></a><a class="code" href="class_x_interface.html#a6">00055</a>  <span class="keyword">const</span> shared_ptr&lt;XUIntNode&gt; &amp;<a class="code" href="class_x_interface.html#a6">address</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_interface.html#r3">m_address</a>;}
-<a name="l00057"></a><a class="code" href="class_x_interface.html#a7">00057</a>  <span class="keyword">const</span> shared_ptr&lt;XUIntNode&gt; &amp;<a class="code" href="class_x_interface.html#a7">baudrate</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_interface.html#r4">m_baudrate</a>;}
-<a name="l00059"></a><a class="code" href="class_x_interface.html#a8">00059</a>  <span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; &amp;<a class="code" href="class_x_interface.html#a8">control</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_interface.html#r5">m_control</a>;}
+<a name="l00049"></a><a class="code" href="class_x_interface.html#a7160c7f5c8a8c65105c553754456044">00049</a>  shared_ptr&lt;XDriver&gt; <a class="code" href="class_x_interface.html#a7160c7f5c8a8c65105c553754456044">driver</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_interface.html#dfe923c36b995d92eaa26d50b3dac824">m_driver</a>.lock();}
+<a name="l00051"></a><a class="code" href="class_x_interface.html#855804422ccb5fd68dffd7d86400568a">00051</a>  <span class="keyword">const</span> shared_ptr&lt;XComboNode&gt; &amp;<a class="code" href="class_x_interface.html#855804422ccb5fd68dffd7d86400568a">device</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_interface.html#a9685b2f33710707ccd85ed4b57023c7">m_device</a>;}
+<a name="l00053"></a><a class="code" href="class_x_interface.html#a3e645d8191b45caafb3b6a16d564612">00053</a>  <span class="keyword">const</span> shared_ptr&lt;XStringNode&gt; &amp;<a class="code" href="class_x_interface.html#a3e645d8191b45caafb3b6a16d564612">port</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_interface.html#936c9ac1554909bdcd8f24b3962713b9">m_port</a>;}
+<a name="l00055"></a><a class="code" href="class_x_interface.html#df13927d051341344e4b547e7f696a93">00055</a>  <span class="keyword">const</span> shared_ptr&lt;XUIntNode&gt; &amp;<a class="code" href="class_x_interface.html#df13927d051341344e4b547e7f696a93">address</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_interface.html#627ef52af885ef25ab3eee08e4a89384">m_address</a>;}
+<a name="l00057"></a><a class="code" href="class_x_interface.html#cdc5b44afb9b1de8ce5cbda48aaf840b">00057</a>  <span class="keyword">const</span> shared_ptr&lt;XUIntNode&gt; &amp;<a class="code" href="class_x_interface.html#cdc5b44afb9b1de8ce5cbda48aaf840b">baudrate</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_interface.html#f6b378dde741b7a7d88d6958825df814">m_baudrate</a>;}
+<a name="l00059"></a><a class="code" href="class_x_interface.html#328b2dddcdb8d65920aa623d76d28289">00059</a>  <span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; &amp;<a class="code" href="class_x_interface.html#328b2dddcdb8d65920aa623d76d28289">control</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_interface.html#2348a460b9112a189d62615f304bc63b">m_control</a>;}
 <a name="l00060"></a>00060 
-<a name="l00061"></a><a class="code" href="class_x_interface.html#a9">00061</a>   <span class="keywordtype">void</span> <a class="code" href="class_x_interface.html#a9">lock</a>() {<a class="code" href="class_x_interface.html#r9">m_mutex</a>.<a class="code" href="class_x_recursive_mutex.html#a2">lock</a>();}
-<a name="l00062"></a><a class="code" href="class_x_interface.html#a10">00062</a>   <span class="keywordtype">void</span> <a class="code" href="class_x_interface.html#a10">unlock</a>() {<a class="code" href="class_x_interface.html#r9">m_mutex</a>.<a class="code" href="class_x_recursive_mutex.html#a3">unlock</a>();}
-<a name="l00063"></a><a class="code" href="class_x_interface.html#a11">00063</a>   <span class="keywordtype">bool</span> <a class="code" href="class_x_interface.html#a11">isLocked</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_interface.html#r9">m_mutex</a>.<a class="code" href="class_x_recursive_mutex.html#a5">isLockedByCurrentThread</a>();}
+<a name="l00061"></a><a class="code" href="class_x_interface.html#830eb8c9db74afce1dd834c2e55e23f8">00061</a>   <span class="keywordtype">void</span> <a class="code" href="class_x_interface.html#830eb8c9db74afce1dd834c2e55e23f8">lock</a>() {<a class="code" href="class_x_interface.html#67cb5ddc8d07574f7bf6c6b674ba78bd">m_mutex</a>.<a class="code" href="class_x_recursive_mutex.html#1cfab14c32ad62dbc760781ba97eb0b2">lock</a>();}
+<a name="l00062"></a><a class="code" href="class_x_interface.html#3e3911e951679476eb0de03c458f9a79">00062</a>   <span class="keywordtype">void</span> <a class="code" href="class_x_interface.html#3e3911e951679476eb0de03c458f9a79">unlock</a>() {<a class="code" href="class_x_interface.html#67cb5ddc8d07574f7bf6c6b674ba78bd">m_mutex</a>.<a class="code" href="class_x_recursive_mutex.html#2996019892806ce7d72a55a3206b60c0">unlock</a>();}
+<a name="l00063"></a><a class="code" href="class_x_interface.html#d5f0e07f953e9f8fd119c2e826fad744">00063</a>   <span class="keywordtype">bool</span> <a class="code" href="class_x_interface.html#d5f0e07f953e9f8fd119c2e826fad744">isLocked</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_interface.html#67cb5ddc8d07574f7bf6c6b674ba78bd">m_mutex</a>.<a class="code" href="class_x_recursive_mutex.html#ad3a03c09b71d6e7b811d9cf182a32a8">isLockedByCurrentThread</a>();}
 <a name="l00064"></a>00064 
-<a name="l00065"></a><a class="code" href="class_x_interface.html#a12">00065</a>   <a class="code" href="class_x_recursive_mutex.html">XRecursiveMutex</a> &amp;<a class="code" href="class_x_interface.html#a12">mutex</a>() {<span class="keywordflow">return</span> <a class="code" href="class_x_interface.html#r9">m_mutex</a>;}
+<a name="l00065"></a><a class="code" href="class_x_interface.html#899105b1c7d3f66fe2475dfe795aeace">00065</a>   <a class="code" href="class_x_recursive_mutex.html">XRecursiveMutex</a> &amp;<a class="code" href="class_x_interface.html#899105b1c7d3f66fe2475dfe795aeace">mutex</a>() {<span class="keywordflow">return</span> <a class="code" href="class_x_interface.html#67cb5ddc8d07574f7bf6c6b674ba78bd">m_mutex</a>;}
 <a name="l00066"></a>00066     
 <a name="l00067"></a>00067   <span class="keyword">virtual</span> <span class="keywordtype">bool</span> isOpened() <span class="keyword">const </span>= 0;
 <a name="l00068"></a>00068 
-<a name="l00069"></a>00069   <span class="keywordtype">void</span> <a class="code" href="class_x_interface.html#a14">start</a>();
-<a name="l00070"></a>00070   <span class="keywordtype">void</span> <a class="code" href="class_x_interface.html#a15">stop</a>();
+<a name="l00069"></a>00069   <span class="keywordtype">void</span> <a class="code" href="class_x_interface.html#90eec26e91f6ea334940e36f02463fa0">start</a>();
+<a name="l00070"></a>00070   <span class="keywordtype">void</span> <a class="code" href="class_x_interface.html#359c4dadcfc9be30120e476373c9ff6c">stop</a>();
 <a name="l00071"></a>00071   
-<a name="l00072"></a><a class="code" href="class_x_interface.html#a16">00072</a>   <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;XInterface&gt;</a> &gt; &amp;<a class="code" href="class_x_interface.html#a16">onOpen</a>() {<span class="keywordflow">return</span> <a class="code" href="class_x_interface.html#r7">m_tlkOnOpen</a>;}
-<a name="l00073"></a><a class="code" href="class_x_interface.html#a17">00073</a>   <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;XInterface&gt;</a> &gt; &amp;<a class="code" href="class_x_interface.html#a17">onClose</a>() {<span class="keywordflow">return</span> <a class="code" href="class_x_interface.html#r8">m_tlkOnClose</a>;}
+<a name="l00072"></a><a class="code" href="class_x_interface.html#4bcea4b24bc57ccedc961955282dc618">00072</a>   <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;XInterface&gt;</a> &gt; &amp;<a class="code" href="class_x_interface.html#4bcea4b24bc57ccedc961955282dc618">onOpen</a>() {<span class="keywordflow">return</span> <a class="code" href="class_x_interface.html#2939c665985dc522c1c5c0e423708c8e">m_tlkOnOpen</a>;}
+<a name="l00073"></a><a class="code" href="class_x_interface.html#aa14f7f31af9fcbc4f5afc7d628924a8">00073</a>   <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;XInterface&gt;</a> &gt; &amp;<a class="code" href="class_x_interface.html#aa14f7f31af9fcbc4f5afc7d628924a8">onClose</a>() {<span class="keywordflow">return</span> <a class="code" href="class_x_interface.html#733c4c3a35143df620ea315ffa970095">m_tlkOnClose</a>;}
 <a name="l00074"></a>00074 <span class="keyword">protected</span>:  
 <a name="l00075"></a>00075   <span class="keyword">virtual</span> <span class="keywordtype">void</span> open() throw (XInterfaceError &amp;) = 0;
-<a name="l00077"></a>00077   virtual <span class="keywordtype">void</span> <a class="code" href="class_x_interface.html#b2">close</a>() throw (XInterfaceError &amp;) = 0;
+<a name="l00077"></a>00077   virtual <span class="keywordtype">void</span> <a class="code" href="class_x_interface.html#a122cc5b6bdebfda27ab44493bfcb5a7">close</a>() throw (XInterfaceError &amp;) = 0;
 <a name="l00078"></a>00078 private:
-<a name="l00079"></a>00079   <span class="keywordtype">void</span> <a class="code" href="class_x_interface.html#d0">onControlChanged</a>(const shared_ptr&lt;<a class="code" href="class_x_value_node_base.html">XValueNodeBase</a>&gt; &amp;);
+<a name="l00079"></a>00079   <span class="keywordtype">void</span> <a class="code" href="class_x_interface.html#9a5094455aa0fb27fc10dc35d0dc4278">onControlChanged</a>(const shared_ptr&lt;<a class="code" href="class_x_value_node_base.html">XValueNodeBase</a>&gt; &amp;);
 <a name="l00080"></a>00080 
-<a name="l00081"></a><a class="code" href="class_x_interface.html#r0">00081</a>   const weak_ptr&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt; <a class="code" href="class_x_interface.html#r0">m_driver</a>;
-<a name="l00082"></a><a class="code" href="class_x_interface.html#r1">00082</a>   const shared_ptr&lt;<a class="code" href="class_x_combo_node.html">XComboNode</a>&gt; <a class="code" href="class_x_interface.html#r1">m_device</a>;
-<a name="l00083"></a><a class="code" href="class_x_interface.html#r2">00083</a>   const shared_ptr&lt;<a class="code" href="class_x_string_node.html">XStringNode</a>&gt; <a class="code" href="class_x_interface.html#r2">m_port</a>;
-<a name="l00084"></a><a class="code" href="class_x_interface.html#r3">00084</a>   const shared_ptr&lt;<a class="code" href="class_x_value_node.html">XUIntNode</a>&gt; <a class="code" href="class_x_interface.html#r3">m_address</a>;
-<a name="l00085"></a><a class="code" href="class_x_interface.html#r4">00085</a>   const shared_ptr&lt;<a class="code" href="class_x_value_node.html">XUIntNode</a>&gt; <a class="code" href="class_x_interface.html#r4">m_baudrate</a>;
-<a name="l00086"></a><a class="code" href="class_x_interface.html#r5">00086</a>   const shared_ptr&lt;<a class="code" href="class_x_value_node.html">XBoolNode</a>&gt; <a class="code" href="class_x_interface.html#r5">m_control</a>;
+<a name="l00081"></a><a class="code" href="class_x_interface.html#dfe923c36b995d92eaa26d50b3dac824">00081</a>   const weak_ptr&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt; <a class="code" href="class_x_interface.html#dfe923c36b995d92eaa26d50b3dac824">m_driver</a>;
+<a name="l00082"></a><a class="code" href="class_x_interface.html#a9685b2f33710707ccd85ed4b57023c7">00082</a>   const shared_ptr&lt;<a class="code" href="class_x_combo_node.html">XComboNode</a>&gt; <a class="code" href="class_x_interface.html#a9685b2f33710707ccd85ed4b57023c7">m_device</a>;
+<a name="l00083"></a><a class="code" href="class_x_interface.html#936c9ac1554909bdcd8f24b3962713b9">00083</a>   const shared_ptr&lt;<a class="code" href="class_x_string_node.html">XStringNode</a>&gt; <a class="code" href="class_x_interface.html#936c9ac1554909bdcd8f24b3962713b9">m_port</a>;
+<a name="l00084"></a><a class="code" href="class_x_interface.html#627ef52af885ef25ab3eee08e4a89384">00084</a>   const shared_ptr&lt;<a class="code" href="class_x_value_node.html">XUIntNode</a>&gt; <a class="code" href="class_x_interface.html#627ef52af885ef25ab3eee08e4a89384">m_address</a>;
+<a name="l00085"></a><a class="code" href="class_x_interface.html#f6b378dde741b7a7d88d6958825df814">00085</a>   const shared_ptr&lt;<a class="code" href="class_x_value_node.html">XUIntNode</a>&gt; <a class="code" href="class_x_interface.html#f6b378dde741b7a7d88d6958825df814">m_baudrate</a>;
+<a name="l00086"></a><a class="code" href="class_x_interface.html#2348a460b9112a189d62615f304bc63b">00086</a>   const shared_ptr&lt;<a class="code" href="class_x_value_node.html">XBoolNode</a>&gt; <a class="code" href="class_x_interface.html#2348a460b9112a189d62615f304bc63b">m_control</a>;
 <a name="l00087"></a>00087 
-<a name="l00088"></a><a class="code" href="class_x_interface.html#r6">00088</a>   shared_ptr&lt;<a class="code" href="class_x_listener.html">XListener</a>&gt; <a class="code" href="class_x_interface.html#r6">lsnOnControlChanged</a>;
-<a name="l00089"></a><a class="code" href="class_x_interface.html#r7">00089</a>   <a class="code" href="class_x_talker.html">XTalker</a>&lt;shared_ptr&lt;<a class="code" href="class_x_interface.html">XInterface</a>&gt; &gt; <a class="code" href="class_x_interface.html#r7">m_tlkOnOpen</a>, <a class="code" href="class_x_interface.html#r8">m_tlkOnClose</a>;
+<a name="l00088"></a><a class="code" href="class_x_interface.html#2dae5860246ce58544ea6ba3befda0b5">00088</a>   shared_ptr&lt;<a class="code" href="class_x_listener.html">XListener</a>&gt; <a class="code" href="class_x_interface.html#2dae5860246ce58544ea6ba3befda0b5">lsnOnControlChanged</a>;
+<a name="l00089"></a><a class="code" href="class_x_interface.html#2939c665985dc522c1c5c0e423708c8e">00089</a>   <a class="code" href="class_x_talker.html">XTalker</a>&lt;shared_ptr&lt;<a class="code" href="class_x_interface.html">XInterface</a>&gt; &gt; <a class="code" href="class_x_interface.html#2939c665985dc522c1c5c0e423708c8e">m_tlkOnOpen</a>, <a class="code" href="class_x_interface.html#733c4c3a35143df620ea315ffa970095">m_tlkOnClose</a>;
 <a name="l00090"></a>00090       
-<a name="l00091"></a><a class="code" href="class_x_interface.html#r9">00091</a>   <a class="code" href="class_x_recursive_mutex.html">XRecursiveMutex</a> <a class="code" href="class_x_interface.html#r9">m_mutex</a>;
+<a name="l00091"></a><a class="code" href="class_x_interface.html#67cb5ddc8d07574f7bf6c6b674ba78bd">00091</a>   <a class="code" href="class_x_recursive_mutex.html">XRecursiveMutex</a> <a class="code" href="class_x_interface.html#67cb5ddc8d07574f7bf6c6b674ba78bd">m_mutex</a>;
 <a name="l00092"></a>00092   
-<a name="l00093"></a><a class="code" href="class_x_interface.html#r10">00093</a>   std::string <a class="code" href="class_x_interface.html#r10">m_label</a>;
+<a name="l00093"></a><a class="code" href="class_x_interface.html#8ae66a0eaaa1373afd5683d3e884a4a3">00093</a>   std::string <a class="code" href="class_x_interface.html#8ae66a0eaaa1373afd5683d3e884a4a3">m_label</a>;
 <a name="l00094"></a>00094 };
 <a name="l00095"></a>00095 
 <a name="l00096"></a><a class="code" href="class_x_interface_list.html">00096</a> class <a class="code" href="class_x_interface_list.html">XInterfaceList</a> : public <a class="code" href="class_x_alias_list_node.html">XAliasListNode</a>&lt;<a class="code" href="class_x_interface.html">XInterface</a>&gt;
 <a name="l00097"></a>00097 {
 <a name="l00098"></a>00098  XNODE_OBJECT
 <a name="l00099"></a>00099 <span class="keyword">protected</span>:
-<a name="l00100"></a><a class="code" href="class_x_interface_list.html#b0">00100</a>     <a class="code" href="class_x_interface_list.html">XInterfaceList</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime) : <a class="code" href="class_x_alias_list_node.html">XAliasListNode</a>&lt;XInterface&gt;(name, runtime) {}
+<a name="l00100"></a><a class="code" href="class_x_interface_list.html#cc506ac86df49096e4a5b6a6effec7e3">00100</a>     <a class="code" href="class_x_interface_list.html">XInterfaceList</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime) : <a class="code" href="class_x_alias_list_node.html">XAliasListNode</a>&lt;XInterface&gt;(name, runtime) {}
 <a name="l00101"></a>00101 };
 <a name="l00102"></a>00102 
 <a name="l00103"></a>00103 <span class="preprocessor">#endif </span><span class="comment">/*INTERFACE_H_*/</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してWed Feb 28 04:17:10 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 17:09:00 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.5.1 </small></address>
 </body>
 </html>

@@ -1,0 +1,30 @@
+digraph G
+{
+  edge [fontname="FreeSans.ttf",fontsize=10,labelfontname="FreeSans.ttf",labelfontsize=10];
+  node [fontname="FreeSans.ttf",fontsize=10,shape=record];
+  Node1 [label="_XTalkerBase",height=0.2,width=0.4,color="black", fillcolor="grey75", style="filled" fontcolor="black"];
+  Node1 -> Node2 [dir=back,color="midnightblue",fontsize=10,style="solid",fontname="FreeSans.ttf"];
+  Node2 [label="XTalker\< tArg \>",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$class_x_talker.html"];
+  Node1 -> Node3 [dir=back,color="midnightblue",fontsize=10,style="solid",fontname="FreeSans.ttf"];
+  Node3 [label="XTalker\< shared_ptr\< std::string \> \>",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$class_x_talker.html"];
+  Node1 -> Node4 [dir=back,color="midnightblue",fontsize=10,style="solid",fontname="FreeSans.ttf"];
+  Node4 [label="XTalker\< shared_ptr\< XDriver \> \>",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$class_x_talker.html"];
+  Node1 -> Node5 [dir=back,color="midnightblue",fontsize=10,style="solid",fontname="FreeSans.ttf"];
+  Node5 [label="XTalker\< shared_ptr\< XGraph \> \>",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$class_x_talker.html"];
+  Node1 -> Node6 [dir=back,color="midnightblue",fontsize=10,style="solid",fontname="FreeSans.ttf"];
+  Node6 [label="XTalker\< shared_ptr\< XInterface \> \>",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$class_x_talker.html"];
+  Node1 -> Node7 [dir=back,color="midnightblue",fontsize=10,style="solid",fontname="FreeSans.ttf"];
+  Node7 [label="XTalker\< shared_ptr\< XItemNodeBase \> \>",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$class_x_talker.html"];
+  Node1 -> Node8 [dir=back,color="midnightblue",fontsize=10,style="solid",fontname="FreeSans.ttf"];
+  Node8 [label="XTalker\< shared_ptr\< XListNodeBase \> \>",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$class_x_talker.html"];
+  Node1 -> Node9 [dir=back,color="midnightblue",fontsize=10,style="solid",fontname="FreeSans.ttf"];
+  Node9 [label="XTalker\< shared_ptr\< XNode \> \>",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$class_x_talker.html"];
+  Node1 -> Node10 [dir=back,color="midnightblue",fontsize=10,style="solid",fontname="FreeSans.ttf"];
+  Node10 [label="XTalker\< shared_ptr\< XRuby::tCreateChild \> \>",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$class_x_talker.html"];
+  Node1 -> Node11 [dir=back,color="midnightblue",fontsize=10,style="solid",fontname="FreeSans.ttf"];
+  Node11 [label="XTalker\< shared_ptr\< XValueNodeBase \> \>",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$class_x_talker.html"];
+  Node1 -> Node12 [dir=back,color="midnightblue",fontsize=10,style="solid",fontname="FreeSans.ttf"];
+  Node12 [label="XTalker\< XListNodeBase::MoveEvent \>",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$class_x_talker.html"];
+  Node1 -> Node13 [dir=back,color="midnightblue",fontsize=10,style="solid",fontname="FreeSans.ttf"];
+  Node13 [label="XTalker\< XStatusPrinter::tstatus \>",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$class_x_talker.html"];
+}

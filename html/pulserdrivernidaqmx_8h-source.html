@@ -2,11 +2,20 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/users/nmr/pulserdrivernidaqmx.h ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.5.1 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000012.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000027.html">nmr</a></div>
+<a class="el" href="dir_86f25382698e49ecc2836ac98faed978.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_1b092230b1fd5a3e6d578edf1ed86c7f.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_31b09b643b82741926021f1ae3b49441.html">nmr</a></div>
 <h1>pulserdrivernidaqmx.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
 <a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
@@ -89,62 +98,61 @@
 <a name="l00085"></a>00085         GenPatternIterator m_genLastPatItAO, m_genLastPatItDO;
 <a name="l00086"></a>00086         uint64_t m_genRestSampsAO, m_genRestSampsDO;
 <a name="l00087"></a>00087 <span class="keyword">enum</span> { NUM_AO_CH = 2};
-<a name="l00088"></a>00088         tRawAO m_genAOZeroLevel[NUM_AO_CH];
-<a name="l00089"></a>00089         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> m_genAOIndex;
-<a name="l00090"></a>00090         shared_ptr&lt;XNIDAQmxInterface::SoftwareTrigger&gt; m_softwareTrigger;
-<a name="l00091"></a>00091         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> m_pausingBit;
-<a name="l00092"></a>00092         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> m_pausingCount;
-<a name="l00093"></a>00093         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> m_pausingBlankBefore;
-<a name="l00094"></a>00094         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> m_pausingBlankAfter;
-<a name="l00095"></a>00095         std::string m_pausingCh;
-<a name="l00096"></a>00096         std::string m_pausingSrcTerm;
-<a name="l00097"></a>00097         std::string m_pausingGateTerm;
-<a name="l00098"></a>00098         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> m_bufSizeHintDO;
-<a name="l00099"></a>00099         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> m_bufSizeHintAO;
-<a name="l00100"></a>00100         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> m_transferSizeHintDO;
-<a name="l00101"></a>00101         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> m_transferSizeHintAO;
-<a name="l00102"></a>00102         uint64_t m_genTotalCountDO;
-<a name="l00103"></a>00103         <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> m_running;
-<a name="l00104"></a>00104         <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> m_suspendDO, m_suspendAO;
-<a name="l00105"></a>00105 <span class="keyword">protected</span>:      
-<a name="l00106"></a>00106         <span class="keywordtype">double</span> m_resolutionDO, m_resolutionAO;
-<a name="l00107"></a>00107         TaskHandle m_taskAO, m_taskDO,
-<a name="l00108"></a>00108                  m_taskDOCtr, m_taskGateCtr;
-<a name="l00109"></a>00109 <span class="keyword">private</span>:
-<a name="l00110"></a>00110 <span class="keyword">enum</span> {PORTSEL_PAUSING = 16};
-<a name="l00111"></a>00111         std::vector&lt;tRawDO&gt; m_genBufDO;
-<a name="l00112"></a>00112         std::vector&lt;tRawAO&gt; m_genBufAO;
-<a name="l00113"></a>00113         scoped_ptr&lt;std::vector&lt;tRawAO&gt; &gt; m_genPulseWaveAO[NUM_AO_CH][PAT_QAM_MASK / PAT_QAM_PHASE];
-<a name="l00114"></a>00114         scoped_ptr&lt;std::vector&lt;tRawAO&gt; &gt; m_genPulseWaveNextAO[NUM_AO_CH][PAT_QAM_MASK / PAT_QAM_PHASE];
-<a name="l00115"></a>00115 <span class="keyword">enum</span> { CAL_POLY_ORDER = 4};
-<a name="l00116"></a>00116         float64 m_coeffAO[NUM_AO_CH][CAL_POLY_ORDER];
-<a name="l00117"></a>00117         float64 m_coeffAODev[NUM_AO_CH][CAL_POLY_ORDER];
-<a name="l00118"></a>00118         float64 m_upperLimAO[NUM_AO_CH];
-<a name="l00119"></a>00119         float64 m_lowerLimAO[NUM_AO_CH];
-<a name="l00120"></a>00120         
-<a name="l00121"></a>00121         <span class="keyword">inline</span> tRawAO aoVoltToRaw(<span class="keywordtype">int</span> ch, float64 volt);
-<a name="l00122"></a>00122         <span class="keywordtype">void</span> genBankDO();
-<a name="l00123"></a>00123         <span class="keywordtype">void</span> genBankAO();
-<a name="l00124"></a>00124         shared_ptr&lt;XThread&lt;XNIDAQmxPulser&gt; &gt; m_threadWriteAO;
-<a name="l00125"></a>00125         shared_ptr&lt;XThread&lt;XNIDAQmxPulser&gt; &gt; m_threadWriteDO;
-<a name="l00126"></a>00126         <span class="keywordtype">void</span> writeBufAO(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;terminated, <span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;suspended);
-<a name="l00127"></a>00127         <span class="keywordtype">void</span> writeBufDO(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;terminated, <span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;suspended);
-<a name="l00128"></a>00128         <span class="keywordtype">void</span> *executeWriteAO(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;);
-<a name="l00129"></a>00129         <span class="keywordtype">void</span> *executeWriteDO(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;);
-<a name="l00130"></a>00130         
-<a name="l00131"></a>00131   <span class="keywordtype">int</span> makeWaveForm(<span class="keywordtype">int</span> num, <span class="keywordtype">double</span> pw, tpulsefunc func, <span class="keywordtype">double</span> dB, <span class="keywordtype">double</span> freq = 0.0, <span class="keywordtype">double</span> phase = 0.0);
-<a name="l00132"></a>00132   <a class="code" href="class_x_recursive_mutex.html">XRecursiveMutex</a> m_totalLock;
-<a name="l00133"></a>00133   <a class="code" href="class_x_recursive_mutex.html">XRecursiveMutex</a> m_mutexAO, m_mutexDO;
-<a name="l00134"></a>00134   
-<a name="l00135"></a>00135   <span class="keyword">inline</span> <span class="keywordtype">bool</span> tryOutputSuspend(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;flag,
-<a name="l00136"></a>00136          <a class="code" href="class_x_recursive_mutex.html">XRecursiveMutex</a> &amp;mutex, <span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;terminated);
-<a name="l00137"></a>00137 };
-<a name="l00138"></a>00138 
-<a name="l00139"></a>00139 <span class="preprocessor">#endif //HAVE_NI_DAQMX</span>
-<a name="l00140"></a>00140 <span class="preprocessor"></span>
-<a name="l00141"></a>00141 <span class="preprocessor">#endif </span><span class="comment">/*PULSERDRIVERNIDAQMX_H_*/</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してWed Feb 28 04:17:15 2007に生成されました。&nbsp;
+<a name="l00088"></a>00088         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> m_genAOIndex;
+<a name="l00089"></a>00089         shared_ptr&lt;XNIDAQmxInterface::SoftwareTrigger&gt; m_softwareTrigger;
+<a name="l00090"></a>00090         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> m_pausingBit;
+<a name="l00091"></a>00091         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> m_pausingCount;
+<a name="l00092"></a>00092         std::string m_pausingCh;
+<a name="l00093"></a>00093         std::string m_pausingSrcTerm;
+<a name="l00094"></a>00094         std::string m_pausingGateTerm;
+<a name="l00095"></a>00095         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> m_bufSizeHintDO;
+<a name="l00096"></a>00096         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> m_bufSizeHintAO;
+<a name="l00097"></a>00097         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> m_transferSizeHintDO;
+<a name="l00098"></a>00098         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> m_transferSizeHintAO;
+<a name="l00099"></a>00099         uint64_t m_genTotalCountDO;
+<a name="l00100"></a>00100         <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> m_running;
+<a name="l00101"></a>00101         <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> m_suspendDO, m_suspendAO;
+<a name="l00102"></a>00102 <span class="keyword">protected</span>:      
+<a name="l00103"></a>00103         <span class="keywordtype">double</span> m_resolutionDO, m_resolutionAO;
+<a name="l00104"></a>00104         TaskHandle m_taskAO, m_taskDO,
+<a name="l00105"></a>00105                  m_taskDOCtr, m_taskGateCtr;
+<a name="l00106"></a>00106 <span class="keyword">private</span>:
+<a name="l00107"></a>00107 <span class="keyword">enum</span> {PORTSEL_PAUSING = 16};
+<a name="l00108"></a>00108         std::vector&lt;tRawDO&gt; m_genBufDO;
+<a name="l00109"></a>00109         <span class="keyword">typedef</span> <span class="keyword">struct </span>{tRawAO ch[NUM_AO_CH];} tRawAOSet;
+<a name="l00110"></a>00110         std::vector&lt;tRawAOSet&gt; m_genBufAO;
+<a name="l00111"></a>00111         tRawAOSet m_genAOZeroLevel;
+<a name="l00112"></a>00112         scoped_ptr&lt;std::vector&lt;tRawAOSet&gt; &gt; m_genPulseWaveAO[PAT_QAM_MASK / PAT_QAM_PHASE];
+<a name="l00113"></a>00113         scoped_ptr&lt;std::vector&lt;tRawAOSet&gt; &gt; m_genPulseWaveNextAO[PAT_QAM_MASK / PAT_QAM_PHASE];
+<a name="l00114"></a>00114 <span class="keyword">enum</span> { CAL_POLY_ORDER = 4};
+<a name="l00115"></a>00115         <span class="keywordtype">double</span> m_coeffAO[NUM_AO_CH][CAL_POLY_ORDER];
+<a name="l00116"></a>00116         <span class="keywordtype">double</span> m_coeffAODev[NUM_AO_CH][CAL_POLY_ORDER];
+<a name="l00117"></a>00117         <span class="keywordtype">double</span> m_upperLimAO[NUM_AO_CH];
+<a name="l00118"></a>00118         <span class="keywordtype">double</span> m_lowerLimAO[NUM_AO_CH];
+<a name="l00119"></a>00119         
+<a name="l00120"></a>00120         <span class="keyword">inline</span> tRawAOSet aoVoltToRaw(<span class="keyword">const</span> std::complex&lt;double&gt; &amp;volt);
+<a name="l00121"></a>00121         <span class="keywordtype">void</span> genBankDO();
+<a name="l00122"></a>00122         <span class="keywordtype">void</span> genBankAO();
+<a name="l00123"></a>00123         shared_ptr&lt;XThread&lt;XNIDAQmxPulser&gt; &gt; m_threadWriteAO;
+<a name="l00124"></a>00124         shared_ptr&lt;XThread&lt;XNIDAQmxPulser&gt; &gt; m_threadWriteDO;
+<a name="l00125"></a>00125         <span class="keywordtype">void</span> writeBufAO(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;terminated, <span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;suspended);
+<a name="l00126"></a>00126         <span class="keywordtype">void</span> writeBufDO(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;terminated, <span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;suspended);
+<a name="l00127"></a>00127         <span class="keywordtype">void</span> *executeWriteAO(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;);
+<a name="l00128"></a>00128         <span class="keywordtype">void</span> *executeWriteDO(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;);
+<a name="l00129"></a>00129         
+<a name="l00130"></a>00130   <span class="keywordtype">int</span> makeWaveForm(<span class="keywordtype">int</span> num, <span class="keywordtype">double</span> pw, tpulsefunc func, <span class="keywordtype">double</span> dB, <span class="keywordtype">double</span> freq = 0.0, <span class="keywordtype">double</span> phase = 0.0);
+<a name="l00131"></a>00131   <a class="code" href="class_x_recursive_mutex.html">XRecursiveMutex</a> m_totalLock;
+<a name="l00132"></a>00132   <a class="code" href="class_x_recursive_mutex.html">XRecursiveMutex</a> m_mutexAO, m_mutexDO;
+<a name="l00133"></a>00133   
+<a name="l00134"></a>00134   <span class="keyword">inline</span> <span class="keywordtype">bool</span> tryOutputSuspend(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;flag,
+<a name="l00135"></a>00135          <a class="code" href="class_x_recursive_mutex.html">XRecursiveMutex</a> &amp;mutex, <span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;terminated);
+<a name="l00136"></a>00136 };
+<a name="l00137"></a>00137 
+<a name="l00138"></a>00138 <span class="preprocessor">#endif //HAVE_NI_DAQMX</span>
+<a name="l00139"></a>00139 <span class="preprocessor"></span>
+<a name="l00140"></a>00140 <span class="preprocessor">#endif </span><span class="comment">/*PULSERDRIVERNIDAQMX_H_*/</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 17:09:03 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.5.1 </small></address>
 </body>
 </html>

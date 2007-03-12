@@ -2,11 +2,20 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/thermometer/cspline.cpp ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.5.1 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000010.html">thermometer</a></div>
+<a class="el" href="dir_86f25382698e49ecc2836ac98faed978.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_1d7b0fc55fb779b2b91b91f22651fbee.html">thermometer</a></div>
 <h1>cspline.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
 <a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
@@ -23,31 +32,31 @@
 <a name="l00014"></a>00014 <span class="preprocessor">#include "cspline.h"</span>
 <a name="l00015"></a>00015 <span class="preprocessor">#include &lt;vector&gt;</span>
 <a name="l00016"></a>00016 
-<a name="l00017"></a><a class="code" href="class_c_spline_approx.html#a0">00017</a> <a class="code" href="class_c_spline_approx.html#a0">CSplineApprox::CSplineApprox</a>(<span class="keyword">const</span> std::map&lt;double, double&gt; &amp;pts)
+<a name="l00017"></a><a class="code" href="class_c_spline_approx.html#358e56b5a78bf7fa24e2cfec6a312f0f">00017</a> <a class="code" href="class_c_spline_approx.html#358e56b5a78bf7fa24e2cfec6a312f0f">CSplineApprox::CSplineApprox</a>(<span class="keyword">const</span> std::map&lt;double, double&gt; &amp;pts)
 <a name="l00018"></a>00018 {
-<a name="l00019"></a>00019     <a class="code" href="class_c_spline_approx.html#r0">m_accel</a> = gsl_interp_accel_alloc();
-<a name="l00020"></a>00020     <a class="code" href="class_c_spline_approx.html#r1">m_spline</a> = gsl_spline_alloc(gsl_interp_cspline, pts.size());
+<a name="l00019"></a>00019     <a class="code" href="class_c_spline_approx.html#e1dcf95ce6e5dbf62682a7ba0d4d5445">m_accel</a> = gsl_interp_accel_alloc();
+<a name="l00020"></a>00020     <a class="code" href="class_c_spline_approx.html#79a735acc72f08705cbbfb3ac5ef562c">m_spline</a> = gsl_spline_alloc(gsl_interp_cspline, pts.size());
 <a name="l00021"></a>00021 
 <a name="l00022"></a>00022     std::vector&lt;double&gt; x, y;
 <a name="l00023"></a>00023     <span class="keywordflow">for</span>(std::map&lt;double, double&gt;::const_iterator it = pts.begin(); it != pts.end(); it++) {
 <a name="l00024"></a>00024         x.push_back(it-&gt;first);
 <a name="l00025"></a>00025         y.push_back(it-&gt;second);
 <a name="l00026"></a>00026     }
-<a name="l00027"></a>00027     gsl_spline_init(<a class="code" href="class_c_spline_approx.html#r1">m_spline</a>, &amp;x[0], &amp;y[0], x.size());
+<a name="l00027"></a>00027     gsl_spline_init(<a class="code" href="class_c_spline_approx.html#79a735acc72f08705cbbfb3ac5ef562c">m_spline</a>, &amp;x[0], &amp;y[0], x.size());
 <a name="l00028"></a>00028 }
 <a name="l00029"></a>00029 
-<a name="l00030"></a><a class="code" href="class_c_spline_approx.html#a1">00030</a> <a class="code" href="class_c_spline_approx.html#a1">CSplineApprox::~CSplineApprox</a>()
+<a name="l00030"></a><a class="code" href="class_c_spline_approx.html#21c9341378b3f5dca2e36741f9332bc0">00030</a> <a class="code" href="class_c_spline_approx.html#21c9341378b3f5dca2e36741f9332bc0">CSplineApprox::~CSplineApprox</a>()
 <a name="l00031"></a>00031 {
-<a name="l00032"></a>00032     gsl_spline_free(<a class="code" href="class_c_spline_approx.html#r1">m_spline</a>);
-<a name="l00033"></a>00033     gsl_interp_accel_free(<a class="code" href="class_c_spline_approx.html#r0">m_accel</a>);
+<a name="l00032"></a>00032     gsl_spline_free(<a class="code" href="class_c_spline_approx.html#79a735acc72f08705cbbfb3ac5ef562c">m_spline</a>);
+<a name="l00033"></a>00033     gsl_interp_accel_free(<a class="code" href="class_c_spline_approx.html#e1dcf95ce6e5dbf62682a7ba0d4d5445">m_accel</a>);
 <a name="l00034"></a>00034 }
 <a name="l00035"></a>00035 <span class="keywordtype">double</span>
-<a name="l00036"></a><a class="code" href="class_c_spline_approx.html#a2">00036</a> <a class="code" href="class_c_spline_approx.html#a2">CSplineApprox::approx</a>(<span class="keywordtype">double</span> x)<span class="keyword"> const</span>
+<a name="l00036"></a><a class="code" href="class_c_spline_approx.html#a28a7944cfacda997ba0554ef7667486">00036</a> <a class="code" href="class_c_spline_approx.html#a28a7944cfacda997ba0554ef7667486">CSplineApprox::approx</a>(<span class="keywordtype">double</span> x)<span class="keyword"> const</span>
 <a name="l00037"></a>00037 <span class="keyword"></span>{
-<a name="l00038"></a>00038     <span class="keywordflow">return</span> gsl_spline_eval(<a class="code" href="class_c_spline_approx.html#r1">m_spline</a>, x, <a class="code" href="class_c_spline_approx.html#r0">m_accel</a>);
+<a name="l00038"></a>00038     <span class="keywordflow">return</span> gsl_spline_eval(<a class="code" href="class_c_spline_approx.html#79a735acc72f08705cbbfb3ac5ef562c">m_spline</a>, x, <a class="code" href="class_c_spline_approx.html#e1dcf95ce6e5dbf62682a7ba0d4d5445">m_accel</a>);
 <a name="l00039"></a>00039 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してWed Feb 28 04:17:12 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 17:09:01 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.5.1 </small></address>
 </body>
 </html>

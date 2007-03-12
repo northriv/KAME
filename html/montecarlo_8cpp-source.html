@@ -2,11 +2,20 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/users/montecarlo/montecarlo.cpp ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.5.1 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000012.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000025.html">montecarlo</a></div>
+<a class="el" href="dir_86f25382698e49ecc2836ac98faed978.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_1b092230b1fd5a3e6d578edf1ed86c7f.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_5aaf68e18ceb5cd5b5778213307fce5b.html">montecarlo</a></div>
 <h1>montecarlo.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
 <a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
@@ -40,30 +49,30 @@
 <a name="l00031"></a>00031 <span class="comment">//trandom_generator g_float_random_generator(static_cast&lt;unsigned int&gt;(std::time(0)));</span>
 <a name="l00032"></a>00032 boost::uniform_01&lt;trandom_generator&gt; g_float_random_dist(g_float_random_generator);
 <a name="l00033"></a>00033 
-<a name="l00034"></a><a class="code" href="class_monte_carlo.html#v17">00034</a> <a class="code" href="struct_monte_carlo_1_1_vector3.html">MonteCarlo::Vector3&lt;double&gt;</a> <a class="code" href="class_monte_carlo.html#v17">MonteCarlo::s_ASiteIsingVector</a>[16];
-<a name="l00035"></a><a class="code" href="class_monte_carlo.html#s0">00035</a> <span class="keyword">volatile</span> <span class="keywordtype">bool</span> <a class="code" href="class_monte_carlo.html#s0">MonteCarlo::s_bAborting</a> = <span class="keyword">false</span>;
+<a name="l00034"></a>00034 <a class="code" href="struct_monte_carlo_1_1_vector3.html">MonteCarlo::Vector3&lt;double&gt;</a> <a class="code" href="class_monte_carlo.html#e22d0e56017ddec589a647f808e5cba7">MonteCarlo::s_ASiteIsingVector</a>[16];
+<a name="l00035"></a>00035 <span class="keyword">volatile</span> <span class="keywordtype">bool</span> <a class="code" href="class_monte_carlo.html#d6a4db583be8ebc37e2d18f02e959b88">MonteCarlo::s_bAborting</a> = <span class="keyword">false</span>;
 <a name="l00036"></a>00036 
-<a name="l00037"></a>00037 <span class="keyword">using</span> <span class="keyword">namespace </span>std;
+<a name="l00037"></a>00037 <span class="keyword">using namespace </span>std;
 <a name="l00038"></a>00038 
-<a name="l00039"></a><a class="code" href="class_monte_carlo.html#v14">00039</a> <span class="keywordtype">int</span> <a class="code" href="class_monte_carlo.html#v14">MonteCarlo::s_L</a>;
-<a name="l00040"></a><a class="code" href="class_monte_carlo.html#v15">00040</a> <span class="keywordtype">int</span> <a class="code" href="class_monte_carlo.html#v15">MonteCarlo::s_num_spins</a>;
-<a name="l00041"></a><a class="code" href="class_monte_carlo.html#v4">00041</a> <span class="keywordtype">double</span> <a class="code" href="class_monte_carlo.html#v4">MonteCarlo::s_alpha</a>;
-<a name="l00042"></a><a class="code" href="class_monte_carlo.html#v5">00042</a> <span class="keywordtype">double</span> <a class="code" href="class_monte_carlo.html#v5">MonteCarlo::s_dfactor</a>;
-<a name="l00043"></a><a class="code" href="class_monte_carlo.html#v0">00043</a> <span class="keywordtype">int</span> <a class="code" href="class_monte_carlo.html#v0">MonteCarlo::s_cutoff_real</a>;
-<a name="l00044"></a><a class="code" href="class_monte_carlo.html#v1">00044</a> <span class="keywordtype">double</span> <a class="code" href="class_monte_carlo.html#v1">MonteCarlo::s_cutoff_real_radius</a>;
-<a name="l00045"></a><a class="code" href="class_monte_carlo.html#v6">00045</a> <a class="code" href="class_monte_carlo.html#y2">MonteCarlo::FieldRealArray</a> <a class="code" href="class_monte_carlo.html#v6">MonteCarlo::s_fields_real</a>[16][16];
-<a name="l00046"></a><a class="code" href="class_monte_carlo.html#v7">00046</a> <a class="code" href="class_monte_carlo.html#y2">MonteCarlo::FieldRealArray</a> <a class="code" href="class_monte_carlo.html#v7">MonteCarlo::s_fields_real_B</a>[16][16][3];
-<a name="l00047"></a><a class="code" href="class_monte_carlo.html#v8">00047</a> <a class="code" href="class_monte_carlo.html#y2">MonteCarlo::FieldRealArray</a> <a class="code" href="class_monte_carlo.html#v8">MonteCarlo::s_fields_real_8a</a>[8][16][3];
-<a name="l00048"></a><a class="code" href="class_monte_carlo.html#v9">00048</a> <a class="code" href="class_monte_carlo.html#y2">MonteCarlo::FieldRealArray</a> <a class="code" href="class_monte_carlo.html#v9">MonteCarlo::s_fields_real_48f</a>[48][16][3];
-<a name="l00049"></a><a class="code" href="class_monte_carlo.html#v2">00049</a> <span class="keywordtype">int</span> <a class="code" href="class_monte_carlo.html#v2">MonteCarlo::s_cutoff_rec</a>;
-<a name="l00050"></a><a class="code" href="class_monte_carlo.html#v3">00050</a> <span class="keywordtype">double</span> <a class="code" href="class_monte_carlo.html#v3">MonteCarlo::s_cutoff_rec_radius</a>;
-<a name="l00051"></a><a class="code" href="class_monte_carlo.html#v10">00051</a> std::vector&lt;MonteCarlo::Spin&gt; <a class="code" href="class_monte_carlo.html#v10">MonteCarlo::s_fields_rec</a>[16][16];
-<a name="l00052"></a><a class="code" href="class_monte_carlo.html#v11">00052</a> std::vector&lt;MonteCarlo::Vector3&lt;MonteCarlo::Spin&gt; &gt; <a class="code" href="class_monte_carlo.html#v11">MonteCarlo::s_fields_rec_generic</a>[16];
-<a name="l00053"></a><a class="code" href="class_monte_carlo.html#v12">00053</a> <span class="keywordtype">double</span> <a class="code" href="class_monte_carlo.html#v12">MonteCarlo::s_fields_rec_sum</a>;
-<a name="l00054"></a><a class="code" href="class_monte_carlo.html#v13">00054</a> std::vector&lt;std::complex&lt;MonteCarlo::Spin&gt; &gt; <a class="code" href="class_monte_carlo.html#v13">MonteCarlo::s_exp_ph</a>[16];
-<a name="l00055"></a><a class="code" href="class_monte_carlo.html#v16">00055</a> std::vector&lt;int&gt; <a class="code" href="class_monte_carlo.html#v16">MonteCarlo::s_4r2_neighbor</a>;
+<a name="l00039"></a>00039 <span class="keywordtype">int</span> <a class="code" href="class_monte_carlo.html#3b56a6e994661de7da1e19145d2895fd">MonteCarlo::s_L</a>;
+<a name="l00040"></a>00040 <span class="keywordtype">int</span> <a class="code" href="class_monte_carlo.html#2380e22df341d33556413cdfcdcfda95">MonteCarlo::s_num_spins</a>;
+<a name="l00041"></a>00041 <span class="keywordtype">double</span> <a class="code" href="class_monte_carlo.html#80c7a8fb9a716f8de976f89946ba61fe">MonteCarlo::s_alpha</a>;
+<a name="l00042"></a>00042 <span class="keywordtype">double</span> <a class="code" href="class_monte_carlo.html#8c131a5863125f87abdc2240a08f8a28">MonteCarlo::s_dfactor</a>;
+<a name="l00043"></a>00043 <span class="keywordtype">int</span> <a class="code" href="class_monte_carlo.html#646f7e833f726abd8f208d7c821dc8df">MonteCarlo::s_cutoff_real</a>;
+<a name="l00044"></a>00044 <span class="keywordtype">double</span> <a class="code" href="class_monte_carlo.html#88a0aa0f0b125e30bb80ce1173bce186">MonteCarlo::s_cutoff_real_radius</a>;
+<a name="l00045"></a>00045 <a class="code" href="class_monte_carlo.html#24c4e96e6c96284d0601f77b0754e0f9">MonteCarlo::FieldRealArray</a> <a class="code" href="class_monte_carlo.html#dbacde843e114a7900c9bc8fbb944383">MonteCarlo::s_fields_real</a>[16][16];
+<a name="l00046"></a>00046 <a class="code" href="class_monte_carlo.html#24c4e96e6c96284d0601f77b0754e0f9">MonteCarlo::FieldRealArray</a> <a class="code" href="class_monte_carlo.html#978c948ecdc6037d4f0b378e3f4a286a">MonteCarlo::s_fields_real_B</a>[16][16][3];
+<a name="l00047"></a>00047 <a class="code" href="class_monte_carlo.html#24c4e96e6c96284d0601f77b0754e0f9">MonteCarlo::FieldRealArray</a> <a class="code" href="class_monte_carlo.html#d1eac639fbdc49eb4964c84844b28786">MonteCarlo::s_fields_real_8a</a>[8][16][3];
+<a name="l00048"></a>00048 <a class="code" href="class_monte_carlo.html#24c4e96e6c96284d0601f77b0754e0f9">MonteCarlo::FieldRealArray</a> <a class="code" href="class_monte_carlo.html#4ce66670b95f33b4220ae1a1d13c838d">MonteCarlo::s_fields_real_48f</a>[48][16][3];
+<a name="l00049"></a>00049 <span class="keywordtype">int</span> <a class="code" href="class_monte_carlo.html#961b8e3cfb8cc3b5793f640499dc354a">MonteCarlo::s_cutoff_rec</a>;
+<a name="l00050"></a>00050 <span class="keywordtype">double</span> <a class="code" href="class_monte_carlo.html#937f616892017fa141654277ab086879">MonteCarlo::s_cutoff_rec_radius</a>;
+<a name="l00051"></a>00051 std::vector&lt;MonteCarlo::Spin&gt; <a class="code" href="class_monte_carlo.html#dde0b117a86f33963341ea6f99eb0fb2">MonteCarlo::s_fields_rec</a>[16][16];
+<a name="l00052"></a>00052 std::vector&lt;MonteCarlo::Vector3&lt;MonteCarlo::Spin&gt; &gt; <a class="code" href="class_monte_carlo.html#facffe40fa0cf22745c470c37d9abf06">MonteCarlo::s_fields_rec_generic</a>[16];
+<a name="l00053"></a>00053 <span class="keywordtype">double</span> <a class="code" href="class_monte_carlo.html#eda50f4e76377a433d71004a6182d0a4">MonteCarlo::s_fields_rec_sum</a>;
+<a name="l00054"></a>00054 std::vector&lt;std::complex&lt;MonteCarlo::Spin&gt; &gt; <a class="code" href="class_monte_carlo.html#5f0413880f6c9cc2fe6e0bfefff2ec93">MonteCarlo::s_exp_ph</a>[16];
+<a name="l00055"></a>00055 std::vector&lt;int&gt; <a class="code" href="class_monte_carlo.html#7aab8c9c7574d8cf81e7ca9370828328">MonteCarlo::s_4r2_neighbor</a>;
 <a name="l00056"></a>00056 
-<a name="l00057"></a><a class="code" href="class_monte_carlo.html#a0">00057</a> <a class="code" href="class_monte_carlo.html#a0">MonteCarlo::MonteCarlo</a>(<span class="keywordtype">int</span> num_threads)
+<a name="l00057"></a><a class="code" href="class_monte_carlo.html#1d05ad5ca27c188dae5b6711fca9aae7">00057</a> <a class="code" href="class_monte_carlo.html#1d05ad5ca27c188dae5b6711fca9aae7">MonteCarlo::MonteCarlo</a>(<span class="keywordtype">int</span> num_threads)
 <a name="l00058"></a>00058  : 
 <a name="l00059"></a>00059    m_bTerminated(false),
 <a name="l00060"></a>00060    m_sec_cache_enabled(false),
@@ -71,46 +80,46 @@
 <a name="l00062"></a>00062    m_sec_cache_firsttime(true),
 <a name="l00063"></a>00063    m_third_cache_firsttime(true)
 <a name="l00064"></a>00064 {
-<a name="l00065"></a>00065     <span class="keywordtype">int</span> lsize = <a class="code" href="class_monte_carlo.html#v15">s_num_spins</a>/16;
+<a name="l00065"></a>00065     <span class="keywordtype">int</span> lsize = <a class="code" href="class_monte_carlo.html#2380e22df341d33556413cdfcdcfda95">s_num_spins</a>/16;
 <a name="l00066"></a>00066 
 <a name="l00067"></a>00067     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site1 = 0; site1 &lt; 16; site1++) {
-<a name="l00068"></a>00068 <span class="preprocessor">    #ifdef PACK_4FLOAT</span>
-<a name="l00069"></a>00069 <span class="preprocessor"></span>        <a class="code" href="class_monte_carlo.html#r27">m_spins_real</a>[site1].resize(<a class="code" href="class_monte_carlo.html#h6">spins_real_index</a>(0,0,<a class="code" href="class_monte_carlo.html#v14">s_L</a>)/4);
+<a name="l00068"></a>00068     #ifdef PACK_4FLOAT
+<a name="l00069"></a>00069         <a class="code" href="class_monte_carlo.html#833965b9d6828d6a9fb4b56f0d371ff7">m_spins_real</a>[site1].resize(<a class="code" href="class_monte_carlo.html#98ce40fb61c02cc4169f781572f77a12">spins_real_index</a>(0,0,<a class="code" href="class_monte_carlo.html#3b56a6e994661de7da1e19145d2895fd">s_L</a>)/4);
 <a name="l00070"></a>00070 <span class="preprocessor">    #else</span>
-<a name="l00071"></a>00071 <span class="preprocessor"></span>        <a class="code" href="class_monte_carlo.html#r27">m_spins_real</a>[site1].resize(3*lsize);
+<a name="l00071"></a>00071 <span class="preprocessor"></span>        <a class="code" href="class_monte_carlo.html#833965b9d6828d6a9fb4b56f0d371ff7">m_spins_real</a>[site1].resize(3*lsize);
 <a name="l00072"></a>00072 <span class="preprocessor">    #endif</span>
 <a name="l00073"></a>00073 <span class="preprocessor"></span>        
-<a name="l00074"></a>00074         <a class="code" href="class_monte_carlo.html#r21">m_field_pri_cached</a>[site1].resize(lsize, 0.0);
-<a name="l00075"></a>00075         <a class="code" href="class_monte_carlo.html#r22">m_field_pri_cached_sane</a>.resize(lsize, 0);
+<a name="l00074"></a>00074         <a class="code" href="class_monte_carlo.html#07ac1f0f3c2cd34f0f62cef5a5f7333b">m_field_pri_cached</a>[site1].resize(lsize, 0.0);
+<a name="l00075"></a>00075         <a class="code" href="class_monte_carlo.html#592589e1b09ff3e77e30b9063fe0faf9">m_field_pri_cached_sane</a>.resize(lsize, 0);
 <a name="l00076"></a>00076         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site2 = 0; site2 &lt; 16; site2++) {
-<a name="l00077"></a>00077             <a class="code" href="class_monte_carlo.html#r23">m_field_sec_cached</a>[site2][site1].resize(lsize, 0.0);
-<a name="l00078"></a>00078             <a class="code" href="class_monte_carlo.html#r24">m_field_sec_cached_sane</a>[site2].resize(lsize, 0);
-<a name="l00079"></a>00079             <a class="code" href="class_monte_carlo.html#r25">m_field_third_cached</a>[site2][site1].resize(lsize, 0.0);
-<a name="l00080"></a>00080             <a class="code" href="class_monte_carlo.html#r26">m_field_third_cached_sane</a>[site2].resize(lsize, 0);
+<a name="l00077"></a>00077             <a class="code" href="class_monte_carlo.html#36ed3af838fa7a2991ab886e356859a0">m_field_sec_cached</a>[site2][site1].resize(lsize, 0.0);
+<a name="l00078"></a>00078             <a class="code" href="class_monte_carlo.html#6cfd355eaea866990a0ffef4f6b6bee0">m_field_sec_cached_sane</a>[site2].resize(lsize, 0);
+<a name="l00079"></a>00079             <a class="code" href="class_monte_carlo.html#fe766f26cfadcf8750b30520082f6bd8">m_field_third_cached</a>[site2][site1].resize(lsize, 0.0);
+<a name="l00080"></a>00080             <a class="code" href="class_monte_carlo.html#3529d444865515a60509c315a08b5170">m_field_third_cached_sane</a>[site2].resize(lsize, 0);
 <a name="l00081"></a>00081         }
-<a name="l00082"></a>00082         <a class="code" href="class_monte_carlo.html#r13">m_probability_buffers</a>[0][site1].resize(lsize, 0.0);
-<a name="l00083"></a>00083         <a class="code" href="class_monte_carlo.html#r13">m_probability_buffers</a>[1][site1].resize(lsize, 0.0);
+<a name="l00082"></a>00082         <a class="code" href="class_monte_carlo.html#2d3f4035b0c2a06d68e54210f7fcfeec">m_probability_buffers</a>[0][site1].resize(lsize, 0.0);
+<a name="l00083"></a>00083         <a class="code" href="class_monte_carlo.html#2d3f4035b0c2a06d68e54210f7fcfeec">m_probability_buffers</a>[1][site1].resize(lsize, 0.0);
 <a name="l00084"></a>00084     }
 <a name="l00085"></a>00085         
 <a name="l00086"></a>00086     fprintf(stderr, <span class="stringliteral">"# of spins = %d\n"</span>, 16*lsize);
-<a name="l00087"></a>00087     <a class="code" href="class_monte_carlo.html#a3">randomize</a>();
+<a name="l00087"></a>00087     <a class="code" href="class_monte_carlo.html#402e633f1e712573d498964c7a4487c0">randomize</a>();
 <a name="l00088"></a>00088 
 <a name="l00089"></a>00089    <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; num_threads - 1; i++) {
 <a name="l00090"></a>00090       pthread_t tid;
 <a name="l00091"></a>00091       <span class="keywordtype">int</span> ret =
-<a name="l00092"></a>00092         pthread_create(&amp;tid, NULL, <a class="code" href="class_monte_carlo.html#h8">xthread_start_routine</a>, <span class="keyword">this</span>);
+<a name="l00092"></a>00092         pthread_create(&amp;tid, NULL, <a class="code" href="class_monte_carlo.html#b73d0c658a6cc394c5fc5b8e454e02b7">xthread_start_routine</a>, <span class="keyword">this</span>);
 <a name="l00093"></a>00093       ASSERT(!ret);
-<a name="l00094"></a>00094        <a class="code" href="class_monte_carlo.html#r35">m_threads</a>.push_back(tid);
+<a name="l00094"></a>00094        <a class="code" href="class_monte_carlo.html#ac685c54fc168e503def216eeeb97514">m_threads</a>.push_back(tid);
 <a name="l00095"></a>00095     }
 <a name="l00096"></a>00096 }
-<a name="l00097"></a><a class="code" href="class_monte_carlo.html#a1">00097</a> <a class="code" href="class_monte_carlo.html#a1">MonteCarlo::~MonteCarlo</a>()
+<a name="l00097"></a><a class="code" href="class_monte_carlo.html#f53fc3a679af18b51a3002b4c1f6b6c2">00097</a> <a class="code" href="class_monte_carlo.html#f53fc3a679af18b51a3002b4c1f6b6c2">MonteCarlo::~MonteCarlo</a>()
 <a name="l00098"></a>00098 {
 <a name="l00099"></a>00099    {
-<a name="l00100"></a>00100        <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XCondition&gt;</a> lock(<a class="code" href="class_monte_carlo.html#r1">m_thread_pool_cond</a>);
-<a name="l00101"></a>00101         <a class="code" href="class_monte_carlo.html#r0">m_bTerminated</a> = <span class="keyword">true</span>;
-<a name="l00102"></a>00102         <a class="code" href="class_monte_carlo.html#r1">m_thread_pool_cond</a>.<a class="code" href="class_x_condition.html#a4">broadcast</a>();
+<a name="l00100"></a>00100        <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XCondition&gt;</a> lock(<a class="code" href="class_monte_carlo.html#d9abdf4adfa242822fbc369fb296eec9">m_thread_pool_cond</a>);
+<a name="l00101"></a>00101         <a class="code" href="class_monte_carlo.html#83948370e4dea850298923ca12c4c71f">m_bTerminated</a> = <span class="keyword">true</span>;
+<a name="l00102"></a>00102         <a class="code" href="class_monte_carlo.html#d9abdf4adfa242822fbc369fb296eec9">m_thread_pool_cond</a>.<a class="code" href="class_x_condition.html#1cac7a12057fcf098945b6d1e5341f48">broadcast</a>();
 <a name="l00103"></a>00103    }
-<a name="l00104"></a>00104     <span class="keywordflow">for</span>(deque&lt;pthread_t&gt;::iterator it = <a class="code" href="class_monte_carlo.html#r35">m_threads</a>.begin(); it != <a class="code" href="class_monte_carlo.html#r35">m_threads</a>.end(); it++)
+<a name="l00104"></a>00104     <span class="keywordflow">for</span>(deque&lt;pthread_t&gt;::iterator it = <a class="code" href="class_monte_carlo.html#ac685c54fc168e503def216eeeb97514">m_threads</a>.begin(); it != <a class="code" href="class_monte_carlo.html#ac685c54fc168e503def216eeeb97514">m_threads</a>.end(); it++)
 <a name="l00105"></a>00105     {
 <a name="l00106"></a>00106       <span class="keywordtype">void</span> *retv;
 <a name="l00107"></a>00107       <span class="keywordtype">int</span> ret = pthread_join(*it, &amp;retv);
@@ -118,7 +127,7 @@
 <a name="l00109"></a>00109     }
 <a name="l00110"></a>00110 }
 <a name="l00111"></a>00111 <span class="keywordtype">void</span>
-<a name="l00112"></a>00112 <a class="code" href="class_monte_carlo.html#a7">MonteCarlo::read</a>(istream &amp;is)
+<a name="l00112"></a>00112 <a class="code" href="class_monte_carlo.html#26347803f465ff0966eae54a267bd1f6">MonteCarlo::read</a>(istream &amp;is)
 <a name="l00113"></a>00113 {
 <a name="l00114"></a>00114     <span class="keywordflow">if</span>(!is.good()) <span class="keywordflow">throw</span> <span class="stringliteral">"input io error\n"</span>;
 <a name="l00115"></a>00115     string str;
@@ -130,13 +139,13 @@
 <a name="l00121"></a>00121     }
 <a name="l00122"></a>00122     <span class="keywordtype">int</span> size;
 <a name="l00123"></a>00123     sscanf(str.c_str(), <span class="stringliteral">"size=%d"</span>, &amp;size); 
-<a name="l00124"></a>00124     <span class="keywordflow">if</span>(size != <a class="code" href="class_monte_carlo.html#v14">s_L</a>) <span class="keywordflow">throw</span> <span class="stringliteral">"size mismatch\n"</span>;
+<a name="l00124"></a>00124     <span class="keywordflow">if</span>(size != <a class="code" href="class_monte_carlo.html#3b56a6e994661de7da1e19145d2895fd">s_L</a>) <span class="keywordflow">throw</span> <span class="stringliteral">"size mismatch\n"</span>;
 <a name="l00125"></a>00125     is &gt;&gt; str;
 <a name="l00126"></a>00126     <span class="keywordflow">if</span>(str != <span class="stringliteral">"["</span>) <span class="keywordflow">throw</span> <span class="stringliteral">"ill format\n"</span>;
 <a name="l00127"></a>00127     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site1 = 0; site1 &lt; 16; site1++) {
 <a name="l00128"></a>00128         is &gt;&gt; str;
 <a name="l00129"></a>00129         <span class="keywordflow">if</span>(str != <span class="stringliteral">"["</span>) <span class="keywordflow">throw</span> <span class="stringliteral">"ill format\n"</span>;
-<a name="l00130"></a>00130         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> k1 = 0; k1 &lt; <a class="code" href="class_monte_carlo.html#v14">s_L</a>; k1++) {
+<a name="l00130"></a>00130         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> k1 = 0; k1 &lt; <a class="code" href="class_monte_carlo.html#3b56a6e994661de7da1e19145d2895fd">s_L</a>; k1++) {
 <a name="l00131"></a>00131             is &gt;&gt; str;
 <a name="l00132"></a>00132             <span class="keywordflow">if</span>(str != <span class="stringliteral">"["</span>) <span class="keywordflow">throw</span> <span class="stringliteral">"ill format\n"</span>;
 <a name="l00133"></a>00133             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j1 = 0; j1 &lt; s_L; j1++) {
@@ -148,13 +157,13 @@
 <a name="l00139"></a>00139                     is &gt;&gt; str;
 <a name="l00140"></a>00140                     <span class="keywordtype">int</span> x = atoi(str.c_str());
 <a name="l00141"></a>00141                     <span class="keywordflow">if</span>(abs(x) != 1) <span class="keywordflow">throw</span> <span class="stringliteral">"value be +-1\n"</span>;
-<a name="l00142"></a>00142                     <span class="keywordtype">int</span> sidx = <a class="code" href="class_monte_carlo.html#h6">spins_real_index</a>(i1,j1,k1);
-<a name="l00143"></a>00143                     <a class="code" href="class_monte_carlo.html#d6">writeSpin</a>(x, site1, sidx);
+<a name="l00142"></a>00142                     <span class="keywordtype">int</span> sidx = <a class="code" href="class_monte_carlo.html#98ce40fb61c02cc4169f781572f77a12">spins_real_index</a>(i1,j1,k1);
+<a name="l00143"></a>00143                     <a class="code" href="class_monte_carlo.html#74b28ab5f8e9f0df8b94fe02055cbd74">writeSpin</a>(x, site1, sidx);
 <a name="l00144"></a>00144                     is &gt;&gt; str;
 <a name="l00145"></a>00145                     <span class="keywordflow">if</span>(str != <span class="stringliteral">"?"</span>) {
-<a name="l00146"></a>00146                         <span class="keywordtype">int</span> lidx = <a class="code" href="class_monte_carlo.html#h3">lattice_index</a>(i1,j1,k1);
-<a name="l00147"></a>00147                         <a class="code" href="class_monte_carlo.html#r21">m_field_pri_cached</a>[site1][lidx] = atof(str.c_str());
-<a name="l00148"></a>00148                         <a class="code" href="class_monte_carlo.html#r22">m_field_pri_cached_sane</a>[lidx] |= 1u &lt;&lt; site1;
+<a name="l00146"></a>00146                         <span class="keywordtype">int</span> lidx = <a class="code" href="class_monte_carlo.html#c381aed0891075f1e4a9856fbc2338c0">lattice_index</a>(i1,j1,k1);
+<a name="l00147"></a>00147                         <a class="code" href="class_monte_carlo.html#07ac1f0f3c2cd34f0f62cef5a5f7333b">m_field_pri_cached</a>[site1][lidx] = atof(str.c_str());
+<a name="l00148"></a>00148                         <a class="code" href="class_monte_carlo.html#592589e1b09ff3e77e30b9063fe0faf9">m_field_pri_cached_sane</a>[lidx] |= 1u &lt;&lt; site1;
 <a name="l00149"></a>00149                     }
 <a name="l00150"></a>00150                     is &gt;&gt; str;
 <a name="l00151"></a>00151                     <span class="keywordflow">if</span>(str != <span class="stringliteral">"]"</span>) <span class="keywordflow">throw</span> <span class="stringliteral">"ill format\n"</span>;
@@ -171,11 +180,11 @@
 <a name="l00162"></a>00162     is &gt;&gt; str;
 <a name="l00163"></a>00163     <span class="keywordflow">if</span>(str != <span class="stringliteral">"]"</span>) <span class="keywordflow">throw</span> <span class="stringliteral">"ill format\n"</span>;
 <a name="l00164"></a>00164 
-<a name="l00165"></a>00165     <a class="code" href="class_monte_carlo.html#d7">makeReciprocalImage</a>();
+<a name="l00165"></a>00165     <a class="code" href="class_monte_carlo.html#cf4ec834fa986da01c82d58f307387d1">makeReciprocalImage</a>();
 <a name="l00166"></a>00166 }
 <a name="l00167"></a>00167 
 <a name="l00168"></a>00168 <span class="keywordtype">void</span>
-<a name="l00169"></a>00169 <a class="code" href="class_monte_carlo.html#a9">MonteCarlo::write</a>(ostream &amp;os)
+<a name="l00169"></a>00169 <a class="code" href="class_monte_carlo.html#4ca59a9eec74059139190d0ce68df222">MonteCarlo::write</a>(ostream &amp;os)
 <a name="l00170"></a>00170 {
 <a name="l00171"></a>00171     <span class="keywordflow">if</span>(!os.good()) <span class="keywordflow">throw</span> <span class="stringliteral">"output io error\n"</span>;
 <a name="l00172"></a>00172     os &lt;&lt; <span class="stringliteral">"# MonteCarlo calculation for pyrochlore. Kentaro Kitagawa."</span> &lt;&lt; endl;
@@ -191,11 +200,11 @@
 <a name="l00182"></a>00182                os &lt;&lt; <span class="stringliteral">"[ "</span>;
 <a name="l00183"></a>00183                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i1 = 0; i1 &lt; s_L; i1++) {
 <a name="l00184"></a>00184                     os &lt;&lt; <span class="stringliteral">"[ "</span>;
-<a name="l00185"></a>00185                     <span class="keywordtype">int</span> lidx = <a class="code" href="class_monte_carlo.html#h3">lattice_index</a>(i1,j1,k1);
-<a name="l00186"></a>00186                     os &lt;&lt; <a class="code" href="class_monte_carlo.html#d5">readSpin</a>(site1, <a class="code" href="class_monte_carlo.html#h6">spins_real_index</a>(lidx));
-<a name="l00187"></a>00187                     <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#r22">m_field_pri_cached_sane</a>[lidx] &amp; (1u &lt;&lt; site1)) {
+<a name="l00185"></a>00185                     <span class="keywordtype">int</span> lidx = <a class="code" href="class_monte_carlo.html#c381aed0891075f1e4a9856fbc2338c0">lattice_index</a>(i1,j1,k1);
+<a name="l00186"></a>00186                     os &lt;&lt; <a class="code" href="class_monte_carlo.html#8be56ed8b80b47fae49d5d3aee353163">readSpin</a>(site1, <a class="code" href="class_monte_carlo.html#98ce40fb61c02cc4169f781572f77a12">spins_real_index</a>(lidx));
+<a name="l00187"></a>00187                     <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#592589e1b09ff3e77e30b9063fe0faf9">m_field_pri_cached_sane</a>[lidx] &amp; (1u &lt;&lt; site1)) {
 <a name="l00188"></a>00188                         <span class="keywordtype">char</span> buf[31];
-<a name="l00189"></a>00189                         snprintf(buf, 30, <span class="stringliteral">"%.16g"</span>, <a class="code" href="class_monte_carlo.html#r21">m_field_pri_cached</a>[site1][lidx]);
+<a name="l00189"></a>00189                         snprintf(buf, 30, <span class="stringliteral">"%.16g"</span>, <a class="code" href="class_monte_carlo.html#07ac1f0f3c2cd34f0f62cef5a5f7333b">m_field_pri_cached</a>[site1][lidx]);
 <a name="l00190"></a>00190                         os &lt;&lt; <span class="stringliteral">" "</span> &lt;&lt; buf;
 <a name="l00191"></a>00191                      }
 <a name="l00192"></a>00192                     <span class="keywordflow">else</span>
@@ -214,145 +223,145 @@
 <a name="l00205"></a>00205 }
 <a name="l00206"></a>00206 
 <a name="l00207"></a>00207 <span class="keywordtype">void</span>
-<a name="l00208"></a><a class="code" href="class_monte_carlo.html#a3">00208</a> <a class="code" href="class_monte_carlo.html#a3">MonteCarlo::randomize</a>()
+<a name="l00208"></a><a class="code" href="class_monte_carlo.html#402e633f1e712573d498964c7a4487c0">00208</a> <a class="code" href="class_monte_carlo.html#402e633f1e712573d498964c7a4487c0">MonteCarlo::randomize</a>()
 <a name="l00209"></a>00209 {
 <a name="l00210"></a>00210     fprintf(stderr, <span class="stringliteral">"Randomize spins\n"</span>);
 <a name="l00211"></a>00211     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site1 = 0; site1 &lt; 16; site1++) {
-<a name="l00212"></a>00212         <a class="code" href="class_monte_carlo.html#r30">m_ext_field</a>[site1] = 0.0;
+<a name="l00212"></a>00212         <a class="code" href="class_monte_carlo.html#c9fc3fbce76678de0bf480ece38cb186">m_ext_field</a>[site1] = 0.0;
 <a name="l00213"></a>00213     }
 <a name="l00214"></a>00214     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site1 = 0; site1 &lt; 16; site1++) {
 <a name="l00215"></a>00215         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> k1 = 0; k1 &lt; s_L; k1++) {
 <a name="l00216"></a>00216            <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j1 = 0; j1 &lt; s_L; j1++) {
 <a name="l00217"></a>00217                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i1 = 0; i1 &lt; s_L; i1++) {
-<a name="l00218"></a>00218                     <span class="keywordtype">int</span> sidx = <a class="code" href="class_monte_carlo.html#h6">spins_real_index</a>(i1,j1,k1);
+<a name="l00218"></a>00218                     <span class="keywordtype">int</span> sidx = <a class="code" href="class_monte_carlo.html#98ce40fb61c02cc4169f781572f77a12">spins_real_index</a>(i1,j1,k1);
 <a name="l00219"></a>00219                     <span class="keywordtype">int</span> val = (_drand() &lt; 0.5) ? 1 : -1;
-<a name="l00220"></a>00220                     <a class="code" href="class_monte_carlo.html#d6">writeSpin</a>(val, site1, sidx);
+<a name="l00220"></a>00220                     <a class="code" href="class_monte_carlo.html#74b28ab5f8e9f0df8b94fe02055cbd74">writeSpin</a>(val, site1, sidx);
 <a name="l00221"></a>00221                 }
 <a name="l00222"></a>00222            }
 <a name="l00223"></a>00223         }
 <a name="l00224"></a>00224     }
-<a name="l00225"></a>00225     <a class="code" href="class_monte_carlo.html#d7">makeReciprocalImage</a>();
+<a name="l00225"></a>00225     <a class="code" href="class_monte_carlo.html#cf4ec834fa986da01c82d58f307387d1">makeReciprocalImage</a>();
 <a name="l00226"></a>00226 }
 <a name="l00227"></a>00227 <a class="code" href="struct_monte_carlo_1_1_quartet.html">MonteCarlo::Quartet</a>
-<a name="l00228"></a><a class="code" href="class_monte_carlo.html#a5">00228</a> <a class="code" href="class_monte_carlo.html#a5">MonteCarlo::siteMagnetization</a>()
+<a name="l00228"></a><a class="code" href="class_monte_carlo.html#e63915aa99b0e3fbf6cf4ace613d87f8">00228</a> <a class="code" href="class_monte_carlo.html#e63915aa99b0e3fbf6cf4ace613d87f8">MonteCarlo::siteMagnetization</a>()
 <a name="l00229"></a>00229 {
 <a name="l00230"></a>00230     <a class="code" href="struct_monte_carlo_1_1_quartet.html">Quartet</a> quartet;
 <a name="l00231"></a>00231     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> k1 = 0; k1 &lt; s_L; k1++) {
 <a name="l00232"></a>00232         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j1 = 0; j1 &lt; s_L; j1++) {
 <a name="l00233"></a>00233             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i1 = 0; i1 &lt; s_L; i1++) {
-<a name="l00234"></a>00234                 <span class="keywordtype">int</span> sidx = <a class="code" href="class_monte_carlo.html#h6">spins_real_index</a>(i1,j1,k1);
+<a name="l00234"></a>00234                 <span class="keywordtype">int</span> sidx = <a class="code" href="class_monte_carlo.html#98ce40fb61c02cc4169f781572f77a12">spins_real_index</a>(i1,j1,k1);
 <a name="l00235"></a>00235                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> trans = 0; trans &lt; 4; trans++) {
 <a name="l00236"></a>00236                     <span class="keywordtype">int</span> in = 0;
 <a name="l00237"></a>00237                     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site_wo_trans = 0; site_wo_trans &lt; 4; site_wo_trans++) {
 <a name="l00238"></a>00238                         <span class="keywordtype">int</span> site1 = site_wo_trans + 4*trans;
-<a name="l00239"></a>00239                         <a class="code" href="class_monte_carlo.html#y1">Spin</a> spin = <a class="code" href="class_monte_carlo.html#d5">readSpin</a>(site1, sidx);
-<a name="l00240"></a>00240                         quartet.<a class="code" href="struct_monte_carlo_1_1_quartet.html#o0">sites</a>[site1 % 4] += spin;
+<a name="l00239"></a>00239                         <a class="code" href="class_monte_carlo.html#73afc6c7495b0cdb387cadd3173e8f45">Spin</a> spin = <a class="code" href="class_monte_carlo.html#8be56ed8b80b47fae49d5d3aee353163">readSpin</a>(site1, sidx);
+<a name="l00240"></a>00240                         quartet.<a class="code" href="struct_monte_carlo_1_1_quartet.html#a1c5b449f1e95d270d7fa84d402a90cb">sites</a>[site1 % 4] += spin;
 <a name="l00241"></a>00241                         in += (spin == 1) ? 1 : 0;
 <a name="l00242"></a>00242                     }
-<a name="l00243"></a>00243                     quartet.<a class="code" href="struct_monte_carlo_1_1_quartet.html#o1">twotwo</a> += (in == 2) ? 1 : 0;
-<a name="l00244"></a>00244                     quartet.<a class="code" href="struct_monte_carlo_1_1_quartet.html#o2">onethree</a> += ((in == 1) || (in == 3)) ? 1 : 0;
+<a name="l00243"></a>00243                     quartet.<a class="code" href="struct_monte_carlo_1_1_quartet.html#6cde75c8fca9c991473ea293810f084c">twotwo</a> += (in == 2) ? 1 : 0;
+<a name="l00244"></a>00244                     quartet.<a class="code" href="struct_monte_carlo_1_1_quartet.html#857234b0f378c5f0005a9a8857ebf12d">onethree</a> += ((in == 1) || (in == 3)) ? 1 : 0;
 <a name="l00245"></a>00245                 }
 <a name="l00246"></a>00246             }
 <a name="l00247"></a>00247         }
 <a name="l00248"></a>00248     }
-<a name="l00249"></a>00249     quartet.<a class="code" href="struct_monte_carlo_1_1_quartet.html#o1">twotwo</a> /= (<a class="code" href="class_monte_carlo.html#v15">s_num_spins</a>/4);
-<a name="l00250"></a>00250     quartet.<a class="code" href="struct_monte_carlo_1_1_quartet.html#o2">onethree</a> /= (<a class="code" href="class_monte_carlo.html#v15">s_num_spins</a>/4);
+<a name="l00249"></a>00249     quartet.<a class="code" href="struct_monte_carlo_1_1_quartet.html#6cde75c8fca9c991473ea293810f084c">twotwo</a> /= (<a class="code" href="class_monte_carlo.html#2380e22df341d33556413cdfcdcfda95">s_num_spins</a>/4);
+<a name="l00250"></a>00250     quartet.<a class="code" href="struct_monte_carlo_1_1_quartet.html#857234b0f378c5f0005a9a8857ebf12d">onethree</a> /= (<a class="code" href="class_monte_carlo.html#2380e22df341d33556413cdfcdcfda95">s_num_spins</a>/4);
 <a name="l00251"></a>00251     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site1 = 0; site1 &lt; 4; site1++) {
-<a name="l00252"></a>00252         quartet.<a class="code" href="struct_monte_carlo_1_1_quartet.html#o0">sites</a>[site1] /= (<a class="code" href="class_monte_carlo.html#v15">s_num_spins</a>/4);
-<a name="l00253"></a>00253         quartet.<a class="code" href="struct_monte_carlo_1_1_quartet.html#o0">sites</a>[site1] *= A_MOMENT;
+<a name="l00252"></a>00252         quartet.<a class="code" href="struct_monte_carlo_1_1_quartet.html#a1c5b449f1e95d270d7fa84d402a90cb">sites</a>[site1] /= (<a class="code" href="class_monte_carlo.html#2380e22df341d33556413cdfcdcfda95">s_num_spins</a>/4);
+<a name="l00253"></a>00253         quartet.<a class="code" href="struct_monte_carlo_1_1_quartet.html#a1c5b449f1e95d270d7fa84d402a90cb">sites</a>[site1] *= A_MOMENT;
 <a name="l00254"></a>00254     }
 <a name="l00255"></a>00255     <span class="keywordflow">return</span> quartet;
 <a name="l00256"></a>00256 }
 <a name="l00257"></a>00257 <a class="code" href="struct_monte_carlo_1_1_vector3.html">MonteCarlo::Vector3&lt;double&gt;</a>
-<a name="l00258"></a><a class="code" href="class_monte_carlo.html#a4">00258</a> <a class="code" href="class_monte_carlo.html#a4">MonteCarlo::magnetization</a>()
+<a name="l00258"></a><a class="code" href="class_monte_carlo.html#0b27e05ea9169948f3c8085fa2fde752">00258</a> <a class="code" href="class_monte_carlo.html#0b27e05ea9169948f3c8085fa2fde752">MonteCarlo::magnetization</a>()
 <a name="l00259"></a>00259 {
 <a name="l00260"></a>00260     <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> m;
-<a name="l00261"></a>00261     <a class="code" href="struct_monte_carlo_1_1_quartet.html">Quartet</a> quartet = <a class="code" href="class_monte_carlo.html#a5">siteMagnetization</a>();
+<a name="l00261"></a>00261     <a class="code" href="struct_monte_carlo_1_1_quartet.html">Quartet</a> quartet = <a class="code" href="class_monte_carlo.html#e63915aa99b0e3fbf6cf4ace613d87f8">siteMagnetization</a>();
 <a name="l00262"></a>00262     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site1 = 0; site1 &lt; 4; site1++) {
-<a name="l00263"></a>00263         <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> v(<a class="code" href="class_monte_carlo.html#v17">s_ASiteIsingVector</a>[site1]);
-<a name="l00264"></a>00264         v *= quartet.<a class="code" href="struct_monte_carlo_1_1_quartet.html#o0">sites</a>[site1];
+<a name="l00263"></a>00263         <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> v(<a class="code" href="class_monte_carlo.html#e22d0e56017ddec589a647f808e5cba7">s_ASiteIsingVector</a>[site1]);
+<a name="l00264"></a>00264         v *= quartet.<a class="code" href="struct_monte_carlo_1_1_quartet.html#a1c5b449f1e95d270d7fa84d402a90cb">sites</a>[site1];
 <a name="l00265"></a>00265         m += v;
 <a name="l00266"></a>00266     }
 <a name="l00267"></a>00267     m *= 1.0/4; <span class="comment">// per one spin.</span>
 <a name="l00268"></a>00268     <span class="keywordflow">return</span> m;
 <a name="l00269"></a>00269 }
 <a name="l00270"></a>00270 <span class="keywordtype">void</span>
-<a name="l00271"></a><a class="code" href="class_monte_carlo.html#d19">00271</a> <a class="code" href="class_monte_carlo.html#d19">MonteCarlo::takeThermalAverage</a>(<span class="keywordtype">long</span> <span class="keywordtype">double</span> tests_after_check)
+<a name="l00271"></a><a class="code" href="class_monte_carlo.html#7c8617b1a5128131af3e7101c21c2a2f">00271</a> <a class="code" href="class_monte_carlo.html#7c8617b1a5128131af3e7101c21c2a2f">MonteCarlo::takeThermalAverage</a>(<span class="keywordtype">long</span> <span class="keywordtype">double</span> tests_after_check)
 <a name="l00272"></a>00272 {
-<a name="l00273"></a>00273     <a class="code" href="class_monte_carlo.html#r32">m_SumDeltaU</a> += <a class="code" href="class_monte_carlo.html#r31">m_DeltaU</a> * tests_after_check;
+<a name="l00273"></a>00273     <a class="code" href="class_monte_carlo.html#e6962b40322daa5515faeabf46a4faef">m_SumDeltaU</a> += <a class="code" href="class_monte_carlo.html#a8ff8b994b0b1e886d87da6195b00b20">m_DeltaU</a> * tests_after_check;
 <a name="l00274"></a>00274 
 <a name="l00275"></a>00275     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site = 0; site &lt; 16; site++) {
-<a name="l00276"></a>00276         <a class="code" href="class_monte_carlo.html#r33">m_SumSpin</a>[site] += real(<a class="code" href="class_monte_carlo.html#r28">m_spins_rec</a>[site][<a class="code" href="class_monte_carlo.html#h5">reciprocal_index</a>(0,0,0)]) * tests_after_check;
+<a name="l00276"></a>00276         <a class="code" href="class_monte_carlo.html#215b83a4bac6dfff8b3b39f8b498190f">m_SumSpin</a>[site] += real(<a class="code" href="class_monte_carlo.html#938c27ec9c4862ed75c88033f42310db">m_spins_rec</a>[site][<a class="code" href="class_monte_carlo.html#576190ad1f700b0aeb9c154cf9e5eec7">reciprocal_index</a>(0,0,0)]) * tests_after_check;
 <a name="l00277"></a>00277     }
 <a name="l00278"></a>00278 
-<a name="l00279"></a>00279     <a class="code" href="class_monte_carlo.html#r34">m_SumTests</a> += tests_after_check;
+<a name="l00279"></a>00279     <a class="code" href="class_monte_carlo.html#e026129058577516a5aa14d3e0b1fb1c">m_SumTests</a> += tests_after_check;
 <a name="l00280"></a>00280 }
 <a name="l00281"></a>00281 
 <a name="l00282"></a>00282 <span class="keywordtype">double</span>
-<a name="l00283"></a><a class="code" href="class_monte_carlo.html#a2">00283</a> <a class="code" href="class_monte_carlo.html#a2">MonteCarlo::exec</a>(<span class="keywordtype">double</span> temp, <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> field, <span class="keywordtype">int</span> *flips,
+<a name="l00283"></a><a class="code" href="class_monte_carlo.html#abe3663f479b7d3ef6d1ba9b37b1d71e">00283</a> <a class="code" href="class_monte_carlo.html#abe3663f479b7d3ef6d1ba9b37b1d71e">MonteCarlo::exec</a>(<span class="keywordtype">double</span> temp, <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> field, <span class="keywordtype">int</span> *flips,
 <a name="l00284"></a>00284      <span class="keywordtype">long</span> <span class="keywordtype">double</span> *tests, <span class="keywordtype">double</span> *DUav, <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> *Mav)
 <a name="l00285"></a>00285 {
-<a name="l00286"></a>00286     <a class="code" href="class_monte_carlo.html#r29">m_beta</a> = 1.0/K_B/temp;
+<a name="l00286"></a>00286     <a class="code" href="class_monte_carlo.html#98d2c39762fc1d5e21d7d6730e70f1a5">m_beta</a> = 1.0/K_B/temp;
 <a name="l00287"></a>00287 
 <a name="l00288"></a>00288     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site1 = 0; site1 &lt; 16; site1++) {
-<a name="l00289"></a>00289         <a class="code" href="class_monte_carlo.html#r30">m_ext_field</a>[site1] = field.<a class="code" href="struct_monte_carlo_1_1_vector3.html#a13">innerProduct</a>(<a class="code" href="class_monte_carlo.html#v17">s_ASiteIsingVector</a>[site1]);
+<a name="l00289"></a>00289         <a class="code" href="class_monte_carlo.html#c9fc3fbce76678de0bf480ece38cb186">m_ext_field</a>[site1] = field.<a class="code" href="struct_monte_carlo_1_1_vector3.html#74f6987462b2f32617d56e70fc703a96">innerProduct</a>(<a class="code" href="class_monte_carlo.html#e22d0e56017ddec589a647f808e5cba7">s_ASiteIsingVector</a>[site1]);
 <a name="l00290"></a>00290     }
 <a name="l00291"></a>00291     
-<a name="l00292"></a>00292     <a class="code" href="class_monte_carlo.html#r31">m_DeltaU</a> = 0.0;
-<a name="l00293"></a>00293     <a class="code" href="class_monte_carlo.html#r32">m_SumDeltaU</a> = 0.0;
+<a name="l00292"></a>00292     <a class="code" href="class_monte_carlo.html#a8ff8b994b0b1e886d87da6195b00b20">m_DeltaU</a> = 0.0;
+<a name="l00293"></a>00293     <a class="code" href="class_monte_carlo.html#e6962b40322daa5515faeabf46a4faef">m_SumDeltaU</a> = 0.0;
 <a name="l00294"></a>00294     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site = 0; site &lt; 16; site++) {
-<a name="l00295"></a>00295         <a class="code" href="class_monte_carlo.html#r33">m_SumSpin</a>[site] = 0.0;
+<a name="l00295"></a>00295         <a class="code" href="class_monte_carlo.html#215b83a4bac6dfff8b3b39f8b498190f">m_SumSpin</a>[site] = 0.0;
 <a name="l00296"></a>00296     }
-<a name="l00297"></a>00297     <a class="code" href="class_monte_carlo.html#r34">m_SumTests</a> = 0.0;
+<a name="l00297"></a>00297     <a class="code" href="class_monte_carlo.html#e026129058577516a5aa14d3e0b1fb1c">m_SumTests</a> = 0.0;
 <a name="l00298"></a>00298 
-<a name="l00299"></a>00299     <a class="code" href="class_monte_carlo.html#d2">doTests</a>(flips, *tests);
+<a name="l00299"></a>00299     <a class="code" href="class_monte_carlo.html#9ab0ed6c728d19024f87828c1ee139ff">doTests</a>(flips, *tests);
 <a name="l00300"></a>00300 
-<a name="l00301"></a>00301     *DUav = <a class="code" href="class_monte_carlo.html#r32">m_SumDeltaU</a> / <a class="code" href="class_monte_carlo.html#v15">s_num_spins</a> / <a class="code" href="class_monte_carlo.html#r34">m_SumTests</a>;
+<a name="l00301"></a>00301     *DUav = <a class="code" href="class_monte_carlo.html#e6962b40322daa5515faeabf46a4faef">m_SumDeltaU</a> / <a class="code" href="class_monte_carlo.html#2380e22df341d33556413cdfcdcfda95">s_num_spins</a> / <a class="code" href="class_monte_carlo.html#e026129058577516a5aa14d3e0b1fb1c">m_SumTests</a>;
 <a name="l00302"></a>00302     <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> m;
 <a name="l00303"></a>00303     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site1 = 0; site1 &lt; 16; site1++) {
-<a name="l00304"></a>00304         <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> v(<a class="code" href="class_monte_carlo.html#v17">s_ASiteIsingVector</a>[site1]);
-<a name="l00305"></a>00305         v *= (double)(<a class="code" href="class_monte_carlo.html#r33">m_SumSpin</a>[site1]);
+<a name="l00304"></a>00304         <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> v(<a class="code" href="class_monte_carlo.html#e22d0e56017ddec589a647f808e5cba7">s_ASiteIsingVector</a>[site1]);
+<a name="l00305"></a>00305         v *= (double)(<a class="code" href="class_monte_carlo.html#215b83a4bac6dfff8b3b39f8b498190f">m_SumSpin</a>[site1]);
 <a name="l00306"></a>00306         m += v;
 <a name="l00307"></a>00307     }
-<a name="l00308"></a>00308     m *= A_MOMENT / <a class="code" href="class_monte_carlo.html#v15">s_num_spins</a> / <a class="code" href="class_monte_carlo.html#r34">m_SumTests</a>;
+<a name="l00308"></a>00308     m *= A_MOMENT / <a class="code" href="class_monte_carlo.html#2380e22df341d33556413cdfcdcfda95">s_num_spins</a> / <a class="code" href="class_monte_carlo.html#e026129058577516a5aa14d3e0b1fb1c">m_SumTests</a>;
 <a name="l00309"></a>00309     *Mav = m;
-<a name="l00310"></a>00310     *tests = <a class="code" href="class_monte_carlo.html#r34">m_SumTests</a>;
-<a name="l00311"></a>00311     <span class="keywordflow">return</span> <a class="code" href="class_monte_carlo.html#r31">m_DeltaU</a>/<a class="code" href="class_monte_carlo.html#v15">s_num_spins</a>;
+<a name="l00310"></a>00310     *tests = <a class="code" href="class_monte_carlo.html#e026129058577516a5aa14d3e0b1fb1c">m_SumTests</a>;
+<a name="l00311"></a>00311     <span class="keywordflow">return</span> <a class="code" href="class_monte_carlo.html#a8ff8b994b0b1e886d87da6195b00b20">m_DeltaU</a>/<a class="code" href="class_monte_carlo.html#2380e22df341d33556413cdfcdcfda95">s_num_spins</a>;
 <a name="l00312"></a>00312 }
 <a name="l00313"></a>00313 <span class="keyword">inline</span> <span class="keywordtype">double</span>
-<a name="l00314"></a><a class="code" href="class_monte_carlo.html#d4">00314</a> <a class="code" href="class_monte_carlo.html#d4">MonteCarlo::flippingProbability</a>(<span class="keywordtype">int</span> site, <span class="keywordtype">int</span> lidx, <span class="keywordtype">double</span> h, <span class="keywordtype">double</span> *pdu)
+<a name="l00314"></a><a class="code" href="class_monte_carlo.html#c72e43afeb959fdc4aaf7ac61710db41">00314</a> <a class="code" href="class_monte_carlo.html#c72e43afeb959fdc4aaf7ac61710db41">MonteCarlo::flippingProbability</a>(<span class="keywordtype">int</span> site, <span class="keywordtype">int</span> lidx, <span class="keywordtype">double</span> h, <span class="keywordtype">double</span> *pdu)
 <a name="l00315"></a>00315 {
-<a name="l00316"></a>00316     <span class="keywordtype">int</span> sidx = <a class="code" href="class_monte_carlo.html#h6">spins_real_index</a>(lidx);
-<a name="l00317"></a>00317     <span class="keywordtype">double</span> du = 2 * <a class="code" href="class_monte_carlo.html#d5">readSpin</a>(site, sidx) * A_MOMENT * MU_B * (
-<a name="l00318"></a>00318         h + <a class="code" href="class_monte_carlo.html#r30">m_ext_field</a>[site]);
+<a name="l00316"></a>00316     <span class="keywordtype">int</span> sidx = <a class="code" href="class_monte_carlo.html#98ce40fb61c02cc4169f781572f77a12">spins_real_index</a>(lidx);
+<a name="l00317"></a>00317     <span class="keywordtype">double</span> du = 2 * <a class="code" href="class_monte_carlo.html#8be56ed8b80b47fae49d5d3aee353163">readSpin</a>(site, sidx) * A_MOMENT * MU_B * (
+<a name="l00318"></a>00318         h + <a class="code" href="class_monte_carlo.html#c9fc3fbce76678de0bf480ece38cb186">m_ext_field</a>[site]);
 <a name="l00319"></a>00319     *pdu = du;
 <a name="l00320"></a>00320 
 <a name="l00321"></a>00321     <span class="keywordflow">if</span>(du &lt;= 0.0) <span class="keywordflow">return</span> 1.0;
 <a name="l00322"></a>00322 
 <a name="l00323"></a>00323     <span class="comment">// probability.</span>
-<a name="l00324"></a>00324     <span class="keywordflow">return</span> exp(-<a class="code" href="class_monte_carlo.html#r29">m_beta</a>*du);
+<a name="l00324"></a>00324     <span class="keywordflow">return</span> exp(-<a class="code" href="class_monte_carlo.html#98d2c39762fc1d5e21d7d6730e70f1a5">m_beta</a>*du);
 <a name="l00325"></a>00325 }
 <a name="l00326"></a>00326 <span class="keywordtype">long</span> <span class="keywordtype">double</span>
-<a name="l00327"></a><a class="code" href="class_monte_carlo.html#d1">00327</a> <a class="code" href="class_monte_carlo.html#d1">MonteCarlo::accelFlipping</a>()
+<a name="l00327"></a><a class="code" href="class_monte_carlo.html#2293441719be4bb5b04f31c94a93df75">00327</a> <a class="code" href="class_monte_carlo.html#2293441719be4bb5b04f31c94a93df75">MonteCarlo::accelFlipping</a>()
 <a name="l00328"></a>00328 {
 <a name="l00329"></a>00329     <span class="comment">//calculate probabilities.</span>
-<a name="l00330"></a>00330     <a class="code" href="class_monte_carlo.html#r15">m_sec_cache_enabled</a> = <span class="keyword">true</span>;
+<a name="l00330"></a>00330     <a class="code" href="class_monte_carlo.html#1c1839e562152aaf00bfdeaf3a34ebc4">m_sec_cache_enabled</a> = <span class="keyword">true</span>;
 <a name="l00331"></a>00331 
 <a name="l00332"></a>00332     <span class="keywordtype">double</span> sum_p = 0.0;
 <a name="l00333"></a>00333     
 <a name="l00334"></a>00334     <span class="keywordtype">int</span> current_buffer;
-<a name="l00335"></a>00335     <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#r11">m_last_flipped_lattice_index</a> &gt;= 0) {
+<a name="l00335"></a>00335     <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#f5e3f6fbb572f7233a1166b8a560c5d8">m_last_flipped_lattice_index</a> &gt;= 0) {
 <a name="l00336"></a>00336         <span class="comment">// swap buffers.</span>
-<a name="l00337"></a>00337         current_buffer = 1 - <a class="code" href="class_monte_carlo.html#r9">m_last_probability_buffer</a>;
+<a name="l00337"></a>00337         current_buffer = 1 - <a class="code" href="class_monte_carlo.html#56fcf56818a20e5d1e750d29bae2fb60">m_last_probability_buffer</a>;
 <a name="l00338"></a>00338     }
 <a name="l00339"></a>00339     <span class="keywordflow">else</span> {
 <a name="l00340"></a>00340         current_buffer = 0;
-<a name="l00341"></a>00341         <a class="code" href="class_monte_carlo.html#r12">m_play_back_buffer</a> = <span class="keyword">false</span>;
+<a name="l00341"></a>00341         <a class="code" href="class_monte_carlo.html#0094ee011d462ffa5bbcd8d30db0f59d">m_play_back_buffer</a> = <span class="keyword">false</span>;
 <a name="l00342"></a>00342     }
-<a name="l00343"></a>00343     <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#r12">m_play_back_buffer</a>) {
+<a name="l00343"></a>00343     <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#0094ee011d462ffa5bbcd8d30db0f59d">m_play_back_buffer</a>) {
 <a name="l00344"></a>00344         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site1 = 0; site1 &lt; 16; site1++) {
-<a name="l00345"></a>00345             <span class="keywordtype">double</span> *pprob = &amp;<a class="code" href="class_monte_carlo.html#r13">m_probability_buffers</a>[current_buffer][site1][0];
-<a name="l00346"></a>00346             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="class_monte_carlo.html#v15">s_num_spins</a>/16; i++) {
+<a name="l00345"></a>00345             <span class="keywordtype">double</span> *pprob = &amp;<a class="code" href="class_monte_carlo.html#2d3f4035b0c2a06d68e54210f7fcfeec">m_probability_buffers</a>[current_buffer][site1][0];
+<a name="l00346"></a>00346             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="class_monte_carlo.html#2380e22df341d33556413cdfcdcfda95">s_num_spins</a>/16; i++) {
 <a name="l00347"></a>00347                sum_p += *(pprob++);
 <a name="l00348"></a>00348             }
 <a name="l00349"></a>00349         }
@@ -360,22 +369,22 @@
 <a name="l00351"></a>00351     <span class="keywordflow">else</span> {
 <a name="l00352"></a>00352         <span class="comment">// iterate target site.</span>
 <a name="l00353"></a>00353         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site1 = 0; site1 &lt; 16; site1++) {
-<a name="l00354"></a>00354             <span class="keywordtype">double</span> *pprob = &amp;<a class="code" href="class_monte_carlo.html#r13">m_probability_buffers</a>[current_buffer][site1][0];
-<a name="l00355"></a>00355             <span class="keywordtype">int</span> cnt = <a class="code" href="class_monte_carlo.html#v15">s_num_spins</a>/16;
+<a name="l00354"></a>00354             <span class="keywordtype">double</span> *pprob = &amp;<a class="code" href="class_monte_carlo.html#2d3f4035b0c2a06d68e54210f7fcfeec">m_probability_buffers</a>[current_buffer][site1][0];
+<a name="l00355"></a>00355             <span class="keywordtype">int</span> cnt = <a class="code" href="class_monte_carlo.html#2380e22df341d33556413cdfcdcfda95">s_num_spins</a>/16;
 <a name="l00356"></a>00356             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> lidx = 0; lidx &lt; cnt; lidx++) {
-<a name="l00357"></a>00357                 <span class="keywordtype">double</span> h = <a class="code" href="class_monte_carlo.html#d9">hinteraction</a>(site1, lidx);
+<a name="l00357"></a>00357                 <span class="keywordtype">double</span> h = <a class="code" href="class_monte_carlo.html#e0b7c79ee8c19fcf7c8a0184f59475bd">hinteraction</a>(site1, lidx);
 <a name="l00358"></a>00358                 <span class="keywordtype">double</span> du = 0.0;
-<a name="l00359"></a>00359                 <span class="keywordtype">double</span> probability = <a class="code" href="class_monte_carlo.html#d4">flippingProbability</a>(site1, lidx, h, &amp;du);
+<a name="l00359"></a>00359                 <span class="keywordtype">double</span> probability = <a class="code" href="class_monte_carlo.html#c72e43afeb959fdc4aaf7ac61710db41">flippingProbability</a>(site1, lidx, h, &amp;du);
 <a name="l00360"></a>00360                 *pprob = probability;
 <a name="l00361"></a>00361                 pprob++;
 <a name="l00362"></a>00362                 sum_p += probability;
 <a name="l00363"></a>00363             }
 <a name="l00364"></a>00364         }
 <a name="l00365"></a>00365     }
-<a name="l00366"></a>00366     <a class="code" href="class_monte_carlo.html#r12">m_play_back_buffer</a> = <span class="keyword">false</span>;
-<a name="l00367"></a>00367     <a class="code" href="class_monte_carlo.html#r9">m_last_probability_buffer</a> = current_buffer;
+<a name="l00366"></a>00366     <a class="code" href="class_monte_carlo.html#0094ee011d462ffa5bbcd8d30db0f59d">m_play_back_buffer</a> = <span class="keyword">false</span>;
+<a name="l00367"></a>00367     <a class="code" href="class_monte_carlo.html#56fcf56818a20e5d1e750d29bae2fb60">m_last_probability_buffer</a> = current_buffer;
 <a name="l00368"></a>00368     
-<a name="l00369"></a>00369     <span class="keywordtype">double</span> p_av = sum_p / <a class="code" href="class_monte_carlo.html#v15">s_num_spins</a>;
+<a name="l00369"></a>00369     <span class="keywordtype">double</span> p_av = sum_p / <a class="code" href="class_monte_carlo.html#2380e22df341d33556413cdfcdcfda95">s_num_spins</a>;
 <a name="l00370"></a>00370     <span class="keywordflow">if</span>(p_av &lt;= 0.0) <span class="keywordflow">return</span> -1;
 <a name="l00371"></a>00371     <span class="comment">// counts to next flip.</span>
 <a name="l00372"></a>00372     <span class="keywordtype">long</span> <span class="keywordtype">double</span> cnt_d = ceill(log2l(1.0-_drand()) / log2l((<span class="keywordtype">long</span> <span class="keywordtype">double</span>)1.0 - p_av));
@@ -385,12 +394,12 @@
 <a name="l00376"></a>00376 <span class="comment">//    if(cnt == 0) return 0;</span>
 <a name="l00377"></a>00377     <span class="comment">// choose target site</span>
 <a name="l00378"></a>00378     <span class="keywordtype">double</span> p = _drand()*sum_p;
-<a name="l00379"></a>00379     <span class="keywordtype">int</span> lidx = <a class="code" href="class_monte_carlo.html#v15">s_num_spins</a>/16 - 1;
+<a name="l00379"></a>00379     <span class="keywordtype">int</span> lidx = <a class="code" href="class_monte_carlo.html#2380e22df341d33556413cdfcdcfda95">s_num_spins</a>/16 - 1;
 <a name="l00380"></a>00380     <span class="keywordtype">int</span> site1 = 16;
 <a name="l00381"></a>00381     <span class="keywordtype">double</span> pit = 0.0;
 <a name="l00382"></a>00382     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site = 0; site &lt; 16; site++) {
-<a name="l00383"></a>00383         <span class="keywordtype">double</span> *pprob = &amp;<a class="code" href="class_monte_carlo.html#r13">m_probability_buffers</a>[current_buffer][site][0];
-<a name="l00384"></a>00384         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="class_monte_carlo.html#v15">s_num_spins</a>/16; i++) {
+<a name="l00383"></a>00383         <span class="keywordtype">double</span> *pprob = &amp;<a class="code" href="class_monte_carlo.html#2d3f4035b0c2a06d68e54210f7fcfeec">m_probability_buffers</a>[current_buffer][site][0];
+<a name="l00384"></a>00384         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="class_monte_carlo.html#2380e22df341d33556413cdfcdcfda95">s_num_spins</a>/16; i++) {
 <a name="l00385"></a>00385             pit += *(pprob++);
 <a name="l00386"></a>00386             <span class="keywordflow">if</span>(pit &gt;= p) {
 <a name="l00387"></a>00387                 lidx = i;
@@ -403,16 +412,16 @@
 <a name="l00394"></a>00394     ASSERT(pit &lt; sum_p * 1.00001);
 <a name="l00395"></a>00395     ASSERT(site1 != 16);
 <a name="l00396"></a>00396     <span class="keywordtype">double</span> du = 0.0;
-<a name="l00397"></a>00397     <a class="code" href="class_monte_carlo.html#d4">flippingProbability</a>(site1, lidx, <a class="code" href="class_monte_carlo.html#d9">hinteraction</a>(site1, lidx), &amp;du);
-<a name="l00398"></a>00398     <a class="code" href="class_monte_carlo.html#d3">flipSpin</a>(site1, lidx, du, cnt_d);
+<a name="l00397"></a>00397     <a class="code" href="class_monte_carlo.html#c72e43afeb959fdc4aaf7ac61710db41">flippingProbability</a>(site1, lidx, <a class="code" href="class_monte_carlo.html#e0b7c79ee8c19fcf7c8a0184f59475bd">hinteraction</a>(site1, lidx), &amp;du);
+<a name="l00398"></a>00398     <a class="code" href="class_monte_carlo.html#57b12f6d70d6e00451b33c93e61bc524">flipSpin</a>(site1, lidx, du, cnt_d);
 <a name="l00399"></a>00399 <span class="comment">//    fprintf(stderr, "Accelerate Flipping done. Skipped tests = %lld\n", cnt);</span>
 <a name="l00400"></a>00400 
-<a name="l00401"></a>00401     <span class="keywordflow">if</span>((<a class="code" href="class_monte_carlo.html#r11">m_last_flipped_lattice_index</a> == lidx) &amp;&amp; (<a class="code" href="class_monte_carlo.html#r10">m_last_flipped_site</a> == site1)) {
-<a name="l00402"></a>00402         <a class="code" href="class_monte_carlo.html#r12">m_play_back_buffer</a> = <span class="keyword">true</span>;
+<a name="l00401"></a>00401     <span class="keywordflow">if</span>((<a class="code" href="class_monte_carlo.html#f5e3f6fbb572f7233a1166b8a560c5d8">m_last_flipped_lattice_index</a> == lidx) &amp;&amp; (<a class="code" href="class_monte_carlo.html#783a3f442195c55a8562273215509a64">m_last_flipped_site</a> == site1)) {
+<a name="l00402"></a>00402         <a class="code" href="class_monte_carlo.html#0094ee011d462ffa5bbcd8d30db0f59d">m_play_back_buffer</a> = <span class="keyword">true</span>;
 <a name="l00403"></a>00403         fprintf(stderr, <span class="stringliteral">"0"</span>);
 <a name="l00404"></a>00404     }
 <a name="l00405"></a>00405     <span class="keywordflow">else</span> {
-<a name="l00406"></a>00406         <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#r11">m_last_flipped_lattice_index</a> &gt;= 0) {
+<a name="l00406"></a>00406         <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#f5e3f6fbb572f7233a1166b8a560c5d8">m_last_flipped_lattice_index</a> &gt;= 0) {
 <a name="l00407"></a>00407             <span class="keywordtype">int</span> size = s_L;
 <a name="l00408"></a>00408             <span class="keywordtype">int</span> n = lidx;
 <a name="l00409"></a>00409             <span class="keywordtype">int</span> i1 = n % size;
@@ -420,68 +429,68 @@
 <a name="l00411"></a>00411             <span class="keywordtype">int</span> j1 = n % size;
 <a name="l00412"></a>00412             n /= size;
 <a name="l00413"></a>00413             <span class="keywordtype">int</span> k1 = n;
-<a name="l00414"></a>00414             n = <a class="code" href="class_monte_carlo.html#r11">m_last_flipped_lattice_index</a>;
+<a name="l00414"></a>00414             n = <a class="code" href="class_monte_carlo.html#f5e3f6fbb572f7233a1166b8a560c5d8">m_last_flipped_lattice_index</a>;
 <a name="l00415"></a>00415             <span class="keywordtype">int</span> i2 = n % size;
 <a name="l00416"></a>00416             n /= size;
 <a name="l00417"></a>00417             <span class="keywordtype">int</span> j2 = n % size;
 <a name="l00418"></a>00418             n /= size;
 <a name="l00419"></a>00419             <span class="keywordtype">int</span> k2 = n;
-<a name="l00420"></a>00420             <a class="code" href="struct_monte_carlo_1_1_vector3.html">VectorInt</a> v = <a class="code" href="class_monte_carlo.html#h0">distance</a>(site1, <a class="code" href="class_monte_carlo.html#r10">m_last_flipped_site</a>,
+<a name="l00420"></a>00420             <a class="code" href="struct_monte_carlo_1_1_vector3.html">VectorInt</a> v = <a class="code" href="class_monte_carlo.html#71af70d7254ac3abab6514c9da1b60e3">distance</a>(site1, <a class="code" href="class_monte_carlo.html#783a3f442195c55a8562273215509a64">m_last_flipped_site</a>,
 <a name="l00421"></a>00421                  (i1 - i2 + size) % size, (j1 - j2 + size) % size, (k1 - k2 + size) % size); 
-<a name="l00422"></a>00422             <span class="keywordtype">int</span> d = v.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a>*v.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a> + v.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a>*v.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a> + v.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a>*v.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a>;
+<a name="l00422"></a>00422             <span class="keywordtype">int</span> d = v.<a class="code" href="struct_monte_carlo_1_1_vector3.html#fa56db9b6e2a3641b546bbfbe95cc032">x</a>*v.<a class="code" href="struct_monte_carlo_1_1_vector3.html#fa56db9b6e2a3641b546bbfbe95cc032">x</a> + v.<a class="code" href="struct_monte_carlo_1_1_vector3.html#cd630359f684392ae033101bc6a4fed7">y</a>*v.<a class="code" href="struct_monte_carlo_1_1_vector3.html#cd630359f684392ae033101bc6a4fed7">y</a> + v.<a class="code" href="struct_monte_carlo_1_1_vector3.html#d849dad32037dd2b0051e1e238c7b160">z</a>*v.<a class="code" href="struct_monte_carlo_1_1_vector3.html#d849dad32037dd2b0051e1e238c7b160">z</a>;
 <a name="l00423"></a>00423             ASSERT(d &gt; 0);
 <a name="l00424"></a>00424             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; 10; i++) {
 <a name="l00425"></a>00425                 <span class="keywordflow">if</span>(i == 9) {
-<a name="l00426"></a>00426                     ASSERT(d &gt;= <a class="code" href="class_monte_carlo.html#v16">s_4r2_neighbor</a>[i]);
+<a name="l00426"></a>00426                     ASSERT(d &gt;= <a class="code" href="class_monte_carlo.html#7aab8c9c7574d8cf81e7ca9370828328">s_4r2_neighbor</a>[i]);
 <a name="l00427"></a>00427                     fprintf(stderr, <span class="stringliteral">"."</span>);
 <a name="l00428"></a>00428                     <span class="keywordflow">break</span>;
 <a name="l00429"></a>00429                 }
-<a name="l00430"></a>00430                 <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#v16">s_4r2_neighbor</a>[i] == d) {
+<a name="l00430"></a>00430                 <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#7aab8c9c7574d8cf81e7ca9370828328">s_4r2_neighbor</a>[i] == d) {
 <a name="l00431"></a>00431                     fprintf(stderr, <span class="stringliteral">"%d"</span>, i + 1);
 <a name="l00432"></a>00432                     <span class="keywordflow">break</span>;
 <a name="l00433"></a>00433                 }
 <a name="l00434"></a>00434             }
 <a name="l00435"></a>00435             <span class="keywordflow">if</span>(sum_p &gt; 3.0) {
 <a name="l00436"></a>00436             <span class="comment">// leave accel flipping mode.</span>
-<a name="l00437"></a>00437                 <a class="code" href="class_monte_carlo.html#r9">m_last_probability_buffer</a> = -1;
+<a name="l00437"></a>00437                 <a class="code" href="class_monte_carlo.html#56fcf56818a20e5d1e750d29bae2fb60">m_last_probability_buffer</a> = -1;
 <a name="l00438"></a>00438             }
 <a name="l00439"></a>00439         }
 <a name="l00440"></a>00440     }
-<a name="l00441"></a>00441     <a class="code" href="class_monte_carlo.html#r11">m_last_flipped_lattice_index</a> = lidx;
-<a name="l00442"></a>00442     <a class="code" href="class_monte_carlo.html#r10">m_last_flipped_site</a> = site1;
+<a name="l00441"></a>00441     <a class="code" href="class_monte_carlo.html#f5e3f6fbb572f7233a1166b8a560c5d8">m_last_flipped_lattice_index</a> = lidx;
+<a name="l00442"></a>00442     <a class="code" href="class_monte_carlo.html#783a3f442195c55a8562273215509a64">m_last_flipped_site</a> = site1;
 <a name="l00443"></a>00443     <span class="keywordflow">return</span> cnt_d;
 <a name="l00444"></a>00444 }
 <a name="l00445"></a>00445 <span class="keywordtype">double</span>
-<a name="l00446"></a><a class="code" href="class_monte_carlo.html#a6">00446</a> <a class="code" href="class_monte_carlo.html#a6">MonteCarlo::internalEnergy</a>() {
+<a name="l00446"></a><a class="code" href="class_monte_carlo.html#f5f02a29c0df9b3c17dfbc1319f2328d">00446</a> <a class="code" href="class_monte_carlo.html#f5f02a29c0df9b3c17dfbc1319f2328d">MonteCarlo::internalEnergy</a>() {
 <a name="l00447"></a>00447     <span class="keywordtype">bool</span> abondon_cache = (_drand() &lt; 0.05);
 <a name="l00448"></a>00448     <span class="keywordflow">if</span>(abondon_cache) {
 <a name="l00449"></a>00449         fprintf(stderr, <span class="stringliteral">"Abondon cache.\n"</span>);
-<a name="l00450"></a>00450         fill(<a class="code" href="class_monte_carlo.html#r22">m_field_pri_cached_sane</a>.begin(), <a class="code" href="class_monte_carlo.html#r22">m_field_pri_cached_sane</a>.end(), 0);
+<a name="l00450"></a>00450         fill(<a class="code" href="class_monte_carlo.html#592589e1b09ff3e77e30b9063fe0faf9">m_field_pri_cached_sane</a>.begin(), <a class="code" href="class_monte_carlo.html#592589e1b09ff3e77e30b9063fe0faf9">m_field_pri_cached_sane</a>.end(), 0);
 <a name="l00451"></a>00451     }
 <a name="l00452"></a>00452     <span class="comment">//internal energy. [J/A-site]</span>
 <a name="l00453"></a>00453     <span class="keywordtype">double</span> U = 0.0;
 <a name="l00454"></a>00454     <span class="comment">// iterate target site.</span>
 <a name="l00455"></a>00455     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site1 = 0; site1 &lt; 16; site1++) {
-<a name="l00456"></a>00456     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> lidx = 0; lidx &lt; <a class="code" href="class_monte_carlo.html#v15">s_num_spins</a>/16; lidx++) {
+<a name="l00456"></a>00456     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> lidx = 0; lidx &lt; <a class="code" href="class_monte_carlo.html#2380e22df341d33556413cdfcdcfda95">s_num_spins</a>/16; lidx++) {
 <a name="l00457"></a>00457         <span class="keywordtype">double</span> h = 0.0;
-<a name="l00458"></a>00458         h = <a class="code" href="class_monte_carlo.html#d9">hinteraction</a>(site1, lidx);
+<a name="l00458"></a>00458         h = <a class="code" href="class_monte_carlo.html#e0b7c79ee8c19fcf7c8a0184f59475bd">hinteraction</a>(site1, lidx);
 <a name="l00459"></a>00459         <span class="comment">// interacting field must be half.</span>
 <a name="l00460"></a>00460         h *= 0.5;
-<a name="l00461"></a>00461         h += <a class="code" href="class_monte_carlo.html#r30">m_ext_field</a>[site1];
-<a name="l00462"></a>00462         U += -<a class="code" href="class_monte_carlo.html#d5">readSpin</a>(site1, <a class="code" href="class_monte_carlo.html#h6">spins_real_index</a>(lidx)) * A_MOMENT * MU_B * h;
+<a name="l00461"></a>00461         h += <a class="code" href="class_monte_carlo.html#c9fc3fbce76678de0bf480ece38cb186">m_ext_field</a>[site1];
+<a name="l00462"></a>00462         U += -<a class="code" href="class_monte_carlo.html#8be56ed8b80b47fae49d5d3aee353163">readSpin</a>(site1, <a class="code" href="class_monte_carlo.html#98ce40fb61c02cc4169f781572f77a12">spins_real_index</a>(lidx)) * A_MOMENT * MU_B * h;
 <a name="l00463"></a>00463     }}
 <a name="l00464"></a>00464     
-<a name="l00465"></a>00465     U /= <a class="code" href="class_monte_carlo.html#v15">s_num_spins</a>;
+<a name="l00465"></a>00465     U /= <a class="code" href="class_monte_carlo.html#2380e22df341d33556413cdfcdcfda95">s_num_spins</a>;
 <a name="l00466"></a>00466     <span class="keywordflow">return</span> U;
 <a name="l00467"></a>00467 }
 <a name="l00468"></a>00468 <span class="keywordtype">void</span>
-<a name="l00469"></a><a class="code" href="class_monte_carlo.html#d2">00469</a> <a class="code" href="class_monte_carlo.html#d2">MonteCarlo::doTests</a>(<span class="keywordtype">int</span> *flips, <span class="keywordtype">long</span> <span class="keywordtype">double</span> tests)
+<a name="l00469"></a><a class="code" href="class_monte_carlo.html#9ab0ed6c728d19024f87828c1ee139ff">00469</a> <a class="code" href="class_monte_carlo.html#9ab0ed6c728d19024f87828c1ee139ff">MonteCarlo::doTests</a>(<span class="keywordtype">int</span> *flips, <span class="keywordtype">long</span> <span class="keywordtype">double</span> tests)
 <a name="l00470"></a>00470 {
 <a name="l00471"></a>00471     <span class="keywordtype">int</span> flipped = 0;
 <a name="l00472"></a>00472     <span class="keywordtype">int</span> flipped_checked = 0;
-<a name="l00473"></a>00473     <a class="code" href="class_monte_carlo.html#r19">m_sec_cache_hit</a> = 0;
-<a name="l00474"></a>00474     <a class="code" href="class_monte_carlo.html#r20">m_third_cache_hit</a> = 0;
-<a name="l00475"></a>00475     <a class="code" href="class_monte_carlo.html#r14">m_hinteractions_called</a> = 0;
+<a name="l00473"></a>00473     <a class="code" href="class_monte_carlo.html#67de706ec818088e460d7a9e91af4368">m_sec_cache_hit</a> = 0;
+<a name="l00474"></a>00474     <a class="code" href="class_monte_carlo.html#cef47799a5d3b511a2d4d195a658a7be">m_third_cache_hit</a> = 0;
+<a name="l00475"></a>00475     <a class="code" href="class_monte_carlo.html#e3be8b7410b4851138d04c6c0d65b012">m_hinteractions_called</a> = 0;
 <a name="l00476"></a>00476     <span class="keywordtype">long</span> tested = 0;
 <a name="l00477"></a>00477     <span class="keywordtype">long</span> tests_after_check = 0;
 <a name="l00478"></a>00478     <span class="keywordtype">long</span> <span class="keywordtype">double</span> tests_accel_flip = 0;
@@ -489,23 +498,23 @@
 <a name="l00480"></a>00480     <span class="keywordtype">int</span> flipped_accel_flip_started = 0;
 <a name="l00481"></a>00481     <span class="keywordtype">bool</span> accel_flip = <span class="keyword">false</span>;
 <a name="l00482"></a>00482     <span class="keywordflow">for</span>(;;) {
-<a name="l00483"></a>00483         <span class="keywordflow">if</span>((flipped &gt;= *flips) &amp;&amp; (<a class="code" href="class_monte_carlo.html#r34">m_SumTests</a> + tests_after_check &gt;= tests)) <span class="keywordflow">break</span>;
-<a name="l00484"></a>00484         <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#s0">s_bAborting</a>) {
+<a name="l00483"></a>00483         <span class="keywordflow">if</span>((flipped &gt;= *flips) &amp;&amp; (<a class="code" href="class_monte_carlo.html#e026129058577516a5aa14d3e0b1fb1c">m_SumTests</a> + tests_after_check &gt;= tests)) <span class="keywordflow">break</span>;
+<a name="l00484"></a>00484         <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#d6a4db583be8ebc37e2d18f02e959b88">s_bAborting</a>) {
 <a name="l00485"></a>00485             fprintf(stderr, <span class="stringliteral">"Signal caught! Aborting...\n"</span>);
 <a name="l00486"></a>00486             <span class="keywordflow">break</span>;
 <a name="l00487"></a>00487         }
 <a name="l00488"></a>00488 
 <a name="l00489"></a>00489         <span class="keywordflow">if</span>(accel_flip) {
-<a name="l00490"></a>00490             <a class="code" href="class_monte_carlo.html#d19">takeThermalAverage</a>(tests_after_check);
+<a name="l00490"></a>00490             <a class="code" href="class_monte_carlo.html#7c8617b1a5128131af3e7101c21c2a2f">takeThermalAverage</a>(tests_after_check);
 <a name="l00491"></a>00491             tests_after_check = 0;
-<a name="l00492"></a>00492             <span class="keywordtype">long</span> <span class="keywordtype">double</span> adv = <a class="code" href="class_monte_carlo.html#d1">accelFlipping</a>();
+<a name="l00492"></a>00492             <span class="keywordtype">long</span> <span class="keywordtype">double</span> adv = <a class="code" href="class_monte_carlo.html#2293441719be4bb5b04f31c94a93df75">accelFlipping</a>();
 <a name="l00493"></a>00493             <span class="keywordflow">if</span>(adv &lt;= 0) {
 <a name="l00494"></a>00494                 fprintf(stderr, <span class="stringliteral">"Spins are completely freezed!.\n"</span>);
 <a name="l00495"></a>00495                 <span class="keywordflow">break</span>;
 <a name="l00496"></a>00496             }
 <a name="l00497"></a>00497             tests_accel_flip += adv;
 <a name="l00498"></a>00498             flipped++;
-<a name="l00499"></a>00499             <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#r9">m_last_probability_buffer</a> &lt; 0) {
+<a name="l00499"></a>00499             <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#56fcf56818a20e5d1e750d29bae2fb60">m_last_probability_buffer</a> &lt; 0) {
 <a name="l00500"></a>00500                 fprintf(stderr, <span class="stringliteral">"\nSkipped tests = %Lg. Flipped = %d\n"</span>, 
 <a name="l00501"></a>00501                     (<span class="keywordtype">long</span> <span class="keywordtype">double</span>)(tests_accel_flip - tests_accel_flip_started), flipped - flipped_accel_flip_started);
 <a name="l00502"></a>00502                 accel_flip = <span class="keyword">false</span>;
@@ -515,26 +524,26 @@
 <a name="l00506"></a>00506         }
 <a name="l00507"></a>00507         
 <a name="l00508"></a>00508         <span class="comment">// pick-up target spin.</span>
-<a name="l00509"></a>00509         <span class="keywordtype">int</span> idx = (int)floor(_drand() * <a class="code" href="class_monte_carlo.html#v15">s_num_spins</a>);
+<a name="l00509"></a>00509         <span class="keywordtype">int</span> idx = (int)floor(_drand() * <a class="code" href="class_monte_carlo.html#2380e22df341d33556413cdfcdcfda95">s_num_spins</a>);
 <a name="l00510"></a>00510 
 <a name="l00511"></a>00511         <span class="keywordtype">int</span> site = idx % 16;
 <a name="l00512"></a>00512         <span class="keywordtype">int</span> lidx = idx / 16;
 <a name="l00513"></a>00513         
-<a name="l00514"></a>00514         <span class="keywordtype">double</span> h = <a class="code" href="class_monte_carlo.html#d9">hinteraction</a>(site, lidx);
+<a name="l00514"></a>00514         <span class="keywordtype">double</span> h = <a class="code" href="class_monte_carlo.html#e0b7c79ee8c19fcf7c8a0184f59475bd">hinteraction</a>(site, lidx);
 <a name="l00515"></a>00515 
 <a name="l00516"></a>00516         <span class="keywordtype">double</span> du = 0.0;
-<a name="l00517"></a>00517         <span class="keywordtype">double</span> probability = <a class="code" href="class_monte_carlo.html#d4">flippingProbability</a>(site, lidx, h, &amp;du);
+<a name="l00517"></a>00517         <span class="keywordtype">double</span> probability = <a class="code" href="class_monte_carlo.html#c72e43afeb959fdc4aaf7ac61710db41">flippingProbability</a>(site, lidx, h, &amp;du);
 <a name="l00518"></a>00518         
 <a name="l00519"></a>00519         tested++;
 <a name="l00520"></a>00520         tests_after_check++;
 <a name="l00521"></a>00521         
 <a name="l00522"></a>00522         <span class="keywordflow">if</span>((probability &gt;= 1) || (_drand() &lt; probability)) {
-<a name="l00523"></a>00523             <a class="code" href="class_monte_carlo.html#d3">flipSpin</a>(site, lidx, du, tests_after_check);
+<a name="l00523"></a>00523             <a class="code" href="class_monte_carlo.html#57b12f6d70d6e00451b33c93e61bc524">flipSpin</a>(site, lidx, du, tests_after_check);
 <a name="l00524"></a>00524             tests_after_check = 0;
 <a name="l00525"></a>00525             flipped++;
 <a name="l00526"></a>00526         }
 <a name="l00527"></a>00527         
-<a name="l00528"></a>00528         <span class="keywordflow">if</span>((tested % <a class="code" href="class_monte_carlo.html#v15">s_num_spins</a> == 0) &amp;&amp; (tested != 0)) {
+<a name="l00528"></a>00528         <span class="keywordflow">if</span>((tested % <a class="code" href="class_monte_carlo.html#2380e22df341d33556413cdfcdcfda95">s_num_spins</a> == 0) &amp;&amp; (tested != 0)) {
 <a name="l00529"></a>00529             <span class="keywordtype">int</span> flips = flipped - flipped_checked;
 <a name="l00530"></a>00530             
 <a name="l00531"></a>00531             <span class="keywordflow">if</span>(flips &lt;= 0) {
@@ -542,63 +551,63 @@
 <a name="l00533"></a>00533                 accel_flip = <span class="keyword">true</span>;
 <a name="l00534"></a>00534                 tests_accel_flip_started = tests_accel_flip;
 <a name="l00535"></a>00535                 flipped_accel_flip_started = flipped;
-<a name="l00536"></a>00536                 <a class="code" href="class_monte_carlo.html#r11">m_last_flipped_lattice_index</a> = -1;
+<a name="l00536"></a>00536                 <a class="code" href="class_monte_carlo.html#f5e3f6fbb572f7233a1166b8a560c5d8">m_last_flipped_lattice_index</a> = -1;
 <a name="l00537"></a>00537             }
 <a name="l00538"></a>00538 
-<a name="l00539"></a>00539             <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#r16">m_third_cache_enabled</a>) {
-<a name="l00540"></a>00540                 <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#r14">m_hinteractions_called</a> &gt; <a class="code" href="class_monte_carlo.html#r19">m_sec_cache_hit</a>) {
-<a name="l00541"></a>00541                     <span class="keywordtype">double</span> hit_prob = (double)<a class="code" href="class_monte_carlo.html#r20">m_third_cache_hit</a> / (<a class="code" href="class_monte_carlo.html#r14">m_hinteractions_called</a> - <a class="code" href="class_monte_carlo.html#r19">m_sec_cache_hit</a>) / 16;
-<a name="l00542"></a>00542                     <span class="keywordflow">if</span>(!<a class="code" href="class_monte_carlo.html#r18">m_third_cache_firsttime</a> &amp;&amp; (hit_prob &lt; THIRD_CACHE_OFF_FACTOR)) {
-<a name="l00543"></a>00543                         <a class="code" href="class_monte_carlo.html#r16">m_third_cache_enabled</a> = <span class="keyword">false</span>;
+<a name="l00539"></a>00539             <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#e469200283bc290befd219055e5a9cf0">m_third_cache_enabled</a>) {
+<a name="l00540"></a>00540                 <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#e3be8b7410b4851138d04c6c0d65b012">m_hinteractions_called</a> &gt; <a class="code" href="class_monte_carlo.html#67de706ec818088e460d7a9e91af4368">m_sec_cache_hit</a>) {
+<a name="l00541"></a>00541                     <span class="keywordtype">double</span> hit_prob = (double)<a class="code" href="class_monte_carlo.html#cef47799a5d3b511a2d4d195a658a7be">m_third_cache_hit</a> / (<a class="code" href="class_monte_carlo.html#e3be8b7410b4851138d04c6c0d65b012">m_hinteractions_called</a> - <a class="code" href="class_monte_carlo.html#67de706ec818088e460d7a9e91af4368">m_sec_cache_hit</a>) / 16;
+<a name="l00542"></a>00542                     <span class="keywordflow">if</span>(!<a class="code" href="class_monte_carlo.html#b4d4bc6c69331607461cbf51f9996396">m_third_cache_firsttime</a> &amp;&amp; (hit_prob &lt; THIRD_CACHE_OFF_FACTOR)) {
+<a name="l00543"></a>00543                         <a class="code" href="class_monte_carlo.html#e469200283bc290befd219055e5a9cf0">m_third_cache_enabled</a> = <span class="keyword">false</span>;
 <a name="l00544"></a>00544                         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; 16; i++) {
-<a name="l00545"></a>00545                             fill(<a class="code" href="class_monte_carlo.html#r26">m_field_third_cached_sane</a>[i].begin(), <a class="code" href="class_monte_carlo.html#r26">m_field_third_cached_sane</a>[i].end(), 0);
+<a name="l00545"></a>00545                             fill(<a class="code" href="class_monte_carlo.html#3529d444865515a60509c315a08b5170">m_field_third_cached_sane</a>[i].begin(), <a class="code" href="class_monte_carlo.html#3529d444865515a60509c315a08b5170">m_field_third_cached_sane</a>[i].end(), 0);
 <a name="l00546"></a>00546                         }
-<a name="l00547"></a>00547                         fprintf(stderr, <span class="stringliteral">"Flip = %f %%\n"</span>, (<span class="keywordtype">double</span>)100.0*flips / <a class="code" href="class_monte_carlo.html#r14">m_hinteractions_called</a>);
+<a name="l00547"></a>00547                         fprintf(stderr, <span class="stringliteral">"Flip = %f %%\n"</span>, (<span class="keywordtype">double</span>)100.0*flips / <a class="code" href="class_monte_carlo.html#e3be8b7410b4851138d04c6c0d65b012">m_hinteractions_called</a>);
 <a name="l00548"></a>00548                         fprintf(stderr, <span class="stringliteral">"Disable 3rd cache. hit = %f%%\n"</span>, 100.0*hit_prob);
 <a name="l00549"></a>00549                     }
-<a name="l00550"></a>00550                     <a class="code" href="class_monte_carlo.html#r18">m_third_cache_firsttime</a> = <span class="keyword">false</span>;
+<a name="l00550"></a>00550                     <a class="code" href="class_monte_carlo.html#b4d4bc6c69331607461cbf51f9996396">m_third_cache_firsttime</a> = <span class="keyword">false</span>;
 <a name="l00551"></a>00551                 }
 <a name="l00552"></a>00552             }
 <a name="l00553"></a>00553             <span class="keywordflow">else</span> {
 <a name="l00554"></a>00554                 <span class="keywordtype">double</span> hit_prob_estimate = 
-<a name="l00555"></a>00555                     pow(1.0 - (<span class="keywordtype">double</span>)flips / <a class="code" href="class_monte_carlo.html#r14">m_hinteractions_called</a> /16 / (s_L*s_L*s_L)
-<a name="l00556"></a>00556                          * (4.0*M_PI/3.0*<a class="code" href="class_monte_carlo.html#v0">s_cutoff_real</a>/2*<a class="code" href="class_monte_carlo.html#v0">s_cutoff_real</a>/2*<a class="code" href="class_monte_carlo.html#v0">s_cutoff_real</a>/2), (<span class="keywordtype">double</span>)<a class="code" href="class_monte_carlo.html#v15">s_num_spins</a>);
+<a name="l00555"></a>00555                     pow(1.0 - (<span class="keywordtype">double</span>)flips / <a class="code" href="class_monte_carlo.html#e3be8b7410b4851138d04c6c0d65b012">m_hinteractions_called</a> /16 / (s_L*s_L*s_L)
+<a name="l00556"></a>00556                          * (4.0*M_PI/3.0*<a class="code" href="class_monte_carlo.html#646f7e833f726abd8f208d7c821dc8df">s_cutoff_real</a>/2*<a class="code" href="class_monte_carlo.html#646f7e833f726abd8f208d7c821dc8df">s_cutoff_real</a>/2*<a class="code" href="class_monte_carlo.html#646f7e833f726abd8f208d7c821dc8df">s_cutoff_real</a>/2), (<span class="keywordtype">double</span>)<a class="code" href="class_monte_carlo.html#2380e22df341d33556413cdfcdcfda95">s_num_spins</a>);
 <a name="l00557"></a>00557                 <span class="keywordflow">if</span>(hit_prob_estimate &gt; THIRD_CACHE_ON_FACTOR) {
-<a name="l00558"></a>00558                     <a class="code" href="class_monte_carlo.html#r16">m_third_cache_enabled</a> = <span class="keyword">true</span>;
-<a name="l00559"></a>00559                     <a class="code" href="class_monte_carlo.html#r18">m_third_cache_firsttime</a> = <span class="keyword">true</span>;
-<a name="l00560"></a>00560                     fprintf(stderr, <span class="stringliteral">"Flip = %f %%\n"</span>, (<span class="keywordtype">double</span>)100.0*flips / <a class="code" href="class_monte_carlo.html#r14">m_hinteractions_called</a>);
+<a name="l00558"></a>00558                     <a class="code" href="class_monte_carlo.html#e469200283bc290befd219055e5a9cf0">m_third_cache_enabled</a> = <span class="keyword">true</span>;
+<a name="l00559"></a>00559                     <a class="code" href="class_monte_carlo.html#b4d4bc6c69331607461cbf51f9996396">m_third_cache_firsttime</a> = <span class="keyword">true</span>;
+<a name="l00560"></a>00560                     fprintf(stderr, <span class="stringliteral">"Flip = %f %%\n"</span>, (<span class="keywordtype">double</span>)100.0*flips / <a class="code" href="class_monte_carlo.html#e3be8b7410b4851138d04c6c0d65b012">m_hinteractions_called</a>);
 <a name="l00561"></a>00561                     fprintf(stderr, <span class="stringliteral">"Enable 3rd cache. estimate = %f%%\n"</span>, 100.0*hit_prob_estimate);
 <a name="l00562"></a>00562                 }
 <a name="l00563"></a>00563             }
-<a name="l00564"></a>00564             <a class="code" href="class_monte_carlo.html#r20">m_third_cache_hit</a> = 0;
+<a name="l00564"></a>00564             <a class="code" href="class_monte_carlo.html#cef47799a5d3b511a2d4d195a658a7be">m_third_cache_hit</a> = 0;
 <a name="l00565"></a>00565 
-<a name="l00566"></a>00566             <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#r15">m_sec_cache_enabled</a>) {
-<a name="l00567"></a>00567                 <span class="keywordtype">double</span> hit_prob = (double)<a class="code" href="class_monte_carlo.html#r19">m_sec_cache_hit</a> / (<a class="code" href="class_monte_carlo.html#r14">m_hinteractions_called</a>) / 16;
-<a name="l00568"></a>00568                 <span class="keywordflow">if</span>(!<a class="code" href="class_monte_carlo.html#r17">m_sec_cache_firsttime</a> &amp;&amp; (hit_prob &lt; SEC_CACHE_OFF_FACTOR)) {
-<a name="l00569"></a>00569                     <a class="code" href="class_monte_carlo.html#r15">m_sec_cache_enabled</a> = <span class="keyword">false</span>;
+<a name="l00566"></a>00566             <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#1c1839e562152aaf00bfdeaf3a34ebc4">m_sec_cache_enabled</a>) {
+<a name="l00567"></a>00567                 <span class="keywordtype">double</span> hit_prob = (double)<a class="code" href="class_monte_carlo.html#67de706ec818088e460d7a9e91af4368">m_sec_cache_hit</a> / (<a class="code" href="class_monte_carlo.html#e3be8b7410b4851138d04c6c0d65b012">m_hinteractions_called</a>) / 16;
+<a name="l00568"></a>00568                 <span class="keywordflow">if</span>(!<a class="code" href="class_monte_carlo.html#b47c62454e9d306345eea3059679b51d">m_sec_cache_firsttime</a> &amp;&amp; (hit_prob &lt; SEC_CACHE_OFF_FACTOR)) {
+<a name="l00569"></a>00569                     <a class="code" href="class_monte_carlo.html#1c1839e562152aaf00bfdeaf3a34ebc4">m_sec_cache_enabled</a> = <span class="keyword">false</span>;
 <a name="l00570"></a>00570                     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; 16; i++) {
-<a name="l00571"></a>00571                         fill(<a class="code" href="class_monte_carlo.html#r24">m_field_sec_cached_sane</a>[i].begin(), <a class="code" href="class_monte_carlo.html#r24">m_field_sec_cached_sane</a>[i].end(), 0);
+<a name="l00571"></a>00571                         fill(<a class="code" href="class_monte_carlo.html#6cfd355eaea866990a0ffef4f6b6bee0">m_field_sec_cached_sane</a>[i].begin(), <a class="code" href="class_monte_carlo.html#6cfd355eaea866990a0ffef4f6b6bee0">m_field_sec_cached_sane</a>[i].end(), 0);
 <a name="l00572"></a>00572                     }
-<a name="l00573"></a>00573                     fprintf(stderr, <span class="stringliteral">"Flip = %f %%\n"</span>, (<span class="keywordtype">double</span>)100.0*flips / <a class="code" href="class_monte_carlo.html#r14">m_hinteractions_called</a>);
+<a name="l00573"></a>00573                     fprintf(stderr, <span class="stringliteral">"Flip = %f %%\n"</span>, (<span class="keywordtype">double</span>)100.0*flips / <a class="code" href="class_monte_carlo.html#e3be8b7410b4851138d04c6c0d65b012">m_hinteractions_called</a>);
 <a name="l00574"></a>00574                     fprintf(stderr, <span class="stringliteral">"Disable secondary cache. hit = %f%%\n"</span>, 100.0*hit_prob);
 <a name="l00575"></a>00575                 }
 <a name="l00576"></a>00576 <span class="comment">//                    fprintf(stderr, "Secondary cache hit = %f%%\n", 100.0*hit_prob);</span>
-<a name="l00577"></a>00577                 <a class="code" href="class_monte_carlo.html#r17">m_sec_cache_firsttime</a> = <span class="keyword">false</span>;
+<a name="l00577"></a>00577                 <a class="code" href="class_monte_carlo.html#b47c62454e9d306345eea3059679b51d">m_sec_cache_firsttime</a> = <span class="keyword">false</span>;
 <a name="l00578"></a>00578             }
 <a name="l00579"></a>00579             <span class="keywordflow">else</span> {
 <a name="l00580"></a>00580                 <span class="keywordtype">double</span> hit_prob_estimate = 
-<a name="l00581"></a>00581                     pow(1.0 - (<span class="keywordtype">double</span>)flips / <a class="code" href="class_monte_carlo.html#r14">m_hinteractions_called</a> /16, (<span class="keywordtype">double</span>)<a class="code" href="class_monte_carlo.html#v15">s_num_spins</a>);
+<a name="l00581"></a>00581                     pow(1.0 - (<span class="keywordtype">double</span>)flips / <a class="code" href="class_monte_carlo.html#e3be8b7410b4851138d04c6c0d65b012">m_hinteractions_called</a> /16, (<span class="keywordtype">double</span>)<a class="code" href="class_monte_carlo.html#2380e22df341d33556413cdfcdcfda95">s_num_spins</a>);
 <a name="l00582"></a>00582                 <span class="keywordflow">if</span>(hit_prob_estimate &gt; SEC_CACHE_ON_FACTOR) {
-<a name="l00583"></a>00583                     <a class="code" href="class_monte_carlo.html#r15">m_sec_cache_enabled</a> = <span class="keyword">true</span>;
-<a name="l00584"></a>00584                     <a class="code" href="class_monte_carlo.html#r17">m_sec_cache_firsttime</a> = <span class="keyword">true</span>;
-<a name="l00585"></a>00585                     fprintf(stderr, <span class="stringliteral">"Flip = %f %%\n"</span>, (<span class="keywordtype">double</span>)100.0*flips / <a class="code" href="class_monte_carlo.html#r14">m_hinteractions_called</a>);
+<a name="l00583"></a>00583                     <a class="code" href="class_monte_carlo.html#1c1839e562152aaf00bfdeaf3a34ebc4">m_sec_cache_enabled</a> = <span class="keyword">true</span>;
+<a name="l00584"></a>00584                     <a class="code" href="class_monte_carlo.html#b47c62454e9d306345eea3059679b51d">m_sec_cache_firsttime</a> = <span class="keyword">true</span>;
+<a name="l00585"></a>00585                     fprintf(stderr, <span class="stringliteral">"Flip = %f %%\n"</span>, (<span class="keywordtype">double</span>)100.0*flips / <a class="code" href="class_monte_carlo.html#e3be8b7410b4851138d04c6c0d65b012">m_hinteractions_called</a>);
 <a name="l00586"></a>00586                     fprintf(stderr, <span class="stringliteral">"Enable secondary cache. estimate = %f%%\n"</span>, 100.0*hit_prob_estimate);
 <a name="l00587"></a>00587                 }
 <a name="l00588"></a>00588             }
-<a name="l00589"></a>00589             <a class="code" href="class_monte_carlo.html#r19">m_sec_cache_hit</a> = 0;
+<a name="l00589"></a>00589             <a class="code" href="class_monte_carlo.html#67de706ec818088e460d7a9e91af4368">m_sec_cache_hit</a> = 0;
 <a name="l00590"></a>00590                         
 <a name="l00591"></a>00591             flipped_checked = flipped;
-<a name="l00592"></a>00592             <a class="code" href="class_monte_carlo.html#r14">m_hinteractions_called</a> = 0;
+<a name="l00592"></a>00592             <a class="code" href="class_monte_carlo.html#e3be8b7410b4851138d04c6c0d65b012">m_hinteractions_called</a> = 0;
 <a name="l00593"></a>00593         } 
 <a name="l00594"></a>00594     }
 <a name="l00595"></a>00595     <span class="keywordflow">if</span>(accel_flip) {
@@ -606,26 +615,26 @@
 <a name="l00597"></a>00597         (<span class="keywordtype">long</span> <span class="keywordtype">double</span>)(tests_accel_flip - tests_accel_flip_started), flipped - flipped_accel_flip_started);
 <a name="l00598"></a>00598     }
 <a name="l00599"></a>00599     *flips = flipped;
-<a name="l00600"></a>00600     <a class="code" href="class_monte_carlo.html#d19">takeThermalAverage</a>(tests_after_check);
+<a name="l00600"></a>00600     <a class="code" href="class_monte_carlo.html#7c8617b1a5128131af3e7101c21c2a2f">takeThermalAverage</a>(tests_after_check);
 <a name="l00601"></a>00601 }
 <a name="l00602"></a>00602 
 <a name="l00603"></a>00603 <span class="keyword">inline</span> <span class="keywordtype">void</span>
-<a name="l00604"></a><a class="code" href="class_monte_carlo.html#d8">00604</a> <a class="code" href="class_monte_carlo.html#d8">MonteCarlo::modifyReciprocalImage</a>(Spin diff, <span class="keywordtype">int</span> site1, <span class="keywordtype">int</span> i, <span class="keywordtype">int</span> j, <span class="keywordtype">int</span> k)
+<a name="l00604"></a><a class="code" href="class_monte_carlo.html#165eaefcf454726dcb9933ddfe151649">00604</a> <a class="code" href="class_monte_carlo.html#165eaefcf454726dcb9933ddfe151649">MonteCarlo::modifyReciprocalImage</a>(Spin diff, <span class="keywordtype">int</span> site1, <span class="keywordtype">int</span> i, <span class="keywordtype">int</span> j, <span class="keywordtype">int</span> k)
 <a name="l00605"></a>00605 {
-<a name="l00606"></a>00606     <span class="keywordtype">int</span> cutoff = <a class="code" href="class_monte_carlo.html#v2">s_cutoff_rec</a>;
+<a name="l00606"></a>00606     <span class="keywordtype">int</span> cutoff = <a class="code" href="class_monte_carlo.html#961b8e3cfb8cc3b5793f640499dc354a">s_cutoff_rec</a>;
 <a name="l00607"></a>00607     <span class="keywordtype">int</span> cnt = 2*cutoff + 1;
-<a name="l00608"></a>00608     complex&lt;Spin&gt; *pspin = &amp;<a class="code" href="class_monte_carlo.html#r28">m_spins_rec</a>[site1][0];
+<a name="l00608"></a>00608     complex&lt;Spin&gt; *pspin = &amp;<a class="code" href="class_monte_carlo.html#938c27ec9c4862ed75c88033f42310db">m_spins_rec</a>[site1][0];
 <a name="l00609"></a>00609     
 <a name="l00610"></a>00610     <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> pos1(cg_ASitePositions[site1]);
 <a name="l00611"></a>00611     pos1 *= LATTICE_CONST / 4.0;
-<a name="l00612"></a>00612     <span class="keywordtype">double</span> phx = -2*M_PI / (LATTICE_CONST * s_L) * (i * LATTICE_CONST + pos1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a>);
-<a name="l00613"></a>00613     <span class="keywordtype">double</span> phy = -2*M_PI / (LATTICE_CONST * s_L) * (j * LATTICE_CONST + pos1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a>);
-<a name="l00614"></a>00614     <span class="keywordtype">double</span> phz = -2*M_PI / (LATTICE_CONST * s_L) * (k * LATTICE_CONST + pos1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a>);
+<a name="l00612"></a>00612     <span class="keywordtype">double</span> phx = -2*M_PI / (LATTICE_CONST * s_L) * (i * LATTICE_CONST + pos1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#fa56db9b6e2a3641b546bbfbe95cc032">x</a>);
+<a name="l00613"></a>00613     <span class="keywordtype">double</span> phy = -2*M_PI / (LATTICE_CONST * s_L) * (j * LATTICE_CONST + pos1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#cd630359f684392ae033101bc6a4fed7">y</a>);
+<a name="l00614"></a>00614     <span class="keywordtype">double</span> phz = -2*M_PI / (LATTICE_CONST * s_L) * (k * LATTICE_CONST + pos1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#d849dad32037dd2b0051e1e238c7b160">z</a>);
 <a name="l00615"></a>00615     complex&lt;Spin&gt; exp_i_rx = exp(complex&lt;Spin&gt;(0.0, phx));
 <a name="l00616"></a>00616     complex&lt;Spin&gt; exp_i_ry = exp(complex&lt;Spin&gt;(0.0, phy));
 <a name="l00617"></a>00617     complex&lt;Spin&gt; exp_i_rz = exp(complex&lt;Spin&gt;(0.0, phz));
 <a name="l00618"></a>00618         
-<a name="l00619"></a>00619     complex&lt;Spin&gt; exp_ikrz = ((<a class="code" href="class_monte_carlo.html#y1">Spin</a>)diff)
+<a name="l00619"></a>00619     complex&lt;Spin&gt; exp_ikrz = ((<a class="code" href="class_monte_carlo.html#73afc6c7495b0cdb387cadd3173e8f45">Spin</a>)diff)
 <a name="l00620"></a>00620             * exp(complex&lt;Spin&gt;(0.0, -cutoff * (phx + phy)));
 <a name="l00621"></a>00621     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> kz = 0; kz &lt;= cutoff; kz++) {
 <a name="l00622"></a>00622         complex&lt;Spin&gt; exp_ikryz = exp_ikrz;
@@ -640,68 +649,68 @@
 <a name="l00631"></a>00631         }
 <a name="l00632"></a>00632         exp_ikrz *= exp_i_rz;
 <a name="l00633"></a>00633     }
-<a name="l00634"></a>00634     ASSERT(pspin == &amp;*<a class="code" href="class_monte_carlo.html#r28">m_spins_rec</a>[site1].end());
+<a name="l00634"></a>00634     ASSERT(pspin == &amp;*<a class="code" href="class_monte_carlo.html#938c27ec9c4862ed75c88033f42310db">m_spins_rec</a>[site1].end());
 <a name="l00635"></a>00635 }
 <a name="l00636"></a>00636 <span class="keywordtype">void</span>
-<a name="l00637"></a><a class="code" href="class_monte_carlo.html#d7">00637</a> <a class="code" href="class_monte_carlo.html#d7">MonteCarlo::makeReciprocalImage</a>()
+<a name="l00637"></a><a class="code" href="class_monte_carlo.html#cf4ec834fa986da01c82d58f307387d1">00637</a> <a class="code" href="class_monte_carlo.html#cf4ec834fa986da01c82d58f307387d1">MonteCarlo::makeReciprocalImage</a>()
 <a name="l00638"></a>00638 {
-<a name="l00639"></a>00639     <span class="keywordtype">int</span> cutoff = <a class="code" href="class_monte_carlo.html#v2">s_cutoff_rec</a>;
+<a name="l00639"></a>00639     <span class="keywordtype">int</span> cutoff = <a class="code" href="class_monte_carlo.html#961b8e3cfb8cc3b5793f640499dc354a">s_cutoff_rec</a>;
 <a name="l00640"></a>00640     <span class="keywordflow">if</span>(!cutoff) <span class="keywordflow">return</span>;
 <a name="l00641"></a>00641     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site = 0; site &lt; 16; site++) {
-<a name="l00642"></a>00642         <a class="code" href="class_monte_carlo.html#r28">m_spins_rec</a>[site].clear();
-<a name="l00643"></a>00643         <a class="code" href="class_monte_carlo.html#r28">m_spins_rec</a>[site].resize((2*cutoff+1)*(2*cutoff+1)*(cutoff+1), 0.0);
+<a name="l00642"></a>00642         <a class="code" href="class_monte_carlo.html#938c27ec9c4862ed75c88033f42310db">m_spins_rec</a>[site].clear();
+<a name="l00643"></a>00643         <a class="code" href="class_monte_carlo.html#938c27ec9c4862ed75c88033f42310db">m_spins_rec</a>[site].resize((2*cutoff+1)*(2*cutoff+1)*(cutoff+1), 0.0);
 <a name="l00644"></a>00644         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> k = 0; k &lt; s_L; k++) {
 <a name="l00645"></a>00645             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j = 0; j &lt; s_L; j++) {
 <a name="l00646"></a>00646                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; s_L; i++) {
-<a name="l00647"></a>00647                     <a class="code" href="class_monte_carlo.html#d8">modifyReciprocalImage</a>(<a class="code" href="class_monte_carlo.html#d5">readSpin</a>(site, <a class="code" href="class_monte_carlo.html#h6">spins_real_index</a>(i,j,k)), site, i, j, k);
+<a name="l00647"></a>00647                     <a class="code" href="class_monte_carlo.html#165eaefcf454726dcb9933ddfe151649">modifyReciprocalImage</a>(<a class="code" href="class_monte_carlo.html#8be56ed8b80b47fae49d5d3aee353163">readSpin</a>(site, <a class="code" href="class_monte_carlo.html#98ce40fb61c02cc4169f781572f77a12">spins_real_index</a>(i,j,k)), site, i, j, k);
 <a name="l00648"></a>00648                 }
 <a name="l00649"></a>00649             }
 <a name="l00650"></a>00650         }
 <a name="l00651"></a>00651     }
 <a name="l00652"></a>00652 }
 <a name="l00653"></a>00653 <span class="keywordtype">void</span>
-<a name="l00654"></a><a class="code" href="class_monte_carlo.html#d3">00654</a> <a class="code" href="class_monte_carlo.html#d3">MonteCarlo::flipSpin</a>(<span class="keywordtype">int</span> site1, <span class="keywordtype">int</span> lidx, <span class="keywordtype">double</span> du, <span class="keywordtype">long</span> <span class="keywordtype">double</span> tests_after_check)
+<a name="l00654"></a><a class="code" href="class_monte_carlo.html#57b12f6d70d6e00451b33c93e61bc524">00654</a> <a class="code" href="class_monte_carlo.html#57b12f6d70d6e00451b33c93e61bc524">MonteCarlo::flipSpin</a>(<span class="keywordtype">int</span> site1, <span class="keywordtype">int</span> lidx, <span class="keywordtype">double</span> du, <span class="keywordtype">long</span> <span class="keywordtype">double</span> tests_after_check)
 <a name="l00655"></a>00655 {
-<a name="l00656"></a>00656     <a class="code" href="class_monte_carlo.html#d19">takeThermalAverage</a>(tests_after_check);
+<a name="l00656"></a>00656     <a class="code" href="class_monte_carlo.html#7c8617b1a5128131af3e7101c21c2a2f">takeThermalAverage</a>(tests_after_check);
 <a name="l00657"></a>00657     
-<a name="l00658"></a>00658     <a class="code" href="class_monte_carlo.html#r31">m_DeltaU</a> += du;
+<a name="l00658"></a>00658     <a class="code" href="class_monte_carlo.html#a8ff8b994b0b1e886d87da6195b00b20">m_DeltaU</a> += du;
 <a name="l00659"></a>00659 
-<a name="l00660"></a>00660     <span class="keywordtype">int</span> sidx = <a class="code" href="class_monte_carlo.html#h6">spins_real_index</a>(lidx);
-<a name="l00661"></a>00661     <a class="code" href="class_monte_carlo.html#y1">Spin</a> oldv = <a class="code" href="class_monte_carlo.html#d5">readSpin</a>(site1, sidx);
+<a name="l00660"></a>00660     <span class="keywordtype">int</span> sidx = <a class="code" href="class_monte_carlo.html#98ce40fb61c02cc4169f781572f77a12">spins_real_index</a>(lidx);
+<a name="l00661"></a>00661     <a class="code" href="class_monte_carlo.html#73afc6c7495b0cdb387cadd3173e8f45">Spin</a> oldv = <a class="code" href="class_monte_carlo.html#8be56ed8b80b47fae49d5d3aee353163">readSpin</a>(site1, sidx);
 <a name="l00662"></a>00662     <span class="keywordtype">int</span> n = lidx;
 <a name="l00663"></a>00663     <span class="keywordtype">int</span> i = n % s_L;
 <a name="l00664"></a>00664     n /= s_L;
 <a name="l00665"></a>00665     <span class="keywordtype">int</span> j = n % s_L;
 <a name="l00666"></a>00666     n /= s_L;
 <a name="l00667"></a>00667     <span class="keywordtype">int</span> k = n;
-<a name="l00668"></a>00668     <a class="code" href="class_monte_carlo.html#d8">modifyReciprocalImage</a>(-2*oldv, site1, i, j, k);
+<a name="l00668"></a>00668     <a class="code" href="class_monte_carlo.html#165eaefcf454726dcb9933ddfe151649">modifyReciprocalImage</a>(-2*oldv, site1, i, j, k);
 <a name="l00669"></a>00669     <span class="comment">// flip spin. keep repeated image.</span>
-<a name="l00670"></a>00670     <a class="code" href="class_monte_carlo.html#d6">writeSpin</a>(-oldv, site1, sidx);
-<a name="l00671"></a>00671     ASSERT(<a class="code" href="class_monte_carlo.html#h6">spins_real_index</a>(i,j,k) == sidx);
+<a name="l00670"></a>00670     <a class="code" href="class_monte_carlo.html#74b28ab5f8e9f0df8b94fe02055cbd74">writeSpin</a>(-oldv, site1, sidx);
+<a name="l00671"></a>00671     ASSERT(<a class="code" href="class_monte_carlo.html#98ce40fb61c02cc4169f781572f77a12">spins_real_index</a>(i,j,k) == sidx);
 <a name="l00672"></a>00672     
 <a name="l00673"></a>00673     <span class="comment">//set dirty flags to caches.</span>
-<a name="l00674"></a>00674     fill(<a class="code" href="class_monte_carlo.html#r22">m_field_pri_cached_sane</a>.begin(), <a class="code" href="class_monte_carlo.html#r22">m_field_pri_cached_sane</a>.end(), 0);
-<a name="l00675"></a>00675     <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#r15">m_sec_cache_enabled</a>) {
-<a name="l00676"></a>00676         fill(<a class="code" href="class_monte_carlo.html#r24">m_field_sec_cached_sane</a>[site1].begin(), <a class="code" href="class_monte_carlo.html#r24">m_field_sec_cached_sane</a>[site1].end(), 0);
+<a name="l00674"></a>00674     fill(<a class="code" href="class_monte_carlo.html#592589e1b09ff3e77e30b9063fe0faf9">m_field_pri_cached_sane</a>.begin(), <a class="code" href="class_monte_carlo.html#592589e1b09ff3e77e30b9063fe0faf9">m_field_pri_cached_sane</a>.end(), 0);
+<a name="l00675"></a>00675     <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#1c1839e562152aaf00bfdeaf3a34ebc4">m_sec_cache_enabled</a>) {
+<a name="l00676"></a>00676         fill(<a class="code" href="class_monte_carlo.html#6cfd355eaea866990a0ffef4f6b6bee0">m_field_sec_cached_sane</a>[site1].begin(), <a class="code" href="class_monte_carlo.html#6cfd355eaea866990a0ffef4f6b6bee0">m_field_sec_cached_sane</a>[site1].end(), 0);
 <a name="l00677"></a>00677     }
-<a name="l00678"></a>00678     <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#r16">m_third_cache_enabled</a>) {
+<a name="l00678"></a>00678     <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#e469200283bc290befd219055e5a9cf0">m_third_cache_enabled</a>) {
 <a name="l00679"></a>00679         <span class="keywordtype">int</span> size = s_L;
-<a name="l00680"></a>00680         <span class="keywordtype">int</span> dist = <a class="code" href="class_monte_carlo.html#v0">s_cutoff_real</a>;
+<a name="l00680"></a>00680         <span class="keywordtype">int</span> dist = <a class="code" href="class_monte_carlo.html#646f7e833f726abd8f208d7c821dc8df">s_cutoff_real</a>;
 <a name="l00681"></a>00681         <span class="keywordtype">int</span> r2bound = dist*dist;
-<a name="l00682"></a>00682         <span class="keywordtype">unsigned</span> <span class="keywordtype">short</span> *p0 = &amp;<a class="code" href="class_monte_carlo.html#r26">m_field_third_cached_sane</a>[site1][0];
+<a name="l00682"></a>00682         <span class="keywordtype">unsigned</span> <span class="keywordtype">short</span> *p0 = &amp;<a class="code" href="class_monte_carlo.html#3529d444865515a60509c315a08b5170">m_field_third_cached_sane</a>[site1][0];
 <a name="l00683"></a>00683         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> dk = -dist; dk &lt;= dist; dk++) {
 <a name="l00684"></a>00684             <span class="keywordtype">int</span> dk2 = abs(dk) - 1;
 <a name="l00685"></a>00685             dk2 = dk2*dk2;
-<a name="l00686"></a>00686             <span class="keywordtype">unsigned</span> <span class="keywordtype">short</span> *p_k = p0 + <a class="code" href="class_monte_carlo.html#h3">lattice_index</a>(0, 0, (k + dk + size) % size);
+<a name="l00686"></a>00686             <span class="keywordtype">unsigned</span> <span class="keywordtype">short</span> *p_k = p0 + <a class="code" href="class_monte_carlo.html#c381aed0891075f1e4a9856fbc2338c0">lattice_index</a>(0, 0, (k + dk + size) % size);
 <a name="l00687"></a>00687             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> dj = -dist; dj &lt;= dist; dj++) {
 <a name="l00688"></a>00688                 <span class="keywordtype">int</span> dj2 = abs(dj) - 1;
 <a name="l00689"></a>00689                 dj2 = dk2 + dj2*dj2;
-<a name="l00690"></a>00690                 <span class="keywordtype">unsigned</span> <span class="keywordtype">short</span> *p_j = p_k + <a class="code" href="class_monte_carlo.html#h3">lattice_index</a>(0, (j + dj + size) % size, 0);
+<a name="l00690"></a>00690                 <span class="keywordtype">unsigned</span> <span class="keywordtype">short</span> *p_j = p_k + <a class="code" href="class_monte_carlo.html#c381aed0891075f1e4a9856fbc2338c0">lattice_index</a>(0, (j + dj + size) % size, 0);
 <a name="l00691"></a>00691                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> di = -dist; di &lt;= dist; di++) {
 <a name="l00692"></a>00692                     <span class="keywordtype">int</span> di2 = abs(di) - 1;
 <a name="l00693"></a>00693                     <span class="keywordtype">int</span> r2 = dj2 + di2*di2;
 <a name="l00694"></a>00694                     <span class="keywordflow">if</span>(r2 &lt;= r2bound) {
-<a name="l00695"></a>00695                         p_j[<a class="code" href="class_monte_carlo.html#h3">lattice_index</a>((i + di + size) % size, 0, 0)] = 0;
+<a name="l00695"></a>00695                         p_j[<a class="code" href="class_monte_carlo.html#c381aed0891075f1e4a9856fbc2338c0">lattice_index</a>((i + di + size) % size, 0, 0)] = 0;
 <a name="l00696"></a>00696                     }
 <a name="l00697"></a>00697                 }
 <a name="l00698"></a>00698             }
@@ -710,20 +719,20 @@
 <a name="l00701"></a>00701     
 <a name="l00702"></a>00702 }
 <a name="l00703"></a>00703 <span class="keywordtype">void</span>
-<a name="l00704"></a><a class="code" href="class_monte_carlo.html#a10">00704</a> <a class="code" href="class_monte_carlo.html#a9">MonteCarlo::write</a>(<span class="keywordtype">char</span> *data, <span class="keywordtype">double</span> *fields, <span class="keywordtype">double</span> *probabilities)
+<a name="l00704"></a><a class="code" href="class_monte_carlo.html#9cb78e99bc70040151fa46e002506a79">00704</a> <a class="code" href="class_monte_carlo.html#4ca59a9eec74059139190d0ce68df222">MonteCarlo::write</a>(<span class="keywordtype">char</span> *data, <span class="keywordtype">double</span> *fields, <span class="keywordtype">double</span> *probabilities)
 <a name="l00705"></a>00705 {
 <a name="l00706"></a>00706     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site = 0; site &lt; 16; site++) {
 <a name="l00707"></a>00707         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> k1 = 0; k1 &lt; s_L; k1++) {
 <a name="l00708"></a>00708             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j1 = 0; j1 &lt; s_L; j1++) {
 <a name="l00709"></a>00709                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i1 = 0; i1 &lt; s_L; i1++) {
-<a name="l00710"></a>00710                     *(data++) = lrint(<a class="code" href="class_monte_carlo.html#d5">readSpin</a>(site, <a class="code" href="class_monte_carlo.html#h6">spins_real_index</a>(i1,j1,k1)));
+<a name="l00710"></a>00710                     *(data++) = lrint(<a class="code" href="class_monte_carlo.html#8be56ed8b80b47fae49d5d3aee353163">readSpin</a>(site, <a class="code" href="class_monte_carlo.html#98ce40fb61c02cc4169f781572f77a12">spins_real_index</a>(i1,j1,k1)));
 <a name="l00711"></a>00711                     <span class="keywordflow">if</span>(fields) {
-<a name="l00712"></a>00712                         <span class="keywordtype">int</span> lidx = <a class="code" href="class_monte_carlo.html#h3">lattice_index</a>(i1,j1,k1);
-<a name="l00713"></a>00713                         <span class="keywordtype">double</span> h = <a class="code" href="class_monte_carlo.html#d9">hinteraction</a>(site, lidx);
+<a name="l00712"></a>00712                         <span class="keywordtype">int</span> lidx = <a class="code" href="class_monte_carlo.html#c381aed0891075f1e4a9856fbc2338c0">lattice_index</a>(i1,j1,k1);
+<a name="l00713"></a>00713                         <span class="keywordtype">double</span> h = <a class="code" href="class_monte_carlo.html#e0b7c79ee8c19fcf7c8a0184f59475bd">hinteraction</a>(site, lidx);
 <a name="l00714"></a>00714                         *(fields++) = h;
 <a name="l00715"></a>00715                         <span class="keywordflow">if</span>(probabilities) {
 <a name="l00716"></a>00716                             <span class="keywordtype">double</span> du;
-<a name="l00717"></a>00717                             <span class="keywordtype">double</span> probability = <a class="code" href="class_monte_carlo.html#d4">flippingProbability</a>(site, lidx, h, &amp;du);
+<a name="l00717"></a>00717                             <span class="keywordtype">double</span> probability = <a class="code" href="class_monte_carlo.html#c72e43afeb959fdc4aaf7ac61710db41">flippingProbability</a>(site, lidx, h, &amp;du);
 <a name="l00718"></a>00718                             *(probabilities++) = probability;
 <a name="l00719"></a>00719                         }
 <a name="l00720"></a>00720                     }
@@ -733,17 +742,17 @@
 <a name="l00724"></a>00724     }
 <a name="l00725"></a>00725 }
 <a name="l00726"></a>00726 <span class="keywordtype">void</span>
-<a name="l00727"></a><a class="code" href="class_monte_carlo.html#a11">00727</a> <a class="code" href="class_monte_carlo.html#a11">MonteCarlo::write_bsite</a>(<a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> *fields)
+<a name="l00727"></a><a class="code" href="class_monte_carlo.html#84fb416e16c2ca0fba840d6fba09cc8d">00727</a> <a class="code" href="class_monte_carlo.html#84fb416e16c2ca0fba840d6fba09cc8d">MonteCarlo::write_bsite</a>(<a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> *fields)
 <a name="l00728"></a>00728 {
 <a name="l00729"></a>00729     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site = 0; site &lt; 16; site++) {
 <a name="l00730"></a>00730         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> k1 = 0; k1 &lt; s_L; k1++) {
 <a name="l00731"></a>00731             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j1 = 0; j1 &lt; s_L; j1++) {
 <a name="l00732"></a>00732                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i1 = 0; i1 &lt; s_L; i1++) {
 <a name="l00733"></a>00733                     <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> h;
-<a name="l00734"></a>00734                     h += <a class="code" href="class_monte_carlo.html#d12">iterate_real_generic</a>(<a class="code" href="class_monte_carlo.html#v7">s_fields_real_B</a>[site], i1, j1, k1);
+<a name="l00734"></a>00734                     h += <a class="code" href="class_monte_carlo.html#2b8f66745e96f1461fb60809cc9e5aca">iterate_real_generic</a>(<a class="code" href="class_monte_carlo.html#978c948ecdc6037d4f0b378e3f4a286a">s_fields_real_B</a>[site], i1, j1, k1);
 <a name="l00735"></a>00735                     <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> pos(cg_BSitePositions[site]);
 <a name="l00736"></a>00736                     pos *= 1.0/4.0;
-<a name="l00737"></a>00737                     h += <a class="code" href="class_monte_carlo.html#d15">iterate_rec_generic</a>(pos, i1, j1, k1);
+<a name="l00737"></a>00737                     h += <a class="code" href="class_monte_carlo.html#2ddfb80adfc0d1b0a9446891db735ec4">iterate_rec_generic</a>(pos, i1, j1, k1);
 <a name="l00738"></a>00738                     *(fields++) = h;
 <a name="l00739"></a>00739                 }
 <a name="l00740"></a>00740             }
@@ -751,17 +760,17 @@
 <a name="l00742"></a>00742     }
 <a name="l00743"></a>00743 }
 <a name="l00744"></a>00744 <span class="keywordtype">void</span>
-<a name="l00745"></a><a class="code" href="class_monte_carlo.html#a12">00745</a> <a class="code" href="class_monte_carlo.html#a12">MonteCarlo::write_8asite</a>(<a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> *fields)
+<a name="l00745"></a><a class="code" href="class_monte_carlo.html#1e7f4ec5b8baa910b076a8137b6bfb6f">00745</a> <a class="code" href="class_monte_carlo.html#1e7f4ec5b8baa910b076a8137b6bfb6f">MonteCarlo::write_8asite</a>(<a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> *fields)
 <a name="l00746"></a>00746 {
 <a name="l00747"></a>00747     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site = 0; site &lt; 8; site++) {
 <a name="l00748"></a>00748         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> k1 = 0; k1 &lt; s_L; k1++) {
 <a name="l00749"></a>00749             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j1 = 0; j1 &lt; s_L; j1++) {
 <a name="l00750"></a>00750                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i1 = 0; i1 &lt; s_L; i1++) {
 <a name="l00751"></a>00751                     <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> h;
-<a name="l00752"></a>00752                     h += <a class="code" href="class_monte_carlo.html#d12">iterate_real_generic</a>(<a class="code" href="class_monte_carlo.html#v8">s_fields_real_8a</a>[site], i1, j1, k1);
+<a name="l00752"></a>00752                     h += <a class="code" href="class_monte_carlo.html#2b8f66745e96f1461fb60809cc9e5aca">iterate_real_generic</a>(<a class="code" href="class_monte_carlo.html#d1eac639fbdc49eb4964c84844b28786">s_fields_real_8a</a>[site], i1, j1, k1);
 <a name="l00753"></a>00753                     <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> pos(cg_8aSitePositions[site]);
 <a name="l00754"></a>00754                     pos *= 1.0/8.0;
-<a name="l00755"></a>00755                     h += <a class="code" href="class_monte_carlo.html#d15">iterate_rec_generic</a>(pos, i1, j1, k1);
+<a name="l00755"></a>00755                     h += <a class="code" href="class_monte_carlo.html#2ddfb80adfc0d1b0a9446891db735ec4">iterate_rec_generic</a>(pos, i1, j1, k1);
 <a name="l00756"></a>00756                     *(fields++) = h;
 <a name="l00757"></a>00757                 }
 <a name="l00758"></a>00758             }
@@ -769,17 +778,17 @@
 <a name="l00760"></a>00760     }
 <a name="l00761"></a>00761 }
 <a name="l00762"></a>00762 <span class="keywordtype">void</span>
-<a name="l00763"></a><a class="code" href="class_monte_carlo.html#a13">00763</a> <a class="code" href="class_monte_carlo.html#a13">MonteCarlo::write_48fsite</a>(<a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> *fields)
+<a name="l00763"></a><a class="code" href="class_monte_carlo.html#8d2d8a730ce14a45dfa96a953125da40">00763</a> <a class="code" href="class_monte_carlo.html#8d2d8a730ce14a45dfa96a953125da40">MonteCarlo::write_48fsite</a>(<a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> *fields)
 <a name="l00764"></a>00764 {
 <a name="l00765"></a>00765     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site = 0; site &lt; 48; site++) {
 <a name="l00766"></a>00766         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> k1 = 0; k1 &lt; s_L; k1++) {
 <a name="l00767"></a>00767             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j1 = 0; j1 &lt; s_L; j1++) {
 <a name="l00768"></a>00768                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i1 = 0; i1 &lt; s_L; i1++) {
 <a name="l00769"></a>00769                     <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> h;
-<a name="l00770"></a>00770                     h += <a class="code" href="class_monte_carlo.html#d12">iterate_real_generic</a>(<a class="code" href="class_monte_carlo.html#v9">s_fields_real_48f</a>[site], i1, j1, k1);
+<a name="l00770"></a>00770                     h += <a class="code" href="class_monte_carlo.html#2b8f66745e96f1461fb60809cc9e5aca">iterate_real_generic</a>(<a class="code" href="class_monte_carlo.html#4ce66670b95f33b4220ae1a1d13c838d">s_fields_real_48f</a>[site], i1, j1, k1);
 <a name="l00771"></a>00771                     <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> pos(cg_48fSitePositions[site]);
 <a name="l00772"></a>00772                     pos *= 1.0/8.0;
-<a name="l00773"></a>00773                     h += <a class="code" href="class_monte_carlo.html#d15">iterate_rec_generic</a>(pos, i1, j1, k1);
+<a name="l00773"></a>00773                     h += <a class="code" href="class_monte_carlo.html#2ddfb80adfc0d1b0a9446891db735ec4">iterate_rec_generic</a>(pos, i1, j1, k1);
 <a name="l00774"></a>00774                     *(fields++) = h;
 <a name="l00775"></a>00775                 }
 <a name="l00776"></a>00776             }
@@ -788,32 +797,32 @@
 <a name="l00779"></a>00779 }
 <a name="l00780"></a>00780 
 <a name="l00781"></a>00781 <span class="keywordtype">void</span>
-<a name="l00782"></a><a class="code" href="class_monte_carlo.html#a8">00782</a> <a class="code" href="class_monte_carlo.html#a7">MonteCarlo::read</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *data, <span class="keywordtype">double</span> temp, <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> field)
+<a name="l00782"></a><a class="code" href="class_monte_carlo.html#ea504cae7beb15fb731c3cfca29d9dc1">00782</a> <a class="code" href="class_monte_carlo.html#26347803f465ff0966eae54a267bd1f6">MonteCarlo::read</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *data, <span class="keywordtype">double</span> temp, <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> field)
 <a name="l00783"></a>00783 {
-<a name="l00784"></a>00784     <a class="code" href="class_monte_carlo.html#r29">m_beta</a> = 1.0/K_B/temp;
+<a name="l00784"></a>00784     <a class="code" href="class_monte_carlo.html#98d2c39762fc1d5e21d7d6730e70f1a5">m_beta</a> = 1.0/K_B/temp;
 <a name="l00785"></a>00785 
 <a name="l00786"></a>00786     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site1 = 0; site1 &lt; 16; site1++) {
-<a name="l00787"></a>00787         <a class="code" href="class_monte_carlo.html#r30">m_ext_field</a>[site1] = field.<a class="code" href="struct_monte_carlo_1_1_vector3.html#a13">innerProduct</a>(<a class="code" href="class_monte_carlo.html#v17">s_ASiteIsingVector</a>[site1]);
+<a name="l00787"></a>00787         <a class="code" href="class_monte_carlo.html#c9fc3fbce76678de0bf480ece38cb186">m_ext_field</a>[site1] = field.<a class="code" href="struct_monte_carlo_1_1_vector3.html#74f6987462b2f32617d56e70fc703a96">innerProduct</a>(<a class="code" href="class_monte_carlo.html#e22d0e56017ddec589a647f808e5cba7">s_ASiteIsingVector</a>[site1]);
 <a name="l00788"></a>00788     }
 <a name="l00789"></a>00789     
 <a name="l00790"></a>00790     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site = 0; site &lt; 16; site++) {
 <a name="l00791"></a>00791         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> k1 = 0; k1 &lt; s_L; k1++) {
 <a name="l00792"></a>00792             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j1 = 0; j1 &lt; s_L; j1++) {
 <a name="l00793"></a>00793                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i1 = 0; i1 &lt; s_L; i1++) {
-<a name="l00794"></a>00794                     <a class="code" href="class_monte_carlo.html#d6">writeSpin</a>(*(data++), site, <a class="code" href="class_monte_carlo.html#h6">spins_real_index</a>(i1,j1,k1));
+<a name="l00794"></a>00794                     <a class="code" href="class_monte_carlo.html#74b28ab5f8e9f0df8b94fe02055cbd74">writeSpin</a>(*(data++), site, <a class="code" href="class_monte_carlo.html#98ce40fb61c02cc4169f781572f77a12">spins_real_index</a>(i1,j1,k1));
 <a name="l00795"></a>00795                 }
 <a name="l00796"></a>00796             }
 <a name="l00797"></a>00797         }
-<a name="l00798"></a>00798         <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#r15">m_sec_cache_enabled</a>)
-<a name="l00799"></a>00799             fill(<a class="code" href="class_monte_carlo.html#r24">m_field_sec_cached_sane</a>[site].begin(), <a class="code" href="class_monte_carlo.html#r24">m_field_sec_cached_sane</a>[site].end(), 0);
-<a name="l00800"></a>00800         <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#r16">m_third_cache_enabled</a>)
-<a name="l00801"></a>00801             fill(<a class="code" href="class_monte_carlo.html#r26">m_field_third_cached_sane</a>[site].begin(), <a class="code" href="class_monte_carlo.html#r26">m_field_third_cached_sane</a>[site].end(), 0);
+<a name="l00798"></a>00798         <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#1c1839e562152aaf00bfdeaf3a34ebc4">m_sec_cache_enabled</a>)
+<a name="l00799"></a>00799             fill(<a class="code" href="class_monte_carlo.html#6cfd355eaea866990a0ffef4f6b6bee0">m_field_sec_cached_sane</a>[site].begin(), <a class="code" href="class_monte_carlo.html#6cfd355eaea866990a0ffef4f6b6bee0">m_field_sec_cached_sane</a>[site].end(), 0);
+<a name="l00800"></a>00800         <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#e469200283bc290befd219055e5a9cf0">m_third_cache_enabled</a>)
+<a name="l00801"></a>00801             fill(<a class="code" href="class_monte_carlo.html#3529d444865515a60509c315a08b5170">m_field_third_cached_sane</a>[site].begin(), <a class="code" href="class_monte_carlo.html#3529d444865515a60509c315a08b5170">m_field_third_cached_sane</a>[site].end(), 0);
 <a name="l00802"></a>00802     }
-<a name="l00803"></a>00803     fill(<a class="code" href="class_monte_carlo.html#r22">m_field_pri_cached_sane</a>.begin(), <a class="code" href="class_monte_carlo.html#r22">m_field_pri_cached_sane</a>.end(), 0);
-<a name="l00804"></a>00804     <a class="code" href="class_monte_carlo.html#d7">makeReciprocalImage</a>();
+<a name="l00803"></a>00803     fill(<a class="code" href="class_monte_carlo.html#592589e1b09ff3e77e30b9063fe0faf9">m_field_pri_cached_sane</a>.begin(), <a class="code" href="class_monte_carlo.html#592589e1b09ff3e77e30b9063fe0faf9">m_field_pri_cached_sane</a>.end(), 0);
+<a name="l00804"></a>00804     <a class="code" href="class_monte_carlo.html#cf4ec834fa986da01c82d58f307387d1">makeReciprocalImage</a>();
 <a name="l00805"></a>00805 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してWed Feb 28 04:17:14 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 17:09:02 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.5.1 </small></address>
 </body>
 </html>

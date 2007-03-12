@@ -2,11 +2,20 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/thermometer/thermometer.cpp ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.5.1 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000010.html">thermometer</a></div>
+<a class="el" href="dir_86f25382698e49ecc2836ac98faed978.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_1d7b0fc55fb779b2b91b91f22651fbee.html">thermometer</a></div>
 <h1>thermometer.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
 <a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
@@ -27,7 +36,7 @@
 <a name="l00018"></a>00018 <span class="preprocessor">#include "thermometer.h"</span>
 <a name="l00019"></a>00019 <span class="preprocessor">#include "cspline.h"</span>
 <a name="l00020"></a>00020 <span class="comment">//---------------------------------------------------------------------------</span>
-<a name="l00021"></a><a class="code" href="class_x_thermometer_list.html#b0">00021</a> <a class="code" href="class_x_thermometer_list.html#b0">XThermometerList::XThermometerList</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime)
+<a name="l00021"></a><a class="code" href="class_x_thermometer_list.html#a4201aa5e314888c1bde69469c982b3d">00021</a> <a class="code" href="class_x_thermometer_list.html#a4201aa5e314888c1bde69469c982b3d">XThermometerList::XThermometerList</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime)
 <a name="l00022"></a>00022  : <a class="code" href="class_x_custom_type_list_node.html">XCustomTypeListNode</a>&lt;<a class="code" href="class_x_thermometer.html">XThermometer</a>&gt;(name, runtime) {
 <a name="l00023"></a>00023 }
 <a name="l00024"></a>00024 
@@ -39,16 +48,16 @@
 <a name="l00030"></a>00030 REGISTER_TYPE(ScientificInstruments, <span class="stringliteral">"Scientific Instruments"</span>);
 <a name="l00031"></a>00031 REGISTER_TYPE(ApproxThermometer, <span class="stringliteral">"Cubic-spline"</span>);
 <a name="l00032"></a>00032 
-<a name="l00033"></a><a class="code" href="class_x_thermometer.html#b0">00033</a> <a class="code" href="class_x_thermometer.html#b0">XThermometer::XThermometer</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime) : 
+<a name="l00033"></a><a class="code" href="class_x_thermometer.html#62c5d0039e27e32a35a8601ce3ee14cc">00033</a> <a class="code" href="class_x_thermometer.html#62c5d0039e27e32a35a8601ce3ee14cc">XThermometer::XThermometer</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime) : 
 <a name="l00034"></a>00034     <a class="code" href="class_x_node.html">XNode</a>(name, runtime),
 <a name="l00035"></a>00035     m_tempMin(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"TMin"</span>, false)),
 <a name="l00036"></a>00036     m_tempMax(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"TMax"</span>, false))
 <a name="l00037"></a>00037   {
-<a name="l00038"></a>00038     <a class="code" href="class_x_thermometer.html#a3">tempMin</a>()-&gt;value(1e-3);
-<a name="l00039"></a>00039     <a class="code" href="class_x_thermometer.html#a4">tempMax</a>()-&gt;value(1e3);
+<a name="l00038"></a>00038     <a class="code" href="class_x_thermometer.html#b61a23c48b12695f09b49f5026d15551">tempMin</a>()-&gt;value(1e-3);
+<a name="l00039"></a>00039     <a class="code" href="class_x_thermometer.html#b076f9a8300fb972b17e07de4f203e15">tempMax</a>()-&gt;value(1e3);
 <a name="l00040"></a>00040   }
 <a name="l00041"></a>00041 
-<a name="l00042"></a><a class="code" href="class_x_lake_shore.html#b0">00042</a> <a class="code" href="class_x_lake_shore.html#b0">XLakeShore::XLakeShore</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime) :
+<a name="l00042"></a><a class="code" href="class_x_lake_shore.html#1a2f9664189d4334b91fa16d940d0de8">00042</a> <a class="code" href="class_x_lake_shore.html#1a2f9664189d4334b91fa16d940d0de8">XLakeShore::XLakeShore</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime) :
 <a name="l00043"></a>00043  <a class="code" href="class_x_thermometer.html">XThermometer</a>(name, runtime),
 <a name="l00044"></a>00044  m_resMin(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"RMin"</span>, false)),
 <a name="l00045"></a>00045  m_resMax(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"RMax"</span>, false)),
@@ -59,33 +68,33 @@
 <a name="l00050"></a>00050 }
 <a name="l00051"></a>00051 
 <a name="l00052"></a>00052 <span class="keywordtype">double</span>
-<a name="l00053"></a><a class="code" href="class_x_lake_shore.html#a2">00053</a> <a class="code" href="class_x_lake_shore.html#a2">XLakeShore::getRawValue</a>(<span class="keywordtype">double</span> temp)<span class="keyword"> const</span>
+<a name="l00053"></a><a class="code" href="class_x_lake_shore.html#d6f979a1dba500f4c0862862bb1dad67">00053</a> <a class="code" href="class_x_lake_shore.html#d6f979a1dba500f4c0862862bb1dad67">XLakeShore::getRawValue</a>(<span class="keywordtype">double</span> temp)<span class="keyword"> const</span>
 <a name="l00054"></a>00054 <span class="keyword"></span>{
 <a name="l00055"></a>00055   <span class="comment">//using Newton's method</span>
 <a name="l00056"></a>00056   <span class="keywordtype">double</span> x, y, dypdx, val;
-<a name="l00057"></a>00057   <span class="keywordflow">if</span>(temp &lt; *<a class="code" href="class_x_thermometer.html#a3">tempMin</a>()) <span class="keywordflow">return</span> *<a class="code" href="class_x_lake_shore.html#a4">resMax</a>();
-<a name="l00058"></a>00058   <span class="keywordflow">if</span>(temp &gt; *<a class="code" href="class_x_thermometer.html#a4">tempMax</a>()) <span class="keywordflow">return</span> *<a class="code" href="class_x_lake_shore.html#a3">resMin</a>();
+<a name="l00057"></a>00057   <span class="keywordflow">if</span>(temp &lt; *<a class="code" href="class_x_thermometer.html#b61a23c48b12695f09b49f5026d15551">tempMin</a>()) <span class="keywordflow">return</span> *<a class="code" href="class_x_lake_shore.html#c76cc30a61484bb6eb3957a7cf8b9ab1">resMax</a>();
+<a name="l00058"></a>00058   <span class="keywordflow">if</span>(temp &gt; *<a class="code" href="class_x_thermometer.html#b076f9a8300fb972b17e07de4f203e15">tempMax</a>()) <span class="keywordflow">return</span> *<a class="code" href="class_x_lake_shore.html#5508b564aafb2a96b5db6fae2ec4fd7e">resMin</a>();
 <a name="l00059"></a>00059   <span class="comment">//    x = (log10(RMin) + log10(RMax)) / 2;</span>
-<a name="l00060"></a>00060   val = *<a class="code" href="class_x_lake_shore.html#a3">resMin</a>();
+<a name="l00060"></a>00060   val = *<a class="code" href="class_x_lake_shore.html#5508b564aafb2a96b5db6fae2ec4fd7e">resMin</a>();
 <a name="l00061"></a>00061   <span class="keywordflow">for</span>(<span class="keywordtype">double</span> dy = 0.0001;;dy *= 2)
 <a name="l00062"></a>00062     {
-<a name="l00063"></a>00063       <span class="keywordflow">if</span>(dy &gt; 1.0) <span class="keywordflow">return</span> *<a class="code" href="class_x_lake_shore.html#a3">resMin</a>();
-<a name="l00064"></a>00064       <span class="keywordtype">double</span> t = (double)<a class="code" href="namespace_k_a_m_e.html#a2">KAME::rand</a>() / (RAND_MAX - 1);
-<a name="l00065"></a>00065       x = (log10(*<a class="code" href="class_x_lake_shore.html#a4">resMax</a>()) * t + log10(*<a class="code" href="class_x_lake_shore.html#a3">resMin</a>()) * (1 - t));
+<a name="l00063"></a>00063       <span class="keywordflow">if</span>(dy &gt; 1.0) <span class="keywordflow">return</span> *<a class="code" href="class_x_lake_shore.html#5508b564aafb2a96b5db6fae2ec4fd7e">resMin</a>();
+<a name="l00064"></a>00064       <span class="keywordtype">double</span> t = (double)<a class="code" href="namespace_k_a_m_e.html#b72beb0913da4976d289f6374ebeff8d">KAME::rand</a>() / (RAND_MAX - 1);
+<a name="l00065"></a>00065       x = (log10(*<a class="code" href="class_x_lake_shore.html#c76cc30a61484bb6eb3957a7cf8b9ab1">resMax</a>()) * t + log10(*<a class="code" href="class_x_lake_shore.html#5508b564aafb2a96b5db6fae2ec4fd7e">resMin</a>()) * (1 - t));
 <a name="l00066"></a>00066       <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; 100; i++)
 <a name="l00067"></a>00067         {
-<a name="l00068"></a>00068           y = <a class="code" href="class_x_lake_shore.html#a1">getTemp</a>(pow(10, x)) - temp;
+<a name="l00068"></a>00068           y = <a class="code" href="class_x_lake_shore.html#b49e430d1da72d9888cbec26898878f7">getTemp</a>(pow(10, x)) - temp;
 <a name="l00069"></a>00069           <span class="keywordflow">if</span>(fabs(y) &lt; dy)
 <a name="l00070"></a>00070             {
 <a name="l00071"></a>00071               val = pow(10, x);
 <a name="l00072"></a>00072               <span class="keywordflow">return</span> val;
 <a name="l00073"></a>00073             }
-<a name="l00074"></a>00074           dypdx = (y - (<a class="code" href="class_x_lake_shore.html#a1">getTemp</a>(pow(10, x - 0.00001)) - temp)) / 0.00001;
+<a name="l00074"></a>00074           dypdx = (y - (<a class="code" href="class_x_lake_shore.html#b49e430d1da72d9888cbec26898878f7">getTemp</a>(pow(10, x - 0.00001)) - temp)) / 0.00001;
 <a name="l00075"></a>00075           <span class="keywordflow">if</span>(dypdx != 0) x -= y / dypdx;
-<a name="l00076"></a>00076           <span class="keywordflow">if</span>((x &gt; log10(*<a class="code" href="class_x_lake_shore.html#a4">resMax</a>())) || (x &lt; log10(*<a class="code" href="class_x_lake_shore.html#a3">resMin</a>())) || (dypdx == 0))
+<a name="l00076"></a>00076           <span class="keywordflow">if</span>((x &gt; log10(*<a class="code" href="class_x_lake_shore.html#c76cc30a61484bb6eb3957a7cf8b9ab1">resMax</a>())) || (x &lt; log10(*<a class="code" href="class_x_lake_shore.html#5508b564aafb2a96b5db6fae2ec4fd7e">resMin</a>())) || (dypdx == 0))
 <a name="l00077"></a>00077             {
-<a name="l00078"></a>00078               <span class="keywordtype">double</span> t = (double)<a class="code" href="namespace_k_a_m_e.html#a2">KAME::rand</a>() / (RAND_MAX - 1);
-<a name="l00079"></a>00079               x = (log10(*<a class="code" href="class_x_lake_shore.html#a4">resMax</a>()) * t + log10(*<a class="code" href="class_x_lake_shore.html#a3">resMin</a>()) * (1 - t));
+<a name="l00078"></a>00078               <span class="keywordtype">double</span> t = (<span class="keywordtype">double</span>)<a class="code" href="namespace_k_a_m_e.html#b72beb0913da4976d289f6374ebeff8d">KAME::rand</a>() / (RAND_MAX - 1);
+<a name="l00079"></a>00079               x = (log10(*<a class="code" href="class_x_lake_shore.html#c76cc30a61484bb6eb3957a7cf8b9ab1">resMax</a>()) * t + log10(*<a class="code" href="class_x_lake_shore.html#5508b564aafb2a96b5db6fae2ec4fd7e">resMin</a>()) * (1 - t));
 <a name="l00080"></a>00080             }
 <a name="l00081"></a>00081         }
 <a name="l00082"></a>00082     }
@@ -93,27 +102,27 @@
 <a name="l00084"></a>00084 }
 <a name="l00085"></a>00085 
 <a name="l00086"></a>00086 <span class="keywordtype">double</span>
-<a name="l00087"></a><a class="code" href="class_x_lake_shore.html#a1">00087</a> <a class="code" href="class_x_lake_shore.html#a1">XLakeShore::getTemp</a>(<span class="keywordtype">double</span> res)<span class="keyword"> const</span>
+<a name="l00087"></a><a class="code" href="class_x_lake_shore.html#b49e430d1da72d9888cbec26898878f7">00087</a> <a class="code" href="class_x_lake_shore.html#b49e430d1da72d9888cbec26898878f7">XLakeShore::getTemp</a>(<span class="keywordtype">double</span> res)<span class="keyword"> const</span>
 <a name="l00088"></a>00088 <span class="keyword"></span>{
 <a name="l00089"></a>00089   <span class="keywordtype">double</span> temp = 0, z, u = 0;
-<a name="l00090"></a>00090   <span class="keywordflow">if</span>(res &gt; *<a class="code" href="class_x_lake_shore.html#a4">resMax</a>()) <span class="keywordflow">return</span> *<a class="code" href="class_x_thermometer.html#a3">tempMin</a>();
-<a name="l00091"></a>00091   <span class="keywordflow">if</span>(res &lt; *<a class="code" href="class_x_lake_shore.html#a3">resMin</a>()) <span class="keywordflow">return</span> *<a class="code" href="class_x_thermometer.html#a4">tempMax</a>();
+<a name="l00090"></a>00090   <span class="keywordflow">if</span>(res &gt; *<a class="code" href="class_x_lake_shore.html#c76cc30a61484bb6eb3957a7cf8b9ab1">resMax</a>()) <span class="keywordflow">return</span> *<a class="code" href="class_x_thermometer.html#b61a23c48b12695f09b49f5026d15551">tempMin</a>();
+<a name="l00091"></a>00091   <span class="keywordflow">if</span>(res &lt; *<a class="code" href="class_x_lake_shore.html#5508b564aafb2a96b5db6fae2ec4fd7e">resMin</a>()) <span class="keywordflow">return</span> *<a class="code" href="class_x_thermometer.html#b076f9a8300fb972b17e07de4f203e15">tempMax</a>();
 <a name="l00092"></a>00092   z = log10(res);
 <a name="l00093"></a>00093   <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> n;
-<a name="l00094"></a>00094   <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> zu_list(<a class="code" href="class_x_lake_shore.html#a5">zu</a>()-&gt;<a class="code" href="class_x_node.html#a10">children</a>());
+<a name="l00094"></a>00094   <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> zu_list(<a class="code" href="class_x_lake_shore.html#d5e9298b49836eac233a831d5ab00c61">zu</a>()-&gt;<a class="code" href="class_x_node.html#447304f53812168564c94eed4a86bbfd">children</a>());
 <a name="l00095"></a>00095   <span class="keywordflow">if</span>(!zu_list) <span class="keywordflow">return</span> 0;
-<a name="l00096"></a>00096   <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> zl_list(<a class="code" href="class_x_lake_shore.html#a6">zl</a>()-&gt;<a class="code" href="class_x_node.html#a10">children</a>());
+<a name="l00096"></a>00096   <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> zl_list(<a class="code" href="class_x_lake_shore.html#e0b44e1c828d57649c63065e447829b4">zl</a>()-&gt;<a class="code" href="class_x_node.html#447304f53812168564c94eed4a86bbfd">children</a>());
 <a name="l00097"></a>00097   <span class="keywordflow">if</span>(!zl_list) <span class="keywordflow">return</span> 0;
 <a name="l00098"></a>00098   <span class="keywordflow">for</span>(n = 0; n &lt; zu_list-&gt;size(); n++)
 <a name="l00099"></a>00099     {
-<a name="l00100"></a>00100         <span class="keywordtype">double</span> <a class="code" href="class_x_lake_shore.html#a5">zu</a> = *dynamic_pointer_cast&lt;XDoubleNode&gt;(zu_list-&gt;at(n));
-<a name="l00101"></a>00101         <span class="keywordtype">double</span> <a class="code" href="class_x_lake_shore.html#a6">zl</a> = *dynamic_pointer_cast&lt;XDoubleNode&gt;(zl_list-&gt;at(n));
-<a name="l00102"></a>00102       u = (z - zu + z - zl) / (zu - zl);
+<a name="l00100"></a>00100         <span class="keywordtype">double</span> <a class="code" href="class_x_lake_shore.html#d5e9298b49836eac233a831d5ab00c61">zu</a> = *dynamic_pointer_cast&lt;XDoubleNode&gt;(zu_list-&gt;at(n));
+<a name="l00101"></a>00101         <span class="keywordtype">double</span> <a class="code" href="class_x_lake_shore.html#e0b44e1c828d57649c63065e447829b4">zl</a> = *dynamic_pointer_cast&lt;XDoubleNode&gt;(zl_list-&gt;at(n));
+<a name="l00102"></a>00102       u = (z - <a class="code" href="class_x_lake_shore.html#d5e9298b49836eac233a831d5ab00c61">zu</a> + z - zl) / (<a class="code" href="class_x_lake_shore.html#d5e9298b49836eac233a831d5ab00c61">zu</a> - zl);
 <a name="l00103"></a>00103       <span class="keywordflow">if</span>((u &gt;= -1) &amp;&amp; (u &lt;= 1)) <span class="keywordflow">break</span>;
 <a name="l00104"></a>00104     }
 <a name="l00105"></a>00105   <span class="keywordflow">if</span>(n &gt;= zu_list-&gt;size())
 <a name="l00106"></a>00106     <span class="keywordflow">return</span> 0;
-<a name="l00107"></a>00107   <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> ai_list(<a class="code" href="class_x_lake_shore.html#a7">ai</a>()-&gt;<a class="code" href="class_x_node.html#a10">children</a>());
+<a name="l00107"></a>00107   <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> ai_list(<a class="code" href="class_x_lake_shore.html#2a4e5e0d658be5f04f73177c9f113a20">ai</a>()-&gt;<a class="code" href="class_x_node.html#447304f53812168564c94eed4a86bbfd">children</a>());
 <a name="l00108"></a>00108   <span class="keywordflow">if</span>(!ai_list) <span class="keywordflow">return</span> 0;
 <a name="l00109"></a>00109   <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> ai_n_list(ai_list-&gt;at(n)-&gt;children());
 <a name="l00110"></a>00110   <span class="keywordflow">if</span>(!ai_n_list) <span class="keywordflow">return</span> 0;
@@ -125,7 +134,7 @@
 <a name="l00116"></a>00116   <span class="keywordflow">return</span> temp;
 <a name="l00117"></a>00117 }
 <a name="l00118"></a>00118 
-<a name="l00119"></a><a class="code" href="class_x_scientific_instruments.html#a0">00119</a> <a class="code" href="class_x_scientific_instruments.html#a0">XScientificInstruments::XScientificInstruments</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime) : 
+<a name="l00119"></a><a class="code" href="class_x_scientific_instruments.html#c3f770ce22c9aa2485a4feb240517744">00119</a> <a class="code" href="class_x_scientific_instruments.html#c3f770ce22c9aa2485a4feb240517744">XScientificInstruments::XScientificInstruments</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime) : 
 <a name="l00120"></a>00120   <a class="code" href="class_x_thermometer.html">XThermometer</a>(name, runtime),
 <a name="l00121"></a>00121  m_resMin(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"RMin"</span>, false)),
 <a name="l00122"></a>00122  m_resMax(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"RMax"</span>, false)),
@@ -136,8 +145,8 @@
 <a name="l00127"></a>00127   }
 <a name="l00128"></a>00128 
 <a name="l00129"></a>00129 <span class="keywordtype">double</span>
-<a name="l00130"></a>00130 <a class="code" href="class_x_scientific_instruments.html#a3">XScientificInstruments</a>
-<a name="l00131"></a><a class="code" href="class_x_scientific_instruments.html#a3">00131</a> <a class="code" href="class_x_scientific_instruments.html#a3">::getRawValue</a>(<span class="keywordtype">double</span> temp)<span class="keyword"> const</span>
+<a name="l00130"></a>00130 <a class="code" href="class_x_scientific_instruments.html#37b87e8bc623b8cba7513693fbdac536">XScientificInstruments</a>
+<a name="l00131"></a><a class="code" href="class_x_scientific_instruments.html#37b87e8bc623b8cba7513693fbdac536">00131</a> <a class="code" href="class_x_scientific_instruments.html#37b87e8bc623b8cba7513693fbdac536">::getRawValue</a>(<span class="keywordtype">double</span> temp)<span class="keyword"> const</span>
 <a name="l00132"></a>00132 <span class="keyword"></span>{
 <a name="l00133"></a>00133   <span class="comment">//using Newton's method</span>
 <a name="l00134"></a>00134   <span class="keywordtype">double</span> x, y, dypdx, val;
@@ -148,7 +157,7 @@
 <a name="l00139"></a>00139   <span class="keywordflow">for</span>(<span class="keywordtype">double</span> dy = 0.0001;;dy *= 2)
 <a name="l00140"></a>00140     {
 <a name="l00141"></a>00141       <span class="keywordflow">if</span>(dy &gt; 1.0) <span class="keywordflow">return</span> *resMin();
-<a name="l00142"></a>00142       <span class="keywordtype">double</span> t = (double)<a class="code" href="namespace_k_a_m_e.html#a2">KAME::rand</a>() / (RAND_MAX - 1);
+<a name="l00142"></a>00142       <span class="keywordtype">double</span> t = (double)<a class="code" href="namespace_k_a_m_e.html#b72beb0913da4976d289f6374ebeff8d">KAME::rand</a>() / (RAND_MAX - 1);
 <a name="l00143"></a>00143       x = (log10(*resMax()) * t + log10(*resMin()) * (1 - t));
 <a name="l00144"></a>00144       <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; 100; i++)
 <a name="l00145"></a>00145         {
@@ -162,7 +171,7 @@
 <a name="l00153"></a>00153           <span class="keywordflow">if</span>(dypdx != 0) x -= y / dypdx;
 <a name="l00154"></a>00154           <span class="keywordflow">if</span>((x &gt; log10(*resMax())) || (x &lt; log10(*resMin())) || (dypdx == 0))
 <a name="l00155"></a>00155             {
-<a name="l00156"></a>00156               <span class="keywordtype">double</span> t = (double)<a class="code" href="namespace_k_a_m_e.html#a2">KAME::rand</a>() / (RAND_MAX - 1);
+<a name="l00156"></a>00156               <span class="keywordtype">double</span> t = (<span class="keywordtype">double</span>)<a class="code" href="namespace_k_a_m_e.html#b72beb0913da4976d289f6374ebeff8d">KAME::rand</a>() / (RAND_MAX - 1);
 <a name="l00157"></a>00157               x = (log10(*resMax()) * t + log10(*resMin()) * (1 - t));
 <a name="l00158"></a>00158             }
 <a name="l00159"></a>00159         }
@@ -171,8 +180,8 @@
 <a name="l00162"></a>00162 }
 <a name="l00163"></a>00163 
 <a name="l00164"></a>00164 <span class="keywordtype">double</span>
-<a name="l00165"></a>00165 <a class="code" href="class_x_scientific_instruments.html#a2">XScientificInstruments</a>
-<a name="l00166"></a><a class="code" href="class_x_scientific_instruments.html#a2">00166</a> <a class="code" href="class_x_scientific_instruments.html#a2">::getTemp</a>(<span class="keywordtype">double</span> res)<span class="keyword"> const</span>
+<a name="l00165"></a>00165 <a class="code" href="class_x_scientific_instruments.html#4fed22a868571ca6b946d966eee23335">XScientificInstruments</a>
+<a name="l00166"></a><a class="code" href="class_x_scientific_instruments.html#4fed22a868571ca6b946d966eee23335">00166</a> <a class="code" href="class_x_scientific_instruments.html#4fed22a868571ca6b946d966eee23335">::getTemp</a>(<span class="keywordtype">double</span> res)<span class="keyword"> const</span>
 <a name="l00167"></a>00167 <span class="keyword"></span>{
 <a name="l00168"></a>00168   <span class="keywordflow">if</span>(res &gt; *resMax()) <span class="keywordflow">return</span> *tempMin();
 <a name="l00169"></a>00169   <span class="keywordflow">if</span>(res &lt; *resMin()) <span class="keywordflow">return</span> *tempMax();
@@ -207,7 +216,7 @@
 <a name="l00198"></a>00198     }
 <a name="l00199"></a>00199 }
 <a name="l00200"></a>00200 
-<a name="l00201"></a><a class="code" href="class_x_approx_thermometer.html#a0">00201</a> <a class="code" href="class_x_approx_thermometer.html#a0">XApproxThermometer::XApproxThermometer</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime) :
+<a name="l00201"></a><a class="code" href="class_x_approx_thermometer.html#089977ebb3ef577ae434386033e52c78">00201</a> <a class="code" href="class_x_approx_thermometer.html#089977ebb3ef577ae434386033e52c78">XApproxThermometer::XApproxThermometer</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime) :
 <a name="l00202"></a>00202  <a class="code" href="class_x_thermometer.html">XThermometer</a>(name, runtime),
 <a name="l00203"></a>00203  m_resList(create&lt;<a class="code" href="class_x_list_node.html">XDoubleListNode</a>&gt;(<span class="stringliteral">"ResList"</span>, false)),
 <a name="l00204"></a>00204  m_tempList(create&lt;<a class="code" href="class_x_list_node.html">XDoubleListNode</a>&gt;(<span class="stringliteral">"TempList"</span>, false))
@@ -215,8 +224,8 @@
 <a name="l00206"></a>00206 }
 <a name="l00207"></a>00207 
 <a name="l00208"></a>00208 <span class="keywordtype">double</span>
-<a name="l00209"></a>00209 <a class="code" href="class_x_approx_thermometer.html#a1">XApproxThermometer</a>
-<a name="l00210"></a><a class="code" href="class_x_approx_thermometer.html#a1">00210</a> <a class="code" href="class_x_approx_thermometer.html#a1">::getTemp</a>(<span class="keywordtype">double</span> res)<span class="keyword"> const</span>
+<a name="l00209"></a>00209 <a class="code" href="class_x_approx_thermometer.html#a674719d0b930b8bfe7f479c8a9de59a">XApproxThermometer</a>
+<a name="l00210"></a><a class="code" href="class_x_approx_thermometer.html#a674719d0b930b8bfe7f479c8a9de59a">00210</a> <a class="code" href="class_x_approx_thermometer.html#a674719d0b930b8bfe7f479c8a9de59a">::getTemp</a>(<span class="keywordtype">double</span> res)<span class="keyword"> const</span>
 <a name="l00211"></a>00211 <span class="keyword"></span>{
 <a name="l00212"></a>00212     <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;CSplineApprox&gt;</a> approx(m_approx);
 <a name="l00213"></a>00213     <span class="keywordflow">if</span>(!approx) {
@@ -232,15 +241,15 @@
 <a name="l00223"></a>00223         }
 <a name="l00224"></a>00224         <span class="keywordflow">if</span>(pts.size() &lt; 4)
 <a name="l00225"></a>00225             <span class="keywordflow">throw</span> <a class="code" href="struct_x_kame_error.html">XKameError</a>(
-<a name="l00226"></a>00226                 <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"XApproxThermometer, Too small number of points"</span>), __FILE__, __LINE__);
-<a name="l00227"></a>00227         approx.<a class="code" href="classatomic__shared__ptr.html#a7">reset</a>(<span class="keyword">new</span> <a class="code" href="class_c_spline_approx.html">CSplineApprox</a>(pts));
+<a name="l00226"></a>00226                 <a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"XApproxThermometer, Too small number of points"</span>), __FILE__, __LINE__);
+<a name="l00227"></a>00227         approx.<a class="code" href="classatomic__shared__ptr.html#fa6a4489f2b8514e5f59a135cd55f90b">reset</a>(<span class="keyword">new</span> <a class="code" href="class_c_spline_approx.html">CSplineApprox</a>(pts));
 <a name="l00228"></a>00228         m_approx = approx;
 <a name="l00229"></a>00229     }
 <a name="l00230"></a>00230     <span class="keywordflow">return</span> exp(approx-&gt;approx(log(res)));
 <a name="l00231"></a>00231 }
 <a name="l00232"></a>00232 <span class="keywordtype">double</span>
-<a name="l00233"></a>00233 <a class="code" href="class_x_approx_thermometer.html#a2">XApproxThermometer</a>
-<a name="l00234"></a><a class="code" href="class_x_approx_thermometer.html#a2">00234</a> <a class="code" href="class_x_approx_thermometer.html#a2">::getRawValue</a>(<span class="keywordtype">double</span> temp)<span class="keyword"> const</span>
+<a name="l00233"></a>00233 <a class="code" href="class_x_approx_thermometer.html#9c1a1242b4d1cae9b8f129a4289cb90f">XApproxThermometer</a>
+<a name="l00234"></a><a class="code" href="class_x_approx_thermometer.html#9c1a1242b4d1cae9b8f129a4289cb90f">00234</a> <a class="code" href="class_x_approx_thermometer.html#9c1a1242b4d1cae9b8f129a4289cb90f">::getRawValue</a>(<span class="keywordtype">double</span> temp)<span class="keyword"> const</span>
 <a name="l00235"></a>00235 <span class="keyword"></span>{
 <a name="l00236"></a>00236     <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;CSplineApprox&gt;</a> approx(m_approx_inv);
 <a name="l00237"></a>00237     <span class="keywordflow">if</span>(!approx) {
@@ -256,15 +265,15 @@
 <a name="l00247"></a>00247         }
 <a name="l00248"></a>00248         <span class="keywordflow">if</span>(pts.size() &lt; 4)
 <a name="l00249"></a>00249             <span class="keywordflow">throw</span> <a class="code" href="struct_x_kame_error.html">XKameError</a>(
-<a name="l00250"></a>00250                 <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"XApproxThermometer, Too small number of points"</span>), __FILE__, __LINE__);
-<a name="l00251"></a>00251         approx.<a class="code" href="classatomic__shared__ptr.html#a7">reset</a>(<span class="keyword">new</span> <a class="code" href="class_c_spline_approx.html">CSplineApprox</a>(pts));
+<a name="l00250"></a>00250                 <a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"XApproxThermometer, Too small number of points"</span>), __FILE__, __LINE__);
+<a name="l00251"></a>00251         approx.<a class="code" href="classatomic__shared__ptr.html#fa6a4489f2b8514e5f59a135cd55f90b">reset</a>(<span class="keyword">new</span> <a class="code" href="class_c_spline_approx.html">CSplineApprox</a>(pts));
 <a name="l00252"></a>00252         m_approx_inv = approx;
 <a name="l00253"></a>00253     }
 <a name="l00254"></a>00254     <span class="keywordflow">return</span> exp(approx-&gt;approx(log(temp)));
 <a name="l00255"></a>00255 }
 <a name="l00256"></a>00256 
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してWed Feb 28 04:17:12 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 17:09:01 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.5.1 </small></address>
 </body>
 </html>

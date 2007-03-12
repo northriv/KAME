@@ -2,11 +2,20 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/analyzer/analyzer.h ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.5.1 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000001.html">analyzer</a></div>
+<a class="el" href="dir_86f25382698e49ecc2836ac98faed978.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_5a9156b67d9644fa03ab54cfc606ac48.html">analyzer</a></div>
 <h1>analyzer.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
 <a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
@@ -39,41 +48,41 @@
 <a name="l00030"></a>00030 {
 <a name="l00031"></a>00031  XNODE_OBJECT
 <a name="l00032"></a>00032  <span class="keyword">protected</span>:
-<a name="l00033"></a>00033   <a class="code" href="class_x_scalar_entry.html#b0">XScalarEntry</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;<a class="code" href="class_x_scalar_entry.html#a7">driver</a>,
+<a name="l00033"></a>00033   <a class="code" href="class_x_scalar_entry.html#7009244919ae559e7f654804e64127d5">XScalarEntry</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;<a class="code" href="class_x_scalar_entry.html#4139b0b16aa72dd3ce4f9f25b94c2431">driver</a>,
 <a name="l00034"></a>00034     <span class="keyword">const</span> <span class="keywordtype">char</span> *format = 0L);
 <a name="l00035"></a>00035  <span class="keyword">public</span>:
-<a name="l00036"></a><a class="code" href="class_x_scalar_entry.html#a0">00036</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_scalar_entry.html#a0">~XScalarEntry</a>() {}
+<a name="l00036"></a><a class="code" href="class_x_scalar_entry.html#64da03683c6918ee0db6357350962af9">00036</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_scalar_entry.html#64da03683c6918ee0db6357350962af9">~XScalarEntry</a>() {}
 <a name="l00037"></a>00037 
 <a name="l00038"></a>00038   <span class="comment">//a criterion that determine a trigger of storing</span>
 <a name="l00039"></a>00039   <span class="comment">//0: never</span>
 <a name="l00040"></a>00040   <span class="comment">//negative: allways</span>
 <a name="l00041"></a>00041   <span class="comment">//positive: when the difference from old value exceeds 'Delta'</span>
-<a name="l00042"></a><a class="code" href="class_x_scalar_entry.html#a1">00042</a>   <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_scalar_entry.html#a1">delta</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_scalar_entry.html#r1">m_delta</a>;}
+<a name="l00042"></a><a class="code" href="class_x_scalar_entry.html#235ac2b716fe6eb0fd88dec441a5cfdd">00042</a>   <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_scalar_entry.html#235ac2b716fe6eb0fd88dec441a5cfdd">delta</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_scalar_entry.html#82e8f44452e292f81eed3965a459c7e7">m_delta</a>;}
 <a name="l00043"></a>00043   <span class="comment">//if false, one line does't contain this</span>
-<a name="l00044"></a><a class="code" href="class_x_scalar_entry.html#a2">00044</a>   <span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; &amp;<a class="code" href="class_x_scalar_entry.html#a2">store</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_scalar_entry.html#r2">m_store</a>;}
+<a name="l00044"></a><a class="code" href="class_x_scalar_entry.html#40bdb321b3587ae56c3030b29a43c283">00044</a>   <span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; &amp;<a class="code" href="class_x_scalar_entry.html#40bdb321b3587ae56c3030b29a43c283">store</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_scalar_entry.html#c499f7553c0da242131d8e1f2a605072">m_store</a>;}
 <a name="l00045"></a>00045 
-<a name="l00046"></a><a class="code" href="class_x_scalar_entry.html#a3">00046</a>   <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_scalar_entry.html#a3">value</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_scalar_entry.html#r3">m_value</a>;}
-<a name="l00047"></a><a class="code" href="class_x_scalar_entry.html#a4">00047</a>   <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_scalar_entry.html#a4">storedValue</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_scalar_entry.html#r4">m_storedValue</a>;}
+<a name="l00046"></a><a class="code" href="class_x_scalar_entry.html#13eb1f2e971d00635cfdf3cbc40cfa4e">00046</a>   <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_scalar_entry.html#13eb1f2e971d00635cfdf3cbc40cfa4e">value</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_scalar_entry.html#8ecb609ebfd9710cd06293a90c7555cb">m_value</a>;}
+<a name="l00047"></a><a class="code" href="class_x_scalar_entry.html#58a78267443362ad7340eede9b9d2c71">00047</a>   <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_scalar_entry.html#58a78267443362ad7340eede9b9d2c71">storedValue</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_scalar_entry.html#faaa5350a9ab204798bce23f9dd96519">m_storedValue</a>;}
 <a name="l00048"></a>00048   
-<a name="l00049"></a>00049   <span class="keywordtype">bool</span> <a class="code" href="class_x_scalar_entry.html#a5">isTriggered</a>() <span class="keyword">const</span>;
-<a name="l00050"></a>00050   <span class="keywordtype">void</span> <a class="code" href="class_x_scalar_entry.html#a6">storeValue</a>();
+<a name="l00049"></a>00049   <span class="keywordtype">bool</span> <a class="code" href="class_x_scalar_entry.html#65e270084e3ecff9719ce1e2a495fb91">isTriggered</a>() <span class="keyword">const</span>;
+<a name="l00050"></a>00050   <span class="keywordtype">void</span> <a class="code" href="class_x_scalar_entry.html#adc1d71ea72c572132c4c038f3bb2848">storeValue</a>();
 <a name="l00051"></a>00051 
-<a name="l00052"></a><a class="code" href="class_x_scalar_entry.html#a7">00052</a>   shared_ptr&lt;XDriver&gt; <a class="code" href="class_x_scalar_entry.html#a7">driver</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_scalar_entry.html#r0">m_driver</a>.lock();}
+<a name="l00052"></a><a class="code" href="class_x_scalar_entry.html#4139b0b16aa72dd3ce4f9f25b94c2431">00052</a>   shared_ptr&lt;XDriver&gt; <a class="code" href="class_x_scalar_entry.html#4139b0b16aa72dd3ce4f9f25b94c2431">driver</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_scalar_entry.html#716742fdb5db7036eb77c1ccafa3eae6">m_driver</a>.lock();}
 <a name="l00053"></a>00053   
-<a name="l00054"></a>00054   <span class="keyword">virtual</span> std::string <a class="code" href="class_x_scalar_entry.html#a8">getLabel</a>() <span class="keyword">const</span>;
+<a name="l00054"></a>00054   <span class="keyword">virtual</span> std::string <a class="code" href="class_x_scalar_entry.html#0b33d0e4716d562906694e073962d802">getLabel</a>() <span class="keyword">const</span>;
 <a name="l00055"></a>00055   
-<a name="l00056"></a>00056   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_scalar_entry.html#a3">value</a>(<span class="keywordtype">double</span> val);
+<a name="l00056"></a>00056   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_scalar_entry.html#13eb1f2e971d00635cfdf3cbc40cfa4e">value</a>(<span class="keywordtype">double</span> val);
 <a name="l00057"></a>00057  <span class="keyword">protected</span>:
 <a name="l00058"></a>00058  <span class="keyword">private</span>:
-<a name="l00059"></a><a class="code" href="class_x_scalar_entry.html#r0">00059</a>   <span class="keyword">const</span> weak_ptr&lt;XDriver&gt; <a class="code" href="class_x_scalar_entry.html#r0">m_driver</a>;
+<a name="l00059"></a><a class="code" href="class_x_scalar_entry.html#716742fdb5db7036eb77c1ccafa3eae6">00059</a>   <span class="keyword">const</span> weak_ptr&lt;XDriver&gt; <a class="code" href="class_x_scalar_entry.html#716742fdb5db7036eb77c1ccafa3eae6">m_driver</a>;
 <a name="l00060"></a>00060  
-<a name="l00061"></a><a class="code" href="class_x_scalar_entry.html#r1">00061</a>   <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; <a class="code" href="class_x_scalar_entry.html#r1">m_delta</a>;
-<a name="l00062"></a><a class="code" href="class_x_scalar_entry.html#r2">00062</a>   <span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; <a class="code" href="class_x_scalar_entry.html#r2">m_store</a>;
+<a name="l00061"></a><a class="code" href="class_x_scalar_entry.html#82e8f44452e292f81eed3965a459c7e7">00061</a>   <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; <a class="code" href="class_x_scalar_entry.html#82e8f44452e292f81eed3965a459c7e7">m_delta</a>;
+<a name="l00062"></a><a class="code" href="class_x_scalar_entry.html#c499f7553c0da242131d8e1f2a605072">00062</a>   <span class="keyword">const</span> shared_ptr&lt;XBoolNode&gt; <a class="code" href="class_x_scalar_entry.html#c499f7553c0da242131d8e1f2a605072">m_store</a>;
 <a name="l00063"></a>00063 
-<a name="l00064"></a><a class="code" href="class_x_scalar_entry.html#r3">00064</a>   <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; <a class="code" href="class_x_scalar_entry.html#r3">m_value</a>;
-<a name="l00065"></a><a class="code" href="class_x_scalar_entry.html#r4">00065</a>   <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; <a class="code" href="class_x_scalar_entry.html#r4">m_storedValue</a>;
+<a name="l00064"></a><a class="code" href="class_x_scalar_entry.html#8ecb609ebfd9710cd06293a90c7555cb">00064</a>   <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; <a class="code" href="class_x_scalar_entry.html#8ecb609ebfd9710cd06293a90c7555cb">m_value</a>;
+<a name="l00065"></a><a class="code" href="class_x_scalar_entry.html#faaa5350a9ab204798bce23f9dd96519">00065</a>   <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; <a class="code" href="class_x_scalar_entry.html#faaa5350a9ab204798bce23f9dd96519">m_storedValue</a>;
 <a name="l00066"></a>00066   
-<a name="l00067"></a><a class="code" href="class_x_scalar_entry.html#r5">00067</a>   <span class="keywordtype">bool</span> <a class="code" href="class_x_scalar_entry.html#r5">m_bTriggered</a>;
+<a name="l00067"></a><a class="code" href="class_x_scalar_entry.html#b8828e260720b690089b214451dcc5f1">00067</a>   <span class="keywordtype">bool</span> <a class="code" href="class_x_scalar_entry.html#b8828e260720b690089b214451dcc5f1">m_bTriggered</a>;
 <a name="l00068"></a>00068 };
 <a name="l00069"></a>00069 
 <a name="l00070"></a>00070 <span class="keyword">class </span><a class="code" href="class_x_driver_list.html">XDriverList</a>;
@@ -81,7 +90,7 @@
 <a name="l00072"></a><a class="code" href="class_x_scalar_entry_list.html">00072</a> <span class="keyword">class </span><a class="code" href="class_x_scalar_entry_list.html">XScalarEntryList</a> : <span class="keyword">public</span> <a class="code" href="class_x_alias_list_node.html">XAliasListNode</a>&lt;XScalarEntry&gt; {
 <a name="l00073"></a>00073 XNODE_OBJECT
 <a name="l00074"></a>00074  <span class="keyword">protected</span>:
-<a name="l00075"></a><a class="code" href="class_x_scalar_entry_list.html#b0">00075</a>     <a class="code" href="class_x_scalar_entry_list.html#b0">XScalarEntryList</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime) : <a class="code" href="class_x_alias_list_node.html">XAliasListNode</a>&lt;<a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>&gt;(name, runtime) {}
+<a name="l00075"></a><a class="code" href="class_x_scalar_entry_list.html#ef602d79de32430ae70a5553dd0d4a64">00075</a>     <a class="code" href="class_x_scalar_entry_list.html#ef602d79de32430ae70a5553dd0d4a64">XScalarEntryList</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime) : <a class="code" href="class_x_alias_list_node.html">XAliasListNode</a>&lt;<a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>&gt;(name, runtime) {}
 <a name="l00076"></a>00076 };
 <a name="l00077"></a>00077 
 <a name="l00078"></a>00078 <span class="keyword">class </span>FrmGraph;
@@ -92,90 +101,90 @@
 <a name="l00083"></a>00083 {
 <a name="l00084"></a>00084  XNODE_OBJECT
 <a name="l00085"></a>00085  <span class="keyword">protected</span>:
-<a name="l00086"></a>00086   <a class="code" href="class_x_val_chart.html#b0">XValChart</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XScalarEntry&gt; &amp;<a class="code" href="class_x_val_chart.html#a2">entry</a>);
+<a name="l00086"></a>00086   <a class="code" href="class_x_val_chart.html#50222815fdf709f295ac0d9b0ed9a615">XValChart</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XScalarEntry&gt; &amp;<a class="code" href="class_x_val_chart.html#ce961d538a9a9b3767635dac03fa0a6d">entry</a>);
 <a name="l00087"></a>00087  <span class="keyword">public</span>:
-<a name="l00088"></a><a class="code" href="class_x_val_chart.html#a0">00088</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_val_chart.html#a0">~XValChart</a>() {}
-<a name="l00089"></a>00089   <span class="keywordtype">void</span> <a class="code" href="class_x_val_chart.html#a1">showChart</a>();
-<a name="l00090"></a><a class="code" href="class_x_val_chart.html#a2">00090</a>   <span class="keyword">const</span> shared_ptr&lt;XScalarEntry&gt; &amp;<a class="code" href="class_x_val_chart.html#a2">entry</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_val_chart.html#r1">m_entry</a>;}
+<a name="l00088"></a><a class="code" href="class_x_val_chart.html#142babf7a064e47dba3300d596fd23a5">00088</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_val_chart.html#142babf7a064e47dba3300d596fd23a5">~XValChart</a>() {}
+<a name="l00089"></a>00089   <span class="keywordtype">void</span> <a class="code" href="class_x_val_chart.html#3abac03a8dfed2ef616efc778bcaa534">showChart</a>();
+<a name="l00090"></a><a class="code" href="class_x_val_chart.html#ce961d538a9a9b3767635dac03fa0a6d">00090</a>   <span class="keyword">const</span> shared_ptr&lt;XScalarEntry&gt; &amp;<a class="code" href="class_x_val_chart.html#ce961d538a9a9b3767635dac03fa0a6d">entry</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_val_chart.html#49f7e55214ad704f455b83732bd1735a">m_entry</a>;}
 <a name="l00091"></a>00091  <span class="keyword">private</span>:
-<a name="l00092"></a><a class="code" href="class_x_val_chart.html#r0">00092</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_val_chart.html#r0">m_lsnOnRecord</a>;
+<a name="l00092"></a><a class="code" href="class_x_val_chart.html#3853a961aa060c02643b780ffccb0856">00092</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_val_chart.html#3853a961aa060c02643b780ffccb0856">m_lsnOnRecord</a>;
 <a name="l00093"></a>00093   <span class="comment">//callback from Driver</span>
-<a name="l00094"></a>00094   <span class="keywordtype">void</span> <a class="code" href="class_x_val_chart.html#d0">onRecord</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;);
+<a name="l00094"></a>00094   <span class="keywordtype">void</span> <a class="code" href="class_x_val_chart.html#c67bf0ab94604b375925c9bede43cb6f">onRecord</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;);
 <a name="l00095"></a>00095 
-<a name="l00096"></a><a class="code" href="class_x_val_chart.html#r1">00096</a>   <span class="keyword">const</span> shared_ptr&lt;XScalarEntry&gt; <a class="code" href="class_x_val_chart.html#r1">m_entry</a>;
-<a name="l00097"></a><a class="code" href="class_x_val_chart.html#r2">00097</a>   shared_ptr&lt;XGraph&gt; <a class="code" href="class_x_val_chart.html#r2">m_graph</a>;
-<a name="l00098"></a><a class="code" href="class_x_val_chart.html#r3">00098</a>   <a class="code" href="classqshared__ptr.html">qshared_ptr&lt;FrmGraph&gt;</a> <a class="code" href="class_x_val_chart.html#r3">m_graphForm</a>;
-<a name="l00099"></a><a class="code" href="class_x_val_chart.html#r4">00099</a>   shared_ptr&lt;XXYPlot&gt; <a class="code" href="class_x_val_chart.html#r4">m_chart</a>;
+<a name="l00096"></a><a class="code" href="class_x_val_chart.html#49f7e55214ad704f455b83732bd1735a">00096</a>   <span class="keyword">const</span> shared_ptr&lt;XScalarEntry&gt; <a class="code" href="class_x_val_chart.html#49f7e55214ad704f455b83732bd1735a">m_entry</a>;
+<a name="l00097"></a><a class="code" href="class_x_val_chart.html#c509ee734373247734f759df33174597">00097</a>   shared_ptr&lt;XGraph&gt; <a class="code" href="class_x_val_chart.html#c509ee734373247734f759df33174597">m_graph</a>;
+<a name="l00098"></a><a class="code" href="class_x_val_chart.html#850d18031fca6c052c8af0e568b96f5e">00098</a>   <a class="code" href="classqshared__ptr.html">qshared_ptr&lt;FrmGraph&gt;</a> <a class="code" href="class_x_val_chart.html#850d18031fca6c052c8af0e568b96f5e">m_graphForm</a>;
+<a name="l00099"></a><a class="code" href="class_x_val_chart.html#700320760ad2b998317d68ee11dc0f70">00099</a>   shared_ptr&lt;XXYPlot&gt; <a class="code" href="class_x_val_chart.html#700320760ad2b998317d68ee11dc0f70">m_chart</a>;
 <a name="l00100"></a>00100 };
 <a name="l00101"></a>00101 
 <a name="l00102"></a><a class="code" href="class_x_chart_list.html">00102</a> <span class="keyword">class </span><a class="code" href="class_x_chart_list.html">XChartList</a> : <span class="keyword">public</span> <a class="code" href="class_x_alias_list_node.html">XAliasListNode</a>&lt;XValChart&gt;
 <a name="l00103"></a>00103 {
 <a name="l00104"></a>00104  XNODE_OBJECT
 <a name="l00105"></a>00105  <span class="keyword">protected</span>:
-<a name="l00106"></a>00106   <a class="code" href="class_x_chart_list.html#b0">XChartList</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;entries);
+<a name="l00106"></a>00106   <a class="code" href="class_x_chart_list.html#edc195045544e3dbfc0a4659aeea73fd">XChartList</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;entries);
 <a name="l00107"></a>00107  <span class="keyword">public</span>:
-<a name="l00108"></a><a class="code" href="class_x_chart_list.html#a0">00108</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_chart_list.html#a0">~XChartList</a>() {}
+<a name="l00108"></a><a class="code" href="class_x_chart_list.html#4ddf5d7edf0c9251ae36155851272f1b">00108</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_chart_list.html#4ddf5d7edf0c9251ae36155851272f1b">~XChartList</a>() {}
 <a name="l00109"></a>00109  <span class="keyword">private</span>:
-<a name="l00110"></a><a class="code" href="class_x_chart_list.html#r0">00110</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_chart_list.html#r0">m_lsnOnCatchEntry</a>;
-<a name="l00111"></a><a class="code" href="class_x_chart_list.html#r1">00111</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_chart_list.html#r1">m_lsnOnReleaseEntry</a>;
-<a name="l00112"></a>00112   <span class="keywordtype">void</span> <a class="code" href="class_x_chart_list.html#d0">onCatchEntry</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
-<a name="l00113"></a>00113   <span class="keywordtype">void</span> <a class="code" href="class_x_chart_list.html#d1">onReleaseEntry</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
+<a name="l00110"></a><a class="code" href="class_x_chart_list.html#afb46e49e982939bcf5e3d4c2a671d2f">00110</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_chart_list.html#afb46e49e982939bcf5e3d4c2a671d2f">m_lsnOnCatchEntry</a>;
+<a name="l00111"></a><a class="code" href="class_x_chart_list.html#ca01faed62fac2b904b8c3aebb412dfc">00111</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_chart_list.html#ca01faed62fac2b904b8c3aebb412dfc">m_lsnOnReleaseEntry</a>;
+<a name="l00112"></a>00112   <span class="keywordtype">void</span> <a class="code" href="class_x_chart_list.html#6c3ce0361628649a3a034d223fab7768">onCatchEntry</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
+<a name="l00113"></a>00113   <span class="keywordtype">void</span> <a class="code" href="class_x_chart_list.html#631a785fa3ea4a9e6345b6259c64b020">onReleaseEntry</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node);
 <a name="l00114"></a>00114 
-<a name="l00115"></a><a class="code" href="class_x_chart_list.html#r2">00115</a>   <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; <a class="code" href="class_x_chart_list.html#r2">m_entries</a>;
+<a name="l00115"></a><a class="code" href="class_x_chart_list.html#1c31e1ce5d7d3950aa593249abcd41cd">00115</a>   <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; <a class="code" href="class_x_chart_list.html#1c31e1ce5d7d3950aa593249abcd41cd">m_entries</a>;
 <a name="l00116"></a>00116 };
 <a name="l00117"></a>00117 
 <a name="l00118"></a><a class="code" href="class_x_val_graph.html">00118</a> <span class="keyword">class </span><a class="code" href="class_x_val_graph.html">XValGraph</a> : <span class="keyword">public</span> <a class="code" href="class_x_node.html">XNode</a>
 <a name="l00119"></a>00119 {
 <a name="l00120"></a>00120  XNODE_OBJECT
 <a name="l00121"></a>00121  <span class="keyword">protected</span>:
-<a name="l00122"></a>00122   <a class="code" href="class_x_val_graph.html#b0">XValGraph</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
+<a name="l00122"></a>00122   <a class="code" href="class_x_val_graph.html#66bff54a3bdbdcadf9e1718e82c32b47">XValGraph</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
 <a name="l00123"></a>00123      <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;entries);
 <a name="l00124"></a>00124  <span class="keyword">public</span>:
-<a name="l00125"></a><a class="code" href="class_x_val_graph.html#a0">00125</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_val_graph.html#a0">~XValGraph</a>() {}
+<a name="l00125"></a><a class="code" href="class_x_val_graph.html#47cb3e702601932a86f36e5af86fbf4b">00125</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_val_graph.html#47cb3e702601932a86f36e5af86fbf4b">~XValGraph</a>() {}
 <a name="l00126"></a>00126 
-<a name="l00127"></a>00127   <span class="keywordtype">void</span> <a class="code" href="class_x_val_graph.html#a1">showGraph</a>();
-<a name="l00128"></a>00128   <span class="keywordtype">void</span> <a class="code" href="class_x_val_graph.html#a2">clearAllPoints</a>();
+<a name="l00127"></a>00127   <span class="keywordtype">void</span> <a class="code" href="class_x_val_graph.html#348f4b59071453212d4bb75be3eb8fcc">showGraph</a>();
+<a name="l00128"></a>00128   <span class="keywordtype">void</span> <a class="code" href="class_x_val_graph.html#358faf2d63bce2c675df7d99d312f450">clearAllPoints</a>();
 <a name="l00129"></a>00129 
-<a name="l00130"></a><a class="code" href="class_x_val_graph.html#w0">00130</a>   <span class="keyword">typedef</span> <a class="code" href="class_x_item_node.html">XItemNode&lt;XScalarEntryList, XScalarEntry&gt;</a> <a class="code" href="class_x_item_node.html">tAxis</a>;
+<a name="l00130"></a><a class="code" href="class_x_val_graph.html#5991e8ee5c12d4433968fab917b620f6">00130</a>   <span class="keyword">typedef</span> <a class="code" href="class_x_item_node.html">XItemNode&lt;XScalarEntryList, XScalarEntry&gt;</a> <a class="code" href="class_x_item_node.html">tAxis</a>;
 <a name="l00131"></a>00131   
-<a name="l00132"></a><a class="code" href="class_x_val_graph.html#a3">00132</a>   <span class="keyword">const</span> shared_ptr&lt;tAxis&gt; &amp;<a class="code" href="class_x_val_graph.html#a3">axisX</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_val_graph.html#r2">m_axisX</a>;}
-<a name="l00133"></a><a class="code" href="class_x_val_graph.html#a4">00133</a>   <span class="keyword">const</span> shared_ptr&lt;tAxis&gt; &amp;<a class="code" href="class_x_val_graph.html#a4">axisY1</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_val_graph.html#r3">m_axisY1</a>;}
-<a name="l00134"></a><a class="code" href="class_x_val_graph.html#a5">00134</a>   <span class="keyword">const</span> shared_ptr&lt;tAxis&gt; &amp;<a class="code" href="class_x_val_graph.html#a5">axisZ</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_val_graph.html#r4">m_axisZ</a>;}
+<a name="l00132"></a><a class="code" href="class_x_val_graph.html#f48c658371fc8bdf7a33295ae1959408">00132</a>   <span class="keyword">const</span> shared_ptr&lt;tAxis&gt; &amp;<a class="code" href="class_x_val_graph.html#f48c658371fc8bdf7a33295ae1959408">axisX</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_val_graph.html#6e8120ca61f995ae13ba1f8474be972d">m_axisX</a>;}
+<a name="l00133"></a><a class="code" href="class_x_val_graph.html#45438ea2ed4a40de73bd9d4b30e8e778">00133</a>   <span class="keyword">const</span> shared_ptr&lt;tAxis&gt; &amp;<a class="code" href="class_x_val_graph.html#45438ea2ed4a40de73bd9d4b30e8e778">axisY1</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_val_graph.html#2d18ae80129794b8459da2b1dfbe094c">m_axisY1</a>;}
+<a name="l00134"></a><a class="code" href="class_x_val_graph.html#e505ac01dcd87f3135748fa25255b9a1">00134</a>   <span class="keyword">const</span> shared_ptr&lt;tAxis&gt; &amp;<a class="code" href="class_x_val_graph.html#e505ac01dcd87f3135748fa25255b9a1">axisZ</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_val_graph.html#28d1af598545065bd211447aa6a12770">m_axisZ</a>;}
 <a name="l00135"></a>00135  <span class="keyword">protected</span>:
 <a name="l00136"></a>00136  <span class="keyword">private</span>:
-<a name="l00137"></a><a class="code" href="class_x_val_graph.html#r0">00137</a>   shared_ptr&lt;XGraph&gt; <a class="code" href="class_x_val_graph.html#r0">m_graph</a>;
-<a name="l00138"></a><a class="code" href="class_x_val_graph.html#r1">00138</a>   <a class="code" href="classqshared__ptr.html">qshared_ptr&lt;FrmGraph&gt;</a> <a class="code" href="class_x_val_graph.html#r1">m_graphForm</a>;
+<a name="l00137"></a><a class="code" href="class_x_val_graph.html#af75cc0518d2164ac37013d5bd6df92e">00137</a>   shared_ptr&lt;XGraph&gt; <a class="code" href="class_x_val_graph.html#af75cc0518d2164ac37013d5bd6df92e">m_graph</a>;
+<a name="l00138"></a><a class="code" href="class_x_val_graph.html#83a5a92819758be80cf8ee909c119b9f">00138</a>   <a class="code" href="classqshared__ptr.html">qshared_ptr&lt;FrmGraph&gt;</a> <a class="code" href="class_x_val_graph.html#83a5a92819758be80cf8ee909c119b9f">m_graphForm</a>;
 <a name="l00139"></a>00139 
-<a name="l00140"></a><a class="code" href="class_x_val_graph.html#r4">00140</a>   shared_ptr&lt;tAxis&gt; <a class="code" href="class_x_val_graph.html#r2">m_axisX</a>, <a class="code" href="class_x_val_graph.html#r3">m_axisY1</a>, <a class="code" href="class_x_val_graph.html#r4">m_axisZ</a>;
-<a name="l00141"></a><a class="code" href="class_x_val_graph.html#r6">00141</a>   shared_ptr&lt;XXYPlot&gt; <a class="code" href="class_x_val_graph.html#r5">m_livePlot</a>, <a class="code" href="class_x_val_graph.html#r6">m_storePlot</a>;
-<a name="l00142"></a><a class="code" href="class_x_val_graph.html#r7">00142</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_val_graph.html#r7">m_lsnAxisChanged</a>;
-<a name="l00143"></a>00143   <span class="keywordtype">void</span> <a class="code" href="class_x_val_graph.html#d0">onAxisChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
+<a name="l00140"></a><a class="code" href="class_x_val_graph.html#28d1af598545065bd211447aa6a12770">00140</a>   shared_ptr&lt;tAxis&gt; <a class="code" href="class_x_val_graph.html#6e8120ca61f995ae13ba1f8474be972d">m_axisX</a>, <a class="code" href="class_x_val_graph.html#2d18ae80129794b8459da2b1dfbe094c">m_axisY1</a>, <a class="code" href="class_x_val_graph.html#28d1af598545065bd211447aa6a12770">m_axisZ</a>;
+<a name="l00141"></a><a class="code" href="class_x_val_graph.html#4220c150eaa731059b81e173cfd1fe1d">00141</a>   shared_ptr&lt;XXYPlot&gt; <a class="code" href="class_x_val_graph.html#abebf95cbbbca205112f8cf4282d4323">m_livePlot</a>, <a class="code" href="class_x_val_graph.html#4220c150eaa731059b81e173cfd1fe1d">m_storePlot</a>;
+<a name="l00142"></a><a class="code" href="class_x_val_graph.html#f8dbbb804bb9adadc7be983f35d5b4da">00142</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_val_graph.html#f8dbbb804bb9adadc7be983f35d5b4da">m_lsnAxisChanged</a>;
+<a name="l00143"></a>00143   <span class="keywordtype">void</span> <a class="code" href="class_x_val_graph.html#4560d90faf0323030e7d9bbd3350b34b">onAxisChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
 <a name="l00144"></a>00144 
-<a name="l00145"></a><a class="code" href="class_x_val_graph.html#r8">00145</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_val_graph.html#r8">m_lsnLiveChanged</a>;
-<a name="l00146"></a><a class="code" href="class_x_val_graph.html#r9">00146</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_val_graph.html#r9">m_lsnStoreChanged</a>;
-<a name="l00147"></a>00147   <span class="keywordtype">void</span> <a class="code" href="class_x_val_graph.html#d1">onLiveChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
-<a name="l00148"></a>00148   <span class="keywordtype">void</span> <a class="code" href="class_x_val_graph.html#d2">onStoreChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
+<a name="l00145"></a><a class="code" href="class_x_val_graph.html#00f221d754878911f6f87f8005e5c9ce">00145</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_val_graph.html#00f221d754878911f6f87f8005e5c9ce">m_lsnLiveChanged</a>;
+<a name="l00146"></a><a class="code" href="class_x_val_graph.html#5d7834e9002711a151bf284dc6091a60">00146</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_val_graph.html#5d7834e9002711a151bf284dc6091a60">m_lsnStoreChanged</a>;
+<a name="l00147"></a>00147   <span class="keywordtype">void</span> <a class="code" href="class_x_val_graph.html#14140367557bd3a09b8d0d365ccfd2c1">onLiveChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
+<a name="l00148"></a>00148   <span class="keywordtype">void</span> <a class="code" href="class_x_val_graph.html#112cfcb0a0cc03b0ce0ffd664a7f0603">onStoreChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node);
 <a name="l00149"></a>00149 };
 <a name="l00150"></a>00150 
 <a name="l00151"></a><a class="code" href="class_x_graph_list.html">00151</a> <span class="keyword">class </span><a class="code" href="class_x_graph_list.html">XGraphList</a> : <span class="keyword">public</span> <a class="code" href="class_x_custom_type_list_node.html">XCustomTypeListNode</a>&lt;XValGraph&gt;
 <a name="l00152"></a>00152 {
 <a name="l00153"></a>00153  XNODE_OBJECT
 <a name="l00154"></a>00154  <span class="keyword">protected</span>:
-<a name="l00155"></a>00155   <a class="code" href="class_x_graph_list.html#b0">XGraphList</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;entries);
+<a name="l00155"></a>00155   <a class="code" href="class_x_graph_list.html#c079385119de7cc86f81d49cee6eaed1">XGraphList</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;entries);
 <a name="l00156"></a>00156  <span class="keyword">public</span>:
-<a name="l00157"></a><a class="code" href="class_x_graph_list.html#a0">00157</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_graph_list.html#a0">~XGraphList</a>() {}
+<a name="l00157"></a><a class="code" href="class_x_graph_list.html#fe6f90bfa77e43babd23cec4beaeb6e1">00157</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_graph_list.html#fe6f90bfa77e43babd23cec4beaeb6e1">~XGraphList</a>() {}
 <a name="l00158"></a>00158 
-<a name="l00159"></a><a class="code" href="class_x_graph_list.html#a1">00159</a>   <span class="keyword">virtual</span> shared_ptr&lt;XNode&gt; <a class="code" href="class_x_graph_list.html#a1">createByTypename</a>(<span class="keyword">const</span> std::string &amp;, <span class="keyword">const</span> std::string&amp; name)  {
-<a name="l00160"></a>00160     <span class="keywordflow">return</span> XNode::create&lt;XValGraph&gt;(name.c_str(), <span class="keyword">false</span>, <a class="code" href="class_x_graph_list.html#r0">m_entries</a>);
+<a name="l00159"></a><a class="code" href="class_x_graph_list.html#98053479c88f8412e3d6da30f773cfcc">00159</a>   <span class="keyword">virtual</span> shared_ptr&lt;XNode&gt; <a class="code" href="class_x_graph_list.html#98053479c88f8412e3d6da30f773cfcc">createByTypename</a>(<span class="keyword">const</span> std::string &amp;, <span class="keyword">const</span> std::string&amp; name)  {
+<a name="l00160"></a>00160     <span class="keywordflow">return</span> XNode::create&lt;XValGraph&gt;(name.c_str(), <span class="keyword">false</span>, <a class="code" href="class_x_graph_list.html#cb47ca4468b2ba371de2ddcb2ee0c43c">m_entries</a>);
 <a name="l00161"></a>00161   }
 <a name="l00162"></a>00162  <span class="keyword">private</span>:
-<a name="l00163"></a><a class="code" href="class_x_graph_list.html#r0">00163</a>   <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; <a class="code" href="class_x_graph_list.html#r0">m_entries</a>;
+<a name="l00163"></a><a class="code" href="class_x_graph_list.html#cb47ca4468b2ba371de2ddcb2ee0c43c">00163</a>   <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; <a class="code" href="class_x_graph_list.html#cb47ca4468b2ba371de2ddcb2ee0c43c">m_entries</a>;
 <a name="l00164"></a>00164 };
 <a name="l00165"></a>00165 <span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00166"></a>00166 <span class="preprocessor">#endif</span>
 <a name="l00167"></a>00167 <span class="preprocessor"></span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してWed Feb 28 04:17:09 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 17:08:59 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.5.1 </small></address>
 </body>
 </html>

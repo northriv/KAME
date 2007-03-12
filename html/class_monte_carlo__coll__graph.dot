@@ -1,0 +1,14 @@
+digraph G
+{
+  edge [fontname="FreeSans.ttf",fontsize=10,labelfontname="FreeSans.ttf",labelfontsize=10];
+  node [fontname="FreeSans.ttf",fontsize=10,shape=record];
+  Node1 [label="MonteCarlo",height=0.2,width=0.4,color="black", fillcolor="grey75", style="filled" fontcolor="black"];
+  Node2 -> Node1 [dir=back,color="darkorchid3",fontsize=10,style="dashed",label="m_hint_site2_not_done\nm_hint_site2_left",fontname="FreeSans.ttf"];
+  Node2 [label="atomic\< int \>",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$classatomic.html"];
+  Node3 -> Node1 [dir=back,color="darkorchid3",fontsize=10,style="dashed",label="s_ASiteIsingVector",fontname="FreeSans.ttf"];
+  Node3 [label="MonteCarlo::Vector3\< double \>",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$struct_monte_carlo_1_1_vector3.html"];
+  Node4 -> Node1 [dir=back,color="darkorchid3",fontsize=10,style="dashed",label="m_third_cache_hit",fontname="FreeSans.ttf"];
+  Node4 [label="atomic\< long \>",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$classatomic.html"];
+  Node5 -> Node1 [dir=back,color="darkorchid3",fontsize=10,style="dashed",label="m_hint_site2_last_cond\nm_thread_pool_cond",fontname="FreeSans.ttf"];
+  Node5 [label="XCondition",height=0.2,width=0.4,color="red", fillcolor="white", style="filled",URL="$class_x_condition.html"];
+}

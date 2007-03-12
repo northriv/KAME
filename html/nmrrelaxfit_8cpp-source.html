@@ -2,11 +2,20 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/users/nmr/nmrrelaxfit.cpp ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.5.1 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000012.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000027.html">nmr</a></div>
+<a class="el" href="dir_86f25382698e49ecc2836ac98faed978.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_1b092230b1fd5a3e6d578edf1ed86c7f.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_31b09b643b82741926021f1ae3b49441.html">nmr</a></div>
 <h1>nmrrelaxfit.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
 <a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
@@ -46,31 +55,31 @@
 <a name="l00037"></a>00037 <span class="keyword">public</span>:
 <a name="l00040"></a><a class="code" href="struct_x_relax_func_poly_1_1_term.html">00040</a>   <span class="keyword">struct </span><a class="code" href="struct_x_relax_func_poly_1_1_term.html">Term</a>
 <a name="l00041"></a>00041   {
-<a name="l00042"></a><a class="code" href="struct_x_relax_func_poly_1_1_term.html#o0">00042</a>     <span class="keywordtype">int</span> <a class="code" href="struct_x_relax_func_poly_1_1_term.html#o0">p</a>;
-<a name="l00043"></a><a class="code" href="struct_x_relax_func_poly_1_1_term.html#o1">00043</a>     <span class="keywordtype">double</span> <a class="code" href="struct_x_relax_func_poly_1_1_term.html#o1">a</a>;
+<a name="l00042"></a><a class="code" href="struct_x_relax_func_poly_1_1_term.html#f1836ab50dc4d31f4735d4ba0bc77ee1">00042</a>     <span class="keywordtype">int</span> <a class="code" href="struct_x_relax_func_poly_1_1_term.html#f1836ab50dc4d31f4735d4ba0bc77ee1">p</a>;
+<a name="l00043"></a><a class="code" href="struct_x_relax_func_poly_1_1_term.html#c705d7bc60e12dc32cc96332fe08663f">00043</a>     <span class="keywordtype">double</span> <a class="code" href="struct_x_relax_func_poly_1_1_term.html#c705d7bc60e12dc32cc96332fe08663f">a</a>;
 <a name="l00044"></a>00044   };
 <a name="l00045"></a>00045  
-<a name="l00046"></a><a class="code" href="class_x_relax_func_poly.html#o0">00046</a>   <span class="keyword">const</span> <span class="keyword">struct </span><a class="code" href="struct_x_relax_func_poly_1_1_term.html">Term</a> *<a class="code" href="class_x_relax_func_poly.html#o0">m_terms</a>; 
+<a name="l00046"></a><a class="code" href="class_x_relax_func_poly.html#71179ea5af5e1072b39f3820a3932052">00046</a>   <span class="keyword">const</span> <span class="keyword">struct </span><a class="code" href="struct_x_relax_func_poly_1_1_term.html">Term</a> *<a class="code" href="class_x_relax_func_poly.html#71179ea5af5e1072b39f3820a3932052">m_terms</a>; 
 <a name="l00047"></a>00047   
 <a name="l00048"></a>00048  XNODE_OBJECT
 <a name="l00049"></a>00049  <span class="keyword">protected</span>:
-<a name="l00050"></a><a class="code" href="class_x_relax_func_poly.html#b0">00050</a>   <a class="code" href="class_x_relax_func_poly.html#b0">XRelaxFuncPoly</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> <a class="code" href="struct_x_relax_func_poly_1_1_term.html">Term</a> *terms)
-<a name="l00051"></a>00051    : <a class="code" href="class_x_relax_func.html">XRelaxFunc</a>(name, runtime), <a class="code" href="class_x_relax_func_poly.html#o0">m_terms</a>(terms)
+<a name="l00050"></a><a class="code" href="class_x_relax_func_poly.html#85744b81a172651796429e095ef62554">00050</a>   <a class="code" href="class_x_relax_func_poly.html#85744b81a172651796429e095ef62554">XRelaxFuncPoly</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> <a class="code" href="struct_x_relax_func_poly_1_1_term.html">Term</a> *terms)
+<a name="l00051"></a>00051    : <a class="code" href="class_x_relax_func.html">XRelaxFunc</a>(name, runtime), <a class="code" href="class_x_relax_func_poly.html#71179ea5af5e1072b39f3820a3932052">m_terms</a>(terms)
 <a name="l00052"></a>00052   {
 <a name="l00053"></a>00053   }    
 <a name="l00054"></a>00054  <span class="keyword">public</span>:  
-<a name="l00055"></a><a class="code" href="class_x_relax_func_poly.html#a0">00055</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_relax_func_poly.html#a0">~XRelaxFuncPoly</a>() {}
+<a name="l00055"></a><a class="code" href="class_x_relax_func_poly.html#dda3eaa919770d6946d3d92c470be243">00055</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_relax_func_poly.html#dda3eaa919770d6946d3d92c470be243">~XRelaxFuncPoly</a>() {}
 <a name="l00056"></a>00056   
-<a name="l00062"></a><a class="code" href="class_x_relax_func_poly.html#a1">00062</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_relax_func_poly.html#a1">relax</a>(<span class="keywordtype">double</span> *f, <span class="keywordtype">double</span> *dfdt, <span class="keywordtype">double</span> t, <span class="keywordtype">double</span> it1)
+<a name="l00062"></a><a class="code" href="class_x_relax_func_poly.html#62b6fa2c0d2abd752e3c6eb923c9048b">00062</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_relax_func_poly.html#62b6fa2c0d2abd752e3c6eb923c9048b">relax</a>(<span class="keywordtype">double</span> *f, <span class="keywordtype">double</span> *dfdt, <span class="keywordtype">double</span> t, <span class="keywordtype">double</span> it1)
 <a name="l00063"></a>00063  {
 <a name="l00064"></a>00064   <span class="keywordtype">double</span> rf = 0, rdf = 0;
 <a name="l00065"></a>00065   <span class="keywordtype">double</span> x = -t * it1;
 <a name="l00066"></a>00066   x = std::min(5.0, x);
-<a name="l00067"></a>00067   <span class="keywordflow">for</span>(<span class="keyword">const</span> <a class="code" href="struct_x_relax_func_poly_1_1_term.html">Term</a> *term = <a class="code" href="class_x_relax_func_poly.html#o0">m_terms</a>; term-&gt;<a class="code" href="struct_x_relax_func_poly_1_1_term.html#o0">p</a> != 0; term++)
+<a name="l00067"></a>00067   <span class="keywordflow">for</span>(<span class="keyword">const</span> <a class="code" href="struct_x_relax_func_poly_1_1_term.html">Term</a> *term = <a class="code" href="class_x_relax_func_poly.html#71179ea5af5e1072b39f3820a3932052">m_terms</a>; term-&gt;<a class="code" href="struct_x_relax_func_poly_1_1_term.html#f1836ab50dc4d31f4735d4ba0bc77ee1">p</a> != 0; term++)
 <a name="l00068"></a>00068     {
-<a name="l00069"></a>00069       <span class="keywordtype">double</span> a = term-&gt;<a class="code" href="struct_x_relax_func_poly_1_1_term.html#o1">a</a> * exp(x*term-&gt;<a class="code" href="struct_x_relax_func_poly_1_1_term.html#o0">p</a>);
+<a name="l00069"></a>00069       <span class="keywordtype">double</span> a = term-&gt;a * exp(x*term-&gt;p);
 <a name="l00070"></a>00070       rf += a;
-<a name="l00071"></a>00071       rdf += a * term-&gt;<a class="code" href="struct_x_relax_func_poly_1_1_term.html#o0">p</a>;
+<a name="l00071"></a>00071       rdf += a * term-&gt;p;
 <a name="l00072"></a>00072     }
 <a name="l00073"></a>00073   rdf *= -t;
 <a name="l00074"></a>00074   *f = 1.0 - rf;
@@ -83,15 +92,15 @@
 <a name="l00081"></a>00081 {
 <a name="l00082"></a>00082  XNODE_OBJECT
 <a name="l00083"></a>00083  <span class="keyword">protected</span>:
-<a name="l00084"></a><a class="code" href="class_x_relax_func_sqrt.html#b0">00084</a>   <a class="code" href="class_x_relax_func_sqrt.html#b0">XRelaxFuncSqrt</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime)
+<a name="l00084"></a><a class="code" href="class_x_relax_func_sqrt.html#c0d8a80e16b2b47e6853912f17ecd025">00084</a>   <a class="code" href="class_x_relax_func_sqrt.html#c0d8a80e16b2b47e6853912f17ecd025">XRelaxFuncSqrt</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime)
 <a name="l00085"></a>00085    : <a class="code" href="class_x_relax_func.html">XRelaxFunc</a>(name, runtime)
 <a name="l00086"></a>00086   {
 <a name="l00087"></a>00087   }    
 <a name="l00088"></a>00088  <span class="keyword">public</span>:  
 <a name="l00089"></a>00089   
-<a name="l00090"></a><a class="code" href="class_x_relax_func_sqrt.html#a0">00090</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_relax_func_sqrt.html#a0">~XRelaxFuncSqrt</a>() {}
+<a name="l00090"></a><a class="code" href="class_x_relax_func_sqrt.html#9304407553c7bc9ecf69edf233fe1772">00090</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_relax_func_sqrt.html#9304407553c7bc9ecf69edf233fe1772">~XRelaxFuncSqrt</a>() {}
 <a name="l00091"></a>00091   
-<a name="l00097"></a><a class="code" href="class_x_relax_func_sqrt.html#a1">00097</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_relax_func_sqrt.html#a1">relax</a>(<span class="keywordtype">double</span> *f, <span class="keywordtype">double</span> *dfdt, <span class="keywordtype">double</span> t, <span class="keywordtype">double</span> it1)
+<a name="l00097"></a><a class="code" href="class_x_relax_func_sqrt.html#ef54add7cc30fc32492d11614ceb0137">00097</a>   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_relax_func_sqrt.html#ef54add7cc30fc32492d11614ceb0137">relax</a>(<span class="keywordtype">double</span> *f, <span class="keywordtype">double</span> *dfdt, <span class="keywordtype">double</span> t, <span class="keywordtype">double</span> it1)
 <a name="l00098"></a>00098  {
 <a name="l00099"></a>00099   it1 = std::max(0.0, it1);
 <a name="l00100"></a>00100   <span class="keywordtype">double</span> rt = sqrt(t * it1);
@@ -240,7 +249,7 @@
 <a name="l00243"></a>00243 {45,0.0010284}, {36,0.011189}, {28,0.05375}, {21,0.14848}, {15,0.25641}, {10,0.27972}, {6,0.18275}, {3,0.060606}, {1,0.0060606}, {0, 0}
 <a name="l00244"></a>00244   };
 <a name="l00245"></a>00245 
-<a name="l00246"></a><a class="code" href="class_x_relax_func_list.html#b0">00246</a> <a class="code" href="class_x_relax_func_list.html#b0">XRelaxFuncList::XRelaxFuncList</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime)
+<a name="l00246"></a><a class="code" href="class_x_relax_func_list.html#0ad549b26cbe3dfacd70d1e69dfe8e5b">00246</a> <a class="code" href="class_x_relax_func_list.html#0ad549b26cbe3dfacd70d1e69dfe8e5b">XRelaxFuncList::XRelaxFuncList</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime)
 <a name="l00247"></a>00247  : <a class="code" href="class_x_alias_list_node.html">XAliasListNode</a>&lt;<a class="code" href="class_x_relax_func.html">XRelaxFunc</a>&gt;(name, runtime)
 <a name="l00248"></a>00248 {
 <a name="l00249"></a>00249    create&lt;XRelaxFuncPoly&gt;(<span class="stringliteral">"NMR I=1/2"</span>, <span class="keyword">true</span>, s_relaxdata_nmr1);
@@ -283,23 +292,23 @@
 <a name="l00286"></a>00286 
 <a name="l00287"></a>00287 
 <a name="l00288"></a>00288 <span class="keywordtype">int</span>
-<a name="l00289"></a><a class="code" href="class_x_relax_func.html#e0">00289</a> <a class="code" href="class_x_relax_func.html#e0">XRelaxFunc::relax_f</a> (<span class="keyword">const</span> gsl_vector * x, <span class="keywordtype">void</span> *params,
+<a name="l00289"></a><a class="code" href="class_x_relax_func.html#3403995f1b6732c10fed3d570063ec4e">00289</a> <a class="code" href="class_x_relax_func.html#3403995f1b6732c10fed3d570063ec4e">XRelaxFunc::relax_f</a> (<span class="keyword">const</span> gsl_vector * x, <span class="keywordtype">void</span> *params,
 <a name="l00290"></a>00290          gsl_vector * f)
 <a name="l00291"></a>00291 {
 <a name="l00292"></a>00292   <a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html">XNMRT1::NLLS</a> *data = ((<a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html">XNMRT1::NLLS</a> *)params);
 <a name="l00293"></a>00293   <span class="keywordtype">double</span> iT1 = gsl_vector_get (x, 0);
 <a name="l00294"></a>00294   <span class="keywordtype">double</span> c = gsl_vector_get (x, 1);
 <a name="l00295"></a>00295 
-<a name="l00296"></a>00296   <span class="keywordtype">double</span> <a class="code" href="struct_x_relax_func_poly_1_1_term.html#o1">a</a> = gsl_vector_get (x, 2);
+<a name="l00296"></a>00296   <span class="keywordtype">double</span> <a class="code" href="struct_x_relax_func_poly_1_1_term.html#c705d7bc60e12dc32cc96332fe08663f">a</a> = gsl_vector_get (x, 2);
 <a name="l00297"></a>00297 
 <a name="l00298"></a>00298   <span class="keywordtype">int</span> i = 0;
-<a name="l00299"></a>00299   <span class="keywordflow">for</span>(std::deque&lt;XNMRT1::Pt&gt;::iterator it = data-&gt;<a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html#o0">pts</a>-&gt;begin();
-<a name="l00300"></a>00300       it != data-&gt;<a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html#o0">pts</a>-&gt;end(); it++)
+<a name="l00299"></a>00299   <span class="keywordflow">for</span>(std::deque&lt;XNMRT1::Pt&gt;::iterator it = data-&gt;<a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html#2ce9a5fc4e9b57c2557b7e916ac7d5ad">pts</a>-&gt;begin();
+<a name="l00300"></a>00300       it != data-&gt;<a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html#2ce9a5fc4e9b57c2557b7e916ac7d5ad">pts</a>-&gt;end(); it++)
 <a name="l00301"></a>00301     {
 <a name="l00302"></a>00302       <span class="keywordflow">if</span>(it-&gt;isigma == 0) <span class="keywordflow">continue</span>;
 <a name="l00303"></a>00303       <span class="keywordtype">double</span> t = it-&gt;p1;
 <a name="l00304"></a>00304       <span class="keywordtype">double</span> yi = 0, dydt = 0;
-<a name="l00305"></a>00305       data-&gt;<a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html#o1">func</a>-&gt;relax(&amp;yi, &amp;dydt, t, iT1);
+<a name="l00305"></a>00305       data-&gt;<a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html#1f4cc5e893f8dacfe1d96a88fa62a961">func</a>-&gt;relax(&amp;yi, &amp;dydt, t, iT1);
 <a name="l00306"></a>00306       <span class="keywordtype">double</span> y = it-&gt;var;
 <a name="l00307"></a>00307       gsl_vector_set (f, i, (c * yi + a - y) * it-&gt;isigma);
 <a name="l00308"></a>00308       i++;
@@ -307,7 +316,7 @@
 <a name="l00310"></a>00310   <span class="keywordflow">return</span> GSL_SUCCESS;
 <a name="l00311"></a>00311 }
 <a name="l00312"></a>00312 <span class="keywordtype">int</span>
-<a name="l00313"></a><a class="code" href="class_x_relax_func.html#e1">00313</a> <a class="code" href="class_x_relax_func.html#e1">XRelaxFunc::relax_df</a> (<span class="keyword">const</span> gsl_vector * x, <span class="keywordtype">void</span> *params,
+<a name="l00313"></a><a class="code" href="class_x_relax_func.html#ca76b492ae2992b56c8b62d2872b90fa">00313</a> <a class="code" href="class_x_relax_func.html#ca76b492ae2992b56c8b62d2872b90fa">XRelaxFunc::relax_df</a> (<span class="keyword">const</span> gsl_vector * x, <span class="keywordtype">void</span> *params,
 <a name="l00314"></a>00314           gsl_matrix * J)
 <a name="l00315"></a>00315 {
 <a name="l00316"></a>00316 
@@ -317,13 +326,13 @@
 <a name="l00320"></a>00320 <span class="comment">//  double a = gsl_vector_get (x, 2);</span>
 <a name="l00321"></a>00321 
 <a name="l00322"></a>00322   <span class="keywordtype">int</span> i = 0;
-<a name="l00323"></a>00323   <span class="keywordflow">for</span>(std::deque&lt;XNMRT1::Pt&gt;::iterator it = data-&gt;<a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html#o0">pts</a>-&gt;begin();
-<a name="l00324"></a>00324       it != data-&gt;<a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html#o0">pts</a>-&gt;end(); it++)
+<a name="l00323"></a>00323   <span class="keywordflow">for</span>(std::deque&lt;XNMRT1::Pt&gt;::iterator it = data-&gt;<a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html#2ce9a5fc4e9b57c2557b7e916ac7d5ad">pts</a>-&gt;begin();
+<a name="l00324"></a>00324       it != data-&gt;<a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html#2ce9a5fc4e9b57c2557b7e916ac7d5ad">pts</a>-&gt;end(); it++)
 <a name="l00325"></a>00325     {
 <a name="l00326"></a>00326       <span class="keywordflow">if</span>(it-&gt;isigma == 0) <span class="keywordflow">continue</span>;
 <a name="l00327"></a>00327       <span class="keywordtype">double</span> t = it-&gt;p1;
 <a name="l00328"></a>00328       <span class="keywordtype">double</span> yi = 0, dydt = 0;
-<a name="l00329"></a>00329       data-&gt;<a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html#o1">func</a>-&gt;relax(&amp;yi, &amp;dydt, t, iT1);
+<a name="l00329"></a>00329       data-&gt;<a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html#1f4cc5e893f8dacfe1d96a88fa62a961">func</a>-&gt;relax(&amp;yi, &amp;dydt, t, iT1);
 <a name="l00330"></a>00330       gsl_matrix_set (J, i, 0, (c * dydt) * it-&gt;isigma);
 <a name="l00331"></a>00331       gsl_matrix_set (J, i, 1, yi * it-&gt;isigma);
 <a name="l00332"></a>00332       gsl_matrix_set (J, i, 2, it-&gt;isigma);
@@ -332,23 +341,23 @@
 <a name="l00335"></a>00335   <span class="keywordflow">return</span> GSL_SUCCESS;
 <a name="l00336"></a>00336 }
 <a name="l00337"></a>00337 <span class="keywordtype">int</span>
-<a name="l00338"></a><a class="code" href="class_x_relax_func.html#e2">00338</a> <a class="code" href="class_x_relax_func.html#e2">XRelaxFunc::relax_fdf</a> (<span class="keyword">const</span> gsl_vector * x, <span class="keywordtype">void</span> *params,
+<a name="l00338"></a><a class="code" href="class_x_relax_func.html#cce761dff0a9f36ba94b4bbea83fd144">00338</a> <a class="code" href="class_x_relax_func.html#cce761dff0a9f36ba94b4bbea83fd144">XRelaxFunc::relax_fdf</a> (<span class="keyword">const</span> gsl_vector * x, <span class="keywordtype">void</span> *params,
 <a name="l00339"></a>00339            gsl_vector * f, gsl_matrix * J)
 <a name="l00340"></a>00340 {
 <a name="l00341"></a>00341   <a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html">XNMRT1::NLLS</a> *data = ((<a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html">XNMRT1::NLLS</a> *)params);
 <a name="l00342"></a>00342   <span class="keywordtype">double</span> iT1 = gsl_vector_get (x, 0);
 <a name="l00343"></a>00343 
 <a name="l00344"></a>00344   <span class="keywordtype">double</span> c = gsl_vector_get (x, 1);
-<a name="l00345"></a>00345   <span class="keywordtype">double</span> <a class="code" href="struct_x_relax_func_poly_1_1_term.html#o1">a</a> = gsl_vector_get (x, 2);
+<a name="l00345"></a>00345   <span class="keywordtype">double</span> <a class="code" href="struct_x_relax_func_poly_1_1_term.html#c705d7bc60e12dc32cc96332fe08663f">a</a> = gsl_vector_get (x, 2);
 <a name="l00346"></a>00346 
 <a name="l00347"></a>00347   <span class="keywordtype">int</span> i = 0;
-<a name="l00348"></a>00348   <span class="keywordflow">for</span>(std::deque&lt;XNMRT1::Pt&gt;::iterator it = data-&gt;<a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html#o0">pts</a>-&gt;begin();
-<a name="l00349"></a>00349       it != data-&gt;<a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html#o0">pts</a>-&gt;end(); it++)
+<a name="l00348"></a>00348   <span class="keywordflow">for</span>(std::deque&lt;XNMRT1::Pt&gt;::iterator it = data-&gt;<a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html#2ce9a5fc4e9b57c2557b7e916ac7d5ad">pts</a>-&gt;begin();
+<a name="l00349"></a>00349       it != data-&gt;<a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html#2ce9a5fc4e9b57c2557b7e916ac7d5ad">pts</a>-&gt;end(); it++)
 <a name="l00350"></a>00350     {
 <a name="l00351"></a>00351       <span class="keywordflow">if</span>(it-&gt;isigma == 0) <span class="keywordflow">continue</span>;
 <a name="l00352"></a>00352       <span class="keywordtype">double</span> t = it-&gt;p1;
 <a name="l00353"></a>00353       <span class="keywordtype">double</span> yi = 0, dydt = 0;
-<a name="l00354"></a>00354       data-&gt;<a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html#o1">func</a>-&gt;relax(&amp;yi, &amp;dydt, t, iT1);
+<a name="l00354"></a>00354       data-&gt;<a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html#1f4cc5e893f8dacfe1d96a88fa62a961">func</a>-&gt;relax(&amp;yi, &amp;dydt, t, iT1);
 <a name="l00355"></a>00355       <span class="keywordtype">double</span> y = it-&gt;var;
 <a name="l00356"></a>00356       gsl_vector_set (f, i, (c * yi + a - y) * it-&gt;isigma);
 <a name="l00357"></a>00357       gsl_matrix_set (J, i, 0, (c * dydt) * it-&gt;isigma);
@@ -359,66 +368,66 @@
 <a name="l00362"></a>00362   <span class="keywordflow">return</span> GSL_SUCCESS;
 <a name="l00363"></a>00363 }
 <a name="l00364"></a>00364 std::string
-<a name="l00365"></a><a class="code" href="class_x_n_m_r_t1.html#d4">00365</a> <a class="code" href="class_x_n_m_r_t1.html#d4">XNMRT1::iterate</a>(shared_ptr&lt;XRelaxFunc&gt; &amp;func,
+<a name="l00365"></a><a class="code" href="class_x_n_m_r_t1.html#24d30a4ad07dd2f80912bc3220770f15">00365</a> <a class="code" href="class_x_n_m_r_t1.html#24d30a4ad07dd2f80912bc3220770f15">XNMRT1::iterate</a>(shared_ptr&lt;XRelaxFunc&gt; &amp;func,
 <a name="l00366"></a>00366                 <span class="keywordtype">int</span> itercnt)
 <a name="l00367"></a>00367 {
 <a name="l00368"></a>00368   <span class="keywordtype">int</span> n = 0;
-<a name="l00369"></a>00369   <span class="keywordflow">for</span>(std::deque&lt;Pt&gt;::iterator it = <a class="code" href="class_x_n_m_r_t1.html#r45">m_sumpts</a>.begin(); it != <a class="code" href="class_x_n_m_r_t1.html#r45">m_sumpts</a>.end(); it++)
+<a name="l00369"></a>00369   <span class="keywordflow">for</span>(std::deque&lt;Pt&gt;::iterator it = <a class="code" href="class_x_n_m_r_t1.html#370c0bb451af259febf884752c3e9d80">m_sumpts</a>.begin(); it != <a class="code" href="class_x_n_m_r_t1.html#370c0bb451af259febf884752c3e9d80">m_sumpts</a>.end(); it++)
 <a name="l00370"></a>00370     {
 <a name="l00371"></a>00371       <span class="keywordflow">if</span>(it-&gt;isigma &gt; 0)  n++;
 <a name="l00372"></a>00372     }    
 <a name="l00373"></a>00373   <span class="keyword">struct </span><a class="code" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html">NLLS</a> nlls = {
-<a name="l00374"></a>00374     &amp;<a class="code" href="class_x_n_m_r_t1.html#r45">m_sumpts</a>,
+<a name="l00374"></a>00374     &amp;<a class="code" href="class_x_n_m_r_t1.html#370c0bb451af259febf884752c3e9d80">m_sumpts</a>,
 <a name="l00375"></a>00375     func
 <a name="l00376"></a>00376   };
 <a name="l00377"></a>00377   <span class="keywordtype">int</span> p = 3;
-<a name="l00378"></a>00378   <span class="keywordflow">if</span>(n &lt;= p) <span class="keywordflow">return</span> formatString(<span class="stringliteral">"%d"</span>,n) + <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">" points, more points needed."</span>);
+<a name="l00378"></a>00378   <span class="keywordflow">if</span>(n &lt;= p) <span class="keywordflow">return</span> formatString(<span class="stringliteral">"%d"</span>,n) + <a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">" points, more points needed."</span>);
 <a name="l00379"></a>00379   <span class="keywordtype">int</span> status;
 <a name="l00380"></a>00380   <span class="keywordtype">double</span> norm = 0;
-<a name="l00381"></a>00381   <a class="code" href="class_x_time.html">XTime</a> firsttime = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
+<a name="l00381"></a>00381   <a class="code" href="class_x_time.html">XTime</a> firsttime = <a class="code" href="class_x_time.html#c379a0eebc8202c724609985cf7782ac">XTime::now</a>();
 <a name="l00382"></a>00382   <span class="keywordflow">for</span>(;;)
 <a name="l00383"></a>00383     {
-<a name="l00384"></a>00384       status = do_nlls(n, p, <a class="code" href="class_x_n_m_r_t1.html#r49">m_params</a>, <a class="code" href="class_x_n_m_r_t1.html#r50">m_errors</a>, &amp;norm,
-<a name="l00385"></a>00385                        &amp;nlls, &amp;<a class="code" href="class_x_relax_func.html#e0">XRelaxFunc::relax_f</a>, &amp;<a class="code" href="class_x_relax_func.html#e1">XRelaxFunc::relax_df</a>, &amp;<a class="code" href="class_x_relax_func.html#e2">XRelaxFunc::relax_fdf</a>, itercnt);
+<a name="l00384"></a>00384       status = do_nlls(n, p, <a class="code" href="class_x_n_m_r_t1.html#547f528ce0c9bdd5e285b397dac87d4d">m_params</a>, <a class="code" href="class_x_n_m_r_t1.html#070f9097ac9717465d9a409c1f37946a">m_errors</a>, &amp;norm,
+<a name="l00385"></a>00385                        &amp;nlls, &amp;<a class="code" href="class_x_relax_func.html#3403995f1b6732c10fed3d570063ec4e">XRelaxFunc::relax_f</a>, &amp;<a class="code" href="class_x_relax_func.html#ca76b492ae2992b56c8b62d2872b90fa">XRelaxFunc::relax_df</a>, &amp;<a class="code" href="class_x_relax_func.html#cce761dff0a9f36ba94b4bbea83fd144">XRelaxFunc::relax_fdf</a>, itercnt);
 <a name="l00386"></a>00386       <span class="keywordflow">if</span>(!status) <span class="keywordflow">break</span>;
-<a name="l00387"></a>00387       <span class="keywordflow">if</span>(<a class="code" href="class_x_time.html#e0">XTime::now</a>() - firsttime &lt; 0.01) <span class="keywordflow">continue</span>;
-<a name="l00388"></a>00388       <span class="keywordflow">if</span>(<a class="code" href="class_x_time.html#e0">XTime::now</a>() - firsttime &gt; 0.05) <span class="keywordflow">break</span>;
-<a name="l00389"></a>00389       <span class="keywordtype">double</span> p1max = *<a class="code" href="class_x_n_m_r_t1.html#a11">p1Max</a>();
-<a name="l00390"></a>00390       <span class="keywordtype">double</span> p1min = *<a class="code" href="class_x_n_m_r_t1.html#a10">p1Min</a>();
-<a name="l00391"></a>00391       <a class="code" href="class_x_n_m_r_t1.html#r49">m_params</a>[0] = 1.0 / exp(log(p1max/p1min) * (((<span class="keywordtype">double</span>)<a class="code" href="namespace_k_a_m_e.html#a2">KAME::rand</a>())/RAND_MAX) + log(p1min));
-<a name="l00392"></a>00392       <a class="code" href="class_x_n_m_r_t1.html#r49">m_params</a>[1] = 0.1 + 0.5*(((double)<a class="code" href="namespace_k_a_m_e.html#a2">KAME::rand</a>())/RAND_MAX);
-<a name="l00393"></a>00393       <a class="code" href="class_x_n_m_r_t1.html#r49">m_params</a>[2] = 0.0;
-<a name="l00394"></a>00394       status = do_nlls(n, p, <a class="code" href="class_x_n_m_r_t1.html#r49">m_params</a>, <a class="code" href="class_x_n_m_r_t1.html#r50">m_errors</a>, &amp;norm,
-<a name="l00395"></a>00395                        &amp;nlls, &amp;<a class="code" href="class_x_relax_func.html#e0">XRelaxFunc::relax_f</a>, &amp;<a class="code" href="class_x_relax_func.html#e1">XRelaxFunc::relax_df</a>, &amp;<a class="code" href="class_x_relax_func.html#e2">XRelaxFunc::relax_fdf</a>, itercnt);
+<a name="l00387"></a>00387       <span class="keywordflow">if</span>(<a class="code" href="class_x_time.html#c379a0eebc8202c724609985cf7782ac">XTime::now</a>() - firsttime &lt; 0.01) <span class="keywordflow">continue</span>;
+<a name="l00388"></a>00388       <span class="keywordflow">if</span>(XTime::now() - firsttime &gt; 0.05) <span class="keywordflow">break</span>;
+<a name="l00389"></a>00389       <span class="keywordtype">double</span> p1max = *<a class="code" href="class_x_n_m_r_t1.html#154214435a58ba44be4a8a360fa8d3ed">p1Max</a>();
+<a name="l00390"></a>00390       <span class="keywordtype">double</span> p1min = *<a class="code" href="class_x_n_m_r_t1.html#12f5b75ba1af9782903703459132a11b">p1Min</a>();
+<a name="l00391"></a>00391       <a class="code" href="class_x_n_m_r_t1.html#547f528ce0c9bdd5e285b397dac87d4d">m_params</a>[0] = 1.0 / exp(log(p1max/p1min) * (((<span class="keywordtype">double</span>)<a class="code" href="namespace_k_a_m_e.html#b72beb0913da4976d289f6374ebeff8d">KAME::rand</a>())/RAND_MAX) + log(p1min));
+<a name="l00392"></a>00392       <a class="code" href="class_x_n_m_r_t1.html#547f528ce0c9bdd5e285b397dac87d4d">m_params</a>[1] = 0.1 + 0.5*(((double)KAME::rand())/RAND_MAX);
+<a name="l00393"></a>00393       <a class="code" href="class_x_n_m_r_t1.html#547f528ce0c9bdd5e285b397dac87d4d">m_params</a>[2] = 0.0;
+<a name="l00394"></a>00394       status = do_nlls(n, p, <a class="code" href="class_x_n_m_r_t1.html#547f528ce0c9bdd5e285b397dac87d4d">m_params</a>, <a class="code" href="class_x_n_m_r_t1.html#070f9097ac9717465d9a409c1f37946a">m_errors</a>, &amp;norm,
+<a name="l00395"></a>00395                        &amp;nlls, &amp;<a class="code" href="class_x_relax_func.html#3403995f1b6732c10fed3d570063ec4e">XRelaxFunc::relax_f</a>, &amp;<a class="code" href="class_x_relax_func.html#ca76b492ae2992b56c8b62d2872b90fa">XRelaxFunc::relax_df</a>, &amp;<a class="code" href="class_x_relax_func.html#cce761dff0a9f36ba94b4bbea83fd144">XRelaxFunc::relax_fdf</a>, itercnt);
 <a name="l00396"></a>00396     }
-<a name="l00397"></a>00397   <a class="code" href="class_x_n_m_r_t1.html#r50">m_errors</a>[0] *= norm / sqrt((<span class="keywordtype">double</span>)n);
-<a name="l00398"></a>00398   <a class="code" href="class_x_n_m_r_t1.html#r50">m_errors</a>[1] *= norm / sqrt((<span class="keywordtype">double</span>)n);
-<a name="l00399"></a>00399   <a class="code" href="class_x_n_m_r_t1.html#r50">m_errors</a>[2] *= norm / sqrt((<span class="keywordtype">double</span>)n);
+<a name="l00397"></a>00397   <a class="code" href="class_x_n_m_r_t1.html#070f9097ac9717465d9a409c1f37946a">m_errors</a>[0] *= norm / sqrt((<span class="keywordtype">double</span>)n);
+<a name="l00398"></a>00398   <a class="code" href="class_x_n_m_r_t1.html#070f9097ac9717465d9a409c1f37946a">m_errors</a>[1] *= norm / sqrt((<span class="keywordtype">double</span>)n);
+<a name="l00399"></a>00399   <a class="code" href="class_x_n_m_r_t1.html#070f9097ac9717465d9a409c1f37946a">m_errors</a>[2] *= norm / sqrt((<span class="keywordtype">double</span>)n);
 <a name="l00400"></a>00400 
-<a name="l00401"></a>00401   <span class="keywordtype">double</span> t1 = 0.001 / <a class="code" href="class_x_n_m_r_t1.html#r49">m_params</a>[0];
-<a name="l00402"></a>00402   <span class="keywordtype">double</span> t1err = 0.001 / pow(<a class="code" href="class_x_n_m_r_t1.html#r49">m_params</a>[0], 2.0) * <a class="code" href="class_x_n_m_r_t1.html#r50">m_errors</a>[0];
+<a name="l00401"></a>00401   <span class="keywordtype">double</span> t1 = 0.001 / <a class="code" href="class_x_n_m_r_t1.html#547f528ce0c9bdd5e285b397dac87d4d">m_params</a>[0];
+<a name="l00402"></a>00402   <span class="keywordtype">double</span> t1err = 0.001 / pow(<a class="code" href="class_x_n_m_r_t1.html#547f528ce0c9bdd5e285b397dac87d4d">m_params</a>[0], 2.0) * <a class="code" href="class_x_n_m_r_t1.html#070f9097ac9717465d9a409c1f37946a">m_errors</a>[0];
 <a name="l00403"></a>00403   QString buf = <span class="stringliteral">""</span>;
-<a name="l00404"></a>00404   <span class="keywordflow">if</span>(*<a class="code" href="class_x_n_m_r_t1.html#a15">t2Mode</a>())
+<a name="l00404"></a>00404   <span class="keywordflow">if</span>(*<a class="code" href="class_x_n_m_r_t1.html#d7b33f93d660aa9ad580b36eef3853f6">t2Mode</a>())
 <a name="l00405"></a>00405     {
 <a name="l00406"></a>00406       buf += QString().sprintf(<span class="stringliteral">"1/T2[1/ms] = %.5f +/- %.5f (%.2f%%)\n"</span>,
-<a name="l00407"></a>00407              1000.0 * <a class="code" href="class_x_n_m_r_t1.html#r49">m_params</a>[0], 1000.0 * <a class="code" href="class_x_n_m_r_t1.html#r50">m_errors</a>[0], fabs(100.0 * <a class="code" href="class_x_n_m_r_t1.html#r50">m_errors</a>[0]/<a class="code" href="class_x_n_m_r_t1.html#r49">m_params</a>[0]));
+<a name="l00407"></a>00407              1000.0 * <a class="code" href="class_x_n_m_r_t1.html#547f528ce0c9bdd5e285b397dac87d4d">m_params</a>[0], 1000.0 * <a class="code" href="class_x_n_m_r_t1.html#070f9097ac9717465d9a409c1f37946a">m_errors</a>[0], fabs(100.0 * <a class="code" href="class_x_n_m_r_t1.html#070f9097ac9717465d9a409c1f37946a">m_errors</a>[0]/<a class="code" href="class_x_n_m_r_t1.html#547f528ce0c9bdd5e285b397dac87d4d">m_params</a>[0]));
 <a name="l00408"></a>00408       buf += QString().sprintf(<span class="stringliteral">"T2[ms] = %.6f +/- %.6f (%.2f%%)\n"</span>,
 <a name="l00409"></a>00409              t1, t1err, fabs(100.0 * t1err/t1));
 <a name="l00410"></a>00410     }
 <a name="l00411"></a>00411   <span class="keywordflow">else</span>
 <a name="l00412"></a>00412     {
 <a name="l00413"></a>00413       buf += QString().sprintf(<span class="stringliteral">"1/T1[1/s] = %.5f +/- %.5f (%.2f%%)\n"</span>,
-<a name="l00414"></a>00414              1000.0 * <a class="code" href="class_x_n_m_r_t1.html#r49">m_params</a>[0], 1000.0 * <a class="code" href="class_x_n_m_r_t1.html#r50">m_errors</a>[0], fabs(100.0 * <a class="code" href="class_x_n_m_r_t1.html#r50">m_errors</a>[0]/<a class="code" href="class_x_n_m_r_t1.html#r49">m_params</a>[0]));
+<a name="l00414"></a>00414              1000.0 * <a class="code" href="class_x_n_m_r_t1.html#547f528ce0c9bdd5e285b397dac87d4d">m_params</a>[0], 1000.0 * <a class="code" href="class_x_n_m_r_t1.html#070f9097ac9717465d9a409c1f37946a">m_errors</a>[0], fabs(100.0 * <a class="code" href="class_x_n_m_r_t1.html#070f9097ac9717465d9a409c1f37946a">m_errors</a>[0]/<a class="code" href="class_x_n_m_r_t1.html#547f528ce0c9bdd5e285b397dac87d4d">m_params</a>[0]));
 <a name="l00415"></a>00415       buf += QString().sprintf(<span class="stringliteral">"T1[s] = %.7f +/- %.7f (%.2f%%)\n"</span>,
 <a name="l00416"></a>00416              t1, t1err, fabs(100.0 * t1err/t1));
 <a name="l00417"></a>00417     }
 <a name="l00418"></a>00418   buf += QString().sprintf(<span class="stringliteral">"c[V] = %.5g +/- %.5g (%.3f%%)\n"</span>,
-<a name="l00419"></a>00419          <a class="code" href="class_x_n_m_r_t1.html#r49">m_params</a>[1], <a class="code" href="class_x_n_m_r_t1.html#r50">m_errors</a>[1], fabs(100.0 * <a class="code" href="class_x_n_m_r_t1.html#r50">m_errors</a>[1]/<a class="code" href="class_x_n_m_r_t1.html#r49">m_params</a>[1]));
+<a name="l00419"></a>00419          <a class="code" href="class_x_n_m_r_t1.html#547f528ce0c9bdd5e285b397dac87d4d">m_params</a>[1], <a class="code" href="class_x_n_m_r_t1.html#070f9097ac9717465d9a409c1f37946a">m_errors</a>[1], fabs(100.0 * <a class="code" href="class_x_n_m_r_t1.html#070f9097ac9717465d9a409c1f37946a">m_errors</a>[1]/<a class="code" href="class_x_n_m_r_t1.html#547f528ce0c9bdd5e285b397dac87d4d">m_params</a>[1]));
 <a name="l00420"></a>00420   buf += QString().sprintf(<span class="stringliteral">"a[V] = %.5g +/- %.5g (%.3f%%)\n"</span>,
-<a name="l00421"></a>00421          <a class="code" href="class_x_n_m_r_t1.html#r49">m_params</a>[2], <a class="code" href="class_x_n_m_r_t1.html#r50">m_errors</a>[2], fabs(100.0 * <a class="code" href="class_x_n_m_r_t1.html#r50">m_errors</a>[2]/<a class="code" href="class_x_n_m_r_t1.html#r49">m_params</a>[2]));
+<a name="l00421"></a>00421          <a class="code" href="class_x_n_m_r_t1.html#547f528ce0c9bdd5e285b397dac87d4d">m_params</a>[2], <a class="code" href="class_x_n_m_r_t1.html#070f9097ac9717465d9a409c1f37946a">m_errors</a>[2], fabs(100.0 * <a class="code" href="class_x_n_m_r_t1.html#070f9097ac9717465d9a409c1f37946a">m_errors</a>[2]/<a class="code" href="class_x_n_m_r_t1.html#547f528ce0c9bdd5e285b397dac87d4d">m_params</a>[2]));
 <a name="l00422"></a>00422   buf += QString().sprintf(<span class="stringliteral">"status = %s\n"</span>, gsl_strerror (status));
 <a name="l00423"></a>00423   buf += QString().sprintf(<span class="stringliteral">"rms of residuals = %.3g\n"</span>, norm / sqrt((<span class="keywordtype">double</span>)n));
-<a name="l00424"></a>00424   buf += QString().sprintf(<span class="stringliteral">"elapsed time = %.2f ms\n"</span>, 1000.0 * (<a class="code" href="class_x_time.html#e0">XTime::now</a>() - firsttime));
+<a name="l00424"></a>00424   buf += QString().sprintf(<span class="stringliteral">"elapsed time = %.2f ms\n"</span>, 1000.0 * (<a class="code" href="class_x_time.html#c379a0eebc8202c724609985cf7782ac">XTime::now</a>() - firsttime));
 <a name="l00425"></a>00425   <span class="keywordflow">return</span> buf;
 <a name="l00426"></a>00426 }
 <a name="l00427"></a>00427 
@@ -479,8 +488,8 @@
 <a name="l00482"></a>00482   <span class="keywordflow">return</span> status;
 <a name="l00483"></a>00483 }
 <a name="l00484"></a>00484 
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してWed Feb 28 04:17:15 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 17:09:02 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.5.1 </small></address>
 </body>
 </html>
