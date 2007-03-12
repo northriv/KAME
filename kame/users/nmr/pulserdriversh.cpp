@@ -323,7 +323,7 @@ void
 XSHPulser::changeOutput(bool output, unsigned int /*blankpattern*/)
 {
 	if(output)
-    {
+	{
 		if(m_zippedPatterns.empty() )
 			throw XInterface::XInterfaceError(KAME::i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
 		for(unsigned int retry = 0; ; retry++) {
@@ -332,7 +332,7 @@ XSHPulser::changeOutput(bool output, unsigned int /*blankpattern*/)
 				interface()->receive();
 				char buf[3];
 				if((interface()->scanf("Pulse %3s", buf) != 1) || strncmp(buf, "Off", 3))
-                    throw XInterface::XConvError(__FILE__, __LINE__);
+					throw XInterface::XConvError(__FILE__, __LINE__);
 				unsigned int size = m_zippedPatterns.size();
 				interface()->sendf("$pload %x", size );
 				interface()->receive();
@@ -347,13 +347,13 @@ XSHPulser::changeOutput(bool output, unsigned int /*blankpattern*/)
 				interface()->receive();
 				unsigned int ret;
 				if(interface()->scanf("%x", &ret) != 1)
-                    throw XInterface::XConvError(__FILE__, __LINE__);
+					throw XInterface::XConvError(__FILE__, __LINE__);
 				if(ret != sum)
-                    throw XInterface::XInterfaceError(KAME::i18n("Pulser Check Sum Error"), __FILE__, __LINE__);
+					throw XInterface::XInterfaceError(KAME::i18n("Pulser Check Sum Error"), __FILE__, __LINE__);
 				interface()->send("$pon");
 				interface()->receive();
 				if((interface()->scanf("Pulse %2s", buf) != 1) || strncmp(buf, "On", 2))
-                    throw XInterface::XConvError(__FILE__, __LINE__);
+					throw XInterface::XConvError(__FILE__, __LINE__);
 			}
 			catch (XKameError &e) {
 				if(retry > 1) throw e;
@@ -362,12 +362,12 @@ XSHPulser::changeOutput(bool output, unsigned int /*blankpattern*/)
 			}
 			break;
 		}
-    }
+	}
 	else
-    {
+	{
 		interface()->write("!", 1); //poff
 		interface()->receive();
-    }
+	}
 	return;
 }
 

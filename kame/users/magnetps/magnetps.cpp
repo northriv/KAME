@@ -163,7 +163,7 @@ XMagnetPS::execute(const atomic<bool> &terminated)
 
   
     while(!terminated)
-    {
+	{
 		msecsleep(10);
 		double magnet_field;
 		double output_field;
@@ -219,34 +219,34 @@ XMagnetPS::execute(const atomic<bool> &terminated)
       
 		try {
 			if(is_pcs_fitted)
-            {
+			{
 				if(pcs_heater) {
 					//pcs heater is on
-                    if(fabs(target_field - *targetField()) >= field_resolution) {
-                        if(pcsh_stable) {
-                            setPoint(*targetField());
-                            toSetPoint();    
-                        }
-                    }
-                    else {
-                        if((fabs(dhavg) < field_resolution / 10) && 
+					if(fabs(target_field - *targetField()) >= field_resolution) {
+						if(pcsh_stable) {
+							setPoint(*targetField());
+							toSetPoint();    
+						}
+					}
+					else {
+						if((fabs(dhavg) < field_resolution / 10) && 
 						   (fabs(magnet_field - target_field) < field_resolution) &&
 						   *allowPersistent() )
-                        {
+						{
 							//field is not sweeping, and persistent is allowed
 							m_statusPrinter->printMessage(getLabel() + " " + 
 														  KAME::i18n("Turning on Perisistent mode."));
 							pcsh_time = XTime::now();
 							toPersistent();
-                        }
-                    }
+						}
+					}
 				}
 				else {
 					//pcs heater if off
 					if(fabs(magnet_field - *targetField()) >= field_resolution) {
 						//start sweeping.
 						if(fabs(magnet_field - output_field) < field_resolution) {
-                            if(fabs(target_field  - magnet_field) < field_resolution) {
+							if(fabs(target_field  - magnet_field) < field_resolution) {
 								//ready to go non-persistent.
 								m_statusPrinter->printMessage(getLabel() + " " + 
 															  KAME::i18n("Non-Perisistent mode."));
@@ -256,31 +256,31 @@ XMagnetPS::execute(const atomic<bool> &terminated)
 																	  KAME::i18n("Huh? Magnet field confusing."), __FILE__, __LINE__);
 								pcsh_time = XTime::now();
 								toNonPersistent();
-                            }
+							}
 						}
 						else {
 							//set output to persistent field.
-                            if(pcsh_stable) {
-                                if(target_field != magnet_field)
-                                    setPoint(magnet_field);
-                                toSetPoint();  
-                            }
+							if(pcsh_stable) {
+								if(target_field != magnet_field)
+									setPoint(magnet_field);
+								toSetPoint();  
+							}
 						}
 					}
 					else {
 						if(pcsh_stable) {
-                            toZero();
+							toZero();
 						}
 					}
 				}
-            }
-            else {
-                // pcsh is not fitted.
+			}
+			else {
+				// pcsh is not fitted.
 				if(fabs(target_field - *targetField()) >= field_resolution) {                
 					setPoint(*targetField());
 					toSetPoint();
 				}
-            }
+			}
 		}
 		catch (XKameError &e) {
 			e.print(getLabel());

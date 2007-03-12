@@ -228,8 +228,8 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
 	
 	{
-    	char ch[256];
-    	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
+		char ch[256];
+		CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
 		if(intfDO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_DMA_DO) {
 			CHECK_DAQMX_RET(DAQmxSetDODataXferMech(m_taskDO, ch,
 												   DAQmx_Val_Interrupts));
@@ -237,7 +237,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		if(intfDO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_DO) {
 			CHECK_DAQMX_RET(DAQmxSetDODataXferReqCond(m_taskDO, ch,
 													  DAQmx_Val_OnBrdMemNotFull));
-	    }
+		}
 	}
 	
 	if(m_pausingBit) {
@@ -253,9 +253,9 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 												   m_pausingCount * resolution() * 1e-3));
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskGateCtr,
 											   DAQmx_Val_FiniteSamps, 1));
-	    intfCtr()->synchronizeClock(m_taskGateCtr);
+		intfCtr()->synchronizeClock(m_taskGateCtr);
 
-	    CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskGateCtr,
+		CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskGateCtr,
 												 m_pausingGateTerm.c_str(),
 												 DAQmx_Val_Rising));
 		CHECK_DAQMX_RET(DAQmxSetStartTrigRetriggerable(m_taskGateCtr, true));
@@ -342,7 +342,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 		if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AO) {
 			CHECK_DAQMX_RET(DAQmxSetAODataXferReqCond(m_taskAO, ch,
 													  DAQmx_Val_OnBrdMemNotFull));
-	    }
+		}
 		CHECK_DAQMX_RET(DAQmxSetAOReglitchEnable(m_taskAO, ch, false));
 	}
 
@@ -456,17 +456,17 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		}
 
 		//swap generated pattern lists to new ones.
-	 	m_genPatternList.reset();
-	 	m_genPatternListNext.swap(m_genPatternList);
- 		for(unsigned int j = 0; j < PAT_QAM_MASK / PAT_QAM_PHASE; j++) {
- 			m_genPulseWaveAO[j].reset();
- 			m_genPulseWaveNextAO[j].swap(m_genPulseWaveAO[j]);
- 		}
+		m_genPatternList.reset();
+		m_genPatternListNext.swap(m_genPatternList);
+		for(unsigned int j = 0; j < PAT_QAM_MASK / PAT_QAM_PHASE; j++) {
+			m_genPulseWaveAO[j].reset();
+			m_genPulseWaveNextAO[j].swap(m_genPulseWaveAO[j]);
+		}
 
-	 	//prepare pattern generation.
+		//prepare pattern generation.
 		m_genLastPatItDO = m_genPatternList->begin();
 		m_genRestSampsDO = m_genPatternList->front().tonext;
-	 	m_genTotalCountDO = m_genPatternList->front().tonext;
+		m_genTotalCountDO = m_genPatternList->front().tonext;
 		m_genBufDO.resize(m_bufSizeHintDO);
 		if(m_taskAO != TASK_UNDEF) {
 			m_genLastPatItAO = m_genPatternList->begin();
@@ -476,10 +476,10 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		}
 		
 		if(m_taskAO != TASK_UNDEF)
-		    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
 		if(m_taskDOCtr != TASK_UNDEF)
-		    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
-	    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
 		if(m_taskGateCtr != TASK_UNDEF)
 			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
 
@@ -561,15 +561,15 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	}
 	fprintf(stderr, "Prefilling done.\n");
 	//slave must start before the master.
-    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
+	CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
 	if(m_taskDOCtr != TASK_UNDEF)
-	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
+		CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
 	if(m_taskGateCtr != TASK_UNDEF)
-	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
+		CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
 	m_suspendDO = false;
 	fprintf(stderr, "Starting AO....\n");
 	if(m_taskAO != TASK_UNDEF)
-	    CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));	
+		CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));	
 	m_suspendAO = false;
 	m_running = true;	
 }
@@ -896,11 +896,11 @@ XNIDAQmxPulser::createNativePatterns()
 	uint32_t pat = m_relPatList.back().pattern;
 	for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++)
 	{
-	 	uint64_t tonext = it->toappear;
+		uint64_t tonext = it->toappear;
 
-	 	GenPattern genpat(pat, tonext);
-  		m_genPatternListNext->push_back(genpat);
-	 	pat = it->pattern;
+		GenPattern genpat(pat, tonext);
+		m_genPatternListNext->push_back(genpat);
+		pat = it->pattern;
 	}
 
 	if(haveQAMPorts()) {
@@ -938,15 +938,15 @@ void
 XNIDAQmxPulser::changeOutput(bool output, unsigned int /*blankpattern*/)
 {
 	if(output)
-    {
+	{
 		if(!m_genPatternListNext || m_genPatternListNext->empty() )
 			throw XInterface::XInterfaceError(KAME::i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
 		startPulseGen();
-    }
+	}
 	else
-    {
+	{
 		stopPulseGen();
-    }
+	}
 	return;
 }
 

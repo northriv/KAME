@@ -237,7 +237,7 @@ protected:
     virtual bool haveQAMPorts() const = 0;
 
   	const std::vector<std::complex<double> > &qamWaveForm(unsigned int idx) const
-		{return m_qamWaveForm[idx];}
+	{return m_qamWaveForm[idx];}
 
   
 private:

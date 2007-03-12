@@ -39,7 +39,7 @@ public:
 	inline static tVar pop(std::vector<char>::iterator &it);
   
 	virtual const shared_ptr<XRecordDependency> dependency() const 
-        {return shared_ptr<XRecordDependency>();}
+	{return shared_ptr<XRecordDependency>();}
 
 
 	//! Shut down your threads, unconnect GUI, and deactivate signals
@@ -110,9 +110,9 @@ XPrimaryDriver::_push_short(short x, std::vector<char> &buf) {
     char *p = reinterpret_cast<char *>(&y);
 #ifdef __BIG_ENDIAN__
     for(char *z = p + sizeof(x) - 1; z >= p; z--) {
-#else
+	#else
 		for(char *z = p; z < p + sizeof(x); z++) {
-#endif
+		#endif
 			buf.push_back(*z);
 		}
 	}
@@ -120,11 +120,11 @@ XPrimaryDriver::_push_short(short x, std::vector<char> &buf) {
 		XPrimaryDriver::_push_int32(int32_t x, std::vector<char> &buf) {
 		int32_t y = x;
 		char *p = reinterpret_cast<char *>(&y);
-#ifdef __BIG_ENDIAN__
+	#ifdef __BIG_ENDIAN__
 		for(char *z = p + sizeof(x) - 1; z >= p; z--) {
-#else
+		#else
 			for(char *z = p; z < p + sizeof(x); z++) {
-#endif
+			#endif
 				buf.push_back(*z);
 			}
 		}
@@ -132,11 +132,11 @@ XPrimaryDriver::_push_short(short x, std::vector<char> &buf) {
 			XPrimaryDriver::_push_double(double x, std::vector<char> &buf) {
 			double y = x;
 			char *p = reinterpret_cast<char *>(&y);
-#ifdef __BIG_ENDIAN__
+		#ifdef __BIG_ENDIAN__
 			for(char *z = p + sizeof(x) - 1; z >= p; z--) {
-#else
+			#else
 				for(char *z = p; z < p + sizeof(x); z++) {
-#endif
+				#endif
 					buf.push_back(*z);
 				}
 			}
@@ -151,11 +151,11 @@ XPrimaryDriver::_push_short(short x, std::vector<char> &buf) {
 					short x;
 					char p[sizeof(short)];
 				} uni;
-#ifdef __BIG_ENDIAN__
+			#ifdef __BIG_ENDIAN__
 				for(char *z = uni.p + sizeof(uni) - 1; z >= uni.p; z--) {
-#else
+				#else
 					for(char *z = uni.p; z < uni.p + sizeof(uni); z++) {
-#endif
+					#endif
 						*z = *(it++);
 					}
 					return uni.x;
@@ -166,11 +166,11 @@ XPrimaryDriver::_push_short(short x, std::vector<char> &buf) {
 						int32_t x;
 						char p[sizeof(int32_t)];
 					} uni;
-#ifdef __BIG_ENDIAN__
+				#ifdef __BIG_ENDIAN__
 					for(char *z = uni.p + sizeof(uni) - 1; z >= uni.p; z--) {
-#else
+					#else
 						for(char *z = uni.p; z < uni.p + sizeof(uni); z++) {
-#endif
+						#endif
 							*z = *(it++);
 						}
 						return uni.x;
@@ -181,11 +181,11 @@ XPrimaryDriver::_push_short(short x, std::vector<char> &buf) {
 							double x;
 							char p[sizeof(double)];
 						} uni;
-#ifdef __BIG_ENDIAN__
+					#ifdef __BIG_ENDIAN__
 						for(char *z = uni.p + sizeof(uni) - 1; z >= uni.p; z--) {
-#else
+						#else
 							for(char *z = uni.p; z < uni.p + sizeof(uni); z++) {
-#endif
+							#endif
 								*z = *(it++);
 							}
 							return uni.x;
@@ -355,4 +355,4 @@ XPrimaryDriver::_push_short(short x, std::vector<char> &buf) {
 							_push_double(x, buf);
 						}
 
-#endif /*PRIMARYDRIVER_H_*/
+					#endif /*PRIMARYDRIVER_H_*/

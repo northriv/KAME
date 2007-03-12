@@ -73,9 +73,9 @@ XQPulserDriverConnector::XQPulserDriverConnector(
     axisy->labelColor()->value(clWhite);
     axisy->ticLabelColor()->value(clWhite);
     for(int i=0; i < XPulser::NUM_DO_PORTS; i++)
-    {
+	{
 		shared_ptr<XXYPlot> plot = m_graph->plots()->create<XXYPlot>(
-            QString().sprintf("Port%d", i), true, m_graph);
+			QString().sprintf("Port%d", i), true, m_graph);
 		plot->label()->value(QString().sprintf(KAME::i18n("Port%d"), i));
 		plot->axisX()->value(axisx);
 		plot->axisY()->value(axisy);
@@ -85,7 +85,7 @@ XQPulserDriverConnector::XQPulserDriverConnector(
 		plot->lineColor()->value(QColor(0x4e, 0xff, 0x10).rgb());
 		plot->clearPoints()->setUIEnabled(false);
 		plot->maxCount()->setUIEnabled(false);
-    }
+	}
     m_barPlot = m_graph->plots()->create<XXYPlot>("Bars", true, m_graph);
     m_barPlot->label()->value(KAME::i18n("Bars"));
     m_barPlot->axisX()->value(axisx);
@@ -135,11 +135,11 @@ XQPulserDriverConnector::updateGraph(bool checkselection)
     std::deque<std::deque<XGraph::ValPoint> *> plots_points;
     for(std::deque<shared_ptr<XXYPlot> >::iterator it = m_plots.begin();
 		it != m_plots.end(); it++)
-    {
-        (*it)->maxCount()->value(pulser->m_relPatList.size() * 2);
-        (*it)->points().clear();
-        plots_points.push_back(&(*it)->points());
-    }
+	{
+		(*it)->maxCount()->value(pulser->m_relPatList.size() * 2);
+		(*it)->points().clear();
+		plots_points.push_back(&(*it)->points());
+	}
     uint32_t lastpat = pulser->m_relPatList.empty() ? 0 :
         pulser->m_relPatList[pulser->m_relPatList.size() - 1].pattern;
     double firsttime = -0.001, lasttime = 100;
@@ -147,36 +147,36 @@ XQPulserDriverConnector::updateGraph(bool checkselection)
     int i = 0;
     for(XPulser::RelPatListIterator it = pulser->m_relPatList.begin(); 
 		it != pulser->m_relPatList.end(); it++)
-    {
-    	double time = it->time * pulser->resolution();
-        if(m_pTable->isRowSelected(i))
-        {
-            if(firsttime < 0) firsttime = time;
-            lasttime = time;
-        }
-        barplot_points.push_back(XGraph::ValPoint(time, m_plots.size()));
-        for(int j = 0; j < (int)plots_points.size(); j++)
-        {
-            plots_points[j]->push_back(XGraph::ValPoint(time, j + 0.7 * ((lastpat >> j) % 2)));
-            plots_points[j]->push_back(XGraph::ValPoint(time, j + 0.7 * ((it->pattern >> j) % 2)));
-        }
-        lastpat = it->pattern;
-        i++;
-    }
+	{
+		double time = it->time * pulser->resolution();
+		if(m_pTable->isRowSelected(i))
+		{
+			if(firsttime < 0) firsttime = time;
+			lasttime = time;
+		}
+		barplot_points.push_back(XGraph::ValPoint(time, m_plots.size()));
+		for(int j = 0; j < (int)plots_points.size(); j++)
+		{
+			plots_points[j]->push_back(XGraph::ValPoint(time, j + 0.7 * ((lastpat >> j) % 2)));
+			plots_points[j]->push_back(XGraph::ValPoint(time, j + 0.7 * ((it->pattern >> j) % 2)));
+		}
+		lastpat = it->pattern;
+		i++;
+	}
     if(checkselection)
-    {
-        if(lasttime == firsttime) {
-            firsttime -= 0.5;
-            lasttime += 0.5;
-        }
-        double width = lasttime - firsttime;
-        firsttime -= width / 10;
-        lasttime += width / 10;
-        shared_ptr<XAxis> axisx = *m_barPlot->axisX();
-        axisx->autoScale()->value(false);
-        axisx->minValue()->value(firsttime);
-        axisx->maxValue()->value(lasttime);
-    }        
+	{
+		if(lasttime == firsttime) {
+			firsttime -= 0.5;
+			lasttime += 0.5;
+		}
+		double width = lasttime - firsttime;
+		firsttime -= width / 10;
+		lasttime += width / 10;
+		shared_ptr<XAxis> axisx = *m_barPlot->axisX();
+		axisx->autoScale()->value(false);
+		axisx->minValue()->value(firsttime);
+		axisx->maxValue()->value(lasttime);
+	}        
     m_graph->requestUpdate();
 }
 
@@ -194,20 +194,20 @@ XQPulserDriverConnector::onPulseChanged(const shared_ptr<XDriver> &)
         int i = 0;
         for(XPulser::RelPatListIterator it = pulser->m_relPatList.begin();
 			it != pulser->m_relPatList.end(); it++)
-        {
+		{
 			//        Form->tblPulse->insertRows(i);
-            m_pTable->setText(i, 0, QString().sprintf("%.4f", it->time * pulser->resolution()));
-            m_pTable->setText(i, 1, QString().sprintf("%.4f", it->toappear * pulser->resolution()));
-            QString s;
-            uint32_t pat = it->pattern;
-            for(int j = 0; j < XPulser::NUM_DO_PORTS; j++) {
+			m_pTable->setText(i, 0, QString().sprintf("%.4f", it->time * pulser->resolution()));
+			m_pTable->setText(i, 1, QString().sprintf("%.4f", it->toappear * pulser->resolution()));
+			QString s;
+			uint32_t pat = it->pattern;
+			for(int j = 0; j < XPulser::NUM_DO_PORTS; j++) {
 				//            if(j != 0) s+= ",";
-                s += (pat % 2) ? "1" : "0";
-                pat /= 2;
-            }
-            m_pTable->setText(i, 2, s);
+				s += (pat % 2) ? "1" : "0";
+				pat /= 2;
+			}
+			m_pTable->setText(i, 2, s);
 			i++;
-        }
+		}
         m_pTable->blockSignals(false);
         
         updateGraph(false);

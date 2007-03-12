@@ -24,22 +24,22 @@ XTDS::XTDS(const char *name, bool runtime,
 	XCharDeviceDriver<XDSO>(name, runtime, scalarentries, interfaces, thermometers, drivers) {
 	const char* ch[] = {"CH1", "CH2", "CH3", "CH4", "MATH1", "MATH2", 0L};
 	for(int i = 0; ch[i]; i++)
-    {
-        trace1()->add(ch[i]);
-        trace2()->add(ch[i]);
-    }
+	{
+		trace1()->add(ch[i]);
+		trace2()->add(ch[i]);
+	}
 	const char* sc[] = {"0.02", "0.05", "0.1", "0.2", "0.5", "1", "2", "5", "10",
 						"20", "50", "100", 0L};
 	for(int i = 0; sc[i]; i++)
-    {
-        vFullScale1()->add(sc[i]);
-        vFullScale2()->add(sc[i]);
-    }
+	{
+		vFullScale1()->add(sc[i]);
+		vFullScale2()->add(sc[i]);
+	}
 	const char* tr[] = {"EXT", "EXT10", "CH1", "CH2", "CH3", "CH4", "LINE", 0L};
 	for(int i = 0; tr[i]; i++)
-    {
-        trigSource()->add(tr[i]);
-    }
+	{
+		trigSource()->add(tr[i]);
+	}
 
 	interface()->setGPIBWaitBeforeWrite(20); //20msec
 	interface()->setGPIBWaitBeforeSPoll(10); //10msec
@@ -61,13 +61,13 @@ XTDS::open() throw (XInterface::XInterfaceError &)
 	if(interface()->scanf(":ACQ%*s %9s", buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 	if(!strncmp(buf, "AVE", 3))
-    {
+	{
 		interface()->query("ACQ:NUMAVG?");
 		int x;
 		if(interface()->scanf(":ACQ%*s %d", &x) != 1)
-            throw XInterface::XConvError(__FILE__, __LINE__);
+			throw XInterface::XConvError(__FILE__, __LINE__);
 		average()->value(x);
-    }
+	}
 	if(!strncmp(buf, "SAM", 3))
 		average()->value(1);
 	interface()->send("DATA:ENC RPB;WIDTH 2"); //MSB first RIB
@@ -77,28 +77,28 @@ XTDS::open() throw (XInterface::XInterfaceError &)
 void 
 XTDS::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
 	if(*average() == 1)
-    {
+	{
 		interface()->send("ACQ:MODE SAMPLE");
 
-    }
+	}
 
 	else
-    {
+	{
 		interface()->send("ACQ:MODE AVE;NUMAVG " + average()->to_str());
-    }
+	}
 }
 
 void
 XTDS::onSingleChanged(const shared_ptr<XValueNodeBase> &)
 {
 	if(*singleSequence())
-    {
+	{
 		interface()->send("ACQ:STOPAFTER SEQUENCE;STATE ON");
-    }
+	}
 	else
-    {
+	{
 		interface()->send("ACQ:STOPAFTER RUNSTOP;STATE ON");
-    }
+	}
 }
 void
 XTDS::onTrigSourceChanged(const shared_ptr<XValueNodeBase> &)
@@ -232,26 +232,26 @@ XTDS::convertRaw() throw (XRecordError&) {
 	//scan # of channels etc.
 	char *cp = buf;
 	for(;;)
-    {
+	{
 		if(cp >= &buf[size]) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 		if(*cp == ':') cp++;
 		if(!strncasecmp(cp, "XIN", 3))
-        	sscanf(cp, "%*s %lf", &xin);
+			sscanf(cp, "%*s %lf", &xin);
 		if(!strncasecmp(cp, "PT_O", 4))
-        	sscanf(cp, "%*s %d", &triggerpos);
+			sscanf(cp, "%*s %d", &triggerpos);
 		if(!strncasecmp(cp, "XZE", 3))
-        	sscanf(cp, "%*s %lf", &xoff);
+			sscanf(cp, "%*s %lf", &xoff);
 		if(!strncasecmp(cp, "YMU", 3))
-        	sscanf(cp, "%*s %lf", &yin[ch_cnt - 1]);
+			sscanf(cp, "%*s %lf", &yin[ch_cnt - 1]);
 		if(!strncasecmp(cp, "YOF", 3))
-        	sscanf(cp, "%*s %lf", &yoff[ch_cnt - 1]);
+			sscanf(cp, "%*s %lf", &yoff[ch_cnt - 1]);
 		if(!strncasecmp(cp, "NR_P", 4))
-        {
+		{
 			ch_cnt++;
 			sscanf(cp, "%*s %d", &width);
-        }
+		}
 		if(!strncasecmp(cp, "CURV", 4))
-        {
+		{
 			for(;;)
 			{
 				cp = index(cp, '#');
@@ -269,7 +269,7 @@ XTDS::convertRaw() throw (XRecordError&) {
 				cp += yyy;
 				if(*cp != ',') break;
 			}
-        }
+		}
 		char *ncp = index(cp, ';');
 		if(!ncp)
 			cp = index(cp, ':');
@@ -277,7 +277,7 @@ XTDS::convertRaw() throw (XRecordError&) {
 			cp = ncp;
 		if(!cp) break;
 		cp++;
-    }
+	}
 	if((width <= 0) || (width > size/2)) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 
 	if(triggerpos != 0)
@@ -287,7 +287,7 @@ XTDS::convertRaw() throw (XRecordError&) {
   
 	cp = buf;
 	for(int j = 0; j < ch_cnt; j++)
-    {
+	{
 		double *wave = waveDisp(j);
 		cp = index(cp, '#');
 		if(!cp) break;
@@ -313,5 +313,5 @@ XTDS::convertRaw() throw (XRecordError&) {
 		for(; i < width; i++) {
 			*(wave++) = 0.0;
 		}
-    }  
+	}  
 }

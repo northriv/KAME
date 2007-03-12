@@ -111,7 +111,7 @@ XDMM::execute(const atomic<bool> &terminated)
         function()->onValueChanged().connectWeak(
 			shared_from_this(), &XDMM::onFunctionChanged);    
 	while(!terminated)
-    {
+	{
 		msecsleep(*waitInms());
 		if(function()->to_str().empty()) continue;
       
@@ -128,7 +128,7 @@ XDMM::execute(const atomic<bool> &terminated)
 		clearRaw();
 		push(x);
 		finishWritingRaw(time_awared, XTime::now());
-    }
+	}
     
     m_lsnOnFunctionChanged.reset();
         

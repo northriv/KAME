@@ -123,7 +123,7 @@ MonteCarlo::setupField(int size, double dfactor,
     s_cutoff_rec_radius = radius_rec;
 
     for(int site2 = 0; site2 < 16; site2++) {
-#ifdef PACK_4FLOAT
+	#ifdef PACK_4FLOAT
         int size = (cutoff_real*2+1)*(cutoff_real*2+1)*((cutoff_real*2 + 3)/4 + 1);
         for(int al = 0; al < 4; al++) {
             for(int site1 = 0; site1 < 16; site1++) {
@@ -145,7 +145,7 @@ MonteCarlo::setupField(int size, double dfactor,
                 }
             }
         }
-#else
+	#else
         int size = (cutoff_real*2+1)*(cutoff_real*2+1)*(cutoff_real*2+1);
         for(int site1 = 0; site1 < 16; site1++) {
             s_fields_real[site1][site2].clear();
@@ -165,7 +165,7 @@ MonteCarlo::setupField(int size, double dfactor,
                 s_fields_real_48f[site1][site2][d].resize(size, 0.0);
             }
         }
-#endif
+	#endif
     }
 
 
@@ -645,37 +645,37 @@ MonteCarlo::hinteraction_miscache(int sec_cache_miss_cnt, int site1, int lidx)
     m_hint_site2_not_done = sec_cache_miss_cnt;
     // this is trigger.
     m_hint_site2_left = sec_cache_miss_cnt;
-    {
+	{
 //    XScopedLock<XCondition> lock(m_thread_pool_cond);
 		m_thread_pool_cond.broadcast();
-    }
+	}
 
-    for(;;) {
-        int left = m_hint_site2_left;
-        if(left == 0) {
-            XScopedLock<XCondition> lock(m_hint_site2_last_cond);
-            while(m_hint_site2_not_done > 0) {
-                m_hint_site2_last_cond.wait();
-            }
-            break;
-        }
-        if(!m_hint_site2_left.compareAndSet(left, left - 1))
-            continue;
+	for(;;) {
+		int left = m_hint_site2_left;
+		if(left == 0) {
+			XScopedLock<XCondition> lock(m_hint_site2_last_cond);
+			while(m_hint_site2_not_done > 0) {
+				m_hint_site2_last_cond.wait();
+			}
+			break;
+		}
+		if(!m_hint_site2_left.compareAndSet(left, left - 1))
+			continue;
         
-        int site2 = m_hint_sec_cache_miss[left - 1];
-        ASSERT(site2 < 16);
+		int site2 = m_hint_sec_cache_miss[left - 1];
+		ASSERT(site2 < 16);
         
-        m_hint_fields[site2] = iterate_interactions(site1, lidx, site2);
-        if(m_hint_site2_not_done.decAndTest()) {            
-            readBarrier();
-            break;
-        }
-    }
+		m_hint_fields[site2] = iterate_interactions(site1, lidx, site2);
+		if(m_hint_site2_not_done.decAndTest()) {            
+			readBarrier();
+			break;
+		}
+	}
  
-    for(int miss = 0; miss < sec_cache_miss_cnt; miss++) {  
-        int site2 = m_hint_sec_cache_miss[miss];
-        h += m_hint_fields[site2];
-    }
-    return h;
+	for(int miss = 0; miss < sec_cache_miss_cnt; miss++) {  
+		int site2 = m_hint_sec_cache_miss[miss];
+		h += m_hint_fields[site2];
+	}
+	return h;
 }
 

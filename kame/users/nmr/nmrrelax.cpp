@@ -45,22 +45,22 @@ protected:
 				   , const shared_ptr<XItemNode < XRelaxFuncList, XRelaxFunc > >  &item,
 				   const shared_ptr<XNMRT1> &owner) 
 		: XFuncPlot(name, runtime, graph), m_item(item), m_owner(owner)
-		{}
+	{}
 public:
 	~XRelaxFuncPlot() {}
 	virtual double func(double t) const
-		{
-			shared_ptr<XRelaxFunc> func1 = *m_item;
-			if(!func1) return 0;
-			shared_ptr<XNMRT1> owner = m_owner.lock();
-			if(!owner) return 0;
-			double f, df;
-			double it1 = owner->m_params[0];
-			double c = owner->m_params[1];
-			double a = owner->m_params[2];
-			func1->relax(&f, &df, t, it1);
-			return c * f + a;
-		}
+	{
+		shared_ptr<XRelaxFunc> func1 = *m_item;
+		if(!func1) return 0;
+		shared_ptr<XNMRT1> owner = m_owner.lock();
+		if(!owner) return 0;
+		double f, df;
+		double it1 = owner->m_params[0];
+		double c = owner->m_params[1];
+		double a = owner->m_params[2];
+		func1->relax(&f, &df, t, it1);
+		return c * f + a;
+	}
 private:
 	shared_ptr<XItemNode < XRelaxFuncList, XRelaxFunc > > m_item;
 	weak_ptr<XNMRT1> m_owner;
@@ -159,25 +159,25 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	autoPhase()->value(true);
 	smoothSamples()->value(200);
 
-    m_conP1Min = xqcon_create<XQLineEditConnector>(m_p1Min, m_form->m_edP1Min);
-    m_conP1Max = xqcon_create<XQLineEditConnector>(m_p1Max, m_form->m_edP1Max);
-    m_conPhase = xqcon_create<XKDoubleNumInputConnector>(m_phase, m_form->m_numPhase);
-    m_conFreq = xqcon_create<XQLineEditConnector>(m_freq, m_form->m_edFreq);
-    m_conBW = xqcon_create<XQLineEditConnector>(m_bandWidth, m_form->m_edBW);
-    m_conSmoothSamples = xqcon_create<XQLineEditConnector>(m_smoothSamples, m_form->m_edSmoothSamples);
-    m_conP1Dist = xqcon_create<XQComboBoxConnector>(m_p1Dist, m_form->m_cmbP1Dist);
-    m_conClearAll = xqcon_create<XQButtonConnector>(m_clearAll, m_form->m_btnClear);
-    m_conResetFit = xqcon_create<XQButtonConnector>(m_resetFit, m_form->m_btnResetFit);
-    m_conActive = xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive);
-    m_conAutoPhase = xqcon_create<XQToggleButtonConnector>(m_autoPhase, m_form->m_ckbAutoPhase);
-    m_conAbsFit = xqcon_create<XQToggleButtonConnector>(m_absFit, m_form->m_ckbAbsFit);
-    m_conFitStatus = xqcon_create<XQTextBrowserConnector>(m_fitStatus, m_form->m_txtFitStatus);
-    m_conRelaxFunc = xqcon_create<XQComboBoxConnector>(m_relaxFunc, m_form->m_cmbFunction);
-    m_conT2Mode = xqcon_create<XQToggleButtonConnector>(m_t2Mode, m_form->m_ckbT2Mode);
+	m_conP1Min = xqcon_create<XQLineEditConnector>(m_p1Min, m_form->m_edP1Min);
+	m_conP1Max = xqcon_create<XQLineEditConnector>(m_p1Max, m_form->m_edP1Max);
+	m_conPhase = xqcon_create<XKDoubleNumInputConnector>(m_phase, m_form->m_numPhase);
+	m_conFreq = xqcon_create<XQLineEditConnector>(m_freq, m_form->m_edFreq);
+	m_conBW = xqcon_create<XQLineEditConnector>(m_bandWidth, m_form->m_edBW);
+	m_conSmoothSamples = xqcon_create<XQLineEditConnector>(m_smoothSamples, m_form->m_edSmoothSamples);
+	m_conP1Dist = xqcon_create<XQComboBoxConnector>(m_p1Dist, m_form->m_cmbP1Dist);
+	m_conClearAll = xqcon_create<XQButtonConnector>(m_clearAll, m_form->m_btnClear);
+	m_conResetFit = xqcon_create<XQButtonConnector>(m_resetFit, m_form->m_btnResetFit);
+	m_conActive = xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive);
+	m_conAutoPhase = xqcon_create<XQToggleButtonConnector>(m_autoPhase, m_form->m_ckbAutoPhase);
+	m_conAbsFit = xqcon_create<XQToggleButtonConnector>(m_absFit, m_form->m_ckbAbsFit);
+	m_conFitStatus = xqcon_create<XQTextBrowserConnector>(m_fitStatus, m_form->m_txtFitStatus);
+	m_conRelaxFunc = xqcon_create<XQComboBoxConnector>(m_relaxFunc, m_form->m_cmbFunction);
+	m_conT2Mode = xqcon_create<XQToggleButtonConnector>(m_t2Mode, m_form->m_ckbT2Mode);
 
-    m_conPulser = xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser);
-    m_conPulse1 = xqcon_create<XQComboBoxConnector>(m_pulse1, m_form->m_cmbPulse1);
-    m_conPulse2 = xqcon_create<XQComboBoxConnector>(m_pulse2, m_form->m_cmbPulse2);
+	m_conPulser = xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser);
+	m_conPulse1 = xqcon_create<XQComboBoxConnector>(m_pulse1, m_form->m_cmbPulse1);
+	m_conPulse2 = xqcon_create<XQComboBoxConnector>(m_pulse2, m_form->m_cmbPulse2);
         
 	m_lsnOnActiveChanged = active()->onValueChanged().connectWeak(
 		shared_from_this(), &XNMRT1::onActiveChanged);
@@ -194,9 +194,9 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	t2Mode()->onValueChanged().connect(m_lsnOnCondChanged);
   
 	m_lsnOnClearAll = m_clearAll->onTouch().connectWeak(
-        shared_from_this(), &XNMRT1::onClearAll);
+		shared_from_this(), &XNMRT1::onClearAll);
 	m_lsnOnResetFit = m_resetFit->onTouch().connectWeak(
-        shared_from_this(), &XNMRT1::onResetFit);
+		shared_from_this(), &XNMRT1::onResetFit);
 }
 void
 XNMRT1::showForms()
@@ -403,7 +403,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 	dummy.c = 0; dummy.p1 = 0; dummy.isigma = 0;
 	std::fill(m_sumpts.begin(), m_sumpts.end(), dummy);
 	for(std::deque<RawPt>::iterator it = m_pts.begin(); it != m_pts.end(); it++) {
-#define invf(x) (log((x) / p1min) / log(p1max/p1min))
+	#define invf(x) (log((x) / p1min) / log(p1max/p1min))
 		int idx = lrint(m_sumpts.size() * invf(it->p1));
 		if((idx < 0) || (idx >= (int)m_sumpts.size())) continue;
 		m_sumpts[idx].isigma += it->isigma2;
@@ -505,7 +505,7 @@ void
 XNMRT1::onActiveChanged(const shared_ptr<XValueNodeBase> &)
 {
 	if(*active() == true)
-    {
+	{
 		const shared_ptr<XPulser> _pulser = *pulser();
 		const shared_ptr<XNMRPulseAnalyzer> _pulse1 = *pulse1();
 		const shared_ptr<XNMRPulseAnalyzer> _pulse2 = *pulse2();
@@ -518,7 +518,7 @@ XNMRT1::onActiveChanged(const shared_ptr<XValueNodeBase> &)
       
 		if(!!_pulse2 && 
 		   ((*_pulser->combMode() == XPulser::N_COMB_MODE_COMB_ALT) ||
-        	(*_pulser->combMode() == XPulser::N_COMB_MODE_P1_ALT))) {
+			(*_pulser->combMode() == XPulser::N_COMB_MODE_P1_ALT))) {
 			_pulse2->fromTrig()->value(
 				*_pulse1->fromTrig() + *_pulser->altSep());
 			_pulse2->width()->value(*_pulse1->width());
@@ -533,7 +533,7 @@ XNMRT1::onActiveChanged(const shared_ptr<XValueNodeBase> &)
 			_pulse2->numEcho()->value(*_pulse1->numEcho());
 			_pulse2->echoPeriod()->value(*_pulse1->echoPeriod());
 		}
-    }
+	}
 }
 
 

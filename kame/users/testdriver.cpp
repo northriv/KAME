@@ -68,7 +68,7 @@ void *
 XTestDriver::execute(const atomic<bool> &terminated)
 {
 	while(!terminated)
-    {
+	{
 		msecsleep(10);
 		double x = (double)KAME::rand() / RAND_MAX - 0.2;
 		double y = (double)KAME::rand() / RAND_MAX - 0.2;
@@ -76,7 +76,7 @@ XTestDriver::execute(const atomic<bool> &terminated)
 		push(x);
 		push(y);
 		finishWritingRaw(XTime::now(), XTime::now());
-    }
+	}
 	afterStop();
 	return NULL;
 }

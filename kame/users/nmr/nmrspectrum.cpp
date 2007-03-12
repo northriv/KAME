@@ -155,11 +155,11 @@ XNMRSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 	bool clear = (m_timeClearRequested > _pulse->timeAwared());
   
 	if((dH() != res) || clear)
-    {
+	{
 		m_dH = res;
 		m_wave.clear();
 		m_counts.clear();
-    }
+	}
 	else {
 		for(int i = 0; i < rint(m_hMin / dH()) - rint(field_min / dH()); i++) {
 			m_wave.push_front(0.0);
@@ -194,11 +194,11 @@ XNMRSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 		throw XRecordError(KAME::i18n("Invalid center freq."), __FILE__, __LINE__);  
 	}
 	for(int i = std::max(0, (len - bw) / 2); i < std::min(len, (len + bw) / 2); i++)
-    {
+	{
 		double freq = (i - len/2) * df;
 		if(freq / cfreq  != -1)
 			add(field / (1 + freq / cfreq), _pulse->ftWave()[i]);
-    }
+	}
 }
 void
 XNMRSpectrum::visualize()

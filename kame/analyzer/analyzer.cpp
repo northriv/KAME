@@ -60,9 +60,9 @@ void
 XScalarEntry::value(double val)
 {
 	if((*delta() != 0) && (fabs(val - *storedValue()) > *delta()))
-    {
-        m_bTriggered = true;
-    }
+	{
+		m_bTriggered = true;
+	}
 	value()->value(val);
 }
 

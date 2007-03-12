@@ -121,13 +121,13 @@ void
 XNMRFSpectrum::onActiveChanged(const shared_ptr<XValueNodeBase> &)
 {
     if(*active())    
-    {
-        shared_ptr<XSG> _sg1 = *sg1();
-        if(_sg1) _sg1->freq()->value(*centerFreq() - *freqSpan()/2e3 + *sg1FreqOffset());
-        shared_ptr<XSG> _sg2 = *sg2();
-        if(_sg2) _sg2->freq()->value(*centerFreq() - *freqSpan()/2e3 + *sg2FreqOffset());
-        m_timeClearRequested = XTime::now();
-    }
+	{
+		shared_ptr<XSG> _sg1 = *sg1();
+		if(_sg1) _sg1->freq()->value(*centerFreq() - *freqSpan()/2e3 + *sg1FreqOffset());
+		shared_ptr<XSG> _sg2 = *sg2();
+		if(_sg2) _sg2->freq()->value(*centerFreq() - *freqSpan()/2e3 + *sg2FreqOffset());
+		m_timeClearRequested = XTime::now();
+	}
 }
 bool
 XNMRFSpectrum::checkDependency(const shared_ptr<XDriver> &emitter) const {
@@ -184,11 +184,11 @@ XNMRFSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 	double freq_max = cfreq + freq_span/2;
 
 	if((fabs(df() - _df) > 1e-6) || clear)
-    {
+	{
 		m_df = _df;
 		m_wave.clear();
 		m_counts.clear();
-    }
+	}
 	else {
 		for(int i = 0; i < rint(m_fMin / df()) - rint(freq_min / df()); i++) {
 			m_wave.push_front(0.0);
@@ -214,10 +214,10 @@ XNMRFSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
   
 	int bw = lrint(*bandWidth() * 1e-3 / df());
 	for(int i = std::max(0, (len - bw) / 2); i < std::min(len, (len + bw) / 2); i++)
-    {
+	{
 		double f = (i - len/2) * df(); //MHz
-        add(freq + f, _pulse->ftWave()[i]);
-    }
+		add(freq + f, _pulse->ftWave()[i]);
+	}
     
 	//set new freq
 	if(*active())
@@ -227,7 +227,7 @@ XNMRFSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 		if(_sg1) _sg1->freq()->value(newf + *sg1FreqOffset());
 		if(_sg2) _sg2->freq()->value(newf + *sg2FreqOffset());
 		if(newf >= freq_max)
-            active()->value(false);
+			active()->value(false);
 	}
 }
 void

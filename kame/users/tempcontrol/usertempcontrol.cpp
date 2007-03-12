@@ -166,7 +166,7 @@ XAVS47IB::onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &) {
 	interface()->send("ARN 0;INP 0;ARN 0;RAN 7");
 	interface()->sendf("DIS 0;MUX %u;ARN 0", QString(currentChannel()->to_str()).toInt());
 	if(*ch->excitation() >= 1)
-        interface()->sendf("EXC %u", (unsigned int)(*ch->excitation()));
+		interface()->sendf("EXC %u", (unsigned int)(*ch->excitation()));
 	msecsleep(1500);
 	interface()->send("ARN 0;INP 1;ARN 0;RAN 6");
 	m_autorange_wait = 0;
@@ -237,16 +237,16 @@ XAVS47IB::getRes()
 	{
 		int range = getRange();
 		if(lrint(read("OVL")) == 0)
-    	{
+		{
 			if(fabs(x) < 0.1 * pow(10.0, range - 1))
 				setRange(std::max(range - 1, 1));
 			if(fabs(x) > 1.6 * pow(10.0, range - 1))
 				setRange(std::min(range + 1, 7));
-    	}
+		}
 		else
-    	{
+		{
 			setRange(std::min(range + 1, 7));
-    	}  
+		}  
 	}
 	return x;
 }
@@ -364,19 +364,19 @@ XCryoconM62::open() throw (XInterface::XInterfaceError &)
 	powerRange()->clear();
 	interface()->query("HEATER:LOAD?");
 	if(interface()->toInt() == 50)
-    {
+	{
 		powerRange()->add("0.05W");
 		powerRange()->add("0.5W");
 		powerRange()->add("5.0W");
 		powerRange()->add("50W");
-    }
+	}
 	else
-    {
+	{
 		powerRange()->add("0.03W");
 		powerRange()->add("0.3W");
 		powerRange()->add("2.5W");
 		powerRange()->add("25W");
-    }
+	}
 	XCryocon::open();
 }
 void
@@ -553,14 +553,14 @@ XLakeShore340::onTargetTempChanged(const shared_ptr<XValueNodeBase> &)
 	double temp = *targetTemp();
 	shared_ptr<XThermometer> thermo = *(shared_ptr<XChannel>(*currentChannel()))->thermometer();
 	if(thermo)
-    {
+	{
 		interface()->sendf("CSET 1,%s,3,1", (const char*)currentChannel()->to_str().c_str());
 		temp = thermo->getRawValue(temp);
-    }
+	}
 	else
-    {
+	{
 		interface()->sendf("CSET 1,%s,1,1", (const char*)currentChannel()->to_str().c_str());
-    }
+	}
 	interface()->sendf("SETP 1,%f", temp);
 }
 void
@@ -572,17 +572,17 @@ void
 XLakeShore340::onHeaterModeChanged(const shared_ptr<XValueNodeBase> &)
 {
 	if(heaterMode()->to_str() == "Off")
-    {
+	{
 		interface()->send("RANGE 0");
-    }
+	}
 	if(heaterMode()->to_str() == "PID")
-    {
+	{
 		interface()->send("CMODE 1");
-    }
+	}
 	if(heaterMode()->to_str() == "Man")
-    {
+	{
 		interface()->send("CMODE 3");
-    }
+	}
 }
 void
 XLakeShore340::onPowerRangeChanged(const shared_ptr<XValueNodeBase> &)
@@ -612,10 +612,10 @@ XLakeShore340::open() throw (XInterface::XInterfaceError &)
         throw XInterface::XConvError(__FILE__, __LINE__);
 
 	for(int i = 1; i < 6; i++)
-    {
+	{
 		powerRange()->add(QString().sprintf("%.1f W", 
 											(double)pow(10.0, i - 5.0)  * pow(maxcurr, 2.0) * res));
-    }
+	}
 	interface()->query("CMODE? 1");
 	switch(interface()->toInt()) {
 	case 1:

@@ -32,11 +32,11 @@ XPS120::setActivity(int val) throw (XInterface::XInterfaceError&)
 	interface()->lock();
 	try {
 		for(int i = 0; i < 3; i++)
-        {
+		{
 			//query Activity
 			interface()->query("X");
 			if(interface()->scanf("X%*2dA%1dC%*1dH%*1dM%*2dP%*2d", &ret) != 1)
-                throw XInterface::XConvError(__FILE__, __LINE__);
+				throw XInterface::XConvError(__FILE__, __LINE__);
 			if(ret == val) break;
 			interface()->sendf("A%u", val);
 			msecsleep(i * 100);
@@ -79,11 +79,11 @@ XPS120::toZero()
             throw XInterface::XConvError(__FILE__, __LINE__);
 		//CLAMPED
 		if(ret == 4)
-        {
+		{
 			//Set to HOLD
 			setActivity(0);
 			msecsleep(100);
-        }
+		}
 		//Set to TO_ZERO
 		setActivity(2);
 	}
@@ -100,14 +100,14 @@ XPS120::toNonPersistent()
 	try {
 		int ret;
 		for(int i = 0; i < 3; i++)
-        {
+		{
 			msecsleep(100);
 			//query MODE
 			interface()->query("X");
 			if(interface()->scanf("X%*2dA%*1dC%*1dH%*1dM%*1d%1dP%*2d", &ret) != 1)
-                throw XInterface::XConvError(__FILE__, __LINE__);
+				throw XInterface::XConvError(__FILE__, __LINE__);
 			if(ret == 0) break; //At rest
-        }
+		}
 		if(ret != 0)
             throw XInterface::XInterfaceError(
 				KAME::i18n("Cannot enter non-persistent mode. Output is busy."), __FILE__, __LINE__);
@@ -135,11 +135,11 @@ XPS120::toSetPoint()
             throw XInterface::XConvError(__FILE__, __LINE__);
 		//CLAMPED
 		if(ret == 4)
-        {
+		{
 			//Set to HOLD
 			setActivity(0);
 			msecsleep(300);
-        }
+		}
         setActivity(1);
 	}
 	catch (XKameError& e) {
@@ -153,37 +153,37 @@ void
 XPS120::setPoint(double field)
 {
 	for(int i = 0; i < 2; i++)
-    {
+	{
 		int df;
 		if(fabs(getTargetField() - field) < fieldResolution()) break;
 		msecsleep(100);
 		interface()->sendf("P%d", ((field >= 0) ? 1 : 2));
 		df = lrint(fabs(field) / fieldResolution());
 		interface()->sendf("J%d", df);
-    }
+	}
 }
 void
 XIPS120::setPoint(double field)
 {
 	for(int i = 0; i < 2; i++)
-    {
+	{
 		if(fabs(getTargetField() - field) < fieldResolution()) break;
 		msecsleep(100);
 		interface()->sendf("J%f", field);
-    }
+	}
 }
 
 double
 XPS120::getMagnetField()
 {
 	if(isPCSHeaterOn())
-    {
+	{
 		return getOutputField();
-    }
+	}
 	else
-    {
+	{
 		return getPersistentField();
-    }
+	}
 }
 double
 XIPS120::getSweepRate()
@@ -292,11 +292,11 @@ void
 XIPS120::setRate(double hpm)
 {
 	for(int i = 0; i < 2; i++)
-    {
+	{
 		if(fabs(getSweepRate() - hpm) < fieldResolution()) break;
 		interface()->sendf("T%f", hpm);
 		msecsleep(100);
-    }
+	}
 }
 
 void
@@ -304,11 +304,11 @@ XPS120::setRate(double hpm)
 {
 	int ihpm = lrint(hpm / fieldResolution());
 	for(int i = 0; i < 2; i++)
-    {
+	{
 		if(fabs(getSweepRate() - hpm) < fieldResolution()) break;
 		interface()->sendf("T%d", ihpm);
 		msecsleep(100);
-    }
+	}
 }
 
 void

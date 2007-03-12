@@ -655,7 +655,7 @@ XPulser::onPulseChanged(const shared_ptr<XValueNodeBase> &node)
 	if(node != altSep())
 		if(_alt_sep != _asw_setup + _asw_hold + (_echo_num - 1) * 2 * _tau/1000)
 		{
-            altSep()->value(_asw_setup + _asw_hold + (_echo_num - 1) * 2 * _tau/1000);
+			altSep()->value(_asw_setup + _asw_hold + (_echo_num - 1) * 2 * _tau/1000);
 			return;
 		}
 
@@ -664,7 +664,7 @@ XPulser::onPulseChanged(const shared_ptr<XValueNodeBase> &node)
 	const unsigned int blankpattern = selectedPorts(PORTSEL_COMB_FM);
   
 	if(!*output())
-    {
+	{
 		finishWritingRaw(XTime(), XTime());
 		try {
 			changeOutput(false, blankpattern);
@@ -673,7 +673,7 @@ XPulser::onPulseChanged(const shared_ptr<XValueNodeBase> &node)
 			e.print(getLabel() + KAME::i18n("Pulser Turn-Off Failed, because"));
 		}
 		return;
-    }
+	}
 
 /*  try {
 	changeOutput(false, blankpattern);
@@ -879,7 +879,7 @@ XPulser::rawToRelPat() throw (XRecordError&)
   
 	bool former_of_alt = !_invert_phase;
 	for(int i = 0; i < _num_phase_cycle * (comb_mode_alt ? 2 : 1); i++)
-    {
+	{
 		int j = (i / (comb_mode_alt ? 2 : 1)) % _num_phase_cycle; //index for phase cycling
 		if(_invert_phase)
 			j = _num_phase_cycle - 1 - j;
@@ -895,7 +895,7 @@ XPulser::rawToRelPat() throw (XRecordError&)
 
 		uint64_t rest;
 		if(_rt_mode == N_RT_MODE_FIXREST)
-            rest = _rtime;
+			rest = _rtime;
 		else
 			rest = _rtime - _p1;
     
@@ -1036,52 +1036,52 @@ XPulser::rawToRelPat() throw (XRecordError&)
 				patterns.insert(tpat(pos + _pw1/2 + (_qsw_delay + _qsw_width), 0 , qswmask));
 			}
 		}
-    }
+	}
     
 	//insert low priority (cheap) pulses into pattern set
 	for(tpatset_it it = patterns_cheap.begin(); it != patterns_cheap.end(); it++)
-    {
+	{
 		uint64_t npos = it->pos;
 		for(tpatset_it kit = patterns.begin(); kit != patterns.end(); kit++)
-	    {
+		{
 			//Avoid overrapping within 1 us
 			uint64_t diff = llabs(kit->pos - npos);
 			diff -= pos * (diff / pos);
 			if(diff < rintSampsMilliSec(minPulseWidth()))
-	        {
+			{
 				npos = kit->pos;
 				break;
-	        }
-	    }
+			}
+		}
 		patterns.insert(tpat(npos, it->pat, it->mask));
-    }
+	}
 
 	uint64_t curpos = patterns.begin()->pos;
 	uint64_t lastpos = 0;
 	uint32_t pat = 0;
 	for(tpatset_it it = patterns.begin(); it != patterns.end(); it++)
-    {
+	{
 		lastpos = it->pos - pos;
 		pat &= ~it->mask;
 		pat |= (it->pat & it->mask);
-    }
+	}
     
 	for(tpatset_it it = patterns.begin(); it != patterns.end();)
-    {
+	{
 		pat &= ~it->mask;
 		pat |= (it->pat & it->mask);
 		it++;
 		if((it == patterns.end()) || (it->pos != curpos))
-        {
+		{
 			RelPat relpat(pat, curpos, curpos - lastpos);
         
-            m_relPatList.push_back(relpat);
+			m_relPatList.push_back(relpat);
                 
-            if(it == patterns.end()) break;
-            lastpos = curpos;
-            curpos = it->pos;
-        }
-    }
+			if(it == patterns.end()) break;
+			lastpos = curpos;
+			curpos = it->pos;
+		}
+	}
     
     if(haveQAMPorts()) {
     	for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX; i++)

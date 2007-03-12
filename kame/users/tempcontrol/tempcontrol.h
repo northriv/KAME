@@ -43,7 +43,7 @@ public:
 		XChannel(const char *name, bool runtime, const shared_ptr<XThermometerList> &list);
 	public:
 		shared_ptr<XItemNode<XThermometerList, XThermometer> > &thermometer() 
-            {return m_thermometer;}
+		{return m_thermometer;}
 		const   shared_ptr<XComboNode> &excitation() const {return m_excitation;}
 	private:
 		shared_ptr<XItemNode<XThermometerList, XThermometer> > m_thermometer;

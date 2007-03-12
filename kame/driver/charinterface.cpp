@@ -64,20 +64,20 @@ XCharInterface::open() throw (XInterfaceError &)
     
 	{
 		shared_ptr<XPort> port;
-#ifdef USE_GPIB
+	#ifdef USE_GPIB
 		if(device()->to_str() == "GPIB") {
-            port.reset(new XGPIBPort(this));
+			port.reset(new XGPIBPort(this));
 		}
-#endif
+	#endif
 		if(device()->to_str() == "SERIAL") {
-            port.reset(new XSerialPort(this));
+			port.reset(new XSerialPort(this));
 		}
 		if(device()->to_str() == "DUMMY") {
-            port.reset(new XDummyPort(this));
+			port.reset(new XDummyPort(this));
 		}
           
 		if(!port) {
-          	throw XOpenInterfaceError(__FILE__, __LINE__);
+			throw XOpenInterfaceError(__FILE__, __LINE__);
 		}
           
 		port->open();

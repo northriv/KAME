@@ -34,15 +34,15 @@ template <typename T>
 inline bool atomicCompareAndSet(T oldv, T newv, T *target ) {
 	T ret;
 	asm volatile ( "1: \n"
-				"lwarx %[ret], 0, %[target] \n"
-				"cmpw %[ret], %[oldv] \n"
-				"bne- 2f \n"
-				"stwcx. %[newv], 0, %[target] \n"
-				"bne- 1b \n"
-				"2: "
-				: [ret] "=&r" (ret)
-				: [oldv] "r" (oldv), [newv] "r" (newv), [target] "r" (target)
-				: "cc", "memory");
+				   "lwarx %[ret], 0, %[target] \n"
+				   "cmpw %[ret], %[oldv] \n"
+				   "bne- 2f \n"
+				   "stwcx. %[newv], 0, %[target] \n"
+				   "bne- 1b \n"
+				   "2: "
+				   : [ret] "=&r" (ret)
+				   : [oldv] "r" (oldv), [newv] "r" (newv), [target] "r" (target)
+				   : "cc", "memory");
 	return (ret == oldv);
 }
 //! \return target's old value.
@@ -50,62 +50,62 @@ template <typename T>
 inline T atomicSwap(T newv, T *target ) {
 	T ret;
 	asm volatile ( "1: \n"
-				"lwarx %[ret], 0, %[target] \n"
-				"stwcx. %[newv], 0, %[target] \n"
-				"bne- 1b"
-				: [ret] "=&r" (ret)
-				: [newv] "r" (newv), [target] "r" (target)
-				: "cc", "memory");
+				   "lwarx %[ret], 0, %[target] \n"
+				   "stwcx. %[newv], 0, %[target] \n"
+				   "bne- 1b"
+				   : [ret] "=&r" (ret)
+				   : [newv] "r" (newv), [target] "r" (target)
+				   : "cc", "memory");
 	return ret;
 }
 template <typename T>
 inline void atomicInc(T *target ) {
 	T ret;
 	asm volatile ( "1: \n"
-				"lwarx %[ret], 0, %[target] \n"
-				"addi %[ret], %[ret], 1 \n"
-				"stwcx. %[ret], 0, %[target] \n"
-				"bne- 1b"
-				: [ret] "=&b" (ret)
-				: [target] "r" (target)
-				: "cc", "memory");
+				   "lwarx %[ret], 0, %[target] \n"
+				   "addi %[ret], %[ret], 1 \n"
+				   "stwcx. %[ret], 0, %[target] \n"
+				   "bne- 1b"
+				   : [ret] "=&b" (ret)
+				   : [target] "r" (target)
+				   : "cc", "memory");
 }
 template <typename T>
 inline void atomicDec(T *target ) {
 	T ret;
 	asm volatile ( "1: \n"
-				"lwarx %[ret], 0, %[target] \n"
-				"addi %[ret], %[ret], -1 \n"
-				"stwcx. %[ret], 0, %[target] \n"
-				"bne- 1b"
-				: [ret] "=&b" (ret)
-				: [target] "r" (target)
-				: "cc", "memory");
+				   "lwarx %[ret], 0, %[target] \n"
+				   "addi %[ret], %[ret], -1 \n"
+				   "stwcx. %[ret], 0, %[target] \n"
+				   "bne- 1b"
+				   : [ret] "=&b" (ret)
+				   : [target] "r" (target)
+				   : "cc", "memory");
 }
 template <typename T>
 inline void atomicAdd(T *target, T x ) {
 	T ret;
 	asm volatile ( "1: \n"
-				" lwarx %[ret], 0, %[target] \n"
-				"add %[ret], %[ret], %[x] \n"
-				"stwcx. %[ret], 0, %[target] \n"
-				"bne- 1b"
-				: [ret] "=&r" (ret)
-				: [target] "r" (target), [x] "r" (x)
-				: "cc", "memory");
+				   " lwarx %[ret], 0, %[target] \n"
+				   "add %[ret], %[ret], %[x] \n"
+				   "stwcx. %[ret], 0, %[target] \n"
+				   "bne- 1b"
+				   : [ret] "=&r" (ret)
+				   : [target] "r" (target), [x] "r" (x)
+				   : "cc", "memory");
 }
 //! \return true if new value is zero.
 template <typename T>
 inline bool atomicAddAndTest(T *target, T x ) {
 	T ret;
 	asm volatile ( "1: \n"
-				"lwarx %[ret], 0, %[target] \n"
-				"add %[ret], %[ret], %[x] \n"
-				"stwcx. %[ret], 0, %[target] \n"
-				"bne- 1b"
-				: [ret] "=&r" (ret)
-				: [target] "r" (target), [x] "r" (x)
-				: "cc", "memory");
+				   "lwarx %[ret], 0, %[target] \n"
+				   "add %[ret], %[ret], %[x] \n"
+				   "stwcx. %[ret], 0, %[target] \n"
+				   "bne- 1b"
+				   : [ret] "=&r" (ret)
+				   : [target] "r" (target), [x] "r" (x)
+				   : "cc", "memory");
 	return (ret == 0);
 }
 //! \return zero flag.

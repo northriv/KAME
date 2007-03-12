@@ -165,7 +165,7 @@ XTextWriter::onLastLineChanged(const shared_ptr<XValueNodeBase> &) {
 	XScopedLock<XRecursiveMutex> lock(m_filemutex);  
 	if(m_stream.good())
 	{
-        m_stream << lastLine()->to_str()
+		m_stream << lastLine()->to_str()
 				 << std::endl;
 	}
 }
@@ -175,13 +175,13 @@ XTextWriter::onRecord(const shared_ptr<XDriver> &driver)
 	if(*recording() == true)
 	{
 		if(driver->time())
-	    {
-            XTime triggered_time;
-            std::deque<shared_ptr<XScalarEntry> > locked_entries;
+		{
+			XTime triggered_time;
+			std::deque<shared_ptr<XScalarEntry> > locked_entries;
 
-            atomic_shared_ptr<const XNode::NodeList> list(m_entries->children());
-            if(list) { 
-                for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+			atomic_shared_ptr<const XNode::NodeList> list(m_entries->children());
+			if(list) { 
+				for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
 					shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(*it);
 					if(!*entry->store()) continue;
 					shared_ptr<XDriver> d(entry->driver());
@@ -189,9 +189,9 @@ XTextWriter::onRecord(const shared_ptr<XDriver> &driver)
 					locked_entries.push_back(entry);
 					d->readLockRecord();
 					if(entry->isTriggered()) triggered_time = entry->driver()->time();
-                }
-            }
-            if(triggered_time) {
+				}
+			}
+			if(triggered_time) {
 				XRecordDependency dep;
 				for(std::deque<shared_ptr<XScalarEntry> >::iterator it = locked_entries.begin();
 					it != locked_entries.end(); it++) {
@@ -211,13 +211,13 @@ XTextWriter::onRecord(const shared_ptr<XDriver> &driver)
 					buf.append(driver->time().getTimeFmtStr("%Y/%m/%d %H:%M:%S"));
 					lastLine()->value(buf);
 				}
-            }
-            for(std::deque<shared_ptr<XScalarEntry> >::iterator it = locked_entries.begin();
-                it != locked_entries.end(); it++) {
-                shared_ptr<XDriver> d((*it)->driver());
-                if(!d) continue;
-                d->readUnlockRecord();
-            }
+			}
+			for(std::deque<shared_ptr<XScalarEntry> >::iterator it = locked_entries.begin();
+				it != locked_entries.end(); it++) {
+				shared_ptr<XDriver> d((*it)->driver());
+				if(!d) continue;
+				d->readUnlockRecord();
+			}
 		}
 	}
 }

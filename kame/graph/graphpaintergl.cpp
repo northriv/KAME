@@ -90,49 +90,49 @@ XQGraphPainter::openFont()
 	if(s_fontRefCount == 0) {
 		QString filename = ::locate("appdata", FONT_FILE);
 		if(!filename)
-	    {
-		    gErrPrint(KAME::i18n("No Fontfile!!"));
-	    }
+		{
+			gErrPrint(KAME::i18n("No Fontfile!!"));
+		}
 		s_pFont = new FTGLPixmapFont(filename.ascii() );
 		ASSERT(s_pFont->Error() == 0);
 		s_pFont->CharMap(ft_encoding_unicode);
 		
         setlocale(LC_CTYPE, KApplication::kApplication()->config()->locale().latin1());
-#ifdef USE_ICONV_SRC_UTF8
-#define ICONV_SRC "UTF-8"
-#endif
-#ifdef USE_ICONV_SRC_UCS2
-#ifdef __BIG_ENDIAN__
-#define ICONV_SRC "UCS-2BE"
-#else
-#define ICONV_SRC "UCS-2LE"
-#endif
-#endif
-#ifndef ICONV_SRC
-#error
-#endif
-#ifdef USE_ICONV_WCHART
-#define ICONV_DST "WCHAR_T"
-#endif
-#ifdef USE_ICONV_UCS4_AS_WCHART
+	#ifdef USE_ICONV_SRC_UTF8
+	#define ICONV_SRC "UTF-8"
+	#endif
+	#ifdef USE_ICONV_SRC_UCS2
+	#ifdef __BIG_ENDIAN__
+	#define ICONV_SRC "UCS-2BE"
+	#else
+	#define ICONV_SRC "UCS-2LE"
+	#endif
+	#endif
+	#ifndef ICONV_SRC
+	#error
+	#endif
+	#ifdef USE_ICONV_WCHART
+	#define ICONV_DST "WCHAR_T"
+	#endif
+	#ifdef USE_ICONV_UCS4_AS_WCHART
 		C_ASSERT(sizeof(wchar_t) == 4);
-#ifdef __BIG_ENDIAN__
-#define ICONV_DST "UCS-4BE"
-#else
-#define ICONV_DST "UCS-4LE"
-#endif
-#endif
-#ifdef USE_ICONV_UCS2_AS_WCHART
+	#ifdef __BIG_ENDIAN__
+	#define ICONV_DST "UCS-4BE"
+	#else
+	#define ICONV_DST "UCS-4LE"
+	#endif
+	#endif
+	#ifdef USE_ICONV_UCS2_AS_WCHART
 		C_ASSERT(sizeof(wchar_t) == 2);
-#ifdef __BIG_ENDIAN__
-#define ICONV_DST "UCS-2BE"
-#else
-#define ICONV_DST "UCS-2LE"
-#endif
-#endif
-#ifndef ICONV_DST
-#error
-#endif
+	#ifdef __BIG_ENDIAN__
+	#define ICONV_DST "UCS-2BE"
+	#else
+	#define ICONV_DST "UCS-2LE"
+	#endif
+	#endif
+	#ifndef ICONV_DST
+	#error
+	#endif
         s_iconv_cd = iconv_open(ICONV_DST, ICONV_SRC);
 		ASSERT(s_iconv_cd != (iconv_t)(-1));
         /*
@@ -186,10 +186,10 @@ XQGraphPainter::string2wstring(const std::string &str)
     int insize = qstr.length() * sizeof(unsigned short);
 #endif //USE_ICONV_SRC_UCS2
     size_t ret = iconv(s_iconv_cd,
-#ifdef __linux__
+				   #ifdef __linux__
 					   // Linux iconv needs char** instead of const char**
 					   const_cast<char**>
-#endif
+				   #endif
 					   (&inbuf), (size_t*)&insize,
 					   &outp, (size_t*)&outsize);
 	if(ret == (size_t)(-1)) {
@@ -632,7 +632,7 @@ XQGraphPainter::paintGL ()
     
     double persist = *m_graph->persistence();
     if(persist > 0) {
-#define OFFSET 0.1
+	#define OFFSET 0.1
 		double tau = persist / (-log(OFFSET)) * 0.4;
 		double scale = exp(-(time_started - m_updatedTime)/tau);
 		double offset = -OFFSET*(1.0-scale);

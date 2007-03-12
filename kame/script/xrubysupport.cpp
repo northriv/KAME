@@ -16,7 +16,7 @@
 #include "xrubysupport.h"
 #include "measure.h"
 extern "C" {
-#include <ruby.h>
+	#include <ruby.h>
 }
 #include <klocale.h>
 //---------------------------------------------------------------------------
@@ -173,7 +173,8 @@ XRuby::rlistnode_create_child(VALUE self, VALUE rbtype, VALUE rbname)
             child = x->child;
       }
       if(!child) {
-           rb_raise(rb_eRuntimeError, "Error on %s : Could not make child"
+           rb_raise(rb_eRuntimeError, 
+           		"Error on %s : Could not make child"
                 " name = %s, type = %s\n", node->getName().c_str(), name, type);
             return Qnil;
       }

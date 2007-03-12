@@ -68,57 +68,57 @@ int main(int argc, char *argv[])
 		KGlobal::dirs()->addPrefix(".");
 		makeIcons(app->iconLoader());
 		{
-            KCmdLineArgs *args = KCmdLineArgs::parsedArgs();
+			KCmdLineArgs *args = KCmdLineArgs::parsedArgs();
                     
-            g_bLogDbgPrint = args->isSet("logging");
+			g_bLogDbgPrint = args->isSet("logging");
             
-            g_bMLockAlways = args->isSet("mlockall");
+			g_bMLockAlways = args->isSet("mlockall");
 
 			if(g_bMLockAlways) {
 				if(( mlockall(MCL_CURRENT | MCL_FUTURE ) == 0)) {
-				  	dbgPrint("MLOCKALL succeeded.");
+					dbgPrint("MLOCKALL succeeded.");
 				}
 				else{
-				  	dbgPrint(formatString("MLOCKALL failed errno=%d.", errno));
+					dbgPrint(formatString("MLOCKALL failed errno=%d.", errno));
 				}
 			}
 
-            g_bUseMLock = args->isSet("mlock");
-            if(g_bUseMLock)
+			g_bUseMLock = args->isSet("mlock");
+			if(g_bUseMLock)
 				mlock(&aboutData, 4096uL); //reserve stack of main thread.
         
 			QGLFormat f;
-            f.setDirectRendering(args->isSet("directrender") );
-            QGLFormat::setDefaultFormat( f );
+			f.setDirectRendering(args->isSet("directrender") );
+			QGLFormat::setDefaultFormat( f );
             
-            //! Use UTF8 conversion from std::string to QString.
-            QTextCodec::setCodecForCStrings(QTextCodec::codecForName("utf8") );
+			//! Use UTF8 conversion from std::string to QString.
+			QTextCodec::setCodecForCStrings(QTextCodec::codecForName("utf8") );
             
 			FrmKameMain *form;
-            form = new FrmKameMain();
-            app->setMainWidget(form);
+			form = new FrmKameMain();
+			app->setMainWidget(form);
 			//    form->resize(QSize(QApplication::desktop()->width(), QApplication::desktop()->height() - 200 ).expandedTo(form->sizeHint()) );
 			//    form->switchToChildframeMode();
 			//        form->setToolviewStyle(KMdi::IconOnly);
-            form->setToolviewStyle(KMdi::TextAndIcon);
+			form->setToolviewStyle(KMdi::TextAndIcon);
 			//    form->setGeometry(0, 0, form->width(), form->height());
-            form->show();
+			form->show();
             
-            if (args->count())
+			if (args->count())
 			{
 				form->openMes( QFile::decodeName( args->arg(0)));    
 			}
-            else
+			else
 			{
 			}
-            args->clear();
+			args->clear();
 		}
-    }
+	}
 	/*
 	  while(!app->closingDown()) {
-      bool idle = g_signalBuffer->synchronize();  
-      if(idle) app->processEvents();
-      app->processEvents(15);
+	  bool idle = g_signalBuffer->synchronize();  
+	  if(idle) app->processEvents();
+	  app->processEvents(15);
 	  }
 	  return 0;
 	*/

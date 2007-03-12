@@ -90,17 +90,17 @@ XQGraphPainter::findAxis(const XGraph::ScrPoint &s1)
     atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
     if(axes_list) { 
         for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
-        {
-            shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
+		{
+			shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
 			XGraph::SFloat z1;
 			XGraph::ScrPoint s2;
-            axis->axisToScreen(axis->screenToAxis(s1), &s2);
+			axis->axisToScreen(axis->screenToAxis(s1), &s2);
 			z1 = sqrtf(s1.distance2(s2));
 			if(zmin > z1) {
 				zmin = z1;
 				found_axis = axis;
 			}
-        }
+		}
     }
     return found_axis;
 }
@@ -113,32 +113,32 @@ XQGraphPainter::findPlane(const XGraph::ScrPoint &s1,
 	atomic_shared_ptr<const XNode::NodeList> plots_list(m_graph->plots()->children());
 	if(plots_list) { 
 		for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
-        {
-            shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
-            XGraph::GPoint g1;
-            shared_ptr<XAxis> axisx = *plot->axisX();
-            shared_ptr<XAxis> axisy = *plot->axisY();
-            shared_ptr<XAxis> axisz = *plot->axisZ();
-            plot->screenToGraph(s1, &g1);
-            if((fabs(g1.x) < zmin) && axisz) {
+		{
+			shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
+			XGraph::GPoint g1;
+			shared_ptr<XAxis> axisx = *plot->axisX();
+			shared_ptr<XAxis> axisy = *plot->axisY();
+			shared_ptr<XAxis> axisz = *plot->axisZ();
+			plot->screenToGraph(s1, &g1);
+			if((fabs(g1.x) < zmin) && axisz) {
 				plot_found = plot;
-               	zmin = fabs(g1.x);
+				zmin = fabs(g1.x);
 				*axis1 = axisy;
 				*axis2 = axisz;
-            }
-            if((fabs(g1.y) < zmin) && axisz) {
+			}
+			if((fabs(g1.y) < zmin) && axisz) {
 				plot_found = plot;
 				zmin = fabs(g1.y);
 				*axis1 = axisx;
 				*axis2 = axisz;
-            }
-            if(fabs(g1.z) < zmin) {
+			}
+			if(fabs(g1.z) < zmin) {
 				plot_found = plot;
-             	zmin = fabs(g1.z);
+				zmin = fabs(g1.z);
 				*axis1 = axisx;
 				*axis2 = axisy;
-            }
-        }       
+			}
+		}       
     }
     return plot_found;
 }
@@ -252,8 +252,8 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
                     atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
                     if(axes_list) { 
                         for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
-                        {
-                            shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
+						{
+							shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
 							if(axis->autoScale()->isUIEnabled())
 								axis->autoScale()->value(true);
 						}
@@ -348,8 +348,8 @@ XQGraphPainter::zoom(double zoomscale, int , int )
 	if(axes_list) { 
 		for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
 		{
-            shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
-            if(axis->autoScale()->isUIEnabled())
+			shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
+			if(axis->autoScale()->isUIEnabled())
 				axis->autoScale()->value(false);
 		}
 	}
@@ -380,8 +380,8 @@ XQGraphPainter::drawOnScreenObj()
 			dst1 = setprec(dst1, sqrt(dst1dx*dst1dx + dst1dy*dst1dy));
 			dst2 = setprec(dst2, sqrt(dst2dx*dst2dx + dst2dy*dst2dy));
 			msg += QString("(%1, %2)")
-                .arg(m_foundPlaneAxis1->valToString(dst1))
-                .arg(m_foundPlaneAxis2->valToString(dst2));
+				.arg(m_foundPlaneAxis1->valToString(dst1))
+				.arg(m_foundPlaneAxis2->valToString(dst2));
 		}
 		else {
 			msg = KAME::i18n("R-DBL-CLICK TO SHOW HELP");
@@ -407,10 +407,10 @@ XQGraphPainter::drawOnScreenObj()
 			dst1 = setprec(dst1, sqrt(dst1dx*dst1dx + dst1dy*dst1dy));
 			dst2 = setprec(dst2, sqrt(dst2dx*dst2dx + dst2dy*dst2dy));
 			msg += QString("(%1, %2) - (%3, %4)")
-                .arg(m_foundPlaneAxis1->valToString(src1))
-                .arg(m_foundPlaneAxis2->valToString(src2))
-                .arg(m_foundPlaneAxis1->valToString(dst1))
-                .arg(m_foundPlaneAxis2->valToString(dst2));
+				.arg(m_foundPlaneAxis1->valToString(src1))
+				.arg(m_foundPlaneAxis2->valToString(src2))
+				.arg(m_foundPlaneAxis1->valToString(dst1))
+				.arg(m_foundPlaneAxis2->valToString(dst2));
 		
 			XGraph::ScrPoint sd1, sd2;
 			m_foundPlaneAxis1->valToScreen(dst1, &sd1);
@@ -445,8 +445,8 @@ XQGraphPainter::drawOnScreenObj()
 			dst = setprec(dst, sqrt(dstdx*dstdx + dstdy*dstdy));
 		
 			msg += QString("%1 - %2")
-                .arg(m_foundAxis->valToString(src))
-                .arg(m_foundAxis->valToString(dst));
+				.arg(m_foundAxis->valToString(src))
+				.arg(m_foundAxis->valToString(dst));
 		
 			XGraph::GFloat src1 = m_foundAxis->valToAxis(src);
 			XGraph::GFloat dst1 = m_foundAxis->valToAxis(dst);		
@@ -483,10 +483,10 @@ XQGraphPainter::drawOnScreenObj()
 			endLine();
 		}
 		break;
-    case TiltTracking:
-    	break;
-    default:
-    	break;
+	case TiltTracking:
+		break;
+	default:
+		break;
 	}
 	m_onScreenMsg = msg.utf8();
 }

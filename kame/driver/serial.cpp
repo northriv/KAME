@@ -113,9 +113,9 @@ XPosixSerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommE
                 continue;
             }
             else
-            {
-                throw XInterface::XCommError(KAME::i18n("write error"), __FILE__, __LINE__);
-            }
+			{
+				throw XInterface::XCommError(KAME::i18n("write error"), __FILE__, __LINE__);
+			}
         }
         wlen += ret;
         sendbuf += ret;
@@ -142,9 +142,9 @@ XPosixSerialPort::receive() throw (XInterface::XCommError &)
 	unsigned int eos_len = m_pInterface->eos().length();
 	unsigned int len = 0;
 	for(;;)
-    {
+	{
 		if(buffer().size() <= len + 1) 
-            buffer().resize(len + MIN_BUFFER_SIZE);
+			buffer().resize(len + MIN_BUFFER_SIZE);
 		int rlen = ::read(m_scifd, &buffer().at(len), 1);
 		if(rlen == 0) {
 			buffer().at(len) = '\0';
@@ -162,10 +162,10 @@ XPosixSerialPort::receive() throw (XInterface::XCommError &)
 		if(len >= eos_len) {
 			if(!strncmp(&buffer().at(len - eos_len), eos, eos_len))
 			{
-                break;
+				break;
 			}
 		}
-    }
+	}
     
 	buffer().resize(len + 1);
 	buffer().at(len) = '\0';
@@ -189,7 +189,7 @@ XPosixSerialPort::receive(unsigned int length) throw (XInterface::XCommError &)
 	unsigned int len = 0;
    
 	while(len < length)
-    {
+	{
 		int rlen = ::read(m_scifd, &buffer().at(len), 1);
 		if(rlen == 0)
 			throw XInterface::XCommError(KAME::i18n("read time-out"), __FILE__, __LINE__);
@@ -202,7 +202,7 @@ XPosixSerialPort::receive(unsigned int length) throw (XInterface::XCommError &)
 				throw XInterface::XCommError(KAME::i18n("read error"), __FILE__, __LINE__);
 		}
 		len += rlen;
-    }
+	}
 }    
 
 

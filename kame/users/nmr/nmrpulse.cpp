@@ -248,7 +248,7 @@ XNMRPulseAnalyzer::backgroundSub(const std::deque<std::complex<double> > &wave,
 								 int pos, int length, int bgpos, int bglength, twindowfunc windowfunc)
 {
 	if(*useDNR() && (bglength > 0))
-    {
+	{
 		const int dnrlen = bglength;
 		const int dnrpos = bgpos;
 
@@ -281,7 +281,7 @@ XNMRPulseAnalyzer::backgroundSub(const std::deque<std::complex<double> > &wave,
 		//calcurate noise level
 		double nlevel = 0.0;
 		int nlevel_cnt = 0;
-#define NOISE_BW 20
+	#define NOISE_BW 20
 		for(int i = 0; i < m_dnrsubfftlen; i++)
 		{
 			int k = (i < m_dnrsubfftlen/2) ? i : (i - m_dnrsubfftlen);
@@ -309,7 +309,7 @@ XNMRPulseAnalyzer::backgroundSub(const std::deque<std::complex<double> > &wave,
 			   && (sqrt(m_dnrsubfftout[i].re * m_dnrsubfftout[i].re + m_dnrsubfftout[i].im * m_dnrsubfftout[i].im) < nlevel))
 			{
 				m_noisePower += m_dnrsubfftout[i].re * m_dnrsubfftout[i].re 
-                    + m_dnrsubfftout[i].im * m_dnrsubfftout[i].im;
+					+ m_dnrsubfftout[i].im * m_dnrsubfftout[i].im;
 				continue;            
 			}
 			const double dphase = - 2 * PI * dnrpos * i / m_dnrsubfftlen;
@@ -371,30 +371,30 @@ XNMRPulseAnalyzer::rotNFFT(int ftpos,
 	//phase advance
 	std::complex<double> cph(cos(ph), sin(ph));
 	for(int i = 0; i < length; i++)
-    {
+	{
 		wave[i] *= cph;
-    }
+	}
 
 	//fft
 	for(int i = 0; i < m_fftlen; i++)
-    {
+	{
 		const int j = (ftpos + i >= m_fftlen) ? (ftpos + i - m_fftlen) : (ftpos + i);
 		const double z = windowfunc((j - ftpos) / (double)length);
 		if((j >= length) || (j < 0)) {
-            m_fftin[i].re = 0;
-            m_fftin[i].im = 0;
+			m_fftin[i].re = 0;
+			m_fftin[i].im = 0;
 		}
 		else {
 			wave[j] *= z;
 			m_fftin[i].re = std::real(wave[j]);
 			m_fftin[i].im = std::imag(wave[j]);
 		}
-    }
+	}
     
 	fftw_one(m_fftplan, &m_fftin[0], &m_fftout[0]);
 
 	for(int i = 0; i < m_fftlen; i++)
-    {
+	{
 		const int k = i + diffreq;
 		if((k >= 0) && (k < m_fftlen)) {
 			const int j = (k < m_fftlen / 2) ? (m_fftlen / 2 + k) : (k - m_fftlen / 2);
@@ -404,7 +404,7 @@ XNMRPulseAnalyzer::rotNFFT(int ftpos,
 		else {
 			ftwave[i] = 0;
 		}
-    }
+	}
 }
 void
 XNMRPulseAnalyzer::onAvgClear(const shared_ptr<XNode> &)
@@ -473,17 +473,17 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
 	bool avgclear = skip;
 
 	if((int)*fftLen() != m_fftlen)
-    {
+	{
 		if(m_fftlen >= 0)  fftw_destroy_plan(m_fftplan);
 		m_fftlen = *fftLen();
 		if(lrint(pow(2.0f, rintf(logf((float)m_fftlen) / logf(2.0f)))) != m_fftlen )
-            m_statusPrinter->printWarning(KAME::i18n("FFT length is not a power of 2."), true);
+			m_statusPrinter->printWarning(KAME::i18n("FFT length is not a power of 2."), true);
 		m_fftin.resize(m_fftlen);
 		m_fftout.resize(m_fftlen);
 		m_fftplan = fftw_create_plan(m_fftlen, FFTW_FORWARD, FFTW_ESTIMATE);
 		m_ftWave.resize(m_fftlen);
 		m_ftWaveSum.resize(m_fftlen);
-    }
+	}
 	if(length > (int)m_wave.size()) {
 		avgclear = true;
     }

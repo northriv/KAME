@@ -77,9 +77,9 @@ T &XThreadLocal<T>::operator*() const {
     if(p == NULL) {
         int ret = pthread_setspecific(m_key, p = 
 #ifdef HAVE_LIBGCCPP
-									  new (NoGC) T);
+							new (NoGC) T);
 #else
-		new T);
+							new T);
 #endif
 	ASSERT(!ret);
 }
@@ -88,7 +88,7 @@ return *reinterpret_cast<T*>(p);
 template <typename T>
 T *
 XThreadLocal<T>::operator->() const {
-return &(**this);
+	return &(**this);
 }
         
 #endif /*THREADLOCAL_H_*/

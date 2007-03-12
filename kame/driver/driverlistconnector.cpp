@@ -94,46 +94,46 @@ XDriverListConnector::onCatch(const shared_ptr<XNode> &node) {
 void
 XDriverListConnector::onRelease(const shared_ptr<XNode> &node) {
 	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end();)
-    {
+	{
 		ASSERT(m_pItem->numRows() == (int)m_cons.size());
 		if((*it)->driver == node)
-        {
+		{
 			(*it)->driver->onRecord().disconnect(m_lsnOnRecord);
 			for(int i = 0; i < m_pItem->numRows(); i++)
 			{
 				if(m_pItem->cellWidget(i, 2) == (*it)->label)
-                    m_pItem->removeRow(i);
+					m_pItem->removeRow(i);
 			}
 			it = m_cons.erase(it);
-        }
+		}
 		else
 			it++;
-    }
+	}
 }
 void
 XDriverListConnector::clicked ( int row, int col, int , const QPoint& ) {
 	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++)
-    {
+	{
 		if(m_pItem->cellWidget(row, 2) == (*it)->label)
-        {
+		{
 			if(col < 3) (*it)->driver->showForms();
-        }
-    }
+		}
+	}
 }
 
 void
 XDriverListConnector::onRecord(const shared_ptr<XDriver> &driver)
 {
 	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++)
-    {
+	{
 		if((*it)->driver == driver)
-        {
-            tcons::tlisttext text;
-            text.label = (*it)->label;
-            text.str.reset(new std::string((*it)->driver->time().getTimeStr()));
-            (*it)->tlkOnRecordRedirected->talk(text);
-        }
-    }
+		{
+			tcons::tlisttext text;
+			text.label = (*it)->label;
+			text.str.reset(new std::string((*it)->driver->time().getTimeStr()));
+			(*it)->tlkOnRecordRedirected->talk(text);
+		}
+	}
 }
 void
 XDriverListConnector::tcons::onRecordRedirected(const tlisttext &text)

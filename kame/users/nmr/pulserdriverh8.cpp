@@ -74,9 +74,9 @@ XH8Pulser::pulseAdd(uint64_t term, unsigned short pattern)
 	uint32_t llen = (uint32_t)((term - 1) % 0x8000uLL);
 
 	switch(ulen)
-    {
+	{
 		h8ushort x;
-    case 0:
+	case 0:
 		x.msb = llen / 0x100;
 		x.lsb = llen % 0x100;
 		m_zippedPatterns.push_back(x);
@@ -84,7 +84,7 @@ XH8Pulser::pulseAdd(uint64_t term, unsigned short pattern)
 		x.lsb = pattern % 0x100;
 		m_zippedPatterns.push_back(x);
 		break;
-    default:
+	default:
 		x.msb = (ulen % 0x8000u + 0x8000u) / 0x100;
 		x.lsb = (ulen % 0x8000u + 0x8000u) % 0x100;
 		m_zippedPatterns.push_back(x);
@@ -98,7 +98,7 @@ XH8Pulser::pulseAdd(uint64_t term, unsigned short pattern)
 		x.lsb = pattern % 0x100;
 		m_zippedPatterns.push_back(x);
 		break;
-    }
+	}
 	return 0;
 }
 static unsigned short makesum(unsigned char *start, uint32_t bytes)
@@ -113,7 +113,7 @@ void
 XH8Pulser::changeOutput(bool output, unsigned int blankpattern)
 {
 	if(output)
-    {
+	{
 		if(m_zippedPatterns.empty() |
 		   (m_zippedPatterns.size() >= MAX_PATTERN_SIZE ))
 			throw XInterface::XInterfaceError(KAME::i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
@@ -128,7 +128,7 @@ XH8Pulser::changeOutput(bool output, unsigned int blankpattern)
 				interface()->write(">", 1);
 				msecsleep(1);
 				for(unsigned int j=0; j < size; j += pincr)
-                {
+				{
 					interface()->write(
 						(char *)&m_zippedPatterns[j], pincr * 2);
 					unsigned short sum = 
@@ -136,12 +136,12 @@ XH8Pulser::changeOutput(bool output, unsigned int blankpattern)
 					h8ushort nsum;
 					nsum.lsb = sum % 0x100; nsum.msb = sum / 0x100;
 					interface()->write((char *)&nsum, 2);
-                }
+				}
 				interface()->write("    \n", 5);
 				interface()->receive();
 				unsigned int ret;
 				if(interface()->scanf("%x", &ret) != 1)
-                    throw XInterface::XConvError(__FILE__, __LINE__);
+					throw XInterface::XConvError(__FILE__, __LINE__);
 				if(ret != size)
 					throw XInterface::XInterfaceError(KAME::i18n("Pulser Check Sum Error"), __FILE__, __LINE__);
 			}
@@ -152,9 +152,9 @@ XH8Pulser::changeOutput(bool output, unsigned int blankpattern)
 			}
 			break;
 		}
-    }
+	}
 	else
-    {
+	{
 		interface()->sendf("$poff %x", blankpattern);
-    }
+	}
 }

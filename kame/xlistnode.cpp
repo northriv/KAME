@@ -25,13 +25,13 @@ XListNodeBase::clearChildren()
 
 	if(!old_list) return;
 	for(;;)
-    {
+	{
 		if(old_list->empty())
-            break;
+			break;
 		onRelease().talk(old_list->back());
         
 		old_list->pop_back();
-    }
+	}
 	onListChanged().talk(dynamic_pointer_cast<XListNodeBase>(shared_from_this()));
 }
 int

@@ -65,11 +65,11 @@ MonteCarlo::MonteCarlo(int num_threads)
     int lsize = s_num_spins/16;
 
     for(int site1 = 0; site1 < 16; site1++) {
-#ifdef PACK_4FLOAT
+	#ifdef PACK_4FLOAT
         m_spins_real[site1].resize(spins_real_index(0,0,s_L)/4);
-#else
+	#else
         m_spins_real[site1].resize(3*lsize);
-#endif
+	#endif
         
         m_field_pri_cached[site1].resize(lsize, 0.0);
         m_field_pri_cached_sane.resize(lsize, 0);
@@ -102,11 +102,11 @@ MonteCarlo::~MonteCarlo()
         m_thread_pool_cond.broadcast();
 	}
     for(deque<pthread_t>::iterator it = m_threads.begin(); it != m_threads.end(); it++)
-    {
+	{
 		void *retv;
 		int ret = pthread_join(*it, &retv);
 		ASSERT(!ret);
-    }
+	}
 }
 void
 MonteCarlo::read(istream &is)
@@ -190,9 +190,9 @@ MonteCarlo::write(ostream &os)
                         os << " " << buf;
 					}
                     else
-                    {
-                        os << " ?";
-                    }
+					{
+						os << " ?";
+					}
                     os << " ] " ;
                 }
                 os << "]" << endl;

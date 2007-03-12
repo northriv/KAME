@@ -149,11 +149,11 @@ private:
 
     typedef union {
         struct {
-#if SIZEOF_INT == 4
+		#if SIZEOF_INT == 4
             uint16_t refcnt, serial; 
-#elif SIZEOF_INT == 8
+		#elif SIZEOF_INT == 8
             uint32_t refcnt, serial; 
-#endif
+		#endif
         } split;
         unsigned int both;
 	} RefcntNSerial;
@@ -168,24 +168,24 @@ public:
 private:
     struct _RefLocal {
         _RefLocal(Ref *r) : pref(r)
-#if defined ATOMIC_SMART_PTR_USE_LOCKFREE_READ
+		#if defined ATOMIC_SMART_PTR_USE_LOCKFREE_READ
 						  , pref_old(r), serial_update(0)
-#endif
-            { refcnt_n_serial.both = 0; }
+		#endif
+		{ refcnt_n_serial.both = 0; }
         _RefLocal() : pref(0)
-#if defined ATOMIC_SMART_PTR_USE_LOCKFREE_READ
+		#if defined ATOMIC_SMART_PTR_USE_LOCKFREE_READ
 					, pref_old(0), serial_update(0)
-#endif
-            { refcnt_n_serial.both = 0; }
+		#endif
+		{ refcnt_n_serial.both = 0; }
         typedef Ref* Ref_ptr;
         //! A pointer to global reference struct.
         Ref_ptr pref;
 	 	//! Local reference counter w/ serial number for ABA problem.
         RefcntNSerial refcnt_n_serial;
-#ifdef ATOMIC_SMART_PTR_USE_LOCKFREE_READ
+	#ifdef ATOMIC_SMART_PTR_USE_LOCKFREE_READ
 		Ref *pref_old;
 		unsigned int serial_update;
-#endif
+	#endif
     };
     mutable _RefLocal m_ref;
 #ifdef ATOMIC_SMART_PTR_USE_LOCKFREE_READ
@@ -386,7 +386,7 @@ atomic_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
 	}
 #elif defined ATOMIC_SMART_PTR_USE_LOCKFREE_READ
     m_ref.serial_update = m_ref.refcnt_n_serial.split.serial;
-    { XScopedLock<XMutex> lock(r.m_updatemutex);
+	{ XScopedLock<XMutex> lock(r.m_updatemutex);
 	unsigned int serial = ++r.m_ref.serial_update;
 	writeBarrier();
 	pref = r.m_ref.pref;
@@ -409,12 +409,12 @@ atomic_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
 	}
 	writeBarrier();
 	r.m_ref.pref_old = m_ref.pref;
-    }
-    m_ref.pref_old = pref;
+	}
+	m_ref.pref_old = pref;
 #endif 
-    m_ref.pref = pref;
-    m_ptr_instant = !m_ref.pref ? 0 : m_ref.pref->ptr;
-    r.m_ptr_instant = oldptr;
+	m_ref.pref = pref;
+	m_ptr_instant = !m_ref.pref ? 0 : m_ref.pref->ptr;
+	r.m_ptr_instant = oldptr;
 }
 
 template <typename T>
@@ -458,7 +458,7 @@ atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_sh
 	}
 #elif defined ATOMIC_SMART_PTR_USE_LOCKFREE_READ
     m_ref.serial_update = m_ref.refcnt_n_serial.split.serial;
-    { XScopedLock<XMutex> lock(r.m_updatemutex);
+	{ XScopedLock<XMutex> lock(r.m_updatemutex);
 	pref = r.m_ref.pref;
 	if(pref != oldr.m_ref.pref) return false;
 	unsigned int serial = ++r.m_ref.serial_update;
@@ -482,13 +482,13 @@ atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_sh
 	}
 	writeBarrier();
 	r.m_ref.pref_old = m_ref.pref;
-    }
-    m_ref.pref_old = pref;
+	}
+	m_ref.pref_old = pref;
 #endif 
-    m_ref.pref = pref;
-    m_ptr_instant = !m_ref.pref ? 0 : m_ref.pref->ptr;
-    r.m_ptr_instant = oldptr;
-    return true;
+	m_ref.pref = pref;
+	m_ptr_instant = !m_ref.pref ? 0 : m_ref.pref->ptr;
+	r.m_ptr_instant = oldptr;
+	return true;
 }
 
 #endif /*ATOMIC_SMART_PTR_H_*/

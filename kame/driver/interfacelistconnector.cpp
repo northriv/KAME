@@ -56,22 +56,22 @@ void
 XInterfaceListConnector::onControlChanged(const shared_ptr<XValueNodeBase> &node)
 {
 	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++)
-    {
+	{
 		if(it->interface->control() == node)
-        {
-            KApplication *app = KApplication::kApplication();
-            if(*it->interface->control()) {
-                it->btn->setIconSet( app->iconLoader()->loadIconSet("stop", 
+		{
+			KApplication *app = KApplication::kApplication();
+			if(*it->interface->control()) {
+				it->btn->setIconSet( app->iconLoader()->loadIconSet("stop", 
 																	KIcon::Toolbar, KIcon::SizeSmall, true ) );
-                it->btn->setText(KAME::i18n("&STOP"));
+				it->btn->setText(KAME::i18n("&STOP"));
 			}
 			else {
-                it->btn->setIconSet( app->iconLoader()->loadIconSet("run", 
+				it->btn->setIconSet( app->iconLoader()->loadIconSet("run", 
 																	KIcon::Toolbar, KIcon::SizeSmall, true ) );
-                it->btn->setText(KAME::i18n("&RUN"));
-            }
-        }
-    }
+				it->btn->setText(KAME::i18n("&RUN"));
+			}
+		}
+	}
 }
 void
 XInterfaceListConnector::onCatch(const shared_ptr<XNode> &node) {
@@ -105,26 +105,26 @@ XInterfaceListConnector::onCatch(const shared_ptr<XNode> &node) {
 void
 XInterfaceListConnector::onRelease(const shared_ptr<XNode> &node) {
 	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end();)
-    {
+	{
 		if(it->interface == node)
-        {
-            for(int i = 0; i < m_pItem->numRows(); i++)
-            {
+		{
+			for(int i = 0; i < m_pItem->numRows(); i++)
+			{
 				if(m_pItem->cellWidget(i, 1) == it->btn) m_pItem->removeRow(i);
-            }
-            it = m_cons.erase(it);
-        }
+			}
+			it = m_cons.erase(it);
+		}
 		else
-        {
+		{
 			it++;
-        }    
-    }  
+		}    
+	}  
 }
 void
 XInterfaceListConnector::clicked ( int row, int , int , const QPoint& ) {
 	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++)
-    {
+	{
 		if(m_pItem->cellWidget(row, 1) == it->btn)
 			it->interface->driver()->showForms();
-    }
+	}
 }

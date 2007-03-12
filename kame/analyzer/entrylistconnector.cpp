@@ -91,7 +91,7 @@ void
 XEntryListConnector::onRelease(const shared_ptr<XNode> &node)
 {
 	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end();)
-    {
+	{
 		ASSERT(m_pItem->numRows() == (int)m_cons.size());
 		if((*it)->entry == node)
 		{
@@ -106,7 +106,7 @@ XEntryListConnector::onRelease(const shared_ptr<XNode> &node)
 		{
 			it++;
 		}
-    }
+	}
 }
 void
 XEntryListConnector::onCatch(const shared_ptr<XNode> &node)

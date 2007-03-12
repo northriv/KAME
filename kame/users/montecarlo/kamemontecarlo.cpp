@@ -397,9 +397,9 @@ XMonteCarloDriver::visualize()
     
 		XScopedWriteLock<XWaveNGraph> lock(*m_wave3D);
 		m_wave3D->setRowCount(m_fftlen * m_fftlen * m_fftlen );
-        double normalize = A_MOMENT / m_fftlen / m_fftlen / m_fftlen;
-        int idx = 0;
-        for(int l = 0; l < m_fftlen; l++) {
+		double normalize = A_MOMENT / m_fftlen / m_fftlen / m_fftlen;
+		int idx = 0;
+		for(int l = 0; l < m_fftlen; l++) {
 			for(int k = 0; k < m_fftlen; k++) {
 				for(int h = 0; h < m_fftlen; h++) {
 					int qidx = m_fftlen*(m_fftlen*l + k) + h;
@@ -431,7 +431,7 @@ XMonteCarloDriver::visualize()
 					idx++;
 				}
 			}
-        }
+		}
 	}
 	if(calcasite)
 	{   XScopedWriteLock<XWaveNGraph> lock(*m_wave3D);
@@ -440,7 +440,7 @@ XMonteCarloDriver::visualize()
 	for(int site = 0; site < 16; site++) {
 		const int *pos = cg_ASitePositions[site];
 		for(int k = 0; k < size; k++) {
-            for(int j = 0; j < size; j++) {
+			for(int j = 0; j < size; j++) {
 				for(int i = 0; i < size; i++) {
 					int sidx = size*(size*(size*site + k) + j) + i;
 					int fftidx = m_fftlen*(m_fftlen*(4*k+pos[2]) + 4*j+pos[1]) + 4*i + pos[0];
@@ -473,7 +473,7 @@ XMonteCarloDriver::visualize()
 					m_wave3D->cols(7)[idx] = site;
 					idx++;
 				}
-            }
+			}
 		}
 	}
 	}
@@ -484,9 +484,9 @@ XMonteCarloDriver::visualize()
 		XScopedWriteLock<XWaveNGraph> lock(*m_wave3D);
 		int idx = 0;
 		m_wave3D->setRowCount(16*size*size*size);
-        for(int site = 0; site < 16; site++) {
-            const int *pos = cg_BSitePositions[site];
-            for(int k = 0; k < size; k++) {
+		for(int site = 0; site < 16; site++) {
+			const int *pos = cg_BSitePositions[site];
+			for(int k = 0; k < size; k++) {
 				for(int j = 0; j < size; j++) {
 					for(int i = 0; i < size; i++) {
 						int sidx = size*(size*(size*site + k) + j) + i;
@@ -505,8 +505,8 @@ XMonteCarloDriver::visualize()
 						idx++;
 					}
 				}
-            }
-        }
+			}
+		}
 	}
 	if(calc8asite)
 	{
@@ -515,9 +515,9 @@ XMonteCarloDriver::visualize()
 		XScopedWriteLock<XWaveNGraph> lock(*m_wave3D);
 		int idx = 0;
 		m_wave3D->setRowCount(8*size*size*size);
-        for(int site = 0; site < 8; site++) {
-            const int *pos = cg_8aSitePositions[site];
-            for(int k = 0; k < size; k++) {
+		for(int site = 0; site < 8; site++) {
+			const int *pos = cg_8aSitePositions[site];
+			for(int k = 0; k < size; k++) {
 				for(int j = 0; j < size; j++) {
 					for(int i = 0; i < size; i++) {
 						int sidx = size*(size*(size*site + k) + j) + i;
@@ -536,8 +536,8 @@ XMonteCarloDriver::visualize()
 						idx++;
 					}
 				}
-            }
-        }
+			}
+		}
 	}
 	if(calc48fsite)
 	{
@@ -546,9 +546,9 @@ XMonteCarloDriver::visualize()
 		XScopedWriteLock<XWaveNGraph> lock(*m_wave3D);
 		int idx = 0;
 		m_wave3D->setRowCount(48*size*size*size);
-        for(int site = 0; site < 48; site++) {
-            const double *pos = cg_48fSitePositions[site];
-            for(int k = 0; k < size; k++) {
+		for(int site = 0; site < 48; site++) {
+			const double *pos = cg_48fSitePositions[site];
+			for(int k = 0; k < size; k++) {
 				for(int j = 0; j < size; j++) {
 					for(int i = 0; i < size; i++) {
 						int sidx = size*(size*(size*site + k) + j) + i;
@@ -567,8 +567,8 @@ XMonteCarloDriver::visualize()
 						idx++;
 					}
 				}
-            }
-        }
+			}
+		}
 	}
 }
 void

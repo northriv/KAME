@@ -267,13 +267,13 @@ void
 FrmKameMain::processSignals() {
 	bool idle = g_signalBuffer->synchronize();
 	if(idle) {
-#ifdef HAVE_LIBGCCPP
+	#ifdef HAVE_LIBGCCPP
 		static XTime last = XTime::now();
 		if(XTime::now() - last > 3) {
 			GC_gcollect();
 			last = XTime::now();
 		}
-#endif    
+	#endif    
 	}
 }
 
@@ -318,17 +318,17 @@ int
 FrmKameMain::openMes(const QString &filename)
 {
 	if(!filename.isEmpty())
-    {
+	{
 		shared_ptr<XRubyThread> rbthread = m_measure->ruby()->
-            create<XRubyThread>("Open Measurement", true, filename );
+			create<XRubyThread>("Open Measurement", true, filename );
 		FrmRubyThread* form = new FrmRubyThread(this);
 		m_conMeasRubyThread = xqcon_create<XRubyThreadConnector>(
 			rbthread, form, m_measure->ruby());
 		KMdiChildView *view = createWrapper(form, form->caption(), form->caption());
 		addWindow(view);
 		while(rbthread->isAlive()) {
-            KApplication::kApplication()->processEvents();
-            g_signalBuffer->synchronize();
+			KApplication::kApplication()->processEvents();
+			g_signalBuffer->synchronize();
 		}
 //          closeWindow(view);
 
@@ -337,8 +337,8 @@ FrmKameMain::openMes(const QString &filename)
 //        m_pFileSaveAction->setEnabled(true);
 //        m_pFileOpenAction->setEnabled(false);
 //        m_pFileCloseAction->setEnabled(true);
-        return 0;
-    }
+		return 0;
+	}
     return -1;
 }
 
@@ -365,13 +365,13 @@ void FrmKameMain::fileSaveAction_activated()
 		this,
 		KAME::i18n("Save Measurement File") );
 	if(!filename.isEmpty())
-    {
-        std::ofstream ofs(filename.local8Bit(), std::ios::out);
-        if(ofs.good()) {
-            XRubyWriter writer(m_measure, ofs);
-            writer.write();
-        }
-    }
+	{
+		std::ofstream ofs(filename.local8Bit(), std::ios::out);
+		if(ofs.good()) {
+			XRubyWriter writer(m_measure, ofs);
+			writer.write();
+		}
+	}
 }
 
 
@@ -422,10 +422,10 @@ void FrmKameMain::scriptRunAction_activated()
 		this,
 		KAME::i18n("Open Script File") );
 	if(!filename.isEmpty())
-    {
+	{
 		static unsigned int thread_no = 1;
 		shared_ptr<XRubyThread> rbthread = m_measure->ruby()->
-            create<XRubyThread>(QString().sprintf("Thread%d", thread_no).latin1(), true, filename );
+			create<XRubyThread>(QString().sprintf("Thread%d", thread_no).latin1(), true, filename );
 		thread_no++;
 		FrmRubyThread* form = new FrmRubyThread(this);
 		m_conRubyThreadList.push_back(xqcon_create<XRubyThreadConnector>(
@@ -433,15 +433,15 @@ void FrmKameMain::scriptRunAction_activated()
 		addWindow(createWrapper(form, form->caption(), form->caption()));
 		// erase unused xqcon_ptr
 		for(std::deque<xqcon_ptr>::iterator it = m_conRubyThreadList.begin();
-            it != m_conRubyThreadList.end(); ) {
-            if((*it)->isAlive()) {
-                it++;
-            }
-            else {
-                it = m_conRubyThreadList.erase(it);
-            }
+			it != m_conRubyThreadList.end(); ) {
+			if((*it)->isAlive()) {
+				it++;
+			}
+			else {
+				it = m_conRubyThreadList.erase(it);
+			}
 		}
-    }
+	}
 }
 
 void FrmKameMain::scriptDotSaveAction_activated()
@@ -453,13 +453,13 @@ void FrmKameMain::scriptDotSaveAction_activated()
 		this,
 		KAME::i18n("Save Graphviz dot File") );
 	if(!filename.isEmpty())
-    {
-        std::ofstream ofs(filename.local8Bit(), std::ios::out);
-        if(ofs.good()) {
-            XDotWriter writer(m_measure, ofs);
-            writer.write();
-        }
-    }
+	{
+		std::ofstream ofs(filename.local8Bit(), std::ios::out);
+		if(ofs.good()) {
+			XDotWriter writer(m_measure, ofs);
+			writer.write();
+		}
+	}
 }
 
 void FrmKameMain::fileLogAction_toggled( bool var)

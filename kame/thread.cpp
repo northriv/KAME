@@ -69,21 +69,21 @@ void
 XRecursiveMutex::lock()
 {
 	if(!pthread_equal(m_lockingthread, threadID()))
-    {
+	{
 		m_mutex.lock();
 		m_lockcount = 1;
 		m_lockingthread = threadID();
-    }
+	}
 	else
-    {
+	{
 		m_lockcount++;
-    }
+	}
 }
 bool
 XRecursiveMutex::trylock()
 {
 	if(!pthread_equal(m_lockingthread, threadID()))
-    {
+	{
 		if(m_mutex.trylock()) {
 			m_lockcount = 1;
 			m_lockingthread = threadID();
@@ -91,11 +91,11 @@ XRecursiveMutex::trylock()
 		else {
 			return false;
 		}
-    }
+	}
 	else
-    {
+	{
 		m_lockcount++;
-    }
+	}
 	return true;
 }
 void 
@@ -104,10 +104,10 @@ XRecursiveMutex::unlock()
 	if(DEBUG_XTHREAD) ASSERT(pthread_equal(m_lockingthread, threadID()));
 	m_lockcount--;
 	if(m_lockcount == 0)
-    {
+	{
 		m_lockingthread = (threadid_t)-1;
 		m_mutex.unlock();
-    }
+	}
 }
 bool
 XRecursiveMutex::isLockedByCurrentThread() const
@@ -129,7 +129,7 @@ XCondition::wait(int usec)
 {
 	int ret;
 	if(usec > 0)
-    {
+	{
 		struct timespec abstime;
 		timeval tv;
 		long nsec;
@@ -141,7 +141,7 @@ XCondition::wait(int usec)
 		}
 		abstime.tv_nsec = nsec;
 		ret = pthread_cond_timedwait(&m_cond, &m_mutex, &abstime);
-    }
+	}
 	else {
 		ret = pthread_cond_wait(&m_cond, &m_mutex);
 	}

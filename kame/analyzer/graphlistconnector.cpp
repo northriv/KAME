@@ -106,7 +106,7 @@ void
 XGraphListConnector::onRelease(const shared_ptr<XNode> &node)
 {
 	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end();)
-    {
+	{
 		if(it->node == node)
 		{
 			for(int i = 0; i < m_pItem->numRows(); i++)
@@ -119,7 +119,7 @@ XGraphListConnector::onRelease(const shared_ptr<XNode> &node)
 		{
 			it++;
 		}
-    }
+	}
 }
 void
 XGraphListConnector::onCatch(const shared_ptr<XNode> &node)

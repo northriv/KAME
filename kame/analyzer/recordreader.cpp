@@ -165,9 +165,9 @@ XRawStreamRecordReader::parseOne(void *fd, XMutex &mutex)
         throw e;
     }
     mutex.unlock();
-    { XScopedLock<XMutex> lock(m_drivermutex);
+	{ XScopedLock<XMutex> lock(m_drivermutex);
 	driver->finishWritingRaw(XTime::now(), time);
-    }
+	}
 }
 void
 XRawStreamRecordReader::gzgetline(void*fd, unsigned char*buf, unsigned int len, int del)
@@ -257,40 +257,40 @@ void
 XRawStreamRecordReader::onFirst(const shared_ptr<XNode> &)
 {
 	if(m_pGFD)
-    {
+	{
 		try {
-            m_filemutex.lock();
-            _first(m_pGFD);
-            parseOne(m_pGFD, m_filemutex);
-            g_statusPrinter->printMessage(KAME::i18n("First"));
+			m_filemutex.lock();
+			_first(m_pGFD);
+			parseOne(m_pGFD, m_filemutex);
+			g_statusPrinter->printMessage(KAME::i18n("First"));
 		}
 		catch (XRecordError &e) {
-            m_filemutex.unlock();
-            e.print(KAME::i18n("No Record, because "));
+			m_filemutex.unlock();
+			e.print(KAME::i18n("No Record, because "));
 		}
-    }
+	}
 }
 void
 XRawStreamRecordReader::onNext(const shared_ptr<XNode> &)
 {
 	if(m_pGFD)
-    {
+	{
 		try {
 			m_filemutex.lock(); 
 			parseOne(m_pGFD, m_filemutex);
 			g_statusPrinter->printMessage(KAME::i18n("Next"));
 		}
 		catch (XRecordError &e) {
-            m_filemutex.unlock();
-            e.print(KAME::i18n("No Record, because "));
+			m_filemutex.unlock();
+			e.print(KAME::i18n("No Record, because "));
 		}
-    }
+	}
 }
 void
 XRawStreamRecordReader::onBack(const shared_ptr<XNode> &)
 {
 	if(m_pGFD)
-    {
+	{
 		try {
 			m_filemutex.lock(); 
 			_previous(m_pGFD);
@@ -299,30 +299,30 @@ XRawStreamRecordReader::onBack(const shared_ptr<XNode> &)
 			g_statusPrinter->printMessage(KAME::i18n("Previous"));
 		}
 		catch (XRecordError &e) {
-            m_filemutex.unlock();
-            e.print(KAME::i18n("No Record, because "));
+			m_filemutex.unlock();
+			e.print(KAME::i18n("No Record, because "));
 		}
-    }
+	}
 }
 
 void *XRawStreamRecordReader::execute(const atomic<bool> &terminated)
 {
 	while(!terminated)
-    {
+	{
 		double ms = 0.0;
-        {
+		{
 			XScopedLock<XCondition> lock(m_condition);
 			while((fabs((ms = m_periodicTerm)) < 1e-4) && !terminated)
-                m_condition.wait();
-        }
+				m_condition.wait();
+		}
     
 		if(terminated) break;
       
 		try {
 			m_filemutex.lock(); 
 			if(ms < 0.0) {
-                _previous(m_pGFD);
-                _previous(m_pGFD);
+				_previous(m_pGFD);
+				_previous(m_pGFD);
 			}
 			parseOne(m_pGFD, m_filemutex);
 		}
@@ -343,6 +343,6 @@ void *XRawStreamRecordReader::execute(const atomic<bool> &terminated)
 		}
      
 		msecsleep(lrint(fabs(ms)));
-    }
+	}
     return NULL;
 }

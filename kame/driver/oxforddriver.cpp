@@ -48,7 +48,7 @@ XOxfordInterface::query(const char *str) throw (XInterface::XCommError &)
 	lock();
 	try {
 		for(int i = 0; i < 30; i++)
-        {
+		{
 			XCharInterface::send(str);
 			XCharInterface::receive();
 			if(buffer().size() >= 1)
@@ -57,7 +57,7 @@ XOxfordInterface::query(const char *str) throw (XInterface::XCommError &)
 					return;
 				}
 			msecsleep(100);
-        }
+		}
 	}
 	catch (XCommError &e) {
 		unlock();

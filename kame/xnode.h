@@ -44,7 +44,7 @@ shared_ptr<T> createOrphan(const char *name, bool runtime, X x, Y y, Z z, ZZ z);
 class XNode : public enable_shared_from_this<XNode>
 #ifdef HAVE_LIBGCCPP
 			, public kame_gc
-#endif
+		  #endif
 {
 	//! use XNODE_OBJECT in sub-classes
 	XNODE_OBJECT
@@ -130,9 +130,9 @@ public:
 	void setValidator(Validator);
 
 	XTalker<shared_ptr<XValueNodeBase> > &beforeValueChanged()
-		{return m_tlkBeforeValueChanged;}
+	{return m_tlkBeforeValueChanged;}
 	XTalker<shared_ptr<XValueNodeBase> > &onValueChanged() 
-		{return m_tlkOnValueChanged;}
+	{return m_tlkOnValueChanged;}
 protected:
 	virtual void _str(const std::string &str) throw (XKameError &) = 0;
   

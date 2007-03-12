@@ -57,7 +57,7 @@ protected:
 		 const shared_ptr<XThermometerList> &thermometers,
 		 const shared_ptr<XDriverList> &drivers) :
  XDMMSCPI(name, runtime, scalarentries, interfaces, thermometers, drivers)
-		{
+	{
  function()->add("VOLT");
 	 function()->add("TEMP");
 		 }
@@ -75,7 +75,7 @@ protected:
 		 const shared_ptr<XThermometerList> &thermometers,
 		 const shared_ptr<XDriverList> &drivers) :
  XDMMSCPI(name, runtime, scalarentries, interfaces, thermometers, drivers)
-		{
+	{
  function()->add("VOLT:DC");
 	 function()->add("VOLT:AC");
 		 function()->add("CURR:DC");
@@ -103,7 +103,7 @@ protected:
 		   const shared_ptr<XThermometerList> &thermometers,
 		   const shared_ptr<XDriverList> &drivers) :
  XDMMSCPI(name, runtime, scalarentries, interfaces, thermometers, drivers)
-		{
+	{
  function()->add("VOLT");
 	 function()->add("CURR");
 		 function()->add("RES");

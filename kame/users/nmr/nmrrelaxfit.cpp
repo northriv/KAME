@@ -40,68 +40,68 @@ public:
 	struct Term
 	{
 		int p;
-	 double a;
+		double a;
 	};
  
- const struct Term *m_terms; 
- 
- XNODE_OBJECT
+	const struct Term *m_terms; 
+  
+	XNODE_OBJECT
 protected:
- XRelaxFuncPoly(const char *name, bool runtime, const Term *terms)
- : XRelaxFunc(name, runtime), m_terms(terms)
-		{
-		}    
+	XRelaxFuncPoly(const char *name, bool runtime, const Term *terms)
+		: XRelaxFunc(name, runtime), m_terms(terms)
+	{
+	}    
 public:  
- virtual ~XRelaxFuncPoly() {}
- 
- //! called during fitting
- //! \param f f(t, it1) will be passed
- //! \param dfdt df/d(it1) will be passed
- //! \param t a time P1 or 2tau
- //! \param it1 1/T1 or 1/T2   
- virtual void relax(double *f, double *dfdt, double t, double it1)
+	virtual ~XRelaxFuncPoly() {}
+  
+	//! called during fitting
+	//! \param f f(t, it1) will be passed
+	//! \param dfdt df/d(it1) will be passed
+	//! \param t a time P1 or 2tau
+	//! \param it1 1/T1 or 1/T2   
+	virtual void relax(double *f, double *dfdt, double t, double it1)
+	{
+		double rf = 0, rdf = 0;
+		double x = -t * it1;
+		x = std::min(5.0, x);
+		for(const Term *term = m_terms; term->p != 0; term++)
 		{
- double rf = 0, rdf = 0;
-	 double x = -t * it1;
-		 x = std::min(5.0, x);
-			 for(const Term *term = m_terms; term->p != 0; term++)
-				 {
- double a = term->a * exp(x*term->p);
-	 rf += a;
-		 rdf += a * term->p;
-			 }
-																	  rdf *= -t;
-																		  *f = 1.0 - rf;
-																			  *dfdt = -rdf;
-																				  }
- 
+			double a = term->a * exp(x*term->p);
+			rf += a;
+			rdf += a * term->p;
+		}
+		rdf *= -t;
+		*f = 1.0 - rf;
+		*dfdt = -rdf;
+	}
+
 };
 
 class XRelaxFuncSqrt : public XRelaxFunc
 {
 	XNODE_OBJECT
 protected:
- XRelaxFuncSqrt(const char *name, bool runtime)
- : XRelaxFunc(name, runtime)
-		{
-		}    
+	XRelaxFuncSqrt(const char *name, bool runtime)
+		: XRelaxFunc(name, runtime)
+	{
+	}    
 public:  
- 
- virtual ~XRelaxFuncSqrt() {}
- 
- //! called during fitting
- //! \param f f(t, it1) will be passed
- //! \param dfdt df/d(it1) will be passed
- //! \param t a time P1 or 2tau
- //! \param it1 1/T1 or 1/T2   
- virtual void relax(double *f, double *dfdt, double t, double it1)
-		{
- it1 = std::max(0.0, it1);
-	 double rt = sqrt(t * it1);
-		 double a = exp(-rt);
-			 *f = 1.0 - a;
-				 *dfdt = t/rt/2.0 * a;
-					 }
+  
+	virtual ~XRelaxFuncSqrt() {}
+  
+	//! called during fitting
+	//! \param f f(t, it1) will be passed
+	//! \param dfdt df/d(it1) will be passed
+	//! \param t a time P1 or 2tau
+	//! \param it1 1/T1 or 1/T2   
+	virtual void relax(double *f, double *dfdt, double t, double it1)
+	{
+		it1 = std::max(0.0, it1);
+		double rt = sqrt(t * it1);
+		double a = exp(-rt);
+		*f = 1.0 - a;
+		*dfdt = t/rt/2.0 * a;
+	}
 };
 
 //NQR I=1
@@ -244,241 +244,241 @@ static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr9s4[] = {
 };
 
 XRelaxFuncList::XRelaxFuncList(const char *name, bool runtime)
-: XAliasListNode<XRelaxFunc>(name, runtime)
+	: XAliasListNode<XRelaxFunc>(name, runtime)
 {
- create<XRelaxFuncPoly>("NMR I=1/2", true, s_relaxdata_nmr1);
-	 create<XRelaxFuncPoly>("NMR I=1", true, s_relaxdata_nmr2);
-		 create<XRelaxFuncPoly>("NMR I=3/2 center a", true, s_relaxdata_nmr3ca);
-			 create<XRelaxFuncPoly>("NMR I=3/2 center b", true, s_relaxdata_nmr3cb);
-				 create<XRelaxFuncPoly>("NMR I=3/2 satellite", true, s_relaxdata_nmr3s);
-					 create<XRelaxFuncPoly>("NMR I=5/2 center a", true, s_relaxdata_nmr5ca);
-						 create<XRelaxFuncPoly>("NMR I=5/2 center b", true, s_relaxdata_nmr5cb);
-							 create<XRelaxFuncPoly>("NMR I=5/2 satellite 3/2-1/2", true, s_relaxdata_nmr5s);
-								 create<XRelaxFuncPoly>("NMR I=5/2 satellite 5/2-3/2", true, s_relaxdata_nmr5s2);
-									 create<XRelaxFuncPoly>("NMR I=3 1-0", true, s_relaxdata_nmr6c);
-										 create<XRelaxFuncPoly>("NMR I=3 2-1", true, s_relaxdata_nmr6s1);
-											 create<XRelaxFuncPoly>("NMR I=3 3-2", true, s_relaxdata_nmr6s2);
-												 create<XRelaxFuncPoly>("NMR I=7/2 center", true, s_relaxdata_nmr7c);
-													 create<XRelaxFuncPoly>("NMR I=7/2 satellite 3/2-1/2", true, s_relaxdata_nmr7s1);
-														 create<XRelaxFuncPoly>("NMR I=7/2 satellite 5/2-3/2", true, s_relaxdata_nmr7s2);
-															 create<XRelaxFuncPoly>("NMR I=7/2 satellite 7/2-5/2", true, s_relaxdata_nmr7s3);
-																 create<XRelaxFuncPoly>("NMR I=9/2 center", true, s_relaxdata_nmr9c);
-																	 create<XRelaxFuncPoly>("NMR I=9/2 satellite 3/2-1/2", true, s_relaxdata_nmr9s1);
-																		 create<XRelaxFuncPoly>("NMR I=9/2 satellite 5/2-3/2", true, s_relaxdata_nmr9s2);
-																			 create<XRelaxFuncPoly>("NMR I=9/2 satellite 7/2-5/2", true, s_relaxdata_nmr9s3);
-																				 create<XRelaxFuncPoly>("NMR I=9/2 satellite 9/2-7/2", true, s_relaxdata_nmr9s4);
-																					 create<XRelaxFuncPoly>("NQR I=1", true, s_relaxdata_nqr2);
-																						 create<XRelaxFuncPoly>("NQR I=3/2", true, s_relaxdata_nqr3);
-																							 create<XRelaxFuncPoly>("NQR I=5/2 5/2-3/2", true, s_relaxdata_nqr5_5);
-																								 create<XRelaxFuncPoly>("NQR I=5/2 3/2-1/2", true, s_relaxdata_nqr5_3);
-																									 create<XRelaxFuncPoly>("NQR I=3 3-2", true, s_relaxdata_nqr6_6);
-																										 create<XRelaxFuncPoly>("NQR I=3 2-1", true, s_relaxdata_nqr6_4);
-																											 create<XRelaxFuncPoly>("NQR I=3 1-0", true, s_relaxdata_nqr6_2);
-																												 create<XRelaxFuncPoly>("NQR I=7/2 7/2-5/2", true, s_relaxdata_nqr7_7);
-																													 create<XRelaxFuncPoly>("NQR I=7/2 5/2-3/2", true, s_relaxdata_nqr7_5);
-																														 create<XRelaxFuncPoly>("NQR I=7/2 3/2-2/1", true, s_relaxdata_nqr7_3);
-																															 create<XRelaxFuncPoly>("NQR I=9/2 9/2-7/2", true, s_relaxdata_nqr9_9);
-																																 create<XRelaxFuncPoly>("NQR I=9/2 7/2-5/2", true, s_relaxdata_nqr9_7);
-																																	 create<XRelaxFuncPoly>("NQR I=9/2 5/2-3/2", true, s_relaxdata_nqr9_5);
-																																		 create<XRelaxFuncPoly>("NQR I=9/2 3/2-2/1", true, s_relaxdata_nqr9_3);
-																																			 create<XRelaxFuncSqrt>("Random Spins; exp(-sqrt(t/tau))", true);   
-																																				 }
+	create<XRelaxFuncPoly>("NMR I=1/2", true, s_relaxdata_nmr1);
+	create<XRelaxFuncPoly>("NMR I=1", true, s_relaxdata_nmr2);
+	create<XRelaxFuncPoly>("NMR I=3/2 center a", true, s_relaxdata_nmr3ca);
+	create<XRelaxFuncPoly>("NMR I=3/2 center b", true, s_relaxdata_nmr3cb);
+	create<XRelaxFuncPoly>("NMR I=3/2 satellite", true, s_relaxdata_nmr3s);
+	create<XRelaxFuncPoly>("NMR I=5/2 center a", true, s_relaxdata_nmr5ca);
+	create<XRelaxFuncPoly>("NMR I=5/2 center b", true, s_relaxdata_nmr5cb);
+	create<XRelaxFuncPoly>("NMR I=5/2 satellite 3/2-1/2", true, s_relaxdata_nmr5s);
+	create<XRelaxFuncPoly>("NMR I=5/2 satellite 5/2-3/2", true, s_relaxdata_nmr5s2);
+	create<XRelaxFuncPoly>("NMR I=3 1-0", true, s_relaxdata_nmr6c);
+	create<XRelaxFuncPoly>("NMR I=3 2-1", true, s_relaxdata_nmr6s1);
+	create<XRelaxFuncPoly>("NMR I=3 3-2", true, s_relaxdata_nmr6s2);
+	create<XRelaxFuncPoly>("NMR I=7/2 center", true, s_relaxdata_nmr7c);
+	create<XRelaxFuncPoly>("NMR I=7/2 satellite 3/2-1/2", true, s_relaxdata_nmr7s1);
+	create<XRelaxFuncPoly>("NMR I=7/2 satellite 5/2-3/2", true, s_relaxdata_nmr7s2);
+	create<XRelaxFuncPoly>("NMR I=7/2 satellite 7/2-5/2", true, s_relaxdata_nmr7s3);
+	create<XRelaxFuncPoly>("NMR I=9/2 center", true, s_relaxdata_nmr9c);
+	create<XRelaxFuncPoly>("NMR I=9/2 satellite 3/2-1/2", true, s_relaxdata_nmr9s1);
+	create<XRelaxFuncPoly>("NMR I=9/2 satellite 5/2-3/2", true, s_relaxdata_nmr9s2);
+	create<XRelaxFuncPoly>("NMR I=9/2 satellite 7/2-5/2", true, s_relaxdata_nmr9s3);
+	create<XRelaxFuncPoly>("NMR I=9/2 satellite 9/2-7/2", true, s_relaxdata_nmr9s4);
+	create<XRelaxFuncPoly>("NQR I=1", true, s_relaxdata_nqr2);
+	create<XRelaxFuncPoly>("NQR I=3/2", true, s_relaxdata_nqr3);
+	create<XRelaxFuncPoly>("NQR I=5/2 5/2-3/2", true, s_relaxdata_nqr5_5);
+	create<XRelaxFuncPoly>("NQR I=5/2 3/2-1/2", true, s_relaxdata_nqr5_3);
+	create<XRelaxFuncPoly>("NQR I=3 3-2", true, s_relaxdata_nqr6_6);
+	create<XRelaxFuncPoly>("NQR I=3 2-1", true, s_relaxdata_nqr6_4);
+	create<XRelaxFuncPoly>("NQR I=3 1-0", true, s_relaxdata_nqr6_2);
+	create<XRelaxFuncPoly>("NQR I=7/2 7/2-5/2", true, s_relaxdata_nqr7_7);
+	create<XRelaxFuncPoly>("NQR I=7/2 5/2-3/2", true, s_relaxdata_nqr7_5);
+	create<XRelaxFuncPoly>("NQR I=7/2 3/2-2/1", true, s_relaxdata_nqr7_3);
+	create<XRelaxFuncPoly>("NQR I=9/2 9/2-7/2", true, s_relaxdata_nqr9_9);
+	create<XRelaxFuncPoly>("NQR I=9/2 7/2-5/2", true, s_relaxdata_nqr9_7);
+	create<XRelaxFuncPoly>("NQR I=9/2 5/2-3/2", true, s_relaxdata_nqr9_5);
+	create<XRelaxFuncPoly>("NQR I=9/2 3/2-2/1", true, s_relaxdata_nqr9_3);
+	create<XRelaxFuncSqrt>("Random Spins; exp(-sqrt(t/tau))", true);   
+}
 
 
 int
 XRelaxFunc::relax_f (const gsl_vector * x, void *params,
 					 gsl_vector * f)
 {
- XNMRT1::NLLS *data = ((XNMRT1::NLLS *)params);
-	 double iT1 = gsl_vector_get (x, 0);
-		 double c = gsl_vector_get (x, 1);
-			 
-			 double a = gsl_vector_get (x, 2);
-				 
-				 int i = 0;
-					 for(std::deque<XNMRT1::Pt>::iterator it = data->pts->begin();
-							 it != data->pts->end(); it++)
-						 {
- if(it->isigma == 0) continue;
-						 double t = it->p1;
-							 double yi = 0, dydt = 0;
-								 data->func->relax(&yi, &dydt, t, iT1);
-									 double y = it->var;
-										 gsl_vector_set (f, i, (c * yi + a - y) * it->isigma);
-											 i++;
-												 }
-															  return GSL_SUCCESS;
-																  }
+	XNMRT1::NLLS *data = ((XNMRT1::NLLS *)params);
+	double iT1 = gsl_vector_get (x, 0);
+	double c = gsl_vector_get (x, 1);
+
+	double a = gsl_vector_get (x, 2);
+
+	int i = 0;
+	for(std::deque<XNMRT1::Pt>::iterator it = data->pts->begin();
+		it != data->pts->end(); it++)
+    {
+		if(it->isigma == 0) continue;
+		double t = it->p1;
+		double yi = 0, dydt = 0;
+		data->func->relax(&yi, &dydt, t, iT1);
+		double y = it->var;
+		gsl_vector_set (f, i, (c * yi + a - y) * it->isigma);
+		i++;
+    }
+	return GSL_SUCCESS;
+}
 int
 XRelaxFunc::relax_df (const gsl_vector * x, void *params,
 					  gsl_matrix * J)
 {
- 
- XNMRT1::NLLS *data = ((XNMRT1::NLLS *)params);
-	 double iT1 = gsl_vector_get (x, 0);
-		 double c = gsl_vector_get (x, 1);
+
+	XNMRT1::NLLS *data = ((XNMRT1::NLLS *)params);
+	double iT1 = gsl_vector_get (x, 0);
+	double c = gsl_vector_get (x, 1);
 //  double a = gsl_vector_get (x, 2);
-			 
-			 int i = 0;
-				 for(std::deque<XNMRT1::Pt>::iterator it = data->pts->begin();
-						 it != data->pts->end(); it++)
-					 {
- if(it->isigma == 0) continue;
-						 double t = it->p1;
-							 double yi = 0, dydt = 0;
-								 data->func->relax(&yi, &dydt, t, iT1);
-									 gsl_matrix_set (J, i, 0, (c * dydt) * it->isigma);
-										 gsl_matrix_set (J, i, 1, yi * it->isigma);
-											 gsl_matrix_set (J, i, 2, it->isigma);
-												 i++;
-													 }
-														  return GSL_SUCCESS;
-															  }
+
+	int i = 0;
+	for(std::deque<XNMRT1::Pt>::iterator it = data->pts->begin();
+		it != data->pts->end(); it++)
+    {
+		if(it->isigma == 0) continue;
+		double t = it->p1;
+		double yi = 0, dydt = 0;
+		data->func->relax(&yi, &dydt, t, iT1);
+		gsl_matrix_set (J, i, 0, (c * dydt) * it->isigma);
+		gsl_matrix_set (J, i, 1, yi * it->isigma);
+		gsl_matrix_set (J, i, 2, it->isigma);
+		i++;
+    }
+	return GSL_SUCCESS;
+}
 int
 XRelaxFunc::relax_fdf (const gsl_vector * x, void *params,
 					   gsl_vector * f, gsl_matrix * J)
 {
- XNMRT1::NLLS *data = ((XNMRT1::NLLS *)params);
-	 double iT1 = gsl_vector_get (x, 0);
-		 
-		 double c = gsl_vector_get (x, 1);
-			 double a = gsl_vector_get (x, 2);
-				 
-				 int i = 0;
-					 for(std::deque<XNMRT1::Pt>::iterator it = data->pts->begin();
-							 it != data->pts->end(); it++)
-						 {
- if(it->isigma == 0) continue;
-						 double t = it->p1;
-							 double yi = 0, dydt = 0;
-								 data->func->relax(&yi, &dydt, t, iT1);
-									 double y = it->var;
-										 gsl_vector_set (f, i, (c * yi + a - y) * it->isigma);
-											 gsl_matrix_set (J, i, 0, (c * dydt) * it->isigma);
-												 gsl_matrix_set (J, i, 1, yi * it->isigma);
-													 gsl_matrix_set (J, i, 2, it->isigma);
-														 i++;
-															 }
-															  return GSL_SUCCESS;
-																  }
+	XNMRT1::NLLS *data = ((XNMRT1::NLLS *)params);
+	double iT1 = gsl_vector_get (x, 0);
+
+	double c = gsl_vector_get (x, 1);
+	double a = gsl_vector_get (x, 2);
+
+	int i = 0;
+	for(std::deque<XNMRT1::Pt>::iterator it = data->pts->begin();
+		it != data->pts->end(); it++)
+    {
+		if(it->isigma == 0) continue;
+		double t = it->p1;
+		double yi = 0, dydt = 0;
+		data->func->relax(&yi, &dydt, t, iT1);
+		double y = it->var;
+		gsl_vector_set (f, i, (c * yi + a - y) * it->isigma);
+		gsl_matrix_set (J, i, 0, (c * dydt) * it->isigma);
+		gsl_matrix_set (J, i, 1, yi * it->isigma);
+		gsl_matrix_set (J, i, 2, it->isigma);
+		i++;
+    }
+	return GSL_SUCCESS;
+}
 std::string
 XNMRT1::iterate(shared_ptr<XRelaxFunc> &func,
 				int itercnt)
 {
- int n = 0;
-	 for(std::deque<Pt>::iterator it = m_sumpts.begin(); it != m_sumpts.end(); it++)
-		 {
- if(it->isigma > 0)  n++;
-						 }    
-																						struct NLLS nlls = {
-																							&m_sumpts,
-																							func
-																						};
-																							int p = 3;
-																								if(n <= p) return formatString("%d",n) + KAME::i18n(" points, more points needed.");
-																											   int status;
-																												   double norm = 0;
-																													   XTime firsttime = XTime::now();
-																														   for(;;)
-																															   {
- status = do_nlls(n, p, m_params, m_errors, &norm,
-				  &nlls, &XRelaxFunc::relax_f, &XRelaxFunc::relax_df, &XRelaxFunc::relax_fdf, itercnt);
-	 if(!status) break;
-					 if(XTime::now() - firsttime < 0.01) continue;
-															 if(XTime::now() - firsttime > 0.05) break;
-																									 double p1max = *p1Max();
-																										 double p1min = *p1Min();
-																											 m_params[0] = 1.0 / exp(log(p1max/p1min) * (((double)KAME::rand())/RAND_MAX) + log(p1min));
-																												 m_params[1] = 0.1 + 0.5*(((double)KAME::rand())/RAND_MAX);
-																													 m_params[2] = 0.0;
-																														 status = do_nlls(n, p, m_params, m_errors, &norm,
-																																		  &nlls, &XRelaxFunc::relax_f, &XRelaxFunc::relax_df, &XRelaxFunc::relax_fdf, itercnt);
-																															 }
-																																	  m_errors[0] *= norm / sqrt((double)n);
-																																		  m_errors[1] *= norm / sqrt((double)n);
-																																			  m_errors[2] *= norm / sqrt((double)n);
-																																				  
-																																				  double t1 = 0.001 / m_params[0];
-																																					  double t1err = 0.001 / pow(m_params[0], 2.0) * m_errors[0];
-																																						  QString buf = "";
-																																							  if(*t2Mode())
-																																								  {
- buf += QString().sprintf("1/T2[1/ms] = %.5f +/- %.5f (%.2f%%)\n",
-						  1000.0 * m_params[0], 1000.0 * m_errors[0], fabs(100.0 * m_errors[0]/m_params[0]));
-	 buf += QString().sprintf("T2[ms] = %.6f +/- %.6f (%.2f%%)\n",
-							  t1, t1err, fabs(100.0 * t1err/t1));
-		 }
-																																											   else
-																																												   {
- buf += QString().sprintf("1/T1[1/s] = %.5f +/- %.5f (%.2f%%)\n",
-						  1000.0 * m_params[0], 1000.0 * m_errors[0], fabs(100.0 * m_errors[0]/m_params[0]));
-	 buf += QString().sprintf("T1[s] = %.7f +/- %.7f (%.2f%%)\n",
-							  t1, t1err, fabs(100.0 * t1err/t1));
-		 }
-																																											   buf += QString().sprintf("c[V] = %.5g +/- %.5g (%.3f%%)\n",
-																																																		m_params[1], m_errors[1], fabs(100.0 * m_errors[1]/m_params[1]));
-																																												   buf += QString().sprintf("a[V] = %.5g +/- %.5g (%.3f%%)\n",
-																																																			m_params[2], m_errors[2], fabs(100.0 * m_errors[2]/m_params[2]));
-																																													   buf += QString().sprintf("status = %s\n", gsl_strerror (status));
-																																														   buf += QString().sprintf("rms of residuals = %.3g\n", norm / sqrt((double)n));
-																																															   buf += QString().sprintf("elapsed time = %.2f ms\n", 1000.0 * (XTime::now() - firsttime));
-																																																   return buf;
-																																																	   }
+	int n = 0;
+	for(std::deque<Pt>::iterator it = m_sumpts.begin(); it != m_sumpts.end(); it++)
+    {
+		if(it->isigma > 0)  n++;
+    }    
+	struct NLLS nlls = {
+		&m_sumpts,
+		func
+	};
+	int p = 3;
+	if(n <= p) return formatString("%d",n) + KAME::i18n(" points, more points needed.");
+	int status;
+	double norm = 0;
+	XTime firsttime = XTime::now();
+	for(;;)
+    {
+		status = do_nlls(n, p, m_params, m_errors, &norm,
+						 &nlls, &XRelaxFunc::relax_f, &XRelaxFunc::relax_df, &XRelaxFunc::relax_fdf, itercnt);
+		if(!status) break;
+		if(XTime::now() - firsttime < 0.01) continue;
+		if(XTime::now() - firsttime > 0.05) break;
+		double p1max = *p1Max();
+		double p1min = *p1Min();
+		m_params[0] = 1.0 / exp(log(p1max/p1min) * (((double)KAME::rand())/RAND_MAX) + log(p1min));
+		m_params[1] = 0.1 + 0.5*(((double)KAME::rand())/RAND_MAX);
+		m_params[2] = 0.0;
+		status = do_nlls(n, p, m_params, m_errors, &norm,
+						 &nlls, &XRelaxFunc::relax_f, &XRelaxFunc::relax_df, &XRelaxFunc::relax_fdf, itercnt);
+    }
+	m_errors[0] *= norm / sqrt((double)n);
+	m_errors[1] *= norm / sqrt((double)n);
+	m_errors[2] *= norm / sqrt((double)n);
+
+	double t1 = 0.001 / m_params[0];
+	double t1err = 0.001 / pow(m_params[0], 2.0) * m_errors[0];
+	QString buf = "";
+	if(*t2Mode())
+    {
+		buf += QString().sprintf("1/T2[1/ms] = %.5f +/- %.5f (%.2f%%)\n",
+								 1000.0 * m_params[0], 1000.0 * m_errors[0], fabs(100.0 * m_errors[0]/m_params[0]));
+		buf += QString().sprintf("T2[ms] = %.6f +/- %.6f (%.2f%%)\n",
+								 t1, t1err, fabs(100.0 * t1err/t1));
+    }
+	else
+    {
+		buf += QString().sprintf("1/T1[1/s] = %.5f +/- %.5f (%.2f%%)\n",
+								 1000.0 * m_params[0], 1000.0 * m_errors[0], fabs(100.0 * m_errors[0]/m_params[0]));
+		buf += QString().sprintf("T1[s] = %.7f +/- %.7f (%.2f%%)\n",
+								 t1, t1err, fabs(100.0 * t1err/t1));
+    }
+	buf += QString().sprintf("c[V] = %.5g +/- %.5g (%.3f%%)\n",
+							 m_params[1], m_errors[1], fabs(100.0 * m_errors[1]/m_params[1]));
+	buf += QString().sprintf("a[V] = %.5g +/- %.5g (%.3f%%)\n",
+							 m_params[2], m_errors[2], fabs(100.0 * m_errors[2]/m_params[2]));
+	buf += QString().sprintf("status = %s\n", gsl_strerror (status));
+	buf += QString().sprintf("rms of residuals = %.3g\n", norm / sqrt((double)n));
+	buf += QString().sprintf("elapsed time = %.2f ms\n", 1000.0 * (XTime::now() - firsttime));
+	return buf;
+}
 
 int
 do_nlls(int n, int p, double *param, double *err, double *det, void *user, exp_f  *ef, exp_df *edf, exp_fdf *efdf
 		, int itercnt)
 {
- const gsl_multifit_fdfsolver_type *T;
-	 T = gsl_multifit_fdfsolver_lmsder;
-		 gsl_multifit_fdfsolver *s;
-			 int iter = 0;
-				 int status;
-					 int i;
-						 double c;
-							 gsl_multifit_function_fdf f;
-								 
-								 gsl_ieee_env_setup ();
-									 
-									 f.f = ef;
-										 f.df = edf;
-											 f.fdf = efdf;
-												 f.n = n;
-													 f.p = p;
-														 f.params = user;
-															 s = gsl_multifit_fdfsolver_alloc (T, n, p);
-																 gsl_vector_view x = gsl_vector_view_array (param, p);
-																	 gsl_multifit_fdfsolver_set (s, &f, &x.vector);
-																		 
-																		 
-																		 do
-																			 {
- iter++;
-	 status = gsl_multifit_fdfsolver_iterate (s);
-		 
-		 if (status)
-						break;
-						
-						status = gsl_multifit_test_delta (s->dx, s->x,
-														  1e-4, 1e-4);
-							}
-																			   while (status == GSL_CONTINUE && iter < itercnt);
-																			   
-																			   if(det) *det = gsl_blas_dnrm2 (s->f);
-																						   for(i = 0; i < p; i++)
-																													 param[i] = gsl_vector_get (s->x, i);
-																													 
-																													 gsl_matrix *covar = gsl_matrix_alloc (p, p);
-																														 gsl_multifit_covar (s->J, 0.0, covar);
-																															 for(i = 0; i < p; i++)
-																																 {
- c = gsl_matrix_get(covar,i,i);
-	 
-	 err[i] = (c > 0) ? sqrt(c) : -1.0;
-		 }
-																																					   gsl_matrix_free(covar);
-																																						   gsl_multifit_fdfsolver_free (s);
-																																							   
-																																							   return status;
-																																								   }
+	const gsl_multifit_fdfsolver_type *T;
+	T = gsl_multifit_fdfsolver_lmsder;
+	gsl_multifit_fdfsolver *s;
+	int iter = 0;
+	int status;
+	int i;
+	double c;
+	gsl_multifit_function_fdf f;
+
+	gsl_ieee_env_setup ();
+
+	f.f = ef;
+	f.df = edf;
+	f.fdf = efdf;
+	f.n = n;
+	f.p = p;
+	f.params = user;
+	s = gsl_multifit_fdfsolver_alloc (T, n, p);
+	gsl_vector_view x = gsl_vector_view_array (param, p);
+	gsl_multifit_fdfsolver_set (s, &f, &x.vector);
+
+
+	do
+    {
+		iter++;
+		status = gsl_multifit_fdfsolver_iterate (s);
+
+		if (status)
+			break;
+
+		status = gsl_multifit_test_delta (s->dx, s->x,
+										  1e-4, 1e-4);
+    }
+	while (status == GSL_CONTINUE && iter < itercnt);
+
+	if(det) *det = gsl_blas_dnrm2 (s->f);
+	for(i = 0; i < p; i++)
+		param[i] = gsl_vector_get (s->x, i);
+
+	gsl_matrix *covar = gsl_matrix_alloc (p, p);
+	gsl_multifit_covar (s->J, 0.0, covar);
+	for(i = 0; i < p; i++)
+    {
+		c = gsl_matrix_get(covar,i,i);
+
+		err[i] = (c > 0) ? sqrt(c) : -1.0;
+    }
+	gsl_matrix_free(covar);
+	gsl_multifit_fdfsolver_free (s);
+
+	return status;
+}
 

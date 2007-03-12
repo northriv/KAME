@@ -178,7 +178,7 @@ XLIA::execute(const atomic<bool> &terminated)
 		shared_from_this(), &XLIA::onTimeConstChanged);
 
 	while(!terminated)
-    {
+	{
 		double fetch_freq = *fetchFreq();
 		double wait = 0;
 		if(fetch_freq > 0) {
@@ -201,7 +201,7 @@ XLIA::execute(const atomic<bool> &terminated)
 		push(x);
 		push(y);
 		finishWritingRaw(time_awared, XTime::now());
-    }
+	}
   
 	m_lsnOutput.reset();
 	m_lsnFreq.reset();

@@ -6,7 +6,8 @@ kame_SOURCES = measure.cpp measure.h \
 	xsignal.cpp xsignal.h xsignal_prv.h \
 	xscheduler.cpp xscheduler.h \
 	thread.cpp thread.h \
-	atomic.h atomic_smart_ptr.h atomic_queue.h \
+	atomic.h atomic_prv_x86.h atomic_prv_ppc.h \
+	atomic_smart_ptr.h atomic_queue.h \
 	threadlocal.cpp threadlocal.h \
 	rwlock.cpp rwlock.h \
 	support.cpp support.h \

@@ -71,7 +71,7 @@ public:
         T x; T y; T z;
         
         bool operator==(const Vector3 &s1) const
-        	{return ((x == s1.x) && (y == s1.y) && (z == s1.z));}
+		{return ((x == s1.x) && (y == s1.y) && (z == s1.z));}
         template<typename X>
         Vector3 &operator+=(const Vector3<X> &s1) {
             x += s1.x; y += s1.y; z += s1.z;

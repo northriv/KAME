@@ -27,18 +27,18 @@ XSR830::XSR830(const char *name, bool runtime,
 						"3e-2", "0.1s", "0.3s", "1s", "3s", "10s", "30s", "100s", "300s", "1000s",
 						"3000s", "10000s", "30000s", ""};
 	for(int i = 0; strlen(tc[i]) > 0; i++)
-    {
+	{
 		timeConst()->add(tc[i]);
-    }
+	}
 	const char *sens[] = {"2nV/fA", "5nV/fA", "10nV/fA", "20nV/fA", "50nV/fA", "100nV/fA",
 						  "200nV/fA", "500nV/fA", "1uV/pA", "2uV/pA", "5uV/pA", "10uV/pA", "20uV/pA",
 						  "50uV/pA", "100uV/pA", "200uV/pA", "500uV/pA", "1mV/nA", "2mV/nA", "5mV/nA",
 						  "10mV/nA", "20mV/nA", "50mV/nA", "100mV/nA", "200mV/nA", "500mV/nA", "1V/uA",
 						  ""};
 	for(int i = 0; strlen(sens[i]) > 0; i++)
-    {
+	{
 		sensitivity()->add(sens[i]);
-    }
+	}
 	//    UseSerialPollOnWrite = false;
 	interface()->setGPIBWaitBeforeWrite(20);
 	interface()->setGPIBWaitBeforeRead(20);
@@ -139,14 +139,14 @@ XAH2500A::XAH2500A(const char *name, bool runtime,
 						"1s", "2s", "4s", "8s", "15s", "30s", "60s",
 						"120s", "250s", "500s", "1000s", ""};
 	for(int i = 0; strlen(tc[i]) > 0; i++)
-    {
+	{
 		timeConst()->add(tc[i]);
-    }
+	}
 	const char *sens[] = {""};
 	for(int i = 0; strlen(sens[i]) > 0; i++)
-    {
+	{
 		sensitivity()->add(sens[i]);
-    }
+	}
 	interface()->setGPIBUseSerialPollOnWrite(false);
 	interface()->setGPIBWaitBeforeWrite(20);
 	interface()->setGPIBWaitBeforeRead(20);
