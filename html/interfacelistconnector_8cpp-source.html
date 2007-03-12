@@ -19,7 +19,7 @@
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00015"></a>00015 <span class="preprocessor">#include "interfacelistconnector.h"</span>
 <a name="l00016"></a>00016 <span class="preprocessor">#include "driver.h"</span>
@@ -35,48 +35,48 @@
 <a name="l00026"></a>00026 
 <a name="l00027"></a><a class="code" href="class_x_interface_list_connector.html#b0">00027</a> <a class="code" href="class_x_interface_list_connector.html#b0">XInterfaceListConnector::XInterfaceListConnector</a>(
 <a name="l00028"></a>00028     <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;node, QTable *item)
-<a name="l00029"></a>00029   : <a class="code" href="class_x_list_q_connector.html">XListQConnector</a>(node, item), m_interfaceList(node)
+<a name="l00029"></a>00029         : <a class="code" href="class_x_list_q_connector.html">XListQConnector</a>(node, item), m_interfaceList(node)
 <a name="l00030"></a>00030 {
-<a name="l00031"></a>00031   connect(<a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>, SIGNAL( <a class="code" href="class_x_interface_list_connector.html#j0">clicked</a>( <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keyword">const</span> QPoint&amp; )),
-<a name="l00032"></a>00032       <span class="keyword">this</span>, SLOT(<a class="code" href="class_x_interface_list_connector.html#j0">clicked</a>( <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keyword">const</span> QPoint&amp; )) );
-<a name="l00033"></a>00033   item-&gt;setNumCols(5);
-<a name="l00034"></a>00034   <span class="keywordtype">double</span> def = 50;
-<a name="l00035"></a>00035   item-&gt;setColumnWidth(0, (<span class="keywordtype">int</span>)(def * 1.5));
-<a name="l00036"></a>00036   item-&gt;setColumnWidth(1, (<span class="keywordtype">int</span>)(def * 1.2));
-<a name="l00037"></a>00037   item-&gt;setColumnWidth(2, (<span class="keywordtype">int</span>)(def * 2));
-<a name="l00038"></a>00038   item-&gt;setColumnWidth(3, (<span class="keywordtype">int</span>)(def * 1));
-<a name="l00039"></a>00039   item-&gt;setColumnWidth(4, (<span class="keywordtype">int</span>)(def * 1));
-<a name="l00040"></a>00040   QStringList labels;
-<a name="l00041"></a>00041   labels += <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Driver"</span>);
-<a name="l00042"></a>00042   labels += <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Control"</span>);
-<a name="l00043"></a>00043   labels += <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Device"</span>);
-<a name="l00044"></a>00044   labels += <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Port"</span>);
-<a name="l00045"></a>00045   labels += <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Addr"</span>);
-<a name="l00046"></a>00046   item-&gt;setColumnLabels(labels);
+<a name="l00031"></a>00031         connect(<a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>, SIGNAL( <a class="code" href="class_x_interface_list_connector.html#j0">clicked</a>( <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keyword">const</span> QPoint&amp; )),
+<a name="l00032"></a>00032                         <span class="keyword">this</span>, SLOT(<a class="code" href="class_x_interface_list_connector.html#j0">clicked</a>( <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keyword">const</span> QPoint&amp; )) );
+<a name="l00033"></a>00033         item-&gt;setNumCols(5);
+<a name="l00034"></a>00034         <span class="keywordtype">double</span> def = 50;
+<a name="l00035"></a>00035         item-&gt;setColumnWidth(0, (<span class="keywordtype">int</span>)(def * 1.5));
+<a name="l00036"></a>00036         item-&gt;setColumnWidth(1, (<span class="keywordtype">int</span>)(def * 1.2));
+<a name="l00037"></a>00037         item-&gt;setColumnWidth(2, (<span class="keywordtype">int</span>)(def * 2));
+<a name="l00038"></a>00038         item-&gt;setColumnWidth(3, (<span class="keywordtype">int</span>)(def * 1));
+<a name="l00039"></a>00039         item-&gt;setColumnWidth(4, (<span class="keywordtype">int</span>)(def * 1));
+<a name="l00040"></a>00040         QStringList labels;
+<a name="l00041"></a>00041         labels += <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Driver"</span>);
+<a name="l00042"></a>00042         labels += <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Control"</span>);
+<a name="l00043"></a>00043         labels += <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Device"</span>);
+<a name="l00044"></a>00044         labels += <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Port"</span>);
+<a name="l00045"></a>00045         labels += <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Addr"</span>);
+<a name="l00046"></a>00046         item-&gt;setColumnLabels(labels);
 <a name="l00047"></a>00047 
-<a name="l00048"></a>00048   <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> list(node-&gt;children());
-<a name="l00049"></a>00049   <span class="keywordflow">if</span>(list) { 
-<a name="l00050"></a>00050       <span class="keywordflow">for</span>(XNode::NodeList::const_iterator it = list-&gt;begin(); it != list-&gt;end(); it++)
-<a name="l00051"></a>00051         <a class="code" href="class_x_interface_list_connector.html#b1">onCatch</a>(*it);
-<a name="l00052"></a>00052   }
+<a name="l00048"></a>00048         <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> list(node-&gt;children());
+<a name="l00049"></a>00049         <span class="keywordflow">if</span>(list) { 
+<a name="l00050"></a>00050                 <span class="keywordflow">for</span>(XNode::NodeList::const_iterator it = list-&gt;begin(); it != list-&gt;end(); it++)
+<a name="l00051"></a>00051                         <a class="code" href="class_x_interface_list_connector.html#b1">onCatch</a>(*it);
+<a name="l00052"></a>00052         }
 <a name="l00053"></a>00053 }
 <a name="l00054"></a>00054 
 <a name="l00055"></a>00055 <span class="keywordtype">void</span>
 <a name="l00056"></a><a class="code" href="class_x_interface_list_connector.html#d0">00056</a> <a class="code" href="class_x_interface_list_connector.html#d0">XInterfaceListConnector::onControlChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node)
 <a name="l00057"></a>00057 {
-<a name="l00058"></a>00058   <span class="keywordflow">for</span>(tconslist::iterator it = <a class="code" href="class_x_interface_list_connector.html#r0">m_cons</a>.begin(); it != <a class="code" href="class_x_interface_list_connector.html#r0">m_cons</a>.end(); it++)
+<a name="l00058"></a>00058         <span class="keywordflow">for</span>(tconslist::iterator it = <a class="code" href="class_x_interface_list_connector.html#r0">m_cons</a>.begin(); it != <a class="code" href="class_x_interface_list_connector.html#r0">m_cons</a>.end(); it++)
 <a name="l00059"></a>00059     {
-<a name="l00060"></a>00060       <span class="keywordflow">if</span>(it-&gt;interface-&gt;control() == node)
+<a name="l00060"></a>00060                 <span class="keywordflow">if</span>(it-&gt;interface-&gt;control() == node)
 <a name="l00061"></a>00061         {
 <a name="l00062"></a>00062             KApplication *app = KApplication::kApplication();
 <a name="l00063"></a>00063             <span class="keywordflow">if</span>(*it-&gt;interface-&gt;control()) {
 <a name="l00064"></a>00064                 it-&gt;btn-&gt;setIconSet( app-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"stop"</span>, 
-<a name="l00065"></a>00065                     KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );
+<a name="l00065"></a>00065                                                                                                                                         KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );
 <a name="l00066"></a>00066                 it-&gt;btn-&gt;setText(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"&amp;STOP"</span>));
-<a name="l00067"></a>00067              }
-<a name="l00068"></a>00068              <span class="keywordflow">else</span> {
+<a name="l00067"></a>00067                         }
+<a name="l00068"></a>00068                         <span class="keywordflow">else</span> {
 <a name="l00069"></a>00069                 it-&gt;btn-&gt;setIconSet( app-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"run"</span>, 
-<a name="l00070"></a>00070                     KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );
+<a name="l00070"></a>00070                                                                                                                                         KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );
 <a name="l00071"></a>00071                 it-&gt;btn-&gt;setText(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"&amp;RUN"</span>));
 <a name="l00072"></a>00072             }
 <a name="l00073"></a>00073         }
@@ -84,60 +84,60 @@
 <a name="l00075"></a>00075 }
 <a name="l00076"></a>00076 <span class="keywordtype">void</span>
 <a name="l00077"></a><a class="code" href="class_x_interface_list_connector.html#b1">00077</a> <a class="code" href="class_x_interface_list_connector.html#b1">XInterfaceListConnector::onCatch</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node) {
-<a name="l00078"></a>00078   shared_ptr&lt;XInterface&gt; interface = dynamic_pointer_cast&lt;XInterface&gt;(node);
-<a name="l00079"></a>00079   <span class="keywordtype">int</span> i = <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;numRows();
-<a name="l00080"></a>00080   <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;insertRows(i);
-<a name="l00081"></a>00081   <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;setText(i, 0, interface-&gt;getLabel());
-<a name="l00082"></a>00082   <span class="keyword">struct </span><a class="code" href="struct_x_interface_list_connector_1_1tcons.html">tcons</a> con;
-<a name="l00083"></a>00083   con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o4">interface</a> = interface;
-<a name="l00084"></a>00084   con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o5">btn</a> = <span class="keyword">new</span> QPushButton(<a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>);
-<a name="l00085"></a>00085   con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o5">btn</a>-&gt;setToggleButton(<span class="keyword">true</span>);
-<a name="l00086"></a>00086   con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o5">btn</a>-&gt;setAutoDefault(<span class="keyword">false</span>);
-<a name="l00087"></a>00087   con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o5">btn</a>-&gt;setFlat(<span class="keyword">true</span>);
-<a name="l00088"></a>00088   con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o1">concontrol</a> = xqcon_create&lt;XQToggleButtonConnector&gt;(interface-&gt;control(), con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o5">btn</a>);    
-<a name="l00089"></a>00089   <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;setCellWidget(i, 1, con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o5">btn</a>);
-<a name="l00090"></a>00090   QComboBox *cmbdev(<span class="keyword">new</span> QComboBox(<a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>) );
-<a name="l00091"></a>00091   con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o0">condev</a> = xqcon_create&lt;XQComboBoxConnector&gt;(interface-&gt;device(), cmbdev);
-<a name="l00092"></a>00092   m_pItem-&gt;setCellWidget(i, 2, cmbdev);
-<a name="l00093"></a>00093   QLineEdit *edPort(<span class="keyword">new</span> QLineEdit(m_pItem) );
-<a name="l00094"></a>00094   con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o2">conport</a> = xqcon_create&lt;XQLineEditConnector&gt;(interface-&gt;port(), edPort, <span class="keyword">false</span>);
-<a name="l00095"></a>00095   m_pItem-&gt;setCellWidget(i, 3, edPort);
-<a name="l00096"></a>00096   QSpinBox *numAddr(<span class="keyword">new</span> QSpinBox(0, 32, 1, m_pItem) );
-<a name="l00097"></a>00097   con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o3">conaddr</a> = xqcon_create&lt;XQSpinBoxConnector&gt;(interface-&gt;address(), numAddr);
-<a name="l00098"></a>00098   m_pItem-&gt;setCellWidget(i, 4, numAddr);
-<a name="l00099"></a>00099   con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o6">lsnOnControlChanged</a> = interface-&gt;control()-&gt;onValueChanged().connectWeak(
+<a name="l00078"></a>00078         shared_ptr&lt;XInterface&gt; interface = dynamic_pointer_cast&lt;XInterface&gt;(node);
+<a name="l00079"></a>00079         <span class="keywordtype">int</span> i = <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;numRows();
+<a name="l00080"></a>00080         <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;insertRows(i);
+<a name="l00081"></a>00081         <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;setText(i, 0, interface-&gt;getLabel());
+<a name="l00082"></a>00082         <span class="keyword">struct </span><a class="code" href="struct_x_interface_list_connector_1_1tcons.html">tcons</a> con;
+<a name="l00083"></a>00083         con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o4">interface</a> = interface;
+<a name="l00084"></a>00084         con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o5">btn</a> = <span class="keyword">new</span> QPushButton(<a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>);
+<a name="l00085"></a>00085         con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o5">btn</a>-&gt;setToggleButton(<span class="keyword">true</span>);
+<a name="l00086"></a>00086         con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o5">btn</a>-&gt;setAutoDefault(<span class="keyword">false</span>);
+<a name="l00087"></a>00087         con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o5">btn</a>-&gt;setFlat(<span class="keyword">true</span>);
+<a name="l00088"></a>00088         con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o1">concontrol</a> = xqcon_create&lt;XQToggleButtonConnector&gt;(interface-&gt;control(), con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o5">btn</a>);    
+<a name="l00089"></a>00089         <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;setCellWidget(i, 1, con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o5">btn</a>);
+<a name="l00090"></a>00090         QComboBox *cmbdev(<span class="keyword">new</span> QComboBox(<a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>) );
+<a name="l00091"></a>00091         con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o0">condev</a> = xqcon_create&lt;XQComboBoxConnector&gt;(interface-&gt;device(), cmbdev);
+<a name="l00092"></a>00092         m_pItem-&gt;setCellWidget(i, 2, cmbdev);
+<a name="l00093"></a>00093         QLineEdit *edPort(<span class="keyword">new</span> QLineEdit(m_pItem) );
+<a name="l00094"></a>00094         con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o2">conport</a> = xqcon_create&lt;XQLineEditConnector&gt;(interface-&gt;port(), edPort, <span class="keyword">false</span>);
+<a name="l00095"></a>00095         m_pItem-&gt;setCellWidget(i, 3, edPort);
+<a name="l00096"></a>00096         QSpinBox *numAddr(<span class="keyword">new</span> QSpinBox(0, 32, 1, m_pItem) );
+<a name="l00097"></a>00097         con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o3">conaddr</a> = xqcon_create&lt;XQSpinBoxConnector&gt;(interface-&gt;address(), numAddr);
+<a name="l00098"></a>00098         m_pItem-&gt;setCellWidget(i, 4, numAddr);
+<a name="l00099"></a>00099         con.<a class="code" href="struct_x_interface_list_connector_1_1tcons.html#o6">lsnOnControlChanged</a> = interface-&gt;control()-&gt;onValueChanged().connectWeak(
 <a name="l00100"></a>00100         shared_from_this(), &amp;<a class="code" href="class_x_interface_list_connector.html#d0">XInterfaceListConnector::onControlChanged</a>,
 <a name="l00101"></a>00101                 XListener::FLAG_MAIN_THREAD_CALL);
-<a name="l00102"></a>00102   <a class="code" href="class_x_interface_list_connector.html#r0">m_cons</a>.push_back(con);
-<a name="l00103"></a>00103   <a class="code" href="class_x_interface_list_connector.html#d0">onControlChanged</a>(interface-&gt;control());
+<a name="l00102"></a>00102         <a class="code" href="class_x_interface_list_connector.html#r0">m_cons</a>.push_back(con);
+<a name="l00103"></a>00103         <a class="code" href="class_x_interface_list_connector.html#d0">onControlChanged</a>(interface-&gt;control());
 <a name="l00104"></a>00104 }
 <a name="l00105"></a>00105 <span class="keywordtype">void</span>
 <a name="l00106"></a><a class="code" href="class_x_interface_list_connector.html#b2">00106</a> <a class="code" href="class_x_interface_list_connector.html#b2">XInterfaceListConnector::onRelease</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node) {
-<a name="l00107"></a>00107   <span class="keywordflow">for</span>(tconslist::iterator it = <a class="code" href="class_x_interface_list_connector.html#r0">m_cons</a>.begin(); it != <a class="code" href="class_x_interface_list_connector.html#r0">m_cons</a>.end();)
+<a name="l00107"></a>00107         <span class="keywordflow">for</span>(tconslist::iterator it = <a class="code" href="class_x_interface_list_connector.html#r0">m_cons</a>.begin(); it != <a class="code" href="class_x_interface_list_connector.html#r0">m_cons</a>.end();)
 <a name="l00108"></a>00108     {
-<a name="l00109"></a>00109       <span class="keywordflow">if</span>(it-&gt;interface == node)
+<a name="l00109"></a>00109                 <span class="keywordflow">if</span>(it-&gt;interface == node)
 <a name="l00110"></a>00110         {
 <a name="l00111"></a>00111             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;numRows(); i++)
 <a name="l00112"></a>00112             {
-<a name="l00113"></a>00113                   <span class="keywordflow">if</span>(<a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;cellWidget(i, 1) == it-&gt;btn) <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;removeRow(i);
+<a name="l00113"></a>00113                                 <span class="keywordflow">if</span>(<a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;cellWidget(i, 1) == it-&gt;btn) <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;removeRow(i);
 <a name="l00114"></a>00114             }
 <a name="l00115"></a>00115             it = <a class="code" href="class_x_interface_list_connector.html#r0">m_cons</a>.erase(it);
 <a name="l00116"></a>00116         }
-<a name="l00117"></a>00117           <span class="keywordflow">else</span>
+<a name="l00117"></a>00117                 <span class="keywordflow">else</span>
 <a name="l00118"></a>00118         {
-<a name="l00119"></a>00119               it++;
+<a name="l00119"></a>00119                         it++;
 <a name="l00120"></a>00120         }    
 <a name="l00121"></a>00121     }  
 <a name="l00122"></a>00122 }
 <a name="l00123"></a>00123 <span class="keywordtype">void</span>
 <a name="l00124"></a><a class="code" href="class_x_interface_list_connector.html#j0">00124</a> <a class="code" href="class_x_interface_list_connector.html#j0">XInterfaceListConnector::clicked</a> ( <span class="keywordtype">int</span> row, <span class="keywordtype">int</span> , <span class="keywordtype">int</span> , <span class="keyword">const</span> QPoint&amp; ) {
-<a name="l00125"></a>00125   <span class="keywordflow">for</span>(tconslist::iterator it = <a class="code" href="class_x_interface_list_connector.html#r0">m_cons</a>.begin(); it != <a class="code" href="class_x_interface_list_connector.html#r0">m_cons</a>.end(); it++)
+<a name="l00125"></a>00125         <span class="keywordflow">for</span>(tconslist::iterator it = <a class="code" href="class_x_interface_list_connector.html#r0">m_cons</a>.begin(); it != <a class="code" href="class_x_interface_list_connector.html#r0">m_cons</a>.end(); it++)
 <a name="l00126"></a>00126     {
-<a name="l00127"></a>00127           <span class="keywordflow">if</span>(<a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;cellWidget(row, 1) == it-&gt;btn)
-<a name="l00128"></a>00128                 it-&gt;interface-&gt;driver()-&gt;showForms();
+<a name="l00127"></a>00127                 <span class="keywordflow">if</span>(<a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;cellWidget(row, 1) == it-&gt;btn)
+<a name="l00128"></a>00128                         it-&gt;interface-&gt;driver()-&gt;showForms();
 <a name="l00129"></a>00129     }
 <a name="l00130"></a>00130 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:34 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:13 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

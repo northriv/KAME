@@ -19,7 +19,7 @@
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00015"></a>00015 
 <a name="l00016"></a>00016 <span class="preprocessor">#include "thread.h"</span>
@@ -32,43 +32,43 @@
 <a name="l00023"></a>00023 
 <a name="l00024"></a><a class="code" href="class_x_mutex.html#a0">00024</a> <a class="code" href="class_x_mutex.html#a0">XMutex::XMutex</a>()
 <a name="l00025"></a>00025 {
-<a name="l00026"></a>00026   pthread_mutexattr_t attr;
-<a name="l00027"></a>00027   <span class="keywordtype">int</span> ret;
-<a name="l00028"></a>00028   ret = pthread_mutexattr_init(&amp;attr);
-<a name="l00029"></a>00029   <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(!ret);
+<a name="l00026"></a>00026         pthread_mutexattr_t attr;
+<a name="l00027"></a>00027         <span class="keywordtype">int</span> ret;
+<a name="l00028"></a>00028         ret = pthread_mutexattr_init(&amp;attr);
+<a name="l00029"></a>00029         <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(!ret);
 <a name="l00030"></a>00030 
-<a name="l00031"></a>00031   ret = pthread_mutex_init(&amp;<a class="code" href="class_x_mutex.html#p0">m_mutex</a>, &amp;attr);
-<a name="l00032"></a>00032   <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(!ret);
+<a name="l00031"></a>00031         ret = pthread_mutex_init(&amp;<a class="code" href="class_x_mutex.html#p0">m_mutex</a>, &amp;attr);
+<a name="l00032"></a>00032         <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(!ret);
 <a name="l00033"></a>00033 
-<a name="l00034"></a>00034   ret = pthread_mutexattr_destroy(&amp;attr);
-<a name="l00035"></a>00035   <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(!ret);
+<a name="l00034"></a>00034         ret = pthread_mutexattr_destroy(&amp;attr);
+<a name="l00035"></a>00035         <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(!ret);
 <a name="l00036"></a>00036 }
 <a name="l00037"></a>00037 
 <a name="l00038"></a><a class="code" href="class_x_mutex.html#a1">00038</a> <a class="code" href="class_x_mutex.html#a1">XMutex::~XMutex</a>()
 <a name="l00039"></a>00039 {
-<a name="l00040"></a>00040   <span class="keywordtype">int</span> ret = pthread_mutex_destroy(&amp;<a class="code" href="class_x_mutex.html#p0">m_mutex</a>);
-<a name="l00041"></a>00041   <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(!ret);
+<a name="l00040"></a>00040         <span class="keywordtype">int</span> ret = pthread_mutex_destroy(&amp;<a class="code" href="class_x_mutex.html#p0">m_mutex</a>);
+<a name="l00041"></a>00041         <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(!ret);
 <a name="l00042"></a>00042 }
 <a name="l00043"></a>00043 <span class="keywordtype">void</span>
 <a name="l00044"></a><a class="code" href="class_x_mutex.html#a2">00044</a> <a class="code" href="class_x_mutex.html#a2">XMutex::lock</a>() {
-<a name="l00045"></a>00045   <span class="keywordtype">int</span> ret = pthread_mutex_lock(&amp;<a class="code" href="class_x_mutex.html#p0">m_mutex</a>);
-<a name="l00046"></a>00046   <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(!ret);
+<a name="l00045"></a>00045         <span class="keywordtype">int</span> ret = pthread_mutex_lock(&amp;<a class="code" href="class_x_mutex.html#p0">m_mutex</a>);
+<a name="l00046"></a>00046         <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(!ret);
 <a name="l00047"></a>00047 }
 <a name="l00048"></a>00048 <span class="keywordtype">bool</span>
 <a name="l00049"></a><a class="code" href="class_x_mutex.html#a4">00049</a> <a class="code" href="class_x_mutex.html#a4">XMutex::trylock</a>() {
-<a name="l00050"></a>00050   <span class="keywordtype">int</span> ret = pthread_mutex_trylock(&amp;<a class="code" href="class_x_mutex.html#p0">m_mutex</a>);
-<a name="l00051"></a>00051   <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(ret != EINVAL);
-<a name="l00052"></a>00052   <span class="keywordflow">return</span> (ret == 0);
+<a name="l00050"></a>00050         <span class="keywordtype">int</span> ret = pthread_mutex_trylock(&amp;<a class="code" href="class_x_mutex.html#p0">m_mutex</a>);
+<a name="l00051"></a>00051         <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(ret != EINVAL);
+<a name="l00052"></a>00052         <span class="keywordflow">return</span> (ret == 0);
 <a name="l00053"></a>00053 }
 <a name="l00054"></a>00054 <span class="keywordtype">void</span>
 <a name="l00055"></a><a class="code" href="class_x_mutex.html#a3">00055</a> <a class="code" href="class_x_mutex.html#a3">XMutex::unlock</a>() {
-<a name="l00056"></a>00056   <span class="keywordtype">int</span> ret = pthread_mutex_unlock(&amp;<a class="code" href="class_x_mutex.html#p0">m_mutex</a>);
-<a name="l00057"></a>00057   <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(!ret);
+<a name="l00056"></a>00056         <span class="keywordtype">int</span> ret = pthread_mutex_unlock(&amp;<a class="code" href="class_x_mutex.html#p0">m_mutex</a>);
+<a name="l00057"></a>00057         <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(!ret);
 <a name="l00058"></a>00058 }
 <a name="l00059"></a>00059 
 <a name="l00060"></a><a class="code" href="class_x_recursive_mutex.html#a0">00060</a> <a class="code" href="class_x_recursive_mutex.html#a0">XRecursiveMutex::XRecursiveMutex</a>()
 <a name="l00061"></a>00061 {
-<a name="l00062"></a>00062   <a class="code" href="class_x_recursive_mutex.html#r1">m_lockingthread</a> = (threadid_t)-1;
+<a name="l00062"></a>00062         <a class="code" href="class_x_recursive_mutex.html#r1">m_lockingthread</a> = (threadid_t)-1;
 <a name="l00063"></a>00063 }
 <a name="l00064"></a><a class="code" href="class_x_recursive_mutex.html#a1">00064</a> <a class="code" href="class_x_recursive_mutex.html#a1">XRecursiveMutex::~XRecursiveMutex</a>()
 <a name="l00065"></a>00065 {
@@ -77,45 +77,45 @@
 <a name="l00068"></a>00068 <span class="keywordtype">void</span> 
 <a name="l00069"></a><a class="code" href="class_x_recursive_mutex.html#a2">00069</a> <a class="code" href="class_x_recursive_mutex.html#a2">XRecursiveMutex::lock</a>()
 <a name="l00070"></a>00070 {
-<a name="l00071"></a>00071   <span class="keywordflow">if</span>(!pthread_equal(<a class="code" href="class_x_recursive_mutex.html#r1">m_lockingthread</a>, threadID()))
+<a name="l00071"></a>00071         <span class="keywordflow">if</span>(!pthread_equal(<a class="code" href="class_x_recursive_mutex.html#r1">m_lockingthread</a>, threadID()))
 <a name="l00072"></a>00072     {
-<a name="l00073"></a>00073       <a class="code" href="class_x_recursive_mutex.html#r0">m_mutex</a>.<a class="code" href="class_x_mutex.html#a2">lock</a>();
-<a name="l00074"></a>00074       <a class="code" href="class_x_recursive_mutex.html#r2">m_lockcount</a> = 1;
-<a name="l00075"></a>00075       <a class="code" href="class_x_recursive_mutex.html#r1">m_lockingthread</a> = threadID();
+<a name="l00073"></a>00073                 <a class="code" href="class_x_recursive_mutex.html#r0">m_mutex</a>.<a class="code" href="class_x_mutex.html#a2">lock</a>();
+<a name="l00074"></a>00074                 <a class="code" href="class_x_recursive_mutex.html#r2">m_lockcount</a> = 1;
+<a name="l00075"></a>00075                 <a class="code" href="class_x_recursive_mutex.html#r1">m_lockingthread</a> = threadID();
 <a name="l00076"></a>00076     }
-<a name="l00077"></a>00077   <span class="keywordflow">else</span>
+<a name="l00077"></a>00077         <span class="keywordflow">else</span>
 <a name="l00078"></a>00078     {
-<a name="l00079"></a>00079       <a class="code" href="class_x_recursive_mutex.html#r2">m_lockcount</a>++;
+<a name="l00079"></a>00079                 <a class="code" href="class_x_recursive_mutex.html#r2">m_lockcount</a>++;
 <a name="l00080"></a>00080     }
 <a name="l00081"></a>00081 }
 <a name="l00082"></a>00082 <span class="keywordtype">bool</span>
 <a name="l00083"></a><a class="code" href="class_x_recursive_mutex.html#a4">00083</a> <a class="code" href="class_x_recursive_mutex.html#a4">XRecursiveMutex::trylock</a>()
 <a name="l00084"></a>00084 {
-<a name="l00085"></a>00085   <span class="keywordflow">if</span>(!pthread_equal(<a class="code" href="class_x_recursive_mutex.html#r1">m_lockingthread</a>, threadID()))
+<a name="l00085"></a>00085         <span class="keywordflow">if</span>(!pthread_equal(<a class="code" href="class_x_recursive_mutex.html#r1">m_lockingthread</a>, threadID()))
 <a name="l00086"></a>00086     {
-<a name="l00087"></a>00087       <span class="keywordflow">if</span>(<a class="code" href="class_x_recursive_mutex.html#r0">m_mutex</a>.<a class="code" href="class_x_mutex.html#a4">trylock</a>()) {
-<a name="l00088"></a>00088           <a class="code" href="class_x_recursive_mutex.html#r2">m_lockcount</a> = 1;
-<a name="l00089"></a>00089           <a class="code" href="class_x_recursive_mutex.html#r1">m_lockingthread</a> = threadID();
-<a name="l00090"></a>00090       }
-<a name="l00091"></a>00091       <span class="keywordflow">else</span> {
-<a name="l00092"></a>00092         <span class="keywordflow">return</span> <span class="keyword">false</span>;
-<a name="l00093"></a>00093       }
+<a name="l00087"></a>00087                 <span class="keywordflow">if</span>(<a class="code" href="class_x_recursive_mutex.html#r0">m_mutex</a>.<a class="code" href="class_x_mutex.html#a4">trylock</a>()) {
+<a name="l00088"></a>00088                         <a class="code" href="class_x_recursive_mutex.html#r2">m_lockcount</a> = 1;
+<a name="l00089"></a>00089                         <a class="code" href="class_x_recursive_mutex.html#r1">m_lockingthread</a> = threadID();
+<a name="l00090"></a>00090                 }
+<a name="l00091"></a>00091                 <span class="keywordflow">else</span> {
+<a name="l00092"></a>00092                         <span class="keywordflow">return</span> <span class="keyword">false</span>;
+<a name="l00093"></a>00093                 }
 <a name="l00094"></a>00094     }
-<a name="l00095"></a>00095   <span class="keywordflow">else</span>
+<a name="l00095"></a>00095         <span class="keywordflow">else</span>
 <a name="l00096"></a>00096     {
-<a name="l00097"></a>00097       <a class="code" href="class_x_recursive_mutex.html#r2">m_lockcount</a>++;
+<a name="l00097"></a>00097                 <a class="code" href="class_x_recursive_mutex.html#r2">m_lockcount</a>++;
 <a name="l00098"></a>00098     }
-<a name="l00099"></a>00099   <span class="keywordflow">return</span> <span class="keyword">true</span>;
+<a name="l00099"></a>00099         <span class="keywordflow">return</span> <span class="keyword">true</span>;
 <a name="l00100"></a>00100 }
 <a name="l00101"></a>00101 <span class="keywordtype">void</span> 
 <a name="l00102"></a><a class="code" href="class_x_recursive_mutex.html#a3">00102</a> <a class="code" href="class_x_recursive_mutex.html#a3">XRecursiveMutex::unlock</a>()
 <a name="l00103"></a>00103 {
-<a name="l00104"></a>00104   <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(pthread_equal(<a class="code" href="class_x_recursive_mutex.html#r1">m_lockingthread</a>, threadID()));
-<a name="l00105"></a>00105   <a class="code" href="class_x_recursive_mutex.html#r2">m_lockcount</a>--;
-<a name="l00106"></a>00106   <span class="keywordflow">if</span>(<a class="code" href="class_x_recursive_mutex.html#r2">m_lockcount</a> == 0)
+<a name="l00104"></a>00104         <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(pthread_equal(<a class="code" href="class_x_recursive_mutex.html#r1">m_lockingthread</a>, threadID()));
+<a name="l00105"></a>00105         <a class="code" href="class_x_recursive_mutex.html#r2">m_lockcount</a>--;
+<a name="l00106"></a>00106         <span class="keywordflow">if</span>(<a class="code" href="class_x_recursive_mutex.html#r2">m_lockcount</a> == 0)
 <a name="l00107"></a>00107     {
-<a name="l00108"></a>00108       <a class="code" href="class_x_recursive_mutex.html#r1">m_lockingthread</a> = (threadid_t)-1;
-<a name="l00109"></a>00109       <a class="code" href="class_x_recursive_mutex.html#r0">m_mutex</a>.<a class="code" href="class_x_mutex.html#a3">unlock</a>();
+<a name="l00108"></a>00108                 <a class="code" href="class_x_recursive_mutex.html#r1">m_lockingthread</a> = (threadid_t)-1;
+<a name="l00109"></a>00109                 <a class="code" href="class_x_recursive_mutex.html#r0">m_mutex</a>.<a class="code" href="class_x_mutex.html#a3">unlock</a>();
 <a name="l00110"></a>00110     }
 <a name="l00111"></a>00111 }
 <a name="l00112"></a>00112 <span class="keywordtype">bool</span>
@@ -125,50 +125,50 @@
 <a name="l00116"></a>00116 }
 <a name="l00117"></a><a class="code" href="class_x_condition.html#a0">00117</a> <a class="code" href="class_x_condition.html#a0">XCondition::XCondition</a>() : <a class="code" href="class_x_mutex.html">XMutex</a>()
 <a name="l00118"></a>00118 {
-<a name="l00119"></a>00119   <span class="keywordtype">int</span> ret = pthread_cond_init(&amp;<a class="code" href="class_x_condition.html#r0">m_cond</a>, NULL);
-<a name="l00120"></a>00120   <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(!ret);
+<a name="l00119"></a>00119         <span class="keywordtype">int</span> ret = pthread_cond_init(&amp;<a class="code" href="class_x_condition.html#r0">m_cond</a>, NULL);
+<a name="l00120"></a>00120         <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(!ret);
 <a name="l00121"></a>00121 }
 <a name="l00122"></a><a class="code" href="class_x_condition.html#a1">00122</a> <a class="code" href="class_x_condition.html#a1">XCondition::~XCondition</a>()
 <a name="l00123"></a>00123 {
-<a name="l00124"></a>00124   <span class="keywordtype">int</span> ret = pthread_cond_destroy(&amp;<a class="code" href="class_x_condition.html#r0">m_cond</a>);
-<a name="l00125"></a>00125   <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(!ret);
+<a name="l00124"></a>00124         <span class="keywordtype">int</span> ret = pthread_cond_destroy(&amp;<a class="code" href="class_x_condition.html#r0">m_cond</a>);
+<a name="l00125"></a>00125         <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(!ret);
 <a name="l00126"></a>00126 }
 <a name="l00127"></a>00127 <span class="keywordtype">int</span>
 <a name="l00128"></a><a class="code" href="class_x_condition.html#a2">00128</a> <a class="code" href="class_x_condition.html#a2">XCondition::wait</a>(<span class="keywordtype">int</span> usec)
 <a name="l00129"></a>00129 {
-<a name="l00130"></a>00130   <span class="keywordtype">int</span> ret;
-<a name="l00131"></a>00131   <span class="keywordflow">if</span>(usec &gt; 0)
+<a name="l00130"></a>00130         <span class="keywordtype">int</span> ret;
+<a name="l00131"></a>00131         <span class="keywordflow">if</span>(usec &gt; 0)
 <a name="l00132"></a>00132     {
-<a name="l00133"></a>00133       <span class="keyword">struct </span>timespec abstime;
-<a name="l00134"></a>00134       timeval tv;
-<a name="l00135"></a>00135       <span class="keywordtype">long</span> nsec;
-<a name="l00136"></a>00136       gettimeofday(&amp;tv, NULL);
-<a name="l00137"></a>00137       abstime.tv_sec = tv.tv_sec;
-<a name="l00138"></a>00138       nsec = (tv.tv_usec + usec) * 1000;
-<a name="l00139"></a>00139       <span class="keywordflow">if</span>(nsec &gt;= 1000000000) {
-<a name="l00140"></a>00140     nsec -= 1000000000; abstime.tv_sec++;
-<a name="l00141"></a>00141       }
-<a name="l00142"></a>00142       abstime.tv_nsec = nsec;
-<a name="l00143"></a>00143       ret = pthread_cond_timedwait(&amp;<a class="code" href="class_x_condition.html#r0">m_cond</a>, &amp;<a class="code" href="class_x_mutex.html#p0">m_mutex</a>, &amp;abstime);
+<a name="l00133"></a>00133                 <span class="keyword">struct </span>timespec abstime;
+<a name="l00134"></a>00134                 timeval tv;
+<a name="l00135"></a>00135                 <span class="keywordtype">long</span> nsec;
+<a name="l00136"></a>00136                 gettimeofday(&amp;tv, NULL);
+<a name="l00137"></a>00137                 abstime.tv_sec = tv.tv_sec;
+<a name="l00138"></a>00138                 nsec = (tv.tv_usec + usec) * 1000;
+<a name="l00139"></a>00139                 <span class="keywordflow">if</span>(nsec &gt;= 1000000000) {
+<a name="l00140"></a>00140                         nsec -= 1000000000; abstime.tv_sec++;
+<a name="l00141"></a>00141                 }
+<a name="l00142"></a>00142                 abstime.tv_nsec = nsec;
+<a name="l00143"></a>00143                 ret = pthread_cond_timedwait(&amp;<a class="code" href="class_x_condition.html#r0">m_cond</a>, &amp;<a class="code" href="class_x_mutex.html#p0">m_mutex</a>, &amp;abstime);
 <a name="l00144"></a>00144     }
-<a name="l00145"></a>00145   <span class="keywordflow">else</span> {
-<a name="l00146"></a>00146     ret = pthread_cond_wait(&amp;<a class="code" href="class_x_condition.html#r0">m_cond</a>, &amp;<a class="code" href="class_x_mutex.html#p0">m_mutex</a>);
-<a name="l00147"></a>00147   }
-<a name="l00148"></a>00148   <span class="keywordflow">return</span> ret;
+<a name="l00145"></a>00145         <span class="keywordflow">else</span> {
+<a name="l00146"></a>00146                 ret = pthread_cond_wait(&amp;<a class="code" href="class_x_condition.html#r0">m_cond</a>, &amp;<a class="code" href="class_x_mutex.html#p0">m_mutex</a>);
+<a name="l00147"></a>00147         }
+<a name="l00148"></a>00148         <span class="keywordflow">return</span> ret;
 <a name="l00149"></a>00149 }
 <a name="l00150"></a>00150 <span class="keywordtype">void</span> 
 <a name="l00151"></a><a class="code" href="class_x_condition.html#a3">00151</a> <a class="code" href="class_x_condition.html#a3">XCondition::signal</a>()
 <a name="l00152"></a>00152 {
-<a name="l00153"></a>00153   <span class="keywordtype">int</span> ret = pthread_cond_signal(&amp;<a class="code" href="class_x_condition.html#r0">m_cond</a>);
-<a name="l00154"></a>00154   <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(!ret);
+<a name="l00153"></a>00153         <span class="keywordtype">int</span> ret = pthread_cond_signal(&amp;<a class="code" href="class_x_condition.html#r0">m_cond</a>);
+<a name="l00154"></a>00154         <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(!ret);
 <a name="l00155"></a>00155 }
 <a name="l00156"></a>00156 <span class="keywordtype">void</span> 
 <a name="l00157"></a><a class="code" href="class_x_condition.html#a4">00157</a> <a class="code" href="class_x_condition.html#a4">XCondition::broadcast</a>()
 <a name="l00158"></a>00158 {
-<a name="l00159"></a>00159   <span class="keywordtype">int</span> ret = pthread_cond_broadcast(&amp;<a class="code" href="class_x_condition.html#r0">m_cond</a>);
-<a name="l00160"></a>00160   <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(!ret);
+<a name="l00159"></a>00159         <span class="keywordtype">int</span> ret = pthread_cond_broadcast(&amp;<a class="code" href="class_x_condition.html#r0">m_cond</a>);
+<a name="l00160"></a>00160         <span class="keywordflow">if</span>(DEBUG_XTHREAD) ASSERT(!ret);
 <a name="l00161"></a>00161 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:36 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:15 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

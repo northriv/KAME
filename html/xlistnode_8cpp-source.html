@@ -19,7 +19,7 @@
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="preprocessor">#include "xlistnode.h"</span>
 <a name="l00015"></a>00015 
 <a name="l00016"></a><a class="code" href="class_x_list_node_base.html#b0">00016</a> <a class="code" href="class_x_list_node_base.html#b0">XListNodeBase::XListNodeBase</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime) :
@@ -29,19 +29,19 @@
 <a name="l00020"></a>00020 <span class="keywordtype">void</span>
 <a name="l00021"></a><a class="code" href="class_x_list_node_base.html#a1">00021</a> <a class="code" href="class_x_list_node_base.html#a1">XListNodeBase::clearChildren</a>()
 <a name="l00022"></a>00022 {
-<a name="l00023"></a>00023   <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;NodeList&gt;</a> old_list;
-<a name="l00024"></a>00024   old_list.<a class="code" href="classatomic__shared__ptr.html#a9">swap</a>(<a class="code" href="class_x_node.html#p0">m_children</a>);
+<a name="l00023"></a>00023         <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;NodeList&gt;</a> old_list;
+<a name="l00024"></a>00024         old_list.<a class="code" href="classatomic__shared__ptr.html#a9">swap</a>(<a class="code" href="class_x_node.html#p0">m_children</a>);
 <a name="l00025"></a>00025 
-<a name="l00026"></a>00026   <span class="keywordflow">if</span>(!old_list) <span class="keywordflow">return</span>;
-<a name="l00027"></a>00027   <span class="keywordflow">for</span>(;;)
+<a name="l00026"></a>00026         <span class="keywordflow">if</span>(!old_list) <span class="keywordflow">return</span>;
+<a name="l00027"></a>00027         <span class="keywordflow">for</span>(;;)
 <a name="l00028"></a>00028     {
-<a name="l00029"></a>00029       <span class="keywordflow">if</span>(old_list-&gt;empty())
+<a name="l00029"></a>00029                 <span class="keywordflow">if</span>(old_list-&gt;empty())
 <a name="l00030"></a>00030             <span class="keywordflow">break</span>;
-<a name="l00031"></a>00031       <a class="code" href="class_x_list_node_base.html#a6">onRelease</a>().<a class="code" href="class_x_talker.html#a7">talk</a>(old_list-&gt;back());
+<a name="l00031"></a>00031                 <a class="code" href="class_x_list_node_base.html#a6">onRelease</a>().<a class="code" href="class_x_talker.html#a7">talk</a>(old_list-&gt;back());
 <a name="l00032"></a>00032         
-<a name="l00033"></a>00033       old_list-&gt;pop_back();
+<a name="l00033"></a>00033                 old_list-&gt;pop_back();
 <a name="l00034"></a>00034     }
-<a name="l00035"></a>00035   <a class="code" href="class_x_list_node_base.html#a3">onListChanged</a>().<a class="code" href="class_x_talker.html#a7">talk</a>(dynamic_pointer_cast&lt;XListNodeBase&gt;(shared_from_this()));
+<a name="l00035"></a>00035         <a class="code" href="class_x_list_node_base.html#a3">onListChanged</a>().<a class="code" href="class_x_talker.html#a7">talk</a>(dynamic_pointer_cast&lt;XListNodeBase&gt;(shared_from_this()));
 <a name="l00036"></a>00036 }
 <a name="l00037"></a>00037 <span class="keywordtype">int</span>
 <a name="l00038"></a><a class="code" href="class_x_list_node_base.html#a2">00038</a> <a class="code" href="class_x_list_node_base.html#a2">XListNodeBase::releaseChild</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node)
@@ -55,9 +55,9 @@
 <a name="l00046"></a>00046 <span class="keywordtype">void</span>
 <a name="l00047"></a><a class="code" href="class_x_list_node_base.html#a7">00047</a> <a class="code" href="class_x_list_node_base.html#a7">XListNodeBase::insert</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;ptr)
 <a name="l00048"></a>00048 {
-<a name="l00049"></a>00049   <a class="code" href="class_x_node.html#a19">XNode::insert</a>(ptr);
-<a name="l00050"></a>00050   <a class="code" href="class_x_list_node_base.html#a5">onCatch</a>().<a class="code" href="class_x_talker.html#a7">talk</a>(ptr);
-<a name="l00051"></a>00051   <a class="code" href="class_x_list_node_base.html#a3">onListChanged</a>().<a class="code" href="class_x_talker.html#a7">talk</a>(dynamic_pointer_cast&lt;XListNodeBase&gt;(shared_from_this()));
+<a name="l00049"></a>00049         <a class="code" href="class_x_node.html#a19">XNode::insert</a>(ptr);
+<a name="l00050"></a>00050         <a class="code" href="class_x_list_node_base.html#a5">onCatch</a>().<a class="code" href="class_x_talker.html#a7">talk</a>(ptr);
+<a name="l00051"></a>00051         <a class="code" href="class_x_list_node_base.html#a3">onListChanged</a>().<a class="code" href="class_x_talker.html#a7">talk</a>(dynamic_pointer_cast&lt;XListNodeBase&gt;(shared_from_this()));
 <a name="l00052"></a>00052 }
 <a name="l00053"></a>00053 <span class="keywordtype">void</span>
 <a name="l00054"></a><a class="code" href="class_x_list_node_base.html#a8">00054</a> <a class="code" href="class_x_list_node_base.html#a8">XListNodeBase::move</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> src_idx, <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> dst_idx)
@@ -87,7 +87,7 @@
 <a name="l00078"></a>00078 shared_ptr&lt;XNode&gt; empty_creator(<span class="keyword">const</span> <span class="keywordtype">char</span> *, <span class="keywordtype">bool</span> ) {
 <a name="l00079"></a>00079     <span class="keywordflow">return</span> shared_ptr&lt;XNode&gt;();
 <a name="l00080"></a>00080 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:39 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:18 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

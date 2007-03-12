@@ -19,7 +19,7 @@
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00015"></a>00015 <span class="preprocessor">#include "recordreaderform.h"</span>
 <a name="l00016"></a>00016 <span class="preprocessor">#include "recordreaderconnector.h"</span>
@@ -31,36 +31,36 @@
 <a name="l00022"></a>00022 
 <a name="l00023"></a><a class="code" href="class_x_raw_stream_record_reader_connector.html#b0">00023</a> <a class="code" href="class_x_raw_stream_record_reader_connector.html#b0">XRawStreamRecordReaderConnector::XRawStreamRecordReaderConnector</a>(
 <a name="l00024"></a>00024     <span class="keyword">const</span> shared_ptr&lt;XRawStreamRecordReader&gt; &amp;reader, FrmRecordReader *form) :
-<a name="l00025"></a>00025   <a class="code" href="class_x_q_connector.html">XQConnector</a>(reader, form),
-<a name="l00026"></a>00026   m_reader(reader),
-<a name="l00027"></a>00027   m_pForm(form),
-<a name="l00028"></a>00028   m_conRecordFile(xqcon_create&lt;<a class="code" href="class_x_k_u_r_l_req_connector.html">XKURLReqConnector</a>&gt;(
-<a name="l00029"></a>00029                     reader-&gt;filename(), form-&gt;urlBinRec,
-<a name="l00030"></a>00030                     (<span class="stringliteral">"*.bin|Binary files (*.bin)\n*.*|All files (*.*)"</span>), false)),
-<a name="l00031"></a>00031   m_conFF(xqcon_create&lt;<a class="code" href="class_x_q_toggle_button_connector.html">XQToggleButtonConnector</a>&gt;(reader-&gt;fastForward(), form-&gt;btnFF)),
-<a name="l00032"></a>00032   m_conRW(xqcon_create&lt;<a class="code" href="class_x_q_toggle_button_connector.html">XQToggleButtonConnector</a>&gt;(reader-&gt;rewind(), form-&gt;btnRW)),
-<a name="l00033"></a>00033   m_conStop(xqcon_create&lt;<a class="code" href="class_x_q_button_connector.html">XQButtonConnector</a>&gt;(reader-&gt;stop(), form-&gt;btnStop)),
-<a name="l00034"></a>00034   m_conFirst(xqcon_create&lt;<a class="code" href="class_x_q_button_connector.html">XQButtonConnector</a>&gt;(reader-&gt;first(), form-&gt;btnFirst)),
-<a name="l00035"></a>00035   m_conNext(xqcon_create&lt;<a class="code" href="class_x_q_button_connector.html">XQButtonConnector</a>&gt;(reader-&gt;next(), form-&gt;btnNext)),
-<a name="l00036"></a>00036   m_conBack(xqcon_create&lt;<a class="code" href="class_x_q_button_connector.html">XQButtonConnector</a>&gt;(reader-&gt;back(), form-&gt;btnBack)),
-<a name="l00037"></a>00037   m_conPosString(xqcon_create&lt;<a class="code" href="class_x_q_line_edit_connector.html">XQLineEditConnector</a>&gt;(reader-&gt;posString(), form-&gt;edTime)),
-<a name="l00038"></a>00038   m_conSpeed(xqcon_create&lt;<a class="code" href="class_x_q_combo_box_connector.html">XQComboBoxConnector</a>&gt;(reader-&gt;speed(), form-&gt;cmbSpeed))
+<a name="l00025"></a>00025         <a class="code" href="class_x_q_connector.html">XQConnector</a>(reader, form),
+<a name="l00026"></a>00026         m_reader(reader),
+<a name="l00027"></a>00027         m_pForm(form),
+<a name="l00028"></a>00028         m_conRecordFile(xqcon_create&lt;<a class="code" href="class_x_k_u_r_l_req_connector.html">XKURLReqConnector</a>&gt;(
+<a name="l00029"></a>00029                                                 reader-&gt;filename(), form-&gt;urlBinRec,
+<a name="l00030"></a>00030                                                 (<span class="stringliteral">"*.bin|Binary files (*.bin)\n*.*|All files (*.*)"</span>), false)),
+<a name="l00031"></a>00031         m_conFF(xqcon_create&lt;<a class="code" href="class_x_q_toggle_button_connector.html">XQToggleButtonConnector</a>&gt;(reader-&gt;fastForward(), form-&gt;btnFF)),
+<a name="l00032"></a>00032         m_conRW(xqcon_create&lt;<a class="code" href="class_x_q_toggle_button_connector.html">XQToggleButtonConnector</a>&gt;(reader-&gt;rewind(), form-&gt;btnRW)),
+<a name="l00033"></a>00033         m_conStop(xqcon_create&lt;<a class="code" href="class_x_q_button_connector.html">XQButtonConnector</a>&gt;(reader-&gt;stop(), form-&gt;btnStop)),
+<a name="l00034"></a>00034         m_conFirst(xqcon_create&lt;<a class="code" href="class_x_q_button_connector.html">XQButtonConnector</a>&gt;(reader-&gt;first(), form-&gt;btnFirst)),
+<a name="l00035"></a>00035         m_conNext(xqcon_create&lt;<a class="code" href="class_x_q_button_connector.html">XQButtonConnector</a>&gt;(reader-&gt;next(), form-&gt;btnNext)),
+<a name="l00036"></a>00036         m_conBack(xqcon_create&lt;<a class="code" href="class_x_q_button_connector.html">XQButtonConnector</a>&gt;(reader-&gt;back(), form-&gt;btnBack)),
+<a name="l00037"></a>00037         m_conPosString(xqcon_create&lt;<a class="code" href="class_x_q_line_edit_connector.html">XQLineEditConnector</a>&gt;(reader-&gt;posString(), form-&gt;edTime)),
+<a name="l00038"></a>00038         m_conSpeed(xqcon_create&lt;<a class="code" href="class_x_q_combo_box_connector.html">XQComboBoxConnector</a>&gt;(reader-&gt;speed(), form-&gt;cmbSpeed))
 <a name="l00039"></a>00039 {
 <a name="l00040"></a>00040     KApplication *app = KApplication::kApplication();
 <a name="l00041"></a>00041     form-&gt;btnNext-&gt;setIconSet( app-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"forward"</span>, 
-<a name="l00042"></a>00042             KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );
+<a name="l00042"></a>00042                                                                                                                           KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );
 <a name="l00043"></a>00043     form-&gt;btnBack-&gt;setIconSet( app-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"previous"</span>, 
-<a name="l00044"></a>00044             KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );
+<a name="l00044"></a>00044                                                                                                                           KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );
 <a name="l00045"></a>00045     form-&gt;btnFF-&gt;setIconSet( app-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"player_fwd"</span>, 
-<a name="l00046"></a>00046             KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );
+<a name="l00046"></a>00046                                                                                                                         KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );
 <a name="l00047"></a>00047     form-&gt;btnRW-&gt;setIconSet( app-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"player_rew"</span>, 
-<a name="l00048"></a>00048             KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );
+<a name="l00048"></a>00048                                                                                                                         KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );
 <a name="l00049"></a>00049     form-&gt;btnFirst-&gt;setIconSet( app-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"player_start"</span>, 
-<a name="l00050"></a>00050             KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );
+<a name="l00050"></a>00050                                                                                                                            KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );
 <a name="l00051"></a>00051     form-&gt;btnStop-&gt;setIconSet( app-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"player_stop"</span>, 
-<a name="l00052"></a>00052             KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );
+<a name="l00052"></a>00052                                                                                                                           KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );
 <a name="l00053"></a>00053 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:33 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:12 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

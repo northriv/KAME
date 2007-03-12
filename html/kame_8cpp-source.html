@@ -19,7 +19,7 @@
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="preprocessor">#include &lt;qtimer.h&gt;</span>
 <a name="l00015"></a>00015 <span class="preprocessor">#include &lt;qmessagebox.h&gt;</span>
 <a name="l00016"></a>00016 <span class="preprocessor">#include &lt;kmessagebox.h&gt;</span>
@@ -67,9 +67,9 @@
 <a name="l00058"></a>00058 QWidget *g_pFrmMain = 0L;
 <a name="l00059"></a>00059 
 <a name="l00060"></a><a class="code" href="class_frm_kame_main.html#a0">00060</a> <a class="code" href="class_frm_kame_main.html#a0">FrmKameMain::FrmKameMain</a>()
-<a name="l00061"></a>00061  :KMdiMainFrm(NULL, <span class="stringliteral">"kame"</span>, KMdi::IDEAlMode)
-<a name="l00062"></a>00062  {    
-<a name="l00063"></a>00063  KApplication *app = KApplication::kApplication();   
+<a name="l00061"></a>00061         :KMdiMainFrm(NULL, <span class="stringliteral">"kame"</span>, KMdi::IDEAlMode)
+<a name="l00062"></a>00062 {    
+<a name="l00063"></a>00063         KApplication *app = KApplication::kApplication();   
 <a name="l00064"></a>00064     
 <a name="l00065"></a>00065     g_pFrmMain = <span class="keyword">this</span>;
 <a name="l00066"></a>00066     
@@ -82,67 +82,67 @@
 <a name="l00073"></a>00073     <a class="code" href="class_frm_kame_main.html#o21">m_pFrmDriver</a> = <span class="keyword">new</span> FrmDriver(<span class="keyword">this</span>, <span class="stringliteral">"Drivers"</span>);
 <a name="l00074"></a>00074     <a class="code" href="class_frm_kame_main.html#o21">m_pFrmDriver</a>-&gt;setIcon(*g_pIconDriver);
 <a name="l00075"></a>00075     KMdiToolViewAccessor *accessor = addToolWindow( <a class="code" href="class_frm_kame_main.html#o21">m_pFrmDriver</a>, KDockWidget::DockLeft, 
-<a name="l00076"></a>00076          getMainDockWidget(), 50, <a class="code" href="class_frm_kame_main.html#o21">m_pFrmDriver</a>-&gt;caption() );
+<a name="l00076"></a>00076                                                                                                         getMainDockWidget(), 50, <a class="code" href="class_frm_kame_main.html#o21">m_pFrmDriver</a>-&gt;caption() );
 <a name="l00077"></a>00077     accessor-&gt;show();
 <a name="l00078"></a>00078     
 <a name="l00079"></a>00079     <a class="code" href="class_frm_kame_main.html#o20">m_pFrmInterface</a> = <span class="keyword">new</span> FrmInterface(<span class="keyword">this</span>, <span class="stringliteral">"Interfaces"</span>);
 <a name="l00080"></a>00080     <a class="code" href="class_frm_kame_main.html#o20">m_pFrmInterface</a>-&gt;setIcon(*g_pIconInterface);
 <a name="l00081"></a>00081     accessor = addToolWindow( <a class="code" href="class_frm_kame_main.html#o20">m_pFrmInterface</a>, KDockWidget::DockRight,
-<a name="l00082"></a>00082          getMainDockWidget(), 50, <a class="code" href="class_frm_kame_main.html#o20">m_pFrmInterface</a>-&gt;caption() );
+<a name="l00082"></a>00082                                                           getMainDockWidget(), 50, <a class="code" href="class_frm_kame_main.html#o20">m_pFrmInterface</a>-&gt;caption() );
 <a name="l00083"></a>00083     accessor-&gt;show();
 <a name="l00084"></a>00084     
 <a name="l00085"></a>00085     <a class="code" href="class_frm_kame_main.html#o22">m_pFrmScalarEntry</a> = <span class="keyword">new</span> FrmEntry(<span class="keyword">this</span>, <span class="stringliteral">"Scalar Entries"</span>);
 <a name="l00086"></a>00086     <a class="code" href="class_frm_kame_main.html#o22">m_pFrmScalarEntry</a>-&gt;setIcon(*g_pIconScalar);
 <a name="l00087"></a>00087     accessor = addToolWindow( <a class="code" href="class_frm_kame_main.html#o22">m_pFrmScalarEntry</a>, KDockWidget::DockRight, 
-<a name="l00088"></a>00088          getMainDockWidget(), 50, <a class="code" href="class_frm_kame_main.html#o22">m_pFrmScalarEntry</a>-&gt;caption() );
+<a name="l00088"></a>00088                                                           getMainDockWidget(), 50, <a class="code" href="class_frm_kame_main.html#o22">m_pFrmScalarEntry</a>-&gt;caption() );
 <a name="l00089"></a>00089     
 <a name="l00090"></a>00090     <a class="code" href="class_frm_kame_main.html#o18">m_pFrmGraphList</a> = <span class="keyword">new</span> FrmGraphList(<span class="keyword">this</span>, <span class="stringliteral">"Graph"</span>);
 <a name="l00091"></a>00091     <a class="code" href="class_frm_kame_main.html#o18">m_pFrmGraphList</a>-&gt;setIcon(*g_pIconGraph);
 <a name="l00092"></a>00092     accessor = addToolWindow( <a class="code" href="class_frm_kame_main.html#o18">m_pFrmGraphList</a>, KDockWidget::DockLeft,
-<a name="l00093"></a>00093          getMainDockWidget(), 30, <a class="code" href="class_frm_kame_main.html#o18">m_pFrmGraphList</a>-&gt;caption() );
+<a name="l00093"></a>00093                                                           getMainDockWidget(), 30, <a class="code" href="class_frm_kame_main.html#o18">m_pFrmGraphList</a>-&gt;caption() );
 <a name="l00094"></a>00094         
 <a name="l00095"></a>00095     <a class="code" href="class_frm_kame_main.html#o17">m_pFrmRecordReader</a> = <span class="keyword">new</span> FrmRecordReader(<span class="keyword">this</span>, <span class="stringliteral">"RawStreamReader"</span>);
 <a name="l00096"></a>00096     <a class="code" href="class_frm_kame_main.html#o17">m_pFrmRecordReader</a>-&gt;setIcon(*g_pIconReader);
 <a name="l00097"></a>00097     accessor = addToolWindow( <a class="code" href="class_frm_kame_main.html#o17">m_pFrmRecordReader</a>, KDockWidget::DockRight,
-<a name="l00098"></a>00098          getMainDockWidget(), 20,<a class="code" href="class_frm_kame_main.html#o17">m_pFrmRecordReader</a>-&gt;caption() );
+<a name="l00098"></a>00098                                                           getMainDockWidget(), 20,<a class="code" href="class_frm_kame_main.html#o17">m_pFrmRecordReader</a>-&gt;caption() );
 <a name="l00099"></a>00099     
 <a name="l00100"></a>00100     <a class="code" href="class_frm_kame_main.html#o19">m_pFrmCalTable</a> = <span class="keyword">new</span> FrmCalTable(<span class="keyword">this</span>, <span class="stringliteral">"Thermometers"</span>);
 <a name="l00101"></a>00101 <span class="comment">//     frmCalTable-&gt;setIcon(*IconKame48x48);</span>
 <a name="l00102"></a>00102     <a class="code" href="class_frm_kame_main.html#o19">m_pFrmCalTable</a>-&gt;setIcon(app-&gt;iconLoader()-&gt;loadIcon(<span class="stringliteral">"contents"</span>, KIcon::Toolbar, 0, KIcon::DefaultState, 0, <span class="keyword">false</span> ) );
 <a name="l00103"></a>00103     accessor = addToolWindow( <a class="code" href="class_frm_kame_main.html#o19">m_pFrmCalTable</a>, KDockWidget::DockLeft, 
-<a name="l00104"></a>00104          getMainDockWidget(), 20, <a class="code" href="class_frm_kame_main.html#o19">m_pFrmCalTable</a>-&gt;caption() );    
+<a name="l00104"></a>00104                                                           getMainDockWidget(), 20, <a class="code" href="class_frm_kame_main.html#o19">m_pFrmCalTable</a>-&gt;caption() );    
 <a name="l00105"></a>00105         
 <a name="l00106"></a>00106     <span class="comment">// actions</span>
 <a name="l00107"></a>00107     <a class="code" href="class_frm_kame_main.html#o6">m_pFileOpenAction</a> = <span class="keyword">new</span> QAction( <span class="keyword">this</span>, <span class="stringliteral">"fileOpenAction"</span> );
 <a name="l00108"></a>00108 <span class="comment">//     fileOpenAction-&gt;setIconSet( QIconSet( *IconKame48x48 ) );</span>
 <a name="l00109"></a>00109     <a class="code" href="class_frm_kame_main.html#o6">m_pFileOpenAction</a>-&gt;setIconSet( app-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"fileopen"</span>, 
-<a name="l00110"></a>00110             KIcon::Toolbar, 0, <span class="keyword">false</span> ) );
+<a name="l00110"></a>00110                                                                                                                                   KIcon::Toolbar, 0, <span class="keyword">false</span> ) );
 <a name="l00111"></a>00111     <a class="code" href="class_frm_kame_main.html#o7">m_pFileSaveAction</a> = <span class="keyword">new</span> QAction( <span class="keyword">this</span>, <span class="stringliteral">"fileSaveAction"</span> );
 <a name="l00112"></a>00112     <a class="code" href="class_frm_kame_main.html#o7">m_pFileSaveAction</a>-&gt;setEnabled( TRUE );
 <a name="l00113"></a>00113     <a class="code" href="class_frm_kame_main.html#o7">m_pFileSaveAction</a>-&gt;setIconSet( app-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"filesave"</span>, 
-<a name="l00114"></a>00114             KIcon::Toolbar, 0, <span class="keyword">false</span> ) );
+<a name="l00114"></a>00114                                                                                                                                   KIcon::Toolbar, 0, <span class="keyword">false</span> ) );
 <a name="l00115"></a>00115     <a class="code" href="class_frm_kame_main.html#o16">m_pFileCloseAction</a> = <span class="keyword">new</span> QAction( <span class="keyword">this</span>, <span class="stringliteral">"fileCloseAction"</span> );
 <a name="l00116"></a>00116     <a class="code" href="class_frm_kame_main.html#o16">m_pFileCloseAction</a>-&gt;setEnabled( TRUE );
 <a name="l00117"></a>00117 <span class="comment">//     fileCloseAction-&gt;setIconSet( QIconSet( *IconClose48x48 ) );</span>
 <a name="l00118"></a>00118     <a class="code" href="class_frm_kame_main.html#o16">m_pFileCloseAction</a>-&gt;setIconSet( app-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"fileclose"</span>, 
-<a name="l00119"></a>00119             KIcon::Toolbar, 0, <span class="keyword">false</span> ) );
+<a name="l00119"></a>00119                                                                                                                                    KIcon::Toolbar, 0, <span class="keyword">false</span> ) );
 <a name="l00120"></a>00120     <a class="code" href="class_frm_kame_main.html#o8">m_pFileExitAction</a> = <span class="keyword">new</span> QAction( <span class="keyword">this</span>, <span class="stringliteral">"fileExitAction"</span> );
 <a name="l00121"></a>00121 <span class="comment">//     fileExitAction-&gt;setIconSet( QIconSet( *IconStop48x48 ) );</span>
 <a name="l00122"></a>00122     <a class="code" href="class_frm_kame_main.html#o8">m_pFileExitAction</a>-&gt;setIconSet( app-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"exit"</span>, 
-<a name="l00123"></a>00123             KIcon::Toolbar, 0, <span class="keyword">false</span> ) );
+<a name="l00123"></a>00123                                                                                                                                   KIcon::Toolbar, 0, <span class="keyword">false</span> ) );
 <a name="l00124"></a>00124     <a class="code" href="class_frm_kame_main.html#o9">m_pHelpContentsAction</a> = <span class="keyword">new</span> QAction( <span class="keyword">this</span>, <span class="stringliteral">"helpContentsAction"</span> );
 <a name="l00125"></a>00125     <a class="code" href="class_frm_kame_main.html#o10">m_pHelpIndexAction</a> = <span class="keyword">new</span> QAction( <span class="keyword">this</span>, <span class="stringliteral">"helpIndexAction"</span> );
 <a name="l00126"></a>00126     <a class="code" href="class_frm_kame_main.html#o11">m_pHelpAboutAction</a> = <span class="keyword">new</span> QAction( <span class="keyword">this</span>, <span class="stringliteral">"helpAboutAction"</span> );
 <a name="l00127"></a>00127     <a class="code" href="class_frm_kame_main.html#o11">m_pHelpAboutAction</a>-&gt;setIconSet( app-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"info"</span>, 
-<a name="l00128"></a>00128             KIcon::Toolbar, 0, <span class="keyword">false</span> ) );
+<a name="l00128"></a>00128                                                                                                                                    KIcon::Toolbar, 0, <span class="keyword">false</span> ) );
 <a name="l00129"></a>00129     <a class="code" href="class_frm_kame_main.html#o12">m_pFileLogAction</a> = <span class="keyword">new</span> QAction( <span class="keyword">this</span>, <span class="stringliteral">"fileLogAction"</span> );
 <a name="l00130"></a>00130     <a class="code" href="class_frm_kame_main.html#o12">m_pFileLogAction</a>-&gt;setToggleAction( <span class="keyword">true</span> );
 <a name="l00131"></a>00131     <a class="code" href="class_frm_kame_main.html#o12">m_pFileLogAction</a>-&gt;setOn( g_bLogDbgPrint );
 <a name="l00132"></a>00132     <a class="code" href="class_frm_kame_main.html#o12">m_pFileLogAction</a>-&gt;setIconSet( app-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"toggle_log"</span>, 
-<a name="l00133"></a>00133             KIcon::Toolbar, 0, <span class="keyword">false</span> ) );
+<a name="l00133"></a>00133                                                                                                                                  KIcon::Toolbar, 0, <span class="keyword">false</span> ) );
 <a name="l00134"></a>00134 <span class="comment">//    m_pMesRunAction = new QAction( this, "mesRunAction" );</span>
 <a name="l00135"></a>00135 <span class="comment">//    m_pMesRunAction-&gt;setEnabled( TRUE );</span>
-<a name="l00136"></a>00136  <span class="comment">//   m_pMesRunAction-&gt;setIconSet( QIconSet( *g_pIconDriver) );</span>
+<a name="l00136"></a>00136         <span class="comment">//   m_pMesRunAction-&gt;setIconSet( QIconSet( *g_pIconDriver) );</span>
 <a name="l00137"></a>00137     <a class="code" href="class_frm_kame_main.html#o13">m_pMesStopAction</a> = <span class="keyword">new</span> QAction( <span class="keyword">this</span>, <span class="stringliteral">"mesStopAction"</span> );
 <a name="l00138"></a>00138     <a class="code" href="class_frm_kame_main.html#o13">m_pMesStopAction</a>-&gt;setEnabled( TRUE );
 <a name="l00139"></a>00139     <a class="code" href="class_frm_kame_main.html#o13">m_pMesStopAction</a>-&gt;setIconSet( QIconSet( *g_pIconStop) );
@@ -152,7 +152,7 @@
 <a name="l00143"></a>00143     <a class="code" href="class_frm_kame_main.html#o15">m_pScriptDotSaveAction</a> = <span class="keyword">new</span> QAction( <span class="keyword">this</span>, <span class="stringliteral">"scriptDotSaveAction"</span> );
 <a name="l00144"></a>00144     <a class="code" href="class_frm_kame_main.html#o15">m_pScriptDotSaveAction</a>-&gt;setEnabled( TRUE );
 <a name="l00145"></a>00145     <a class="code" href="class_frm_kame_main.html#o15">m_pScriptDotSaveAction</a>-&gt;setIconSet( app-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"filesave"</span>, 
-<a name="l00146"></a>00146             KIcon::Toolbar, 0, <span class="keyword">false</span> ) );
+<a name="l00146"></a>00146                                                                                                                                            KIcon::Toolbar, 0, <span class="keyword">false</span> ) );
 <a name="l00147"></a>00147 
 <a name="l00148"></a>00148     <span class="comment">// toolbars</span>
 <a name="l00149"></a>00149     <a class="code" href="class_frm_kame_main.html#o5">m_pToolbar</a> = <span class="keyword">new</span> QToolBar( QString(<span class="stringliteral">""</span>), <span class="keyword">this</span>, DockTop ); 
@@ -252,20 +252,20 @@
 <a name="l00243"></a>00243     connect( <a class="code" href="class_frm_kame_main.html#o15">m_pScriptDotSaveAction</a>, SIGNAL( activated() ), <span class="keyword">this</span>, SLOT( <a class="code" href="class_frm_kame_main.html#i9">scriptDotSaveAction_activated</a>() ) );
 <a name="l00244"></a>00244     connect( <a class="code" href="class_frm_kame_main.html#o12">m_pFileLogAction</a>, SIGNAL( toggled(<span class="keywordtype">bool</span>) ), <span class="keyword">this</span>, SLOT( <a class="code" href="class_frm_kame_main.html#i10">fileLogAction_toggled</a>(<span class="keywordtype">bool</span>) ) );
 <a name="l00245"></a>00245     
-<a name="l00246"></a>00246    connect(app, SIGNAL(<a class="code" href="class_frm_kame_main.html#j0">aboutToQuit</a>()), <span class="keyword">this</span>, SLOT(<a class="code" href="class_frm_kame_main.html#j0">aboutToQuit</a>()));
-<a name="l00247"></a>00247    connect(app, SIGNAL( lastWindowClosed() ), app, SLOT( quit() ) );
+<a name="l00246"></a>00246         connect(app, SIGNAL(<a class="code" href="class_frm_kame_main.html#j0">aboutToQuit</a>()), <span class="keyword">this</span>, SLOT(<a class="code" href="class_frm_kame_main.html#j0">aboutToQuit</a>()));
+<a name="l00247"></a>00247         connect(app, SIGNAL( lastWindowClosed() ), app, SLOT( quit() ) );
 <a name="l00248"></a>00248    
-<a name="l00249"></a>00249    <a class="code" href="class_frm_kame_main.html#r0">m_pTimer</a> = <span class="keyword">new</span> QTimer(<span class="keyword">this</span>);
-<a name="l00250"></a>00250    connect(<a class="code" href="class_frm_kame_main.html#r0">m_pTimer</a>, SIGNAL (timeout() ), <span class="keyword">this</span>, SLOT(<a class="code" href="class_frm_kame_main.html#j1">processSignals</a>()));
-<a name="l00251"></a>00251    <a class="code" href="class_frm_kame_main.html#r0">m_pTimer</a>-&gt;start(1);
+<a name="l00249"></a>00249         <a class="code" href="class_frm_kame_main.html#r0">m_pTimer</a> = <span class="keyword">new</span> QTimer(<span class="keyword">this</span>);
+<a name="l00250"></a>00250         connect(<a class="code" href="class_frm_kame_main.html#r0">m_pTimer</a>, SIGNAL (timeout() ), <span class="keyword">this</span>, SLOT(<a class="code" href="class_frm_kame_main.html#j1">processSignals</a>()));
+<a name="l00251"></a>00251         <a class="code" href="class_frm_kame_main.html#r0">m_pTimer</a>-&gt;start(1);
 <a name="l00252"></a>00252 }
 <a name="l00253"></a>00253 
 <a name="l00254"></a><a class="code" href="class_frm_kame_main.html#a1">00254</a> <a class="code" href="class_frm_kame_main.html#a1">FrmKameMain::~FrmKameMain</a>()
 <a name="l00255"></a>00255 {
-<a name="l00256"></a>00256   <a class="code" href="class_frm_kame_main.html#r0">m_pTimer</a>-&gt;stop();
+<a name="l00256"></a>00256         <a class="code" href="class_frm_kame_main.html#r0">m_pTimer</a>-&gt;stop();
 <a name="l00257"></a>00257 
-<a name="l00258"></a>00258   <a class="code" href="class_frm_kame_main.html#r1">m_measure</a>.reset();
-<a name="l00259"></a>00259   g_signalBuffer.reset();
+<a name="l00258"></a>00258         <a class="code" href="class_frm_kame_main.html#r1">m_measure</a>.reset();
+<a name="l00259"></a>00259         g_signalBuffer.reset();
 <a name="l00260"></a>00260 }
 <a name="l00261"></a>00261 
 <a name="l00262"></a>00262 <span class="keywordtype">void</span>
@@ -274,71 +274,71 @@
 <a name="l00265"></a>00265 
 <a name="l00266"></a>00266 <span class="keywordtype">void</span>
 <a name="l00267"></a><a class="code" href="class_frm_kame_main.html#j1">00267</a> <a class="code" href="class_frm_kame_main.html#j1">FrmKameMain::processSignals</a>() {
-<a name="l00268"></a>00268   <span class="keywordtype">bool</span> idle = g_signalBuffer-&gt;synchronize();
-<a name="l00269"></a>00269   <span class="keywordflow">if</span>(idle) {
+<a name="l00268"></a>00268         <span class="keywordtype">bool</span> idle = g_signalBuffer-&gt;synchronize();
+<a name="l00269"></a>00269         <span class="keywordflow">if</span>(idle) {
 <a name="l00270"></a>00270 <span class="preprocessor">#ifdef HAVE_LIBGCCPP</span>
-<a name="l00271"></a>00271 <span class="preprocessor"></span><span class="keyword">static</span> <a class="code" href="class_x_time.html">XTime</a> last = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
-<a name="l00272"></a>00272     <span class="keywordflow">if</span>(<a class="code" href="class_x_time.html#e0">XTime::now</a>() - last &gt; 3) {
-<a name="l00273"></a>00273         GC_gcollect();
-<a name="l00274"></a>00274         last = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
-<a name="l00275"></a>00275     }
+<a name="l00271"></a>00271 <span class="preprocessor"></span>                <span class="keyword">static</span> <a class="code" href="class_x_time.html">XTime</a> last = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
+<a name="l00272"></a>00272                 <span class="keywordflow">if</span>(<a class="code" href="class_x_time.html#e0">XTime::now</a>() - last &gt; 3) {
+<a name="l00273"></a>00273                         GC_gcollect();
+<a name="l00274"></a>00274                         last = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
+<a name="l00275"></a>00275                 }
 <a name="l00276"></a>00276 <span class="preprocessor">#endif    </span>
-<a name="l00277"></a>00277 <span class="preprocessor"></span>  }
+<a name="l00277"></a>00277 <span class="preprocessor"></span>        }
 <a name="l00278"></a>00278 }
 <a name="l00279"></a>00279 
 <a name="l00280"></a>00280 <span class="keywordtype">void</span>
 <a name="l00281"></a><a class="code" href="class_frm_kame_main.html#d0">00281</a> <a class="code" href="class_frm_kame_main.html#d0">FrmKameMain::closeEvent</a>( QCloseEvent* ce )
 <a name="l00282"></a>00282 {
-<a name="l00283"></a>00283    <span class="keywordtype">bool</span> opened = <span class="keyword">false</span>;
-<a name="l00284"></a>00284    <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> list(<a class="code" href="class_frm_kame_main.html#r1">m_measure</a>-&gt;interfaceList()-&gt;children());
-<a name="l00285"></a>00285    <span class="keywordflow">if</span>(list) { 
-<a name="l00286"></a>00286        <span class="keywordflow">for</span>(XNode::NodeList::const_iterator it = list-&gt;begin(); it != list-&gt;end(); it++) {
-<a name="l00287"></a>00287          shared_ptr&lt;XInterface&gt; _interface = dynamic_pointer_cast&lt;XInterface&gt;(*it);
-<a name="l00288"></a>00288          <span class="keywordflow">if</span>(_interface-&gt;isOpened()) opened = <span class="keyword">true</span>;
-<a name="l00289"></a>00289        }
-<a name="l00290"></a>00290    }
-<a name="l00291"></a>00291    <span class="keywordflow">if</span>(opened) {
-<a name="l00292"></a>00292        QMessageBox::warning( <span class="keyword">this</span>, <span class="stringliteral">"KAME"</span>, <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Stop running first."</span>) );
-<a name="l00293"></a>00293        ce-&gt;ignore();
-<a name="l00294"></a>00294    }
-<a name="l00295"></a>00295    <span class="keywordflow">else</span> {
-<a name="l00296"></a>00296     ce-&gt;accept();
-<a name="l00297"></a>00297     printf(<span class="stringliteral">"quit\n"</span>);
-<a name="l00298"></a>00298     <a class="code" href="class_frm_kame_main.html#r2">m_conMeasRubyThread</a>.reset();
-<a name="l00299"></a>00299     <a class="code" href="class_frm_kame_main.html#r1">m_measure</a>-&gt;terminate();
+<a name="l00283"></a>00283         <span class="keywordtype">bool</span> opened = <span class="keyword">false</span>;
+<a name="l00284"></a>00284         <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> list(<a class="code" href="class_frm_kame_main.html#r1">m_measure</a>-&gt;interfaceList()-&gt;children());
+<a name="l00285"></a>00285         <span class="keywordflow">if</span>(list) { 
+<a name="l00286"></a>00286                 <span class="keywordflow">for</span>(XNode::NodeList::const_iterator it = list-&gt;begin(); it != list-&gt;end(); it++) {
+<a name="l00287"></a>00287                         shared_ptr&lt;XInterface&gt; _interface = dynamic_pointer_cast&lt;XInterface&gt;(*it);
+<a name="l00288"></a>00288                         <span class="keywordflow">if</span>(_interface-&gt;isOpened()) opened = <span class="keyword">true</span>;
+<a name="l00289"></a>00289                 }
+<a name="l00290"></a>00290         }
+<a name="l00291"></a>00291         <span class="keywordflow">if</span>(opened) {
+<a name="l00292"></a>00292                 QMessageBox::warning( <span class="keyword">this</span>, <span class="stringliteral">"KAME"</span>, <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Stop running first."</span>) );
+<a name="l00293"></a>00293                 ce-&gt;ignore();
+<a name="l00294"></a>00294         }
+<a name="l00295"></a>00295         <span class="keywordflow">else</span> {
+<a name="l00296"></a>00296                 ce-&gt;accept();
+<a name="l00297"></a>00297                 printf(<span class="stringliteral">"quit\n"</span>);
+<a name="l00298"></a>00298                 <a class="code" href="class_frm_kame_main.html#r2">m_conMeasRubyThread</a>.reset();
+<a name="l00299"></a>00299                 <a class="code" href="class_frm_kame_main.html#r1">m_measure</a>-&gt;terminate();
 <a name="l00300"></a>00300    
-<a name="l00301"></a>00301     <a class="code" href="class_frm_kame_main.html#r1">m_measure</a>.reset();
-<a name="l00302"></a>00302    }
+<a name="l00301"></a>00301                 <a class="code" href="class_frm_kame_main.html#r1">m_measure</a>.reset();
+<a name="l00302"></a>00302         }
 <a name="l00303"></a>00303 }
 <a name="l00304"></a>00304 
 <a name="l00305"></a><a class="code" href="class_frm_kame_main.html#i0">00305</a> <span class="keywordtype">void</span> <a class="code" href="class_frm_kame_main.html#i0">FrmKameMain::fileCloseAction_activated</a>()
 <a name="l00306"></a>00306 {
-<a name="l00307"></a>00307   <a class="code" href="class_frm_kame_main.html#r2">m_conMeasRubyThread</a>.reset();
-<a name="l00308"></a>00308   <a class="code" href="class_frm_kame_main.html#r1">m_measure</a>-&gt;terminate();
+<a name="l00307"></a>00307         <a class="code" href="class_frm_kame_main.html#r2">m_conMeasRubyThread</a>.reset();
+<a name="l00308"></a>00308         <a class="code" href="class_frm_kame_main.html#r1">m_measure</a>-&gt;terminate();
 <a name="l00309"></a>00309 }
 <a name="l00310"></a>00310 
 <a name="l00311"></a>00311 
 <a name="l00312"></a><a class="code" href="class_frm_kame_main.html#i1">00312</a> <span class="keywordtype">void</span> <a class="code" href="class_frm_kame_main.html#i1">FrmKameMain::fileExitAction_activated</a>()
 <a name="l00313"></a>00313 {
-<a name="l00314"></a>00314   close();
+<a name="l00314"></a>00314         close();
 <a name="l00315"></a>00315 }
 <a name="l00316"></a>00316 
 <a name="l00317"></a>00317 <span class="keywordtype">int</span>
 <a name="l00318"></a><a class="code" href="class_frm_kame_main.html#a2">00318</a> <a class="code" href="class_frm_kame_main.html#a2">FrmKameMain::openMes</a>(<span class="keyword">const</span> QString &amp;filename)
 <a name="l00319"></a>00319 {
-<a name="l00320"></a>00320   <span class="keywordflow">if</span>(!filename.isEmpty())
+<a name="l00320"></a>00320         <span class="keywordflow">if</span>(!filename.isEmpty())
 <a name="l00321"></a>00321     {
-<a name="l00322"></a>00322           shared_ptr&lt;XRubyThread&gt; rbthread = <a class="code" href="class_frm_kame_main.html#r1">m_measure</a>-&gt;ruby()-&gt;
+<a name="l00322"></a>00322                 shared_ptr&lt;XRubyThread&gt; rbthread = <a class="code" href="class_frm_kame_main.html#r1">m_measure</a>-&gt;ruby()-&gt;
 <a name="l00323"></a>00323             create&lt;XRubyThread&gt;(<span class="stringliteral">"Open Measurement"</span>, <span class="keyword">true</span>, filename );
-<a name="l00324"></a>00324           FrmRubyThread* form = <span class="keyword">new</span> FrmRubyThread(<span class="keyword">this</span>);
-<a name="l00325"></a>00325           <a class="code" href="class_frm_kame_main.html#r2">m_conMeasRubyThread</a> = xqcon_create&lt;XRubyThreadConnector&gt;(
-<a name="l00326"></a>00326                 rbthread, form, <a class="code" href="class_frm_kame_main.html#r1">m_measure</a>-&gt;ruby());
-<a name="l00327"></a>00327           KMdiChildView *view = createWrapper(form, form-&gt;caption(), form-&gt;caption());
-<a name="l00328"></a>00328           addWindow(view);
-<a name="l00329"></a>00329           <span class="keywordflow">while</span>(rbthread-&gt;isAlive()) {
+<a name="l00324"></a>00324                 FrmRubyThread* form = <span class="keyword">new</span> FrmRubyThread(<span class="keyword">this</span>);
+<a name="l00325"></a>00325                 <a class="code" href="class_frm_kame_main.html#r2">m_conMeasRubyThread</a> = xqcon_create&lt;XRubyThreadConnector&gt;(
+<a name="l00326"></a>00326                         rbthread, form, <a class="code" href="class_frm_kame_main.html#r1">m_measure</a>-&gt;ruby());
+<a name="l00327"></a>00327                 KMdiChildView *view = createWrapper(form, form-&gt;caption(), form-&gt;caption());
+<a name="l00328"></a>00328                 addWindow(view);
+<a name="l00329"></a>00329                 <span class="keywordflow">while</span>(rbthread-&gt;isAlive()) {
 <a name="l00330"></a>00330             KApplication::kApplication()-&gt;processEvents();
 <a name="l00331"></a>00331             g_signalBuffer-&gt;synchronize();
-<a name="l00332"></a>00332           }
+<a name="l00332"></a>00332                 }
 <a name="l00333"></a>00333 <span class="comment">//          closeWindow(view);</span>
 <a name="l00334"></a>00334 
 <a name="l00335"></a>00335 <span class="comment">//        m_pMesRunAction-&gt;setEnabled(true);</span>
@@ -353,27 +353,27 @@
 <a name="l00344"></a>00344 
 <a name="l00345"></a><a class="code" href="class_frm_kame_main.html#i2">00345</a> <span class="keywordtype">void</span> <a class="code" href="class_frm_kame_main.html#i2">FrmKameMain::fileOpenAction_activated</a>()
 <a name="l00346"></a>00346 {
-<a name="l00347"></a>00347   QString filename = KFileDialog::getOpenFileName (
-<a name="l00348"></a>00348                                            <span class="stringliteral">""</span>,
-<a name="l00349"></a>00349                         <span class="stringliteral">"*.kam|KAME2 Measurement files (*.kam)\n"</span>
-<a name="l00350"></a>00350                         <span class="stringliteral">"*.mes|KAME1 Measurement files (*.mes)\n"</span>
-<a name="l00351"></a>00351                         <span class="stringliteral">"*.*|All files (*.*)"</span>,
-<a name="l00352"></a>00352                                            <span class="keyword">this</span>,
-<a name="l00353"></a>00353                                            <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Open Measurement File"</span>));
-<a name="l00354"></a>00354   <a class="code" href="class_frm_kame_main.html#a2">openMes</a>(filename);
+<a name="l00347"></a>00347         QString filename = KFileDialog::getOpenFileName (
+<a name="l00348"></a>00348                 <span class="stringliteral">""</span>,
+<a name="l00349"></a>00349                 <span class="stringliteral">"*.kam|KAME2 Measurement files (*.kam)\n"</span>
+<a name="l00350"></a>00350                 <span class="stringliteral">"*.mes|KAME1 Measurement files (*.mes)\n"</span>
+<a name="l00351"></a>00351                 <span class="stringliteral">"*.*|All files (*.*)"</span>,
+<a name="l00352"></a>00352                 <span class="keyword">this</span>,
+<a name="l00353"></a>00353                 <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Open Measurement File"</span>));
+<a name="l00354"></a>00354         <a class="code" href="class_frm_kame_main.html#a2">openMes</a>(filename);
 <a name="l00355"></a>00355 }
 <a name="l00356"></a>00356 
 <a name="l00357"></a>00357 
 <a name="l00358"></a><a class="code" href="class_frm_kame_main.html#i3">00358</a> <span class="keywordtype">void</span> <a class="code" href="class_frm_kame_main.html#i3">FrmKameMain::fileSaveAction_activated</a>()
 <a name="l00359"></a>00359 {
-<a name="l00360"></a>00360   QString filename = KFileDialog::getSaveFileName (
-<a name="l00361"></a>00361                                            <span class="stringliteral">""</span>,
-<a name="l00362"></a>00362                         <span class="stringliteral">"*.kam|KAME2 Measurement files (*.kam)\n"</span>
-<a name="l00363"></a>00363                                            <span class="stringliteral">"*.mes|KAME1 Measurement files (*.mes)\n"</span>
-<a name="l00364"></a>00364                         <span class="stringliteral">"*.*|All files (*.*)"</span>,
-<a name="l00365"></a>00365                                            <span class="keyword">this</span>,
-<a name="l00366"></a>00366                                            <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Save Measurement File"</span>) );
-<a name="l00367"></a>00367   <span class="keywordflow">if</span>(!filename.isEmpty())
+<a name="l00360"></a>00360         QString filename = KFileDialog::getSaveFileName (
+<a name="l00361"></a>00361                 <span class="stringliteral">""</span>,
+<a name="l00362"></a>00362                 <span class="stringliteral">"*.kam|KAME2 Measurement files (*.kam)\n"</span>
+<a name="l00363"></a>00363                 <span class="stringliteral">"*.mes|KAME1 Measurement files (*.mes)\n"</span>
+<a name="l00364"></a>00364                 <span class="stringliteral">"*.*|All files (*.*)"</span>,
+<a name="l00365"></a>00365                 <span class="keyword">this</span>,
+<a name="l00366"></a>00366                 <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Save Measurement File"</span>) );
+<a name="l00367"></a>00367         <span class="keywordflow">if</span>(!filename.isEmpty())
 <a name="l00368"></a>00368     {
 <a name="l00369"></a>00369         std::ofstream ofs(filename.local8Bit(), std::ios::out);
 <a name="l00370"></a>00370         <span class="keywordflow">if</span>(ofs.good()) {
@@ -386,8 +386,8 @@
 <a name="l00377"></a>00377 
 <a name="l00378"></a><a class="code" href="class_frm_kame_main.html#i4">00378</a> <span class="keywordtype">void</span> <a class="code" href="class_frm_kame_main.html#i4">FrmKameMain::helpAboutAction_activated</a>()
 <a name="l00379"></a>00379 {
-<a name="l00380"></a>00380   KMessageBox::about( <span class="keyword">this</span>,
-<a name="l00381"></a>00381                       <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"K's Adaptive Measurement Engine."</span>), <span class="stringliteral">"KAME"</span>);
+<a name="l00380"></a>00380         KMessageBox::about( <span class="keyword">this</span>,
+<a name="l00381"></a>00381                                                 <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"K's Adaptive Measurement Engine."</span>), <span class="stringliteral">"KAME"</span>);
 <a name="l00382"></a>00382 }
 <a name="l00383"></a>00383 
 <a name="l00384"></a><a class="code" href="class_frm_kame_main.html#i5">00384</a> <span class="keywordtype">void</span> <a class="code" href="class_frm_kame_main.html#i5">FrmKameMain::helpContentsAction_activated</a>()
@@ -401,47 +401,47 @@
 <a name="l00392"></a>00392 }
 <a name="l00393"></a>00393 
 <a name="l00394"></a>00394 <span class="comment">/*</span>
-<a name="l00395"></a>00395 <span class="comment">void FrmKameMain::mesRunAction_activated()</span>
-<a name="l00396"></a>00396 <span class="comment">{</span>
+<a name="l00395"></a>00395 <span class="comment">  void FrmKameMain::mesRunAction_activated()</span>
+<a name="l00396"></a>00396 <span class="comment">  {</span>
 <a name="l00397"></a>00397 <span class="comment">  m_pMesRunAction-&gt;setEnabled(false);</span>
 <a name="l00398"></a>00398 <span class="comment">  m_pMesStopAction-&gt;setEnabled(true);</span>
 <a name="l00399"></a>00399 <span class="comment">  m_pFileCloseAction-&gt;setEnabled(false);</span>
 <a name="l00400"></a>00400 <span class="comment">  m_pFileExitAction-&gt;setEnabled(false);</span>
 <a name="l00401"></a>00401 <span class="comment">  m_measure-&gt;start();</span>
-<a name="l00402"></a>00402 <span class="comment">}</span>
+<a name="l00402"></a>00402 <span class="comment">  }</span>
 <a name="l00403"></a>00403 <span class="comment">*/</span>
 <a name="l00404"></a>00404 
 <a name="l00405"></a><a class="code" href="class_frm_kame_main.html#i7">00405</a> <span class="keywordtype">void</span> <a class="code" href="class_frm_kame_main.html#i7">FrmKameMain::mesStopAction_activated</a>()
 <a name="l00406"></a>00406 {
-<a name="l00407"></a>00407   <a class="code" href="class_frm_kame_main.html#r1">m_measure</a>-&gt;stop();
+<a name="l00407"></a>00407         <a class="code" href="class_frm_kame_main.html#r1">m_measure</a>-&gt;stop();
 <a name="l00408"></a>00408 <span class="comment">/*</span>
 <a name="l00409"></a>00409 <span class="comment"> *   m_pMesRunAction-&gt;setEnabled(true);</span>
-<a name="l00410"></a>00410 <span class="comment">  m_pMesStopAction-&gt;setEnabled(false);</span>
-<a name="l00411"></a>00411 <span class="comment">  m_pFileCloseAction-&gt;setEnabled(true);</span>
-<a name="l00412"></a>00412 <span class="comment">  m_pFileExitAction-&gt;setEnabled(true);</span>
-<a name="l00413"></a>00413 <span class="comment">  */</span>
+<a name="l00410"></a>00410 <span class="comment"> m_pMesStopAction-&gt;setEnabled(false);</span>
+<a name="l00411"></a>00411 <span class="comment"> m_pFileCloseAction-&gt;setEnabled(true);</span>
+<a name="l00412"></a>00412 <span class="comment"> m_pFileExitAction-&gt;setEnabled(true);</span>
+<a name="l00413"></a>00413 <span class="comment">*/</span>
 <a name="l00414"></a>00414 }
 <a name="l00415"></a>00415 
 <a name="l00416"></a>00416 
 <a name="l00417"></a><a class="code" href="class_frm_kame_main.html#i8">00417</a> <span class="keywordtype">void</span> <a class="code" href="class_frm_kame_main.html#i8">FrmKameMain::scriptRunAction_activated</a>()
 <a name="l00418"></a>00418 {
-<a name="l00419"></a>00419   QString filename = KFileDialog::getOpenFileName (
-<a name="l00420"></a>00420                                            <span class="stringliteral">""</span>,
-<a name="l00421"></a>00421                                            <span class="stringliteral">"*.seq|KAME Script files (*.seq)"</span>,
-<a name="l00422"></a>00422                                            <span class="keyword">this</span>,
-<a name="l00423"></a>00423                                            <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Open Script File"</span>) );
-<a name="l00424"></a>00424   <span class="keywordflow">if</span>(!filename.isEmpty())
+<a name="l00419"></a>00419         QString filename = KFileDialog::getOpenFileName (
+<a name="l00420"></a>00420                 <span class="stringliteral">""</span>,
+<a name="l00421"></a>00421                 <span class="stringliteral">"*.seq|KAME Script files (*.seq)"</span>,
+<a name="l00422"></a>00422                 <span class="keyword">this</span>,
+<a name="l00423"></a>00423                 <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Open Script File"</span>) );
+<a name="l00424"></a>00424         <span class="keywordflow">if</span>(!filename.isEmpty())
 <a name="l00425"></a>00425     {
-<a name="l00426"></a>00426       <span class="keyword">static</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> thread_no = 1;
-<a name="l00427"></a>00427       shared_ptr&lt;XRubyThread&gt; rbthread = <a class="code" href="class_frm_kame_main.html#r1">m_measure</a>-&gt;ruby()-&gt;
+<a name="l00426"></a>00426                 <span class="keyword">static</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> thread_no = 1;
+<a name="l00427"></a>00427                 shared_ptr&lt;XRubyThread&gt; rbthread = <a class="code" href="class_frm_kame_main.html#r1">m_measure</a>-&gt;ruby()-&gt;
 <a name="l00428"></a>00428             create&lt;XRubyThread&gt;(QString().sprintf(<span class="stringliteral">"Thread%d"</span>, thread_no).latin1(), <span class="keyword">true</span>, filename );
-<a name="l00429"></a>00429       thread_no++;
-<a name="l00430"></a>00430       FrmRubyThread* form = <span class="keyword">new</span> FrmRubyThread(<span class="keyword">this</span>);
-<a name="l00431"></a>00431       <a class="code" href="class_frm_kame_main.html#r3">m_conRubyThreadList</a>.push_back(xqcon_create&lt;XRubyThreadConnector&gt;(
-<a name="l00432"></a>00432             rbthread, form, <a class="code" href="class_frm_kame_main.html#r1">m_measure</a>-&gt;ruby()));
-<a name="l00433"></a>00433       addWindow(createWrapper(form, form-&gt;caption(), form-&gt;caption()));
-<a name="l00434"></a>00434       <span class="comment">// erase unused xqcon_ptr</span>
-<a name="l00435"></a>00435       <span class="keywordflow">for</span>(std::deque&lt;xqcon_ptr&gt;::iterator it = <a class="code" href="class_frm_kame_main.html#r3">m_conRubyThreadList</a>.begin();
+<a name="l00429"></a>00429                 thread_no++;
+<a name="l00430"></a>00430                 FrmRubyThread* form = <span class="keyword">new</span> FrmRubyThread(<span class="keyword">this</span>);
+<a name="l00431"></a>00431                 <a class="code" href="class_frm_kame_main.html#r3">m_conRubyThreadList</a>.push_back(xqcon_create&lt;XRubyThreadConnector&gt;(
+<a name="l00432"></a>00432                                                                                   rbthread, form, <a class="code" href="class_frm_kame_main.html#r1">m_measure</a>-&gt;ruby()));
+<a name="l00433"></a>00433                 addWindow(createWrapper(form, form-&gt;caption(), form-&gt;caption()));
+<a name="l00434"></a>00434                 <span class="comment">// erase unused xqcon_ptr</span>
+<a name="l00435"></a>00435                 <span class="keywordflow">for</span>(std::deque&lt;xqcon_ptr&gt;::iterator it = <a class="code" href="class_frm_kame_main.html#r3">m_conRubyThreadList</a>.begin();
 <a name="l00436"></a>00436             it != <a class="code" href="class_frm_kame_main.html#r3">m_conRubyThreadList</a>.end(); ) {
 <a name="l00437"></a>00437             <span class="keywordflow">if</span>((*it)-&gt;isAlive()) {
 <a name="l00438"></a>00438                 it++;
@@ -449,19 +449,19 @@
 <a name="l00440"></a>00440             <span class="keywordflow">else</span> {
 <a name="l00441"></a>00441                 it = <a class="code" href="class_frm_kame_main.html#r3">m_conRubyThreadList</a>.erase(it);
 <a name="l00442"></a>00442             }
-<a name="l00443"></a>00443        }
+<a name="l00443"></a>00443                 }
 <a name="l00444"></a>00444     }
 <a name="l00445"></a>00445 }
 <a name="l00446"></a>00446 
 <a name="l00447"></a><a class="code" href="class_frm_kame_main.html#i9">00447</a> <span class="keywordtype">void</span> <a class="code" href="class_frm_kame_main.html#i9">FrmKameMain::scriptDotSaveAction_activated</a>()
 <a name="l00448"></a>00448 {
-<a name="l00449"></a>00449   QString filename = KFileDialog::getSaveFileName (
-<a name="l00450"></a>00450                        <span class="stringliteral">""</span>,
-<a name="l00451"></a>00451                         <span class="stringliteral">"*.dot|Graphviz dot files (*.dot)\n"</span>
-<a name="l00452"></a>00452                         <span class="stringliteral">"*.*|All files (*.*)"</span>,
-<a name="l00453"></a>00453                        <span class="keyword">this</span>,
-<a name="l00454"></a>00454                        <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Save Graphviz dot File"</span>) );
-<a name="l00455"></a>00455   <span class="keywordflow">if</span>(!filename.isEmpty())
+<a name="l00449"></a>00449         QString filename = KFileDialog::getSaveFileName (
+<a name="l00450"></a>00450                 <span class="stringliteral">""</span>,
+<a name="l00451"></a>00451                 <span class="stringliteral">"*.dot|Graphviz dot files (*.dot)\n"</span>
+<a name="l00452"></a>00452                 <span class="stringliteral">"*.*|All files (*.*)"</span>,
+<a name="l00453"></a>00453                 <span class="keyword">this</span>,
+<a name="l00454"></a>00454                 <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Save Graphviz dot File"</span>) );
+<a name="l00455"></a>00455         <span class="keywordflow">if</span>(!filename.isEmpty())
 <a name="l00456"></a>00456     {
 <a name="l00457"></a>00457         std::ofstream ofs(filename.local8Bit(), std::ios::out);
 <a name="l00458"></a>00458         <span class="keywordflow">if</span>(ofs.good()) {
@@ -473,10 +473,10 @@
 <a name="l00464"></a>00464 
 <a name="l00465"></a><a class="code" href="class_frm_kame_main.html#i10">00465</a> <span class="keywordtype">void</span> <a class="code" href="class_frm_kame_main.html#i10">FrmKameMain::fileLogAction_toggled</a>( <span class="keywordtype">bool</span> var)
 <a name="l00466"></a>00466 {
-<a name="l00467"></a>00467   g_bLogDbgPrint = var;
+<a name="l00467"></a>00467         g_bLogDbgPrint = var;
 <a name="l00468"></a>00468 }
 <a name="l00469"></a>00469 
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:35 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:14 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

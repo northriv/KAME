@@ -19,7 +19,7 @@
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="preprocessor">#include "graphwidget.h"</span>
 <a name="l00015"></a>00015 <span class="preprocessor">#include "graph.h"</span>
 <a name="l00016"></a>00016 <span class="preprocessor">#include &lt;qpixmap.h&gt;</span>
@@ -34,7 +34,7 @@
 <a name="l00025"></a>00025 
 <a name="l00026"></a><a class="code" href="class_x_q_graph.html#a0">00026</a> <a class="code" href="class_x_q_graph.html#a0">XQGraph::XQGraph</a>( QWidget* parent, <span class="keyword">const</span> <span class="keywordtype">char</span>* name, WFlags fl ) :
 <a name="l00027"></a>00027     QGLWidget( QGLFormat(AlphaChannel | DoubleBuffer | Rgba | DepthBuffer | AccumBuffer )
-<a name="l00028"></a>00028         , parent, name, 0, fl)
+<a name="l00028"></a>00028                            , parent, name, 0, fl)
 <a name="l00029"></a>00029 {
 <a name="l00030"></a>00030     <span class="keywordflow">if</span>(!format().directRendering()) dbgPrint(<span class="stringliteral">"direct rendering disabled"</span>);
 <a name="l00031"></a>00031 <span class="comment">//      if(!layout() ) new QHBoxLayout(this);</span>
@@ -51,90 +51,90 @@
 <a name="l00042"></a>00042     <a class="code" href="class_x_q_graph.html#r1">m_painter</a>.reset();
 <a name="l00043"></a>00043     <a class="code" href="class_x_q_graph.html#r0">m_graph</a> = graph;
 <a name="l00044"></a>00044     <span class="keywordflow">if</span>(graph &amp;&amp; isVisible() &amp;&amp; isShown()) {
-<a name="l00045"></a>00045             <a class="code" href="class_x_q_graph.html#b5">showEvent</a>(NULL);
+<a name="l00045"></a>00045                 <a class="code" href="class_x_q_graph.html#b5">showEvent</a>(NULL);
 <a name="l00046"></a>00046     } 
 <a name="l00047"></a>00047 }
 <a name="l00048"></a>00048 <span class="keywordtype">void</span>
 <a name="l00049"></a><a class="code" href="class_x_q_graph.html#b0">00049</a> <a class="code" href="class_x_q_graph.html#b0">XQGraph::mousePressEvent</a> ( QMouseEvent* e)
 <a name="l00050"></a>00050 {
-<a name="l00051"></a>00051   <span class="keywordflow">if</span>(!<a class="code" href="class_x_q_graph.html#r1">m_painter</a> ) <span class="keywordflow">return</span>;
-<a name="l00052"></a>00052   <a class="code" href="class_x_q_graph_painter.html#w14">XQGraphPainter::SelectionMode</a> mode;
-<a name="l00053"></a>00053   <span class="keywordflow">switch</span> (e-&gt;button()) {
-<a name="l00054"></a>00054   <span class="keywordflow">case</span> RightButton:
-<a name="l00055"></a>00055         mode = XQGraphPainter::SelAxis;
-<a name="l00056"></a>00056         <span class="keywordflow">break</span>;
-<a name="l00057"></a>00057   <span class="keywordflow">case</span> LeftButton:
-<a name="l00058"></a>00058         mode = XQGraphPainter::SelPlane;
-<a name="l00059"></a>00059         <span class="keywordflow">break</span>;
-<a name="l00060"></a>00060   <span class="keywordflow">case</span> MidButton:
-<a name="l00061"></a>00061         mode = XQGraphPainter::TiltTracking;
-<a name="l00062"></a>00062         <span class="keywordflow">break</span>;
-<a name="l00063"></a>00063   <span class="keywordflow">default</span>:
-<a name="l00064"></a>00064         mode = XQGraphPainter::SelNone;
-<a name="l00065"></a>00065         <span class="keywordflow">break</span>;
-<a name="l00066"></a>00066   }
-<a name="l00067"></a>00067   <a class="code" href="class_x_q_graph.html#r1">m_painter</a>-&gt;selectObjs(e-&gt;pos().x(), e-&gt;pos().y(), XQGraphPainter::SelStart, mode);
+<a name="l00051"></a>00051         <span class="keywordflow">if</span>(!<a class="code" href="class_x_q_graph.html#r1">m_painter</a> ) <span class="keywordflow">return</span>;
+<a name="l00052"></a>00052         <a class="code" href="class_x_q_graph_painter.html#w14">XQGraphPainter::SelectionMode</a> mode;
+<a name="l00053"></a>00053         <span class="keywordflow">switch</span> (e-&gt;button()) {
+<a name="l00054"></a>00054         <span class="keywordflow">case</span> RightButton:
+<a name="l00055"></a>00055                 mode = XQGraphPainter::SelAxis;
+<a name="l00056"></a>00056                 <span class="keywordflow">break</span>;
+<a name="l00057"></a>00057         <span class="keywordflow">case</span> LeftButton:
+<a name="l00058"></a>00058                 mode = XQGraphPainter::SelPlane;
+<a name="l00059"></a>00059                 <span class="keywordflow">break</span>;
+<a name="l00060"></a>00060         <span class="keywordflow">case</span> MidButton:
+<a name="l00061"></a>00061                 mode = XQGraphPainter::TiltTracking;
+<a name="l00062"></a>00062                 <span class="keywordflow">break</span>;
+<a name="l00063"></a>00063         <span class="keywordflow">default</span>:
+<a name="l00064"></a>00064                 mode = XQGraphPainter::SelNone;
+<a name="l00065"></a>00065                 <span class="keywordflow">break</span>;
+<a name="l00066"></a>00066         }
+<a name="l00067"></a>00067         <a class="code" href="class_x_q_graph.html#r1">m_painter</a>-&gt;selectObjs(e-&gt;pos().x(), e-&gt;pos().y(), XQGraphPainter::SelStart, mode);
 <a name="l00068"></a>00068 }
 <a name="l00069"></a>00069 <span class="keywordtype">void</span>
 <a name="l00070"></a><a class="code" href="class_x_q_graph.html#b3">00070</a> <a class="code" href="class_x_q_graph.html#b3">XQGraph::mouseMoveEvent</a> ( QMouseEvent* e)
 <a name="l00071"></a>00071 {
-<a name="l00072"></a>00072   <span class="keyword">static</span> <a class="code" href="class_x_time.html">XTime</a> lasttime = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
-<a name="l00073"></a>00073   <span class="keywordflow">if</span>(<a class="code" href="class_x_time.html#e0">XTime::now</a>() - lasttime &lt; 0.033) <span class="keywordflow">return</span>;
-<a name="l00074"></a>00074   <span class="keywordflow">if</span>(!<a class="code" href="class_x_q_graph.html#r1">m_painter</a> ) <span class="keywordflow">return</span>;
-<a name="l00075"></a>00075   <a class="code" href="class_x_q_graph.html#r1">m_painter</a>-&gt;selectObjs(e-&gt;pos().x(), e-&gt;pos().y(), XQGraphPainter::Selecting);  
+<a name="l00072"></a>00072         <span class="keyword">static</span> <a class="code" href="class_x_time.html">XTime</a> lasttime = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
+<a name="l00073"></a>00073         <span class="keywordflow">if</span>(<a class="code" href="class_x_time.html#e0">XTime::now</a>() - lasttime &lt; 0.033) <span class="keywordflow">return</span>;
+<a name="l00074"></a>00074         <span class="keywordflow">if</span>(!<a class="code" href="class_x_q_graph.html#r1">m_painter</a> ) <span class="keywordflow">return</span>;
+<a name="l00075"></a>00075         <a class="code" href="class_x_q_graph.html#r1">m_painter</a>-&gt;selectObjs(e-&gt;pos().x(), e-&gt;pos().y(), XQGraphPainter::Selecting);  
 <a name="l00076"></a>00076 }
 <a name="l00077"></a>00077 <span class="keywordtype">void</span>
 <a name="l00078"></a><a class="code" href="class_x_q_graph.html#b1">00078</a> <a class="code" href="class_x_q_graph.html#b1">XQGraph::mouseReleaseEvent</a> ( QMouseEvent* e)
 <a name="l00079"></a>00079 {
-<a name="l00080"></a>00080   <span class="keywordflow">if</span>(!<a class="code" href="class_x_q_graph.html#r1">m_painter</a> ) <span class="keywordflow">return</span>;
-<a name="l00081"></a>00081   <a class="code" href="class_x_q_graph.html#r1">m_painter</a>-&gt;selectObjs(e-&gt;pos().x(), e-&gt;pos().y(), XQGraphPainter::SelFinish);
+<a name="l00080"></a>00080         <span class="keywordflow">if</span>(!<a class="code" href="class_x_q_graph.html#r1">m_painter</a> ) <span class="keywordflow">return</span>;
+<a name="l00081"></a>00081         <a class="code" href="class_x_q_graph.html#r1">m_painter</a>-&gt;selectObjs(e-&gt;pos().x(), e-&gt;pos().y(), XQGraphPainter::SelFinish);
 <a name="l00082"></a>00082 }
 <a name="l00083"></a>00083 <span class="keywordtype">void</span>
 <a name="l00084"></a><a class="code" href="class_x_q_graph.html#b2">00084</a> <a class="code" href="class_x_q_graph.html#b2">XQGraph::mouseDoubleClickEvent</a> ( QMouseEvent* e)
 <a name="l00085"></a>00085 {
-<a name="l00086"></a>00086   e-&gt;accept();
-<a name="l00087"></a>00087   <span class="keywordflow">if</span>(!<a class="code" href="class_x_q_graph.html#r1">m_painter</a> ) <span class="keywordflow">return</span>;
-<a name="l00088"></a>00088   <span class="keywordflow">if</span>(<a class="code" href="class_x_q_graph.html#r0">m_graph</a>) { 
-<a name="l00089"></a>00089    <span class="keywordflow">switch</span> (e-&gt;button()) {
-<a name="l00090"></a>00090      <span class="keywordflow">case</span> RightButton:
-<a name="l00091"></a>00091         <a class="code" href="class_x_q_graph.html#r1">m_painter</a>-&gt;showHelp();
-<a name="l00092"></a>00092         <span class="keywordflow">break</span>;
-<a name="l00093"></a>00093      <span class="keywordflow">case</span> LeftButton:
-<a name="l00094"></a>00094         <a class="code" href="class_x_q_graph.html#r2">m_conDialog</a> = xqcon_create&lt;XQGraphDialogConnector&gt;(<a class="code" href="class_x_q_graph.html#r0">m_graph</a>,
-<a name="l00095"></a>00095             <span class="keyword">new</span> DlgGraphSetup(<span class="keyword">this</span>, <span class="stringliteral">"GraphDialog"</span>, <span class="keyword">false</span>, Qt::WDestructiveClose));
-<a name="l00096"></a>00096         <span class="keywordflow">break</span>;
-<a name="l00097"></a>00097     <span class="keywordflow">case</span> MidButton:
-<a name="l00098"></a>00098         <span class="keywordflow">break</span>;
-<a name="l00099"></a>00099     <span class="keywordflow">default</span>:
-<a name="l00100"></a>00100         <span class="keywordflow">break</span>;
-<a name="l00101"></a>00101       }
-<a name="l00102"></a>00102   }
+<a name="l00086"></a>00086         e-&gt;accept();
+<a name="l00087"></a>00087         <span class="keywordflow">if</span>(!<a class="code" href="class_x_q_graph.html#r1">m_painter</a> ) <span class="keywordflow">return</span>;
+<a name="l00088"></a>00088         <span class="keywordflow">if</span>(<a class="code" href="class_x_q_graph.html#r0">m_graph</a>) { 
+<a name="l00089"></a>00089                 <span class="keywordflow">switch</span> (e-&gt;button()) {
+<a name="l00090"></a>00090                 <span class="keywordflow">case</span> RightButton:
+<a name="l00091"></a>00091                         <a class="code" href="class_x_q_graph.html#r1">m_painter</a>-&gt;showHelp();
+<a name="l00092"></a>00092                         <span class="keywordflow">break</span>;
+<a name="l00093"></a>00093                 <span class="keywordflow">case</span> LeftButton:
+<a name="l00094"></a>00094                         <a class="code" href="class_x_q_graph.html#r2">m_conDialog</a> = xqcon_create&lt;XQGraphDialogConnector&gt;(<a class="code" href="class_x_q_graph.html#r0">m_graph</a>,
+<a name="l00095"></a>00095                                                                                                                            <span class="keyword">new</span> DlgGraphSetup(<span class="keyword">this</span>, <span class="stringliteral">"GraphDialog"</span>, <span class="keyword">false</span>, Qt::WDestructiveClose));
+<a name="l00096"></a>00096                         <span class="keywordflow">break</span>;
+<a name="l00097"></a>00097                 <span class="keywordflow">case</span> MidButton:
+<a name="l00098"></a>00098                         <span class="keywordflow">break</span>;
+<a name="l00099"></a>00099                 <span class="keywordflow">default</span>:
+<a name="l00100"></a>00100                         <span class="keywordflow">break</span>;
+<a name="l00101"></a>00101                 }
+<a name="l00102"></a>00102         }
 <a name="l00103"></a>00103 }
 <a name="l00104"></a>00104 <span class="keywordtype">void</span>
 <a name="l00105"></a><a class="code" href="class_x_q_graph.html#b4">00105</a> <a class="code" href="class_x_q_graph.html#b4">XQGraph::wheelEvent</a> ( QWheelEvent *e)
 <a name="l00106"></a>00106 {
-<a name="l00107"></a>00107   e-&gt;accept();
-<a name="l00108"></a>00108   <span class="keywordflow">if</span>(<a class="code" href="class_x_q_graph.html#r1">m_painter</a> )
-<a name="l00109"></a>00109       <a class="code" href="class_x_q_graph.html#r1">m_painter</a>-&gt;wheel(e-&gt;pos().x(), e-&gt;pos().y(), (double)e-&gt;delta() / 8.0);
+<a name="l00107"></a>00107         e-&gt;accept();
+<a name="l00108"></a>00108         <span class="keywordflow">if</span>(<a class="code" href="class_x_q_graph.html#r1">m_painter</a> )
+<a name="l00109"></a>00109                 <a class="code" href="class_x_q_graph.html#r1">m_painter</a>-&gt;wheel(e-&gt;pos().x(), e-&gt;pos().y(), (double)e-&gt;delta() / 8.0);
 <a name="l00110"></a>00110 }
 <a name="l00111"></a>00111 <span class="keywordtype">void</span>
 <a name="l00112"></a><a class="code" href="class_x_q_graph.html#b5">00112</a> <a class="code" href="class_x_q_graph.html#b5">XQGraph::showEvent</a> ( QShowEvent * )
 <a name="l00113"></a>00113 {
-<a name="l00114"></a>00114   shared_ptr&lt;XGraph&gt; graph = <a class="code" href="class_x_q_graph.html#r0">m_graph</a>;
-<a name="l00115"></a>00115   <span class="keywordflow">if</span>(graph) { 
-<a name="l00116"></a>00116       <a class="code" href="class_x_q_graph.html#r1">m_painter</a>.reset();
-<a name="l00117"></a>00117       <span class="comment">// m_painter will be re-set in the constructor.</span>
-<a name="l00118"></a>00118       <span class="keyword">new</span> <a class="code" href="class_x_q_graph.html#n0">XQGraphPainter</a>(graph, <span class="keyword">this</span>);
-<a name="l00119"></a>00119       glInit();
-<a name="l00120"></a>00120       setMouseTracking(<span class="keyword">true</span>);
-<a name="l00121"></a>00121   }
+<a name="l00114"></a>00114         shared_ptr&lt;XGraph&gt; graph = <a class="code" href="class_x_q_graph.html#r0">m_graph</a>;
+<a name="l00115"></a>00115         <span class="keywordflow">if</span>(graph) { 
+<a name="l00116"></a>00116                 <a class="code" href="class_x_q_graph.html#r1">m_painter</a>.reset();
+<a name="l00117"></a>00117                 <span class="comment">// m_painter will be re-set in the constructor.</span>
+<a name="l00118"></a>00118                 <span class="keyword">new</span> <a class="code" href="class_x_q_graph.html#n0">XQGraphPainter</a>(graph, <span class="keyword">this</span>);
+<a name="l00119"></a>00119                 glInit();
+<a name="l00120"></a>00120                 setMouseTracking(<span class="keyword">true</span>);
+<a name="l00121"></a>00121         }
 <a name="l00122"></a>00122 }
 <a name="l00123"></a>00123 <span class="keywordtype">void</span>
 <a name="l00124"></a><a class="code" href="class_x_q_graph.html#b6">00124</a> <a class="code" href="class_x_q_graph.html#b6">XQGraph::hideEvent</a> ( QHideEvent * )
 <a name="l00125"></a>00125 {
-<a name="l00126"></a>00126   <a class="code" href="class_x_q_graph.html#r2">m_conDialog</a>.reset();
-<a name="l00127"></a>00127   <a class="code" href="class_x_q_graph.html#r1">m_painter</a>.reset();
-<a name="l00128"></a>00128   setMouseTracking(<span class="keyword">false</span>);
+<a name="l00126"></a>00126         <a class="code" href="class_x_q_graph.html#r2">m_conDialog</a>.reset();
+<a name="l00127"></a>00127         <a class="code" href="class_x_q_graph.html#r1">m_painter</a>.reset();
+<a name="l00128"></a>00128         setMouseTracking(<span class="keyword">false</span>);
 <a name="l00129"></a>00129 }
 <a name="l00131"></a>00131 <span class="keywordtype">void</span>
 <a name="l00132"></a><a class="code" href="class_x_q_graph.html#b7">00132</a> <a class="code" href="class_x_q_graph.html#b7">XQGraph::initializeGL</a> ()
@@ -159,7 +159,7 @@
 <a name="l00151"></a>00151         <a class="code" href="class_x_q_graph.html#r1">m_painter</a>-&gt;paintGL();
 <a name="l00152"></a>00152     glEnd();
 <a name="l00153"></a>00153 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:35 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:14 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

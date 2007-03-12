@@ -19,7 +19,7 @@
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="preprocessor">#include "nidaqmxdriver.h"</span>
 <a name="l00015"></a>00015 <span class="preprocessor">#include &lt;sys/errno.h&gt;</span>
 <a name="l00016"></a>00016 <span class="preprocessor">#include &lt;boost/math/common_factor.hpp&gt;</span>
@@ -58,14 +58,14 @@
 <a name="l00049"></a>00049 <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList&gt;</a>
 <a name="l00050"></a>00050 XNIDAQmxInterface::SoftwareTrigger::s_virtualTrigList(<span class="keyword">new</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#w0">XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList</a>);
 <a name="l00051"></a>00051 <a class="code" href="class_x_talker.html">XTalker&lt;shared_ptr&lt;XNIDAQmxInterface::SoftwareTrigger&gt;</a> &gt;
-<a name="l00052"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#v0">00052</a>         <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#v0">XNIDAQmxInterface::SoftwareTrigger::s_onChange</a>;
+<a name="l00052"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#v0">00052</a> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#v0">XNIDAQmxInterface::SoftwareTrigger::s_onChange</a>;
 <a name="l00053"></a>00053 shared_ptr&lt;XNIDAQmxInterface::SoftwareTrigger&gt;
 <a name="l00054"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#e0">00054</a> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#e0">XNIDAQmxInterface::SoftwareTrigger::create</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *label, <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> bits)
 <a name="l00055"></a>00055 {
 <a name="l00056"></a>00056         shared_ptr&lt;SoftwareTrigger&gt; p(<span class="keyword">new</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#b0">SoftwareTrigger</a>(label, bits));
 <a name="l00057"></a>00057         
 <a name="l00058"></a>00058         <span class="comment">//atomically register.</span>
-<a name="l00059"></a>00059      <span class="keywordflow">for</span>(;;) {
+<a name="l00059"></a>00059         <span class="keywordflow">for</span>(;;) {
 <a name="l00060"></a>00060         <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;SoftwareTriggerList&gt;</a> old_list(s_virtualTrigList);
 <a name="l00061"></a>00061         <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;SoftwareTriggerList&gt;</a> new_list(<span class="keyword">new</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#w0">SoftwareTriggerList</a>(*old_list));
 <a name="l00062"></a>00062         new_list-&gt;push_back(p);
@@ -76,8 +76,8 @@
 <a name="l00067"></a>00067 }
 <a name="l00068"></a>00068 
 <a name="l00069"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#b0">00069</a> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#b0">XNIDAQmxInterface::SoftwareTrigger::SoftwareTrigger</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *label, <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> bits)
-<a name="l00070"></a>00070  : <a class="code" href="class_x_interface.html#r10">m_label</a>(label), m_bits(bits),
-<a name="l00071"></a>00071  m_risingEdgeMask(0u), m_fallingEdgeMask(0u) {
+<a name="l00070"></a>00070         : <a class="code" href="class_x_interface.html#r10">m_label</a>(label), m_bits(bits),
+<a name="l00071"></a>00071           m_risingEdgeMask(0u), m_fallingEdgeMask(0u) {
 <a name="l00072"></a>00072         <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#d0">_clear</a>();
 <a name="l00073"></a>00073 }
 <a name="l00074"></a>00074 <span class="keywordtype">void</span>
@@ -139,7 +139,7 @@
 <a name="l00130"></a>00130 }
 <a name="l00131"></a>00131 <span class="keywordtype">void</span>
 <a name="l00132"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a10">00132</a> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_software_trigger.html#a10">XNIDAQmxInterface::SoftwareTrigger::connect</a>(uint32_t rising_edge_mask, 
-<a name="l00133"></a>00133         uint32_t falling_edge_mask) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterface::XInterfaceError</a> &amp;) {
+<a name="l00133"></a>00133                                                                                         uint32_t falling_edge_mask) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterface::XInterfaceError</a> &amp;) {
 <a name="l00134"></a>00134         <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> <a class="code" href="class_x_interface.html#a9">lock</a>(<a class="code" href="class_x_interface.html#r9">m_mutex</a>);
 <a name="l00135"></a>00135         _clear();
 <a name="l00136"></a>00136         <span class="keywordflow">if</span>(m_risingEdgeMask || m_fallingEdgeMask)
@@ -278,7 +278,7 @@
 <a name="l00269"></a>00269 QString
 <a name="l00270"></a><a class="code" href="class_x_n_i_d_a_qmx_interface.html#e0">00270</a> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#e0">XNIDAQmxInterface::getNIDAQmxErrMessage</a>()
 <a name="l00271"></a>00271 {
-<a name="l00272"></a>00272 <span class="keywordtype">char</span> str[2048];
+<a name="l00272"></a>00272         <span class="keywordtype">char</span> str[2048];
 <a name="l00273"></a>00273         DAQmxGetExtendedErrorInfo(str, <span class="keyword">sizeof</span>(str));
 <a name="l00274"></a>00274         errno = 0;
 <a name="l00275"></a>00275         <span class="keywordflow">return</span> QString(str);
@@ -286,7 +286,7 @@
 <a name="l00277"></a>00277 QString
 <a name="l00278"></a><a class="code" href="class_x_n_i_d_a_qmx_interface.html#e1">00278</a> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#e0">XNIDAQmxInterface::getNIDAQmxErrMessage</a>(<span class="keywordtype">int</span> status)
 <a name="l00279"></a>00279 {
-<a name="l00280"></a>00280 <span class="keywordtype">char</span> str[2048];
+<a name="l00280"></a>00280         <span class="keywordtype">char</span> str[2048];
 <a name="l00281"></a>00281         DAQmxGetErrorString(status, str, <span class="keyword">sizeof</span>(str));
 <a name="l00282"></a>00282         errno = 0;
 <a name="l00283"></a>00283         <span class="keywordflow">return</span> QString(str);
@@ -321,9 +321,9 @@
 <a name="l00312"></a>00312     <a class="code" href="class_x_interface.html">XInterface</a>(name, runtime, driver),
 <a name="l00313"></a>00313     m_productInfo(0L)
 <a name="l00314"></a>00314 {
-<a name="l00315"></a>00315 <span class="keywordtype">char</span> buf[2048];
+<a name="l00315"></a>00315         <span class="keywordtype">char</span> buf[2048];
 <a name="l00316"></a>00316         CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, <span class="keyword">sizeof</span>(buf)));
-<a name="l00317"></a>00317 std::deque&lt;std::string&gt; list;
+<a name="l00317"></a>00317         std::deque&lt;std::string&gt; list;
 <a name="l00318"></a>00318         <a class="code" href="class_x_n_i_d_a_qmx_interface.html#e3">parseList</a>(buf, list);
 <a name="l00319"></a>00319         <span class="keywordflow">for</span>(std::deque&lt;std::string&gt;::iterator it = list.begin(); it != list.end(); it++) {
 <a name="l00320"></a>00320                 CHECK_DAQMX_RET(DAQmxGetDevProductType(it-&gt;c_str(), buf, <span class="keyword">sizeof</span>(buf)));
@@ -331,10 +331,10 @@
 <a name="l00322"></a>00322         }
 <a name="l00323"></a>00323 }
 <a name="l00324"></a><a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_x_n_i_d_a_qmx_route.html#a0">00324</a> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_x_n_i_d_a_qmx_route.html#a0">XNIDAQmxInterface::XNIDAQmxRoute::XNIDAQmxRoute</a>(<span class="keyword">const</span> <span class="keywordtype">char</span>*src, <span class="keyword">const</span> <span class="keywordtype">char</span>*dst, <span class="keywordtype">int</span> *pret)
-<a name="l00325"></a>00325  : m_src(src), m_dst(dst)
+<a name="l00325"></a>00325         : m_src(src), m_dst(dst)
 <a name="l00326"></a>00326 {
 <a name="l00327"></a>00327         <span class="keywordflow">if</span>(pret) {
-<a name="l00328"></a>00328         <span class="keywordtype">int</span> ret = 0;
+<a name="l00328"></a>00328                 <span class="keywordtype">int</span> ret = 0;
 <a name="l00329"></a>00329             ret = DAQmxConnectTerms(src, dst, DAQmx_Val_DoNotInvertPolarity);
 <a name="l00330"></a>00330             <span class="keywordflow">if</span>(ret &lt; 0)
 <a name="l00331"></a>00331                         <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_x_n_i_d_a_qmx_route.html#r0">m_src</a>.clear();
@@ -365,7 +365,7 @@
 <a name="l00356"></a>00356 <span class="keywordtype">void</span>
 <a name="l00357"></a><a class="code" href="class_x_n_i_d_a_qmx_interface.html#b1">00357</a> <a class="code" href="class_x_n_i_d_a_qmx_interface.html#b1">XNIDAQmxInterface::open</a>() throw (XInterfaceError &amp;)
 <a name="l00358"></a>00358 {
-<a name="l00359"></a>00359 <span class="keywordtype">char</span> buf[256];
+<a name="l00359"></a>00359         <span class="keywordtype">char</span> buf[256];
 <a name="l00360"></a>00360 
 <a name="l00361"></a>00361         <span class="keywordflow">if</span>(sscanf(<a class="code" href="class_x_interface.html#a4">device</a>()-&gt;to_str().c_str(), <span class="stringliteral">"%256s"</span>, buf) != 1)
 <a name="l00362"></a>00362                 <span class="keywordflow">throw</span> XOpenInterfaceError(__FILE__, __LINE__);
@@ -373,9 +373,9 @@
 <a name="l00364"></a>00364         <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> <a class="code" href="class_x_interface.html#a9">lock</a>(g_daqmx_mutex);
 <a name="l00365"></a>00365         <span class="keywordflow">if</span>(g_daqmx_open_cnt == 0) {
 <a name="l00366"></a>00366 <span class="comment">//          CHECK_DAQMX_RET(DAQmxCreateTask("", &amp;g_task_sync_master));</span>
-<a name="l00367"></a>00367         <span class="keywordtype">char</span> buf[2048];         
+<a name="l00367"></a>00367                 <span class="keywordtype">char</span> buf[2048];         
 <a name="l00368"></a>00368                 CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, <span class="keyword">sizeof</span>(buf)));
-<a name="l00369"></a>00369         std::deque&lt;std::string&gt; list;
+<a name="l00369"></a>00369                 std::deque&lt;std::string&gt; list;
 <a name="l00370"></a>00370                 <a class="code" href="class_x_n_i_d_a_qmx_interface.html#e3">XNIDAQmxInterface::parseList</a>(buf, list);
 <a name="l00371"></a>00371                 std::deque&lt;std::string&gt; pcidevs;
 <a name="l00372"></a>00372                 <span class="keywordflow">for</span>(std::deque&lt;std::string&gt;::iterator it = list.begin(); it != list.end(); it++) {
@@ -399,8 +399,8 @@
 <a name="l00390"></a>00390                                                 shared_ptr&lt;XNIDAQmxInterface::XNIDAQmxRoute&gt; route;
 <a name="l00391"></a>00391                                                 float64 freq = 20.0e6;
 <a name="l00392"></a>00392                                                 route.reset(<span class="keyword">new</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_x_n_i_d_a_qmx_route.html">XNIDAQmxInterface::XNIDAQmxRoute</a>(
-<a name="l00393"></a>00393                                                         formatString(<span class="stringliteral">"/%s/20MHzTimebase"</span>, it-&gt;c_str()).c_str(),
-<a name="l00394"></a>00394                                                         formatString(<span class="stringliteral">"/%s/RTSI7"</span>, it-&gt;c_str()).c_str()));
+<a name="l00393"></a>00393                                                                                 formatString(<span class="stringliteral">"/%s/20MHzTimebase"</span>, it-&gt;c_str()).c_str(),
+<a name="l00394"></a>00394                                                                                 formatString(<span class="stringliteral">"/%s/RTSI7"</span>, it-&gt;c_str()).c_str()));
 <a name="l00395"></a>00395                                                 g_daqmx_sync_routes.push_back(route);
 <a name="l00396"></a>00396                                                 fprintf(stderr, <span class="stringliteral">"20MHz Reference Clock exported from %s\n"</span>, it-&gt;c_str());
 <a name="l00397"></a>00397                                                 g_pciClockMaster = *it;
@@ -422,8 +422,8 @@
 <a name="l00413"></a>00413                                                         shared_ptr&lt;XNIDAQmxInterface::XNIDAQmxRoute&gt; route;
 <a name="l00414"></a>00414                                                         float64 freq = 10.0e6;
 <a name="l00415"></a>00415                                                         route.reset(<span class="keyword">new</span> <a class="code" href="class_x_n_i_d_a_qmx_interface_1_1_x_n_i_d_a_qmx_route.html">XNIDAQmxInterface::XNIDAQmxRoute</a>(
-<a name="l00416"></a>00416                                                                 formatString(<span class="stringliteral">"/%s/10MHzRefClock"</span>, it-&gt;c_str()).c_str(),
-<a name="l00417"></a>00417                                                                 formatString(<span class="stringliteral">"/%s/RTSI7"</span>, it-&gt;c_str()).c_str()));
+<a name="l00416"></a>00416                                                                                         formatString(<span class="stringliteral">"/%s/10MHzRefClock"</span>, it-&gt;c_str()).c_str(),
+<a name="l00417"></a>00417                                                                                         formatString(<span class="stringliteral">"/%s/RTSI7"</span>, it-&gt;c_str()).c_str()));
 <a name="l00418"></a>00418                                                         g_daqmx_sync_routes.push_back(route);
 <a name="l00419"></a>00419                                                         fprintf(stderr, <span class="stringliteral">"10MHz Reference Clock exported from %s\n"</span>, it-&gt;c_str());
 <a name="l00420"></a>00420                                                         g_pciClockMaster = *it;
@@ -467,7 +467,7 @@
 <a name="l00458"></a>00458         }
 <a name="l00459"></a>00459 }
 <a name="l00460"></a>00460 <span class="preprocessor">#endif //HAVE_NI_DAQMX</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:34 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:13 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

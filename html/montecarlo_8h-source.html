@@ -19,7 +19,7 @@
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="preprocessor">#ifndef MONTECARLO_H_</span>
 <a name="l00015"></a>00015 <span class="preprocessor"></span><span class="preprocessor">#define MONTECARLO_H_</span>
 <a name="l00016"></a>00016 <span class="preprocessor"></span>
@@ -92,29 +92,29 @@
 <a name="l00088"></a>00088             <span class="keywordflow">return</span> *<span class="keyword">this</span>;
 <a name="l00089"></a>00089         }
 <a name="l00091"></a><a class="code" href="struct_monte_carlo_1_1_vector3.html#a9">00091</a>         T <a class="code" href="struct_monte_carlo_1_1_vector3.html#a9">distance2</a>(<span class="keyword">const</span> <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;T&gt;</a> &amp;s1)<span class="keyword"> const </span>{
-<a name="l00092"></a>00092         T x1 = <a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a> - s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a>;
-<a name="l00093"></a>00093         T y1 = <a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a> - s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a>;
-<a name="l00094"></a>00094         T z1 = <a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a> - s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a>;
+<a name="l00092"></a>00092                         T x1 = <a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a> - s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a>;
+<a name="l00093"></a>00093                         T y1 = <a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a> - s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a>;
+<a name="l00094"></a>00094                         T z1 = <a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a> - s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a>;
 <a name="l00095"></a>00095             <span class="keywordflow">return</span> x1*x1 + y1*y1 + z1*z1;
 <a name="l00096"></a>00096         }
 <a name="l00098"></a><a class="code" href="struct_monte_carlo_1_1_vector3.html#a10">00098</a>         T <a class="code" href="struct_monte_carlo_1_1_vector3.html#a9">distance2</a>(<span class="keyword">const</span> <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;T&gt;</a> &amp;s1, <span class="keyword">const</span> <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;T&gt;</a> &amp;s2)<span class="keyword"> const  </span>{
-<a name="l00099"></a>00099         T x1 = <a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a> - s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a>;
-<a name="l00100"></a>00100         T y1 = <a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a> - s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a>;
-<a name="l00101"></a>00101         T z1 = <a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a> - s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a>;
-<a name="l00102"></a>00102         T x2 = s2.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a> - s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a>;
-<a name="l00103"></a>00103         T y2 = s2.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a> - s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a>;
-<a name="l00104"></a>00104         T z2 = s2.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a> - s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a>;
-<a name="l00105"></a>00105         T zbab = x1*x2 + y1*y2 + z1*z2;
-<a name="l00106"></a>00106         T ab2 = x2*x2 + y2*y2 + z2*z2;
-<a name="l00107"></a>00107         T zb2 = x1*x1 + y1*y1 + z1*z1;
-<a name="l00108"></a>00108         <span class="keywordflow">return</span> (zb2*ab2 - zbab*zbab) / ab2;
+<a name="l00099"></a>00099                         T x1 = <a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a> - s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a>;
+<a name="l00100"></a>00100                         T y1 = <a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a> - s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a>;
+<a name="l00101"></a>00101                         T z1 = <a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a> - s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a>;
+<a name="l00102"></a>00102                         T x2 = s2.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a> - s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a>;
+<a name="l00103"></a>00103                         T y2 = s2.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a> - s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a>;
+<a name="l00104"></a>00104                         T z2 = s2.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a> - s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a>;
+<a name="l00105"></a>00105                         T zbab = x1*x2 + y1*y2 + z1*z2;
+<a name="l00106"></a>00106                         T ab2 = x2*x2 + y2*y2 + z2*z2;
+<a name="l00107"></a>00107                         T zb2 = x1*x1 + y1*y1 + z1*z1;
+<a name="l00108"></a>00108                         <span class="keywordflow">return</span> (zb2*ab2 - zbab*zbab) / ab2;
 <a name="l00109"></a>00109         }
 <a name="l00110"></a><a class="code" href="struct_monte_carlo_1_1_vector3.html#a11">00110</a>         <span class="keywordtype">void</span> <a class="code" href="struct_monte_carlo_1_1_vector3.html#a11">normalize</a>() {
 <a name="l00111"></a>00111             T ir = (T)1.0 / sqrt(<a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a>*<a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a> + <a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a>*<a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a> + <a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a>*<a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a>);
 <a name="l00112"></a>00112             <a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a> *= ir; <a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a> *= ir; z *= ir;
 <a name="l00113"></a>00113         }
 <a name="l00114"></a><a class="code" href="struct_monte_carlo_1_1_vector3.html#a12">00114</a>         <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3</a> &amp;<a class="code" href="struct_monte_carlo_1_1_vector3.html#a12">vectorProduct</a>(<span class="keyword">const</span> <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3</a> &amp;s1) {
-<a name="l00115"></a>00115         <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3</a> s2;
+<a name="l00115"></a>00115                         <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3</a> s2;
 <a name="l00116"></a>00116             s2.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a> = <a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a> * s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a> - <a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a> * s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a>;
 <a name="l00117"></a>00117             s2.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a> = <a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a> * s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a> - <a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a> * s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a>;
 <a name="l00118"></a>00118             s2.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a> = <a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a> * s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a> - <a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a> * s1.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a>;
@@ -133,7 +133,7 @@
 <a name="l00131"></a>00131     <a class="code" href="class_monte_carlo.html#a1">~MonteCarlo</a>();
 <a name="l00132"></a>00132     
 <a name="l00136"></a>00136     <span class="keywordtype">double</span> <a class="code" href="class_monte_carlo.html#a2">exec</a>(<span class="keywordtype">double</span> temp, Vector3&lt;double&gt; field,
-<a name="l00137"></a>00137          <span class="keywordtype">int</span> *flips, <span class="keywordtype">long</span> <span class="keywordtype">double</span> *tests, <span class="keywordtype">double</span> *DUav, Vector3&lt;double&gt; *Mav);
+<a name="l00137"></a>00137                                 <span class="keywordtype">int</span> *flips, <span class="keywordtype">long</span> <span class="keywordtype">double</span> *tests, <span class="keywordtype">double</span> *DUav, Vector3&lt;double&gt; *Mav);
 <a name="l00139"></a>00139     <span class="keywordtype">void</span> <a class="code" href="class_monte_carlo.html#a3">randomize</a>();
 <a name="l00141"></a>00141     Vector3&lt;double&gt; <a class="code" href="class_monte_carlo.html#a4">magnetization</a>();
 <a name="l00143"></a><a class="code" href="struct_monte_carlo_1_1_quartet.html">00143</a>     <span class="keyword">struct </span><a class="code" href="struct_monte_carlo_1_1_quartet.html">Quartet</a> {
@@ -152,12 +152,12 @@
 <a name="l00158"></a>00158     <a class="code" href="struct_monte_carlo_1_1_quartet.html">Quartet</a> <a class="code" href="class_monte_carlo.html#a5">siteMagnetization</a>();
 <a name="l00160"></a>00160     <span class="keywordtype">double</span> <a class="code" href="class_monte_carlo.html#a6">internalEnergy</a>();
 <a name="l00168"></a>00168     <span class="keyword">static</span> <span class="keywordtype">int</span> <a class="code" href="class_monte_carlo.html#e0">setupField</a>(<span class="keywordtype">int</span> size, <span class="keywordtype">double</span> dfactor,
-<a name="l00169"></a>00169          <span class="keywordtype">double</span> cutoff_real, <span class="keywordtype">double</span> cutoff_rec, <span class="keywordtype">double</span> alpha);
+<a name="l00169"></a>00169                                                   <span class="keywordtype">double</span> cutoff_real, <span class="keywordtype">double</span> cutoff_rec, <span class="keywordtype">double</span> alpha);
 <a name="l00171"></a>00171     <span class="keywordtype">void</span> <a class="code" href="class_monte_carlo.html#a7">read</a>(std::istream &amp;);
 <a name="l00172"></a>00172     <span class="keywordtype">void</span> <a class="code" href="class_monte_carlo.html#a7">read</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *spins, <span class="keywordtype">double</span> temp, <a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> field);
 <a name="l00174"></a>00174     <span class="keywordtype">void</span> <a class="code" href="class_monte_carlo.html#a9">write</a>(std::ostream &amp;);
 <a name="l00175"></a>00175     <span class="keywordtype">void</span> <a class="code" href="class_monte_carlo.html#a9">write</a>(<span class="keywordtype">char</span> *spins, 
-<a name="l00176"></a>00176         <span class="keywordtype">double</span> *fields = 0, <span class="keywordtype">double</span> *probabilities = 0);
+<a name="l00176"></a>00176                            <span class="keywordtype">double</span> *fields = 0, <span class="keywordtype">double</span> *probabilities = 0);
 <a name="l00177"></a>00177     <span class="keywordtype">void</span> <a class="code" href="class_monte_carlo.html#a11">write_bsite</a>(<a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> *fields);
 <a name="l00178"></a>00178     <span class="keywordtype">void</span> <a class="code" href="class_monte_carlo.html#a12">write_8asite</a>(<a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> *fields);
 <a name="l00179"></a>00179     <span class="keywordtype">void</span> <a class="code" href="class_monte_carlo.html#a13">write_48fsite</a>(<a class="code" href="struct_monte_carlo_1_1_vector3.html">Vector3&lt;double&gt;</a> *fields);
@@ -344,47 +344,47 @@
 <a name="l00408"></a>00408     <span class="keywordflow">return</span> <a class="code" href="class_monte_carlo.html#v14">s_L</a>*(<a class="code" href="class_monte_carlo.html#v14">s_L</a>*k + j) + i;
 <a name="l00409"></a>00409 }
 <a name="l00410"></a>00410 <span class="preprocessor">#ifdef PACK_4FLOAT</span>
-<a name="l00411"></a>00411 <span class="preprocessor"></span>    <span class="keyword">inline</span> <span class="keywordtype">int</span>
-<a name="l00412"></a><a class="code" href="class_monte_carlo.html#h6">00412</a>     <a class="code" href="class_monte_carlo.html#h6">MonteCarlo::spins_real_index</a>(<span class="keywordtype">int</span> i, <span class="keywordtype">int</span> j, <span class="keywordtype">int</span> k) {
+<a name="l00411"></a>00411 <span class="preprocessor"></span><span class="keyword">inline</span> <span class="keywordtype">int</span>
+<a name="l00412"></a><a class="code" href="class_monte_carlo.html#h6">00412</a> <a class="code" href="class_monte_carlo.html#h6">MonteCarlo::spins_real_index</a>(<span class="keywordtype">int</span> i, <span class="keywordtype">int</span> j, <span class="keywordtype">int</span> k) {
 <a name="l00413"></a>00413         <span class="keywordtype">int</span> l = ((3 * <a class="code" href="class_monte_carlo.html#v14">s_L</a> - 1) / 4 + 1) * 4;
 <a name="l00414"></a>00414         <span class="keywordflow">return</span> 3*l*(<a class="code" href="class_monte_carlo.html#v14">s_L</a>*k + j) + <a class="code" href="class_monte_carlo.html#v14">s_L</a> + i;
-<a name="l00415"></a>00415     }
-<a name="l00416"></a>00416     <span class="keyword">inline</span> <span class="keywordtype">int</span>
-<a name="l00417"></a><a class="code" href="class_monte_carlo.html#h7">00417</a>     <a class="code" href="class_monte_carlo.html#h6">MonteCarlo::spins_real_index</a>(<span class="keywordtype">int</span> lidx) {
+<a name="l00415"></a>00415 }
+<a name="l00416"></a>00416 <span class="keyword">inline</span> <span class="keywordtype">int</span>
+<a name="l00417"></a><a class="code" href="class_monte_carlo.html#h7">00417</a> <a class="code" href="class_monte_carlo.html#h6">MonteCarlo::spins_real_index</a>(<span class="keywordtype">int</span> lidx) {
 <a name="l00418"></a>00418         <span class="keywordtype">int</span> l = ((3 * <a class="code" href="class_monte_carlo.html#v14">s_L</a> - 1) / 4 + 1) * 4;
 <a name="l00419"></a>00419         <span class="keywordflow">return</span> 3*l*(lidx / <a class="code" href="class_monte_carlo.html#v14">s_L</a>) + <a class="code" href="class_monte_carlo.html#v14">s_L</a> + (lidx % <a class="code" href="class_monte_carlo.html#v14">s_L</a>);
-<a name="l00420"></a>00420     }
-<a name="l00421"></a>00421     <span class="keyword">inline</span> <a class="code" href="class_monte_carlo.html#y1">MonteCarlo::Spin</a>
-<a name="l00422"></a><a class="code" href="class_monte_carlo.html#d5">00422</a>     <a class="code" href="class_monte_carlo.html#d5">MonteCarlo::readSpin</a>(<span class="keywordtype">int</span> site, <span class="keywordtype">int</span> sidx) {
+<a name="l00420"></a>00420 }
+<a name="l00421"></a>00421 <span class="keyword">inline</span> <a class="code" href="class_monte_carlo.html#y1">MonteCarlo::Spin</a>
+<a name="l00422"></a><a class="code" href="class_monte_carlo.html#d5">00422</a> <a class="code" href="class_monte_carlo.html#d5">MonteCarlo::readSpin</a>(<span class="keywordtype">int</span> site, <span class="keywordtype">int</span> sidx) {
 <a name="l00423"></a>00423         <span class="keywordtype">int</span> r = sidx / 4;
 <a name="l00424"></a>00424         <span class="keywordtype">int</span> c = sidx % 4;
 <a name="l00425"></a>00425         <span class="keywordflow">return</span> <a class="code" href="class_monte_carlo.html#r28">m_spins_real</a>[site][r].x[c];
-<a name="l00426"></a>00426     }
-<a name="l00427"></a>00427     <span class="keyword">inline</span> <span class="keywordtype">void</span>
-<a name="l00428"></a><a class="code" href="class_monte_carlo.html#d6">00428</a>     <a class="code" href="class_monte_carlo.html#d6">MonteCarlo::writeSpin</a>(Spin v, <span class="keywordtype">int</span> site, <span class="keywordtype">int</span> sidx) {
+<a name="l00426"></a>00426 }
+<a name="l00427"></a>00427 <span class="keyword">inline</span> <span class="keywordtype">void</span>
+<a name="l00428"></a><a class="code" href="class_monte_carlo.html#d6">00428</a> <a class="code" href="class_monte_carlo.html#d6">MonteCarlo::writeSpin</a>(Spin v, <span class="keywordtype">int</span> site, <span class="keywordtype">int</span> sidx) {
 <a name="l00429"></a>00429         <a class="code" href="class_monte_carlo.html#r28">m_spins_real</a>[site][sidx / 4].x[sidx % 4] = v;
 <a name="l00430"></a>00430         <a class="code" href="class_monte_carlo.html#r28">m_spins_real</a>[site][(sidx - <a class="code" href="class_monte_carlo.html#v14">s_L</a>) / 4].x[(sidx - <a class="code" href="class_monte_carlo.html#v14">s_L</a>) % 4] = v;
 <a name="l00431"></a>00431         <a class="code" href="class_monte_carlo.html#r28">m_spins_real</a>[site][(sidx + <a class="code" href="class_monte_carlo.html#v14">s_L</a>) / 4].x[(sidx + <a class="code" href="class_monte_carlo.html#v14">s_L</a>) % 4] = v;
-<a name="l00432"></a>00432     }
+<a name="l00432"></a>00432 }
 <a name="l00433"></a>00433 <span class="preprocessor">#else</span>
-<a name="l00434"></a>00434 <span class="preprocessor"></span>    <span class="keyword">inline</span> <span class="keywordtype">int</span>
-<a name="l00435"></a>00435     <a class="code" href="class_monte_carlo.html#h6">MonteCarlo::spins_real_index</a>(<span class="keywordtype">int</span> i, <span class="keywordtype">int</span> j, <span class="keywordtype">int</span> k) {
+<a name="l00434"></a>00434 <span class="preprocessor"></span><span class="keyword">inline</span> <span class="keywordtype">int</span>
+<a name="l00435"></a>00435 <a class="code" href="class_monte_carlo.html#h6">MonteCarlo::spins_real_index</a>(<span class="keywordtype">int</span> i, <span class="keywordtype">int</span> j, <span class="keywordtype">int</span> k) {
 <a name="l00436"></a>00436         <span class="keywordflow">return</span> 3*<a class="code" href="class_monte_carlo.html#v14">s_L</a>*(<a class="code" href="class_monte_carlo.html#v14">s_L</a>*k + j) + i + <a class="code" href="class_monte_carlo.html#v14">s_L</a>;
-<a name="l00437"></a>00437     }
-<a name="l00438"></a>00438     <span class="keyword">inline</span> <span class="keywordtype">int</span>
-<a name="l00439"></a>00439     <a class="code" href="class_monte_carlo.html#h6">MonteCarlo::spins_real_index</a>(<span class="keywordtype">int</span> lidx) {
+<a name="l00437"></a>00437 }
+<a name="l00438"></a>00438 <span class="keyword">inline</span> <span class="keywordtype">int</span>
+<a name="l00439"></a>00439 <a class="code" href="class_monte_carlo.html#h6">MonteCarlo::spins_real_index</a>(<span class="keywordtype">int</span> lidx) {
 <a name="l00440"></a>00440         <span class="keywordflow">return</span> lidx * 3 -  (lidx % <a class="code" href="class_monte_carlo.html#v14">s_L</a>) * 2 + <a class="code" href="class_monte_carlo.html#v14">s_L</a>;
-<a name="l00441"></a>00441     }
-<a name="l00442"></a>00442     <span class="keyword">inline</span> <a class="code" href="class_monte_carlo.html#y1">MonteCarlo::Spin</a>
-<a name="l00443"></a>00443     <a class="code" href="class_monte_carlo.html#d5">MonteCarlo::readSpin</a>(<span class="keywordtype">int</span> site, <span class="keywordtype">int</span> sidx) {
+<a name="l00441"></a>00441 }
+<a name="l00442"></a>00442 <span class="keyword">inline</span> <a class="code" href="class_monte_carlo.html#y1">MonteCarlo::Spin</a>
+<a name="l00443"></a>00443 <a class="code" href="class_monte_carlo.html#d5">MonteCarlo::readSpin</a>(<span class="keywordtype">int</span> site, <span class="keywordtype">int</span> sidx) {
 <a name="l00444"></a>00444         <span class="keywordflow">return</span> <a class="code" href="class_monte_carlo.html#r28">m_spins_real</a>[site][sidx];
-<a name="l00445"></a>00445     }
-<a name="l00446"></a>00446     <span class="keyword">inline</span> <span class="keywordtype">void</span>
-<a name="l00447"></a>00447     <a class="code" href="class_monte_carlo.html#d6">MonteCarlo::writeSpin</a>(Spin v, <span class="keywordtype">int</span> site, <span class="keywordtype">int</span> sidx) {
+<a name="l00445"></a>00445 }
+<a name="l00446"></a>00446 <span class="keyword">inline</span> <span class="keywordtype">void</span>
+<a name="l00447"></a>00447 <a class="code" href="class_monte_carlo.html#d6">MonteCarlo::writeSpin</a>(Spin v, <span class="keywordtype">int</span> site, <span class="keywordtype">int</span> sidx) {
 <a name="l00448"></a>00448         <a class="code" href="class_monte_carlo.html#r28">m_spins_real</a>[site][sidx - <a class="code" href="class_monte_carlo.html#v14">s_L</a>] = v;
 <a name="l00449"></a>00449         <a class="code" href="class_monte_carlo.html#r28">m_spins_real</a>[site][sidx] = v;
 <a name="l00450"></a>00450         <a class="code" href="class_monte_carlo.html#r28">m_spins_real</a>[site][sidx + <a class="code" href="class_monte_carlo.html#v14">s_L</a>] = v;
-<a name="l00451"></a>00451     }
+<a name="l00451"></a>00451 }
 <a name="l00452"></a>00452 <span class="preprocessor">#endif</span>
 <a name="l00453"></a>00453 <span class="preprocessor"></span>
 <a name="l00454"></a>00454 <span class="keyword">inline</span> <a class="code" href="struct_monte_carlo_1_1_vector3.html">MonteCarlo::VectorInt</a>
@@ -409,7 +409,7 @@
 <a name="l00473"></a>00473     <span class="keywordtype">double</span> h = <a class="code" href="class_monte_carlo.html#d18">iterate_rec</a>(site1, i, j, k, site2);    
 <a name="l00474"></a>00474         
 <a name="l00475"></a>00475     <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#r16">m_third_cache_enabled</a> &amp;&amp;
-<a name="l00476"></a>00476         (<a class="code" href="class_monte_carlo.html#r26">m_field_third_cached_sane</a>[site2][lidx] &amp; (1u &lt;&lt; site1))) {
+<a name="l00476"></a>00476            (<a class="code" href="class_monte_carlo.html#r26">m_field_third_cached_sane</a>[site2][lidx] &amp; (1u &lt;&lt; site1))) {
 <a name="l00477"></a>00477         ++<a class="code" href="class_monte_carlo.html#r20">m_third_cache_hit</a>;
 <a name="l00478"></a>00478         h += <a class="code" href="class_monte_carlo.html#r25">m_field_third_cached</a>[site1][site2][lidx];
 <a name="l00479"></a>00479     }
@@ -443,7 +443,7 @@
 <a name="l00507"></a>00507     <span class="keywordtype">int</span> sec_cache_miss_cnt = 0;
 <a name="l00508"></a>00508     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site2 = 0; site2 &lt; 16; site2++) {
 <a name="l00509"></a>00509         <span class="keywordflow">if</span>(<a class="code" href="class_monte_carlo.html#r15">m_sec_cache_enabled</a> &amp;&amp;
-<a name="l00510"></a>00510             (<a class="code" href="class_monte_carlo.html#r24">m_field_sec_cached_sane</a>[site2][lidx] &amp; (1u &lt;&lt; site1))) {
+<a name="l00510"></a>00510                    (<a class="code" href="class_monte_carlo.html#r24">m_field_sec_cached_sane</a>[site2][lidx] &amp; (1u &lt;&lt; site1))) {
 <a name="l00511"></a>00511             <a class="code" href="class_monte_carlo.html#r19">m_sec_cache_hit</a>++;
 <a name="l00512"></a>00512             h +=  <a class="code" href="class_monte_carlo.html#r23">m_field_sec_cached</a>[site1][site2][lidx];
 <a name="l00513"></a>00513         }
@@ -470,7 +470,7 @@
 <a name="l00534"></a>00534 }
 <a name="l00535"></a>00535 
 <a name="l00536"></a>00536 <span class="preprocessor">#endif </span><span class="comment">/*MONTECARLO_H_*/</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:37 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:16 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

@@ -19,7 +19,7 @@
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="preprocessor">#ifndef nidaqdsoH</span>
 <a name="l00015"></a>00015 <span class="preprocessor"></span><span class="preprocessor">#define nidaqdsoH</span>
 <a name="l00016"></a>00016 <span class="preprocessor"></span>
@@ -31,97 +31,97 @@
 <a name="l00022"></a>00022 <span class="preprocessor"></span>
 <a name="l00024"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html">00024</a> <span class="keyword">class </span><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html">XNIDAQmxDSO</a> : <span class="keyword">public</span> <a class="code" href="class_x_n_i_d_a_qmx_driver.html">XNIDAQmxDriver</a>&lt;XDSO&gt;
 <a name="l00025"></a>00025 {
-<a name="l00026"></a>00026  XNODE_OBJECT
-<a name="l00027"></a>00027  <span class="keyword">protected</span>:
-<a name="l00028"></a>00028   <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b0">XNIDAQmxDSO</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
-<a name="l00029"></a>00029    <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
-<a name="l00030"></a>00030    <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
-<a name="l00031"></a>00031    <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
-<a name="l00032"></a>00032    <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers);
-<a name="l00033"></a>00033   <span class="keyword">virtual</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b1">~XNIDAQmxDSO</a>();
-<a name="l00035"></a>00035   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b2">convertRaw</a>() <span class="keywordflow">throw</span> (XRecordError&amp;);
-<a name="l00036"></a>00036  <span class="keyword">protected</span>:
-<a name="l00038"></a>00038   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b3">open</a>() <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterface::XInterfaceError</a> &amp;);
-<a name="l00040"></a>00040   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b4">close</a>() <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterface::XInterfaceError</a> &amp;);
+<a name="l00026"></a>00026         XNODE_OBJECT
+<a name="l00027"></a>00027 <span class="keyword">protected</span>:
+<a name="l00028"></a>00028         <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b0">XNIDAQmxDSO</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
+<a name="l00029"></a>00029                                 <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
+<a name="l00030"></a>00030                                 <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
+<a name="l00031"></a>00031                                 <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
+<a name="l00032"></a>00032                                 <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers);
+<a name="l00033"></a>00033         <span class="keyword">virtual</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b1">~XNIDAQmxDSO</a>();
+<a name="l00035"></a>00035         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b2">convertRaw</a>() <span class="keywordflow">throw</span> (XRecordError&amp;);
+<a name="l00036"></a>00036 <span class="keyword">protected</span>:
+<a name="l00038"></a>00038         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b3">open</a>() <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterface::XInterfaceError</a> &amp;);
+<a name="l00040"></a>00040         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b4">close</a>() <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterface::XInterfaceError</a> &amp;);
 <a name="l00041"></a>00041 
-<a name="l00042"></a>00042   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b5">onTrace1Changed</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00043"></a>00043   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b6">onTrace2Changed</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00044"></a>00044   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b7">onAverageChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00045"></a>00045   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b8">onSingleChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00046"></a>00046   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b9">onTrigSourceChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00047"></a>00047   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b10">onTrigPosChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00048"></a>00048   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b11">onTrigLevelChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00049"></a>00049   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b12">onTrigFallingChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00050"></a>00050   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b13">onTimeWidthChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00051"></a>00051   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b14">onVFullScale1Changed</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00052"></a>00052   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b15">onVFullScale2Changed</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00053"></a>00053   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b16">onVOffset1Changed</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00054"></a>00054   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b17">onVOffset2Changed</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00055"></a>00055   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b18">onRecordLengthChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00056"></a>00056   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b19">onForceTriggerTouched</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;);
+<a name="l00042"></a>00042         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b5">onTrace1Changed</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00043"></a>00043         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b6">onTrace2Changed</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00044"></a>00044         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b7">onAverageChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00045"></a>00045         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b8">onSingleChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00046"></a>00046         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b9">onTrigSourceChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00047"></a>00047         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b10">onTrigPosChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00048"></a>00048         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b11">onTrigLevelChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00049"></a>00049         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b12">onTrigFallingChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00050"></a>00050         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b13">onTimeWidthChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00051"></a>00051         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b14">onVFullScale1Changed</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00052"></a>00052         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b15">onVFullScale2Changed</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00053"></a>00053         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b16">onVOffset1Changed</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00054"></a>00054         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b17">onVOffset2Changed</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00055"></a>00055         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b18">onRecordLengthChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00056"></a>00056         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b19">onForceTriggerTouched</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;);
 <a name="l00057"></a>00057 
-<a name="l00058"></a>00058   <span class="keyword">virtual</span> <span class="keywordtype">double</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b20">getTimeInterval</a>();
-<a name="l00060"></a>00060   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b21">startSequence</a>();
-<a name="l00061"></a>00061   <span class="keyword">virtual</span> <span class="keywordtype">int</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b22">acqCount</a>(<span class="keywordtype">bool</span> *seq_busy);
+<a name="l00058"></a>00058         <span class="keyword">virtual</span> <span class="keywordtype">double</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b20">getTimeInterval</a>();
+<a name="l00060"></a>00060         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b21">startSequence</a>();
+<a name="l00061"></a>00061         <span class="keyword">virtual</span> <span class="keywordtype">int</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b22">acqCount</a>(<span class="keywordtype">bool</span> *seq_busy);
 <a name="l00062"></a>00062 
-<a name="l00064"></a>00064   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b23">getWave</a>(std::deque&lt;std::string&gt; &amp;channels);
-<a name="l00065"></a>00065  <span class="keyword">private</span>:
-<a name="l00066"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#y0">00066</a>  <span class="keyword">typedef</span> int16 <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#y0">tRawAI</a>;
-<a name="l00067"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r0">00067</a>   scoped_ptr&lt;XNIDAQmxInterface::XNIDAQmxRoute&gt; <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r0">m_trigRoute</a>;
-<a name="l00068"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r1">00068</a>   shared_ptr&lt;XNIDAQmxInterface::SoftwareTrigger&gt; <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r1">m_softwareTrigger</a>;
-<a name="l00069"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r2">00069</a>   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r2">m_lsnOnSoftTrigStarted</a>, <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r3">m_lsnOnSoftTrigChanged</a>;
-<a name="l00070"></a>00070   <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d0">onSoftTrigStarted</a>(<span class="keyword">const</span> shared_ptr&lt;XNIDAQmxInterface::SoftwareTrigger&gt; &amp;);
-<a name="l00071"></a>00071   <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d1">onSoftTrigChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XNIDAQmxInterface::SoftwareTrigger&gt; &amp;);
-<a name="l00072"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r4">00072</a>   shared_ptr&lt;XThread&lt;XNIDAQmxDSO&gt; &gt; <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r4">m_threadReadAI</a>;
-<a name="l00073"></a>00073   <span class="keywordtype">void</span> *<a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d2">executeReadAI</a>(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;);
-<a name="l00074"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r5">00074</a>   <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r5">m_suspendRead</a>;
-<a name="l00075"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r6">00075</a>   <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r6">m_running</a>;
-<a name="l00076"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r7">00076</a>   std::vector&lt;tRawAI&gt; <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r7">m_recordBuf</a>;
-<a name="l00077"></a>00077 <span class="keyword">enum</span> {CAL_POLY_ORDER = 4};
-<a name="l00078"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r8">00078</a>   float64 <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r8">m_coeffAI</a>[2][CAL_POLY_ORDER];
-<a name="l00079"></a>00079   <span class="keyword">inline</span> float64 <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d3">aiRawToVolt</a>(<span class="keyword">const</span> float64 *pcoeff, float64 raw);
-<a name="l00080"></a><a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html">00080</a>   <span class="keyword">struct </span><a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html">DSORawRecord</a> {
-<a name="l00081"></a><a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o0">00081</a>           <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o0">numCh</a>;
-<a name="l00082"></a><a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o1">00082</a>           <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o1">accumCount</a>;
-<a name="l00083"></a><a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o2">00083</a>           <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o2">recordLength</a>;
-<a name="l00084"></a><a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o3">00084</a>           <span class="keywordtype">int</span> <a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o3">acqCount</a>;
-<a name="l00085"></a><a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o4">00085</a>           std::vector&lt;int32_t&gt; <a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o4">record</a>;
-<a name="l00086"></a><a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o5">00086</a>           <a class="code" href="classatomic.html">atomic&lt;int&gt;</a> <a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o5">locked</a>;
-<a name="l00087"></a><a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#a0">00087</a>           <span class="keywordtype">bool</span> <a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#a0">tryLock</a>() {
-<a name="l00088"></a>00088                 <span class="keywordflow">return</span> <a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o5">locked</a>.<a class="code" href="classatomic.html#a13">compareAndSet</a>(<span class="keyword">false</span>, <span class="keyword">true</span>);
-<a name="l00089"></a>00089           }
-<a name="l00090"></a><a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#a1">00090</a>           <span class="keywordtype">void</span> <a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#a1">unlock</a>() {
-<a name="l00091"></a>00091                 ASSERT(<a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o5">locked</a>);
-<a name="l00092"></a>00092                 <a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o5">locked</a> = <span class="keyword">false</span>;
-<a name="l00093"></a>00093           }
-<a name="l00094"></a>00094   };
-<a name="l00095"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r9">00095</a>   <a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html">DSORawRecord</a> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r9">m_dsoRawRecordBanks</a>[2];
-<a name="l00096"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r10">00096</a>   <span class="keywordtype">int</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r10">m_dsoRawRecordBankLatest</a>;
-<a name="l00098"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r11">00098</a>   std::deque&lt;std::vector&lt;tRawAI&gt; &gt; <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r11">m_record_av</a>; 
-<a name="l00099"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r12">00099</a>   TaskHandle <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r12">m_task</a>;
-<a name="l00100"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r13">00100</a>   <span class="keywordtype">double</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r13">m_interval</a>;
-<a name="l00101"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r14">00101</a>   <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r14">m_preTriggerPos</a>;
-<a name="l00102"></a>00102   <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d4">clearAcquision</a>();
-<a name="l00103"></a>00103   <span class="keywordtype">void</span> setupAcquision();
-<a name="l00104"></a>00104   <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d6">disableTrigger</a>();
-<a name="l00105"></a>00105   <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d7">setupTrigger</a>();
-<a name="l00106"></a>00106   <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d8">clearStoredSoftwareTrigger</a>();
-<a name="l00107"></a>00107   <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d9">setupSoftwareTrigger</a>();
-<a name="l00108"></a>00108   <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d10">setupTiming</a>();
-<a name="l00109"></a>00109   <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d11">createChannels</a>();
-<a name="l00110"></a>00110   <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d12">acquire</a>(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;terminated);
+<a name="l00064"></a>00064         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#b23">getWave</a>(std::deque&lt;std::string&gt; &amp;channels);
+<a name="l00065"></a>00065 <span class="keyword">private</span>:
+<a name="l00066"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#y0">00066</a>         <span class="keyword">typedef</span> int16 <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#y0">tRawAI</a>;
+<a name="l00067"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r0">00067</a>         scoped_ptr&lt;XNIDAQmxInterface::XNIDAQmxRoute&gt; <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r0">m_trigRoute</a>;
+<a name="l00068"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r1">00068</a>         shared_ptr&lt;XNIDAQmxInterface::SoftwareTrigger&gt; <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r1">m_softwareTrigger</a>;
+<a name="l00069"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r2">00069</a>         shared_ptr&lt;XListener&gt; <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r2">m_lsnOnSoftTrigStarted</a>, <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r3">m_lsnOnSoftTrigChanged</a>;
+<a name="l00070"></a>00070         <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d0">onSoftTrigStarted</a>(<span class="keyword">const</span> shared_ptr&lt;XNIDAQmxInterface::SoftwareTrigger&gt; &amp;);
+<a name="l00071"></a>00071         <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d1">onSoftTrigChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XNIDAQmxInterface::SoftwareTrigger&gt; &amp;);
+<a name="l00072"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r4">00072</a>         shared_ptr&lt;XThread&lt;XNIDAQmxDSO&gt; &gt; <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r4">m_threadReadAI</a>;
+<a name="l00073"></a>00073         <span class="keywordtype">void</span> *<a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d2">executeReadAI</a>(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;);
+<a name="l00074"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r5">00074</a>         <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r5">m_suspendRead</a>;
+<a name="l00075"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r6">00075</a>         <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r6">m_running</a>;
+<a name="l00076"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r7">00076</a>         std::vector&lt;tRawAI&gt; <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r7">m_recordBuf</a>;
+<a name="l00077"></a>00077         <span class="keyword">enum</span> {CAL_POLY_ORDER = 4};
+<a name="l00078"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r8">00078</a>         float64 <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r8">m_coeffAI</a>[2][CAL_POLY_ORDER];
+<a name="l00079"></a>00079         <span class="keyword">inline</span> float64 <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d3">aiRawToVolt</a>(<span class="keyword">const</span> float64 *pcoeff, float64 raw);
+<a name="l00080"></a><a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html">00080</a>         <span class="keyword">struct </span><a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html">DSORawRecord</a> {
+<a name="l00081"></a><a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o0">00081</a>                 <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o0">numCh</a>;
+<a name="l00082"></a><a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o1">00082</a>                 <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o1">accumCount</a>;
+<a name="l00083"></a><a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o2">00083</a>                 <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o2">recordLength</a>;
+<a name="l00084"></a><a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o3">00084</a>                 <span class="keywordtype">int</span> <a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o3">acqCount</a>;
+<a name="l00085"></a><a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o4">00085</a>                 std::vector&lt;int32_t&gt; <a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o4">record</a>;
+<a name="l00086"></a><a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o5">00086</a>                 <a class="code" href="classatomic.html">atomic&lt;int&gt;</a> <a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o5">locked</a>;
+<a name="l00087"></a><a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#a0">00087</a>                 <span class="keywordtype">bool</span> <a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#a0">tryLock</a>() {
+<a name="l00088"></a>00088                         <span class="keywordflow">return</span> <a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o5">locked</a>.<a class="code" href="classatomic.html#a13">compareAndSet</a>(<span class="keyword">false</span>, <span class="keyword">true</span>);
+<a name="l00089"></a>00089                 }
+<a name="l00090"></a><a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#a1">00090</a>                 <span class="keywordtype">void</span> <a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#a1">unlock</a>() {
+<a name="l00091"></a>00091                         ASSERT(<a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o5">locked</a>);
+<a name="l00092"></a>00092                         <a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html#o5">locked</a> = <span class="keyword">false</span>;
+<a name="l00093"></a>00093                 }
+<a name="l00094"></a>00094         };
+<a name="l00095"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r9">00095</a>         <a class="code" href="struct_x_n_i_d_a_qmx_d_s_o_1_1_d_s_o_raw_record.html">DSORawRecord</a> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r9">m_dsoRawRecordBanks</a>[2];
+<a name="l00096"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r10">00096</a>         <span class="keywordtype">int</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r10">m_dsoRawRecordBankLatest</a>;
+<a name="l00098"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r11">00098</a>         std::deque&lt;std::vector&lt;tRawAI&gt; &gt; <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r11">m_record_av</a>; 
+<a name="l00099"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r12">00099</a>         TaskHandle <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r12">m_task</a>;
+<a name="l00100"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r13">00100</a>         <span class="keywordtype">double</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r13">m_interval</a>;
+<a name="l00101"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r14">00101</a>         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r14">m_preTriggerPos</a>;
+<a name="l00102"></a>00102         <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d4">clearAcquision</a>();
+<a name="l00103"></a>00103         <span class="keywordtype">void</span> setupAcquision();
+<a name="l00104"></a>00104         <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d6">disableTrigger</a>();
+<a name="l00105"></a>00105         <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d7">setupTrigger</a>();
+<a name="l00106"></a>00106         <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d8">clearStoredSoftwareTrigger</a>();
+<a name="l00107"></a>00107         <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d9">setupSoftwareTrigger</a>();
+<a name="l00108"></a>00108         <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d10">setupTiming</a>();
+<a name="l00109"></a>00109         <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d11">createChannels</a>();
+<a name="l00110"></a>00110         <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d12">acquire</a>(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;terminated);
 <a name="l00111"></a>00111         <span class="keyword">static</span> int32 <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#h0">_onTaskDone</a>(TaskHandle task, int32 status, <span class="keywordtype">void</span>*);
 <a name="l00112"></a>00112         <span class="keywordtype">void</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d13">onTaskDone</a>(TaskHandle task, int32 status);
 <a name="l00113"></a>00113 
-<a name="l00114"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r15">00114</a>   <a class="code" href="class_x_recursive_mutex.html">XRecursiveMutex</a> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r15">m_readMutex</a>;
+<a name="l00114"></a><a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r15">00114</a>         <a class="code" href="class_x_recursive_mutex.html">XRecursiveMutex</a> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#r15">m_readMutex</a>;
 <a name="l00115"></a>00115 
-<a name="l00116"></a>00116   <span class="keyword">inline</span> <span class="keywordtype">bool</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d14">tryReadAISuspend</a>(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;terminated);
+<a name="l00116"></a>00116         <span class="keyword">inline</span> <span class="keywordtype">bool</span> <a class="code" href="class_x_n_i_d_a_qmx_d_s_o.html#d14">tryReadAISuspend</a>(<span class="keyword">const</span> <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> &amp;terminated);
 <a name="l00117"></a>00117 };
 <a name="l00118"></a>00118 
 <a name="l00119"></a>00119 <span class="preprocessor">#endif //HAVE_NI_DAQMX</span>
 <a name="l00120"></a>00120 <span class="preprocessor"></span>
 <a name="l00121"></a>00121 <span class="preprocessor">#endif</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:36 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:15 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

@@ -19,7 +19,7 @@
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="preprocessor">#ifndef signalH</span>
 <a name="l00015"></a>00015 <span class="preprocessor"></span><span class="preprocessor">#define signalH</span>
 <a name="l00016"></a>00016 <span class="preprocessor"></span>
@@ -36,37 +36,37 @@
 <a name="l00028"></a>00028 
 <a name="l00031"></a><a class="code" href="class_x_listener.html">00031</a> <span class="keyword">class </span><a class="code" href="class_x_listener.html">XListener</a>
 <a name="l00032"></a>00032 {
-<a name="l00033"></a>00033  <span class="keyword">public</span>:
-<a name="l00034"></a>00034   <span class="keyword">virtual</span> <a class="code" href="class_x_listener.html#a0">~XListener</a>();
-<a name="l00038"></a>00038   <span class="keywordtype">void</span> <a class="code" href="class_x_listener.html#a1">mask</a>();
-<a name="l00042"></a>00042   <span class="keywordtype">void</span> <a class="code" href="class_x_listener.html#a2">unmask</a>();
-<a name="l00044"></a>00044   <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <a class="code" href="class_x_listener.html#a3">delay_ms</a>() <span class="keyword">const</span>;
+<a name="l00033"></a>00033 <span class="keyword">public</span>:
+<a name="l00034"></a>00034         <span class="keyword">virtual</span> <a class="code" href="class_x_listener.html#a0">~XListener</a>();
+<a name="l00038"></a>00038         <span class="keywordtype">void</span> <a class="code" href="class_x_listener.html#a1">mask</a>();
+<a name="l00042"></a>00042         <span class="keywordtype">void</span> <a class="code" href="class_x_listener.html#a2">unmask</a>();
+<a name="l00044"></a>00044         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <a class="code" href="class_x_listener.html#a3">delay_ms</a>() <span class="keyword">const</span>;
 <a name="l00045"></a>00045   
-<a name="l00046"></a><a class="code" href="class_x_listener.html#w5">00046</a>   <span class="keyword">enum</span> <a class="code" href="class_x_listener.html#w5">FLAGS</a> {
-<a name="l00047"></a>00047         FLAG_MAIN_THREAD_CALL = 0x01, FLAG_AVOID_DUP = 0x02, FLAG_MASKED = 0x04,
-<a name="l00048"></a>00048         FLAG_DELAY_SHORT = 0x100, FLAG_DELAY_ADAPTIVE = 0x200
-<a name="l00049"></a>00049   };
-<a name="l00050"></a>00050  <span class="keyword">protected</span>:
-<a name="l00051"></a>00051   <span class="keyword">template</span> &lt;<span class="keyword">class</span> tArg&gt;
-<a name="l00052"></a><a class="code" href="class_x_listener.html#n0">00052</a>   <span class="keyword">friend</span> <span class="keyword">class </span><a class="code" href="class_x_talker.html">XTalker</a>;
-<a name="l00053"></a>00053   <a class="code" href="class_x_listener.html#b0">XListener</a>(<a class="code" href="class_x_listener.html#w5">FLAGS</a> flags);
-<a name="l00054"></a><a class="code" href="class_x_listener.html#p0">00054</a>   <a class="code" href="classatomic.html">atomic&lt;FLAGS&gt;</a> <a class="code" href="class_x_listener.html#p0">m_flags</a>;
+<a name="l00046"></a><a class="code" href="class_x_listener.html#w5">00046</a>         <span class="keyword">enum</span> <a class="code" href="class_x_listener.html#w5">FLAGS</a> {
+<a name="l00047"></a>00047                 FLAG_MAIN_THREAD_CALL = 0x01, FLAG_AVOID_DUP = 0x02, FLAG_MASKED = 0x04,
+<a name="l00048"></a>00048                 FLAG_DELAY_SHORT = 0x100, FLAG_DELAY_ADAPTIVE = 0x200
+<a name="l00049"></a>00049         };
+<a name="l00050"></a>00050 <span class="keyword">protected</span>:
+<a name="l00051"></a>00051         <span class="keyword">template</span> &lt;<span class="keyword">class</span> tArg&gt;
+<a name="l00052"></a><a class="code" href="class_x_listener.html#n0">00052</a>         <span class="keyword">friend</span> <span class="keyword">class </span><a class="code" href="class_x_talker.html">XTalker</a>;
+<a name="l00053"></a>00053         <a class="code" href="class_x_listener.html#b0">XListener</a>(<a class="code" href="class_x_listener.html#w5">FLAGS</a> flags);
+<a name="l00054"></a><a class="code" href="class_x_listener.html#p0">00054</a>         <a class="code" href="classatomic.html">atomic&lt;FLAGS&gt;</a> <a class="code" href="class_x_listener.html#p0">m_flags</a>;
 <a name="l00055"></a>00055 };
 <a name="l00056"></a>00056 
 <a name="l00057"></a>00057 <span class="preprocessor">#include "xsignal_prv.h"</span>
 <a name="l00058"></a>00058 
 <a name="l00059"></a><a class="code" href="class___x_talker_base.html">00059</a> <span class="keyword">class </span><a class="code" href="class___x_talker_base.html">_XTalkerBase</a>
 <a name="l00060"></a>00060 {
-<a name="l00061"></a>00061  <span class="keyword">protected</span>:
-<a name="l00062"></a>00062   <a class="code" href="class___x_talker_base.html#b0">_XTalkerBase</a>();
+<a name="l00061"></a>00061 <span class="keyword">protected</span>:
+<a name="l00062"></a>00062         <a class="code" href="class___x_talker_base.html#b0">_XTalkerBase</a>();
 <a name="l00063"></a>00063 
-<a name="l00064"></a>00064  <span class="keyword">public</span>:
-<a name="l00065"></a>00065   <span class="keyword">virtual</span> <a class="code" href="class___x_talker_base.html#a0">~_XTalkerBase</a>();
+<a name="l00064"></a>00064 <span class="keyword">public</span>:
+<a name="l00065"></a>00065         <span class="keyword">virtual</span> <a class="code" href="class___x_talker_base.html#a0">~_XTalkerBase</a>();
 <a name="l00066"></a>00066 
-<a name="l00070"></a>00070   <span class="keywordtype">void</span> <a class="code" href="class___x_talker_base.html#a1">mask</a>();
-<a name="l00074"></a>00074   <span class="keywordtype">void</span> <a class="code" href="class___x_talker_base.html#a2">unmask</a>();
-<a name="l00075"></a>00075  <span class="keyword">protected</span>:
-<a name="l00076"></a><a class="code" href="class___x_talker_base.html#p0">00076</a>   <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> <a class="code" href="class___x_talker_base.html#p0">m_bMasked</a>;
+<a name="l00070"></a>00070         <span class="keywordtype">void</span> <a class="code" href="class___x_talker_base.html#a1">mask</a>();
+<a name="l00074"></a>00074         <span class="keywordtype">void</span> <a class="code" href="class___x_talker_base.html#a2">unmask</a>();
+<a name="l00075"></a>00075 <span class="keyword">protected</span>:
+<a name="l00076"></a><a class="code" href="class___x_talker_base.html#p0">00076</a>         <a class="code" href="classatomic.html">atomic&lt;bool&gt;</a> <a class="code" href="class___x_talker_base.html#p0">m_bMasked</a>;
 <a name="l00077"></a>00077 };
 <a name="l00078"></a>00078 
 <a name="l00079"></a><a class="code" href="struct___x_transaction.html">00079</a> <span class="keyword">struct </span><a class="code" href="struct___x_transaction.html">_XTransaction</a>
@@ -82,55 +82,55 @@
 <a name="l00093"></a>00093 <span class="keyword">template</span> &lt;<span class="keyword">class</span> tArg&gt;
 <a name="l00094"></a><a class="code" href="class_x_talker.html">00094</a> <span class="keyword">class </span><a class="code" href="class_x_talker.html">XTalker</a> : <span class="keyword">public</span> <a class="code" href="class___x_talker_base.html">_XTalkerBase</a>
 <a name="l00095"></a>00095 {
-<a name="l00096"></a>00096  <span class="keyword">public</span>:
-<a name="l00097"></a><a class="code" href="class_x_talker.html#a0">00097</a>   <a class="code" href="class_x_talker.html#a0">XTalker</a>() {}
-<a name="l00098"></a><a class="code" href="class_x_talker.html#a1">00098</a>   <span class="keyword">virtual</span> <a class="code" href="class_x_talker.html#a1">~XTalker</a>() {}
+<a name="l00096"></a>00096 <span class="keyword">public</span>:
+<a name="l00097"></a><a class="code" href="class_x_talker.html#a0">00097</a>         <a class="code" href="class_x_talker.html#a0">XTalker</a>() {}
+<a name="l00098"></a><a class="code" href="class_x_talker.html#a1">00098</a>         <span class="keyword">virtual</span> <a class="code" href="class_x_talker.html#a1">~XTalker</a>() {}
 <a name="l00099"></a>00099   
-<a name="l00108"></a>00108   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_talker.html#a2">connectStatic</a>(<span class="keywordtype">void</span> (*func)(<span class="keyword">const</span> tArg &amp;), <span class="keywordtype">int</span> flags = 0);
-<a name="l00118"></a>00118   <span class="keyword">template</span> &lt;<span class="keyword">class</span> tObj, <span class="keyword">class</span> tClass&gt;
-<a name="l00119"></a>00119   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_talker.html#a3">connectWeak</a>(<span class="keyword">const</span> shared_ptr&lt;tObj&gt; &amp;obj,
-<a name="l00120"></a>00120     <span class="keywordtype">void</span> (tClass::*func)(<span class="keyword">const</span> tArg &amp;), <span class="keywordtype">int</span> flags = 0);
-<a name="l00130"></a>00130   <span class="keyword">template</span> &lt;<span class="keyword">class</span> tObj, <span class="keyword">class</span> tClass&gt;
-<a name="l00131"></a>00131   shared_ptr&lt;XListener&gt; <a class="code" href="class_x_talker.html#a4">connectShared</a>(<span class="keyword">const</span> shared_ptr&lt;tObj&gt; &amp;obj,
-<a name="l00132"></a>00132     <span class="keywordtype">void</span> (tClass::*func)(<span class="keyword">const</span> tArg &amp;), <span class="keywordtype">int</span> flags = 0);
+<a name="l00108"></a>00108         shared_ptr&lt;XListener&gt; <a class="code" href="class_x_talker.html#a2">connectStatic</a>(<span class="keywordtype">void</span> (*func)(<span class="keyword">const</span> tArg &amp;), <span class="keywordtype">int</span> flags = 0);
+<a name="l00118"></a>00118         <span class="keyword">template</span> &lt;<span class="keyword">class</span> tObj, <span class="keyword">class</span> tClass&gt;
+<a name="l00119"></a>00119         shared_ptr&lt;XListener&gt; <a class="code" href="class_x_talker.html#a3">connectWeak</a>(<span class="keyword">const</span> shared_ptr&lt;tObj&gt; &amp;obj,
+<a name="l00120"></a>00120                                                                           <span class="keywordtype">void</span> (tClass::*func)(<span class="keyword">const</span> tArg &amp;), <span class="keywordtype">int</span> flags = 0);
+<a name="l00130"></a>00130         <span class="keyword">template</span> &lt;<span class="keyword">class</span> tObj, <span class="keyword">class</span> tClass&gt;
+<a name="l00131"></a>00131         shared_ptr&lt;XListener&gt; <a class="code" href="class_x_talker.html#a4">connectShared</a>(<span class="keyword">const</span> shared_ptr&lt;tObj&gt; &amp;obj,
+<a name="l00132"></a>00132                                                                                 <span class="keywordtype">void</span> (tClass::*func)(<span class="keyword">const</span> tArg &amp;), <span class="keywordtype">int</span> flags = 0);
 <a name="l00133"></a>00133     
-<a name="l00134"></a>00134   <span class="keywordtype">void</span> <a class="code" href="class_x_talker.html#a5">connect</a>(<span class="keyword">const</span> shared_ptr&lt;XListener&gt; &amp;);
-<a name="l00135"></a>00135   <span class="keywordtype">void</span> <a class="code" href="class_x_talker.html#a6">disconnect</a>(<span class="keyword">const</span> shared_ptr&lt;XListener&gt; &amp;);
+<a name="l00134"></a>00134         <span class="keywordtype">void</span> <a class="code" href="class_x_talker.html#a5">connect</a>(<span class="keyword">const</span> shared_ptr&lt;XListener&gt; &amp;);
+<a name="l00135"></a>00135         <span class="keywordtype">void</span> <a class="code" href="class_x_talker.html#a6">disconnect</a>(<span class="keyword">const</span> shared_ptr&lt;XListener&gt; &amp;);
 <a name="l00136"></a>00136 
-<a name="l00141"></a>00141   <span class="keywordtype">void</span> <a class="code" href="class_x_talker.html#a7">talk</a>(<span class="keyword">const</span> tArg &amp;arg);
+<a name="l00141"></a>00141         <span class="keywordtype">void</span> <a class="code" href="class_x_talker.html#a7">talk</a>(<span class="keyword">const</span> tArg &amp;arg);
 <a name="l00142"></a>00142 
-<a name="l00143"></a><a class="code" href="class_x_talker.html#a8">00143</a>   <span class="keywordtype">bool</span> <a class="code" href="class_x_talker.html#a8">empty</a>()<span class="keyword"> const </span>{readBarrier(); <span class="keywordflow">return</span> !<a class="code" href="class_x_talker.html#r0">m_listeners</a>;}
-<a name="l00144"></a>00144  <span class="keyword">private</span>:
-<a name="l00145"></a><a class="code" href="class_x_talker.html#y0">00145</a>   <span class="keyword">typedef</span> <a class="code" href="class___x_listener_impl.html">_XListenerImpl&lt;tArg&gt;</a> <a class="code" href="class___x_listener_impl.html">Listener</a>;
-<a name="l00146"></a><a class="code" href="class_x_talker.html#y1">00146</a>   <span class="keyword">typedef</span> std::deque&lt;weak_ptr&lt;Listener&gt; &gt; <a class="code" href="class_x_talker.html#y1">ListenerList</a>;
-<a name="l00147"></a><a class="code" href="class_x_talker.html#y2">00147</a>   <span class="keyword">typedef</span> <span class="keyword">typename</span> ListenerList::iterator <a class="code" href="class_x_talker.html#y2">ListenerList_it</a>;
-<a name="l00148"></a><a class="code" href="class_x_talker.html#y3">00148</a>   <span class="keyword">typedef</span> <span class="keyword">typename</span> ListenerList::const_iterator <a class="code" href="class_x_talker.html#y3">ListenerList_const_it</a>;
-<a name="l00150"></a><a class="code" href="class_x_talker.html#r0">00150</a>   <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;ListenerList&gt;</a> <a class="code" href="class_x_talker.html#r0">m_listeners</a>;
-<a name="l00151"></a>00151   <span class="keywordtype">void</span> <a class="code" href="class_x_talker.html#a5">connect</a>(<span class="keyword">const</span> shared_ptr&lt;Listener&gt; &amp;);
+<a name="l00143"></a><a class="code" href="class_x_talker.html#a8">00143</a>         <span class="keywordtype">bool</span> <a class="code" href="class_x_talker.html#a8">empty</a>()<span class="keyword"> const </span>{readBarrier(); <span class="keywordflow">return</span> !<a class="code" href="class_x_talker.html#r0">m_listeners</a>;}
+<a name="l00144"></a>00144 <span class="keyword">private</span>:
+<a name="l00145"></a><a class="code" href="class_x_talker.html#y0">00145</a>         <span class="keyword">typedef</span> <a class="code" href="class___x_listener_impl.html">_XListenerImpl&lt;tArg&gt;</a> <a class="code" href="class___x_listener_impl.html">Listener</a>;
+<a name="l00146"></a><a class="code" href="class_x_talker.html#y1">00146</a>         <span class="keyword">typedef</span> std::deque&lt;weak_ptr&lt;Listener&gt; &gt; <a class="code" href="class_x_talker.html#y1">ListenerList</a>;
+<a name="l00147"></a><a class="code" href="class_x_talker.html#y2">00147</a>         <span class="keyword">typedef</span> <span class="keyword">typename</span> ListenerList::iterator <a class="code" href="class_x_talker.html#y2">ListenerList_it</a>;
+<a name="l00148"></a><a class="code" href="class_x_talker.html#y3">00148</a>         <span class="keyword">typedef</span> <span class="keyword">typename</span> ListenerList::const_iterator <a class="code" href="class_x_talker.html#y3">ListenerList_const_it</a>;
+<a name="l00150"></a><a class="code" href="class_x_talker.html#r0">00150</a>         <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;ListenerList&gt;</a> <a class="code" href="class_x_talker.html#r0">m_listeners</a>;
+<a name="l00151"></a>00151         <span class="keywordtype">void</span> <a class="code" href="class_x_talker.html#a5">connect</a>(<span class="keyword">const</span> shared_ptr&lt;Listener&gt; &amp;);
 <a name="l00152"></a>00152   
-<a name="l00153"></a><a class="code" href="struct_x_talker_1_1_transaction.html">00153</a>   <span class="keyword">struct </span><a class="code" href="struct_x_talker_1_1_transaction.html">Transaction</a> : <span class="keyword">public</span> <a class="code" href="struct___x_transaction.html">_XTransaction</a> {   
+<a name="l00153"></a><a class="code" href="struct_x_talker_1_1_transaction.html">00153</a>         <span class="keyword">struct </span><a class="code" href="struct_x_talker_1_1_transaction.html">Transaction</a> : <span class="keyword">public</span> <a class="code" href="struct___x_transaction.html">_XTransaction</a> {   
 <a name="l00154"></a><a class="code" href="struct_x_talker_1_1_transaction.html#a0">00154</a>         <a class="code" href="struct_x_talker_1_1_transaction.html#a0">Transaction</a>(<span class="keyword">const</span> shared_ptr&lt;Listener&gt; &amp;l) :
-<a name="l00155"></a>00155              <a class="code" href="struct___x_transaction.html">_XTransaction</a>(), <a class="code" href="struct_x_talker_1_1_transaction.html#o0">listener</a>(l) {}
+<a name="l00155"></a>00155                         <a class="code" href="struct___x_transaction.html">_XTransaction</a>(), <a class="code" href="struct_x_talker_1_1_transaction.html#o0">listener</a>(l) {}
 <a name="l00156"></a><a class="code" href="struct_x_talker_1_1_transaction.html#o0">00156</a>         <span class="keyword">const</span> shared_ptr&lt;Listener&gt; <a class="code" href="struct_x_talker_1_1_transaction.html#o0">listener</a>;
 <a name="l00157"></a>00157         <span class="keyword">virtual</span> <span class="keywordtype">bool</span> talkBuffered() = 0;
-<a name="l00158"></a>00158   };
-<a name="l00159"></a><a class="code" href="struct_x_talker_1_1_transaction_allow_dup.html">00159</a>   <span class="keyword">struct </span><a class="code" href="struct_x_talker_1_1_transaction_allow_dup.html">TransactionAllowDup</a> : <span class="keyword">public</span> <a class="code" href="class_x_talker.html">XTalker</a>&lt;tArg&gt;::<a class="code" href="struct_x_talker_1_1_transaction.html">Transaction</a> {   
+<a name="l00158"></a>00158         };
+<a name="l00159"></a><a class="code" href="struct_x_talker_1_1_transaction_allow_dup.html">00159</a>         <span class="keyword">struct </span><a class="code" href="struct_x_talker_1_1_transaction_allow_dup.html">TransactionAllowDup</a> : <span class="keyword">public</span> <a class="code" href="class_x_talker.html">XTalker</a>&lt;tArg&gt;::<a class="code" href="struct_x_talker_1_1_transaction.html">Transaction</a> {   
 <a name="l00160"></a><a class="code" href="struct_x_talker_1_1_transaction_allow_dup.html#a0">00160</a>         <a class="code" href="struct_x_talker_1_1_transaction_allow_dup.html#a0">TransactionAllowDup</a>(<span class="keyword">const</span> shared_ptr&lt;Listener&gt; &amp;l, <span class="keyword">const</span> tArg &amp;a) :
-<a name="l00161"></a>00161              <a class="code" href="class_x_talker.html">XTalker</a>&lt;tArg&gt;::<a class="code" href="struct_x_talker_1_1_transaction.html">Transaction</a>(l), <a class="code" href="struct_x_talker_1_1_transaction_allow_dup.html#o0">arg</a>(a) {}
+<a name="l00161"></a>00161                         <a class="code" href="class_x_talker.html">XTalker</a>&lt;tArg&gt;::<a class="code" href="struct_x_talker_1_1_transaction.html">Transaction</a>(l), <a class="code" href="struct_x_talker_1_1_transaction_allow_dup.html#o0">arg</a>(a) {}
 <a name="l00162"></a><a class="code" href="struct_x_talker_1_1_transaction_allow_dup.html#o0">00162</a>         <span class="keyword">const</span> tArg <a class="code" href="struct_x_talker_1_1_transaction_allow_dup.html#o0">arg</a>;
 <a name="l00163"></a><a class="code" href="struct_x_talker_1_1_transaction_allow_dup.html#a1">00163</a>         <span class="keyword">virtual</span> <span class="keywordtype">bool</span> <a class="code" href="struct_x_talker_1_1_transaction_allow_dup.html#a1">talkBuffered</a>() {
 <a name="l00164"></a>00164             (*<a class="code" href="class_x_talker.html">XTalker&lt;tArg&gt;</a>::Transaction::listener)(<a class="code" href="struct_x_talker_1_1_transaction_allow_dup.html#o0">arg</a>);
 <a name="l00165"></a>00165             <span class="keywordflow">return</span> <span class="keyword">false</span>;
 <a name="l00166"></a>00166         }
-<a name="l00167"></a>00167   };
-<a name="l00168"></a><a class="code" href="struct_x_talker_1_1_transaction_avoid_dup.html">00168</a>   <span class="keyword">struct </span><a class="code" href="struct_x_talker_1_1_transaction_avoid_dup.html">TransactionAvoidDup</a> : <span class="keyword">public</span> <a class="code" href="class_x_talker.html">XTalker</a>&lt;tArg&gt;::<a class="code" href="struct_x_talker_1_1_transaction.html">Transaction</a> {   
+<a name="l00167"></a>00167         };
+<a name="l00168"></a><a class="code" href="struct_x_talker_1_1_transaction_avoid_dup.html">00168</a>         <span class="keyword">struct </span><a class="code" href="struct_x_talker_1_1_transaction_avoid_dup.html">TransactionAvoidDup</a> : <span class="keyword">public</span> <a class="code" href="class_x_talker.html">XTalker</a>&lt;tArg&gt;::<a class="code" href="struct_x_talker_1_1_transaction.html">Transaction</a> {   
 <a name="l00169"></a><a class="code" href="struct_x_talker_1_1_transaction_avoid_dup.html#a0">00169</a>         <a class="code" href="struct_x_talker_1_1_transaction_avoid_dup.html#a0">TransactionAvoidDup</a>(<span class="keyword">const</span> shared_ptr&lt;Listener&gt; &amp;l) :
-<a name="l00170"></a>00170              <a class="code" href="class_x_talker.html">XTalker</a>&lt;tArg&gt;::<a class="code" href="struct_x_talker_1_1_transaction.html">Transaction</a>(l) {}
+<a name="l00170"></a>00170                         <a class="code" href="class_x_talker.html">XTalker</a>&lt;tArg&gt;::<a class="code" href="struct_x_talker_1_1_transaction.html">Transaction</a>(l) {}
 <a name="l00171"></a><a class="code" href="struct_x_talker_1_1_transaction_avoid_dup.html#a1">00171</a>         <span class="keyword">virtual</span> <span class="keywordtype">bool</span> <a class="code" href="struct_x_talker_1_1_transaction_avoid_dup.html#a1">talkBuffered</a>() {
 <a name="l00172"></a>00172             <span class="keywordtype">bool</span> skip = <span class="keyword">false</span>;
 <a name="l00173"></a>00173             <span class="keywordflow">if</span>(<a class="code" href="class_x_talker.html">XTalker&lt;tArg&gt;</a>::Transaction::listener-&gt;delay_ms()) {
 <a name="l00174"></a>00174                 <span class="keywordtype">long</span> elapsed_ms = (timeStamp() - 
-<a name="l00175"></a>00175                         <a class="code" href="class_x_talker.html">XTalker&lt;tArg&gt;</a>::Transaction::registered_time) / 1000uL;
+<a name="l00175"></a>00175                                                                    <a class="code" href="class_x_talker.html">XTalker&lt;tArg&gt;</a>::Transaction::registered_time) / 1000uL;
 <a name="l00176"></a>00176                 skip = ((long)<a class="code" href="class_x_talker.html">XTalker&lt;tArg&gt;</a>::Transaction::listener-&gt;delay_ms() &gt; elapsed_ms);
 <a name="l00177"></a>00177             }
 <a name="l00178"></a>00178             <span class="keywordflow">if</span>(!skip) {
@@ -141,7 +141,7 @@
 <a name="l00183"></a>00183             }
 <a name="l00184"></a>00184             <span class="keywordflow">return</span> skip;
 <a name="l00185"></a>00185         }            
-<a name="l00186"></a>00186   };  
+<a name="l00186"></a>00186         };  
 <a name="l00187"></a>00187 };
 <a name="l00188"></a>00188 
 <a name="l00189"></a>00189 <span class="comment">// template definitions below.</span>
@@ -159,11 +159,11 @@
 <a name="l00201"></a>00201 <span class="keyword">template</span> &lt;<span class="keyword">class</span> tObj, <span class="keyword">class</span> tClass&gt;
 <a name="l00202"></a>00202 shared_ptr&lt;XListener&gt;
 <a name="l00203"></a><a class="code" href="class_x_talker.html#a4">00203</a> <a class="code" href="class_x_talker.html#a4">XTalker&lt;tArg&gt;::connectShared</a>(<span class="keyword">const</span> shared_ptr&lt;tObj&gt; &amp;obj,
-<a name="l00204"></a>00204     <span class="keywordtype">void</span> (tClass::*func)(<span class="keyword">const</span> tArg &amp;),
-<a name="l00205"></a>00205     <span class="keywordtype">int</span> flags) {
+<a name="l00204"></a>00204                                                          <span class="keywordtype">void</span> (tClass::*func)(<span class="keyword">const</span> tArg &amp;),
+<a name="l00205"></a>00205                                                          <span class="keywordtype">int</span> flags) {
 <a name="l00206"></a>00206     shared_ptr&lt;Listener&gt; listener(
 <a name="l00207"></a>00207         <span class="keyword">new</span> <a class="code" href="class___x_listener_shared.html">_XListenerShared&lt;tClass, tArg&gt;</a>(
-<a name="l00208"></a>00208         dynamic_pointer_cast&lt;tClass&gt;(obj), func, (<a class="code" href="class_x_listener.html#w5">XListener::FLAGS</a>)flags) );
+<a name="l00208"></a>00208                         dynamic_pointer_cast&lt;tClass&gt;(obj), func, (<a class="code" href="class_x_listener.html#w5">XListener::FLAGS</a>)flags) );
 <a name="l00209"></a>00209     <a class="code" href="class_x_talker.html#a5">connect</a>(listener);
 <a name="l00210"></a>00210     <span class="keywordflow">return</span> listener;
 <a name="l00211"></a>00211 }
@@ -171,11 +171,11 @@
 <a name="l00213"></a>00213 <span class="keyword">template</span> &lt;<span class="keyword">class</span> tObj, <span class="keyword">class</span> tClass&gt;
 <a name="l00214"></a>00214 shared_ptr&lt;XListener&gt;
 <a name="l00215"></a><a class="code" href="class_x_talker.html#a3">00215</a> <a class="code" href="class_x_talker.html#a3">XTalker&lt;tArg&gt;::connectWeak</a>(<span class="keyword">const</span> shared_ptr&lt;tObj&gt; &amp;obj,
-<a name="l00216"></a>00216     <span class="keywordtype">void</span> (tClass::*func)(<span class="keyword">const</span> tArg &amp;),
-<a name="l00217"></a>00217     <span class="keywordtype">int</span> flags) {
+<a name="l00216"></a>00216                                                    <span class="keywordtype">void</span> (tClass::*func)(<span class="keyword">const</span> tArg &amp;),
+<a name="l00217"></a>00217                                                    <span class="keywordtype">int</span> flags) {
 <a name="l00218"></a>00218     shared_ptr&lt;Listener&gt; listener(
 <a name="l00219"></a>00219         <span class="keyword">new</span> <a class="code" href="class___x_listener_weak.html">_XListenerWeak&lt;tClass, tArg&gt;</a>(
-<a name="l00220"></a>00220         dynamic_pointer_cast&lt;tClass&gt;(obj), func, (<a class="code" href="class_x_listener.html#w5">XListener::FLAGS</a>)flags) );
+<a name="l00220"></a>00220                         dynamic_pointer_cast&lt;tClass&gt;(obj), func, (<a class="code" href="class_x_listener.html#w5">XListener::FLAGS</a>)flags) );
 <a name="l00221"></a>00221     <a class="code" href="class_x_talker.html#a5">connect</a>(listener);
 <a name="l00222"></a>00222     <span class="keywordflow">return</span> listener;
 <a name="l00223"></a>00223 }
@@ -228,44 +228,44 @@
 <a name="l00270"></a>00270 <span class="keyword">template</span> &lt;<span class="keyword">class</span> tArg&gt;
 <a name="l00271"></a>00271 <span class="keywordtype">void</span>
 <a name="l00272"></a><a class="code" href="class_x_talker.html#a7">00272</a> <a class="code" href="class_x_talker.html#a7">XTalker&lt;tArg&gt;::talk</a>(<span class="keyword">const</span> tArg &amp;arg) {
-<a name="l00273"></a>00273   <span class="keywordflow">if</span>(<a class="code" href="class___x_talker_base.html#p0">m_bMasked</a>) <span class="keywordflow">return</span>;  
-<a name="l00274"></a>00274   <span class="keywordflow">if</span>(<a class="code" href="class_x_talker.html#a8">empty</a>()) <span class="keywordflow">return</span>;
-<a name="l00275"></a>00275   <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;ListenerList&gt;</a> list(<a class="code" href="class_x_talker.html#r0">m_listeners</a>);
-<a name="l00276"></a>00276   <span class="keywordflow">if</span>(!list) <span class="keywordflow">return</span>;
-<a name="l00277"></a>00277   <span class="keywordflow">for</span>(<a class="code" href="class_x_talker.html#y2">ListenerList_it</a> it = list-&gt;begin(); it != list-&gt;end(); it++)
-<a name="l00278"></a>00278   {
-<a name="l00279"></a>00279     <span class="keywordflow">if</span>(shared_ptr&lt;Listener&gt; listener = it-&gt;lock()) {
-<a name="l00280"></a>00280         <span class="keywordflow">if</span>((listener-&gt;m_flags &amp; XListener::FLAG_MASKED) == 0) {
-<a name="l00281"></a>00281             <span class="keywordflow">if</span>(isMainThread() || ((listener-&gt;m_flags &amp; XListener::FLAG_MAIN_THREAD_CALL) == 0)) {
-<a name="l00282"></a>00282                 <span class="keywordflow">try</span> {
-<a name="l00283"></a>00283                   (*listener)(arg);
-<a name="l00284"></a>00284                 }
-<a name="l00285"></a>00285                 <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
-<a name="l00286"></a>00286                     e.<a class="code" href="struct_x_kame_error.html#a1">print</a>();
-<a name="l00287"></a>00287                 }
-<a name="l00288"></a>00288                 <span class="keywordflow">catch</span> (std::bad_alloc &amp;) {
-<a name="l00289"></a>00289                     gErrPrint(<span class="stringliteral">"Memory Allocation Failed!"</span>);
-<a name="l00290"></a>00290                 }
-<a name="l00291"></a>00291             }
-<a name="l00292"></a>00292             <span class="keywordflow">else</span> {
-<a name="l00293"></a>00293                    <span class="keywordflow">if</span>(listener-&gt;m_flags &amp; XListener::FLAG_AVOID_DUP) {
-<a name="l00294"></a>00294                 <a class="code" href="classatomic__scoped__ptr.html">atomic_scoped_ptr&lt;tArg&gt;</a> newarg(<span class="keyword">new</span> tArg(arg) );
-<a name="l00295"></a>00295                     newarg.<a class="code" href="classatomic__scoped__ptr.html#a4">swap</a>(listener-&gt;arg);
-<a name="l00296"></a>00296                         <span class="keywordflow">if</span>(!newarg.<a class="code" href="classatomic__scoped__ptr.html#a7">get</a>()) {
-<a name="l00297"></a>00297                              registerTransactionList(<span class="keyword">new</span> <a class="code" href="struct_x_talker_1_1_transaction_avoid_dup.html">TransactionAvoidDup</a>(listener));
-<a name="l00298"></a>00298                         }
-<a name="l00299"></a>00299                     }
-<a name="l00300"></a>00300                 <span class="keywordflow">else</span> {
-<a name="l00301"></a>00301                      registerTransactionList(<span class="keyword">new</span> <a class="code" href="struct_x_talker_1_1_transaction_allow_dup.html">TransactionAllowDup</a>(listener, arg));
-<a name="l00302"></a>00302                         }
-<a name="l00303"></a>00303             }
-<a name="l00304"></a>00304         }
-<a name="l00305"></a>00305      }
-<a name="l00306"></a>00306   }
+<a name="l00273"></a>00273         <span class="keywordflow">if</span>(<a class="code" href="class___x_talker_base.html#p0">m_bMasked</a>) <span class="keywordflow">return</span>;  
+<a name="l00274"></a>00274         <span class="keywordflow">if</span>(<a class="code" href="class_x_talker.html#a8">empty</a>()) <span class="keywordflow">return</span>;
+<a name="l00275"></a>00275         <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;ListenerList&gt;</a> list(<a class="code" href="class_x_talker.html#r0">m_listeners</a>);
+<a name="l00276"></a>00276         <span class="keywordflow">if</span>(!list) <span class="keywordflow">return</span>;
+<a name="l00277"></a>00277         <span class="keywordflow">for</span>(<a class="code" href="class_x_talker.html#y2">ListenerList_it</a> it = list-&gt;begin(); it != list-&gt;end(); it++)
+<a name="l00278"></a>00278         {
+<a name="l00279"></a>00279                 <span class="keywordflow">if</span>(shared_ptr&lt;Listener&gt; listener = it-&gt;lock()) {
+<a name="l00280"></a>00280                         <span class="keywordflow">if</span>((listener-&gt;m_flags &amp; XListener::FLAG_MASKED) == 0) {
+<a name="l00281"></a>00281                                 <span class="keywordflow">if</span>(isMainThread() || ((listener-&gt;m_flags &amp; XListener::FLAG_MAIN_THREAD_CALL) == 0)) {
+<a name="l00282"></a>00282                                         <span class="keywordflow">try</span> {
+<a name="l00283"></a>00283                                                 (*listener)(arg);
+<a name="l00284"></a>00284                                         }
+<a name="l00285"></a>00285                                         <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
+<a name="l00286"></a>00286                                                 e.<a class="code" href="struct_x_kame_error.html#a1">print</a>();
+<a name="l00287"></a>00287                                         }
+<a name="l00288"></a>00288                                         <span class="keywordflow">catch</span> (std::bad_alloc &amp;) {
+<a name="l00289"></a>00289                                                 gErrPrint(<span class="stringliteral">"Memory Allocation Failed!"</span>);
+<a name="l00290"></a>00290                                         }
+<a name="l00291"></a>00291                                 }
+<a name="l00292"></a>00292                                 <span class="keywordflow">else</span> {
+<a name="l00293"></a>00293                                         <span class="keywordflow">if</span>(listener-&gt;m_flags &amp; XListener::FLAG_AVOID_DUP) {
+<a name="l00294"></a>00294                                                 <a class="code" href="classatomic__scoped__ptr.html">atomic_scoped_ptr&lt;tArg&gt;</a> newarg(<span class="keyword">new</span> tArg(arg) );
+<a name="l00295"></a>00295                                                 newarg.<a class="code" href="classatomic__scoped__ptr.html#a4">swap</a>(listener-&gt;arg);
+<a name="l00296"></a>00296                                                 <span class="keywordflow">if</span>(!newarg.<a class="code" href="classatomic__scoped__ptr.html#a7">get</a>()) {
+<a name="l00297"></a>00297                                                         registerTransactionList(<span class="keyword">new</span> <a class="code" href="struct_x_talker_1_1_transaction_avoid_dup.html">TransactionAvoidDup</a>(listener));
+<a name="l00298"></a>00298                                                 }
+<a name="l00299"></a>00299                                         }
+<a name="l00300"></a>00300                                         <span class="keywordflow">else</span> {
+<a name="l00301"></a>00301                                                 registerTransactionList(<span class="keyword">new</span> <a class="code" href="struct_x_talker_1_1_transaction_allow_dup.html">TransactionAllowDup</a>(listener, arg));
+<a name="l00302"></a>00302                                         }
+<a name="l00303"></a>00303                                 }
+<a name="l00304"></a>00304                         }
+<a name="l00305"></a>00305                 }
+<a name="l00306"></a>00306         }
 <a name="l00307"></a>00307 }
 <a name="l00308"></a>00308 
 <a name="l00309"></a>00309 <span class="preprocessor">#endif</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:40 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:19 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

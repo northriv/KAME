@@ -19,7 +19,7 @@
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00015"></a>00015 <span class="preprocessor">#include "analyzer.h"</span>
 <a name="l00016"></a>00016 <span class="preprocessor">#include "xnodeconnector.h"</span>
@@ -58,10 +58,10 @@
 <a name="l00049"></a>00049 <span class="preprocessor"></span><span class="preprocessor">#define GRAPH_REAL_H_48f_SITE "H-at-48f-site"</span>
 <a name="l00050"></a>00050 <span class="preprocessor"></span>
 <a name="l00051"></a><a class="code" href="class_x_monte_carlo_driver.html#b0">00051</a> <a class="code" href="class_x_monte_carlo_driver.html#b0">XMonteCarloDriver::XMonteCarloDriver</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, 
-<a name="l00052"></a>00052    <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
-<a name="l00053"></a>00053    <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
-<a name="l00054"></a>00054    <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
-<a name="l00055"></a>00055    <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers) :
+<a name="l00052"></a>00052                                                                          <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
+<a name="l00053"></a>00053                                                                          <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
+<a name="l00054"></a>00054                                                                          <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
+<a name="l00055"></a>00055                                                                          <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers) :
 <a name="l00056"></a>00056     <a class="code" href="class_x_dummy_driver.html">XDummyDriver</a>&lt;<a class="code" href="class_x_primary_driver.html">XPrimaryDriver</a>&gt;(name, runtime, scalarentries, interfaces, thermometers, drivers),
 <a name="l00057"></a>00057     m_targetTemp(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"TargetTemp"</span>, false)),
 <a name="l00058"></a>00058     m_targetField(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"TargetField"</span>, false)),
@@ -77,48 +77,48 @@
 <a name="l00068"></a>00068     m_step(create&lt;<a class="code" href="class_x_node.html">XNode</a>&gt;(<span class="stringliteral">"Step"</span>, true)),
 <a name="l00069"></a>00069     m_graph3D(create&lt;<a class="code" href="class_x_combo_node.html">XComboNode</a>&gt;(<span class="stringliteral">"Graph3D"</span>, false, true)),
 <a name="l00070"></a>00070     m_entryT(create&lt;<a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>&gt;(<span class="stringliteral">"Temp"</span>, false, 
-<a name="l00071"></a>00071         dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()), <span class="stringliteral">"%.6g"</span>)),
+<a name="l00071"></a>00071                                                                   dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()), <span class="stringliteral">"%.6g"</span>)),
 <a name="l00072"></a>00072     m_entryH(create&lt;<a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>&gt;(<span class="stringliteral">"Field"</span>, false,
-<a name="l00073"></a>00073         dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()), <span class="stringliteral">"%.6g"</span>)),
+<a name="l00073"></a>00073                                                                   dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()), <span class="stringliteral">"%.6g"</span>)),
 <a name="l00074"></a>00074     m_entryU(create&lt;<a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>&gt;(<span class="stringliteral">"U"</span>, false,
-<a name="l00075"></a>00075         dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()), <span class="stringliteral">"%.6g"</span>)),
+<a name="l00075"></a>00075                                                                   dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()), <span class="stringliteral">"%.6g"</span>)),
 <a name="l00076"></a>00076     m_entryC(create&lt;<a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>&gt;(<span class="stringliteral">"C"</span>, false,
-<a name="l00077"></a>00077         dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()), <span class="stringliteral">"%.4g"</span>)),
+<a name="l00077"></a>00077                                                                   dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()), <span class="stringliteral">"%.4g"</span>)),
 <a name="l00078"></a>00078     m_entryCoT(create&lt;<a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>&gt;(<span class="stringliteral">"CoverT"</span>, false,
-<a name="l00079"></a>00079         dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()), <span class="stringliteral">"%.4g"</span>)),
+<a name="l00079"></a>00079                                                                         dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()), <span class="stringliteral">"%.4g"</span>)),
 <a name="l00080"></a>00080     m_entryS(create&lt;<a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>&gt;(<span class="stringliteral">"S"</span>, false,
-<a name="l00081"></a>00081         dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()), <span class="stringliteral">"%.6g"</span>)),
+<a name="l00081"></a>00081                                                                   dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()), <span class="stringliteral">"%.6g"</span>)),
 <a name="l00082"></a>00082     m_entryM(create&lt;<a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>&gt;(<span class="stringliteral">"M"</span>, false,
-<a name="l00083"></a>00083         dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()), <span class="stringliteral">"%.6g"</span>)),
+<a name="l00083"></a>00083                                                                   dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()), <span class="stringliteral">"%.6g"</span>)),
 <a name="l00084"></a>00084     m_entry2in2(create&lt;<a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>&gt;(<span class="stringliteral">"2in2"</span>, false,
-<a name="l00085"></a>00085         dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()), <span class="stringliteral">"%.4g"</span>)),
+<a name="l00085"></a>00085                                                                          dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()), <span class="stringliteral">"%.4g"</span>)),
 <a name="l00086"></a>00086     m_entry1in3(create&lt;<a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>&gt;(<span class="stringliteral">"1in3"</span>, false,
-<a name="l00087"></a>00087         dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()), <span class="stringliteral">"%.4g"</span>)),
+<a name="l00087"></a>00087                                                                          dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()), <span class="stringliteral">"%.4g"</span>)),
 <a name="l00088"></a>00088     m_form(new FrmMonteCarlo(g_pFrmMain)),
 <a name="l00089"></a>00089     m_wave3D(create&lt;<a class="code" href="class_x_wave_n_graph.html">XWaveNGraph</a>&gt;(<span class="stringliteral">"Wave3D"</span>, false, 
-<a name="l00090"></a>00090         m_form-&gt;m_graph, m_form-&gt;m_urlDump, m_form-&gt;m_btnDump)),
+<a name="l00090"></a>00090                                                                  m_form-&gt;m_graph, m_form-&gt;m_urlDump, m_form-&gt;m_btnDump)),
 <a name="l00091"></a>00091     m_statusPrinter(<a class="code" href="class_x_status_printer.html">XStatusPrinter</a>::create(m_form.get())),
 <a name="l00092"></a>00092     m_fftlen(-1)
 <a name="l00093"></a>00093 {
-<a name="l00094"></a>00094   scalarentries-&gt;insert(<a class="code" href="class_x_monte_carlo_driver.html#r13">m_entryT</a>);
-<a name="l00095"></a>00095   scalarentries-&gt;insert(<a class="code" href="class_x_monte_carlo_driver.html#r14">m_entryH</a>);
-<a name="l00096"></a>00096   scalarentries-&gt;insert(<a class="code" href="class_x_monte_carlo_driver.html#r15">m_entryU</a>);
-<a name="l00097"></a>00097   scalarentries-&gt;insert(<a class="code" href="class_x_monte_carlo_driver.html#r16">m_entryC</a>);
-<a name="l00098"></a>00098   scalarentries-&gt;insert(<a class="code" href="class_x_monte_carlo_driver.html#r17">m_entryCoT</a>);
-<a name="l00099"></a>00099   scalarentries-&gt;insert(<a class="code" href="class_x_monte_carlo_driver.html#r18">m_entryS</a>);
-<a name="l00100"></a>00100   scalarentries-&gt;insert(<a class="code" href="class_x_monte_carlo_driver.html#r19">m_entryM</a>);
-<a name="l00101"></a>00101   scalarentries-&gt;insert(<a class="code" href="class_x_monte_carlo_driver.html#r20">m_entry2in2</a>);
-<a name="l00102"></a>00102   scalarentries-&gt;insert(<a class="code" href="class_x_monte_carlo_driver.html#r21">m_entry1in3</a>);
-<a name="l00103"></a>00103   <a class="code" href="class_x_monte_carlo_driver.html#r0">m_targetTemp</a>-&gt;value(100.0);
-<a name="l00104"></a>00104   <a class="code" href="class_x_monte_carlo_driver.html#r2">m_hdirx</a>-&gt;value(1.0);
-<a name="l00105"></a>00105   <a class="code" href="class_x_monte_carlo_driver.html#r3">m_hdiry</a>-&gt;value(1.0);
-<a name="l00106"></a>00106   <a class="code" href="class_x_monte_carlo_driver.html#r4">m_hdirz</a>-&gt;value(1.0);
-<a name="l00107"></a>00107   <a class="code" href="class_x_monte_carlo_driver.html#r5">m_L</a>-&gt;value(8);
-<a name="l00108"></a>00108   <a class="code" href="class_x_monte_carlo_driver.html#r6">m_cutoffReal</a>-&gt;value(4.0);
-<a name="l00109"></a>00109   <a class="code" href="class_x_monte_carlo_driver.html#r7">m_cutoffRec</a>-&gt;value(2.0);
-<a name="l00110"></a>00110   <a class="code" href="class_x_monte_carlo_driver.html#r8">m_alpha</a>-&gt;value(0.5);
-<a name="l00111"></a>00111   <a class="code" href="class_x_monte_carlo_driver.html#r9">m_minTests</a>-&gt;value(1.0);
-<a name="l00112"></a>00112   <a class="code" href="class_x_monte_carlo_driver.html#r10">m_minFlips</a>-&gt;value(0.2);
+<a name="l00094"></a>00094         scalarentries-&gt;insert(<a class="code" href="class_x_monte_carlo_driver.html#r13">m_entryT</a>);
+<a name="l00095"></a>00095         scalarentries-&gt;insert(<a class="code" href="class_x_monte_carlo_driver.html#r14">m_entryH</a>);
+<a name="l00096"></a>00096         scalarentries-&gt;insert(<a class="code" href="class_x_monte_carlo_driver.html#r15">m_entryU</a>);
+<a name="l00097"></a>00097         scalarentries-&gt;insert(<a class="code" href="class_x_monte_carlo_driver.html#r16">m_entryC</a>);
+<a name="l00098"></a>00098         scalarentries-&gt;insert(<a class="code" href="class_x_monte_carlo_driver.html#r17">m_entryCoT</a>);
+<a name="l00099"></a>00099         scalarentries-&gt;insert(<a class="code" href="class_x_monte_carlo_driver.html#r18">m_entryS</a>);
+<a name="l00100"></a>00100         scalarentries-&gt;insert(<a class="code" href="class_x_monte_carlo_driver.html#r19">m_entryM</a>);
+<a name="l00101"></a>00101         scalarentries-&gt;insert(<a class="code" href="class_x_monte_carlo_driver.html#r20">m_entry2in2</a>);
+<a name="l00102"></a>00102         scalarentries-&gt;insert(<a class="code" href="class_x_monte_carlo_driver.html#r21">m_entry1in3</a>);
+<a name="l00103"></a>00103         <a class="code" href="class_x_monte_carlo_driver.html#r0">m_targetTemp</a>-&gt;value(100.0);
+<a name="l00104"></a>00104         <a class="code" href="class_x_monte_carlo_driver.html#r2">m_hdirx</a>-&gt;value(1.0);
+<a name="l00105"></a>00105         <a class="code" href="class_x_monte_carlo_driver.html#r3">m_hdiry</a>-&gt;value(1.0);
+<a name="l00106"></a>00106         <a class="code" href="class_x_monte_carlo_driver.html#r4">m_hdirz</a>-&gt;value(1.0);
+<a name="l00107"></a>00107         <a class="code" href="class_x_monte_carlo_driver.html#r5">m_L</a>-&gt;value(8);
+<a name="l00108"></a>00108         <a class="code" href="class_x_monte_carlo_driver.html#r6">m_cutoffReal</a>-&gt;value(4.0);
+<a name="l00109"></a>00109         <a class="code" href="class_x_monte_carlo_driver.html#r7">m_cutoffRec</a>-&gt;value(2.0);
+<a name="l00110"></a>00110         <a class="code" href="class_x_monte_carlo_driver.html#r8">m_alpha</a>-&gt;value(0.5);
+<a name="l00111"></a>00111         <a class="code" href="class_x_monte_carlo_driver.html#r9">m_minTests</a>-&gt;value(1.0);
+<a name="l00112"></a>00112         <a class="code" href="class_x_monte_carlo_driver.html#r10">m_minFlips</a>-&gt;value(0.2);
 <a name="l00113"></a>00113   
 <a name="l00114"></a>00114 <span class="comment">//  for(const FFTAxis *axis = c_fftaxes; axis-&gt;desc; axis++) {</span>
 <a name="l00115"></a>00115 <span class="comment">//    m_fftAxisX-&gt;add(axis-&gt;desc);</span>
@@ -127,31 +127,31 @@
 <a name="l00118"></a>00118 <span class="comment">//  m_fftAxisX-&gt;value(0);</span>
 <a name="l00119"></a>00119 <span class="comment">//  m_fftAxisY-&gt;value(1);</span>
 <a name="l00120"></a>00120   
-<a name="l00121"></a>00121   <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;add(GRAPH_3D_FFT_INTENS_ABS);
-<a name="l00122"></a>00122   <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;add(GRAPH_3D_FFT_INTENS_X);
-<a name="l00123"></a>00123   <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;add(GRAPH_3D_FFT_INTENS_Y);
-<a name="l00124"></a>00124   <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;add(GRAPH_3D_FFT_INTENS_Z);
-<a name="l00125"></a>00125   <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;add(GRAPH_3D_FFT_INTENS_M);
-<a name="l00126"></a>00126   <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;add(GRAPH_REAL_M);
-<a name="l00127"></a>00127   <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;add(GRAPH_REAL_H);
-<a name="l00128"></a>00128   <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;add(GRAPH_REAL_P);
-<a name="l00129"></a>00129   <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;add(GRAPH_REAL_H_B_SITE);
-<a name="l00130"></a>00130   <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;add(GRAPH_REAL_H_8a_SITE);
-<a name="l00131"></a>00131   <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;add(GRAPH_REAL_H_48f_SITE);
+<a name="l00121"></a>00121         <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;add(GRAPH_3D_FFT_INTENS_ABS);
+<a name="l00122"></a>00122         <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;add(GRAPH_3D_FFT_INTENS_X);
+<a name="l00123"></a>00123         <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;add(GRAPH_3D_FFT_INTENS_Y);
+<a name="l00124"></a>00124         <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;add(GRAPH_3D_FFT_INTENS_Z);
+<a name="l00125"></a>00125         <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;add(GRAPH_3D_FFT_INTENS_M);
+<a name="l00126"></a>00126         <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;add(GRAPH_REAL_M);
+<a name="l00127"></a>00127         <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;add(GRAPH_REAL_H);
+<a name="l00128"></a>00128         <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;add(GRAPH_REAL_P);
+<a name="l00129"></a>00129         <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;add(GRAPH_REAL_H_B_SITE);
+<a name="l00130"></a>00130         <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;add(GRAPH_REAL_H_8a_SITE);
+<a name="l00131"></a>00131         <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;add(GRAPH_REAL_H_48f_SITE);
 <a name="l00132"></a>00132   
-<a name="l00133"></a>00133   <a class="code" href="class_x_monte_carlo_driver.html#r24">m_conLength</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r5">m_L</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_edLength);
-<a name="l00134"></a>00134   <a class="code" href="class_x_monte_carlo_driver.html#r25">m_conCutoffReal</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r6">m_cutoffReal</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_edCutoffReal);
-<a name="l00135"></a>00135   <a class="code" href="class_x_monte_carlo_driver.html#r26">m_conCutoffRec</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r7">m_cutoffRec</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_edCutoffRec);
-<a name="l00136"></a>00136   <a class="code" href="class_x_monte_carlo_driver.html#r27">m_conAlpha</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r8">m_alpha</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_edAlpha);
-<a name="l00137"></a>00137   <a class="code" href="class_x_monte_carlo_driver.html#r28">m_conTargetTemp</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r0">m_targetTemp</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_edTargetTemp);
-<a name="l00138"></a>00138   <a class="code" href="class_x_monte_carlo_driver.html#r29">m_conTargetField</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r1">m_targetField</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_edTargetField);
-<a name="l00139"></a>00139   <a class="code" href="class_x_monte_carlo_driver.html#r30">m_conHDirX</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r2">m_hdirx</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_edHDirX);
-<a name="l00140"></a>00140   <a class="code" href="class_x_monte_carlo_driver.html#r31">m_conHDirY</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r3">m_hdiry</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_edHDirY);
-<a name="l00141"></a>00141   <a class="code" href="class_x_monte_carlo_driver.html#r32">m_conHDirZ</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r4">m_hdirz</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_edHDirZ);
-<a name="l00142"></a>00142   <a class="code" href="class_x_monte_carlo_driver.html#r33">m_conMinTests</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r9">m_minTests</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_edMinTests);
-<a name="l00143"></a>00143   <a class="code" href="class_x_monte_carlo_driver.html#r34">m_conMinFlips</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r10">m_minFlips</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_edMinFlips);
-<a name="l00144"></a>00144   <a class="code" href="class_x_monte_carlo_driver.html#r35">m_conStep</a> = xqcon_create&lt;XQButtonConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r11">m_step</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_btnStep);
-<a name="l00145"></a>00145   <a class="code" href="class_x_monte_carlo_driver.html#r36">m_conGraph3D</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_cmbGraph3D);
+<a name="l00133"></a>00133         <a class="code" href="class_x_monte_carlo_driver.html#r24">m_conLength</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r5">m_L</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_edLength);
+<a name="l00134"></a>00134         <a class="code" href="class_x_monte_carlo_driver.html#r25">m_conCutoffReal</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r6">m_cutoffReal</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_edCutoffReal);
+<a name="l00135"></a>00135         <a class="code" href="class_x_monte_carlo_driver.html#r26">m_conCutoffRec</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r7">m_cutoffRec</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_edCutoffRec);
+<a name="l00136"></a>00136         <a class="code" href="class_x_monte_carlo_driver.html#r27">m_conAlpha</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r8">m_alpha</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_edAlpha);
+<a name="l00137"></a>00137         <a class="code" href="class_x_monte_carlo_driver.html#r28">m_conTargetTemp</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r0">m_targetTemp</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_edTargetTemp);
+<a name="l00138"></a>00138         <a class="code" href="class_x_monte_carlo_driver.html#r29">m_conTargetField</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r1">m_targetField</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_edTargetField);
+<a name="l00139"></a>00139         <a class="code" href="class_x_monte_carlo_driver.html#r30">m_conHDirX</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r2">m_hdirx</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_edHDirX);
+<a name="l00140"></a>00140         <a class="code" href="class_x_monte_carlo_driver.html#r31">m_conHDirY</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r3">m_hdiry</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_edHDirY);
+<a name="l00141"></a>00141         <a class="code" href="class_x_monte_carlo_driver.html#r32">m_conHDirZ</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r4">m_hdirz</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_edHDirZ);
+<a name="l00142"></a>00142         <a class="code" href="class_x_monte_carlo_driver.html#r33">m_conMinTests</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r9">m_minTests</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_edMinTests);
+<a name="l00143"></a>00143         <a class="code" href="class_x_monte_carlo_driver.html#r34">m_conMinFlips</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r10">m_minFlips</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_edMinFlips);
+<a name="l00144"></a>00144         <a class="code" href="class_x_monte_carlo_driver.html#r35">m_conStep</a> = xqcon_create&lt;XQButtonConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r11">m_step</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_btnStep);
+<a name="l00145"></a>00145         <a class="code" href="class_x_monte_carlo_driver.html#r36">m_conGraph3D</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>, <a class="code" href="class_x_monte_carlo_driver.html#r37">m_form</a>-&gt;m_cmbGraph3D);
 <a name="l00146"></a>00146 
 <a name="l00147"></a>00147     m_L-&gt;setUIEnabled(<span class="keyword">true</span>);
 <a name="l00148"></a>00148     m_cutoffReal-&gt;setUIEnabled(<span class="keyword">true</span>);
@@ -165,30 +165,30 @@
 <a name="l00156"></a>00156     m_targetField-&gt;setUIEnabled(<span class="keyword">true</span>);
 <a name="l00157"></a>00157 
 <a name="l00158"></a>00158     <span class="keyword">const</span> <span class="keywordtype">char</span> *s_trace_names[] = {
-<a name="l00159"></a>00159       <span class="stringliteral">"h or x"</span>, <span class="stringliteral">"k or y"</span>, <span class="stringliteral">"l or z"</span>, <span class="stringliteral">"intens."</span>, <span class="stringliteral">"hx"</span>, <span class="stringliteral">"hy"</span>, <span class="stringliteral">"hz"</span>, <span class="stringliteral">"site"</span>
+<a name="l00159"></a>00159                 <span class="stringliteral">"h or x"</span>, <span class="stringliteral">"k or y"</span>, <span class="stringliteral">"l or z"</span>, <span class="stringliteral">"intens."</span>, <span class="stringliteral">"hx"</span>, <span class="stringliteral">"hy"</span>, <span class="stringliteral">"hz"</span>, <span class="stringliteral">"site"</span>
 <a name="l00160"></a>00160     };
-<a name="l00161"></a>00161   <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;setColCount(8, s_trace_names); 
-<a name="l00162"></a>00162   <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;selectAxes(0, 1, -1, 3, 2);
-<a name="l00163"></a>00163   <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;clear();
-<a name="l00164"></a>00164   <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;plot1()-&gt;drawLines()-&gt;value(<span class="keyword">false</span>);
+<a name="l00161"></a>00161         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;setColCount(8, s_trace_names); 
+<a name="l00162"></a>00162         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;selectAxes(0, 1, -1, 3, 2);
+<a name="l00163"></a>00163         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;clear();
+<a name="l00164"></a>00164         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;plot1()-&gt;drawLines()-&gt;value(<span class="keyword">false</span>);
 <a name="l00165"></a>00165 
-<a name="l00166"></a>00166   <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;graph()-&gt;backGround()-&gt;value(QColor(0,0,0).rgb());
-<a name="l00167"></a>00167   <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;plot1()-&gt;intensity()-&gt;value(2);
-<a name="l00168"></a>00168   <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;plot1()-&gt;colorPlot()-&gt;value(<span class="keyword">true</span>);
-<a name="l00169"></a>00169   <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;plot1()-&gt;colorPlotColorHigh()-&gt;value(QColor(0xFF, 0xFF, 0x2F).rgb());
-<a name="l00170"></a>00170   <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;plot1()-&gt;colorPlotColorLow()-&gt;value(QColor(0x00, 0x00, 0xFF).rgb());
-<a name="l00171"></a>00171   <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;plot1()-&gt;pointColor()-&gt;value(QColor(0x00, 0xFF, 0x00).rgb());
-<a name="l00172"></a>00172   <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;plot1()-&gt;majorGridColor()-&gt;value(QColor(0x4A, 0x4A, 0x4A).rgb());
-<a name="l00173"></a>00173   <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;graph()-&gt;titleColor()-&gt;value(clWhite);
-<a name="l00174"></a>00174   <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;axisx()-&gt;ticColor()-&gt;value(clWhite);
-<a name="l00175"></a>00175   <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;axisx()-&gt;labelColor()-&gt;value(clWhite);
-<a name="l00176"></a>00176   <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;axisx()-&gt;ticLabelColor()-&gt;value(clWhite);  
-<a name="l00177"></a>00177   <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;axisy()-&gt;ticColor()-&gt;value(clWhite);
-<a name="l00178"></a>00178   <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;axisy()-&gt;labelColor()-&gt;value(clWhite);
-<a name="l00179"></a>00179   <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;axisy()-&gt;ticLabelColor()-&gt;value(clWhite);  
-<a name="l00180"></a>00180   <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;axisz()-&gt;ticColor()-&gt;value(clWhite);
-<a name="l00181"></a>00181   <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;axisz()-&gt;labelColor()-&gt;value(clWhite);
-<a name="l00182"></a>00182   <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;axisz()-&gt;ticLabelColor()-&gt;value(clWhite);  
+<a name="l00166"></a>00166         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;graph()-&gt;backGround()-&gt;value(QColor(0,0,0).rgb());
+<a name="l00167"></a>00167         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;plot1()-&gt;intensity()-&gt;value(2);
+<a name="l00168"></a>00168         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;plot1()-&gt;colorPlot()-&gt;value(<span class="keyword">true</span>);
+<a name="l00169"></a>00169         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;plot1()-&gt;colorPlotColorHigh()-&gt;value(QColor(0xFF, 0xFF, 0x2F).rgb());
+<a name="l00170"></a>00170         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;plot1()-&gt;colorPlotColorLow()-&gt;value(QColor(0x00, 0x00, 0xFF).rgb());
+<a name="l00171"></a>00171         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;plot1()-&gt;pointColor()-&gt;value(QColor(0x00, 0xFF, 0x00).rgb());
+<a name="l00172"></a>00172         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;plot1()-&gt;majorGridColor()-&gt;value(QColor(0x4A, 0x4A, 0x4A).rgb());
+<a name="l00173"></a>00173         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;graph()-&gt;titleColor()-&gt;value(clWhite);
+<a name="l00174"></a>00174         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;axisx()-&gt;ticColor()-&gt;value(clWhite);
+<a name="l00175"></a>00175         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;axisx()-&gt;labelColor()-&gt;value(clWhite);
+<a name="l00176"></a>00176         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;axisx()-&gt;ticLabelColor()-&gt;value(clWhite);  
+<a name="l00177"></a>00177         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;axisy()-&gt;ticColor()-&gt;value(clWhite);
+<a name="l00178"></a>00178         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;axisy()-&gt;labelColor()-&gt;value(clWhite);
+<a name="l00179"></a>00179         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;axisy()-&gt;ticLabelColor()-&gt;value(clWhite);  
+<a name="l00180"></a>00180         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;axisz()-&gt;ticColor()-&gt;value(clWhite);
+<a name="l00181"></a>00181         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;axisz()-&gt;labelColor()-&gt;value(clWhite);
+<a name="l00182"></a>00182         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;axisz()-&gt;ticLabelColor()-&gt;value(clWhite);  
 <a name="l00183"></a>00183 }
 <a name="l00184"></a>00184 
 <a name="l00185"></a>00185 <span class="keywordtype">void</span>
@@ -222,12 +222,12 @@
 <a name="l00214"></a>00214     <a class="code" href="class_x_monte_carlo_driver.html#r49">m_lastMagnetization</a> = <a class="code" href="class_x_monte_carlo_driver.html#r22">m_loop</a>-&gt;magnetization().innerProduct(field_dir);
 <a name="l00215"></a>00215 
 <a name="l00216"></a>00216     <a class="code" href="class_x_monte_carlo_driver.html#r50">m_lsnTargetChanged</a> = <a class="code" href="class_x_monte_carlo_driver.html#r0">m_targetTemp</a>-&gt;onValueChanged().connectWeak(
-<a name="l00217"></a>00217                   shared_from_this(), &amp;<a class="code" href="class_x_monte_carlo_driver.html#d1">XMonteCarloDriver::onTargetChanged</a>);
+<a name="l00217"></a>00217                 shared_from_this(), &amp;<a class="code" href="class_x_monte_carlo_driver.html#d1">XMonteCarloDriver::onTargetChanged</a>);
 <a name="l00218"></a>00218     <a class="code" href="class_x_monte_carlo_driver.html#r1">m_targetField</a>-&gt;onValueChanged().connect(<a class="code" href="class_x_monte_carlo_driver.html#r50">m_lsnTargetChanged</a>);
 <a name="l00219"></a>00219     <a class="code" href="class_x_monte_carlo_driver.html#r51">m_lsnStepTouched</a> = <a class="code" href="class_x_monte_carlo_driver.html#r11">m_step</a>-&gt;onTouch().connectWeak(
-<a name="l00220"></a>00220                   shared_from_this(), &amp;<a class="code" href="class_x_monte_carlo_driver.html#d3">XMonteCarloDriver::onStepTouched</a>);
+<a name="l00220"></a>00220                 shared_from_this(), &amp;<a class="code" href="class_x_monte_carlo_driver.html#d3">XMonteCarloDriver::onStepTouched</a>);
 <a name="l00221"></a>00221     <a class="code" href="class_x_monte_carlo_driver.html#r52">m_lsnGraphChanged</a> = <a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;onValueChanged().connectWeak(
-<a name="l00222"></a>00222                   shared_from_this(), &amp;<a class="code" href="class_x_monte_carlo_driver.html#d2">XMonteCarloDriver::onGraphChanged</a>);
+<a name="l00222"></a>00222                 shared_from_this(), &amp;<a class="code" href="class_x_monte_carlo_driver.html#d2">XMonteCarloDriver::onGraphChanged</a>);
 <a name="l00223"></a>00223 
 <a name="l00224"></a>00224     <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r54">m_fftlen</a> &gt; 0)
 <a name="l00225"></a>00225         fftwnd_destroy_plan(<a class="code" href="class_x_monte_carlo_driver.html#r57">m_fftplan</a>);
@@ -307,65 +307,65 @@
 <a name="l00299"></a>00299 <span class="keywordtype">void</span>
 <a name="l00300"></a><a class="code" href="class_x_monte_carlo_driver.html#b4">00300</a> <a class="code" href="class_x_monte_carlo_driver.html#b4">XMonteCarloDriver::visualize</a>()
 <a name="l00301"></a>00301 {
-<a name="l00304"></a>00304   <span class="keywordflow">if</span>(!<a class="code" href="class_x_driver.html#a5">time</a>()) {
-<a name="l00305"></a>00305       <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;clear();
-<a name="l00306"></a>00306       <span class="keywordflow">return</span>;
-<a name="l00307"></a>00307   }
+<a name="l00304"></a>00304         <span class="keywordflow">if</span>(!<a class="code" href="class_x_driver.html#a5">time</a>()) {
+<a name="l00305"></a>00305                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;clear();
+<a name="l00306"></a>00306                 <span class="keywordflow">return</span>;
+<a name="l00307"></a>00307         }
 <a name="l00308"></a>00308     
-<a name="l00309"></a>00309   <span class="keywordtype">bool</span> fftx = <span class="keyword">false</span>;
-<a name="l00310"></a>00310   <span class="keywordtype">bool</span> ffty = <span class="keyword">false</span>;
-<a name="l00311"></a>00311   <span class="keywordtype">bool</span> fftz = <span class="keyword">false</span>;
-<a name="l00312"></a>00312   <span class="keywordtype">bool</span> fft_intens_abs = <span class="keyword">false</span>;
-<a name="l00313"></a>00313   <span class="keywordtype">bool</span> along_field_dir = <span class="keyword">false</span>;
-<a name="l00314"></a>00314   <span class="keywordtype">bool</span> calch = <span class="keyword">false</span>;
-<a name="l00315"></a>00315   <span class="keywordtype">bool</span> calcp = <span class="keyword">false</span>;
-<a name="l00316"></a>00316   <span class="keywordtype">bool</span> calcasite = <span class="keyword">false</span>;
-<a name="l00317"></a>00317   <span class="keywordtype">bool</span> calcbsite = <span class="keyword">false</span>;
-<a name="l00318"></a>00318   <span class="keywordtype">bool</span> calc8asite = <span class="keyword">false</span>;
-<a name="l00319"></a>00319   <span class="keywordtype">bool</span> calc48fsite = <span class="keyword">false</span>;
-<a name="l00320"></a>00320   <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;to_str() == GRAPH_3D_FFT_INTENS_ABS) {
-<a name="l00321"></a>00321     fftx = <span class="keyword">true</span>;
-<a name="l00322"></a>00322     ffty = <span class="keyword">true</span>;
-<a name="l00323"></a>00323     fftz = <span class="keyword">true</span>;
-<a name="l00324"></a>00324     fft_intens_abs = <span class="keyword">true</span>;
-<a name="l00325"></a>00325   }
-<a name="l00326"></a>00326   <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;to_str() == GRAPH_3D_FFT_INTENS_X) {
-<a name="l00327"></a>00327     fftx = <span class="keyword">true</span>;
-<a name="l00328"></a>00328   }
-<a name="l00329"></a>00329   <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;to_str() == GRAPH_3D_FFT_INTENS_Y) {
-<a name="l00330"></a>00330     ffty = <span class="keyword">true</span>;
-<a name="l00331"></a>00331   }
-<a name="l00332"></a>00332   <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;to_str() == GRAPH_3D_FFT_INTENS_Z) {
-<a name="l00333"></a>00333     fftz = <span class="keyword">true</span>;
-<a name="l00334"></a>00334   }
-<a name="l00335"></a>00335   <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;to_str() == GRAPH_3D_FFT_INTENS_M) {
-<a name="l00336"></a>00336     fftx = <span class="keyword">true</span>;
-<a name="l00337"></a>00337     ffty = <span class="keyword">true</span>;
-<a name="l00338"></a>00338     fftz = <span class="keyword">true</span>;
-<a name="l00339"></a>00339     along_field_dir = <span class="keyword">true</span>;
-<a name="l00340"></a>00340   }
-<a name="l00341"></a>00341   <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;to_str() == GRAPH_REAL_M) {
-<a name="l00342"></a>00342     calcasite = <span class="keyword">true</span>;
-<a name="l00343"></a>00343     along_field_dir = <span class="keyword">true</span>;
-<a name="l00344"></a>00344   }
-<a name="l00345"></a>00345   <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;to_str() == GRAPH_REAL_H) {
-<a name="l00346"></a>00346     calcasite = <span class="keyword">true</span>;
-<a name="l00347"></a>00347     calch = <span class="keyword">true</span>;
-<a name="l00348"></a>00348   }
-<a name="l00349"></a>00349   <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;to_str() == GRAPH_REAL_P) {
-<a name="l00350"></a>00350     calcasite = <span class="keyword">true</span>;
-<a name="l00351"></a>00351     calch = <span class="keyword">true</span>;
-<a name="l00352"></a>00352     calcp = <span class="keyword">true</span>;
-<a name="l00353"></a>00353   }
-<a name="l00354"></a>00354   <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;to_str() == GRAPH_REAL_H_B_SITE) {
-<a name="l00355"></a>00355     calcbsite = <span class="keyword">true</span>;
-<a name="l00356"></a>00356   }
-<a name="l00357"></a>00357   <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;to_str() == GRAPH_REAL_H_8a_SITE) {
-<a name="l00358"></a>00358     calc8asite = <span class="keyword">true</span>;
-<a name="l00359"></a>00359   }
-<a name="l00360"></a>00360   <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;to_str() == GRAPH_REAL_H_48f_SITE) {
-<a name="l00361"></a>00361     calc48fsite = <span class="keyword">true</span>;
-<a name="l00362"></a>00362   }
+<a name="l00309"></a>00309         <span class="keywordtype">bool</span> fftx = <span class="keyword">false</span>;
+<a name="l00310"></a>00310         <span class="keywordtype">bool</span> ffty = <span class="keyword">false</span>;
+<a name="l00311"></a>00311         <span class="keywordtype">bool</span> fftz = <span class="keyword">false</span>;
+<a name="l00312"></a>00312         <span class="keywordtype">bool</span> fft_intens_abs = <span class="keyword">false</span>;
+<a name="l00313"></a>00313         <span class="keywordtype">bool</span> along_field_dir = <span class="keyword">false</span>;
+<a name="l00314"></a>00314         <span class="keywordtype">bool</span> calch = <span class="keyword">false</span>;
+<a name="l00315"></a>00315         <span class="keywordtype">bool</span> calcp = <span class="keyword">false</span>;
+<a name="l00316"></a>00316         <span class="keywordtype">bool</span> calcasite = <span class="keyword">false</span>;
+<a name="l00317"></a>00317         <span class="keywordtype">bool</span> calcbsite = <span class="keyword">false</span>;
+<a name="l00318"></a>00318         <span class="keywordtype">bool</span> calc8asite = <span class="keyword">false</span>;
+<a name="l00319"></a>00319         <span class="keywordtype">bool</span> calc48fsite = <span class="keyword">false</span>;
+<a name="l00320"></a>00320         <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;to_str() == GRAPH_3D_FFT_INTENS_ABS) {
+<a name="l00321"></a>00321                 fftx = <span class="keyword">true</span>;
+<a name="l00322"></a>00322                 ffty = <span class="keyword">true</span>;
+<a name="l00323"></a>00323                 fftz = <span class="keyword">true</span>;
+<a name="l00324"></a>00324                 fft_intens_abs = <span class="keyword">true</span>;
+<a name="l00325"></a>00325         }
+<a name="l00326"></a>00326         <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;to_str() == GRAPH_3D_FFT_INTENS_X) {
+<a name="l00327"></a>00327                 fftx = <span class="keyword">true</span>;
+<a name="l00328"></a>00328         }
+<a name="l00329"></a>00329         <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;to_str() == GRAPH_3D_FFT_INTENS_Y) {
+<a name="l00330"></a>00330                 ffty = <span class="keyword">true</span>;
+<a name="l00331"></a>00331         }
+<a name="l00332"></a>00332         <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;to_str() == GRAPH_3D_FFT_INTENS_Z) {
+<a name="l00333"></a>00333                 fftz = <span class="keyword">true</span>;
+<a name="l00334"></a>00334         }
+<a name="l00335"></a>00335         <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;to_str() == GRAPH_3D_FFT_INTENS_M) {
+<a name="l00336"></a>00336                 fftx = <span class="keyword">true</span>;
+<a name="l00337"></a>00337                 ffty = <span class="keyword">true</span>;
+<a name="l00338"></a>00338                 fftz = <span class="keyword">true</span>;
+<a name="l00339"></a>00339                 along_field_dir = <span class="keyword">true</span>;
+<a name="l00340"></a>00340         }
+<a name="l00341"></a>00341         <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;to_str() == GRAPH_REAL_M) {
+<a name="l00342"></a>00342                 calcasite = <span class="keyword">true</span>;
+<a name="l00343"></a>00343                 along_field_dir = <span class="keyword">true</span>;
+<a name="l00344"></a>00344         }
+<a name="l00345"></a>00345         <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;to_str() == GRAPH_REAL_H) {
+<a name="l00346"></a>00346                 calcasite = <span class="keyword">true</span>;
+<a name="l00347"></a>00347                 calch = <span class="keyword">true</span>;
+<a name="l00348"></a>00348         }
+<a name="l00349"></a>00349         <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;to_str() == GRAPH_REAL_P) {
+<a name="l00350"></a>00350                 calcasite = <span class="keyword">true</span>;
+<a name="l00351"></a>00351                 calch = <span class="keyword">true</span>;
+<a name="l00352"></a>00352                 calcp = <span class="keyword">true</span>;
+<a name="l00353"></a>00353         }
+<a name="l00354"></a>00354         <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;to_str() == GRAPH_REAL_H_B_SITE) {
+<a name="l00355"></a>00355                 calcbsite = <span class="keyword">true</span>;
+<a name="l00356"></a>00356         }
+<a name="l00357"></a>00357         <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;to_str() == GRAPH_REAL_H_8a_SITE) {
+<a name="l00358"></a>00358                 calc8asite = <span class="keyword">true</span>;
+<a name="l00359"></a>00359         }
+<a name="l00360"></a>00360         <span class="keywordflow">if</span>(<a class="code" href="class_x_monte_carlo_driver.html#r12">m_graph3D</a>-&gt;to_str() == GRAPH_REAL_H_48f_SITE) {
+<a name="l00361"></a>00361                 calc48fsite = <span class="keyword">true</span>;
+<a name="l00362"></a>00362         }
 <a name="l00363"></a>00363 
 <a name="l00364"></a>00364     <span class="keywordtype">int</span> size = <a class="code" href="class_x_monte_carlo_driver.html#r23">m_store</a>-&gt;length();
 <a name="l00365"></a>00365     std::vector&lt;char&gt; spins(size*size*size*16);
@@ -374,215 +374,215 @@
 <a name="l00368"></a>00368     std::vector&lt;double&gt; probabilities;
 <a name="l00369"></a>00369     <span class="keywordflow">if</span>(calcp) probabilities.resize(size*size*size*16);
 <a name="l00370"></a>00370     <a class="code" href="class_x_monte_carlo_driver.html#r23">m_store</a>-&gt;write((<span class="keywordtype">char</span>*)&amp;spins[0]
-<a name="l00371"></a>00371         , fields.size() ? &amp;fields[0] : 0, probabilities.size() ? &amp;probabilities[0] : 0);
+<a name="l00371"></a>00371                                    , fields.size() ? &amp;fields[0] : 0, probabilities.size() ? &amp;probabilities[0] : 0);
 <a name="l00372"></a>00372     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> d = 0; d &lt; 3; d++) {
 <a name="l00373"></a>00373         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site = 0; site &lt; 16; site++) {
 <a name="l00374"></a>00374             <span class="keyword">const</span> <span class="keywordtype">int</span> *pos = cg_ASitePositions[site];
 <a name="l00375"></a>00375             <span class="keywordtype">int</span> ising = cg_ASiteIsingAxes[site][d];
 <a name="l00376"></a>00376             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> k = 0; k &lt; size; k++) {
-<a name="l00377"></a>00377             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j = 0; j &lt; size; j++) {
-<a name="l00378"></a>00378             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; size; i++) {
-<a name="l00379"></a>00379                 <span class="keywordtype">int</span> fftidx = <a class="code" href="class_x_monte_carlo_driver.html#r54">m_fftlen</a>*(<a class="code" href="class_x_monte_carlo_driver.html#r54">m_fftlen</a>*(4*k+pos[2]) + 4*j+pos[1]) + 4*i + pos[0];
-<a name="l00380"></a>00380                 <span class="keywordtype">int</span> spin = spins[size*(size*(size*site + k) + j) + i];
-<a name="l00381"></a>00381                 <a class="code" href="class_x_monte_carlo_driver.html#r55">m_fftin</a>[d][fftidx].re = spin* ising / sqrt(3.0);
-<a name="l00382"></a>00382             }
-<a name="l00383"></a>00383             }
+<a name="l00377"></a>00377                                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j = 0; j &lt; size; j++) {
+<a name="l00378"></a>00378                                         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; size; i++) {
+<a name="l00379"></a>00379                                                 <span class="keywordtype">int</span> fftidx = <a class="code" href="class_x_monte_carlo_driver.html#r54">m_fftlen</a>*(<a class="code" href="class_x_monte_carlo_driver.html#r54">m_fftlen</a>*(4*k+pos[2]) + 4*j+pos[1]) + 4*i + pos[0];
+<a name="l00380"></a>00380                                                 <span class="keywordtype">int</span> spin = spins[size*(size*(size*site + k) + j) + i];
+<a name="l00381"></a>00381                                                 <a class="code" href="class_x_monte_carlo_driver.html#r55">m_fftin</a>[d][fftidx].re = spin* ising / sqrt(3.0);
+<a name="l00382"></a>00382                                         }
+<a name="l00383"></a>00383                                 }
 <a name="l00384"></a>00384             }
 <a name="l00385"></a>00385         }
 <a name="l00386"></a>00386     }
 <a name="l00387"></a>00387     
-<a name="l00388"></a>00388   <a class="code" href="struct_monte_carlo_1_1_vector3.html">MonteCarlo::Vector3&lt;double&gt;</a> field_dir(*<a class="code" href="class_x_monte_carlo_driver.html#r2">m_hdirx</a>,*<a class="code" href="class_x_monte_carlo_driver.html#r3">m_hdiry</a>,*<a class="code" href="class_x_monte_carlo_driver.html#r4">m_hdirz</a>);
-<a name="l00389"></a>00389   field_dir.<a class="code" href="struct_monte_carlo_1_1_vector3.html#a11">normalize</a>();
+<a name="l00388"></a>00388         <a class="code" href="struct_monte_carlo_1_1_vector3.html">MonteCarlo::Vector3&lt;double&gt;</a> field_dir(*<a class="code" href="class_x_monte_carlo_driver.html#r2">m_hdirx</a>,*<a class="code" href="class_x_monte_carlo_driver.html#r3">m_hdiry</a>,*<a class="code" href="class_x_monte_carlo_driver.html#r4">m_hdirz</a>);
+<a name="l00389"></a>00389         field_dir.<a class="code" href="struct_monte_carlo_1_1_vector3.html#a11">normalize</a>();
 <a name="l00390"></a>00390     
 <a name="l00391"></a>00391 
-<a name="l00392"></a>00392   <span class="keywordflow">if</span>(fftx || ffty || fftz)
-<a name="l00393"></a>00393   {
-<a name="l00394"></a>00394     fftwnd_one(<a class="code" href="class_x_monte_carlo_driver.html#r57">m_fftplan</a>, &amp;<a class="code" href="class_x_monte_carlo_driver.html#r55">m_fftin</a>[0][0], &amp;<a class="code" href="class_x_monte_carlo_driver.html#r56">m_fftout</a>[0][0]);
-<a name="l00395"></a>00395     fftwnd_one(<a class="code" href="class_x_monte_carlo_driver.html#r57">m_fftplan</a>, &amp;<a class="code" href="class_x_monte_carlo_driver.html#r55">m_fftin</a>[1][0], &amp;<a class="code" href="class_x_monte_carlo_driver.html#r56">m_fftout</a>[1][0]);
-<a name="l00396"></a>00396     fftwnd_one(<a class="code" href="class_x_monte_carlo_driver.html#r57">m_fftplan</a>, &amp;<a class="code" href="class_x_monte_carlo_driver.html#r55">m_fftin</a>[2][0], &amp;<a class="code" href="class_x_monte_carlo_driver.html#r56">m_fftout</a>[2][0]);
+<a name="l00392"></a>00392         <span class="keywordflow">if</span>(fftx || ffty || fftz)
+<a name="l00393"></a>00393         {
+<a name="l00394"></a>00394                 fftwnd_one(<a class="code" href="class_x_monte_carlo_driver.html#r57">m_fftplan</a>, &amp;<a class="code" href="class_x_monte_carlo_driver.html#r55">m_fftin</a>[0][0], &amp;<a class="code" href="class_x_monte_carlo_driver.html#r56">m_fftout</a>[0][0]);
+<a name="l00395"></a>00395                 fftwnd_one(<a class="code" href="class_x_monte_carlo_driver.html#r57">m_fftplan</a>, &amp;<a class="code" href="class_x_monte_carlo_driver.html#r55">m_fftin</a>[1][0], &amp;<a class="code" href="class_x_monte_carlo_driver.html#r56">m_fftout</a>[1][0]);
+<a name="l00396"></a>00396                 fftwnd_one(<a class="code" href="class_x_monte_carlo_driver.html#r57">m_fftplan</a>, &amp;<a class="code" href="class_x_monte_carlo_driver.html#r55">m_fftin</a>[2][0], &amp;<a class="code" href="class_x_monte_carlo_driver.html#r56">m_fftout</a>[2][0]);
 <a name="l00397"></a>00397     
-<a name="l00398"></a>00398       <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XWaveNGraph&gt;</a> lock(*<a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>);
-<a name="l00399"></a>00399       <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;setRowCount(<a class="code" href="class_x_monte_carlo_driver.html#r54">m_fftlen</a> * <a class="code" href="class_x_monte_carlo_driver.html#r54">m_fftlen</a> * <a class="code" href="class_x_monte_carlo_driver.html#r54">m_fftlen</a> );
+<a name="l00398"></a>00398                 <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XWaveNGraph&gt;</a> lock(*<a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>);
+<a name="l00399"></a>00399                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;setRowCount(<a class="code" href="class_x_monte_carlo_driver.html#r54">m_fftlen</a> * <a class="code" href="class_x_monte_carlo_driver.html#r54">m_fftlen</a> * <a class="code" href="class_x_monte_carlo_driver.html#r54">m_fftlen</a> );
 <a name="l00400"></a>00400         <span class="keywordtype">double</span> normalize = A_MOMENT / m_fftlen / m_fftlen / m_fftlen;
 <a name="l00401"></a>00401         <span class="keywordtype">int</span> idx = 0;
 <a name="l00402"></a>00402         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> l = 0; l &lt; m_fftlen; l++) {
-<a name="l00403"></a>00403         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> k = 0; k &lt; m_fftlen; k++) {
-<a name="l00404"></a>00404         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> h = 0; h &lt; m_fftlen; h++) {
-<a name="l00405"></a>00405             <span class="keywordtype">int</span> qidx = m_fftlen*(m_fftlen*l + k) + h;
-<a name="l00406"></a>00406             fftw_complex ix = <a class="code" href="class_x_monte_carlo_driver.html#r56">m_fftout</a>[0][qidx];
-<a name="l00407"></a>00407             fftw_complex iy = <a class="code" href="class_x_monte_carlo_driver.html#r56">m_fftout</a>[1][qidx];
-<a name="l00408"></a>00408             fftw_complex iz = <a class="code" href="class_x_monte_carlo_driver.html#r56">m_fftout</a>[2][qidx];
-<a name="l00409"></a>00409             <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(0)[idx] = (double)h * 8.0/m_fftlen;
-<a name="l00410"></a>00410             <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(1)[idx] = (double)k * 8.0/m_fftlen;
-<a name="l00411"></a>00411             <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(2)[idx] = (double)l * 8.0/m_fftlen;
-<a name="l00412"></a>00412             <span class="keywordtype">double</span> v = 0.0;
-<a name="l00413"></a>00413             <span class="keywordflow">if</span>(along_field_dir) {
-<a name="l00414"></a>00414                 <span class="keywordtype">double</span> vr = field_dir.<a class="code" href="struct_monte_carlo_1_1_vector3.html#a13">innerProduct</a>(<a class="code" href="struct_monte_carlo_1_1_vector3.html">MonteCarlo::Vector3&lt;double&gt;</a>
-<a name="l00415"></a>00415                     (ix.re, iy.re, iz.re));
-<a name="l00416"></a>00416                 <span class="keywordtype">double</span> vi = field_dir.<a class="code" href="struct_monte_carlo_1_1_vector3.html#a13">innerProduct</a>(<a class="code" href="struct_monte_carlo_1_1_vector3.html">MonteCarlo::Vector3&lt;double&gt;</a>
-<a name="l00417"></a>00417                     (ix.im, iy.im, iz.im));
-<a name="l00418"></a>00418                 v = vr*vr + vi * vi;
-<a name="l00419"></a>00419             }
-<a name="l00420"></a>00420             <span class="keywordflow">else</span> {
-<a name="l00421"></a>00421                 <span class="keywordflow">if</span>(fftx) v+= ix.re*ix.re + ix.im*ix.im;
-<a name="l00422"></a>00422                 <span class="keywordflow">if</span>(ffty) v+= iy.re*iy.re + iy.im*iy.im;
-<a name="l00423"></a>00423                 <span class="keywordflow">if</span>(fftz) v+= iz.re*iz.re + iz.im*iz.im;
-<a name="l00424"></a>00424             }
-<a name="l00425"></a>00425             v = sqrt(v);
-<a name="l00426"></a>00426             <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(3)[idx] = v * normalize;
-<a name="l00427"></a>00427             <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(4)[idx] = (ix.re*ix.re + ix.im*ix.im) * normalize;
-<a name="l00428"></a>00428             <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(5)[idx] = (iy.re*iy.re + iy.im*iy.im) * normalize;
-<a name="l00429"></a>00429             <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(6)[idx] = (iz.re*iz.re + iz.im*iz.im) * normalize;
-<a name="l00430"></a>00430             <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(7)[idx] = 0;
-<a name="l00431"></a>00431             idx++;
-<a name="l00432"></a>00432         }
-<a name="l00433"></a>00433         }
+<a name="l00403"></a>00403                         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> k = 0; k &lt; m_fftlen; k++) {
+<a name="l00404"></a>00404                                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> h = 0; h &lt; m_fftlen; h++) {
+<a name="l00405"></a>00405                                         <span class="keywordtype">int</span> qidx = m_fftlen*(m_fftlen*l + k) + h;
+<a name="l00406"></a>00406                                         fftw_complex ix = <a class="code" href="class_x_monte_carlo_driver.html#r56">m_fftout</a>[0][qidx];
+<a name="l00407"></a>00407                                         fftw_complex iy = <a class="code" href="class_x_monte_carlo_driver.html#r56">m_fftout</a>[1][qidx];
+<a name="l00408"></a>00408                                         fftw_complex iz = <a class="code" href="class_x_monte_carlo_driver.html#r56">m_fftout</a>[2][qidx];
+<a name="l00409"></a>00409                                         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(0)[idx] = (double)h * 8.0/m_fftlen;
+<a name="l00410"></a>00410                                         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(1)[idx] = (double)k * 8.0/m_fftlen;
+<a name="l00411"></a>00411                                         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(2)[idx] = (double)l * 8.0/m_fftlen;
+<a name="l00412"></a>00412                                         <span class="keywordtype">double</span> v = 0.0;
+<a name="l00413"></a>00413                                         <span class="keywordflow">if</span>(along_field_dir) {
+<a name="l00414"></a>00414                                                 <span class="keywordtype">double</span> vr = field_dir.<a class="code" href="struct_monte_carlo_1_1_vector3.html#a13">innerProduct</a>(<a class="code" href="struct_monte_carlo_1_1_vector3.html">MonteCarlo::Vector3&lt;double&gt;</a>
+<a name="l00415"></a>00415                                                                                                                    (ix.re, iy.re, iz.re));
+<a name="l00416"></a>00416                                                 <span class="keywordtype">double</span> vi = field_dir.<a class="code" href="struct_monte_carlo_1_1_vector3.html#a13">innerProduct</a>(<a class="code" href="struct_monte_carlo_1_1_vector3.html">MonteCarlo::Vector3&lt;double&gt;</a>
+<a name="l00417"></a>00417                                                                                                                    (ix.im, iy.im, iz.im));
+<a name="l00418"></a>00418                                                 v = vr*vr + vi * vi;
+<a name="l00419"></a>00419                                         }
+<a name="l00420"></a>00420                                         <span class="keywordflow">else</span> {
+<a name="l00421"></a>00421                                                 <span class="keywordflow">if</span>(fftx) v+= ix.re*ix.re + ix.im*ix.im;
+<a name="l00422"></a>00422                                                 <span class="keywordflow">if</span>(ffty) v+= iy.re*iy.re + iy.im*iy.im;
+<a name="l00423"></a>00423                                                 <span class="keywordflow">if</span>(fftz) v+= iz.re*iz.re + iz.im*iz.im;
+<a name="l00424"></a>00424                                         }
+<a name="l00425"></a>00425                                         v = sqrt(v);
+<a name="l00426"></a>00426                                         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(3)[idx] = v * normalize;
+<a name="l00427"></a>00427                                         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(4)[idx] = (ix.re*ix.re + ix.im*ix.im) * normalize;
+<a name="l00428"></a>00428                                         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(5)[idx] = (iy.re*iy.re + iy.im*iy.im) * normalize;
+<a name="l00429"></a>00429                                         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(6)[idx] = (iz.re*iz.re + iz.im*iz.im) * normalize;
+<a name="l00430"></a>00430                                         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(7)[idx] = 0;
+<a name="l00431"></a>00431                                         idx++;
+<a name="l00432"></a>00432                                 }
+<a name="l00433"></a>00433                         }
 <a name="l00434"></a>00434         }
-<a name="l00435"></a>00435   }
-<a name="l00436"></a>00436   <span class="keywordflow">if</span>(calcasite)
-<a name="l00437"></a>00437   {   <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XWaveNGraph&gt;</a> lock(*<a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>);
-<a name="l00438"></a>00438      <span class="keywordtype">int</span> idx = 0;
-<a name="l00439"></a>00439       <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;setRowCount(16*size*size*size);
+<a name="l00435"></a>00435         }
+<a name="l00436"></a>00436         <span class="keywordflow">if</span>(calcasite)
+<a name="l00437"></a>00437         {   <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XWaveNGraph&gt;</a> lock(*<a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>);
+<a name="l00438"></a>00438         <span class="keywordtype">int</span> idx = 0;
+<a name="l00439"></a>00439         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;setRowCount(16*size*size*size);
 <a name="l00440"></a>00440         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site = 0; site &lt; 16; site++) {
-<a name="l00441"></a>00441             <span class="keyword">const</span> <span class="keywordtype">int</span> *pos = cg_ASitePositions[site];
-<a name="l00442"></a>00442             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> k = 0; k &lt; size; k++) {
+<a name="l00441"></a>00441                 <span class="keyword">const</span> <span class="keywordtype">int</span> *pos = cg_ASitePositions[site];
+<a name="l00442"></a>00442                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> k = 0; k &lt; size; k++) {
 <a name="l00443"></a>00443             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j = 0; j &lt; size; j++) {
-<a name="l00444"></a>00444             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; size; i++) {
-<a name="l00445"></a>00445                 <span class="keywordtype">int</span> sidx = size*(size*(size*site + k) + j) + i;
-<a name="l00446"></a>00446                 <span class="keywordtype">int</span> fftidx = <a class="code" href="class_x_monte_carlo_driver.html#r54">m_fftlen</a>*(<a class="code" href="class_x_monte_carlo_driver.html#r54">m_fftlen</a>*(4*k+pos[2]) + 4*j+pos[1]) + 4*i + pos[0];
-<a name="l00447"></a>00447                 <span class="keywordtype">double</span> x = i + pos[0] * 0.25;
-<a name="l00448"></a>00448                 <span class="keywordtype">double</span> y = j + pos[1] * 0.25;
-<a name="l00449"></a>00449                 <span class="keywordtype">double</span> z = k + pos[2] * 0.25;
-<a name="l00450"></a>00450                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(0)[idx] = x;
-<a name="l00451"></a>00451                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(1)[idx] = y;
-<a name="l00452"></a>00452                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(2)[idx] = z;
-<a name="l00453"></a>00453                 <span class="keywordtype">double</span> sx = <a class="code" href="class_x_monte_carlo_driver.html#r55">m_fftin</a>[0][fftidx].re;
-<a name="l00454"></a>00454                 <span class="keywordtype">double</span> sy = <a class="code" href="class_x_monte_carlo_driver.html#r55">m_fftin</a>[1][fftidx].re;
-<a name="l00455"></a>00455                 <span class="keywordtype">double</span> sz = <a class="code" href="class_x_monte_carlo_driver.html#r55">m_fftin</a>[2][fftidx].re;
-<a name="l00456"></a>00456                 <span class="keywordtype">double</span> v = 0.0;
-<a name="l00457"></a>00457                 <span class="keywordflow">if</span>(along_field_dir) {
-<a name="l00458"></a>00458                     v = field_dir.<a class="code" href="struct_monte_carlo_1_1_vector3.html#a13">innerProduct</a>(<a class="code" href="struct_monte_carlo_1_1_vector3.html">MonteCarlo::Vector3&lt;double&gt;</a>
-<a name="l00459"></a>00459                         (sx,sy,sz)) * A_MOMENT;
-<a name="l00460"></a>00460                 }
-<a name="l00461"></a>00461                 <span class="keywordflow">else</span>
-<a name="l00462"></a>00462                     <span class="keywordflow">if</span>(calcp) {
-<a name="l00463"></a>00463                         v = probabilities[sidx];
-<a name="l00464"></a>00464                     }
-<a name="l00465"></a>00465                     <span class="keywordflow">else</span>
-<a name="l00466"></a>00466                         <span class="keywordflow">if</span>(calch) {
-<a name="l00467"></a>00467                             v = fields[sidx];
-<a name="l00468"></a>00468                         }
-<a name="l00469"></a>00469                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(3)[idx] = v;
-<a name="l00470"></a>00470                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(4)[idx] = sx;
-<a name="l00471"></a>00471                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(5)[idx] = sy;
-<a name="l00472"></a>00472                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(6)[idx] = sz;
-<a name="l00473"></a>00473                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(7)[idx] = site;
-<a name="l00474"></a>00474                 idx++;
-<a name="l00475"></a>00475             }
+<a name="l00444"></a>00444                                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; size; i++) {
+<a name="l00445"></a>00445                                         <span class="keywordtype">int</span> sidx = size*(size*(size*site + k) + j) + i;
+<a name="l00446"></a>00446                                         <span class="keywordtype">int</span> fftidx = <a class="code" href="class_x_monte_carlo_driver.html#r54">m_fftlen</a>*(<a class="code" href="class_x_monte_carlo_driver.html#r54">m_fftlen</a>*(4*k+pos[2]) + 4*j+pos[1]) + 4*i + pos[0];
+<a name="l00447"></a>00447                                         <span class="keywordtype">double</span> x = i + pos[0] * 0.25;
+<a name="l00448"></a>00448                                         <span class="keywordtype">double</span> y = j + pos[1] * 0.25;
+<a name="l00449"></a>00449                                         <span class="keywordtype">double</span> z = k + pos[2] * 0.25;
+<a name="l00450"></a>00450                                         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(0)[idx] = x;
+<a name="l00451"></a>00451                                         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(1)[idx] = y;
+<a name="l00452"></a>00452                                         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(2)[idx] = z;
+<a name="l00453"></a>00453                                         <span class="keywordtype">double</span> sx = <a class="code" href="class_x_monte_carlo_driver.html#r55">m_fftin</a>[0][fftidx].re;
+<a name="l00454"></a>00454                                         <span class="keywordtype">double</span> sy = <a class="code" href="class_x_monte_carlo_driver.html#r55">m_fftin</a>[1][fftidx].re;
+<a name="l00455"></a>00455                                         <span class="keywordtype">double</span> sz = <a class="code" href="class_x_monte_carlo_driver.html#r55">m_fftin</a>[2][fftidx].re;
+<a name="l00456"></a>00456                                         <span class="keywordtype">double</span> v = 0.0;
+<a name="l00457"></a>00457                                         <span class="keywordflow">if</span>(along_field_dir) {
+<a name="l00458"></a>00458                                                 v = field_dir.<a class="code" href="struct_monte_carlo_1_1_vector3.html#a13">innerProduct</a>(<a class="code" href="struct_monte_carlo_1_1_vector3.html">MonteCarlo::Vector3&lt;double&gt;</a>
+<a name="l00459"></a>00459                                                                                                    (sx,sy,sz)) * A_MOMENT;
+<a name="l00460"></a>00460                                         }
+<a name="l00461"></a>00461                                         <span class="keywordflow">else</span>
+<a name="l00462"></a>00462                                                 <span class="keywordflow">if</span>(calcp) {
+<a name="l00463"></a>00463                                                         v = probabilities[sidx];
+<a name="l00464"></a>00464                                                 }
+<a name="l00465"></a>00465                                                 <span class="keywordflow">else</span>
+<a name="l00466"></a>00466                                                         <span class="keywordflow">if</span>(calch) {
+<a name="l00467"></a>00467                                                                 v = fields[sidx];
+<a name="l00468"></a>00468                                                         }
+<a name="l00469"></a>00469                                         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(3)[idx] = v;
+<a name="l00470"></a>00470                                         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(4)[idx] = sx;
+<a name="l00471"></a>00471                                         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(5)[idx] = sy;
+<a name="l00472"></a>00472                                         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(6)[idx] = sz;
+<a name="l00473"></a>00473                                         <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(7)[idx] = site;
+<a name="l00474"></a>00474                                         idx++;
+<a name="l00475"></a>00475                                 }
 <a name="l00476"></a>00476             }
-<a name="l00477"></a>00477             }
+<a name="l00477"></a>00477                 }
 <a name="l00478"></a>00478         }
-<a name="l00479"></a>00479   }
-<a name="l00480"></a>00480   <span class="keywordflow">if</span>(calcbsite)
-<a name="l00481"></a>00481   {
-<a name="l00482"></a>00482      std::vector&lt;MonteCarlo::Vector3&lt;double&gt; &gt; fields(16*size*size*size);
-<a name="l00483"></a>00483      <a class="code" href="class_x_monte_carlo_driver.html#r23">m_store</a>-&gt;write_bsite(&amp;fields[0]);
-<a name="l00484"></a>00484      <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XWaveNGraph&gt;</a> lock(*<a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>);
-<a name="l00485"></a>00485      <span class="keywordtype">int</span> idx = 0;
-<a name="l00486"></a>00486       <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;setRowCount(16*size*size*size);
+<a name="l00479"></a>00479         }
+<a name="l00480"></a>00480         <span class="keywordflow">if</span>(calcbsite)
+<a name="l00481"></a>00481         {
+<a name="l00482"></a>00482                 std::vector&lt;MonteCarlo::Vector3&lt;double&gt; &gt; fields(16*size*size*size);
+<a name="l00483"></a>00483                 <a class="code" href="class_x_monte_carlo_driver.html#r23">m_store</a>-&gt;write_bsite(&amp;fields[0]);
+<a name="l00484"></a>00484                 <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XWaveNGraph&gt;</a> lock(*<a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>);
+<a name="l00485"></a>00485                 <span class="keywordtype">int</span> idx = 0;
+<a name="l00486"></a>00486                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;setRowCount(16*size*size*size);
 <a name="l00487"></a>00487         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site = 0; site &lt; 16; site++) {
 <a name="l00488"></a>00488             <span class="keyword">const</span> <span class="keywordtype">int</span> *pos = cg_BSitePositions[site];
 <a name="l00489"></a>00489             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> k = 0; k &lt; size; k++) {
-<a name="l00490"></a>00490             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j = 0; j &lt; size; j++) {
-<a name="l00491"></a>00491             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; size; i++) {
-<a name="l00492"></a>00492                 <span class="keywordtype">int</span> sidx = size*(size*(size*site + k) + j) + i;
-<a name="l00493"></a>00493                 <a class="code" href="struct_monte_carlo_1_1_vector3.html">MonteCarlo::Vector3&lt;double&gt;</a> h(fields[sidx]);
-<a name="l00494"></a>00494                 <span class="keywordtype">double</span> x = i + pos[0] * 0.25;
-<a name="l00495"></a>00495                 <span class="keywordtype">double</span> y = j + pos[1] * 0.25;
-<a name="l00496"></a>00496                 <span class="keywordtype">double</span> z = k + pos[2] * 0.25;
-<a name="l00497"></a>00497                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(0)[idx] = x;
-<a name="l00498"></a>00498                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(1)[idx] = y;
-<a name="l00499"></a>00499                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(2)[idx] = z;
-<a name="l00500"></a>00500                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(3)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#a14">abs</a>();
-<a name="l00501"></a>00501                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(4)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a>;
-<a name="l00502"></a>00502                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(5)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a>;
-<a name="l00503"></a>00503                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(6)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a>;
-<a name="l00504"></a>00504                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(7)[idx] = site;
-<a name="l00505"></a>00505                 idx++;
-<a name="l00506"></a>00506             }
-<a name="l00507"></a>00507             }
+<a name="l00490"></a>00490                                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j = 0; j &lt; size; j++) {
+<a name="l00491"></a>00491                                         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; size; i++) {
+<a name="l00492"></a>00492                                                 <span class="keywordtype">int</span> sidx = size*(size*(size*site + k) + j) + i;
+<a name="l00493"></a>00493                                                 <a class="code" href="struct_monte_carlo_1_1_vector3.html">MonteCarlo::Vector3&lt;double&gt;</a> h(fields[sidx]);
+<a name="l00494"></a>00494                                                 <span class="keywordtype">double</span> x = i + pos[0] * 0.25;
+<a name="l00495"></a>00495                                                 <span class="keywordtype">double</span> y = j + pos[1] * 0.25;
+<a name="l00496"></a>00496                                                 <span class="keywordtype">double</span> z = k + pos[2] * 0.25;
+<a name="l00497"></a>00497                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(0)[idx] = x;
+<a name="l00498"></a>00498                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(1)[idx] = y;
+<a name="l00499"></a>00499                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(2)[idx] = z;
+<a name="l00500"></a>00500                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(3)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#a14">abs</a>();
+<a name="l00501"></a>00501                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(4)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a>;
+<a name="l00502"></a>00502                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(5)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a>;
+<a name="l00503"></a>00503                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(6)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a>;
+<a name="l00504"></a>00504                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(7)[idx] = site;
+<a name="l00505"></a>00505                                                 idx++;
+<a name="l00506"></a>00506                                         }
+<a name="l00507"></a>00507                                 }
 <a name="l00508"></a>00508             }
 <a name="l00509"></a>00509         }
-<a name="l00510"></a>00510   }
-<a name="l00511"></a>00511   <span class="keywordflow">if</span>(calc8asite)
-<a name="l00512"></a>00512   {
-<a name="l00513"></a>00513      std::vector&lt;MonteCarlo::Vector3&lt;double&gt; &gt; fields(8*size*size*size);
-<a name="l00514"></a>00514      <a class="code" href="class_x_monte_carlo_driver.html#r23">m_store</a>-&gt;write_8asite(&amp;fields[0]);
-<a name="l00515"></a>00515      <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XWaveNGraph&gt;</a> lock(*<a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>);
-<a name="l00516"></a>00516      <span class="keywordtype">int</span> idx = 0;
-<a name="l00517"></a>00517       <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;setRowCount(8*size*size*size);
+<a name="l00510"></a>00510         }
+<a name="l00511"></a>00511         <span class="keywordflow">if</span>(calc8asite)
+<a name="l00512"></a>00512         {
+<a name="l00513"></a>00513                 std::vector&lt;MonteCarlo::Vector3&lt;double&gt; &gt; fields(8*size*size*size);
+<a name="l00514"></a>00514                 <a class="code" href="class_x_monte_carlo_driver.html#r23">m_store</a>-&gt;write_8asite(&amp;fields[0]);
+<a name="l00515"></a>00515                 <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XWaveNGraph&gt;</a> lock(*<a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>);
+<a name="l00516"></a>00516                 <span class="keywordtype">int</span> idx = 0;
+<a name="l00517"></a>00517                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;setRowCount(8*size*size*size);
 <a name="l00518"></a>00518         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site = 0; site &lt; 8; site++) {
 <a name="l00519"></a>00519             <span class="keyword">const</span> <span class="keywordtype">int</span> *pos = cg_8aSitePositions[site];
 <a name="l00520"></a>00520             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> k = 0; k &lt; size; k++) {
-<a name="l00521"></a>00521             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j = 0; j &lt; size; j++) {
-<a name="l00522"></a>00522             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; size; i++) {
-<a name="l00523"></a>00523                 <span class="keywordtype">int</span> sidx = size*(size*(size*site + k) + j) + i;
-<a name="l00524"></a>00524                 <a class="code" href="struct_monte_carlo_1_1_vector3.html">MonteCarlo::Vector3&lt;double&gt;</a> h(fields[sidx]);
-<a name="l00525"></a>00525                 <span class="keywordtype">double</span> x = i + pos[0] * 0.125;
-<a name="l00526"></a>00526                 <span class="keywordtype">double</span> y = j + pos[1] * 0.125;
-<a name="l00527"></a>00527                 <span class="keywordtype">double</span> z = k + pos[2] * 0.125;
-<a name="l00528"></a>00528                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(0)[idx] = x;
-<a name="l00529"></a>00529                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(1)[idx] = y;
-<a name="l00530"></a>00530                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(2)[idx] = z;
-<a name="l00531"></a>00531                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(3)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#a14">abs</a>();
-<a name="l00532"></a>00532                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(4)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a>;
-<a name="l00533"></a>00533                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(5)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a>;
-<a name="l00534"></a>00534                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(6)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a>;
-<a name="l00535"></a>00535                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(7)[idx] = site;
-<a name="l00536"></a>00536                 idx++;
-<a name="l00537"></a>00537             }
-<a name="l00538"></a>00538             }
+<a name="l00521"></a>00521                                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j = 0; j &lt; size; j++) {
+<a name="l00522"></a>00522                                         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; size; i++) {
+<a name="l00523"></a>00523                                                 <span class="keywordtype">int</span> sidx = size*(size*(size*site + k) + j) + i;
+<a name="l00524"></a>00524                                                 <a class="code" href="struct_monte_carlo_1_1_vector3.html">MonteCarlo::Vector3&lt;double&gt;</a> h(fields[sidx]);
+<a name="l00525"></a>00525                                                 <span class="keywordtype">double</span> x = i + pos[0] * 0.125;
+<a name="l00526"></a>00526                                                 <span class="keywordtype">double</span> y = j + pos[1] * 0.125;
+<a name="l00527"></a>00527                                                 <span class="keywordtype">double</span> z = k + pos[2] * 0.125;
+<a name="l00528"></a>00528                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(0)[idx] = x;
+<a name="l00529"></a>00529                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(1)[idx] = y;
+<a name="l00530"></a>00530                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(2)[idx] = z;
+<a name="l00531"></a>00531                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(3)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#a14">abs</a>();
+<a name="l00532"></a>00532                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(4)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a>;
+<a name="l00533"></a>00533                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(5)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a>;
+<a name="l00534"></a>00534                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(6)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a>;
+<a name="l00535"></a>00535                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(7)[idx] = site;
+<a name="l00536"></a>00536                                                 idx++;
+<a name="l00537"></a>00537                                         }
+<a name="l00538"></a>00538                                 }
 <a name="l00539"></a>00539             }
 <a name="l00540"></a>00540         }
-<a name="l00541"></a>00541   }
-<a name="l00542"></a>00542   <span class="keywordflow">if</span>(calc48fsite)
-<a name="l00543"></a>00543   {
-<a name="l00544"></a>00544      std::vector&lt;MonteCarlo::Vector3&lt;double&gt; &gt; fields(48*size*size*size);
-<a name="l00545"></a>00545      <a class="code" href="class_x_monte_carlo_driver.html#r23">m_store</a>-&gt;write_48fsite(&amp;fields[0]);
-<a name="l00546"></a>00546      <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XWaveNGraph&gt;</a> lock(*<a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>);
-<a name="l00547"></a>00547      <span class="keywordtype">int</span> idx = 0;
-<a name="l00548"></a>00548       <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;setRowCount(48*size*size*size);
+<a name="l00541"></a>00541         }
+<a name="l00542"></a>00542         <span class="keywordflow">if</span>(calc48fsite)
+<a name="l00543"></a>00543         {
+<a name="l00544"></a>00544                 std::vector&lt;MonteCarlo::Vector3&lt;double&gt; &gt; fields(48*size*size*size);
+<a name="l00545"></a>00545                 <a class="code" href="class_x_monte_carlo_driver.html#r23">m_store</a>-&gt;write_48fsite(&amp;fields[0]);
+<a name="l00546"></a>00546                 <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XWaveNGraph&gt;</a> lock(*<a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>);
+<a name="l00547"></a>00547                 <span class="keywordtype">int</span> idx = 0;
+<a name="l00548"></a>00548                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;setRowCount(48*size*size*size);
 <a name="l00549"></a>00549         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> site = 0; site &lt; 48; site++) {
 <a name="l00550"></a>00550             <span class="keyword">const</span> <span class="keywordtype">double</span> *pos = cg_48fSitePositions[site];
 <a name="l00551"></a>00551             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> k = 0; k &lt; size; k++) {
-<a name="l00552"></a>00552             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j = 0; j &lt; size; j++) {
-<a name="l00553"></a>00553             <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; size; i++) {
-<a name="l00554"></a>00554                 <span class="keywordtype">int</span> sidx = size*(size*(size*site + k) + j) + i;
-<a name="l00555"></a>00555                 <a class="code" href="struct_monte_carlo_1_1_vector3.html">MonteCarlo::Vector3&lt;double&gt;</a> h(fields[sidx]);
-<a name="l00556"></a>00556                 <span class="keywordtype">double</span> x = i + pos[0] * 0.125;
-<a name="l00557"></a>00557                 <span class="keywordtype">double</span> y = j + pos[1] * 0.125;
-<a name="l00558"></a>00558                 <span class="keywordtype">double</span> z = k + pos[2] * 0.125;
-<a name="l00559"></a>00559                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(0)[idx] = x;
-<a name="l00560"></a>00560                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(1)[idx] = y;
-<a name="l00561"></a>00561                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(2)[idx] = z;
-<a name="l00562"></a>00562                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(3)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#a14">abs</a>();
-<a name="l00563"></a>00563                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(4)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a>;
-<a name="l00564"></a>00564                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(5)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a>;
-<a name="l00565"></a>00565                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(6)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a>;
-<a name="l00566"></a>00566                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(7)[idx] = site;
-<a name="l00567"></a>00567                 idx++;
-<a name="l00568"></a>00568             }
-<a name="l00569"></a>00569             }
+<a name="l00552"></a>00552                                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j = 0; j &lt; size; j++) {
+<a name="l00553"></a>00553                                         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; size; i++) {
+<a name="l00554"></a>00554                                                 <span class="keywordtype">int</span> sidx = size*(size*(size*site + k) + j) + i;
+<a name="l00555"></a>00555                                                 <a class="code" href="struct_monte_carlo_1_1_vector3.html">MonteCarlo::Vector3&lt;double&gt;</a> h(fields[sidx]);
+<a name="l00556"></a>00556                                                 <span class="keywordtype">double</span> x = i + pos[0] * 0.125;
+<a name="l00557"></a>00557                                                 <span class="keywordtype">double</span> y = j + pos[1] * 0.125;
+<a name="l00558"></a>00558                                                 <span class="keywordtype">double</span> z = k + pos[2] * 0.125;
+<a name="l00559"></a>00559                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(0)[idx] = x;
+<a name="l00560"></a>00560                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(1)[idx] = y;
+<a name="l00561"></a>00561                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(2)[idx] = z;
+<a name="l00562"></a>00562                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(3)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#a14">abs</a>();
+<a name="l00563"></a>00563                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(4)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o0">x</a>;
+<a name="l00564"></a>00564                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(5)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o1">y</a>;
+<a name="l00565"></a>00565                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(6)[idx] = h.<a class="code" href="struct_monte_carlo_1_1_vector3.html#o2">z</a>;
+<a name="l00566"></a>00566                                                 <a class="code" href="class_x_monte_carlo_driver.html#r38">m_wave3D</a>-&gt;cols(7)[idx] = site;
+<a name="l00567"></a>00567                                                 idx++;
+<a name="l00568"></a>00568                                         }
+<a name="l00569"></a>00569                                 }
 <a name="l00570"></a>00570             }
 <a name="l00571"></a>00571         }
-<a name="l00572"></a>00572   }
+<a name="l00572"></a>00572         }
 <a name="l00573"></a>00573 }
 <a name="l00574"></a>00574 <span class="keywordtype">void</span>
 <a name="l00575"></a><a class="code" href="class_x_monte_carlo_driver.html#d2">00575</a> <a class="code" href="class_x_monte_carlo_driver.html#d2">XMonteCarloDriver::onGraphChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
 <a name="l00576"></a>00576 {
-<a name="l00577"></a>00577   <a class="code" href="class_x_driver.html#a3">readLockRecord</a>();
-<a name="l00578"></a>00578   <a class="code" href="class_x_monte_carlo_driver.html#b4">visualize</a>();
-<a name="l00579"></a>00579   <a class="code" href="class_x_driver.html#a4">readUnlockRecord</a>();
+<a name="l00577"></a>00577         <a class="code" href="class_x_driver.html#a3">readLockRecord</a>();
+<a name="l00578"></a>00578         <a class="code" href="class_x_monte_carlo_driver.html#b4">visualize</a>();
+<a name="l00579"></a>00579         <a class="code" href="class_x_driver.html#a4">readUnlockRecord</a>();
 <a name="l00580"></a>00580   
 <a name="l00581"></a>00581 }
 <a name="l00582"></a>00582 <span class="keywordtype">void</span>
@@ -616,7 +616,7 @@
 <a name="l00610"></a>00610     <a class="code" href="class_x_monte_carlo_driver.html#r22">m_loop</a>-&gt;write((<span class="keywordtype">char</span>*)&amp;<a class="code" href="class_x_primary_driver.html#b6">rawData</a>()[0]);
 <a name="l00611"></a>00611     <a class="code" href="class_x_primary_driver.html#b5">finishWritingRaw</a>(<a class="code" href="class_x_time.html#e0">XTime::now</a>(), <a class="code" href="class_x_time.html#e0">XTime::now</a>());
 <a name="l00612"></a>00612 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:37 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:16 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

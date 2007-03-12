@@ -19,7 +19,7 @@
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="preprocessor">#include "fir.h"</span>
 <a name="l00015"></a>00015 <span class="preprocessor">#include "support.h"</span>
 <a name="l00016"></a>00016 <span class="preprocessor">#include &lt;algorithm&gt;</span> 
@@ -36,10 +36,10 @@
 <a name="l00027"></a>00027 <span class="keywordtype">float</span>
 <a name="l00028"></a><a class="code" href="class_f_i_r.html#d0">00028</a> <a class="code" href="class_f_i_r.html#d0">FIR::oneFIR</a>(<span class="keywordtype">float</span> x, <span class="keywordtype">float</span> *z, <span class="keywordtype">float</span> *m_Coeff, <span class="keywordtype">int</span> taps)
 <a name="l00029"></a>00029 {
-<a name="l00030"></a>00030 <span class="keywordtype">float</span> zo = x;
-<a name="l00031"></a>00031 <span class="keywordtype">float</span> y = 0;
+<a name="l00030"></a>00030         <span class="keywordtype">float</span> zo = x;
+<a name="l00031"></a>00031         <span class="keywordtype">float</span> y = 0;
 <a name="l00032"></a>00032         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = -taps; i &lt;= taps; i++) {
-<a name="l00033"></a>00033         <span class="keywordtype">float</span> z1;
+<a name="l00033"></a>00033                 <span class="keywordtype">float</span> z1;
 <a name="l00034"></a>00034                 z1 = *z;
 <a name="l00035"></a>00035                 *(z++) = zo;
 <a name="l00036"></a>00036                 y += zo * *(m_Coeff++);
@@ -64,8 +64,8 @@
 <a name="l00055"></a>00055                         <span class="keywordtype">float</span> omega = PI*bandwidth;
 <a name="l00056"></a>00056                         <span class="keywordtype">float</span> omega2 = 2 * PI * center;
 <a name="l00057"></a>00057                         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = -taps; i &lt; 0; i++) {
-<a name="l00058"></a>00058                         <span class="keywordtype">float</span> x = i*omega;
-<a name="l00059"></a>00059                         <span class="comment">//sinc(x) * Hamming window</span>
+<a name="l00058"></a>00058                                 <span class="keywordtype">float</span> x = i*omega;
+<a name="l00059"></a>00059                                 <span class="comment">//sinc(x) * Hamming window</span>
 <a name="l00060"></a>00060                                 <a class="code" href="class_f_i_r.html#r3">m_Coeff</a>[taps + i] = sinf(x)/x*(0.54 + 0.46*cosf(PI*(<span class="keywordtype">float</span>)i/taps));
 <a name="l00061"></a>00061                         }
 <a name="l00062"></a>00062                         <span class="comment">//mirroring</span>
@@ -112,7 +112,7 @@
 <a name="l00103"></a>00103         }
 <a name="l00104"></a>00104         <span class="keywordflow">return</span> 0;
 <a name="l00105"></a>00105 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:36 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:15 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

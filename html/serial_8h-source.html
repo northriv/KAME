@@ -19,7 +19,7 @@
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="preprocessor">#ifndef SERIAL_H_</span>
 <a name="l00015"></a>00015 <span class="preprocessor"></span><span class="preprocessor">#define SERIAL_H_</span>
 <a name="l00016"></a>00016 <span class="preprocessor"></span>
@@ -30,7 +30,7 @@
 <a name="l00021"></a>00021 <span class="preprocessor"></span><span class="preprocessor">#endif //__linux__ || LINUX</span>
 <a name="l00022"></a>00022 <span class="preprocessor"></span>
 <a name="l00023"></a>00023 <span class="preprocessor">#if defined WINDOWS || defined __WIN32__</span>
-<a name="l00024"></a>00024 <span class="preprocessor"></span><span class="preprocessor"> #define SERIAL_WIN32</span>
+<a name="l00024"></a>00024 <span class="preprocessor"></span><span class="preprocessor">#define SERIAL_WIN32</span>
 <a name="l00025"></a>00025 <span class="preprocessor"></span><span class="preprocessor">#endif // WINDOWS || __WIN32__</span>
 <a name="l00026"></a>00026 <span class="preprocessor"></span>
 <a name="l00027"></a>00027 <span class="preprocessor">#if defined SERIAL_WIN32 || defined SERIAL_POSIX</span>
@@ -42,16 +42,16 @@
 <a name="l00033"></a><a class="code" href="class_x_posix_serial_port.html">00033</a> <span class="keyword">class </span><a class="code" href="class_x_posix_serial_port.html">XPosixSerialPort</a> : <span class="keyword">public</span> <a class="code" href="class_x_port.html">XPort</a>
 <a name="l00034"></a>00034 {
 <a name="l00035"></a>00035 <span class="keyword">public</span>:
-<a name="l00036"></a>00036  <a class="code" href="class_x_posix_serial_port.html#a0">XPosixSerialPort</a>(<a class="code" href="class_x_char_interface.html">XCharInterface</a> *interface);
-<a name="l00037"></a>00037  <span class="keyword">virtual</span> <a class="code" href="class_x_posix_serial_port.html#a1">~XPosixSerialPort</a>();
+<a name="l00036"></a>00036         <a class="code" href="class_x_posix_serial_port.html#a0">XPosixSerialPort</a>(<a class="code" href="class_x_char_interface.html">XCharInterface</a> *interface);
+<a name="l00037"></a>00037         <span class="keyword">virtual</span> <a class="code" href="class_x_posix_serial_port.html#a1">~XPosixSerialPort</a>();
 <a name="l00038"></a>00038  
-<a name="l00039"></a>00039   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_posix_serial_port.html#a2">open</a>() <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
-<a name="l00040"></a>00040   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_posix_serial_port.html#a3">send</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *str) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
-<a name="l00041"></a>00041   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_posix_serial_port.html#a4">write</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *sendbuf, <span class="keywordtype">int</span> size) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
-<a name="l00042"></a>00042   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_posix_serial_port.html#a5">receive</a>() <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
-<a name="l00043"></a>00043   <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_posix_serial_port.html#a5">receive</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> length) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);  
+<a name="l00039"></a>00039         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_posix_serial_port.html#a2">open</a>() <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
+<a name="l00040"></a>00040         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_posix_serial_port.html#a3">send</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *str) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
+<a name="l00041"></a>00041         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_posix_serial_port.html#a4">write</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *sendbuf, <span class="keywordtype">int</span> size) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
+<a name="l00042"></a>00042         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_posix_serial_port.html#a5">receive</a>() <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
+<a name="l00043"></a>00043         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_posix_serial_port.html#a5">receive</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> length) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);  
 <a name="l00044"></a>00044 <span class="keyword">private</span>:
-<a name="l00045"></a><a class="code" href="class_x_posix_serial_port.html#r0">00045</a>   <span class="keywordtype">int</span> <a class="code" href="class_x_posix_serial_port.html#r0">m_scifd</a>;
+<a name="l00045"></a><a class="code" href="class_x_posix_serial_port.html#r0">00045</a>         <span class="keywordtype">int</span> <a class="code" href="class_x_posix_serial_port.html#r0">m_scifd</a>;
 <a name="l00046"></a>00046 };
 <a name="l00047"></a>00047 
 <a name="l00048"></a>00048 <span class="keyword">typedef</span> <a class="code" href="class_x_posix_serial_port.html">XPosixSerialPort</a> <a class="code" href="class_x_posix_serial_port.html">XSerialPort</a>;
@@ -59,7 +59,7 @@
 <a name="l00050"></a>00050 <span class="preprocessor">#endif </span><span class="comment">/*SERIAL_POSIX*/</span>
 <a name="l00051"></a>00051 
 <a name="l00052"></a>00052 <span class="preprocessor">#endif </span><span class="comment">/*SERIAL_H_*/</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:34 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:13 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

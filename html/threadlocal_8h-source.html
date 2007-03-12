@@ -19,7 +19,7 @@
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="preprocessor">#ifndef THREADLOCAL_H_</span>
 <a name="l00015"></a>00015 <span class="preprocessor"></span><span class="preprocessor">#define THREADLOCAL_H_</span>
 <a name="l00016"></a>00016 <span class="preprocessor"></span>
@@ -44,17 +44,17 @@
 <a name="l00040"></a>00040 
 <a name="l00041"></a>00041 <span class="preprocessor">#ifdef USE__THREAD_TLS</span>
 <a name="l00042"></a>00042 <span class="preprocessor"></span>
-<a name="l00043"></a>00043     <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
-<a name="l00044"></a><a class="code" href="class_x_thread_local_p_o_d.html">00044</a>     <span class="keyword">class </span><a class="code" href="class_x_thread_local_p_o_d.html">XThreadLocalPOD</a>
-<a name="l00045"></a>00045     {
-<a name="l00046"></a>00046     <span class="keyword">public</span>:
+<a name="l00043"></a>00043 <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
+<a name="l00044"></a><a class="code" href="class_x_thread_local_p_o_d.html">00044</a> <span class="keyword">class </span><a class="code" href="class_x_thread_local_p_o_d.html">XThreadLocalPOD</a>
+<a name="l00045"></a>00045 {
+<a name="l00046"></a>00046 <span class="keyword">public</span>:
 <a name="l00047"></a><a class="code" href="class_x_thread_local_p_o_d.html#a0">00047</a>         <a class="code" href="class_x_thread_local_p_o_d.html#a0">XThreadLocalPOD</a>() {}
 <a name="l00048"></a><a class="code" href="class_x_thread_local_p_o_d.html#a1">00048</a>         <a class="code" href="class_x_thread_local_p_o_d.html#a1">~XThreadLocalPOD</a>() {}
 <a name="l00050"></a><a class="code" href="class_x_thread_local_p_o_d.html#a2">00050</a>         T &amp;<a class="code" href="class_x_thread_local_p_o_d.html#a2">operator*</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_thread_local_p_o_d.html#v0">m_var</a>;}
 <a name="l00052"></a><a class="code" href="class_x_thread_local_p_o_d.html#a3">00052</a>         T *<a class="code" href="class_x_thread_local_p_o_d.html#a3">operator-&gt;</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> &amp;<a class="code" href="class_x_thread_local_p_o_d.html#v0">m_var</a>;}
-<a name="l00053"></a>00053     <span class="keyword">private</span>:
+<a name="l00053"></a>00053 <span class="keyword">private</span>:
 <a name="l00054"></a><a class="code" href="class_x_thread_local_p_o_d.html#v0">00054</a>         <span class="keyword">static</span> __thread T <a class="code" href="class_x_thread_local_p_o_d.html#v0">m_var</a>;
-<a name="l00055"></a>00055     };
+<a name="l00055"></a>00055 };
 <a name="l00056"></a>00056     
 <a name="l00057"></a>00057 <span class="preprocessor">#endif </span><span class="comment">/*USE__THREAD_TLS*/</span>
 <a name="l00058"></a>00058 
@@ -78,23 +78,23 @@
 <a name="l00076"></a>00076     <span class="keywordtype">void</span> *p = pthread_getspecific(<a class="code" href="class_x_thread_local.html#r0">m_key</a>);
 <a name="l00077"></a>00077     <span class="keywordflow">if</span>(p == NULL) {
 <a name="l00078"></a>00078         <span class="keywordtype">int</span> ret = pthread_setspecific(<a class="code" href="class_x_thread_local.html#r0">m_key</a>, p = 
-<a name="l00079"></a>00079     #ifdef HAVE_LIBGCCPP
-<a name="l00080"></a>00080             <span class="keyword">new</span> (NoGC) T);
-<a name="l00081"></a>00081 <span class="preprocessor">    #else</span>
-<a name="l00082"></a>00082 <span class="preprocessor"></span>            <span class="keyword">new</span> T);
-<a name="l00083"></a>00083 <span class="preprocessor">    #endif</span>
+<a name="l00079"></a>00079 #ifdef HAVE_LIBGCCPP
+<a name="l00080"></a>00080                                                                           <span class="keyword">new</span> (NoGC) T);
+<a name="l00081"></a>00081 <span class="preprocessor">#else</span>
+<a name="l00082"></a>00082 <span class="preprocessor"></span>                <span class="keyword">new</span> T);
+<a name="l00083"></a>00083 <span class="preprocessor">#endif</span>
 <a name="l00084"></a>00084 <span class="preprocessor"></span>        ASSERT(!ret);
-<a name="l00085"></a>00085     }
-<a name="l00086"></a>00086     <span class="keywordflow">return</span> *reinterpret_cast&lt;T*&gt;(p);
+<a name="l00085"></a>00085 }
+<a name="l00086"></a>00086 <span class="keywordflow">return</span> *reinterpret_cast&lt;T*&gt;(p);
 <a name="l00087"></a>00087 }
 <a name="l00088"></a>00088 <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;
 <a name="l00089"></a>00089 T *
 <a name="l00090"></a><a class="code" href="class_x_thread_local.html#a3">00090</a> <a class="code" href="class_x_thread_local.html#a3">XThreadLocal&lt;T&gt;::operator-&gt;</a>()<span class="keyword"> const </span>{
-<a name="l00091"></a>00091     <span class="keywordflow">return</span> &amp;(**this);
+<a name="l00091"></a>00091 <span class="keywordflow">return</span> &amp;(**this);
 <a name="l00092"></a>00092 }
 <a name="l00093"></a>00093         
 <a name="l00094"></a>00094 <span class="preprocessor">#endif </span><span class="comment">/*THREADLOCAL_H_*/</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:36 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:15 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

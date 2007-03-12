@@ -19,7 +19,7 @@
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="comment">//Every KAME source must include this header</span>
 <a name="l00015"></a>00015 <span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00016"></a>00016 
@@ -31,82 +31,82 @@
 <a name="l00022"></a>00022 <span class="preprocessor">#endif</span>
 <a name="l00023"></a>00023 <span class="preprocessor"></span>
 <a name="l00024"></a>00024 <span class="preprocessor">#ifdef WORDS_BIGENDIAN</span>
-<a name="l00025"></a>00025 <span class="preprocessor"></span><span class="preprocessor">    #ifndef __BIG_ENDIAN__</span>
-<a name="l00026"></a>00026 <span class="preprocessor"></span><span class="preprocessor">        #define __BIG_ENDIAN__</span>
-<a name="l00027"></a>00027 <span class="preprocessor"></span><span class="preprocessor">    #endif</span>
+<a name="l00025"></a>00025 <span class="preprocessor"></span><span class="preprocessor">#ifndef __BIG_ENDIAN__</span>
+<a name="l00026"></a>00026 <span class="preprocessor"></span><span class="preprocessor">#define __BIG_ENDIAN__</span>
+<a name="l00027"></a>00027 <span class="preprocessor"></span><span class="preprocessor">#endif</span>
 <a name="l00028"></a>00028 <span class="preprocessor"></span><span class="preprocessor">#endif</span>
 <a name="l00029"></a>00029 <span class="preprocessor"></span>
 <a name="l00030"></a>00030 <span class="preprocessor">#if SIZEOF_SHORT != 2</span>
-<a name="l00031"></a>00031 <span class="preprocessor"></span><span class="preprocessor"> #error sizeof short is not 2.</span>
+<a name="l00031"></a>00031 <span class="preprocessor"></span><span class="preprocessor">#error sizeof short is not 2.</span>
 <a name="l00032"></a>00032 <span class="preprocessor"></span><span class="preprocessor">#endif</span>
 <a name="l00033"></a>00033 <span class="preprocessor"></span><span class="preprocessor">#if SIZEOF_FLOAT != 4</span>
-<a name="l00034"></a>00034 <span class="preprocessor"></span><span class="preprocessor"> #error sizeof float is not 4.</span>
+<a name="l00034"></a>00034 <span class="preprocessor"></span><span class="preprocessor">#error sizeof float is not 4.</span>
 <a name="l00035"></a>00035 <span class="preprocessor"></span><span class="preprocessor">#endif</span>
 <a name="l00036"></a>00036 <span class="preprocessor"></span><span class="preprocessor">#if SIZEOF_DOUBLE != 8</span>
-<a name="l00037"></a>00037 <span class="preprocessor"></span><span class="preprocessor"> #error sizeof double is not 8.</span>
+<a name="l00037"></a>00037 <span class="preprocessor"></span><span class="preprocessor">#error sizeof double is not 8.</span>
 <a name="l00038"></a>00038 <span class="preprocessor"></span><span class="preprocessor">#endif</span>
 <a name="l00039"></a>00039 <span class="preprocessor"></span><span class="comment">/*</span>
-<a name="l00040"></a>00040 <span class="comment">    #if SIZEOF_LONG == 4</span>
-<a name="l00041"></a>00041 <span class="comment">     typedef long int int32_t;</span>
-<a name="l00042"></a>00042 <span class="comment">     typedef unsigned long int uint32_t;</span>
-<a name="l00043"></a>00043 <span class="comment">    #else</span>
-<a name="l00044"></a>00044 <span class="comment">        #if SIZEOF_INT == 4</span>
-<a name="l00045"></a>00045 <span class="comment">          typedef int int32_t;</span>
-<a name="l00046"></a>00046 <span class="comment">          typedef unsigned int uint32_t;</span>
-<a name="l00047"></a>00047 <span class="comment">        #else</span>
-<a name="l00048"></a>00048 <span class="comment">          #error Could not define 32bit integer.</span>
-<a name="l00049"></a>00049 <span class="comment">        #endif</span>
-<a name="l00050"></a>00050 <span class="comment">    #endif</span>
+<a name="l00040"></a>00040 <span class="comment">  #if SIZEOF_LONG == 4</span>
+<a name="l00041"></a>00041 <span class="comment">  typedef long int int32_t;</span>
+<a name="l00042"></a>00042 <span class="comment">  typedef unsigned long int uint32_t;</span>
+<a name="l00043"></a>00043 <span class="comment">  #else</span>
+<a name="l00044"></a>00044 <span class="comment">  #if SIZEOF_INT == 4</span>
+<a name="l00045"></a>00045 <span class="comment">  typedef int int32_t;</span>
+<a name="l00046"></a>00046 <span class="comment">  typedef unsigned int uint32_t;</span>
+<a name="l00047"></a>00047 <span class="comment">  #else</span>
+<a name="l00048"></a>00048 <span class="comment">  #error Could not define 32bit integer.</span>
+<a name="l00049"></a>00049 <span class="comment">  #endif</span>
+<a name="l00050"></a>00050 <span class="comment">  #endif</span>
 <a name="l00051"></a>00051 <span class="comment">*/</span>
 <a name="l00052"></a>00052 
 <a name="l00053"></a>00053 <span class="preprocessor">#ifdef HAVE_LIBGCCPP</span>
-<a name="l00054"></a>00054 <span class="preprocessor"></span>    <span class="comment">//Boehm GC stuff</span>
-<a name="l00055"></a>00055 <span class="preprocessor">    #define GC_OPERATOR_NEW_ARRAY</span>
-<a name="l00056"></a>00056 <span class="preprocessor"></span><span class="preprocessor">    #define GC_NAME_CONFLICT</span>
-<a name="l00057"></a>00057 <span class="preprocessor"></span>    <span class="comment">//default size results in falure; "too many root sets", see private/gc_priv.h</span>
-<a name="l00058"></a>00058 <span class="preprocessor">    #define LARGE_CONFIG</span>
-<a name="l00059"></a>00059 <span class="preprocessor"></span><span class="preprocessor">    #ifdef __linux__</span>
-<a name="l00060"></a>00060 <span class="preprocessor"></span><span class="preprocessor">        #define GC_LINUX_THREADS</span>
-<a name="l00061"></a>00061 <span class="preprocessor"></span><span class="preprocessor">        #define _REENTRANT</span>
-<a name="l00062"></a>00062 <span class="preprocessor"></span><span class="preprocessor">    #endif</span>
-<a name="l00063"></a>00063 <span class="preprocessor"></span><span class="preprocessor">    #define GC_DEBUG</span>
-<a name="l00064"></a>00064 <span class="preprocessor"></span><span class="preprocessor">    #include &lt;gc_cpp.h&gt;</span>
-<a name="l00065"></a>00065 <span class="preprocessor">    #include &lt;gc_allocator.h&gt;</span>
-<a name="l00066"></a>00066 <span class="preprocessor">    #if defined MACOSX</span>
-<a name="l00067"></a>00067 <span class="preprocessor"></span>    <span class="comment">// for buggy pthread library of GC</span>
-<a name="l00068"></a>00068 <span class="preprocessor">        #define BUGGY_PTHRAD_COND_WAIT_USEC 10000</span>
-<a name="l00069"></a>00069 <span class="preprocessor"></span><span class="preprocessor">        #define BUGGY_PTHRAD_COND</span>
-<a name="l00070"></a>00070 <span class="preprocessor"></span><span class="preprocessor">    #endif</span>
-<a name="l00071"></a><a class="code" href="classkame__gc.html">00071</a> <span class="preprocessor"></span>    <span class="keyword">class </span><a class="code" href="classkame__gc.html">kame_gc</a> : <span class="keyword">public</span> gc {
-<a name="l00072"></a>00072     <span class="keyword">public</span>:
+<a name="l00054"></a>00054 <span class="preprocessor"></span><span class="comment">//Boehm GC stuff</span>
+<a name="l00055"></a>00055 <span class="preprocessor">#define GC_OPERATOR_NEW_ARRAY</span>
+<a name="l00056"></a>00056 <span class="preprocessor"></span><span class="preprocessor">#define GC_NAME_CONFLICT</span>
+<a name="l00057"></a>00057 <span class="preprocessor"></span><span class="comment">//default size results in falure; "too many root sets", see private/gc_priv.h</span>
+<a name="l00058"></a>00058 <span class="preprocessor">#define LARGE_CONFIG</span>
+<a name="l00059"></a>00059 <span class="preprocessor"></span><span class="preprocessor">#ifdef __linux__</span>
+<a name="l00060"></a>00060 <span class="preprocessor"></span><span class="preprocessor">#define GC_LINUX_THREADS</span>
+<a name="l00061"></a>00061 <span class="preprocessor"></span><span class="preprocessor">#define _REENTRANT</span>
+<a name="l00062"></a>00062 <span class="preprocessor"></span><span class="preprocessor">#endif</span>
+<a name="l00063"></a>00063 <span class="preprocessor"></span><span class="preprocessor">#define GC_DEBUG</span>
+<a name="l00064"></a>00064 <span class="preprocessor"></span><span class="preprocessor">#include &lt;gc_cpp.h&gt;</span>
+<a name="l00065"></a>00065 <span class="preprocessor">#include &lt;gc_allocator.h&gt;</span>
+<a name="l00066"></a>00066 <span class="preprocessor">#if defined MACOSX</span>
+<a name="l00067"></a>00067 <span class="preprocessor"></span><span class="comment">// for buggy pthread library of GC</span>
+<a name="l00068"></a>00068 <span class="preprocessor">#define BUGGY_PTHRAD_COND_WAIT_USEC 10000</span>
+<a name="l00069"></a>00069 <span class="preprocessor"></span><span class="preprocessor">#define BUGGY_PTHRAD_COND</span>
+<a name="l00070"></a>00070 <span class="preprocessor"></span><span class="preprocessor">#endif</span>
+<a name="l00071"></a><a class="code" href="classkame__gc.html">00071</a> <span class="preprocessor"></span><span class="keyword">class </span><a class="code" href="classkame__gc.html">kame_gc</a> : <span class="keyword">public</span> gc {
+<a name="l00072"></a>00072 <span class="keyword">public</span>:
 <a name="l00073"></a>00073         <span class="keywordtype">void</span> *<a class="code" href="classkame__gc.html#a0">operator new</a>(size_t size);
 <a name="l00074"></a>00074         <span class="keywordtype">void</span> <a class="code" href="classkame__gc.html#a1">operator delete</a>(<span class="keywordtype">void</span> *obj);
-<a name="l00075"></a>00075     };
+<a name="l00075"></a>00075 };
 <a name="l00076"></a>00076 <span class="preprocessor">#else</span>
-<a name="l00077"></a>00077 <span class="preprocessor"></span><span class="preprocessor"> #if defined __WIN32__ || defined WINDOWS</span>
-<a name="l00078"></a>00078 <span class="preprocessor"></span><span class="preprocessor"> #else</span>
-<a name="l00079"></a>00079 <span class="preprocessor"></span><span class="preprocessor">    #include &lt;pthread.h&gt;</span>
-<a name="l00080"></a>00080 <span class="preprocessor"> #endif</span>
+<a name="l00077"></a>00077 <span class="preprocessor"></span><span class="preprocessor">#if defined __WIN32__ || defined WINDOWS</span>
+<a name="l00078"></a>00078 <span class="preprocessor"></span><span class="preprocessor">#else</span>
+<a name="l00079"></a>00079 <span class="preprocessor"></span><span class="preprocessor">#include &lt;pthread.h&gt;</span>
+<a name="l00080"></a>00080 <span class="preprocessor">#endif</span>
 <a name="l00081"></a>00081 <span class="preprocessor"></span><span class="preprocessor">#endif</span>
 <a name="l00082"></a>00082 <span class="preprocessor"></span>
 <a name="l00083"></a>00083 <span class="preprocessor">#define DEBUG_XTHREAD 1</span>
 <a name="l00084"></a>00084 <span class="preprocessor"></span>
 <a name="l00085"></a>00085 <span class="preprocessor">#ifdef DEBUG_XTHREAD</span>
 <a name="l00086"></a>00086 <span class="preprocessor"></span><span class="preprocessor">#else</span>
-<a name="l00087"></a>00087 <span class="preprocessor"></span><span class="preprocessor">  #define DEBUG_XTHREAD 0</span>
+<a name="l00087"></a>00087 <span class="preprocessor"></span><span class="preprocessor">#define DEBUG_XTHREAD 0</span>
 <a name="l00088"></a>00088 <span class="preprocessor"></span><span class="preprocessor">#endif</span>
 <a name="l00089"></a>00089 <span class="preprocessor"></span><span class="preprocessor">#undef ASSERT</span>
 <a name="l00090"></a>00090 <span class="preprocessor"></span><span class="preprocessor">#ifdef NDEBUG</span>
-<a name="l00091"></a>00091 <span class="preprocessor"></span><span class="preprocessor"> #define ASSERT(expr)</span>
-<a name="l00092"></a>00092 <span class="preprocessor"></span><span class="preprocessor"> #define C_ASSERT(expr)</span>
+<a name="l00091"></a>00091 <span class="preprocessor"></span><span class="preprocessor">#define ASSERT(expr)</span>
+<a name="l00092"></a>00092 <span class="preprocessor"></span><span class="preprocessor">#define C_ASSERT(expr)</span>
 <a name="l00093"></a>00093 <span class="preprocessor"></span><span class="preprocessor">#else</span>
-<a name="l00094"></a>00094 <span class="preprocessor"></span><span class="preprocessor"> #define ASSERT(expr) _my_assert((expr), __FILE__, __LINE__)</span>
-<a name="l00095"></a>00095 <span class="preprocessor"></span><span class="preprocessor"> #define C_ASSERT(expr) _my_cassert(sizeof(char [ ( expr ) ? 1 : -1 ]))</span>
-<a name="l00096"></a>00096 <span class="preprocessor"></span> <span class="keywordtype">void</span> my_assert(<span class="keyword">const</span> <span class="keywordtype">char</span> *file, <span class="keywordtype">int</span> line);
-<a name="l00097"></a>00097  <span class="keyword">inline</span> <span class="keywordtype">void</span> _my_assert(<span class="keywordtype">bool</span> var, <span class="keyword">const</span> <span class="keywordtype">char</span> *file, <span class="keywordtype">int</span> line) {
+<a name="l00094"></a>00094 <span class="preprocessor"></span><span class="preprocessor">#define ASSERT(expr) _my_assert((expr), __FILE__, __LINE__)</span>
+<a name="l00095"></a>00095 <span class="preprocessor"></span><span class="preprocessor">#define C_ASSERT(expr) _my_cassert(sizeof(char [ ( expr ) ? 1 : -1 ]))</span>
+<a name="l00096"></a>00096 <span class="preprocessor"></span><span class="keywordtype">void</span> my_assert(<span class="keyword">const</span> <span class="keywordtype">char</span> *file, <span class="keywordtype">int</span> line);
+<a name="l00097"></a>00097 <span class="keyword">inline</span> <span class="keywordtype">void</span> _my_assert(<span class="keywordtype">bool</span> var, <span class="keyword">const</span> <span class="keywordtype">char</span> *file, <span class="keywordtype">int</span> line) {
 <a name="l00098"></a>00098     <span class="keywordflow">if</span> (!var) my_assert(file, line);
-<a name="l00099"></a>00099  }
-<a name="l00100"></a>00100  <span class="keyword">inline</span> <span class="keywordtype">void</span> _my_cassert(size_t ) {}
+<a name="l00099"></a>00099 }
+<a name="l00100"></a>00100 <span class="keyword">inline</span> <span class="keywordtype">void</span> _my_cassert(size_t ) {}
 <a name="l00101"></a>00101 <span class="preprocessor">#endif</span>
 <a name="l00102"></a>00102 <span class="preprocessor"></span>
 <a name="l00103"></a>00103 <span class="comment">//boost</span>
@@ -158,7 +158,7 @@
 <a name="l00160"></a>00160 std::string dumpCString(<span class="keyword">const</span> <span class="keywordtype">char</span> *cstr);
 <a name="l00161"></a>00161 
 <a name="l00163"></a>00163 std::string formatString(<span class="keyword">const</span> <span class="keywordtype">char</span> *format, ...)
-<a name="l00164"></a>00164      __attribute__ ((format(printf,1,2)));
+<a name="l00164"></a>00164         __attribute__ ((format(printf,1,2)));
 <a name="l00165"></a>00165 
 <a name="l00166"></a>00166 std::string formatDouble(const <span class="keywordtype">char</span> *fmt, <span class="keywordtype">double</span> val);
 <a name="l00170"></a>00170 <span class="keywordtype">void</span> formatDoubleValidator(std::string &amp;fmt);
@@ -170,7 +170,7 @@
 <a name="l00178"></a>00178 
 <a name="l00179"></a>00179 <span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00180"></a>00180 <span class="preprocessor">#endif</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:36 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:15 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

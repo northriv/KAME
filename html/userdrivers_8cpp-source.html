@@ -19,7 +19,7 @@
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="preprocessor">#include "users/testdriver.h"</span>
 <a name="l00015"></a>00015 <span class="preprocessor">#include "users/dmm/userdmm.h"</span>
 <a name="l00016"></a>00016 <span class="preprocessor">#include "users/dso/tds.h"</span>
@@ -63,10 +63,10 @@
 <a name="l00054"></a>00054 REGISTER_TYPE(HP8648, <span class="stringliteral">"Agilent 8648 signal generator"</span>);
 <a name="l00055"></a>00055 REGISTER_TYPE(TDS, <span class="stringliteral">"Tektronix DSO"</span>);
 <a name="l00056"></a>00056 <span class="preprocessor">#ifdef HAVE_NI_DAQMX</span>
-<a name="l00057"></a>00057 <span class="preprocessor"></span>    REGISTER_TYPE(NIDAQmxDSO, <span class="stringliteral">"National Instruments DAQ as DSO"</span>);
-<a name="l00058"></a>00058     REGISTER_TYPE(NIDAQAODOPulser, <span class="stringliteral">"NMR pulser NI-DAQ analog/digital output"</span>);
-<a name="l00059"></a>00059     REGISTER_TYPE(NIDAQDOPulser, <span class="stringliteral">"NMR pulser NI-DAQ digital output only"</span>);
-<a name="l00060"></a>00060     REGISTER_TYPE(NIDAQMSeriesWithSSeriesPulser, <span class="stringliteral">"NMR pulser NI-DAQ M Series with S Series"</span>);
+<a name="l00057"></a>00057 <span class="preprocessor"></span>REGISTER_TYPE(NIDAQmxDSO, <span class="stringliteral">"National Instruments DAQ as DSO"</span>);
+<a name="l00058"></a>00058 REGISTER_TYPE(NIDAQAODOPulser, <span class="stringliteral">"NMR pulser NI-DAQ analog/digital output"</span>);
+<a name="l00059"></a>00059 REGISTER_TYPE(NIDAQDOPulser, <span class="stringliteral">"NMR pulser NI-DAQ digital output only"</span>);
+<a name="l00060"></a>00060 REGISTER_TYPE(NIDAQMSeriesWithSSeriesPulser, <span class="stringliteral">"NMR pulser NI-DAQ M Series with S Series"</span>);
 <a name="l00061"></a>00061 <span class="preprocessor">#endif</span>
 <a name="l00062"></a>00062 <span class="preprocessor"></span>REGISTER_TYPE(H8Pulser, <span class="stringliteral">"NMR pulser handmade-H8"</span>);
 <a name="l00063"></a>00063 REGISTER_TYPE(SHPulser, <span class="stringliteral">"NMR pulser handmade-SH2"</span>);
@@ -81,11 +81,11 @@
 <a name="l00072"></a>00072 <a class="code" href="class_x_custom_type_list_node.html#a1">XDriverList::createByTypename</a>(<span class="keyword">const</span> std::string &amp;type, <span class="keyword">const</span> std::string&amp; name) {
 <a name="l00073"></a>00073     shared_ptr&lt;XNode&gt; ptr = (*creator(type))
 <a name="l00074"></a>00074         (name.c_str(), <span class="keyword">false</span>, <a class="code" href="class_x_driver_list.html#r0">m_scalarentries</a>, <a class="code" href="class_x_driver_list.html#r1">m_interfaces</a>, <a class="code" href="class_x_driver_list.html#r2">m_thermometers</a>,
-<a name="l00075"></a>00075                 dynamic_pointer_cast&lt;XDriverList&gt;(shared_from_this()));
+<a name="l00075"></a>00075                  dynamic_pointer_cast&lt;XDriverList&gt;(shared_from_this()));
 <a name="l00076"></a>00076     <span class="keywordflow">if</span>(ptr) <a class="code" href="class_x_list_node_base.html#a7">insert</a>(ptr);
 <a name="l00077"></a>00077     <span class="keywordflow">return</span> ptr;
 <a name="l00078"></a>00078 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:39 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:18 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

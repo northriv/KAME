@@ -19,7 +19,7 @@
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="preprocessor">#include "xitemnode.h"</span>
 <a name="l00015"></a>00015 <span class="preprocessor">#include &lt;klocale.h&gt;</span>
 <a name="l00016"></a>00016 
@@ -45,13 +45,13 @@
 <a name="l00036"></a>00036 
 <a name="l00037"></a>00037 <span class="keywordtype">void</span>
 <a name="l00038"></a>00038 _xpointeritemnode_throwConversionError() {
-<a name="l00039"></a>00039    <span class="keywordflow">throw</span> <a class="code" href="struct_x_kame_error.html">XKameError</a>(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"No item."</span>), __FILE__, __LINE__);
+<a name="l00039"></a>00039         <span class="keywordflow">throw</span> <a class="code" href="struct_x_kame_error.html">XKameError</a>(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"No item."</span>), __FILE__, __LINE__);
 <a name="l00040"></a>00040 }
 <a name="l00041"></a>00041 
 <a name="l00042"></a><a class="code" href="class_x_combo_node.html#b0">00042</a> <a class="code" href="class_x_combo_node.html#b0">XComboNode::XComboNode</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keywordtype">bool</span> auto_set_any)
-<a name="l00043"></a>00043    : <a class="code" href="class_x_item_node_base.html">XItemNodeBase</a>(name, runtime, auto_set_any),
-<a name="l00044"></a>00044     m_strings(new std::deque&lt;std::string&gt;()),
-<a name="l00045"></a>00045     m_var(new std::pair&lt;std::string, int&gt;(<span class="stringliteral">""</span>, -1)) {
+<a name="l00043"></a>00043         : <a class="code" href="class_x_item_node_base.html">XItemNodeBase</a>(name, runtime, auto_set_any),
+<a name="l00044"></a>00044           m_strings(new std::deque&lt;std::string&gt;()),
+<a name="l00045"></a>00045           m_var(new std::pair&lt;std::string, int&gt;(<span class="stringliteral">""</span>, -1)) {
 <a name="l00046"></a>00046 }
 <a name="l00047"></a>00047 
 <a name="l00048"></a>00048 <span class="keywordtype">void</span>
@@ -61,20 +61,20 @@
 <a name="l00052"></a>00052         dynamic_pointer_cast&lt;XValueNodeBase&gt;(shared_from_this());
 <a name="l00053"></a>00053     <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XRecursiveMutex&gt;</a> lock(m_write_mutex);
 <a name="l00054"></a>00054     m_tlkBeforeValueChanged.talk(ptr);
-<a name="l00055"></a>00055   <span class="keywordflow">if</span>(var.length()) {
-<a name="l00056"></a>00056           <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const std::deque&lt;std::string&gt;</a> &gt; strings(m_strings);
-<a name="l00057"></a>00057           <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0;
-<a name="l00058"></a>00058           <span class="keywordflow">for</span>(std::deque&lt;std::string&gt;::const_iterator it = strings-&gt;begin(); it != strings-&gt;end(); it++) {
+<a name="l00055"></a>00055         <span class="keywordflow">if</span>(var.length()) {
+<a name="l00056"></a>00056                 <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const std::deque&lt;std::string&gt;</a> &gt; strings(m_strings);
+<a name="l00057"></a>00057                 <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0;
+<a name="l00058"></a>00058                 <span class="keywordflow">for</span>(std::deque&lt;std::string&gt;::const_iterator it = strings-&gt;begin(); it != strings-&gt;end(); it++) {
 <a name="l00059"></a>00059                 <span class="keywordflow">if</span>(*it == var) {
 <a name="l00060"></a>00060                     m_var.reset(<span class="keyword">new</span> std::pair&lt;std::string, int&gt;(var, i));
 <a name="l00061"></a>00061                             m_tlkOnValueChanged.talk(ptr);
 <a name="l00062"></a>00062                     <span class="keywordflow">return</span>;
 <a name="l00063"></a>00063                 }
 <a name="l00064"></a>00064                 i++;
-<a name="l00065"></a>00065            }
-<a name="l00066"></a>00066   }
-<a name="l00067"></a>00067    m_var.reset(<span class="keyword">new</span> std::pair&lt;std::string, int&gt;(var, -1));
-<a name="l00068"></a>00068    m_tlkOnValueChanged.talk(ptr);
+<a name="l00065"></a>00065                 }
+<a name="l00066"></a>00066         }
+<a name="l00067"></a>00067         m_var.reset(<span class="keyword">new</span> std::pair&lt;std::string, int&gt;(var, -1));
+<a name="l00068"></a>00068         m_tlkOnValueChanged.talk(ptr);
 <a name="l00069"></a>00069 }
 <a name="l00070"></a>00070 
 <a name="l00071"></a>00071 <span class="keywordtype">void</span>
@@ -100,11 +100,11 @@
 <a name="l00091"></a><a class="code" href="class_x_combo_node.html#a2">00091</a> <a class="code" href="class_x_combo_node.html#a2">XComboNode::add</a>(<span class="keyword">const</span> std::string &amp;str)
 <a name="l00092"></a>00092 {
 <a name="l00093"></a>00093     <span class="keywordflow">for</span>(;;) {
-<a name="l00094"></a>00094       <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;std::deque&lt;std::string&gt;</a> &gt; old_strings(<a class="code" href="class_x_combo_node.html#r0">m_strings</a>);
-<a name="l00095"></a>00095       <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;std::deque&lt;std::string&gt;</a> &gt; new_strings(<span class="keyword">new</span> std::deque&lt;std::string&gt;(*old_strings));
-<a name="l00096"></a>00096       new_strings-&gt;push_back(str);
-<a name="l00097"></a>00097       <span class="keywordflow">if</span>(new_strings.<a class="code" href="classatomic__shared__ptr.html#a10">compareAndSwap</a>(old_strings, <a class="code" href="class_x_combo_node.html#r0">m_strings</a>))
-<a name="l00098"></a>00098         <span class="keywordflow">break</span>;
+<a name="l00094"></a>00094                 <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;std::deque&lt;std::string&gt;</a> &gt; old_strings(<a class="code" href="class_x_combo_node.html#r0">m_strings</a>);
+<a name="l00095"></a>00095                 <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;std::deque&lt;std::string&gt;</a> &gt; new_strings(<span class="keyword">new</span> std::deque&lt;std::string&gt;(*old_strings));
+<a name="l00096"></a>00096                 new_strings-&gt;push_back(str);
+<a name="l00097"></a>00097                 <span class="keywordflow">if</span>(new_strings.<a class="code" href="classatomic__shared__ptr.html#a10">compareAndSwap</a>(old_strings, <a class="code" href="class_x_combo_node.html#r0">m_strings</a>))
+<a name="l00098"></a>00098                         <span class="keywordflow">break</span>;
 <a name="l00099"></a>00099     }
 <a name="l00100"></a>00100     <a class="code" href="class_x_item_node_base.html#a2">onListChanged</a>().<a class="code" href="class_x_talker.html#a7">talk</a>(dynamic_pointer_cast&lt;XItemNodeBase&gt;(shared_from_this()));
 <a name="l00101"></a>00101     std::string var = <a class="code" href="class_x_combo_node.html#a1">to_str</a>();
@@ -128,7 +128,7 @@
 <a name="l00119"></a>00119     shared_ptr&lt;std::deque&lt;XItemNodeBase::Item&gt; &gt; items(<span class="keyword">new</span> std::deque&lt;XItemNodeBase::Item&gt;());
 <a name="l00120"></a>00120     <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const std::deque&lt;std::string&gt;</a> &gt; strings(<a class="code" href="class_x_combo_node.html#r0">m_strings</a>);
 <a name="l00121"></a>00121     <span class="keywordflow">for</span>(std::deque&lt;std::string&gt;::const_iterator it = strings-&gt;begin(); it != strings-&gt;end(); it++) {
-<a name="l00122"></a>00122     <a class="code" href="struct_x_item_node_base_1_1_item.html">XItemNodeBase::Item</a> item;
+<a name="l00122"></a>00122                 <a class="code" href="struct_x_item_node_base_1_1_item.html">XItemNodeBase::Item</a> item;
 <a name="l00123"></a>00123         item.<a class="code" href="struct_x_item_node_base_1_1_item.html#o0">name</a> = *it;
 <a name="l00124"></a>00124         item.<a class="code" href="struct_x_item_node_base_1_1_item.html#o1">label</a> = *it;
 <a name="l00125"></a>00125         items-&gt;push_back(item);
@@ -157,7 +157,7 @@
 <a name="l00148"></a>00148             <a class="code" href="class_x_combo_node.html#r1">m_var</a>.<a class="code" href="classatomic__shared__ptr.html#a7">reset</a>(<span class="keyword">new</span> std::pair&lt;std::string, int&gt;(<span class="stringliteral">""</span>, -1));
 <a name="l00149"></a>00149     <a class="code" href="class_x_value_node_base.html#p1">m_tlkOnValueChanged</a>.<a class="code" href="class_x_talker.html#a7">talk</a>(ptr);
 <a name="l00150"></a>00150 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:39 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:18 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

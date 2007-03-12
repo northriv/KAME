@@ -19,13 +19,13 @@
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="preprocessor">#include "oxforddriver.h"</span>
 <a name="l00015"></a>00015 <span class="preprocessor">#include &lt;klocale.h&gt;</span>
 <a name="l00016"></a>00016 
 <a name="l00017"></a>00017 <a class="code" href="class_x_oxford_interface.html#b0">XOxfordInterface::XOxfordInterface</a>
-<a name="l00018"></a><a class="code" href="class_x_oxford_interface.html#b0">00018</a>     (<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;driver)
-<a name="l00019"></a>00019    : <a class="code" href="class_x_char_interface.html">XCharInterface</a>(name, runtime, driver) {
+<a name="l00018"></a><a class="code" href="class_x_oxford_interface.html#b0">00018</a> (<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;driver)
+<a name="l00019"></a>00019         : <a class="code" href="class_x_char_interface.html">XCharInterface</a>(name, runtime, driver) {
 <a name="l00020"></a>00020     setEOS(<span class="stringliteral">"\r\n"</span>);
 <a name="l00021"></a>00021     setGPIBWaitBeforeSPoll(10);
 <a name="l00022"></a>00022 }
@@ -37,14 +37,14 @@
 <a name="l00028"></a>00028 <span class="keywordtype">void</span>
 <a name="l00029"></a><a class="code" href="class_x_oxford_interface.html#a3">00029</a> <a class="code" href="class_x_oxford_interface.html#a2">XOxfordInterface::send</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *str) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;)
 <a name="l00030"></a>00030 {
-<a name="l00031"></a>00031   ASSERT(strlen(str));
-<a name="l00032"></a>00032   <span class="keywordflow">if</span>(str[0] == <span class="charliteral">'$'</span>) {
-<a name="l00033"></a>00033       <a class="code" href="class_x_char_interface.html#a6">XCharInterface::send</a>(str);
-<a name="l00034"></a>00034   }
-<a name="l00035"></a>00035   <span class="keywordflow">else</span> {
-<a name="l00036"></a>00036       <span class="comment">//Oxfords always send back echo</span>
-<a name="l00037"></a>00037       query(str);
-<a name="l00038"></a>00038   }
+<a name="l00031"></a>00031         ASSERT(strlen(str));
+<a name="l00032"></a>00032         <span class="keywordflow">if</span>(str[0] == <span class="charliteral">'$'</span>) {
+<a name="l00033"></a>00033                 <a class="code" href="class_x_char_interface.html#a6">XCharInterface::send</a>(str);
+<a name="l00034"></a>00034         }
+<a name="l00035"></a>00035         <span class="keywordflow">else</span> {
+<a name="l00036"></a>00036                 <span class="comment">//Oxfords always send back echo</span>
+<a name="l00037"></a>00037                 query(str);
+<a name="l00038"></a>00038         }
 <a name="l00039"></a>00039 }
 <a name="l00040"></a>00040 <span class="keywordtype">void</span>
 <a name="l00041"></a><a class="code" href="class_x_oxford_interface.html#a7">00041</a> <a class="code" href="class_x_oxford_interface.html#a7">XOxfordInterface::query</a>(<span class="keyword">const</span> std::string &amp;str) <span class="keywordflow">throw</span> (XCommError &amp;)
@@ -54,45 +54,45 @@
 <a name="l00045"></a>00045 <span class="keywordtype">void</span>
 <a name="l00046"></a><a class="code" href="class_x_oxford_interface.html#a8">00046</a> <a class="code" href="class_x_oxford_interface.html#a7">XOxfordInterface::query</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *str) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;)
 <a name="l00047"></a>00047 {
-<a name="l00048"></a>00048   lock();
-<a name="l00049"></a>00049   <span class="keywordflow">try</span> {
-<a name="l00050"></a>00050       <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; 30; i++)
+<a name="l00048"></a>00048         lock();
+<a name="l00049"></a>00049         <span class="keywordflow">try</span> {
+<a name="l00050"></a>00050                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; 30; i++)
 <a name="l00051"></a>00051         {
-<a name="l00052"></a>00052           <a class="code" href="class_x_char_interface.html#a6">XCharInterface::send</a>(str);
-<a name="l00053"></a>00053           <a class="code" href="class_x_char_interface.html#a10">XCharInterface::receive</a>();
-<a name="l00054"></a>00054           <span class="keywordflow">if</span>(buffer().size() &gt;= 1)
-<a name="l00055"></a>00055           <span class="keywordflow">if</span>(buffer()[0] == str[0]) {
-<a name="l00056"></a>00056               unlock();
-<a name="l00057"></a>00057               <span class="keywordflow">return</span>;
-<a name="l00058"></a>00058           }
-<a name="l00059"></a>00059           msecsleep(100);
+<a name="l00052"></a>00052                         <a class="code" href="class_x_char_interface.html#a6">XCharInterface::send</a>(str);
+<a name="l00053"></a>00053                         <a class="code" href="class_x_char_interface.html#a10">XCharInterface::receive</a>();
+<a name="l00054"></a>00054                         <span class="keywordflow">if</span>(buffer().size() &gt;= 1)
+<a name="l00055"></a>00055                                 <span class="keywordflow">if</span>(buffer()[0] == str[0]) {
+<a name="l00056"></a>00056                                         unlock();
+<a name="l00057"></a>00057                                         <span class="keywordflow">return</span>;
+<a name="l00058"></a>00058                                 }
+<a name="l00059"></a>00059                         msecsleep(100);
 <a name="l00060"></a>00060         }
-<a name="l00061"></a>00061   }
-<a name="l00062"></a>00062   <span class="keywordflow">catch</span> (XCommError &amp;e) {
-<a name="l00063"></a>00063        unlock();
-<a name="l00064"></a>00064        <span class="keywordflow">throw</span> e;
-<a name="l00065"></a>00065   }
-<a name="l00066"></a>00066   unlock();
-<a name="l00067"></a>00067   <span class="keywordflow">throw</span> XCommError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Oxford Query Error, Initial doesn't match"</span>), __FILE__, __LINE__);
+<a name="l00061"></a>00061         }
+<a name="l00062"></a>00062         <span class="keywordflow">catch</span> (XCommError &amp;e) {
+<a name="l00063"></a>00063                 unlock();
+<a name="l00064"></a>00064                 <span class="keywordflow">throw</span> e;
+<a name="l00065"></a>00065         }
+<a name="l00066"></a>00066         unlock();
+<a name="l00067"></a>00067         <span class="keywordflow">throw</span> XCommError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Oxford Query Error, Initial doesn't match"</span>), __FILE__, __LINE__);
 <a name="l00068"></a>00068 }
 <a name="l00069"></a>00069 
 <a name="l00070"></a>00070 <span class="keywordtype">void</span>
 <a name="l00071"></a><a class="code" href="class_x_oxford_interface.html#a0">00071</a> <a class="code" href="class_x_oxford_interface.html#a0">XOxfordInterface::open</a>() throw (XInterfaceError &amp;)
 <a name="l00072"></a>00072 {
-<a name="l00073"></a>00073   <a class="code" href="class_x_char_interface.html#b1">XCharInterface::open</a>();
-<a name="l00074"></a>00074   <span class="comment">//    XDriver::Send("@0");</span>
-<a name="l00075"></a>00075   <a class="code" href="class_x_oxford_interface.html#a2">send</a>(<span class="stringliteral">"$Q2"</span>);
-<a name="l00076"></a>00076   <span class="comment">//    msecsleep(100);</span>
-<a name="l00077"></a>00077   <span class="comment">//remote &amp; unlocked</span>
-<a name="l00078"></a>00078   <a class="code" href="class_x_oxford_interface.html#a2">send</a>(<span class="stringliteral">"C3"</span>);
+<a name="l00073"></a>00073         <a class="code" href="class_x_char_interface.html#b1">XCharInterface::open</a>();
+<a name="l00074"></a>00074         <span class="comment">//    XDriver::Send("@0");</span>
+<a name="l00075"></a>00075         <a class="code" href="class_x_oxford_interface.html#a2">send</a>(<span class="stringliteral">"$Q2"</span>);
+<a name="l00076"></a>00076         <span class="comment">//    msecsleep(100);</span>
+<a name="l00077"></a>00077         <span class="comment">//remote &amp; unlocked</span>
+<a name="l00078"></a>00078         <a class="code" href="class_x_oxford_interface.html#a2">send</a>(<span class="stringliteral">"C3"</span>);
 <a name="l00079"></a>00079 }
 <a name="l00080"></a>00080 
 <a name="l00081"></a>00081 <span class="keywordtype">void</span>
 <a name="l00082"></a><a class="code" href="class_x_oxford_interface.html#a1">00082</a> <a class="code" href="class_x_oxford_interface.html#a1">XOxfordInterface::close</a>() throw (XInterfaceError &amp;)
 <a name="l00083"></a>00083 {
 <a name="l00084"></a>00084     <span class="keywordflow">if</span>(!<a class="code" href="class_x_char_interface.html#a29">isOpened</a>()) <span class="keywordflow">return</span>;
-<a name="l00085"></a>00085       <a class="code" href="class_x_oxford_interface.html#a2">send</a>(<span class="stringliteral">"C0"</span>); <span class="comment">//local</span>
-<a name="l00086"></a>00086       <a class="code" href="class_x_char_interface.html#b2">XCharInterface::close</a>();
+<a name="l00085"></a>00085         <a class="code" href="class_x_oxford_interface.html#a2">send</a>(<span class="stringliteral">"C0"</span>); <span class="comment">//local</span>
+<a name="l00086"></a>00086         <a class="code" href="class_x_char_interface.html#b2">XCharInterface::close</a>();
 <a name="l00087"></a>00087 }
 <a name="l00088"></a>00088 <span class="keywordtype">void</span>
 <a name="l00089"></a><a class="code" href="class_x_oxford_interface.html#a5">00089</a> <a class="code" href="class_x_oxford_interface.html#a5">XOxfordInterface::receive</a>() throw (XCommError &amp;) {
@@ -104,7 +104,7 @@
 <a name="l00095"></a>00095 }
 <a name="l00096"></a>00096 
 <a name="l00097"></a>00097 
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:34 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:13 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

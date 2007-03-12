@@ -19,7 +19,7 @@
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="preprocessor">#ifndef ATOMIC_QUEUE_H_</span>
 <a name="l00015"></a>00015 <span class="preprocessor"></span><span class="preprocessor">#define ATOMIC_QUEUE_H_</span>
 <a name="l00016"></a>00016 <span class="preprocessor"></span>
@@ -59,11 +59,11 @@
 <a name="l00050"></a>00050                 }
 <a name="l00051"></a>00051             }
 <a name="l00052"></a>00052             <span class="keywordflow">if</span>(atomicCompareAndSet((T)0, t, last)) {
-<a name="l00053"></a>00053                <a class="code" href="classatomic__nonzero__value__queue.html#r2">m_pLast</a> = last;
-<a name="l00054"></a>00054                <span class="keywordflow">break</span>;
+<a name="l00053"></a>00053                                 <a class="code" href="classatomic__nonzero__value__queue.html#r2">m_pLast</a> = last;
+<a name="l00054"></a>00054                                 <span class="keywordflow">break</span>;
 <a name="l00055"></a>00055             }
 <a name="l00056"></a>00056         }
-<a name="l00057"></a>00057        atomicInc(&amp;<a class="code" href="classatomic__nonzero__value__queue.html#r3">m_count</a>);
+<a name="l00057"></a>00057                 atomicInc(&amp;<a class="code" href="classatomic__nonzero__value__queue.html#r3">m_count</a>);
 <a name="l00058"></a>00058                 writeBarrier();
 <a name="l00059"></a>00059     }
 <a name="l00061"></a><a class="code" href="classatomic__nonzero__value__queue.html#a2">00061</a>     <span class="keywordtype">void</span> <a class="code" href="classatomic__nonzero__value__queue.html#a2">pop</a>() {
@@ -99,7 +99,7 @@
 <a name="l00096"></a><a class="code" href="classatomic__nonzero__value__queue.html#a6">00096</a>     <span class="keywordtype">bool</span> <a class="code" href="classatomic__nonzero__value__queue.html#a6">atomicPop</a>(const_ref item) {
 <a name="l00097"></a>00097         ASSERT(item);
 <a name="l00098"></a>00098         <span class="keywordflow">if</span>(atomicCompareAndSet((T)item, (T)0, <a class="code" href="classatomic__nonzero__value__queue.html#r1">m_pFirst</a>)) {
-<a name="l00099"></a>00099                atomicDec(&amp;<a class="code" href="classatomic__nonzero__value__queue.html#r3">m_count</a>);
+<a name="l00099"></a>00099                         atomicDec(&amp;<a class="code" href="classatomic__nonzero__value__queue.html#r3">m_count</a>);
 <a name="l00100"></a>00100                         writeBarrier();
 <a name="l00101"></a>00101                 <span class="keywordflow">return</span> <span class="keyword">true</span>;
 <a name="l00102"></a>00102         }
@@ -280,7 +280,7 @@
 <a name="l00290"></a>00290 };
 <a name="l00291"></a>00291 
 <a name="l00292"></a>00292 <span class="preprocessor">#endif </span><span class="comment">/*ATOMIC_QUEUE_H_*/</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:33 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:12 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

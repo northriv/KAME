@@ -19,7 +19,7 @@
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="comment">//---------------------------------------------------------------------</span>
 <a name="l00015"></a>00015 <span class="preprocessor">#include "caltable.h"</span>
 <a name="l00016"></a>00016 <span class="preprocessor">#include "measure.h"</span>
@@ -34,95 +34,95 @@
 <a name="l00025"></a>00025 
 <a name="l00026"></a>00026 <a class="code" href="class_x_con_cal_table.html#b0">XConCalTable::XConCalTable</a>
 <a name="l00027"></a><a class="code" href="class_x_con_cal_table.html#b0">00027</a> (<span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;list, FrmCalTable *form)
-<a name="l00028"></a>00028   :  <a class="code" href="class_x_q_connector.html">XQConnector</a>(list, form), 
-<a name="l00029"></a>00029     m_list(list),
-<a name="l00030"></a>00030     m_display(createOrphan&lt;XNode&gt;(<span class="stringliteral">"display"</span>) ),
-<a name="l00031"></a>00031     m_temp(createOrphan&lt;XDoubleNode&gt;(<span class="stringliteral">"temp"</span>) ),
-<a name="l00032"></a>00032     m_value(createOrphan&lt;XDoubleNode&gt;(<span class="stringliteral">"value"</span>) ),
-<a name="l00033"></a>00033     m_thermometer(createOrphan&lt;<a class="code" href="class_x_item_node.html">XItemNode&lt;XThermometerList, XThermometer&gt;</a> &gt;(
-<a name="l00034"></a>00034         <span class="stringliteral">"thermometer"</span>, <span class="keyword">false</span>, list, <span class="keyword">true</span>) ),
-<a name="l00035"></a>00035     m_conThermo(xqcon_create&lt;XQComboBoxConnector&gt;(m_thermometer, (QComboBox *)form-&gt;cmbThermometer) ),
-<a name="l00036"></a>00036     m_conTemp(xqcon_create&lt;XQLineEditConnector&gt;(m_temp, form-&gt;edTemp, <span class="keyword">false</span>)),
-<a name="l00037"></a>00037     m_conValue(xqcon_create&lt;XQLineEditConnector&gt;(m_value, form-&gt;edValue, <span class="keyword">false</span>)),
-<a name="l00038"></a>00038     m_conDisplay(xqcon_create&lt;XQButtonConnector&gt;(m_display, form-&gt;btnDisplay)),
-<a name="l00039"></a>00039     m_pForm(form),
-<a name="l00040"></a>00040     m_waveform(<span class="keyword">new</span> FrmGraphNURL(g_pFrmMain)),
-<a name="l00041"></a>00041     m_wave(createOrphan&lt;XWaveNGraph&gt;(<span class="stringliteral">"Waveform"</span>, <span class="keyword">true</span>, m_waveform.get()))
+<a name="l00028"></a>00028         :  <a class="code" href="class_x_q_connector.html">XQConnector</a>(list, form), 
+<a name="l00029"></a>00029            m_list(list),
+<a name="l00030"></a>00030            m_display(createOrphan&lt;XNode&gt;(<span class="stringliteral">"display"</span>) ),
+<a name="l00031"></a>00031            m_temp(createOrphan&lt;XDoubleNode&gt;(<span class="stringliteral">"temp"</span>) ),
+<a name="l00032"></a>00032            m_value(createOrphan&lt;XDoubleNode&gt;(<span class="stringliteral">"value"</span>) ),
+<a name="l00033"></a>00033            m_thermometer(createOrphan&lt;<a class="code" href="class_x_item_node.html">XItemNode&lt;XThermometerList, XThermometer&gt;</a> &gt;(
+<a name="l00034"></a>00034                                                  <span class="stringliteral">"thermometer"</span>, <span class="keyword">false</span>, list, <span class="keyword">true</span>) ),
+<a name="l00035"></a>00035            m_conThermo(xqcon_create&lt;XQComboBoxConnector&gt;(m_thermometer, (QComboBox *)form-&gt;cmbThermometer) ),
+<a name="l00036"></a>00036            m_conTemp(xqcon_create&lt;XQLineEditConnector&gt;(m_temp, form-&gt;edTemp, <span class="keyword">false</span>)),
+<a name="l00037"></a>00037            m_conValue(xqcon_create&lt;XQLineEditConnector&gt;(m_value, form-&gt;edValue, <span class="keyword">false</span>)),
+<a name="l00038"></a>00038            m_conDisplay(xqcon_create&lt;XQButtonConnector&gt;(m_display, form-&gt;btnDisplay)),
+<a name="l00039"></a>00039            m_pForm(form),
+<a name="l00040"></a>00040            m_waveform(<span class="keyword">new</span> FrmGraphNURL(g_pFrmMain)),
+<a name="l00041"></a>00041            m_wave(createOrphan&lt;XWaveNGraph&gt;(<span class="stringliteral">"Waveform"</span>, <span class="keyword">true</span>, m_waveform.get()))
 <a name="l00042"></a>00042 {
-<a name="l00043"></a>00043   m_lsnTemp = temp()-&gt;onValueChanged().connectWeak(
-<a name="l00044"></a>00044     shared_from_this(),
-<a name="l00045"></a>00045     &amp;<a class="code" href="class_x_con_cal_table.html#d0">XConCalTable::onTempChanged</a>);
-<a name="l00046"></a>00046   m_lsnValue = value()-&gt;onValueChanged().connectWeak(
-<a name="l00047"></a>00047     shared_from_this(),
-<a name="l00048"></a>00048     &amp;<a class="code" href="class_x_con_cal_table.html#d1">XConCalTable::onValueChanged</a>);
-<a name="l00049"></a>00049   m_lsnDisplay = display()-&gt;onTouch().connectWeak(
-<a name="l00050"></a>00050     shared_from_this(),
-<a name="l00051"></a>00051     &amp;<a class="code" href="class_x_con_cal_table.html#d2">XConCalTable::onDisplayTouched</a>, XListener::FLAG_MAIN_THREAD_CALL);
+<a name="l00043"></a>00043         m_lsnTemp = temp()-&gt;onValueChanged().connectWeak(
+<a name="l00044"></a>00044                 shared_from_this(),
+<a name="l00045"></a>00045                 &amp;<a class="code" href="class_x_con_cal_table.html#d0">XConCalTable::onTempChanged</a>);
+<a name="l00046"></a>00046         m_lsnValue = value()-&gt;onValueChanged().connectWeak(
+<a name="l00047"></a>00047                 shared_from_this(),
+<a name="l00048"></a>00048                 &amp;<a class="code" href="class_x_con_cal_table.html#d1">XConCalTable::onValueChanged</a>);
+<a name="l00049"></a>00049         m_lsnDisplay = display()-&gt;onTouch().connectWeak(
+<a name="l00050"></a>00050                 shared_from_this(),
+<a name="l00051"></a>00051                 &amp;<a class="code" href="class_x_con_cal_table.html#d2">XConCalTable::onDisplayTouched</a>, XListener::FLAG_MAIN_THREAD_CALL);
 <a name="l00052"></a>00052 
-<a name="l00053"></a>00053   m_waveform-&gt;setCaption(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Thermometer Calibration"</span>));
-<a name="l00054"></a>00054   {
-<a name="l00055"></a>00055       <span class="keyword">const</span> <span class="keywordtype">char</span> *labels[] = {<span class="stringliteral">"Temp. [K]"</span>, <span class="stringliteral">"Value"</span>, <span class="stringliteral">"T(v(T))-T [K]"</span>};
-<a name="l00056"></a>00056       m_wave-&gt;setColCount(3, labels);
-<a name="l00057"></a>00057       m_wave-&gt;selectAxes(0, 1, 2);
-<a name="l00058"></a>00058       m_wave-&gt;plot1()-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Curve"</span>));
-<a name="l00059"></a>00059       m_wave-&gt;plot1()-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
-<a name="l00060"></a>00060       m_wave-&gt;plot2()-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Error"</span>));
-<a name="l00061"></a>00061       m_wave-&gt;plot2()-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
-<a name="l00062"></a>00062       shared_ptr&lt;XAxis&gt; axisx = *m_wave-&gt;plot1()-&gt;axisX();
-<a name="l00063"></a>00063       axisx-&gt;logScale()-&gt;value(<span class="keyword">true</span>);
-<a name="l00064"></a>00064       shared_ptr&lt;XAxis&gt; axisy = *m_wave-&gt;plot1()-&gt;axisY();
-<a name="l00065"></a>00065       axisy-&gt;logScale()-&gt;value(<span class="keyword">true</span>);
-<a name="l00066"></a>00066       m_wave-&gt;clear();
-<a name="l00067"></a>00067   }
+<a name="l00053"></a>00053         m_waveform-&gt;setCaption(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Thermometer Calibration"</span>));
+<a name="l00054"></a>00054         {
+<a name="l00055"></a>00055                 <span class="keyword">const</span> <span class="keywordtype">char</span> *labels[] = {<span class="stringliteral">"Temp. [K]"</span>, <span class="stringliteral">"Value"</span>, <span class="stringliteral">"T(v(T))-T [K]"</span>};
+<a name="l00056"></a>00056                 m_wave-&gt;setColCount(3, labels);
+<a name="l00057"></a>00057                 m_wave-&gt;selectAxes(0, 1, 2);
+<a name="l00058"></a>00058                 m_wave-&gt;plot1()-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Curve"</span>));
+<a name="l00059"></a>00059                 m_wave-&gt;plot1()-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
+<a name="l00060"></a>00060                 m_wave-&gt;plot2()-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Error"</span>));
+<a name="l00061"></a>00061                 m_wave-&gt;plot2()-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
+<a name="l00062"></a>00062                 shared_ptr&lt;XAxis&gt; axisx = *m_wave-&gt;plot1()-&gt;axisX();
+<a name="l00063"></a>00063                 axisx-&gt;logScale()-&gt;value(<span class="keyword">true</span>);
+<a name="l00064"></a>00064                 shared_ptr&lt;XAxis&gt; axisy = *m_wave-&gt;plot1()-&gt;axisY();
+<a name="l00065"></a>00065                 axisy-&gt;logScale()-&gt;value(<span class="keyword">true</span>);
+<a name="l00066"></a>00066                 m_wave-&gt;clear();
+<a name="l00067"></a>00067         }
 <a name="l00068"></a>00068 }
 <a name="l00069"></a>00069 
 <a name="l00070"></a>00070 <span class="keywordtype">void</span>
 <a name="l00071"></a><a class="code" href="class_x_con_cal_table.html#d0">00071</a> <a class="code" href="class_x_con_cal_table.html#d0">XConCalTable::onTempChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
 <a name="l00072"></a>00072 {
-<a name="l00073"></a>00073   shared_ptr&lt;XThermometer&gt; thermo = *<a class="code" href="class_x_con_cal_table.html#a4">thermometer</a>();
-<a name="l00074"></a>00074   <span class="keywordflow">if</span>(!thermo) <span class="keywordflow">return</span>;
-<a name="l00075"></a>00075   <span class="keywordtype">double</span> ret = thermo-&gt;getRawValue(*<a class="code" href="class_x_con_cal_table.html#a2">temp</a>());
-<a name="l00076"></a>00076   <a class="code" href="class_x_con_cal_table.html#r10">m_lsnValue</a>-&gt;mask();
-<a name="l00077"></a>00077   <a class="code" href="class_x_con_cal_table.html#a3">value</a>()-&gt;value(ret);    
-<a name="l00078"></a>00078   <a class="code" href="class_x_con_cal_table.html#r10">m_lsnValue</a>-&gt;unmask();
+<a name="l00073"></a>00073         shared_ptr&lt;XThermometer&gt; thermo = *<a class="code" href="class_x_con_cal_table.html#a4">thermometer</a>();
+<a name="l00074"></a>00074         <span class="keywordflow">if</span>(!thermo) <span class="keywordflow">return</span>;
+<a name="l00075"></a>00075         <span class="keywordtype">double</span> ret = thermo-&gt;getRawValue(*<a class="code" href="class_x_con_cal_table.html#a2">temp</a>());
+<a name="l00076"></a>00076         <a class="code" href="class_x_con_cal_table.html#r10">m_lsnValue</a>-&gt;mask();
+<a name="l00077"></a>00077         <a class="code" href="class_x_con_cal_table.html#a3">value</a>()-&gt;value(ret);    
+<a name="l00078"></a>00078         <a class="code" href="class_x_con_cal_table.html#r10">m_lsnValue</a>-&gt;unmask();
 <a name="l00079"></a>00079 }
 <a name="l00080"></a>00080 <span class="keywordtype">void</span>
 <a name="l00081"></a><a class="code" href="class_x_con_cal_table.html#d1">00081</a> <a class="code" href="class_x_con_cal_table.html#d1">XConCalTable::onValueChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;)
 <a name="l00082"></a>00082 {
-<a name="l00083"></a>00083   shared_ptr&lt;XThermometer&gt; thermo = *<a class="code" href="class_x_con_cal_table.html#a4">thermometer</a>();
-<a name="l00084"></a>00084   <span class="keywordflow">if</span>(!thermo) <span class="keywordflow">return</span>;
-<a name="l00085"></a>00085   <span class="keywordtype">double</span> ret = thermo-&gt;getTemp(*<a class="code" href="class_x_con_cal_table.html#a3">value</a>());
-<a name="l00086"></a>00086   <a class="code" href="class_x_con_cal_table.html#r9">m_lsnTemp</a>-&gt;mask();
-<a name="l00087"></a>00087   <a class="code" href="class_x_con_cal_table.html#a2">temp</a>()-&gt;value(ret);
-<a name="l00088"></a>00088   <a class="code" href="class_x_con_cal_table.html#r9">m_lsnTemp</a>-&gt;unmask();
+<a name="l00083"></a>00083         shared_ptr&lt;XThermometer&gt; thermo = *<a class="code" href="class_x_con_cal_table.html#a4">thermometer</a>();
+<a name="l00084"></a>00084         <span class="keywordflow">if</span>(!thermo) <span class="keywordflow">return</span>;
+<a name="l00085"></a>00085         <span class="keywordtype">double</span> ret = thermo-&gt;getTemp(*<a class="code" href="class_x_con_cal_table.html#a3">value</a>());
+<a name="l00086"></a>00086         <a class="code" href="class_x_con_cal_table.html#r9">m_lsnTemp</a>-&gt;mask();
+<a name="l00087"></a>00087         <a class="code" href="class_x_con_cal_table.html#a2">temp</a>()-&gt;value(ret);
+<a name="l00088"></a>00088         <a class="code" href="class_x_con_cal_table.html#r9">m_lsnTemp</a>-&gt;unmask();
 <a name="l00089"></a>00089 }
 <a name="l00090"></a>00090 <span class="keywordtype">void</span>
 <a name="l00091"></a><a class="code" href="class_x_con_cal_table.html#d2">00091</a> <a class="code" href="class_x_con_cal_table.html#d2">XConCalTable::onDisplayTouched</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;)
 <a name="l00092"></a>00092 {
-<a name="l00093"></a>00093   shared_ptr&lt;XThermometer&gt; thermo = *<a class="code" href="class_x_con_cal_table.html#a4">thermometer</a>();
-<a name="l00094"></a>00094   <span class="keywordflow">if</span>(!thermo) {
-<a name="l00095"></a>00095       <a class="code" href="class_x_con_cal_table.html#r14">m_wave</a>-&gt;clear();
-<a name="l00096"></a>00096       <span class="keywordflow">return</span>;
-<a name="l00097"></a>00097   }
-<a name="l00098"></a>00098   <span class="keyword">const</span> <span class="keywordtype">int</span> length = 1000;
-<a name="l00099"></a>00099   <span class="keywordtype">double</span> step = (log(*thermo-&gt;tempMax()) - log(*thermo-&gt;tempMin())) / length;
-<a name="l00100"></a>00100   {   <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XWaveNGraph&gt;</a> lock(*<a class="code" href="class_x_con_cal_table.html#r14">m_wave</a>);
-<a name="l00101"></a>00101       <a class="code" href="class_x_con_cal_table.html#r14">m_wave</a>-&gt;setRowCount(length);
-<a name="l00102"></a>00102       <span class="keywordtype">double</span> lt = log(*thermo-&gt;tempMin());
-<a name="l00103"></a>00103       <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; length; i++)
+<a name="l00093"></a>00093         shared_ptr&lt;XThermometer&gt; thermo = *<a class="code" href="class_x_con_cal_table.html#a4">thermometer</a>();
+<a name="l00094"></a>00094         <span class="keywordflow">if</span>(!thermo) {
+<a name="l00095"></a>00095                 <a class="code" href="class_x_con_cal_table.html#r14">m_wave</a>-&gt;clear();
+<a name="l00096"></a>00096                 <span class="keywordflow">return</span>;
+<a name="l00097"></a>00097         }
+<a name="l00098"></a>00098         <span class="keyword">const</span> <span class="keywordtype">int</span> length = 1000;
+<a name="l00099"></a>00099         <span class="keywordtype">double</span> step = (log(*thermo-&gt;tempMax()) - log(*thermo-&gt;tempMin())) / length;
+<a name="l00100"></a>00100         {   <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XWaveNGraph&gt;</a> lock(*<a class="code" href="class_x_con_cal_table.html#r14">m_wave</a>);
+<a name="l00101"></a>00101         <a class="code" href="class_x_con_cal_table.html#r14">m_wave</a>-&gt;setRowCount(length);
+<a name="l00102"></a>00102         <span class="keywordtype">double</span> lt = log(*thermo-&gt;tempMin());
+<a name="l00103"></a>00103         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; length; i++)
 <a name="l00104"></a>00104         {
-<a name="l00105"></a>00105           <span class="keywordtype">double</span> t = exp(lt);
-<a name="l00106"></a>00106           <span class="keywordtype">double</span> r = thermo-&gt;getRawValue(t);
-<a name="l00107"></a>00107           <a class="code" href="class_x_con_cal_table.html#r14">m_wave</a>-&gt;cols(0)[i] = t;
-<a name="l00108"></a>00108           <a class="code" href="class_x_con_cal_table.html#r14">m_wave</a>-&gt;cols(1)[i] = r;
-<a name="l00109"></a>00109           <a class="code" href="class_x_con_cal_table.html#r14">m_wave</a>-&gt;cols(2)[i] = thermo-&gt;getTemp(r) - t;
-<a name="l00110"></a>00110           lt += step;
+<a name="l00105"></a>00105                 <span class="keywordtype">double</span> t = exp(lt);
+<a name="l00106"></a>00106                 <span class="keywordtype">double</span> r = thermo-&gt;getRawValue(t);
+<a name="l00107"></a>00107                 <a class="code" href="class_x_con_cal_table.html#r14">m_wave</a>-&gt;cols(0)[i] = t;
+<a name="l00108"></a>00108                 <a class="code" href="class_x_con_cal_table.html#r14">m_wave</a>-&gt;cols(1)[i] = r;
+<a name="l00109"></a>00109                 <a class="code" href="class_x_con_cal_table.html#r14">m_wave</a>-&gt;cols(2)[i] = thermo-&gt;getTemp(r) - t;
+<a name="l00110"></a>00110                 lt += step;
 <a name="l00111"></a>00111         }
-<a name="l00112"></a>00112   }
-<a name="l00113"></a>00113   <a class="code" href="class_x_con_cal_table.html#r13">m_waveform</a>-&gt;show();
-<a name="l00114"></a>00114   <a class="code" href="class_x_con_cal_table.html#r13">m_waveform</a>-&gt;raise();  
+<a name="l00112"></a>00112         }
+<a name="l00113"></a>00113         <a class="code" href="class_x_con_cal_table.html#r13">m_waveform</a>-&gt;show();
+<a name="l00114"></a>00114         <a class="code" href="class_x_con_cal_table.html#r13">m_waveform</a>-&gt;raise();  
 <a name="l00115"></a>00115 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:36 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:15 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

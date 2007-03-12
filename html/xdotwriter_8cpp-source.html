@@ -19,7 +19,7 @@
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="preprocessor">#include "xdotwriter.h"</span>
 <a name="l00015"></a>00015 <span class="preprocessor">#include &lt;fstream&gt;</span>
 <a name="l00016"></a>00016 <span class="preprocessor">#include "config.h"</span>
@@ -27,7 +27,7 @@
 <a name="l00018"></a>00018 <span class="preprocessor">#include "xlistnode.h"</span>
 <a name="l00019"></a>00019 
 <a name="l00020"></a><a class="code" href="class_x_dot_writer.html#a0">00020</a> <a class="code" href="class_x_dot_writer.html#a0">XDotWriter::XDotWriter</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;root, std::ofstream &amp;ofs)
-<a name="l00021"></a>00021  : m_root(root), m_ofs(ofs), m_unnamedcnt(0)
+<a name="l00021"></a>00021         : m_root(root), m_ofs(ofs), m_unnamedcnt(0)
 <a name="l00022"></a>00022 {
 <a name="l00023"></a>00023     ASSERT(ofs.good());
 <a name="l00024"></a>00024     ofs &lt;&lt; <span class="stringliteral">"/* KAME2 measurement configuration file"</span> &lt;&lt; std::endl
@@ -67,20 +67,20 @@
 <a name="l00058"></a>00058     <span class="keywordtype">int</span> unnamed = 0;
 <a name="l00059"></a>00059     <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> list(<a class="code" href="class_x_dot_writer.html#r0">m_root</a>-&gt;children());
 <a name="l00060"></a>00060     <span class="keywordflow">if</span>(list) { 
-<a name="l00061"></a>00061       <span class="keywordflow">for</span>(XNode::NodeList::const_iterator it = list-&gt;begin(); it != list-&gt;end(); it++) {
-<a name="l00062"></a>00062         shared_ptr&lt;XNode&gt; child = *it;
+<a name="l00061"></a>00061                 <span class="keywordflow">for</span>(XNode::NodeList::const_iterator it = list-&gt;begin(); it != list-&gt;end(); it++) {
+<a name="l00062"></a>00062                         shared_ptr&lt;XNode&gt; child = *it;
 <a name="l00063"></a>00063            
-<a name="l00064"></a>00064         <span class="keywordflow">if</span>(child-&gt;getName().empty()) {
-<a name="l00065"></a>00065             unnamed++;
-<a name="l00066"></a>00066         }
-<a name="l00067"></a>00067         <span class="keywordflow">else</span> {
-<a name="l00068"></a>00068             <a class="code" href="class_x_dot_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"obj_"</span> &lt;&lt; (int)child.get()
-<a name="l00069"></a>00069                   &lt;&lt; <span class="stringliteral">" -&gt; "</span>
-<a name="l00070"></a>00070                   &lt;&lt; <span class="stringliteral">"obj_"</span> &lt;&lt; (int)node.get()
-<a name="l00071"></a>00071                   &lt;&lt; std::endl;
-<a name="l00072"></a>00072             <a class="code" href="class_x_dot_writer.html#a2">write</a>(child);
-<a name="l00073"></a>00073         }
-<a name="l00074"></a>00074       }
+<a name="l00064"></a>00064                         <span class="keywordflow">if</span>(child-&gt;getName().empty()) {
+<a name="l00065"></a>00065                                 unnamed++;
+<a name="l00066"></a>00066                         }
+<a name="l00067"></a>00067                         <span class="keywordflow">else</span> {
+<a name="l00068"></a>00068                                 <a class="code" href="class_x_dot_writer.html#r1">m_ofs</a> &lt;&lt; <span class="stringliteral">"obj_"</span> &lt;&lt; (int)child.get()
+<a name="l00069"></a>00069                                           &lt;&lt; <span class="stringliteral">" -&gt; "</span>
+<a name="l00070"></a>00070                                           &lt;&lt; <span class="stringliteral">"obj_"</span> &lt;&lt; (int)node.get()
+<a name="l00071"></a>00071                                           &lt;&lt; std::endl;
+<a name="l00072"></a>00072                                 <a class="code" href="class_x_dot_writer.html#a2">write</a>(child);
+<a name="l00073"></a>00073                         }
+<a name="l00074"></a>00074                 }
 <a name="l00075"></a>00075     }
 <a name="l00076"></a>00076     <span class="keywordflow">if</span>(unnamed) {
 <a name="l00077"></a>00077         <a class="code" href="class_x_dot_writer.html#r3">m_unnamedcnt</a>++;
@@ -93,7 +93,7 @@
 <a name="l00084"></a>00084               &lt;&lt; std::endl;
 <a name="l00085"></a>00085     }
 <a name="l00086"></a>00086 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:35 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:14 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>

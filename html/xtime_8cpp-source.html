@@ -19,18 +19,18 @@
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="preprocessor">#include "xtime.h"</span>
 <a name="l00015"></a>00015 <span class="preprocessor">#include &lt;sys/time.h&gt;</span>
 <a name="l00016"></a>00016 
 <a name="l00017"></a>00017 <span class="keywordtype">void</span> msecsleep(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> ms)
 <a name="l00018"></a>00018 {
-<a name="l00019"></a>00019   <span class="keywordflow">if</span>(!ms) usleep(0);
-<a name="l00020"></a>00020   <span class="keyword">struct </span>timespec rem, req;
-<a name="l00021"></a>00021   req.tv_sec = ms / 1000;
-<a name="l00022"></a>00022   req.tv_nsec = ((ms % 1000) * 1000000);
-<a name="l00023"></a>00023   <span class="keywordflow">while</span>(nanosleep(&amp;req, &amp;rem)) req = rem;
-<a name="l00024"></a>00024   <span class="keywordflow">return</span>;
+<a name="l00019"></a>00019         <span class="keywordflow">if</span>(!ms) usleep(0);
+<a name="l00020"></a>00020         <span class="keyword">struct </span>timespec rem, req;
+<a name="l00021"></a>00021         req.tv_sec = ms / 1000;
+<a name="l00022"></a>00022         req.tv_nsec = ((ms % 1000) * 1000000);
+<a name="l00023"></a>00023         <span class="keywordflow">while</span>(nanosleep(&amp;req, &amp;rem)) req = rem;
+<a name="l00024"></a>00024         <span class="keywordflow">return</span>;
 <a name="l00025"></a>00025 }
 <a name="l00026"></a>00026 
 <a name="l00027"></a>00027 <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> timeStamp() {
@@ -41,13 +41,13 @@
 <a name="l00032"></a>00032 <span class="preprocessor">#elif defined __powerpc__ || defined __POWERPC__ || defined __ppc__</span>
 <a name="l00033"></a>00033 <span class="preprocessor"></span>    uint32_t rx, ry, rz;
 <a name="l00034"></a>00034     <span class="keyword">asm</span> <span class="keyword">volatile</span>(<span class="stringliteral">"1: \n"</span>
-<a name="l00035"></a>00035             <span class="stringliteral">"mftbu %[rx]\n"</span>
-<a name="l00036"></a>00036             <span class="stringliteral">"mftb %[ry]\n"</span>
-<a name="l00037"></a>00037             <span class="stringliteral">"mftbu %[rz]\n"</span>
-<a name="l00038"></a>00038             <span class="stringliteral">"cmpw %[rz], %[rx]\n"</span>
-<a name="l00039"></a>00039             <span class="stringliteral">"bne- 1b"</span>
-<a name="l00040"></a>00040             : [rx] <span class="stringliteral">"=&amp;r"</span> (rx), [ry] <span class="stringliteral">"=&amp;r"</span> (ry), [rz] <span class="stringliteral">"=&amp;r"</span> (rz)
-<a name="l00041"></a>00041             :: <span class="stringliteral">"cc"</span>);
+<a name="l00035"></a>00035                                  <span class="stringliteral">"mftbu %[rx]\n"</span>
+<a name="l00036"></a>00036                                  <span class="stringliteral">"mftb %[ry]\n"</span>
+<a name="l00037"></a>00037                                  <span class="stringliteral">"mftbu %[rz]\n"</span>
+<a name="l00038"></a>00038                                  <span class="stringliteral">"cmpw %[rz], %[rx]\n"</span>
+<a name="l00039"></a>00039                                  <span class="stringliteral">"bne- 1b"</span>
+<a name="l00040"></a>00040                                  : [rx] <span class="stringliteral">"=&amp;r"</span> (rx), [ry] <span class="stringliteral">"=&amp;r"</span> (ry), [rz] <span class="stringliteral">"=&amp;r"</span> (rz)
+<a name="l00041"></a>00041                                  :: <span class="stringliteral">"cc"</span>);
 <a name="l00042"></a>00042     uint64_t r = rx;
 <a name="l00043"></a>00043     r = (r &lt;&lt; 32u) + ry;
 <a name="l00044"></a>00044     <span class="keywordflow">return</span> (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)(r);
@@ -69,12 +69,12 @@
 <a name="l00060"></a><a class="code" href="class_x_time.html#a19">00060</a> <a class="code" href="class_x_time.html#a19">XTime::getTimeStr</a>(<span class="keywordtype">bool</span> subsecond)<span class="keyword"> const</span>
 <a name="l00061"></a>00061 <span class="keyword"></span>{
 <a name="l00062"></a>00062     <span class="keywordflow">if</span>(*this) {
-<a name="l00063"></a>00063       <span class="keywordtype">char</span> str[100];
-<a name="l00064"></a>00064       ctime_r(&amp;<a class="code" href="class_x_time.html#r0">tv_sec</a>, str);
-<a name="l00065"></a>00065       str[strlen(str) - 1] = <span class="charliteral">'\0'</span>;
-<a name="l00066"></a>00066       <span class="keywordflow">if</span>(subsecond)
-<a name="l00067"></a>00067           sprintf(str + strlen(str), <span class="stringliteral">" +%.3dms"</span>, (<span class="keywordtype">int</span>)<a class="code" href="class_x_time.html#r1">tv_usec</a>/1000);
-<a name="l00068"></a>00068       <span class="keywordflow">return</span> std::string(str);
+<a name="l00063"></a>00063                 <span class="keywordtype">char</span> str[100];
+<a name="l00064"></a>00064                 ctime_r(&amp;<a class="code" href="class_x_time.html#r0">tv_sec</a>, str);
+<a name="l00065"></a>00065                 str[strlen(str) - 1] = <span class="charliteral">'\0'</span>;
+<a name="l00066"></a>00066                 <span class="keywordflow">if</span>(subsecond)
+<a name="l00067"></a>00067                         sprintf(str + strlen(str), <span class="stringliteral">" +%.3dms"</span>, (<span class="keywordtype">int</span>)<a class="code" href="class_x_time.html#r1">tv_usec</a>/1000);
+<a name="l00068"></a>00068                 <span class="keywordflow">return</span> std::string(str);
 <a name="l00069"></a>00069     }
 <a name="l00070"></a>00070     <span class="keywordflow">else</span> {
 <a name="l00071"></a>00071         <span class="keywordflow">return</span> std::string();
@@ -84,20 +84,20 @@
 <a name="l00075"></a><a class="code" href="class_x_time.html#a20">00075</a> <a class="code" href="class_x_time.html#a20">XTime::getTimeFmtStr</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *fmt, <span class="keywordtype">bool</span> subsecond)<span class="keyword"> const</span>
 <a name="l00076"></a>00076 <span class="keyword"></span>{
 <a name="l00077"></a>00077     <span class="keywordflow">if</span>(*this) {
-<a name="l00078"></a>00078       <span class="keywordtype">char</span> str[100];
-<a name="l00079"></a>00079       <span class="keyword">struct </span>tm time;
-<a name="l00080"></a>00080       localtime_r(&amp;<a class="code" href="class_x_time.html#r0">tv_sec</a>, &amp;time);
-<a name="l00081"></a>00081       strftime(str, 100, fmt, &amp;time);
-<a name="l00082"></a>00082       <span class="keywordflow">if</span>(subsecond)
-<a name="l00083"></a>00083           sprintf(str + strlen(str), <span class="stringliteral">" +%.3f"</span>, 1e-6 * <a class="code" href="class_x_time.html#r1">tv_usec</a>);
-<a name="l00084"></a>00084       <span class="keywordflow">return</span> std::string(str);
+<a name="l00078"></a>00078                 <span class="keywordtype">char</span> str[100];
+<a name="l00079"></a>00079                 <span class="keyword">struct </span>tm time;
+<a name="l00080"></a>00080                 localtime_r(&amp;<a class="code" href="class_x_time.html#r0">tv_sec</a>, &amp;time);
+<a name="l00081"></a>00081                 strftime(str, 100, fmt, &amp;time);
+<a name="l00082"></a>00082                 <span class="keywordflow">if</span>(subsecond)
+<a name="l00083"></a>00083                         sprintf(str + strlen(str), <span class="stringliteral">" +%.3f"</span>, 1e-6 * <a class="code" href="class_x_time.html#r1">tv_usec</a>);
+<a name="l00084"></a>00084                 <span class="keywordflow">return</span> std::string(str);
 <a name="l00085"></a>00085     }
 <a name="l00086"></a>00086     <span class="keywordflow">else</span> {
 <a name="l00087"></a>00087         <span class="keywordflow">return</span> std::string();
 <a name="l00088"></a>00088     }
 <a name="l00089"></a>00089 }
 <a name="l00090"></a>00090 
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Mar 12 23:19:40 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:19 2007に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
 </body>
