@@ -1,15 +1,15 @@
 <!DOCTYPE UI><UI version="3.3" stdsetdef="1">
-<class>FrmGraphNURL</class>
+<class>FrmGraph</class>
 <widget class="QMainWindow">
     <property name="name">
-        <cstring>FrmGraphNURL</cstring>
+        <cstring>FrmGraph</cstring>
     </property>
     <property name="geometry">
         <rect>
             <x>0</x>
             <y>0</y>
-            <width>453</width>
-            <height>324</height>
+            <width>404</width>
+            <height>243</height>
         </rect>
     </property>
     <property name="caption">
@@ -25,58 +25,17 @@
         <property name="margin">
             <number>2</number>
         </property>
-        <widget class="QLayoutWidget" row="1" column="0">
-            <property name="name">
-                <cstring>layout1</cstring>
-            </property>
-            <hbox>
-                <property name="name">
-                    <cstring>unnamed</cstring>
-                </property>
-                <widget class="KURLRequester">
-                    <property name="name">
-                        <cstring>m_url</cstring>
-                    </property>
-                    <property name="sizePolicy">
-                        <sizepolicy>
-                            <hsizetype>5</hsizetype>
-                            <vsizetype>1</vsizetype>
-                            <horstretch>0</horstretch>
-                            <verstretch>0</verstretch>
-                        </sizepolicy>
-                    </property>
-                </widget>
-                <widget class="QPushButton">
-                    <property name="name">
-                        <cstring>m_btnDump</cstring>
-                    </property>
-                    <property name="text">
-                        <string>DUMP</string>
-                    </property>
-                </widget>
-            </hbox>
-        </widget>
         <widget class="XQGraph" row="0" column="0">
             <property name="name">
                 <cstring>m_graphwidget</cstring>
             </property>
-            <property name="sizePolicy">
-                <sizepolicy>
-                    <hsizetype>5</hsizetype>
-                    <vsizetype>7</vsizetype>
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                </sizepolicy>
-            </property>
         </widget>
     </grid>
 </widget>
-<toolbars>
-</toolbars>
 <customwidgets>
     <customwidget>
         <class>XQGraph</class>
-        <header location="local">../../graph/graphwidget.h</header>
+        <header location="local">graphwidget.h</header>
         <sizehint>
             <width>-1</width>
             <height>-1</height>
@@ -101,9 +60,6 @@
 </images>
 <layoutdefaults spacing="6" margin="11"/>
 <includehints>
-    <includehint>kurlrequester.h</includehint>
-    <includehint>klineedit.h</includehint>
-    <includehint>kpushbutton.h</includehint>
     <includehint>graphwidget.h</includehint>
 </includehints>
 </UI>
