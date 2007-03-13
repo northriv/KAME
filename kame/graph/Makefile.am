@@ -1,10 +1,13 @@
-noinst_LIBRARIES = libgraph.a
+pkglib_LTLIBRARIES = libgraph.la
+
+libgraph_la_LDFLAGS = -version-info 0:0:0
+libgraph_la_LIBADD =  forms/libforms.a
 
 INCLUDES = -I$(top_srcdir)/. -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/FTGL/include \
 	-I$(top_builddir)/kame/graph/forms $(all_includes)
 
-libgraph_a_SOURCES = graph.cpp graph.h \
+libgraph_la_SOURCES = graph.cpp graph.h \
 	graphdialogconnector.cpp graphdialogconnector.h \
 	graphpainter.cpp graphpaintergl.cpp graphpainter.h \
 	graphwidget.cpp graphwidget.h \
