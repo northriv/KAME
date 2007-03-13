@@ -1,5 +1,19 @@
 bin_PROGRAMS = kame
 
+# set the include path for X, qt and KDE
+INCLUDES = -I$(top_srcdir)/. \
+	-I$(top_srcdir)/kame \
+	-I$(top_srcdir)/kame/forms \
+	-I$(top_srcdir)/kame/script \
+	-I$(top_srcdir)/kame/driver \
+	-I$(top_srcdir)/kame/analyzer \
+	-I$(top_srcdir)/kame/thermometer \
+	-I$(top_builddir)/kame/forms \
+	-I$(top_builddir)/kame/script/forms \
+	-I$(top_builddir)/kame/thermometer/forms \
+	-I$(top_srcdir)/kame/icons \
+	$(all_includes)
+	
 kame_SOURCES = measure.cpp measure.h \
 	kame.cpp kame.h \
 	xnodeconnector.cpp xnodeconnector.h \
@@ -39,13 +53,11 @@ kame_LDADD = $(top_builddir)/kame/forms/libforms.a \
 	$(top_builddir)/kame/users/montecarlo/libmontecarlo.a \
 	$(top_builddir)/kame/users/montecarlo/forms/libforms.a \
 	$(top_builddir)/kame/analyzer/libanalyzer.a \
-	$(top_builddir)/kame/analyzer/forms/libforms.a \
 	$(top_builddir)/kame/driver/libdriver.a \
-	$(top_builddir)/kame/driver/forms/libforms.a \
 	$(top_builddir)/kame/thermometer/libthermometer.a \
 	$(top_builddir)/kame/thermometer/forms/libforms.a \
 	$(top_builddir)/kame/icons/libicons.a \
-	$(top_builddir)/kame/graph/libgraph.la \
+	$(top_builddir)/kame/graph/libgraph.a \
 	$(top_srcdir)/FTGL/unix/src/.libs/libftgl.a -lGLU -lm \
 	$(LIB_KFILE) $(LIB_KDEUI) $(LIB_KDECORE) $(LIB_QT) $(LIBSOCKET) -lkmdi 
 
@@ -86,19 +98,6 @@ uninstall-local:
 # kde_moduledir       Where modules (e.g. parts) should go to. Use kde_module_LTLIBRARIES.
 # kde_styledir        Where Qt/KDE widget styles should go to (new in KDE 3).
 # kde_designerdir     Where Qt Designer plugins should go to (new in KDE 3).
-
-# set the include path for X, qt and KDE
-INCLUDES = -I$(top_srcdir)/. \
-	-I$(top_srcdir)/kame \
-	-I$(top_srcdir)/kame/script \
-	-I$(top_srcdir)/kame/driver \
-	-I$(top_srcdir)/kame/analyzer \
-	-I$(top_builddir)/kame/script/forms \
-	-I$(top_builddir)/kame/analyzer/forms \
-	-I$(top_builddir)/kame/forms \
-	-I$(top_builddir)/kame/thermometer/forms \
-	-I$(top_srcdir)/kame/icons \
-	$(all_includes)
 
 METASOURCES = AUTO
 

@@ -15,7 +15,8 @@
 #include <qpixmap.h>
 #include <kiconloader.h>
 
-#include "kame-24x24-png.c"
+//#include "kame-24x24-png.c"
+extern const unsigned char icon_kame_24x24_png[1065];
 
 QPixmap *g_pIconKame24x24;
 QPixmap *g_pIconKame48x48;

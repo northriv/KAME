@@ -13,7 +13,7 @@
  ***************************************************************************/
 #include "xwavengraph.h"
 
-#include "forms/graphnurlform.h"
+#include "graphnurlform.h"
 #include "graphwidget.h"
 #include "graph.h"
 

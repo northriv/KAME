@@ -2,7 +2,7 @@ noinst_LIBRARIES = libthermometer.a
 
 INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/kame/graph \
-	-I$(top_builddir)/kame/graph/forms \
+	-I$(top_builddir)/kame/graph \
 	-I$(top_srcdir)/kame/thermometer \
 	-I$(top_builddir)/kame/thermometer/forms \
 	$(all_includes)

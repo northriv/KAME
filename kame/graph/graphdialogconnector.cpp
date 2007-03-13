@@ -12,7 +12,7 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "graphdialogconnector.h"
-#include "forms/graphdialog.h"
+#include "graphdialog.h"
 #include <qpixmap.h>
 #include <qpushbutton.h>
 #include <qpainter.h>

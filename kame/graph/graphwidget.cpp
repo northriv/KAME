@@ -21,7 +21,7 @@
 #include <klocale.h>
 #include "measure.h"
 #include "graphdialogconnector.h"
-#include "forms/graphdialog.h"
+#include "graphdialog.h"
 
 XQGraph::XQGraph( QWidget* parent, const char* name, WFlags fl ) :
     QGLWidget( QGLFormat(AlphaChannel | DoubleBuffer | Rgba | DepthBuffer | AccumBuffer )

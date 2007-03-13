@@ -1184,7 +1184,7 @@
 <customwidgets>
     <customwidget>
         <class>XQGraph</class>
-        <header location="local">../../graph/graphwidget.h</header>
+        <header location="local">graphwidget.h</header>
         <sizehint>
             <width>-1</width>
             <height>-1</height>

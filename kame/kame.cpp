@@ -48,7 +48,7 @@
 #include "xrubythreadconnector.h"
 #include "script/forms/rubythreadtool.h"
 #include "thermometer/forms/caltableform.h"
-#include "analyzer/forms/recordreaderform.h"
+#include "forms/recordreaderform.h"
 #include "forms/interfacetool.h"
 #include "forms/graphtool.h"
 #include "forms/drivertool.h"

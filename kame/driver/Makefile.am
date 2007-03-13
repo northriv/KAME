@@ -1,8 +1,6 @@
 noinst_LIBRARIES = libdriver.a
 
 INCLUDES = -I$(top_srcdir)/kame \
-	-I$(top_builddir)/kame/forms \
-	-I$(top_builddir)/kame/driver/forms \
 	$(all_includes)
 
 libdriver_a_SOURCES = interface.cpp interface.h \
@@ -15,10 +13,6 @@ libdriver_a_SOURCES = interface.cpp interface.h \
 	dummyport.cpp dummyport.h \
 	driver.cpp driver.h \
 	primarydriver.cpp primarydriver.h \
-	secondarydriver.cpp secondarydriver.h \
-	driverlistconnector.cpp driverlistconnector.h \
-	interfacelistconnector.cpp interfacelistconnector.h 
+	secondarydriver.cpp secondarydriver.h
 
 METASOURCES = AUTO
-
-SUBDIRS = forms

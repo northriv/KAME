@@ -1,20 +1,15 @@
 noinst_LIBRARIES = libanalyzer.a
 
-INCLUDES = -I$(top_srcdir)/kame -I$(top_srcdir)/kame/analyzer \
-	-I$(top_builddir)/kame/analyzer/forms \
-	-I$(top_srcdir)/kame/driver \
+INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/kame/graph \
-	-I$(top_builddir)/kame/graph/forms \
+	-I$(top_builddir)/kame/graph \
+	-I$(top_srcdir)/kame/driver \
 	$(all_includes)
 
-libanalyzer_a_SOURCES = recordreaderconnector.cpp recordreaderconnector.h \
-	graphlistconnector.cpp graphlistconnector.h \
-	entrylistconnector.cpp entrylistconnector.h \
+libanalyzer_a_SOURCES = \
 	recorder.cpp recorder.h \
 	recordreader.cpp recordreader.h \
 	analyzer.cpp analyzer.h
 
 METASOURCES = AUTO
-
-SUBDIRS = forms
 
