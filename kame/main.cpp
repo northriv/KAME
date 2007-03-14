@@ -42,6 +42,7 @@ static KCmdLineOptions options[] =
     { "nomlock", I18N_NOOP("never use mlock"), 0 },
     { "nodr", 0, 0 },
     { "nodirectrender", I18N_NOOP("do not use direct rendering"), 0 },
+    { "module <path>", I18N_NOOP("load a specified module"), "" },
     { "+[File]", I18N_NOOP("measurement file to open"), 0 },
     KCmdLineLastOption
     // INSERT YOUR COMMANDLINE OPTIONS HERE
@@ -66,6 +67,7 @@ int main(int argc, char *argv[])
 	KApplication *app;
 	app = new KApplication;
   
+  	std::string module_path;
 	{
 		KGlobal::dirs()->addPrefix(".");
 		makeIcons(app->iconLoader());
@@ -96,6 +98,8 @@ int main(int argc, char *argv[])
 			//! Use UTF8 conversion from std::string to QString.
 			QTextCodec::setCodecForCStrings(QTextCodec::codecForName("utf8") );
             
+			module_path = args->getOption("module");
+            
 			FrmKameMain *form;
 			form = new FrmKameMain();
 			app->setMainWidget(form);
@@ -125,11 +129,13 @@ int main(int argc, char *argv[])
 	  return 0;
 	*/
 	
-	void *handle = dlopen("/sw/lib/kame/libnmr.0.dylib", RTLD_LAZY); //NOW | RTLD_GLOBAL);
-	if(handle)
-		fprintf(stderr, "loaded\n\n\n");
-	else
-		fprintf(stderr, "loading failed %s\n\n\n", dlerror());
+	if(module_path.length()) {
+		void *handle = dlopen(module_path.c_str(), RTLD_LAZY); //NOW | RTLD_GLOBAL);
+		if(handle)
+			fprintf(stderr, "loaded\n\n\n");
+		else
+			fprintf(stderr, "loading failed %s\n\n\n", dlerror());
+	}
 
 	int ret = app->exec();
 

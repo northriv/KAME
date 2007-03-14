@@ -55,16 +55,17 @@ inline bool atomicCompareAndSet2(
 	unsigned char ret;
 	asm volatile (
 		//gcc with -fPIC cannot handle EBX correctly.
+		" mov %7, %%esi;"
 		" push %%ebx;"
 		" mov %6, %%ebx;"
-		" lock; cmpxchg8b %7;"
+		" lock; cmpxchg8b (%%esi);"
 		" pop %%ebx;"
 		" sete %0;" // ret = zflag ? 1 : 0
 		: "=r" (ret), "=d" (oldv1), "=a" (oldv0)
 		: "1" (oldv1), "2" (oldv0),
-		"c" (newv1), "g" (newv0),
-		"m" (*target)
-		: "memory");
+		"c" (newv1), "rm" (newv0),
+		"rm" (target)
+		: "memory", "%esi");
 	return ret;
 }
 inline bool atomicCompareAndSet2(
