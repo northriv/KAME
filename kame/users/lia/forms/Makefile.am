@@ -1,5 +1,5 @@
 INCLUDES = $(all_includes)
 METASOURCES = AUTO
 
-noinst_LIBRARIES =  libforms.a
-libforms_a_SOURCES =  lockinampform.ui dummy.cpp
+noinst_LTLIBRARIES =  libforms.la
+libforms_la_SOURCES =  lockinampform.ui dummy.cpp

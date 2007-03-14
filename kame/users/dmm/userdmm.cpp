@@ -17,6 +17,10 @@
 #include "charinterface.h"
 //---------------------------------------------------------------------------
 
+REGISTER_TYPE(XDriverList, KE2000, "Keithley 2000/2001 DMM");
+REGISTER_TYPE(XDriverList, KE2182, "Keithley 2182 nanovolt meter");
+REGISTER_TYPE(XDriverList, HP34420A, "Agilent 34420A nanovolt meter");
+
 void
 XDMMSCPI::changeFunction()
 {

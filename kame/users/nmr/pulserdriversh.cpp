@@ -15,9 +15,10 @@
 #include "charinterface.h"
 #include <klocale.h>
 
+REGISTER_TYPE(XDriverList, SHPulser, "NMR pulser handmade-SH2");
+
 using std::max;
 using std::min;
-
 
 //[ms]
 static const double DMA_PERIOD = (1.0/(28.64e3/2));

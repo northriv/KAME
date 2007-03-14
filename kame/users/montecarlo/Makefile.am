@@ -1,4 +1,4 @@
-noinst_LIBRARIES = libmontecarlo.a
+pkglib_LTLIBRARIES = libmontecarlo.la
 
 INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/kame/analyzer \
@@ -12,9 +12,10 @@ AM_CXXFLAGS = $(CXXFLAGS) \
 	-funroll-loops -fomit-frame-pointer -funswitch-loops -finline-functions -fgcse-after-reload \
 	-ffast-math -fno-tree-vectorize -ftree-vectorizer-verbose=3 -fno-unsafe-math-optimizations
 
-libmontecarlo_a_SOURCES = montecarlo.cpp montecarlo.h \
+libmontecarlo_la_SOURCES = montecarlo.cpp montecarlo.h \
 	interaction.cpp \
 	kamemontecarlo.cpp kamemontecarlo.h
+libmontecarlo_la_LIBADD = forms/libforms.la
 
 SUBDIRS = forms
 METASOURCES = AUTO

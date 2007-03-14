@@ -1,4 +1,4 @@
-noinst_LIBRARIES = libdso.a
+pkglib_LTLIBRARIES = libdso.la
 
 INCLUDES = -I$(top_srcdir)/. \
 	-I$(top_srcdir)/kame \
@@ -10,10 +10,11 @@ INCLUDES = -I$(top_srcdir)/. \
 	-I$(top_builddir)/kame/users/dso/forms \
 	$(all_includes)
 
-libdso_a_SOURCES = fir.cpp fir.h \
+libdso_la_SOURCES = fir.cpp fir.h \
 	nidaqdso.cpp nidaqdso.h \
 	dso.cpp dso.h \
 	tds.cpp tds.h
+libdso_la_LIBADD = forms/libforms.la
 
 #AM_CXXFLAGS = $(CXXFLAGS) \
 #	-O6  \

@@ -22,6 +22,8 @@
 #include "xwavengraph.h"
 #include <klocale.h>
 
+REGISTER_TYPE(XDriverList, NIDAQmxDSO, "National Instruments DAQ as DSO");
+
 #define TASK_UNDEF ((TaskHandle)-1)
 #define NUM_MAX_CH 2
 

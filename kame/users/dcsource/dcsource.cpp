@@ -20,6 +20,8 @@
 #include <qcheckbox.h>
 #include <klocale.h>
 
+REGISTER_TYPE(XDriverList, YK7651, "YOKOGAWA 7651 dc source");
+
 XDCSource::XDCSource(const char *name, bool runtime, 
    const shared_ptr<XScalarEntryList> &scalarentries,
    const shared_ptr<XInterfaceList> &interfaces,

@@ -21,6 +21,8 @@
 #include "graphwidget.h"
 #include "xwavengraph.h"
 
+REGISTER_TYPE(XDriverList, NMRT1, "NMR relaxation measurement");
+
 #include <klocale.h>
 #include <qpushbutton.h>
 #include <qcombobox.h>

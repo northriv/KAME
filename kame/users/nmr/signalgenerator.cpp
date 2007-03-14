@@ -20,6 +20,11 @@
 #include "signalgenerator.h"
 #include "forms/signalgeneratorform.h"
 
+REGISTER_TYPE(XDriverList, SG7130, "KENWOOD SG7130 signal generator");
+REGISTER_TYPE(XDriverList, SG7200, "KENWOOD SG7200 signal generator");
+REGISTER_TYPE(XDriverList, HP8643, "Agilent 8643 signal generator");
+REGISTER_TYPE(XDriverList, HP8648, "Agilent 8648 signal generator");
+
 XSG::XSG(const char *name, bool runtime,
 		 const shared_ptr<XScalarEntryList> &scalarentries,
 		 const shared_ptr<XInterfaceList> &interfaces,

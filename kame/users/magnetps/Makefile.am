@@ -1,4 +1,4 @@
-noinst_LIBRARIES = libmagnetps.a
+pkglib_LTLIBRARIES = libmagnetps.la
 
 INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/kame/driver \
@@ -7,8 +7,9 @@ INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_builddir)/kame/users/magnetps/forms \
 	$(all_includes)
 
-libmagnetps_a_SOURCES = magnetps.cpp magnetps.h \
+libmagnetps_la_SOURCES = magnetps.cpp magnetps.h \
 	usermagnetps.cpp usermagnetps.h
+libmagnetps_la_LIBADD = forms/libforms.la
 
 SUBDIRS = forms
 METASOURCES = AUTO

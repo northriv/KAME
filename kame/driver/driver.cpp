@@ -15,6 +15,17 @@
 #include "interface.h"
 #include <klocale.h>
 
+DECLARE_TYPE_HOLDER(XDriverList)
+
+shared_ptr<XNode>
+XDriverList::createByTypename(const std::string &type, const std::string& name) {
+    shared_ptr<XNode> ptr = (*creator(type))
+        (name.c_str(), false, m_scalarentries, m_interfaces, m_thermometers,
+		 dynamic_pointer_cast<XDriverList>(shared_from_this()));
+    if(ptr) insert(ptr);
+    return ptr;
+}
+
 XDriver::XBufferUnderflowRecordError::XBufferUnderflowRecordError(const char *file, int line) : 
     XRecordError(KAME::i18n("Buffer Underflow."), file, line) {}
 

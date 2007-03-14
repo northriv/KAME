@@ -33,27 +33,10 @@ kame_SOURCES = measure.cpp measure.h \
 kame_LDADD = $(top_builddir)/kame/forms/libforms.a \
 	$(top_builddir)/kame/script/libscript.a \
 	$(top_builddir)/kame/script/forms/libforms.a \
-	$(top_builddir)/kame/users/libusers.a \
-	$(top_builddir)/kame/users/dmm/libdmm.a \
-	$(top_builddir)/kame/users/dmm/forms/libforms.a \
-	$(top_builddir)/kame/users/dso/libdso.a \
-	$(top_builddir)/kame/users/dso/forms/libforms.a \
-	$(top_builddir)/kame/users/tempcontrol/libtempcontrol.a \
-	$(top_builddir)/kame/users/tempcontrol/forms/libforms.a \
-	$(top_builddir)/kame/users/magnetps/libmagnetps.a \
-	$(top_builddir)/kame/users/magnetps/forms/libforms.a \
-	$(top_builddir)/kame/users/nmr/libnmr.a \
-	$(top_builddir)/kame/users/nmr/forms/libforms.a \
-	$(top_builddir)/kame/users/lia/liblia.a \
-	$(top_builddir)/kame/users/lia/forms/libforms.a \
-	$(top_builddir)/kame/users/dcsource/libdcsource.a \
-	$(top_builddir)/kame/users/dcsource/forms/libforms.a \
-	$(top_builddir)/kame/users/funcsynth/libfuncsynth.a \
-	$(top_builddir)/kame/users/funcsynth/forms/libforms.a \
-	$(top_builddir)/kame/users/montecarlo/libmontecarlo.a \
-	$(top_builddir)/kame/users/montecarlo/forms/libforms.a \
+	$(top_builddir)/kame/driver/libdriverbase.la \
+	$(top_builddir)/kame/driver/libdriver.la \
+	$(top_builddir)/kame/users/libusers.la \
 	$(top_builddir)/kame/analyzer/libanalyzer.a \
-	$(top_builddir)/kame/driver/libdriver.a \
 	$(top_builddir)/kame/thermometer/libthermometer.a \
 	$(top_builddir)/kame/thermometer/forms/libforms.a \
 	$(top_builddir)/kame/icons/libicons.a \
@@ -61,9 +44,20 @@ kame_LDADD = $(top_builddir)/kame/forms/libforms.a \
 	$(top_srcdir)/FTGL/unix/src/.libs/libftgl.a -lGLU -lm \
 	$(LIB_KFILE) $(LIB_KDEUI) $(LIB_KDECORE) $(LIB_QT) $(LIBSOCKET) -lkmdi 
 
+#	$(top_builddir)/kame/users/dmm/libdmm.la \
+#	$(top_builddir)/kame/users/dso/libdso.la \
+#	$(top_builddir)/kame/users/tempcontrol/libtempcontrol.la \
+#	$(top_builddir)/kame/users/magnetps/libmagnetps.la \
+#	$(top_builddir)/kame/users/nmr/libnmr.la \
+#	$(top_builddir)/kame/users/lia/liblia.la \
+#	$(top_builddir)/kame/users/dcsource/libdcsource.la \
+#	$(top_builddir)/kame/users/funcsynth/libfuncsynth.la \
+#	$(top_builddir)/kame/users/montecarlo/libmontecarlo.la \
+#
+
 SUBDIRS = forms script driver graph thermometer users analyzer icons mikachanfont
 
-EXTRA_DIST = main.cpp kame.desktop lo32-app-kame.png lo16-app-kame.png
+EXTRA_DIST = kame.desktop lo32-app-kame.png lo16-app-kame.png
 
 install-data-local:
 	$(mkinstalldirs) $(kde_appsdir)/Applications/

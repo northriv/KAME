@@ -21,6 +21,8 @@
 #include "xwavengraph.h"
 #include "users/magnetps/magnetps.h"
 
+REGISTER_TYPE(XDriverList, NMRSpectrum, "NMR field-swept spectrum measurement");
+
 #include <klocale.h>
 #include <qpushbutton.h>
 #include <qcombobox.h>

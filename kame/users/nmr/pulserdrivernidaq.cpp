@@ -18,6 +18,10 @@
 #include "interface.h"
 #include <klocale.h>
 
+REGISTER_TYPE(XDriverList, NIDAQAODOPulser, "NMR pulser NI-DAQ analog/digital output");
+REGISTER_TYPE(XDriverList, NIDAQDOPulser, "NMR pulser NI-DAQ digital output only");
+REGISTER_TYPE(XDriverList, NIDAQMSeriesWithSSeriesPulser, "NMR pulser NI-DAQ M Series with S Series");
+
 XNIDAQMSeriesWithSSeriesPulser::XNIDAQMSeriesWithSSeriesPulser(const char *name, bool runtime,
 															   const shared_ptr<XScalarEntryList> &scalarentries,
 															   const shared_ptr<XInterfaceList> &interfaces,

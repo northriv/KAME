@@ -22,13 +22,12 @@ XThermometerList::XThermometerList(const char *name, bool runtime)
  : XCustomTypeListNode<XThermometer>(name, runtime) {
 }
 
-#define LIST XThermometerList
-DECLARE_TYPE_HOLDER
+DECLARE_TYPE_HOLDER(XThermometerList)
 
-REGISTER_TYPE(RawThermometer, "Raw Values");
-REGISTER_TYPE(LakeShore, "LakeShore");
-REGISTER_TYPE(ScientificInstruments, "Scientific Instruments");
-REGISTER_TYPE(ApproxThermometer, "Cubic-spline");
+REGISTER_TYPE(XThermometerList, RawThermometer, "Raw Values");
+REGISTER_TYPE(XThermometerList, LakeShore, "LakeShore");
+REGISTER_TYPE(XThermometerList, ScientificInstruments, "Scientific Instruments");
+REGISTER_TYPE(XThermometerList, ApproxThermometer, "Cubic-spline");
 
 XThermometer::XThermometer(const char *name, bool runtime) : 
     XNode(name, runtime),

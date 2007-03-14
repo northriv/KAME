@@ -16,6 +16,8 @@
 #include "analyzer.h"
 #include <klocale.h>
 
+REGISTER_TYPE(XDriverList, WAVEFACTORY, "NF WAVE-FACTORY pulse generator");
+
 XWAVEFACTORY::XWAVEFACTORY(const char *name, bool runtime, 
 						   const shared_ptr<XScalarEntryList> &scalarentries,
 						   const shared_ptr<XInterfaceList> &interfaces,

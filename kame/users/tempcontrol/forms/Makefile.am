@@ -1,4 +1,4 @@
 INCLUDES = $(all_includes)
 METASOURCES = AUTO
-noinst_LIBRARIES =  libforms.a
-libforms_a_SOURCES =  tempcontrolform.ui dummy.cpp
+noinst_LTLIBRARIES =  libforms.la
+libforms_la_SOURCES =  tempcontrolform.ui dummy.cpp

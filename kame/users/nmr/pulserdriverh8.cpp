@@ -15,6 +15,8 @@
 #include "charinterface.h"
 #include <klocale.h>
 
+REGISTER_TYPE(XDriverList, H8Pulser, "NMR pulser handmade-H8");
+
 static const unsigned int MAX_PATTERN_SIZE = 2048;
 
 //[ms]

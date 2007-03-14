@@ -5,8 +5,9 @@ INCLUDES = -I$(top_srcdir)/kame \
 	$(all_includes)
 
 METASOURCES = AUTO
-noinst_LIBRARIES =  libfuncsynth.a
-libfuncsynth_a_SOURCES = funcsynth.cpp funcsynth.h \
+pkglib_LTLIBRARIES =  libfuncsynth.la
+libfuncsynth_la_SOURCES = funcsynth.cpp funcsynth.h \
 	userfuncsynth.cpp userfuncsynth.h
-	
+libfuncsynth_la_LIBADD = forms/libforms.la
+
 SUBDIRS = forms

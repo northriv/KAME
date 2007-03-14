@@ -39,6 +39,7 @@
 #define WINDOW_FUNC_KAISER_2 "Kaiser a=7.2"
 #define WINDOW_FUNC_KAISER_3 "Kaiser a=15"
 
+REGISTER_TYPE(XDriverList, NMRPulseAnalyzer, "NMR FID/echo analyzer");
 
 double XNMRPulseAnalyzer::windowFuncRect(double) {
 //	return (fabs(x) <= 0.5) ? 1 : 0;

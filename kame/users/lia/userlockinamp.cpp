@@ -15,6 +15,9 @@
 #include <klocale.h>
 #include "charinterface.h"
 
+REGISTER_TYPE(XDriverList, SR830, "Stanford Research SR830 lock-in amp.");
+REGISTER_TYPE(XDriverList, AH2500A, "Andeen-Hagerling 2500A capacitance bridge");
+
 XSR830::XSR830(const char *name, bool runtime, 
 			   const shared_ptr<XScalarEntryList> &scalarentries,
 			   const shared_ptr<XInterfaceList> &interfaces,

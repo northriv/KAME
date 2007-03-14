@@ -1,4 +1,4 @@
-noinst_LIBRARIES = libnmr.a
+pkglib_LTLIBRARIES = libnmr.la
 
 INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/kame/driver \
@@ -8,8 +8,9 @@ INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_builddir)/kame/users/nmr/forms \
 	$(all_includes)
 
-libnmr_a_SOURCES = pulserdriver.cpp pulserdriver.h \
+libnmr_la_SOURCES = \
 	pulserdriverconnector.cpp pulserdriverconnector.h \
+	pulserdriver.cpp pulserdriver.h \
 	pulserdriversh.cpp pulserdriversh.h \
 	pulserdriverh8.cpp pulserdriverh8.h \
 	pulserdrivernidaq.cpp pulserdrivernidaq.h \
@@ -20,6 +21,11 @@ libnmr_a_SOURCES = pulserdriver.cpp pulserdriver.h \
 	nmrrelaxfit.cpp nmrrelaxfit.h \
 	nmrrelax.cpp nmrrelax.h \
 	signalgenerator.cpp signalgenerator.h
+	
+libnmr_la_LIBADD = forms/libforms.la \
+	$(top_builddir)/kame/driver/libdriverbase.la \
+	../dso/libdso.la \
+	../magnetps/libmagnetps.la
 
 #AM_CXXFLAGS = $(CXXFLAGS) \
 #	-O6  \

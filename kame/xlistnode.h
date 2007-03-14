@@ -150,6 +150,10 @@ template <class tFunc =
 shared_ptr<XNode>(*)(const char *, bool)>
 struct XTypeHolder
 {
+	XTypeHolder() {
+            fprintf(stderr, "New typeholder\n");
+	}
+		
 	template <class tChild>
 	struct Creator {
 		Creator(XTypeHolder &holder, const char *name, const char *label = 0L) {
@@ -157,6 +161,7 @@ struct XTypeHolder
             holder.creators.push_back(create_typed);
             holder.names.push_back(std::string(name));
             holder.labels.push_back(std::string(label ? label : name));
+            fprintf(stderr, "%s %s\n", name, label);
 		}
 	};
 	tFunc creator(const std::string &tp) {
@@ -200,13 +205,13 @@ struct XTypeHolder
   ,par1, par2, par3, par4); \
   DEFINE_TYPE_HOLDER_W_FUNC(tCreateFunc);
 
-#define DECLARE_TYPE_HOLDER \
-    LIST::TypeHolder LIST::s_types;
+#define DECLARE_TYPE_HOLDER(list) \
+    list::TypeHolder list::s_types;
 
-#define _REGISTER_TYPE_2(type, name, label) LIST::TypeHolder::Creator<type> \
-    g_driver_type_ ## name(LIST::s_types, # name, label);
+#define _REGISTER_TYPE_2(list, type, name, label) list::TypeHolder::Creator<type> \
+    g_driver_type_ ## name(list::s_types, # name, label);
     
-#define REGISTER_TYPE(type, label) _REGISTER_TYPE_2(X ## type, type, label)
+#define REGISTER_TYPE(list, type, label) _REGISTER_TYPE_2(list, X ## type, type, label)
 
 class XStringList : public  XListNode<XStringNode>
 {

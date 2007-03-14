@@ -16,6 +16,9 @@
 #include <klocale.h>
 //---------------------------------------------------------------------------
 
+REGISTER_TYPE(XDriverList, PS120, "Oxford PS-120 magnet power supply");
+REGISTER_TYPE(XDriverList, IPS120, "Oxford IPS-120 magnet power supply");
+
 XPS120::XPS120(const char *name, bool runtime,
 			   const shared_ptr<XScalarEntryList> &scalarentries,
 			   const shared_ptr<XInterfaceList> &interfaces,

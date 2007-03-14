@@ -23,6 +23,8 @@
 #include "graphwidget.h"
 #include "xwavengraph.h"
 
+REGISTER_TYPE(XDriverList, MonteCarloDriver, "Monte-Carlo simulation");
+
 struct FFTAxis {
     const char *desc;
     int h,k,l;

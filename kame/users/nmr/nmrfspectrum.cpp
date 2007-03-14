@@ -21,6 +21,8 @@
 #include "xwavengraph.h"
 #include "signalgenerator.h"
 
+REGISTER_TYPE(XDriverList, NMRFSpectrum, "NMR frequency-swept spectrum measurement");
+
 #include <klocale.h>
 #include <qpushbutton.h>
 #include <qcheckbox.h>

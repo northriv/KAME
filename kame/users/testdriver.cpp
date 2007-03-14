@@ -17,6 +17,8 @@
 #include "xnodeconnector.h"
 #include <qstatusbar.h>
 
+REGISTER_TYPE(XDriverList, TestDriver, "Test driver: random number generation");
+
 XTestDriver::XTestDriver(const char *name, bool runtime, 
 						 const shared_ptr<XScalarEntryList> &scalarentries,
 						 const shared_ptr<XInterfaceList> &interfaces,

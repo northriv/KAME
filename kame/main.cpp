@@ -28,6 +28,8 @@
 #include <qtextcodec.h>
 #include <errno.h>
 
+#include <dlfcn.h>
+
 static const char *description =
 I18N_NOOP("KAME");
 // INSERT A DESCRIPTION FOR YOUR APPLICATION HERE
@@ -122,6 +124,12 @@ int main(int argc, char *argv[])
 	  }
 	  return 0;
 	*/
+	
+	void *handle = dlopen("/sw/lib/kame/libnmr.0.dylib", RTLD_LAZY); //NOW | RTLD_GLOBAL);
+	if(handle)
+		fprintf(stderr, "loaded\n\n\n");
+	else
+		fprintf(stderr, "loading failed %s\n\n\n", dlerror());
 
 	int ret = app->exec();
 
