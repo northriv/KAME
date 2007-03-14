@@ -16,11 +16,11 @@
 #ifndef xnodeconnectorH
 #define xnodeconnectorH
 
-#include "support.h"
-#include "xnode.h"
-#include "xlistnode.h"
-#include "xitemnode.h"
-#include "xnodeconnector_prv.h"
+#include <support.h>
+#include <xnode.h>
+#include <xlistnode.h>
+#include <xitemnode.h>
+#include <xnodeconnector_prv.h>
 
 //! need for making new forms
 extern QWidget *g_pFrmMain;

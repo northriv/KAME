@@ -14,13 +14,13 @@
 #ifndef ATOMIC_SMART_PTR_H_
 #define ATOMIC_SMART_PTR_H_
 
-#include "atomic.h"
+#include <atomic.h>
 
 #ifdef HAVE_CAS_2
 #define ATOMIC_SMART_PTR_USE_CAS2
 #else
 #define ATOMIC_SMART_PTR_USE_LOCKFREE_READ
-#include "thread.h"
+#include <thread.h>
 #endif
 
 //! This is an improved version of boost::scoped_ptr<>.

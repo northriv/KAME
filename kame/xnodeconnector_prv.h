@@ -14,8 +14,8 @@
 #ifndef XNODECONNECTOR_PRV_H_
 #define XNODECONNECTOR_PRV_H_
 
-#include "support.h"
-#include "xsignal.h"
+#include <support.h>
+#include <xsignal.h>
 
 #include <fstream>
 #include <qobject.h>

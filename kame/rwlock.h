@@ -14,7 +14,7 @@
 #ifndef RWLOCK_H_
 #define RWLOCK_H_
 
-#include "threadlocal.h"
+#include <threadlocal.h>
 
 //! read lock mutex during its life time.
 template <class RWLock>

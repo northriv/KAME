@@ -973,7 +973,6 @@ FFTW_LIBS
 NIDAQMX_LIBS
 NIDAQMX_CFLAGS
 LINUXGPIB_LIBS
-COMEDI_LIBS
 RUBY_LIBS
 RUBY_CFLAGS
 FREETYPE2_LIBS
@@ -2490,7 +2489,7 @@ fi
 
 # Define the identity of the package.
  PACKAGE=kame
- VERSION=2.1
+ VERSION=2.2
 
 
 cat >>confdefs.h <<_ACEOF
@@ -33840,6 +33839,7 @@ ac_link='rm -rf SunWS_cache; ${CXX-g++} -o conftest${ac_exeext} $CXXFLAGS $CPPFL
 
 
 
+CXXFLAGS="$CXXFLAGS $USE_EXCEPTIONS"
 
 { echo "$as_me:$LINENO: checking for freetype2" >&5
 echo $ECHO_N "checking for freetype2... $ECHO_C" >&6; }
@@ -34221,91 +34221,6 @@ fi
 
 fi
 
-
-{ echo "$as_me:$LINENO: checking for main in -lcomedilib" >&5
-echo $ECHO_N "checking for main in -lcomedilib... $ECHO_C" >&6; }
-if test "${ac_cv_lib_comedilib_main+set}" = set; then
-  echo $ECHO_N "(cached) $ECHO_C" >&6
-else
-  ac_check_lib_save_LIBS=$LIBS
-LIBS="-lcomedilib -lcomedi $LIBS"
-cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-
-
-int
-main ()
-{
-return main ();
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext conftest$ac_exeext
-if { (ac_try="$ac_link"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
-  (eval "$ac_link") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } &&
-	 { ac_try='test -z "$ac_cxx_werror_flag" || test ! -s conftest.err'
-  { (case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
-  (eval "$ac_try") 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; } &&
-	 { ac_try='test -s conftest$ac_exeext'
-  { (case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
-  (eval "$ac_try") 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; }; then
-  ac_cv_lib_comedilib_main=yes
-else
-  echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_cv_lib_comedilib_main=no
-fi
-
-rm -f core conftest.err conftest.$ac_objext \
-      conftest$ac_exeext conftest.$ac_ext
-LIBS=$ac_check_lib_save_LIBS
-fi
-{ echo "$as_me:$LINENO: result: $ac_cv_lib_comedilib_main" >&5
-echo "${ECHO_T}$ac_cv_lib_comedilib_main" >&6; }
-if test $ac_cv_lib_comedilib_main = yes; then
-  comedi_libs="-lcomedilib"\
-	  
-cat >>confdefs.h <<\_ACEOF
-@%:@define HAVE_COMEDI 1
-_ACEOF
-
-else
-  { echo "$as_me:$LINENO: WARNING: comedilib is not installed - comedi is disabled" >&5
-echo "$as_me: WARNING: comedilib is not installed - comedi is disabled" >&2;}
-fi
-
-COMEDI_LIBS="$comedi_libs"
 
 { echo "$as_me:$LINENO: checking for main in -lgpib" >&5
 echo $ECHO_N "checking for main in -lgpib... $ECHO_C" >&6; }
@@ -37881,7 +37796,6 @@ _ACEOF
 
 
 
-
 CPPFLAGS="$CPPFLAGS $RUBY_CFLAGS $FREETYPE2_CFLAGS $NIDAQMX_CFLAGS"
 
 
@@ -37943,17 +37857,11 @@ ac_config_files="$ac_config_files kame/Scripts/Makefile"
 
 ac_config_files="$ac_config_files kame/analyzer/Makefile"
 
-ac_config_files="$ac_config_files kame/analyzer/forms/Makefile"
-
 ac_config_files="$ac_config_files kame/driver/Makefile"
-
-ac_config_files="$ac_config_files kame/driver/forms/Makefile"
 
 ac_config_files="$ac_config_files kame/forms/Makefile"
 
 ac_config_files="$ac_config_files kame/graph/Makefile"
-
-ac_config_files="$ac_config_files kame/graph/forms/Makefile"
 
 ac_config_files="$ac_config_files kame/icons/Makefile"
 
@@ -37967,43 +37875,49 @@ ac_config_files="$ac_config_files kame/thermometer/Makefile"
 
 ac_config_files="$ac_config_files kame/thermometer/forms/Makefile"
 
-ac_config_files="$ac_config_files kame/users/Makefile"
+ac_config_files="$ac_config_files modules/Makefile"
 
-ac_config_files="$ac_config_files kame/users/dcsource/Makefile"
+ac_config_files="$ac_config_files modules/dcsource/Makefile"
 
-ac_config_files="$ac_config_files kame/users/dcsource/forms/Makefile"
+ac_config_files="$ac_config_files modules/dcsource/forms/Makefile"
 
-ac_config_files="$ac_config_files kame/users/dmm/Makefile"
+ac_config_files="$ac_config_files modules/dmm/Makefile"
 
-ac_config_files="$ac_config_files kame/users/dmm/forms/Makefile"
+ac_config_files="$ac_config_files modules/dmm/forms/Makefile"
 
-ac_config_files="$ac_config_files kame/users/dso/Makefile"
+ac_config_files="$ac_config_files modules/dso/Makefile"
 
-ac_config_files="$ac_config_files kame/users/dso/forms/Makefile"
+ac_config_files="$ac_config_files modules/dso/forms/Makefile"
 
-ac_config_files="$ac_config_files kame/users/funcsynth/Makefile"
+ac_config_files="$ac_config_files modules/funcsynth/Makefile"
 
-ac_config_files="$ac_config_files kame/users/funcsynth/forms/Makefile"
+ac_config_files="$ac_config_files modules/funcsynth/forms/Makefile"
 
-ac_config_files="$ac_config_files kame/users/lia/Makefile"
+ac_config_files="$ac_config_files modules/lia/Makefile"
 
-ac_config_files="$ac_config_files kame/users/lia/forms/Makefile"
+ac_config_files="$ac_config_files modules/lia/forms/Makefile"
 
-ac_config_files="$ac_config_files kame/users/magnetps/Makefile"
+ac_config_files="$ac_config_files modules/magnetps/Makefile"
 
-ac_config_files="$ac_config_files kame/users/magnetps/forms/Makefile"
+ac_config_files="$ac_config_files modules/magnetps/forms/Makefile"
 
-ac_config_files="$ac_config_files kame/users/montecarlo/Makefile"
+ac_config_files="$ac_config_files modules/montecarlo/Makefile"
 
-ac_config_files="$ac_config_files kame/users/montecarlo/forms/Makefile"
+ac_config_files="$ac_config_files modules/montecarlo/forms/Makefile"
 
-ac_config_files="$ac_config_files kame/users/nmr/Makefile"
+ac_config_files="$ac_config_files modules/nidaq/Makefile"
 
-ac_config_files="$ac_config_files kame/users/nmr/forms/Makefile"
+ac_config_files="$ac_config_files modules/nmr/Makefile"
 
-ac_config_files="$ac_config_files kame/users/tempcontrol/Makefile"
+ac_config_files="$ac_config_files modules/nmr/forms/Makefile"
 
-ac_config_files="$ac_config_files kame/users/tempcontrol/forms/Makefile"
+ac_config_files="$ac_config_files modules/oxford/Makefile"
+
+ac_config_files="$ac_config_files modules/tempcontrol/Makefile"
+
+ac_config_files="$ac_config_files modules/tempcontrol/forms/Makefile"
+
+ac_config_files="$ac_config_files modules/testdriver/Makefile"
 
 ac_config_files="$ac_config_files po/Makefile"
 
@@ -38579,37 +38493,37 @@ do
     "kame/Measurements/Makefile") CONFIG_FILES="$CONFIG_FILES kame/Measurements/Makefile" ;;
     "kame/Scripts/Makefile") CONFIG_FILES="$CONFIG_FILES kame/Scripts/Makefile" ;;
     "kame/analyzer/Makefile") CONFIG_FILES="$CONFIG_FILES kame/analyzer/Makefile" ;;
-    "kame/analyzer/forms/Makefile") CONFIG_FILES="$CONFIG_FILES kame/analyzer/forms/Makefile" ;;
     "kame/driver/Makefile") CONFIG_FILES="$CONFIG_FILES kame/driver/Makefile" ;;
-    "kame/driver/forms/Makefile") CONFIG_FILES="$CONFIG_FILES kame/driver/forms/Makefile" ;;
     "kame/forms/Makefile") CONFIG_FILES="$CONFIG_FILES kame/forms/Makefile" ;;
     "kame/graph/Makefile") CONFIG_FILES="$CONFIG_FILES kame/graph/Makefile" ;;
-    "kame/graph/forms/Makefile") CONFIG_FILES="$CONFIG_FILES kame/graph/forms/Makefile" ;;
     "kame/icons/Makefile") CONFIG_FILES="$CONFIG_FILES kame/icons/Makefile" ;;
     "kame/mikachanfont/Makefile") CONFIG_FILES="$CONFIG_FILES kame/mikachanfont/Makefile" ;;
     "kame/script/Makefile") CONFIG_FILES="$CONFIG_FILES kame/script/Makefile" ;;
     "kame/script/forms/Makefile") CONFIG_FILES="$CONFIG_FILES kame/script/forms/Makefile" ;;
     "kame/thermometer/Makefile") CONFIG_FILES="$CONFIG_FILES kame/thermometer/Makefile" ;;
     "kame/thermometer/forms/Makefile") CONFIG_FILES="$CONFIG_FILES kame/thermometer/forms/Makefile" ;;
-    "kame/users/Makefile") CONFIG_FILES="$CONFIG_FILES kame/users/Makefile" ;;
-    "kame/users/dcsource/Makefile") CONFIG_FILES="$CONFIG_FILES kame/users/dcsource/Makefile" ;;
-    "kame/users/dcsource/forms/Makefile") CONFIG_FILES="$CONFIG_FILES kame/users/dcsource/forms/Makefile" ;;
-    "kame/users/dmm/Makefile") CONFIG_FILES="$CONFIG_FILES kame/users/dmm/Makefile" ;;
-    "kame/users/dmm/forms/Makefile") CONFIG_FILES="$CONFIG_FILES kame/users/dmm/forms/Makefile" ;;
-    "kame/users/dso/Makefile") CONFIG_FILES="$CONFIG_FILES kame/users/dso/Makefile" ;;
-    "kame/users/dso/forms/Makefile") CONFIG_FILES="$CONFIG_FILES kame/users/dso/forms/Makefile" ;;
-    "kame/users/funcsynth/Makefile") CONFIG_FILES="$CONFIG_FILES kame/users/funcsynth/Makefile" ;;
-    "kame/users/funcsynth/forms/Makefile") CONFIG_FILES="$CONFIG_FILES kame/users/funcsynth/forms/Makefile" ;;
-    "kame/users/lia/Makefile") CONFIG_FILES="$CONFIG_FILES kame/users/lia/Makefile" ;;
-    "kame/users/lia/forms/Makefile") CONFIG_FILES="$CONFIG_FILES kame/users/lia/forms/Makefile" ;;
-    "kame/users/magnetps/Makefile") CONFIG_FILES="$CONFIG_FILES kame/users/magnetps/Makefile" ;;
-    "kame/users/magnetps/forms/Makefile") CONFIG_FILES="$CONFIG_FILES kame/users/magnetps/forms/Makefile" ;;
-    "kame/users/montecarlo/Makefile") CONFIG_FILES="$CONFIG_FILES kame/users/montecarlo/Makefile" ;;
-    "kame/users/montecarlo/forms/Makefile") CONFIG_FILES="$CONFIG_FILES kame/users/montecarlo/forms/Makefile" ;;
-    "kame/users/nmr/Makefile") CONFIG_FILES="$CONFIG_FILES kame/users/nmr/Makefile" ;;
-    "kame/users/nmr/forms/Makefile") CONFIG_FILES="$CONFIG_FILES kame/users/nmr/forms/Makefile" ;;
-    "kame/users/tempcontrol/Makefile") CONFIG_FILES="$CONFIG_FILES kame/users/tempcontrol/Makefile" ;;
-    "kame/users/tempcontrol/forms/Makefile") CONFIG_FILES="$CONFIG_FILES kame/users/tempcontrol/forms/Makefile" ;;
+    "modules/Makefile") CONFIG_FILES="$CONFIG_FILES modules/Makefile" ;;
+    "modules/dcsource/Makefile") CONFIG_FILES="$CONFIG_FILES modules/dcsource/Makefile" ;;
+    "modules/dcsource/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/dcsource/forms/Makefile" ;;
+    "modules/dmm/Makefile") CONFIG_FILES="$CONFIG_FILES modules/dmm/Makefile" ;;
+    "modules/dmm/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/dmm/forms/Makefile" ;;
+    "modules/dso/Makefile") CONFIG_FILES="$CONFIG_FILES modules/dso/Makefile" ;;
+    "modules/dso/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/dso/forms/Makefile" ;;
+    "modules/funcsynth/Makefile") CONFIG_FILES="$CONFIG_FILES modules/funcsynth/Makefile" ;;
+    "modules/funcsynth/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/funcsynth/forms/Makefile" ;;
+    "modules/lia/Makefile") CONFIG_FILES="$CONFIG_FILES modules/lia/Makefile" ;;
+    "modules/lia/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/lia/forms/Makefile" ;;
+    "modules/magnetps/Makefile") CONFIG_FILES="$CONFIG_FILES modules/magnetps/Makefile" ;;
+    "modules/magnetps/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/magnetps/forms/Makefile" ;;
+    "modules/montecarlo/Makefile") CONFIG_FILES="$CONFIG_FILES modules/montecarlo/Makefile" ;;
+    "modules/montecarlo/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/montecarlo/forms/Makefile" ;;
+    "modules/nidaq/Makefile") CONFIG_FILES="$CONFIG_FILES modules/nidaq/Makefile" ;;
+    "modules/nmr/Makefile") CONFIG_FILES="$CONFIG_FILES modules/nmr/Makefile" ;;
+    "modules/nmr/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/nmr/forms/Makefile" ;;
+    "modules/oxford/Makefile") CONFIG_FILES="$CONFIG_FILES modules/oxford/Makefile" ;;
+    "modules/tempcontrol/Makefile") CONFIG_FILES="$CONFIG_FILES modules/tempcontrol/Makefile" ;;
+    "modules/tempcontrol/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/tempcontrol/forms/Makefile" ;;
+    "modules/testdriver/Makefile") CONFIG_FILES="$CONFIG_FILES modules/testdriver/Makefile" ;;
     "po/Makefile") CONFIG_FILES="$CONFIG_FILES po/Makefile" ;;
 
   *) { { echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
@@ -38975,7 +38889,6 @@ FFTW_LIBS!$FFTW_LIBS$ac_delim
 NIDAQMX_LIBS!$NIDAQMX_LIBS$ac_delim
 NIDAQMX_CFLAGS!$NIDAQMX_CFLAGS$ac_delim
 LINUXGPIB_LIBS!$LINUXGPIB_LIBS$ac_delim
-COMEDI_LIBS!$COMEDI_LIBS$ac_delim
 RUBY_LIBS!$RUBY_LIBS$ac_delim
 RUBY_CFLAGS!$RUBY_CFLAGS$ac_delim
 FREETYPE2_LIBS!$FREETYPE2_LIBS$ac_delim
@@ -38987,7 +38900,7 @@ LIB@&t@OBJS!$LIB@&t@OBJS$ac_delim
 LTLIBOBJS!$LTLIBOBJS$ac_delim
 _ACEOF
 
-  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 36; then
+  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 35; then
     break
   elif $ac_last_try; then
     { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5

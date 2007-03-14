@@ -14,8 +14,8 @@
 #ifndef threadH
 #define threadH
 //---------------------------------------------------------------------------
-#include "support.h"
-#include "atomic.h"
+#include <support.h>
+#include <atomic.h>
 
 #if defined __WIN32__ || defined WINDOWS
 #define threadID() GetCurrentThreadId()
@@ -24,7 +24,7 @@
 #define threadid_t pthread_t
 #define threadID() pthread_self()
 
-#include "threadlocal.h"
+#include <threadlocal.h>
 #include <sys/mman.h>
 
 //! Lock mutex during its life time.

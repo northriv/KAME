@@ -14,9 +14,9 @@
 #ifndef xnodeH
 #define xnodeH
 
-#include "support.h"
-#include "xsignal.h"
-#include "rwlock.h"
+#include <support.h>
+#include <xsignal.h>
+#include <rwlock.h>
 
 template <class T>
 shared_ptr<T> createOrphan(const char *name, bool runtime = false);

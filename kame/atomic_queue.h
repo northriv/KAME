@@ -14,7 +14,7 @@
 #ifndef ATOMIC_QUEUE_H_
 #define ATOMIC_QUEUE_H_
 
-#include "atomic.h"
+#include <atomic.h>
 #include <memory>
 
 template <typename T, unsigned int SIZE, typename const_ref = T>

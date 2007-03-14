@@ -14,7 +14,7 @@
 #ifndef XLISTNODE_H_
 #define XLISTNODE_H_
 
-#include "xnode.h"
+#include <xnode.h>
 
 class XListNodeBase : public XNode
 {

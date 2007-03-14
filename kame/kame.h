@@ -14,7 +14,7 @@
 #ifndef KAME_H
 #define KAME_H
 
-#include "support.h"
+#include <support.h>
 #include <qvariant.h>
 #include <qpixmap.h>
 #include <kmdimainfrm.h>
@@ -33,7 +33,7 @@ class QMenuBar;
 class QToolBar;
 class XMeasure;
 
-#include "xnodeconnector.h"
+#include <xnodeconnector.h>
 
 /*! Main form widget of KAME.
  * use \a g_pFrmMain to access this.

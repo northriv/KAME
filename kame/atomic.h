@@ -19,10 +19,10 @@
 //! Lock-free synchronizations.
 
 #if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__
-#include "atomic_prv_x86.h"
+#include <atomic_prv_x86.h>
 #else
 #if defined __ppc__ || defined __POWERPC__ || defined __powerpc__
-#include "atomic_prv_ppc.h"
+#include <atomic_prv_ppc.h>
 #else
 #error Unsupported processor
 #endif // __ppc__

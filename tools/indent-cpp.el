@@ -75,14 +75,19 @@
     ;; -  c-basic-offsetの-1倍, -- c-basic-offsetの-2倍
     (c-offsets-alist
      . (
-        (arglist-intro          . 4)   ; 引数リストの開始行
+        (arglist-intro          . +)   ; 引数リストの開始行
         (arglist-close          . c-lineup-arglist) ; 引数リストの終了行
         (substatement-open      . 0)    ; サブステートメントの開始行
-        (statement-cont         . 4)   ; ステートメントの継続行
+        (statement-cont         . +)   ; ステートメントの継続行
+        (statement-block-intro	. +)
         (case-label             . 0)    ; case 文のラベル行
-        (label                  . 0)    ; ラベル行
+        (label                  . -)    ; ラベル行
         (block-open             . 0)    ; ブロックの開始行
-        (member-init-intro      . 4)   ; メンバオブジェクトの初期化リスト
+        (member-init-intro      . +)   ; メンバオブジェクトの初期化リスト
+        (cpp-macro				. -)
+        (inline-open			. 0)
+        (string					. +)
+        (extern-lang-open		. 0)
         ))
 
     ;; インデント時に構文解析情報を表示する
@@ -117,6 +122,8 @@
 
   ;; セミコロンで自動改行しない
   (setq c-hanging-semi&comma-criteria nil)
+  
+  (setq c-strict-syntax-p t)
   )
 ;; モードに入るときに呼び出す hook の設定
 (add-hook 'c-mode-common-hook 'my-c-mode-common-hook)

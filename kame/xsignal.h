@@ -14,10 +14,10 @@
 #ifndef signalH
 #define signalH
 
-#include "support.h"
-#include "xtime.h"
-#include "thread.h"
-#include "atomic_smart_ptr.h"
+#include <support.h>
+#include <xtime.h>
+#include <thread.h>
+#include <atomic_smart_ptr.h>
 #include <deque>
 
 //! Detect whether the current thread is the main thread.

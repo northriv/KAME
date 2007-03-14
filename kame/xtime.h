@@ -14,7 +14,7 @@
 #ifndef XTIME_H_
 #define XTIME_H_
 
-#include "support.h"
+#include <support.h>
 #include <math.h>
 
 //! sleep in ms

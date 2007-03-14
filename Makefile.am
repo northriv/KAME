@@ -1,6 +1,6 @@
-SUBDIRS = kame po doc
+SUBDIRS = kame modules po doc
 
-EXTRA_DIST = kame.kdevprj admin AUTHORS COPYING ChangeLog INSTALL README TODO kame.lsm 
+EXTRA_DIST = admin AUTHORS COPYING ChangeLog INSTALL README TODO
 
 AUTOMAKE_OPTIONS = foreign 
 

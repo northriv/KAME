@@ -14,8 +14,8 @@
 #ifndef XITEMNODE_H_
 #define XITEMNODE_H_
 
-#include "xnode.h"
-#include "xlistnode.h"
+#include <xnode.h>
+#include <xlistnode.h>
 
 //! Posses a pointer to a member of a list
 class XItemNodeBase : public XValueNodeBase

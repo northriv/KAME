@@ -17,8 +17,8 @@
 #ifndef measureH
 #define measureH
 
-#include "xnode.h"
-#include "xnodeconnector.h"
+#include <xnode.h>
+#include <xnodeconnector.h>
 
 class XThermometerList;
 class XDriverList;
