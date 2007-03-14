@@ -33,10 +33,8 @@ kame_SOURCES = measure.cpp measure.h \
 kame_LDADD = $(top_builddir)/kame/forms/libforms.a \
 	$(top_builddir)/kame/script/libscript.a \
 	$(top_builddir)/kame/script/forms/libforms.a \
-	$(top_builddir)/kame/driver/libdriverbase.la \
-	$(top_builddir)/kame/driver/libdriver.la \
-	$(top_builddir)/kame/users/libusers.la \
 	$(top_builddir)/kame/analyzer/libanalyzer.a \
+	$(top_builddir)/kame/driver/libdriver.la \
 	$(top_builddir)/kame/thermometer/libthermometer.a \
 	$(top_builddir)/kame/thermometer/forms/libforms.a \
 	$(top_builddir)/kame/icons/libicons.a \
@@ -44,6 +42,7 @@ kame_LDADD = $(top_builddir)/kame/forms/libforms.a \
 	$(top_srcdir)/FTGL/unix/src/.libs/libftgl.a -lGLU -lm \
 	$(LIB_KFILE) $(LIB_KDEUI) $(LIB_KDECORE) $(LIB_QT) $(LIBSOCKET) -lkmdi 
 
+#	$(top_builddir)/kame/users/libusers.la \
 #	$(top_builddir)/kame/users/dmm/libdmm.la \
 #	$(top_builddir)/kame/users/dso/libdso.la \
 #	$(top_builddir)/kame/users/tempcontrol/libtempcontrol.la \
@@ -55,7 +54,7 @@ kame_LDADD = $(top_builddir)/kame/forms/libforms.a \
 #	$(top_builddir)/kame/users/montecarlo/libmontecarlo.la \
 #
 
-SUBDIRS = forms script driver graph thermometer users analyzer icons mikachanfont
+SUBDIRS = forms script driver graph thermometer analyzer icons mikachanfont users
 
 EXTRA_DIST = kame.desktop lo32-app-kame.png lo16-app-kame.png
 
@@ -108,5 +107,5 @@ messages: rc.cpp
 	 $(XGETTEXT) -ki18n -kI18N_NOOP -ktr2i18n $$LIST -o ../po/kame.pot; \
 	fi
 
-AM_LDFLAGS = @RUBY_LIBS@ @FFTW_LIBS@ @GSL_LIBS@ @LINUXGPIB_LIBS@ @NIDAQMX_LIBS@ @FREETYPE2_LIBS@\
+AM_LDFLAGS = -rdynamic @RUBY_LIBS@ @FFTW_LIBS@ @GSL_LIBS@ @LINUXGPIB_LIBS@ @NIDAQMX_LIBS@ @FREETYPE2_LIBS@\
 	@GC_LIBS@ @MALLOC_DEBUG_LIBS@

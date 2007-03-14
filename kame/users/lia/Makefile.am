@@ -10,7 +10,8 @@ INCLUDES = -I$(top_srcdir)/kame \
 
 liblia_la_SOURCES = lockinamp.cpp lockinamp.h \
 	userlockinamp.cpp userlockinamp.h
-liblia_la_LIBADD = forms/libforms.la
+liblia_la_LIBADD = forms/libforms.la\
+ $(top_builddir)/kame/driver/libdriver.la
 
 SUBDIRS = forms
 METASOURCES = AUTO

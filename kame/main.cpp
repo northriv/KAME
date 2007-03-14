@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
 	KApplication *app;
 	app = new KApplication;
   
-  	std::string module_path;
+  	QCStringList module_path;
 	{
 		KGlobal::dirs()->addPrefix(".");
 		makeIcons(app->iconLoader());
@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
 			//! Use UTF8 conversion from std::string to QString.
 			QTextCodec::setCodecForCStrings(QTextCodec::codecForName("utf8") );
             
-			module_path = args->getOption("module");
+			module_path = args->getOptionList("module");
             
 			FrmKameMain *form;
 			form = new FrmKameMain();
@@ -128,9 +128,8 @@ int main(int argc, char *argv[])
 	  }
 	  return 0;
 	*/
-	
-	if(module_path.length()) {
-		void *handle = dlopen(module_path.c_str(), RTLD_LAZY); //NOW | RTLD_GLOBAL);
+	for(QCStringList::iterator it = module_path.begin(); it != module_path.end(); it++) {
+		void *handle = dlopen(*it, RTLD_LAZY | RTLD_GLOBAL);
 		if(handle)
 			fprintf(stderr, "loaded\n\n\n");
 		else

@@ -1,5 +1,8 @@
 pkglib_LTLIBRARIES = libnmr.la
 
+SUBDIRS = forms
+METASOURCES = AUTO
+
 INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/kame/driver \
 	-I$(top_srcdir)/kame/analyzer \
@@ -23,7 +26,6 @@ libnmr_la_SOURCES = \
 	signalgenerator.cpp signalgenerator.h
 	
 libnmr_la_LIBADD = forms/libforms.la \
-	$(top_builddir)/kame/driver/libdriverbase.la \
 	../dso/libdso.la \
 	../magnetps/libmagnetps.la
 
@@ -31,6 +33,3 @@ libnmr_la_LIBADD = forms/libforms.la \
 #	-O6  \
 #	-funroll-loops -fomit-frame-pointer -funswitch-loops -finline-functions -fgcse-after-reload \
 #	-ffast-math -fno-tree-vectorize -ftree-vectorizer-verbose=3 -fno-unsafe-math-optimizations
-
-SUBDIRS = forms
-METASOURCES = AUTO

@@ -1,7 +1,5 @@
 noinst_LIBRARIES = libgraph.a
 
-#libgraph_la_LDFLAGS = -version-info 0:0:0
-
 INCLUDES = -I$(top_srcdir)/. -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/FTGL/include \
 	-I$(top_builddir)/kame/graph $(all_includes)
