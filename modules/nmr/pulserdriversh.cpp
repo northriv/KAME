@@ -119,7 +119,7 @@ XSHPulser::createNativePatterns()
 	insertPreamble((unsigned short)pat);
 	for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++)
 	{
-		pulseAdd(it->toappear, it->pattern, (it == m_relPatList.begin() ) );
+		pulseAdd(it->toappear, it->pattern, (it == m_relPatList.begin() ), true );
 		pat = it->pattern;
 	}
   
@@ -146,7 +146,7 @@ XSHPulser::createNativePatterns()
 	m_zippedPatterns.push_back(0);
 	for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++)
 	{
-		pulseAdd(it->toappear, it->pattern, (it == m_relPatList.begin() ) );
+		pulseAdd(it->toappear, it->pattern, (it == m_relPatList.begin() ), false );
 		pat = it->pattern;
 	}
 	finishPulse();
@@ -247,7 +247,7 @@ XSHPulser::finishPulse(void)
 	return 0;
 }
 int
-XSHPulser::pulseAdd(uint64_t term, uint32_t pattern, bool firsttime)
+XSHPulser::pulseAdd(uint64_t term, uint32_t pattern, bool firsttime, bool dryrun)
 {
 	const double msec = term * resolution();
 	int64_t mtu_term = term * llrint(resolution() / MTU_PERIOD);
@@ -298,15 +298,17 @@ XSHPulser::pulseAdd(uint64_t term, uint32_t pattern, bool firsttime)
 	unsigned short len = mtu_term / llrint(resolution() / MTU_PERIOD);
 	if( ((m_lastPattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX == 0) && ((pattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX > 0) ) {
 		unsigned short qam_pos = m_waveformPos[(pattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX - 1];
-		if(!qam_pos || (m_zippedPatterns[qam_pos] != PATTERN_ZIPPED_COMMAND_DMA_HBURST))
-			throw XInterface::XInterfaceError(KAME::i18n("No waveform."), __FILE__, __LINE__);
-		unsigned short word = m_zippedPatterns.size() - qam_pos;
-		m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_COPY_HBURST);
-		m_zippedPatterns.push_back((unsigned char)((pattern & PAT_QAM_PHASE_MASK)/PAT_QAM_PHASE));
-		m_zippedPatterns.push_back((unsigned char)(pos / 0x100) );
-		m_zippedPatterns.push_back((unsigned char)(pos % 0x100) );
-		m_zippedPatterns.push_back((unsigned char)(word / 0x100) );
-		m_zippedPatterns.push_back((unsigned char)(word % 0x100) );
+		if(!dryrun) {
+			if(!qam_pos || (m_zippedPatterns[qam_pos] != PATTERN_ZIPPED_COMMAND_DMA_HBURST))
+				throw XInterface::XInterfaceError(KAME::i18n("No waveform."), __FILE__, __LINE__);
+			unsigned short word = m_zippedPatterns.size() - qam_pos;
+			m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_COPY_HBURST);
+			m_zippedPatterns.push_back((unsigned char)((pattern & PAT_QAM_PHASE_MASK)/PAT_QAM_PHASE));
+			m_zippedPatterns.push_back((unsigned char)(pos / 0x100) );
+			m_zippedPatterns.push_back((unsigned char)(pos % 0x100) );
+			m_zippedPatterns.push_back((unsigned char)(word / 0x100) );
+			m_zippedPatterns.push_back((unsigned char)(word % 0x100) );
+		}
 	}
 	if(len > PATTERN_ZIPPED_COMMAND_DMA_LSET_END - PATTERN_ZIPPED_COMMAND_DMA_LSET_START) {
 		m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_LSET_LONG);

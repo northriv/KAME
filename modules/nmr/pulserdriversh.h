@@ -39,7 +39,7 @@ protected:
     //! minimum period of pulses [ms]
     virtual double minPulseWidth() const {return resolution();}
     //! existense of AO ports.
-    virtual bool haveQAMPorts() const {return false;}
+    virtual bool haveQAMPorts() const {return true;}
 
 private:
 	int setAUX2DA(double volt, int addr);
@@ -48,12 +48,12 @@ private:
 	//! Add 1 pulse pattern
 	//! \param term a period to next pattern
 	//! \param pattern a pattern for digital, to appear
-	int pulseAdd(uint64_t term, uint32_t pattern, bool firsttime);
+	int pulseAdd(uint64_t term, uint32_t pattern, bool firsttime, bool dryrun);
 	uint32_t m_lastPattern;
 	uint64_t m_dmaTerm;  
   
 	std::vector<unsigned char> m_zippedPatterns;
   
-	int m_waveformPos[3];
+	int m_waveformPos[PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX];
   
 };
