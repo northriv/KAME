@@ -1,6 +1,8 @@
 moduleexecdir=$(pkglibdir)/modules
 moduleexec_LTLIBRARIES = libtempcontrol.la
 
+libtempcontrol_la_LDFLAGS = -module
+
 INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/kame/analyzer \
 	-I$(top_srcdir)/kame/driver \
@@ -10,8 +12,8 @@ INCLUDES = -I$(top_srcdir)/kame \
 
 libtempcontrol_la_SOURCES = tempcontrol.cpp tempcontrol.h \
 	usertempcontrol.cpp usertempcontrol.h 
-libtempcontrol_la_LIBADD = forms/libforms.la \
-	../charinterface/libcharinterface.la
+libtempcontrol_la_LIBADD = forms/libforms.la
+#	../charinterface/libcharinterface.la
 
 SUBDIRS = forms
 METASOURCES = AUTO

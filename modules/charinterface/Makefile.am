@@ -1,6 +1,8 @@
 moduleexecdir=$(pkglibdir)/modules
 moduleexec_LTLIBRARIES = libcharinterface.la
 
+libcharinterface_la_LDFLAGS = -module
+
 INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/kame/driver \
 	$(all_includes)

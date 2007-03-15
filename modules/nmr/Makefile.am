@@ -1,6 +1,8 @@
 moduleexecdir=$(pkglibdir)/modules
 moduleexec_LTLIBRARIES = libnmr.la
 
+libnmr_la_LDFLAGS = -module
+
 INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/modules/dso \
 	-I$(top_srcdir)/modules/magnetps \
@@ -25,10 +27,11 @@ libnmr_la_SOURCES = \
 	signalgenerator.cpp signalgenerator.h
 	
 libnmr_la_LIBADD = forms/libforms.la \
-	../charinterface/libcharinterface.la \
-	../dso/libdso.la \
-	../magnetps/libmagnetps.la \
 	@FFTW_LIBS@ @GSL_LIBS@
+
+#	../charinterface/libcharinterface.la 
+#	../dso/libdso.la 
+#	../magnetps/libmagnetps.la 
 
 #AM_CXXFLAGS = $(CXXFLAGS) \
 #	-O6  \

@@ -43,6 +43,10 @@ kame_LDADD = $(top_builddir)/kame/forms/libforms.a \
 	$(LIB_KFILE) $(LIB_KDEUI) $(LIB_KDECORE) $(LIB_QT) $(LIBSOCKET) -lkmdi @RUBY_LIBS@\
 	@GC_LIBS@ @MALLOC_DEBUG_LIBS@ @FREETYPE2_LIBS@ @GSL_LIBS@
 
+kame_LDFLAGS = $(all_libraries) -export-dynamic
+#-rdynamic
+# $(KDE_RPATH)
+
 SUBDIRS = forms script driver graph thermometer analyzer icons mikachanfont
 
 EXTRA_DIST = kame.desktop lo32-app-kame.png lo16-app-kame.png
@@ -82,10 +86,6 @@ uninstall-local:
 # kde_designerdir     Where Qt Designer plugins should go to (new in KDE 3).
 
 METASOURCES = AUTO
-
-# the library search path. 
-kame_LDFLAGS = $(all_libraries) -rdynamic
-# $(KDE_RPATH)
 
 rcdir = $(kde_datadir)/kame
 rc_DATA = 
