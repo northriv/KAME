@@ -91,12 +91,14 @@ rm -rf $RPM_BUILD_ROOT
 %files
 %defattr(-,root,root)
 %{_bindir}/kame
-#%{_libdir}/kame/lib*
+%{_libdir}/kame/lib*
 %{_datadir}/applnk/Applications/*.desktop
 %{_datadir}/apps/kame
 %{_datadir}/icons/*/*/apps/*.png
 %{_datadir}/locale/*/LC_MESSAGES/*.mo
 %{_datadir}/doc/HTML/*/kame
+%{_libdir}/kame/modules/libtestdriver*
+%{_libdir}/kame/modules/libmontecarlo*
 
 %files modules-standard
 %{_libdir}/kame/modules/libcharinterface*
@@ -107,8 +109,6 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/kame/modules/liblia*
 %{_libdir}/kame/modules/libmagnetps*
 %{_libdir}/kame/modules/libtempcontrol*
-%{_libdir}/kame/modules/libtestdriver*
-%{_libdir}/kame/modules/libmontecarlo*
 
 %files modules-nmr
 %{_libdir}/kame/modules/libnmr*
