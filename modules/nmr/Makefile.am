@@ -1,10 +1,10 @@
-moduleexecdir=$(pkglibdir)/module
+moduleexecdir=$(pkglibdir)/modules
 moduleexec_LTLIBRARIES = libnmr.la
 
 INCLUDES = -I$(top_srcdir)/kame \
-	-I$(top_srcdir)/modules/nidaq \
 	-I$(top_srcdir)/modules/dso \
 	-I$(top_srcdir)/modules/magnetps \
+	-I$(top_srcdir)/modules/charinterface \
 	-I$(top_srcdir)/kame/driver \
 	-I$(top_srcdir)/kame/analyzer \
 	-I$(top_srcdir)/kame/graph \
@@ -17,8 +17,6 @@ libnmr_la_SOURCES = \
 	pulserdriver.cpp pulserdriver.h \
 	pulserdriversh.cpp pulserdriversh.h \
 	pulserdriverh8.cpp pulserdriverh8.h \
-	pulserdrivernidaq.cpp pulserdrivernidaq.h \
-	pulserdrivernidaqmx.cpp pulserdrivernidaqmx.h \
 	nmrpulse.cpp nmrpulse.h \
 	nmrspectrum.cpp nmrspectrum.h \
 	nmrfspectrum.cpp nmrfspectrum.h \
@@ -27,10 +25,10 @@ libnmr_la_SOURCES = \
 	signalgenerator.cpp signalgenerator.h
 	
 libnmr_la_LIBADD = forms/libforms.la \
-	$(top_builddir)/kame/driver/libdriverbase.la \
+	../charinterface/libcharinterface.la \
 	../dso/libdso.la \
 	../magnetps/libmagnetps.la \
-	../nidaq/libnidaq.la
+	@FFTW_LIBS@ @GSL_LIBS@
 
 #AM_CXXFLAGS = $(CXXFLAGS) \
 #	-O6  \

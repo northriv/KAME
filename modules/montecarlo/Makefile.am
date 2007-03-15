@@ -1,4 +1,4 @@
-moduleexecdir=$(pkglibdir)/module
+moduleexecdir=$(pkglibdir)/modules
 moduleexec_LTLIBRARIES = libmontecarlo.la
 
 INCLUDES = -I$(top_srcdir)/kame \

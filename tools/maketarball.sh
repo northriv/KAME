@@ -1,7 +1,6 @@
 #!/bin/bash
-kame_date=`date +'%Y%m%d'`
-version=2.1.5
-file=kame-$version-$kame_date
+version=2.2
+file=kame-$version
 dir=../2.1-backups/$file
 mkdir -p $dir
 rsync --exclude "linux686" \
@@ -23,7 +22,6 @@ rsync --exclude "linux686" \
 	 . $dir -av --delete
 cd $dir
 #make distclean
-sed -e '/kame-lite/d' -e "s/kame_date/$kame_date/" kame.spec > tmp
 mv tmp kame.spec
 cat ChangeLog >> kame.spec
 

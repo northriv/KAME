@@ -11,6 +11,8 @@ libgraph_a_SOURCES = graph.cpp graph.h \
 	xwavengraph.cpp xwavengraph.h \
 	graphdialog.ui graphform.ui graphnurlform.ui
 
+libgraph_a_LIBADD = 
+
 METASOURCES = AUTO
 
 AM_CXXFLAGS = $(CXXFLAGS) \

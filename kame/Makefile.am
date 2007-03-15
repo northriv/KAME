@@ -34,14 +34,14 @@ kame_LDADD = $(top_builddir)/kame/forms/libforms.a \
 	$(top_builddir)/kame/script/libscript.a \
 	$(top_builddir)/kame/script/forms/libforms.a \
 	$(top_builddir)/kame/analyzer/libanalyzer.a \
-	$(top_builddir)/kame/driver/libdriverbase.la \
 	$(top_builddir)/kame/driver/libdriver.la \
 	$(top_builddir)/kame/thermometer/libthermometer.a \
 	$(top_builddir)/kame/thermometer/forms/libforms.a \
 	$(top_builddir)/kame/icons/libicons.a \
 	$(top_builddir)/kame/graph/libgraph.a \
 	$(top_srcdir)/FTGL/unix/src/.libs/libftgl.a -lGLU -lm \
-	$(LIB_KFILE) $(LIB_KDEUI) $(LIB_KDECORE) $(LIB_QT) $(LIBSOCKET) -lkmdi 
+	$(LIB_KFILE) $(LIB_KDEUI) $(LIB_KDECORE) $(LIB_QT) $(LIBSOCKET) -lkmdi @RUBY_LIBS@\
+	@GC_LIBS@ @MALLOC_DEBUG_LIBS@ @FREETYPE2_LIBS@ @GSL_LIBS@
 
 SUBDIRS = forms script driver graph thermometer analyzer icons mikachanfont
 
@@ -95,6 +95,3 @@ messages: rc.cpp
 	if test -n "$$LIST"; then \
 	 $(XGETTEXT) -ki18n -kI18N_NOOP -ktr2i18n $$LIST -o ../po/kame.pot; \
 	fi
-
-AM_LDFLAGS = @RUBY_LIBS@ @FFTW_LIBS@ @GSL_LIBS@ @LINUXGPIB_LIBS@ @NIDAQMX_LIBS@ @FREETYPE2_LIBS@\
-	@GC_LIBS@ @MALLOC_DEBUG_LIBS@

@@ -273,29 +273,42 @@ x_libraries = @x_libraries@
 xdg_appsdir = @xdg_appsdir@
 xdg_directorydir = @xdg_directorydir@
 xdg_menudir = @xdg_menudir@
-moduleexecdir = $(pkglibdir)/module
-moduleexec_LTLIBRARIES = liboxford.la
+moduleexecdir = $(pkglibdir)/modules
+moduleexec_LTLIBRARIES = libcharinterface.la
 
 INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/kame/driver \
 	$(all_includes)
 
 
-liboxford_la_SOURCES = oxforddriver.cpp oxforddriver.h
+libcharinterface_la_SOURCES = \
+	charinterface.cpp charinterface.h \
+	chardevicedriver.h \
+	dummyport.cpp dummyport.h \
+	gpib.cpp gpib.h serial.cpp serial.h \
+	oxforddriver.cpp oxforddriver.h
+
+
+libcharinterface_la_LIBADD = @LINUXGPIB_LIBS@
 
 #>- METASOURCES = AUTO
-subdir = modules/oxford
+subdir = modules/charinterface
 mkinstalldirs = $(SHELL) $(top_srcdir)/admin/mkinstalldirs
 CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 LTLIBRARIES = $(moduleexec_LTLIBRARIES)
 
-liboxford_la_LDFLAGS =
-liboxford_la_LIBADD =
-am_liboxford_la_OBJECTS = oxforddriver.lo
-#>- liboxford_la_OBJECTS = $(am_liboxford_la_OBJECTS)
-#>+ 1
-liboxford_la_OBJECTS = oxforddriver.lo
+libcharinterface_la_LDFLAGS =
+libcharinterface_la_DEPENDENCIES =
+am_libcharinterface_la_OBJECTS = charinterface.lo dummyport.lo gpib.lo \
+	serial.lo oxforddriver.lo
+#>- libcharinterface_la_OBJECTS = $(am_libcharinterface_la_OBJECTS)
+#>+ 5
+libcharinterface_la_final_OBJECTS = libcharinterface_la.all_cpp.lo 
+libcharinterface_la_nofinal_OBJECTS = charinterface.lo dummyport.lo gpib.lo \
+	serial.lo oxforddriver.lo
+@KDE_USE_FINAL_FALSE@libcharinterface_la_OBJECTS = $(libcharinterface_la_nofinal_OBJECTS)
+@KDE_USE_FINAL_TRUE@libcharinterface_la_OBJECTS = $(libcharinterface_la_final_OBJECTS)
 
 DEFS = @DEFS@
 DEFAULT_INCLUDES =  -I. -I$(srcdir) -I$(top_builddir)
@@ -304,9 +317,16 @@ LDFLAGS = @LDFLAGS@
 LIBS = @LIBS@
 depcomp = $(SHELL) $(top_srcdir)/admin/depcomp
 am__depfiles_maybe = depfiles
-#>- @AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/oxforddriver.Plo
-#>+ 1
-@AMDEP_TRUE@DEP_FILES =  ./$(DEPDIR)/oxforddriver.Plo
+#>- @AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/charinterface.Plo \
+#>- @AMDEP_TRUE@	./$(DEPDIR)/dummyport.Plo ./$(DEPDIR)/gpib.Plo \
+#>- @AMDEP_TRUE@	./$(DEPDIR)/oxforddriver.Plo ./$(DEPDIR)/serial.Plo
+#>+ 6
+@AMDEP_TRUE@@KDE_USE_FINAL_TRUE@DEP_FILES =   $(DEPDIR)/libcharinterface_la.all_cpp.P ./$(DEPDIR)/charinterface.Plo \
+@AMDEP_TRUE@@KDE_USE_FINAL_TRUE@	@AMDEP_TRUE@	./$(DEPDIR)/dummyport.Plo ./$(DEPDIR)/gpib.Plo \
+@AMDEP_TRUE@@KDE_USE_FINAL_TRUE@	@AMDEP_TRUE@	./$(DEPDIR)/oxforddriver.Plo ./$(DEPDIR)/serial.Plo
+@AMDEP_TRUE@@KDE_USE_FINAL_FALSE@DEP_FILES =  ./$(DEPDIR)/charinterface.Plo \
+@AMDEP_TRUE@@KDE_USE_FINAL_FALSE@	@AMDEP_TRUE@	./$(DEPDIR)/dummyport.Plo ./$(DEPDIR)/gpib.Plo \
+@AMDEP_TRUE@@KDE_USE_FINAL_FALSE@	@AMDEP_TRUE@	./$(DEPDIR)/oxforddriver.Plo ./$(DEPDIR)/serial.Plo
 #>- CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 #>- 	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
 #>+ 2
@@ -334,9 +354,9 @@ LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) \
 CCLD = $(CC)
 LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-DIST_SOURCES = $(liboxford_la_SOURCES)
+DIST_SOURCES = $(libcharinterface_la_SOURCES)
 DIST_COMMON = Makefile.am Makefile.in
-SOURCES = $(liboxford_la_SOURCES)
+SOURCES = $(libcharinterface_la_SOURCES)
 
 #>- all: all-am
 #>+ 1
@@ -346,11 +366,11 @@ all: docs-am  all-am
 .SUFFIXES: .cpp .lo .o .obj
 $(srcdir)/Makefile.in:  Makefile.am  $(top_srcdir)/configure.in $(ACLOCAL_M4)
 #>- 	cd $(top_srcdir) && \
-#>- 	  $(AUTOMAKE) --gnu  modules/oxford/Makefile
+#>- 	  $(AUTOMAKE) --gnu  modules/charinterface/Makefile
 #>+ 3
 	cd $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu  modules/oxford/Makefile
-	cd $(top_srcdir) && perl admin/am_edit modules/oxford/Makefile.in
+	  $(AUTOMAKE) --gnu  modules/charinterface/Makefile
+	cd $(top_srcdir) && perl admin/am_edit modules/charinterface/Makefile.in
 Makefile:  $(srcdir)/Makefile.in  $(top_builddir)/config.status
 	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)
 moduleexecLTLIBRARIES_INSTALL = $(INSTALL)
@@ -381,8 +401,8 @@ clean-moduleexecLTLIBRARIES:
 	  echo "rm -f \"$${dir}/so_locations\""; \
 	  rm -f "$${dir}/so_locations"; \
 	done
-liboxford.la: $(liboxford_la_OBJECTS) $(liboxford_la_DEPENDENCIES) 
-	$(CXXLINK) -rpath $(moduleexecdir) $(liboxford_la_LDFLAGS) $(liboxford_la_OBJECTS) $(liboxford_la_LIBADD) $(LIBS)
+libcharinterface.la: $(libcharinterface_la_OBJECTS) $(libcharinterface_la_DEPENDENCIES) 
+	$(CXXLINK) -rpath $(moduleexecdir) $(libcharinterface_la_LDFLAGS) $(libcharinterface_la_OBJECTS) $(libcharinterface_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT) core *.core
@@ -390,7 +410,11 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/charinterface.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dummyport.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gpib.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/oxforddriver.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/serial.Plo@am__quote@
 
 distclean-depend:
 	-rm -rf ./$(DEPDIR)
@@ -523,7 +547,7 @@ clean: kde-rpo-clean  clean-am
 #>- clean-am: clean-generic clean-libtool clean-moduleexecLTLIBRARIES \
 #>- 	mostlyclean-am
 #>+ 2
-clean-am: clean-bcheck  clean-generic clean-libtool clean-moduleexecLTLIBRARIES \
+clean-am: clean-bcheck clean-final  clean-generic clean-libtool clean-moduleexecLTLIBRARIES \
 	mostlyclean-am
 
 distclean: distclean-am
@@ -582,8 +606,8 @@ docs-am:
 #>+ 6
 force-reedit:
 		cd $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu  modules/oxford/Makefile
-	cd $(top_srcdir) && perl admin/am_edit modules/oxford/Makefile.in
+	  $(AUTOMAKE) --gnu  modules/charinterface/Makefile
+	cd $(top_srcdir) && perl admin/am_edit modules/charinterface/Makefile.in
 
 
 #>+ 21
@@ -608,21 +632,37 @@ bcheck-am:
 	done
 
 
+#>+ 11
+libcharinterface_la.all_cpp.cpp: $(srcdir)/Makefile.in $(srcdir)/charinterface.cpp $(srcdir)/dummyport.cpp $(srcdir)/gpib.cpp $(srcdir)/serial.cpp $(srcdir)/oxforddriver.cpp 
+	@echo 'creating libcharinterface_la.all_cpp.cpp ...'; \
+	rm -f libcharinterface_la.all_cpp.files libcharinterface_la.all_cpp.final; \
+	echo "#define KDE_USE_FINAL 1" >> libcharinterface_la.all_cpp.final; \
+	for file in charinterface.cpp dummyport.cpp gpib.cpp serial.cpp oxforddriver.cpp ; do \
+	  echo "#include \"$$file\"" >> libcharinterface_la.all_cpp.files; \
+	  test ! -f $(srcdir)/$$file || egrep '^#pragma +implementation' $(srcdir)/$$file >> libcharinterface_la.all_cpp.final; \
+	done; \
+	cat libcharinterface_la.all_cpp.final libcharinterface_la.all_cpp.files > libcharinterface_la.all_cpp.cpp; \
+	rm -f libcharinterface_la.all_cpp.final libcharinterface_la.all_cpp.files
+
+#>+ 3
+clean-final:
+	-rm -f libcharinterface_la.all_cpp.cpp
+
 #>+ 3
 final:
-	$(MAKE) all-am
+	$(MAKE) libcharinterface_la_OBJECTS="$(libcharinterface_la_final_OBJECTS)" all-am
 
 #>+ 3
 final-install:
-	$(MAKE) install-am
+	$(MAKE) libcharinterface_la_OBJECTS="$(libcharinterface_la_final_OBJECTS)" install-am
 
 #>+ 3
 no-final:
-	$(MAKE) all-am
+	$(MAKE) libcharinterface_la_OBJECTS="$(libcharinterface_la_nofinal_OBJECTS)" all-am
 
 #>+ 3
 no-final-install:
-	$(MAKE) install-am
+	$(MAKE) libcharinterface_la_OBJECTS="$(libcharinterface_la_nofinal_OBJECTS)" install-am
 
 #>+ 3
 cvs-clean:

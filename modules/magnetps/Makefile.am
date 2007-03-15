@@ -1,9 +1,9 @@
-moduleexecdir=$(pkglibdir)/module
+moduleexecdir=$(pkglibdir)/modules
 moduleexec_LTLIBRARIES = libmagnetps.la
 
 INCLUDES = -I$(top_srcdir)/kame \
-	-I$(top_srcdir)/modules/oxford \
 	-I$(top_srcdir)/kame/driver \
+	-I$(top_srcdir)/modules/charinterface \
 	-I$(top_srcdir)/kame/analyzer \
 	-I$(top_srcdir)/kame/users/magnetps \
 	-I$(top_builddir)/kame/users/magnetps/forms \
@@ -12,7 +12,7 @@ INCLUDES = -I$(top_srcdir)/kame \
 libmagnetps_la_SOURCES = magnetps.cpp magnetps.h \
 	usermagnetps.cpp usermagnetps.h
 libmagnetps_la_LIBADD = forms/libforms.la \
-	../oxford/liboxford.la
+	../charinterface/libcharinterface.la
 
 SUBDIRS = forms
 METASOURCES = AUTO

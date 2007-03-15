@@ -1,21 +1,20 @@
-moduleexecdir=$(pkglibdir)/module
+moduleexecdir=$(pkglibdir)/modules
 moduleexec_LTLIBRARIES = libdso.la
 
 INCLUDES = -I$(top_srcdir)/kame \
-	-I$(top_srcdir)/modules/nidaq \
 	-I$(top_srcdir)/kame/graph \
 	-I$(top_srcdir)/kame/analyzer \
 	-I$(top_srcdir)/kame/driver \
+	-I$(top_srcdir)/modules/charinterface \
 	-I$(top_builddir)/kame/graph \
 	-I$(top_builddir)/kame/users/dso/forms \
 	$(all_includes)
 
 libdso_la_SOURCES = fir.cpp fir.h \
-	nidaqdso.cpp nidaqdso.h \
 	dso.cpp dso.h \
 	tds.cpp tds.h
 libdso_la_LIBADD = forms/libforms.la \
-	../nidaq/libnidaq.la
+	../charinterface/libcharinterface.la
 
 #AM_CXXFLAGS = $(CXXFLAGS) \
 #	-O6  \

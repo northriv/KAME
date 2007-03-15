@@ -1,4 +1,4 @@
-moduleexecdir=$(pkglibdir)/module
+moduleexecdir=$(pkglibdir)/modules
 moduleexec_LTLIBRARIES = libtestdriver.la
 
 INCLUDES = $(all_includes) -I$(top_srcdir)/kame \

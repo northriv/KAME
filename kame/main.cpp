@@ -128,6 +128,9 @@ int main(int argc, char *argv[])
 	  }
 	  return 0;
 	*/
+
+	QString path = ::locate("lib", "kame/module/");
+
 	for(QCStringList::iterator it = module_path.begin(); it != module_path.end(); it++) {
 		void *handle = dlopen(*it, RTLD_LAZY | RTLD_GLOBAL);
 		if(handle)

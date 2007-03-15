@@ -1619,7 +1619,6 @@ Optional Packages:
   --with-qt-includes=DIR  where the Qt includes are.
   --with-qt-libraries=DIR where the Qt library is installed.
   --without-arts          build without aRts default=yes
-  --without-nidaqmx		build without NIDAQmx default=yes
   --with-gc		use garbage collector
   --with-malloc-debug	use MallocDebug.app
 
@@ -34035,12 +34034,8 @@ RUBY_LIBS="$RUBY_LIBS $ruby_libs"
 RUBY_CFLAGS="$RUBY_CFLAGS $ruby_cflags"
 LIBS="$ac_save_LIBS"
 
-
-# Check whether --with-nidaqmx was given.
-if test "${with_nidaqmx+set}" = set; then
-  withval=$with_nidaqmx; if test "$with_nidaqmx" = "yes"; then
-	ac_save_LIBS="$LIBS"
-	{ echo "$as_me:$LINENO: checking for main in -lnidaqmx" >&5
+ac_save_LIBS="$LIBS"
+{ echo "$as_me:$LINENO: checking for main in -lnidaqmx" >&5
 echo $ECHO_N "checking for main in -lnidaqmx... $ECHO_C" >&6; }
 if test "${ac_cv_lib_nidaqmx_main+set}" = set; then
   echo $ECHO_N "(cached) $ECHO_C" >&6
@@ -34113,99 +34108,8 @@ fi
 echo "${ECHO_T}$ac_cv_lib_nidaqmx_main" >&6; }
 if test $ac_cv_lib_nidaqmx_main = yes; then
   nidaqmx_libs="-L/usr/local/lib -lnidaqmx"\
-	nidaqmx_cflags="-I/usr/local/include"
-	
-cat >>confdefs.h <<\_ACEOF
-@%:@define HAVE_NI_DAQMX 1
-_ACEOF
+nidaqmx_cflags="-I/usr/local/include"
 
-else
-  { { echo "$as_me:$LINENO: error: NIDAQmx is not installed - NIDAQmx is disabled" >&5
-echo "$as_me: error: NIDAQmx is not installed - NIDAQmx is disabled" >&2;}
-   { (exit 1); exit 1; }; }
-fi
-
-	NIDAQMX_LIBS="$nidaqmx_libs"
-	NIDAQMX_CFLAGS="$nidaqmx_cflags"
-	LIBS="$ac_save_LIBS"
-fi
-else
-  ac_save_LIBS="$LIBS"
-	{ echo "$as_me:$LINENO: checking for main in -lnidaqmx" >&5
-echo $ECHO_N "checking for main in -lnidaqmx... $ECHO_C" >&6; }
-if test "${ac_cv_lib_nidaqmx_main+set}" = set; then
-  echo $ECHO_N "(cached) $ECHO_C" >&6
-else
-  ac_check_lib_save_LIBS=$LIBS
-LIBS="-lnidaqmx -L/usr/local/lib -lnidaqmx $LIBS"
-cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-
-
-int
-main ()
-{
-return main ();
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext conftest$ac_exeext
-if { (ac_try="$ac_link"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
-  (eval "$ac_link") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } &&
-	 { ac_try='test -z "$ac_cxx_werror_flag" || test ! -s conftest.err'
-  { (case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
-  (eval "$ac_try") 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; } &&
-	 { ac_try='test -s conftest$ac_exeext'
-  { (case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
-  (eval "$ac_try") 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; }; then
-  ac_cv_lib_nidaqmx_main=yes
-else
-  echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_cv_lib_nidaqmx_main=no
-fi
-
-rm -f core conftest.err conftest.$ac_objext \
-      conftest$ac_exeext conftest.$ac_ext
-LIBS=$ac_check_lib_save_LIBS
-fi
-{ echo "$as_me:$LINENO: result: $ac_cv_lib_nidaqmx_main" >&5
-echo "${ECHO_T}$ac_cv_lib_nidaqmx_main" >&6; }
-if test $ac_cv_lib_nidaqmx_main = yes; then
-  nidaqmx_libs="-L/usr/local/lib -lnidaqmx"\
-	nidaqmx_cflags="-I/usr/local/include"
-	
 cat >>confdefs.h <<\_ACEOF
 @%:@define HAVE_NI_DAQMX 1
 _ACEOF
@@ -34215,12 +34119,9 @@ else
 echo "$as_me: WARNING: NIDAQmx is not installed - NIDAQmx is disabled" >&2;}
 fi
 
-	NIDAQMX_LIBS="$nidaqmx_libs"
-	NIDAQMX_CFLAGS="$nidaqmx_cflags"
-	LIBS="$ac_save_LIBS"
-
-fi
-
+NIDAQMX_LIBS="$nidaqmx_libs"
+NIDAQMX_CFLAGS="$nidaqmx_cflags"
+LIBS="$ac_save_LIBS"
 
 { echo "$as_me:$LINENO: checking for main in -lgpib" >&5
 echo $ECHO_N "checking for main in -lgpib... $ECHO_C" >&6; }
@@ -37877,6 +37778,8 @@ ac_config_files="$ac_config_files kame/thermometer/forms/Makefile"
 
 ac_config_files="$ac_config_files modules/Makefile"
 
+ac_config_files="$ac_config_files modules/charinterface/Makefile"
+
 ac_config_files="$ac_config_files modules/dcsource/Makefile"
 
 ac_config_files="$ac_config_files modules/dcsource/forms/Makefile"
@@ -37910,8 +37813,6 @@ ac_config_files="$ac_config_files modules/nidaq/Makefile"
 ac_config_files="$ac_config_files modules/nmr/Makefile"
 
 ac_config_files="$ac_config_files modules/nmr/forms/Makefile"
-
-ac_config_files="$ac_config_files modules/oxford/Makefile"
 
 ac_config_files="$ac_config_files modules/tempcontrol/Makefile"
 
@@ -38503,6 +38404,7 @@ do
     "kame/thermometer/Makefile") CONFIG_FILES="$CONFIG_FILES kame/thermometer/Makefile" ;;
     "kame/thermometer/forms/Makefile") CONFIG_FILES="$CONFIG_FILES kame/thermometer/forms/Makefile" ;;
     "modules/Makefile") CONFIG_FILES="$CONFIG_FILES modules/Makefile" ;;
+    "modules/charinterface/Makefile") CONFIG_FILES="$CONFIG_FILES modules/charinterface/Makefile" ;;
     "modules/dcsource/Makefile") CONFIG_FILES="$CONFIG_FILES modules/dcsource/Makefile" ;;
     "modules/dcsource/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/dcsource/forms/Makefile" ;;
     "modules/dmm/Makefile") CONFIG_FILES="$CONFIG_FILES modules/dmm/Makefile" ;;
@@ -38520,7 +38422,6 @@ do
     "modules/nidaq/Makefile") CONFIG_FILES="$CONFIG_FILES modules/nidaq/Makefile" ;;
     "modules/nmr/Makefile") CONFIG_FILES="$CONFIG_FILES modules/nmr/Makefile" ;;
     "modules/nmr/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/nmr/forms/Makefile" ;;
-    "modules/oxford/Makefile") CONFIG_FILES="$CONFIG_FILES modules/oxford/Makefile" ;;
     "modules/tempcontrol/Makefile") CONFIG_FILES="$CONFIG_FILES modules/tempcontrol/Makefile" ;;
     "modules/tempcontrol/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/tempcontrol/forms/Makefile" ;;
     "modules/testdriver/Makefile") CONFIG_FILES="$CONFIG_FILES modules/testdriver/Makefile" ;;
