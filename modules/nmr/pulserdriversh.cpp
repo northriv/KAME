@@ -213,13 +213,14 @@ XSHPulser::insertPreamble(unsigned short startpattern)
 	m_zippedPatterns.push_back((unsigned char)((len / 0x10000) / 0x100) );
 	m_zippedPatterns.push_back((unsigned char)((len / 0x10000) % 0x100) );
 	
-	
 /*	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_AUX1);
 	int aswfilter = 3;
 	if(aswFilter()->to_str() == ASW_FILTER_1) aswfilter = 1;
 	if(aswFilter()->to_str() == ASW_FILTER_2) aswfilter = 2;
 	m_zippedPatterns.push_back((unsigned char)aswfilter);
 */
+	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_AUX1);
+	m_zippedPatterns.push_back((unsigned char)3);
 /*	setAUX2DA(*portLevel8(), 1);
 	setAUX2DA(*portLevel9(), 2);
 	setAUX2DA(*portLevel10(), 3);
@@ -296,7 +297,10 @@ XSHPulser::pulseAdd(uint64_t term, uint32_t pattern, bool firsttime)
 	unsigned short pos = (unsigned short)pos_l;
 	unsigned short len = mtu_term / llrint(resolution() / MTU_PERIOD);
 	if( ((m_lastPattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX == 0) && ((pattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX > 0) ) {
-		unsigned short word = m_zippedPatterns.size() - m_waveformPos[(pattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX - 1];
+		unsigned short qam_pos = m_waveformPos[(pattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX - 1];
+		if(!qam_pos || (m_zippedPatterns[qam_pos] != PATTERN_ZIPPED_COMMAND_DMA_HBURST))
+			throw XInterface::XInterfaceError(KAME::i18n("No waveform."), __FILE__, __LINE__);
+		unsigned short word = m_zippedPatterns.size() - qam_pos;
 		m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_COPY_HBURST);
 		m_zippedPatterns.push_back((unsigned char)((pattern & PAT_QAM_PHASE_MASK)/PAT_QAM_PHASE));
 		m_zippedPatterns.push_back((unsigned char)(pos / 0x100) );
