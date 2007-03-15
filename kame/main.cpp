@@ -142,7 +142,7 @@ int main(int argc, char *argv[])
 		QString path = *it + "kame/modules";
 		lt_dladdsearchdir(path);
 		fprintf(stderr, "search in %s\n", (const char*)path);
-		lt_dlforeachfile(path, &load_module, NULL);
+		lt_dlforeachfile(path, &load_module, &modules);
 	}
 	for(QCStringList::iterator it = module_path.begin(); it != module_path.end(); it++) {
 		modules.push_back((const char*)*it);
