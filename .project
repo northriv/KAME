@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>KAME-2.1</name>
+	<name>KAME-2.2</name>
 	<comment></comment>
 	<projects>
 	</projects>
@@ -17,20 +17,20 @@
 					<value>org.eclipse.cdt.core.GCCErrorParser;</value>
 				</dictionary>
 				<dictionary>
-					<key>org.eclipse.cdt.make.core.enableAutoBuild</key>
-					<value>true</value>
-				</dictionary>
-				<dictionary>
 					<key>org.eclipse.cdt.make.core.environment</key>
 					<value>PATH=/sw/bin:/sw/sbin:/bin:/usr/bin:/usr/X11R6/bin|</value>
 				</dictionary>
 				<dictionary>
-					<key>org.eclipse.cdt.make.core.enableFullBuild</key>
+					<key>org.eclipse.cdt.make.core.enableAutoBuild</key>
 					<value>true</value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.build.target.inc</key>
 					<value>all</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.enableFullBuild</key>
+					<value>true</value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.enabledIncrementalBuild</key>
@@ -41,12 +41,12 @@
 					<value>/Users/northriv/Documents/Projects/KAME/macosx</value>
 				</dictionary>
 				<dictionary>
-					<key>org.eclipse.cdt.make.core.build.target.clean</key>
-					<value>clean</value>
-				</dictionary>
-				<dictionary>
 					<key>org.eclipse.cdt.make.core.build.command</key>
 					<value>PATH=$PAHT:/sw/bin</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.build.target.clean</key>
+					<value>clean</value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.enableCleanBuild</key>
