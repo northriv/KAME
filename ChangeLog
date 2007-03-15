@@ -1,3 +1,10 @@
+* Thu Mar 15 2007 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.2-1)
+- Dynamic module loading.
+- packages: modules-standard (for general drivers with gpib, etc.),
+	modules-nmr (NMR drivers), modules-nidaq (NI-DAQmx support).
+- Fix SH2 pulser.
+
 * Mon Mar 12 2007 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
 - (2.1.5-1)
 - Ruby: $SAFE = 3 and begin .. rescue for loading .kame files.
