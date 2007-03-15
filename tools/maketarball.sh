@@ -21,8 +21,6 @@ rsync --exclude "linux686" \
 	 --exclude "CVS" \
 	 . $dir -av --delete
 cd $dir
-#make distclean
-mv tmp kame.spec
 cat ChangeLog >> kame.spec
 
 cd ..

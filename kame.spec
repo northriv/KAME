@@ -14,7 +14,7 @@ Group: Applications/Engineering
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Requires: qt >= %{qtver}, kdelibs >= %{kdever}
 Requires: libart_lgpl, gsl, zlib, ruby, libtool-ltdl
-BuildPreReq: ruby-devel, gsl, boost-devel, libtool-ltdl-devel
+BuildPreReq: ruby-devel, gsl-devel, boost-devel, libtool-ltdl-devel
 BuildPreReq: libidn-devel
 BuildPreReq: qt-devel >= %{qtver}, kdelibs-devel >= %{kdever}
 BuildPreReq: libart_lgpl-devel, zlib-devel, libpng-devel, libjpeg-devel
@@ -33,7 +33,7 @@ K's adaptive measurement engine.
 %package modules-standard
 Group: Applications/Engineering
 Summary: KAME, K's adaptive measurement engine. Modules.
-Requires: kame
+Requires: kame = %{version}
 Requires: linux-gpib
 BuildPreReq: linux-gpib-devel
 %description modules-standard
@@ -43,7 +43,7 @@ Many standard drivers.
 %package modules-nmr
 Group: Applications/Engineering
 Summary: KAME, K's adaptive measurement engine. Modules.
-Requires: kame-modules-standard
+Requires: kame-modules-standard = %{version}
 Requires: fftw2
 BuildPreReq: fftw2-devel
 %description modules-nmr
@@ -54,7 +54,7 @@ NMR drivers.
 %package modules-nidaq
 Group: Applications/Engineering
 Summary: KAME, K's adaptive measurement engine. Modules.
-Requires: kame-modules-nmr
+Requires: kame-modules-nmr = %{version}
 Requires: nidaqmxef
 BuildPreReq: nidaqmxcapii
 %description modules-nidaq
