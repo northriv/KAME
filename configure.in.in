@@ -40,7 +40,7 @@ LIBS="$ac_save_LIBS"
 
 ac_save_LIBS="$LIBS"
 AC_CHECK_LIB(nidaqmx, main, 
-nidaqmx_libs="-L/usr/local/lib -lnidaqmx"\
+nidaqmx_libs="-L/usr/local/lib -lnidaqmx"
 nidaqmx_cflags="-I/usr/local/include"
 AC_DEFINE([HAVE_NI_DAQMX], 1, [Define if you have 'NI-DAQmx' library]),
 AC_MSG_WARN([NIDAQmx is not installed - NIDAQmx is disabled]), -L/usr/local/lib -lnidaqmx)

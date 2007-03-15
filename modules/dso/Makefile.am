@@ -1,7 +1,8 @@
 moduleexecdir=$(pkglibdir)/modules
 moduleexec_LTLIBRARIES = libdso.la
 
-libdso_la_LDFLAGS = -module
+libdso_la_LDFLAGS = -module -L$(moduleexecdir)\
+	-dlpreopen=libcharinterface.so
 
 INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/kame/graph \
@@ -16,7 +17,6 @@ libdso_la_SOURCES = fir.cpp fir.h \
 	dso.cpp dso.h \
 	tds.cpp tds.h
 libdso_la_LIBADD = forms/libforms.la
-#	../charinterface/libcharinterface.la
 
 #AM_CXXFLAGS = $(CXXFLAGS) \
 #	-O6  \

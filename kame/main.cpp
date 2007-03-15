@@ -28,7 +28,7 @@
 #include <qtextcodec.h>
 #include <errno.h>
 
-#include <dlfcn.h>
+#include <ltdl.h>
 
 static const char *description =
 I18N_NOOP("KAME");
@@ -47,6 +47,15 @@ static KCmdLineOptions options[] =
     KCmdLineLastOption
     // INSERT YOUR COMMANDLINE OPTIONS HERE
 };
+
+int load_module(const char *filename, lt_ptr ) {
+	lt_dlhandle handle = lt_dlopenext(filename);
+	if(handle)
+		fprintf(stderr, "Module %s loaded\n", filename);
+	else
+		fprintf(stderr, "loading module %s failed %s\n\n\n", filename, lt_dlerror());
+	return 0;
+}
 
 int main(int argc, char *argv[])
 {
@@ -129,14 +138,16 @@ int main(int argc, char *argv[])
 	  return 0;
 	*/
 
-	QString path = ::locate("lib", "kame/module/");
-
+	lt_dlinit();
+	QStringList libdirs = KGlobal::instance()->dirs()->resourceDirs("lib");
+	for(QStringList::iterator it = libdirs.begin(); it != libdirs.end(); it++) {
+		QString path = *it + "kame/modules";
+		lt_dladdsearchdir(path);
+		fprintf(stderr, "search in %s\n", (const char*)path);
+		lt_dlforeachfile(path, &load_module, NULL);
+	}
 	for(QCStringList::iterator it = module_path.begin(); it != module_path.end(); it++) {
-		void *handle = dlopen(*it, RTLD_LAZY | RTLD_GLOBAL);
-		if(handle)
-			fprintf(stderr, "loaded\n\n\n");
-		else
-			fprintf(stderr, "loading failed %s\n\n\n", dlerror());
+		load_module(*it, NULL);
 	}
 
 	int ret = app->exec();

@@ -41,7 +41,7 @@ kame_LDADD = $(top_builddir)/kame/forms/libforms.a \
 	$(top_builddir)/kame/graph/libgraph.a \
 	$(top_srcdir)/FTGL/unix/src/.libs/libftgl.a -lGLU -lm \
 	$(LIB_KFILE) $(LIB_KDEUI) $(LIB_KDECORE) $(LIB_QT) $(LIBSOCKET) -lkmdi @RUBY_LIBS@\
-	@GC_LIBS@ @MALLOC_DEBUG_LIBS@ @FREETYPE2_LIBS@ @GSL_LIBS@
+	@GC_LIBS@ @MALLOC_DEBUG_LIBS@ @FREETYPE2_LIBS@ @GSL_LIBS@ -lltdl
 
 kame_LDFLAGS = $(all_libraries) -export-dynamic
 #-rdynamic

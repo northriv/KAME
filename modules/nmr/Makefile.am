@@ -1,7 +1,7 @@
 moduleexecdir=$(pkglibdir)/modules
 moduleexec_LTLIBRARIES = libnmr.la
 
-libnmr_la_LDFLAGS = -module
+libnmr_la_LDFLAGS = -module -rpath=$(moduleexecdir)
 
 INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/modules/dso \
