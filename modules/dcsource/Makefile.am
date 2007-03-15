@@ -11,8 +11,8 @@ INCLUDES = -I$(top_srcdir)/kame \
 	$(all_includes)
 	
 libdcsource_la_SOURCES = dcsource.cpp dcsource.h
-libdcsource_la_LIBADD = forms/libforms.la
-#	../charinterface/libcharinterface.la
+libdcsource_la_LIBADD = forms/libforms.la \
+	../charinterface/libcharinterface.la
 
 SUBDIRS = forms
 METASOURCES = AUTO

@@ -6,6 +6,12 @@ AC_LANG_CPLUSPLUS
 
 CXXFLAGS="$CXXFLAGS $USE_EXCEPTIONS"
 
+ac_save_LIBS="$LIBS"
+AC_CHECK_LIB(ltdl, main, ltdl_libs="-lltdl",
+  AC_MSG_ERROR([libtool-ltdl not installed - please install first]))
+LTDL_LIBS="$LTDL_LIBS $ltdl_libs"
+LIBS="$ac_save_LIBS"
+
 AC_MSG_CHECKING(for freetype2)
 if freetype-config --libs > /dev/null 2>&1; then
   AC_MSG_RESULT(yes)
@@ -88,6 +94,7 @@ AC_CHECK_SIZEOF(int)
 AC_CHECK_SIZEOF(long)
 AC_CHECK_SIZEOF(void *)
 
+AC_SUBST(LTDL_LIBS)
 AC_SUBST(GSL_LIBS)
 AC_SUBST(FFTW_LIBS)
 AC_SUBST(NIDAQMX_LIBS)
@@ -101,5 +108,3 @@ AC_SUBST(GC_LIBS)
 AC_SUBST(MALLOC_DEBUG_LIBS)
 
 CPPFLAGS="$CPPFLAGS $RUBY_CFLAGS $FREETYPE2_CFLAGS $NIDAQMX_CFLAGS"
-
-AC_CONFIG_SUBDIRS([libltdl])

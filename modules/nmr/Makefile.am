@@ -27,11 +27,8 @@ libnmr_la_SOURCES = \
 	signalgenerator.cpp signalgenerator.h
 	
 libnmr_la_LIBADD = forms/libforms.la \
+	../charinterface/libcharinterface.la \
 	@FFTW_LIBS@ @GSL_LIBS@
-
-#	../charinterface/libcharinterface.la 
-#	../dso/libdso.la 
-#	../magnetps/libmagnetps.la 
 
 #AM_CXXFLAGS = $(CXXFLAGS) \
 #	-O6  \

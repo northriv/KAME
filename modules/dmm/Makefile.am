@@ -12,8 +12,8 @@ INCLUDES = -I$(top_srcdir)/kame \
 	
 libdmm_la_SOURCES = dmm.cpp dmm.h \
 	userdmm.cpp userdmm.h
-libdmm_la_LIBADD = forms/libforms.la
-#	../charinterface/libcharinterface.la
+libdmm_la_LIBADD = forms/libforms.la \
+	../charinterface/libcharinterface.la
 
 SUBDIRS = forms
 METASOURCES = AUTO

@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
 	KApplication *app;
 	app = new KApplication;
   
-  	QCStringList module_path;
+	std::deque<std::string> modules;
 	{
 		KGlobal::dirs()->addPrefix(".");
 		makeIcons(app->iconLoader());
@@ -103,7 +103,10 @@ int main(int argc, char *argv[])
 			//! Use UTF8 conversion from std::string to QString.
 			QTextCodec::setCodecForCStrings(QTextCodec::codecForName("utf8") );
             
-			module_path = args->getOptionList("module");
+			QCStringList module_path = args->getOptionList("module");
+			for(QCStringList::iterator it = module_path.begin(); it != module_path.end(); it++) {
+				modules.push_back((const char*)*it);
+			}
             
 			FrmKameMain *form;
 			form = new FrmKameMain();
@@ -133,19 +136,16 @@ int main(int argc, char *argv[])
 	  }
 	  return 0;
 	*/
+	app->processEvents();
 
 	lt_dlinit();
 	LTDL_SET_PRELOADED_SYMBOLS();
-	std::deque<std::string> modules;
 	QStringList libdirs = KGlobal::instance()->dirs()->resourceDirs("lib");
 	for(QStringList::iterator it = libdirs.begin(); it != libdirs.end(); it++) {
 		QString path = *it + "kame/modules";
 		lt_dladdsearchdir(path);
 		fprintf(stderr, "search in %s\n", (const char*)path);
 		lt_dlforeachfile(path, &load_module, &modules);
-	}
-	for(QCStringList::iterator it = module_path.begin(); it != module_path.end(); it++) {
-		modules.push_back((const char*)*it);
 	}
 	
 	for(;;) {

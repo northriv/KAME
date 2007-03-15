@@ -13,8 +13,8 @@ License: GPL
 Group: Applications/Engineering
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Requires: qt >= %{qtver}, kdelibs >= %{kdever}
-Requires: libart_lgpl, gsl, zlib, ruby
-BuildPreReq: ruby-devel, gsl, boost-devel
+Requires: libart_lgpl, gsl, zlib, ruby, libtool-ltdl
+BuildPreReq: ruby-devel, gsl, boost-devel, libtool-ltdl-devel
 BuildPreReq: libidn-devel
 BuildPreReq: qt-devel >= %{qtver}, kdelibs-devel >= %{kdever}
 BuildPreReq: libart_lgpl-devel, zlib-devel, libpng-devel, libjpeg-devel
@@ -100,7 +100,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/kame/modules/libmontecarlo*
 
 %files modules-standard
-%{_libdir}/kame/modules/libcharinterface*
+%{_libdir}/kame/libcharinterface*
 %{_libdir}/kame/modules/libdcsource*
 %{_libdir}/kame/modules/libdmm*
 %{_libdir}/kame/modules/libdso*

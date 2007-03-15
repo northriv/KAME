@@ -1,4 +1,4 @@
-SUBDIRS = libltdl kame modules po doc
+SUBDIRS = kame modules po doc
 
 EXTRA_DIST = admin AUTHORS COPYING ChangeLog INSTALL README TODO
 
