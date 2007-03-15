@@ -40,7 +40,7 @@ dnl Perform program name transformation
 AC_ARG_PROGRAM
 
 dnl Automake doc recommends to do this only here. (Janos)
-AM_INIT_AUTOMAKE(kame, 2.2) dnl searches for some needed programs
+AM_INIT_AUTOMAKE([kame], 2.2) dnl searches for some needed programs
 
 KDE_SET_PREFIX
 
@@ -51,6 +51,11 @@ dnl Checks for programs.
 AC_CHECK_COMPILERS
 AC_ENABLE_SHARED(yes)
 AC_ENABLE_STATIC(no)
+
+dnl Enable building of the convenience library
+dnl and set LIBLTDL accordingly
+AC_LIBLTDL_CONVENIENCE
+
 KDE_PROG_LIBTOOL
 
 dnl for NLS support. Call them in this order!
@@ -59,6 +64,10 @@ AM_KDE_WITH_NLS
 
 KDE_USE_QT(3)
 AC_PATH_KDE
+
+dnl Substitute LTDLINCL and LIBLTDL in the Makefiles
+AC_SUBST(LTDLINCL)
+AC_SUBST(LIBLTDL)
 dnl =======================================================
 dnl FILE: configure.in.in
 dnl =======================================================
@@ -105,7 +114,7 @@ LIBS="$ac_save_LIBS"
 
 ac_save_LIBS="$LIBS"
 AC_CHECK_LIB(nidaqmx, main, 
-nidaqmx_libs="-L/usr/local/lib -lnidaqmx"\
+nidaqmx_libs="-L/usr/local/lib -lnidaqmx"
 nidaqmx_cflags="-I/usr/local/include"
 AC_DEFINE([HAVE_NI_DAQMX], 1, [Define if you have 'NI-DAQmx' library]),
 AC_MSG_WARN([NIDAQmx is not installed - NIDAQmx is disabled]), -L/usr/local/lib -lnidaqmx)
@@ -166,6 +175,8 @@ AC_SUBST(GC_LIBS)
 AC_SUBST(MALLOC_DEBUG_LIBS)
 
 CPPFLAGS="$CPPFLAGS $RUBY_CFLAGS $FREETYPE2_CFLAGS $NIDAQMX_CFLAGS"
+
+AC_CONFIG_SUBDIRS([libltdl])
 KDE_CREATE_SUBDIRSLIST
 AC_CONFIG_FILES([ Makefile ])
 AC_CONFIG_FILES([ doc/Makefile ])
@@ -183,6 +194,7 @@ AC_CONFIG_FILES([ kame/script/Makefile ])
 AC_CONFIG_FILES([ kame/script/forms/Makefile ])
 AC_CONFIG_FILES([ kame/thermometer/Makefile ])
 AC_CONFIG_FILES([ kame/thermometer/forms/Makefile ])
+AC_CONFIG_FILES([ libltdl/Makefile ])
 AC_CONFIG_FILES([ modules/Makefile ])
 AC_CONFIG_FILES([ modules/charinterface/Makefile ])
 AC_CONFIG_FILES([ modules/dcsource/Makefile ])

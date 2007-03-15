@@ -1225,24 +1225,24 @@ You should run autoupdate.], [autoconf/general.m4:209: AC_HELP_STRING is expande
 autoconf/general.m4:1382: AC_ARG_ENABLE is expanded from...
 aclocal.m4:13708: AC_ENABLE_STATIC is expanded from...
 configure.in:53: the top level])
-m4trace:configure.in:54: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
+m4trace:configure.in:59: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:209: AC_HELP_STRING is expanded from...
 aclocal.m4:3137: KDE_CHECK_LIB64 is expanded from...
 aclocal.m4:3112: KDE_PROG_LIBTOOL is expanded from...
-configure.in:54: the top level])
-m4trace:configure.in:54: -1- AC_DEFINE_TRACE_LITERAL([KDELIBSUFF])
-m4trace:configure.in:54: -1- m4_pattern_allow([^KDELIBSUFF$])
-m4trace:configure.in:54: -1- AH_OUTPUT([KDELIBSUFF], [/* Suffix for lib directories */
+configure.in:59: the top level])
+m4trace:configure.in:59: -1- AC_DEFINE_TRACE_LITERAL([KDELIBSUFF])
+m4trace:configure.in:59: -1- m4_pattern_allow([^KDELIBSUFF$])
+m4trace:configure.in:59: -1- AH_OUTPUT([KDELIBSUFF], [/* Suffix for lib directories */
 #undef KDELIBSUFF])
-m4trace:configure.in:54: -1- AC_SUBST([libdir], ["$libdir"])
-m4trace:configure.in:54: -1- AC_SUBST_TRACE([libdir])
-m4trace:configure.in:54: -1- m4_pattern_allow([^libdir$])
-m4trace:configure.in:54: -1- AC_DEFINE_TRACE_LITERAL([KDELIBSUFF])
-m4trace:configure.in:54: -1- m4_pattern_allow([^KDELIBSUFF$])
-m4trace:configure.in:54: -1- AH_OUTPUT([KDELIBSUFF], [/* Suffix for lib directories */
+m4trace:configure.in:59: -1- AC_SUBST([libdir], ["$libdir"])
+m4trace:configure.in:59: -1- AC_SUBST_TRACE([libdir])
+m4trace:configure.in:59: -1- m4_pattern_allow([^libdir$])
+m4trace:configure.in:59: -1- AC_DEFINE_TRACE_LITERAL([KDELIBSUFF])
+m4trace:configure.in:59: -1- m4_pattern_allow([^KDELIBSUFF$])
+m4trace:configure.in:59: -1- AH_OUTPUT([KDELIBSUFF], [/* Suffix for lib directories */
 #undef KDELIBSUFF])
-m4trace:configure.in:54: -1- AC_PROG_LIBTOOL
-m4trace:configure.in:54: -1- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
+m4trace:configure.in:59: -1- AC_PROG_LIBTOOL
+m4trace:configure.in:59: -1- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:209: AC_HELP_STRING is expanded from...
 autoconf/general.m4:1382: AC_ARG_ENABLE is expanded from...
 aclocal.m4:13747: AC_ENABLE_FAST_INSTALL is expanded from...
@@ -1251,8 +1251,8 @@ aclocal.m4:12018: _AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:11998: AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:17749: AM_PROG_LIBTOOL is expanded from...
 aclocal.m4:3112: KDE_PROG_LIBTOOL is expanded from...
-configure.in:54: the top level])
-m4trace:configure.in:54: -1- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
+configure.in:59: the top level])
+m4trace:configure.in:59: -1- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:209: AC_HELP_STRING is expanded from...
 autoconf/general.m4:1400: AC_ARG_WITH is expanded from...
 aclocal.m4:13944: AC_PROG_LD is expanded from...
@@ -1261,36 +1261,36 @@ aclocal.m4:12018: _AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:11998: AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:17749: AM_PROG_LIBTOOL is expanded from...
 aclocal.m4:3112: KDE_PROG_LIBTOOL is expanded from...
-configure.in:54: the top level])
-m4trace:configure.in:54: -1- AC_SUBST([GREP])
-m4trace:configure.in:54: -1- AC_SUBST_TRACE([GREP])
-m4trace:configure.in:54: -1- m4_pattern_allow([^GREP$])
-m4trace:configure.in:54: -1- AC_SUBST([GREP])
-m4trace:configure.in:54: -1- AC_SUBST_TRACE([GREP])
-m4trace:configure.in:54: -1- m4_pattern_allow([^GREP$])
-m4trace:configure.in:54: -1- AC_SUBST([EGREP])
-m4trace:configure.in:54: -1- AC_SUBST_TRACE([EGREP])
-m4trace:configure.in:54: -1- m4_pattern_allow([^EGREP$])
-m4trace:configure.in:54: -1- AC_SUBST([EGREP])
-m4trace:configure.in:54: -1- AC_SUBST_TRACE([EGREP])
-m4trace:configure.in:54: -1- m4_pattern_allow([^EGREP$])
-m4trace:configure.in:54: -1- AC_PROG_LN_S
-m4trace:configure.in:54: -1- AC_SUBST([LN_S], [$as_ln_s])
-m4trace:configure.in:54: -1- AC_SUBST_TRACE([LN_S])
-m4trace:configure.in:54: -1- m4_pattern_allow([^LN_S$])
-m4trace:configure.in:54: -1- AC_SUBST([ECHO])
-m4trace:configure.in:54: -1- AC_SUBST_TRACE([ECHO])
-m4trace:configure.in:54: -1- m4_pattern_allow([^ECHO$])
-m4trace:configure.in:54: -1- AC_SUBST([AR])
-m4trace:configure.in:54: -1- AC_SUBST_TRACE([AR])
-m4trace:configure.in:54: -1- m4_pattern_allow([^AR$])
-m4trace:configure.in:54: -1- AC_SUBST([RANLIB])
-m4trace:configure.in:54: -1- AC_SUBST_TRACE([RANLIB])
-m4trace:configure.in:54: -1- m4_pattern_allow([^RANLIB$])
-m4trace:configure.in:54: -1- AC_SUBST([STRIP])
-m4trace:configure.in:54: -1- AC_SUBST_TRACE([STRIP])
-m4trace:configure.in:54: -1- m4_pattern_allow([^STRIP$])
-m4trace:configure.in:54: -1- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
+configure.in:59: the top level])
+m4trace:configure.in:59: -1- AC_SUBST([GREP])
+m4trace:configure.in:59: -1- AC_SUBST_TRACE([GREP])
+m4trace:configure.in:59: -1- m4_pattern_allow([^GREP$])
+m4trace:configure.in:59: -1- AC_SUBST([GREP])
+m4trace:configure.in:59: -1- AC_SUBST_TRACE([GREP])
+m4trace:configure.in:59: -1- m4_pattern_allow([^GREP$])
+m4trace:configure.in:59: -1- AC_SUBST([EGREP])
+m4trace:configure.in:59: -1- AC_SUBST_TRACE([EGREP])
+m4trace:configure.in:59: -1- m4_pattern_allow([^EGREP$])
+m4trace:configure.in:59: -1- AC_SUBST([EGREP])
+m4trace:configure.in:59: -1- AC_SUBST_TRACE([EGREP])
+m4trace:configure.in:59: -1- m4_pattern_allow([^EGREP$])
+m4trace:configure.in:59: -1- AC_PROG_LN_S
+m4trace:configure.in:59: -1- AC_SUBST([LN_S], [$as_ln_s])
+m4trace:configure.in:59: -1- AC_SUBST_TRACE([LN_S])
+m4trace:configure.in:59: -1- m4_pattern_allow([^LN_S$])
+m4trace:configure.in:59: -1- AC_SUBST([ECHO])
+m4trace:configure.in:59: -1- AC_SUBST_TRACE([ECHO])
+m4trace:configure.in:59: -1- m4_pattern_allow([^ECHO$])
+m4trace:configure.in:59: -1- AC_SUBST([AR])
+m4trace:configure.in:59: -1- AC_SUBST_TRACE([AR])
+m4trace:configure.in:59: -1- m4_pattern_allow([^AR$])
+m4trace:configure.in:59: -1- AC_SUBST([RANLIB])
+m4trace:configure.in:59: -1- AC_SUBST_TRACE([RANLIB])
+m4trace:configure.in:59: -1- m4_pattern_allow([^RANLIB$])
+m4trace:configure.in:59: -1- AC_SUBST([STRIP])
+m4trace:configure.in:59: -1- AC_SUBST_TRACE([STRIP])
+m4trace:configure.in:59: -1- m4_pattern_allow([^STRIP$])
+m4trace:configure.in:59: -1- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:209: AC_HELP_STRING is expanded from...
 autoconf/general.m4:1382: AC_ARG_ENABLE is expanded from...
 aclocal.m4:12163: AC_LIBTOOL_SETUP is expanded from...
@@ -1298,8 +1298,8 @@ aclocal.m4:12018: _AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:11998: AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:17749: AM_PROG_LIBTOOL is expanded from...
 aclocal.m4:3112: KDE_PROG_LIBTOOL is expanded from...
-configure.in:54: the top level])
-m4trace:configure.in:54: -1- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
+configure.in:59: the top level])
+m4trace:configure.in:59: -1- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:209: AC_HELP_STRING is expanded from...
 autoconf/general.m4:1400: AC_ARG_WITH is expanded from...
 aclocal.m4:12163: AC_LIBTOOL_SETUP is expanded from...
@@ -1307,8 +1307,8 @@ aclocal.m4:12018: _AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:11998: AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:17749: AM_PROG_LIBTOOL is expanded from...
 aclocal.m4:3112: KDE_PROG_LIBTOOL is expanded from...
-configure.in:54: the top level])
-m4trace:configure.in:54: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
+configure.in:59: the top level])
+m4trace:configure.in:59: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:2426: AC_TRY_LINK is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -1322,41 +1322,41 @@ aclocal.m4:12018: _AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:11998: AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:17749: AM_PROG_LIBTOOL is expanded from...
 aclocal.m4:3112: KDE_PROG_LIBTOOL is expanded from...
-configure.in:54: the top level])
-m4trace:configure.in:54: -1- AC_CHECK_HEADERS([dlfcn.h])
-m4trace:configure.in:54: -1- AH_OUTPUT([HAVE_DLFCN_H], [/* Define to 1 if you have the <dlfcn.h> header file. */
+configure.in:59: the top level])
+m4trace:configure.in:59: -1- AC_CHECK_HEADERS([dlfcn.h])
+m4trace:configure.in:59: -1- AH_OUTPUT([HAVE_DLFCN_H], [/* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H])
-m4trace:configure.in:54: -1- AC_HEADER_STDC
-m4trace:configure.in:54: -1- AC_DEFINE_TRACE_LITERAL([STDC_HEADERS])
-m4trace:configure.in:54: -1- m4_pattern_allow([^STDC_HEADERS$])
-m4trace:configure.in:54: -1- AH_OUTPUT([STDC_HEADERS], [/* Define to 1 if you have the ANSI C header files. */
+m4trace:configure.in:59: -1- AC_HEADER_STDC
+m4trace:configure.in:59: -1- AC_DEFINE_TRACE_LITERAL([STDC_HEADERS])
+m4trace:configure.in:59: -1- m4_pattern_allow([^STDC_HEADERS$])
+m4trace:configure.in:59: -1- AH_OUTPUT([STDC_HEADERS], [/* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS])
-m4trace:configure.in:54: -1- AC_CHECK_HEADERS([sys/types.h sys/stat.h stdlib.h string.h memory.h strings.h \
+m4trace:configure.in:59: -1- AC_CHECK_HEADERS([sys/types.h sys/stat.h stdlib.h string.h memory.h strings.h \
 		  inttypes.h stdint.h unistd.h], [], [], [$ac_includes_default])
-m4trace:configure.in:54: -1- AH_OUTPUT([HAVE_SYS_TYPES_H], [/* Define to 1 if you have the <sys/types.h> header file. */
+m4trace:configure.in:59: -1- AH_OUTPUT([HAVE_SYS_TYPES_H], [/* Define to 1 if you have the <sys/types.h> header file. */
 #undef HAVE_SYS_TYPES_H])
-m4trace:configure.in:54: -1- AH_OUTPUT([HAVE_SYS_STAT_H], [/* Define to 1 if you have the <sys/stat.h> header file. */
+m4trace:configure.in:59: -1- AH_OUTPUT([HAVE_SYS_STAT_H], [/* Define to 1 if you have the <sys/stat.h> header file. */
 #undef HAVE_SYS_STAT_H])
-m4trace:configure.in:54: -1- AH_OUTPUT([HAVE_STDLIB_H], [/* Define to 1 if you have the <stdlib.h> header file. */
+m4trace:configure.in:59: -1- AH_OUTPUT([HAVE_STDLIB_H], [/* Define to 1 if you have the <stdlib.h> header file. */
 #undef HAVE_STDLIB_H])
-m4trace:configure.in:54: -1- AH_OUTPUT([HAVE_STRING_H], [/* Define to 1 if you have the <string.h> header file. */
+m4trace:configure.in:59: -1- AH_OUTPUT([HAVE_STRING_H], [/* Define to 1 if you have the <string.h> header file. */
 #undef HAVE_STRING_H])
-m4trace:configure.in:54: -1- AH_OUTPUT([HAVE_MEMORY_H], [/* Define to 1 if you have the <memory.h> header file. */
+m4trace:configure.in:59: -1- AH_OUTPUT([HAVE_MEMORY_H], [/* Define to 1 if you have the <memory.h> header file. */
 #undef HAVE_MEMORY_H])
-m4trace:configure.in:54: -1- AH_OUTPUT([HAVE_STRINGS_H], [/* Define to 1 if you have the <strings.h> header file. */
+m4trace:configure.in:59: -1- AH_OUTPUT([HAVE_STRINGS_H], [/* Define to 1 if you have the <strings.h> header file. */
 #undef HAVE_STRINGS_H])
-m4trace:configure.in:54: -1- AH_OUTPUT([HAVE_INTTYPES_H], [/* Define to 1 if you have the <inttypes.h> header file. */
+m4trace:configure.in:59: -1- AH_OUTPUT([HAVE_INTTYPES_H], [/* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H])
-m4trace:configure.in:54: -1- AH_OUTPUT([HAVE_STDINT_H], [/* Define to 1 if you have the <stdint.h> header file. */
+m4trace:configure.in:59: -1- AH_OUTPUT([HAVE_STDINT_H], [/* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H])
-m4trace:configure.in:54: -1- AH_OUTPUT([HAVE_UNISTD_H], [/* Define to 1 if you have the <unistd.h> header file. */
+m4trace:configure.in:59: -1- AH_OUTPUT([HAVE_UNISTD_H], [/* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H])
-m4trace:configure.in:54: -1- AC_CHECK_LIB([dl], [dlopen], [lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-ldl"], [
+m4trace:configure.in:59: -1- AC_CHECK_LIB([dl], [dlopen], [lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-ldl"], [
     lt_cv_dlopen="dyld"
     lt_cv_dlopen_libs=
     lt_cv_dlopen_self=yes
     ])
-m4trace:configure.in:54: -1- AC_CHECK_LIB([dld], [shl_load], [lt_cv_dlopen="shl_load" lt_cv_dlopen_libs="-dld"], [AC_CHECK_FUNC([dlopen],
+m4trace:configure.in:59: -1- AC_CHECK_LIB([dld], [shl_load], [lt_cv_dlopen="shl_load" lt_cv_dlopen_libs="-dld"], [AC_CHECK_FUNC([dlopen],
 	      [lt_cv_dlopen="dlopen"],
 	  [AC_CHECK_LIB([dl], [dlopen],
 		[lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-ldl"],
@@ -1368,18 +1368,18 @@ m4trace:configure.in:54: -1- AC_CHECK_LIB([dld], [shl_load], [lt_cv_dlopen="shl_
 	    ])
 	  ])
 	])
-m4trace:configure.in:54: -1- AC_CHECK_LIB([dl], [dlopen], [lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-ldl"], [AC_CHECK_LIB([svld], [dlopen],
+m4trace:configure.in:59: -1- AC_CHECK_LIB([dl], [dlopen], [lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-ldl"], [AC_CHECK_LIB([svld], [dlopen],
 		  [lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-lsvld"],
 	      [AC_CHECK_LIB([dld], [dld_link],
 		    [lt_cv_dlopen="dld_link" lt_cv_dlopen_libs="-dld"])
 	      ])
 	    ])
-m4trace:configure.in:54: -1- AC_CHECK_LIB([svld], [dlopen], [lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-lsvld"], [AC_CHECK_LIB([dld], [dld_link],
+m4trace:configure.in:59: -1- AC_CHECK_LIB([svld], [dlopen], [lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-lsvld"], [AC_CHECK_LIB([dld], [dld_link],
 		    [lt_cv_dlopen="dld_link" lt_cv_dlopen_libs="-dld"])
 	      ])
-m4trace:configure.in:54: -1- AC_CHECK_LIB([dld], [dld_link], [lt_cv_dlopen="dld_link" lt_cv_dlopen_libs="-dld"])
-m4trace:configure.in:54: -1- _LT_AC_TAGCONFIG
-m4trace:configure.in:54: -1- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
+m4trace:configure.in:59: -1- AC_CHECK_LIB([dld], [dld_link], [lt_cv_dlopen="dld_link" lt_cv_dlopen_libs="-dld"])
+m4trace:configure.in:59: -1- _LT_AC_TAGCONFIG
+m4trace:configure.in:59: -1- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:209: AC_HELP_STRING is expanded from...
 autoconf/general.m4:1400: AC_ARG_WITH is expanded from...
 aclocal.m4:13623: _LT_AC_TAGCONFIG is expanded from...
@@ -1388,27 +1388,27 @@ aclocal.m4:12018: _AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:11998: AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:17749: AM_PROG_LIBTOOL is expanded from...
 aclocal.m4:3112: KDE_PROG_LIBTOOL is expanded from...
-configure.in:54: the top level])
-m4trace:configure.in:54: -1- _m4_warn([obsolete], [back quotes and double quotes must not be escaped in: $as_me:$LINENO: error: tag name \"$tagname\" already exists], [aclocal.m4:13623: _LT_AC_TAGCONFIG is expanded from...
+configure.in:59: the top level])
+m4trace:configure.in:59: -1- _m4_warn([obsolete], [back quotes and double quotes must not be escaped in: $as_me:$LINENO: error: tag name \"$tagname\" already exists], [aclocal.m4:13623: _LT_AC_TAGCONFIG is expanded from...
 aclocal.m4:12163: AC_LIBTOOL_SETUP is expanded from...
 aclocal.m4:12018: _AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:11998: AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:17749: AM_PROG_LIBTOOL is expanded from...
 aclocal.m4:3112: KDE_PROG_LIBTOOL is expanded from...
-configure.in:54: the top level])
-m4trace:configure.in:54: -1- _m4_warn([obsolete], [back quotes and double quotes must not be escaped in: $as_me: error: tag name \"$tagname\" already exists], [aclocal.m4:13623: _LT_AC_TAGCONFIG is expanded from...
+configure.in:59: the top level])
+m4trace:configure.in:59: -1- _m4_warn([obsolete], [back quotes and double quotes must not be escaped in: $as_me: error: tag name \"$tagname\" already exists], [aclocal.m4:13623: _LT_AC_TAGCONFIG is expanded from...
 aclocal.m4:12163: AC_LIBTOOL_SETUP is expanded from...
 aclocal.m4:12018: _AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:11998: AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:17749: AM_PROG_LIBTOOL is expanded from...
 aclocal.m4:3112: KDE_PROG_LIBTOOL is expanded from...
-configure.in:54: the top level])
-m4trace:configure.in:54: -1- AC_CHECK_LIB([dl], [dlopen], [lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-ldl"], [
+configure.in:59: the top level])
+m4trace:configure.in:59: -1- AC_CHECK_LIB([dl], [dlopen], [lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-ldl"], [
     lt_cv_dlopen="dyld"
     lt_cv_dlopen_libs=
     lt_cv_dlopen_self=yes
     ])
-m4trace:configure.in:54: -1- AC_CHECK_LIB([dld], [shl_load], [lt_cv_dlopen="shl_load" lt_cv_dlopen_libs="-dld"], [AC_CHECK_FUNC([dlopen],
+m4trace:configure.in:59: -1- AC_CHECK_LIB([dld], [shl_load], [lt_cv_dlopen="shl_load" lt_cv_dlopen_libs="-dld"], [AC_CHECK_FUNC([dlopen],
 	      [lt_cv_dlopen="dlopen"],
 	  [AC_CHECK_LIB([dl], [dlopen],
 		[lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-ldl"],
@@ -1420,32 +1420,32 @@ m4trace:configure.in:54: -1- AC_CHECK_LIB([dld], [shl_load], [lt_cv_dlopen="shl_
 	    ])
 	  ])
 	])
-m4trace:configure.in:54: -1- AC_CHECK_LIB([dl], [dlopen], [lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-ldl"], [AC_CHECK_LIB([svld], [dlopen],
+m4trace:configure.in:59: -1- AC_CHECK_LIB([dl], [dlopen], [lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-ldl"], [AC_CHECK_LIB([svld], [dlopen],
 		  [lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-lsvld"],
 	      [AC_CHECK_LIB([dld], [dld_link],
 		    [lt_cv_dlopen="dld_link" lt_cv_dlopen_libs="-dld"])
 	      ])
 	    ])
-m4trace:configure.in:54: -1- AC_CHECK_LIB([svld], [dlopen], [lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-lsvld"], [AC_CHECK_LIB([dld], [dld_link],
+m4trace:configure.in:59: -1- AC_CHECK_LIB([svld], [dlopen], [lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-lsvld"], [AC_CHECK_LIB([dld], [dld_link],
 		    [lt_cv_dlopen="dld_link" lt_cv_dlopen_libs="-dld"])
 	      ])
-m4trace:configure.in:54: -1- AC_CHECK_LIB([dld], [dld_link], [lt_cv_dlopen="dld_link" lt_cv_dlopen_libs="-dld"])
-m4trace:configure.in:54: -1- AC_SUBST([F77])
-m4trace:configure.in:54: -1- AC_SUBST_TRACE([F77])
-m4trace:configure.in:54: -1- m4_pattern_allow([^F77$])
-m4trace:configure.in:54: -1- AC_SUBST([FFLAGS])
-m4trace:configure.in:54: -1- AC_SUBST_TRACE([FFLAGS])
-m4trace:configure.in:54: -1- m4_pattern_allow([^FFLAGS$])
-m4trace:configure.in:54: -1- AC_SUBST([LDFLAGS])
-m4trace:configure.in:54: -1- AC_SUBST_TRACE([LDFLAGS])
-m4trace:configure.in:54: -1- m4_pattern_allow([^LDFLAGS$])
-m4trace:configure.in:54: -1- AC_SUBST([F77])
-m4trace:configure.in:54: -1- AC_SUBST_TRACE([F77])
-m4trace:configure.in:54: -1- m4_pattern_allow([^F77$])
-m4trace:configure.in:54: -1- AC_SUBST([ac_ct_F77])
-m4trace:configure.in:54: -1- AC_SUBST_TRACE([ac_ct_F77])
-m4trace:configure.in:54: -1- m4_pattern_allow([^ac_ct_F77$])
-m4trace:configure.in:54: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
+m4trace:configure.in:59: -1- AC_CHECK_LIB([dld], [dld_link], [lt_cv_dlopen="dld_link" lt_cv_dlopen_libs="-dld"])
+m4trace:configure.in:59: -1- AC_SUBST([F77])
+m4trace:configure.in:59: -1- AC_SUBST_TRACE([F77])
+m4trace:configure.in:59: -1- m4_pattern_allow([^F77$])
+m4trace:configure.in:59: -1- AC_SUBST([FFLAGS])
+m4trace:configure.in:59: -1- AC_SUBST_TRACE([FFLAGS])
+m4trace:configure.in:59: -1- m4_pattern_allow([^FFLAGS$])
+m4trace:configure.in:59: -1- AC_SUBST([LDFLAGS])
+m4trace:configure.in:59: -1- AC_SUBST_TRACE([LDFLAGS])
+m4trace:configure.in:59: -1- m4_pattern_allow([^LDFLAGS$])
+m4trace:configure.in:59: -1- AC_SUBST([F77])
+m4trace:configure.in:59: -1- AC_SUBST_TRACE([F77])
+m4trace:configure.in:59: -1- m4_pattern_allow([^F77$])
+m4trace:configure.in:59: -1- AC_SUBST([ac_ct_F77])
+m4trace:configure.in:59: -1- AC_SUBST_TRACE([ac_ct_F77])
+m4trace:configure.in:59: -1- m4_pattern_allow([^ac_ct_F77$])
+m4trace:configure.in:59: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:170: AC_LANG_SAVE is expanded from...
 aclocal.m4:15699: _LT_AC_LANG_GCJ_CONFIG is expanded from...
 aclocal.m4:15656: AC_LIBTOOL_LANG_GCJ_CONFIG is expanded from...
@@ -1455,13 +1455,13 @@ aclocal.m4:12018: _AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:11998: AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:17749: AM_PROG_LIBTOOL is expanded from...
 aclocal.m4:3112: KDE_PROG_LIBTOOL is expanded from...
-configure.in:54: the top level])
-m4trace:configure.in:54: -1- AC_CHECK_LIB([dl], [dlopen], [lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-ldl"], [
+configure.in:59: the top level])
+m4trace:configure.in:59: -1- AC_CHECK_LIB([dl], [dlopen], [lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-ldl"], [
     lt_cv_dlopen="dyld"
     lt_cv_dlopen_libs=
     lt_cv_dlopen_self=yes
     ])
-m4trace:configure.in:54: -1- AC_CHECK_LIB([dld], [shl_load], [lt_cv_dlopen="shl_load" lt_cv_dlopen_libs="-dld"], [AC_CHECK_FUNC([dlopen],
+m4trace:configure.in:59: -1- AC_CHECK_LIB([dld], [shl_load], [lt_cv_dlopen="shl_load" lt_cv_dlopen_libs="-dld"], [AC_CHECK_FUNC([dlopen],
 	      [lt_cv_dlopen="dlopen"],
 	  [AC_CHECK_LIB([dl], [dlopen],
 		[lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-ldl"],
@@ -1473,17 +1473,17 @@ m4trace:configure.in:54: -1- AC_CHECK_LIB([dld], [shl_load], [lt_cv_dlopen="shl_
 	    ])
 	  ])
 	])
-m4trace:configure.in:54: -1- AC_CHECK_LIB([dl], [dlopen], [lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-ldl"], [AC_CHECK_LIB([svld], [dlopen],
+m4trace:configure.in:59: -1- AC_CHECK_LIB([dl], [dlopen], [lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-ldl"], [AC_CHECK_LIB([svld], [dlopen],
 		  [lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-lsvld"],
 	      [AC_CHECK_LIB([dld], [dld_link],
 		    [lt_cv_dlopen="dld_link" lt_cv_dlopen_libs="-dld"])
 	      ])
 	    ])
-m4trace:configure.in:54: -1- AC_CHECK_LIB([svld], [dlopen], [lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-lsvld"], [AC_CHECK_LIB([dld], [dld_link],
+m4trace:configure.in:59: -1- AC_CHECK_LIB([svld], [dlopen], [lt_cv_dlopen="dlopen" lt_cv_dlopen_libs="-lsvld"], [AC_CHECK_LIB([dld], [dld_link],
 		    [lt_cv_dlopen="dld_link" lt_cv_dlopen_libs="-dld"])
 	      ])
-m4trace:configure.in:54: -1- AC_CHECK_LIB([dld], [dld_link], [lt_cv_dlopen="dld_link" lt_cv_dlopen_libs="-dld"])
-m4trace:configure.in:54: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
+m4trace:configure.in:59: -1- AC_CHECK_LIB([dld], [dld_link], [lt_cv_dlopen="dld_link" lt_cv_dlopen_libs="-dld"])
+m4trace:configure.in:59: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:176: AC_LANG_RESTORE is expanded from...
 aclocal.m4:15699: _LT_AC_LANG_GCJ_CONFIG is expanded from...
 aclocal.m4:15656: AC_LIBTOOL_LANG_GCJ_CONFIG is expanded from...
@@ -1493,8 +1493,8 @@ aclocal.m4:12018: _AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:11998: AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:17749: AM_PROG_LIBTOOL is expanded from...
 aclocal.m4:3112: KDE_PROG_LIBTOOL is expanded from...
-configure.in:54: the top level])
-m4trace:configure.in:54: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
+configure.in:59: the top level])
+m4trace:configure.in:59: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:170: AC_LANG_SAVE is expanded from...
 aclocal.m4:15738: _LT_AC_LANG_RC_CONFIG is expanded from...
 aclocal.m4:15707: AC_LIBTOOL_LANG_RC_CONFIG is expanded from...
@@ -1504,8 +1504,8 @@ aclocal.m4:12018: _AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:11998: AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:17749: AM_PROG_LIBTOOL is expanded from...
 aclocal.m4:3112: KDE_PROG_LIBTOOL is expanded from...
-configure.in:54: the top level])
-m4trace:configure.in:54: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
+configure.in:59: the top level])
+m4trace:configure.in:59: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:176: AC_LANG_RESTORE is expanded from...
 aclocal.m4:15738: _LT_AC_LANG_RC_CONFIG is expanded from...
 aclocal.m4:15707: AC_LIBTOOL_LANG_RC_CONFIG is expanded from...
@@ -1515,87 +1515,87 @@ aclocal.m4:12018: _AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:11998: AC_PROG_LIBTOOL is expanded from...
 aclocal.m4:17749: AM_PROG_LIBTOOL is expanded from...
 aclocal.m4:3112: KDE_PROG_LIBTOOL is expanded from...
-configure.in:54: the top level])
-m4trace:configure.in:54: -1- AC_SUBST([LIBTOOL])
-m4trace:configure.in:54: -1- AC_SUBST_TRACE([LIBTOOL])
-m4trace:configure.in:54: -1- m4_pattern_allow([^LIBTOOL$])
-m4trace:configure.in:54: -1- AC_SUBST([KDE_PLUGIN])
-m4trace:configure.in:54: -1- AC_SUBST_TRACE([KDE_PLUGIN])
-m4trace:configure.in:54: -1- m4_pattern_allow([^KDE_PLUGIN$])
-m4trace:configure.in:54: -1- AC_SUBST([AUTOCONF], ['$(SHELL) $(top_srcdir)/admin/cvs.sh configure || touch configure'])
-m4trace:configure.in:54: -1- AC_SUBST_TRACE([AUTOCONF])
-m4trace:configure.in:54: -1- m4_pattern_allow([^AUTOCONF$])
-m4trace:configure.in:58: -1- AC_SUBST([MSGFMT])
-m4trace:configure.in:58: -1- AC_SUBST_TRACE([MSGFMT])
-m4trace:configure.in:58: -1- m4_pattern_allow([^MSGFMT$])
-m4trace:configure.in:58: -1- AC_SUBST([GMSGFMT])
-m4trace:configure.in:58: -1- AC_SUBST_TRACE([GMSGFMT])
-m4trace:configure.in:58: -1- m4_pattern_allow([^GMSGFMT$])
-m4trace:configure.in:58: -1- AC_SUBST([GMSGFMT])
-m4trace:configure.in:58: -1- AC_SUBST_TRACE([GMSGFMT])
-m4trace:configure.in:58: -1- m4_pattern_allow([^GMSGFMT$])
-m4trace:configure.in:58: -1- AC_SUBST([MSGFMT])
-m4trace:configure.in:58: -1- AC_SUBST_TRACE([MSGFMT])
-m4trace:configure.in:58: -1- m4_pattern_allow([^MSGFMT$])
-m4trace:configure.in:58: -1- AC_SUBST([XGETTEXT])
-m4trace:configure.in:58: -1- AC_SUBST_TRACE([XGETTEXT])
-m4trace:configure.in:58: -1- m4_pattern_allow([^XGETTEXT$])
-m4trace:configure.in:58: -1- AC_SUBST([XGETTEXT])
-m4trace:configure.in:58: -1- AC_SUBST_TRACE([XGETTEXT])
-m4trace:configure.in:58: -1- m4_pattern_allow([^XGETTEXT$])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
+configure.in:59: the top level])
+m4trace:configure.in:59: -1- AC_SUBST([LIBTOOL])
+m4trace:configure.in:59: -1- AC_SUBST_TRACE([LIBTOOL])
+m4trace:configure.in:59: -1- m4_pattern_allow([^LIBTOOL$])
+m4trace:configure.in:59: -1- AC_SUBST([KDE_PLUGIN])
+m4trace:configure.in:59: -1- AC_SUBST_TRACE([KDE_PLUGIN])
+m4trace:configure.in:59: -1- m4_pattern_allow([^KDE_PLUGIN$])
+m4trace:configure.in:59: -1- AC_SUBST([AUTOCONF], ['$(SHELL) $(top_srcdir)/admin/cvs.sh configure || touch configure'])
+m4trace:configure.in:59: -1- AC_SUBST_TRACE([AUTOCONF])
+m4trace:configure.in:59: -1- m4_pattern_allow([^AUTOCONF$])
+m4trace:configure.in:63: -1- AC_SUBST([MSGFMT])
+m4trace:configure.in:63: -1- AC_SUBST_TRACE([MSGFMT])
+m4trace:configure.in:63: -1- m4_pattern_allow([^MSGFMT$])
+m4trace:configure.in:63: -1- AC_SUBST([GMSGFMT])
+m4trace:configure.in:63: -1- AC_SUBST_TRACE([GMSGFMT])
+m4trace:configure.in:63: -1- m4_pattern_allow([^GMSGFMT$])
+m4trace:configure.in:63: -1- AC_SUBST([GMSGFMT])
+m4trace:configure.in:63: -1- AC_SUBST_TRACE([GMSGFMT])
+m4trace:configure.in:63: -1- m4_pattern_allow([^GMSGFMT$])
+m4trace:configure.in:63: -1- AC_SUBST([MSGFMT])
+m4trace:configure.in:63: -1- AC_SUBST_TRACE([MSGFMT])
+m4trace:configure.in:63: -1- m4_pattern_allow([^MSGFMT$])
+m4trace:configure.in:63: -1- AC_SUBST([XGETTEXT])
+m4trace:configure.in:63: -1- AC_SUBST_TRACE([XGETTEXT])
+m4trace:configure.in:63: -1- m4_pattern_allow([^XGETTEXT$])
+m4trace:configure.in:63: -1- AC_SUBST([XGETTEXT])
+m4trace:configure.in:63: -1- AC_SUBST_TRACE([XGETTEXT])
+m4trace:configure.in:63: -1- m4_pattern_allow([^XGETTEXT$])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:170: AC_LANG_SAVE is expanded from...
 aclocal.m4:4249: KDE_CHECK_STL is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
 You should run autoupdate.], [autoconf/c.m4:105: AC_LANG_CPLUSPLUS is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 aclocal.m4:4249: KDE_CHECK_STL is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 aclocal.m4:4249: KDE_CHECK_STL is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_TRY_COMPILE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_TRY_COMPILE' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:2384: AC_TRY_COMPILE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
 aclocal.m4:4249: KDE_CHECK_STL is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_DEFINE_TRACE_LITERAL([HAVE_SGI_STL])
-m4trace:configure.in:61: -1- m4_pattern_allow([^HAVE_SGI_STL$])
-m4trace:configure.in:61: -1- AH_OUTPUT([HAVE_SGI_STL], [/* Define if you have a STL implementation by SGI */
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_DEFINE_TRACE_LITERAL([HAVE_SGI_STL])
+m4trace:configure.in:66: -1- m4_pattern_allow([^HAVE_SGI_STL$])
+m4trace:configure.in:66: -1- AH_OUTPUT([HAVE_SGI_STL], [/* Define if you have a STL implementation by SGI */
 #undef HAVE_SGI_STL])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:176: AC_LANG_RESTORE is expanded from...
 aclocal.m4:4249: KDE_CHECK_STL is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_CHECK_LIB([util], [main], [LIBUTIL="-lutil"])
-m4trace:configure.in:61: -1- AC_SUBST([LIBUTIL])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIBUTIL])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIBUTIL$])
-m4trace:configure.in:61: -1- AC_CHECK_LIB([compat], [main], [LIBCOMPAT="-lcompat"])
-m4trace:configure.in:61: -1- AC_SUBST([LIBCOMPAT])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIBCOMPAT])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIBCOMPAT$])
-m4trace:configure.in:61: -2- AC_CHECK_LIB([c], [crypt], [kde_have_crypt=yes], [
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_CHECK_LIB([util], [main], [LIBUTIL="-lutil"])
+m4trace:configure.in:66: -1- AC_SUBST([LIBUTIL])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIBUTIL])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIBUTIL$])
+m4trace:configure.in:66: -1- AC_CHECK_LIB([compat], [main], [LIBCOMPAT="-lcompat"])
+m4trace:configure.in:66: -1- AC_SUBST([LIBCOMPAT])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIBCOMPAT])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIBCOMPAT$])
+m4trace:configure.in:66: -2- AC_CHECK_LIB([c], [crypt], [kde_have_crypt=yes], [
         AC_MSG_WARN([you have no crypt in either libcrypt or libc.
 You should install libcrypt from another source or configure with PAM
 support])
 	kde_have_crypt=no
       ])
-m4trace:configure.in:61: -1- AC_CHECK_LIB([crypt], [crypt], [LIBCRYPT="-lcrypt"; kde_have_crypt=yes], [{ echo "$as_me:$LINENO: checking for crypt in -lc" >&5
+m4trace:configure.in:66: -1- AC_CHECK_LIB([crypt], [crypt], [LIBCRYPT="-lcrypt"; kde_have_crypt=yes], [{ echo "$as_me:$LINENO: checking for crypt in -lc" >&5
 echo $ECHO_N "checking for crypt in -lc... $ECHO_C" >&6; }
 if test "${ac_cv_lib_c_crypt+set}" = set; then
   echo $ECHO_N "(cached) $ECHO_C" >&6
@@ -1686,14 +1686,14 @@ support" >&2;}
       
 fi
 ])
-m4trace:configure.in:61: -1- AC_SUBST([LIBCRYPT])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIBCRYPT])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIBCRYPT$])
-m4trace:configure.in:61: -1- AC_DEFINE_TRACE_LITERAL([HAVE_CRYPT])
-m4trace:configure.in:61: -1- m4_pattern_allow([^HAVE_CRYPT$])
-m4trace:configure.in:61: -1- AH_OUTPUT([HAVE_CRYPT], [/* Defines if your system has the crypt function */
+m4trace:configure.in:66: -1- AC_SUBST([LIBCRYPT])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIBCRYPT])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIBCRYPT$])
+m4trace:configure.in:66: -1- AC_DEFINE_TRACE_LITERAL([HAVE_CRYPT])
+m4trace:configure.in:66: -1- m4_pattern_allow([^HAVE_CRYPT$])
+m4trace:configure.in:66: -1- AH_OUTPUT([HAVE_CRYPT], [/* Defines if your system has the crypt function */
 #undef HAVE_CRYPT])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:170: AC_LANG_SAVE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -1704,8 +1704,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
 You should run autoupdate.], [autoconf/c.m4:105: AC_LANG_CPLUSPLUS is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -1717,8 +1717,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -1730,8 +1730,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -2- _m4_warn([obsolete], [The macro `AC_TRY_COMPILE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -2- _m4_warn([obsolete], [The macro `AC_TRY_COMPILE' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:2384: AC_TRY_COMPILE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -1742,8 +1742,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_TRY_COMPILE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_TRY_COMPILE' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:2384: AC_TRY_COMPILE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -1754,8 +1754,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:176: AC_LANG_RESTORE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -1766,32 +1766,32 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_DEFINE_TRACE_LITERAL([socklen_t])
-m4trace:configure.in:61: -1- m4_pattern_allow([^socklen_t$])
-m4trace:configure.in:61: -1- AH_OUTPUT([socklen_t], [/* Define the real type of socklen_t */
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_DEFINE_TRACE_LITERAL([socklen_t])
+m4trace:configure.in:66: -1- m4_pattern_allow([^socklen_t$])
+m4trace:configure.in:66: -1- AH_OUTPUT([socklen_t], [/* Define the real type of socklen_t */
 #undef socklen_t])
-m4trace:configure.in:61: -1- AC_DEFINE_TRACE_LITERAL([ksize_t])
-m4trace:configure.in:61: -1- m4_pattern_allow([^ksize_t$])
-m4trace:configure.in:61: -1- AH_OUTPUT([ksize_t], [/* Compatibility define */
+m4trace:configure.in:66: -1- AC_DEFINE_TRACE_LITERAL([ksize_t])
+m4trace:configure.in:66: -1- m4_pattern_allow([^ksize_t$])
+m4trace:configure.in:66: -1- AH_OUTPUT([ksize_t], [/* Compatibility define */
 #undef ksize_t])
-m4trace:configure.in:61: -1- AC_CHECK_LIB([dnet], [dnet_ntoa], [X_EXTRA_LIBS="$X_EXTRA_LIBS -ldnet"])
-m4trace:configure.in:61: -1- AC_CHECK_LIB([dnet_stub], [dnet_ntoa], [X_EXTRA_LIBS="$X_EXTRA_LIBS -ldnet_stub"])
-m4trace:configure.in:61: -1- AC_CHECK_LIB([nsl], [inet_ntoa], [X_EXTRA_LIBS="$X_EXTRA_LIBS -lnsl"])
-m4trace:configure.in:61: -1- AC_CHECK_LIB([socket], [connect], [X_EXTRA_LIBS="-lsocket $X_EXTRA_LIBS"], [], [$X_EXTRA_LIBS])
-m4trace:configure.in:61: -1- AC_CHECK_LIB([posix], [remove], [X_EXTRA_LIBS="$X_EXTRA_LIBS -lposix"])
-m4trace:configure.in:61: -2- AC_CHECK_LIB([ipc], [shmat], [X_EXTRA_LIBS="$X_EXTRA_LIBS -lipc"])
-m4trace:configure.in:61: -1- AC_CHECK_HEADERS([sys/types.h stdint.h])
-m4trace:configure.in:61: -1- AH_OUTPUT([HAVE_SYS_TYPES_H], [/* Define to 1 if you have the <sys/types.h> header file. */
+m4trace:configure.in:66: -1- AC_CHECK_LIB([dnet], [dnet_ntoa], [X_EXTRA_LIBS="$X_EXTRA_LIBS -ldnet"])
+m4trace:configure.in:66: -1- AC_CHECK_LIB([dnet_stub], [dnet_ntoa], [X_EXTRA_LIBS="$X_EXTRA_LIBS -ldnet_stub"])
+m4trace:configure.in:66: -1- AC_CHECK_LIB([nsl], [inet_ntoa], [X_EXTRA_LIBS="$X_EXTRA_LIBS -lnsl"])
+m4trace:configure.in:66: -1- AC_CHECK_LIB([socket], [connect], [X_EXTRA_LIBS="-lsocket $X_EXTRA_LIBS"], [], [$X_EXTRA_LIBS])
+m4trace:configure.in:66: -1- AC_CHECK_LIB([posix], [remove], [X_EXTRA_LIBS="$X_EXTRA_LIBS -lposix"])
+m4trace:configure.in:66: -2- AC_CHECK_LIB([ipc], [shmat], [X_EXTRA_LIBS="$X_EXTRA_LIBS -lipc"])
+m4trace:configure.in:66: -1- AC_CHECK_HEADERS([sys/types.h stdint.h])
+m4trace:configure.in:66: -1- AH_OUTPUT([HAVE_SYS_TYPES_H], [/* Define to 1 if you have the <sys/types.h> header file. */
 #undef HAVE_SYS_TYPES_H])
-m4trace:configure.in:61: -1- AH_OUTPUT([HAVE_STDINT_H], [/* Define to 1 if you have the <stdint.h> header file. */
+m4trace:configure.in:66: -1- AH_OUTPUT([HAVE_STDINT_H], [/* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H])
-m4trace:configure.in:61: -1- AC_CHECK_LIB([poll], [poll], [LIB_POLL="-lpoll"])
-m4trace:configure.in:61: -1- AC_DEFINE_TRACE_LITERAL([HAVE_COREAUDIO])
-m4trace:configure.in:61: -1- m4_pattern_allow([^HAVE_COREAUDIO$])
-m4trace:configure.in:61: -1- AH_OUTPUT([HAVE_COREAUDIO], [/* Define if you have the CoreAudio API */
+m4trace:configure.in:66: -1- AC_CHECK_LIB([poll], [poll], [LIB_POLL="-lpoll"])
+m4trace:configure.in:66: -1- AC_DEFINE_TRACE_LITERAL([HAVE_COREAUDIO])
+m4trace:configure.in:66: -1- m4_pattern_allow([^HAVE_COREAUDIO$])
+m4trace:configure.in:66: -1- AH_OUTPUT([HAVE_COREAUDIO], [/* Define if you have the CoreAudio API */
 #undef HAVE_COREAUDIO])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:2426: AC_TRY_LINK is expanded from...
 aclocal.m4:2352: AC_CHECK_RES_INIT is expanded from...
 aclocal.m4:856: KDE_MISC_TESTS is expanded from...
@@ -1800,15 +1800,15 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_DEFINE_TRACE_LITERAL([HAVE_RES_INIT])
-m4trace:configure.in:61: -1- m4_pattern_allow([^HAVE_RES_INIT$])
-m4trace:configure.in:61: -1- AH_OUTPUT([HAVE_RES_INIT], [/* Define if you have the res_init function */
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_DEFINE_TRACE_LITERAL([HAVE_RES_INIT])
+m4trace:configure.in:66: -1- m4_pattern_allow([^HAVE_RES_INIT$])
+m4trace:configure.in:66: -1- AH_OUTPUT([HAVE_RES_INIT], [/* Define if you have the res_init function */
 #undef HAVE_RES_INIT])
-m4trace:configure.in:61: -1- AC_SUBST([LIBRESOLV])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIBRESOLV])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIBRESOLV$])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_TRY_COMPILE' is obsolete.
+m4trace:configure.in:66: -1- AC_SUBST([LIBRESOLV])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIBRESOLV])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIBRESOLV$])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_TRY_COMPILE' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:2384: AC_TRY_COMPILE is expanded from...
 aclocal.m4:2352: AC_CHECK_RES_INIT is expanded from...
 aclocal.m4:856: KDE_MISC_TESTS is expanded from...
@@ -1817,56 +1817,56 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_DEFINE_TRACE_LITERAL([HAVE_RES_INIT])
-m4trace:configure.in:61: -1- m4_pattern_allow([^HAVE_RES_INIT$])
-m4trace:configure.in:61: -1- AH_OUTPUT([HAVE_RES_INIT], [/* Define if you have the res_init function */
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_DEFINE_TRACE_LITERAL([HAVE_RES_INIT])
+m4trace:configure.in:66: -1- m4_pattern_allow([^HAVE_RES_INIT$])
+m4trace:configure.in:66: -1- AH_OUTPUT([HAVE_RES_INIT], [/* Define if you have the res_init function */
 #undef HAVE_RES_INIT])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_POLL])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_POLL])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_POLL$])
-m4trace:configure.in:61: -1- AC_SUBST([FRAMEWORK_COREAUDIO])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([FRAMEWORK_COREAUDIO])
-m4trace:configure.in:61: -1- m4_pattern_allow([^FRAMEWORK_COREAUDIO$])
-m4trace:configure.in:61: -1- AC_SUBST([LIBSOCKET])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIBSOCKET])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIBSOCKET$])
-m4trace:configure.in:61: -1- AC_SUBST([X_EXTRA_LIBS])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([X_EXTRA_LIBS])
-m4trace:configure.in:61: -1- m4_pattern_allow([^X_EXTRA_LIBS$])
-m4trace:configure.in:61: -1- AC_CHECK_LIB([ucb], [killpg], [LIBUCB="-lucb"])
-m4trace:configure.in:61: -1- AC_SUBST([LIBUCB])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIBUCB])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIBUCB$])
-m4trace:configure.in:61: -1- AC_CHECK_LIB([bsd], [gethostbyname], [LIBSOCKET="-lbsd"])
-m4trace:configure.in:61: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_INT])
-m4trace:configure.in:61: -1- m4_pattern_allow([^SIZEOF_INT$])
-m4trace:configure.in:61: -1- AH_OUTPUT([SIZEOF_INT], [/* The size of `int\', as computed by sizeof. */
+m4trace:configure.in:66: -1- AC_SUBST([LIB_POLL])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_POLL])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_POLL$])
+m4trace:configure.in:66: -1- AC_SUBST([FRAMEWORK_COREAUDIO])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([FRAMEWORK_COREAUDIO])
+m4trace:configure.in:66: -1- m4_pattern_allow([^FRAMEWORK_COREAUDIO$])
+m4trace:configure.in:66: -1- AC_SUBST([LIBSOCKET])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIBSOCKET])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIBSOCKET$])
+m4trace:configure.in:66: -1- AC_SUBST([X_EXTRA_LIBS])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([X_EXTRA_LIBS])
+m4trace:configure.in:66: -1- m4_pattern_allow([^X_EXTRA_LIBS$])
+m4trace:configure.in:66: -1- AC_CHECK_LIB([ucb], [killpg], [LIBUCB="-lucb"])
+m4trace:configure.in:66: -1- AC_SUBST([LIBUCB])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIBUCB])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIBUCB$])
+m4trace:configure.in:66: -1- AC_CHECK_LIB([bsd], [gethostbyname], [LIBSOCKET="-lbsd"])
+m4trace:configure.in:66: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_INT])
+m4trace:configure.in:66: -1- m4_pattern_allow([^SIZEOF_INT$])
+m4trace:configure.in:66: -1- AH_OUTPUT([SIZEOF_INT], [/* The size of `int\', as computed by sizeof. */
 #undef SIZEOF_INT])
-m4trace:configure.in:61: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_SHORT])
-m4trace:configure.in:61: -1- m4_pattern_allow([^SIZEOF_SHORT$])
-m4trace:configure.in:61: -1- AH_OUTPUT([SIZEOF_SHORT], [/* The size of `short\', as computed by sizeof. */
+m4trace:configure.in:66: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_SHORT])
+m4trace:configure.in:66: -1- m4_pattern_allow([^SIZEOF_SHORT$])
+m4trace:configure.in:66: -1- AH_OUTPUT([SIZEOF_SHORT], [/* The size of `short\', as computed by sizeof. */
 #undef SIZEOF_SHORT])
-m4trace:configure.in:61: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_LONG])
-m4trace:configure.in:61: -1- m4_pattern_allow([^SIZEOF_LONG$])
-m4trace:configure.in:61: -1- AH_OUTPUT([SIZEOF_LONG], [/* The size of `long\', as computed by sizeof. */
+m4trace:configure.in:66: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_LONG])
+m4trace:configure.in:66: -1- m4_pattern_allow([^SIZEOF_LONG$])
+m4trace:configure.in:66: -1- AH_OUTPUT([SIZEOF_LONG], [/* The size of `long\', as computed by sizeof. */
 #undef SIZEOF_LONG])
-m4trace:configure.in:61: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_CHAR_P])
-m4trace:configure.in:61: -1- m4_pattern_allow([^SIZEOF_CHAR_P$])
-m4trace:configure.in:61: -1- AH_OUTPUT([SIZEOF_CHAR_P], [/* The size of `char *\', as computed by sizeof. */
+m4trace:configure.in:66: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_CHAR_P])
+m4trace:configure.in:66: -1- m4_pattern_allow([^SIZEOF_CHAR_P$])
+m4trace:configure.in:66: -1- AH_OUTPUT([SIZEOF_CHAR_P], [/* The size of `char *\', as computed by sizeof. */
 #undef SIZEOF_CHAR_P])
-m4trace:configure.in:61: -1- AC_CHECK_LIB([dl], [dlopen], [
+m4trace:configure.in:66: -1- AC_CHECK_LIB([dl], [dlopen], [
 LIBDL="-ldl"
 ac_cv_have_dlfcn=yes
 ])
-m4trace:configure.in:61: -1- AC_CHECK_LIB([dld], [shl_unload], [
+m4trace:configure.in:66: -1- AC_CHECK_LIB([dld], [shl_unload], [
 LIBDL="-ldld"
 ac_cv_have_shload=yes
 ])
-m4trace:configure.in:61: -1- AC_SUBST([LIBDL])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIBDL])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIBDL$])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
+m4trace:configure.in:66: -1- AC_SUBST([LIBDL])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIBDL])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIBDL$])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:170: AC_LANG_SAVE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -1879,8 +1879,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
 You should run autoupdate.], [autoconf/c.m4:105: AC_LANG_CPLUSPLUS is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -1894,8 +1894,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -1909,8 +1909,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_TRY_COMPILE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_TRY_COMPILE' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:2384: AC_TRY_COMPILE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -1923,8 +1923,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:176: AC_LANG_RESTORE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -1937,8 +1937,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:170: AC_LANG_SAVE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -1951,8 +1951,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
 You should run autoupdate.], [autoconf/c.m4:105: AC_LANG_CPLUSPLUS is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -1966,8 +1966,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -1981,8 +1981,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:2426: AC_TRY_LINK is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -1995,8 +1995,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:176: AC_LANG_RESTORE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2009,16 +2009,16 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_DEFINE_TRACE_LITERAL([HAVE_STRLCAT])
-m4trace:configure.in:61: -1- m4_pattern_allow([^HAVE_STRLCAT$])
-m4trace:configure.in:61: -1- AH_OUTPUT([HAVE_STRLCAT], [/* Define if you have strlcat */
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_DEFINE_TRACE_LITERAL([HAVE_STRLCAT])
+m4trace:configure.in:66: -1- m4_pattern_allow([^HAVE_STRLCAT$])
+m4trace:configure.in:66: -1- AH_OUTPUT([HAVE_STRLCAT], [/* Define if you have strlcat */
 #undef HAVE_STRLCAT])
-m4trace:configure.in:61: -1- AC_DEFINE_TRACE_LITERAL([HAVE_STRLCAT_PROTO])
-m4trace:configure.in:61: -1- m4_pattern_allow([^HAVE_STRLCAT_PROTO$])
-m4trace:configure.in:61: -1- AH_OUTPUT([HAVE_STRLCAT_PROTO], [/* Define if you have the strlcat prototype */
+m4trace:configure.in:66: -1- AC_DEFINE_TRACE_LITERAL([HAVE_STRLCAT_PROTO])
+m4trace:configure.in:66: -1- m4_pattern_allow([^HAVE_STRLCAT_PROTO$])
+m4trace:configure.in:66: -1- AH_OUTPUT([HAVE_STRLCAT_PROTO], [/* Define if you have the strlcat prototype */
 #undef HAVE_STRLCAT_PROTO])
-m4trace:configure.in:61: -1- AH_OUTPUT([_HAVE_STRLCAT_PROTO], [
+m4trace:configure.in:66: -1- AH_OUTPUT([_HAVE_STRLCAT_PROTO], [
 #if !defined(HAVE_STRLCAT_PROTO)
 #ifdef __cplusplus
 extern "C" {
@@ -2029,7 +2029,7 @@ unsigned long strlcat(char*, const char*, unsigned long);
 #endif
 #endif
 ])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:170: AC_LANG_SAVE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2042,8 +2042,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
 You should run autoupdate.], [autoconf/c.m4:105: AC_LANG_CPLUSPLUS is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -2057,8 +2057,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -2072,8 +2072,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_TRY_COMPILE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_TRY_COMPILE' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:2384: AC_TRY_COMPILE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2086,8 +2086,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:176: AC_LANG_RESTORE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2100,8 +2100,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:170: AC_LANG_SAVE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2114,8 +2114,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
 You should run autoupdate.], [autoconf/c.m4:105: AC_LANG_CPLUSPLUS is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -2129,8 +2129,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -2144,8 +2144,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:2426: AC_TRY_LINK is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2158,8 +2158,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:176: AC_LANG_RESTORE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2172,16 +2172,16 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_DEFINE_TRACE_LITERAL([HAVE_STRLCPY])
-m4trace:configure.in:61: -1- m4_pattern_allow([^HAVE_STRLCPY$])
-m4trace:configure.in:61: -1- AH_OUTPUT([HAVE_STRLCPY], [/* Define if you have strlcpy */
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_DEFINE_TRACE_LITERAL([HAVE_STRLCPY])
+m4trace:configure.in:66: -1- m4_pattern_allow([^HAVE_STRLCPY$])
+m4trace:configure.in:66: -1- AH_OUTPUT([HAVE_STRLCPY], [/* Define if you have strlcpy */
 #undef HAVE_STRLCPY])
-m4trace:configure.in:61: -1- AC_DEFINE_TRACE_LITERAL([HAVE_STRLCPY_PROTO])
-m4trace:configure.in:61: -1- m4_pattern_allow([^HAVE_STRLCPY_PROTO$])
-m4trace:configure.in:61: -1- AH_OUTPUT([HAVE_STRLCPY_PROTO], [/* Define if you have the strlcpy prototype */
+m4trace:configure.in:66: -1- AC_DEFINE_TRACE_LITERAL([HAVE_STRLCPY_PROTO])
+m4trace:configure.in:66: -1- m4_pattern_allow([^HAVE_STRLCPY_PROTO$])
+m4trace:configure.in:66: -1- AH_OUTPUT([HAVE_STRLCPY_PROTO], [/* Define if you have the strlcpy prototype */
 #undef HAVE_STRLCPY_PROTO])
-m4trace:configure.in:61: -1- AH_OUTPUT([_HAVE_STRLCPY_PROTO], [
+m4trace:configure.in:66: -1- AH_OUTPUT([_HAVE_STRLCPY_PROTO], [
 #if !defined(HAVE_STRLCPY_PROTO)
 #ifdef __cplusplus
 extern "C" {
@@ -2192,15 +2192,15 @@ unsigned long strlcpy(char*, const char*, unsigned long);
 #endif
 #endif
 ])
-m4trace:configure.in:61: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_SIZE_T])
-m4trace:configure.in:61: -1- m4_pattern_allow([^SIZEOF_SIZE_T$])
-m4trace:configure.in:61: -1- AH_OUTPUT([SIZEOF_SIZE_T], [/* The size of `size_t\', as computed by sizeof. */
+m4trace:configure.in:66: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_SIZE_T])
+m4trace:configure.in:66: -1- m4_pattern_allow([^SIZEOF_SIZE_T$])
+m4trace:configure.in:66: -1- AH_OUTPUT([SIZEOF_SIZE_T], [/* The size of `size_t\', as computed by sizeof. */
 #undef SIZEOF_SIZE_T])
-m4trace:configure.in:61: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_UNSIGNED_LONG])
-m4trace:configure.in:61: -1- m4_pattern_allow([^SIZEOF_UNSIGNED_LONG$])
-m4trace:configure.in:61: -1- AH_OUTPUT([SIZEOF_UNSIGNED_LONG], [/* The size of `unsigned long\', as computed by sizeof. */
+m4trace:configure.in:66: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_UNSIGNED_LONG])
+m4trace:configure.in:66: -1- m4_pattern_allow([^SIZEOF_UNSIGNED_LONG$])
+m4trace:configure.in:66: -1- AH_OUTPUT([SIZEOF_UNSIGNED_LONG], [/* The size of `unsigned long\', as computed by sizeof. */
 #undef SIZEOF_UNSIGNED_LONG])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_TRY_COMPILE' is obsolete.
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_TRY_COMPILE' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:2384: AC_TRY_COMPILE is expanded from...
 aclocal.m4:5367: KDE_CHECK_STRLCPY is expanded from...
 aclocal.m4:856: KDE_MISC_TESTS is expanded from...
@@ -2209,22 +2209,22 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_CHECK_HEADERS([crt_externs.h])
-m4trace:configure.in:61: -1- AH_OUTPUT([HAVE_CRT_EXTERNS_H], [/* Define to 1 if you have the <crt_externs.h> header file. */
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_CHECK_HEADERS([crt_externs.h])
+m4trace:configure.in:66: -1- AH_OUTPUT([HAVE_CRT_EXTERNS_H], [/* Define to 1 if you have the <crt_externs.h> header file. */
 #undef HAVE_CRT_EXTERNS_H])
-m4trace:configure.in:61: -1- AC_DEFINE_TRACE_LITERAL([HAVE_NSGETENVIRON])
-m4trace:configure.in:61: -1- m4_pattern_allow([^HAVE_NSGETENVIRON$])
-m4trace:configure.in:61: -1- AH_OUTPUT([HAVE_NSGETENVIRON], [/* Define if your system needs _NSGetEnviron to set up the environment */
+m4trace:configure.in:66: -1- AC_DEFINE_TRACE_LITERAL([HAVE_NSGETENVIRON])
+m4trace:configure.in:66: -1- m4_pattern_allow([^HAVE_NSGETENVIRON$])
+m4trace:configure.in:66: -1- AH_OUTPUT([HAVE_NSGETENVIRON], [/* Define if your system needs _NSGetEnviron to set up the environment */
 #undef HAVE_NSGETENVIRON])
-m4trace:configure.in:61: -1- AH_OUTPUT([_DARWIN_ENVIRON], [
+m4trace:configure.in:66: -1- AH_OUTPUT([_DARWIN_ENVIRON], [
 #if defined(HAVE_NSGETENVIRON) && defined(HAVE_CRT_EXTERNS_H)
 # include <sys/time.h>
 # include <crt_externs.h>
 # define environ (*_NSGetEnviron())
 #endif
 ])
-m4trace:configure.in:61: -1- AH_OUTPUT([_AIX_STRINGS_H_BZERO], [
+m4trace:configure.in:66: -1- AH_OUTPUT([_AIX_STRINGS_H_BZERO], [
 /*
  * AIX defines FD_SET in terms of bzero, but fails to include <strings.h>
  * that defines bzero.
@@ -2234,12 +2234,12 @@ m4trace:configure.in:61: -1- AH_OUTPUT([_AIX_STRINGS_H_BZERO], [
 #include <strings.h>
 #endif
 ])
-m4trace:configure.in:61: -1- AC_CHECK_FUNCS([vsnprintf snprintf])
-m4trace:configure.in:61: -1- AH_OUTPUT([HAVE_VSNPRINTF], [/* Define to 1 if you have the `vsnprintf\' function. */
+m4trace:configure.in:66: -1- AC_CHECK_FUNCS([vsnprintf snprintf])
+m4trace:configure.in:66: -1- AH_OUTPUT([HAVE_VSNPRINTF], [/* Define to 1 if you have the `vsnprintf\' function. */
 #undef HAVE_VSNPRINTF])
-m4trace:configure.in:61: -1- AH_OUTPUT([HAVE_SNPRINTF], [/* Define to 1 if you have the `snprintf\' function. */
+m4trace:configure.in:66: -1- AH_OUTPUT([HAVE_SNPRINTF], [/* Define to 1 if you have the `snprintf\' function. */
 #undef HAVE_SNPRINTF])
-m4trace:configure.in:61: -1- AH_OUTPUT([_TRU64], [
+m4trace:configure.in:66: -1- AH_OUTPUT([_TRU64], [
 /*
  * On HP-UX, the declaration of vsnprintf() is needed every time !
  */
@@ -2261,31 +2261,31 @@ extern "C"
 int snprintf(char *str, size_t n, char const *fmt, ...);
 #endif
 ])
-m4trace:configure.in:61: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
+m4trace:configure.in:66: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:209: AC_HELP_STRING is expanded from...
 aclocal.m4:1078: K_PATH_X is expanded from...
 aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:209: AC_HELP_STRING is expanded from...
 aclocal.m4:1078: K_PATH_X is expanded from...
 aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:209: AC_HELP_STRING is expanded from...
 aclocal.m4:1078: K_PATH_X is expanded from...
 aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_TRY_CPP' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_TRY_CPP' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:2314: AC_TRY_CPP is expanded from...
 aclocal.m4:169: KDE_PATH_X_DIRECT is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -2295,8 +2295,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:2426: AC_TRY_LINK is expanded from...
 aclocal.m4:169: KDE_PATH_X_DIRECT is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -2306,12 +2306,12 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_SUBST([XMKMF])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([XMKMF])
-m4trace:configure.in:61: -1- m4_pattern_allow([^XMKMF$])
-m4trace:configure.in:61: -1- AC_CHECK_LIB([ICE], [IceConnectionNumber], [LIBSM="-lSM -lICE"], [], [$X_EXTRA_LIBS])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_SUBST([XMKMF])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([XMKMF])
+m4trace:configure.in:66: -1- m4_pattern_allow([^XMKMF$])
+m4trace:configure.in:66: -1- AC_CHECK_LIB([ICE], [IceConnectionNumber], [LIBSM="-lSM -lICE"], [], [$X_EXTRA_LIBS])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:2426: AC_TRY_LINK is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2320,50 +2320,50 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_SUBST([X_PRE_LIBS])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([X_PRE_LIBS])
-m4trace:configure.in:61: -1- m4_pattern_allow([^X_PRE_LIBS$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_X11])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_X11])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_X11$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_XRENDER])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_XRENDER])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_XRENDER$])
-m4trace:configure.in:61: -1- AC_SUBST([LIBSM])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIBSM])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIBSM$])
-m4trace:configure.in:61: -1- AC_SUBST([X_INCLUDES])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([X_INCLUDES])
-m4trace:configure.in:61: -1- m4_pattern_allow([^X_INCLUDES$])
-m4trace:configure.in:61: -1- AC_SUBST([X_LDFLAGS])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([X_LDFLAGS])
-m4trace:configure.in:61: -1- m4_pattern_allow([^X_LDFLAGS$])
-m4trace:configure.in:61: -1- AC_SUBST([x_includes])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([x_includes])
-m4trace:configure.in:61: -1- m4_pattern_allow([^x_includes$])
-m4trace:configure.in:61: -1- AC_SUBST([x_libraries])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([x_libraries])
-m4trace:configure.in:61: -1- m4_pattern_allow([^x_libraries$])
-m4trace:configure.in:61: -1- AC_SUBST([QTE_NORTTI])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([QTE_NORTTI])
-m4trace:configure.in:61: -1- m4_pattern_allow([^QTE_NORTTI$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_XEXT])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_XEXT])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_XEXT$])
-m4trace:configure.in:61: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_SUBST([X_PRE_LIBS])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([X_PRE_LIBS])
+m4trace:configure.in:66: -1- m4_pattern_allow([^X_PRE_LIBS$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_X11])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_X11])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_X11$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_XRENDER])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_XRENDER])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_XRENDER$])
+m4trace:configure.in:66: -1- AC_SUBST([LIBSM])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIBSM])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIBSM$])
+m4trace:configure.in:66: -1- AC_SUBST([X_INCLUDES])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([X_INCLUDES])
+m4trace:configure.in:66: -1- m4_pattern_allow([^X_INCLUDES$])
+m4trace:configure.in:66: -1- AC_SUBST([X_LDFLAGS])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([X_LDFLAGS])
+m4trace:configure.in:66: -1- m4_pattern_allow([^X_LDFLAGS$])
+m4trace:configure.in:66: -1- AC_SUBST([x_includes])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([x_includes])
+m4trace:configure.in:66: -1- m4_pattern_allow([^x_includes$])
+m4trace:configure.in:66: -1- AC_SUBST([x_libraries])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([x_libraries])
+m4trace:configure.in:66: -1- m4_pattern_allow([^x_libraries$])
+m4trace:configure.in:66: -1- AC_SUBST([QTE_NORTTI])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([QTE_NORTTI])
+m4trace:configure.in:66: -1- m4_pattern_allow([^QTE_NORTTI$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_XEXT])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_XEXT])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_XEXT$])
+m4trace:configure.in:66: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:209: AC_HELP_STRING is expanded from...
 aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_CHECK_LIB([$PTHREAD_LIBS], [pthread_create], [LIBPTHREAD="$PTHREAD_LIBS_save" ], [], [])
-m4trace:configure.in:61: -1- AC_CHECK_LIB([pthread], [pthread_create], [LIBPTHREAD="-lpthread" ])
-m4trace:configure.in:61: -1- AC_SUBST([LIBPTHREAD])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIBPTHREAD])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIBPTHREAD$])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_CHECK_LIB([$PTHREAD_LIBS], [pthread_create], [LIBPTHREAD="$PTHREAD_LIBS_save" ], [], [])
+m4trace:configure.in:66: -1- AC_CHECK_LIB([pthread], [pthread_create], [LIBPTHREAD="-lpthread" ])
+m4trace:configure.in:66: -1- AC_SUBST([LIBPTHREAD])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIBPTHREAD])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIBPTHREAD$])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:170: AC_LANG_SAVE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2374,8 +2374,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
 You should run autoupdate.], [autoconf/c.m4:105: AC_LANG_CPLUSPLUS is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -2387,8 +2387,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -2400,8 +2400,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:2426: AC_TRY_LINK is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2412,8 +2412,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:176: AC_LANG_RESTORE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2424,13 +2424,13 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AH_OUTPUT([__svr_define], [
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AH_OUTPUT([__svr_define], [
 #if defined(__SVR4) && !defined(__svr4__)
 #define __svr4__ 1
 #endif
 ])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:170: AC_LANG_SAVE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2441,8 +2441,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
 You should run autoupdate.], [autoconf/c.m4:105: AC_LANG_CPLUSPLUS is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -2454,8 +2454,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -2467,8 +2467,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:2426: AC_TRY_LINK is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2479,8 +2479,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:176: AC_LANG_RESTORE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2491,32 +2491,32 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_SUBST([USE_THREADS])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([USE_THREADS])
-m4trace:configure.in:61: -1- m4_pattern_allow([^USE_THREADS$])
-m4trace:configure.in:61: -1- AC_SUBST([LIBPTHREAD])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIBPTHREAD])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIBPTHREAD$])
-m4trace:configure.in:61: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_SUBST([USE_THREADS])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([USE_THREADS])
+m4trace:configure.in:66: -1- m4_pattern_allow([^USE_THREADS$])
+m4trace:configure.in:66: -1- AC_SUBST([LIBPTHREAD])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIBPTHREAD])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIBPTHREAD$])
+m4trace:configure.in:66: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:209: AC_HELP_STRING is expanded from...
 aclocal.m4:4037: KDE_CHECK_THREADING is expanded from...
 aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_DEFINE_TRACE_LITERAL([HAVE_LIBPTHREAD])
-m4trace:configure.in:61: -1- m4_pattern_allow([^HAVE_LIBPTHREAD$])
-m4trace:configure.in:61: -1- AH_OUTPUT([HAVE_LIBPTHREAD], [/* Define if you have a working libpthread (will enable threaded code) */
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_DEFINE_TRACE_LITERAL([HAVE_LIBPTHREAD])
+m4trace:configure.in:66: -1- m4_pattern_allow([^HAVE_LIBPTHREAD$])
+m4trace:configure.in:66: -1- AH_OUTPUT([HAVE_LIBPTHREAD], [/* Define if you have a working libpthread (will enable threaded code) */
 #undef HAVE_LIBPTHREAD])
-m4trace:configure.in:61: -1- AC_SUBST([KDE_MT_LDFLAGS])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([KDE_MT_LDFLAGS])
-m4trace:configure.in:61: -1- m4_pattern_allow([^KDE_MT_LDFLAGS$])
-m4trace:configure.in:61: -1- AC_SUBST([KDE_MT_LIBS])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([KDE_MT_LIBS])
-m4trace:configure.in:61: -1- m4_pattern_allow([^KDE_MT_LIBS$])
-m4trace:configure.in:61: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
+m4trace:configure.in:66: -1- AC_SUBST([KDE_MT_LDFLAGS])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([KDE_MT_LDFLAGS])
+m4trace:configure.in:66: -1- m4_pattern_allow([^KDE_MT_LDFLAGS$])
+m4trace:configure.in:66: -1- AC_SUBST([KDE_MT_LIBS])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([KDE_MT_LIBS])
+m4trace:configure.in:66: -1- m4_pattern_allow([^KDE_MT_LIBS$])
+m4trace:configure.in:66: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:209: AC_HELP_STRING is expanded from...
 aclocal.m4:1931: KDE_CHECK_EXTRA_LIBS is expanded from...
 aclocal.m4:2687: AC_FIND_PNG is expanded from...
@@ -2524,11 +2524,11 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_SUBST([USER_INCLUDES])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([USER_INCLUDES])
-m4trace:configure.in:61: -1- m4_pattern_allow([^USER_INCLUDES$])
-m4trace:configure.in:61: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_SUBST([USER_INCLUDES])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([USER_INCLUDES])
+m4trace:configure.in:66: -1- m4_pattern_allow([^USER_INCLUDES$])
+m4trace:configure.in:66: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:209: AC_HELP_STRING is expanded from...
 aclocal.m4:1931: KDE_CHECK_EXTRA_LIBS is expanded from...
 aclocal.m4:2687: AC_FIND_PNG is expanded from...
@@ -2536,11 +2536,11 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_SUBST([USER_LDFLAGS])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([USER_LDFLAGS])
-m4trace:configure.in:61: -1- m4_pattern_allow([^USER_LDFLAGS$])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_SUBST([USER_LDFLAGS])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([USER_LDFLAGS])
+m4trace:configure.in:66: -1- m4_pattern_allow([^USER_LDFLAGS$])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:2426: AC_TRY_LINK is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2550,15 +2550,15 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_DEFINE_TRACE_LITERAL([HAVE_LIBZ])
-m4trace:configure.in:61: -1- m4_pattern_allow([^HAVE_LIBZ$])
-m4trace:configure.in:61: -1- AH_OUTPUT([HAVE_LIBZ], [/* Define if you have libz */
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_DEFINE_TRACE_LITERAL([HAVE_LIBZ])
+m4trace:configure.in:66: -1- m4_pattern_allow([^HAVE_LIBZ$])
+m4trace:configure.in:66: -1- AH_OUTPUT([HAVE_LIBZ], [/* Define if you have libz */
 #undef HAVE_LIBZ])
-m4trace:configure.in:61: -1- AC_SUBST([LIBZ])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIBZ])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIBZ$])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
+m4trace:configure.in:66: -1- AC_SUBST([LIBZ])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIBZ])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIBZ$])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:2426: AC_TRY_LINK is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2567,18 +2567,18 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_DEFINE_TRACE_LITERAL([HAVE_LIBPNG])
-m4trace:configure.in:61: -1- m4_pattern_allow([^HAVE_LIBPNG$])
-m4trace:configure.in:61: -1- AH_OUTPUT([HAVE_LIBPNG], [/* Define if you have libpng */
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_DEFINE_TRACE_LITERAL([HAVE_LIBPNG])
+m4trace:configure.in:66: -1- m4_pattern_allow([^HAVE_LIBPNG$])
+m4trace:configure.in:66: -1- AH_OUTPUT([HAVE_LIBPNG], [/* Define if you have libpng */
 #undef HAVE_LIBPNG])
-m4trace:configure.in:61: -1- AC_SUBST([LIBPNG])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIBPNG])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIBPNG$])
-m4trace:configure.in:61: -1- AC_SUBST([LIBPNG])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIBPNG])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIBPNG$])
-m4trace:configure.in:61: -2- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
+m4trace:configure.in:66: -1- AC_SUBST([LIBPNG])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIBPNG])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIBPNG$])
+m4trace:configure.in:66: -1- AC_SUBST([LIBPNG])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIBPNG])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIBPNG$])
+m4trace:configure.in:66: -2- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:2426: AC_TRY_LINK is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2588,8 +2588,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:2426: AC_TRY_LINK is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2599,8 +2599,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:191: AC_FIND_FILE is expanded from...
 aclocal.m4:2505: AC_FIND_JPEG is expanded from...
@@ -2608,8 +2608,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:191: AC_FIND_FILE is expanded from...
 aclocal.m4:2505: AC_FIND_JPEG is expanded from...
@@ -2617,15 +2617,15 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_DEFINE_TRACE_LITERAL([HAVE_LIBJPEG])
-m4trace:configure.in:61: -1- m4_pattern_allow([^HAVE_LIBJPEG$])
-m4trace:configure.in:61: -1- AH_OUTPUT([HAVE_LIBJPEG], [/* Define if you have libjpeg */
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_DEFINE_TRACE_LITERAL([HAVE_LIBJPEG])
+m4trace:configure.in:66: -1- m4_pattern_allow([^HAVE_LIBJPEG$])
+m4trace:configure.in:66: -1- AH_OUTPUT([HAVE_LIBJPEG], [/* Define if you have libjpeg */
 #undef HAVE_LIBJPEG])
-m4trace:configure.in:61: -1- AC_SUBST([LIBJPEG])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIBJPEG])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIBJPEG$])
-m4trace:configure.in:61: -1- AH_OUTPUT([_AC_CHECK_JPEG], [/*
+m4trace:configure.in:66: -1- AC_SUBST([LIBJPEG])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIBJPEG])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIBJPEG$])
+m4trace:configure.in:66: -1- AH_OUTPUT([_AC_CHECK_JPEG], [/*
  * jpeg.h needs HAVE_BOOLEAN, when the system uses boolean in system
  * headers and I\'m too lazy to write a configure test as long as only
  * unixware is related
@@ -2634,28 +2634,28 @@ m4trace:configure.in:61: -1- AH_OUTPUT([_AC_CHECK_JPEG], [/*
 #define HAVE_BOOLEAN
 #endif
 ])
-m4trace:configure.in:61: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
+m4trace:configure.in:66: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:209: AC_HELP_STRING is expanded from...
 aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:209: AC_HELP_STRING is expanded from...
 aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:209: AC_HELP_STRING is expanded from...
 aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:191: AC_FIND_FILE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -2664,8 +2664,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:191: AC_FIND_FILE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -2674,8 +2674,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2683,8 +2683,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:170: AC_LANG_SAVE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2692,8 +2692,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
 You should run autoupdate.], [autoconf/c.m4:105: AC_LANG_CPLUSPLUS is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -2702,8 +2702,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -2712,8 +2712,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2721,8 +2721,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2730,8 +2730,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:176: AC_LANG_RESTORE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2739,8 +2739,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:170: AC_LANG_SAVE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2749,8 +2749,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
 You should run autoupdate.], [autoconf/c.m4:105: AC_LANG_CPLUSPLUS is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -2760,8 +2760,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -2771,8 +2771,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2781,8 +2781,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2791,8 +2791,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:176: AC_LANG_RESTORE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2801,32 +2801,32 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_SUBST([qt_libraries])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([qt_libraries])
-m4trace:configure.in:61: -1- m4_pattern_allow([^qt_libraries$])
-m4trace:configure.in:61: -1- AC_SUBST([qt_includes])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([qt_includes])
-m4trace:configure.in:61: -1- m4_pattern_allow([^qt_includes$])
-m4trace:configure.in:61: -1- AC_SUBST([QT_INCLUDES])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([QT_INCLUDES])
-m4trace:configure.in:61: -1- m4_pattern_allow([^QT_INCLUDES$])
-m4trace:configure.in:61: -1- AC_SUBST([QT_LDFLAGS])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([QT_LDFLAGS])
-m4trace:configure.in:61: -1- m4_pattern_allow([^QT_LDFLAGS$])
-m4trace:configure.in:61: -1- AC_SUBST([PERL])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([PERL])
-m4trace:configure.in:61: -1- m4_pattern_allow([^PERL$])
-m4trace:configure.in:61: -1- AC_SUBST([MOC])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([MOC])
-m4trace:configure.in:61: -1- m4_pattern_allow([^MOC$])
-m4trace:configure.in:61: -1- AC_SUBST([UIC])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([UIC])
-m4trace:configure.in:61: -1- m4_pattern_allow([^UIC$])
-m4trace:configure.in:61: -1- AC_SUBST([UIC_TR])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([UIC_TR])
-m4trace:configure.in:61: -1- m4_pattern_allow([^UIC_TR$])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_SUBST([qt_libraries])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([qt_libraries])
+m4trace:configure.in:66: -1- m4_pattern_allow([^qt_libraries$])
+m4trace:configure.in:66: -1- AC_SUBST([qt_includes])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([qt_includes])
+m4trace:configure.in:66: -1- m4_pattern_allow([^qt_includes$])
+m4trace:configure.in:66: -1- AC_SUBST([QT_INCLUDES])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([QT_INCLUDES])
+m4trace:configure.in:66: -1- m4_pattern_allow([^QT_INCLUDES$])
+m4trace:configure.in:66: -1- AC_SUBST([QT_LDFLAGS])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([QT_LDFLAGS])
+m4trace:configure.in:66: -1- m4_pattern_allow([^QT_LDFLAGS$])
+m4trace:configure.in:66: -1- AC_SUBST([PERL])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([PERL])
+m4trace:configure.in:66: -1- m4_pattern_allow([^PERL$])
+m4trace:configure.in:66: -1- AC_SUBST([MOC])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([MOC])
+m4trace:configure.in:66: -1- m4_pattern_allow([^MOC$])
+m4trace:configure.in:66: -1- AC_SUBST([UIC])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([UIC])
+m4trace:configure.in:66: -1- m4_pattern_allow([^UIC$])
+m4trace:configure.in:66: -1- AC_SUBST([UIC_TR])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([UIC_TR])
+m4trace:configure.in:66: -1- m4_pattern_allow([^UIC_TR$])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:170: AC_LANG_SAVE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2835,8 +2835,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
 You should run autoupdate.], [autoconf/c.m4:105: AC_LANG_CPLUSPLUS is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -2846,8 +2846,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
@@ -2857,8 +2857,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_TRY_LINK' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:2426: AC_TRY_LINK is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2867,8 +2867,8 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:176: AC_LANG_RESTORE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
@@ -2877,105 +2877,105 @@ aclocal.m4:1592: AC_PATH_QT_1_3 is expanded from...
 aclocal.m4:1597: AC_PATH_QT is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_QT])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_QT])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_QT$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_QPE])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_QPE])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_QPE$])
-m4trace:configure.in:61: -1- AC_SUBST([kde_qtver])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kde_qtver])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kde_qtver$])
-m4trace:configure.in:61: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_QT])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_QT])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_QT$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_QPE])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_QPE])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_QPE$])
+m4trace:configure.in:66: -1- AC_SUBST([kde_qtver])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kde_qtver])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kde_qtver$])
+m4trace:configure.in:66: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:209: AC_HELP_STRING is expanded from...
 aclocal.m4:3186: AC_CHECK_RPATH is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_SUBST([KDE_EXTRA_RPATH])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([KDE_EXTRA_RPATH])
-m4trace:configure.in:61: -1- m4_pattern_allow([^KDE_EXTRA_RPATH$])
-m4trace:configure.in:61: -1- AC_SUBST([KDE_RPATH])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([KDE_RPATH])
-m4trace:configure.in:61: -1- m4_pattern_allow([^KDE_RPATH$])
-m4trace:configure.in:61: -1- AC_SUBST([X_RPATH])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([X_RPATH])
-m4trace:configure.in:61: -1- m4_pattern_allow([^X_RPATH$])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_SUBST([KDE_EXTRA_RPATH])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([KDE_EXTRA_RPATH])
+m4trace:configure.in:66: -1- m4_pattern_allow([^KDE_EXTRA_RPATH$])
+m4trace:configure.in:66: -1- AC_SUBST([KDE_RPATH])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([KDE_RPATH])
+m4trace:configure.in:66: -1- m4_pattern_allow([^KDE_RPATH$])
+m4trace:configure.in:66: -1- AC_SUBST([X_RPATH])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([X_RPATH])
+m4trace:configure.in:66: -1- m4_pattern_allow([^X_RPATH$])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:191: AC_FIND_FILE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:191: AC_FIND_FILE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:191: AC_FIND_FILE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:191: AC_FIND_FILE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:191: AC_FIND_FILE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:191: AC_FIND_FILE is expanded from...
 ../../lib/m4sugar/m4sh.m4:519: AS_IF is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
 aclocal.m4:1877: AC_BASE_PATH_KDE is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_SUBST([kde_libraries])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kde_libraries])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kde_libraries$])
-m4trace:configure.in:61: -1- AC_SUBST([kde_includes])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kde_includes])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kde_includes$])
-m4trace:configure.in:61: -1- AC_SUBST([KDE_LDFLAGS])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([KDE_LDFLAGS])
-m4trace:configure.in:61: -1- m4_pattern_allow([^KDE_LDFLAGS$])
-m4trace:configure.in:61: -1- AC_SUBST([KDE_INCLUDES])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([KDE_INCLUDES])
-m4trace:configure.in:61: -1- m4_pattern_allow([^KDE_INCLUDES$])
-m4trace:configure.in:61: -1- AC_SUBST([all_includes])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([all_includes])
-m4trace:configure.in:61: -1- m4_pattern_allow([^all_includes$])
-m4trace:configure.in:61: -1- AC_SUBST([all_libraries])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([all_libraries])
-m4trace:configure.in:61: -1- m4_pattern_allow([^all_libraries$])
-m4trace:configure.in:61: -1- AC_SUBST([AUTODIRS])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([AUTODIRS])
-m4trace:configure.in:61: -1- m4_pattern_allow([^AUTODIRS$])
-m4trace:configure.in:61: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_SUBST([kde_libraries])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kde_libraries])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kde_libraries$])
+m4trace:configure.in:66: -1- AC_SUBST([kde_includes])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kde_includes])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kde_includes$])
+m4trace:configure.in:66: -1- AC_SUBST([KDE_LDFLAGS])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([KDE_LDFLAGS])
+m4trace:configure.in:66: -1- m4_pattern_allow([^KDE_LDFLAGS$])
+m4trace:configure.in:66: -1- AC_SUBST([KDE_INCLUDES])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([KDE_INCLUDES])
+m4trace:configure.in:66: -1- m4_pattern_allow([^KDE_INCLUDES$])
+m4trace:configure.in:66: -1- AC_SUBST([all_includes])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([all_includes])
+m4trace:configure.in:66: -1- m4_pattern_allow([^all_includes$])
+m4trace:configure.in:66: -1- AC_SUBST([all_libraries])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([all_libraries])
+m4trace:configure.in:66: -1- m4_pattern_allow([^all_libraries$])
+m4trace:configure.in:66: -1- AC_SUBST([AUTODIRS])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([AUTODIRS])
+m4trace:configure.in:66: -1- m4_pattern_allow([^AUTODIRS$])
+m4trace:configure.in:66: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:209: AC_HELP_STRING is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:170: AC_LANG_SAVE is expanded from...
 aclocal.m4:1986: KDE_1_CHECK_PATH_HEADERS is expanded from...
 aclocal.m4:402: KDE_1_CHECK_PATHS is expanded from...
@@ -2984,8 +2984,8 @@ aclocal.m4:519: KDE_SET_DEFAULT_PATHS is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
 aclocal.m4:689: AC_CREATE_KFSSTND is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
 You should run autoupdate.], [autoconf/c.m4:105: AC_LANG_CPLUSPLUS is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 aclocal.m4:1986: KDE_1_CHECK_PATH_HEADERS is expanded from...
@@ -2995,8 +2995,8 @@ aclocal.m4:519: KDE_SET_DEFAULT_PATHS is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
 aclocal.m4:689: AC_CREATE_KFSSTND is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 aclocal.m4:1986: KDE_1_CHECK_PATH_HEADERS is expanded from...
@@ -3006,8 +3006,8 @@ aclocal.m4:519: KDE_SET_DEFAULT_PATHS is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
 aclocal.m4:689: AC_CREATE_KFSSTND is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:176: AC_LANG_RESTORE is expanded from...
 aclocal.m4:1986: KDE_1_CHECK_PATH_HEADERS is expanded from...
 aclocal.m4:402: KDE_1_CHECK_PATHS is expanded from...
@@ -3016,16 +3016,16 @@ aclocal.m4:519: KDE_SET_DEFAULT_PATHS is expanded from...
 autoconf/general.m4:1922: AC_CACHE_VAL is expanded from...
 aclocal.m4:689: AC_CREATE_KFSSTND is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:170: AC_LANG_SAVE is expanded from...
 aclocal.m4:1986: KDE_1_CHECK_PATH_HEADERS is expanded from...
 aclocal.m4:402: KDE_1_CHECK_PATHS is expanded from...
 aclocal.m4:519: KDE_SET_DEFAULT_PATHS is expanded from...
 aclocal.m4:689: AC_CREATE_KFSSTND is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
 You should run autoupdate.], [autoconf/c.m4:105: AC_LANG_CPLUSPLUS is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 aclocal.m4:1986: KDE_1_CHECK_PATH_HEADERS is expanded from...
@@ -3033,8 +3033,8 @@ aclocal.m4:402: KDE_1_CHECK_PATHS is expanded from...
 aclocal.m4:519: KDE_SET_DEFAULT_PATHS is expanded from...
 aclocal.m4:689: AC_CREATE_KFSSTND is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
 aclocal.m4:1986: KDE_1_CHECK_PATH_HEADERS is expanded from...
@@ -3042,256 +3042,262 @@ aclocal.m4:402: KDE_1_CHECK_PATHS is expanded from...
 aclocal.m4:519: KDE_SET_DEFAULT_PATHS is expanded from...
 aclocal.m4:689: AC_CREATE_KFSSTND is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
 You should run autoupdate.], [autoconf/lang.m4:176: AC_LANG_RESTORE is expanded from...
 aclocal.m4:1986: KDE_1_CHECK_PATH_HEADERS is expanded from...
 aclocal.m4:402: KDE_1_CHECK_PATHS is expanded from...
 aclocal.m4:519: KDE_SET_DEFAULT_PATHS is expanded from...
 aclocal.m4:689: AC_CREATE_KFSSTND is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:209: AC_HELP_STRING is expanded from...
 aclocal.m4:641: KDE_SUBST_PROGRAMS is expanded from...
 aclocal.m4:689: AC_CREATE_KFSSTND is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AM_CONDITIONAL([include_ARTS], [test "$build_arts" != "no"])
-m4trace:configure.in:61: -1- AC_SUBST([include_ARTS_TRUE])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([include_ARTS_TRUE])
-m4trace:configure.in:61: -1- m4_pattern_allow([^include_ARTS_TRUE$])
-m4trace:configure.in:61: -1- AC_SUBST([include_ARTS_FALSE])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([include_ARTS_FALSE])
-m4trace:configure.in:61: -1- m4_pattern_allow([^include_ARTS_FALSE$])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AM_CONDITIONAL([include_ARTS], [test "$build_arts" != "no"])
+m4trace:configure.in:66: -1- AC_SUBST([include_ARTS_TRUE])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([include_ARTS_TRUE])
+m4trace:configure.in:66: -1- m4_pattern_allow([^include_ARTS_TRUE$])
+m4trace:configure.in:66: -1- AC_SUBST([include_ARTS_FALSE])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([include_ARTS_FALSE])
+m4trace:configure.in:66: -1- m4_pattern_allow([^include_ARTS_FALSE$])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:191: AC_FIND_FILE is expanded from...
 aclocal.m4:641: KDE_SUBST_PROGRAMS is expanded from...
 aclocal.m4:689: AC_CREATE_KFSSTND is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:191: AC_FIND_FILE is expanded from...
 aclocal.m4:641: KDE_SUBST_PROGRAMS is expanded from...
 aclocal.m4:689: AC_CREATE_KFSSTND is expanded from...
 aclocal.m4:2089: AC_PATH_KDE is expanded from...
-configure.in:61: the top level])
-m4trace:configure.in:61: -1- AC_SUBST([KCONFIG_COMPILER])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([KCONFIG_COMPILER])
-m4trace:configure.in:61: -1- m4_pattern_allow([^KCONFIG_COMPILER$])
-m4trace:configure.in:61: -1- AC_SUBST([KCFG_DEPENDENCIES])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([KCFG_DEPENDENCIES])
-m4trace:configure.in:61: -1- m4_pattern_allow([^KCFG_DEPENDENCIES$])
-m4trace:configure.in:61: -1- AC_SUBST([DCOPIDLNG])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([DCOPIDLNG])
-m4trace:configure.in:61: -1- m4_pattern_allow([^DCOPIDLNG$])
-m4trace:configure.in:61: -1- AC_SUBST([DCOPIDL])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([DCOPIDL])
-m4trace:configure.in:61: -1- m4_pattern_allow([^DCOPIDL$])
-m4trace:configure.in:61: -1- AC_SUBST([DCOPIDL2CPP])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([DCOPIDL2CPP])
-m4trace:configure.in:61: -1- m4_pattern_allow([^DCOPIDL2CPP$])
-m4trace:configure.in:61: -1- AC_SUBST([DCOP_DEPENDENCIES])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([DCOP_DEPENDENCIES])
-m4trace:configure.in:61: -1- m4_pattern_allow([^DCOP_DEPENDENCIES$])
-m4trace:configure.in:61: -1- AC_SUBST([MCOPIDL])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([MCOPIDL])
-m4trace:configure.in:61: -1- m4_pattern_allow([^MCOPIDL$])
-m4trace:configure.in:61: -1- AC_SUBST([ARTSCCONFIG])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([ARTSCCONFIG])
-m4trace:configure.in:61: -1- m4_pattern_allow([^ARTSCCONFIG$])
-m4trace:configure.in:61: -1- AC_SUBST([KDECONFIG])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([KDECONFIG])
-m4trace:configure.in:61: -1- m4_pattern_allow([^KDECONFIG$])
-m4trace:configure.in:61: -1- AC_SUBST([MEINPROC])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([MEINPROC])
-m4trace:configure.in:61: -1- m4_pattern_allow([^MEINPROC$])
-m4trace:configure.in:61: -1- AC_SUBST([KDE_XSL_STYLESHEET])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([KDE_XSL_STYLESHEET])
-m4trace:configure.in:61: -1- m4_pattern_allow([^KDE_XSL_STYLESHEET$])
-m4trace:configure.in:61: -1- AC_SUBST([XMLLINT])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([XMLLINT])
-m4trace:configure.in:61: -1- m4_pattern_allow([^XMLLINT$])
-m4trace:configure.in:61: -1- AC_SUBST([kde_libs_prefix])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kde_libs_prefix])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kde_libs_prefix$])
-m4trace:configure.in:61: -1- AC_SUBST([kde_libs_htmldir])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kde_libs_htmldir])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kde_libs_htmldir$])
-m4trace:configure.in:61: -1- AC_SUBST([kde_htmldir])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kde_htmldir])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kde_htmldir$])
-m4trace:configure.in:61: -1- AC_SUBST([kde_appsdir])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kde_appsdir])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kde_appsdir$])
-m4trace:configure.in:61: -1- AC_SUBST([kde_icondir])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kde_icondir])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kde_icondir$])
-m4trace:configure.in:61: -1- AC_SUBST([kde_sounddir])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kde_sounddir])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kde_sounddir$])
-m4trace:configure.in:61: -1- AC_SUBST([kde_datadir])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kde_datadir])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kde_datadir$])
-m4trace:configure.in:61: -1- AC_SUBST([kde_locale])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kde_locale])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kde_locale$])
-m4trace:configure.in:61: -1- AC_SUBST([kde_confdir])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kde_confdir])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kde_confdir$])
-m4trace:configure.in:61: -1- AC_SUBST([kde_kcfgdir])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kde_kcfgdir])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kde_kcfgdir$])
-m4trace:configure.in:61: -1- AC_SUBST([kde_mimedir])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kde_mimedir])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kde_mimedir$])
-m4trace:configure.in:61: -1- AC_SUBST([kde_wallpaperdir])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kde_wallpaperdir])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kde_wallpaperdir$])
-m4trace:configure.in:61: -1- AC_SUBST([kde_bindir])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kde_bindir])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kde_bindir$])
-m4trace:configure.in:61: -1- AC_SUBST([xdg_appsdir])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([xdg_appsdir])
-m4trace:configure.in:61: -1- m4_pattern_allow([^xdg_appsdir$])
-m4trace:configure.in:61: -1- AC_SUBST([xdg_menudir])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([xdg_menudir])
-m4trace:configure.in:61: -1- m4_pattern_allow([^xdg_menudir$])
-m4trace:configure.in:61: -1- AC_SUBST([xdg_directorydir])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([xdg_directorydir])
-m4trace:configure.in:61: -1- m4_pattern_allow([^xdg_directorydir$])
-m4trace:configure.in:61: -1- AC_SUBST([kde_templatesdir])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kde_templatesdir])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kde_templatesdir$])
-m4trace:configure.in:61: -1- AC_SUBST([kde_servicesdir])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kde_servicesdir])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kde_servicesdir$])
-m4trace:configure.in:61: -1- AC_SUBST([kde_servicetypesdir])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kde_servicetypesdir])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kde_servicetypesdir$])
-m4trace:configure.in:61: -1- AC_SUBST([kde_moduledir])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kde_moduledir])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kde_moduledir$])
-m4trace:configure.in:61: -1- AC_SUBST([kdeinitdir], ['$(kde_moduledir)'])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kdeinitdir])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kdeinitdir$])
-m4trace:configure.in:61: -1- AC_SUBST([kde_styledir])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kde_styledir])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kde_styledir$])
-m4trace:configure.in:61: -1- AC_SUBST([kde_widgetdir])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([kde_widgetdir])
-m4trace:configure.in:61: -1- m4_pattern_allow([^kde_widgetdir$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KDECORE], ["-lkdecore"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KDECORE])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KDECORE$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KDEUI], ["-lkdeui"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KDEUI])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KDEUI$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KIO], ["-lkio"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KIO])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KIO$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_SMB], ["-lsmb"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_SMB])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_SMB$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KAB], ["-lkab"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KAB])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KAB$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KABC], ["-lkabc"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KABC])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KABC$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KHTML], ["-lkhtml"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KHTML])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KHTML$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KSPELL], ["-lkspell"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KSPELL])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KSPELL$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KPARTS], ["-lkparts"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KPARTS])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KPARTS$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KDEPRINT], ["-lkdeprint"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KDEPRINT])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KDEPRINT$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KUTILS], ["-lkutils"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KUTILS])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KUTILS$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KDEPIM], ["-lkdepim"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KDEPIM])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KDEPIM$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KSYCOCA], ["-lkio"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KSYCOCA])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KSYCOCA$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KFILE], ["-lkio"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KFILE])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KFILE$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KDECORE], ["-lkdecore"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KDECORE])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KDECORE$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KDEUI], ["-lkdeui"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KDEUI])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KDEUI$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KIO], ["-lkio"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KIO])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KIO$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KSYCOCA], ["-lksycoca"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KSYCOCA])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KSYCOCA$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_SMB], ["-lsmb"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_SMB])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_SMB$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KFILE], ["-lkfile"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KFILE])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KFILE$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KAB], ["-lkab"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KAB])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KAB$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KHTML], ["-lkhtml"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KHTML])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KHTML$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KSPELL], ["-lkspell"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KSPELL])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KSPELL$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KPARTS], ["-lkparts"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KPARTS])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KPARTS$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KDEPRINT], ["-lkdeprint"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KDEPRINT])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KDEPRINT$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KDECORE], ["-lkdecore -lXext $(LIB_QT)"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KDECORE])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KDECORE$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KDEUI], ["-lkdeui $(LIB_KDECORE)"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KDEUI])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KDEUI$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KFM], ["-lkfm $(LIB_KDECORE)"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KFM])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KFM$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KFILE], ["-lkfile $(LIB_KFM) $(LIB_KDEUI)"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KFILE])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KFILE$])
-m4trace:configure.in:61: -1- AC_SUBST([LIB_KAB], ["-lkab $(LIB_KIMGIO) $(LIB_KDECORE)"])
-m4trace:configure.in:61: -1- AC_SUBST_TRACE([LIB_KAB])
-m4trace:configure.in:61: -1- m4_pattern_allow([^LIB_KAB$])
-m4trace:configure.in:70: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
+configure.in:66: the top level])
+m4trace:configure.in:66: -1- AC_SUBST([KCONFIG_COMPILER])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([KCONFIG_COMPILER])
+m4trace:configure.in:66: -1- m4_pattern_allow([^KCONFIG_COMPILER$])
+m4trace:configure.in:66: -1- AC_SUBST([KCFG_DEPENDENCIES])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([KCFG_DEPENDENCIES])
+m4trace:configure.in:66: -1- m4_pattern_allow([^KCFG_DEPENDENCIES$])
+m4trace:configure.in:66: -1- AC_SUBST([DCOPIDLNG])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([DCOPIDLNG])
+m4trace:configure.in:66: -1- m4_pattern_allow([^DCOPIDLNG$])
+m4trace:configure.in:66: -1- AC_SUBST([DCOPIDL])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([DCOPIDL])
+m4trace:configure.in:66: -1- m4_pattern_allow([^DCOPIDL$])
+m4trace:configure.in:66: -1- AC_SUBST([DCOPIDL2CPP])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([DCOPIDL2CPP])
+m4trace:configure.in:66: -1- m4_pattern_allow([^DCOPIDL2CPP$])
+m4trace:configure.in:66: -1- AC_SUBST([DCOP_DEPENDENCIES])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([DCOP_DEPENDENCIES])
+m4trace:configure.in:66: -1- m4_pattern_allow([^DCOP_DEPENDENCIES$])
+m4trace:configure.in:66: -1- AC_SUBST([MCOPIDL])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([MCOPIDL])
+m4trace:configure.in:66: -1- m4_pattern_allow([^MCOPIDL$])
+m4trace:configure.in:66: -1- AC_SUBST([ARTSCCONFIG])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([ARTSCCONFIG])
+m4trace:configure.in:66: -1- m4_pattern_allow([^ARTSCCONFIG$])
+m4trace:configure.in:66: -1- AC_SUBST([KDECONFIG])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([KDECONFIG])
+m4trace:configure.in:66: -1- m4_pattern_allow([^KDECONFIG$])
+m4trace:configure.in:66: -1- AC_SUBST([MEINPROC])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([MEINPROC])
+m4trace:configure.in:66: -1- m4_pattern_allow([^MEINPROC$])
+m4trace:configure.in:66: -1- AC_SUBST([KDE_XSL_STYLESHEET])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([KDE_XSL_STYLESHEET])
+m4trace:configure.in:66: -1- m4_pattern_allow([^KDE_XSL_STYLESHEET$])
+m4trace:configure.in:66: -1- AC_SUBST([XMLLINT])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([XMLLINT])
+m4trace:configure.in:66: -1- m4_pattern_allow([^XMLLINT$])
+m4trace:configure.in:66: -1- AC_SUBST([kde_libs_prefix])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kde_libs_prefix])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kde_libs_prefix$])
+m4trace:configure.in:66: -1- AC_SUBST([kde_libs_htmldir])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kde_libs_htmldir])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kde_libs_htmldir$])
+m4trace:configure.in:66: -1- AC_SUBST([kde_htmldir])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kde_htmldir])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kde_htmldir$])
+m4trace:configure.in:66: -1- AC_SUBST([kde_appsdir])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kde_appsdir])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kde_appsdir$])
+m4trace:configure.in:66: -1- AC_SUBST([kde_icondir])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kde_icondir])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kde_icondir$])
+m4trace:configure.in:66: -1- AC_SUBST([kde_sounddir])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kde_sounddir])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kde_sounddir$])
+m4trace:configure.in:66: -1- AC_SUBST([kde_datadir])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kde_datadir])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kde_datadir$])
+m4trace:configure.in:66: -1- AC_SUBST([kde_locale])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kde_locale])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kde_locale$])
+m4trace:configure.in:66: -1- AC_SUBST([kde_confdir])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kde_confdir])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kde_confdir$])
+m4trace:configure.in:66: -1- AC_SUBST([kde_kcfgdir])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kde_kcfgdir])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kde_kcfgdir$])
+m4trace:configure.in:66: -1- AC_SUBST([kde_mimedir])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kde_mimedir])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kde_mimedir$])
+m4trace:configure.in:66: -1- AC_SUBST([kde_wallpaperdir])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kde_wallpaperdir])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kde_wallpaperdir$])
+m4trace:configure.in:66: -1- AC_SUBST([kde_bindir])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kde_bindir])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kde_bindir$])
+m4trace:configure.in:66: -1- AC_SUBST([xdg_appsdir])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([xdg_appsdir])
+m4trace:configure.in:66: -1- m4_pattern_allow([^xdg_appsdir$])
+m4trace:configure.in:66: -1- AC_SUBST([xdg_menudir])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([xdg_menudir])
+m4trace:configure.in:66: -1- m4_pattern_allow([^xdg_menudir$])
+m4trace:configure.in:66: -1- AC_SUBST([xdg_directorydir])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([xdg_directorydir])
+m4trace:configure.in:66: -1- m4_pattern_allow([^xdg_directorydir$])
+m4trace:configure.in:66: -1- AC_SUBST([kde_templatesdir])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kde_templatesdir])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kde_templatesdir$])
+m4trace:configure.in:66: -1- AC_SUBST([kde_servicesdir])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kde_servicesdir])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kde_servicesdir$])
+m4trace:configure.in:66: -1- AC_SUBST([kde_servicetypesdir])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kde_servicetypesdir])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kde_servicetypesdir$])
+m4trace:configure.in:66: -1- AC_SUBST([kde_moduledir])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kde_moduledir])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kde_moduledir$])
+m4trace:configure.in:66: -1- AC_SUBST([kdeinitdir], ['$(kde_moduledir)'])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kdeinitdir])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kdeinitdir$])
+m4trace:configure.in:66: -1- AC_SUBST([kde_styledir])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kde_styledir])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kde_styledir$])
+m4trace:configure.in:66: -1- AC_SUBST([kde_widgetdir])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([kde_widgetdir])
+m4trace:configure.in:66: -1- m4_pattern_allow([^kde_widgetdir$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KDECORE], ["-lkdecore"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KDECORE])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KDECORE$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KDEUI], ["-lkdeui"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KDEUI])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KDEUI$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KIO], ["-lkio"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KIO])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KIO$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_SMB], ["-lsmb"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_SMB])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_SMB$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KAB], ["-lkab"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KAB])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KAB$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KABC], ["-lkabc"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KABC])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KABC$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KHTML], ["-lkhtml"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KHTML])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KHTML$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KSPELL], ["-lkspell"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KSPELL])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KSPELL$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KPARTS], ["-lkparts"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KPARTS])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KPARTS$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KDEPRINT], ["-lkdeprint"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KDEPRINT])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KDEPRINT$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KUTILS], ["-lkutils"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KUTILS])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KUTILS$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KDEPIM], ["-lkdepim"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KDEPIM])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KDEPIM$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KSYCOCA], ["-lkio"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KSYCOCA])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KSYCOCA$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KFILE], ["-lkio"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KFILE])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KFILE$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KDECORE], ["-lkdecore"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KDECORE])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KDECORE$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KDEUI], ["-lkdeui"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KDEUI])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KDEUI$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KIO], ["-lkio"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KIO])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KIO$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KSYCOCA], ["-lksycoca"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KSYCOCA])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KSYCOCA$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_SMB], ["-lsmb"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_SMB])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_SMB$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KFILE], ["-lkfile"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KFILE])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KFILE$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KAB], ["-lkab"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KAB])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KAB$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KHTML], ["-lkhtml"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KHTML])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KHTML$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KSPELL], ["-lkspell"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KSPELL])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KSPELL$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KPARTS], ["-lkparts"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KPARTS])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KPARTS$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KDEPRINT], ["-lkdeprint"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KDEPRINT])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KDEPRINT$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KDECORE], ["-lkdecore -lXext $(LIB_QT)"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KDECORE])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KDECORE$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KDEUI], ["-lkdeui $(LIB_KDECORE)"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KDEUI])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KDEUI$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KFM], ["-lkfm $(LIB_KDECORE)"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KFM])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KFM$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KFILE], ["-lkfile $(LIB_KFM) $(LIB_KDEUI)"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KFILE])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KFILE$])
+m4trace:configure.in:66: -1- AC_SUBST([LIB_KAB], ["-lkab $(LIB_KIMGIO) $(LIB_KDECORE)"])
+m4trace:configure.in:66: -1- AC_SUBST_TRACE([LIB_KAB])
+m4trace:configure.in:66: -1- m4_pattern_allow([^LIB_KAB$])
+m4trace:configure.in:69: -1- AC_SUBST([LTDLINCL])
+m4trace:configure.in:69: -1- AC_SUBST_TRACE([LTDLINCL])
+m4trace:configure.in:69: -1- m4_pattern_allow([^LTDLINCL$])
+m4trace:configure.in:70: -1- AC_SUBST([LIBLTDL])
+m4trace:configure.in:70: -1- AC_SUBST_TRACE([LIBLTDL])
+m4trace:configure.in:70: -1- m4_pattern_allow([^LIBLTDL$])
+m4trace:configure.in:79: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
 You should run autoupdate.], [autoconf/c.m4:105: AC_LANG_CPLUSPLUS is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
-configure.in:70: the top level])
-m4trace:configure.in:70: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
+configure.in:79: the top level])
+m4trace:configure.in:79: -1- _m4_warn([obsolete], [The macro `AC_FD_CC' is obsolete.
 You should run autoupdate.], [autoconf/general.m4:364: AC_FD_CC is expanded from...
 aclocal.m4:4610: KDE_LANG_CPLUSPLUS is expanded from...
-configure.in:70: the top level])
-m4trace:configure.in:85: -1- AC_CHECK_LIB([fftw], [main], [fftw_libs="-lfftw"], [{ { echo "$as_me:$LINENO: error: fftw not installed - please install first" >&5
+configure.in:79: the top level])
+m4trace:configure.in:94: -1- AC_CHECK_LIB([fftw], [main], [fftw_libs="-lfftw"], [{ { echo "$as_me:$LINENO: error: fftw not installed - please install first" >&5
 echo "$as_me: error: fftw not installed - please install first" >&2;}
    { (exit 1); exit 1; }; }])
-m4trace:configure.in:101: -1- AC_CHECK_LIB([ruby], [main], [ruby_libs="-lruby" ruby_cflags=$RUBY_INCLUDES], [{ { echo "$as_me:$LINENO: error: ruby not installed - please install first" >&5
+m4trace:configure.in:110: -1- AC_CHECK_LIB([ruby], [main], [ruby_libs="-lruby" ruby_cflags=$RUBY_INCLUDES], [{ { echo "$as_me:$LINENO: error: ruby not installed - please install first" >&5
 echo "$as_me: error: ruby not installed - please install first" >&2;}
    { (exit 1); exit 1; }; }])
-m4trace:configure.in:110: -2- AC_DEFINE_TRACE_LITERAL([HAVE_NI_DAQMX])
-m4trace:configure.in:110: -2- m4_pattern_allow([^HAVE_NI_DAQMX$])
-m4trace:configure.in:110: -2- AH_OUTPUT([HAVE_NI_DAQMX], [/* Define if you have \'NI-DAQmx\' library */
+m4trace:configure.in:119: -2- AC_DEFINE_TRACE_LITERAL([HAVE_NI_DAQMX])
+m4trace:configure.in:119: -2- m4_pattern_allow([^HAVE_NI_DAQMX$])
+m4trace:configure.in:119: -2- AH_OUTPUT([HAVE_NI_DAQMX], [/* Define if you have \'NI-DAQmx\' library */
 #undef HAVE_NI_DAQMX])
-m4trace:configure.in:111: -1- AC_CHECK_LIB([nidaqmx], [main], [nidaqmx_libs="-L/usr/local/lib -lnidaqmx"\
+m4trace:configure.in:120: -1- AC_CHECK_LIB([nidaqmx], [main], [nidaqmx_libs="-L/usr/local/lib -lnidaqmx"
 nidaqmx_cflags="-I/usr/local/include"
 
 cat >>confdefs.h <<\_ACEOF
@@ -3299,163 +3305,168 @@ cat >>confdefs.h <<\_ACEOF
 _ACEOF
 ], [{ echo "$as_me:$LINENO: WARNING: NIDAQmx is not installed - NIDAQmx is disabled" >&5
 echo "$as_me: WARNING: NIDAQmx is not installed - NIDAQmx is disabled" >&2;}], [-L/usr/local/lib -lnidaqmx])
-m4trace:configure.in:118: -2- AC_DEFINE_TRACE_LITERAL([HAVE_LINUX_GPIB])
-m4trace:configure.in:118: -2- m4_pattern_allow([^HAVE_LINUX_GPIB$])
-m4trace:configure.in:118: -2- AH_OUTPUT([HAVE_LINUX_GPIB], [/* Define if you have \'linux-gpib\' library */
+m4trace:configure.in:127: -2- AC_DEFINE_TRACE_LITERAL([HAVE_LINUX_GPIB])
+m4trace:configure.in:127: -2- m4_pattern_allow([^HAVE_LINUX_GPIB$])
+m4trace:configure.in:127: -2- AH_OUTPUT([HAVE_LINUX_GPIB], [/* Define if you have \'linux-gpib\' library */
 #undef HAVE_LINUX_GPIB])
-m4trace:configure.in:119: -1- AC_CHECK_LIB([gpib], [main], [gpib_libs="-lgpib"\
+m4trace:configure.in:128: -1- AC_CHECK_LIB([gpib], [main], [gpib_libs="-lgpib"\
 	  
 cat >>confdefs.h <<\_ACEOF
 @%:@define HAVE_LINUX_GPIB 1
 _ACEOF
 ], [{ echo "$as_me:$LINENO: WARNING: linux-gpib is not installed - gpib is disabled" >&5
 echo "$as_me: WARNING: linux-gpib is not installed - gpib is disabled" >&2;}], [-lgpib])
-m4trace:configure.in:128: -3- AC_DEFINE_TRACE_LITERAL([HAVE_LIBGCCPP])
-m4trace:configure.in:128: -3- m4_pattern_allow([^HAVE_LIBGCCPP$])
-m4trace:configure.in:128: -3- AH_OUTPUT([HAVE_LIBGCCPP], [/* Define if you want to use \'gc, gccpp\' library to detect memory leaks */
+m4trace:configure.in:137: -3- AC_DEFINE_TRACE_LITERAL([HAVE_LIBGCCPP])
+m4trace:configure.in:137: -3- m4_pattern_allow([^HAVE_LIBGCCPP$])
+m4trace:configure.in:137: -3- AH_OUTPUT([HAVE_LIBGCCPP], [/* Define if you want to use \'gc, gccpp\' library to detect memory leaks */
 #undef HAVE_LIBGCCPP])
-m4trace:configure.in:129: -2- AC_CHECK_LIB([gccpp], [main], [gc_libs="-lgccpp -lgc" \
+m4trace:configure.in:138: -2- AC_CHECK_LIB([gccpp], [main], [gc_libs="-lgccpp -lgc" \
 	  
 cat >>confdefs.h <<\_ACEOF
 @%:@define HAVE_LIBGCCPP 1
 _ACEOF
 ], [{ echo "$as_me:$LINENO: WARNING: gc or gccpp is not installed - gc is disabled" >&5
 echo "$as_me: WARNING: gc or gccpp is not installed - gc is disabled" >&2;}], [-lgc])
-m4trace:configure.in:141: -3- AC_DEFINE_TRACE_LITERAL([HAVE_LIBMALLOCDEBUG])
-m4trace:configure.in:141: -3- m4_pattern_allow([^HAVE_LIBMALLOCDEBUG$])
-m4trace:configure.in:141: -3- AH_OUTPUT([HAVE_LIBMALLOCDEBUG], [/* Define if you want to use \'MallocDebug.app\' */
+m4trace:configure.in:150: -3- AC_DEFINE_TRACE_LITERAL([HAVE_LIBMALLOCDEBUG])
+m4trace:configure.in:150: -3- m4_pattern_allow([^HAVE_LIBMALLOCDEBUG$])
+m4trace:configure.in:150: -3- AH_OUTPUT([HAVE_LIBMALLOCDEBUG], [/* Define if you want to use \'MallocDebug.app\' */
 #undef HAVE_LIBMALLOCDEBUG])
-m4trace:configure.in:142: -2- AC_CHECK_LIB([MallocDebug], [main], [malloc_debug_libs="-lMallocDebug" \
+m4trace:configure.in:151: -2- AC_CHECK_LIB([MallocDebug], [main], [malloc_debug_libs="-lMallocDebug" \
 	  
 cat >>confdefs.h <<\_ACEOF
 @%:@define HAVE_LIBMALLOCDEBUG 1
 _ACEOF
 ], [{ echo "$as_me:$LINENO: WARNING: libMallocDebug.a is not installed - MallocDebug is disabled" >&5
 echo "$as_me: WARNING: libMallocDebug.a is not installed - MallocDebug is disabled" >&2;}], [-lMallocDebug])
-m4trace:configure.in:148: -1- AC_DEFINE_TRACE_LITERAL([WORDS_BIGENDIAN])
-m4trace:configure.in:148: -1- m4_pattern_allow([^WORDS_BIGENDIAN$])
-m4trace:configure.in:148: -1- AH_OUTPUT([WORDS_BIGENDIAN], [/* Define to 1 if your processor stores words with the most significant byte
+m4trace:configure.in:157: -1- AC_DEFINE_TRACE_LITERAL([WORDS_BIGENDIAN])
+m4trace:configure.in:157: -1- m4_pattern_allow([^WORDS_BIGENDIAN$])
+m4trace:configure.in:157: -1- AH_OUTPUT([WORDS_BIGENDIAN], [/* Define to 1 if your processor stores words with the most significant byte
    first (like Motorola and SPARC, unlike Intel and VAX). */
 #undef WORDS_BIGENDIAN])
-m4trace:configure.in:149: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_FLOAT])
-m4trace:configure.in:149: -1- m4_pattern_allow([^SIZEOF_FLOAT$])
-m4trace:configure.in:149: -1- AH_OUTPUT([SIZEOF_FLOAT], [/* The size of `float\', as computed by sizeof. */
+m4trace:configure.in:158: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_FLOAT])
+m4trace:configure.in:158: -1- m4_pattern_allow([^SIZEOF_FLOAT$])
+m4trace:configure.in:158: -1- AH_OUTPUT([SIZEOF_FLOAT], [/* The size of `float\', as computed by sizeof. */
 #undef SIZEOF_FLOAT])
-m4trace:configure.in:150: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_DOUBLE])
-m4trace:configure.in:150: -1- m4_pattern_allow([^SIZEOF_DOUBLE$])
-m4trace:configure.in:150: -1- AH_OUTPUT([SIZEOF_DOUBLE], [/* The size of `double\', as computed by sizeof. */
+m4trace:configure.in:159: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_DOUBLE])
+m4trace:configure.in:159: -1- m4_pattern_allow([^SIZEOF_DOUBLE$])
+m4trace:configure.in:159: -1- AH_OUTPUT([SIZEOF_DOUBLE], [/* The size of `double\', as computed by sizeof. */
 #undef SIZEOF_DOUBLE])
-m4trace:configure.in:151: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_SHORT])
-m4trace:configure.in:151: -1- m4_pattern_allow([^SIZEOF_SHORT$])
-m4trace:configure.in:151: -1- AH_OUTPUT([SIZEOF_SHORT], [/* The size of `short\', as computed by sizeof. */
+m4trace:configure.in:160: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_SHORT])
+m4trace:configure.in:160: -1- m4_pattern_allow([^SIZEOF_SHORT$])
+m4trace:configure.in:160: -1- AH_OUTPUT([SIZEOF_SHORT], [/* The size of `short\', as computed by sizeof. */
 #undef SIZEOF_SHORT])
-m4trace:configure.in:152: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_INT])
-m4trace:configure.in:152: -1- m4_pattern_allow([^SIZEOF_INT$])
-m4trace:configure.in:152: -1- AH_OUTPUT([SIZEOF_INT], [/* The size of `int\', as computed by sizeof. */
+m4trace:configure.in:161: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_INT])
+m4trace:configure.in:161: -1- m4_pattern_allow([^SIZEOF_INT$])
+m4trace:configure.in:161: -1- AH_OUTPUT([SIZEOF_INT], [/* The size of `int\', as computed by sizeof. */
 #undef SIZEOF_INT])
-m4trace:configure.in:153: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_LONG])
-m4trace:configure.in:153: -1- m4_pattern_allow([^SIZEOF_LONG$])
-m4trace:configure.in:153: -1- AH_OUTPUT([SIZEOF_LONG], [/* The size of `long\', as computed by sizeof. */
+m4trace:configure.in:162: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_LONG])
+m4trace:configure.in:162: -1- m4_pattern_allow([^SIZEOF_LONG$])
+m4trace:configure.in:162: -1- AH_OUTPUT([SIZEOF_LONG], [/* The size of `long\', as computed by sizeof. */
 #undef SIZEOF_LONG])
-m4trace:configure.in:154: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_VOID_P])
-m4trace:configure.in:154: -1- m4_pattern_allow([^SIZEOF_VOID_P$])
-m4trace:configure.in:154: -1- AH_OUTPUT([SIZEOF_VOID_P], [/* The size of `void *\', as computed by sizeof. */
+m4trace:configure.in:163: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_VOID_P])
+m4trace:configure.in:163: -1- m4_pattern_allow([^SIZEOF_VOID_P$])
+m4trace:configure.in:163: -1- AH_OUTPUT([SIZEOF_VOID_P], [/* The size of `void *\', as computed by sizeof. */
 #undef SIZEOF_VOID_P])
-m4trace:configure.in:156: -1- AC_SUBST([GSL_LIBS])
-m4trace:configure.in:156: -1- AC_SUBST_TRACE([GSL_LIBS])
-m4trace:configure.in:156: -1- m4_pattern_allow([^GSL_LIBS$])
-m4trace:configure.in:157: -1- AC_SUBST([FFTW_LIBS])
-m4trace:configure.in:157: -1- AC_SUBST_TRACE([FFTW_LIBS])
-m4trace:configure.in:157: -1- m4_pattern_allow([^FFTW_LIBS$])
-m4trace:configure.in:158: -1- AC_SUBST([NIDAQMX_LIBS])
-m4trace:configure.in:158: -1- AC_SUBST_TRACE([NIDAQMX_LIBS])
-m4trace:configure.in:158: -1- m4_pattern_allow([^NIDAQMX_LIBS$])
-m4trace:configure.in:159: -1- AC_SUBST([NIDAQMX_CFLAGS])
-m4trace:configure.in:159: -1- AC_SUBST_TRACE([NIDAQMX_CFLAGS])
-m4trace:configure.in:159: -1- m4_pattern_allow([^NIDAQMX_CFLAGS$])
-m4trace:configure.in:160: -1- AC_SUBST([LINUXGPIB_LIBS])
-m4trace:configure.in:160: -1- AC_SUBST_TRACE([LINUXGPIB_LIBS])
-m4trace:configure.in:160: -1- m4_pattern_allow([^LINUXGPIB_LIBS$])
-m4trace:configure.in:161: -1- AC_SUBST([RUBY_LIBS])
-m4trace:configure.in:161: -1- AC_SUBST_TRACE([RUBY_LIBS])
-m4trace:configure.in:161: -1- m4_pattern_allow([^RUBY_LIBS$])
-m4trace:configure.in:162: -1- AC_SUBST([RUBY_CFLAGS])
-m4trace:configure.in:162: -1- AC_SUBST_TRACE([RUBY_CFLAGS])
-m4trace:configure.in:162: -1- m4_pattern_allow([^RUBY_CFLAGS$])
-m4trace:configure.in:163: -1- AC_SUBST([FREETYPE2_LIBS])
-m4trace:configure.in:163: -1- AC_SUBST_TRACE([FREETYPE2_LIBS])
-m4trace:configure.in:163: -1- m4_pattern_allow([^FREETYPE2_LIBS$])
-m4trace:configure.in:164: -1- AC_SUBST([FREETYPE2_CFLAGS])
-m4trace:configure.in:164: -1- AC_SUBST_TRACE([FREETYPE2_CFLAGS])
-m4trace:configure.in:164: -1- m4_pattern_allow([^FREETYPE2_CFLAGS$])
-m4trace:configure.in:165: -1- AC_SUBST([GC_LIBS])
-m4trace:configure.in:165: -1- AC_SUBST_TRACE([GC_LIBS])
-m4trace:configure.in:165: -1- m4_pattern_allow([^GC_LIBS$])
-m4trace:configure.in:166: -1- AC_SUBST([MALLOC_DEBUG_LIBS])
-m4trace:configure.in:166: -1- AC_SUBST_TRACE([MALLOC_DEBUG_LIBS])
-m4trace:configure.in:166: -1- m4_pattern_allow([^MALLOC_DEBUG_LIBS$])
-m4trace:configure.in:169: -1- AC_SUBST([TOPSUBDIRS])
-m4trace:configure.in:169: -1- AC_SUBST_TRACE([TOPSUBDIRS])
-m4trace:configure.in:169: -1- m4_pattern_allow([^TOPSUBDIRS$])
-m4trace:configure.in:170: -1- AC_CONFIG_FILES([ Makefile ])
-m4trace:configure.in:171: -1- AC_CONFIG_FILES([ doc/Makefile ])
-m4trace:configure.in:172: -1- AC_CONFIG_FILES([ doc/en/Makefile ])
-m4trace:configure.in:173: -1- AC_CONFIG_FILES([ kame/Makefile ])
-m4trace:configure.in:174: -1- AC_CONFIG_FILES([ kame/Measurements/Makefile ])
-m4trace:configure.in:175: -1- AC_CONFIG_FILES([ kame/Scripts/Makefile ])
-m4trace:configure.in:176: -1- AC_CONFIG_FILES([ kame/analyzer/Makefile ])
-m4trace:configure.in:177: -1- AC_CONFIG_FILES([ kame/driver/Makefile ])
-m4trace:configure.in:178: -1- AC_CONFIG_FILES([ kame/forms/Makefile ])
-m4trace:configure.in:179: -1- AC_CONFIG_FILES([ kame/graph/Makefile ])
-m4trace:configure.in:180: -1- AC_CONFIG_FILES([ kame/icons/Makefile ])
-m4trace:configure.in:181: -1- AC_CONFIG_FILES([ kame/mikachanfont/Makefile ])
-m4trace:configure.in:182: -1- AC_CONFIG_FILES([ kame/script/Makefile ])
-m4trace:configure.in:183: -1- AC_CONFIG_FILES([ kame/script/forms/Makefile ])
-m4trace:configure.in:184: -1- AC_CONFIG_FILES([ kame/thermometer/Makefile ])
-m4trace:configure.in:185: -1- AC_CONFIG_FILES([ kame/thermometer/forms/Makefile ])
-m4trace:configure.in:186: -1- AC_CONFIG_FILES([ modules/Makefile ])
-m4trace:configure.in:187: -1- AC_CONFIG_FILES([ modules/charinterface/Makefile ])
-m4trace:configure.in:188: -1- AC_CONFIG_FILES([ modules/dcsource/Makefile ])
-m4trace:configure.in:189: -1- AC_CONFIG_FILES([ modules/dcsource/forms/Makefile ])
-m4trace:configure.in:190: -1- AC_CONFIG_FILES([ modules/dmm/Makefile ])
-m4trace:configure.in:191: -1- AC_CONFIG_FILES([ modules/dmm/forms/Makefile ])
-m4trace:configure.in:192: -1- AC_CONFIG_FILES([ modules/dso/Makefile ])
-m4trace:configure.in:193: -1- AC_CONFIG_FILES([ modules/dso/forms/Makefile ])
-m4trace:configure.in:194: -1- AC_CONFIG_FILES([ modules/funcsynth/Makefile ])
-m4trace:configure.in:195: -1- AC_CONFIG_FILES([ modules/funcsynth/forms/Makefile ])
-m4trace:configure.in:196: -1- AC_CONFIG_FILES([ modules/lia/Makefile ])
-m4trace:configure.in:197: -1- AC_CONFIG_FILES([ modules/lia/forms/Makefile ])
-m4trace:configure.in:198: -1- AC_CONFIG_FILES([ modules/magnetps/Makefile ])
-m4trace:configure.in:199: -1- AC_CONFIG_FILES([ modules/magnetps/forms/Makefile ])
-m4trace:configure.in:200: -1- AC_CONFIG_FILES([ modules/montecarlo/Makefile ])
-m4trace:configure.in:201: -1- AC_CONFIG_FILES([ modules/montecarlo/forms/Makefile ])
-m4trace:configure.in:202: -1- AC_CONFIG_FILES([ modules/nidaq/Makefile ])
-m4trace:configure.in:203: -1- AC_CONFIG_FILES([ modules/nmr/Makefile ])
-m4trace:configure.in:204: -1- AC_CONFIG_FILES([ modules/nmr/forms/Makefile ])
-m4trace:configure.in:205: -1- AC_CONFIG_FILES([ modules/tempcontrol/Makefile ])
-m4trace:configure.in:206: -1- AC_CONFIG_FILES([ modules/tempcontrol/forms/Makefile ])
-m4trace:configure.in:207: -1- AC_CONFIG_FILES([ modules/testdriver/Makefile ])
-m4trace:configure.in:208: -1- AC_CONFIG_FILES([ po/Makefile ])
-m4trace:configure.in:209: -1- AC_SUBST([LIB@&t@OBJS], [$ac_libobjs])
-m4trace:configure.in:209: -1- AC_SUBST_TRACE([LIB@&t@OBJS])
-m4trace:configure.in:209: -1- m4_pattern_allow([^LIB@&t@OBJS$])
-m4trace:configure.in:209: -1- AC_SUBST([LTLIBOBJS], [$ac_ltlibobjs])
-m4trace:configure.in:209: -1- AC_SUBST_TRACE([LTLIBOBJS])
-m4trace:configure.in:209: -1- m4_pattern_allow([^LTLIBOBJS$])
-m4trace:configure.in:209: -1- _m4_warn([obsolete], [back quotes and double quotes must not be escaped in: $as_me:$LINENO: error: conditional \"AMDEP\" was never defined.
+m4trace:configure.in:165: -1- AC_SUBST([GSL_LIBS])
+m4trace:configure.in:165: -1- AC_SUBST_TRACE([GSL_LIBS])
+m4trace:configure.in:165: -1- m4_pattern_allow([^GSL_LIBS$])
+m4trace:configure.in:166: -1- AC_SUBST([FFTW_LIBS])
+m4trace:configure.in:166: -1- AC_SUBST_TRACE([FFTW_LIBS])
+m4trace:configure.in:166: -1- m4_pattern_allow([^FFTW_LIBS$])
+m4trace:configure.in:167: -1- AC_SUBST([NIDAQMX_LIBS])
+m4trace:configure.in:167: -1- AC_SUBST_TRACE([NIDAQMX_LIBS])
+m4trace:configure.in:167: -1- m4_pattern_allow([^NIDAQMX_LIBS$])
+m4trace:configure.in:168: -1- AC_SUBST([NIDAQMX_CFLAGS])
+m4trace:configure.in:168: -1- AC_SUBST_TRACE([NIDAQMX_CFLAGS])
+m4trace:configure.in:168: -1- m4_pattern_allow([^NIDAQMX_CFLAGS$])
+m4trace:configure.in:169: -1- AC_SUBST([LINUXGPIB_LIBS])
+m4trace:configure.in:169: -1- AC_SUBST_TRACE([LINUXGPIB_LIBS])
+m4trace:configure.in:169: -1- m4_pattern_allow([^LINUXGPIB_LIBS$])
+m4trace:configure.in:170: -1- AC_SUBST([RUBY_LIBS])
+m4trace:configure.in:170: -1- AC_SUBST_TRACE([RUBY_LIBS])
+m4trace:configure.in:170: -1- m4_pattern_allow([^RUBY_LIBS$])
+m4trace:configure.in:171: -1- AC_SUBST([RUBY_CFLAGS])
+m4trace:configure.in:171: -1- AC_SUBST_TRACE([RUBY_CFLAGS])
+m4trace:configure.in:171: -1- m4_pattern_allow([^RUBY_CFLAGS$])
+m4trace:configure.in:172: -1- AC_SUBST([FREETYPE2_LIBS])
+m4trace:configure.in:172: -1- AC_SUBST_TRACE([FREETYPE2_LIBS])
+m4trace:configure.in:172: -1- m4_pattern_allow([^FREETYPE2_LIBS$])
+m4trace:configure.in:173: -1- AC_SUBST([FREETYPE2_CFLAGS])
+m4trace:configure.in:173: -1- AC_SUBST_TRACE([FREETYPE2_CFLAGS])
+m4trace:configure.in:173: -1- m4_pattern_allow([^FREETYPE2_CFLAGS$])
+m4trace:configure.in:174: -1- AC_SUBST([GC_LIBS])
+m4trace:configure.in:174: -1- AC_SUBST_TRACE([GC_LIBS])
+m4trace:configure.in:174: -1- m4_pattern_allow([^GC_LIBS$])
+m4trace:configure.in:175: -1- AC_SUBST([MALLOC_DEBUG_LIBS])
+m4trace:configure.in:175: -1- AC_SUBST_TRACE([MALLOC_DEBUG_LIBS])
+m4trace:configure.in:175: -1- m4_pattern_allow([^MALLOC_DEBUG_LIBS$])
+m4trace:configure.in:179: -1- AC_CONFIG_SUBDIRS([libltdl])
+m4trace:configure.in:179: -1- AC_SUBST([subdirs], ["$subdirs m4_normalize([libltdl])"])
+m4trace:configure.in:179: -1- AC_SUBST_TRACE([subdirs])
+m4trace:configure.in:179: -1- m4_pattern_allow([^subdirs$])
+m4trace:configure.in:180: -1- AC_SUBST([TOPSUBDIRS])
+m4trace:configure.in:180: -1- AC_SUBST_TRACE([TOPSUBDIRS])
+m4trace:configure.in:180: -1- m4_pattern_allow([^TOPSUBDIRS$])
+m4trace:configure.in:181: -1- AC_CONFIG_FILES([ Makefile ])
+m4trace:configure.in:182: -1- AC_CONFIG_FILES([ doc/Makefile ])
+m4trace:configure.in:183: -1- AC_CONFIG_FILES([ doc/en/Makefile ])
+m4trace:configure.in:184: -1- AC_CONFIG_FILES([ kame/Makefile ])
+m4trace:configure.in:185: -1- AC_CONFIG_FILES([ kame/Measurements/Makefile ])
+m4trace:configure.in:186: -1- AC_CONFIG_FILES([ kame/Scripts/Makefile ])
+m4trace:configure.in:187: -1- AC_CONFIG_FILES([ kame/analyzer/Makefile ])
+m4trace:configure.in:188: -1- AC_CONFIG_FILES([ kame/driver/Makefile ])
+m4trace:configure.in:189: -1- AC_CONFIG_FILES([ kame/forms/Makefile ])
+m4trace:configure.in:190: -1- AC_CONFIG_FILES([ kame/graph/Makefile ])
+m4trace:configure.in:191: -1- AC_CONFIG_FILES([ kame/icons/Makefile ])
+m4trace:configure.in:192: -1- AC_CONFIG_FILES([ kame/mikachanfont/Makefile ])
+m4trace:configure.in:193: -1- AC_CONFIG_FILES([ kame/script/Makefile ])
+m4trace:configure.in:194: -1- AC_CONFIG_FILES([ kame/script/forms/Makefile ])
+m4trace:configure.in:195: -1- AC_CONFIG_FILES([ kame/thermometer/Makefile ])
+m4trace:configure.in:196: -1- AC_CONFIG_FILES([ kame/thermometer/forms/Makefile ])
+m4trace:configure.in:197: -1- AC_CONFIG_FILES([ libltdl/Makefile ])
+m4trace:configure.in:198: -1- AC_CONFIG_FILES([ modules/Makefile ])
+m4trace:configure.in:199: -1- AC_CONFIG_FILES([ modules/charinterface/Makefile ])
+m4trace:configure.in:200: -1- AC_CONFIG_FILES([ modules/dcsource/Makefile ])
+m4trace:configure.in:201: -1- AC_CONFIG_FILES([ modules/dcsource/forms/Makefile ])
+m4trace:configure.in:202: -1- AC_CONFIG_FILES([ modules/dmm/Makefile ])
+m4trace:configure.in:203: -1- AC_CONFIG_FILES([ modules/dmm/forms/Makefile ])
+m4trace:configure.in:204: -1- AC_CONFIG_FILES([ modules/dso/Makefile ])
+m4trace:configure.in:205: -1- AC_CONFIG_FILES([ modules/dso/forms/Makefile ])
+m4trace:configure.in:206: -1- AC_CONFIG_FILES([ modules/funcsynth/Makefile ])
+m4trace:configure.in:207: -1- AC_CONFIG_FILES([ modules/funcsynth/forms/Makefile ])
+m4trace:configure.in:208: -1- AC_CONFIG_FILES([ modules/lia/Makefile ])
+m4trace:configure.in:209: -1- AC_CONFIG_FILES([ modules/lia/forms/Makefile ])
+m4trace:configure.in:210: -1- AC_CONFIG_FILES([ modules/magnetps/Makefile ])
+m4trace:configure.in:211: -1- AC_CONFIG_FILES([ modules/magnetps/forms/Makefile ])
+m4trace:configure.in:212: -1- AC_CONFIG_FILES([ modules/montecarlo/Makefile ])
+m4trace:configure.in:213: -1- AC_CONFIG_FILES([ modules/montecarlo/forms/Makefile ])
+m4trace:configure.in:214: -1- AC_CONFIG_FILES([ modules/nidaq/Makefile ])
+m4trace:configure.in:215: -1- AC_CONFIG_FILES([ modules/nmr/Makefile ])
+m4trace:configure.in:216: -1- AC_CONFIG_FILES([ modules/nmr/forms/Makefile ])
+m4trace:configure.in:217: -1- AC_CONFIG_FILES([ modules/tempcontrol/Makefile ])
+m4trace:configure.in:218: -1- AC_CONFIG_FILES([ modules/tempcontrol/forms/Makefile ])
+m4trace:configure.in:219: -1- AC_CONFIG_FILES([ modules/testdriver/Makefile ])
+m4trace:configure.in:220: -1- AC_CONFIG_FILES([ po/Makefile ])
+m4trace:configure.in:221: -1- AC_SUBST([LIB@&t@OBJS], [$ac_libobjs])
+m4trace:configure.in:221: -1- AC_SUBST_TRACE([LIB@&t@OBJS])
+m4trace:configure.in:221: -1- m4_pattern_allow([^LIB@&t@OBJS$])
+m4trace:configure.in:221: -1- AC_SUBST([LTLIBOBJS], [$ac_ltlibobjs])
+m4trace:configure.in:221: -1- AC_SUBST_TRACE([LTLIBOBJS])
+m4trace:configure.in:221: -1- m4_pattern_allow([^LTLIBOBJS$])
+m4trace:configure.in:221: -1- _m4_warn([obsolete], [back quotes and double quotes must not be escaped in: $as_me:$LINENO: error: conditional \"AMDEP\" was never defined.
 Usually this means the macro was only invoked conditionally.], [])
-m4trace:configure.in:209: -1- _m4_warn([obsolete], [back quotes and double quotes must not be escaped in: $as_me: error: conditional \"AMDEP\" was never defined.
+m4trace:configure.in:221: -1- _m4_warn([obsolete], [back quotes and double quotes must not be escaped in: $as_me: error: conditional \"AMDEP\" was never defined.
 Usually this means the macro was only invoked conditionally.], [])
-m4trace:configure.in:209: -1- _m4_warn([obsolete], [back quotes and double quotes must not be escaped in: $as_me:$LINENO: error: conditional \"include_ARTS\" was never defined.
+m4trace:configure.in:221: -1- _m4_warn([obsolete], [back quotes and double quotes must not be escaped in: $as_me:$LINENO: error: conditional \"include_ARTS\" was never defined.
 Usually this means the macro was only invoked conditionally.], [])
-m4trace:configure.in:209: -1- _m4_warn([obsolete], [back quotes and double quotes must not be escaped in: $as_me: error: conditional \"include_ARTS\" was never defined.
+m4trace:configure.in:221: -1- _m4_warn([obsolete], [back quotes and double quotes must not be escaped in: $as_me: error: conditional \"include_ARTS\" was never defined.
 Usually this means the macro was only invoked conditionally.], [])
-m4trace:configure.in:209: -1- AC_SUBST_TRACE([top_builddir])
-m4trace:configure.in:209: -1- AC_SUBST_TRACE([srcdir])
-m4trace:configure.in:209: -1- AC_SUBST_TRACE([abs_srcdir])
-m4trace:configure.in:209: -1- AC_SUBST_TRACE([top_srcdir])
-m4trace:configure.in:209: -1- AC_SUBST_TRACE([abs_top_srcdir])
-m4trace:configure.in:209: -1- AC_SUBST_TRACE([builddir])
-m4trace:configure.in:209: -1- AC_SUBST_TRACE([abs_builddir])
-m4trace:configure.in:209: -1- AC_SUBST_TRACE([abs_top_builddir])
-m4trace:configure.in:209: -1- AC_SUBST_TRACE([INSTALL])
+m4trace:configure.in:221: -1- AC_SUBST_TRACE([top_builddir])
+m4trace:configure.in:221: -1- AC_SUBST_TRACE([srcdir])
+m4trace:configure.in:221: -1- AC_SUBST_TRACE([abs_srcdir])
+m4trace:configure.in:221: -1- AC_SUBST_TRACE([top_srcdir])
+m4trace:configure.in:221: -1- AC_SUBST_TRACE([abs_top_srcdir])
+m4trace:configure.in:221: -1- AC_SUBST_TRACE([builddir])
+m4trace:configure.in:221: -1- AC_SUBST_TRACE([abs_builddir])
+m4trace:configure.in:221: -1- AC_SUBST_TRACE([abs_top_builddir])
+m4trace:configure.in:221: -1- AC_SUBST_TRACE([INSTALL])

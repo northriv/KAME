@@ -41,7 +41,7 @@ protected:
 	//! null pointer will be passed to analyze()
 	//! emitter is driver itself.
 	//! \sa analyze(), checkDependency()
-	virtual void requestAnalysis();
+	void requestAnalysis();
   
 	//! this is called when connected driver emit a signal
 	//! unless dependency is broken

@@ -12,6 +12,7 @@ INCLUDES = -I$(top_srcdir)/. \
 	-I$(top_builddir)/kame/script/forms \
 	-I$(top_builddir)/kame/thermometer/forms \
 	-I$(top_srcdir)/kame/icons \
+	$(LTDLINCL) \
 	$(all_includes)
 	
 kame_SOURCES = measure.cpp measure.h \
@@ -39,9 +40,11 @@ kame_LDADD = $(top_builddir)/kame/forms/libforms.a \
 	$(top_builddir)/kame/thermometer/forms/libforms.a \
 	$(top_builddir)/kame/icons/libicons.a \
 	$(top_builddir)/kame/graph/libgraph.a \
-	$(top_srcdir)/FTGL/unix/src/.libs/libftgl.a -lGLU -lm \
+	$(LIBLTDL) \
+	$(top_srcdir)/FTGL/unix/src/.libs/libftgl.a \
+	-lGLU -lm \
 	$(LIB_KFILE) $(LIB_KDEUI) $(LIB_KDECORE) $(LIB_QT) $(LIBSOCKET) -lkmdi @RUBY_LIBS@\
-	@GC_LIBS@ @MALLOC_DEBUG_LIBS@ @FREETYPE2_LIBS@ @GSL_LIBS@ -lltdl
+	@GC_LIBS@ @MALLOC_DEBUG_LIBS@ @FREETYPE2_LIBS@ @GSL_LIBS@
 
 kame_LDFLAGS = $(all_libraries) -export-dynamic
 #-rdynamic
