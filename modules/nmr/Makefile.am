@@ -11,7 +11,7 @@ INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/kame/analyzer \
 	-I$(top_srcdir)/kame/graph \
 	-I$(top_builddir)/kame/graph \
-	-I$(top_builddir)/kame/users/nmr/forms \
+	-Iforms \
 	$(all_includes)
 
 libnmr_la_SOURCES = \

@@ -27,6 +27,5 @@ cat ChangeLog >> kame.spec
 
 cd ..
 tar jcvf $file.tar.bz2 $file
-ln -sf $file.tar.bz2 kame-$version.tar.bz2
 rm -fR $file
 #rpmbuild --rcfile=rpmrc -ts $file.tar.bz2

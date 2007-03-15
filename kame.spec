@@ -30,28 +30,34 @@ Summary: KAME, K's adaptive measurement engine.
 %description
 K's adaptive measurement engine. 
 
-Package: modules-standard
+%package modules-standard
+Group: Applications/Engineering
+Summary: KAME, K's adaptive measurement engine. Modules.
 Requires: kame
 Requires: linux-gpib
 BuildPreReq: linux-gpib-devel
-%description
+%description modules-standard
 K's adaptive measurement engine.
 Many standard drivers.
 
-Package: modules-nmr
+%package modules-nmr
+Group: Applications/Engineering
+Summary: KAME, K's adaptive measurement engine. Modules.
 Requires: kame-modules-standard
 Requires: fftw2
 BuildPreReq: fftw2-devel
-%description
+%description modules-nmr
 K's adaptive measurement engine.
 NMR drivers.
 
 %if 0%{build_nidaqmx}
-Package: modules-nidaq
+%package modules-nidaq
+Group: Applications/Engineering
+Summary: KAME, K's adaptive measurement engine. Modules.
 Requires: kame-modules-nmr
 Requires: nidaqmxef
 BuildPreReq: nidaqmxcapii
-%description
+%description modules-nidaq
 K's adaptive measurement engine.
 NMR drivers.
 %endif
@@ -85,7 +91,7 @@ rm -rf $RPM_BUILD_ROOT
 %files
 %defattr(-,root,root)
 %{_bindir}/kame
-%{_libdir}/kame/lib*
+#%{_libdir}/kame/lib*
 %{_datadir}/applnk/Applications/*.desktop
 %{_datadir}/apps/kame
 %{_datadir}/icons/*/*/apps/*.png

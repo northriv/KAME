@@ -10,7 +10,7 @@ INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/kame/driver \
 	-I$(top_srcdir)/modules/charinterface \
 	-I$(top_builddir)/kame/graph \
-	-I$(top_builddir)/kame/users/dso/forms \
+	-Iforms \
 	$(all_includes)
 
 libdso_la_SOURCES = fir.cpp fir.h \

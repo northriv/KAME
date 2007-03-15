@@ -8,7 +8,7 @@ INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/modules/charinterface \
 	-I$(top_srcdir)/kame/analyzer \
 	-I$(top_srcdir)/kame/users/magnetps \
-	-I$(top_builddir)/kame/users/magnetps/forms \
+	-Iforms \
 	$(all_includes)
 
 libmagnetps_la_SOURCES = magnetps.cpp magnetps.h \

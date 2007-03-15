@@ -7,7 +7,7 @@ INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/kame/analyzer \
 	-I$(top_srcdir)/kame/driver \
 	-I$(top_srcdir)/modules/charinterface \
-	-I$(top_builddir)/kame/users/lia/forms \
+	-Iforms \
 	$(all_includes)
 
 liblia_la_SOURCES = lockinamp.cpp lockinamp.h \

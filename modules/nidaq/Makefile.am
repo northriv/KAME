@@ -14,6 +14,7 @@ INCLUDES = -I$(top_srcdir)/kame \
 
 libnidaq_la_SOURCES = \
 	nidaqmxdriver.cpp nidaqmxdriver.h \
+	pulserdrivernidaqmx.cpp pulserdrivernidaqmx.h \
 	pulserdrivernidaq.cpp pulserdrivernidaq.h \
 	nidaqdso.cpp nidaqdso.h
 	

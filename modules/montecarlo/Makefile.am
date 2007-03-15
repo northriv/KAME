@@ -8,7 +8,7 @@ INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/kame/graph \
 	-I$(top_builddir)/kame/graph \
 	-I$(top_srcdir)/kame/driver \
-	-I$(top_builddir)/kame/users/montecarlo/forms \
+	-Iforms \
 	$(all_includes)
 
 AM_CXXFLAGS = $(CXXFLAGS) \

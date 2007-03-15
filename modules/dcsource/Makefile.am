@@ -7,7 +7,7 @@ INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/kame/analyzer \
 	-I$(top_srcdir)/kame/driver \
 	-I$(top_srcdir)/modules/charinterface \
-	-I$(top_builddir)/kame/users/dcsource/forms \
+	-Iforms \
 	$(all_includes)
 	
 libdcsource_la_SOURCES = dcsource.cpp dcsource.h

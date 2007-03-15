@@ -7,7 +7,7 @@ INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/kame/analyzer \
 	-I$(top_srcdir)/kame/driver \
 	-I$(top_srcdir)/modules/charinterface \
-	-I$(top_builddir)/kame/users/tempcontrol/forms \
+	-Iforms \
 	$(all_includes)
 
 libtempcontrol_la_SOURCES = tempcontrol.cpp tempcontrol.h \
