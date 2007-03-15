@@ -311,9 +311,6 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 		ASSERT( emitter != _pulser );
             
 		bool _active = *active();
-		if(_pulse1->time() - _pulser->time() < _pulser->periodicTermRecorded() * 1e-3) {
-            m_statusPrinter->printWarning(KAME::i18n("Too small avg. count for phase cycling."));
-		}
       
 		std::complex<double> cmp1, cmp2;
 		cmp1 = acuSpectrum(_pulse1->ftWave(), _pulse1->dFreq() / 1000.0, *freq(), *bandWidth() );

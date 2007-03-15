@@ -48,12 +48,8 @@ static KCmdLineOptions options[] =
     // INSERT YOUR COMMANDLINE OPTIONS HERE
 };
 
-int load_module(const char *filename, lt_ptr ) {
-	lt_dlhandle handle = lt_dlopenext(filename);
-	if(handle)
-		fprintf(stderr, "Module %s loaded\n", filename);
-	else
-		fprintf(stderr, "loading module %s failed %s\n", filename, lt_dlerror());
+int load_module(const char *filename, lt_ptr data) {
+	reinterpret_cast<std::deque<std::string> *>(data)->push_back(filename);
 	return 0;
 }
 
@@ -139,6 +135,8 @@ int main(int argc, char *argv[])
 	*/
 
 	lt_dlinit();
+	LTDL_SET_PRELOADED_SYMBOLS();
+	std::deque<std::string> modules;
 	QStringList libdirs = KGlobal::instance()->dirs()->resourceDirs("lib");
 	for(QStringList::iterator it = libdirs.begin(); it != libdirs.end(); it++) {
 		QString path = *it + "kame/modules";
@@ -147,7 +145,28 @@ int main(int argc, char *argv[])
 		lt_dlforeachfile(path, &load_module, NULL);
 	}
 	for(QCStringList::iterator it = module_path.begin(); it != module_path.end(); it++) {
-		load_module(*it, NULL);
+		modules.push_back((const char*)*it);
+	}
+	
+	for(;;) {
+		unsigned int size = modules.size();
+		for(std::deque<std::string>::iterator it = modules.begin(); it != modules.end();) {
+			lt_dlhandle handle = lt_dlopenext(it->c_str());
+			if(handle) {
+				fprintf(stderr, "Module %s loaded\n", it->c_str());
+				it = modules.erase(it);
+			}
+			else {
+				fprintf(stderr, "loading module %s failed %s, retry.\n", it->c_str(), lt_dlerror());
+				it++;
+			}
+		}
+		if(size == modules.size()) {
+			for(std::deque<std::string>::iterator it = modules.begin(); it != modules.end(); it++) {
+				fprintf(stderr, "loading module %s failed\n", it->c_str());
+			}
+			break;
+		}
 	}
 
 	int ret = app->exec();

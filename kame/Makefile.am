@@ -35,7 +35,7 @@ kame_LDADD = $(top_builddir)/kame/forms/libforms.a \
 	$(top_builddir)/kame/script/libscript.a \
 	$(top_builddir)/kame/script/forms/libforms.a \
 	$(top_builddir)/kame/analyzer/libanalyzer.a \
-	$(top_builddir)/kame/driver/libdriver.la \
+	$(top_builddir)/kame/driver/libdriver.a \
 	$(top_builddir)/kame/thermometer/libthermometer.a \
 	$(top_builddir)/kame/thermometer/forms/libforms.a \
 	$(top_builddir)/kame/icons/libicons.a \
@@ -46,8 +46,7 @@ kame_LDADD = $(top_builddir)/kame/forms/libforms.a \
 	$(LIB_KFILE) $(LIB_KDEUI) $(LIB_KDECORE) $(LIB_QT) $(LIBSOCKET) -lkmdi @RUBY_LIBS@\
 	@GC_LIBS@ @MALLOC_DEBUG_LIBS@ @FREETYPE2_LIBS@ @GSL_LIBS@
 
-kame_LDFLAGS = $(all_libraries) -export-dynamic
-#-rdynamic
+kame_LDFLAGS = $(all_libraries) -dlpreopen self -export-dynamic
 # $(KDE_RPATH)
 
 SUBDIRS = forms script driver graph thermometer analyzer icons mikachanfont

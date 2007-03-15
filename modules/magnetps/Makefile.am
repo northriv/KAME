@@ -14,7 +14,6 @@ INCLUDES = -I$(top_srcdir)/kame \
 libmagnetps_la_SOURCES = magnetps.cpp magnetps.h \
 	usermagnetps.cpp usermagnetps.h
 libmagnetps_la_LIBADD = forms/libforms.la
-#	../charinterface/libcharinterface.la
 
 SUBDIRS = forms
 METASOURCES = AUTO
