@@ -8,7 +8,7 @@ Name: kame
 %{!?build_nidaqmx: %define build_nidaqmx 1}
 
 Version: 2.2
-Release: 1
+Release: 2
 License: GPL
 Group: Applications/Engineering
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
@@ -91,7 +91,6 @@ rm -rf $RPM_BUILD_ROOT
 %files
 %defattr(-,root,root)
 %{_bindir}/kame
-%{_libdir}/kame/lib*
 %{_datadir}/applnk/Applications/*.desktop
 %{_datadir}/apps/kame
 %{_datadir}/icons/*/*/apps/*.png
