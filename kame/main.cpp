@@ -53,7 +53,7 @@ int load_module(const char *filename, lt_ptr ) {
 	if(handle)
 		fprintf(stderr, "Module %s loaded\n", filename);
 	else
-		fprintf(stderr, "loading module %s failed %s\n\n\n", filename, lt_dlerror());
+		fprintf(stderr, "loading module %s failed %s\n", filename, lt_dlerror());
 	return 0;
 }
 

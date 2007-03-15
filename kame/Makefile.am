@@ -34,7 +34,7 @@ kame_LDADD = $(top_builddir)/kame/forms/libforms.a \
 	$(top_builddir)/kame/script/libscript.a \
 	$(top_builddir)/kame/script/forms/libforms.a \
 	$(top_builddir)/kame/analyzer/libanalyzer.a \
-	$(top_builddir)/kame/driver/libdriver.la \
+	$(top_builddir)/kame/driver/libdriver.a \
 	$(top_builddir)/kame/thermometer/libthermometer.a \
 	$(top_builddir)/kame/thermometer/forms/libforms.a \
 	$(top_builddir)/kame/icons/libicons.a \
