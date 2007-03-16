@@ -1,8 +1,6 @@
 #!/bin/bash
-version=2.2
-file=kame-$version
-dir=../2.1-backups/$file
-mkdir -p $dir
+file=$1
+mkdir -p /tmp/$file
 rsync --exclude "linux686" \
 	--exclude "kdedarwin" \
 	--exclude "macosx" \
@@ -19,11 +17,8 @@ rsync --exclude "linux686" \
 	 --exclude ".libs" \
 	 --exclude "/html" \
 	 --exclude "CVS" \
-	 . $dir -av --delete
-cd $dir
-cat ChangeLog >> kame.spec
-
-cd ..
-tar jcvf $file.tar.bz2 $file
-rm -fR $file
+	 . /tmp/$file -av --delete
+(cd /tmp/$file; cat ChangeLog >> kame.spec)
+(cd /tmp; tar jcvf $file.tar.bz2 $file)
+rm -fR /tmp/$file
 #rpmbuild --rcfile=rpmrc -ts $file.tar.bz2
