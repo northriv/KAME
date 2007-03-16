@@ -8,8 +8,8 @@ INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/kame/driver \
 	-I$(top_srcdir)/kame/graph \
 	-I$(top_builddir)/kame/graph \
-	-I$(top_srcdir)/modules/dso \
-	-I$(top_srcdir)/modules/nmr \
+	-I$(top_srcdir)/modules/dso/core \
+	-I$(top_srcdir)/modules/nmr/core \
 	$(all_includes)
 
 libnidaq_la_SOURCES = \
@@ -19,9 +19,8 @@ libnidaq_la_SOURCES = \
 	nidaqdso.cpp nidaqdso.h
 	
 libnidaq_la_LIBADD = \
+	../dso/core/libdsocore.la \
+	../nmr/core/libnmrpulsercore.la \
 	@NIDAQMX_LIBS@
-
-#	../dso/libdso.la 
-#	../nmr/libnmr.la 
 
 METASOURCES = AUTO

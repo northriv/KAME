@@ -1,9 +1,9 @@
 #!/bin/bash
-version=$1
+version=2.2
 file=kame-$version
-./tools/maketarball $file
+./tools/maketarball.sh $file
 target=${2:-i686}
 echo TARGET=$target
 export PATH=/usr/libexec/ccache:/usr/lib/ccache:$PATH 
-rpmbuild --target $target -ta /tmp/$file.tar.bz2 2>&1 | tee /tmp/mkrpm.log
+rpmbuild --target $target -ta ../2.1-backups/$file.tar.bz2 2>&1 | tee mkrpm.log
 #rm -f /tmp/$file.tar.bz2

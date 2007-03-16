@@ -1,20 +1,17 @@
-moduleexecdir=$(pkglibdir)/modules
-moduleexec_LTLIBRARIES = libdso.la
-
-libdso_la_LDFLAGS = -module
+pkglib_LTLIBRARIES = libdsocore.la
 
 INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/kame/graph \
 	-I$(top_srcdir)/kame/analyzer \
 	-I$(top_srcdir)/kame/driver \
-	-I$(top_srcdir)/modules/charinterface \
-	-I$(top_srcdir)/modules/dso/core \
+	-I$(top_builddir)/kame/graph \
+	-Iforms \
 	$(all_includes)
 
-libdso_la_SOURCES = tds.cpp tds.h
+libdsocore_la_SOURCES = fir.cpp fir.h \
+	dso.cpp dso.h
 
-libdso_la_LIBADD = core/libdsocore.la \
-	../charinterface/libcharinterface.la
+libdsocore_la_LIBADD = forms/libforms.la
 
 #AM_CXXFLAGS = $(CXXFLAGS) \
 #	-O6  \
@@ -23,4 +20,4 @@ libdso_la_LIBADD = core/libdsocore.la \
 
 METASOURCES = AUTO
 
-SUBDIRS = core
+SUBDIRS = forms

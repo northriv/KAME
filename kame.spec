@@ -8,7 +8,7 @@ Name: kame
 %{!?build_nidaqmx: %define build_nidaqmx 1}
 
 Version: 2.2
-Release: 2
+Release: 3
 License: GPL
 Group: Applications/Engineering
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
@@ -101,6 +101,8 @@ rm -rf $RPM_BUILD_ROOT
 
 %files modules-standard
 %{_libdir}/kame/libcharinterface*
+%{_libdir}/kame/libdsocore*
+%{_libdir}/kame/libmagnetpscore*
 %{_libdir}/kame/modules/libdcsource*
 %{_libdir}/kame/modules/libdmm*
 %{_libdir}/kame/modules/libdso*
@@ -110,7 +112,10 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/kame/modules/libtempcontrol*
 
 %files modules-nmr
+%{_libdir}/kame/libnmrpulsercore*
+%{_libdir}/kame/libsgcore*
 %{_libdir}/kame/modules/libnmr*
+%{_libdir}/kame/modules/libsg*
 
 %if 0%{build_nidaqmx}
 %files modules-nidaq
