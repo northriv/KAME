@@ -33,6 +33,7 @@ libnmrpulser_la_LIBADD = core/libnmrpulsercore.la \
 libsg_la_LIBADD = core/libsgcore.la \
 	../charinterface/libcharinterface.la
 libnmr_la_LIBADD = core/forms/libnmrforms.la \
+	../charinterface/libcharinterface.la \
 	core/libsgcore.la \
 	core/libnmrpulsercore.la \
 	../dso/core/libdsocore.la \
