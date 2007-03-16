@@ -124,7 +124,7 @@ XWaveNGraph::selectAxes(int x, int y1, int y2, int weight, int z)
       m_plot1->maxCount()->value(rowCount());
       m_plot1->maxCount()->setUIEnabled(false);
       m_plot1->clearPoints()->setUIEnabled(false);
-      m_plot1->intensity()->value(2.0);
+      m_plot1->intensity()->value(1.0);
       if(m_coly2 >= 0)
         {
           m_axisy2 = m_graph->axes()->create<XAxis>("Y2 Axis", true, XAxis::DirAxisY, true, m_graph);
@@ -145,7 +145,7 @@ XWaveNGraph::selectAxes(int x, int y1, int y2, int weight, int z)
           m_plot2->maxCount()->value(rowCount());
           m_plot2->maxCount()->setUIEnabled(false);
           m_plot2->clearPoints()->setUIEnabled(false);
-	      m_plot2->intensity()->value(2.0);
+	      m_plot2->intensity()->value(1.0);
         }
   }
 }

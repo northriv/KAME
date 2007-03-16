@@ -320,8 +320,10 @@ XNIDAQmxPulser::setupTasksAODO() {
 		CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskAO, buf_size_hint * 2));
 		CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
 		fprintf(stderr, "On-board bufsize is modified to %d\n", (int)onbrdsize);
+		buf_size_hint = (1 + buf_size_hint / onbrdsize) * onbrdsize;
 	}
-	buf_size_hint = (1 + buf_size_hint / onbrdsize) * onbrdsize;
+	else
+		buf_size_hint = onbrdsize;
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d\n", (int)bufsize);
