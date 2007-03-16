@@ -22,7 +22,7 @@
         <property name="margin">
             <number>2</number>
         </property>
-        <widget class="XQGraph" row="0" column="2" rowspan="3" colspan="1">
+        <widget class="XQGraph" row="0" column="2" rowspan="6" colspan="1">
             <property name="name">
                 <cstring>m_graph</cstring>
             </property>
@@ -35,7 +35,7 @@
                 </sizepolicy>
             </property>
         </widget>
-        <widget class="QLayoutWidget" row="0" column="0">
+        <widget class="QLayoutWidget" row="0" column="0" rowspan="4" colspan="1">
             <property name="name">
                 <cstring>layout52</cstring>
             </property>
@@ -85,6 +85,12 @@
                             <property name="name">
                                 <cstring>m_cmbRTMode</cstring>
                             </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>123</width>
+                                    <height>0</height>
+                                </size>
+                            </property>
                         </widget>
                     </hbox>
                 </widget>
@@ -109,7 +115,7 @@
                                 </sizepolicy>
                             </property>
                             <property name="text">
-                                <string>Rep/Rest Time</string>
+                                <string>Rep/Rest</string>
                             </property>
                         </widget>
                         <widget class="QLayoutWidget">
@@ -131,6 +137,12 @@
                                             <horstretch>0</horstretch>
                                             <verstretch>0</verstretch>
                                         </sizepolicy>
+                                    </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>66</width>
+                                            <height>0</height>
+                                        </size>
                                     </property>
                                     <property name="maximumSize">
                                         <size>
@@ -202,6 +214,12 @@
                                             <horstretch>0</horstretch>
                                             <verstretch>0</verstretch>
                                         </sizepolicy>
+                                    </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>102</width>
+                                            <height>0</height>
+                                        </size>
                                     </property>
                                     <property name="maximumSize">
                                         <size>
@@ -337,6 +355,12 @@
                                 <widget class="QComboBox">
                                     <property name="name">
                                         <cstring>m_cmbP1Func</cstring>
+                                    </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>120</width>
+                                            <height>0</height>
+                                        </size>
                                     </property>
                                 </widget>
                             </hbox>
@@ -549,6 +573,12 @@
                                     <property name="name">
                                         <cstring>m_cmbP2Func</cstring>
                                     </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>120</width>
+                                            <height>0</height>
+                                        </size>
+                                    </property>
                                 </widget>
                             </hbox>
                         </widget>
@@ -556,7 +586,7 @@
                 </widget>
             </vbox>
         </widget>
-        <widget class="QGroupBox" row="2" column="0" rowspan="1" colspan="2">
+        <widget class="QGroupBox" row="5" column="0" rowspan="1" colspan="2">
             <property name="name">
                 <cstring>groupBox3_2</cstring>
             </property>
@@ -600,7 +630,7 @@
                 </widget>
             </grid>
         </widget>
-        <widget class="QPushButton" row="1" column="0" rowspan="1" colspan="2">
+        <widget class="QPushButton" row="4" column="0" rowspan="1" colspan="2">
             <property name="name">
                 <cstring>m_btnMoreConfig</cstring>
             </property>
@@ -608,70 +638,86 @@
                 <string>More Config.</string>
             </property>
         </widget>
-        <widget class="QLayoutWidget" row="0" column="1">
+        <widget class="KDoubleNumInput" row="1" column="1">
             <property name="name">
-                <cstring>layout50</cstring>
+                <cstring>m_dblMasterLevel</cstring>
             </property>
-            <vbox>
+            <property name="sizePolicy">
+                <sizepolicy>
+                    <hsizetype>1</hsizetype>
+                    <vsizetype>0</vsizetype>
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                </sizepolicy>
+            </property>
+            <property name="acceptDrops">
+                <bool>false</bool>
+            </property>
+            <property name="value">
+                <number>0</number>
+            </property>
+            <property name="minValue">
+                <number>0</number>
+            </property>
+            <property name="maxValue">
+                <number>0</number>
+            </property>
+            <property name="suffix">
+                <string> dB</string>
+            </property>
+            <property name="precision">
+                <number>1</number>
+            </property>
+        </widget>
+        <widget class="QLayoutWidget" row="2" column="1">
+            <property name="name">
+                <cstring>layout85_3</cstring>
+            </property>
+            <hbox>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <widget class="QLabel">
+                    <property name="name">
+                        <cstring>textLabel2_3</cstring>
+                    </property>
+                    <property name="text">
+                        <string>Comb Mode</string>
+                    </property>
+                </widget>
+                <widget class="QComboBox">
+                    <property name="name">
+                        <cstring>m_cmbCombMode</cstring>
+                    </property>
+                    <property name="minimumSize">
+                        <size>
+                            <width>117</width>
+                            <height>0</height>
+                        </size>
+                    </property>
+                </widget>
+            </hbox>
+        </widget>
+        <widget class="QGroupBox" row="3" column="1">
+            <property name="name">
+                <cstring>groupBox4</cstring>
+            </property>
+            <property name="title">
+                <string>Comb Pulse</string>
+            </property>
+            <grid>
                 <property name="name">
                     <cstring>unnamed</cstring>
                 </property>
                 <property name="margin">
-                    <number>4</number>
+                    <number>2</number>
                 </property>
                 <property name="spacing">
                     <number>2</number>
                 </property>
-                <widget class="QLabel">
+                <widget class="QLayoutWidget" row="5" column="0">
                     <property name="name">
-                        <cstring>textLabel5_2_3_3_2_2</cstring>
-                    </property>
-                    <property name="sizePolicy">
-                        <sizepolicy>
-                            <hsizetype>5</hsizetype>
-                            <vsizetype>0</vsizetype>
-                            <horstretch>0</horstretch>
-                            <verstretch>0</verstretch>
-                        </sizepolicy>
-                    </property>
-                    <property name="text">
-                        <string>Master Level</string>
-                    </property>
-                </widget>
-                <widget class="KDoubleNumInput">
-                    <property name="name">
-                        <cstring>m_dblMasterLevel</cstring>
-                    </property>
-                    <property name="sizePolicy">
-                        <sizepolicy>
-                            <hsizetype>1</hsizetype>
-                            <vsizetype>0</vsizetype>
-                            <horstretch>0</horstretch>
-                            <verstretch>0</verstretch>
-                        </sizepolicy>
-                    </property>
-                    <property name="acceptDrops">
-                        <bool>false</bool>
-                    </property>
-                    <property name="value">
-                        <number>0</number>
-                    </property>
-                    <property name="minValue">
-                        <number>0</number>
-                    </property>
-                    <property name="maxValue">
-                        <number>0</number>
-                    </property>
-                    <property name="suffix">
-                        <string> dB</string>
-                    </property>
-                    <property name="precision">
-                        <number>1</number>
-                    </property>
-                </widget>
-                <widget class="QLayoutWidget">
-                    <property name="name">
-                        <cstring>layout85_3</cstring>
+                        <cstring>layout59_2_3_2</cstring>
                     </property>
                     <hbox>
                         <property name="name">
@@ -679,47 +725,139 @@
                         </property>
                         <widget class="QLabel">
                             <property name="name">
-                                <cstring>textLabel2_3</cstring>
+                                <cstring>textLabel5_2_3_2</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>5</hsizetype>
+                                    <vsizetype>0</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
                             </property>
                             <property name="text">
-                                <string>Comb Mode</string>
+                                <string>Periodic Term</string>
                             </property>
                         </widget>
-                        <widget class="QComboBox">
+                        <widget class="QLayoutWidget">
                             <property name="name">
-                                <cstring>m_cmbCombMode</cstring>
+                                <cstring>layout1_3_2_2_3_2</cstring>
+                            </property>
+                            <hbox>
+                                <property name="name">
+                                    <cstring>unnamed</cstring>
+                                </property>
+                                <widget class="QLineEdit">
+                                    <property name="name">
+                                        <cstring>m_edCombPT</cstring>
+                                    </property>
+                                    <property name="sizePolicy">
+                                        <sizepolicy>
+                                            <hsizetype>5</hsizetype>
+                                            <vsizetype>0</vsizetype>
+                                            <horstretch>0</horstretch>
+                                            <verstretch>0</verstretch>
+                                        </sizepolicy>
+                                    </property>
+                                    <property name="maximumSize">
+                                        <size>
+                                            <width>80</width>
+                                            <height>32767</height>
+                                        </size>
+                                    </property>
+                                </widget>
+                                <widget class="QLabel">
+                                    <property name="name">
+                                        <cstring>textLabel2_3_2_2_3_2</cstring>
+                                    </property>
+                                    <property name="sizePolicy">
+                                        <sizepolicy>
+                                            <hsizetype>0</hsizetype>
+                                            <vsizetype>5</vsizetype>
+                                            <horstretch>0</horstretch>
+                                            <verstretch>0</verstretch>
+                                        </sizepolicy>
+                                    </property>
+                                    <property name="text">
+                                        <string>us</string>
+                                    </property>
+                                </widget>
+                            </hbox>
+                        </widget>
+                    </hbox>
+                </widget>
+                <widget class="QLayoutWidget" row="4" column="0">
+                    <property name="name">
+                        <cstring>layout71</cstring>
+                    </property>
+                    <hbox>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <widget class="QLabel">
+                            <property name="name">
+                                <cstring>textLabel5_2_3_3</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>5</hsizetype>
+                                    <vsizetype>0</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                            <property name="text">
+                                <string># of Pulses</string>
+                            </property>
+                        </widget>
+                        <widget class="QSpinBox">
+                            <property name="name">
+                                <cstring>m_numCombNum</cstring>
+                            </property>
+                            <property name="minValue">
+                                <number>0</number>
+                            </property>
+                            <property name="value">
+                                <number>0</number>
                             </property>
                         </widget>
                     </hbox>
                 </widget>
-                <widget class="QGroupBox">
+                <widget class="QLayoutWidget" row="3" column="0">
                     <property name="name">
-                        <cstring>groupBox4</cstring>
+                        <cstring>layout59_2_3_2_3_2</cstring>
                     </property>
-                    <property name="title">
-                        <string>Comb Pulse</string>
-                    </property>
-                    <grid>
+                    <hbox>
                         <property name="name">
                             <cstring>unnamed</cstring>
                         </property>
-                        <property name="margin">
-                            <number>4</number>
-                        </property>
-                        <property name="spacing">
-                            <number>2</number>
-                        </property>
-                        <widget class="QLayoutWidget" row="7" column="0">
+                        <widget class="QLabel">
                             <property name="name">
-                                <cstring>layout59_2_3_2_3</cstring>
+                                <cstring>textLabel5_2_3_2_3_4</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>5</hsizetype>
+                                    <vsizetype>0</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                            <property name="text">
+                                <string>Off-Resonance</string>
+                            </property>
+                        </widget>
+                        <widget class="QLayoutWidget">
+                            <property name="name">
+                                <cstring>layout1_3_2_2_3_2_3_4</cstring>
                             </property>
                             <hbox>
                                 <property name="name">
                                     <cstring>unnamed</cstring>
                                 </property>
-                                <widget class="QLabel">
+                                <widget class="QLineEdit">
                                     <property name="name">
-                                        <cstring>textLabel5_2_3_2_3</cstring>
+                                        <cstring>m_edCombOffRes</cstring>
                                     </property>
                                     <property name="sizePolicy">
                                         <sizepolicy>
@@ -729,453 +867,336 @@
                                             <verstretch>0</verstretch>
                                         </sizepolicy>
                                     </property>
-                                    <property name="text">
-                                        <string>&lt;i&gt;P&lt;/i&gt;&lt;font size="-1"&gt;1&lt;/font&gt; (ALT)</string>
+                                    <property name="maximumSize">
+                                        <size>
+                                            <width>80</width>
+                                            <height>32767</height>
+                                        </size>
                                     </property>
                                 </widget>
-                                <widget class="QLayoutWidget">
-                                    <property name="name">
-                                        <cstring>layout1_3_2_2_3_2_3</cstring>
-                                    </property>
-                                    <hbox>
-                                        <property name="name">
-                                            <cstring>unnamed</cstring>
-                                        </property>
-                                        <widget class="QLineEdit">
-                                            <property name="name">
-                                                <cstring>m_edCombP1Alt</cstring>
-                                            </property>
-                                            <property name="sizePolicy">
-                                                <sizepolicy>
-                                                    <hsizetype>5</hsizetype>
-                                                    <vsizetype>0</vsizetype>
-                                                    <horstretch>0</horstretch>
-                                                    <verstretch>0</verstretch>
-                                                </sizepolicy>
-                                            </property>
-                                            <property name="maximumSize">
-                                                <size>
-                                                    <width>80</width>
-                                                    <height>32767</height>
-                                                </size>
-                                            </property>
-                                        </widget>
-                                        <widget class="QLabel">
-                                            <property name="name">
-                                                <cstring>textLabel2_3_2_2_3_2_3</cstring>
-                                            </property>
-                                            <property name="sizePolicy">
-                                                <sizepolicy>
-                                                    <hsizetype>0</hsizetype>
-                                                    <vsizetype>5</vsizetype>
-                                                    <horstretch>0</horstretch>
-                                                    <verstretch>0</verstretch>
-                                                </sizepolicy>
-                                            </property>
-                                            <property name="text">
-                                                <string>ms</string>
-                                            </property>
-                                        </widget>
-                                    </hbox>
-                                </widget>
-                            </hbox>
-                        </widget>
-                        <widget class="QLayoutWidget" row="6" column="0">
-                            <property name="name">
-                                <cstring>layout59_2_3_2_2</cstring>
-                            </property>
-                            <hbox>
-                                <property name="name">
-                                    <cstring>unnamed</cstring>
-                                </property>
                                 <widget class="QLabel">
                                     <property name="name">
-                                        <cstring>textLabel5_2_3_2_2</cstring>
+                                        <cstring>textLabel2_3_2_2_3_2_3_4</cstring>
                                     </property>
                                     <property name="sizePolicy">
                                         <sizepolicy>
-                                            <hsizetype>5</hsizetype>
-                                            <vsizetype>0</vsizetype>
+                                            <hsizetype>0</hsizetype>
+                                            <vsizetype>5</vsizetype>
                                             <horstretch>0</horstretch>
                                             <verstretch>0</verstretch>
                                         </sizepolicy>
                                     </property>
                                     <property name="text">
-                                        <string>&lt;i&gt;P&lt;/i&gt;&lt;font size="-1"&gt;1&lt;/font&gt;</string>
-                                    </property>
-                                </widget>
-                                <widget class="QLayoutWidget">
-                                    <property name="name">
-                                        <cstring>layout1_3_2_2_3_2_2</cstring>
-                                    </property>
-                                    <hbox>
-                                        <property name="name">
-                                            <cstring>unnamed</cstring>
-                                        </property>
-                                        <widget class="QLineEdit">
-                                            <property name="name">
-                                                <cstring>m_edCombP1</cstring>
-                                            </property>
-                                            <property name="sizePolicy">
-                                                <sizepolicy>
-                                                    <hsizetype>5</hsizetype>
-                                                    <vsizetype>0</vsizetype>
-                                                    <horstretch>0</horstretch>
-                                                    <verstretch>0</verstretch>
-                                                </sizepolicy>
-                                            </property>
-                                            <property name="maximumSize">
-                                                <size>
-                                                    <width>80</width>
-                                                    <height>32767</height>
-                                                </size>
-                                            </property>
-                                        </widget>
-                                        <widget class="QLabel">
-                                            <property name="name">
-                                                <cstring>textLabel2_3_2_2_3_2_2</cstring>
-                                            </property>
-                                            <property name="sizePolicy">
-                                                <sizepolicy>
-                                                    <hsizetype>0</hsizetype>
-                                                    <vsizetype>5</vsizetype>
-                                                    <horstretch>0</horstretch>
-                                                    <verstretch>0</verstretch>
-                                                </sizepolicy>
-                                            </property>
-                                            <property name="text">
-                                                <string>ms</string>
-                                            </property>
-                                        </widget>
-                                    </hbox>
-                                </widget>
-                            </hbox>
-                        </widget>
-                        <widget class="QLayoutWidget" row="5" column="0">
-                            <property name="name">
-                                <cstring>layout59_2_3_2</cstring>
-                            </property>
-                            <hbox>
-                                <property name="name">
-                                    <cstring>unnamed</cstring>
-                                </property>
-                                <widget class="QLabel">
-                                    <property name="name">
-                                        <cstring>textLabel5_2_3_2</cstring>
-                                    </property>
-                                    <property name="sizePolicy">
-                                        <sizepolicy>
-                                            <hsizetype>5</hsizetype>
-                                            <vsizetype>0</vsizetype>
-                                            <horstretch>0</horstretch>
-                                            <verstretch>0</verstretch>
-                                        </sizepolicy>
-                                    </property>
-                                    <property name="text">
-                                        <string>Periodic Term</string>
-                                    </property>
-                                </widget>
-                                <widget class="QLayoutWidget">
-                                    <property name="name">
-                                        <cstring>layout1_3_2_2_3_2</cstring>
-                                    </property>
-                                    <hbox>
-                                        <property name="name">
-                                            <cstring>unnamed</cstring>
-                                        </property>
-                                        <widget class="QLineEdit">
-                                            <property name="name">
-                                                <cstring>m_edCombPT</cstring>
-                                            </property>
-                                            <property name="sizePolicy">
-                                                <sizepolicy>
-                                                    <hsizetype>5</hsizetype>
-                                                    <vsizetype>0</vsizetype>
-                                                    <horstretch>0</horstretch>
-                                                    <verstretch>0</verstretch>
-                                                </sizepolicy>
-                                            </property>
-                                            <property name="maximumSize">
-                                                <size>
-                                                    <width>80</width>
-                                                    <height>32767</height>
-                                                </size>
-                                            </property>
-                                        </widget>
-                                        <widget class="QLabel">
-                                            <property name="name">
-                                                <cstring>textLabel2_3_2_2_3_2</cstring>
-                                            </property>
-                                            <property name="sizePolicy">
-                                                <sizepolicy>
-                                                    <hsizetype>0</hsizetype>
-                                                    <vsizetype>5</vsizetype>
-                                                    <horstretch>0</horstretch>
-                                                    <verstretch>0</verstretch>
-                                                </sizepolicy>
-                                            </property>
-                                            <property name="text">
-                                                <string>us</string>
-                                            </property>
-                                        </widget>
-                                    </hbox>
-                                </widget>
-                            </hbox>
-                        </widget>
-                        <widget class="QLayoutWidget" row="4" column="0">
-                            <property name="name">
-                                <cstring>layout71</cstring>
-                            </property>
-                            <hbox>
-                                <property name="name">
-                                    <cstring>unnamed</cstring>
-                                </property>
-                                <widget class="QLabel">
-                                    <property name="name">
-                                        <cstring>textLabel5_2_3_3</cstring>
-                                    </property>
-                                    <property name="sizePolicy">
-                                        <sizepolicy>
-                                            <hsizetype>5</hsizetype>
-                                            <vsizetype>0</vsizetype>
-                                            <horstretch>0</horstretch>
-                                            <verstretch>0</verstretch>
-                                        </sizepolicy>
-                                    </property>
-                                    <property name="text">
-                                        <string># of Pulses</string>
-                                    </property>
-                                </widget>
-                                <widget class="QSpinBox">
-                                    <property name="name">
-                                        <cstring>m_numCombNum</cstring>
-                                    </property>
-                                    <property name="minValue">
-                                        <number>0</number>
-                                    </property>
-                                    <property name="value">
-                                        <number>0</number>
+                                        <string>kHz</string>
                                     </property>
                                 </widget>
                             </hbox>
                         </widget>
-                        <widget class="QLayoutWidget" row="3" column="0">
-                            <property name="name">
-                                <cstring>layout59_2_3_2_3_2</cstring>
-                            </property>
-                            <hbox>
-                                <property name="name">
-                                    <cstring>unnamed</cstring>
-                                </property>
-                                <widget class="QLabel">
-                                    <property name="name">
-                                        <cstring>textLabel5_2_3_2_3_4</cstring>
-                                    </property>
-                                    <property name="sizePolicy">
-                                        <sizepolicy>
-                                            <hsizetype>5</hsizetype>
-                                            <vsizetype>0</vsizetype>
-                                            <horstretch>0</horstretch>
-                                            <verstretch>0</verstretch>
-                                        </sizepolicy>
-                                    </property>
-                                    <property name="text">
-                                        <string>Off-Resonance</string>
-                                    </property>
-                                </widget>
-                                <widget class="QLayoutWidget">
-                                    <property name="name">
-                                        <cstring>layout1_3_2_2_3_2_3_4</cstring>
-                                    </property>
-                                    <hbox>
-                                        <property name="name">
-                                            <cstring>unnamed</cstring>
-                                        </property>
-                                        <widget class="QLineEdit">
-                                            <property name="name">
-                                                <cstring>m_edCombOffRes</cstring>
-                                            </property>
-                                            <property name="sizePolicy">
-                                                <sizepolicy>
-                                                    <hsizetype>5</hsizetype>
-                                                    <vsizetype>0</vsizetype>
-                                                    <horstretch>0</horstretch>
-                                                    <verstretch>0</verstretch>
-                                                </sizepolicy>
-                                            </property>
-                                            <property name="maximumSize">
-                                                <size>
-                                                    <width>80</width>
-                                                    <height>32767</height>
-                                                </size>
-                                            </property>
-                                        </widget>
-                                        <widget class="QLabel">
-                                            <property name="name">
-                                                <cstring>textLabel2_3_2_2_3_2_3_4</cstring>
-                                            </property>
-                                            <property name="sizePolicy">
-                                                <sizepolicy>
-                                                    <hsizetype>0</hsizetype>
-                                                    <vsizetype>5</vsizetype>
-                                                    <horstretch>0</horstretch>
-                                                    <verstretch>0</verstretch>
-                                                </sizepolicy>
-                                            </property>
-                                            <property name="text">
-                                                <string>kHz</string>
-                                            </property>
-                                        </widget>
-                                    </hbox>
-                                </widget>
-                            </hbox>
-                        </widget>
-                        <widget class="QLayoutWidget" row="0" column="0">
-                            <property name="name">
-                                <cstring>layout59_2_3</cstring>
-                            </property>
-                            <hbox>
-                                <property name="name">
-                                    <cstring>unnamed</cstring>
-                                </property>
-                                <widget class="QLabel">
-                                    <property name="name">
-                                        <cstring>textLabel5_2_3</cstring>
-                                    </property>
-                                    <property name="sizePolicy">
-                                        <sizepolicy>
-                                            <hsizetype>5</hsizetype>
-                                            <vsizetype>0</vsizetype>
-                                            <horstretch>0</horstretch>
-                                            <verstretch>0</verstretch>
-                                        </sizepolicy>
-                                    </property>
-                                    <property name="text">
-                                        <string>Pulse Width</string>
-                                    </property>
-                                </widget>
-                                <widget class="QLayoutWidget">
-                                    <property name="name">
-                                        <cstring>layout1_3_2_2_3</cstring>
-                                    </property>
-                                    <hbox>
-                                        <property name="name">
-                                            <cstring>unnamed</cstring>
-                                        </property>
-                                        <widget class="QLineEdit">
-                                            <property name="name">
-                                                <cstring>m_edCombPW</cstring>
-                                            </property>
-                                            <property name="sizePolicy">
-                                                <sizepolicy>
-                                                    <hsizetype>5</hsizetype>
-                                                    <vsizetype>0</vsizetype>
-                                                    <horstretch>0</horstretch>
-                                                    <verstretch>0</verstretch>
-                                                </sizepolicy>
-                                            </property>
-                                            <property name="maximumSize">
-                                                <size>
-                                                    <width>80</width>
-                                                    <height>32767</height>
-                                                </size>
-                                            </property>
-                                        </widget>
-                                        <widget class="QLabel">
-                                            <property name="name">
-                                                <cstring>textLabel2_3_2_2_3</cstring>
-                                            </property>
-                                            <property name="sizePolicy">
-                                                <sizepolicy>
-                                                    <hsizetype>0</hsizetype>
-                                                    <vsizetype>5</vsizetype>
-                                                    <horstretch>0</horstretch>
-                                                    <verstretch>0</verstretch>
-                                                </sizepolicy>
-                                            </property>
-                                            <property name="text">
-                                                <string>us</string>
-                                            </property>
-                                        </widget>
-                                    </hbox>
-                                </widget>
-                            </hbox>
-                        </widget>
-                        <widget class="QLayoutWidget" row="2" column="0">
-                            <property name="name">
-                                <cstring>layout85_3_3_2_2</cstring>
-                            </property>
-                            <hbox>
-                                <property name="name">
-                                    <cstring>unnamed</cstring>
-                                </property>
-                                <widget class="QLabel">
-                                    <property name="name">
-                                        <cstring>textLabel2_3_4_2_2</cstring>
-                                    </property>
-                                    <property name="text">
-                                        <string>Waveform</string>
-                                    </property>
-                                </widget>
-                                <widget class="QComboBox">
-                                    <property name="name">
-                                        <cstring>m_cmbCombFunc</cstring>
-                                    </property>
-                                </widget>
-                            </hbox>
-                        </widget>
-                        <widget class="QLayoutWidget" row="1" column="0">
-                            <property name="name">
-                                <cstring>layout47</cstring>
-                            </property>
-                            <hbox>
-                                <property name="name">
-                                    <cstring>unnamed</cstring>
-                                </property>
-                                <widget class="QLabel">
-                                    <property name="name">
-                                        <cstring>textLabel5_2_2_2_2</cstring>
-                                    </property>
-                                    <property name="sizePolicy">
-                                        <sizepolicy>
-                                            <hsizetype>5</hsizetype>
-                                            <vsizetype>0</vsizetype>
-                                            <horstretch>0</horstretch>
-                                            <verstretch>0</verstretch>
-                                        </sizepolicy>
-                                    </property>
-                                    <property name="text">
-                                        <string>Output Level</string>
-                                    </property>
-                                </widget>
-                                <widget class="KDoubleNumInput">
-                                    <property name="name">
-                                        <cstring>m_dblCombLevel</cstring>
-                                    </property>
-                                    <property name="acceptDrops">
-                                        <bool>false</bool>
-                                    </property>
-                                    <property name="value">
-                                        <number>0</number>
-                                    </property>
-                                    <property name="minValue">
-                                        <number>0</number>
-                                    </property>
-                                    <property name="maxValue">
-                                        <number>0</number>
-                                    </property>
-                                    <property name="suffix">
-                                        <string> dB</string>
-                                    </property>
-                                    <property name="precision">
-                                        <number>1</number>
-                                    </property>
-                                </widget>
-                            </hbox>
-                        </widget>
-                    </grid>
+                    </hbox>
                 </widget>
-            </vbox>
+                <widget class="QLayoutWidget" row="0" column="0">
+                    <property name="name">
+                        <cstring>layout59_2_3</cstring>
+                    </property>
+                    <hbox>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <widget class="QLabel">
+                            <property name="name">
+                                <cstring>textLabel5_2_3</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>5</hsizetype>
+                                    <vsizetype>0</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                            <property name="text">
+                                <string>Pulse Width</string>
+                            </property>
+                        </widget>
+                        <widget class="QLayoutWidget">
+                            <property name="name">
+                                <cstring>layout1_3_2_2_3</cstring>
+                            </property>
+                            <hbox>
+                                <property name="name">
+                                    <cstring>unnamed</cstring>
+                                </property>
+                                <widget class="QLineEdit">
+                                    <property name="name">
+                                        <cstring>m_edCombPW</cstring>
+                                    </property>
+                                    <property name="sizePolicy">
+                                        <sizepolicy>
+                                            <hsizetype>5</hsizetype>
+                                            <vsizetype>0</vsizetype>
+                                            <horstretch>0</horstretch>
+                                            <verstretch>0</verstretch>
+                                        </sizepolicy>
+                                    </property>
+                                    <property name="maximumSize">
+                                        <size>
+                                            <width>80</width>
+                                            <height>32767</height>
+                                        </size>
+                                    </property>
+                                </widget>
+                                <widget class="QLabel">
+                                    <property name="name">
+                                        <cstring>textLabel2_3_2_2_3</cstring>
+                                    </property>
+                                    <property name="sizePolicy">
+                                        <sizepolicy>
+                                            <hsizetype>0</hsizetype>
+                                            <vsizetype>5</vsizetype>
+                                            <horstretch>0</horstretch>
+                                            <verstretch>0</verstretch>
+                                        </sizepolicy>
+                                    </property>
+                                    <property name="text">
+                                        <string>us</string>
+                                    </property>
+                                </widget>
+                            </hbox>
+                        </widget>
+                    </hbox>
+                </widget>
+                <widget class="QLayoutWidget" row="2" column="0">
+                    <property name="name">
+                        <cstring>layout85_3_3_2_2</cstring>
+                    </property>
+                    <hbox>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <widget class="QLabel">
+                            <property name="name">
+                                <cstring>textLabel2_3_4_2_2</cstring>
+                            </property>
+                            <property name="text">
+                                <string>Waveform</string>
+                            </property>
+                        </widget>
+                        <widget class="QComboBox">
+                            <property name="name">
+                                <cstring>m_cmbCombFunc</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>120</width>
+                                    <height>0</height>
+                                </size>
+                            </property>
+                        </widget>
+                    </hbox>
+                </widget>
+                <widget class="QLayoutWidget" row="1" column="0">
+                    <property name="name">
+                        <cstring>layout47</cstring>
+                    </property>
+                    <hbox>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <widget class="QLabel">
+                            <property name="name">
+                                <cstring>textLabel5_2_2_2_2</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>5</hsizetype>
+                                    <vsizetype>0</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                            <property name="text">
+                                <string>Output Level</string>
+                            </property>
+                        </widget>
+                        <widget class="KDoubleNumInput">
+                            <property name="name">
+                                <cstring>m_dblCombLevel</cstring>
+                            </property>
+                            <property name="acceptDrops">
+                                <bool>false</bool>
+                            </property>
+                            <property name="value">
+                                <number>0</number>
+                            </property>
+                            <property name="minValue">
+                                <number>0</number>
+                            </property>
+                            <property name="maxValue">
+                                <number>0</number>
+                            </property>
+                            <property name="suffix">
+                                <string> dB</string>
+                            </property>
+                            <property name="precision">
+                                <number>1</number>
+                            </property>
+                        </widget>
+                    </hbox>
+                </widget>
+                <widget class="QLayoutWidget" row="6" column="0">
+                    <property name="name">
+                        <cstring>layout30</cstring>
+                    </property>
+                    <hbox>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <widget class="QLabel">
+                            <property name="name">
+                                <cstring>textLabel5_2_3_2_2</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>5</hsizetype>
+                                    <vsizetype>0</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                            <property name="text">
+                                <string>&lt;i&gt;P&lt;/i&gt;&lt;font size="-1"&gt;1&lt;/font&gt;</string>
+                            </property>
+                        </widget>
+                        <widget class="QLineEdit">
+                            <property name="name">
+                                <cstring>m_edCombP1</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>5</hsizetype>
+                                    <vsizetype>0</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>108</width>
+                                    <height>0</height>
+                                </size>
+                            </property>
+                            <property name="maximumSize">
+                                <size>
+                                    <width>80</width>
+                                    <height>32767</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="QLabel">
+                            <property name="name">
+                                <cstring>textLabel2_3_2_2_3_2_2</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>0</hsizetype>
+                                    <vsizetype>5</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                            <property name="text">
+                                <string>ms</string>
+                            </property>
+                        </widget>
+                    </hbox>
+                </widget>
+                <widget class="QLayoutWidget" row="7" column="0">
+                    <property name="name">
+                        <cstring>layout33</cstring>
+                    </property>
+                    <hbox>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <widget class="QLabel">
+                            <property name="name">
+                                <cstring>textLabel5_2_3_2_3</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>5</hsizetype>
+                                    <vsizetype>0</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                            <property name="text">
+                                <string>&lt;i&gt;P&lt;/i&gt;&lt;font size="-1"&gt;1&lt;/font&gt; (ALT)</string>
+                            </property>
+                            <property name="alignment">
+                                <set>AlignVCenter</set>
+                            </property>
+                        </widget>
+                        <widget class="QLineEdit">
+                            <property name="name">
+                                <cstring>m_edCombP1Alt</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>5</hsizetype>
+                                    <vsizetype>0</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>108</width>
+                                    <height>0</height>
+                                </size>
+                            </property>
+                            <property name="maximumSize">
+                                <size>
+                                    <width>80</width>
+                                    <height>32767</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="QLabel">
+                            <property name="name">
+                                <cstring>textLabel2_3_2_2_3_2_3</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>0</hsizetype>
+                                    <vsizetype>5</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                            <property name="text">
+                                <string>ms</string>
+                            </property>
+                        </widget>
+                    </hbox>
+                </widget>
+            </grid>
+        </widget>
+        <widget class="QLabel" row="0" column="1">
+            <property name="name">
+                <cstring>textLabel5_2_3_3_2_2</cstring>
+            </property>
+            <property name="sizePolicy">
+                <sizepolicy>
+                    <hsizetype>5</hsizetype>
+                    <vsizetype>0</vsizetype>
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                </sizepolicy>
+            </property>
+            <property name="text">
+                <string>Master Level</string>
+            </property>
         </widget>
     </grid>
 </widget>

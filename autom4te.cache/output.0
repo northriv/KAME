@@ -37876,7 +37876,9 @@ ac_config_files="$ac_config_files modules/dmm/forms/Makefile"
 
 ac_config_files="$ac_config_files modules/dso/Makefile"
 
-ac_config_files="$ac_config_files modules/dso/forms/Makefile"
+ac_config_files="$ac_config_files modules/dso/core/Makefile"
+
+ac_config_files="$ac_config_files modules/dso/core/forms/Makefile"
 
 ac_config_files="$ac_config_files modules/funcsynth/Makefile"
 
@@ -37888,7 +37890,9 @@ ac_config_files="$ac_config_files modules/lia/forms/Makefile"
 
 ac_config_files="$ac_config_files modules/magnetps/Makefile"
 
-ac_config_files="$ac_config_files modules/magnetps/forms/Makefile"
+ac_config_files="$ac_config_files modules/magnetps/core/Makefile"
+
+ac_config_files="$ac_config_files modules/magnetps/core/forms/Makefile"
 
 ac_config_files="$ac_config_files modules/montecarlo/Makefile"
 
@@ -37898,7 +37902,9 @@ ac_config_files="$ac_config_files modules/nidaq/Makefile"
 
 ac_config_files="$ac_config_files modules/nmr/Makefile"
 
-ac_config_files="$ac_config_files modules/nmr/forms/Makefile"
+ac_config_files="$ac_config_files modules/nmr/core/Makefile"
+
+ac_config_files="$ac_config_files modules/nmr/core/forms/Makefile"
 
 ac_config_files="$ac_config_files modules/tempcontrol/Makefile"
 
@@ -38496,18 +38502,21 @@ do
     "modules/dmm/Makefile") CONFIG_FILES="$CONFIG_FILES modules/dmm/Makefile" ;;
     "modules/dmm/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/dmm/forms/Makefile" ;;
     "modules/dso/Makefile") CONFIG_FILES="$CONFIG_FILES modules/dso/Makefile" ;;
-    "modules/dso/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/dso/forms/Makefile" ;;
+    "modules/dso/core/Makefile") CONFIG_FILES="$CONFIG_FILES modules/dso/core/Makefile" ;;
+    "modules/dso/core/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/dso/core/forms/Makefile" ;;
     "modules/funcsynth/Makefile") CONFIG_FILES="$CONFIG_FILES modules/funcsynth/Makefile" ;;
     "modules/funcsynth/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/funcsynth/forms/Makefile" ;;
     "modules/lia/Makefile") CONFIG_FILES="$CONFIG_FILES modules/lia/Makefile" ;;
     "modules/lia/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/lia/forms/Makefile" ;;
     "modules/magnetps/Makefile") CONFIG_FILES="$CONFIG_FILES modules/magnetps/Makefile" ;;
-    "modules/magnetps/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/magnetps/forms/Makefile" ;;
+    "modules/magnetps/core/Makefile") CONFIG_FILES="$CONFIG_FILES modules/magnetps/core/Makefile" ;;
+    "modules/magnetps/core/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/magnetps/core/forms/Makefile" ;;
     "modules/montecarlo/Makefile") CONFIG_FILES="$CONFIG_FILES modules/montecarlo/Makefile" ;;
     "modules/montecarlo/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/montecarlo/forms/Makefile" ;;
     "modules/nidaq/Makefile") CONFIG_FILES="$CONFIG_FILES modules/nidaq/Makefile" ;;
     "modules/nmr/Makefile") CONFIG_FILES="$CONFIG_FILES modules/nmr/Makefile" ;;
-    "modules/nmr/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/nmr/forms/Makefile" ;;
+    "modules/nmr/core/Makefile") CONFIG_FILES="$CONFIG_FILES modules/nmr/core/Makefile" ;;
+    "modules/nmr/core/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/nmr/core/forms/Makefile" ;;
     "modules/tempcontrol/Makefile") CONFIG_FILES="$CONFIG_FILES modules/tempcontrol/Makefile" ;;
     "modules/tempcontrol/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/tempcontrol/forms/Makefile" ;;
     "modules/testdriver/Makefile") CONFIG_FILES="$CONFIG_FILES modules/testdriver/Makefile" ;;

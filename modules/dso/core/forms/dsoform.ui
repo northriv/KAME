@@ -9,7 +9,7 @@
             <x>0</x>
             <y>0</y>
             <width>518</width>
-            <height>534</height>
+            <height>554</height>
         </rect>
     </property>
     <property name="caption">
@@ -513,6 +513,12 @@
                                             <verstretch>0</verstretch>
                                         </sizepolicy>
                                     </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>48</width>
+                                            <height>0</height>
+                                        </size>
+                                    </property>
                                 </widget>
                             </hbox>
                         </widget>
@@ -870,6 +876,12 @@
                                             <verstretch>0</verstretch>
                                         </sizepolicy>
                                     </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>102</width>
+                                            <height>0</height>
+                                        </size>
+                                    </property>
                                 </widget>
                             </hbox>
                         </widget>
@@ -908,6 +920,12 @@
                                             <horstretch>0</horstretch>
                                             <verstretch>0</verstretch>
                                         </sizepolicy>
+                                    </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>114</width>
+                                            <height>0</height>
+                                        </size>
                                     </property>
                                     <property name="minValue">
                                         <number>0</number>
