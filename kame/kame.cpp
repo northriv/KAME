@@ -46,14 +46,14 @@
 #include "xrubywriter.h"
 #include "xdotwriter.h"
 #include "xrubythreadconnector.h"
-#include "script/forms/rubythreadtool.h"
-#include "thermometer/forms/caltableform.h"
-#include "forms/recordreaderform.h"
-#include "forms/interfacetool.h"
-#include "forms/graphtool.h"
-#include "forms/drivertool.h"
-#include "forms/scalarentrytool.h"
-#include "icons/icon.h"
+#include "rubythreadtool.h"
+#include "caltableform.h"
+#include "recordreaderform.h"
+#include "interfacetool.h"
+#include "graphtool.h"
+#include "drivertool.h"
+#include "scalarentrytool.h"
+#include "icon.h"
 
 QWidget *g_pFrmMain = 0L;
 
