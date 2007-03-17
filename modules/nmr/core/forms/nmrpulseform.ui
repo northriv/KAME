@@ -8,7 +8,7 @@
         <rect>
             <x>0</x>
             <y>0</y>
-            <width>466</width>
+            <width>512</width>
             <height>518</height>
         </rect>
     </property>
@@ -83,6 +83,9 @@
                                             <property name="name">
                                                 <cstring>unnamed</cstring>
                                             </property>
+                                            <property name="spacing">
+                                                <number>0</number>
+                                            </property>
                                             <widget class="QLineEdit">
                                                 <property name="name">
                                                     <cstring>m_edPos</cstring>
@@ -154,6 +157,9 @@
                                             <property name="name">
                                                 <cstring>unnamed</cstring>
                                             </property>
+                                            <property name="spacing">
+                                                <number>0</number>
+                                            </property>
                                             <widget class="QLineEdit">
                                                 <property name="name">
                                                     <cstring>m_edWidth</cstring>
@@ -203,6 +209,9 @@
                             <property name="name">
                                 <cstring>unnamed</cstring>
                             </property>
+                            <property name="spacing">
+                                <number>0</number>
+                            </property>
                             <widget class="QLabel">
                                 <property name="name">
                                     <cstring>textLabel1_5_2_2_3</cstring>
@@ -226,6 +235,9 @@
                                 <hbox>
                                     <property name="name">
                                         <cstring>unnamed</cstring>
+                                    </property>
+                                    <property name="spacing">
+                                        <number>0</number>
                                     </property>
                                     <widget class="QLineEdit">
                                         <property name="name">
@@ -319,6 +331,9 @@
                                         <hbox>
                                             <property name="name">
                                                 <cstring>unnamed</cstring>
+                                            </property>
+                                            <property name="spacing">
+                                                <number>0</number>
                                             </property>
                                             <widget class="QLineEdit">
                                                 <property name="name">
@@ -446,6 +461,9 @@
                                             <property name="name">
                                                 <cstring>unnamed</cstring>
                                             </property>
+                                            <property name="spacing">
+                                                <number>0</number>
+                                            </property>
                                             <widget class="QLineEdit">
                                                 <property name="name">
                                                     <cstring>m_edFFTPos</cstring>
@@ -516,6 +534,9 @@
                                         <hbox>
                                             <property name="name">
                                                 <cstring>unnamed</cstring>
+                                            </property>
+                                            <property name="spacing">
+                                                <number>0</number>
                                             </property>
                                             <widget class="QLineEdit">
                                                 <property name="name">
@@ -632,7 +653,7 @@
                                     <number>0</number>
                                 </property>
                                 <property name="maxValue">
-                                    <number>9.999e+07</number>
+                                    <number>99990</number>
                                 </property>
                                 <property name="suffix">
                                     <string>deg</string>
@@ -707,6 +728,9 @@
                                                     <property name="name">
                                                         <cstring>unnamed</cstring>
                                                     </property>
+                                                    <property name="spacing">
+                                                        <number>0</number>
+                                                    </property>
                                                     <widget class="QLineEdit">
                                                         <property name="name">
                                                             <cstring>m_edBGPos</cstring>
@@ -777,6 +801,9 @@
                                                 <hbox>
                                                     <property name="name">
                                                         <cstring>unnamed</cstring>
+                                                    </property>
+                                                    <property name="spacing">
+                                                        <number>0</number>
                                                     </property>
                                                     <widget class="QLineEdit">
                                                         <property name="name">
@@ -931,6 +958,12 @@
                     <property name="name">
                         <cstring>unnamed</cstring>
                     </property>
+                    <property name="margin">
+                        <number>0</number>
+                    </property>
+                    <property name="spacing">
+                        <number>1</number>
+                    </property>
                     <widget class="QLayoutWidget">
                         <property name="name">
                             <cstring>layout15</cstring>
@@ -990,6 +1023,12 @@
                                         <horstretch>0</horstretch>
                                         <verstretch>0</verstretch>
                                     </sizepolicy>
+                                </property>
+                                <property name="minimumSize">
+                                    <size>
+                                        <width>300</width>
+                                        <height>0</height>
+                                    </size>
                                 </property>
                             </widget>
                             <widget class="QGroupBox">

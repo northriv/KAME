@@ -544,7 +544,7 @@
                             <property name="margin">
                                 <number>2</number>
                             </property>
-                            <widget class="QLayoutWidget" row="0" column="0">
+                            <widget class="QLayoutWidget" row="0" column="0" rowspan="1" colspan="2">
                                 <property name="name">
                                     <cstring>layout29</cstring>
                                 </property>
@@ -589,7 +589,7 @@
                                     </widget>
                                 </hbox>
                             </widget>
-                            <widget class="QLayoutWidget" row="1" column="0">
+                            <widget class="QLayoutWidget" row="1" column="0" rowspan="1" colspan="2">
                                 <property name="name">
                                     <cstring>layout28</cstring>
                                 </property>
@@ -646,7 +646,7 @@
                                     </widget>
                                 </hbox>
                             </widget>
-                            <widget class="QPushButton" row="4" column="0">
+                            <widget class="QPushButton" row="4" column="0" rowspan="1" colspan="2">
                                 <property name="name">
                                     <cstring>m_btnForceTrigger</cstring>
                                 </property>
@@ -662,23 +662,7 @@
                                     <string>Force Trigger</string>
                                 </property>
                             </widget>
-                            <widget class="QCheckBox" row="3" column="0">
-                                <property name="name">
-                                    <cstring>m_ckbTrigFalling</cstring>
-                                </property>
-                                <property name="sizePolicy">
-                                    <sizepolicy>
-                                        <hsizetype>0</hsizetype>
-                                        <vsizetype>0</vsizetype>
-                                        <horstretch>0</horstretch>
-                                        <verstretch>0</verstretch>
-                                    </sizepolicy>
-                                </property>
-                                <property name="text">
-                                    <string>FallingEdge</string>
-                                </property>
-                            </widget>
-                            <widget class="QLayoutWidget" row="2" column="0">
+                            <widget class="QLayoutWidget" row="2" column="0" rowspan="1" colspan="2">
                                 <property name="name">
                                     <cstring>layout34</cstring>
                                 </property>
@@ -739,6 +723,39 @@
                                     </widget>
                                 </hbox>
                             </widget>
+                            <widget class="QCheckBox" row="3" column="0">
+                                <property name="name">
+                                    <cstring>m_ckbTrigFalling</cstring>
+                                </property>
+                                <property name="sizePolicy">
+                                    <sizepolicy>
+                                        <hsizetype>0</hsizetype>
+                                        <vsizetype>0</vsizetype>
+                                        <horstretch>0</horstretch>
+                                        <verstretch>0</verstretch>
+                                    </sizepolicy>
+                                </property>
+                                <property name="text">
+                                    <string>FallingEdge</string>
+                                </property>
+                            </widget>
+                            <spacer row="3" column="1">
+                                <property name="name">
+                                    <cstring>spacer1</cstring>
+                                </property>
+                                <property name="orientation">
+                                    <enum>Horizontal</enum>
+                                </property>
+                                <property name="sizeType">
+                                    <enum>Expanding</enum>
+                                </property>
+                                <property name="sizeHint">
+                                    <size>
+                                        <width>51</width>
+                                        <height>20</height>
+                                    </size>
+                                </property>
+                            </spacer>
                         </grid>
                     </widget>
                 </vbox>
