@@ -13,6 +13,7 @@ libforms_a_SOURCES = recordreaderform.ui \
 	drivertool.ui \
 	interfacetool.ui \
 	drivercreate.ui \
+	rubythreadtool.ui \
 	recordreaderconnector.cpp recordreaderconnector.h \
 	driverlistconnector.cpp driverlistconnector.h \
 	interfacelistconnector.cpp interfacelistconnector.h \

@@ -9,7 +9,6 @@ INCLUDES = -I$(top_srcdir)/. \
 	-I$(top_srcdir)/kame/analyzer \
 	-I$(top_srcdir)/kame/thermometer \
 	-I$(top_builddir)/kame/forms \
-	-I$(top_builddir)/kame/script/forms \
 	-I$(top_builddir)/kame/thermometer/forms \
 	-I$(top_srcdir)/kame/icons \
 	$(all_includes)
@@ -32,7 +31,6 @@ kame_SOURCES = measure.cpp measure.h \
 	main.cpp
 kame_LDADD = $(top_builddir)/kame/forms/libforms.a \
 	$(top_builddir)/kame/script/libscript.a \
-	$(top_builddir)/kame/script/forms/libforms.a \
 	$(top_builddir)/kame/analyzer/libanalyzer.a \
 	$(top_builddir)/kame/driver/libdriver.a \
 	$(top_builddir)/kame/thermometer/libthermometer.a \

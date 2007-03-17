@@ -1,4 +1,3 @@
 Code refactoring:
 	- reducing object size.
 	- profiling.
-	- dlopen

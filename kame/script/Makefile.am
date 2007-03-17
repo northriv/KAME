@@ -11,7 +11,6 @@ libscript_a_SOURCES = xrubythread.cpp xrubythread.h \
 AM_CPPFLAGS = 
 
 METASOURCES = AUTO
-SUBDIRS = forms
 
 rcdir = $(kde_datadir)/kame
 rc_DATA = xrubysupport.rb
