@@ -13,14 +13,20 @@ class << $stdout
   		str.each_line {|line|
   			line = "<font color=#005500>#{line}"
 	  		begin
-				line["\n"] = "</font>\n"
+				line["\n"] = "</font>"
 			rescue IndexError
 				line = "#{line}</font>"
 			end
 		    XRubyThreads.my_rbdefout(line, Thread.current.object_id)
   		}
     else
-	    XRubyThreads.my_rbdefout(str, Thread.current.object_id)
+  		str.each_line {|line|
+	  		begin
+				line["\n"] = ""
+			rescue IndexError
+			end
+		    XRubyThreads.my_rbdefout(line, Thread.current.object_id)
+  		}
   	end
   end
 end
@@ -30,7 +36,7 @@ class << $stderr
   	str.each_line {|line|
   		line = "<font color=#ff0000>#{line}"
   		begin
-			line["\n"] = "</font>\n"
+			line["\n"] = "</font>"
 		rescue IndexError
 			line = "#{line}</font>"
 		end
