@@ -8,8 +8,8 @@
         <rect>
             <x>0</x>
             <y>0</y>
-            <width>492</width>
-            <height>581</height>
+            <width>466</width>
+            <height>518</height>
         </rect>
     </property>
     <property name="caption">
@@ -36,6 +36,12 @@
                 <grid>
                     <property name="name">
                         <cstring>unnamed</cstring>
+                    </property>
+                    <property name="margin">
+                        <number>0</number>
+                    </property>
+                    <property name="spacing">
+                        <number>0</number>
                     </property>
                     <widget class="QLayoutWidget" row="1" column="0">
                         <property name="name">
@@ -279,6 +285,9 @@
                             <property name="name">
                                 <cstring>unnamed</cstring>
                             </property>
+                            <property name="margin">
+                                <number>2</number>
+                            </property>
                             <widget class="QLayoutWidget" row="1" column="0">
                                 <property name="name">
                                     <cstring>layout23</cstring>
@@ -380,7 +389,7 @@
                                         </property>
                                         <property name="sizePolicy">
                                             <sizepolicy>
-                                                <hsizetype>1</hsizetype>
+                                                <hsizetype>5</hsizetype>
                                                 <vsizetype>0</vsizetype>
                                                 <horstretch>0</horstretch>
                                                 <verstretch>0</verstretch>
@@ -605,7 +614,7 @@
                                 </property>
                                 <property name="sizePolicy">
                                     <sizepolicy>
-                                        <hsizetype>0</hsizetype>
+                                        <hsizetype>5</hsizetype>
                                         <vsizetype>5</vsizetype>
                                         <horstretch>0</horstretch>
                                         <verstretch>0</verstretch>
@@ -623,7 +632,7 @@
                                     <number>0</number>
                                 </property>
                                 <property name="maxValue">
-                                    <number>999900</number>
+                                    <number>9.999e+07</number>
                                 </property>
                                 <property name="suffix">
                                     <string>deg</string>
@@ -1001,6 +1010,9 @@
                                 <hbox>
                                     <property name="name">
                                         <cstring>unnamed</cstring>
+                                    </property>
+                                    <property name="margin">
+                                        <number>2</number>
                                     </property>
                                     <widget class="QCheckBox">
                                         <property name="name">
