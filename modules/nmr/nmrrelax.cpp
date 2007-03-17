@@ -13,13 +13,13 @@
 ***************************************************************************/
 #include "nmrrelax.h"
 #include "nmrrelaxfit.h"
-#include "forms/nmrrelaxform.h"
+#include "nmrrelaxform.h"
 #include "nmrpulse.h"
-#include "pulserdriver.h"
-#include "analyzer.h"
-#include "graph.h"
-#include "graphwidget.h"
-#include "xwavengraph.h"
+#include <pulserdriver.h>
+#include <analyzer.h>
+#include <graph.h>
+#include <graphwidget.h>
+#include <xwavengraph.h>
 
 REGISTER_TYPE(XDriverList, NMRT1, "NMR relaxation measurement");
 

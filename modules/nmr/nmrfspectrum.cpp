@@ -12,7 +12,7 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 //---------------------------------------------------------------------------
-#include "forms/nmrfspectrumform.h"
+#include "nmrfspectrumform.h"
 #include "nmrfspectrum.h"
 #include "nmrpulse.h"
 

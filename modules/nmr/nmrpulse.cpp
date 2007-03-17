@@ -13,14 +13,14 @@
 ***************************************************************************/
 //---------------------------------------------------------------------------
 #include "nmrpulse.h"
-#include "forms/nmrpulseform.h"
+#include "nmrpulseform.h"
 
-#include "graph.h"
-#include "graphwidget.h"
-#include "graphnurlform.h"
-#include "xwavengraph.h"
-#include "analyzer.h"
-#include "xnodeconnector.h"
+#include <graph.h>
+#include <graphwidget.h>
+#include <graphnurlform.h>
+#include <xwavengraph.h>
+#include <analyzer.h>
+#include <xnodeconnector.h>
 
 #include <knuminput.h>
 #include <klocale.h>

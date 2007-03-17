@@ -217,7 +217,14 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	uInt32 onbrdsize, bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &onbrdsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
-	buf_size_hint = (1 + buf_size_hint / onbrdsize) * onbrdsize;
+	if(onbrdsize > buf_size_hint * 2) {
+/*		if(m_pausingBit) {
+			CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskDO, buf_size_hint * 2));
+			CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &onbrdsize));
+			fprintf(stderr, "On-board bufsize is modified to %d\n", (int)onbrdsize);
+		}
+*/		buf_size_hint = onbrdsize / 2;
+	}
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d, freq = %f\n", (int)bufsize, freq);
@@ -316,14 +323,14 @@ XNIDAQmxPulser::setupTasksAODO() {
 	uInt32 onbrdsize, bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
-	if(m_pausingBit && (onbrdsize > buf_size_hint * 2)) {
-		CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskAO, buf_size_hint * 2));
-		CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
-		fprintf(stderr, "On-board bufsize is modified to %d\n", (int)onbrdsize);
-		buf_size_hint = (1 + buf_size_hint / onbrdsize) * onbrdsize;
+	if(onbrdsize > buf_size_hint * 2) {
+/*		if(m_pausingBit) {
+			CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskAO, buf_size_hint * 2));
+			CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
+			fprintf(stderr, "On-board bufsize is modified to %d\n", (int)onbrdsize);
+		}
+*/		buf_size_hint = onbrdsize / 2;
 	}
-	else
-		buf_size_hint = onbrdsize;
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d\n", (int)bufsize);
@@ -441,9 +448,6 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 				throw XInterface::XInterfaceError(
 					KAME::i18n("Use the pausing feature for a cheap DAQmx board.\n"
 							   + KAME::i18n("Look at the port-selection table.")), __FILE__, __LINE__);
-			if(!m_pausingBit)
-				gWarnPrint(KAME::i18n("Use of the pausing feature is recommended.\n"
-									  + KAME::i18n("Look at the port-selection table.")));
 		}
 		if(m_taskAO != TASK_UNDEF) {
 			uInt32 bufsize;
@@ -452,9 +456,6 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 				throw XInterface::XInterfaceError(
 					KAME::i18n("Use the pausing feature for a cheap DAQmx board.\n"
 							   + KAME::i18n("Look at the port-selection table.")), __FILE__, __LINE__);
-			if(!m_pausingBit)
-				gWarnPrint(KAME::i18n("Use of the pausing feature is recommended.\n"
-									  + KAME::i18n("Look at the port-selection table.")));
 		}
 
 		//swap generated pattern lists to new ones.

@@ -12,7 +12,7 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "pulserdriversh.h"
-#include "charinterface.h"
+#include <charinterface.h>
 #include <klocale.h>
 
 REGISTER_TYPE(XDriverList, SHPulser, "NMR pulser handmade-SH2");
