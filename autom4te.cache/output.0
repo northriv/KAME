@@ -37856,8 +37856,6 @@ ac_config_files="$ac_config_files kame/mikachanfont/Makefile"
 
 ac_config_files="$ac_config_files kame/script/Makefile"
 
-ac_config_files="$ac_config_files kame/script/forms/Makefile"
-
 ac_config_files="$ac_config_files kame/thermometer/Makefile"
 
 ac_config_files="$ac_config_files kame/thermometer/forms/Makefile"
@@ -38492,7 +38490,6 @@ do
     "kame/icons/Makefile") CONFIG_FILES="$CONFIG_FILES kame/icons/Makefile" ;;
     "kame/mikachanfont/Makefile") CONFIG_FILES="$CONFIG_FILES kame/mikachanfont/Makefile" ;;
     "kame/script/Makefile") CONFIG_FILES="$CONFIG_FILES kame/script/Makefile" ;;
-    "kame/script/forms/Makefile") CONFIG_FILES="$CONFIG_FILES kame/script/forms/Makefile" ;;
     "kame/thermometer/Makefile") CONFIG_FILES="$CONFIG_FILES kame/thermometer/Makefile" ;;
     "kame/thermometer/forms/Makefile") CONFIG_FILES="$CONFIG_FILES kame/thermometer/forms/Makefile" ;;
     "modules/Makefile") CONFIG_FILES="$CONFIG_FILES modules/Makefile" ;;
