@@ -1,5 +1,5 @@
 #!/bin/bash
-version=2.2
+version=2.2.1
 file=kame-$version
 ./tools/maketarball.sh $file
 target=${2:-i686}
