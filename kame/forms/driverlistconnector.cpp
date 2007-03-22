@@ -160,11 +160,17 @@ XDriverListConnector::onCreateTouched(const shared_ptr<XNode> &)
 	}
 	int idx = dlg->m_lstType->currentItem();
 	shared_ptr<XNode> driver;
-	if((idx >= 0) && (idx < (int)XDriverList::typenames().size()))
-        driver = m_list->createByTypename(XDriverList::typenames()[idx],
-										  dlg->m_edName->text());
+	if((idx >= 0) && (idx < (int)XDriverList::typenames().size())) {
+		if(m_list->getChild(dlg->m_edName->text())) {
+	        gErrPrint(KAME::i18n("Duplicated name."));
+		}
+		else {
+	       driver = m_list->createByTypename(XDriverList::typenames()[idx],
+											  dlg->m_edName->text());
+		}
+	}
 	if(!driver)
-        gErrPrint(KAME::i18n("Driver creation failed"));
+        gErrPrint(KAME::i18n("Driver creation failed."));
 }
 void
 XDriverListConnector::onReleaseTouched(const shared_ptr<XNode> &)

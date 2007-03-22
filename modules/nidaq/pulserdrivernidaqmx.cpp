@@ -822,7 +822,7 @@ XNIDAQmxPulser::genBankDO()
 //				printf("p.\n");
 			}
 			tonext = it->tonext;
-			vt->changeValue(pat, (tRawDO)it->pattern, total);
+			vt->changeValue(pat, it->pattern, total);
 			pat = it->pattern;
 			total += tonext;
 		}
