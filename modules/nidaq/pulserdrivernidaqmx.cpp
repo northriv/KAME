@@ -225,6 +225,8 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		}
 */		buf_size_hint = onbrdsize / 2;
 	}
+	if(m_pausingBit)
+		buf_size_hint /= 4;
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d, freq = %f\n", (int)bufsize, freq);
@@ -331,6 +333,8 @@ XNIDAQmxPulser::setupTasksAODO() {
 		}
 */		buf_size_hint = onbrdsize / 2;
 	}
+	if(m_pausingBit)
+		buf_size_hint /= 4;
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d\n", (int)bufsize);
@@ -478,14 +482,6 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			m_genBufAO.resize(m_bufSizeHintAO);
 		}
 		
-		if(m_taskAO != TASK_UNDEF)
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
-		if(m_taskDOCtr != TASK_UNDEF)
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
-		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
-		if(m_taskGateCtr != TASK_UNDEF)
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
-
 		const unsigned int cnt_preample = 1000;
 		m_genTotalCountDO += cnt_preample;
 		//synchronize the software trigger.
@@ -509,7 +505,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
 			uInt32 bufsize;
 			CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
-			for(;;) {
+			for(unsigned int rest = bufsize; rest >= bufsize / 2;) {
 				genBankAO();
 				unsigned int size = m_genBufAO.size();
 				for(unsigned int cnt = 0; cnt < size;) {
@@ -520,11 +516,8 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 														m_genBufAO[cnt].ch,
 														&samps, NULL));
 					cnt += samps;
+					rest -= samps;
 				}
-				uInt32 space;
-				CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskAO, &space));
-				if((int)space < std::max((int)bufsize - (int)lrint(1e3 / resolutionQAM()), (int)m_bufSizeHintAO))
-					break;
 			}
 			genBankAO();
 		}
@@ -543,7 +536,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
 		uInt32 bufsize;
 		CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
-		for(;;) {
+		for(unsigned int rest = bufsize; rest >= bufsize / 2;) {
 			genBankDO();
 			unsigned int size = m_genBufDO.size();
 			for(unsigned int cnt = 0; cnt < size;) {
@@ -554,13 +547,23 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 													 &m_genBufDO[cnt],
 													 &samps, NULL));
 				cnt += samps;
+				rest -= samps;
 			}
-			uInt32 space;
-			CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskDO, &space));
-			if((int)space < std::max((int)bufsize - (int)lrint(1e3 / resolution()), (int)m_bufSizeHintDO))
-				break;
 		}
 		genBankDO();
+		
+		{
+			char ch[256];
+			CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
+			CHECK_DAQMX_RET(DAQmxSetDOTristate(m_taskDO, ch, false));
+		}
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
+		if(m_taskDOCtr != TASK_UNDEF)
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
+		if(m_taskGateCtr != TASK_UNDEF)
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
+		if(m_taskAO != TASK_UNDEF)
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
 	}
 	fprintf(stderr, "Prefilling done.\n");
 	//slave must start before the master.
@@ -589,6 +592,22 @@ XNIDAQmxPulser::stopPulseGen()
 	m_softwareTrigger->stop();
 
 	if(m_running) {
+		{
+			char ch[256];
+			CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
+			uInt32 num_lines;
+			CHECK_DAQMX_RET(DAQmxGetDONumLines(m_taskDO, ch, &num_lines));
+			std::string chtri;
+			for(unsigned int i = 0; i < num_lines; i++) {
+				if(m_pausingBit &&
+					(lrint(log(m_pausingBit)/log(2.0)) == (int)i))
+					continue;
+				if(chtri.length())
+					chtri = chtri + ",";
+				chtri = chtri + formatString("%s/line%u", ch, i);
+			}
+			CHECK_DAQMX_RET(DAQmxSetDOTristate(m_taskDO, chtri.c_str(), true));
+		}
 		if(m_taskAO != TASK_UNDEF)
 		    DAQmxStopTask(m_taskAO);
 		if(m_taskDOCtr != TASK_UNDEF)
@@ -750,7 +769,7 @@ void
 XNIDAQmxPulser::genBankDO()
 {
 	GenPatternIterator it = m_genLastPatItDO;
-	tRawDO pat = it->pattern;
+	uint32_t pat = it->pattern;
 	uint64_t tonext = m_genRestSampsDO;
 	uint64_t total = m_genTotalCountDO;
 	const tRawDO pausingbit = m_pausingBit;
@@ -820,7 +839,7 @@ XNIDAQmxPulser::genBankAO()
 	const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
 
 	GenPatternIterator it = m_genLastPatItAO;
-	unsigned int pat = it->pattern;
+	uint32_t pat = it->pattern;
 	uint64_t tonext = m_genRestSampsAO;
 	unsigned int aoidx = m_genAOIndex;
 	const tRawDO pausingbit = m_pausingBit;

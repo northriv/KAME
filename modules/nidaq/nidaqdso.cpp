@@ -745,7 +745,8 @@ XNIDAQmxDSO::startSequence()
 			rec.accumCount = 0;
 		}
 		DSORawRecord &rec(m_dsoRawRecordBanks[0]);
-		ASSERT(rec.numCh);
+		if(!rec.numCh)
+			return;
 		rec.recordLength = rec.record.size() / rec.numCh;
 		memset(&rec.record[0], 0, rec.record.size() * sizeof(int32_t));
 	}
