@@ -15,6 +15,9 @@
 #define ATOMIC_H_
 
 #include <stdint.h>
+#include <boost/utility/enable_if.hpp>
+#include <boost/type_traits/is_pod.hpp>
+#include <boost/type_traits/is_integral.hpp>
 
 //! Lock-free synchronizations.
 
@@ -28,42 +31,129 @@
 #endif // __ppc__
 #endif // __i386__
 
+template <typename T, class Enable = void > class atomic;
+
+//! atomic access to POD type capable of CAS.
 template <typename T>
-class atomic
+class atomic_pod_cas
 {
 public:
-	atomic() : m_var(0) {}
-	atomic(T t) : m_var(t) {}
-	atomic(const atomic &t) : m_var(t) {}
-	~atomic() {}
+	atomic_pod_cas() {}
+	atomic_pod_cas(T t) : m_var(t) {}
+	atomic_pod_cas(const atomic_pod_cas &t) : m_var(t) {}
+	~atomic_pod_cas() {}
 	operator T() const {readBarrier(); return m_var;}
-	atomic &operator=(T t) {m_var = t; writeBarrier(); return *this;}
-	atomic &operator++() {atomicInc(&m_var); writeBarrier(); return *this;}
-	atomic &operator--() {atomicDecAndTest(&m_var); writeBarrier(); return *this;}
-	atomic &operator+=(T t) {atomicAdd(&m_var, t); writeBarrier(); return *this;}
-	atomic &operator-=(T t) {atomicAdd(&m_var, -t); writeBarrier(); return *this;}
+	atomic_pod_cas &operator=(T t) {m_var = t; writeBarrier(); return *this;}
 	T swap(T newv) {
 		T old = atomicSwap(newv, &m_var);
 		writeBarrier();
 		return old;
 	}
+	bool compareAndSet(T oldv, T newv) {
+		bool ret = atomicCompareAndSet(oldv, newv, &m_var);
+		if(ret) writeBarrier();
+		return ret;
+	}
+protected:
+	T m_var;
+};
+
+//! atomic access to POD type capable of CAS2.
+template <typename T>
+class atomic_pod_cas2
+{
+public:
+	atomic_pod_cas2() {}
+	atomic_pod_cas2(T t) : m_var(t) {}
+	atomic_pod_cas2(const atomic_pod_cas2 &t) : m_var(t) {}
+	~atomic_pod_cas2() {}
+	operator T() const {
+		readBarrier();
+		for(;;) {
+			T oldv = m_var;
+			if(atomicCompareAndSet(oldv, oldv, &m_var)) {
+				return oldv;
+			}
+		}
+	}
+	atomic_pod_cas2 &operator=(T t) {
+		for(;;) {
+			T oldv = m_var;
+			if(atomicCompareAndSet(oldv, t, &m_var))
+				break;
+		}
+		writeBarrier();
+		return *this;
+	}
+	T swap(T newv) {
+		for(;;) {
+			T oldv = m_var;
+			if(atomicCompareAndSet(oldv, newv, &m_var)) {
+				writeBarrier();
+				return oldv;
+			}
+		}
+	}
+	bool compareAndSet(T oldv, T newv) {
+		bool ret = atomicCompareAndSet(oldv, newv, &m_var);
+		if(ret) writeBarrier();
+		return ret;
+	}
+protected:
+	T m_var;
+};
+
+//! atomic access to POD type capable of CAS2.
+template <typename T>
+class atomic<T, typename boost::enable_if_c<
+(sizeof(int_cas2_both) == sizeof(T)) && boost::is_pod<T>::value>::type>
+ : public atomic_pod_cas2<T>
+{
+public:
+	atomic() {}
+	atomic(T t) : atomic_pod_cas2<T>(t) {}
+	atomic(const atomic &t) : atomic_pod_cas2<T>(t) {}
+};
+
+//! atomic access to POD type capable of CAS.
+template <typename T>
+class atomic<T, typename boost::enable_if_c<
+(sizeof(int_cas_max) >= sizeof(T)) && boost::is_pod<T>::value && 
+!boost::is_integral<T>::value>::type>
+ : public atomic_pod_cas<T>
+{
+public:
+	atomic() {}
+	atomic(T t) : atomic_pod_cas<T>(t) {}
+	atomic(const atomic &t) : atomic_pod_cas<T>(t) {}
+};
+
+//! atomic access to integer-POD-type capable of CAS.
+template <typename T>
+class atomic<T, typename boost::enable_if_c<
+(sizeof(int_cas_max) >= sizeof(T)) && boost::is_integral<T>::value>::type >
+ : public atomic_pod_cas<T>
+{
+public:
+	atomic() : atomic_pod_cas<T>((T)0) {}
+	atomic(T t) : atomic_pod_cas<T>(t) {}
+	atomic(const atomic &t) : atomic_pod_cas<T>(t) {}
+	~atomic() {}
+	atomic &operator++() {atomicInc(&this->m_var); writeBarrier(); return *this;}
+	atomic &operator--() {atomicDecAndTest(&this->m_var); writeBarrier(); return *this;}
+	atomic &operator+=(T t) {atomicAdd(&this->m_var, t); writeBarrier(); return *this;}
+	atomic &operator-=(T t) {atomicAdd(&this->m_var, -t); writeBarrier(); return *this;}
 	bool decAndTest() {
-		bool ret = atomicDecAndTest(&m_var);
+		bool ret = atomicDecAndTest(&this->m_var);
 		writeBarrier();
 		return ret;
 	}
 	bool addAndTest(T t) {
-		bool ret = atomicAddAndTest(&m_var, t);
+		bool ret = atomicAddAndTest(&this->m_var, t);
 		writeBarrier();
 		return ret;
 	}
-	bool compareAndSet(T oldv, T newv) {
-		bool ret = atomicCompareAndSet(oldv, newv, &m_var);
-		writeBarrier();
-		return ret;
-	}
-private:
-	T m_var;
 };
+
 
 #endif /*ATOMIC_H_*/

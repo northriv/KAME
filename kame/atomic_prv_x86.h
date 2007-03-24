@@ -14,6 +14,10 @@
 #ifndef ATOMIC_PRV_X86_H_
 #define ATOMIC_PRV_X86_H_
 
+#include <boost/utility/enable_if.hpp>
+#include <boost/type_traits/is_pod.hpp>
+#include <boost/type_traits/is_integral.hpp>
+
 //! memory barriers. 
 inline void readBarrier() {
 	asm volatile( "lfence" ::: "memory" );
@@ -30,10 +34,61 @@ inline void pauseN(unsigned int cnt) {
 		asm volatile( "pause" ::: "memory" );
 	}
 }
+#if SIZEOF_VOID_P == 4
+typedef int32_t int_cas2_each;
+typedef int64_t int_cas2_both;
+typedef int_cas2_each int_cas_max;
+typedef uint32_t uint_cas2_each;
+typedef uint64_t uint_cas2_both;
+typedef uint_cas2_each uint_cas_max;
+#define HAVE_CAS_2
+//! Compare-And-Swap 2 long words.
+//! \param oldv0 compared with \p target[0].
+//! \param oldv1 compared with \p target[1].
+//! \param newv0 new value to \p target[0].
+//! \param newv1 new value to \p target[1].
+template <typename T>
+bool atomicCompareAndSet2(
+	T oldv0, T oldv1,
+	T newv0, T newv1, T *target ) {
+	unsigned char ret;
+	asm volatile (
+		//gcc with -fPIC cannot handle EBX correctly.
+		" push %%ebx;"
+		" mov %6, %%ebx;"
+		" lock; cmpxchg8b (%%esi);"
+		" pop %%ebx;"
+		" sete %0;" // ret = zflag ? 1 : 0
+		: "=q" (ret), "=d" (oldv1), "=a" (oldv0)
+		: "1" (oldv1), "2" (oldv0),
+		"c" (newv1), "D" (newv0),
+		"S" (target)
+		: "memory");
+	return ret;
+}
+template <typename T, typename X>
+typename boost::enable_if_c<
+boost::is_pod<T>::value && (sizeof(T) == sizeof(int_cas2_both)) && (sizeof(X) >= sizeof(int_cas2_each)), bool>::type
+atomicCompareAndSet(
+								T oldv,
+								T newv, X *target ) {
+	return atomicCompareAndSet2((uint_cas2_each)(*((uint_cas2_both*)&oldv) % (1uLL << 8 * sizeof(uint_cas2_each))), 
+								(uint_cas2_each)(*((uint_cas2_both*)&oldv) / (1uLL << 8 * sizeof(uint_cas2_each))),
+								(uint_cas2_each)(*((uint_cas2_both*)&newv) % (1uLL << 8 * sizeof(uint_cas2_each))),
+								(uint_cas2_each)(*((uint_cas2_both*)&newv) / (1uLL << 8 * sizeof(uint_cas2_each))),
+								(uint_cas2_each*)target);
+}
+#else
+//!\todo x86_64.
+#error "Unsupported size of int."
+#endif
+
 //! \return true if old == *target and new value is assigned
 template <typename T>
-inline bool atomicCompareAndSet(T oldv, T newv, T *target ) {
-	register unsigned char ret;
+typename boost::enable_if_c<
+boost::is_pod<T>::value && (sizeof(T) <= sizeof(int_cas_max)), bool>::type
+atomicCompareAndSet(T oldv, T newv, T *target ) {
+	unsigned char ret;
 	asm volatile (
 		"  lock; cmpxchg%z2 %2,%3;"
 		" sete %0" // ret = zflag ? 1 : 0
@@ -42,39 +97,6 @@ inline bool atomicCompareAndSet(T oldv, T newv, T *target ) {
 		: "memory");
 	return ret;
 }
-#if SIZEOF_VOID_P == 4
-#define HAVE_CAS_2
-//! Compare-And-Swap 2 long words.
-//! \param oldv0 compared with \p target[0].
-//! \param oldv1 compared with \p target[1].
-//! \param newv0 new value to \p target[0].
-//! \param newv1 new value to \p target[1].
-inline bool atomicCompareAndSet2(
-	uint32_t oldv0, uint32_t oldv1,
-	uint32_t newv0, uint32_t newv1, uint32_t *target ) {
-	unsigned char ret;
-	asm volatile (
-		//gcc with -fPIC cannot handle EBX correctly.
-		" mov %7, %%esi;"
-		" push %%ebx;"
-		" mov %6, %%ebx;"
-		" lock; cmpxchg8b (%%esi);"
-		" pop %%ebx;"
-		" sete %0;" // ret = zflag ? 1 : 0
-		: "=r" (ret), "=d" (oldv1), "=a" (oldv0)
-		: "1" (oldv1), "2" (oldv0),
-		"c" (newv1), "rm" (newv0),
-		"rm" (target)
-		: "memory", "%esi");
-	return ret;
-}
-inline bool atomicCompareAndSet2(
-								int32_t oldv0, int32_t oldv1,
-								int32_t newv0, int32_t newv1, int32_t *target ) {
-	return atomicCompareAndSet2((uint32_t) oldv0, (uint32_t) oldv1,
-								(uint32_t) newv0, (uint32_t) newv1, (uint32_t*) target);
-}
-#endif
 template <typename T>
 inline T atomicSwap(T v, T *target ) {
 	asm volatile (

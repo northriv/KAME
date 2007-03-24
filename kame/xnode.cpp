@@ -203,13 +203,12 @@ template class XValueNode<unsigned int, 16>;
 template class XValueNode<bool, 10>;
 
 XStringNode::XStringNode(const char *name, bool runtime)
-	: XValueNodeBase(name, runtime), m_var(new std::string()) {}
+	: XValueNodeBase(name, runtime), m_var(std::string()) {}
 
 std::string
 XStringNode::to_str() const
 {
-    atomic_shared_ptr<std::string> buf = m_var;
-    return *buf;
+    return m_var;
 }
 void
 XStringNode::operator=(const std::string &var)
@@ -228,18 +227,18 @@ XStringNode::operator std::string() const {
 void
 XStringNode::value(const std::string &t) {
     if(beforeValueChanged().empty() && onValueChanged().empty()) {
-        m_var.reset(new std::string(t));
+        m_var = t;
     }
     else {
         XScopedLock<XRecursiveMutex> lock(m_valuemutex);
         beforeValueChanged().talk(dynamic_pointer_cast<XValueNodeBase>(shared_from_this()));
-        m_var.reset(new std::string(t));
+        m_var = t;
         onValueChanged().talk(dynamic_pointer_cast<XValueNodeBase>(shared_from_this()));
     }
 }
 
 XDoubleNode::XDoubleNode(const char *name, bool runtime, const char *format)
-	: XValueNodeBase(name, runtime), m_var(new double(0.0))
+	: XValueNodeBase(name, runtime), m_var(0.0)
 {
 	if(format)
 		setFormat(format);
@@ -263,19 +262,18 @@ XDoubleNode::_str(const std::string &str) throw (XKameError &)
 void
 XDoubleNode::value(const double &t) {
     if(beforeValueChanged().empty() && onValueChanged().empty()) {
-        m_var.reset(new double(t));
+        m_var = t;
     }
     else {
         XScopedLock<XRecursiveMutex> lock(m_valuemutex);
         beforeValueChanged().talk(dynamic_pointer_cast<XValueNodeBase>(shared_from_this()));
-        m_var.reset(new double(t));
+        m_var = t;
         onValueChanged().talk(dynamic_pointer_cast<XValueNodeBase>(shared_from_this()));
     }
 }
 XDoubleNode::operator double() const
 {
-    atomic_shared_ptr<double> x = m_var;
-    return *x;
+    return m_var;
 }
 
 const char *

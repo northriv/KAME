@@ -18,12 +18,12 @@
 #include <memory>
 
 template <typename T, unsigned int SIZE, typename const_ref = T>
-class atomic_nonzero_value_queue
+class atomic_nonzero_pod_queue
 {
 public:
     struct nospace_error {};
     
-    atomic_nonzero_value_queue() : m_pFirst(m_ptrs), m_pLast(m_ptrs), m_count(0) {
+    atomic_nonzero_pod_queue() : m_pFirst(m_ptrs), m_pLast(m_ptrs), m_count(0) {
     	memset(m_ptrs, 0, SIZE * sizeof(T));
     }
 
@@ -152,7 +152,7 @@ private:
 };
 
 template <typename T, unsigned int SIZE>
-class atomic_pointer_queue : public atomic_nonzero_value_queue<T*, SIZE, const T*> {};
+class atomic_pointer_queue : public atomic_nonzero_pod_queue<T*, SIZE, const T*> {};
 
 //! Atomic FIFO for copy-constructable class.
 template <typename T, unsigned int SIZE>
@@ -202,7 +202,7 @@ class atomic_queue_reserved
 {
 public:
     typedef typename atomic_pointer_queue<T, SIZE>::nospace_error nospace_error;
-    typedef ssize_t key;
+    typedef uint_cas_max key;
     
     atomic_queue_reserved() {
     	C_ASSERT(SIZE < (1 << (sizeof(key) * 8 - 8)));
@@ -285,7 +285,7 @@ private:
     int key2index(key i) {return (unsigned int)i / 0x100;}
     int key2serial(key i) {return ((unsigned int)i % 0x100) - 1;}
     key key_index_serial(int index, int serial) {return index * 0x100 + (serial % 0xff) + 1;}
-    atomic_nonzero_value_queue<key, SIZE> m_queue, m_reservoir;
+    atomic_nonzero_pod_queue<key, SIZE> m_queue, m_reservoir;
     T m_array[SIZE];
 };
 

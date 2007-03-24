@@ -29,6 +29,8 @@ inline void pauseN(unsigned int cnt) {
 	for(unsigned int i = cnt; i != 0; --i)
 		asm volatile( "nop" ::: "memory" );
 }
+
+#define MAX_SIZEOF_CAS SIZEOF_VOID_P
 template <typename T>
 //! \return true if old == *target and new value is assigned
 inline bool atomicCompareAndSet(T oldv, T newv, T *target ) {

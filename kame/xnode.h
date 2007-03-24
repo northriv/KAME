@@ -156,7 +156,7 @@ public:
 protected:
 	virtual void _str(const std::string &str) throw (XKameError &);
 private:
-	atomic_shared_ptr<double> m_var;
+	atomic<double> m_var;
 	std::string m_format;
 	XRecursiveMutex m_valuemutex;
 };
@@ -175,7 +175,7 @@ public:
 protected:
 	virtual void _str(const std::string &str) throw (XKameError &);
 private:
-	atomic_shared_ptr<std::string> m_var;
+	atomic<std::string> m_var;
 	XRecursiveMutex m_valuemutex;
 };
 
