@@ -1,9 +1,3 @@
-#define SIZEOF_INT 4
-#define SIZEOF_LONG 4
-#define SIZEOF_VOID_P 4
-#define SIZEOF_SHORT 2
-#define SIZEOF_FLOAT 4
-#define SIZEOF_DOUBLE 8
 #define msecsleep(x) (x)
 
 //#include "xtime.h"
@@ -11,27 +5,6 @@
 #include "support.h"
 
 #include <stdint.h>
-
-
-void my_assert(char const*s, int d) {
-        fprintf(stderr, "Err:%s:%d\n", s, d);
-        abort();
-}
-//
-//#ifndef HAVE_CAS_2
-//inline bool atomicCompareAndSet2(
-//    uint32_t oldv0, uint32_t oldv1,
-//    uint32_t newv0, uint32_t newv1, uint32_t *target ) {
-//        ASSERT(oldv0 == target[0]);
-//        ASSERT(oldv1 == target[1]);
-//        if(rand() > RAND_MAX/2) {
-//            target[0] = newv0;
-//            target[1] = newv1;
-//            return true;
-//        }
-//        return false;
-//    }
-//#endif
 
 #include "atomic_smart_ptr.h"
 #include "thread.cpp"

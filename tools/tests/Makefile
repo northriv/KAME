@@ -1,30 +1,34 @@
 CXX=g++
-CFLAGS=-g3 -O6 -msse3 -mfpmath=sse -march=prescott -g  -I/sw/include/qt -I ../../kame -I/sw/include -I/usr/lib/qt-3.3/include -lpthread -DMACOSX  \
-	-funroll-loops -fomit-frame-pointer -funswitch-loops -finline-functions -fgcse-after-reload \
-	-ffast-math -fno-tree-vectorize -ftree-vectorizer-verbose=3 -fno-unsafe-math-optimizations
+CFLAGS=-I/sw/include/qt -I ../../kame -I/sw/include -I/usr/lib/qt-3.3/include -lpthread -DMACOSX  \
+	-DSIZEOF_INT=4 -DSIZEOF_LONG=4 -DSIZEOF_VOID_P=4 -DSIZEOF_SHORT=2 -DSIZEOF_FLOAT=4 -DSIZEOF_DOUBLE=8 \
+	-g3 -O0
 
-all : atomic_shared_ptr_test atomic_scoped_ptr_test atomic_queue_test
+#	-O6 -msse3 -mfpmath=sse -march=prescott   \
+#	-funroll-loops -fomit-frame-pointer -funswitch-loops -finline-functions -fgcse-after-reload \
+#	-ffast-math -fno-tree-vectorize -ftree-vectorizer-verbose=3 -fno-unsafe-math-optimizations
+
+all : atomic_shared_ptr_test atomic_scoped_ptr_test atomic_queue_test mutex_test
 clean :
-	rm -f atomic_shared_ptr_test atomic_scoped_ptr_test atomic_queue_test
+	rm -f atomic_shared_ptr_test atomic_scoped_ptr_test atomic_queue_test mutex_test
 
-atomic_shared_ptr_test : atomic_shared_ptr_test.cpp
-	$(CXX) $(CFLAGS) atomic_shared_ptr_test.cpp -o atomic_shared_ptr_test
-	$(CXX) $(CFLAGS) -DHAVE_CAS_2 atomic_shared_ptr_test.cpp -o atomic_shared_ptr_test_fake_cas2
+support.o : support.cpp
+	$(CXX) $(CFLAGS) -c support.cpp -o support.o
+atomic_shared_ptr_test : support.o atomic_shared_ptr_test.cpp
+	$(CXX) $(CFLAGS) support.o atomic_shared_ptr_test.cpp -o atomic_shared_ptr_test
 
-atomic_scoped_ptr_test : atomic_scoped_ptr_test.cpp
-	$(CXX) $(CFLAGS) atomic_scoped_ptr_test.cpp -o atomic_scoped_ptr_test
-	$(CXX) $(CFLAGS) -DHAVE_CAS_2 atomic_scoped_ptr_test.cpp -o atomic_scoped_ptr_test_fake_cas2
+atomic_scoped_ptr_test : support.o atomic_scoped_ptr_test.cpp
+	$(CXX) $(CFLAGS) support.o atomic_scoped_ptr_test.cpp -o atomic_scoped_ptr_test
 	
-atomic_queue_test : atomic_queue_test.cpp
-	$(CXX) $(CFLAGS) atomic_queue_test.cpp -o atomic_queue_test
-	$(CXX) $(CFLAGS) -DHAVE_CAS_2 atomic_queue_test.cpp -o atomic_queue_test_fake_cas2
+atomic_queue_test : support.o atomic_queue_test.cpp
+	$(CXX) $(CFLAGS) support.o atomic_queue_test.cpp -o atomic_queue_test
 
-check : atomic_shared_ptr_test atomic_scoped_ptr_test atomic_queue_test
+mutex_test : support.o mutex_test.cpp
+	$(CXX) $(CFLAGS) support.o mutex_test.cpp -o mutex_test
+
+check : atomic_shared_ptr_test atomic_scoped_ptr_test atomic_queue_test mutex_test
 	./atomic_shared_ptr_test && \
-	./atomic_shared_ptr_test_fake_cas2 && \
 	./atomic_scoped_ptr_test && \
-	./atomic_scoped_ptr_test_fake_cas2 && \
 	./atomic_queue_test && \
-	./atomic_queue_test_fake_cas2 && \
+	./mutex_test && \
 	echo 'done.'
 	

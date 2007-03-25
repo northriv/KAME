@@ -1,9 +1,3 @@
-#define SIZEOF_INT 4
-#define SIZEOF_LONG 4
-#define SIZEOF_VOID_P 4
-#define SIZEOF_SHORT 2
-#define SIZEOF_FLOAT 4
-#define SIZEOF_DOUBLE 8
 #define msecsleep(x) (x)
 
 //#include "xtime.h"
@@ -12,11 +6,6 @@
 
 #include <stdint.h>
 
-
-void my_assert(char const*s, int d) {
-        fprintf(stderr, "Err:%s:%d\n", s, d);
-        abort();
-}
 //
 //#ifndef HAVE_CAS_2
 //inline bool atomicCompareAndSet2(

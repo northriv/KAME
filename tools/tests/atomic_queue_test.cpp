@@ -1,9 +1,3 @@
-#define SIZEOF_INT 4
-#define SIZEOF_LONG 4
-#define SIZEOF_VOID_P 4
-#define SIZEOF_SHORT 2
-#define SIZEOF_FLOAT 4
-#define SIZEOF_DOUBLE 8
 #define msecsleep(x) (x)
 
 //#include "xtime.h"
@@ -31,10 +25,6 @@
 #include "atomic_queue.h"
 #include "thread.cpp"
 
-void my_assert(char const*s, int d) {
-		fprintf(stderr, "Err:%s:%d\n", s, d);
-        abort();
-}
 
 #define SIZE 100000
 #define NUM_THREADS 16
