@@ -176,5 +176,16 @@ namespace KAME {
     QString i18n(const char* eng);    
 }
 
+#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__
+struct X86CPUSpec {
+	X86CPUSpec();
+	unsigned int verSSE;
+	bool hasMonitor;
+	unsigned int monitorSizeSmallest;
+	unsigned int monitorSizeLargest;
+};
+extern const X86CPUSpec cg_cpuSpec;
+#endif
+
 //---------------------------------------------------------------------------
 #endif

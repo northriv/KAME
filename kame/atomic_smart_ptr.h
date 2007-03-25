@@ -82,7 +82,7 @@ class atomic_shared_ptr
 public:
     typedef atomic_shared_ptr_ref<T> Ref;
     
-    atomic_shared_ptr() : m_ptr_instant(0) {
+    atomic_shared_ptr() {
     	m_ref.pref = 0;
     	m_ref.refcnt_n_serial = 0;
     }
@@ -90,19 +90,16 @@ public:
     template<typename Y> explicit atomic_shared_ptr(Y *y) {
     	m_ref.pref = new Ref(y);
     	m_ref.refcnt_n_serial = 0;
-        m_ptr_instant = y;
         writeBarrier();
     }
     
     atomic_shared_ptr(const atomic_shared_ptr &t) {
     	m_ref.pref = t._scan_();
     	m_ref.refcnt_n_serial = 0;
-        m_ptr_instant = !m_ref.pref ? 0 : m_ref.pref->ptr;
     }
     template<typename Y> atomic_shared_ptr(const atomic_shared_ptr<Y> &y) {
     	m_ref.pref = (typename atomic_shared_ptr::Ref*)y._scan_();
     	m_ref.refcnt_n_serial = 0;
-        m_ptr_instant = !m_ref.pref ? 0 : ((typename atomic_shared_ptr<Y>::Ref *)m_ref.pref)->ptr;
     }
 
     ~atomic_shared_ptr();
@@ -134,21 +131,16 @@ public:
     bool compareAndSwap(const atomic_shared_ptr &oldr, atomic_shared_ptr &r);
     
     //! These functions must be called while writing is blocked.
-    T &operator*() const { ASSERT(m_ptr_instant); return *m_ptr_instant;}
+    T *get() const { return m_ref.pref ? m_ref.pref->ptr : 0L; }
 
-    T *operator->() const { ASSERT(m_ptr_instant); return m_ptr_instant;}
+    T &operator*() const { ASSERT(*this); return *get();}
+
+    T *operator->() const { ASSERT(*this); return get();}
     
-    T *get() const {
-        return m_ptr_instant;
-    }
-
-    bool operator!() const {return !m_ptr_instant;}
-    operator bool() const {return m_ptr_instant;}    
+    bool operator!() const {return !m_ref.pref;}
+    operator bool() const {return m_ref.pref;}    
 
 private:
-    //! for instant (not atomic) access.
-    T *m_ptr_instant;
-
 	typedef uint16_t Serial;
 	typedef uint_cas2_each RefcntNSerial;
 	static inline uint_cas2_each _refcnt(RefcntNSerial x) {return x / (1uL << 8 * sizeof(uint16_t));}
@@ -243,7 +235,6 @@ atomic_shared_ptr<T>::_leave_scan_(Ref *pref, Serial serial) const {
 			break;
 		}
 	}
-	writeBarrier();
 }
 
 template <typename T>
@@ -282,8 +273,6 @@ atomic_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
 		}
 	}
 	m_ref.pref = pref;
-	m_ptr_instant = !m_ref.pref ? 0 : m_ref.pref->ptr;
-	r.m_ptr_instant = oldptr;
 }
 
 template <typename T>
@@ -327,8 +316,6 @@ atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_sh
 		}
 	}
 	m_ref.pref = pref;
-	m_ptr_instant = !m_ref.pref ? 0 : m_ref.pref->ptr;
-	r.m_ptr_instant = oldptr;
 	return true;
 }
 

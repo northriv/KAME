@@ -62,15 +62,11 @@ private:
     bool m_bLocking;
 };
 
-/*! non-recursive mutex.
- * double lock is inhibited.
- * \sa XRecursiveMutex.
- */
-class XMutex
+class XPthreadMutex
 {
 public:
-	XMutex();
-	~XMutex();
+	XPthreadMutex();
+	~XPthreadMutex();
 
 	void lock();
 	void unlock();
@@ -78,6 +74,90 @@ public:
 	bool trylock();
 protected:
 	pthread_mutex_t m_mutex;
+};
+
+
+/*! non-recursive mutex.
+ * double lock is inhibited.
+ * \sa XRecursiveMutex.
+ */
+class XMutex
+{
+public:
+	XMutex() : m_flag(1) {
+		if(!cg_cpuSpec.hasMonitor)
+			m_mutex.reset(new XPthreadMutex);
+	}
+	~XMutex() {}
+
+	void lock() {
+		if(m_mutex)
+			m_mutex->lock();
+		else {
+			for(;;) {
+				int old = m_flag;
+				if(old == 0) {
+					monitor(&m_flag, sizeof(m_flag));
+					readBarrier();
+					if(m_flag == 0)
+						mwait();
+					continue;
+				}
+				if(atomicCompareAndSet(old, old - 1, &m_flag))
+					break;
+			}
+			readBarrier();
+		}
+	}
+	void unlock() {
+		if(m_mutex)
+			m_mutex->unlock();
+		else {
+			writeBarrier();
+			atomicInc(&m_flag);
+		}
+	}
+	//! \return true if locked.
+	bool trylock() {
+		if(m_mutex)
+			return m_mutex->trylock();
+		else {
+			writeBarrier();
+			for(;;) {
+				int old = m_flag;
+				if(old == 0)
+					return false;
+				if(atomicCompareAndSet(old, old - 1, &m_flag))
+					break;
+			}
+			readBarrier();
+			return true;
+		}
+	}
+protected:
+	int m_flag;
+	scoped_ptr<XPthreadMutex> m_mutex;
+};
+
+//! condition class.
+class XCondition : public XPthreadMutex
+{
+public:
+	XCondition();
+	~XCondition();
+	//! Lock me before calling me.
+	//! go asleep until signal is emitted.
+	//! \param usec if non-zero, timeout occurs after \a usec.
+	//! \return zero if locked thread is waked up.
+	int wait(int usec = 0);
+	//! wake-up at most one thread.
+	//! \sa broadcast()
+	void signal();
+	//! wake-up all waiting threads.
+	//! \sa signal()
+	void broadcast();
+private:
+	pthread_cond_t m_cond;
 };
 
 //! recursive mutex.
@@ -98,27 +178,6 @@ private:
 	XMutex m_mutex;
 	threadid_t m_lockingthread;
 	int m_lockcount;
-};
-
-//! condition class.
-class XCondition : public XMutex
-{
-public:
-	XCondition();
-	~XCondition();
-	//! Lock me before calling me.
-	//! go asleep until signal is emitted.
-	//! \param usec if non-zero, timeout occurs after \a usec.
-	//! \return zero if locked thread is waked up.
-	int wait(int usec = 0);
-	//! wake-up at most one thread.
-	//! \sa broadcast()
-	void signal();
-	//! wake-up all waiting threads.
-	//! \sa signal()
-	void broadcast();
-private:
-	pthread_cond_t m_cond;
 };
 
 //! create a new thread.
