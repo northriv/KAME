@@ -32,25 +32,25 @@ inline void memoryBarrier() {
 //	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
 }
 
+//! at the moment, monitor/mwait is not supported in the user land.
 inline void monitor(void *addr, unsigned int /*size*/) {
 	uint32_t cx = 0L;
 	uint32_t dx = 0L;
 	ASSERT(cg_cpuSpec.hasMonitor);
-	asm volatile( 
+	asm volatile(
 		"monitor"
-//		".byte 0x0f, 0x01, 0xc8"
 		:: "a" (addr), "c" (cx), "d" (dx) : "memory" );
 }
 inline void pause4spin() {
 	asm volatile( "pause" ::: "memory" );
 }
+//! at the moment, monitor/mwait is not supported in the user land.
 inline void mwait() {
 	uint32_t ax = 0L;
 	uint32_t cx = 0L;
 	ASSERT(cg_cpuSpec.hasMonitor);
 	asm volatile(
 		"mwait"
-//		".byte 0x0f, 0x01, 0xc9"
 		:: "a" (ax), "c" (cx) : "memory" );
 }
 #if SIZEOF_VOID_P == 4

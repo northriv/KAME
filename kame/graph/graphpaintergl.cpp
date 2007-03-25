@@ -376,7 +376,8 @@ XQGraphPainter::drawText(const XGraph::ScrPoint &p, const std::string &str)
 	
  	s_pFont->Render(wstr.c_str());
 	checkGLError();
-	ASSERT(s_pFont->Error() == 0);
+	if(s_pFont->Error())
+		gWarnPrint(KAME::i18n("GL Font Error."));
 } 
 
 #define VIEW_NEAR -1.5

@@ -23,7 +23,7 @@ start_routine(void *) {
 	printf("start\n");
 	for(int i = 0; i < 100000; i++) {
 		XScopedLock<XMutex> lock(g_mutex);
-/*		{
+		{
 			XScopedLock<XRecursiveMutex> lock(g_rec_mutex);
 			{
 				XScopedLock<XRecursiveMutex> lock(g_rec_mutex);
@@ -33,7 +33,7 @@ start_routine(void *) {
 				}
 			}
 			g_cnt2--;
-		}*/
+		}
 		g_cnt1++;
 		writeBarrier();
 		g_cnt1--;
