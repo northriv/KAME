@@ -318,7 +318,11 @@ X86CPUSpec::X86CPUSpec() {
 		verSSE = 2;
 	if((verSSE == 2) && (features_ext & (1uL << 0)))
 		verSSE = 3;
+#ifdef MACOSX
+	hasMonitor = false;
+#else 
 	hasMonitor = (verSSE == 3) && (features_ext & (1uL << 3));
+#endif
 	monitorSizeSmallest = 0L;
 	monitorSizeLargest = 0L;
 	if(hasMonitor) {

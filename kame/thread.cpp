@@ -21,7 +21,7 @@
 
 //---------------------------------------------------------------------------
 
-XPthreadMutex::XPthreadMutex()
+XMutex::XMutex()
 {
 	pthread_mutexattr_t attr;
 	int ret;
@@ -35,24 +35,24 @@ XPthreadMutex::XPthreadMutex()
 	if(DEBUG_XTHREAD) ASSERT(!ret);
 }
 
-XPthreadMutex::~XPthreadMutex()
+XMutex::~XMutex()
 {
 	int ret = pthread_mutex_destroy(&m_mutex);
 	if(DEBUG_XTHREAD) ASSERT(!ret);
 }
 void
-XPthreadMutex::lock() {
+XMutex::lock() {
 	int ret = pthread_mutex_lock(&m_mutex);
 	if(DEBUG_XTHREAD) ASSERT(!ret);
 }
 bool
-XPthreadMutex::trylock() {
+XMutex::trylock() {
 	int ret = pthread_mutex_trylock(&m_mutex);
 	if(DEBUG_XTHREAD) ASSERT(ret != EINVAL);
 	return (ret == 0);
 }
 void
-XPthreadMutex::unlock() {
+XMutex::unlock() {
 	int ret = pthread_mutex_unlock(&m_mutex);
 	if(DEBUG_XTHREAD) ASSERT(!ret);
 }
@@ -114,7 +114,7 @@ XRecursiveMutex::isLockedByCurrentThread() const
 {
     return pthread_equal(m_lockingthread, threadID());
 }
-XCondition::XCondition() : XPthreadMutex()
+XCondition::XCondition() : XMutex()
 {
 	int ret = pthread_cond_init(&m_cond, NULL);
 	if(DEBUG_XTHREAD) ASSERT(!ret);
