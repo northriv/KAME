@@ -66,11 +66,11 @@ private:
  * double lock is inhibited.
  * \sa XRecursiveMutex.
  */
-class XMutex
+class XPthreadMutex
 {
 public:
-	XMutex();
-	~XMutex();
+	XPthreadMutex();
+	~XPthreadMutex();
 
 	void lock();
 	void unlock();
@@ -80,28 +80,8 @@ protected:
 	pthread_mutex_t m_mutex;
 };
 
-//! recursive mutex.
-class XRecursiveMutex
-{
-public:
-	XRecursiveMutex();
-	~XRecursiveMutex();
-
-	void lock();
-	//! unlock me with locking thread.
-	void unlock();
-	//! \return true if locked.
-	bool trylock();
-	//! \return true if the current thread is locking mutex.
-	bool isLockedByCurrentThread() const;
-private:
-	XMutex m_mutex;
-	threadid_t m_lockingthread;
-	int m_lockcount;
-};
-
 //! condition class.
-class XCondition : public XMutex
+class XCondition : public XPthreadMutex
 {
 public:
 	XCondition();
@@ -119,6 +99,61 @@ public:
 	void broadcast();
 private:
 	pthread_cond_t m_cond;
+};
+
+#include <spinlock.h>
+
+typedef XAdaptiveSpinLock XMutex;
+typedef XPthreadMutex XSmallMutex;
+
+//! recursive mutex.
+class XRecursiveMutex
+{
+public:
+	XRecursiveMutex() {
+		m_lockingthread = (threadid_t)-1;
+	}
+	~XRecursiveMutex() {}
+
+	void lock() {
+		if(!pthread_equal(m_lockingthread, threadID())) {
+			m_mutex.lock();
+			m_lockcount = 1;
+			m_lockingthread = threadID();
+		}
+		else
+			m_lockcount++;
+	}
+	//! unlock me with locking thread.
+	void unlock() {
+		m_lockcount--;
+		if(m_lockcount == 0) {
+			m_lockingthread = (threadid_t)-1;
+			m_mutex.unlock();
+		}
+	}
+	//! \return true if locked.
+	bool trylock() {
+		if(!pthread_equal(m_lockingthread, threadID())) {
+			if(m_mutex.trylock()) {
+				m_lockcount = 1;
+				m_lockingthread = threadID();
+			}
+			else
+				return false;
+		}
+		else
+			m_lockcount++;
+		return true;
+	}
+	//! \return true if the current thread is locking mutex.
+	bool isLockedByCurrentThread() const {
+	    return pthread_equal(m_lockingthread, threadID());
+	}
+private:
+	XMutex m_mutex;
+	threadid_t m_lockingthread;
+	int m_lockcount;
 };
 
 //! create a new thread.

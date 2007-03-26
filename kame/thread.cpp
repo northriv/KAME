@@ -21,7 +21,7 @@
 
 //---------------------------------------------------------------------------
 
-XMutex::XMutex()
+XPthreadMutex::XPthreadMutex()
 {
 	pthread_mutexattr_t attr;
 	int ret;
@@ -35,86 +35,29 @@ XMutex::XMutex()
 	if(DEBUG_XTHREAD) ASSERT(!ret);
 }
 
-XMutex::~XMutex()
+XPthreadMutex::~XPthreadMutex()
 {
 	int ret = pthread_mutex_destroy(&m_mutex);
 	if(DEBUG_XTHREAD) ASSERT(!ret);
 }
 void
-XMutex::lock() {
+XPthreadMutex::lock() {
 	int ret = pthread_mutex_lock(&m_mutex);
 	if(DEBUG_XTHREAD) ASSERT(!ret);
 }
 bool
-XMutex::trylock() {
+XPthreadMutex::trylock() {
 	int ret = pthread_mutex_trylock(&m_mutex);
 	if(DEBUG_XTHREAD) ASSERT(ret != EINVAL);
 	return (ret == 0);
 }
 void
-XMutex::unlock() {
+XPthreadMutex::unlock() {
 	int ret = pthread_mutex_unlock(&m_mutex);
 	if(DEBUG_XTHREAD) ASSERT(!ret);
 }
 
-XRecursiveMutex::XRecursiveMutex()
-{
-	m_lockingthread = (threadid_t)-1;
-}
-XRecursiveMutex::~XRecursiveMutex()
-{
-    if(DEBUG_XTHREAD) ASSERT((int)m_lockingthread == -1);
-}
-void 
-XRecursiveMutex::lock()
-{
-	if(!pthread_equal(m_lockingthread, threadID()))
-	{
-		m_mutex.lock();
-		m_lockcount = 1;
-		m_lockingthread = threadID();
-	}
-	else
-	{
-		m_lockcount++;
-	}
-}
-bool
-XRecursiveMutex::trylock()
-{
-	if(!pthread_equal(m_lockingthread, threadID()))
-	{
-		if(m_mutex.trylock()) {
-			m_lockcount = 1;
-			m_lockingthread = threadID();
-		}
-		else {
-			return false;
-		}
-	}
-	else
-	{
-		m_lockcount++;
-	}
-	return true;
-}
-void 
-XRecursiveMutex::unlock()
-{
-	if(DEBUG_XTHREAD) ASSERT(pthread_equal(m_lockingthread, threadID()));
-	m_lockcount--;
-	if(m_lockcount == 0)
-	{
-		m_lockingthread = (threadid_t)-1;
-		m_mutex.unlock();
-	}
-}
-bool
-XRecursiveMutex::isLockedByCurrentThread() const
-{
-    return pthread_equal(m_lockingthread, threadID());
-}
-XCondition::XCondition() : XMutex()
+XCondition::XCondition() : XPthreadMutex()
 {
 	int ret = pthread_cond_init(&m_cond, NULL);
 	if(DEBUG_XTHREAD) ASSERT(!ret);
