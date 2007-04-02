@@ -57,18 +57,18 @@ XPthreadMutex::unlock() {
 	if(DEBUG_XTHREAD) ASSERT(!ret);
 }
 
-XCondition::XCondition() : XPthreadMutex()
+XPthreadCondition::XPthreadCondition() : XPthreadMutex()
 {
 	int ret = pthread_cond_init(&m_cond, NULL);
 	if(DEBUG_XTHREAD) ASSERT(!ret);
 }
-XCondition::~XCondition()
+XPthreadCondition::~XPthreadCondition()
 {
 	int ret = pthread_cond_destroy(&m_cond);
 	if(DEBUG_XTHREAD) ASSERT(!ret);
 }
 int
-XCondition::wait(int usec)
+XPthreadCondition::wait(int usec)
 {
 	int ret;
 	if(usec > 0)
@@ -91,13 +91,13 @@ XCondition::wait(int usec)
 	return ret;
 }
 void 
-XCondition::signal()
+XPthreadCondition::signal()
 {
 	int ret = pthread_cond_signal(&m_cond);
 	if(DEBUG_XTHREAD) ASSERT(!ret);
 }
 void 
-XCondition::broadcast()
+XPthreadCondition::broadcast()
 {
 	int ret = pthread_cond_broadcast(&m_cond);
 	if(DEBUG_XTHREAD) ASSERT(!ret);

@@ -62,49 +62,12 @@ private:
     bool m_bLocking;
 };
 
-/*! non-recursive mutex.
- * double lock is inhibited.
- * \sa XRecursiveMutex.
- */
-class XPthreadMutex
-{
-public:
-	XPthreadMutex();
-	~XPthreadMutex();
-
-	void lock();
-	void unlock();
-	//! \return true if locked.
-	bool trylock();
-protected:
-	pthread_mutex_t m_mutex;
-};
-
-//! condition class.
-class XCondition : public XPthreadMutex
-{
-public:
-	XCondition();
-	~XCondition();
-	//! Lock me before calling me.
-	//! go asleep until signal is emitted.
-	//! \param usec if non-zero, timeout occurs after \a usec.
-	//! \return zero if locked thread is waked up.
-	int wait(int usec = 0);
-	//! wake-up at most one thread.
-	//! \sa broadcast()
-	void signal();
-	//! wake-up all waiting threads.
-	//! \sa signal()
-	void broadcast();
-private:
-	pthread_cond_t m_cond;
-};
-
+#include <pthreadlock.h>
 #include <spinlock.h>
 
 typedef XAdaptiveSpinLock XMutex;
 typedef XPthreadMutex XSmallMutex;
+typedef XPthreadCondition XCondition;
 
 //! recursive mutex.
 class XRecursiveMutex

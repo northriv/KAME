@@ -1,3 +1,16 @@
+/***************************************************************************
+		Copyright (C) 2002-2007 Kentaro Kitagawa
+		                   kitagawa@scphys.kyoto-u.ac.jp
+		
+		This program is free software; you can redistribute it and/or
+		modify it under the terms of the GNU Library General Public
+		License as published by the Free Software Foundation; either
+		version 2 of the License, or (at your option) any later version.
+		
+		You should have received a copy of the GNU Library General 
+		Public License and a list of authors along with this program; 
+		see the files COPYING and AUTHORS.
+***************************************************************************/
 #ifndef SPINLOCK_H_
 #define SPINLOCK_H_
 
@@ -22,7 +35,9 @@ public:
 	}
 	//! \return true if locked.
 	bool trylock() {
+		if(!m_flag) return false;
 		if(atomicSwap(0, &m_flag)) {
+//		if(atomicCompareAndSet(1, 0, &m_flag)) {
 			readBarrier();
 			return true;
 		}
@@ -55,7 +70,7 @@ public:
 				readBarrier();
 				continue;
 			}
-			XScopedLock<XCondition> lock(m_cond);
+			XScopedLock<XPthreadCondition> lock(m_cond);
 			m_waitcnt++;
 			m_cond.wait(2);
 			m_waitcnt--;
@@ -68,8 +83,9 @@ public:
 		}
 	}
 protected:
-	XCondition m_cond;
+	XPthreadCondition m_cond;
 	int m_waitcnt;
 };
+
 
 #endif /*SPINLOCK_H_*/
