@@ -285,7 +285,6 @@ XNIDAQmxDSO::setupTrigger()
 									  (m_softwareTrigger || (bufsize/2 < m_recordBuf.size())) ? DAQmx_Val_OnBrdMemNotEmpty :
 									  DAQmx_Val_OnBrdMemMoreThanHalfFull));
 	}	
-	startSequence();
 }
 void
 XNIDAQmxDSO::setupSoftwareTrigger()
@@ -376,8 +375,9 @@ XNIDAQmxDSO::setupTiming()
 	//	dbgPrint(QString("Reference Clk rate = %1.").arg(rate));
 	CHECK_DAQMX_RET(DAQmxGetSampClkRate(m_task, &rate));
 	m_interval = 1.0 / rate;
-
+	
 	setupTrigger();
+	startSequence();
 }
 void
 XNIDAQmxDSO::createChannels()
@@ -432,24 +432,11 @@ XNIDAQmxDSO::createChannels()
 
 	uInt32 num_ch;
 	CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
-	if(num_ch == 0) 
+	if(num_ch == 0)  {
 		return;
-	{
-		/*		char chans[256];
-				CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_task, chans, sizeof(chans)));
-				bool32 ret;
-				CHECK_DAQMX_RET(DAQmxGetAIChanCalHasValidCalInfo(m_task, chans, &ret));
-				if(!ret) {
-				statusPrinter()->printMessage(KAME::i18n("Performing self calibration."));
-				QMessageBox::warning(g_pFrmMain, "KAME", KAME::i18n("Performing self calibration. Wait for minutes.") );
-				CHECK_DAQMX_RET(DAQmxSelfCal(interface()->devName()));
-				statusPrinter()->printMessage(KAME::i18n("Self calibration done."));
-				}
-		*/	}
+	}
 
 	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_task, 0, &XNIDAQmxDSO::_onTaskDone, this));
-   	
-	CHECK_DAQMX_RET(DAQmxSetRealTimeReportMissedSamp(m_task, true));
 
 	setupTiming();
 }
@@ -478,6 +465,11 @@ XNIDAQmxDSO::onSoftTrigStarted(const shared_ptr<XNIDAQmxInterface::SoftwareTrigg
 	uInt32 num_ch;
 	CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
 	if(num_ch > 0) {
+		int32 type;
+		CHECK_DAQMX_RET(DAQmxGetStartTrigType(m_task, &type));
+		if(type != DAQmx_Val_DigEdge) {
+			setupTrigger();
+		}
 		CHECK_DAQMX_RET(DAQmxStartTask(m_task));
 		m_suspendRead = false;
 		m_running = true;
@@ -761,6 +753,7 @@ XNIDAQmxDSO::startSequence()
 			m_suspendRead = false;
 		}
 		else {
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_task, DAQmx_Val_Task_Commit));
 			statusPrinter()->printMessage(KAME::i18n("Restart the software-trigger source."));
 		}
 	}
