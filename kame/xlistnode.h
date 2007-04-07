@@ -158,13 +158,13 @@ struct XTypeHolder
 	struct Creator {
 		Creator(XTypeHolder &holder, const char *name, const char *label = 0L) {
 			tFunc create_typed = _creator<tChild>;
-			holder.creators.push_back(create_typed);
 			if(!label)
 				label = name;
 			if(std::find(holder.names.begin(), holder.names.end(), std::string(name)) != holder.names.end()) {
 				fprintf(stderr, "Duplicated name!\n");
 				return;
 			}
+			holder.creators.push_back(create_typed);
 			holder.names.push_back(std::string(name));
 			holder.labels.push_back(std::string(label));
 			fprintf(stderr, "%s %s\n", name, label);

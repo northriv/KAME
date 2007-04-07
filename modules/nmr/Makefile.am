@@ -6,6 +6,7 @@ libsg_la_LDFLAGS = -module
 libnmr_la_LDFLAGS = -module
 
 INCLUDES = -I$(top_srcdir)/kame \
+	-I$(top_srcdir)/modules/dmm/core \
 	-I$(top_srcdir)/modules/dso/core \
 	-I$(top_srcdir)/modules/magnetps/core \
 	-I$(top_srcdir)/modules/charinterface \
@@ -36,6 +37,7 @@ libnmr_la_LIBADD = core/forms/libnmrforms.la \
 	../charinterface/libcharinterface.la \
 	core/libsgcore.la \
 	core/libnmrpulsercore.la \
+	../dmm/core/libdmmcore.la \
 	../dso/core/libdsocore.la \
 	../magnetps/core/libmagnetpscore.la \
 	@FFTW_LIBS@ @GSL_LIBS@

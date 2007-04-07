@@ -66,7 +66,7 @@ public:
 		else
 			return std::string();
 	}
-	virtual operator shared_ptr<XNode>() const {return *m_var;}
+	operator shared_ptr<XNode>() const {return *m_var;}
 	virtual void value(const shared_ptr<XNode> &t) = 0;
 protected:
 	virtual void _str(const std::string &var) throw (XKameError &)
@@ -102,18 +102,18 @@ private:
 	shared_ptr<XListener> m_lsnOnItemReleased, m_lsnOnListChanged;
 };
 //! A pointer to a XListNode TL, T is value type
-template <class TL, class T>
-class XItemNode : public XPointerItemNode<TL>
+template <class TL, class T1>
+class _XItemNode : public XPointerItemNode<TL>
 {
 	XNODE_OBJECT
 protected:
-	XItemNode(const char *name, bool runtime, const shared_ptr<TL> &list, bool auto_set_any = false)
+	_XItemNode(const char *name, bool runtime, const shared_ptr<TL> &list, bool auto_set_any = false)
 		:  XPointerItemNode<TL>(name, runtime, list, auto_set_any) {
 	}
 public:
-	virtual ~XItemNode() {}
-	virtual operator shared_ptr<T>() const {
-        return dynamic_pointer_cast<T>(*this->m_var);
+	virtual ~_XItemNode() {}
+	operator shared_ptr<T1>() const {
+        return dynamic_pointer_cast<T1>(*this->m_var);
 	}
 	virtual void value(const shared_ptr<XNode> &t) {
 		shared_ptr<XValueNodeBase> ptr = 
@@ -123,13 +123,30 @@ public:
 		this->m_var.reset(new shared_ptr<XNode>(t));
 		this->m_tlkOnValueChanged.talk(ptr); //, 1, &statusmutex);
 	}
+protected:
+	XRecursiveMutex m_write_mutex;
+};
+//! A pointer to a XListNode TL, T is value type
+template <class TL, class T1, class T2 = T1>
+class XItemNode : public _XItemNode<TL, T1>
+{
+	XNODE_OBJECT
+protected:
+	XItemNode(const char *name, bool runtime, const shared_ptr<TL> &list, bool auto_set_any = false)
+		:  _XItemNode<TL, T1>(name, runtime, list, auto_set_any) {
+	}
+public:
+	virtual ~XItemNode() {}
+	operator shared_ptr<T2>() const {
+        return dynamic_pointer_cast<T2>(*this->m_var);
+	}
 	virtual shared_ptr<const std::deque<XItemNodeBase::Item> > itemStrings() const
 	{
 		shared_ptr<std::deque<XItemNodeBase::Item> > items(new std::deque<XItemNodeBase::Item>());
 		atomic_shared_ptr<const XNode::NodeList> children(this->m_list->children());
 		if(children) {
 			for(XNode::NodeList::const_iterator it = children->begin(); it != children->end(); it++) {
-				if(dynamic_pointer_cast<T>(*it)) {
+				if(dynamic_pointer_cast<T1>(*it) || dynamic_pointer_cast<T2>(*it)) {
 					XItemNodeBase::Item item;
 					item.name = (*it)->getName();
 					item.label = (*it)->getLabel();
@@ -139,9 +156,6 @@ public:
 		}
 		return items;
 	}
-protected:
-private:
-	XRecursiveMutex m_write_mutex;
 };
 
 //! Contain strings, value is one of strings

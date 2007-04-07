@@ -34,6 +34,8 @@ public:
 	virtual ~XDMM() {}
 	//! show all forms belonging to driver
 	virtual void showForms();
+	
+	double valueRecorded() const {return m_value;}
 protected:
 	//! Start up your threads, connect GUI, and activate signals
 	virtual void start();
@@ -72,6 +74,7 @@ private:
  
 	shared_ptr<XThread<XDMM> > m_thread;
 	const qshared_ptr<FrmDMM> m_form;
+	double m_value;
   
 	void *execute(const atomic<bool> &);
   

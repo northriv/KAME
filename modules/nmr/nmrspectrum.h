@@ -19,6 +19,7 @@
 #include <complex>
 
 class XMagnetPS;
+class XDMM;
 class XNMRPulseAnalyzer;
 class FrmNMRSpectrum;
 class XWaveNGraph;
@@ -55,7 +56,7 @@ public:
 	//! driver specific part below 
   
 	const shared_ptr<XItemNode<XDriverList, XNMRPulseAnalyzer> > &pulse() const {return m_pulse;}
-	const shared_ptr<XItemNode<XDriverList, XMagnetPS> > &magnet() const {return m_magnet;}
+	const shared_ptr<XItemNode<XDriverList, XMagnetPS, XDMM> > &magnet() const {return m_magnet;}
 
 	const shared_ptr<XDoubleNode> &centerFreq() const {return m_centerFreq;}
 	const shared_ptr<XDoubleNode> &bandWidth() const {return m_bandWidth;}
@@ -75,7 +76,7 @@ public:
 	double hMin() const {return m_hMin;}
 private:
 	const shared_ptr<XItemNode<XDriverList, XNMRPulseAnalyzer> > m_pulse;
-	const shared_ptr<XItemNode<XDriverList, XMagnetPS> > m_magnet;
+	const shared_ptr<XItemNode<XDriverList, XMagnetPS, XDMM> > m_magnet;
  
 	const shared_ptr<XDoubleNode> m_centerFreq;
 	const shared_ptr<XDoubleNode> m_bandWidth;

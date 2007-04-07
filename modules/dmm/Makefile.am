@@ -7,13 +7,13 @@ INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/kame/analyzer \
 	-I$(top_srcdir)/kame/driver \
 	-I$(top_srcdir)/modules/charinterface \
+	-I$(top_srcdir)/modules/dmm/core \
 	-Iforms \
 	$(all_includes) 
 	
-libdmm_la_SOURCES = dmm.cpp dmm.h \
+libdmm_la_SOURCES = \
 	userdmm.cpp userdmm.h
-libdmm_la_LIBADD = forms/libforms.la \
-	../charinterface/libcharinterface.la
+libdmm_la_LIBADD = core/libdmmcore.la
 
-SUBDIRS = forms
+SUBDIRS = core
 METASOURCES = AUTO

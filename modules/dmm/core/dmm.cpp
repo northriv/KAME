@@ -74,6 +74,7 @@ XDMM::analyzeRaw() throw (XRecordError&)
 {
     double x;
     x = pop<double>();
+    m_value = x;
     m_entry->value(x);
 }
 void

@@ -15,6 +15,7 @@
 #include "nmrspectrumform.h"
 #include "nmrspectrum.h"
 #include "nmrpulse.h"
+#include "dmm.h"
 
 #include <graph.h>
 #include <graphwidget.h>
@@ -37,7 +38,7 @@ XNMRSpectrum::XNMRSpectrum(const char *name, bool runtime,
 						   const shared_ptr<XDriverList> &drivers)
 	: XSecondaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
 	  m_pulse(create<XItemNode<XDriverList, XNMRPulseAnalyzer> >("PulseAnalyzer", false, drivers, true)),
-	  m_magnet(create<XItemNode<XDriverList, XMagnetPS> >("MagnetPS", false, drivers, true)),
+	  m_magnet(create<XItemNode<XDriverList, XMagnetPS, XDMM> >("MagnetPS", false, drivers, true)),
 	  m_centerFreq(create<XDoubleNode>("CenterFreq", false)),
 	  m_bandWidth(create<XDoubleNode>("BandWidth", false)),
 	  m_resolution(create<XDoubleNode>("Resolution", false)),
@@ -120,9 +121,11 @@ XNMRSpectrum::onClear(const shared_ptr<XNode> &)
 bool
 XNMRSpectrum::checkDependency(const shared_ptr<XDriver> &emitter) const {
     shared_ptr<XMagnetPS> _magnet = *magnet();
+    shared_ptr<XDMM> _dmm = *magnet();
     shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
-    if(!_magnet || !_pulse) return false;
+    if(!(_magnet || _dmm) || !_pulse) return false;
     if(emitter == _magnet) return false;
+    if(emitter == _dmm) return false;
     if(emitter == shared_from_this()) return true;
     return (emitter == _pulse);
 }
@@ -130,16 +133,21 @@ void
 XNMRSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 {
 	shared_ptr<XMagnetPS> _magnet = *magnet();
+    shared_ptr<XDMM> _dmm = *magnet();
 	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
-	ASSERT( _magnet );
-	ASSERT( _magnet->time() );
+	ASSERT( _magnet || _dmm );
 	ASSERT( _pulse );
 	ASSERT( _pulse->time() );
 	ASSERT( emitter != _magnet );
+	ASSERT( emitter != _dmm );
   
 //  if(fabs(_pulse->time() - _magnet->time()) > 10)
 //        m_statusPrinter->printWarning(KAME::i18n("Recorded time is older by 10 sec"));
-	double field = _magnet->magnetFieldRecorded();
+	double field;
+	if(_magnet)
+		field = _magnet->magnetFieldRecorded();
+	if(_dmm)
+		field = _dmm->valueRecorded();
 
 	field *= *fieldFactor();
 	field += *residualField();

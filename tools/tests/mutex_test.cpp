@@ -7,7 +7,7 @@
 #include <stdint.h>
 
 #include <thread.h>
-#include <thread.h>
+#include <spinlock.h>
 #include "thread.cpp"
 
 atomic<int> objcnt = 0;
@@ -24,7 +24,7 @@ start_routine(void *) {
 	for(int i = 0; i < 100000; i++) {
 		XScopedLock<XMutex> lock(g_mutex);
 		{
-			XScopedLock<XRecursiveMutex> lock(g_rec_mutex);
+/*			XScopedLock<XRecursiveMutex> lock(g_rec_mutex);
 			{
 				XScopedLock<XRecursiveMutex> lock(g_rec_mutex);
 				{
@@ -33,7 +33,7 @@ start_routine(void *) {
 				}
 			}
 			g_cnt2--;
-		}
+*/		}
 		g_cnt1++;
 		writeBarrier();
 		g_cnt1--;
