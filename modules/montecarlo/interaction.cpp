@@ -253,9 +253,9 @@ MonteCarlo::setupField(int size, double dfactor,
 				for(int dj = -cutoff_real; dj <= cutoff_real; dj++) {
 					for(int di = -cutoff_real; di <= cutoff_real; di++) {                
 						Vector3<double> v;
-						v.x = 4*di + cg_ASitePositions[site2][0] - cg_8aSitePositions[site1][0];
-						v.y = 4*dj + cg_ASitePositions[site2][1] - cg_8aSitePositions[site1][1];
-						v.z = 4*dk + cg_ASitePositions[site2][2] - cg_8aSitePositions[site1][2];
+						v.x = 4*di + cg_ASitePositions[site2][0] - cg_8aSitePositions[site1][0] * 0.5;
+						v.y = 4*dj + cg_ASitePositions[site2][1] - cg_8aSitePositions[site1][1] * 0.5;
+						v.z = 4*dk + cg_ASitePositions[site2][2] - cg_8aSitePositions[site1][2] * 0.5;
 						Vector3<double> hdip;
 						if(!dipoleFieldReal(v, site2, &hdip))
 							continue;
@@ -273,9 +273,9 @@ MonteCarlo::setupField(int size, double dfactor,
 				for(int dj = -cutoff_real; dj <= cutoff_real; dj++) {
 					for(int di = -cutoff_real; di <= cutoff_real; di++) {                
 						Vector3<double> v;
-						v.x = 4*di + cg_ASitePositions[site2][0] - cg_48fSitePositions[site1][0];
-						v.y = 4*dj + cg_ASitePositions[site2][1] - cg_48fSitePositions[site1][1];
-						v.z = 4*dk + cg_ASitePositions[site2][2] - cg_48fSitePositions[site1][2];
+						v.x = 4*di + cg_ASitePositions[site2][0] - cg_48fSitePositions[site1][0] * 0.5;
+						v.y = 4*dj + cg_ASitePositions[site2][1] - cg_48fSitePositions[site1][1] * 0.5;
+						v.z = 4*dk + cg_ASitePositions[site2][2] - cg_48fSitePositions[site1][2] * 0.5;
 						Vector3<double> hdip;
 						if(!dipoleFieldReal(v, site2, &hdip))
 							continue;

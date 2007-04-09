@@ -460,14 +460,16 @@ XMonteCarloDriver::visualize()
 						v = field_dir.innerProduct(MonteCarlo::Vector3<double>
 												   (sx,sy,sz)) * A_MOMENT;
 					}
-					else
+					else {
 						if(calcp) {
 							v = probabilities[sidx];
 						}
-						else
+						else {
 							if(calch) {
 								v = fields[sidx];
 							}
+						}
+					}
 					m_wave3D->cols(3)[idx] = v;
 					m_wave3D->cols(4)[idx] = sx;
 					m_wave3D->cols(5)[idx] = sy;
