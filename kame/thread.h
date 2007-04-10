@@ -63,10 +63,10 @@ private:
 };
 
 #include <pthreadlock.h>
-#include <spinlock.h>
+//#include <spinlock.h>
 
-typedef XAdaptiveSpinLock XMutex;
-typedef XPthreadMutex XSmallMutex;
+//typedef XAdaptiveSpinLock XMutex;
+typedef XPthreadMutex XMutex;
 typedef XPthreadCondition XCondition;
 
 //! recursive mutex.

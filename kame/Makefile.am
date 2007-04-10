@@ -18,6 +18,7 @@ kame_SOURCES = measure.cpp measure.h \
 	xnodeconnector.cpp xnodeconnector.h \
 	xsignal.cpp xsignal.h xsignal_prv.h \
 	xscheduler.cpp xscheduler.h \
+	pthreadlock.h spinlock.h \
 	thread.cpp thread.h \
 	atomic.h atomic_prv_x86.h atomic_prv_ppc.h \
 	atomic_smart_ptr.h atomic_queue.h \
