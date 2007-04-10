@@ -59,11 +59,13 @@ XWaveNGraph::XWaveNGraph(const char *name, bool runtime,
 void
 XWaveNGraph::init()
 {
-  m_btnDump->setIconSet( KApplication::kApplication()->iconLoader()->loadIconSet("filesave", 
-            KIcon::Toolbar, KIcon::SizeSmall, true ) );
   m_lsnOnFilenameChanged = filename()->onValueChanged().connectWeak(
-    shared_from_this(), &XWaveNGraph::onFilenameChanged, XListener::FLAG_MAIN_THREAD_CALL);
+    shared_from_this(), &XWaveNGraph::onFilenameChanged);
+  m_lsnOnIconChanged = m_tlkOnIconChanged.connectWeak(
+    shared_from_this(), &XWaveNGraph::onIconChanged,
+    XListener::FLAG_MAIN_THREAD_CALL || XListener::FLAG_AVOID_DUP);
     
+  m_tlkOnIconChanged.talk(false);
   dump()->setUIEnabled(false);
   
   m_graph->persistence()->value(0.0);
@@ -216,11 +218,18 @@ XWaveNGraph::colWeight() const {return m_colweight;}
 int
 XWaveNGraph::colZ() const {return m_colz;}
 void
-XWaveNGraph::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
+XWaveNGraph::onIconChanged(const bool &v)
 {
-  m_btnDump->setIconSet( KApplication::kApplication()->iconLoader()->loadIconSet("filesave", 
-            KIcon::Toolbar, KIcon::SizeSmall, true ) );
-
+	if(!v)
+		m_btnDump->setIconSet( KApplication::kApplication()->iconLoader()->loadIconSet("filesave", 
+	            KIcon::Toolbar, KIcon::SizeSmall, true ) );
+	else
+	    m_btnDump->setIconSet( KApplication::kApplication()->iconLoader()->loadIconSet("redo", 
+	            KIcon::Toolbar, KIcon::SizeSmall, true ) );
+}
+void
+XWaveNGraph::onFilenameChanged(const shared_ptr<XValueNodeBase> &node)
+{
    {   XScopedLock<XMutex> lock(m_filemutex);
       
       if(m_stream.is_open()) m_stream.close();
@@ -229,13 +238,14 @@ XWaveNGraph::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
     
       if(m_stream.good()) {
           m_lsnOnDumpTouched = dump()->onTouch().connectWeak(
-            shared_from_this(), &XWaveNGraph::onDumpTouched, XListener::FLAG_MAIN_THREAD_CALL);
+            shared_from_this(), &XWaveNGraph::onDumpTouched);
           dump()->setUIEnabled(true);
       }
       else {
           m_lsnOnDumpTouched.reset();
           dump()->setUIEnabled(false);      
       }
+	  m_tlkOnIconChanged.talk(false);
   }
 }
 void
@@ -258,7 +268,7 @@ XWaveNGraph::onDumpTouched(const shared_ptr<XNode> &)
     for(unsigned int i = 0; i < rowCount(); i++)
     {
             if(colWeight() >= 0)
-            if(cols(colWeight())[i] < 1e-20) continue;
+            if(cols(colWeight())[i] == 0) continue;
             for(unsigned int j = 0; j < colCount(); j++)
             {
                 m_stream << cols(j)[i] << " ";
@@ -269,8 +279,7 @@ XWaveNGraph::onDumpTouched(const shared_ptr<XNode> &)
     
     m_stream.flush();
 
-    m_btnDump->setIconSet( KApplication::kApplication()->iconLoader()->loadIconSet("redo", 
-            KIcon::Toolbar, KIcon::SizeSmall, true ) );
+	m_tlkOnIconChanged.talk(true);
   }
 }
 void
@@ -326,7 +335,7 @@ XWaveNGraph::drawGraph()
           if(colz)
             z = colz[i];
           if(colweight) {
-          	if(colweight[i] > 0)
+          	if(colweight[i] != 0)
                points_plot1.push_back( XGraph::ValPoint(colx[i], coly1[i], z, colweight[i]) );
           }
           else

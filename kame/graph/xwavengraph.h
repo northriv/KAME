@@ -92,10 +92,12 @@ private:
  const shared_ptr<XNode> m_dump;
  const shared_ptr<XStringNode> m_filename;
  
- shared_ptr<XListener> m_lsnOnDumpTouched, m_lsnOnFilenameChanged;
+ shared_ptr<XListener> m_lsnOnDumpTouched, m_lsnOnFilenameChanged, m_lsnOnIconChanged;
+ XTalker<bool> m_tlkOnIconChanged;
  
  void onDumpTouched(const shared_ptr<XNode> &);
  void onFilenameChanged(const shared_ptr<XValueNodeBase> &);
+ void onIconChanged(const bool &);
  
  std::fstream m_stream;
  XMutex m_filemutex;
