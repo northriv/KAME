@@ -102,6 +102,7 @@ rm -rf $RPM_BUILD_ROOT
 %files modules-standard
 %{_libdir}/kame/libcharinterface*
 %{_libdir}/kame/libdsocore*
+%{_libdir}/kame/libdmmcore*
 %{_libdir}/kame/libmagnetpscore*
 %{_libdir}/kame/modules/libdcsource*
 %{_libdir}/kame/modules/libdmm*

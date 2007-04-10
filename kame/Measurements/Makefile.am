@@ -1,9 +1,11 @@
 EXTRA_DIST = \
-	thermometers.kam \
+	thermometers_ku.kam \
+	new_thermometer_sample.kam \
 	testdriver.kam
 
 rcdir = $(kde_datadir)/kame/Measurements
 rc_DATA = \
-	thermometers.kam \
+	thermometers_ku.kam \
+	new_thermometer_sample.kam \
 	testdriver.kam
 	
