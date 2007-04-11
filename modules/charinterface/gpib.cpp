@@ -290,7 +290,7 @@ XNIGPIBPort::gpib_spoll_before_read() throw (XInterface::XCommError &)
 	{
 		for(int i = 0; ; i++)
 		{
-			if(i > 10)
+			if(i > 30)
 			{
 				throw XInterface::XCommError(
 					gpibStatus(KAME::i18n("too many spoll timeouts")), __FILE__, __LINE__);
