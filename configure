@@ -37866,7 +37866,9 @@ ac_config_files="$ac_config_files modules/charinterface/Makefile"
 
 ac_config_files="$ac_config_files modules/dcsource/Makefile"
 
-ac_config_files="$ac_config_files modules/dcsource/forms/Makefile"
+ac_config_files="$ac_config_files modules/dcsource/core/Makefile"
+
+ac_config_files="$ac_config_files modules/dcsource/core/forms/Makefile"
 
 ac_config_files="$ac_config_files modules/dmm/Makefile"
 
@@ -38497,7 +38499,8 @@ do
     "modules/Makefile") CONFIG_FILES="$CONFIG_FILES modules/Makefile" ;;
     "modules/charinterface/Makefile") CONFIG_FILES="$CONFIG_FILES modules/charinterface/Makefile" ;;
     "modules/dcsource/Makefile") CONFIG_FILES="$CONFIG_FILES modules/dcsource/Makefile" ;;
-    "modules/dcsource/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/dcsource/forms/Makefile" ;;
+    "modules/dcsource/core/Makefile") CONFIG_FILES="$CONFIG_FILES modules/dcsource/core/Makefile" ;;
+    "modules/dcsource/core/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/dcsource/core/forms/Makefile" ;;
     "modules/dmm/Makefile") CONFIG_FILES="$CONFIG_FILES modules/dmm/Makefile" ;;
     "modules/dmm/core/Makefile") CONFIG_FILES="$CONFIG_FILES modules/dmm/core/Makefile" ;;
     "modules/dmm/core/forms/Makefile") CONFIG_FILES="$CONFIG_FILES modules/dmm/core/forms/Makefile" ;;

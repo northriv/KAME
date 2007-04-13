@@ -11,13 +11,10 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-//---------------------------------------------------------------------------
-
 #ifndef dcsourceH
 #define dcsourceH
 
 #include "primarydriver.h"
-#include "chardevicedriver.h"
 #include "xnodeconnector.h"
 
 class FrmDCSource;
@@ -55,6 +52,7 @@ protected:
  const shared_ptr<XComboNode> &function() const {return m_function;}
  const shared_ptr<XBoolNode> &output() const {return m_output;}
  const shared_ptr<XDoubleNode> &value() const {return m_value;}
+ const shared_ptr<XUIntNode> &channel() const {return m_channel;}
  
 protected:
  virtual void changeFunction(int x) = 0;
@@ -62,10 +60,11 @@ protected:
  virtual void changeValue(double x) = 0;
 private:
  
- xqcon_ptr m_conFunction, m_conOutput, m_conValue;
+ xqcon_ptr m_conFunction, m_conOutput, m_conValue, m_conChannel;
  const shared_ptr<XComboNode> m_function;
  const shared_ptr<XBoolNode> m_output;
  const shared_ptr<XDoubleNode> m_value;
+ const shared_ptr<XUIntNode> m_channel;
  shared_ptr<XListener> m_lsnFunction, m_lsnOutput, m_lsnValue;
  
  virtual void onFunctionChanged(const shared_ptr<XValueNodeBase> &);
@@ -73,22 +72,6 @@ private:
  virtual void onValueChanged(const shared_ptr<XValueNodeBase> &);
  
  const qshared_ptr<FrmDCSource> m_form;
-};
-
-
-//YOKOGAWA 7551 DC V/DC A source
-class XYK7651:public XCharDeviceDriver<XDCSource>
-{
-public:
-	XYK7651(const char *name, bool runtime,
-			const shared_ptr<XScalarEntryList> &scalarentries,
-			const shared_ptr<XInterfaceList> &interfaces,
-			const shared_ptr<XThermometerList> &thermometers,
-			const shared_ptr<XDriverList> &drivers);
-protected:
- virtual void changeFunction(int x);
- virtual void changeOutput(bool x);
- virtual void changeValue(double x);
 };
 
 #endif

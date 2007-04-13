@@ -426,7 +426,9 @@ XNMRPulseAnalyzer::checkDependency(const shared_ptr<XDriver> &emitter) const {
     if(emitter == _pulser) return false;
     const shared_ptr<XDSO> _dso = *dso();
     if(!_dso) return false;
-    if(_pulser && (_dso->timeAwared() < _pulser->time())) return false;
+//    //Request for clear.
+//    if(m_timeClearRequested > _dso->timeAwared()) return true;
+//    if(_pulser && (_dso->timeAwared() < _pulser->time())) return false;
     return true;
 }
 void

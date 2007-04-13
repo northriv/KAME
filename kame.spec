@@ -7,8 +7,8 @@ Name: kame
 
 %{!?build_nidaqmx: %define build_nidaqmx 1}
 
-Version: 2.2.2
-Release: 2
+Version: 2.2.3
+Release: 1
 License: GPL
 Group: Applications/Engineering
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
@@ -104,6 +104,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/kame/libdsocore*
 %{_libdir}/kame/libdmmcore*
 %{_libdir}/kame/libmagnetpscore*
+%{_libdir}/kame/libdcsourcecore*
 %{_libdir}/kame/modules/libdcsource*
 %{_libdir}/kame/modules/libdmm*
 %{_libdir}/kame/modules/libdso*
