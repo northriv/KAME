@@ -11,11 +11,11 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
  ***************************************************************************/
-#include "tempcontrol.h"
-#include "forms/tempcontrolform.h"
-#include "interface.h"
-#include "analyzer.h"
-#include "xnodeconnector.h"
+#include <tempcontrol.h>
+#include <forms/tempcontrolform.h>
+#include <interface.h>
+#include <analyzer.h>
+#include <xnodeconnector.h>
 #include <qstatusbar.h>
 #include <klocale.h>
 
@@ -54,6 +54,8 @@ XTempControl::XTempControl(const char *name, bool runtime,
     m_powerRange(create<XComboNode>("PowerRange", false, true)),
     m_heaterPower(create<XDoubleNode>("HeaterPower", false, "%.4g")),
     m_sourceTemp(create<XDoubleNode>("SourceTemp", false, "%.5g")),
+    m_extDCSource
+        (create<XItemNode<XDriverList, XDCSource> >("ExtDCSource", true, drivers)),
     m_stabilized(create<XDoubleNode>("Stabilized", true, "%g")),
     m_form(new FrmTempControl(g_pFrmMain))
 {
@@ -77,6 +79,8 @@ XTempControl::XTempControl(const char *name, bool runtime,
                      m_heaterPower, m_form->m_lcdHeater);
   m_conTemp = xqcon_create<XQLCDNumberConnector>(
                      m_sourceTemp, m_form->m_lcdSourceTemp); 
+  m_conExtDCSrc = xqcon_create<XQComboBoxConnector>(
+                        m_extDCSource, m_form->m_cmbExtDCSrc);
  
   m_currentChannel->setUIEnabled(false);
   m_powerRange->setUIEnabled(false);
@@ -86,6 +90,8 @@ XTempControl::XTempControl(const char *name, bool runtime,
   m_deriv->setUIEnabled(false);
   m_manualPower->setUIEnabled(false);
   m_targetTemp->setUIEnabled(false);
+  
+  m_extDCSource->setUIEnabled(true);
 
   m_lsnOnSetupChannelChanged = m_setupChannel->onValueChanged().connectWeak(
                   shared_from_this(), &XTempControl::onSetupChannelChanged);
@@ -104,6 +110,23 @@ XTempControl::showForms() {
 void
 XTempControl::start()
 {
+  if(shared_ptr<XDCSource>(*extDCSource())) {
+	heaterMode()->clear();
+	heaterMode()->add("Off");
+	heaterMode()->add("PID");
+	heaterMode()->add("Man");
+	powerRange()->clear();  
+	powerRange()->add("0");
+	powerRange()->add("1u");
+	powerRange()->add("10u");
+	powerRange()->add("100u");
+	powerRange()->add("1m");
+	powerRange()->add("10m");
+	powerRange()->add("100m");
+	powerRange()->add("1");
+	powerRange()->add("10");
+  }
+
   m_thread.reset(new XThread<XTempControl>(shared_from_this(), &XTempControl::execute));
   m_thread->resume();
 
@@ -115,6 +138,8 @@ XTempControl::start()
   m_deriv->setUIEnabled(true);
   m_manualPower->setUIEnabled(true);
   m_targetTemp->setUIEnabled(true);
+  
+  m_extDCSource->setUIEnabled(false);
 }
 void
 XTempControl::stop()
@@ -129,6 +154,8 @@ XTempControl::stop()
   m_targetTemp->setUIEnabled(false);
   	
     if(m_thread) m_thread->terminate();
+
+  m_extDCSource->setUIEnabled(true);
 //    m_thread->waitFor();
 //  thread must do interface()->close() at the end
 }
@@ -231,6 +258,32 @@ XTempControl::createChannels(const shared_ptr<XScalarEntryList> &scalarentries,
     }
 }
 
+double
+XTempControl::pid(XTime time, double temp)
+{
+	m_pidIntegralLastValues.push_back(std::pair<XTime, double>(time, temp));
+	while(m_pidIntegralLastValues.size() && (
+		time - m_pidIntegralLastValues.front().first > PID_FIN_RESPONSE * *interval())) {
+		m_pidIntegralLastValues.pop_front();
+	}
+	double target = *targetTemp();
+	double acc = 0.0;
+	double dxdt = 0.0;
+	if(m_pidIntegralLastValues.size() >= 2) {
+		XTime lasttime = m_pidIntegralLastValues.front().first;
+		for(std::deque<std::pair<XTime, double> >::iterator it = ++(m_pidIntegralLastValues.begin());
+			 it != m_pidIntegralLastValues.end(); it++) {
+			 double d = (it->second - target) * (it->first - lasttime);
+			 acc += d;
+			 if(time - it->first > *deriv()) {
+			 	dxdt = (temp - it->second) / (time - it->first);
+			 }
+		}
+		if(*interval())
+			acc /= *interval();
+	}
+	return -(temp - target + acc + dxdt * *deriv()) * *prop();
+}
 void *
 XTempControl::execute(const atomic<bool> &terminated)
 {
@@ -304,11 +357,30 @@ XTempControl::execute(const atomic<bool> &terminated)
           double dt = newtime - lasttime;
           lasttime = newtime;
           double terr = src_temp - *targetTemp();
-          terr = terr * terr;
           tempAvg = (tempAvg - temp) * exp(-dt / tau) + temp;
-          tempErrAvg = (tempErrAvg - terr) * exp(-dt / tau) + terr;
+          tempErrAvg = (tempErrAvg - terr * terr) * exp(-dt / tau) + terr * terr;
           stabilized()->value(sqrt(tempErrAvg)); //stderr
-          heaterPower()->value(getHeater());
+          
+          double power = 0.0;
+			if(shared_ptr<XDCSource> dcsrc = *extDCSource()) {
+				double limit = 0.0;
+				if(*powerRange() > 0)
+					limit = 1e-6 * pow(10.0, (double)(*powerRange() - 1));
+				if(src_ch) {
+					if(heaterMode()->to_str() == "PID") {
+						power = pid(newtime, src_temp);
+						power = std::min(power, limit);
+					}
+					if(heaterMode()->to_str() == "Man") {
+						power = *manualPower() * limit / 100.0;
+					}
+				}
+				dcsrc->value()->value(power);
+			}
+			else
+				power = getHeater();
+          
+          heaterPower()->value(power);
       }
       catch (XKameError &e) {
           e.print(getLabel() + "; ");
@@ -332,4 +404,118 @@ XTempControl::execute(const atomic<bool> &terminated)
   afterStop(); 
   return NULL;
 }
-
+void
+XTempControl::onPChanged(const shared_ptr<XValueNodeBase> &)
+{
+	try {
+		if(!shared_ptr<XDCSource>(*extDCSource()))
+			onPChanged(*prop());
+	}
+	catch (XInterface::XInterfaceError& e) {
+		e.print();
+	}
+}
+void
+XTempControl::onIChanged(const shared_ptr<XValueNodeBase> &)
+{
+	try {
+		if(!shared_ptr<XDCSource>(*extDCSource()))
+			onIChanged(*interval());
+	}
+	catch (XInterface::XInterfaceError& e) {
+		e.print();
+	}
+}
+void
+XTempControl::onDChanged(const shared_ptr<XValueNodeBase> &)
+{
+	try {
+		if(!shared_ptr<XDCSource>(*extDCSource()))
+			onDChanged(*deriv());
+	}
+	catch (XInterface::XInterfaceError& e) {
+		e.print();
+	}
+}
+void
+XTempControl::onTargetTempChanged(const shared_ptr<XValueNodeBase> &)
+{
+	try {
+		if(!shared_ptr<XDCSource>(*extDCSource()))
+			onTargetTempChanged(*targetTemp());
+	}
+	catch (XInterface::XInterfaceError& e) {
+		e.print();
+	}
+}
+void
+XTempControl::onManualPowerChanged(const shared_ptr<XValueNodeBase> &)
+{
+	try {
+		if(!shared_ptr<XDCSource>(*extDCSource()))
+			onManualPowerChanged(*manualPower());
+	}
+	catch (XInterface::XInterfaceError& e) {
+		e.print();
+	}
+}
+void
+XTempControl::onHeaterModeChanged(const shared_ptr<XValueNodeBase> &)
+{
+	try {
+		if(!shared_ptr<XDCSource>(*extDCSource()))
+			onHeaterModeChanged(*heaterMode());
+	}
+	catch (XInterface::XInterfaceError& e) {
+		e.print();
+	}
+}
+void
+XTempControl::onPowerRangeChanged(const shared_ptr<XValueNodeBase> &)
+{
+	try {
+		if(!shared_ptr<XDCSource>(*extDCSource()))
+			onPowerRangeChanged(*powerRange());
+	}
+	catch (XInterface::XInterfaceError& e) {
+		e.print();
+	}
+}
+void
+XTempControl::onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &)
+{
+	try {
+		if(!shared_ptr<XDCSource>(*extDCSource())) {
+			shared_ptr<XChannel> ch(*currentChannel());
+			if(!ch) return;
+			onCurrentChannelChanged(ch);
+		}
+	}
+	catch (XInterface::XInterfaceError& e) {
+		e.print();
+	}
+}
+void
+XTempControl::onExcitationChanged(const shared_ptr<XValueNodeBase> &node)
+{
+	try {
+		if(!shared_ptr<XDCSource>(*extDCSource())) {
+			shared_ptr<XChannel> ch;
+			atomic_shared_ptr<const XNode::NodeList> list(channels()->children());
+			if(list) { 
+				for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+					shared_ptr<XChannel> _ch = dynamic_pointer_cast<XChannel>(*it);
+					if(_ch->excitation() == node)
+		                ch = _ch;
+				}
+			}
+			if(!ch) return;
+			int exc = *ch->excitation();
+			if(exc < 0) return;
+			onExcitationChanged(ch, exc);
+		}
+	}
+	catch (XInterface::XInterfaceError& e) {
+		e.print();
+	}
+}

@@ -33,6 +33,12 @@ public:
  virtual ~XDCSource() {}
  //! show all forms belonging to driver
  virtual void showForms();
+
+ //! driver specific part below
+ const shared_ptr<XComboNode> &function() const {return m_function;}
+ const shared_ptr<XBoolNode> &output() const {return m_output;}
+ const shared_ptr<XDoubleNode> &value() const {return m_value;}
+ const shared_ptr<XUIntNode> &channel() const {return m_channel;}
 protected:
  //! Start up your threads, connect GUI, and activate signals
  virtual void start();
@@ -47,12 +53,6 @@ protected:
  //! this is called after analyze() or analyzeRaw()
  //! record is readLocked
  virtual void visualize();
- 
- //! driver specific part below
- const shared_ptr<XComboNode> &function() const {return m_function;}
- const shared_ptr<XBoolNode> &output() const {return m_output;}
- const shared_ptr<XDoubleNode> &value() const {return m_value;}
- const shared_ptr<XUIntNode> &channel() const {return m_channel;}
  
 protected:
  virtual void changeFunction(int x) = 0;

@@ -14,9 +14,10 @@
 #ifndef tempcontrolH
 #define tempcontrolH
 //---------------------------------------------------------------------------
-#include "thermometer/thermometer.h"
-#include "primarydriver.h"
-#include "xnodeconnector.h"
+#include <thermometer.h>
+#include <dcsource.h>
+#include <primarydriver.h>
+#include <xnodeconnector.h>
 
 class XScalarEntry;
 class FrmTempControl;
@@ -64,6 +65,7 @@ public:
 	const shared_ptr<XComboNode> &powerRange() const {return m_powerRange;}
 	const shared_ptr<XDoubleNode> &heaterPower() const {return m_heaterPower;}
 	const shared_ptr<XDoubleNode> &sourceTemp() const {return m_sourceTemp;}
+	const shared_ptr<XItemNode<XDriverList, XDCSource> > &extDCSource() const {return m_extDCSource;}
 	//! holds an averaged error between target temp and actual one
 	const shared_ptr<XDoubleNode> &stabilized() const {return m_stabilized;}
 protected:
@@ -96,17 +98,26 @@ protected:
 	//! ex. "W", "dB", or so
 	virtual const char *m_heaterPowerUnit() = 0;
   
-	virtual void onPChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onIChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onDChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onTargetTempChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onManualPowerChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onHeaterModeChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onPowerRangeChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onExcitationChanged(const shared_ptr<XValueNodeBase> &) = 0;
-
+	virtual void onPChanged(double p) = 0;
+	virtual void onIChanged(double i) = 0;
+	virtual void onDChanged(double d) = 0;
+	virtual void onTargetTempChanged(double temp) = 0;
+	virtual void onManualPowerChanged(double pow) = 0;
+	virtual void onHeaterModeChanged(int mode) = 0;
+	virtual void onPowerRangeChanged(int range) = 0;
+	virtual void onCurrentChannelChanged(const shared_ptr<XChannel> &ch) = 0;
+	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc) = 0;
 private:
+	void onPChanged(const shared_ptr<XValueNodeBase> &);
+	void onIChanged(const shared_ptr<XValueNodeBase> &);
+	void onDChanged(const shared_ptr<XValueNodeBase> &);
+	void onTargetTempChanged(const shared_ptr<XValueNodeBase> &);
+	void onManualPowerChanged(const shared_ptr<XValueNodeBase> &);
+	void onHeaterModeChanged(const shared_ptr<XValueNodeBase> &);
+	void onPowerRangeChanged(const shared_ptr<XValueNodeBase> &);
+	void onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &);
+	void onExcitationChanged(const shared_ptr<XValueNodeBase> &);
+
 	const shared_ptr<XChannelList> m_channels;
 	const shared_ptr<XItemNode<XChannelList, XChannel> > m_currentChannel;
 	const shared_ptr<XItemNode<XChannelList, XChannel> > m_setupChannel;
@@ -116,6 +127,7 @@ private:
 	const shared_ptr<XComboNode> m_heaterMode;
 	const shared_ptr<XComboNode> m_powerRange;
 	const shared_ptr<XDoubleNode> m_heaterPower, m_sourceTemp;
+	const shared_ptr<XItemNode<XDriverList, XDCSource> > m_extDCSource;
 	//! holds an averaged error between target temp and actual one
 	const shared_ptr<XDoubleNode> m_stabilized;
   
@@ -139,7 +151,12 @@ private:
 	xqcon_ptr m_conTargetTemp, m_conManualPower, m_conP, m_conI, m_conD;
 	xqcon_ptr m_conHeater;
 	xqcon_ptr m_conTemp;
-   
+	xqcon_ptr m_conExtDCSrc;
+	
+	enum {PID_FIN_RESPONSE = 4};
+	std::deque<std::pair<XTime, double> > m_pidIntegralLastValues;
+	double pid(XTime time, double temp);
+	
 	void *execute(const atomic<bool> &);
   
 };

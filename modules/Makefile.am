@@ -1,2 +1,2 @@
-SUBDIRS = charinterface dmm tempcontrol magnetps lia dcsource funcsynth testdriver \
+SUBDIRS = charinterface dmm dcsource tempcontrol magnetps lia funcsynth testdriver \
 dso nmr montecarlo nidaq

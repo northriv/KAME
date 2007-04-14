@@ -20,7 +20,7 @@
 #include "oxforddriver.h"
 #include "chardevicedriver.h"
 //---------------------------------------------------------------------------
-//ITC503 Oxford
+//!ITC503 Oxford
 class XITC503 : public XOxfordDriver<XTempControl>
 {
 	XNODE_OBJECT
@@ -44,20 +44,20 @@ protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XInterface::XInterfaceError &);
   
-	virtual void onPChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onIChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onDChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onTargetTempChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onManualPowerChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onHeaterModeChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onPowerRangeChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onExcitationChanged(const shared_ptr<XValueNodeBase> &);
+	virtual void onPChanged(double p);
+	virtual void onIChanged(double i);
+	virtual void onDChanged(double d);
+	virtual void onTargetTempChanged(double temp);
+	virtual void onManualPowerChanged(double pow);
+	virtual void onHeaterModeChanged(int mode);
+	virtual void onPowerRangeChanged(int range);
+	virtual void onCurrentChannelChanged(const shared_ptr<XChannel> &ch);
+	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
 private:
 };
 
-//AVS47-IB
-//AVS47 and TS530A
+//!Picowatt/Oxford AVS47-IB
+//!AVS47 and TS530A
 class XAVS47IB:public XCharDeviceDriver<XTempControl>
 {
 	XNODE_OBJECT
@@ -83,15 +83,15 @@ protected:
 	//! Be called for closing interfaces.
 	virtual void afterStop();
   
-	virtual void onPChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onIChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onDChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onTargetTempChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onManualPowerChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onHeaterModeChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onPowerRangeChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onExcitationChanged(const shared_ptr<XValueNodeBase> &);
+	virtual void onPChanged(double p);
+	virtual void onIChanged(double i);
+	virtual void onDChanged(double d);
+	virtual void onTargetTempChanged(double temp);
+	virtual void onManualPowerChanged(double pow);
+	virtual void onHeaterModeChanged(int mode);
+	virtual void onPowerRangeChanged(int range);
+	virtual void onCurrentChannelChanged(const shared_ptr<XChannel> &ch);
+	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
 private:
 	double read(const char *str);
 
@@ -109,7 +109,7 @@ private:
 	int m_autorange_wait;
 };
 
-//Cryo-con base class
+//!Cryo-con base class
 class XCryocon : public XCharDeviceDriver<XTempControl>
 {
 	XNODE_OBJECT
@@ -133,15 +133,15 @@ protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XInterface::XInterfaceError &);
   
-	virtual void onPChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onIChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onDChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onTargetTempChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onManualPowerChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onHeaterModeChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onPowerRangeChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onExcitationChanged(const shared_ptr<XValueNodeBase> &);
+	virtual void onPChanged(double p);
+	virtual void onIChanged(double i);
+	virtual void onDChanged(double d);
+	virtual void onTargetTempChanged(double temp);
+	virtual void onManualPowerChanged(double pow);
+	virtual void onHeaterModeChanged(int mode);
+	virtual void onPowerRangeChanged(int range);
+	virtual void onCurrentChannelChanged(const shared_ptr<XChannel> &ch);
+	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
 private:
 	void setTemp(double temp);
 	//        void SetChannel(XChannel *channel);
@@ -153,7 +153,7 @@ private:
 	int setHeaterSetPoint(double value);
 };
 
-//Cryo-con Model 32 Cryogenic Inst.
+//!Cryo-con Model 32 Cryogenic Inst.
 class XCryoconM32:public XCryocon
 {
 	XNODE_OBJECT
@@ -169,7 +169,7 @@ public:
 protected:
 };
 
-//Cryo-con Model 62 Cryogenic Inst.
+//!Cryo-con Model 62 Cryogenic Inst.
 class XCryoconM62:public XCryocon
 {
 	XNODE_OBJECT
@@ -187,7 +187,7 @@ protected:
 	virtual void open() throw (XInterface::XInterfaceError &);
 };
 
-//LakeShore 340
+//!LakeShore 340
 class XLakeShore340:public XCharDeviceDriver<XTempControl>
 {
 	XNODE_OBJECT
@@ -211,15 +211,15 @@ protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XInterface::XInterfaceError &);
     
-	virtual void onPChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onIChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onDChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onTargetTempChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onManualPowerChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onHeaterModeChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onPowerRangeChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onExcitationChanged(const shared_ptr<XValueNodeBase> &);
+	virtual void onPChanged(double p);
+	virtual void onIChanged(double i);
+	virtual void onDChanged(double d);
+	virtual void onTargetTempChanged(double temp);
+	virtual void onManualPowerChanged(double pow);
+	virtual void onHeaterModeChanged(int mode);
+	virtual void onPowerRangeChanged(int range);
+	virtual void onCurrentChannelChanged(const shared_ptr<XChannel> &ch);
+	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
 private:
 };
 #endif

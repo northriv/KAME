@@ -4,15 +4,18 @@ moduleexec_LTLIBRARIES = libtempcontrol.la
 libtempcontrol_la_LDFLAGS = -module
 
 INCLUDES = -I$(top_srcdir)/kame \
+	-I$(top_srcdir)/kame/thermometer \
 	-I$(top_srcdir)/kame/analyzer \
 	-I$(top_srcdir)/kame/driver \
 	-I$(top_srcdir)/modules/charinterface \
+	-I$(top_srcdir)/modules/dcsource/core \
 	-Iforms \
 	$(all_includes)
 
 libtempcontrol_la_SOURCES = tempcontrol.cpp tempcontrol.h \
 	usertempcontrol.cpp usertempcontrol.h 
 libtempcontrol_la_LIBADD = forms/libforms.la \
+	../dcsource/core/libdcsourcecore.la \
 	../charinterface/libcharinterface.la
 
 SUBDIRS = forms
