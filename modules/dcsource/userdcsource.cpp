@@ -65,10 +65,11 @@ XMicroTaskTCS::queryStatus(int ch)
 	unsigned int v[3];
 	unsigned int o[3];
 	interface()->query("STATUS?");
-	interface()->scanf("0\t%u,%u,%u,%*u,%u,%u,%u,%*u,%u,%u,%u,%*u",
+	if(interface()->scanf("0\t%u,%u,%u,%*u,%u,%u,%u,%*u,%u,%u,%u,%*u",
 		&ran[0], &v[0], &o[0],
 		&ran[1], &v[1], &o[1],
-		&ran[2], &v[2], &o[2]);
+		&ran[2], &v[2], &o[2]) != 9)
+		throw XInterface::XConvError(__FILE__, __LINE__);
 	value()->value(pow(100.0, (double)ran[ch] - 1) * 1e-6 * v[ch]);
 	output()->value(o[ch]);
 }
@@ -77,7 +78,9 @@ XMicroTaskTCS::changeOutput(int ch, bool x)
 {
 	unsigned int v[3];
 	interface()->query("STATUS?");
-	interface()->scanf("0\t%*u,%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u", &v[0], &v[1], &v[2]);
+	if(interface()->scanf("0\t%*u,%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u", &v[0], &v[1], &v[2])
+		!= 3)
+		throw XInterface::XConvError(__FILE__, __LINE__);
 	for(int i = 0; i < 3; i++) {
 		if(ch != i)
 			v[i] = 0;
