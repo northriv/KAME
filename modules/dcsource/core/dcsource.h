@@ -34,11 +34,16 @@ public:
  //! show all forms belonging to driver
  virtual void showForms();
 
+ virtual void changeFunction(int ch, int x) = 0;
+ virtual void changeOutput(int ch, bool x) = 0;
+ virtual void changeValue(int ch, double x) = 0;
+ virtual void queryStatus(int ch) = 0;
+
  //! driver specific part below
  const shared_ptr<XComboNode> &function() const {return m_function;}
  const shared_ptr<XBoolNode> &output() const {return m_output;}
  const shared_ptr<XDoubleNode> &value() const {return m_value;}
- const shared_ptr<XUIntNode> &channel() const {return m_channel;}
+ const shared_ptr<XComboNode> &channel() const {return m_channel;}
 protected:
  //! Start up your threads, connect GUI, and activate signals
  virtual void start();
@@ -54,22 +59,18 @@ protected:
  //! record is readLocked
  virtual void visualize();
  
-protected:
- virtual void changeFunction(int x) = 0;
- virtual void changeOutput(bool x) = 0;
- virtual void changeValue(double x) = 0;
 private:
- 
  xqcon_ptr m_conFunction, m_conOutput, m_conValue, m_conChannel;
  const shared_ptr<XComboNode> m_function;
  const shared_ptr<XBoolNode> m_output;
  const shared_ptr<XDoubleNode> m_value;
- const shared_ptr<XUIntNode> m_channel;
- shared_ptr<XListener> m_lsnFunction, m_lsnOutput, m_lsnValue;
+ const shared_ptr<XComboNode> m_channel;
+ shared_ptr<XListener> m_lsnFunction, m_lsnOutput, m_lsnValue, m_lsnChannel;
  
  virtual void onFunctionChanged(const shared_ptr<XValueNodeBase> &);
  virtual void onOutputChanged(const shared_ptr<XValueNodeBase> &);
  virtual void onValueChanged(const shared_ptr<XValueNodeBase> &);
+ virtual void onChannelChanged(const shared_ptr<XValueNodeBase> &);
  
  const qshared_ptr<FrmDCSource> m_form;
 };

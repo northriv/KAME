@@ -156,6 +156,11 @@ XAH2500A::XAH2500A(const char *name, bool runtime,
 	interface()->setGPIBWaitBeforeSPoll(20);
 	interface()->setGPIBMAVbit(0x80);
 	fetchFreq()->value(10);
+
+	autoScaleX()->disable();
+	autoScaleY()->disable();
+	sensitivity()->disable();
+	frequency()->disable();
 }
 void
 XAH2500A::get(double *cap, double *loss)
@@ -180,11 +185,6 @@ XAH2500A::open() throw (XInterface::XInterfaceError &)
 
 	interface()->send("NREM");
 
-	autoScaleX()->setUIEnabled(false);
-	autoScaleY()->setUIEnabled(false);
-	sensitivity()->setUIEnabled(false);
-	frequency()->setUIEnabled(false);
-  
 	start();
 }
 void

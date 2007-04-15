@@ -28,10 +28,10 @@ public:
 			const shared_ptr<XThermometerList> &thermometers,
 			const shared_ptr<XDriverList> &drivers);
 protected:
-	virtual void open() throw (XInterface::XInterfaceError &);
-	virtual void changeFunction(int x);
-	virtual void changeOutput(bool x);
-	virtual void changeValue(double x);
+	virtual void changeFunction(int ch, int x);
+	virtual void changeOutput(int ch, bool x);
+	virtual void changeValue(int ch, double x);
+	virtual void queryStatus(int) {}
 };
 
 //!MicroTask/Leiden Triple Current Source.
@@ -45,9 +45,10 @@ public:
 			const shared_ptr<XDriverList> &drivers);
 protected:
 	virtual void open() throw (XInterface::XInterfaceError &);
-	virtual void changeFunction(int x);
-	virtual void changeOutput(bool x);
-	virtual void changeValue(double x);
+	virtual void changeFunction(int, int) {}
+	virtual void changeOutput(int ch, bool x);
+	virtual void changeValue(int ch, double x);
+	virtual void queryStatus(int ch);
 };
 #endif
 

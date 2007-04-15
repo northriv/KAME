@@ -108,6 +108,8 @@ XAVS47IB::XAVS47IB(const char *name, bool runtime,
 	//    UseSerialPollOnRead = false;
 	interface()->setGPIBWaitBeforeWrite(10); //10msec
 	interface()->setGPIBWaitBeforeRead(10); //10msec
+
+	manualPower()->disable();
 }
 double
 XAVS47IB::read(const char *str)
@@ -191,8 +193,6 @@ XAVS47IB::open() throw (XInterface::XInterfaceError &)
 	start();
 
 	if(!shared_ptr<XDCSource>(*extDCSource())) {
-		manualPower()->setUIEnabled(false);
-
 	  	heaterMode()->clear();
 		heaterMode()->add("PID");
 

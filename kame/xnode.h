@@ -79,13 +79,15 @@ public:
 	void clearChildren();
 	int releaseChild(const shared_ptr<XNode> &node);
 
-	bool isRunTime() const {return m_bRunTime;}
+	bool isRunTime() const {return m_flags & FLAG_RUNTIME;}
 
 	//! If true, operation allowed by GUI
 	//! \sa SetUIEnabled()
-	bool isUIEnabled() const {return m_bUIEnabled;}
+	bool isUIEnabled() const {return m_flags & FLAG_UI_ENABLED;}
 	//! Enable/Disable control over GUI
 	void setUIEnabled(bool v);
+	//! Disable all operations on this node forever.
+	void disable();
 	//! Touch signaling
 	void touch();
 
@@ -97,15 +99,18 @@ public:
 	XTalker<shared_ptr<XNode> > &onUIEnabled() {return m_tlkOnUIEnabled;}
   
 	virtual void insert(const shared_ptr<XNode> &ptr);
-protected:  
+protected: 
+	//! If false, all operations have to be disabled. 
+	bool isEnabled() const {return m_flags & FLAG_ENABLED;}
+
 	atomic_shared_ptr<NodeList> m_children;
   
 	XTalker<shared_ptr<XNode> > m_tlkOnTouch;
 	XTalker<shared_ptr<XNode> > m_tlkOnUIEnabled;
 private:
 	const std::string m_name;
-	const bool m_bRunTime;
-	bool m_bUIEnabled;
+	enum {FLAG_RUNTIME = 0x1, FLAG_ENABLED = 0x2, FLAG_UI_ENABLED = 0x4};
+	int m_flags;
   
 	static XThreadLocal<NodeList> stl_thisCreating;
 };

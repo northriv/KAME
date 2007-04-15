@@ -26,27 +26,22 @@ XYK7651::XYK7651(const char *name, bool runtime,
 {
   function()->add("F1");
   function()->add("F5");
+  channel()->disable();
 }
 void
-XYK7651::changeFunction(int )
+XYK7651::changeFunction(int /*ch*/, int )
 {
   interface()->send(function()->to_str() + "E");
 }
 void
-XYK7651::changeOutput(bool x)
+XYK7651::changeOutput(int /*ch*/, bool x)
 {
   interface()->sendf("O%uE", x ? 1 : 0);
 }
 void
-XYK7651::changeValue(double x)
+XYK7651::changeValue(int /*ch*/, double x)
 {
   interface()->sendf("SA%.10fE", x);
-}
-void
-XYK7651::open() throw (XInterface::XInterfaceError &)
-{
-	this->start();
-	channel()->setUIEnabled(false);
 }
 
 XMicroTaskTCS::XMicroTaskTCS(const char *name, bool runtime, 
@@ -58,23 +53,33 @@ XMicroTaskTCS::XMicroTaskTCS(const char *name, bool runtime,
 {
 	interface()->setEOS("\n");
 	interface()->baudrate()->value(9600);
-	channel()->value(1);
+	channel()->add("1");
+	channel()->add("2");
+	channel()->add("3");
+	function()->disable();
 }
 void
-XMicroTaskTCS::changeFunction(int )
+XMicroTaskTCS::queryStatus(int ch)
 {
+	unsigned int ran[3];
+	unsigned int v[3];
+	unsigned int o[3];
+	interface()->query("STATUS?");
+	interface()->scanf("0\t%u,%u,%u,%*u,%u,%u,%u,%*u,%u,%u,%u,%*u",
+		&ran[0], &v[0], &o[0],
+		&ran[1], &v[1], &o[1],
+		&ran[2], &v[2], &o[2]);
+	value()->value(pow(100.0, (double)ran[ch] - 1) * 1e-6 * v[ch]);
+	output()->value(o[ch]);
 }
 void
-XMicroTaskTCS::changeOutput(bool x)
+XMicroTaskTCS::changeOutput(int ch, bool x)
 {
-	unsigned int ch = *channel();
-	if((ch < 1) || (ch > 3))
-		throw XInterface::XInterfaceError(KAME::i18n("Value is out of range."), __FILE__, __LINE__);
 	unsigned int v[3];
 	interface()->query("STATUS?");
 	interface()->scanf("0\t%*u,%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u", &v[0], &v[1], &v[2]);
 	for(int i = 0; i < 3; i++) {
-		if(ch - 1 != i)
+		if(ch != i)
 			v[i] = 0;
 		else
 			v[i] ^= x ? 1 : 0;
@@ -83,13 +88,11 @@ XMicroTaskTCS::changeOutput(bool x)
 	interface()->receive(2);
 }
 void
-XMicroTaskTCS::changeValue(double x)
+XMicroTaskTCS::changeValue(int ch, double x)
 {
-	unsigned int ch = *channel();
-	if((ch < 1) || (ch > 3) ||
-	 (x >= 0.1) || (x < 0))
+	if((x >= 0.1) || (x < 0))
 		throw XInterface::XInterfaceError(KAME::i18n("Value is out of range."), __FILE__, __LINE__);
-	interface()->sendf("SETDAC %u 0 %u", ch, (unsigned int)lrint(x * 1e6));
+	interface()->sendf("SETDAC %u 0 %u", (unsigned int)(ch + 1), (unsigned int)lrint(x * 1e6));
 	interface()->receive(1);
 }
 void
@@ -98,5 +101,4 @@ XMicroTaskTCS::open() throw (XInterface::XInterfaceError &)
 	this->start();
 	interface()->query("ID?");
 	fprintf(stderr, "%s\n", (const char*)&interface()->buffer()[0]);
-	function()->setUIEnabled(false);
 }

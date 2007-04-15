@@ -66,6 +66,7 @@ public:
 	const shared_ptr<XDoubleNode> &heaterPower() const {return m_heaterPower;}
 	const shared_ptr<XDoubleNode> &sourceTemp() const {return m_sourceTemp;}
 	const shared_ptr<XItemNode<XDriverList, XDCSource> > &extDCSource() const {return m_extDCSource;}
+	const shared_ptr<XComboNode> &extDCSourceChannel() const {return m_extDCSourceChannel;}
 	//! holds an averaged error between target temp and actual one
 	const shared_ptr<XDoubleNode> &stabilized() const {return m_stabilized;}
 protected:
@@ -117,6 +118,7 @@ private:
 	void onPowerRangeChanged(const shared_ptr<XValueNodeBase> &);
 	void onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &);
 	void onExcitationChanged(const shared_ptr<XValueNodeBase> &);
+	void onExtDCSourceChanged(const shared_ptr<XValueNodeBase> &);
 
 	const shared_ptr<XChannelList> m_channels;
 	const shared_ptr<XItemNode<XChannelList, XChannel> > m_currentChannel;
@@ -128,13 +130,14 @@ private:
 	const shared_ptr<XComboNode> m_powerRange;
 	const shared_ptr<XDoubleNode> m_heaterPower, m_sourceTemp;
 	const shared_ptr<XItemNode<XDriverList, XDCSource> > m_extDCSource;
+	const shared_ptr<XComboNode> m_extDCSourceChannel;
 	//! holds an averaged error between target temp and actual one
 	const shared_ptr<XDoubleNode> m_stabilized;
   
 	shared_ptr<XListener> m_lsnOnPChanged, m_lsnOnIChanged, m_lsnOnDChanged,
 		m_lsnOnTargetTempChanged, m_lsnOnManualPowerChanged, m_lsnOnHeaterModeChanged,
 		m_lsnOnPowerRangeChanged, m_lsnOnCurrentChannelChanged,
-		m_lsnOnSetupChannelChanged, m_lsnOnExcitationChanged;
+		m_lsnOnSetupChannelChanged, m_lsnOnExcitationChanged, m_lsnOnExtDCSourceChanged;
 
 	void onSetupChannelChanged(const shared_ptr<XValueNodeBase> &);
 
@@ -151,7 +154,7 @@ private:
 	xqcon_ptr m_conTargetTemp, m_conManualPower, m_conP, m_conI, m_conD;
 	xqcon_ptr m_conHeater;
 	xqcon_ptr m_conTemp;
-	xqcon_ptr m_conExtDCSrc;
+	xqcon_ptr m_conExtDCSource, m_conExtDCSourceChannel;
 	
 	enum {PID_FIN_RESPONSE = 4};
 	std::deque<std::pair<XTime, double> > m_pidIntegralLastValues;

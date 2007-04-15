@@ -55,7 +55,8 @@ XTempControl::XTempControl(const char *name, bool runtime,
     m_heaterPower(create<XDoubleNode>("HeaterPower", false, "%.4g")),
     m_sourceTemp(create<XDoubleNode>("SourceTemp", false, "%.5g")),
     m_extDCSource
-        (create<XItemNode<XDriverList, XDCSource> >("ExtDCSource", true, drivers)),
+        (create<XItemNode<XDriverList, XDCSource> >("ExtDCSource", false, drivers)),
+    m_extDCSourceChannel(create<XComboNode>("ExtDCSourceChannel", false, true)),
     m_stabilized(create<XDoubleNode>("Stabilized", true, "%g")),
     m_form(new FrmTempControl(g_pFrmMain))
 {
@@ -79,8 +80,10 @@ XTempControl::XTempControl(const char *name, bool runtime,
                      m_heaterPower, m_form->m_lcdHeater);
   m_conTemp = xqcon_create<XQLCDNumberConnector>(
                      m_sourceTemp, m_form->m_lcdSourceTemp); 
-  m_conExtDCSrc = xqcon_create<XQComboBoxConnector>(
+  m_conExtDCSource = xqcon_create<XQComboBoxConnector>(
                         m_extDCSource, m_form->m_cmbExtDCSrc);
+  m_conExtDCSourceChannel = xqcon_create<XQComboBoxConnector>(
+                        m_extDCSourceChannel, m_form->m_cmbExtDCSrcCh);
  
   m_currentChannel->setUIEnabled(false);
   m_powerRange->setUIEnabled(false);
@@ -92,6 +95,9 @@ XTempControl::XTempControl(const char *name, bool runtime,
   m_targetTemp->setUIEnabled(false);
   
   m_extDCSource->setUIEnabled(true);
+  m_extDCSourceChannel->setUIEnabled(true);
+  m_lsnOnExtDCSourceChanged = m_extDCSource->onValueChanged().connectWeak(
+                  shared_from_this(), &XTempControl::onExtDCSourceChanged);
 
   m_lsnOnSetupChannelChanged = m_setupChannel->onValueChanged().connectWeak(
                   shared_from_this(), &XTempControl::onSetupChannelChanged);
@@ -138,8 +144,6 @@ XTempControl::start()
   m_deriv->setUIEnabled(true);
   m_manualPower->setUIEnabled(true);
   m_targetTemp->setUIEnabled(true);
-  
-  m_extDCSource->setUIEnabled(false);
 }
 void
 XTempControl::stop()
@@ -154,8 +158,6 @@ XTempControl::stop()
   m_targetTemp->setUIEnabled(false);
   	
     if(m_thread) m_thread->terminate();
-
-  m_extDCSource->setUIEnabled(true);
 //    m_thread->waitFor();
 //  thread must do interface()->close() at the end
 }
@@ -363,19 +365,21 @@ XTempControl::execute(const atomic<bool> &terminated)
           
           double power = 0.0;
 			if(shared_ptr<XDCSource> dcsrc = *extDCSource()) {
-				double limit = 0.0;
-				if(*powerRange() > 0)
-					limit = 1e-6 * pow(10.0, (double)(*powerRange() - 1));
-				if(src_ch) {
-					if(heaterMode()->to_str() == "PID") {
-						power = pid(newtime, src_temp);
-						power = std::min(power, limit);
+				if(int ch = *extDCSourceChannel()) {
+					double limit = 0.0;
+					if(*powerRange() > 0)
+						limit = 1e-6 * pow(10.0, (double)(*powerRange() - 1));
+					if(src_ch) {
+						if(heaterMode()->to_str() == "PID") {
+							power = pid(newtime, src_temp);
+							power = std::min(power, limit);
+						}
+						if(heaterMode()->to_str() == "Man") {
+							power = *manualPower() * limit / 100.0;
+						}
 					}
-					if(heaterMode()->to_str() == "Man") {
-						power = *manualPower() * limit / 100.0;
-					}
+					dcsrc->changeValue(ch, power);
 				}
-				dcsrc->value()->value(power);
 			}
 			else
 				power = getHeater();
@@ -403,6 +407,17 @@ XTempControl::execute(const atomic<bool> &terminated)
   
   afterStop(); 
   return NULL;
+}
+void
+XTempControl::onExtDCSourceChanged(const shared_ptr<XValueNodeBase> &)
+{
+	extDCSourceChannel()->clear();
+	if(shared_ptr<XDCSource> dcsrc = *extDCSource()) {
+		shared_ptr<const std::deque<XItemNodeBase::Item> > strings(dcsrc->channel()->itemStrings());
+	    for(std::deque<XItemNodeBase::Item>::const_iterator it = strings->begin(); it != strings->end(); it++) {
+			extDCSourceChannel()->add(it->label);
+	    }
+	}
 }
 void
 XTempControl::onPChanged(const shared_ptr<XValueNodeBase> &)
