@@ -47,7 +47,6 @@ XITC503::open() throw (XInterface::XInterfaceError &)
 double
 XITC503::getRaw(shared_ptr<XChannel> &channel)
 {
-	ASSERT(interface()->isLocked());
 	interface()->send("X");
 	return read(QString(channel->getName()).toInt());
 }
@@ -338,39 +337,48 @@ XCryoconM32::XCryoconM32(const char *name, bool runtime,
 void
 XCryocon::open() throw (XInterface::XInterfaceError &)
 {
-	getChannel();
-	interface()->query("HEATER:RANGE?");
-	powerRange()->str(QString(&interface()->buffer()[0]).stripWhiteSpace());
-	interface()->query("HEATER:PMAN?");
-	manualPower()->str(std::string(&interface()->buffer()[0]));
-	interface()->query("HEATER:TYPE?");
-	QString s(&interface()->buffer()[0]);
-	heaterMode()->str(s.stripWhiteSpace());
-	interface()->query("INPUT A:VBIAS?");
-
 	atomic_shared_ptr<const XNode::NodeList> list(channels()->children());
 	shared_ptr<XChannel> ch0 = dynamic_pointer_cast<XChannel>(list->at(0));
 	shared_ptr<XChannel> ch1 = dynamic_pointer_cast<XChannel>(list->at(1));
-
+	interface()->query("INPUT A:VBIAS?");
 	ch0->excitation()->str(QString(&interface()->buffer()[0]).stripWhiteSpace());
 	interface()->query("INPUT B:VBIAS?");
 	ch1->excitation()->str(QString(&interface()->buffer()[0]).stripWhiteSpace());
-	interface()->query("HEATER:PGAIN?");
-	prop()->str(std::string(&interface()->buffer()[0]));
-	interface()->query("HEATER:IGAIN?");
-	interval()->str(std::string(&interface()->buffer()[0]));
-	interface()->query("HEATER:DGAIN?");
-	deriv()->str(std::string(&interface()->buffer()[0]));
-  
-	start();
-	
+
 	if(!shared_ptr<XDCSource>(*extDCSource())) {
-	  	heaterMode()->clear();
-		heaterMode()->add("OFF");
-		heaterMode()->add("PID");
-		heaterMode()->add("MAN");
+		getChannel();
+		interface()->query("HEATER:PMAN?");
+		manualPower()->str(std::string(&interface()->buffer()[0]));
+		interface()->query("HEATER:PGAIN?");
+		prop()->str(std::string(&interface()->buffer()[0]));
+		interface()->query("HEATER:IGAIN?");
+		interval()->str(std::string(&interface()->buffer()[0]));
+		interface()->query("HEATER:DGAIN?");
+		deriv()->str(std::string(&interface()->buffer()[0]));
 
 		powerRange()->clear();
+		interface()->query("HEATER:RANGE?");
+		powerRange()->str(QString(&interface()->buffer()[0]).stripWhiteSpace());
+
+		if(!shared_ptr<XDCSource>(*extDCSource())) {
+		  	heaterMode()->clear();
+			heaterMode()->add("OFF");
+			heaterMode()->add("PID");
+			heaterMode()->add("MAN");
+		}
+		interface()->query("HEATER:TYPE?");
+		QString s(&interface()->buffer()[0]);
+		heaterMode()->str(s.stripWhiteSpace());
+	}
+
+	start();
+}
+void
+XCryoconM32::open() throw (XInterface::XInterfaceError &)
+{
+	XCryocon::open();
+
+	if(!shared_ptr<XDCSource>(*extDCSource())) {
 		powerRange()->add("HI");
 		powerRange()->add("MID");
 		powerRange()->add("LOW");
@@ -382,7 +390,6 @@ XCryoconM62::open() throw (XInterface::XInterfaceError &)
 	XCryocon::open();
 
 	if(!shared_ptr<XDCSource>(*extDCSource())) {
-		powerRange()->clear();
 		interface()->query("HEATER:LOAD?");
 		if(interface()->toInt() == 50)
 		{
@@ -612,8 +619,6 @@ XLakeShore340::onExcitationChanged(const shared_ptr<XChannel> &, int)
 void
 XLakeShore340::open() throw (XInterface::XInterfaceError &)
 {
-	interface()->query("CSET?");
-	currentChannel()->str(std::string(&interface()->buffer()[0]));
 	interface()->query("CDISP? 1");
 	int res, maxcurr;
 	if(interface()->scanf("%*d,%d", &res) != 1)
@@ -623,6 +628,9 @@ XLakeShore340::open() throw (XInterface::XInterfaceError &)
         throw XInterface::XConvError(__FILE__, __LINE__);
 
 	if(!shared_ptr<XDCSource>(*extDCSource())) {
+		interface()->query("CSET?");
+		currentChannel()->str(std::string(&interface()->buffer()[0]));
+		
 		heaterMode()->clear();
 		heaterMode()->add("Off");
 		heaterMode()->add("PID");
@@ -633,35 +641,34 @@ XLakeShore340::open() throw (XInterface::XInterfaceError &)
 			powerRange()->add(QString().sprintf("%.1f W", 
 												(double)pow(10.0, i - 5.0)  * pow(maxcurr, 2.0) * res));
 		}
+		interface()->query("CMODE? 1");
+		switch(interface()->toInt()) {
+		case 1:
+			heaterMode()->str(std::string("PID"));
+			break;
+		case 3:
+			heaterMode()->str(std::string("Man"));
+			break;
+		default:
+			break;
+		}
+		interface()->query("RANGE?");
+		int range = interface()->toInt();
+		if(range == 0)
+			heaterMode()->str(std::string("Off"));
+		else
+			powerRange()->value(range - 1);
+	
+		interface()->query("MOUT?");
+		manualPower()->value(interface()->toDouble());
+		interface()->query("PID? 1");
+		double p, i, d;
+		if(interface()->scanf("%lf,%lf,%lf", &p, &i, &d) != 3)
+	        throw XInterface::XConvError(__FILE__, __LINE__);
+		prop()->value(p);
+		interval()->value(i);
+		deriv()->value(d);
 	}
-	interface()->query("CMODE? 1");
-	switch(interface()->toInt()) {
-	case 1:
-		heaterMode()->str(std::string("PID"));
-		break;
-	case 3:
-		heaterMode()->str(std::string("Man"));
-		break;
-	default:
-		break;
-	}
-	interface()->query("RANGE?");
-	int range = interface()->toInt();
-	if(range == 0)
-		heaterMode()->str(std::string("Off"));
-	else
-		powerRange()->value(range - 1);
-
-	interface()->query("MOUT?");
-	manualPower()->value(interface()->toDouble());
-	interface()->query("PID? 1");
-	double p, i, d;
-	if(interface()->scanf("%lf,%lf,%lf", &p, &i, &d) != 3)
-        throw XInterface::XConvError(__FILE__, __LINE__);
-	prop()->value(p);
-	interval()->value(i);
-	deriv()->value(d);
-  
 	start();
 }
 

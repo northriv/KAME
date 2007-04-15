@@ -15,7 +15,7 @@
 #include "userdcsource.h"
 
 REGISTER_TYPE(XDriverList, YK7651, "YOKOGAWA 7651 dc source");
-REGISTER_TYPE(XDriverList, MicroTaskTCS, "MicroTask/Leiden Triple Current Source");
+REGISTER_TYPE(XDriverList, MicroTaskTCS, "MICROTASK/Leiden Triple Current Source");
 
 XYK7651::XYK7651(const char *name, bool runtime, 
    const shared_ptr<XScalarEntryList> &scalarentries,
@@ -80,7 +80,7 @@ XMicroTaskTCS::changeValue(double x)
 {
 	unsigned int ch = *channel();
 	if((ch < 1) || (ch > 3) ||
-	 (x > 0.1) || (x < 0))
+	 (x >= 0.1) || (x < 0))
 		throw XInterface::XInterfaceError(KAME::i18n("Value is out of range."), __FILE__, __LINE__);
 	interface()->sendf("SETDAC %u 0 %u", ch, (unsigned int)lrint(x * 1e6));
 	interface()->receive(1);
@@ -89,5 +89,7 @@ void
 XMicroTaskTCS::open() throw (XInterface::XInterfaceError &)
 {
 	this->start();
+	interface()->query("ID?");
+	fprintf(stderr, "%s\n", (const char*)&interface()->buffer()[0]);
 	function()->setUIEnabled(false);
 }

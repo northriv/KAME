@@ -167,6 +167,8 @@ public:
 	~XCryoconM32() {}
 
 protected:
+	//! Be called just after opening interface. Call start() inside this routine appropriately.
+	virtual void open() throw (XInterface::XInterfaceError &);
 };
 
 //!Cryo-con Model 62 Cryogenic Inst.

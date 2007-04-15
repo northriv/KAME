@@ -8,8 +8,8 @@
         <rect>
             <x>0</x>
             <y>0</y>
-            <width>192</width>
-            <height>439</height>
+            <width>230</width>
+            <height>500</height>
         </rect>
     </property>
     <property name="caption">
@@ -68,7 +68,7 @@
                         <enum>Flat</enum>
                     </property>
                     <property name="value" stdset="0">
-                        <number>3.2323</number>
+                        <number>3</number>
                     </property>
                     <property name="intValue" stdset="0">
                         <number>3</number>
@@ -434,6 +434,29 @@
                 <widget class="QComboBox">
                     <property name="name">
                         <cstring>m_cmbPowerRange</cstring>
+                    </property>
+                </widget>
+            </hbox>
+        </widget>
+        <widget class="QLayoutWidget" row="9" column="0">
+            <property name="name">
+                <cstring>layout34_2</cstring>
+            </property>
+            <hbox>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <widget class="QLabel">
+                    <property name="name">
+                        <cstring>textLabel22_2</cstring>
+                    </property>
+                    <property name="text">
+                        <string>Ext. dc Source</string>
+                    </property>
+                </widget>
+                <widget class="QComboBox">
+                    <property name="name">
+                        <cstring>m_cmbExtDCSrc</cstring>
                     </property>
                 </widget>
             </hbox>
