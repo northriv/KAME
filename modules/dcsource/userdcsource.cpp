@@ -71,9 +71,14 @@ XMicroTaskTCS::changeOutput(bool x)
 	if((ch < 1) || (ch > 3))
 		throw XInterface::XInterfaceError(KAME::i18n("Value is out of range."), __FILE__, __LINE__);
 	unsigned int v[3];
-	v[0] = v[1] = v[2] = 0;
-	if(x)
-		v[ch - 1] = 1;
+	interface()->query("STATUS?");
+	interface()->scanf("0\t%*u,%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u", &v[0], &v[1], &v[2]);
+	for(int i = 0; i < 3; i++) {
+		if(ch - 1 != i)
+			v[i] = 0;
+		else
+			v[i] ^= x ? 1 : 0;
+	}
 	interface()->sendf("SETUP 0,0,%u,0,0,0,%u,0,0,0,%u,0", v[0], v[1], v[2]);
 	interface()->receive(2);
 }
