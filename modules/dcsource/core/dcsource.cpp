@@ -68,6 +68,7 @@ XDCSource::start()
                         shared_from_this(), &XDCSource::onValueChanged);
   m_lsnChannel = channel()->onValueChanged().connectWeak(
                           shared_from_this(), &XDCSource::onChannelChanged);
+  updateStatus();
 }
 void
 XDCSource::stop()
@@ -137,13 +138,13 @@ XDCSource::onChannelChanged(const shared_ptr<XValueNodeBase> &)
 {
 	int ch = *channel();
     try {
-    	output()->onValueChanged().mask();
-    	function()->onValueChanged().mask();
-    	value()->onValueChanged().mask();
+    	m_lsnOutput->mask();
+    	m_lsnFunction->mask();
+    	m_lsnValue->mask();
         queryStatus(ch);
-    	output()->onValueChanged().unmask();
-    	function()->onValueChanged().unmask();
-    	value()->onValueChanged().unmask();
+    	m_lsnOutput->unmask();
+    	m_lsnFunction->unmask();
+    	m_lsnValue->unmask();
     }
     catch (XKameError& e) {
         e.print(getLabel() + KAME::i18n(": Error while changing value, "));

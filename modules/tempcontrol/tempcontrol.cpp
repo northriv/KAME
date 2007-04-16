@@ -144,6 +144,9 @@ XTempControl::start()
   m_deriv->setUIEnabled(true);
   m_manualPower->setUIEnabled(true);
   m_targetTemp->setUIEnabled(true);
+  
+  m_extDCSource->setUIEnabled(false);
+  m_extDCSourceChannel->setUIEnabled(false);  
 }
 void
 XTempControl::stop()
@@ -157,6 +160,9 @@ XTempControl::stop()
   m_manualPower->setUIEnabled(false);
   m_targetTemp->setUIEnabled(false);
   	
+  m_extDCSource->setUIEnabled(true);
+  m_extDCSourceChannel->setUIEnabled(true);  
+
     if(m_thread) m_thread->terminate();
 //    m_thread->waitFor();
 //  thread must do interface()->close() at the end
@@ -275,11 +281,11 @@ XTempControl::pid(XTime time, double temp)
 		XTime lasttime = m_pidIntegralLastValues.front().first;
 		for(std::deque<std::pair<XTime, double> >::iterator it = ++(m_pidIntegralLastValues.begin());
 			 it != m_pidIntegralLastValues.end(); it++) {
-			 double d = (it->second - target) * (it->first - lasttime);
-			 acc += d;
+			 acc += (it->second - target) * (it->first - lasttime);
 			 if(time - it->first > *deriv()) {
 			 	dxdt = (temp - it->second) / (time - it->first);
 			 }
+			 lasttime = it->first;
 		}
 		if(*interval())
 			acc /= *interval();
@@ -366,19 +372,19 @@ XTempControl::execute(const atomic<bool> &terminated)
           double power = 0.0;
 			if(shared_ptr<XDCSource> dcsrc = *extDCSource()) {
 				if(int ch = *extDCSourceChannel()) {
-					double limit = 0.0;
-					if(*powerRange() > 0)
-						limit = 1e-6 * pow(10.0, (double)(*powerRange() - 1));
 					if(src_ch) {
 						if(heaterMode()->to_str() == "PID") {
 							power = pid(newtime, src_temp);
-							power = std::min(power, limit);
 						}
 						if(heaterMode()->to_str() == "Man") {
-							power = *manualPower() * limit / 100.0;
+							power = *manualPower();
 						}
 					}
-					dcsrc->changeValue(ch, power);
+					power = std::max(std::min(power, 100.0), 0.0);
+					double limit = 0.0;
+					if(*powerRange() > 0)
+						limit = 1e-6 * pow(10.0, (double)(*powerRange() - 1));
+					dcsrc->changeValue(ch, limit * power / 100.0);
 				}
 			}
 			else

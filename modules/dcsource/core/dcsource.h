@@ -59,6 +59,8 @@ protected:
  //! record is readLocked
  virtual void visualize();
  
+ void updateStatus() {onChannelChanged(channel());}
+ 
 private:
  xqcon_ptr m_conFunction, m_conOutput, m_conValue, m_conChannel;
  const shared_ptr<XComboNode> m_function;

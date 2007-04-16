@@ -31,17 +31,23 @@ XYK7651::XYK7651(const char *name, bool runtime,
 void
 XYK7651::changeFunction(int /*ch*/, int )
 {
-  interface()->send(function()->to_str() + "E");
+	XScopedLock<XInterface> lock(*interface());
+	if(!interface()->isOpened()) return;
+	interface()->send(function()->to_str() + "E");
 }
 void
 XYK7651::changeOutput(int /*ch*/, bool x)
 {
-  interface()->sendf("O%uE", x ? 1 : 0);
+	XScopedLock<XInterface> lock(*interface());
+	if(!interface()->isOpened()) return;
+	interface()->sendf("O%uE", x ? 1 : 0);
 }
 void
 XYK7651::changeValue(int /*ch*/, double x)
 {
-  interface()->sendf("SA%.10fE", x);
+	XScopedLock<XInterface> lock(*interface());
+	if(!interface()->isOpened()) return;
+	interface()->sendf("SA%.10fE", x);
 }
 
 XMicroTaskTCS::XMicroTaskTCS(const char *name, bool runtime, 
@@ -61,11 +67,13 @@ XMicroTaskTCS::XMicroTaskTCS(const char *name, bool runtime,
 void
 XMicroTaskTCS::queryStatus(int ch)
 {
+	XScopedLock<XInterface> lock(*interface());
+	if(!interface()->isOpened()) return;
 	unsigned int ran[3];
 	unsigned int v[3];
 	unsigned int o[3];
 	interface()->query("STATUS?");
-	if(interface()->scanf("0\t%u,%u,%u,%*u,%u,%u,%u,%*u,%u,%u,%u,%*u",
+	if(interface()->scanf("%*u%*u,%u,%u,%u,%*u,%u,%u,%u,%*u,%u,%u,%u,%*u",
 		&ran[0], &v[0], &o[0],
 		&ran[1], &v[1], &o[1],
 		&ran[2], &v[2], &o[2]) != 9)
@@ -76,9 +84,11 @@ XMicroTaskTCS::queryStatus(int ch)
 void
 XMicroTaskTCS::changeOutput(int ch, bool x)
 {
+	XScopedLock<XInterface> lock(*interface());
+	if(!interface()->isOpened()) return;
 	unsigned int v[3];
 	interface()->query("STATUS?");
-	if(interface()->scanf("0\t%*u,%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u", &v[0], &v[1], &v[2])
+	if(interface()->scanf("%*u%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u", &v[0], &v[1], &v[2])
 		!= 3)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 	for(int i = 0; i < 3; i++) {
@@ -89,14 +99,18 @@ XMicroTaskTCS::changeOutput(int ch, bool x)
 	}
 	interface()->sendf("SETUP 0,0,%u,0,0,0,%u,0,0,0,%u,0", v[0], v[1], v[2]);
 	interface()->receive(2);
+	updateStatus();
 }
 void
 XMicroTaskTCS::changeValue(int ch, double x)
 {
+	XScopedLock<XInterface> lock(*interface());
+	if(!interface()->isOpened()) return;
 	if((x >= 0.1) || (x < 0))
 		throw XInterface::XInterfaceError(KAME::i18n("Value is out of range."), __FILE__, __LINE__);
 	interface()->sendf("SETDAC %u 0 %u", (unsigned int)(ch + 1), (unsigned int)lrint(x * 1e6));
 	interface()->receive(1);
+	updateStatus();
 }
 void
 XMicroTaskTCS::open() throw (XInterface::XInterfaceError &)

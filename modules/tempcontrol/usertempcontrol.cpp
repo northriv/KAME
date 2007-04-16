@@ -109,7 +109,7 @@ XAVS47IB::XAVS47IB(const char *name, bool runtime,
 	interface()->setGPIBWaitBeforeWrite(10); //10msec
 	interface()->setGPIBWaitBeforeRead(10); //10msec
 
-	manualPower()->disable();
+//	manualPower()->disable();
 }
 double
 XAVS47IB::read(const char *str)
