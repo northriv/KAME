@@ -504,11 +504,9 @@ void
 XTempControl::onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &)
 {
 	try {
-		if(!shared_ptr<XDCSource>(*extDCSource())) {
-			shared_ptr<XChannel> ch(*currentChannel());
-			if(!ch) return;
-			onCurrentChannelChanged(ch);
-		}
+		shared_ptr<XChannel> ch(*currentChannel());
+		if(!ch) return;
+		onCurrentChannelChanged(ch);
 	}
 	catch (XInterface::XInterfaceError& e) {
 		e.print();
@@ -518,21 +516,19 @@ void
 XTempControl::onExcitationChanged(const shared_ptr<XValueNodeBase> &node)
 {
 	try {
-		if(!shared_ptr<XDCSource>(*extDCSource())) {
-			shared_ptr<XChannel> ch;
-			atomic_shared_ptr<const XNode::NodeList> list(channels()->children());
-			if(list) { 
-				for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
-					shared_ptr<XChannel> _ch = dynamic_pointer_cast<XChannel>(*it);
-					if(_ch->excitation() == node)
-		                ch = _ch;
-				}
+		shared_ptr<XChannel> ch;
+		atomic_shared_ptr<const XNode::NodeList> list(channels()->children());
+		if(list) { 
+			for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+				shared_ptr<XChannel> _ch = dynamic_pointer_cast<XChannel>(*it);
+				if(_ch->excitation() == node)
+	                ch = _ch;
 			}
-			if(!ch) return;
-			int exc = *ch->excitation();
-			if(exc < 0) return;
-			onExcitationChanged(ch, exc);
 		}
+		if(!ch) return;
+		int exc = *ch->excitation();
+		if(exc < 0) return;
+		onExcitationChanged(ch, exc);
 	}
 	catch (XInterface::XInterfaceError& e) {
 		e.print();
