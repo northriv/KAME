@@ -269,26 +269,24 @@ XTempControl::createChannels(const shared_ptr<XScalarEntryList> &scalarentries,
 double
 XTempControl::pid(XTime time, double temp)
 {
+	double interv = *interval();
 	m_pidIntegralLastValues.push_back(std::pair<XTime, double>(time, temp));
 	while(m_pidIntegralLastValues.size() && (
-		time - m_pidIntegralLastValues.front().first > PID_FIN_RESPONSE * *interval())) {
+		time - m_pidIntegralLastValues.front().first > PID_FIN_RESPONSE * interv)) {
 		m_pidIntegralLastValues.pop_front();
 	}
 	double target = *targetTemp();
 	double acc = 0.0;
 	double dxdt = 0.0;
-	if(m_pidIntegralLastValues.size() >= 2) {
+	if((interv > 0) && (m_pidIntegralLastValues.size() >= 2)) {
 		XTime lasttime = m_pidIntegralLastValues.front().first;
 		for(std::deque<std::pair<XTime, double> >::iterator it = ++(m_pidIntegralLastValues.begin());
-			 it != m_pidIntegralLastValues.end(); it++) {
-			 acc += (it->second - target) * (it->first - lasttime);
-			 if(time - it->first > *deriv()) {
-			 	dxdt = (temp - it->second) / (time - it->first);
-			 }
-			 lasttime = it->first;
+			it != m_pidIntegralLastValues.end(); it++) {
+			acc += (it->second - target) * (it->first - lasttime) * exp(-(time - it->first) / interv / sqrt(PID_FIN_RESPONSE));
+			dxdt = (temp - it->second) / (time - it->first);
+			lasttime = it->first;
 		}
-		if(*interval())
-			acc /= *interval();
+		acc /= interv;
 	}
 	return -(temp - target + acc + dxdt * *deriv()) * *prop();
 }
