@@ -283,8 +283,8 @@ std::string dumpCString(const char *cstr)
 		if(isprint(*cstr))
 			buf.append(1, *cstr);
 		else {
-			char s[4];
-			snprintf(s, 4, "\\x%02x", (unsigned int)*cstr);
+			char s[5];
+			snprintf(s, 5, "\\x%02x", (unsigned int)(int)*cstr);
 			buf.append(s);
 		}
 	}
