@@ -72,7 +72,7 @@ XDCSource::start()
                         shared_from_this(), &XDCSource::onValueChanged);
   m_lsnChannel = channel()->onValueChanged().connectWeak(
                           shared_from_this(), &XDCSource::onChannelChanged);
-  m_lsnRange = channel()->onValueChanged().connectWeak(
+  m_lsnRange = range()->onValueChanged().connectWeak(
                           shared_from_this(), &XDCSource::onRangeChanged);
   updateStatus();
 }
