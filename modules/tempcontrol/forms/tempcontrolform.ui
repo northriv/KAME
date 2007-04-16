@@ -8,8 +8,8 @@
         <rect>
             <x>0</x>
             <y>0</y>
-            <width>230</width>
-            <height>500</height>
+            <width>221</width>
+            <height>549</height>
         </rect>
     </property>
     <property name="caption">
@@ -114,91 +114,6 @@
                     </property>
                 </widget>
             </hbox>
-        </widget>
-        <widget class="QGroupBox" row="8" column="0">
-            <property name="name">
-                <cstring>groupBox1</cstring>
-            </property>
-            <property name="title">
-                <string>Channel Setup</string>
-            </property>
-            <grid>
-                <property name="name">
-                    <cstring>unnamed</cstring>
-                </property>
-                <property name="margin">
-                    <number>2</number>
-                </property>
-                <widget class="QLayoutWidget" row="0" column="0">
-                    <property name="name">
-                        <cstring>layout29</cstring>
-                    </property>
-                    <vbox>
-                        <property name="name">
-                            <cstring>unnamed</cstring>
-                        </property>
-                        <widget class="QLabel">
-                            <property name="name">
-                                <cstring>textLabel19</cstring>
-                            </property>
-                            <property name="text">
-                                <string>Setup Channel</string>
-                            </property>
-                        </widget>
-                        <widget class="QComboBox">
-                            <property name="name">
-                                <cstring>m_cmbSetupChannel</cstring>
-                            </property>
-                        </widget>
-                    </vbox>
-                </widget>
-                <widget class="QLayoutWidget" row="1" column="0">
-                    <property name="name">
-                        <cstring>layout30</cstring>
-                    </property>
-                    <hbox>
-                        <property name="name">
-                            <cstring>unnamed</cstring>
-                        </property>
-                        <widget class="QLabel">
-                            <property name="name">
-                                <cstring>textLabel20</cstring>
-                            </property>
-                            <property name="text">
-                                <string>Excitation</string>
-                            </property>
-                        </widget>
-                        <widget class="QComboBox">
-                            <property name="name">
-                                <cstring>m_cmbExcitation</cstring>
-                            </property>
-                        </widget>
-                    </hbox>
-                </widget>
-                <widget class="QLayoutWidget" row="2" column="0">
-                    <property name="name">
-                        <cstring>layout31</cstring>
-                    </property>
-                    <vbox>
-                        <property name="name">
-                            <cstring>unnamed</cstring>
-                        </property>
-                        <widget class="QLabel">
-                            <property name="name">
-                                <cstring>textLabel21</cstring>
-                            </property>
-                            <property name="text">
-                                <string>Thermometer</string>
-                            </property>
-                        </widget>
-                        <widget class="QComboBox">
-                            <property name="name">
-                                <cstring>m_cmbThermometer</cstring>
-                            </property>
-                        </widget>
-                    </vbox>
-                </widget>
-            </grid>
         </widget>
         <widget class="QLayoutWidget" row="7" column="0">
             <property name="name">
@@ -438,28 +353,137 @@
                 </widget>
             </hbox>
         </widget>
-        <widget class="QLayoutWidget" row="9" column="0">
+        <widget class="QGroupBox" row="8" column="0">
             <property name="name">
-                <cstring>layout34_2</cstring>
+                <cstring>groupBox1</cstring>
             </property>
-            <hbox>
+            <property name="title">
+                <string>Channel Setup</string>
+            </property>
+            <grid>
                 <property name="name">
                     <cstring>unnamed</cstring>
                 </property>
-                <widget class="QLabel">
+                <property name="margin">
+                    <number>2</number>
+                </property>
+                <widget class="QLayoutWidget" row="0" column="0">
                     <property name="name">
-                        <cstring>textLabel22_2</cstring>
+                        <cstring>layout29</cstring>
                     </property>
-                    <property name="text">
-                        <string>Ext. dc Source</string>
+                    <vbox>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <widget class="QLabel">
+                            <property name="name">
+                                <cstring>textLabel19</cstring>
+                            </property>
+                            <property name="text">
+                                <string>Setup Channel</string>
+                            </property>
+                        </widget>
+                        <widget class="QComboBox">
+                            <property name="name">
+                                <cstring>m_cmbSetupChannel</cstring>
+                            </property>
+                        </widget>
+                    </vbox>
+                </widget>
+                <widget class="QLayoutWidget" row="1" column="0">
+                    <property name="name">
+                        <cstring>layout30</cstring>
+                    </property>
+                    <hbox>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <widget class="QLabel">
+                            <property name="name">
+                                <cstring>textLabel20</cstring>
+                            </property>
+                            <property name="text">
+                                <string>Excitation</string>
+                            </property>
+                        </widget>
+                        <widget class="QComboBox">
+                            <property name="name">
+                                <cstring>m_cmbExcitation</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>5</hsizetype>
+                                    <vsizetype>0</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                        </widget>
+                    </hbox>
+                </widget>
+                <widget class="QLayoutWidget" row="2" column="0">
+                    <property name="name">
+                        <cstring>layout31</cstring>
+                    </property>
+                    <vbox>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <widget class="QLabel">
+                            <property name="name">
+                                <cstring>textLabel21</cstring>
+                            </property>
+                            <property name="text">
+                                <string>Thermometer</string>
+                            </property>
+                        </widget>
+                        <widget class="QComboBox">
+                            <property name="name">
+                                <cstring>m_cmbThermometer</cstring>
+                            </property>
+                        </widget>
+                    </vbox>
+                </widget>
+            </grid>
+        </widget>
+        <widget class="QGroupBox" row="9" column="0">
+            <property name="name">
+                <cstring>groupBox2</cstring>
+            </property>
+            <property name="title">
+                <string>External DC Source</string>
+            </property>
+            <grid>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <widget class="QComboBox" row="1" column="1">
+                    <property name="name">
+                        <cstring>m_cmbExtDCSrcCh</cstring>
                     </property>
                 </widget>
-                <widget class="QComboBox">
+                <widget class="QComboBox" row="0" column="0" rowspan="1" colspan="2">
                     <property name="name">
                         <cstring>m_cmbExtDCSrc</cstring>
                     </property>
+                    <property name="sizePolicy">
+                        <sizepolicy>
+                            <hsizetype>5</hsizetype>
+                            <vsizetype>0</vsizetype>
+                            <horstretch>0</horstretch>
+                            <verstretch>0</verstretch>
+                        </sizepolicy>
+                    </property>
                 </widget>
-            </hbox>
+                <widget class="QLabel" row="1" column="0">
+                    <property name="name">
+                        <cstring>textLabel1</cstring>
+                    </property>
+                    <property name="text">
+                        <string>Channel</string>
+                    </property>
+                </widget>
+            </grid>
         </widget>
     </grid>
 </widget>

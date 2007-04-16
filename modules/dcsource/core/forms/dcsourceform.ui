@@ -8,8 +8,8 @@
         <rect>
             <x>0</x>
             <y>0</y>
-            <width>156</width>
-            <height>203</height>
+            <width>124</width>
+            <height>223</height>
         </rect>
     </property>
     <property name="caption">
@@ -22,7 +22,30 @@
         <property name="margin">
             <number>2</number>
         </property>
-        <spacer row="5" column="1">
+        <widget class="QLayoutWidget" row="0" column="0" rowspan="1" colspan="2">
+            <property name="name">
+                <cstring>layout4_2</cstring>
+            </property>
+            <vbox>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <widget class="QLabel">
+                    <property name="name">
+                        <cstring>textLabel4_2</cstring>
+                    </property>
+                    <property name="text">
+                        <string>Channel</string>
+                    </property>
+                </widget>
+                <widget class="QComboBox">
+                    <property name="name">
+                        <cstring>m_cmbChannel</cstring>
+                    </property>
+                </widget>
+            </vbox>
+        </widget>
+        <spacer row="6" column="1">
             <property name="name">
                 <cstring>spacer3</cstring>
             </property>
@@ -39,7 +62,30 @@
                 </size>
             </property>
         </spacer>
-        <widget class="QLayoutWidget" row="1" column="0" rowspan="1" colspan="2">
+        <widget class="QLayoutWidget" row="5" column="0" rowspan="1" colspan="2">
+            <property name="name">
+                <cstring>layout2</cstring>
+            </property>
+            <vbox>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <widget class="QLabel">
+                    <property name="name">
+                        <cstring>textLabel3</cstring>
+                    </property>
+                    <property name="text">
+                        <string>Value</string>
+                    </property>
+                </widget>
+                <widget class="QLineEdit">
+                    <property name="name">
+                        <cstring>m_edValue</cstring>
+                    </property>
+                </widget>
+            </vbox>
+        </widget>
+        <widget class="QLayoutWidget" row="3" column="0" rowspan="1" colspan="2">
             <property name="name">
                 <cstring>layout4</cstring>
             </property>
@@ -62,7 +108,23 @@
                 </widget>
             </vbox>
         </widget>
-        <spacer row="2" column="0">
+        <widget class="QCheckBox" row="2" column="0">
+            <property name="name">
+                <cstring>m_ckbOutput</cstring>
+            </property>
+            <property name="sizePolicy">
+                <sizepolicy>
+                    <hsizetype>0</hsizetype>
+                    <vsizetype>0</vsizetype>
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                </sizepolicy>
+            </property>
+            <property name="text">
+                <string>Output</string>
+            </property>
+        </widget>
+        <spacer row="4" column="0">
             <property name="name">
                 <cstring>spacer2</cstring>
             </property>
@@ -79,48 +141,40 @@
                 </size>
             </property>
         </spacer>
-        <widget class="QCheckBox" row="0" column="0">
+        <spacer row="1" column="0">
             <property name="name">
-                <cstring>m_ckbOutput</cstring>
+                <cstring>spacer2_2</cstring>
             </property>
-            <property name="sizePolicy">
-                <sizepolicy>
-                    <hsizetype>0</hsizetype>
-                    <vsizetype>0</vsizetype>
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                </sizepolicy>
+            <property name="orientation">
+                <enum>Vertical</enum>
             </property>
-            <property name="text">
-                <string>Output</string>
+            <property name="sizeType">
+                <enum>Expanding</enum>
             </property>
-        </widget>
-        <widget class="QLabel" row="3" column="0" rowspan="1" colspan="2">
+            <property name="sizeHint">
+                <size>
+                    <width>20</width>
+                    <height>16</height>
+                </size>
+            </property>
+        </spacer>
+        <spacer row="2" column="1">
             <property name="name">
-                <cstring>textLabel3</cstring>
+                <cstring>spacer5</cstring>
             </property>
-            <property name="text">
-                <string>Value</string>
+            <property name="orientation">
+                <enum>Horizontal</enum>
             </property>
-        </widget>
-        <widget class="QLineEdit" row="4" column="0" rowspan="1" colspan="2">
-            <property name="name">
-                <cstring>m_edValue</cstring>
+            <property name="sizeType">
+                <enum>Expanding</enum>
             </property>
-        </widget>
-        <widget class="QLabel" row="6" column="0" rowspan="1" colspan="2">
-            <property name="name">
-                <cstring>textLabel3_2</cstring>
+            <property name="sizeHint">
+                <size>
+                    <width>31</width>
+                    <height>20</height>
+                </size>
             </property>
-            <property name="text">
-                <string>Channel</string>
-            </property>
-        </widget>
-        <widget class="QLineEdit" row="7" column="0" rowspan="1" colspan="2">
-            <property name="name">
-                <cstring>m_edChannel</cstring>
-            </property>
-        </widget>
+        </spacer>
     </grid>
 </widget>
 <toolbars>

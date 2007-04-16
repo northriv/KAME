@@ -55,6 +55,9 @@ XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
 		//Suppress swapping.
 		mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);	
 	}
+
+	vOffset1()->disable();
+	vOffset2()->disable();
 }
 XNIDAQmxDSO::~XNIDAQmxDSO()
 {
@@ -136,10 +139,6 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 	
 	this->start();
 	
-	vOffset1()->setUIEnabled(false);
-	vOffset2()->setUIEnabled(false);
-
- 	
 	m_lsnOnSoftTrigChanged = XNIDAQmxInterface::SoftwareTrigger::onChange().connectWeak(
 		shared_from_this(), &XNIDAQmxDSO::onSoftTrigChanged,
 		XListener::FLAG_MAIN_THREAD_CALL);
