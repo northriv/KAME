@@ -29,6 +29,7 @@ XDCSource::XDCSource(const char *name, bool runtime,
     m_output(create<XBoolNode>("Output", true)),
     m_value(create<XDoubleNode>("Value", false)),
     m_channel(create<XComboNode>("Channel", false, true)),
+    m_range(create<XComboNode>("Range", false, true)),
     m_form(new FrmDCSource(g_pFrmMain))
 {
   m_form->statusBar()->hide();
@@ -38,11 +39,13 @@ XDCSource::XDCSource(const char *name, bool runtime,
   m_function->setUIEnabled(false);
   m_value->setUIEnabled(false);
   m_channel->setUIEnabled(false);
+  m_range->setUIEnabled(false);
 
   m_conFunction = xqcon_create<XQComboBoxConnector>(m_function, m_form->m_cmbFunction);
   m_conOutput = xqcon_create<XQToggleButtonConnector>(m_output, m_form->m_ckbOutput);
   m_conValue = xqcon_create<XQLineEditConnector>(m_value, m_form->m_edValue);
   m_conChannel = xqcon_create<XQComboBoxConnector>(m_channel, m_form->m_cmbChannel);
+  m_conRange = xqcon_create<XQComboBoxConnector>(m_range, m_form->m_cmbRange);
 }
 
 void
@@ -59,6 +62,7 @@ XDCSource::start()
   m_function->setUIEnabled(true);
   m_value->setUIEnabled(true);
   m_channel->setUIEnabled(true);
+  m_range->setUIEnabled(true);
         
   m_lsnOutput = output()->onValueChanged().connectWeak(
                           shared_from_this(), &XDCSource::onOutputChanged);
@@ -68,6 +72,8 @@ XDCSource::start()
                         shared_from_this(), &XDCSource::onValueChanged);
   m_lsnChannel = channel()->onValueChanged().connectWeak(
                           shared_from_this(), &XDCSource::onChannelChanged);
+  m_lsnRange = channel()->onValueChanged().connectWeak(
+                          shared_from_this(), &XDCSource::onRangeChanged);
   updateStatus();
 }
 void
@@ -82,6 +88,7 @@ XDCSource::stop()
   m_function->setUIEnabled(false);
   m_value->setUIEnabled(false);
   m_channel->setUIEnabled(false);
+  m_range->setUIEnabled(false);
   
   afterStop();
 }
@@ -126,7 +133,19 @@ XDCSource::onValueChanged(const shared_ptr<XValueNodeBase> &)
 {
 	int ch = *channel();
     try {
-        changeValue(ch, *value());
+        changeValue(ch, *value(), true);
+    }
+    catch (XKameError& e) {
+        e.print(getLabel() + KAME::i18n(": Error while changing value, "));
+        return;
+    }
+}
+void 
+XDCSource::onRangeChanged(const shared_ptr<XValueNodeBase> &)
+{
+	int ch = *channel();
+    try {
+        changeRange(ch, *range());
     }
     catch (XKameError& e) {
         e.print(getLabel() + KAME::i18n(": Error while changing value, "));
@@ -141,10 +160,12 @@ XDCSource::onChannelChanged(const shared_ptr<XValueNodeBase> &)
     	m_lsnOutput->mask();
     	m_lsnFunction->mask();
     	m_lsnValue->mask();
+    	m_lsnRange->mask();
         queryStatus(ch);
     	m_lsnOutput->unmask();
     	m_lsnFunction->unmask();
     	m_lsnValue->unmask();
+    	m_lsnRange->unmask();
     }
     catch (XKameError& e) {
         e.print(getLabel() + KAME::i18n(": Error while changing value, "));

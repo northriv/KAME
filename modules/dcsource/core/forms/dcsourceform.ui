@@ -9,7 +9,7 @@
             <x>0</x>
             <y>0</y>
             <width>124</width>
-            <height>223</height>
+            <height>278</height>
         </rect>
     </property>
     <property name="caption">
@@ -45,9 +45,43 @@
                 </widget>
             </vbox>
         </widget>
-        <spacer row="6" column="1">
+        <spacer row="1" column="0">
             <property name="name">
-                <cstring>spacer3</cstring>
+                <cstring>spacer2_2</cstring>
+            </property>
+            <property name="orientation">
+                <enum>Vertical</enum>
+            </property>
+            <property name="sizeType">
+                <enum>Expanding</enum>
+            </property>
+            <property name="sizeHint">
+                <size>
+                    <width>20</width>
+                    <height>16</height>
+                </size>
+            </property>
+        </spacer>
+        <spacer row="2" column="1">
+            <property name="name">
+                <cstring>spacer5</cstring>
+            </property>
+            <property name="orientation">
+                <enum>Horizontal</enum>
+            </property>
+            <property name="sizeType">
+                <enum>Expanding</enum>
+            </property>
+            <property name="sizeHint">
+                <size>
+                    <width>16</width>
+                    <height>20</height>
+                </size>
+            </property>
+        </spacer>
+        <spacer row="4" column="0">
+            <property name="name">
+                <cstring>spacer2</cstring>
             </property>
             <property name="orientation">
                 <enum>Vertical</enum>
@@ -108,6 +142,29 @@
                 </widget>
             </vbox>
         </widget>
+        <widget class="QLayoutWidget" row="7" column="0" rowspan="1" colspan="2">
+            <property name="name">
+                <cstring>layout4_3</cstring>
+            </property>
+            <vbox>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <widget class="QLabel">
+                    <property name="name">
+                        <cstring>textLabel4_3</cstring>
+                    </property>
+                    <property name="text">
+                        <string>Range</string>
+                    </property>
+                </widget>
+                <widget class="QComboBox">
+                    <property name="name">
+                        <cstring>m_cmbRange</cstring>
+                    </property>
+                </widget>
+            </vbox>
+        </widget>
         <widget class="QCheckBox" row="2" column="0">
             <property name="name">
                 <cstring>m_ckbOutput</cstring>
@@ -124,9 +181,9 @@
                 <string>Output</string>
             </property>
         </widget>
-        <spacer row="4" column="0">
+        <spacer row="6" column="0">
             <property name="name">
-                <cstring>spacer2</cstring>
+                <cstring>spacer3</cstring>
             </property>
             <property name="orientation">
                 <enum>Vertical</enum>
@@ -138,40 +195,6 @@
                 <size>
                     <width>20</width>
                     <height>16</height>
-                </size>
-            </property>
-        </spacer>
-        <spacer row="1" column="0">
-            <property name="name">
-                <cstring>spacer2_2</cstring>
-            </property>
-            <property name="orientation">
-                <enum>Vertical</enum>
-            </property>
-            <property name="sizeType">
-                <enum>Expanding</enum>
-            </property>
-            <property name="sizeHint">
-                <size>
-                    <width>20</width>
-                    <height>16</height>
-                </size>
-            </property>
-        </spacer>
-        <spacer row="2" column="1">
-            <property name="name">
-                <cstring>spacer5</cstring>
-            </property>
-            <property name="orientation">
-                <enum>Horizontal</enum>
-            </property>
-            <property name="sizeType">
-                <enum>Expanding</enum>
-            </property>
-            <property name="sizeHint">
-                <size>
-                    <width>31</width>
-                    <height>20</height>
                 </size>
             </property>
         </spacer>

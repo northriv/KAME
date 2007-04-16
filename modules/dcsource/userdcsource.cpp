@@ -27,6 +27,7 @@ XYK7651::XYK7651(const char *name, bool runtime,
   function()->add("F1");
   function()->add("F5");
   channel()->disable();
+  range()->disable();
 }
 void
 XYK7651::changeFunction(int /*ch*/, int )
@@ -43,12 +44,20 @@ XYK7651::changeOutput(int /*ch*/, bool x)
 	interface()->sendf("O%uE", x ? 1 : 0);
 }
 void
-XYK7651::changeValue(int /*ch*/, double x)
+XYK7651::changeValue(int /*ch*/, double x, bool /*autorange*/)
 {
 	XScopedLock<XInterface> lock(*interface());
 	if(!interface()->isOpened()) return;
 	interface()->sendf("SA%.10fE", x);
 }
+double
+XYK7651::max(bool /*autorange*/) const
+{
+	if(*function() == 0)
+		return 30;
+	return 0.12;
+}
+
 
 XMicroTaskTCS::XMicroTaskTCS(const char *name, bool runtime, 
    const shared_ptr<XScalarEntryList> &scalarentries,
@@ -63,6 +72,9 @@ XMicroTaskTCS::XMicroTaskTCS(const char *name, bool runtime,
 	channel()->add("2");
 	channel()->add("3");
 	function()->disable();
+	range()->add("99uA");
+	range()->add("0.99mA");
+	range()->add("99mA");
 }
 void
 XMicroTaskTCS::queryStatus(int ch)
@@ -80,6 +92,7 @@ XMicroTaskTCS::queryStatus(int ch)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 	value()->value(pow(100.0, (double)ran[ch] - 1) * 1e-6 * v[ch]);
 	output()->value(o[ch]);
+	range()->value(ran[ch] - 1);
 }
 void
 XMicroTaskTCS::changeOutput(int ch, bool x)
@@ -102,15 +115,34 @@ XMicroTaskTCS::changeOutput(int ch, bool x)
 	updateStatus();
 }
 void
-XMicroTaskTCS::changeValue(int ch, double x)
+XMicroTaskTCS::changeValue(int ch, double x, bool autorange)
 {
 	XScopedLock<XInterface> lock(*interface());
 	if(!interface()->isOpened()) return;
 	if((x >= 0.1) || (x < 0))
 		throw XInterface::XInterfaceError(KAME::i18n("Value is out of range."), __FILE__, __LINE__);
-	interface()->sendf("SETDAC %u 0 %u", (unsigned int)(ch + 1), (unsigned int)lrint(x * 1e6));
-	interface()->receive(1);
+	if(autorange) {
+		interface()->sendf("SETDAC %u 0 %u", (unsigned int)(ch + 1), (unsigned int)lrint(x * 1e6));
+		interface()->receive(1);
+	}
+	else {
+		int v = lrint(x / (pow(100.0, (double)*range()) * 1e-6));
+		v = std::max(std::min(v, 99), 0);
+		interface()->sendf("SETDAC %u %u %u", (unsigned int)(ch + 1), (unsigned int)v);
+		interface()->receive(1);
+	}
 	updateStatus();
+}
+void
+XMicroTaskTCS::changeRange(int ch, int /*ran*/)
+{
+	changeValue(ch, *value(), false);
+}
+double
+XMicroTaskTCS::max(bool autorange) const
+{
+	if(autorange) return 0.099;
+	return pow(100.0, (double)*range()) * 99e-6;
 }
 void
 XMicroTaskTCS::open() throw (XInterface::XInterfaceError &)

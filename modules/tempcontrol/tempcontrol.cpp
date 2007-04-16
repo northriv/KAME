@@ -121,23 +121,14 @@ XTempControl::start()
 	heaterMode()->add("Off");
 	heaterMode()->add("PID");
 	heaterMode()->add("Man");
-	powerRange()->clear();  
-	powerRange()->add("0");
-	powerRange()->add("1u");
-	powerRange()->add("10u");
-	powerRange()->add("100u");
-	powerRange()->add("1m");
-	powerRange()->add("10m");
-	powerRange()->add("100m");
-	powerRange()->add("1");
-	powerRange()->add("10");
   }
+  else
+	m_powerRange->setUIEnabled(true);
 
   m_thread.reset(new XThread<XTempControl>(shared_from_this(), &XTempControl::execute));
   m_thread->resume();
 
   m_currentChannel->setUIEnabled(true);
-  m_powerRange->setUIEnabled(true);
   m_heaterMode->setUIEnabled(true);
   m_prop->setUIEnabled(true);
   m_int->setUIEnabled(true);
@@ -146,7 +137,7 @@ XTempControl::start()
   m_targetTemp->setUIEnabled(true);
   
   m_extDCSource->setUIEnabled(false);
-  m_extDCSourceChannel->setUIEnabled(false);  
+  m_extDCSourceChannel->setUIEnabled(false);
 }
 void
 XTempControl::stop()
@@ -269,28 +260,27 @@ XTempControl::createChannels(const shared_ptr<XScalarEntryList> &scalarentries,
 double
 XTempControl::pid(XTime time, double temp)
 {
-	double interv = *interval();
-	double derivertive = *deriv();
-	m_pidIntegralLastValues.push_back(std::pair<XTime, double>(time, temp));
-	while(m_pidIntegralLastValues.size() && (
-		time - m_pidIntegralLastValues.front().first > PID_FIN_RESPONSE * interv)) {
-		m_pidIntegralLastValues.pop_front();
-	}
-	double target = *targetTemp();
-	double acc = 0.0;
+	double p = *prop();
+	double i = *interval();
+	double d = *deriv();
+
+	double dt = temp - *targetTemp();
 	double dxdt = 0.0;
-	if((interv > 0) && (m_pidIntegralLastValues.size() >= 2)) {
-		XTime lasttime = m_pidIntegralLastValues.front().first;
-		for(std::deque<std::pair<XTime, double> >::iterator it = ++(m_pidIntegralLastValues.begin());
-			it != m_pidIntegralLastValues.end(); it++) {
-			acc += (it->second - target) * (it->first - lasttime) * exp(-(time - it->first) / interv / sqrt(PID_FIN_RESPONSE));
-			if(time - it->first > derivertive / 2)
-				dxdt = (temp - it->second) / (time - it->first);
-			lasttime = it->first;
-		}
-		acc /= interv;
+	double acc = 0.0;
+	if((i > 0) && (time - m_pidLastTime < i)) {
+		m_pidAccum += (time - m_pidLastTime) * dt;
+		dxdt = (temp - m_pidLastTemp) / (time - m_pidLastTime); 
+		acc = m_pidAccum / i;
+		acc = - std::min(std::max(- acc * p, 0.0), 100.0) / p;
+		m_pidAccum = acc * i;
 	}
-	return -(temp - target + acc + dxdt * derivertive) * *prop();
+	else
+		m_pidAccum = 0;
+
+	m_pidLastTime = time;
+	m_pidLastTemp = temp;
+
+	return -(dt + acc + dxdt * d) * p;
 }
 void *
 XTempControl::execute(const atomic<bool> &terminated)
@@ -382,10 +372,8 @@ XTempControl::execute(const atomic<bool> &terminated)
 						}
 					}
 					power = std::max(std::min(power, 100.0), 0.0);
-					double limit = 0.0;
-					if(*powerRange() > 0)
-						limit = 1e-6 * pow(10.0, (double)(*powerRange() - 1));
-					dcsrc->changeValue(ch, limit * power / 100.0);
+					double limit = dcsrc->max(false);
+					dcsrc->changeValue(ch, limit * power / 100.0, false);
 				}
 			}
 			else
@@ -484,6 +472,7 @@ XTempControl::onManualPowerChanged(const shared_ptr<XValueNodeBase> &)
 void
 XTempControl::onHeaterModeChanged(const shared_ptr<XValueNodeBase> &)
 {
+	m_pidAccum = 0;
 	try {
 		if(!shared_ptr<XDCSource>(*extDCSource()))
 			onHeaterModeChanged(*heaterMode());
@@ -506,6 +495,7 @@ XTempControl::onPowerRangeChanged(const shared_ptr<XValueNodeBase> &)
 void
 XTempControl::onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &)
 {
+	m_pidAccum = 0;
 	try {
 		shared_ptr<XChannel> ch(*currentChannel());
 		if(!ch) return;

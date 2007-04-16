@@ -36,14 +36,17 @@ public:
 
  virtual void changeFunction(int ch, int x) = 0;
  virtual void changeOutput(int ch, bool x) = 0;
- virtual void changeValue(int ch, double x) = 0;
+ virtual void changeValue(int ch, double x, bool autorange) = 0;
+ virtual void changeRange(int ch, int x) = 0;
  virtual void queryStatus(int ch) = 0;
+ virtual double max(bool autorange) const = 0;
 
  //! driver specific part below
  const shared_ptr<XComboNode> &function() const {return m_function;}
  const shared_ptr<XBoolNode> &output() const {return m_output;}
  const shared_ptr<XDoubleNode> &value() const {return m_value;}
  const shared_ptr<XComboNode> &channel() const {return m_channel;}
+ const shared_ptr<XComboNode> &range() const {return m_range;}
 protected:
  //! Start up your threads, connect GUI, and activate signals
  virtual void start();
@@ -62,17 +65,19 @@ protected:
  void updateStatus() {onChannelChanged(channel());}
  
 private:
- xqcon_ptr m_conFunction, m_conOutput, m_conValue, m_conChannel;
+ xqcon_ptr m_conFunction, m_conOutput, m_conValue, m_conChannel, m_conRange;
  const shared_ptr<XComboNode> m_function;
  const shared_ptr<XBoolNode> m_output;
  const shared_ptr<XDoubleNode> m_value;
  const shared_ptr<XComboNode> m_channel;
- shared_ptr<XListener> m_lsnFunction, m_lsnOutput, m_lsnValue, m_lsnChannel;
+ const shared_ptr<XComboNode> m_range;
+ shared_ptr<XListener> m_lsnFunction, m_lsnOutput, m_lsnValue, m_lsnChannel, m_lsnRange;
  
  virtual void onFunctionChanged(const shared_ptr<XValueNodeBase> &);
  virtual void onOutputChanged(const shared_ptr<XValueNodeBase> &);
  virtual void onValueChanged(const shared_ptr<XValueNodeBase> &);
  virtual void onChannelChanged(const shared_ptr<XValueNodeBase> &);
+ virtual void onRangeChanged(const shared_ptr<XValueNodeBase> &);
  
  const qshared_ptr<FrmDCSource> m_form;
 };

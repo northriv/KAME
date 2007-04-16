@@ -27,10 +27,11 @@ public:
 			const shared_ptr<XInterfaceList> &interfaces,
 			const shared_ptr<XThermometerList> &thermometers,
 			const shared_ptr<XDriverList> &drivers);
-protected:
 	virtual void changeFunction(int ch, int x);
 	virtual void changeOutput(int ch, bool x);
-	virtual void changeValue(int ch, double x);
+	virtual void changeValue(int ch, double x, bool autorange);
+	virtual void changeRange(int, int) {}
+	virtual double max(bool autorange) const;
 	virtual void queryStatus(int) {}
 };
 
@@ -43,12 +44,14 @@ public:
 			const shared_ptr<XInterfaceList> &interfaces,
 			const shared_ptr<XThermometerList> &thermometers,
 			const shared_ptr<XDriverList> &drivers);
-protected:
-	virtual void open() throw (XInterface::XInterfaceError &);
 	virtual void changeFunction(int, int) {}
 	virtual void changeOutput(int ch, bool x);
-	virtual void changeValue(int ch, double x);
+	virtual void changeValue(int ch, double x, bool autorange);
+	virtual void changeRange(int ch, int x);
+	virtual double max(bool autorange) const;
 	virtual void queryStatus(int ch);
+protected:
+	virtual void open() throw (XInterface::XInterfaceError &);
 };
 #endif
 

@@ -176,6 +176,15 @@ XAVS47IB::onExcitationChanged(const shared_ptr<XChannel> &ch, int exc) {
 	if(ch != shared_ptr<XChannel>(*currentChannel())) return;
 	interface()->sendf("EXC %u", (unsigned int)exc);
 	m_autorange_wait = 0;
+
+	powerRange()->add("0");
+	powerRange()->add("1uW");
+	powerRange()->add("10uW");
+	powerRange()->add("100uW");
+	powerRange()->add("1mW");
+	powerRange()->add("10mW");
+	powerRange()->add("100mW");
+	powerRange()->add("1W");
 }
 
 double
@@ -196,16 +205,6 @@ XAVS47IB::open() throw (XInterface::XInterfaceError &)
 	if(!shared_ptr<XDCSource>(*extDCSource())) {
 	  	heaterMode()->clear();
 		heaterMode()->add("PID");
-
-		powerRange()->clear();  
-		powerRange()->add("0");
-		powerRange()->add("1uW");
-		powerRange()->add("10uW");
-		powerRange()->add("100uW");
-		powerRange()->add("1mW");
-		powerRange()->add("10mW");
-		powerRange()->add("100mW");
-		powerRange()->add("1W");
 	}
 }
 void
@@ -348,6 +347,10 @@ XCryocon::open() throw (XInterface::XInterfaceError &)
 	interface()->query("INPUT B:VBIAS?");
 	ch1->excitation()->str(QString(&interface()->buffer()[0]).stripWhiteSpace());
 
+	powerRange()->clear();
+	interface()->query("HEATER:RANGE?");
+	powerRange()->str(QString(&interface()->buffer()[0]).stripWhiteSpace());
+
 	if(!shared_ptr<XDCSource>(*extDCSource())) {
 		getChannel();
 		interface()->query("HEATER:PMAN?");
@@ -358,10 +361,6 @@ XCryocon::open() throw (XInterface::XInterfaceError &)
 		interval()->str(std::string(&interface()->buffer()[0]));
 		interface()->query("HEATER:DGAIN?");
 		deriv()->str(std::string(&interface()->buffer()[0]));
-
-		powerRange()->clear();
-		interface()->query("HEATER:RANGE?");
-		powerRange()->str(QString(&interface()->buffer()[0]).stripWhiteSpace());
 
 		if(!shared_ptr<XDCSource>(*extDCSource())) {
 		  	heaterMode()->clear();
@@ -381,33 +380,29 @@ XCryoconM32::open() throw (XInterface::XInterfaceError &)
 {
 	XCryocon::open();
 
-	if(!shared_ptr<XDCSource>(*extDCSource())) {
-		powerRange()->add("HI");
-		powerRange()->add("MID");
-		powerRange()->add("LOW");
-	}
+	powerRange()->add("HI");
+	powerRange()->add("MID");
+	powerRange()->add("LOW");
 }
 void
 XCryoconM62::open() throw (XInterface::XInterfaceError &)
 {
 	XCryocon::open();
 
-	if(!shared_ptr<XDCSource>(*extDCSource())) {
-		interface()->query("HEATER:LOAD?");
-		if(interface()->toInt() == 50)
-		{
-			powerRange()->add("0.05W");
-			powerRange()->add("0.5W");
-			powerRange()->add("5.0W");
-			powerRange()->add("50W");
-		}
-		else
-		{
-			powerRange()->add("0.03W");
-			powerRange()->add("0.3W");
-			powerRange()->add("2.5W");
-			powerRange()->add("25W");
-		}
+	interface()->query("HEATER:LOAD?");
+	if(interface()->toInt() == 50)
+	{
+		powerRange()->add("0.05W");
+		powerRange()->add("0.5W");
+		powerRange()->add("5.0W");
+		powerRange()->add("50W");
+	}
+	else
+	{
+		powerRange()->add("0.03W");
+		powerRange()->add("0.3W");
+		powerRange()->add("2.5W");
+		powerRange()->add("25W");
 	}
 }
 void
@@ -630,6 +625,11 @@ XLakeShore340::open() throw (XInterface::XInterfaceError &)
 	if(interface()->scanf("%*f,%*f,%*f,%d", &maxcurr) != 1)
         throw XInterface::XConvError(__FILE__, __LINE__);
 
+	powerRange()->clear();
+	for(int i = 1; i < 6; i++) {
+		powerRange()->add(QString().sprintf("%.1f W", 
+											(double)pow(10.0, i - 5.0)  * pow(maxcurr, 2.0) * res));
+	}
 	if(!shared_ptr<XDCSource>(*extDCSource())) {
 		interface()->query("CSET?");
 		currentChannel()->str(std::string(&interface()->buffer()[0]));
@@ -639,11 +639,6 @@ XLakeShore340::open() throw (XInterface::XInterfaceError &)
 		heaterMode()->add("PID");
 		heaterMode()->add("Man");
 
-		powerRange()->clear();
-		for(int i = 1; i < 6; i++) {
-			powerRange()->add(QString().sprintf("%.1f W", 
-												(double)pow(10.0, i - 5.0)  * pow(maxcurr, 2.0) * res));
-		}
 		interface()->query("CMODE? 1");
 		switch(interface()->toInt()) {
 		case 1:

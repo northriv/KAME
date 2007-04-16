@@ -156,9 +156,10 @@ private:
 	xqcon_ptr m_conTemp;
 	xqcon_ptr m_conExtDCSource, m_conExtDCSourceChannel;
 	
-	enum {PID_FIN_RESPONSE = 16};
-	std::deque<std::pair<XTime, double> > m_pidIntegralLastValues;
 	double pid(XTime time, double temp);
+	double m_pidAccum;
+	double m_pidLastTemp;
+	XTime m_pidLastTime;
 	
 	void *execute(const atomic<bool> &);
   
