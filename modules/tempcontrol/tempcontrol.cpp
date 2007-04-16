@@ -270,6 +270,7 @@ double
 XTempControl::pid(XTime time, double temp)
 {
 	double interv = *interval();
+	double derivertive = *deriv();
 	m_pidIntegralLastValues.push_back(std::pair<XTime, double>(time, temp));
 	while(m_pidIntegralLastValues.size() && (
 		time - m_pidIntegralLastValues.front().first > PID_FIN_RESPONSE * interv)) {
@@ -283,12 +284,13 @@ XTempControl::pid(XTime time, double temp)
 		for(std::deque<std::pair<XTime, double> >::iterator it = ++(m_pidIntegralLastValues.begin());
 			it != m_pidIntegralLastValues.end(); it++) {
 			acc += (it->second - target) * (it->first - lasttime) * exp(-(time - it->first) / interv / sqrt(PID_FIN_RESPONSE));
-			dxdt = (temp - it->second) / (time - it->first);
+			if(time - it->first > derivertive / 2)
+				dxdt = (temp - it->second) / (time - it->first);
 			lasttime = it->first;
 		}
 		acc /= interv;
 	}
-	return -(temp - target + acc + dxdt * *deriv()) * *prop();
+	return -(temp - target + acc + dxdt * derivertive) * *prop();
 }
 void *
 XTempControl::execute(const atomic<bool> &terminated)

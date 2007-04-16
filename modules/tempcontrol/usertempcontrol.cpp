@@ -186,9 +186,10 @@ XAVS47IB::getRaw(shared_ptr<XChannel> &)
 void
 XAVS47IB::open() throw (XInterface::XInterfaceError &)
 {
-	msecsleep(200);
+	msecsleep(50);
 	interface()->send("REM 1;ARN 0;DIS 0");
-	currentChannel()->str(formatString("%d",(int)lrint(read("MUX"))));
+	currentChannel()->str(formatString("%d", (int)lrint(read("MUX"))));
+	onCurrentChannelChanged(*currentChannel());
 
 	start();
 
