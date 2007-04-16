@@ -369,7 +369,8 @@ XTempControl::execute(const atomic<bool> &terminated)
           
           double power = 0.0;
 			if(shared_ptr<XDCSource> dcsrc = *extDCSource()) {
-				if(int ch = *extDCSourceChannel()) {
+				int ch = *extDCSourceChannel();
+				if(ch >= 0) {
 					if(src_ch) {
 						if(heaterMode()->to_str() == "PID") {
 							power = pid(newtime, src_temp);
