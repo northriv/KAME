@@ -39,7 +39,7 @@ public:
  virtual void changeValue(int ch, double x, bool autorange) = 0;
  virtual void changeRange(int ch, int x) = 0;
  virtual void queryStatus(int ch) = 0;
- virtual double max(bool autorange) const = 0;
+ virtual double max(int ch, bool autorange) const = 0;
 
  //! driver specific part below
  const shared_ptr<XComboNode> &function() const {return m_function;}

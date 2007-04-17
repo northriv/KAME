@@ -51,7 +51,7 @@ XYK7651::changeValue(int /*ch*/, double x, bool /*autorange*/)
 	interface()->sendf("SA%.10fE", x);
 }
 double
-XYK7651::max(bool /*autorange*/) const
+XYK7651::max(int /*ch*/, bool /*autorange*/) const
 {
 	if(*function() == 0)
 		return 30;
@@ -137,7 +137,7 @@ XMicroTaskTCS::changeValue(int ch, double x, bool autorange)
 			if(interface()->scanf("%*u%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u",
 				&ran[0], &ran[1], &ran[2]) != 3)
 				throw XInterface::XConvError(__FILE__, __LINE__);
-			int v = lrint(x / (pow(10.0, (double)ran[ch]) * 1e-6));
+			int v = lrint(x / (pow(10.0, (double)ran[ch] - 1) * 1e-6));
 			v = std::max(std::min(v, 99), 0);
 			interface()->sendf("DAC %u %u", (unsigned int)(ch + 1), (unsigned int)v);
 			interface()->receive(2);
@@ -167,11 +167,19 @@ XMicroTaskTCS::changeRange(int ch, int newran)
 	updateStatus();	
 }
 double
-XMicroTaskTCS::max(bool autorange) const
+XMicroTaskTCS::max(int ch, bool autorange) const
 {
 	if(autorange) return 0.099;
-	return pow(10.0, (double)*range()) * 99e-6;
-}
+	{
+		XScopedLock<XInterface> lock(*interface());
+		unsigned int ran[3];
+		interface()->query("STATUS?");
+		if(interface()->scanf("%*u%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u",
+			&ran[0], &ran[1], &ran[2]) != 3)
+			throw XInterface::XConvError(__FILE__, __LINE__);
+		return pow(10.0, (double)(ran[ch] - 1)) * 99e-6;
+	}
+;}
 void
 XMicroTaskTCS::open() throw (XInterface::XInterfaceError &)
 {

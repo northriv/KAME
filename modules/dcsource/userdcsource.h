@@ -31,7 +31,7 @@ public:
 	virtual void changeOutput(int ch, bool x);
 	virtual void changeValue(int ch, double x, bool autorange);
 	virtual void changeRange(int, int) {}
-	virtual double max(bool autorange) const;
+	virtual double max(int ch, bool autorange) const;
 	virtual void queryStatus(int) {}
 };
 
@@ -48,7 +48,7 @@ public:
 	virtual void changeOutput(int ch, bool x);
 	virtual void changeValue(int ch, double x, bool autorange);
 	virtual void changeRange(int ch, int x);
-	virtual double max(bool autorange) const;
+	virtual double max(int ch, bool autorange) const;
 	virtual void queryStatus(int ch);
 protected:
 	virtual void open() throw (XInterface::XInterfaceError &);

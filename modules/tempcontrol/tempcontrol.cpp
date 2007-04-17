@@ -372,7 +372,7 @@ XTempControl::execute(const atomic<bool> &terminated)
 						}
 					}
 					power = std::max(std::min(power, 100.0), 0.0);
-					double limit = dcsrc->max(false);
+					double limit = dcsrc->max(ch, false);
 					dcsrc->changeValue(ch, limit * power / 100.0, false);
 				}
 			}
