@@ -73,9 +73,9 @@ XMicroTaskTCS::XMicroTaskTCS(const char *name, bool runtime,
 	channel()->add("3");
 	function()->disable();
 	range()->add("99uA");
-	range()->add("990uA");
-	range()->add("0.99mA");
+	range()->add("0.99uA");
 	range()->add("9.9mA");
+	range()->add("99mA");
 }
 void
 XMicroTaskTCS::queryStatus(int ch)
@@ -120,7 +120,7 @@ XMicroTaskTCS::changeValue(int ch, double x, bool autorange)
 {
 	XScopedLock<XInterface> lock(*interface());
 	if(!interface()->isOpened()) return;
-	if((x >= 0.0099) || (x < 0))
+	if((x >= 0.099) || (x < 0))
 		throw XInterface::XInterfaceError(KAME::i18n("Value is out of range."), __FILE__, __LINE__);
 	if(autorange) {
 		interface()->sendf("SETDAC %u 0 %u", (unsigned int)(ch + 1), (unsigned int)lrint(x * 1e6));
@@ -143,7 +143,7 @@ XMicroTaskTCS::changeRange(int ch, int /*ran*/)
 double
 XMicroTaskTCS::max(bool autorange) const
 {
-	if(autorange) return 0.0099;
+	if(autorange) return 0.099;
 	return pow(10.0, (double)*range()) * 99e-6;
 }
 void
