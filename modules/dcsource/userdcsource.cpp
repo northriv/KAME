@@ -132,10 +132,14 @@ XMicroTaskTCS::changeValue(int ch, double x, bool autorange)
 			interface()->receive(1);
 		}
 		else {
-			int ran = (int)*range();
-			int v = lrint(x / (pow(10.0, (double)ran) * 1e-6));
+			unsigned int ran[3];
+			interface()->query("STATUS?");
+			if(interface()->scanf("%*u%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u",
+				&ran[0], &ran[1] &ran[2]) != 3)
+				throw XInterface::XConvError(__FILE__, __LINE__);
+			int v = lrint(x / (pow(10.0, (double)ran[ch]) * 1e-6));
 			v = std::max(std::min(v, 99), 0);
-			interface()->sendf("SETDAC %u %u %u", (unsigned int)(ch + 1), (unsigned int)(ran + 1), (unsigned int)v);
+			interface()->sendf("SETDAC %u %u %u", (unsigned int)(ch + 1), (unsigned int)(ran[ch] + 1), (unsigned int)v);
 			interface()->receive(1);
 		}
 	}
