@@ -73,8 +73,9 @@ XMicroTaskTCS::XMicroTaskTCS(const char *name, bool runtime,
 	channel()->add("3");
 	function()->disable();
 	range()->add("99uA");
+	range()->add("990uA");
 	range()->add("0.99mA");
-	range()->add("99mA");
+	range()->add("9.9mA");
 }
 void
 XMicroTaskTCS::queryStatus(int ch)
@@ -90,7 +91,7 @@ XMicroTaskTCS::queryStatus(int ch)
 		&ran[1], &v[1], &o[1],
 		&ran[2], &v[2], &o[2]) != 9)
 		throw XInterface::XConvError(__FILE__, __LINE__);
-	value()->value(pow(100.0, (double)ran[ch] - 1) * 1e-6 * v[ch]);
+	value()->value(pow(10.0, (double)ran[ch] - 1) * 1e-6 * v[ch]);
 	output()->value(o[ch]);
 	range()->value(ran[ch] - 1);
 }
@@ -119,7 +120,7 @@ XMicroTaskTCS::changeValue(int ch, double x, bool autorange)
 {
 	XScopedLock<XInterface> lock(*interface());
 	if(!interface()->isOpened()) return;
-	if((x >= 0.1) || (x < 0))
+	if((x >= 0.0099) || (x < 0))
 		throw XInterface::XInterfaceError(KAME::i18n("Value is out of range."), __FILE__, __LINE__);
 	if(autorange) {
 		interface()->sendf("SETDAC %u 0 %u", (unsigned int)(ch + 1), (unsigned int)lrint(x * 1e6));
@@ -127,7 +128,7 @@ XMicroTaskTCS::changeValue(int ch, double x, bool autorange)
 	}
 	else {
 		int ran = (int)*range();
-		int v = lrint(x / (pow(100.0, (double)ran) * 1e-6));
+		int v = lrint(x / (pow(10.0, (double)ran) * 1e-6));
 		v = std::max(std::min(v, 99), 0);
 		interface()->sendf("SETDAC %u %u %u", (unsigned int)(ch + 1), ran, (unsigned int)v);
 		interface()->receive(1);
@@ -142,8 +143,8 @@ XMicroTaskTCS::changeRange(int ch, int /*ran*/)
 double
 XMicroTaskTCS::max(bool autorange) const
 {
-	if(autorange) return 0.099;
-	return pow(100.0, (double)*range()) * 99e-6;
+	if(autorange) return 0.0099;
+	return pow(10.0, (double)*range()) * 99e-6;
 }
 void
 XMicroTaskTCS::open() throw (XInterface::XInterfaceError &)
