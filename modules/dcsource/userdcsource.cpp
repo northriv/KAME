@@ -139,16 +139,32 @@ XMicroTaskTCS::changeValue(int ch, double x, bool autorange)
 				throw XInterface::XConvError(__FILE__, __LINE__);
 			int v = lrint(x / (pow(10.0, (double)ran[ch]) * 1e-6));
 			v = std::max(std::min(v, 99), 0);
-			interface()->sendf("SETDAC %u %u %u", (unsigned int)(ch + 1), ran[ch] + 1, (unsigned int)v);
-			interface()->receive(1);
+			interface()->sendf("DAC %u %u", (unsigned int)(ch + 1), (unsigned int)v);
+			interface()->receive(2);
 		}
 	}
 	updateStatus();
 }
 void
-XMicroTaskTCS::changeRange(int ch, int /*ran*/)
+XMicroTaskTCS::changeRange(int ch, int newran)
 {
-	changeValue(ch, *value(), false);
+	{
+		XScopedLock<XInterface> lock(*interface());
+		unsigned int ran[3], v[3];
+		interface()->query("STATUS?");
+		if(interface()->scanf("%*u%*u,%u,%u,%*u,%*u,%u,%u,%*u,%*u,%u,%u,%*u,%*u",
+			&ran[0], &v[0],
+			&ran[1], &v[1],
+			&ran[2], &v[2]) != 6)
+			throw XInterface::XConvError(__FILE__, __LINE__);
+		double x = pow(10.0, (double)ran[ch] - 1) * 1e-6 * v[ch];
+		int newv = lrint(x / (pow(10.0, (double)newran) * 1e-6));
+		newv = std::max(std::min(newv, 99), 0);
+		interface()->sendf("SETDAC %u %u %u", 
+			(unsigned int)(ch + 1), (unsigned int)newran, (unsigned int)newv);
+		interface()->receive(1);
+	}
+	updateStatus();	
 }
 double
 XMicroTaskTCS::max(bool autorange) const
