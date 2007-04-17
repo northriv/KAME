@@ -130,7 +130,7 @@ XMicroTaskTCS::changeValue(int ch, double x, bool autorange)
 		int ran = (int)*range();
 		int v = lrint(x / (pow(10.0, (double)ran) * 1e-6));
 		v = std::max(std::min(v, 99), 0);
-		interface()->sendf("SETDAC %u %u %u", (unsigned int)(ch + 1), ran, (unsigned int)v);
+		interface()->sendf("SETDAC %u %u %u", (unsigned int)(ch + 1), (unsigned int)(ran + 1), (unsigned int)v);
 		interface()->receive(1);
 	}
 	updateStatus();
