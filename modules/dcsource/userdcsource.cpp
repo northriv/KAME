@@ -150,6 +150,7 @@ XMicroTaskTCS::changeRange(int ch, int newran)
 {
 	{
 		XScopedLock<XInterface> lock(*interface());
+		if(!interface()->isOpened()) return;
 		unsigned int ran[3], v[3];
 		interface()->query("STATUS?");
 		if(interface()->scanf("%*u%*u,%u,%u,%*u,%*u,%u,%u,%*u,%*u,%u,%u,%*u,%*u",
@@ -172,6 +173,7 @@ XMicroTaskTCS::max(int ch, bool autorange) const
 	if(autorange) return 0.099;
 	{
 		XScopedLock<XInterface> lock(*interface());
+		if(!interface()->isOpened()) return;
 		unsigned int ran[3];
 		interface()->query("STATUS?");
 		if(interface()->scanf("%*u%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u",
