@@ -161,7 +161,7 @@ XMicroTaskTCS::changeRange(int ch, int newran)
 		int newv = lrint(x / (pow(10.0, (double)newran) * 1e-6));
 		newv = std::max(std::min(newv, 99), 0);
 		interface()->sendf("SETDAC %u %u %u", 
-			(unsigned int)(ch + 1), (unsigned int)newran, (unsigned int)newv);
+			(unsigned int)(ch + 1), (unsigned int)(newran + 1), (unsigned int)newv);
 		interface()->receive(1);
 	}
 	updateStatus();	
