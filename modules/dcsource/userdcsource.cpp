@@ -80,12 +80,12 @@ XMicroTaskTCS::XMicroTaskTCS(const char *name, bool runtime,
 void
 XMicroTaskTCS::queryStatus(int ch)
 {
+	unsigned int ran[3];
+	unsigned int v[3];
+	unsigned int o[3];
 	{
 		XScopedLock<XInterface> lock(*interface());
 		if(!interface()->isOpened()) return;
-		unsigned int ran[3];
-		unsigned int v[3];
-		unsigned int o[3];
 		interface()->query("STATUS?");
 		if(interface()->scanf("%*u%*u,%u,%u,%u,%*u,%u,%u,%u,%*u,%u,%u,%u,%*u",
 			&ran[0], &v[0], &o[0],
