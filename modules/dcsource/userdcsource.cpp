@@ -80,17 +80,19 @@ XMicroTaskTCS::XMicroTaskTCS(const char *name, bool runtime,
 void
 XMicroTaskTCS::queryStatus(int ch)
 {
-	XScopedLock<XInterface> lock(*interface());
-	if(!interface()->isOpened()) return;
-	unsigned int ran[3];
-	unsigned int v[3];
-	unsigned int o[3];
-	interface()->query("STATUS?");
-	if(interface()->scanf("%*u%*u,%u,%u,%u,%*u,%u,%u,%u,%*u,%u,%u,%u,%*u",
-		&ran[0], &v[0], &o[0],
-		&ran[1], &v[1], &o[1],
-		&ran[2], &v[2], &o[2]) != 9)
-		throw XInterface::XConvError(__FILE__, __LINE__);
+	{
+		XScopedLock<XInterface> lock(*interface());
+		if(!interface()->isOpened()) return;
+		unsigned int ran[3];
+		unsigned int v[3];
+		unsigned int o[3];
+		interface()->query("STATUS?");
+		if(interface()->scanf("%*u%*u,%u,%u,%u,%*u,%u,%u,%u,%*u,%u,%u,%u,%*u",
+			&ran[0], &v[0], &o[0],
+			&ran[1], &v[1], &o[1],
+			&ran[2], &v[2], &o[2]) != 9)
+			throw XInterface::XConvError(__FILE__, __LINE__);
+	}
 	value()->value(pow(10.0, (double)ran[ch] - 1) * 1e-6 * v[ch]);
 	output()->value(o[ch]);
 	range()->value(ran[ch] - 1);
@@ -98,40 +100,44 @@ XMicroTaskTCS::queryStatus(int ch)
 void
 XMicroTaskTCS::changeOutput(int ch, bool x)
 {
-	XScopedLock<XInterface> lock(*interface());
-	if(!interface()->isOpened()) return;
-	unsigned int v[3];
-	interface()->query("STATUS?");
-	if(interface()->scanf("%*u%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u", &v[0], &v[1], &v[2])
-		!= 3)
-		throw XInterface::XConvError(__FILE__, __LINE__);
-	for(int i = 0; i < 3; i++) {
-		if(ch != i)
-			v[i] = 0;
-		else
-			v[i] ^= x ? 1 : 0;
+	{
+		XScopedLock<XInterface> lock(*interface());
+		if(!interface()->isOpened()) return;
+		unsigned int v[3];
+		interface()->query("STATUS?");
+		if(interface()->scanf("%*u%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u", &v[0], &v[1], &v[2])
+			!= 3)
+			throw XInterface::XConvError(__FILE__, __LINE__);
+		for(int i = 0; i < 3; i++) {
+			if(ch != i)
+				v[i] = 0;
+			else
+				v[i] ^= x ? 1 : 0;
+		}
+		interface()->sendf("SETUP 0,0,%u,0,0,0,%u,0,0,0,%u,0", v[0], v[1], v[2]);
+		interface()->receive(2);
 	}
-	interface()->sendf("SETUP 0,0,%u,0,0,0,%u,0,0,0,%u,0", v[0], v[1], v[2]);
-	interface()->receive(2);
 	updateStatus();
 }
 void
 XMicroTaskTCS::changeValue(int ch, double x, bool autorange)
 {
-	XScopedLock<XInterface> lock(*interface());
-	if(!interface()->isOpened()) return;
-	if((x >= 0.099) || (x < 0))
-		throw XInterface::XInterfaceError(KAME::i18n("Value is out of range."), __FILE__, __LINE__);
-	if(autorange) {
-		interface()->sendf("SETDAC %u 0 %u", (unsigned int)(ch + 1), (unsigned int)lrint(x * 1e6));
-		interface()->receive(1);
-	}
-	else {
-		int ran = (int)*range();
-		int v = lrint(x / (pow(10.0, (double)ran) * 1e-6));
-		v = std::max(std::min(v, 99), 0);
-		interface()->sendf("SETDAC %u %u %u", (unsigned int)(ch + 1), (unsigned int)(ran + 1), (unsigned int)v);
-		interface()->receive(1);
+	{
+		XScopedLock<XInterface> lock(*interface());
+		if(!interface()->isOpened()) return;
+		if((x >= 0.099) || (x < 0))
+			throw XInterface::XInterfaceError(KAME::i18n("Value is out of range."), __FILE__, __LINE__);
+		if(autorange) {
+			interface()->sendf("SETDAC %u 0 %u", (unsigned int)(ch + 1), (unsigned int)lrint(x * 1e6));
+			interface()->receive(1);
+		}
+		else {
+			int ran = (int)*range();
+			int v = lrint(x / (pow(10.0, (double)ran) * 1e-6));
+			v = std::max(std::min(v, 99), 0);
+			interface()->sendf("SETDAC %u %u %u", (unsigned int)(ch + 1), (unsigned int)(ran + 1), (unsigned int)v);
+			interface()->receive(1);
+		}
 	}
 	updateStatus();
 }
