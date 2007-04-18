@@ -62,47 +62,50 @@ XSecondaryDriver::requestAnalysis()
 void
 XSecondaryDriver::onConnectedRecorded(const shared_ptr<XDriver> &driver)
 {
-    readLockAllConnections();
-    //! check if emitter has already connected or if self-emission
-    if((std::find(m_connection.begin(), m_connection.end(), driver)
-		!= m_connection.end()) 
-       || (driver == shared_from_this())) {
-        //! driver-side dependency check
-        if(checkDependency(driver)) {
-            shared_ptr<XRecordDependency> dep(new XRecordDependency);
-            //! check if recorded times don't contradict
-            if(checkDeepDependency(dep)) {
-            	bool skipped = false;
-                startRecording();
-                XTime time_recorded = driver->time();
-                try {
-                    analyze(driver);
-                }
-                catch (XSkippedRecordError&) {
-                	skipped = true;
-                }
-                catch (XRecordError& e) {
-					time_recorded = XTime(); //record is invalid
-					e.print(getLabel() + ": " + KAME::i18n("Record Error, because "));
-                }
-                readUnlockAllConnections();
-                if(skipped)
-                	abortRecording();
-            	else {
-	                m_dependency = dep;
-	                finishRecordingNReadLock(driver->timeAwared(), time_recorded);
-	                visualize();
-	                readUnlockRecord();
-            	}
-            }
-            else    
-                readUnlockAllConnections();
-        }
-        else    
-            readUnlockAllConnections();
-    }
-    else    
-        readUnlockAllConnections();
+	for(;;) {
+		readLockAllConnections();
+	    //! check if emitter has already connected or if self-emission
+	    if((std::find(m_connection.begin(), m_connection.end(), driver)
+			!= m_connection.end()) 
+	       || (driver == shared_from_this())) {
+	        //! driver-side dependency check
+	        if(checkDependency(driver)) {
+	            shared_ptr<XRecordDependency> dep(new XRecordDependency);
+	            //! check if recorded times don't contradict
+	            if(checkDeepDependency(dep)) {
+	            	bool skipped = false;
+	                if(!tryStartRecording()) {
+	                	readUnlockAllConnections();
+	                	msecsleep(5);
+	                	continue;
+	                }
+	                XTime time_recorded = driver->time();
+	                try {
+	                    analyze(driver);
+	                }
+	                catch (XSkippedRecordError&) {
+	                	skipped = true;
+	                }
+	                catch (XRecordError& e) {
+						time_recorded = XTime(); //record is invalid
+						e.print(getLabel() + ": " + KAME::i18n("Record Error, because "));
+	                }
+	                readUnlockAllConnections();
+	                if(skipped)
+	                	abortRecording();
+	            	else {
+		                m_dependency = dep;
+		                finishRecordingNReadLock(driver->timeAwared(), time_recorded);
+		                visualize();
+		                readUnlockRecord();
+	            	}
+	            	return;
+	            }
+	        }
+	    }
+	    readUnlockAllConnections();
+	    return;
+	}
 }
 void
 XSecondaryDriver::connect(const shared_ptr<XItemNodeBase> &item, bool check_deep_dep)

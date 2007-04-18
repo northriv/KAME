@@ -1,7 +1,12 @@
+* Wed Apr 18 2007 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
+- (2.2.4-1)
+- driver.h: Use try lock to avoid deadlocks.
+
 * Tue Apr 14 2007 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
 - (2.2.3-1)
 - nmrpulse.cpp: Handle clear request correctly.
 - dcsource: Multi-channel source.
+- tempcontrol: Software PID.
 
 * Tue Apr 10 2007 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
 - (2.2.2-2)

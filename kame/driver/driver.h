@@ -80,7 +80,8 @@ protected:
 	virtual void visualize() = 0;
   
 	//! writeLock record and readLock all dependent drivers
-	void startRecording();
+	//! \return true if locked.
+	bool tryStartRecording();
 	//! m_tlkRecord is invoked after unlocking
 	//! \sa time(), timeAwared()
 	void finishRecordingNReadLock(const XTime &time_awared, const XTime &time_recorded);

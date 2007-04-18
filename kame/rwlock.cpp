@@ -141,8 +141,8 @@ XRecursiveRWLock::readUnlock() const
 		if(DEBUG_XTHREAD) ASSERT(m_rdlockingcnt >= 0);
     }
 }
-void 
-XRecursiveRWLock::writeLock()
+inline bool
+XRecursiveRWLock::tryWriteLockMutexKeptLocked()
 {
 	int ret;
 	if(!pthread_equal(m_wrlockingthread, threadID()))
@@ -150,37 +150,43 @@ XRecursiveRWLock::writeLock()
 		ret = pthread_mutex_lock(&m_mutex_write);
 		if(DEBUG_XTHREAD) ASSERT(!ret);
 
-		m_wrlockwaitingcnt++;
-       
 		int tlRdLockedCnt = (int)std::count(s_tlRdLockedList->begin(),
 											s_tlRdLockedList->end(), this);
       
-		while(m_rdlockingcnt > tlRdLockedCnt) {
-		#ifdef BUGGY_PTHRAD_COND
-			struct timespec abstime;
-			timeval tv;
-			long nsec;
-			gettimeofday(&tv, NULL);
-			abstime.tv_sec = tv.tv_sec;
-			nsec = (tv.tv_usec + BUGGY_PTHRAD_COND_WAIT_USEC) * 1000;
-			if(nsec >= 1000000000) {
-				nsec -= 1000000000; abstime.tv_sec++;
-			}
-			abstime.tv_nsec = nsec;
-			ret = pthread_cond_timedwait(&m_cond, &m_mutex_write, &abstime);
-		#else
-			ret = pthread_cond_wait(&m_cond, &m_mutex_write);
-			if(DEBUG_XTHREAD) ASSERT(!ret);
-		#endif
+		if(m_rdlockingcnt > tlRdLockedCnt) {
+			return false;
 		}
-      
-		m_wrlockwaitingcnt--;
-      
+
 		if(DEBUG_XTHREAD) ASSERT(m_rdlockingcnt == tlRdLockedCnt);
 		if(DEBUG_XTHREAD) ASSERT(m_wrlockingcnt == 0);
 		m_wrlockingthread = threadID();
 	}
 	m_wrlockingcnt++;
+	return true;
+}
+bool
+XRecursiveRWLock::tryWriteLock()
+{
+	int ret;
+	if(!tryWriteLockMutexKeptLocked()) {
+		ret = pthread_mutex_unlock(&m_mutex_write);
+		if(DEBUG_XTHREAD) ASSERT(!ret);
+		return false;
+	}
+	return true;
+}
+void 
+XRecursiveRWLock::writeLock()
+{
+	int ret;
+	while(!tryWriteLockMutexKeptLocked()) {
+		m_wrlockwaitingcnt++;
+		ret = pthread_cond_wait(&m_cond, &m_mutex_write);
+		if(DEBUG_XTHREAD) ASSERT(!ret);
+		m_wrlockwaitingcnt--;
+		ret = pthread_mutex_unlock(&m_mutex_write);
+		if(DEBUG_XTHREAD) ASSERT(!ret);
+	}
 }
 bool
 XRecursiveRWLock::writeUnlock()

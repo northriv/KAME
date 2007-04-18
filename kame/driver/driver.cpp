@@ -58,9 +58,9 @@ XDriver::readLockRecord() const {
     m_recordLock.readLock();
 }
 
-void
-XDriver::startRecording() {
-    m_recordLock.writeLock();
+bool
+XDriver::tryStartRecording() {
+    return m_recordLock.tryWriteLock();
 }
 void
 XDriver::finishRecordingNReadLock(const XTime &time_awared, const XTime &time_recorded) {

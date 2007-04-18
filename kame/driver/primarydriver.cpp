@@ -32,7 +32,11 @@ XPrimaryDriver::finishWritingRaw(
 {
     XTime time_recorded = time_recorded_org;
 	bool skipped = false;
-    startRecording();
+    for(;;) {
+    	if(tryStartRecording())
+    		break;
+    	msecsleep(5);
+    }
     if(time_recorded) {
 	    *s_tl_pop_it = rawData().begin();
 	    try {

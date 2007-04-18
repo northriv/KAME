@@ -70,6 +70,8 @@ public:
 	void readLock() const;
 	//! must unlock with the locking thread
 	void readUnlock() const;
+	//! \return true if locked.
+	bool tryWriteLock();
 	void writeLock();
 	//! \ret true if unlocked
 	//! must unlock with the locking thread
@@ -87,6 +89,7 @@ private:
 	typedef std::deque<const XRecursiveRWLock*> tLockedList;
 	typedef tLockedList::iterator tLockedList_it;
 	static XThreadLocal<tLockedList> s_tlRdLockedList;
+	inline bool tryWriteLockMutexKeptLocked();
 };
 
 #endif /*RWLOCK_H_*/
