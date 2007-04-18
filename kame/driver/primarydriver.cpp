@@ -35,7 +35,7 @@ XPrimaryDriver::finishWritingRaw(
     for(;;) {
     	if(tryStartRecording())
     		break;
-    	msecsleep(5);
+    	usleep(5000);
     }
     if(time_recorded) {
 	    *s_tl_pop_it = rawData().begin();

@@ -650,7 +650,7 @@ XNIDAQmxPulser::tryOutputSuspend(const atomic<bool> &flag,
 								 XRecursiveMutex &mutex, const atomic<bool> &terminated) {
 	if(flag) {
 		mutex.unlock();
-		while(flag && !terminated) msecsleep(30);
+		while(flag && !terminated) usleep(30000);
 		mutex.lock();
 		return true;
 	}

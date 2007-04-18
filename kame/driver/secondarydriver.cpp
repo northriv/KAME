@@ -76,7 +76,7 @@ XSecondaryDriver::onConnectedRecorded(const shared_ptr<XDriver> &driver)
 	            	bool skipped = false;
 	                if(!tryStartRecording()) {
 	                	readUnlockAllConnections();
-	                	msecsleep(5);
+	                	usleep(5000);
 	                	continue;
 	                }
 	                XTime time_recorded = driver->time();

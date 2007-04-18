@@ -513,7 +513,7 @@ inline bool
 XNIDAQmxDSO::tryReadAISuspend(const atomic<bool> &terminated) {
 	if(m_suspendRead) {
 		m_readMutex.unlock();
-		while(m_suspendRead && !terminated) msecsleep(30);
+		while(m_suspendRead && !terminated) usleep(30000);
 		m_readMutex.lock();
 		return true;
 	}
