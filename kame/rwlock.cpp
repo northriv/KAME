@@ -165,7 +165,7 @@ XRecursiveRWLock::_writeLock(bool trylock)
 			m_wrlockwaitingcnt--;
 		}
 
-		if(DEBUG_XTHREAD) ASSERT(m_rdlockingcnt == tlRdLockedCnt);
+		if(DEBUG_XTHREAD) ASSERT(m_rdlockingcnt <= tlRdLockedCnt);
 		if(DEBUG_XTHREAD) ASSERT(m_wrlockingcnt == 0);
 		m_wrlockingthread = threadID();
 	}
