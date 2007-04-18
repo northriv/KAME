@@ -89,7 +89,7 @@ private:
 	typedef std::deque<const XRecursiveRWLock*> tLockedList;
 	typedef tLockedList::iterator tLockedList_it;
 	static XThreadLocal<tLockedList> s_tlRdLockedList;
-	inline bool tryWriteLockMutexKeptLocked();
+	inline bool _writeLock(bool trylock);
 };
 
 #endif /*RWLOCK_H_*/

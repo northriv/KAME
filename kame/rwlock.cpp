@@ -142,7 +142,7 @@ XRecursiveRWLock::readUnlock() const
     }
 }
 inline bool
-XRecursiveRWLock::tryWriteLockMutexKeptLocked()
+XRecursiveRWLock::_writeLock(bool trylock)
 {
 	int ret;
 	if(!pthread_equal(m_wrlockingthread, threadID()))
@@ -154,7 +154,15 @@ XRecursiveRWLock::tryWriteLockMutexKeptLocked()
 											s_tlRdLockedList->end(), this);
       
 		if(m_rdlockingcnt > tlRdLockedCnt) {
-			return false;
+			if(trylock) {
+				ret = pthread_mutex_unlock(&m_mutex_write);
+				if(DEBUG_XTHREAD) ASSERT(!ret);
+				return false;
+			}
+			m_wrlockwaitingcnt++;
+			ret = pthread_cond_wait(&m_cond, &m_mutex_write);
+			if(DEBUG_XTHREAD) ASSERT(!ret);
+			m_wrlockwaitingcnt--;
 		}
 
 		if(DEBUG_XTHREAD) ASSERT(m_rdlockingcnt == tlRdLockedCnt);
@@ -167,26 +175,12 @@ XRecursiveRWLock::tryWriteLockMutexKeptLocked()
 bool
 XRecursiveRWLock::tryWriteLock()
 {
-	int ret;
-	if(!tryWriteLockMutexKeptLocked()) {
-		ret = pthread_mutex_unlock(&m_mutex_write);
-		if(DEBUG_XTHREAD) ASSERT(!ret);
-		return false;
-	}
-	return true;
+	return _writeLock(true);
 }
 void 
 XRecursiveRWLock::writeLock()
 {
-	int ret;
-	while(!tryWriteLockMutexKeptLocked()) {
-		m_wrlockwaitingcnt++;
-		ret = pthread_cond_wait(&m_cond, &m_mutex_write);
-		if(DEBUG_XTHREAD) ASSERT(!ret);
-		m_wrlockwaitingcnt--;
-		ret = pthread_mutex_unlock(&m_mutex_write);
-		if(DEBUG_XTHREAD) ASSERT(!ret);
-	}
+	_writeLock(false);
 }
 bool
 XRecursiveRWLock::writeUnlock()
