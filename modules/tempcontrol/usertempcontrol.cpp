@@ -223,14 +223,13 @@ XAVS47IB::afterStop()
 int
 XAVS47IB::setRange(unsigned int range)
 {
-	if(!shared_ptr<XDCSource>(*extDCSource())) {
-		int rangebuf = (int)*powerRange();
-		interface()->send("POW 0");
-		if(range > 7) range = 7;
-		interface()->queryf("ARN 0;RAN %u;*OPC?", range);
-		setPoint();
-		interface()->sendf("POW %u", rangebuf);
-	}
+	int rangebuf = (int)*powerRange();
+	interface()->send("POW 0");
+	if(range > 7) range = 7;
+	interface()->queryf("ARN 0;RAN %u;*OPC?", range);
+	setPoint();
+	interface()->sendf("POW %u", rangebuf);
+
 	m_autorange_wait = 0;
 	return 0;
 }
