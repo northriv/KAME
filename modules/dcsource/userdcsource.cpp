@@ -173,7 +173,7 @@ XMicroTaskTCS::max(int ch, bool autorange) const
 	if(autorange) return 0.099;
 	{
 		XScopedLock<XInterface> lock(*interface());
-		if(!interface()->isOpened()) return;
+		if(!interface()->isOpened()) return 0.099;
 		unsigned int ran[3];
 		interface()->query("STATUS?");
 		if(interface()->scanf("%*u%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u",
