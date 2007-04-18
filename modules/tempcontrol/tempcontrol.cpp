@@ -271,7 +271,7 @@ XTempControl::pid(XTime time, double temp)
 		m_pidAccum += (time - m_pidLastTime) * dt;
 		dxdt = (temp - m_pidLastTemp) / (time - m_pidLastTime); 
 		acc = m_pidAccum / i;
-		acc = - std::min(std::max(- acc * p, 0.0), 100.0) / p;
+		acc = - std::min(std::max(- acc * p, -2.0), 100.0) / p;
 		m_pidAccum = acc * i;
 	}
 	else
