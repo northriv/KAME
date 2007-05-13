@@ -27,13 +27,26 @@ XYK7651::XYK7651(const char *name, bool runtime,
   function()->add("F1");
   function()->add("F5");
   channel()->disable();
-  range()->disable();
 }
 void
 XYK7651::changeFunction(int /*ch*/, int )
 {
 	XScopedLock<XInterface> lock(*interface());
 	if(!interface()->isOpened()) return;
+	if(*function() == 0) {
+		range()->clear();
+		range()->add("10mV");
+		range()->add("100mV");
+		range()->add("1V");
+		range()->add("10V");
+		range()->add("100V");
+	}
+	else {
+		range()->clear();
+		range()->add("1mA");
+		range()->add("10mA");
+		range()->add("100mA");
+	}
 	interface()->send(function()->to_str() + "E");
 }
 void
@@ -44,18 +57,48 @@ XYK7651::changeOutput(int /*ch*/, bool x)
 	interface()->sendf("O%uE", x ? 1 : 0);
 }
 void
-XYK7651::changeValue(int /*ch*/, double x, bool /*autorange*/)
+XYK7651::changeValue(int /*ch*/, double x, bool autorange)
 {
 	XScopedLock<XInterface> lock(*interface());
 	if(!interface()->isOpened()) return;
-	interface()->sendf("SA%.10fE", x);
+	if(autorange)
+		interface()->sendf("SA%.10fE", x);
+	else
+		interface()->sendf("S%.10fE", x);
 }
 double
-XYK7651::max(int /*ch*/, bool /*autorange*/) const
+XYK7651::max(int /*ch*/, bool autorange) const
 {
-	if(*function() == 0)
-		return 30;
-	return 0.12;
+	int ran = *range();
+	if(*function() == 0) {
+		if(autorange || (ran == -1))
+			ran = 4;
+		return 10e-3 * pow(10.0, (double)ran);
+	}
+	else {
+		if(autorange || (ran == -1))
+			ran = 2;
+		return 1e-3 * pow(10.0, (double)ran);
+	}
+}
+void
+XYK7651::changeRange(int /*ch*/, int ran)
+{
+	{
+		XScopedLock<XInterface> lock(*interface());
+		if(!interface()->isOpened()) return;
+		if(*function() == 0) {
+			if((ran == -1))
+				ran = 4;
+			ran += 2;
+		}
+		else {
+			if((ran == -1))
+				ran = 2;
+			ran += 4;
+		}
+		interface()->sendf("R%dE", ran);
+	}
 }
 
 

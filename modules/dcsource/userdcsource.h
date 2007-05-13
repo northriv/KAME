@@ -30,7 +30,7 @@ public:
 	virtual void changeFunction(int ch, int x);
 	virtual void changeOutput(int ch, bool x);
 	virtual void changeValue(int ch, double x, bool autorange);
-	virtual void changeRange(int, int) {}
+	virtual void changeRange(int, int);
 	virtual double max(int ch, bool autorange) const;
 	virtual void queryStatus(int) {}
 };
