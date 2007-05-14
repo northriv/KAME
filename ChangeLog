@@ -1,3 +1,7 @@
+* Mon May 14 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.2.5-1)
+- dcsource: YK7651 supports range.
+
 * Wed Apr 18 2007 Kentaro Kitagawa <kitagawa@scphys.kyoto-u.ac.jp>
 - (2.2.4-1)
 - driver.h: Use try lock to avoid deadlocks.
