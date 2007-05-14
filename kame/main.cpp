@@ -1,6 +1,6 @@
 /***************************************************************************
 		Copyright (C) 2002-2007 Kentaro Kitagawa
-		                   kitagawa@scphys.kyoto-u.ac.jp
+		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
 		modify it under the terms of the GNU Library General Public
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
 	KAboutData aboutData( PACKAGE, I18N_NOOP("KAME"),
 						  VERSION, description, KAboutData::License_GPL,
 						  "(c) 2003-2006, ", 0, 0, "");
-	aboutData.addAuthor("Kentaro Kitagawa",0, "kitagawa@scphys.kyoto-u.ac.jp");
+	aboutData.addAuthor("Kentaro Kitagawa",0, "kitag@issp.u-tokyo.ac.jp");
 	KCmdLineArgs::init( argc, argv, &aboutData );
 	KCmdLineArgs::addCmdLineOptions( options ); // Add our own options.
 
