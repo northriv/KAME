@@ -262,6 +262,8 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 												   m_pausingCount * resolution() * 1e-3));
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskGateCtr,
 											   DAQmx_Val_FiniteSamps, 1));
+		CHECK_DAQMX_RET(DAQmxSetCOCtrTimebaseActiveEdge(m_taskGateCtr,
+			 m_pausingCh.c_str(), DAQmx_Val_Falling));
 		intfCtr()->synchronizeClock(m_taskGateCtr);
 
 		CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskGateCtr,
