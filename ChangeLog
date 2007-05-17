@@ -1,3 +1,7 @@
+* Thu May 17 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.2.6-1)
+- pulserdrivernidaqmx.cpp: Fix pausing feature for fast sps. Fix possible failure of synchronization.
+
 * Wed May 16 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.2.5-2)
 - nidaqmxdriver.cpp: NI-622x.
