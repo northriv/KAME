@@ -17,8 +17,8 @@
 
 static const unsigned int CLEAR_TASKS_EVERYTIME = 0;
 
-static const unsigned int PAUSING_BLANK_BEFORE = 1;
-static const unsigned int PAUSING_BLANK_AFTER = 1;
+static const unsigned int PAUSING_BLANK_BEFORE = 4;
+static const unsigned int PAUSING_BLANK_AFTER = 4;
 
 #include "interface.h"
 #include <klocale.h>
@@ -263,7 +263,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskGateCtr,
 											   DAQmx_Val_FiniteSamps, 1));
 		CHECK_DAQMX_RET(DAQmxSetCOCtrTimebaseActiveEdge(m_taskGateCtr,
-			 m_pausingCh.c_str(), DAQmx_Val_Falling));
+			 m_pausingCh.c_str(), DAQmx_Val_Rising));
 		intfCtr()->synchronizeClock(m_taskGateCtr);
 
 		CHECK_DAQMX_RET(DAQmxCfgDigEdgeStartTrig(m_taskGateCtr,
@@ -272,10 +272,14 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		CHECK_DAQMX_RET(DAQmxSetStartTrigRetriggerable(m_taskGateCtr, true));
 		CHECK_DAQMX_RET(DAQmxSetDigEdgeStartTrigDigSyncEnable(m_taskGateCtr, true));
 		if(!use_ao_clock) {
+			char doch[256];
+			CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDOCtr, doch, 256));
+			CHECK_DAQMX_RET(DAQmxSetCOCtrTimebaseActiveEdge(m_taskDOCtr,
+				 doch, DAQmx_Val_Falling));
 			CHECK_DAQMX_RET(DAQmxSetPauseTrigType(m_taskDOCtr, DAQmx_Val_DigLvl));
 			CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigSrc(m_taskDOCtr, m_pausingSrcTerm.c_str()));
 			CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskDOCtr, DAQmx_Val_High));
-			CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigDigSyncEnable(m_taskDOCtr, true));
+//			CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigDigSyncEnable(m_taskDOCtr, true));
 		}
 	}
 }
@@ -316,9 +320,11 @@ XNIDAQmxPulser::setupTasksAODO() {
     }
 	
 	if(m_pausingBit) {
+		CHECK_DAQMX_RET(DAQmxSetSampClkTimebaseActiveEdge(m_taskAO, DAQmx_Val_Falling));
 		CHECK_DAQMX_RET(DAQmxSetPauseTrigType(m_taskAO, DAQmx_Val_DigLvl));
 		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigSrc(m_taskAO, m_pausingSrcTerm.c_str()));
 		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskAO, DAQmx_Val_High));
+//		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigDigSyncEnable(m_taskAO, true));
 	}
 
 	m_softwareTrigger->setArmTerm(
