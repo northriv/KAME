@@ -577,10 +577,10 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	fprintf(stderr, "Prefilling done.\n");
 	//slave must start before the master.
 	CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
-	if(m_taskDOCtr != TASK_UNDEF)
-		CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
 	if(m_taskGateCtr != TASK_UNDEF)
 		CHECK_DAQMX_RET(DAQmxStartTask(m_taskGateCtr));
+	if(m_taskDOCtr != TASK_UNDEF)
+		CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
 	m_suspendDO = false;
 	fprintf(stderr, "Starting AO....\n");
 	if(m_taskAO != TASK_UNDEF)
