@@ -17,8 +17,8 @@
 
 static const unsigned int CLEAR_TASKS_EVERYTIME = 0;
 
-static const unsigned int PAUSING_BLANK_BEFORE = 4;
-static const unsigned int PAUSING_BLANK_AFTER = 4;
+static const unsigned int PAUSING_BLANK_BEFORE = 1;
+static const unsigned int PAUSING_BLANK_AFTER = 1;
 
 #include "interface.h"
 #include <klocale.h>
