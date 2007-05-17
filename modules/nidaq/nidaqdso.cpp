@@ -11,7 +11,7 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-//! \todo initial items, physical items.
+//! \todo sub-sampling rate synchronization.
 
 #include "nidaqdso.h"
 
