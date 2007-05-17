@@ -270,11 +270,12 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 												 m_pausingGateTerm.c_str(),
 												 DAQmx_Val_Rising));
 		CHECK_DAQMX_RET(DAQmxSetStartTrigRetriggerable(m_taskGateCtr, true));
-		
+		CHECK_DAQMX_RET(DAQmxSetDigEdgeStartTrigDigSyncEnable(m_taskGateCtr, true));
 		if(!use_ao_clock) {
 			CHECK_DAQMX_RET(DAQmxSetPauseTrigType(m_taskDOCtr, DAQmx_Val_DigLvl));
 			CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigSrc(m_taskDOCtr, m_pausingSrcTerm.c_str()));
 			CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskDOCtr, DAQmx_Val_High));
+			CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigDigSyncEnable(m_taskDOCtr, true));
 		}
 	}
 }
@@ -798,12 +799,11 @@ XNIDAQmxPulser::genBankDO()
 				samps_rest -= lps * (pausing_cnt_blank_before + pausing_cnt_blank_after);
 				tonext -= lps * pausing_period;
 				tRawDO patDO_or_p = patDO | pausingbit;
-				C_ASSERT(pausing_cnt_blank_before == 2);
-				C_ASSERT(pausing_cnt_blank_after == 1);
 				for(unsigned int lp = 0; lp < lps; lp++) {
-					*pDO++ = patDO_or_p;
-					*pDO++ = patDO_or_p;
-					*pDO++ = patDO;
+					for(int i = 0; i < pausing_cnt_blank_before; i++)
+						*pDO++ = patDO_or_p;
+					for(int i = 0; i < pausing_cnt_blank_after; i++)
+						*pDO++ = patDO;
 				}
 			}
 			if(samps_rest < pausing_cnt_blank_before + pausing_cnt_blank_after)
