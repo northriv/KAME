@@ -1,3 +1,7 @@
+* Mon Jun 11 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.2.6-2)
+- rwlock.cpp: Fix for XRecursiveRWLock.
+
 * Thu May 17 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.2.6-1)
 - pulserdrivernidaqmx.cpp: Fix pausing feature for fast sps. Fix possible failure of synchronization.
