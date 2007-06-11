@@ -153,7 +153,7 @@ XRecursiveRWLock::_writeLock(bool trylock)
 		int tlRdLockedCnt = (int)std::count(s_tlRdLockedList->begin(),
 											s_tlRdLockedList->end(), this);
       
-		if(m_rdlockingcnt > tlRdLockedCnt) {
+		while(m_rdlockingcnt > tlRdLockedCnt) {
 			if(trylock) {
 				ret = pthread_mutex_unlock(&m_mutex_write);
 				if(DEBUG_XTHREAD) ASSERT(!ret);
