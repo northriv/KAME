@@ -553,7 +553,7 @@ XNeoceraLTC21::getRaw(shared_ptr<XChannel> &channel)
 	interface()->query("QSAMP?" + channel->getName() + ";");
 	double x;
 	if(interface()->scanf("%7lf", &x) != 1)
-		throw XInterface::XConvError(__FILE__, __LINE__);;
+		return 0.0;
 	return x;
 }
 double
@@ -562,7 +562,7 @@ XNeoceraLTC21::getHeater()
 	interface()->query("QHEAT?;");
 	double x;
 	if(interface()->scanf("%5lf", &x) != 1)
-		throw XInterface::XConvError(__FILE__, __LINE__);;
+		throw XInterface::XConvError(__FILE__, __LINE__);
 	return x;
 }
 void
@@ -630,7 +630,7 @@ XNeoceraLTC21::open() throw (XInterface::XInterfaceError &)
 	if(!shared_ptr<XDCSource>(*extDCSource())) {
 		interface()->query("QOUT?1;");
 		int sens, cmode, range;
-		if(interface()->scanf("%1d%1d%1d;", &sens, &cmode, &range) != 3)
+		if(interface()->scanf("%1d;%1d;%1d;", &sens, &cmode, &range) != 3)
 			throw XInterface::XConvError(__FILE__, __LINE__);
 		currentChannel()->str(formatString("%d", sens));
 		
@@ -648,7 +648,7 @@ XNeoceraLTC21::open() throw (XInterface::XInterfaceError &)
 	
 		interface()->query("QPID?1;");
 		double p, i, d, power, limit;
-		if(interface()->scanf("%lf,%lf,%lf,%lf,%lf;", &p, &i, &d, &power, &limit) != 5)
+		if(interface()->scanf("%lf;%lf;%lf;%lf;%lf;", &p, &i, &d, &power, &limit) != 5)
 	        throw XInterface::XConvError(__FILE__, __LINE__);
 		prop()->value(p);
 		interval()->value(i);
