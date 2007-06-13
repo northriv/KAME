@@ -189,6 +189,48 @@ protected:
 	virtual void open() throw (XInterface::XInterfaceError &);
 };
 
+//!Neocera LTC-21.
+class XNeoceraLTC21:public XCharDeviceDriver<XTempControl>
+{
+	XNODE_OBJECT
+protected:
+	XNeoceraLTC21(const char *name, bool runtime,
+				  const shared_ptr<XScalarEntryList> &scalarentries,
+				  const shared_ptr<XInterfaceList> &interfaces,
+				  const shared_ptr<XThermometerList> &thermometers,
+				  const shared_ptr<XDriverList> &drivers);
+public:
+	~XNeoceraLTC21() {}
+
+protected:
+	virtual double getRaw(shared_ptr<XChannel> &channel);
+	//! obtain current heater power
+	//! \sa m_heaterPowerUnit()
+	virtual double getHeater();
+	//! ex. "W", "dB", or so
+	virtual const char *m_heaterPowerUnit() {return "%";}
+  
+	//! Be called just after opening interface. Call start() inside this routine appropriately.
+	virtual void open() throw (XInterface::XInterfaceError &);
+    
+	virtual void onPChanged(double p);
+	virtual void onIChanged(double i);
+	virtual void onDChanged(double d);
+	virtual void onTargetTempChanged(double temp);
+	virtual void onManualPowerChanged(double pow);
+	virtual void onHeaterModeChanged(int mode);
+	virtual void onPowerRangeChanged(int range);
+	virtual void onCurrentChannelChanged(const shared_ptr<XChannel> &ch);
+	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
+private:
+	//! set the system into the control mode.
+	void control();
+	//! leave the control mode.
+	void monitor();
+	//! set PID, manual power.
+	void setHeater();
+};
+
 //!LakeShore 340
 class XLakeShore340:public XCharDeviceDriver<XTempControl>
 {

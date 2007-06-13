@@ -20,6 +20,7 @@ REGISTER_TYPE(XDriverList, CryoconM62, "Cryocon M62 temp. controller");
 REGISTER_TYPE(XDriverList, LakeShore340, "LakeShore 340 temp. controller");
 REGISTER_TYPE(XDriverList, AVS47IB, "Picowatt AVS-47 bridge");
 REGISTER_TYPE(XDriverList, ITC503, "Oxford ITC-503 temp. controller");
+REGISTER_TYPE(XDriverList, NeoceraLTC21, "Neocera LT-21 temp. controller");
 
 XITC503::XITC503(const char *name, bool runtime,
 				 const shared_ptr<XScalarEntryList> &scalarentries,
@@ -515,6 +516,146 @@ XCryocon::setHeaterSetPoint(double value)
 {
 	interface()->sendf("HEATER:SETPT %f", value);
 	return 0;
+}
+
+XNeoceraLTC21::XNeoceraLTC21(const char *name, bool runtime,
+							 const shared_ptr<XScalarEntryList> &scalarentries,
+							 const shared_ptr<XInterfaceList> &interfaces,
+							 const shared_ptr<XThermometerList> &thermometers,
+							 const shared_ptr<XDriverList> &drivers)
+	: XCharDeviceDriver<XTempControl>(name, runtime, scalarentries, interfaces, thermometers, drivers)
+{
+	const char *channels_create[] = {"1", "2", 0L};
+	const char *excitations_create[] = {0L};
+//	const char *excitations_create[] = {"1mV", "320uV", "100uV", "32uV", "10uV", 0L};
+	createChannels(scalarentries, thermometers, true, channels_create, excitations_create);
+	interface()->setEOS("");
+	powerRange()->add("0");
+	powerRange()->add("0.05W");
+	powerRange()->add("0.5W");
+	powerRange()->add("5W");
+	powerRange()->add("50W");
+}
+void
+XNeoceraLTC21::control()
+{
+	interface()->send("SCONT;");
+}
+void
+XNeoceraLTC21::monitor()
+{
+	interface()->send("SMON;");
+}
+
+double
+XNeoceraLTC21::getRaw(shared_ptr<XChannel> &channel)
+{
+	interface()->query("QSAMP?" + channel->getName() + ";");
+	double x;
+	if(interface()->scanf("%7lf", &x) != 1)
+		throw XInterface::XConvError(__FILE__, __LINE__);;
+	return x;
+}
+double
+XNeoceraLTC21::getHeater()
+{
+	interface()->query("QHEAT?;");
+	double x;
+	if(interface()->scanf("%5lf", &x) != 1)
+		throw XInterface::XConvError(__FILE__, __LINE__);;
+	return x;
+}
+void
+XNeoceraLTC21::setHeater()
+{
+	interface()->sendf("SPID1,%f,%f,%f,%f,100.0;",
+		 (double)*prop(), (double)*interval(), (double)*deriv(), (double)*manualPower());
+}
+void
+XNeoceraLTC21::onPChanged(double /*p*/)
+{
+	setHeater();
+}
+void
+XNeoceraLTC21::onIChanged(double /*i*/)
+{
+	setHeater();
+}
+void
+XNeoceraLTC21::onDChanged(double /*d*/)
+{
+	setHeater();
+}
+void
+XNeoceraLTC21::onTargetTempChanged(double temp)
+{
+	interface()->sendf("SETP1,%.5f;", temp);
+}
+void
+XNeoceraLTC21::onManualPowerChanged(double /*pow*/)
+{
+	setHeater();
+}
+void
+XNeoceraLTC21::onHeaterModeChanged(int x)
+{
+	if(x < 6) {
+		interface()->sendf("SHCONT%d;", x);
+		control();
+	}
+	else
+		monitor();
+}
+void
+XNeoceraLTC21::onPowerRangeChanged(int ran)
+{
+	interface()->sendf("SHMXPWR%d;", ran);
+}
+void
+XNeoceraLTC21::onCurrentChannelChanged(const shared_ptr<XChannel> &cch)
+{
+	int ch = atoi(cch->getName().c_str());
+	if(ch < 1) ch = 3;
+	interface()->sendf("SOSEN1,%d;", ch);
+}
+void
+XNeoceraLTC21::onExcitationChanged(const shared_ptr<XChannel> &, int)
+{
+	XScopedLock<XInterface> lock(*interface());
+	if(!interface()->isOpened()) return;
+}
+void
+XNeoceraLTC21::open() throw (XInterface::XInterfaceError &)
+{
+	if(!shared_ptr<XDCSource>(*extDCSource())) {
+		interface()->query("QOUT?1;");
+		int sens, cmode, range;
+		if(interface()->scanf("%1d%1d%1d;", &sens, &cmode, &range) != 3)
+			throw XInterface::XConvError(__FILE__, __LINE__);
+		currentChannel()->str(formatString("%d", sens));
+		
+		heaterMode()->clear();
+		heaterMode()->add("AUTO P");
+		heaterMode()->add("AUTO PI");
+		heaterMode()->add("AUTO PID");
+		heaterMode()->add("PID");
+		heaterMode()->add("TABLE");
+		heaterMode()->add("DEFAULT");
+		heaterMode()->add("MONITOR");
+
+		heaterMode()->value(cmode);
+		powerRange()->value(range);
+	
+		interface()->query("QPID?1;");
+		double p, i, d, power, limit;
+		if(interface()->scanf("%lf,%lf,%lf,%lf,%lf;", &p, &i, &d, &power, &limit) != 5)
+	        throw XInterface::XConvError(__FILE__, __LINE__);
+		prop()->value(p);
+		interval()->value(i);
+		deriv()->value(d);
+		manualPower()->value(power);
+	}
+	start();
 }
 
 XLakeShore340::XLakeShore340(const char *name, bool runtime,
