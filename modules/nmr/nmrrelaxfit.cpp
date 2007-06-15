@@ -242,6 +242,14 @@ static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr9s3[] = {
 static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr9s4[] = {
 	{45,0.0010284}, {36,0.011189}, {28,0.05375}, {21,0.14848}, {15,0.25641}, {10,0.27972}, {6,0.18275}, {3,0.060606}, {1,0.0060606}, {0, 0}
 };
+//Dy2Ti2O7 47Ti-NQR spinice at 4.4MHz
+static const struct XRelaxFuncPoly::Term  s_relaxdata_nqrspinice44[] = {
+	{10.0, 0.9142}, {3.0, 0.0578}, {1.4, 0.0280}, {0, 0}
+};
+//Dy2Ti2O7 47Ti-NQR spinice at 8.8MHz
+static const struct XRelaxFuncPoly::Term  s_relaxdata_nqrspinice88[] = {
+	{10.0, 0.3573}, {7.7, 0.334}, {3.0, 0.264}, {1.4, 0.0447}, {0, 0}
+};
 
 XRelaxFuncList::XRelaxFuncList(const char *name, bool runtime)
 	: XAliasListNode<XRelaxFunc>(name, runtime)
@@ -282,6 +290,8 @@ XRelaxFuncList::XRelaxFuncList(const char *name, bool runtime)
 	create<XRelaxFuncPoly>("NQR I=9/2 5/2-3/2", true, s_relaxdata_nqr9_5);
 	create<XRelaxFuncPoly>("NQR I=9/2 3/2-2/1", true, s_relaxdata_nqr9_3);
 	create<XRelaxFuncSqrt>("Random Spins; exp(-sqrt(t/tau))", true);   
+	create<XRelaxFuncPoly>("NQR Dy2Ti2O7 spin-ice 47Ti-NQR 4.4MHz", true, s_relaxdata_nqrspinice44);
+	create<XRelaxFuncPoly>("NQR Dy2Ti2O7 spin-ice 47Ti-NQR 8.8MHz", true, s_relaxdata_nqrspinice88);
 }
 
 
