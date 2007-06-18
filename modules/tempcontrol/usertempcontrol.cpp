@@ -679,7 +679,7 @@ XLakeShore340::XLakeShore340(const char *name, bool runtime,
 double
 XLakeShore340::getRaw(shared_ptr<XChannel> &channel)
 {
-	shared_ptr<XThermometer> thermo = *(shared_ptr<XChannel>(*currentChannel()))->thermometer();
+	shared_ptr<XThermometer> thermo = *channel->thermometer();
 	if(thermo)
 		interface()->query("SRDG? " + channel->getName());
 	else
@@ -804,8 +804,10 @@ XLakeShore340::open() throw (XInterface::XInterfaceError &)
 		else
 			powerRange()->value(range - 1);
 	
+		double pow;
 		interface()->query("MOUT?");
-		manualPower()->value(interface()->toDouble());
+		if(interface()->scanf("%lf", &pow) == 1)
+			manualPower()->value(pow);
 		interface()->query("PID? 1");
 		double p, i, d;
 		if(interface()->scanf("%lf,%lf,%lf", &p, &i, &d) != 3)
