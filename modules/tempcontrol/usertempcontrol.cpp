@@ -669,6 +669,11 @@ XLakeShore340::XLakeShore340(const char *name, bool runtime,
 	const char *excitations_create[] = {0L};
 	createChannels(scalarentries, thermometers, true, channels_create, excitations_create);
 	interface()->setEOS("");
+	interface()->setGPIBUseSerialPollOnWrite(false);
+	interface()->setGPIBUseSerialPollOnRead (false);
+	interface()->setGPIBWaitBeforeWrite(20);
+	//    ExclusiveWaitAfterWrite = 10;
+	interface()->setGPIBWaitBeforeRead(20);	
 }
 
 double
@@ -772,7 +777,9 @@ XLakeShore340::open() throw (XInterface::XInterfaceError &)
 	}
 	if(!shared_ptr<XDCSource>(*extDCSource())) {
 		interface()->query("CSET?");
-		currentChannel()->str(std::string(&interface()->buffer()[0]));
+		int ch;
+		if(interface()->scanf("%d", &ch) != 1)
+			currentChannel()->str(formatString("%d", ch));
 		
 		heaterMode()->clear();
 		heaterMode()->add("Off");
