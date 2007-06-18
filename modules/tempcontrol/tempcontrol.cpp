@@ -60,9 +60,6 @@ XTempControl::XTempControl(const char *name, bool runtime,
     m_stabilized(create<XDoubleNode>("Stabilized", true, "%g")),
     m_form(new FrmTempControl(g_pFrmMain))
 {
-  std::deque<shared_ptr<XScalarEntry> > m_entry_temps;
-  std::deque<shared_ptr<XScalarEntry> > m_entry_raws;
- 
   m_conSetupChannel = xqcon_create<XQComboBoxConnector>(
                         m_setupChannel, m_form->m_cmbSetupChannel);
   m_conCurrentChannel = xqcon_create<XQComboBoxConnector>(
