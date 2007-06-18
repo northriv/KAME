@@ -779,7 +779,7 @@ XLakeShore340::open() throw (XInterface::XInterfaceError &)
 		interface()->query("CSET?");
 		char ch[16];
 		if(interface()->scanf("%15s", ch) == 1)
-			currentChannel()->str(ch);
+			currentChannel()->str(std::string(ch));
 		
 		heaterMode()->clear();
 		heaterMode()->add("Off");
