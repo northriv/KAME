@@ -20,7 +20,7 @@ REGISTER_TYPE(XDriverList, CryoconM62, "Cryocon M62 temp. controller");
 REGISTER_TYPE(XDriverList, LakeShore340, "LakeShore 340 temp. controller");
 REGISTER_TYPE(XDriverList, AVS47IB, "Picowatt AVS-47 bridge");
 REGISTER_TYPE(XDriverList, ITC503, "Oxford ITC-503 temp. controller");
-REGISTER_TYPE(XDriverList, NeoceraLTC21, "Neocera LT-21 temp. controller");
+REGISTER_TYPE(XDriverList, NeoceraLTC21, "Neocera LTC-21 temp. controller");
 
 XITC503::XITC503(const char *name, bool runtime,
 				 const shared_ptr<XScalarEntryList> &scalarentries,

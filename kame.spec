@@ -105,6 +105,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/kame/libdmmcore*
 %{_libdir}/kame/libmagnetpscore*
 %{_libdir}/kame/libdcsourcecore*
+%{_libdir}/kame/liblevelmeter*
 %{_libdir}/kame/modules/libdcsource*
 %{_libdir}/kame/modules/libdmm*
 %{_libdir}/kame/modules/libdso*
@@ -112,6 +113,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/kame/modules/liblia*
 %{_libdir}/kame/modules/libmagnetps*
 %{_libdir}/kame/modules/libtempcontrol*
+%{_libdir}/kame/modules/liblevelmeter*
 
 %files modules-nmr
 %{_libdir}/kame/libnmrpulsercore*
