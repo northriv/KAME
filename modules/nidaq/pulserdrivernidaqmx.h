@@ -88,6 +88,7 @@ private:
 	unsigned int m_genAOIndex;
 	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> m_softwareTrigger;
 	unsigned int m_pausingBit;
+	unsigned int m_aswBit;
 	unsigned int m_pausingCount;
 	std::string m_pausingCh;
 	std::string m_pausingSrcTerm;

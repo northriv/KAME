@@ -443,6 +443,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 		stopPulseGen();
 		
 		unsigned int pausingbitnext = selectedPorts(PORTSEL_PAUSING);
+		m_aswBit = selectedPorts(PORTSEL_ASW);
 	
 		if(CLEAR_TASKS_EVERYTIME ||
 		   (m_taskDO == TASK_UNDEF) ||
@@ -782,6 +783,7 @@ XNIDAQmxPulser::genBankDO()
 	uint64_t tonext = m_genRestSampsDO;
 	uint64_t total = m_genTotalCountDO;
 	const tRawDO pausingbit = m_pausingBit;
+	const tRawDO aswbit = m_aswBit;
 	const uint64_t pausing_cnt = m_pausingCount;
 	const uint64_t pausing_cnt_blank_before = PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER;
 	const uint64_t pausing_cnt_blank_after = 1;
@@ -794,7 +796,8 @@ XNIDAQmxPulser::genBankDO()
 	for(unsigned int samps_rest = size; samps_rest;) {
 		//pattern of digital lines.
 		tRawDO patDO = PAT_DO_MASK & pat;
-		if(pausingbit && ((pat & PAT_QAM_PULSE_IDX_MASK) == 0)) {
+		//No QAM nor ASW.
+		if(pausingbit && ((pat & PAT_QAM_PULSE_IDX_MASK) == 0) && !(pat & aswbit) {
 			//generate a pausing trigger.
 			ASSERT(tonext > 0);
 			unsigned int lps = (unsigned int)std::min(
@@ -851,6 +854,7 @@ XNIDAQmxPulser::genBankAO()
 	uint64_t tonext = m_genRestSampsAO;
 	unsigned int aoidx = m_genAOIndex;
 	const tRawDO pausingbit = m_pausingBit;
+	const tRawDO aswbit = m_aswBit;
 	uint64_t pausing_cnt = m_pausingCount;
 	uint64_t pausing_cnt_blank_before = PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER;
 	uint64_t pausing_cnt_blank_after = 1;
@@ -862,7 +866,8 @@ XNIDAQmxPulser::genBankAO()
 	for(unsigned int samps_rest = size; samps_rest >= oversamp_ao;) {
 		unsigned int pidx = (pat & PAT_QAM_PULSE_IDX_MASK) / PAT_QAM_PULSE_IDX;
 
-		if(pausingbit && (pidx == 0)) {
+		//No QAM nor ASW.
+		if(pausingbit && (pidx == 0) && !(pat & aswbit)) {
 			//generate a pausing trigger.
 			ASSERT(tonext > 0);
 			unsigned int lps = (unsigned int)std::min(
