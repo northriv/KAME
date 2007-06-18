@@ -777,9 +777,9 @@ XLakeShore340::open() throw (XInterface::XInterfaceError &)
 	}
 	if(!shared_ptr<XDCSource>(*extDCSource())) {
 		interface()->query("CSET?");
-		int ch;
-		if(interface()->scanf("%d", &ch) != 1)
-			currentChannel()->str(formatString("%d", ch));
+		char ch;
+		if(interface()->scanf("%c", &ch) == 1)
+			currentChannel()->str(std::string(ch));
 		
 		heaterMode()->clear();
 		heaterMode()->add("Off");
