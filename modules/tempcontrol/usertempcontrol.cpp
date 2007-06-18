@@ -776,9 +776,9 @@ XLakeShore340::open() throw (XInterface::XInterfaceError &)
 											(double)pow(10.0, i - 5.0)  * pow(maxcurr, 2.0) * res));
 	}
 	if(!shared_ptr<XDCSource>(*extDCSource())) {
-		interface()->query("CSET?");
-		char ch[16];
-		if(interface()->scanf("%15s", ch) == 1)
+		interface()->query("CSET? 1");
+		char ch[2];
+		if(interface()->scanf("%1s", ch) == 1)
 			currentChannel()->str(std::string(ch));
 		
 		heaterMode()->clear();
@@ -804,10 +804,8 @@ XLakeShore340::open() throw (XInterface::XInterfaceError &)
 		else
 			powerRange()->value(range - 1);
 	
-		double pow;
-		interface()->query("MOUT?");
-		if(interface()->scanf("%lf", &pow) == 1)
-			manualPower()->value(pow);
+		interface()->query("MOUT? 1");
+		manualPower()->value(interface()->toDouble());
 		interface()->query("PID? 1");
 		double p, i, d;
 		if(interface()->scanf("%lf,%lf,%lf", &p, &i, &d) != 3)
