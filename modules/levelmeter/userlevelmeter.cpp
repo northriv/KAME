@@ -57,6 +57,6 @@ XLM500::XLM500(const char *name, bool runtime,
 double
 XLM500::getLevel(unsigned int ch)
 {
-	interface()->query("MEAS? %u", ch + 1);
+	interface()->queryf("MEAS? %u", ch + 1);
 	return interface()->toDouble();
 }
