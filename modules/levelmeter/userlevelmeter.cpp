@@ -17,6 +17,7 @@
 //---------------------------------------------------------------------------
 
 REGISTER_TYPE(XDriverList, ILM, "Oxford ILM Helium Level Meter");
+REGISTER_TYPE(XDriverList, LM500, "LakeShore LM-500 Level Meter");
 
 XILM::XILM(const char *name, bool runtime,
 			   const shared_ptr<XScalarEntryList> &scalarentries,
@@ -32,5 +33,30 @@ XILM::XILM(const char *name, bool runtime,
 double
 XILM::getLevel(unsigned int ch)
 {
-	return read(1) / 10.0;
+	return read(ch + 1) / 10.0;
+}
+
+XLM500::XLM500(const char *name, bool runtime,
+			   const shared_ptr<XScalarEntryList> &scalarentries,
+			   const shared_ptr<XInterfaceList> &interfaces,
+			   const shared_ptr<XThermometerList> &thermometers,
+			   const shared_ptr<XDriverList> &drivers) :
+    XCharDeviceDriver<XLevelMeter>(name, runtime, scalarentries, interfaces, thermometers, drivers)
+{
+	const char *channels_create[] = {"1", "2", 0L};
+	createChannels(scalarentries, channels_create);
+
+	interface()->setEOS("");
+	interface()->setGPIBUseSerialPollOnWrite(false);
+	interface()->setGPIBUseSerialPollOnRead (false);
+	interface()->setGPIBWaitBeforeWrite(20);
+	//    ExclusiveWaitAfterWrite = 10;
+	interface()->setGPIBWaitBeforeRead(20);		
+}
+
+double
+XLM500::getLevel(unsigned int ch)
+{
+	interface()->query("MEAS? %u", ch + 1);
+	return interface()->toDouble();
 }

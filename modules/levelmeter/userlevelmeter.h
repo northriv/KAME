@@ -34,5 +34,20 @@ protected:
 	virtual double getLevel(unsigned int ch);
 };
 
+//LakeShore LM-500 level meter
+class XLM500 : public XCharDeviceDriver<XLevelMeter>
+{
+	XNODE_OBJECT
+protected:
+	XLM500(const char *name, bool runtime,
+		   const shared_ptr<XScalarEntryList> &scalarentries,
+		   const shared_ptr<XInterfaceList> &interfaces,
+		   const shared_ptr<XThermometerList> &thermometers,
+		   const shared_ptr<XDriverList> &drivers);
+public:
+	virtual ~XLM500() {}
+protected:
+	virtual double getLevel(unsigned int ch);
+};
 #endif
 
