@@ -797,7 +797,7 @@ XNIDAQmxPulser::genBankDO()
 		//pattern of digital lines.
 		tRawDO patDO = PAT_DO_MASK & pat;
 		//No QAM nor ASW.
-		if(pausingbit && ((pat & PAT_QAM_PULSE_IDX_MASK) == 0) && !(pat & aswbit) {
+		if(pausingbit && ((pat & PAT_QAM_PULSE_IDX_MASK) == 0) && !(pat & aswbit)) {
 			//generate a pausing trigger.
 			ASSERT(tonext > 0);
 			unsigned int lps = (unsigned int)std::min(
