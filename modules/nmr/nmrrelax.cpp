@@ -94,7 +94,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	  m_smoothSamples(create<XUIntNode>("SmoothSamples", false)),
 	  m_p1Dist(create<XComboNode>("P1Dist", false, true)),
 	  m_relaxFunc(create<XItemNode < XRelaxFuncList, XRelaxFunc > >(
-					  "RelaxFunc", false, m_relaxFuncs)),
+					  "RelaxFunc", false, m_relaxFuncs, true)),
 	  m_resetFit(create<XNode>("ResetFit", true)),
 	  m_clearAll(create<XNode>("ClearAll", true)),
 	  m_fitStatus(create<XStringNode>("FitStatus", true)),

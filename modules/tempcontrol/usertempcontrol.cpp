@@ -671,9 +671,9 @@ XLakeShore340::XLakeShore340(const char *name, bool runtime,
 	interface()->setEOS("");
 	interface()->setGPIBUseSerialPollOnWrite(false);
 	interface()->setGPIBUseSerialPollOnRead (false);
-	interface()->setGPIBWaitBeforeWrite(20);
+	interface()->setGPIBWaitBeforeWrite(40);
 	//    ExclusiveWaitAfterWrite = 10;
-	interface()->setGPIBWaitBeforeRead(20);	
+	interface()->setGPIBWaitBeforeRead(40);	
 }
 
 double

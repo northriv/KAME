@@ -98,5 +98,6 @@ XLevelMeter::execute(const atomic<bool> &terminated)
  
 		finishWritingRaw(XTime::now(), XTime::now());
 	}
+	afterStop();	
 	return NULL;
 }
