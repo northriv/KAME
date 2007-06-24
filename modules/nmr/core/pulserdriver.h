@@ -94,6 +94,7 @@ public:
     const shared_ptr<XDoubleNode> &difFreq() const {return m_difFreq;} //!< [MHz]
     const shared_ptr<XDoubleNode> &qswDelay() const {return m_qswDelay;} //!< Q-switch setting, period after the end-edge of pulses [us].
     const shared_ptr<XDoubleNode> &qswWidth() const {return m_qswWidth;} //!< Q-switch setting, width of suppression [us].
+    const shared_ptr<XDoubleNode> &qswSoftSWOff() const {return m_qswSoftSWOff;} //!< Q-switch setting, second pulse [us].
     const shared_ptr<XBoolNode> &qswPiPulseOnly() const {return m_qswPiPulseOnly;} //!< Q-switch setting, use QSW only for pi pulses.
     const shared_ptr<XBoolNode> &invertPhase() const {return m_invertPhase;}
     const shared_ptr<XComboNode> &portSel(unsigned int port) const {
@@ -274,6 +275,7 @@ private:
     const shared_ptr<XDoubleNode> m_induceEmissionPhase; 
     const shared_ptr<XDoubleNode> m_qswDelay;
     const shared_ptr<XDoubleNode> m_qswWidth;
+    const shared_ptr<XDoubleNode> m_qswSoftSWOff;
     const shared_ptr<XBoolNode> m_invertPhase;
     const shared_ptr<XBoolNode> m_qswPiPulseOnly;
     shared_ptr<XComboNode> m_portSel[NUM_DO_PORTS];
@@ -294,7 +296,7 @@ private:
 		m_conMoreConfigShow,
 		m_conDIFFreq,
 		m_conInduceEmission, m_conInduceEmissionPhase,
-		m_conQSWDelay, m_conQSWWidth, m_conQSWPiPulseOnly;
+		m_conQSWDelay, m_conQSWWidth, m_conQSWSoftSWOff, m_conQSWPiPulseOnly;
 	xqcon_ptr m_conPortSel[NUM_DO_PORTS];
 	shared_ptr<XListener> m_lsnOnPulseChanged;
 	shared_ptr<XListener> m_lsnOnMoreConfigShow;

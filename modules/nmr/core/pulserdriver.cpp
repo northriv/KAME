@@ -178,6 +178,7 @@ XPulser::XPulser(const char *name, bool runtime,
     m_induceEmissionPhase(create<XDoubleNode>("InduceEmissionPhase", false)),
     m_qswDelay(create<XDoubleNode>("QSWDelay", false)),
     m_qswWidth(create<XDoubleNode>("QSWWidth", false)),
+    m_qswSoftSWOff(create<XDoubleNode>("QSWSoftSWOff", false)),
     m_invertPhase(create<XBoolNode>("InvertPhase", false)),
     m_qswPiPulseOnly(create<XBoolNode>("QSWPiPulseOnly", false)),
     m_moreConfigShow(create<XNode>("MoreConfigShow", true)),
@@ -242,6 +243,7 @@ XPulser::XPulser(const char *name, bool runtime,
 	qamLevel2()->value(1.0);
 	qswDelay()->value(5.0);
 	qswWidth()->value(10.0);
+	qswSoftSWOff()->value(1.0);
  
 	combMode()->add(COMB_MODE_OFF);
 	combMode()->add(COMB_MODE_ON);
@@ -350,6 +352,7 @@ XPulser::XPulser(const char *name, bool runtime,
 	m_conInduceEmissionPhase = xqcon_create<XKDoubleNumInputConnector>(m_induceEmissionPhase, m_formMore->m_numInduceEmissionPhase);
 	m_conQSWDelay = xqcon_create<XQLineEditConnector>(m_qswDelay, m_formMore->m_edQSWDelay);  
 	m_conQSWWidth = xqcon_create<XQLineEditConnector>(m_qswWidth, m_formMore->m_edQSWWidth);  
+	m_conQSWSoftSWOff = xqcon_create<XQLineEditConnector>(m_qswSoftSWOff, m_formMore->m_edQSWSoftSWOff);  
 	m_conQSWPiPulseOnly = xqcon_create<XQToggleButtonConnector>(m_qswPiPulseOnly, m_formMore->m_ckbQSWPiPulseOnly);  
  
 	output()->setUIEnabled(false);
@@ -390,6 +393,7 @@ XPulser::XPulser(const char *name, bool runtime,
 	induceEmissionPhase()->setUIEnabled(false);
 	qswDelay()->setUIEnabled(false);
 	qswWidth()->setUIEnabled(false);
+	qswSoftSWOff()->setUIEnabled(false);
 	qswPiPulseOnly()->setUIEnabled(false);
 	invertPhase()->setUIEnabled(false);
   
@@ -437,6 +441,7 @@ XPulser::start()
 	induceEmissionPhase()->setUIEnabled(true);
 	qswDelay()->setUIEnabled(true);
 	qswWidth()->setUIEnabled(true);
+	qswSoftSWOff()->setUIEnabled(true);
 	qswPiPulseOnly()->setUIEnabled(true);
 	invertPhase()->setUIEnabled(true);
 	//Port0 is locked.
@@ -485,6 +490,7 @@ XPulser::start()
 	induceEmissionPhase()->onValueChanged().connect(m_lsnOnPulseChanged);    
 	qswDelay()->onValueChanged().connect(m_lsnOnPulseChanged);
 	qswWidth()->onValueChanged().connect(m_lsnOnPulseChanged);
+	qswSoftSWOff()->onValueChanged().connect(m_lsnOnPulseChanged);
 	qswPiPulseOnly()->onValueChanged().connect(m_lsnOnPulseChanged);
 	invertPhase()->onValueChanged().connect(m_lsnOnPulseChanged);
 	for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
@@ -551,6 +557,7 @@ XPulser::stop()
 	induceEmissionPhase()->setUIEnabled(false);
 	qswDelay()->setUIEnabled(false);
 	qswWidth()->setUIEnabled(false);
+	qswSoftSWOff()->setUIEnabled(false);
 	qswPiPulseOnly()->setUIEnabled(false);
 	invertPhase()->setUIEnabled(false);
 	for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
@@ -808,6 +815,7 @@ XPulser::rawToRelPat() throw (XRecordError&)
 	const bool driven_equilibrium = *drivenEquilibrium();
 	const uint64_t _qsw_delay = rintSampsMicroSec(*qswDelay());
 	const uint64_t _qsw_width = rintSampsMicroSec(*qswWidth());
+	const uint64_t _qsw_softswoff = rintSampsMicroSec(*qswSoftSWOff());
 	const bool _qsw_pi_only = *qswPiPulseOnly();
 	const int comb_rot_num = lrint(*combOffRes() * (m_combPWRecorded / 1000.0 * 4));
   
@@ -932,6 +940,10 @@ XPulser::rawToRelPat() throw (XRecordError&)
 			if(! _qsw_pi_only) {
 				patterns.insert(tpat(cpos + _comb_pw/2 + _qsw_delay, ~(uint32_t)0 , qswmask));
 				patterns.insert(tpat(cpos + _comb_pw/2 + (_qsw_delay + _qsw_width), 0 , qswmask));
+				if(_qsw_softswoff) {
+					patterns.insert(tpat(cpos + _comb_pw/2 + (_qsw_delay + _qsw_width + _qsw_softswoff), ~(uint32_t)0 , qswmask));
+					patterns.insert(tpat(cpos + _comb_pw/2 + (_qsw_delay + _qsw_width + 2*_qsw_softswoff), 0 , qswmask));
+				}
 			}
 		}   
 		pos += _p1;
@@ -952,6 +964,10 @@ XPulser::rawToRelPat() throw (XRecordError&)
 		if(! _qsw_pi_only) {
 			patterns.insert(tpat(pos + _pw1/2 + _qsw_delay, ~(uint32_t)0 , qswmask));
 			patterns.insert(tpat(pos + _pw1/2 + (_qsw_delay + _qsw_width), 0 , qswmask));
+			if(_qsw_softswoff) {
+				patterns.insert(tpat(pos + _pw1/2 + (_qsw_delay + _qsw_width + _qsw_softswoff), ~(uint32_t)0 , qswmask));
+				patterns.insert(tpat(pos + _pw1/2 + (_qsw_delay + _qsw_width + 2*_qsw_softswoff), 0 , qswmask));
+			}
 		}
      
 		//2tau
@@ -989,6 +1005,10 @@ XPulser::rawToRelPat() throw (XRecordError&)
 			patterns.insert(tpat(pos + _pw2/2, 0, g2mask));
 			patterns.insert(tpat(pos + _pw2/2 + _qsw_delay, ~(uint32_t)0 , qswmask));
 			patterns.insert(tpat(pos + _pw2/2 + (_qsw_delay + _qsw_width), 0 , qswmask));
+			if(_qsw_softswoff) {
+				patterns.insert(tpat(pos + _pw2/2 + (_qsw_delay + _qsw_width + _qsw_softswoff), ~(uint32_t)0 , qswmask));
+				patterns.insert(tpat(pos + _pw2/2 + (_qsw_delay + _qsw_width + 2*_qsw_softswoff), 0 , qswmask));
+			}
 		}
 
 		patterns.insert(tpat(pos + _tau + _asw_hold, 0, aswmask | trig1mask));
@@ -1017,6 +1037,10 @@ XPulser::rawToRelPat() throw (XRecordError&)
 			patterns.insert(tpat(pos + _pw2/2, 0, g1mask | g2mask));
 			patterns.insert(tpat(pos + _pw2/2 + _qsw_delay, ~(uint32_t)0 , qswmask));
 			patterns.insert(tpat(pos + _pw2/2 + (_qsw_delay + _qsw_width), 0 , qswmask));
+			if(_qsw_softswoff) {
+				patterns.insert(tpat(pos + _pw2/2 + (_qsw_delay + _qsw_width + _qsw_softswoff), ~(uint32_t)0 , qswmask));
+				patterns.insert(tpat(pos + _pw2/2 + (_qsw_delay + _qsw_width + 2*_qsw_softswoff), 0 , qswmask));
+			}
 			pos += _tau;
 			//pi/2 pulse
 			//on
@@ -1034,6 +1058,10 @@ XPulser::rawToRelPat() throw (XRecordError&)
 			if(! _qsw_pi_only) {
 				patterns.insert(tpat(pos + _pw1/2 + _qsw_delay, ~(uint32_t)0 , qswmask));
 				patterns.insert(tpat(pos + _pw1/2 + (_qsw_delay + _qsw_width), 0 , qswmask));
+				if(_qsw_softswoff) {
+					patterns.insert(tpat(pos + _pw1/2 + (_qsw_delay + _qsw_width + _qsw_softswoff), ~(uint32_t)0 , qswmask));
+					patterns.insert(tpat(pos + _pw1/2 + (_qsw_delay + _qsw_width + 2*_qsw_softswoff), 0 , qswmask));
+				}
 			}
 		}
 	}
