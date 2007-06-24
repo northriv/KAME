@@ -13,8 +13,6 @@
 ***************************************************************************/
 #include "pulserdrivernidaq.h"
 
-#ifdef HAVE_NI_DAQMX
-
 #include "interface.h"
 #include <klocale.h>
 
@@ -63,5 +61,3 @@ XNIDAQMSeriesWithSSeriesPulser::open() throw (XInterface::XInterfaceError &)
  	openAODO();
 	this->start();	
 }
-
-#endif //HAVE_NI_DAQMX

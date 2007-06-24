@@ -17,9 +17,6 @@
 using boost::math::lcm;
 using boost::math::gcd;
 
-#ifdef HAVE_NI_DAQMX
-
-
 const XNIDAQmxInterface::ProductInfo
 XNIDAQmxInterface::sc_productInfoList[] = {
 	{"PCI-6110", "S", 0, 5000uL, 1000uL, 0, 0},
@@ -232,6 +229,7 @@ XNIDAQmxInterface::SoftwareTrigger::forceStamp(uint64_t now, float64 _freq) {
 
 const char *
 XNIDAQmxInterface::busArchType() const {
+#ifdef HAVE_NI_DAQMX
 	int32 bus;
 	DAQmxGetDevBusType(devName(), &bus);
 	switch(bus) {
@@ -246,6 +244,9 @@ XNIDAQmxInterface::busArchType() const {
 	default:
 		return "Unknown";
 	}
+#else
+	return "n/a";
+#endif //HAVE_NI_DAQMX
 }
 void
 XNIDAQmxInterface::synchronizeClock(TaskHandle task)
@@ -281,18 +282,26 @@ XNIDAQmxInterface::synchronizeClock(TaskHandle task)
 QString
 XNIDAQmxInterface::getNIDAQmxErrMessage()
 {
+#ifdef HAVE_NI_DAQMX
 	char str[2048];
 	DAQmxGetExtendedErrorInfo(str, sizeof(str));
 	errno = 0;
 	return QString(str);
+#else
+	return QString();
+#endif //HAVE_NI_DAQMX
 }
 QString
 XNIDAQmxInterface::getNIDAQmxErrMessage(int status)
 {
+#ifdef HAVE_NI_DAQMX
 	char str[2048];
 	DAQmxGetErrorString(status, str, sizeof(str));
 	errno = 0;
 	return QString(str);
+#else
+	return QString();
+#endif //HAVE_NI_DAQMX
 }
 int
 XNIDAQmxInterface::checkDAQmxError(int ret, const char*file, int line) {
@@ -336,6 +345,7 @@ XNIDAQmxInterface::XNIDAQmxInterface(const char *name, bool runtime, const share
 XNIDAQmxInterface::XNIDAQmxRoute::XNIDAQmxRoute(const char*src, const char*dst, int *pret)
 	: m_src(src), m_dst(dst)
 {
+#ifdef HAVE_NI_DAQMX
 	if(pret) {
 		int ret = 0;
 	    ret = DAQmxConnectTerms(src, dst, DAQmx_Val_DoNotInvertPolarity);
@@ -353,6 +363,7 @@ XNIDAQmxInterface::XNIDAQmxRoute::XNIDAQmxRoute(const char*src, const char*dst, 
 			m_src.clear();
 		}
 	}
+#endif //HAVE_NI_DAQMX
 }
 XNIDAQmxInterface::XNIDAQmxRoute::~XNIDAQmxRoute()
 {
@@ -368,6 +379,7 @@ XNIDAQmxInterface::XNIDAQmxRoute::~XNIDAQmxRoute()
 void
 XNIDAQmxInterface::open() throw (XInterfaceError &)
 {
+#ifdef HAVE_NI_DAQMX
 	char buf[256];
 
 	if(sscanf(device()->to_str().c_str(), "%256s", buf) != 1)
@@ -453,6 +465,7 @@ XNIDAQmxInterface::open() throw (XInterfaceError &)
 		}
 	}
 	throw XInterfaceError(KAME::i18n("No device info. for product [%1].").arg(type), __FILE__, __LINE__);
+#endif //HAVE_NI_DAQMX
 }
 void
 XNIDAQmxInterface::close() throw (XInterfaceError &)
@@ -469,4 +482,3 @@ XNIDAQmxInterface::close() throw (XInterfaceError &)
 		}
 	}
 }
-#endif //HAVE_NI_DAQMX

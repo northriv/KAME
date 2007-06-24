@@ -13,8 +13,6 @@
 ***************************************************************************/
 #include "pulserdrivernidaqmx.h"
 
-#ifdef HAVE_NI_DAQMX
-
 static const unsigned int CLEAR_TASKS_EVERYTIME = 0;
 
 static const unsigned int PAUSING_BLANK_BEFORE = 1;
@@ -157,13 +155,13 @@ XNIDAQmxPulser::close() throw (XInterface::XInterfaceError &)
 void 
 XNIDAQmxPulser::clearTasks() {
 	if(m_taskAO != TASK_UNDEF)
-	    DAQmxClearTask(m_taskAO);
+	    CHECK_DAQMX_RET(DAQmxClearTask(m_taskAO));
 	if(m_taskDO != TASK_UNDEF)
-	    DAQmxClearTask(m_taskDO);
+	    CHECK_DAQMX_RET(DAQmxClearTask(m_taskDO));
 	if(m_taskDOCtr != TASK_UNDEF)
-	    DAQmxClearTask(m_taskDOCtr);
+	    CHECK_DAQMX_RET(DAQmxClearTask(m_taskDOCtr));
 	if(m_taskGateCtr != TASK_UNDEF)
-	    DAQmxClearTask(m_taskGateCtr);
+	    CHECK_DAQMX_RET(DAQmxClearTask(m_taskGateCtr));
 	m_taskAO = TASK_UNDEF;
 	m_taskDO = TASK_UNDEF;
 	m_taskDOCtr = TASK_UNDEF;
@@ -173,11 +171,11 @@ XNIDAQmxPulser::clearTasks() {
 void
 XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	if(m_taskDO != TASK_UNDEF)
-	    DAQmxClearTask(m_taskDO);
+	    CHECK_DAQMX_RET(DAQmxClearTask(m_taskDO));
 	if(m_taskDOCtr != TASK_UNDEF)
-	    DAQmxClearTask(m_taskDOCtr);
+	    CHECK_DAQMX_RET(DAQmxClearTask(m_taskDOCtr));
 	if(m_taskGateCtr != TASK_UNDEF)
-	    DAQmxClearTask(m_taskGateCtr); 
+	    CHECK_DAQMX_RET(DAQmxClearTask(m_taskGateCtr)); 
 
 	float64 freq = 1e3 / resolution();
 
@@ -286,7 +284,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 void
 XNIDAQmxPulser::setupTasksAODO() {
 	if(m_taskAO != TASK_UNDEF)
-	    DAQmxClearTask(m_taskAO);
+	    CHECK_DAQMX_RET(DAQmxClearTask(m_taskAO));
 	
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskAO));
 	CHECK_DAQMX_RET(DAQmxCreateAOVoltageChan(m_taskAO,
@@ -619,20 +617,20 @@ XNIDAQmxPulser::stopPulseGen()
 			CHECK_DAQMX_RET(DAQmxSetDOTristate(m_taskDO, chtri.c_str(), true));
 		}
 		if(m_taskAO != TASK_UNDEF)
-		    DAQmxStopTask(m_taskAO);
+		    CHECK_DAQMX_RET(DAQmxStopTask(m_taskAO));
 		if(m_taskDOCtr != TASK_UNDEF)
-		    DAQmxStopTask(m_taskDOCtr);
-	    DAQmxStopTask(m_taskDO);
+		    CHECK_DAQMX_RET(DAQmxStopTask(m_taskDOCtr));
+	    CHECK_DAQMX_RET(DAQmxStopTask(m_taskDO));
 		if(m_taskGateCtr != TASK_UNDEF)
-		    DAQmxStopTask(m_taskGateCtr);
+		    CHECK_DAQMX_RET(DAQmxStopTask(m_taskGateCtr));
 		if(!CLEAR_TASKS_EVERYTIME) {
 			if(m_taskAO != TASK_UNDEF)
-			    DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Unreserve);
+			    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Unreserve));
 			if(m_taskDOCtr != TASK_UNDEF)
-			    DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Unreserve);
-		    DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Unreserve);
+			    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Unreserve));
+		    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Unreserve));
 			if(m_taskGateCtr != TASK_UNDEF)
-			    DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Unreserve);
+			    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Unreserve));
 		}
 
 		m_running = false;
@@ -985,4 +983,3 @@ XNIDAQmxPulser::changeOutput(bool output, unsigned int /*blankpattern*/)
 	return;
 }
 
-#endif //HAVE_NI_DAQMX

@@ -18,13 +18,33 @@
 #include <config.h>
 #endif /*HAVE_CONFIG_H*/
 
-#ifdef HAVE_NI_DAQMX
-
 #include "interface.h"
 #include "driver.h"
-#include <NIDAQmx.h>
-
 #include "atomic_queue.h"
+
+#ifdef HAVE_NI_DAQMX
+	#include <NIDAQmx.h>
+	#define CHECK_DAQMX_ERROR(ret) XNIDAQmxInterface::checkDAQmxError(ret, __FILE__, __LINE__)
+	
+	/*#define CHECK_DAQMX_RET(ret, msg) {dbgPrint(# ret);\
+	  if(CHECK_DAQMX_ERROR(ret, msg) > 0) {gWarnPrint(QString(msg) + " " + XNIDAQmxInterface::getNIDAQmxErrMessage()); } }
+	*/
+	#define CHECK_DAQMX_RET(ret) {int _code = ret; \
+		if(CHECK_DAQMX_ERROR(_code) > 0) {gWarnPrint(XNIDAQmxInterface::getNIDAQmxErrMessage(_code)); } }
+#else
+	#define CHECK_DAQMX_ERROR(ret) (0)
+	#define CHECK_DAQMX_RET(ret)
+	typedef unsigned int TaskHandle;
+	typedef int64_t int64;
+	typedef uint64_t uInt64;
+	typedef int32_t int32;
+	typedef uint32_t uInt32;
+	typedef int16_t int16;
+	typedef uint16_t uInt16;
+	typedef int8_t int8;
+	typedef uint8_t uInt8;
+	typedef double float64;
+#endif //HAVE_NI_DAQMX
 
 class XNIDAQmxTask;
 
@@ -168,14 +188,6 @@ private:
 	static const ProductInfo sc_productInfoList[];
 };
 
-#define CHECK_DAQMX_ERROR(ret) XNIDAQmxInterface::checkDAQmxError(ret, __FILE__, __LINE__)
-
-/*#define CHECK_DAQMX_RET(ret, msg) {dbgPrint(# ret);\
-  if(CHECK_DAQMX_ERROR(ret, msg) > 0) {gWarnPrint(QString(msg) + " " + XNIDAQmxInterface::getNIDAQmxErrMessage()); } }
-*/
-#define CHECK_DAQMX_RET(ret) {int _code = ret; \
-	if(CHECK_DAQMX_ERROR(_code) > 0) {gWarnPrint(XNIDAQmxInterface::getNIDAQmxErrMessage(_code)); } }
-
 template<class tDriver>
 class XNIDAQmxDriver : public tDriver
 {
@@ -242,6 +254,5 @@ XNIDAQmxDriver<tDriver>::onClose(const shared_ptr<XInterface> &)
 		e.print(this->getLabel() + KAME::i18n(": Stopping driver failed, because "));
 	}
 }
-#endif //HAVE_NI_DAQMX
 
 #endif /*NIDAQMXDRIVER_H_*/

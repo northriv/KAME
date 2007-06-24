@@ -18,8 +18,6 @@
 
 #include "nidaqmxdriver.h"
 
-#ifdef HAVE_NI_DAQMX
-
 #include <vector>
 
 class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser>
@@ -135,7 +133,5 @@ private:
 	inline bool tryOutputSuspend(const atomic<bool> &flag,
 								 XRecursiveMutex &mutex, const atomic<bool> &terminated);
 };
-
-#endif //HAVE_NI_DAQMX
 
 #endif /*PULSERDRIVERNIDAQMX_H_*/

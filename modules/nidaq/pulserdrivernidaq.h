@@ -16,8 +16,6 @@
 
 #include "pulserdrivernidaqmx.h"
 
-#ifdef HAVE_NI_DAQMX
-
 class XNIDAQAODOPulser : public XNIDAQmxPulser
 {
 	XNODE_OBJECT
@@ -81,7 +79,5 @@ private:
  
 	const shared_ptr<XNIDAQmxInterface> m_ao_interface;
 };
-
-#endif //HAVE_NI_DAQMX
 
 #endif /*PULSERDRIVERNIDAQ_H_*/

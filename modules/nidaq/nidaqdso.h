@@ -18,8 +18,6 @@
 
 #include "nidaqmxdriver.h"
 
-#ifdef HAVE_NI_DAQMX
-
 //! Software DSO w/ NI DAQmx
 class XNIDAQmxDSO : public XNIDAQmxDriver<XDSO>
 {
@@ -115,7 +113,5 @@ private:
 
 	inline bool tryReadAISuspend(const atomic<bool> &terminated);
 };
-
-#endif //HAVE_NI_DAQMX
 
 #endif

@@ -15,7 +15,12 @@
 
 #include "nidaqdso.h"
 
-#ifdef HAVE_NI_DAQMX
+#ifndef HAVE_NI_DAQMX
+	#define DAQmx_Val_FallingSlope 0
+	#define DAQmx_Val_RisingSlope 0
+	#define DAQmx_Val_DigEdge 0
+	#define DAQmxGetReadAvailSampPerChan(x,y) 0
+#endif //HAVE_NI_DAQMX
 
 #include <qmessagebox.h>
 #include <kmessagebox.h>
@@ -70,7 +75,7 @@ XNIDAQmxDSO::onSoftTrigChanged(const shared_ptr<XNIDAQmxInterface::SoftwareTrigg
 	{
 		char buf[2048];
 		{
-			DAQmxGetDevAIPhysicalChans(interface()->devName(), buf, sizeof(buf));
+			CHECK_DAQMX_RET(DAQmxGetDevAIPhysicalChans(interface()->devName(), buf, sizeof(buf)));
 			std::deque<std::string> chans;
 			XNIDAQmxInterface::parseList(buf, chans);
 			for(std::deque<std::string>::iterator it = chans.begin(); it != chans.end(); it++) {
@@ -122,7 +127,7 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 	m_running = false;
 	char buf[2048];
 	{
-		DAQmxGetDevAIPhysicalChans(interface()->devName(), buf, sizeof(buf));
+		CHECK_DAQMX_RET(DAQmxGetDevAIPhysicalChans(interface()->devName(), buf, sizeof(buf)));
 		std::deque<std::string> chans;
 		XNIDAQmxInterface::parseList(buf, chans);
 		for(std::deque<std::string>::iterator it = chans.begin(); it != chans.end(); it++) {
@@ -174,7 +179,7 @@ XNIDAQmxDSO::clearAcquision() {
 	disableTrigger();
 
 	if(m_task != TASK_UNDEF) {
-		DAQmxClearTask(m_task);
+		CHECK_DAQMX_RET(DAQmxClearTask(m_task));
 	}
 	m_task = TASK_UNDEF;
 }
@@ -187,11 +192,11 @@ XNIDAQmxDSO::disableTrigger()
 	
 	if(m_running) {
 		m_running = false;
-		DAQmxStopTask(m_task);
+		CHECK_DAQMX_RET(DAQmxStopTask(m_task));
 	}
 	if(m_task != TASK_UNDEF) {
-		DAQmxDisableStartTrig(m_task);
-		DAQmxDisableRefTrig(m_task);
+		CHECK_DAQMX_RET(DAQmxDisableStartTrig(m_task));
+		CHECK_DAQMX_RET(DAQmxDisableRefTrig(m_task));
 	}
 	
 	m_preTriggerPos = 0;
@@ -219,7 +224,7 @@ XNIDAQmxDSO::setupTrigger()
 
 	char buf[2048];
 	{
-		DAQmxGetDevAIPhysicalChans(interface()->devName(), buf, sizeof(buf));
+		CHECK_DAQMX_RET(DAQmxGetDevAIPhysicalChans(interface()->devName(), buf, sizeof(buf)));
 		std::deque<std::string> chans;
 		XNIDAQmxInterface::parseList(buf, chans);
 		for(std::deque<std::string>::iterator it = chans.begin(); it != chans.end(); it++) {
@@ -313,7 +318,7 @@ XNIDAQmxDSO::setupTiming()
 
 	if(m_running) {
 		m_running = false;
-		DAQmxStopTask(m_task);
+		CHECK_DAQMX_RET(DAQmxStopTask(m_task));
 	}
 
 	uInt32 num_ch;
@@ -454,7 +459,7 @@ XNIDAQmxDSO::onSoftTrigStarted(const shared_ptr<XNIDAQmxInterface::SoftwareTrigg
 
 	if(m_running) {
 		m_running = false;
-		DAQmxStopTask(m_task);
+		CHECK_DAQMX_RET(DAQmxStopTask(m_task));
 	}
 	
 	const DSORawRecord &rec(m_dsoRawRecordBanks[m_dsoRawRecordBankLatest]);
@@ -659,7 +664,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 			if(!m_softwareTrigger) {
 				if(m_running) {
 					m_running = false;
-					DAQmxStopTask(m_task);
+					CHECK_DAQMX_RET(DAQmxStopTask(m_task));
 				}
 				CHECK_DAQMX_RET(DAQmxStartTask(m_task));
 				m_running = true;
@@ -760,7 +765,7 @@ XNIDAQmxDSO::startSequence()
 		if(m_running) {
 			m_running = false;
 			if(m_task != TASK_UNDEF)
-				DAQmxStopTask(m_task);
+				CHECK_DAQMX_RET(DAQmxStopTask(m_task));
 		}
 		uInt32 num_ch;
 		CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
@@ -935,5 +940,3 @@ void
 XNIDAQmxDSO::onRecordLengthChanged(const shared_ptr<XValueNodeBase> &) {
 	createChannels();
 }
-
-#endif //HAVE_NI_DAQMX
