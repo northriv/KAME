@@ -124,7 +124,8 @@ XRawStreamRecordReader::parseOne(void *fd, XMutex &mutex)
 	if(strlen(name) == 0) {
 		throw XBrokenRecordError(__FILE__, __LINE__);
 	}
-	shared_ptr<XPrimaryDriver> driver = dynamic_pointer_cast<XPrimaryDriver>(m_drivers->getChild(name));
+	shared_ptr<XNode> driver_precast = m_drivers->getChild(name);
+	shared_ptr<XPrimaryDriver> driver = dynamic_pointer_cast<XPrimaryDriver>(driver_precast);
 	uint32_t size = 
 		m_allsize - (
 			sizeof(uint32_t) //allsize
@@ -135,17 +136,19 @@ XRawStreamRecordReader::parseOne(void *fd, XMutex &mutex)
 			+ 2 //two null chars
 			+ sizeof(uint32_t)  //allsize
 			);
-    if(driver) {
-		if(size > MAX_RAW_RECORD_SIZE)
-			driver.reset();  //too big
-    }
     // m_time must be copied before unlocking
     XTime time(m_time);
     m_posString->value(time.getTimeStr());
-    if(!driver) {
+    if(!driver || (size > MAX_RAW_RECORD_SIZE)) {
         if(gzseek(fd, size + sizeof(uint32_t), SEEK_CUR) == -1)
 			throw XIOError(__FILE__, __LINE__);
-        throw XNoDriverError(name, __FILE__, __LINE__);
+		if(driver)
+			throw XBrokenRecordError(__FILE__, __LINE__);
+		if(driver_precast)
+	        throw XNoDriverError(formatString(KAME::i18n("Typemismatch: %s"), name).c_str(),
+	         __FILE__, __LINE__);
+		else
+	        throw XNoDriverError(name, __FILE__, __LINE__);
     }
     try {
         driver->clearRaw();
