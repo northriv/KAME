@@ -1,6 +1,11 @@
+* Mon Jun 25 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.2.8-1)
+- recordreader: Use single thread for time sync.
+- nidaqmx: Create objects w/o NIDAQmx.h somehow.
+
 * Sun Jun 24 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.2.7-4)
-- puserdriver: Add QSW soft-switching-off functionality.
+- pulserdriver: Add QSW soft-switching-off functionality.
 
 * Mon Jun 18 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.2.7-2)
