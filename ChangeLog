@@ -1,3 +1,8 @@
+* Tue Jun 26 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.2.8-2)
+- recordreader: Use multi-thread for time sync again.
+- nmrpulse: Much better phase-inversion-cycling.
+
 * Mon Jun 25 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.2.8-1)
 - recordreader: Use single thread for time sync.
