@@ -110,7 +110,6 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 	  m_avgClear(create<XNode>("AvgClear", true)),
 	  m_picEnabled(create<XBoolNode>("PICEnabled", false)),
 	  m_pulser(create<XItemNode<XDriverList, XPulser> >("Pulser", false, drivers, true)),
-	  m_piccnt(0),
 	  m_form(new FrmNMRPulse(g_pFrmMain)),
 	  m_statusPrinter(XStatusPrinter::create(m_form.get())),
 	  m_fftForm(new FrmGraphNURL(g_pFrmMain)),
@@ -329,7 +328,7 @@ XNMRPulseAnalyzer::backgroundSub(const std::deque<std::complex<double> > &wave,
 		{
 			const int j = i % m_dnrpulsefftlen;
 			std::complex<double> c(m_dnrpulsefftout[j].re, m_dnrpulsefftout[j].im);
-			m_wave[i] = wave[pos + i] - c;
+			m_wave[i] += wave[pos + i] - c;
 //    WaveRe[i] = dnrpulsefftout[j].re;
 //    WaveIm[i] = dnrpulsefftout[j].im;
 		}
@@ -359,7 +358,7 @@ XNMRPulseAnalyzer::backgroundSub(const std::deque<std::complex<double> > &wave,
 
 		for(int i = 0; i < length; i++)
 		{
-			m_wave[i] = wave[pos + i] - bg;
+			m_wave[i] += wave[pos + i] - bg;
 		}
 	}            
 }
@@ -474,6 +473,7 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
 
 	const bool skip = (m_timeClearRequested > _dso->timeAwared());
 	bool avgclear = skip;
+	bool picclear = false;
 
 	if((int)*fftLen() != m_fftlen)
 	{
@@ -502,8 +502,27 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
 	if(avgclear) {
 		std::fill(m_rawWaveSum.begin(), m_rawWaveSum.end(), 0.0 );
 		m_avcount = 0;
-		m_piccnt = 0;
+		picclear = true;
     }
+
+	// Phase Inversion Cycling
+	shared_ptr<XPulser> _pulser(*pulser());
+	bool picenabled = *m_picEnabled;
+	bool inverted = false;
+	if(picenabled && !_pulser) {
+		picenabled = false;
+		gErrPrint(getLabel() + ": " + KAME::i18n("No Pulser!"));
+	}
+	if(picenabled) {
+		ASSERT( _pulser->time() );
+		inverted = _pulser->invertPhaseRecorded();
+	}
+	if(m_bPICLastPhase == inverted)
+		picclear = true;
+	m_bPICLastPhase = inverted;
+	if(!picenabled || picclear) {
+		std::fill(m_wave.begin(), m_wave.end(), std::complex<double>(0.0,0.0));
+	}
 
 	int bgpos = lrint((*bgPos() - *fromTrig()) / 1000 / interval);
 	if(pos + bgpos >= (int)_dso->lengthRecorded()) {
@@ -553,45 +572,16 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
   
-	m_picRawWaveSum.resize(_dso->lengthRecorded());
-	// Phase Inversion Cycling
-	shared_ptr<XPulser> _pulser(*pulser());
-	bool picenabled = *m_picEnabled;
-	if(picenabled && !_pulser) {
-		picenabled = false;
-		gErrPrint(getLabel() + ": " + KAME::i18n("No Pulser!"));
-	}
-
-	if(!picenabled || (m_piccnt == 0)) {
-		std::fill(m_picRawWaveSum.begin(), m_picRawWaveSum.end(), std::complex<double>(0.0,0.0));
-	}
-	bool inverted = false;
-	if(picenabled) {
-		ASSERT( _pulser->time() );
-		inverted = _pulser->invertPhaseRecorded();
-	}
+  	std::deque<std::complex<double> > wave(_dso->lengthRecorded(), 0.0);
 	{
 		const double *rawwavecos, *rawwavesin = NULL;
 		ASSERT( _dso->numChannelsRecorded() );
 		rawwavecos = _dso->waveRecorded(0);
 		rawwavesin = _dso->waveRecorded(1);
 		for(unsigned int i = 0; i < _dso->lengthRecorded(); i++) {
-			m_picRawWaveSum[i] += std::complex<double>(rawwavecos[i], rawwavesin[i]) * (inverted ? -1.0 : 1.0);
-		}
-		m_piccnt++;
-	}
-  
-	if(picenabled) {
-		if(m_piccnt < 2) {
-			ASSERT( _pulser->time() );
-			_pulser->invertPhase()->value(!inverted);
-			throw XSkippedRecordError(__FILE__, __LINE__);
+			wave[i] += std::complex<double>(rawwavecos[i], rawwavesin[i]) * (inverted ? -1.0 : 1.0);
 		}
 	}
-	for(int i = 0; i < length; i++) {
-		m_picRawWaveSum[i] /= (double)m_piccnt;
-	}
-	m_piccnt = 0;
   
 	for(int i = 1; i < numechoes; i++)
 	{
@@ -601,7 +591,7 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
 		{
 			int k = rpos + j;
 			ASSERT(k < (int)_dso->lengthRecorded());
-			m_picRawWaveSum[pos + j] += m_picRawWaveSum[k];
+			wave[pos + j] += wave[k];
 		}
 	}
 
@@ -618,8 +608,19 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
   
 	//background subtraction or dynamic noise reduction
 	//write echo into m_wave
-	backgroundSub(m_picRawWaveSum, pos, length, bgpos, bglength, windowfunc);
+	backgroundSub(wave, pos, length, bgpos, bglength, windowfunc);
   
+	if(picenabled && picclear) {
+		ASSERT( _pulser->time() );
+		_pulser->invertPhase()->value(!inverted);
+		throw XSkippedRecordError(__FILE__, __LINE__);
+	}
+	if(picenabled) {
+		for(int i = 0; i < length; i++) {
+			m_wave[i] /= 2.0;
+		}
+	}
+
     while(!*exAvgIncr() && (*extraAvg() <= m_waveAv.size()) && !m_waveAv.empty())  {
 		for(int i = 0; i < length; i++) {
 			m_rawWaveSum[i] -= m_waveAv.front()[i];

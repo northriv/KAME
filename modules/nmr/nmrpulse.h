@@ -145,8 +145,7 @@ private:
 	//! Phase Inversion Cycling
 	const shared_ptr<XBoolNode> m_picEnabled;
 	const shared_ptr<XItemNode<XDriverList, XPulser> > m_pulser;
-	unsigned int m_piccnt;
-	std::deque<std::complex<double> > m_picRawWaveSum;
+	bool m_bPICLastPhase;
   
 	//! Records
 	//! these are without avg.

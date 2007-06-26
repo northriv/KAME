@@ -22,6 +22,7 @@ static const unsigned int PAUSING_BLANK_AFTER = 1;
 #include <klocale.h>
 
 static const TaskHandle TASK_UNDEF = ((TaskHandle)-1);
+static const double RESOLUTION_UNDEF = 1e-5;
 
 template <typename T>
 inline T *fastFill(T* p, T x, unsigned int cnt);
@@ -34,8 +35,8 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
     XNIDAQmxDriver<XPulser>(name, runtime, scalarentries, interfaces, thermometers, drivers),
     m_pausingBit(0), m_pausingCount(0), 
 	m_running(false),
-    m_resolutionDO(-1.0),
-    m_resolutionAO(-1.0),
+    m_resolutionDO(RESOLUTION_UNDEF),
+    m_resolutionAO(RESOLUTION_UNDEF),
 	m_taskAO(TASK_UNDEF),
 	m_taskDO(TASK_UNDEF),
 	m_taskDOCtr(TASK_UNDEF),
@@ -76,7 +77,7 @@ XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XInterface::XInterfaceError &)
 	if(intfDO()->maxDORate(1) == 0)
 		throw XInterface::XInterfaceError(KAME::i18n("HW-timed transfer needed."), __FILE__, __LINE__);
 	
-	if(m_resolutionDO <= 0.0)
+	if(m_resolutionDO == RESOLUTION_UNDEF)
 		m_resolutionDO = 1.0 / intfDO()->maxDORate(1);
 	fprintf(stderr, "Using DO rate = %f[kHz]\n", 1.0/m_resolutionDO);
 	setupTasksDO(use_ao_clock);
@@ -97,7 +98,7 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	if(intfAO()->maxAORate(2) == 0)
 		throw XInterface::XInterfaceError(KAME::i18n("HW-timed transfer needed."), __FILE__, __LINE__);
 	
-	if((m_resolutionDO <= 0.0) || (m_resolutionAO <= 0.0))
+	if((m_resolutionDO == RESOLUTION_UNDEF) || (m_resolutionAO == RESOLUTION_UNDEF))
 	{
 		double do_rate = intfDO()->maxDORate(1);
 		double ao_rate = intfAO()->maxAORate(2);
@@ -145,8 +146,8 @@ XNIDAQmxPulser::close() throw (XInterface::XInterfaceError &)
 	
 	clearTasks();
 
-	m_resolutionDO = -1.0;    
-	m_resolutionAO = -1.0;    
+	m_resolutionDO = RESOLUTION_UNDEF;    
+	m_resolutionAO = RESOLUTION_UNDEF;    
 
 	intfDO()->stop();
 	intfAO()->stop();
