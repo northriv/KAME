@@ -137,7 +137,6 @@ XNMRSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
 	ASSERT( _magnet || _dmm );
 	ASSERT( _pulse );
-	ASSERT( _pulse->time() );
 	ASSERT( emitter != _magnet );
 	ASSERT( emitter != _dmm );
   

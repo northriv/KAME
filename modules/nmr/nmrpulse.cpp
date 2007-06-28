@@ -502,6 +502,8 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
 	if(avgclear) {
 		std::fill(m_rawWaveSum.begin(), m_rawWaveSum.end(), 0.0 );
 		m_avcount = 0;
+		ftWaveGraph()->clear();
+		waveGraph()->clear();
 		picclear = true;
     }
 
@@ -567,8 +569,6 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
 	}
   
 	if(skip) {
-		ftWaveGraph()->clear();
-		waveGraph()->clear();
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
   

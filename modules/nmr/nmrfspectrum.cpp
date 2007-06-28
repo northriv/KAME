@@ -160,7 +160,6 @@ XNMRFSpectrum::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
     
 	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
 	ASSERT( _pulse );
-	ASSERT( _pulse->time() );
 	ASSERT( emitter != _sg1 );
 	ASSERT( emitter != _sg2 );
    
