@@ -493,7 +493,7 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
 	m_wave.resize(length);
 	m_waveSum.resize(length);
 	m_rawWaveSum.resize(length);
-	if(!*exAvgIncr() && (std::max(*extraAvg(), 1u) < m_waveAv.size())) {
+	if(!*exAvgIncr() && (std::max((unsigned int)*extraAvg(), 1u) < m_waveAv.size())) {
 		avgclear = true;
     }
 	if(avgclear || *exAvgIncr()) {
