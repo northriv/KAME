@@ -424,7 +424,6 @@ XDSO::analyzeRaw() throw (XRecordError&) {
     convertRawToDisp();
 
 	if(m_rawDisplayOnly) {
-		visualize();
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
 //    std::fill(m_wavesRecorded.begin(), m_wavesRecorded.end(), 0.0);
