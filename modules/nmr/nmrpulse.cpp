@@ -128,7 +128,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 																KIcon::Toolbar, KIcon::SizeSmall, true ) );      
     
 	connect(dso());
-	connect(pulser());
+	connect(pulser(), false);
 
 
 	scalarentries->insert(entryCosAv());
@@ -493,7 +493,7 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
 	m_wave.resize(length);
 	m_waveSum.resize(length);
 	m_rawWaveSum.resize(length);
-	if(!*exAvgIncr() && (*extraAvg() < m_waveAv.size())) {
+	if(!*exAvgIncr() && (std::max(*extraAvg(), 1u) < m_waveAv.size())) {
 		avgclear = true;
     }
 	if(avgclear || *exAvgIncr()) {
@@ -511,12 +511,11 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
 	shared_ptr<XPulser> _pulser(*pulser());
 	bool picenabled = *m_picEnabled;
 	bool inverted = false;
-	if(picenabled && !_pulser) {
+	if(picenabled && (!_pulser || !_pulser->time())) {
 		picenabled = false;
-		gErrPrint(getLabel() + ": " + KAME::i18n("No Pulser!"));
+		gErrPrint(getLabel() + ": " + KAME::i18n("No active pulser!"));
 	}
 	if(picenabled) {
-		ASSERT( _pulser->time() );
 		inverted = _pulser->invertPhaseRecorded();
 	}
 	if(m_bPICLastPhase == inverted)
