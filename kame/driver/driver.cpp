@@ -74,6 +74,11 @@ XDriver::abortRecording() {
     m_recordLock.writeUnlock();
 }
 
+void
+XDriver::abortRecordingNReadLock() {
+    m_recordLock.writeUnlockNReadLock();
+}
+
 XRecordDependency::tDependency::tDependency(const shared_ptr<const XDriver> &d, const XTime &time) :
     driver(d), time(time)
 {}

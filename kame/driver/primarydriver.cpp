@@ -51,11 +51,11 @@ XPrimaryDriver::finishWritingRaw(
 	    }
     }
     if(skipped)
-    	abortRecording();
+    	abortRecordingNReadLock();
 	else {
 	    finishRecordingNReadLock(time_awared, time_recorded);
-	    visualize();
-	    readUnlockRecord();
 	}
+    visualize();
+    readUnlockRecord();
 }
 

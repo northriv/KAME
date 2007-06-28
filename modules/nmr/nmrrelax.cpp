@@ -296,7 +296,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 	if(samples <= 10) {
 		throw XRecordError(KAME::i18n("Invalid # of Samples."), __FILE__, __LINE__);  
 	}
-	if(samples >= 10000) {
+	if(samples >= 100000) {
 		throw XRecordError(KAME::i18n("Too many Samples."), __FILE__, __LINE__);
 	}
   

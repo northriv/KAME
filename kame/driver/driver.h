@@ -77,6 +77,7 @@ protected:
  
 	//! this is called after analyze() or analyzeRaw()
 	//! record is readLocked
+	//! This might be called even if the record is broken (time() == false).
 	virtual void visualize() = 0;
   
 	//! writeLock record and readLock all dependent drivers
@@ -87,6 +88,8 @@ protected:
 	void finishRecordingNReadLock(const XTime &time_awared, const XTime &time_recorded);
 	//! leave existing record.
 	void abortRecording();
+	//! leave existing record.
+	void abortRecordingNReadLock();
 	//! Lock this record and dependent drivers
 private:
 	XTalker<shared_ptr<XDriver> > m_tlkRecord;

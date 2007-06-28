@@ -92,13 +92,13 @@ XSecondaryDriver::onConnectedRecorded(const shared_ptr<XDriver> &driver)
 	                }
 	                readUnlockAllConnections();
 	                if(skipped)
-	                	abortRecording();
+	                	abortRecordingNReadLock();
 	            	else {
 		                m_dependency = dep;
 		                finishRecordingNReadLock(driver->timeAwared(), time_recorded);
-		                visualize();
-		                readUnlockRecord();
 	            	}
+	                visualize();
+	                readUnlockRecord();
 	            	return;
 	            }
 	        }
