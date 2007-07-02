@@ -1,3 +1,7 @@
+* Mon Jul 1 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.2.10-1)
+- xwavengraph: New API for a single y-axis multi-plots.
+
 * Thu Jun 28 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.2.9-1)
 - nmrrelax: increase limit of samples.
