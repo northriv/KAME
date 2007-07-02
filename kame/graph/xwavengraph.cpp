@@ -69,86 +69,105 @@ XWaveNGraph::init()
   dump()->setUIEnabled(false);
   
   m_graph->persistence()->value(0.0);
+  clearPlots();
 }
 XWaveNGraph::~XWaveNGraph()
 {
-  if(m_plot1) m_graph->plots()->releaseChild(m_plot1);
-  if(m_plot2) m_graph->plots()->releaseChild(m_plot2);
-  if(m_axisw) m_graph->axes()->releaseChild(m_axisw);
-  if(m_axisz) m_graph->axes()->releaseChild(m_axisz);
-  if(m_axisy2) m_graph->axes()->releaseChild(m_axisy2);
-  m_stream.close();
+	m_stream.close();
 }
 
 void
-XWaveNGraph::selectAxes(int x, int y1, int y2, int weight, int z)
+XWaveNGraph::clearPlots()
 {
+  XScopedWriteLock<XRecursiveRWLock> lock(m_mutex); {
+	  XScopedLock<XGraph> lock(*m_graph);
+		for(std::deque<Plot>::iterator it = m_plots.begin(); it != m_plots.end(); it++) {
+			m_graph->plots()->releaseChild(it->xyplot);
+		}
+	  if(m_axisw) m_graph->axes()->releaseChild(m_axisw);
+	  if(m_axisz) m_graph->axes()->releaseChild(m_axisz);
+	  if(m_axisy2) m_graph->axes()->releaseChild(m_axisy2);
+      if(m_axisx) m_axisx->label()->value("");
+      if(m_axisy) m_axisy->label()->value("");
+	  m_plots.clear();
+	  m_axisy2.reset();
+	  m_axisz.reset();
+	  m_axisw.reset();
+	  m_colw = -1;
+  }
+}
+void
+XWaveNGraph::insertPlot(int x, int y1, int y2, int weight, int z)
+{
+	ASSERT( (y1 < 0) || (y2 < 0) );
   XScopedWriteLock<XRecursiveRWLock> lock(m_mutex);
   {  
-      m_colx = x;
-      m_coly1 = y1;
-      m_coly2 = y2;
-      m_colweight = weight;
-      m_colz = z;
+  	Plot plot;
+      plot.colx = x;
+      plot.coly1 = y1;
+      plot.coly2 = y2;
+      plot.colweight = weight;
+      plot.colz = z;
+      
+      if(weight >= 0) {
+      	if((m_colw >= 0) && (m_colw != weight))
+      		m_colw = -1;
+      	else
+      		m_colw = weight;
+      }
     
       XScopedLock<XGraph> lock(*m_graph);
-      if(m_plot1) m_graph->plots()->releaseChild(m_plot1);
-      if(m_plot2) m_graph->plots()->releaseChild(m_plot2);
-      if(m_axisw) m_graph->axes()->releaseChild(m_axisw);
-      if(m_axisz) m_graph->axes()->releaseChild(m_axisz);
-      if(m_axisy2) m_graph->axes()->releaseChild(m_axisy2);
-      m_plot1.reset();
-      m_plot2.reset();
-      m_axisy2.reset();
-      m_axisz.reset();
-      m_axisw.reset();
         
      // m_graph->setName(getName());
       m_graph->label()->value(getLabel());
     
-      m_plot1 = m_graph->plots()->create<XXYPlot>("Plot1", true, m_graph);
-      m_plot1->label()->value(KAME::i18n("Plot1"));
+      unsigned int plotnum = m_plots.size() + 1;
+      plot.xyplot = m_graph->plots()->create<XXYPlot>(formatString("Plot%d", plotnum).c_str(),
+      	 true, m_graph);
+      plot.xyplot->label()->value(KAME::i18n("Plot") + plotnum);
     
       atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
       m_axisx = dynamic_pointer_cast<XAxis>(axes_list->at(0));
       m_axisy = dynamic_pointer_cast<XAxis>(axes_list->at(1));
-      m_plot1->axisX()->value(m_axisx);
-      m_plot1->axisY()->value(m_axisy);
-      if(m_colz >= 0) {
-          m_axisz = m_graph->axes()->create<XAxis>("Z Axis", true, XAxis::DirAxisZ, true, m_graph);
-          m_plot1->axisZ()->value(m_axisz);
+      plot.xyplot->axisX()->value(m_axisx);
+      m_axisx->label()->value(m_labels[plot.colx]);
+      if(plot.coly1 >= 0) {
+	      plot.xyplot->axisY()->value(m_axisy);
+	      m_axisy->label()->value(m_labels[plot.coly1]);
       }
-      if(m_colweight >= 0) {
-          m_axisw = m_graph->axes()->create<XAxis>("Weight", true, XAxis::AxisWeight, true, m_graph);
-          m_axisw->autoScale()->value(false);
-          m_plot1->axisW()->value(m_axisw);
+      if(plot.colz >= 0) {
+          if(!m_axisz)
+          	m_axisz = m_graph->axes()->create<XAxis>("Z Axis", true, XAxis::DirAxisZ, true, m_graph);
+          plot.xyplot->axisZ()->value(m_axisz);
+	      m_axisz->label()->value(m_labels[plot.colz]);
       }
-      m_plot1->maxCount()->value(rowCount());
-      m_plot1->maxCount()->setUIEnabled(false);
-      m_plot1->clearPoints()->setUIEnabled(false);
-      m_plot1->intensity()->value(1.0);
-      if(m_coly2 >= 0)
+      if(plot.colweight >= 0) {
+          if(!m_axisw) {
+          	m_axisw = m_graph->axes()->create<XAxis>("Weight", true, XAxis::AxisWeight, true, m_graph);
+	        m_axisw->autoScale()->value(false);
+          }
+          plot.xyplot->axisW()->value(m_axisw);
+	      m_axisw->label()->value(m_labels[plot.colweight]);
+      }
+      if(plot.coly2 >= 0)
         {
-          m_axisy2 = m_graph->axes()->create<XAxis>("Y2 Axis", true, XAxis::DirAxisY, true, m_graph);
-          m_plot2 = m_graph->plots()->create<XXYPlot>("Plot2", true, m_graph);
-          m_plot2->label()->value(KAME::i18n("Plot2"));
-          m_plot2->axisX()->value(m_axisx);
-          m_plot2->axisY()->value(m_axisy2);
-          if(m_colz >= 0) {
-              m_plot2->axisZ()->value(m_axisz);
-          }
-          if(m_colweight >= 0) {
-              m_plot2->axisW()->value(m_axisw);
-          }
-          m_plot2->pointColor()->value(clGreen);
-          m_plot2->lineColor()->value(clGreen);
-          m_plot2->barColor()->value(clGreen);
-          m_plot2->displayMajorGrid()->value(false);
-          m_plot2->maxCount()->value(rowCount());
-          m_plot2->maxCount()->setUIEnabled(false);
-          m_plot2->clearPoints()->setUIEnabled(false);
-	      m_plot2->intensity()->value(1.0);
+          if(!m_axisy2)
+	          m_axisy2 = m_graph->axes()->create<XAxis>("Y2 Axis", true, XAxis::DirAxisY, true, m_graph);
+          plot.xyplot->axisY()->value(m_axisy2);
+	      m_axisy2->label()->value(m_labels[plot.coly2]);
         }
+      plot.xyplot->maxCount()->value(rowCount());
+      plot.xyplot->maxCount()->setUIEnabled(false);
+      plot.xyplot->clearPoints()->setUIEnabled(false);
+      plot.xyplot->intensity()->value(1.0);
+      if(m_plots.size()) {
+          plot.xyplot->pointColor()->value(clGreen);
+          plot.xyplot->lineColor()->value(clGreen);
+          plot.xyplot->barColor()->value(clGreen);
+          plot.xyplot->displayMajorGrid()->value(false);
+        }
+     
+     m_plots.push_back(plot);
   }
 }
 
@@ -171,8 +190,9 @@ void
 XWaveNGraph::setRowCount(unsigned int n) {
   XScopedWriteLock<XRecursiveRWLock> lock(m_mutex);
   m_cols.resize(m_colcnt * n);
-  if(m_plot1) m_plot1->maxCount()->value(n);
-  if(m_plot2) m_plot2->maxCount()->value(n);
+	for(std::deque<Plot>::iterator it = m_plots.begin(); it != m_plots.end(); it++) {
+		it->xyplot->maxCount()->value(n);
+	}
 }
 
 void
@@ -207,16 +227,6 @@ XWaveNGraph::writeUnlock(bool updategraph)
   }
 }
 
-int
-XWaveNGraph::colX() const {return m_colx;}
-int
-XWaveNGraph::colY1() const {return m_coly1;}
-int
-XWaveNGraph::colY2() const {return m_coly2;}
-int
-XWaveNGraph::colWeight() const {return m_colweight;}
-int
-XWaveNGraph::colZ() const {return m_colz;}
 void
 XWaveNGraph::onIconChanged(const bool &v)
 {
@@ -228,7 +238,7 @@ XWaveNGraph::onIconChanged(const bool &v)
 	            KIcon::Toolbar, KIcon::SizeSmall, true ) );
 }
 void
-XWaveNGraph::onFilenameChanged(const shared_ptr<XValueNodeBase> &node)
+XWaveNGraph::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
 {
    {   XScopedLock<XMutex> lock(m_filemutex);
       
@@ -267,13 +277,13 @@ XWaveNGraph::onDumpTouched(const shared_ptr<XNode> &)
     
     for(unsigned int i = 0; i < rowCount(); i++)
     {
-            if(colWeight() >= 0)
-            if(cols(colWeight())[i] == 0) continue;
+    	if((m_colw < 0) || (cols(m_colw)[i] > 0)) {
             for(unsigned int j = 0; j < colCount(); j++)
             {
                 m_stream << cols(j)[i] << " ";
             }
             m_stream << std::endl;
+    	}
     }
     m_stream << std::endl;
     
@@ -288,8 +298,9 @@ XWaveNGraph::clear()
   XScopedWriteLock<XWaveNGraph> lock(*this);
   setRowCount(0);
   { XScopedLock<XGraph> lock(*m_graph);
-      if(m_plot1) m_plot1->clearAllPoints();
-      if(m_plot2) m_plot2->clearAllPoints();
+	for(std::deque<Plot>::iterator it = m_plots.begin(); it != m_plots.end(); it++) {
+      it->xyplot->clearAllPoints();
+	}
       m_graph->requestUpdate();
   }
 }
@@ -298,26 +309,16 @@ XWaveNGraph::drawGraph()
 {
   XScopedReadLock<XRecursiveRWLock> lock(m_mutex);
   {
-
-      ASSERT(m_plot1);
-        
       XScopedLock<XGraph> lock(*m_graph);
       
-      m_axisx->label()->value(m_labels[m_colx]);
-      m_axisy->label()->value(m_labels[m_coly1]);
-      if(colY2() > 0)
-        m_axisy2->label()->value(m_labels[m_coly2]);
-      if(colZ() > 0)
-        m_axisz->label()->value(m_labels[m_colz]);
-      if(colWeight() > 0)
-        m_axisw->label()->value(m_labels[m_colweight]);
-        
+	for(std::deque<Plot>::iterator it = m_plots.begin(); it != m_plots.end(); it++) {        
       int rowcnt = rowCount();
-      double *colx = cols(colX());
-      double *coly1 = cols(colY1());
-      double *coly2 = (colY2() > 0) ? cols(colY2()) : NULL;
-      double *colweight = (colWeight() >= 0) ? cols(colWeight()) : NULL;
-      double *colz = (colZ() >= 0) ? cols(colZ()) : NULL;
+      double *colx = cols(it->colx);
+      double *coly = NULL;
+      if(it->coly1 >= 0) coly = cols(it->coly1);
+      if(it->coly2 >= 0) coly = cols(it->coly2);
+      double *colweight = (it->colweight >= 0) ? cols(it->colweight) : NULL;
+      double *colz = (it->colz >= 0) ? cols(it->colz) : NULL;
     
       if(colweight) {
 	      double weight_max = 0.0;
@@ -327,8 +328,8 @@ XWaveNGraph::drawGraph()
 	      m_axisw->minValue()->value(-0.25*weight_max);
       }
             
-      std::deque<XGraph::ValPoint> &points_plot1(m_plot1->points());
-      points_plot1.clear();
+      std::deque<XGraph::ValPoint> &points_plot(it->xyplot->points());
+      points_plot.clear();
       for(int i = 0; i < rowcnt; i++)
         {
           double z = 0.0;
@@ -336,29 +337,13 @@ XWaveNGraph::drawGraph()
             z = colz[i];
           if(colweight) {
           	if(colweight[i] != 0)
-               points_plot1.push_back( XGraph::ValPoint(colx[i], coly1[i], z, colweight[i]) );
+               points_plot.push_back( XGraph::ValPoint(colx[i], coly[i], z, colweight[i]) );
           }
           else
-               points_plot1.push_back( XGraph::ValPoint(colx[i], coly1[i], z) );
+               points_plot.push_back( XGraph::ValPoint(colx[i], coly[i], z) );
         }
-      if(coly2)
-        {
-          std::deque<XGraph::ValPoint> &points_plot2 = m_plot2->points();
-          points_plot2.clear();
-          for(int i = 0; i < rowcnt; i++)
-          {
-              double z = 0.0;
-              if(colz)
-                z = colz[i];
-              if(colweight) {
-	          	if(colweight[i] > 0)
-                   points_plot2.push_back( XGraph::ValPoint(colx[i], coly2[i], z, colweight[i]) );
-              }
-              else
-                   points_plot2.push_back( XGraph::ValPoint(colx[i], coly2[i], z) );
-          }
-        }
-      m_graph->requestUpdate();
+	}
+    m_graph->requestUpdate();
   }
 }
 

@@ -42,7 +42,9 @@ public:
  void setRowCount(unsigned int rowcnt);
  void setColCount(unsigned int colcnt, const char **lables);
  void setLabel(unsigned int col, const char *label);
- void selectAxes(int colx = 0, int coly1 = 1, int coly2 = -1, int colweight = -1, int colz = -1);
+ void insertPlot(int colx = 0, int coly1 = 1, int coly2 = -1, int colweight = -1, int colz = -1);
+ void clearPlots();
+ unsigned int numPlots() const {return m_plots.size();}
  
  unsigned int rowCount() const;
  unsigned int colCount() const;
@@ -58,15 +60,20 @@ public:
  //! unlock and update graph
  void writeUnlock(bool updategraph = true);
  
- int colX() const;
- int colY1() const;
- int colY2() const;
- int colWeight() const; 
- int colZ() const; 
+ //! \arg plotnum start with zero.
+ int colX(unsigned int plotnum) const {return m_plots[plotnum].colx;}
+ //! \arg plotnum start with zero.
+ int colY1(unsigned int plotnum) const {return m_plots[plotnum].coly1;}
+ //! \arg plotnum start with zero.
+ int colY2(unsigned int plotnum) const {return m_plots[plotnum].coly2;}
+ //! \arg plotnum start with zero.
+ int colWeight(unsigned int plotnum) const {return m_plots[plotnum].colweight;}
+ //! \arg plotnum start with zero.
+ int colZ(unsigned int plotnum) const {return m_plots[plotnum].colz;}
  
  const shared_ptr<XGraph> &graph() const {return m_graph;}
- const shared_ptr<XXYPlot> &plot1() const {return m_plot1;}
- const shared_ptr<XXYPlot> &plot2() const {return m_plot2;}
+ //! \arg plotnum start with zero.
+ const shared_ptr<XXYPlot> &plot(unsigned int plotnum) const {return m_plots[plotnum].xyplot;}
  const shared_ptr<XAxis> &axisx() const {return m_axisx;}  
  const shared_ptr<XAxis> &axisy() const {return m_axisy;}  
  const shared_ptr<XAxis> &axisy2() const {return m_axisy2;}  
@@ -86,7 +93,12 @@ private:
  QPushButton *const m_btnDump;
  
  const shared_ptr<XGraph> m_graph;
- shared_ptr<XXYPlot> m_plot1, m_plot2;
+ struct Plot {
+ 	shared_ptr<XXYPlot> xyplot;
+	int colx, coly1, coly2, colweight, colz;
+ };
+ int m_colw;
+ std::deque<Plot> m_plots;
  shared_ptr<XAxis> m_axisx, m_axisy, m_axisy2, m_axisw, m_axisz;
  
  const shared_ptr<XNode> m_dump;
@@ -103,8 +115,6 @@ private:
  XMutex m_filemutex;
  
  xqcon_ptr m_conFilename, m_conDump;
- 
- int m_colx, m_coly1, m_coly2, m_colweight, m_colz;
 };
 
 #endif

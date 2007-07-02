@@ -183,23 +183,26 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 	{
 		const char *labels[] = {"Time [ms]", "Cos [V]", "Sin [V]"};
 		waveGraph()->setColCount(3, labels);
-		waveGraph()->selectAxes(0, 1, 2);
-		waveGraph()->plot1()->label()->value(KAME::i18n("real part"));
-		waveGraph()->plot1()->drawPoints()->value(false);
-		waveGraph()->plot2()->label()->value(KAME::i18n("imag. part"));
-		waveGraph()->plot2()->drawPoints()->value(false);
+		waveGraph()->insertPlot(0, 1);
+		waveGraph()->insertPlot(0, 2);
+		waveGraph()->axisy()->label()->value(KAME::i18n("Intens. [V]"));
+		waveGraph()->plot(0)->label()->value(KAME::i18n("real part"));
+		waveGraph()->plot(0)->drawPoints()->value(false);
+		waveGraph()->plot(1)->label()->value(KAME::i18n("imag. part"));
+		waveGraph()->plot(1)->drawPoints()->value(false);
 		waveGraph()->clear();
 	}
 	{
 		const char *labels[] = {"Freq. [kHz]", "Re. [V]", "Im. [V]", "Abs. [V]", "Phase [deg]"};
 		ftWaveGraph()->setColCount(5, labels);
-		ftWaveGraph()->selectAxes(0, 3, 4);
-		ftWaveGraph()->plot1()->label()->value(KAME::i18n("abs."));
-		ftWaveGraph()->plot1()->drawBars()->value(true);
-		ftWaveGraph()->plot1()->drawLines()->value(false);
-		ftWaveGraph()->plot1()->drawPoints()->value(false);
-		ftWaveGraph()->plot2()->label()->value(KAME::i18n("phase"));
-		ftWaveGraph()->plot2()->drawPoints()->value(false); 
+		ftWaveGraph()->insertPlot(0, 3);
+		ftWaveGraph()->insertPlot(0, -1, 4);
+		ftWaveGraph()->plot(0)->label()->value(KAME::i18n("abs."));
+		ftWaveGraph()->plot(0)->drawBars()->value(true);
+		ftWaveGraph()->plot(0)->drawLines()->value(false);
+		ftWaveGraph()->plot(0)->drawPoints()->value(false);
+		ftWaveGraph()->plot(1)->label()->value(KAME::i18n("phase"));
+		ftWaveGraph()->plot(1)->drawPoints()->value(false); 
 		ftWaveGraph()->clear();
 	}
   

@@ -161,17 +161,17 @@ XMonteCarloDriver::XMonteCarloDriver(const char *name, bool runtime,
 		"h or x", "k or y", "l or z", "intens.", "hx", "hy", "hz", "site"
     };
 	m_wave3D->setColCount(8, s_trace_names); 
-	m_wave3D->selectAxes(0, 1, -1, 3, 2);
+	m_wave3D->insertPlot(0, 1, -1, 3, 2);
 	m_wave3D->clear();
-	m_wave3D->plot1()->drawLines()->value(false);
+	m_wave3D->plot(0)->drawLines()->value(false);
 
 	m_wave3D->graph()->backGround()->value(QColor(0,0,0).rgb());
-	m_wave3D->plot1()->intensity()->value(2);
-	m_wave3D->plot1()->colorPlot()->value(true);
-	m_wave3D->plot1()->colorPlotColorHigh()->value(QColor(0xFF, 0xFF, 0x2F).rgb());
-	m_wave3D->plot1()->colorPlotColorLow()->value(QColor(0x00, 0x00, 0xFF).rgb());
-	m_wave3D->plot1()->pointColor()->value(QColor(0x00, 0xFF, 0x00).rgb());
-	m_wave3D->plot1()->majorGridColor()->value(QColor(0x4A, 0x4A, 0x4A).rgb());
+	m_wave3D->plot(0)->intensity()->value(2);
+	m_wave3D->plot(0)->colorPlot()->value(true);
+	m_wave3D->plot(0)->colorPlotColorHigh()->value(QColor(0xFF, 0xFF, 0x2F).rgb());
+	m_wave3D->plot(0)->colorPlotColorLow()->value(QColor(0x00, 0x00, 0xFF).rgb());
+	m_wave3D->plot(0)->pointColor()->value(QColor(0x00, 0xFF, 0x00).rgb());
+	m_wave3D->plot(0)->majorGridColor()->value(QColor(0x4A, 0x4A, 0x4A).rgb());
 	m_wave3D->graph()->titleColor()->value(clWhite);
 	m_wave3D->axisx()->ticColor()->value(clWhite);
 	m_wave3D->axisx()->labelColor()->value(clWhite);

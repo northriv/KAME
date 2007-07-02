@@ -65,11 +65,13 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 	{
 		const char *labels[] = {"Freq [MHz]", "Re [V]", "Im [V]", "Counts"};
 		m_spectrum->setColCount(4, labels);
-		m_spectrum->selectAxes(0, 1, 2, 3);
-		m_spectrum->plot1()->label()->value(KAME::i18n("real part"));
-		m_spectrum->plot1()->drawPoints()->value(false);
-		m_spectrum->plot2()->label()->value(KAME::i18n("imag. part"));
-		m_spectrum->plot2()->drawPoints()->value(false);
+		m_spectrum->insertPlot(0, 1, -1, 3);
+		m_spectrum->insertPlot(0, 2, -1, 3);
+		m_spectrum->axisy()->label()->value(KAME::i18n("Intens. [V]"));
+		m_spectrum->plot(0)->label()->value(KAME::i18n("real part"));
+		m_spectrum->plot(0)->drawPoints()->value(false);
+		m_spectrum->plot(1)->label()->value(KAME::i18n("imag. part"));
+		m_spectrum->plot(1)->drawPoints()->value(false);
 		m_spectrum->clear();
 	}
   

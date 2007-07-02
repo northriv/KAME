@@ -122,12 +122,12 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 		const char *labels[] = {"P1 [ms] or 2Tau [us]", "Intens [V]",
 								"Weight [1/V]", "Abs [V]", "Re [V]", "Im [V]"};
 		m_wave->setColCount(6, labels);
-		m_wave->selectAxes(0, 1, -1, 2);
-		shared_ptr<XAxis> axisx = *m_wave->plot1()->axisX();
-		shared_ptr<XAxis> axisy = *m_wave->plot1()->axisY();
+		m_wave->insertPlot(0, 1, -1, 2);
+		shared_ptr<XAxis> axisx = m_wave->axisx();
+		shared_ptr<XAxis> axisy = m_wave->axisy();
 		axisx->logScale()->value(true);
-		m_wave->plot1()->label()->value(KAME::i18n("Relaxation"));
-		m_wave->plot1()->drawLines()->value(false);
+		m_wave->plot(0)->label()->value(KAME::i18n("Relaxation"));
+		m_wave->plot(0)->drawLines()->value(false);
 		shared_ptr<XFuncPlot> plot2 = create<XRelaxFuncPlot>(
 			"FittedCurve", true, m_wave->graph(),
 			relaxFunc(), dynamic_pointer_cast<XNMRT1>(shared_from_this()));
@@ -473,7 +473,9 @@ XNMRT1::visualize()
 	}
 
 	{   XScopedWriteLock<XWaveNGraph> lock(*m_wave);
-	m_wave->setLabel(0, *t2Mode() ? "2Tau [us]" : "P1 [ms]");
+	std::string label(*t2Mode() ? "2Tau [us]" : "P1 [ms]");
+	m_wave->setLabel(0, label.c_str());
+	m_wave->axisx()->label()->value(label);
 	m_wave->setRowCount(m_sumpts.size());
 	double *colp1 = m_wave->cols(0);
 	double *colval = m_wave->cols(1);

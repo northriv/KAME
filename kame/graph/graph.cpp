@@ -1091,7 +1091,7 @@ XAxis::drawLabel(XQGraphPainter *painter)
     axisToScreen(1.05, &s2);
     s2 -= s1;
     s3 = s1;
-    painter->posOffAxis(m_dirVector, &s3, 0.5);
+    painter->posOffAxis(m_dirVector, &s3, 0.7);
     s3 -= s1;
     if(!painter->selectFont(*label(), s1, s2, s3, sizehint)) {
         painter->drawText(s1, *label());

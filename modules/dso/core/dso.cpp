@@ -125,7 +125,6 @@ XDSO::XDSO(const char *name, bool runtime,
 	recordLength()->setUIEnabled(false);
   
 	m_waveForm->setColCount(2, s_trace_names); 
-	m_waveForm->selectAxes(0, 1, -1);
 	m_waveForm->graph()->persistence()->value(0);
 	m_waveForm->clear();
 }
@@ -225,13 +224,16 @@ XDSO::visualize()
 	const unsigned int length = lengthDisp();
 	{ XScopedWriteLock<XWaveNGraph> lock(*m_waveForm);
 	m_waveForm->setColCount(num_channels + 1, s_trace_names);
-	if((m_waveForm->colX() != 0) || (m_waveForm->colY1() != 1) ||
-	   (m_waveForm->colY2() != ((num_channels > 1) ? 2 : -1))) {
-		m_waveForm->selectAxes(0, 1, (num_channels > 1) ? 2 : -1);
+	if(m_waveForm->numPlots() != num_channels) {
+		m_waveForm->clearPlots();
+		for(unsigned int i = 0; i < num_channels; i++) {
+			m_waveForm->insertPlot(0, i + 1);
+		}
+		m_waveForm->axisy()->label()->value(KAME::i18n("Traces [V]"));
 	}
-	m_waveForm->plot1()->drawPoints()->value(false);
-	if(num_channels > 1)
-		m_waveForm->plot2()->drawPoints()->value(false);
+	for(unsigned int i = 0; i < num_channels; i++) {
+		m_waveForm->plot(i)->drawPoints()->value(false);
+	}
           
 	m_waveForm->setRowCount(length);
     
