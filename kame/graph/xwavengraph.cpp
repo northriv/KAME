@@ -325,7 +325,7 @@ XWaveNGraph::drawGraph()
 	      for(int i = 0; i < rowcnt; i++)
 		      	weight_max = std::max(weight_max, colweight[i]);
 	      m_axisw->maxValue()->value(weight_max);
-	      m_axisw->minValue()->value(-0.25*weight_max);
+	      m_axisw->minValue()->value(-0.3*weight_max);
       }
             
       std::deque<XGraph::ValPoint> &points_plot(it->xyplot->points());
@@ -336,7 +336,7 @@ XWaveNGraph::drawGraph()
           if(colz)
             z = colz[i];
           if(colweight) {
-          	if(colweight[i] != 0)
+          	if(colweight[i] > 0)
                points_plot.push_back( XGraph::ValPoint(colx[i], coly[i], z, colweight[i]) );
           }
           else
