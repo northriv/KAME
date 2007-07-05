@@ -155,6 +155,7 @@ private:
  std::string m_onScreenMsg;
  int m_selStartPos[2];
  int m_tiltLastPos[2];
+ int m_pointerLastPos[2];
  
  double selectGL(int x, int y, int dx, int dy, GLint list,
 				 XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy );

@@ -146,6 +146,9 @@ XQGraphPainter::findPlane(const XGraph::ScrPoint &s1,
 void
 XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mode)
 {
+	m_pointerLastPos[0] = x;
+	m_pointerLastPos[1] = y;
+
 	if(m_bReqHelp) {
 		if(state != SelStart) return;
 		m_bReqHelp = false;
@@ -186,11 +189,11 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 		}
 		break;
 	case Selecting:
-		//resotre mode
+		//restore mode
 		mode = m_selectionModeNow;
 		break;
 	case SelFinish:
-		//resoter mode
+		//restore mode
 		mode = m_selectionModeNow;
 		m_selectionModeNow = SelNone;
 		break;
@@ -513,15 +516,19 @@ XQGraphPainter::drawOnScreenViewObj()
 	}
 	
 	if(*m_graph->drawLegends() &&
-			(m_selectionModeNow == SelNone) && !m_foundPlane) {
+			(m_selectionModeNow == SelNone)) {
 		atomic_shared_ptr<const XNode::NodeList> plots_list(m_graph->plots()->children());
 		if(plots_list && plots_list->size()) {
 			float z = 0.98;
-			float x1 = 0.75;
-			float x2 = 0.74;
-			float x3 = 0.82;
-			float y1 = 0.81;
 			float dy = 0.04;
+			float x1 = 0.75;
+			float y1 = 0.81;
+			if(m_pointerLastPos[0] > m_pItem->width() / 2)
+				x1 = 1.1f - x1;
+			if(m_pointerLastPos[1] < m_pItem->height() / 2)
+				y1 = 1.0f - y1 + plots_list->size() * dy;
+			float x2 = x1 - 0.01;
+			float x3 = x1 + 0.08;
 			defaultFont();
 			m_curAlign = AlignVCenter | AlignRight;
 			float y2 = y1;
