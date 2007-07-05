@@ -524,7 +524,7 @@ XQGraphPainter::drawOnScreenViewObj()
 			float x1 = 0.75;
 			float y1 = 0.81;
 			if(m_pointerLastPos[0] > m_pItem->width() / 2)
-				x1 = 1.1f - x1;
+				x1 = 1.06f - x1;
 			if(m_pointerLastPos[1] < m_pItem->height() / 2)
 				y1 = 1.0f - y1 + plots_list->size() * dy;
 			float x2 = x1 - 0.01;
