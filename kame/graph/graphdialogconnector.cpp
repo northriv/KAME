@@ -32,6 +32,8 @@ XQGraphDialogConnector::XQGraphDialogConnector
     m_selAxis(createOrphan<XItemNode<XAxisList, XAxis> >("", true, graph->axes(), true)),
     m_conBackGround(xqcon_create<XKColorComboConnector>
 					(graph->backGround(), m_pItem->m_clrBackGroundColor)),
+    m_conDrawLegends(xqcon_create<XQToggleButtonConnector>
+					 (graph->drawLegends(), m_pItem->m_ckbDrawLegends)),
     m_conPersistence(xqcon_create<XKDoubleNumInputConnector>
 					 (graph->persistence(), m_pItem->m_dblPersistence)),
     m_conPlots(xqcon_create<XQListBoxConnector>(m_selPlot, m_pItem->lbPlots)),

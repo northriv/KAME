@@ -63,8 +63,8 @@ XNMRSpectrum::XNMRSpectrum(const char *name, bool runtime,
 	{
 		const char *labels[] = {"Field [T]", "Re [V]", "Im [V]", "Counts"};
 		m_spectrum->setColCount(4, labels);
-		m_spectrum->insertPlot(0, 1, -1, 3);
-		m_spectrum->insertPlot(0, 2, -1, 3);
+		m_spectrum->insertPlot(labels[1], 0, 1, -1, 3);
+		m_spectrum->insertPlot(labels[2], 0, 2, -1, 3);
 		m_spectrum->axisy()->label()->value(KAME::i18n("Intens. [V]"));
 		m_spectrum->plot(0)->label()->value(KAME::i18n("real part"));
 		m_spectrum->plot(0)->drawPoints()->value(false);

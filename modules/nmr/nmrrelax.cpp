@@ -122,7 +122,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 		const char *labels[] = {"P1 [ms] or 2Tau [us]", "Intens [V]",
 								"Weight [1/V]", "Abs [V]", "Re [V]", "Im [V]"};
 		m_wave->setColCount(6, labels);
-		m_wave->insertPlot(0, 1, -1, 2);
+		m_wave->insertPlot(KAME::i18n("Measured"), 0, 1, -1, 2);
 		shared_ptr<XAxis> axisx = m_wave->axisx();
 		shared_ptr<XAxis> axisy = m_wave->axisy();
 		axisx->logScale()->value(true);

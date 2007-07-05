@@ -42,7 +42,8 @@ public:
  void setRowCount(unsigned int rowcnt);
  void setColCount(unsigned int colcnt, const char **lables);
  void setLabel(unsigned int col, const char *label);
- void insertPlot(int colx = 0, int coly1 = 1, int coly2 = -1, int colweight = -1, int colz = -1);
+ void insertPlot(const std::string &label,
+	int colx = 0, int coly1 = 1, int coly2 = -1, int colweight = -1, int colz = -1);
  void clearPlots();
  unsigned int numPlots() const {return m_plots.size();}
  

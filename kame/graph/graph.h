@@ -128,6 +128,8 @@ public:
 	const shared_ptr<XHexNode> &backGround() const {return m_backGround;}
 	const shared_ptr<XHexNode> &titleColor() const {return m_titleColor;}
 
+	const shared_ptr<XBoolNode> &drawLegends() const {return m_drawLegends;}
+
 	const shared_ptr<XDoubleNode> &persistence() const {return m_persistence;}
 	//! signal to redraw
 	void requestUpdate();
@@ -154,6 +156,8 @@ private:
 
 	const shared_ptr<XHexNode> m_backGround;
 	const shared_ptr<XHexNode> m_titleColor;
+
+	const shared_ptr<XBoolNode> m_drawLegends;
 
 	const shared_ptr<XDoubleNode> m_persistence;
 	XTalker<shared_ptr<XGraph> > m_tlkOnUpdate;
@@ -207,6 +211,10 @@ public:
 	virtual int validateAutoScale();
 	//! draw points from snapshot
 	int drawPlot(XQGraphPainter *painter);
+	//! draw a point for legneds.
+	//! \a spt the center of the point.
+	//! \a dx,dy the size of the area.
+	int drawLegend(XQGraphPainter *painter, const XGraph::ScrPoint &spt, float dx, float dy);
 	void drawGrid(XQGraphPainter *painter, bool drawzaxis = true);  
 	//! take a snap-shot all points for rendering 
 	void snapshot();

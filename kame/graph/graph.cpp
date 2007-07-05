@@ -70,13 +70,16 @@ XGraph::XGraph(const char *name, bool runtime) :
     m_plots(create<XPlotList>("Plots", true)),
     m_backGround(create<XHexNode>("BackGround", true)),
     m_titleColor(create<XHexNode>("TitleColor", true)),
+    m_drawLegends(create<XBoolNode>("DrawLegends", true)),
     m_persistence(create<XDoubleNode>("Persistence", true))
 {
     backGround()->onValueChanged().connect(lsnPropertyChanged());
     titleColor()->onValueChanged().connect(lsnPropertyChanged());
+    drawLegends()->onValueChanged().connect(lsnPropertyChanged());
     persistence()->onValueChanged().connect(lsnPropertyChanged());
     backGround()->value(clWhite);
     titleColor()->value(clBlack);
+    drawLegends()->value(true);
     
     label()->value(name);
     (axes()->create<XAxis>("XAxis", true, XAxis::DirAxisX
@@ -436,6 +439,66 @@ XPlot::drawGrid(XQGraphPainter *painter, bool drawzaxis)
 		}
     }
 }
+int
+XPlot::drawLegend(XQGraphPainter *painter, const XGraph::ScrPoint &spt, float dx, float dy)
+{
+    XScopedTryLock<XPlot> lock(*this);
+    if(lock) {      
+		bool colorplot = *colorPlot();
+		bool hasweight = m_curAxisW;
+		unsigned int colorhigh = *colorPlotColorHigh();
+		unsigned int colorlow = *colorPlotColorLow();
+		if(*drawBars())
+		{
+			float alpha = max(0.0f, min((float)(*intensity() * PLOT_BAR_INTENS), 1.0f));
+			painter->setColor(*barColor(), alpha );
+			painter->beginLine(1.0);
+			XGraph::ScrPoint s1, s2;
+			s1 = spt;
+			s1 += XGraph::ScrPoint(0, dy/2, 0);
+			s2 = spt;
+			s2 -= XGraph::ScrPoint(0, dy/2, 0);
+			if(colorplot || hasweight) painter->setColor(colorhigh); 
+			painter->setVertex(s1);
+			if(colorplot || hasweight) painter->setColor(colorlow); 
+			painter->setVertex(s2);
+			painter->endLine();
+		}
+		if(*drawLines())
+		{
+			float alpha = max(0.0f, min((float)(*intensity() * PLOT_LINE_INTENS), 1.0f));
+			painter->setColor(*lineColor(), alpha );
+			painter->beginLine(1.0);
+			XGraph::ScrPoint s1, s2;
+			s1 = spt;
+			s1 += XGraph::ScrPoint(dx/2, 0, 0);
+			s2 = spt;
+			s2 -= XGraph::ScrPoint(dx/2, 0, 0);
+			if(colorplot || hasweight) painter->setColor(colorhigh); 
+			painter->setVertex(s1);
+			if(colorplot || hasweight) painter->setColor(colorlow); 
+			painter->setVertex(s2);
+			painter->endLine();
+		}
+		if(*drawPoints())
+		{
+			float alpha = max(0.0f, min((float)(*intensity() * PLOT_POINT_INTENS), 1.0f));
+			painter->setColor(*pointColor(), alpha );
+			painter->beginPoint(PLOT_POINT_SIZE);
+			if(colorplot)
+				painter->setColor(colorhigh);
+			painter->setVertex(spt);
+			if(colorplot) {
+				painter->setColor(colorhigh);
+				painter->setVertex(spt);
+			}
+			painter->endPoint();
+		}
+    	return 0;
+    }
+    return -1;
+}
+
 int
 XPlot::drawPlot(XQGraphPainter *painter)
 {

@@ -11,7 +11,7 @@ and so on.
 fedora-buildrpmtree
 
 #For linux-gpib
-rpmbuild --target=`uname -m` --rebuild linux-gpib-kmod-{ver}.src.rpm
+rpmbuild --define='kversion `uname -r`' --define='kvariants ""' --target=`uname -m` --rebuild linux-gpib-kmod-{ver}.src.rpm
 rpmbuild --rebuild linux-gpib-{ver}.src.rpm
 #install the rpms: linux-gpib-{ver}.*.rpm, kmod-linux-gpib-{ver}-*.*.rpm
 #see /usr/share/doc/linux-gpib/INSTALL

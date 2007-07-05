@@ -97,7 +97,7 @@ XWaveNGraph::clearPlots()
   }
 }
 void
-XWaveNGraph::insertPlot(int x, int y1, int y2, int weight, int z)
+XWaveNGraph::insertPlot(const std::string &label, int x, int y1, int y2, int weight, int z)
 {
 	ASSERT( (y1 < 0) || (y2 < 0) );
   XScopedWriteLock<XRecursiveRWLock> lock(m_mutex);
@@ -124,7 +124,7 @@ XWaveNGraph::insertPlot(int x, int y1, int y2, int weight, int z)
       unsigned int plotnum = m_plots.size() + 1;
       plot.xyplot = m_graph->plots()->create<XXYPlot>(formatString("Plot%d", plotnum).c_str(),
       	 true, m_graph);
-      plot.xyplot->label()->value(KAME::i18n("Plot") + plotnum);
+      plot.xyplot->label()->value(label);
     
       atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
       m_axisx = dynamic_pointer_cast<XAxis>(axes_list->at(0));

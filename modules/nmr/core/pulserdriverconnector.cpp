@@ -61,6 +61,7 @@ XQPulserDriverConnector::XQPulserDriverConnector(
     
     m_graph->backGround()->value(QColor(0x0A, 0x05, 0x45).rgb());
     m_graph->titleColor()->value(clWhite);
+    m_graph->drawLegends()->value(false);
     axisx->label()->value("Time [ms]");
     axisx->ticColor()->value(clWhite);
     axisx->labelColor()->value(clWhite);

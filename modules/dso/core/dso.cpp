@@ -227,7 +227,7 @@ XDSO::visualize()
 	if(m_waveForm->numPlots() != num_channels) {
 		m_waveForm->clearPlots();
 		for(unsigned int i = 0; i < num_channels; i++) {
-			m_waveForm->insertPlot(0, i + 1);
+			m_waveForm->insertPlot(s_trace_names[i + 1], 0, i + 1);
 		}
 		m_waveForm->axisy()->label()->value(KAME::i18n("Traces [V]"));
 	}

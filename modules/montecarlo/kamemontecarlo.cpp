@@ -161,7 +161,7 @@ XMonteCarloDriver::XMonteCarloDriver(const char *name, bool runtime,
 		"h or x", "k or y", "l or z", "intens.", "hx", "hy", "hz", "site"
     };
 	m_wave3D->setColCount(8, s_trace_names); 
-	m_wave3D->insertPlot(0, 1, -1, 3, 2);
+	m_wave3D->insertPlot("Intens.", 0, 1, -1, 3, 2);
 	m_wave3D->clear();
 	m_wave3D->plot(0)->drawLines()->value(false);
 

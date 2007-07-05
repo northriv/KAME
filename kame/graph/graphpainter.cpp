@@ -512,6 +512,52 @@ XQGraphPainter::drawOnScreenViewObj()
   		drawText(XGraph::ScrPoint(0.01, 0.01, 0.01), m_onScreenMsg);
 	}
 	
+	if(*m_graph->drawLegends() &&
+			(m_selectionModeNow == SelNone) && !m_foundPlane) {
+		atomic_shared_ptr<const XNode::NodeList> plots_list(m_graph->plots()->children());
+		if(plots_list && plots_list->size()) {
+			float z = 0.98;
+			float x1 = 0.75;
+			float x2 = 0.74;
+			float x3 = 0.82;
+			float y1 = 0.81;
+			float dy = 0.04;
+			defaultFont();
+			m_curAlign = AlignVCenter | AlignRight;
+			float y2 = y1;
+			for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
+			{
+				shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
+				selectFont(*plot->label(), XGraph::ScrPoint(x2,y2,z), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, dy, 0), 0);
+				y2 -= dy;
+			}
+			setColor(*m_graph->backGround(), 0.7);
+			beginQuad(true);
+			setVertex(XGraph::ScrPoint(x1, y1 + dy/2, z));
+			setVertex(XGraph::ScrPoint(x1, y2 + dy/2, z));
+			setVertex(XGraph::ScrPoint(x3, y2 + dy/2, z));
+			setVertex(XGraph::ScrPoint(x3, y1 + dy/2, z));
+			endQuad();
+			setColor(*m_graph->titleColor(), 0.05);
+			beginQuad(true);
+			setVertex(XGraph::ScrPoint(x1, y1 + dy/2, z));
+			setVertex(XGraph::ScrPoint(x1, y2 + dy/2, z));
+			setVertex(XGraph::ScrPoint(x3, y2 + dy/2, z));
+			setVertex(XGraph::ScrPoint(x3, y1 + dy/2, z));
+			endQuad();
+			m_curAlign = AlignVCenter | AlignRight;
+			float y = y1;
+			for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
+			{
+				setColor(*m_graph->titleColor(), 1.0);
+				shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
+				drawText(XGraph::ScrPoint(x2,y,z), *plot->label());
+				plot->drawLegend(this, XGraph::ScrPoint((x3 + x1)/2, y, z), (x3 - x1)/1.5f, dy/1.2f);
+				y -= dy;
+			}
+		}
+	}
+	
 	if(m_bReqHelp) drawOnScreenHelp();
 }
 void

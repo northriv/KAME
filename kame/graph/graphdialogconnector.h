@@ -43,7 +43,7 @@ private:
 		m_conBackGround, m_conMajorGridColor,
 		m_conMinorGridColor, m_conPointColor, m_conLineColor, m_conBarColor, m_conClearPoints,
 		m_conColorPlot, m_conColorPlotColorHigh, m_conColorPlotColorLow,
-		m_conPlots, m_conAxes, m_conIntensity, m_conPersistence;  
+		m_conPlots, m_conAxes, m_conIntensity, m_conDrawLegends, m_conPersistence;  
  
 	void onSelAxisChanged(const shared_ptr<XValueNodeBase> &node);
 	void onSelPlotChanged(const shared_ptr<XValueNodeBase> &node);

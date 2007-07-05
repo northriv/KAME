@@ -54,8 +54,8 @@ XConCalTable::XConCalTable
 	{
 		const char *labels[] = {"Temp. [K]", "Value", "T(v(T))-T [K]"};
 		m_wave->setColCount(3, labels);
-		m_wave->insertPlot(0, 1);
-		m_wave->insertPlot(0, -1, 2);
+		m_wave->insertPlot(labels[1], 0, 1);
+		m_wave->insertPlot(labels[2], 0, -1, 2);
 		m_wave->plot(0)->label()->value(KAME::i18n("Curve"));
 		m_wave->plot(0)->drawPoints()->value(false);
 		m_wave->plot(1)->label()->value(KAME::i18n("Error"));

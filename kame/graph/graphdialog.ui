@@ -787,7 +787,7 @@
                     <property name="name">
                         <cstring>unnamed</cstring>
                     </property>
-                    <widget class="QLayoutWidget" row="0" column="0">
+                    <widget class="QLayoutWidget" row="0" column="0" rowspan="1" colspan="2">
                         <property name="name">
                             <cstring>layout18</cstring>
                         </property>
@@ -813,24 +813,7 @@
                             </widget>
                         </vbox>
                     </widget>
-                    <spacer row="0" column="1">
-                        <property name="name">
-                            <cstring>spacer12</cstring>
-                        </property>
-                        <property name="orientation">
-                            <enum>Horizontal</enum>
-                        </property>
-                        <property name="sizeType">
-                            <enum>Expanding</enum>
-                        </property>
-                        <property name="sizeHint">
-                            <size>
-                                <width>51</width>
-                                <height>20</height>
-                            </size>
-                        </property>
-                    </spacer>
-                    <spacer row="2" column="0">
+                    <spacer row="3" column="0">
                         <property name="name">
                             <cstring>spacer11</cstring>
                         </property>
@@ -843,11 +826,11 @@
                         <property name="sizeHint">
                             <size>
                                 <width>20</width>
-                                <height>170</height>
+                                <height>240</height>
                             </size>
                         </property>
                     </spacer>
-                    <widget class="QLayoutWidget" row="1" column="0" rowspan="1" colspan="2">
+                    <widget class="QLayoutWidget" row="2" column="0" rowspan="1" colspan="3">
                         <property name="name">
                             <cstring>layout26</cstring>
                         </property>
@@ -888,6 +871,51 @@
                             </widget>
                         </hbox>
                     </widget>
+                    <widget class="QCheckBox" row="1" column="0">
+                        <property name="name">
+                            <cstring>m_ckbDrawLegends</cstring>
+                        </property>
+                        <property name="enabled">
+                            <bool>false</bool>
+                        </property>
+                        <property name="text">
+                            <string>Draw Legends</string>
+                        </property>
+                    </widget>
+                    <spacer row="0" column="2">
+                        <property name="name">
+                            <cstring>spacer12</cstring>
+                        </property>
+                        <property name="orientation">
+                            <enum>Horizontal</enum>
+                        </property>
+                        <property name="sizeType">
+                            <enum>Expanding</enum>
+                        </property>
+                        <property name="sizeHint">
+                            <size>
+                                <width>51</width>
+                                <height>20</height>
+                            </size>
+                        </property>
+                    </spacer>
+                    <spacer row="1" column="1" rowspan="1" colspan="2">
+                        <property name="name">
+                            <cstring>spacer12_2</cstring>
+                        </property>
+                        <property name="orientation">
+                            <enum>Horizontal</enum>
+                        </property>
+                        <property name="sizeType">
+                            <enum>Expanding</enum>
+                        </property>
+                        <property name="sizeHint">
+                            <size>
+                                <width>170</width>
+                                <height>20</height>
+                            </size>
+                        </property>
+                    </spacer>
                 </grid>
             </widget>
         </widget>
@@ -937,6 +965,8 @@
     <tabstop>ckbDisplayMinorTics</tabstop>
     <tabstop>edTicLabelFormat</tabstop>
     <tabstop>m_clrBackGroundColor</tabstop>
+    <tabstop>m_ckbDrawLegends</tabstop>
+    <tabstop>m_dblPersistence</tabstop>
     <tabstop>buttonHelp</tabstop>
     <tabstop>buttonOk</tabstop>
 </tabstops>
