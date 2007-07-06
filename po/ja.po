@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: ja\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2007-07-06 01:07+0900\n"
+"POT-Creation-Date: 2007-07-06 21:38+0900\n"
 "PO-Revision-Date: 2006-01-03 08:09+0900\n"
 "Last-Translator: Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>\n"
 "Language-Team: Japanese <ja@li.org>\n"
@@ -1765,6 +1765,9 @@ msgstr "パワーレンジ"
 #~ msgid "read error"
 #~ msgstr "readエラー"
 
+#~ msgid "read time-out"
+#~ msgstr "readタイムアウト"
+
 #~ msgid "Plot1"
 #~ msgstr "プロット1"
 
@@ -1930,8 +1933,14 @@ msgstr "パワーレンジ"
 #~ msgid "Pulse Patterns"
 #~ msgstr "パルスパターン"
 
+#~ msgid "Pulser Invalid pattern"
+#~ msgstr "無効なパルスパターン"
+
 #~ msgid "Signal Gen. Control - "
 #~ msgstr "シグナル発生器制御 - "
+
+#~ msgid "SG Error."
+#~ msgstr "SGエラー"
 
 #~ msgid "TempControl - "
 #~ msgstr "温度コントローラ - "
