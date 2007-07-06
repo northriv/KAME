@@ -605,9 +605,8 @@ msgid "write error"
 msgstr "writeエラー"
 
 #: modules/charinterface/serial.cpp:151
-#, fuzzy
 msgid "read time-out, buf=;"
-msgstr "readタイムアウト"
+msgstr "readタイムアウト、buf=;"
 
 #: modules/charinterface/serial.cpp:159 modules/charinterface/serial.cpp:202
 msgid "read error"
@@ -652,9 +651,8 @@ msgid "DMM Read Error"
 msgstr "DMMリードエラー"
 
 #: modules/dso/core/dso.cpp:232
-#, fuzzy
 msgid "Traces [V]"
-msgstr "トレース1"
+msgstr "トレース [V]"
 
 #: modules/dso/core/dso.cpp:326
 msgid "Select traces!."
@@ -721,9 +719,8 @@ msgid "Inconsistent channel number."
 msgstr ""
 
 #: modules/nidaq/nidaqdso.cpp:581
-#, fuzzy
 msgid "Buffer Overflow."
-msgstr "バッファアンダーフロー."
+msgstr "バッファオーバーフロー."
 
 #: modules/nidaq/nidaqdso.cpp:761
 msgid "Restart the software-trigger source."
@@ -743,9 +740,8 @@ msgid "Product-type mismatch."
 msgstr ""
 
 #: modules/nidaq/pulserdrivernidaq.cpp:57
-#, fuzzy
 msgid "Opening M series device failed."
-msgstr "GPIBデバイスオープン失敗"
+msgstr "Mシリーズデバイスオープン失敗"
 
 #: modules/nidaq/pulserdrivernidaqmx.cpp:78
 #: modules/nidaq/pulserdrivernidaqmx.cpp:97
@@ -764,9 +760,8 @@ msgid "Look at the port-selection table."
 msgstr ""
 
 #: modules/nidaq/pulserdrivernidaqmx.cpp:897
-#, fuzzy
 msgid "Invalid pulse patterns."
-msgstr "マルチエコーの設定があかんわ"
+msgstr "パルスパターンがあかんわ"
 
 #: modules/nidaq/pulserdrivernidaqmx.cpp:977
 #: modules/nmr/pulserdriverh8.cpp:121 modules/nmr/pulserdriversh.cpp:335
@@ -896,9 +891,8 @@ msgid "FFT length is not a power of 2."
 msgstr "FFT長が２の累乗ちゃうで"
 
 #: modules/nmr/nmrpulse.cpp:519
-#, fuzzy
 msgid "No active pulser!"
-msgstr "パルサーないで"
+msgstr "パルサーないで!"
 
 #: modules/nmr/nmrpulse.cpp:533 modules/nmr/nmrpulse.cpp:536
 msgid "Position for BG. sub. beyond waveforms."
@@ -930,9 +924,8 @@ msgid "NMR Relax. Meas. - "
 msgstr "NMR緩和測定 - "
 
 #: modules/nmr/nmrrelax.cpp:125
-#, fuzzy
 msgid "Measured"
-msgstr "測定(&M)"
+msgstr "測定点"
 
 #: modules/nmr/nmrrelax.cpp:129
 msgid "Relaxation"
@@ -1007,9 +1000,8 @@ msgid "Too long DMA."
 msgstr ""
 
 #: modules/nmr/pulserdriversh.cpp:303
-#, fuzzy
 msgid "No waveform."
-msgstr "波形"
+msgstr "波形なし"
 
 #: modules/tempcontrol/tempcontrol.cpp:103
 msgid "TempControl - "
@@ -2815,26 +2807,22 @@ msgstr "パワーレンジ"
 
 #: ../macosx/modules/dcsource/core/forms/dcsourceform.cpp:116
 #: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:278
-#, fuzzy
 msgid "Channel"
-msgstr "やめとく(&C)"
+msgstr "チャンネル"
 
 #: ../macosx/modules/dcsource/core/forms/dcsourceform.cpp:119
-#, fuzzy
 msgid "Range"
-msgstr "パワーレンジ"
+msgstr "レンジ"
 
 #: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:489
-#, fuzzy
 msgid "Rep/Rest"
-msgstr "Rep/Rest時間"
+msgstr "Rep/Rest"
 
 #: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:700
 msgid "Soft SW Off"
 msgstr ""
 
 #: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:702
-#, fuzzy
 msgid "Only for pi Pulses"
 msgstr "πパルスのみ"
 
