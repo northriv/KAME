@@ -144,8 +144,9 @@ XWaveNGraph::insertPlot(const std::string &label, int x, int y1, int y2, int wei
       if(plot.colweight >= 0) {
           if(!m_axisw) {
           	m_axisw = m_graph->axes()->create<XAxis>("Weight", true, XAxis::AxisWeight, true, m_graph);
-	        m_axisw->autoScale()->value(false);
           }
+	      m_axisw->autoScale()->value(false);
+	      m_axisw->autoScale()->setUIEnabled(false);
           plot.xyplot->axisW()->value(m_axisw);
 	      m_axisw->label()->value(m_labels[plot.colweight]);
       }

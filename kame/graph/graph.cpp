@@ -988,6 +988,8 @@ XAxis::tryInclude(XGraph::VFloat x)
 void
 XAxis::zoom(bool minchange, bool maxchange, XGraph::GFloat prop, XGraph::GFloat center)
 {
+	if(direction() == AxisWeight) return;
+	
 	if(m_minFixed == m_maxFixed)
 	{
 		m_minFixed = 1.1 * m_minFixed - (m_bLogscaleFixed ? 0 : 0.1);
