@@ -1,3 +1,8 @@
+* Wed Jul 11 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.2.11-2)
+- xwavengraph: Never use autoscale for weighting axes.
+
+
 * Thu Jul 5 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.2.11-1)
 - graph: Legends.
