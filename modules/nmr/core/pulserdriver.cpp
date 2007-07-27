@@ -897,7 +897,7 @@ XPulser::rawToRelPat() throw (XRecordError&)
 	uint64_t pos = 0;
             
 	int echonum = _echo_num;
-	const uint32_t *const p1 = (echonum > 1) ? p1multi : p1single;
+	const uint32_t *const p1 = ((echonum > 1) || _conserve_ste_phase) ? p1multi : p1single;
 	const uint32_t *const p2 = ((echonum > 1) || _conserve_ste_phase) ? p2multi : p2single;
   
 	bool former_of_alt = !_invert_phase;
