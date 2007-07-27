@@ -866,12 +866,20 @@ XPulser::rawToRelPat() throw (XRecordError&)
 	const uint32_t p2single[MAX_NUM_PHASE_CYCLE] = {
 		0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3
 	};
+
 	//pi/2 pulse phases for multiple echoes
 	const uint32_t p1multi[MAX_NUM_PHASE_CYCLE] = {
 		2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
 	};
-	//pi pulse phases for multiple echoes
+	//pi pulse phases for multiple echoes or for st.e.
 	const uint32_t p2multi[MAX_NUM_PHASE_CYCLE] = {
+		1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3
+	};
+	//stimulated echo pulse phases
+	const uint32_t ste_p1[MAX_NUM_PHASE_CYCLE] = {
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+	};
+	const uint32_t ste_p2[MAX_NUM_PHASE_CYCLE] = {
 		1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3
 	};
   
@@ -890,9 +898,7 @@ XPulser::rawToRelPat() throw (XRecordError&)
             
 	int echonum = _echo_num;
 	const uint32_t *const p1 = (echonum > 1) ? p1multi : p1single;
-	const uint32_t *const p2 = (echonum > 1) ? p2multi : p2single;
-
-	const uint32_t *const comb = (_conserve_ste_phase) ? p2 : comb_ste_cancel;
+	const uint32_t *const p2 = ((echonum > 1) || _conserve_ste_phase) ? p2multi : p2single;
   
 	bool former_of_alt = !_invert_phase;
 	for(int i = 0; i < _num_phase_cycle * (comb_mode_alt ? 2 : 1); i++)
@@ -932,6 +938,8 @@ XPulser::rawToRelPat() throw (XRecordError&)
 			patterns_cheap.insert(tpat(cpos - _comb_pw/2 - _g2_setup, ~(uint32_t)0, combmask));
 			for(int k = 0; k < _comb_num; k++)
 			{
+				const uint32_t *const comb = (_conserve_ste_phase) ?
+					 ((k % 2 == 0) ? ste_p1 : ste_p2) : comb_ste_cancel;
 				patterns.insert(tpat(cpos + _comb_pw/2 , qpsk[comb[j]], qpskmask));
 				cpos += combpt;
 				cpos -= _comb_pw/2;
