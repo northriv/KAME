@@ -180,6 +180,7 @@ XPulser::XPulser(const char *name, bool runtime,
     m_qswWidth(create<XDoubleNode>("QSWWidth", false)),
     m_qswSoftSWOff(create<XDoubleNode>("QSWSoftSWOff", false)),
     m_invertPhase(create<XBoolNode>("InvertPhase", false)),
+    m_conserveStEPhase(create<XBoolNode>("ConserveStEPhase", false)),
     m_qswPiPulseOnly(create<XBoolNode>("QSWPiPulseOnly", false)),
     m_moreConfigShow(create<XNode>("MoreConfigShow", true)),
     m_form(new FrmPulser(g_pFrmMain)),
@@ -330,6 +331,7 @@ XPulser::XPulser(const char *name, bool runtime,
 	m_conNumPhaseCycle = xqcon_create<XQComboBoxConnector>(m_numPhaseCycle, m_formMore->m_cmbPhaseCycle);
 	m_conCombOffRes = xqcon_create<XQLineEditConnector>(m_combOffRes, m_form->m_edCombOffRes);
 	m_conInvertPhase = xqcon_create<XQToggleButtonConnector>(m_invertPhase, m_formMore->m_ckbInvertPhase);
+	m_conConserveStEPhase = xqcon_create<XQToggleButtonConnector>(m_conserveStEPhase, m_formMore->m_ckbStEPhase);
 	m_conP1Func = xqcon_create<XQComboBoxConnector>(m_p1Func, m_form->m_cmbP1Func);
 	m_conP2Func = xqcon_create<XQComboBoxConnector>(m_p2Func, m_form->m_cmbP2Func);
 	m_conCombFunc = xqcon_create<XQComboBoxConnector>(m_combFunc, m_form->m_cmbCombFunc);
@@ -396,6 +398,7 @@ XPulser::XPulser(const char *name, bool runtime,
 	qswSoftSWOff()->setUIEnabled(false);
 	qswPiPulseOnly()->setUIEnabled(false);
 	invertPhase()->setUIEnabled(false);
+	conserveStEPhase()->setUIEnabled(false);
   
 	m_conPulserDriver = xqcon_create<XQPulserDriverConnector>(
         dynamic_pointer_cast<XPulser>(shared_from_this()), m_form->m_tblPulse, m_form->m_graph);
@@ -444,6 +447,7 @@ XPulser::start()
 	qswSoftSWOff()->setUIEnabled(true);
 	qswPiPulseOnly()->setUIEnabled(true);
 	invertPhase()->setUIEnabled(true);
+	conserveStEPhase()->setUIEnabled(true);
 	//Port0 is locked.
 	for(unsigned int i = 1; i < NUM_DO_PORTS; i++) {
 //	m_portSel[i]->setUIEnabled(true);
@@ -493,6 +497,7 @@ XPulser::start()
 	qswSoftSWOff()->onValueChanged().connect(m_lsnOnPulseChanged);
 	qswPiPulseOnly()->onValueChanged().connect(m_lsnOnPulseChanged);
 	invertPhase()->onValueChanged().connect(m_lsnOnPulseChanged);
+	conserveStEPhase()->onValueChanged().connect(m_lsnOnPulseChanged);
 	for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
 		portSel(i)->onValueChanged().connect(m_lsnOnPulseChanged);
 	}
@@ -560,6 +565,7 @@ XPulser::stop()
 	qswSoftSWOff()->setUIEnabled(false);
 	qswPiPulseOnly()->setUIEnabled(false);
 	invertPhase()->setUIEnabled(false);
+	conserveStEPhase()->setUIEnabled(false);
 	for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
 //	m_portSel[i]->setUIEnabled(false);
 		m_portSel[i]->setUIEnabled(true);
@@ -825,6 +831,7 @@ XPulser::rawToRelPat() throw (XRecordError&)
 		_num_phase_cycle = std::min(_num_phase_cycle, 4);
   
 	const bool _invert_phase = m_invertPhaseRecorded;
+	const bool _conserve_ste_phase = *conserveStEPhase();
 
 	//patterns correspoinding to 0, pi/2, pi, -pi/2
 	const unsigned int qpskIQ[4] = {0, 1, 3, 2};
@@ -843,7 +850,7 @@ XPulser::rawToRelPat() throw (XRecordError&)
 	const unsigned int qpskinv[4] = {_qpsk(2), _qpsk(3), _qpsk(0), _qpsk(1)};
 
 	//comb phases
-	const uint32_t comb[MAX_NUM_PHASE_CYCLE] = {
+	const uint32_t comb_ste_cancel[MAX_NUM_PHASE_CYCLE] = {
 		1, 3, 0, 2, 3, 1, 2, 0, 0, 2, 1, 3, 2, 0, 3, 1
 	};
 	//induced emission phases
@@ -884,6 +891,8 @@ XPulser::rawToRelPat() throw (XRecordError&)
 	int echonum = _echo_num;
 	const uint32_t *const p1 = (echonum > 1) ? p1multi : p1single;
 	const uint32_t *const p2 = (echonum > 1) ? p2multi : p2single;
+
+	const uint32_t *const comb = (_conserve_ste_phase) ? p2 : comb_ste_cancel;
   
 	bool former_of_alt = !_invert_phase;
 	for(int i = 0; i < _num_phase_cycle * (comb_mode_alt ? 2 : 1); i++)
@@ -931,20 +940,20 @@ XPulser::rawToRelPat() throw (XRecordError&)
 				cpos += _comb_pw;      
 				patterns.insert(tpat(cpos, 0 , g1mask));
 				patterns.insert(tpat(cpos, 0, PAT_QAM_PULSE_IDX_MASK));
+				if(! _qsw_pi_only) {
+					patterns.insert(tpat(cpos + _qsw_delay, ~(uint32_t)0 , qswmask));
+					patterns.insert(tpat(cpos + (_qsw_delay + _qsw_width), 0 , qswmask));
+					if(_qsw_softswoff) {
+						patterns.insert(tpat(cpos + (_qsw_delay + _qsw_width + _qsw_softswoff), ~(uint32_t)0 , qswmask));
+						patterns.insert(tpat(cpos + (_qsw_delay + _qsw_width + 2*_qsw_softswoff), 0 , qswmask));
+					}
+				}
 
 				cpos -= _comb_pw/2;
 			}
 			patterns.insert(tpat(cpos + _comb_pw/2, 0, g2mask));
 			patterns.insert(tpat(cpos + _comb_pw/2, 0, combmask));
 			patterns.insert(tpat(cpos + _comb_pw/2, ~(uint32_t)0, combfmmask));
-			if(! _qsw_pi_only) {
-				patterns.insert(tpat(cpos + _comb_pw/2 + _qsw_delay, ~(uint32_t)0 , qswmask));
-				patterns.insert(tpat(cpos + _comb_pw/2 + (_qsw_delay + _qsw_width), 0 , qswmask));
-				if(_qsw_softswoff) {
-					patterns.insert(tpat(cpos + _comb_pw/2 + (_qsw_delay + _qsw_width + _qsw_softswoff), ~(uint32_t)0 , qswmask));
-					patterns.insert(tpat(cpos + _comb_pw/2 + (_qsw_delay + _qsw_width + 2*_qsw_softswoff), 0 , qswmask));
-				}
-			}
 		}   
 		pos += _p1;
        

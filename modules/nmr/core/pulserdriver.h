@@ -97,6 +97,7 @@ public:
     const shared_ptr<XDoubleNode> &qswSoftSWOff() const {return m_qswSoftSWOff;} //!< Q-switch setting, second pulse [us].
     const shared_ptr<XBoolNode> &qswPiPulseOnly() const {return m_qswPiPulseOnly;} //!< Q-switch setting, use QSW only for pi pulses.
     const shared_ptr<XBoolNode> &invertPhase() const {return m_invertPhase;}
+    const shared_ptr<XBoolNode> &conserveStEPhase() const {return m_conserveStEPhase;}
     const shared_ptr<XComboNode> &portSel(unsigned int port) const {
     	ASSERT(port < NUM_DO_PORTS);
     	return m_portSel[port];
@@ -277,6 +278,7 @@ private:
     const shared_ptr<XDoubleNode> m_qswWidth;
     const shared_ptr<XDoubleNode> m_qswSoftSWOff;
     const shared_ptr<XBoolNode> m_invertPhase;
+    const shared_ptr<XBoolNode> m_conserveStEPhase; 
     const shared_ptr<XBoolNode> m_qswPiPulseOnly;
     shared_ptr<XComboNode> m_portSel[NUM_DO_PORTS];
     
@@ -286,7 +288,8 @@ private:
 	xqcon_ptr m_conRT, m_conTau, m_conCombPW, m_conPW1, m_conPW2,
 		m_conCombNum, m_conCombPT, m_conCombP1, m_conCombP1Alt,
 		m_conASWHold, m_conASWSetup, m_conALTSep, m_conG2Setup,
-		m_conEchoNum, m_conDrivenEquilibrium, m_conNumPhaseCycle, m_conCombOffRes, m_conInvertPhase,
+		m_conEchoNum, m_conDrivenEquilibrium, m_conNumPhaseCycle,
+		m_conCombOffRes, m_conInvertPhase, m_conConserveStEPhase,
 		m_conCombFunc, m_conP1Func, m_conP2Func,
 		m_conCombLevel, m_conP1Level, m_conP2Level,
 		m_conMasterLevel,
