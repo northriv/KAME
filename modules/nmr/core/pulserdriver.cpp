@@ -968,24 +968,27 @@ XPulser::rawToRelPat() throw (XRecordError&)
 		//pi/2 pulse
 		//on
 		patterns_cheap.insert(tpat(pos - _pw1/2 - _g2_setup, qpsk[p1[j]], qpskmask));
-		patterns_cheap.insert(tpat(pos - _pw1/2 - _g2_setup, ~(uint32_t)0, pulse1mask));
 		patterns_cheap.insert(tpat(pos - _pw1/2 - _g2_setup, ~(uint32_t)0, g2mask));
-		patterns.insert(tpat(pos - _pw1/2, PAT_QAM_PULSE_IDX_P1, PAT_QAM_PULSE_IDX_MASK));
-		patterns.insert(tpat(pos - _pw1/2, ~(uint32_t)0, g1mask | trig2mask));
-		//off
-		patterns.insert(tpat(pos + _pw1/2, 0, g1mask));
-		patterns.insert(tpat(pos + _pw1/2, 0, PAT_QAM_PULSE_IDX_MASK));
-		patterns.insert(tpat(pos + _pw1/2, 0, pulse1mask));
+		patterns.insert(tpat(pos - _pw1/2, ~(uint32_t)0, trig2mask));
+		if(_pw1/2) {
+			patterns_cheap.insert(tpat(pos - _pw1/2 - _g2_setup, ~(uint32_t)0, pulse1mask));
+			patterns.insert(tpat(pos - _pw1/2, PAT_QAM_PULSE_IDX_P1, PAT_QAM_PULSE_IDX_MASK));
+			patterns.insert(tpat(pos - _pw1/2, ~(uint32_t)0, g1mask));
+			//off
+			patterns.insert(tpat(pos + _pw1/2, 0, g1mask));
+			patterns.insert(tpat(pos + _pw1/2, 0, PAT_QAM_PULSE_IDX_MASK));
+			patterns.insert(tpat(pos + _pw1/2, 0, pulse1mask));
+			if(! _qsw_pi_only) {
+				patterns.insert(tpat(pos + _pw1/2 + _qsw_delay, ~(uint32_t)0 , qswmask));
+				patterns.insert(tpat(pos + _pw1/2 + (_qsw_delay + _qsw_width), 0 , qswmask));
+				if(_qsw_softswoff) {
+					patterns.insert(tpat(pos + _pw1/2 + (_qsw_delay + _qsw_width + _qsw_softswoff), ~(uint32_t)0 , qswmask));
+					patterns.insert(tpat(pos + _pw1/2 + (_qsw_delay + _qsw_width + 2*_qsw_softswoff), 0 , qswmask));
+				}
+			}			
+		}
 		patterns.insert(tpat(pos + _pw1/2, qpsk[p2[j]], qpskmask));
 		patterns.insert(tpat(pos + _pw1/2, ~(uint32_t)0, pulse2mask));
-		if(! _qsw_pi_only) {
-			patterns.insert(tpat(pos + _pw1/2 + _qsw_delay, ~(uint32_t)0 , qswmask));
-			patterns.insert(tpat(pos + _pw1/2 + (_qsw_delay + _qsw_width), 0 , qswmask));
-			if(_qsw_softswoff) {
-				patterns.insert(tpat(pos + _pw1/2 + (_qsw_delay + _qsw_width + _qsw_softswoff), ~(uint32_t)0 , qswmask));
-				patterns.insert(tpat(pos + _pw1/2 + (_qsw_delay + _qsw_width + 2*_qsw_softswoff), 0 , qswmask));
-			}
-		}
      
 		//2tau
 		pos += 2*_tau;
@@ -1008,24 +1011,26 @@ XPulser::rawToRelPat() throw (XRecordError&)
 		for(int k = 0;k < echonum; k++)
 		{
 			pos += 2*_tau;
-			//on
-			if(k >= 1) {
-				patterns_cheap.insert(tpat(pos - _pw2/2 - _g2_setup, ~(uint32_t)0, g2mask));
-			}
 			patterns.insert(tpat(pos - _pw2/2, 0, trig2mask));
-			patterns.insert(tpat(pos - _pw2/2, PAT_QAM_PULSE_IDX_P2, PAT_QAM_PULSE_IDX_MASK));
-			patterns.insert(tpat(pos - _pw2/2, ~(uint32_t)0, g1mask));
-			//off
-			patterns.insert(tpat(pos + _pw2/2, 0, pulse2mask));
-			patterns.insert(tpat(pos + _pw2/2, 0, PAT_QAM_PULSE_IDX_MASK));
-			patterns.insert(tpat(pos + _pw2/2, 0, g1mask));
-			patterns.insert(tpat(pos + _pw2/2, 0, g2mask));
-			patterns.insert(tpat(pos + _pw2/2 + _qsw_delay, ~(uint32_t)0 , qswmask));
-			patterns.insert(tpat(pos + _pw2/2 + (_qsw_delay + _qsw_width), 0 , qswmask));
-			if(_qsw_softswoff) {
-				patterns.insert(tpat(pos + _pw2/2 + (_qsw_delay + _qsw_width + _qsw_softswoff), ~(uint32_t)0 , qswmask));
-				patterns.insert(tpat(pos + _pw2/2 + (_qsw_delay + _qsw_width + 2*_qsw_softswoff), 0 , qswmask));
+			if(_pw2/2) {
+				//on
+				if(k >= 1) {
+					patterns_cheap.insert(tpat(pos - _pw2/2 - _g2_setup, ~(uint32_t)0, g2mask));
+				}
+				patterns.insert(tpat(pos - _pw2/2, PAT_QAM_PULSE_IDX_P2, PAT_QAM_PULSE_IDX_MASK));
+				patterns.insert(tpat(pos - _pw2/2, ~(uint32_t)0, g1mask));
+				//off
+				patterns.insert(tpat(pos + _pw2/2, 0, PAT_QAM_PULSE_IDX_MASK));
+				patterns.insert(tpat(pos + _pw2/2, 0, g1mask));
+				patterns.insert(tpat(pos + _pw2/2 + _qsw_delay, ~(uint32_t)0 , qswmask));
+				patterns.insert(tpat(pos + _pw2/2 + (_qsw_delay + _qsw_width), 0 , qswmask));
+				if(_qsw_softswoff) {
+					patterns.insert(tpat(pos + _pw2/2 + (_qsw_delay + _qsw_width + _qsw_softswoff), ~(uint32_t)0 , qswmask));
+					patterns.insert(tpat(pos + _pw2/2 + (_qsw_delay + _qsw_width + 2*_qsw_softswoff), 0 , qswmask));
+				}
 			}
+			patterns.insert(tpat(pos + _pw2/2, 0, pulse2mask));
+			patterns.insert(tpat(pos + _pw2/2, 0, g2mask));
 		}
 
 		patterns.insert(tpat(pos + _tau + _asw_hold, 0, aswmask | trig1mask));
