@@ -1,3 +1,8 @@
+* Sun Jul 29 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.2.12-2)
+- pulserdriver: Arrange for FID.
+- nmrrelax: St.E. mode. 2-parameter fitting.
+
 * Fri Jul 27 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.2.12-1)
 - pulserdriver: New option: conserve stimulated echo phase.
