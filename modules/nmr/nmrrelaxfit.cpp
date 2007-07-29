@@ -43,8 +43,6 @@ public:
 		double a;
 	};
  
-	const struct Term *m_terms; 
-  
 	XNODE_OBJECT
 protected:
 	XRelaxFuncPoly(const char *name, bool runtime, const Term *terms)
@@ -74,34 +72,34 @@ public:
 		*f = 1.0 - rf;
 		*dfdt = -rdf;
 	}
-
+private:
+	const struct Term *m_terms;  
 };
-
-class XRelaxFuncSqrt : public XRelaxFunc
+//! Power exponential.
+class XRelaxFuncPowExp : public XRelaxFunc
 {
 	XNODE_OBJECT
 protected:
-	XRelaxFuncSqrt(const char *name, bool runtime)
-		: XRelaxFunc(name, runtime)
-	{
-	}    
+	XRelaxFuncPowExp(const char *name, bool runtime, double pow)
+		: XRelaxFunc(name, runtime), m_pow(pow)	{}
 public:  
   
-	virtual ~XRelaxFuncSqrt() {}
+	virtual ~XRelaxFuncPowExp() {}
   
 	//! called during fitting
 	//! \param f f(t, it1) will be passed
 	//! \param dfdt df/d(it1) will be passed
 	//! \param t a time P1 or 2tau
 	//! \param it1 1/T1 or 1/T2   
-	virtual void relax(double *f, double *dfdt, double t, double it1)
-	{
+	virtual void relax(double *f, double *dfdt, double t, double it1) {
 		it1 = std::max(0.0, it1);
-		double rt = sqrt(t * it1);
+		double rt = pow(t * it1, m_pow);
 		double a = exp(-rt);
 		*f = 1.0 - a;
 		*dfdt = t/rt/2.0 * a;
 	}
+private:
+	const double m_pow;
 };
 
 //NQR I=1
@@ -289,11 +287,12 @@ XRelaxFuncList::XRelaxFuncList(const char *name, bool runtime)
 	create<XRelaxFuncPoly>("NQR I=9/2 7/2-5/2", true, s_relaxdata_nqr9_7);
 	create<XRelaxFuncPoly>("NQR I=9/2 5/2-3/2", true, s_relaxdata_nqr9_5);
 	create<XRelaxFuncPoly>("NQR I=9/2 3/2-2/1", true, s_relaxdata_nqr9_3);
-	create<XRelaxFuncSqrt>("Random Spins; exp(-sqrt(t/tau))", true);   
-	create<XRelaxFuncPoly>("NQR Dy2Ti2O7 spin-ice 47Ti-NQR 4.4MHz", true, s_relaxdata_nqrspinice44);
-	create<XRelaxFuncPoly>("NQR Dy2Ti2O7 spin-ice 47Ti-NQR 8.8MHz", true, s_relaxdata_nqrspinice88);
+	create<XRelaxFuncPowExp>("Pow.Exp.0.5: exp(-(t/tau)^0.5)", true, 0.5);
+	create<XRelaxFuncPowExp>("Pow.Exp.0.6: exp(-(t/tau)^0.6)", true, 0.6);
+	create<XRelaxFuncPowExp>("Pow.Exp.0.7: exp(-(t/tau)^0.7)", true, 0.7);
+	create<XRelaxFuncPowExp>("Pow.Exp.0.8: exp(-(t/tau)^0.8)", true, 0.7);
+	create<XRelaxFuncPowExp>("Gaussian: exp(-(t/tau)^2)", true, 2.0);
 }
-
 
 int
 XRelaxFunc::relax_f (const gsl_vector * x, void *params,
@@ -375,6 +374,7 @@ std::string
 XNMRT1::iterate(shared_ptr<XRelaxFunc> &func,
 				int itercnt)
 {
+	//# of samples.
 	int n = 0;
 	for(std::deque<Pt>::iterator it = m_sumpts.begin(); it != m_sumpts.end(); it++)
     {
@@ -384,7 +384,8 @@ XNMRT1::iterate(shared_ptr<XRelaxFunc> &func,
 		&m_sumpts,
 		func
 	};
-	int p = 3;
+	//# of indep. params.
+	int p = (*mInftyFit()) ? 3 : 2;
 	if(n <= p) return formatString("%d",n) + KAME::i18n(" points, more points needed.");
 	int status;
 	double norm = 0;
@@ -411,20 +412,21 @@ XNMRT1::iterate(shared_ptr<XRelaxFunc> &func,
 	double t1 = 0.001 / m_params[0];
 	double t1err = 0.001 / pow(m_params[0], 2.0) * m_errors[0];
 	QString buf = "";
-	if(*t2Mode())
-    {
-		buf += QString().sprintf("1/T2[1/ms] = %.5f +/- %.5f (%.2f%%)\n",
-								 1000.0 * m_params[0], 1000.0 * m_errors[0], fabs(100.0 * m_errors[0]/m_params[0]));
-		buf += QString().sprintf("T2[ms] = %.6f +/- %.6f (%.2f%%)\n",
-								 t1, t1err, fabs(100.0 * t1err/t1));
-    }
-	else
-    {
+	switch (*mode()) {
+	case MEAS_ST_E:
+	case MEAS_T1:
 		buf += QString().sprintf("1/T1[1/s] = %.5f +/- %.5f (%.2f%%)\n",
 								 1000.0 * m_params[0], 1000.0 * m_errors[0], fabs(100.0 * m_errors[0]/m_params[0]));
 		buf += QString().sprintf("T1[s] = %.7f +/- %.7f (%.2f%%)\n",
 								 t1, t1err, fabs(100.0 * t1err/t1));
-    }
+		break;
+	case MEAS_T2:
+		buf += QString().sprintf("1/T2[1/ms] = %.5f +/- %.5f (%.2f%%)\n",
+								 1000.0 * m_params[0], 1000.0 * m_errors[0], fabs(100.0 * m_errors[0]/m_params[0]));
+		buf += QString().sprintf("T2[ms] = %.6f +/- %.6f (%.2f%%)\n",
+								 t1, t1err, fabs(100.0 * t1err/t1));
+		break;
+	}
 	buf += QString().sprintf("c[V] = %.5g +/- %.5g (%.3f%%)\n",
 							 m_params[1], m_errors[1], fabs(100.0 * m_errors[1]/m_params[1]));
 	buf += QString().sprintf("a[V] = %.5g +/- %.5g (%.3f%%)\n",

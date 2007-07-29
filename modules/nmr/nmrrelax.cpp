@@ -84,13 +84,14 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	  m_pulse2(create<XItemNode < XDriverList, XNMRPulseAnalyzer > >("NMRPulseAnalyzer2", false, drivers)),
 	  m_active(create<XBoolNode>("Active", false)),
 	  m_autoPhase(create<XBoolNode>("AutoPhase", false)),
+	  m_mInftyFit(create<XBoolNode>("MInftyFit", false)),
 	  m_absFit(create<XBoolNode>("AbsFit", false)),
 	  m_p1Min(create<XDoubleNode>("P1Min", false)),
 	  m_p1Max(create<XDoubleNode>("P1Max", false)),
 	  m_phase(create<XDoubleNode>("Phase", false, "%.2f")),
 	  m_freq(create<XDoubleNode>("Freq", false)),
 	  m_bandWidth(create<XDoubleNode>("BandWidth", false)),
-	  m_t2Mode(create<XBoolNode>("T2Mode", false)),
+	  m_mode(create<XComboNode>("Mode", false, true)),
 	  m_smoothSamples(create<XUIntNode>("SmoothSamples", false)),
 	  m_p1Dist(create<XComboNode>("P1Dist", false, true)),
 	  m_relaxFunc(create<XItemNode < XRelaxFuncList, XRelaxFunc > >(
@@ -144,6 +145,11 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 		m_wave->clear();
 	}
 
+	mode()->add("T1 Measurement");
+	mode()->add("T2 Measurement");
+	mode()->add("St.E. Measurement");
+	mode()->value(MEAS_T1);
+	
 	p1Dist()->add(P1DIST_LINEAR);
 	p1Dist()->add(P1DIST_LOG);
 	p1Dist()->add(P1DIST_RECIPROCAL);
@@ -159,6 +165,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	p1Max()->value(100.0);
 	bandWidth()->value(20.0);
 	autoPhase()->value(true);
+	mInftyFit()->value(true);
 	smoothSamples()->value(200);
 
 	m_conP1Min = xqcon_create<XQLineEditConnector>(m_p1Min, m_form->m_edP1Min);
@@ -172,10 +179,11 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	m_conResetFit = xqcon_create<XQButtonConnector>(m_resetFit, m_form->m_btnResetFit);
 	m_conActive = xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive);
 	m_conAutoPhase = xqcon_create<XQToggleButtonConnector>(m_autoPhase, m_form->m_ckbAutoPhase);
+	m_conMInftyFit = xqcon_create<XQToggleButtonConnector>(m_mInftyFit, m_form->m_ckbMInftyFit);
 	m_conAbsFit = xqcon_create<XQToggleButtonConnector>(m_absFit, m_form->m_ckbAbsFit);
 	m_conFitStatus = xqcon_create<XQTextBrowserConnector>(m_fitStatus, m_form->m_txtFitStatus);
 	m_conRelaxFunc = xqcon_create<XQComboBoxConnector>(m_relaxFunc, m_form->m_cmbFunction);
-	m_conT2Mode = xqcon_create<XQToggleButtonConnector>(m_t2Mode, m_form->m_ckbT2Mode);
+	m_conMode = xqcon_create<XQComboBoxConnector>(m_mode, m_form->m_cmbMode);
 
 	m_conPulser = xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser);
 	m_conPulse1 = xqcon_create<XQComboBoxConnector>(m_pulse1, m_form->m_cmbPulse1);
@@ -188,12 +196,13 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	p1Min()->onValueChanged().connect(m_lsnOnCondChanged);
 	phase()->onValueChanged().connect(m_lsnOnCondChanged);
 	smoothSamples()->onValueChanged().connect(m_lsnOnCondChanged);
+	mInftyFit()->onValueChanged().connect(m_lsnOnCondChanged);
 	absFit()->onValueChanged().connect(m_lsnOnCondChanged);
 	relaxFunc()->onValueChanged().connect(m_lsnOnCondChanged);
 	autoPhase()->onValueChanged().connect(m_lsnOnCondChanged);
 	freq()->onValueChanged().connect(m_lsnOnCondChanged);
 	bandWidth()->onValueChanged().connect(m_lsnOnCondChanged);
-	t2Mode()->onValueChanged().connect(m_lsnOnCondChanged);
+	mode()->onValueChanged().connect(m_lsnOnCondChanged);
   
 	m_lsnOnClearAll = m_clearAll->onTouch().connectWeak(
 		shared_from_this(), &XNMRT1::onClearAll);
@@ -233,7 +242,7 @@ XNMRT1::onCondChanged(const shared_ptr<XValueNodeBase> &node)
 {
     if((node == phase()) && *autoPhase()) return;
     if(
-		(node == t2Mode()) ||
+		(node == mode()) ||
 		(node == freq()) ||
 		(node == bandWidth())) {
         m_timeClearRequested = XTime::now();
@@ -297,19 +306,37 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 		throw XRecordError(KAME::i18n("Invalid # of Samples."), __FILE__, __LINE__);  
 	}
 	if(samples >= 100000) {
-		throw XRecordError(KAME::i18n("Too many Samples."), __FILE__, __LINE__);
+		m_statusPrinter->printWarning(KAME::i18n("Too many Samples."));
 	}
-  
-	const bool t2mode = *t2Mode();
+
+	const int _mode = *mode();
 	const shared_ptr<XNMRPulseAnalyzer> _pulse1 = *pulse1();
     
+	shared_ptr<XPulser> _pulser = *pulser();
+	ASSERT( _pulser );
+	if(_pulser->time()) {
+		//Check consitency.
+		switch (_mode) {
+		case MEAS_T1:
+			break;
+		case MEAS_T2:
+			break;
+		case MEAS_ST_E:
+			if((_pulser->tauRecorded() != _pulser->combPTRecorded()) ||
+					(_pulser->combNumRecorded() != 2) ||
+					(!*_pulser->conserveStEPhase()) ||
+					(_pulser->pw1Recorded() != 0.0) ||
+					(_pulser->pw2Recorded() != _pulser->combPWRecorded()))
+				m_statusPrinter->printWarning(KAME::i18n("Strange St.E. settings."));
+			break;
+		}
+	}
+  
 	// read spectra from NMRPulseAnalyzers
 	if( emitter != shared_from_this() ) {
 		ASSERT( _pulse1 );
 		ASSERT( _pulse1->time() );
-		shared_ptr<XPulser> _pulser = *pulser();
 		shared_ptr<XNMRPulseAnalyzer> _pulse2 = *pulse2();
-		ASSERT( _pulser );
 		ASSERT( _pulser->time() );
 		ASSERT( emitter != _pulser );
             
@@ -325,7 +352,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
         default:
 			throw XRecordError(KAME::i18n("Unknown Comb Mode!"), __FILE__, __LINE__);
         case XPulser::N_COMB_MODE_COMB_ALT:
-			if(t2mode) throw XRecordError(KAME::i18n("Do not use T2 mode!"), __FILE__, __LINE__);
+			if(_mode != MEAS_T1) throw XRecordError(KAME::i18n("Use T1 mode!"), __FILE__, __LINE__);
 			ASSERT(_pulse2);
             pt1.p1 = _pulser->combP1Recorded();
             pt1.c = (cmp1 - cmp2) / cmp1;
@@ -333,7 +360,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
             m_pts.push_back(pt1);
             break;
         case XPulser::N_COMB_MODE_P1_ALT:
-			if(t2mode) 
+			if(_mode == MEAS_T2) 
                 throw XRecordError(KAME::i18n("Do not use T2 mode!"), __FILE__, __LINE__);
 			ASSERT(_pulse2);
             pt1.p1 = _pulser->combP1Recorded();
@@ -346,7 +373,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
             m_pts.push_back(pt2);
             break;
         case XPulser::N_COMB_MODE_ON:
-			if(!t2mode) {
+			if(_mode != MEAS_T2) {
                 pt1.p1 = _pulser->combP1Recorded();
                 pt1.c = cmp1;
                 pt1.isigma2 = 1/(_pulse1->noisePower());
@@ -355,7 +382,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 			}
 			m_statusPrinter->printWarning(KAME::i18n("T2 mode with comb pulse!"));
         case XPulser::N_COMB_MODE_OFF:
-			if(!t2mode) {
+			if(_mode != MEAS_T2) {
 				m_statusPrinter->printWarning(KAME::i18n("Do not use T1 mode! Skipping."));
 				throw XSkippedRecordError(__FILE__, __LINE__);
 			}
@@ -374,12 +401,15 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 			np1 = f(x);
 			np2 = f(1-x);
 			_pulser->output()->value(false);
-			if(!t2mode) {
+			switch (_mode) {
+			case MEAS_T1:
+			case MEAS_ST_E:
 				_pulser->combP1()->value(np1);
 				_pulser->combP1Alt()->value(np2);
-			}
-			else {
+				break;
+			case MEAS_T2:
 				_pulser->tau()->value(np1 / 2.0);
+				break;
 			}
 			_pulser->output()->value(true);
         }
@@ -408,8 +438,12 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 	#define invf(x) (log((x) / p1min) / log(p1max/p1min))
 		int idx = lrint(m_sumpts.size() * invf(it->p1));
 		if((idx < 0) || (idx >= (int)m_sumpts.size())) continue;
+		double p1 = it->p1;
+		//For St.E., T+tau = P1+3*tau. 
+		if(_mode == MEAS_ST_E)
+			p1 += 3 * _pulser->tauRecorded();
 		m_sumpts[idx].isigma += it->isigma2;
-		m_sumpts[idx].p1 += it->isigma2 * it->p1;
+		m_sumpts[idx].p1 += it->isigma2 * p1;
 		m_sumpts[idx].c += it->isigma2 * it->c;
     }
 
@@ -436,7 +470,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 				}
 				if(n > 0) {
 					corr -= sum_re*sum_t/n;
-					corr *= (t2mode ? -1 : 1);
+					corr *= ((_mode == MEAS_T1) ? 1 : -1);
 					if(corr > maxcorr) 
 					{
 						maxcorr = corr;
@@ -473,7 +507,18 @@ XNMRT1::visualize()
 	}
 
 	{   XScopedWriteLock<XWaveNGraph> lock(*m_wave);
-	std::string label(*t2Mode() ? "2Tau [us]" : "P1 [ms]");
+	std::string label;
+	switch (*mode()) {
+	case MEAS_T1:
+		label = "P1 [ms]";
+		break;
+	case MEAS_T2:
+		label = "2tau [us]";
+		break;
+	case MEAS_ST_E:
+		label = "T+tau [ms]";
+		break;
+	}
 	m_wave->setLabel(0, label.c_str());
 	m_wave->axisx()->label()->value(label);
 	m_wave->setRowCount(m_sumpts.size());

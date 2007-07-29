@@ -71,6 +71,8 @@ public:
 	const shared_ptr<XBoolNode> &active() const {return m_active;}
 	//! Deduce phase from data
 	const shared_ptr<XBoolNode> &autoPhase() const {return m_autoPhase;}
+	//! Fit 3 parameters.
+	const shared_ptr<XBoolNode> &mInftyFit() const {return m_mInftyFit;}
 	//! Use absolute value, ignoring phase
 	const shared_ptr<XBoolNode> &absFit() const {return m_absFit;}
 	//! Region of P1 or 2tau for fitting, display, control of pulser [ms]
@@ -81,8 +83,9 @@ public:
 	//! Center freq and band width of echoes [kHz].
 	const shared_ptr<XDoubleNode> &freq() const {return m_freq;}
 	const shared_ptr<XDoubleNode> &bandWidth() const {return m_bandWidth;}
-	//! Do T2 measurement
-	const shared_ptr<XBoolNode> &t2Mode() const {return m_t2Mode;}
+	enum MEASMODE {MEAS_T1 = 0, MEAS_T2 = 1, MEAS_ST_E = 2};
+	//! T1/T2/StE measurement
+	const shared_ptr<XComboNode> &mode() const {return m_mode;}
 	//! # of Samples for fitting and display
 	const shared_ptr<XUIntNode> &smoothSamples() const {return m_smoothSamples;}
 	//! Distribution of P1 or 2tau
@@ -107,13 +110,14 @@ private:
 
 	const shared_ptr<XBoolNode> m_active;
 	const shared_ptr<XBoolNode> m_autoPhase;
+	const shared_ptr<XBoolNode> m_mInftyFit;
 	const shared_ptr<XBoolNode> m_absFit;
 	const shared_ptr<XDoubleNode> m_p1Min;
 	const shared_ptr<XDoubleNode> m_p1Max;
 	const shared_ptr<XDoubleNode> m_phase;
 	const shared_ptr<XDoubleNode> m_freq;
 	const shared_ptr<XDoubleNode> m_bandWidth;
-	const shared_ptr<XBoolNode> m_t2Mode;
+	const shared_ptr<XComboNode> m_mode;
 	const shared_ptr<XUIntNode> m_smoothSamples;
 	const shared_ptr<XComboNode> m_p1Dist;
 	const shared_ptr<XItemNode < XRelaxFuncList, XRelaxFunc > >  m_relaxFunc;
@@ -148,8 +152,8 @@ private:
 	xqcon_ptr m_conFitStatus;
 	xqcon_ptr m_conP1Dist, m_conRelaxFunc;
 	xqcon_ptr m_conClearAll, m_conResetFit;
-	xqcon_ptr m_conActive, m_conAutoPhase, m_conAbsFit;
-	xqcon_ptr m_conT2Mode;
+	xqcon_ptr m_conActive, m_conAutoPhase, m_conMInftyFit, m_conAbsFit;
+	xqcon_ptr m_conMode;
 	xqcon_ptr m_conPulser, m_conPulse1, m_conPulse2;
 
 	//! Raw measured points
