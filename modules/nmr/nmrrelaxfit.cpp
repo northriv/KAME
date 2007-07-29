@@ -410,8 +410,8 @@ XNMRT1::iterate(shared_ptr<XRelaxFunc> &func,
 		double p1max = *p1Max();
 		double p1min = *p1Min();
 		m_params[0] = 1.0 / exp(log(p1max/p1min) * (((double)KAME::rand())/RAND_MAX) + log(p1min));
-		m_params[1] = 0.1 + 0.5*(((double)KAME::rand())/RAND_MAX);
-		m_params[2] = 0.0;
+		m_params[1] = 1.0*(((double)KAME::rand())/RAND_MAX - 0.5);
+		m_params[2] = nlls.is_minftyfit ? (nlls.fixed_minfty - m_params[1]) : 0.0;
 		status = do_nlls(n, p, m_params, m_errors, &norm,
 						 &nlls, &XRelaxFunc::relax_f, &XRelaxFunc::relax_df, &XRelaxFunc::relax_fdf, itercnt);
     }
