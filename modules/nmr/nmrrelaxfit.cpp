@@ -392,7 +392,7 @@ XNMRT1::iterate(shared_ptr<XRelaxFunc> &func,
 		&m_sumpts,
 		func,
 		*mInftyFit(),
-		m_params[1] + m_params[2],
+		0.0, //m_params[1] + m_params[2],
 	};
 	//# of indep. params.
 	int p = nlls.is_minftyfit ? 3 : 2;

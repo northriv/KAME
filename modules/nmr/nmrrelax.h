@@ -138,6 +138,8 @@ private:
 	{
 		std::deque< Pt > *pts; //pointer to data
 		shared_ptr<XRelaxFunc> func; //pointer to the current relaxation function
+		bool is_minftyfit; //3param fit or not.
+		double fixed_minfty;
 	};
  
 	shared_ptr<XListener> m_lsnOnClearAll, m_lsnOnResetFit;
