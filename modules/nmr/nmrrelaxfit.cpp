@@ -96,7 +96,7 @@ public:
 		double rt = pow(t * it1, m_pow);
 		double a = exp(-rt);
 		*f = 1.0 - a;
-		*dfdt = t/rt/2.0 * a;
+		*dfdt = t*rt/(t*it1)*m_pow * a;
 	}
 private:
 	const double m_pow;
@@ -287,11 +287,12 @@ XRelaxFuncList::XRelaxFuncList(const char *name, bool runtime)
 	create<XRelaxFuncPoly>("NQR I=9/2 7/2-5/2", true, s_relaxdata_nqr9_7);
 	create<XRelaxFuncPoly>("NQR I=9/2 5/2-3/2", true, s_relaxdata_nqr9_5);
 	create<XRelaxFuncPoly>("NQR I=9/2 3/2-2/1", true, s_relaxdata_nqr9_3);
-	create<XRelaxFuncPowExp>("Pow.Exp.0.5: exp(-(t/tau)^0.5)", true, 0.5);
-	create<XRelaxFuncPowExp>("Pow.Exp.0.6: exp(-(t/tau)^0.6)", true, 0.6);
-	create<XRelaxFuncPowExp>("Pow.Exp.0.7: exp(-(t/tau)^0.7)", true, 0.7);
-	create<XRelaxFuncPowExp>("Pow.Exp.0.8: exp(-(t/tau)^0.8)", true, 0.7);
-	create<XRelaxFuncPowExp>("Gaussian: exp(-(t/tau)^2)", true, 2.0);
+	create<XRelaxFuncPowExp>("Pow.Exp.0.5: exp(-t^0.5)", true, 0.5);
+	create<XRelaxFuncPowExp>("Pow.Exp.0.6: exp(-t^0.6)", true, 0.6);
+	create<XRelaxFuncPowExp>("Pow.Exp.0.7: exp(-t^0.7)", true, 0.7);
+	create<XRelaxFuncPowExp>("Pow.Exp.0.8: exp(-t^0.8)", true, 0.7);
+	create<XRelaxFuncPowExp>("Gaussian: exp(-t^2)", true, 2.0);
+	create<XRelaxFuncPowExp>("Exp.: exp(-t)", true, 1.0);
 }
 
 int
@@ -302,12 +303,15 @@ XRelaxFunc::relax_f (const gsl_vector * x, void *params,
 	double iT1 = gsl_vector_get (x, 0);
 	double c = gsl_vector_get (x, 1);
 
-	double a = gsl_vector_get (x, 2);
+	double a;
+	if(data->is_minftyfit)
+		a = gsl_vector_get (x, 2);
+	else
+		a = data->fixed_minfty - c;
 
 	int i = 0;
 	for(std::deque<XNMRT1::Pt>::iterator it = data->pts->begin();
-		it != data->pts->end(); it++)
-    {
+		it != data->pts->end(); it++) {
 		if(it->isigma == 0) continue;
 		double t = it->p1;
 		double yi = 0, dydt = 0;
@@ -326,7 +330,6 @@ XRelaxFunc::relax_df (const gsl_vector * x, void *params,
 	XNMRT1::NLLS *data = ((XNMRT1::NLLS *)params);
 	double iT1 = gsl_vector_get (x, 0);
 	double c = gsl_vector_get (x, 1);
-//  double a = gsl_vector_get (x, 2);
 
 	int i = 0;
 	for(std::deque<XNMRT1::Pt>::iterator it = data->pts->begin();
@@ -338,7 +341,8 @@ XRelaxFunc::relax_df (const gsl_vector * x, void *params,
 		data->func->relax(&yi, &dydt, t, iT1);
 		gsl_matrix_set (J, i, 0, (c * dydt) * it->isigma);
 		gsl_matrix_set (J, i, 1, yi * it->isigma);
-		gsl_matrix_set (J, i, 2, it->isigma);
+		if(data->is_minftyfit)
+			gsl_matrix_set (J, i, 2, it->isigma);
 		i++;
     }
 	return GSL_SUCCESS;
@@ -351,12 +355,15 @@ XRelaxFunc::relax_fdf (const gsl_vector * x, void *params,
 	double iT1 = gsl_vector_get (x, 0);
 
 	double c = gsl_vector_get (x, 1);
-	double a = gsl_vector_get (x, 2);
+	double a;
+	if(data->is_minftyfit)
+		a = gsl_vector_get (x, 2);
+	else
+		a = data->fixed_minfty - c;
 
 	int i = 0;
 	for(std::deque<XNMRT1::Pt>::iterator it = data->pts->begin();
-		it != data->pts->end(); it++)
-    {
+		it != data->pts->end(); it++) {
 		if(it->isigma == 0) continue;
 		double t = it->p1;
 		double yi = 0, dydt = 0;
@@ -365,7 +372,8 @@ XRelaxFunc::relax_fdf (const gsl_vector * x, void *params,
 		gsl_vector_set (f, i, (c * yi + a - y) * it->isigma);
 		gsl_matrix_set (J, i, 0, (c * dydt) * it->isigma);
 		gsl_matrix_set (J, i, 1, yi * it->isigma);
-		gsl_matrix_set (J, i, 2, it->isigma);
+		if(data->is_minftyfit)
+			gsl_matrix_set (J, i, 2, it->isigma);
 		i++;
     }
 	return GSL_SUCCESS;
@@ -382,10 +390,12 @@ XNMRT1::iterate(shared_ptr<XRelaxFunc> &func,
     }    
 	struct NLLS nlls = {
 		&m_sumpts,
-		func
+		func,
+		*mInftyFit(),
+		m_params[1] + m_params[2],
 	};
 	//# of indep. params.
-	int p = (*mInftyFit()) ? 3 : 2;
+	int p = nlls.is_minftyfit ? 3 : 2;
 	if(n <= p) return formatString("%d",n) + KAME::i18n(" points, more points needed.");
 	int status;
 	double norm = 0;
@@ -463,8 +473,7 @@ do_nlls(int n, int p, double *param, double *err, double *det, void *user, exp_f
 	gsl_multifit_fdfsolver_set (s, &f, &x.vector);
 
 
-	do
-    {
+	do {
 		iter++;
 		status = gsl_multifit_fdfsolver_iterate (s);
 
@@ -482,8 +491,7 @@ do_nlls(int n, int p, double *param, double *err, double *det, void *user, exp_f
 
 	gsl_matrix *covar = gsl_matrix_alloc (p, p);
 	gsl_multifit_covar (s->J, 0.0, covar);
-	for(i = 0; i < p; i++)
-    {
+	for(i = 0; i < p; i++) {
 		c = gsl_matrix_get(covar,i,i);
 
 		err[i] = (c > 0) ? sqrt(c) : -1.0;
