@@ -929,7 +929,7 @@ XPulser::rawToRelPat() throw (XRecordError&)
 		//comb pulses
 		if((_p1 > 0) && !saturation_wo_comb)
 		{
-			const uint64_t combpt = std::max(_comb_pt, _comb_pw);
+			const uint64_t combpt = std::max(_comb_pt, _comb_pw + _g2_setup);
 			uint64_t cpos = pos - combpt*_comb_num;
      
 			patterns_cheap.insert(tpat(cpos - _comb_pw/2 - _g2_setup,
@@ -940,7 +940,7 @@ XPulser::rawToRelPat() throw (XRecordError&)
 			{
 				const uint32_t *const comb = (_conserve_ste_phase) ?
 					 ((k % 2 == 0) ? ste_p1 : ste_p2) : comb_ste_cancel;
-				patterns.insert(tpat(cpos + _comb_pw/2 , qpsk[comb[j]], qpskmask));
+				patterns.insert(tpat(cpos + _comb_pw/2, qpsk[comb[j]], qpskmask));
 				cpos += combpt;
 				cpos -= _comb_pw/2;
 				patterns.insert(tpat(cpos, ~(uint32_t)0, g1mask));
@@ -1112,7 +1112,6 @@ XPulser::rawToRelPat() throw (XRecordError&)
 	}
 
 	//determine the first pattern and the length.
-	uint64_t curpos = patterns.begin()->pos;
 	uint64_t lastpos = 0;
 	uint32_t pat = 0;
 	for(tpatset_it it = patterns.begin(); it != patterns.end(); it++) {
@@ -1120,22 +1119,22 @@ XPulser::rawToRelPat() throw (XRecordError&)
 		pat &= ~it->mask;
 		pat |= (it->pat & it->mask);
 	}
-	uint32_t lastpat = pat;
+	uint64_t patpos = patterns.begin()->pos;
 	for(tpatset_it it = patterns.begin(); it != patterns.end();) {
 		pat &= ~it->mask;
 		pat |= (it->pat & it->mask);
 		it++;
-		if((it == patterns.end()) || (it->pos != curpos)) {
-			if(pat == lastpat)
+		if((it == patterns.end()) || (it->pos != patpos)) {
+			RelPat relpat(pat, patpos, patpos - lastpos);
+			//skip duplicated patterns.
+			if((it != patterns.end()) && (pat == m_relPatList.rend()->pattern)) {
+				patpos = it->pos;
 				continue;
-			RelPat relpat(pat, curpos, curpos - lastpos);
-        
+			}
 			m_relPatList.push_back(relpat);
-                
 			if(it == patterns.end()) break;
-			lastpos = curpos;
-			curpos = it->pos;
-			lastpat = pat;
+			lastpos = patpos;
+			patpos = it->pos;
 		}
 	}
     
