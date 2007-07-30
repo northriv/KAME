@@ -1127,7 +1127,8 @@ XPulser::rawToRelPat() throw (XRecordError&)
 		if((it == patterns.end()) || (it->pos != patpos)) {
 			RelPat relpat(pat, patpos, patpos - lastpos);
 			//skip duplicated patterns.
-			if((it != patterns.end()) && (pat == m_relPatList.rend()->pattern)) {
+			if((it != patterns.end()) &&
+					m_relPatList.size() && (pat == m_relPatList.rend()->pattern)) {
 				patpos = it->pos;
 				continue;
 			}
