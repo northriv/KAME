@@ -441,7 +441,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 		double p1 = it->p1;
 		//For St.E., T+tau = P1+3*tau. 
 		if(_mode == MEAS_ST_E)
-			p1 += 3 * _pulser->tauRecorded();
+			p1 += 3 * _pulser->tauRecorded() * 1e-3;
 		m_sumpts[idx].isigma += it->isigma2;
 		m_sumpts[idx].p1 += it->isigma2 * p1;
 		m_sumpts[idx].c += it->isigma2 * it->c;
