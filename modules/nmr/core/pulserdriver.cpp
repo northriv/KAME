@@ -1125,13 +1125,14 @@ XPulser::rawToRelPat() throw (XRecordError&)
 		pat |= (it->pat & it->mask);
 		it++;
 		if((it == patterns.end()) || (it->pos != patpos)) {
-			RelPat relpat(pat, patpos, patpos - lastpos);
 			//skip duplicated patterns.
 			if((it != patterns.end()) &&
-					m_relPatList.size() && (pat == m_relPatList.rend()->pattern)) {
+					m_relPatList.size() &&
+					(pat == m_relPatList[m_relPatList.size() - 1].pattern)) {
 				patpos = it->pos;
 				continue;
 			}
+			RelPat relpat(pat, patpos, patpos - lastpos);
 			m_relPatList.push_back(relpat);
 			if(it == patterns.end()) break;
 			lastpos = patpos;
