@@ -52,7 +52,7 @@ const XGraph::VFloat XGraph::VFLOAT_MAX = DBL_MAX;
 
 #define AxisToLabel 0.09
 #define AxisToTicLabel 0.015
-#define UNZOOM_ABIT 0.9
+#define UNZOOM_ABIT 0.95
 
 #define PLOT_POINT_SIZE 5.0
 
@@ -128,16 +128,14 @@ XGraph::setupRedraw(float resolution)
   
 	atomic_shared_ptr<const XNode::NodeList> axes_list(axes()->children());
 	if(axes_list) { 
-		for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
-		{
+		for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++) {
 			shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
 			axis->startAutoscale(resolution, *axis->autoScale() );
 		}
 	}
 	atomic_shared_ptr<const XNode::NodeList> plots_list(plots()->children());
 	if(plots_list) { 
-		for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
-		{
+		for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++) {
 			shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
 			XScopedTryLock<XPlot> lock(*plot);
 			if(lock) {
@@ -723,10 +721,31 @@ XPlot::snapshot()
 	m_cntSnapped = cnt;
 	m_ptsSnapped.resize(cnt);
 	m_canvasPtsSnapped.resize(cnt);
-	for(unsigned int i = 0; i < m_cntSnapped; i++)
-	{
+	for(unsigned int i = 0; i < m_cntSnapped; i++) {
 		m_ptsSnapped[i] = points(i);
 	}
+}
+
+inline void
+XPlot::validateAutoScaleOnePoint(const XGraph::ValPoint &pt)
+{
+	bool included = true;
+	included = included && ((*m_curAxisX->autoScale()) || m_curAxisX->isIncluded(pt.x));
+    included = included && ((*m_curAxisY->autoScale()) || m_curAxisY->isIncluded(pt.y));
+    if(m_curAxisZ)
+        included = included && ((*m_curAxisZ->autoScale()) || m_curAxisZ->isIncluded(pt.z));
+    if(m_curAxisW)
+        included = included && ((*m_curAxisW->autoScale()) || m_curAxisW->isIncluded(pt.w));
+    else
+        included = included && (pt.w > (XGraph::VFloat)1e-20);
+    if(included) {
+        m_curAxisX->tryInclude(pt.x);
+        m_curAxisY->tryInclude(pt.y);
+        if(m_curAxisZ)
+            m_curAxisZ->tryInclude(pt.z);
+        if(m_curAxisW)
+            m_curAxisW->tryInclude(pt.w);
+    }
 }
 
 int
@@ -739,28 +758,6 @@ XPlot::validateAutoScale()
 	}
 	return 0;
 }
-void
-XPlot::validateAutoScaleOnePoint(const XGraph::ValPoint &pt)
-{
-	bool included = true;
-    included &= *m_curAxisX->autoScale() | m_curAxisX->isIncluded(pt.x);
-    included &= *m_curAxisY->autoScale() | m_curAxisY->isIncluded(pt.y);
-    if(m_curAxisZ)
-        included &= *m_curAxisZ->autoScale() | m_curAxisZ->isIncluded(pt.z);
-    if(m_curAxisW)
-        included &= *m_curAxisW->autoScale() | m_curAxisW->isIncluded(pt.w);
-    else
-        included &= (pt.w > (XGraph::VFloat)1e-20);
-    if(included) {
-        m_curAxisX->tryInclude(pt.x);
-        m_curAxisY->tryInclude(pt.y);
-        if(m_curAxisZ)
-            m_curAxisZ->tryInclude(pt.z);
-        if(m_curAxisW)
-            m_curAxisW->tryInclude(pt.w);
-    }
-}
-
 XGraph::ValPoint
 XXYPlot::points(unsigned int index) const
 {
@@ -797,8 +794,7 @@ XXYPlot::addPoint(XGraph::VFloat x, XGraph::VFloat y, XGraph::VFloat z, XGraph::
 	shared_ptr<XGraph> graph(m_graph);
 	XScopedLock<XGraph> lock(*graph);
   
-	if(count() >= *maxCount())
-	{
+	if(count() >= *maxCount()) {
 		m_points.pop_front();
 	}
 	m_points.push_back(npt);
@@ -919,8 +915,8 @@ XAxis::fixScale(float resolution, bool suppressupdate)
     }
     if(m_minFixed == m_maxFixed) {
 		XGraph::VFloat x = m_minFixed;
-        m_maxFixed = x * 1.01 + 0.01;
-        m_minFixed = x * 0.99 - 0.01;
+        m_maxFixed = x ? std::max(x * 1.01, x * 0.99) : 0.01;
+        m_minFixed = x ? std::min(x * 1.01, x * 0.99) : -0.01;
     }
     XGraph::VFloat min_tmp = m_bLogscaleFixed ? 
         max((XGraph::VFloat)*minValue(), (XGraph::VFloat)0.0) : (XGraph::VFloat)*minValue();
@@ -955,28 +951,24 @@ XAxis::autoFreq(float resolution)
 	}
 }
 
-bool
+inline bool
 XAxis::isIncluded(XGraph::VFloat x)
 {
 	return (x >= m_minFixed)
 		&& ((m_direction == AxisWeight) || (x <= m_maxFixed));
 }
-void
+inline void
 XAxis::tryInclude(XGraph::VFloat x)
 {
-	//omitts negative values in log scaling
-	if(!(m_bLogscaleFixed && (x <= 0)))
-	{
-		if(m_bAutoscaleFixed)
-		{
-			if(x > m_maxFixed)
-			{
+	//omits negative values in log scaling
+	if(!(m_bLogscaleFixed && (x <= 0))) {
+		if(m_bAutoscaleFixed) {
+			if(x > m_maxFixed) {
 				m_maxFixed = x;
 				m_invMaxMinusMinFixed = -1; //undef
 				m_invLogMaxOverMinFixed = -1; //undef
 			}         
-			if(x < m_minFixed)
-			{
+			if(x < m_minFixed) {
 				m_minFixed = x;
 				m_invMaxMinusMinFixed = -1; //undef
 				m_invLogMaxOverMinFixed = -1; //undef
@@ -990,11 +982,6 @@ XAxis::zoom(bool minchange, bool maxchange, XGraph::GFloat prop, XGraph::GFloat 
 {
 	if(direction() == AxisWeight) return;
 	
-	if(m_minFixed == m_maxFixed)
-	{
-		m_minFixed = 1.1 * m_minFixed - (m_bLogscaleFixed ? 0 : 0.1);
-		m_maxFixed = 0.9 * m_maxFixed + (m_bLogscaleFixed ? 0 : 0.1);
-	}
 	if(maxchange) {
 		m_maxFixed = axisToVal(center + (XGraph::GFloat)0.5 / prop);
 	}
@@ -1031,15 +1018,13 @@ XGraph::VFloat
 XAxis::axisToVal(XGraph::GFloat pos, XGraph::GFloat axis_prec)
 {
 	XGraph::VFloat x = 0;
-	if(axis_prec <= 0)
-	{
-		if(m_bLogscaleFixed)
-		{
-			if((m_minFixed <= 0) || (m_maxFixed <= m_minFixed)) return 0;
+	if(axis_prec <= 0) {
+		if(m_bLogscaleFixed) {
+			if((m_minFixed <= 0) || (m_maxFixed < m_minFixed)) return 0;
 			x = m_minFixed * VFLOAT_EXP(VFLOAT_LOG(m_maxFixed / m_minFixed) * pos);
 		}
 		else {
-			if(m_maxFixed <= m_minFixed) return 0;
+			if(m_maxFixed < m_minFixed) return 0;
 			x = m_minFixed + pos *(m_maxFixed - m_minFixed);
 		}
 		return x;

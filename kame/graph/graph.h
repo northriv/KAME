@@ -280,8 +280,8 @@ private:
 	bool clipLine(const tCanvasPoint &c1, const tCanvasPoint &c2, 
 				  XGraph::ScrPoint *s1, XGraph::ScrPoint *s2, 
 				  bool blendcolor, unsigned int *color1, unsigned int *color2, float *alpha1, float *alpha2);
-	bool isPtIncluded(const XGraph::GPoint &pt);
-	void validateAutoScaleOnePoint(const XGraph::ValPoint &pt);
+	inline bool isPtIncluded(const XGraph::GPoint &pt);
+	inline void validateAutoScaleOnePoint(const XGraph::ValPoint &pt);
     
 	void drawGrid(XQGraphPainter *painter, shared_ptr<XAxis> &axis1, shared_ptr<XAxis> &axis2);
 
@@ -362,8 +362,8 @@ public:
 	XGraph::VFloat fixedMin() const {return m_minFixed;}
 	XGraph::VFloat fixedMax() const {return m_maxFixed;}
   
-	bool isIncluded(XGraph::VFloat x);
-	void tryInclude(XGraph::VFloat x);
+	inline bool isIncluded(XGraph::VFloat x);
+	inline void tryInclude(XGraph::VFloat x);
 
 	const AxisDirection &direction() const {return m_direction;}
 	const XGraph::ScrPoint &dirVector() const {return m_dirVector;}
