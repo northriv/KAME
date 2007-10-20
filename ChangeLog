@@ -1,3 +1,7 @@
+* Sat Oct 20 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.2.14-1)
+- userdmm: HP3478A.
+
 * Mon Sep 10 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.2.13-1)
 - graph: Fix for autoscale faults.

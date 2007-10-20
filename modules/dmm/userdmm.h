@@ -37,8 +37,6 @@ public:
 	virtual double fetch();
 	//one-shot reading
 	virtual double oneShotRead();
-	//configure and read
-	virtual double measure(const std::string &func);
 protected:
 	//! called when m_function is changed
 	virtual void changeFunction();
@@ -109,6 +107,27 @@ protected:
 		function()->add("RES");
 		function()->add("FRES");
 	}
+};
+
+class XHP3478A : public XCharDeviceDriver<XDMM>
+{
+	XNODE_OBJECT
+protected:
+	XHP3478A(const char *name, bool runtime,
+			 const shared_ptr<XScalarEntryList> &scalarentries,
+			 const shared_ptr<XInterfaceList> &interfaces,
+			 const shared_ptr<XThermometerList> &thermometers,
+			 const shared_ptr<XDriverList> &drivers);
+public:
+	virtual ~XHP3478A() {}
+
+	//requests the latest reading
+	virtual double fetch();
+	//one-shot reading
+	virtual double oneShotRead();
+protected:
+	//! called when m_function is changed
+	virtual void changeFunction();
 };
 
 #endif
