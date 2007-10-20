@@ -150,4 +150,24 @@ protected:
 private:
 };
 
+//! Agilent 8664A, 8665A
+class XHP8664 : public XCharDeviceDriver<XSG>
+{
+	XNODE_OBJECT
+protected:
+	XHP8664(const char *name, bool runtime,
+			const shared_ptr<XScalarEntryList> &scalarentries,
+			const shared_ptr<XInterfaceList> &interfaces,
+			const shared_ptr<XThermometerList> &thermometers,
+			const shared_ptr<XDriverList> &drivers);
+public:
+	virtual ~XHP8664() {}
+protected:
+	virtual void changeFreq(double mhz);
+	virtual void onOLevelChanged(const shared_ptr<XValueNodeBase> &);
+	virtual void onFMONChanged(const shared_ptr<XValueNodeBase> &);
+	virtual void onAMONChanged(const shared_ptr<XValueNodeBase> &);
+private:
+};
+
 #endif

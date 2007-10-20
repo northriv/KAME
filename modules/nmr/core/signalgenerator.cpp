@@ -22,8 +22,9 @@
 
 REGISTER_TYPE(XDriverList, SG7130, "KENWOOD SG7130 signal generator");
 REGISTER_TYPE(XDriverList, SG7200, "KENWOOD SG7200 signal generator");
-REGISTER_TYPE(XDriverList, HP8643, "Agilent 8643 signal generator");
+REGISTER_TYPE(XDriverList, HP8643, "Agilent 8643/8644 signal generator");
 REGISTER_TYPE(XDriverList, HP8648, "Agilent 8648 signal generator");
+REGISTER_TYPE(XDriverList, HP8664, "Agilent 8664/8665 signal generator");
 
 XSG::XSG(const char *name, bool runtime,
 		 const shared_ptr<XScalarEntryList> &scalarentries,
@@ -207,4 +208,34 @@ void
 XHP8648::onOLevelChanged(const shared_ptr<XValueNodeBase> &)
 {
 	interface()->sendf("POW:AMPL %f DBM", (double)*oLevel());
+}
+
+XHP8664::XHP8664(const char *name, bool runtime,
+				 const shared_ptr<XScalarEntryList> &scalarentries,
+				 const shared_ptr<XInterfaceList> &interfaces,
+				 const shared_ptr<XThermometerList> &thermometers,
+				 const shared_ptr<XDriverList> &drivers)
+    : XCharDeviceDriver<XSG>(name, runtime, scalarentries, interfaces, thermometers, drivers)
+{
+}
+void
+XHP8664::changeFreq(double mhz)
+{
+	interface()->sendf("FREQ:CW %f MHZ", mhz);
+	msecsleep(50); //wait stabilization of PLL
+}
+void
+XHP8664::onOLevelChanged(const shared_ptr<XValueNodeBase> &)
+{
+	interface()->sendf("AMPL %f DBM", (double)*oLevel());
+}
+void
+XHP8664::onFMONChanged(const shared_ptr<XValueNodeBase> &)
+{
+	interface()->sendf("FM:STAT %s", *fmON() ? "ON" : "OFF");
+}
+void
+XHP8664::onAMONChanged(const shared_ptr<XValueNodeBase> &)
+{
+	interface()->sendf("AM:STAT %s", *amON() ? "ON" : "OFF");
 }
