@@ -82,7 +82,7 @@ XHP3458A::fetch()
 double
 XHP3458A::oneShotRead()
 {
-    interface()->query("END ALWAYS;OFORMAT ASCII;QFORMAT NUM;TARM SGL;NRDGS 1;TRIG SGL");
+    interface()->query("END ALWAYS;OFORMAT ASCII;QFORMAT NUM;NRDGS 1;TRIG SGL;TARM SGL");
     return interface()->toDouble();
 }
 
