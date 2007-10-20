@@ -58,6 +58,7 @@ XHP3458A::XHP3458A(const char *name, bool runtime,
 		 const shared_ptr<XDriverList> &drivers) :
 	XCharDeviceDriver<XDMM>(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
+	interface()->setGPIBMAVbit(0x80);
 	interface()->setGPIBUseSerialPollOnWrite(false);
 	const char *funcs[] = {
 		"DCV", "ACV", "ACDCV", "OHM", "OHMF", "DCI", "ACI", "ACDCI", "FREQ", "PER", "DSAC", "DSDC", "SSAC", "SSDC", ""
@@ -82,7 +83,7 @@ XHP3458A::fetch()
 double
 XHP3458A::oneShotRead()
 {
-    interface()->query("END ALWAYS;OFORMAT ASCII;QFORMAT NUM;NRDGS 1;TRIG SGL;TARM SGL");
+    interface()->query("END ALWAYS;OFORMAT ASCII;QFORMAT NUM;NRDGS 1;TRIG AUTO;TARM SGL");
     return interface()->toDouble();
 }
 
