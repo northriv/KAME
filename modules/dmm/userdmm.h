@@ -19,7 +19,7 @@
 #include "charinterface.h"
 #include "dmm.h"
 //---------------------------------------------------------------------------
-
+//! Base class for SCPI DMMs.
 class XDMMSCPI : public XCharDeviceDriver<XDMM>
 {
 	XNODE_OBJECT
@@ -33,9 +33,9 @@ protected:
 public:
 	virtual ~XDMMSCPI() {}
 
-	//requests the latest reading
+	//! requests the latest reading
 	virtual double fetch();
-	//one-shot reading
+	//! one-shot reading
 	virtual double oneShotRead();
 protected:
 	//! called when m_function is changed
@@ -43,8 +43,8 @@ protected:
 };
 
 
-//Keithley 2182 nanovolt meter
-//You must setup 2182 for SCPI mode
+//! Keithley 2182 nanovolt meter
+//! You must setup 2182 for SCPI mode
 class XKE2182:public XDMMSCPI
 {
 	XNODE_OBJECT
@@ -61,8 +61,8 @@ protected:
 	}
 };
 
-//Keithley 2000 Multimeter
-//You must setup 2000 for SCPI mode
+//! Keithley 2000 Multimeter
+//! You must setup 2000 for SCPI mode
 class XKE2000:public XDMMSCPI
 {
 	XNODE_OBJECT
@@ -90,7 +90,7 @@ protected:
 	}
 };
 
-//Agilent(Hewlett-Packard) 34420A nanovolt meter
+//! Agilent(Hewlett-Packard) 34420A nanovolt meter
 class XHP34420A:public XDMMSCPI
 {
 	XNODE_OBJECT
@@ -109,6 +109,29 @@ protected:
 	}
 };
 
+//! Agilent(Hewlett-Packard) 3458A DMM.
+class XHP3458A : public XCharDeviceDriver<XDMM>
+{
+	XNODE_OBJECT
+protected:
+	XHP3458A(const char *name, bool runtime,
+			 const shared_ptr<XScalarEntryList> &scalarentries,
+			 const shared_ptr<XInterfaceList> &interfaces,
+			 const shared_ptr<XThermometerList> &thermometers,
+			 const shared_ptr<XDriverList> &drivers);
+public:
+	virtual ~XHP3458A() {}
+
+	//requests the latest reading
+	virtual double fetch();
+	//one-shot reading
+	virtual double oneShotRead();
+protected:
+	//! called when m_function is changed
+	virtual void changeFunction();
+};
+
+//! Agilent(Hewlett-Packard) 3478A DMM.
 class XHP3478A : public XCharDeviceDriver<XDMM>
 {
 	XNODE_OBJECT
@@ -129,5 +152,4 @@ protected:
 	//! called when m_function is changed
 	virtual void changeFunction();
 };
-
 #endif
