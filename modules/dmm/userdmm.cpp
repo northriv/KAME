@@ -58,6 +58,7 @@ XHP3458A::XHP3458A(const char *name, bool runtime,
 		 const shared_ptr<XDriverList> &drivers) :
 	XCharDeviceDriver<XDMM>(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
+	interface()->setGPIBUseSerialPollOnWrite(false);
 	const char *funcs[] = {
 		"DCV", "ACV", "ACDCV", "OHM", "OHMF", "DCI", "ACI", "ACDCI", "FREQ", "PER", "DSAC", "DSDC", "SSAC", "SSDC", ""
 	};
@@ -93,6 +94,7 @@ XHP3478A::XHP3478A(const char *name, bool runtime,
 		 const shared_ptr<XDriverList> &drivers) :
 	XCharDeviceDriver<XDMM>(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
+	interface()->setGPIBUseSerialPollOnWrite(false);
 	interface()->setGPIBMAVbit(0x01);
 //	setEOS("\r\n");
 	const char *funcs[] = {

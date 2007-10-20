@@ -13,7 +13,8 @@ INCLUDES = -I$(top_srcdir)/kame \
 	
 libdmm_la_SOURCES = \
 	userdmm.cpp userdmm.h
-libdmm_la_LIBADD = core/libdmmcore.la
+libdmm_la_LIBADD = core/libdmmcore.la \
+	../charinterface/libcharinterface.la
 
 SUBDIRS = core
 METASOURCES = AUTO
