@@ -7,7 +7,7 @@ Name: kame
 
 %{!?build_nidaqmx: %define build_nidaqmx 1}
 
-Version: 2.2.15
+Version: 2.2.14
 Release: 1
 License: GPL
 Group: Applications/Engineering
