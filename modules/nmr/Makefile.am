@@ -24,6 +24,7 @@ libnmrpulser_la_SOURCES = \
 libsg_la_SOURCES = 
 libnmr_la_SOURCES = \
 	nmrpulse.cpp nmrpulse.h \
+	nmrspectrumbase.cpp nmrspectrumbase.h \
 	nmrspectrum.cpp nmrspectrum.h \
 	nmrfspectrum.cpp nmrfspectrum.h \
 	nmrrelaxfit.cpp nmrrelaxfit.h \

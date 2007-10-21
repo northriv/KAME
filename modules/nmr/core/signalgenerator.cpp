@@ -145,24 +145,20 @@ XSG7130::XSG7130(const char *name, bool runtime,
 {
 }
 void
-XSG7200::changeFreq(double mhz)
-{
+XSG7200::changeFreq(double mhz) {
 	interface()->sendf("FR%fMHZ", mhz);
 	msecsleep(50); //wait stabilization of PLL
 }
 void
-XSG7200::onOLevelChanged(const shared_ptr<XValueNodeBase> &)
-{
+XSG7200::onOLevelChanged(const shared_ptr<XValueNodeBase> &) {
 	interface()->sendf("LE%fDBM", (double)*oLevel());
 }
 void
-XSG7200::onFMONChanged(const shared_ptr<XValueNodeBase> &)
-{
+XSG7200::onFMONChanged(const shared_ptr<XValueNodeBase> &) {
 	interface()->send(*fmON() ? "FMON" : "FMOFF");
 }
 void
-XSG7200::onAMONChanged(const shared_ptr<XValueNodeBase> &)
-{
+XSG7200::onAMONChanged(const shared_ptr<XValueNodeBase> &) {
 	interface()->send(*amON() ? "AMON" : "AMOFF");
 }
 
@@ -175,24 +171,20 @@ XHP8643::XHP8643(const char *name, bool runtime,
 {
 }
 void
-XHP8643::changeFreq(double mhz)
-{
+XHP8643::changeFreq(double mhz) {
 	interface()->sendf("FREQ:CW %f MHZ", mhz);
 	msecsleep(50); //wait stabilization of PLL
 }
 void
-XHP8643::onOLevelChanged(const shared_ptr<XValueNodeBase> &)
-{
+XHP8643::onOLevelChanged(const shared_ptr<XValueNodeBase> &) {
 	interface()->sendf("AMPL:LEV %f DBM", (double)*oLevel());
 }
 void
-XHP8643::onFMONChanged(const shared_ptr<XValueNodeBase> &)
-{
+XHP8643::onFMONChanged(const shared_ptr<XValueNodeBase> &) {
 	interface()->sendf("FMSTAT %s", *fmON() ? "ON" : "OFF");
 }
 void
-XHP8643::onAMONChanged(const shared_ptr<XValueNodeBase> &)
-{
+XHP8643::onAMONChanged(const shared_ptr<XValueNodeBase> &) {
 	interface()->sendf("AMSTAT %s", *amON() ? "ON" : "OFF");
 }
 
@@ -205,8 +197,7 @@ XHP8648::XHP8648(const char *name, bool runtime,
 {
 }
 void
-XHP8648::onOLevelChanged(const shared_ptr<XValueNodeBase> &)
-{
+XHP8648::onOLevelChanged(const shared_ptr<XValueNodeBase> &) {
 	interface()->sendf("POW:AMPL %f DBM", (double)*oLevel());
 }
 
@@ -219,23 +210,19 @@ XHP8664::XHP8664(const char *name, bool runtime,
 {
 }
 void
-XHP8664::changeFreq(double mhz)
-{
+XHP8664::changeFreq(double mhz) {
 	interface()->sendf("FREQ:CW %f MHZ", mhz);
 	msecsleep(50); //wait stabilization of PLL
 }
 void
-XHP8664::onOLevelChanged(const shared_ptr<XValueNodeBase> &)
-{
+XHP8664::onOLevelChanged(const shared_ptr<XValueNodeBase> &) {
 	interface()->sendf("AMPL %f DBM", (double)*oLevel());
 }
 void
-XHP8664::onFMONChanged(const shared_ptr<XValueNodeBase> &)
-{
+XHP8664::onFMONChanged(const shared_ptr<XValueNodeBase> &) {
 	interface()->sendf("FM:STAT %s", *fmON() ? "ON" : "OFF");
 }
 void
-XHP8664::onAMONChanged(const shared_ptr<XValueNodeBase> &)
-{
+XHP8664::onAMONChanged(const shared_ptr<XValueNodeBase> &) {
 	interface()->sendf("AM:STAT %s", *amON() ? "ON" : "OFF");
 }

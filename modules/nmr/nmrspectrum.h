@@ -14,17 +14,13 @@
 #ifndef nmrspectrumH
 #define nmrspectrumH
 //---------------------------------------------------------------------------
-#include <secondarydriver.h>
-#include <xnodeconnector.h>
-#include <complex>
+#include <nmrspectrumbase.h>
 
 class XMagnetPS;
 class XDMM;
-class XNMRPulseAnalyzer;
 class FrmNMRSpectrum;
-class XWaveNGraph;
 
-class XNMRSpectrum : public XSecondaryDriver
+class XNMRSpectrum : public XNMRSpectrumBase<FrmNMRSpectrum>
 {
 	XNODE_OBJECT
 protected:
@@ -36,79 +32,36 @@ protected:
 public:
 	//! ususally nothing to do
 	~XNMRSpectrum() {}
-  
-	//! show all forms belonging to driver
-	virtual void showForms();
 protected:
+	//! \return true to be cleared.
+	virtual bool onCondChangedImpl(const shared_ptr<XValueNodeBase> &) const;
+	//! Fourier Step Summation.
+	virtual void fssum();
+	virtual double getResolution() const;
+	virtual double getMinValue() const;
+	virtual double getMaxValue() const;
 
-	//! this is called when connected driver emit a signal
-	//! unless dependency is broken
-	//! all connected drivers are readLocked
-	virtual void analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&);
-	//! this is called after analyze() or analyzeRaw()
-	//! record is readLocked
-	virtual void visualize();
-	//! check connected drivers have valid time
-	//! \return true if dependency is resolved
-	virtual bool checkDependency(const shared_ptr<XDriver> &emitter) const;
- 
+	virtual bool checkDependencyImpl(const shared_ptr<XDriver> &emitter) const;
 public:
-	//! driver specific part below 
-  
-	const shared_ptr<XItemNode<XDriverList, XNMRPulseAnalyzer> > &pulse() const {return m_pulse;}
 	const shared_ptr<XItemNode<XDriverList, XMagnetPS, XDMM> > &magnet() const {return m_magnet;}
 
 	const shared_ptr<XDoubleNode> &centerFreq() const {return m_centerFreq;}
-	const shared_ptr<XDoubleNode> &bandWidth() const {return m_bandWidth;}
 	const shared_ptr<XDoubleNode> &resolution() const {return m_resolution;}
+	const shared_ptr<XDoubleNode> &minValue() const {return m_minValue;}
+	const shared_ptr<XDoubleNode> &maxValue() const {return m_maxValue;}
 	const shared_ptr<XDoubleNode> &fieldFactor() const {return m_fieldFactor;}
 	const shared_ptr<XDoubleNode> &residualField() const {return m_residualField;}
-	const shared_ptr<XDoubleNode> &fieldMin() const {return m_fieldMin;}
-	const shared_ptr<XDoubleNode> &fieldMax() const {return m_fieldMax;}
-
-	//! records below.
-	const std::deque<std::complex<double> > &wave() const {return m_wave;}
-	//! averaged count
-	const std::deque<int> &counts() const {return m_counts;}
-	//! field resolution
-	double dH() const {return m_dH;}
-	//! field of the first point
-	double hMin() const {return m_hMin;}
 private:
-	const shared_ptr<XItemNode<XDriverList, XNMRPulseAnalyzer> > m_pulse;
 	const shared_ptr<XItemNode<XDriverList, XMagnetPS, XDMM> > m_magnet;
  
 	const shared_ptr<XDoubleNode> m_centerFreq;
-	const shared_ptr<XDoubleNode> m_bandWidth;
 	const shared_ptr<XDoubleNode> m_resolution;
+	const shared_ptr<XDoubleNode> m_minValue, m_maxValue;
 	const shared_ptr<XDoubleNode> m_fieldFactor;
 	const shared_ptr<XDoubleNode> m_residualField;
-	const shared_ptr<XDoubleNode> m_fieldMin;
-	const shared_ptr<XDoubleNode> m_fieldMax;
-
-	const shared_ptr<XNode> m_clear;
-  
-	//! Records
-	std::deque<int> m_counts;
-	double m_dH, m_hMin;
-	std::deque<std::complex<double> > m_wave;
-
-	shared_ptr<XListener> m_lsnOnClear, m_lsnOnCondChanged;
-    
-	const qshared_ptr<FrmNMRSpectrum> m_form;
-
-	const shared_ptr<XWaveNGraph> m_spectrum;
-
-	xqcon_ptr m_conCenterFreq, m_conBandWidth, m_conResolution,
-		m_conFieldFactor, m_conResidualField, m_conFieldMin, m_conFieldMax;
-	xqcon_ptr m_conMagnet, m_conPulse;
-	xqcon_ptr m_conClear;
-
-	void onCondChanged(const shared_ptr<XValueNodeBase> &);
-	void onClear(const shared_ptr<XNode> &);
-	void add(double field, std::complex<double> c);
-        
-	XTime m_timeClearRequested;
+	xqcon_ptr m_conCenterFreq, m_conResolution, m_conMin, m_conMax,
+		m_conFieldFactor, m_conResidualField;
+	xqcon_ptr m_conMagnet;
 };
 
 #endif
