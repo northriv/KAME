@@ -1,6 +1,6 @@
 #!/bin/bash
 make -f admin/Makefile.common cvs
-version=2.2.14
+version=2.2.15
 file=kame-$version
 ./tools/maketarball.sh $file
 target=${2:-i686}

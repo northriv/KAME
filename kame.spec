@@ -7,7 +7,7 @@ Name: kame
 
 %{!?build_nidaqmx: %define build_nidaqmx 1}
 
-Version: 2.2.14
+Version: 2.2.15
 Release: 1
 License: GPL
 Group: Applications/Engineering
@@ -105,7 +105,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/kame/libdmmcore*
 %{_libdir}/kame/libmagnetpscore*
 %{_libdir}/kame/libdcsourcecore*
-%{_libdir}/kame/liblevelmeter*
+%{_libdir}/kame/liblevelmetercore*
 %{_libdir}/kame/modules/libdcsource*
 %{_libdir}/kame/modules/libdmm*
 %{_libdir}/kame/modules/libdso*
@@ -114,6 +114,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/kame/modules/libmagnetps*
 %{_libdir}/kame/modules/libtempcontrol*
 %{_libdir}/kame/modules/liblevelmeter*
+%{_libdir}/kame/modules/libnetworkanalyzer*
 
 %files modules-nmr
 %{_libdir}/kame/libnmrpulsercore*

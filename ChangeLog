@@ -1,3 +1,8 @@
+* Mon Oct 22 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.2.15-1)
+- network analyzers.
+- nmrspectrum, nmrfspectrum: code refactoring & auto scale.
+
 * Sat Oct 20 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.2.14-1)
 - userdmm: HP3478A.
