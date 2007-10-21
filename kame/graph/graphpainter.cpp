@@ -514,7 +514,7 @@ XQGraphPainter::drawOnScreenViewObj()
 		m_curAlign = AlignBottom | AlignLeft;
   		drawText(XGraph::ScrPoint(0.01, 0.01, 0.01), m_onScreenMsg);
 	}
-	
+	//Legends
 	if(*m_graph->drawLegends() &&
 			(m_selectionModeNow == SelNone)) {
 		atomic_shared_ptr<const XNode::NodeList> plots_list(m_graph->plots()->children());
