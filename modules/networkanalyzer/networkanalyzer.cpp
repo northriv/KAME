@@ -50,9 +50,13 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	
 	startFreq()->setUIEnabled(false);
 	stopFreq()->setUIEnabled(false);
+	m_conStartFreq = xqcon_create<XQLineEditConnector>(startFreq(), m_form->m_edStart);
+	m_conStopFreq = xqcon_create<XQLineEditConnector>(stopFreq(), m_form->m_edStop);
 	
 	const char *labels[] = {"Freq [MHz]", "Level [dBm]"};
 	m_waveForm->setColCount(2, labels); 
+	m_waveForm->insertPlot("Trace1", 0, 1);
+	m_waveForm->clear(); 
 }
 void
 XNetworkAnalyzer::showForms() {

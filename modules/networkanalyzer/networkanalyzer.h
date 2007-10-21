@@ -94,7 +94,7 @@ private:
 	shared_ptr<XListener> m_lsnOnStartFreqChanged;
 	shared_ptr<XListener> m_lsnOnStopFreqChanged;
   
-	const xqcon_ptr m_conStartFreq, m_conStopFreq;
+	xqcon_ptr m_conStartFreq, m_conStopFreq;
  
 	shared_ptr<XThread<XNetworkAnalyzer> > m_thread;
   
