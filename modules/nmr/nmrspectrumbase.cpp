@@ -63,6 +63,7 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 	}
   
 	bandWidth()->value(50);
+	autoPhase()->value(true);
 
 	m_lsnOnClear = m_clear->onTouch().connectWeak(
 		shared_from_this(), &XNMRSpectrumBase<FRM>::onClear);

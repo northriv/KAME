@@ -39,6 +39,7 @@ XNMRSpectrum::XNMRSpectrum(const char *name, bool runtime,
 
 	m_form->setCaption(KAME::i18n("NMR Spectrum - ") + getLabel() );
 	m_spectrum->setLabel(0, "Field [T]");
+	m_spectrum->axisx()->label()->value(KAME::i18n("Field [T]"));
   
 	centerFreq()->value(20);
 	resolution()->value(0.001);

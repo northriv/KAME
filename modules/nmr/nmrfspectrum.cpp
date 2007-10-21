@@ -42,6 +42,7 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 	m_form->setCaption(KAME::i18n("NMR Spectrum (Freq. Sweep) - ") + getLabel() );
 
 	m_spectrum->setLabel(0, "Freq [MHz]");
+	m_spectrum->axisx()->label()->value(KAME::i18n("Freq [MHz]"));
   
 	centerFreq()->value(20);
 	sg1FreqOffset()->value(700);
