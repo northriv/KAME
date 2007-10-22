@@ -78,8 +78,9 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
     axisy->autoScale()->value(false);
     axisy->maxValue()->value(13.0);
     axisy->minValue()->value(-70.0);
-    m_waveForm->plot(0)->drawPoints()->value(true);
-    m_waveForm->plot(0)->lineColor()->value(QColor(0x4A, 0x3D, 0x87).rgb());
+    m_waveForm->plot(0)->drawPoints()->value(false);
+    m_waveForm->plot(0)->lineColor()->value(clGreen);
+    m_waveForm->plot(0)->pointColor()->value(clGreen);
 	shared_ptr<XXYPlot> plot = m_graph->plots()->create<XXYPlot>(
 		"Markers", true, m_graph);
 	m_markerPlot = plot;
@@ -90,6 +91,7 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	plot->drawBars()->value(true);
 	plot->pointColor()->value(clRed);
 	plot->barColor()->value(clRed);
+	plot->intensity()->value(2.0);
 	plot->clearPoints()->setUIEnabled(false);
 	plot->maxCount()->setUIEnabled(false);
 }
