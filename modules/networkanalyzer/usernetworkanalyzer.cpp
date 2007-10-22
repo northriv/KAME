@@ -55,11 +55,16 @@ void
 XHP8711::getMarkerPos(unsigned int num, double &x, double &y) {
 	XScopedLock<XInterface> lock(*interface());
 	if(num >= 8)
-		throw XInterface::XSkippedRecordError("No such marker.", __FILE__, __LINE__);
-	interface()->queryf("CALC:MARK%u:X?", num + 1u);
-	x = interface()->toDouble();
-	interface()->queryf("CALC:MARK%u:Y?", num + 1u);
-	y = interface()->toDouble();
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+	try {
+		interface()->queryf("CALC:MARK%u:X?", num + 1u);
+		x = interface()->toDouble();
+		interface()->queryf("CALC:MARK%u:Y?", num + 1u);
+		y = interface()->toDouble();
+	}
+	catch (XInterface::XConvError&) {
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+	}
 }
 void
 XHP8711::oneSweep() {

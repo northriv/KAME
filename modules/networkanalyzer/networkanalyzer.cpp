@@ -182,5 +182,7 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated)
     }
 	m_lsnOnStartFreqChanged.reset();
 	m_lsnOnStopFreqChanged.reset();
+	
+	afterStop();
 	return NULL;
 }
