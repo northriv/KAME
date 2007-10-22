@@ -17,9 +17,9 @@
 #include <klocale.h>
 
 REGISTER_TYPE(XDriverList, HP8711, "HP/Agilent 8711/8712/8713/8714 Network Analyzer");
-
+REGISTER_TYPE(XDriverList, AgilentE5061, "Agilent E5061/E5062 Network Analyzer");
 //---------------------------------------------------------------------------
-XHP8711::XHP8711(const char *name, bool runtime,
+XAgilentNetworkAnalyzer::XAgilentNetworkAnalyzer(const char *name, bool runtime,
 		   const shared_ptr<XScalarEntryList> &scalarentries,
 		   const shared_ptr<XInterfaceList> &interfaces,
 		   const shared_ptr<XThermometerList> &thermometers,
@@ -32,7 +32,7 @@ XHP8711::XHP8711(const char *name, bool runtime,
 }
 
 void
-XHP8711::open() throw (XInterface::XInterfaceError &)
+XAgilentNetworkAnalyzer::open() throw (XInterface::XInterfaceError &)
 {
 	interface()->query("SENS:FREQ:START?");
 	startFreq()->value(interface()->toDouble() / 1e6);
@@ -57,15 +57,15 @@ XHP8711::open() throw (XInterface::XInterfaceError &)
 	start();
 }
 void 
-XHP8711::onStartFreqChanged(const shared_ptr<XValueNodeBase> &) {
+XAgilentNetworkAnalyzer::onStartFreqChanged(const shared_ptr<XValueNodeBase> &) {
 	interface()->sendf("SENS:FREQ:START %f MHZ", (double)*startFreq());
 }
 void 
-XHP8711::onStopFreqChanged(const shared_ptr<XValueNodeBase> &) {
+XAgilentNetworkAnalyzer::onStopFreqChanged(const shared_ptr<XValueNodeBase> &) {
 	interface()->sendf("SENS:FREQ:STOP %f MHZ", (double)*stopFreq());
 }
 void
-XHP8711::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
+XAgilentNetworkAnalyzer::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
 	unsigned int avg = *average();
 	if(avg >= 2)
 		interface()->sendf("SENS:AVER:CLEAR;STAT ON;COUNT %u", avg);
@@ -73,11 +73,11 @@ XHP8711::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
 		interface()->send("SENS:AVER:STAT OFF");
 }
 void
-XHP8711::onPointsChanged(const shared_ptr<XValueNodeBase> &) {	
+XAgilentNetworkAnalyzer::onPointsChanged(const shared_ptr<XValueNodeBase> &) {	
 	interface()->sendf("SENS:SWE:POIN %s", points()->to_str().c_str());
 }
 void
-XHP8711::getMarkerPos(unsigned int num, double &x, double &y) {
+XAgilentNetworkAnalyzer::getMarkerPos(unsigned int num, double &x, double &y) {
 	XScopedLock<XInterface> lock(*interface());
 	if(num >= 8)
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
@@ -90,15 +90,15 @@ XHP8711::getMarkerPos(unsigned int num, double &x, double &y) {
 	y = interface()->toDouble();
 }
 void
-XHP8711::oneSweep() {
+XAgilentNetworkAnalyzer::oneSweep() {
 	interface()->query("INIT:IMM;*OPC?");
 }
 void
-XHP8711::startContSweep() {
+XAgilentNetworkAnalyzer::startContSweep() {
 	interface()->send("INIT:CONT ON");
 }
 void
-XHP8711::acquireTrace(unsigned int ch) {
+XAgilentNetworkAnalyzer::acquireTrace(unsigned int ch) {
 	XScopedLock<XInterface> lock(*interface());
 	if(ch >= 2)
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
@@ -114,14 +114,12 @@ XHP8711::acquireTrace(unsigned int ch) {
 	interface()->queryf("SENS%u:SWE:POIN?", ch + 1u);
 	unsigned int len = interface()->toUInt();
 	push(len);
-	interface()->send("FORM:DATA REAL,32;BORD SWAP");
-	interface()->sendf("TRAC? CH%uFDATA", ch + 1u);
-	interface()->receive(len * sizeof(float) + 12);
+	acquireTraceData(ch, len);
 	rawData().insert(rawData().end(), 
 					 interface()->buffer().begin(), interface()->buffer().end());
 }
 void
-XHP8711::convertRaw() throw (XRecordError&) {
+XAgilentNetworkAnalyzer::convertRaw() throw (XRecordError&) {
 	double start = pop<double>();
 	double stop = pop<double>();
 	unsigned int samples = pop<unsigned int>();
@@ -137,13 +135,41 @@ XHP8711::convertRaw() throw (XRecordError&) {
 	}
 	buf[len] = '\0';
 	sscanf(buf, "%u", &len);
+	m_freqIntervalRecorded = (stop - start) / (samples - 1);
+	m_traceRecorded.resize(samples);
+
+	converRawBlock(len);
+}
+
+void
+XHP8711::acuireTraceData(unsigned int ch, unsigned int ) {
+	interface()->send("FORM:DATA REAL,32;BORD SWAP");
+	interface()->sendf("TRAC? CH%uFDATA", ch + 1u);
+	interface()->receive(len * sizeof(float) + 12);
+}
+void
+XHP8711::convertRawBlock(unsigned int len) throw (XRecordError&) {
 	if(len / sizeof(float) < samples)
 		throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	if(len / sizeof(float) > samples)
 		throw XRecordError(KAME::i18n("Select scalar plot."), __FILE__, __LINE__);
-	m_traceRecorded.resize(samples);
-	m_freqIntervalRecorded = (stop - start) / (samples - 1);
 	for(unsigned int i = 0; i < samples; i++) {
 		m_traceRecorded[i] = pop<float>();
+	}
+}
+
+void
+XAgilentE5061::acquireTraceData(unsigned int ch, unsigned int len) {
+	interface()->send("FORM:DATA REAL32;BORD SWAP");
+	interface()->sendf("CALC%u:DATA:FDAT?", ch + 1u);
+	interface()->receive(len * sizeof(float) * 2 + 12);
+}
+void
+XAgilentE5061::convertRawBlock(unsigned int len) throw (XRecordError&) {
+	if(len / sizeof(float) < samples * 2)
+		throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+	for(unsigned int i = 0; i < samples; i++) {
+		m_traceRecorded[i] = pop<float>();
+		pop<float>();
 	}
 }

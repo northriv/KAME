@@ -18,17 +18,17 @@
 #include "chardevicedriver.h"
 //---------------------------------------------------------------------------
 
-//! HP/Agilent 8711C/8712C/8713C/8714C Network Analyzer.
-class XHP8711 : public XCharDeviceDriver<XNetworkAnalyzer>
+//! Base class for HP/Agilent Network Analyzer.
+class XAgilentNetworkAnalyzer : public XCharDeviceDriver<XNetworkAnalyzer>
 {
 	XNODE_OBJECT
 protected:
-	XHP8711(const char *name, bool runtime,
+	XAgilentNetworkAnalyzer(const char *name, bool runtime,
 		 const shared_ptr<XScalarEntryList> &scalarentries,
 		 const shared_ptr<XInterfaceList> &interfaces,
 		 const shared_ptr<XThermometerList> &thermometers,
 		 const shared_ptr<XDriverList> &drivers);
-	~XHP8711() {}
+	virtual ~XAgilentNetworkAnalyzer() {}
 
 	virtual void onStartFreqChanged(const shared_ptr<XValueNodeBase> &);
 	virtual void onStopFreqChanged(const shared_ptr<XValueNodeBase> &);
@@ -43,6 +43,45 @@ protected:
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XInterface::XInterfaceError &);
+
+	virtual void acquireTraceData(unsigned int ch, unsigned int len) = 0;
+	virtual void convertRawBlock(unsigned int len) throw (XRecordError&) = 0;
+private:
+};
+
+//! HP/Agilent 8711C/8712C/8713C/8714C Network Analyzer.
+class XHP8711 : public XAgilentNetworkAnalyzer
+{
+	XNODE_OBJECT
+protected:
+	XHP8711(const char *name, bool runtime,
+		 const shared_ptr<XScalarEntryList> &scalarentries,
+		 const shared_ptr<XInterfaceList> &interfaces,
+		 const shared_ptr<XThermometerList> &thermometers,
+		 const shared_ptr<XDriverList> &drivers) :
+			 XHP8711(name, runtime, scalarentries, interfaces, thermometers, drivers) {}
+	virtual ~XHP8711() {}
+
+	virtual void acquireTraceData(unsigned int ch, unsigned int len);
+	virtual void convertRawBlock(unsigned int len) throw (XRecordError&);
+private:
+};
+
+//! Agilent E5061A/5062A Network Analyzer.
+class XAgilentE5061 : public XHP8711
+{
+	XNODE_OBJECT
+protected:
+	XAgilentE5061(const char *name, bool runtime,
+		 const shared_ptr<XScalarEntryList> &scalarentries,
+		 const shared_ptr<XInterfaceList> &interfaces,
+		 const shared_ptr<XThermometerList> &thermometers,
+		 const shared_ptr<XDriverList> &drivers) :
+			 XHP8711(name, runtime, scalarentries, interfaces, thermometers, drivers) {}
+	virtual ~XAgilentE5061() {}
+
+	virtual void acquireTraceData(unsigned int ch, unsigned int len);
+	virtual void convertRawBlock(unsigned int len) throw (XRecordError&);
 private:
 };
 
