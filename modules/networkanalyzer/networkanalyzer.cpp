@@ -159,8 +159,6 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated)
 		}
 		catch (XDriver::XSkippedRecordError&) {
 		}
-		catch (XDriver::XConversionError&) {
-		}
 		catch (XKameError &e) {
 			e.print(getLabel());
 			continue;

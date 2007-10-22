@@ -31,9 +31,9 @@ void
 XHP8711::open() throw (XInterface::XInterfaceError &)
 {
 	interface()->query("SENS:FREQ:START?");
-	startFreq()->value(interface()->toDouble());
+	startFreq()->value(interface()->toDouble() / 1e6);
 	interface()->query("SENS:FREQ:STOP?");
-	stopFreq()->value(interface()->toDouble());
+	stopFreq()->value(interface()->toDouble() / 1e6);
 
 	interface()->send("ABOR;INIT:CONT OFF");
 	
@@ -55,7 +55,7 @@ void
 XHP8711::getMarkerPos(unsigned int num, double &x, double &y) {
 	XScopedLock<XInterface> lock(*interface());
 	if(num >= 8)
-		throw XInterface::XInterfaceError("No such marker.", __FILE__, __LINE__);
+		throw XInterface::XSkippedRecordError("No such marker.", __FILE__, __LINE__);
 	interface()->queryf("CALC:MARK%u:X?", num + 1u);
 	x = interface()->toDouble();
 	interface()->queryf("CALC:MARK%u:Y?", num + 1u);
@@ -69,10 +69,10 @@ void
 XHP8711::acquireTrace(unsigned int ch) {
 	XScopedLock<XInterface> lock(*interface());
 	interface()->queryf("SENS%u:FREQ:START?", ch);
-	double start = interface()->toDouble();
+	double start = interface()->toDouble() / 1e6;
 	push(start);
 	interface()->queryf("SENS%u:FREQ:STOP?", ch);
-	double stop = interface()->toDouble();
+	double stop = interface()->toDouble() / 1e6;
 	push(stop);
 	interface()->queryf("SENS%u:SWE:POIN?", ch);
 	unsigned int len = interface()->toUInt();
