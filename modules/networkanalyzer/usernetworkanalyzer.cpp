@@ -48,6 +48,7 @@ XHP8711::open() throw (XInterface::XInterfaceError &)
 	}
 	interface()->query("SENS:SWE:POIN?");
 	points()->str(formatString("%u", interface()->toUInt()));
+	interface()->send("SENS:SWE:TIME:AUTO OFF;:SENS:SWE:TIME 0.3S");
 	interface()->send("ABOR;INIT:CONT OFF");
 	
 	start();

@@ -23,6 +23,7 @@ class XScalarEntry;
 class FrmNetworkAnalyzer;
 class XWaveNGraph;
 class FrmGraphNURL;
+class XGraph;
 class XXYPlot;
 
 //! Base class for digital storage oscilloscope.
@@ -107,6 +108,7 @@ private:
   
 	xqcon_ptr m_conStartFreq, m_conStopFreq, m_conPoints, m_conAverage;
  
+	shared_ptr<XGraph> m_graph;
 	shared_ptr<XXYPlot> m_markerPlot;
 	
 	shared_ptr<XThread<XNetworkAnalyzer> > m_thread;

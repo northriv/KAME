@@ -64,7 +64,7 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	m_waveForm->insertPlot("Trace1", 0, 1);
 	m_waveForm->clear(); 
 
-	m_graph = m_waveForm()->graph();
+	m_graph = m_waveForm->graph();
 	shared_ptr<XXYPlot> plot = m_graph->plots()->create<XXYPlot>(
 		"Markers", true, m_graph);
 	m_markerPlot = plot;
