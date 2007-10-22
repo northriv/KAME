@@ -25,8 +25,8 @@ XHP8711::XHP8711(const char *name, bool runtime,
 		   const shared_ptr<XThermometerList> &thermometers,
 		   const shared_ptr<XDriverList> &drivers) :
 	XCharDeviceDriver<XNetworkAnalyzer>(name, runtime, scalarentries, interfaces, thermometers, drivers) {
-	const char *cand[] = {"3", "5", "11", "21", "51", "101", "201", "401", "801", "1601", ""};
-	for(const char **it = cand; strlen(*it); it++) {
+	const char *points[] = {"3", "5", "11", "21", "51", "101", "201", "401", "801", "1601", ""};
+	for(const char **it = points; strlen(*it); it++) {
 		points()->add(*it);
 	}
 }
@@ -77,7 +77,7 @@ XHP8711::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
 void
 XHP8711::onPointsChanged(const shared_ptr<XValueNodeBase> &) {	
 	XScopedLock<XInterface> lock(*interface());
-	interface()->sendf("ABOR;SENS:SWE:POIN %s;*WAI", points()->to_str().c_str());
+	interface()->sendf("ABOR;SENS:SWE:POIN %s;*WAI", points()->tostr());
 	interface()->query("*OPC?");
 }
 void
