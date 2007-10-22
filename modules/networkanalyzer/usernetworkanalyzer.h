@@ -32,6 +32,8 @@ protected:
 
 	virtual void onStartFreqChanged(const shared_ptr<XValueNodeBase> &);
 	virtual void onStopFreqChanged(const shared_ptr<XValueNodeBase> &);
+	virtual void onAverageChanged(const shared_ptr<XValueNodeBase> &);
+	virtual void onPointsChanged(const shared_ptr<XValueNodeBase> &);
 	virtual void getMarkerPos(unsigned int num, double &x, double &y);
 	virtual void oneSweep();
 	virtual void startContSweep();

@@ -25,6 +25,10 @@ XHP8711::XHP8711(const char *name, bool runtime,
 		   const shared_ptr<XThermometerList> &thermometers,
 		   const shared_ptr<XDriverList> &drivers) :
 	XCharDeviceDriver<XNetworkAnalyzer>(name, runtime, scalarentries, interfaces, thermometers, drivers) {
+	const char *cand[] = {"3", "5", "11", "21", "51", "101", "201", "401", "801", "1601", ""};
+	for(const char **it = cand; strlen(*it); it++) {
+		points()->add(*it);
+	}
 }
 
 void
@@ -34,7 +38,16 @@ XHP8711::open() throw (XInterface::XInterfaceError &)
 	startFreq()->value(interface()->toDouble() / 1e6);
 	interface()->query("SENS:FREQ:STOP?");
 	stopFreq()->value(interface()->toDouble() / 1e6);
-
+	interface()->query("SENS:AVER:STAT?");
+	if(interface()->toUInt() == 0) {
+		average()->value(1);
+	}
+	else {
+		interface()->query("SENS:AVER:COUNT?");
+		average()->value(interface()->toUInt());
+	}
+	interface()->query("SENS:SWE:POIN?");
+	points()->str(formatString("%u", interface()->toUInt()));
 	interface()->send("ABOR;INIT:CONT OFF");
 	
 	start();
@@ -52,6 +65,22 @@ XHP8711::onStopFreqChanged(const shared_ptr<XValueNodeBase> &) {
 	interface()->query("*OPC?");
 }
 void
+XHP8711::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
+	XScopedLock<XInterface> lock(*interface());
+	unsigned int avg = *average();
+	if(avg >= 2)
+		interface()->sendf("ABOR;SENS:AVER:CLEAR;STAT ON;COUNT %u;*WAI", avg);
+	else
+		interface()->send("ABOR;SENS:AVER:STAT OFF;*WAI");
+	interface()->query("*OPC?");
+}
+void
+XHP8711::onPointsChanged(const shared_ptr<XValueNodeBase> &) {	
+	XScopedLock<XInterface> lock(*interface());
+	interface()->sendf("ABOR;SENS:SWE:POIN %s;*WAI", points()->to_str().c_str());
+	interface()->query("*OPC?");
+}
+void
 XHP8711::getMarkerPos(unsigned int num, double &x, double &y) {
 	XScopedLock<XInterface> lock(*interface());
 	if(num >= 8)
@@ -60,7 +89,7 @@ XHP8711::getMarkerPos(unsigned int num, double &x, double &y) {
 	if(interface()->toInt() != 1)
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);		
 	interface()->queryf("CALC:MARK%u:X?", num + 1u);
-	x = interface()->toDouble();
+	x = interface()->toDouble() / 1e6;
 	interface()->queryf("CALC:MARK%u:Y?", num + 1u);
 	y = interface()->toDouble();
 }
@@ -88,7 +117,8 @@ XHP8711::acquireTrace(unsigned int ch) {
 	push(stop);
 	interface()->queryf("SENS%u:SWE:POIN?", ch + 1u);
 	unsigned int len = interface()->toUInt();
-	interface()->send("FORM:DATA REAL,32;BORD NORM");
+	push(len);
+	interface()->send("FORM:DATA REAL,32;BORD SWAP");
 	interface()->sendf("TRAC? CH%uFDATA", ch + 1u);
 	interface()->receive(len * sizeof(float) + 12);
 	rawData().insert(rawData().end(), 
@@ -98,6 +128,7 @@ void
 XHP8711::convertRaw() throw (XRecordError&) {
 	double start = pop<double>();
 	double stop = pop<double>();
+	unsigned int samples = pop<unsigned int>();
 	m_startFreqRecorded = start;
 	char c = pop<char>();
 	if (c != '#') throw XBufferUnderflowRecordError(__FILE__, __LINE__);
@@ -110,9 +141,13 @@ XHP8711::convertRaw() throw (XRecordError&) {
 	}
 	buf[len] = '\0';
 	sscanf(buf, "%u", &len);
-	m_traceRecorded.resize(len);
-	m_freqIntervalRecorded = (stop - start) / (len - 1);
-	for(unsigned int i = 0; i < len / sizeof(float); i++) {
+	if(len / sizeof(float) < samples)
+		throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+	if(len / sizeof(float) > samples)
+		throw XRecordError(KAME::i18n("Select scalar plot."), __FILE__, __LINE__);
+	m_traceRecorded.resize(samples);
+	m_freqIntervalRecorded = (stop - start) / (samples - 1);
+	for(unsigned int i = 0; i < samples; i++) {
 		m_traceRecorded[i] = pop<float>();
 	}
 }

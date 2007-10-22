@@ -39,6 +39,8 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 								  dynamic_pointer_cast<XDriver>(shared_from_this()))),
 	m_startFreq(create<XDoubleNode>("StartFreq", false)),
 	m_stopFreq(create<XDoubleNode>("StopFreq", false)),
+	m_points(create<XComboNode>("Points", false)),
+	m_average(create<XUIntNode>("Average", false)),
 	m_form(new FrmNetworkAnalyzer(g_pFrmMain)),
 	m_waveForm(create<XWaveNGraph>("WaveForm", false, 
 								   m_form->m_graphwidget, m_form->m_urlDump, m_form->m_btnDump))
@@ -50,10 +52,14 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	
 	startFreq()->setUIEnabled(false);
 	stopFreq()->setUIEnabled(false);
+	points()->setUIEnabled(false);
+	average()->setUIEnabled(false);
 	m_conStartFreq = xqcon_create<XQLineEditConnector>(startFreq(), m_form->m_edStart);
 	m_conStopFreq = xqcon_create<XQLineEditConnector>(stopFreq(), m_form->m_edStop);
+	m_conPoints = xqcon_create<XQComboBoxConnector>(points(), m_form->m_cmbPoints);
+	m_conAverage = xqcon_create<XQLineEditConnector>(average(), m_form->m_edAverage);
 	
-	const char *labels[] = {"Freq [MHz]", "Level [dBm]"};
+	const char *labels[] = {"Freq [MHz]", "Level [dB]"};
 	m_waveForm->setColCount(2, labels); 
 	m_waveForm->insertPlot("Trace1", 0, 1);
 	m_waveForm->clear(); 
@@ -73,12 +79,16 @@ XNetworkAnalyzer::start()
   
 	startFreq()->setUIEnabled(true);
 	stopFreq()->setUIEnabled(true);
+	points()->setUIEnabled(true);
+	average()->setUIEnabled(true);
 }
 void
 XNetworkAnalyzer::stop()
 {   
 	startFreq()->setUIEnabled(false);
 	stopFreq()->setUIEnabled(false);
+	points()->setUIEnabled(false);
+	average()->setUIEnabled(false);
   	
 	if(m_thread) m_thread->terminate();
 //    m_thread->waitFor();
@@ -115,7 +125,7 @@ XNetworkAnalyzer::visualize()
     
 	double *freqs = m_waveForm->cols(0);
 	double fint = freqIntervalRecorded();
-	double f = startFreqRecorded() * fint;
+	double f = startFreqRecorded();
 	for(unsigned int i = 0; i < length; i++) {
 		*freqs++ = f;
 		f += fint;
@@ -132,6 +142,10 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated)
 		shared_from_this(), &XNetworkAnalyzer::onStartFreqChanged);
 	m_lsnOnStopFreqChanged = stopFreq()->onValueChanged().connectWeak(
 		shared_from_this(), &XNetworkAnalyzer::onStopFreqChanged);
+	m_lsnOnPointsChanged = points()->onValueChanged().connectWeak(
+		shared_from_this(), &XNetworkAnalyzer::onPointsChanged);
+	m_lsnOnAverageChanged = average()->onValueChanged().connectWeak(
+		shared_from_this(), &XNetworkAnalyzer::onAverageChanged);
 
 	while(!terminated) {
 		XTime time_awared = XTime::now();
@@ -188,6 +202,8 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated)
 	}
 	m_lsnOnStartFreqChanged.reset();
 	m_lsnOnStopFreqChanged.reset();
+	m_lsnOnPointsChanged.reset();
+	m_lsnOnAverageChanged.reset();
 	
 	afterStop();
 	return NULL;

@@ -61,15 +61,19 @@ protected:
 	const shared_ptr<XScalarEntry> &marker2Y() const {return m_marker2Y;}
 	const shared_ptr<XDoubleNode> &startFreq() const {return m_startFreq;}
 	const shared_ptr<XDoubleNode> &stopFreq() const {return m_stopFreq;}
+	const shared_ptr<XComboNode> &points() const {return m_points;}
+	const shared_ptr<XUIntNode> &average() const {return m_average;}
 
 	//! Records below
 	double startFreqRecorded() const {return m_startFreqRecorded;} //! [MHz]
 	double freqIntervalRecorded() const {return m_freqIntervalRecorded;} //! [MHz]
 	unsigned int lengthRecorded() const {return m_traceRecorded.size();}
-	const double *traceRecorded() const;
+	const double *traceRecorded() const {return &m_traceRecorded[0];}
 protected:
 	virtual void onStartFreqChanged(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void onStopFreqChanged(const shared_ptr<XValueNodeBase> &) = 0;
+	virtual void onAverageChanged(const shared_ptr<XValueNodeBase> &) = 0;
+	virtual void onPointsChanged(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void getMarkerPos(unsigned int num, double &x, double &y) = 0;
 	virtual void oneSweep() = 0;
 	virtual void startContSweep() = 0;
@@ -88,14 +92,18 @@ private:
 	const shared_ptr<XScalarEntry> m_marker2Y;
 	const shared_ptr<XDoubleNode> m_startFreq;
 	const shared_ptr<XDoubleNode> m_stopFreq;
+	const shared_ptr<XComboNode> m_points;
+	const shared_ptr<XUIntNode> m_average;
 
 	const qshared_ptr<FrmNetworkAnalyzer> m_form;
 	const shared_ptr<XWaveNGraph> m_waveForm;
 
 	shared_ptr<XListener> m_lsnOnStartFreqChanged;
 	shared_ptr<XListener> m_lsnOnStopFreqChanged;
+	shared_ptr<XListener> m_lsnOnPointsChanged;
+	shared_ptr<XListener> m_lsnOnAverageChanged;
   
-	xqcon_ptr m_conStartFreq, m_conStopFreq;
+	xqcon_ptr m_conStartFreq, m_conStopFreq, m_conPoints, m_conAverage;
  
 	shared_ptr<XThread<XNetworkAnalyzer> > m_thread;
   

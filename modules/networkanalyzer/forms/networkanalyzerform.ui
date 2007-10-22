@@ -8,8 +8,8 @@
         <rect>
             <x>0</x>
             <y>0</y>
-            <width>403</width>
-            <height>386</height>
+            <width>458</width>
+            <height>413</height>
         </rect>
     </property>
     <property name="caption">
@@ -117,13 +117,16 @@
                 <property name="margin">
                     <number>2</number>
                 </property>
-                <widget class="QLayoutWidget" row="0" column="0">
+                <widget class="QLayoutWidget" row="0" column="0" rowspan="1" colspan="2">
                     <property name="name">
                         <cstring>layout19</cstring>
                     </property>
                     <hbox>
                         <property name="name">
                             <cstring>unnamed</cstring>
+                        </property>
+                        <property name="spacing">
+                            <number>2</number>
                         </property>
                         <widget class="QLayoutWidget">
                             <property name="name">
@@ -146,7 +149,7 @@
                                         </sizepolicy>
                                     </property>
                                     <property name="text">
-                                        <string>Start</string>
+                                        <string>Start Freq.</string>
                                     </property>
                                 </widget>
                                 <widget class="QLineEdit">
@@ -194,6 +197,9 @@
                                 <property name="name">
                                     <cstring>unnamed</cstring>
                                 </property>
+                                <property name="spacing">
+                                    <number>2</number>
+                                </property>
                                 <widget class="QLabel">
                                     <property name="name">
                                         <cstring>textLabel1_2_5_3_3</cstring>
@@ -207,7 +213,7 @@
                                         </sizepolicy>
                                     </property>
                                     <property name="text">
-                                        <string>Stop</string>
+                                        <string>Stop Freq.</string>
                                     </property>
                                 </widget>
                                 <widget class="QLineEdit">
@@ -246,6 +252,74 @@
                                     </property>
                                 </widget>
                             </hbox>
+                        </widget>
+                    </hbox>
+                </widget>
+                <widget class="QLayoutWidget" row="1" column="0">
+                    <property name="name">
+                        <cstring>layout7</cstring>
+                    </property>
+                    <hbox>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <widget class="QLabel">
+                            <property name="name">
+                                <cstring>textLabel1</cstring>
+                            </property>
+                            <property name="text">
+                                <string>Points</string>
+                            </property>
+                        </widget>
+                        <widget class="QComboBox">
+                            <property name="name">
+                                <cstring>m_cmbPoints</cstring>
+                            </property>
+                        </widget>
+                    </hbox>
+                </widget>
+                <widget class="QLayoutWidget" row="1" column="1">
+                    <property name="name">
+                        <cstring>layout8</cstring>
+                    </property>
+                    <hbox>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <widget class="QLabel">
+                            <property name="name">
+                                <cstring>textLabel1_2_5_3_3_2</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>0</hsizetype>
+                                    <vsizetype>5</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                            <property name="text">
+                                <string>Average</string>
+                            </property>
+                        </widget>
+                        <widget class="QLineEdit">
+                            <property name="name">
+                                <cstring>m_edAverage</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>5</hsizetype>
+                                    <vsizetype>0</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>69</width>
+                                    <height>0</height>
+                                </size>
+                            </property>
                         </widget>
                     </hbox>
                 </widget>
