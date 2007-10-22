@@ -138,17 +138,18 @@ XAgilentNetworkAnalyzer::convertRaw() throw (XRecordError&) {
 	m_freqIntervalRecorded = (stop - start) / (samples - 1);
 	m_traceRecorded.resize(samples);
 
-	converRawBlock(len);
+	convertRawBlock(len);
 }
 
 void
-XHP8711::acuireTraceData(unsigned int ch, unsigned int ) {
+XHP8711::acquireTraceData(unsigned int ch, unsigned int len) {
 	interface()->send("FORM:DATA REAL,32;BORD SWAP");
 	interface()->sendf("TRAC? CH%uFDATA", ch + 1u);
 	interface()->receive(len * sizeof(float) + 12);
 }
 void
 XHP8711::convertRawBlock(unsigned int len) throw (XRecordError&) {
+	unsigned int samples = m_traceRecorded.size();
 	if(len / sizeof(float) < samples)
 		throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	if(len / sizeof(float) > samples)
@@ -166,6 +167,7 @@ XAgilentE5061::acquireTraceData(unsigned int ch, unsigned int len) {
 }
 void
 XAgilentE5061::convertRawBlock(unsigned int len) throw (XRecordError&) {
+	unsigned int samples = m_traceRecorded.size();
 	if(len / sizeof(float) < samples * 2)
 		throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	for(unsigned int i = 0; i < samples; i++) {

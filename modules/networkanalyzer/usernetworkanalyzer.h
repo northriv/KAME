@@ -59,7 +59,7 @@ protected:
 		 const shared_ptr<XInterfaceList> &interfaces,
 		 const shared_ptr<XThermometerList> &thermometers,
 		 const shared_ptr<XDriverList> &drivers) :
-			 XHP8711(name, runtime, scalarentries, interfaces, thermometers, drivers) {}
+			 XAgilentNetworkAnalyzer(name, runtime, scalarentries, interfaces, thermometers, drivers) {}
 	virtual ~XHP8711() {}
 
 	virtual void acquireTraceData(unsigned int ch, unsigned int len);
