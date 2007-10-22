@@ -72,6 +72,7 @@ protected:
 	virtual void onStopFreqChanged(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void getMarkerPos(unsigned int num, double &x, double &y) = 0;
 	virtual void oneSweep() = 0;
+	virtual void startContSweep() = 0;
 	virtual void acquireTrace(unsigned int ch) = 0;
 	//! convert raw to dispaly-able
 	virtual void convertRaw() throw (XRecordError&) = 0;

@@ -71,6 +71,10 @@ XHP8711::oneSweep() {
 	interface()->query("INIT:IMM;*OPC?");
 }
 void
+XHP8711::startContSweep() {
+	interface()->send("INIT:CONT ON");
+}
+void
 XHP8711::acquireTrace(unsigned int ch) {
 	XScopedLock<XInterface> lock(*interface());
 	interface()->queryf("SENS%u:FREQ:START?", ch);

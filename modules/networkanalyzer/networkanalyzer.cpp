@@ -180,6 +180,12 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated)
 		}
 		finishWritingRaw(time_awared, XTime::now());
     }
+	try {
+		startContSweep();
+	}
+	catch (XKameError &e) {
+		e.print(getLabel());
+	}
 	m_lsnOnStartFreqChanged.reset();
 	m_lsnOnStopFreqChanged.reset();
 	

@@ -102,7 +102,7 @@ XCharInterface::scanf(const char *fmt, ...) const {
 	return ret;    
 }
 double
-XCharInterface::toDouble() const throw (XConvXConvError &) {
+XCharInterface::toDouble() const throw (XConvError &) {
     double x;
     int ret = sscanf(&buffer()[0], "%lf", &x);
     if(ret != 1) throw XConvError(__FILE__, __LINE__);
