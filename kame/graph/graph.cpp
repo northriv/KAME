@@ -798,7 +798,7 @@ XXYPlot::addPoint(XGraph::VFloat x, XGraph::VFloat y, XGraph::VFloat z, XGraph::
 	shared_ptr<XGraph> graph(m_graph);
 	XScopedLock<XGraph> lock(*graph);
   
-	if(count() >= *maxCount()) {
+	if((count() >= *maxCount()) && count()) {
 		m_points.pop_front();
 	}
 	m_points.push_back(npt);
