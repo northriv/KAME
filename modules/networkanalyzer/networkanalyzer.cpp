@@ -64,8 +64,9 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	m_waveForm->insertPlot("Trace1", 0, 1);
 	m_waveForm->clear(); 
 
-	shared_ptr<XXYPlot> plot = m_waveForm->graph()->plots()->create<XXYPlot>(
-		"Markers", true, m_waveForm->graph());
+	m_graph = m_waveForm()->graph();
+	shared_ptr<XXYPlot> plot = m_graph->plots()->create<XXYPlot>(
+		"Markers", true, m_graph);
 	m_markerPlot = plot;
 	plot->label()->value(KAME::i18n("Markers"));
 	plot->axisX()->value(m_waveForm->axisx());
@@ -139,6 +140,7 @@ XNetworkAnalyzer::visualize()
 	{ XScopedWriteLock<XWaveNGraph> lock(*m_waveForm);
 
 	m_markerPlot->clearAllPoints();
+	m_markerPlot->maxCount()->value(m_markersRecorded.size());
 	for(std::deque<std::pair<double, double> >::const_iterator it = m_markersRecorded.begin();
 		it != m_markersRecorded.end(); it++) {
 		m_markerPlot->addPoint(it->first, it->second);
