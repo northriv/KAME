@@ -23,6 +23,7 @@ class XScalarEntry;
 class FrmNetworkAnalyzer;
 class XWaveNGraph;
 class FrmGraphNURL;
+class XXYPlot;
 
 //! Base class for digital storage oscilloscope.
 class XNetworkAnalyzer : public XPrimaryDriver
@@ -84,6 +85,7 @@ protected:
 	std::vector<double> m_traceRecorded;	
 	double m_startFreqRecorded;
 	double m_freqIntervalRecorded;
+	std::deque<std::pair<double, double> > m_markersRecorded;
 private:
 	const shared_ptr<XWaveNGraph> &waveForm() const {return m_waveForm;}
 	const shared_ptr<XScalarEntry> m_marker1X;
@@ -105,6 +107,8 @@ private:
   
 	xqcon_ptr m_conStartFreq, m_conStopFreq, m_conPoints, m_conAverage;
  
+	shared_ptr<XXYPlot> m_markerPlot;
+	
 	shared_ptr<XThread<XNetworkAnalyzer> > m_thread;
   
 	void *execute(const atomic<bool> &);

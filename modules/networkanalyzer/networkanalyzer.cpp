@@ -57,12 +57,23 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	m_conStartFreq = xqcon_create<XQLineEditConnector>(startFreq(), m_form->m_edStart);
 	m_conStopFreq = xqcon_create<XQLineEditConnector>(stopFreq(), m_form->m_edStop);
 	m_conPoints = xqcon_create<XQComboBoxConnector>(points(), m_form->m_cmbPoints);
-	m_conAverage = xqcon_create<XQLineEditConnector>(average(), m_form->m_cmbAverage);
+	m_conAverage = xqcon_create<XQLineEditConnector>(average(), m_form->m_edAverage);
 	
 	const char *labels[] = {"Freq [MHz]", "Level [dB]"};
 	m_waveForm->setColCount(2, labels); 
 	m_waveForm->insertPlot("Trace1", 0, 1);
 	m_waveForm->clear(); 
+
+	shared_ptr<XXYPlot> plot = m_waveForm->graph()->plots()->create<XXYPlot>(
+		"Markers", true, m_waveForm->graph());
+	m_markerPlot = plot;
+	plot->label()->value(KAME::i18n("Markers"));
+	plot->axisX()->value(m_waveForm->axisx());
+	plot->axisY()->value(m_waveForm->axisy());
+	plot->drawLines()->value(false);
+	plot->pointColor()->value(clGreen);
+	plot->clearPoints()->setUIEnabled(false);
+	plot->maxCount()->setUIEnabled(false);
 }
 void
 XNetworkAnalyzer::showForms() {
@@ -102,13 +113,18 @@ XNetworkAnalyzer::analyzeRaw() throw (XRecordError&)
 	if(numtr != 1)
 		return; 
 	unsigned int nummk = pop<unsigned int>();
+	m_markersRecorded.resize(nummk);
+	for(unsigned int i = 0; i < nummk; i++) {
+		m_markersRecorded[i].first = pop<double>();
+		m_markersRecorded[i].second = pop<double>();
+	}
 	if(nummk >= 1) {
-	    m_marker1X->value(pop<double>());
-	    m_marker1Y->value(pop<double>());
+	    m_marker1X->value(m_markersRecorded[0].first);
+	    m_marker1Y->value(m_markersRecorded[0].second);
 	}
 	if(nummk >= 2) {
-	    m_marker2X->value(pop<double>());
-	    m_marker2Y->value(pop<double>());
+	    m_marker2X->value(m_markersRecorded[1].first);
+	    m_marker2Y->value(m_markersRecorded[1].second);
 	}
     convertRaw();
 }
@@ -121,6 +137,13 @@ XNetworkAnalyzer::visualize()
 //  }
 	const unsigned int length = lengthRecorded();
 	{ XScopedWriteLock<XWaveNGraph> lock(*m_waveForm);
+
+	m_markerPlot->clearAllPoints();
+	for(std::deque<std::pair<double, double> >::const_iterator it = m_markersRecorded.begin();
+		it != m_markersRecorded.end(); it++) {
+		m_markerPlot->addPoint(it->first, it->second);
+	}
+	
 	m_waveForm->setRowCount(length);
     
 	double *freqs = m_waveForm->cols(0);

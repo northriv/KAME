@@ -54,31 +54,23 @@ XHP8711::open() throw (XInterface::XInterfaceError &)
 }
 void 
 XHP8711::onStartFreqChanged(const shared_ptr<XValueNodeBase> &) {
-	XScopedLock<XInterface> lock(*interface());
-	interface()->sendf("ABOR;SENS:FREQ:START %f MHZ;*WAI", (double)*startFreq());
-	interface()->query("*OPC?");
+	interface()->sendf("SENS:FREQ:START %f MHZ", (double)*startFreq());
 }
 void 
 XHP8711::onStopFreqChanged(const shared_ptr<XValueNodeBase> &) {
-	XScopedLock<XInterface> lock(*interface());
-	interface()->sendf("ABOR;SENS:FREQ:STOP %f MHZ;*WAI", (double)*stopFreq());
-	interface()->query("*OPC?");
+	interface()->sendf("SENS:FREQ:STOP %f MHZ", (double)*stopFreq());
 }
 void
 XHP8711::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
-	XScopedLock<XInterface> lock(*interface());
 	unsigned int avg = *average();
 	if(avg >= 2)
-		interface()->sendf("ABOR;SENS:AVER:CLEAR;STAT ON;COUNT %u;*WAI", avg);
+		interface()->sendf("SENS:AVER:CLEAR;STAT ON;COUNT %u", avg);
 	else
-		interface()->send("ABOR;SENS:AVER:STAT OFF;*WAI");
-	interface()->query("*OPC?");
+		interface()->send("SENS:AVER:STAT OFF");
 }
 void
 XHP8711::onPointsChanged(const shared_ptr<XValueNodeBase> &) {	
-	XScopedLock<XInterface> lock(*interface());
-	interface()->sendf("ABOR;SENS:SWE:POIN %s;*WAI", points()->to_str());
-	interface()->query("*OPC?");
+	interface()->sendf("SENS:SWE:POIN %s", points()->to_str().c_str());
 }
 void
 XHP8711::getMarkerPos(unsigned int num, double &x, double &y) {
