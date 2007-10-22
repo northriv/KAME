@@ -22,9 +22,9 @@
 
 REGISTER_TYPE(XDriverList, SG7130, "KENWOOD SG7130 signal generator");
 REGISTER_TYPE(XDriverList, SG7200, "KENWOOD SG7200 signal generator");
-REGISTER_TYPE(XDriverList, HP8643, "Agilent 8643/8644 signal generator");
-REGISTER_TYPE(XDriverList, HP8648, "Agilent 8648 signal generator");
-REGISTER_TYPE(XDriverList, HP8664, "Agilent 8664/8665 signal generator");
+REGISTER_TYPE(XDriverList, HP8643, "HP/Agilent 8643/8644 signal generator");
+REGISTER_TYPE(XDriverList, HP8648, "HP/Agilent 8648 signal generator");
+REGISTER_TYPE(XDriverList, HP8664, "HP/Agilent 8664/8665 signal generator");
 
 XSG::XSG(const char *name, bool runtime,
 		 const shared_ptr<XScalarEntryList> &scalarentries,
