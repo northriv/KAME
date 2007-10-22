@@ -65,14 +65,31 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	m_waveForm->clear(); 
 
 	m_graph = m_waveForm->graph();
+    m_graph->backGround()->value(QColor(0x0A, 0x05, 0x45).rgb());
+    m_graph->titleColor()->value(clWhite);
+    shared_ptr<XAxis> axisx = m_waveForm->axisx();
+    shared_ptr<XAxis> axisy = m_waveForm->axisy();
+    axisx->ticColor()->value(clWhite);
+    axisx->labelColor()->value(clWhite);
+    axisx->ticLabelColor()->value(clWhite);  
+    axisy->ticColor()->value(clWhite);
+    axisy->labelColor()->value(clWhite);
+    axisy->ticLabelColor()->value(clWhite);
+    axisy->autoScale()->value(false);
+    axisy->maxValue()->value(13.0);
+    axisy->minValue()->value(-70.0);
+    m_waveForm->plot(0)->drawPoints()->value(true);
+    m_waveForm->plot(0)->lineColor()->value(QColor(0x4A, 0x3D, 0x87).rgb());
 	shared_ptr<XXYPlot> plot = m_graph->plots()->create<XXYPlot>(
 		"Markers", true, m_graph);
 	m_markerPlot = plot;
 	plot->label()->value(KAME::i18n("Markers"));
-	plot->axisX()->value(m_waveForm->axisx());
-	plot->axisY()->value(m_waveForm->axisy());
+	plot->axisX()->value(axisx);
+	plot->axisY()->value(axisy);
 	plot->drawLines()->value(false);
-	plot->pointColor()->value(clGreen);
+	plot->drawBars()->value(true);
+	plot->pointColor()->value(clRed);
+	plot->barColor()->value(clRed);
 	plot->clearPoints()->setUIEnabled(false);
 	plot->maxCount()->setUIEnabled(false);
 }
