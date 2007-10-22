@@ -112,7 +112,7 @@ XHP8711::convertRaw() throw (XRecordError&) {
 	sscanf(buf, "%u", &len);
 	m_traceRecorded.resize(len);
 	m_freqIntervalRecorded = (stop - start) / (len - 1);
-	for(unsigned int i = 0; i < len; i++) {
+	for(unsigned int i = 0; i < len / sizeof(float); i++) {
 		m_traceRecorded[i] = pop<float>();
 	}
 }
