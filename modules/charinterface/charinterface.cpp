@@ -102,21 +102,21 @@ XCharInterface::scanf(const char *fmt, ...) const {
 	return ret;    
 }
 double
-XCharInterface::toDouble() const throw (XCharInterface::XConvError &) {
+XCharInterface::toDouble() const throw (XConvXConvError &) {
     double x;
     int ret = sscanf(&buffer()[0], "%lf", &x);
     if(ret != 1) throw XConvError(__FILE__, __LINE__);
     return x;
 }
 int
-XCharInterface::toInt() const throw (XCharInterface::XConvError &) {
+XCharInterface::toInt() const throw (XConvError &) {
     int x;
     int ret = sscanf(&buffer()[0], "%d", &x);
     if(ret != 1) throw XConvError(__FILE__, __LINE__);
     return x;
 }
 unsigned int
-XCharInterface::toUInt() const throw (XCharInterface::XConvError &) {
+XCharInterface::toUInt() const throw (XConvError &) {
     unsigned int x;
     int ret = sscanf(&buffer()[0], "%u", &x);
     if(ret != 1) throw XConvError(__FILE__, __LINE__);
