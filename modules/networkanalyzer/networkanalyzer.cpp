@@ -57,7 +57,7 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	m_conStartFreq = xqcon_create<XQLineEditConnector>(startFreq(), m_form->m_edStart);
 	m_conStopFreq = xqcon_create<XQLineEditConnector>(stopFreq(), m_form->m_edStop);
 	m_conPoints = xqcon_create<XQComboBoxConnector>(points(), m_form->m_cmbPoints);
-	m_conAverage = xqcon_create<XQLineEditConnector>(average(), m_form->m_edAverage);
+	m_conAverage = xqcon_create<XQLineEditConnector>(average(), m_form->m_cmbAverage);
 	
 	const char *labels[] = {"Freq [MHz]", "Level [dB]"};
 	m_waveForm->setColCount(2, labels); 
