@@ -56,15 +56,13 @@ XHP8711::getMarkerPos(unsigned int num, double &x, double &y) {
 	XScopedLock<XInterface> lock(*interface());
 	if(num >= 8)
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
-	try {
-		interface()->queryf("CALC:MARK%u:X?", num + 1u);
-		x = interface()->toDouble();
-		interface()->queryf("CALC:MARK%u:Y?", num + 1u);
-		y = interface()->toDouble();
-	}
-	catch (XInterface::XConvError&) {
-		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
-	}
+	interface()->queryf("CALC:MARK%u:STAT?", num + 1u);
+	if(interface()->toInt() != 1)
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);		
+	interface()->queryf("CALC:MARK%u:X?", num + 1u);
+	x = interface()->toDouble();
+	interface()->queryf("CALC:MARK%u:Y?", num + 1u);
+	y = interface()->toDouble();
 }
 void
 XHP8711::oneSweep() {
@@ -77,17 +75,22 @@ XHP8711::startContSweep() {
 void
 XHP8711::acquireTrace(unsigned int ch) {
 	XScopedLock<XInterface> lock(*interface());
-	interface()->queryf("SENS%u:FREQ:START?", ch);
+	if(ch >= 2)
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+	interface()->queryf("SENS%u:STAT?", ch + 1u);
+	if(interface()->toInt() != 1)
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);		
+	interface()->queryf("SENS%u:FREQ:START?", ch + 1u);
 	double start = interface()->toDouble() / 1e6;
 	push(start);
-	interface()->queryf("SENS%u:FREQ:STOP?", ch);
+	interface()->queryf("SENS%u:FREQ:STOP?", ch + 1u);
 	double stop = interface()->toDouble() / 1e6;
 	push(stop);
-	interface()->queryf("SENS%u:SWE:POIN?", ch);
+	interface()->queryf("SENS%u:SWE:POIN?", ch + 1u);
 	unsigned int len = interface()->toUInt();
-	interface()->send("FORM:DATA INT,16;BORD NORM");
-	interface()->sendf("TRAC? CH%uFDATA", ch);
-	interface()->receive(len * 2 + 12);
+	interface()->send("FORM:DATA REAL,32;BORD NORM");
+	interface()->sendf("TRAC? CH%uFDATA", ch + 1u);
+	interface()->receive(len * sizeof(float) + 12);
 	rawData().insert(rawData().end(), 
 					 interface()->buffer().begin(), interface()->buffer().end());
 }
@@ -101,7 +104,7 @@ XHP8711::convertRaw() throw (XRecordError&) {
 	char buf[11];
 	buf[0] = pop<char>();
 	unsigned int len;
-	scanf("%1u", &len);
+	sscanf(buf, "%1u", &len);
 	for(unsigned int i = 0; i < len; i++) {
 		buf[i] = pop<char>();
 	}
@@ -110,6 +113,6 @@ XHP8711::convertRaw() throw (XRecordError&) {
 	m_traceRecorded.resize(len);
 	m_freqIntervalRecorded = (stop - start) / (len - 1);
 	for(unsigned int i = 0; i < len; i++) {
-		m_traceRecorded[i] = pop<unsigned short>();
+		m_traceRecorded[i] = pop<float>();
 	}
 }
