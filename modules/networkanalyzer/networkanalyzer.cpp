@@ -91,14 +91,15 @@ XNetworkAnalyzer::analyzeRaw() throw (XRecordError&)
 	unsigned int numtr = pop<unsigned int>();
 	if(numtr != 1)
 		return; 
-	unsigned int ch = pop<unsigned int>();
-	if(ch != 2)
-		return; 
-    m_marker1X->value(pop<double>());
-    m_marker1Y->value(pop<double>());
-    m_marker2X->value(pop<double>());
-    m_marker2Y->value(pop<double>());
-
+	unsigned int nummk = pop<unsigned int>();
+	if(nummk >= 1) {
+	    m_marker1X->value(pop<double>());
+	    m_marker1Y->value(pop<double>());
+	}
+	if(nummk >= 2) {
+	    m_marker2X->value(pop<double>());
+	    m_marker2Y->value(pop<double>());
+	}
     convertRaw();
 }
 void
@@ -133,24 +134,43 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated)
 		shared_from_this(), &XNetworkAnalyzer::onStopFreqChanged);
 
 	while(!terminated) {
-		double mx[2], my[2];
-		mx[0] = 0;
-		my[0] = 0;
-		mx[1] = 0;
-		my[1] = 0;
 		XTime time_awared = XTime::now();
 		clearRaw();
 		// try/catch exception of communication errors
 		try {
 			oneSweep();
-			push((unsigned int)1); //# of traces.
-			getMarkerPos(0, mx[0], my[0]);
-			getMarkerPos(1, mx[1], my[1]);
-			push((unsigned int)2); //# of markers.
-			push(mx[0]);
-			push(my[0]);
-			push(mx[1]);
-			push(my[1]);
+		}
+		catch (XDriver::XSkippedRecordError&) {
+			continue;
+		}
+		catch (XKameError &e) {
+			e.print(getLabel());
+			continue;
+		}
+		push((unsigned int)1); //# of traces.
+		double mx[8], my[8];
+		unsigned int nummk = 0;
+		try {
+			for(;nummk < 8;nummk++) {
+				mx[nummk] = 0.0;
+				my[nummk] = 0.0;
+				getMarkerPos(nummk, mx[nummk], my[nummk]);
+			}
+		}
+		catch (XDriver::XSkippedRecordError&) {
+		}
+		catch (XDriver::XConversionError&) {
+		}
+		catch (XKameError &e) {
+			e.print(getLabel());
+			continue;
+		}
+		push((unsigned int)nummk); //# of markers.
+		for(unsigned int i = 0; i < nummk; i++) {
+			push(mx[i]);
+			push(my[i]);			
+		}
+		try {
 			acquireTrace(0);
 		}
 		catch (XDriver::XSkippedRecordError&) {
