@@ -680,7 +680,7 @@ double
 XLakeShore340::getRaw(shared_ptr<XChannel> &channel)
 {
 	shared_ptr<XThermometer> thermo = *channel->thermometer();
-	if(thermo)
+	if(thermo && !dynamic_pointer_cast<XRawThermometer>(thermo)) {
 		interface()->query("SRDG? " + channel->getName());
 	else
 		interface()->query("KRDG? " + channel->getName());
@@ -711,13 +711,11 @@ void
 XLakeShore340::onTargetTempChanged(double temp)
 {
 	shared_ptr<XThermometer> thermo = *(shared_ptr<XChannel>(*currentChannel()))->thermometer();
-	if(thermo)
-	{
+	if(thermo && !dynamic_pointer_cast<XRawThermometer>(thermo)) {
 		interface()->sendf("CSET 1,%s,3,1", (const char*)currentChannel()->to_str().c_str());
 		temp = thermo->getRawValue(temp);
 	}
-	else
-	{
+	else {
 		interface()->sendf("CSET 1,%s,1,1", (const char*)currentChannel()->to_str().c_str());
 	}
 	interface()->sendf("SETP 1,%f", temp);
