@@ -680,7 +680,7 @@ double
 XLakeShore340::getRaw(shared_ptr<XChannel> &channel)
 {
 	shared_ptr<XThermometer> thermo = *channel->thermometer();
-	if(thermo && !dynamic_pointer_cast<XRawThermometer>(thermo)) {
+	if(thermo && !dynamic_pointer_cast<XRawThermometer>(thermo))
 		interface()->query("SRDG? " + channel->getName());
 	else
 		interface()->query("KRDG? " + channel->getName());
