@@ -61,34 +61,25 @@ XSG::showForms()
 void
 XSG::start()
 {
+    m_thread.reset(new XThread<XSG>(shared_from_this(), &XSG::execute));
+    m_thread->resume();
+	
 	m_oLevel->setUIEnabled(true);
 	m_freq->setUIEnabled(true);
 	m_amON->setUIEnabled(true);
 	m_fmON->setUIEnabled(true);
-        
-	m_lsnOLevel = oLevel()->onValueChanged().connectWeak(
-		shared_from_this(), &XSG::onOLevelChanged);
-	m_lsnFreq = freq()->onValueChanged().connectWeak(
-		shared_from_this(), &XSG::onFreqChanged);
-	m_lsnAMON = amON()->onValueChanged().connectWeak(
-		shared_from_this(), &XSG::onAMONChanged);
-	m_lsnFMON = fmON()->onValueChanged().connectWeak(
-		shared_from_this(), &XSG::onFMONChanged);
 }
 void
 XSG::stop()
 {        
-	m_lsnOLevel.reset();
-	m_lsnFreq.reset();
-	m_lsnAMON.reset();
-	m_lsnFMON.reset();
-  
 	m_oLevel->setUIEnabled(false);
 	m_freq->setUIEnabled(false);
 	m_amON->setUIEnabled(false);
 	m_fmON->setUIEnabled(false);
   
-	afterStop();
+    if(m_thread) m_thread->terminate();
+//    m_thread->waitFor();
+//  thread must do interface()->close() at the end
 }
 
 void
@@ -102,28 +93,53 @@ XSG::visualize()
 	//! impliment extra codes which do not need write-lock of record
 	//! record is read-locked
 }
-void
-XSG::onFreqChanged(const shared_ptr<XValueNodeBase> &)
-{
-    double _freq = *freq();
-    if(_freq <= 0) {
-        gErrPrint(getLabel() + " " + KAME::i18n("Positive Value Needed."));
-        return;
-    }
 
-    XTime time(XTime::now());
-    
-    try {
-        changeFreq(_freq);
-    }
-	catch (XKameError &e) {
-        e.print(getLabel() + " " + KAME::i18n("SG Error."));
-        return;
-    }
-    clearRaw();
-    push(_freq);
-    finishWritingRaw(time, XTime::now());
+void *
+XSG::execute(const atomic<bool> &terminated)
+{
+	m_lsnOLevel = oLevel()->onValueChanged().connectWeak(
+		shared_from_this(), &XSG::onOLevelChanged);
+	m_lsnAMON = amON()->onValueChanged().connectWeak(
+		shared_from_this(), &XSG::onAMONChanged);
+	m_lsnFMON = fmON()->onValueChanged().connectWeak(
+		shared_from_this(), &XSG::onFMONChanged);
+
+    XTime time_awared(XTime::now());
+    double _freq = *freq();
+	while(!terminated)
+	{
+		msecsleep(10);
+      
+	    XTime _new_time(XTime::now());
+		double _new_freq = *freq();
+		if(_new_freq != _freq) {
+			_freq= _new_freq;
+			// try/catch exception of communication errors
+		    try {
+		        if(_freq <= 0) {
+		            throw XRecordError(KAME::i18n("Positive Value Needed."), __FILE__, __LINE__);
+		        }
+		        changeFreq(_freq);
+		    }
+			catch (XKameError &e) {
+		        e.print(getLabel() + " " + KAME::i18n("SG Error."));
+		        continue;
+		    }
+		    clearRaw();
+		    push(_freq);
+		    finishWritingRaw(time_awared, XTime::now());
+		}
+		time_awared = _new_time;
+	}
+	m_lsnOLevel.reset();
+	m_lsnAMON.reset();
+	m_lsnFMON.reset();
+
+	afterStop();
+	return NULL;
 }
+
+
 
 
 XSG7200::XSG7200(const char *name, bool runtime,
