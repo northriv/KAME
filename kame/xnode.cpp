@@ -262,7 +262,7 @@ XDoubleNode::XDoubleNode(const char *name, bool runtime, const char *format)
 std::string
 XDoubleNode::to_str() const
 {
-    return formatDouble(m_format.c_str(), operator double());
+    return formatDouble(m_format.c_str(), m_var);
 }
 void
 XDoubleNode::_str(const std::string &str) throw (XKameError &)
