@@ -63,6 +63,8 @@ protected:
 	virtual void onFMONChanged(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void onAMONChanged(const shared_ptr<XValueNodeBase> &) = 0;
 private:
+	void onFreqChanged(const shared_ptr<XValueNodeBase> &);  
+
 	const shared_ptr<XDoubleNode> m_freq;
 	const shared_ptr<XDoubleNode> m_oLevel;
 	const shared_ptr<XBoolNode> m_fmON;
@@ -71,7 +73,7 @@ private:
 	double m_freqRecorded;
   
 	xqcon_ptr m_conFreq, m_conOLevel, m_conFMON, m_conAMON;
-	shared_ptr<XListener> m_lsnOLevel, m_lsnFMON, m_lsnAMON;
+	shared_ptr<XListener> m_lsnFreq, m_lsnOLevel, m_lsnFMON, m_lsnAMON;
   
 	const qshared_ptr<FrmSG> m_form;
 	
