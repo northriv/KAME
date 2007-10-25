@@ -1,6 +1,6 @@
 #!/bin/bash
 make -f admin/Makefile.common cvs
-version=`grep Release ../kame.spec | sed -e 's/Release: //'`
+version=`grep Version ./kame.spec | sed -e 's/Version: //'`
 file=kame-$version
 echo $file
 ./tools/maketarball.sh $file
