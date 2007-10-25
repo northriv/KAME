@@ -1,7 +1,8 @@
 #!/bin/bash
 make -f admin/Makefile.common cvs
-version=2.2.15
+version=`grep Release ../kame.spec | sed -e 's/Release: //'`
 file=kame-$version
+echo $file
 ./tools/maketarball.sh $file
 target=${2:-i686}
 echo TARGET=$target
