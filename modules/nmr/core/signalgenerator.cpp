@@ -32,7 +32,7 @@ XSG::XSG(const char *name, bool runtime,
 		 const shared_ptr<XThermometerList> &thermometers,
 		 const shared_ptr<XDriverList> &drivers)
     : XPrimaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
-	  m_freq(create<XDoubleNode>("Freq", true, "%.10g")),
+	  m_freq(create<XDoubleNode>("Freq", true, "%.13g")),
 	  m_oLevel(create<XDoubleNode>("OutputLevel", true)),
 	  m_fmON(create<XBoolNode>("FMON", true)),
 	  m_amON(create<XBoolNode>("AMON", true)),
