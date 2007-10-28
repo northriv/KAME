@@ -62,7 +62,7 @@ XSecondaryDriver::requestAnalysis()
 void
 XSecondaryDriver::onConnectedRecorded(const shared_ptr<XDriver> &driver)
 {
-	for(;;) {
+	for(unsigned int i = 0;; i++) {
 		readLockAllConnections();
 	    //! check if emitter has already connected or if self-emission
 	    if((std::find(m_connection.begin(), m_connection.end(), driver)
@@ -77,6 +77,12 @@ XSecondaryDriver::onConnectedRecorded(const shared_ptr<XDriver> &driver)
 	                if(!tryStartRecording()) {
 	                	readUnlockAllConnections();
 	                	usleep(5000);
+                    	if(i > 100) {
+                    		gErrPrint(formatString(KAME::i18n(
+                    				"Dead lock deteceted on %s. Operation canceled.\nReport this bug to author(s)."),
+                    				getName().c_str()));
+                    		return;
+                    	}
 	                	continue;
 	                }
 	                XTime time_recorded = driver->time();

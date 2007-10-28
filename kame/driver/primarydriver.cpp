@@ -32,10 +32,16 @@ XPrimaryDriver::finishWritingRaw(
 {
     XTime time_recorded = time_recorded_org;
 	bool skipped = false;
-    for(;;) {
+    for(unsigned int i = 0;; i++) {
     	if(tryStartRecording())
     		break;
     	usleep(5000);
+    	if(i > 100) {
+    		gErrPrint(formatString(KAME::i18n(
+    				"Dead lock deteceted on %s. Operation canceled.\nReport this bug to author(s)."),
+    				getName().c_str()));
+    		return;
+    	}
     }
     if(time_recorded) {
 	    *s_tl_pop_it = rawData().begin();
