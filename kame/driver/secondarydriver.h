@@ -36,6 +36,8 @@ public:
 	virtual const shared_ptr<XRecordDependency> dependency() const {return m_dependency;}
 protected:
 	//! call this to receive signal/data
+	//! \a check_deep_dep if true, read lock this item and check its record time before analyze() called.
+	//! And also recording of this item can trigger analyze().
 	void connect(const shared_ptr<XItemNodeBase> &item, bool check_deep_dep = true);
 	//! check dependencies and lock all records and analyze
 	//! null pointer will be passed to analyze()
