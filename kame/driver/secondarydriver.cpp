@@ -43,17 +43,25 @@ XSecondaryDriver::checkDeepDependency(shared_ptr<XRecordDependency> &dep) const
 void
 XSecondaryDriver::readLockAllConnections() {
     m_connection_mutex.readLock();
-    for(tConnection_it it = m_connection.begin(); it != m_connection.end(); it++) {
+    for(tConnection_it it = m_connections.begin(); it != m_connections.end(); it++) {
+    	m_locked_connections.push_back(*it);
         (*it)->readLockRecord();
     }
 }
 void
 XSecondaryDriver::readUnlockAllConnections() {
-    for(tConnection_it it = m_connection.begin(); it != m_connection.end(); it++) {
+    for(tConnection_it it = m_locked_connections.begin(); it != m_locked_connections.end(); it++) {
         (*it)->readUnlockRecord();
     }
+    m_locked_connections.clear();
     m_connection_mutex.readUnlock();
 }
+void
+XSecondaryDriver::unlockConnection(const shared_ptr<XDriver> &connected) {
+	m_locked_connections.erase(
+			std::find(m_locked_connections.begin(), m_locked_connections.end(), connected));
+}
+
 void
 XSecondaryDriver::requestAnalysis()
 {
@@ -65,8 +73,8 @@ XSecondaryDriver::onConnectedRecorded(const shared_ptr<XDriver> &driver)
 	for(unsigned int i = 0;; i++) {
 		readLockAllConnections();
 	    //! check if emitter has already connected or if self-emission
-	    if((std::find(m_connection.begin(), m_connection.end(), driver)
-			!= m_connection.end()) 
+	    if((std::find(m_locked_connections.begin(), m_locked_connections.end(), driver)
+			!= m_locked_connections.end()) 
 	       || (driver == shared_from_this())) {
 	        //! driver-side dependency check
 	        if(checkDependency(driver)) {
@@ -148,12 +156,12 @@ XSecondaryDriver::beforeItemChanged(const shared_ptr<XValueNodeBase> &node) {
 
     if(driver) {
         driver->onRecord().disconnect(m_lsnOnRecord);
-        ASSERT(std::find(m_connection.begin(), m_connection.end(), driver) != m_connection.end());
-        m_connection.erase(std::find(m_connection.begin(), m_connection.end(), driver));
+        ASSERT(std::find(m_connections.begin(), m_connections.end(), driver) != m_connections.end());
+        m_connections.erase(std::find(m_connections.begin(), m_connections.end(), driver));
         std::vector<shared_ptr<const XDriver> >::iterator it = 
-        	std::find(m_connection_check_deep_dep.begin(), m_connection_check_deep_dep.end(), driver);
-        if(it != m_connection_check_deep_dep.end())
-        	m_connection_check_deep_dep.erase(it);
+        	std::find(m_connections_check_deep_dep.begin(), m_connections_check_deep_dep.end(), driver);
+        if(it != m_connections_check_deep_dep.end())
+        	m_connections_check_deep_dep.erase(it);
     }
 }
 void
@@ -164,7 +172,7 @@ XSecondaryDriver::onItemChangedCheckDeepDep(const shared_ptr<XValueNodeBase> &no
     shared_ptr<XDriver> driver = dynamic_pointer_cast<XDriver>(nd);
 
     if(driver) {
-        m_connection_check_deep_dep.push_back(driver);
+        m_connections_check_deep_dep.push_back(driver);
     }
 
     onItemChanged(node);
@@ -177,7 +185,7 @@ XSecondaryDriver::onItemChanged(const shared_ptr<XValueNodeBase> &node) {
     shared_ptr<XDriver> driver = dynamic_pointer_cast<XDriver>(nd);
 
     if(driver) {
-        m_connection.push_back(driver);
+        m_connections.push_back(driver);
         if(m_lsnOnRecord)
             driver->onRecord().connect(m_lsnOnRecord);
         else

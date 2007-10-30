@@ -30,28 +30,19 @@ void
 XPrimaryDriver::finishWritingRaw(
     const XTime &time_awared, const XTime &time_recorded_org)
 {
-	while(m_delegatedWriteThread)
-		msecsleep(5);
-	if(tryStartRecording()) {
-		raw2record(time_awared, time_recorded_org);
-	    readUnlockRecord();
-	    return;
-	}
-
-	dbgPrint(formatString("%s: raw writing is delegated.", getLabel().c_str()));
-	m_delegatedWriteThread.reset(new XThread<XPrimaryDriver>(
-			shared_from_this(), &XPrimaryDriver::delegatedRawWriting));
-	
-	m_pDelegatedWriteData = &rawData();
-	m_delegatedWriteTimeAwared = time_awared;
-	m_delegatedWriteTimeRecordedOrg = time_recorded_org;
-	m_delegatedWriteThread->resume();
-}
-void XPrimaryDriver::raw2record(
-		const XTime &time_awared, const XTime &time_recorded_org) 
-{
     XTime time_recorded = time_recorded_org;
 	bool skipped = false;
+    for(unsigned int i = 0;; i++) {
+    	if(tryStartRecording())
+    		break;
+    	usleep(5000);
+    	if(i > 100) {
+    		gErrPrint(formatString(KAME::i18n(
+    				"Dead lock deteceted on %s. Operation canceled.\nReport this bug to author(s)."),
+    				getName().c_str()));
+    		return;
+    	}
+    }
     if(time_recorded) {
 	    *s_tl_pop_it = rawData().begin();
 	    try {
@@ -71,19 +62,6 @@ void XPrimaryDriver::raw2record(
 	    finishRecordingNReadLock(time_awared, time_recorded);
 	}
     visualize();
-}
-void *XPrimaryDriver::delegatedRawWriting(const atomic<bool> &/*terminated*/)
-{
-	clearRaw();
-	for(;;) {
-		if(tryStartRecording())
-			break;
-		msecsleep(5);
-	}
-	std::copy(m_pDelegatedWriteData->begin(), m_pDelegatedWriteData->end(), rawData().begin());
-	raw2record(m_delegatedWriteTimeAwared, m_delegatedWriteTimeRecordedOrg);
-	m_delegatedWriteThread.reset();
     readUnlockRecord();
-	dbgPrint(formatString("%s: raw writing delegated done.", getLabel().c_str()));
-    return NULL;
 }
+

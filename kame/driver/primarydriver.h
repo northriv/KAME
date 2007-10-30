@@ -90,14 +90,6 @@ private:
 	typedef std::vector<char>::iterator RawData_it;
 	static XThreadLocal<RawData_it> s_tl_pop_it;
   
-	void raw2record(const XTime &time_awared, const XTime &time_recorded_org);
-	void *delegatedRawWriting(const atomic<bool> &terminated);
-
-	shared_ptr<XThread<XPrimaryDriver> > m_delegatedWriteThread;
-	std::vector<char> *m_pDelegatedWriteData;
-	XTime m_delegatedWriteTimeAwared;
-	XTime m_delegatedWriteTimeRecordedOrg;
-	
 	inline static void _push_char(char, std::vector<char> &buf);
 	inline static void _push_short(short, std::vector<char> &buf);
 	inline static void _push_int32(int32_t, std::vector<char> &buf);

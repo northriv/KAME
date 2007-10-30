@@ -42,6 +42,8 @@ protected:
 	//! emitter is driver itself.
 	//! \sa analyze(), checkDependency()
 	void requestAnalysis();
+    //! unlock one of connections in order to change the state of that instrument.
+	void unlockConnection(const shared_ptr<XDriver> &connected);
   
 	//! this is called when connected driver emit a signal
 	//! unless dependency is broken
@@ -55,7 +57,7 @@ protected:
 	//! \return true if dependency is resolved
 	//! this must be reentrant unlike analyze()
 	virtual bool checkDependency(const shared_ptr<XDriver> &emitter) const = 0;
-    
+	
 	//! usually nothing to do
 	virtual void start() {}
 	//! usually nothing to do
@@ -70,8 +72,9 @@ private:
 	shared_ptr<XRecordDependency> m_dependency;
   
 	//! holds connections
-	std::vector<shared_ptr<const XDriver> > m_connection;
-	std::vector<shared_ptr<const XDriver> > m_connection_check_deep_dep;
+	std::vector<shared_ptr<const XDriver> > m_connections;
+	std::vector<shared_ptr<const XDriver> > m_connections_check_deep_dep;
+	std::vector<shared_ptr<const XDriver> > m_locked_connections;
 	XRWLock m_connection_mutex;
 	typedef std::vector<shared_ptr<const XDriver> >::const_iterator tConnection_it;
 	shared_ptr<XListener> m_lsnOnRecord;
