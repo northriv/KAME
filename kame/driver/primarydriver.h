@@ -90,6 +90,20 @@ private:
 	typedef std::vector<char>::iterator RawData_it;
 	static XThreadLocal<RawData_it> s_tl_pop_it;
   
+	bool tryRecord(const XTime &time_awared, const XTime &time_recorded_org);
+	void *delegatedRawWriting(const atomic<bool> &terminated);
+	struct DelegatedWriteRequest {
+		DelegatedWriteRequest(const shared_ptr<XThread<XPrimaryDriver> > &th, 
+				const std::vector<char> &data, const XTime &awared, const XTime &recorded) : 
+			thread(th), raw_data(data), time_awared(awared), time_recorded_org(recorded) {}
+		DelegatedWriteRequest() {}
+		const shared_ptr<XThread<XPrimaryDriver> > thread;
+		const std::vector<char> raw_data;
+		const XTime time_awared;
+		const XTime time_recorded_org;
+	};
+	atomic_shared_ptr<DelegatedWriteRequest> m_delegatedWriteRequest;
+	
 	inline static void _push_char(char, std::vector<char> &buf);
 	inline static void _push_short(short, std::vector<char> &buf);
 	inline static void _push_int32(int32_t, std::vector<char> &buf);
