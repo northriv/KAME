@@ -614,6 +614,7 @@ XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &) throw (XRecordError&)
   
 	if(picenabled && picclear) {
 		ASSERT( _pulser->time() );
+		unlockConnection(_pulser);
 		_pulser->invertPhase()->value(!inverted);
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}

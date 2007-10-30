@@ -159,6 +159,9 @@ XNMRFSpectrum::fssum()
 	//set new freq
 	if(*active())
 	{
+		if(_sg1) unlockConnection(_sg1);
+		if(_sg2) unlockConnection(_sg2);
+
 		double newf = freq + freq_step; //MHz
     
 		if(_sg1) _sg1->freq()->value(newf + *sg1FreqOffset());

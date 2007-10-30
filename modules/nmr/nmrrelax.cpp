@@ -396,6 +396,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 
 		//set new P1s
 		if(_active) {
+			unlockConnection(_pulser);
 			double x = ((double)KAME::rand())/RAND_MAX;
 			double np1, np2;
 			np1 = f(x);
