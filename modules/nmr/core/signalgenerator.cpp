@@ -36,7 +36,6 @@ XSG::XSG(const char *name, bool runtime,
 	  m_oLevel(create<XDoubleNode>("OutputLevel", true)),
 	  m_fmON(create<XBoolNode>("FMON", true)),
 	  m_amON(create<XBoolNode>("AMON", true)),
-	  m_freqInternal(0.0),
 	  m_form(new FrmSG(g_pFrmMain))
 {
 	m_form->statusBar()->hide();
@@ -62,13 +61,19 @@ XSG::showForms()
 void
 XSG::start()
 {
-    m_thread.reset(new XThread<XSG>(shared_from_this(), &XSG::execute));
-    m_thread->resume();
-	
 	m_oLevel->setUIEnabled(true);
 	m_freq->setUIEnabled(true);
 	m_amON->setUIEnabled(true);
 	m_fmON->setUIEnabled(true);
+	
+	m_lsnOLevel = oLevel()->onValueChanged().connectWeak(
+		shared_from_this(), &XSG::onOLevelChanged);
+	m_lsnAMON = amON()->onValueChanged().connectWeak(
+		shared_from_this(), &XSG::onAMONChanged);
+	m_lsnFMON = fmON()->onValueChanged().connectWeak(
+		shared_from_this(), &XSG::onFMONChanged);
+	m_lsnFreq = freq()->onValueChanged().connectWeak(
+		shared_from_this(), &XSG::onFreqChanged);
 }
 void
 XSG::stop()
@@ -77,10 +82,13 @@ XSG::stop()
 	m_freq->setUIEnabled(false);
 	m_amON->setUIEnabled(false);
 	m_fmON->setUIEnabled(false);
-  
-    if(m_thread) m_thread->terminate();
-//    m_thread->waitFor();
-//  thread must do interface()->close() at the end
+	
+	m_lsnOLevel.reset();
+	m_lsnAMON.reset();
+	m_lsnFMON.reset();
+	m_lsnFreq.reset();
+
+	afterStop();
 }
 
 void
@@ -102,49 +110,12 @@ XSG::onFreqChanged(const shared_ptr<XValueNodeBase> &)
         gErrPrint(getLabel() + " " + KAME::i18n("Positive Value Needed."));
         return;
     }
-    changeFreq(_freq);
-    m_freqInternal = _freq;
-}
-
-void *
-XSG::execute(const atomic<bool> &terminated)
-{
-	m_lsnOLevel = oLevel()->onValueChanged().connectWeak(
-		shared_from_this(), &XSG::onOLevelChanged);
-	m_lsnAMON = amON()->onValueChanged().connectWeak(
-		shared_from_this(), &XSG::onAMONChanged);
-	m_lsnFMON = fmON()->onValueChanged().connectWeak(
-		shared_from_this(), &XSG::onFMONChanged);
-	m_lsnFreq = freq()->onValueChanged().connectWeak(
-		shared_from_this(), &XSG::onFreqChanged);
-
     XTime time_awared(XTime::now());
-    double _freq = m_freqInternal;
-	while(!terminated)
-	{
-		msecsleep(10);
-      
-	    XTime _new_time(XTime::now());
-		double _new_freq = m_freqInternal;
-		if(_new_freq != _freq) {
-			_freq= _new_freq;
-		    clearRaw();
-		    push(_freq);
-		    finishWritingRaw(time_awared, XTime::now());
-		}
-		time_awared = _new_time;
-	}
-	m_lsnOLevel.reset();
-	m_lsnAMON.reset();
-	m_lsnFMON.reset();
-	m_lsnFreq.reset();
-
-	afterStop();
-	return NULL;
+    changeFreq(_freq);
+    clearRaw();
+    push(_freq);
+    finishWritingRaw(time_awared, XTime::now());
 }
-
-
-
 
 XSG7200::XSG7200(const char *name, bool runtime,
 				 const shared_ptr<XScalarEntryList> &scalarentries,

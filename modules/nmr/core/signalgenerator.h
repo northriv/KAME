@@ -71,15 +71,11 @@ private:
 	const shared_ptr<XBoolNode> m_amON;
   
 	double m_freqRecorded;
-	double m_freqInternal;
   
 	xqcon_ptr m_conFreq, m_conOLevel, m_conFMON, m_conAMON;
 	shared_ptr<XListener> m_lsnFreq, m_lsnOLevel, m_lsnFMON, m_lsnAMON;
   
 	const qshared_ptr<FrmSG> m_form;
-	
-	shared_ptr<XThread<XSG> > m_thread;
-	void *execute(const atomic<bool> &);
 };//---------------------------------------------------------------------------
 
 //! KENWOOD SG-7200
