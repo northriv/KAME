@@ -29,7 +29,7 @@ XSecondaryDriver::checkDeepDependency(shared_ptr<XRecordDependency> &dep) const
 {
     bool sane = true;
     dep->clear();
-    for(tConnection_it it = m_connection_check_deep_dep.begin(); it != m_connection_check_deep_dep.end(); it++) {
+    for(tConnection_it it = m_connections_check_deep_dep.begin(); it != m_connections_check_deep_dep.end(); it++) {
         bool is_conflict = dep->merge(*it);
         if(is_conflict) {
             sane = false;
@@ -60,6 +60,7 @@ void
 XSecondaryDriver::unlockConnection(const shared_ptr<XDriver> &connected) {
 	m_locked_connections.erase(
 			std::find(m_locked_connections.begin(), m_locked_connections.end(), connected));
+	connected->readUnlockRecord();
 }
 
 void
