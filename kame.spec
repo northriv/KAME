@@ -7,8 +7,8 @@ Name: kame
 
 %{!?build_nidaqmx: %define build_nidaqmx 1}
 
-Version: 2.2.15
-Release: 3
+Version: 2.2.16
+Release: 1
 License: GPL
 Group: Applications/Engineering
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
@@ -18,8 +18,7 @@ BuildPreReq: ruby-devel, gsl-devel, boost-devel, libtool-ltdl-devel
 BuildPreReq: libidn-devel
 BuildPreReq: qt-devel >= %{qtver}, kdelibs-devel >= %{kdever}
 BuildPreReq: libart_lgpl-devel, zlib-devel, libpng-devel, libjpeg-devel
-BuildPreReq: gcc-c++ >= 3.3
-BuildPreReq: compat-gcc-34-c++
+BuildPreReq: gcc-c++ >= 4.0
 
 Source0: %{name}-%{version}.tar.bz2
 Source1: ftgl-%{ftglver}.tar.gz
@@ -70,7 +69,7 @@ mv mikachanfont-%{mikachanver}/* kame/mikachanfont
 %build
 # build static FTGL
 pushd FTGL/unix
-CXX=g++34 ./configure --disable-shared --enable-static
+CXXFLAGS="-fpermissive" ./configure --disable-shared --enable-static
 make ##%%{?_smp_mflags}
 popd
 

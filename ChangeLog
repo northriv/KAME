@@ -1,3 +1,10 @@
+* Sun Nov 11 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.2.16-1)
+- secondarydriver: Improved stability regarding dead-locks.
+- pulserdriver: Improved pre-gating.
+- g++-4 for FTGL w/ -fpermissive.
+- atomic_prv_x86.h: 64bit support.
+
 * Mon Oct 22 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.2.15-1)
 - network analyzers.
