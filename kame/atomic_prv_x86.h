@@ -61,6 +61,18 @@ typedef uint32_t uint_cas2_each;
 typedef uint64_t uint_cas2_both;
 typedef uint_cas2_each uint_cas_max;
 #define HAVE_CAS_2
+#endif
+
+#if SIZEOF_VOID_P == 8
+typedef int64_t int_cas2_each;
+typedef int128_t int_cas2_both;
+typedef int_cas2_each int_cas_max;
+typedef uint64_t uint_cas2_each;
+typedef uint128_t uint_cas2_both;
+typedef uint_cas2_each uint_cas_max;
+#define HAVE_CAS_2
+#endif
+
 //! Compare-And-Swap 2 long words.
 //! \param oldv0 compared with \p target[0].
 //! \param oldv1 compared with \p target[1].
@@ -97,10 +109,6 @@ atomicCompareAndSet(
 								(uint_cas2_each)(*((uint_cas2_both*)&newv) / (1uLL << 8 * sizeof(uint_cas2_each))),
 								(uint_cas2_each*)target);
 }
-#else
-//!\todo x86_64.
-#error "Unsupported size of int."
-#endif
 
 //! \return true if old == *target and new value is assigned
 template <typename T>
