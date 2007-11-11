@@ -775,63 +775,63 @@ XPulser::selectedPorts(int func) const
 void
 XPulser::rawToRelPat() throw (XRecordError&)
 {
-	const unsigned int g3mask = selectedPorts(PORTSEL_GATE3);
-	const unsigned int g2mask = selectedPorts(PORTSEL_PREGATE);
-	const unsigned int g1mask = (selectedPorts(PORTSEL_GATE) | g3mask);
-	const unsigned int trig1mask = selectedPorts(PORTSEL_TRIG1);
-	const unsigned int trig2mask = selectedPorts(PORTSEL_TRIG2);
-	const unsigned int aswmask = selectedPorts(PORTSEL_ASW);
-	const unsigned int qswmask = selectedPorts(PORTSEL_QSW);
-	const unsigned int pulse1mask = selectedPorts(PORTSEL_PULSE1);
-	const unsigned int pulse2mask = selectedPorts(PORTSEL_PULSE2);
-	const unsigned int combmask = selectedPorts(PORTSEL_COMB);
-	const unsigned int combfmmask = selectedPorts(PORTSEL_COMB_FM);
-	const unsigned int qpskamask = selectedPorts(PORTSEL_QPSK_A);
-	const unsigned int qpskbmask = selectedPorts(PORTSEL_QPSK_B);
-	const unsigned int qpsknoninvmask = selectedPorts(PORTSEL_QPSK_OLD_NONINV);
-	const unsigned int qpskinvmask = selectedPorts(PORTSEL_QPSK_OLD_INV);
-	const unsigned int qpskpsgatemask = selectedPorts(PORTSEL_QPSK_OLD_PSGATE);
-	const unsigned int qpskmask = qpskamask | qpskbmask |
+	unsigned int g3mask = selectedPorts(PORTSEL_GATE3);
+	unsigned int g2mask = selectedPorts(PORTSEL_PREGATE);
+	unsigned int g1mask = (selectedPorts(PORTSEL_GATE) | g3mask);
+	unsigned int trig1mask = selectedPorts(PORTSEL_TRIG1);
+	unsigned int trig2mask = selectedPorts(PORTSEL_TRIG2);
+	unsigned int aswmask = selectedPorts(PORTSEL_ASW);
+	unsigned int qswmask = selectedPorts(PORTSEL_QSW);
+	unsigned int pulse1mask = selectedPorts(PORTSEL_PULSE1);
+	unsigned int pulse2mask = selectedPorts(PORTSEL_PULSE2);
+	unsigned int combmask = selectedPorts(PORTSEL_COMB);
+	unsigned int combfmmask = selectedPorts(PORTSEL_COMB_FM);
+	unsigned int qpskamask = selectedPorts(PORTSEL_QPSK_A);
+	unsigned int qpskbmask = selectedPorts(PORTSEL_QPSK_B);
+	unsigned int qpsknoninvmask = selectedPorts(PORTSEL_QPSK_OLD_NONINV);
+	unsigned int qpskinvmask = selectedPorts(PORTSEL_QPSK_OLD_INV);
+	unsigned int qpskpsgatemask = selectedPorts(PORTSEL_QPSK_OLD_PSGATE);
+	unsigned int qpskmask = qpskamask | qpskbmask |
 		qpskinvmask | qpsknoninvmask | qpskpsgatemask | PAT_QAM_PHASE_MASK;
 	
-	const uint64_t _rtime = rintSampsMilliSec(m_rtimeRecorded);
-	const uint64_t _tau = rintSampsMicroSec(m_tauRecorded);
-	const uint64_t _asw_setup = rintSampsMilliSec(m_aswSetupRecorded);
-	const uint64_t _asw_hold = rintSampsMilliSec(m_aswHoldRecorded);
-	const uint64_t _alt_sep = rintSampsMilliSec(m_altSepRecorded);
-	const uint64_t _pw1 = haveQAMPorts() ? 
+	uint64_t _rtime = rintSampsMilliSec(m_rtimeRecorded);
+	uint64_t _tau = rintSampsMicroSec(m_tauRecorded);
+	uint64_t _asw_setup = rintSampsMilliSec(m_aswSetupRecorded);
+	uint64_t _asw_hold = rintSampsMilliSec(m_aswHoldRecorded);
+	uint64_t _alt_sep = rintSampsMilliSec(m_altSepRecorded);
+	uint64_t _pw1 = haveQAMPorts() ? 
 		ceilSampsMicroSec(m_pw1Recorded/2)*2 : rintSampsMicroSec(m_pw1Recorded/2)*2;
-	const uint64_t _pw2 = haveQAMPorts() ?
+	uint64_t _pw2 = haveQAMPorts() ?
 		ceilSampsMicroSec(m_pw2Recorded/2)*2 : rintSampsMicroSec(m_pw2Recorded/2)*2;
-	const uint64_t _comb_pw = haveQAMPorts() ?
+	uint64_t _comb_pw = haveQAMPorts() ?
 		ceilSampsMicroSec(m_combPWRecorded/2)*2 : rintSampsMicroSec(m_combPWRecorded/2)*2;
-	const uint64_t _comb_pt = rintSampsMicroSec(m_combPTRecorded);
-	const uint64_t _comb_p1 = rintSampsMilliSec(m_combP1Recorded);
-	const uint64_t _comb_p1_alt = rintSampsMilliSec(m_combP1AltRecorded);
-	const uint64_t _g2_setup = ceilSampsMicroSec(*g2Setup());
-	const int _echo_num = m_echoNumRecorded;
-	const int _comb_num = m_combNumRecorded;
-	const int _comb_mode = m_combModeRecorded;
-	const int _rt_mode = m_rtModeRecorded;
+	uint64_t _comb_pt = rintSampsMicroSec(m_combPTRecorded);
+	uint64_t _comb_p1 = rintSampsMilliSec(m_combP1Recorded);
+	uint64_t _comb_p1_alt = rintSampsMilliSec(m_combP1AltRecorded);
+	uint64_t _g2_setup = ceilSampsMicroSec(*g2Setup());
+	int _echo_num = m_echoNumRecorded;
+	int _comb_num = m_combNumRecorded;
+	int _comb_mode = m_combModeRecorded;
+	int _rt_mode = m_rtModeRecorded;
 	int _num_phase_cycle = m_numPhaseCycleRecorded;
   
-	const bool comb_mode_alt = ((_comb_mode == N_COMB_MODE_P1_ALT) ||
+	bool comb_mode_alt = ((_comb_mode == N_COMB_MODE_P1_ALT) ||
 								(_comb_mode == N_COMB_MODE_COMB_ALT));
-	const bool saturation_wo_comb = (_comb_num == 0);
-	const bool driven_equilibrium = *drivenEquilibrium();
-	const uint64_t _qsw_delay = rintSampsMicroSec(*qswDelay());
-	const uint64_t _qsw_width = rintSampsMicroSec(*qswWidth());
-	const uint64_t _qsw_softswoff = std::min(_qsw_width, rintSampsMicroSec(*qswSoftSWOff()));
-	const bool _qsw_pi_only = *qswPiPulseOnly();
-	const int comb_rot_num = lrint(*combOffRes() * (m_combPWRecorded / 1000.0 * 4));
+	bool saturation_wo_comb = (_comb_num == 0);
+	bool driven_equilibrium = *drivenEquilibrium();
+	uint64_t _qsw_delay = rintSampsMicroSec(*qswDelay());
+	uint64_t _qsw_width = rintSampsMicroSec(*qswWidth());
+	uint64_t _qsw_softswoff = std::min(_qsw_width, rintSampsMicroSec(*qswSoftSWOff()));
+	bool _qsw_pi_only = *qswPiPulseOnly();
+	int comb_rot_num = lrint(*combOffRes() * (m_combPWRecorded / 1000.0 * 4));
   
-	const bool _induce_emission = *induceEmission();
-	const uint64_t _induce_emission_pw = _comb_pw;
+	bool _induce_emission = *induceEmission();
+	uint64_t _induce_emission_pw = _comb_pw;
 	if((_comb_mode == N_COMB_MODE_OFF))
 		_num_phase_cycle = std::min(_num_phase_cycle, 4);
   
-	const bool _invert_phase = m_invertPhaseRecorded;
-	const bool _conserve_ste_phase = *conserveStEPhase();
+	bool _invert_phase = m_invertPhaseRecorded;
+	bool _conserve_ste_phase = *conserveStEPhase();
 
 	//patterns correspoinding to 0, pi/2, pi, -pi/2
 	const unsigned int qpskIQ[4] = {0, 1, 3, 2};
@@ -897,8 +897,8 @@ XPulser::rawToRelPat() throw (XRecordError&)
 	uint64_t pos = 0;
             
 	int echonum = _echo_num;
-	const uint32_t *const p1 = ((echonum > 1) || _conserve_ste_phase) ? p1multi : p1single;
-	const uint32_t *const p2 = ((echonum > 1) || _conserve_ste_phase) ? p2multi : p2single;
+	const uint32_t *p1 = ((echonum > 1) || _conserve_ste_phase) ? p1multi : p1single;
+	const uint32_t *p2 = ((echonum > 1) || _conserve_ste_phase) ? p2multi : p2single;
   
 	bool former_of_alt = !_invert_phase;
 	for(int i = 0; i < _num_phase_cycle * (comb_mode_alt ? 2 : 1); i++)
@@ -929,25 +929,28 @@ XPulser::rawToRelPat() throw (XRecordError&)
 		//comb pulses
 		if((_p1 > 0) && !saturation_wo_comb)
 		{
-			const uint64_t combpt = std::max(_comb_pt, _comb_pw + _g2_setup);
+			uint64_t combpt = std::max(_comb_pt, _comb_pw + _g2_setup);
 			uint64_t cpos = pos - combpt*_comb_num;
      
-			patterns_cheap.insert(tpat(cpos - _comb_pw/2 - _g2_setup,
-									   g2mask, g2mask));
 			patterns_cheap.insert(tpat(cpos - _comb_pw/2 - _g2_setup, comb_off_res ? ~(uint32_t)0 : 0, combfmmask));
 			patterns_cheap.insert(tpat(cpos - _comb_pw/2 - _g2_setup, ~(uint32_t)0, combmask));
+			bool _g2_each = (_g2_setup * 2 + _comb_pw) < combpt;
 			for(int k = 0; k < _comb_num; k++)
 			{
-				const uint32_t *const comb = (_conserve_ste_phase) ?
+				const uint32_t *comb = (_conserve_ste_phase) ?
 					 ((k % 2 == 0) ? ste_p1 : ste_p2) : comb_ste_cancel;
 				patterns.insert(tpat(cpos + _comb_pw/2, qpsk[comb[j]], qpskmask));
 				cpos += combpt;
 				cpos -= _comb_pw/2;
+				if(_g2_each || (k == 0))
+					patterns_cheap.insert(tpat(cpos - _g2_setup, g2mask, g2mask));
 				patterns.insert(tpat(cpos, ~(uint32_t)0, g1mask));
 				patterns.insert(tpat(cpos, PAT_QAM_PULSE_IDX_PCOMB, PAT_QAM_PULSE_IDX_MASK));
 				cpos += _comb_pw;      
 				patterns.insert(tpat(cpos, 0 , g1mask));
 				patterns.insert(tpat(cpos, 0, PAT_QAM_PULSE_IDX_MASK));
+				if(_g2_each || (k == _comb_num - 1))
+					patterns.insert(tpat(cpos, 0, g2mask));
 				if(! _qsw_pi_only) {
 					patterns.insert(tpat(cpos + _qsw_delay, ~(uint32_t)0 , qswmask));
 					patterns.insert(tpat(cpos + (_qsw_delay + _qsw_width/2 - _qsw_softswoff/2), 0 , qswmask));
@@ -957,7 +960,6 @@ XPulser::rawToRelPat() throw (XRecordError&)
 
 				cpos -= _comb_pw/2;
 			}
-			patterns.insert(tpat(cpos + _comb_pw/2, 0, g2mask));
 			patterns.insert(tpat(cpos + _comb_pw/2, 0, combmask));
 			patterns.insert(tpat(cpos + _comb_pw/2, ~(uint32_t)0, combfmmask));
 		}   
@@ -976,7 +978,7 @@ XPulser::rawToRelPat() throw (XRecordError&)
 			patterns.insert(tpat(pos + _pw1/2, 0, g1mask));
 			patterns.insert(tpat(pos + _pw1/2, 0, PAT_QAM_PULSE_IDX_MASK));
 			patterns.insert(tpat(pos + _pw1/2, 0, pulse1mask));
-			if(!_pw2/2) {
+			if(!_pw2/2 || (_g2_setup * 2 + _pw1/2 + _pw2/2 < _tau)) {
 				patterns.insert(tpat(pos + _pw1/2, 0, g2mask));
 			}
 			if(! _qsw_pi_only) {
