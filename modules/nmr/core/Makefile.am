@@ -1,4 +1,4 @@
-pkglib_LTLIBRARIES = libnmrpulsercore.la libsgcore.la
+pkglib_LTLIBRARIES = libnmrcore.la
 
 INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/modules/charinterface \
@@ -9,14 +9,12 @@ INCLUDES = -I$(top_srcdir)/kame \
 	-Iforms \
 	$(all_includes)
 
-libnmrpulsercore_la_SOURCES = \
+libnmrcore_la_SOURCES = \
 	pulserdriverconnector.cpp pulserdriverconnector.h \
-	pulserdriver.cpp pulserdriver.h
-libsgcore_la_SOURCES = \
+	pulserdriver.cpp pulserdriver.h \
 	signalgenerator.cpp signalgenerator.h
 	
-libnmrpulsercore_la_LIBADD = forms/libnmrpulserforms.la
-libsgcore_la_LIBADD = forms/libsgforms.la
+libnmrcore_la_LIBADD = forms/libnmrpulserforms.la forms/libsgforms.la
 
 #AM_CXXFLAGS = $(CXXFLAGS) \
 #	-O6  \

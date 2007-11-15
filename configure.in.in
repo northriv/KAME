@@ -36,7 +36,7 @@ fi
 GSL_LIBS="`gsl-config --libs`"
 
 ac_save_LIBS="$LIBS"
-RUBY_INCLUDE_PATH="`find /usr/lib/ruby -name 'ruby.h'`"
+RUBY_INCLUDE_PATH="`find /usr/lib/ruby/ -name 'ruby.h'`"
 RUBY_INCLUDES="`if test -n "$RUBY_INCLUDE_PATH"; then echo -I$RUBY_INCLUDE_PATH; fi |sed -e 's/ruby.h//'`"
 AC_CHECK_LIB(ruby, main, ruby_libs="-lruby" ruby_cflags=$RUBY_INCLUDES,
   AC_MSG_ERROR([ruby not installed - please install first]))

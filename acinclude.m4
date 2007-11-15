@@ -16,8 +16,8 @@ dnl    Library General Public License for more details.
 
 dnl    You should have received a copy of the GNU Library General Public License
 dnl    along with this library; see the file COPYING.LIB.  If not, write to
-dnl    the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-dnl    Boston, MA 02111-1307, USA.
+dnl    the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+dnl    Boston, MA 02110-1301, USA.
 
 dnl IMPORTANT NOTE:
 dnl Please do not modify this file unless you expect your modifications to be
@@ -25,11 +25,6 @@ dnl carried into every other module in the repository.
 dnl
 dnl Single-module modifications are best placed in configure.in for kdelibs
 dnl and kdebase or configure.in.in if present.
-
-AC_DEFUN([KDE_LIB_LTDL],
-[
-AC_REQUIRE([AC_LIB_LTDL])
-])
 
 # KDE_PATH_X_DIRECT
 dnl Internal subroutine of AC_PATH_X.
@@ -101,7 +96,7 @@ if test "$ac_x_libraries" = NO; then
   # Don't add to $LIBS permanently.
   ac_save_LIBS="$LIBS"
   LIBS="-l$x_direct_test_library $LIBS"
-AC_TRY_LINK(, [${x_direct_test_function}()],
+AC_TRY_LINK([#include <X11/Intrinsic.h>], [${x_direct_test_function}(1)],
 [LIBS="$ac_save_LIBS"
 # We can link X programs with no special library path.
 ac_x_libraries=],
@@ -178,8 +173,14 @@ do
 done
 ])
 
-dnl KDE_FIND_PATH(programm-name, variable-name, list of directories,
-dnl	if-not-found, test-parameter)
+dnl KDE_FIND_PATH(program-name, variable-name, list-of-dirs,
+dnl	if-not-found, test-parameter, prepend-path)
+dnl
+dnl Look for program-name in list-of-dirs+$PATH.
+dnl If prepend-path is set, look in $PATH+list-of-dirs instead.
+dnl If found, $variable-name is set. If not, if-not-found is evaluated.
+dnl test-parameter: if set, the program is executed with this arg,
+dnl                 and only a successful exit code is required.
 AC_DEFUN([KDE_FIND_PATH],
 [
    AC_MSG_CHECKING([for $1])
@@ -191,12 +192,17 @@ AC_DEFUN([KDE_FIND_PATH],
         AC_CACHE_VAL(kde_cv_path_$kde_cache,
         [
         kde_cv_path="NONE"
-	dirs="$3"
 	kde_save_IFS=$IFS
 	IFS=':'
+	dirs=""
 	for dir in $PATH; do
 	  dirs="$dirs $dir"
-        done
+	done
+	if test -z "$6"; then  dnl Append dirs in PATH (default)
+	  dirs="$3 $dirs"
+        else  dnl Prepend dirs in PATH (if 6th arg is set)
+	  dirs="$dirs $3"
+	fi
 	IFS=$kde_save_IFS
 
         for dir in $dirs; do
@@ -538,41 +544,60 @@ Please check whether you installed aRts correctly or use
 ])
 ])
 
+AC_DEFUN([KDE_SET_DEFAULT_BINDIRS],
+[
+    kde_default_bindirs="/usr/bin /usr/local/bin /opt/local/bin /usr/X11R6/bin /opt/kde/bin /opt/kde3/bin /usr/kde/bin /usr/local/kde/bin"
+    test -n "$KDEDIR" && kde_default_bindirs="$KDEDIR/bin $kde_default_bindirs"
+    if test -n "$KDEDIRS"; then
+       kde_save_IFS=$IFS
+       IFS=:
+       for dir in $KDEDIRS; do
+            kde_default_bindirs="$dir/bin $kde_default_bindirs "
+       done
+       IFS=$kde_save_IFS
+    fi
+])
+
 AC_DEFUN([KDE_SUBST_PROGRAMS],
 [
     AC_ARG_WITH(arts,
-        AC_HELP_STRING([--without-arts],[build without aRts [default=yes]]),
+        AC_HELP_STRING([--without-arts],[build without aRts [default=no]]),
         [build_arts=$withval],
         [build_arts=yes]
     )
-    AM_CONDITIONAL(include_ARTS, test "$build_arts" != "no")
+    AM_CONDITIONAL(include_ARTS, test "$build_arts" '!=' "no")
+    if test "$build_arts" = "no"; then
+        AC_DEFINE(WITHOUT_ARTS, 1, [Defined if compiling without arts])
+    fi
 
-        kde_default_bindirs="/usr/bin /usr/local/bin /opt/local/bin /usr/X11R6/bin /opt/kde/bin /opt/kde3/bin /usr/kde/bin /usr/local/kde/bin"
-        test -n "$KDEDIR" && kde_default_bindirs="$KDEDIR/bin $kde_default_bindirs"
-        if test -n "$KDEDIRS"; then
-           kde_save_IFS=$IFS
-           IFS=:
-           for dir in $KDEDIRS; do
-                kde_default_bindirs="$dir/bin $kde_default_bindirs "
-           done
-           IFS=$kde_save_IFS
-        fi
-        kde_default_bindirs="$exec_prefix/bin $prefix/bin $kde_default_bindirs"
+        KDE_SET_DEFAULT_BINDIRS
+        kde_default_bindirs="$exec_prefix/bin $prefix/bin $kde_libs_prefix/bin $kde_default_bindirs"
         KDE_FIND_PATH(dcopidl, DCOPIDL, [$kde_default_bindirs], [KDE_MISSING_PROG_ERROR(dcopidl)])
         KDE_FIND_PATH(dcopidl2cpp, DCOPIDL2CPP, [$kde_default_bindirs], [KDE_MISSING_PROG_ERROR(dcopidl2cpp)])
-        if test "$build_arts" != "no"; then
+        if test "$build_arts" '!=' "no"; then
           KDE_FIND_PATH(mcopidl, MCOPIDL, [$kde_default_bindirs], [KDE_MISSING_ARTS_ERROR(mcopidl)])
           KDE_FIND_PATH(artsc-config, ARTSCCONFIG, [$kde_default_bindirs], [KDE_MISSING_ARTS_ERROR(artsc-config)])
         fi
-        KDE_FIND_PATH(kde-config, KDECONFIG, [$kde_default_bindirs])
         KDE_FIND_PATH(meinproc, MEINPROC, [$kde_default_bindirs])
 
         kde32ornewer=1
-        if test "$kde_qtver" -lt 3; then
+        kde33ornewer=1
+        if test -n "$kde_qtver" && test "$kde_qtver" -lt 3; then
             kde32ornewer=
+            kde33ornewer=
         else
-            if test "$kde_qtver" = "3" && test "$kde_qtsubver" -le 1; then
+            if test "$kde_qtver" = "3"; then
+              if test "$kde_qtsubver" -le 1; then
                 kde32ornewer=
+              fi
+              if test "$kde_qtsubver" -le 2; then
+                kde33ornewer=
+              fi
+              if test "$KDECONFIG" != "compiled"; then
+                if test `$KDECONFIG --version | grep KDE | sed 's/KDE: \(...\).*/\1/'` = 3.2; then
+                  kde33ornewer=
+                fi
+              fi
             fi
         fi
 
@@ -580,9 +605,13 @@ AC_DEFUN([KDE_SUBST_PROGRAMS],
             KDE_FIND_PATH(kconfig_compiler, KCONFIG_COMPILER, [$kde_default_bindirs], [KDE_MISSING_PROG_ERROR(kconfig_compiler)])
             KDE_FIND_PATH(dcopidlng, DCOPIDLNG, [$kde_default_bindirs], [KDE_MISSING_PROG_ERROR(dcopidlng)])
         fi
-        KDE_FIND_PATH(xmllint, XMLLINT, [${prefix}/bin ${exec_prefix}/bin /usr/local/bin /opt/local/bin], [XMLLINT=""])
+        if test -n "$kde33ornewer"; then
+            KDE_FIND_PATH(makekdewidgets, MAKEKDEWIDGETS, [$kde_default_bindirs], [KDE_MISSING_PROG_ERROR(makekdewidgets)])
+            AC_SUBST(MAKEKDEWIDGETS)
+        fi
+        KDE_FIND_PATH(xmllint, XMLLINT, [${prefix}/bin ${exec_prefix}/bin], [XMLLINT=""])
 
-        if test -n "$MEINPROC" && test ! "$MEINPROC" = "compiled"; then  
+        if test -n "$MEINPROC" -a "$MEINPROC" != "compiled"; then
  	    kde_sharedirs="/usr/share/kde /usr/local/share /usr/share /opt/kde3/share /opt/kde/share $prefix/share"
             test -n "$KDEDIR" && kde_sharedirs="$KDEDIR/share $kde_sharedirs"
             AC_FIND_FILE(apps/ksgmltools2/customization/kde-chunk.xsl, $kde_sharedirs, KDE_XSL_STYLESHEET)
@@ -606,26 +635,9 @@ AC_DEFUN([KDE_SUBST_PROGRAMS],
         AC_SUBST(DCOP_DEPENDENCIES)
         AC_SUBST(MCOPIDL)
         AC_SUBST(ARTSCCONFIG)
-        AC_SUBST(KDECONFIG)
 	AC_SUBST(MEINPROC)
  	AC_SUBST(KDE_XSL_STYLESHEET)
 	AC_SUBST(XMLLINT)
-
-        if test -x "$KDECONFIG"; then # it can be "compiled"
-          kde_libs_prefix=`$KDECONFIG --prefix`
-          if test -z "$kde_libs_prefix" || test ! -x "$kde_libs_prefix"; then
-               AC_MSG_ERROR([$KDECONFIG --prefix outputed the non existant prefix '$kde_libs_prefix' for kdelibs.
-                          This means it has been moved since you installed it.
-                          This won't work. Please recompile kdelibs for the new prefix.
-                          ])
-           fi
-           kde_libs_htmldir=`$KDECONFIG --install html --expandvars`
-        else
-           kde_libs_prefix='$(prefix)'
-           kde_libs_htmldir='$(kde_htmldir)'
-        fi
-        AC_SUBST(kde_libs_prefix)
-        AC_SUBST(kde_libs_htmldir)
 ])dnl
 
 AC_DEFUN([AC_CREATE_KFSSTND],
@@ -760,13 +772,19 @@ support])
    # more headers that need to be explicitly included on darwin
    AC_CHECK_HEADERS(sys/types.h stdint.h)
 
+   # sys/bitypes.h is needed for uint32_t and friends on Tru64
+   AC_CHECK_HEADERS(sys/bitypes.h)
+
    # darwin requires a poll emulation library
    AC_CHECK_LIB(poll, poll, LIB_POLL="-lpoll")
+
+   # for some image handling on Mac OS X
+   AC_CHECK_HEADERS(Carbon/Carbon.h)
 
    # CoreAudio framework
    AC_CHECK_HEADER(CoreAudio/CoreAudio.h, [
      AC_DEFINE(HAVE_COREAUDIO, 1, [Define if you have the CoreAudio API])
-     FRAMEWORK_COREAUDIO="-Xlinker -framework -Xlinker CoreAudio"
+     FRAMEWORK_COREAUDIO="-Wl,-framework,CoreAudio"
    ])
 
    AC_CHECK_RES_INIT
@@ -790,6 +808,7 @@ support])
    KDE_CHECK_TYPES
    KDE_CHECK_LIBDL
    KDE_CHECK_STRLCPY
+   KDE_CHECK_PIE_SUPPORT
 
 # darwin needs this to initialize the environment
 AC_CHECK_HEADERS(crt_externs.h)
@@ -873,6 +892,9 @@ AC_ARG_ENABLE(
   kde_use_qt_mac=$enableval,
   kde_use_qt_mac=no
 )
+
+# used to disable x11-specific stuff on special platforms
+AM_CONDITIONAL(include_x11, test "$kde_use_qt_emb" = "no" && test "$kde_use_qt_mac" = "no")
 
 if test "$kde_use_qt_emb" = "no" && test "$kde_use_qt_mac" = "no"; then
 
@@ -961,7 +983,7 @@ if test -z "$kde_x_includes" || test "x$kde_x_includes" = xNONE; then
   X_INCLUDES="-I$x_includes"
 fi
 
-if test -z "$kde_x_libraries" || test "x$kde_x_libraries" = xNONE; then
+if test -z "$kde_x_libraries" || test "x$kde_x_libraries" = xNONE || test "$kde_x_libraries" = "/usr/lib"; then
   X_LDFLAGS=""
   x_libraries="/usr/lib"; dnl better than nothing :-
  else
@@ -969,7 +991,7 @@ if test -z "$kde_x_libraries" || test "x$kde_x_libraries" = xNONE; then
   X_LDFLAGS="-L$x_libraries"
 fi
 all_includes="$X_INCLUDES"
-all_libraries="$X_LDFLAGS"
+all_libraries="$X_LDFLAGS $LDFLAGS_AS_NEEDED $LDFLAGS_NEW_DTAGS"
 
 # Check for libraries that X11R6 Xt/Xaw programs need.
 ac_save_LDFLAGS="$LDFLAGS"
@@ -1131,9 +1153,9 @@ EOF
 AC_DEFUN([KDE_USE_QT],
 [
 if test -z "$1"; then
-  # Current default Qt version: 3.2
+  # Current default Qt version: 3.3
   kde_qtver=3
-  kde_qtsubver=2
+  kde_qtsubver=3
 else
   kde_qtsubver=`echo "$1" | sed -e 's#[0-9][0-9]*\.\([0-9][0-9]*\).*#\1#'`
   # following is the check if subversion isnt found in passed argument
@@ -1157,12 +1179,16 @@ if test -z "$2"; then
   if test "$kde_qtver" = "3"; then
     if test $kde_qtsubver -gt 0; then
 	 if test $kde_qtsubver -gt 1; then
-	    kde_qt_minversion=">= Qt 3.2"
+	    if test $kde_qtsubver -gt 2; then
+		kde_qt_minversion=">= Qt 3.3 and < 4.0"
+	    else
+	        kde_qt_minversion=">= Qt 3.2 and < 4.0"
+	    fi
 	 else
-            kde_qt_minversion=">= Qt 3.1 (20021021)"
+            kde_qt_minversion=">= Qt 3.1 (20021021) and < 4.0"
          fi
     else
-      kde_qt_minversion=">= Qt 3.0"
+      kde_qt_minversion=">= Qt 3.0 and < 4.0"
     fi
   fi
   if test "$kde_qtver" = "1"; then
@@ -1175,11 +1201,11 @@ fi
 if test -z "$3"; then
    if test $kde_qtver = 3; then
      if test $kde_qtsubver -gt 0; then
-       kde_qt_verstring="QT_VERSION >= 0x03@VER@00"
+       kde_qt_verstring="QT_VERSION >= 0x03@VER@00 && QT_VERSION < 0x040000"
        qtsubver=`echo "00$kde_qtsubver" | sed -e 's,.*\(..\)$,\1,'`
        kde_qt_verstring=`echo $kde_qt_verstring | sed -e "s,@VER@,$qtsubver,"`
      else
-       kde_qt_verstring="QT_VERSION >= 300"
+       kde_qt_verstring="QT_VERSION >= 300 && QT_VERSION < 0x040000"
      fi
    fi
    if test $kde_qtver = 2; then
@@ -1196,6 +1222,9 @@ else
    kde_qt_verstring="$3"
 fi
 
+if test $kde_qtver = 4; then
+  kde_qt_dirs="$QTDIR /usr/lib/qt4 /usr/lib/qt /usr/share/qt4"
+fi
 if test $kde_qtver = 3; then
   kde_qt_dirs="$QTDIR /usr/lib/qt3 /usr/lib/qt /usr/share/qt3"
 fi
@@ -1327,21 +1356,16 @@ if test -z "$LIBQT_GLOB"; then
   fi
 fi
 
-if test -z "$LIBQT"; then
 dnl ------------------------------------------------------------
 dnl If we got --enable-embedded then adjust the Qt library name.
 dnl ------------------------------------------------------------
-  if test "x$kde_use_qt_emb" = "xyes"; then
-    qtlib="qte"
-  else
-    qtlib="qt"
-  fi
-
-  kde_int_qt="-l$qtlib"
+if test "x$kde_use_qt_emb" = "xyes"; then
+  qtlib="qte"
 else
-  kde_int_qt="$LIBQT"
-  kde_lib_qt_set=yes
+  qtlib="qt"
 fi
+
+kde_int_qt="-l$qtlib"
 
 if test -z "$LIBQPE"; then
 dnl ------------------------------------------------------------
@@ -1363,13 +1387,8 @@ dnl If we got --enable-qt-mt then adjust the Qt library name for the host.
 dnl ------------------------------------------------------------------------
 
 if test "x$kde_use_qt_mt" = "xyes"; then
-  if test -z "$LIBQT"; then
-    LIBQT="-l$qtlib-mt"
-    kde_int_qt="-l$qtlib-mt"
-  else
-    LIBQT="$qtlib-mt"
-    kde_int_qt="$qtlib-mt"
-  fi
+  LIBQT="-l$qtlib-mt"
+  kde_int_qt="-l$qtlib-mt"
   LIBQT_GLOB="lib$qtlib-mt.*"
   USING_QT_MT="using -mt"
 else
@@ -1443,9 +1462,6 @@ for dir in $kde_qt_dirs; do
    qt_libdirs="$qt_libdirs $dir/lib${kdelibsuff} $dir"
 done
 qt_libdirs="$QTLIB $qt_libdirs /usr/X11R6/lib /usr/lib /usr/local/qt/lib $x_libraries"
-if test "x$kde_use_qt_mac" = "xyes"; then
-  qt_libdirs="~/Library/Frameworks /Library/Frameworks /System/Library/Frameworks $qt_libdirs"
-fi
 if test ! "$ac_qt_libraries" = "NO"; then
   qt_libdir=$ac_qt_libraries
 else
@@ -1550,7 +1566,7 @@ if test "$qt_libraries" = "$x_libraries" || test -z "$qt_libraries"; then
  QT_LDFLAGS=""
 else
  QT_LDFLAGS="-L$qt_libraries"
- all_libraries="$all_libraries $QT_LDFLAGS"
+ all_libraries="$QT_LDFLAGS $all_libraries"
 fi
 test -z "$KDE_MT_LDFLAGS" || all_libraries="$all_libraries $KDE_MT_LDFLAGS"
 
@@ -1627,7 +1643,15 @@ rm -f actest.ui actest.cpp
 
 AC_MSG_RESULT([$kde_cv_uic_plugins])
 if test "$kde_cv_uic_plugins" != yes; then
-	AC_MSG_ERROR([you need to install kdelibs first.])
+	AC_MSG_ERROR([
+you need to install kdelibs first.
+
+If you did install kdelibs, then the Qt version that is picked up by
+this configure is not the same version you used to compile kdelibs. 
+The Qt Plugin installed by kdelibs is *ONLY* loadable if it is the 
+_same Qt version_, compiled with the _same compiler_ and the same Qt
+configuration settings.
+])
 fi
 fi
 ])
@@ -1678,6 +1702,29 @@ AC_DEFUN([KDE_CHECK_CLOSURE],
   AC_SUBST(KDE_USE_CLOSURE_TRUE)
   AC_SUBST(KDE_USE_CLOSURE_FALSE)
   AC_SUBST(KDE_NO_UNDEFINED)
+])
+
+dnl Check if the linker supports --enable-new-dtags and --as-needed
+AC_DEFUN([KDE_CHECK_NEW_LDFLAGS],
+[
+  AC_ARG_ENABLE(new_ldflags,
+		AC_HELP_STRING([--enable-new-ldflags],
+		[enable the new linker flags]),
+	kde_use_new_ldflags=$enableval, 
+	kde_use_new_ldflags=no)
+
+  LDFLAGS_AS_NEEDED=""
+  LDFLAGS_NEW_DTAGS=""
+  if test "x$kde_use_new_ldflags" = "xyes"; then
+       LDFLAGS_NEW_DTAGS=""
+       KDE_CHECK_COMPILER_FLAG([Wl,--enable-new-dtags],
+		[LDFLAGS_NEW_DTAGS="-Wl,--enable-new-dtags"],)
+
+       KDE_CHECK_COMPILER_FLAG([Wl,--as-needed],
+		[LDFLAGS_AS_NEEDED="-Wl,--as-needed"],)
+  fi
+  AC_SUBST(LDFLAGS_AS_NEEDED)
+  AC_SUBST(LDFLAGS_NEW_DTAGS)
 ])
 
 AC_DEFUN([KDE_CHECK_NMCHECK],
@@ -1746,7 +1793,7 @@ fi
 
 if test -z "$1"; then
 
-kde_incdirs="/usr/lib/kde/include /usr/local/kde/include /usr/local/include /usr/kde/include /usr/include/kde /usr/include /opt/kde3/include /opt/kde/include $x_includes $qt_includes"
+kde_incdirs="$kde_libs_prefix/include /usr/lib/kde/include /usr/local/kde/include /usr/local/include /usr/kde/include /usr/include/kde /usr/include /opt/kde3/include /opt/kde/include $x_includes $qt_includes"
 test -n "$KDEDIR" && kde_incdirs="$KDEDIR/include $KDEDIR/include/kde $KDEDIR $kde_incdirs"
 kde_incdirs="$ac_kde_includes $kde_incdirs"
 AC_FIND_FILE($kde_check_header, $kde_incdirs, kde_incdir)
@@ -1758,7 +1805,7 @@ in the prefix, you've chosen, are no KDE headers installed. This will fail.
 So, check this please and use another prefix!])
 fi
 
-kde_libdirs="/usr/lib/kde/lib${kdelibsuff} /usr/local/kde/lib${kdelibsuff} /usr/kde/lib${kdelibsuff} /usr/lib${kdelibsuff}/kde /usr/lib${kdelibsuff}/kde3 /usr/lib${kdelibsuff} /usr/X11R6/lib${kdelibsuff} /usr/local/lib${kdelibsuff} /opt/kde3/lib${kdelibsuff} /opt/kde/lib${kdelibsuff} /usr/X11R6/kde/lib${kdelibsuff}"
+kde_libdirs="$kde_libs_prefix/lib${kdelibsuff} /usr/lib/kde/lib${kdelibsuff} /usr/local/kde/lib${kdelibsuff} /usr/kde/lib${kdelibsuff} /usr/lib${kdelibsuff}/kde /usr/lib${kdelibsuff}/kde3 /usr/lib${kdelibsuff} /usr/X11R6/lib${kdelibsuff} /usr/local/lib${kdelibsuff} /opt/kde3/lib${kdelibsuff} /opt/kde/lib${kdelibsuff} /usr/X11R6/kde/lib${kdelibsuff}"
 test -n "$KDEDIR" && kde_libdirs="$KDEDIR/lib${kdelibsuff} $KDEDIR $kde_libdirs"
 kde_libdirs="$ac_kde_libraries $libdir $kde_libdirs"
 AC_FIND_FILE($kde_check_lib, $kde_libdirs, kde_libdir)
@@ -1792,7 +1839,7 @@ else
     ac_kde_includes=$ac_kde_includes ac_kde_libraries=$ac_kde_libraries"
 fi
 
-else dnl test -z $1
+else dnl test -z $1, e.g. from kdelibs
 
   ac_cv_have_kde="have_kde=no"
 
@@ -1840,7 +1887,7 @@ KDE_DEFAULT_CXXFLAGS="-DQT_CLEAN_NAMESPACE -DQT_NO_ASCII_CAST -DQT_NO_STL -DQT_N
  
 KDE_LDFLAGS="-L$kde_libraries"
 if test ! "$kde_libraries" = "$x_libraries" && test ! "$kde_libraries" = "$qt_libraries" ; then 
- all_libraries="$all_libraries $KDE_LDFLAGS"
+ all_libraries="$KDE_LDFLAGS $all_libraries"
 fi
 
 AC_SUBST(KDE_LDFLAGS)
@@ -2016,9 +2063,15 @@ AC_DEFUN([KDE_CREATE_LIBS_ALIASES],
    AC_REQUIRE([K_PATH_X])
 
 if test $kde_qtver = 3; then
+   case $host in 
+               *cygwin*) lib_kded="-lkdeinit_kded" ;;
+               *) lib_kded="" ;;
+       esac
+   AC_SUBST(LIB_KDED, $lib_kded)
    AC_SUBST(LIB_KDECORE, "-lkdecore")
    AC_SUBST(LIB_KDEUI, "-lkdeui")
    AC_SUBST(LIB_KIO, "-lkio")
+   AC_SUBST(LIB_KJS, "-lkjs")
    AC_SUBST(LIB_SMB, "-lsmb")
    AC_SUBST(LIB_KAB, "-lkab")
    AC_SUBST(LIB_KABC, "-lkabc")
@@ -2028,6 +2081,10 @@ if test $kde_qtver = 3; then
    AC_SUBST(LIB_KDEPRINT, "-lkdeprint")
    AC_SUBST(LIB_KUTILS, "-lkutils")
    AC_SUBST(LIB_KDEPIM, "-lkdepim")
+   AC_SUBST(LIB_KIMPROXY, "-lkimproxy")
+   AC_SUBST(LIB_KNEWSTUFF, "-lknewstuff")
+   AC_SUBST(LIB_KDNSSD, "-lkdnssd")
+   AC_SUBST(LIB_KUNITTEST, "-lkunittest")
 # these are for backward compatibility
    AC_SUBST(LIB_KSYCOCA, "-lkio")
    AC_SUBST(LIB_KFILE, "-lkio")
@@ -2281,6 +2338,19 @@ mkstemps("/tmp/aaaXXXXXX", 6);
 	[MKSTEMPS])
 ])
 
+AC_DEFUN([AC_CHECK_MKSTEMP],
+[
+	KDE_CHECK_FUNC_EXT(mkstemp, [
+#include <stdlib.h>
+#include <unistd.h>
+],
+	[
+mkstemp("/tmp/aaaXXXXXX");
+],
+	[int mkstemp(char *)],
+	[MKSTEMP])
+])
+
 AC_DEFUN([AC_CHECK_MKDTEMP],
 [
 	KDE_CHECK_FUNC_EXT(mkdtemp, [
@@ -2320,23 +2390,16 @@ AC_DEFUN([AC_CHECK_RES_INIT],
   LIBS=$kde_libs_safe
   AC_SUBST(LIBRESOLV)
 
-  AC_MSG_CHECKING([if res_init is available])
-  AC_TRY_COMPILE(
+  KDE_CHECK_FUNC_EXT(res_init,
     [
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <arpa/nameser.h>
 #include <resolv.h>
     ],
-    [
-      res_init();
-    ],
-    [
-      AC_MSG_RESULT(yes)
-      AC_DEFINE(HAVE_RES_INIT, 1, [Define if you have the res_init function])
-    ],
-    [ AC_MSG_RESULT(no) ]
-  )
+    [res_init()],
+    [int res_init(void)],
+    [RES_INIT])
 ])
 
 AC_DEFUN([AC_CHECK_STRLCPY],
@@ -2363,6 +2426,38 @@ AC_DEFUN([AC_CHECK_STRLCAT],
  	[unsigned long strlcat(char*, const char*, unsigned long)],
 	[STRLCAT])
 ])
+
+AC_DEFUN([AC_CHECK_RES_QUERY],
+[
+	KDE_CHECK_FUNC_EXT(res_query, [
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <arpa/nameser.h>
+#include <resolv.h>
+#include <netdb.h>
+],
+[
+res_query(NULL, 0, 0, NULL, 0);
+],
+	[int res_query(const char *, int, int, unsigned char *, int)],
+	[RES_QUERY])
+])
+
+AC_DEFUN([AC_CHECK_DN_SKIPNAME],
+[
+	KDE_CHECK_FUNC_EXT(dn_skipname, [
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <arpa/nameser.h>
+#include <resolv.h>
+],
+[
+dn_skipname (NULL, NULL);
+],
+	[int dn_skipname (unsigned char *, unsigned char *)],
+	[DN_SKIPNAME])
+])
+
 
 AC_DEFUN([AC_FIND_GIF],
    [AC_MSG_CHECKING([for giflib])
@@ -2408,22 +2503,16 @@ LIBS="$all_libraries $USER_LDFLAGS -ljpeg$2 -lm"
 ac_save_CFLAGS="$CFLAGS"
 CFLAGS="$CFLAGS $all_includes $USER_INCLUDES"
 AC_TRY_LINK(
-[/* Override any gcc2 internal prototype to avoid an error.  */
-struct jpeg_decompress_struct;
-typedef struct jpeg_decompress_struct * j_decompress_ptr;
-typedef int size_t;
+[
 #ifdef __cplusplus
 extern "C" {
 #endif
-    void jpeg_CreateDecompress(j_decompress_ptr cinfo,
-                                    int version, size_t structsize);
+void jpeg_CreateDecompress();
 #ifdef __cplusplus
 }
 #endif
-/* We use char because int might match the return type of a gcc2
-    builtin and then its argument prototype would still apply.  */
 ],
-            [jpeg_CreateDecompress(0L, 0, 0);],
+[jpeg_CreateDecompress();],
             eval "ac_cv_lib_jpeg_$1=-ljpeg$2",
             eval "ac_cv_lib_jpeg_$1=no")
 LIBS="$ac_save_LIBS"
@@ -2630,6 +2719,73 @@ KDE_TRY_TIFFLIB(tiff, [],
 AC_SUBST(LIBTIFF)
 ])
 
+AC_DEFUN([KDE_FIND_LIBEXR],
+[
+AC_REQUIRE([KDE_CHECK_EXTRA_LIBS])
+AC_REQUIRE([AC_FIND_ZLIB])
+AC_CACHE_VAL(ac_cv_libexr,
+[
+  if test -z "$PKG_CONFIG"; then
+    AC_PATH_PROG(PKG_CONFIG, pkg-config, no)
+  fi
+
+  AC_MSG_CHECKING([for OpenEXR libraries])
+
+  if test "$PKG_CONFIG" = "no" ; then
+     AC_MSG_RESULT(no)
+     echo "*** The pkg-config script could not be found. Make sure it is"
+     echo "*** in your path, or set the PKG_CONFIG environment variable"
+     echo "*** to the full path to pkg-config."
+     echo "*** Or see http://www.freedesktop.org/software/pkgconfig to get pkg-config."
+  else
+     if !(`$PKG_CONFIG --exists OpenEXR`) ; then
+        AC_MSG_RESULT(no)
+        EXRSTATUS=no
+     else
+        if !(`$PKG_CONFIG --atleast-version="1.1.1" OpenEXR`) ; then
+           AC_MSG_RESULT(no)
+           EXRSTATUS=old
+        else
+           kde_save_LIBS="$LIBS"
+           LIBS="$LIBS $all_libraries $USER_LDFLAGS `pkg-config --libs OpenEXR` $LIBZ"
+           AC_LANG_SAVE
+           AC_LANG_CPLUSPLUS
+           kde_save_CXXFLAGS="$CXXFLAGS"
+           EXR_FLAGS=`$PKG_CONFIG --cflags OpenEXR`
+           CXXFLAGS="$CXXFLAGS $all_includes $USER_INCLUDES $EXR_FLAGS"
+
+           AC_TRY_LINK(dnl
+               [
+               #include <ImfRgbaFile.h>
+               ],
+               [
+               using namespace Imf;
+               RgbaInputFile file ("dummy");
+               return 0;
+               ],
+               eval "ac_cv_libexr='`pkg-config --libs OpenEXR`'",
+               eval "ac_cv_libexr=no"
+           )
+           LIBS="$kde_save_LIBS"
+           CXXFLAGS="$kde_save_CXXFLAGS"
+           AC_LANG_RESTORE
+           ])dnl
+           if eval "test ! \"`echo $ac_cv_libexr`\" = no"; then
+               AC_DEFINE_UNQUOTED(HAVE_EXR, 1, [Define if you have OpenEXR])
+               LIB_EXR="$ac_cv_libexr"
+               AC_MSG_RESULT($ac_cv_libexr)
+           else
+               AC_MSG_RESULT(no)
+               LIB_EXR=""
+           fi
+        fi
+     fi
+  fi
+  AC_SUBST(LIB_EXR)
+  AC_SUBST(EXR_FLAGS)
+])
+
+
 
 AC_DEFUN([AC_FIND_PNG],
 [
@@ -2818,6 +2974,76 @@ AC_DEFUN([AC_REMOVE_FORBIDDEN],
   fi
 ])
 
+
+AC_DEFUN([KDE_CHECK_FOR_BAD_COMPILER],
+[
+  AC_MSG_CHECKING([whether $CC is blacklisted])
+
+  dnl In theory we have tu run this test against $CC and $CXX
+  dnl in C and in C++ mode, because its perfectly legal for
+  dnl the user to mix compiler versions, since C has a defined
+  dnl ABI. 
+  dnl 
+  dnl For now, we assume the user is not on crack.
+
+  AC_TRY_COMPILE([
+#ifdef __GNUC__
+#if __GNUC__ == 4 && __GNUC_MINOR__ == 0 && __GNUC_PATCHLEVEL__ == 0
+choke me
+#endif
+#endif
+], ,
+  kde_bad_compiler=no, 
+  kde_bad_compiler=yes
+)
+
+  AC_MSG_RESULT($kde_bad_compiler)
+
+if test "$kde_bad_compiler" = "yes"; then
+  AC_MSG_ERROR([
+
+This particular compiler version is blacklisted because it
+is known to miscompile KDE. Please use a newer version, or
+if that is not yet available, choose an older version. 
+
+Please do not report a bug or bother us reporting this
+configure error. We know about it, and we introduced
+it by intention to avoid untraceable bugs or crashes in KDE.
+
+])
+fi
+
+])
+
+
+AC_DEFUN([KDE_CHECK_FOR_OPT_NOINLINE_MATCH],
+[
+  AC_CACHE_CHECK([whether system headers can cope with -O2 -fno-inline],
+    kde_cv_opt_noinline_match,
+  [
+  kde_cv_opt_noinline_match=irrelevant
+  dnl if we don't use both -O2 and -fno-inline, this check is moot
+  if echo "$CFLAGS" | grep -e -O2 >/dev/null 2>/dev/null \
+     && echo "$CFLAGS" | grep -e -fno-inline >/dev/null 2>/dev/null ; then
+
+    ac_cflags_save="$CFLAGS"
+    CFLAGS="$CFLAGS -D_USE_GNU"
+
+    AC_TRY_LINK([
+  #include <string.h>
+], [  const char *pt, *et;
+  et = __extension__      ({ char __a0, __a1, __a2;       (__builtin_constant_p (  ";,"  ) && ((size_t)(const void *)((   ";,"   )+ 1) - (size_t)(const void *)(   ";,"   ) == 1)        ? ((__a0 =((__const char  *) (  ";,"  ))[0], __a0 == '\0')     ? ((void) (  pt ),((void *)0) )        : ((__a1 = ((__const char *) (  ";,"  ))[1], __a1== '\0')      ? (__extension__ (__builtin_constant_p (  __a0 ) && ( __a0 ) == '\0'   ? (char *) __rawmemchr (   pt  ,   __a0)       : strchr(   pt  ,   __a0 )))   : ((__a2 = ((__const char *) (  ";,"  ))[2], __a2 == '\0')      ? __strpbrk_c2 (  pt , __a0, __a1)      :(((__const char *) (  ";,"  ))[3] == '\0'     ? __strpbrk_c3 (  pt ,__a0, __a1, __a2): strpbrk (  pt ,   ";,"  ))))) : strpbrk (  pt ,  ";,"  )); }) ;
+],
+    kde_cv_opt_noinline_match=yes,
+    kde_cv_opt_noinline_match=no
+    )
+
+    CFLAGS="$ac_cflags_save"
+  fi
+  ])
+])
+
+
 dnl AC_VALIDIFY_CXXFLAGS checks for forbidden flags the user may have given
 AC_DEFUN([AC_VALIDIFY_CXXFLAGS],
 [dnl
@@ -2871,7 +3097,7 @@ AC_DEFUN([AC_CHECK_COMPILERS],
     fi
    ], [kde_use_strict_options="no"])
 
-  AC_ARG_ENABLE(warnings,AC_HELP_STRING([--disable-warnings],[disables compilation with -Wall and similiar]),
+  AC_ARG_ENABLE(warnings,AC_HELP_STRING([--disable-warnings],[disables compilation with -Wall and similar]),
    [
     if test $enableval = "no"; then
          kde_use_warnings="no"
@@ -2902,7 +3128,7 @@ AC_DEFUN([AC_CHECK_COMPILERS],
       if test $kde_use_debug_code = "full"; then
         CFLAGS="-g3 -fno-inline $CFLAGS"
       else
-        CFLAGS="-g -O2 $CFLAGS"
+        CFLAGS="-g -O2 -fno-schedule-insns -fno-inline $CFLAGS"
       fi
     else
       CFLAGS="-O2 $CFLAGS"
@@ -2927,6 +3153,8 @@ AC_DEFUN([AC_CHECK_COMPILERS],
 
   AC_PROG_CXX
 
+  KDE_CHECK_FOR_BAD_COMPILER
+
   if test "$GXX" = "yes" || test "$CXX" = "KCC"; then
     if test "$kde_use_debug_code" != "no"; then
       if test "$CXX" = "KCC"; then
@@ -2935,7 +3163,7 @@ AC_DEFUN([AC_CHECK_COMPILERS],
         if test "$kde_use_debug_code" = "full"; then
           CXXFLAGS="-g3 -fno-inline $CXXFLAGS"
         else
-          CXXFLAGS="-g -O2 $CXXFLAGS"
+          CXXFLAGS="-g -O2 -fno-schedule-insns -fno-inline $CXXFLAGS"
         fi
       fi
       KDE_CHECK_COMPILER_FLAG(fno-builtin,[CXXFLAGS="-fno-builtin $CXXFLAGS"])
@@ -2948,7 +3176,7 @@ AC_DEFUN([AC_CHECK_COMPILERS],
         CXXFLAGS="+K3 $CXXFLAGS"
       else
         CXXFLAGS="-O2 $CXXFLAGS"
-      fi  
+      fi
     fi
   fi
 
@@ -2966,44 +3194,84 @@ AC_DEFUN([AC_CHECK_COMPILERS],
 
   if test "$kde_use_warnings" = "yes"; then
       if test "$GCC" = "yes"; then
-        CXXFLAGS="-Wall -W -Wpointer-arith -Wwrite-strings $CXXFLAGS"
+        CXXFLAGS="-Wall -W -Wpointer-arith $CXXFLAGS"
         case $host in
           *-*-linux-gnu)	
-            CFLAGS="-ansi -W -Wall -Wchar-subscripts -Wshadow -Wpointer-arith -Wmissing-prototypes -Wwrite-strings -D_XOPEN_SOURCE=500 -D_BSD_SOURCE $CFLAGS"
-            CXXFLAGS="-ansi -D_XOPEN_SOURCE=500 -D_BSD_SOURCE -Wcast-align -Wconversion -Wchar-subscripts $CXXFLAGS"
+            CFLAGS="-std=iso9899:1990 -W -Wall -Wchar-subscripts -Wshadow -Wpointer-arith -Wmissing-prototypes -Wwrite-strings -D_XOPEN_SOURCE=500 -D_BSD_SOURCE $CFLAGS"
+            CXXFLAGS="-ansi -D_XOPEN_SOURCE=500 -D_BSD_SOURCE -Wcast-align -Wchar-subscripts $CXXFLAGS"
             KDE_CHECK_COMPILER_FLAG(Wmissing-format-attribute, [CXXFLAGS="$CXXFLAGS -Wformat-security -Wmissing-format-attribute"])
             KDE_CHECK_C_COMPILER_FLAG(Wmissing-format-attribute, [CFLAGS="$CFLAGS -Wformat-security -Wmissing-format-attribute"])
           ;;
         esac
         KDE_CHECK_COMPILER_FLAG(Wundef,[CXXFLAGS="-Wundef $CXXFLAGS"])
         KDE_CHECK_COMPILER_FLAG(Wno-long-long,[CXXFLAGS="-Wno-long-long $CXXFLAGS"])
-        KDE_CHECK_COMPILER_FLAG(Wnon-virtual-dtor,[CXXFLAGS="-Wnon-virtual-dtor $CXXFLAGS"])
+        dnl ### FIXME: revert for KDE 4
+        KDE_CHECK_COMPILER_FLAG(Wno-non-virtual-dtor,[CXXFLAGS="$CXXFLAGS -Wno-non-virtual-dtor"])
      fi
   fi
 
   if test "$GXX" = "yes" && test "$kde_use_strict_options" = "yes"; then
     CXXFLAGS="-Wcast-qual -Wshadow -Wcast-align $CXXFLAGS"
   fi
-    
+
+  AC_ARG_ENABLE(pch,
+     AC_HELP_STRING([--enable-pch],
+                    [enables precompiled header support (currently only KCC or gcc >=3.4+unsermake) [default=no]]),
+    [ kde_use_pch=$enableval ],[ kde_use_pch=no ])
+ 
+  HAVE_GCC_VISIBILITY=0
+  AC_SUBST([HAVE_GCC_VISIBILITY])
+
   if test "$GXX" = "yes"; then
+    gcc_no_reorder_blocks=NO
+    KDE_CHECK_COMPILER_FLAG(fno-reorder-blocks,[gcc_no_reorder_blocks=YES])
+    if test $kde_use_debug_code != "no" && \
+       test $kde_use_debug_code != "full" && \
+       test "YES" = "$gcc_no_reorder_blocks" ; then
+          CXXFLAGS="$CXXFLAGS -fno-reorder-blocks"
+          CFLAGS="$CFLAGS -fno-reorder-blocks"
+    fi
     KDE_CHECK_COMPILER_FLAG(fno-exceptions,[CXXFLAGS="$CXXFLAGS -fno-exceptions"])
     KDE_CHECK_COMPILER_FLAG(fno-check-new, [CXXFLAGS="$CXXFLAGS -fno-check-new"])
     KDE_CHECK_COMPILER_FLAG(fno-common, [CXXFLAGS="$CXXFLAGS -fno-common"])
     KDE_CHECK_COMPILER_FLAG(fexceptions, [USE_EXCEPTIONS="-fexceptions"], USE_EXCEPTIONS=	)
+    ENABLE_PERMISSIVE_FLAG="-fpermissive"
+
+    if test "$kde_use_pch" = "yes"; then
+        AC_MSG_CHECKING(whether gcc supports precompiling c header files)
+        echo >conftest.h
+        if $CC -x c-header conftest.h >/dev/null 2>/dev/null; then
+            kde_gcc_supports_pch=yes
+            AC_MSG_RESULT(yes)
+        else
+            kde_gcc_supports_pch=no
+            AC_MSG_RESULT(no)
+        fi
+        if test "$kde_gcc_supports_pch" = "yes"; then
+            AC_MSG_CHECKING(whether gcc supports precompiling c++ header files)
+            if $CXX -x c++-header conftest.h >/dev/null 2>/dev/null; then
+                kde_gcc_supports_pch=yes
+                AC_MSG_RESULT(yes)
+            else
+                kde_gcc_supports_pch=no
+                AC_MSG_RESULT(no)
+            fi
+        fi
+        rm -f conftest.h conftest.h.gch
+    fi
+
+    KDE_CHECK_FOR_OPT_NOINLINE_MATCH
+    if test "x$kde_cv_opt_noinline_match" = "xno" ; then
+       CFLAGS="`echo "$CFLAGS" | sed "s/ -fno-inline//"`"
+    fi
   fi
+  AM_CONDITIONAL(unsermake_enable_pch, test "$kde_use_pch" = "yes" && test "$kde_gcc_supports_pch" = "yes")
   if test "$CXX" = "KCC"; then
     dnl unfortunately we currently cannot disable exception support in KCC
     dnl because doing so is binary incompatible and Qt by default links with exceptions :-(
     dnl KDE_CHECK_COMPILER_FLAG(-no_exceptions,[CXXFLAGS="$CXXFLAGS --no_exceptions"])
     dnl KDE_CHECK_COMPILER_FLAG(-exceptions, [USE_EXCEPTIONS="--exceptions"], USE_EXCEPTIONS=	)
 
-    AC_ARG_ENABLE(pch,
-	AC_HELP_STRING([--enable-pch],
-		       [enables precompiled header support (currently only KCC) [default=no]]),
-    [
-      kde_use_pch=$enableval
-    ],[kde_use_pch=no])
- 
     if test "$kde_use_pch" = "yes"; then
       dnl TODO: support --pch-dir!
       KDE_CHECK_COMPILER_FLAG(-pch,[CXXFLAGS="$CXXFLAGS --pch"])
@@ -3058,14 +3326,140 @@ AC_DEFUN([AC_CHECK_COMPILERS],
   fi
   KDE_CHECK_COMPILER_FLAG(O0,[NOOPT_CXXFLAGS=-O0])
 
+  AC_ARG_ENABLE(coverage,
+    AC_HELP_STRING([--enable-coverage],[use gcc coverage testing]), [
+      if test "$am_cv_CC_dependencies_compiler_type" = "gcc3"; then
+        ac_coverage_compiler="-fprofile-arcs -ftest-coverage"
+        ac_coverage_linker="-lgcc"
+      elif test "$am_cv_CC_dependencies_compiler_type" = "gcc"; then
+        ac_coverage_compiler="-fprofile-arcs -ftest-coverage"
+        ac_coverage_linker=""
+      else
+        AC_MSG_ERROR([coverage with your compiler is not supported])
+      fi
+      CFLAGS="$CFLAGS $ac_coverage_compiler"
+      CXXFLAGS="$CXXFLAGS $ac_coverage_compiler"
+      LDFLAGS="$LDFLAGS $ac_coverage_linker"
+    ])
+
   AC_SUBST(NOOPT_CXXFLAGS)
   AC_SUBST(NOOPT_CFLAGS)
+  AC_SUBST(ENABLE_PERMISSIVE_FLAG)
 
+  KDE_CHECK_NEW_LDFLAGS
   KDE_CHECK_FINAL
   KDE_CHECK_CLOSURE
   KDE_CHECK_NMCHECK
 
   ifdef([AM_DEPENDENCIES], AC_REQUIRE([KDE_ADD_DEPENDENCIES]), [])
+])
+
+AC_DEFUN([KDE_CHECK_VISIBILITY_GCC_BUG],
+  [
+    AC_CACHE_CHECK([for gcc -fvisibility-inlines-hidden bug], kde_cv_val_gcc_visibility_bug,
+      [
+        AC_LANG_SAVE
+        AC_LANG_CPLUSPLUS
+
+        safe_CXXFLAGS=$CXXFLAGS
+        safe_LDFLAGS=$LDFLAGS
+        CXXFLAGS="$CXXFLAGS -fPIC -fvisibility-inlines-hidden -O0"
+        LDFLAGS="$LDFLAGS -shared -fPIC"
+
+        AC_TRY_LINK(
+        [
+          /* http://gcc.gnu.org/bugzilla/show_bug.cgi?id=19664 */
+	  #include <string>
+          int some_function( void ) __attribute__ ((visibility("default")));
+          int some_function( void )
+          {
+	    std::string s("blafasel");
+            return 0;
+          }
+        ], [/* elvis is alive */],
+        kde_cv_val_gcc_visibility_bug=no, kde_cv_val_gcc_visibility_bug=yes)
+
+        CXXFLAGS=$safe_CXXFLAGS
+        LDFLAGS=$safe_LDFLAGS
+        AC_LANG_RESTORE
+      ]
+    )
+
+    if test x$kde_cv_val_gcc_visibility_bug = xno; then
+      CXXFLAGS="$CXXFLAGS -fvisibility-inlines-hidden"
+    fi
+  ]
+)
+
+AC_DEFUN([KDE_ENABLE_HIDDEN_VISIBILITY],
+[
+  AC_BEFORE([AC_PATH_QT_1_3], [KDE_ENABLE_HIDDEN_VISIBILITY])
+
+  AC_MSG_CHECKING([grepping for visibility push/pop in headers])
+
+  if test "x$GXX" = "xyes"; then
+    AC_LANG_SAVE
+    AC_LANG_CPLUSPLUS
+    AC_EGREP_CPP(
+       [GCC visibility push],
+       [ #include <exception> 
+       ], 
+    [
+      AC_MSG_RESULT(yes)
+      kde_stdc_visibility_patched=yes ],
+    [ 
+      AC_MSG_RESULT(no)
+      AC_MSG_WARN([Your libstdc++ doesn't appear to be patched for 
+                   visibility support. Disabling -fvisibility=hidden])
+
+      kde_stdc_visibility_patched=no ])
+
+    AC_LANG_RESTORE
+
+    kde_have_gcc_visibility=no
+    KDE_CHECK_COMPILER_FLAG(fvisibility=hidden, 
+    [
+      kde_have_gcc_visibility=yes
+      dnl the whole toolchain is just a mess, gcc is just too buggy
+      dnl to handle STL with visibility enabled. Lets reconsider 
+      dnl when gcc 4.2 is out or when things get fixed in the compiler.
+      dnl Contact mueller@kde.org for details.
+      AC_ARG_ENABLE(gcc-hidden-visibility,
+        AC_HELP_STRING([--enable-gcc-hidden-visibility],[toolchain hidden visibility [default=no]]),
+          [kde_have_gcc_visibility=$enableval],
+          [kde_have_gcc_visibility=no])
+
+      AC_CACHE_CHECK([if Qt is patched for -fvisibility], kde_cv_val_qt_gcc_visibility_patched,
+        [
+          AC_LANG_SAVE
+          AC_LANG_CPLUSPLUS
+
+          safe_CXXFLAGS=$CXXFLAGS
+          CXXFLAGS="$CXXFLAGS $all_includes"
+
+          AC_TRY_COMPILE(
+          [
+#include <qglobal.h>
+#if Q_EXPORT - 0 != 0
+/* if this compiles, then Q_EXPORT is undefined */
+/* if Q_EXPORT is nonempty, this will break compilation */
+#endif
+          ], [/* elvis is alive */],
+          kde_cv_val_qt_gcc_visibility_patched=no, kde_cv_val_qt_gcc_visibility_patched=yes)
+
+          CXXFLAGS=$safe_CXXFLAGS
+          AC_LANG_RESTORE
+        ]
+      )
+
+      if test x$kde_have_gcc_visibility = "xyes" && test x$kde_stdc_visibility_patched = "xyes" && test x$kde_cv_val_qt_gcc_visibility_patched = "xyes"; then
+        CXXFLAGS="$CXXFLAGS -fvisibility=hidden"
+        KDE_CHECK_VISIBILITY_GCC_BUG
+        HAVE_GCC_VISIBILITY=1
+        AC_DEFINE_UNQUOTED(__KDE_HAVE_GCC_VISIBILITY, "$HAVE_GCC_VISIBILITY", [define to 1 if -fvisibility is supported])
+      fi
+    ])
+  fi
 ])
 
 AC_DEFUN([KDE_ADD_DEPENDENCIES],
@@ -3095,20 +3489,37 @@ LIBTOOL_SHELL="/bin/sh ./libtool"
 KDE_PLUGIN="-avoid-version -module -no-undefined \$(KDE_NO_UNDEFINED) \$(KDE_RPATH) \$(KDE_MT_LDFLAGS)"
 AC_SUBST(KDE_PLUGIN)
 
+# This hack ensures that libtool creates shared libs for kunittest plugins. By default check_LTLIBRARIES makes static libs.
+KDE_CHECK_PLUGIN="\$(KDE_PLUGIN) -rpath \$(libdir)"
+AC_SUBST(KDE_CHECK_PLUGIN)
+
 # we patch configure quite some so we better keep that consistent for incremental runs 
 AC_SUBST(AUTOCONF,'$(SHELL) $(top_srcdir)/admin/cvs.sh configure || touch configure')
 ])
 
 AC_DEFUN([KDE_CHECK_LIB64],
 [
-    kdelibsuff=no
     AC_ARG_ENABLE(libsuffix,
         AC_HELP_STRING([--enable-libsuffix],
-            [/lib directory suffix (64,32,none[=default])]),
-            kdelibsuff=$enableval)
-    # TODO: add an auto case that compiles a little C app to check
-    # where the glibc is
-    if test "$kdelibsuff" = "no"; then
+            [/lib directory suffix (64,32,none,auto[=default])]),
+            kdelibsuff=$enableval, kdelibsuff="auto")
+    
+    if test "$kdelibsuff" = "auto"; then
+    
+cat > conftest.c << EOF
+#include <stdio.h>
+int main() {
+ return 0;
+}
+EOF
+        kdelibsuff=`$CC conftest.c -o conftest.out; ldd conftest.out |sed -ne '/libc.so/{
+    s,.*/lib\([[^\/]]*\)/.*,\1, 
+    p 
+}'`
+	rm -rf conftest.*
+    fi	
+	
+    if test "$kdelibsuff" = "no" || test "$kdelibsuff" = "none"; then
        kdelibsuff=
     fi
     if test -z "$kdelibsuff"; then
@@ -3119,7 +3530,7 @@ AC_DEFUN([KDE_CHECK_LIB64],
             libdir="$libdir${kdelibsuff}"
             AC_SUBST([libdir], ["$libdir"])  dnl ugly hack for lib64 platforms
         fi
-        AC_DEFINE_UNQUOTED(KDELIBSUFF, ["\"${kdelibsuff}\""], Suffix for lib directories)
+        AC_DEFINE_UNQUOTED(KDELIBSUFF, ["${kdelibsuff}"], Suffix for lib directories)
         AC_MSG_RESULT([using lib directory suffix $kdelibsuff])
     fi
 ])
@@ -3131,6 +3542,7 @@ AC_DEFUN([KDE_CHECK_TYPES],
   AC_CHECK_SIZEOF(char *, 4)dnl
 ])dnl
 
+dnl Not used - kept for compat only?
 AC_DEFUN([KDE_DO_IT_ALL],
 [
 AC_CANONICAL_SYSTEM
@@ -3153,7 +3565,11 @@ AC_ARG_ENABLE(rpath,
 
 if test -z "$KDE_RPATH" && test "$USE_RPATH" = "yes"; then
 
-  KDE_RPATH="-R \$(kde_libraries)"
+  KDE_RPATH="-R \$(libdir)"
+
+  if test "$kde_libraries" != "$libdir"; then
+      KDE_RPATH="$KDE_RPATH -R \$(kde_libraries)"
+  fi
 
   if test -n "$qt_libraries"; then
     KDE_RPATH="$KDE_RPATH -R \$(qt_libraries)"
@@ -3174,40 +3590,56 @@ AC_MSG_RESULT($USE_RPATH)
 ])
 
 dnl Check for the type of the third argument of getsockname
-AC_DEFUN([AC_CHECK_SOCKLEN_T], [
-  AC_MSG_CHECKING(for socklen_t)
-  AC_CACHE_VAL(ac_cv_socklen_t, [
-    AC_LANG_SAVE
-    AC_LANG_CPLUSPLUS
-    AC_TRY_COMPILE([
-#include <sys/types.h>
-#include <sys/socket.h>
-      ],[
-socklen_t a=0;
-getsockname(0,(struct sockaddr*)0, &a);
-      ],
-      ac_cv_socklen_t=socklen_t,
+AC_DEFUN([AC_CHECK_SOCKLEN_T],
+[
+   AC_MSG_CHECKING(for socklen_t)
+   AC_CACHE_VAL(kde_cv_socklen_t,
+   [
+      AC_LANG_PUSH(C++)
+      kde_cv_socklen_t=no
       AC_TRY_COMPILE([
-#include <sys/types.h>
-#include <sys/socket.h>
-        ],[
-int a=0;
-getsockname(0,(struct sockaddr*)0, &a);
-        ],
-        ac_cv_socklen_t=int,
-        ac_cv_socklen_t=size_t
-      )
-    )
-    AC_LANG_RESTORE
-  ])
-
-  AC_MSG_RESULT($ac_cv_socklen_t)
-  if test "$ac_cv_socklen_t" != "socklen_t"; then
-    AC_DEFINE_UNQUOTED(socklen_t, $ac_cv_socklen_t,
-        [Define the real type of socklen_t])
-  fi
-  AC_DEFINE_UNQUOTED(ksize_t, socklen_t, [Compatibility define])
-
+         #include <sys/types.h>
+         #include <sys/socket.h>
+      ],
+      [
+         socklen_t len;
+         getpeername(0,0,&len);
+      ],
+      [
+         kde_cv_socklen_t=yes
+         kde_cv_socklen_t_equiv=socklen_t
+      ])
+      AC_LANG_POP(C++)
+   ])
+   AC_MSG_RESULT($kde_cv_socklen_t)
+   if test $kde_cv_socklen_t = no; then
+      AC_MSG_CHECKING([for socklen_t equivalent for socket functions])
+      AC_CACHE_VAL(kde_cv_socklen_t_equiv,
+      [
+         kde_cv_socklen_t_equiv=int
+         AC_LANG_PUSH(C++)
+         for t in int size_t unsigned long "unsigned long"; do
+            AC_TRY_COMPILE([
+               #include <sys/types.h>
+               #include <sys/socket.h>
+            ],
+            [
+               $t len;
+               getpeername(0,0,&len);
+            ],
+            [
+               kde_cv_socklen_t_equiv="$t"
+               break
+            ])
+         done
+         AC_LANG_POP(C++)
+      ])
+      AC_MSG_RESULT($kde_cv_socklen_t_equiv)
+   fi
+   AC_DEFINE_UNQUOTED(kde_socklen_t, $kde_cv_socklen_t_equiv,
+                     [type to use in place of socklen_t if not defined])
+   AC_DEFINE_UNQUOTED(ksize_t, $kde_cv_socklen_t_equiv,
+                     [type to use in place of socklen_t if not defined (deprecated, use kde_socklen_t)])
 ])
 
 dnl This is a merge of some macros out of the gettext aclocal.m4
@@ -3499,7 +3931,8 @@ AC_DEFUN([AC_HAVE_DPMS],
       ac_save_ldflags="$LDFLAGS"
       ac_save_cflags="$CFLAGS"
       ac_save_libs="$LIBS"
-      LDFLAGS="$LDFLAGS $DPMS_LDFLAGS $all_libraries -lX11 -lXext $LIBSOCKET"
+      LDFLAGS="$LDFLAGS $DPMS_LDFLAGS $all_libraries"
+      LIBS="-lX11 -lXext $LIBSOCKET"
       CFLAGS="$CFLAGS $X_INCLUDES"
       test -n "$DPMS_INCLUDE" && CFLAGS="-I$DPMS_INCLUDE $CFLAGS"
       AC_TRY_LINK([
@@ -3510,12 +3943,7 @@ AC_DEFUN([AC_HAVE_DPMS],
 	  int foo_test_dpms()
 	  { return DPMSSetTimeouts( 0, 0, 0, 0 ); }],[],
 	  ac_cv_have_dpms="yes", [
-              LDFLAGS="$ac_save_ldflags"
-              CFLAGS="$ac_save_cflags"
-              LDFLAGS="$LDFLAGS $DPMS_LDFLAGS $all_libraries -lX11 -lXext $LIBSOCKET"
-              LIBS="$LIBS -lXdpms"
-              CFLAGS="$CFLAGS $X_INCLUDES"
-              test -n "$DPMS_INCLUDE" && CFLAGS="-I$DPMS_INCLUDE $CFLAGS"
+              LIBS="-lXdpms $LIBS"
               AC_TRY_LINK([
 	          #include <X11/Xproto.h>
         	  #include <X11/X.h>
@@ -3564,12 +3992,14 @@ AC_DEFUN([AC_HAVE_DPMS],
    [Define if you have the DPMSCapable prototype in <X11/extensions/dpms.h>])
  AC_CHECK_DECL(DPMSCapable,
    AC_DEFINE(HAVE_DPMSCAPABLE_PROTO),,
-   [#include <X11/extensions/dpms.h>])
+   [#include <X11/Xlib.h>
+   #include <X11/extensions/dpms.h>])
  AH_TEMPLATE(HAVE_DPMSINFO_PROTO,
    [Define if you have the DPMSInfo prototype in <X11/extensions/dpms.h>])
  AC_CHECK_DECL(DPMSInfo,
    AC_DEFINE(HAVE_DPMSINFO_PROTO),,
-   [#include <X11/extensions/dpms.h>])
+   [#include <X11/Xlib.h>
+   #include <X11/extensions/dpms.h>])
  CFLAGS="$ac_save_cflags"
  AC_SUBST(DPMSINC)
  AC_SUBST(DPMSLIB)
@@ -3595,38 +4025,23 @@ AC_DEFUN([AC_HAVE_GL],
    [
     AC_LANG_SAVE
     AC_LANG_CPLUSPLUS
-    ac_save_ldflags="$LDFLAGS"
-    ac_save_cxxflags="$CXXFLAGS"
-    LDFLAGS="$LDFLAGS $GL_LDFLAGS $X_LDFLAGS $all_libraries -lMesaGL -lMesaGLU"
-    test "x$kde_use_qt_mac" != xyes && test "x$kde_use_qt_emb" != xyes && LDFLAGS="$LDFLAGS -lX11"
-    LDFLAGS="$LDFLAGS $LIB_XEXT -lm $LIBSOCKET"
+    ac_save_ldflags=$LDFLAGS
+    ac_save_cxxflags=$CXXFLAGS
+    ac_save_libs=$LIBS
+    LDFLAGS="$LDFLAGS $GL_LDFLAGS $X_LDFLAGS $all_libraries"
+    LIBS="$LIBS -lGL -lGLU"
+    test "x$kde_use_qt_mac" != xyes && test "x$kde_use_qt_emb" != xyes && LIBS="$LIBS -lX11"
+    LIBS="$LIBS $LIB_XEXT -lm $LIBSOCKET"
     CXXFLAGS="$CFLAGS $X_INCLUDES"
     test -n "$GL_INCLUDE" && CFLAGS="-I$GL_INCLUDE $CFLAGS"
     AC_TRY_LINK([#include <GL/gl.h>
 #include <GL/glu.h>
 ], [],
-	ac_cv_have_gl="mesa", ac_cv_have_gl="no")
-    if test "x$ac_cv_have_gl" = "xno"; then
-      LDFLAGS="$ac_save_ldflags $X_LDFLAGS $GL_LDFLAGS $all_libraries -lGLU -lGL"
-      test "x$kde_use_qt_mac" != xyes && test "x$kde_use_qt_emb" != xyes && LDFLAGS="$LDFLAGS -lX11"
-      LDFLAGS="$LDFLAGS $LIB_XEXT -lm $LIBSOCKET"
-      CXXFLAGS="$ac_save_cflags $X_INCLUDES"
-      test -n "$GL_INCLUDE" && CFLAGS="-I$GL_INCLUDE $CFLAGS"
-      AC_TRY_LINK([#include <GL/gl.h>
-#include <GL/glu.h>
-], [],
-	  ac_cv_have_gl="yes", ac_cv_have_gl="no")
-    fi
-    if test "x$ac_cv_have_gl" = "xno"; then
-      LDFLAGS="$ac_save_ldflags -framework OpenGL $all_libraries"
-      AC_TRY_LINK([#include <OpenGL/gl.h>
-#include <OpenGL/glu.h>
-], [],
-        ac_cv_have_gl="mac", ac_cv_have_gl="no")
-    fi
+	ac_cv_have_gl="yes", ac_cv_have_gl="no")
     AC_LANG_RESTORE
-    LDFLAGS="$ac_save_ldflags"
-    CXXFLAGS="$ac_save_cxxflags"
+    LDFLAGS=$ac_save_ldflags
+    CXXFLAGS=$ac_save_cxxflags
+    LIBS=$ac_save_libs
    ])dnl
 
   if test "$ac_cv_have_gl" = "no"; then
@@ -3637,21 +4052,9 @@ AC_DEFUN([AC_HAVE_GL],
   else
     AC_DEFINE(HAVE_GL, 1, [Defines if you have GL (Mesa, OpenGL, ...)])
     if test "$GL_LDFLAGS" = ""; then
-       if test "$ac_cv_have_gl" = "mesa"; then
-          GLLIB='-lMesaGLU -lMesaGL $(LIB_X11)'
-       elif test "$ac_cv_have_gl" = "mac"; then
-          GLLIB='-framework OpenGL'
-       else
-          GLLIB='-lGLU -lGL $(LIB_X11)'
-       fi
+       GLLIB='-lGLU -lGL $(LIB_X11)'
     else
-       if test "$ac_cv_have_gl" = "mesa"; then
-          GLLIB="$GL_LDFLAGS -lMesaGLU -lMesaGL "'$(LIB_X11)'
-       elif test "$ac_cv_have_gl" = "mac"; then
-          GLLIB="$GL_LDFLAGS -framework OpenGL"
-       else
-          GLLIB="$GL_LDFLAGS -lGLU -lGL "'$(LIB_X11)'
-       fi
+       GLLIB="$GL_LDFLAGS -lGLU -lGL "'$(LIB_X11)'
     fi
     if test "$GL_INCLUDE" = ""; then
        GLINC=""
@@ -3950,17 +4353,48 @@ fi
 
 AC_DEFUN([KDE_CHECK_LIBPTHREAD],
 [
+  dnl This code is here specifically to handle the
+  dnl various flavors of threading library on FreeBSD
+  dnl 4-, 5-, and 6-, and the (weird) rules around it.
+  dnl There may be an environment PTHREAD_LIBS that 
+  dnl specifies what to use; otherwise, search for it.
+  dnl -pthread is special cased and unsets LIBPTHREAD
+  dnl below if found.
   LIBPTHREAD=""
 
   if test -n "$PTHREAD_LIBS"; then
-    PTHREAD_LIBS_save="$PTHREAD_LIBS"
-    PTHREAD_LIBS=`echo "$PTHREAD_LIBS_save" | sed -e 's,^-l,,g'`
-    KDE_CHECK_LIB($PTHREAD_LIBS, pthread_create, [LIBPTHREAD="$PTHREAD_LIBS_save"] )
-    PTHREAD_LIBS="$PTHREAD_LIBS_save"
+    if test "x$PTHREAD_LIBS" = "x-pthread" ; then
+      LIBPTHREAD="PTHREAD"
+    else
+      PTHREAD_LIBS_save="$PTHREAD_LIBS"
+      PTHREAD_LIBS=`echo "$PTHREAD_LIBS_save" | sed -e 's,^-l,,g'`
+      AC_MSG_CHECKING([for pthread_create in $PTHREAD_LIBS])
+      KDE_CHECK_LIB($PTHREAD_LIBS, pthread_create, [
+          LIBPTHREAD="$PTHREAD_LIBS_save"])
+      PTHREAD_LIBS="$PTHREAD_LIBS_save"
+    fi
   fi
 
+  dnl Is this test really needed, in the face of the Tru64 test below?
   if test -z "$LIBPTHREAD"; then
-    AC_CHECK_LIB(pthread, pthread_create, [LIBPTHREAD="-lpthread"] )
+    AC_CHECK_LIB(pthread, pthread_create, [LIBPTHREAD="-lpthread"])
+  fi
+
+  dnl This is a special Tru64 check, see BR 76171 issue #18.
+  if test -z "$LIBPTHREAD" ; then
+    AC_MSG_CHECKING([for pthread_create in -lpthread])
+    kde_safe_libs=$LIBS
+    LIBS="$LIBS -lpthread"
+    AC_TRY_LINK([#include <pthread.h>],[(void)pthread_create(0,0,0,0);],[
+        AC_MSG_RESULT(yes)
+        LIBPTHREAD="-lpthread"],[
+	AC_MSG_RESULT(no)])
+    LIBS=$kde_safe_libs
+  fi
+
+  dnl Un-special-case for FreeBSD.
+  if test "x$LIBPTHREAD" = "xPTHREAD" ; then
+    LIBPTHREAD=""
   fi
 
   AC_SUBST(LIBPTHREAD)
@@ -4190,14 +4624,18 @@ fi
 
 AC_DEFUN([KDE_CHECK_PYTHON],
 [
-  KDE_CHECK_PYTHON_INTERN("2.3", 
-   [KDE_CHECK_PYTHON_INTERN("2.2", 
-     [KDE_CHECK_PYTHON_INTERN("2.1", 
-       [KDE_CHECK_PYTHON_INTERN("2.0", 
-         [KDE_CHECK_PYTHON_INTERN($1, $2) ])
+  KDE_CHECK_PYTHON_INTERN("2.5",
+    [KDE_CHECK_PYTHON_INTERN("2.4",
+     [KDE_CHECK_PYTHON_INTERN("2.3", 
+       [KDE_CHECK_PYTHON_INTERN("2.2", 
+         [KDE_CHECK_PYTHON_INTERN("2.1", 
+           [KDE_CHECK_PYTHON_INTERN("2.0", 
+             [KDE_CHECK_PYTHON_INTERN($1, $2) ])
+           ])
+         ])
        ])
      ])
-   ])
+  ])
 ])
 
 AC_DEFUN([KDE_CHECK_STL],
@@ -4229,7 +4667,7 @@ using namespace std;
    else
 	 AC_MSG_ERROR([Your Installation isn't able to compile simple C++ programs.
 Check config.log for details - if you're using a Linux distribution you might miss
-a package named similiar to libstd++-dev.])
+a package named similar to libstdc++-dev.])
    fi
 
    CXXFLAGS="$ac_save_CXXFLAGS"
@@ -4321,10 +4759,10 @@ AC_DEFUN([KDE_CREATE_SUBDIRSLIST],
 [
 
 DO_NOT_COMPILE="$DO_NOT_COMPILE CVS debian bsd-port admin"
+TOPSUBDIRS=""
 
 if test ! -s $srcdir/subdirs; then
   dnl Note: Makefile.common creates subdirs, so this is just a fallback
-  TOPSUBDIRS=""
   files=`cd $srcdir && ls -1`
   dirs=`for i in $files; do if test -d $i; then echo $i; fi; done`
   for i in $dirs; do
@@ -4352,7 +4790,7 @@ for i in $ac_topsubdirs; do
     install_it="no"
   fi
   AC_MSG_RESULT($install_it)
-  vari=`echo $i | sed -e 's,[[-+.]],_,g'`
+  vari=`echo $i | sed -e 's,[[-+.@]],_,g'`
   if test $install_it = "yes"; then
     TOPSUBDIRS="$TOPSUBDIRS $i"
     eval "$vari""_SUBDIR_included=yes"
@@ -4465,13 +4903,13 @@ AC_DEFINE_UNQUOTED(KDEMAXPATHLEN,$ac_cv_maxpathlen, [Define a safe value for MAX
 
 AC_DEFUN([KDE_CHECK_HEADER],
 [
-   AC_LANG_SAVE
    kde_safe_cppflags=$CPPFLAGS
    CPPFLAGS="$CPPFLAGS $all_includes"
+   AC_LANG_SAVE
    AC_LANG_CPLUSPLUS
    AC_CHECK_HEADER([$1], [$2], [$3], [$4])
-   CPPFLAGS=$kde_safe_cppflags
    AC_LANG_RESTORE
+   CPPFLAGS=$kde_safe_cppflags
 ])
 
 AC_DEFUN([KDE_CHECK_HEADERS],
@@ -4508,7 +4946,10 @@ AC_DEFUN([KDE_CONF_FILES],
   AC_SUBST(CONF_FILES)
 ])dnl
 
-AC_DEFUN([KDE_SET_PREFIX],
+dnl This sets the prefix, for arts and kdelibs
+dnl Do NOT use in any other module.
+dnl It only looks at --prefix, KDEDIR and falls back to /usr/local/kde
+AC_DEFUN([KDE_SET_PREFIX_CORE],
 [
   unset CDPATH
   dnl make $KDEDIR the default for the installation
@@ -4521,6 +4962,63 @@ AC_DEFUN([KDE_SET_PREFIX],
   # And delete superfluous '/' to make compares easier
   prefix=`echo "$prefix" | sed 's,//*,/,g' | sed -e 's,/$,,'`
   exec_prefix=`echo "$exec_prefix" | sed 's,//*,/,g' | sed -e 's,/$,,'`
+
+  kde_libs_prefix='$(prefix)'
+  kde_libs_htmldir='$(kde_htmldir)'
+  AC_SUBST(kde_libs_prefix)
+  AC_SUBST(kde_libs_htmldir)
+  KDE_FAST_CONFIGURE
+  KDE_CONF_FILES
+])
+
+
+AC_DEFUN([KDE_SET_PREFIX],
+[
+  unset CDPATH
+  dnl We can't give real code to that macro, only a value.
+  dnl It only matters for --help, since we set the prefix in this function anyway.
+  AC_PREFIX_DEFAULT(${KDEDIR:-the kde prefix})
+
+  KDE_SET_DEFAULT_BINDIRS
+  if test "x$prefix" = "xNONE"; then
+    dnl no prefix given: look for kde-config in the PATH and deduce the prefix from it
+    KDE_FIND_PATH(kde-config, KDECONFIG, [$kde_default_bindirs], [KDE_MISSING_PROG_ERROR(kde-config)], [], prepend)
+  else
+    dnl prefix given: look for kde-config, preferrably in prefix, otherwise in PATH
+    kde_save_PATH="$PATH"
+    PATH="$exec_prefix/bin:$prefix/bin:$PATH"
+    KDE_FIND_PATH(kde-config, KDECONFIG, [$kde_default_bindirs], [KDE_MISSING_PROG_ERROR(kde-config)], [], prepend)
+    PATH="$kde_save_PATH"
+  fi
+
+  kde_libs_prefix=`$KDECONFIG --prefix`
+  if test -z "$kde_libs_prefix" || test ! -x "$kde_libs_prefix"; then
+       AC_MSG_ERROR([$KDECONFIG --prefix outputed the non existant prefix '$kde_libs_prefix' for kdelibs.
+                    This means it has been moved since you installed it.
+                    This won't work. Please recompile kdelibs for the new prefix.
+                    ])
+  fi
+  kde_libs_htmldir=`$KDECONFIG --install html --expandvars`
+
+  AC_MSG_CHECKING([where to install])
+  if test "x$prefix" = "xNONE"; then
+    prefix=$kde_libs_prefix
+    AC_MSG_RESULT([$prefix (as returned by kde-config)])
+  else
+    dnl --prefix was given. Compare prefixes and warn (in configure.in.bot.end) if different
+    given_prefix=$prefix
+    AC_MSG_RESULT([$prefix (as requested)])
+  fi
+
+  # And delete superfluous '/' to make compares easier
+  prefix=`echo "$prefix" | sed 's,//*,/,g' | sed -e 's,/$,,'`
+  exec_prefix=`echo "$exec_prefix" | sed 's,//*,/,g' | sed -e 's,/$,,'`
+  given_prefix=`echo "$given_prefix" | sed 's,//*,/,g' | sed -e 's,/$,,'`
+
+  AC_SUBST(KDECONFIG)
+  AC_SUBST(kde_libs_prefix)
+  AC_SUBST(kde_libs_htmldir)
+
   KDE_FAST_CONFIGURE
   KDE_CONF_FILES
 ])
@@ -4717,9 +5215,10 @@ else
       for dir in $javadirs; do
           dnl Check for the java executable
 	  if test -x "$dir/java"; then
+	      sane_path=$(cd $dir; /bin/pwd)
 	      dnl And also check for a libjvm.so somewhere under there
 	      dnl Since we have to go to the parent dir, /usr/bin is excluded, /usr is too big.
-              if test "$dir" != "/usr/bin"; then
+              if test "$sane_path" != "/usr/bin"; then
                   libjvmdir=`find $dir/.. -name libjvm.so | sed 's,libjvm.so,,'|head -n 1`
 		  if test ! -f $libjvmdir/libjvm.so; then continue; fi
 		  jredirs="$jredirs $dir"
@@ -4876,7 +5375,7 @@ elif test -d "/Library/Java/Home"; then
   JAVAC=$kde_java_bindir/javac
   JAVAH=$kde_java_bindir/javah
   JAR=$kde_java_bindir/jar
-  JVMLIBS="-Xlinker -framework -Xlinker JavaVM"
+  JVMLIBS="-Wl,-framework,JavaVM"
 
   AC_DEFINE_UNQUOTED(PATH_JAVA, "$kde_java_bindir/java", [Define where your java executable is])
   AC_MSG_RESULT([Apple Java Framework])
@@ -5397,36 +5896,90 @@ We need perl to generate some code.])
 	])
     AC_SUBST(PERL)
 ])
-# libtool.m4 - Configure libtool for the host system. -*-Autoconf-*-
 
-m4_define([_LT_COPYING], [dnl
-# Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2003, 2004
-# Free Software Foundation, Inc.
-#
-# This file is part of GNU Libtool:
-# Originally by Gordon Matzigkeit <gord@gnu.ai.mit.edu>, 1996
-#
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
-#
-# As a special exception to the GNU General Public License, if you
-# distribute this file as part of a program that contains a
-# configuration script generated by Autoconf, you may include it under
-# the same distribution terms that you use for the rest of that program.
+AC_DEFUN([KDE_CHECK_LARGEFILE],
+[
+AC_SYS_LARGEFILE
+if test "$ac_cv_sys_file_offset_bits" != no; then
+  CPPFLAGS="$CPPFLAGS -D_FILE_OFFSET_BITS=$ac_cv_sys_file_offset_bits"
+fi
+
+if test "x$ac_cv_sys_large_files" != "xno"; then
+  CPPFLAGS="$CPPFLAGS -D_LARGE_FILES=1"
+fi
+
 ])
 
-# serial 49 AC_PROG_LIBTOOL
+dnl A small extension to PKG_CHECK_MODULES (defined in pkg.m4.in)
+dnl which allows to search for libs that get installed into the KDE prefix.
+dnl
+dnl Syntax:  KDE_PKG_CHECK_MODULES(KSTUFF, libkexif >= 0.2 glib = 1.3.4, action-if, action-not)
+dnl defines KSTUFF_LIBS, KSTUFF_CFLAGS, see pkg-config man page
+dnl also defines KSTUFF_PKG_ERRORS on error
+AC_DEFUN([KDE_PKG_CHECK_MODULES], [
+
+   PKG_CONFIG_PATH="$prefix/lib${kdelibsuff}/pkgconfig:$PKG_CONFIG_PATH"
+   if test "$prefix" != "$kde_libs_prefix"; then
+       PKG_CONFIG_PATH="$kde_libs_prefix/lib${kdelibsuff}/pkgconfig:$PKG_CONFIG_PATH"
+   fi
+   export PKG_CONFIG_PATH
+   PKG_CHECK_MODULES([$1],[$2],[$3],[$4])
+])
+
+
+dnl Check for PIE support in the compiler and linker
+AC_DEFUN([KDE_CHECK_PIE_SUPPORT],
+[
+  AC_CACHE_CHECK([for PIE support], kde_cv_val_pie_support,
+  [
+    AC_LANG_SAVE
+    AC_LANG_CPLUSPLUS
+    safe_CXXFLAGS=$CXXFLAGS
+    safe_LDFLAGS=$LDFLAGS
+    CXXFLAGS="$CXXFLAGS -fPIE"
+    LDFLAGS="$LDFLAGS -pie"
+
+    AC_TRY_LINK([int foo;], [], [kde_cv_val_pie_support=yes], [kde_cv_val_pie_support=no])
+
+    CXXFLAGS=$safe_CXXFLAGS
+    LDFLAGS=$safe_LDFLAGS
+    AC_LANG_RESTORE
+  ])
+
+  AC_MSG_CHECKING(if enabling -pie/fPIE support)
+
+  AC_ARG_ENABLE(pie,
+    AC_HELP_STRING([--enable-pie],[platform supports PIE linking [default=detect]]),
+      [kde_has_pie_support=$enableval],
+      [kde_has_pie_support=detect])
+
+  if test "$kde_has_pie_support" = "detect"; then
+    kde_has_pie_support=$kde_cv_val_pie_support
+  fi
+
+  AC_MSG_RESULT([$kde_has_pie_support])
+
+  KDE_USE_FPIE=""
+  KDE_USE_PIE=""
+
+  AC_SUBST([KDE_USE_FPIE])
+  AC_SUBST([KDE_USE_PIE])
+
+  if test "$kde_has_pie_support" = "yes"; then
+    KDE_USE_FPIE="-fPIE"
+    KDE_USE_PIE="-pie"
+  fi
+])
+# libtool.m4 - Configure libtool for the host system. -*-Autoconf-*-
+## Copyright 1996, 1997, 1998, 1999, 2000, 2001, 2003, 2004, 2005
+## Free Software Foundation, Inc.
+## Originally by Gordon Matzigkeit <gord@gnu.ai.mit.edu>, 1996
+##
+## This file is free software; the Free Software Foundation gives
+## unlimited permission to copy and/or distribute it, with or without
+## modifications, as long as this notice is preserved.
+
+# serial 48 AC_PROG_LIBTOOL
 
 
 # AC_PROVIDE_IFELSE(MACRO-NAME, IF-PROVIDED, IF-NOT-PROVIDED)
@@ -5438,24 +5991,52 @@ m4_ifdef([AC_PROVIDE_IFELSE],
 	         [m4_ifdef([AC_PROVIDE_$1],
 		           [$2], [$3])])])
 
+
 # AC_PROG_LIBTOOL
 # ---------------
 AC_DEFUN([AC_PROG_LIBTOOL],
 [AC_REQUIRE([_AC_PROG_LIBTOOL])dnl
-]) # AC_PROG_LIBTOOL
+dnl If AC_PROG_CXX has already been expanded, run AC_LIBTOOL_CXX
+dnl immediately, otherwise, hook it in at the end of AC_PROG_CXX.
+  AC_PROVIDE_IFELSE([AC_PROG_CXX],
+    [AC_LIBTOOL_CXX],
+    [define([AC_PROG_CXX], defn([AC_PROG_CXX])[AC_LIBTOOL_CXX
+  ])])
+dnl And a similar setup for Fortran 77 support
+  AC_PROVIDE_IFELSE([AC_PROG_F77],
+    [AC_LIBTOOL_F77],
+    [define([AC_PROG_F77], defn([AC_PROG_F77])[AC_LIBTOOL_F77
+])])
+
+dnl Quote A][M_PROG_GCJ so that aclocal doesn't bring it in needlessly.
+dnl If either AC_PROG_GCJ or A][M_PROG_GCJ have already been expanded, run
+dnl AC_LIBTOOL_GCJ immediately, otherwise, hook it in at the end of both.
+  AC_PROVIDE_IFELSE([AC_PROG_GCJ],
+    [AC_LIBTOOL_GCJ],
+    [AC_PROVIDE_IFELSE([A][M_PROG_GCJ],
+      [AC_LIBTOOL_GCJ],
+      [AC_PROVIDE_IFELSE([LT_AC_PROG_GCJ],
+	[AC_LIBTOOL_GCJ],
+      [ifdef([AC_PROG_GCJ],
+	     [define([AC_PROG_GCJ], defn([AC_PROG_GCJ])[AC_LIBTOOL_GCJ])])
+       ifdef([A][M_PROG_GCJ],
+	     [define([A][M_PROG_GCJ], defn([A][M_PROG_GCJ])[AC_LIBTOOL_GCJ])])
+       ifdef([LT_AC_PROG_GCJ],
+	     [define([LT_AC_PROG_GCJ],
+		defn([LT_AC_PROG_GCJ])[AC_LIBTOOL_GCJ])])])])
+])])# AC_PROG_LIBTOOL
 
 
 # _AC_PROG_LIBTOOL
 # ----------------
 AC_DEFUN([_AC_PROG_LIBTOOL],
 [AC_REQUIRE([AC_LIBTOOL_SETUP])dnl
-AC_REQUIRE([_LT_PROG_LTMAIN])dnl
 AC_BEFORE([$0],[AC_LIBTOOL_CXX])dnl
 AC_BEFORE([$0],[AC_LIBTOOL_F77])dnl
 AC_BEFORE([$0],[AC_LIBTOOL_GCJ])dnl
 
 # This can be used to rebuild libtool when needed
-LIBTOOL_DEPS="$ltmain"
+LIBTOOL_DEPS="$ac_aux_dir/ltmain.sh"
 
 # Always use our own libtool.
 LIBTOOL='$(SHELL) $(top_builddir)/libtool'
@@ -5466,74 +6047,29 @@ define([AC_PROG_LIBTOOL], [])
 ])# _AC_PROG_LIBTOOL
 
 
-# _LT_PROG_LTMAIN
-# ---------------
-# In libtool itself `ltmain.sh' is in the build tree, but everything else
-# ships it in the source tree, for completeness, if we find a copy in the
-# build tree use that before falling back to auxdir.
-#
-# Note that this code is called both from `configure', and `config.status'
-# now that we use AC_CONFIG_COMMANDS to generate libtool.  Notably,
-# `config.status' has no value for ac_aux_dir unless we are using Automake,
-# so we pass a copy along to make sure it has a sensible value anyway.
-AC_DEFUN([_LT_PROG_LTMAIN],
-[_LT_CONFIG_LIBTOOL_INIT([ac_aux_dir='$ac_aux_dir'])
-case $ac_aux_dir in
-  $srcdir)   ltmain=./ltmain.sh ;;
-  $srcdir/*) ltmain=`expr "$ac_aux_dir" : "$srcdir/\(.*\)"`/ltmain.sh ;;
-esac
-test -f "$ltmain" || ltmain="$ac_aux_dir/ltmain.sh"
-])# _LT_PROG_LTMAIN
-
-
 # AC_LIBTOOL_SETUP
 # ----------------
 AC_DEFUN([AC_LIBTOOL_SETUP],
-[AC_PREREQ(2.56)dnl We use the new compiler based header checking in 2.56
-AC_REQUIRE([LTSUGAR_VERSION])dnl
+[AC_PREREQ(2.50)dnl
+AC_REQUIRE([AC_ENABLE_SHARED])dnl
+AC_REQUIRE([AC_ENABLE_STATIC])dnl
+AC_REQUIRE([AC_ENABLE_FAST_INSTALL])dnl
 AC_REQUIRE([AC_CANONICAL_HOST])dnl
 AC_REQUIRE([AC_CANONICAL_BUILD])dnl
-_LT_DECL([], [host_alias], [0], [The host system])dnl
-_LT_DECL([], [host], [0])dnl
-
 AC_REQUIRE([AC_PROG_CC])dnl
 AC_REQUIRE([AC_PROG_LD])dnl
 AC_REQUIRE([AC_PROG_LD_RELOAD_FLAG])dnl
 AC_REQUIRE([AC_PROG_NM])dnl
 
 AC_REQUIRE([AC_PROG_LN_S])dnl
-test -z "$LN_S" && LN_S="ln -s"
-_LT_DECL([], [LN_S], [1], [Whether we need soft or hard links])dnl
-
-AC_REQUIRE([AC_PROG_EGREP])dnl
-_LT_DECL([], [EGREP], [1], [An ERE matcher])dnl
-
 AC_REQUIRE([AC_DEPLIBS_CHECK_METHOD])dnl
-AC_REQUIRE([AC_LIBTOOL_SYS_OLD_ARCHIVE])dnl
-AC_REQUIRE([AC_LIBTOOL_SYS_MAX_CMD_LEN])dnl
-AC_REQUIRE([AC_LIBTOOL_SYS_GLOBAL_SYMBOL_PIPE])dnl
-
 # Autoconf 2.13's AC_OBJEXT and AC_EXEEXT macros only works for C compilers!
 AC_REQUIRE([AC_OBJEXT])dnl
-_LT_DECL([objext], [ac_objext], [0], [Object file suffix (normally "o")])dnl
 AC_REQUIRE([AC_EXEEXT])dnl
-_LT_DECL([], [exeext], [0], [Executable file suffix (normally "")])dnl
 dnl
 
-_LT_CONFIG_LIBTOOL_INIT([
-# See if we are running on zsh, and set the options which allow our
-# commands through without removal of \ escapes INIT.
-if test -n "\${ZSH_VERSION+set}" ; then
-   setopt NO_GLOB_SUBST
-fi
-])
-if test -n "${ZSH_VERSION+set}" ; then
-   setopt NO_GLOB_SUBST
-fi
-
-AC_ENABLE_SHARED
-AC_ENABLE_STATIC
-AC_ENABLE_FAST_INSTALL
+AC_LIBTOOL_SYS_MAX_CMD_LEN
+AC_LIBTOOL_SYS_GLOBAL_SYMBOL_PIPE
 AC_LIBTOOL_OBJDIR
 
 AC_REQUIRE([_LT_AC_SYS_COMPILER])dnl
@@ -5553,7 +6089,7 @@ esac
 
 # Sed substitution that helps us do robust quoting.  It backslashifies
 # metacharacters that are still active within double-quoted strings.
-Xsed='sed -e s/^X//'
+Xsed='sed -e 1s/^X//'
 [sed_quote_subst='s/\([\\"\\`$\\\\]\)/\\\1/g']
 
 # Same as above, but do not quote variable references.
@@ -5563,9 +6099,6 @@ Xsed='sed -e s/^X//'
 # double_quote_subst'ed string.
 delay_variable_subst='s/\\\\\\\\\\\$/\\\\\\$/g'
 
-# Sed substitution to delay expansion of an escaped single quote.
-delay_single_quote_subst='s/'\''/'\'\\\\\\\'\''/g'
-
 # Sed substitution to avoid accidental globbing in evaled expressions
 no_glob_subst='s/\*/\\\*/g'
 
@@ -5574,26 +6107,60 @@ rm="rm -f"
 
 # Global variables:
 default_ofile=libtool
-ofile="$default_ofile"
 can_build_shared=yes
 
-# All known linkers require a `.a' archive for static linking (except M$VC,
+# All known linkers require a `.a' archive for static linking (except MSVC,
 # which needs '.lib').
 libext=a
-
+ltmain="$ac_aux_dir/ltmain.sh"
+ofile="$default_ofile"
 with_gnu_ld="$lt_cv_prog_gnu_ld"
+
+AC_CHECK_TOOL(AR, ar, false)
+AC_CHECK_TOOL(RANLIB, ranlib, :)
+AC_CHECK_TOOL(STRIP, strip, :)
 
 old_CC="$CC"
 old_CFLAGS="$CFLAGS"
 
 # Set sane defaults for various variables
+test -z "$AR" && AR=ar
+test -z "$AR_FLAGS" && AR_FLAGS=cru
+test -z "$AS" && AS=as
 test -z "$CC" && CC=cc
 test -z "$LTCC" && LTCC=$CC
+test -z "$LTCFLAGS" && LTCFLAGS=$CFLAGS
+test -z "$DLLTOOL" && DLLTOOL=dlltool
 test -z "$LD" && LD=ld
+test -z "$LN_S" && LN_S="ln -s"
+test -z "$MAGIC_CMD" && MAGIC_CMD=file
+test -z "$NM" && NM=nm
+test -z "$SED" && SED=sed
+test -z "$OBJDUMP" && OBJDUMP=objdump
+test -z "$RANLIB" && RANLIB=:
+test -z "$STRIP" && STRIP=:
 test -z "$ac_objext" && ac_objext=o
 
+# Determine commands to create old-style static archives.
+old_archive_cmds='$AR $AR_FLAGS $oldlib$oldobjs$old_deplibs'
+old_postinstall_cmds='chmod 644 $oldlib'
+old_postuninstall_cmds=
+
+if test -n "$RANLIB"; then
+  case $host_os in
+  openbsd*)
+    old_postinstall_cmds="$old_postinstall_cmds~\$RANLIB -t \$oldlib"
+    ;;
+  *)
+    old_postinstall_cmds="$old_postinstall_cmds~\$RANLIB \$oldlib"
+    ;;
+  esac
+  old_archive_cmds="$old_archive_cmds~\$RANLIB \$oldlib"
+fi
+
+_LT_CC_BASENAME([$compiler])
+
 # Only perform the check for file, if the check method requires it
-test -z "$MAGIC_CMD" && MAGIC_CMD=file
 case $deplibs_check_method in
 file_magic*)
   if test "$file_magic_cmd" = '$MAGIC_CMD'; then
@@ -5617,346 +6184,12 @@ AC_ARG_WITH([pic],
     [pic_mode="$withval"],
     [pic_mode=default])
 test -z "$pic_mode" && pic_mode=default
-_LT_DECL([], [pic_mode], [0], [What type of objects to build])
 
 # Use C for the default configuration in the libtool script
+tagname=
 AC_LIBTOOL_LANG_C_CONFIG
-_LT_AC_TAG_CONFIG
-_LT_CONFIG_COMMANDS
+_LT_AC_TAGCONFIG
 ])# AC_LIBTOOL_SETUP
-
-
-
-
-## ------------------------------------- ##
-## Accumulate code for creating libtool. ##
-## ------------------------------------- ##
-
-# So that we can recreate a full libtool script including additional
-# tags, we accumulate the chunks of code to send to AC_CONFIG_COMMANDS
-# in macros and then make a single call at the end using the `libtool'
-# label.
-
-# _LT_CONFIG_LIBTOOL_INIT([INIT-COMMANDS])
-# ----------------------------------------
-# Register INIT-COMMANDS to be passed to AC_CONFIG_COMMANDS later.
-m4_define([_LT_CONFIG_LIBTOOL_INIT],
-[m4_ifval([$1],
-          [m4_append([_LT_OUTPUT_LIBTOOL_INIT],
-                     [$1
-])])])
-
-# Initialize.
-m4_define([_LT_OUTPUT_LIBTOOL_INIT])
-
-# _LT_CONFIG_LIBTOOL([COMMANDS])
-# ------------------------------
-# Register COMMANDS to be passed to AC_CONFIG_COMMANDS later.
-m4_define([_LT_CONFIG_LIBTOOL],
-[m4_ifval([$1],
-          [m4_append([_LT_OUTPUT_LIBTOOL_COMMANDS],
-                     [$1
-])])])
-
-# Initialize.
-m4_define([_LT_OUTPUT_LIBTOOL_COMMANDS])
-
-
-# _LT_CONFIG_SAVE_COMMANDS([COMMANDS], [INIT_COMMANDS])
-# ---------------------------------------------------
-m4_define([_LT_CONFIG_SAVE_COMMANDS],
-[_LT_CONFIG_LIBTOOL([$1])
-_LT_CONFIG_LIBTOOL_INIT([$2])
-])
-
-
-# _LT_FORMAT_COMMENT([COMMENT])
-# -----------------------------
-# Add leading comment marks to the start of each line, and a trailing
-# full-stop to the whole comment if one is not present already.
-m4_define([_LT_FORMAT_COMMENT],
-[m4_ifval([$1], [
-m4_bpatsubst([$1], [^ *], [# ])]m4_bmatch([$1], [[!?.]$], [], [.])
-)])
-
-
-
-## ------------------------ ##
-## FIXME: Eliminate VARNAME ##
-## ------------------------ ##
-
-# _LT_DECL([CONFIGNAME], VARNAME, VALUE, [DESCRIPTION], [IS-TAGGED?])
-# -------------------------------------------------------------------
-# CONFIGNAME is the name given to the value in the libtool script.
-# VARNAME is the (base) name used in the configure script.
-# VALUE may be 0, 1 or 2 for a computed quote escaped value based on
-# VARNAME.  Any other value will be used directly.
-m4_define([_LT_DECL],
-[lt_if_append_uniq([lt_decl_varnames], [$2], [[, ]],
-    [lt_dict_add_subkey([lt_decl_dict], [$2], [libtool_name],
-	[m4_ifval([$1], [$1], [$2])])
-    lt_dict_add_subkey([lt_decl_dict], [$2], [value], [$3])
-    m4_ifval([$4],
-	[lt_dict_add_subkey([lt_decl_dict], [$2], [description], [$4])])
-    lt_dict_add_subkey([lt_decl_dict], [$2],
-	[tagged?], [m4_ifval([$5], [yes], [no])])])
-])
-
-
-# _LT_TAGDECL([CONFIGNAME], VARNAME, VALUE, [DESCRIPTION])
-# --------------------------------------------------------
-m4_define([_LT_TAGDECL], [_LT_DECL([$1], [$2], [$3], [$4], [yes])])
-
-
-# lt_decl_tag_varnames([SEPARATOR], [VARNAME1...])
-# -------------------------------------------------
-m4_define([lt_decl_tag_varnames],
-[_lt_decl_filter([tagged?], [yes], $@)])
-m4_define([_lt_decl_filter],
-[m4_case([$#],
-  [0], [m4_fatal([$0: too few arguments: $#])],
-  [1], [m4_fatal([$0: too few arguments: $#: $1])],
-  [2], [lt_dict_filter([lt_decl_dict], [$1], [$2], [], lt_decl_varnames)],
-  [3], [lt_dict_filter([lt_decl_dict], [$1], [$2], [$3], lt_decl_varnames)],
-  [lt_dict_filter([lt_decl_dict], $@)])[]dnl
-])
-
-
-# lt_decl_quote_varnames([SEPARATOR], [VARNAME1...])
-# ---------------------------------------------------
-m4_define([lt_decl_quote_varnames],
-[_lt_decl_filter([value], [1], $@)])
-
-# lt_decl_dquote_varnames([SEPARATOR], [VARNAME1...])
-# ----------------------------------------------------
-m4_define([lt_decl_dquote_varnames],
-[_lt_decl_filter([value], [2], $@)])
-
-
-# lt_decl_varnames_tagged([SEPARATOR], [VARNAME1...])
-# ----------------------------------------------------
-m4_define([lt_decl_varnames_tagged],
-[_$0(m4_quote(m4_default([$1], [[, ]])),
-     m4_quote(m4_if([$2], [],
-		     m4_quote(lt_decl_tag_varnames),
-		  m4_quote(m4_shift($@)))),
-     m4_split(m4_normalize(m4_quote(_LT_TAGS))))])
-m4_define([_lt_decl_varnames_tagged], [lt_combine([$1], [$2], [_], $3)])
-
-
-# lt_decl_all_varnames([SEPARATOR], [VARNAME1...])
-# ------------------------------------------------
-m4_define([lt_decl_all_varnames],
-[_$0(m4_quote(m4_default([$1], [[, ]])),
-     m4_if([$2], [],
-	   m4_quote(lt_decl_varnames),
-	m4_quote(m4_shift($@))))[]dnl
-])
-m4_define([_lt_decl_all_varnames],
-[lt_join($@, lt_decl_varnames_tagged([$1],
-			lt_decl_tag_varnames([[, ]], m4_shift($@))))dnl
-])
-
-
-# _LT_CONFIG_STATUS_DECLARE([VARNAME])
-# ------------------------------------
-# Quote a variable value, and forward it to `config.status' so that its
-# declaration there will have the same value as in `configure'.  VARNAME
-# must have a single quote delimited value for this to work.
-m4_define([_LT_CONFIG_STATUS_DECLARE],
-[$1='`echo "X$][$1" | $Xsed -e "$delay_single_quote_subst"`'])
-
-
-# _LT_CONFIG_STATUS_DECLARATIONS
-# ------------------------------
-# We delimit libtool config variables with single quotes, so when
-# we write them to config.status, we have to be sure to quote all
-# embedded single quotes properly.  In configure, this macro expands
-# each variable declared with _LT_DECL (and _LT_TAGDECL) into:
-#
-#    <var>='`echo "X$<var>" | $Xsed -e "$delay_single_quote_subst"`'
-m4_define([_LT_CONFIG_STATUS_DECLARATIONS],
-[m4_foreach([_lt_var], m4_quote(lt_decl_all_varnames),
-    [m4_n([_LT_CONFIG_STATUS_DECLARE(_lt_var)])])])
-
-
-# _LT_LIBTOOL_DECLARE(VARNAME, [TAG])
-# -----------------------------------
-# Extract the dictionary values for VARNAME (optionally with TAG) and
-# expand to a commented shell variable setting:
-#
-#    # Some comment about what VAR is for.
-#    visible_name=$lt_internal_name
-m4_define([_LT_LIBTOOL_DECLARE],
-[_LT_FORMAT_COMMENT(m4_quote(lt_dict_fetch([lt_decl_dict], [$1],
-					   [description])))[]dnl
-m4_pushdef([_libtool_name],
-    m4_quote(lt_dict_fetch([lt_decl_dict], [$1], [libtool_name])))[]dnl
-m4_case(m4_quote(lt_dict_fetch([lt_decl_dict], [$1], [value])),
-    [0], [_libtool_name=[$]$1],
-    [1], [_libtool_name=$lt_[]$1],
-    [2], [_libtool_name=$lt_[]$1],
-    [_libtool_name=lt_dict_fetch([lt_decl_dict], [$1], [value])])[]dnl
-m4_ifval([$2], [_$2])[]m4_popdef([_libtool_name])[]dnl
-])
-
-# _LT_LIBTOOL_CONFIG_VARS
-# -----------------------
-# Produce commented declarations of non-tagged libtool config variables
-# suitable for insertion in the LIBTOOL CONFIG section of the `libtool'
-# script.  Tagged libtool config variables (even for the LIBTOOL CONFIG
-# section) are produced by _LT_LIBTOOL_TAG_VARS.
-m4_define([_LT_LIBTOOL_CONFIG_VARS],
-[m4_foreach([_lt_var],
-    m4_quote(_lt_decl_filter([tagged?], [no], [], lt_decl_varnames)),
-    [m4_n([_LT_LIBTOOL_DECLARE(_lt_var)])])])
-
-# _LT_LIBTOOL_TAG_VARS(TAG)
-# -------------------------
-m4_define([_LT_LIBTOOL_TAG_VARS],
-[m4_foreach([_lt_var], m4_quote(lt_decl_tag_varnames),
-    [m4_n([_LT_LIBTOOL_DECLARE(_lt_var, [$1])])])])
-
-
-# _LT_AC_TAGVAR(VARNAME, [TAGNAME])
-# ---------------------------------
-m4_define([_LT_AC_TAGVAR], [m4_ifval([$2], [$1_$2], [$1])])
-
-
-# _LT_CONFIG_COMMANDS
-# -------------------
-# Send accumulated output to $CONFIG_STATUS.  Thanks to the lists of
-# variables for single and double quote escaping we saved from calls
-# to _LT_DECL, we can put quote escaped variables declarations
-# into `config.status', and then the shell code to quote escape them in
-# for loops in `config.status'.  Finally, any additional code accumulated
-# from calls to _LT_CONFIG_LIBTOOL_INIT is expanded.
-m4_define([_LT_CONFIG_COMMANDS],
-[AC_CONFIG_COMMANDS([libtool], [_LT_OUTPUT_LIBTOOL_COMMANDS], [
-
-# The HP-UX ksh and POSIX shell print the target directory to stdout
-# if CDPATH is set.
-if test "X${CDPATH+set}" = Xset; then CDPATH=${ZSH_VERSION+.}:; export CDPATH; fi
-
-sed_quote_subst='$sed_quote_subst'
-double_quote_subst='$double_quote_subst'
-delay_variable_subst='$delay_variable_subst'
-_LT_CONFIG_STATUS_DECLARATIONS
-LTCC='$LTCC'
-compiler='$compiler_DEFAULT'
-
-# Quote evaled strings.
-for var in lt_decl_all_varnames([[ ]], lt_decl_quote_varnames); do
-    eval "lt_\$var=\\\\\\"\\\`\\\$echo \\"X\\\$\$var\\" | \\\$Xsed -e \\"\\\$sed_quote_subst\\"\\\`\\\\\\""
-done
-
-# Double-quote double-evaled strings.
-for var in lt_decl_all_varnames([[ ]], lt_decl_dquote_varnames); do
-    eval "lt_\$var=\\\\\\"\\\`\\\$echo \\"X\\\$\$var\\" | \\\$Xsed -e \\"\\\$double_quote_subst\\" -e \\"\\\$sed_quote_subst\\" -e \\"\\\$delay_variable_subst\\"\\\`\\\\\\""
-done
-
-# Fix-up fallback echo if it was mangled by the above quoting rules.
-case \$lt_echo in
-*'\\\[$]0 --fallback-echo"')dnl "
-  lt_echo=\`\$echo "X\$lt_echo" | \$Xsed -e 's/\\\\\\\\\\\\\\\[$]0 --fallback-echo"\[$]/\[$]0 --fallback-echo"/'\`
-  ;;
-esac
-
-_LT_OUTPUT_LIBTOOL_INIT
-])
-])#_LT_CONFIG_COMMANDS
-
-
-# AC_LIBTOOL_CONFIG([TAGNAME])
-# ----------------------------
-# If TAGNAME is not passed, then create an initial libtool script
-# with a default configuration from the untagged config vars.  Otherwise
-# add code to config.status for appending the configuration named by
-# TAGNAME from the matching tagged config vars.
-m4_define([AC_LIBTOOL_CONFIG],
-[_LT_CONFIG_SAVE_COMMANDS([
-  m4_define([_LT_TAG], m4_if([$1], [], [C], [$1]))dnl
-  m4_if(_LT_TAG, [C], [
-    # See if we are running on zsh, and set the options which allow our
-    # commands through without removal of \ escapes.
-    if test -n "${ZSH_VERSION+set}" ; then
-      setopt NO_GLOB_SUBST
-    fi
-
-    cfgfile="${ofile}T"
-    trap "$rm \"$cfgfile\"; exit 1" 1 2 15
-    $rm -f "$cfgfile"
-
-    cat <<_LT_EOF >> "$cfgfile"
-#! $SHELL
-
-# `$echo "$ofile" | sed 's%^.*/%%'` - Provide generalized library-building support services.
-# Generated automatically by config.status (GNU $PACKAGE$TIMESTAMP) $VERSION
-# Libtool was configured on host `(hostname || uname -n) 2>/dev/null | sed 1q`:
-# NOTE: Changes made to this file will be lost: look at ltmain.sh.
-#
-_LT_COPYING
-
-# The names of the tagged configurations supported by this script.
-available_tags=
-
-# ### BEGIN LIBTOOL CONFIG
-_LT_LIBTOOL_CONFIG_VARS
-_LT_LIBTOOL_TAG_VARS
-# ### END LIBTOOL CONFIG
-
-# The HP-UX ksh and POSIX shell print the target directory to stdout
-# if CDPATH is set.
-if test "X\${CDPATH+set}" = Xset; then CDPATH=:; export CDPATH; fi
-
-_LT_EOF
-
-  case $host_os in
-  aix3*)
-    cat <<\_LT_EOF >> "$cfgfile"
-# AIX sometimes has problems with the GCC collect2 program.  For some
-# reason, if we set the COLLECT_NAMES environment variable, the problems
-# vanish in a puff of smoke.
-if test "X${COLLECT_NAMES+set}" != Xset; then
-  COLLECT_NAMES=
-  export COLLECT_NAMES
-fi
-_LT_EOF
-    ;;
-  esac
-
-  _LT_PROG_LTMAIN
-
-  # We use sed instead of cat because bash on DJGPP gets confused if
-  # if finds mixed CR/LF and LF-only lines.  Since sed operates in
-  # text mode, it properly converts lines to CR/LF.  This bash problem
-  # is reportedly fixed, but why not run on old versions too?
-  sed '$q' "$ltmain" >> "$cfgfile" || (rm -f "$cfgfile"; exit 1)
-
-  mv -f "$cfgfile" "$ofile" || \
-    (rm -f "$ofile" && cp "$cfgfile" "$ofile" && rm -f "$cfgfile")
-  chmod +x "$ofile"
-],
-[if test -n "[$]_LT_TAG" && test "X[$]_LT_TAG" != "Xno"; then
-  cat <<_LT_EOF >> "$ofile"
-
-dnl Unfortunately we have to use $1 here, since _LT_TAG is not expanded
-dnl in a comment (ie after a #).
-# ### BEGIN LIBTOOL TAG CONFIG: $1
-_LT_LIBTOOL_TAG_VARS(_LT_TAG)
-# ### END LIBTOOL TAG CONFIG: $1
-_LT_EOF
-fi
-])dnl /m4_if
-],
-[m4_if([$1], [], [
-    PACKAGE='$PACKAGE'
-    VERSION='$VERSION'
-    TIMESTAMP='$TIMESTAMP'
-    rm='$rm'
-    ofile='$ofile'], [$1='[$]$1'])
-])dnl /_LT_CONFIG_SAVE_COMMANDS
-])# AC_LIBTOOL_CONFIG
 
 
 # _LT_AC_SYS_COMPILER
@@ -5964,16 +6197,57 @@ fi
 AC_DEFUN([_LT_AC_SYS_COMPILER],
 [AC_REQUIRE([AC_PROG_CC])dnl
 
-_LT_DECL([LTCC], [CC], [1], [A C compiler])
-_LT_TAGDECL([CC], [compiler], [1], [A language specific compiler])dnl
-_LT_TAGDECL([with_gcc], [GCC], [0], [Is the compiler the GNU C compiler?])
-
 # If no C compiler was specified, use CC.
 LTCC=${LTCC-"$CC"}
+
+# If no C compiler flags were specified, use CFLAGS.
+LTCFLAGS=${LTCFLAGS-"$CFLAGS"}
 
 # Allow CC to be a program name with arguments.
 compiler=$CC
 ])# _LT_AC_SYS_COMPILER
+
+
+# _LT_CC_BASENAME(CC)
+# -------------------
+# Calculate cc_basename.  Skip known compiler wrappers and cross-prefix.
+AC_DEFUN([_LT_CC_BASENAME],
+[for cc_temp in $1""; do
+  case $cc_temp in
+    compile | *[[\\/]]compile | ccache | *[[\\/]]ccache ) ;;
+    distcc | *[[\\/]]distcc | purify | *[[\\/]]purify ) ;;
+    \-*) ;;
+    *) break;;
+  esac
+done
+cc_basename=`$echo "X$cc_temp" | $Xsed -e 's%.*/%%' -e "s%^$host_alias-%%"`
+])
+
+
+# _LT_COMPILER_BOILERPLATE
+# ------------------------
+# Check for compiler boilerplate output or warnings with
+# the simple compiler test code.
+AC_DEFUN([_LT_COMPILER_BOILERPLATE],
+[ac_outfile=conftest.$ac_objext
+printf "$lt_simple_compile_test_code" >conftest.$ac_ext
+eval "$ac_compile" 2>&1 >/dev/null | $SED '/^$/d; /^ *+/d' >conftest.err
+_lt_compiler_boilerplate=`cat conftest.err`
+$rm conftest*
+])# _LT_COMPILER_BOILERPLATE
+
+
+# _LT_LINKER_BOILERPLATE
+# ----------------------
+# Check for linker boilerplate output or warnings with
+# the simple link test code.
+AC_DEFUN([_LT_LINKER_BOILERPLATE],
+[ac_outfile=conftest.$ac_objext
+printf "$lt_simple_link_test_code" >conftest.$ac_ext
+eval "$ac_link" 2>&1 >/dev/null | $SED '/^$/d; /^ *+/d' >conftest.err
+_lt_linker_boilerplate=`cat conftest.err`
+$rm conftest*
+])# _LT_LINKER_BOILERPLATE
 
 
 # _LT_AC_SYS_LIBPATH_AIX
@@ -5984,7 +6258,7 @@ compiler=$CC
 # the location of the communication and MPI libs are included too.
 # If we don't find anything, use the default library path according
 # to the aix ld manual.
-m4_define([_LT_AC_SYS_LIBPATH_AIX],
+AC_DEFUN([_LT_AC_SYS_LIBPATH_AIX],
 [AC_LINK_IFELSE(AC_LANG_PROGRAM,[
 aix_libpath=`dump -H conftest$ac_exeext 2>/dev/null | $SED -n -e '/Import File Strings/,/^$/ { /^0/ { s/^0  *\(.*\)$/\1/; p; }
 }'`
@@ -5997,7 +6271,7 @@ if test -z "$aix_libpath"; then aix_libpath="/usr/lib:/lib"; fi
 
 # _LT_AC_SHELL_INIT(ARG)
 # ----------------------
-m4_define([_LT_AC_SHELL_INIT],
+AC_DEFUN([_LT_AC_SHELL_INIT],
 [ifdef([AC_DIVERSION_NOTICE],
 	     [AC_DIVERT_PUSH(AC_DIVERSION_NOTICE)],
 	 [AC_DIVERT_PUSH(NOTICE)])
@@ -6010,7 +6284,7 @@ AC_DIVERT_POP
 # --------------------------
 # Add some code to the start of the generated configure script which
 # will find an echo command which doesn't interpret backslashes.
-m4_define([_LT_AC_PROG_ECHO_BACKSLASH],
+AC_DEFUN([_LT_AC_PROG_ECHO_BACKSLASH],
 [_LT_AC_SHELL_INIT([
 # Check that we are running under the correct shell.
 SHELL=${CONFIG_SHELL-/bin/sh}
@@ -6040,23 +6314,23 @@ fi
 if test "X[$]1" = X--fallback-echo; then
   # used as fallback echo
   shift
-  cat <<_LT_EOF
+  cat <<EOF
 [$]*
-_LT_EOF
+EOF
   exit 0
 fi
 
 # The HP-UX ksh and POSIX shell print the target directory to stdout
 # if CDPATH is set.
-if test "X${CDPATH+set}" = Xset; then CDPATH=:; export CDPATH; fi
+(unset CDPATH) >/dev/null 2>&1 && unset CDPATH
 
 if test -z "$ECHO"; then
 if test "X${echo_test_string+set}" != Xset; then
 # find a string as large as possible, as long as the shell can cope with it
   for cmd in 'sed 50q "[$]0"' 'sed 20q "[$]0"' 'sed 10q "[$]0"' 'sed 2q "[$]0"' 'echo test'; do
     # expected sizes: less than 2Kb, 1Kb, 512 bytes, 16 bytes, ...
-    if (echo_test_string="`eval $cmd`") 2>/dev/null &&
-       echo_test_string="`eval $cmd`" &&
+    if (echo_test_string=`eval $cmd`) 2>/dev/null &&
+       echo_test_string=`eval $cmd` &&
        (test "X$echo_test_string" = "X$echo_test_string") 2>/dev/null
     then
       break
@@ -6159,18 +6433,13 @@ if test "X$ECHO" = "X$CONFIG_SHELL [$]0 --fallback-echo"; then
 fi
 
 AC_SUBST(ECHO)
-])
-_LT_DECL([], [SHELL], [1], [Shell to use when invoking shell scripts])
-_LT_DECL([], [echo], [1],
-    [An echo program that does not interpret backslashes])
-])# _LT_AC_PROG_ECHO_BACKSLASH
+])])# _LT_AC_PROG_ECHO_BACKSLASH
 
 
 # _LT_AC_LOCK
 # -----------
 AC_DEFUN([_LT_AC_LOCK],
-[AC_REQUIRE([AC_OBJEXT])dnl
-AC_ARG_ENABLE([libtool-lock],
+[AC_ARG_ENABLE([libtool-lock],
     [AC_HELP_STRING([--disable-libtool-lock],
 	[avoid locking (might break parallel builds)])])
 test "x$enable_libtool_lock" != xno && enable_libtool_lock=yes
@@ -6230,7 +6499,7 @@ x86_64-*linux*|ppc*-*linux*|powerpc*-*linux*|s390*-*linux*|sparc*-*linux*)
   # Find out which ABI we are using.
   echo 'int i;' > conftest.$ac_ext
   if AC_TRY_EVAL(ac_compile); then
-    case "`/usr/bin/file conftest.o`" in
+    case `/usr/bin/file conftest.o` in
     *32-bit*)
       case $host in
         x86_64-*linux*)
@@ -6281,51 +6550,34 @@ x86_64-*linux*|ppc*-*linux*|powerpc*-*linux*|s390*-*linux*|sparc*-*linux*)
     CFLAGS="$SAVE_CFLAGS"
   fi
   ;;
+sparc*-*solaris*)
+  # Find out which ABI we are using.
+  echo 'int i;' > conftest.$ac_ext
+  if AC_TRY_EVAL(ac_compile); then
+    case `/usr/bin/file conftest.o` in
+    *64-bit*)
+      case $lt_cv_prog_gnu_ld in
+      yes*) LD="${LD-ld} -m elf64_sparc" ;;
+      *)    LD="${LD-ld} -64" ;;
+      esac
+      ;;
+    esac
+  fi
+  rm -rf conftest*
+  ;;
+
+AC_PROVIDE_IFELSE([AC_LIBTOOL_WIN32_DLL],
+[*-*-cygwin* | *-*-mingw* | *-*-pw32*)
+  AC_CHECK_TOOL(DLLTOOL, dlltool, false)
+  AC_CHECK_TOOL(AS, as, false)
+  AC_CHECK_TOOL(OBJDUMP, objdump, false)
+  ;;
+  ])
 esac
 
 need_locks="$enable_libtool_lock"
+
 ])# _LT_AC_LOCK
-
-
-# AC_LIBTOOL_SYS_OLD_ARCHIVE
-# --------------------------
-AC_DEFUN([AC_LIBTOOL_SYS_OLD_ARCHIVE],
-[AC_CHECK_TOOL(AR, ar, false)
-test -z "$AR" && AR=ar
-test -z "$AR_FLAGS" && AR_FLAGS=cru
-_LT_DECL([], [AR], [1], [The archiver])
-_LT_DECL([], [AR_FLAGS], [1])
-
-AC_CHECK_TOOL(STRIP, strip, :)
-test -z "$STRIP" && STRIP=:
-_LT_DECL([], [STRIP], [1], [A symbol stripping program])
-
-AC_CHECK_TOOL(RANLIB, ranlib, :)
-test -z "$RANLIB" && RANLIB=:
-_LT_DECL([], [RANLIB], [1],
-    [Commands used to install an old-style archive])
-
-# Determine commands to create old-style static archives.
-old_archive_cmds='$AR $AR_FLAGS $oldlib$oldobjs$old_deplibs'
-old_postinstall_cmds='chmod 644 $oldlib'
-old_postuninstall_cmds=
-
-if test -n "$RANLIB"; then
-  case $host_os in
-  openbsd*)
-    old_postinstall_cmds="\$RANLIB -t \$oldlib~$old_postinstall_cmds"
-    ;;
-  *)
-    old_postinstall_cmds="\$RANLIB \$oldlib~$old_postinstall_cmds"
-    ;;
-  esac
-  old_archive_cmds="$old_archive_cmds~\$RANLIB \$oldlib"
-fi
-_LT_DECL([], [old_postinstall_cmds], [2])
-_LT_DECL([], [old_postuninstall_cmds], [2])
-_LT_TAGDECL([], [old_archive_cmds], [2],
-    [Commands used to build an old-style archive])
-])# AC_LIBTOOL_SYS_OLD_ARCHIVE
 
 
 # AC_LIBTOOL_COMPILER_OPTION(MESSAGE, VARIABLE-NAME, FLAGS,
@@ -6333,11 +6585,10 @@ _LT_TAGDECL([], [old_archive_cmds], [2],
 # ----------------------------------------------------------------
 # Check whether the given compiler option works
 AC_DEFUN([AC_LIBTOOL_COMPILER_OPTION],
-[AC_REQUIRE([AC_OBJEXT])dnl
-AC_REQUIRE([LT_AC_PROG_SED])dnl
+[AC_REQUIRE([LT_AC_PROG_SED])
 AC_CACHE_CHECK([$1], [$2],
   [$2=no
-  m4_if([$4], , [ac_outfile=conftest.$ac_objext], [ac_outfile=$4])
+  ifelse([$4], , [ac_outfile=conftest.$ac_objext], [ac_outfile=$4])
    printf "$lt_simple_compile_test_code" > conftest.$ac_ext
    lt_compiler_flag="$3"
    # Insert the option either (1) after the last *FLAGS variable, or
@@ -6346,7 +6597,7 @@ AC_CACHE_CHECK([$1], [$2],
    # with a dollar sign (not a hyphen), so the echo should work correctly.
    # The option is referenced via a variable to avoid confusing sed.
    lt_compile=`echo "$ac_compile" | $SED \
-   -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
+   -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [[^ ]]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
    (eval echo "\"\$as_me:__oline__: $lt_compile\"" >&AS_MESSAGE_LOG_FD)
@@ -6356,8 +6607,10 @@ AC_CACHE_CHECK([$1], [$2],
    echo "$as_me:__oline__: \$? = $ac_status" >&AS_MESSAGE_LOG_FD
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
-     # So say no if there are warnings
-     if test ! -s conftest.err; then
+     # So say no if there are warnings other than the usual output.
+     $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+     $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+     if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
        $2=yes
      fi
    fi
@@ -6365,9 +6618,9 @@ AC_CACHE_CHECK([$1], [$2],
 ])
 
 if test x"[$]$2" = xyes; then
-    m4_if([$5], , :, [$5])
+    ifelse([$5], , :, [$5])
 else
-    m4_if([$6], , :, [$6])
+    ifelse([$6], , :, [$6])
 fi
 ])# AC_LIBTOOL_COMPILER_OPTION
 
@@ -6376,18 +6629,23 @@ fi
 #                          [ACTION-SUCCESS], [ACTION-FAILURE])
 # ------------------------------------------------------------
 # Check whether the given compiler option works
-m4_define([AC_LIBTOOL_LINKER_OPTION],
+AC_DEFUN([AC_LIBTOOL_LINKER_OPTION],
 [AC_CACHE_CHECK([$1], [$2],
   [$2=no
    save_LDFLAGS="$LDFLAGS"
    LDFLAGS="$LDFLAGS $3"
    printf "$lt_simple_link_test_code" > conftest.$ac_ext
    if (eval $ac_link 2>conftest.err) && test -s conftest$ac_exeext; then
-     # The compiler can only warn and ignore the option if not recognized
+     # The linker can only warn and ignore the option if not recognized
      # So say no if there are warnings
      if test -s conftest.err; then
        # Append any errors to the config.log.
        cat conftest.err 1>&AS_MESSAGE_LOG_FD
+       $echo "X$_lt_linker_boilerplate" | $Xsed -e '/^$/d' > conftest.exp
+       $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+       if diff conftest.exp conftest.er2 >/dev/null; then
+         $2=yes
+       fi
      else
        $2=yes
      fi
@@ -6397,9 +6655,9 @@ m4_define([AC_LIBTOOL_LINKER_OPTION],
 ])
 
 if test x"[$]$2" = xyes; then
-    m4_if([$4], , :, [$4])
+    ifelse([$4], , :, [$4])
 else
-    m4_if([$5], , :, [$5])
+    ifelse([$5], , :, [$5])
 fi
 ])# AC_LIBTOOL_LINKER_OPTION
 
@@ -6407,12 +6665,11 @@ fi
 # AC_LIBTOOL_SYS_MAX_CMD_LEN
 # --------------------------
 AC_DEFUN([AC_LIBTOOL_SYS_MAX_CMD_LEN],
-[AC_REQUIRE([AC_CANONICAL_HOST])dnl
-# find the maximum length of command line arguments
+[# find the maximum length of command line arguments
 AC_MSG_CHECKING([the maximum length of command line arguments])
 AC_CACHE_VAL([lt_cv_sys_max_cmd_len], [dnl
   i=0
-  testring="ABCD"
+  teststring="ABCD"
 
   case $build_os in
   msdosdjgpp*)
@@ -6447,25 +6704,64 @@ AC_CACHE_VAL([lt_cv_sys_max_cmd_len], [dnl
     lt_cv_sys_max_cmd_len=8192;
     ;;
 
- *)
-    # Make testring a little bigger before we do anything with it.
-    # a 1K string should be a reasonable start.
-    for i in 1 2 3 4 5 6 7 8 ; do
-      testring=$testring$testring
-    done
+  netbsd* | freebsd* | openbsd* | darwin* | dragonfly*)
+    # This has been around since 386BSD, at least.  Likely further.
+    if test -x /sbin/sysctl; then
+      lt_cv_sys_max_cmd_len=`/sbin/sysctl -n kern.argmax`
+    elif test -x /usr/sbin/sysctl; then
+      lt_cv_sys_max_cmd_len=`/usr/sbin/sysctl -n kern.argmax`
+    else
+      lt_cv_sys_max_cmd_len=65536	# usable default for all BSDs
+    fi
+    # And add a safety zone
+    lt_cv_sys_max_cmd_len=`expr $lt_cv_sys_max_cmd_len \/ 4`
+    lt_cv_sys_max_cmd_len=`expr $lt_cv_sys_max_cmd_len \* 3`
+    ;;
+
+  interix*)
+    # We know the value 262144 and hardcode it with a safety zone (like BSD)
+    lt_cv_sys_max_cmd_len=196608
+    ;;
+
+  osf*)
+    # Dr. Hans Ekkehard Plesser reports seeing a kernel panic running configure
+    # due to this test when exec_disable_arg_limit is 1 on Tru64. It is not
+    # nice to cause kernel panics so lets avoid the loop below.
+    # First set a reasonable default.
+    lt_cv_sys_max_cmd_len=16384
+    #
+    if test -x /sbin/sysconfig; then
+      case `/sbin/sysconfig -q proc exec_disable_arg_limit` in
+        *1*) lt_cv_sys_max_cmd_len=-1 ;;
+      esac
+    fi
+    ;;
+  sco3.2v5*)
+    lt_cv_sys_max_cmd_len=102400
+    ;;
+  sysv5* | sco5v6* | sysv4.2uw2*)
+    kargmax=`grep ARG_MAX /etc/conf/cf.d/stune 2>/dev/null`
+    if test -n "$kargmax"; then
+      lt_cv_sys_max_cmd_len=`echo $kargmax | sed 's/.*[[ 	]]//'`
+    else
+      lt_cv_sys_max_cmd_len=32768
+    fi
+    ;;
+  *)
     # If test is not a shell built-in, we'll probably end up computing a
     # maximum length that is only half of the actual maximum length, but
     # we can't tell.
-    while (test "X"`$CONFIG_SHELL [$]0 --fallback-echo "X$testring$testring" 2>/dev/null` \
-	       = "XX$testring$testring") >/dev/null 2>&1 &&
+    SHELL=${SHELL-${CONFIG_SHELL-/bin/sh}}
+    while (test "X"`$SHELL [$]0 --fallback-echo "X$teststring" 2>/dev/null` \
+	       = "XX$teststring") >/dev/null 2>&1 &&
+	    new_result=`expr "X$teststring" : ".*" 2>&1` &&
+	    lt_cv_sys_max_cmd_len=$new_result &&
 	    test $i != 17 # 1/2 MB should be enough
     do
       i=`expr $i + 1`
-      testring=$testring$testring
+      teststring=$teststring$teststring
     done
-    # Only check the string length outside the loop.
-    lt_cv_sys_max_cmd_len=`expr "X$testring" : ".*" 2>&1`
-    testring=
+    teststring=
     # Add a significant safety factor because C++ compilers can tack on massive
     # amounts of additional arguments before passing them to the linker.
     # It appears as though 1/2 is a usable value.
@@ -6478,21 +6774,19 @@ if test -n $lt_cv_sys_max_cmd_len ; then
 else
   AC_MSG_RESULT(none)
 fi
-_LT_DECL([max_cmd_len], [lt_cv_sys_max_cmd_len], [0],
-    [What is the maximum length of a command?])
 ])# AC_LIBTOOL_SYS_MAX_CMD_LEN
 
 
 # _LT_AC_CHECK_DLFCN
-# --------------------
+# ------------------
 AC_DEFUN([_LT_AC_CHECK_DLFCN],
-[AC_CHECK_HEADERS([dlfcn.h], [], [], [AC_INCLUDES_DEFAULT])dnl
+[AC_CHECK_HEADERS(dlfcn.h)dnl
 ])# _LT_AC_CHECK_DLFCN
 
 
 # _LT_AC_TRY_DLOPEN_SELF (ACTION-IF-TRUE, ACTION-IF-TRUE-W-USCORE,
 #                           ACTION-IF-FALSE, ACTION-IF-CROSS-COMPILING)
-# ------------------------------------------------------------------
+# ---------------------------------------------------------------------
 AC_DEFUN([_LT_AC_TRY_DLOPEN_SELF],
 [AC_REQUIRE([_LT_AC_CHECK_DLFCN])dnl
 if test "$cross_compiling" = yes; then :
@@ -6500,7 +6794,7 @@ if test "$cross_compiling" = yes; then :
 else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
-  cat > conftest.$ac_ext <<_LT_EOF
+  cat > conftest.$ac_ext <<EOF
 [#line __oline__ "configure"
 #include "confdefs.h"
 
@@ -6558,17 +6852,19 @@ int main ()
       else if (dlsym( self,"_fnord")) status = $lt_dlneed_uscore;
       /* dlclose (self); */
     }
+  else
+    puts (dlerror ());
 
     exit (status);
 }]
-_LT_EOF
+EOF
   if AC_TRY_EVAL(ac_link) && test -s conftest${ac_exeext} 2>/dev/null; then
-    (./conftest; exit; ) 2>/dev/null
+    (./conftest; exit; ) >&AS_MESSAGE_LOG_FD 2>/dev/null
     lt_status=$?
     case x$lt_status in
       x$lt_dlno_uscore) $1 ;;
       x$lt_dlneed_uscore) $2 ;;
-      x$lt_unknown|x*) $3 ;;
+      x$lt_dlunknown|x*) $3 ;;
     esac
   else :
     # compilation failed
@@ -6580,7 +6876,7 @@ rm -fr conftest*
 
 
 # AC_LIBTOOL_DLOPEN_SELF
-# -------------------
+# ----------------------
 AC_DEFUN([AC_LIBTOOL_DLOPEN_SELF],
 [AC_REQUIRE([_LT_AC_CHECK_DLFCN])dnl
 if test "x$enable_dlopen" != xyes; then
@@ -6651,7 +6947,7 @@ else
     test "x$ac_cv_header_dlfcn_h" = xyes && CPPFLAGS="$CPPFLAGS -DHAVE_DLFCN_H"
 
     save_LDFLAGS="$LDFLAGS"
-    eval LDFLAGS=\"\$LDFLAGS $export_dynamic_flag_spec\"
+    wl=$lt_prog_compiler_wl eval LDFLAGS=\"\$LDFLAGS $export_dynamic_flag_spec\"
 
     save_LIBS="$LIBS"
     LIBS="$lt_cv_dlopen_libs $LIBS"
@@ -6664,7 +6960,7 @@ else
     ])
 
     if test "x$lt_cv_dlopen_self" = xyes; then
-      LDFLAGS="$LDFLAGS $link_static_flag"
+      wl=$lt_prog_compiler_wl eval LDFLAGS=\"\$LDFLAGS $lt_prog_compiler_static\"
       AC_CACHE_CHECK([whether a statically linked program can dlopen itself],
     	  lt_cv_dlopen_self_static, [dnl
 	  _LT_AC_TRY_DLOPEN_SELF(
@@ -6689,12 +6985,6 @@ else
   *) enable_dlopen_self_static=unknown ;;
   esac
 fi
-_LT_DECL([dlopen_support], [enable_dlopen], [0],
-	 [Whether dlopen is supported])
-_LT_DECL([dlopen_self], [enable_dlopen_self], [0],
-	 [Whether dlopen of programs is supported])
-_LT_DECL([dlopen_self_static], [enable_dlopen_self_static], [0],
-	 [Whether dlopen of statically linked programs is supported])
 ])# AC_LIBTOOL_DLOPEN_SELF
 
 
@@ -6703,7 +6993,6 @@ _LT_DECL([dlopen_self_static], [enable_dlopen_self_static], [0],
 # Check to see if options -c and -o are simultaneously supported by compiler
 AC_DEFUN([AC_LIBTOOL_PROG_CC_C_O],
 [AC_REQUIRE([_LT_AC_SYS_COMPILER])dnl
-AC_REQUIRE([AC_OBJEXT])dnl
 AC_CACHE_CHECK([if $compiler supports -c -o file.$ac_objext],
   [_LT_AC_TAGVAR(lt_cv_prog_compiler_c_o, $1)],
   [_LT_AC_TAGVAR(lt_cv_prog_compiler_c_o, $1)=no
@@ -6713,20 +7002,13 @@ AC_CACHE_CHECK([if $compiler supports -c -o file.$ac_objext],
    mkdir out
    printf "$lt_simple_compile_test_code" > conftest.$ac_ext
 
-   # According to Tom Tromey, Ian Lance Taylor reported there are C compilers
-   # that will create temporary files in the current directory regardless of
-   # the output directory.  Thus, making CWD read-only will cause this test
-   # to fail, enabling locking or at least warning the user not to do parallel
-   # builds.
-   chmod -w .
-
    lt_compiler_flag="-o out/conftest2.$ac_objext"
    # Insert the option either (1) after the last *FLAGS variable, or
    # (2) before a word containing "conftest.", or (3) at the end.
    # Note that $ac_compile itself does not contain backslashes and begins
    # with a dollar sign (not a hyphen), so the echo should work correctly.
    lt_compile=`echo "$ac_compile" | $SED \
-   -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
+   -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [[^ ]]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
    (eval echo "\"\$as_me:__oline__: $lt_compile\"" >&AS_MESSAGE_LOG_FD)
@@ -6738,11 +7020,13 @@ AC_CACHE_CHECK([if $compiler supports -c -o file.$ac_objext],
    then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings
-     if test ! -s out/conftest.err; then
+     $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+     $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+     if test ! -s out/conftest.er2 || diff out/conftest.exp out/conftest.er2 >/dev/null; then
        _LT_AC_TAGVAR(lt_cv_prog_compiler_c_o, $1)=yes
      fi
    fi
-   chmod u+w .
+   chmod u+w . 2>&AS_MESSAGE_LOG_FD
    $rm conftest*
    # SGI C++ compiler will create directory out/ii_files/ for
    # template instantiation
@@ -6752,8 +7036,6 @@ AC_CACHE_CHECK([if $compiler supports -c -o file.$ac_objext],
    rmdir conftest
    $rm conftest*
 ])
-_LT_DECL([compiler_c_o], [lt_cv_prog_compiler_c_o], [1],
-	[Does compiler simultaneously support -c and -o options?])
 ])# AC_LIBTOOL_PROG_CC_C_O
 
 
@@ -6761,8 +7043,7 @@ _LT_DECL([compiler_c_o], [lt_cv_prog_compiler_c_o], [1],
 # -----------------------------------------
 # Check to see if we can do hard links to lock some files if needed
 AC_DEFUN([AC_LIBTOOL_SYS_HARD_LINK_LOCKS],
-[AC_REQUIRE([AC_LIBTOOL_PROG_CC_C_O])dnl
-AC_REQUIRE([_LT_AC_LOCK])dnl
+[AC_REQUIRE([_LT_AC_LOCK])dnl
 
 hard_links="nottested"
 if test "$_LT_AC_TAGVAR(lt_cv_prog_compiler_c_o, $1)" = no && test "$need_locks" != no; then
@@ -6782,7 +7063,6 @@ if test "$_LT_AC_TAGVAR(lt_cv_prog_compiler_c_o, $1)" = no && test "$need_locks"
 else
   need_locks=no
 fi
-_LT_DECL([], [need_locks], [1], [Must we lock files when doing compilation?])
 ])# AC_LIBTOOL_SYS_HARD_LINK_LOCKS
 
 
@@ -6800,8 +7080,6 @@ else
 fi
 rmdir .libs 2>/dev/null])
 objdir=$lt_cv_objdir
-_LT_DECL([], [objdir], [0],
-         [The name of the directory that contains temporary libtool files])dnl
 ])# AC_LIBTOOL_OBJDIR
 
 
@@ -6812,8 +7090,8 @@ AC_DEFUN([AC_LIBTOOL_PROG_LD_HARDCODE_LIBPATH],
 [AC_MSG_CHECKING([how to hardcode library paths into programs])
 _LT_AC_TAGVAR(hardcode_action, $1)=
 if test -n "$_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)" || \
-   test -n "$_LT_AC_TAGVAR(runpath_var $1)" || \
-   test "X$_LT_AC_TAGVAR(hardcode_automatic, $1)"="Xyes" ; then
+   test -n "$_LT_AC_TAGVAR(runpath_var, $1)" || \
+   test "X$_LT_AC_TAGVAR(hardcode_automatic, $1)" = "Xyes" ; then
 
   # We can hardcode non-existant directories.
   if test "$_LT_AC_TAGVAR(hardcode_direct, $1)" != no &&
@@ -6843,8 +7121,6 @@ elif test "$shlibpath_overrides_runpath" = yes ||
   # Fast installation is not necessary
   enable_fast_install=needless
 fi
-_LT_TAGDECL([], [hardcode_action], [0],
-    [How to hardcode a shared library path into an executable])
 ])# AC_LIBTOOL_PROG_LD_HARDCODE_LIBPATH
 
 
@@ -6874,8 +7150,6 @@ fi
     ;;
   esac
 fi
-_LT_DECL([], [old_striplib], [1], [Commands to strip libraries])
-_LT_DECL([], [striplib], [1])
 ])# AC_LIBTOOL_SYS_LIB_STRIP
 
 
@@ -6887,7 +7161,7 @@ AC_DEFUN([AC_LIBTOOL_SYS_DYNAMIC_LINKER],
 library_names_spec=
 libname_spec='lib$name'
 soname_spec=
-shrext=".so"
+shrext_cmds=".so"
 postinstall_cmds=
 postuninstall_cmds=
 finish_cmds=
@@ -6973,13 +7247,9 @@ aix4* | aix5*)
   ;;
 
 amigaos*)
-  if test "$host_cpu" = m68k; then
-    library_names_spec='$libname.ixlibrary $libname.a'
-    # Create ${libname}_ixlibrary.a entries in /sys/libs.
-    finish_eval='for lib in `ls $libdir/*.ixlibrary 2>/dev/null`; do libname=`$echo "X$lib" | $Xsed -e '\''s%^.*/\([[^/]]*\)\.ixlibrary$%\1%'\''`; test $rm /sys/libs/${libname}_ixlibrary.a; $show "cd /sys/libs && $LN_S $lib ${libname}_ixlibrary.a"; cd /sys/libs && $LN_S $lib ${libname}_ixlibrary.a || exit 1; done'
-  else
-    dynamic_linker=no
-  fi
+  library_names_spec='$libname.ixlibrary $libname.a'
+  # Create ${libname}_ixlibrary.a entries in /sys/libs.
+  finish_eval='for lib in `ls $libdir/*.ixlibrary 2>/dev/null`; do libname=`$echo "X$lib" | $Xsed -e '\''s%^.*/\([[^/]]*\)\.ixlibrary$%\1%'\''`; test $rm /sys/libs/${libname}_ixlibrary.a; $show "cd /sys/libs && $LN_S $lib ${libname}_ixlibrary.a"; cd /sys/libs && $LN_S $lib ${libname}_ixlibrary.a || exit 1; done'
   ;;
 
 beos*)
@@ -6988,7 +7258,7 @@ beos*)
   shlibpath_var=LIBRARY_PATH
   ;;
 
-bsdi4*)
+bsdi[[45]]*)
   version_type=linux
   need_version=no
   library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major $libname${shared_ext}'
@@ -7004,7 +7274,7 @@ bsdi4*)
 
 cygwin* | mingw* | pw32*)
   version_type=windows
-  shrext=".dll"
+  shrext_cmds=".dll"
   need_version=no
   need_lib_prefix=no
 
@@ -7016,7 +7286,8 @@ cygwin* | mingw* | pw32*)
       dlpath=`$SHELL 2>&1 -c '\''. $dir/'\''\${base_file}'\''i;echo \$dlname'\''`~
       dldir=$destdir/`dirname \$dlpath`~
       test -d \$dldir || mkdir -p \$dldir~
-      $install_prog $dir/$dlname \$dldir/$dlname'
+      $install_prog $dir/$dlname \$dldir/$dlname~
+      chmod a+x \$dldir/$dlname'
     postuninstall_cmds='dldll=`$SHELL 2>&1 -c '\''. $file; echo \$dlname'\''`~
       dlpath=$dir/\$dldll~
        $rm \$dlpath'
@@ -7046,7 +7317,7 @@ cygwin* | mingw* | pw32*)
       ;;
     pw32*)
       # pw32 DLLs use 'pw' prefix rather than 'lib'
-      library_names_spec='`echo ${libname} | sed -e 's/^lib/pw/'``echo ${release} | $SED -e 's/[.]/-/g'`${versuffix}${shared_ext}'
+      library_names_spec='`echo ${libname} | sed -e 's/^lib/pw/'``echo ${release} | $SED -e 's/[[.]]/-/g'`${versuffix}${shared_ext}'
       ;;
     esac
     ;;
@@ -7069,7 +7340,7 @@ darwin* | rhapsody*)
   soname_spec='${libname}${release}${major}$shared_ext'
   shlibpath_overrides_runpath=yes
   shlibpath_var=DYLD_LIBRARY_PATH
-  shrext='$(test .$module = .yes && echo .so || echo .dylib)'
+  shrext_cmds='`test .$module = .yes && echo .so || echo .dylib`'
   # Apple's gcc prints 'gcc -print-search-dirs' doesn't operate the same.
   if test "$GCC" = yes; then
     sys_lib_search_path_spec=`$CC -print-search-dirs | tr "\n" "$PATH_SEPARATOR" | sed -e 's/libraries:/@libraries:/' | tr "@" "\n" | grep "^libraries:" | sed -e "s/^libraries://" -e "s,=/,/,g" -e "s,$PATH_SEPARATOR, ,g" -e "s,.*,& /lib /usr/lib /usr/local/lib,g"`
@@ -7104,8 +7375,17 @@ kfreebsd*-gnu)
   dynamic_linker='GNU ld.so'
   ;;
 
-freebsd*)
-  objformat=`test -x /usr/bin/objformat && /usr/bin/objformat || echo aout`
+freebsd* | dragonfly*)
+  # DragonFly does not have aout.  When/if they implement a new
+  # versioning mechanism, adjust this.
+  if test -x /usr/bin/objformat; then
+    objformat=`/usr/bin/objformat`
+  else
+    case $host_os in
+    freebsd[[123]]*) objformat=aout ;;
+    *) objformat=elf ;;
+    esac
+  fi
   version_type=freebsd-$objformat
   case $version_type in
     freebsd-elf*)
@@ -7123,12 +7403,17 @@ freebsd*)
   freebsd2*)
     shlibpath_overrides_runpath=yes
     ;;
-  freebsd3.[01]* | freebsdelf3.[01]*)
+  freebsd3.[[01]]* | freebsdelf3.[[01]]*)
     shlibpath_overrides_runpath=yes
     hardcode_into_libs=yes
     ;;
-  *) # from 3.2 on
+  freebsd3.[[2-9]]* | freebsdelf3.[[2-9]]* | \
+  freebsd4.[[0-5]] | freebsdelf4.[[0-5]] | freebsd4.1.1 | freebsdelf4.1.1)
     shlibpath_overrides_runpath=no
+    hardcode_into_libs=yes
+    ;;
+  freebsd*) # from 4.6 on
+    shlibpath_overrides_runpath=yes
     hardcode_into_libs=yes
     ;;
   esac
@@ -7150,9 +7435,9 @@ hpux9* | hpux10* | hpux11*)
   version_type=sunos
   need_lib_prefix=no
   need_version=no
-  case "$host_cpu" in
+  case $host_cpu in
   ia64*)
-    shrext='.so'
+    shrext_cmds='.so'
     hardcode_into_libs=yes
     dynamic_linker="$host_os dld.so"
     shlibpath_var=LD_LIBRARY_PATH
@@ -7167,7 +7452,7 @@ hpux9* | hpux10* | hpux11*)
     sys_lib_dlsearch_path_spec=$sys_lib_search_path_spec
     ;;
    hppa*64*)
-     shrext='.sl'
+     shrext_cmds='.sl'
      hardcode_into_libs=yes
      dynamic_linker="$host_os dld.sl"
      shlibpath_var=LD_LIBRARY_PATH # How should we handle SHLIB_PATH
@@ -7178,7 +7463,7 @@ hpux9* | hpux10* | hpux11*)
      sys_lib_dlsearch_path_spec=$sys_lib_search_path_spec
      ;;
    *)
-    shrext='.sl'
+    shrext_cmds='.sl'
     dynamic_linker="$host_os dld.sl"
     shlibpath_var=SHLIB_PATH
     shlibpath_overrides_runpath=no # +s is required to enable SHLIB_PATH
@@ -7188,6 +7473,18 @@ hpux9* | hpux10* | hpux11*)
   esac
   # HP-UX runs *really* slowly unless shared libraries are mode 555.
   postinstall_cmds='chmod 555 $lib'
+  ;;
+
+interix3*)
+  version_type=linux
+  need_lib_prefix=no
+  need_version=no
+  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${shared_ext}'
+  soname_spec='${libname}${release}${shared_ext}$major'
+  dynamic_linker='Interix 3.x ld.so.1 (PE, like ELF)'
+  shlibpath_var=LD_LIBRARY_PATH
+  shlibpath_overrides_runpath=no
+  hardcode_into_libs=yes
   ;;
 
 irix5* | irix6* | nonstopux*)
@@ -7249,7 +7546,7 @@ linux*)
 
   # Append ld.so.conf contents to the search path
   if test -f /etc/ld.so.conf; then
-    lt_ld_extra=`$SED -e 's/[:,\t]/ /g;s/=[^=]*$//;s/=[^= ]* / /g' /etc/ld.so.conf`
+    lt_ld_extra=`awk '/^include / { system(sprintf("cd /etc; cat %s", \[$]2)); skip = 1; } { if (!skip) print \[$]0; skip = 0; }' < /etc/ld.so.conf | $SED -e 's/#.*//;s/[:,	]/ /g;s/=[^=]*$//;s/=[^= ]* / /g;/^$/d' | tr '\n' ' '`
     sys_lib_dlsearch_path_spec="/lib /usr/lib $lt_ld_extra"
   fi
 
@@ -7283,7 +7580,7 @@ netbsd*)
     finish_cmds='PATH="\$PATH:/sbin" ldconfig -m $libdir'
     dynamic_linker='NetBSD (a.out) ld.so'
   else
-    library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${release}${shared_ext} ${libname}${shared_ext}'
+    library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${shared_ext}'
     soname_spec='${libname}${release}${shared_ext}$major'
     dynamic_linker='NetBSD ld.elf_so'
   fi
@@ -7311,8 +7608,13 @@ nto-qnx*)
 
 openbsd*)
   version_type=sunos
+  sys_lib_dlsearch_path_spec="/usr/lib"
   need_lib_prefix=no
-  need_version=yes
+  # Some older versions of OpenBSD (3.3 at least) *do* need versioned libs.
+  case $host_os in
+    openbsd3.3 | openbsd3.3.*) need_version=yes ;;
+    *)                         need_version=no  ;;
+  esac
   library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${shared_ext}$versuffix'
   finish_cmds='PATH="\$PATH:/sbin" ldconfig -m $libdir'
   shlibpath_var=LD_LIBRARY_PATH
@@ -7332,7 +7634,7 @@ openbsd*)
 
 os2*)
   libname_spec='$name'
-  shrext=".dll"
+  shrext_cmds=".dll"
   need_lib_prefix=no
   library_names_spec='$libname${shared_ext} $libname.a'
   dynamic_linker='OS/2 ld.exe'
@@ -7348,13 +7650,6 @@ osf3* | osf4* | osf5*)
   shlibpath_var=LD_LIBRARY_PATH
   sys_lib_search_path_spec="/usr/shlib /usr/ccs/lib /usr/lib/cmplrs/cc /usr/lib /usr/local/lib /var/shlib"
   sys_lib_dlsearch_path_spec="$sys_lib_search_path_spec"
-  ;;
-
-sco3.2v5*)
-  version_type=osf
-  soname_spec='${libname}${release}${shared_ext}$major'
-  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major $libname${shared_ext}'
-  shlibpath_var=LD_LIBRARY_PATH
   ;;
 
 solaris*)
@@ -7382,7 +7677,7 @@ sunos4*)
   need_version=yes
   ;;
 
-sysv4 | sysv4.2uw2* | sysv4.3* | sysv5*)
+sysv4 | sysv4.3*)
   version_type=linux
   library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major $libname${shared_ext}'
   soname_spec='${libname}${release}${shared_ext}$major'
@@ -7391,6 +7686,7 @@ sysv4 | sysv4.2uw2* | sysv4.3* | sysv5*)
     sni)
       shlibpath_overrides_runpath=no
       need_lib_prefix=no
+      export_dynamic_flag_spec='${wl}-Blargedynsym'
       runpath_var=LD_RUN_PATH
       ;;
     siemens)
@@ -7414,6 +7710,29 @@ sysv4*MP*)
   fi
   ;;
 
+sysv5* | sco3.2v5* | sco5v6* | unixware* | OpenUNIX* | sysv4*uw2*)
+  version_type=freebsd-elf
+  need_lib_prefix=no
+  need_version=no
+  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext} $libname${shared_ext}'
+  soname_spec='${libname}${release}${shared_ext}$major'
+  shlibpath_var=LD_LIBRARY_PATH
+  hardcode_into_libs=yes
+  if test "$with_gnu_ld" = yes; then
+    sys_lib_search_path_spec='/usr/local/lib /usr/gnu/lib /usr/ccs/lib /usr/lib /lib'
+    shlibpath_overrides_runpath=no
+  else
+    sys_lib_search_path_spec='/usr/ccs/lib /usr/lib'
+    shlibpath_overrides_runpath=yes
+    case $host_os in
+      sco3.2v5*)
+        sys_lib_search_path_spec="$sys_lib_search_path_spec /lib"
+	;;
+    esac
+  fi
+  sys_lib_dlsearch_path_spec='/usr/lib'
+  ;;
+
 uts4*)
   version_type=linux
   library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major $libname${shared_ext}'
@@ -7427,115 +7746,116 @@ uts4*)
 esac
 AC_MSG_RESULT([$dynamic_linker])
 test "$dynamic_linker" = no && can_build_shared=no
-_LT_DECL([], [need_lib_prefix], [0],
-    [Do we need the "lib" prefix for modules?])
-_LT_DECL([], [need_version], [0], [Do we need a version for libraries?])
-_LT_DECL([], [version_type], [0], [Library versioning type])
-_LT_DECL([], [runpath_var], [0],  [Shared library runtime path variable])
-_LT_DECL([], [shlibpath_var], [0],[Shared library path variable])
-_LT_DECL([], [shlibpath_overrides_runpath], [0],
-    [Is shibpath searched before the hard-coded library search path?])
-_LT_DECL([], [libname_spec], [1], [Format of library name prefix])
-_LT_DECL([], [library_names_spec], [1],
-    [List of archive names.  First name is the real one, the rest are links.
-    The last name is the one that the linker finds with -lNAME])
-_LT_DECL([], [soname_spec], [1],
-    [The coded name of the library, if different from the real name])
-_LT_DECL([], [postinstall_cmds], [2],
-    [Command to use after installation of a shared archive])
-_LT_DECL([], [postuninstall_cmds], [2],
-    [Command to use after uninstallation of a shared archive])
-_LT_DECL([], [finish_cmds], [2],
-    [Commands used to finish a libtool library installation in a directory])
-_LT_DECL([], [finish_eval], [1],
-    [As "finish_cmds", except a single script fragment to be evaled but
-    not shown])
-_LT_DECL([], [hardcode_into_libs], [0],
-    [Whether we should hardcode library paths into libraries])
-_LT_DECL([], [sys_lib_search_path_spec], [2],
-    [Compile-time system search path for libraries])
-_LT_DECL([], [sys_lib_dlsearch_path_spec], [2],
-    [Run-time system search path for libraries])
+
+variables_saved_for_relink="PATH $shlibpath_var $runpath_var"
+if test "$GCC" = yes; then
+  variables_saved_for_relink="$variables_saved_for_relink GCC_EXEC_PREFIX COMPILER_PATH LIBRARY_PATH"
+fi
 ])# AC_LIBTOOL_SYS_DYNAMIC_LINKER
 
 
-# AC_LIBTOOL_TAGS
-# ---------------
-# tags to enable
-AC_DEFUN([AC_LIBTOOL_TAGS],
-[m4_define([_LT_TAGS],[$1])
-]) # AC_LIBTOOL_TAGS
-
-# _LT_AC_TAG_CHECK
+# _LT_AC_TAGCONFIG
 # ----------------
-m4_define([_LT_AC_TAG_CHECK],
-[m4_ifdef([_LT_TAG_]$1,
-  [m4_errprintn(m4_location[: error: duplicate tag: ]"$1")
-  m4_exit(1)],
-  [m4_define([_LT_TAG_]$1, [])])
-]) # _LT_AC_TAG_CHECK
+AC_DEFUN([_LT_AC_TAGCONFIG],
+[AC_ARG_WITH([tags],
+    [AC_HELP_STRING([--with-tags@<:@=TAGS@:>@],
+        [include additional configurations @<:@automatic@:>@])],
+    [tagnames="$withval"])
 
-# _LT_AC_TAG_CONFIG
-# -----------------
-m4_define([_LT_AC_TAG_CONFIG],
-[AC_PROVIDE_IFELSE([AC_LIBTOOL_TAGS], [], [
-  AC_LIBTOOL_TAGS([CXX F77 GCJ RC])])dnl
-  available_tags=""
-  AC_FOREACH([_LT_TAG], _LT_TAGS,
-      [m4_case(_LT_TAG,
-      [CXX], [_LT_AC_TAG_CHECK([CXX])
-  if test -n "$CXX" && test "X$CXX" != "Xno"; then
-      AC_LIBTOOL_LANG_CXX_CONFIG
-      available_tags="$available_tags _LT_TAG"
-  fi],
-      [F77], [_LT_AC_TAG_CHECK(_LT_TAG)
-  if test -n "$F77" && test "X$F77" != "Xno"; then
-      AC_LIBTOOL_LANG_F77_CONFIG
-      available_tags="$available_tags _LT_TAG"
-  fi],
-      [GCJ], [_LT_AC_TAG_CHECK(_LT_TAG)
-  if test -n "$GCJ" && test "X$GCJ" != "Xno"; then
-      AC_LIBTOOL_LANG_GCJ_CONFIG
-      available_tags="$available_tags _LT_TAG"
-  fi],
-      [RC], [_LT_AC_TAG_CHECK(_LT_TAG)
-  if test -n "$RC" && test "X$RC" != "Xno"; then
-      AC_LIBTOOL_LANG_RC_CONFIG
-      available_tags="$available_tags _LT_TAG"
-  fi],
-      [m4_errprintn(m4_location[: error: invalid tag name: ]"_LT_TAG")
-      m4_exit(1)])
-  ])
+if test -f "$ltmain" && test -n "$tagnames"; then
+  if test ! -f "${ofile}"; then
+    AC_MSG_WARN([output file `$ofile' does not exist])
+  fi
 
-  _LT_CONFIG_SAVE_COMMANDS([
-    _LT_PROG_LTMAIN
-    if test -f "$ltmain"; then
-      if test ! -f "${ofile}"; then
-        AC_MSG_ERROR([output file `$ofile' does not exist])
-      fi
-      if test -z "$LTCC"; then
-        eval "`$SHELL ${ofile} --config | grep '^LTCC='`"
-        if test -z "$LTCC"; then
-          AC_MSG_ERROR([output file `$ofile' does not look like a libtool script])
-        else
-          AC_MSG_WARN([using `LTCC=$LTCC', extracted from `$ofile'])
-        fi
-      fi
-
-      # Now substitute the updated list of available tags.
-      if eval "sed -e 's/^available_tags=.*\$/available_tags=\"$available_tags\"/' \"$ofile\" > \"${ofile}T\""; then
-        mv "${ofile}T" "$ofile"
-        chmod +x "$ofile"
-      else
-        rm -f "${ofile}T"
-        AC_MSG_ERROR([unable to update list of available tagged configurations.])
-      fi
+  if test -z "$LTCC"; then
+    eval "`$SHELL ${ofile} --config | grep '^LTCC='`"
+    if test -z "$LTCC"; then
+      AC_MSG_WARN([output file `$ofile' does not look like a libtool script])
+    else
+      AC_MSG_WARN([using `LTCC=$LTCC', extracted from `$ofile'])
     fi
-  ], [
-    libtool='$ofile'
-    available_tags='$available_tags'
-  ])dnl
-])# _LT_AC_TAG_CONFIG
+  fi
+  if test -z "$LTCFLAGS"; then
+    eval "`$SHELL ${ofile} --config | grep '^LTCFLAGS='`"
+  fi
+
+  # Extract list of available tagged configurations in $ofile.
+  # Note that this assumes the entire list is on one line.
+  available_tags=`grep "^available_tags=" "${ofile}" | $SED -e 's/available_tags=\(.*$\)/\1/' -e 's/\"//g'`
+
+  lt_save_ifs="$IFS"; IFS="${IFS}$PATH_SEPARATOR,"
+  for tagname in $tagnames; do
+    IFS="$lt_save_ifs"
+    # Check whether tagname contains only valid characters
+    case `$echo "X$tagname" | $Xsed -e 's:[[-_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890,/]]::g'` in
+    "") ;;
+    *)  AC_MSG_ERROR([invalid tag name: $tagname])
+	;;
+    esac
+
+    if grep "^# ### BEGIN LIBTOOL TAG CONFIG: $tagname$" < "${ofile}" > /dev/null
+    then
+      AC_MSG_ERROR([tag name \"$tagname\" already exists])
+    fi
+
+    # Update the list of available tags.
+    if test -n "$tagname"; then
+      echo appending configuration tag \"$tagname\" to $ofile
+
+      case $tagname in
+      CXX)
+	if test -n "$CXX" && ( test "X$CXX" != "Xno" &&
+	    ( (test "X$CXX" = "Xg++" && `g++ -v >/dev/null 2>&1` ) ||
+	    (test "X$CXX" != "Xg++"))) ; then
+	  AC_LIBTOOL_LANG_CXX_CONFIG
+	else
+	  tagname=""
+	fi
+	;;
+
+      F77)
+	if test -n "$F77" && test "X$F77" != "Xno"; then
+	  AC_LIBTOOL_LANG_F77_CONFIG
+	else
+	  tagname=""
+	fi
+	;;
+
+      GCJ)
+	if test -n "$GCJ" && test "X$GCJ" != "Xno"; then
+	  AC_LIBTOOL_LANG_GCJ_CONFIG
+	else
+	  tagname=""
+	fi
+	;;
+
+      RC)
+	AC_LIBTOOL_LANG_RC_CONFIG
+	;;
+
+      *)
+	AC_MSG_ERROR([Unsupported tag name: $tagname])
+	;;
+      esac
+
+      # Append the new tag name to the list of available tags.
+      if test -n "$tagname" ; then
+      available_tags="$available_tags $tagname"
+    fi
+    fi
+  done
+  IFS="$lt_save_ifs"
+
+  # Now substitute the updated list of available tags.
+  if eval "sed -e 's/^available_tags=.*\$/available_tags=\"$available_tags\"/' \"$ofile\" > \"${ofile}T\""; then
+    mv "${ofile}T" "$ofile"
+    chmod +x "$ofile"
+  else
+    rm -f "${ofile}T"
+    AC_MSG_ERROR([unable to update list of available tagged configurations.])
+  fi
+fi
+])# _LT_AC_TAGCONFIG
 
 
 # AC_LIBTOOL_DLOPEN
@@ -7548,24 +7868,9 @@ AC_DEFUN([AC_LIBTOOL_DLOPEN],
 
 # AC_LIBTOOL_WIN32_DLL
 # --------------------
-# declare package support for building win32 dll's
+# declare package support for building win32 DLLs
 AC_DEFUN([AC_LIBTOOL_WIN32_DLL],
 [AC_BEFORE([$0], [AC_LIBTOOL_SETUP])
-test -z "$AS" && AS=as
-test -z "$DLLTOOL" && DLLTOOL=dlltool
-test -z "$OBJDUMP" && OBJDUMP=objdump
-
-case $host in
-*-*-cygwin* | *-*-mingw* | *-*-pw32*)
-  AC_CHECK_TOOL(AS, as, false)
-  AC_CHECK_TOOL(DLLTOOL, dlltool, false)
-  AC_CHECK_TOOL(OBJDUMP, objdump, false)
-  ;;
-esac
-
-_LT_DECL([], [AS],      [0], [Assembler program])dnl
-_LT_DECL([], [DLLTOOL], [0], [DLL creation program])dnl
-_LT_DECL([], [OBJDUMP], [0], [Object dumper program])dnl
 ])# AC_LIBTOOL_WIN32_DLL
 
 
@@ -7574,7 +7879,7 @@ _LT_DECL([], [OBJDUMP], [0], [Object dumper program])dnl
 # implement the --enable-shared flag
 # DEFAULT is either `yes' or `no'.  If omitted, it defaults to `yes'.
 AC_DEFUN([AC_ENABLE_SHARED],
-[m4_define([AC_ENABLE_SHARED_DEFAULT], [m4_if($1, no, no, yes)])dnl
+[define([AC_ENABLE_SHARED_DEFAULT], ifelse($1, no, no, yes))dnl
 AC_ARG_ENABLE([shared],
     [AC_HELP_STRING([--enable-shared@<:@=PKGS@:>@],
 	[build shared libraries @<:@default=]AC_ENABLE_SHARED_DEFAULT[@:>@])],
@@ -7596,15 +7901,12 @@ AC_ARG_ENABLE([shared],
       ;;
     esac],
     [enable_shared=]AC_ENABLE_SHARED_DEFAULT)
-
-    _LT_DECL([build_libtool_libs], [enable_shared], [0],
-	[Whether or not to build shared libraries])
 ])# AC_ENABLE_SHARED
 
 
 # AC_DISABLE_SHARED
 # -----------------
-#- set the default shared flag to --disable-shared
+# set the default shared flag to --disable-shared
 AC_DEFUN([AC_DISABLE_SHARED],
 [AC_BEFORE([$0],[AC_LIBTOOL_SETUP])dnl
 AC_ENABLE_SHARED(no)
@@ -7616,7 +7918,7 @@ AC_ENABLE_SHARED(no)
 # implement the --enable-static flag
 # DEFAULT is either `yes' or `no'.  If omitted, it defaults to `yes'.
 AC_DEFUN([AC_ENABLE_STATIC],
-[m4_define([AC_ENABLE_STATIC_DEFAULT], [m4_if($1, no, no, yes)])dnl
+[define([AC_ENABLE_STATIC_DEFAULT], ifelse($1, no, no, yes))dnl
 AC_ARG_ENABLE([static],
     [AC_HELP_STRING([--enable-static@<:@=PKGS@:>@],
 	[build static libraries @<:@default=]AC_ENABLE_STATIC_DEFAULT[@:>@])],
@@ -7638,9 +7940,6 @@ AC_ARG_ENABLE([static],
       ;;
     esac],
     [enable_static=]AC_ENABLE_STATIC_DEFAULT)
-
-    _LT_DECL([build_old_libs], [enable_static], [0],
-	[Whether or not to build static libraries])
 ])# AC_ENABLE_STATIC
 
 
@@ -7658,7 +7957,7 @@ AC_ENABLE_STATIC(no)
 # implement the --enable-fast-install flag
 # DEFAULT is either `yes' or `no'.  If omitted, it defaults to `yes'.
 AC_DEFUN([AC_ENABLE_FAST_INSTALL],
-[m4_define([AC_ENABLE_FAST_INSTALL_DEFAULT], [m4_if($1, no, no, yes)])dnl
+[define([AC_ENABLE_FAST_INSTALL_DEFAULT], ifelse($1, no, no, yes))dnl
 AC_ARG_ENABLE([fast-install],
     [AC_HELP_STRING([--enable-fast-install@<:@=PKGS@:>@],
     [optimize for fast installation @<:@default=]AC_ENABLE_FAST_INSTALL_DEFAULT[@:>@])],
@@ -7680,9 +7979,6 @@ AC_ARG_ENABLE([fast-install],
       ;;
     esac],
     [enable_fast_install=]AC_ENABLE_FAST_INSTALL_DEFAULT)
-
-    _LT_DECL([fast_install], [enable_fast_install], [0],
-	[Whether or not to optimize for fast installation])
 ])# AC_ENABLE_FAST_INSTALL
 
 
@@ -7701,8 +7997,23 @@ AC_ENABLE_FAST_INSTALL(no)
 # MODE is either `yes' or `no'.  If omitted, it defaults to `both'.
 AC_DEFUN([AC_LIBTOOL_PICMODE],
 [AC_BEFORE([$0],[AC_LIBTOOL_SETUP])dnl
-pic_mode=m4_if($#, 1, $1, default)
+pic_mode=ifelse($#,1,$1,default)
 ])# AC_LIBTOOL_PICMODE
+
+
+# AC_PROG_EGREP
+# -------------
+# This is predefined starting with Autoconf 2.54, so this conditional
+# definition can be removed once we require Autoconf 2.54 or later.
+m4_ifndef([AC_PROG_EGREP], [AC_DEFUN([AC_PROG_EGREP],
+[AC_CACHE_CHECK([for egrep], [ac_cv_prog_egrep],
+   [if echo a | (grep -E '(a|b)') >/dev/null 2>&1
+    then ac_cv_prog_egrep='grep -E'
+    else ac_cv_prog_egrep='egrep'
+    fi])
+ EGREP=$ac_cv_prog_egrep
+ AC_SUBST([EGREP])
+])])
 
 
 # AC_PATH_TOOL_PREFIX
@@ -7722,7 +8033,7 @@ AC_CACHE_VAL(lt_cv_path_MAGIC_CMD,
 dnl $ac_dummy forces splitting on constant user-supplied paths.
 dnl POSIX.2 word splitting is done only on the output of word expansions,
 dnl not every word.  This closes a longstanding sh security hole.
-  ac_dummy="m4_if([$2], , $PATH, [$2])"
+  ac_dummy="ifelse([$2], , $PATH, [$2])"
   for ac_dir in $ac_dummy; do
     IFS="$lt_save_ifs"
     test -z "$ac_dir" && ac_dir=.
@@ -7731,13 +8042,13 @@ dnl not every word.  This closes a longstanding sh security hole.
       if test -n "$file_magic_test_file"; then
 	case $deplibs_check_method in
 	"file_magic "*)
-	  file_magic_regex="`expr \"$deplibs_check_method\" : \"file_magic \(.*\)\"`"
+	  file_magic_regex=`expr "$deplibs_check_method" : "file_magic \(.*\)"`
 	  MAGIC_CMD="$lt_cv_path_MAGIC_CMD"
 	  if eval $file_magic_cmd \$file_magic_test_file 2> /dev/null |
 	    $EGREP "$file_magic_regex" > /dev/null; then
 	    :
 	  else
-	    cat <<_LT_EOF 1>&2
+	    cat <<EOF 1>&2
 
 *** Warning: the command libtool uses to detect shared libraries,
 *** $file_magic_cmd, produces output that libtool cannot recognize.
@@ -7748,7 +8059,7 @@ dnl not every word.  This closes a longstanding sh security hole.
 *** may want to report the problem to your system manager and/or to
 *** bug-libtool@gnu.org
 
-_LT_EOF
+EOF
 	  fi ;;
 	esac
       fi
@@ -7765,8 +8076,6 @@ if test -n "$MAGIC_CMD"; then
 else
   AC_MSG_RESULT(no)
 fi
-_LT_DECL([], [MAGIC_CMD], [0],
-	 [Used to examine libraries when file_magic_cmd begins "file"])dnl
 ])# AC_PATH_TOOL_PREFIX
 
 
@@ -7798,7 +8107,6 @@ AC_REQUIRE([LT_AC_PROG_SED])dnl
 AC_REQUIRE([AC_PROG_CC])dnl
 AC_REQUIRE([AC_CANONICAL_HOST])dnl
 AC_REQUIRE([AC_CANONICAL_BUILD])dnl
-
 ac_prog=ld
 if test "$GCC" = yes; then
   # Check if gcc -print-prog-name=ld gives a path.
@@ -7844,7 +8152,7 @@ AC_CACHE_VAL(lt_cv_path_LD,
     if test -f "$ac_dir/$ac_prog" || test -f "$ac_dir/$ac_prog$ac_exeext"; then
       lt_cv_path_LD="$ac_dir/$ac_prog"
       # Check to see if the program is GNU ld.  I'd rather use --version,
-      # but apparently some GNU ld's only accept -v.
+      # but apparently some variants of GNU ld only accept -v.
       # Break only if it was the GNU/non-GNU ld that we prefer.
       case `"$lt_cv_path_LD" -v 2>&1 </dev/null` in
       *GNU* | *'with BFD'*)
@@ -7868,9 +8176,6 @@ else
 fi
 test -z "$LD" && AC_MSG_ERROR([no acceptable ld found in \$PATH])
 AC_PROG_LD_GNU
-AC_SUBST([LD])
-
-_LT_TAGDECL([], [LD], [1], [The linker used to build libraries])
 ])# AC_PROG_LD
 
 
@@ -7879,7 +8184,7 @@ _LT_TAGDECL([], [LD], [1], [The linker used to build libraries])
 AC_DEFUN([AC_PROG_LD_GNU],
 [AC_REQUIRE([AC_PROG_EGREP])dnl
 AC_CACHE_CHECK([if the linker ($LD) is GNU ld], lt_cv_prog_gnu_ld,
-[# I'd rather use --version here, but apparently some GNU ld's only accept -v.
+[# I'd rather use --version here, but apparently some GNU lds only accept -v.
 case `$LD -v 2>&1 </dev/null` in
 *GNU* | *'with BFD'*)
   lt_cv_prog_gnu_ld=yes
@@ -7906,9 +8211,15 @@ case $reload_flag in
 *) reload_flag=" $reload_flag" ;;
 esac
 reload_cmds='$LD$reload_flag -o $output$reload_objs'
-
-_LT_DECL([], [reload_flag], [1], [How to create reloadable object files])dnl
-_LT_DECL([], [reload_cmds], [2])dnl
+case $host_os in
+  darwin*)
+    if test "$GCC" = yes; then
+      reload_cmds='$LTCC $LTCFLAGS -nostdlib ${wl}-r -o $output$reload_objs'
+    else
+      reload_cmds='$LD$reload_flag -o $output$reload_objs'
+    fi
+    ;;
+esac
 ])# AC_PROG_LD_RELOAD_FLAG
 
 
@@ -7942,21 +8253,21 @@ beos*)
   lt_cv_deplibs_check_method=pass_all
   ;;
 
-bsdi4*)
+bsdi[[45]]*)
   lt_cv_deplibs_check_method='file_magic ELF [[0-9]][[0-9]]*-bit [[ML]]SB (shared object|dynamic lib)'
   lt_cv_file_magic_cmd='/usr/bin/file -L'
   lt_cv_file_magic_test_file=/shlib/libc.so
   ;;
 
 cygwin*)
-  # win32_libid is a shell function defined in ltmain.sh
+  # func_win32_libid is a shell function defined in ltmain.sh
   lt_cv_deplibs_check_method='file_magic ^x86 archive import|^x86 DLL'
-  lt_cv_file_magic_cmd='win32_libid'
+  lt_cv_file_magic_cmd='func_win32_libid'
   ;;
 
-  # Base MSYS/MinGW do not provide the 'file' command needed by
-  # win32_libid shell function, so use a weaker test based on 'objdump'.
 mingw* | pw32*)
+  # Base MSYS/MinGW do not provide the 'file' command needed by
+  # func_win32_libid shell function, so use a weaker test based on 'objdump'.
   lt_cv_deplibs_check_method='file_magic file format pei*-i386(.*architecture: i386)?'
   lt_cv_file_magic_cmd='$OBJDUMP -f'
   ;;
@@ -7965,13 +8276,13 @@ darwin* | rhapsody*)
   lt_cv_deplibs_check_method=pass_all
   ;;
 
-freebsd* | kfreebsd*-gnu)
+freebsd* | kfreebsd*-gnu | dragonfly*)
   if echo __ELF__ | $CC -E - | grep __ELF__ > /dev/null; then
     case $host_cpu in
     i*86 )
       # Not sure whether the presence of OpenBSD here was a mistake.
       # Let's accept both of them until this is cleared up.
-      lt_cv_deplibs_check_method='file_magic (FreeBSD|OpenBSD)/i[[3-9]]86 (compact )?demand paged shared library'
+      lt_cv_deplibs_check_method='file_magic (FreeBSD|OpenBSD|DragonFly)/i[[3-9]]86 (compact )?demand paged shared library'
       lt_cv_file_magic_cmd=/usr/bin/file
       lt_cv_file_magic_test_file=`echo /usr/lib/libc.so.*`
       ;;
@@ -7987,7 +8298,7 @@ gnu*)
 
 hpux10.20* | hpux11*)
   lt_cv_file_magic_cmd=/usr/bin/file
-  case "$host_cpu" in
+  case $host_cpu in
   ia64*)
     lt_cv_deplibs_check_method='file_magic (s[[0-9]][[0-9]][[0-9]]|ELF-[[0-9]][[0-9]]) shared object file - IA64'
     lt_cv_file_magic_test_file=/usr/lib/hpux32/libc.so
@@ -8003,6 +8314,11 @@ hpux10.20* | hpux11*)
   esac
   ;;
 
+interix3*)
+  # PIC code is broken on Interix 3.x, that's why |\.a not |_pic\.a here
+  lt_cv_deplibs_check_method='match_pattern /lib[[^/]]+(\.so|\.a)$'
+  ;;
+
 irix5* | irix6* | nonstopux*)
   case $LD in
   *-32|*"-32 ") libmagic=32-bit;;
@@ -8015,19 +8331,10 @@ irix5* | irix6* | nonstopux*)
 
 # This must be Linux ELF.
 linux*)
-  case $host_cpu in
-  alpha*|hppa*|i*86|ia64*|m68*|mips*|powerpc*|sparc*|s390*|sh*)
-    lt_cv_deplibs_check_method=pass_all ;;
-  *)
-    # glibc up to 2.1.1 does not perform some relocations on ARM
-    # this will be overridden with pass_all, but let us keep it just in case
-    lt_cv_deplibs_check_method='file_magic ELF [[0-9]][[0-9]]*-bit [[LM]]SB (shared object|dynamic lib )' ;;
-  esac
-  lt_cv_file_magic_test_file=`echo /lib/libc.so* /lib/libc-*.so`
   lt_cv_deplibs_check_method=pass_all
   ;;
 
-netbsd* | knetbsd*-gnu)
+netbsd*)
   if echo __ELF__ | $CC -E - | grep __ELF__ > /dev/null; then
     lt_cv_deplibs_check_method='match_pattern /lib[[^/]]+(\.so\.[[0-9]]+\.[[0-9]]+|_pic\.a)$'
   else
@@ -8046,12 +8353,10 @@ nto-qnx*)
   ;;
 
 openbsd*)
-  lt_cv_file_magic_cmd=/usr/bin/file
-  lt_cv_file_magic_test_file=`echo /usr/lib/libc.so.*`
   if test -z "`echo __ELF__ | $CC -E - | grep __ELF__`" || test "$host_os-$host_cpu" = "openbsd2.8-powerpc"; then
-    lt_cv_deplibs_check_method='file_magic ELF [[0-9]][[0-9]]*-bit [[LM]]SB shared object'
+    lt_cv_deplibs_check_method='match_pattern /lib[[^/]]+(\.so\.[[0-9]]+\.[[0-9]]+|\.so|_pic\.a)$'
   else
-    lt_cv_deplibs_check_method='file_magic OpenBSD.* shared library'
+    lt_cv_deplibs_check_method='match_pattern /lib[[^/]]+(\.so\.[[0-9]]+\.[[0-9]]+|_pic\.a)$'
   fi
   ;;
 
@@ -8059,15 +8364,11 @@ osf3* | osf4* | osf5*)
   lt_cv_deplibs_check_method=pass_all
   ;;
 
-sco3.2v5*)
-  lt_cv_deplibs_check_method=pass_all
-  ;;
-
 solaris*)
   lt_cv_deplibs_check_method=pass_all
   ;;
 
-sysv4 | sysv4.2uw2* | sysv4.3* | sysv5*)
+sysv4 | sysv4.3*)
   case $host_vendor in
   motorola)
     lt_cv_deplibs_check_method='file_magic ELF [[0-9]][[0-9]]*-bit [[ML]]SB (shared object|dynamic lib) M[[0-9]][[0-9]]* Version [[0-9]]'
@@ -8088,10 +8389,13 @@ sysv4 | sysv4.2uw2* | sysv4.3* | sysv5*)
   siemens)
     lt_cv_deplibs_check_method=pass_all
     ;;
+  pc)
+    lt_cv_deplibs_check_method=pass_all
+    ;;
   esac
   ;;
 
-sysv5OpenUNIX8* | sysv5UnixWare7* | sysv5uw[[78]]* | unixware7* | sysv4*uw2*)
+sysv5* | sco3.2v5* | sco5v6* | unixware* | OpenUNIX* | sysv4*uw2*)
   lt_cv_deplibs_check_method=pass_all
   ;;
 esac
@@ -8099,11 +8403,6 @@ esac
 file_magic_cmd=$lt_cv_file_magic_cmd
 deplibs_check_method=$lt_cv_deplibs_check_method
 test -z "$deplibs_check_method" && deplibs_check_method=unknown
-
-_LT_DECL([], [deplibs_check_method], [1],
-    [Method to check whether dependent libraries are shared objects])
-_LT_DECL([], [file_magic_cmd], [1],
-    [Command to use when deplibs_check_method == "file_magic"])
 ])# AC_DEPLIBS_CHECK_METHOD
 
 
@@ -8116,42 +8415,46 @@ AC_DEFUN([AC_PROG_NM],
   # Let the user override the test.
   lt_cv_path_NM="$NM"
 else
-  lt_save_ifs="$IFS"; IFS=$PATH_SEPARATOR
-  for ac_dir in $PATH /usr/ccs/bin /usr/ucb /bin; do
-    IFS="$lt_save_ifs"
-    test -z "$ac_dir" && ac_dir=.
-    tmp_nm="$ac_dir/${ac_tool_prefix}nm"
-    if test -f "$tmp_nm" || test -f "$tmp_nm$ac_exeext" ; then
-      # Check to see if the nm accepts a BSD-compat flag.
-      # Adding the `sed 1q' prevents false positives on HP-UX, which says:
-      #   nm: unknown option "B" ignored
-      # Tru64's nm complains that /dev/null is an invalid object file
-      case `"$tmp_nm" -B /dev/null 2>&1 | sed '1q'` in
-      */dev/null* | *'Invalid file or object type'*)
-	lt_cv_path_NM="$tmp_nm -B"
-	break
-        ;;
-      *)
-	case `"$tmp_nm" -p /dev/null 2>&1 | sed '1q'` in
-	*/dev/null*)
-	  lt_cv_path_NM="$tmp_nm -p"
+  lt_nm_to_check="${ac_tool_prefix}nm"
+  if test -n "$ac_tool_prefix" && test "$build" = "$host"; then 
+    lt_nm_to_check="$lt_nm_to_check nm"
+  fi
+  for lt_tmp_nm in $lt_nm_to_check; do
+    lt_save_ifs="$IFS"; IFS=$PATH_SEPARATOR
+    for ac_dir in $PATH /usr/ccs/bin/elf /usr/ccs/bin /usr/ucb /bin; do
+      IFS="$lt_save_ifs"
+      test -z "$ac_dir" && ac_dir=.
+      tmp_nm="$ac_dir/$lt_tmp_nm"
+      if test -f "$tmp_nm" || test -f "$tmp_nm$ac_exeext" ; then
+	# Check to see if the nm accepts a BSD-compat flag.
+	# Adding the `sed 1q' prevents false positives on HP-UX, which says:
+	#   nm: unknown option "B" ignored
+	# Tru64's nm complains that /dev/null is an invalid object file
+	case `"$tmp_nm" -B /dev/null 2>&1 | sed '1q'` in
+	*/dev/null* | *'Invalid file or object type'*)
+	  lt_cv_path_NM="$tmp_nm -B"
 	  break
 	  ;;
 	*)
-	  lt_cv_path_NM=${lt_cv_path_NM="$tmp_nm"} # keep the first match, but
-	  continue # so that we can try to find one that supports BSD flags
+	  case `"$tmp_nm" -p /dev/null 2>&1 | sed '1q'` in
+	  */dev/null*)
+	    lt_cv_path_NM="$tmp_nm -p"
+	    break
+	    ;;
+	  *)
+	    lt_cv_path_NM=${lt_cv_path_NM="$tmp_nm"} # keep the first match, but
+	    continue # so that we can try to find one that supports BSD flags
+	    ;;
+	  esac
 	  ;;
 	esac
-      esac
-    fi
+      fi
+    done
+    IFS="$lt_save_ifs"
   done
-  IFS="$lt_save_ifs"
   test -z "$lt_cv_path_NM" && lt_cv_path_NM=nm
 fi])
 NM="$lt_cv_path_NM"
-test -z "$NM" && NM=nm
-AC_SUBST([NM])
-_LT_DECL([], [NM], [1], [A BSD-compatible nm program])dnl
 ])# AC_PROG_NM
 
 
@@ -8180,13 +8483,13 @@ esac
 # -----------------------------------
 # sets LIBLTDL to the link flags for the libltdl convenience library and
 # LTDLINCL to the include flags for the libltdl header and adds
-# --enable-ltdl-convenience to the configure arguments.  Note that LIBLTDL
-# and LTDLINCL are not AC_SUBSTed, nor is AC_CONFIG_SUBDIRS called.  If
-# DIRECTORY is not provided, it is assumed to be `libltdl'.  LIBLTDL will
-# be prefixed with '${top_builddir}/' and LTDLINCL will be prefixed with
-# '${top_srcdir}/' (note the single quotes!).  If your package is not
-# flat and you're not using automake, define top_builddir and
-# top_srcdir appropriately in the Makefiles.
+# --enable-ltdl-convenience to the configure arguments.  Note that
+# AC_CONFIG_SUBDIRS is not called here.  If DIRECTORY is not provided,
+# it is assumed to be `libltdl'.  LIBLTDL will be prefixed with
+# '${top_builddir}/' and LTDLINCL will be prefixed with '${top_srcdir}/'
+# (note the single quotes!).  If your package is not flat and you're not
+# using automake, define top_builddir and top_srcdir appropriately in
+# the Makefiles.
 AC_DEFUN([AC_LIBLTDL_CONVENIENCE],
 [AC_BEFORE([$0],[AC_LIBTOOL_SETUP])dnl
   case $enable_ltdl_convenience in
@@ -8194,8 +8497,8 @@ AC_DEFUN([AC_LIBLTDL_CONVENIENCE],
   "") enable_ltdl_convenience=yes
       ac_configure_args="$ac_configure_args --enable-ltdl-convenience" ;;
   esac
-  LIBLTDL='${top_builddir}/'m4_if($#, 1,[$1], ['libltdl'])/libltdlc.la
-  LTDLINCL='-I${top_srcdir}/'m4_if($#, 1, [$1], ['libltdl'])
+  LIBLTDL='${top_builddir}/'ifelse($#,1,[$1],['libltdl'])/libltdlc.la
+  LTDLINCL='-I${top_srcdir}/'ifelse($#,1,[$1],['libltdl'])
   # For backwards non-gettext consistent compatibility...
   INCLTDL="$LTDLINCL"
 ])# AC_LIBLTDL_CONVENIENCE
@@ -8205,13 +8508,13 @@ AC_DEFUN([AC_LIBLTDL_CONVENIENCE],
 # -----------------------------------
 # sets LIBLTDL to the link flags for the libltdl installable library and
 # LTDLINCL to the include flags for the libltdl header and adds
-# --enable-ltdl-install to the configure arguments.  Note that LIBLTDL
-# and LTDLINCL are not AC_SUBSTed, nor is AC_CONFIG_SUBDIRS called.  If
-# DIRECTORY is not provided and an installed libltdl is not found, it is
-# assumed to be `libltdl'.  LIBLTDL will be prefixed with '${top_builddir}/'
-# and LTDLINCL will be prefixed with '${top_srcdir}/' (note the single
-# quotes!).  If your package is not flat and you're not using automake,
-# define top_builddir and top_srcdir appropriately in the Makefiles.
+# --enable-ltdl-install to the configure arguments.  Note that
+# AC_CONFIG_SUBDIRS is not called here.  If DIRECTORY is not provided,
+# and an installed libltdl is not found, it is assumed to be `libltdl'.
+# LIBLTDL will be prefixed with '${top_builddir}/'# and LTDLINCL with
+# '${top_srcdir}/' (note the single quotes!).  If your package is not
+# flat and you're not using automake, define top_builddir and top_srcdir
+# appropriately in the Makefiles.
 # In the future, this macro may have to be called after AC_PROG_LIBTOOL.
 AC_DEFUN([AC_LIBLTDL_INSTALLABLE],
 [AC_BEFORE([$0],[AC_LIBTOOL_SETUP])dnl
@@ -8225,8 +8528,8 @@ AC_DEFUN([AC_LIBLTDL_INSTALLABLE],
   ])
   if test x"$enable_ltdl_install" = x"yes"; then
     ac_configure_args="$ac_configure_args --enable-ltdl-install"
-    LIBLTDL='${top_builddir}/'m4_if($#, 1, [$1], ['libltdl'])/libltdl.la
-    LTDLINCL='-I${top_srcdir}/'m4_if($#, 1, [$1], ['libltdl'])
+    LIBLTDL='${top_builddir}/'ifelse($#,1,[$1],['libltdl'])/libltdl.la
+    LTDLINCL='-I${top_srcdir}/'ifelse($#,1,[$1],['libltdl'])
   else
     ac_configure_args="$ac_configure_args --enable-ltdl-install=no"
     LIBLTDL="-lltdl"
@@ -8235,1602 +8538,6 @@ AC_DEFUN([AC_LIBLTDL_INSTALLABLE],
   # For backwards non-gettext consistent compatibility...
   INCLTDL="$LTDLINCL"
 ])# AC_LIBLTDL_INSTALLABLE
-
-
-# AC_LIBTOOL_PROG_COMPILER_NO_RTTI([TAGNAME])
-# -------------------------------------------
-AC_DEFUN([AC_LIBTOOL_PROG_COMPILER_NO_RTTI],
-[AC_REQUIRE([_LT_AC_SYS_COMPILER])dnl
-
-_LT_AC_TAGVAR(lt_prog_compiler_no_builtin_flag, $1)=
-
-if test "$GCC" = yes; then
-  _LT_AC_TAGVAR(lt_prog_compiler_no_builtin_flag, $1)=' -fno-builtin'
-
-  AC_LIBTOOL_COMPILER_OPTION([if $compiler supports -fno-rtti -fno-exceptions],
-    lt_cv_prog_compiler_rtti_exceptions,
-    [-fno-rtti -fno-exceptions], [],
-    [_LT_AC_TAGVAR(lt_prog_compiler_no_builtin_flag, $1)="$_LT_AC_TAGVAR(lt_prog_compiler_no_builtin_flag, $1) -fno-rtti -fno-exceptions"])
-fi
-_LT_TAGDECL([no_builtin_flag], [lt_prog_compiler_no_builtin_flag], [1],
-	[Compiler flag to turn off builtin functions])
-])# AC_LIBTOOL_PROG_COMPILER_NO_RTTI
-
-
-# AC_LIBTOOL_SYS_GLOBAL_SYMBOL_PIPE
-# ---------------------------------
-AC_DEFUN([AC_LIBTOOL_SYS_GLOBAL_SYMBOL_PIPE],
-[AC_REQUIRE([AC_CANONICAL_HOST])dnl
-AC_REQUIRE([AC_PROG_CC])dnl
-AC_REQUIRE([AC_PROG_LD])dnl
-AC_REQUIRE([AC_PROG_NM])dnl
-AC_REQUIRE([AC_OBJEXT])dnl
-# Check for command to grab the raw symbol name followed by C symbol from nm.
-AC_MSG_CHECKING([command to parse $NM output from $compiler object])
-AC_CACHE_VAL([lt_cv_sys_global_symbol_pipe],
-[
-# These are sane defaults that work on at least a few old systems.
-# [They come from Ultrix.  What could be older than Ultrix?!! ;)]
-
-# Character class describing NM global symbol codes.
-symcode='[[BCDEGRST]]'
-
-# Regexp to match symbols that can be accessed directly from C.
-sympat='\([[_A-Za-z]][[_A-Za-z0-9]]*\)'
-
-# Transform the above into a raw symbol and a C symbol.
-symxfrm='\1 \2\3 \3'
-
-# Transform an extracted symbol line into a proper C declaration
-lt_cv_sys_global_symbol_to_cdecl="sed -n -e 's/^. .* \(.*\)$/extern int \1;/p'"
-
-# Transform an extracted symbol line into symbol name and symbol address
-lt_cv_sys_global_symbol_to_c_name_address="sed -n -e 's/^: \([[^ ]]*\) $/  {\\\"\1\\\", (lt_ptr) 0},/p' -e 's/^$symcode \([[^ ]]*\) \([[^ ]]*\)$/  {\"\2\", (lt_ptr) \&\2},/p'"
-
-# Define system-specific variables.
-case $host_os in
-aix*)
-  symcode='[[BCDT]]'
-  ;;
-cygwin* | mingw* | pw32*)
-  symcode='[[ABCDGISTW]]'
-  ;;
-hpux*) # Its linker distinguishes data from code symbols
-  if test "$host_cpu" = ia64; then
-    symcode='[[ABCDEGRST]]'
-  fi
-  lt_cv_sys_global_symbol_to_cdecl="sed -n -e 's/^T .* \(.*\)$/extern int \1();/p' -e 's/^$symcode* .* \(.*\)$/extern char \1;/p'"
-  lt_cv_sys_global_symbol_to_c_name_address="sed -n -e 's/^: \([[^ ]]*\) $/  {\\\"\1\\\", (lt_ptr) 0},/p' -e 's/^$symcode* \([[^ ]]*\) \([[^ ]]*\)$/  {\"\2\", (lt_ptr) \&\2},/p'"
-  ;;
-irix* | nonstopux*)
-  symcode='[[BCDEGRST]]'
-  ;;
-osf*)
-  symcode='[[BCDEGQRST]]'
-  ;;
-solaris* | sysv5*)
-  symcode='[[BDRT]]'
-  ;;
-sysv4)
-  symcode='[[DFNSTU]]'
-  ;;
-esac
-
-# Handle CRLF in mingw tool chain
-opt_cr=
-case $build_os in
-mingw*)
-  opt_cr=`echo 'x\{0,1\}' | tr x '\015'` # option cr in regexp
-  ;;
-esac
-
-# If we're using GNU nm, then use its standard symbol codes.
-case `$NM -V 2>&1` in
-*GNU* | *'with BFD'*)
-  symcode='[[ABCDGIRSTW]]' ;;
-esac
-
-# Try without a prefix undercore, then with it.
-for ac_symprfx in "" "_"; do
-
-  # Write the raw and C identifiers.
-  lt_cv_sys_global_symbol_pipe="sed -n -e 's/^.*[[ 	]]\($symcode$symcode*\)[[ 	]][[ 	]]*\($ac_symprfx\)$sympat$opt_cr$/$symxfrm/p'"
-
-  # Check to see that the pipe works correctly.
-  pipe_works=no
-
-  rm -f conftest*
-  cat > conftest.$ac_ext <<_LT_EOF
-#ifdef __cplusplus
-extern "C" {
-#endif
-char nm_test_var;
-void nm_test_func(){}
-#ifdef __cplusplus
-}
-#endif
-int main(){nm_test_var='a';nm_test_func();return(0);}
-_LT_EOF
-
-  if AC_TRY_EVAL(ac_compile); then
-    # Now try to grab the symbols.
-    nlist=conftest.nm
-    if AC_TRY_EVAL(NM conftest.$ac_objext \| $lt_cv_sys_global_symbol_pipe \> $nlist) && test -s "$nlist"; then
-      # Try sorting and uniquifying the output.
-      if sort "$nlist" | uniq > "$nlist"T; then
-	mv -f "$nlist"T "$nlist"
-      else
-	rm -f "$nlist"T
-      fi
-
-      # Make sure that we snagged all the symbols we need.
-      if grep ' nm_test_var$' "$nlist" >/dev/null; then
-	if grep ' nm_test_func$' "$nlist" >/dev/null; then
-	  cat <<_LT_EOF > conftest.$ac_ext
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-_LT_EOF
-	  # Now generate the symbol file.
-	  eval "$lt_cv_sys_global_symbol_to_cdecl"' < "$nlist" | grep -v main >> conftest.$ac_ext'
-
-	  cat <<_LT_EOF >> conftest.$ac_ext
-#if defined (__STDC__) && __STDC__
-# define lt_ptr_t void *
-#else
-# define lt_ptr_t char *
-# define const
-#endif
-
-/* The mapping between symbol names and symbols. */
-const struct {
-  const char *name;
-  lt_ptr_t address;
-}
-lt_preloaded_symbols[[]] =
-{
-_LT_EOF
-	  $SED "s/^$symcode$symcode* \(.*\) \(.*\)$/  {\"\2\", (lt_ptr_t) \&\2},/" < "$nlist" | grep -v main >> conftest.$ac_ext
-	  cat <<\_LT_EOF >> conftest.$ac_ext
-  {0, (lt_ptr_t) 0}
-};
-
-#ifdef __cplusplus
-}
-#endif
-_LT_EOF
-	  # Now try linking the two files.
-	  mv conftest.$ac_objext conftstm.$ac_objext
-	  lt_save_LIBS="$LIBS"
-	  lt_save_CFLAGS="$CFLAGS"
-	  LIBS="conftstm.$ac_objext"
-	  CFLAGS="$CFLAGS$_LT_AC_TAGVAR(lt_prog_compiler_no_builtin_flag, $1)"
-	  if AC_TRY_EVAL(ac_link) && test -s conftest${ac_exeext}; then
-	    pipe_works=yes
-	  fi
-	  LIBS="$lt_save_LIBS"
-	  CFLAGS="$lt_save_CFLAGS"
-	else
-	  echo "cannot find nm_test_func in $nlist" >&AS_MESSAGE_LOG_FD
-	fi
-      else
-	echo "cannot find nm_test_var in $nlist" >&AS_MESSAGE_LOG_FD
-      fi
-    else
-      echo "cannot run $lt_cv_sys_global_symbol_pipe" >&AS_MESSAGE_LOG_FD
-    fi
-  else
-    echo "$progname: failed program was:" >&AS_MESSAGE_LOG_FD
-    cat conftest.$ac_ext >&5
-  fi
-  rm -f conftest* conftst*
-
-  # Do not use the global_symbol_pipe unless it works.
-  if test "$pipe_works" = yes; then
-    break
-  else
-    lt_cv_sys_global_symbol_pipe=
-  fi
-done
-])
-if test -z "$lt_cv_sys_global_symbol_pipe"; then
-  lt_cv_sys_global_symbol_to_cdecl=
-fi
-if test -z "$lt_cv_sys_global_symbol_pipe$lt_cv_sys_global_symbol_to_cdecl"; then
-  AC_MSG_RESULT(failed)
-else
-  AC_MSG_RESULT(ok)
-fi
-
-_LT_DECL([global_symbol_pipe], [lt_cv_sys_global_symbol_pipe], [1],
-    [Take the output of nm and produce a listing of raw symbols and C names])
-_LT_DECL([global_symbol_to_cdecl], [lt_cv_sys_global_symbol_to_cdecl], [1],
-    [Transform the output of nm in a proper C declaration])
-_LT_DECL([global_symbol_to_c_name_address],
-    [lt_cv_sys_global_symbol_to_c_name_address], [1],
-    [Transform the output of nm in a C name address pair])
-]) # AC_LIBTOOL_SYS_GLOBAL_SYMBOL_PIPE
-
-
-# AC_LIBTOOL_PROG_COMPILER_PIC([TAGNAME])
-# ---------------------------------------
-AC_DEFUN([AC_LIBTOOL_PROG_COMPILER_PIC],
-[_LT_AC_TAGVAR(lt_prog_compiler_wl, $1)=
-_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)=
-_LT_AC_TAGVAR(lt_prog_compiler_static, $1)=
-
-AC_MSG_CHECKING([for $compiler option to produce PIC])
-m4_if([$1], [CXX], [
-  # C++ specific cases for pic, static, wl, etc.
-  if test "$GXX" = yes; then
-    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
-    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-static'
-
-    case $host_os in
-    aix*)
-      # All AIX code is PIC.
-      if test "$host_cpu" = ia64; then
-	# AIX 5 now supports IA64 processor
-	_LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
-      fi
-      ;;
-    amigaos*)
-      if test "$host_cpu" = m68k; then
-        # FIXME: we need at least 68020 code to build shared libraries, but
-        # adding the `-m68020' flag to GCC prevents building anything better,
-        # like `-m68040'.
-        _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-m68020 -resident32 -malways-restore-a4'
-      fi
-      ;;
-    beos* | cygwin* | irix5* | irix6* | nonstopux* | osf3* | osf4* | osf5*)
-      # PIC is the default for these OSes.
-      ;;
-    mingw* | os2* | pw32*)
-      # This hack is so that the source file can tell whether it is being
-      # built for inclusion in a dll (and should export symbols for example).
-      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-DDLL_EXPORT'
-      ;;
-    darwin* | rhapsody*)
-      # PIC is the default on this platform
-      # Common symbols not allowed in MH_DYLIB files
-      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-fno-common'
-      ;;
-    *djgpp*)
-      # DJGPP does not support shared libraries at all
-      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)=
-      ;;
-    sysv4*MP*)
-      if test -d /usr/nec; then
-	_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)=-Kconform_pic
-      fi
-      ;;
-    hpux*)
-      # PIC is the default for IA64 HP-UX and 64-bit HP-UX, but
-      # not for PA HP-UX.
-      case "$host_cpu" in
-      hppa*64*|ia64*)
-	;;
-      *)
-	_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-fPIC'
-	;;
-      esac
-      ;;
-    *)
-      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-fPIC'
-      ;;
-    esac
-  else
-    case $host_os in
-      aix4* | aix5*)
-	# All AIX code is PIC.
-	if test "$host_cpu" = ia64; then
-	  # AIX 5 now supports IA64 processor
-	  _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
-	else
-	  _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-bnso -bI:/lib/syscalls.exp'
-	fi
-	;;
-      chorus*)
-	case $cc_basename in
-	cxch68)
-	  # Green Hills C++ Compiler
-	  # _LT_AC_TAGVAR(lt_prog_compiler_static, $1)="--no_auto_instantiation -u __main -u __premain -u _abort -r $COOL_DIR/lib/libOrb.a $MVME_DIR/lib/CC/libC.a $MVME_DIR/lib/classix/libcx.s.a"
-	  ;;
-	esac
-	;;
-      dgux*)
-	case $cc_basename in
-	  ec++)
-	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
-	    ;;
-	  ghcx)
-	    # Green Hills C++ Compiler
-	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-pic'
-	    ;;
-	  *)
-	    ;;
-	esac
-	;;
-      freebsd* | kfreebsd*-gnu)
-	# FreeBSD uses GNU C++
-	;;
-      hpux9* | hpux10* | hpux11*)
-	case $cc_basename in
-	  CC)
-	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
-	    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)="${ac_cv_prog_cc_wl}-a ${ac_cv_prog_cc_wl}archive"
-	    if test "$host_cpu" != ia64; then
-	      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='+Z'
-	    fi
-	    ;;
-	  aCC)
-	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
-	    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)="${ac_cv_prog_cc_wl}-a ${ac_cv_prog_cc_wl}archive"
-	    case "$host_cpu" in
-	    hppa*64*|ia64*)
-	      # +Z the default
-	      ;;
-	    *)
-	      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='+Z'
-	      ;;
-	    esac
-	    ;;
-	  *)
-	    ;;
-	esac
-	;;
-      irix5* | irix6* | nonstopux*)
-	case $cc_basename in
-	  CC)
-	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
-	    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-non_shared'
-	    # CC pic flag -KPIC is the default.
-	    ;;
-	  *)
-	    ;;
-	esac
-	;;
-      linux*)
-	case $cc_basename in
-	  KCC)
-	    # KAI C++ Compiler
-	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='--backend -Wl,'
-	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-fPIC'
-	    ;;
-	  icpc)
-	    # Intel C++
-	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
-	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
-	    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-static'
-	    ;;
-	  cxx)
-	    # Compaq C++
-	    # Make sure the PIC flag is empty.  It appears that all Alpha
-	    # Linux and Compaq Tru64 Unix objects are PIC.
-	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)=
-	    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-non_shared'
-	    ;;
-	  *)
-	    ;;
-	esac
-	;;
-      lynxos*)
-	;;
-      m88k*)
-	;;
-      mvs*)
-	case $cc_basename in
-	  cxx)
-	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-W c,exportall'
-	    ;;
-	  *)
-	    ;;
-	esac
-	;;
-      netbsd*)
-	;;
-      osf3* | osf4* | osf5*)
-	case $cc_basename in
-	  KCC)
-	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='--backend -Wl,'
-	    ;;
-	  RCC)
-	    # Rational C++ 2.4.1
-	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-pic'
-	    ;;
-	  cxx)
-	    # Digital/Compaq C++
-	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
-	    # Make sure the PIC flag is empty.  It appears that all Alpha
-	    # Linux and Compaq Tru64 Unix objects are PIC.
-	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)=
-	    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-non_shared'
-	    ;;
-	  *)
-	    ;;
-	esac
-	;;
-      psos*)
-	;;
-      sco*)
-	case $cc_basename in
-	  CC)
-	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-fPIC'
-	    ;;
-	  *)
-	    ;;
-	esac
-	;;
-      solaris*)
-	case $cc_basename in
-	  CC)
-	    # Sun C++ 4.2, 5.x and Centerline C++
-	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
-	    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
-	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Qoption ld '
-	    ;;
-	  gcx)
-	    # Green Hills C++ Compiler
-	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-PIC'
-	    ;;
-	  *)
-	    ;;
-	esac
-	;;
-      sunos4*)
-	case $cc_basename in
-	  CC)
-	    # Sun C++ 4.x
-	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-pic'
-	    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
-	    ;;
-	  lcc)
-	    # Lucid
-	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-pic'
-	    ;;
-	  *)
-	    ;;
-	esac
-	;;
-      tandem*)
-	case $cc_basename in
-	  NCC)
-	    # NonStop-UX NCC 3.20
-	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
-	    ;;
-	  *)
-	    ;;
-	esac
-	;;
-      unixware*)
-	;;
-      vxworks*)
-	;;
-      *)
-	_LT_AC_TAGVAR(lt_prog_compiler_can_build_shared, $1)=no
-	;;
-    esac
-  fi
-],
-[
-  if test "$GCC" = yes; then
-    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
-    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-static'
-
-    case $host_os in
-      aix*)
-      # All AIX code is PIC.
-      if test "$host_cpu" = ia64; then
-	# AIX 5 now supports IA64 processor
-	_LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
-      fi
-      ;;
-
-    amigaos*)
-      if test "$host_cpu" = m68k; then
-        # FIXME: we need at least 68020 code to build shared libraries, but
-        # adding the `-m68020' flag to GCC prevents building anything better,
-        # like `-m68040'.
-        _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-m68020 -resident32 -malways-restore-a4'
-      fi
-      ;;
-
-    beos* | cygwin* | irix5* | irix6* | nonstopux* | osf3* | osf4* | osf5*)
-      # PIC is the default for these OSes.
-      ;;
-
-    mingw* | pw32* | os2*)
-      # This hack is so that the source file can tell whether it is being
-      # built for inclusion in a dll (and should export symbols for example).
-      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-DDLL_EXPORT'
-      ;;
-
-    darwin* | rhapsody*)
-      # PIC is the default on this platform
-      # Common symbols not allowed in MH_DYLIB files
-      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-fno-common'
-      ;;
-
-    msdosdjgpp*)
-      # Just because we use GCC doesn't mean we suddenly get shared libraries
-      # on systems that don't support them.
-      _LT_AC_TAGVAR(lt_prog_compiler_can_build_shared, $1)=no
-      enable_shared=no
-      ;;
-
-    sysv4*MP*)
-      if test -d /usr/nec; then
-	_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)=-Kconform_pic
-      fi
-      ;;
-
-    hpux*)
-      # PIC is the default for IA64 HP-UX and 64-bit HP-UX, but
-      # not for PA HP-UX.
-      case "$host_cpu" in
-      hppa*64*|ia64*)
-	# +Z the default
-	;;
-      *)
-	_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-fPIC'
-	;;
-      esac
-      ;;
-
-    *)
-      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-fPIC'
-      ;;
-    esac
-  else
-    # PORTME Check for flag to pass linker flags through the system compiler.
-    case $host_os in
-    aix*)
-      _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
-      if test "$host_cpu" = ia64; then
-	# AIX 5 now supports IA64 processor
-	_LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
-      else
-	_LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-bnso -bI:/lib/syscalls.exp'
-      fi
-      ;;
-
-    mingw* | pw32* | os2*)
-      # This hack is so that the source file can tell whether it is being
-      # built for inclusion in a dll (and should export symbols for example).
-      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-DDLL_EXPORT'
-      ;;
-
-    hpux9* | hpux10* | hpux11*)
-      _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
-      # PIC is the default for IA64 HP-UX and 64-bit HP-UX, but
-      # not for PA HP-UX.
-      case "$host_cpu" in
-      hppa*64*|ia64*)
-	# +Z the default
-	;;
-      *)
-	_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='+Z'
-	;;
-      esac
-      # Is there a better lt_prog_compiler_static that works with the bundled CC?
-      _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='${wl}-a ${wl}archive'
-      ;;
-
-    irix5* | irix6* | nonstopux*)
-      _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
-      # PIC (with -KPIC) is the default.
-      _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-non_shared'
-      ;;
-
-    newsos6)
-      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
-      _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
-      ;;
-
-    linux*)
-      case $CC in
-      icc* | ecc*)
-	_LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
-	_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
-	_LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-static'
-        ;;
-      ccc*)
-        _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
-        # All Alpha code is PIC.
-        _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-non_shared'
-        ;;
-      esac
-      ;;
-
-    osf3* | osf4* | osf5*)
-      _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
-      # All OSF/1 code is PIC.
-      _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-non_shared'
-      ;;
-
-    sco3.2v5*)
-      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-Kpic'
-      _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-dn'
-      ;;
-
-    solaris*)
-      _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
-      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
-      _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
-      ;;
-
-    sunos4*)
-      _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Qoption ld '
-      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-PIC'
-      _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
-      ;;
-
-    sysv4 | sysv4.2uw2* | sysv4.3* | sysv5*)
-      _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
-      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
-      _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
-      ;;
-
-    sysv4*MP*)
-      if test -d /usr/nec ;then
-	_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-Kconform_pic'
-	_LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
-      fi
-      ;;
-
-    uts4*)
-      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-pic'
-      _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
-      ;;
-
-    *)
-      _LT_AC_TAGVAR(lt_prog_compiler_can_build_shared, $1)=no
-      ;;
-    esac
-  fi
-])
-case "$host_os" in
-  # For platforms which do not support PIC, -DPIC is meaningless:
-  *djgpp*)
-    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)=
-    ;;
-  *)
-    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)="$_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)@&t@m4_if([$1],[],[ -DPIC],[m4_if([$1],[CXX],[ -DPIC],[])])"
-    ;;
-esac
-AC_MSG_RESULT([$_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)])
-_LT_TAGDECL([wl], [lt_prog_compiler_wl], [1],
-	[How to pass a linker flag through the compiler])
-
-#
-# Check to make sure the PIC flag actually works.
-#
-if test -n "$_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)"; then
-  AC_LIBTOOL_COMPILER_OPTION([if $compiler PIC flag $_LT_AC_TAGVAR(lt_prog_compiler_pic, $1) works],
-    [_LT_AC_TAGVAR(lt_prog_compiler_pic_works, $1)],
-    [$_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)@&t@m4_if([$1],[],[ -DPIC],[m4_if([$1],[CXX],[ -DPIC],[])])], [],
-    [case $_LT_AC_TAGVAR(lt_prog_compiler_pic, $1) in
-     "" | " "*) ;;
-     *) _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)=" $_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)" ;;
-     esac],
-    [_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)=
-     _LT_AC_TAGVAR(lt_prog_compiler_can_build_shared, $1)=no])
-fi
-_LT_TAGDECL([pic_flag], [lt_prog_compiler_pic], [1],
-	[Additional compiler flags for building library objects])
-
-#
-# Check to make sure the static flag actually works.
-#
-AC_LIBTOOL_LINKER_OPTION([if $compiler static flag $_LT_AC_TAGVAR(lt_prog_compiler_static, $1) works],
-  _LT_AC_TAGVAR(lt_prog_compiler_static_works, $1),
-  $_LT_AC_TAGVAR(lt_prog_compiler_static, $1),
-  [],
-  [_LT_AC_TAGVAR(lt_prog_compiler_static, $1)=])
-_LT_TAGDECL([link_static_flag], [lt_prog_compiler_static], [1],
-	[Compiler flag to prevent dynamic linking])
-])# AC_LIBTOOL_PROG_COMPILER_PIC
-
-
-# AC_LIBTOOL_PROG_LD_SHLIBS([TAGNAME])
-# ------------------------------------
-# See if the linker supports building shared libraries.
-AC_DEFUN([AC_LIBTOOL_PROG_LD_SHLIBS],
-[AC_REQUIRE([AC_PROG_LD])dnl
-AC_REQUIRE([AC_PROG_NM])dnl
-AC_REQUIRE([AC_LIBTOOL_SYS_GLOBAL_SYMBOL_PIPE])dnl
-AC_MSG_CHECKING([whether the $compiler linker ($LD) supports shared libraries])
-m4_if([$1], [CXX], [
-  _LT_AC_TAGVAR(export_symbols_cmds, $1)='$NM $libobjs $convenience | $global_symbol_pipe | $SED '\''s/.* //'\'' | sort | uniq > $export_symbols'
-  case $host_os in
-  aix4* | aix5*)
-    # If we're using GNU nm, then we don't want the "-C" option.
-    # -C means demangle to AIX nm, but means don't demangle with GNU nm
-    if $NM -V 2>&1 | grep 'GNU' > /dev/null; then
-      _LT_AC_TAGVAR(export_symbols_cmds, $1)='$NM -Bpg $libobjs $convenience | awk '\''{ if (((\[$]2 == "T") || (\[$]2 == "D") || (\[$]2 == "B")) && ([substr](\[$]3,1,1) != ".")) { print \[$]3 } }'\'' | sort -u > $export_symbols'
-    else
-      _LT_AC_TAGVAR(export_symbols_cmds, $1)='$NM -BCpg $libobjs $convenience | awk '\''{ if (((\[$]2 == "T") || (\[$]2 == "D") || (\[$]2 == "B")) && ([substr](\[$]3,1,1) != ".")) { print \[$]3 } }'\'' | sort -u > $export_symbols'
-    fi
-    ;;
-  pw32*)
-    _LT_AC_TAGVAR(export_symbols_cmds, $1)="$ltdll_cmds"
-  ;;
-  cygwin* | mingw*)
-    _LT_AC_TAGVAR(export_symbols_cmds, $1)='$NM $libobjs $convenience | $global_symbol_pipe | $SED -e '\''/^[[BCDGS]] /s/.* \([[^ ]]*\)/\1 DATA/;/^.* __nm__/s/^.* __nm__\([[^ ]]*\) [[^ ]]*/\1 DATA/;/^I /d;/^[[AITW]] /s/.* //'\'' | sort | uniq > $export_symbols'
-  ;;
-  *)
-    _LT_AC_TAGVAR(export_symbols_cmds, $1)='$NM $libobjs $convenience | $global_symbol_pipe | $SED '\''s/.* //'\'' | sort | uniq > $export_symbols'
-  ;;
-  esac
-], [
-  runpath_var=
-  _LT_AC_TAGVAR(allow_undefined_flag, $1)=
-  _LT_AC_TAGVAR(always_export_symbols, $1)=no
-  _LT_AC_TAGVAR(archive_cmds, $1)=
-  _LT_AC_TAGVAR(archive_expsym_cmds, $1)=
-  _LT_AC_TAGVAR(enable_shared_with_static_runtimes, $1)=no
-  _LT_AC_TAGVAR(export_dynamic_flag_spec, $1)=
-  _LT_AC_TAGVAR(export_symbols_cmds, $1)='$NM $libobjs $convenience | $global_symbol_pipe | $SED '\''s/.* //'\'' | sort | uniq > $export_symbols'
-  _LT_AC_TAGVAR(hardcode_automatic, $1)=no
-  _LT_AC_TAGVAR(hardcode_direct, $1)=no
-  _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)=
-  _LT_AC_TAGVAR(hardcode_libdir_flag_spec_ld, $1)=
-  _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=
-  _LT_AC_TAGVAR(hardcode_minus_L, $1)=no
-  _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=unsupported
-  _LT_AC_TAGVAR(link_all_deplibs, $1)=unknown
-  _LT_AC_TAGVAR(module_cmds, $1)=
-  _LT_AC_TAGVAR(module_expsym_cmds, $1)=
-  _LT_AC_TAGVAR(old_archive_from_new_cmds, $1)=
-  _LT_AC_TAGVAR(old_archive_from_expsyms_cmds, $1)=
-  _LT_AC_TAGVAR(thread_safe_flag_spec, $1)=
-  _LT_AC_TAGVAR(whole_archive_flag_spec, $1)=
-  # include_expsyms should be a list of space-separated symbols to be *always*
-  # included in the symbol list
-  _LT_AC_TAGVAR(include_expsyms, $1)=
-  # exclude_expsyms can be an extended regexp of symbols to exclude
-  # it will be wrapped by ` (' and `)$', so one must not match beginning or
-  # end of line.  Example: `a|bc|.*d.*' will exclude the symbols `a' and `bc',
-  # as well as any symbol that contains `d'.
-  _LT_AC_TAGVAR(exclude_expsyms, $1)="_GLOBAL_OFFSET_TABLE_"
-  # Although _GLOBAL_OFFSET_TABLE_ is a valid symbol C name, most a.out
-  # platforms (ab)use it in PIC code, but their linkers get confused if
-  # the symbol is explicitly referenced.  Since portable code cannot
-  # rely on this symbol name, it's probably fine to never include it in
-  # preloaded symbol tables.
-  extract_expsyms_cmds=
-
-  case $host_os in
-  cygwin* | mingw* | pw32*)
-    # FIXME: the MSVC++ port hasn't been tested in a loooong time
-    # When not using gcc, we currently assume that we are using
-    # Microsoft Visual C++.
-    if test "$GCC" != yes; then
-      with_gnu_ld=no
-    fi
-    ;;
-  openbsd*)
-    with_gnu_ld=no
-    ;;
-  esac
-
-  _LT_AC_TAGVAR(ld_shlibs, $1)=yes
-  if test "$with_gnu_ld" = yes; then
-    # If archive_cmds runs LD, not CC, wlarc should be empty
-    wlarc='${wl}'
-
-    # See if GNU ld supports shared libraries.
-    case $host_os in
-    aix3* | aix4* | aix5*)
-      # On AIX/PPC, the GNU linker is very broken
-      if test "$host_cpu" != ia64; then
-	_LT_AC_TAGVAR(ld_shlibs, $1)=no
-	cat <<_LT_EOF 1>&2
-
-*** Warning: the GNU linker, at least up to release 2.9.1, is reported
-*** to be unable to reliably create shared libraries on AIX.
-*** Therefore, libtool is disabling shared libraries support.  If you
-*** really care for shared libraries, you may want to modify your PATH
-*** so that a non-GNU linker is found, and then restart.
-
-_LT_EOF
-      fi
-      ;;
-
-    amigaos*)
-      if test "$host_cpu" = m68k; then
-        _LT_AC_TAGVAR(archive_cmds, $1)='$rm $output_objdir/a2ixlibrary.data~$echo "#define NAME $libname" > $output_objdir/a2ixlibrary.data~$echo "#define LIBRARY_ID 1" >> $output_objdir/a2ixlibrary.data~$echo "#define VERSION $major" >> $output_objdir/a2ixlibrary.data~$echo "#define REVISION $revision" >> $output_objdir/a2ixlibrary.data~$AR $AR_FLAGS $lib $libobjs~$RANLIB $lib~(cd $output_objdir && a2ixlibrary -32)'
-        _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-L$libdir'
-        _LT_AC_TAGVAR(hardcode_minus_L, $1)=yes
-      fi
-
-      # Samuel A. Falvo II <kc5tja@dolphin.openprojects.net> reports
-      # that the semantics of dynamic libraries on AmigaOS, at least up
-      # to version 4, is to share data among multiple programs linked
-      # with the same dynamic library.  Since this doesn't match the
-      # behavior of shared libraries on other platforms, we can't use
-      # them.
-      _LT_AC_TAGVAR(ld_shlibs, $1)=no
-      ;;
-
-    beos*)
-      if $LD --help 2>&1 | grep ': supported targets:.* elf' > /dev/null; then
-	_LT_AC_TAGVAR(allow_undefined_flag, $1)=unsupported
-	# Joseph Beckenbach <jrb3@best.com> says some releases of gcc
-	# support --undefined.  This deserves some investigation.  FIXME
-	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -nostart $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
-      else
-	_LT_AC_TAGVAR(ld_shlibs, $1)=no
-      fi
-      ;;
-
-    cygwin* | mingw* | pw32*)
-      # _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1) is actually meaningless,
-      # as there is no search path for DLLs.
-      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-L$libdir'
-      _LT_AC_TAGVAR(allow_undefined_flag, $1)=unsupported
-      _LT_AC_TAGVAR(always_export_symbols, $1)=no
-      _LT_AC_TAGVAR(enable_shared_with_static_runtimes, $1)=yes
-      _LT_AC_TAGVAR(export_symbols_cmds, $1)='$NM $libobjs $convenience | $global_symbol_pipe | $SED -e '\''/^[[BCDGS]] /s/.* \([[^ ]]*\)/\1 DATA/'\'' | $SED -e '\''/^[[AITW]] /s/.* //'\'' | sort | uniq > $export_symbols'
-
-      if $LD --help 2>&1 | grep 'auto-import' > /dev/null; then
-        _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags -o $output_objdir/$soname ${wl}--image-base=0x10000000 ${wl}--out-implib,$lib'
-	# If the export-symbols file already is a .def file (1st line
-	# is EXPORTS), use it as is; otherwise, prepend...
-	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='if test "x`$SED 1q $export_symbols`" = xEXPORTS; then
-	  cp $export_symbols $output_objdir/$soname.def;
-	else
-	  echo EXPORTS > $output_objdir/$soname.def;
-	  cat $export_symbols >> $output_objdir/$soname.def;
-	fi~
-	$CC -shared $output_objdir/$soname.def $libobjs $deplibs $compiler_flags -o $output_objdir/$soname ${wl}--image-base=0x10000000  ${wl}--out-implib,$lib'
-      else
-	ld_shlibs=no
-      fi
-      ;;
-
-    netbsd*)
-      if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
-	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -Bshareable $libobjs $deplibs $linker_flags -o $lib'
-	wlarc=
-      else
-	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
-	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname ${wl}-retain-symbols-file $wl$export_symbols -o $lib'
-      fi
-      ;;
-
-    solaris* | sysv5*)
-      if $LD -v 2>&1 | grep 'BFD 2\.8' > /dev/null; then
-	_LT_AC_TAGVAR(ld_shlibs, $1)=no
-	cat <<_LT_EOF 1>&2
-
-*** Warning: The releases 2.8.* of the GNU linker cannot reliably
-*** create shared libraries on Solaris systems.  Therefore, libtool
-*** is disabling shared libraries support.  We urge you to upgrade GNU
-*** binutils to release 2.9.1 or newer.  Another option is to modify
-*** your PATH or compiler configuration so that the native linker is
-*** used, and then restart.
-
-_LT_EOF
-      elif $LD --help 2>&1 | grep ': supported targets:.* elf' > /dev/null; then
-	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
-	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname ${wl}-retain-symbols-file $wl$export_symbols -o $lib'
-      else
-	_LT_AC_TAGVAR(ld_shlibs, $1)=no
-      fi
-      ;;
-
-    sunos4*)
-      _LT_AC_TAGVAR(archive_cmds, $1)='$LD -assert pure-text -Bshareable -o $lib $libobjs $deplibs $linker_flags'
-      wlarc=
-      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
-      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
-      ;;
-
-  linux*)
-    if $LD --help 2>&1 | egrep ': supported targets:.* elf' > /dev/null; then
-      _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
-      case `$LD -v 2>&1` in
-        *\ [01].* | *\ 2.[[0-9]].* | *\ 2.10.*) ;; # catch versions < 2.11
-        *\ 2.11.93.0.2\ *) supports_anon_versioning=yes ;; # RH7.3 ...
-        *\ 2.11.92.0.12\ *) supports_anon_versioning=yes ;; # Mandrake 8.2 ...
-        *\ 2.11.*) ;; # other 2.11 versions
-        *) supports_anon_versioning=yes ;;
-      esac
-      if test "x$supports_anon_versioning" = xyes; then
-        _LT_AC_TAGVAR(archive_expsym_cmds, $1)='$echo "{ global:" > $output_objdir/$libname.ver~cat $export_symbols | sed -e "s/\(.*\)/\1;/" >> $output_objdir/$libname.ver~$echo "local: *; };" >> $output_objdir/$libname.ver~$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname ${wl}-version-script ${wl}$output_objdir/$libname.ver -o $lib'
-      else
-        _LT_AC_TAGVAR(archive_expsym_cmds, $1)=$_LT_AC_TAGVAR(archive_cmds, $1)
-      fi
-    else
-      _LT_AC_TAGVAR(ld_shlibs, $1)=no
-    fi
-    ;;
-
-    *)
-      if $LD --help 2>&1 | grep ': supported targets:.* elf' > /dev/null; then
-	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
-	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname ${wl}-retain-symbols-file $wl$export_symbols -o $lib'
-      else
-	_LT_AC_TAGVAR(ld_shlibs, $1)=no
-      fi
-      ;;
-    esac
-
-    if test "$_LT_AC_TAGVAR(ld_shlibs, $1)" = yes; then
-      runpath_var=LD_RUN_PATH
-      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}--rpath ${wl}$libdir'
-      _LT_AC_TAGVAR(export_dynamic_flag_spec, $1)='${wl}--export-dynamic'
-      # ancient GNU ld didn't support --whole-archive et. al.
-      if $LD --help 2>&1 | grep 'no-whole-archive' > /dev/null; then
- 	_LT_AC_TAGVAR(whole_archive_flag_spec, $1)="$wlarc"'--whole-archive$convenience '"$wlarc"'--no-whole-archive'
-      else
-  	_LT_AC_TAGVAR(whole_archive_flag_spec, $1)=
-      fi
-    fi
-  else
-    # PORTME fill in a description of your system's linker (not GNU ld)
-    case $host_os in
-    aix3*)
-      _LT_AC_TAGVAR(allow_undefined_flag, $1)=unsupported
-      _LT_AC_TAGVAR(always_export_symbols, $1)=yes
-      _LT_AC_TAGVAR(archive_expsym_cmds, $1)='$LD -o $output_objdir/$soname $libobjs $deplibs $linker_flags -bE:$export_symbols -T512 -H512 -bM:SRE~$AR $AR_FLAGS $lib $output_objdir/$soname'
-      # Note: this linker hardcodes the directories in LIBPATH if there
-      # are no directories specified by -L.
-      _LT_AC_TAGVAR(hardcode_minus_L, $1)=yes
-      if test "$GCC" = yes && test -z "$link_static_flag"; then
-	# Neither direct hardcoding nor static linking is supported with a
-	# broken collect2.
-	_LT_AC_TAGVAR(hardcode_direct, $1)=unsupported
-      fi
-      ;;
-
-    aix4* | aix5*)
-      if test "$host_cpu" = ia64; then
-	# On IA64, the linker does run time linking by default, so we don't
-	# have to do anything special.
-	aix_use_runtimelinking=no
-	exp_sym_flag='-Bexport'
-	no_entry_flag=""
-      else
-	# If we're using GNU nm, then we don't want the "-C" option.
-	# -C means demangle to AIX nm, but means don't demangle with GNU nm
-	if $NM -V 2>&1 | grep 'GNU' > /dev/null; then
-	  _LT_AC_TAGVAR(export_symbols_cmds, $1)='$NM -Bpg $libobjs $convenience | awk '\''{ if (((\[$]2 == "T") || (\[$]2 == "D") || (\[$]2 == "B")) && ([substr](\[$]3,1,1) != ".")) { print \[$]3 } }'\'' | sort -u > $export_symbols'
-	else
-	  _LT_AC_TAGVAR(export_symbols_cmds, $1)='$NM -BCpg $libobjs $convenience | awk '\''{ if (((\[$]2 == "T") || (\[$]2 == "D") || (\[$]2 == "B")) && ([substr](\[$]3,1,1) != ".")) { print \[$]3 } }'\'' | sort -u > $export_symbols'
-	fi
-	aix_use_runtimelinking=no
-
-	# Test if we are trying to use run time linking or normal
-	# AIX style linking. If -brtl is somewhere in LDFLAGS, we
-	# need to do runtime linking.
-	case $host_os in aix4.[[23]]|aix4.[[23]].*|aix5*)
-	  for ld_flag in $LDFLAGS; do
-  	  if (test $ld_flag = "-brtl" || test $ld_flag = "-Wl,-brtl"); then
-  	    aix_use_runtimelinking=yes
-  	    break
-  	  fi
-	  done
-	esac
-
-	exp_sym_flag='-bexport'
-	no_entry_flag='-bnoentry'
-      fi
-
-      # When large executables or shared objects are built, AIX ld can
-      # have problems creating the table of contents.  If linking a library
-      # or program results in "error TOC overflow" add -mminimal-toc to
-      # CXXFLAGS/CFLAGS for g++/gcc.  In the cases where that is not
-      # enough to fix the problem, add -Wl,-bbigtoc to LDFLAGS.
-
-      _LT_AC_TAGVAR(archive_cmds, $1)=''
-      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
-      _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=':'
-      _LT_AC_TAGVAR(link_all_deplibs, $1)=yes
-
-      if test "$GCC" = yes; then
-	case $host_os in aix4.[012]|aix4.[012].*)
-	# We only want to do this on AIX 4.2 and lower, the check
-	# below for broken collect2 doesn't work under 4.3+
-	  collect2name=`${CC} -print-prog-name=collect2`
-	  if test -f "$collect2name" && \
-  	   strings "$collect2name" | grep resolve_lib_name >/dev/null
-	  then
-  	  # We have reworked collect2
-  	  _LT_AC_TAGVAR(hardcode_direct, $1)=yes
-	  else
-  	  # We have old collect2
-  	  _LT_AC_TAGVAR(hardcode_direct, $1)=unsupported
-  	  # It fails to find uninstalled libraries when the uninstalled
-  	  # path is not listed in the libpath.  Setting hardcode_minus_L
-  	  # to unsupported forces relinking
-  	  _LT_AC_TAGVAR(hardcode_minus_L, $1)=yes
-  	  _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-L$libdir'
-  	  _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=
-	  fi
-	esac
-	shared_flag='-shared'
-      else
-	# not using gcc
-	if test "$host_cpu" = ia64; then
-  	# VisualAge C++, Version 5.5 for AIX 5L for IA-64, Beta 3 Release
-  	# chokes on -Wl,-G. The following line is correct:
-	  shared_flag='-G'
-	else
-  	if test "$aix_use_runtimelinking" = yes; then
-	    shared_flag='${wl}-G'
-	  else
-	    shared_flag='${wl}-bM:SRE'
-  	fi
-	fi
-      fi
-
-      # It seems that -bexpall does not export symbols beginning with
-      # underscore (_), so it is better to generate a list of symbols to export.
-      _LT_AC_TAGVAR(always_export_symbols, $1)=yes
-      if test "$aix_use_runtimelinking" = yes; then
-	# Warning - without using the other runtime loading flags (-brtl),
-	# -berok will link without error, but may produce a broken library.
-	_LT_AC_TAGVAR(allow_undefined_flag, $1)='-berok'
-        # Determine the default libpath from the value encoded in an
-        # empty executable.
-       _LT_AC_SYS_LIBPATH_AIX
-       _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-blibpath:$libdir:'"$aix_libpath"
-	_LT_AC_TAGVAR(archive_expsym_cmds, $1)="\$CC"' -o $output_objdir/$soname $libobjs $deplibs $compiler_flags `if test "x${allow_undefined_flag}" != "x"; then echo "${wl}${allow_undefined_flag}"; else :; fi` '"\${wl}$no_entry_flag \${wl}$exp_sym_flag:\$export_symbols $shared_flag"
-      else
-	if test "$host_cpu" = ia64; then
-	  _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-R $libdir:/usr/lib:/lib'
-	  _LT_AC_TAGVAR(allow_undefined_flag, $1)="-z nodefs"
-	  _LT_AC_TAGVAR(archive_expsym_cmds, $1)="\$CC $shared_flag"' -o $output_objdir/$soname $libobjs $deplibs $compiler_flags ${wl}${allow_undefined_flag} '"\${wl}$no_entry_flag \${wl}$exp_sym_flag:\$export_symbols"
-	else
-	 # Determine the default libpath from the value encoded in an
-	 # empty executable.
-	 _LT_AC_SYS_LIBPATH_AIX
-	 _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-blibpath:$libdir:'"$aix_libpath"
-	  # Warning - without using the other run time loading flags,
-	  # -berok will link without error, but may produce a broken library.
-	  _LT_AC_TAGVAR(no_undefined_flag, $1)=' ${wl}-bernotok'
-	  _LT_AC_TAGVAR(allow_undefined_flag, $1)=' ${wl}-berok'
-	  # -bexpall does not export symbols beginning with underscore (_)
-	  _LT_AC_TAGVAR(always_export_symbols, $1)=yes
-	  # Exported symbols can be pulled into shared objects from archives
-	  _LT_AC_TAGVAR(whole_archive_flag_spec, $1)=' '
-	  _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=yes
-	  # This is similar to how AIX traditionally builds it's shared libraries.
-	  _LT_AC_TAGVAR(archive_expsym_cmds, $1)="\$CC $shared_flag"' -o $output_objdir/$soname $libobjs $deplibs $compiler_flags ${wl}-bE:$export_symbols ${wl}-bnoentry${allow_undefined_flag}~$AR $AR_FLAGS $output_objdir/$libname$release.a $output_objdir/$soname'
-	fi
-      fi
-      ;;
-
-    amigaos*)
-      if test "$host_cpu" = m68k; then
-        _LT_AC_TAGVAR(archive_cmds, $1)='$rm $output_objdir/a2ixlibrary.data~$echo "#define NAME $libname" > $output_objdir/a2ixlibrary.data~$echo "#define LIBRARY_ID 1" >> $output_objdir/a2ixlibrary.data~$echo "#define VERSION $major" >> $output_objdir/a2ixlibrary.data~$echo "#define REVISION $revision" >> $output_objdir/a2ixlibrary.data~$AR $AR_FLAGS $lib $libobjs~$RANLIB $lib~(cd $output_objdir && a2ixlibrary -32)'
-        _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-L$libdir'
-        _LT_AC_TAGVAR(hardcode_minus_L, $1)=yes
-      fi
-      # see comment about different semantics on the GNU ld section
-      _LT_AC_TAGVAR(ld_shlibs, $1)=no
-      ;;
-
-    bsdi4*)
-      _LT_AC_TAGVAR(export_dynamic_flag_spec, $1)=-rdynamic
-      ;;
-
-    cygwin* | mingw* | pw32*)
-      # When not using gcc, we currently assume that we are using
-      # Microsoft Visual C++.
-      # hardcode_libdir_flag_spec is actually meaningless, as there is
-      # no search path for DLLs.
-      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)=' '
-      _LT_AC_TAGVAR(allow_undefined_flag, $1)=unsupported
-      # Tell ltmain to make .lib files, not .a files.
-      libext=lib
-      # Tell ltmain to make .dll files, not .so files.
-      shrext=".dll"
-      # FIXME: Setting linknames here is a bad hack.
-      _LT_AC_TAGVAR(archive_cmds, $1)='$CC -o $lib $libobjs $compiler_flags `echo "$deplibs" | $SED -e '\''s/ -lc$//'\''` -link -dll~linknames='
-      # The linker will automatically build a .lib file if we build a DLL.
-      _LT_AC_TAGVAR(old_archive_from_new_cmds, $1)='true'
-      # FIXME: Should let the user specify the lib program.
-      _LT_AC_TAGVAR(old_archive_cmds, $1)='lib /OUT:$oldlib$oldobjs$old_deplibs'
-      fix_srcfile_path='`cygpath -w "$srcfile"`'
-      _LT_AC_TAGVAR(enable_shared_with_static_runtimes, $1)=yes
-      ;;
-
-    darwin* | rhapsody*)
-    if test "$GCC" = yes ; then
-      _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=no
-      case "$host_os" in
-      rhapsody* | darwin1.[[012]])
-	_LT_AC_TAGVAR(allow_undefined_flag, $1)='-undefined suppress'
-	;;
-      *) # Darwin 1.3 on
-      if test -z ${MACOSX_DEPLOYMENT_TARGET} ; then
-      	_LT_AC_TAGVAR(allow_undefined_flag, $1)='-flat_namespace -undefined suppress'
-      else
-        case ${MACOSX_DEPLOYMENT_TARGET} in
-          10.[[012]])
-            _LT_AC_TAGVAR(allow_undefined_flag, $1)='-flat_namespace -undefined suppress'
-            ;;
-          10.*)
-            _LT_AC_TAGVAR(allow_undefined_flag, $1)='-undefined dynamic_lookup'
-            ;;
-        esac
-      fi
-	;;
-      esac
-    	output_verbose_link_cmd='echo'
-        _LT_AC_TAGVAR(archive_cmds, $1)='$CC -dynamiclib $allow_undefined_flag -o $lib $libobjs $deplibs $compiler_flags -install_name $rpath/$soname $verstring'
-      _LT_AC_TAGVAR(module_cmds, $1)='$CC $allow_undefined_flag -o $lib -bundle $libobjs $deplibs$compiler_flags'
-      # Don't fix this by using the ld -exported_symbols_list flag, it doesn't exist in older darwin ld's
-      _LT_AC_TAGVAR(archive_expsym_cmds, $1)='sed -e "s,#.*,," -e "s,^[    ]*,," -e "s,^\(..*\),_&," < $export_symbols > $output_objdir/${libname}-symbols.expsym~$CC -dynamiclib $allow_undefined_flag -o $lib $libobjs $deplibs $compiler_flags -install_name $rpath/$soname $verstring~nmedit -s $output_objdir/${libname}-symbols.expsym ${lib}'
-      _LT_AC_TAGVAR(module_expsym_cmds, $1)='sed -e "s,#.*,," -e "s,^[    ]*,," -e "s,^\(..*\),_&," < $export_symbols > $output_objdir/${libname}-symbols.expsym~$CC $allow_undefined_flag  -o $lib -bundle $libobjs $deplibs$compiler_flags~nmedit -s $output_objdir/${libname}-symbols.expsym ${lib}'
-      _LT_AC_TAGVAR(hardcode_direct, $1)=no
-      _LT_AC_TAGVAR(hardcode_automatic, $1)=yes
-      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=unsupported
-      _LT_AC_TAGVAR(whole_archive_flag_spec, $1)='-all_load $convenience'
-      _LT_AC_TAGVAR(link_all_deplibs, $1)=yes
-    else
-      _LT_AC_TAGVAR(ld_shlibs, $1)=no
-    fi
-      ;;
-    dgux*)
-      _LT_AC_TAGVAR(archive_cmds, $1)='$LD -G -h $soname -o $lib $libobjs $deplibs $linker_flags'
-      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-L$libdir'
-      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
-      ;;
-
-    freebsd1*)
-      _LT_AC_TAGVAR(ld_shlibs, $1)=no
-      ;;
-
-    # FreeBSD 2.2.[012] allows us to include c++rt0.o to get C++ constructor
-    # support.  Future versions do this automatically, but an explicit c++rt0.o
-    # does not break anything, and helps significantly (at the cost of a little
-    # extra space).
-    freebsd2.2*)
-      _LT_AC_TAGVAR(archive_cmds, $1)='$LD -Bshareable -o $lib $libobjs $deplibs $linker_flags /usr/lib/c++rt0.o'
-      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-R$libdir'
-      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
-      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
-      ;;
-
-    # Unfortunately, older versions of FreeBSD 2 do not have this feature.
-    freebsd2*)
-      _LT_AC_TAGVAR(archive_cmds, $1)='$LD -Bshareable -o $lib $libobjs $deplibs $linker_flags'
-      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
-      _LT_AC_TAGVAR(hardcode_minus_L, $1)=yes
-      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
-      ;;
-
-    # FreeBSD 3 and greater uses gcc -shared to do shared libraries.
-    freebsd* | kfreebsd*-gnu)
-      _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -o $lib $libobjs $deplibs $compiler_flags'
-      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-R$libdir'
-      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
-      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
-      ;;
-
-    hpux9*)
-      if test "$GCC" = yes; then
-	_LT_AC_TAGVAR(archive_cmds, $1)='$rm $output_objdir/$soname~$CC -shared -fPIC ${wl}+b ${wl}$install_libdir -o $output_objdir/$soname $libobjs $deplibs $compiler_flags~test $output_objdir/$soname = $lib || mv $output_objdir/$soname $lib'
-      else
-	_LT_AC_TAGVAR(archive_cmds, $1)='$rm $output_objdir/$soname~$LD -b +b $install_libdir -o $output_objdir/$soname $libobjs $deplibs $linker_flags~test $output_objdir/$soname = $lib || mv $output_objdir/$soname $lib'
-      fi
-      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}+b ${wl}$libdir'
-      _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
-      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
-
-      # hardcode_minus_L: Not really in the search PATH,
-      # but as the default location of the library.
-      _LT_AC_TAGVAR(hardcode_minus_L, $1)=yes
-      _LT_AC_TAGVAR(export_dynamic_flag_spec, $1)='${wl}-E'
-      ;;
-
-    hpux10* | hpux11*)
-      if test "$GCC" = yes -a "$with_gnu_ld" = no; then
-	case "$host_cpu" in
-	hppa*64*|ia64*)
-	  _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared ${wl}+h ${wl}$soname -o $lib $libobjs $deplibs $compiler_flags'
-	  ;;
-	*)
-	  _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -fPIC ${wl}+h ${wl}$soname ${wl}+b ${wl}$install_libdir -o $lib $libobjs $deplibs $compiler_flags'
-	  ;;
-	esac
-      else
-	case "$host_cpu" in
-	hppa*64*|ia64*)
-	  _LT_AC_TAGVAR(archive_cmds, $1)='$LD -b +h $soname -o $lib $libobjs $deplibs $linker_flags'
-	  ;;
-	*)
-	  _LT_AC_TAGVAR(archive_cmds, $1)='$LD -b +h $soname +b $install_libdir -o $lib $libobjs $deplibs $linker_flags'
-	  ;;
-	esac
-      fi
-      if test "$with_gnu_ld" = no; then
-	case "$host_cpu" in
-	hppa*64*)
-	  _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}+b ${wl}$libdir'
-	  _LT_AC_TAGVAR(hardcode_libdir_flag_spec_ld, $1)='+b $libdir'
-	  _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
-	  _LT_AC_TAGVAR(hardcode_direct, $1)=no
-	  _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
-	  ;;
-	ia64*)
-	  _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-L$libdir'
-	  _LT_AC_TAGVAR(hardcode_direct, $1)=no
-	  _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
-
-	  # hardcode_minus_L: Not really in the search PATH,
-	  # but as the default location of the library.
-	  _LT_AC_TAGVAR(hardcode_minus_L, $1)=yes
-	  ;;
-	*)
-	  _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}+b ${wl}$libdir'
-	  _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
-	  _LT_AC_TAGVAR(hardcode_direct, $1)=yes
-	  _LT_AC_TAGVAR(export_dynamic_flag_spec, $1)='${wl}-E'
-
-	  # hardcode_minus_L: Not really in the search PATH,
-	  # but as the default location of the library.
-	  _LT_AC_TAGVAR(hardcode_minus_L, $1)=yes
-	  ;;
-	esac
-      fi
-      ;;
-
-    irix5* | irix6* | nonstopux*)
-      if test "$GCC" = yes; then
-	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname ${wl}$soname `test -n "$verstring" && echo ${wl}-set_version ${wl}$verstring` ${wl}-update_registry ${wl}${output_objdir}/so_locations -o $lib'
-      else
-	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -shared $libobjs $deplibs $linker_flags -soname $soname `test -n "$verstring" && echo -set_version $verstring` -update_registry ${output_objdir}/so_locations -o $lib'
-	_LT_AC_TAGVAR(hardcode_libdir_flag_spec_ld, $1)='-rpath $libdir'
-      fi
-      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath ${wl}$libdir'
-      _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
-      _LT_AC_TAGVAR(link_all_deplibs, $1)=yes
-      ;;
-
-    netbsd*)
-      if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
-	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -Bshareable -o $lib $libobjs $deplibs $linker_flags'  # a.out
-      else
-	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -shared -o $lib $libobjs $deplibs $linker_flags'      # ELF
-      fi
-      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-R$libdir'
-      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
-      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
-      ;;
-
-    newsos6)
-      _LT_AC_TAGVAR(archive_cmds, $1)='$LD -G -h $soname -o $lib $libobjs $deplibs $linker_flags'
-      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
-      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath ${wl}$libdir'
-      _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
-      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
-      ;;
-
-    openbsd*)
-      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
-      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
-      if test -z "`echo __ELF__ | $CC -E - | grep __ELF__`" || test "$host_os-$host_cpu" = "openbsd2.8-powerpc"; then
-	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $pic_flag -o $lib $libobjs $deplibs $compiler_flags'
-	_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath,$libdir'
-	_LT_AC_TAGVAR(export_dynamic_flag_spec, $1)='${wl}-E'
-      else
-       case $host_os in
-	 openbsd[[01]].* | openbsd2.[[0-7]] | openbsd2.[[0-7]].*)
-	   _LT_AC_TAGVAR(archive_cmds, $1)='$LD -Bshareable -o $lib $libobjs $deplibs $linker_flags'
-	   _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-R$libdir'
-	   ;;
-	 *)
-	   _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $pic_flag -o $lib $libobjs $deplibs $compiler_flags'
-	   _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath,$libdir'
-	   ;;
-       esac
-      fi
-      ;;
-
-    os2*)
-      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-L$libdir'
-      _LT_AC_TAGVAR(hardcode_minus_L, $1)=yes
-      _LT_AC_TAGVAR(allow_undefined_flag, $1)=unsupported
-      _LT_AC_TAGVAR(archive_cmds, $1)='$echo "LIBRARY $libname INITINSTANCE" > $output_objdir/$libname.def~$echo "DESCRIPTION \"$libname\"" >> $output_objdir/$libname.def~$echo DATA >> $output_objdir/$libname.def~$echo " SINGLE NONSHARED" >> $output_objdir/$libname.def~$echo EXPORTS >> $output_objdir/$libname.def~emxexp $libobjs >> $output_objdir/$libname.def~$CC -Zdll -Zcrtdll -o $lib $libobjs $deplibs $compiler_flags $output_objdir/$libname.def'
-      _LT_AC_TAGVAR(old_archive_from_new_cmds, $1)='emximp -o $output_objdir/$libname.a $output_objdir/$libname.def'
-      ;;
-
-    osf3*)
-      if test "$GCC" = yes; then
-	_LT_AC_TAGVAR(allow_undefined_flag, $1)=' ${wl}-expect_unresolved ${wl}\*'
-	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared${allow_undefined_flag} $libobjs $deplibs $compiler_flags ${wl}-soname ${wl}$soname `test -n "$verstring" && echo ${wl}-set_version ${wl}$verstring` ${wl}-update_registry ${wl}${output_objdir}/so_locations -o $lib'
-      else
-	_LT_AC_TAGVAR(allow_undefined_flag, $1)=' -expect_unresolved \*'
-	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -shared${allow_undefined_flag} $libobjs $deplibs $linker_flags -soname $soname `test -n "$verstring" && echo -set_version $verstring` -update_registry ${output_objdir}/so_locations -o $lib'
-      fi
-      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath ${wl}$libdir'
-      _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
-      ;;
-
-    osf4* | osf5*)	# as osf3* with the addition of -msym flag
-      if test "$GCC" = yes; then
-	_LT_AC_TAGVAR(allow_undefined_flag, $1)=' ${wl}-expect_unresolved ${wl}\*'
-	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared${allow_undefined_flag} $libobjs $deplibs $compiler_flags ${wl}-msym ${wl}-soname ${wl}$soname `test -n "$verstring" && echo ${wl}-set_version ${wl}$verstring` ${wl}-update_registry ${wl}${output_objdir}/so_locations -o $lib'
-	_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath ${wl}$libdir'
-      else
-	_LT_AC_TAGVAR(allow_undefined_flag, $1)=' -expect_unresolved \*'
-	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -shared${allow_undefined_flag} $libobjs $deplibs $linker_flags -msym -soname $soname `test -n "$verstring" && echo -set_version $verstring` -update_registry ${output_objdir}/so_locations -o $lib'
-	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='for i in `cat $export_symbols`; do printf "%s %s\\n" -exported_symbol "\$i" >> $lib.exp; done; echo "-hidden">> $lib.exp~
-	$LD -shared${allow_undefined_flag} -input $lib.exp $linker_flags $libobjs $deplibs -soname $soname `test -n "$verstring" && echo -set_version $verstring` -update_registry ${objdir}/so_locations -o $lib~$rm $lib.exp'
-
-	# Both c and cxx compiler support -rpath directly
-	_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-rpath $libdir'
-      fi
-      _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
-      ;;
-
-    sco3.2v5*)
-      _LT_AC_TAGVAR(archive_cmds, $1)='$LD -G -h $soname -o $lib $libobjs $deplibs $linker_flags'
-      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
-      _LT_AC_TAGVAR(export_dynamic_flag_spec, $1)='${wl}-Bexport'
-      runpath_var=LD_RUN_PATH
-      hardcode_runpath_var=yes
-      ;;
-
-    solaris*)
-      _LT_AC_TAGVAR(no_undefined_flag, $1)=' -z text'
-      if test "$GCC" = yes; then
-	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared ${wl}-h ${wl}$soname -o $lib $libobjs $deplibs $compiler_flags'
-	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$echo "{ global:" > $lib.exp~cat $export_symbols | $SED -e "s/\(.*\)/\1;/" >> $lib.exp~$echo "local: *; };" >> $lib.exp~
-	  $CC -shared ${wl}-M ${wl}$lib.exp ${wl}-h ${wl}$soname -o $lib $libobjs $deplibs $compiler_flags~$rm $lib.exp'
-      else
-	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -G${allow_undefined_flag} -h $soname -o $lib $libobjs $deplibs $linker_flags'
-	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$echo "{ global:" > $lib.exp~cat $export_symbols | $SED -e "s/\(.*\)/\1;/" >> $lib.exp~$echo "local: *; };" >> $lib.exp~
-  	$LD -G${allow_undefined_flag} -M $lib.exp -h $soname -o $lib $libobjs $deplibs $linker_flags~$rm $lib.exp'
-      fi
-      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-R$libdir'
-      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
-      case $host_os in
-      solaris2.[[0-5]] | solaris2.[[0-5]].*) ;;
-      *) # Supported since Solaris 2.6 (maybe 2.5.1?)
-	_LT_AC_TAGVAR(whole_archive_flag_spec, $1)='-z allextract$convenience -z defaultextract' ;;
-      esac
-      _LT_AC_TAGVAR(link_all_deplibs, $1)=yes
-      ;;
-
-    sunos4*)
-      if test "x$host_vendor" = xsequent; then
-	# Use $CC to link under sequent, because it throws in some extra .o
-	# files that make .init and .fini sections work.
-	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -G ${wl}-h $soname -o $lib $libobjs $deplibs $compiler_flags'
-      else
-	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -assert pure-text -Bstatic -o $lib $libobjs $deplibs $linker_flags'
-      fi
-      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-L$libdir'
-      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
-      _LT_AC_TAGVAR(hardcode_minus_L, $1)=yes
-      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
-      ;;
-
-    sysv4)
-      case $host_vendor in
-	sni)
-	  _LT_AC_TAGVAR(archive_cmds, $1)='$LD -G -h $soname -o $lib $libobjs $deplibs $linker_flags'
-	  _LT_AC_TAGVAR(hardcode_direct, $1)=yes # is this really true???
-	;;
-	siemens)
-	  ## LD is ld it makes a PLAMLIB
-	  ## CC just makes a GrossModule.
-	  _LT_AC_TAGVAR(archive_cmds, $1)='$LD -G -o $lib $libobjs $deplibs $linker_flags'
-	  _LT_AC_TAGVAR(reload_cmds, $1)='$CC -r -o $output$reload_objs'
-	  _LT_AC_TAGVAR(hardcode_direct, $1)=no
-        ;;
-	motorola)
-	  _LT_AC_TAGVAR(archive_cmds, $1)='$LD -G -h $soname -o $lib $libobjs $deplibs $linker_flags'
-	  _LT_AC_TAGVAR(hardcode_direct, $1)=no #Motorola manual says yes, but my tests say they lie
-	;;
-      esac
-      runpath_var='LD_RUN_PATH'
-      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
-      ;;
-
-    sysv4.3*)
-      _LT_AC_TAGVAR(archive_cmds, $1)='$LD -G -h $soname -o $lib $libobjs $deplibs $linker_flags'
-      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
-      _LT_AC_TAGVAR(export_dynamic_flag_spec, $1)='-Bexport'
-      ;;
-
-    sysv4*MP*)
-      if test -d /usr/nec; then
-	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -G -h $soname -o $lib $libobjs $deplibs $linker_flags'
-	_LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
-	runpath_var=LD_RUN_PATH
-	hardcode_runpath_var=yes
-	_LT_AC_TAGVAR(ld_shlibs, $1)=yes
-      fi
-      ;;
-
-    sysv4.2uw2*)
-      _LT_AC_TAGVAR(archive_cmds, $1)='$LD -G -o $lib $libobjs $deplibs $linker_flags'
-      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
-      _LT_AC_TAGVAR(hardcode_minus_L, $1)=no
-      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
-      hardcode_runpath_var=yes
-      runpath_var=LD_RUN_PATH
-      ;;
-
-   sysv5OpenUNIX8* | sysv5UnixWare7* |  sysv5uw[[78]]* | unixware7*)
-      _LT_AC_TAGVAR(no_undefined_flag, $1)='${wl}-z ${wl}text'
-      if test "$GCC" = yes; then
-	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared ${wl}-h ${wl}$soname -o $lib $libobjs $deplibs $compiler_flags'
-      else
-	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -G ${wl}-h ${wl}$soname -o $lib $libobjs $deplibs $compiler_flags'
-      fi
-      runpath_var='LD_RUN_PATH'
-      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
-      ;;
-
-    sysv5*)
-      _LT_AC_TAGVAR(no_undefined_flag, $1)=' -z text'
-      # $CC -shared without GNU ld will not create a library from C++
-      # object files and a static libstdc++, better avoid it by now
-      _LT_AC_TAGVAR(archive_cmds, $1)='$LD -G${allow_undefined_flag} -h $soname -o $lib $libobjs $deplibs $linker_flags'
-      _LT_AC_TAGVAR(archive_expsym_cmds, $1)='$echo "{ global:" > $lib.exp~cat $export_symbols | $SED -e "s/\(.*\)/\1;/" >> $lib.exp~$echo "local: *; };" >> $lib.exp~
-  		$LD -G${allow_undefined_flag} -M $lib.exp -h $soname -o $lib $libobjs $deplibs $linker_flags~$rm $lib.exp'
-      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)=
-      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
-      runpath_var='LD_RUN_PATH'
-      ;;
-
-    uts4*)
-      _LT_AC_TAGVAR(archive_cmds, $1)='$LD -G -h $soname -o $lib $libobjs $deplibs $linker_flags'
-      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-L$libdir'
-      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
-      ;;
-
-    *)
-      _LT_AC_TAGVAR(ld_shlibs, $1)=no
-      ;;
-    esac
-
-    if test x$host_vendor = xsni; then
-      case $host in
-      sysv4 | sysv4.2uw2* | sysv4.3* | sysv5*)
-	export_dynamic_flag_spec='${wl}-Blargedynsym'
-	;;
-      esac
-    fi
-  fi
-])
-AC_MSG_RESULT([$_LT_AC_TAGVAR(ld_shlibs, $1)])
-test "$_LT_AC_TAGVAR(ld_shlibs, $1)" = no && can_build_shared=no
-
-_LT_DECL([], [libext], [0], [Old archive suffix (normally "a")])dnl
-_LT_DECL([], [shrext], [1], [Shared library suffix (normally ".so")])dnl
-_LT_DECL([], [extract_expsyms_cmds], [2],
-    [The commands to extract the exported symbol list from a shared archive])
-
-variables_saved_for_relink="PATH $shlibpath_var $runpath_var"
-if test "$GCC" = yes; then
-  variables_saved_for_relink="$variables_saved_for_relink GCC_EXEC_PREFIX COMPILER_PATH LIBRARY_PATH"
-fi
-_LT_DECL([], [variables_saved_for_relink], [1],
-    [Variables whose values should be saved in libtool wrapper scripts and
-    restored at link time])
-
-#
-# Do we need to explicitly link libc?
-#
-case "x$_LT_AC_TAGVAR(archive_cmds_need_lc, $1)" in
-x|xyes)
-  # Assume -lc should be added
-  _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=yes
-
-  if test "$enable_shared" = yes && test "$GCC" = yes; then
-    case $_LT_AC_TAGVAR(archive_cmds, $1) in
-    *'~'*)
-      # FIXME: we may have to deal with multi-command sequences.
-      ;;
-    '$CC '*)
-      # Test whether the compiler implicitly links with -lc since on some
-      # systems, -lgcc has to come before -lc. If gcc already passes -lc
-      # to ld, don't add -lc before -lgcc.
-      AC_MSG_CHECKING([whether -lc should be explicitly linked in])
-      $rm conftest*
-      printf "$lt_simple_compile_test_code" > conftest.$ac_ext
-
-      if AC_TRY_EVAL(ac_compile) 2>conftest.err; then
-        soname=conftest
-        lib=conftest
-        libobjs=conftest.$ac_objext
-        deplibs=
-        wl=$_LT_AC_TAGVAR(lt_prog_compiler_wl, $1)
-        compiler_flags=-v
-        linker_flags=-v
-        verstring=
-        output_objdir=.
-        libname=conftest
-        lt_save_allow_undefined_flag=$_LT_AC_TAGVAR(allow_undefined_flag, $1)
-        _LT_AC_TAGVAR(allow_undefined_flag, $1)=
-        if AC_TRY_EVAL(_LT_AC_TAGVAR(archive_cmds, $1) 2\>\&1 \| grep \" -lc \" \>/dev/null 2\>\&1)
-        then
-	  _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=no
-        else
-	  _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=yes
-        fi
-        _LT_AC_TAGVAR(allow_undefined_flag, $1)=$lt_save_allow_undefined_flag
-      else
-        cat conftest.err 1>&5
-      fi
-      $rm conftest*
-      AC_MSG_RESULT([$_LT_AC_TAGVAR(archive_cmds_need_lc, $1)])
-      ;;
-    esac
-  fi
-  ;;
-esac
-
-_LT_TAGDECL([build_libtool_need_lc], [archive_cmds_need_lc], [0],
-    [Whether or not to add -lc for building shared libraries])
-_LT_TAGDECL([allow_libtool_libs_with_static_runtimes],
-    [enable_shared_with_static_runtimes], [0],
-    [Whether or not to disallow shared libs when runtime libs are static])
-_LT_TAGDECL([], [export_dynamic_flag_spec], [1],
-    [Compiler flag to allow reflexive dlopens])
-_LT_TAGDECL([], [whole_archive_flag_spec], [1],
-    [Compiler flag to generate shared objects directly from archives])
-_LT_TAGDECL([], [old_archive_from_new_cmds], [2],
-    [Create an old-style archive from a shared archive])
-_LT_TAGDECL([], [old_archive_from_expsyms_cmds], [2],
-    [Create a temporary old-style archive to link instead of a shared archive])
-_LT_TAGDECL([], [archive_cmds], [2], [Commands used to build a shared archive])
-_LT_TAGDECL([], [archive_expsym_cmds], [2])
-_LT_TAGDECL([], [module_cmds], [2],
-    [Commands used to build a loadable module if different from building
-    a shared archive.])
-_LT_TAGDECL([], [module_expsym_cmds], [2])
-_LT_TAGDECL([], [allow_undefined_flag], [1],
-    [Flag that allows shared libraries with undefined symbols to be built])
-_LT_TAGDECL([], [no_undefined_flag], [1],
-    [Flag that enforces no undefined symbols])
-_LT_TAGDECL([], [hardcode_libdir_flag_spec], [1],
-    [Flag to hardcode $libdir into a binary during linking.
-    This must work even if $libdir does not exist])
-_LT_TAGDECL([], [hardcode_libdir_flag_spec_ld], [1],
-    [If ld is used when linking, flag to hardcode $libdir into a binary
-    during linking.  This must work even if $libdir does not exist])
-_LT_TAGDECL([], [hardcode_libdir_separator], [1],
-    [Whether we need a single "-rpath" flag with a separated argument])
-_LT_TAGDECL([], [hardcode_direct], [0],
-    [Set to "yes" if using DIR/libNAME${shared_ext} during linking hardcodes
-    DIR into the resulting binary])
-_LT_TAGDECL([], [hardcode_minus_L], [0],
-    [Set to "yes" if using the -LDIR flag during linking hardcodes DIR
-    into the resulting binary])
-_LT_TAGDECL([], [hardcode_shlibpath_var], [0],
-    [Set to "yes" if using SHLIBPATH_VAR=DIR during linking hardcodes DIR
-    into the resulting binary])
-_LT_TAGDECL([], [hardcode_automatic], [0],
-    [Set to "yes" if building a shared library automatically hardcodes DIR
-    into the library and all subsequent libraries and executables linked
-    against it])
-_LT_TAGDECL([], [link_all_deplibs], [0],
-    [Whether libtool must link a program against all its dependency libraries])
-_LT_TAGDECL([], [fix_srcfile_path], [1],
-    [Fix the shell variable $srcfile for the compiler])
-_LT_TAGDECL([], [always_export_symbols], [0],
-    [Set to "yes" if exported symbols are required])
-_LT_TAGDECL([], [export_symbols_cmds], [2],
-    [The commands to list exported symbols])
-_LT_TAGDECL([], [exclude_expsyms], [1],
-    [Symbols that should not be listed in the preloaded symbols])
-_LT_TAGDECL([], [include_expsyms], [1],
-    [Symbols that must always be exported])
-dnl FIXME: Not yet implemented
-dnl _LT_TAGDECL([], [thread_safe_flag_spec], [1],
-dnl    [Compiler flag to generate thread safe objects])
-])# AC_LIBTOOL_PROG_LD_SHLIBS
 
 
 # AC_LIBTOOL_CXX
@@ -9845,10 +8552,21 @@ AC_DEFUN([AC_LIBTOOL_CXX],
 # ---------------
 AC_DEFUN([_LT_AC_LANG_CXX],
 [AC_REQUIRE([AC_PROG_CXX])
-AC_REQUIRE([AC_PROG_CXXCPP])
+AC_REQUIRE([_LT_AC_PROG_CXXCPP])
 _LT_AC_SHELL_INIT([tagnames=${tagnames+${tagnames},}CXX])
 ])# _LT_AC_LANG_CXX
 
+# _LT_AC_PROG_CXXCPP
+# ------------------
+AC_DEFUN([_LT_AC_PROG_CXXCPP],
+[
+AC_REQUIRE([AC_PROG_CXX])
+if test -n "$CXX" && ( test "X$CXX" != "Xno" &&
+    ( (test "X$CXX" = "Xg++" && `g++ -v >/dev/null 2>&1` ) ||
+    (test "X$CXX" != "Xg++"))) ; then
+  AC_PROG_CXXCPP
+fi
+])# _LT_AC_PROG_CXXCPP
 
 # AC_LIBTOOL_F77
 # --------------
@@ -9888,7 +8606,7 @@ _LT_AC_SHELL_INIT([tagnames=${tagnames+${tagnames},}GCJ])
 
 
 # AC_LIBTOOL_RC
-# --------------
+# -------------
 # enable support for Windows resource files
 AC_DEFUN([AC_LIBTOOL_RC],
 [AC_REQUIRE([LT_AC_PROG_RC])
@@ -9902,7 +8620,7 @@ _LT_AC_SHELL_INIT([tagnames=${tagnames+${tagnames},}RC])
 # suitably defined.  Those variables are subsequently used by
 # AC_LIBTOOL_CONFIG to write the compiler configuration to `libtool'.
 AC_DEFUN([AC_LIBTOOL_LANG_C_CONFIG], [_LT_AC_LANG_C_CONFIG])
-m4_define([_LT_AC_LANG_C_CONFIG],
+AC_DEFUN([_LT_AC_LANG_C_CONFIG],
 [lt_save_CC="$CC"
 AC_LANG_PUSH(C)
 
@@ -9920,30 +8638,10 @@ lt_simple_compile_test_code="int some_variable = 0;\n"
 lt_simple_link_test_code='int main(){return(0);}\n'
 
 _LT_AC_SYS_COMPILER
-# Save the default compiler, since it gets overwritten when the other
-# tags are being tested, and _LT_AC_TAGVAR(compiler, []) is a NOP.
-compiler_DEFAULT=$CC
 
-#
-# Check for any special shared library compilation flags.
-#
-_LT_AC_TAGVAR(lt_prog_cc_shlib, $1)=
-if test "$GCC" = no; then
-  case $host_os in
-  sco3.2v5*)
-    _LT_AC_TAGVAR(lt_prog_cc_shlib, $1)='-belf'
-    ;;
-  esac
-fi
-if test -n "$_LT_AC_TAGVAR(lt_prog_cc_shlib, $1)"; then
-  AC_MSG_WARN([`$CC' requires `$_LT_AC_TAGVAR(lt_prog_cc_shlib, $1)' to build shared libraries])
-  if echo "$old_CC $old_CFLAGS " | grep "[[ 	]]$_LT_AC_TAGVAR(lt_prog_cc_shlib, $1)[[ 	]]" >/dev/null; then :
-  else
-    AC_MSG_WARN([add `$_LT_AC_TAGVAR(lt_prog_cc_shlib, $1)' to the CC or CFLAGS env variable and reconfigure])
-    _LT_AC_TAGVAR(lt_cv_prog_cc_can_build_shared, $1)=no
-  fi
-fi
-
+# save warnings/boilerplate of simple test code
+_LT_COMPILER_BOILERPLATE
+_LT_LINKER_BOILERPLATE
 
 ## CAVEAT EMPTOR:
 ## There is no encapsulation within the following macros, do not change
@@ -9957,9 +8655,9 @@ AC_LIBTOOL_PROG_LD_SHLIBS($1)
 AC_LIBTOOL_SYS_DYNAMIC_LINKER($1)
 AC_LIBTOOL_PROG_LD_HARDCODE_LIBPATH($1)
 AC_LIBTOOL_SYS_LIB_STRIP
-AC_LIBTOOL_DLOPEN_SELF($1)
+AC_LIBTOOL_DLOPEN_SELF
 
-# Report which library types wil actually be built
+# Report which library types will actually be built
 AC_MSG_CHECKING([if libtool supports shared libraries])
 AC_MSG_RESULT([$can_build_shared])
 
@@ -9968,7 +8666,7 @@ test "$can_build_shared" = "no" && enable_shared=no
 
 # On AIX, shared libraries and static libraries use the same namespace, and
 # are all built from PIC.
-case "$host_os" in
+case $host_os in
 aix3*)
   test "$enable_shared" = yes && enable_static=no
   if test -n "$RANLIB"; then
@@ -9977,11 +8675,11 @@ aix3*)
   fi
   ;;
 
-aix4*)
+aix4* | aix5*)
   if test "$host_cpu" != ia64 && test "$aix_use_runtimelinking" = no ; then
     test "$enable_shared" = yes && enable_static=no
   fi
-  ;;
+    ;;
 esac
 AC_MSG_RESULT([$enable_shared])
 
@@ -10006,7 +8704,7 @@ AC_DEFUN([AC_LIBTOOL_LANG_CXX_CONFIG], [_LT_AC_LANG_CXX_CONFIG(CXX)])
 AC_DEFUN([_LT_AC_LANG_CXX_CONFIG],
 [AC_LANG_PUSH(C++)
 AC_REQUIRE([AC_PROG_CXX])
-AC_REQUIRE([AC_PROG_CXXCPP])
+AC_REQUIRE([_LT_AC_PROG_CXXCPP])
 
 _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=no
 _LT_AC_TAGVAR(allow_undefined_flag, $1)=
@@ -10018,6 +8716,7 @@ _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)=
 _LT_AC_TAGVAR(hardcode_libdir_flag_spec_ld, $1)=
 _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=
 _LT_AC_TAGVAR(hardcode_minus_L, $1)=no
+_LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=unsupported
 _LT_AC_TAGVAR(hardcode_automatic, $1)=no
 _LT_AC_TAGVAR(module_cmds, $1)=
 _LT_AC_TAGVAR(module_expsym_cmds, $1)=
@@ -10027,8 +8726,15 @@ _LT_AC_TAGVAR(no_undefined_flag, $1)=
 _LT_AC_TAGVAR(whole_archive_flag_spec, $1)=
 _LT_AC_TAGVAR(enable_shared_with_static_runtimes, $1)=no
 
+# Dependencies to place before and after the object being linked:
+_LT_AC_TAGVAR(predep_objects, $1)=
+_LT_AC_TAGVAR(postdep_objects, $1)=
+_LT_AC_TAGVAR(predeps, $1)=
+_LT_AC_TAGVAR(postdeps, $1)=
+_LT_AC_TAGVAR(compiler_lib_search_path, $1)=
+
 # Source file extension for C++ test sources.
-ac_ext=cc
+ac_ext=cpp
 
 # Object file extension for compiled C++ test sources.
 objext=o
@@ -10038,10 +8744,14 @@ _LT_AC_TAGVAR(objext, $1)=$objext
 lt_simple_compile_test_code="int some_variable = 0;\n"
 
 # Code to be used in simple link tests
-lt_simple_link_test_code='int main(int, char *[]) { return(0); }\n'
+lt_simple_link_test_code='int main(int, char *[[]]) { return(0); }\n'
 
 # ltmain only uses $CC for tagged configurations so make sure $CC is set.
 _LT_AC_SYS_COMPILER
+
+# save warnings/boilerplate of simple test code
+_LT_COMPILER_BOILERPLATE
+_LT_LINKER_BOILERPLATE
 
 # Allow CC to be a program name with arguments.
 lt_save_CC=$CC
@@ -10053,20 +8763,20 @@ lt_save_path_LD=$lt_cv_path_LD
 if test -n "${lt_cv_prog_gnu_ldcxx+set}"; then
   lt_cv_prog_gnu_ld=$lt_cv_prog_gnu_ldcxx
 else
-  unset lt_cv_prog_gnu_ld
+  $as_unset lt_cv_prog_gnu_ld
 fi
 if test -n "${lt_cv_path_LDCXX+set}"; then
   lt_cv_path_LD=$lt_cv_path_LDCXX
 else
-  unset lt_cv_path_LD
+  $as_unset lt_cv_path_LD
 fi
 test -z "${LDCXX+set}" || LD=$LDCXX
 CC=${CXX-"c++"}
 compiler=$CC
 _LT_AC_TAGVAR(compiler, $1)=$CC
-cc_basename=`$echo X"$compiler" | $Xsed -e 's%^.*/%%'`
+_LT_CC_BASENAME([$compiler])
 
-# We don't want -fno-exception when compiling C++ code, so set the
+# We don't want -fno-exception wen compiling C++ code, so set the
 # no_builtin_flag separately
 if test "$GXX" = yes; then
   _LT_AC_TAGVAR(lt_prog_compiler_no_builtin_flag, $1)=' -fno-builtin'
@@ -10153,6 +8863,7 @@ case $host_os in
 	    ;;
 	  esac
 	done
+	;;
       esac
 
       exp_sym_flag='-bexport'
@@ -10171,7 +8882,7 @@ case $host_os in
     _LT_AC_TAGVAR(link_all_deplibs, $1)=yes
 
     if test "$GXX" = yes; then
-      case $host_os in aix4.[012]|aix4.[012].*)
+      case $host_os in aix4.[[012]]|aix4.[[012]].*)
       # We only want to do this on AIX 4.2 and lower, the check
       # below for broken collect2 doesn't work under 4.3+
 	collect2name=`${CC} -print-prog-name=collect2`
@@ -10190,8 +8901,12 @@ case $host_os in
 	  _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-L$libdir'
 	  _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=
 	fi
+	;;
       esac
       shared_flag='-shared'
+      if test "$aix_use_runtimelinking" = yes; then
+	shared_flag="$shared_flag "'${wl}-G'
+      fi
     else
       # not using gcc
       if test "$host_cpu" = ia64; then
@@ -10214,36 +8929,44 @@ case $host_os in
       # Warning - without using the other runtime loading flags (-brtl),
       # -berok will link without error, but may produce a broken library.
       _LT_AC_TAGVAR(allow_undefined_flag, $1)='-berok'
-      # Determine the default libpath from the value encoded in an empty
-      # executable.
+      # Determine the default libpath from the value encoded in an empty executable.
       _LT_AC_SYS_LIBPATH_AIX
       _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-blibpath:$libdir:'"$aix_libpath"
 
-      _LT_AC_TAGVAR(archive_expsym_cmds, $1)="\$CC"' -o $output_objdir/$soname $libobjs $deplibs $compiler_flags `if test "x${allow_undefined_flag}" != "x"; then echo "${wl}${allow_undefined_flag}"; else :; fi` '"\${wl}$no_entry_flag \${wl}$exp_sym_flag:\$export_symbols $shared_flag"
+      _LT_AC_TAGVAR(archive_expsym_cmds, $1)="\$CC"' -o $output_objdir/$soname $libobjs $deplibs '"\${wl}$no_entry_flag"' $compiler_flags `if test "x${allow_undefined_flag}" != "x"; then echo "${wl}${allow_undefined_flag}"; else :; fi` '"\${wl}$exp_sym_flag:\$export_symbols $shared_flag"
      else
       if test "$host_cpu" = ia64; then
 	_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-R $libdir:/usr/lib:/lib'
 	_LT_AC_TAGVAR(allow_undefined_flag, $1)="-z nodefs"
-	_LT_AC_TAGVAR(archive_expsym_cmds, $1)="\$CC $shared_flag"' -o $output_objdir/$soname $libobjs $deplibs $compiler_flags ${wl}${allow_undefined_flag} '"\${wl}$no_entry_flag \${wl}$exp_sym_flag:\$export_symbols"
+	_LT_AC_TAGVAR(archive_expsym_cmds, $1)="\$CC $shared_flag"' -o $output_objdir/$soname $libobjs $deplibs '"\${wl}$no_entry_flag"' $compiler_flags ${wl}${allow_undefined_flag} '"\${wl}$exp_sym_flag:\$export_symbols"
       else
-	# Determine the default libpath from the value encoded in an
-	# empty executable.
+	# Determine the default libpath from the value encoded in an empty executable.
 	_LT_AC_SYS_LIBPATH_AIX
 	_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-blibpath:$libdir:'"$aix_libpath"
 	# Warning - without using the other run time loading flags,
 	# -berok will link without error, but may produce a broken library.
 	_LT_AC_TAGVAR(no_undefined_flag, $1)=' ${wl}-bernotok'
 	_LT_AC_TAGVAR(allow_undefined_flag, $1)=' ${wl}-berok'
-	# -bexpall does not export symbols beginning with underscore (_)
-	_LT_AC_TAGVAR(always_export_symbols, $1)=yes
 	# Exported symbols can be pulled into shared objects from archives
-	_LT_AC_TAGVAR(whole_archive_flag_spec, $1)=' '
+	_LT_AC_TAGVAR(whole_archive_flag_spec, $1)='$convenience'
 	_LT_AC_TAGVAR(archive_cmds_need_lc, $1)=yes
-	# This is similar to how AIX traditionally builds it's shared libraries.
-	_LT_AC_TAGVAR(archive_expsym_cmds, $1)="\$CC $shared_flag"' -o $output_objdir/$soname $libobjs $deplibs $compiler_flags ${wl}-bE:$export_symbols ${wl}-bnoentry${allow_undefined_flag}~$AR $AR_FLAGS $output_objdir/$libname$release.a $output_objdir/$soname'
+	# This is similar to how AIX traditionally builds its shared libraries.
+	_LT_AC_TAGVAR(archive_expsym_cmds, $1)="\$CC $shared_flag"' -o $output_objdir/$soname $libobjs $deplibs ${wl}-bnoentry $compiler_flags ${wl}-bE:$export_symbols${allow_undefined_flag}~$AR $AR_FLAGS $output_objdir/$libname$release.a $output_objdir/$soname'
       fi
     fi
     ;;
+
+  beos*)
+    if $LD --help 2>&1 | grep ': supported targets:.* elf' > /dev/null; then
+      _LT_AC_TAGVAR(allow_undefined_flag, $1)=unsupported
+      # Joseph Beckenbach <jrb3@best.com> says some releases of gcc
+      # support --undefined.  This deserves some investigation.  FIXME
+      _LT_AC_TAGVAR(archive_cmds, $1)='$CC -nostart $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+    else
+      _LT_AC_TAGVAR(ld_shlibs, $1)=no
+    fi
+    ;;
+
   chorus*)
     case $cc_basename in
       *)
@@ -10262,7 +8985,7 @@ case $host_os in
     _LT_AC_TAGVAR(enable_shared_with_static_runtimes, $1)=yes
 
     if $LD --help 2>&1 | grep 'auto-import' > /dev/null; then
-      _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -nostdlib $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags -o $output_objdir/$soname ${wl}--image-base=0x10000000 ${wl}--out-implib,$lib'
+      _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -nostdlib $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags -o $output_objdir/$soname ${wl}--enable-auto-image-base -Xlinker --out-implib -Xlinker $lib'
       # If the export-symbols file already is a .def file (1st line
       # is EXPORTS), use it as is; otherwise, prepend...
       _LT_AC_TAGVAR(archive_expsym_cmds, $1)='if test "x`$SED 1q $export_symbols`" = xEXPORTS; then
@@ -10271,68 +8994,81 @@ case $host_os in
 	echo EXPORTS > $output_objdir/$soname.def;
 	cat $export_symbols >> $output_objdir/$soname.def;
       fi~
-      $CC -shared -nostdlib $output_objdir/$soname.def $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags -o $output_objdir/$soname ${wl}--image-base=0x10000000 ${wl}--out-implib,$lib'
+      $CC -shared -nostdlib $output_objdir/$soname.def $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags -o $output_objdir/$soname ${wl}--enable-auto-image-base -Xlinker --out-implib -Xlinker $lib'
     else
       _LT_AC_TAGVAR(ld_shlibs, $1)=no
     fi
   ;;
-    darwin* | rhapsody*)
-    if test "$GXX" = yes ; then
-      _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=no
-      case "$host_os" in
-      rhapsody* | darwin1.[[012]])
-	_LT_AC_TAGVAR(allow_undefined_flag, $1)='-undefined suppress'
-	;;
-      *) # Darwin 1.3 on
-      if test -z ${MACOSX_DEPLOYMENT_TARGET} ; then
-      	_LT_AC_TAGVAR(allow_undefined_flag, $1)='-flat_namespace -undefined suppress'
-      else
-        case ${MACOSX_DEPLOYMENT_TARGET} in
-          10.[[012]])
-            _LT_AC_TAGVAR(allow_undefined_flag, $1)='-flat_namespace -undefined suppress'
-            ;;
-          10.*)
-            _LT_AC_TAGVAR(allow_undefined_flag, $1)='-undefined dynamic_lookup'
-            ;;
+      darwin* | rhapsody*)
+        case $host_os in
+        rhapsody* | darwin1.[[012]])
+         _LT_AC_TAGVAR(allow_undefined_flag, $1)='${wl}-undefined ${wl}suppress'
+         ;;
+       *) # Darwin 1.3 on
+         if test -z ${MACOSX_DEPLOYMENT_TARGET} ; then
+           _LT_AC_TAGVAR(allow_undefined_flag, $1)='${wl}-flat_namespace ${wl}-undefined ${wl}suppress'
+         else
+           case ${MACOSX_DEPLOYMENT_TARGET} in
+             10.[[012]])
+               _LT_AC_TAGVAR(allow_undefined_flag, $1)='${wl}-flat_namespace ${wl}-undefined ${wl}suppress'
+               ;;
+             10.*)
+               _LT_AC_TAGVAR(allow_undefined_flag, $1)='${wl}-undefined ${wl}dynamic_lookup'
+               ;;
+           esac
+         fi
+         ;;
         esac
-      fi
-	;;
-      esac
-    	lt_int_apple_cc_single_mod=no
-    	output_verbose_link_cmd='echo'
-    	if $CC -dumpspecs 2>&1 | grep 'single_module' >/dev/null ; then
-    	  lt_int_apple_cc_single_mod=yes
-    	fi
-    	if test "X$lt_int_apple_cc_single_mod" = Xyes ; then
-    	  _LT_AC_TAGVAR(archive_cmds, $1)='$CC -dynamiclib -single_module $allow_undefined_flag -o $lib $libobjs $deplibs $compiler_flags -install_name $rpath/$soname $verstring'
-    	else
-        _LT_AC_TAGVAR(archive_cmds, $1)='$CC -r -keep_private_externs -nostdlib -o ${lib}-master.o $libobjs~$CC -dynamiclib $allow_undefined_flag -o $lib ${lib}-master.o $deplibs $compiler_flags -install_name $rpath/$soname $verstring'
-      fi
-      _LT_AC_TAGVAR(module_cmds, $1)='$CC $allow_undefined_flag -o $lib -bundle $libobjs $deplibs$compiler_flags'
-      # Don't fix this by using the ld -exported_symbols_list flag, it doesn't exist in older darwin ld's
-        if test "X$lt_int_apple_cc_single_mod" = Xyes ; then
-          _LT_AC_TAGVAR(archive_expsym_cmds, $1)='sed -e "s,#.*,," -e "s,^[    ]*,," -e "s,^\(..*\),_&," < $export_symbols > $output_objdir/${libname}-symbols.expsym~$CC -dynamiclib -single_module $allow_undefined_flag -o $lib $libobjs $deplibs $compiler_flags -install_name $rpath/$soname $verstring~nmedit -s $output_objdir/${libname}-symbols.expsym ${lib}'
-        else
-          _LT_AC_TAGVAR(archive_expsym_cmds, $1)='sed -e "s,#.*,," -e "s,^[    ]*,," -e "s,^\(..*\),_&," < $export_symbols > $output_objdir/${libname}-symbols.expsym~$CC -r -keep_private_externs -nostdlib -o ${lib}-master.o $libobjs~$CC -dynamiclib $allow_undefined_flag -o $lib ${lib}-master.o $deplibs $compiler_flags -install_name $rpath/$soname $verstring~nmedit -s $output_objdir/${libname}-symbols.expsym ${lib}'
-        fi
-          _LT_AC_TAGVAR(module_expsym_cmds, $1)='sed -e "s,#.*,," -e "s,^[    ]*,," -e "s,^\(..*\),_&," < $export_symbols > $output_objdir/${libname}-symbols.expsym~$CC $allow_undefined_flag  -o $lib -bundle $libobjs $deplibs$compiler_flags~nmedit -s $output_objdir/${libname}-symbols.expsym ${lib}'
+      _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=no
       _LT_AC_TAGVAR(hardcode_direct, $1)=no
       _LT_AC_TAGVAR(hardcode_automatic, $1)=yes
       _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=unsupported
-      _LT_AC_TAGVAR(whole_archive_flag_spec, $1)='-all_load $convenience'
+      _LT_AC_TAGVAR(whole_archive_flag_spec, $1)=''
       _LT_AC_TAGVAR(link_all_deplibs, $1)=yes
-    else
-      _LT_AC_TAGVAR(ld_shlibs, $1)=no
-    fi
-      ;;
+
+    if test "$GXX" = yes ; then
+      lt_int_apple_cc_single_mod=no
+      output_verbose_link_cmd='echo'
+      if $CC -dumpspecs 2>&1 | $EGREP 'single_module' >/dev/null ; then
+       lt_int_apple_cc_single_mod=yes
+      fi
+      if test "X$lt_int_apple_cc_single_mod" = Xyes ; then
+       _LT_AC_TAGVAR(archive_cmds, $1)='$CC -dynamiclib -single_module $allow_undefined_flag -o $lib $libobjs $deplibs $compiler_flags -install_name $rpath/$soname $verstring'
+      else
+          _LT_AC_TAGVAR(archive_cmds, $1)='$CC -r -keep_private_externs -nostdlib -o ${lib}-master.o $libobjs~$CC -dynamiclib $allow_undefined_flag -o $lib ${lib}-master.o $deplibs $compiler_flags -install_name $rpath/$soname $verstring'
+        fi
+        _LT_AC_TAGVAR(module_cmds, $1)='$CC $allow_undefined_flag -o $lib -bundle $libobjs $deplibs$compiler_flags'
+        # Don't fix this by using the ld -exported_symbols_list flag, it doesn't exist in older darwin lds
+          if test "X$lt_int_apple_cc_single_mod" = Xyes ; then
+            _LT_AC_TAGVAR(archive_expsym_cmds, $1)='sed -e "s,#.*,," -e "s,^[    ]*,," -e "s,^\(..*\),_&," < $export_symbols > $output_objdir/${libname}-symbols.expsym~$CC -dynamiclib -single_module $allow_undefined_flag -o $lib $libobjs $deplibs $compiler_flags -install_name $rpath/$soname $verstring~nmedit -s $output_objdir/${libname}-symbols.expsym ${lib}'
+          else
+            _LT_AC_TAGVAR(archive_expsym_cmds, $1)='sed -e "s,#.*,," -e "s,^[    ]*,," -e "s,^\(..*\),_&," < $export_symbols > $output_objdir/${libname}-symbols.expsym~$CC -r -keep_private_externs -nostdlib -o ${lib}-master.o $libobjs~$CC -dynamiclib $allow_undefined_flag -o $lib ${lib}-master.o $deplibs $compiler_flags -install_name $rpath/$soname $verstring~nmedit -s $output_objdir/${libname}-symbols.expsym ${lib}'
+          fi
+            _LT_AC_TAGVAR(module_expsym_cmds, $1)='sed -e "s,#.*,," -e "s,^[    ]*,," -e "s,^\(..*\),_&," < $export_symbols > $output_objdir/${libname}-symbols.expsym~$CC $allow_undefined_flag  -o $lib -bundle $libobjs $deplibs$compiler_flags~nmedit -s $output_objdir/${libname}-symbols.expsym ${lib}'
+      else
+      case $cc_basename in
+        xlc*)
+         output_verbose_link_cmd='echo'
+          _LT_AC_TAGVAR(archive_cmds, $1)='$CC -qmkshrobj ${wl}-single_module $allow_undefined_flag -o $lib $libobjs $deplibs $compiler_flags ${wl}-install_name ${wl}`echo $rpath/$soname` $verstring'
+          _LT_AC_TAGVAR(module_cmds, $1)='$CC $allow_undefined_flag -o $lib -bundle $libobjs $deplibs$compiler_flags'
+          # Don't fix this by using the ld -exported_symbols_list flag, it doesn't exist in older darwin lds
+          _LT_AC_TAGVAR(archive_expsym_cmds, $1)='sed -e "s,#.*,," -e "s,^[    ]*,," -e "s,^\(..*\),_&," < $export_symbols > $output_objdir/${libname}-symbols.expsym~$CC -qmkshrobj ${wl}-single_module $allow_undefined_flag -o $lib $libobjs $deplibs $compiler_flags ${wl}-install_name ${wl}$rpath/$soname $verstring~nmedit -s $output_objdir/${libname}-symbols.expsym ${lib}'
+          _LT_AC_TAGVAR(module_expsym_cmds, $1)='sed -e "s,#.*,," -e "s,^[    ]*,," -e "s,^\(..*\),_&," < $export_symbols > $output_objdir/${libname}-symbols.expsym~$CC $allow_undefined_flag  -o $lib -bundle $libobjs $deplibs$compiler_flags~nmedit -s $output_objdir/${libname}-symbols.expsym ${lib}'
+          ;;
+       *)
+         _LT_AC_TAGVAR(ld_shlibs, $1)=no
+          ;;
+      esac
+      fi
+        ;;
 
   dgux*)
     case $cc_basename in
-      ec++)
+      ec++*)
 	# FIXME: insert proper C++ library support
 	_LT_AC_TAGVAR(ld_shlibs, $1)=no
 	;;
-      ghcx)
+      ghcx*)
 	# Green Hills C++ Compiler
 	# FIXME: insert proper C++ library support
 	_LT_AC_TAGVAR(ld_shlibs, $1)=no
@@ -10343,14 +9079,14 @@ case $host_os in
 	;;
     esac
     ;;
-  freebsd[12]*)
+  freebsd[[12]]*)
     # C++ shared libraries reported to be fairly broken before switch to ELF
     _LT_AC_TAGVAR(ld_shlibs, $1)=no
     ;;
   freebsd-elf*)
     _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=no
     ;;
-  freebsd* | kfreebsd*-gnu)
+  freebsd* | kfreebsd*-gnu | dragonfly*)
     # FreeBSD 3 and later use GNU C++ and GNU ld with standard ELF
     # conventions
     _LT_AC_TAGVAR(ld_shlibs, $1)=yes
@@ -10367,11 +9103,11 @@ case $host_os in
 				# location of the library.
 
     case $cc_basename in
-    CC)
+    CC*)
       # FIXME: insert proper C++ library support
       _LT_AC_TAGVAR(ld_shlibs, $1)=no
       ;;
-    aCC)
+    aCC*)
       _LT_AC_TAGVAR(archive_cmds, $1)='$rm $output_objdir/$soname~$CC -b ${wl}+b ${wl}$install_libdir -o $output_objdir/$soname $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags~test $output_objdir/$soname = $lib || mv $output_objdir/$soname $lib'
       # Commands to make compiler produce verbose output that lists
       # what "hidden" libraries, object files and flags are used when
@@ -10381,7 +9117,7 @@ case $host_os in
       # explicitly linking system object files so we need to strip them
       # from the output so that they don't get included in the library
       # dependencies.
-      output_verbose_link_cmd='templist=`($CC -b $CFLAGS -v conftest.$objext 2>&1) | egrep "\-L"`; list=""; for z in $templist; do case $z in conftest.$objext) list="$list $z";; *.$objext);; *) list="$list $z";;esac; done; echo $list'
+      output_verbose_link_cmd='templist=`($CC -b $CFLAGS -v conftest.$objext 2>&1) | grep "[[-]]L"`; list=""; for z in $templist; do case $z in conftest.$objext) list="$list $z";; *.$objext);; *) list="$list $z";;esac; done; echo $list'
       ;;
     *)
       if test "$GXX" = yes; then
@@ -10395,33 +9131,22 @@ case $host_os in
     ;;
   hpux10*|hpux11*)
     if test $with_gnu_ld = no; then
-      case "$host_cpu" in
-      hppa*64*)
-	_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}+b ${wl}$libdir'
+      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}+b ${wl}$libdir'
+      _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
+
+      case $host_cpu in
+      hppa*64*|ia64*)
 	_LT_AC_TAGVAR(hardcode_libdir_flag_spec_ld, $1)='+b $libdir'
-	_LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
-        ;;
-      ia64*)
-	_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-L$libdir'
         ;;
       *)
-	_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}+b ${wl}$libdir'
-	_LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
 	_LT_AC_TAGVAR(export_dynamic_flag_spec, $1)='${wl}-E'
         ;;
       esac
     fi
-    case "$host_cpu" in
-    hppa*64*)
+    case $host_cpu in
+    hppa*64*|ia64*)
       _LT_AC_TAGVAR(hardcode_direct, $1)=no
       _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
-      ;;
-    ia64*)
-      _LT_AC_TAGVAR(hardcode_direct, $1)=no
-      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
-      _LT_AC_TAGVAR(hardcode_minus_L, $1)=yes # Not in the search PATH,
-					      # but as the default
-					      # location of the library.
       ;;
     *)
       _LT_AC_TAGVAR(hardcode_direct, $1)=yes
@@ -10432,14 +9157,17 @@ case $host_os in
     esac
 
     case $cc_basename in
-      CC)
+      CC*)
 	# FIXME: insert proper C++ library support
 	_LT_AC_TAGVAR(ld_shlibs, $1)=no
 	;;
-      aCC)
-	case "$host_cpu" in
-	hppa*64*|ia64*)
-	  _LT_AC_TAGVAR(archive_cmds, $1)='$LD -b +h $soname -o $lib $linker_flags $libobjs $deplibs'
+      aCC*)
+	case $host_cpu in
+	hppa*64*)
+	  _LT_AC_TAGVAR(archive_cmds, $1)='$CC -b ${wl}+h ${wl}$soname -o $lib $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags'
+	  ;;
+	ia64*)
+	  _LT_AC_TAGVAR(archive_cmds, $1)='$CC -b ${wl}+h ${wl}$soname ${wl}+nodefaultrpath -o $lib $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags'
 	  ;;
 	*)
 	  _LT_AC_TAGVAR(archive_cmds, $1)='$CC -b ${wl}+h ${wl}$soname ${wl}+b ${wl}$install_libdir -o $lib $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags'
@@ -10458,9 +9186,12 @@ case $host_os in
       *)
 	if test "$GXX" = yes; then
 	  if test $with_gnu_ld = no; then
-	    case "$host_cpu" in
-	    ia64*|hppa*64*)
-	      _LT_AC_TAGVAR(archive_cmds, $1)='$LD -b +h $soname -o $lib $linker_flags $libobjs $deplibs'
+	    case $host_cpu in
+	    hppa*64*)
+	      _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -nostdlib -fPIC ${wl}+h ${wl}$soname -o $lib $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags'
+	      ;;
+	    ia64*)
+	      _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -nostdlib -fPIC ${wl}+h ${wl}$soname ${wl}+nodefaultrpath -o $lib $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags'
 	      ;;
 	    *)
 	      _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -nostdlib -fPIC ${wl}+h ${wl}$soname ${wl}+b ${wl}$install_libdir -o $lib $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags'
@@ -10474,11 +9205,25 @@ case $host_os in
 	;;
     esac
     ;;
+  interix3*)
+    _LT_AC_TAGVAR(hardcode_direct, $1)=no
+    _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+    _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath,$libdir'
+    _LT_AC_TAGVAR(export_dynamic_flag_spec, $1)='${wl}-E'
+    # Hack: On Interix 3.x, we cannot compile PIC because of a broken gcc.
+    # Instead, shared libraries are loaded at an image base (0x10000000 by
+    # default) and relocated if they conflict, which is a slow very memory
+    # consuming and fragmenting process.  To avoid this, we pick a random,
+    # 256 KiB-aligned image base between 0x50000000 and 0x6FFC0000 at link
+    # time.  Moving up from 0x10000000 also allows more sbrk(2) space.
+    _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $pic_flag $libobjs $deplibs $compiler_flags ${wl}-h,$soname ${wl}--image-base,`expr ${RANDOM-$$} % 4096 / 2 \* 262144 + 1342177280` -o $lib'
+    _LT_AC_TAGVAR(archive_expsym_cmds, $1)='sed "s,^,_," $export_symbols >$output_objdir/$soname.expsym~$CC -shared $pic_flag $libobjs $deplibs $compiler_flags ${wl}-h,$soname ${wl}--retain-symbols-file,$output_objdir/$soname.expsym ${wl}--image-base,`expr ${RANDOM-$$} % 4096 / 2 \* 262144 + 1342177280` -o $lib'
+    ;;
   irix5* | irix6*)
     case $cc_basename in
-      CC)
+      CC*)
 	# SGI C++
-	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -all -multigot $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags -soname $soname `test -n "$verstring" && echo -set_version $verstring` -update_registry ${objdir}/so_locations -o $lib'
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -all -multigot $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags -soname $soname `test -n "$verstring" && echo -set_version $verstring` -update_registry ${output_objdir}/so_locations -o $lib'
 
 	# Archives containing C++ object files must be created using
 	# "CC -ar", where "CC" is the IRIX C++ compiler.  This is
@@ -10489,7 +9234,7 @@ case $host_os in
       *)
 	if test "$GXX" = yes; then
 	  if test "$with_gnu_ld" = no; then
-	    _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -nostdlib $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-soname ${wl}$soname `test -n "$verstring" && echo ${wl}-set_version ${wl}$verstring` ${wl}-update_registry ${wl}${objdir}/so_locations -o $lib'
+	    _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -nostdlib $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-soname ${wl}$soname `test -n "$verstring" && echo ${wl}-set_version ${wl}$verstring` ${wl}-update_registry ${wl}${output_objdir}/so_locations -o $lib'
 	  else
 	    _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -nostdlib $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-soname ${wl}$soname `test -n "$verstring" && echo ${wl}-set_version ${wl}$verstring` -o $lib'
 	  fi
@@ -10502,7 +9247,7 @@ case $host_os in
     ;;
   linux*)
     case $cc_basename in
-      KCC)
+      KCC*)
 	# Kuck and Associates, Inc. (KAI) C++ Compiler
 
 	# KCC will only create a shared library if the output file
@@ -10527,17 +9272,41 @@ case $host_os in
 	# "CC -Bstatic", where "CC" is the KAI C++ compiler.
 	_LT_AC_TAGVAR(old_archive_cmds, $1)='$CC -Bstatic -o $oldlib $oldobjs'
 	;;
-      icpc)
+      icpc*)
 	# Intel C++
 	with_gnu_ld=yes
+	# version 8.0 and above of icpc choke on multiply defined symbols
+	# if we add $predep_objects and $postdep_objects, however 7.1 and
+	# earlier do not add the objects themselves.
+	case `$CC -V 2>&1` in
+	*"Version 7."*)
+  	  _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-soname $wl$soname -o $lib'
+  	  _LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -shared $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-soname $wl$soname ${wl}-retain-symbols-file $wl$export_symbols -o $lib'
+	  ;;
+	*)  # Version 8.0 or newer
+	  tmp_idyn=
+	  case $host_cpu in
+	    ia64*) tmp_idyn=' -i_dynamic';;
+	  esac
+  	  _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared'"$tmp_idyn"' $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+	  _LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -shared'"$tmp_idyn"' $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname ${wl}-retain-symbols-file $wl$export_symbols -o $lib'
+	  ;;
+	esac
 	_LT_AC_TAGVAR(archive_cmds_need_lc, $1)=no
-	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-soname $wl$soname -o $lib'
-	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -shared $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-soname $wl$soname ${wl}-retain-symbols-file $wl$export_symbols -o $lib'
 	_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath,$libdir'
 	_LT_AC_TAGVAR(export_dynamic_flag_spec, $1)='${wl}--export-dynamic'
 	_LT_AC_TAGVAR(whole_archive_flag_spec, $1)='${wl}--whole-archive$convenience ${wl}--no-whole-archive'
 	;;
-      cxx)
+      pgCC*)
+        # Portland Group C++ compiler
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $pic_flag $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-soname ${wl}$soname -o $lib'
+  	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -shared $pic_flag $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-soname ${wl}$soname ${wl}-retain-symbols-file ${wl}$export_symbols -o $lib'
+
+	_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}--rpath ${wl}$libdir'
+	_LT_AC_TAGVAR(export_dynamic_flag_spec, $1)='${wl}--export-dynamic'
+	_LT_AC_TAGVAR(whole_archive_flag_spec, $1)='${wl}--whole-archive`for conv in $convenience\"\"; do test  -n \"$conv\" && new_convenience=\"$new_convenience,$conv\"; done; $echo \"$new_convenience\"` ${wl}--no-whole-archive'
+        ;;
+      cxx*)
 	# Compaq C++
 	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-soname $wl$soname -o $lib'
 	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -shared $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-soname $wl$soname  -o $lib ${wl}-retain-symbols-file $wl$export_symbols'
@@ -10568,7 +9337,7 @@ case $host_os in
     ;;
   mvs*)
     case $cc_basename in
-      cxx)
+      cxx*)
 	# FIXME: insert proper C++ library support
 	_LT_AC_TAGVAR(ld_shlibs, $1)=no
 	;;
@@ -10589,9 +9358,25 @@ case $host_os in
     # Workaround some broken pre-1.5 toolchains
     output_verbose_link_cmd='$CC -shared $CFLAGS -v conftest.$objext 2>&1 | grep conftest.$objext | $SED -e "s:-lgcc -lc -lgcc::"'
     ;;
+  openbsd2*)
+    # C++ shared libraries are fairly broken
+    _LT_AC_TAGVAR(ld_shlibs, $1)=no
+    ;;
+  openbsd*)
+    _LT_AC_TAGVAR(hardcode_direct, $1)=yes
+    _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+    _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $pic_flag $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags -o $lib'
+    _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath,$libdir'
+    if test -z "`echo __ELF__ | $CC -E - | grep __ELF__`" || test "$host_os-$host_cpu" = "openbsd2.8-powerpc"; then
+      _LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -shared $pic_flag $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-retain-symbols-file,$export_symbols -o $lib'
+      _LT_AC_TAGVAR(export_dynamic_flag_spec, $1)='${wl}-E'
+      _LT_AC_TAGVAR(whole_archive_flag_spec, $1)="$wlarc"'--whole-archive$convenience '"$wlarc"'--no-whole-archive'
+    fi
+    output_verbose_link_cmd='echo'
+    ;;
   osf3*)
     case $cc_basename in
-      KCC)
+      KCC*)
 	# Kuck and Associates, Inc. (KAI) C++ Compiler
 
 	# KCC will only create a shared library if the output file
@@ -10607,14 +9392,14 @@ case $host_os in
 	_LT_AC_TAGVAR(old_archive_cmds, $1)='$CC -Bstatic -o $oldlib $oldobjs'
 
 	;;
-      RCC)
+      RCC*)
 	# Rational C++ 2.4.1
 	# FIXME: insert proper C++ library support
 	_LT_AC_TAGVAR(ld_shlibs, $1)=no
 	;;
-      cxx)
+      cxx*)
 	_LT_AC_TAGVAR(allow_undefined_flag, $1)=' ${wl}-expect_unresolved ${wl}\*'
-	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared${allow_undefined_flag} $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-soname $soname `test -n "$verstring" && echo ${wl}-set_version $verstring` -update_registry ${objdir}/so_locations -o $lib'
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared${allow_undefined_flag} $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-soname $soname `test -n "$verstring" && echo ${wl}-set_version $verstring` -update_registry ${output_objdir}/so_locations -o $lib'
 
 	_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath ${wl}$libdir'
 	_LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
@@ -10632,7 +9417,7 @@ case $host_os in
       *)
 	if test "$GXX" = yes && test "$with_gnu_ld" = no; then
 	  _LT_AC_TAGVAR(allow_undefined_flag, $1)=' ${wl}-expect_unresolved ${wl}\*'
-	  _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -nostdlib ${allow_undefined_flag} $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-soname ${wl}$soname `test -n "$verstring" && echo ${wl}-set_version ${wl}$verstring` ${wl}-update_registry ${wl}${objdir}/so_locations -o $lib'
+	  _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -nostdlib ${allow_undefined_flag} $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-soname ${wl}$soname `test -n "$verstring" && echo ${wl}-set_version ${wl}$verstring` ${wl}-update_registry ${wl}${output_objdir}/so_locations -o $lib'
 
 	  _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath ${wl}$libdir'
 	  _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
@@ -10651,7 +9436,7 @@ case $host_os in
     ;;
   osf4* | osf5*)
     case $cc_basename in
-      KCC)
+      KCC*)
 	# Kuck and Associates, Inc. (KAI) C++ Compiler
 
 	# KCC will only create a shared library if the output file
@@ -10666,17 +9451,17 @@ case $host_os in
 	# the KAI C++ compiler.
 	_LT_AC_TAGVAR(old_archive_cmds, $1)='$CC -o $oldlib $oldobjs'
 	;;
-      RCC)
+      RCC*)
 	# Rational C++ 2.4.1
 	# FIXME: insert proper C++ library support
 	_LT_AC_TAGVAR(ld_shlibs, $1)=no
 	;;
-      cxx)
+      cxx*)
 	_LT_AC_TAGVAR(allow_undefined_flag, $1)=' -expect_unresolved \*'
-	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared${allow_undefined_flag} $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags -msym -soname $soname `test -n "$verstring" && echo -set_version $verstring` -update_registry ${objdir}/so_locations -o $lib'
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared${allow_undefined_flag} $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags -msym -soname $soname `test -n "$verstring" && echo -set_version $verstring` -update_registry ${output_objdir}/so_locations -o $lib'
 	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='for i in `cat $export_symbols`; do printf "%s %s\\n" -exported_symbol "\$i" >> $lib.exp; done~
 	  echo "-hidden">> $lib.exp~
-	  $CC -shared$allow_undefined_flag $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags -msym -soname $soname -Wl,-input -Wl,$lib.exp  `test -n "$verstring" && echo -set_version	$verstring` -update_registry $objdir/so_locations -o $lib~
+	  $CC -shared$allow_undefined_flag $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags -msym -soname $soname -Wl,-input -Wl,$lib.exp  `test -n "$verstring" && echo -set_version	$verstring` -update_registry ${output_objdir}/so_locations -o $lib~
 	  $rm $lib.exp'
 
 	_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-rpath $libdir'
@@ -10695,7 +9480,7 @@ case $host_os in
       *)
 	if test "$GXX" = yes && test "$with_gnu_ld" = no; then
 	  _LT_AC_TAGVAR(allow_undefined_flag, $1)=' ${wl}-expect_unresolved ${wl}\*'
-	 _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -nostdlib ${allow_undefined_flag} $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-msym ${wl}-soname ${wl}$soname `test -n "$verstring" && echo ${wl}-set_version ${wl}$verstring` ${wl}-update_registry ${wl}${objdir}/so_locations -o $lib'
+	 _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -nostdlib ${allow_undefined_flag} $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-msym ${wl}-soname ${wl}$soname `test -n "$verstring" && echo ${wl}-set_version ${wl}$verstring` ${wl}-update_registry ${wl}${output_objdir}/so_locations -o $lib'
 
 	  _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath ${wl}$libdir'
 	  _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
@@ -10716,27 +9501,14 @@ case $host_os in
     # FIXME: insert proper C++ library support
     _LT_AC_TAGVAR(ld_shlibs, $1)=no
     ;;
-  sco*)
-    _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=no
-    case $cc_basename in
-      CC)
-	# FIXME: insert proper C++ library support
-	_LT_AC_TAGVAR(ld_shlibs, $1)=no
-	;;
-      *)
-	# FIXME: insert proper C++ library support
-	_LT_AC_TAGVAR(ld_shlibs, $1)=no
-	;;
-    esac
-    ;;
   sunos4*)
     case $cc_basename in
-      CC)
+      CC*)
 	# Sun C++ 4.x
 	# FIXME: insert proper C++ library support
 	_LT_AC_TAGVAR(ld_shlibs, $1)=no
 	;;
-      lcc)
+      lcc*)
 	# Lucid
 	# FIXME: insert proper C++ library support
 	_LT_AC_TAGVAR(ld_shlibs, $1)=no
@@ -10749,36 +9521,33 @@ case $host_os in
     ;;
   solaris*)
     case $cc_basename in
-      CC)
+      CC*)
 	# Sun C++ 4.2, 5.x and Centerline C++
+        _LT_AC_TAGVAR(archive_cmds_need_lc,$1)=yes
 	_LT_AC_TAGVAR(no_undefined_flag, $1)=' -zdefs'
-	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -G${allow_undefined_flag} -nolib -h$soname -o $lib $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags'
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -G${allow_undefined_flag}  -h$soname -o $lib $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags'
 	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$echo "{ global:" > $lib.exp~cat $export_symbols | $SED -e "s/\(.*\)/\1;/" >> $lib.exp~$echo "local: *; };" >> $lib.exp~
-	$CC -G${allow_undefined_flag} -nolib ${wl}-M ${wl}$lib.exp -h$soname -o $lib $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags~$rm $lib.exp'
+	$CC -G${allow_undefined_flag}  ${wl}-M ${wl}$lib.exp -h$soname -o $lib $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags~$rm $lib.exp'
 
 	_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-R$libdir'
 	_LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
 	case $host_os in
-	  solaris2.[0-5] | solaris2.[0-5].*) ;;
+	  solaris2.[[0-5]] | solaris2.[[0-5]].*) ;;
 	  *)
 	    # The C++ compiler is used as linker so we must use $wl
 	    # flag to pass the commands to the underlying system
-	    # linker.
+	    # linker. We must also pass each convience library through
+	    # to the system linker between allextract/defaultextract.
+	    # The C++ compiler will combine linker options so we
+	    # cannot just pass the convience library names through
+	    # without $wl.
 	    # Supported since Solaris 2.6 (maybe 2.5.1?)
-	    _LT_AC_TAGVAR(whole_archive_flag_spec, $1)='${wl}-z ${wl}allextract$convenience ${wl}-z ${wl}defaultextract'
+	    _LT_AC_TAGVAR(whole_archive_flag_spec, $1)='${wl}-z ${wl}allextract`for conv in $convenience\"\"; do test -n \"$conv\" && new_convenience=\"$new_convenience,$conv\"; done; $echo \"$new_convenience\"` ${wl}-z ${wl}defaultextract'
 	    ;;
 	esac
 	_LT_AC_TAGVAR(link_all_deplibs, $1)=yes
 
-	# Commands to make compiler produce verbose output that lists
-	# what "hidden" libraries, object files and flags are used when
-	# linking a shared library.
-	#
-	# There doesn't appear to be a way to prevent this compiler from
-	# explicitly linking system object files so we need to strip them
-	# from the output so that they don't get included in the library
-	# dependencies.
-	output_verbose_link_cmd='templist=`$CC -G $CFLAGS -v conftest.$objext 2>&1 | grep "\-[[LR]]"`; list=""; for z in $templist; do case $z in conftest.$objext) list="$list $z";; *.$objext);; *) list="$list $z";;esac; done; echo $list'
+	output_verbose_link_cmd='echo'
 
 	# Archives containing C++ object files must be created using
 	# "CC -xar", where "CC" is the Sun C++ compiler.  This is
@@ -10786,7 +9555,7 @@ case $host_os in
 	# in the archive.
 	_LT_AC_TAGVAR(old_archive_cmds, $1)='$CC -xar -o $oldlib $oldobjs'
 	;;
-      gcx)
+      gcx*)
 	# Green Hills C++ Compiler
 	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-h $wl$soname -o $lib'
 
@@ -10824,12 +9593,63 @@ case $host_os in
 	;;
     esac
     ;;
-  sysv5OpenUNIX8* | sysv5UnixWare7* | sysv5uw[[78]]* | unixware7*)
+  sysv4*uw2* | sysv5OpenUNIX* | sysv5UnixWare7.[[01]].[[10]]* | unixware7* | sco3.2v5.0.[[024]]*)
+    _LT_AC_TAGVAR(no_undefined_flag, $1)='${wl}-z,text'
     _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=no
+    _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+    runpath_var='LD_RUN_PATH'
+
+    case $cc_basename in
+      CC*)
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -G ${wl}-h,$soname -o $lib $libobjs $deplibs $compiler_flags'
+	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -G ${wl}-Bexport:$export_symbols ${wl}-h,$soname -o $lib $libobjs $deplibs $compiler_flags'
+	;;
+      *)
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared ${wl}-h,$soname -o $lib $libobjs $deplibs $compiler_flags'
+	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -shared ${wl}-Bexport:$export_symbols ${wl}-h,$soname -o $lib $libobjs $deplibs $compiler_flags'
+	;;
+    esac
+    ;;
+  sysv5* | sco3.2v5* | sco5v6*)
+    # Note: We can NOT use -z defs as we might desire, because we do not
+    # link with -lc, and that would cause any symbols used from libc to
+    # always be unresolved, which means just about no library would
+    # ever link correctly.  If we're not using GNU ld we use -z text
+    # though, which does catch some bad symbols but isn't as heavy-handed
+    # as -z defs.
+    # For security reasons, it is highly recommended that you always
+    # use absolute paths for naming shared libraries, and exclude the
+    # DT_RUNPATH tag from executables and libraries.  But doing so
+    # requires that you compile everything twice, which is a pain.
+    # So that behaviour is only enabled if SCOABSPATH is set to a
+    # non-empty value in the environment.  Most likely only useful for
+    # creating official distributions of packages.
+    # This is a hack until libtool officially supports absolute path
+    # names for shared libraries.
+    _LT_AC_TAGVAR(no_undefined_flag, $1)='${wl}-z,text'
+    _LT_AC_TAGVAR(allow_undefined_flag, $1)='${wl}-z,nodefs'
+    _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=no
+    _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+    _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='`test -z "$SCOABSPATH" && echo ${wl}-R,$libdir`'
+    _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=':'
+    _LT_AC_TAGVAR(link_all_deplibs, $1)=yes
+    _LT_AC_TAGVAR(export_dynamic_flag_spec, $1)='${wl}-Bexport'
+    runpath_var='LD_RUN_PATH'
+
+    case $cc_basename in
+      CC*)
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -G ${wl}-h,\${SCOABSPATH:+${install_libdir}/}$soname -o $lib $libobjs $deplibs $compiler_flags'
+	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -G ${wl}-Bexport:$export_symbols ${wl}-h,\${SCOABSPATH:+${install_libdir}/}$soname -o $lib $libobjs $deplibs $compiler_flags'
+	;;
+      *)
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared ${wl}-h,\${SCOABSPATH:+${install_libdir}/}$soname -o $lib $libobjs $deplibs $compiler_flags'
+	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -shared ${wl}-Bexport:$export_symbols ${wl}-h,\${SCOABSPATH:+${install_libdir}/}$soname -o $lib $libobjs $deplibs $compiler_flags'
+	;;
+    esac
     ;;
   tandem*)
     case $cc_basename in
-      NCC)
+      NCC*)
 	# NonStop-UX NCC 3.20
 	# FIXME: insert proper C++ library support
 	_LT_AC_TAGVAR(ld_shlibs, $1)=no
@@ -10866,8 +9686,6 @@ AC_LIBTOOL_SYS_HARD_LINK_LOCKS($1)
 AC_LIBTOOL_PROG_LD_SHLIBS($1)
 AC_LIBTOOL_SYS_DYNAMIC_LINKER($1)
 AC_LIBTOOL_PROG_LD_HARDCODE_LIBPATH($1)
-AC_LIBTOOL_SYS_LIB_STRIP
-AC_LIBTOOL_DLOPEN_SELF($1)
 
 AC_LIBTOOL_CONFIG($1)
 
@@ -10884,7 +9702,6 @@ lt_cv_prog_gnu_ldcxx=$lt_cv_prog_gnu_ld
 lt_cv_prog_gnu_ld=$lt_save_with_gnu_ld
 ])# AC_LIBTOOL_LANG_CXX_CONFIG
 
-
 # AC_LIBTOOL_POSTDEP_PREDEP([TAGNAME])
 # ------------------------------------
 # Figure out "hidden" library dependencies from verbose
@@ -10892,23 +9709,16 @@ lt_cv_prog_gnu_ld=$lt_save_with_gnu_ld
 # Parse the compiler output and extract the necessary
 # objects, libraries and library flags.
 AC_DEFUN([AC_LIBTOOL_POSTDEP_PREDEP],[
-# Dependencies to place before and after the object being linked:
-_LT_AC_TAGVAR(predep_objects, $1)=
-_LT_AC_TAGVAR(postdep_objects, $1)=
-_LT_AC_TAGVAR(predeps, $1)=
-_LT_AC_TAGVAR(postdeps, $1)=
-_LT_AC_TAGVAR(compiler_lib_search_path, $1)=
-
 dnl we can't use the lt_simple_compile_test_code here,
 dnl because it contains code intended for an executable,
 dnl not a library.  It's possible we should let each
 dnl tag define a new lt_????_link_test_code variable,
 dnl but it's only used here...
-m4_if([$1], [], [cat > conftest.$ac_ext <<_LT_EOF
+ifelse([$1],[],[cat > conftest.$ac_ext <<EOF
 int a;
 void foo (void) { a = 0; }
-_LT_EOF
-], [$1], [CXX], [cat > conftest.$ac_ext <<_LT_EOF
+EOF
+],[$1],[CXX],[cat > conftest.$ac_ext <<EOF
 class Foo
 {
 public:
@@ -10916,23 +9726,23 @@ public:
 private:
   int a;
 };
-_LT_EOF
-], [$1], [F77], [cat > conftest.$ac_ext <<_LT_EOF
+EOF
+],[$1],[F77],[cat > conftest.$ac_ext <<EOF
       subroutine foo
       implicit none
       integer*4 a
       a=0
       return
       end
-_LT_EOF
-], [$1], [GCJ], [cat > conftest.$ac_ext <<_LT_EOF
+EOF
+],[$1],[GCJ],[cat > conftest.$ac_ext <<EOF
 public class foo {
   private int a;
   public void bar (void) {
     a = 0;
   }
 };
-_LT_EOF
+EOF
 ])
 dnl Parse the compiler output and extract the necessary
 dnl objects, libraries and library flags.
@@ -10947,7 +9757,7 @@ if AC_TRY_EVAL(ac_compile); then
   # The `*' in the case matches for architectures that use `case' in
   # $output_verbose_cmd can trigger glob expansion during the loop
   # eval without this substitution.
-  output_verbose_link_cmd="`$echo \"X$output_verbose_link_cmd\" | $Xsed -e \"$no_glob_subst\"`"
+  output_verbose_link_cmd=`$echo "X$output_verbose_link_cmd" | $Xsed -e "$no_glob_subst"`
 
   for p in `eval $output_verbose_link_cmd`; do
     case $p in
@@ -11023,22 +9833,37 @@ fi
 
 $rm -f confest.$objext
 
+# PORTME: override above test on systems where it is broken
+ifelse([$1],[CXX],
+[case $host_os in
+interix3*)
+  # Interix 3.5 installs completely hosed .la files for C++, so rather than
+  # hack all around it, let's just trust "g++" to DTRT.
+  _LT_AC_TAGVAR(predep_objects,$1)=
+  _LT_AC_TAGVAR(postdep_objects,$1)=
+  _LT_AC_TAGVAR(postdeps,$1)=
+  ;;
+
+solaris*)
+  case $cc_basename in
+  CC*)
+    # Adding this requires a known-good setup of shared libraries for
+    # Sun compiler versions before 5.6, else PIC objects from an old
+    # archive will be linked into the output, leading to subtle bugs.
+    _LT_AC_TAGVAR(postdeps,$1)='-lCstd -lCrun'
+    ;;
+  esac
+  ;;
+esac
+])
+
 case " $_LT_AC_TAGVAR(postdeps, $1) " in
 *" -lc "*) _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=no ;;
 esac
-_LT_TAGDECL([], [predep_objects], [1],
-    [Dependencies to place before and after  the objects being linked to
-    create a shared library])
-_LT_TAGDECL([], [postdep_objects], [1])
-_LT_TAGDECL([], [predeps], [1])
-_LT_TAGDECL([], [postdeps], [1])
-_LT_TAGDECL([], [compiler_lib_search_path], [1],
-    [The library search path used internally by the compiler when linking
-    a shared library])
 ])# AC_LIBTOOL_POSTDEP_PREDEP
 
 # AC_LIBTOOL_LANG_F77_CONFIG
-# ------------------------
+# --------------------------
 # Ensure that the configuration vars for the C compiler are
 # suitably defined.  Those variables are subsequently used by
 # AC_LIBTOOL_CONFIG to write the compiler configuration to `libtool'.
@@ -11082,12 +9907,16 @@ lt_simple_link_test_code="      program t\n      end\n"
 # ltmain only uses $CC for tagged configurations so make sure $CC is set.
 _LT_AC_SYS_COMPILER
 
+# save warnings/boilerplate of simple test code
+_LT_COMPILER_BOILERPLATE
+_LT_LINKER_BOILERPLATE
+
 # Allow CC to be a program name with arguments.
 lt_save_CC="$CC"
 CC=${F77-"f77"}
 compiler=$CC
 _LT_AC_TAGVAR(compiler, $1)=$CC
-cc_basename=`$echo X"$compiler" | $Xsed -e 's%^.*/%%'`
+_LT_CC_BASENAME([$compiler])
 
 AC_MSG_CHECKING([if libtool supports shared libraries])
 AC_MSG_RESULT([$can_build_shared])
@@ -11097,7 +9926,7 @@ test "$can_build_shared" = "no" && enable_shared=no
 
 # On AIX, shared libraries and static libraries use the same namespace, and
 # are all built from PIC.
-case "$host_os" in
+case $host_os in
 aix3*)
   test "$enable_shared" = yes && enable_static=no
   if test -n "$RANLIB"; then
@@ -11105,8 +9934,10 @@ aix3*)
     postinstall_cmds='$RANLIB $lib'
   fi
   ;;
-aix4*)
-  test "$enable_shared" = yes && enable_static=no
+aix4* | aix5*)
+  if test "$host_cpu" != ia64 && test "$aix_use_runtimelinking" = no ; then
+    test "$enable_shared" = yes && enable_static=no
+  fi
   ;;
 esac
 AC_MSG_RESULT([$enable_shared])
@@ -11115,8 +9946,6 @@ AC_MSG_CHECKING([whether to build static libraries])
 # Make sure either enable_shared or enable_static is yes.
 test "$enable_shared" = yes || enable_static=yes
 AC_MSG_RESULT([$enable_static])
-
-test "$_LT_AC_TAGVAR(ld_shlibs, $1)" = no && can_build_shared=no
 
 _LT_AC_TAGVAR(GCC, $1)="$G77"
 _LT_AC_TAGVAR(LD, $1)="$LD"
@@ -11127,8 +9956,6 @@ AC_LIBTOOL_SYS_HARD_LINK_LOCKS($1)
 AC_LIBTOOL_PROG_LD_SHLIBS($1)
 AC_LIBTOOL_SYS_DYNAMIC_LINKER($1)
 AC_LIBTOOL_PROG_LD_HARDCODE_LIBPATH($1)
-AC_LIBTOOL_SYS_LIB_STRIP
-
 
 AC_LIBTOOL_CONFIG($1)
 
@@ -11143,7 +9970,7 @@ CC="$lt_save_CC"
 # suitably defined.  Those variables are subsequently used by
 # AC_LIBTOOL_CONFIG to write the compiler configuration to `libtool'.
 AC_DEFUN([AC_LIBTOOL_LANG_GCJ_CONFIG], [_LT_AC_LANG_GCJ_CONFIG(GCJ)])
-m4_define([_LT_AC_LANG_GCJ_CONFIG],
+AC_DEFUN([_LT_AC_LANG_GCJ_CONFIG],
 [AC_LANG_SAVE
 
 # Source file extension for Java test sources.
@@ -11157,19 +9984,26 @@ _LT_AC_TAGVAR(objext, $1)=$objext
 lt_simple_compile_test_code="class foo {}\n"
 
 # Code to be used in simple link tests
-lt_simple_link_test_code='public class conftest { public static void main(String[] argv) {}; }\n'
+lt_simple_link_test_code='public class conftest { public static void main(String[[]] argv) {}; }\n'
 
 # ltmain only uses $CC for tagged configurations so make sure $CC is set.
 _LT_AC_SYS_COMPILER
+
+# save warnings/boilerplate of simple test code
+_LT_COMPILER_BOILERPLATE
+_LT_LINKER_BOILERPLATE
 
 # Allow CC to be a program name with arguments.
 lt_save_CC="$CC"
 CC=${GCJ-"gcj"}
 compiler=$CC
 _LT_AC_TAGVAR(compiler, $1)=$CC
+_LT_CC_BASENAME([$compiler])
 
 # GCJ did not exist at the time GCC didn't implicitly link libc in.
 _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=no
+
+_LT_AC_TAGVAR(old_archive_cmds, $1)=$old_archive_cmds
 
 ## CAVEAT EMPTOR:
 ## There is no encapsulation within the following macros, do not change
@@ -11182,8 +10016,6 @@ AC_LIBTOOL_SYS_HARD_LINK_LOCKS($1)
 AC_LIBTOOL_PROG_LD_SHLIBS($1)
 AC_LIBTOOL_SYS_DYNAMIC_LINKER($1)
 AC_LIBTOOL_PROG_LD_HARDCODE_LIBPATH($1)
-AC_LIBTOOL_SYS_LIB_STRIP
-AC_LIBTOOL_DLOPEN_SELF($1)
 
 AC_LIBTOOL_CONFIG($1)
 
@@ -11193,12 +10025,12 @@ CC="$lt_save_CC"
 
 
 # AC_LIBTOOL_LANG_RC_CONFIG
-# --------------------------
+# -------------------------
 # Ensure that the configuration vars for the Windows resource compiler are
 # suitably defined.  Those variables are subsequently used by
 # AC_LIBTOOL_CONFIG to write the compiler configuration to `libtool'.
 AC_DEFUN([AC_LIBTOOL_LANG_RC_CONFIG], [_LT_AC_LANG_RC_CONFIG(RC)])
-m4_define([_LT_AC_LANG_RC_CONFIG],
+AC_DEFUN([_LT_AC_LANG_RC_CONFIG],
 [AC_LANG_SAVE
 
 # Source file extension for RC test sources.
@@ -11217,11 +10049,16 @@ lt_simple_link_test_code="$lt_simple_compile_test_code"
 # ltmain only uses $CC for tagged configurations so make sure $CC is set.
 _LT_AC_SYS_COMPILER
 
+# save warnings/boilerplate of simple test code
+_LT_COMPILER_BOILERPLATE
+_LT_LINKER_BOILERPLATE
+
 # Allow CC to be a program name with arguments.
 lt_save_CC="$CC"
 CC=${RC-"windres"}
 compiler=$CC
 _LT_AC_TAGVAR(compiler, $1)=$CC
+_LT_CC_BASENAME([$compiler])
 _LT_AC_TAGVAR(lt_cv_prog_compiler_c_o, $1)=yes
 
 AC_LIBTOOL_CONFIG($1)
@@ -11230,6 +10067,2233 @@ AC_LANG_RESTORE
 CC="$lt_save_CC"
 ])# AC_LIBTOOL_LANG_RC_CONFIG
 
+
+# AC_LIBTOOL_CONFIG([TAGNAME])
+# ----------------------------
+# If TAGNAME is not passed, then create an initial libtool script
+# with a default configuration from the untagged config vars.  Otherwise
+# add code to config.status for appending the configuration named by
+# TAGNAME from the matching tagged config vars.
+AC_DEFUN([AC_LIBTOOL_CONFIG],
+[# The else clause should only fire when bootstrapping the
+# libtool distribution, otherwise you forgot to ship ltmain.sh
+# with your package, and you will get complaints that there are
+# no rules to generate ltmain.sh.
+if test -f "$ltmain"; then
+  # See if we are running on zsh, and set the options which allow our commands through
+  # without removal of \ escapes.
+  if test -n "${ZSH_VERSION+set}" ; then
+    setopt NO_GLOB_SUBST
+  fi
+  # Now quote all the things that may contain metacharacters while being
+  # careful not to overquote the AC_SUBSTed values.  We take copies of the
+  # variables and quote the copies for generation of the libtool script.
+  for var in echo old_CC old_CFLAGS AR AR_FLAGS EGREP RANLIB LN_S LTCC LTCFLAGS NM \
+    SED SHELL STRIP \
+    libname_spec library_names_spec soname_spec extract_expsyms_cmds \
+    old_striplib striplib file_magic_cmd finish_cmds finish_eval \
+    deplibs_check_method reload_flag reload_cmds need_locks \
+    lt_cv_sys_global_symbol_pipe lt_cv_sys_global_symbol_to_cdecl \
+    lt_cv_sys_global_symbol_to_c_name_address \
+    sys_lib_search_path_spec sys_lib_dlsearch_path_spec \
+    old_postinstall_cmds old_postuninstall_cmds \
+    _LT_AC_TAGVAR(compiler, $1) \
+    _LT_AC_TAGVAR(CC, $1) \
+    _LT_AC_TAGVAR(LD, $1) \
+    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1) \
+    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1) \
+    _LT_AC_TAGVAR(lt_prog_compiler_static, $1) \
+    _LT_AC_TAGVAR(lt_prog_compiler_no_builtin_flag, $1) \
+    _LT_AC_TAGVAR(export_dynamic_flag_spec, $1) \
+    _LT_AC_TAGVAR(thread_safe_flag_spec, $1) \
+    _LT_AC_TAGVAR(whole_archive_flag_spec, $1) \
+    _LT_AC_TAGVAR(enable_shared_with_static_runtimes, $1) \
+    _LT_AC_TAGVAR(old_archive_cmds, $1) \
+    _LT_AC_TAGVAR(old_archive_from_new_cmds, $1) \
+    _LT_AC_TAGVAR(predep_objects, $1) \
+    _LT_AC_TAGVAR(postdep_objects, $1) \
+    _LT_AC_TAGVAR(predeps, $1) \
+    _LT_AC_TAGVAR(postdeps, $1) \
+    _LT_AC_TAGVAR(compiler_lib_search_path, $1) \
+    _LT_AC_TAGVAR(archive_cmds, $1) \
+    _LT_AC_TAGVAR(archive_expsym_cmds, $1) \
+    _LT_AC_TAGVAR(postinstall_cmds, $1) \
+    _LT_AC_TAGVAR(postuninstall_cmds, $1) \
+    _LT_AC_TAGVAR(old_archive_from_expsyms_cmds, $1) \
+    _LT_AC_TAGVAR(allow_undefined_flag, $1) \
+    _LT_AC_TAGVAR(no_undefined_flag, $1) \
+    _LT_AC_TAGVAR(export_symbols_cmds, $1) \
+    _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1) \
+    _LT_AC_TAGVAR(hardcode_libdir_flag_spec_ld, $1) \
+    _LT_AC_TAGVAR(hardcode_libdir_separator, $1) \
+    _LT_AC_TAGVAR(hardcode_automatic, $1) \
+    _LT_AC_TAGVAR(module_cmds, $1) \
+    _LT_AC_TAGVAR(module_expsym_cmds, $1) \
+    _LT_AC_TAGVAR(lt_cv_prog_compiler_c_o, $1) \
+    _LT_AC_TAGVAR(exclude_expsyms, $1) \
+    _LT_AC_TAGVAR(include_expsyms, $1); do
+
+    case $var in
+    _LT_AC_TAGVAR(old_archive_cmds, $1) | \
+    _LT_AC_TAGVAR(old_archive_from_new_cmds, $1) | \
+    _LT_AC_TAGVAR(archive_cmds, $1) | \
+    _LT_AC_TAGVAR(archive_expsym_cmds, $1) | \
+    _LT_AC_TAGVAR(module_cmds, $1) | \
+    _LT_AC_TAGVAR(module_expsym_cmds, $1) | \
+    _LT_AC_TAGVAR(old_archive_from_expsyms_cmds, $1) | \
+    _LT_AC_TAGVAR(export_symbols_cmds, $1) | \
+    extract_expsyms_cmds | reload_cmds | finish_cmds | \
+    postinstall_cmds | postuninstall_cmds | \
+    old_postinstall_cmds | old_postuninstall_cmds | \
+    sys_lib_search_path_spec | sys_lib_dlsearch_path_spec)
+      # Double-quote double-evaled strings.
+      eval "lt_$var=\\\"\`\$echo \"X\$$var\" | \$Xsed -e \"\$double_quote_subst\" -e \"\$sed_quote_subst\" -e \"\$delay_variable_subst\"\`\\\""
+      ;;
+    *)
+      eval "lt_$var=\\\"\`\$echo \"X\$$var\" | \$Xsed -e \"\$sed_quote_subst\"\`\\\""
+      ;;
+    esac
+  done
+
+  case $lt_echo in
+  *'\[$]0 --fallback-echo"')
+    lt_echo=`$echo "X$lt_echo" | $Xsed -e 's/\\\\\\\[$]0 --fallback-echo"[$]/[$]0 --fallback-echo"/'`
+    ;;
+  esac
+
+ifelse([$1], [],
+  [cfgfile="${ofile}T"
+  trap "$rm \"$cfgfile\"; exit 1" 1 2 15
+  $rm -f "$cfgfile"
+  AC_MSG_NOTICE([creating $ofile])],
+  [cfgfile="$ofile"])
+
+  cat <<__EOF__ >> "$cfgfile"
+ifelse([$1], [],
+[#! $SHELL
+
+# `$echo "$cfgfile" | sed 's%^.*/%%'` - Provide generalized library-building support services.
+# Generated automatically by $PROGRAM (GNU $PACKAGE $VERSION$TIMESTAMP)
+# NOTE: Changes made to this file will be lost: look at ltmain.sh.
+#
+# Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001
+# Free Software Foundation, Inc.
+#
+# This file is part of GNU Libtool:
+# Originally by Gordon Matzigkeit <gord@gnu.ai.mit.edu>, 1996
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+#
+# As a special exception to the GNU General Public License, if you
+# distribute this file as part of a program that contains a
+# configuration script generated by Autoconf, you may include it under
+# the same distribution terms that you use for the rest of that program.
+
+# A sed program that does not truncate output.
+SED=$lt_SED
+
+# Sed that helps us avoid accidentally triggering echo(1) options like -n.
+Xsed="$SED -e 1s/^X//"
+
+# The HP-UX ksh and POSIX shell print the target directory to stdout
+# if CDPATH is set.
+(unset CDPATH) >/dev/null 2>&1 && unset CDPATH
+
+# The names of the tagged configurations supported by this script.
+available_tags=
+
+# ### BEGIN LIBTOOL CONFIG],
+[# ### BEGIN LIBTOOL TAG CONFIG: $tagname])
+
+# Libtool was configured on host `(hostname || uname -n) 2>/dev/null | sed 1q`:
+
+# Shell to use when invoking shell scripts.
+SHELL=$lt_SHELL
+
+# Whether or not to build shared libraries.
+build_libtool_libs=$enable_shared
+
+# Whether or not to build static libraries.
+build_old_libs=$enable_static
+
+# Whether or not to add -lc for building shared libraries.
+build_libtool_need_lc=$_LT_AC_TAGVAR(archive_cmds_need_lc, $1)
+
+# Whether or not to disallow shared libs when runtime libs are static
+allow_libtool_libs_with_static_runtimes=$_LT_AC_TAGVAR(enable_shared_with_static_runtimes, $1)
+
+# Whether or not to optimize for fast installation.
+fast_install=$enable_fast_install
+
+# The host system.
+host_alias=$host_alias
+host=$host
+host_os=$host_os
+
+# The build system.
+build_alias=$build_alias
+build=$build
+build_os=$build_os
+
+# An echo program that does not interpret backslashes.
+echo=$lt_echo
+
+# The archiver.
+AR=$lt_AR
+AR_FLAGS=$lt_AR_FLAGS
+
+# A C compiler.
+LTCC=$lt_LTCC
+
+# LTCC compiler flags.
+LTCFLAGS=$lt_LTCFLAGS
+
+# A language-specific compiler.
+CC=$lt_[]_LT_AC_TAGVAR(compiler, $1)
+
+# Is the compiler the GNU C compiler?
+with_gcc=$_LT_AC_TAGVAR(GCC, $1)
+
+# An ERE matcher.
+EGREP=$lt_EGREP
+
+# The linker used to build libraries.
+LD=$lt_[]_LT_AC_TAGVAR(LD, $1)
+
+# Whether we need hard or soft links.
+LN_S=$lt_LN_S
+
+# A BSD-compatible nm program.
+NM=$lt_NM
+
+# A symbol stripping program
+STRIP=$lt_STRIP
+
+# Used to examine libraries when file_magic_cmd begins "file"
+MAGIC_CMD=$MAGIC_CMD
+
+# Used on cygwin: DLL creation program.
+DLLTOOL="$DLLTOOL"
+
+# Used on cygwin: object dumper.
+OBJDUMP="$OBJDUMP"
+
+# Used on cygwin: assembler.
+AS="$AS"
+
+# The name of the directory that contains temporary libtool files.
+objdir=$objdir
+
+# How to create reloadable object files.
+reload_flag=$lt_reload_flag
+reload_cmds=$lt_reload_cmds
+
+# How to pass a linker flag through the compiler.
+wl=$lt_[]_LT_AC_TAGVAR(lt_prog_compiler_wl, $1)
+
+# Object file suffix (normally "o").
+objext="$ac_objext"
+
+# Old archive suffix (normally "a").
+libext="$libext"
+
+# Shared library suffix (normally ".so").
+shrext_cmds='$shrext_cmds'
+
+# Executable file suffix (normally "").
+exeext="$exeext"
+
+# Additional compiler flags for building library objects.
+pic_flag=$lt_[]_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)
+pic_mode=$pic_mode
+
+# What is the maximum length of a command?
+max_cmd_len=$lt_cv_sys_max_cmd_len
+
+# Does compiler simultaneously support -c and -o options?
+compiler_c_o=$lt_[]_LT_AC_TAGVAR(lt_cv_prog_compiler_c_o, $1)
+
+# Must we lock files when doing compilation?
+need_locks=$lt_need_locks
+
+# Do we need the lib prefix for modules?
+need_lib_prefix=$need_lib_prefix
+
+# Do we need a version for libraries?
+need_version=$need_version
+
+# Whether dlopen is supported.
+dlopen_support=$enable_dlopen
+
+# Whether dlopen of programs is supported.
+dlopen_self=$enable_dlopen_self
+
+# Whether dlopen of statically linked programs is supported.
+dlopen_self_static=$enable_dlopen_self_static
+
+# Compiler flag to prevent dynamic linking.
+link_static_flag=$lt_[]_LT_AC_TAGVAR(lt_prog_compiler_static, $1)
+
+# Compiler flag to turn off builtin functions.
+no_builtin_flag=$lt_[]_LT_AC_TAGVAR(lt_prog_compiler_no_builtin_flag, $1)
+
+# Compiler flag to allow reflexive dlopens.
+export_dynamic_flag_spec=$lt_[]_LT_AC_TAGVAR(export_dynamic_flag_spec, $1)
+
+# Compiler flag to generate shared objects directly from archives.
+whole_archive_flag_spec=$lt_[]_LT_AC_TAGVAR(whole_archive_flag_spec, $1)
+
+# Compiler flag to generate thread-safe objects.
+thread_safe_flag_spec=$lt_[]_LT_AC_TAGVAR(thread_safe_flag_spec, $1)
+
+# Library versioning type.
+version_type=$version_type
+
+# Format of library name prefix.
+libname_spec=$lt_libname_spec
+
+# List of archive names.  First name is the real one, the rest are links.
+# The last name is the one that the linker finds with -lNAME.
+library_names_spec=$lt_library_names_spec
+
+# The coded name of the library, if different from the real name.
+soname_spec=$lt_soname_spec
+
+# Commands used to build and install an old-style archive.
+RANLIB=$lt_RANLIB
+old_archive_cmds=$lt_[]_LT_AC_TAGVAR(old_archive_cmds, $1)
+old_postinstall_cmds=$lt_old_postinstall_cmds
+old_postuninstall_cmds=$lt_old_postuninstall_cmds
+
+# Create an old-style archive from a shared archive.
+old_archive_from_new_cmds=$lt_[]_LT_AC_TAGVAR(old_archive_from_new_cmds, $1)
+
+# Create a temporary old-style archive to link instead of a shared archive.
+old_archive_from_expsyms_cmds=$lt_[]_LT_AC_TAGVAR(old_archive_from_expsyms_cmds, $1)
+
+# Commands used to build and install a shared archive.
+archive_cmds=$lt_[]_LT_AC_TAGVAR(archive_cmds, $1)
+archive_expsym_cmds=$lt_[]_LT_AC_TAGVAR(archive_expsym_cmds, $1)
+postinstall_cmds=$lt_postinstall_cmds
+postuninstall_cmds=$lt_postuninstall_cmds
+
+# Commands used to build a loadable module (assumed same as above if empty)
+module_cmds=$lt_[]_LT_AC_TAGVAR(module_cmds, $1)
+module_expsym_cmds=$lt_[]_LT_AC_TAGVAR(module_expsym_cmds, $1)
+
+# Commands to strip libraries.
+old_striplib=$lt_old_striplib
+striplib=$lt_striplib
+
+# Dependencies to place before the objects being linked to create a
+# shared library.
+predep_objects=$lt_[]_LT_AC_TAGVAR(predep_objects, $1)
+
+# Dependencies to place after the objects being linked to create a
+# shared library.
+postdep_objects=$lt_[]_LT_AC_TAGVAR(postdep_objects, $1)
+
+# Dependencies to place before the objects being linked to create a
+# shared library.
+predeps=$lt_[]_LT_AC_TAGVAR(predeps, $1)
+
+# Dependencies to place after the objects being linked to create a
+# shared library.
+postdeps=$lt_[]_LT_AC_TAGVAR(postdeps, $1)
+
+# The library search path used internally by the compiler when linking
+# a shared library.
+compiler_lib_search_path=$lt_[]_LT_AC_TAGVAR(compiler_lib_search_path, $1)
+
+# Method to check whether dependent libraries are shared objects.
+deplibs_check_method=$lt_deplibs_check_method
+
+# Command to use when deplibs_check_method == file_magic.
+file_magic_cmd=$lt_file_magic_cmd
+
+# Flag that allows shared libraries with undefined symbols to be built.
+allow_undefined_flag=$lt_[]_LT_AC_TAGVAR(allow_undefined_flag, $1)
+
+# Flag that forces no undefined symbols.
+no_undefined_flag=$lt_[]_LT_AC_TAGVAR(no_undefined_flag, $1)
+
+# Commands used to finish a libtool library installation in a directory.
+finish_cmds=$lt_finish_cmds
+
+# Same as above, but a single script fragment to be evaled but not shown.
+finish_eval=$lt_finish_eval
+
+# Take the output of nm and produce a listing of raw symbols and C names.
+global_symbol_pipe=$lt_lt_cv_sys_global_symbol_pipe
+
+# Transform the output of nm in a proper C declaration
+global_symbol_to_cdecl=$lt_lt_cv_sys_global_symbol_to_cdecl
+
+# Transform the output of nm in a C name address pair
+global_symbol_to_c_name_address=$lt_lt_cv_sys_global_symbol_to_c_name_address
+
+# This is the shared library runtime path variable.
+runpath_var=$runpath_var
+
+# This is the shared library path variable.
+shlibpath_var=$shlibpath_var
+
+# Is shlibpath searched before the hard-coded library search path?
+shlibpath_overrides_runpath=$shlibpath_overrides_runpath
+
+# How to hardcode a shared library path into an executable.
+hardcode_action=$_LT_AC_TAGVAR(hardcode_action, $1)
+
+# Whether we should hardcode library paths into libraries.
+hardcode_into_libs=$hardcode_into_libs
+
+# Flag to hardcode \$libdir into a binary during linking.
+# This must work even if \$libdir does not exist.
+hardcode_libdir_flag_spec=$lt_[]_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)
+
+# If ld is used when linking, flag to hardcode \$libdir into
+# a binary during linking. This must work even if \$libdir does
+# not exist.
+hardcode_libdir_flag_spec_ld=$lt_[]_LT_AC_TAGVAR(hardcode_libdir_flag_spec_ld, $1)
+
+# Whether we need a single -rpath flag with a separated argument.
+hardcode_libdir_separator=$lt_[]_LT_AC_TAGVAR(hardcode_libdir_separator, $1)
+
+# Set to yes if using DIR/libNAME${shared_ext} during linking hardcodes DIR into the
+# resulting binary.
+hardcode_direct=$_LT_AC_TAGVAR(hardcode_direct, $1)
+
+# Set to yes if using the -LDIR flag during linking hardcodes DIR into the
+# resulting binary.
+hardcode_minus_L=$_LT_AC_TAGVAR(hardcode_minus_L, $1)
+
+# Set to yes if using SHLIBPATH_VAR=DIR during linking hardcodes DIR into
+# the resulting binary.
+hardcode_shlibpath_var=$_LT_AC_TAGVAR(hardcode_shlibpath_var, $1)
+
+# Set to yes if building a shared library automatically hardcodes DIR into the library
+# and all subsequent libraries and executables linked against it.
+hardcode_automatic=$_LT_AC_TAGVAR(hardcode_automatic, $1)
+
+# Variables whose values should be saved in libtool wrapper scripts and
+# restored at relink time.
+variables_saved_for_relink="$variables_saved_for_relink"
+
+# Whether libtool must link a program against all its dependency libraries.
+link_all_deplibs=$_LT_AC_TAGVAR(link_all_deplibs, $1)
+
+# Compile-time system search path for libraries
+sys_lib_search_path_spec=$lt_sys_lib_search_path_spec
+
+# Run-time system search path for libraries
+sys_lib_dlsearch_path_spec=$lt_sys_lib_dlsearch_path_spec
+
+# Fix the shell variable \$srcfile for the compiler.
+fix_srcfile_path="$_LT_AC_TAGVAR(fix_srcfile_path, $1)"
+
+# Set to yes if exported symbols are required.
+always_export_symbols=$_LT_AC_TAGVAR(always_export_symbols, $1)
+
+# The commands to list exported symbols.
+export_symbols_cmds=$lt_[]_LT_AC_TAGVAR(export_symbols_cmds, $1)
+
+# The commands to extract the exported symbol list from a shared archive.
+extract_expsyms_cmds=$lt_extract_expsyms_cmds
+
+# Symbols that should not be listed in the preloaded symbols.
+exclude_expsyms=$lt_[]_LT_AC_TAGVAR(exclude_expsyms, $1)
+
+# Symbols that must always be exported.
+include_expsyms=$lt_[]_LT_AC_TAGVAR(include_expsyms, $1)
+
+ifelse([$1],[],
+[# ### END LIBTOOL CONFIG],
+[# ### END LIBTOOL TAG CONFIG: $tagname])
+
+__EOF__
+
+ifelse([$1],[], [
+  case $host_os in
+  aix3*)
+    cat <<\EOF >> "$cfgfile"
+
+# AIX sometimes has problems with the GCC collect2 program.  For some
+# reason, if we set the COLLECT_NAMES environment variable, the problems
+# vanish in a puff of smoke.
+if test "X${COLLECT_NAMES+set}" != Xset; then
+  COLLECT_NAMES=
+  export COLLECT_NAMES
+fi
+EOF
+    ;;
+  esac
+
+  # We use sed instead of cat because bash on DJGPP gets confused if
+  # if finds mixed CR/LF and LF-only lines.  Since sed operates in
+  # text mode, it properly converts lines to CR/LF.  This bash problem
+  # is reportedly fixed, but why not run on old versions too?
+  sed '$q' "$ltmain" >> "$cfgfile" || (rm -f "$cfgfile"; exit 1)
+
+  mv -f "$cfgfile" "$ofile" || \
+    (rm -f "$ofile" && cp "$cfgfile" "$ofile" && rm -f "$cfgfile")
+  chmod +x "$ofile"
+])
+else
+  # If there is no Makefile yet, we rely on a make rule to execute
+  # `config.status --recheck' to rerun these tests and create the
+  # libtool script then.
+  ltmain_in=`echo $ltmain | sed -e 's/\.sh$/.in/'`
+  if test -f "$ltmain_in"; then
+    test -f Makefile && make "$ltmain"
+  fi
+fi
+])# AC_LIBTOOL_CONFIG
+
+
+# AC_LIBTOOL_PROG_COMPILER_NO_RTTI([TAGNAME])
+# -------------------------------------------
+AC_DEFUN([AC_LIBTOOL_PROG_COMPILER_NO_RTTI],
+[AC_REQUIRE([_LT_AC_SYS_COMPILER])dnl
+
+_LT_AC_TAGVAR(lt_prog_compiler_no_builtin_flag, $1)=
+
+if test "$GCC" = yes; then
+  _LT_AC_TAGVAR(lt_prog_compiler_no_builtin_flag, $1)=' -fno-builtin'
+
+  AC_LIBTOOL_COMPILER_OPTION([if $compiler supports -fno-rtti -fno-exceptions],
+    lt_cv_prog_compiler_rtti_exceptions,
+    [-fno-rtti -fno-exceptions], [],
+    [_LT_AC_TAGVAR(lt_prog_compiler_no_builtin_flag, $1)="$_LT_AC_TAGVAR(lt_prog_compiler_no_builtin_flag, $1) -fno-rtti -fno-exceptions"])
+fi
+])# AC_LIBTOOL_PROG_COMPILER_NO_RTTI
+
+
+# AC_LIBTOOL_SYS_GLOBAL_SYMBOL_PIPE
+# ---------------------------------
+AC_DEFUN([AC_LIBTOOL_SYS_GLOBAL_SYMBOL_PIPE],
+[AC_REQUIRE([AC_CANONICAL_HOST])
+AC_REQUIRE([AC_PROG_NM])
+AC_REQUIRE([AC_OBJEXT])
+# Check for command to grab the raw symbol name followed by C symbol from nm.
+AC_MSG_CHECKING([command to parse $NM output from $compiler object])
+AC_CACHE_VAL([lt_cv_sys_global_symbol_pipe],
+[
+# These are sane defaults that work on at least a few old systems.
+# [They come from Ultrix.  What could be older than Ultrix?!! ;)]
+
+# Character class describing NM global symbol codes.
+symcode='[[BCDEGRST]]'
+
+# Regexp to match symbols that can be accessed directly from C.
+sympat='\([[_A-Za-z]][[_A-Za-z0-9]]*\)'
+
+# Transform an extracted symbol line into a proper C declaration
+lt_cv_sys_global_symbol_to_cdecl="sed -n -e 's/^. .* \(.*\)$/extern int \1;/p'"
+
+# Transform an extracted symbol line into symbol name and symbol address
+lt_cv_sys_global_symbol_to_c_name_address="sed -n -e 's/^: \([[^ ]]*\) $/  {\\\"\1\\\", (lt_ptr) 0},/p' -e 's/^$symcode \([[^ ]]*\) \([[^ ]]*\)$/  {\"\2\", (lt_ptr) \&\2},/p'"
+
+# Define system-specific variables.
+case $host_os in
+aix*)
+  symcode='[[BCDT]]'
+  ;;
+cygwin* | mingw* | pw32*)
+  symcode='[[ABCDGISTW]]'
+  ;;
+hpux*) # Its linker distinguishes data from code symbols
+  if test "$host_cpu" = ia64; then
+    symcode='[[ABCDEGRST]]'
+  fi
+  lt_cv_sys_global_symbol_to_cdecl="sed -n -e 's/^T .* \(.*\)$/extern int \1();/p' -e 's/^$symcode* .* \(.*\)$/extern char \1;/p'"
+  lt_cv_sys_global_symbol_to_c_name_address="sed -n -e 's/^: \([[^ ]]*\) $/  {\\\"\1\\\", (lt_ptr) 0},/p' -e 's/^$symcode* \([[^ ]]*\) \([[^ ]]*\)$/  {\"\2\", (lt_ptr) \&\2},/p'"
+  ;;
+linux*)
+  if test "$host_cpu" = ia64; then
+    symcode='[[ABCDGIRSTW]]'
+    lt_cv_sys_global_symbol_to_cdecl="sed -n -e 's/^T .* \(.*\)$/extern int \1();/p' -e 's/^$symcode* .* \(.*\)$/extern char \1;/p'"
+    lt_cv_sys_global_symbol_to_c_name_address="sed -n -e 's/^: \([[^ ]]*\) $/  {\\\"\1\\\", (lt_ptr) 0},/p' -e 's/^$symcode* \([[^ ]]*\) \([[^ ]]*\)$/  {\"\2\", (lt_ptr) \&\2},/p'"
+  fi
+  ;;
+irix* | nonstopux*)
+  symcode='[[BCDEGRST]]'
+  ;;
+osf*)
+  symcode='[[BCDEGQRST]]'
+  ;;
+solaris*)
+  symcode='[[BDRT]]'
+  ;;
+sco3.2v5*)
+  symcode='[[DT]]'
+  ;;
+sysv4.2uw2*)
+  symcode='[[DT]]'
+  ;;
+sysv5* | sco5v6* | unixware* | OpenUNIX*)
+  symcode='[[ABDT]]'
+  ;;
+sysv4)
+  symcode='[[DFNSTU]]'
+  ;;
+esac
+
+# Handle CRLF in mingw tool chain
+opt_cr=
+case $build_os in
+mingw*)
+  opt_cr=`echo 'x\{0,1\}' | tr x '\015'` # option cr in regexp
+  ;;
+esac
+
+# If we're using GNU nm, then use its standard symbol codes.
+case `$NM -V 2>&1` in
+*GNU* | *'with BFD'*)
+  symcode='[[ABCDGIRSTW]]' ;;
+esac
+
+# Try without a prefix undercore, then with it.
+for ac_symprfx in "" "_"; do
+
+  # Transform symcode, sympat, and symprfx into a raw symbol and a C symbol.
+  symxfrm="\\1 $ac_symprfx\\2 \\2"
+
+  # Write the raw and C identifiers.
+  lt_cv_sys_global_symbol_pipe="sed -n -e 's/^.*[[ 	]]\($symcode$symcode*\)[[ 	]][[ 	]]*$ac_symprfx$sympat$opt_cr$/$symxfrm/p'"
+
+  # Check to see that the pipe works correctly.
+  pipe_works=no
+
+  rm -f conftest*
+  cat > conftest.$ac_ext <<EOF
+#ifdef __cplusplus
+extern "C" {
+#endif
+char nm_test_var;
+void nm_test_func(){}
+#ifdef __cplusplus
+}
+#endif
+int main(){nm_test_var='a';nm_test_func();return(0);}
+EOF
+
+  if AC_TRY_EVAL(ac_compile); then
+    # Now try to grab the symbols.
+    nlist=conftest.nm
+    if AC_TRY_EVAL(NM conftest.$ac_objext \| $lt_cv_sys_global_symbol_pipe \> $nlist) && test -s "$nlist"; then
+      # Try sorting and uniquifying the output.
+      if sort "$nlist" | uniq > "$nlist"T; then
+	mv -f "$nlist"T "$nlist"
+      else
+	rm -f "$nlist"T
+      fi
+
+      # Make sure that we snagged all the symbols we need.
+      if grep ' nm_test_var$' "$nlist" >/dev/null; then
+	if grep ' nm_test_func$' "$nlist" >/dev/null; then
+	  cat <<EOF > conftest.$ac_ext
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+EOF
+	  # Now generate the symbol file.
+	  eval "$lt_cv_sys_global_symbol_to_cdecl"' < "$nlist" | grep -v main >> conftest.$ac_ext'
+
+	  cat <<EOF >> conftest.$ac_ext
+#if defined (__STDC__) && __STDC__
+# define lt_ptr_t void *
+#else
+# define lt_ptr_t char *
+# define const
+#endif
+
+/* The mapping between symbol names and symbols. */
+const struct {
+  const char *name;
+  lt_ptr_t address;
+}
+lt_preloaded_symbols[[]] =
+{
+EOF
+	  $SED "s/^$symcode$symcode* \(.*\) \(.*\)$/  {\"\2\", (lt_ptr_t) \&\2},/" < "$nlist" | grep -v main >> conftest.$ac_ext
+	  cat <<\EOF >> conftest.$ac_ext
+  {0, (lt_ptr_t) 0}
+};
+
+#ifdef __cplusplus
+}
+#endif
+EOF
+	  # Now try linking the two files.
+	  mv conftest.$ac_objext conftstm.$ac_objext
+	  lt_save_LIBS="$LIBS"
+	  lt_save_CFLAGS="$CFLAGS"
+	  LIBS="conftstm.$ac_objext"
+	  CFLAGS="$CFLAGS$_LT_AC_TAGVAR(lt_prog_compiler_no_builtin_flag, $1)"
+	  if AC_TRY_EVAL(ac_link) && test -s conftest${ac_exeext}; then
+	    pipe_works=yes
+	  fi
+	  LIBS="$lt_save_LIBS"
+	  CFLAGS="$lt_save_CFLAGS"
+	else
+	  echo "cannot find nm_test_func in $nlist" >&AS_MESSAGE_LOG_FD
+	fi
+      else
+	echo "cannot find nm_test_var in $nlist" >&AS_MESSAGE_LOG_FD
+      fi
+    else
+      echo "cannot run $lt_cv_sys_global_symbol_pipe" >&AS_MESSAGE_LOG_FD
+    fi
+  else
+    echo "$progname: failed program was:" >&AS_MESSAGE_LOG_FD
+    cat conftest.$ac_ext >&5
+  fi
+  rm -f conftest* conftst*
+
+  # Do not use the global_symbol_pipe unless it works.
+  if test "$pipe_works" = yes; then
+    break
+  else
+    lt_cv_sys_global_symbol_pipe=
+  fi
+done
+])
+if test -z "$lt_cv_sys_global_symbol_pipe"; then
+  lt_cv_sys_global_symbol_to_cdecl=
+fi
+if test -z "$lt_cv_sys_global_symbol_pipe$lt_cv_sys_global_symbol_to_cdecl"; then
+  AC_MSG_RESULT(failed)
+else
+  AC_MSG_RESULT(ok)
+fi
+]) # AC_LIBTOOL_SYS_GLOBAL_SYMBOL_PIPE
+
+
+# AC_LIBTOOL_PROG_COMPILER_PIC([TAGNAME])
+# ---------------------------------------
+AC_DEFUN([AC_LIBTOOL_PROG_COMPILER_PIC],
+[_LT_AC_TAGVAR(lt_prog_compiler_wl, $1)=
+_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)=
+_LT_AC_TAGVAR(lt_prog_compiler_static, $1)=
+
+AC_MSG_CHECKING([for $compiler option to produce PIC])
+ ifelse([$1],[CXX],[
+  # C++ specific cases for pic, static, wl, etc.
+  if test "$GXX" = yes; then
+    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-static'
+
+    case $host_os in
+    aix*)
+      # All AIX code is PIC.
+      if test "$host_cpu" = ia64; then
+	# AIX 5 now supports IA64 processor
+	_LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
+      fi
+      ;;
+    amigaos*)
+      # FIXME: we need at least 68020 code to build shared libraries, but
+      # adding the `-m68020' flag to GCC prevents building anything better,
+      # like `-m68040'.
+      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-m68020 -resident32 -malways-restore-a4'
+      ;;
+    beos* | cygwin* | irix5* | irix6* | nonstopux* | osf3* | osf4* | osf5*)
+      # PIC is the default for these OSes.
+      ;;
+    mingw* | os2* | pw32*)
+      # This hack is so that the source file can tell whether it is being
+      # built for inclusion in a dll (and should export symbols for example).
+      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-DDLL_EXPORT'
+      ;;
+    darwin* | rhapsody*)
+      # PIC is the default on this platform
+      # Common symbols not allowed in MH_DYLIB files
+      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-fno-common'
+      ;;
+    *djgpp*)
+      # DJGPP does not support shared libraries at all
+      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)=
+      ;;
+    interix3*)
+      # Interix 3.x gcc -fpic/-fPIC options generate broken code.
+      # Instead, we relocate shared libraries at runtime.
+      ;;
+    sysv4*MP*)
+      if test -d /usr/nec; then
+	_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)=-Kconform_pic
+      fi
+      ;;
+    hpux*)
+      # PIC is the default for IA64 HP-UX and 64-bit HP-UX, but
+      # not for PA HP-UX.
+      case $host_cpu in
+      hppa*64*|ia64*)
+	;;
+      *)
+	_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-fPIC'
+	;;
+      esac
+      ;;
+    *)
+      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-fPIC'
+      ;;
+    esac
+  else
+    case $host_os in
+      aix4* | aix5*)
+	# All AIX code is PIC.
+	if test "$host_cpu" = ia64; then
+	  # AIX 5 now supports IA64 processor
+	  _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
+	else
+	  _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-bnso -bI:/lib/syscalls.exp'
+	fi
+	;;
+      chorus*)
+	case $cc_basename in
+	cxch68*)
+	  # Green Hills C++ Compiler
+	  # _LT_AC_TAGVAR(lt_prog_compiler_static, $1)="--no_auto_instantiation -u __main -u __premain -u _abort -r $COOL_DIR/lib/libOrb.a $MVME_DIR/lib/CC/libC.a $MVME_DIR/lib/classix/libcx.s.a"
+	  ;;
+	esac
+	;;
+       darwin*)
+         # PIC is the default on this platform
+         # Common symbols not allowed in MH_DYLIB files
+         case $cc_basename in
+           xlc*)
+           _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-qnocommon'
+           _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+           ;;
+         esac
+       ;;
+      dgux*)
+	case $cc_basename in
+	  ec++*)
+	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
+	    ;;
+	  ghcx*)
+	    # Green Hills C++ Compiler
+	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-pic'
+	    ;;
+	  *)
+	    ;;
+	esac
+	;;
+      freebsd* | kfreebsd*-gnu | dragonfly*)
+	# FreeBSD uses GNU C++
+	;;
+      hpux9* | hpux10* | hpux11*)
+	case $cc_basename in
+	  CC*)
+	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+	    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='${wl}-a ${wl}archive'
+	    if test "$host_cpu" != ia64; then
+	      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='+Z'
+	    fi
+	    ;;
+	  aCC*)
+	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+	    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='${wl}-a ${wl}archive'
+	    case $host_cpu in
+	    hppa*64*|ia64*)
+	      # +Z the default
+	      ;;
+	    *)
+	      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='+Z'
+	      ;;
+	    esac
+	    ;;
+	  *)
+	    ;;
+	esac
+	;;
+      interix*)
+	# This is c89, which is MS Visual C++ (no shared libs)
+	# Anyone wants to do a port?
+	;;
+      irix5* | irix6* | nonstopux*)
+	case $cc_basename in
+	  CC*)
+	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+	    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-non_shared'
+	    # CC pic flag -KPIC is the default.
+	    ;;
+	  *)
+	    ;;
+	esac
+	;;
+      linux*)
+	case $cc_basename in
+	  KCC*)
+	    # KAI C++ Compiler
+	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='--backend -Wl,'
+	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-fPIC'
+	    ;;
+	  icpc* | ecpc*)
+	    # Intel C++
+	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
+	    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-static'
+	    ;;
+	  pgCC*)
+	    # Portland Group C++ compiler.
+	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-fpic'
+	    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
+	    ;;
+	  cxx*)
+	    # Compaq C++
+	    # Make sure the PIC flag is empty.  It appears that all Alpha
+	    # Linux and Compaq Tru64 Unix objects are PIC.
+	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)=
+	    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-non_shared'
+	    ;;
+	  *)
+	    ;;
+	esac
+	;;
+      lynxos*)
+	;;
+      m88k*)
+	;;
+      mvs*)
+	case $cc_basename in
+	  cxx*)
+	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-W c,exportall'
+	    ;;
+	  *)
+	    ;;
+	esac
+	;;
+      netbsd*)
+	;;
+      osf3* | osf4* | osf5*)
+	case $cc_basename in
+	  KCC*)
+	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='--backend -Wl,'
+	    ;;
+	  RCC*)
+	    # Rational C++ 2.4.1
+	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-pic'
+	    ;;
+	  cxx*)
+	    # Digital/Compaq C++
+	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+	    # Make sure the PIC flag is empty.  It appears that all Alpha
+	    # Linux and Compaq Tru64 Unix objects are PIC.
+	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)=
+	    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-non_shared'
+	    ;;
+	  *)
+	    ;;
+	esac
+	;;
+      psos*)
+	;;
+      solaris*)
+	case $cc_basename in
+	  CC*)
+	    # Sun C++ 4.2, 5.x and Centerline C++
+	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
+	    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
+	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Qoption ld '
+	    ;;
+	  gcx*)
+	    # Green Hills C++ Compiler
+	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-PIC'
+	    ;;
+	  *)
+	    ;;
+	esac
+	;;
+      sunos4*)
+	case $cc_basename in
+	  CC*)
+	    # Sun C++ 4.x
+	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-pic'
+	    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
+	    ;;
+	  lcc*)
+	    # Lucid
+	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-pic'
+	    ;;
+	  *)
+	    ;;
+	esac
+	;;
+      tandem*)
+	case $cc_basename in
+	  NCC*)
+	    # NonStop-UX NCC 3.20
+	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
+	    ;;
+	  *)
+	    ;;
+	esac
+	;;
+      sysv5* | unixware* | sco3.2v5* | sco5v6* | OpenUNIX*)
+	case $cc_basename in
+	  CC*)
+	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
+	    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
+	    ;;
+	esac
+	;;
+      vxworks*)
+	;;
+      *)
+	_LT_AC_TAGVAR(lt_prog_compiler_can_build_shared, $1)=no
+	;;
+    esac
+  fi
+],
+[
+  if test "$GCC" = yes; then
+    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-static'
+
+    case $host_os in
+      aix*)
+      # All AIX code is PIC.
+      if test "$host_cpu" = ia64; then
+	# AIX 5 now supports IA64 processor
+	_LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
+      fi
+      ;;
+
+    amigaos*)
+      # FIXME: we need at least 68020 code to build shared libraries, but
+      # adding the `-m68020' flag to GCC prevents building anything better,
+      # like `-m68040'.
+      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-m68020 -resident32 -malways-restore-a4'
+      ;;
+
+    beos* | cygwin* | irix5* | irix6* | nonstopux* | osf3* | osf4* | osf5*)
+      # PIC is the default for these OSes.
+      ;;
+
+    mingw* | pw32* | os2*)
+      # This hack is so that the source file can tell whether it is being
+      # built for inclusion in a dll (and should export symbols for example).
+      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-DDLL_EXPORT'
+      ;;
+
+    darwin* | rhapsody*)
+      # PIC is the default on this platform
+      # Common symbols not allowed in MH_DYLIB files
+      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-fno-common'
+      ;;
+
+    interix3*)
+      # Interix 3.x gcc -fpic/-fPIC options generate broken code.
+      # Instead, we relocate shared libraries at runtime.
+      ;;
+
+    msdosdjgpp*)
+      # Just because we use GCC doesn't mean we suddenly get shared libraries
+      # on systems that don't support them.
+      _LT_AC_TAGVAR(lt_prog_compiler_can_build_shared, $1)=no
+      enable_shared=no
+      ;;
+
+    sysv4*MP*)
+      if test -d /usr/nec; then
+	_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)=-Kconform_pic
+      fi
+      ;;
+
+    hpux*)
+      # PIC is the default for IA64 HP-UX and 64-bit HP-UX, but
+      # not for PA HP-UX.
+      case $host_cpu in
+      hppa*64*|ia64*)
+	# +Z the default
+	;;
+      *)
+	_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-fPIC'
+	;;
+      esac
+      ;;
+
+    *)
+      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-fPIC'
+      ;;
+    esac
+  else
+    # PORTME Check for flag to pass linker flags through the system compiler.
+    case $host_os in
+    aix*)
+      _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+      if test "$host_cpu" = ia64; then
+	# AIX 5 now supports IA64 processor
+	_LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
+      else
+	_LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-bnso -bI:/lib/syscalls.exp'
+      fi
+      ;;
+      darwin*)
+        # PIC is the default on this platform
+        # Common symbols not allowed in MH_DYLIB files
+       case $cc_basename in
+         xlc*)
+         _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-qnocommon'
+         _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+         ;;
+       esac
+       ;;
+
+    mingw* | pw32* | os2*)
+      # This hack is so that the source file can tell whether it is being
+      # built for inclusion in a dll (and should export symbols for example).
+      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-DDLL_EXPORT'
+      ;;
+
+    hpux9* | hpux10* | hpux11*)
+      _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+      # PIC is the default for IA64 HP-UX and 64-bit HP-UX, but
+      # not for PA HP-UX.
+      case $host_cpu in
+      hppa*64*|ia64*)
+	# +Z the default
+	;;
+      *)
+	_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='+Z'
+	;;
+      esac
+      # Is there a better lt_prog_compiler_static that works with the bundled CC?
+      _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='${wl}-a ${wl}archive'
+      ;;
+
+    irix5* | irix6* | nonstopux*)
+      _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+      # PIC (with -KPIC) is the default.
+      _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-non_shared'
+      ;;
+
+    newsos6)
+      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
+      _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
+      ;;
+
+    linux*)
+      case $cc_basename in
+      icc* | ecc*)
+	_LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+	_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
+	_LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-static'
+        ;;
+      pgcc* | pgf77* | pgf90* | pgf95*)
+        # Portland Group compilers (*not* the Pentium gcc compiler,
+	# which looks to be a dead project)
+	_LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+	_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-fpic'
+	_LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
+        ;;
+      ccc*)
+        _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+        # All Alpha code is PIC.
+        _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-non_shared'
+        ;;
+      esac
+      ;;
+
+    osf3* | osf4* | osf5*)
+      _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+      # All OSF/1 code is PIC.
+      _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-non_shared'
+      ;;
+
+    solaris*)
+      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
+      _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
+      case $cc_basename in
+      f77* | f90* | f95*)
+	_LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Qoption ld ';;
+      *)
+	_LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,';;
+      esac
+      ;;
+
+    sunos4*)
+      _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Qoption ld '
+      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-PIC'
+      _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
+      ;;
+
+    sysv4 | sysv4.2uw2* | sysv4.3*)
+      _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
+      _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
+      ;;
+
+    sysv4*MP*)
+      if test -d /usr/nec ;then
+	_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-Kconform_pic'
+	_LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
+      fi
+      ;;
+
+    sysv5* | unixware* | sco3.2v5* | sco5v6* | OpenUNIX*)
+      _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
+      _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
+      ;;
+
+    unicos*)
+      _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+      _LT_AC_TAGVAR(lt_prog_compiler_can_build_shared, $1)=no
+      ;;
+
+    uts4*)
+      _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-pic'
+      _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
+      ;;
+
+    *)
+      _LT_AC_TAGVAR(lt_prog_compiler_can_build_shared, $1)=no
+      ;;
+    esac
+  fi
+])
+AC_MSG_RESULT([$_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)])
+
+#
+# Check to make sure the PIC flag actually works.
+#
+if test -n "$_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)"; then
+  AC_LIBTOOL_COMPILER_OPTION([if $compiler PIC flag $_LT_AC_TAGVAR(lt_prog_compiler_pic, $1) works],
+    _LT_AC_TAGVAR(lt_prog_compiler_pic_works, $1),
+    [$_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)ifelse([$1],[],[ -DPIC],[ifelse([$1],[CXX],[ -DPIC],[])])], [],
+    [case $_LT_AC_TAGVAR(lt_prog_compiler_pic, $1) in
+     "" | " "*) ;;
+     *) _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)=" $_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)" ;;
+     esac],
+    [_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)=
+     _LT_AC_TAGVAR(lt_prog_compiler_can_build_shared, $1)=no])
+fi
+case $host_os in
+  # For platforms which do not support PIC, -DPIC is meaningless:
+  *djgpp*)
+    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)=
+    ;;
+  *)
+    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)="$_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)ifelse([$1],[],[ -DPIC],[ifelse([$1],[CXX],[ -DPIC],[])])"
+    ;;
+esac
+
+#
+# Check to make sure the static flag actually works.
+#
+wl=$_LT_AC_TAGVAR(lt_prog_compiler_wl, $1) eval lt_tmp_static_flag=\"$_LT_AC_TAGVAR(lt_prog_compiler_static, $1)\"
+AC_LIBTOOL_LINKER_OPTION([if $compiler static flag $lt_tmp_static_flag works],
+  _LT_AC_TAGVAR(lt_prog_compiler_static_works, $1),
+  $lt_tmp_static_flag,
+  [],
+  [_LT_AC_TAGVAR(lt_prog_compiler_static, $1)=])
+])
+
+
+# AC_LIBTOOL_PROG_LD_SHLIBS([TAGNAME])
+# ------------------------------------
+# See if the linker supports building shared libraries.
+AC_DEFUN([AC_LIBTOOL_PROG_LD_SHLIBS],
+[AC_MSG_CHECKING([whether the $compiler linker ($LD) supports shared libraries])
+ifelse([$1],[CXX],[
+  _LT_AC_TAGVAR(export_symbols_cmds, $1)='$NM $libobjs $convenience | $global_symbol_pipe | $SED '\''s/.* //'\'' | sort | uniq > $export_symbols'
+  case $host_os in
+  aix4* | aix5*)
+    # If we're using GNU nm, then we don't want the "-C" option.
+    # -C means demangle to AIX nm, but means don't demangle with GNU nm
+    if $NM -V 2>&1 | grep 'GNU' > /dev/null; then
+      _LT_AC_TAGVAR(export_symbols_cmds, $1)='$NM -Bpg $libobjs $convenience | awk '\''{ if (((\[$]2 == "T") || (\[$]2 == "D") || (\[$]2 == "B")) && ([substr](\[$]3,1,1) != ".")) { print \[$]3 } }'\'' | sort -u > $export_symbols'
+    else
+      _LT_AC_TAGVAR(export_symbols_cmds, $1)='$NM -BCpg $libobjs $convenience | awk '\''{ if (((\[$]2 == "T") || (\[$]2 == "D") || (\[$]2 == "B")) && ([substr](\[$]3,1,1) != ".")) { print \[$]3 } }'\'' | sort -u > $export_symbols'
+    fi
+    ;;
+  pw32*)
+    _LT_AC_TAGVAR(export_symbols_cmds, $1)="$ltdll_cmds"
+  ;;
+  cygwin* | mingw*)
+    _LT_AC_TAGVAR(export_symbols_cmds, $1)='$NM $libobjs $convenience | $global_symbol_pipe | $SED -e '\''/^[[BCDGRS]] /s/.* \([[^ ]]*\)/\1 DATA/;/^.* __nm__/s/^.* __nm__\([[^ ]]*\) [[^ ]]*/\1 DATA/;/^I /d;/^[[AITW]] /s/.* //'\'' | sort | uniq > $export_symbols'
+  ;;
+  *)
+    _LT_AC_TAGVAR(export_symbols_cmds, $1)='$NM $libobjs $convenience | $global_symbol_pipe | $SED '\''s/.* //'\'' | sort | uniq > $export_symbols'
+  ;;
+  esac
+],[
+  runpath_var=
+  _LT_AC_TAGVAR(allow_undefined_flag, $1)=
+  _LT_AC_TAGVAR(enable_shared_with_static_runtimes, $1)=no
+  _LT_AC_TAGVAR(archive_cmds, $1)=
+  _LT_AC_TAGVAR(archive_expsym_cmds, $1)=
+  _LT_AC_TAGVAR(old_archive_From_new_cmds, $1)=
+  _LT_AC_TAGVAR(old_archive_from_expsyms_cmds, $1)=
+  _LT_AC_TAGVAR(export_dynamic_flag_spec, $1)=
+  _LT_AC_TAGVAR(whole_archive_flag_spec, $1)=
+  _LT_AC_TAGVAR(thread_safe_flag_spec, $1)=
+  _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)=
+  _LT_AC_TAGVAR(hardcode_libdir_flag_spec_ld, $1)=
+  _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=
+  _LT_AC_TAGVAR(hardcode_direct, $1)=no
+  _LT_AC_TAGVAR(hardcode_minus_L, $1)=no
+  _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=unsupported
+  _LT_AC_TAGVAR(link_all_deplibs, $1)=unknown
+  _LT_AC_TAGVAR(hardcode_automatic, $1)=no
+  _LT_AC_TAGVAR(module_cmds, $1)=
+  _LT_AC_TAGVAR(module_expsym_cmds, $1)=
+  _LT_AC_TAGVAR(always_export_symbols, $1)=no
+  _LT_AC_TAGVAR(export_symbols_cmds, $1)='$NM $libobjs $convenience | $global_symbol_pipe | $SED '\''s/.* //'\'' | sort | uniq > $export_symbols'
+  # include_expsyms should be a list of space-separated symbols to be *always*
+  # included in the symbol list
+  _LT_AC_TAGVAR(include_expsyms, $1)=
+  # exclude_expsyms can be an extended regexp of symbols to exclude
+  # it will be wrapped by ` (' and `)$', so one must not match beginning or
+  # end of line.  Example: `a|bc|.*d.*' will exclude the symbols `a' and `bc',
+  # as well as any symbol that contains `d'.
+  _LT_AC_TAGVAR(exclude_expsyms, $1)="_GLOBAL_OFFSET_TABLE_"
+  # Although _GLOBAL_OFFSET_TABLE_ is a valid symbol C name, most a.out
+  # platforms (ab)use it in PIC code, but their linkers get confused if
+  # the symbol is explicitly referenced.  Since portable code cannot
+  # rely on this symbol name, it's probably fine to never include it in
+  # preloaded symbol tables.
+  extract_expsyms_cmds=
+  # Just being paranoid about ensuring that cc_basename is set.
+  _LT_CC_BASENAME([$compiler])
+  case $host_os in
+  cygwin* | mingw* | pw32*)
+    # FIXME: the MSVC++ port hasn't been tested in a loooong time
+    # When not using gcc, we currently assume that we are using
+    # Microsoft Visual C++.
+    if test "$GCC" != yes; then
+      with_gnu_ld=no
+    fi
+    ;;
+  interix*)
+    # we just hope/assume this is gcc and not c89 (= MSVC++)
+    with_gnu_ld=yes
+    ;;
+  openbsd*)
+    with_gnu_ld=no
+    ;;
+  esac
+
+  _LT_AC_TAGVAR(ld_shlibs, $1)=yes
+  if test "$with_gnu_ld" = yes; then
+    # If archive_cmds runs LD, not CC, wlarc should be empty
+    wlarc='${wl}'
+
+    # Set some defaults for GNU ld with shared library support. These
+    # are reset later if shared libraries are not supported. Putting them
+    # here allows them to be overridden if necessary.
+    runpath_var=LD_RUN_PATH
+    _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}--rpath ${wl}$libdir'
+    _LT_AC_TAGVAR(export_dynamic_flag_spec, $1)='${wl}--export-dynamic'
+    # ancient GNU ld didn't support --whole-archive et. al.
+    if $LD --help 2>&1 | grep 'no-whole-archive' > /dev/null; then
+	_LT_AC_TAGVAR(whole_archive_flag_spec, $1)="$wlarc"'--whole-archive$convenience '"$wlarc"'--no-whole-archive'
+      else
+  	_LT_AC_TAGVAR(whole_archive_flag_spec, $1)=
+    fi
+    supports_anon_versioning=no
+    case `$LD -v 2>/dev/null` in
+      *\ [[01]].* | *\ 2.[[0-9]].* | *\ 2.10.*) ;; # catch versions < 2.11
+      *\ 2.11.93.0.2\ *) supports_anon_versioning=yes ;; # RH7.3 ...
+      *\ 2.11.92.0.12\ *) supports_anon_versioning=yes ;; # Mandrake 8.2 ...
+      *\ 2.11.*) ;; # other 2.11 versions
+      *) supports_anon_versioning=yes ;;
+    esac
+
+    # See if GNU ld supports shared libraries.
+    case $host_os in
+    aix3* | aix4* | aix5*)
+      # On AIX/PPC, the GNU linker is very broken
+      if test "$host_cpu" != ia64; then
+	_LT_AC_TAGVAR(ld_shlibs, $1)=no
+	cat <<EOF 1>&2
+
+*** Warning: the GNU linker, at least up to release 2.9.1, is reported
+*** to be unable to reliably create shared libraries on AIX.
+*** Therefore, libtool is disabling shared libraries support.  If you
+*** really care for shared libraries, you may want to modify your PATH
+*** so that a non-GNU linker is found, and then restart.
+
+EOF
+      fi
+      ;;
+
+    amigaos*)
+      _LT_AC_TAGVAR(archive_cmds, $1)='$rm $output_objdir/a2ixlibrary.data~$echo "#define NAME $libname" > $output_objdir/a2ixlibrary.data~$echo "#define LIBRARY_ID 1" >> $output_objdir/a2ixlibrary.data~$echo "#define VERSION $major" >> $output_objdir/a2ixlibrary.data~$echo "#define REVISION $revision" >> $output_objdir/a2ixlibrary.data~$AR $AR_FLAGS $lib $libobjs~$RANLIB $lib~(cd $output_objdir && a2ixlibrary -32)'
+      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-L$libdir'
+      _LT_AC_TAGVAR(hardcode_minus_L, $1)=yes
+
+      # Samuel A. Falvo II <kc5tja@dolphin.openprojects.net> reports
+      # that the semantics of dynamic libraries on AmigaOS, at least up
+      # to version 4, is to share data among multiple programs linked
+      # with the same dynamic library.  Since this doesn't match the
+      # behavior of shared libraries on other platforms, we can't use
+      # them.
+      _LT_AC_TAGVAR(ld_shlibs, $1)=no
+      ;;
+
+    beos*)
+      if $LD --help 2>&1 | grep ': supported targets:.* elf' > /dev/null; then
+	_LT_AC_TAGVAR(allow_undefined_flag, $1)=unsupported
+	# Joseph Beckenbach <jrb3@best.com> says some releases of gcc
+	# support --undefined.  This deserves some investigation.  FIXME
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -nostart $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+      else
+	_LT_AC_TAGVAR(ld_shlibs, $1)=no
+      fi
+      ;;
+
+    cygwin* | mingw* | pw32*)
+      # _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1) is actually meaningless,
+      # as there is no search path for DLLs.
+      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-L$libdir'
+      _LT_AC_TAGVAR(allow_undefined_flag, $1)=unsupported
+      _LT_AC_TAGVAR(always_export_symbols, $1)=no
+      _LT_AC_TAGVAR(enable_shared_with_static_runtimes, $1)=yes
+      _LT_AC_TAGVAR(export_symbols_cmds, $1)='$NM $libobjs $convenience | $global_symbol_pipe | $SED -e '\''/^[[BCDGRS]] /s/.* \([[^ ]]*\)/\1 DATA/'\'' | $SED -e '\''/^[[AITW]] /s/.* //'\'' | sort | uniq > $export_symbols'
+
+      if $LD --help 2>&1 | grep 'auto-import' > /dev/null; then
+        _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags -o $output_objdir/$soname ${wl}--enable-auto-image-base -Xlinker --out-implib -Xlinker $lib'
+	# If the export-symbols file already is a .def file (1st line
+	# is EXPORTS), use it as is; otherwise, prepend...
+	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='if test "x`$SED 1q $export_symbols`" = xEXPORTS; then
+	  cp $export_symbols $output_objdir/$soname.def;
+	else
+	  echo EXPORTS > $output_objdir/$soname.def;
+	  cat $export_symbols >> $output_objdir/$soname.def;
+	fi~
+	$CC -shared $output_objdir/$soname.def $libobjs $deplibs $compiler_flags -o $output_objdir/$soname ${wl}--enable-auto-image-base -Xlinker --out-implib -Xlinker $lib'
+      else
+	_LT_AC_TAGVAR(ld_shlibs, $1)=no
+      fi
+      ;;
+
+    interix3*)
+      _LT_AC_TAGVAR(hardcode_direct, $1)=no
+      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath,$libdir'
+      _LT_AC_TAGVAR(export_dynamic_flag_spec, $1)='${wl}-E'
+      # Hack: On Interix 3.x, we cannot compile PIC because of a broken gcc.
+      # Instead, shared libraries are loaded at an image base (0x10000000 by
+      # default) and relocated if they conflict, which is a slow very memory
+      # consuming and fragmenting process.  To avoid this, we pick a random,
+      # 256 KiB-aligned image base between 0x50000000 and 0x6FFC0000 at link
+      # time.  Moving up from 0x10000000 also allows more sbrk(2) space.
+      _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $pic_flag $libobjs $deplibs $compiler_flags ${wl}-h,$soname ${wl}--image-base,`expr ${RANDOM-$$} % 4096 / 2 \* 262144 + 1342177280` -o $lib'
+      _LT_AC_TAGVAR(archive_expsym_cmds, $1)='sed "s,^,_," $export_symbols >$output_objdir/$soname.expsym~$CC -shared $pic_flag $libobjs $deplibs $compiler_flags ${wl}-h,$soname ${wl}--retain-symbols-file,$output_objdir/$soname.expsym ${wl}--image-base,`expr ${RANDOM-$$} % 4096 / 2 \* 262144 + 1342177280` -o $lib'
+      ;;
+
+    linux*)
+      if $LD --help 2>&1 | grep ': supported targets:.* elf' > /dev/null; then
+	tmp_addflag=
+	case $cc_basename,$host_cpu in
+	pgcc*)				# Portland Group C compiler
+	  _LT_AC_TAGVAR(whole_archive_flag_spec, $1)='${wl}--whole-archive`for conv in $convenience\"\"; do test  -n \"$conv\" && new_convenience=\"$new_convenience,$conv\"; done; $echo \"$new_convenience\"` ${wl}--no-whole-archive'
+	  tmp_addflag=' $pic_flag'
+	  ;;
+	pgf77* | pgf90* | pgf95*)	# Portland Group f77 and f90 compilers
+	  _LT_AC_TAGVAR(whole_archive_flag_spec, $1)='${wl}--whole-archive`for conv in $convenience\"\"; do test  -n \"$conv\" && new_convenience=\"$new_convenience,$conv\"; done; $echo \"$new_convenience\"` ${wl}--no-whole-archive'
+	  tmp_addflag=' $pic_flag -Mnomain' ;;
+	ecc*,ia64* | icc*,ia64*)		# Intel C compiler on ia64
+	  tmp_addflag=' -i_dynamic' ;;
+	efc*,ia64* | ifort*,ia64*)	# Intel Fortran compiler on ia64
+	  tmp_addflag=' -i_dynamic -nofor_main' ;;
+	ifc* | ifort*)			# Intel Fortran compiler
+	  tmp_addflag=' -nofor_main' ;;
+	esac
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared'"$tmp_addflag"' $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+
+	if test $supports_anon_versioning = yes; then
+	  _LT_AC_TAGVAR(archive_expsym_cmds, $1)='$echo "{ global:" > $output_objdir/$libname.ver~
+  cat $export_symbols | sed -e "s/\(.*\)/\1;/" >> $output_objdir/$libname.ver~
+  $echo "local: *; };" >> $output_objdir/$libname.ver~
+	  $CC -shared'"$tmp_addflag"' $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname ${wl}-version-script ${wl}$output_objdir/$libname.ver -o $lib'
+	fi
+      else
+	_LT_AC_TAGVAR(ld_shlibs, $1)=no
+      fi
+      ;;
+
+    netbsd*)
+      if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -Bshareable $libobjs $deplibs $linker_flags -o $lib'
+	wlarc=
+      else
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname ${wl}-retain-symbols-file $wl$export_symbols -o $lib'
+      fi
+      ;;
+
+    solaris*)
+      if $LD -v 2>&1 | grep 'BFD 2\.8' > /dev/null; then
+	_LT_AC_TAGVAR(ld_shlibs, $1)=no
+	cat <<EOF 1>&2
+
+*** Warning: The releases 2.8.* of the GNU linker cannot reliably
+*** create shared libraries on Solaris systems.  Therefore, libtool
+*** is disabling shared libraries support.  We urge you to upgrade GNU
+*** binutils to release 2.9.1 or newer.  Another option is to modify
+*** your PATH or compiler configuration so that the native linker is
+*** used, and then restart.
+
+EOF
+      elif $LD --help 2>&1 | grep ': supported targets:.* elf' > /dev/null; then
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname ${wl}-retain-symbols-file $wl$export_symbols -o $lib'
+      else
+	_LT_AC_TAGVAR(ld_shlibs, $1)=no
+      fi
+      ;;
+
+    sysv5* | sco3.2v5* | sco5v6* | unixware* | OpenUNIX*)
+      case `$LD -v 2>&1` in
+        *\ [[01]].* | *\ 2.[[0-9]].* | *\ 2.1[[0-5]].*) 
+	_LT_AC_TAGVAR(ld_shlibs, $1)=no
+	cat <<_LT_EOF 1>&2
+
+*** Warning: Releases of the GNU linker prior to 2.16.91.0.3 can not
+*** reliably create shared libraries on SCO systems.  Therefore, libtool
+*** is disabling shared libraries support.  We urge you to upgrade GNU
+*** binutils to release 2.16.91.0.3 or newer.  Another option is to modify
+*** your PATH or compiler configuration so that the native linker is
+*** used, and then restart.
+
+_LT_EOF
+	;;
+	*)
+	  if $LD --help 2>&1 | grep ': supported targets:.* elf' > /dev/null; then
+	    _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='`test -z "$SCOABSPATH" && echo ${wl}-rpath,$libdir`'
+	    _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname,\${SCOABSPATH:+${install_libdir}/}$soname -o $lib'
+	    _LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname,\${SCOABSPATH:+${install_libdir}/}$soname,-retain-symbols-file,$export_symbols -o $lib'
+	  else
+	    _LT_AC_TAGVAR(ld_shlibs, $1)=no
+	  fi
+	;;
+      esac
+      ;;
+
+    sunos4*)
+      _LT_AC_TAGVAR(archive_cmds, $1)='$LD -assert pure-text -Bshareable -o $lib $libobjs $deplibs $linker_flags'
+      wlarc=
+      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
+      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+      ;;
+
+    *)
+      if $LD --help 2>&1 | grep ': supported targets:.* elf' > /dev/null; then
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname ${wl}-retain-symbols-file $wl$export_symbols -o $lib'
+      else
+	_LT_AC_TAGVAR(ld_shlibs, $1)=no
+      fi
+      ;;
+    esac
+
+    if test "$_LT_AC_TAGVAR(ld_shlibs, $1)" = no; then
+      runpath_var=
+      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)=
+      _LT_AC_TAGVAR(export_dynamic_flag_spec, $1)=
+      _LT_AC_TAGVAR(whole_archive_flag_spec, $1)=
+    fi
+  else
+    # PORTME fill in a description of your system's linker (not GNU ld)
+    case $host_os in
+    aix3*)
+      _LT_AC_TAGVAR(allow_undefined_flag, $1)=unsupported
+      _LT_AC_TAGVAR(always_export_symbols, $1)=yes
+      _LT_AC_TAGVAR(archive_expsym_cmds, $1)='$LD -o $output_objdir/$soname $libobjs $deplibs $linker_flags -bE:$export_symbols -T512 -H512 -bM:SRE~$AR $AR_FLAGS $lib $output_objdir/$soname'
+      # Note: this linker hardcodes the directories in LIBPATH if there
+      # are no directories specified by -L.
+      _LT_AC_TAGVAR(hardcode_minus_L, $1)=yes
+      if test "$GCC" = yes && test -z "$lt_prog_compiler_static"; then
+	# Neither direct hardcoding nor static linking is supported with a
+	# broken collect2.
+	_LT_AC_TAGVAR(hardcode_direct, $1)=unsupported
+      fi
+      ;;
+
+    aix4* | aix5*)
+      if test "$host_cpu" = ia64; then
+	# On IA64, the linker does run time linking by default, so we don't
+	# have to do anything special.
+	aix_use_runtimelinking=no
+	exp_sym_flag='-Bexport'
+	no_entry_flag=""
+      else
+	# If we're using GNU nm, then we don't want the "-C" option.
+	# -C means demangle to AIX nm, but means don't demangle with GNU nm
+	if $NM -V 2>&1 | grep 'GNU' > /dev/null; then
+	  _LT_AC_TAGVAR(export_symbols_cmds, $1)='$NM -Bpg $libobjs $convenience | awk '\''{ if (((\[$]2 == "T") || (\[$]2 == "D") || (\[$]2 == "B")) && ([substr](\[$]3,1,1) != ".")) { print \[$]3 } }'\'' | sort -u > $export_symbols'
+	else
+	  _LT_AC_TAGVAR(export_symbols_cmds, $1)='$NM -BCpg $libobjs $convenience | awk '\''{ if (((\[$]2 == "T") || (\[$]2 == "D") || (\[$]2 == "B")) && ([substr](\[$]3,1,1) != ".")) { print \[$]3 } }'\'' | sort -u > $export_symbols'
+	fi
+	aix_use_runtimelinking=no
+
+	# Test if we are trying to use run time linking or normal
+	# AIX style linking. If -brtl is somewhere in LDFLAGS, we
+	# need to do runtime linking.
+	case $host_os in aix4.[[23]]|aix4.[[23]].*|aix5*)
+	  for ld_flag in $LDFLAGS; do
+  	  if (test $ld_flag = "-brtl" || test $ld_flag = "-Wl,-brtl"); then
+  	    aix_use_runtimelinking=yes
+  	    break
+  	  fi
+	  done
+	  ;;
+	esac
+
+	exp_sym_flag='-bexport'
+	no_entry_flag='-bnoentry'
+      fi
+
+      # When large executables or shared objects are built, AIX ld can
+      # have problems creating the table of contents.  If linking a library
+      # or program results in "error TOC overflow" add -mminimal-toc to
+      # CXXFLAGS/CFLAGS for g++/gcc.  In the cases where that is not
+      # enough to fix the problem, add -Wl,-bbigtoc to LDFLAGS.
+
+      _LT_AC_TAGVAR(archive_cmds, $1)=''
+      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
+      _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=':'
+      _LT_AC_TAGVAR(link_all_deplibs, $1)=yes
+
+      if test "$GCC" = yes; then
+	case $host_os in aix4.[[012]]|aix4.[[012]].*)
+	# We only want to do this on AIX 4.2 and lower, the check
+	# below for broken collect2 doesn't work under 4.3+
+	  collect2name=`${CC} -print-prog-name=collect2`
+	  if test -f "$collect2name" && \
+  	   strings "$collect2name" | grep resolve_lib_name >/dev/null
+	  then
+  	  # We have reworked collect2
+  	  _LT_AC_TAGVAR(hardcode_direct, $1)=yes
+	  else
+  	  # We have old collect2
+  	  _LT_AC_TAGVAR(hardcode_direct, $1)=unsupported
+  	  # It fails to find uninstalled libraries when the uninstalled
+  	  # path is not listed in the libpath.  Setting hardcode_minus_L
+  	  # to unsupported forces relinking
+  	  _LT_AC_TAGVAR(hardcode_minus_L, $1)=yes
+  	  _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-L$libdir'
+  	  _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=
+	  fi
+	  ;;
+	esac
+	shared_flag='-shared'
+	if test "$aix_use_runtimelinking" = yes; then
+	  shared_flag="$shared_flag "'${wl}-G'
+	fi
+      else
+	# not using gcc
+	if test "$host_cpu" = ia64; then
+  	# VisualAge C++, Version 5.5 for AIX 5L for IA-64, Beta 3 Release
+  	# chokes on -Wl,-G. The following line is correct:
+	  shared_flag='-G'
+	else
+	  if test "$aix_use_runtimelinking" = yes; then
+	    shared_flag='${wl}-G'
+	  else
+	    shared_flag='${wl}-bM:SRE'
+	  fi
+	fi
+      fi
+
+      # It seems that -bexpall does not export symbols beginning with
+      # underscore (_), so it is better to generate a list of symbols to export.
+      _LT_AC_TAGVAR(always_export_symbols, $1)=yes
+      if test "$aix_use_runtimelinking" = yes; then
+	# Warning - without using the other runtime loading flags (-brtl),
+	# -berok will link without error, but may produce a broken library.
+	_LT_AC_TAGVAR(allow_undefined_flag, $1)='-berok'
+       # Determine the default libpath from the value encoded in an empty executable.
+       _LT_AC_SYS_LIBPATH_AIX
+       _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-blibpath:$libdir:'"$aix_libpath"
+	_LT_AC_TAGVAR(archive_expsym_cmds, $1)="\$CC"' -o $output_objdir/$soname $libobjs $deplibs '"\${wl}$no_entry_flag"' $compiler_flags `if test "x${allow_undefined_flag}" != "x"; then echo "${wl}${allow_undefined_flag}"; else :; fi` '"\${wl}$exp_sym_flag:\$export_symbols $shared_flag"
+       else
+	if test "$host_cpu" = ia64; then
+	  _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-R $libdir:/usr/lib:/lib'
+	  _LT_AC_TAGVAR(allow_undefined_flag, $1)="-z nodefs"
+	  _LT_AC_TAGVAR(archive_expsym_cmds, $1)="\$CC $shared_flag"' -o $output_objdir/$soname $libobjs $deplibs '"\${wl}$no_entry_flag"' $compiler_flags ${wl}${allow_undefined_flag} '"\${wl}$exp_sym_flag:\$export_symbols"
+	else
+	 # Determine the default libpath from the value encoded in an empty executable.
+	 _LT_AC_SYS_LIBPATH_AIX
+	 _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-blibpath:$libdir:'"$aix_libpath"
+	  # Warning - without using the other run time loading flags,
+	  # -berok will link without error, but may produce a broken library.
+	  _LT_AC_TAGVAR(no_undefined_flag, $1)=' ${wl}-bernotok'
+	  _LT_AC_TAGVAR(allow_undefined_flag, $1)=' ${wl}-berok'
+	  # Exported symbols can be pulled into shared objects from archives
+	  _LT_AC_TAGVAR(whole_archive_flag_spec, $1)='$convenience'
+	  _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=yes
+	  # This is similar to how AIX traditionally builds its shared libraries.
+	  _LT_AC_TAGVAR(archive_expsym_cmds, $1)="\$CC $shared_flag"' -o $output_objdir/$soname $libobjs $deplibs ${wl}-bnoentry $compiler_flags ${wl}-bE:$export_symbols${allow_undefined_flag}~$AR $AR_FLAGS $output_objdir/$libname$release.a $output_objdir/$soname'
+	fi
+      fi
+      ;;
+
+    amigaos*)
+      _LT_AC_TAGVAR(archive_cmds, $1)='$rm $output_objdir/a2ixlibrary.data~$echo "#define NAME $libname" > $output_objdir/a2ixlibrary.data~$echo "#define LIBRARY_ID 1" >> $output_objdir/a2ixlibrary.data~$echo "#define VERSION $major" >> $output_objdir/a2ixlibrary.data~$echo "#define REVISION $revision" >> $output_objdir/a2ixlibrary.data~$AR $AR_FLAGS $lib $libobjs~$RANLIB $lib~(cd $output_objdir && a2ixlibrary -32)'
+      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-L$libdir'
+      _LT_AC_TAGVAR(hardcode_minus_L, $1)=yes
+      # see comment about different semantics on the GNU ld section
+      _LT_AC_TAGVAR(ld_shlibs, $1)=no
+      ;;
+
+    bsdi[[45]]*)
+      _LT_AC_TAGVAR(export_dynamic_flag_spec, $1)=-rdynamic
+      ;;
+
+    cygwin* | mingw* | pw32*)
+      # When not using gcc, we currently assume that we are using
+      # Microsoft Visual C++.
+      # hardcode_libdir_flag_spec is actually meaningless, as there is
+      # no search path for DLLs.
+      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)=' '
+      _LT_AC_TAGVAR(allow_undefined_flag, $1)=unsupported
+      # Tell ltmain to make .lib files, not .a files.
+      libext=lib
+      # Tell ltmain to make .dll files, not .so files.
+      shrext_cmds=".dll"
+      # FIXME: Setting linknames here is a bad hack.
+      _LT_AC_TAGVAR(archive_cmds, $1)='$CC -o $lib $libobjs $compiler_flags `echo "$deplibs" | $SED -e '\''s/ -lc$//'\''` -link -dll~linknames='
+      # The linker will automatically build a .lib file if we build a DLL.
+      _LT_AC_TAGVAR(old_archive_From_new_cmds, $1)='true'
+      # FIXME: Should let the user specify the lib program.
+      _LT_AC_TAGVAR(old_archive_cmds, $1)='lib /OUT:$oldlib$oldobjs$old_deplibs'
+      _LT_AC_TAGVAR(fix_srcfile_path, $1)='`cygpath -w "$srcfile"`'
+      _LT_AC_TAGVAR(enable_shared_with_static_runtimes, $1)=yes
+      ;;
+
+    darwin* | rhapsody*)
+      case $host_os in
+        rhapsody* | darwin1.[[012]])
+         _LT_AC_TAGVAR(allow_undefined_flag, $1)='${wl}-undefined ${wl}suppress'
+         ;;
+       *) # Darwin 1.3 on
+         if test -z ${MACOSX_DEPLOYMENT_TARGET} ; then
+           _LT_AC_TAGVAR(allow_undefined_flag, $1)='${wl}-flat_namespace ${wl}-undefined ${wl}suppress'
+         else
+           case ${MACOSX_DEPLOYMENT_TARGET} in
+             10.[[012]])
+               _LT_AC_TAGVAR(allow_undefined_flag, $1)='${wl}-flat_namespace ${wl}-undefined ${wl}suppress'
+               ;;
+             10.*)
+               _LT_AC_TAGVAR(allow_undefined_flag, $1)='${wl}-undefined ${wl}dynamic_lookup'
+               ;;
+           esac
+         fi
+         ;;
+      esac
+      _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=no
+      _LT_AC_TAGVAR(hardcode_direct, $1)=no
+      _LT_AC_TAGVAR(hardcode_automatic, $1)=yes
+      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=unsupported
+      _LT_AC_TAGVAR(whole_archive_flag_spec, $1)=''
+      _LT_AC_TAGVAR(link_all_deplibs, $1)=yes
+    if test "$GCC" = yes ; then
+    	output_verbose_link_cmd='echo'
+        _LT_AC_TAGVAR(archive_cmds, $1)='$CC -dynamiclib $allow_undefined_flag -o $lib $libobjs $deplibs $compiler_flags -install_name $rpath/$soname $verstring'
+      _LT_AC_TAGVAR(module_cmds, $1)='$CC $allow_undefined_flag -o $lib -bundle $libobjs $deplibs$compiler_flags'
+      # Don't fix this by using the ld -exported_symbols_list flag, it doesn't exist in older darwin lds
+      _LT_AC_TAGVAR(archive_expsym_cmds, $1)='sed -e "s,#.*,," -e "s,^[    ]*,," -e "s,^\(..*\),_&," < $export_symbols > $output_objdir/${libname}-symbols.expsym~$CC -dynamiclib $allow_undefined_flag -o $lib $libobjs $deplibs $compiler_flags -install_name $rpath/$soname $verstring~nmedit -s $output_objdir/${libname}-symbols.expsym ${lib}'
+      _LT_AC_TAGVAR(module_expsym_cmds, $1)='sed -e "s,#.*,," -e "s,^[    ]*,," -e "s,^\(..*\),_&," < $export_symbols > $output_objdir/${libname}-symbols.expsym~$CC $allow_undefined_flag  -o $lib -bundle $libobjs $deplibs$compiler_flags~nmedit -s $output_objdir/${libname}-symbols.expsym ${lib}'
+    else
+      case $cc_basename in
+        xlc*)
+         output_verbose_link_cmd='echo'
+         _LT_AC_TAGVAR(archive_cmds, $1)='$CC -qmkshrobj $allow_undefined_flag -o $lib $libobjs $deplibs $compiler_flags ${wl}-install_name ${wl}`echo $rpath/$soname` $verstring'
+         _LT_AC_TAGVAR(module_cmds, $1)='$CC $allow_undefined_flag -o $lib -bundle $libobjs $deplibs$compiler_flags'
+          # Don't fix this by using the ld -exported_symbols_list flag, it doesn't exist in older darwin lds
+         _LT_AC_TAGVAR(archive_expsym_cmds, $1)='sed -e "s,#.*,," -e "s,^[    ]*,," -e "s,^\(..*\),_&," < $export_symbols > $output_objdir/${libname}-symbols.expsym~$CC -qmkshrobj $allow_undefined_flag -o $lib $libobjs $deplibs $compiler_flags ${wl}-install_name ${wl}$rpath/$soname $verstring~nmedit -s $output_objdir/${libname}-symbols.expsym ${lib}'
+          _LT_AC_TAGVAR(module_expsym_cmds, $1)='sed -e "s,#.*,," -e "s,^[    ]*,," -e "s,^\(..*\),_&," < $export_symbols > $output_objdir/${libname}-symbols.expsym~$CC $allow_undefined_flag  -o $lib -bundle $libobjs $deplibs$compiler_flags~nmedit -s $output_objdir/${libname}-symbols.expsym ${lib}'
+          ;;
+       *)
+         _LT_AC_TAGVAR(ld_shlibs, $1)=no
+          ;;
+      esac
+    fi
+      ;;
+
+    dgux*)
+      _LT_AC_TAGVAR(archive_cmds, $1)='$LD -G -h $soname -o $lib $libobjs $deplibs $linker_flags'
+      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-L$libdir'
+      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+      ;;
+
+    freebsd1*)
+      _LT_AC_TAGVAR(ld_shlibs, $1)=no
+      ;;
+
+    # FreeBSD 2.2.[012] allows us to include c++rt0.o to get C++ constructor
+    # support.  Future versions do this automatically, but an explicit c++rt0.o
+    # does not break anything, and helps significantly (at the cost of a little
+    # extra space).
+    freebsd2.2*)
+      _LT_AC_TAGVAR(archive_cmds, $1)='$LD -Bshareable -o $lib $libobjs $deplibs $linker_flags /usr/lib/c++rt0.o'
+      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-R$libdir'
+      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
+      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+      ;;
+
+    # Unfortunately, older versions of FreeBSD 2 do not have this feature.
+    freebsd2*)
+      _LT_AC_TAGVAR(archive_cmds, $1)='$LD -Bshareable -o $lib $libobjs $deplibs $linker_flags'
+      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
+      _LT_AC_TAGVAR(hardcode_minus_L, $1)=yes
+      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+      ;;
+
+    # FreeBSD 3 and greater uses gcc -shared to do shared libraries.
+    freebsd* | kfreebsd*-gnu | dragonfly*)
+      _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -o $lib $libobjs $deplibs $compiler_flags'
+      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-R$libdir'
+      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
+      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+      ;;
+
+    hpux9*)
+      if test "$GCC" = yes; then
+	_LT_AC_TAGVAR(archive_cmds, $1)='$rm $output_objdir/$soname~$CC -shared -fPIC ${wl}+b ${wl}$install_libdir -o $output_objdir/$soname $libobjs $deplibs $compiler_flags~test $output_objdir/$soname = $lib || mv $output_objdir/$soname $lib'
+      else
+	_LT_AC_TAGVAR(archive_cmds, $1)='$rm $output_objdir/$soname~$LD -b +b $install_libdir -o $output_objdir/$soname $libobjs $deplibs $linker_flags~test $output_objdir/$soname = $lib || mv $output_objdir/$soname $lib'
+      fi
+      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}+b ${wl}$libdir'
+      _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
+      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
+
+      # hardcode_minus_L: Not really in the search PATH,
+      # but as the default location of the library.
+      _LT_AC_TAGVAR(hardcode_minus_L, $1)=yes
+      _LT_AC_TAGVAR(export_dynamic_flag_spec, $1)='${wl}-E'
+      ;;
+
+    hpux10*)
+      if test "$GCC" = yes -a "$with_gnu_ld" = no; then
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -fPIC ${wl}+h ${wl}$soname ${wl}+b ${wl}$install_libdir -o $lib $libobjs $deplibs $compiler_flags'
+      else
+	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -b +h $soname +b $install_libdir -o $lib $libobjs $deplibs $linker_flags'
+      fi
+      if test "$with_gnu_ld" = no; then
+	_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}+b ${wl}$libdir'
+	_LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
+
+	_LT_AC_TAGVAR(hardcode_direct, $1)=yes
+	_LT_AC_TAGVAR(export_dynamic_flag_spec, $1)='${wl}-E'
+
+	# hardcode_minus_L: Not really in the search PATH,
+	# but as the default location of the library.
+	_LT_AC_TAGVAR(hardcode_minus_L, $1)=yes
+      fi
+      ;;
+
+    hpux11*)
+      if test "$GCC" = yes -a "$with_gnu_ld" = no; then
+	case $host_cpu in
+	hppa*64*)
+	  _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared ${wl}+h ${wl}$soname -o $lib $libobjs $deplibs $compiler_flags'
+	  ;;
+	ia64*)
+	  _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared ${wl}+h ${wl}$soname ${wl}+nodefaultrpath -o $lib $libobjs $deplibs $compiler_flags'
+	  ;;
+	*)
+	  _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -fPIC ${wl}+h ${wl}$soname ${wl}+b ${wl}$install_libdir -o $lib $libobjs $deplibs $compiler_flags'
+	  ;;
+	esac
+      else
+	case $host_cpu in
+	hppa*64*)
+	  _LT_AC_TAGVAR(archive_cmds, $1)='$CC -b ${wl}+h ${wl}$soname -o $lib $libobjs $deplibs $compiler_flags'
+	  ;;
+	ia64*)
+	  _LT_AC_TAGVAR(archive_cmds, $1)='$CC -b ${wl}+h ${wl}$soname ${wl}+nodefaultrpath -o $lib $libobjs $deplibs $compiler_flags'
+	  ;;
+	*)
+	  _LT_AC_TAGVAR(archive_cmds, $1)='$CC -b ${wl}+h ${wl}$soname ${wl}+b ${wl}$install_libdir -o $lib $libobjs $deplibs $compiler_flags'
+	  ;;
+	esac
+      fi
+      if test "$with_gnu_ld" = no; then
+	_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}+b ${wl}$libdir'
+	_LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
+
+	case $host_cpu in
+	hppa*64*|ia64*)
+	  _LT_AC_TAGVAR(hardcode_libdir_flag_spec_ld, $1)='+b $libdir'
+	  _LT_AC_TAGVAR(hardcode_direct, $1)=no
+	  _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+	  ;;
+	*)
+	  _LT_AC_TAGVAR(hardcode_direct, $1)=yes
+	  _LT_AC_TAGVAR(export_dynamic_flag_spec, $1)='${wl}-E'
+
+	  # hardcode_minus_L: Not really in the search PATH,
+	  # but as the default location of the library.
+	  _LT_AC_TAGVAR(hardcode_minus_L, $1)=yes
+	  ;;
+	esac
+      fi
+      ;;
+
+    irix5* | irix6* | nonstopux*)
+      if test "$GCC" = yes; then
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname ${wl}$soname `test -n "$verstring" && echo ${wl}-set_version ${wl}$verstring` ${wl}-update_registry ${wl}${output_objdir}/so_locations -o $lib'
+      else
+	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -shared $libobjs $deplibs $linker_flags -soname $soname `test -n "$verstring" && echo -set_version $verstring` -update_registry ${output_objdir}/so_locations -o $lib'
+	_LT_AC_TAGVAR(hardcode_libdir_flag_spec_ld, $1)='-rpath $libdir'
+      fi
+      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath ${wl}$libdir'
+      _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
+      _LT_AC_TAGVAR(link_all_deplibs, $1)=yes
+      ;;
+
+    netbsd*)
+      if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -Bshareable -o $lib $libobjs $deplibs $linker_flags'  # a.out
+      else
+	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -shared -o $lib $libobjs $deplibs $linker_flags'      # ELF
+      fi
+      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-R$libdir'
+      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
+      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+      ;;
+
+    newsos6)
+      _LT_AC_TAGVAR(archive_cmds, $1)='$LD -G -h $soname -o $lib $libobjs $deplibs $linker_flags'
+      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
+      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath ${wl}$libdir'
+      _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
+      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+      ;;
+
+    openbsd*)
+      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
+      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+      if test -z "`echo __ELF__ | $CC -E - | grep __ELF__`" || test "$host_os-$host_cpu" = "openbsd2.8-powerpc"; then
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $pic_flag -o $lib $libobjs $deplibs $compiler_flags'
+	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -shared $pic_flag -o $lib $libobjs $deplibs $compiler_flags ${wl}-retain-symbols-file,$export_symbols'
+	_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath,$libdir'
+	_LT_AC_TAGVAR(export_dynamic_flag_spec, $1)='${wl}-E'
+      else
+       case $host_os in
+	 openbsd[[01]].* | openbsd2.[[0-7]] | openbsd2.[[0-7]].*)
+	   _LT_AC_TAGVAR(archive_cmds, $1)='$LD -Bshareable -o $lib $libobjs $deplibs $linker_flags'
+	   _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-R$libdir'
+	   ;;
+	 *)
+	   _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $pic_flag -o $lib $libobjs $deplibs $compiler_flags'
+	   _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath,$libdir'
+	   ;;
+       esac
+      fi
+      ;;
+
+    os2*)
+      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-L$libdir'
+      _LT_AC_TAGVAR(hardcode_minus_L, $1)=yes
+      _LT_AC_TAGVAR(allow_undefined_flag, $1)=unsupported
+      _LT_AC_TAGVAR(archive_cmds, $1)='$echo "LIBRARY $libname INITINSTANCE" > $output_objdir/$libname.def~$echo "DESCRIPTION \"$libname\"" >> $output_objdir/$libname.def~$echo DATA >> $output_objdir/$libname.def~$echo " SINGLE NONSHARED" >> $output_objdir/$libname.def~$echo EXPORTS >> $output_objdir/$libname.def~emxexp $libobjs >> $output_objdir/$libname.def~$CC -Zdll -Zcrtdll -o $lib $libobjs $deplibs $compiler_flags $output_objdir/$libname.def'
+      _LT_AC_TAGVAR(old_archive_From_new_cmds, $1)='emximp -o $output_objdir/$libname.a $output_objdir/$libname.def'
+      ;;
+
+    osf3*)
+      if test "$GCC" = yes; then
+	_LT_AC_TAGVAR(allow_undefined_flag, $1)=' ${wl}-expect_unresolved ${wl}\*'
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared${allow_undefined_flag} $libobjs $deplibs $compiler_flags ${wl}-soname ${wl}$soname `test -n "$verstring" && echo ${wl}-set_version ${wl}$verstring` ${wl}-update_registry ${wl}${output_objdir}/so_locations -o $lib'
+      else
+	_LT_AC_TAGVAR(allow_undefined_flag, $1)=' -expect_unresolved \*'
+	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -shared${allow_undefined_flag} $libobjs $deplibs $linker_flags -soname $soname `test -n "$verstring" && echo -set_version $verstring` -update_registry ${output_objdir}/so_locations -o $lib'
+      fi
+      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath ${wl}$libdir'
+      _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
+      ;;
+
+    osf4* | osf5*)	# as osf3* with the addition of -msym flag
+      if test "$GCC" = yes; then
+	_LT_AC_TAGVAR(allow_undefined_flag, $1)=' ${wl}-expect_unresolved ${wl}\*'
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared${allow_undefined_flag} $libobjs $deplibs $compiler_flags ${wl}-msym ${wl}-soname ${wl}$soname `test -n "$verstring" && echo ${wl}-set_version ${wl}$verstring` ${wl}-update_registry ${wl}${output_objdir}/so_locations -o $lib'
+	_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath ${wl}$libdir'
+      else
+	_LT_AC_TAGVAR(allow_undefined_flag, $1)=' -expect_unresolved \*'
+	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -shared${allow_undefined_flag} $libobjs $deplibs $linker_flags -msym -soname $soname `test -n "$verstring" && echo -set_version $verstring` -update_registry ${output_objdir}/so_locations -o $lib'
+	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='for i in `cat $export_symbols`; do printf "%s %s\\n" -exported_symbol "\$i" >> $lib.exp; done; echo "-hidden">> $lib.exp~
+	$LD -shared${allow_undefined_flag} -input $lib.exp $linker_flags $libobjs $deplibs -soname $soname `test -n "$verstring" && echo -set_version $verstring` -update_registry ${output_objdir}/so_locations -o $lib~$rm $lib.exp'
+
+	# Both c and cxx compiler support -rpath directly
+	_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-rpath $libdir'
+      fi
+      _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
+      ;;
+
+    solaris*)
+      _LT_AC_TAGVAR(no_undefined_flag, $1)=' -z text'
+      if test "$GCC" = yes; then
+	wlarc='${wl}'
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared ${wl}-h ${wl}$soname -o $lib $libobjs $deplibs $compiler_flags'
+	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$echo "{ global:" > $lib.exp~cat $export_symbols | $SED -e "s/\(.*\)/\1;/" >> $lib.exp~$echo "local: *; };" >> $lib.exp~
+	  $CC -shared ${wl}-M ${wl}$lib.exp ${wl}-h ${wl}$soname -o $lib $libobjs $deplibs $compiler_flags~$rm $lib.exp'
+      else
+	wlarc=''
+	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -G${allow_undefined_flag} -h $soname -o $lib $libobjs $deplibs $linker_flags'
+	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$echo "{ global:" > $lib.exp~cat $export_symbols | $SED -e "s/\(.*\)/\1;/" >> $lib.exp~$echo "local: *; };" >> $lib.exp~
+  	$LD -G${allow_undefined_flag} -M $lib.exp -h $soname -o $lib $libobjs $deplibs $linker_flags~$rm $lib.exp'
+      fi
+      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-R$libdir'
+      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+      case $host_os in
+      solaris2.[[0-5]] | solaris2.[[0-5]].*) ;;
+      *)
+ 	# The compiler driver will combine linker options so we
+ 	# cannot just pass the convience library names through
+ 	# without $wl, iff we do not link with $LD.
+ 	# Luckily, gcc supports the same syntax we need for Sun Studio.
+ 	# Supported since Solaris 2.6 (maybe 2.5.1?)
+ 	case $wlarc in
+ 	'')
+ 	  _LT_AC_TAGVAR(whole_archive_flag_spec, $1)='-z allextract$convenience -z defaultextract' ;;
+ 	*)
+ 	  _LT_AC_TAGVAR(whole_archive_flag_spec, $1)='${wl}-z ${wl}allextract`for conv in $convenience\"\"; do test -n \"$conv\" && new_convenience=\"$new_convenience,$conv\"; done; $echo \"$new_convenience\"` ${wl}-z ${wl}defaultextract' ;;
+ 	esac ;;
+      esac
+      _LT_AC_TAGVAR(link_all_deplibs, $1)=yes
+      ;;
+
+    sunos4*)
+      if test "x$host_vendor" = xsequent; then
+	# Use $CC to link under sequent, because it throws in some extra .o
+	# files that make .init and .fini sections work.
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -G ${wl}-h $soname -o $lib $libobjs $deplibs $compiler_flags'
+      else
+	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -assert pure-text -Bstatic -o $lib $libobjs $deplibs $linker_flags'
+      fi
+      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-L$libdir'
+      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
+      _LT_AC_TAGVAR(hardcode_minus_L, $1)=yes
+      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+      ;;
+
+    sysv4)
+      case $host_vendor in
+	sni)
+	  _LT_AC_TAGVAR(archive_cmds, $1)='$LD -G -h $soname -o $lib $libobjs $deplibs $linker_flags'
+	  _LT_AC_TAGVAR(hardcode_direct, $1)=yes # is this really true???
+	;;
+	siemens)
+	  ## LD is ld it makes a PLAMLIB
+	  ## CC just makes a GrossModule.
+	  _LT_AC_TAGVAR(archive_cmds, $1)='$LD -G -o $lib $libobjs $deplibs $linker_flags'
+	  _LT_AC_TAGVAR(reload_cmds, $1)='$CC -r -o $output$reload_objs'
+	  _LT_AC_TAGVAR(hardcode_direct, $1)=no
+        ;;
+	motorola)
+	  _LT_AC_TAGVAR(archive_cmds, $1)='$LD -G -h $soname -o $lib $libobjs $deplibs $linker_flags'
+	  _LT_AC_TAGVAR(hardcode_direct, $1)=no #Motorola manual says yes, but my tests say they lie
+	;;
+      esac
+      runpath_var='LD_RUN_PATH'
+      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+      ;;
+
+    sysv4.3*)
+      _LT_AC_TAGVAR(archive_cmds, $1)='$LD -G -h $soname -o $lib $libobjs $deplibs $linker_flags'
+      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+      _LT_AC_TAGVAR(export_dynamic_flag_spec, $1)='-Bexport'
+      ;;
+
+    sysv4*MP*)
+      if test -d /usr/nec; then
+	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -G -h $soname -o $lib $libobjs $deplibs $linker_flags'
+	_LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+	runpath_var=LD_RUN_PATH
+	hardcode_runpath_var=yes
+	_LT_AC_TAGVAR(ld_shlibs, $1)=yes
+      fi
+      ;;
+
+    sysv4*uw2* | sysv5OpenUNIX* | sysv5UnixWare7.[[01]].[[10]]* | unixware7*)
+      _LT_AC_TAGVAR(no_undefined_flag, $1)='${wl}-z,text'
+      _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=no
+      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+      runpath_var='LD_RUN_PATH'
+
+      if test "$GCC" = yes; then
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared ${wl}-h,$soname -o $lib $libobjs $deplibs $compiler_flags'
+	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -shared ${wl}-Bexport:$export_symbols ${wl}-h,$soname -o $lib $libobjs $deplibs $compiler_flags'
+      else
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -G ${wl}-h,$soname -o $lib $libobjs $deplibs $compiler_flags'
+	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -G ${wl}-Bexport:$export_symbols ${wl}-h,$soname -o $lib $libobjs $deplibs $compiler_flags'
+      fi
+      ;;
+
+    sysv5* | sco3.2v5* | sco5v6*)
+      # Note: We can NOT use -z defs as we might desire, because we do not
+      # link with -lc, and that would cause any symbols used from libc to
+      # always be unresolved, which means just about no library would
+      # ever link correctly.  If we're not using GNU ld we use -z text
+      # though, which does catch some bad symbols but isn't as heavy-handed
+      # as -z defs.
+      _LT_AC_TAGVAR(no_undefined_flag, $1)='${wl}-z,text'
+      _LT_AC_TAGVAR(allow_undefined_flag, $1)='${wl}-z,nodefs'
+      _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=no
+      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='`test -z "$SCOABSPATH" && echo ${wl}-R,$libdir`'
+      _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=':'
+      _LT_AC_TAGVAR(link_all_deplibs, $1)=yes
+      _LT_AC_TAGVAR(export_dynamic_flag_spec, $1)='${wl}-Bexport'
+      runpath_var='LD_RUN_PATH'
+
+      if test "$GCC" = yes; then
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared ${wl}-h,\${SCOABSPATH:+${install_libdir}/}$soname -o $lib $libobjs $deplibs $compiler_flags'
+	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -shared ${wl}-Bexport:$export_symbols ${wl}-h,\${SCOABSPATH:+${install_libdir}/}$soname -o $lib $libobjs $deplibs $compiler_flags'
+      else
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -G ${wl}-h,\${SCOABSPATH:+${install_libdir}/}$soname -o $lib $libobjs $deplibs $compiler_flags'
+	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -G ${wl}-Bexport:$export_symbols ${wl}-h,\${SCOABSPATH:+${install_libdir}/}$soname -o $lib $libobjs $deplibs $compiler_flags'
+      fi
+      ;;
+
+    uts4*)
+      _LT_AC_TAGVAR(archive_cmds, $1)='$LD -G -h $soname -o $lib $libobjs $deplibs $linker_flags'
+      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-L$libdir'
+      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+      ;;
+
+    *)
+      _LT_AC_TAGVAR(ld_shlibs, $1)=no
+      ;;
+    esac
+  fi
+])
+AC_MSG_RESULT([$_LT_AC_TAGVAR(ld_shlibs, $1)])
+test "$_LT_AC_TAGVAR(ld_shlibs, $1)" = no && can_build_shared=no
+
+#
+# Do we need to explicitly link libc?
+#
+case "x$_LT_AC_TAGVAR(archive_cmds_need_lc, $1)" in
+x|xyes)
+  # Assume -lc should be added
+  _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=yes
+
+  if test "$enable_shared" = yes && test "$GCC" = yes; then
+    case $_LT_AC_TAGVAR(archive_cmds, $1) in
+    *'~'*)
+      # FIXME: we may have to deal with multi-command sequences.
+      ;;
+    '$CC '*)
+      # Test whether the compiler implicitly links with -lc since on some
+      # systems, -lgcc has to come before -lc. If gcc already passes -lc
+      # to ld, don't add -lc before -lgcc.
+      AC_MSG_CHECKING([whether -lc should be explicitly linked in])
+      $rm conftest*
+      printf "$lt_simple_compile_test_code" > conftest.$ac_ext
+
+      if AC_TRY_EVAL(ac_compile) 2>conftest.err; then
+        soname=conftest
+        lib=conftest
+        libobjs=conftest.$ac_objext
+        deplibs=
+        wl=$_LT_AC_TAGVAR(lt_prog_compiler_wl, $1)
+	pic_flag=$_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)
+        compiler_flags=-v
+        linker_flags=-v
+        verstring=
+        output_objdir=.
+        libname=conftest
+        lt_save_allow_undefined_flag=$_LT_AC_TAGVAR(allow_undefined_flag, $1)
+        _LT_AC_TAGVAR(allow_undefined_flag, $1)=
+        if AC_TRY_EVAL(_LT_AC_TAGVAR(archive_cmds, $1) 2\>\&1 \| grep \" -lc \" \>/dev/null 2\>\&1)
+        then
+	  _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=no
+        else
+	  _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=yes
+        fi
+        _LT_AC_TAGVAR(allow_undefined_flag, $1)=$lt_save_allow_undefined_flag
+      else
+        cat conftest.err 1>&5
+      fi
+      $rm conftest*
+      AC_MSG_RESULT([$_LT_AC_TAGVAR(archive_cmds_need_lc, $1)])
+      ;;
+    esac
+  fi
+  ;;
+esac
+])# AC_LIBTOOL_PROG_LD_SHLIBS
+
+
+# _LT_AC_FILE_LTDLL_C
+# -------------------
+# Be careful that the start marker always follows a newline.
+AC_DEFUN([_LT_AC_FILE_LTDLL_C], [
+# /* ltdll.c starts here */
+# #define WIN32_LEAN_AND_MEAN
+# #include <windows.h>
+# #undef WIN32_LEAN_AND_MEAN
+# #include <stdio.h>
+#
+# #ifndef __CYGWIN__
+# #  ifdef __CYGWIN32__
+# #    define __CYGWIN__ __CYGWIN32__
+# #  endif
+# #endif
+#
+# #ifdef __cplusplus
+# extern "C" {
+# #endif
+# BOOL APIENTRY DllMain (HINSTANCE hInst, DWORD reason, LPVOID reserved);
+# #ifdef __cplusplus
+# }
+# #endif
+#
+# #ifdef __CYGWIN__
+# #include <cygwin/cygwin_dll.h>
+# DECLARE_CYGWIN_DLL( DllMain );
+# #endif
+# HINSTANCE __hDllInstance_base;
+#
+# BOOL APIENTRY
+# DllMain (HINSTANCE hInst, DWORD reason, LPVOID reserved)
+# {
+#   __hDllInstance_base = hInst;
+#   return TRUE;
+# }
+# /* ltdll.c ends here */
+])# _LT_AC_FILE_LTDLL_C
+
+
+# _LT_AC_TAGVAR(VARNAME, [TAGNAME])
+# ---------------------------------
+AC_DEFUN([_LT_AC_TAGVAR], [ifelse([$2], [], [$1], [$1_$2])])
+
+
+# old names
+AC_DEFUN([AM_PROG_LIBTOOL],   [AC_PROG_LIBTOOL])
+AC_DEFUN([AM_ENABLE_SHARED],  [AC_ENABLE_SHARED($@)])
+AC_DEFUN([AM_ENABLE_STATIC],  [AC_ENABLE_STATIC($@)])
+AC_DEFUN([AM_DISABLE_SHARED], [AC_DISABLE_SHARED($@)])
+AC_DEFUN([AM_DISABLE_STATIC], [AC_DISABLE_STATIC($@)])
+AC_DEFUN([AM_PROG_LD],        [AC_PROG_LD])
+AC_DEFUN([AM_PROG_NM],        [AC_PROG_NM])
+
+# This is just to silence aclocal about the macro not being used
+ifelse([AC_DISABLE_FAST_INSTALL])
 
 AC_DEFUN([LT_AC_PROG_GCJ],
 [AC_CHECK_TOOL(GCJ, gcj, no)
@@ -11241,40 +12305,17 @@ AC_DEFUN([LT_AC_PROG_RC],
 [AC_CHECK_TOOL(RC, windres, no)
 ])
 
-# old names
-AU_DEFUN([AM_PROG_LIBTOOL],   [AC_PROG_LIBTOOL])
-AU_DEFUN([AM_ENABLE_SHARED],  [AC_ENABLE_SHARED($@)])
-AU_DEFUN([AM_ENABLE_STATIC],  [AC_ENABLE_STATIC($@)])
-AU_DEFUN([AM_DISABLE_SHARED], [AC_DISABLE_SHARED($@)])
-AU_DEFUN([AM_DISABLE_STATIC], [AC_DISABLE_STATIC($@)])
-AU_DEFUN([AM_PROG_LD],        [AC_PROG_LD])
-AU_DEFUN([AM_PROG_NM],        [AC_PROG_NM])
-
-# This is just to silence aclocal about the macro not being used
-m4_if([AC_DISABLE_FAST_INSTALL])
-
-
-# LT_AC_PROG_SED
-# --------------
-# Check for a fully-functional sed program, that truncates
-# as few characters as possible.  Prefer GNU sed if found.
-AC_DEFUN([LT_AC_PROG_SED],
-[AC_PROG_SED
-test -z "$SED" && SED=sed
-_LT_DECL([], [SED], [1], [A sed program that does not truncate output])
-_LT_DECL([], [Xsed], ["\$SED -e s/^X//"],
-    [Sed that helps us avoid accidentally triggering echo(1) options like -n])
-])# LT_AC_PROG_SED
-
-m4_ifndef([AC_PROG_SED], [
 ############################################################
 # NOTE: This macro has been submitted for inclusion into   #
 #  GNU Autoconf as AC_PROG_SED.  When it is available in   #
 #  a released version of Autoconf we should remove this    #
 #  macro and use it instead.                               #
 ############################################################
-
-m4_define([AC_PROG_SED],
+# LT_AC_PROG_SED
+# --------------
+# Check for a fully-functional sed program, that truncates
+# as few characters as possible.  Prefer GNU sed if found.
+AC_DEFUN([LT_AC_PROG_SED],
 [AC_MSG_CHECKING([for a sed that does not truncate output])
 AC_CACHE_VAL(lt_cv_path_SED,
 [# Loop through the user's path and test for sed and gsed.
@@ -11297,7 +12338,7 @@ lt_ac_count=0
 # Add /usr/xpg4/bin/sed as it is typically found on Solaris
 # along with /bin/sed that truncates output.
 for lt_ac_sed in $lt_ac_sed_list /usr/xpg4/bin/sed; do
-  test ! -f $lt_ac_sed && break
+  test ! -f $lt_ac_sed && continue
   cat /dev/null > conftest.in
   lt_ac_count=0
   echo $ECHO_N "0123456789$ECHO_C" >conftest.in
@@ -11322,12 +12363,10 @@ for lt_ac_sed in $lt_ac_sed_list /usr/xpg4/bin/sed; do
     fi
   done
 done
-SED=$lt_cv_path_SED
-AC_SUBST([SED])
 ])
+SED=$lt_cv_path_SED
 AC_MSG_RESULT([$SED])
-])#AC_PROG_SED
-])#m4_ifndef
+])
 # ltsugar.m4 -- libtool m4 base layer.                         -*-Autoconf-*-
 #
 # Copyright (C) 2004 Free Software Foundation, Inc.

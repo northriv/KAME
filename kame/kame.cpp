@@ -49,6 +49,7 @@
 #include "rubythreadtool.h"
 #include "caltableform.h"
 #include "recordreaderform.h"
+#include "nodebrowserform.h"
 #include "interfacetool.h"
 #include "graphtool.h"
 #include "drivertool.h"
@@ -103,6 +104,11 @@ FrmKameMain::FrmKameMain()
     accessor = addToolWindow( m_pFrmCalTable, KDockWidget::DockLeft, 
 							  getMainDockWidget(), 20, m_pFrmCalTable->caption() );    
         
+    m_pFrmNodeBrowser = new FrmNodeBrowser(this, "NodeBrowser");
+    m_pFrmNodeBrowser->setIcon(app->iconLoader()->loadIcon("unknown", KIcon::Toolbar, 0, KIcon::DefaultState, 0, false ) );
+    accessor = addToolWindow( m_pFrmNodeBrowser, KDockWidget::DockLeft, 
+							  getMainDockWidget(), 20, m_pFrmNodeBrowser->caption() );    
+
     // actions
     m_pFileOpenAction = new QAction( this, "fileOpenAction" );
 //     fileOpenAction->setIconSet( QIconSet( *IconKame48x48 ) );

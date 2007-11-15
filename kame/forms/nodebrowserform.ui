@@ -1,0 +1,95 @@
+<!DOCTYPE UI><UI version="3.3" stdsetdef="1">
+<class>FrmNodeBrowser</class>
+<widget class="QWidget">
+    <property name="name">
+        <cstring>FrmNodeBrowser</cstring>
+    </property>
+    <property name="enabled">
+        <bool>true</bool>
+    </property>
+    <property name="geometry">
+        <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>278</width>
+            <height>217</height>
+        </rect>
+    </property>
+    <property name="sizePolicy">
+        <sizepolicy>
+            <hsizetype>5</hsizetype>
+            <vsizetype>5</vsizetype>
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+        </sizepolicy>
+    </property>
+    <property name="caption">
+        <string>Node Browser</string>
+    </property>
+    <grid>
+        <property name="name">
+            <cstring>unnamed</cstring>
+        </property>
+        <property name="margin">
+            <number>2</number>
+        </property>
+        <widget class="QLayoutWidget" row="0" column="0">
+            <property name="name">
+                <cstring>layout12</cstring>
+            </property>
+            <grid>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+
+                <widget class="QLineEdit" row="1" column="0">
+                    <property name="name">
+                        <cstring>m_edValue</cstring>
+                    </property>
+		            <property name="enabled">
+		                <bool>true</bool>
+		            </property>
+                </widget>
+		        <widget class="QTextBrowser" row="0" column="0">
+		            <property name="name">
+		                <cstring>m_txtDesc</cstring>
+		            </property>
+		            <property name="enabled">
+		                <bool>true</bool>
+		            </property>
+		            <property name="minimumSize">
+		                <size>
+		                    <width>400</width>
+		                    <height>200</height>
+		                </size>
+		            </property>
+		            <property name="font">
+		                <font>
+		                    <pointsize>10</pointsize>
+		                </font>
+		            </property>
+		            <property name="hScrollBarMode">
+		                <enum>AlwaysOn</enum>
+		            </property>
+		            <property name="textFormat">
+		                <enum>PlainText</enum>
+		            </property>
+		            <property name="wrapPolicy">
+		                <enum>Anywhere</enum>
+		            </property>
+		            <property name="autoFormatting">
+		                <set>AutoAll</set>
+		            </property>
+		        </widget>
+            </grid>
+        </widget>
+    </grid>
+</widget>
+<customwidgets>
+</customwidgets>
+<tabstops>
+</tabstops>
+<layoutdefaults spacing="6" margin="11"/>
+<includehints>
+</includehints>
+</UI>

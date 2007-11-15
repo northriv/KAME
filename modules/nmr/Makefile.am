@@ -30,14 +30,13 @@ libnmr_la_SOURCES = \
 	nmrrelaxfit.cpp nmrrelaxfit.h \
 	nmrrelax.cpp nmrrelax.h
 	
-libnmrpulser_la_LIBADD = core/libnmrpulsercore.la \
+libnmrpulser_la_LIBADD = core/libnmrcore.la \
 	../charinterface/libcharinterface.la
-libsg_la_LIBADD = core/libsgcore.la \
+libsg_la_LIBADD = core/libnmrcore.la \
 	../charinterface/libcharinterface.la
 libnmr_la_LIBADD = core/forms/libnmrforms.la \
 	../charinterface/libcharinterface.la \
-	core/libsgcore.la \
-	core/libnmrpulsercore.la \
+	core/libnmrcore.la \
 	../dmm/core/libdmmcore.la \
 	../dso/core/libdsocore.la \
 	../magnetps/core/libmagnetpscore.la \

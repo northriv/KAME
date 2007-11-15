@@ -50,19 +50,6 @@ SUBDIRS = forms script driver graph thermometer analyzer icons mikachanfont
 
 EXTRA_DIST = kame.desktop lo32-app-kame.png lo16-app-kame.png
 
-install-data-local:
-	$(mkinstalldirs) $(kde_appsdir)/Applications/
-	$(INSTALL_DATA) $(srcdir)/kame.desktop $(kde_appsdir)/Applications/kame.desktop
-	$(mkinstalldirs) $(kde_icondir)/hicolor/32x32/apps/
-	$(INSTALL_DATA) $(srcdir)/hi32-app-kame.png $(kde_icondir)/hicolor/32x32/apps/kame.png
-	$(mkinstalldirs) $(kde_icondir)/hicolor/16x16/apps/
-	$(INSTALL_DATA) $(srcdir)/hi16-app-kame.png $(kde_icondir)/hicolor/16x16/apps/kame.png
-
-uninstall-local:
-	-rm -f $(kde_appsdir)/Applications/kame.desktop
-	-rm -f $(kde_icondir)/hicolor/32x32/apps/kame.png
-	-rm -f $(kde_icondir)/hicolor/16x16/apps/kame.png
-
 # These paths are KDE specific. Use them:
 # kde_appsdir         Where your application's menu entry (.desktop) should go to.
 # kde_icondir         Where your icon should go to - better use KDE_ICON.
@@ -86,11 +73,16 @@ uninstall-local:
 
 METASOURCES = AUTO
 
+messages: rc.cpp
+	LIST=`find . -name \*.h -o -name \*.cpp`; \
+	if test -n "$$LIST"; then \
+	 $(XGETTEXT) -ki18n -kI18N_NOOP -ktr2i18n $$LIST -o $(podir)/kame.pot; \
+	fi
+
+KDE_ICON = AUTO
+
+# this is where the kdelnk file will go
+xdg_apps_DATA = kame.desktop
+
 rcdir = $(kde_datadir)/kame
 rc_DATA = 
-
-messages: rc.cpp
-	LIST=`find . -name \*.h -o -name \*.hh -o -name \*.H -o -name \*.hxx -o -name \*.hpp -o -name \*.cpp -o -name \*.cc -o -name \*.cxx -o -name \*.ecpp -o -name \*.C`; \
-	if test -n "$$LIST"; then \
-	 $(XGETTEXT) -ki18n -kI18N_NOOP -ktr2i18n $$LIST -o ../po/kame.pot; \
-	fi

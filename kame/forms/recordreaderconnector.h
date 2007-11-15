@@ -13,8 +13,8 @@
 ***************************************************************************/
 //---------------------------------------------------------------------------
 
-#ifndef recordreaderformH
-#define recordreaderformH
+#ifndef recordreaderconnectorH
+#define recordreaderconnectorH
 //---------------------------------------------------------------------------
 #include "xnodeconnector.h"
 

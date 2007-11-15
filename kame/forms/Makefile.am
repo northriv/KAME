@@ -14,10 +14,11 @@ libforms_a_SOURCES = recordreaderform.ui \
 	interfacetool.ui \
 	drivercreate.ui \
 	rubythreadtool.ui \
+	nodebrowserform.ui \
 	recordreaderconnector.cpp recordreaderconnector.h \
 	driverlistconnector.cpp driverlistconnector.h \
 	interfacelistconnector.cpp interfacelistconnector.h \
 	graphlistconnector.cpp graphlistconnector.h \
-	entrylistconnector.cpp entrylistconnector.h
-
+	entrylistconnector.cpp entrylistconnector.h \
+	nodebrowser.cpp nodebrowser.h
 	

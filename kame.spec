@@ -7,7 +7,7 @@ Name: kame
 
 %{!?build_nidaqmx: %define build_nidaqmx 1}
 
-Version: 2.2.16
+Version: 2.2.17
 Release: 1
 License: GPL
 Group: Applications/Engineering
@@ -90,7 +90,7 @@ rm -rf $RPM_BUILD_ROOT
 %files
 %defattr(-,root,root)
 %{_bindir}/kame
-%{_datadir}/applnk/Applications/*.desktop
+%{_datadir}/applications/kde/*.desktop
 %{_datadir}/apps/kame
 %{_datadir}/icons/*/*/apps/*.png
 %{_datadir}/locale/*/LC_MESSAGES/*.mo
@@ -116,8 +116,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/kame/modules/libnetworkanalyzer*
 
 %files modules-nmr
-%{_libdir}/kame/libnmrpulsercore*
-%{_libdir}/kame/libsgcore*
+%{_libdir}/kame/libnmrcore*
 %{_libdir}/kame/modules/libnmr*
 %{_libdir}/kame/modules/libsg*
 

@@ -26,6 +26,7 @@ class FrmInterface;
 class FrmDriver;
 class FrmEntry;
 class FrmSequence;
+class FrmNodeBrowser;
 class QTimer;
 class QAction;
 class QPopupMenu;
@@ -71,10 +72,11 @@ public:
     FrmInterface *m_pFrmInterface;
     FrmDriver *m_pFrmDriver;
     FrmEntry *m_pFrmScalarEntry;
+    FrmNodeBrowser *m_pFrmNodeBrowser;
     
     int openMes(const QString &filename);
 public slots:
-virtual void fileCloseAction_activated();
+	virtual void fileCloseAction_activated();
     virtual void fileExitAction_activated();
     virtual void fileOpenAction_activated();
     virtual void fileSaveAction_activated();
@@ -87,7 +89,7 @@ virtual void fileCloseAction_activated();
     virtual void scriptDotSaveAction_activated();
     virtual void fileLogAction_toggled( bool var );
 protected slots:
-virtual void aboutToQuit();
+	virtual void aboutToQuit();
 	virtual void processSignals();
 private:
     void closeEvent( QCloseEvent* ce );

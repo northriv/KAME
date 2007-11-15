@@ -35,12 +35,14 @@
 #include <qmainwindow.h>
 #include <kfiledialog.h>
 #include <klocale.h>
+#include <map>
 #include "measure.h"
 
 #include "icons/icon.h"
 
-std::deque<shared_ptr<XQConnector> > XQConnector::s_thisCreating;
-std::deque<shared_ptr<XStatusPrinter> > XStatusPrinter::s_thisCreating;
+static std::deque<shared_ptr<XQConnector> > s_conCreating;
+static std::deque<shared_ptr<XStatusPrinter> > s_statusPrinterCreating;
+static std::map<const QWidget*, weak_ptr<XNode> > s_widgetMap;
 
 //ms
 #define UI_DISP_DELAY 10
@@ -54,8 +56,8 @@ void _sharedPtrQDeleter(QObject *obj) {
 
 _XQConnectorHolder::_XQConnectorHolder(XQConnector *con) :
     QObject(0L, "connector_holder") {
-    m_connector = XQConnector::s_thisCreating.back();
-    XQConnector::s_thisCreating.pop_back();
+    m_connector = s_conCreating.back();
+    s_conCreating.pop_back();
     connect(con->m_pWidget, SIGNAL( destroyed() ), this, SLOT( destroyed() ) );
     ASSERT(con->shared_from_this());
 }
@@ -71,6 +73,9 @@ _XQConnectorHolder::isAlive() const {
 void
 _XQConnectorHolder::destroyed () {
 	disconnect(m_connector->m_pWidget, SIGNAL( destroyed() ), this, SLOT( destroyed() ) );
+	std::map<const QWidget*, weak_ptr<XNode> >::iterator it = s_widgetMap.find(m_connector->m_pWidget);
+	ASSERT(it != s_widgetMap.end());
+	s_widgetMap.erase(it);
 	m_connector->m_pWidget = 0L;
 	m_connector.reset();
 }
@@ -82,7 +87,7 @@ XQConnector::XQConnector(const shared_ptr<XNode> &node, QWidget *item)
 {
     ASSERT(node);
     ASSERT(item);
-    XQConnector::s_thisCreating.push_back(shared_ptr<XQConnector>(this));
+    s_conCreating.push_back(shared_ptr<XQConnector>(this));
     m_lsnUIEnabled = node->onUIEnabled().connectWeak
         (shared_from_this(), &XQConnector::onUIEnabled,
 		 XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
@@ -91,6 +96,11 @@ XQConnector::XQConnector(const shared_ptr<XNode> &node, QWidget *item)
 			 .arg(name())
 			 .arg((unsigned int)this, 0, 16)
 			 .arg((unsigned int)sizeof(XQConnector), 0, 16));
+    
+    std::pair<std::map<const QWidget*, weak_ptr<XNode> >::iterator, bool> ret = 
+    		s_widgetMap.insert(std::pair<const QWidget*, weak_ptr<XNode> >(item, node));
+    if(!ret.second)
+    	gErrPrint("Connection to Widget Duplicated!");
 #ifdef HAVE_LIBGCCPP
     GC_gcollect();
 #endif
@@ -99,14 +109,26 @@ XQConnector::~XQConnector() {
     if(isItemAlive()) {
         m_pWidget->setEnabled(false);
         dbgPrint(QString("connector %1 released., addr=0x%2").arg(name()).arg((unsigned int)this, 0, 16));
+    	std::map<const QWidget*, weak_ptr<XNode> >::iterator it = s_widgetMap.find(m_pWidget);
+    	ASSERT(it != s_widgetMap.end());
+    	s_widgetMap.erase(it);
     }
     else {
         dbgPrint(QString("connector %1 & widget released., addr=0x%2").arg(name()).arg((unsigned int)this, 0, 16));
     }
+
 #ifdef HAVE_LIBGCCPP
     GC_gcollect();
 #endif
 }
+shared_ptr<XNode>
+XQConnector::connectedNode(const QWidget *item) {
+	std::map<const QWidget*, weak_ptr<XNode> >::iterator it = s_widgetMap.find(item);
+	if(it == s_widgetMap.end())
+		return shared_ptr<XNode>();
+	return it->second.lock();
+}
+
 void
 XQConnector::onUIEnabled(const shared_ptr<XNode> &node) {
     m_pWidget->setEnabled(node->isUIEnabled());
@@ -639,7 +661,7 @@ XStatusPrinter::XStatusPrinter(QMainWindow *window)
     m_pWindow = (window);
     m_pBar = (window->statusBar());
     m_pPopup  = (new KPassivePopup( window ));
-    XStatusPrinter::s_thisCreating.push_back(shared_ptr<XStatusPrinter>(this));
+    s_statusPrinterCreating.push_back(shared_ptr<XStatusPrinter>(this));
 	m_pBar->hide();
 	m_lsn = m_tlkTalker.connectWeak(
         shared_from_this(), &XStatusPrinter::print,
@@ -651,8 +673,8 @@ shared_ptr<XStatusPrinter>
 XStatusPrinter::create(QMainWindow *window)
 {
     new XStatusPrinter(window);
-    shared_ptr<XStatusPrinter> ptr = XStatusPrinter::s_thisCreating.back();
-    XStatusPrinter::s_thisCreating.pop_back();
+    shared_ptr<XStatusPrinter> ptr = s_statusPrinterCreating.back();
+    s_statusPrinterCreating.pop_back();
     return ptr;
 }
 void

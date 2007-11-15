@@ -71,6 +71,7 @@ public:
 	std::string getTypename() const;
  
 	shared_ptr<XNode> getChild(const std::string &var) const;
+	shared_ptr<XNode> getParent() const;
 
 	typedef std::deque<shared_ptr<XNode> > NodeList;
 	//! \return null if node has no child.
@@ -113,6 +114,7 @@ private:
 	int m_flags;
   
 	static XThreadLocal<NodeList> stl_thisCreating;
+	weak_ptr<XNode> m_parent;
 };
 
 //! Base class containing values

@@ -4,11 +4,11 @@ KAME needs following libraries:
 kdelibs and others depending on kdelibs
 ruby
 gsl
-fftw
-linux-gpib (optionally)
-National Instruments DAQmx library (optionally)
-FTGL (must be included in source tree)
-mikachanfont (must be included in source tree)
+fftw2
+linux-gpib (optional)
+National Instruments DAQmx library (optional)
+FTGL (could be included in source tree)
+mikachanfont (included in source tree)
 
 ftgl must be expanded to KAME root source directory.
 The document files and the font file of mikachanfont must be copied to (root-source)/kame/mikachanfont

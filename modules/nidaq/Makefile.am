@@ -20,7 +20,7 @@ libnidaq_la_SOURCES = \
 	
 libnidaq_la_LIBADD = \
 	../dso/core/libdsocore.la \
-	../nmr/core/libnmrpulsercore.la \
+	../nmr/core/libnmrcore.la \
 	@NIDAQMX_LIBS@
 
 METASOURCES = AUTO

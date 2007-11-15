@@ -49,6 +49,8 @@ void
 XNode::insert(const shared_ptr<XNode> &ptr)
 {
     ASSERT(ptr);
+    if(!ptr->m_parent.lock())
+    	ptr->m_parent = shared_from_this();
     for(;;) {
         atomic_shared_ptr<NodeList> old_list(m_children);
         atomic_shared_ptr<NodeList> new_list(old_list ? (new NodeList(*old_list)) : (new NodeList));        
@@ -56,7 +58,6 @@ XNode::insert(const shared_ptr<XNode> &ptr)
         if(new_list.compareAndSwap(old_list, m_children)) break;
     }
 }
-
 void
 XNode::disable() {
 	for(;;) {
@@ -89,6 +90,7 @@ XNode::clearChildren()
 int
 XNode::releaseChild(const shared_ptr<XNode> &node)
 {
+//	node->m_parent.reset();
     for(;;) {
         atomic_shared_ptr<NodeList> old_list(m_children);
         if(!old_list) return -1;
@@ -117,6 +119,11 @@ XNode::getChild(const std::string &var) const
 		}
 	}
 	return node;
+}
+shared_ptr<XNode>
+XNode::getParent() const
+{
+	return m_parent.lock();
 }
 
 XValueNodeBase::XValueNodeBase(const char *name, bool runtime) : 

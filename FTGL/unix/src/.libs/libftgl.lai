@@ -14,7 +14,7 @@ library_names=''
 old_library='libftgl.a'
 
 # Libraries that this one depends upon.
-dependency_libs=' -L/usr/X11R6/lib -lfreetype -lGLU -lGL'
+dependency_libs=' -L/usr/X11/lib /usr/X11/lib/libfreetype.la -lz -lGLU -L/System/Library/Frameworks/OpenGL.framework/Versions/A/Libraries -lGL'
 
 # Version information for libftgl.
 current=0
