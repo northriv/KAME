@@ -1,3 +1,12 @@
+* Fri Nov 16 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.2.17-1)
+- Replace admin dir.
+- kame/Makefile.am: simplified.
+- configure.in.in: fix for ruby.h.
+- node browser.
+- node: remember parent.
+- nmrcore: merge sgcore and pulsercore.
+
 * Sun Nov 11 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.2.16-1)
 - secondarydriver: Improved stability regarding dead-locks.
