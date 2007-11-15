@@ -79,7 +79,7 @@ XNodeBrowser::process() {
 //		str += "\nName: ";
 //		str += node->getName();
 		str += "\n";
-		if(!node->isUIEnabled()) str+= "UI disabled.\n";
+		if(!node->isUIEnabled()) str+= "UI/scripting disabled.\n";
 		if(node->isRunTime()) str+= "For run-time only.\n";
 		str += "<font color=#005500>Type:</font> ";
 		str += node->getTypename();
