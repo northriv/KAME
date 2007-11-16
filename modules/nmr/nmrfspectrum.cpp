@@ -36,8 +36,8 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 	  m_freqStep(create<XDoubleNode>("FreqStep", false)),
 	  m_active(create<XBoolNode>("Active", true))
 {
-	connect(sg1(), false);
-	connect(sg2(), false);
+	connect(sg1(), true);
+	connect(sg2(), true);
 
 	m_form->setCaption(KAME::i18n("NMR Spectrum (Freq. Sweep) - ") + getLabel() );
 

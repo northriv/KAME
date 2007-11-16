@@ -78,19 +78,19 @@ XNodeBrowser::process() {
 		str += node->getLabel();
 //		str += "\nName: ";
 //		str += node->getName();
-		str += "\n";
-		if(!node->isUIEnabled()) str+= "UI/scripting disabled.\n";
-		if(node->isRunTime()) str+= "For run-time only.\n";
+		str += "<br>";
+		if(!node->isUIEnabled()) str+= "UI/scripting disabled.<br>";
+		if(node->isRunTime()) str+= "For run-time only.<br>";
 		str += "<font color=#005500>Type:</font> ";
 		str += node->getTypename();
-		str += "\n";
+		str += "<br>";
 		std::string rbpath;
 		shared_ptr<XNode> cnode = node;
 		while(cnode) {
 			if((rbpath.length() > 64) ||
 					(cnode == m_root.lock())) {
-				str += "<font color=#550000>Ruby object:</font>\n Measurement" + rbpath;
-				str += "\n<font color=#550000>Supported Ruby methods:</font>"
+				str += "<font color=#550000>Ruby object:</font><br> Measurement" + rbpath;
+				str += "<br><font color=#550000>Supported Ruby methods:</font>"
 					" name() touch() child(<font color=#000088><i>name/idx</i></font>)"
 					" [](<font color=#000088><i>name/idx</i></font>) count() each() to_ary()";
 				if(valuenode)
@@ -100,7 +100,7 @@ XNodeBrowser::process() {
 				if(listnode)
 					str += " create(<font color=#000088><i>type</i></font>, <font color=#000088><i>name</i></font>)"
 						" release()";
-				str += "\n";
+				str += "<br>";
 				break;
 			}
 			rbpath = formatString("[\"%s\"]%s", cnode->getName().c_str(), rbpath.c_str());
@@ -108,16 +108,16 @@ XNodeBrowser::process() {
 		}
 		if(!cnode) {
 //			str += rbpath;
-			str += "Inaccessible from the root object.\n";		
+			str += "Inaccessible from the root object.<br>";		
 		}
 		atomic_shared_ptr<const XNode::NodeList> list(node->children());
 		if(list) { 
-			str += formatString("<font color=#005500>%u Child(ren):</font> \n", (unsigned int)list->size());
+			str += formatString("<font color=#005500>%u Child(ren):</font> <br>", (unsigned int)list->size());
 			for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
 				str += " ";
 				str += (*it)->getName();
 			}
-			str += "\n";
+			str += "<br>";
 		}
 		m_desc->str(str);
 	}
