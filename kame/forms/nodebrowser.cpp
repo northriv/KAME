@@ -33,7 +33,7 @@ XNodeBrowser::XNodeBrowser
 	m_pTimer = new QTimer(this);
 	connect(m_pTimer, SIGNAL (timeout() ), this, SLOT(process()));
 	m_pTimer->start(500);
-	form->m_txtDesc->setTextFormat(Qt::LogText);
+	form->m_txtDesc->setTextFormat(Qt::RichText);
 }
 
 XNodeBrowser::~XNodeBrowser()
@@ -90,15 +90,15 @@ XNodeBrowser::process() {
 			if((rbpath.length() > 64) ||
 					(cnode == m_root.lock())) {
 				str += "<font color=#550000>Ruby object:</font>\n Measurement" + rbpath;
-				str += "\n<font color=#550000>Supported Ruby methods:</font> \n"
-					" name() touch() child(<font color=#000088>name/idx</font>)"
-					" [](<font color=#000088>name/idx</font>) count() each() to_ary()";
+				str += "\n<font color=#550000>Supported Ruby methods:</font>"
+					" name() touch() child(<font color=#000088><i>name/idx</i></font>)"
+					" [](<font color=#000088><i>name/idx</i></font>) count() each() to_ary()";
 				if(valuenode)
-					str += " set(<font color=#000088>x</font>)"
-						" value=<font color=#000088>x</font> load(<font color=#000088>x</font>)"
-						" &lt;&lt;<font color=#000088>x</font> get() value() to_str()";
+					str += " set(<font color=#000088><i>x</i></font>)"
+						" value=<font color=#000088><i>x</i></font> load(<font color=#000088><i>x</i></font>)"
+						" &lt;&lt;<font color=#000088><i>x</i></font> get() value() to_str()";
 				if(listnode)
-					str += " create(<font color=#000088>type</font>, <font color=#000088>name</font>)"
+					str += " create(<font color=#000088><i>type</i></font>, <font color=#000088><i>name</i></font>)"
 						" release()";
 				str += "\n";
 				break;
