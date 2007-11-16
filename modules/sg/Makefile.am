@@ -7,6 +7,7 @@ INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/modules/charinterface \
 	-I$(top_srcdir)/kame/driver \
 	-I$(top_srcdir)/kame/analyzer \
+	-I$(top_srcdir)/modules/sg/core \
 	-Icore/forms \
 	$(all_includes)
 
