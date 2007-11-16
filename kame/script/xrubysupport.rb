@@ -47,6 +47,7 @@ end
 
 #function to dump exception info
 def print_exception(exc)
+	print "Exception raised:"
 	$stderr.print exc.message, "\n"
 	bt_shown = false
 	exc.backtrace.each {|b|
@@ -258,12 +259,12 @@ begin
 		          begin
 		             print thread.inspect + "\n"
 					 filename.untaint
-					 $SAFE = (/\.seq/i =~ filename) ? 0 : 3
+					 $SAFE = (/\.seq/i =~ filename) ? 0 : 1
 		             load filename
 		             print thread.to_s + " Finished.\n"
 		          rescue ScriptError, StandardError
-		    		     $! = RuntimeError.new("unknown exception raised") unless $!
-		    		     print_exception($!)
+	    		     $! = RuntimeError.new("unknown exception raised") unless $!
+	    		     print_exception($!)
 		     	  end
 		       }
 		       if thread then
