@@ -116,7 +116,8 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/kame/modules/libnetworkanalyzer*
 
 %files modules-nmr
-%{_libdir}/kame/libnmrcore*
+%{_libdir}/kame/libnmrpulsercore*
+%{_libdir}/kame/libsgcore*
 %{_libdir}/kame/modules/libnmr*
 %{_libdir}/kame/modules/libsg*
 
