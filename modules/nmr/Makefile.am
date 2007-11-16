@@ -1,8 +1,7 @@
 moduleexecdir=$(pkglibdir)/modules
-moduleexec_LTLIBRARIES = libnmrpulser.la libsg.la libnmr.la
+moduleexec_LTLIBRARIES = libnmrpulser.la libnmr.la
 
 libnmrpulser_la_LDFLAGS = -module
-libsg_la_LDFLAGS = -module
 libnmr_la_LDFLAGS = -module
 
 INCLUDES = -I$(top_srcdir)/kame \
@@ -15,13 +14,13 @@ INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/kame/graph \
 	-I$(top_builddir)/kame/graph \
 	-I$(top_srcdir)/modules/nmr/core \
+	-I$(top_srcdir)/modules/sg/core \
 	-Icore/forms \
 	$(all_includes)
 
 libnmrpulser_la_SOURCES = \
 	pulserdriversh.cpp pulserdriversh.h \
 	pulserdriverh8.cpp pulserdriverh8.h
-libsg_la_SOURCES = 
 libnmr_la_SOURCES = \
 	nmrpulse.cpp nmrpulse.h \
 	nmrspectrumbase.cpp nmrspectrumbase.h \
@@ -30,15 +29,14 @@ libnmr_la_SOURCES = \
 	nmrrelaxfit.cpp nmrrelaxfit.h \
 	nmrrelax.cpp nmrrelax.h
 	
-libnmrpulser_la_LIBADD = core/libnmrcore.la \
-	../charinterface/libcharinterface.la
-libsg_la_LIBADD = core/libnmrcore.la \
+libnmrpulser_la_LIBADD = core/libnmrpulsercore.la \
 	../charinterface/libcharinterface.la
 libnmr_la_LIBADD = core/forms/libnmrforms.la \
 	../charinterface/libcharinterface.la \
-	core/libnmrcore.la \
+	core/libnmrpulsercore.la \
 	../dmm/core/libdmmcore.la \
 	../dso/core/libdsocore.la \
+	../sg/core/libsgcore.la \
 	../magnetps/core/libmagnetpscore.la \
 	@FFTW_LIBS@ @GSL_LIBS@
 
