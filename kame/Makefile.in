@@ -113,6 +113,7 @@ __um_includes_map = xnodeconnector.cpp
 __um_includes_math.h = main.cpp xsignal.cpp xtime.cpp spinlock.h xitemnode.cpp rwlock.cpp xnodeconnector.cpp xnode.cpp threadlocal.cpp xscheduler.cpp support.cpp kame.cpp xlistnode.cpp measure.cpp thread.cpp
 __um_includes_measure.h = xnodeconnector.cpp support.cpp kame.cpp measure.cpp
 __um_includes_memory = xsignal.cpp xscheduler.cpp kame.cpp
+__um_includes_nodebrowserform.h = kame.cpp
 __um_includes_pthread.h = main.cpp xsignal.cpp xtime.cpp spinlock.h xitemnode.cpp rwlock.cpp xnodeconnector.cpp xnode.cpp threadlocal.cpp xscheduler.cpp support.cpp kame.cpp xlistnode.cpp measure.cpp thread.cpp
 __um_includes_pthreadlock.h = main.cpp xsignal.cpp spinlock.h xitemnode.cpp rwlock.cpp xnodeconnector.cpp xnode.cpp xscheduler.cpp support.cpp kame.cpp xlistnode.cpp measure.cpp thread.cpp
 __um_includes_qaction.h = kame.cpp

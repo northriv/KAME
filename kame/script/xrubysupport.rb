@@ -44,17 +44,36 @@ class << $stderr
     }
   end
 end
+class Mystdin
+	def getc()
+		raise RuntimeError.new("Unsupported function.")
+	end
+	def gets()
+		while(1)
+			line = XRubyThreads.my_rbdefin(Thread.current.object_id)
+			if !line then
+				sleep(0.1)
+				next
+			end
+			return line
+		end
+	end
+	def readline()
+		self.gets()
+	end
+end
+$stdin = Mystdin.new
 
 #function to dump exception info
 def print_exception(exc)
 	print "Exception raised:"
-	$stderr.print exc.message, "\n"
+	$stderr.print exc.message
 	bt_shown = false
 	exc.backtrace.each {|b|
-		$stderr.print b, "\n" unless b.include?(__FILE__)
+		$stderr.print b unless b.include?(__FILE__)
 		bt_shown = true
 	}
-	$stderr.print exc.backtrace[0], "\n" unless bt_shown
+	$stderr.print exc.backtrace[0] unless bt_shown
 end
 
 #useful modules
@@ -259,10 +278,10 @@ begin
 		          begin
 		             print thread.inspect + "\n"
 					 filename.untaint
-					 $SAFE = (/\.seq/i =~ filename) ? 0 : 1
+					 $SAFE = (/\.kam/i =~ filename) ? 1 : 0
 		             load filename
 		             print thread.to_s + " Finished.\n"
-		          rescue ScriptError, StandardError
+		          rescue ScriptError, StandardError, SystemExit
 	    		     $! = RuntimeError.new("unknown exception raised") unless $!
 	    		     print_exception($!)
 		     	  end
@@ -285,7 +304,7 @@ begin
 	
 	 sleep(MONITOR_PERIOD)
 	end
-rescue ScriptError, StandardError
+rescue ScriptError, StandardError, SystemExit
 	$! = RuntimeError.new("unknown exception raised") unless $!
 	print_exception($!)
 end

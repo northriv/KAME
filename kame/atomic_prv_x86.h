@@ -1,16 +1,16 @@
 /***************************************************************************
 		Copyright (C) 2002-2007 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
-		
+
 		This program is free software; you can redistribute it and/or
 		modify it under the terms of the GNU Library General Public
 		License as published by the Free Software Foundation; either
 		version 2 of the License, or (at your option) any later version.
-		
+
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
-***************************************************************************/
+ ***************************************************************************/
 #ifndef ATOMIC_PRV_X86_H_
 #define ATOMIC_PRV_X86_H_
 
@@ -21,15 +21,15 @@
 //! memory barriers. 
 inline void readBarrier() {
 	asm volatile( "lfence" ::: "memory" );
-//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
+	//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
 }
 inline void writeBarrier() {
 	asm volatile( "sfence" ::: "memory" );
-//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
+	//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
 }
 inline void memoryBarrier() {
 	asm volatile( "mfence" ::: "memory" );
-//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
+	//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
 }
 
 //! at the moment, monitor/mwait is not supported in the user land.
@@ -101,13 +101,13 @@ template <typename T, typename X>
 typename boost::enable_if_c<
 boost::is_pod<T>::value && (sizeof(T) == sizeof(int_cas2_both)) && (sizeof(X) >= sizeof(int_cas2_each)), bool>::type
 atomicCompareAndSet(
-								T oldv,
-								T newv, X *target ) {
+	T oldv,
+	T newv, X *target ) {
 	return atomicCompareAndSet2((uint_cas2_each)(*((uint_cas2_both*)&oldv) % (1uLL << 8 * sizeof(uint_cas2_each))), 
-								(uint_cas2_each)(*((uint_cas2_both*)&oldv) / (1uLL << 8 * sizeof(uint_cas2_each))),
-								(uint_cas2_each)(*((uint_cas2_both*)&newv) % (1uLL << 8 * sizeof(uint_cas2_each))),
-								(uint_cas2_each)(*((uint_cas2_both*)&newv) / (1uLL << 8 * sizeof(uint_cas2_each))),
-								(uint_cas2_each*)target);
+		(uint_cas2_each)(*((uint_cas2_both*)&oldv) / (1uLL << 8 * sizeof(uint_cas2_each))),
+		(uint_cas2_each)(*((uint_cas2_both*)&newv) % (1uLL << 8 * sizeof(uint_cas2_each))),
+		(uint_cas2_each)(*((uint_cas2_both*)&newv) / (1uLL << 8 * sizeof(uint_cas2_each))),
+		(uint_cas2_each*)target);
 }
 
 //! \return true if old == *target and new value is assigned
@@ -127,58 +127,58 @@ atomicCompareAndSet(T oldv, T newv, T *target ) {
 template <typename T>
 inline T atomicSwap(T v, T *target ) {
 	asm volatile (
-				"xchg%z0 %0,%1" //lock prefix is not needed.
-				: "=r" (v)
-				: "m" (*target), "0" (v)
-				: "memory" );
+		"xchg%z0 %0,%1" //lock prefix is not needed.
+		: "=r" (v)
+		: "m" (*target), "0" (v)
+		: "memory" );
 	return v;
 }
 template <typename T>
 inline void atomicAdd(T *target, T x ) {
 	asm volatile (
-				"lock; add%z0 %1,%0"
-				:
-				: "m" (*target), "ir" (x)
-				: "memory" );
+		"lock; add%z0 %1,%0"
+		:
+		: "m" (*target), "ir" (x)
+		: "memory" );
 }
 //! \return true if new value is zero.
 template <typename T>
 inline bool atomicAddAndTest(T *target, T x ) {
 	register unsigned char ret;
 	asm volatile (
-				"lock; add%z1 %2,%1;"
-				" sete %0" // ret = zflag ? 1 : 0
-				: "=q" (ret)
-				: "m" (*target), "ir" (x)
-				: "memory" );
+		"lock; add%z1 %2,%1;"
+		" sete %0" // ret = zflag ? 1 : 0
+		: "=q" (ret)
+		: "m" (*target), "ir" (x)
+		: "memory" );
 	return ret;
 }
 template <typename T>
 inline void atomicInc(T *target ) {
 	asm volatile (
-				"lock; inc%z0 %0"
-				:
-				: "m" (*target)
-				: "memory" );
+		"lock; inc%z0 %0"
+		:
+		: "m" (*target)
+		: "memory" );
 }
 template <typename T>
 inline void atomicDec(T *target ) {
 	asm volatile (
-				"lock; dec%z0 %0"
-				:
-				: "m" (*target)
-				: "memory" );
+		"lock; dec%z0 %0"
+		:
+		: "m" (*target)
+		: "memory" );
 }
 //! \return zero flag.
 template <typename T>
 inline bool atomicDecAndTest(T *target ) {
 	register unsigned char ret;
 	asm volatile (
-				"lock; dec%z1 %1;"
-				" sete %0" // ret = zflag ? 1 : 0
-				: "=q" (ret)
-				: "m" (*target)
-				: "memory" );
+		"lock; dec%z1 %1;"
+		" sete %0" // ret = zflag ? 1 : 0
+		: "=q" (ret)
+		: "m" (*target)
+		: "memory" );
 	return ret;
 }
 

@@ -1,16 +1,16 @@
 /***************************************************************************
 		Copyright (C) 2002-2007 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
-		
+
 		This program is free software; you can redistribute it and/or
 		modify it under the terms of the GNU Library General Public
 		License as published by the Free Software Foundation; either
 		version 2 of the License, or (at your option) any later version.
-		
+
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
-***************************************************************************/
+ ***************************************************************************/
 //---------------------------------------------------------------------------
 #include "nodebrowser.h"
 #include "nodebrowserform.h"
@@ -24,11 +24,11 @@
 
 XNodeBrowser::XNodeBrowser
 (const shared_ptr<XNode> &root, FrmNodeBrowser *form)
-	: XQConnector(root, form),
-	m_root(root),
-	m_pForm(form),
-	m_desc(createOrphan<XStringNode>("Desc", true)),
-	m_conDesc(xqcon_create<XQTextBrowserConnector>(m_desc, form->m_txtDesc))
+: XQConnector(root, form),
+m_root(root),
+m_pForm(form),
+m_desc(createOrphan<XStringNode>("Desc", true)),
+m_conDesc(xqcon_create<XQTextBrowserConnector>(m_desc, form->m_txtDesc))
 {
 	m_pTimer = new QTimer(this);
 	connect(m_pTimer, SIGNAL (timeout() ), this, SLOT(process()));
@@ -43,7 +43,7 @@ XNodeBrowser::~XNodeBrowser()
 shared_ptr<XNode>
 XNodeBrowser::connectedNode(QWidget *widget) {
 	if(!widget || (widget == m_pForm->m_txtDesc) ||
-			(widget == m_pForm->m_edValue) || (widget == m_pForm)) {
+		(widget == m_pForm->m_edValue) || (widget == m_pForm)) {
 		return shared_ptr<XNode>();
 	}
 	return XQConnector::connectedNode(widget);
@@ -53,15 +53,19 @@ void
 XNodeBrowser::process() {
 	QWidget *widget;
 	shared_ptr<XNode> node;
-//	widget = KApplication::kApplication()->focusWidget();
-//		node = connectedNode(widget);
+	//	widget = KApplication::kApplication()->focusWidget();
+	//		node = connectedNode(widget);
 	if(!node) {
 		widget = KApplication::widgetAt(QCursor::pos(), true);
 		node = connectedNode(widget);
-	}
-	if(!node && widget) {
-		widget = widget->parentWidget();
-		node = connectedNode(widget);
+		if(!node && widget) {
+			widget = widget->parentWidget();
+			node = connectedNode(widget);
+			if(!node && widget) {
+				widget = widget->parentWidget();
+				node = connectedNode(widget);
+			}
+		}
 	}
 
 	if(!node)
@@ -76,8 +80,8 @@ XNodeBrowser::process() {
 		QString str;
 		str += "<font color=#005500>Label:</font> ";
 		str += node->getLabel();
-//		str += "\nName: ";
-//		str += node->getName();
+		//		str += "\nName: ";
+		//		str += node->getName();
 		str += "<br>";
 		if(!node->isUIEnabled()) str+= "UI/scripting disabled.<br>";
 		if(node->isRunTime()) str+= "For run-time only.<br>";
@@ -88,7 +92,7 @@ XNodeBrowser::process() {
 		shared_ptr<XNode> cnode = node;
 		while(cnode) {
 			if((rbpath.length() > 64) ||
-					(cnode == m_root.lock())) {
+				(cnode == m_root.lock())) {
 				str += "<font color=#550000>Ruby object:</font><br> Measurement" + rbpath;
 				str += "<br><font color=#550000>Supported Ruby methods:</font>"
 					" name() touch() child(<font color=#000088><i>name/idx</i></font>)"
@@ -107,8 +111,8 @@ XNodeBrowser::process() {
 			cnode = cnode->getParent();
 		}
 		if(!cnode) {
-//			str += rbpath;
-			str += "Inaccessible from the root object.<br>";		
+			//			str += rbpath;
+			str += "Inaccessible from the root.<br>";		
 		}
 		atomic_shared_ptr<const XNode::NodeList> list(node->children());
 		if(list) { 

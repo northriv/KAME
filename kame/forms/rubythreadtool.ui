@@ -19,7 +19,7 @@
         <property name="name">
             <cstring>unnamed</cstring>
         </property>
-        <widget class="QPushButton" row="3" column="3">
+        <widget class="QPushButton" row="4" column="3">
             <property name="name">
                 <cstring>m_pbtnKill</cstring>
             </property>
@@ -27,7 +27,7 @@
                 <string>KILL</string>
             </property>
         </widget>
-        <widget class="QPushButton" row="3" column="1" rowspan="1" colspan="2">
+        <widget class="QPushButton" row="4" column="1" rowspan="1" colspan="2">
             <property name="name">
                 <cstring>m_pbtnResume</cstring>
             </property>
@@ -35,7 +35,7 @@
                 <string>RESUME</string>
             </property>
         </widget>
-        <spacer row="3" column="0">
+        <spacer row="4" column="0">
             <property name="name">
                 <cstring>spacer1</cstring>
             </property>
@@ -91,7 +91,39 @@
                 <set>AutoAll</set>
             </property>
         </widget>
-        <widget class="QLabel" row="0" column="0" rowspan="1" colspan="4">
+	    <widget class="QLabel" row="3" column="0" rowspan="1" colspan="1">
+            <property name="name">
+                <cstring>lbl2</cstring>
+            </property>
+            <property name="sizePolicy">
+                <sizepolicy>
+                    <hsizetype>5</hsizetype>
+                    <vsizetype>5</vsizetype>
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                </sizepolicy>
+            </property>
+            <property name="alignment">
+                <set>AlignVCenter|AlignRight</set>
+            </property>
+            <property name="text">
+                <string>Interact</string>
+            </property>
+        </widget>
+        <widget class="QLineEdit" row="3" column="1" rowspan="1" colspan="3">
+            <property name="name">
+                <cstring>m_edLineinput</cstring>
+            </property>
+            <property name="enabled">
+                <bool>false</bool>
+            </property>
+            <property name="font">
+                <font>
+                    <pointsize>10</pointsize>
+                </font>
+            </property>
+        </widget>        
+	    <widget class="QLabel" row="0" column="0" rowspan="1" colspan="4">
             <property name="name">
                 <cstring>m_plblFilename</cstring>
             </property>

@@ -18,13 +18,16 @@ XRubyThread::XRubyThread(const char *name, bool runtime, const QString &filename
 	  m_filename(create<XStringNode>("Filename", true)),
 	  m_status(create<XStringNode>("Status", true)),
 	  m_action(create<XStringNode>("Action", true)),
-	  m_threadID(create<XIntNode>("ThreadID", true))
- 
+	  m_threadID(create<XIntNode>("ThreadID", true)),
+	  m_lineinput(create<XStringNode>("LineInput", true))
 {
     m_threadID->value(-1);
     m_filename->value(filename);
     m_action->value(RUBY_THREAD_ACTION_STARTING);
     m_status->value(RUBY_THREAD_STATUS_STARTING);
+    lineinput()->setUIEnabled(false);
+    m_lsnOnLineChanged = lineinput()->onValueChanged().connectWeak(shared_from_this(),
+        &XRubyThread::onLineChanged);
 }
  
 bool
@@ -41,9 +44,33 @@ void
 XRubyThread::kill()
 {
     m_action->value(RUBY_THREAD_ACTION_KILL);
+	lineinput()->setUIEnabled(false);
 }
 void
 XRubyThread::resume()
 {
     m_action->value(RUBY_THREAD_ACTION_WAKEUP);
+}
+void
+XRubyThread::onLineChanged(const shared_ptr<XValueNodeBase> &)
+{
+	std::string line = *lineinput();
+	XScopedLock<XMutex> lock(m_lineBufferMutex);
+	m_lineBuffer.push_back(line);
+	lineinput()->onValueChanged().mask();
+	lineinput()->value("");
+	lineinput()->onValueChanged().unmask();
+}
+
+std::string
+XRubyThread::gets() {	
+	XScopedLock<XMutex> lock(m_lineBufferMutex);
+	if(!m_lineBuffer.size()) {
+		lineinput()->setUIEnabled(true);
+		return std::string();
+	}
+	std::string line = m_lineBuffer.front();
+	m_lineBuffer.pop_front();
+//	lineinput()->setUIEnabled(false);
+	return line + "\n";
 }

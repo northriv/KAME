@@ -1,16 +1,16 @@
 /***************************************************************************
 		Copyright (C) 2002-2007 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
-		
+
 		This program is free software; you can redistribute it and/or
 		modify it under the terms of the GNU Library General Public
 		License as published by the Free Software Foundation; either
 		version 2 of the License, or (at your option) any later version.
-		
+
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
-***************************************************************************/
+ ***************************************************************************/
 //Every KAME source must include this header
 //---------------------------------------------------------------------------
 
@@ -48,7 +48,7 @@
   #error Could not define 32bit integer.
   #endif
   #endif
-*/
+ */
 
 #ifdef HAVE_LIBGCCPP
 //Boehm GC stuff
@@ -95,7 +95,7 @@ public:
 #define C_ASSERT(expr) _my_cassert(sizeof(char [ ( expr ) ? 1 : -1 ]))
 void my_assert(const char *file, int line);
 inline void _my_assert(bool var, const char *file, int line) {
-    if (!var) my_assert(file, line);
+	if (!var) my_assert(file, line);
 }
 inline void _my_cassert(size_t ) {}
 #endif
@@ -131,17 +131,17 @@ _gWarnPrint(const QString &str, const char *file, int line);
 
 //! Base of exception
 struct XKameError {
-    //! errno is read and cleared after a construction
-    XKameError(const QString &s, const char *file, int line);
-    void print();
-    void print(const QString &header);
-    static void print(const QString &msg, const char *file, int line, int _errno);
-    const QString &msg() const;
+	//! errno is read and cleared after a construction
+	XKameError(const QString &s, const char *file, int line);
+	void print();
+	void print(const QString &header);
+	static void print(const QString &msg, const char *file, int line, int _errno);
+	const QString &msg() const;
 private:
-    const QString m_msg;
-    const char *const m_file;
-    const int m_line;
-    const int m_errno;
+	const QString m_msg;
+	const char *const m_file;
+	const int m_line;
+	const int m_errno;
 };
 
 //! If true, Log all dbgPrint().
@@ -161,7 +161,7 @@ std::string dumpCString(const char *cstr);
 
 //! \sa printf()
 std::string formatString(const char *format, ...)
-	__attribute__ ((format(printf,1,2)));
+__attribute__ ((format(printf,1,2)));
 
 std::string formatDouble(const char *fmt, double val);
 //! validator
@@ -170,10 +170,10 @@ std::string formatDouble(const char *fmt, double val);
 void formatDoubleValidator(std::string &fmt);
 
 namespace KAME {
-    unsigned int rand();
-    //! thread-safe version of i18n().
-    //! this is not needed in QT4 or later.
-    QString i18n(const char* eng);    
+unsigned int rand();
+//! thread-safe version of i18n().
+//! this is not needed in QT4 or later.
+QString i18n(const char* eng);    
 }
 
 #if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__

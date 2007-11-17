@@ -47,8 +47,11 @@ private:
 	VALUE rbClassNode, rbClassValueNode, rbClassListNode;
 	//! delete Wrapper struct
 	static void rnode_free(void *);
-	//! def. output
+	static shared_ptr<XRubyThread> findRubyThread(VALUE self, VALUE threadid);
+	//! def. output write()
 	static VALUE my_rbdefout(VALUE self, VALUE str, VALUE threadid);
+	//! def. input gets(). Return nil if the buffer is empty.
+	static VALUE my_rbdefin(VALUE self, VALUE threadid);
 	//! 
 	static VALUE is_main_terminated(VALUE self);
 	//! XNode wrappers

@@ -453,11 +453,10 @@ XRuby::getValueOfNode(const shared_ptr<XValueNodeBase> &node)
   return Qnil;
 }
 
-VALUE
-XRuby::my_rbdefout(VALUE self, VALUE str, VALUE threadid)
+shared_ptr<XRubyThread>
+XRuby::findRubyThread(VALUE self, VALUE threadid)
 {
   int id = NUM2INT(threadid);
-  shared_ptr<std::string> sstr(new std::string(RSTRING(str)->ptr));
   struct rnode_ptr *st;
   Data_Get_Struct(self, struct rnode_ptr, st);
   shared_ptr<XRubyThread> rubythread;
@@ -470,12 +469,33 @@ XRuby::my_rbdefout(VALUE self, VALUE str, VALUE threadid)
             rubythread = th;
       }
   }
+  return rubythread;
+}
+VALUE
+XRuby::my_rbdefout(VALUE self, VALUE str, VALUE threadid)
+{
+  shared_ptr<std::string> sstr(new std::string(RSTRING(str)->ptr));
+  shared_ptr<XRubyThread> rubythread(findRubyThread(self, threadid));
   if(rubythread) {
       rubythread->onMessageOut().talk(sstr);
       dbgPrint(QString("Ruby [%1]; %2").arg(rubythread->filename()->to_str()).arg(*sstr));
   }
   else {
       dbgPrint(QString("Ruby [global]; %1").arg(*sstr));
+  }
+  return Qnil;
+}
+VALUE
+XRuby::my_rbdefin(VALUE self, VALUE threadid)
+{
+  shared_ptr<XRubyThread> rubythread(findRubyThread(self, threadid));
+  if(rubythread) {
+      std::string line = rubythread->gets();
+      if(line.length())
+    	  return string2RSTRING(line);
+  }
+  else {
+    rb_raise(rb_eRuntimeError, "UNKNOWN Ruby thread\n");
   }
   return Qnil;
 }
@@ -528,6 +548,7 @@ XRuby::execute(const atomic<bool> &terminated)
       {
           VALUE rbRubyThreads = rnode_create(shared_from_this(), this);
           rb_define_singleton_method(rbRubyThreads, "my_rbdefout", (fp)my_rbdefout, 2);
+          rb_define_singleton_method(rbRubyThreads, "my_rbdefin", (fp)my_rbdefin, 1);
           rb_define_singleton_method(rbRubyThreads, "is_main_terminated", (fp)is_main_terminated, 0);
           rb_define_global_const("XRubyThreads", rbRubyThreads);
       }

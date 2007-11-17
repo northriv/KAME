@@ -17,7 +17,8 @@
 #include <qpushbutton.h>
 #include <qlabel.h>
 #include <qtextbrowser.h>
-#include "forms/rubythreadtool.h"
+#include <qlineedit.h>
+#include "rubythreadtool.h"
 #include "icons/icon.h"
 #include <kapplication.h>
 #include <kiconloader.h>
@@ -38,7 +39,9 @@ XRubyThreadConnector::XRubyThreadConnector(
     m_conResume(xqcon_create<XQButtonConnector>(
 					m_resume, (form->m_pbtnResume))),
     m_conKill(xqcon_create<XQButtonConnector>(
-				  m_kill, (form->m_pbtnKill)))
+				  m_kill, form->m_pbtnKill)),
+	m_conLineinput(xqcon_create<XQLineEditConnector>(
+				  rbthread->lineinput(), form->m_edLineinput))
 {
     form->m_pbtnResume->setIconSet(
 		KApplication::kApplication()->iconLoader()->loadIconSet("exec", 

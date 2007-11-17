@@ -36,6 +36,7 @@
 #include <kiconloader.h>
 #include <klocale.h>
 #include <kapplication.h>
+#include <kstandarddirs.h>
 
 #include "kame.h"
 #include "xsignal.h"
@@ -105,7 +106,7 @@ FrmKameMain::FrmKameMain()
 							  getMainDockWidget(), 20, m_pFrmCalTable->caption() );    
         
     m_pFrmNodeBrowser = new FrmNodeBrowser(this, "NodeBrowser");
-    m_pFrmNodeBrowser->setIcon(app->iconLoader()->loadIcon("unknown", KIcon::Toolbar, 0, KIcon::DefaultState, 0, false ) );
+    m_pFrmNodeBrowser->setIcon(app->iconLoader()->loadIcon("find", KIcon::Toolbar, 0, KIcon::DefaultState, 0, false ) );
     accessor = addToolWindow( m_pFrmNodeBrowser, KDockWidget::DockLeft, 
 							  getMainDockWidget(), 20, m_pFrmNodeBrowser->caption() );    
 
@@ -146,6 +147,10 @@ FrmKameMain::FrmKameMain()
     m_pScriptRunAction = new QAction( this, "scriptRunAction" );
     m_pScriptRunAction->setEnabled( TRUE );
     m_pScriptRunAction->setIconSet( QIconSet( *g_pIconScript) );
+    m_pScriptInterrupterAction = new QAction( this, "scriptInterrupterAction" );
+    m_pScriptInterrupterAction->setEnabled( TRUE );
+    m_pScriptInterrupterAction->setIconSet( app->iconLoader()->loadIconSet("openterm", 
+		   KIcon::Toolbar, 0, false ) );
     m_pScriptDotSaveAction = new QAction( this, "scriptDotSaveAction" );
     m_pScriptDotSaveAction->setEnabled( TRUE );
     m_pScriptDotSaveAction->setIconSet( app->iconLoader()->loadIconSet("filesave", 
@@ -175,6 +180,7 @@ FrmKameMain::FrmKameMain()
 
     m_pScriptMenu = new QPopupMenu( this );
     m_pScriptRunAction->addTo( m_pScriptMenu );
+    m_pScriptInterrupterAction->addTo( m_pScriptMenu );
     m_pScriptMenu->insertSeparator();
     m_pScriptDotSaveAction->addTo( m_pScriptMenu );
     m_pMenubar->insertItem( QString(""), m_pScriptMenu, 3 );
@@ -213,6 +219,7 @@ FrmKameMain::FrmKameMain()
 //    m_pMesRunAction->setMenuText( KAME::i18n( "&Run" ) );
     m_pMesStopAction->setMenuText( KAME::i18n( "&Stop" ) );
     m_pScriptRunAction->setMenuText( KAME::i18n( "&Run..." ) );
+    m_pScriptInterrupterAction->setMenuText( KAME::i18n( "&Open Interrupter..." ) );
     m_pScriptDotSaveAction->setMenuText( KAME::i18n( "&Graphviz Save .dot..." ) );
     m_pFileCloseAction->setText( KAME::i18n( "Close" ) );
     m_pFileCloseAction->setMenuText( KAME::i18n( "&Close" ) );
@@ -246,6 +253,7 @@ FrmKameMain::FrmKameMain()
 //    connect( m_pMesRunAction, SIGNAL( activated() ), this, SLOT( mesRunAction_activated() ) );
     connect( m_pMesStopAction, SIGNAL( activated() ), this, SLOT( mesStopAction_activated() ) );
     connect( m_pScriptRunAction, SIGNAL( activated() ), this, SLOT( scriptRunAction_activated() ) );
+    connect( m_pScriptInterrupterAction, SIGNAL( activated() ), this, SLOT( scriptInterrupterAction_activated() ) );
     connect( m_pScriptDotSaveAction, SIGNAL( activated() ), this, SLOT( scriptDotSaveAction_activated() ) );
     connect( m_pFileLogAction, SIGNAL( toggled(bool) ), this, SLOT( fileLogAction_toggled(bool) ) );
     
@@ -419,7 +427,24 @@ void FrmKameMain::mesStopAction_activated()
 */
 }
 
-
+void FrmKameMain::runNewScript(const QString &label, const QString &filename) {
+	shared_ptr<XRubyThread> rbthread = m_measure->ruby()->
+		create<XRubyThread>(label.latin1(), true, filename );
+	FrmRubyThread* form = new FrmRubyThread(this);
+	m_conRubyThreadList.push_back(xqcon_create<XRubyThreadConnector>(
+									  rbthread, form, m_measure->ruby()));
+	addWindow(createWrapper(form, form->caption(), form->caption()));
+	// erase unused xqcon_ptr
+	for(std::deque<xqcon_ptr>::iterator it = m_conRubyThreadList.begin();
+		it != m_conRubyThreadList.end(); ) {
+		if((*it)->isAlive()) {
+			it++;
+		}
+		else {
+			it = m_conRubyThreadList.erase(it);
+		}
+	}
+}
 void FrmKameMain::scriptRunAction_activated()
 {
 	QString filename = KFileDialog::getOpenFileName (
@@ -427,26 +452,23 @@ void FrmKameMain::scriptRunAction_activated()
 		"*.seq|KAME Script files (*.seq)",
 		this,
 		KAME::i18n("Open Script File") );
-	if(!filename.isEmpty())
-	{
+	if(!filename.isEmpty()) {
 		static unsigned int thread_no = 1;
-		shared_ptr<XRubyThread> rbthread = m_measure->ruby()->
-			create<XRubyThread>(QString().sprintf("Thread%d", thread_no).latin1(), true, filename );
+		runNewScript(QString().sprintf("Thread%d", thread_no).latin1(), filename );
 		thread_no++;
-		FrmRubyThread* form = new FrmRubyThread(this);
-		m_conRubyThreadList.push_back(xqcon_create<XRubyThreadConnector>(
-										  rbthread, form, m_measure->ruby()));
-		addWindow(createWrapper(form, form->caption(), form->caption()));
-		// erase unused xqcon_ptr
-		for(std::deque<xqcon_ptr>::iterator it = m_conRubyThreadList.begin();
-			it != m_conRubyThreadList.end(); ) {
-			if((*it)->isAlive()) {
-				it++;
-			}
-			else {
-				it = m_conRubyThreadList.erase(it);
-			}
-		}
+	}
+}
+
+void FrmKameMain::scriptInterrupterAction_activated()
+{
+    QString filename = ::locate("appdata", "rubyinterrupter.rb");
+    if(filename.isEmpty()) {
+        g_statusPrinter->printError("No KAME ruby support file installed.");
+    }
+    else {
+		static unsigned int int_no = 1;
+		runNewScript(QString().sprintf("Interrupter%d", int_no).latin1(), filename );
+		int_no++;
 	}
 }
 

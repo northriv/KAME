@@ -966,6 +966,7 @@ XPulser::rawToRelPat() throw (XRecordError&)
 		pos += _p1;
        
 		//pi/2 pulse
+		bool _g2_kept_p1p2 = false;
 		if(_pw1/2) {
 			//on
 			patterns_cheap.insert(tpat(pos - _pw1/2 - _g2_setup, qpsk[p1[j]], qpskmask));
@@ -980,6 +981,9 @@ XPulser::rawToRelPat() throw (XRecordError&)
 			patterns.insert(tpat(pos + _pw1/2, 0, pulse1mask));
 			if(!_pw2/2 || (_g2_setup * 2 + _pw1/2 + _pw2/2 < _tau)) {
 				patterns.insert(tpat(pos + _pw1/2, 0, g2mask));
+			}
+			else {
+				_g2_kept_p1p2 = true;
 			}
 			if(! _qsw_pi_only) {
 				patterns.insert(tpat(pos + _pw1/2 + _qsw_delay, ~(uint32_t)0 , qswmask));
@@ -1016,8 +1020,10 @@ XPulser::rawToRelPat() throw (XRecordError&)
 			if(_pw2/2) {
 				patterns.insert(tpat(pos - _pw2/2, 0, trig2mask));
 				//on
-				patterns_cheap.insert(tpat(pos - _pw2/2 - _g2_setup, qpsk[p2[j]], qpskmask));
-				patterns_cheap.insert(tpat(pos - _pw2/2 - _g2_setup, ~(uint32_t)0, g2mask));
+				if(!_g2_kept_p1p2) {
+					patterns_cheap.insert(tpat(pos - _pw2/2 - _g2_setup, qpsk[p2[j]], qpskmask));
+					patterns_cheap.insert(tpat(pos - _pw2/2 - _g2_setup, ~(uint32_t)0, g2mask));
+				}
 
 				patterns.insert(tpat(pos - _pw2/2, PAT_QAM_PULSE_IDX_P2, PAT_QAM_PULSE_IDX_MASK));
 				patterns.insert(tpat(pos - _pw2/2, ~(uint32_t)0, g1mask));
@@ -1026,6 +1032,7 @@ XPulser::rawToRelPat() throw (XRecordError&)
 				patterns.insert(tpat(pos + _pw2/2, 0, g1mask));
 				patterns.insert(tpat(pos + _pw2/2, 0, pulse2mask));
 				patterns.insert(tpat(pos + _pw2/2, 0, g2mask));
+				_g2_kept_p1p2 = false;
 				//QSW
 				patterns.insert(tpat(pos + _pw2/2 + _qsw_delay, ~(uint32_t)0 , qswmask));
 				patterns.insert(tpat(pos + _pw2/2 + (_qsw_delay + _qsw_width/2 - _qsw_softswoff/2), 0 , qswmask));
@@ -1033,6 +1040,8 @@ XPulser::rawToRelPat() throw (XRecordError&)
 				patterns.insert(tpat(pos + _pw2/2 + (_qsw_delay + _qsw_width), 0 , qswmask));
 			}
 		}
+		if(_g2_kept_p1p2)
+			throw XDriver::XRecordError("Inconsistent pattern of pulser setup.", __FILE__, __LINE__);
 
 		patterns.insert(tpat(pos + _tau + _asw_hold, 0, aswmask | trig1mask));
 		//induce emission

@@ -46,7 +46,7 @@ private:
     FrmRubyThread *const m_pForm;
     const shared_ptr<XRubyThread> m_rubyThread;
     const shared_ptr<XRuby> m_rubySupport;
-    xqcon_ptr m_conFilename, m_conStatus, m_conResume, m_conKill;
+    xqcon_ptr m_conFilename, m_conStatus, m_conResume, m_conKill, m_conLineinput;
 };
 
 #endif /*XRUBYTHREADCONNECTOR_H_*/

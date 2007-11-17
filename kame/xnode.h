@@ -1,16 +1,16 @@
 /***************************************************************************
 		Copyright (C) 2002-2007 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
-		
+
 		This program is free software; you can redistribute it and/or
 		modify it under the terms of the GNU Library General Public
 		License as published by the Free Software Foundation; either
 		version 2 of the License, or (at your option) any later version.
-		
+
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
-***************************************************************************/
+ ***************************************************************************/
 #ifndef xnodeH
 #define xnodeH
 
@@ -30,21 +30,21 @@ template <class T, typename X, typename Y, typename Z, typename ZZ>
 shared_ptr<T> createOrphan(const char *name, bool runtime, X x, Y y, Z z, ZZ z);
 
 #define XNODE_OBJECT  template <class _T> \
-  friend shared_ptr<_T> createOrphan(const char *name, bool runtime); \
-  template <class _T, typename _X> \
-  friend shared_ptr<_T> createOrphan(const char *name, bool runtime, _X x); \
-  template <class _T, typename _X, typename _Y> \
-  friend shared_ptr<_T> createOrphan(const char *name, bool runtime, _X x, _Y y); \
-  template <class _T, typename _X, typename _Y, typename _Z> \
-  friend shared_ptr<_T> createOrphan(const char *name, bool runtime, _X x, _Y y, _Z z); \
-  template <class _T, typename _X, typename _Y, typename _Z, typename _ZZ> \
-  friend shared_ptr<_T> createOrphan(const char *name, bool runtime, _X x, _Y y, _Z z, _ZZ zz);
-  
+	friend shared_ptr<_T> createOrphan(const char *name, bool runtime); \
+	template <class _T, typename _X> \
+	friend shared_ptr<_T> createOrphan(const char *name, bool runtime, _X x); \
+	template <class _T, typename _X, typename _Y> \
+	friend shared_ptr<_T> createOrphan(const char *name, bool runtime, _X x, _Y y); \
+	template <class _T, typename _X, typename _Y, typename _Z> \
+	friend shared_ptr<_T> createOrphan(const char *name, bool runtime, _X x, _Y y, _Z z); \
+	template <class _T, typename _X, typename _Y, typename _Z, typename _ZZ> \
+	friend shared_ptr<_T> createOrphan(const char *name, bool runtime, _X x, _Y y, _Z z, _ZZ zz);
+
 //! XNode supports loading/saveing to XML, GUI framework, basic signaling among threads
 class XNode : public enable_shared_from_this<XNode>
 #ifdef HAVE_LIBGCCPP
-			, public kame_gc
-		  #endif
+, public kame_gc
+#endif
 {
 	//! use XNODE_OBJECT in sub-classes
 	XNODE_OBJECT
@@ -52,7 +52,7 @@ protected:
 	explicit XNode(const char *name, bool runtime = false);
 public:
 	virtual ~XNode();  
-  
+
 	template <class T>
 	shared_ptr<T> create(const char *name, bool runtime = false);
 	template <class T, typename X>
@@ -63,20 +63,20 @@ public:
 	shared_ptr<T> create(const char *name, bool runtime, X x, Y y, Z z);
 	template <class T, typename X, typename Y, typename Z, typename ZZ>
 	shared_ptr<T> create(const char *name, bool runtime, X x, Y y, Z z, ZZ z);
-  
+
 	//! \return internal/script name. Use latin1 chars.
 	std::string getName() const;
 	//! \return i18n name for UI.
 	virtual std::string getLabel() const {return getName();}
 	std::string getTypename() const;
- 
+
 	shared_ptr<XNode> getChild(const std::string &var) const;
 	shared_ptr<XNode> getParent() const;
 
 	typedef std::deque<shared_ptr<XNode> > NodeList;
 	//! \return null if node has no child.
 	atomic_shared_ptr<const NodeList> children() const {return m_children;}
-  
+
 	void clearChildren();
 	int releaseChild(const shared_ptr<XNode> &node);
 
@@ -98,21 +98,21 @@ public:
 	//! If true, operation allowed by GUI
 	//! \sa setUIEnabled
 	XTalker<shared_ptr<XNode> > &onUIEnabled() {return m_tlkOnUIEnabled;}
-  
+
 	virtual void insert(const shared_ptr<XNode> &ptr);
 protected: 
 	//! If false, all operations have to be disabled. 
 	bool isEnabled() const {return m_flags & FLAG_ENABLED;}
 
 	atomic_shared_ptr<NodeList> m_children;
-  
+
 	XTalker<shared_ptr<XNode> > m_tlkOnTouch;
 	XTalker<shared_ptr<XNode> > m_tlkOnUIEnabled;
 private:
 	const std::string m_name;
 	enum {FLAG_RUNTIME = 0x1, FLAG_ENABLED = 0x2, FLAG_UI_ENABLED = 0x4};
 	int m_flags;
-  
+
 	static XThreadLocal<NodeList> stl_thisCreating;
 	weak_ptr<XNode> m_parent;
 };
@@ -142,7 +142,7 @@ public:
 	{return m_tlkOnValueChanged;}
 protected:
 	virtual void _str(const std::string &str) throw (XKameError &) = 0;
-  
+
 	XTalker<shared_ptr<XValueNodeBase> > m_tlkBeforeValueChanged;
 	XTalker<shared_ptr<XValueNodeBase> > m_tlkOnValueChanged;
 	Validator m_validator;
@@ -193,7 +193,7 @@ class XValueNode : public XValueNodeBase
 	XNODE_OBJECT
 protected:
 	explicit XValueNode(const char *name, bool runtime = false)
-		: XValueNodeBase(name, runtime), m_var(0) {}
+	: XValueNodeBase(name, runtime), m_var(0) {}
 public:
 	virtual ~XValueNode() {}
 	virtual operator T() const {return m_var;}
@@ -251,7 +251,7 @@ XNode::create(const char *name, bool runtime, X x, Y y, Z z, ZZ zz)
 	insert(ptr);
 	return ptr;
 }
-  
+
 template <class T>
 shared_ptr<T>
 createOrphan(const char *name, bool runtime)

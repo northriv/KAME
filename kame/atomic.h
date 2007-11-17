@@ -1,16 +1,16 @@
 /***************************************************************************
 		Copyright (C) 2002-2007 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
-		
+
 		This program is free software; you can redistribute it and/or
 		modify it under the terms of the GNU Library General Public
 		License as published by the Free Software Foundation; either
 		version 2 of the License, or (at your option) any later version.
-		
+
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
-***************************************************************************/
+ ***************************************************************************/
 #ifndef ATOMIC_H_
 #define ATOMIC_H_
 
@@ -107,7 +107,7 @@ protected:
 template <typename T>
 class atomic<T, typename boost::enable_if_c<
 (sizeof(int_cas2_both) == sizeof(T)) && boost::is_pod<T>::value>::type>
- : public atomic_pod_cas2<T>
+: public atomic_pod_cas2<T>
 {
 public:
 	atomic() {}
@@ -120,7 +120,7 @@ template <typename T>
 class atomic<T, typename boost::enable_if_c<
 (sizeof(int_cas_max) >= sizeof(T)) && boost::is_pod<T>::value && 
 !boost::is_integral<T>::value>::type>
- : public atomic_pod_cas<T>
+: public atomic_pod_cas<T>
 {
 public:
 	atomic() {}
@@ -132,7 +132,7 @@ public:
 template <typename T>
 class atomic<T, typename boost::enable_if_c<
 (sizeof(int_cas_max) >= sizeof(T)) && boost::is_integral<T>::value>::type >
- : public atomic_pod_cas<T>
+: public atomic_pod_cas<T>
 {
 public:
 	atomic() : atomic_pod_cas<T>((T)0) {}

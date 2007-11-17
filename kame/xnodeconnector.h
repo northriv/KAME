@@ -1,16 +1,16 @@
 /***************************************************************************
 		Copyright (C) 2002-2007 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
-		
+
 		This program is free software; you can redistribute it and/or
 		modify it under the terms of the GNU Library General Public
 		License as published by the Free Software Foundation; either
 		version 2 of the License, or (at your option) any later version.
-		
+
 		You should have received a copy of the GNU Library General 
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
-***************************************************************************/
+ ***************************************************************************/
 //---------------------------------------------------------------------------
 
 #ifndef xnodeconnectorH
@@ -29,7 +29,7 @@ extern QWidget *g_pFrmMain;
 //! use connectWeak() to make XListener.
 //! use xqcon_create<T>() to make instances
 class XQConnector : public QObject,
-					public enable_shared_from_this<XQConnector>
+public enable_shared_from_this<XQConnector>
 {
 	//! don't forget this
 	Q_OBJECT
@@ -65,7 +65,7 @@ public:
 	virtual ~XQButtonConnector();
 private slots:
 protected slots:
-	virtual void onClick();
+virtual void onClick();
 protected:
 	virtual void onTouch(const shared_ptr<XNode> &node);
 	shared_ptr<XListener> m_lsnTouch;
@@ -97,14 +97,14 @@ class XQLineEditConnector : public XValueQConnector
 	XQCON_OBJECT
 protected:
 	XQLineEditConnector(const shared_ptr<XValueNodeBase> &node,
-						QLineEdit *item, bool forcereturn = true);
+		QLineEdit *item, bool forcereturn = true);
 public:
 	virtual ~XQLineEditConnector() {}
 protected slots:
-	void onTextChanged(const QString &);
-	void onTextChanged2(const QString &);
-	void onReturnPressed();
-	void onExit();
+void onTextChanged(const QString &);
+void onTextChanged2(const QString &);
+void onReturnPressed();
+void onExit();
 protected:
 	virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
 	virtual void onValueChanged(const shared_ptr<XValueNodeBase> &);
@@ -120,7 +120,7 @@ class XQTextBrowserConnector : public XValueQConnector
 	XQCON_OBJECT
 protected:
 	XQTextBrowserConnector(const shared_ptr<XValueNodeBase> &node,
-						   QTextBrowser *item);
+		QTextBrowser *item);
 public:
 	virtual ~XQTextBrowserConnector() {}
 protected slots:
@@ -139,13 +139,13 @@ class XKIntNumInputConnector : public XValueQConnector
 	XQCON_OBJECT
 protected:
 	XKIntNumInputConnector(const shared_ptr<XIntNode> &node,
-						   KIntNumInput *item);
+		KIntNumInput *item);
 	XKIntNumInputConnector(const shared_ptr<XUIntNode> &node,
-						   KIntNumInput *item);
+		KIntNumInput *item);
 public:
 	virtual ~XKIntNumInputConnector() {}
 protected slots:
-	void onChange(int val);
+void onChange(int val);
 protected:
 	virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
 	virtual void onValueChanged(const shared_ptr<XValueNodeBase> &node);
@@ -162,13 +162,13 @@ class XQSpinBoxConnector : public XValueQConnector
 	XQCON_OBJECT
 protected:
 	XQSpinBoxConnector(const shared_ptr<XIntNode> &node,
-					   QSpinBox *item);
+		QSpinBox *item);
 	XQSpinBoxConnector(const shared_ptr<XUIntNode> &node,
-					   QSpinBox *item);
+		QSpinBox *item);
 public:
 	virtual ~XQSpinBoxConnector() {}
 protected slots:
-	void onChange(int val);
+void onChange(int val);
 protected:
 	virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
 	virtual void onValueChanged(const shared_ptr<XValueNodeBase> &node);
@@ -185,11 +185,11 @@ class XKDoubleNumInputConnector : public XValueQConnector
 	XQCON_OBJECT
 protected:
 	XKDoubleNumInputConnector(const shared_ptr<XDoubleNode> &node, 
-							  KDoubleNumInput *item);
+		KDoubleNumInput *item);
 public:
 	virtual ~XKDoubleNumInputConnector() {}
 protected slots:
-	void onChange(double val);
+void onChange(double val);
 protected:
 	virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
 	virtual void onValueChanged(const shared_ptr<XValueNodeBase> &node);
@@ -205,11 +205,11 @@ class XKDoubleSpinBoxConnector : public XValueQConnector
 	XQCON_OBJECT
 protected:
 	XKDoubleSpinBoxConnector(const shared_ptr<XDoubleNode> &node,
-							 KDoubleSpinBox *item);
+		KDoubleSpinBox *item);
 public:
 	virtual ~XKDoubleSpinBoxConnector() {}
 protected slots:
-	void onChange(double val);
+void onChange(double val);
 protected:
 	virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
 	virtual void onValueChanged(const shared_ptr<XValueNodeBase> &node);
@@ -225,11 +225,11 @@ class XKURLReqConnector : public XValueQConnector
 	XQCON_OBJECT
 protected:
 	XKURLReqConnector(const shared_ptr<XStringNode> &node, 
-					  KURLRequester *item, const char *filter, bool saving);
+		KURLRequester *item, const char *filter, bool saving);
 public:
 	virtual ~XKURLReqConnector() {}
 protected slots:
-	void onSelect( const QString& );
+void onSelect( const QString& );
 protected:
 	virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
 	virtual void onValueChanged(const shared_ptr<XValueNodeBase> &node);
@@ -245,7 +245,7 @@ class XQLabelConnector : public XValueQConnector
 	XQCON_OBJECT
 protected:
 	XQLabelConnector(const shared_ptr<XValueNodeBase> &node, 
-					 QLabel *item);
+		QLabel *item);
 public:
 	virtual ~XQLabelConnector() {}
 protected slots:
@@ -264,7 +264,7 @@ class XKLedConnector : public XValueQConnector
 	XQCON_OBJECT
 protected:
 	XKLedConnector(const shared_ptr<XBoolNode> &node,
-				   KLed *item);
+		KLed *item);
 public:
 	virtual ~XKLedConnector() {}
 protected slots:
@@ -283,7 +283,7 @@ class XQLCDNumberConnector : public XValueQConnector
 	XQCON_OBJECT
 protected:
 	XQLCDNumberConnector(const shared_ptr<XDoubleNode> &node,
-						 QLCDNumber *item);
+		QLCDNumber *item);
 public:
 	virtual ~XQLCDNumberConnector() {}
 protected:
@@ -299,11 +299,11 @@ class XQToggleButtonConnector : public XValueQConnector
 	XQCON_OBJECT
 protected:
 	XQToggleButtonConnector(const shared_ptr<XBoolNode> &node,
-							QButton *item);
+		QButton *item);
 public:
 	virtual ~XQToggleButtonConnector() {}
 protected slots:
-	void onClick();
+void onClick();
 protected:
 	virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
 	virtual void onValueChanged(const shared_ptr<XValueNodeBase> &node);
@@ -322,7 +322,7 @@ public:
 	virtual ~XListQConnector();
 private slots:
 protected slots:
-	void indexChange(int section, int fromIndex, int toIndex);
+void indexChange(int section, int fromIndex, int toIndex);
 protected:
 	shared_ptr<XListener> m_lsnMove;
 	virtual void onMove(const XListNodeBase::MoveEvent &node);
@@ -340,7 +340,7 @@ class XItemQConnector : public XValueQConnector
 	XQCON_OBJECT
 protected:
 	XItemQConnector(const shared_ptr<XItemNodeBase> &node,
-					QWidget *item);
+		QWidget *item);
 public:
 	virtual ~XItemQConnector();
 private slots:
@@ -359,11 +359,11 @@ class XQComboBoxConnector : public XItemQConnector
 	XQCON_OBJECT
 protected:
 	XQComboBoxConnector(const shared_ptr<XItemNodeBase> &node,
-						QComboBox *item);
+		QComboBox *item);
 public:
 	virtual ~XQComboBoxConnector() {}
 protected slots:
-	virtual void onSelect(int index);
+virtual void onSelect(int index);
 protected:
 	virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
 	virtual void onValueChanged(const shared_ptr<XValueNodeBase> &);
@@ -381,11 +381,11 @@ class XQListBoxConnector : public XItemQConnector
 	XQCON_OBJECT
 protected:
 	XQListBoxConnector(const shared_ptr<XItemNodeBase> &node,
-					   QListBox *item);
+		QListBox *item);
 public:
 	virtual ~XQListBoxConnector() {}
 protected slots:
-	virtual void onSelect(int index);
+virtual void onSelect(int index);
 protected:
 	virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
 	virtual void onValueChanged(const shared_ptr<XValueNodeBase> &);
@@ -402,11 +402,11 @@ class XKColorButtonConnector : public XValueQConnector
 	XQCON_OBJECT
 protected:
 	XKColorButtonConnector(const shared_ptr<XHexNode> &node,
-						   KColorButton *item);
+		KColorButton *item);
 public:
 	virtual ~XKColorButtonConnector() {}
 protected slots:
-	void onClick(const QColor &newColor);
+void onClick(const QColor &newColor);
 protected:
 	virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
 	virtual void onValueChanged(const shared_ptr<XValueNodeBase> &);
@@ -422,11 +422,11 @@ class XKColorComboConnector : public XValueQConnector
 	XQCON_OBJECT
 protected:
 	XKColorComboConnector(const shared_ptr<XHexNode> &node, 
-						  KColorCombo *item);
+		KColorCombo *item);
 public:
 	virtual ~XKColorComboConnector() {}
 protected slots:
-	void onClick(const QColor &newColor);
+void onClick(const QColor &newColor);
 protected:
 	virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
 	virtual void onValueChanged(const shared_ptr<XValueNodeBase> &);
@@ -441,9 +441,9 @@ class KPassivePopup;
 class XStatusPrinter : public enable_shared_from_this<XStatusPrinter>
 {
 protected:
-    explicit XStatusPrinter(QMainWindow *window = NULL);
+	explicit XStatusPrinter(QMainWindow *window = NULL);
 public:
-    static shared_ptr<XStatusPrinter> create(QMainWindow *window = NULL);
+	static shared_ptr<XStatusPrinter> create(QMainWindow *window = NULL);
 	~XStatusPrinter();
 	void printMessage(const QString &str, bool popup = true);
 	void printWarning(const QString &str, bool popup = false);

@@ -39,8 +39,8 @@ $(top_builddir)/modules/nmr/core/forms/Makefile: $(top_builddir)/config.status $
 
 all: $(top_builddir)/modules/nmr/core/forms/Makefile
 final: 
-	/sw/share/unsermake/unsermake -C $(top_builddir)/modules/nmr/core/forms UNSERMAKE_FORCE_FINAL=1 libnmrforms.la libsgforms.la libnmrpulserforms.la
+	/sw/share/unsermake/unsermake -C $(top_builddir)/modules/nmr/core/forms UNSERMAKE_FORCE_FINAL=1 libnmrforms.la libnmrpulserforms.la
 
-METASOURCES = nmrfspectrumform=nmrfspectrumform.h=nmrfspectrumform.cpp nmrpulseform=nmrpulseform.h=nmrpulseform.cpp nmrrelaxform=nmrrelaxform.h=nmrrelaxform.cpp nmrspectrumform=nmrspectrumform.h=nmrspectrumform.cpp signalgeneratorform=signalgeneratorform.h=signalgeneratorform.cpp pulserdriverform=pulserdriverform.h=pulserdriverform.cpp pulserdrivermoreform=pulserdrivermoreform.h=pulserdrivermoreform.cpp
-QT3_UIFILES = nmrfspectrumform nmrpulseform nmrrelaxform nmrspectrumform signalgeneratorform pulserdriverform pulserdrivermoreform
+METASOURCES = nmrfspectrumform=nmrfspectrumform.h=nmrfspectrumform.cpp nmrpulseform=nmrpulseform.h=nmrpulseform.cpp nmrrelaxform=nmrrelaxform.h=nmrrelaxform.cpp nmrspectrumform=nmrspectrumform.h=nmrspectrumform.cpp pulserdriverform=pulserdriverform.h=pulserdriverform.cpp pulserdrivermoreform=pulserdrivermoreform.h=pulserdrivermoreform.cpp
+QT3_UIFILES = nmrfspectrumform nmrpulseform nmrrelaxform nmrspectrumform pulserdriverform pulserdrivermoreform
 .PHONY: all final
