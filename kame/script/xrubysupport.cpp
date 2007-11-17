@@ -286,8 +286,7 @@ XRuby::rvaluenode_set(VALUE self, VALUE var)
       dbgPrint(QString("Ruby, Node %1, setting new value.").arg(node->getName()) );
       if(!node->isUIEnabled() )
       {
-//          rb_raise(rb_eRuntimeError, "Node %s is read-only!\n",
-          rb_warning("Node %s is read-only!\n", node->getName().c_str());
+          rb_raise(rb_eRuntimeError, "Node %s is read-only!\n", node->getName().c_str());
           return Qnil;
       }
       if(XRuby::strOnNode(vnode, var))
