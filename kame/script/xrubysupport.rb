@@ -3,12 +3,13 @@
 
 $KCODE = 'UTF8'
 
-require "cgi"
-
 #redirect defout, deferr
 class << $stdout
   def write(str)
-  	str = CGI.escapeHTML(str)
+	str = str.gsub(/&/, "&amp;")
+  	str = str.gsub(/</, "&lt;")
+  	str = str.gsub(/>/, "&gt;")
+#  	str = str.gsub(/"/, "&quot;")
   	if /^\s*#/ =~ str then
   		str.each_line {|line|
   			line = "<font color=#005500>#{line}"
@@ -32,7 +33,10 @@ class << $stdout
 end
 class << $stderr
   def write(str)
-  	str = CGI.escapeHTML(str)
+	str = str.gsub(/&/, "&amp;")
+	str = str.gsub(/</, "&lt;")
+	str = str.gsub(/>/, "&gt;")
+	#  	str = str.gsub(/"/, "&quot;")
   	str.each_line {|line|
   		line = "<font color=#ff0000>#{line}"
   		begin
@@ -52,7 +56,7 @@ class Mystdin
 		while(1)
 			line = XRubyThreads.my_rbdefin(Thread.current.object_id)
 			if !line then
-				sleep(0.1)
+				sleep(0.2)
 				next
 			end
 			return line
@@ -66,8 +70,7 @@ $stdin = Mystdin.new
 
 #function to dump exception info
 def print_exception(exc)
-	print "Exception raised:"
-	$stderr.print exc.message
+	$stderr.print "Exception:", exc.message
 	bt_shown = false
 	exc.backtrace.each {|b|
 		$stderr.print b unless b.include?(__FILE__)

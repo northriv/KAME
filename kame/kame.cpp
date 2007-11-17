@@ -217,9 +217,13 @@ FrmKameMain::FrmKameMain()
     m_pHelpAboutAction->setAccel( QString::null );
     m_pFileLogAction->setMenuText( KAME::i18n( "&Log Debugging Info" ) );
 //    m_pMesRunAction->setMenuText( KAME::i18n( "&Run" ) );
+    m_pMesStopAction->setText( KAME::i18n( "Stop" ) );
     m_pMesStopAction->setMenuText( KAME::i18n( "&Stop" ) );
+    m_pScriptRunAction->setText( KAME::i18n( "Run" ) );
     m_pScriptRunAction->setMenuText( KAME::i18n( "&Run..." ) );
-    m_pScriptInterrupterAction->setMenuText( KAME::i18n( "&Open Interrupter..." ) );
+    m_pScriptInterrupterAction->setText( KAME::i18n( "Open Interrupter" ) );
+    m_pScriptInterrupterAction->setMenuText( KAME::i18n( "&Open Interrupter" ) );
+    m_pScriptDotSaveAction->setText( KAME::i18n( "Graphviz Save .dot" ) );
     m_pScriptDotSaveAction->setMenuText( KAME::i18n( "&Graphviz Save .dot..." ) );
     m_pFileCloseAction->setText( KAME::i18n( "Close" ) );
     m_pFileCloseAction->setMenuText( KAME::i18n( "&Close" ) );
