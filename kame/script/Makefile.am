@@ -15,5 +15,5 @@ AM_CPPFLAGS =
 METASOURCES = AUTO
 
 rcdir = $(kde_datadir)/kame
-rc_DATA = xrubysupport.rb rubyinterrupter.rb
+rc_DATA = xrubysupport.rb rubylineshell.rb
 

@@ -10,25 +10,14 @@ class << $stdout
   	str = str.gsub(/</, "&lt;")
   	str = str.gsub(/>/, "&gt;")
 #  	str = str.gsub(/"/, "&quot;")
-  	if /^\s*#/ =~ str then
-  		str.each_line {|line|
-  			line = "<font color=#005500>#{line}"
-	  		begin
-				line["\n"] = "</font>"
-			rescue IndexError
-				line = "#{line}</font>"
-			end
-		    XRubyThreads.my_rbdefout(line, Thread.current.object_id)
-  		}
-    else
-  		str.each_line {|line|
-	  		begin
-				line["\n"] = ""
-			rescue IndexError
-			end
-		    XRubyThreads.my_rbdefout(line, Thread.current.object_id)
-  		}
-  	end
+  	str.each_line {|line|
+		line = line.gsub(/\n/, "")
+	  	if /^\s*#/ =~ str then
+			line = line.gsub(/^/, "<font color=#008800>")
+			line = line.gsub(/$/, "</font>")
+	  	end
+	  	XRubyThreads.my_rbdefout(line, Thread.current.object_id)
+  	}
   end
 end
 class << $stderr
@@ -38,14 +27,11 @@ class << $stderr
 	str = str.gsub(/>/, "&gt;")
 	#  	str = str.gsub(/"/, "&quot;")
   	str.each_line {|line|
-  		line = "<font color=#ff0000>#{line}"
-  		begin
-			line["\n"] = "</font>"
-		rescue IndexError
-			line = "#{line}</font>"
-		end
-		XRubyThreads.my_rbdefout(line, Thread.current.object_id)
-    }
+		line = line.gsub(/\n/, "")
+		line = line.gsub(/^/, "<font color=#ff0000>")
+		line = line.gsub(/$/, "</font>")
+	  	XRubyThreads.my_rbdefout(line, Thread.current.object_id)
+  	}
   end
 end
 class Mystdin
@@ -56,7 +42,7 @@ class Mystdin
 		while(1)
 			line = XRubyThreads.my_rbdefin(Thread.current.object_id)
 			if !line then
-				sleep(0.2)
+				sleep(0.15)
 				next
 			end
 			return line
@@ -159,7 +145,7 @@ class XValueNode
 	def set(value)
 		if $SAFE != 0 then
 			begin
-				self.internal_set(value)
+				self.internal_load(value)
 		    rescue RuntimeError
 			     $! = RuntimeError.new("unknown exception raised") unless $!
 			     print_exception($!)

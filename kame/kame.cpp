@@ -147,9 +147,9 @@ FrmKameMain::FrmKameMain()
     m_pScriptRunAction = new QAction( this, "scriptRunAction" );
     m_pScriptRunAction->setEnabled( TRUE );
     m_pScriptRunAction->setIconSet( QIconSet( *g_pIconScript) );
-    m_pScriptInterrupterAction = new QAction( this, "scriptInterrupterAction" );
-    m_pScriptInterrupterAction->setEnabled( TRUE );
-    m_pScriptInterrupterAction->setIconSet( app->iconLoader()->loadIconSet("openterm", 
+    m_pScriptLineShellAction = new QAction( this, "scriptLineShellAction" );
+    m_pScriptLineShellAction->setEnabled( TRUE );
+    m_pScriptLineShellAction->setIconSet( app->iconLoader()->loadIconSet("openterm", 
 		   KIcon::Toolbar, 0, false ) );
     m_pScriptDotSaveAction = new QAction( this, "scriptDotSaveAction" );
     m_pScriptDotSaveAction->setEnabled( TRUE );
@@ -180,7 +180,7 @@ FrmKameMain::FrmKameMain()
 
     m_pScriptMenu = new QPopupMenu( this );
     m_pScriptRunAction->addTo( m_pScriptMenu );
-    m_pScriptInterrupterAction->addTo( m_pScriptMenu );
+    m_pScriptLineShellAction->addTo( m_pScriptMenu );
     m_pScriptMenu->insertSeparator();
     m_pScriptDotSaveAction->addTo( m_pScriptMenu );
     m_pMenubar->insertItem( QString(""), m_pScriptMenu, 3 );
@@ -221,8 +221,8 @@ FrmKameMain::FrmKameMain()
     m_pMesStopAction->setMenuText( KAME::i18n( "&Stop" ) );
     m_pScriptRunAction->setText( KAME::i18n( "Run" ) );
     m_pScriptRunAction->setMenuText( KAME::i18n( "&Run..." ) );
-    m_pScriptInterrupterAction->setText( KAME::i18n( "Open Interrupter" ) );
-    m_pScriptInterrupterAction->setMenuText( KAME::i18n( "&Open Interrupter" ) );
+    m_pScriptLineShellAction->setText( KAME::i18n( "New Line Shell" ) );
+    m_pScriptLineShellAction->setMenuText( KAME::i18n( "&New Line Shell" ) );
     m_pScriptDotSaveAction->setText( KAME::i18n( "Graphviz Save .dot" ) );
     m_pScriptDotSaveAction->setMenuText( KAME::i18n( "&Graphviz Save .dot..." ) );
     m_pFileCloseAction->setText( KAME::i18n( "Close" ) );
@@ -257,7 +257,7 @@ FrmKameMain::FrmKameMain()
 //    connect( m_pMesRunAction, SIGNAL( activated() ), this, SLOT( mesRunAction_activated() ) );
     connect( m_pMesStopAction, SIGNAL( activated() ), this, SLOT( mesStopAction_activated() ) );
     connect( m_pScriptRunAction, SIGNAL( activated() ), this, SLOT( scriptRunAction_activated() ) );
-    connect( m_pScriptInterrupterAction, SIGNAL( activated() ), this, SLOT( scriptInterrupterAction_activated() ) );
+    connect( m_pScriptLineShellAction, SIGNAL( activated() ), this, SLOT( scriptLineShellAction_activated() ) );
     connect( m_pScriptDotSaveAction, SIGNAL( activated() ), this, SLOT( scriptDotSaveAction_activated() ) );
     connect( m_pFileLogAction, SIGNAL( toggled(bool) ), this, SLOT( fileLogAction_toggled(bool) ) );
     
@@ -267,6 +267,8 @@ FrmKameMain::FrmKameMain()
 	m_pTimer = new QTimer(this);
 	connect(m_pTimer, SIGNAL (timeout() ), this, SLOT(processSignals()));
 	m_pTimer->start(1);
+	
+	scriptLineShellAction_activated();
 }
 
 FrmKameMain::~FrmKameMain()
@@ -330,34 +332,6 @@ void FrmKameMain::fileCloseAction_activated()
 void FrmKameMain::fileExitAction_activated()
 {
 	close();
-}
-
-int
-FrmKameMain::openMes(const QString &filename)
-{
-	if(!filename.isEmpty())
-	{
-		shared_ptr<XRubyThread> rbthread = m_measure->ruby()->
-			create<XRubyThread>("Open Measurement", true, filename );
-		FrmRubyThread* form = new FrmRubyThread(this);
-		m_conMeasRubyThread = xqcon_create<XRubyThreadConnector>(
-			rbthread, form, m_measure->ruby());
-		KMdiChildView *view = createWrapper(form, form->caption(), form->caption());
-		addWindow(view);
-		while(rbthread->isAlive()) {
-			KApplication::kApplication()->processEvents();
-			g_signalBuffer->synchronize();
-		}
-//          closeWindow(view);
-
-//        m_pMesRunAction->setEnabled(true);
-//        m_pMesStopAction->setEnabled(false);
-//        m_pFileSaveAction->setEnabled(true);
-//        m_pFileOpenAction->setEnabled(false);
-//        m_pFileCloseAction->setEnabled(true);
-		return 0;
-	}
-    return -1;
 }
 
 void FrmKameMain::fileOpenAction_activated()
@@ -431,7 +405,24 @@ void FrmKameMain::mesStopAction_activated()
 */
 }
 
-void FrmKameMain::runNewScript(const QString &label, const QString &filename) {
+int
+FrmKameMain::openMes(const QString &filename)
+{
+	if(!filename.isEmpty())
+	{
+		shared_ptr<XRubyThread> rbthread = runNewScript("Open Measurement", filename );
+		while(rbthread->isAlive()) {
+			KApplication::kApplication()->processEvents();
+			g_signalBuffer->synchronize();
+		}
+//          closeWindow(view);
+		return 0;
+	}
+    return -1;
+}
+
+shared_ptr<XRubyThread>
+FrmKameMain::runNewScript(const QString &label, const QString &filename) {
 	shared_ptr<XRubyThread> rbthread = m_measure->ruby()->
 		create<XRubyThread>(label.latin1(), true, filename );
 	FrmRubyThread* form = new FrmRubyThread(this);
@@ -448,6 +439,7 @@ void FrmKameMain::runNewScript(const QString &label, const QString &filename) {
 			it = m_conRubyThreadList.erase(it);
 		}
 	}
+	return rbthread;
 }
 void FrmKameMain::scriptRunAction_activated()
 {
@@ -463,15 +455,15 @@ void FrmKameMain::scriptRunAction_activated()
 	}
 }
 
-void FrmKameMain::scriptInterrupterAction_activated()
+void FrmKameMain::scriptLineShellAction_activated()
 {
-    QString filename = ::locate("appdata", "rubyinterrupter.rb");
+    QString filename = ::locate("appdata", "rubylineshell.rb");
     if(filename.isEmpty()) {
         g_statusPrinter->printError("No KAME ruby support file installed.");
     }
     else {
 		static unsigned int int_no = 1;
-		runNewScript(QString().sprintf("Interrupter%d", int_no).latin1(), filename );
+		runNewScript(QString().sprintf("Line Shell%d", int_no).latin1(), filename );
 		int_no++;
 	}
 }

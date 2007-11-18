@@ -1,6 +1,6 @@
 * Mon Nov 19 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.2.18-1)
-- rubyinterrupter.
+- rubylineshell.
 - pulserdrivercore: fix for pregating.
 
 * Fri Nov 16 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>

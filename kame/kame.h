@@ -18,6 +18,7 @@
 #include <qvariant.h>
 #include <qpixmap.h>
 #include <kmdimainfrm.h>
+#include <xnodeconnector.h>
 
 class FrmRecordReader;
 class FrmGraphList;
@@ -33,8 +34,7 @@ class QPopupMenu;
 class QMenuBar;
 class QToolBar;
 class XMeasure;
-
-#include <xnodeconnector.h>
+class XRubyThread;
 
 /*! Main form widget of KAME.
  * use \a g_pFrmMain to access this.
@@ -63,7 +63,7 @@ public:
 	//    QAction* m_pMesRunAction;
 	QAction* m_pMesStopAction;
 	QAction* m_pScriptRunAction;
-	QAction* m_pScriptInterrupterAction;
+	QAction* m_pScriptLineShellAction;
 	QAction* m_pScriptDotSaveAction;
 	QAction* m_pFileCloseAction;
 
@@ -87,7 +87,7 @@ virtual void helpIndexAction_activated();
 //    virtual void mesRunAction_activated();
 virtual void mesStopAction_activated();
 virtual void scriptRunAction_activated();
-virtual void scriptInterrupterAction_activated();
+virtual void scriptLineShellAction_activated();
 virtual void scriptDotSaveAction_activated();
 virtual void fileLogAction_toggled( bool var );
 protected slots:
@@ -95,7 +95,7 @@ virtual void aboutToQuit();
 virtual void processSignals();
 private:
 	void closeEvent( QCloseEvent* ce );
-	void runNewScript(const QString &label, const QString &filename);
+	shared_ptr<XRubyThread> runNewScript(const QString &label, const QString &filename);
 	QTimer *m_pTimer;
 	shared_ptr<XMeasure> m_measure;
 	xqcon_ptr m_conMeasRubyThread;
