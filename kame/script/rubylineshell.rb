@@ -1,7 +1,8 @@
 #rubyLine Shell.rb
 
-print "Hello KAME Ruby Line Shell!\n"
-print "Awaiting your command....\n"
+greeting=["Your instruments are ready, Commander.\nAwaiting your orders.\n",\
+"We are Borg. You will be assimilated.\nResistance is futile.\n"]
+print greeting[Integer(rand()**2*greeting.size())]
 
 lineno = 1
 bind = binding()
