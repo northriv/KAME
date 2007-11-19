@@ -156,7 +156,12 @@ XNIDAQmxDSO::close() throw (XInterface::XInterfaceError &)
  	
 	m_lsnOnSoftTrigChanged.reset();
 
-	clearAcquision();
+	try {
+		clearAcquision();
+	}
+	catch (XInterface::XInterfaceError &e) {
+		e.print();
+	}
  	
 	if(m_threadReadAI) {
 		m_threadReadAI->terminate();

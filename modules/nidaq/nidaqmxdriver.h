@@ -209,7 +209,7 @@ protected:
 	void onOpen(const shared_ptr<XInterface> &);
 	void onClose(const shared_ptr<XInterface> &);
 	//! This should not cause an exception.
-	virtual void afterStop() {close();}
+	virtual void afterStop();
 private:
 	shared_ptr<XListener> m_lsnOnOpen, m_lsnOnClose;
   

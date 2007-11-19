@@ -132,7 +132,12 @@ XNIDAQmxPulser::close() throw (XInterface::XInterfaceError &)
 {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
 
-	stopPulseGen();
+	try {
+		stopPulseGen();
+	}
+	catch (XInterface::XInterfaceError &e) {
+		e.print();
+	}
 	
 	if(m_threadWriteAO) {
 		m_threadWriteAO->terminate();

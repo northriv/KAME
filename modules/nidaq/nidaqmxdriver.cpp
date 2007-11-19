@@ -482,3 +482,12 @@ XNIDAQmxInterface::close() throw (XInterfaceError &)
 		}
 	}
 }
+void
+XNIDAQmxInterface::afterStop() {
+	try {
+		close();
+	}
+	catch (XInterface::XInterfaceError &e) {
+		e.print();
+	}
+}
