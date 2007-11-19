@@ -69,11 +69,11 @@ mv mikachanfont-%{mikachanver}/* kame/mikachanfont
 %build
 # build static FTGL
 pushd FTGL/unix
-CXXFLAGS="-fpermissive" ./configure --disable-shared --enable-static
+CXXFLAGS="-fpermissive -g -O2" ./configure --disable-shared --enable-static
 make ##%%{?_smp_mflags}
 popd
 
-%configure --enable-debug
+CXXFLAGS="-g3" %configure
 make ##%%{?_smp_mflags}
 
 %install
