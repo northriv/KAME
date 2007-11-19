@@ -8,8 +8,8 @@
         <rect>
             <x>0</x>
             <y>0</y>
-            <width>334</width>
-            <height>407</height>
+            <width>306</width>
+            <height>333</height>
         </rect>
     </property>
     <property name="caption">
@@ -19,7 +19,7 @@
         <property name="name">
             <cstring>unnamed</cstring>
         </property>
-        <widget class="QPushButton" row="4" column="3" rowspan="1" colspan="1">
+        <widget class="QPushButton" row="4" column="3">
             <property name="name">
                 <cstring>m_pbtnKill</cstring>
             </property>
@@ -27,7 +27,7 @@
                 <string>KILL</string>
             </property>
         </widget>
-        <widget class="QPushButton" row="4" column="2" rowspan="1" colspan="1">
+        <widget class="QPushButton" row="4" column="2">
             <property name="name">
                 <cstring>m_pbtnResume</cstring>
             </property>
@@ -35,7 +35,7 @@
                 <string>RESUME</string>
             </property>
         </widget>
-        <spacer row="4" column="0">
+        <spacer row="4" column="0" rowspan="1" colspan="2">
             <property name="name">
                 <cstring>spacer1</cstring>
             </property>
@@ -75,7 +75,6 @@
             </property>
             <property name="font">
                 <font>
-                    <pointsize>10</pointsize>
                 </font>
             </property>
             <property name="hScrollBarMode">
@@ -91,47 +90,26 @@
                 <set>AutoAll</set>
             </property>
         </widget>
-	    <widget class="QLabel" row="3" column="0" rowspan="1" colspan="1">
+        <widget class="QLabel" row="3" column="0">
             <property name="name">
                 <cstring>lbl2</cstring>
             </property>
             <property name="sizePolicy">
                 <sizepolicy>
-                    <hsizetype>5</hsizetype>
+                    <hsizetype>0</hsizetype>
                     <vsizetype>5</vsizetype>
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                 </sizepolicy>
-            </property>
-            <property name="alignment">
-                <set>AlignVCenter|AlignRight</set>
             </property>
             <property name="text">
                 <string>Interact</string>
             </property>
+            <property name="alignment">
+                <set>AlignVCenter|AlignRight</set>
+            </property>
         </widget>
-        <widget class="QLineEdit" row="3" column="1" rowspan="1" colspan="3">
-            <property name="name">
-                <cstring>m_edLineinput</cstring>
-            </property>
-            <property name="enabled">
-                <bool>false</bool>
-            </property>
-            <property name="sizePolicy">
-                <sizepolicy>
-                    <hsizetype>5</hsizetype>
-                    <vsizetype>5</vsizetype>
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                </sizepolicy>
-            </property>
-            <property name="font">
-                <font>
-                    <pointsize>10</pointsize>
-                </font>
-            </property>
-        </widget>        
-	    <widget class="QLabel" row="0" column="0" rowspan="1" colspan="4">
+        <widget class="QLabel" row="0" column="0" rowspan="1" colspan="4">
             <property name="name">
                 <cstring>m_plblFilename</cstring>
             </property>
@@ -194,7 +172,34 @@
                 <set>AlignVCenter|AlignRight</set>
             </property>
         </widget>
+        <widget class="QLineEdit" row="3" column="1" rowspan="1" colspan="3">
+            <property name="name">
+                <cstring>m_edLineinput</cstring>
+            </property>
+            <property name="enabled">
+                <bool>false</bool>
+            </property>
+            <property name="sizePolicy">
+                <sizepolicy>
+                    <hsizetype>5</hsizetype>
+                    <vsizetype>5</vsizetype>
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                </sizepolicy>
+            </property>
+            <property name="font">
+                <font>
+                </font>
+            </property>
+        </widget>
     </grid>
 </widget>
+<tabstops>
+    <tabstop>m_plblFilename</tabstop>
+    <tabstop>m_ptxtDefout</tabstop>
+    <tabstop>m_edLineinput</tabstop>
+    <tabstop>m_pbtnResume</tabstop>
+    <tabstop>m_pbtnKill</tabstop>
+</tabstops>
 <layoutdefaults spacing="6" margin="11"/>
 </UI>
