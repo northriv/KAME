@@ -483,7 +483,7 @@ XNIDAQmxInterface::close() throw (XInterfaceError &)
 	}
 }
 void
-XNIDAQmxInterface::afterStop() {
+XNIDAQmxDriver::afterStop() {
 	try {
 		close();
 	}
