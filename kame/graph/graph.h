@@ -377,7 +377,7 @@ private:
   
 	void _startAutoscale(bool clearscale);
 	void drawLabel(XQGraphPainter *painter);
-	void autoFreq(float resolution);
+	void performAutoFreq(float resolution);
   
 	const shared_ptr<XStringNode> m_label;
     

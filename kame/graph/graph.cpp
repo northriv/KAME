@@ -935,10 +935,10 @@ XAxis::fixScale(float resolution, bool suppressupdate)
     if(suppressupdate) {
         m_graph.lock()->lsnPropertyChanged()->unmask();
     }
-    autoFreq(resolution);
+    performAutoFreq(resolution);
 }
 void
-XAxis::autoFreq(float resolution)
+XAxis::performAutoFreq(float resolution)
 {
 	if(*autoFreq() &&
 	   (!m_bLogscaleFixed || (m_minFixed >= 0)) &&
