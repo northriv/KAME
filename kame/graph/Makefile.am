@@ -15,7 +15,7 @@ libgraph_a_LIBADD =
 
 METASOURCES = AUTO
 
-AM_CXXFLAGS = $(CXXFLAGS) \
-	-O3 \
-	-funroll-loops -fomit-frame-pointer -funswitch-loops -finline-functions -fgcse-after-reload \
-	-ffast-math -fno-tree-vectorize -ftree-vectorizer-verbose=3 -fno-unsafe-math-optimizations
+#AM_CXXFLAGS = $(CXXFLAGS) \
+#	-O3 \
+#	-funroll-loops -fomit-frame-pointer -funswitch-loops -finline-functions -fgcse-after-reload \
+#	-ffast-math -fno-tree-vectorize -ftree-vectorizer-verbose=3 -fno-unsafe-math-optimizations

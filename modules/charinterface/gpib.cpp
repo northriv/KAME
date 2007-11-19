@@ -81,19 +81,19 @@ XNIGPIBPort::gpibStatus(const QString &msg)
         char buf[256];
 	#ifdef __linux__
         char *s = strerror_r(ThreadIbcntl(), buf, sizeof(buf));
-        cntl = formatString("%d",ThreadIbcntl()) + " " + s;
+        cntl = formatString("%d",(int)ThreadIbcntl()) + " " + s;
 	#else        
         if(strerror_r(ThreadIbcntl(), buf, sizeof(buf))) {
-            cntl = formatString("%d",ThreadIbcntl());
+            cntl = formatString("%d",(int)ThreadIbcntl());
         }
         else {
-            cntl = formatString("%d",ThreadIbcntl()) + " " + buf;
+            cntl = formatString("%d",(int)ThreadIbcntl()) + " " + buf;
         }
 	#endif
         errno = 0;
 	}
 	else {
-        cntl = formatString("%d",ThreadIbcntl());
+        cntl = formatString("%d",(int)ThreadIbcntl());
 	}
 	return QString("GPIB %1: addr %2, sta %3, err %4, cntl %5")
 		.arg(msg)
