@@ -110,13 +110,6 @@ int main(int argc, char *argv[])
             
 			FrmKameMain *form;
 			form = new FrmKameMain();
-			app->setMainWidget(form);
-			//    form->resize(QSize(QApplication::desktop()->width(), QApplication::desktop()->height() - 200 ).expandedTo(form->sizeHint()) );
-			//    form->switchToChildframeMode();
-			//        form->setToolviewStyle(KMdi::IconOnly);
-			form->setToolviewStyle(KMdi::TextAndIcon);
-			//    form->setGeometry(0, 0, form->width(), form->height());
-			form->show();
             
 			if (args->count())
 			{

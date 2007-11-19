@@ -9,7 +9,7 @@
             <x>0</x>
             <y>0</y>
             <width>306</width>
-            <height>333</height>
+            <height>500</height>
         </rect>
     </property>
     <property name="caption">
@@ -62,7 +62,7 @@
             <property name="sizePolicy">
                 <sizepolicy>
                     <hsizetype>5</hsizetype>
-                    <vsizetype>7</vsizetype>
+                    <vsizetype>5</vsizetype>
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                 </sizepolicy>
@@ -70,7 +70,7 @@
             <property name="minimumSize">
                 <size>
                     <width>250</width>
-                    <height>200</height>
+                    <height>300</height>
                 </size>
             </property>
             <property name="font">
