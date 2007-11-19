@@ -103,11 +103,15 @@ boost::is_pod<T>::value && (sizeof(T) == sizeof(int_cas2_both)) && (sizeof(X) >=
 atomicCompareAndSet(
 	T oldv,
 	T newv, X *target ) {
-	return atomicCompareAndSet2((uint_cas2_each)(*((uint_cas2_both*)&oldv) % (1uLL << 8 * sizeof(uint_cas2_each))), 
-		(uint_cas2_each)(*((uint_cas2_both*)&oldv) / (1uLL << 8 * sizeof(uint_cas2_each))),
-		(uint_cas2_each)(*((uint_cas2_both*)&newv) % (1uLL << 8 * sizeof(uint_cas2_each))),
-		(uint_cas2_each)(*((uint_cas2_both*)&newv) / (1uLL << 8 * sizeof(uint_cas2_each))),
-		(uint_cas2_each*)target);
+	union {
+		T x;
+		uint_cas2_each w[2];
+	} _newv, _oldv;
+	_newv.x = newv;
+	_oldv.x = oldv;
+
+	return atomicCompareAndSet2(_oldv.w[0], _oldv.w[1], _newv.w[0], _newv.w[1],
+		reinterpret_cast<uint_cas2_each*>(target));
 }
 
 //! \return true if old == *target and new value is assigned

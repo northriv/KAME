@@ -100,7 +100,7 @@ public:
 		return ret;
 	}
 protected:
-	T m_var;
+	mutable T m_var;
 };
 
 //! atomic access to POD type capable of CAS2.
