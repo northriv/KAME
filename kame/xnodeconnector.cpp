@@ -190,24 +190,23 @@ XQLineEditConnector::onTextChanged2(const QString &text) {
     m_lsnValueChanged->mask();
     try {
 		m_node->str(text);
+		m_pItem->setPaletteForegroundColor(Qt::black);
     }
     catch (XKameError &e) {
-        e.print();
+		m_pItem->setPaletteForegroundColor(Qt::red);
     }
     m_lsnValueChanged->unmask();
 }
 void
 XQLineEditConnector::onReturnPressed() {
-	m_pItem->setPaletteForegroundColor(Qt::black);
     try {
 		m_node->str(m_pItem->text());
+		m_pItem->setPaletteForegroundColor(Qt::black);
     }
     catch (XKameError &e) {
         e.print();
+		m_pItem->setPaletteForegroundColor(Qt::red);
     }
-    m_pItem->blockSignals(true);
-    m_pItem->setText(m_node->to_str());
-    m_pItem->blockSignals(false);
 }
 void
 XQLineEditConnector::onExit() {
