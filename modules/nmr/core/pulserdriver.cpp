@@ -578,27 +578,27 @@ XPulser::stop()
 
 inline double
 XPulser::rintTermMilliSec(double msec) const {
-	const double res = resolution();
+	double res = resolution();
 	return rint(msec / res) * res;
 }
 inline double
 XPulser::rintTermMicroSec(double usec) const {
-	const double res = resolution() * 1e3;
+	double res = resolution() * 1e3;
 	return rint(usec / res) * res;
 }
 inline uint64_t
 XPulser::ceilSampsMicroSec(double usec) const {
-	const double res = resolution() * 1e3;
+	double res = resolution() * 1e3;
 	return llrint(usec / res + 0.499);
 }
 inline uint64_t
 XPulser::rintSampsMicroSec(double usec) const {
-	const double res = resolution() * 1e3;
+	double res = resolution() * 1e3;
 	return llrint(usec / res);
 }
 inline uint64_t
 XPulser::rintSampsMilliSec(double msec) const {
-	const double res = resolution();
+	double res = resolution();
 	return llrint(msec / res);
 }
 void
@@ -1147,11 +1147,11 @@ XPulser::rawToRelPat() throw (XRecordError&)
     	for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX; i++)
     		m_qamWaveForm[i].clear();
     		
-		const double _tau = m_tauRecorded;
-		const double _dif_freq = m_difFreqRecorded;
+		double _tau = m_tauRecorded;
+		double _dif_freq = m_difFreqRecorded;
 	
-		const bool _induce_emission = *induceEmission();
-		const double _induce_emission_phase = *induceEmissionPhase() / 180.0 * PI;
+		bool _induce_emission = *induceEmission();
+		double _induce_emission_phase = *induceEmissionPhase() / 180.0 * PI;
 
 		makeWaveForm(PAT_QAM_PULSE_IDX_P1/PAT_QAM_PULSE_IDX - 1, m_pw1Recorded*1e-3,
 					 _pw1/2, pulseFunc(p1Func()->to_str() ),
@@ -1176,10 +1176,10 @@ XPulser::makeWaveForm(unsigned int pnum_minus_1,
 					  tpulsefunc func, double dB, double freq, double phase)
 {
 	std::vector<std::complex<double> > &p = m_qamWaveForm[pnum_minus_1];
-	const double dma_ao_period = resolutionQAM();
+	double dma_ao_period = resolutionQAM();
 	to_center *= lrint(resolution() / dma_ao_period);
-	const double delay1 = *qamDelay1() * 1e-3 / dma_ao_period;
-	const double delay2 = *qamDelay2() * 1e-3 / dma_ao_period;
+	double delay1 = *qamDelay1() * 1e-3 / dma_ao_period;
+	double delay2 = *qamDelay2() * 1e-3 / dma_ao_period;
 	double dx = dma_ao_period / pw;
 	double dp = 2*PI*freq*dma_ao_period;
 	double z = pow(10.0, dB/20.0);
