@@ -254,5 +254,15 @@ XNIDAQmxDriver<tDriver>::onClose(const shared_ptr<XInterface> &)
 		e.print(this->getLabel() + KAME::i18n(": Stopping driver failed, because "));
 	}
 }
+template<class tDriver>
+void
+XNIDAQmxDriver<tDriver>::afterStop() {
+	try {
+		this->close();
+	}
+	catch (XInterface::XInterfaceError &e) {
+		e.print();
+	}
+}
 
 #endif /*NIDAQMXDRIVER_H_*/

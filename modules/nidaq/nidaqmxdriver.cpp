@@ -482,12 +482,3 @@ XNIDAQmxInterface::close() throw (XInterfaceError &)
 		}
 	}
 }
-void
-XNIDAQmxDriver::afterStop() {
-	try {
-		close();
-	}
-	catch (XInterface::XInterfaceError &e) {
-		e.print();
-	}
-}
