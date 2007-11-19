@@ -1,7 +1,8 @@
 #rubyLine Shell.rb
 
 greeting=["Your instruments are ready, Commander.\nAwaiting your orders.\n",\
-"We are Borg. You will be assimilated.\nResistance is futile.\n"]
+"We are Borg. You will be assimilated.\nResistance is futile.\n",\
+"Simon says, \"Press the power btn. now.\"\n"]
 print greeting[Integer(rand()**2*greeting.size())]
 
 lineno = 1
