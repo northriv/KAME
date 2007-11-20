@@ -86,7 +86,8 @@ public:
 	atomic_pod_cas2 &operator=(T t) {
 #ifdef HAVE_ATOMIC_RW64
 		C_ASSERT(sizeof(T) == 8);
-		atomicWrite64(t, &m_var);
+		T x __attribute__((aligned(8))) = t;
+		atomicWrite64(x, &m_var);
 #else
 		for(;;) {
 			T oldv = m_var;
