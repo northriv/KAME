@@ -3,6 +3,7 @@
 - Fast read/write 64bit in 32bit machines.
 - SSE2 by default.
 - Rearrange main form.
+- Fix for dead locks.
 
 * Mon Nov 19 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.2.18-1)

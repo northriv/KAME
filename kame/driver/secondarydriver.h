@@ -28,7 +28,7 @@ protected:
 		const shared_ptr<XThermometerList> &thermometers,
 		const shared_ptr<XDriverList> &drivers);
 public:
-	virtual ~XSecondaryDriver() {}  
+	virtual ~XSecondaryDriver();
 
 	//! show all forms belonging to driver
 	virtual void showForms() = 0;

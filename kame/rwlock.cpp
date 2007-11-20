@@ -68,6 +68,9 @@ XRecursiveRWLock::~XRecursiveRWLock()
 	if(DEBUG_XTHREAD) ASSERT(!ret);
 	ret = pthread_mutex_destroy(&m_mutex_write);
 	if(DEBUG_XTHREAD) ASSERT(!ret);
+	ASSERT(std::find(s_tlRdLockedList->begin(),
+		  s_tlRdLockedList->end(), this)
+		== s_tlRdLockedList->end());
 }
 void 
 XRecursiveRWLock::readLock() const
