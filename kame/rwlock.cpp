@@ -206,9 +206,10 @@ XRecursiveRWLock::writeUnlockNReadLock()
 	if(DEBUG_XTHREAD) ASSERT(pthread_equal(m_wrlockingthread, threadID()));
 	m_wrlockingcnt--;
 	m_rdlockingcnt++;
-	s_tlRdLockedList->push_back(this);
 	if(m_wrlockingcnt == 0)
 	{
+		s_tlRdLockedList->push_back(this);
+
 		m_wrlockingthread = (threadid_t)-1;
         
 		ret = pthread_mutex_unlock(&m_mutex_write);

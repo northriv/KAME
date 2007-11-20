@@ -74,7 +74,6 @@ private:
 	//! holds connections
 	std::vector<shared_ptr<const XDriver> > m_connections;
 	std::vector<shared_ptr<const XDriver> > m_connections_check_deep_dep;
-	std::vector<shared_ptr<const XDriver> > m_locked_connections;
 	XRWLock m_connection_mutex;
 	typedef std::vector<shared_ptr<const XDriver> >::const_iterator tConnection_it;
 	shared_ptr<XListener> m_lsnOnRecord;

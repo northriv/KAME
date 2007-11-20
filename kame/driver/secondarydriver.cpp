@@ -14,6 +14,8 @@
 #include "secondarydriver.h"
 #include <klocale.h>
 
+static XThreadLocal<std::vector<std::pair<shared_ptr<const XDriver>, XSecondaryDriver* > > > stl_locked_connections;
+
 XSecondaryDriver::XSecondaryDriver(const char *name, bool runtime, 
 								   const shared_ptr<XScalarEntryList> &scalarentries,
 								   const shared_ptr<XInterfaceList> &interfaces,
@@ -44,22 +46,29 @@ void
 XSecondaryDriver::readLockAllConnections() {
     m_connection_mutex.readLock();
     for(tConnection_it it = m_connections.begin(); it != m_connections.end(); it++) {
-    	m_locked_connections.push_back(*it);
+    	stl_locked_connections->push_back(std::pair<shared_ptr<const XDriver>, XSecondaryDriver* >(*it, this));
         (*it)->readLockRecord();
     }
 }
 void
 XSecondaryDriver::readUnlockAllConnections() {
-    for(tConnection_it it = m_locked_connections.begin(); it != m_locked_connections.end(); it++) {
-        (*it)->readUnlockRecord();
+    for(std::vector<std::pair<shared_ptr<const XDriver>, XSecondaryDriver* > >::iterator
+    	it = stl_locked_connections->begin(); it != stl_locked_connections->end();) {
+    	if(it->second == this) {
+    		it->first->readUnlockRecord();
+    		it = stl_locked_connections->erase(it);
+    	}
+    	else {
+    		it++;
+    	}
     }
-    m_locked_connections.clear();
     m_connection_mutex.readUnlock();
 }
 void
 XSecondaryDriver::unlockConnection(const shared_ptr<XDriver> &connected) {
-	m_locked_connections.erase(
-			std::find(m_locked_connections.begin(), m_locked_connections.end(), connected));
+	stl_locked_connections->erase(std::find(
+		stl_locked_connections->begin(), stl_locked_connections->end(),
+		std::pair<shared_ptr<const XDriver>, XSecondaryDriver* >(connected, this)));
 	connected->readUnlockRecord();
 }
 
@@ -74,8 +83,8 @@ XSecondaryDriver::onConnectedRecorded(const shared_ptr<XDriver> &driver)
 	for(unsigned int i = 0;; i++) {
 		readLockAllConnections();
 	    //! check if emitter has already connected or if self-emission
-	    if((std::find(m_locked_connections.begin(), m_locked_connections.end(), driver)
-			!= m_locked_connections.end()) 
+	    if((std::find(m_connections.begin(), m_connections.end(), driver)
+			!= m_connections.end()) 
 	       || (driver == shared_from_this())) {
 	        //! driver-side dependency check
 	        if(checkDependency(driver)) {
