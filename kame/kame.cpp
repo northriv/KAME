@@ -118,7 +118,7 @@ FrmKameMain::FrmKameMain()
     m_pFrmNodeBrowser->setIcon(app->iconLoader()->loadIcon("find", KIcon::Toolbar, 0, KIcon::DefaultState, 0, false ) );
     accessor = addToolWindow( m_pFrmNodeBrowser, KDockWidget::DockLeft, 
 							  getMainDockWidget(), 20, m_pFrmNodeBrowser->caption() );    
-    accessor->show();
+//    accessor->show();
 
     // actions
     m_pFileOpenAction = new QAction( this, "fileOpenAction" );
