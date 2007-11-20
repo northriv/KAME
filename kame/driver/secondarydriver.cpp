@@ -66,9 +66,12 @@ XSecondaryDriver::readUnlockAllConnections() {
 }
 void
 XSecondaryDriver::unlockConnection(const shared_ptr<XDriver> &connected) {
-	stl_locked_connections->erase(std::find(
+	std::vector<std::pair<shared_ptr<const XDriver>, XSecondaryDriver* > >::iterator
+		it = std::find(
 		stl_locked_connections->begin(), stl_locked_connections->end(),
-		std::pair<shared_ptr<const XDriver>, XSecondaryDriver* >(connected, this)));
+		std::pair<shared_ptr<const XDriver>, XSecondaryDriver* >(connected, this));
+	ASSERT(it != stl_locked_connections->end());
+	stl_locked_connections->erase(it);
 	connected->readUnlockRecord();
 }
 
@@ -94,8 +97,8 @@ XSecondaryDriver::onConnectedRecorded(const shared_ptr<XDriver> &driver)
 	            	bool skipped = false;
 	                if(!tryStartRecording()) {
 	                	readUnlockAllConnections();
-	                	usleep(5000);
-                    	if(i > 100) {
+	                	msecsleep(i*10);
+                    	if(i > 30) {
                     		gErrPrint(formatString(KAME::i18n(
                     				"Dead lock deteceted on %s. Operation canceled.\nReport this bug to author(s)."),
                     				getName().c_str()));

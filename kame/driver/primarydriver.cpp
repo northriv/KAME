@@ -35,8 +35,8 @@ XPrimaryDriver::finishWritingRaw(
     for(unsigned int i = 0;; i++) {
     	if(tryStartRecording())
     		break;
-    	usleep(5000);
-    	if(i > 100) {
+    	msecsleep(i*10);
+    	if(i > 30) {
     		gErrPrint(formatString(KAME::i18n(
     				"Dead lock deteceted on %s. Operation canceled.\nReport this bug to author(s)."),
     				getName().c_str()));
