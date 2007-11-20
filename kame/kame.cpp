@@ -65,13 +65,13 @@ FrmKameMain::FrmKameMain()
 	KApplication *app = KApplication::kApplication();   
     
 	app->setMainWidget(this);
-	//    form->resize(QSize(QApplication::desktop()->width(), QApplication::desktop()->height() - 200 ).expandedTo(form->sizeHint()) );
+	resize(QSize(QApplication::desktop()->width(), height()).expandedTo(form->sizeHint()) );
 	//    form->switchToChildframeMode();
 	//        form->setToolviewStyle(KMdi::IconOnly);
 	setToolviewStyle(KMdi::TextAndIcon);
 	//    form->setGeometry(0, 0, form->width(), form->height());
 	//form->show();
-	showMaximized();
+	show();
 
 	g_pFrmMain = this;
     
