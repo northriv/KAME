@@ -105,8 +105,8 @@ FrmKameMain::FrmKameMain()
         
     m_pFrmRecordReader = new FrmRecordReader(this, "RawStreamReader");
     m_pFrmRecordReader->setIcon(*g_pIconReader);
-    accessor = addToolWindow( m_pFrmRecordReader, KDockWidget::DockBottom,
-							  getMainDockWidget(), 15,m_pFrmRecordReader->caption() );
+    accessor = addToolWindow( m_pFrmRecordReader, KDockWidget::DockRight,
+							  getMainDockWidget(), 30,m_pFrmRecordReader->caption() );
     
     m_pFrmCalTable = new FrmCalTable(this, "Thermometers");
 //     frmCalTable->setIcon(*IconKame48x48);
@@ -116,8 +116,8 @@ FrmKameMain::FrmKameMain()
         
     m_pFrmNodeBrowser = new FrmNodeBrowser(this, "NodeBrowser");
     m_pFrmNodeBrowser->setIcon(app->iconLoader()->loadIcon("find", KIcon::Toolbar, 0, KIcon::DefaultState, 0, false ) );
-    accessor = addToolWindow( m_pFrmNodeBrowser, KDockWidget::DockBottom, 
-							  getMainDockWidget(), 15, m_pFrmNodeBrowser->caption() );    
+    accessor = addToolWindow( m_pFrmNodeBrowser, KDockWidget::DockLeft, 
+							  getMainDockWidget(), 20, m_pFrmNodeBrowser->caption() );    
     accessor->show();
 
     // actions
