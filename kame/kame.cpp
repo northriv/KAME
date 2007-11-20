@@ -65,7 +65,7 @@ FrmKameMain::FrmKameMain()
 	KApplication *app = KApplication::kApplication();   
     
 	app->setMainWidget(this);
-	resize(QSize(QApplication::desktop()->width(), height()).expandedTo(form->sizeHint()) );
+	resize(QSize(QApplication::desktop()->width(), height()).expandedTo(sizeHint()) );
 	//    form->switchToChildframeMode();
 	//        form->setToolviewStyle(KMdi::IconOnly);
 	setToolviewStyle(KMdi::TextAndIcon);
