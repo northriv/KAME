@@ -69,19 +69,31 @@ public:
 	~atomic_pod_cas2() {}
 	operator T() const {
 		readBarrier();
+#ifdef HAVE_ATOMIC_RW64
+		C_ASSERT(sizeof(T) == 8);
+		T x __attribute__((aligned(8)));
+		atomicRead64(&x, m_var);
+		return x;
+#else
 		for(;;) {
 			T oldv = m_var;
 			if(atomicCompareAndSet(oldv, oldv, &m_var)) {
 				return oldv;
 			}
 		}
+#endif
 	}
 	atomic_pod_cas2 &operator=(T t) {
+#ifdef HAVE_ATOMIC_RW64
+		C_ASSERT(sizeof(T) == 8);
+		atomicWrite64(t, &m_var);
+#else
 		for(;;) {
 			T oldv = m_var;
 			if(atomicCompareAndSet(oldv, t, &m_var))
 				break;
 		}
+#endif
 		writeBarrier();
 		return *this;
 	}

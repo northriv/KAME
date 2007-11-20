@@ -32,27 +32,10 @@ inline void memoryBarrier() {
 	//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
 }
 
-//! at the moment, monitor/mwait is not supported in the user land.
-inline void monitor(void *addr, unsigned int /*size*/) {
-	uint32_t cx = 0L;
-	uint32_t dx = 0L;
-	ASSERT(cg_cpuSpec.hasMonitor);
-	asm volatile(
-		"monitor"
-		:: "a" (addr), "c" (cx), "d" (dx) : "memory" );
-}
 inline void pause4spin() {
 	asm volatile( "pause" ::: "memory" );
 }
-//! at the moment, monitor/mwait is not supported in the user land.
-inline void mwait() {
-	uint32_t ax = 0L;
-	uint32_t cx = 0L;
-	ASSERT(cg_cpuSpec.hasMonitor);
-	asm volatile(
-		"mwait"
-		:: "a" (ax), "c" (cx) : "memory" );
-}
+
 #if SIZEOF_VOID_P == 4
 typedef int32_t int_cas2_each;
 typedef int64_t int_cas2_both;
@@ -61,6 +44,9 @@ typedef uint32_t uint_cas2_each;
 typedef uint64_t uint_cas2_both;
 typedef uint_cas2_each uint_cas_max;
 #define HAVE_CAS_2
+#ifdef __sse2__
+	#define HAVE_ATOMIC_RW64
+#endif
 #endif
 
 #if SIZEOF_VOID_P == 8
@@ -71,6 +57,30 @@ typedef uint64_t uint_cas2_each;
 typedef uint128_t uint_cas2_both;
 typedef uint_cas2_each uint_cas_max;
 #define HAVE_CAS_2
+#endif
+
+#ifdef HAVE_ATOMIC_RW64
+template <typename T>
+void atomicWrite64(const T &x, T *target) {
+	C_ASSERT(sizeof(T) == 8);
+	asm volatile (
+		" movq %0, %%xmm0;"
+		" movq %%xmm0, %1;"
+		:
+		: "m" (x), "m" (*target)
+		: "memory", "%xmm0");	
+}
+
+template <typename T>
+void atomicRead64(T *x, const T &target) {
+	C_ASSERT(sizeof(T) == 8);
+	asm volatile (
+		" movq %0, %%xmm0;"
+		" movq %%xmm0, %1;"
+		:
+		: "m" (target), "m" (*x)
+		: "memory", "%xmm0");	
+}
 #endif
 
 //! Compare-And-Swap 2 long words.

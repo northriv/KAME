@@ -420,11 +420,11 @@ FrmKameMain::openMes(const QString &filename)
 {
 	if(!filename.isEmpty())
 	{
-		shared_ptr<XRubyThread> rbthread = runNewScript("Open Measurement", filename );
-		while(rbthread->isAlive()) {
-			KApplication::kApplication()->processEvents();
-			g_signalBuffer->synchronize();
-		}
+		runNewScript("Open Measurement", filename );
+//		while(rbthread->isAlive()) {
+//			KApplication::kApplication()->processEvents();
+//			g_signalBuffer->synchronize();
+//		}
 //          closeWindow(view);
 		return 0;
 	}

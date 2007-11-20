@@ -100,14 +100,22 @@ int main(int argc, char *argv[])
 			f.setDirectRendering(args->isSet("directrender") );
 			QGLFormat::setDefaultFormat( f );
             
-			//! Use UTF8 conversion from std::string to QString.
+			// Use UTF8 conversion from std::string to QString.
 			QTextCodec::setCodecForCStrings(QTextCodec::codecForName("utf8") );
             
 			QCStringList module_path = args->getOptionList("module");
 			for(QCStringList::iterator it = module_path.begin(); it != module_path.end(); it++) {
 				modules.push_back((const char*)*it);
 			}
-            
+        
+#ifdef __sse2__
+			// Check CPU specs.
+			if(cg_cpuSpec.verSSE < 2) {
+				fprintf(stderr, "SSE2 is needed. Aborting.");
+				return -1;
+			}
+#endif
+			
 			FrmKameMain *form;
 			form = new FrmKameMain();
             

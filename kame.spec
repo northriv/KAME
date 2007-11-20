@@ -73,7 +73,7 @@ CXXFLAGS="-fpermissive -g -O2" ./configure --disable-shared --enable-static
 make ##%%{?_smp_mflags}
 popd
 
-CXXFLAGS="-g3" %configure
+CXXFLAGS="-g3 -mfpmath=sse -msse -msse2 -mmmx -march=pentium4" %configure
 make ##%%{?_smp_mflags}
 
 %install

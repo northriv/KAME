@@ -26,7 +26,7 @@ cat include/linux/utsrelease.h >> include/linux/version.h
 (cd include/asm; ln -s asm-offsets.h asm_offsets.h )
 cd (NIDAQ800-REDHAT directory)
 ./INSTALL --accept-license
-cd (NIKAL-1.4 directory)
+cd (NIKAL-1.6 directory)
 ./INSTALL --accept-license
 /usr/local/bin/updateNIDrivers
 
