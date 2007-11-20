@@ -112,7 +112,11 @@ public:
 		return ret;
 	}
 protected:
+#ifdef HAVE_ATOMIC_RW64
+	T m_var __attribute__((aligned(8)));
+#else
 	mutable T m_var;
+#endif
 };
 
 //! atomic access to POD type capable of CAS2.
