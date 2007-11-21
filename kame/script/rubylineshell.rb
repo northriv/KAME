@@ -6,6 +6,7 @@ greeting=[\
 "404 Physics Not Found.\n",\
 "How many fails(0-15)?\n",\
 "We are Borg. You will be assimilated.\nResistance is futile.\n",\
+"404 Research Not Funded.\n",\
 "Simon says, \"Press the power btn. now.\"\n"]
 print greeting[Integer(rand()**2*greeting.size())]
 

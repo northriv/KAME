@@ -8,7 +8,7 @@ Name: kame
 %{!?build_nidaqmx: %define build_nidaqmx 1}
 
 Version: 2.2.19
-Release: 2
+Release: 3
 License: GPL
 Group: Applications/Engineering
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
