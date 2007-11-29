@@ -172,7 +172,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		m_form->m_edFFTPos);
 	m_conFFTLen = xqcon_create<XQLineEditConnector>(fftLen(),
 		m_form->m_edFFTLen);
-	m_numExtraAvg->setRange(0, 100000);
+	m_form->m_numExtraAvg->setRange(0, 100000);
 	m_conExtraAv = xqcon_create<XQSpinBoxConnector>(extraAvg(),
 		m_form->m_numExtraAvg);
 	m_conExAvgIncr = xqcon_create<XQToggleButtonConnector>(exAvgIncr(),
