@@ -202,12 +202,6 @@ private:
 	static double windowFuncKaiser2(double x);
 	static double windowFuncKaiser3(double x);
   
-	//for DNR
-	int m_dnrsubfftlen, m_dnrpulsefftlen;
-	std::vector<fftw_complex> m_dnrsubfftin, m_dnrsubfftout;
-	fftw_plan m_dnrsubfftplan;    
-	std::vector<fftw_complex> m_dnrpulsefftin, m_dnrpulsefftout;
-	fftw_plan m_dnrpulsefftplan;
 	void backgroundSub(const std::deque<std::complex<double> > &wave, int pos,
 					   int length, int bgpos, int bglength, twindowfunc windowfunc);
   
