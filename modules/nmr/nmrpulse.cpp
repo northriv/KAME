@@ -531,7 +531,7 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &)
 
 	//background subtraction or dynamic noise reduction
 	//write echo into m_wave
-	backgroundSub(wave, pos, length, bgpos, bglength, windowfunc);
+	backgroundSub(wave, pos, length, bgpos, bglength);
 
 	if(picenabled && picclear) {
 		ASSERT( _pulser->time() );
