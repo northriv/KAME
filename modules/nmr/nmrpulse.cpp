@@ -254,13 +254,15 @@ void XNMRPulseAnalyzer::showForms() {
 
 void XNMRPulseAnalyzer::backgroundSub(
 	const std::deque<std::complex<double> > &wave, int pos, int length,
-	int bgpos, int bglength, twindowfunc windowfunc) {
+	int bgpos, int bglength) {
 	std::complex<double> bg = 0;
 	m_noisePower = 1.0;
 	if (bglength) {
 		double normalize = 0.0;
 		for (int i = 0; i < bglength; i++) {
-			double z = windowfunc( (double)i / bglength - 0.5);
+			double z = 1.0;
+			if(!*useDNR())
+				z = windowFuncHamming( (double)i / bglength - 0.5);
 			bg += z * wave[pos + i + bgpos];
 			normalize += z;
 		}
