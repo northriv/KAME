@@ -282,10 +282,8 @@ void XNMRPulseAnalyzer::backgroundSub(
 	int dnrbgpos = ((bgpos - 1) / length + 1) * length;
 	int dnrcnt = (bgpos + bglength - dnrbgpos) / length;
 	if (*useDNR() && (dnrcnt > 0) && (dnrbgpos > length)) {
-		for (int j = 0; j < dnrcnt; j++) {
-			for (int i = 0; i < length; i++) {
-				m_wave[i] -= (wave[pos + i + dnrbgpos] - bg) / (double)dnrcnt;
-			}
+		for (int i = 0; i < length * dnrcnt; i++) {
+			m_wave[i % length] -= (wave[pos + i + dnrbgpos] - bg) / (double)dnrcnt;
 		}
 	}
 }

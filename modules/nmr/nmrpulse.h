@@ -203,7 +203,7 @@ private:
 	static double windowFuncKaiser3(double x);
   
 	void backgroundSub(const std::deque<std::complex<double> > &wave, int pos,
-					   int length, int bgpos, int bglength, twindowfunc windowfunc);
+					   int length, int bgpos, int bglength);
   
 	//for FFT
 	int m_fftlen;
