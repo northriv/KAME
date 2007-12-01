@@ -255,6 +255,10 @@ void XNMRPulseAnalyzer::showForms() {
 void XNMRPulseAnalyzer::backgroundSub(
 	const std::deque<std::complex<double> > &wave, int pos, int length,
 	int bgpos, int bglength) {
+
+	if(bglength < length*2)
+	m_statusPrinter->printWarning(KAME::i18n("Maybe, length for BG. sub. is too short."));
+	
 	std::complex<double> bg = 0;
 	m_noisePower = 1.0;
 	if (bglength) {
@@ -279,9 +283,13 @@ void XNMRPulseAnalyzer::backgroundSub(
 		m_wave[i] += wave[pos + i] - bg;
 	}
 
-	int dnrbgpos = ((bgpos - 1) / length + 1) * length;
-	int dnrcnt = (bgpos + bglength - dnrbgpos) / length;
-	if (*useDNR() && (dnrcnt > 0) && (dnrbgpos > length)) {
+	if (*useDNR() && bglength) {
+		int dnrbgpos = ((bgpos - 1) / length + 1) * length;
+		int dnrcnt = (bgpos + bglength - dnrbgpos) / length;
+		if(dnrcnt < 4) {
+			m_statusPrinter->printWarning(KAME::i18n("DNR is disabled."));
+			dnrcnt = 0;
+		}
 		for (int i = 0; i < length * dnrcnt; i++) {
 			m_wave[i % length] -= (wave[pos + i + dnrbgpos] - bg) / (double)dnrcnt;
 		}
@@ -463,9 +471,6 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &)
 		throw XRecordError(KAME::i18n("Invalid Length for BG. sub."), __FILE__, __LINE__);
 	}
 
-	double bg_required = (*useDNR()) ? 4.0 : 2.0;
-	if(bglength < length*bg_required)
-	m_statusPrinter->printWarning(KAME::i18n("Maybe, length for BG. sub. is too short."));
 	if((bgpos < length) && (bgpos > 0))
 	m_statusPrinter->printWarning(KAME::i18n("Maybe, position for BG. sub. is overrapped against echoes"), true);
 
