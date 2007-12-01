@@ -286,8 +286,8 @@ void XNMRPulseAnalyzer::backgroundSub(
 	if (*useDNR() && bglength) {
 		int dnrbgpos = ((bgpos - 1) / length + 1) * length;
 		int dnrcnt = (bgpos + bglength - dnrbgpos) / length;
-		if(dnrcnt < 4) {
-			m_statusPrinter->printWarning(KAME::i18n("DNR is disabled."));
+		if(dnrcnt < 3) {
+			m_statusPrinter->printWarning(KAME::i18n("DNR is disabled due to shortness of BG length."));
 			dnrcnt = 0;
 		}
 		for (int i = 0; i < length * dnrcnt; i++) {
