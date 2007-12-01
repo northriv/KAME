@@ -15,7 +15,7 @@ bind = binding()
 while(!XRubyThreads.is_main_terminated())
 	begin
 		line = gets()
-		print "##{lineno}>>#{line}"
+		print "##{lineno}>>#{line}\n"
 	rescue ScriptError, StandardError
 		break
 	end
