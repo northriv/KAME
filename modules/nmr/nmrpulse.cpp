@@ -437,6 +437,9 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &)
 		ftWaveGraph()->clear();
 		waveGraph()->clear();
 		picclear = true;
+		if(*exAvgIncr()) {
+			extraAvg()->value(0);
+		}
 	}
 
 	// Phase Inversion Cycling
@@ -472,7 +475,7 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &)
 		throw XRecordError(KAME::i18n("Invalid Length for BG. sub."), __FILE__, __LINE__);
 	}
 
-	if((bgpos < length) && (bgpos > 0))
+	if((bgpos < length) && (bgpos + bglength > 0))
 	m_statusPrinter->printWarning(KAME::i18n("Maybe, position for BG. sub. is overrapped against echoes"), true);
 
 	int echoperiod = lrint(*echoPeriod() / 1000 /interval);
