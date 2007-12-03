@@ -284,14 +284,15 @@ void XNMRPulseAnalyzer::backgroundSub(
 	}
 
 	if (*useDNR() && bglength) {
-		int dnrbgpos = ((bgpos - 1) / length + 1) * length;
-		int dnrcnt = (bgpos + bglength - dnrbgpos) / length;
+		int dnrcnt = (bgpos + bglength) / bglength;
 		if(dnrcnt < 3) {
 			m_statusPrinter->printWarning(KAME::i18n("DNR is disabled due to shortness of BG length."));
 			dnrcnt = 0;
 		}
-		for (int i = 0; i < length * dnrcnt; i++) {
-			m_wave[i % length] -= (wave[pos + i + dnrbgpos] - bg) / (double)dnrcnt;
+		for (int j = 0; j < dnrcnt; j++) {		
+			for (int i = 0; i < length; i++) {
+				m_wave[i] -= (wave[pos + i + bgpos + bglength * j] - bg) / (double)dnrcnt;
+			}
 		}
 	}
 }
