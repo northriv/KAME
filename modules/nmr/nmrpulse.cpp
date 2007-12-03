@@ -137,7 +137,6 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 	fftPos()->value(0.004);
 	fftLen()->value(16384);
 	numEcho()->value(1);
-	useDNR()->value(true);
 	windowFunc()->add(WINDOW_FUNC_RECT);
 	windowFunc()->add(WINDOW_FUNC_HANNING);
 	windowFunc()->add(WINDOW_FUNC_HAMMING);
