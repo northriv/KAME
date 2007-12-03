@@ -291,7 +291,7 @@ void XNMRPulseAnalyzer::backgroundSub(
 		}
 		for (int j = 0; j < dnrcnt; j++) {		
 			for (int i = 0; i < length; i++) {
-				m_wave[i] -= (wave[pos + i + bgpos + bglength * j] - bg) / (double)dnrcnt;
+				m_wave[i] -= (wave[pos + i + bgpos * j] - bg) / (double)dnrcnt;
 			}
 		}
 	}
