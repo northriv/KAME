@@ -23,6 +23,7 @@ libnmrpulser_la_SOURCES = \
 	pulserdriverh8.cpp pulserdriverh8.h
 libnmr_la_SOURCES = \
 	nmrpulse.cpp nmrpulse.h \
+	nmrmem.cpp nmrmem.h \
 	nmrspectrumbase.cpp nmrspectrumbase.h \
 	nmrspectrum.cpp nmrspectrum.h \
 	nmrfspectrum.cpp nmrfspectrum.h \

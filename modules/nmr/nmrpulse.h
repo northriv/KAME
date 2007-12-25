@@ -16,11 +16,12 @@
 //---------------------------------------------------------------------------
 #include <fftw.h>
 #include <vector>
-#include <secondarydriver.h>
-#include <dso.h>
-#include <pulserdriver.h>
+#include "secondarydriver.h"
+#include "dso.h"
+#include "pulserdriver.h"
 #include <complex>
 //---------------------------------------------------------------------------
+#include "nmrmem.h"
 
 class FrmNMRPulse;
 class XWaveNGraph;
@@ -72,6 +73,8 @@ public:
 	const shared_ptr<XDoubleNode> &phaseAdv() const {return m_phaseAdv;}   ///< [deg]
 	/// Dynamic Noise Reduction
 	const shared_ptr<XBoolNode> &useDNR() const {return m_useDNR;}
+	/// Maximum Entropy Method instead of zero-filling FT.
+	const shared_ptr<XBoolNode> &useMEM() const {return m_useMEM;}
 	/// Position from trigger, for background subtraction or DNR [ms]
 	const shared_ptr<XDoubleNode> &bgPos() const {return m_bgPos;}
 	/// length for background subtraction or DNR [ms]  
@@ -126,6 +129,7 @@ private:
 
 	const shared_ptr<XDoubleNode> m_phaseAdv;   ///< [deg]
 	const shared_ptr<XBoolNode> m_useDNR;
+	const shared_ptr<XBoolNode> m_useMEM;
 	const shared_ptr<XDoubleNode> m_bgPos;
 	const shared_ptr<XDoubleNode> m_bgWidth;
 	const shared_ptr<XDoubleNode> m_fftPos;
@@ -167,7 +171,7 @@ private:
 	//! time diff. of the first point from trigger
 	double m_startTime;
   
-	xqcon_ptr m_conFromTrig, m_conWidth, m_conPhaseAdv, m_conBGPos, m_conUseDNR,
+	xqcon_ptr m_conFromTrig, m_conWidth, m_conPhaseAdv, m_conBGPos, m_conUseDNR, m_conUseMEM, 
 		m_conBGWidth, m_conFFTPos, m_conFFTLen, m_conExtraAv;
 	xqcon_ptr m_conExAvgIncr;
 	xqcon_ptr m_conAvgClear, m_conFFTShow, m_conWindowFunc, m_conDIFFreq;
@@ -207,8 +211,9 @@ private:
   
 	//for FFT
 	int m_fftlen;
-	std::vector<fftw_complex> m_fftin, m_fftout;
 	fftw_plan m_fftplan;
+	NMRMEM m_mem, m_memDNR;
+	
 	void rotNFFT(int ftpos, double ph, 
 				 std::deque<std::complex<double> > &wave, std::deque<std::complex<double> > &ftwave,
 				 twindowfunc windowfunc, int diffreq);

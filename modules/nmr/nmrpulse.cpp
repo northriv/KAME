@@ -101,6 +101,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		m_width(create<XDoubleNode>("Width", false)),
 		m_phaseAdv(create<XDoubleNode>("PhaseAdv", false)),
 		m_useDNR(create<XBoolNode>("UseDNR", false)),
+		m_useMEM(create<XBoolNode>("UseMEM", false)),
 		m_bgPos(create<XDoubleNode>("BGPos", false)),
 		m_bgWidth(create<XDoubleNode>("BGWidth", false)),
 		m_fftPos(create<XDoubleNode>("FFTPos", false)),
@@ -164,6 +165,8 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		m_form->m_numPhaseAdv);
 	m_conUseDNR = xqcon_create<XQToggleButtonConnector>(useDNR(),
 		m_form->m_ckbDNR);
+	m_conUseMEM = xqcon_create<XQToggleButtonConnector>(useMEM(),
+		m_form->m_ckbMEM);
 	m_conBGPos = xqcon_create<XQLineEditConnector>(bgPos(), m_form->m_edBGPos);
 	m_conBGWidth = xqcon_create<XQLineEditConnector>(bgWidth(),
 		m_form->m_edBGWidth);
@@ -227,6 +230,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 	width()->onValueChanged().connect(m_lsnOnCondChanged);
 	phaseAdv()->onValueChanged().connect(m_lsnOnCondChanged);
 	useDNR()->onValueChanged().connect(m_lsnOnCondChanged);
+	useMEM()->onValueChanged().connect(m_lsnOnCondChanged);
 	bgPos()->onValueChanged().connect(m_lsnOnCondChanged);
 	bgWidth()->onValueChanged().connect(m_lsnOnCondChanged);
 	fftPos()->onValueChanged().connect(m_lsnOnCondChanged);
@@ -283,15 +287,17 @@ void XNMRPulseAnalyzer::backgroundSub(
 	}
 
 	if (*useDNR()) {
-		int dnrcnt = (bglength - length) / bgpos + 1;
-		if(dnrcnt < 5) {
-			m_statusPrinter->printWarning(KAME::i18n("DNR is disabled due to shortness of BG length."));
-			dnrcnt = 0;
+		int dnrlength = lrint(pow(2, rint(log(bglength + bgpos) / log(2)))) * 8;
+		std::vector<fftw_complex> memin(bglength), memout(dnrlength);
+		for(unsigned int i = 0; i < bglength; i++) {
+			std::complex<double> z(wave[pos + i + bgpos] - bg);
+			memin[i].re = z.real();
+			memin[i].im = z.imag();
 		}
-		for (int j = 0; j < dnrcnt; j++) {		
-			for (int i = 0; i < length; i++) {
-				m_wave[i] -= (wave[pos + i + bgpos * (j + 1)] - bg) / (double)dnrcnt;
-			}
+		m_memDNR.exec(memin, memout, bgpos, 2e-2);
+		for(unsigned int i = 0; i < length; i++) {
+			fftw_complex z = m_memDNR.ifft()[i];
+			m_wave[i] -= std::complex<double>(z.re, z.im);
 		}
 	}
 }
@@ -307,28 +313,41 @@ void XNMRPulseAnalyzer::rotNFFT(int ftpos, double ph,
 	}
 
 	//fft
-	for (int i = 0; i < m_fftlen; i++) {
-		int j = (ftpos + i >= m_fftlen) ? (ftpos + i - m_fftlen) : (ftpos + i);
-		double z = windowfunc((j - ftpos) / (double)length);
-		if ((j >= length) || (j < 0)) {
-			m_fftin[i].re = 0;
-			m_fftin[i].im = 0;
-		} else {
-			wave[j] *= z;
-			m_fftin[i].re = std::real(wave[j]);
-			m_fftin[i].im = std::imag(wave[j]);
+	std::vector<fftw_complex> fftout(m_fftlen);
+	double fftout_normalize = 1.0 / length;
+	if(*useMEM()) {
+		std::vector<fftw_complex> memin(length);
+		for (int i = 0; i < length; i++) {
+			memin[i].re = std::real(wave[i]);
+			memin[i].im = std::imag(wave[i]);
 		}
+		XTime time(XTime::now());
+		m_mem.exec(memin, fftout, -ftpos, 1e-2);
+		fprintf(stderr, "NMRMEM %f sec elapsed\n", (double)(XTime::now() - time));
 	}
-
-	fftw_one(m_fftplan, &m_fftin[0], &m_fftout[0]);
+	else {
+		std::vector<fftw_complex> fftin(m_fftlen);
+		for (int i = 0; i < m_fftlen; i++) {
+			int j = (ftpos + i >= m_fftlen) ? (ftpos + i - m_fftlen) : (ftpos + i);
+			double z = windowfunc((j - ftpos) / (double)length);
+			if ((j >= length) || (j < 0)) {
+				fftin[i].re = 0;
+				fftin[i].im = 0;
+			} else {
+				wave[j] *= z;
+				fftin[i].re = std::real(wave[j]);
+				fftin[i].im = std::imag(wave[j]);
+			}
+		}
+		fftw_one(m_fftplan, &fftin[0], &fftout[0]);
+	}
 
 	for (int i = 0; i < m_fftlen; i++) {
 		int k = i + diffreq;
 		if ((k >= 0) && (k < m_fftlen)) {
 			int j = (k < m_fftlen / 2) ? (m_fftlen / 2 + k)
 				: (k - m_fftlen / 2);
-			double normalize = 1.0 / length;
-			ftwave[i] = std::complex<double>(m_fftout[j].re * normalize, m_fftout[j].im * normalize);
+			ftwave[i] = std::complex<double>(fftout[j].re * fftout_normalize, fftout[j].im * fftout_normalize);
 		}
 		else {
 			ftwave[i] = 0;
@@ -411,8 +430,6 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &)
 			!= m_fftlen)
 			m_statusPrinter->printWarning(
 				KAME::i18n("FFT length is not a power of 2."), true);
-		m_fftin.resize(m_fftlen);
-		m_fftout.resize(m_fftlen);
 		m_fftplan = fftw_create_plan(m_fftlen, FFTW_FORWARD, FFTW_ESTIMATE);
 		m_ftWave.resize(m_fftlen);
 		m_ftWaveSum.resize(m_fftlen);

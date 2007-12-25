@@ -201,7 +201,7 @@
                             </widget>
                         </hbox>
                     </widget>
-                    <widget class="QLayoutWidget" row="6" column="0">
+                    <widget class="QLayoutWidget" row="5" column="0">
                         <property name="name">
                             <cstring>layout23_2</cstring>
                         </property>
@@ -421,7 +421,7 @@
                             </widget>
                         </grid>
                     </widget>
-                    <widget class="QLayoutWidget" row="4" column="0">
+                    <widget class="QLayoutWidget" row="3" column="0">
                         <property name="name">
                             <cstring>layout21</cstring>
                         </property>
@@ -664,7 +664,7 @@
                             </widget>
                         </hbox>
                     </widget>
-                    <widget class="QLayoutWidget" row="3" column="0">
+                    <widget class="QLayoutWidget" row="4" column="0">
                         <property name="name">
                             <cstring>layout23</cstring>
                         </property>
@@ -686,6 +686,22 @@
                                 </property>
                                 <property name="text">
                                     <string>Dynamic Noise Reduction (DNR)</string>
+                                </property>
+                            </widget>
+                            <widget class="QCheckBox">
+                                <property name="name">
+                                    <cstring>m_ckbMEM</cstring>
+                                </property>
+                                <property name="sizePolicy">
+                                    <sizepolicy>
+                                        <hsizetype>5</hsizetype>
+                                        <vsizetype>0</vsizetype>
+                                        <horstretch>0</horstretch>
+                                        <verstretch>0</verstretch>
+                                    </sizepolicy>
+                                </property>
+                                <property name="text">
+                                    <string>Maximum Entropy Method (MEM)</string>
                                 </property>
                             </widget>
                             <widget class="QLayoutWidget">
@@ -848,7 +864,7 @@
                             </widget>
                         </vbox>
                     </widget>
-                    <widget class="QLayoutWidget" row="5" column="0">
+                    <widget class="QLayoutWidget" row="6" column="0">
                         <property name="name">
                             <cstring>layout93</cstring>
                         </property>
