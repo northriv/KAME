@@ -1,3 +1,7 @@
+* Thu Dec 27 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.2.21-1)
+- nmrpulse : MEM (maximum entropy method) for DNR & spectra.
+
 * Thu Nov 29 2007 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.2.20-1)
 - nmrpulse : rewrite DNR. Reflect extraAvg while increasing.
