@@ -359,8 +359,9 @@ void XNMRPulseAnalyzer::onAvgClear(const shared_ptr<XNode> &) {
 	requestAnalysis();
 }
 void XNMRPulseAnalyzer::onCondChanged(const shared_ptr<XValueNodeBase> &node) {
-	if ((node == fromTrig()) || (node == numEcho()) || (node == difFreq())
-		|| (node == exAvgIncr()))
+	if ((node == numEcho()) || (node == difFreq()))
+		m_timeClearRequested = XTime::now();
+	if (node == exAvgIncr())
 		m_timeClearRequested = XTime::now();
 	if (node == exAvgIncr())
 		extraAvg()->value(0);
@@ -378,7 +379,7 @@ bool XNMRPulseAnalyzer::checkDependency(const shared_ptr<XDriver> &emitter) cons
 	//    if(_pulser && (_dso->timeAwared() < _pulser->time())) return false;
 	return true;
 }
-void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &)
+void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	throw (XRecordError&) {
 	const shared_ptr<XDSO> _dso = *dso();
 	ASSERT(_dso);
@@ -391,18 +392,26 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &)
 		throw XRecordError(KAME::i18n("Two channels needed in DSO"), __FILE__, __LINE__);
 	}
 
-	double interval = _dso->timeIntervalRecorded();
+	bool skip = (m_timeClearRequested > _dso->timeAwared());
+	bool avgclear = skip;
+	bool picclear = (emitter != _dso);
 
+	double interval = _dso->timeIntervalRecorded();
 	if (interval <= 0) {
 		throw XRecordError(KAME::i18n("Invalid time interval in waveforms."), __FILE__, __LINE__);
 	}
-	//[sec]
-	m_interval = interval;
-	//[Hz]
-	m_dFreq = 1.0 / m_fftlen / interval;
+	if(interval != m_interval) {
+		//[sec]
+		m_interval = interval;
+		avgclear = true;
+	}
 	int pos = lrint(*fromTrig() *1e-3 / interval + _dso->trigPosRecorded());
-	//[sec]
-	m_startTime = (pos - _dso->trigPosRecorded()) * interval;
+	double starttime = (pos - _dso->trigPosRecorded()) * interval;
+	if(m_startTime != starttime) {
+		//[sec]
+		m_startTime = starttime;
+		avgclear = true;
+	}
 
 	if (pos >= (int)_dso->lengthRecorded()) {
 		throw XRecordError(KAME::i18n("Position beyond waveforms."), __FILE__, __LINE__);
@@ -418,10 +427,6 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &)
 		throw XRecordError(KAME::i18n("Invalid length."), __FILE__, __LINE__);
 	}
 
-	bool skip = (m_timeClearRequested > _dso->timeAwared());
-	bool avgclear = skip;
-	bool picclear = false;
-
 	if ((int)*fftLen() != m_fftlen) {
 		if (m_fftlen >= 0)
 			fftw_destroy_plan(m_fftplan);
@@ -434,6 +439,9 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &)
 		m_ftWave.resize(m_fftlen);
 		m_ftWaveSum.resize(m_fftlen);
 	}
+	//[Hz]
+	m_dFreq = 1.0 / m_fftlen / interval;
+
 	if (length > (int)m_wave.size()) {
 		avgclear = true;
 	}
@@ -570,23 +578,25 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &)
 		}
 	}
 
-	while(!*exAvgIncr() && (*extraAvg() <= m_waveAv.size()) && !m_waveAv.empty()) {
-		for(int i = 0; i < length; i++) {
-			m_rawWaveSum[i] -= m_waveAv.front()[i];
+	if((emitter == _dso) || (!m_avcount)) {
+		while(!*exAvgIncr() && (*extraAvg() <= m_waveAv.size()) && !m_waveAv.empty()) {
+			for(int i = 0; i < length; i++) {
+				m_rawWaveSum[i] -= m_waveAv.front()[i];
+			}
+			m_waveAv.pop_front();
+			m_avcount--;
 		}
-		m_waveAv.pop_front();
-		m_avcount--;
-	}
-
-	for(int i = 0; i < length; i++) {
-		m_rawWaveSum[i] += m_wave[i];
-	}
-	m_avcount++;
-	if(*exAvgIncr()) {
-		extraAvg()->value(m_avcount);
-	}
-	else {
-		m_waveAv.push_back(m_wave);
+	
+		for(int i = 0; i < length; i++) {
+			m_rawWaveSum[i] += m_wave[i];
+		}
+		m_avcount++;
+		if(*exAvgIncr()) {
+			extraAvg()->value(m_avcount);
+		}
+		else {
+			m_waveAv.push_back(m_wave);
+		}
 	}
 
 	int ftpos = lrint(*fftPos() * 1e-3 / interval + _dso->trigPosRecorded() - pos);
