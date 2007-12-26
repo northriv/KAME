@@ -23,7 +23,7 @@
 class NMRMEM {
 public:
 	~NMRMEM();
-	double exec(const std::vector<fftw_complex>& memin, std::vector<fftw_complex>& memout,
+	bool exec(const std::vector<fftw_complex>& memin, std::vector<fftw_complex>& memout,
 		int t0, double torr);
 	const std::vector<fftw_complex>& ifft() const {return m_ifft;}
 private:
@@ -34,7 +34,7 @@ private:
 	void solveZ(double torr);
 
 	std::vector<fftw_complex> m_lambda, m_ifft, m_accumDY, m_accumDYFT;
-	fftw_plan m_ifftplanN, m_fftplanT;
+	fftw_plan m_ifftplanN, m_fftplanN, m_fftplanT;
 	std::vector<double> m_accumG2;
 	double m_accumZ;
 };

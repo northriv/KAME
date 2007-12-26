@@ -18,6 +18,7 @@
 
 NMRMEM::~NMRMEM() {
 	if(m_ifft.size()) {
+		fftw_destroy_plan(m_fftplanN);
 		fftw_destroy_plan(m_ifftplanN);
 	}
 	if(m_lambda.size())
@@ -34,8 +35,10 @@ void
 NMRMEM::setup(unsigned int t, unsigned int n) {
 	if (m_ifft.size() != n) {
 		if(m_ifft.size()) {
+			fftw_destroy_plan(m_fftplanN);
 			fftw_destroy_plan(m_ifftplanN);
 		}
+		m_fftplanN = fftw_create_plan(n, FFTW_FORWARD, FFTW_ESTIMATE);		
 		m_ifftplanN = fftw_create_plan(n, FFTW_BACKWARD, FFTW_ESTIMATE);		
 		m_ifft.resize(n);
 	}
@@ -71,37 +74,42 @@ NMRMEM::solveZ(double torr) {
 		double err = fabs(nsumz - m_accumZ) / nsumz;
 		m_accumZ = nsumz;
 		if(err < torr) {
-			fprintf(stderr, "MEM: Z solved w/ it=%u,err=%g\n", it, err);
+//			fprintf(stderr, "MEM: Z solved w/ it=%u,err=%g\n", it, err);
 			break;
 		}
 	}
 }
 
-double
+bool
 NMRMEM::exec(const std::vector<fftw_complex>& memin, std::vector<fftw_complex>& memout,
 	int t0, double torr) {
 	unsigned int t = memin.size();
 	unsigned int n = memout.size();
+	if(t0 < 0)
+		t0 += (-t0 / n + 1) * n;
 	setup(t, n);
-	double power = 0.0;
+	double sqrtpow = 0.0;
 	for(unsigned int i = 0; i < memin.size(); i++)
-		power += memin[i].re*memin[i].re + memin[i].im*memin[i].im;
-	power = sqrt(power);
-	double sigma = power * 0.5;
+		sqrtpow += memin[i].re*memin[i].re + memin[i].im*memin[i].im;
+	sqrtpow = sqrt(sqrtpow);
+	double sigma = sqrtpow * 0.5;
 	fprintf(stderr, "MEM: Using T=%u,N=%u,sigma=%g\n", t,n,sigma);
 	double err;
-	for(double alpha = 0.3; alpha > 0.01; alpha -= 0.05) {
+	for(double alpha = 0.3; alpha > 0.1; alpha -= 0.1) {
+		clearFTBuf(m_accumDYFT);
+		clearFTBuf(m_ifft);
+		clearFTBuf(memout);
 		clearFTBuf(m_lambda);
 		clearFTBuf(m_accumDY);
 		std::fill(m_accumG2.begin(), m_accumG2.end(), 0.0);
 		m_accumZ = t;
-		double oerr = power;
+		double oerr = sqrtpow;
 		for(unsigned it = 0; it < 50; it++) {
 			err = stepMEM(memin, memout, alpha, sigma, t0, torr);
-			if(err < torr * power) {
+			if(err < torr * sqrtpow) {
 				break;
 			}
-			if(err > power * 1.1) {
+			if(err > sqrtpow * 1.1) {
 				break;
 			}
 			if(err > oerr * 1.5) {
@@ -109,15 +117,29 @@ NMRMEM::exec(const std::vector<fftw_complex>& memin, std::vector<fftw_complex>& 
 			}
 			oerr = err;
 		}
-		if(err < torr * power) {
+		if(err < torr * sqrtpow) {
 			fprintf(stderr, "MEM: Converged w/ alpha=%g, err=%g\n", alpha, err);
-			break;
+			double osqrtpow = 0.0;
+			for(unsigned int i = 0; i < memout.size(); i++)
+				osqrtpow += memout[i].re*memout[i].re + memout[i].im*memout[i].im;
+			osqrtpow = sqrt(osqrtpow / n);
+			fprintf(stderr, "MEM: Pout/Pin=%g\n", osqrtpow/sqrtpow);
+			return true;
 		}
 		else {
 			fprintf(stderr, "MEM: Failed w/ alpha=%g, err=%g\n", alpha, err);
 		}
 	}
-	return err;
+	fprintf(stderr, "MEM: Use ZF-FFT instead.\n");
+	clearFTBuf(m_ifft);
+	for(unsigned int i = 0; i < t; i++) {
+		fftw_complex *pout = &m_ifft[(t0 + i) % n];
+		pout->re = memin[i].re;
+		pout->im = memin[i].im;
+	}
+	clearFTBuf(memout);
+	fftw_one(m_fftplanN, &m_ifft[0], &memout[0]);			
+	return false;
 }
 double
 NMRMEM::stepMEM(const std::vector<fftw_complex>& memin, std::vector<fftw_complex>& memout, 

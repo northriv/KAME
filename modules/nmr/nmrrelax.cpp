@@ -339,7 +339,12 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 		shared_ptr<XNMRPulseAnalyzer> _pulse2 = *pulse2();
 		ASSERT( _pulser->time() );
 		ASSERT( emitter != _pulser );
-            
+        
+		if(*_pulse1->useMEM() || (_pulse2 && *_pulse2->useMEM())) {
+			m_statusPrinter->printWarning(KAME::i18n("Do not use MEM. Skipping."));
+			throw XSkippedRecordError(__FILE__, __LINE__);
+		}
+		
 		bool _active = *active();
       
 		std::complex<double> cmp1, cmp2;

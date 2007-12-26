@@ -322,7 +322,7 @@ void XNMRPulseAnalyzer::rotNFFT(int ftpos, double ph,
 			memin[i].im = std::imag(wave[i]);
 		}
 		XTime time(XTime::now());
-		m_mem.exec(memin, fftout, -ftpos, 1e-2);
+		m_mem.exec(memin, fftout, -ftpos, 0.5e-2);
 		fprintf(stderr, "NMRMEM %f sec elapsed\n", (double)(XTime::now() - time));
 	}
 	else {
