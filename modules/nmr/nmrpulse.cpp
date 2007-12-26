@@ -286,7 +286,7 @@ void XNMRPulseAnalyzer::backgroundSub(
 		m_wave[i] += wave[pos + i] - bg;
 	}
 
-	if (*useDNR()) {
+	if (bglength && *useDNR()) {
 		int dnrlength = lrint(pow(2, rint(log(bglength + bgpos) / log(2)))) * 8;
 		std::vector<fftw_complex> memin(bglength), memout(dnrlength);
 		for(unsigned int i = 0; i < bglength; i++) {
