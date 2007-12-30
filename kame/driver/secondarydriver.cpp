@@ -117,7 +117,7 @@ XSecondaryDriver::onConnectedRecorded(const shared_ptr<XDriver> &driver)
 	                try {
 	                    analyze(driver);
 	                }
-	                catch (XSkippedRecordError&) {
+	                catch (XSkippedRecordError& e) {
 	                	skipped = true;
 	        	    	if(e.msg().length())
 	        	    		e.print(getLabel() + ": " + KAME::i18n("Skipped, because "));
