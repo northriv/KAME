@@ -262,11 +262,11 @@ XNMRSpectrumBase<FRM>::fssum()
 		throw XRecordError(KAME::i18n("Invalid center freq."), __FILE__, __LINE__);  
 	}
 	if(_pulse->windowFunc()->to_str() != WINDOW_FUNC_RECT) {
-		m_statusPrinter->printWarning(KAME::i18n("Do not use window function in the pulse analyzer. Skipping."));
+		m_statusPrinter->printWarning(KAME::i18n("Do not use window function in the pulse analyzer. Skipping."), false);
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
 	if(*_pulse->useMEM()) {
-		m_statusPrinter->printWarning(KAME::i18n("Do not use MEM in the pulse analyzer. Skipping."));
+		m_statusPrinter->printWarning(KAME::i18n("Do not use MEM in the pulse analyzer. Skipping."), false);
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
 	for(int i = std::max(0, (len - bw) / 2); i < std::min(len, (len + bw) / 2); i++) {

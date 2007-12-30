@@ -306,7 +306,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 		throw XRecordError(KAME::i18n("Invalid # of Samples."), __FILE__, __LINE__);  
 	}
 	if(samples >= 100000) {
-		m_statusPrinter->printWarning(KAME::i18n("Too many Samples."));
+		m_statusPrinter->printWarning(KAME::i18n("Too many Samples."), true);
 	}
 
 	const int _mode = *mode();
@@ -340,9 +340,12 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 		ASSERT( _pulser->time() );
 		ASSERT( emitter != _pulser );
         
-		if(*_pulse1->useMEM() || (_pulse2 && *_pulse2->useMEM())) {
+		if(*_pulse1->useMEM()) {
 			m_statusPrinter->printWarning(KAME::i18n("Do not use MEM. Skipping."));
 			throw XSkippedRecordError(__FILE__, __LINE__);
+		}
+		if(_pulse1->windowFunc()->to_str() == WINDOW_FUNC_RECT) {
+			m_statusPrinter->printWarning(KAME::i18n("Use of a window function is strongly recommended."));
 		}
 		
 		bool _active = *active();
@@ -567,11 +570,11 @@ XNMRT1::onActiveChanged(const shared_ptr<XValueNodeBase> &)
 
 		onClearAll(shared_from_this());
 		if(!_pulser || !_pulse1) {
-			gErrPrint(KAME::i18n("No pulser or No NMR Pulse Analyzer."));  
+			gErrPrint(getLabel() + ": " + KAME::i18n("No pulser or No NMR Pulse Analyzer."));  
 			return;
 		}
       
-		if(!!_pulse2 && 
+		if(_pulse2 && 
 		   ((*_pulser->combMode() == XPulser::N_COMB_MODE_COMB_ALT) ||
 			(*_pulser->combMode() == XPulser::N_COMB_MODE_P1_ALT))) {
 			_pulse2->fromTrig()->value(
@@ -584,7 +587,9 @@ XNMRT1::onActiveChanged(const shared_ptr<XValueNodeBase> &)
 			_pulse2->fftPos()->value(
 				*_pulse1->fftPos() + *_pulser->altSep());
 			_pulse2->fftLen()->value(*_pulse1->fftLen());
+			_pulse2->windowFunc()->value(*_pulse1->windowFunc());
 			_pulse2->useDNR()->value(*_pulse1->useDNR());
+			_pulse2->useMEM()->value(*_pulse1->useMEM());
 			_pulse2->numEcho()->value(*_pulse1->numEcho());
 			_pulse2->echoPeriod()->value(*_pulse1->echoPeriod());
 		}

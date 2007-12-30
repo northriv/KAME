@@ -110,9 +110,9 @@ public:
 
 	//! records below.
 
-	/// FFT Wave without extra avg
+	/// FFT Wave starting with -fmax/2.
 	const std::deque<std::complex<double> > &ftWave() const {return m_ftWave;}
-	/// Wave without extra avg
+	/// Time-domain Wave.
 	const std::deque<std::complex<double> > &wave() const {return m_wave;}
 	//! freq. resolution [Hz]
 	double dFreq() const {return m_dFreq;}
@@ -138,9 +138,9 @@ public:
 	static double windowFuncKaiser2(double x);
 	static double windowFuncKaiser3(double x);	
 private:
-	/// Stored Wave for display with extra avg
+	/// Stored Wave for display.
 	const shared_ptr<XWaveNGraph> &waveGraph() const {return m_waveGraph;}
-	/// Stored FFT Wave for display with extra avg
+	/// Stored FFT Wave for display.
 	const shared_ptr<XWaveNGraph> &ftWaveGraph() const {return m_ftWaveGraph;}
 
 	const shared_ptr<XScalarEntry> m_entryCosAv;    ///< Entry storing dc
@@ -173,23 +173,16 @@ private:
 	//! Phase Inversion Cycling
 	const shared_ptr<XBoolNode> m_picEnabled;
 	const shared_ptr<XItemNode<XDriverList, XPulser> > m_pulser;
-	bool m_bPICLastPhase;
   
 	//! Records
-	//! these are without avg.
 	std::deque<std::complex<double> > m_ftWave;
 	std::deque<std::complex<double> > m_wave;
 	double m_dFreq;  ///< Hz per point
 	double m_noisePower;
+	//! # of summations.
 	int m_avcount;
-	/// Stored FFT Wave with avg.
-	std::deque<std::complex<double> > m_ftWaveSum;
-	/// Stored Waves for avg.
+	//! Stored Waves for avg.
 	std::deque<std::complex<double> > m_waveSum;
-	/// Stored Waves for moving avg.
-	std::deque<std::deque<std::complex<double> > > m_waveAv;
-	/// Stored Waves for avg.
-	std::deque<std::complex<double> > m_rawWaveSum;
 	//! time resolution
 	double m_interval;
 	//! time diff. of the first point from trigger
