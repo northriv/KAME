@@ -96,29 +96,23 @@ XNMRFSpectrum::checkDependencyImpl(const shared_ptr<XDriver> &) const {
     return true;
 }
 double
-XNMRFSpectrum::getResolution() const{
-	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
-	ASSERT( _pulse );
-	double _df = _pulse->dFreq() * 1e-6; //MHz
-	return _df;
-}
-double
-XNMRFSpectrum::getMinValue() const{
+XNMRFSpectrum::getMinFreq() const{
 	double cfreq = *centerFreq(); //MHz
 	double freq_span = *freqSpan() * 1e-3; //MHz
-	double res = getResolution();
-	return rint((cfreq - freq_span/2) / res) * res;
+	return (cfreq - freq_span/2) * 1e6;
 }
 double
-XNMRFSpectrum::getMaxValue() const{
+XNMRFSpectrum::getMaxFreq() const{
 	double cfreq = *centerFreq(); //MHz
 	double freq_span = *freqSpan() * 1e-3; //MHz
-	double res = getResolution();
-	return rint((cfreq + freq_span/2) / res) * res;
+	return (cfreq + freq_span/2) * 1e6;
 }
-void
-XNMRFSpectrum::fssum()
-{
+double
+XNMRFSpectrum::getFreqResHint() const {
+	return 1e-6;
+}
+double
+XNMRFSpectrum::getCurrentCenterFreq() const {
     shared_ptr<XSG> _sg1 = *sg1();
 	ASSERT( _sg1 );
 	ASSERT( _sg1->time() );
@@ -128,37 +122,30 @@ XNMRFSpectrum::fssum()
         if(fabs(freq - (_sg2->freqRecorded() - *sg2FreqOffset())) > freq * 1e-6)
             throw XRecordError(KAME::i18n("Conflicting freqs of 2 SGs."), __FILE__, __LINE__); 
     }
-    
-	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
-	ASSERT( _pulse );
-   
-	double cfreq = *centerFreq(); //MHz
-	double freq_span = *freqSpan() * 1e-3; //MHz
-	double freq_step = *freqStep() * 1e-3; //MHz
-	if(cfreq <= freq_span/2) {
-		throw XRecordError(KAME::i18n("Invalid center freq."), __FILE__, __LINE__);
-	}
-	if(freq_span <= freq_step*2) {
-		throw XRecordError(KAME::i18n("Too large freq. step."), __FILE__, __LINE__);
-	}
-  
-	int len = _pulse->ftWave().size();  
-  
-	int bw = lrint(*bandWidth() * 1e-3 / resRecorded());
-	for(int i = std::max(0, (len - bw) / 2); i < std::min(len, (len + bw) / 2); i++)
-	{
-		double f = freq + (i - len/2) * resRecorded(); //MHz
-		int idx = lrint((f - minRecorded()) / resRecorded());
-		if((idx >= (int)wave().size()) || (idx < 0))
-			continue;
-		std::complex<double> c = _pulse->ftWave()[i];
-		m_wave[idx] += c;
-		m_counts[idx]++;
-	}
-    
+
+	return freq * 1e6;
+}
+void
+XNMRFSpectrum::afterFSSum() {
+	double freq = getCurrentCenterFreq() * 1e-6;
 	//set new freq
 	if(*active())
 	{
+	    shared_ptr<XSG> _sg1 = *sg1();
+		ASSERT( _sg1 );
+		ASSERT( _sg1->time() );
+	    shared_ptr<XSG> _sg2 = *sg2();
+
+	    double cfreq = *centerFreq(); //MHz
+		double freq_span = *freqSpan() * 1e-3; //MHz
+		double freq_step = *freqStep() * 1e-3; //MHz
+		if(cfreq <= freq_span/2) {
+			throw XRecordError(KAME::i18n("Invalid center freq."), __FILE__, __LINE__);
+		}
+		if(freq_span <= freq_step*2) {
+			throw XRecordError(KAME::i18n("Too large freq. step."), __FILE__, __LINE__);
+		}
+	  
 		if(_sg1) unlockConnection(_sg1);
 		if(_sg2) unlockConnection(_sg2);
 
@@ -166,7 +153,16 @@ XNMRFSpectrum::fssum()
     
 		if(_sg1) _sg1->freq()->value(newf + *sg1FreqOffset());
 		if(_sg2) _sg2->freq()->value(newf + *sg2FreqOffset());
-		if(newf >= getMaxValue())
+		if(newf >= getMaxFreq() * 1e-6)
 			active()->value(false);
+	}	
+}
+
+void
+XNMRFSpectrum::getValues(std::vector<double> &values) const {
+	values.resize(wave().size());
+	for(unsigned int i = 0; i < wave().size(); i++) {
+		double freq = minRecorded() + i*resRecorded();
+		values[i] = freq * 1e-6;
 	}
 }

@@ -29,21 +29,11 @@
 #include <kapplication.h>
 #include <kiconloader.h>
 
-#define WINDOW_FUNC_RECT "Rect."
-#define WINDOW_FUNC_HANNING "Hanning"
-#define WINDOW_FUNC_HAMMING "Hamming"
-#define WINDOW_FUNC_FLATTOP "Flat-Top"
-#define WINDOW_FUNC_BLACKMAN "Blackman"
-#define WINDOW_FUNC_BLACKMAN_HARRIS "Blackman-Harris"
-#define WINDOW_FUNC_KAISER_1 "Kaiser a=3"
-#define WINDOW_FUNC_KAISER_2 "Kaiser a=7.2"
-#define WINDOW_FUNC_KAISER_3 "Kaiser a=15"
-
 REGISTER_TYPE(XDriverList, NMRPulseAnalyzer, "NMR FID/echo analyzer");
 
-double XNMRPulseAnalyzer::windowFuncRect(double) {
-	//	return (fabs(x) <= 0.5) ? 1 : 0;
-	return 1.0;
+double XNMRPulseAnalyzer::windowFuncRect(double x) {
+	return (fabs(x) <= 0.5) ? 1 : 0;
+//	return 1.0;
 }
 double XNMRPulseAnalyzer::windowFuncHanning(double x) {
 	if (fabs(x) >= 0.5)
@@ -329,7 +319,8 @@ void XNMRPulseAnalyzer::rotNFFT(int ftpos, double ph,
 		std::vector<fftw_complex> fftin(m_fftlen);
 		for (int i = 0; i < m_fftlen; i++) {
 			int j = (ftpos + i >= m_fftlen) ? (ftpos + i - m_fftlen) : (ftpos + i);
-			double z = windowfunc((j - ftpos) / (double)length);
+			double z = windowfunc((j - ftpos)
+				/ (double)(std::max(ftpos, length - ftpos)) / 2);
 			if ((j >= length) || (j < 0)) {
 				fftin[i].re = 0;
 				fftin[i].im = 0;
@@ -578,15 +569,14 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 		}
 	}
 
-	if((emitter == _dso) || (!m_avcount)) {
-		while(!*exAvgIncr() && (*extraAvg() <= m_waveAv.size()) && !m_waveAv.empty()) {
-			for(int i = 0; i < length; i++) {
-				m_rawWaveSum[i] -= m_waveAv.front()[i];
-			}
-			m_waveAv.pop_front();
-			m_avcount--;
+	while(!*exAvgIncr() && (*extraAvg() <= m_waveAv.size()) && !m_waveAv.empty()) {
+		for(int i = 0; i < length; i++) {
+			m_rawWaveSum[i] -= m_waveAv.front()[i];
 		}
-	
+		m_waveAv.pop_front();
+		m_avcount--;
+	}
+	if((emitter == _dso) || (!m_avcount)) {	
 		for(int i = 0; i < length; i++) {
 			m_rawWaveSum[i] += m_wave[i];
 		}

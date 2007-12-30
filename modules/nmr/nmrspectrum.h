@@ -35,11 +35,11 @@ public:
 protected:
 	//! \return true to be cleared.
 	virtual bool onCondChangedImpl(const shared_ptr<XValueNodeBase> &) const;
-	//! Fourier Step Summation.
-	virtual void fssum();
-	virtual double getResolution() const;
-	virtual double getMinValue() const;
-	virtual double getMaxValue() const;
+	virtual double getFreqResHint() const;
+	virtual double getMinFreq() const;
+	virtual double getMaxFreq() const;
+	virtual double getCurrentCenterFreq() const;
+	virtual void getValues(std::vector<double> &values) const;
 
 	virtual bool checkDependencyImpl(const shared_ptr<XDriver> &emitter) const;
 public:

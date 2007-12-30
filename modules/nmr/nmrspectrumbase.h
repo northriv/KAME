@@ -17,6 +17,7 @@
 #include <secondarydriver.h>
 #include <xnodeconnector.h>
 #include <complex>
+#include "nmrmem.h"
 
 class XNMRPulseAnalyzer;
 class XWaveNGraph;
@@ -33,7 +34,7 @@ protected:
 				 const shared_ptr<XDriverList> &drivers);
 public:
 	//! ususally nothing to do
-	~XNMRSpectrumBase() {}
+	virtual ~XNMRSpectrumBase();
   
 	//! show all forms belonging to driver
 	virtual void showForms();
@@ -58,51 +59,82 @@ public:
 	const shared_ptr<XBoolNode> &autoPhase() const {return m_autoPhase;}
 	//! (Deduced) phase of echoes [deg.]
 	const shared_ptr<XDoubleNode> &phase() const {return m_phase;}
+	//! Use maximum entropy method.
+	const shared_ptr<XBoolNode> &useMEM() const {return m_useMEM;}
+	/// FFT Window Function
+	const shared_ptr<XComboNode> &windowFunc() const {return m_windowFunc;}
+	//! Changing width of time-domain image [%]
+	const shared_ptr<XDoubleNode> &windowWidth() const {return m_windowWidth;}
+	
 
 	//! records below.
 	const std::deque<std::complex<double> > &wave() const {return m_wave;}
-	//! averaged count
-	const std::deque<int> &counts() const {return m_counts;}
-	//! resolution
+	//! averaged weights
+	const std::deque<double> &weights() const {return m_weights;}
+	//! resolution [Hz]
 	double resRecorded() const {return m_resRecorded;}
-	//! value of the first point
+	//! value of the first point [Hz]
 	double minRecorded() const {return m_minRecorded;}
 protected:
 	//! Records
-	std::deque<int> m_counts;
-	std::deque<std::complex<double> > m_wave;
+	std::deque<double> m_weights;
+	std::deque<std::complex<double> > m_accum;
 
 	shared_ptr<XListener> m_lsnOnClear, m_lsnOnCondChanged;
     
 	//! \return true to be cleared.
 	virtual bool onCondChangedImpl(const shared_ptr<XValueNodeBase> &) const = 0;
-	//! Fourier Step Summation.
-	virtual void fssum() = 0;
-	virtual double getResolution() const = 0;
-	virtual double getMinValue() const = 0;
-	virtual double getMaxValue() const = 0;
+	//! [Hz]
+	virtual double getFreqResHint() const = 0;
+	//! [Hz]
+	virtual double getMinFreq() const = 0;
+	//! [Hz]
+	virtual double getMaxFreq() const = 0;
+	//! [Hz]
+	virtual double getCurrentCenterFreq() const = 0;
+	virtual void afterFSSum() {}
+	virtual void getValues(std::vector<double> &values) const = 0;
 	virtual bool checkDependencyImpl(const shared_ptr<XDriver> &emitter) const = 0;
-
 private:
+	//! Fourier Step Summation.
+	void fssum();
+
+	//! Records
+	std::deque<std::complex<double> > m_wave;
+
 	const shared_ptr<XItemNode<XDriverList, XNMRPulseAnalyzer> > m_pulse;
  
 	const shared_ptr<XDoubleNode> m_bandWidth;
 	const shared_ptr<XBoolNode> m_autoPhase;
 	const shared_ptr<XDoubleNode> m_phase;
 	const shared_ptr<XNode> m_clear;
+	const shared_ptr<XBoolNode> m_useMEM;
+	const shared_ptr<XComboNode> m_windowFunc;
+	const shared_ptr<XDoubleNode> m_windowWidth;
 	
 	double m_resRecorded, m_minRecorded;
   
 	xqcon_ptr m_conBandWidth;
 	xqcon_ptr m_conPulse;
 	xqcon_ptr m_conPhase, m_conAutoPhase;
-	xqcon_ptr m_conClear;
+	xqcon_ptr m_conClear, m_conUseMEM, m_conWindowWidth, m_conWindowFunc;
 
+	NMRMEM m_mem;
+	fftw_plan m_planZFFT, m_planIFT;
+	int m_ftLen;
+
+	void analyzeIFT();
+	void analyzeFFT(const std::vector<fftw_complex> &tdimage,
+		std::vector<fftw_complex> &ftimage, int iftorigin, int tdsize);
+	void analyzeMEM(const std::vector<fftw_complex> &tdimage,
+		std::vector<fftw_complex> &ftimage, int iftorigin, int tdsize);
+	
 	void onCondChanged(const shared_ptr<XValueNodeBase> &);
 
 	XTime m_timeClearRequested;
 protected:
 	const qshared_ptr<FRM> m_form;
+	const shared_ptr<XStatusPrinter> m_statusPrinter;
 	const shared_ptr<XWaveNGraph> m_spectrum;
 	void onClear(const shared_ptr<XNode> &);
 };

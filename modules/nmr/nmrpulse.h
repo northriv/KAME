@@ -27,6 +27,16 @@ class FrmNMRPulse;
 class XWaveNGraph;
 class FrmGraphNURL;
 
+#define WINDOW_FUNC_RECT "Rect."
+#define WINDOW_FUNC_HANNING "Hanning"
+#define WINDOW_FUNC_HAMMING "Hamming"
+#define WINDOW_FUNC_FLATTOP "Flat-Top"
+#define WINDOW_FUNC_BLACKMAN "Blackman"
+#define WINDOW_FUNC_BLACKMAN_HARRIS "Blackman-Harris"
+#define WINDOW_FUNC_KAISER_1 "Kaiser a=3"
+#define WINDOW_FUNC_KAISER_2 "Kaiser a=7.2"
+#define WINDOW_FUNC_KAISER_3 "Kaiser a=15"
+
 class XNMRPulseAnalyzer : public XSecondaryDriver
 {
 	XNODE_OBJECT
@@ -113,6 +123,20 @@ public:
 	double interval() const {return m_interval;}
 	//! time diff. of the first point from trigger [sec.]
 	double startTime() const {return m_startTime;}
+	
+	  
+	//for Window Func.
+	typedef double (*twindowfunc)(double x);
+	static double windowFuncRect(double x);
+	static double windowFuncHanning(double x);
+	static double windowFuncHamming(double x);
+	static double windowFuncFlatTop(double x);
+	static double windowFuncBlackman(double x);
+	static double windowFuncBlackmanHarris(double x);
+	static double windowFuncKaiser(double x, double alpha);
+	static double windowFuncKaiser1(double x);
+	static double windowFuncKaiser2(double x);
+	static double windowFuncKaiser3(double x);	
 private:
 	/// Stored Wave for display with extra avg
 	const shared_ptr<XWaveNGraph> &waveGraph() const {return m_waveGraph;}
@@ -192,19 +216,6 @@ private:
 	void onCondChanged(const shared_ptr<XValueNodeBase> &);
 	void onFFTShow(const shared_ptr<XNode> &);
 	void onAvgClear(const shared_ptr<XNode> &);
-  
-	//for Window Func.
-	typedef double (*twindowfunc)(double x);
-	static double windowFuncRect(double x);
-	static double windowFuncHanning(double x);
-	static double windowFuncHamming(double x);
-	static double windowFuncFlatTop(double x);
-	static double windowFuncBlackman(double x);
-	static double windowFuncBlackmanHarris(double x);
-	static double windowFuncKaiser(double x, double alpha);
-	static double windowFuncKaiser1(double x);
-	static double windowFuncKaiser2(double x);
-	static double windowFuncKaiser3(double x);
   
 	void backgroundSub(const std::deque<std::complex<double> > &wave, int pos,
 					   int length, int bgpos, int bglength);

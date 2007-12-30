@@ -76,20 +76,25 @@ XNMRSpectrum::checkDependencyImpl(const shared_ptr<XDriver> &emitter) const {
     return true;
 }
 double
-XNMRSpectrum::getResolution() const{
-	return *resolution();
+XNMRSpectrum::getFreqResHint() const {
+	double res = fabs(*resolution() / *maxValue() * *centerFreq());	
+	res = std::min(res, fabs(*resolution() / *minValue() * *centerFreq()));
+	return res * 1e6;
 }
 double
-XNMRSpectrum::getMinValue() const{
-	return rint(*minValue() / *resolution()) * *resolution();
+XNMRSpectrum::getMinFreq() const {
+	double freq = -log(*maxValue()) * *centerFreq();	
+	freq = std::min(freq, -log(*minValue()) * *centerFreq());
+	return freq * 1e6;
 }
 double
-XNMRSpectrum::getMaxValue() const{
-	return rint(*maxValue() / *resolution()) * *resolution();
+XNMRSpectrum::getMaxFreq() const {
+	double freq = -log(*maxValue()) * *centerFreq();	
+	freq = std::max(freq, -log(*minValue()) * *centerFreq());
+	return freq * 1e6;
 }
-void
-XNMRSpectrum::fssum()
-{
+double
+XNMRSpectrum::getCurrentCenterFreq() const {
 	shared_ptr<XMagnetPS> _magnet = *magnet();
     shared_ptr<XDMM> _dmm = *magnet();
 	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
@@ -103,22 +108,14 @@ XNMRSpectrum::fssum()
 
 	field *= *fieldFactor();
 	field += *residualField();
- 
-	int len = _pulse->ftWave().size();
-	double df = _pulse->dFreq();
-	int bw = lrint(*bandWidth() * 1000.0 / df);
-	double cfreq = *centerFreq() * 1e6;
-	if(cfreq == 0) {
-		throw XRecordError(KAME::i18n("Invalid center freq."), __FILE__, __LINE__);  
-	}
-	for(int i = std::max(0, (len - bw) / 2); i < std::min(len, (len + bw) / 2); i++) {
-		double freq = (i - len/2) * df;
-		if(freq / cfreq  != -1) {
-			int idx = lrint((field / (1 + freq / cfreq) - minRecorded()) / resRecorded());
-			if((idx >= (int)wave().size()) || (idx < 0))
-				continue;
-			m_wave[idx] += _pulse->ftWave()[i];
-			m_counts[idx]++;
-		}
+ 	
+	return -log(field) * *centerFreq() * 1e6;
+}
+void
+XNMRSpectrum::getValues(std::vector<double> &values) const {
+	values.resize(wave().size());
+	for(unsigned int i = 0; i < wave().size(); i++) {
+		double freq = minRecorded() + i*resRecorded();
+		values[i] = exp(-freq * 1e-6 / *centerFreq());
 	}
 }
