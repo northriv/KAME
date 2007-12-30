@@ -99,7 +99,7 @@ XSecondaryDriver::onConnectedRecorded(const shared_ptr<XDriver> &driver)
 	        //! driver-side dependency check
 	        if(checkDependency(driver)) {
 	            shared_ptr<XRecordDependency> dep(new XRecordDependency);
-	            //! check if recorded times don't contradict
+	            // check if recorded times don't contradict.
 	            if(checkDeepDependency(dep)) {
 	            	bool skipped = false;
 	                if(!tryStartRecording()) {
