@@ -68,6 +68,7 @@ protected:
 	};
 	//! throwing this exception will skip signal emission, assuming record is kept valid.
 	struct XSkippedRecordError : public XRecordError {
+		XSkippedRecordError(const QString &s, const char *file, int line) : XRecordError(s, file, line) {}
 		XSkippedRecordError(const char *file, int line) : XRecordError("", file, line) {}
 	};
 	//! size of raw record is not enough to continue analyzing 

@@ -48,8 +48,10 @@ XPrimaryDriver::finishWritingRaw(
 	    try {
 	        analyzeRaw();
 	    }
-	    catch (XSkippedRecordError&) {
+	    catch (XSkippedRecordError& e) {
 	    	skipped = true;
+	    	if(e.msg().length())
+	    		e.print(getLabel() + ": " + KAME::i18n("Skipped, because "));
 	    }
 	    catch (XRecordError& e) {
 			time_recorded = XTime(); //record is invalid
