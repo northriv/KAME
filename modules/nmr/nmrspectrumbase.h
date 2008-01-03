@@ -17,7 +17,7 @@
 #include <secondarydriver.h>
 #include <xnodeconnector.h>
 #include <complex>
-#include "nmrmem.h"
+#include "nmrspectrumsolver.h"
 
 class XNMRPulseAnalyzer;
 class XWaveNGraph;
@@ -59,8 +59,8 @@ public:
 	const shared_ptr<XBoolNode> &autoPhase() const {return m_autoPhase;}
 	//! (Deduced) phase of echoes [deg.]
 	const shared_ptr<XDoubleNode> &phase() const {return m_phase;}
-	//! Use maximum entropy method.
-	const shared_ptr<XBoolNode> &useMEM() const {return m_useMEM;}
+	//! Spectrum solvers.
+	const shared_ptr<XComboNode> &solverList() const {return m_solverList;}
 	/// FFT Window Function
 	const shared_ptr<XComboNode> &windowFunc() const {return m_windowFunc;}
 	//! Changing width of time-domain image [%]
@@ -108,7 +108,7 @@ private:
 	const shared_ptr<XBoolNode> m_autoPhase;
 	const shared_ptr<XDoubleNode> m_phase;
 	const shared_ptr<XNode> m_clear;
-	const shared_ptr<XBoolNode> m_useMEM;
+	const shared_ptr<XComboNode> m_solverList;
 	const shared_ptr<XComboNode> m_windowFunc;
 	const shared_ptr<XDoubleNode> m_windowWidth;
 	
@@ -117,17 +117,13 @@ private:
 	xqcon_ptr m_conBandWidth;
 	xqcon_ptr m_conPulse;
 	xqcon_ptr m_conPhase, m_conAutoPhase;
-	xqcon_ptr m_conClear, m_conUseMEM, m_conWindowWidth, m_conWindowFunc;
+	xqcon_ptr m_conClear, m_conSolverList, m_conWindowWidth, m_conWindowFunc;
 
-	NMRMEM m_mem;
-	fftw_plan m_planZFFT, m_planIFT;
+	fftw_plan m_planIFT;
 	int m_ftLen;
+	shared_ptr<SpectrumSolverWrapper> m_solver;
 
 	void analyzeIFT();
-	void analyzeFFT(const std::vector<fftw_complex> &tdimage,
-		std::vector<fftw_complex> &ftimage, int iftorigin, int tdsize);
-	void analyzeMEM(const std::vector<fftw_complex> &tdimage,
-		std::vector<fftw_complex> &ftimage, int iftorigin, int tdsize);
 	
 	void onCondChanged(const shared_ptr<XValueNodeBase> &);
 

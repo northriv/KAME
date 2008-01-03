@@ -123,25 +123,27 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 		const char *labels[] = {"P1 [ms] or 2Tau [us]", "Intens [V]",
 								"Weight [1/V]", "Abs [V]", "Re [V]", "Im [V]"};
 		m_wave->setColCount(6, labels);
-		m_wave->insertPlot(KAME::i18n("Measured"), 0, 1, -1, 2);
+		m_wave->insertPlot(KAME::i18n("Relaxation"), 0, 1, -1, 2);
+		m_wave->insertPlot(KAME::i18n("Im."), 0, 5, -1, 2);
 		shared_ptr<XAxis> axisx = m_wave->axisx();
 		shared_ptr<XAxis> axisy = m_wave->axisy();
 		axisx->logScale()->value(true);
-		m_wave->plot(0)->label()->value(KAME::i18n("Relaxation"));
 		m_wave->plot(0)->drawLines()->value(false);
-		shared_ptr<XFuncPlot> plot2 = create<XRelaxFuncPlot>(
+		m_wave->plot(1)->drawLines()->value(false);
+		m_wave->plot(1)->intensity()->value(0.6);
+		shared_ptr<XFuncPlot> plot3 = create<XRelaxFuncPlot>(
 			"FittedCurve", true, m_wave->graph(),
 			relaxFunc(), dynamic_pointer_cast<XNMRT1>(shared_from_this()));
-		m_wave->graph()->plots()->insert(plot2);
-		plot2->label()->value(KAME::i18n("Fitted Curve"));
-		plot2->axisX()->value(axisx);
-		plot2->axisY()->value(axisy);
-		plot2->drawPoints()->value(false);
-		plot2->pointColor()->value(clGreen);
-		plot2->lineColor()->value(clGreen);
-		plot2->drawBars()->setUIEnabled(false);
-		plot2->barColor()->setUIEnabled(false);
-		plot2->clearPoints()->setUIEnabled(false);
+		m_wave->graph()->plots()->insert(plot3);
+		plot3->label()->value(KAME::i18n("Fitted Curve"));
+		plot3->axisX()->value(axisx);
+		plot3->axisY()->value(axisy);
+		plot3->drawPoints()->value(false);
+		plot3->pointColor()->value(clBlue);
+		plot3->lineColor()->value(clBlue);
+		plot3->drawBars()->setUIEnabled(false);
+		plot3->barColor()->setUIEnabled(false);
+		plot3->clearPoints()->setUIEnabled(false);
 		m_wave->clear();
 	}
 
@@ -250,7 +252,7 @@ XNMRT1::onCondChanged(const shared_ptr<XValueNodeBase> &node)
 	requestAnalysis();
 }
 std::complex<double>
-XNMRT1::acuSpectrum(const std::deque<std::complex<double> > &wave,
+XNMRT1::acuSpectrum(const std::vector<std::complex<double> > &wave,
 					double df, double cf, double bw)
 {
 	std::complex<double> x(0.0, 0.0);
@@ -340,11 +342,11 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 		ASSERT( _pulser->time() );
 		ASSERT( emitter != _pulser );
         
-		if(*_pulse1->useMEM()) {
-			m_statusPrinter->printWarning(KAME::i18n("Do not use MEM. Skipping."));
+		if(_pulse1->solverList()->to_str() != SpectrumSolverWrapper::SPECTRUM_SOLVER_ZF_FFT) {
+			m_statusPrinter->printWarning(KAME::i18n("Use ZF-FFT. Skipping."));
 			throw XSkippedRecordError(__FILE__, __LINE__);
 		}
-		if(_pulse1->windowFunc()->to_str() == WINDOW_FUNC_RECT) {
+		if(_pulse1->windowFunc()->to_str() == SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT) {
 			m_statusPrinter->printWarning(KAME::i18n("Use of a window function is strongly recommended."));
 		}
 		
@@ -589,7 +591,7 @@ XNMRT1::onActiveChanged(const shared_ptr<XValueNodeBase> &)
 			_pulse2->fftLen()->value(*_pulse1->fftLen());
 			_pulse2->windowFunc()->value(*_pulse1->windowFunc());
 			_pulse2->useDNR()->value(*_pulse1->useDNR());
-			_pulse2->useMEM()->value(*_pulse1->useMEM());
+			_pulse2->solverList()->value(*_pulse1->solverList());
 			_pulse2->numEcho()->value(*_pulse1->numEcho());
 			_pulse2->echoPeriod()->value(*_pulse1->echoPeriod());
 		}

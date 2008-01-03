@@ -47,25 +47,26 @@ final:
 
 INCLUDES = -I$(top_srcdir)/kame -I$(top_srcdir)/modules/charinterface -I$(top_srcdir)/kame/driver -I$(top_srcdir)/kame/analyzer -I$(top_srcdir)/kame/graph -I$(top_builddir)/kame/graph -I$(top_builddir)/modules/nmr/core/forms $(all_includes)
 METASOURCES = pulserdriverconnector=./pulserdriverconnector.h
-__um_includes_analyzer.h = pulserdriverconnector.cpp pulserdriver.cpp
-__um_includes_complex = pulserdriverconnector.cpp pulserdriver.cpp
+__um_includes_analyzer.h = pulserdriver.cpp pulserdriverconnector.cpp
+__um_includes_complex = pulserdriver.cpp pulserdriverconnector.cpp
 __um_includes_fftw.h = pulserdriver.cpp
 __um_includes_graph.h = pulserdriverconnector.cpp
 __um_includes_graphwidget.h = pulserdriverconnector.cpp
+__um_includes_gsl_sf_lambert.h = nmrmem.cpp
 __um_includes_interface.h = pulserdriver.cpp
 __um_includes_kapplication.h = pulserdriver.cpp
 __um_includes_kiconloader.h = pulserdriver.cpp
-__um_includes_klocale.h = pulserdriverconnector.cpp pulserdriver.cpp
+__um_includes_klocale.h = pulserdriver.cpp pulserdriverconnector.cpp
 __um_includes_knuminput.h = pulserdriver.cpp
-__um_includes_primarydriver.h = pulserdriverconnector.cpp pulserdriver.cpp
-__um_includes_pulserdriver.h = pulserdriverconnector.cpp pulserdriver.cpp
-__um_includes_pulserdriverconnector.h = pulserdriverconnector.cpp pulserdriver.cpp
+__um_includes_primarydriver.h = pulserdriver.cpp pulserdriverconnector.cpp
+__um_includes_pulserdriver.h = pulserdriver.cpp pulserdriverconnector.cpp
+__um_includes_pulserdriverconnector.h = pulserdriver.cpp pulserdriverconnector.cpp
 __um_includes_qcheckbox.h = pulserdriver.cpp
 __um_includes_qpushbutton.h = pulserdriver.cpp
 __um_includes_qstatusbar.h = pulserdriver.cpp
 __um_includes_qtable.h = pulserdriverconnector.cpp
 __um_includes_set = pulserdriver.cpp
-__um_includes_xitemnode.h = pulserdriverconnector.cpp pulserdriver.cpp
-__um_includes_xnodeconnector.h = pulserdriverconnector.cpp pulserdriver.cpp
+__um_includes_xitemnode.h = pulserdriver.cpp pulserdriverconnector.cpp
+__um_includes_xnodeconnector.h = pulserdriver.cpp pulserdriverconnector.cpp
 libnmrpulsercore_la_SOURCES = pulserdriverconnector.cpp pulserdriverconnector.h pulserdriver.cpp pulserdriver.h pulserdriverconnector.moc.cpp
 .PHONY: all final

@@ -8,8 +8,8 @@
         <rect>
             <x>0</x>
             <y>0</y>
-            <width>648</width>
-            <height>306</height>
+            <width>649</width>
+            <height>316</height>
         </rect>
     </property>
     <property name="caption">
@@ -380,25 +380,6 @@
                 <string>Auto Phase</string>
             </property>
         </widget>
-        <widget class="QCheckBox" row="7" column="0">
-            <property name="name">
-                <cstring>m_ckbUseMEM</cstring>
-            </property>
-            <property name="sizePolicy">
-                <sizepolicy>
-                    <hsizetype>5</hsizetype>
-                    <vsizetype>0</vsizetype>
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                </sizepolicy>
-            </property>
-            <property name="text">
-                <string>Maximum Entrop&amp;y Method</string>
-            </property>
-            <property name="accel">
-                <string>Alt+Y</string>
-            </property>
-        </widget>
         <widget class="QLayoutWidget" row="8" column="0">
             <property name="name">
                 <cstring>layout124</cstring>
@@ -741,6 +722,45 @@
                 </widget>
             </hbox>
         </widget>
+        <widget class="QLayoutWidget" row="7" column="0">
+            <property name="name">
+                <cstring>layout52</cstring>
+            </property>
+            <hbox>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <widget class="QLabel">
+                    <property name="name">
+                        <cstring>textLabel1_2_2_3_2</cstring>
+                    </property>
+                    <property name="sizePolicy">
+                        <sizepolicy>
+                            <hsizetype>0</hsizetype>
+                            <vsizetype>0</vsizetype>
+                            <horstretch>0</horstretch>
+                            <verstretch>0</verstretch>
+                        </sizepolicy>
+                    </property>
+                    <property name="text">
+                        <string>Solver</string>
+                    </property>
+                </widget>
+                <widget class="QComboBox">
+                    <property name="name">
+                        <cstring>m_cmbSolver</cstring>
+                    </property>
+                    <property name="sizePolicy">
+                        <sizepolicy>
+                            <hsizetype>1</hsizetype>
+                            <vsizetype>0</vsizetype>
+                            <horstretch>0</horstretch>
+                            <verstretch>0</verstretch>
+                        </sizepolicy>
+                    </property>
+                </widget>
+            </hbox>
+        </widget>
     </grid>
 </widget>
 <toolbars>
@@ -776,17 +796,17 @@
     <tabstop>m_edBW</tabstop>
     <tabstop>m_ckbAutoPhase</tabstop>
     <tabstop>m_numPhase</tabstop>
-    <tabstop>m_ckbUseMEM</tabstop>
+    <tabstop>m_cmbSolver</tabstop>
     <tabstop>m_numWindowWidth</tabstop>
     <tabstop>m_cmbWindowFunc</tabstop>
     <tabstop>m_btnClear</tabstop>
-    <tabstop>m_urlDump</tabstop>
     <tabstop>m_btnDump</tabstop>
     <tabstop>m_cmbPulse</tabstop>
     <tabstop>m_cmbSG1</tabstop>
     <tabstop>m_edSG1FreqOffset</tabstop>
     <tabstop>m_cmbSG2</tabstop>
     <tabstop>m_edSG2FreqOffset</tabstop>
+    <tabstop>m_urlDump</tabstop>
 </tabstops>
 <layoutdefaults spacing="4" margin="2"/>
 <includehints>

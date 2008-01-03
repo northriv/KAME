@@ -27,6 +27,9 @@
 #include <kiconloader.h>
 #include <klocale.h>
 
+#include <gsl/gsl_sf.h>
+#define bessel_i0 gsl_sf_bessel_I0
+
 #define PULSE_FUNC_RECT "Rect. BW=0.89/T"
 #define PULSE_FUNC_HANNING "Hanning BW=1.44/T"
 #define PULSE_FUNC_HAMMING "Hamming BW=1.30/T"
@@ -56,20 +59,6 @@
 #define RT_MODE_FIXREST "Fix Rest Time"
 
 #include <fftw.h>
-
-double bessel_i0(double x) {
-	float y;
-	float pow = 1.0;
-	int s = 1;
-	float z = (x/2)*(x/2);
-    y = 1.0;
-    for(int k = 1; k < 5; k++) {
-        s *= k;
-        pow *= z;
-        y += pow / (s*s);
-    }
-    return y;
-}
 
 double XPulser::pulseFuncRect(double ) {
 //	return (fabs(x) <= 0.5) ? 1 : 0;

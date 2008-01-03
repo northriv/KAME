@@ -14,28 +14,17 @@
 #ifndef nmrpulseH
 #define nmrpulseH
 //---------------------------------------------------------------------------
-#include <fftw.h>
 #include <vector>
 #include "secondarydriver.h"
 #include "dso.h"
 #include "pulserdriver.h"
 #include <complex>
 //---------------------------------------------------------------------------
-#include "nmrmem.h"
+#include "nmrspectrumsolver.h"
 
 class FrmNMRPulse;
 class XWaveNGraph;
 class FrmGraphNURL;
-
-#define WINDOW_FUNC_RECT "Rect."
-#define WINDOW_FUNC_HANNING "Hanning"
-#define WINDOW_FUNC_HAMMING "Hamming"
-#define WINDOW_FUNC_FLATTOP "Flat-Top"
-#define WINDOW_FUNC_BLACKMAN "Blackman"
-#define WINDOW_FUNC_BLACKMAN_HARRIS "Blackman-Harris"
-#define WINDOW_FUNC_KAISER_1 "Kaiser a=3"
-#define WINDOW_FUNC_KAISER_2 "Kaiser a=7.2"
-#define WINDOW_FUNC_KAISER_3 "Kaiser a=15"
 
 class XNMRPulseAnalyzer : public XSecondaryDriver
 {
@@ -83,8 +72,8 @@ public:
 	const shared_ptr<XDoubleNode> &phaseAdv() const {return m_phaseAdv;}   ///< [deg]
 	/// Dynamic Noise Reduction
 	const shared_ptr<XBoolNode> &useDNR() const {return m_useDNR;}
-	/// Maximum Entropy Method instead of zero-filling FT.
-	const shared_ptr<XBoolNode> &useMEM() const {return m_useMEM;}
+	/// Select spectrum solver. FFT/AR/MEM.
+	const shared_ptr<XComboNode> &solverList() const {return m_solverList;}
 	/// Position from trigger, for background subtraction or DNR [ms]
 	const shared_ptr<XDoubleNode> &bgPos() const {return m_bgPos;}
 	/// length for background subtraction or DNR [ms]  
@@ -93,8 +82,10 @@ public:
 	const shared_ptr<XDoubleNode> &fftPos() const {return m_fftPos;}
 	/// If exceeding Width, do zerofilling
 	const shared_ptr<XUIntNode> &fftLen() const {return m_fftLen;}
-	/// FFT Window Function
+	/// FFT/AR Window Function
 	const shared_ptr<XComboNode> &windowFunc() const {return m_windowFunc;}
+	/// FFT/AR/MEM Window Length / Taps
+	const shared_ptr<XDoubleNode> &windowWidth() const {return m_windowWidth;}
 	/// Set Digital IF frequency
 	const shared_ptr<XDoubleNode> &difFreq() const {return m_difFreq;}
 
@@ -111,9 +102,9 @@ public:
 	//! records below.
 
 	/// FFT Wave starting with -fmax/2.
-	const std::deque<std::complex<double> > &ftWave() const {return m_ftWave;}
+	const std::vector<std::complex<double> > &ftWave() const {return m_ftWave;}
 	/// Time-domain Wave.
-	const std::deque<std::complex<double> > &wave() const {return m_wave;}
+	const std::vector<std::complex<double> > &ifftWave() const {return m_ifftWave;}
 	//! freq. resolution [Hz]
 	double dFreq() const {return m_dFreq;}
 	//! [V^2] noise factor deduced from background
@@ -123,20 +114,11 @@ public:
 	double interval() const {return m_interval;}
 	//! time diff. of the first point from trigger [sec.]
 	double startTime() const {return m_startTime;}
+	//! Length of analyzed wave.
+	int waveWidth() const {return m_waveWidth;}
+	//! Position of the origin of FT.
+	int waveFTPos() const {return m_waveFTPos;}
 	
-	  
-	//for Window Func.
-	typedef double (*twindowfunc)(double x);
-	static double windowFuncRect(double x);
-	static double windowFuncHanning(double x);
-	static double windowFuncHamming(double x);
-	static double windowFuncFlatTop(double x);
-	static double windowFuncBlackman(double x);
-	static double windowFuncBlackmanHarris(double x);
-	static double windowFuncKaiser(double x, double alpha);
-	static double windowFuncKaiser1(double x);
-	static double windowFuncKaiser2(double x);
-	static double windowFuncKaiser3(double x);	
 private:
 	/// Stored Wave for display.
 	const shared_ptr<XWaveNGraph> &waveGraph() const {return m_waveGraph;}
@@ -153,12 +135,13 @@ private:
 
 	const shared_ptr<XDoubleNode> m_phaseAdv;   ///< [deg]
 	const shared_ptr<XBoolNode> m_useDNR;
-	const shared_ptr<XBoolNode> m_useMEM;
+	const shared_ptr<XComboNode> m_solverList;
 	const shared_ptr<XDoubleNode> m_bgPos;
 	const shared_ptr<XDoubleNode> m_bgWidth;
 	const shared_ptr<XDoubleNode> m_fftPos;
 	const shared_ptr<XUIntNode> m_fftLen;
 	const shared_ptr<XComboNode> m_windowFunc;
+	const shared_ptr<XDoubleNode> m_windowWidth;
 	const shared_ptr<XDoubleNode> m_difFreq;
 
 	const shared_ptr<XBoolNode> m_exAvgIncr;
@@ -167,7 +150,7 @@ private:
 	const shared_ptr<XUIntNode> m_numEcho;
 	const shared_ptr<XDoubleNode> m_echoPeriod;
 
-	const shared_ptr<XNode> m_fftShow;
+	const shared_ptr<XNode> m_spectrumShow;
 	const shared_ptr<XNode> m_avgClear;
 
 	//! Phase Inversion Cycling
@@ -175,52 +158,51 @@ private:
 	const shared_ptr<XItemNode<XDriverList, XPulser> > m_pulser;
   
 	//! Records
-	std::deque<std::complex<double> > m_ftWave;
-	std::deque<std::complex<double> > m_wave;
+	std::vector<std::complex<double> > m_ftWave;
+	std::vector<std::complex<double> > m_ifftWave;
+	std::vector<std::complex<double> > m_dsoWave;
+	int m_dsoWaveStartPos, m_waveFTPos, m_waveWidth;
 	double m_dFreq;  ///< Hz per point
 	double m_noisePower;
 	//! # of summations.
 	int m_avcount;
 	//! Stored Waves for avg.
-	std::deque<std::complex<double> > m_waveSum;
+	std::vector<std::complex<double> > m_waveSum;
 	//! time resolution
 	double m_interval;
 	//! time diff. of the first point from trigger
 	double m_startTime;
   
-	xqcon_ptr m_conFromTrig, m_conWidth, m_conPhaseAdv, m_conBGPos, m_conUseDNR, m_conUseMEM, 
+	xqcon_ptr m_conFromTrig, m_conWidth, m_conPhaseAdv, m_conBGPos, m_conUseDNR, m_conSolverList, 
 		m_conBGWidth, m_conFFTPos, m_conFFTLen, m_conExtraAv;
 	xqcon_ptr m_conExAvgIncr;
-	xqcon_ptr m_conAvgClear, m_conFFTShow, m_conWindowFunc, m_conDIFFreq;
+	xqcon_ptr m_conAvgClear, m_conSpectrumShow, m_conWindowFunc, m_conWindowWidth, m_conDIFFreq;
 	xqcon_ptr m_conNumEcho, m_conEchoPeriod;
 	xqcon_ptr m_conDSO;
 	xqcon_ptr m_conPulser, m_conPICEnabled;
 
-	shared_ptr<XListener> m_lsnOnFFTShow, m_lsnOnAvgClear;
+	shared_ptr<XListener> m_lsnOnSpectrumShow, m_lsnOnAvgClear;
 	shared_ptr<XListener> m_lsnOnCondChanged;
     
 	const qshared_ptr<FrmNMRPulse> m_form;
 	const shared_ptr<XStatusPrinter> m_statusPrinter;
-	const qshared_ptr<FrmGraphNURL> m_fftForm;
+	const qshared_ptr<FrmGraphNURL> m_spectrumForm;
 
 	const shared_ptr<XWaveNGraph> m_waveGraph;
 	const shared_ptr<XWaveNGraph> m_ftWaveGraph;
   
 	void onCondChanged(const shared_ptr<XValueNodeBase> &);
-	void onFFTShow(const shared_ptr<XNode> &);
+	void onSpectrumShow(const shared_ptr<XNode> &);
 	void onAvgClear(const shared_ptr<XNode> &);
   
-	void backgroundSub(const std::deque<std::complex<double> > &wave, int pos,
-					   int length, int bgpos, int bglength);
+	void backgroundSub(std::vector<std::complex<double> > &wave, int pos, int length, int bgpos, int bglength);
   
-	//for FFT
-	int m_fftlen;
-	fftw_plan m_fftplan;
-	NMRMEM m_mem, m_memDNR;
+	//for FFT/MEM.
+	shared_ptr<SpectrumSolverWrapper> m_solver;
+	MEMStrict m_memDNR;
 	
 	void rotNFFT(int ftpos, double ph, 
-				 std::deque<std::complex<double> > &wave, std::deque<std::complex<double> > &ftwave,
-				 twindowfunc windowfunc, int diffreq);
+				 std::vector<std::complex<double> > &wave, std::vector<std::complex<double> > &ftwave, int diffreq);
     
 	XTime m_timeClearRequested;
 };

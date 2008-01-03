@@ -186,7 +186,7 @@ private:
 	std::string iterate(shared_ptr<XRelaxFunc> &relax, int itercnt);
 
 	std::complex<double> acuSpectrum (
-		const std::deque< std::complex<double> >&wave, double df, double cf,
+		const std::vector< std::complex<double> >&wave, double df, double cf,
 		double bw);
  		      
 	XTime m_timeClearRequested;

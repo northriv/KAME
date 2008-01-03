@@ -20,9 +20,6 @@
 #include "xnodeconnector.h"
 #include <complex>
 
-//! Modified Bessel Function, 1st type
-double bessel_i0(double x);
-
 class FrmPulser;
 class FrmPulserMore;
 class XQPulserDriverConnector;

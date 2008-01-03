@@ -39,15 +39,15 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 	  m_autoPhase(create<XBoolNode>("AutoPhase", false)),
 	  m_phase(create<XDoubleNode>("Phase", false, "%.2f")),
 	  m_clear(create<XNode>("Clear", true)),
-	  m_useMEM(create<XBoolNode>("UseMEM", false)),
+	  m_solverList(create<XComboNode>("SpectrumSolver", false, true)),
 	  m_windowFunc(create<XComboNode>("WindowFunc", false, true)),
 	  m_windowWidth(create<XDoubleNode>("WindowWidth", false)),
 	  m_form(new FRM(g_pFrmMain)),
 	  m_statusPrinter(XStatusPrinter::create(m_form.get())),
 	  m_spectrum(create<XWaveNGraph>("Spectrum", true,
 									 m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)),
-	  m_ftLen(0)
-{
+	  m_ftLen(0),
+	  m_solver(create<SpectrumSolverWrapper>("SpectrumSolver", true, m_solverList, m_windowFunc, m_windowWidth)) {
     m_form->m_btnClear->setIconSet(
 		KApplication::kApplication()->iconLoader()->loadIconSet("editdelete", 
 																KIcon::Toolbar, KIcon::SizeSmall, true ) );      
@@ -70,17 +70,7 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 	bandWidth()->value(50);
 	autoPhase()->value(true);
 	
-	windowFunc()->add(WINDOW_FUNC_RECT);
-	windowFunc()->add(WINDOW_FUNC_HANNING);
-	windowFunc()->add(WINDOW_FUNC_HAMMING);
-	windowFunc()->add(WINDOW_FUNC_BLACKMAN);
-	windowFunc()->add(WINDOW_FUNC_BLACKMAN_HARRIS);
-	windowFunc()->add(WINDOW_FUNC_FLATTOP);
-	windowFunc()->add(WINDOW_FUNC_KAISER_1);
-	windowFunc()->add(WINDOW_FUNC_KAISER_2);
-	windowFunc()->add(WINDOW_FUNC_KAISER_3);
-	windowFunc()->value(WINDOW_FUNC_RECT);
-
+	windowFunc()->str(std::string(SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT));
 	windowWidth()->value(100.0);
 
 	m_lsnOnClear = m_clear->onTouch().connectWeak(
@@ -89,7 +79,7 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 		shared_from_this(), &XNMRSpectrumBase<FRM>::onCondChanged);
 	autoPhase()->onValueChanged().connect(m_lsnOnCondChanged);
 	phase()->onValueChanged().connect(m_lsnOnCondChanged);
-	useMEM()->onValueChanged().connect(m_lsnOnCondChanged);
+	solverList()->onValueChanged().connect(m_lsnOnCondChanged);
 	windowWidth()->onValueChanged().connect(m_lsnOnCondChanged);
 	windowFunc()->onValueChanged().connect(m_lsnOnCondChanged);
 
@@ -99,17 +89,16 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 	m_conAutoPhase = xqcon_create<XQToggleButtonConnector>(m_autoPhase, m_form->m_ckbAutoPhase);
 	m_conPulse = xqcon_create<XQComboBoxConnector>(m_pulse, m_form->m_cmbPulse);
 	m_conClear = xqcon_create<XQButtonConnector>(m_clear, m_form->m_btnClear);
-	m_conUseMEM = xqcon_create<XQToggleButtonConnector>(m_useMEM, m_form->m_ckbUseMEM);
+	m_conSolverList = xqcon_create<XQComboBoxConnector>(m_solverList, m_form->m_cmbSolver);
 	m_conWindowWidth = xqcon_create<XKDoubleNumInputConnector>(m_windowWidth,
 		m_form->m_numWindowWidth);
-	m_form->m_numWindowWidth->setRange(30.0, 300.0, 1.0, true);
+	m_form->m_numWindowWidth->setRange(0.1, 200.0, 1.0, true);
 	m_conWindowFunc = xqcon_create<XQComboBoxConnector>(m_windowFunc,
 		m_form->m_cmbWindowFunc);
 }
 template <class FRM>
 XNMRSpectrumBase<FRM>::~XNMRSpectrumBase() {
 	if(m_ftLen) {
-		fftw_destroy_plan(m_planZFFT);
 		fftw_destroy_plan(m_planIFT);
 	}
 }
@@ -261,12 +250,12 @@ XNMRSpectrumBase<FRM>::fssum()
 	if(cfreq == 0) {
 		throw XRecordError(KAME::i18n("Invalid center freq."), __FILE__, __LINE__);  
 	}
-	if(_pulse->windowFunc()->to_str() != WINDOW_FUNC_RECT) {
+	if(_pulse->windowFunc()->to_str() != SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT) {
 		m_statusPrinter->printWarning(KAME::i18n("Do not use window function in the pulse analyzer. Skipping."), false);
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
-	if(*_pulse->useMEM()) {
-		m_statusPrinter->printWarning(KAME::i18n("Do not use MEM in the pulse analyzer. Skipping."), false);
+	if(_pulse->solverList()->to_str() != SpectrumSolverWrapper::SPECTRUM_SOLVER_ZF_FFT) {
+		m_statusPrinter->printWarning(KAME::i18n("Use ZF-FFT in the pulse analyzer. Skipping."), false);
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
 	for(int i = std::max(0, (len - bw) / 2); i < std::min(len, (len + bw) / 2); i++) {
@@ -274,7 +263,7 @@ XNMRSpectrumBase<FRM>::fssum()
 		int idx = lrint((cfreq + freq - minRecorded()) / resRecorded());
 		if((idx >= (int)m_accum.size()) || (idx < 0))
 			continue;
-		double w = XNMRPulseAnalyzer::windowFuncFlatTop((double)(i - len/2) / bw);
+		double w = SpectrumSolver::windowFuncFlatTop((double)(i - len/2) / bw);
 //		double w = XNMRPulseAnalyzer::windowFuncHamming((double)(i - len/2) / bw);
 //		double w = XNMRPulseAnalyzer::windowFuncRect((double)(i - len/2) / bw);
 		m_accum[idx] += _pulse->ftWave()[i] * w;
@@ -287,22 +276,16 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
 
 	double res = resRecorded();
-//	int bw = abs(lrint(*bandWidth() * 1000.0 / df));
 	int iftlen = lrint(pow(2.0, (ceil(log(m_accum.size()) / log(2.0)))));
-	double wfactor = fabs(*windowWidth() / 100.0);
-	int iftorigin = lrint((*_pulse->fftPos() * 1e-3 - _pulse->startTime())
-		* wfactor * res * iftlen);
-	int tdsize = lrint(_pulse->wave().size() * _pulse->interval()
-		* wfactor * res * iftlen);
+	int iftorigin = lrint(_pulse->waveFTPos() * _pulse->interval() * res * iftlen);
+	int tdsize = lrint(_pulse->waveWidth() * _pulse->interval() * res * iftlen);
 //	fprintf(stderr, "IFT: len=%d, org=%d, size=%d\n", iftlen, iftorigin, tdsize);
 	
 	if(m_ftLen != iftlen) {
 		if(m_ftLen) {
-			fftw_destroy_plan(m_planZFFT);
 			fftw_destroy_plan(m_planIFT);
 		}
 		m_ftLen = iftlen;
-		m_planZFFT = fftw_create_plan(m_ftLen, FFTW_FORWARD, FFTW_ESTIMATE);
 		m_planIFT = fftw_create_plan(m_ftLen, FFTW_BACKWARD, FFTW_ESTIMATE);
 	}
 	
@@ -318,67 +301,27 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	}
 	for(int i = 0; i < m_accum.size(); i++) {
 		int k = (i < m_accum.size()/2) ? i : (i - m_accum.size()); 
-		if(weights()[i] > wmax / 8.0) {
+		if(weights()[i] > wmax /8) {
 			k = (k + fftwave.size()) % fftwave.size();
-			fftwave[k].re = m_accum[i].real() / weights()[i];
-			fftwave[k].im = m_accum[i].imag() / weights()[i];
+			fftwave[k].re = m_accum[i].real();
+			fftwave[k].im = m_accum[i].imag();
 		}
 	}
 	fftw_one(m_planIFT, &fftwave[0], &iftwave[0]);
 	
-	if(*useMEM()) {
-		analyzeMEM(iftwave, fftwave, iftorigin, tdsize);
+	std::vector<fftw_complex> solverin(tdsize);
+	for(unsigned int i = 0; i < solverin.size(); i++) {
+		int k = (-iftorigin + i + iftlen) % iftlen;
+		solverin[i].re = iftwave[k].re;
+		solverin[i].im = iftwave[k].im;
 	}
-	else {
-		analyzeFFT(iftwave, fftwave, iftorigin, tdsize);
-	}
+	shared_ptr<SpectrumSolver> solver = m_solver->solver();
+	solver->exec(solverin, fftwave, -iftorigin, 0.1e-2, m_solver->windowFunc(), *windowWidth() / 100.0);
+
 	m_wave.resize(m_accum.size());
 	for(int i = 0; i < wave().size(); i++) {
 		int k = (i < wave().size()/2) ? i : (i - wave().size()); 
 		k = (k + fftwave.size()) % fftwave.size();
-		m_wave[i] = std::complex<double>(fftwave[k].re, fftwave[k].im) * weights()[i] / (double)iftlen;
+		m_wave[i] = std::complex<double>(fftwave[k].re, fftwave[k].im) / (double)iftlen;
 	}
-}
-template <class FRM>
-void
-XNMRSpectrumBase<FRM>::analyzeMEM(const std::vector<fftw_complex> &tdimage,
-	std::vector<fftw_complex> &ftimage, int iftorigin, int tdsize) {
-	int iftlen = tdimage.size();
-	std::vector<fftw_complex> memin(tdsize);
-	for(unsigned int i = 0; i < memin.size(); i++) {
-		int k = (-iftorigin + i + iftlen) % iftlen;
-		memin[i].re = tdimage[k].re;
-		memin[i].im = tdimage[k].im;
-	}
-	m_mem.exec(memin, ftimage, -iftorigin, 0.1e-2);
-}
-template <class FRM>
-void
-XNMRSpectrumBase<FRM>::analyzeFFT(const std::vector<fftw_complex> &tdimage,
-	std::vector<fftw_complex> &ftimage, int iftorigin, int tdsize) {
-	int iftlen = tdimage.size();
-	//Windowing
-	XNMRPulseAnalyzer::twindowfunc windowfunc = &XNMRPulseAnalyzer::windowFuncRect;
-	if(windowFunc()->to_str() == WINDOW_FUNC_HANNING) windowfunc = &XNMRPulseAnalyzer::windowFuncHanning;
-	if(windowFunc()->to_str() == WINDOW_FUNC_HAMMING) windowfunc = &XNMRPulseAnalyzer::windowFuncHamming;
-	if(windowFunc()->to_str() == WINDOW_FUNC_FLATTOP) windowfunc = &XNMRPulseAnalyzer::windowFuncFlatTop;
-	if(windowFunc()->to_str() == WINDOW_FUNC_BLACKMAN) windowfunc = &XNMRPulseAnalyzer::windowFuncBlackman;
-	if(windowFunc()->to_str() == WINDOW_FUNC_BLACKMAN_HARRIS) windowfunc = &XNMRPulseAnalyzer::windowFuncBlackmanHarris;
-	if(windowFunc()->to_str() == WINDOW_FUNC_KAISER_1) windowfunc = &XNMRPulseAnalyzer::windowFuncKaiser1;
-	if(windowFunc()->to_str() == WINDOW_FUNC_KAISER_2) windowfunc = &XNMRPulseAnalyzer::windowFuncKaiser2;
-	if(windowFunc()->to_str() == WINDOW_FUNC_KAISER_3) windowfunc = &XNMRPulseAnalyzer::windowFuncKaiser3;
-
-	std::vector<fftw_complex> iftin(iftlen);
-	for(unsigned int i = 0; i < iftin.size(); i++) {
-		iftin[i].re = 0.0;
-		iftin[i].im = 0.0;
-	}
-	for(int i = 0; i < tdsize; i++) {		
-		double z = windowfunc((i - iftorigin)
-			/ (double)(std::max(iftorigin, tdsize - iftorigin)) / 2);
-		int k = (-iftorigin + i + iftlen) % iftlen;
-		iftin[k].re = tdimage[k].re * z;
-		iftin[k].im = tdimage[k].im * z;
-	}
-	fftw_one(m_planZFFT, &iftin[0], &ftimage[0]);
 }

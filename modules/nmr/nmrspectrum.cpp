@@ -44,7 +44,8 @@ XNMRSpectrum::XNMRSpectrum(const char *name, bool runtime,
 	centerFreq()->value(20);
 	resolution()->value(0.001);
 	fieldFactor()->value(1);
-	maxValue()->value(0.1);
+	maxValue()->value(5.0);
+	minValue()->value(3.0);
 
 	centerFreq()->onValueChanged().connect(m_lsnOnCondChanged);
 	resolution()->onValueChanged().connect(m_lsnOnCondChanged);
