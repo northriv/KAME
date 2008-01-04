@@ -168,15 +168,17 @@ YuleWalkerCousin::genSpectrum(const std::vector<fftw_complex>& memin, std::vecto
 	if(t0 < 0)
 		t0 += (-t0 / n + 1) * n;	
 	std::vector<fftw_complex> zfbuf(n), fftout(n);
-	clearFTBuf(zfbuf);
-	for(int i = 0; i < t; i++) {
-		fftw_complex *pout = &zfbuf[(t0 + i) % n];
-		pout->re = bufin[i].real();
-		pout->im = bufin[i].imag();
-	}
-	fftw_one(m_fftplanN, &zfbuf[0], &fftout[0]);
+//	clearFTBuf(zfbuf);
+//	for(int i = 0; i < t; i++) {
+//		fftw_complex *pout = &zfbuf[(t0 + i) % n];
+//		pout->re = bufin[i].real();
+//		pout->im = bufin[i].imag();
+//	}
+//	fftw_one(m_fftplanN, &zfbuf[0], &fftout[0]);
+
+	MEMStrict::genSpectrum(memin, memout, t0, torr, &windowFuncRect, 1.0);	
 	std::vector<std::complex<double> > bufzffft(n);
-	fftw2std(fftout, bufzffft);
+	fftw2std(memout, bufzffft);
 		
 	std::vector<std::complex<double> > a(taps + 1);
 	std::fill(a.begin(), a.end(), 0.0);
@@ -343,7 +345,7 @@ MEMStrict::genSpectrum(const std::vector<fftw_complex>& memin0, std::vector<fftw
 	sqrtpow = sqrt(sqrtpow);
 	double err;
 	double alpha = 0.3;
-	for(double sigma = sqrtpow / 4.0; sigma < sqrtpow; sigma *= 1.414) {
+	for(double sigma = sqrtpow / 3.0; sigma < sqrtpow; sigma *= 1.414) {
 		//	fprintf(stderr, "MEM: Using T=%u,N=%u,sigma=%g\n", t,n,sigma);
 		clearFTBuf(m_accumDYFT);
 		clearFTBuf(m_ifft);

@@ -64,9 +64,28 @@ protected:
 		int t0, double torr, twindowfunc windowfunc, double windowlength);
 };
 
-class YuleWalkerCousin : public SpectrumSolver {
+class MEMStrict : public SpectrumSolver {
 public:
-	YuleWalkerCousin() : SpectrumSolver() {}
+	virtual ~MEMStrict();
+protected:
+	virtual bool genSpectrum(const std::vector<fftw_complex>& memin, std::vector<fftw_complex>& memout,
+		int t0, double torr, twindowfunc windowfunc, double windowlength);
+private:
+	void setup(unsigned int t, unsigned int n);
+	double stepMEM(const std::vector<fftw_complex>& memin, std::vector<fftw_complex>& memout,
+		double alpha, double sigma, int t0, double torr);
+	void solveZ(double torr);
+
+	std::vector<fftw_complex> m_lambda, m_accumDY, m_accumDYFT;
+	fftw_plan m_fftplanT;
+	std::vector<double> m_accumG2;
+	double m_accumZ;
+};
+
+
+class YuleWalkerCousin : public MEMStrict {
+public:
+	YuleWalkerCousin() : MEMStrict() {}
 	virtual ~YuleWalkerCousin() {}
 protected:
 	virtual bool genSpectrum(const std::vector<fftw_complex>& memin, std::vector<fftw_complex>& memout,
@@ -91,24 +110,6 @@ public:
 protected:
 	virtual int exec(const std::vector<std::complex<double> >& memin, 
 		std::vector<std::complex<double> >& a, double &sigma2, double torr, twindowfunc windowfunc);
-};
-
-class MEMStrict : public SpectrumSolver {
-public:
-	virtual ~MEMStrict();
-protected:
-	virtual bool genSpectrum(const std::vector<fftw_complex>& memin, std::vector<fftw_complex>& memout,
-		int t0, double torr, twindowfunc windowfunc, double windowlength);
-private:
-	void setup(unsigned int t, unsigned int n);
-	double stepMEM(const std::vector<fftw_complex>& memin, std::vector<fftw_complex>& memout,
-		double alpha, double sigma, int t0, double torr);
-	void solveZ(double torr);
-
-	std::vector<fftw_complex> m_lambda, m_accumDY, m_accumDYFT;
-	fftw_plan m_fftplanT;
-	std::vector<double> m_accumG2;
-	double m_accumZ;
 };
 
 #endif

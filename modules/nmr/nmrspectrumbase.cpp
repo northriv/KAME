@@ -222,11 +222,12 @@ XNMRSpectrumBase<FRM>::visualize()
 	getValues(values);
 	ASSERT(values.size() == length);
 	{   XScopedWriteLock<XWaveNGraph> lock(*m_spectrum);
+	double th = SpectrumSolver::windowFuncHamming(0.2);
 	m_spectrum->setRowCount(length);
 	for(int i = 0; i < length; i++) {
 		m_spectrum->cols(0)[i] = values[i];
-		m_spectrum->cols(1)[i] = (weights()[i] > 0) ? std::real(wave()[i]) / weights()[i] : 0;
-		m_spectrum->cols(2)[i] = (weights()[i] > 0) ? std::imag(wave()[i]) / weights()[i] : 0;
+		m_spectrum->cols(1)[i] = (weights()[i] > th) ? std::real(wave()[i]) / weights()[i] : 0;
+		m_spectrum->cols(2)[i] = (weights()[i] > th) ? std::imag(wave()[i]) / weights()[i] : 0;
 		m_spectrum->cols(3)[i] = weights()[i];
 	}
 	}
@@ -264,7 +265,7 @@ XNMRSpectrumBase<FRM>::fssum()
 		if((idx >= (int)m_accum.size()) || (idx < 0))
 			continue;
 //		double w = SpectrumSolver::windowFuncFlatTop((double)(i - len/2) / bw);
-		double w = XNMRPulseAnalyzer::windowFuncHamming((double)(i - len/2) / bw);
+		double w = SpectrumSolver::windowFuncHamming((double)(i - len/2) / bw);
 //		double w = XNMRPulseAnalyzer::windowFuncRect((double)(i - len/2) / bw);
 		m_accum[idx] += _pulse->ftWave()[i] * w;
 		m_weights[idx] += w;
