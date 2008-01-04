@@ -48,7 +48,7 @@ class XPointerItemNode : public XItemNodeBase
 protected:
 	XPointerItemNode(const char *name, bool runtime, const shared_ptr<TL> &list, bool auto_set_any = false)
 		:  XItemNodeBase(name, runtime, auto_set_any)
-		, m_var(new shared_ptr<XNode>()), m_list(list) {
+		, m_var(new weak_ptr<XNode>()), m_list(list) {
 		m_lsnOnItemReleased = list->onRelease().connectWeak(
 			shared_from_this(), 
 			&XPointerItemNode<TL>::onItemReleased);
@@ -66,7 +66,7 @@ public:
 		else
 			return std::string();
 	}
-	operator shared_ptr<XNode>() const {return *m_var;}
+	operator shared_ptr<XNode>() const {return m_var->lock();}
 	virtual void value(const shared_ptr<XNode> &t) = 0;
 protected:
 	virtual void _str(const std::string &var) throw (XKameError &)
@@ -86,13 +86,14 @@ protected:
 		}
 		_xpointeritemnode_throwConversionError();
 	}
-	atomic_shared_ptr<shared_ptr<XNode> > m_var;
+	atomic_shared_ptr<weak_ptr<XNode> > m_var;
 	shared_ptr<TL> m_list;
-protected:
+	XRecursiveMutex m_write_mutex;
 private:  
 	void onItemReleased(const shared_ptr<XNode>& node)
 	{
-		if(node == *m_var)
+		XScopedLock<XRecursiveMutex> lock(m_write_mutex);
+		if(node == m_var->lock())
 			value(shared_ptr<XNode>());
 	}
 	void lsnOnListChanged(const shared_ptr<XListNodeBase>&)
@@ -113,18 +114,16 @@ protected:
 public:
 	virtual ~_XItemNode() {}
 	operator shared_ptr<T1>() const {
-        return dynamic_pointer_cast<T1>(*this->m_var);
+        return dynamic_pointer_cast<T1>(this->m_var->lock());
 	}
 	virtual void value(const shared_ptr<XNode> &t) {
 		shared_ptr<XValueNodeBase> ptr = 
 			dynamic_pointer_cast<XValueNodeBase>(this->shared_from_this());
-		XScopedLock<XRecursiveMutex> lock(m_write_mutex);
+		XScopedLock<XRecursiveMutex> lock(this->m_write_mutex);
 		this->m_tlkBeforeValueChanged.talk(ptr);
-		this->m_var.reset(new shared_ptr<XNode>(t));
+		this->m_var.reset(new weak_ptr<XNode>(t));
 		this->m_tlkOnValueChanged.talk(ptr); //, 1, &statusmutex);
 	}
-protected:
-	XRecursiveMutex m_write_mutex;
 };
 //! A pointer to a XListNode TL, T is value type
 template <class TL, class T1, class T2 = T1>
@@ -138,7 +137,7 @@ protected:
 public:
 	virtual ~XItemNode() {}
 	operator shared_ptr<T2>() const {
-        return dynamic_pointer_cast<T2>(*this->m_var);
+        return dynamic_pointer_cast<T2>(this->m_var->lock());
 	}
 	virtual shared_ptr<const std::deque<XItemNodeBase::Item> > itemStrings() const
 	{
