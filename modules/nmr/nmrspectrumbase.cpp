@@ -244,8 +244,8 @@ XNMRSpectrumBase<FRM>::fssum()
 		throw XRecordError(KAME::i18n("Invalid waveform."), __FILE__, __LINE__);  
 	}
 	int bw = abs(lrint(*bandWidth() * 1000.0 / df));
-//	bw *= 1.5; // for Hamming.
-	bw *= 3.6; // for FlatTop.
+	bw *= 1.5; // for Hamming.
+//	bw *= 3.6; // for FlatTop.
 	double cfreq = getCurrentCenterFreq();
 	if(cfreq == 0) {
 		throw XRecordError(KAME::i18n("Invalid center freq."), __FILE__, __LINE__);  
@@ -263,8 +263,8 @@ XNMRSpectrumBase<FRM>::fssum()
 		int idx = lrint((cfreq + freq - minRecorded()) / resRecorded());
 		if((idx >= (int)m_accum.size()) || (idx < 0))
 			continue;
-		double w = SpectrumSolver::windowFuncFlatTop((double)(i - len/2) / bw);
-//		double w = XNMRPulseAnalyzer::windowFuncHamming((double)(i - len/2) / bw);
+//		double w = SpectrumSolver::windowFuncFlatTop((double)(i - len/2) / bw);
+		double w = XNMRPulseAnalyzer::windowFuncHamming((double)(i - len/2) / bw);
 //		double w = XNMRPulseAnalyzer::windowFuncRect((double)(i - len/2) / bw);
 		m_accum[idx] += _pulse->ftWave()[i] * w;
 		m_weights[idx] += w;
@@ -295,17 +295,13 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 		fftwave[i].re = 0.0;
 		fftwave[i].im = 0.0;
 	}
-	double wmax = 0.0;
-	for(int i = 0; i < weights().size(); i++) {
-		wmax = std::max(wmax, weights()[i]);
-	}
 	for(int i = 0; i < m_accum.size(); i++) {
 		int k = (i < m_accum.size()/2) ? i : (i - m_accum.size()); 
-		if(weights()[i] > wmax /8) {
+//		if(weights()[i] > 0.0) {
 			k = (k + fftwave.size()) % fftwave.size();
 			fftwave[k].re = m_accum[i].real();
 			fftwave[k].im = m_accum[i].imag();
-		}
+//		}
 	}
 	fftw_one(m_planIFT, &fftwave[0], &iftwave[0]);
 	
