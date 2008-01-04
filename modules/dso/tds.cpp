@@ -229,7 +229,9 @@ XTDS::convertRaw() throw (XRecordError&) {
 	int triggerpos;
 
 	int size = rawData().size();
-	char *buf = &rawData()[0];
+	std::vector<char> bufcpy(rawData());
+	bufcpy.push_back('\0');
+	char *buf = &bufcpy[0];
   
 	int ch_cnt = 0;
 	//scan # of channels etc.
