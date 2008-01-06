@@ -119,8 +119,7 @@ private:
 	xqcon_ptr m_conPhase, m_conAutoPhase;
 	xqcon_ptr m_conClear, m_conSolverList, m_conWindowWidth, m_conWindowFunc;
 
-	fftw_plan m_planIFT;
-	int m_ftLen;
+	shared_ptr<FFT> m_ift;
 	shared_ptr<SpectrumSolverWrapper> m_solver;
 
 	void analyzeIFT();

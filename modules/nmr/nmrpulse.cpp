@@ -221,7 +221,7 @@ void XNMRPulseAnalyzer::backgroundSub(std::vector<std::complex<double> > &wave,
 		for (int i = 0; i < bglength; i++) {
 			double z = 1.0;
 			if(!*useDNR())
-				z = SpectrumSolver::windowFuncHamming( (double)i / bglength - 0.5);
+				z = FFT::windowFuncHamming( (double)i / bglength - 0.5);
 			bg += z * wave[pos + i + bgpos];
 			normalize += z;
 		}
@@ -239,17 +239,14 @@ void XNMRPulseAnalyzer::backgroundSub(std::vector<std::complex<double> > &wave,
 	}
 
 	if (bglength && *useDNR()) {
-		int dnrlength = lrint(pow(2, rint(log(bglength + bgpos) / log(2)))) * 8;
-		std::vector<fftw_complex> memin(bglength), memout(dnrlength);
+		int dnrlength = FFT::fitLength((bglength + bgpos) * 4);
+		std::vector<std::complex<double> > memin(bglength), memout(dnrlength);
 		for(unsigned int i = 0; i < bglength; i++) {
-			std::complex<double> z(wave[pos + i + bgpos]);
-			memin[i].re = z.real();
-			memin[i].im = z.imag();
+			memin[i] = wave[pos + i + bgpos];
 		}
-		m_memDNR.exec(memin, memout, bgpos, 2e-2, &SpectrumSolver::windowFuncRect, 1.0);
-		for(unsigned int i = pos; i < std::min((int)wave.size(), dnrlength + pos); i++) {
-			fftw_complex z = m_memDNR.ifft()[i - pos];
-			wave[i] -= std::complex<double>(z.re, z.im);
+		m_memDNR.exec(memin, memout, bgpos, 2e-2, &FFT::windowFuncRect, 1.0);
+		for(unsigned int i = 0; i < std::min((int)wave.size() - pos, (int)memout.size()); i++) {
+			wave[i + pos] -= m_memDNR.ifft()[i];
 		}
 	}
 }
@@ -266,24 +263,23 @@ void XNMRPulseAnalyzer::rotNFFT(int ftpos, double ph,
 
 	int fftlen = ftwave.size();
 	//fft
-	std::vector<fftw_complex> fftin(length);
-	std::vector<fftw_complex> fftout(fftlen);
+	std::vector<std::complex<double> > fftin(length);
+	std::vector<std::complex<double> > fftout(fftlen);
 	double fftout_normalize = 1.0 / length;
 	for (int i = 0; i < length; i++) {
-		fftin[i].re = std::real(wave[i]);
-		fftin[i].im = std::imag(wave[i]);
+		fftin[i] = wave[i];
 	}
 	shared_ptr<SpectrumSolver> solver = m_solver->solver();
 	solver->exec(fftin, fftout, -ftpos, 0.5e-2, m_solver->windowFunc(), *windowWidth() / 100.0);
 	m_ifftWave.resize(fftlen);
-	SpectrumSolver::fftw2std(solver->ifft(), m_ifftWave);
+	std::copy(solver->ifft().begin(), solver->ifft().end(), m_ifftWave.begin());
 
 	for (int i = 0; i < fftlen; i++) {
 		int k = i + diffreq;
 		if ((k >= 0) && (k < fftlen)) {
 			int j = (k < fftlen / 2) ? (fftlen / 2 + k)
 				: (k - fftlen / 2);
-			ftwave[i] = std::complex<double>(fftout[j].re * fftout_normalize, fftout[j].im * fftout_normalize);
+			ftwave[i] = fftout[j] * fftout_normalize;
 		}
 		else {
 			ftwave[i] = 0;
@@ -406,17 +402,6 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 		avgclear = true;
 	}
 	
-	int fftlen = *fftLen();
-	if (fftlen != m_ftWave.size()) {
-		if (lrint(pow(2.0f, rintf(logf((float)fftlen) / logf(2.0f))))
-			!= fftlen)
-			m_statusPrinter->printWarning(
-				KAME::i18n("FFT length is not a power of 2."), true);
-		m_ftWave.resize(fftlen);
-	}
-	//[Hz]
-	m_dFreq = 1.0 / fftlen / interval;
-
 	if (length > (int)m_waveSum.size()) {
 		avgclear = true;
 	}
@@ -497,8 +482,12 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	//		m_statusPrinter->printWarning(KAME::i18n("FFTPos is off-centered for window func."));  
 	double ph = *phaseAdv() * PI / 180;
 	m_waveFTPos = ftpos;
+	int fftlen = FFT::fitLength(*fftLen());
+	m_ftWave.resize(fftlen);
 	rotNFFT(ftpos, ph, wave, m_ftWave, lrint(*difFreq() * 1000.0 / dFreq()) );
-
+	//[Hz]
+	m_dFreq = 1.0 / fftlen / interval;
+	
 	entryCosAv()->value(std::real(m_ftWave[fftlen / 2]));
 	entrySinAv()->value(std::imag(m_ftWave[fftlen / 2]));
 

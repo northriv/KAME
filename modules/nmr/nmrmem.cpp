@@ -13,122 +13,134 @@
  ***************************************************************************/
 #include "nmrmem.h"
 
+#include <fftw.h>
 #include <gsl/gsl_sf.h>
 #define lambertW0 gsl_sf_lambert_W0
 #define bessel_i0 gsl_sf_bessel_I0
 
-double SpectrumSolver::windowFuncRect(double x) {
-	return (fabs(x) <= 0.5) ? 1 : 0;
-//	return 1.0;
-}
-double SpectrumSolver::windowFuncTri(double x) {
-	return std::max(0.0, 1.0 - 2.0 * fabs(x));
-}
-double SpectrumSolver::windowFuncHanning(double x) {
-	if (fabs(x) >= 0.5)
-		return 0.0;
-	return 0.5 + 0.5*cos(2*PI*x);
-}
-double SpectrumSolver::windowFuncHamming(double x) {
-	if (fabs(x) >= 0.5)
-		return 0.0;
-	return 0.54 + 0.46*cos(2*PI*x);
-}
-double SpectrumSolver::windowFuncBlackman(double x) {
-	if (fabs(x) >= 0.5)
-		return 0.0;
-	return 0.42323+0.49755*cos(2*PI*x)+0.07922*cos(4*PI*x);
-}
-double SpectrumSolver::windowFuncBlackmanHarris(double x) {
-	if (fabs(x) >= 0.5)
-		return 0.0;
-	return 0.35875+0.48829*cos(2*PI*x)+0.14128*cos(4*PI*x)+0.01168*cos(6*PI*x);
-}
-double SpectrumSolver::windowFuncFlatTop(double x) {
-	return windowFuncHamming(x)*((fabs(x) < 1e-4) ? 1 : sin(4*PI*x)/(4*PI*x));
-}
-double SpectrumSolver::windowFuncKaiser(double x, double alpha) {
-	if (fabs(x) >= 0.5)
-		return 0.0;
-	x *= 2;
-	x = sqrt(std::max(1 - x*x, 0.0));
-	return bessel_i0(PI*alpha*x) / bessel_i0(PI*alpha);
-}
-double SpectrumSolver::windowFuncKaiser1(double x) {
-	return windowFuncKaiser(x, 3.0);
-}
-double SpectrumSolver::windowFuncKaiser2(double x) {
-	return windowFuncKaiser(x, 7.2);
-}
-double SpectrumSolver::windowFuncKaiser3(double x) {
-	return windowFuncKaiser(x, 15.0);
+int
+FFT::fitLength(int length0) {
+	int length = lrint(pow(2.0, (ceil(log(length0) / log(2.0)))));		
+	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 3.0) / log(2.0))))) * 3);		
+	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 5.0) / log(2.0))))) * 5);		
+	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 7.0) / log(2.0))))) * 7);		
+	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 9.0) / log(2.0))))) * 9);		
+	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 11.0) / log(2.0))))) * 11);		
+	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 13.0) / log(2.0))))) * 13);		
+	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 15.0) / log(2.0))))) * 15);		
+	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 21.0) / log(2.0))))) * 21);		
+	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 25.0) / log(2.0))))) * 25);		
+	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 27.0) / log(2.0))))) * 27);
+	ASSERT(length0 <= length);
+	dbgPrint(formatString("FFT using L=%d\n", length));
+	return length;
 }
 
-SpectrumSolver::SpectrumSolver() {} 
-SpectrumSolver::~SpectrumSolver() {
-	if(m_ifft.size()) {
-		fftw_destroy_plan(m_fftplanN);
-		fftw_destroy_plan(m_ifftplanN);
-	}
+FFT::FFT(int sign, int length) {
+	m_fftlen = length;
+	m_bufin.reset(new std::vector<fftw_complex>(length));
+	m_bufout.reset(new std::vector<fftw_complex>(length));
+	m_fftplan.reset(new fftw_plan);
+	*m_fftplan = fftw_create_plan(length, (sign > 0) ? FFTW_BACKWARD : FFTW_FORWARD, FFTW_ESTIMATE);
 }
-
-void
-SpectrumSolver::fftw2std(const std::vector<fftw_complex>& wavein, std::vector<std::complex<double> > &waveout) {
-	int size = wavein.size();
-	waveout.resize(size);
-	const fftw_complex *pin = &wavein[0];
-	std::complex<double> *pout = &waveout[0];
-	for(int i = 0; i < size; i++) {
-		*pout = std::complex<double>(pin->re, pin->im);
-		pout++;
-		pin++;
-	}
+FFT::~FFT() {
+	fftw_destroy_plan(*m_fftplan);
 }
 void
-SpectrumSolver::std2fftw(const std::vector<std::complex<double> >& wavein, std::vector<fftw_complex> &waveout) {
+FFT::exec(const std::vector<std::complex<double> >& wavein,
+		std::vector<std::complex<double> >& waveout) {
 	int size = wavein.size();
+	ASSERT(size == length());
 	waveout.resize(size);
 	const std::complex<double> *pin = &wavein[0];
-	fftw_complex *pout = &waveout[0];
+	fftw_complex *pout = &m_bufin->at(0);
 	for(int i = 0; i < size; i++) {
 		pout->re = pin->real();
 		pout->im = pin->imag();
 		pout++;
 		pin++;
 	}
-}
-void
-SpectrumSolver::clearFTBuf(std::vector<fftw_complex> &buf) {
-	for(unsigned int i = 0; i < buf.size(); i++) {
-		buf[i].re = 0.0;
-		buf[i].im = 0.0;
+	fftw_one(*m_fftplan, &m_bufin->at(0), &m_bufout->at(0));
+	const fftw_complex *pin2 = &m_bufout->at(0);
+	std::complex<double> *pout2 = &waveout[0];
+	for(int i = 0; i < size; i++) {
+		*pout2 = std::complex<double>(pin2->re, pin2->im);
+		pout2++;
+		pin2++;
 	}
 }
+
+double FFT::windowFuncRect(double x) {
+	return (fabs(x) <= 0.5) ? 1 : 0;
+//	return 1.0;
+}
+double FFT::windowFuncTri(double x) {
+	return std::max(0.0, 1.0 - 2.0 * fabs(x));
+}
+double FFT::windowFuncHanning(double x) {
+	if (fabs(x) >= 0.5)
+		return 0.0;
+	return 0.5 + 0.5*cos(2*PI*x);
+}
+double FFT::windowFuncHamming(double x) {
+	if (fabs(x) >= 0.5)
+		return 0.0;
+	return 0.54 + 0.46*cos(2*PI*x);
+}
+double FFT::windowFuncBlackman(double x) {
+	if (fabs(x) >= 0.5)
+		return 0.0;
+	return 0.42323+0.49755*cos(2*PI*x)+0.07922*cos(4*PI*x);
+}
+double FFT::windowFuncBlackmanHarris(double x) {
+	if (fabs(x) >= 0.5)
+		return 0.0;
+	return 0.35875+0.48829*cos(2*PI*x)+0.14128*cos(4*PI*x)+0.01168*cos(6*PI*x);
+}
+double FFT::windowFuncFlatTop(double x) {
+	return windowFuncHamming(x)*((fabs(x) < 1e-4) ? 1 : sin(4*PI*x)/(4*PI*x));
+}
+double FFT::windowFuncKaiser(double x, double alpha) {
+	if (fabs(x) >= 0.5)
+		return 0.0;
+	x *= 2;
+	x = sqrt(std::max(1 - x*x, 0.0));
+	return bessel_i0(PI*alpha*x) / bessel_i0(PI*alpha);
+}
+double FFT::windowFuncKaiser1(double x) {
+	return windowFuncKaiser(x, 3.0);
+}
+double FFT::windowFuncKaiser2(double x) {
+	return windowFuncKaiser(x, 7.2);
+}
+double FFT::windowFuncKaiser3(double x) {
+	return windowFuncKaiser(x, 15.0);
+}
+
+SpectrumSolver::SpectrumSolver() {} 
+SpectrumSolver::~SpectrumSolver() {}
+
 void
-SpectrumSolver::genIFFT(std::vector<fftw_complex>& wavein) {
-	fftw_one(m_ifftplanN, &wavein[0], &m_ifft[0]);
+SpectrumSolver::genIFFT(std::vector<std::complex<double> >& wavein) {
+	m_ifftN->exec(wavein, m_ifft);
 	int n = wavein.size();
 	double k = 1.0 / n;
-	fftw_complex *pifft = &m_ifft[0];
+	std::complex<double> *pifft = &m_ifft[0];
 	for(unsigned int i = 0; i < n; i++) {
-		pifft->re *= k;	
-		pifft->im *= k;
+		*pifft *= k;
 		pifft++;
 	}	
 }
 
 bool
-SpectrumSolver::exec(const std::vector<fftw_complex>& memin, std::vector<fftw_complex>& memout,
-	int t0, double torr, twindowfunc windowfunc, double windowlength) {
+SpectrumSolver::exec(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
+	int t0, double torr, FFT::twindowfunc windowfunc, double windowlength) {
 	unsigned int t = memin.size();
 	unsigned int n = memout.size();
+	ASSERT(n == FFT::fitLength(n));
 	if (m_ifft.size() != n) {
-		if(m_ifft.size()) {
-			fftw_destroy_plan(m_fftplanN);
-			fftw_destroy_plan(m_ifftplanN);
-		}
-		m_fftplanN = fftw_create_plan(n, FFTW_FORWARD, FFTW_ESTIMATE);		
-		m_ifftplanN = fftw_create_plan(n, FFTW_BACKWARD, FFTW_ESTIMATE);		
+		m_fftN.reset(new FFT(-1, n));		
+		m_ifftN.reset(new FFT(1, n));		
 		m_ifft.resize(n);
 	}
 	return genSpectrum(memin, memout, t0, torr, windowfunc, windowlength);
@@ -136,8 +148,8 @@ SpectrumSolver::exec(const std::vector<fftw_complex>& memin, std::vector<fftw_co
 
 
 bool
-FFTSolver::genSpectrum(const std::vector<fftw_complex>& fftin, std::vector<fftw_complex>& fftout,
-	int t0, double /*torr*/, twindowfunc windowfunc, double windowlength) {
+FFTSolver::genSpectrum(const std::vector<std::complex<double> >& fftin, std::vector<std::complex<double> >& fftout,
+	int t0, double /*torr*/, FFT::twindowfunc windowfunc, double windowlength) {
 	unsigned int t = fftin.size();
 	unsigned int n = fftout.size();
 	int t0a = t0;
@@ -145,14 +157,12 @@ FFTSolver::genSpectrum(const std::vector<fftw_complex>& fftin, std::vector<fftw_
 		t0a += (-t0a / n + 1) * n;
 
 	double wk = 0.5 / (std::max(-t0, (int)t + t0) * windowlength);
-	clearFTBuf(m_ifft);
+	std::fill(m_ifft.begin(), m_ifft.end(), 0.0);
 	for(int i = 0; i < t; i++) {
-		fftw_complex *pout = &m_ifft[(t0a + i) % n];
 		double w = windowfunc((i + t0) * wk);
-		pout->re = fftin[i].re * w;
-		pout->im = fftin[i].im * w;
+		m_ifft[(t0a + i) % n] = fftin[i] * w;
 	}
-	fftw_one(m_fftplanN, &m_ifft[0], &fftout[0]);
+	m_fftN->exec(m_ifft, fftout);
 	return true;
 }
 
@@ -188,29 +198,17 @@ YuleWalkerCousin<Context>::arMDL(double sigma2, int p, int t) {
 }
 template <class Context>
 bool
-YuleWalkerCousin<Context>::genSpectrum(const std::vector<fftw_complex>& memin, std::vector<fftw_complex>& memout,
-	int t0, double torr, SpectrumSolver::twindowfunc windowfunc, double windowlength) {
-	windowfunc = &windowFuncTri;
+YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
+	int t0, double torr, FFT::twindowfunc windowfunc, double windowlength) {
+	windowfunc = &FFT::windowFuncTri;
 	
 	unsigned int t = memin.size();
 	unsigned int n = memout.size();
-	std::vector<std::complex<double> > bufin(t);
-	fftw2std(memin, bufin);
 
 	if(t0 < 0)
 		t0 += (-t0 / n + 1) * n;	
-	std::vector<fftw_complex> zfbuf(n), fftout(n);
-//	clearFTBuf(zfbuf);
-//	for(int i = 0; i < t; i++) {
-//		fftw_complex *pout = &zfbuf[(t0 + i) % n];
-//		pout->re = bufin[i].real();
-//		pout->im = bufin[i].imag();
-//	}
-//	fftw_one(m_fftplanN, &zfbuf[0], &fftout[0]);
-
-	MEMStrict::genSpectrum(memin, memout, t0, torr, &windowFuncRect, 1.0);	
-	std::vector<std::complex<double> > bufzffft(n);
-	fftw2std(memout, bufzffft);
+	std::vector<std::complex<double> > memphaseout(n);	
+	MEMStrict::genSpectrum(memin, memphaseout, t0, torr, &FFT::windowFuncRect, 1.0);	
 	
 	int taps_div = t - 1;
 	taps_div = std::max(taps_div / 10, 1);
@@ -221,10 +219,10 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<fftw_complex>& memin, s
 	context->t = t;
 	context->sigma2 = 0.0;
 	for(unsigned int i = 0; i < t; i++) {
-		context->sigma2 += std::norm(bufin[i]);
+		context->sigma2 += std::norm(memin[i]);
 	}
 	context->p = 0;
-	first(bufin, context, windowfunc);
+	first(memin, context, windowfunc);
 	unsigned int taps = 0;
 //	sigma2 /= t;
 	double ic = 1e99;
@@ -255,21 +253,20 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<fftw_complex>& memin, s
 	}
 	dbgPrint(formatString("MEM/AR: t=%d, taps=%d, IC_min=%g, IC=%g\n", t, taps, ic, m_funcARIC(context->sigma2, context->p, t)));
 
-	clearFTBuf(zfbuf);
-	fftw_complex *pout = &zfbuf[0];
+	std::vector<std::complex<double> > zfbuf(n), fftbuf(n);
+	std::fill(zfbuf.begin(), zfbuf.end(), 0.0);
+	std::complex<double> *pout = &zfbuf[0];
 	for(int i = 0; i < taps + 1; i++) {
-		pout->re = context->a[i].real();
-		pout->im = context->a[i].imag();
+		*pout = context->a[i];
 		pout++;
 	}
-	fftw_one(m_fftplanN, &zfbuf[0], &fftout[0]);
+	m_fftN->exec(zfbuf, fftbuf);
 	
-	fftw_complex *pin = &fftout[0];
+	std::complex<double> *pin = &fftbuf[0];
 	for(unsigned int i = 0; i < n; i++) {
-		double z = context->sigma2 / (pin->re*pin->re + pin->im*pin->im);
-		z = sqrt(std::max(z, 0.0) / std::norm(bufzffft[i]));
-		memout[i].re = bufzffft[i].real() * z;
-		memout[i].im = bufzffft[i].imag() * z;
+		double z = context->sigma2 / (std::norm(*pin));
+		z = sqrt(std::max(z, 0.0) / std::norm(memphaseout[i]));
+		memout[i] = memphaseout[i] * z;
 		pin++;
 	}
 	genIFFT(memout);
@@ -281,7 +278,7 @@ template class YuleWalkerCousin<MEMBurgContext>;
 
 void
 MEMBurg::first(
-	const std::vector<std::complex<double> >& memin, const shared_ptr<MEMBurgContext> &context, twindowfunc /*windowfunc*/) {
+	const std::vector<std::complex<double> >& memin, const shared_ptr<MEMBurgContext> &context, FFT::twindowfunc /*windowfunc*/) {
 	unsigned int t = context->t;
 	context->epsilon.resize(t);
 	context->eta.resize(t);
@@ -312,7 +309,7 @@ MEMBurg::step(const shared_ptr<MEMBurgContext> &context) {
 }
 void
 YuleWalkerAR::first(
-	const std::vector<std::complex<double> >& memin, const shared_ptr<ARContext> &context, twindowfunc windowfunc) {
+	const std::vector<std::complex<double> >& memin, const shared_ptr<ARContext> &context, FFT::twindowfunc windowfunc) {
 	unsigned int t = context->t;
 	m_rx.resize(t);
 	std::fill(m_rx.begin(), m_rx.end(), 0.0);
@@ -339,16 +336,12 @@ YuleWalkerAR::step(const shared_ptr<ARContext> &context) {
 }
 
 MEMStrict::~MEMStrict() {
-	if(m_lambda.size())
-		fftw_destroy_plan(m_fftplanT);
 }
 
 void
 MEMStrict::setup(unsigned int t, unsigned int n) {
 	if (m_lambda.size() != t) {
-		if(m_lambda.size())
-			fftw_destroy_plan(m_fftplanT);
-		m_fftplanT = fftw_create_plan(t, FFTW_FORWARD, FFTW_ESTIMATE);
+		m_fftT.reset(new FFT(-1, t));
 		m_accumDY.resize(t);
 		m_accumDYFT.resize(t);
 		m_lambda.resize(t);
@@ -362,7 +355,7 @@ MEMStrict::solveZ(double torr) {
 	std::vector<double> &g2(m_accumG2);
 
 	for(unsigned int i = 0; i < size; i++) {
-		dy2[i] = m_accumDYFT[i].re*m_accumDYFT[i].re + m_accumDYFT[i].im*m_accumDYFT[i].im;
+		dy2[i] = std::norm(m_accumDYFT[i]);
 	}
 	double nsumz;
 	for(unsigned int it = 0; it < lrint(log(size) + 2); it++) {
@@ -384,9 +377,9 @@ MEMStrict::solveZ(double torr) {
 }
 
 bool
-MEMStrict::genSpectrum(const std::vector<fftw_complex>& memin0, std::vector<fftw_complex>& memout,
-	int t0, double torr, twindowfunc /*windowfunc*/, double windowlength) {
-	std::vector<fftw_complex> memin(std::min((int)lrint(windowlength * memin0.size()), (int)memin0.size()));
+MEMStrict::genSpectrum(const std::vector<std::complex<double> >& memin0, std::vector<std::complex<double> >& memout,
+	int t0, double torr, FFT::twindowfunc /*windowfunc*/, double windowlength) {
+	std::vector<std::complex<double> > memin(std::min((int)lrint(windowlength * memin0.size()), (int)memin0.size()));
 	unsigned int tshift = (memin0.size() - memin.size()) / 2;
 	for(unsigned int i = 0; i < memin.size(); i++)
 		memin[i] = memin0[i + tshift];
@@ -398,17 +391,16 @@ MEMStrict::genSpectrum(const std::vector<fftw_complex>& memin0, std::vector<fftw
 	setup(t, n);
 	double sqrtpow = 0.0;
 	for(unsigned int i = 0; i < memin.size(); i++)
-		sqrtpow += memin[i].re*memin[i].re + memin[i].im*memin[i].im;
+		sqrtpow += std::norm(memin[i]);
 	sqrtpow = sqrt(sqrtpow);
 	double err;
 	double alpha = 0.3;
 	for(double sigma = sqrtpow / 4.0; sigma < sqrtpow; sigma *= 1.2) {
 		//	fprintf(stderr, "MEM: Using T=%u,N=%u,sigma=%g\n", t,n,sigma);
-		clearFTBuf(m_accumDYFT);
-		clearFTBuf(m_ifft);
-		clearFTBuf(memout);
-		clearFTBuf(m_lambda);
-		clearFTBuf(m_accumDY);
+		std::fill(m_accumDYFT.begin(), m_accumDYFT.end(), 0.0);
+		std::fill(m_ifft.begin(), m_ifft.end(), 0.0);
+		std::fill(m_lambda.begin(), m_lambda.end(), 0.0);
+		std::fill(m_accumDY.begin(), m_accumDY.end(), 0.0);
 		std::fill(m_accumG2.begin(), m_accumG2.end(), 0.0);
 		m_accumZ = t;
 		double oerr = sqrtpow;
@@ -430,7 +422,7 @@ MEMStrict::genSpectrum(const std::vector<fftw_complex>& memin0, std::vector<fftw
 			dbgPrint(formatString("MEM: Converged w/ sigma=%g, alpha=%g, err=%g, it=%u\n", sigma, alpha, err, it));
 			double osqrtpow = 0.0;
 			for(unsigned int i = 0; i < memout.size(); i++)
-				osqrtpow += memout[i].re*memout[i].re + memout[i].im*memout[i].im;
+				osqrtpow += std::norm(memout[i]);
 			osqrtpow = sqrt(osqrtpow / n);
 			dbgPrint(formatString("MEM: Pout/Pin=%g\n", osqrtpow/sqrtpow));
 			return true;
@@ -440,37 +432,33 @@ MEMStrict::genSpectrum(const std::vector<fftw_complex>& memin0, std::vector<fftw
 		}
 	}
 	dbgPrint(formatString("MEM: Use ZF-FFT instead.\n"));
-	clearFTBuf(m_ifft);
+	std::fill(m_ifft.begin(), m_ifft.end(), 0.0);
 	for(unsigned int i = 0; i < t; i++) {
-		fftw_complex *pout = &m_ifft[(t0 + i) % n];
-		pout->re = memin[i].re;
-		pout->im = memin[i].im;
+		m_ifft[(t0 + i) % n] = memin[i];
 	}
-	fftw_one(m_fftplanN, &m_ifft[0], &memout[0]);			
+	m_fftN->exec(m_ifft, memout);			
 	return false;
 }
 double
-MEMStrict::stepMEM(const std::vector<fftw_complex>& memin, std::vector<fftw_complex>& memout, 
+MEMStrict::stepMEM(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout, 
 	double alpha, double sigma, int t0, double torr) {
 	unsigned int n = m_ifft.size();
 	unsigned int t = memin.size();
 	double isigma = 1.0 / sigma;
-	std::vector<fftw_complex> &lambdaZF(m_ifft);
-	clearFTBuf(lambdaZF);
-	fftw_complex *plambda = &m_lambda[0];
+	std::vector<std::complex<double> > &lambdaZF(m_ifft);
+	std::fill(lambdaZF.begin(), lambdaZF.end(), 0.0);
+	std::complex<double> *plambda = &m_lambda[0];
 	for(unsigned int i = 0; i < t; i++) {
-		fftw_complex *pout = &lambdaZF[(t0 + i) % n];
-		pout->re = plambda->re * isigma;
-		pout->im = plambda->im * isigma;
+		lambdaZF[(t0 + i) % n] = *plambda * isigma;
 		plambda++;
 	}
-	fftw_one(m_ifftplanN, &lambdaZF[0], &memout[0]);
+	m_ifftN->exec(lambdaZF, memout);
 	std::vector<double> pfz(n);
 	double sumz = 0.0;
 	double *ppfz = &pfz[0];
-	fftw_complex *pmemout = &memout[0];
+	std::complex<double> *pmemout = &memout[0];
 	for(unsigned int i = 0; i < n; i++) {
-		*ppfz = exp(pmemout->re*pmemout->re + pmemout->im*pmemout->im);
+		*ppfz = exp(std::norm(*pmemout));
 		sumz += *ppfz++;
 		pmemout++;
 	}
@@ -479,40 +467,34 @@ MEMStrict::stepMEM(const std::vector<fftw_complex>& memin, std::vector<fftw_comp
 	pmemout = &memout[0];
 	for(unsigned int i = 0; i < n; i++) {
 		double p = k * *ppfz++;
-		pmemout->re *= p;
-		pmemout->im *= -p;
+		*pmemout = std::conj(*pmemout) * p;
 		pmemout++;
 	}
 	genIFFT(memout);
 
 	k = alpha / t / sigma / 2;
 	double err = 0.0;
-	const fftw_complex *pmemin = &memin[0];
-	fftw_complex *pout = &m_accumDY[0];
+	const std::complex<double> *pmemin = &memin[0];
+	std::complex<double> *pout = &m_accumDY[0];
 	for(unsigned int i = 0; i < t; i++) {
-		fftw_complex *pifft = &m_ifft[(t0 + i) % n];
-		fftw_complex dy;
-		dy.re = pmemin->re - pifft->re;
-		dy.im = pmemin->im - pifft->im;
+		std::complex<double> *pifft = &m_ifft[(t0 + i) % n];
+		std::complex<double> dy = *pmemin - *pifft;
 		pmemin++;
-		err += dy.re*dy.re + dy.im*dy.im;
-		pout->re += dy.re * k;
-		pout->im += dy.im * k;
+		err += std::norm(dy);
+		*pout += dy * k;
 		pout++;
 	}
 	err = sqrt(err);
 	
-	fftw_one(m_fftplanT, &m_accumDY[0], &m_accumDYFT[0]);
+	m_fftT->exec(m_accumDY, m_accumDYFT);
 	solveZ(torr);
 	k = sigma / t;
 	pout = &m_accumDYFT[0];
 	for(unsigned int i = 0; i < t; i++) {
-		fftw_complex z1 = *pout;
-		double p = k * sqrt(m_accumG2[i] / (z1.re*z1.re + z1.im*z1.im));
-		pout->re *= p;
-		pout->im *= -p;
+		double p = k * sqrt(m_accumG2[i] / (std::norm(*pout)));
+		*pout = std::conj(*pout) * p;
 		pout++;
 	}
-	fftw_one(m_fftplanT, &m_accumDYFT[0], &m_lambda[0]);
+	m_fftT->exec(m_accumDYFT, m_lambda);
 	return err;
 }

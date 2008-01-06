@@ -16,23 +16,27 @@
 //---------------------------------------------------------------------------
 #include "support.h"
 
-#include <fftw.h>
 #include <vector>
 #include <complex>
 #include <deque>
+#include <fftw.h>
 
-class SpectrumSolver {
+//! Wrapper class for FFTW.
+class FFT {
 public:
-	SpectrumSolver();
-	virtual ~SpectrumSolver();
+	//! Create FFT plan.
+	//! \arg sign -1:FFT, 1:IFFT.
+	//! \arg length FFT length.
+	//! \arg fit_length Expand to appropriate length for O(n log n) computation.
+	FFT(int sign, int length);
+	~FFT();
+	static int fitLength(int length); 
+	int length() const {return m_fftlen;}
+	void exec(const std::vector<std::complex<double> >& wavein,
+		std::vector<std::complex<double> >& waveout);
 
 	//for Window Func.
 	typedef double (*twindowfunc)(double x);
-	
-	bool exec(const std::vector<fftw_complex>& memin, std::vector<fftw_complex>& memout,
-		int t0, double torr, twindowfunc windowfunc, double windowlength);
-	const std::vector<fftw_complex>& ifft() const {return m_ifft;}
-
 	static double windowFuncRect(double x);
 	static double windowFuncTri(double x);
 	static double windowFuncHanning(double x);
@@ -44,16 +48,29 @@ public:
 	static double windowFuncKaiser1(double x);
 	static double windowFuncKaiser2(double x);
 	static double windowFuncKaiser3(double x);
-	static void fftw2std(const std::vector<fftw_complex>& wavein, std::vector<std::complex<double> > &waveout);
-	static void std2fftw(const std::vector<std::complex<double> >& wavein, std::vector<fftw_complex> &waveout);
+private:
+	int m_fftlen;
+	shared_ptr<fftw_plan> m_fftplan;
+	shared_ptr<std::vector<fftw_complex> > m_bufin, m_bufout;
+};
+
+class SpectrumSolver {
+public:
+	SpectrumSolver();
+	virtual ~SpectrumSolver();
+	
+	bool exec(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
+		int t0, double torr, FFT::twindowfunc windowfunc, double windowlength);
+	const std::vector<std::complex<double> >& ifft() const {return m_ifft;}
 protected:
-	virtual bool genSpectrum(const std::vector<fftw_complex>& memin, std::vector<fftw_complex>& memout,
-		int t0, double torr, twindowfunc windowfunc, double windowlength) = 0;
-	void clearFTBuf(std::vector<fftw_complex> &buf);
-	void genIFFT(std::vector<fftw_complex>& wavein);
-	std::vector<fftw_complex> m_ifft;
-	fftw_plan m_fftplanN, m_ifftplanN;	
-	int fftlen() const {return m_ifft.size();}
+	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin,
+		std::vector<std::complex<double> >& memout,
+		int t0, double torr, FFT::twindowfunc windowfunc, double windowlength) = 0;
+	std::vector<std::complex<double> > m_ifft;
+	void genIFFT(std::vector<std::complex<double> >& wavein);
+
+	shared_ptr<FFT> m_fftN, m_ifftN;
+	int fftlen() const {return m_ifftN->length();}
 };
 
 class FFTSolver : public SpectrumSolver {
@@ -61,24 +78,26 @@ public:
 	FFTSolver() : SpectrumSolver()  {}
 	virtual ~FFTSolver() {}
 protected:
-	virtual bool genSpectrum(const std::vector<fftw_complex>& memin, std::vector<fftw_complex>& memout,
-		int t0, double torr, twindowfunc windowfunc, double windowlength);
+	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin,
+		std::vector<std::complex<double> >& memout,
+		int t0, double torr, FFT::twindowfunc windowfunc, double windowlength);
 };
 
 class MEMStrict : public SpectrumSolver {
 public:
 	virtual ~MEMStrict();
 protected:
-	virtual bool genSpectrum(const std::vector<fftw_complex>& memin, std::vector<fftw_complex>& memout,
-		int t0, double torr, twindowfunc windowfunc, double windowlength);
+	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin,
+		std::vector<std::complex<double> >& memout,
+		int t0, double torr, FFT::twindowfunc windowfunc, double windowlength);
 private:
 	void setup(unsigned int t, unsigned int n);
-	double stepMEM(const std::vector<fftw_complex>& memin, std::vector<fftw_complex>& memout,
+	double stepMEM(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
 		double alpha, double sigma, int t0, double torr);
 	void solveZ(double torr);
 
-	std::vector<fftw_complex> m_lambda, m_accumDY, m_accumDYFT;
-	fftw_plan m_fftplanT;
+	std::vector<std::complex<double> > m_lambda, m_accumDY, m_accumDYFT;
+	shared_ptr<FFT> m_fftT;
 	std::vector<double> m_accumG2;
 	double m_accumZ;
 };
@@ -102,11 +121,11 @@ public:
 	//! Minimum Description Length.
 	static double arMDL(double sigma2, int p, int t);
 protected:
-	virtual bool genSpectrum(const std::vector<fftw_complex>& memin, std::vector<fftw_complex>& memout,
-		int t0, double torr, twindowfunc windowfunc, double windowlength);
+	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
+		int t0, double torr, FFT::twindowfunc windowfunc, double windowlength);
 
 	virtual void first(
-		const std::vector<std::complex<double> >& memin, const shared_ptr<Context> &context, twindowfunc windowfunc) = 0;
+		const std::vector<std::complex<double> >& memin, const shared_ptr<Context> &context, FFT::twindowfunc windowfunc) = 0;
 	virtual void step(const shared_ptr<Context> &context) = 0;
 	std::deque<shared_ptr<Context> > m_contexts;
 private:
@@ -133,7 +152,7 @@ public:
 	virtual ~MEMBurg() {}
 protected:
 	virtual void first(
-		const std::vector<std::complex<double> >& memin, const shared_ptr<MEMBurgContext> &context, twindowfunc windowfunc);
+		const std::vector<std::complex<double> >& memin, const shared_ptr<MEMBurgContext> &context, FFT::twindowfunc windowfunc);
 	virtual void step(const shared_ptr<MEMBurgContext> &context);
 private:
 
@@ -145,7 +164,7 @@ public:
 	virtual ~YuleWalkerAR() {}
 protected:
 	virtual void first(
-		const std::vector<std::complex<double> >& memin, const shared_ptr<ARContext> &context, twindowfunc windowfunc);
+		const std::vector<std::complex<double> >& memin, const shared_ptr<ARContext> &context, FFT::twindowfunc windowfunc);
 	virtual void step(const shared_ptr<ARContext> &context);
 private:
 	std::vector<std::complex<double> > m_rx;

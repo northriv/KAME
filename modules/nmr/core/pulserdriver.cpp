@@ -58,8 +58,6 @@
 #define RT_MODE_FIXREP "Fix Rep. Time"
 #define RT_MODE_FIXREST "Fix Rest Time"
 
-#include <fftw.h>
-
 double XPulser::pulseFuncRect(double ) {
 //	return (fabs(x) <= 0.5) ? 1 : 0;
 	return 1.0;

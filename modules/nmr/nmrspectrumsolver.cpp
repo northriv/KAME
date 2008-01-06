@@ -16,14 +16,11 @@
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_ZF_FFT[] = "ZF-FFT";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_STRICT[] = "Strict MEM";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_BURG_AICc[] = "Burg's MEM AICc";
-//const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_BURG_FPE[] = "Burg's MEM FPE";
-//const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_BURG_HQ[] = "Burg's MEM HQ";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_BURG_MDL[] = "Burg's MEM MDL";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_AR_YW_AICc[] = "Yule-Walker AR AICc";
-//const char SpectrumSolverWrapper::SPECTRUM_SOLVER_AR_YW_FPE[] = "Yule-Walker AR FPE";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_AR_YW_MDL[] = "Yule-Walker AR MDL";
 
-const char SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT[] = "Rect/Tri(AR)";
+const char SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT[] = "Rect";
 const char SpectrumSolverWrapper::WINDOW_FUNC_HANNING[] = "Hanning";
 const char SpectrumSolverWrapper::WINDOW_FUNC_HAMMING[] = "Hamming";
 const char SpectrumSolverWrapper::WINDOW_FUNC_FLATTOP[] = "Flat-Top";
@@ -58,17 +55,17 @@ SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
 SpectrumSolverWrapper::~SpectrumSolverWrapper() {
 	m_selector->clear();
 }
-SpectrumSolver::twindowfunc
+FFT::twindowfunc
 SpectrumSolverWrapper::windowFunc() const {
-	SpectrumSolver::twindowfunc func = &SpectrumSolver::windowFuncRect;
-	if(m_windowfunc->to_str() == WINDOW_FUNC_HANNING) func = &SpectrumSolver::windowFuncHanning;
-	if(m_windowfunc->to_str() == WINDOW_FUNC_HAMMING) func = &SpectrumSolver::windowFuncHamming;
-	if(m_windowfunc->to_str() == WINDOW_FUNC_FLATTOP) func = &SpectrumSolver::windowFuncFlatTop;
-	if(m_windowfunc->to_str() == WINDOW_FUNC_BLACKMAN) func = &SpectrumSolver::windowFuncBlackman;
-	if(m_windowfunc->to_str() == WINDOW_FUNC_BLACKMAN_HARRIS) func = &SpectrumSolver::windowFuncBlackmanHarris;
-	if(m_windowfunc->to_str() == WINDOW_FUNC_KAISER_1) func = &SpectrumSolver::windowFuncKaiser1;
-	if(m_windowfunc->to_str() == WINDOW_FUNC_KAISER_2) func = &SpectrumSolver::windowFuncKaiser2;
-	if(m_windowfunc->to_str() == WINDOW_FUNC_KAISER_3) func = &SpectrumSolver::windowFuncKaiser3;
+	FFT::twindowfunc func = &FFT::windowFuncRect;
+	if(m_windowfunc->to_str() == WINDOW_FUNC_HANNING) func = &FFT::windowFuncHanning;
+	if(m_windowfunc->to_str() == WINDOW_FUNC_HAMMING) func = &FFT::windowFuncHamming;
+	if(m_windowfunc->to_str() == WINDOW_FUNC_FLATTOP) func = &FFT::windowFuncFlatTop;
+	if(m_windowfunc->to_str() == WINDOW_FUNC_BLACKMAN) func = &FFT::windowFuncBlackman;
+	if(m_windowfunc->to_str() == WINDOW_FUNC_BLACKMAN_HARRIS) func = &FFT::windowFuncBlackmanHarris;
+	if(m_windowfunc->to_str() == WINDOW_FUNC_KAISER_1) func = &FFT::windowFuncKaiser1;
+	if(m_windowfunc->to_str() == WINDOW_FUNC_KAISER_2) func = &FFT::windowFuncKaiser2;
+	if(m_windowfunc->to_str() == WINDOW_FUNC_KAISER_3) func = &FFT::windowFuncKaiser3;
 	return func;
 }
 

@@ -46,7 +46,6 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 	  m_statusPrinter(XStatusPrinter::create(m_form.get())),
 	  m_spectrum(create<XWaveNGraph>("Spectrum", true,
 									 m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)),
-	  m_ftLen(0),
 	  m_solver(create<SpectrumSolverWrapper>("SpectrumSolver", true, m_solverList, m_windowFunc, m_windowWidth)) {
     m_form->m_btnClear->setIconSet(
 		KApplication::kApplication()->iconLoader()->loadIconSet("editdelete", 
@@ -98,9 +97,6 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 }
 template <class FRM>
 XNMRSpectrumBase<FRM>::~XNMRSpectrumBase() {
-	if(m_ftLen) {
-		fftw_destroy_plan(m_planIFT);
-	}
 }
 template <class FRM>
 void
@@ -263,7 +259,7 @@ XNMRSpectrumBase<FRM>::fssum()
 		if((idx >= (int)m_accum.size()) || (idx < 0))
 			continue;
 //		double w = SpectrumSolver::windowFuncFlatTop((double)(i - len/2) / bw);
-		double w = SpectrumSolver::windowFuncHamming((double)(i - len/2) / bw);
+		double w = FFT::windowFuncHamming((double)(i - len/2) / bw);
 //		double w = XNMRPulseAnalyzer::windowFuncRect((double)(i - len/2) / bw);
 		m_accum[idx] += _pulse->ftWave()[i] * w;
 		m_weights[idx] += w;
@@ -272,7 +268,7 @@ XNMRSpectrumBase<FRM>::fssum()
 template <class FRM>
 void
 XNMRSpectrumBase<FRM>::analyzeIFT() {
-	double th = SpectrumSolver::windowFuncHamming(0.5);
+	double th = FFT::windowFuncHamming(0.5);
 	int max_idx = 0;
 	int min_idx = m_accum.size() - 1;
 	int taps_max = 0; 
@@ -287,41 +283,29 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
 	double res = resRecorded();
-	int iftlen = lrint(pow(2.0, (ceil(log(max_idx - min_idx + 1) / log(2.0)))));
-	iftlen = std::min(iftlen, (int)lrint(pow(2.0, (ceil(log((max_idx - min_idx + 1)/3.0) / log(2.0))))) * 3);
-	iftlen = std::min(iftlen, (int)lrint(pow(2.0, (ceil(log((max_idx - min_idx + 1)/5.0) / log(2.0))))) * 5);
-	iftlen = std::min(iftlen, (int)lrint(pow(2.0, (ceil(log((max_idx - min_idx + 1)/7.0) / log(2.0))))) * 7);
+	int iftlen = FFT::fitLength(max_idx - min_idx + 1);
 	if(iftlen < 8)
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	int iftorigin = lrint(_pulse->waveFTPos() * _pulse->interval() * res * iftlen);
 	int tdsize = lrint(_pulse->waveWidth() * _pulse->interval() * res * iftlen);
-	//fprintf(stderr, "IFT: len=%d, org=%d, size=%d\n", iftlen, iftorigin, tdsize);
+	dbgPrint(formatString("IFT: len=%d, org=%d, size=%d\n", iftlen, iftorigin, tdsize));
 	
-	if(m_ftLen != iftlen) {
-		if(m_ftLen) {
-			fftw_destroy_plan(m_planIFT);
-		}
-		m_ftLen = iftlen;
-		m_planIFT = fftw_create_plan(m_ftLen, FFTW_BACKWARD, FFTW_ESTIMATE);
+	if(!m_ift || (m_ift->length() != iftlen)) {
+		m_ift.reset(new FFT(1, iftlen));
 	}
 	
-	std::vector<fftw_complex> fftwave(iftlen), iftwave(iftlen);
-	for(int i = 0; i < fftwave.size(); i++) {
-		fftwave[i].re = 0.0;
-		fftwave[i].im = 0.0;
-	}
+	std::vector<std::complex<double> > fftwave(iftlen), iftwave(iftlen);
+	std::fill(fftwave.begin(), fftwave.end(), 0.0);
 	for(int i = min_idx; i <= max_idx; i++) {
 		int k = (i - min_idx - (max_idx - min_idx + 1)/2 + fftwave.size()) % fftwave.size();
-		fftwave[k].re = m_accum[i].real();
-		fftwave[k].im = m_accum[i].imag();
+		fftwave[k] = m_accum[i];
 	}
-	fftw_one(m_planIFT, &fftwave[0], &iftwave[0]);
+	m_ift->exec(fftwave, iftwave);
 	
-	std::vector<fftw_complex> solverin(tdsize);
+	std::vector<std::complex<double> > solverin(tdsize);
 	for(unsigned int i = 0; i < solverin.size(); i++) {
 		int k = (-iftorigin + i + iftlen) % iftlen;
-		solverin[i].re = iftwave[k].re;
-		solverin[i].im = iftwave[k].im;
+		solverin[i] = iftwave[k];
 	}
 	shared_ptr<SpectrumSolver> solver = m_solver->solver();
 	solver->exec(solverin, fftwave, -iftorigin, 0.1e-2, m_solver->windowFunc(), *windowWidth() / 100.0);
@@ -330,13 +314,12 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	std::fill(m_wave.begin(), m_wave.end(), 0.0);
 	for(int i = min_idx; i <= max_idx; i++) {
 		int k = (i - min_idx - (max_idx - min_idx + 1)/2 + fftwave.size()) % fftwave.size();
-		m_wave[i] = std::complex<double>(fftwave[k].re, fftwave[k].im) / (double)iftlen;
+		m_wave[i] = fftwave[k] / (double)iftlen;
 	}
-	th = SpectrumSolver::windowFuncHamming(0.1);
+	th = FFT::windowFuncHamming(0.1);
 	for(int i = 0; i < m_accum.size(); i++) {
 		if(weights()[i] < th) {
 			m_weights[i] = 0.0;
-			m_wave[i] = 0.0;
 		}
 	}
 }
