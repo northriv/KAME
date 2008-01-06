@@ -239,7 +239,7 @@ XNMRSpectrumBase<FRM>::fssum()
 		throw XRecordError(KAME::i18n("Invalid waveform."), __FILE__, __LINE__);  
 	}
 	int bw = abs(lrint(*bandWidth() * 1000.0 / df));
-	bw *= 1.5; // for Hamming.
+	bw *= 1.8; // for Hamming.
 //	bw *= 3.6; // for FlatTop.
 	double cfreq = getCurrentCenterFreq();
 	if(cfreq == 0) {
