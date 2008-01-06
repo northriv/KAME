@@ -31,6 +31,8 @@ FFT::fitLength(int length0) {
 	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 21.0) / log(2.0))))) * 21);		
 	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 25.0) / log(2.0))))) * 25);		
 	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 27.0) / log(2.0))))) * 27);
+	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 33.0) / log(2.0))))) * 33);
+	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 35.0) / log(2.0))))) * 35);
 	ASSERT(length0 <= length);
 	dbgPrint(formatString("FFT using L=%d\n", length));
 	return length;
