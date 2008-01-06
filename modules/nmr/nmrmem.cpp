@@ -131,7 +131,7 @@ SpectrumSolver::exec(const std::vector<fftw_complex>& memin, std::vector<fftw_co
 		m_ifftplanN = fftw_create_plan(n, FFTW_BACKWARD, FFTW_ESTIMATE);		
 		m_ifft.resize(n);
 	}
-	genSpectrum(memin, memout, t0, torr, windowfunc, windowlength);
+	return genSpectrum(memin, memout, t0, torr, windowfunc, windowlength);
 }
 
 
@@ -156,12 +156,44 @@ FFTSolver::genSpectrum(const std::vector<fftw_complex>& fftin, std::vector<fftw_
 	return true;
 }
 
+template <class Context>
+YuleWalkerCousin<Context>::YuleWalkerCousin(tfuncARIC ic) : MEMStrict(), m_funcARIC(ic) {	
+}
+
+template <class Context>
+double
+YuleWalkerCousin<Context>::arAIC(double sigma2, int p, int t) {
+	return log(sigma2) + 2 * (p + 1) / (double)t;
+}
+template <class Context>
+double
+YuleWalkerCousin<Context>::arAICc(double sigma2, int p, int t) {
+	return log(sigma2) + 2 * (p + 2) / (double)(t - p - 3);
+}
+template <class Context>
+double
+YuleWalkerCousin<Context>::arHQ(double sigma2, int p, int t) {
+	return log(sigma2) + 2.0 * (p + 1) * log(log(t) / log(2.0)) / (double)t;
+}
+template <class Context>
+double
+YuleWalkerCousin<Context>::arFPE(double sigma2, int p, int t) {
+	return sigma2 * (t + p + 1) / (t - p - 1);
+	
+}
+template <class Context>
+double
+YuleWalkerCousin<Context>::arMDL(double sigma2, int p, int t) {
+	return t * log(sigma2) + (p + 1) * log(t);
+}
+template <class Context>
 bool
-YuleWalkerCousin::genSpectrum(const std::vector<fftw_complex>& memin, std::vector<fftw_complex>& memout,
-	int t0, double torr, twindowfunc windowfunc, double windowlength) {
+YuleWalkerCousin<Context>::genSpectrum(const std::vector<fftw_complex>& memin, std::vector<fftw_complex>& memout,
+	int t0, double torr, SpectrumSolver::twindowfunc windowfunc, double windowlength) {
+	windowfunc = &windowFuncTri;
+	
 	unsigned int t = memin.size();
 	unsigned int n = memout.size();
-	unsigned int taps = std::min((int)lrint(windowlength / 2.0 * t), (int)t - 2);
 	std::vector<std::complex<double> > bufin(t);
 	fftw2std(memin, bufin);
 
@@ -179,31 +211,62 @@ YuleWalkerCousin::genSpectrum(const std::vector<fftw_complex>& memin, std::vecto
 	MEMStrict::genSpectrum(memin, memout, t0, torr, &windowFuncRect, 1.0);	
 	std::vector<std::complex<double> > bufzffft(n);
 	fftw2std(memout, bufzffft);
-		
-	std::vector<std::complex<double> > a(taps + 1);
-	std::fill(a.begin(), a.end(), 0.0);
-	a[0] = 1.0;
-	double sigma2 = 0.0;
+	
+	int taps_div = t - 1;
+	taps_div = std::max(taps_div / 10, 1);
+	shared_ptr<Context> context(new Context);
+	context->a.resize(t);
+	std::fill(context->a.begin(), context->a.end(), 0.0);
+	context->a[0] = 1.0;
+	context->t = t;
+	context->sigma2 = 0.0;
 	for(unsigned int i = 0; i < t; i++) {
-		sigma2 += std::norm(bufin[i]);
+		context->sigma2 += std::norm(bufin[i]);
 	}
+	context->p = 0;
+	first(bufin, context, windowfunc);
+	unsigned int taps = 0;
 //	sigma2 /= t;
-	int taps_conv = exec(bufin, a, sigma2, torr, windowfunc);
-	fprintf(stderr, "MEM/AR: taps=%d, taps_conv=%d\n", taps, taps_conv);
-	taps = taps_conv;
+	double ic = 1e99;
+	for(unsigned int p = 0; p < t - 2; p++) {
+		if(p % taps_div == 0) {
+			m_contexts.push_back(shared_ptr<Context>(new Context(*context)));
+			if(taps + taps_div/2 < p)
+				break;
+		}
+		step(context);
+		context->p++;
+		if(context->sigma2 < 0)
+			break;
+		double new_ic = m_funcARIC(context->sigma2, context->p, t);
+		if(new_ic < ic) {
+			taps = p + 1;
+			ic = new_ic;
+		}
+	}
+	taps = std::min((int)lrint(windowlength * taps), (int)t - 2);
+	int cidx = std::min((int)taps / taps_div, (int)m_contexts.size() - 1);
+	context = m_contexts[cidx];
+	m_contexts.clear();
+	for(unsigned int p = cidx * taps_div; p < taps; p++) {
+		ASSERT(context->p == p);
+		step(context);
+		context->p++;		
+	}
+	dbgPrint(formatString("MEM/AR: t=%d, taps=%d, IC_min=%g, IC=%g\n", t, taps, ic, m_funcARIC(context->sigma2, context->p, t)));
 
 	clearFTBuf(zfbuf);
 	fftw_complex *pout = &zfbuf[0];
 	for(int i = 0; i < taps + 1; i++) {
-		pout->re = a[i].real();
-		pout->im = a[i].imag();
+		pout->re = context->a[i].real();
+		pout->im = context->a[i].imag();
 		pout++;
 	}
 	fftw_one(m_fftplanN, &zfbuf[0], &fftout[0]);
 	
 	fftw_complex *pin = &fftout[0];
 	for(unsigned int i = 0; i < n; i++) {
-		double z = sigma2 / (pin->re*pin->re + pin->im*pin->im);
+		double z = context->sigma2 / (pin->re*pin->re + pin->im*pin->im);
 		z = sqrt(std::max(z, 0.0) / std::norm(bufzffft[i]));
 		memout[i].re = bufzffft[i].real() * z;
 		memout[i].im = bufzffft[i].imag() * z;
@@ -213,72 +276,66 @@ YuleWalkerCousin::genSpectrum(const std::vector<fftw_complex>& memin, std::vecto
 	return true;
 }
 
-int
-MEMBurg::exec(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& a,
-	double &sigma2, double /*torr*/, twindowfunc /*windowfunc*/) {
-	unsigned int t = memin.size();
-	unsigned int m = a.size() - 1;
-	std::vector<std::complex<double> > epsilon(t), eta(t), epsilon_next(t), eta_next(t), a_next(m+1);
-	std::copy(memin.begin(), memin.end(), epsilon.begin());
-	std::copy(memin.begin(), memin.end(), eta.begin());
-	std::copy(memin.begin(), memin.end(), epsilon_next.begin());
-	std::copy(memin.begin(), memin.end(), eta_next.begin());
-	std::fill(a_next.begin(), a_next.end(), 0.0);
+template class YuleWalkerCousin<ARContext>;
+template class YuleWalkerCousin<MEMBurgContext>;
 
-	for(unsigned int p = 0; p < m; p++) {
-		std::complex<double> x = 0.0, y = 0.0;
-		for(unsigned int i = p + 1; i < t; i++) {
-			x += epsilon[i] * std::conj(eta[i-1]);
-			y += std::norm(epsilon[i]) + std::norm(eta[i-1]);
-		}
-		std::complex<double> alpha = x / y;
-		alpha *= -2;
-		for(unsigned int i = p + 1; i < t; i++) {
-			eta_next[i] = eta[i-1] + std::conj(alpha) * epsilon[i];
-			epsilon_next[i] = epsilon[i] + alpha * eta[i-1];
-		}
-		std::copy(eta_next.begin(), eta_next.end(), eta.begin());
-		std::copy(epsilon_next.begin(), epsilon_next.end(), epsilon.begin());
-		for(unsigned int i = 0; i < p + 2; i++) {
-			a_next[i] = a[i] + alpha * std::conj(a[p + 1 - i]);
-		}
-		std::copy(a_next.begin(), a_next.end(), a.begin());
-		sigma2 *= 1 - std::norm(alpha);
-	}
-	return m;
+void
+MEMBurg::first(
+	const std::vector<std::complex<double> >& memin, const shared_ptr<MEMBurgContext> &context, twindowfunc /*windowfunc*/) {
+	unsigned int t = context->t;
+	context->epsilon.resize(t);
+	context->eta.resize(t);
+	std::copy(memin.begin(), memin.end(), context->epsilon.begin());
+	std::copy(memin.begin(), memin.end(), context->eta.begin());
 }
-
-int
-YuleWalkerAR::exec(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& a,
-	double &sigma2, double /*torr*/, twindowfunc windowfunc) {
-	unsigned int t = memin.size();
-	unsigned int m = a.size() - 1;
-	std::vector<std::complex<double> > rx(t), a_next(m+1);
-	std::fill(rx.begin(), rx.end(), 0.0);
-	std::fill(a_next.begin(), a_next.end(), 0.0);
-	for(unsigned int p = 0; p <= m; p++) {
+void
+MEMBurg::step(const shared_ptr<MEMBurgContext> &context) {
+	unsigned int t = context->t;
+	unsigned int p = context->p;
+	std::complex<double> x = 0.0, y = 0.0;
+	for(unsigned int i = p + 1; i < t; i++) {
+		x += context->epsilon[i] * std::conj(context->eta[i-1]);
+		y += std::norm(context->epsilon[i]) + std::norm(context->eta[i-1]);
+	}
+	std::complex<double> alpha = x / y;
+	alpha *= -2;
+	for(unsigned int i = t - 1; i >= p + 1; i--) {
+		context->eta[i] = context->eta[i-1] + std::conj(alpha) * context->epsilon[i];
+		context->epsilon[i] += alpha * context->eta[i-1];
+	}
+	std::vector<std::complex<double> > a_next(p + 2);
+	for(unsigned int i = 0; i < p + 2; i++) {
+		a_next[i] = context->a[i] + alpha * std::conj(context->a[p + 1 - i]);
+	}
+	std::copy(a_next.begin(), a_next.end(), context->a.begin());
+	context->sigma2 *= 1 - std::norm(alpha);
+}
+void
+YuleWalkerAR::first(
+	const std::vector<std::complex<double> >& memin, const shared_ptr<ARContext> &context, twindowfunc windowfunc) {
+	unsigned int t = context->t;
+	m_rx.resize(t);
+	std::fill(m_rx.begin(), m_rx.end(), 0.0);
+	for(unsigned int p = 0; p <= t - 1; p++) {
 		for(unsigned int i = 0; i < t - p; i++) {
-			rx[p] += std::conj(memin[i]) * memin[i+p];
+			m_rx[p] += std::conj(memin[i]) * memin[i+p];
 		}
-		rx[p] *= windowfunc(0.5*p/(double)t) * t / (t - p);
+		m_rx[p] *= windowfunc(0.5*p/(double)t) * t / (t - p);
+	}		
+}
+void
+YuleWalkerAR::step(const shared_ptr<ARContext> &context) {
+	unsigned int p = context->p;
+	std::complex<double> delta = 0.0;
+	for(unsigned int i = 0; i < p + 1; i++) {
+		delta += context->a[i] * m_rx[p + 1 - i];
 	}
-
-	for(unsigned int p = 0; p < m; p++) {
-		std::complex<double> delta = 0.0;
-		for(unsigned int i = 0; i < p + 1; i++) {
-			delta += a[i] * rx[p + 1 - i];
-		}
-		for(unsigned int i = 0; i < p + 2; i++) {
-			a_next[i] = a[i] - delta/sigma2 * std::conj(a[p + 1 - i]);
-		}
-		double sigma_next = sigma2 - std::norm(delta) / sigma2;
-		if(sigma_next < 0) {
-			return p;
-		}
-		std::copy(a_next.begin(), a_next.end(), a.begin());
-		sigma2 = sigma_next;
+	std::vector<std::complex<double> > a_next(p + 2);
+	for(unsigned int i = 0; i < p + 2; i++) {
+		a_next[i] = context->a[i] - delta/context->sigma2 * std::conj(context->a[p + 1 - i]);
 	}
-	return m;
+	std::copy(a_next.begin(), a_next.end(), context->a.begin());
+	context->sigma2 += - std::norm(delta) / context->sigma2;
 }
 
 MEMStrict::~MEMStrict() {
@@ -345,7 +402,7 @@ MEMStrict::genSpectrum(const std::vector<fftw_complex>& memin0, std::vector<fftw
 	sqrtpow = sqrt(sqrtpow);
 	double err;
 	double alpha = 0.3;
-	for(double sigma = sqrtpow / 3.0; sigma < sqrtpow; sigma *= 1.414) {
+	for(double sigma = sqrtpow / 4.0; sigma < sqrtpow; sigma *= 1.2) {
 		//	fprintf(stderr, "MEM: Using T=%u,N=%u,sigma=%g\n", t,n,sigma);
 		clearFTBuf(m_accumDYFT);
 		clearFTBuf(m_ifft);
@@ -370,19 +427,19 @@ MEMStrict::genSpectrum(const std::vector<fftw_complex>& memin0, std::vector<fftw
 			oerr = err;
 		}
 		if(err < torr * sqrtpow) {
-			fprintf(stderr, "MEM: Converged w/ sigma=%g, alpha=%g, err=%g, it=%u\n", sigma, alpha, err, it);
+			dbgPrint(formatString("MEM: Converged w/ sigma=%g, alpha=%g, err=%g, it=%u\n", sigma, alpha, err, it));
 			double osqrtpow = 0.0;
 			for(unsigned int i = 0; i < memout.size(); i++)
 				osqrtpow += memout[i].re*memout[i].re + memout[i].im*memout[i].im;
 			osqrtpow = sqrt(osqrtpow / n);
-			fprintf(stderr, "MEM: Pout/Pin=%g\n", osqrtpow/sqrtpow);
+			dbgPrint(formatString("MEM: Pout/Pin=%g\n", osqrtpow/sqrtpow));
 			return true;
 		}
 		else {
-			fprintf(stderr, "MEM: Failed w/ sigma=%g, alpha=%g, err=%g, it=%u\n", sigma, alpha, err, it);
+			dbgPrint(formatString("MEM: Failed w/ sigma=%g, alpha=%g, err=%g, it=%u\n", sigma, alpha, err, it));
 		}
 	}
-	fprintf(stderr, "MEM: Use ZF-FFT instead.\n");
+	dbgPrint(formatString("MEM: Use ZF-FFT instead.\n"));
 	clearFTBuf(m_ifft);
 	for(unsigned int i = 0; i < t; i++) {
 		fftw_complex *pout = &m_ifft[(t0 + i) % n];

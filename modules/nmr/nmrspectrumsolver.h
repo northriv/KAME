@@ -29,8 +29,10 @@ public:
 	  
 	static const char SPECTRUM_SOLVER_ZF_FFT[];
 	static const char SPECTRUM_SOLVER_MEM_STRICT[];
-	static const char SPECTRUM_SOLVER_MEM_BURG[];
-	static const char SPECTRUM_SOLVER_AR_YW[];
+	static const char SPECTRUM_SOLVER_MEM_BURG_AICc[];
+	static const char SPECTRUM_SOLVER_MEM_BURG_MDL[];
+	static const char SPECTRUM_SOLVER_AR_YW_AICc[];
+	static const char SPECTRUM_SOLVER_AR_YW_MDL[];
 
 	static const char WINDOW_FUNC_DEFAULT[];
 	static const char WINDOW_FUNC_HANNING[];

@@ -14,9 +14,14 @@
 #include "nmrspectrumsolver.h"
 
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_ZF_FFT[] = "ZF-FFT";
-const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_BURG[] = "Burg's MEM";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_STRICT[] = "Strict MEM";
-const char SpectrumSolverWrapper::SPECTRUM_SOLVER_AR_YW[] = "Yule-Walker AR";
+const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_BURG_AICc[] = "Burg's MEM AICc";
+//const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_BURG_FPE[] = "Burg's MEM FPE";
+//const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_BURG_HQ[] = "Burg's MEM HQ";
+const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_BURG_MDL[] = "Burg's MEM MDL";
+const char SpectrumSolverWrapper::SPECTRUM_SOLVER_AR_YW_AICc[] = "Yule-Walker AR AICc";
+//const char SpectrumSolverWrapper::SPECTRUM_SOLVER_AR_YW_FPE[] = "Yule-Walker AR FPE";
+const char SpectrumSolverWrapper::SPECTRUM_SOLVER_AR_YW_MDL[] = "Yule-Walker AR MDL";
 
 const char SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT[] = "Rect/Tri(AR)";
 const char SpectrumSolverWrapper::WINDOW_FUNC_HANNING[] = "Hanning";
@@ -33,9 +38,11 @@ SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
 	const shared_ptr<XDoubleNode> windowlength)
 	: XNode(name, runtime), m_selector(selector), m_windowfunc(windowfunc), m_windowlength(windowlength) {
 	selector->add(SPECTRUM_SOLVER_ZF_FFT);
-	selector->add(SPECTRUM_SOLVER_MEM_BURG);
-	selector->add(SPECTRUM_SOLVER_AR_YW);
 	selector->add(SPECTRUM_SOLVER_MEM_STRICT);
+	selector->add(SPECTRUM_SOLVER_MEM_BURG_AICc);
+	selector->add(SPECTRUM_SOLVER_MEM_BURG_MDL);
+	selector->add(SPECTRUM_SOLVER_AR_YW_AICc);
+	selector->add(SPECTRUM_SOLVER_AR_YW_MDL);
 	windowfunc->add(WINDOW_FUNC_DEFAULT);
 	windowfunc->add(WINDOW_FUNC_HANNING);
 	windowfunc->add(WINDOW_FUNC_HAMMING);
@@ -54,8 +61,6 @@ SpectrumSolverWrapper::~SpectrumSolverWrapper() {
 SpectrumSolver::twindowfunc
 SpectrumSolverWrapper::windowFunc() const {
 	SpectrumSolver::twindowfunc func = &SpectrumSolver::windowFuncRect;
-	if(m_selector->to_str() == SPECTRUM_SOLVER_AR_YW)
-		func = &SpectrumSolver::windowFuncTri;
 	if(m_windowfunc->to_str() == WINDOW_FUNC_HANNING) func = &SpectrumSolver::windowFuncHanning;
 	if(m_windowfunc->to_str() == WINDOW_FUNC_HAMMING) func = &SpectrumSolver::windowFuncHamming;
 	if(m_windowfunc->to_str() == WINDOW_FUNC_FLATTOP) func = &SpectrumSolver::windowFuncFlatTop;
@@ -70,17 +75,25 @@ SpectrumSolverWrapper::windowFunc() const {
 void
 SpectrumSolverWrapper::onSolverChanged(const shared_ptr<XValueNodeBase> &) {
 	shared_ptr<SpectrumSolver> solver;
-	if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_BURG) {
+	if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_BURG_AICc) {
 		m_windowfunc->setUIEnabled(false);		
-		solver.reset(new MEMBurg);
+		solver.reset(new MEMBurg(&MEMBurg::arAICc));
+	}
+	if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_BURG_MDL) {
+		m_windowfunc->setUIEnabled(false);		
+		solver.reset(new MEMBurg(&MEMBurg::arMDL));
+	}
+	if(m_selector->to_str() == SPECTRUM_SOLVER_AR_YW_AICc) {
+		m_windowfunc->setUIEnabled(false);		
+		solver.reset(new YuleWalkerAR(&YuleWalkerAR::arAICc));
+	}
+	if(m_selector->to_str() == SPECTRUM_SOLVER_AR_YW_MDL) {
+		m_windowfunc->setUIEnabled(false);		
+		solver.reset(new YuleWalkerAR(&YuleWalkerAR::arMDL));
 	}
 	if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_STRICT) {
 		m_windowfunc->setUIEnabled(false);		
 		solver.reset(new MEMStrict);
-	}
-	if(m_selector->to_str() == SPECTRUM_SOLVER_AR_YW) {
-		m_windowfunc->setUIEnabled(true);
-		solver.reset(new YuleWalkerAR);
 	}
 	if(!solver) {
 		m_windowfunc->setUIEnabled(true);

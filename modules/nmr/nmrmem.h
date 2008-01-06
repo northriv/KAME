@@ -19,6 +19,7 @@
 #include <fftw.h>
 #include <vector>
 #include <complex>
+#include <deque>
 
 class SpectrumSolver {
 public:
@@ -82,34 +83,72 @@ private:
 	double m_accumZ;
 };
 
-
+template <class Context>
 class YuleWalkerCousin : public MEMStrict {
 public:
-	YuleWalkerCousin() : MEMStrict() {}
+	typedef double (*tfuncARIC)(double sigma2, int p, int t);
+
+	YuleWalkerCousin(tfuncARIC ic);
 	virtual ~YuleWalkerCousin() {}
+
+	//! Akachi's information criterion.
+	static double arAIC(double sigma2, int p, int t);
+	//! Corrected Akachi's information criterion.
+	static double arAICc(double sigma2, int p, int t);
+	//! Hannan-Quinn information criterion.
+	static double arHQ(double sigma2, int p, int t);	
+	//! Final Prediction Error criterion.
+	static double arFPE(double sigma2, int p, int t);
+	//! Minimum Description Length.
+	static double arMDL(double sigma2, int p, int t);
 protected:
 	virtual bool genSpectrum(const std::vector<fftw_complex>& memin, std::vector<fftw_complex>& memout,
 		int t0, double torr, twindowfunc windowfunc, double windowlength);
-	virtual int exec(const std::vector<std::complex<double> >& memin, 
-		std::vector<std::complex<double> >& a, double &sigma2, double torr, twindowfunc windowfunc) = 0;
+
+	virtual void first(
+		const std::vector<std::complex<double> >& memin, const shared_ptr<Context> &context, twindowfunc windowfunc) = 0;
+	virtual void step(const shared_ptr<Context> &context) = 0;
+	std::deque<shared_ptr<Context> > m_contexts;
+private:
+	const tfuncARIC m_funcARIC;
 };
 
-class MEMBurg : public YuleWalkerCousin {
+struct ARContext {
+	ARContext() {}
+	ARContext(const ARContext &c) : a(c.a), sigma2(c.sigma2), p(c.p), t(c.t) {}
+	std::vector<std::complex<double> > a;
+	double sigma2;
+	unsigned int p;
+	unsigned int t;
+};
+struct MEMBurgContext : public ARContext {
+	MEMBurgContext() : ARContext() {}
+	MEMBurgContext(const MEMBurgContext &c) : ARContext(c), eta(c.eta), epsilon(c.epsilon) {}
+	std::vector<std::complex<double> > eta, epsilon;
+};
+
+class MEMBurg : public YuleWalkerCousin<MEMBurgContext> {
 public:
-	MEMBurg() : YuleWalkerCousin() {}
+	MEMBurg(tfuncARIC ic) : YuleWalkerCousin<MEMBurgContext>(ic) {}
 	virtual ~MEMBurg() {}
 protected:
-	virtual int exec(const std::vector<std::complex<double> >& memin, 
-		std::vector<std::complex<double> >& a, double &sigma2, double torr, twindowfunc windowfunc);
+	virtual void first(
+		const std::vector<std::complex<double> >& memin, const shared_ptr<MEMBurgContext> &context, twindowfunc windowfunc);
+	virtual void step(const shared_ptr<MEMBurgContext> &context);
+private:
+
 };
 
-class YuleWalkerAR : public YuleWalkerCousin {
+class YuleWalkerAR : public YuleWalkerCousin<ARContext> {
 public:
-	YuleWalkerAR() : YuleWalkerCousin() {}
+	YuleWalkerAR(tfuncARIC ic) : YuleWalkerCousin<ARContext>(ic) {}
 	virtual ~YuleWalkerAR() {}
 protected:
-	virtual int exec(const std::vector<std::complex<double> >& memin, 
-		std::vector<std::complex<double> >& a, double &sigma2, double torr, twindowfunc windowfunc);
+	virtual void first(
+		const std::vector<std::complex<double> >& memin, const shared_ptr<ARContext> &context, twindowfunc windowfunc);
+	virtual void step(const shared_ptr<ARContext> &context);
+private:
+	std::vector<std::complex<double> > m_rx;
 };
 
 #endif
