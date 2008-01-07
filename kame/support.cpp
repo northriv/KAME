@@ -21,6 +21,8 @@
 #include "measure.h"
 #include "threadlocal.h"
 
+#define KAME_LOG_FILENAME "/tmp/kame.log"
+
 #if defined __linux__ || defined MACOSX
 #undef TRAP_FPE
 #if defined TRAP_FPE && defined __linux__
@@ -60,11 +62,19 @@ void kame_gc::operator delete(void *obj) {
 #endif
 void my_assert(const char *file, int line)
 {
-	fprintf(stderr, "assertion failed %s:%d\n",file,line);
+	XScopedLock<XMutex> lock(g_debug_mutex);
+	std::string msg = formatString("assertion failed %s:%d\n",file,line);
+	g_debugofs << msg;
+	fprintf(stderr, "%s",msg.c_str());
+	g_debugofs.flush();
+	g_debugofs.close();
 #ifdef __linux__
 	void *trace[128];
 	int n = backtrace(trace, sizeof(trace) / sizeof(trace[0]));
 	backtrace_symbols_fd(trace, n, 1);
+	int fd = open(KAME_LOG_FILENAME, O_RDWR | O_APPEND);
+	backtrace_symbols_fd(trace, n, fd);
+	close(fd);
 #endif
 	abort();
 }
@@ -119,7 +129,7 @@ bool g_bUseMLock;
 #include <fstream>
 
 #include <thread.h>
-static std::ofstream g_debugofs("/tmp/kame.log", std::ios::out);
+static std::ofstream g_debugofs(KAME_LOG_FILENAME, std::ios::out);
 static XMutex g_debug_mutex;
 
 double roundlog10(double val)
