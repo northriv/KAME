@@ -12,8 +12,19 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include <errno.h>
-
+#include <stdio.h>
 #include <string.h>
+
+bool g_bLogDbgPrint;
+bool g_bMLockAlways;
+bool g_bUseMLock;
+
+#include <iostream>
+#include <fstream>
+
+#include <thread.h>
+static std::ofstream g_debugofs(KAME_LOG_FILENAME, std::ios::out);
+static XMutex g_debug_mutex;
 
 #include <klocale.h>
 #include "support.h"
@@ -120,17 +131,6 @@ XKameError::msg() const
 {
 	return m_msg;
 }
-
-bool g_bLogDbgPrint;
-bool g_bMLockAlways;
-bool g_bUseMLock;
-
-#include <iostream>
-#include <fstream>
-
-#include <thread.h>
-static std::ofstream g_debugofs(KAME_LOG_FILENAME, std::ios::out);
-static XMutex g_debug_mutex;
 
 double roundlog10(double val)
 {
