@@ -279,7 +279,7 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 			taps_max++;
 		}
 	}
-	if(max_idx == min_idx)
+	if(max_idx <= min_idx)
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
 	double res = resRecorded();
