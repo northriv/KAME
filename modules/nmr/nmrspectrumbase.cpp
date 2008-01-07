@@ -176,6 +176,8 @@ XNMRSpectrumBase<FRM>::analyze(const shared_ptr<XDriver> &emitter) throw (XRecor
 	int length = lrint((_max - _min) / res);
 	m_accum.resize(length, 0.0);
 	m_weights.resize(length, 0);
+	m_wave.resize(m_accum.size());
+	std::fill(m_wave.begin(), m_wave.end(), 0.0);
 
 	if(clear) {
 		m_spectrum->clear();
@@ -310,8 +312,6 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	shared_ptr<SpectrumSolver> solver = m_solver->solver();
 	solver->exec(solverin, fftwave, -iftorigin, 0.1e-2, m_solver->windowFunc(), *windowWidth() / 100.0);
 
-	m_wave.resize(m_accum.size());
-	std::fill(m_wave.begin(), m_wave.end(), 0.0);
 	for(int i = min_idx; i <= max_idx; i++) {
 		int k = (i - min_idx - (max_idx - min_idx + 1)/2 + fftwave.size()) % fftwave.size();
 		m_wave[i] = fftwave[k] / (double)iftlen;
