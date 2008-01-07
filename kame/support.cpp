@@ -12,7 +12,7 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include <errno.h>
-#include <stdio.h>
+#include <fcntl.h>
 #include <string.h>
 
 bool g_bLogDbgPrint;
@@ -23,6 +23,8 @@ bool g_bUseMLock;
 #include <fstream>
 
 #include <thread.h>
+#define KAME_LOG_FILENAME "/tmp/kame.log"
+
 static std::ofstream g_debugofs(KAME_LOG_FILENAME, std::ios::out);
 static XMutex g_debug_mutex;
 
@@ -31,8 +33,6 @@ static XMutex g_debug_mutex;
 #include "xtime.h"
 #include "measure.h"
 #include "threadlocal.h"
-
-#define KAME_LOG_FILENAME "/tmp/kame.log"
 
 #if defined __linux__ || defined MACOSX
 #undef TRAP_FPE
