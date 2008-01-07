@@ -176,7 +176,7 @@ XNMRSpectrumBase<FRM>::analyze(const shared_ptr<XDriver> &emitter) throw (XRecor
 	int length = lrint((_max - _min) / res);
 	m_accum.resize(length, 0.0);
 	m_weights.resize(length, 0);
-	m_wave.resize(m_accum.size());
+	m_wave.resize(length);
 	std::fill(m_wave.begin(), m_wave.end(), 0.0);
 
 	if(clear) {
