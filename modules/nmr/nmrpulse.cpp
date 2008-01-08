@@ -491,7 +491,7 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	entryCosAv()->value(std::real(m_ftWave[fftlen / 2]));
 	entrySinAv()->value(std::imag(m_ftWave[fftlen / 2]));
 
-	if(picenabled && (m_avcount % 2 == 1)) {
+	if(picenabled && (m_avcount % 2 == 1) && (emitter == _dso)) {
 		ASSERT( _pulser->time() );
 		unlockConnection(_pulser);
 		_pulser->invertPhase()->value(!inverted);
