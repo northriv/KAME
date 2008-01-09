@@ -554,7 +554,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 			phase_by_cond[i] = std::arg(corr[i]);
 		}
 		if(*autoWindow()) {
-			double sn2 = _absfit ? std::norm(corr[i]) : std::real(corr[i] * std::polar(1.0, -phase_by_cond[i]));
+			double sn2 = _absfit ? std::abs(corr[i]) : std::real(corr[i] * std::polar(1.0, -phase_by_cond[i]));
 			sn2 = sn2 * sn2 / m_convolutionCache[i]->power;
 			if(maxsn2 < sn2) {
 				maxsn2 = sn2;
