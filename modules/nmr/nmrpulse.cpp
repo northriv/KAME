@@ -215,7 +215,6 @@ void XNMRPulseAnalyzer::backgroundSub(std::vector<std::complex<double> > &wave,
 		m_statusPrinter->printWarning(KAME::i18n("Maybe, length for BG. sub. is too short."));
 	
 	std::complex<double> bg = 0;
-	m_noisePower = 1.0;
 	if (bglength) {
 		double normalize = 0.0;
 		for (int i = 0; i < bglength; i++) {
@@ -226,12 +225,6 @@ void XNMRPulseAnalyzer::backgroundSub(std::vector<std::complex<double> > &wave,
 			normalize += z;
 		}
 		bg /= normalize;
-
-		m_noisePower = 0.0;
-		for (int i = bgpos; i < bgpos + bglength; i++) {
-			m_noisePower += std::norm(wave[pos + i] - bg);
-		}
-		m_noisePower /= bglength;
 	}
 
 	for (int i = 0; i < wave.size(); i++) {
@@ -263,14 +256,10 @@ void XNMRPulseAnalyzer::rotNFFT(int ftpos, double ph,
 
 	int fftlen = ftwave.size();
 	//fft
-	std::vector<std::complex<double> > fftin(length);
 	std::vector<std::complex<double> > fftout(fftlen);
 	double fftout_normalize = 1.0 / length;
-	for (int i = 0; i < length; i++) {
-		fftin[i] = wave[i];
-	}
 	shared_ptr<SpectrumSolver> solver = m_solver->solver();
-	solver->exec(fftin, fftout, -ftpos, 0.5e-2, m_solver->windowFunc(), *windowWidth() / 100.0);
+	solver->exec(wave, fftout, -ftpos, 0.5e-2, m_solver->windowFunc(), *windowWidth() / 100.0);
 	m_ifftWave.resize(fftlen);
 	std::copy(solver->ifft().begin(), solver->ifft().end(), m_ifftWave.begin());
 
@@ -405,9 +394,9 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	if (length > (int)m_waveSum.size()) {
 		avgclear = true;
 	}
-	std::vector<std::complex<double> > wave(length);
+	m_wave.resize(length);
 	m_waveSum.resize(length);
-	std::fill(wave.begin(), wave.end(), 0.0);
+	std::fill(m_wave.begin(), m_wave.end(), 0.0);
 
 	// Phase Inversion Cycling
 	bool picenabled = *m_picEnabled;
@@ -474,7 +463,7 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	}
 	double normalize = 1.0 / m_avcount;
 	for(int i = 0; i < length; i++) {
-		wave[i] = m_waveSum[i] * normalize;
+		m_wave[i] = m_waveSum[i] * normalize;
 	}
 
 	int ftpos = lrint(*fftPos() * 1e-3 / interval + _dso->trigPosRecorded() - pos);
@@ -484,7 +473,7 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	m_waveFTPos = ftpos;
 	int fftlen = FFT::fitLength(*fftLen());
 	m_ftWave.resize(fftlen);
-	rotNFFT(ftpos, ph, wave, m_ftWave, lrint(*difFreq() * 1000.0 / dFreq()) );
+	rotNFFT(ftpos, ph, m_wave, m_ftWave, lrint(*difFreq() * 1000.0 / dFreq()) );
 	//[Hz]
 	m_dFreq = 1.0 / fftlen / interval;
 	

@@ -34,67 +34,91 @@ SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
 	const shared_ptr<XComboNode> selector, const shared_ptr<XComboNode> windowfunc,
 	const shared_ptr<XDoubleNode> windowlength)
 	: XNode(name, runtime), m_selector(selector), m_windowfunc(windowfunc), m_windowlength(windowlength) {
-	selector->add(SPECTRUM_SOLVER_ZF_FFT);
-	selector->add(SPECTRUM_SOLVER_MEM_STRICT);
-	selector->add(SPECTRUM_SOLVER_MEM_BURG_AICc);
-	selector->add(SPECTRUM_SOLVER_MEM_BURG_MDL);
-	selector->add(SPECTRUM_SOLVER_AR_YW_AICc);
-	selector->add(SPECTRUM_SOLVER_AR_YW_MDL);
-	windowfunc->add(WINDOW_FUNC_DEFAULT);
-	windowfunc->add(WINDOW_FUNC_HANNING);
-	windowfunc->add(WINDOW_FUNC_HAMMING);
-	windowfunc->add(WINDOW_FUNC_BLACKMAN);
-	windowfunc->add(WINDOW_FUNC_BLACKMAN_HARRIS);
-	windowfunc->add(WINDOW_FUNC_FLATTOP);
-	windowfunc->add(WINDOW_FUNC_KAISER_1);
-	windowfunc->add(WINDOW_FUNC_KAISER_2);
-	windowfunc->add(WINDOW_FUNC_KAISER_3);
-	m_lsnOnChanged = selector->onValueChanged().connectWeak(shared_from_this(), &SpectrumSolverWrapper::onSolverChanged);
+	if(windowfunc) {
+		windowfunc->add(WINDOW_FUNC_DEFAULT);
+		windowfunc->add(WINDOW_FUNC_HANNING);
+		windowfunc->add(WINDOW_FUNC_HAMMING);
+		windowfunc->add(WINDOW_FUNC_BLACKMAN);
+		windowfunc->add(WINDOW_FUNC_BLACKMAN_HARRIS);
+		windowfunc->add(WINDOW_FUNC_FLATTOP);
+		windowfunc->add(WINDOW_FUNC_KAISER_1);
+		windowfunc->add(WINDOW_FUNC_KAISER_2);
+		windowfunc->add(WINDOW_FUNC_KAISER_3);
+	}
+	if(selector) {
+		selector->add(SPECTRUM_SOLVER_ZF_FFT);
+		selector->add(SPECTRUM_SOLVER_MEM_STRICT);
+		selector->add(SPECTRUM_SOLVER_MEM_BURG_AICc);
+		selector->add(SPECTRUM_SOLVER_MEM_BURG_MDL);
+		selector->add(SPECTRUM_SOLVER_AR_YW_AICc);
+		selector->add(SPECTRUM_SOLVER_AR_YW_MDL);
+		m_lsnOnChanged = selector->onValueChanged().connectWeak(shared_from_this(), &SpectrumSolverWrapper::onSolverChanged);
+	}
 	onSolverChanged(selector);
 }
 SpectrumSolverWrapper::~SpectrumSolverWrapper() {
-	m_selector->clear();
+	if(m_windowfunc) {
+		m_windowfunc->clear();
+	}
+	if(m_selector) {
+		m_selector->clear();
+	}
 }
 FFT::twindowfunc
 SpectrumSolverWrapper::windowFunc() const {
 	FFT::twindowfunc func = &FFT::windowFuncRect;
-	if(m_windowfunc->to_str() == WINDOW_FUNC_HANNING) func = &FFT::windowFuncHanning;
-	if(m_windowfunc->to_str() == WINDOW_FUNC_HAMMING) func = &FFT::windowFuncHamming;
-	if(m_windowfunc->to_str() == WINDOW_FUNC_FLATTOP) func = &FFT::windowFuncFlatTop;
-	if(m_windowfunc->to_str() == WINDOW_FUNC_BLACKMAN) func = &FFT::windowFuncBlackman;
-	if(m_windowfunc->to_str() == WINDOW_FUNC_BLACKMAN_HARRIS) func = &FFT::windowFuncBlackmanHarris;
-	if(m_windowfunc->to_str() == WINDOW_FUNC_KAISER_1) func = &FFT::windowFuncKaiser1;
-	if(m_windowfunc->to_str() == WINDOW_FUNC_KAISER_2) func = &FFT::windowFuncKaiser2;
-	if(m_windowfunc->to_str() == WINDOW_FUNC_KAISER_3) func = &FFT::windowFuncKaiser3;
+	if(m_windowfunc) {
+		if(m_windowfunc->to_str() == WINDOW_FUNC_HANNING) func = &FFT::windowFuncHanning;
+		if(m_windowfunc->to_str() == WINDOW_FUNC_HAMMING) func = &FFT::windowFuncHamming;
+		if(m_windowfunc->to_str() == WINDOW_FUNC_FLATTOP) func = &FFT::windowFuncFlatTop;
+		if(m_windowfunc->to_str() == WINDOW_FUNC_BLACKMAN) func = &FFT::windowFuncBlackman;
+		if(m_windowfunc->to_str() == WINDOW_FUNC_BLACKMAN_HARRIS) func = &FFT::windowFuncBlackmanHarris;
+		if(m_windowfunc->to_str() == WINDOW_FUNC_KAISER_1) func = &FFT::windowFuncKaiser1;
+		if(m_windowfunc->to_str() == WINDOW_FUNC_KAISER_2) func = &FFT::windowFuncKaiser2;
+		if(m_windowfunc->to_str() == WINDOW_FUNC_KAISER_3) func = &FFT::windowFuncKaiser3;
+	}
 	return func;
+}
+void
+SpectrumSolverWrapper::windowFuncs(std::deque<FFT::twindowfunc> &funcs) const {
+	funcs.clear();
+	funcs.push_back(&FFT::windowFuncRect);
+	funcs.push_back(&FFT::windowFuncHanning);
+	funcs.push_back(&FFT::windowFuncHamming);
+	funcs.push_back(&FFT::windowFuncFlatTop);
+	funcs.push_back(&FFT::windowFuncBlackman);
+	funcs.push_back(&FFT::windowFuncBlackmanHarris);
+	funcs.push_back(&FFT::windowFuncKaiser1);
+	funcs.push_back(&FFT::windowFuncKaiser2);
+	funcs.push_back(&FFT::windowFuncKaiser3);
 }
 
 void
 SpectrumSolverWrapper::onSolverChanged(const shared_ptr<XValueNodeBase> &) {
 	shared_ptr<SpectrumSolver> solver;
-	if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_BURG_AICc) {
-		m_windowfunc->setUIEnabled(false);		
-		solver.reset(new MEMBurg(&MEMBurg::arAICc));
-	}
-	if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_BURG_MDL) {
-		m_windowfunc->setUIEnabled(false);		
-		solver.reset(new MEMBurg(&MEMBurg::arMDL));
-	}
-	if(m_selector->to_str() == SPECTRUM_SOLVER_AR_YW_AICc) {
-		m_windowfunc->setUIEnabled(false);		
-		solver.reset(new YuleWalkerAR(&YuleWalkerAR::arAICc));
-	}
-	if(m_selector->to_str() == SPECTRUM_SOLVER_AR_YW_MDL) {
-		m_windowfunc->setUIEnabled(false);		
-		solver.reset(new YuleWalkerAR(&YuleWalkerAR::arMDL));
-	}
-	if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_STRICT) {
-		m_windowfunc->setUIEnabled(false);		
-		solver.reset(new MEMStrict);
+	bool has_window = false;
+	if(m_selector) {
+		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_BURG_AICc) {
+			solver.reset(new MEMBurg(&MEMBurg::arAICc));
+		}
+		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_BURG_MDL) {
+			solver.reset(new MEMBurg(&MEMBurg::arMDL));
+		}
+		if(m_selector->to_str() == SPECTRUM_SOLVER_AR_YW_AICc) {
+			solver.reset(new YuleWalkerAR(&YuleWalkerAR::arAICc));
+		}
+		if(m_selector->to_str() == SPECTRUM_SOLVER_AR_YW_MDL) {
+			solver.reset(new YuleWalkerAR(&YuleWalkerAR::arMDL));
+		}
+		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_STRICT) {
+			solver.reset(new MEMStrict);
+		}
 	}
 	if(!solver) {
-		m_windowfunc->setUIEnabled(true);
+		has_window = true;
 		solver.reset(new FFTSolver);
 	}
+	if(m_windowfunc)
+		m_windowfunc->setUIEnabled(has_window);
 	m_solver = solver;	
 }

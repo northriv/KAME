@@ -45,6 +45,7 @@ public:
 	static const char WINDOW_FUNC_KAISER_3[];
 	
 	FFT::twindowfunc windowFunc() const;
+	void windowFuncs(std::deque<FFT::twindowfunc> &funcs) const;
 private:
 	const shared_ptr<XComboNode> m_selector, m_windowfunc;
 	const shared_ptr<XDoubleNode> m_windowlength;

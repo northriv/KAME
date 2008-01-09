@@ -121,6 +121,7 @@ private:
 
 	shared_ptr<FFT> m_ift;
 	shared_ptr<SpectrumSolverWrapper> m_solver;
+	FFTSolver m_preFFT;
 
 	void analyzeIFT();
 	

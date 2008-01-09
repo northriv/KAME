@@ -242,28 +242,23 @@ XNMRSpectrumBase<FRM>::fssum()
 	}
 	int bw = abs(lrint(*bandWidth() * 1000.0 / df));
 	bw *= 1.8; // for Hamming.
-//	bw *= 3.6; // for FlatTop.
+	//	bw *= 3.6; // for FlatTop.
+	if(bw >= len) {
+		throw XRecordError(KAME::i18n("BW beyond Nyquist freq."), __FILE__, __LINE__);  
+	}
 	double cfreq = getCurrentCenterFreq();
 	if(cfreq == 0) {
 		throw XRecordError(KAME::i18n("Invalid center freq."), __FILE__, __LINE__);  
 	}
-	if(_pulse->windowFunc()->to_str() != SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT) {
-		m_statusPrinter->printWarning(KAME::i18n("Do not use window function in the pulse analyzer. Skipping."), false);
-		throw XSkippedRecordError(__FILE__, __LINE__);
-	}
-	if(_pulse->solverList()->to_str() != SpectrumSolverWrapper::SPECTRUM_SOLVER_ZF_FFT) {
-		m_statusPrinter->printWarning(KAME::i18n("Use ZF-FFT in the pulse analyzer. Skipping."), false);
-		throw XSkippedRecordError(__FILE__, __LINE__);
-	}
-	for(int i = std::max(0, (len - bw) / 2); i < std::min(len, (len + bw) / 2); i++) {
-		double freq = (i - len/2) * df;
+	std::vector<std::complex<double> > ftwave(len);
+	m_preFFT.exec(_pulse->wave(), ftwave, -_pulse->waveFTPos(), 0.0, &FFT::windowFuncRect, 1.0);
+	for(int i = -bw / 2; i <= bw / 2; i++) {
+		double freq = i * df;
 		int idx = lrint((cfreq + freq - minRecorded()) / resRecorded());
 		if((idx >= (int)m_accum.size()) || (idx < 0))
 			continue;
-//		double w = SpectrumSolver::windowFuncFlatTop((double)(i - len/2) / bw);
-		double w = FFT::windowFuncHamming((double)(i - len/2) / bw);
-//		double w = XNMRPulseAnalyzer::windowFuncRect((double)(i - len/2) / bw);
-		m_accum[idx] += _pulse->ftWave()[i] * w;
+		double w = FFT::windowFuncHamming((double)i / bw);
+		m_accum[idx] += ftwave[(i + len) % len] * w / (double)_pulse->wave().size();
 		m_weights[idx] += w;
 	}
 }

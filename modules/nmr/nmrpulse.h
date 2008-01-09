@@ -101,15 +101,14 @@ public:
 
 	//! records below.
 
+	/// Time-domain Wave.
+	const std::vector<std::complex<double> > &wave() const {return m_wave;}
 	/// FFT Wave starting with -fmax/2.
 	const std::vector<std::complex<double> > &ftWave() const {return m_ftWave;}
-	/// Time-domain Wave.
+	/// Time-domain Wave. IFFT of ftWave().
 	const std::vector<std::complex<double> > &ifftWave() const {return m_ifftWave;}
 	//! freq. resolution [Hz]
 	double dFreq() const {return m_dFreq;}
-	//! [V^2] noise factor deduced from background
-	//! \sa UseDNR, BGPos, BGWidth
-	double noisePower() const {return m_noisePower;}
 	//! time resolution [sec.]
 	double interval() const {return m_interval;}
 	//! time diff. of the first point from trigger [sec.]
@@ -158,12 +157,12 @@ private:
 	const shared_ptr<XItemNode<XDriverList, XPulser> > m_pulser;
   
 	//! Records
+	std::vector<std::complex<double> > m_wave;
 	std::vector<std::complex<double> > m_ftWave;
 	std::vector<std::complex<double> > m_ifftWave;
 	std::vector<std::complex<double> > m_dsoWave;
 	int m_dsoWaveStartPos, m_waveFTPos, m_waveWidth;
 	double m_dFreq;  ///< Hz per point
-	double m_noisePower;
 	//! # of summations.
 	int m_avcount;
 	//! Stored Waves for avg.

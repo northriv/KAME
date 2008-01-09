@@ -20,6 +20,7 @@
 //#include "nmrpulse.h"
 //#include "nmrrelaxfit.h"
 #include <complex>
+#include "nmrspectrumsolver.h"
 
 class XNMRPulseAnalyzer;
 class XPulser;
@@ -80,9 +81,14 @@ public:
 	const shared_ptr<XDoubleNode> &p1Max() const {return m_p1Max;}
 	//! (Deduced) phase of echoes [deg.]
 	const shared_ptr<XDoubleNode> &phase() const {return m_phase;}
-	//! Center freq and band width of echoes [kHz].
+	//! Center freq of echoes [kHz].
 	const shared_ptr<XDoubleNode> &freq() const {return m_freq;}
-	const shared_ptr<XDoubleNode> &bandWidth() const {return m_bandWidth;}
+	/// FFT Window Function
+	const shared_ptr<XComboNode> &windowFunc() const {return m_windowFunc;}
+	/// FFT Window Length
+	const shared_ptr<XComboNode> &windowWidth() const {return m_windowWidth;}
+	//! Auto-select window.
+	const shared_ptr<XBoolNode> &autoWindow() const {return m_autoWindow;}
 	enum MEASMODE {MEAS_T1 = 0, MEAS_T2 = 1, MEAS_ST_E = 2};
 	//! T1/T2/StE measurement
 	const shared_ptr<XComboNode> &mode() const {return m_mode;}
@@ -117,6 +123,9 @@ private:
 	const shared_ptr<XDoubleNode> m_phase;
 	const shared_ptr<XDoubleNode> m_freq;
 	const shared_ptr<XDoubleNode> m_bandWidth;
+	const shared_ptr<XComboNode> m_windowFunc;
+	const shared_ptr<XComboNode> m_windowWidth;
+	const shared_ptr<XBoolNode> m_autoWindow;
 	const shared_ptr<XComboNode> m_mode;
 	const shared_ptr<XUIntNode> m_smoothSamples;
 	const shared_ptr<XComboNode> m_p1Dist;
@@ -131,6 +140,7 @@ private:
 		std::complex<double> c;
 		double p1;
 		double isigma; /// weight
+		std::deque<std::complex<double> > value_by_cond;
 	};
 
 	//! for Non-Lenear-Least-Square fitting
@@ -149,7 +159,8 @@ private:
 	void onResetFit (const shared_ptr<XNode> &);
 	void onActiveChanged (const shared_ptr<XValueNodeBase> &);
 	void onCondChanged (const shared_ptr<XValueNodeBase> &);
-	xqcon_ptr m_conP1Min, m_conP1Max, m_conPhase, m_conFreq, m_conBW,
+	xqcon_ptr m_conP1Min, m_conP1Max, m_conPhase, m_conFreq,
+		m_conWindowFunc, m_conWindowWidth, m_conAutoWindow,
 		m_conSmoothSamples, m_conASWClearance;
 	xqcon_ptr m_conFitStatus;
 	xqcon_ptr m_conP1Dist, m_conRelaxFunc;
@@ -158,12 +169,28 @@ private:
 	xqcon_ptr m_conMode;
 	xqcon_ptr m_conPulser, m_conPulse1, m_conPulse2;
 
+	void analyzeSpectrum(const shared_ptr<XNMRPulseAnalyzer> &pulse, std::deque<std::complex<double> > &value_by_cond);
+
+	void analyzeSpectrum (
+		const std::vector< std::complex<double> >&wave, int origin, int fftlen, int cf,
+		std::deque<std::complex<double> > &value_by_cond);
+	std::deque<double> m_windowWidthList;
+	struct ConvolutionCache {
+		std::vector<std::complex<double> > wave;
+		double windowwidth;
+		FFT::twindowfunc windowfunc;
+		int origin;
+		int wavelen;
+		int length;
+		double power;
+	};
+	std::deque<shared_ptr<ConvolutionCache> > m_convolutionCache;
+	FFTSolver m_convolutionCacheFFT;
+	shared_ptr<SpectrumSolverWrapper> m_solver;
 	//! Raw measured points
-	struct RawPt
-	{
-		std::complex<double> c;
+	struct RawPt {
+		std::deque<std::complex<double> > value_by_cond;
 		double p1;
-		double isigma2; //! weight^2, probably deduced from noise in background
 	};
 	//! Store all measured points
 	std::deque< RawPt > m_pts;
@@ -184,10 +211,6 @@ private:
 	//! \param itercnt counts 
 	//! \param buf a message will be passed
 	std::string iterate(shared_ptr<XRelaxFunc> &relax, int itercnt);
-
-	std::complex<double> acuSpectrum (
-		const std::vector< std::complex<double> >&wave, double df, double cf,
-		double bw);
  		      
 	XTime m_timeClearRequested;
 };
