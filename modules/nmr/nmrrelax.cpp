@@ -124,16 +124,16 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
     connect(pulse2(), false);
 
     m_windowFunc->value(SpectrumSolverWrapper::WINDOW_FUNC_HAMMING);
-//    m_windowWidthList.push_back(0.25);
+    m_windowWidthList.push_back(0.25);
     m_windowWidthList.push_back(0.5);
-    m_windowWidthList.push_back(0.75);
+//    m_windowWidthList.push_back(0.75);
     m_windowWidthList.push_back(1.0);
 //    m_windowWidthList.push_back(1.25);
     m_windowWidthList.push_back(1.5);
     m_windowWidthList.push_back(2.0);
-//    m_windowWidth->add("25%");
+    m_windowWidth->add("25%");
     m_windowWidth->add("50%");
-    m_windowWidth->add("75%");
+//    m_windowWidth->add("75%");
     m_windowWidth->add("100%");
 //    m_windowWidth->add("125%");
     m_windowWidth->add("150%");
@@ -144,7 +144,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 								"Weight [1/V]", "Abs [V]", "Re [V]", "Im [V]"};
 		m_wave->setColCount(6, labels);
 		m_wave->insertPlot(KAME::i18n("Relaxation"), 0, 1, -1, 2);
-		m_wave->insertPlot(KAME::i18n("Im"), 0, 5, -1, 2);
+		m_wave->insertPlot(KAME::i18n("Out-of-Phase"), 0, 5, -1, 2);
 		shared_ptr<XAxis> axisx = m_wave->axisx();
 		shared_ptr<XAxis> axisy = m_wave->axisy();
 		axisx->logScale()->value(true);
@@ -278,11 +278,9 @@ XNMRT1::onCondChanged(const shared_ptr<XValueNodeBase> &node)
 }
 void
 XNMRT1::analyzeSpectrum(
-	const std::vector< std::complex<double> >&wave, int origin, int fftlen, int cf,
+	const std::vector< std::complex<double> >&wave, int origin, double cf,
 	std::deque<std::complex<double> > &value_by_cond) {
 	value_by_cond.clear();
-	std::vector<std::complex<double> > ftwave(fftlen);
-	m_solver->solver()->exec(wave, ftwave, -origin, 0.0, &FFT::windowFuncRect, 1.0);
 	std::deque<FFT::twindowfunc> funcs;
 	m_solver->windowFuncs(funcs);
 
@@ -294,40 +292,25 @@ XNMRT1::analyzeSpectrum(
 			}
 			shared_ptr<ConvolutionCache> cache = m_convolutionCache[idx];
 			if((cache->windowwidth != *wit) || (cache->origin != origin) ||
-				(cache->windowfunc != *fit) || (cache->length != fftlen) ||
-				(cache->wavelen != wave.size())) {
-				std::vector< std::complex<double> > ftin(wave.size()), ftout(fftlen);
+				(cache->windowfunc != *fit) || (cache->cfreq != cf) ||
+				(cache->wave.size() != wave.size())) {
 				cache->windowwidth = *wit;
 				cache->origin = origin;
 				cache->windowfunc = *fit;
-				cache->length = fftlen;
-				cache->wavelen = wave.size();
+				cache->cfreq = cf;
 				cache->power = 0.0;
-				std::fill(ftin.begin(), ftin.end(), 1.0 / (double)fftlen / (double)wave.size());
-				m_convolutionCacheFFT.exec(ftin, ftout, -origin, 0.0, *fit, *wit);
-				double th = 3e-2 / (double)fftlen;
-				th = th * th;
-				int cutoff = fftlen / 10 + 1;
-				for(int i = -fftlen / 2; i <= fftlen / 2; i++) {
-					double p = std::norm(ftout[(i + fftlen) % fftlen]);
-					if(p > th) {
-						cutoff = std::max(cutoff, abs(i));
-						cache->power += p;
-					}
+				cache->wave.resize(wave.size());
+				double wk = 1.0 / FFTSolver::windowLength(wave.size(), -origin, *wit);
+				for(int i = 0; i < (int)wave.size(); i++) {
+					double w = (*fit)((i - origin) * wk) / (double)wave.size();
+					cache->wave[i] = std::polar(w, -2.0*M_PI*cf*(i - origin));
+					cache->power += w*w;
 				}
-				cache->wave.resize(cutoff*2+1);
-				for(int i = -cutoff; i <= cutoff; i++) {
-					std::complex<double> z = ftout[(i + fftlen) % fftlen];
-					cache->wave[(i + (int)cache->wave.size()) % (int)cache->wave.size()] = std::conj(z);
-				}
-				dbgPrint(formatString("NMRT1: Recreating Convolution Cache. len=%d, w=%g, cutoff=%d", 
-					wave.size(), *wit, cutoff));
 			}
 			
 			std::complex<double> z(0.0);
-			for(int i = -(int)cache->wave.size() / 2; i <= (int)cache->wave.size() / 2; i++) {
-				z += ftwave[(i + cf + fftlen * 2) % fftlen] * 
-					cache->wave[(i + (int)cache->wave.size()) % (int)cache->wave.size()];
+			for(int i = 0; i < (int)cache->wave.size(); i++) {
+				z += wave[i] * cache->wave[i];
 			}
 			
 //			m_solver->solver()->exec(wave, fftout, -origin, 0.0, *fit, *wit);
@@ -417,11 +400,11 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 		bool _active = *active();
       
 		std::deque<std::complex<double> > cmp1, cmp2;
-		int cfreq = lrint(*freq() * 1e3 / _pulse1->dFreq());
-		analyzeSpectrum(_pulse1->wave(), _pulse1->waveFTPos(), _pulse1->ftWave().size(), cfreq, cmp1);
+		double cfreq = *freq() * 1e3 * _pulse1->interval();
+		analyzeSpectrum(_pulse1->wave(), _pulse1->waveFTPos(), cfreq, cmp1);
 		RawPt pt1, pt2;
 		if(_pulse2) {
-			analyzeSpectrum(_pulse2->wave(), _pulse2->waveFTPos(), _pulse2->ftWave().size(), cfreq, cmp2);
+			analyzeSpectrum(_pulse2->wave(), _pulse2->waveFTPos(), cfreq, cmp2);
 			pt2.value_by_cond.resize(cmp2.size());
 		}
 		pt1.value_by_cond.resize(cmp1.size());
@@ -507,10 +490,11 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 
 	Pt dummy;
 	dummy.c = 0; dummy.p1 = 0; dummy.isigma = 0;
+	dummy.value_by_cond.resize(m_convolutionCache.size());
 	std::fill(m_sumpts.begin(), m_sumpts.end(), dummy);
+	double k = m_sumpts.size() / log(p1max/p1min);
 	for(std::deque<RawPt>::iterator it = m_pts.begin(); it != m_pts.end(); it++) {
-	#define invf(x) (log((x) / p1min) / log(p1max/p1min))
-		int idx = lrint(m_sumpts.size() * invf(it->p1));
+		int idx = lrint(log(it->p1 / p1min) * k);
 		if((idx < 0) || (idx >= (int)m_sumpts.size())) continue;
 		double p1 = it->p1;
 		//For St.E., T+tau = P1+3*tau. 
@@ -518,7 +502,6 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 			p1 += 3 * _pulser->tauRecorded() * 1e-3;
 		m_sumpts[idx].isigma += 1.0;
 		m_sumpts[idx].p1 += p1;
-		m_sumpts[idx].value_by_cond.resize(it->value_by_cond.size());
 		for(unsigned int i = 0; i < it->value_by_cond.size(); i++)
 			m_sumpts[idx].value_by_cond[i] += it->value_by_cond[i];
     }

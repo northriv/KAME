@@ -77,6 +77,8 @@ class FFTSolver : public SpectrumSolver {
 public:
 	FFTSolver() : SpectrumSolver()  {}
 	virtual ~FFTSolver() {}
+	
+	static double windowLength(int tdlen, int t0, double windowlength);
 protected:
 	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin,
 		std::vector<std::complex<double> >& memout,

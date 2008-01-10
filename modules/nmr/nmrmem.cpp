@@ -148,7 +148,10 @@ SpectrumSolver::exec(const std::vector<std::complex<double> >& memin, std::vecto
 	return genSpectrum(memin, memout, t0, torr, windowfunc, windowlength);
 }
 
-
+double
+FFTSolver::windowLength(int t, int t0, double windowlength) {
+	return 2.0 * (std::max(-t0, (int)t + t0) * windowlength);
+}
 bool
 FFTSolver::genSpectrum(const std::vector<std::complex<double> >& fftin, std::vector<std::complex<double> >& fftout,
 	int t0, double /*torr*/, FFT::twindowfunc windowfunc, double windowlength) {
@@ -158,7 +161,7 @@ FFTSolver::genSpectrum(const std::vector<std::complex<double> >& fftin, std::vec
 	if(t0a < 0)
 		t0a += (-t0a / n + 1) * n;
 
-	double wk = 0.5 / (std::max(-t0, (int)t + t0) * windowlength);
+	double wk = 1.0 / windowLength(t, t0, windowlength);
 	std::fill(m_ifft.begin(), m_ifft.end(), 0.0);
 	for(int i = 0; i < t; i++) {
 		double w = windowfunc((i + t0) * wk);

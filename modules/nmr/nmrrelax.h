@@ -172,7 +172,7 @@ private:
 	void analyzeSpectrum(const shared_ptr<XNMRPulseAnalyzer> &pulse, std::deque<std::complex<double> > &value_by_cond);
 
 	void analyzeSpectrum (
-		const std::vector< std::complex<double> >&wave, int origin, int fftlen, int cf,
+		const std::vector< std::complex<double> >&wave, int origin, double cf,
 		std::deque<std::complex<double> > &value_by_cond);
 	std::deque<double> m_windowWidthList;
 	struct ConvolutionCache {
@@ -180,12 +180,10 @@ private:
 		double windowwidth;
 		FFT::twindowfunc windowfunc;
 		int origin;
-		int wavelen;
-		int length;
+		double cfreq;
 		double power;
 	};
 	std::deque<shared_ptr<ConvolutionCache> > m_convolutionCache;
-	FFTSolver m_convolutionCacheFFT;
 	shared_ptr<SpectrumSolverWrapper> m_solver;
 	//! Raw measured points
 	struct RawPt {
