@@ -1,3 +1,8 @@
+* Thu Jan 10 2008 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.3.1-1)
+- nmrrelax : Window. Auto-window. Direct Fourier.
+- nmrspectrumbase : Its own FFT.
+
 * Thu Jan 3 2008 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.3.0-1)
 - nmrpulse, nmrspectrumbase : DSO plots, MEM/AR for DNR & spectra.
