@@ -16,7 +16,7 @@
 
 #include "primarydriver.h"
 #include "dummydriver.h"
-#include <fftw.h>
+#include <fftw3.h>
 
 class XScalarEntry;
 class MonteCarlo;
@@ -34,7 +34,7 @@ protected:
 					  const shared_ptr<XDriverList> &drivers);
 public:
 	//! usually nothing to do
-	virtual ~XMonteCarloDriver() {}
+	virtual ~XMonteCarloDriver();
 	//! show all forms belonging to driver
 	virtual void showForms();
 protected:
@@ -91,8 +91,8 @@ private:
 	shared_ptr<XListener> m_lsnTargetChanged, m_lsnStepTouched, m_lsnGraphChanged;
 	shared_ptr<XStatusPrinter> m_statusPrinter;
 	int m_fftlen;
-	std::vector<fftw_complex> m_fftin[3], m_fftout[3];
-	fftwnd_plan m_fftplan;  
+	fftw_complex *(m_pFFTin[3]), *(m_pFFTout[3]);
+	fftw_plan m_fftplan[3];  
 };
 
 #endif /*KAMEMONTECARLO_H_*/

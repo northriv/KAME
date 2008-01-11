@@ -19,8 +19,8 @@
 #include <vector>
 #include <complex>
 #include <deque>
-#include <fftw.h>
 
+#include <fftw3.h>
 //! Wrapper class for FFTW.
 class FFT {
 public:
@@ -51,7 +51,7 @@ public:
 private:
 	int m_fftlen;
 	shared_ptr<fftw_plan> m_fftplan;
-	shared_ptr<std::vector<fftw_complex> > m_bufin, m_bufout;
+	fftw_complex *m_pBufin, *m_pBufout;
 };
 
 class SpectrumSolver {

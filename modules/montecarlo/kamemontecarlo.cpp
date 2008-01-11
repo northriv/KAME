@@ -183,7 +183,15 @@ XMonteCarloDriver::XMonteCarloDriver(const char *name, bool runtime,
 	m_wave3D->axisz()->labelColor()->value(clWhite);
 	m_wave3D->axisz()->ticLabelColor()->value(clWhite);  
 }
-
+XMonteCarloDriver::~XMonteCarloDriver() {
+    for(int d = 0; d < 3; d++) {
+        if(m_fftlen > 0) {
+            fftw_destroy_plan(m_fftplan[d]);
+            fftw_free(m_pFFTin[d]);
+            fftw_free(m_pFFTout[d]);
+        }
+    }	
+}
 void
 XMonteCarloDriver::showForms() {
 //! impliment form->show() here
@@ -223,14 +231,19 @@ XMonteCarloDriver::start()
     m_lsnGraphChanged = m_graph3D->onValueChanged().connectWeak(
 		shared_from_this(), &XMonteCarloDriver::onGraphChanged);
 
-    if(m_fftlen > 0)
-        fftwnd_destroy_plan(m_fftplan);
-    m_fftlen = MonteCarlo::length() * 4;
+    int fftlen = MonteCarlo::length() * 4;
     for(int d = 0; d < 3; d++) {
-        m_fftin[d].resize(m_fftlen * m_fftlen * m_fftlen);
-        m_fftout[d].resize(m_fftlen * m_fftlen * m_fftlen);
+        if(m_fftlen > 0) {
+            fftw_destroy_plan(m_fftplan[d]);
+            fftw_free(m_pFFTin[d]);
+            fftw_free(m_pFFTout[d]);
+        }
+        m_pFFTin[d] = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * fftlen * fftlen * fftlen);
+        m_pFFTout[d] = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * fftlen * fftlen * fftlen);
+        m_fftplan[d] = fftw_plan_dft_3d(fftlen, fftlen, fftlen, m_pFFTin[d], m_pFFTout[d],
+        	FFTW_FORWARD, FFTW_ESTIMATE);
     }
-    m_fftplan = fftw3d_create_plan(m_fftlen, m_fftlen, m_fftlen, FFTW_FORWARD, FFTW_ESTIMATE);
+    m_fftlen = fftlen;
 }
 void
 XMonteCarloDriver::stop()
@@ -380,7 +393,7 @@ XMonteCarloDriver::visualize()
 					for(int i = 0; i < size; i++) {
 						int fftidx = m_fftlen*(m_fftlen*(4*k+pos[2]) + 4*j+pos[1]) + 4*i + pos[0];
 						int spin = spins[size*(size*(size*site + k) + j) + i];
-						m_fftin[d][fftidx].re = spin* ising / sqrt(3.0);
+						m_pFFTin[d][fftidx][0] = spin* ising / sqrt(3.0);
 					}
 				}
             }
@@ -393,9 +406,9 @@ XMonteCarloDriver::visualize()
 
 	if(fftx || ffty || fftz)
 	{
-		fftwnd_one(m_fftplan, &m_fftin[0][0], &m_fftout[0][0]);
-		fftwnd_one(m_fftplan, &m_fftin[1][0], &m_fftout[1][0]);
-		fftwnd_one(m_fftplan, &m_fftin[2][0], &m_fftout[2][0]);
+		fftw_execute(m_fftplan[0]);
+		fftw_execute(m_fftplan[1]);
+		fftw_execute(m_fftplan[2]);
     
 		XScopedWriteLock<XWaveNGraph> lock(*m_wave3D);
 		m_wave3D->setRowCount(m_fftlen * m_fftlen * m_fftlen );
@@ -405,30 +418,30 @@ XMonteCarloDriver::visualize()
 			for(int k = 0; k < m_fftlen; k++) {
 				for(int h = 0; h < m_fftlen; h++) {
 					int qidx = m_fftlen*(m_fftlen*l + k) + h;
-					fftw_complex ix = m_fftout[0][qidx];
-					fftw_complex iy = m_fftout[1][qidx];
-					fftw_complex iz = m_fftout[2][qidx];
+					fftw_complex *ix = &m_pFFTout[0][qidx];
+					fftw_complex *iy = &m_pFFTout[1][qidx];
+					fftw_complex *iz = &m_pFFTout[2][qidx];
 					m_wave3D->cols(0)[idx] = (double)h * 8.0/m_fftlen;
 					m_wave3D->cols(1)[idx] = (double)k * 8.0/m_fftlen;
 					m_wave3D->cols(2)[idx] = (double)l * 8.0/m_fftlen;
 					double v = 0.0;
 					if(along_field_dir) {
 						double vr = field_dir.innerProduct(MonteCarlo::Vector3<double>
-														   (ix.re, iy.re, iz.re));
+														   ((*ix)[0], (*iy)[0], (*iz)[0]));
 						double vi = field_dir.innerProduct(MonteCarlo::Vector3<double>
-														   (ix.im, iy.im, iz.im));
+														   ((*ix)[1], (*iy)[1], (*iz)[1]));
 						v = vr*vr + vi * vi;
 					}
 					else {
-						if(fftx) v+= ix.re*ix.re + ix.im*ix.im;
-						if(ffty) v+= iy.re*iy.re + iy.im*iy.im;
-						if(fftz) v+= iz.re*iz.re + iz.im*iz.im;
+						if(fftx) v+= (*ix)[0]*(*ix)[0] + (*ix)[1]*(*ix)[1];
+						if(ffty) v+= (*iy)[0]*(*iy)[0] + (*iy)[1]*(*iy)[1];
+						if(fftz) v+= (*iz)[0]*(*iz)[0] + (*iz)[1]*(*iz)[1];
 					}
 					v = sqrt(v);
 					m_wave3D->cols(3)[idx] = v * normalize;
-					m_wave3D->cols(4)[idx] = (ix.re*ix.re + ix.im*ix.im) * normalize;
-					m_wave3D->cols(5)[idx] = (iy.re*iy.re + iy.im*iy.im) * normalize;
-					m_wave3D->cols(6)[idx] = (iz.re*iz.re + iz.im*iz.im) * normalize;
+					m_wave3D->cols(4)[idx] = ((*ix)[0]*(*ix)[0] + (*ix)[1]*(*ix)[1]) * normalize;
+					m_wave3D->cols(5)[idx] = ((*iy)[0]*(*iy)[0] + (*iy)[1]*(*iy)[1]) * normalize;
+					m_wave3D->cols(6)[idx] = ((*iz)[0]*(*iz)[0] + (*iz)[1]*(*iz)[1]) * normalize;
 					m_wave3D->cols(7)[idx] = 0;
 					idx++;
 				}
@@ -452,9 +465,9 @@ XMonteCarloDriver::visualize()
 					m_wave3D->cols(0)[idx] = x;
 					m_wave3D->cols(1)[idx] = y;
 					m_wave3D->cols(2)[idx] = z;
-					double sx = m_fftin[0][fftidx].re;
-					double sy = m_fftin[1][fftidx].re;
-					double sz = m_fftin[2][fftidx].re;
+					double sx = m_pFFTin[0][fftidx][0];
+					double sy = m_pFFTin[1][fftidx][0];
+					double sz = m_pFFTin[2][fftidx][0];
 					double v = 0.0;
 					if(along_field_dir) {
 						v = field_dir.innerProduct(MonteCarlo::Vector3<double>

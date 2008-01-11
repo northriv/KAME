@@ -13,7 +13,6 @@
  ***************************************************************************/
 #include "nmrmem.h"
 
-#include <fftw.h>
 #include <gsl/gsl_sf.h>
 #define lambertW0 gsl_sf_lambert_W0
 #define bessel_i0 gsl_sf_bessel_I0
@@ -40,13 +39,16 @@ FFT::fitLength(int length0) {
 
 FFT::FFT(int sign, int length) {
 	m_fftlen = length;
-	m_bufin.reset(new std::vector<fftw_complex>(length));
-	m_bufout.reset(new std::vector<fftw_complex>(length));
+	m_pBufin = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * length);
+	m_pBufout = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * length);
 	m_fftplan.reset(new fftw_plan);
-	*m_fftplan = fftw_create_plan(length, (sign > 0) ? FFTW_BACKWARD : FFTW_FORWARD, FFTW_ESTIMATE);
+	*m_fftplan = fftw_plan_dft_1d(length, m_pBufin, m_pBufout,
+		(sign > 0) ? FFTW_BACKWARD : FFTW_FORWARD, FFTW_ESTIMATE);
 }
 FFT::~FFT() {
 	fftw_destroy_plan(*m_fftplan);
+	fftw_free(m_pBufin);
+	fftw_free(m_pBufout);
 }
 void
 FFT::exec(const std::vector<std::complex<double> >& wavein,
@@ -55,18 +57,18 @@ FFT::exec(const std::vector<std::complex<double> >& wavein,
 	ASSERT(size == length());
 	waveout.resize(size);
 	const std::complex<double> *pin = &wavein[0];
-	fftw_complex *pout = &m_bufin->at(0);
+	fftw_complex *pout = m_pBufin;
 	for(int i = 0; i < size; i++) {
-		pout->re = pin->real();
-		pout->im = pin->imag();
+		(*pout)[0] = pin->real();
+		(*pout)[1] = pin->imag();
 		pout++;
 		pin++;
 	}
-	fftw_one(*m_fftplan, &m_bufin->at(0), &m_bufout->at(0));
-	const fftw_complex *pin2 = &m_bufout->at(0);
+	fftw_execute(*m_fftplan);
+	const fftw_complex *pin2 = m_pBufout;
 	std::complex<double> *pout2 = &waveout[0];
 	for(int i = 0; i < size; i++) {
-		*pout2 = std::complex<double>(pin2->re, pin2->im);
+		*pout2 = std::complex<double>((*pin2)[0], (*pin2)[1]);
 		pout2++;
 		pin2++;
 	}
