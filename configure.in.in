@@ -22,8 +22,8 @@ FREETYPE2_LIBS="`freetype-config --libs`"
 FREETYPE2_CFLAGS="`freetype-config --cflags`"
 
 ac_save_LIBS="$LIBS"
-AC_CHECK_LIB(fftw, main, fftw_libs="-lfftw",
-  AC_MSG_ERROR([fftw not installed - please install first]))
+AC_CHECK_LIB(fftw3, main, fftw_libs="-lfftw3",
+  AC_MSG_ERROR([FFTW3 not installed - please install first]))
 FFTW_LIBS="$FFTW_LIBS $fftw_libs"
 LIBS="$ac_save_LIBS"
 
