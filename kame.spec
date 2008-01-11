@@ -7,8 +7,8 @@ Name: kame
 
 %{!?build_nidaqmx: %define build_nidaqmx 1}
 
-Version: 2.3.1
-Release: 2
+Version: 2.3.2
+Release: 1
 License: GPL
 Group: Applications/Engineering
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
@@ -34,7 +34,9 @@ Group: Applications/Engineering
 Summary: KAME, K's adaptive measurement engine. Modules.
 Requires: kame = %{version}
 Requires: linux-gpib
+Requires: fftw
 BuildPreReq: linux-gpib-devel
+BuildPreReq: fftw-devel
 %description modules-standard
 K's adaptive measurement engine.
 Many standard drivers.
@@ -43,8 +45,6 @@ Many standard drivers.
 Group: Applications/Engineering
 Summary: KAME, K's adaptive measurement engine. Modules.
 Requires: kame-modules-standard = %{version}
-Requires: fftw2
-BuildPreReq: fftw2-devel
 %description modules-nmr
 K's adaptive measurement engine.
 NMR drivers.
