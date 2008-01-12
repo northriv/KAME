@@ -1,6 +1,7 @@
 pkglib_LTLIBRARIES = libdsocore.la
 
 INCLUDES = -I$(top_srcdir)/kame \
+	-I$(top_srcdir)/kame/math \
 	-I$(top_srcdir)/kame/graph \
 	-I$(top_srcdir)/kame/analyzer \
 	-I$(top_srcdir)/kame/driver \
@@ -8,8 +9,7 @@ INCLUDES = -I$(top_srcdir)/kame \
 	-Iforms \
 	$(all_includes)
 
-libdsocore_la_SOURCES = fir.cpp fir.h \
-	dso.cpp dso.h
+libdsocore_la_SOURCES = dso.cpp dso.h
 
 libdsocore_la_LIBADD = forms/libforms.la
 

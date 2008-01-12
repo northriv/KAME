@@ -15,7 +15,7 @@
 #define NMRSPECTRUMSOLVER_H_
 //---------------------------------------------------------------------------
 #include "support.h"
-#include "nmrmem.h"
+#include "mem.h"
 #include "xitemnode.h"
 
 class SpectrumSolverWrapper : public XNode {

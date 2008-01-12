@@ -4,6 +4,7 @@ moduleexec_LTLIBRARIES = libnidaq.la
 libnidaq_la_LDFLAGS = -module
 
 INCLUDES = -I$(top_srcdir)/kame \
+	-I$(top_srcdir)/kame/math \
 	-I$(top_srcdir)/kame/analyzer \
 	-I$(top_srcdir)/kame/driver \
 	-I$(top_srcdir)/kame/graph \

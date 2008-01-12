@@ -11,8 +11,8 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-#ifndef nmrmemH
-#define nmrmemH
+#ifndef memH
+#define memH
 //---------------------------------------------------------------------------
 #include "support.h"
 
@@ -20,39 +20,7 @@
 #include <complex>
 #include <deque>
 
-#include <fftw3.h>
-//! Wrapper class for FFTW.
-class FFT {
-public:
-	//! Create FFT plan.
-	//! \arg sign -1:FFT, 1:IFFT.
-	//! \arg length FFT length.
-	//! \arg fit_length Expand to appropriate length for O(n log n) computation.
-	FFT(int sign, int length);
-	~FFT();
-	static int fitLength(int length); 
-	int length() const {return m_fftlen;}
-	void exec(const std::vector<std::complex<double> >& wavein,
-		std::vector<std::complex<double> >& waveout);
-
-	//for Window Func.
-	typedef double (*twindowfunc)(double x);
-	static double windowFuncRect(double x);
-	static double windowFuncTri(double x);
-	static double windowFuncHanning(double x);
-	static double windowFuncHamming(double x);
-	static double windowFuncFlatTop(double x);
-	static double windowFuncBlackman(double x);
-	static double windowFuncBlackmanHarris(double x);
-	static double windowFuncKaiser(double x, double alpha);
-	static double windowFuncKaiser1(double x);
-	static double windowFuncKaiser2(double x);
-	static double windowFuncKaiser3(double x);
-private:
-	int m_fftlen;
-	shared_ptr<fftw_plan> m_fftplan;
-	fftw_complex *m_pBufin, *m_pBufout;
-};
+#include <fft.h>
 
 class SpectrumSolver {
 public:

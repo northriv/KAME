@@ -19,8 +19,7 @@ AM_CXXFLAGS = $(CXXFLAGS) \
 libmontecarlo_la_SOURCES = montecarlo.cpp montecarlo.h \
 	interaction.cpp \
 	kamemontecarlo.cpp kamemontecarlo.h
-libmontecarlo_la_LIBADD = forms/libforms.la \
-	@FFTW_LIBS@ 
+libmontecarlo_la_LIBADD = forms/libforms.la
 
 SUBDIRS = forms
 METASOURCES = AUTO

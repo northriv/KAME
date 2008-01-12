@@ -2,6 +2,7 @@ pkglib_LTLIBRARIES = libnmrpulsercore.la
 
 INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/modules/charinterface \
+	-I$(top_srcdir)/kame/math \
 	-I$(top_srcdir)/kame/driver \
 	-I$(top_srcdir)/kame/analyzer \
 	-I$(top_srcdir)/kame/graph \

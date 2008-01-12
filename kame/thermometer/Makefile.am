@@ -1,6 +1,7 @@
 noinst_LIBRARIES = libthermometer.a
 
 INCLUDES = -I$(top_srcdir)/kame \
+	-I$(top_srcdir)/kame/math \
 	-I$(top_srcdir)/kame/graph \
 	-I$(top_builddir)/kame/graph \
 	-I$(top_srcdir)/kame/thermometer \
@@ -9,8 +10,7 @@ INCLUDES = -I$(top_srcdir)/kame \
 
 libthermometer_a_SOURCES = \
 	caltable.cpp caltable.h \
-	thermometer.cpp thermometer.h \
-	cspline.cpp cspline.h
+	thermometer.cpp thermometer.h
 
 SUBDIRS = forms
 METASOURCES = AUTO

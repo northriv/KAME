@@ -9,6 +9,7 @@ INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/modules/dso/core \
 	-I$(top_srcdir)/modules/magnetps/core \
 	-I$(top_srcdir)/modules/charinterface \
+	-I$(top_srcdir)/kame/math \
 	-I$(top_srcdir)/kame/driver \
 	-I$(top_srcdir)/kame/analyzer \
 	-I$(top_srcdir)/kame/graph \
@@ -24,7 +25,6 @@ libnmrpulser_la_SOURCES = \
 libnmr_la_SOURCES = \
 	nmrpulse.cpp nmrpulse.h \
 	nmrspectrumsolver.cpp nmrspectrumsolver.h \
-	nmrmem.cpp nmrmem.h \
 	nmrspectrumbase.cpp nmrspectrumbase.h \
 	nmrspectrum.cpp nmrspectrum.h \
 	nmrfspectrum.cpp nmrfspectrum.h \
@@ -40,7 +40,6 @@ libnmr_la_LIBADD = core/forms/libnmrforms.la \
 	../dso/core/libdsocore.la \
 	../sg/core/libsgcore.la \
 	../magnetps/core/libmagnetpscore.la \
-	@FFTW_LIBS@ @GSL_LIBS@
 
 #AM_CXXFLAGS = $(CXXFLAGS) \
 #	-O6  \

@@ -41,8 +41,7 @@
 #define PULSE_FUNC_KAISER_1 "Kaiser(3) BW=1.6/T"
 #define PULSE_FUNC_KAISER_2 "Kaiser(7.2) BW=2.6/T"
 #define PULSE_FUNC_KAISER_3 "Kaiser(15) BW=3.8/T"
-#define PULSE_FUNC_HALF_COS "Half-cos BW=1.2/T"
-#define PULSE_FUNC_CHOPPED_HALF_COS "Chopped-Half-cos BW=1.0/T"
+#define PULSE_FUNC_HALF_SIN "Half-sin BW=1.2/T"
 
 #define NUM_PHASE_CYCLE_1 "1"
 #define NUM_PHASE_CYCLE_2 "2"
@@ -58,67 +57,20 @@
 #define RT_MODE_FIXREP "Fix Rep. Time"
 #define RT_MODE_FIXREST "Fix Rest Time"
 
-double XPulser::pulseFuncRect(double ) {
-//	return (fabs(x) <= 0.5) ? 1 : 0;
-	return 1.0;
-}
-double XPulser::pulseFuncHanning(double x) {
-	return 0.5 + 0.5*cos(2*PI*x);
-}
-double XPulser::pulseFuncHamming(double x) {
-	return 0.54 + 0.46*cos(2*PI*x);
-}
-double XPulser::pulseFuncBlackman(double x) {
-	return 0.42323+0.49755*cos(2*PI*x)+0.07922*cos(4*PI*x);
-}
-double XPulser::pulseFuncBlackmanHarris(double x) {
-	return 0.35875+0.48829*cos(2*PI*x)+0.14128*cos(4*PI*x)+0.01168*cos(6*PI*x);
-}
-double XPulser::pulseFuncFlatTop(double x) {
-	return pulseFuncHamming(x)*((fabs(x) < 1e-4) ? 1 : sin(4*PI*x)/(4*PI*x));
-}
-double XPulser::pulseFuncFlatTopLong(double x) {
-	return pulseFuncHamming(x)*((fabs(x) < 1e-4) ? 1 : sin(6*PI*x)/(6*PI*x));
-}
-double XPulser::pulseFuncFlatTopLongLong(double x) {
-	return pulseFuncHamming(x)*((fabs(x) < 1e-4) ? 1 : sin(8*PI*x)/(8*PI*x));
-}
-double XPulser::pulseFuncKaiser(double x, double alpha) {
-	x = 2*x;
-	x = sqrt(std::max(1 - x*x, 0.0));	
-	return bessel_i0(PI*alpha*x) / bessel_i0(PI*alpha);
-}
-double XPulser::pulseFuncKaiser1(double x) {
-	return pulseFuncKaiser(x, 3.0);
-}
-double XPulser::pulseFuncKaiser2(double x) {
-	return pulseFuncKaiser(x, 7.2);
-}
-double XPulser::pulseFuncKaiser3(double x) {
-	return pulseFuncKaiser(x, 15.0);
-}
-double XPulser::pulseFuncHalfCos(double x) {
-    return cos(PI*x);
-}
-double XPulser::pulseFuncChoppedHalfCos(double x) {
-    return 2.0*std::min(0.5, cos(PI*x));
-}
-
 XPulser::tpulsefunc
 XPulser::pulseFunc(const std::string &str) const {
-	if(str == PULSE_FUNC_HANNING) return &pulseFuncHanning;
-	if(str == PULSE_FUNC_HAMMING) return &pulseFuncHamming;
-	if(str == PULSE_FUNC_BLACKMAN) return &pulseFuncBlackman;
-	if(str == PULSE_FUNC_BLACKMAN_HARRIS) return &pulseFuncBlackmanHarris;
-	if(str == PULSE_FUNC_KAISER_1) return &pulseFuncKaiser1;
-	if(str == PULSE_FUNC_KAISER_2) return &pulseFuncKaiser2;
-	if(str == PULSE_FUNC_KAISER_3) return &pulseFuncKaiser3;
-	if(str == PULSE_FUNC_FLATTOP) return &pulseFuncFlatTop;
-	if(str == PULSE_FUNC_FLATTOP_LONG) return &pulseFuncFlatTopLong;
-	if(str == PULSE_FUNC_FLATTOP_LONG_LONG) return &pulseFuncFlatTopLongLong;
-    if(str == PULSE_FUNC_HALF_COS) return &pulseFuncHalfCos;
-    if(str == PULSE_FUNC_CHOPPED_HALF_COS) return &pulseFuncChoppedHalfCos;
-	return &pulseFuncRect;
+	if(str == PULSE_FUNC_HANNING) return &FFT::windowFuncHanning;
+	if(str == PULSE_FUNC_HAMMING) return &FFT::windowFuncHamming;
+	if(str == PULSE_FUNC_BLACKMAN) return &FFT::windowFuncBlackman;
+	if(str == PULSE_FUNC_BLACKMAN_HARRIS) return &FFT::windowFuncBlackmanHarris;
+	if(str == PULSE_FUNC_KAISER_1) return &FFT::windowFuncKaiser1;
+	if(str == PULSE_FUNC_KAISER_2) return &FFT::windowFuncKaiser2;
+	if(str == PULSE_FUNC_KAISER_3) return &FFT::windowFuncKaiser3;
+	if(str == PULSE_FUNC_FLATTOP) return &FFT::windowFuncFlatTop;
+	if(str == PULSE_FUNC_FLATTOP_LONG) return &FFT::windowFuncFlatTopLong;
+	if(str == PULSE_FUNC_FLATTOP_LONG_LONG) return &FFT::windowFuncFlatTopLongLong;
+    if(str == PULSE_FUNC_HALF_SIN) return &FFT::windowFuncHalfSin;
+	return &FFT::windowFuncRect;
 }
 
 XPulser::XPulser(const char *name, bool runtime, 
@@ -253,8 +205,7 @@ XPulser::XPulser(const char *name, bool runtime,
 	p1Func()->add(PULSE_FUNC_KAISER_1);
 	p1Func()->add(PULSE_FUNC_KAISER_2);
 	p1Func()->add(PULSE_FUNC_KAISER_3);
-	p1Func()->add(PULSE_FUNC_HALF_COS);
-	p1Func()->add(PULSE_FUNC_CHOPPED_HALF_COS);
+	p1Func()->add(PULSE_FUNC_HALF_SIN);
     p2Func()->add(PULSE_FUNC_RECT);
     p2Func()->add(PULSE_FUNC_HANNING);
     p2Func()->add(PULSE_FUNC_HAMMING);
@@ -266,8 +217,7 @@ XPulser::XPulser(const char *name, bool runtime,
     p2Func()->add(PULSE_FUNC_KAISER_1);
     p2Func()->add(PULSE_FUNC_KAISER_2);
     p2Func()->add(PULSE_FUNC_KAISER_3);
-    p2Func()->add(PULSE_FUNC_HALF_COS);
-    p2Func()->add(PULSE_FUNC_CHOPPED_HALF_COS);
+    p2Func()->add(PULSE_FUNC_HALF_SIN);
 	combFunc()->add(PULSE_FUNC_RECT);
 	combFunc()->add(PULSE_FUNC_HANNING);
 	combFunc()->add(PULSE_FUNC_HAMMING);
@@ -279,8 +229,7 @@ XPulser::XPulser(const char *name, bool runtime,
 	combFunc()->add(PULSE_FUNC_KAISER_1);
 	combFunc()->add(PULSE_FUNC_KAISER_2);
 	combFunc()->add(PULSE_FUNC_KAISER_3);
-	combFunc()->add(PULSE_FUNC_HALF_COS);
-	combFunc()->add(PULSE_FUNC_CHOPPED_HALF_COS);
+	combFunc()->add(PULSE_FUNC_HALF_SIN);
     
 	p1Func()->value(PULSE_FUNC_KAISER_2);
 	p2Func()->value(PULSE_FUNC_KAISER_2);

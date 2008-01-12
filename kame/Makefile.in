@@ -82,6 +82,7 @@ __um_includes_driverlistconnector.h = measure.cpp
 __um_includes_drivertool.h = kame.cpp
 __um_includes_errno.h = main.cpp support.cpp thread.cpp
 __um_includes_execinfo.h = support.cpp
+__um_includes_fcntl.h = support.cpp
 __um_includes_fpu_control.h = support.cpp
 __um_includes_fstream = main.cpp xnodeconnector.cpp support.cpp kame.cpp measure.cpp
 __um_includes_gc_allocator.h = main.cpp xsignal.cpp xtime.cpp spinlock.h xitemnode.cpp rwlock.cpp xnodeconnector.cpp xnode.cpp threadlocal.cpp xscheduler.cpp support.cpp kame.cpp xlistnode.cpp measure.cpp thread.cpp

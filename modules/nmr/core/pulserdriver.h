@@ -19,6 +19,7 @@
 #include "xitemnode.h"
 #include "xnodeconnector.h"
 #include <complex>
+#include "fft.h"
 
 class FrmPulser;
 class FrmPulserMore;
@@ -205,24 +206,9 @@ protected:
 	//! use this after clearRaw()
 	void writeRaw();
   
-	typedef double (*tpulsefunc)(double x);
+	typedef FFT::twindowfunc tpulsefunc;
 	tpulsefunc pulseFunc(const std::string &str) const;
-	static double pulseFuncRect(double x);
-	static double pulseFuncHanning(double x);
-	static double pulseFuncHamming(double x);
-	static double pulseFuncBlackman(double x);
-	static double pulseFuncBlackmanHarris(double x);
-	static double pulseFuncKaiser(double x, double alpha);
-	static double pulseFuncKaiser1(double x);
-	static double pulseFuncKaiser2(double x);
-	static double pulseFuncKaiser3(double x);
-	static double pulseFuncFlatTop(double x);
-	static double pulseFuncFlatTopLong(double x);
-	static double pulseFuncFlatTopLongLong(double x);
-	static double pulseFuncHalfCos(double x);
-	static double pulseFuncChoppedHalfCos(double x);
-  
-  
+
     //! send patterns to pulser or turn-off
     virtual void changeOutput(bool output, unsigned int blankpattern) = 0;
     //! convert RelPatList to native patterns

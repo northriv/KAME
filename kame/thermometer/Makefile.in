@@ -48,22 +48,19 @@ final:
 METASOURCES = caltable=./caltable.h
 __um_includes_caltable.h = caltable.cpp
 __um_includes_caltableform.h = caltable.cpp
-__um_includes_cspline.h = cspline.cpp thermometer.cpp
+__um_includes_cspline.h = thermometer.cpp
 __um_includes_fstream = caltable.cpp
 __um_includes_graph.h = caltable.cpp
 __um_includes_graphnurlform.h = caltable.cpp
 __um_includes_graphwidget.h = caltable.cpp
 __um_includes_klocale.h = thermometer.cpp caltable.cpp
-__um_includes_map = cspline.cpp thermometer.cpp
 __um_includes_math.h = thermometer.cpp
 __um_includes_measure.h = caltable.cpp
 __um_includes_qpushbutton.h = caltable.cpp
-__um_includes_support.h = cspline.cpp thermometer.cpp
 __um_includes_thermometer.h = thermometer.cpp caltable.cpp
-__um_includes_vector = cspline.cpp
 __um_includes_xlistnode.h = thermometer.cpp caltable.cpp
 __um_includes_xnode.h = thermometer.cpp caltable.cpp
 __um_includes_xnodeconnector.h = caltable.cpp
 __um_includes_xwavengraph.h = caltable.cpp
-libthermometer_a_SOURCES = caltable.cpp caltable.h thermometer.cpp thermometer.h cspline.cpp cspline.h caltable.moc.cpp
+libthermometer_a_SOURCES = caltable.cpp caltable.h thermometer.cpp thermometer.h caltable.moc.cpp
 .PHONY: all final

@@ -31,6 +31,7 @@ kame_SOURCES = measure.cpp measure.h \
 	xitemnode.cpp xitemnode.h \
 	main.cpp
 kame_LDADD = $(top_builddir)/kame/forms/libforms.a \
+	$(top_builddir)/kame/math/libmath.a \
 	$(top_builddir)/kame/script/libscript.a \
 	$(top_builddir)/kame/analyzer/libanalyzer.a \
 	$(top_builddir)/kame/driver/libdriver.a \
@@ -41,12 +42,12 @@ kame_LDADD = $(top_builddir)/kame/forms/libforms.a \
 	$(top_srcdir)/FTGL/unix/src/.libs/libftgl.a \
 	-lGLU -lm\
 	$(LIB_KFILE) $(LIB_KDEUI) $(LIB_KDECORE) $(LIB_QT) $(LIBSOCKET) -lkmdi @RUBY_LIBS@\
-	@GC_LIBS@ @MALLOC_DEBUG_LIBS@ @FREETYPE2_LIBS@ @GSL_LIBS@ @LTDL_LIBS@
+	@GC_LIBS@ @MALLOC_DEBUG_LIBS@ @FREETYPE2_LIBS@ @GSL_LIBS@ @FFTW_LIBS@ @LTDL_LIBS@
 
 kame_LDFLAGS = $(all_libraries) -dlpreopen self -export-dynamic
 # $(KDE_RPATH)
 
-SUBDIRS = forms script driver graph thermometer analyzer icons mikachanfont
+SUBDIRS = forms math script driver graph thermometer analyzer icons mikachanfont
 
 EXTRA_DIST = kame.desktop lo32-app-kame.png lo16-app-kame.png
 
