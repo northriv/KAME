@@ -20,6 +20,8 @@
 #define FIR_H
 
 #include <vector>
+#include <complex>
+#include <fftw3.h>
 
 class FIR
 {
@@ -41,6 +43,33 @@ private:
 	double m_BandWidth;
 	double m_Center;
 	std::vector<float> m_Coeff, m_Z; ///< coeff. buffer
+};
+
+//! FIR (Finite Impulse Response) Digital Filter.
+//! Accelerated by the MDCT (Modified Discrete Fourier Transformation).
+class FIRMDCT
+{
+public:
+	//! makes coeff. for BPF. Window func. method.
+	//! \param taps odd num. a number of taps
+	//! \param bandwidth 0 to 1.0. the unit is sampling freq.
+	//! \param center 0.0 to 1.0. the unit is sampling freq.
+	FIRMDCT(int taps, double bandwidth, double center);
+	~FIRMDCT();
+	void exec(const double *src, double *dst, int len);
+	int taps() const {return m_taps;}
+	double bandWidth() const {return m_bandWidth;}
+	double centerFreq() const {return m_centerFreq;}
+private:
+	fftw_plan m_rdftplan, m_ridftplan;
+	double *m_pBufR;
+	fftw_complex *m_pBufC;
+	std::vector<std::complex<double> > m_firWnd;
+	std::vector<double> m_mdctWnd;
+	int m_mdctLen, m_tapLen;
+	const int m_taps;
+	const double m_bandWidth;
+	const double m_centerFreq;
 };
 
 #endif //FIR_H

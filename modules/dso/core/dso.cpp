@@ -412,12 +412,13 @@ XDSO::convertRawToDisp() throw (XRecordError&) {
 		if(fir_sharpness < 4.0)
 			m_statusPrinter->printWarning(KAME::i18n("Too small number of taps for FIR filter."));
 		int taps = std::min((int)lrint(2 * fir_sharpness / bandwidth), 5000);
-		m_fir.setupBPF(taps, bandwidth, *firCenterFreq() * 1000.0 * timeIntervalDisp());
+		double center = *firCenterFreq() * 1000.0 * timeIntervalDisp();
+		if(!m_fir || (taps != m_fir->taps()) || (bandwidth != m_fir->bandWidth()) || (center != m_fir->centerFreq()))
+			m_fir.reset(new FIRMDCT(taps, bandwidth, center));
 		unsigned int length = lengthDisp();
 		std::vector<double> buf(length);
 		for(unsigned int i = 0; i < num_channels; i++) {
-			m_fir.doFIR(waveDisp(i), 
-						&buf[0], length);
+			m_fir->exec(waveDisp(i), &buf[0], length);
 			memcpy(waveDisp(i), &buf[0], length * sizeof(double));
 		}
 	}
