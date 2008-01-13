@@ -1,3 +1,9 @@
+* Tue 15 2008 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.3.2-1)
+- math : new folder.
+- FFTW ver 3.
+- nmrspectrum : Abs. plot. Fix for handling weights.
+
 * Fri Jan 11 2008 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.3.1-2)
 - nmrrelax : Convolution w/o FFT.
