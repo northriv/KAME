@@ -295,7 +295,8 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	if(iftlen < 8)
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	int npad = lrint(3.0 / (res * _pulse->waveWidth() * _pulse->interval()) + 0.5);
-	iftlen = ((iftlen + npad) / 8 + 1) * 8;
+	int trunc2 = lrint(pow(2.0, ceil(log(iftlen * 0.03) / log(2.0))));
+	iftlen = ((iftlen + npad) / trunc2 + 1) * trunc2;
 	int tdsize = lrint(_pulse->waveWidth() * _pulse->interval() * res * iftlen);
 	int iftorigin = lrint(_pulse->waveFTPos() * _pulse->interval() * res * iftlen);
 	dbgPrint(formatString("IFT: len=%d, org=%d, size=%d, npad=%d\n", iftlen, iftorigin, tdsize, npad));
