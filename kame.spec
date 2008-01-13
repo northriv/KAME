@@ -14,11 +14,13 @@ Group: Applications/Engineering
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Requires: qt >= %{qtver}, kdelibs >= %{kdever}
 Requires: libart_lgpl, gsl, zlib, ruby, libtool-ltdl
+Requires: fftw
 BuildPreReq: ruby-devel, gsl-devel, boost-devel, libtool-ltdl-devel
 BuildPreReq: libidn-devel
 BuildPreReq: qt-devel >= %{qtver}, kdelibs-devel >= %{kdever}
 BuildPreReq: libart_lgpl-devel, zlib-devel, libpng-devel, libjpeg-devel
 BuildPreReq: gcc-c++ >= 4.0
+BuildPreReq: fftw-devel
 
 Source0: %{name}-%{version}.tar.bz2
 Source1: ftgl-%{ftglver}.tar.gz
@@ -34,9 +36,7 @@ Group: Applications/Engineering
 Summary: KAME, K's adaptive measurement engine. Modules.
 Requires: kame = %{version}
 Requires: linux-gpib
-Requires: fftw
 BuildPreReq: linux-gpib-devel
-BuildPreReq: fftw-devel
 %description modules-standard
 K's adaptive measurement engine.
 Many standard drivers.

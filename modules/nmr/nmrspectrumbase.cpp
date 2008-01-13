@@ -70,8 +70,8 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 		m_spectrum->plot(0)->drawPoints()->value(false);
 		m_spectrum->plot(0)->drawLines()->value(true);
 		m_spectrum->plot(0)->drawBars()->value(true);
-		m_spectrum->plot(0)->barColor()->value(QColor(0x80, 0x80, 0x80).rgb());
-		m_spectrum->plot(0)->lineColor()->value(QColor(0x80, 0x80, 0x80).rgb());
+		m_spectrum->plot(0)->barColor()->value(QColor(0x60, 0x60, 0xc0).rgb());
+		m_spectrum->plot(0)->lineColor()->value(QColor(0x60, 0x60, 0xc0).rgb());
 		m_spectrum->plot(0)->intensity()->value(0.5);
 		m_spectrum->clear();
 	}
