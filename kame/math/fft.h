@@ -26,9 +26,9 @@ public:
 	//! Create FFT plan.
 	//! \arg sign -1:FFT, 1:IFFT.
 	//! \arg length FFT length.
-	//! \arg fit_length Expand to appropriate length for O(n log n) computation.
 	FFT(int sign, int length);
 	~FFT();
+	//! Expand to appropriate length for better O(n log n) computation.
 	static int fitLength(int length); 
 	int length() const {return m_fftlen;}
 	void exec(const std::vector<std::complex<double> >& wavein,

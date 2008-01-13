@@ -23,14 +23,6 @@ FFT::fitLength(int length0) {
 	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 5.0) / log(2.0))))) * 5);		
 	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 7.0) / log(2.0))))) * 7);		
 	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 9.0) / log(2.0))))) * 9);		
-	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 11.0) / log(2.0))))) * 11);		
-	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 13.0) / log(2.0))))) * 13);		
-	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 15.0) / log(2.0))))) * 15);		
-	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 21.0) / log(2.0))))) * 21);		
-	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 25.0) / log(2.0))))) * 25);		
-	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 27.0) / log(2.0))))) * 27);
-	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 33.0) / log(2.0))))) * 33);
-	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 35.0) / log(2.0))))) * 35);
 	ASSERT(length0 <= length);
 	dbgPrint(formatString("FFT using L=%d\n", length));
 	return length;

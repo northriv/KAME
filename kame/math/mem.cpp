@@ -36,7 +36,6 @@ SpectrumSolver::exec(const std::vector<std::complex<double> >& memin, std::vecto
 	int t0, double torr, FFT::twindowfunc windowfunc, double windowlength) {
 	unsigned int t = memin.size();
 	unsigned int n = memout.size();
-	ASSERT(n == FFT::fitLength(n));
 	if (m_ifft.size() != n) {
 		m_fftN.reset(new FFT(-1, n));		
 		m_ifftN.reset(new FFT(1, n));		
