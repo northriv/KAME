@@ -24,16 +24,16 @@
 #include <fftw3.h>
 
 //! FIR (Finite Impulse Response) Digital Filter.
-//! Accelerated by the MDCT (Modified Discrete Fourier Transformation).
-class FIRMDCT
+//! Accelerated by the MDFT (Modified Discrete Fourier Transformation).
+class FIRMDFT
 {
 public:
 	//! makes coeff. for BPF. Window func. method.
 	//! \param taps odd num. a number of taps
 	//! \param bandwidth 0 to 1.0. the unit is sampling freq.
 	//! \param center 0.0 to 1.0. the unit is sampling freq.
-	FIRMDCT(int taps, double bandwidth, double center);
-	~FIRMDCT();
+	FIRMDFT(int taps, double bandwidth, double center);
+	~FIRMDFT();
 	void exec(const double *src, double *dst, int len);
 	int taps() const {return m_taps;}
 	double bandWidth() const {return m_bandWidth;}

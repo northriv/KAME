@@ -17,7 +17,7 @@
 
 #include "fft.h"
 
-FIRMDCT::FIRMDCT(int taps, double bandwidth, double center) :
+FIRMDFT::FIRMDFT(int taps, double bandwidth, double center) :
 	m_taps(taps), m_bandWidth(bandwidth), m_centerFreq(center) {
 	if(taps < 3) taps = 2;
 	taps = taps/2;
@@ -61,14 +61,14 @@ FIRMDCT::FIRMDCT(int taps, double bandwidth, double center) :
 		m_mdctWnd[i] = sin(M_PI * (i + 0.5) / (double)m_mdctWnd.size());
 	}
 }
-FIRMDCT::~FIRMDCT() {
+FIRMDFT::~FIRMDFT() {
 	fftw_destroy_plan(m_rdftplan);
 	fftw_destroy_plan(m_ridftplan);
 	fftw_free(m_pBufR);
 	fftw_free(m_pBufC);
 }
 void
-FIRMDCT::exec(const double *src, double *dst, int len) {
+FIRMDFT::exec(const double *src, double *dst, int len) {
 	for(int i = 0; i < len; i++) {
 		dst[i] = 0.0;
 	}
