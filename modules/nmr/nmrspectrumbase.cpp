@@ -54,15 +54,25 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 	connect(pulse());
 
 	{
-		const char *labels[] = {"X", "Re [V]", "Im [V]", "Weights"};
-		m_spectrum->setColCount(4, labels);
+		const char *labels[] = {"X", "Re [V]", "Im [V]", "Weights", "Abs [V]"};
+		m_spectrum->setColCount(5, labels);
+		m_spectrum->insertPlot(labels[4], 0, 4, -1, 3);
 		m_spectrum->insertPlot(labels[1], 0, 1, -1, 3);
 		m_spectrum->insertPlot(labels[2], 0, 2, -1, 3);
 		m_spectrum->axisy()->label()->value(KAME::i18n("Intens. [V]"));
-		m_spectrum->plot(0)->label()->value(KAME::i18n("real part"));
-		m_spectrum->plot(0)->drawPoints()->value(false);
-		m_spectrum->plot(1)->label()->value(KAME::i18n("imag. part"));
+		m_spectrum->plot(1)->label()->value(KAME::i18n("real part"));
 		m_spectrum->plot(1)->drawPoints()->value(false);
+		m_spectrum->plot(1)->lineColor()->value(clRed);
+		m_spectrum->plot(2)->label()->value(KAME::i18n("imag. part"));
+		m_spectrum->plot(2)->drawPoints()->value(false);
+		m_spectrum->plot(2)->lineColor()->value(clGreen);
+		m_spectrum->plot(0)->label()->value(KAME::i18n("abs."));
+		m_spectrum->plot(0)->drawPoints()->value(false);
+		m_spectrum->plot(0)->drawLines()->value(true);
+		m_spectrum->plot(0)->drawBars()->value(true);
+		m_spectrum->plot(0)->barColor()->value(QColor(0x80, 0x80, 0x80).rgb());
+		m_spectrum->plot(0)->lineColor()->value(QColor(0x80, 0x80, 0x80).rgb());
+		m_spectrum->plot(0)->intensity()->value(0.5);
 		m_spectrum->clear();
 	}
   
@@ -222,9 +232,10 @@ XNMRSpectrumBase<FRM>::visualize()
 	m_spectrum->setRowCount(length);
 	for(int i = 0; i < length; i++) {
 		m_spectrum->cols(0)[i] = values[i];
-		m_spectrum->cols(1)[i] = (weights()[i] > 0) ? std::real(wave()[i]) / weights()[i] : 0;
-		m_spectrum->cols(2)[i] = (weights()[i] > 0) ? std::imag(wave()[i]) / weights()[i] : 0;
+		m_spectrum->cols(1)[i] = std::real(wave()[i]);
+		m_spectrum->cols(2)[i] = std::imag(wave()[i]);
 		m_spectrum->cols(3)[i] = weights()[i];
+		m_spectrum->cols(4)[i] = std::abs(wave()[i]);
 	}
 	}
 }
@@ -280,12 +291,14 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
 	double res = resRecorded();
-	int iftlen = FFT::fitLength(max_idx - min_idx + 1);
+	int iftlen = max_idx - min_idx + 1;
 	if(iftlen < 8)
 		throw XSkippedRecordError(__FILE__, __LINE__);
-	int iftorigin = lrint(_pulse->waveFTPos() * _pulse->interval() * res * iftlen);
+	int npad = lrint(3.0 / (res * _pulse->waveWidth() * _pulse->interval()) + 0.5);
+	iftlen = ((iftlen + npad) / 8 + 1) * 8;
 	int tdsize = lrint(_pulse->waveWidth() * _pulse->interval() * res * iftlen);
-	dbgPrint(formatString("IFT: len=%d, org=%d, size=%d\n", iftlen, iftorigin, tdsize));
+	int iftorigin = lrint(_pulse->waveFTPos() * _pulse->interval() * res * iftlen);
+	dbgPrint(formatString("IFT: len=%d, org=%d, size=%d, npad=%d\n", iftlen, iftorigin, tdsize, npad));
 	
 	if(!m_ift || (m_ift->length() != iftlen)) {
 		m_ift.reset(new FFT(1, iftlen));
@@ -294,8 +307,8 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	std::vector<std::complex<double> > fftwave(iftlen), iftwave(iftlen);
 	std::fill(fftwave.begin(), fftwave.end(), 0.0);
 	for(int i = min_idx; i <= max_idx; i++) {
-		int k = (i - min_idx - (max_idx - min_idx + 1)/2 + fftwave.size()) % fftwave.size();
-		fftwave[k] = m_accum[i];
+		int k = (i - (max_idx + min_idx) / 2 + iftlen) % iftlen;
+		fftwave[k] = m_accum[i] / m_weights[i];
 	}
 	m_ift->exec(fftwave, iftwave);
 	
@@ -308,7 +321,7 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	solver->exec(solverin, fftwave, -iftorigin, 0.1e-2, m_solver->windowFunc(), *windowWidth() / 100.0);
 
 	for(int i = min_idx; i <= max_idx; i++) {
-		int k = (i - min_idx - (max_idx - min_idx + 1)/2 + fftwave.size()) % fftwave.size();
+		int k = (i - (max_idx + min_idx) / 2 + iftlen) % iftlen;
 		m_wave[i] = fftwave[k] / (double)iftlen;
 	}
 	th = FFT::windowFuncHamming(0.1);

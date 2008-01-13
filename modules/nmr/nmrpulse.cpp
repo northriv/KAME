@@ -169,8 +169,9 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		ftWaveGraph()->insertPlot(labels[4], 0, -1, 4);
 		ftWaveGraph()->plot(0)->label()->value(KAME::i18n("abs."));
 		ftWaveGraph()->plot(0)->drawBars()->value(true);
-		ftWaveGraph()->plot(0)->drawLines()->value(false);
+		ftWaveGraph()->plot(0)->drawLines()->value(true);
 		ftWaveGraph()->plot(0)->drawPoints()->value(false);
+		ftWaveGraph()->plot(0)->intensity()->value(0.5);
 		ftWaveGraph()->plot(1)->label()->value(KAME::i18n("phase"));
 		ftWaveGraph()->plot(1)->drawPoints()->value(false);
 		ftWaveGraph()->clear();
