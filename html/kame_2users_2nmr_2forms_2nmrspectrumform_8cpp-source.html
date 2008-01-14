@@ -1,0 +1,315 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: /Users/northriv/Documents/Projects/KAME/macosx/kame/users/nmr/forms/nmrspectrumform.cpp ソースファイル</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
+<div class="nav">
+<a class="el" href="dir_267cfcb898ce0973ecee1ed2b0a886dd.html">macosx</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_4e9c37e873543013a976ff9253a8401e.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_a3f4e184995b5539b8e69c3951d1f0f2.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_89d50db0ca65589cb4a00b9cc31bd248.html">nmr</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_081be62f333d1a87a3f3d544b7002d83.html">forms</a></div>
+<h1>nmrspectrumform.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#include &lt;klocale.h&gt;</span>
+<a name="l00002"></a>00002 <span class="comment">/****************************************************************************</span>
+<a name="l00003"></a>00003 <span class="comment">** Form implementation generated from reading ui file '../../../../../2.1/kame/users/nmr/forms/nmrspectrumform.ui'</span>
+<a name="l00004"></a>00004 <span class="comment">**</span>
+<a name="l00005"></a>00005 <span class="comment">** Created: 羂�  3 14 03:00:19 2007</span>
+<a name="l00006"></a>00006 <span class="comment">**      by: The User Interface Compiler ($Id: kame_2users_2nmr_2forms_2nmrspectrumform_8cpp-source.html,v 1.1 2008/01/14 09:42:00 northriv Exp $)</span>
+<a name="l00007"></a>00007 <span class="comment">**</span>
+<a name="l00008"></a>00008 <span class="comment">** WARNING! All changes made in this file will be lost!</span>
+<a name="l00009"></a>00009 <span class="comment">****************************************************************************/</span>
+<a name="l00010"></a>00010 
+<a name="l00011"></a>00011 <span class="preprocessor">#include "nmrspectrumform.h"</span>
+<a name="l00012"></a>00012 
+<a name="l00013"></a>00013 <span class="preprocessor">#include &lt;qvariant.h&gt;</span>
+<a name="l00014"></a>00014 <span class="preprocessor">#include &lt;qpushbutton.h&gt;</span>
+<a name="l00015"></a>00015 <span class="preprocessor">#include &lt;kurlrequester.h&gt;</span>
+<a name="l00016"></a>00016 <span class="preprocessor">#include &lt;qlabel.h&gt;</span>
+<a name="l00017"></a>00017 <span class="preprocessor">#include &lt;qlineedit.h&gt;</span>
+<a name="l00018"></a>00018 <span class="preprocessor">#include &lt;qcombobox.h&gt;</span>
+<a name="l00019"></a>00019 <span class="preprocessor">#include &lt;qlayout.h&gt;</span>
+<a name="l00020"></a>00020 <span class="preprocessor">#include &lt;qtooltip.h&gt;</span>
+<a name="l00021"></a>00021 <span class="preprocessor">#include &lt;qwhatsthis.h&gt;</span>
+<a name="l00022"></a>00022 <span class="preprocessor">#include &lt;qaction.h&gt;</span>
+<a name="l00023"></a>00023 <span class="preprocessor">#include &lt;qmenubar.h&gt;</span>
+<a name="l00024"></a>00024 <span class="preprocessor">#include &lt;qpopupmenu.h&gt;</span>
+<a name="l00025"></a>00025 <span class="preprocessor">#include &lt;qtoolbar.h&gt;</span>
+<a name="l00026"></a>00026 <span class="preprocessor">#include "graphwidget.h"</span>
+<a name="l00027"></a>00027 <span class="preprocessor">#include "kurlrequester.h"</span>
+<a name="l00028"></a>00028 <span class="preprocessor">#include "klineedit.h"</span>
+<a name="l00029"></a>00029 <span class="preprocessor">#include "kpushbutton.h"</span>
+<a name="l00030"></a>00030 
+<a name="l00031"></a>00031 <span class="comment">/*</span>
+<a name="l00032"></a>00032 <span class="comment"> *  Constructs a FrmNMRSpectrum as a child of 'parent', with the</span>
+<a name="l00033"></a>00033 <span class="comment"> *  name 'name' and widget flags set to 'f'.</span>
+<a name="l00034"></a>00034 <span class="comment"> *</span>
+<a name="l00035"></a>00035 <span class="comment"> */</span>
+<a name="l00036"></a><a class="code" href="class_frm_n_m_r_spectrum.html#6e1978e6bc5b79b01f2469ce359d853c">00036</a> <a class="code" href="class_frm_n_m_r_spectrum.html#6e1978e6bc5b79b01f2469ce359d853c">FrmNMRSpectrum::FrmNMRSpectrum</a>( QWidget* parent, <span class="keyword">const</span> <span class="keywordtype">char</span>* name, WFlags fl )
+<a name="l00037"></a>00037     : QMainWindow( parent, name, fl )
+<a name="l00038"></a>00038 {
+<a name="l00039"></a>00039     (void)statusBar();
+<a name="l00040"></a>00040     <span class="keywordflow">if</span> ( !name )
+<a name="l00041"></a>00041         setName( <span class="stringliteral">"FrmNMRSpectrum"</span> );
+<a name="l00042"></a>00042     setCentralWidget( <span class="keyword">new</span> QWidget( <span class="keyword">this</span>, <span class="stringliteral">"qt_central_widget"</span> ) );
+<a name="l00043"></a>00043     <a class="code" href="class_frm_n_m_r_spectrum.html#460071ce3777954e4bfe60c59c9bb1e2">FrmNMRSpectrumLayout</a> = <span class="keyword">new</span> QGridLayout( centralWidget(), 1, 1, 2, 6, <span class="stringliteral">"FrmNMRSpectrumLayout"</span>); 
+<a name="l00044"></a>00044 
+<a name="l00045"></a>00045     <a class="code" href="class_frm_n_m_r_spectrum.html#942422a4da5bfc17b269c07183c84a98">layout19</a> = <span class="keyword">new</span> QVBoxLayout( 0, 0, 6, <span class="stringliteral">"layout19"</span>); 
+<a name="l00046"></a>00046 
+<a name="l00047"></a>00047     <a class="code" href="class_frm_n_m_r_spectrum.html#f2c0ddbe69f78d4c3beac943bbe81d46">m_graph</a> = <span class="keyword">new</span> <a class="code" href="class_x_q_graph.html">XQGraph</a>( centralWidget(), <span class="stringliteral">"m_graph"</span> );
+<a name="l00048"></a>00048     <a class="code" href="class_frm_n_m_r_spectrum.html#f2c0ddbe69f78d4c3beac943bbe81d46">m_graph</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)7, (QSizePolicy::SizeType)7, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#f2c0ddbe69f78d4c3beac943bbe81d46">m_graph</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00049"></a>00049     <a class="code" href="class_frm_n_m_r_spectrum.html#942422a4da5bfc17b269c07183c84a98">layout19</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#f2c0ddbe69f78d4c3beac943bbe81d46">m_graph</a> );
+<a name="l00050"></a>00050 
+<a name="l00051"></a>00051     <a class="code" href="class_frm_n_m_r_spectrum.html#8057177f964e0c7d69c9d51fa0291199">layout15</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout15"</span>); 
+<a name="l00052"></a>00052 
+<a name="l00053"></a>00053     <a class="code" href="class_frm_n_m_r_spectrum.html#3973f211fed22a288b88fb87a4cdc64b">m_urlDump</a> = <span class="keyword">new</span> KURLRequester( centralWidget(), <span class="stringliteral">"m_urlDump"</span> );
+<a name="l00054"></a>00054     <a class="code" href="class_frm_n_m_r_spectrum.html#3973f211fed22a288b88fb87a4cdc64b">m_urlDump</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)7, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#3973f211fed22a288b88fb87a4cdc64b">m_urlDump</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00055"></a>00055     <a class="code" href="class_frm_n_m_r_spectrum.html#3973f211fed22a288b88fb87a4cdc64b">m_urlDump</a>-&gt;setCursor( QCursor( 0 ) );
+<a name="l00056"></a>00056     <a class="code" href="class_frm_n_m_r_spectrum.html#3973f211fed22a288b88fb87a4cdc64b">m_urlDump</a>-&gt;setFocusPolicy( KURLRequester::StrongFocus );
+<a name="l00057"></a>00057     <a class="code" href="class_frm_n_m_r_spectrum.html#8057177f964e0c7d69c9d51fa0291199">layout15</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#3973f211fed22a288b88fb87a4cdc64b">m_urlDump</a> );
+<a name="l00058"></a>00058 
+<a name="l00059"></a>00059     <a class="code" href="class_frm_n_m_r_spectrum.html#6949531d70c0c5e7bb17f85731a49e07">m_btnDump</a> = <span class="keyword">new</span> QPushButton( centralWidget(), <span class="stringliteral">"m_btnDump"</span> );
+<a name="l00060"></a>00060     <a class="code" href="class_frm_n_m_r_spectrum.html#6949531d70c0c5e7bb17f85731a49e07">m_btnDump</a>-&gt;setAutoDefault( FALSE );
+<a name="l00061"></a>00061     <a class="code" href="class_frm_n_m_r_spectrum.html#8057177f964e0c7d69c9d51fa0291199">layout15</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#6949531d70c0c5e7bb17f85731a49e07">m_btnDump</a> );
+<a name="l00062"></a>00062     <a class="code" href="class_frm_n_m_r_spectrum.html#942422a4da5bfc17b269c07183c84a98">layout19</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_spectrum.html#8057177f964e0c7d69c9d51fa0291199">layout15</a> );
+<a name="l00063"></a>00063 
+<a name="l00064"></a>00064     <a class="code" href="class_frm_n_m_r_spectrum.html#460071ce3777954e4bfe60c59c9bb1e2">FrmNMRSpectrumLayout</a>-&gt;addMultiCellLayout( <a class="code" href="class_frm_n_m_r_spectrum.html#942422a4da5bfc17b269c07183c84a98">layout19</a>, 0, 6, 1, 1 );
+<a name="l00065"></a>00065 
+<a name="l00066"></a>00066     <a class="code" href="class_frm_n_m_r_spectrum.html#a7cd4905c3449181dfdb26bafee1bcce">layout12_2_2</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout12_2_2"</span>); 
+<a name="l00067"></a>00067 
+<a name="l00068"></a>00068     <a class="code" href="class_frm_n_m_r_spectrum.html#5ba152a3824d64bb8338c3f57b419966">layout2_3_2</a> = <span class="keyword">new</span> QVBoxLayout( 0, 0, 6, <span class="stringliteral">"layout2_3_2"</span>); 
+<a name="l00069"></a>00069 
+<a name="l00070"></a>00070     <a class="code" href="class_frm_n_m_r_spectrum.html#63ad614b06191cb1f3b594699bb8d5f6">textLabel1_3_2</a> = <span class="keyword">new</span> QLabel( centralWidget(), <span class="stringliteral">"textLabel1_3_2"</span> );
+<a name="l00071"></a>00071     <a class="code" href="class_frm_n_m_r_spectrum.html#63ad614b06191cb1f3b594699bb8d5f6">textLabel1_3_2</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#63ad614b06191cb1f3b594699bb8d5f6">textLabel1_3_2</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00072"></a>00072     <a class="code" href="class_frm_n_m_r_spectrum.html#5ba152a3824d64bb8338c3f57b419966">layout2_3_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#63ad614b06191cb1f3b594699bb8d5f6">textLabel1_3_2</a> );
+<a name="l00073"></a>00073 
+<a name="l00074"></a>00074     <a class="code" href="class_frm_n_m_r_spectrum.html#7fecd32240dc53531fc62e6aa1f692ef">layout1_3_2</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout1_3_2"</span>); 
+<a name="l00075"></a>00075 
+<a name="l00076"></a>00076     <a class="code" href="class_frm_n_m_r_spectrum.html#3dfe55c34246843a99ddb436e808c3c2">m_edFieldFactor</a> = <span class="keyword">new</span> QLineEdit( centralWidget(), <span class="stringliteral">"m_edFieldFactor"</span> );
+<a name="l00077"></a>00077     <a class="code" href="class_frm_n_m_r_spectrum.html#3dfe55c34246843a99ddb436e808c3c2">m_edFieldFactor</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#3dfe55c34246843a99ddb436e808c3c2">m_edFieldFactor</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00078"></a>00078     <a class="code" href="class_frm_n_m_r_spectrum.html#3dfe55c34246843a99ddb436e808c3c2">m_edFieldFactor</a>-&gt;setMaximumSize( QSize( 80, 32767 ) );
+<a name="l00079"></a>00079     <a class="code" href="class_frm_n_m_r_spectrum.html#7fecd32240dc53531fc62e6aa1f692ef">layout1_3_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#3dfe55c34246843a99ddb436e808c3c2">m_edFieldFactor</a> );
+<a name="l00080"></a>00080 
+<a name="l00081"></a>00081     <a class="code" href="class_frm_n_m_r_spectrum.html#b14166f5c4b0ff6e48045a277910d7b3">textLabel2_3_2</a> = <span class="keyword">new</span> QLabel( centralWidget(), <span class="stringliteral">"textLabel2_3_2"</span> );
+<a name="l00082"></a>00082     <a class="code" href="class_frm_n_m_r_spectrum.html#b14166f5c4b0ff6e48045a277910d7b3">textLabel2_3_2</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#b14166f5c4b0ff6e48045a277910d7b3">textLabel2_3_2</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00083"></a>00083     <a class="code" href="class_frm_n_m_r_spectrum.html#7fecd32240dc53531fc62e6aa1f692ef">layout1_3_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#b14166f5c4b0ff6e48045a277910d7b3">textLabel2_3_2</a> );
+<a name="l00084"></a>00084     <a class="code" href="class_frm_n_m_r_spectrum.html#5ba152a3824d64bb8338c3f57b419966">layout2_3_2</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_spectrum.html#7fecd32240dc53531fc62e6aa1f692ef">layout1_3_2</a> );
+<a name="l00085"></a>00085     <a class="code" href="class_frm_n_m_r_spectrum.html#a7cd4905c3449181dfdb26bafee1bcce">layout12_2_2</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_spectrum.html#5ba152a3824d64bb8338c3f57b419966">layout2_3_2</a> );
+<a name="l00086"></a>00086 
+<a name="l00087"></a>00087     <a class="code" href="class_frm_n_m_r_spectrum.html#efbf7ff64333d5bdf395c16f7f83b7e9">layout2_2_2_2</a> = <span class="keyword">new</span> QVBoxLayout( 0, 0, 6, <span class="stringliteral">"layout2_2_2_2"</span>); 
+<a name="l00088"></a>00088 
+<a name="l00089"></a>00089     <a class="code" href="class_frm_n_m_r_spectrum.html#dc15a6bc900da1af3044a49c926ab6c6">textLabel1_2_2_2</a> = <span class="keyword">new</span> QLabel( centralWidget(), <span class="stringliteral">"textLabel1_2_2_2"</span> );
+<a name="l00090"></a>00090     <a class="code" href="class_frm_n_m_r_spectrum.html#dc15a6bc900da1af3044a49c926ab6c6">textLabel1_2_2_2</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#dc15a6bc900da1af3044a49c926ab6c6">textLabel1_2_2_2</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00091"></a>00091     <a class="code" href="class_frm_n_m_r_spectrum.html#efbf7ff64333d5bdf395c16f7f83b7e9">layout2_2_2_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#dc15a6bc900da1af3044a49c926ab6c6">textLabel1_2_2_2</a> );
+<a name="l00092"></a>00092 
+<a name="l00093"></a>00093     <a class="code" href="class_frm_n_m_r_spectrum.html#71de003cd70ac082b6a60aa9f7c92c0d">layout1_2_2_2</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout1_2_2_2"</span>); 
+<a name="l00094"></a>00094 
+<a name="l00095"></a>00095     <a class="code" href="class_frm_n_m_r_spectrum.html#1aa466a1a03606fa8d73661e0e2dfba5">m_edResidual</a> = <span class="keyword">new</span> QLineEdit( centralWidget(), <span class="stringliteral">"m_edResidual"</span> );
+<a name="l00096"></a>00096     <a class="code" href="class_frm_n_m_r_spectrum.html#1aa466a1a03606fa8d73661e0e2dfba5">m_edResidual</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#1aa466a1a03606fa8d73661e0e2dfba5">m_edResidual</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00097"></a>00097     <a class="code" href="class_frm_n_m_r_spectrum.html#1aa466a1a03606fa8d73661e0e2dfba5">m_edResidual</a>-&gt;setMaximumSize( QSize( 80, 32767 ) );
+<a name="l00098"></a>00098     <a class="code" href="class_frm_n_m_r_spectrum.html#71de003cd70ac082b6a60aa9f7c92c0d">layout1_2_2_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#1aa466a1a03606fa8d73661e0e2dfba5">m_edResidual</a> );
+<a name="l00099"></a>00099 
+<a name="l00100"></a>00100     <a class="code" href="class_frm_n_m_r_spectrum.html#e20873662aa9c7c73762afe3a1f6e242">textLabel2_2_2_2</a> = <span class="keyword">new</span> QLabel( centralWidget(), <span class="stringliteral">"textLabel2_2_2_2"</span> );
+<a name="l00101"></a>00101     <a class="code" href="class_frm_n_m_r_spectrum.html#e20873662aa9c7c73762afe3a1f6e242">textLabel2_2_2_2</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#e20873662aa9c7c73762afe3a1f6e242">textLabel2_2_2_2</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00102"></a>00102     <a class="code" href="class_frm_n_m_r_spectrum.html#71de003cd70ac082b6a60aa9f7c92c0d">layout1_2_2_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#e20873662aa9c7c73762afe3a1f6e242">textLabel2_2_2_2</a> );
+<a name="l00103"></a>00103     <a class="code" href="class_frm_n_m_r_spectrum.html#efbf7ff64333d5bdf395c16f7f83b7e9">layout2_2_2_2</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_spectrum.html#71de003cd70ac082b6a60aa9f7c92c0d">layout1_2_2_2</a> );
+<a name="l00104"></a>00104     <a class="code" href="class_frm_n_m_r_spectrum.html#a7cd4905c3449181dfdb26bafee1bcce">layout12_2_2</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_spectrum.html#efbf7ff64333d5bdf395c16f7f83b7e9">layout2_2_2_2</a> );
+<a name="l00105"></a>00105 
+<a name="l00106"></a>00106     <a class="code" href="class_frm_n_m_r_spectrum.html#460071ce3777954e4bfe60c59c9bb1e2">FrmNMRSpectrumLayout</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_spectrum.html#a7cd4905c3449181dfdb26bafee1bcce">layout12_2_2</a>, 5, 0 );
+<a name="l00107"></a>00107 
+<a name="l00108"></a>00108     <a class="code" href="class_frm_n_m_r_spectrum.html#cf014e8303f2673a50e77dc99750e90e">m_btnClear</a> = <span class="keyword">new</span> QPushButton( centralWidget(), <span class="stringliteral">"m_btnClear"</span> );
+<a name="l00109"></a>00109     <a class="code" href="class_frm_n_m_r_spectrum.html#cf014e8303f2673a50e77dc99750e90e">m_btnClear</a>-&gt;setAutoDefault( FALSE );
+<a name="l00110"></a>00110 
+<a name="l00111"></a>00111     <a class="code" href="class_frm_n_m_r_spectrum.html#460071ce3777954e4bfe60c59c9bb1e2">FrmNMRSpectrumLayout</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#cf014e8303f2673a50e77dc99750e90e">m_btnClear</a>, 6, 0 );
+<a name="l00112"></a>00112 
+<a name="l00113"></a>00113     <a class="code" href="class_frm_n_m_r_spectrum.html#d0ead2d1f338810be0e111f8ea1c7101">layout12_2</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout12_2"</span>); 
+<a name="l00114"></a>00114 
+<a name="l00115"></a>00115     <a class="code" href="class_frm_n_m_r_spectrum.html#ba9ca9fc38d82e3f4e8bc1ba2b77ea74">layout2_3</a> = <span class="keyword">new</span> QVBoxLayout( 0, 0, 6, <span class="stringliteral">"layout2_3"</span>); 
+<a name="l00116"></a>00116 
+<a name="l00117"></a>00117     <a class="code" href="class_frm_n_m_r_spectrum.html#312b8195af07454d05972ddb39b188ff">textLabel1_3</a> = <span class="keyword">new</span> QLabel( centralWidget(), <span class="stringliteral">"textLabel1_3"</span> );
+<a name="l00118"></a>00118     <a class="code" href="class_frm_n_m_r_spectrum.html#312b8195af07454d05972ddb39b188ff">textLabel1_3</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#312b8195af07454d05972ddb39b188ff">textLabel1_3</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00119"></a>00119     <a class="code" href="class_frm_n_m_r_spectrum.html#ba9ca9fc38d82e3f4e8bc1ba2b77ea74">layout2_3</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#312b8195af07454d05972ddb39b188ff">textLabel1_3</a> );
+<a name="l00120"></a>00120 
+<a name="l00121"></a>00121     <a class="code" href="class_frm_n_m_r_spectrum.html#d73f313651ea44a7803cf6de18b816d5">layout1_3</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout1_3"</span>); 
+<a name="l00122"></a>00122 
+<a name="l00123"></a>00123     <a class="code" href="class_frm_n_m_r_spectrum.html#eb01df5ad54c3bed724861667e1602ec">m_edHMin</a> = <span class="keyword">new</span> QLineEdit( centralWidget(), <span class="stringliteral">"m_edHMin"</span> );
+<a name="l00124"></a>00124     <a class="code" href="class_frm_n_m_r_spectrum.html#eb01df5ad54c3bed724861667e1602ec">m_edHMin</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#eb01df5ad54c3bed724861667e1602ec">m_edHMin</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00125"></a>00125     <a class="code" href="class_frm_n_m_r_spectrum.html#eb01df5ad54c3bed724861667e1602ec">m_edHMin</a>-&gt;setMaximumSize( QSize( 80, 32767 ) );
+<a name="l00126"></a>00126     <a class="code" href="class_frm_n_m_r_spectrum.html#d73f313651ea44a7803cf6de18b816d5">layout1_3</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#eb01df5ad54c3bed724861667e1602ec">m_edHMin</a> );
+<a name="l00127"></a>00127 
+<a name="l00128"></a>00128     <a class="code" href="class_frm_n_m_r_spectrum.html#835975ddf7b3ab33ca11c486bf37c223">textLabel2_3</a> = <span class="keyword">new</span> QLabel( centralWidget(), <span class="stringliteral">"textLabel2_3"</span> );
+<a name="l00129"></a>00129     <a class="code" href="class_frm_n_m_r_spectrum.html#835975ddf7b3ab33ca11c486bf37c223">textLabel2_3</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#835975ddf7b3ab33ca11c486bf37c223">textLabel2_3</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00130"></a>00130     <a class="code" href="class_frm_n_m_r_spectrum.html#d73f313651ea44a7803cf6de18b816d5">layout1_3</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#835975ddf7b3ab33ca11c486bf37c223">textLabel2_3</a> );
+<a name="l00131"></a>00131     <a class="code" href="class_frm_n_m_r_spectrum.html#ba9ca9fc38d82e3f4e8bc1ba2b77ea74">layout2_3</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_spectrum.html#d73f313651ea44a7803cf6de18b816d5">layout1_3</a> );
+<a name="l00132"></a>00132     <a class="code" href="class_frm_n_m_r_spectrum.html#d0ead2d1f338810be0e111f8ea1c7101">layout12_2</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_spectrum.html#ba9ca9fc38d82e3f4e8bc1ba2b77ea74">layout2_3</a> );
+<a name="l00133"></a>00133 
+<a name="l00134"></a>00134     <a class="code" href="class_frm_n_m_r_spectrum.html#af4a2f2f54c5a99d0fe343600ac716db">layout2_2_2</a> = <span class="keyword">new</span> QVBoxLayout( 0, 0, 6, <span class="stringliteral">"layout2_2_2"</span>); 
+<a name="l00135"></a>00135 
+<a name="l00136"></a>00136     <a class="code" href="class_frm_n_m_r_spectrum.html#9cb363f70f00fceb2c9457abcbc9a06b">textLabel1_2_2</a> = <span class="keyword">new</span> QLabel( centralWidget(), <span class="stringliteral">"textLabel1_2_2"</span> );
+<a name="l00137"></a>00137     <a class="code" href="class_frm_n_m_r_spectrum.html#9cb363f70f00fceb2c9457abcbc9a06b">textLabel1_2_2</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#9cb363f70f00fceb2c9457abcbc9a06b">textLabel1_2_2</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00138"></a>00138     <a class="code" href="class_frm_n_m_r_spectrum.html#af4a2f2f54c5a99d0fe343600ac716db">layout2_2_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#9cb363f70f00fceb2c9457abcbc9a06b">textLabel1_2_2</a> );
+<a name="l00139"></a>00139 
+<a name="l00140"></a>00140     <a class="code" href="class_frm_n_m_r_spectrum.html#a5c78919f2ab1aef9e787e03e6ce36b3">layout1_2_2</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout1_2_2"</span>); 
+<a name="l00141"></a>00141 
+<a name="l00142"></a>00142     <a class="code" href="class_frm_n_m_r_spectrum.html#725f3eb498c11047cb07ee5397fa4846">m_edHMax</a> = <span class="keyword">new</span> QLineEdit( centralWidget(), <span class="stringliteral">"m_edHMax"</span> );
+<a name="l00143"></a>00143     <a class="code" href="class_frm_n_m_r_spectrum.html#725f3eb498c11047cb07ee5397fa4846">m_edHMax</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#725f3eb498c11047cb07ee5397fa4846">m_edHMax</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00144"></a>00144     <a class="code" href="class_frm_n_m_r_spectrum.html#725f3eb498c11047cb07ee5397fa4846">m_edHMax</a>-&gt;setMaximumSize( QSize( 80, 32767 ) );
+<a name="l00145"></a>00145     <a class="code" href="class_frm_n_m_r_spectrum.html#a5c78919f2ab1aef9e787e03e6ce36b3">layout1_2_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#725f3eb498c11047cb07ee5397fa4846">m_edHMax</a> );
+<a name="l00146"></a>00146 
+<a name="l00147"></a>00147     <a class="code" href="class_frm_n_m_r_spectrum.html#0fecc9c71e461feff3327198430cae68">textLabel2_2_2</a> = <span class="keyword">new</span> QLabel( centralWidget(), <span class="stringliteral">"textLabel2_2_2"</span> );
+<a name="l00148"></a>00148     <a class="code" href="class_frm_n_m_r_spectrum.html#0fecc9c71e461feff3327198430cae68">textLabel2_2_2</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#0fecc9c71e461feff3327198430cae68">textLabel2_2_2</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00149"></a>00149     <a class="code" href="class_frm_n_m_r_spectrum.html#a5c78919f2ab1aef9e787e03e6ce36b3">layout1_2_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#0fecc9c71e461feff3327198430cae68">textLabel2_2_2</a> );
+<a name="l00150"></a>00150     <a class="code" href="class_frm_n_m_r_spectrum.html#af4a2f2f54c5a99d0fe343600ac716db">layout2_2_2</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_spectrum.html#a5c78919f2ab1aef9e787e03e6ce36b3">layout1_2_2</a> );
+<a name="l00151"></a>00151     <a class="code" href="class_frm_n_m_r_spectrum.html#d0ead2d1f338810be0e111f8ea1c7101">layout12_2</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_spectrum.html#af4a2f2f54c5a99d0fe343600ac716db">layout2_2_2</a> );
+<a name="l00152"></a>00152 
+<a name="l00153"></a>00153     <a class="code" href="class_frm_n_m_r_spectrum.html#460071ce3777954e4bfe60c59c9bb1e2">FrmNMRSpectrumLayout</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_spectrum.html#d0ead2d1f338810be0e111f8ea1c7101">layout12_2</a>, 3, 0 );
+<a name="l00154"></a>00154 
+<a name="l00155"></a>00155     <a class="code" href="class_frm_n_m_r_spectrum.html#696714a3eb0bedd5e6a936aff04748e8">layout12</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout12"</span>); 
+<a name="l00156"></a>00156 
+<a name="l00157"></a>00157     <a class="code" href="class_frm_n_m_r_spectrum.html#685c4d77606153b7bead5abfd43144f8">layout2</a> = <span class="keyword">new</span> QVBoxLayout( 0, 0, 6, <span class="stringliteral">"layout2"</span>); 
+<a name="l00158"></a>00158 
+<a name="l00159"></a>00159     <a class="code" href="class_frm_n_m_r_spectrum.html#a3da44296bd930f79e21161c3b8c1168">textLabel1</a> = <span class="keyword">new</span> QLabel( centralWidget(), <span class="stringliteral">"textLabel1"</span> );
+<a name="l00160"></a>00160     <a class="code" href="class_frm_n_m_r_spectrum.html#a3da44296bd930f79e21161c3b8c1168">textLabel1</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#a3da44296bd930f79e21161c3b8c1168">textLabel1</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00161"></a>00161     <a class="code" href="class_frm_n_m_r_spectrum.html#685c4d77606153b7bead5abfd43144f8">layout2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#a3da44296bd930f79e21161c3b8c1168">textLabel1</a> );
+<a name="l00162"></a>00162 
+<a name="l00163"></a>00163     <a class="code" href="class_frm_n_m_r_spectrum.html#c4f96eef413ca84bd2751d0bbc40e10a">layout1</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout1"</span>); 
+<a name="l00164"></a>00164 
+<a name="l00165"></a>00165     <a class="code" href="class_frm_n_m_r_spectrum.html#8aad2ca92ae94add2a0ef9771d34aa70">m_edFreq</a> = <span class="keyword">new</span> QLineEdit( centralWidget(), <span class="stringliteral">"m_edFreq"</span> );
+<a name="l00166"></a>00166     <a class="code" href="class_frm_n_m_r_spectrum.html#8aad2ca92ae94add2a0ef9771d34aa70">m_edFreq</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#8aad2ca92ae94add2a0ef9771d34aa70">m_edFreq</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00167"></a>00167     <a class="code" href="class_frm_n_m_r_spectrum.html#8aad2ca92ae94add2a0ef9771d34aa70">m_edFreq</a>-&gt;setMaximumSize( QSize( 80, 32767 ) );
+<a name="l00168"></a>00168     <a class="code" href="class_frm_n_m_r_spectrum.html#c4f96eef413ca84bd2751d0bbc40e10a">layout1</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#8aad2ca92ae94add2a0ef9771d34aa70">m_edFreq</a> );
+<a name="l00169"></a>00169 
+<a name="l00170"></a>00170     <a class="code" href="class_frm_n_m_r_spectrum.html#03a6d3f8bfab358cf3447900ac04c343">textLabel2</a> = <span class="keyword">new</span> QLabel( centralWidget(), <span class="stringliteral">"textLabel2"</span> );
+<a name="l00171"></a>00171     <a class="code" href="class_frm_n_m_r_spectrum.html#03a6d3f8bfab358cf3447900ac04c343">textLabel2</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#03a6d3f8bfab358cf3447900ac04c343">textLabel2</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00172"></a>00172     <a class="code" href="class_frm_n_m_r_spectrum.html#c4f96eef413ca84bd2751d0bbc40e10a">layout1</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#03a6d3f8bfab358cf3447900ac04c343">textLabel2</a> );
+<a name="l00173"></a>00173     <a class="code" href="class_frm_n_m_r_spectrum.html#685c4d77606153b7bead5abfd43144f8">layout2</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_spectrum.html#c4f96eef413ca84bd2751d0bbc40e10a">layout1</a> );
+<a name="l00174"></a>00174     <a class="code" href="class_frm_n_m_r_spectrum.html#696714a3eb0bedd5e6a936aff04748e8">layout12</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_spectrum.html#685c4d77606153b7bead5abfd43144f8">layout2</a> );
+<a name="l00175"></a>00175 
+<a name="l00176"></a>00176     <a class="code" href="class_frm_n_m_r_spectrum.html#ce328564b91e7bc4f79cbc7aa38d4767">layout2_2</a> = <span class="keyword">new</span> QVBoxLayout( 0, 0, 6, <span class="stringliteral">"layout2_2"</span>); 
+<a name="l00177"></a>00177 
+<a name="l00178"></a>00178     <a class="code" href="class_frm_n_m_r_spectrum.html#e26f7e05dae01ced72526292e5be2b37">textLabel1_2</a> = <span class="keyword">new</span> QLabel( centralWidget(), <span class="stringliteral">"textLabel1_2"</span> );
+<a name="l00179"></a>00179     <a class="code" href="class_frm_n_m_r_spectrum.html#e26f7e05dae01ced72526292e5be2b37">textLabel1_2</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#e26f7e05dae01ced72526292e5be2b37">textLabel1_2</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00180"></a>00180     <a class="code" href="class_frm_n_m_r_spectrum.html#ce328564b91e7bc4f79cbc7aa38d4767">layout2_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#e26f7e05dae01ced72526292e5be2b37">textLabel1_2</a> );
+<a name="l00181"></a>00181 
+<a name="l00182"></a>00182     <a class="code" href="class_frm_n_m_r_spectrum.html#da13ec6f7369995f206e8c37bef25812">layout1_2</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout1_2"</span>); 
+<a name="l00183"></a>00183 
+<a name="l00184"></a>00184     <a class="code" href="class_frm_n_m_r_spectrum.html#aebed904e244e3d1cd7eeaad23df9050">m_edBW</a> = <span class="keyword">new</span> QLineEdit( centralWidget(), <span class="stringliteral">"m_edBW"</span> );
+<a name="l00185"></a>00185     <a class="code" href="class_frm_n_m_r_spectrum.html#aebed904e244e3d1cd7eeaad23df9050">m_edBW</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#aebed904e244e3d1cd7eeaad23df9050">m_edBW</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00186"></a>00186     <a class="code" href="class_frm_n_m_r_spectrum.html#aebed904e244e3d1cd7eeaad23df9050">m_edBW</a>-&gt;setMaximumSize( QSize( 80, 32767 ) );
+<a name="l00187"></a>00187     <a class="code" href="class_frm_n_m_r_spectrum.html#da13ec6f7369995f206e8c37bef25812">layout1_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#aebed904e244e3d1cd7eeaad23df9050">m_edBW</a> );
+<a name="l00188"></a>00188 
+<a name="l00189"></a>00189     <a class="code" href="class_frm_n_m_r_spectrum.html#d7f7d894a8e83272acf097ea883dc2d8">textLabel2_2</a> = <span class="keyword">new</span> QLabel( centralWidget(), <span class="stringliteral">"textLabel2_2"</span> );
+<a name="l00190"></a>00190     <a class="code" href="class_frm_n_m_r_spectrum.html#d7f7d894a8e83272acf097ea883dc2d8">textLabel2_2</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#d7f7d894a8e83272acf097ea883dc2d8">textLabel2_2</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00191"></a>00191     <a class="code" href="class_frm_n_m_r_spectrum.html#da13ec6f7369995f206e8c37bef25812">layout1_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#d7f7d894a8e83272acf097ea883dc2d8">textLabel2_2</a> );
+<a name="l00192"></a>00192     <a class="code" href="class_frm_n_m_r_spectrum.html#ce328564b91e7bc4f79cbc7aa38d4767">layout2_2</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_spectrum.html#da13ec6f7369995f206e8c37bef25812">layout1_2</a> );
+<a name="l00193"></a>00193     <a class="code" href="class_frm_n_m_r_spectrum.html#696714a3eb0bedd5e6a936aff04748e8">layout12</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_spectrum.html#ce328564b91e7bc4f79cbc7aa38d4767">layout2_2</a> );
+<a name="l00194"></a>00194 
+<a name="l00195"></a>00195     <a class="code" href="class_frm_n_m_r_spectrum.html#460071ce3777954e4bfe60c59c9bb1e2">FrmNMRSpectrumLayout</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_spectrum.html#696714a3eb0bedd5e6a936aff04748e8">layout12</a>, 2, 0 );
+<a name="l00196"></a>00196 
+<a name="l00197"></a>00197     <a class="code" href="class_frm_n_m_r_spectrum.html#7b86dd1a308cf10f8fdb831b3cf72f4c">layout2_3_3</a> = <span class="keyword">new</span> QVBoxLayout( 0, 0, 6, <span class="stringliteral">"layout2_3_3"</span>); 
+<a name="l00198"></a>00198 
+<a name="l00199"></a>00199     <a class="code" href="class_frm_n_m_r_spectrum.html#138f05ff9e2fb0d86a39e4cc10c19b17">textLabel1_3_3</a> = <span class="keyword">new</span> QLabel( centralWidget(), <span class="stringliteral">"textLabel1_3_3"</span> );
+<a name="l00200"></a>00200     <a class="code" href="class_frm_n_m_r_spectrum.html#138f05ff9e2fb0d86a39e4cc10c19b17">textLabel1_3_3</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#138f05ff9e2fb0d86a39e4cc10c19b17">textLabel1_3_3</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00201"></a>00201     <a class="code" href="class_frm_n_m_r_spectrum.html#7b86dd1a308cf10f8fdb831b3cf72f4c">layout2_3_3</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#138f05ff9e2fb0d86a39e4cc10c19b17">textLabel1_3_3</a> );
+<a name="l00202"></a>00202 
+<a name="l00203"></a>00203     <a class="code" href="class_frm_n_m_r_spectrum.html#544a5f27f1fa61b0d43593e645ec9be9">layout1_3_3</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout1_3_3"</span>); 
+<a name="l00204"></a>00204 
+<a name="l00205"></a>00205     <a class="code" href="class_frm_n_m_r_spectrum.html#aa868b2b3dd2e1982175789773155c8f">m_edResolution</a> = <span class="keyword">new</span> QLineEdit( centralWidget(), <span class="stringliteral">"m_edResolution"</span> );
+<a name="l00206"></a>00206     <a class="code" href="class_frm_n_m_r_spectrum.html#aa868b2b3dd2e1982175789773155c8f">m_edResolution</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#aa868b2b3dd2e1982175789773155c8f">m_edResolution</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00207"></a>00207     <a class="code" href="class_frm_n_m_r_spectrum.html#aa868b2b3dd2e1982175789773155c8f">m_edResolution</a>-&gt;setMaximumSize( QSize( 80, 32767 ) );
+<a name="l00208"></a>00208     <a class="code" href="class_frm_n_m_r_spectrum.html#544a5f27f1fa61b0d43593e645ec9be9">layout1_3_3</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#aa868b2b3dd2e1982175789773155c8f">m_edResolution</a> );
+<a name="l00209"></a>00209 
+<a name="l00210"></a>00210     <a class="code" href="class_frm_n_m_r_spectrum.html#145225dd8782dbf09fb5986c256f4a10">textLabel2_3_3</a> = <span class="keyword">new</span> QLabel( centralWidget(), <span class="stringliteral">"textLabel2_3_3"</span> );
+<a name="l00211"></a>00211     <a class="code" href="class_frm_n_m_r_spectrum.html#145225dd8782dbf09fb5986c256f4a10">textLabel2_3_3</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_spectrum.html#145225dd8782dbf09fb5986c256f4a10">textLabel2_3_3</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00212"></a>00212     <a class="code" href="class_frm_n_m_r_spectrum.html#544a5f27f1fa61b0d43593e645ec9be9">layout1_3_3</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#145225dd8782dbf09fb5986c256f4a10">textLabel2_3_3</a> );
+<a name="l00213"></a>00213     <a class="code" href="class_frm_n_m_r_spectrum.html#7b86dd1a308cf10f8fdb831b3cf72f4c">layout2_3_3</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_spectrum.html#544a5f27f1fa61b0d43593e645ec9be9">layout1_3_3</a> );
+<a name="l00214"></a>00214 
+<a name="l00215"></a>00215     <a class="code" href="class_frm_n_m_r_spectrum.html#460071ce3777954e4bfe60c59c9bb1e2">FrmNMRSpectrumLayout</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_spectrum.html#7b86dd1a308cf10f8fdb831b3cf72f4c">layout2_3_3</a>, 4, 0 );
+<a name="l00216"></a>00216 
+<a name="l00217"></a>00217     <a class="code" href="class_frm_n_m_r_spectrum.html#1088dfddf8e5d77c2eea761b8233c0db">layout49</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout49"</span>); 
+<a name="l00218"></a>00218 
+<a name="l00219"></a>00219     <a class="code" href="class_frm_n_m_r_spectrum.html#95b900249a04efb882e375a45d98cfbb">textLabel1_4</a> = <span class="keyword">new</span> QLabel( centralWidget(), <span class="stringliteral">"textLabel1_4"</span> );
+<a name="l00220"></a>00220     <a class="code" href="class_frm_n_m_r_spectrum.html#1088dfddf8e5d77c2eea761b8233c0db">layout49</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#95b900249a04efb882e375a45d98cfbb">textLabel1_4</a> );
+<a name="l00221"></a>00221 
+<a name="l00222"></a>00222     <a class="code" href="class_frm_n_m_r_spectrum.html#595233d5ff68f4b4070702f3352619e4">m_cmbFieldEntry</a> = <span class="keyword">new</span> QComboBox( FALSE, centralWidget(), <span class="stringliteral">"m_cmbFieldEntry"</span> );
+<a name="l00223"></a>00223     <a class="code" href="class_frm_n_m_r_spectrum.html#1088dfddf8e5d77c2eea761b8233c0db">layout49</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#595233d5ff68f4b4070702f3352619e4">m_cmbFieldEntry</a> );
+<a name="l00224"></a>00224 
+<a name="l00225"></a>00225     <a class="code" href="class_frm_n_m_r_spectrum.html#460071ce3777954e4bfe60c59c9bb1e2">FrmNMRSpectrumLayout</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_spectrum.html#1088dfddf8e5d77c2eea761b8233c0db">layout49</a>, 0, 0 );
+<a name="l00226"></a>00226 
+<a name="l00227"></a>00227     <a class="code" href="class_frm_n_m_r_spectrum.html#f7db8c3d82805e7e0da738430cbae21d">layout49_2</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout49_2"</span>); 
+<a name="l00228"></a>00228 
+<a name="l00229"></a>00229     <a class="code" href="class_frm_n_m_r_spectrum.html#ce60ae710475f7e1e4e67a1574f6efb2">textLabel1_4_2</a> = <span class="keyword">new</span> QLabel( centralWidget(), <span class="stringliteral">"textLabel1_4_2"</span> );
+<a name="l00230"></a>00230     <a class="code" href="class_frm_n_m_r_spectrum.html#f7db8c3d82805e7e0da738430cbae21d">layout49_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#ce60ae710475f7e1e4e67a1574f6efb2">textLabel1_4_2</a> );
+<a name="l00231"></a>00231 
+<a name="l00232"></a>00232     <a class="code" href="class_frm_n_m_r_spectrum.html#1212627957a59de230807b4cf2940bf1">m_cmbPulse</a> = <span class="keyword">new</span> QComboBox( FALSE, centralWidget(), <span class="stringliteral">"m_cmbPulse"</span> );
+<a name="l00233"></a>00233     <a class="code" href="class_frm_n_m_r_spectrum.html#f7db8c3d82805e7e0da738430cbae21d">layout49_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_spectrum.html#1212627957a59de230807b4cf2940bf1">m_cmbPulse</a> );
+<a name="l00234"></a>00234 
+<a name="l00235"></a>00235     <a class="code" href="class_frm_n_m_r_spectrum.html#460071ce3777954e4bfe60c59c9bb1e2">FrmNMRSpectrumLayout</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_spectrum.html#f7db8c3d82805e7e0da738430cbae21d">layout49_2</a>, 1, 0 );
+<a name="l00236"></a>00236 
+<a name="l00237"></a>00237     <span class="comment">// toolbars</span>
+<a name="l00238"></a>00238 
+<a name="l00239"></a>00239     <a class="code" href="class_frm_n_m_r_spectrum.html#0da0c0b6a1d81e2f4d0d320c2c2d872d">languageChange</a>();
+<a name="l00240"></a>00240     resize( QSize(693, 348).expandedTo(minimumSizeHint()) );
+<a name="l00241"></a>00241     clearWState( WState_Polished );
+<a name="l00242"></a>00242 
+<a name="l00243"></a>00243     <span class="comment">// tab order</span>
+<a name="l00244"></a>00244     setTabOrder( <a class="code" href="class_frm_n_m_r_spectrum.html#595233d5ff68f4b4070702f3352619e4">m_cmbFieldEntry</a>, <a class="code" href="class_frm_n_m_r_spectrum.html#1212627957a59de230807b4cf2940bf1">m_cmbPulse</a> );
+<a name="l00245"></a>00245     setTabOrder( <a class="code" href="class_frm_n_m_r_spectrum.html#1212627957a59de230807b4cf2940bf1">m_cmbPulse</a>, <a class="code" href="class_frm_n_m_r_spectrum.html#8aad2ca92ae94add2a0ef9771d34aa70">m_edFreq</a> );
+<a name="l00246"></a>00246     setTabOrder( <a class="code" href="class_frm_n_m_r_spectrum.html#8aad2ca92ae94add2a0ef9771d34aa70">m_edFreq</a>, <a class="code" href="class_frm_n_m_r_spectrum.html#aebed904e244e3d1cd7eeaad23df9050">m_edBW</a> );
+<a name="l00247"></a>00247     setTabOrder( <a class="code" href="class_frm_n_m_r_spectrum.html#aebed904e244e3d1cd7eeaad23df9050">m_edBW</a>, <a class="code" href="class_frm_n_m_r_spectrum.html#eb01df5ad54c3bed724861667e1602ec">m_edHMin</a> );
+<a name="l00248"></a>00248     setTabOrder( <a class="code" href="class_frm_n_m_r_spectrum.html#eb01df5ad54c3bed724861667e1602ec">m_edHMin</a>, <a class="code" href="class_frm_n_m_r_spectrum.html#725f3eb498c11047cb07ee5397fa4846">m_edHMax</a> );
+<a name="l00249"></a>00249     setTabOrder( <a class="code" href="class_frm_n_m_r_spectrum.html#725f3eb498c11047cb07ee5397fa4846">m_edHMax</a>, <a class="code" href="class_frm_n_m_r_spectrum.html#aa868b2b3dd2e1982175789773155c8f">m_edResolution</a> );
+<a name="l00250"></a>00250     setTabOrder( <a class="code" href="class_frm_n_m_r_spectrum.html#aa868b2b3dd2e1982175789773155c8f">m_edResolution</a>, <a class="code" href="class_frm_n_m_r_spectrum.html#3dfe55c34246843a99ddb436e808c3c2">m_edFieldFactor</a> );
+<a name="l00251"></a>00251     setTabOrder( <a class="code" href="class_frm_n_m_r_spectrum.html#3dfe55c34246843a99ddb436e808c3c2">m_edFieldFactor</a>, <a class="code" href="class_frm_n_m_r_spectrum.html#1aa466a1a03606fa8d73661e0e2dfba5">m_edResidual</a> );
+<a name="l00252"></a>00252     setTabOrder( <a class="code" href="class_frm_n_m_r_spectrum.html#1aa466a1a03606fa8d73661e0e2dfba5">m_edResidual</a>, <a class="code" href="class_frm_n_m_r_spectrum.html#cf014e8303f2673a50e77dc99750e90e">m_btnClear</a> );
+<a name="l00253"></a>00253     setTabOrder( <a class="code" href="class_frm_n_m_r_spectrum.html#cf014e8303f2673a50e77dc99750e90e">m_btnClear</a>, <a class="code" href="class_frm_n_m_r_spectrum.html#3973f211fed22a288b88fb87a4cdc64b">m_urlDump</a> );
+<a name="l00254"></a>00254     setTabOrder( <a class="code" href="class_frm_n_m_r_spectrum.html#3973f211fed22a288b88fb87a4cdc64b">m_urlDump</a>, <a class="code" href="class_frm_n_m_r_spectrum.html#6949531d70c0c5e7bb17f85731a49e07">m_btnDump</a> );
+<a name="l00255"></a>00255 }
+<a name="l00256"></a>00256 
+<a name="l00257"></a>00257 <span class="comment">/*</span>
+<a name="l00258"></a>00258 <span class="comment"> *  Destroys the object and frees any allocated resources</span>
+<a name="l00259"></a>00259 <span class="comment"> */</span>
+<a name="l00260"></a><a class="code" href="class_frm_n_m_r_spectrum.html#843cf114899dc309990e767d27c4868f">00260</a> <a class="code" href="class_frm_n_m_r_spectrum.html#843cf114899dc309990e767d27c4868f">FrmNMRSpectrum::~FrmNMRSpectrum</a>()
+<a name="l00261"></a>00261 {
+<a name="l00262"></a>00262     <span class="comment">// no need to delete child widgets, Qt does it all for us</span>
+<a name="l00263"></a>00263 }
+<a name="l00264"></a>00264 
+<a name="l00265"></a>00265 <span class="comment">/*</span>
+<a name="l00266"></a>00266 <span class="comment"> *  Sets the strings of the subwidgets using the current</span>
+<a name="l00267"></a>00267 <span class="comment"> *  language.</span>
+<a name="l00268"></a>00268 <span class="comment"> */</span>
+<a name="l00269"></a><a class="code" href="class_frm_n_m_r_spectrum.html#0da0c0b6a1d81e2f4d0d320c2c2d872d">00269</a> <span class="keywordtype">void</span> <a class="code" href="class_frm_n_m_r_spectrum.html#0da0c0b6a1d81e2f4d0d320c2c2d872d">FrmNMRSpectrum::languageChange</a>()
+<a name="l00270"></a>00270 {
+<a name="l00271"></a>00271     setCaption( tr2i18n( <span class="stringliteral">"NMR Spectrum Averager"</span> ) );
+<a name="l00272"></a>00272     <a class="code" href="class_frm_n_m_r_spectrum.html#6949531d70c0c5e7bb17f85731a49e07">m_btnDump</a>-&gt;setText( tr2i18n( <span class="stringliteral">"DUMP"</span> ) );
+<a name="l00273"></a>00273     <a class="code" href="class_frm_n_m_r_spectrum.html#63ad614b06191cb1f3b594699bb8d5f6">textLabel1_3_2</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Field Factor"</span> ) );
+<a name="l00274"></a>00274     <a class="code" href="class_frm_n_m_r_spectrum.html#b14166f5c4b0ff6e48045a277910d7b3">textLabel2_3_2</a>-&gt;setText( tr2i18n( <span class="stringliteral">"T/?"</span> ) );
+<a name="l00275"></a>00275     <a class="code" href="class_frm_n_m_r_spectrum.html#dc15a6bc900da1af3044a49c926ab6c6">textLabel1_2_2_2</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Residual Field"</span> ) );
+<a name="l00276"></a>00276     <a class="code" href="class_frm_n_m_r_spectrum.html#e20873662aa9c7c73762afe3a1f6e242">textLabel2_2_2_2</a>-&gt;setText( tr2i18n( <span class="stringliteral">"T"</span> ) );
+<a name="l00277"></a>00277     <a class="code" href="class_frm_n_m_r_spectrum.html#cf014e8303f2673a50e77dc99750e90e">m_btnClear</a>-&gt;setText( tr2i18n( <span class="stringliteral">"CLEAR SPECTRUM"</span> ) );
+<a name="l00278"></a>00278     <a class="code" href="class_frm_n_m_r_spectrum.html#312b8195af07454d05972ddb39b188ff">textLabel1_3</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Field Min"</span> ) );
+<a name="l00279"></a>00279     <a class="code" href="class_frm_n_m_r_spectrum.html#835975ddf7b3ab33ca11c486bf37c223">textLabel2_3</a>-&gt;setText( tr2i18n( <span class="stringliteral">"T"</span> ) );
+<a name="l00280"></a>00280     <a class="code" href="class_frm_n_m_r_spectrum.html#9cb363f70f00fceb2c9457abcbc9a06b">textLabel1_2_2</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Field Max"</span> ) );
+<a name="l00281"></a>00281     <a class="code" href="class_frm_n_m_r_spectrum.html#0fecc9c71e461feff3327198430cae68">textLabel2_2_2</a>-&gt;setText( tr2i18n( <span class="stringliteral">"T"</span> ) );
+<a name="l00282"></a>00282     <a class="code" href="class_frm_n_m_r_spectrum.html#a3da44296bd930f79e21161c3b8c1168">textLabel1</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Center Freq"</span> ) );
+<a name="l00283"></a>00283     <a class="code" href="class_frm_n_m_r_spectrum.html#03a6d3f8bfab358cf3447900ac04c343">textLabel2</a>-&gt;setText( tr2i18n( <span class="stringliteral">"MHz"</span> ) );
+<a name="l00284"></a>00284     <a class="code" href="class_frm_n_m_r_spectrum.html#e26f7e05dae01ced72526292e5be2b37">textLabel1_2</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Band Width"</span> ) );
+<a name="l00285"></a>00285     <a class="code" href="class_frm_n_m_r_spectrum.html#d7f7d894a8e83272acf097ea883dc2d8">textLabel2_2</a>-&gt;setText( tr2i18n( <span class="stringliteral">"kHz"</span> ) );
+<a name="l00286"></a>00286     <a class="code" href="class_frm_n_m_r_spectrum.html#138f05ff9e2fb0d86a39e4cc10c19b17">textLabel1_3_3</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Resolution"</span> ) );
+<a name="l00287"></a>00287     <a class="code" href="class_frm_n_m_r_spectrum.html#145225dd8782dbf09fb5986c256f4a10">textLabel2_3_3</a>-&gt;setText( tr2i18n( <span class="stringliteral">"T"</span> ) );
+<a name="l00288"></a>00288     <a class="code" href="class_frm_n_m_r_spectrum.html#95b900249a04efb882e375a45d98cfbb">textLabel1_4</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Magnet PS"</span> ) );
+<a name="l00289"></a>00289     <a class="code" href="class_frm_n_m_r_spectrum.html#ce60ae710475f7e1e4e67a1574f6efb2">textLabel1_4_2</a>-&gt;setText( tr2i18n( <span class="stringliteral">"NMR Pulse Analyzer"</span> ) );
+<a name="l00290"></a>00290 }
+<a name="l00291"></a>00291 
+<a name="l00292"></a>00292 <span class="preprocessor">#include "nmrspectrumform.moc"</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri Jan 4 16:08:22 2008に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
+</body>
+</html>

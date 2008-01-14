@@ -1,0 +1,150 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: /Users/northriv/Documents/Projects/KAME/macosx/kame/users/dso/forms/dsoform.h ソースファイル</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
+<div class="nav">
+<a class="el" href="dir_267cfcb898ce0973ecee1ed2b0a886dd.html">macosx</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_4e9c37e873543013a976ff9253a8401e.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_a3f4e184995b5539b8e69c3951d1f0f2.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_1c300227300a2ed04ab7a533524e90cb.html">dso</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_ecca22643cdd389c3f5606ad487f1c38.html">forms</a></div>
+<h1>dsoform.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/****************************************************************************</span>
+<a name="l00002"></a>00002 <span class="comment">** Form interface generated from reading ui file '../../../../../2.1/kame/users/dso/forms/dsoform.ui'</span>
+<a name="l00003"></a>00003 <span class="comment">**</span>
+<a name="l00004"></a>00004 <span class="comment">** Created: 羂�  3 14 02:58:42 2007</span>
+<a name="l00005"></a>00005 <span class="comment">**      by: The User Interface Compiler ($Id: kame_2users_2dso_2forms_2dsoform_8h-source.html,v 1.1 2008/01/14 09:41:04 northriv Exp $)</span>
+<a name="l00006"></a>00006 <span class="comment">**</span>
+<a name="l00007"></a>00007 <span class="comment">** WARNING! All changes made in this file will be lost!</span>
+<a name="l00008"></a>00008 <span class="comment">****************************************************************************/</span>
+<a name="l00009"></a>00009 
+<a name="l00010"></a>00010 <span class="preprocessor">#ifndef FRMDSO_H</span>
+<a name="l00011"></a>00011 <span class="preprocessor"></span><span class="preprocessor">#define FRMDSO_H</span>
+<a name="l00012"></a>00012 <span class="preprocessor"></span>
+<a name="l00013"></a>00013 <span class="preprocessor">#include &lt;qvariant.h&gt;</span>
+<a name="l00014"></a>00014 <span class="preprocessor">#include &lt;qpixmap.h&gt;</span>
+<a name="l00015"></a>00015 <span class="preprocessor">#include &lt;qmainwindow.h&gt;</span>
+<a name="l00016"></a>00016 
+<a name="l00017"></a>00017 <span class="keyword">class </span>QVBoxLayout;
+<a name="l00018"></a>00018 <span class="keyword">class </span>QHBoxLayout;
+<a name="l00019"></a>00019 <span class="keyword">class </span>QGridLayout;
+<a name="l00020"></a>00020 <span class="keyword">class </span>QSpacerItem;
+<a name="l00021"></a>00021 <span class="keyword">class </span>QAction;
+<a name="l00022"></a>00022 <span class="keyword">class </span>QActionGroup;
+<a name="l00023"></a>00023 <span class="keyword">class </span>QToolBar;
+<a name="l00024"></a>00024 <span class="keyword">class </span>QPopupMenu;
+<a name="l00025"></a>00025 <span class="keyword">class </span><a class="code" href="class_x_q_graph.html">XQGraph</a>;
+<a name="l00026"></a>00026 <span class="keyword">class </span>KURLRequester;
+<a name="l00027"></a>00027 <span class="keyword">class </span>QPushButton;
+<a name="l00028"></a>00028 <span class="keyword">class </span>QLabel;
+<a name="l00029"></a>00029 <span class="keyword">class </span>QComboBox;
+<a name="l00030"></a>00030 <span class="keyword">class </span>QGroupBox;
+<a name="l00031"></a>00031 <span class="keyword">class </span>QCheckBox;
+<a name="l00032"></a>00032 <span class="keyword">class </span>QLineEdit;
+<a name="l00033"></a>00033 <span class="keyword">class </span>KDoubleNumInput;
+<a name="l00034"></a>00034 
+<a name="l00035"></a><a class="code" href="class_frm_d_s_o.html">00035</a> <span class="keyword">class </span><a class="code" href="class_frm_d_s_o.html">FrmDSO</a> : <span class="keyword">public</span> QMainWindow
+<a name="l00036"></a>00036 {
+<a name="l00037"></a>00037     Q_OBJECT
+<a name="l00038"></a>00038 
+<a name="l00039"></a>00039 <span class="keyword">public</span>:
+<a name="l00040"></a>00040     <a class="code" href="class_frm_d_s_o.html#720c3592aa837aaa66cfba864d996f8a">FrmDSO</a>( QWidget* parent = 0, <span class="keyword">const</span> <span class="keywordtype">char</span>* name = 0, WFlags fl = WType_TopLevel );
+<a name="l00041"></a>00041     <a class="code" href="class_frm_d_s_o.html#9101dca050cf97d9f9be8d6c9a14807a">~FrmDSO</a>();
+<a name="l00042"></a>00042 
+<a name="l00043"></a><a class="code" href="class_frm_d_s_o.html#b273e0ec258da4f0db1e7d843384bd64">00043</a>     KURLRequester* <a class="code" href="class_frm_d_s_o.html#b273e0ec258da4f0db1e7d843384bd64">m_urlDump</a>;
+<a name="l00044"></a><a class="code" href="class_frm_d_s_o.html#a2846d9c2481200f9f697313d794164d">00044</a>     QPushButton* <a class="code" href="class_frm_d_s_o.html#a2846d9c2481200f9f697313d794164d">m_btnDump</a>;
+<a name="l00045"></a><a class="code" href="class_frm_d_s_o.html#78753c2b8bdebf82199230f2db8a28da">00045</a>     QLabel* <a class="code" href="class_frm_d_s_o.html#78753c2b8bdebf82199230f2db8a28da">textLabel1_2_5_4</a>;
+<a name="l00046"></a><a class="code" href="class_frm_d_s_o.html#b24d5ee7c8e4cc587ddf7bf6868b2531">00046</a>     QComboBox* <a class="code" href="class_frm_d_s_o.html#b24d5ee7c8e4cc587ddf7bf6868b2531">m_cmbFetchMode</a>;
+<a name="l00047"></a><a class="code" href="class_frm_d_s_o.html#dec78b5abce2ec3d155e14aa302760e6">00047</a>     <a class="code" href="class_x_q_graph.html">XQGraph</a>* <a class="code" href="class_frm_d_s_o.html#dec78b5abce2ec3d155e14aa302760e6">m_graphwidget</a>;
+<a name="l00048"></a><a class="code" href="class_frm_d_s_o.html#6ba5d256727fdecba1e3d734fc841b17">00048</a>     QGroupBox* <a class="code" href="class_frm_d_s_o.html#6ba5d256727fdecba1e3d734fc841b17">groupBox1</a>;
+<a name="l00049"></a><a class="code" href="class_frm_d_s_o.html#b36e7c39065d2a3e0e6bdc2165b71b63">00049</a>     QCheckBox* <a class="code" href="class_frm_d_s_o.html#b36e7c39065d2a3e0e6bdc2165b71b63">m_ckbFIREnabled</a>;
+<a name="l00050"></a><a class="code" href="class_frm_d_s_o.html#3b20a70b7b0e758b4b22e111ee38e5b5">00050</a>     QLabel* <a class="code" href="class_frm_d_s_o.html#3b20a70b7b0e758b4b22e111ee38e5b5">textLabel1_2_5_3</a>;
+<a name="l00051"></a><a class="code" href="class_frm_d_s_o.html#dd182d47e86310b4dfd0d20e02ad14c1">00051</a>     QLineEdit* <a class="code" href="class_frm_d_s_o.html#dd182d47e86310b4dfd0d20e02ad14c1">m_edFIRBandWidth</a>;
+<a name="l00052"></a><a class="code" href="class_frm_d_s_o.html#3508f1db97fd255d5b33a714b805e331">00052</a>     QLabel* <a class="code" href="class_frm_d_s_o.html#3508f1db97fd255d5b33a714b805e331">textLabel1_2_2_4_3</a>;
+<a name="l00053"></a><a class="code" href="class_frm_d_s_o.html#ab046c97a8b2ddcdad915f7fd3d54998">00053</a>     QLabel* <a class="code" href="class_frm_d_s_o.html#ab046c97a8b2ddcdad915f7fd3d54998">textLabel1_2_5_3_2</a>;
+<a name="l00054"></a><a class="code" href="class_frm_d_s_o.html#ce00413e4f90888ea215d954ec608f69">00054</a>     QLineEdit* <a class="code" href="class_frm_d_s_o.html#ce00413e4f90888ea215d954ec608f69">m_edFIRSharpness</a>;
+<a name="l00055"></a><a class="code" href="class_frm_d_s_o.html#5189acaa42fba0ece8f53739dc467d3d">00055</a>     QLabel* <a class="code" href="class_frm_d_s_o.html#5189acaa42fba0ece8f53739dc467d3d">textLabel1_2_5_3_3</a>;
+<a name="l00056"></a><a class="code" href="class_frm_d_s_o.html#c49989520832bab5b4c92e9a0c20c02f">00056</a>     QLineEdit* <a class="code" href="class_frm_d_s_o.html#c49989520832bab5b4c92e9a0c20c02f">m_edFIRCenterFreq</a>;
+<a name="l00057"></a><a class="code" href="class_frm_d_s_o.html#2a915195bb5b55e53f151d6a53d27bb6">00057</a>     QLabel* <a class="code" href="class_frm_d_s_o.html#2a915195bb5b55e53f151d6a53d27bb6">textLabel1_2_2_4_3_2</a>;
+<a name="l00058"></a><a class="code" href="class_frm_d_s_o.html#18855e1a4051c90b4d352fe2656a3596">00058</a>     QCheckBox* <a class="code" href="class_frm_d_s_o.html#18855e1a4051c90b4d352fe2656a3596">m_ckbSingleSeq</a>;
+<a name="l00059"></a><a class="code" href="class_frm_d_s_o.html#de048fde5589a67fad08f06c5f8edd37">00059</a>     QLabel* <a class="code" href="class_frm_d_s_o.html#de048fde5589a67fad08f06c5f8edd37">textLabel1</a>;
+<a name="l00060"></a><a class="code" href="class_frm_d_s_o.html#87f1d0e825f72786cf1764c2dcc669f7">00060</a>     QLineEdit* <a class="code" href="class_frm_d_s_o.html#87f1d0e825f72786cf1764c2dcc669f7">m_edAverage</a>;
+<a name="l00061"></a><a class="code" href="class_frm_d_s_o.html#433a81a52601d8e53e6caf7bf6da3f8f">00061</a>     QGroupBox* <a class="code" href="class_frm_d_s_o.html#433a81a52601d8e53e6caf7bf6da3f8f">groupBox1_2_2</a>;
+<a name="l00062"></a><a class="code" href="class_frm_d_s_o.html#d39fe077261d8c32fd2815fe13c21146">00062</a>     QLabel* <a class="code" href="class_frm_d_s_o.html#d39fe077261d8c32fd2815fe13c21146">textLabel1_2_5</a>;
+<a name="l00063"></a><a class="code" href="class_frm_d_s_o.html#5ba5c373415c49fd2092d9b75b645e59">00063</a>     QLineEdit* <a class="code" href="class_frm_d_s_o.html#5ba5c373415c49fd2092d9b75b645e59">m_edTimeWidth</a>;
+<a name="l00064"></a><a class="code" href="class_frm_d_s_o.html#e4d83fbaca134f8916a9710ff8ac0c5f">00064</a>     QLabel* <a class="code" href="class_frm_d_s_o.html#e4d83fbaca134f8916a9710ff8ac0c5f">textLabel1_2_2_4</a>;
+<a name="l00065"></a><a class="code" href="class_frm_d_s_o.html#21d9b58f542b59dea726673f5e5d7653">00065</a>     QLabel* <a class="code" href="class_frm_d_s_o.html#21d9b58f542b59dea726673f5e5d7653">textLabel2_2_2</a>;
+<a name="l00066"></a><a class="code" href="class_frm_d_s_o.html#d130620c71804d7f41677dbb775f5693">00066</a>     QLineEdit* <a class="code" href="class_frm_d_s_o.html#d130620c71804d7f41677dbb775f5693">m_edRecordLength</a>;
+<a name="l00067"></a><a class="code" href="class_frm_d_s_o.html#9707b13712a6611bb306bccb2716234f">00067</a>     QGroupBox* <a class="code" href="class_frm_d_s_o.html#9707b13712a6611bb306bccb2716234f">groupBox4</a>;
+<a name="l00068"></a><a class="code" href="class_frm_d_s_o.html#47e641205c21a66d0509fc16ef491280">00068</a>     QLabel* <a class="code" href="class_frm_d_s_o.html#47e641205c21a66d0509fc16ef491280">textLabel1_2_3</a>;
+<a name="l00069"></a><a class="code" href="class_frm_d_s_o.html#65542e42f443c48f2ac06f6fd3478771">00069</a>     QLineEdit* <a class="code" href="class_frm_d_s_o.html#65542e42f443c48f2ac06f6fd3478771">m_edVOffset1</a>;
+<a name="l00070"></a><a class="code" href="class_frm_d_s_o.html#6f04ae0eb29b8a93ffb24e3637609d20">00070</a>     QLabel* <a class="code" href="class_frm_d_s_o.html#6f04ae0eb29b8a93ffb24e3637609d20">textLabel1_2_2_2</a>;
+<a name="l00071"></a><a class="code" href="class_frm_d_s_o.html#7fdabfdd41e07f7f9de1242ee8f2f1f9">00071</a>     QComboBox* <a class="code" href="class_frm_d_s_o.html#7fdabfdd41e07f7f9de1242ee8f2f1f9">m_cmbTrace1</a>;
+<a name="l00072"></a><a class="code" href="class_frm_d_s_o.html#ded47973b849679f4f6c28a8ba8e982b">00072</a>     QLabel* <a class="code" href="class_frm_d_s_o.html#ded47973b849679f4f6c28a8ba8e982b">textLabel1_2</a>;
+<a name="l00073"></a><a class="code" href="class_frm_d_s_o.html#4ce4151a6bb28f40a789fa1ed5019e40">00073</a>     QComboBox* <a class="code" href="class_frm_d_s_o.html#4ce4151a6bb28f40a789fa1ed5019e40">m_cmbVFS1</a>;
+<a name="l00074"></a><a class="code" href="class_frm_d_s_o.html#54234b6bcb3544696b8e23860a16cafa">00074</a>     QLabel* <a class="code" href="class_frm_d_s_o.html#54234b6bcb3544696b8e23860a16cafa">textLabel1_2_2</a>;
+<a name="l00075"></a><a class="code" href="class_frm_d_s_o.html#830d2789e0df12a0ad930db873068249">00075</a>     QGroupBox* <a class="code" href="class_frm_d_s_o.html#830d2789e0df12a0ad930db873068249">groupBox4_3</a>;
+<a name="l00076"></a><a class="code" href="class_frm_d_s_o.html#18b4787a63d4e47bbae9a0f7458dfd96">00076</a>     QLabel* <a class="code" href="class_frm_d_s_o.html#18b4787a63d4e47bbae9a0f7458dfd96">textLabel1_2_3_2</a>;
+<a name="l00077"></a><a class="code" href="class_frm_d_s_o.html#1628698739ff7b0664f36e4660bbec87">00077</a>     QLineEdit* <a class="code" href="class_frm_d_s_o.html#1628698739ff7b0664f36e4660bbec87">m_edVOffset2</a>;
+<a name="l00078"></a><a class="code" href="class_frm_d_s_o.html#f838ed5bf5d8f008678f8ca389c83c31">00078</a>     QLabel* <a class="code" href="class_frm_d_s_o.html#f838ed5bf5d8f008678f8ca389c83c31">textLabel1_2_2_2_2</a>;
+<a name="l00079"></a><a class="code" href="class_frm_d_s_o.html#54a8abd28e32d0862f850bfe63f98317">00079</a>     QComboBox* <a class="code" href="class_frm_d_s_o.html#54a8abd28e32d0862f850bfe63f98317">m_cmbTrace2</a>;
+<a name="l00080"></a><a class="code" href="class_frm_d_s_o.html#a37a92e3e9870777e7cd7c2aceb92300">00080</a>     QLabel* <a class="code" href="class_frm_d_s_o.html#a37a92e3e9870777e7cd7c2aceb92300">textLabel1_2_4</a>;
+<a name="l00081"></a><a class="code" href="class_frm_d_s_o.html#4b39570e2372fcedcf6f2f1d99843bdb">00081</a>     QComboBox* <a class="code" href="class_frm_d_s_o.html#4b39570e2372fcedcf6f2f1d99843bdb">m_cmbVFS2</a>;
+<a name="l00082"></a><a class="code" href="class_frm_d_s_o.html#ca46f402cfdf4294bdb5c497b116cfba">00082</a>     QLabel* <a class="code" href="class_frm_d_s_o.html#ca46f402cfdf4294bdb5c497b116cfba">textLabel1_2_2_3</a>;
+<a name="l00083"></a><a class="code" href="class_frm_d_s_o.html#11e43fe7d7f7e2e21c4d1fc392787bfc">00083</a>     QGroupBox* <a class="code" href="class_frm_d_s_o.html#11e43fe7d7f7e2e21c4d1fc392787bfc">groupBox1_2</a>;
+<a name="l00084"></a><a class="code" href="class_frm_d_s_o.html#c4f0586fd90297579c8f0125131970ec">00084</a>     QLabel* <a class="code" href="class_frm_d_s_o.html#c4f0586fd90297579c8f0125131970ec">textLabel1_2_5_2_2</a>;
+<a name="l00085"></a><a class="code" href="class_frm_d_s_o.html#636f5eb6a2ca47f5b1bb99e1aa1b585f">00085</a>     QComboBox* <a class="code" href="class_frm_d_s_o.html#636f5eb6a2ca47f5b1bb99e1aa1b585f">m_cmbTrigSource</a>;
+<a name="l00086"></a><a class="code" href="class_frm_d_s_o.html#fe3814eaa92a76c495204e15c3b2adde">00086</a>     QLabel* <a class="code" href="class_frm_d_s_o.html#fe3814eaa92a76c495204e15c3b2adde">textLabel1_2_5_2</a>;
+<a name="l00087"></a><a class="code" href="class_frm_d_s_o.html#f6f99bd638f21f5e1ac4fc25f2da4605">00087</a>     KDoubleNumInput* <a class="code" href="class_frm_d_s_o.html#f6f99bd638f21f5e1ac4fc25f2da4605">m_numTrigPos</a>;
+<a name="l00088"></a><a class="code" href="class_frm_d_s_o.html#de5966901275ed41040f2e18ad71312e">00088</a>     QPushButton* <a class="code" href="class_frm_d_s_o.html#de5966901275ed41040f2e18ad71312e">m_btnForceTrigger</a>;
+<a name="l00089"></a><a class="code" href="class_frm_d_s_o.html#013b956f7be080a5f0806f8450273771">00089</a>     QCheckBox* <a class="code" href="class_frm_d_s_o.html#013b956f7be080a5f0806f8450273771">m_ckbTrigFalling</a>;
+<a name="l00090"></a><a class="code" href="class_frm_d_s_o.html#e1fe978daaf0637633d042d7f4128c72">00090</a>     QLabel* <a class="code" href="class_frm_d_s_o.html#e1fe978daaf0637633d042d7f4128c72">textLabel1_2_5_2_4</a>;
+<a name="l00091"></a><a class="code" href="class_frm_d_s_o.html#ed350a611cbeb629c478c4c9f0bc0d77">00091</a>     QLineEdit* <a class="code" href="class_frm_d_s_o.html#ed350a611cbeb629c478c4c9f0bc0d77">m_edTrigLevel</a>;
+<a name="l00092"></a><a class="code" href="class_frm_d_s_o.html#c060d33f4ec9eeff6bce5bba329e2d81">00092</a>     QLabel* <a class="code" href="class_frm_d_s_o.html#c060d33f4ec9eeff6bce5bba329e2d81">textLabel1_2_5_2_4_2</a>;
+<a name="l00093"></a>00093 
+<a name="l00094"></a>00094 <span class="keyword">protected</span>:
+<a name="l00095"></a><a class="code" href="class_frm_d_s_o.html#4d020dc992a565c34f8f9eb6442454a7">00095</a>     QGridLayout* <a class="code" href="class_frm_d_s_o.html#4d020dc992a565c34f8f9eb6442454a7">FrmDSOLayout</a>;
+<a name="l00096"></a><a class="code" href="class_frm_d_s_o.html#ea7ec8552d22874f19518465cf28ded1">00096</a>     QVBoxLayout* <a class="code" href="class_frm_d_s_o.html#ea7ec8552d22874f19518465cf28ded1">layout62</a>;
+<a name="l00097"></a><a class="code" href="class_frm_d_s_o.html#b60132e7cbca0793fe77382b534dfbcf">00097</a>     QHBoxLayout* <a class="code" href="class_frm_d_s_o.html#b60132e7cbca0793fe77382b534dfbcf">layout15</a>;
+<a name="l00098"></a><a class="code" href="class_frm_d_s_o.html#fbfdea21d60df6ee9ca600d95fa929e2">00098</a>     QHBoxLayout* <a class="code" href="class_frm_d_s_o.html#fbfdea21d60df6ee9ca600d95fa929e2">layout61</a>;
+<a name="l00099"></a><a class="code" href="class_frm_d_s_o.html#77e3a3ba43ebe70e6d5337e1b01882e8">00099</a>     QGridLayout* <a class="code" href="class_frm_d_s_o.html#77e3a3ba43ebe70e6d5337e1b01882e8">groupBox1Layout</a>;
+<a name="l00100"></a><a class="code" href="class_frm_d_s_o.html#b566df6d3b37ee1cd89cf6da8693ffbd">00100</a>     QHBoxLayout* <a class="code" href="class_frm_d_s_o.html#b566df6d3b37ee1cd89cf6da8693ffbd">layout5_4_3</a>;
+<a name="l00101"></a><a class="code" href="class_frm_d_s_o.html#559cc3b6c8ade2b08f2018cb3f369d39">00101</a>     QHBoxLayout* <a class="code" href="class_frm_d_s_o.html#559cc3b6c8ade2b08f2018cb3f369d39">layout5_4_3_2</a>;
+<a name="l00102"></a><a class="code" href="class_frm_d_s_o.html#93e079243dba84669f030c14ded1c58f">00102</a>     QHBoxLayout* <a class="code" href="class_frm_d_s_o.html#93e079243dba84669f030c14ded1c58f">layout5_4_3_3</a>;
+<a name="l00103"></a><a class="code" href="class_frm_d_s_o.html#ba30f517cb3f5852f9a957ebbc7e44b9">00103</a>     QVBoxLayout* <a class="code" href="class_frm_d_s_o.html#ba30f517cb3f5852f9a957ebbc7e44b9">layout63</a>;
+<a name="l00104"></a><a class="code" href="class_frm_d_s_o.html#ad40c196fd0445c53a6610c9bca08318">00104</a>     QHBoxLayout* <a class="code" href="class_frm_d_s_o.html#ad40c196fd0445c53a6610c9bca08318">layout4</a>;
+<a name="l00105"></a><a class="code" href="class_frm_d_s_o.html#0fc8888a0c4b383f55e7ec95e86487bd">00105</a>     QGridLayout* <a class="code" href="class_frm_d_s_o.html#0fc8888a0c4b383f55e7ec95e86487bd">groupBox1_2_2Layout</a>;
+<a name="l00106"></a><a class="code" href="class_frm_d_s_o.html#8d6901d623745ef51d89d33bdfb254da">00106</a>     QHBoxLayout* <a class="code" href="class_frm_d_s_o.html#8d6901d623745ef51d89d33bdfb254da">layout5_4</a>;
+<a name="l00107"></a><a class="code" href="class_frm_d_s_o.html#797bdd438c2fceafc3bf232f5f5b0a8b">00107</a>     QHBoxLayout* <a class="code" href="class_frm_d_s_o.html#797bdd438c2fceafc3bf232f5f5b0a8b">layout16</a>;
+<a name="l00108"></a><a class="code" href="class_frm_d_s_o.html#a2ef7ccdc8f2e0270dbf43cdc2a362e6">00108</a>     QGridLayout* <a class="code" href="class_frm_d_s_o.html#a2ef7ccdc8f2e0270dbf43cdc2a362e6">groupBox4Layout</a>;
+<a name="l00109"></a><a class="code" href="class_frm_d_s_o.html#8762e9455fe16e6f32bfbacdda94497c">00109</a>     QHBoxLayout* <a class="code" href="class_frm_d_s_o.html#8762e9455fe16e6f32bfbacdda94497c">layout5_2</a>;
+<a name="l00110"></a><a class="code" href="class_frm_d_s_o.html#86efa123b25d6daa9dc6f76ce51682b2">00110</a>     QHBoxLayout* <a class="code" href="class_frm_d_s_o.html#86efa123b25d6daa9dc6f76ce51682b2">layout19</a>;
+<a name="l00111"></a><a class="code" href="class_frm_d_s_o.html#08cce82993fd03eeb54867671a396888">00111</a>     QGridLayout* <a class="code" href="class_frm_d_s_o.html#08cce82993fd03eeb54867671a396888">groupBox4_3Layout</a>;
+<a name="l00112"></a><a class="code" href="class_frm_d_s_o.html#1d8bfa903c6338510f2211a3290cb74d">00112</a>     QHBoxLayout* <a class="code" href="class_frm_d_s_o.html#1d8bfa903c6338510f2211a3290cb74d">layout5_2_2</a>;
+<a name="l00113"></a><a class="code" href="class_frm_d_s_o.html#b75dc592a7cf0dfe01bc8b5dec524386">00113</a>     QHBoxLayout* <a class="code" href="class_frm_d_s_o.html#b75dc592a7cf0dfe01bc8b5dec524386">layout19_2</a>;
+<a name="l00114"></a><a class="code" href="class_frm_d_s_o.html#3818ba9078698ab10a41cf89483560cd">00114</a>     QGridLayout* <a class="code" href="class_frm_d_s_o.html#3818ba9078698ab10a41cf89483560cd">groupBox1_2Layout</a>;
+<a name="l00115"></a><a class="code" href="class_frm_d_s_o.html#be3f33c04caddb7918bab0d944cf2add">00115</a>     QHBoxLayout* <a class="code" href="class_frm_d_s_o.html#be3f33c04caddb7918bab0d944cf2add">layout29</a>;
+<a name="l00116"></a><a class="code" href="class_frm_d_s_o.html#b969573bb96193b9718f30151ebd3ea3">00116</a>     QHBoxLayout* <a class="code" href="class_frm_d_s_o.html#b969573bb96193b9718f30151ebd3ea3">layout28</a>;
+<a name="l00117"></a><a class="code" href="class_frm_d_s_o.html#7f4869737756a4cd3c4b8cd974e962b7">00117</a>     QHBoxLayout* <a class="code" href="class_frm_d_s_o.html#7f4869737756a4cd3c4b8cd974e962b7">layout34</a>;
+<a name="l00118"></a>00118 
+<a name="l00119"></a>00119 <span class="keyword">protected</span> slots:
+<a name="l00120"></a>00120     <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_frm_d_s_o.html#ec57249cefbb4cc0648c8db5bb830733">languageChange</a>();
+<a name="l00121"></a>00121 
+<a name="l00122"></a>00122 <span class="keyword">private</span>:
+<a name="l00123"></a><a class="code" href="class_frm_d_s_o.html#26eef271fdbcd29f92bcadad7a1ffae7">00123</a>     QPixmap <a class="code" href="class_frm_d_s_o.html#26eef271fdbcd29f92bcadad7a1ffae7">image0</a>;
+<a name="l00124"></a>00124 
+<a name="l00125"></a>00125 };
+<a name="l00126"></a>00126 
+<a name="l00127"></a>00127 <span class="preprocessor">#endif // FRMDSO_H</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri Jan 4 16:08:21 2008に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
+</body>
+</html>

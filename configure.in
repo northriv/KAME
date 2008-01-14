@@ -40,7 +40,7 @@ dnl Perform program name transformation
 AC_ARG_PROGRAM
 
 dnl Automake doc recommends to do this only here. (Janos)
-AM_INIT_AUTOMAKE([kame], 2.2) dnl searches for some needed programs
+AM_INIT_AUTOMAKE([kame], 2.3) dnl searches for some needed programs
 
 KDE_SET_PREFIX
 
@@ -87,8 +87,8 @@ FREETYPE2_LIBS="`freetype-config --libs`"
 FREETYPE2_CFLAGS="`freetype-config --cflags`"
 
 ac_save_LIBS="$LIBS"
-AC_CHECK_LIB(fftw, main, fftw_libs="-lfftw",
-  AC_MSG_ERROR([fftw not installed - please install first]))
+AC_CHECK_LIB(fftw3, main, fftw_libs="-lfftw3",
+  AC_MSG_ERROR([FFTW3 not installed - please install first]))
 FFTW_LIBS="$FFTW_LIBS $fftw_libs"
 LIBS="$ac_save_LIBS"
 
@@ -185,6 +185,7 @@ AC_CONFIG_FILES([ kame/driver/Makefile ])
 AC_CONFIG_FILES([ kame/forms/Makefile ])
 AC_CONFIG_FILES([ kame/graph/Makefile ])
 AC_CONFIG_FILES([ kame/icons/Makefile ])
+AC_CONFIG_FILES([ kame/math/Makefile ])
 AC_CONFIG_FILES([ kame/mikachanfont/Makefile ])
 AC_CONFIG_FILES([ kame/script/Makefile ])
 AC_CONFIG_FILES([ kame/thermometer/Makefile ])

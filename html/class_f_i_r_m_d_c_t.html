@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: クラス FIRMDCT</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li id="current"><a href="classes.html"><span>クラス</span></a></li>
+    <li><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
+<div class="tabs">
+  <ul>
+    <li><a href="classes.html"><span>アルファベット順一覧</span></a></li>
+    <li><a href="annotated.html"><span>構成</span></a></li>
+    <li><a href="hierarchy.html"><span>クラス階層</span></a></li>
+    <li><a href="functions.html"><span>構成メンバ</span></a></li>
+  </ul></div>
+<h1>クラス FIRMDCT</h1><!-- doxytag: class="FIRMDCT" --><code>#include &lt;<a class="el" href="fir_8h-source.html">fir.h</a>&gt;</code>
+<p>
+<a href="class_f_i_r_m_d_c_t-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
+<tr><td></td></tr>
+<tr><td colspan="2"><br><h2>Public メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top">&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_f_i_r_m_d_c_t.html#54ce43ba42056d1b564cddd05f90caeb">FIRMDCT</a> (int taps, double bandwidth, double center)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="c9c1c2f2630177aa7ecd0ea5c9431e32"></a><!-- doxytag: member="FIRMDCT::~FIRMDCT" ref="c9c1c2f2630177aa7ecd0ea5c9431e32" args="()" -->
+&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_f_i_r_m_d_c_t.html#c9c1c2f2630177aa7ecd0ea5c9431e32">~FIRMDCT</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="4d180664d7b360d12e23e9f0f6d32851"></a><!-- doxytag: member="FIRMDCT::exec" ref="4d180664d7b360d12e23e9f0f6d32851" args="(const double *src, double *dst, int len)" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_f_i_r_m_d_c_t.html#4d180664d7b360d12e23e9f0f6d32851">exec</a> (const double *src, double *dst, int len)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="1cd2689f7f9904ed2340441549819155"></a><!-- doxytag: member="FIRMDCT::taps" ref="1cd2689f7f9904ed2340441549819155" args="() const " -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_f_i_r_m_d_c_t.html#1cd2689f7f9904ed2340441549819155">taps</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="7c7354e908cca7ae163d3acce80cae7c"></a><!-- doxytag: member="FIRMDCT::bandWidth" ref="7c7354e908cca7ae163d3acce80cae7c" args="() const " -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_f_i_r_m_d_c_t.html#7c7354e908cca7ae163d3acce80cae7c">bandWidth</a> () const </td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="7110920495e1391aa484863ae77cd8ac"></a><!-- doxytag: member="FIRMDCT::centerFreq" ref="7110920495e1391aa484863ae77cd8ac" args="() const " -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_f_i_r_m_d_c_t.html#7110920495e1391aa484863ae77cd8ac">centerFreq</a> () const </td></tr>
+
+<tr><td colspan="2"><br><h2>Private 変数</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="3710f05ff9794b0abcb984b2e978f3a6"></a><!-- doxytag: member="FIRMDCT::m_rdftplan" ref="3710f05ff9794b0abcb984b2e978f3a6" args="" -->
+fftw_plan&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_f_i_r_m_d_c_t.html#3710f05ff9794b0abcb984b2e978f3a6">m_rdftplan</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="ff0826f826c1a9ed9a7a93d35003004f"></a><!-- doxytag: member="FIRMDCT::m_ridftplan" ref="ff0826f826c1a9ed9a7a93d35003004f" args="" -->
+fftw_plan&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_f_i_r_m_d_c_t.html#ff0826f826c1a9ed9a7a93d35003004f">m_ridftplan</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="13fc425df53c8290312ea06aa629d524"></a><!-- doxytag: member="FIRMDCT::m_pBufR" ref="13fc425df53c8290312ea06aa629d524" args="" -->
+double *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_f_i_r_m_d_c_t.html#13fc425df53c8290312ea06aa629d524">m_pBufR</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="5e80a51a365c18dea544b72b5c4127ba"></a><!-- doxytag: member="FIRMDCT::m_pBufC" ref="5e80a51a365c18dea544b72b5c4127ba" args="" -->
+fftw_complex *&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_f_i_r_m_d_c_t.html#5e80a51a365c18dea544b72b5c4127ba">m_pBufC</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="c08e3cb8df87558829f13a0e4308ff60"></a><!-- doxytag: member="FIRMDCT::m_mdctWnd" ref="c08e3cb8df87558829f13a0e4308ff60" args="" -->
+std::vector&lt; double &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_f_i_r_m_d_c_t.html#c08e3cb8df87558829f13a0e4308ff60">m_mdctWnd</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="c3b6bf0dd52eb962f8248db2e40025e5"></a><!-- doxytag: member="FIRMDCT::m_firWnd" ref="c3b6bf0dd52eb962f8248db2e40025e5" args="" -->
+std::vector&lt; double &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_f_i_r_m_d_c_t.html#c3b6bf0dd52eb962f8248db2e40025e5">m_firWnd</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="cf8e808272c3dc12a661705c75c44a15"></a><!-- doxytag: member="FIRMDCT::m_mdctLen" ref="cf8e808272c3dc12a661705c75c44a15" args="" -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_f_i_r_m_d_c_t.html#cf8e808272c3dc12a661705c75c44a15">m_mdctLen</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="5c0bc6d35b48f89bbb7d029139e83229"></a><!-- doxytag: member="FIRMDCT::m_tapLen" ref="5c0bc6d35b48f89bbb7d029139e83229" args="" -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_f_i_r_m_d_c_t.html#5c0bc6d35b48f89bbb7d029139e83229">m_tapLen</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="765ef4e214c55c9b0d3e99b92e1578d8"></a><!-- doxytag: member="FIRMDCT::m_taps" ref="765ef4e214c55c9b0d3e99b92e1578d8" args="" -->
+const int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_f_i_r_m_d_c_t.html#765ef4e214c55c9b0d3e99b92e1578d8">m_taps</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="17afe3ed106f11655a43975b0002e354"></a><!-- doxytag: member="FIRMDCT::m_bandWidth" ref="17afe3ed106f11655a43975b0002e354" args="" -->
+const double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_f_i_r_m_d_c_t.html#17afe3ed106f11655a43975b0002e354">m_bandWidth</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="753f4a322dddbb05032c3114dccd0d57"></a><!-- doxytag: member="FIRMDCT::m_centerFreq" ref="753f4a322dddbb05032c3114dccd0d57" args="" -->
+const double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_f_i_r_m_d_c_t.html#753f4a322dddbb05032c3114dccd0d57">m_centerFreq</a></td></tr>
+
+</table>
+<hr><a name="_details"></a><h2>説明</h2>
+FIR (Finite Impulse Response) Digital Filter. Accelerated by the MDCT (Modified Discrete Fourier Transformation). 
+<p>
+
+<p>
+ <a class="el" href="fir_8h-source.html">fir.h</a> の <a class="el" href="fir_8h-source.html#l00028">28</a> 行で定義されています。<hr><h2>コンストラクタとデストラクタ</h2>
+<a class="anchor" name="54ce43ba42056d1b564cddd05f90caeb"></a><!-- doxytag: member="FIRMDCT::FIRMDCT" ref="54ce43ba42056d1b564cddd05f90caeb" args="(int taps, double bandwidth, double center)" --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">FIRMDCT::FIRMDCT           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="md" nowrap valign="top">int&nbsp;</td>
+          <td class="mdname" nowrap> <em>taps</em>, </td>
+        </tr>
+        <tr>
+          <td class="md" nowrap align="right"></td>
+          <td class="md"></td>
+          <td class="md" nowrap>double&nbsp;</td>
+          <td class="mdname" nowrap> <em>bandwidth</em>, </td>
+        </tr>
+        <tr>
+          <td class="md" nowrap align="right"></td>
+          <td class="md"></td>
+          <td class="md" nowrap>double&nbsp;</td>
+          <td class="mdname" nowrap> <em>center</em></td>
+        </tr>
+        <tr>
+          <td class="md"></td>
+          <td class="md">)&nbsp;</td>
+          <td class="md" colspan="2"></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+makes coeff. for BPF. Window func. method. <dl compact><dt><b>引数:</b></dt><dd>
+  <table border="0" cellspacing="2" cellpadding="0">
+    <tr><td valign="top"></td><td valign="top"><em>taps</em>&nbsp;</td><td>odd num. a number of taps </td></tr>
+    <tr><td valign="top"></td><td valign="top"><em>bandwidth</em>&nbsp;</td><td>0 to 1.0. the unit is sampling freq. </td></tr>
+    <tr><td valign="top"></td><td valign="top"><em>center</em>&nbsp;</td><td>0.0 to 1.0. the unit is sampling freq. </td></tr>
+  </table>
+</dl>
+
+<p>
+ <a class="el" href="fir_8cpp-source.html">fir.cpp</a> の <a class="el" href="fir_8cpp-source.html#l00020">20</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="fir_8h-source.html#l00045">m_firWnd</a>・<a class="el" href="fir_8h-source.html#l00046">m_mdctLen</a>・<a class="el" href="fir_8h-source.html#l00045">m_mdctWnd</a>・<a class="el" href="fir_8h-source.html#l00044">m_pBufC</a>・<a class="el" href="fir_8h-source.html#l00043">m_pBufR</a>・<a class="el" href="fir_8h-source.html#l00042">m_rdftplan</a>・<a class="el" href="fir_8h-source.html#l00042">m_ridftplan</a>・<a class="el" href="fir_8h-source.html#l00046">m_tapLen</a>.    </td>
+  </tr>
+</table>
+<hr>このクラスの説明は次のファイルから生成されました:<ul>
+<li>kame/math/<a class="el" href="fir_8h-source.html">fir.h</a><li>kame/math/<a class="el" href="fir_8cpp-source.html">fir.cpp</a></ul>
+<hr size="1"><address style="align: right;"><small>KAME2に対してMon Jan 14 02:44:44 2008に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
+</body>
+</html>

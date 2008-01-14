@@ -1,0 +1,607 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: /Users/northriv/Documents/Projects/KAME/macosx/kame/graph/graphdialog.cpp ソースファイル</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
+<div class="nav">
+<a class="el" href="dir_267cfcb898ce0973ecee1ed2b0a886dd.html">macosx</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_4e9c37e873543013a976ff9253a8401e.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_dc5314039bb72869907da0c63d769948.html">graph</a></div>
+<h1>graphdialog.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#include &lt;kdialog.h&gt;</span>
+<a name="l00002"></a>00002 <span class="preprocessor">#include &lt;klocale.h&gt;</span>
+<a name="l00003"></a>00003 <span class="comment">/****************************************************************************</span>
+<a name="l00004"></a>00004 <span class="comment">** Form implementation generated from reading ui file '/Users/northriv/Documents/Projects/KAME/2.2/kame/graph/graphdialog.ui'</span>
+<a name="l00005"></a>00005 <span class="comment">**</span>
+<a name="l00006"></a>00006 <span class="comment">** Created: 羂�  1 2 01:28:44 2008</span>
+<a name="l00007"></a>00007 <span class="comment">**      by: The User Interface Compiler ($Id: graphdialog_8cpp-source.html,v 1.1 2008/01/14 09:41:19 northriv Exp $)</span>
+<a name="l00008"></a>00008 <span class="comment">**</span>
+<a name="l00009"></a>00009 <span class="comment">** WARNING! All changes made in this file will be lost!</span>
+<a name="l00010"></a>00010 <span class="comment">****************************************************************************/</span>
+<a name="l00011"></a>00011 
+<a name="l00012"></a>00012 <span class="preprocessor">#include "graphdialog.h"</span>
+<a name="l00013"></a>00013 
+<a name="l00014"></a>00014 <span class="preprocessor">#include &lt;qvariant.h&gt;</span>
+<a name="l00015"></a>00015 <span class="preprocessor">#include &lt;qpushbutton.h&gt;</span>
+<a name="l00016"></a>00016 <span class="preprocessor">#include &lt;qtabwidget.h&gt;</span>
+<a name="l00017"></a>00017 <span class="preprocessor">#include &lt;qwidget.h&gt;</span>
+<a name="l00018"></a>00018 <span class="preprocessor">#include &lt;qcheckbox.h&gt;</span>
+<a name="l00019"></a>00019 <span class="preprocessor">#include &lt;kcolorcombo.h&gt;</span>
+<a name="l00020"></a>00020 <span class="preprocessor">#include &lt;qlistbox.h&gt;</span>
+<a name="l00021"></a>00021 <span class="preprocessor">#include &lt;qlabel.h&gt;</span>
+<a name="l00022"></a>00022 <span class="preprocessor">#include &lt;qlineedit.h&gt;</span>
+<a name="l00023"></a>00023 <span class="preprocessor">#include &lt;knuminput.h&gt;</span>
+<a name="l00024"></a>00024 <span class="preprocessor">#include &lt;qlayout.h&gt;</span>
+<a name="l00025"></a>00025 <span class="preprocessor">#include &lt;qtooltip.h&gt;</span>
+<a name="l00026"></a>00026 <span class="preprocessor">#include &lt;qwhatsthis.h&gt;</span>
+<a name="l00027"></a>00027 <span class="preprocessor">#include &lt;qimage.h&gt;</span>
+<a name="l00028"></a>00028 <span class="preprocessor">#include &lt;qpixmap.h&gt;</span>
+<a name="l00029"></a>00029 
+<a name="l00030"></a>00030 <span class="preprocessor">#include "kcolorcombo.h"</span>
+<a name="l00031"></a>00031 <span class="preprocessor">#include "knuminput.h"</span>
+<a name="l00032"></a>00032 <span class="keyword">static</span> <span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> img0_graphdialog[] = { 
+<a name="l00033"></a>00033     0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+<a name="l00034"></a>00034     0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0x30,
+<a name="l00035"></a>00035     0x08, 0x06, 0x00, 0x00, 0x00, 0x57, 0x02, 0xf9, 0x87, 0x00, 0x00, 0x07,
+<a name="l00036"></a>00036     0x29, 0x49, 0x44, 0x41, 0x54, 0x68, 0x81, 0xed, 0x99, 0x7f, 0x4c, 0x94,
+<a name="l00037"></a>00037     0xf7, 0x1d, 0xc7, 0xdf, 0xdf, 0xe7, 0x7e, 0x70, 0xde, 0xee, 0x04, 0xd6,
+<a name="l00038"></a>00038     0x43, 0xe5, 0x60, 0x55, 0x14, 0x86, 0xa2, 0x2e, 0x6a, 0xe8, 0x42, 0x02,
+<a name="l00039"></a>00039     0xb5, 0x96, 0xcc, 0x4a, 0xfd, 0xc1, 0xe2, 0x74, 0x6e, 0xff, 0xac, 0x59,
+<a name="l00040"></a>00040     0xff, 0xa0, 0xb0, 0xaa, 0x9b, 0x0d, 0x6c, 0x54, 0xd6, 0xda, 0xa5, 0x60,
+<a name="l00041"></a>00041     0x46, 0xd3, 0x2d, 0x4a, 0x5a, 0x9d, 0x8c, 0xda, 0x9a, 0xa2, 0xf3, 0x47,
+<a name="l00042"></a>00042     0x53, 0xe9, 0xb4, 0xa5, 0x29, 0x20, 0x65, 0x9a, 0xa8, 0xa3, 0x25, 0x73,
+<a name="l00043"></a>00043     0x13, 0x36, 0xda, 0x94, 0x0d, 0xb3, 0x6a, 0x85, 0x3b, 0x82, 0x22, 0x1c,
+<a name="l00044"></a>00044     0x77, 0xf7, 0xdc, 0xf3, 0x7d, 0xef, 0x8f, 0x47, 0xa0, 0xf4, 0x38, 0x38,
+<a name="l00045"></a>00045     0x50, 0x64, 0xa4, 0xbe, 0x93, 0x27, 0xb9, 0xe4, 0xfb, 0x79, 0x9e, 0xef,
+<a name="l00046"></a>00046     0xfb, 0xf5, 0xf9, 0xfe, 0xfe, 0x9e, 0x20, 0x89, 0xe9, 0x2c, 0x65, 0xaa,
+<a name="l00047"></a>00047     0x0d, 0xdc, 0xa9, 0xee, 0x03, 0x4c, 0xb5, 0xee, 0x03, 0x4c, 0xb5, 0xa6,
+<a name="l00048"></a>00048     0x3d, 0x80, 0x31, 0x54, 0x01, 0x49, 0xfa, 0x7c, 0x3e, 0xa8, 0xaa, 0x7a,
+<a name="l00049"></a>00049     0x2f, 0xfd, 0x04, 0x49, 0x51, 0x14, 0x58, 0x2c, 0x16, 0x18, 0x0c, 0x06,
+<a name="l00050"></a>00050     0x31, 0x52, 0x79, 0x48, 0x80, 0x9b, 0x37, 0x6f, 0xa2, 0xa5, 0xa5, 0x05,
+<a name="l00051"></a>00051     0x2e, 0x97, 0x6b, 0xf2, 0xdc, 0x85, 0x21, 0x8b, 0xc5, 0x82, 0x94, 0x94,
+<a name="l00052"></a>00052     0x14, 0xc4, 0xc7, 0xc7, 0x53, 0x51, 0x94, 0x20, 0x88, 0x11, 0x01, 0xa4,
+<a name="l00053"></a>00053     0x94, 0x74, 0xbb, 0xdd, 0xa8, 0xab, 0xab, 0xc3, 0xe9, 0xd3, 0xa7, 0xa1,
+<a name="l00054"></a>00054     0x69, 0xda, 0xe4, 0x3b, 0x0d, 0xa1, 0xe4, 0xe4, 0x64, 0xe4, 0xe6, 0xe6,
+<a name="l00055"></a>00055     0x62, 0xd6, 0xac, 0x59, 0xb0, 0x58, 0x2c, 0x41, 0xe5, 0x21, 0x5b, 0x40,
+<a name="l00056"></a>00056     0xd3, 0x34, 0xf4, 0xf6, 0xf6, 0xc2, 0xed, 0x76, 0x23, 0x2d, 0x2d, 0x0d,
+<a name="l00057"></a>00057     0x06, 0x83, 0x61, 0x52, 0x8d, 0x8e, 0xa4, 0xb6, 0xb6, 0x36, 0x74, 0x74,
+<a name="l00058"></a>00058     0x74, 0x20, 0x10, 0x08, 0x20, 0xd4, 0x8e, 0x21, 0x24, 0xc0, 0x80, 0x0c,
+<a name="l00059"></a>00059     0x06, 0x03, 0x32, 0x33, 0x33, 0xb1, 0x6c, 0xd9, 0x32, 0x08, 0x31, 0x62,
+<a name="l00060"></a>00060     0x37, 0x9c, 0x14, 0x75, 0x75, 0x75, 0xa1, 0xac, 0xac, 0x0c, 0x5e, 0xaf,
+<a name="l00061"></a>00061     0x77, 0xd4, 0xb8, 0x31, 0x01, 0x00, 0x7d, 0x20, 0x25, 0x24, 0x24, 0x20,
+<a name="l00062"></a>00062     0x3a, 0x3a, 0xfa, 0xae, 0x98, 0x1b, 0x4b, 0xaa, 0xaa, 0xa2, 0xb1, 0xb1,
+<a name="l00063"></a>00063     0x31, 0xac, 0xd8, 0xb0, 0x00, 0x06, 0x83, 0x8d, 0xe3, 0x0a, 0x9f, 0xb0,
+<a name="l00064"></a>00064     0xc6, 0x33, 0xe6, 0xa6, 0xfd, 0x3a, 0xf0, 0xf5, 0x06, 0x68, 0xfc, 0x44,
+<a name="l00065"></a>00065     0x43, 0x45, 0x8d, 0x1f, 0x7e, 0x39, 0x75, 0x67, 0x8a, 0x09, 0x75, 0x6a,
+<a name="l00066"></a>00066     0x02, 0x78, 0xb5, 0xca, 0x8f, 0x82, 0xed, 0x46, 0xf8, 0x7b, 0xcc, 0x38,
+<a name="l00067"></a>00067     0xf6, 0x03, 0x15, 0xc7, 0xff, 0xa0, 0xc0, 0x31, 0xe3, 0xf6, 0x54, 0xdb,
+<a name="l00068"></a>00068     0xdc, 0x0c, 0x9c, 0x39, 0x03, 0x76, 0x77, 0x43, 0x24, 0x25, 0x01, 0xeb,
+<a name="l00069"></a>00069     0xd6, 0x01, 0x51, 0x51, 0x77, 0xd1, 0xf6, 0x90, 0xc6, 0x0d, 0xd0, 0xeb,
+<a name="l00070"></a>00070     0x23, 0x9e, 0x2e, 0x51, 0x51, 0xf9, 0x8a, 0x19, 0x82, 0x80, 0x35, 0x4a,
+<a name="l00071"></a>00071     0xa2, 0xfe, 0xa4, 0x09, 0x0f, 0x7d, 0xa2, 0xa1, 0xfa, 0xc5, 0x8f, 0xb1,
+<a name="l00072"></a>00072     0xb0, 0xb4, 0x10, 0xa8, 0xaf, 0x1f, 0x8c, 0x27, 0x00, 0xd8, 0x6c, 0x10,
+<a name="l00073"></a>00073     0xcf, 0x3f, 0x0f, 0xe4, 0xe7, 0x03, 0x77, 0x79, 0x3d, 0x19, 0x57, 0x17,
+<a name="l00074"></a>00074     0x6a, 0x73, 0x6b, 0x58, 0xb9, 0x25, 0x80, 0xca, 0x32, 0x33, 0x2c, 0xd1,
+<a name="l00075"></a>00075     0x1a, 0xf6, 0xbd, 0xa9, 0xa2, 0xa9, 0x49, 0x62, 0x49, 0x7a, 0x00, 0x8f,
+<a name="l00076"></a>00076     0xb8, 0x0f, 0xe2, 0xc1, 0xf5, 0x0f, 0xeb, 0xe6, 0xad, 0x56, 0x60, 0xe3,
+<a name="l00077"></a>00077     0x46, 0x60, 0xfb, 0x76, 0x20, 0x35, 0x15, 0xe8, 0xed, 0x05, 0x0b, 0x0b,
+<a name="l00078"></a>00078     0xc1, 0xcd, 0x9b, 0x81, 0xbe, 0xbe, 0x3b, 0x32, 0xfc, 0xc1, 0x25, 0x95,
+<a name="l00079"></a>00079     0x27, 0xce, 0xa9, 0x83, 0x7d, 0x36, 0xec, 0x16, 0xa8, 0xf9, 0x87, 0xc4,
+<a name="l00080"></a>00080     0x8e, 0x67, 0x00, 0x77, 0xbb, 0x09, 0x71, 0x29, 0x01, 0x1c, 0x7f, 0x03,
+<a name="l00081"></a>00081     0x48, 0x5f, 0x64, 0x02, 0x00, 0x5c, 0x7c, 0xf4, 0x65, 0x58, 0x6a, 0x0a,
+<a name="l00082"></a>00082     0xa1, 0x48, 0xe2, 0xe4, 0xec, 0x6c, 0x5c, 0xda, 0xb1, 0x07, 0x2f, 0x3c,
+<a name="l00083"></a>00083     0x9b, 0x00, 0x23, 0x04, 0x20, 0x25, 0x70, 0xf4, 0x28, 0x98, 0x97, 0x07,
+<a name="l00084"></a>00084     0xbc, 0xf3, 0x0e, 0xb8, 0x65, 0x0b, 0x44, 0x55, 0x15, 0x60, 0x36, 0x8f,
+<a name="l00085"></a>00085     0xcb, 0x78, 0x8f, 0x26, 0xb1, 0xad, 0xd8, 0xcf, 0x43, 0x7b, 0x4d, 0x30,
+<a name="l00086"></a>00086     0x5a, 0x89, 0xcc, 0xff, 0xaa, 0x74, 0xc0, 0x24, 0x40, 0x32, 0xe8, 0xd1,
+<a name="l00087"></a>00087     0x34, 0x8d, 0xad, 0xad, 0xad, 0x2c, 0x28, 0x28, 0x60, 0x42, 0xe2, 0x02,
+<a name="l00088"></a>00088     0x66, 0x3d, 0x55, 0x4f, 0xc3, 0x37, 0x25, 0x61, 0x27, 0x1f, 0xf9, 0x89,
+<a name="l00089"></a>00089     0x9f, 0xd7, 0x6e, 0x6a, 0x1c, 0xd4, 0xfe, 0xfd, 0x94, 0x42, 0x50, 0x2a,
+<a name="l00090"></a>00090     0x0a, 0x2f, 0x3c, 0xb5, 0x93, 0xa6, 0x98, 0x00, 0x61, 0x27, 0xd7, 0xe4,
+<a name="l00091"></a>00091     0xf9, 0xe8, 0xf2, 0x06, 0x86, 0xe2, 0x2e, 0x5c, 0xa0, 0x8c, 0x8c, 0xa4,
+<a name="l00092"></a>00092     0x04, 0x28, 0x9f, 0x7c, 0x92, 0x94, 0x92, 0xa1, 0xe4, 0xf5, 0x7a, 0xd9,
+<a name="l00093"></a>00093     0xd0, 0xd0, 0xc0, 0xac, 0xac, 0x2c, 0xae, 0x5a, 0xb5, 0x8a, 0xa5, 0x15,
+<a name="l00094"></a>00094     0x67, 0xf9, 0xe0, 0x43, 0x7e, 0xc2, 0x4e, 0x9a, 0xe2, 0x34, 0xee, 0x3e,
+<a name="l00095"></a>00095     0xe2, 0xe5, 0x80, 0xd7, 0x51, 0x01, 0x7e, 0xf1, 0xec, 0x0b, 0x8c, 0x58,
+<a name="l00096"></a>00096     0x58, 0x45, 0xd8, 0x49, 0x25, 0x5a, 0xf2, 0xe7, 0x65, 0x5e, 0xfa, 0xf8,
+<a name="l00097"></a>00097     0xa5, 0x8a, 0x4f, 0x9d, 0xa2, 0x34, 0x99, 0x28, 0x01, 0xb2, 0xa4, 0x84,
+<a name="l00098"></a>00098     0x94, 0x92, 0x55, 0x17, 0xfd, 0x8c, 0x4c, 0xd0, 0x61, 0x13, 0x1f, 0x56,
+<a name="l00099"></a>00099     0xf9, 0xf7, 0xab, 0xea, 0x50, 0x7c, 0x6d, 0x2d, 0x65, 0x44, 0x84, 0x1e,
+<a name="l00100"></a>00100     0xbf, 0x67, 0xcf, 0x98, 0x00, 0x6b, 0xb2, 0xb3, 0xe9, 0xf8, 0x4e, 0x39,
+<a name="l00101"></a>00101     0x0d, 0x0f, 0xe8, 0x49, 0x49, 0x5e, 0x19, 0xe0, 0xf9, 0x7f, 0xfb, 0x07,
+<a name="l00102"></a>00102     0xcd, 0x8f, 0x0a, 0x50, 0x7d, 0xae, 0x9d, 0x73, 0x56, 0xb8, 0x08, 0x3b,
+<a name="l00103"></a>00103     0x69, 0x89, 0x0d, 0xf0, 0xc0, 0x7b, 0xdd, 0x1c, 0x96, 0xb3, 0xe6, 0x66,
+<a name="l00104"></a>00104     0xca, 0x99, 0x33, 0xf5, 0x8c, 0x6e, 0xdd, 0x3a, 0x2c, 0xa3, 0xcd, 0x5f,
+<a name="l00105"></a>00105     0xa8, 0x4c, 0x5e, 0xa5, 0x12, 0x76, 0x72, 0xe6, 0x7c, 0x8d, 0x6f, 0x9d,
+<a name="l00106"></a>00106     0xf3, 0x07, 0xb7, 0x98, 0xd9, 0x4c, 0x36, 0x34, 0x84, 0x04, 0xa8, 0xac,
+<a name="l00107"></a>00107     0xfe, 0x88, 0x8e, 0x94, 0x2b, 0x84, 0x9d, 0x44, 0xb4, 0x64, 0x5e, 0x69,
+<a name="l00108"></a>00108     0x3f, 0x7b, 0xfc, 0xda, 0x30, 0xf3, 0x21, 0x01, 0x8e, 0x35, 0xf8, 0x69,
+<a name="l00109"></a>00109     0xfb, 0xb6, 0x6e, 0xc0, 0x32, 0xef, 0x0a, 0x4b, 0xca, 0x4f, 0xb2, 0xb3,
+<a name="l00110"></a>00110     0xb3, 0x73, 0xa8, 0x86, 0xae, 0x2e, 0xca, 0xa4, 0x24, 0xdd, 0xfc, 0xe3,
+<a name="l00111"></a>00111     0x8f, 0x93, 0xaa, 0xfa, 0x55, 0x0f, 0xec, 0xf6, 0x69, 0xdc, 0xb0, 0x55,
+<a name="l00112"></a>00112     0x6f, 0x76, 0xe5, 0x01, 0xc9, 0xa2, 0x03, 0x3e, 0x06, 0x6e, 0xa7, 0x40,
+<a name="l00113"></a>00113     0xe6, 0xe4, 0xe8, 0xef, 0xc6, 0xc5, 0x91, 0x9f, 0x7f, 0x3e, 0xec, 0x3d,
+<a name="l00114"></a>00114     0x55, 0x4a, 0xbe, 0x74, 0xa4, 0x9f, 0x11, 0x4e, 0x3d, 0xeb, 0xb6, 0x44,
+<a name="l00115"></a>00115     0x37, 0x5f, 0x3a, 0xf4, 0x37, 0x7a, 0x3c, 0x9e, 0x20, 0xf3, 0x41, 0x00,
+<a name="l00116"></a>00116     0x7e, 0x4d, 0xf2, 0x57, 0xfb, 0xbd, 0x54, 0x62, 0xf4, 0x2e, 0x10, 0x9b,
+<a name="l00117"></a>00117     0xda, 0xc8, 0x79, 0x8b, 0x96, 0xb3, 0xa2, 0xa2, 0x62, 0x08, 0x40, 0x55,
+<a name="l00118"></a>00118     0x29, 0xd7, 0xaf, 0xd7, 0x0d, 0x24, 0x27, 0x93, 0x5d, 0x5d, 0x23, 0x66,
+<a name="l00119"></a>00119     0x91, 0x24, 0x03, 0x94, 0x2c, 0xfa, 0xa3, 0x8f, 0x4a, 0x34, 0x09, 0x3b,
+<a name="l00120"></a>00120     0xb9, 0x61, 0x9b, 0x8f, 0x5d, 0x1e, 0x8d, 0xf4, 0x78, 0x28, 0x57, 0xac,
+<a name="l00121"></a>00121     0xd0, 0xbf, 0x91, 0x91, 0x41, 0x7a, 0xbd, 0x24, 0xc9, 0xff, 0xb8, 0x02,
+<a name="l00122"></a>00122     0x7c, 0x34, 0xc7, 0xab, 0x67, 0xdd, 0x4e, 0x46, 0x2d, 0x7d, 0x97, 0x2b,
+<a name="l00123"></a>00123     0xd7, 0x6e, 0x64, 0x4d, 0x4d, 0xcd, 0xd8, 0x00, 0x9d, 0x9e, 0x00, 0xbf,
+<a name="l00124"></a>00124     0xf7, 0x53, 0x3d, 0x63, 0x22, 0x46, 0x63, 0x4e, 0xf1, 0x15, 0x3e, 0x93,
+<a name="l00125"></a>00125     0xff, 0x4b, 0xce, 0x9f, 0x3f, 0x7f, 0x18, 0x80, 0xdc, 0xb9, 0x53, 0xaf,
+<a name="l00126"></a>00126     0xd8, 0x66, 0x23, 0x2f, 0x5f, 0x0e, 0x69, 0xfe, 0xcb, 0x3a, 0x7e, 0xc1,
+<a name="l00127"></a>00127     0x47, 0x5b, 0xa2, 0x9e, 0xd1, 0x45, 0x99, 0x2a, 0xff, 0x79, 0x5d, 0x25,
+<a name="l00128"></a>00128     0xdb, 0xda, 0x28, 0x1d, 0x0e, 0xfd, 0x5b, 0x39, 0x39, 0x7c, 0xf3, 0x6c,
+<a name="l00129"></a>00129     0x3f, 0xa3, 0x93, 0x34, 0xc2, 0x4e, 0x46, 0x2e, 0x54, 0x59, 0xb0, 0xf7,
+<a name="l00130"></a>00130     0x63, 0xae, 0xb9, 0x3d, 0x88, 0x47, 0x03, 0x50, 0x00, 0xc0, 0x03, 0xc9,
+<a name="l00131"></a>00131     0x8c, 0x8d, 0x1a, 0xea, 0xde, 0x36, 0x21, 0x3a, 0x4e, 0xc3, 0xdb, 0xa7,
+<a name="l00132"></a>00132     0x54, 0xe4, 0xff, 0xb0, 0x1f, 0x06, 0xf1, 0x95, 0x2d, 0x42, 0x65, 0x25,
+<a name="l00133"></a>00133     0x50, 0x5a, 0x0a, 0x18, 0x0c, 0x10, 0x87, 0x0e, 0x01, 0x4b, 0x96, 0x84,
+<a name="l00134"></a>00134     0x35, 0x05, 0x6e, 0x49, 0x33, 0xe3, 0xfc, 0x5f, 0x88, 0x05, 0x4b, 0x35,
+<a name="l00135"></a>00135     0xfc, 0xeb, 0x23, 0x23, 0xd2, 0x56, 0x0a, 0xfc, 0xd9, 0xfd, 0x2d, 0x88,
+<a name="l00136"></a>00136     0x63, 0xc7, 0x80, 0x88, 0x08, 0xa0, 0xa2, 0x02, 0x9f, 0xfe, 0xe8, 0xb7,
+<a name="l00137"></a>00137     0xb8, 0x71, 0x5d, 0x20, 0x73, 0x93, 0x8a, 0xbf, 0xd6, 0xf9, 0xb1, 0x7e,
+<a name="l00138"></a>00138     0x59, 0x2f, 0xc2, 0x39, 0x7d, 0x28, 0x00, 0x40, 0x10, 0x52, 0x21, 0x56,
+<a name="l00139"></a>00139     0xac, 0x0a, 0xe0, 0xfc, 0x59, 0xe2, 0xfb, 0xdf, 0x35, 0x05, 0x07, 0x7e,
+<a name="l00140"></a>00140     0xf8, 0x21, 0x98, 0x9b, 0x0b, 0x90, 0xc0, 0xae, 0x5d, 0xc0, 0xa6, 0x4d,
+<a name="l00141"></a>00141     0x61, 0x99, 0x1f, 0xd0, 0x52, 0xa7, 0x11, 0x17, 0x6b, 0x05, 0xd6, 0xfc,
+<a name="l00142"></a>00142     0x58, 0x45, 0xcf, 0x17, 0x06, 0x6c, 0xce, 0x36, 0x20, 0xaf, 0x29, 0x03,
+<a name="l00143"></a>00143     0x85, 0x0b, 0xf6, 0x80, 0x42, 0xe0, 0x37, 0x1d, 0xc5, 0x78, 0x2f, 0x7b,
+<a name="l00144"></a>00144     0x37, 0x6a, 0xde, 0x30, 0x62, 0x9e, 0x23, 0xfc, 0xd5, 0xda, 0x08, 0x00,
+<a name="l00145"></a>00145     0xdf, 0x80, 0x41, 0x34, 0x57, 0x0b, 0x1a, 0x20, 0x60, 0x84, 0x10, 0x52,
+<a name="l00146"></a>00146     0x0e, 0xdf, 0x9d, 0x45, 0xb6, 0xb4, 0x20, 0xea, 0xe0, 0x41, 0xa0, 0xbf,
+<a name="l00147"></a>00147     0x1f, 0x78, 0xe2, 0x09, 0x88, 0xe7, 0x9e, 0x1b, 0x97, 0xf9, 0x01, 0x39,
+<a name="l00148"></a>00148     0xac, 0x0a, 0x4e, 0x1f, 0x10, 0x28, 0x5a, 0xea, 0xc7, 0xef, 0x7e, 0x6d,
+<a name="l00149"></a>00149     0x46, 0x79, 0x49, 0x04, 0x80, 0x9f, 0x61, 0xee, 0xea, 0x0e, 0x3c, 0x5d,
+<a name="l00150"></a>00150     0xfb, 0x22, 0xb2, 0xfe, 0xb4, 0x0b, 0x70, 0xb8, 0x81, 0xe2, 0xe2, 0xb0,
+<a name="l00151"></a>00151     0xbf, 0x39, 0xb8, 0x95, 0x88, 0x80, 0x22, 0x8c, 0x08, 0x3e, 0x33, 0xa6,
+<a name="l00152"></a>00152     0xf5, 0xf4, 0x60, 0xc3, 0xbe, 0x7d, 0x50, 0x6e, 0xdd, 0x02, 0xd6, 0xad,
+<a name="l00153"></a>00153     0x83, 0xa8, 0xa8, 0x00, 0x94, 0x89, 0x6f, 0x62, 0x4d, 0x8a, 0xc0, 0xcb,
+<a name="l00154"></a>00154     0xdb, 0xcd, 0x38, 0xf2, 0xae, 0x1f, 0x09, 0x19, 0x3e, 0x14, 0xee, 0x56,
+<a name="l00155"></a>00155     0x91, 0xf3, 0xc1, 0x2e, 0x88, 0xbd, 0x7b, 0xf5, 0x7d, 0x52, 0x59, 0x19,
+<a name="l00156"></a>00156     0x8c, 0x19, 0x19, 0xb0, 0x35, 0x35, 0x41, 0x84, 0x73, 0x73, 0x3e, 0xd2,
+<a name="l00157"></a>00157     0xc0, 0xd0, 0x34, 0x8d, 0x9f, 0x5e, 0xbe, 0xcc, 0xfa, 0xd5, 0xab, 0xe9,
+<a name="l00158"></a>00158     0x13, 0x82, 0x12, 0xa0, 0xba, 0x76, 0x2d, 0xd9, 0xd7, 0x17, 0xd6, 0xa0,
+<a name="l00159"></a>00159     0x9d, 0xb0, 0xaa, 0xab, 0x29, 0xe7, 0xcc, 0xd1, 0x07, 0x36, 0xc0, 0x16,
+<a name="l00160"></a>00160     0xab, 0x95, 0x47, 0x13, 0x12, 0xd8, 0x92, 0x9f, 0x4f, 0x5f, 0x79, 0x39,
+<a name="l00161"></a>00161     0xd9, 0xda, 0x1a, 0x34, 0x90, 0x83, 0x01, 0x5c, 0x2e, 0xca, 0xd7, 0x5f,
+<a name="l00162"></a>00162     0xa7, 0x7f, 0x60, 0x9e, 0x07, 0xd8, 0x96, 0x95, 0x45, 0xd7, 0xd5, 0xab,
+<a name="l00163"></a>00163     0x93, 0x6b, 0x7e, 0x40, 0x9d, 0x9d, 0x0c, 0x6c, 0xdb, 0x46, 0xcd, 0x62,
+<a name="l00164"></a>00164     0x19, 0xac, 0x7f, 0xf0, 0x49, 0x4d, 0x0d, 0x0d, 0x20, 0xf3, 0xf2, 0xf4,
+<a name="l00165"></a>00165     0x69, 0xed, 0x76, 0xc6, 0x25, 0x40, 0x97, 0xc5, 0xc2, 0x1d, 0x4e, 0xe7,
+<a name="l00166"></a>00166     0xf0, 0x75, 0xe0, 0x1e, 0xc8, 0xeb, 0xf5, 0xf2, 0x7c, 0x75, 0x35, 0x7f,
+<a name="l00167"></a>00167     0xbf, 0x7c, 0x39, 0xdf, 0x8a, 0x8d, 0xe5, 0xf5, 0xf4, 0x74, 0x06, 0xb2,
+<a name="l00168"></a>00168     0xb3, 0xc9, 0x13, 0x27, 0x82, 0x00, 0x86, 0x76, 0xa3, 0x97, 0x2e, 0x01,
+<a name="l00169"></a>00169     0x6e, 0xb7, 0x3e, 0xad, 0x2d, 0x5e, 0x8c, 0xeb, 0x8f, 0x3d, 0x86, 0x57,
+<a name="l00170"></a>00170     0x6e, 0xdd, 0xc2, 0xa9, 0xf7, 0xdf, 0xc7, 0xe2, 0x09, 0xf7, 0xf8, 0x89,
+<a name="l00171"></a>00171     0xcb, 0x6f, 0xb5, 0xa2, 0x76, 0xf6, 0x6c, 0x78, 0x23, 0x23, 0x11, 0x59,
+<a name="l00172"></a>00172     0x54, 0x84, 0x8c, 0x8c, 0x0c, 0xcc, 0x98, 0x31, 0x23, 0xf4, 0xcd, 0x9c,
+<a name="l00173"></a>00173     0x38, 0x73, 0x06, 0xb8, 0x76, 0x0d, 0x88, 0x89, 0x81, 0xb4, 0xd9, 0xd0,
+<a name="l00174"></a>00174     0xf3, 0xd9, 0x67, 0x50, 0x5f, 0x7b, 0xed, 0xde, 0xba, 0x9e, 0x80, 0x86,
+<a name="l00175"></a>00175     0x5a, 0xc0, 0x6a, 0x15, 0x48, 0x4c, 0xd4, 0x7f, 0xcb, 0xe0, 0x43, 0xae,
+<a name="l00176"></a>00176     0xa6, 0x69, 0xe8, 0xbb, 0xc3, 0xc3, 0x48, 0xb8, 0x1a, 0xcf, 0xb5, 0x4a,
+<a name="l00177"></a>00177     0x58, 0x07, 0x1a, 0xaf, 0xd7, 0x8b, 0xa6, 0xa6, 0xa6, 0x09, 0x1b, 0x9a,
+<a name="l00178"></a>00178     0x88, 0x3c, 0x1e, 0x4f, 0x58, 0x71, 0x63, 0x02, 0x78, 0x3c, 0x1e, 0x1c,
+<a name="l00179"></a>00179     0x3e, 0x7c, 0xf8, 0x8e, 0x0d, 0x4d, 0x44, 0xdd, 0xdd, 0xdd, 0x70, 0x3a,
+<a name="l00180"></a>00180     0x9d, 0xa3, 0xc6, 0x8c, 0x08, 0x20, 0x84, 0x80, 0xd9, 0x6c, 0x46, 0x6c,
+<a name="l00181"></a>00181     0x6c, 0x2c, 0xd2, 0xd3, 0xd3, 0x21, 0xa5, 0x9c, 0x14, 0x83, 0x63, 0xc9,
+<a name="l00182"></a>00182     0xe9, 0x74, 0x22, 0x3e, 0x3e, 0x1e, 0x56, 0xab, 0x15, 0x4a, 0x88, 0xc5,
+<a name="l00183"></a>00183     0x53, 0x30, 0xc4, 0x6a, 0xe7, 0xf1, 0x78, 0xd8, 0xde, 0xde, 0x8e, 0x1b,
+<a name="l00184"></a>00184     0x37, 0x6e, 0x4c, 0xa6, 0xc7, 0x31, 0x65, 0x36, 0x9b, 0x31, 0x77, 0xee,
+<a name="l00185"></a>00185     0x5c, 0x38, 0x1c, 0x0e, 0x88, 0x11, 0x6e, 0x97, 0x43, 0x02, 0x00, 0x80,
+<a name="l00186"></a>00186     0xa6, 0x69, 0x9c, 0xca, 0xff, 0x06, 0x00, 0xbd, 0x37, 0x18, 0x8d, 0xc6,
+<a name="l00187"></a>00187     0x11, 0xcd, 0x03, 0x63, 0x00, 0x4c, 0x07, 0x7d, 0xbd, 0xef, 0x46, 0xff,
+<a name="l00188"></a>00188     0x1f, 0x74, 0x1f, 0x60, 0xaa, 0x35, 0xed, 0x01, 0xfe, 0x07, 0x5e, 0xa3,
+<a name="l00189"></a>00189     0xd7, 0x68, 0xad, 0xcf, 0x76, 0xe5, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45,
+<a name="l00190"></a>00190     0x4e, 0x44, 0xae, 0x42, 0x60, 0x82
+<a name="l00191"></a>00191 };
+<a name="l00192"></a>00192 
+<a name="l00193"></a>00193 
+<a name="l00194"></a>00194 <span class="comment">/*</span>
+<a name="l00195"></a>00195 <span class="comment"> *  Constructs a DlgGraphSetup as a child of 'parent', with the</span>
+<a name="l00196"></a>00196 <span class="comment"> *  name 'name' and widget flags set to 'f'.</span>
+<a name="l00197"></a>00197 <span class="comment"> *</span>
+<a name="l00198"></a>00198 <span class="comment"> *  The dialog will by default be modeless, unless you set 'modal' to</span>
+<a name="l00199"></a>00199 <span class="comment"> *  TRUE to construct a modal dialog.</span>
+<a name="l00200"></a>00200 <span class="comment"> */</span>
+<a name="l00201"></a><a class="code" href="class_dlg_graph_setup.html#44310768effca17e2d27036419aaa0d0">00201</a> <a class="code" href="class_dlg_graph_setup.html#44310768effca17e2d27036419aaa0d0">DlgGraphSetup::DlgGraphSetup</a>( QWidget* parent, <span class="keyword">const</span> <span class="keywordtype">char</span>* name, <span class="keywordtype">bool</span> modal, WFlags fl )
+<a name="l00202"></a>00202     : QDialog( parent, name, modal, fl )
+<a name="l00203"></a>00203 {
+<a name="l00204"></a>00204     QImage img;
+<a name="l00205"></a>00205     img.loadFromData( img0_graphdialog, <span class="keyword">sizeof</span>( img0_graphdialog ), <span class="stringliteral">"PNG"</span> );
+<a name="l00206"></a>00206     <a class="code" href="class_dlg_graph_setup.html#3b946237234cf14c39f42a0b7c9eec3f">image0</a> = img;
+<a name="l00207"></a>00207     <span class="keywordflow">if</span> ( !name )
+<a name="l00208"></a>00208         setName( <span class="stringliteral">"DlgGraphSetup"</span> );
+<a name="l00209"></a>00209     setIcon( <a class="code" href="class_dlg_graph_setup.html#3b946237234cf14c39f42a0b7c9eec3f">image0</a> );
+<a name="l00210"></a>00210     setSizeGripEnabled( TRUE );
+<a name="l00211"></a>00211     <a class="code" href="class_dlg_graph_setup.html#41badf74a6c427ad0c96fd63b27f6588">DlgGraphSetupLayout</a> = <span class="keyword">new</span> QGridLayout( <span class="keyword">this</span>, 1, 1, 2, 6, <span class="stringliteral">"DlgGraphSetupLayout"</span>); 
+<a name="l00212"></a>00212 
+<a name="l00213"></a>00213     <a class="code" href="class_dlg_graph_setup.html#7fcbb88193f92b471dfd6e6bd881eaee">Layout1</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"Layout1"</span>); 
+<a name="l00214"></a>00214 
+<a name="l00215"></a>00215     <a class="code" href="class_dlg_graph_setup.html#1359d38582fde977290c394830afd7f5">buttonHelp</a> = <span class="keyword">new</span> QPushButton( <span class="keyword">this</span>, <span class="stringliteral">"buttonHelp"</span> );
+<a name="l00216"></a>00216     <a class="code" href="class_dlg_graph_setup.html#1359d38582fde977290c394830afd7f5">buttonHelp</a>-&gt;setEnabled( FALSE );
+<a name="l00217"></a>00217     <a class="code" href="class_dlg_graph_setup.html#1359d38582fde977290c394830afd7f5">buttonHelp</a>-&gt;setAutoDefault( TRUE );
+<a name="l00218"></a>00218     <a class="code" href="class_dlg_graph_setup.html#7fcbb88193f92b471dfd6e6bd881eaee">Layout1</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#1359d38582fde977290c394830afd7f5">buttonHelp</a> );
+<a name="l00219"></a>00219     <a class="code" href="class_dlg_graph_setup.html#5af1c715ebfa21cd399338f4c5d69df4">Horizontal_Spacing2</a> = <span class="keyword">new</span> QSpacerItem( 20, 20, QSizePolicy::Expanding, QSizePolicy::Minimum );
+<a name="l00220"></a>00220     <a class="code" href="class_dlg_graph_setup.html#7fcbb88193f92b471dfd6e6bd881eaee">Layout1</a>-&gt;addItem( <a class="code" href="class_dlg_graph_setup.html#5af1c715ebfa21cd399338f4c5d69df4">Horizontal_Spacing2</a> );
+<a name="l00221"></a>00221 
+<a name="l00222"></a>00222     <a class="code" href="class_dlg_graph_setup.html#a12aa3d3288222b3b9eeb97ecc5f5639">buttonOk</a> = <span class="keyword">new</span> QPushButton( <span class="keyword">this</span>, <span class="stringliteral">"buttonOk"</span> );
+<a name="l00223"></a>00223     <a class="code" href="class_dlg_graph_setup.html#a12aa3d3288222b3b9eeb97ecc5f5639">buttonOk</a>-&gt;setAutoDefault( FALSE );
+<a name="l00224"></a>00224     <a class="code" href="class_dlg_graph_setup.html#a12aa3d3288222b3b9eeb97ecc5f5639">buttonOk</a>-&gt;setDefault( FALSE );
+<a name="l00225"></a>00225     <a class="code" href="class_dlg_graph_setup.html#7fcbb88193f92b471dfd6e6bd881eaee">Layout1</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#a12aa3d3288222b3b9eeb97ecc5f5639">buttonOk</a> );
+<a name="l00226"></a>00226 
+<a name="l00227"></a>00227     <a class="code" href="class_dlg_graph_setup.html#41badf74a6c427ad0c96fd63b27f6588">DlgGraphSetupLayout</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#7fcbb88193f92b471dfd6e6bd881eaee">Layout1</a>, 1, 0 );
+<a name="l00228"></a>00228 
+<a name="l00229"></a>00229     <a class="code" href="class_dlg_graph_setup.html#a8df23c32fab1f11764b5f01f2819edc">tab1</a> = <span class="keyword">new</span> QTabWidget( <span class="keyword">this</span>, <span class="stringliteral">"tab1"</span> );
+<a name="l00230"></a>00230 
+<a name="l00231"></a>00231     <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a> = <span class="keyword">new</span> QWidget( <a class="code" href="class_dlg_graph_setup.html#a8df23c32fab1f11764b5f01f2819edc">tab1</a>, <span class="stringliteral">"tab"</span> );
+<a name="l00232"></a>00232     <a class="code" href="class_dlg_graph_setup.html#7150d9c9df5fa57c68be0b020256d056">tabLayout</a> = <span class="keyword">new</span> QGridLayout( <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>, 1, 1, 2, 6, <span class="stringliteral">"tabLayout"</span>); 
+<a name="l00233"></a>00233 
+<a name="l00234"></a>00234     <a class="code" href="class_dlg_graph_setup.html#be104417d855f924b31a42d6aac1b51b">layout20_2_2</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout20_2_2"</span>); 
+<a name="l00235"></a>00235 
+<a name="l00236"></a>00236     <a class="code" href="class_dlg_graph_setup.html#f3e0237f0b8a6ac9a2c9f91caffa14b9">ckbDrawBars</a> = <span class="keyword">new</span> QCheckBox( <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>, <span class="stringliteral">"ckbDrawBars"</span> );
+<a name="l00237"></a>00237     <a class="code" href="class_dlg_graph_setup.html#f3e0237f0b8a6ac9a2c9f91caffa14b9">ckbDrawBars</a>-&gt;setEnabled( FALSE );
+<a name="l00238"></a>00238     <a class="code" href="class_dlg_graph_setup.html#be104417d855f924b31a42d6aac1b51b">layout20_2_2</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#f3e0237f0b8a6ac9a2c9f91caffa14b9">ckbDrawBars</a> );
+<a name="l00239"></a>00239     <a class="code" href="class_dlg_graph_setup.html#7f528d3a2a0b26a172c4690c159d6471">spacer2_2_2</a> = <span class="keyword">new</span> QSpacerItem( 20, 20, QSizePolicy::Expanding, QSizePolicy::Minimum );
+<a name="l00240"></a>00240     <a class="code" href="class_dlg_graph_setup.html#be104417d855f924b31a42d6aac1b51b">layout20_2_2</a>-&gt;addItem( <a class="code" href="class_dlg_graph_setup.html#7f528d3a2a0b26a172c4690c159d6471">spacer2_2_2</a> );
+<a name="l00241"></a>00241 
+<a name="l00242"></a>00242     <a class="code" href="class_dlg_graph_setup.html#f53b3e4b6d97d8e681ce3b29bcd56e46">layout18_2_2</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout18_2_2"</span>); 
+<a name="l00243"></a>00243 
+<a name="l00244"></a>00244     <a class="code" href="class_dlg_graph_setup.html#5e9f03b6b1f922aa3efa4ca9f3828964">clrBarColor</a> = <span class="keyword">new</span> KColorCombo( <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>, <span class="stringliteral">"clrBarColor"</span> );
+<a name="l00245"></a>00245     <a class="code" href="class_dlg_graph_setup.html#5e9f03b6b1f922aa3efa4ca9f3828964">clrBarColor</a>-&gt;setEnabled( FALSE );
+<a name="l00246"></a>00246     <a class="code" href="class_dlg_graph_setup.html#f53b3e4b6d97d8e681ce3b29bcd56e46">layout18_2_2</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#5e9f03b6b1f922aa3efa4ca9f3828964">clrBarColor</a> );
+<a name="l00247"></a>00247     <a class="code" href="class_dlg_graph_setup.html#be104417d855f924b31a42d6aac1b51b">layout20_2_2</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#f53b3e4b6d97d8e681ce3b29bcd56e46">layout18_2_2</a> );
+<a name="l00248"></a>00248 
+<a name="l00249"></a>00249     <a class="code" href="class_dlg_graph_setup.html#7150d9c9df5fa57c68be0b020256d056">tabLayout</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#be104417d855f924b31a42d6aac1b51b">layout20_2_2</a>, 3, 0 );
+<a name="l00250"></a>00250 
+<a name="l00251"></a>00251     <a class="code" href="class_dlg_graph_setup.html#4a24bf6d6ee1e096d67b5262a91efb21">layout20_2</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout20_2"</span>); 
+<a name="l00252"></a>00252 
+<a name="l00253"></a>00253     <a class="code" href="class_dlg_graph_setup.html#0cdd0f294f8e80d236db89170ba6a8fd">ckbDrawLines</a> = <span class="keyword">new</span> QCheckBox( <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>, <span class="stringliteral">"ckbDrawLines"</span> );
+<a name="l00254"></a>00254     <a class="code" href="class_dlg_graph_setup.html#0cdd0f294f8e80d236db89170ba6a8fd">ckbDrawLines</a>-&gt;setEnabled( FALSE );
+<a name="l00255"></a>00255     <a class="code" href="class_dlg_graph_setup.html#4a24bf6d6ee1e096d67b5262a91efb21">layout20_2</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#0cdd0f294f8e80d236db89170ba6a8fd">ckbDrawLines</a> );
+<a name="l00256"></a>00256     <a class="code" href="class_dlg_graph_setup.html#2423c44d2b324c5c9260ac328ac8ba13">spacer2_2</a> = <span class="keyword">new</span> QSpacerItem( 20, 20, QSizePolicy::Expanding, QSizePolicy::Minimum );
+<a name="l00257"></a>00257     <a class="code" href="class_dlg_graph_setup.html#4a24bf6d6ee1e096d67b5262a91efb21">layout20_2</a>-&gt;addItem( <a class="code" href="class_dlg_graph_setup.html#2423c44d2b324c5c9260ac328ac8ba13">spacer2_2</a> );
+<a name="l00258"></a>00258 
+<a name="l00259"></a>00259     <a class="code" href="class_dlg_graph_setup.html#525414ed50bd0213efa7e83913d0ce07">layout18_2</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout18_2"</span>); 
+<a name="l00260"></a>00260 
+<a name="l00261"></a>00261     <a class="code" href="class_dlg_graph_setup.html#e2954494de82abf82bfa9978fb502438">clrLineColor</a> = <span class="keyword">new</span> KColorCombo( <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>, <span class="stringliteral">"clrLineColor"</span> );
+<a name="l00262"></a>00262     <a class="code" href="class_dlg_graph_setup.html#e2954494de82abf82bfa9978fb502438">clrLineColor</a>-&gt;setEnabled( FALSE );
+<a name="l00263"></a>00263     <a class="code" href="class_dlg_graph_setup.html#525414ed50bd0213efa7e83913d0ce07">layout18_2</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#e2954494de82abf82bfa9978fb502438">clrLineColor</a> );
+<a name="l00264"></a>00264     <a class="code" href="class_dlg_graph_setup.html#4a24bf6d6ee1e096d67b5262a91efb21">layout20_2</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#525414ed50bd0213efa7e83913d0ce07">layout18_2</a> );
+<a name="l00265"></a>00265 
+<a name="l00266"></a>00266     <a class="code" href="class_dlg_graph_setup.html#7150d9c9df5fa57c68be0b020256d056">tabLayout</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#4a24bf6d6ee1e096d67b5262a91efb21">layout20_2</a>, 2, 0 );
+<a name="l00267"></a>00267 
+<a name="l00268"></a>00268     <a class="code" href="class_dlg_graph_setup.html#ea40a31a3fc5980f200fc8717738b369">layout20</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout20"</span>); 
+<a name="l00269"></a>00269 
+<a name="l00270"></a>00270     <a class="code" href="class_dlg_graph_setup.html#cce7b12e1b2b4b34dc5a2b9be41b655a">ckbDrawPoints</a> = <span class="keyword">new</span> QCheckBox( <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>, <span class="stringliteral">"ckbDrawPoints"</span> );
+<a name="l00271"></a>00271     <a class="code" href="class_dlg_graph_setup.html#cce7b12e1b2b4b34dc5a2b9be41b655a">ckbDrawPoints</a>-&gt;setEnabled( FALSE );
+<a name="l00272"></a>00272     <a class="code" href="class_dlg_graph_setup.html#ea40a31a3fc5980f200fc8717738b369">layout20</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#cce7b12e1b2b4b34dc5a2b9be41b655a">ckbDrawPoints</a> );
+<a name="l00273"></a>00273     <a class="code" href="class_dlg_graph_setup.html#4996d01581dd7be1bdda22cd1675180b">spacer2</a> = <span class="keyword">new</span> QSpacerItem( 20, 20, QSizePolicy::Expanding, QSizePolicy::Minimum );
+<a name="l00274"></a>00274     <a class="code" href="class_dlg_graph_setup.html#ea40a31a3fc5980f200fc8717738b369">layout20</a>-&gt;addItem( <a class="code" href="class_dlg_graph_setup.html#4996d01581dd7be1bdda22cd1675180b">spacer2</a> );
+<a name="l00275"></a>00275 
+<a name="l00276"></a>00276     <a class="code" href="class_dlg_graph_setup.html#a4824f7f0f47179ccc6b28b06c03a435">layout18</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout18"</span>); 
+<a name="l00277"></a>00277 
+<a name="l00278"></a>00278     <a class="code" href="class_dlg_graph_setup.html#85d9838985ae10d73e173a79414b348c">clrPointColor</a> = <span class="keyword">new</span> KColorCombo( <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>, <span class="stringliteral">"clrPointColor"</span> );
+<a name="l00279"></a>00279     <a class="code" href="class_dlg_graph_setup.html#85d9838985ae10d73e173a79414b348c">clrPointColor</a>-&gt;setEnabled( FALSE );
+<a name="l00280"></a>00280     <a class="code" href="class_dlg_graph_setup.html#a4824f7f0f47179ccc6b28b06c03a435">layout18</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#85d9838985ae10d73e173a79414b348c">clrPointColor</a> );
+<a name="l00281"></a>00281     <a class="code" href="class_dlg_graph_setup.html#ea40a31a3fc5980f200fc8717738b369">layout20</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#a4824f7f0f47179ccc6b28b06c03a435">layout18</a> );
+<a name="l00282"></a>00282 
+<a name="l00283"></a>00283     <a class="code" href="class_dlg_graph_setup.html#7150d9c9df5fa57c68be0b020256d056">tabLayout</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#ea40a31a3fc5980f200fc8717738b369">layout20</a>, 1, 0 );
+<a name="l00284"></a>00284 
+<a name="l00285"></a>00285     <a class="code" href="class_dlg_graph_setup.html#eced333f887095aa9226412d941236e8">layout28</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout28"</span>); 
+<a name="l00286"></a>00286 
+<a name="l00287"></a>00287     <a class="code" href="class_dlg_graph_setup.html#7422b081ef91e8db8f18abe495b23e7e">ckbDisplayMajorGrids</a> = <span class="keyword">new</span> QCheckBox( <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>, <span class="stringliteral">"ckbDisplayMajorGrids"</span> );
+<a name="l00288"></a>00288     <a class="code" href="class_dlg_graph_setup.html#7422b081ef91e8db8f18abe495b23e7e">ckbDisplayMajorGrids</a>-&gt;setEnabled( FALSE );
+<a name="l00289"></a>00289     <a class="code" href="class_dlg_graph_setup.html#eced333f887095aa9226412d941236e8">layout28</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#7422b081ef91e8db8f18abe495b23e7e">ckbDisplayMajorGrids</a> );
+<a name="l00290"></a>00290     <a class="code" href="class_dlg_graph_setup.html#cea7213e1b07763b14fe4f2754a9e137">spacer7</a> = <span class="keyword">new</span> QSpacerItem( 33, 20, QSizePolicy::Expanding, QSizePolicy::Minimum );
+<a name="l00291"></a>00291     <a class="code" href="class_dlg_graph_setup.html#eced333f887095aa9226412d941236e8">layout28</a>-&gt;addItem( <a class="code" href="class_dlg_graph_setup.html#cea7213e1b07763b14fe4f2754a9e137">spacer7</a> );
+<a name="l00292"></a>00292 
+<a name="l00293"></a>00293     <a class="code" href="class_dlg_graph_setup.html#4b0168c9182721e46d151bbf1fc9fb9c">clrMajorGridColor</a> = <span class="keyword">new</span> KColorCombo( <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>, <span class="stringliteral">"clrMajorGridColor"</span> );
+<a name="l00294"></a>00294     <a class="code" href="class_dlg_graph_setup.html#4b0168c9182721e46d151bbf1fc9fb9c">clrMajorGridColor</a>-&gt;setEnabled( FALSE );
+<a name="l00295"></a>00295     <a class="code" href="class_dlg_graph_setup.html#eced333f887095aa9226412d941236e8">layout28</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#4b0168c9182721e46d151bbf1fc9fb9c">clrMajorGridColor</a> );
+<a name="l00296"></a>00296 
+<a name="l00297"></a>00297     <a class="code" href="class_dlg_graph_setup.html#7150d9c9df5fa57c68be0b020256d056">tabLayout</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#eced333f887095aa9226412d941236e8">layout28</a>, 4, 0 );
+<a name="l00298"></a>00298 
+<a name="l00299"></a>00299     <a class="code" href="class_dlg_graph_setup.html#7cf5237b7c5733adafdc84b0c2513927">layout29</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout29"</span>); 
+<a name="l00300"></a>00300 
+<a name="l00301"></a>00301     <a class="code" href="class_dlg_graph_setup.html#045337406728d64b85addbdb6d99a4b9">ckbDisplayMinorGrids</a> = <span class="keyword">new</span> QCheckBox( <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>, <span class="stringliteral">"ckbDisplayMinorGrids"</span> );
+<a name="l00302"></a>00302     <a class="code" href="class_dlg_graph_setup.html#045337406728d64b85addbdb6d99a4b9">ckbDisplayMinorGrids</a>-&gt;setEnabled( FALSE );
+<a name="l00303"></a>00303     <a class="code" href="class_dlg_graph_setup.html#7cf5237b7c5733adafdc84b0c2513927">layout29</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#045337406728d64b85addbdb6d99a4b9">ckbDisplayMinorGrids</a> );
+<a name="l00304"></a>00304     <a class="code" href="class_dlg_graph_setup.html#24cb3be551990aeede58b23bf9606110">spacer8</a> = <span class="keyword">new</span> QSpacerItem( 31, 20, QSizePolicy::Expanding, QSizePolicy::Minimum );
+<a name="l00305"></a>00305     <a class="code" href="class_dlg_graph_setup.html#7cf5237b7c5733adafdc84b0c2513927">layout29</a>-&gt;addItem( <a class="code" href="class_dlg_graph_setup.html#24cb3be551990aeede58b23bf9606110">spacer8</a> );
+<a name="l00306"></a>00306 
+<a name="l00307"></a>00307     <a class="code" href="class_dlg_graph_setup.html#d5bfdcd1cf098b2c4da7ff0906183372">clrMinorGridColor</a> = <span class="keyword">new</span> KColorCombo( <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>, <span class="stringliteral">"clrMinorGridColor"</span> );
+<a name="l00308"></a>00308     <a class="code" href="class_dlg_graph_setup.html#d5bfdcd1cf098b2c4da7ff0906183372">clrMinorGridColor</a>-&gt;setEnabled( FALSE );
+<a name="l00309"></a>00309     <a class="code" href="class_dlg_graph_setup.html#7cf5237b7c5733adafdc84b0c2513927">layout29</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#d5bfdcd1cf098b2c4da7ff0906183372">clrMinorGridColor</a> );
+<a name="l00310"></a>00310 
+<a name="l00311"></a>00311     <a class="code" href="class_dlg_graph_setup.html#7150d9c9df5fa57c68be0b020256d056">tabLayout</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#7cf5237b7c5733adafdc84b0c2513927">layout29</a>, 5, 0 );
+<a name="l00312"></a>00312 
+<a name="l00313"></a>00313     <a class="code" href="class_dlg_graph_setup.html#5b8175561a360f5f50b05e774d8735eb">layout21</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout21"</span>); 
+<a name="l00314"></a>00314 
+<a name="l00315"></a>00315     <a class="code" href="class_dlg_graph_setup.html#cf7701eafc75e92ddea5edb5afb0e0e7">lbPlots</a> = <span class="keyword">new</span> QListBox( <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>, <span class="stringliteral">"lbPlots"</span> );
+<a name="l00316"></a>00316     <a class="code" href="class_dlg_graph_setup.html#cf7701eafc75e92ddea5edb5afb0e0e7">lbPlots</a>-&gt;setEnabled( FALSE );
+<a name="l00317"></a>00317     <a class="code" href="class_dlg_graph_setup.html#5b8175561a360f5f50b05e774d8735eb">layout21</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#cf7701eafc75e92ddea5edb5afb0e0e7">lbPlots</a> );
+<a name="l00318"></a>00318 
+<a name="l00319"></a>00319     <a class="code" href="class_dlg_graph_setup.html#4c64ac3f8ed6a4982486375cc3b88be2">layout19</a> = <span class="keyword">new</span> QVBoxLayout( 0, 0, 6, <span class="stringliteral">"layout19"</span>); 
+<a name="l00320"></a>00320 
+<a name="l00321"></a>00321     <a class="code" href="class_dlg_graph_setup.html#7651dffec81a601744b24b1a74867057">layout16</a> = <span class="keyword">new</span> QVBoxLayout( 0, 0, 6, <span class="stringliteral">"layout16"</span>); 
+<a name="l00322"></a>00322 
+<a name="l00323"></a>00323     <a class="code" href="class_dlg_graph_setup.html#54303b11e65bc040071e6cab8e7a7d52">textLabel3</a> = <span class="keyword">new</span> QLabel( <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>, <span class="stringliteral">"textLabel3"</span> );
+<a name="l00324"></a>00324     <a class="code" href="class_dlg_graph_setup.html#7651dffec81a601744b24b1a74867057">layout16</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#54303b11e65bc040071e6cab8e7a7d52">textLabel3</a> );
+<a name="l00325"></a>00325 
+<a name="l00326"></a>00326     <a class="code" href="class_dlg_graph_setup.html#fb2a941ca5f4c6c2f339b677845a970b">edMaxCount</a> = <span class="keyword">new</span> QLineEdit( <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>, <span class="stringliteral">"edMaxCount"</span> );
+<a name="l00327"></a>00327     <a class="code" href="class_dlg_graph_setup.html#fb2a941ca5f4c6c2f339b677845a970b">edMaxCount</a>-&gt;setEnabled( FALSE );
+<a name="l00328"></a>00328     <a class="code" href="class_dlg_graph_setup.html#7651dffec81a601744b24b1a74867057">layout16</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#fb2a941ca5f4c6c2f339b677845a970b">edMaxCount</a> );
+<a name="l00329"></a>00329     <a class="code" href="class_dlg_graph_setup.html#4c64ac3f8ed6a4982486375cc3b88be2">layout19</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#7651dffec81a601744b24b1a74867057">layout16</a> );
+<a name="l00330"></a>00330 
+<a name="l00331"></a>00331     <a class="code" href="class_dlg_graph_setup.html#8d21cdea731eebbb8b17bb12175391f7">btnClearPoints</a> = <span class="keyword">new</span> QPushButton( <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>, <span class="stringliteral">"btnClearPoints"</span> );
+<a name="l00332"></a>00332     <a class="code" href="class_dlg_graph_setup.html#8d21cdea731eebbb8b17bb12175391f7">btnClearPoints</a>-&gt;setEnabled( FALSE );
+<a name="l00333"></a>00333     <a class="code" href="class_dlg_graph_setup.html#4c64ac3f8ed6a4982486375cc3b88be2">layout19</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#8d21cdea731eebbb8b17bb12175391f7">btnClearPoints</a> );
+<a name="l00334"></a>00334     <a class="code" href="class_dlg_graph_setup.html#5b8175561a360f5f50b05e774d8735eb">layout21</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#4c64ac3f8ed6a4982486375cc3b88be2">layout19</a> );
+<a name="l00335"></a>00335 
+<a name="l00336"></a>00336     <a class="code" href="class_dlg_graph_setup.html#7150d9c9df5fa57c68be0b020256d056">tabLayout</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#5b8175561a360f5f50b05e774d8735eb">layout21</a>, 0, 0 );
+<a name="l00337"></a>00337 
+<a name="l00338"></a>00338     <a class="code" href="class_dlg_graph_setup.html#2212d6e897d600991b66383f263386c4">layout22</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout22"</span>); 
+<a name="l00339"></a>00339 
+<a name="l00340"></a>00340     <a class="code" href="class_dlg_graph_setup.html#798fd5c1475e9a2a81ec41ab6510a130">textLabel1_4</a> = <span class="keyword">new</span> QLabel( <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>, <span class="stringliteral">"textLabel1_4"</span> );
+<a name="l00341"></a>00341     <a class="code" href="class_dlg_graph_setup.html#2212d6e897d600991b66383f263386c4">layout22</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#798fd5c1475e9a2a81ec41ab6510a130">textLabel1_4</a> );
+<a name="l00342"></a>00342 
+<a name="l00343"></a>00343     <a class="code" href="class_dlg_graph_setup.html#12ccb434076e250814363f9a73848045">dblIntensity</a> = <span class="keyword">new</span> KDoubleNumInput( <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>, <span class="stringliteral">"dblIntensity"</span> );
+<a name="l00344"></a>00344     <a class="code" href="class_dlg_graph_setup.html#12ccb434076e250814363f9a73848045">dblIntensity</a>-&gt;setEnabled( FALSE );
+<a name="l00345"></a>00345     <a class="code" href="class_dlg_graph_setup.html#12ccb434076e250814363f9a73848045">dblIntensity</a>-&gt;setMaxValue( 2 );
+<a name="l00346"></a>00346     <a class="code" href="class_dlg_graph_setup.html#12ccb434076e250814363f9a73848045">dblIntensity</a>-&gt;setPrecision( 2 );
+<a name="l00347"></a>00347     <a class="code" href="class_dlg_graph_setup.html#2212d6e897d600991b66383f263386c4">layout22</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#12ccb434076e250814363f9a73848045">dblIntensity</a> );
+<a name="l00348"></a>00348 
+<a name="l00349"></a>00349     <a class="code" href="class_dlg_graph_setup.html#7150d9c9df5fa57c68be0b020256d056">tabLayout</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#2212d6e897d600991b66383f263386c4">layout22</a>, 6, 0 );
+<a name="l00350"></a>00350 
+<a name="l00351"></a>00351     <a class="code" href="class_dlg_graph_setup.html#bb3b5311aae4b5fd23886f9769c6adf5">layout26</a> = <span class="keyword">new</span> QVBoxLayout( 0, 0, 6, <span class="stringliteral">"layout26"</span>); 
+<a name="l00352"></a>00352 
+<a name="l00353"></a>00353     <a class="code" href="class_dlg_graph_setup.html#2e01eca45034dedb0a84e40a6100f7f1">ckbColorPlot</a> = <span class="keyword">new</span> QCheckBox( <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>, <span class="stringliteral">"ckbColorPlot"</span> );
+<a name="l00354"></a>00354     <a class="code" href="class_dlg_graph_setup.html#2e01eca45034dedb0a84e40a6100f7f1">ckbColorPlot</a>-&gt;setEnabled( FALSE );
+<a name="l00355"></a>00355     <a class="code" href="class_dlg_graph_setup.html#bb3b5311aae4b5fd23886f9769c6adf5">layout26</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#2e01eca45034dedb0a84e40a6100f7f1">ckbColorPlot</a> );
+<a name="l00356"></a>00356 
+<a name="l00357"></a>00357     <a class="code" href="class_dlg_graph_setup.html#5b0b6f8716ef0bb1ebf872fca340cb6b">layout25</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout25"</span>); 
+<a name="l00358"></a>00358 
+<a name="l00359"></a>00359     <a class="code" href="class_dlg_graph_setup.html#e31b55fc0dba932ec7e930142d3e3788">clrColorPlotLow</a> = <span class="keyword">new</span> KColorCombo( <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>, <span class="stringliteral">"clrColorPlotLow"</span> );
+<a name="l00360"></a>00360     <a class="code" href="class_dlg_graph_setup.html#e31b55fc0dba932ec7e930142d3e3788">clrColorPlotLow</a>-&gt;setEnabled( FALSE );
+<a name="l00361"></a>00361     <a class="code" href="class_dlg_graph_setup.html#5b0b6f8716ef0bb1ebf872fca340cb6b">layout25</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#e31b55fc0dba932ec7e930142d3e3788">clrColorPlotLow</a> );
+<a name="l00362"></a>00362 
+<a name="l00363"></a>00363     <a class="code" href="class_dlg_graph_setup.html#09ce49b80b8d1281a6fe56ec4a553c5a">clrColorPlotHigh</a> = <span class="keyword">new</span> KColorCombo( <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>, <span class="stringliteral">"clrColorPlotHigh"</span> );
+<a name="l00364"></a>00364     <a class="code" href="class_dlg_graph_setup.html#09ce49b80b8d1281a6fe56ec4a553c5a">clrColorPlotHigh</a>-&gt;setEnabled( FALSE );
+<a name="l00365"></a>00365     <a class="code" href="class_dlg_graph_setup.html#5b0b6f8716ef0bb1ebf872fca340cb6b">layout25</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#09ce49b80b8d1281a6fe56ec4a553c5a">clrColorPlotHigh</a> );
+<a name="l00366"></a>00366     <a class="code" href="class_dlg_graph_setup.html#bb3b5311aae4b5fd23886f9769c6adf5">layout26</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#5b0b6f8716ef0bb1ebf872fca340cb6b">layout25</a> );
+<a name="l00367"></a>00367 
+<a name="l00368"></a>00368     <a class="code" href="class_dlg_graph_setup.html#7150d9c9df5fa57c68be0b020256d056">tabLayout</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#bb3b5311aae4b5fd23886f9769c6adf5">layout26</a>, 7, 0 );
+<a name="l00369"></a>00369     <a class="code" href="class_dlg_graph_setup.html#a8df23c32fab1f11764b5f01f2819edc">tab1</a>-&gt;insertTab( <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>, QString::fromLatin1(<span class="stringliteral">""</span>) );
+<a name="l00370"></a>00370 
+<a name="l00371"></a>00371     <a class="code" href="class_dlg_graph_setup.html#5269aa9ef27c588ce2cb6798ae042168">tab_2</a> = <span class="keyword">new</span> QWidget( <a class="code" href="class_dlg_graph_setup.html#a8df23c32fab1f11764b5f01f2819edc">tab1</a>, <span class="stringliteral">"tab_2"</span> );
+<a name="l00372"></a>00372     <a class="code" href="class_dlg_graph_setup.html#33486a5567459bb403b75430509f2450">tabLayout_2</a> = <span class="keyword">new</span> QGridLayout( <a class="code" href="class_dlg_graph_setup.html#5269aa9ef27c588ce2cb6798ae042168">tab_2</a>, 1, 1, 2, 6, <span class="stringliteral">"tabLayout_2"</span>); 
+<a name="l00373"></a>00373 
+<a name="l00374"></a>00374     <a class="code" href="class_dlg_graph_setup.html#7b15aae641bdef4f52107a5612f7e209">layout14</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout14"</span>); 
+<a name="l00375"></a>00375 
+<a name="l00376"></a>00376     <a class="code" href="class_dlg_graph_setup.html#ea73ecefa95c26dc70840d7ae6b2528c">textLabel1_3</a> = <span class="keyword">new</span> QLabel( <a class="code" href="class_dlg_graph_setup.html#5269aa9ef27c588ce2cb6798ae042168">tab_2</a>, <span class="stringliteral">"textLabel1_3"</span> );
+<a name="l00377"></a>00377     <a class="code" href="class_dlg_graph_setup.html#7b15aae641bdef4f52107a5612f7e209">layout14</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#ea73ecefa95c26dc70840d7ae6b2528c">textLabel1_3</a> );
+<a name="l00378"></a>00378 
+<a name="l00379"></a>00379     <a class="code" href="class_dlg_graph_setup.html#f46018cf09d09a2861dfa00591fb1c7b">edTicLabelFormat</a> = <span class="keyword">new</span> QLineEdit( <a class="code" href="class_dlg_graph_setup.html#5269aa9ef27c588ce2cb6798ae042168">tab_2</a>, <span class="stringliteral">"edTicLabelFormat"</span> );
+<a name="l00380"></a>00380     <a class="code" href="class_dlg_graph_setup.html#f46018cf09d09a2861dfa00591fb1c7b">edTicLabelFormat</a>-&gt;setEnabled( FALSE );
+<a name="l00381"></a>00381     <a class="code" href="class_dlg_graph_setup.html#7b15aae641bdef4f52107a5612f7e209">layout14</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#f46018cf09d09a2861dfa00591fb1c7b">edTicLabelFormat</a> );
+<a name="l00382"></a>00382 
+<a name="l00383"></a>00383     <a class="code" href="class_dlg_graph_setup.html#33486a5567459bb403b75430509f2450">tabLayout_2</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#7b15aae641bdef4f52107a5612f7e209">layout14</a>, 2, 0 );
+<a name="l00384"></a>00384 
+<a name="l00385"></a>00385     <a class="code" href="class_dlg_graph_setup.html#2cda74bded03d0c28cf0464d1f9de46f">layout15</a> = <span class="keyword">new</span> QVBoxLayout( 0, 0, 6, <span class="stringliteral">"layout15"</span>); 
+<a name="l00386"></a>00386 
+<a name="l00387"></a>00387     <a class="code" href="class_dlg_graph_setup.html#07513986d087c1cfa0c09e36944b1343">ckbDisplayTicLabels</a> = <span class="keyword">new</span> QCheckBox( <a class="code" href="class_dlg_graph_setup.html#5269aa9ef27c588ce2cb6798ae042168">tab_2</a>, <span class="stringliteral">"ckbDisplayTicLabels"</span> );
+<a name="l00388"></a>00388     <a class="code" href="class_dlg_graph_setup.html#07513986d087c1cfa0c09e36944b1343">ckbDisplayTicLabels</a>-&gt;setEnabled( FALSE );
+<a name="l00389"></a>00389     <a class="code" href="class_dlg_graph_setup.html#07513986d087c1cfa0c09e36944b1343">ckbDisplayTicLabels</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_dlg_graph_setup.html#07513986d087c1cfa0c09e36944b1343">ckbDisplayTicLabels</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00390"></a>00390     <a class="code" href="class_dlg_graph_setup.html#2cda74bded03d0c28cf0464d1f9de46f">layout15</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#07513986d087c1cfa0c09e36944b1343">ckbDisplayTicLabels</a> );
+<a name="l00391"></a>00391 
+<a name="l00392"></a>00392     <a class="code" href="class_dlg_graph_setup.html#6e42520cb4232c99aecfb99236521af2">ckbDisplayMajorTics</a> = <span class="keyword">new</span> QCheckBox( <a class="code" href="class_dlg_graph_setup.html#5269aa9ef27c588ce2cb6798ae042168">tab_2</a>, <span class="stringliteral">"ckbDisplayMajorTics"</span> );
+<a name="l00393"></a>00393     <a class="code" href="class_dlg_graph_setup.html#6e42520cb4232c99aecfb99236521af2">ckbDisplayMajorTics</a>-&gt;setEnabled( FALSE );
+<a name="l00394"></a>00394     <a class="code" href="class_dlg_graph_setup.html#6e42520cb4232c99aecfb99236521af2">ckbDisplayMajorTics</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_dlg_graph_setup.html#6e42520cb4232c99aecfb99236521af2">ckbDisplayMajorTics</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00395"></a>00395     <a class="code" href="class_dlg_graph_setup.html#2cda74bded03d0c28cf0464d1f9de46f">layout15</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#6e42520cb4232c99aecfb99236521af2">ckbDisplayMajorTics</a> );
+<a name="l00396"></a>00396 
+<a name="l00397"></a>00397     <a class="code" href="class_dlg_graph_setup.html#b859701df8d170a9ae7a6e6b15e62868">ckbDisplayMinorTics</a> = <span class="keyword">new</span> QCheckBox( <a class="code" href="class_dlg_graph_setup.html#5269aa9ef27c588ce2cb6798ae042168">tab_2</a>, <span class="stringliteral">"ckbDisplayMinorTics"</span> );
+<a name="l00398"></a>00398     <a class="code" href="class_dlg_graph_setup.html#b859701df8d170a9ae7a6e6b15e62868">ckbDisplayMinorTics</a>-&gt;setEnabled( FALSE );
+<a name="l00399"></a>00399     <a class="code" href="class_dlg_graph_setup.html#b859701df8d170a9ae7a6e6b15e62868">ckbDisplayMinorTics</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_dlg_graph_setup.html#b859701df8d170a9ae7a6e6b15e62868">ckbDisplayMinorTics</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00400"></a>00400     <a class="code" href="class_dlg_graph_setup.html#2cda74bded03d0c28cf0464d1f9de46f">layout15</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#b859701df8d170a9ae7a6e6b15e62868">ckbDisplayMinorTics</a> );
+<a name="l00401"></a>00401 
+<a name="l00402"></a>00402     <a class="code" href="class_dlg_graph_setup.html#33486a5567459bb403b75430509f2450">tabLayout_2</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#2cda74bded03d0c28cf0464d1f9de46f">layout15</a>, 1, 0 );
+<a name="l00403"></a>00403 
+<a name="l00404"></a>00404     <a class="code" href="class_dlg_graph_setup.html#1ea3e157f43ce3f14e3d4017cfd66813">layout22_2</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout22_2"</span>); 
+<a name="l00405"></a>00405 
+<a name="l00406"></a>00406     <a class="code" href="class_dlg_graph_setup.html#fcb5e06be887c8c80a2da8f1ecbd7e76">lbAxes</a> = <span class="keyword">new</span> QListBox( <a class="code" href="class_dlg_graph_setup.html#5269aa9ef27c588ce2cb6798ae042168">tab_2</a>, <span class="stringliteral">"lbAxes"</span> );
+<a name="l00407"></a>00407     <a class="code" href="class_dlg_graph_setup.html#fcb5e06be887c8c80a2da8f1ecbd7e76">lbAxes</a>-&gt;setEnabled( FALSE );
+<a name="l00408"></a>00408     <a class="code" href="class_dlg_graph_setup.html#1ea3e157f43ce3f14e3d4017cfd66813">layout22_2</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#fcb5e06be887c8c80a2da8f1ecbd7e76">lbAxes</a> );
+<a name="l00409"></a>00409 
+<a name="l00410"></a>00410     <a class="code" href="class_dlg_graph_setup.html#9fe5ec47b7db297f9b255d3826519cd1">layout16_2</a> = <span class="keyword">new</span> QVBoxLayout( 0, 0, 6, <span class="stringliteral">"layout16_2"</span>); 
+<a name="l00411"></a>00411 
+<a name="l00412"></a>00412     <a class="code" href="class_dlg_graph_setup.html#672b8a3df24387444592411751b6e148">layout11</a> = <span class="keyword">new</span> QVBoxLayout( 0, 0, 6, <span class="stringliteral">"layout11"</span>); 
+<a name="l00413"></a>00413 
+<a name="l00414"></a>00414     <a class="code" href="class_dlg_graph_setup.html#b409edf9e01e0046011145fabb781d86">ckbAutoScale</a> = <span class="keyword">new</span> QCheckBox( <a class="code" href="class_dlg_graph_setup.html#5269aa9ef27c588ce2cb6798ae042168">tab_2</a>, <span class="stringliteral">"ckbAutoScale"</span> );
+<a name="l00415"></a>00415     <a class="code" href="class_dlg_graph_setup.html#b409edf9e01e0046011145fabb781d86">ckbAutoScale</a>-&gt;setEnabled( FALSE );
+<a name="l00416"></a>00416     <a class="code" href="class_dlg_graph_setup.html#b409edf9e01e0046011145fabb781d86">ckbAutoScale</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_dlg_graph_setup.html#b409edf9e01e0046011145fabb781d86">ckbAutoScale</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00417"></a>00417     <a class="code" href="class_dlg_graph_setup.html#672b8a3df24387444592411751b6e148">layout11</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#b409edf9e01e0046011145fabb781d86">ckbAutoScale</a> );
+<a name="l00418"></a>00418 
+<a name="l00419"></a>00419     <a class="code" href="class_dlg_graph_setup.html#3bc3fe4d943f6a69a58bc97224a4426c">layout10</a> = <span class="keyword">new</span> QVBoxLayout( 0, 0, 6, <span class="stringliteral">"layout10"</span>); 
+<a name="l00420"></a>00420 
+<a name="l00421"></a>00421     <a class="code" href="class_dlg_graph_setup.html#fb522ad2cf1c5a5854f6f4d4a37108fd">layout2</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout2"</span>); 
+<a name="l00422"></a>00422 
+<a name="l00423"></a>00423     <a class="code" href="class_dlg_graph_setup.html#fbd827ff206c321403b5712a5eff1c18">textLabel1</a> = <span class="keyword">new</span> QLabel( <a class="code" href="class_dlg_graph_setup.html#5269aa9ef27c588ce2cb6798ae042168">tab_2</a>, <span class="stringliteral">"textLabel1"</span> );
+<a name="l00424"></a>00424     <a class="code" href="class_dlg_graph_setup.html#fb522ad2cf1c5a5854f6f4d4a37108fd">layout2</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#fbd827ff206c321403b5712a5eff1c18">textLabel1</a> );
+<a name="l00425"></a>00425 
+<a name="l00426"></a>00426     <a class="code" href="class_dlg_graph_setup.html#44bb1b62601b9aeef440058f6c9e7638">edAxisMax</a> = <span class="keyword">new</span> QLineEdit( <a class="code" href="class_dlg_graph_setup.html#5269aa9ef27c588ce2cb6798ae042168">tab_2</a>, <span class="stringliteral">"edAxisMax"</span> );
+<a name="l00427"></a>00427     <a class="code" href="class_dlg_graph_setup.html#44bb1b62601b9aeef440058f6c9e7638">edAxisMax</a>-&gt;setEnabled( FALSE );
+<a name="l00428"></a>00428     <a class="code" href="class_dlg_graph_setup.html#fb522ad2cf1c5a5854f6f4d4a37108fd">layout2</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#44bb1b62601b9aeef440058f6c9e7638">edAxisMax</a> );
+<a name="l00429"></a>00429     <a class="code" href="class_dlg_graph_setup.html#3bc3fe4d943f6a69a58bc97224a4426c">layout10</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#fb522ad2cf1c5a5854f6f4d4a37108fd">layout2</a> );
+<a name="l00430"></a>00430 
+<a name="l00431"></a>00431     <a class="code" href="class_dlg_graph_setup.html#765647f1a8e0ada31efecc049a5b208c">layout2_2</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout2_2"</span>); 
+<a name="l00432"></a>00432 
+<a name="l00433"></a>00433     <a class="code" href="class_dlg_graph_setup.html#4211bb9ed1766d5eca7a5242fd283595">textLabel1_2</a> = <span class="keyword">new</span> QLabel( <a class="code" href="class_dlg_graph_setup.html#5269aa9ef27c588ce2cb6798ae042168">tab_2</a>, <span class="stringliteral">"textLabel1_2"</span> );
+<a name="l00434"></a>00434     <a class="code" href="class_dlg_graph_setup.html#765647f1a8e0ada31efecc049a5b208c">layout2_2</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#4211bb9ed1766d5eca7a5242fd283595">textLabel1_2</a> );
+<a name="l00435"></a>00435 
+<a name="l00436"></a>00436     <a class="code" href="class_dlg_graph_setup.html#78f3f24d11ea4b4ae66157bb84c51999">edAxisMin</a> = <span class="keyword">new</span> QLineEdit( <a class="code" href="class_dlg_graph_setup.html#5269aa9ef27c588ce2cb6798ae042168">tab_2</a>, <span class="stringliteral">"edAxisMin"</span> );
+<a name="l00437"></a>00437     <a class="code" href="class_dlg_graph_setup.html#78f3f24d11ea4b4ae66157bb84c51999">edAxisMin</a>-&gt;setEnabled( FALSE );
+<a name="l00438"></a>00438     <a class="code" href="class_dlg_graph_setup.html#765647f1a8e0ada31efecc049a5b208c">layout2_2</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#78f3f24d11ea4b4ae66157bb84c51999">edAxisMin</a> );
+<a name="l00439"></a>00439     <a class="code" href="class_dlg_graph_setup.html#3bc3fe4d943f6a69a58bc97224a4426c">layout10</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#765647f1a8e0ada31efecc049a5b208c">layout2_2</a> );
+<a name="l00440"></a>00440     <a class="code" href="class_dlg_graph_setup.html#672b8a3df24387444592411751b6e148">layout11</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#3bc3fe4d943f6a69a58bc97224a4426c">layout10</a> );
+<a name="l00441"></a>00441     <a class="code" href="class_dlg_graph_setup.html#9fe5ec47b7db297f9b255d3826519cd1">layout16_2</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#672b8a3df24387444592411751b6e148">layout11</a> );
+<a name="l00442"></a>00442 
+<a name="l00443"></a>00443     <a class="code" href="class_dlg_graph_setup.html#acdf08c1e22568417e241828553fbf06">ckbLogScale</a> = <span class="keyword">new</span> QCheckBox( <a class="code" href="class_dlg_graph_setup.html#5269aa9ef27c588ce2cb6798ae042168">tab_2</a>, <span class="stringliteral">"ckbLogScale"</span> );
+<a name="l00444"></a>00444     <a class="code" href="class_dlg_graph_setup.html#acdf08c1e22568417e241828553fbf06">ckbLogScale</a>-&gt;setEnabled( FALSE );
+<a name="l00445"></a>00445     <a class="code" href="class_dlg_graph_setup.html#acdf08c1e22568417e241828553fbf06">ckbLogScale</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_dlg_graph_setup.html#acdf08c1e22568417e241828553fbf06">ckbLogScale</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00446"></a>00446     <a class="code" href="class_dlg_graph_setup.html#9fe5ec47b7db297f9b255d3826519cd1">layout16_2</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#acdf08c1e22568417e241828553fbf06">ckbLogScale</a> );
+<a name="l00447"></a>00447     <a class="code" href="class_dlg_graph_setup.html#1ea3e157f43ce3f14e3d4017cfd66813">layout22_2</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#9fe5ec47b7db297f9b255d3826519cd1">layout16_2</a> );
+<a name="l00448"></a>00448 
+<a name="l00449"></a>00449     <a class="code" href="class_dlg_graph_setup.html#33486a5567459bb403b75430509f2450">tabLayout_2</a>-&gt;addLayout( <a class="code" href="class_dlg_graph_setup.html#1ea3e157f43ce3f14e3d4017cfd66813">layout22_2</a>, 0, 0 );
+<a name="l00450"></a>00450     <a class="code" href="class_dlg_graph_setup.html#a8df23c32fab1f11764b5f01f2819edc">tab1</a>-&gt;insertTab( <a class="code" href="class_dlg_graph_setup.html#5269aa9ef27c588ce2cb6798ae042168">tab_2</a>, QString::fromLatin1(<span class="stringliteral">""</span>) );
+<a name="l00451"></a>00451 
+<a name="l00452"></a>00452     <a class="code" href="class_dlg_graph_setup.html#262527adbbfa4d46a0eeb5cd04ca269e">tab_3</a> = <span class="keyword">new</span> QWidget( <a class="code" href="class_dlg_graph_setup.html#a8df23c32fab1f11764b5f01f2819edc">tab1</a>, <span class="stringliteral">"tab_3"</span> );
+<a name="l00453"></a>00453     <a class="code" href="class_dlg_graph_setup.html#87dce95b68ba6d9f52e2fb32a13945f3">tabLayout_3</a> = <span class="keyword">new</span> QGridLayout( <a class="code" href="class_dlg_graph_setup.html#262527adbbfa4d46a0eeb5cd04ca269e">tab_3</a>, 1, 1, 11, 6, <span class="stringliteral">"tabLayout_3"</span>); 
+<a name="l00454"></a>00454 
+<a name="l00455"></a>00455     <a class="code" href="class_dlg_graph_setup.html#97b20b113921c169a2f26cc2cab8b21b">layout18_3</a> = <span class="keyword">new</span> QVBoxLayout( 0, 0, 6, <span class="stringliteral">"layout18_3"</span>); 
+<a name="l00456"></a>00456 
+<a name="l00457"></a>00457     <a class="code" href="class_dlg_graph_setup.html#3def4bc3095347be12a486dcb1614916">textLabel4</a> = <span class="keyword">new</span> QLabel( <a class="code" href="class_dlg_graph_setup.html#262527adbbfa4d46a0eeb5cd04ca269e">tab_3</a>, <span class="stringliteral">"textLabel4"</span> );
+<a name="l00458"></a>00458     <a class="code" href="class_dlg_graph_setup.html#97b20b113921c169a2f26cc2cab8b21b">layout18_3</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#3def4bc3095347be12a486dcb1614916">textLabel4</a> );
+<a name="l00459"></a>00459 
+<a name="l00460"></a>00460     <a class="code" href="class_dlg_graph_setup.html#3f323451508e14bfe872556c7e87a789">m_clrBackGroundColor</a> = <span class="keyword">new</span> KColorCombo( <a class="code" href="class_dlg_graph_setup.html#262527adbbfa4d46a0eeb5cd04ca269e">tab_3</a>, <span class="stringliteral">"m_clrBackGroundColor"</span> );
+<a name="l00461"></a>00461     <a class="code" href="class_dlg_graph_setup.html#3f323451508e14bfe872556c7e87a789">m_clrBackGroundColor</a>-&gt;setEnabled( FALSE );
+<a name="l00462"></a>00462     <a class="code" href="class_dlg_graph_setup.html#97b20b113921c169a2f26cc2cab8b21b">layout18_3</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#3f323451508e14bfe872556c7e87a789">m_clrBackGroundColor</a> );
+<a name="l00463"></a>00463 
+<a name="l00464"></a>00464     <a class="code" href="class_dlg_graph_setup.html#87dce95b68ba6d9f52e2fb32a13945f3">tabLayout_3</a>-&gt;addMultiCellLayout( <a class="code" href="class_dlg_graph_setup.html#97b20b113921c169a2f26cc2cab8b21b">layout18_3</a>, 0, 0, 0, 1 );
+<a name="l00465"></a>00465     <a class="code" href="class_dlg_graph_setup.html#90fa3beeb37ab000790a688fe1db861b">spacer11</a> = <span class="keyword">new</span> QSpacerItem( 20, 240, QSizePolicy::Minimum, QSizePolicy::Expanding );
+<a name="l00466"></a>00466     <a class="code" href="class_dlg_graph_setup.html#87dce95b68ba6d9f52e2fb32a13945f3">tabLayout_3</a>-&gt;addItem( <a class="code" href="class_dlg_graph_setup.html#90fa3beeb37ab000790a688fe1db861b">spacer11</a>, 3, 0 );
+<a name="l00467"></a>00467 
+<a name="l00468"></a>00468     <a class="code" href="class_dlg_graph_setup.html#fe85b356ab0ffe988a306ada8cb79075">layout26_2</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout26_2"</span>); 
+<a name="l00469"></a>00469 
+<a name="l00470"></a>00470     <a class="code" href="class_dlg_graph_setup.html#82d413163b83e71f32446726c873052b">textLabel1_4_2</a> = <span class="keyword">new</span> QLabel( <a class="code" href="class_dlg_graph_setup.html#262527adbbfa4d46a0eeb5cd04ca269e">tab_3</a>, <span class="stringliteral">"textLabel1_4_2"</span> );
+<a name="l00471"></a>00471     <a class="code" href="class_dlg_graph_setup.html#fe85b356ab0ffe988a306ada8cb79075">layout26_2</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#82d413163b83e71f32446726c873052b">textLabel1_4_2</a> );
+<a name="l00472"></a>00472 
+<a name="l00473"></a>00473     <a class="code" href="class_dlg_graph_setup.html#1f89c8964fca74cbe24db8a10ef48459">m_dblPersistence</a> = <span class="keyword">new</span> KDoubleNumInput( <a class="code" href="class_dlg_graph_setup.html#262527adbbfa4d46a0eeb5cd04ca269e">tab_3</a>, <span class="stringliteral">"m_dblPersistence"</span> );
+<a name="l00474"></a>00474     <a class="code" href="class_dlg_graph_setup.html#1f89c8964fca74cbe24db8a10ef48459">m_dblPersistence</a>-&gt;setEnabled( FALSE );
+<a name="l00475"></a>00475     <a class="code" href="class_dlg_graph_setup.html#1f89c8964fca74cbe24db8a10ef48459">m_dblPersistence</a>-&gt;setValue( 0 );
+<a name="l00476"></a>00476     <a class="code" href="class_dlg_graph_setup.html#1f89c8964fca74cbe24db8a10ef48459">m_dblPersistence</a>-&gt;setMaxValue( 1 );
+<a name="l00477"></a>00477     <a class="code" href="class_dlg_graph_setup.html#1f89c8964fca74cbe24db8a10ef48459">m_dblPersistence</a>-&gt;setPrecision( 2 );
+<a name="l00478"></a>00478     <a class="code" href="class_dlg_graph_setup.html#fe85b356ab0ffe988a306ada8cb79075">layout26_2</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#1f89c8964fca74cbe24db8a10ef48459">m_dblPersistence</a> );
+<a name="l00479"></a>00479 
+<a name="l00480"></a>00480     <a class="code" href="class_dlg_graph_setup.html#87dce95b68ba6d9f52e2fb32a13945f3">tabLayout_3</a>-&gt;addMultiCellLayout( <a class="code" href="class_dlg_graph_setup.html#fe85b356ab0ffe988a306ada8cb79075">layout26_2</a>, 2, 2, 0, 2 );
+<a name="l00481"></a>00481 
+<a name="l00482"></a>00482     <a class="code" href="class_dlg_graph_setup.html#a8dfba92875f4ba38cecb15c6da3a9a3">m_ckbDrawLegends</a> = <span class="keyword">new</span> QCheckBox( <a class="code" href="class_dlg_graph_setup.html#262527adbbfa4d46a0eeb5cd04ca269e">tab_3</a>, <span class="stringliteral">"m_ckbDrawLegends"</span> );
+<a name="l00483"></a>00483     <a class="code" href="class_dlg_graph_setup.html#a8dfba92875f4ba38cecb15c6da3a9a3">m_ckbDrawLegends</a>-&gt;setEnabled( FALSE );
+<a name="l00484"></a>00484 
+<a name="l00485"></a>00485     <a class="code" href="class_dlg_graph_setup.html#87dce95b68ba6d9f52e2fb32a13945f3">tabLayout_3</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#a8dfba92875f4ba38cecb15c6da3a9a3">m_ckbDrawLegends</a>, 1, 0 );
+<a name="l00486"></a>00486     <a class="code" href="class_dlg_graph_setup.html#532e6ae3286a2fb18581f398c53f6c87">spacer12</a> = <span class="keyword">new</span> QSpacerItem( 51, 20, QSizePolicy::Expanding, QSizePolicy::Minimum );
+<a name="l00487"></a>00487     <a class="code" href="class_dlg_graph_setup.html#87dce95b68ba6d9f52e2fb32a13945f3">tabLayout_3</a>-&gt;addItem( <a class="code" href="class_dlg_graph_setup.html#532e6ae3286a2fb18581f398c53f6c87">spacer12</a>, 0, 2 );
+<a name="l00488"></a>00488     <a class="code" href="class_dlg_graph_setup.html#ea919934bbfce95e28d1ded786c14d1a">spacer12_2</a> = <span class="keyword">new</span> QSpacerItem( 170, 20, QSizePolicy::Expanding, QSizePolicy::Minimum );
+<a name="l00489"></a>00489     <a class="code" href="class_dlg_graph_setup.html#87dce95b68ba6d9f52e2fb32a13945f3">tabLayout_3</a>-&gt;addMultiCell( <a class="code" href="class_dlg_graph_setup.html#ea919934bbfce95e28d1ded786c14d1a">spacer12_2</a>, 1, 1, 1, 2 );
+<a name="l00490"></a>00490     <a class="code" href="class_dlg_graph_setup.html#a8df23c32fab1f11764b5f01f2819edc">tab1</a>-&gt;insertTab( <a class="code" href="class_dlg_graph_setup.html#262527adbbfa4d46a0eeb5cd04ca269e">tab_3</a>, QString::fromLatin1(<span class="stringliteral">""</span>) );
+<a name="l00491"></a>00491 
+<a name="l00492"></a>00492     <a class="code" href="class_dlg_graph_setup.html#41badf74a6c427ad0c96fd63b27f6588">DlgGraphSetupLayout</a>-&gt;addWidget( <a class="code" href="class_dlg_graph_setup.html#a8df23c32fab1f11764b5f01f2819edc">tab1</a>, 0, 0 );
+<a name="l00493"></a>00493     <a class="code" href="class_dlg_graph_setup.html#424d3ef8560840417a9120d35622c9d6">languageChange</a>();
+<a name="l00494"></a>00494     resize( QSize(314, 447).expandedTo(minimumSizeHint()) );
+<a name="l00495"></a>00495     clearWState( WState_Polished );
+<a name="l00496"></a>00496 
+<a name="l00497"></a>00497     <span class="comment">// signals and slots connections</span>
+<a name="l00498"></a>00498     connect( <a class="code" href="class_dlg_graph_setup.html#a12aa3d3288222b3b9eeb97ecc5f5639">buttonOk</a>, SIGNAL( clicked() ), <span class="keyword">this</span>, SLOT( close() ) );
+<a name="l00499"></a>00499 
+<a name="l00500"></a>00500     <span class="comment">// tab order</span>
+<a name="l00501"></a>00501     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#a8df23c32fab1f11764b5f01f2819edc">tab1</a>, <a class="code" href="class_dlg_graph_setup.html#cf7701eafc75e92ddea5edb5afb0e0e7">lbPlots</a> );
+<a name="l00502"></a>00502     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#cf7701eafc75e92ddea5edb5afb0e0e7">lbPlots</a>, <a class="code" href="class_dlg_graph_setup.html#fb2a941ca5f4c6c2f339b677845a970b">edMaxCount</a> );
+<a name="l00503"></a>00503     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#fb2a941ca5f4c6c2f339b677845a970b">edMaxCount</a>, <a class="code" href="class_dlg_graph_setup.html#8d21cdea731eebbb8b17bb12175391f7">btnClearPoints</a> );
+<a name="l00504"></a>00504     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#8d21cdea731eebbb8b17bb12175391f7">btnClearPoints</a>, <a class="code" href="class_dlg_graph_setup.html#cce7b12e1b2b4b34dc5a2b9be41b655a">ckbDrawPoints</a> );
+<a name="l00505"></a>00505     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#cce7b12e1b2b4b34dc5a2b9be41b655a">ckbDrawPoints</a>, <a class="code" href="class_dlg_graph_setup.html#85d9838985ae10d73e173a79414b348c">clrPointColor</a> );
+<a name="l00506"></a>00506     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#85d9838985ae10d73e173a79414b348c">clrPointColor</a>, <a class="code" href="class_dlg_graph_setup.html#0cdd0f294f8e80d236db89170ba6a8fd">ckbDrawLines</a> );
+<a name="l00507"></a>00507     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#0cdd0f294f8e80d236db89170ba6a8fd">ckbDrawLines</a>, <a class="code" href="class_dlg_graph_setup.html#e2954494de82abf82bfa9978fb502438">clrLineColor</a> );
+<a name="l00508"></a>00508     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#e2954494de82abf82bfa9978fb502438">clrLineColor</a>, <a class="code" href="class_dlg_graph_setup.html#f3e0237f0b8a6ac9a2c9f91caffa14b9">ckbDrawBars</a> );
+<a name="l00509"></a>00509     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#f3e0237f0b8a6ac9a2c9f91caffa14b9">ckbDrawBars</a>, <a class="code" href="class_dlg_graph_setup.html#5e9f03b6b1f922aa3efa4ca9f3828964">clrBarColor</a> );
+<a name="l00510"></a>00510     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#5e9f03b6b1f922aa3efa4ca9f3828964">clrBarColor</a>, <a class="code" href="class_dlg_graph_setup.html#7422b081ef91e8db8f18abe495b23e7e">ckbDisplayMajorGrids</a> );
+<a name="l00511"></a>00511     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#7422b081ef91e8db8f18abe495b23e7e">ckbDisplayMajorGrids</a>, <a class="code" href="class_dlg_graph_setup.html#4b0168c9182721e46d151bbf1fc9fb9c">clrMajorGridColor</a> );
+<a name="l00512"></a>00512     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#4b0168c9182721e46d151bbf1fc9fb9c">clrMajorGridColor</a>, <a class="code" href="class_dlg_graph_setup.html#045337406728d64b85addbdb6d99a4b9">ckbDisplayMinorGrids</a> );
+<a name="l00513"></a>00513     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#045337406728d64b85addbdb6d99a4b9">ckbDisplayMinorGrids</a>, <a class="code" href="class_dlg_graph_setup.html#d5bfdcd1cf098b2c4da7ff0906183372">clrMinorGridColor</a> );
+<a name="l00514"></a>00514     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#d5bfdcd1cf098b2c4da7ff0906183372">clrMinorGridColor</a>, <a class="code" href="class_dlg_graph_setup.html#12ccb434076e250814363f9a73848045">dblIntensity</a> );
+<a name="l00515"></a>00515     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#12ccb434076e250814363f9a73848045">dblIntensity</a>, <a class="code" href="class_dlg_graph_setup.html#2e01eca45034dedb0a84e40a6100f7f1">ckbColorPlot</a> );
+<a name="l00516"></a>00516     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#2e01eca45034dedb0a84e40a6100f7f1">ckbColorPlot</a>, <a class="code" href="class_dlg_graph_setup.html#e31b55fc0dba932ec7e930142d3e3788">clrColorPlotLow</a> );
+<a name="l00517"></a>00517     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#e31b55fc0dba932ec7e930142d3e3788">clrColorPlotLow</a>, <a class="code" href="class_dlg_graph_setup.html#09ce49b80b8d1281a6fe56ec4a553c5a">clrColorPlotHigh</a> );
+<a name="l00518"></a>00518     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#09ce49b80b8d1281a6fe56ec4a553c5a">clrColorPlotHigh</a>, <a class="code" href="class_dlg_graph_setup.html#fcb5e06be887c8c80a2da8f1ecbd7e76">lbAxes</a> );
+<a name="l00519"></a>00519     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#fcb5e06be887c8c80a2da8f1ecbd7e76">lbAxes</a>, <a class="code" href="class_dlg_graph_setup.html#b409edf9e01e0046011145fabb781d86">ckbAutoScale</a> );
+<a name="l00520"></a>00520     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#b409edf9e01e0046011145fabb781d86">ckbAutoScale</a>, <a class="code" href="class_dlg_graph_setup.html#44bb1b62601b9aeef440058f6c9e7638">edAxisMax</a> );
+<a name="l00521"></a>00521     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#44bb1b62601b9aeef440058f6c9e7638">edAxisMax</a>, <a class="code" href="class_dlg_graph_setup.html#78f3f24d11ea4b4ae66157bb84c51999">edAxisMin</a> );
+<a name="l00522"></a>00522     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#78f3f24d11ea4b4ae66157bb84c51999">edAxisMin</a>, <a class="code" href="class_dlg_graph_setup.html#acdf08c1e22568417e241828553fbf06">ckbLogScale</a> );
+<a name="l00523"></a>00523     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#acdf08c1e22568417e241828553fbf06">ckbLogScale</a>, <a class="code" href="class_dlg_graph_setup.html#07513986d087c1cfa0c09e36944b1343">ckbDisplayTicLabels</a> );
+<a name="l00524"></a>00524     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#07513986d087c1cfa0c09e36944b1343">ckbDisplayTicLabels</a>, <a class="code" href="class_dlg_graph_setup.html#6e42520cb4232c99aecfb99236521af2">ckbDisplayMajorTics</a> );
+<a name="l00525"></a>00525     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#6e42520cb4232c99aecfb99236521af2">ckbDisplayMajorTics</a>, <a class="code" href="class_dlg_graph_setup.html#b859701df8d170a9ae7a6e6b15e62868">ckbDisplayMinorTics</a> );
+<a name="l00526"></a>00526     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#b859701df8d170a9ae7a6e6b15e62868">ckbDisplayMinorTics</a>, <a class="code" href="class_dlg_graph_setup.html#f46018cf09d09a2861dfa00591fb1c7b">edTicLabelFormat</a> );
+<a name="l00527"></a>00527     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#f46018cf09d09a2861dfa00591fb1c7b">edTicLabelFormat</a>, <a class="code" href="class_dlg_graph_setup.html#3f323451508e14bfe872556c7e87a789">m_clrBackGroundColor</a> );
+<a name="l00528"></a>00528     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#3f323451508e14bfe872556c7e87a789">m_clrBackGroundColor</a>, <a class="code" href="class_dlg_graph_setup.html#a8dfba92875f4ba38cecb15c6da3a9a3">m_ckbDrawLegends</a> );
+<a name="l00529"></a>00529     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#a8dfba92875f4ba38cecb15c6da3a9a3">m_ckbDrawLegends</a>, <a class="code" href="class_dlg_graph_setup.html#1f89c8964fca74cbe24db8a10ef48459">m_dblPersistence</a> );
+<a name="l00530"></a>00530     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#1f89c8964fca74cbe24db8a10ef48459">m_dblPersistence</a>, <a class="code" href="class_dlg_graph_setup.html#1359d38582fde977290c394830afd7f5">buttonHelp</a> );
+<a name="l00531"></a>00531     setTabOrder( <a class="code" href="class_dlg_graph_setup.html#1359d38582fde977290c394830afd7f5">buttonHelp</a>, <a class="code" href="class_dlg_graph_setup.html#a12aa3d3288222b3b9eeb97ecc5f5639">buttonOk</a> );
+<a name="l00532"></a>00532 }
+<a name="l00533"></a>00533 
+<a name="l00534"></a>00534 <span class="comment">/*</span>
+<a name="l00535"></a>00535 <span class="comment"> *  Destroys the object and frees any allocated resources</span>
+<a name="l00536"></a>00536 <span class="comment"> */</span>
+<a name="l00537"></a><a class="code" href="class_dlg_graph_setup.html#e68cc5d0cadc59a1f4d8c3094d461469">00537</a> <a class="code" href="class_dlg_graph_setup.html#e68cc5d0cadc59a1f4d8c3094d461469">DlgGraphSetup::~DlgGraphSetup</a>()
+<a name="l00538"></a>00538 {
+<a name="l00539"></a>00539     <span class="comment">// no need to delete child widgets, Qt does it all for us</span>
+<a name="l00540"></a>00540 }
+<a name="l00541"></a>00541 
+<a name="l00542"></a>00542 <span class="comment">/*</span>
+<a name="l00543"></a>00543 <span class="comment"> *  Sets the strings of the subwidgets using the current</span>
+<a name="l00544"></a>00544 <span class="comment"> *  language.</span>
+<a name="l00545"></a>00545 <span class="comment"> */</span>
+<a name="l00546"></a><a class="code" href="class_dlg_graph_setup.html#424d3ef8560840417a9120d35622c9d6">00546</a> <span class="keywordtype">void</span> <a class="code" href="class_dlg_graph_setup.html#424d3ef8560840417a9120d35622c9d6">DlgGraphSetup::languageChange</a>()
+<a name="l00547"></a>00547 {
+<a name="l00548"></a>00548     setCaption( tr2i18n( <span class="stringliteral">"Graph Setup"</span> ) );
+<a name="l00549"></a>00549     <a class="code" href="class_dlg_graph_setup.html#1359d38582fde977290c394830afd7f5">buttonHelp</a>-&gt;setText( tr2i18n( <span class="stringliteral">"&amp;Help"</span> ) );
+<a name="l00550"></a>00550     <a class="code" href="class_dlg_graph_setup.html#1359d38582fde977290c394830afd7f5">buttonHelp</a>-&gt;setAccel( QKeySequence( tr2i18n( <span class="stringliteral">"F1"</span> ) ) );
+<a name="l00551"></a>00551     <a class="code" href="class_dlg_graph_setup.html#a12aa3d3288222b3b9eeb97ecc5f5639">buttonOk</a>-&gt;setText( tr2i18n( <span class="stringliteral">"&amp;OK"</span> ) );
+<a name="l00552"></a>00552     <a class="code" href="class_dlg_graph_setup.html#a12aa3d3288222b3b9eeb97ecc5f5639">buttonOk</a>-&gt;setAccel( QKeySequence( QString::null ) );
+<a name="l00553"></a>00553     <a class="code" href="class_dlg_graph_setup.html#f3e0237f0b8a6ac9a2c9f91caffa14b9">ckbDrawBars</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Draw Bars"</span> ) );
+<a name="l00554"></a>00554     <a class="code" href="class_dlg_graph_setup.html#0cdd0f294f8e80d236db89170ba6a8fd">ckbDrawLines</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Draw Lines"</span> ) );
+<a name="l00555"></a>00555     <a class="code" href="class_dlg_graph_setup.html#cce7b12e1b2b4b34dc5a2b9be41b655a">ckbDrawPoints</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Draw Points"</span> ) );
+<a name="l00556"></a>00556     <a class="code" href="class_dlg_graph_setup.html#7422b081ef91e8db8f18abe495b23e7e">ckbDisplayMajorGrids</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Display Major Grids"</span> ) );
+<a name="l00557"></a>00557     <a class="code" href="class_dlg_graph_setup.html#045337406728d64b85addbdb6d99a4b9">ckbDisplayMinorGrids</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Display Minor Grids"</span> ) );
+<a name="l00558"></a>00558     <a class="code" href="class_dlg_graph_setup.html#cf7701eafc75e92ddea5edb5afb0e0e7">lbPlots</a>-&gt;clear();
+<a name="l00559"></a>00559     <a class="code" href="class_dlg_graph_setup.html#cf7701eafc75e92ddea5edb5afb0e0e7">lbPlots</a>-&gt;insertItem( tr2i18n( <span class="stringliteral">"New Item"</span> ) );
+<a name="l00560"></a>00560     <a class="code" href="class_dlg_graph_setup.html#54303b11e65bc040071e6cab8e7a7d52">textLabel3</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Max Counts"</span> ) );
+<a name="l00561"></a>00561     <a class="code" href="class_dlg_graph_setup.html#8d21cdea731eebbb8b17bb12175391f7">btnClearPoints</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Clear Points"</span> ) );
+<a name="l00562"></a>00562     <a class="code" href="class_dlg_graph_setup.html#798fd5c1475e9a2a81ec41ab6510a130">textLabel1_4</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Intensity"</span> ) );
+<a name="l00563"></a>00563     <a class="code" href="class_dlg_graph_setup.html#2e01eca45034dedb0a84e40a6100f7f1">ckbColorPlot</a>-&gt;setText( tr2i18n( <span class="stringliteral">"ColorPlot"</span> ) );
+<a name="l00564"></a>00564     <a class="code" href="class_dlg_graph_setup.html#a8df23c32fab1f11764b5f01f2819edc">tab1</a>-&gt;changeTab( <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>, tr2i18n( <span class="stringliteral">"Plots"</span> ) );
+<a name="l00565"></a>00565     <a class="code" href="class_dlg_graph_setup.html#ea73ecefa95c26dc70840d7ae6b2528c">textLabel1_3</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Tic Label Format"</span> ) );
+<a name="l00566"></a>00566     <a class="code" href="class_dlg_graph_setup.html#07513986d087c1cfa0c09e36944b1343">ckbDisplayTicLabels</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Display Tic Labels"</span> ) );
+<a name="l00567"></a>00567     <a class="code" href="class_dlg_graph_setup.html#6e42520cb4232c99aecfb99236521af2">ckbDisplayMajorTics</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Display Major Tics"</span> ) );
+<a name="l00568"></a>00568     <a class="code" href="class_dlg_graph_setup.html#b859701df8d170a9ae7a6e6b15e62868">ckbDisplayMinorTics</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Display Minor Tics"</span> ) );
+<a name="l00569"></a>00569     <a class="code" href="class_dlg_graph_setup.html#fcb5e06be887c8c80a2da8f1ecbd7e76">lbAxes</a>-&gt;clear();
+<a name="l00570"></a>00570     <a class="code" href="class_dlg_graph_setup.html#fcb5e06be887c8c80a2da8f1ecbd7e76">lbAxes</a>-&gt;insertItem( tr2i18n( <span class="stringliteral">"New Item"</span> ) );
+<a name="l00571"></a>00571     <a class="code" href="class_dlg_graph_setup.html#b409edf9e01e0046011145fabb781d86">ckbAutoScale</a>-&gt;setText( tr2i18n( <span class="stringliteral">"AutoScale"</span> ) );
+<a name="l00572"></a>00572     <a class="code" href="class_dlg_graph_setup.html#fbd827ff206c321403b5712a5eff1c18">textLabel1</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Max"</span> ) );
+<a name="l00573"></a>00573     <a class="code" href="class_dlg_graph_setup.html#4211bb9ed1766d5eca7a5242fd283595">textLabel1_2</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Min"</span> ) );
+<a name="l00574"></a>00574     <a class="code" href="class_dlg_graph_setup.html#acdf08c1e22568417e241828553fbf06">ckbLogScale</a>-&gt;setText( tr2i18n( <span class="stringliteral">"LogScale"</span> ) );
+<a name="l00575"></a>00575     <a class="code" href="class_dlg_graph_setup.html#a8df23c32fab1f11764b5f01f2819edc">tab1</a>-&gt;changeTab( <a class="code" href="class_dlg_graph_setup.html#5269aa9ef27c588ce2cb6798ae042168">tab_2</a>, tr2i18n( <span class="stringliteral">"Axes"</span> ) );
+<a name="l00576"></a>00576     <a class="code" href="class_dlg_graph_setup.html#3def4bc3095347be12a486dcb1614916">textLabel4</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Back Ground Color"</span> ) );
+<a name="l00577"></a>00577     <a class="code" href="class_dlg_graph_setup.html#82d413163b83e71f32446726c873052b">textLabel1_4_2</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Ghost Persistence"</span> ) );
+<a name="l00578"></a>00578     <a class="code" href="class_dlg_graph_setup.html#1f89c8964fca74cbe24db8a10ef48459">m_dblPersistence</a>-&gt;setLabel( QString::null );
+<a name="l00579"></a>00579     <a class="code" href="class_dlg_graph_setup.html#1f89c8964fca74cbe24db8a10ef48459">m_dblPersistence</a>-&gt;setSuffix( tr2i18n( <span class="stringliteral">" sec"</span> ) );
+<a name="l00580"></a>00580     <a class="code" href="class_dlg_graph_setup.html#a8dfba92875f4ba38cecb15c6da3a9a3">m_ckbDrawLegends</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Draw Legends"</span> ) );
+<a name="l00581"></a>00581     <a class="code" href="class_dlg_graph_setup.html#a8df23c32fab1f11764b5f01f2819edc">tab1</a>-&gt;changeTab( <a class="code" href="class_dlg_graph_setup.html#262527adbbfa4d46a0eeb5cd04ca269e">tab_3</a>, tr2i18n( <span class="stringliteral">"Graph"</span> ) );
+<a name="l00582"></a>00582 }
+<a name="l00583"></a>00583 
+<a name="l00584"></a>00584 <span class="preprocessor">#include "graphdialog.moc"</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri Jan 4 16:08:21 2008に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
+</body>
+</html>

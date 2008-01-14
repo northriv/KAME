@@ -1,3 +1,15 @@
 base referer
-rect $class_x_node.html 100,7 161,34
-rect $classqshared__ptr.html 9,61 252,87
+rect $class_x_node.html 682,669 746,696
+rect $class_x_talker.html 345,562 564,589
+rect $class___x_talker_base.html 280,381 386,408
+rect $class_x_talker.html 370,472 485,498
+rect $classatomic.html 229,290 338,317
+rect $classatomic__shared__ptr.html 8,189 189,216
+rect $structatomic__shared__ptr_1_1___ref_local.html 432,8 664,34
+rect $classatomic__shared__ptr.html 340,98 502,125
+rect $classatomic__shared__ptr.html 404,240 630,266
+rect $classatomic__shared__ptr.html 617,189 828,216
+rect $classatomic.html 213,189 354,216
+rect $class_x_thread_local.html 752,562 936,589
+rect $class_x_thread_local.html 774,472 913,498
+rect $classqshared__ptr.html 770,669 896,696

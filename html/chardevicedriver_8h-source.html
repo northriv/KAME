@@ -1,15 +1,24 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
-<title>KAME2: kame/driver/chardevicedriver.h ソースファイル</title>
+<title>KAME2: modules/charinterface/chardevicedriver.h ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000003.html">driver</a></div>
+<a class="el" href="dir_c17a6312adb6ef1af4037d741e35ac41.html">modules</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_a0d70bd1df9cefc80caa0c65868289f2.html">charinterface</a></div>
 <h1>chardevicedriver.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
-<a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
+<a name="l00003"></a>00003 <span class="comment">                                   kitag@issp.u-tokyo.ac.jp</span>
 <a name="l00004"></a>00004 <span class="comment">                </span>
 <a name="l00005"></a>00005 <span class="comment">                This program is free software; you can redistribute it and/or</span>
 <a name="l00006"></a>00006 <span class="comment">                modify it under the terms of the GNU Library General Public</span>
@@ -32,28 +41,28 @@
 <a name="l00023"></a>00023 {
 <a name="l00024"></a>00024         XNODE_OBJECT
 <a name="l00025"></a>00025 <span class="keyword">protected</span>:
-<a name="l00026"></a>00026         <a class="code" href="class_x_char_device_driver.html#b0">XCharDeviceDriver</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, 
+<a name="l00026"></a>00026         <a class="code" href="class_x_char_device_driver.html#6d86c7c315d85939109552de7b56a52a">XCharDeviceDriver</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, 
 <a name="l00027"></a>00027                                           <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
 <a name="l00028"></a>00028                                           <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
 <a name="l00029"></a>00029                                           <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
 <a name="l00030"></a>00030                                           <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers);
 <a name="l00031"></a>00031 <span class="keyword">public</span>:
-<a name="l00032"></a><a class="code" href="class_x_char_device_driver.html#a0">00032</a>         <span class="keyword">virtual</span> <a class="code" href="class_x_char_device_driver.html#a0">~XCharDeviceDriver</a>() {}
+<a name="l00032"></a><a class="code" href="class_x_char_device_driver.html#eec64283067be6e31bfea638da700dbd">00032</a>         <span class="keyword">virtual</span> <a class="code" href="class_x_char_device_driver.html#eec64283067be6e31bfea638da700dbd">~XCharDeviceDriver</a>() {}
 <a name="l00033"></a>00033 <span class="keyword">protected</span>:
-<a name="l00034"></a><a class="code" href="class_x_char_device_driver.html#b1">00034</a>         <span class="keyword">const</span> shared_ptr&lt;tInterface&gt; &amp;<a class="code" href="class_x_char_device_driver.html#b1">interface</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_char_device_driver.html#r2">m_interface</a>;}
-<a name="l00036"></a><a class="code" href="class_x_char_device_driver.html#b2">00036</a>         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_char_device_driver.html#b2">open</a>() throw (<a class="code" href="class_x_interface.html">XInterface</a>::XInterfaceError &amp;) {this-&gt;start();}
-<a name="l00038"></a><a class="code" href="class_x_char_device_driver.html#b3">00038</a>         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_char_device_driver.html#b3">close</a>() throw (<a class="code" href="class_x_interface.html">XInterface</a>::XInterfaceError &amp;) {<a class="code" href="class_x_char_device_driver.html#b1">interface</a>()-&gt;stop();}
-<a name="l00039"></a>00039         <span class="keywordtype">void</span> <a class="code" href="class_x_char_device_driver.html#b4">onOpen</a>(<span class="keyword">const</span> shared_ptr&lt;XInterface&gt; &amp;);
-<a name="l00040"></a>00040         <span class="keywordtype">void</span> <a class="code" href="class_x_char_device_driver.html#b5">onClose</a>(<span class="keyword">const</span> shared_ptr&lt;XInterface&gt; &amp;);
-<a name="l00042"></a><a class="code" href="class_x_char_device_driver.html#b6">00042</a>         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_char_device_driver.html#b6">afterStop</a>() {<a class="code" href="class_x_char_device_driver.html#b3">close</a>();}
+<a name="l00034"></a><a class="code" href="class_x_char_device_driver.html#30d85918ce73ba6cf44d92e72f7bef0d">00034</a>         <span class="keyword">const</span> shared_ptr&lt;tInterface&gt; &amp;<a class="code" href="class_x_char_device_driver.html#30d85918ce73ba6cf44d92e72f7bef0d">interface</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_char_device_driver.html#603eeb831b4b783d164c518ab47687f4">m_interface</a>;}
+<a name="l00036"></a><a class="code" href="class_x_char_device_driver.html#3295241232ed988c71139440e357b891">00036</a>         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_char_device_driver.html#3295241232ed988c71139440e357b891">open</a>() throw (<a class="code" href="class_x_interface.html">XInterface</a>::XInterfaceError &amp;) {this-&gt;start();}
+<a name="l00038"></a><a class="code" href="class_x_char_device_driver.html#2598df488024a67a851e4c39db4d4485">00038</a>         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_char_device_driver.html#2598df488024a67a851e4c39db4d4485">close</a>() throw (<a class="code" href="class_x_interface.html">XInterface</a>::XInterfaceError &amp;) {<a class="code" href="class_x_char_device_driver.html#30d85918ce73ba6cf44d92e72f7bef0d">interface</a>()-&gt;stop();}
+<a name="l00039"></a>00039         <span class="keywordtype">void</span> <a class="code" href="class_x_char_device_driver.html#452ba316744105449bcdb663b30a2284">onOpen</a>(<span class="keyword">const</span> shared_ptr&lt;XInterface&gt; &amp;);
+<a name="l00040"></a>00040         <span class="keywordtype">void</span> <a class="code" href="class_x_char_device_driver.html#af3fb8db958132f4093c778742c2e5a9">onClose</a>(<span class="keyword">const</span> shared_ptr&lt;XInterface&gt; &amp;);
+<a name="l00042"></a><a class="code" href="class_x_char_device_driver.html#0141db498c0fde52ba4ec7ff56635cd7">00042</a>         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_char_device_driver.html#0141db498c0fde52ba4ec7ff56635cd7">afterStop</a>() {<a class="code" href="class_x_char_device_driver.html#2598df488024a67a851e4c39db4d4485">close</a>();}
 <a name="l00043"></a>00043 <span class="keyword">private</span>:
-<a name="l00044"></a><a class="code" href="class_x_char_device_driver.html#r0">00044</a>         shared_ptr&lt;XListener&gt; <a class="code" href="class_x_char_device_driver.html#r0">m_lsnOnOpen</a>, <a class="code" href="class_x_char_device_driver.html#r1">m_lsnOnClose</a>;
+<a name="l00044"></a><a class="code" href="class_x_char_device_driver.html#4d5d0588b61afe410484280917b3ee8d">00044</a>         shared_ptr&lt;XListener&gt; <a class="code" href="class_x_char_device_driver.html#4d5d0588b61afe410484280917b3ee8d">m_lsnOnOpen</a>, <a class="code" href="class_x_char_device_driver.html#5a45dfb8bcc2287ecf005fe08bc27b12">m_lsnOnClose</a>;
 <a name="l00045"></a>00045   
-<a name="l00046"></a><a class="code" href="class_x_char_device_driver.html#r2">00046</a>         <span class="keyword">const</span> shared_ptr&lt;tInterface&gt; <a class="code" href="class_x_char_device_driver.html#r2">m_interface</a>;
+<a name="l00046"></a><a class="code" href="class_x_char_device_driver.html#603eeb831b4b783d164c518ab47687f4">00046</a>         <span class="keyword">const</span> shared_ptr&lt;tInterface&gt; <a class="code" href="class_x_char_device_driver.html#603eeb831b4b783d164c518ab47687f4">m_interface</a>;
 <a name="l00047"></a>00047 };
 <a name="l00048"></a>00048 
 <a name="l00049"></a>00049 <span class="keyword">template</span>&lt;<span class="keyword">class</span> tDriver, <span class="keyword">class</span> tInterface&gt;
-<a name="l00050"></a><a class="code" href="class_x_char_device_driver.html#b0">00050</a> <a class="code" href="class_x_char_device_driver.html#b0">XCharDeviceDriver&lt;tDriver, tInterface&gt;::XCharDeviceDriver</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, 
+<a name="l00050"></a><a class="code" href="class_x_char_device_driver.html#6d86c7c315d85939109552de7b56a52a">00050</a> <a class="code" href="class_x_char_device_driver.html#6d86c7c315d85939109552de7b56a52a">XCharDeviceDriver&lt;tDriver, tInterface&gt;::XCharDeviceDriver</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, 
 <a name="l00051"></a>00051                                                                                                                   <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
 <a name="l00052"></a>00052                                                                                                                   <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
 <a name="l00053"></a>00053                                                                                                                   <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
@@ -62,38 +71,38 @@
 <a name="l00056"></a>00056         m_interface(<a class="code" href="class_x_node.html">XNode</a>::create&lt;tInterface&gt;(<span class="stringliteral">"Interface"</span>, false,
 <a name="l00057"></a>00057                                                                                   dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(this-&gt;shared_from_this())))
 <a name="l00058"></a>00058 {
-<a name="l00059"></a>00059     interfaces-&gt;insert(<a class="code" href="class_x_char_device_driver.html#r2">m_interface</a>);
-<a name="l00060"></a>00060     <a class="code" href="class_x_char_device_driver.html#r0">m_lsnOnOpen</a> = <a class="code" href="class_x_char_device_driver.html#b1">interface</a>()-&gt;onOpen().connectWeak(
-<a name="l00061"></a>00061                 this-&gt;shared_from_this(), &amp;<a class="code" href="class_x_char_device_driver.html">XCharDeviceDriver&lt;tDriver, tInterface&gt;</a><a class="code" href="class_x_char_device_driver.html#b4">::onOpen</a>);
-<a name="l00062"></a>00062     <a class="code" href="class_x_char_device_driver.html#r1">m_lsnOnClose</a> = <a class="code" href="class_x_char_device_driver.html#b1">interface</a>()-&gt;onClose().connectWeak( 
-<a name="l00063"></a>00063         this-&gt;shared_from_this(), &amp;<a class="code" href="class_x_char_device_driver.html">XCharDeviceDriver&lt;tDriver, tInterface&gt;</a><a class="code" href="class_x_char_device_driver.html#b5">::onClose</a>);
+<a name="l00059"></a>00059     interfaces-&gt;insert(<a class="code" href="class_x_char_device_driver.html#603eeb831b4b783d164c518ab47687f4">m_interface</a>);
+<a name="l00060"></a>00060     <a class="code" href="class_x_char_device_driver.html#4d5d0588b61afe410484280917b3ee8d">m_lsnOnOpen</a> = <a class="code" href="class_x_char_device_driver.html#30d85918ce73ba6cf44d92e72f7bef0d">interface</a>()-&gt;onOpen().connectWeak(
+<a name="l00061"></a>00061                 this-&gt;shared_from_this(), &amp;<a class="code" href="class_x_char_device_driver.html">XCharDeviceDriver&lt;tDriver, tInterface&gt;::onOpen</a>);
+<a name="l00062"></a>00062     <a class="code" href="class_x_char_device_driver.html#5a45dfb8bcc2287ecf005fe08bc27b12">m_lsnOnClose</a> = <a class="code" href="class_x_char_device_driver.html#30d85918ce73ba6cf44d92e72f7bef0d">interface</a>()-&gt;onClose().connectWeak( 
+<a name="l00063"></a>00063         this-&gt;shared_from_this(), &amp;<a class="code" href="class_x_char_device_driver.html">XCharDeviceDriver&lt;tDriver, tInterface&gt;::onClose</a>);
 <a name="l00064"></a>00064 }
 <a name="l00065"></a>00065 <span class="keyword">template</span>&lt;<span class="keyword">class</span> tDriver, <span class="keyword">class</span> tInterface&gt;
 <a name="l00066"></a>00066 <span class="keywordtype">void</span>
-<a name="l00067"></a><a class="code" href="class_x_char_device_driver.html#b4">00067</a> <a class="code" href="class_x_char_device_driver.html#b4">XCharDeviceDriver&lt;tDriver, tInterface&gt;::onOpen</a>(<span class="keyword">const</span> shared_ptr&lt;XInterface&gt; &amp;)
+<a name="l00067"></a><a class="code" href="class_x_char_device_driver.html#452ba316744105449bcdb663b30a2284">00067</a> <a class="code" href="class_x_char_device_driver.html#452ba316744105449bcdb663b30a2284">XCharDeviceDriver&lt;tDriver, tInterface&gt;::onOpen</a>(<span class="keyword">const</span> shared_ptr&lt;XInterface&gt; &amp;)
 <a name="l00068"></a>00068 {
 <a name="l00069"></a>00069         <span class="keywordflow">try</span> {
-<a name="l00070"></a>00070                 <a class="code" href="class_x_char_device_driver.html#b2">open</a>();
+<a name="l00070"></a>00070                 <a class="code" href="class_x_char_device_driver.html#3295241232ed988c71139440e357b891">open</a>();
 <a name="l00071"></a>00071         }
 <a name="l00072"></a>00072         <span class="keywordflow">catch</span> (<a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterface::XInterfaceError</a>&amp; e) {
-<a name="l00073"></a>00073                 e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(this-&gt;getLabel() + <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">": Opening interface failed, because "</span>));
-<a name="l00074"></a>00074                 <a class="code" href="class_x_char_device_driver.html#b3">close</a>();
+<a name="l00073"></a>00073                 e.<a class="code" href="struct_x_kame_error.html#9a84ebcb9d45b52654fd1d071450a5ee">print</a>(this-&gt;getLabel() + <a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">": Opening interface failed, because "</span>));
+<a name="l00074"></a>00074                 <a class="code" href="class_x_char_device_driver.html#2598df488024a67a851e4c39db4d4485">close</a>();
 <a name="l00075"></a>00075         }
 <a name="l00076"></a>00076 }
 <a name="l00077"></a>00077 <span class="keyword">template</span>&lt;<span class="keyword">class</span> tDriver, <span class="keyword">class</span> tInterface&gt;
 <a name="l00078"></a>00078 <span class="keywordtype">void</span>
-<a name="l00079"></a><a class="code" href="class_x_char_device_driver.html#b5">00079</a> <a class="code" href="class_x_char_device_driver.html#b5">XCharDeviceDriver&lt;tDriver, tInterface&gt;::onClose</a>(<span class="keyword">const</span> shared_ptr&lt;XInterface&gt; &amp;)
+<a name="l00079"></a><a class="code" href="class_x_char_device_driver.html#af3fb8db958132f4093c778742c2e5a9">00079</a> <a class="code" href="class_x_char_device_driver.html#af3fb8db958132f4093c778742c2e5a9">XCharDeviceDriver&lt;tDriver, tInterface&gt;::onClose</a>(<span class="keyword">const</span> shared_ptr&lt;XInterface&gt; &amp;)
 <a name="l00080"></a>00080 {
 <a name="l00081"></a>00081         <span class="keywordflow">try</span> {
 <a name="l00082"></a>00082                 this-&gt;stop();
 <a name="l00083"></a>00083         }
 <a name="l00084"></a>00084         <span class="keywordflow">catch</span> (<a class="code" href="struct_x_interface_1_1_x_interface_error.html">XInterface::XInterfaceError</a>&amp; e) {
-<a name="l00085"></a>00085                 e.<a class="code" href="struct_x_kame_error.html#a1">print</a>(this-&gt;getLabel() + <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">": Stopping driver failed, because "</span>));
+<a name="l00085"></a>00085                 e.<a class="code" href="struct_x_kame_error.html#9a84ebcb9d45b52654fd1d071450a5ee">print</a>(this-&gt;getLabel() + <a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">": Stopping driver failed, because "</span>));
 <a name="l00086"></a>00086         }
 <a name="l00087"></a>00087 }
 <a name="l00088"></a>00088 <span class="preprocessor">#endif </span><span class="comment">/*CHARDEVICEDRIVER_H_*/</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:12 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Jan 14 03:59:41 2008に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
 </html>

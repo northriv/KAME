@@ -1,35 +1,44 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
-<title>KAME2: kame/users/nmr/nmrpulse.cpp ソースファイル</title>
+<title>KAME2: modules/nmr/nmrpulse.cpp ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000012.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000027.html">nmr</a></div>
+<a class="el" href="dir_c17a6312adb6ef1af4037d741e35ac41.html">modules</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_a39626054ece7eaf0438159c3390d9e6.html">nmr</a></div>
 <h1>nmrpulse.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
-<a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
-<a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
-<a name="l00004"></a>00004 <span class="comment">                </span>
-<a name="l00005"></a>00005 <span class="comment">                This program is free software; you can redistribute it and/or</span>
-<a name="l00006"></a>00006 <span class="comment">                modify it under the terms of the GNU Library General Public</span>
-<a name="l00007"></a>00007 <span class="comment">                License as published by the Free Software Foundation; either</span>
-<a name="l00008"></a>00008 <span class="comment">                version 2 of the License, or (at your option) any later version.</span>
-<a name="l00009"></a>00009 <span class="comment">                </span>
-<a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
-<a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
-<a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
+<a name="l00002"></a>00002 <span class="comment"> Copyright (C) 2002-2007 Kentaro Kitagawa</span>
+<a name="l00003"></a>00003 <span class="comment"> kitag@issp.u-tokyo.ac.jp</span>
+<a name="l00004"></a>00004 <span class="comment"></span>
+<a name="l00005"></a>00005 <span class="comment"> This program is free software; you can redistribute it and/or</span>
+<a name="l00006"></a>00006 <span class="comment"> modify it under the terms of the GNU Library General Public</span>
+<a name="l00007"></a>00007 <span class="comment"> License as published by the Free Software Foundation; either</span>
+<a name="l00008"></a>00008 <span class="comment"> version 2 of the License, or (at your option) any later version.</span>
+<a name="l00009"></a>00009 <span class="comment"></span>
+<a name="l00010"></a>00010 <span class="comment"> You should have received a copy of the GNU Library General </span>
+<a name="l00011"></a>00011 <span class="comment"> Public License and a list of authors along with this program; </span>
+<a name="l00012"></a>00012 <span class="comment"> see the files COPYING and AUTHORS.</span>
+<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00015"></a>00015 <span class="preprocessor">#include "nmrpulse.h"</span>
-<a name="l00016"></a>00016 <span class="preprocessor">#include "forms/nmrpulseform.h"</span>
+<a name="l00016"></a>00016 <span class="preprocessor">#include "nmrpulseform.h"</span>
 <a name="l00017"></a>00017 
-<a name="l00018"></a>00018 <span class="preprocessor">#include "graph.h"</span>
-<a name="l00019"></a>00019 <span class="preprocessor">#include "graphwidget.h"</span>
-<a name="l00020"></a>00020 <span class="preprocessor">#include "graphnurlform.h"</span>
-<a name="l00021"></a>00021 <span class="preprocessor">#include "xwavengraph.h"</span>
-<a name="l00022"></a>00022 <span class="preprocessor">#include "analyzer.h"</span>
-<a name="l00023"></a>00023 <span class="preprocessor">#include "xnodeconnector.h"</span>
+<a name="l00018"></a>00018 <span class="preprocessor">#include &lt;graph.h&gt;</span>
+<a name="l00019"></a>00019 <span class="preprocessor">#include &lt;graphwidget.h&gt;</span>
+<a name="l00020"></a>00020 <span class="preprocessor">#include &lt;graphnurlform.h&gt;</span>
+<a name="l00021"></a>00021 <span class="preprocessor">#include &lt;xwavengraph.h&gt;</span>
+<a name="l00022"></a>00022 <span class="preprocessor">#include &lt;analyzer.h&gt;</span>
+<a name="l00023"></a>00023 <span class="preprocessor">#include &lt;xnodeconnector.h&gt;</span>
 <a name="l00024"></a>00024 
 <a name="l00025"></a>00025 <span class="preprocessor">#include &lt;knuminput.h&gt;</span>
 <a name="l00026"></a>00026 <span class="preprocessor">#include &lt;klocale.h&gt;</span>
@@ -38,660 +47,509 @@
 <a name="l00029"></a>00029 <span class="preprocessor">#include &lt;kapplication.h&gt;</span>
 <a name="l00030"></a>00030 <span class="preprocessor">#include &lt;kiconloader.h&gt;</span>
 <a name="l00031"></a>00031 
-<a name="l00032"></a>00032 <span class="preprocessor">#define WINDOW_FUNC_RECT "Rect."</span>
-<a name="l00033"></a>00033 <span class="preprocessor"></span><span class="preprocessor">#define WINDOW_FUNC_HANNING "Hanning"</span>
-<a name="l00034"></a>00034 <span class="preprocessor"></span><span class="preprocessor">#define WINDOW_FUNC_HAMMING "Hamming"</span>
-<a name="l00035"></a>00035 <span class="preprocessor"></span><span class="preprocessor">#define WINDOW_FUNC_FLATTOP "Flat-Top"</span>
-<a name="l00036"></a>00036 <span class="preprocessor"></span><span class="preprocessor">#define WINDOW_FUNC_BLACKMAN "Blackman"</span>
-<a name="l00037"></a>00037 <span class="preprocessor"></span><span class="preprocessor">#define WINDOW_FUNC_BLACKMAN_HARRIS "Blackman-Harris"</span>
-<a name="l00038"></a>00038 <span class="preprocessor"></span><span class="preprocessor">#define WINDOW_FUNC_KAISER_1 "Kaiser a=3"</span>
-<a name="l00039"></a>00039 <span class="preprocessor"></span><span class="preprocessor">#define WINDOW_FUNC_KAISER_2 "Kaiser a=7.2"</span>
-<a name="l00040"></a>00040 <span class="preprocessor"></span><span class="preprocessor">#define WINDOW_FUNC_KAISER_3 "Kaiser a=15"</span>
-<a name="l00041"></a>00041 <span class="preprocessor"></span>
-<a name="l00042"></a>00042 
-<a name="l00043"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#h0">00043</a> <span class="keywordtype">double</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#h0">XNMRPulseAnalyzer::windowFuncRect</a>(<span class="keywordtype">double</span>) {
-<a name="l00044"></a>00044 <span class="comment">//      return (fabs(x) &lt;= 0.5) ? 1 : 0;</span>
-<a name="l00045"></a>00045         <span class="keywordflow">return</span> 1.0;
-<a name="l00046"></a>00046 }
-<a name="l00047"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#h1">00047</a> <span class="keywordtype">double</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#h1">XNMRPulseAnalyzer::windowFuncHanning</a>(<span class="keywordtype">double</span> x) {
-<a name="l00048"></a>00048         <span class="keywordflow">if</span>(fabs(x) &gt;= 0.5) <span class="keywordflow">return</span> 0.0;
-<a name="l00049"></a>00049         <span class="keywordflow">return</span> 0.5 + 0.5*cos(2*PI*x);
-<a name="l00050"></a>00050 }
-<a name="l00051"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#h2">00051</a> <span class="keywordtype">double</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#h2">XNMRPulseAnalyzer::windowFuncHamming</a>(<span class="keywordtype">double</span> x) {
-<a name="l00052"></a>00052         <span class="keywordflow">if</span>(fabs(x) &gt;= 0.5) <span class="keywordflow">return</span> 0.0;
-<a name="l00053"></a>00053         <span class="keywordflow">return</span> 0.54 + 0.46*cos(2*PI*x);
-<a name="l00054"></a>00054 }
-<a name="l00055"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#h4">00055</a> <span class="keywordtype">double</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#h4">XNMRPulseAnalyzer::windowFuncBlackman</a>(<span class="keywordtype">double</span> x) {
-<a name="l00056"></a>00056         <span class="keywordflow">if</span>(fabs(x) &gt;= 0.5) <span class="keywordflow">return</span> 0.0;
-<a name="l00057"></a>00057         <span class="keywordflow">return</span> 0.42323+0.49755*cos(2*PI*x)+0.07922*cos(4*PI*x);
-<a name="l00058"></a>00058 }
-<a name="l00059"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#h5">00059</a> <span class="keywordtype">double</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#h5">XNMRPulseAnalyzer::windowFuncBlackmanHarris</a>(<span class="keywordtype">double</span> x) {
-<a name="l00060"></a>00060         <span class="keywordflow">if</span>(fabs(x) &gt;= 0.5) <span class="keywordflow">return</span> 0.0;
-<a name="l00061"></a>00061         <span class="keywordflow">return</span> 0.35875+0.48829*cos(2*PI*x)+0.14128*cos(4*PI*x)+0.01168*cos(6*PI*x);
-<a name="l00062"></a>00062 }
-<a name="l00063"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#h3">00063</a> <span class="keywordtype">double</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#h3">XNMRPulseAnalyzer::windowFuncFlatTop</a>(<span class="keywordtype">double</span> x) {
-<a name="l00064"></a>00064         <span class="keywordflow">return</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#h2">windowFuncHamming</a>(x)*((fabs(x) &lt; 1e-4) ? 1 : sin(4*PI*x)/(4*PI*x));
-<a name="l00065"></a>00065 }
-<a name="l00066"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#h6">00066</a> <span class="keywordtype">double</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#h6">XNMRPulseAnalyzer::windowFuncKaiser</a>(<span class="keywordtype">double</span> x, <span class="keywordtype">double</span> alpha) {
-<a name="l00067"></a>00067         <span class="keywordflow">if</span>(fabs(x) &gt;= 0.5) <span class="keywordflow">return</span> 0.0;
-<a name="l00068"></a>00068         x *= 2;
-<a name="l00069"></a>00069         x = sqrt(std::max(1 - x*x, 0.0));
-<a name="l00070"></a>00070         <span class="keywordflow">return</span> bessel_i0(PI*alpha*x) / bessel_i0(PI*alpha);
-<a name="l00071"></a>00071 }
-<a name="l00072"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#h7">00072</a> <span class="keywordtype">double</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#h7">XNMRPulseAnalyzer::windowFuncKaiser1</a>(<span class="keywordtype">double</span> x) {
-<a name="l00073"></a>00073         <span class="keywordflow">return</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#h6">windowFuncKaiser</a>(x, 3.0);
-<a name="l00074"></a>00074 }
-<a name="l00075"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#h8">00075</a> <span class="keywordtype">double</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#h8">XNMRPulseAnalyzer::windowFuncKaiser2</a>(<span class="keywordtype">double</span> x) {
-<a name="l00076"></a>00076         <span class="keywordflow">return</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#h6">windowFuncKaiser</a>(x, 7.2);
-<a name="l00077"></a>00077 }
-<a name="l00078"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#h9">00078</a> <span class="keywordtype">double</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#h9">XNMRPulseAnalyzer::windowFuncKaiser3</a>(<span class="keywordtype">double</span> x) {
-<a name="l00079"></a>00079         <span class="keywordflow">return</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#h6">windowFuncKaiser</a>(x, 15.0);
-<a name="l00080"></a>00080 }
-<a name="l00081"></a>00081 
-<a name="l00082"></a>00082 <span class="comment">//---------------------------------------------------------------------------</span>
-<a name="l00083"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#b0">00083</a> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#b0">XNMRPulseAnalyzer::XNMRPulseAnalyzer</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
-<a name="l00084"></a>00084                                                                          <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
-<a name="l00085"></a>00085                                                                          <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
-<a name="l00086"></a>00086                                                                          <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
-<a name="l00087"></a>00087                                                                          <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers)
-<a name="l00088"></a>00088         : <a class="code" href="class_x_secondary_driver.html">XSecondaryDriver</a>(name, runtime, scalarentries, interfaces, thermometers, drivers),
-<a name="l00089"></a>00089           m_entryCosAv(create&lt;<a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>&gt;(<span class="stringliteral">"CosAv"</span>, false,
-<a name="l00090"></a>00090                                                                                 dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()))),
-<a name="l00091"></a>00091           m_entrySinAv(create&lt;<a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>&gt;(<span class="stringliteral">"SinAv"</span>, false,
-<a name="l00092"></a>00092                                                                                 dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()))),
-<a name="l00093"></a>00093           m_dso(create&lt;<a class="code" href="class_x_item_node.html">XItemNode</a>&lt;<a class="code" href="class_x_driver_list.html">XDriverList</a>, <a class="code" href="class_x_d_s_o.html">XDSO</a>&gt; &gt;(<span class="stringliteral">"DSO"</span>, false, drivers, true)),
-<a name="l00094"></a>00094           m_fromTrig(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"FromTrig"</span>, false)),
-<a name="l00095"></a>00095           m_width(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"Width"</span>, false)),
-<a name="l00096"></a>00096           m_phaseAdv(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"PhaseAdv"</span>, false)),
-<a name="l00097"></a>00097           m_useDNR(create&lt;<a class="code" href="class_x_value_node.html">XBoolNode</a>&gt;(<span class="stringliteral">"UseDNR"</span>, false)),
-<a name="l00098"></a>00098           m_bgPos(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"BGPos"</span>, false)),
-<a name="l00099"></a>00099           m_bgWidth(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"BGWidth"</span>, false)),
-<a name="l00100"></a>00100           m_fftPos(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"FFTPos"</span>, false)),
-<a name="l00101"></a>00101           m_fftLen(create&lt;<a class="code" href="class_x_value_node.html">XUIntNode</a>&gt;(<span class="stringliteral">"FFTLen"</span>, false)),
-<a name="l00102"></a>00102           m_windowFunc(create&lt;<a class="code" href="class_x_combo_node.html">XComboNode</a>&gt;(<span class="stringliteral">"WindowFunc"</span>, false, true)),
-<a name="l00103"></a>00103           m_difFreq(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"DIFFreq"</span>, false)),
-<a name="l00104"></a>00104           m_exAvgIncr(create&lt;<a class="code" href="class_x_value_node.html">XBoolNode</a>&gt;(<span class="stringliteral">"ExAvgIncr"</span>, false)),
-<a name="l00105"></a>00105           m_extraAvg(create&lt;<a class="code" href="class_x_value_node.html">XUIntNode</a>&gt;(<span class="stringliteral">"ExtraAvg"</span>, false)),
-<a name="l00106"></a>00106           m_numEcho(create&lt;<a class="code" href="class_x_value_node.html">XUIntNode</a>&gt;(<span class="stringliteral">"NumEcho"</span>, false)),
-<a name="l00107"></a>00107           m_echoPeriod(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"EchoPeriod"</span>, false)),
-<a name="l00108"></a>00108           m_fftShow(create&lt;<a class="code" href="class_x_node.html">XNode</a>&gt;(<span class="stringliteral">"FFTShow"</span>, true)),
-<a name="l00109"></a>00109           m_avgClear(create&lt;<a class="code" href="class_x_node.html">XNode</a>&gt;(<span class="stringliteral">"AvgClear"</span>, true)),
-<a name="l00110"></a>00110           m_picEnabled(create&lt;<a class="code" href="class_x_value_node.html">XBoolNode</a>&gt;(<span class="stringliteral">"PICEnabled"</span>, false)),
-<a name="l00111"></a>00111           m_pulser(create&lt;<a class="code" href="class_x_item_node.html">XItemNode</a>&lt;<a class="code" href="class_x_driver_list.html">XDriverList</a>, <a class="code" href="class_x_pulser.html">XPulser</a>&gt; &gt;(<span class="stringliteral">"Pulser"</span>, false, drivers, true)),
-<a name="l00112"></a>00112           m_piccnt(0),
-<a name="l00113"></a>00113           m_form(new FrmNMRPulse(g_pFrmMain)),
-<a name="l00114"></a>00114           m_statusPrinter(<a class="code" href="class_x_status_printer.html">XStatusPrinter</a>::create(m_form.get())),
-<a name="l00115"></a>00115           m_fftForm(new FrmGraphNURL(g_pFrmMain)),
-<a name="l00116"></a>00116           m_waveGraph(create&lt;<a class="code" href="class_x_wave_n_graph.html">XWaveNGraph</a>&gt;(<span class="stringliteral">"Wave"</span>, true,
-<a name="l00117"></a>00117                                                                           m_form-&gt;m_graph, m_form-&gt;m_urlDump, m_form-&gt;m_btnDump)),
-<a name="l00118"></a>00118           m_ftWaveGraph(create&lt;<a class="code" href="class_x_wave_n_graph.html">XWaveNGraph</a>&gt;(<span class="stringliteral">"Spectrum"</span>, true, m_fftForm.get())),
-<a name="l00119"></a>00119           m_dnrsubfftlen(-1),
-<a name="l00120"></a>00120           m_dnrpulsefftlen(-1),
-<a name="l00121"></a>00121           m_fftlen(-1)
-<a name="l00122"></a>00122 {
-<a name="l00123"></a>00123     <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;m_btnAvgClear-&gt;setIconSet(
-<a name="l00124"></a>00124                 KApplication::kApplication()-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"editdelete"</span>, 
-<a name="l00125"></a>00125                                                                                                                                 KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );      
-<a name="l00126"></a>00126     <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;m_btnFFT-&gt;setIconSet(
-<a name="l00127"></a>00127                 KApplication::kApplication()-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"graph"</span>, 
-<a name="l00128"></a>00128                                                                                                                                 KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) );      
-<a name="l00129"></a>00129     
-<a name="l00130"></a>00130         <a class="code" href="class_x_secondary_driver.html#b1">connect</a>(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a4">dso</a>());
-<a name="l00131"></a>00131         <a class="code" href="class_x_secondary_driver.html#b1">connect</a>(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a5">pulser</a>());
+<a name="l00032"></a>00032 REGISTER_TYPE(<a class="code" href="class_x_driver_list.html">XDriverList</a>, NMRPulseAnalyzer, <span class="stringliteral">"NMR FID/echo analyzer"</span>);
+<a name="l00033"></a>00033 
+<a name="l00034"></a>00034 <span class="comment">//---------------------------------------------------------------------------</span>
+<a name="l00035"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#8c5d2a95b1f7d91a5710eb0542fdce47">00035</a> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#8c5d2a95b1f7d91a5710eb0542fdce47">XNMRPulseAnalyzer::XNMRPulseAnalyzer</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
+<a name="l00036"></a>00036         <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
+<a name="l00037"></a>00037         <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
+<a name="l00038"></a>00038         <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
+<a name="l00039"></a>00039         <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers) :
+<a name="l00040"></a>00040         <a class="code" href="class_x_secondary_driver.html">XSecondaryDriver</a>(name, runtime, scalarentries, interfaces, thermometers, drivers),
+<a name="l00041"></a>00041                 m_entryCosAv(create&lt;<a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>&gt;(<span class="stringliteral">"CosAv"</span>, false,
+<a name="l00042"></a>00042                         dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()))),
+<a name="l00043"></a>00043                 m_entrySinAv(create&lt;<a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>&gt;(<span class="stringliteral">"SinAv"</span>, false,
+<a name="l00044"></a>00044                         dynamic_pointer_cast&lt;<a class="code" href="class_x_driver.html">XDriver</a>&gt;(shared_from_this()))), 
+<a name="l00045"></a>00045                 m_dso(create&lt;<a class="code" href="class_x_item_node.html">XItemNode</a>&lt;<a class="code" href="class_x_driver_list.html">XDriverList</a>, <a class="code" href="class_x_d_s_o.html">XDSO</a>&gt; &gt;(<span class="stringliteral">"DSO"</span>, false, drivers, true)),
+<a name="l00046"></a>00046                 m_fromTrig(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"FromTrig"</span>, false)),
+<a name="l00047"></a>00047                 m_width(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"Width"</span>, false)),
+<a name="l00048"></a>00048                 m_phaseAdv(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"PhaseAdv"</span>, false)),
+<a name="l00049"></a>00049                 m_useDNR(create&lt;<a class="code" href="class_x_value_node.html">XBoolNode</a>&gt;(<span class="stringliteral">"UseDNR"</span>, false)),
+<a name="l00050"></a>00050                 m_solverList(create&lt;<a class="code" href="class_x_combo_node.html">XComboNode</a>&gt;(<span class="stringliteral">"SpectrumSolver"</span>, false, true)),
+<a name="l00051"></a>00051                 m_bgPos(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"BGPos"</span>, false)),
+<a name="l00052"></a>00052                 m_bgWidth(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"BGWidth"</span>, false)),
+<a name="l00053"></a>00053                 m_fftPos(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"FFTPos"</span>, false)),
+<a name="l00054"></a>00054                 m_fftLen(create&lt;<a class="code" href="class_x_value_node.html">XUIntNode</a>&gt;(<span class="stringliteral">"FFTLen"</span>, false)),
+<a name="l00055"></a>00055                 m_windowFunc(create&lt;<a class="code" href="class_x_combo_node.html">XComboNode</a>&gt;(<span class="stringliteral">"WindowFunc"</span>, false, true)),
+<a name="l00056"></a>00056                 m_windowWidth(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"WindowLength"</span>, false)),
+<a name="l00057"></a>00057                 m_difFreq(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"DIFFreq"</span>, false)),
+<a name="l00058"></a>00058                 m_exAvgIncr(create&lt;<a class="code" href="class_x_value_node.html">XBoolNode</a>&gt;(<span class="stringliteral">"ExAvgIncr"</span>, false)),
+<a name="l00059"></a>00059                 m_extraAvg(create&lt;<a class="code" href="class_x_value_node.html">XUIntNode</a>&gt;(<span class="stringliteral">"ExtraAvg"</span>, false)),
+<a name="l00060"></a>00060                 m_numEcho(create&lt;<a class="code" href="class_x_value_node.html">XUIntNode</a>&gt;(<span class="stringliteral">"NumEcho"</span>, false)),
+<a name="l00061"></a>00061                 m_echoPeriod(create&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt;(<span class="stringliteral">"EchoPeriod"</span>, false)),
+<a name="l00062"></a>00062                 m_spectrumShow(create&lt;<a class="code" href="class_x_node.html">XNode</a>&gt;(<span class="stringliteral">"SpectrumShow"</span>, true)),
+<a name="l00063"></a>00063                 m_avgClear(create&lt;<a class="code" href="class_x_node.html">XNode</a>&gt;(<span class="stringliteral">"AvgClear"</span>, true)),
+<a name="l00064"></a>00064                 m_picEnabled(create&lt;<a class="code" href="class_x_value_node.html">XBoolNode</a>&gt;(<span class="stringliteral">"PICEnabled"</span>, false)),
+<a name="l00065"></a>00065                 m_pulser(create&lt;<a class="code" href="class_x_item_node.html">XItemNode</a>&lt;<a class="code" href="class_x_driver_list.html">XDriverList</a>, <a class="code" href="class_x_pulser.html">XPulser</a>&gt; &gt;(<span class="stringliteral">"Pulser"</span>, false, drivers, true)),
+<a name="l00066"></a>00066                 m_form(new FrmNMRPulse(g_pFrmMain)),
+<a name="l00067"></a>00067                 m_statusPrinter(<a class="code" href="class_x_status_printer.html">XStatusPrinter</a>::create(m_form.get())),
+<a name="l00068"></a>00068                 m_spectrumForm(new FrmGraphNURL(g_pFrmMain)), m_waveGraph(create&lt;<a class="code" href="class_x_wave_n_graph.html">XWaveNGraph</a>&gt;(<span class="stringliteral">"Wave"</span>, true,
+<a name="l00069"></a>00069                         m_form-&gt;m_graph, m_form-&gt;m_urlDump, m_form-&gt;m_btnDump)),
+<a name="l00070"></a>00070                 m_ftWaveGraph(create&lt;<a class="code" href="class_x_wave_n_graph.html">XWaveNGraph</a>&gt;(<span class="stringliteral">"Spectrum"</span>, true, m_spectrumForm.get())),
+<a name="l00071"></a>00071                 m_solver(create&lt;<a class="code" href="class_spectrum_solver_wrapper.html">SpectrumSolverWrapper</a>&gt;(<span class="stringliteral">"SpectrumSolver"</span>, true, m_solverList, m_windowFunc, m_windowWidth)) {
+<a name="l00072"></a>00072         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_btnAvgClear-&gt;setIconSet(KApplication::kApplication()-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"editdelete"</span>, KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span>) );
+<a name="l00073"></a>00073         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_btnSpectrum-&gt;setIconSet(KApplication::kApplication()-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"graph"</span>, KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span>) );
+<a name="l00074"></a>00074 
+<a name="l00075"></a>00075         <a class="code" href="class_x_secondary_driver.html#3e6a3bf460755323c39ca04d3a6860d2">connect</a>(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#e1cb7e66ba9e4194226003370ff0b03f">dso</a>());
+<a name="l00076"></a>00076         <a class="code" href="class_x_secondary_driver.html#3e6a3bf460755323c39ca04d3a6860d2">connect</a>(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#f6546eaf367a3d3345f9448709758738">pulser</a>(), <span class="keyword">false</span>);
+<a name="l00077"></a>00077 
+<a name="l00078"></a>00078         scalarentries-&gt;insert(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#63dcca2c8c93ef75a9bb50811cd3fce5">entryCosAv</a>());
+<a name="l00079"></a>00079         scalarentries-&gt;insert(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#e04cc886b782a490ae3fce766a82d394">entrySinAv</a>());
+<a name="l00080"></a>00080 
+<a name="l00081"></a>00081         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#7b73573002fa1866aac5606b7de8100f">fromTrig</a>()-&gt;value(-0.005);
+<a name="l00082"></a>00082         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#9161fcdeaf81a921de1c56876ffe1618">width</a>()-&gt;value(0.02);
+<a name="l00083"></a>00083         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#450fcef58dea4e33365fc4f6f5c80fe1">bgPos</a>()-&gt;value(0.03);
+<a name="l00084"></a>00084         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a383a41dc1e95f32e1962038d5061fbe">bgWidth</a>()-&gt;value(0.03);
+<a name="l00085"></a>00085         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#b3490c12848e85933024dd60571d96f4">fftPos</a>()-&gt;value(0.004);
+<a name="l00086"></a>00086         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#5e04fecaf5f81b6e5c3e9bcc4308311d">fftLen</a>()-&gt;value(16384);
+<a name="l00087"></a>00087         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#b1fe4007cda96120f1c8f99a087b9aed">numEcho</a>()-&gt;value(1);
+<a name="l00088"></a>00088         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#837673767b2359784beea71b56fd59ea">windowFunc</a>()-&gt;str(std::string(<a class="code" href="class_spectrum_solver_wrapper.html#4879d2e4f994298e61668aebe2b6a74b">SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT</a>));
+<a name="l00089"></a>00089         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d43b4036a6b1cce02e43760ff7db921f">windowWidth</a>()-&gt;value(100.0);
+<a name="l00090"></a>00090 
+<a name="l00091"></a>00091         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;setCaption(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"NMR Pulse - "</span>) + <a class="code" href="class_x_node.html#84f0935a406e8f16042f80b9dcaaa722">getLabel</a>() );
+<a name="l00092"></a>00092 
+<a name="l00093"></a>00093         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#1164e8ad8832f7cf26ea02f781fb1539">m_spectrumForm</a>-&gt;setCaption(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"NMR-Spectrum - "</span>) + <a class="code" href="class_x_node.html#84f0935a406e8f16042f80b9dcaaa722">getLabel</a>() );
+<a name="l00094"></a>00094 
+<a name="l00095"></a>00095         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#b4ce0b7ec8f57112b5759239b3283553">m_conAvgClear</a> = xqcon_create&lt;XQButtonConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#b32b66ac351f64867479911c90800614">m_avgClear</a>,
+<a name="l00096"></a>00096                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_btnAvgClear);
+<a name="l00097"></a>00097         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#beb80ea0614145d8d57ffd1234fee73b">m_conSpectrumShow</a> = xqcon_create&lt;XQButtonConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#ce5fea40ccb5faa1edd6e3be66c36b78">m_spectrumShow</a>, <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_btnSpectrum);
+<a name="l00098"></a>00098 
+<a name="l00099"></a>00099         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#56ea5071e3e589b3fda71d9cadd34368">m_conFromTrig</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#7b73573002fa1866aac5606b7de8100f">fromTrig</a>(),
+<a name="l00100"></a>00100                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_edPos);
+<a name="l00101"></a>00101         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#aa5b1cde2966196045ecca5d6067d87a">m_conWidth</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#9161fcdeaf81a921de1c56876ffe1618">width</a>(), <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_edWidth);
+<a name="l00102"></a>00102         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_numPhaseAdv-&gt;setRange(-180.0, 180.0, 1.0, <span class="keyword">true</span>);
+<a name="l00103"></a>00103         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#69ee89d80f14b7b87cf5332829a80de3">m_conPhaseAdv</a> = xqcon_create&lt;XKDoubleNumInputConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#998cdd6f8c4e72ea03616e372d309c51">phaseAdv</a>(),
+<a name="l00104"></a>00104                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_numPhaseAdv);
+<a name="l00105"></a>00105         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#693f2e12ecc63cafea3d9c56c97814be">m_conUseDNR</a> = xqcon_create&lt;XQToggleButtonConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#d7b514a92cfc38372b5b076bf43a1cc2">useDNR</a>(),
+<a name="l00106"></a>00106                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_ckbDNR);
+<a name="l00107"></a>00107         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#21c0021f0114effd82f68a7d47898dec">m_conSolverList</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#4e71ba7bda405c6821f4e7253b36021b">solverList</a>(),
+<a name="l00108"></a>00108                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_cmbSolver);
+<a name="l00109"></a>00109         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#87fd925b76dd98e0152952407604a95e">m_conBGPos</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#450fcef58dea4e33365fc4f6f5c80fe1">bgPos</a>(), <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_edBGPos);
+<a name="l00110"></a>00110         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#ae8b04c868fc7edfd6597a579c74bf31">m_conBGWidth</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a383a41dc1e95f32e1962038d5061fbe">bgWidth</a>(),
+<a name="l00111"></a>00111                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_edBGWidth);
+<a name="l00112"></a>00112         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#b81d1956441821b8bbfbf63b6aa5cf55">m_conFFTPos</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#b3490c12848e85933024dd60571d96f4">fftPos</a>(),
+<a name="l00113"></a>00113                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_edFFTPos);
+<a name="l00114"></a>00114         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d283812f7a226e6e57eba55b5a8d1e1a">m_conFFTLen</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#5e04fecaf5f81b6e5c3e9bcc4308311d">fftLen</a>(),
+<a name="l00115"></a>00115                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_edFFTLen);
+<a name="l00116"></a>00116         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_numExtraAvg-&gt;setRange(0, 100000);
+<a name="l00117"></a>00117         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#979aa151b12d2b6221dcf46fc3027893">m_conExtraAv</a> = xqcon_create&lt;XQSpinBoxConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#4f7d66f00b88d15f06a5e7003ff0f021">extraAvg</a>(),
+<a name="l00118"></a>00118                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_numExtraAvg);
+<a name="l00119"></a>00119         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#439fb7bc7e7b0ada215d6cb1725c124e">m_conExAvgIncr</a> = xqcon_create&lt;XQToggleButtonConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#b68d4af685e0e8f1cf127eaaf1a72e44">exAvgIncr</a>(),
+<a name="l00120"></a>00120                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_ckbIncrAvg);
+<a name="l00121"></a>00121         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#36775f689bc99788a00e6fadbde83e6d">m_conNumEcho</a> = xqcon_create&lt;XQSpinBoxConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#b1fe4007cda96120f1c8f99a087b9aed">numEcho</a>(),
+<a name="l00122"></a>00122                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_numEcho);
+<a name="l00123"></a>00123         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#4c117b178af1e873d209d1b9dc5202e6">m_conEchoPeriod</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#d0dd616877364b52569abe4ad17f2c64">echoPeriod</a>(),
+<a name="l00124"></a>00124                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_edEchoPeriod);
+<a name="l00125"></a>00125         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#b90cca09a65dbdcbc1c65658615d557f">m_conWindowFunc</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#837673767b2359784beea71b56fd59ea">windowFunc</a>(),
+<a name="l00126"></a>00126                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_cmbWindowFunc);
+<a name="l00127"></a>00127         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_numWindowWidth-&gt;setRange(3.0, 200.0, 1.0, <span class="keyword">true</span>);
+<a name="l00128"></a>00128         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#857b27badd25a5803758f69d6a3cbb41">m_conWindowWidth</a> = xqcon_create&lt;XKDoubleNumInputConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#d43b4036a6b1cce02e43760ff7db921f">windowWidth</a>(),
+<a name="l00129"></a>00129                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_numWindowWidth);
+<a name="l00130"></a>00130         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#bf30cb1ab9a32fb8b4e2f93156e62aa6">m_conDIFFreq</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#ced96ceaace18af4935bd3cb78a2e383">difFreq</a>(),
+<a name="l00131"></a>00131                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_edDIFFreq);
 <a name="l00132"></a>00132 
-<a name="l00133"></a>00133 
-<a name="l00134"></a>00134         scalarentries-&gt;insert(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a2">entryCosAv</a>());
-<a name="l00135"></a>00135         scalarentries-&gt;insert(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a3">entrySinAv</a>());
-<a name="l00136"></a>00136   
-<a name="l00137"></a>00137         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a7">fromTrig</a>()-&gt;value(-0.005);
-<a name="l00138"></a>00138         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a8">width</a>()-&gt;value(0.02);
-<a name="l00139"></a>00139         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a11">bgPos</a>()-&gt;value(0.03);
-<a name="l00140"></a>00140         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a12">bgWidth</a>()-&gt;value(0.03);
-<a name="l00141"></a>00141         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a13">fftPos</a>()-&gt;value(0.004);
-<a name="l00142"></a>00142         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a14">fftLen</a>()-&gt;value(16384);
-<a name="l00143"></a>00143         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a19">numEcho</a>()-&gt;value(1);
-<a name="l00144"></a>00144         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a15">windowFunc</a>()-&gt;add(WINDOW_FUNC_RECT);
-<a name="l00145"></a>00145         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a15">windowFunc</a>()-&gt;add(WINDOW_FUNC_HANNING);
-<a name="l00146"></a>00146         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a15">windowFunc</a>()-&gt;add(WINDOW_FUNC_HAMMING);
-<a name="l00147"></a>00147         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a15">windowFunc</a>()-&gt;add(WINDOW_FUNC_BLACKMAN);
-<a name="l00148"></a>00148         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a15">windowFunc</a>()-&gt;add(WINDOW_FUNC_BLACKMAN_HARRIS);
-<a name="l00149"></a>00149         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a15">windowFunc</a>()-&gt;add(WINDOW_FUNC_FLATTOP);
-<a name="l00150"></a>00150         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a15">windowFunc</a>()-&gt;add(WINDOW_FUNC_KAISER_1);
-<a name="l00151"></a>00151         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a15">windowFunc</a>()-&gt;add(WINDOW_FUNC_KAISER_2);
-<a name="l00152"></a>00152         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a15">windowFunc</a>()-&gt;add(WINDOW_FUNC_KAISER_3);
-<a name="l00153"></a>00153         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a15">windowFunc</a>()-&gt;value(WINDOW_FUNC_RECT);
-<a name="l00154"></a>00154 
-<a name="l00155"></a>00155         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;setCaption(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"NMR Pulse - "</span>) + <a class="code" href="class_x_node.html#a7">getLabel</a>() );
-<a name="l00156"></a>00156 
-<a name="l00157"></a>00157         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r58">m_fftForm</a>-&gt;setCaption(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"NMR-FFT - "</span>) + <a class="code" href="class_x_node.html#a7">getLabel</a>() );
-<a name="l00158"></a>00158 
-<a name="l00159"></a>00159         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r44">m_conAvgClear</a> = xqcon_create&lt;XQButtonConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r18">m_avgClear</a>, <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;m_btnAvgClear);
-<a name="l00160"></a>00160         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r45">m_conFFTShow</a> = xqcon_create&lt;XQButtonConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r17">m_fftShow</a>, <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;m_btnFFT);
-<a name="l00161"></a>00161     
-<a name="l00162"></a>00162         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r34">m_conFromTrig</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a7">fromTrig</a>(), <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;m_edPos);
-<a name="l00163"></a>00163         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r35">m_conWidth</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a8">width</a>(), <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;m_edWidth);
-<a name="l00164"></a>00164         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;m_numPhaseAdv-&gt;setRange(-180.0, 180.0, 1.0, <span class="keyword">true</span>);
-<a name="l00165"></a>00165         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r36">m_conPhaseAdv</a> = xqcon_create&lt;XKDoubleNumInputConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a9">phaseAdv</a>(), <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;m_numPhaseAdv);
-<a name="l00166"></a>00166         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r38">m_conUseDNR</a> = xqcon_create&lt;XQToggleButtonConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a10">useDNR</a>(), <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;m_ckbDNR);
-<a name="l00167"></a>00167         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r37">m_conBGPos</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a11">bgPos</a>(), <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;m_edBGPos);
-<a name="l00168"></a>00168         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r39">m_conBGWidth</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a12">bgWidth</a>(), <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;m_edBGWidth);
-<a name="l00169"></a>00169         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r40">m_conFFTPos</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a13">fftPos</a>(), <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;m_edFFTPos);
-<a name="l00170"></a>00170         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r41">m_conFFTLen</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a14">fftLen</a>(), <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;m_edFFTLen);
-<a name="l00171"></a>00171         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r42">m_conExtraAv</a> = xqcon_create&lt;XQSpinBoxConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a18">extraAvg</a>(), <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;m_numExtraAvg);
-<a name="l00172"></a>00172         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r43">m_conExAvgIncr</a> = xqcon_create&lt;XQToggleButtonConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a17">exAvgIncr</a>(), <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;m_ckbIncrAvg);
-<a name="l00173"></a>00173         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r48">m_conNumEcho</a> = xqcon_create&lt;XQSpinBoxConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a19">numEcho</a>(), <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;m_numEcho);
-<a name="l00174"></a>00174         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r49">m_conEchoPeriod</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a20">echoPeriod</a>(), <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;m_edEchoPeriod);
-<a name="l00175"></a>00175         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r46">m_conWindowFunc</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a15">windowFunc</a>(), <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;m_cmbWindowFunc);
-<a name="l00176"></a>00176         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r47">m_conDIFFreq</a> = xqcon_create&lt;XQLineEditConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a16">difFreq</a>(), <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;m_edDIFFreq);
-<a name="l00177"></a>00177 
-<a name="l00178"></a>00178         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r52">m_conPICEnabled</a> = xqcon_create&lt;XQToggleButtonConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r19">m_picEnabled</a>, <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;m_ckbPICEnabled);
-<a name="l00179"></a>00179   
-<a name="l00180"></a>00180         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r51">m_conPulser</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r20">m_pulser</a>, <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;m_cmbPulser);
-<a name="l00181"></a>00181         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r50">m_conDSO</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a4">dso</a>(), <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;m_cmbDSO);
-<a name="l00182"></a>00182       
-<a name="l00183"></a>00183         {
-<a name="l00184"></a>00184                 <span class="keyword">const</span> <span class="keywordtype">char</span> *labels[] = {<span class="stringliteral">"Time [ms]"</span>, <span class="stringliteral">"Cos [V]"</span>, <span class="stringliteral">"Sin [V]"</span>};
-<a name="l00185"></a>00185                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d0">waveGraph</a>()-&gt;setColCount(3, labels);
-<a name="l00186"></a>00186                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d0">waveGraph</a>()-&gt;selectAxes(0, 1, 2);
-<a name="l00187"></a>00187                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d0">waveGraph</a>()-&gt;plot1()-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"real part"</span>));
-<a name="l00188"></a>00188                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d0">waveGraph</a>()-&gt;plot1()-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
-<a name="l00189"></a>00189                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d0">waveGraph</a>()-&gt;plot2()-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"imag. part"</span>));
-<a name="l00190"></a>00190                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d0">waveGraph</a>()-&gt;plot2()-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
-<a name="l00191"></a>00191                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d0">waveGraph</a>()-&gt;clear();
-<a name="l00192"></a>00192         }
-<a name="l00193"></a>00193         {
-<a name="l00194"></a>00194                 <span class="keyword">const</span> <span class="keywordtype">char</span> *labels[] = {<span class="stringliteral">"Freq. [kHz]"</span>, <span class="stringliteral">"Re. [V]"</span>, <span class="stringliteral">"Im. [V]"</span>, <span class="stringliteral">"Abs. [V]"</span>, <span class="stringliteral">"Phase [deg]"</span>};
-<a name="l00195"></a>00195                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d1">ftWaveGraph</a>()-&gt;setColCount(5, labels);
-<a name="l00196"></a>00196                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d1">ftWaveGraph</a>()-&gt;selectAxes(0, 3, 4);
-<a name="l00197"></a>00197                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d1">ftWaveGraph</a>()-&gt;plot1()-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"abs."</span>));
-<a name="l00198"></a>00198                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d1">ftWaveGraph</a>()-&gt;plot1()-&gt;drawBars()-&gt;value(<span class="keyword">true</span>);
-<a name="l00199"></a>00199                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d1">ftWaveGraph</a>()-&gt;plot1()-&gt;drawLines()-&gt;value(<span class="keyword">false</span>);
-<a name="l00200"></a>00200                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d1">ftWaveGraph</a>()-&gt;plot1()-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
-<a name="l00201"></a>00201                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d1">ftWaveGraph</a>()-&gt;plot2()-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"phase"</span>));
-<a name="l00202"></a>00202                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d1">ftWaveGraph</a>()-&gt;plot2()-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>); 
-<a name="l00203"></a>00203                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d1">ftWaveGraph</a>()-&gt;clear();
-<a name="l00204"></a>00204         }
-<a name="l00205"></a>00205   
-<a name="l00206"></a>00206         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r54">m_lsnOnAvgClear</a> = m_avgClear-&gt;onTouch().connectWeak(
-<a name="l00207"></a>00207                 shared_from_this(), &amp;<a class="code" href="class_x_n_m_r_pulse_analyzer.html#d4">XNMRPulseAnalyzer::onAvgClear</a>);
-<a name="l00208"></a>00208         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r53">m_lsnOnFFTShow</a> = m_fftShow-&gt;onTouch().connectWeak(
-<a name="l00209"></a>00209                 shared_from_this(), &amp;<a class="code" href="class_x_n_m_r_pulse_analyzer.html#d3">XNMRPulseAnalyzer::onFFTShow</a>,
-<a name="l00210"></a>00210                 XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
-<a name="l00211"></a>00211   
-<a name="l00212"></a>00212         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r55">m_lsnOnCondChanged</a> = <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a7">fromTrig</a>()-&gt;onValueChanged().connectWeak(
-<a name="l00213"></a>00213                 shared_from_this(), &amp;<a class="code" href="class_x_n_m_r_pulse_analyzer.html#d2">XNMRPulseAnalyzer::onCondChanged</a>);
-<a name="l00214"></a>00214         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a8">width</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r55">m_lsnOnCondChanged</a>);
-<a name="l00215"></a>00215         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a9">phaseAdv</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r55">m_lsnOnCondChanged</a>);
-<a name="l00216"></a>00216         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a10">useDNR</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r55">m_lsnOnCondChanged</a>);
-<a name="l00217"></a>00217         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a11">bgPos</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r55">m_lsnOnCondChanged</a>);
-<a name="l00218"></a>00218         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a12">bgWidth</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r55">m_lsnOnCondChanged</a>);
-<a name="l00219"></a>00219         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a13">fftPos</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r55">m_lsnOnCondChanged</a>);
-<a name="l00220"></a>00220         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a14">fftLen</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r55">m_lsnOnCondChanged</a>);
-<a name="l00221"></a>00221         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a18">extraAvg</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r55">m_lsnOnCondChanged</a>);
-<a name="l00222"></a>00222         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a17">exAvgIncr</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r55">m_lsnOnCondChanged</a>);
-<a name="l00223"></a>00223         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a19">numEcho</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r55">m_lsnOnCondChanged</a>);
-<a name="l00224"></a>00224         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a20">echoPeriod</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r55">m_lsnOnCondChanged</a>);
-<a name="l00225"></a>00225         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a15">windowFunc</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r55">m_lsnOnCondChanged</a>);
-<a name="l00226"></a>00226         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a16">difFreq</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r55">m_lsnOnCondChanged</a>); 
-<a name="l00227"></a>00227 }
-<a name="l00228"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#a0">00228</a> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a0">XNMRPulseAnalyzer::~XNMRPulseAnalyzer</a>() {
-<a name="l00229"></a>00229         <span class="keywordflow">if</span>(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r69">m_fftlen</a> &gt;= 0)  fftw_destroy_plan(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r72">m_fftplan</a>);
-<a name="l00230"></a>00230         <span class="keywordflow">if</span>(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r62">m_dnrpulsefftlen</a> &gt;= 0)  fftw_destroy_plan(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r68">m_dnrpulsefftplan</a>);
-<a name="l00231"></a>00231         <span class="keywordflow">if</span>(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r61">m_dnrsubfftlen</a> &gt;= 0)  fftw_destroy_plan(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r65">m_dnrsubfftplan</a>);
-<a name="l00232"></a>00232 }
-<a name="l00233"></a>00233 <span class="keywordtype">void</span>
-<a name="l00234"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#d3">00234</a> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d3">XNMRPulseAnalyzer::onFFTShow</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;)
-<a name="l00235"></a>00235 {
-<a name="l00236"></a>00236         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r58">m_fftForm</a>-&gt;show();
-<a name="l00237"></a>00237         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r58">m_fftForm</a>-&gt;raise();
-<a name="l00238"></a>00238 }
-<a name="l00239"></a>00239 <span class="keywordtype">void</span>
-<a name="l00240"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#a1">00240</a> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a1">XNMRPulseAnalyzer::showForms</a>()
-<a name="l00241"></a>00241 {
-<a name="l00242"></a>00242         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;show();
-<a name="l00243"></a>00243         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r56">m_form</a>-&gt;raise();
-<a name="l00244"></a>00244 }
-<a name="l00245"></a>00245 
-<a name="l00246"></a>00246 <span class="keywordtype">void</span>
-<a name="l00247"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#d5">00247</a> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d5">XNMRPulseAnalyzer::backgroundSub</a>(<span class="keyword">const</span> std::deque&lt;std::complex&lt;double&gt; &gt; &amp;wave,
-<a name="l00248"></a>00248                                                                  <span class="keywordtype">int</span> pos, <span class="keywordtype">int</span> length, <span class="keywordtype">int</span> bgpos, <span class="keywordtype">int</span> bglength, twindowfunc windowfunc)
-<a name="l00249"></a>00249 {
-<a name="l00250"></a>00250         <span class="keywordflow">if</span>(*<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a10">useDNR</a>() &amp;&amp; (bglength &gt; 0))
-<a name="l00251"></a>00251     {
-<a name="l00252"></a>00252                 <span class="keyword">const</span> <span class="keywordtype">int</span> dnrlen = bglength;
-<a name="l00253"></a>00253                 <span class="keyword">const</span> <span class="keywordtype">int</span> dnrpos = bgpos;
-<a name="l00254"></a>00254 
-<a name="l00255"></a>00255                 <span class="comment">//FFT plan for subtraction</span>
-<a name="l00256"></a>00256                 <span class="keywordflow">if</span>(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r61">m_dnrsubfftlen</a> != dnrlen)
-<a name="l00257"></a>00257                 {
-<a name="l00258"></a>00258                         <span class="keywordflow">if</span>(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r61">m_dnrsubfftlen</a> &gt;= 0) fftw_destroy_plan(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r65">m_dnrsubfftplan</a>);
-<a name="l00259"></a>00259                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r61">m_dnrsubfftlen</a> = dnrlen;
-<a name="l00260"></a>00260                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r63">m_dnrsubfftin</a>.resize(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r61">m_dnrsubfftlen</a>);
-<a name="l00261"></a>00261                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r64">m_dnrsubfftout</a>.resize(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r61">m_dnrsubfftlen</a>);
-<a name="l00262"></a>00262                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r65">m_dnrsubfftplan</a> = fftw_create_plan(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r61">m_dnrsubfftlen</a>, FFTW_FORWARD, FFTW_ESTIMATE);
-<a name="l00263"></a>00263                 }
-<a name="l00264"></a>00264                 <span class="comment">//IFFT plan for the subtracted</span>
-<a name="l00265"></a>00265                 <span class="keywordflow">if</span>(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r62">m_dnrpulsefftlen</a> != std::max(dnrlen, length))
-<a name="l00266"></a>00266                 {
-<a name="l00267"></a>00267                         <span class="keywordflow">if</span>(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r62">m_dnrpulsefftlen</a> &gt;= 0)  fftw_destroy_plan(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r68">m_dnrpulsefftplan</a>);
-<a name="l00268"></a>00268                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r62">m_dnrpulsefftlen</a> = std::max(dnrlen, length);
-<a name="l00269"></a>00269                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r66">m_dnrpulsefftin</a>.resize(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r62">m_dnrpulsefftlen</a>);
-<a name="l00270"></a>00270                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r67">m_dnrpulsefftout</a>.resize(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r62">m_dnrpulsefftlen</a>);
-<a name="l00271"></a>00271                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r68">m_dnrpulsefftplan</a> = fftw_create_plan(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r62">m_dnrpulsefftlen</a>, FFTW_BACKWARD, FFTW_ESTIMATE);
-<a name="l00272"></a>00272                 }
-<a name="l00273"></a>00273 
-<a name="l00274"></a>00274                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r61">m_dnrsubfftlen</a>; i++)
-<a name="l00275"></a>00275                 {
-<a name="l00276"></a>00276                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r63">m_dnrsubfftin</a>[i].re = std::real(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a22">wave</a>[i + pos + dnrpos]);
-<a name="l00277"></a>00277                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r63">m_dnrsubfftin</a>[i].im = std::imag(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a22">wave</a>[i + pos + dnrpos]);
-<a name="l00278"></a>00278                 }
-<a name="l00279"></a>00279                 fftw_one(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r65">m_dnrsubfftplan</a>, &amp;<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r63">m_dnrsubfftin</a>[0], &amp;<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r64">m_dnrsubfftout</a>[0]);
-<a name="l00280"></a>00280 
-<a name="l00281"></a>00281                 <span class="comment">//calcurate noise level</span>
-<a name="l00282"></a>00282                 <span class="keywordtype">double</span> nlevel = 0.0;
-<a name="l00283"></a>00283                 <span class="keywordtype">int</span> nlevel_cnt = 0;
-<a name="l00284"></a>00284 <span class="preprocessor">#define NOISE_BW 20</span>
-<a name="l00285"></a>00285 <span class="preprocessor"></span>                <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; m_dnrsubfftlen; i++)
-<a name="l00286"></a>00286                 {
-<a name="l00287"></a>00287                         <span class="keywordtype">int</span> k = (i &lt; m_dnrsubfftlen/2) ? i : (i - m_dnrsubfftlen);
-<a name="l00288"></a>00288                         <span class="keywordflow">if</span>((abs(k) &lt; NOISE_BW) &amp;&amp; (k != 0))
-<a name="l00289"></a>00289                         { 
-<a name="l00290"></a>00290                                 nlevel += sqrt(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r64">m_dnrsubfftout</a>[i].re * <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r64">m_dnrsubfftout</a>[i].re
-<a name="l00291"></a>00291                                                            + <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r64">m_dnrsubfftout</a>[i].im * <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r64">m_dnrsubfftout</a>[i].im);
-<a name="l00292"></a>00292                                 nlevel_cnt++;
-<a name="l00293"></a>00293                         }
-<a name="l00294"></a>00294                 }
-<a name="l00295"></a>00295                 nlevel /= nlevel_cnt;
-<a name="l00296"></a>00296                 nlevel *= 2.0; <span class="comment">//Threshold value</span>
-<a name="l00297"></a>00297 
-<a name="l00298"></a>00298                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r62">m_dnrpulsefftlen</a>; i++)
-<a name="l00299"></a>00299                 {
-<a name="l00300"></a>00300                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r66">m_dnrpulsefftin</a>[i].re = 0.0;
-<a name="l00301"></a>00301                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r66">m_dnrpulsefftin</a>[i].im = 0.0;
-<a name="l00302"></a>00302                 }        
-<a name="l00303"></a>00303 
-<a name="l00304"></a>00304                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r26">m_noisePower</a> = 0.0;
-<a name="l00305"></a>00305                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; m_dnrsubfftlen; i++)
-<a name="l00306"></a>00306                 {
-<a name="l00307"></a>00307                         <span class="keywordtype">int</span> k = (i &lt; m_dnrsubfftlen/2) ? i : (i - m_dnrsubfftlen);
-<a name="l00308"></a>00308                         <span class="keywordflow">if</span>((k != 0)
-<a name="l00309"></a>00309                            &amp;&amp; (sqrt(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r64">m_dnrsubfftout</a>[i].re * <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r64">m_dnrsubfftout</a>[i].re + <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r64">m_dnrsubfftout</a>[i].im * <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r64">m_dnrsubfftout</a>[i].im) &lt; nlevel))
-<a name="l00310"></a>00310                         {
-<a name="l00311"></a>00311                                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r26">m_noisePower</a> += <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r64">m_dnrsubfftout</a>[i].re * <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r64">m_dnrsubfftout</a>[i].re 
-<a name="l00312"></a>00312                     + <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r64">m_dnrsubfftout</a>[i].im * <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r64">m_dnrsubfftout</a>[i].im;
-<a name="l00313"></a>00313                                 <span class="keywordflow">continue</span>;            
-<a name="l00314"></a>00314                         }
-<a name="l00315"></a>00315                         <span class="keyword">const</span> <span class="keywordtype">double</span> dphase = - 2 * PI * dnrpos * i / m_dnrsubfftlen;
+<a name="l00133"></a>00133         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#6ba3ca9feca6b2c381d74d5b641165a6">m_conPICEnabled</a> = xqcon_create&lt;XQToggleButtonConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#fc244d4cbd8afe2fd94279c8343a7257">m_picEnabled</a>,
+<a name="l00134"></a>00134                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_ckbPICEnabled);
+<a name="l00135"></a>00135 
+<a name="l00136"></a>00136         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#4393a649212e207f3696de435848c670">m_conPulser</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#ef08b03961c7c080f8d0c677592bb24b">m_pulser</a>,
+<a name="l00137"></a>00137                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_cmbPulser);
+<a name="l00138"></a>00138         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#50e9b9e514c5b55fbe53782d121de93f">m_conDSO</a> = xqcon_create&lt;XQComboBoxConnector&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#e1cb7e66ba9e4194226003370ff0b03f">dso</a>(), <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;m_cmbDSO);
+<a name="l00139"></a>00139 
+<a name="l00140"></a>00140         {
+<a name="l00141"></a>00141                 <span class="keyword">const</span> <span class="keywordtype">char</span> *labels[] = { <span class="stringliteral">"Time [ms]"</span>, <span class="stringliteral">"IFFT Re [V]"</span>, <span class="stringliteral">"IFFT Im [V]"</span>, <span class="stringliteral">"DSO CH1[V]"</span>, <span class="stringliteral">"DSO CH2[V]"</span>};
+<a name="l00142"></a>00142                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#77cd8299d7b19373091dff7257f5ba1d">waveGraph</a>()-&gt;setColCount(5, labels);
+<a name="l00143"></a>00143                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#77cd8299d7b19373091dff7257f5ba1d">waveGraph</a>()-&gt;insertPlot(labels[1], 0, 1);
+<a name="l00144"></a>00144                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#77cd8299d7b19373091dff7257f5ba1d">waveGraph</a>()-&gt;insertPlot(labels[2], 0, 2);
+<a name="l00145"></a>00145                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#77cd8299d7b19373091dff7257f5ba1d">waveGraph</a>()-&gt;insertPlot(labels[3], 0, 3);
+<a name="l00146"></a>00146                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#77cd8299d7b19373091dff7257f5ba1d">waveGraph</a>()-&gt;insertPlot(labels[4], 0, 4);
+<a name="l00147"></a>00147                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#77cd8299d7b19373091dff7257f5ba1d">waveGraph</a>()-&gt;axisy()-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Intens. [V]"</span>));
+<a name="l00148"></a>00148                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#77cd8299d7b19373091dff7257f5ba1d">waveGraph</a>()-&gt;plot(0)-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"IFFT Re."</span>));
+<a name="l00149"></a>00149                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#77cd8299d7b19373091dff7257f5ba1d">waveGraph</a>()-&gt;plot(0)-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
+<a name="l00150"></a>00150                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#77cd8299d7b19373091dff7257f5ba1d">waveGraph</a>()-&gt;plot(0)-&gt;intensity()-&gt;value(1.5);
+<a name="l00151"></a>00151                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#77cd8299d7b19373091dff7257f5ba1d">waveGraph</a>()-&gt;plot(1)-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"IFFT Im."</span>));
+<a name="l00152"></a>00152                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#77cd8299d7b19373091dff7257f5ba1d">waveGraph</a>()-&gt;plot(1)-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
+<a name="l00153"></a>00153                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#77cd8299d7b19373091dff7257f5ba1d">waveGraph</a>()-&gt;plot(1)-&gt;intensity()-&gt;value(1.5);
+<a name="l00154"></a>00154                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#77cd8299d7b19373091dff7257f5ba1d">waveGraph</a>()-&gt;plot(2)-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"DSO CH1"</span>));
+<a name="l00155"></a>00155                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#77cd8299d7b19373091dff7257f5ba1d">waveGraph</a>()-&gt;plot(2)-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
+<a name="l00156"></a>00156                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#77cd8299d7b19373091dff7257f5ba1d">waveGraph</a>()-&gt;plot(2)-&gt;lineColor()-&gt;value(QColor(0xff, 0xa0, 0x00).rgb());
+<a name="l00157"></a>00157                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#77cd8299d7b19373091dff7257f5ba1d">waveGraph</a>()-&gt;plot(2)-&gt;intensity()-&gt;value(0.6);
+<a name="l00158"></a>00158                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#77cd8299d7b19373091dff7257f5ba1d">waveGraph</a>()-&gt;plot(3)-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"DSO CH2"</span>));
+<a name="l00159"></a>00159                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#77cd8299d7b19373091dff7257f5ba1d">waveGraph</a>()-&gt;plot(3)-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
+<a name="l00160"></a>00160                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#77cd8299d7b19373091dff7257f5ba1d">waveGraph</a>()-&gt;plot(3)-&gt;lineColor()-&gt;value(QColor(0x00, 0xa0, 0xff).rgb());
+<a name="l00161"></a>00161                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#77cd8299d7b19373091dff7257f5ba1d">waveGraph</a>()-&gt;plot(3)-&gt;intensity()-&gt;value(0.6);
+<a name="l00162"></a>00162                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#77cd8299d7b19373091dff7257f5ba1d">waveGraph</a>()-&gt;clear();
+<a name="l00163"></a>00163         }
+<a name="l00164"></a>00164         {
+<a name="l00165"></a>00165                 <span class="keyword">const</span> <span class="keywordtype">char</span> *labels[] = { <span class="stringliteral">"Freq. [kHz]"</span>, <span class="stringliteral">"Re. [V]"</span>, <span class="stringliteral">"Im. [V]"</span>,
+<a name="l00166"></a>00166                         <span class="stringliteral">"Abs. [V]"</span>, <span class="stringliteral">"Phase [deg]"</span> };
+<a name="l00167"></a>00167                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#9409cdb3b749c080dfc0f2b0b54f68a4">ftWaveGraph</a>()-&gt;setColCount(5, labels);
+<a name="l00168"></a>00168                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#9409cdb3b749c080dfc0f2b0b54f68a4">ftWaveGraph</a>()-&gt;insertPlot(labels[3], 0, 3);
+<a name="l00169"></a>00169                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#9409cdb3b749c080dfc0f2b0b54f68a4">ftWaveGraph</a>()-&gt;insertPlot(labels[4], 0, -1, 4);
+<a name="l00170"></a>00170                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#9409cdb3b749c080dfc0f2b0b54f68a4">ftWaveGraph</a>()-&gt;plot(0)-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"abs."</span>));
+<a name="l00171"></a>00171                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#9409cdb3b749c080dfc0f2b0b54f68a4">ftWaveGraph</a>()-&gt;plot(0)-&gt;drawBars()-&gt;value(<span class="keyword">true</span>);
+<a name="l00172"></a>00172                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#9409cdb3b749c080dfc0f2b0b54f68a4">ftWaveGraph</a>()-&gt;plot(0)-&gt;drawLines()-&gt;value(<span class="keyword">true</span>);
+<a name="l00173"></a>00173                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#9409cdb3b749c080dfc0f2b0b54f68a4">ftWaveGraph</a>()-&gt;plot(0)-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
+<a name="l00174"></a>00174                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#9409cdb3b749c080dfc0f2b0b54f68a4">ftWaveGraph</a>()-&gt;plot(0)-&gt;intensity()-&gt;value(0.5);
+<a name="l00175"></a>00175                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#9409cdb3b749c080dfc0f2b0b54f68a4">ftWaveGraph</a>()-&gt;plot(1)-&gt;label()-&gt;value(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"phase"</span>));
+<a name="l00176"></a>00176                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#9409cdb3b749c080dfc0f2b0b54f68a4">ftWaveGraph</a>()-&gt;plot(1)-&gt;drawPoints()-&gt;value(<span class="keyword">false</span>);
+<a name="l00177"></a>00177                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#9409cdb3b749c080dfc0f2b0b54f68a4">ftWaveGraph</a>()-&gt;clear();
+<a name="l00178"></a>00178         }
+<a name="l00179"></a>00179 
+<a name="l00180"></a>00180         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#65ec31cc557ac3966ef7813d3e930708">m_lsnOnAvgClear</a> = m_avgClear-&gt;onTouch().connectWeak(shared_from_this(), &amp;<a class="code" href="class_x_n_m_r_pulse_analyzer.html#1ef3c623a0ab525904a4dfbe1879c086">XNMRPulseAnalyzer::onAvgClear</a>);
+<a name="l00181"></a>00181         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#f89fbb47e70a1f0f6f75c41f105a4c6e">m_lsnOnSpectrumShow</a> = m_spectrumShow-&gt;onTouch().connectWeak(shared_from_this(), &amp;<a class="code" href="class_x_n_m_r_pulse_analyzer.html#4e74048ba1dca39612de1cb481c5698e">XNMRPulseAnalyzer::onSpectrumShow</a>,
+<a name="l00182"></a>00182                 XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
+<a name="l00183"></a>00183 
+<a name="l00184"></a>00184         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#fa6b69616bc4052cac23917ea548bd0e">m_lsnOnCondChanged</a> = <a class="code" href="class_x_n_m_r_pulse_analyzer.html#7b73573002fa1866aac5606b7de8100f">fromTrig</a>()-&gt;onValueChanged().connectWeak(shared_from_this(), &amp;<a class="code" href="class_x_n_m_r_pulse_analyzer.html#953d48f8283b9228e31042f960b29b8f">XNMRPulseAnalyzer::onCondChanged</a>);
+<a name="l00185"></a>00185         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#9161fcdeaf81a921de1c56876ffe1618">width</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#fa6b69616bc4052cac23917ea548bd0e">m_lsnOnCondChanged</a>);
+<a name="l00186"></a>00186         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#998cdd6f8c4e72ea03616e372d309c51">phaseAdv</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#fa6b69616bc4052cac23917ea548bd0e">m_lsnOnCondChanged</a>);
+<a name="l00187"></a>00187         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d7b514a92cfc38372b5b076bf43a1cc2">useDNR</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#fa6b69616bc4052cac23917ea548bd0e">m_lsnOnCondChanged</a>);
+<a name="l00188"></a>00188         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#4e71ba7bda405c6821f4e7253b36021b">solverList</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#fa6b69616bc4052cac23917ea548bd0e">m_lsnOnCondChanged</a>);
+<a name="l00189"></a>00189         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#450fcef58dea4e33365fc4f6f5c80fe1">bgPos</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#fa6b69616bc4052cac23917ea548bd0e">m_lsnOnCondChanged</a>);
+<a name="l00190"></a>00190         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a383a41dc1e95f32e1962038d5061fbe">bgWidth</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#fa6b69616bc4052cac23917ea548bd0e">m_lsnOnCondChanged</a>);
+<a name="l00191"></a>00191         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#b3490c12848e85933024dd60571d96f4">fftPos</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#fa6b69616bc4052cac23917ea548bd0e">m_lsnOnCondChanged</a>);
+<a name="l00192"></a>00192         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#5e04fecaf5f81b6e5c3e9bcc4308311d">fftLen</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#fa6b69616bc4052cac23917ea548bd0e">m_lsnOnCondChanged</a>);
+<a name="l00193"></a>00193         <span class="comment">//      extraAvg()-&gt;onValueChanged().connect(m_lsnOnCondChanged);</span>
+<a name="l00194"></a>00194         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#b68d4af685e0e8f1cf127eaaf1a72e44">exAvgIncr</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#fa6b69616bc4052cac23917ea548bd0e">m_lsnOnCondChanged</a>);
+<a name="l00195"></a>00195         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#b1fe4007cda96120f1c8f99a087b9aed">numEcho</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#fa6b69616bc4052cac23917ea548bd0e">m_lsnOnCondChanged</a>);
+<a name="l00196"></a>00196         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d0dd616877364b52569abe4ad17f2c64">echoPeriod</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#fa6b69616bc4052cac23917ea548bd0e">m_lsnOnCondChanged</a>);
+<a name="l00197"></a>00197         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#837673767b2359784beea71b56fd59ea">windowFunc</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#fa6b69616bc4052cac23917ea548bd0e">m_lsnOnCondChanged</a>);
+<a name="l00198"></a>00198         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d43b4036a6b1cce02e43760ff7db921f">windowWidth</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#fa6b69616bc4052cac23917ea548bd0e">m_lsnOnCondChanged</a>);
+<a name="l00199"></a>00199         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#ced96ceaace18af4935bd3cb78a2e383">difFreq</a>()-&gt;onValueChanged().connect(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#fa6b69616bc4052cac23917ea548bd0e">m_lsnOnCondChanged</a>);
+<a name="l00200"></a>00200 }
+<a name="l00201"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#e26481e4c90b45e9dcfcea18585e84b8">00201</a> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#e26481e4c90b45e9dcfcea18585e84b8">XNMRPulseAnalyzer::~XNMRPulseAnalyzer</a>() {
+<a name="l00202"></a>00202 }
+<a name="l00203"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#4e74048ba1dca39612de1cb481c5698e">00203</a> <span class="keywordtype">void</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#4e74048ba1dca39612de1cb481c5698e">XNMRPulseAnalyzer::onSpectrumShow</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;) {
+<a name="l00204"></a>00204         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#1164e8ad8832f7cf26ea02f781fb1539">m_spectrumForm</a>-&gt;show();
+<a name="l00205"></a>00205         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#1164e8ad8832f7cf26ea02f781fb1539">m_spectrumForm</a>-&gt;raise();
+<a name="l00206"></a>00206 }
+<a name="l00207"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#9246f0dfc3828d97a10e695e895f2a09">00207</a> <span class="keywordtype">void</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#9246f0dfc3828d97a10e695e895f2a09">XNMRPulseAnalyzer::showForms</a>() {
+<a name="l00208"></a>00208         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;show();
+<a name="l00209"></a>00209         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#c70e9b9c0c747272e0b84adaeff04041">m_form</a>-&gt;raise();
+<a name="l00210"></a>00210 }
+<a name="l00211"></a>00211 
+<a name="l00212"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#5d16dc7490edad75ca0ec8a85f333c38">00212</a> <span class="keywordtype">void</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#5d16dc7490edad75ca0ec8a85f333c38">XNMRPulseAnalyzer::backgroundSub</a>(std::vector&lt;std::complex&lt;double&gt; &gt; &amp;wave, 
+<a name="l00213"></a>00213         <span class="keywordtype">int</span> pos, <span class="keywordtype">int</span> length, <span class="keywordtype">int</span> bgpos, <span class="keywordtype">int</span> bglength) {
+<a name="l00214"></a>00214 
+<a name="l00215"></a>00215         <span class="keywordflow">if</span>(bglength &lt; length*2)
+<a name="l00216"></a>00216                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#2c2d83a3e57034b129c633759f99696a">m_statusPrinter</a>-&gt;printWarning(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Maybe, length for BG. sub. is too short."</span>));
+<a name="l00217"></a>00217         
+<a name="l00218"></a>00218         std::complex&lt;double&gt; bg = 0;
+<a name="l00219"></a>00219         <span class="keywordflow">if</span> (bglength) {
+<a name="l00220"></a>00220                 <span class="keywordtype">double</span> normalize = 0.0;
+<a name="l00221"></a>00221                 <span class="keywordflow">for</span> (<span class="keywordtype">int</span> i = 0; i &lt; bglength; i++) {
+<a name="l00222"></a>00222                         <span class="keywordtype">double</span> z = 1.0;
+<a name="l00223"></a>00223                         <span class="keywordflow">if</span>(!*<a class="code" href="class_x_n_m_r_pulse_analyzer.html#d7b514a92cfc38372b5b076bf43a1cc2">useDNR</a>())
+<a name="l00224"></a>00224                                 z = <a class="code" href="class_f_f_t.html#43e2fb4a6e22f751b4e49df777b6b760">FFT::windowFuncHamming</a>( (<span class="keywordtype">double</span>)i / bglength - 0.5);
+<a name="l00225"></a>00225                         bg += z * <a class="code" href="class_x_n_m_r_pulse_analyzer.html#ace665aaa64c55e6bd85b0fb7b8b3daf">wave</a>[pos + i + bgpos];
+<a name="l00226"></a>00226                         normalize += z;
+<a name="l00227"></a>00227                 }
+<a name="l00228"></a>00228                 bg /= normalize;
+<a name="l00229"></a>00229         }
+<a name="l00230"></a>00230 
+<a name="l00231"></a>00231         <span class="keywordflow">for</span> (<span class="keywordtype">int</span> i = 0; i &lt; wave.size(); i++) {
+<a name="l00232"></a>00232                 wave[i] -= bg;
+<a name="l00233"></a>00233         }
+<a name="l00234"></a>00234 
+<a name="l00235"></a>00235         <span class="keywordflow">if</span> (bglength &amp;&amp; *useDNR()) {
+<a name="l00236"></a>00236                 <span class="keywordtype">int</span> dnrlength = <a class="code" href="class_f_f_t.html#9c61d42ac208b72144399bacb225cf4c">FFT::fitLength</a>((bglength + bgpos) * 4);
+<a name="l00237"></a>00237                 std::vector&lt;std::complex&lt;double&gt; &gt; memin(bglength), memout(dnrlength);
+<a name="l00238"></a>00238                 <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; bglength; i++) {
+<a name="l00239"></a>00239                         memin[i] = wave[pos + i + bgpos];
+<a name="l00240"></a>00240                 }
+<a name="l00241"></a>00241                 m_memDNR.exec(memin, memout, bgpos, 2e-2, &amp;<a class="code" href="class_f_f_t.html#c2f2a73910073d2f7e059cf10bd10d52">FFT::windowFuncRect</a>, 1.0);
+<a name="l00242"></a>00242                 <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; std::min((<span class="keywordtype">int</span>)wave.size() - pos, (int)memout.size()); i++) {
+<a name="l00243"></a>00243                         wave[i + pos] -= m_memDNR.ifft()[i];
+<a name="l00244"></a>00244                 }
+<a name="l00245"></a>00245         }
+<a name="l00246"></a>00246 }
+<a name="l00247"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#3d185b93ce3d8b0b25fe32c67ad71b18">00247</a> <span class="keywordtype">void</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#3d185b93ce3d8b0b25fe32c67ad71b18">XNMRPulseAnalyzer::rotNFFT</a>(<span class="keywordtype">int</span> ftpos, <span class="keywordtype">double</span> ph,
+<a name="l00248"></a>00248         std::vector&lt;std::complex&lt;double&gt; &gt; &amp;wave,
+<a name="l00249"></a>00249         std::vector&lt;std::complex&lt;double&gt; &gt; &amp;ftwave,
+<a name="l00250"></a>00250         <span class="keywordtype">int</span> diffreq) {
+<a name="l00251"></a>00251         <span class="keywordtype">int</span> length = <a class="code" href="class_x_n_m_r_pulse_analyzer.html#ace665aaa64c55e6bd85b0fb7b8b3daf">wave</a>.size();
+<a name="l00252"></a>00252         <span class="comment">//phase advance</span>
+<a name="l00253"></a>00253         std::complex&lt;double&gt; cph(cos(ph), sin(ph));
+<a name="l00254"></a>00254         <span class="keywordflow">for</span> (<span class="keywordtype">int</span> i = 0; i &lt; length; i++) {
+<a name="l00255"></a>00255                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#ace665aaa64c55e6bd85b0fb7b8b3daf">wave</a>[i] *= cph;
+<a name="l00256"></a>00256         }
+<a name="l00257"></a>00257 
+<a name="l00258"></a>00258         <span class="keywordtype">int</span> fftlen = ftwave.size();
+<a name="l00259"></a>00259         <span class="comment">//fft</span>
+<a name="l00260"></a>00260         std::vector&lt;std::complex&lt;double&gt; &gt; fftout(fftlen);
+<a name="l00261"></a>00261         <span class="keywordtype">double</span> fftout_normalize = 1.0 / length;
+<a name="l00262"></a>00262         shared_ptr&lt;SpectrumSolver&gt; solver = m_solver-&gt;solver();
+<a name="l00263"></a>00263         solver-&gt;exec(wave, fftout, -ftpos, 0.5e-2, m_solver-&gt;windowFunc(), *windowWidth() / 100.0);
+<a name="l00264"></a>00264         m_ifftWave.resize(fftlen);
+<a name="l00265"></a>00265         std::copy(solver-&gt;ifft().begin(), solver-&gt;ifft().end(), m_ifftWave.begin());
+<a name="l00266"></a>00266 
+<a name="l00267"></a>00267         <span class="keywordflow">for</span> (<span class="keywordtype">int</span> i = 0; i &lt; fftlen; i++) {
+<a name="l00268"></a>00268                 <span class="keywordtype">int</span> k = i + diffreq;
+<a name="l00269"></a>00269                 <span class="keywordflow">if</span> ((k &gt;= 0) &amp;&amp; (k &lt; fftlen)) {
+<a name="l00270"></a>00270                         <span class="keywordtype">int</span> j = (k &lt; fftlen / 2) ? (fftlen / 2 + k)
+<a name="l00271"></a>00271                                 : (k - fftlen / 2);
+<a name="l00272"></a>00272                         ftwave[i] = fftout[j] * fftout_normalize;
+<a name="l00273"></a>00273                 }
+<a name="l00274"></a>00274                 <span class="keywordflow">else</span> {
+<a name="l00275"></a>00275                         ftwave[i] = 0;
+<a name="l00276"></a>00276                 }
+<a name="l00277"></a>00277         }
+<a name="l00278"></a>00278 }
+<a name="l00279"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#1ef3c623a0ab525904a4dfbe1879c086">00279</a> <span class="keywordtype">void</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#1ef3c623a0ab525904a4dfbe1879c086">XNMRPulseAnalyzer::onAvgClear</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;) {
+<a name="l00280"></a>00280         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a256266b8148a7d79ce0a11e600ef5b7">m_timeClearRequested</a> = <a class="code" href="class_x_time.html#c379a0eebc8202c724609985cf7782ac">XTime::now</a>();
+<a name="l00281"></a>00281         <a class="code" href="class_x_secondary_driver.html#ef54cddf02a0087c01578988ffd33498">requestAnalysis</a>();
+<a name="l00282"></a>00282 }
+<a name="l00283"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#953d48f8283b9228e31042f960b29b8f">00283</a> <span class="keywordtype">void</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#953d48f8283b9228e31042f960b29b8f">XNMRPulseAnalyzer::onCondChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node) {
+<a name="l00284"></a>00284         <span class="keywordflow">if</span> ((node == <a class="code" href="class_x_n_m_r_pulse_analyzer.html#b1fe4007cda96120f1c8f99a087b9aed">numEcho</a>()) || (node == <a class="code" href="class_x_n_m_r_pulse_analyzer.html#ced96ceaace18af4935bd3cb78a2e383">difFreq</a>()))
+<a name="l00285"></a>00285                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a256266b8148a7d79ce0a11e600ef5b7">m_timeClearRequested</a> = <a class="code" href="class_x_time.html#c379a0eebc8202c724609985cf7782ac">XTime::now</a>();
+<a name="l00286"></a>00286         <span class="keywordflow">if</span> (node == <a class="code" href="class_x_n_m_r_pulse_analyzer.html#b68d4af685e0e8f1cf127eaaf1a72e44">exAvgIncr</a>())
+<a name="l00287"></a>00287                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a256266b8148a7d79ce0a11e600ef5b7">m_timeClearRequested</a> = <a class="code" href="class_x_time.html#c379a0eebc8202c724609985cf7782ac">XTime::now</a>();
+<a name="l00288"></a>00288         <span class="keywordflow">if</span> (node == <a class="code" href="class_x_n_m_r_pulse_analyzer.html#b68d4af685e0e8f1cf127eaaf1a72e44">exAvgIncr</a>())
+<a name="l00289"></a>00289                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#4f7d66f00b88d15f06a5e7003ff0f021">extraAvg</a>()-&gt;value(0);
+<a name="l00290"></a>00290         <a class="code" href="class_x_secondary_driver.html#ef54cddf02a0087c01578988ffd33498">requestAnalysis</a>();
+<a name="l00291"></a>00291 }
+<a name="l00292"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#3e9553def4221d3afb4f8999066c8efb">00292</a> <span class="keywordtype">bool</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#3e9553def4221d3afb4f8999066c8efb">XNMRPulseAnalyzer::checkDependency</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;emitter)<span class="keyword"> const </span>{
+<a name="l00293"></a>00293         <span class="keyword">const</span> shared_ptr&lt;XPulser&gt; _pulser = *<a class="code" href="class_x_n_m_r_pulse_analyzer.html#f6546eaf367a3d3345f9448709758738">pulser</a>();
+<a name="l00294"></a>00294         <span class="keywordflow">if</span> (emitter == _pulser)
+<a name="l00295"></a>00295                 <span class="keywordflow">return</span> <span class="keyword">false</span>;
+<a name="l00296"></a>00296         <span class="keyword">const</span> shared_ptr&lt;XDSO&gt; _dso = *<a class="code" href="class_x_n_m_r_pulse_analyzer.html#e1cb7e66ba9e4194226003370ff0b03f">dso</a>();
+<a name="l00297"></a>00297         <span class="keywordflow">if</span> (!_dso)
+<a name="l00298"></a>00298                 <span class="keywordflow">return</span> <span class="keyword">false</span>;
+<a name="l00299"></a>00299         <span class="comment">//    //Request for clear.</span>
+<a name="l00300"></a>00300         <span class="comment">//    if(m_timeClearRequested &gt; _dso-&gt;timeAwared()) return true;</span>
+<a name="l00301"></a>00301         <span class="comment">//    if(_pulser &amp;&amp; (_dso-&gt;timeAwared() &lt; _pulser-&gt;time())) return false;</span>
+<a name="l00302"></a>00302         <span class="keywordflow">return</span> <span class="keyword">true</span>;
+<a name="l00303"></a>00303 }
+<a name="l00304"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#4cec630238c66c0fe906d37825962d84">00304</a> <span class="keywordtype">void</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#4cec630238c66c0fe906d37825962d84">XNMRPulseAnalyzer::analyze</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;emitter)
+<a name="l00305"></a>00305         <span class="keywordflow">throw</span> (XRecordError&amp;) {
+<a name="l00306"></a>00306         <span class="keyword">const</span> shared_ptr&lt;XDSO&gt; _dso = *dso();
+<a name="l00307"></a>00307         ASSERT(_dso);
+<a name="l00308"></a>00308         ASSERT(_dso-&gt;time() );
+<a name="l00309"></a>00309 
+<a name="l00310"></a>00310         <span class="keywordflow">if</span> (_dso-&gt;numChannelsRecorded() &lt; 1) {
+<a name="l00311"></a>00311                 <span class="keywordflow">throw</span> XSkippedRecordError(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"No record in DSO"</span>), __FILE__, __LINE__);
+<a name="l00312"></a>00312         }
+<a name="l00313"></a>00313         <span class="keywordflow">if</span> (_dso-&gt;numChannelsRecorded() &lt; 2) {
+<a name="l00314"></a>00314                 <span class="keywordflow">throw</span> XSkippedRecordError(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Two channels needed in DSO"</span>), __FILE__, __LINE__);
+<a name="l00315"></a>00315         }
 <a name="l00316"></a>00316 
-<a name="l00317"></a>00317                         <span class="keyword">const</span> <span class="keywordtype">double</span> cx = cos(dphase) / m_dnrsubfftlen;
-<a name="l00318"></a>00318                         <span class="keyword">const</span> <span class="keywordtype">double</span> sx = sin(dphase) / m_dnrsubfftlen;
-<a name="l00319"></a>00319                         <span class="keyword">const</span> <span class="keywordtype">int</span> j = i * (m_dnrpulsefftlen - 1) / (m_dnrsubfftlen - 1);
-<a name="l00320"></a>00320                         ASSERT((j &gt;= 0) || (j &lt; m_dnrpulsefftlen));
-<a name="l00321"></a>00321                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r66">m_dnrpulsefftin</a>[j].re += cx * <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r64">m_dnrsubfftout</a>[i].re - sx * <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r64">m_dnrsubfftout</a>[i].im;
-<a name="l00322"></a>00322                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r66">m_dnrpulsefftin</a>[j].im += cx * <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r64">m_dnrsubfftout</a>[i].im + sx * <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r64">m_dnrsubfftout</a>[i].re;
-<a name="l00323"></a>00323                 }
-<a name="l00324"></a>00324                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r26">m_noisePower</a> /= bglength*bglength;   
-<a name="l00325"></a>00325 
-<a name="l00326"></a>00326                 fftw_one(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r68">m_dnrpulsefftplan</a>, &amp;<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r66">m_dnrpulsefftin</a>[0], &amp;<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r67">m_dnrpulsefftout</a>[0]);
-<a name="l00327"></a>00327                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; length; i++)
-<a name="l00328"></a>00328                 {
-<a name="l00329"></a>00329                         <span class="keyword">const</span> <span class="keywordtype">int</span> j = i % m_dnrpulsefftlen;
-<a name="l00330"></a>00330                         std::complex&lt;double&gt; c(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r67">m_dnrpulsefftout</a>[j].re, <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r67">m_dnrpulsefftout</a>[j].im);
-<a name="l00331"></a>00331                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r24">m_wave</a>[i] = <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a22">wave</a>[pos + i] - c;
-<a name="l00332"></a>00332 <span class="comment">//    WaveRe[i] = dnrpulsefftout[j].re;</span>
-<a name="l00333"></a>00333 <span class="comment">//    WaveIm[i] = dnrpulsefftout[j].im;</span>
-<a name="l00334"></a>00334                 }
+<a name="l00317"></a>00317         <span class="keywordtype">double</span> interval = _dso-&gt;timeIntervalRecorded();
+<a name="l00318"></a>00318         <span class="keywordflow">if</span> (interval &lt;= 0) {
+<a name="l00319"></a>00319                 <span class="keywordflow">throw</span> XSkippedRecordError(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Invalid time interval in waveforms."</span>), __FILE__, __LINE__);
+<a name="l00320"></a>00320         }
+<a name="l00321"></a>00321         <span class="keywordtype">int</span> pos = lrint(*fromTrig() *1e-3 / interval + _dso-&gt;trigPosRecorded());
+<a name="l00322"></a>00322         <span class="keywordtype">double</span> starttime = (pos - _dso-&gt;trigPosRecorded()) * interval;
+<a name="l00323"></a>00323         <span class="keywordflow">if</span> (pos &gt;= (<span class="keywordtype">int</span>)_dso-&gt;lengthRecorded()) {
+<a name="l00324"></a>00324                 <span class="keywordflow">throw</span> XSkippedRecordError(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Position beyond waveforms."</span>), __FILE__, __LINE__);
+<a name="l00325"></a>00325         }
+<a name="l00326"></a>00326         <span class="keywordflow">if</span> (pos &lt; 0) {
+<a name="l00327"></a>00327                 <span class="keywordflow">throw</span> XSkippedRecordError(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Position beyond waveforms."</span>), __FILE__, __LINE__);
+<a name="l00328"></a>00328         }
+<a name="l00329"></a>00329         <span class="keywordtype">int</span> length = lrint(*width() / 1000 / interval);
+<a name="l00330"></a>00330         <span class="keywordflow">if</span> (pos + length &gt;= (<span class="keywordtype">int</span>)_dso-&gt;lengthRecorded()) {
+<a name="l00331"></a>00331                 <span class="keywordflow">throw</span> XSkippedRecordError(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Invalid length."</span>), __FILE__, __LINE__);
+<a name="l00332"></a>00332         }
+<a name="l00333"></a>00333         <span class="keywordflow">if</span> (length &lt;= 0) {
+<a name="l00334"></a>00334                 <span class="keywordflow">throw</span> XSkippedRecordError(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Invalid length."</span>), __FILE__, __LINE__);
 <a name="l00335"></a>00335         }
-<a name="l00336"></a>00336         <span class="keywordflow">else</span>
-<a name="l00337"></a>00337         {
-<a name="l00338"></a>00338                 std::complex&lt;double&gt; bg = 0;
-<a name="l00339"></a>00339                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r26">m_noisePower</a> = 1.0;
-<a name="l00340"></a>00340                 <span class="keywordflow">if</span>(bglength)
-<a name="l00341"></a>00341                 {
-<a name="l00342"></a>00342                         <span class="keywordtype">double</span> normalize = 0.0;
-<a name="l00343"></a>00343                         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; bglength; i++)
-<a name="l00344"></a>00344                         {
-<a name="l00345"></a>00345                                 <span class="keywordtype">double</span> z = windowfunc( (<span class="keywordtype">double</span>)i / bglength - 0.5);
-<a name="l00346"></a>00346                                 bg += z * <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a22">wave</a>[pos + i + bgpos];
-<a name="l00347"></a>00347                                 normalize += z;
-<a name="l00348"></a>00348                         }
-<a name="l00349"></a>00349                         bg /= normalize;
-<a name="l00350"></a>00350 
-<a name="l00351"></a>00351                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r26">m_noisePower</a> = 0.0;
-<a name="l00352"></a>00352                         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = bgpos; i &lt; bgpos + bglength; i++)
-<a name="l00353"></a>00353                         {
-<a name="l00354"></a>00354                                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r26">m_noisePower</a> += std::norm(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a22">wave</a>[pos + i] - bg);
-<a name="l00355"></a>00355                         }
-<a name="l00356"></a>00356                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r26">m_noisePower</a> /= bglength;
-<a name="l00357"></a>00357                 }
-<a name="l00358"></a>00358 
-<a name="l00359"></a>00359                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; length; i++)
-<a name="l00360"></a>00360                 {
-<a name="l00361"></a>00361                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r24">m_wave</a>[i] = <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a22">wave</a>[pos + i] - bg;
-<a name="l00362"></a>00362                 }
-<a name="l00363"></a>00363         }            
-<a name="l00364"></a>00364 }
-<a name="l00365"></a>00365 <span class="keywordtype">void</span>
-<a name="l00366"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#d6">00366</a> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d6">XNMRPulseAnalyzer::rotNFFT</a>(<span class="keywordtype">int</span> ftpos, 
-<a name="l00367"></a>00367                                                    <span class="keywordtype">double</span> ph, std::deque&lt;std::complex&lt;double&gt; &gt; &amp;wave, 
-<a name="l00368"></a>00368                                                    std::deque&lt;std::complex&lt;double&gt; &gt; &amp;ftwave, twindowfunc windowfunc, <span class="keywordtype">int</span> diffreq)
-<a name="l00369"></a>00369 {
-<a name="l00370"></a>00370         <span class="keyword">const</span> <span class="keywordtype">int</span> length = <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a22">wave</a>.size();
-<a name="l00371"></a>00371         <span class="comment">//phase advance</span>
-<a name="l00372"></a>00372         std::complex&lt;double&gt; cph(cos(ph), sin(ph));
-<a name="l00373"></a>00373         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; length; i++)
-<a name="l00374"></a>00374     {
-<a name="l00375"></a>00375                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a22">wave</a>[i] *= cph;
-<a name="l00376"></a>00376     }
-<a name="l00377"></a>00377 
-<a name="l00378"></a>00378         <span class="comment">//fft</span>
-<a name="l00379"></a>00379         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r69">m_fftlen</a>; i++)
-<a name="l00380"></a>00380     {
-<a name="l00381"></a>00381                 <span class="keyword">const</span> <span class="keywordtype">int</span> j = (ftpos + i &gt;= m_fftlen) ? (ftpos + i - m_fftlen) : (ftpos + i);
-<a name="l00382"></a>00382                 <span class="keyword">const</span> <span class="keywordtype">double</span> z = windowfunc((j - ftpos) / (<span class="keywordtype">double</span>)length);
-<a name="l00383"></a>00383                 <span class="keywordflow">if</span>((j &gt;= length) || (j &lt; 0)) {
-<a name="l00384"></a>00384             <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r70">m_fftin</a>[i].re = 0;
-<a name="l00385"></a>00385             <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r70">m_fftin</a>[i].im = 0;
-<a name="l00386"></a>00386                 }
-<a name="l00387"></a>00387                 <span class="keywordflow">else</span> {
-<a name="l00388"></a>00388                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a22">wave</a>[j] *= z;
-<a name="l00389"></a>00389                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r70">m_fftin</a>[i].re = std::real(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a22">wave</a>[j]);
-<a name="l00390"></a>00390                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r70">m_fftin</a>[i].im = std::imag(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a22">wave</a>[j]);
-<a name="l00391"></a>00391                 }
-<a name="l00392"></a>00392     }
-<a name="l00393"></a>00393     
-<a name="l00394"></a>00394         fftw_one(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r72">m_fftplan</a>, &amp;<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r70">m_fftin</a>[0], &amp;<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r71">m_fftout</a>[0]);
-<a name="l00395"></a>00395 
-<a name="l00396"></a>00396         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; m_fftlen; i++)
-<a name="l00397"></a>00397     {
-<a name="l00398"></a>00398                 <span class="keyword">const</span> <span class="keywordtype">int</span> k = i + diffreq;
-<a name="l00399"></a>00399                 <span class="keywordflow">if</span>((k &gt;= 0) &amp;&amp; (k &lt; m_fftlen)) {
-<a name="l00400"></a>00400                         <span class="keyword">const</span> <span class="keywordtype">int</span> j = (k &lt; m_fftlen / 2) ? (m_fftlen / 2 + k) : (k - m_fftlen / 2);
-<a name="l00401"></a>00401                         <span class="keyword">const</span> <span class="keywordtype">double</span> normalize = 1.0 / length;
-<a name="l00402"></a>00402                         ftwave[i] = std::complex&lt;double&gt;(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r71">m_fftout</a>[j].re * normalize, <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r71">m_fftout</a>[j].im * normalize);
-<a name="l00403"></a>00403                 }
-<a name="l00404"></a>00404                 <span class="keywordflow">else</span> {
-<a name="l00405"></a>00405                         ftwave[i] = 0;
-<a name="l00406"></a>00406                 }
-<a name="l00407"></a>00407     }
-<a name="l00408"></a>00408 }
-<a name="l00409"></a>00409 <span class="keywordtype">void</span>
-<a name="l00410"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#d4">00410</a> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d4">XNMRPulseAnalyzer::onAvgClear</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;)
-<a name="l00411"></a>00411 {
-<a name="l00412"></a>00412     <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r73">m_timeClearRequested</a> = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
-<a name="l00413"></a>00413     <a class="code" href="class_x_secondary_driver.html#b2">requestAnalysis</a>();
-<a name="l00414"></a>00414 }
-<a name="l00415"></a>00415 <span class="keywordtype">void</span>
-<a name="l00416"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#d2">00416</a> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d2">XNMRPulseAnalyzer::onCondChanged</a>(<span class="keyword">const</span> shared_ptr&lt;XValueNodeBase&gt; &amp;node)
-<a name="l00417"></a>00417 {
-<a name="l00418"></a>00418     <span class="keywordflow">if</span>((node == <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a7">fromTrig</a>()) || (node == <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a19">numEcho</a>()) || (node == <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a16">difFreq</a>()))
-<a name="l00419"></a>00419         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r73">m_timeClearRequested</a> = <a class="code" href="class_x_time.html#e0">XTime::now</a>();
-<a name="l00420"></a>00420     <a class="code" href="class_x_secondary_driver.html#b2">requestAnalysis</a>();
-<a name="l00421"></a>00421 }
-<a name="l00422"></a>00422 <span class="keywordtype">bool</span>
-<a name="l00423"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#b3">00423</a> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#b3">XNMRPulseAnalyzer::checkDependency</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;emitter)<span class="keyword"> const </span>{
-<a name="l00424"></a>00424         <span class="keyword">const</span> shared_ptr&lt;XPulser&gt; _pulser = *<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a5">pulser</a>();
-<a name="l00425"></a>00425     <span class="keywordflow">if</span>(emitter == _pulser) <span class="keywordflow">return</span> <span class="keyword">false</span>;
-<a name="l00426"></a>00426     <span class="keyword">const</span> shared_ptr&lt;XDSO&gt; _dso = *<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a4">dso</a>();
-<a name="l00427"></a>00427     <span class="keywordflow">if</span>(!_dso) <span class="keywordflow">return</span> <span class="keyword">false</span>;
-<a name="l00428"></a>00428     <span class="keywordflow">if</span>(_pulser &amp;&amp; (_dso-&gt;timeAwared() &lt; _pulser-&gt;time())) <span class="keywordflow">return</span> <span class="keyword">false</span>;
-<a name="l00429"></a>00429     <span class="keywordflow">return</span> <span class="keyword">true</span>;
-<a name="l00430"></a>00430 }
-<a name="l00431"></a>00431 <span class="keywordtype">void</span>
-<a name="l00432"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#b1">00432</a> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#b1">XNMRPulseAnalyzer::analyze</a>(<span class="keyword">const</span> shared_ptr&lt;XDriver&gt; &amp;) throw (XRecordError&amp;)
-<a name="l00433"></a>00433 {
-<a name="l00434"></a>00434         <span class="keyword">const</span> shared_ptr&lt;XDSO&gt; _dso = *<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a4">dso</a>();
-<a name="l00435"></a>00435         ASSERT( _dso );
-<a name="l00436"></a>00436         ASSERT( _dso-&gt;time() );
-<a name="l00437"></a>00437   
-<a name="l00438"></a>00438         <span class="keywordflow">if</span>(_dso-&gt;numChannelsRecorded() &lt; 1) {
-<a name="l00439"></a>00439                 <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"No record in DSO"</span>), __FILE__, __LINE__);
+<a name="l00336"></a>00336         
+<a name="l00337"></a>00337         <span class="keywordtype">int</span> bgpos = lrint((*bgPos() - *fromTrig()) / 1000 / interval);
+<a name="l00338"></a>00338         <span class="keywordflow">if</span>(pos + bgpos &gt;= (<span class="keywordtype">int</span>)_dso-&gt;lengthRecorded()) {
+<a name="l00339"></a>00339                 <span class="keywordflow">throw</span> XSkippedRecordError(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Position for BG. sub. beyond waveforms."</span>), __FILE__, __LINE__);
+<a name="l00340"></a>00340         }
+<a name="l00341"></a>00341         <span class="keywordflow">if</span>(bgpos &lt; 0) {
+<a name="l00342"></a>00342                 <span class="keywordflow">throw</span> XSkippedRecordError(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Position for BG. sub. beyond waveforms."</span>), __FILE__, __LINE__);
+<a name="l00343"></a>00343         }
+<a name="l00344"></a>00344         <span class="keywordtype">int</span> bglength = lrint(*bgWidth() / 1000 / interval);
+<a name="l00345"></a>00345         <span class="keywordflow">if</span>(pos + bgpos + bglength &gt;= (<span class="keywordtype">int</span>)_dso-&gt;lengthRecorded()) {
+<a name="l00346"></a>00346                 <span class="keywordflow">throw</span> XSkippedRecordError(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Invalid Length for BG. sub."</span>), __FILE__, __LINE__);
+<a name="l00347"></a>00347         }
+<a name="l00348"></a>00348         <span class="keywordflow">if</span>(bglength &lt; 0) {
+<a name="l00349"></a>00349                 <span class="keywordflow">throw</span> XSkippedRecordError(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Invalid Length for BG. sub."</span>), __FILE__, __LINE__);
+<a name="l00350"></a>00350         }
+<a name="l00351"></a>00351         <span class="keywordflow">if</span>((bgpos &lt; length) &amp;&amp; (bgpos + bglength &gt; 0))
+<a name="l00352"></a>00352                 m_statusPrinter-&gt;printWarning(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Maybe, position for BG. sub. is overrapped against echoes"</span>), <span class="keyword">true</span>);
+<a name="l00353"></a>00353 
+<a name="l00354"></a>00354         <span class="keywordtype">int</span> echoperiod = lrint(*echoPeriod() / 1000 /interval);
+<a name="l00355"></a>00355         <span class="keywordtype">int</span> numechoes = *numEcho();
+<a name="l00356"></a>00356         <span class="keywordtype">bool</span> bg_after_last_echo = (echoperiod &lt; bgpos + bglength);
+<a name="l00357"></a>00357         <span class="keywordflow">if</span>(numechoes &gt; 1) {
+<a name="l00358"></a>00358                 <span class="keywordflow">if</span>(pos + echoperiod * (numechoes - 1) + length &gt;= (<span class="keywordtype">int</span>)_dso-&gt;lengthRecorded()) {
+<a name="l00359"></a>00359                         <span class="keywordflow">throw</span> XSkippedRecordError(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Invalid Multiecho settings."</span>), __FILE__, __LINE__);
+<a name="l00360"></a>00360                 }
+<a name="l00361"></a>00361                 <span class="keywordflow">if</span>(echoperiod &lt; length) {
+<a name="l00362"></a>00362                         <span class="keywordflow">throw</span> XSkippedRecordError(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Invalid Multiecho settings."</span>), __FILE__, __LINE__);
+<a name="l00363"></a>00363                 }
+<a name="l00364"></a>00364                 <span class="keywordflow">if</span>(!bg_after_last_echo) {
+<a name="l00365"></a>00365                         <span class="keywordflow">if</span>(bgpos + bglength &gt; echoperiod) {
+<a name="l00366"></a>00366                                 <span class="keywordflow">throw</span> XSkippedRecordError(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Invalid Multiecho settings."</span>), __FILE__, __LINE__);
+<a name="l00367"></a>00367                         }
+<a name="l00368"></a>00368                         <span class="keywordflow">if</span>(pos + echoperiod * (numechoes - 1) + bgpos + bglength &gt;= (<span class="keywordtype">int</span>)_dso-&gt;lengthRecorded()) {
+<a name="l00369"></a>00369                                 <span class="keywordflow">throw</span> XSkippedRecordError(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Invalid Multiecho settings."</span>), __FILE__, __LINE__);
+<a name="l00370"></a>00370                         }
+<a name="l00371"></a>00371                 }
+<a name="l00372"></a>00372         }
+<a name="l00373"></a>00373 
+<a name="l00374"></a>00374         <span class="keywordflow">if</span>((m_startTime != starttime) || (length != m_waveWidth)) {
+<a name="l00375"></a>00375                 <span class="keywordtype">double</span> t = length * interval * 1e3;
+<a name="l00376"></a>00376                 m_waveGraph-&gt;axisx()-&gt;autoScale()-&gt;value(<span class="keyword">false</span>);
+<a name="l00377"></a>00377                 m_waveGraph-&gt;axisx()-&gt;minValue()-&gt;value(starttime * 1e3 - t * 0.3);
+<a name="l00378"></a>00378                 m_waveGraph-&gt;axisx()-&gt;maxValue()-&gt;value(starttime * 1e3 + t * 1.3);
+<a name="l00379"></a>00379         }
+<a name="l00380"></a>00380         m_waveWidth = length;
+<a name="l00381"></a>00381         <span class="keywordtype">bool</span> skip = (m_timeClearRequested &gt; _dso-&gt;timeAwared());
+<a name="l00382"></a>00382         <span class="keywordtype">bool</span> avgclear = skip;
+<a name="l00383"></a>00383 
+<a name="l00384"></a>00384         <span class="keywordflow">if</span>(interval != m_interval) {
+<a name="l00385"></a>00385                 <span class="comment">//[sec]</span>
+<a name="l00386"></a>00386                 m_interval = interval;
+<a name="l00387"></a>00387                 avgclear = <span class="keyword">true</span>;
+<a name="l00388"></a>00388         }
+<a name="l00389"></a>00389         <span class="keywordflow">if</span>(m_startTime != starttime) {
+<a name="l00390"></a>00390                 <span class="comment">//[sec]</span>
+<a name="l00391"></a>00391                 m_startTime = starttime;
+<a name="l00392"></a>00392                 avgclear = <span class="keyword">true</span>;
+<a name="l00393"></a>00393         }
+<a name="l00394"></a>00394         
+<a name="l00395"></a>00395         <span class="keywordflow">if</span> (length &gt; (<span class="keywordtype">int</span>)m_waveSum.size()) {
+<a name="l00396"></a>00396                 avgclear = <span class="keyword">true</span>;
+<a name="l00397"></a>00397         }
+<a name="l00398"></a>00398         m_wave.resize(length);
+<a name="l00399"></a>00399         m_waveSum.resize(length);
+<a name="l00400"></a>00400         std::fill(m_wave.begin(), m_wave.end(), 0.0);
+<a name="l00401"></a>00401 
+<a name="l00402"></a>00402         <span class="comment">// Phase Inversion Cycling</span>
+<a name="l00403"></a>00403         <span class="keywordtype">bool</span> picenabled = *m_picEnabled;
+<a name="l00404"></a>00404         shared_ptr&lt;XPulser&gt; _pulser(*pulser());
+<a name="l00405"></a>00405         <span class="keywordtype">bool</span> inverted = <span class="keyword">false</span>;
+<a name="l00406"></a>00406         <span class="keywordflow">if</span> (picenabled &amp;&amp; (!_pulser || !_pulser-&gt;time())) {
+<a name="l00407"></a>00407                 picenabled = <span class="keyword">false</span>;
+<a name="l00408"></a>00408                 gErrPrint(getLabel() + <span class="stringliteral">": "</span> + <a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"No active pulser!"</span>));
+<a name="l00409"></a>00409         }
+<a name="l00410"></a>00410         <span class="keywordflow">if</span> (picenabled) {
+<a name="l00411"></a>00411                 inverted = _pulser-&gt;invertPhaseRecorded();
+<a name="l00412"></a>00412         }
+<a name="l00413"></a>00413 
+<a name="l00414"></a>00414         <span class="keywordtype">int</span> avgnum = std::max((<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)*extraAvg(), 1u) * (picenabled ? 2 : 1);
+<a name="l00415"></a>00415         
+<a name="l00416"></a>00416         <span class="keywordflow">if</span> (!*exAvgIncr() &amp;&amp; (avgnum &lt;= m_avcount)) {
+<a name="l00417"></a>00417                 avgclear = <span class="keyword">true</span>;
+<a name="l00418"></a>00418         }
+<a name="l00419"></a>00419         <span class="keywordflow">if</span> (avgclear) {
+<a name="l00420"></a>00420                 std::fill(m_waveSum.begin(), m_waveSum.end(), 0.0);
+<a name="l00421"></a>00421                 m_avcount = 0;
+<a name="l00422"></a>00422                 <span class="keywordflow">if</span>(*exAvgIncr()) {
+<a name="l00423"></a>00423                         extraAvg()-&gt;value(0);
+<a name="l00424"></a>00424                 }
+<a name="l00425"></a>00425         }
+<a name="l00426"></a>00426 
+<a name="l00427"></a>00427         <span class="keywordflow">if</span>(skip) {
+<a name="l00428"></a>00428                 <span class="keywordflow">throw</span> XSkippedRecordError(__FILE__, __LINE__);
+<a name="l00429"></a>00429         }
+<a name="l00430"></a>00430 
+<a name="l00431"></a>00431         m_dsoWave.resize(_dso-&gt;lengthRecorded());
+<a name="l00432"></a>00432         {
+<a name="l00433"></a>00433                 <span class="keyword">const</span> <span class="keywordtype">double</span> *rawwavecos, *rawwavesin = NULL;
+<a name="l00434"></a>00434                 ASSERT( _dso-&gt;numChannelsRecorded() );
+<a name="l00435"></a>00435                 rawwavecos = _dso-&gt;waveRecorded(0);
+<a name="l00436"></a>00436                 rawwavesin = _dso-&gt;waveRecorded(1);
+<a name="l00437"></a>00437                 <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; _dso-&gt;lengthRecorded(); i++) {
+<a name="l00438"></a>00438                         m_dsoWave[i] = std::complex&lt;double&gt;(rawwavecos[i], rawwavesin[i]) * (inverted ? -1.0 : 1.0);
+<a name="l00439"></a>00439                 }
 <a name="l00440"></a>00440         }
-<a name="l00441"></a>00441         <span class="keywordflow">if</span>(_dso-&gt;numChannelsRecorded() &lt; 2) {
-<a name="l00442"></a>00442                 <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Two channels needed in DSO"</span>), __FILE__, __LINE__);
-<a name="l00443"></a>00443         }
-<a name="l00444"></a>00444 
-<a name="l00445"></a>00445         <span class="keyword">const</span> <span class="keywordtype">double</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a25">interval</a> = _dso-&gt;timeIntervalRecorded();
-<a name="l00446"></a>00446   
-<a name="l00447"></a>00447         <span class="keywordflow">if</span>(interval &lt;= 0) {
-<a name="l00448"></a>00448                 <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Invalid time interval in waveforms."</span>), __FILE__, __LINE__);
-<a name="l00449"></a>00449         }
-<a name="l00450"></a>00450         <span class="comment">//[sec]</span>
-<a name="l00451"></a>00451         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r32">m_interval</a> = interval;
-<a name="l00452"></a>00452         <span class="comment">//[Hz]</span>
-<a name="l00453"></a>00453         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r25">m_dFreq</a> = 1.0 / <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r69">m_fftlen</a> / interval;
-<a name="l00454"></a>00454         <span class="keywordtype">int</span> pos = lrint(*<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a7">fromTrig</a>() *1e-3 / interval + _dso-&gt;trigPosRecorded());
-<a name="l00455"></a>00455         <span class="comment">//[sec]</span>
-<a name="l00456"></a>00456         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r33">m_startTime</a> = (pos - _dso-&gt;trigPosRecorded()) * interval;
-<a name="l00457"></a>00457   
-<a name="l00458"></a>00458         <span class="keywordflow">if</span>(pos &gt;= (int)_dso-&gt;lengthRecorded()) {
-<a name="l00459"></a>00459                 <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Position beyond waveforms."</span>), __FILE__, __LINE__);
-<a name="l00460"></a>00460         }
-<a name="l00461"></a>00461         <span class="keywordflow">if</span>(pos &lt; 0) {
-<a name="l00462"></a>00462                 <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Position beyond waveforms."</span>), __FILE__, __LINE__);
-<a name="l00463"></a>00463         }
-<a name="l00464"></a>00464         <span class="keywordtype">int</span> length = lrint(*<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a8">width</a>() / 1000 /  interval);
-<a name="l00465"></a>00465         <span class="keywordflow">if</span>(pos + length &gt;= (int)_dso-&gt;lengthRecorded()) {
-<a name="l00466"></a>00466                 <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Invalid length."</span>), __FILE__, __LINE__);
-<a name="l00467"></a>00467         }  
-<a name="l00468"></a>00468         <span class="keywordflow">if</span>(length &lt;= 0) {
-<a name="l00469"></a>00469                 <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Invalid length."</span>), __FILE__, __LINE__);
-<a name="l00470"></a>00470         }
-<a name="l00471"></a>00471 
-<a name="l00472"></a>00472         <span class="keyword">const</span> <span class="keywordtype">bool</span> skip = (<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r73">m_timeClearRequested</a> &gt; _dso-&gt;timeAwared());
-<a name="l00473"></a>00473         <span class="keywordtype">bool</span> avgclear = skip;
-<a name="l00474"></a>00474 
-<a name="l00475"></a>00475         <span class="keywordflow">if</span>((int)*<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a14">fftLen</a>() != <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r69">m_fftlen</a>)
-<a name="l00476"></a>00476     {
-<a name="l00477"></a>00477                 <span class="keywordflow">if</span>(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r69">m_fftlen</a> &gt;= 0)  fftw_destroy_plan(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r72">m_fftplan</a>);
-<a name="l00478"></a>00478                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r69">m_fftlen</a> = *<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a14">fftLen</a>();
-<a name="l00479"></a>00479                 <span class="keywordflow">if</span>(lrint(pow(2.0f, rintf(logf((<span class="keywordtype">float</span>)<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r69">m_fftlen</a>) / logf(2.0f)))) != m_fftlen )
-<a name="l00480"></a>00480             <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r57">m_statusPrinter</a>-&gt;printWarning(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"FFT length is not a power of 2."</span>), <span class="keyword">true</span>);
-<a name="l00481"></a>00481                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r70">m_fftin</a>.resize(m_fftlen);
-<a name="l00482"></a>00482                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r71">m_fftout</a>.resize(m_fftlen);
-<a name="l00483"></a>00483                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r72">m_fftplan</a> = fftw_create_plan(m_fftlen, FFTW_FORWARD, FFTW_ESTIMATE);
-<a name="l00484"></a>00484                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r23">m_ftWave</a>.resize(m_fftlen);
-<a name="l00485"></a>00485                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r28">m_ftWaveSum</a>.resize(m_fftlen);
-<a name="l00486"></a>00486     }
-<a name="l00487"></a>00487         <span class="keywordflow">if</span>(length &gt; (int)<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r24">m_wave</a>.size()) {
-<a name="l00488"></a>00488                 avgclear = <span class="keyword">true</span>;
-<a name="l00489"></a>00489     }
-<a name="l00490"></a>00490         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r24">m_wave</a>.resize(length);
-<a name="l00491"></a>00491         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r29">m_waveSum</a>.resize(length);
-<a name="l00492"></a>00492         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r31">m_rawWaveSum</a>.resize(length);
-<a name="l00493"></a>00493         <span class="keywordflow">if</span>(!*<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a17">exAvgIncr</a>() &amp;&amp; (*<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a18">extraAvg</a>() &lt; <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r30">m_waveAv</a>.size())) {
-<a name="l00494"></a>00494                 avgclear = <span class="keyword">true</span>;
-<a name="l00495"></a>00495     }
-<a name="l00496"></a>00496         <span class="keywordflow">if</span>(avgclear || *<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a17">exAvgIncr</a>()) {
-<a name="l00497"></a>00497                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r30">m_waveAv</a>.clear();
-<a name="l00498"></a>00498     }
-<a name="l00499"></a>00499         <span class="keywordflow">if</span>(avgclear) {
-<a name="l00500"></a>00500                 std::fill(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r31">m_rawWaveSum</a>.begin(), <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r31">m_rawWaveSum</a>.end(), 0.0 );
-<a name="l00501"></a>00501                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r27">m_avcount</a> = 0;
-<a name="l00502"></a>00502                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r21">m_piccnt</a> = 0;
-<a name="l00503"></a>00503     }
-<a name="l00504"></a>00504 
-<a name="l00505"></a>00505         <span class="keywordtype">int</span> bgpos = lrint((*<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a11">bgPos</a>() - *<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a7">fromTrig</a>()) / 1000 / interval);
-<a name="l00506"></a>00506         <span class="keywordflow">if</span>(pos + bgpos &gt;= (int)_dso-&gt;lengthRecorded()) {
-<a name="l00507"></a>00507                 <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Position for BG. sub. beyond waveforms."</span>), __FILE__, __LINE__);
-<a name="l00508"></a>00508         }  
-<a name="l00509"></a>00509         <span class="keywordflow">if</span>(bgpos &lt; 0) {
-<a name="l00510"></a>00510                 <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Position for BG. sub. beyond waveforms."</span>), __FILE__, __LINE__);
-<a name="l00511"></a>00511         }  
-<a name="l00512"></a>00512         <span class="keywordtype">int</span> bglength = lrint(*<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a12">bgWidth</a>() / 1000 /  interval);
-<a name="l00513"></a>00513         <span class="keywordflow">if</span>(pos + bgpos + bglength &gt;= (int)_dso-&gt;lengthRecorded()) {
-<a name="l00514"></a>00514                 <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Invalid Length for BG. sub."</span>), __FILE__, __LINE__);
-<a name="l00515"></a>00515         }  
-<a name="l00516"></a>00516         <span class="keywordflow">if</span>(bglength &lt; 0) {
-<a name="l00517"></a>00517                 <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Invalid Length for BG. sub."</span>), __FILE__, __LINE__);
-<a name="l00518"></a>00518         }  
-<a name="l00519"></a>00519   
-<a name="l00520"></a>00520         <span class="keywordflow">if</span>(bglength &lt; length*1.5)
-<a name="l00521"></a>00521                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r57">m_statusPrinter</a>-&gt;printWarning(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Maybe, length for BG. sub. is too short."</span>));
-<a name="l00522"></a>00522         <span class="keywordflow">if</span>((bgpos &lt; length) &amp;&amp; (bgpos &gt; 0))
-<a name="l00523"></a>00523                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r57">m_statusPrinter</a>-&gt;printWarning(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Maybe, position for BG. sub. is overrapped against echoes"</span>), <span class="keyword">true</span>);
-<a name="l00524"></a>00524   
-<a name="l00525"></a>00525         <span class="keywordtype">int</span> echoperiod = lrint(*<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a20">echoPeriod</a>() / 1000 /interval);
-<a name="l00526"></a>00526         <span class="keywordtype">int</span> numechoes = *<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a19">numEcho</a>();
-<a name="l00527"></a>00527         <span class="keywordtype">bool</span> bg_after_last_echo = (echoperiod &lt; bgpos + bglength);
-<a name="l00528"></a>00528         <span class="keywordflow">if</span>(numechoes &gt; 1)
-<a name="l00529"></a>00529         {
-<a name="l00530"></a>00530                 <span class="keywordflow">if</span>(pos + echoperiod * (numechoes - 1) + length &gt;= (int)_dso-&gt;lengthRecorded()) {
-<a name="l00531"></a>00531                         <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Invalid Multiecho settings."</span>), __FILE__, __LINE__);
-<a name="l00532"></a>00532                 }
-<a name="l00533"></a>00533                 <span class="keywordflow">if</span>(echoperiod &lt; length) {
-<a name="l00534"></a>00534                         <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Invalid Multiecho settings."</span>), __FILE__, __LINE__);
-<a name="l00535"></a>00535                 }
-<a name="l00536"></a>00536                 <span class="keywordflow">if</span>(!bg_after_last_echo)
-<a name="l00537"></a>00537                 {
-<a name="l00538"></a>00538                         <span class="keywordflow">if</span>(bgpos + bglength &gt; echoperiod) {
-<a name="l00539"></a>00539                                 <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Invalid Multiecho settings."</span>), __FILE__, __LINE__);
-<a name="l00540"></a>00540                         }
-<a name="l00541"></a>00541                         <span class="keywordflow">if</span>(pos + echoperiod * (numechoes - 1) + bgpos + bglength &gt;= (int)_dso-&gt;lengthRecorded()) {
-<a name="l00542"></a>00542                                 <span class="keywordflow">throw</span> XRecordError(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Invalid Multiecho settings."</span>), __FILE__, __LINE__);
-<a name="l00543"></a>00543                         }       
-<a name="l00544"></a>00544                 }
-<a name="l00545"></a>00545         }
-<a name="l00546"></a>00546   
-<a name="l00547"></a>00547         <span class="keywordflow">if</span>(skip) {
-<a name="l00548"></a>00548                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d1">ftWaveGraph</a>()-&gt;clear();
-<a name="l00549"></a>00549                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d0">waveGraph</a>()-&gt;clear();
-<a name="l00550"></a>00550                 <span class="keywordflow">throw</span> XSkippedRecordError(__FILE__, __LINE__);
-<a name="l00551"></a>00551         }
-<a name="l00552"></a>00552   
-<a name="l00553"></a>00553         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r22">m_picRawWaveSum</a>.resize(_dso-&gt;lengthRecorded());
-<a name="l00554"></a>00554         <span class="comment">// Phase Inversion Cycling</span>
-<a name="l00555"></a>00555         shared_ptr&lt;XPulser&gt; _pulser(*<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a5">pulser</a>());
-<a name="l00556"></a>00556         <span class="keywordtype">bool</span> picenabled = *<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r19">m_picEnabled</a>;
-<a name="l00557"></a>00557         <span class="keywordflow">if</span>(picenabled &amp;&amp; !_pulser) {
-<a name="l00558"></a>00558                 picenabled = <span class="keyword">false</span>;
-<a name="l00559"></a>00559                 gErrPrint(<a class="code" href="class_x_node.html#a7">getLabel</a>() + <span class="stringliteral">": "</span> + <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"No Pulser!"</span>));
-<a name="l00560"></a>00560         }
-<a name="l00561"></a>00561 
-<a name="l00562"></a>00562         <span class="keywordflow">if</span>(!picenabled || (<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r21">m_piccnt</a> == 0)) {
-<a name="l00563"></a>00563                 std::fill(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r22">m_picRawWaveSum</a>.begin(), <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r22">m_picRawWaveSum</a>.end(), std::complex&lt;double&gt;(0.0,0.0));
-<a name="l00564"></a>00564         }
-<a name="l00565"></a>00565         <span class="keywordtype">bool</span> inverted = <span class="keyword">false</span>;
-<a name="l00566"></a>00566         <span class="keywordflow">if</span>(picenabled) {
-<a name="l00567"></a>00567                 ASSERT( _pulser-&gt;time() );
-<a name="l00568"></a>00568                 inverted = _pulser-&gt;invertPhaseRecorded();
-<a name="l00569"></a>00569         }
-<a name="l00570"></a>00570         {
-<a name="l00571"></a>00571                 <span class="keyword">const</span> <span class="keywordtype">double</span> *rawwavecos, *rawwavesin = NULL;
-<a name="l00572"></a>00572                 ASSERT( _dso-&gt;numChannelsRecorded() );
-<a name="l00573"></a>00573                 rawwavecos = _dso-&gt;waveRecorded(0);
-<a name="l00574"></a>00574                 rawwavesin = _dso-&gt;waveRecorded(1);
-<a name="l00575"></a>00575                 <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; _dso-&gt;lengthRecorded(); i++) {
-<a name="l00576"></a>00576                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r22">m_picRawWaveSum</a>[i] += std::complex&lt;double&gt;(rawwavecos[i], rawwavesin[i]) * (inverted ? -1.0 : 1.0);
-<a name="l00577"></a>00577                 }
-<a name="l00578"></a>00578                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r21">m_piccnt</a>++;
-<a name="l00579"></a>00579         }
-<a name="l00580"></a>00580   
-<a name="l00581"></a>00581         <span class="keywordflow">if</span>(picenabled) {
-<a name="l00582"></a>00582                 <span class="keywordflow">if</span>(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r21">m_piccnt</a> &lt; 2) {
-<a name="l00583"></a>00583                         ASSERT( _pulser-&gt;time() );
-<a name="l00584"></a>00584                         _pulser-&gt;invertPhase()-&gt;value(!inverted);
-<a name="l00585"></a>00585                         <span class="keywordflow">throw</span> XSkippedRecordError(__FILE__, __LINE__);
-<a name="l00586"></a>00586                 }
-<a name="l00587"></a>00587         }
-<a name="l00588"></a>00588         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; length; i++) {
-<a name="l00589"></a>00589                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r22">m_picRawWaveSum</a>[i] /= (double)<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r21">m_piccnt</a>;
-<a name="l00590"></a>00590         }
-<a name="l00591"></a>00591         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r21">m_piccnt</a> = 0;
-<a name="l00592"></a>00592   
-<a name="l00593"></a>00593         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 1; i &lt; numechoes; i++)
-<a name="l00594"></a>00594         {
-<a name="l00595"></a>00595                 <span class="keywordtype">int</span> rpos = pos + i * echoperiod;
-<a name="l00596"></a>00596                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j = 0;
-<a name="l00597"></a>00597                         j &lt; (!bg_after_last_echo ? std::max(bgpos + bglength, length) : length) ; j++)
-<a name="l00598"></a>00598                 {
-<a name="l00599"></a>00599                         <span class="keywordtype">int</span> k = rpos + j;
-<a name="l00600"></a>00600                         ASSERT(k &lt; (int)_dso-&gt;lengthRecorded());
-<a name="l00601"></a>00601                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r22">m_picRawWaveSum</a>[pos + j] += <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r22">m_picRawWaveSum</a>[k];
-<a name="l00602"></a>00602                 }
-<a name="l00603"></a>00603         }
-<a name="l00604"></a>00604 
-<a name="l00605"></a>00605         <span class="comment">//Windowing</span>
-<a name="l00606"></a>00606         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#y0">twindowfunc</a> windowfunc = &amp;<a class="code" href="class_x_n_m_r_pulse_analyzer.html#h0">windowFuncRect</a>;
-<a name="l00607"></a>00607         <span class="keywordflow">if</span>(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a15">windowFunc</a>()-&gt;to_str() == WINDOW_FUNC_HANNING) windowfunc = &amp;<a class="code" href="class_x_n_m_r_pulse_analyzer.html#h1">windowFuncHanning</a>;
-<a name="l00608"></a>00608         <span class="keywordflow">if</span>(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a15">windowFunc</a>()-&gt;to_str() == WINDOW_FUNC_HAMMING) windowfunc = &amp;<a class="code" href="class_x_n_m_r_pulse_analyzer.html#h2">windowFuncHamming</a>;
-<a name="l00609"></a>00609         <span class="keywordflow">if</span>(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a15">windowFunc</a>()-&gt;to_str() == WINDOW_FUNC_FLATTOP) windowfunc = &amp;<a class="code" href="class_x_n_m_r_pulse_analyzer.html#h3">windowFuncFlatTop</a>;
-<a name="l00610"></a>00610         <span class="keywordflow">if</span>(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a15">windowFunc</a>()-&gt;to_str() == WINDOW_FUNC_BLACKMAN) windowfunc = &amp;<a class="code" href="class_x_n_m_r_pulse_analyzer.html#h4">windowFuncBlackman</a>;
-<a name="l00611"></a>00611         <span class="keywordflow">if</span>(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a15">windowFunc</a>()-&gt;to_str() == WINDOW_FUNC_BLACKMAN_HARRIS) windowfunc = &amp;<a class="code" href="class_x_n_m_r_pulse_analyzer.html#h5">windowFuncBlackmanHarris</a>;
-<a name="l00612"></a>00612         <span class="keywordflow">if</span>(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a15">windowFunc</a>()-&gt;to_str() == WINDOW_FUNC_KAISER_1) windowfunc = &amp;<a class="code" href="class_x_n_m_r_pulse_analyzer.html#h7">windowFuncKaiser1</a>;
-<a name="l00613"></a>00613         <span class="keywordflow">if</span>(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a15">windowFunc</a>()-&gt;to_str() == WINDOW_FUNC_KAISER_2) windowfunc = &amp;<a class="code" href="class_x_n_m_r_pulse_analyzer.html#h8">windowFuncKaiser2</a>;
-<a name="l00614"></a>00614         <span class="keywordflow">if</span>(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a15">windowFunc</a>()-&gt;to_str() == WINDOW_FUNC_KAISER_3) windowfunc = &amp;<a class="code" href="class_x_n_m_r_pulse_analyzer.html#h9">windowFuncKaiser3</a>;
-<a name="l00615"></a>00615   
-<a name="l00616"></a>00616         <span class="comment">//background subtraction or dynamic noise reduction</span>
-<a name="l00617"></a>00617         <span class="comment">//write echo into m_wave</span>
-<a name="l00618"></a>00618         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d5">backgroundSub</a>(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r22">m_picRawWaveSum</a>, pos, length, bgpos, bglength, windowfunc);
-<a name="l00619"></a>00619   
-<a name="l00620"></a>00620     <span class="keywordflow">while</span>(!*<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a17">exAvgIncr</a>() &amp;&amp; (*<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a18">extraAvg</a>() &lt;= <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r30">m_waveAv</a>.size()) &amp;&amp; !<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r30">m_waveAv</a>.empty())  {
-<a name="l00621"></a>00621                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; length; i++) {
-<a name="l00622"></a>00622                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r31">m_rawWaveSum</a>[i] -= <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r30">m_waveAv</a>.front()[i];
-<a name="l00623"></a>00623         }
-<a name="l00624"></a>00624                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r30">m_waveAv</a>.pop_front();
-<a name="l00625"></a>00625                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r27">m_avcount</a>--;
-<a name="l00626"></a>00626     }
-<a name="l00627"></a>00627     
-<a name="l00628"></a>00628     <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; length; i++) {
-<a name="l00629"></a>00629                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r31">m_rawWaveSum</a>[i] += <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r24">m_wave</a>[i];
-<a name="l00630"></a>00630     }
-<a name="l00631"></a>00631     <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r27">m_avcount</a>++;
-<a name="l00632"></a>00632     <span class="keywordflow">if</span>(!*<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a17">exAvgIncr</a>()) {
-<a name="l00633"></a>00633                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r30">m_waveAv</a>.push_back(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r24">m_wave</a>);
-<a name="l00634"></a>00634     }
-<a name="l00635"></a>00635    
-<a name="l00636"></a>00636         <span class="keywordtype">int</span> ftpos = lrint(*<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a13">fftPos</a>() * 1e-3 / interval + _dso-&gt;trigPosRecorded() - pos);  
-<a name="l00637"></a>00637         <span class="keywordflow">if</span>((windowfunc != &amp;<a class="code" href="class_x_n_m_r_pulse_analyzer.html#h0">windowFuncRect</a>) &amp;&amp; (abs(ftpos - length/2) &gt; length*0.1))
-<a name="l00638"></a>00638                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r57">m_statusPrinter</a>-&gt;printWarning(<a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"FFTPos is off-centered for window func."</span>));  
-<a name="l00639"></a>00639         <span class="keywordtype">double</span> ph = *<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a9">phaseAdv</a>() * PI / 180;
-<a name="l00640"></a>00640 
-<a name="l00641"></a>00641         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d6">rotNFFT</a>(ftpos, ph, <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r24">m_wave</a>, <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r23">m_ftWave</a>, windowfunc, lrint(*<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a16">difFreq</a>() * 1000.0 / <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a23">dFreq</a>()) ); 
-<a name="l00642"></a>00642   
-<a name="l00643"></a>00643     <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a2">entryCosAv</a>()-&gt;value(std::real(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r23">m_ftWave</a>[<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r69">m_fftlen</a> / 2]));
-<a name="l00644"></a>00644     <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a3">entrySinAv</a>()-&gt;value(std::imag(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r23">m_ftWave</a>[<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r69">m_fftlen</a> / 2])); 
-<a name="l00645"></a>00645   
-<a name="l00646"></a>00646         std::copy(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r31">m_rawWaveSum</a>.begin(), <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r31">m_rawWaveSum</a>.end(), <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r29">m_waveSum</a>.begin() );
-<a name="l00647"></a>00647         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d6">rotNFFT</a>(ftpos, ph, <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r29">m_waveSum</a>, <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r28">m_ftWaveSum</a>, windowfunc, lrint(*<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a16">difFreq</a>() * 1000.0 / <a class="code" href="class_x_n_m_r_pulse_analyzer.html#a23">dFreq</a>())); 
-<a name="l00648"></a>00648 }
-<a name="l00649"></a>00649 <span class="keywordtype">void</span>
-<a name="l00650"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#b2">00650</a> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#b2">XNMRPulseAnalyzer::visualize</a>()
-<a name="l00651"></a>00651 {
-<a name="l00652"></a>00652         <span class="keywordflow">if</span>(!<a class="code" href="class_x_driver.html#a5">time</a>()) {
-<a name="l00653"></a>00653                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d1">ftWaveGraph</a>()-&gt;clear();
-<a name="l00654"></a>00654                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d0">waveGraph</a>()-&gt;clear();
-<a name="l00655"></a>00655                 <span class="keywordflow">return</span>;
-<a name="l00656"></a>00656         }
-<a name="l00657"></a>00657 
-<a name="l00658"></a>00658         <span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> length = <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r24">m_wave</a>.size();
-<a name="l00659"></a>00659         {   <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XWaveNGraph&gt;</a> lock(*<a class="code" href="class_x_n_m_r_pulse_analyzer.html#d1">ftWaveGraph</a>());
-<a name="l00660"></a>00660         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d1">ftWaveGraph</a>()-&gt;setRowCount(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r69">m_fftlen</a>);
-<a name="l00661"></a>00661         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r69">m_fftlen</a>; i++)
-<a name="l00662"></a>00662         {
-<a name="l00663"></a>00663                 <span class="keywordtype">double</span> normalize = 1.0 / <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r27">m_avcount</a>;
-<a name="l00664"></a>00664                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d1">ftWaveGraph</a>()-&gt;cols(0)[i]
-<a name="l00665"></a>00665                         = 0.001 * (double)(i - m_fftlen / 2) / m_fftlen / <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r32">m_interval</a>;
-<a name="l00666"></a>00666                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d1">ftWaveGraph</a>()-&gt;cols(1)[i] = std::real(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r28">m_ftWaveSum</a>[i]) * normalize;
-<a name="l00667"></a>00667                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d1">ftWaveGraph</a>()-&gt;cols(2)[i] = std::imag(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r28">m_ftWaveSum</a>[i]) * normalize;
-<a name="l00668"></a>00668                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d1">ftWaveGraph</a>()-&gt;cols(3)[i] = std::abs(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r28">m_ftWaveSum</a>[i]) * normalize;
-<a name="l00669"></a>00669                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d1">ftWaveGraph</a>()-&gt;cols(4)[i] = std::arg(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r28">m_ftWaveSum</a>[i]) / PI * 180;
-<a name="l00670"></a>00670         }
-<a name="l00671"></a>00671         }
-<a name="l00672"></a>00672 
-<a name="l00673"></a>00673         {   <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XWaveNGraph&gt;</a> lock(*<a class="code" href="class_x_n_m_r_pulse_analyzer.html#d0">waveGraph</a>());
-<a name="l00674"></a>00674         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d0">waveGraph</a>()-&gt;setRowCount(length);
-<a name="l00675"></a>00675         <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; length; i++)
-<a name="l00676"></a>00676         {
-<a name="l00677"></a>00677                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d0">waveGraph</a>()-&gt;cols(0)[i] = (<a class="code" href="class_x_n_m_r_pulse_analyzer.html#a26">startTime</a>() + i * <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r32">m_interval</a>) * 1e3;
-<a name="l00678"></a>00678                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d0">waveGraph</a>()-&gt;cols(1)[i] = (std::real(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r29">m_waveSum</a>[i]) / <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r27">m_avcount</a>);
-<a name="l00679"></a>00679                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#d0">waveGraph</a>()-&gt;cols(2)[i] = (std::imag(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#r29">m_waveSum</a>[i]) / <a class="code" href="class_x_n_m_r_pulse_analyzer.html#r27">m_avcount</a>);
-<a name="l00680"></a>00680         }
-<a name="l00681"></a>00681         }
-<a name="l00682"></a>00682 }
-<a name="l00683"></a>00683 
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:17 2007に生成されました。&nbsp;
+<a name="l00441"></a>00441         m_dsoWaveStartPos = pos;
+<a name="l00442"></a>00442 
+<a name="l00443"></a>00443         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 1; i &lt; numechoes; i++) {
+<a name="l00444"></a>00444                 <span class="keywordtype">int</span> rpos = pos + i * echoperiod;
+<a name="l00445"></a>00445                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> j = 0;
+<a name="l00446"></a>00446                 j &lt; (!bg_after_last_echo ? std::max(bgpos + bglength, length) : length); j++) {
+<a name="l00447"></a>00447                         <span class="keywordtype">int</span> k = rpos + j;
+<a name="l00448"></a>00448                         ASSERT(k &lt; (<span class="keywordtype">int</span>)_dso-&gt;lengthRecorded());
+<a name="l00449"></a>00449                         <span class="keywordflow">if</span>(i == 1)
+<a name="l00450"></a>00450                                 m_dsoWave[pos + j] /= (double)numechoes;
+<a name="l00451"></a>00451                         m_dsoWave[pos + j] += m_dsoWave[k] / (double)numechoes;
+<a name="l00452"></a>00452                 }
+<a name="l00453"></a>00453         }
+<a name="l00454"></a>00454         <span class="comment">//background subtraction or dynamic noise reduction</span>
+<a name="l00455"></a>00455         backgroundSub(m_dsoWave, pos, length, bgpos, bglength);
+<a name="l00456"></a>00456         <span class="keywordflow">if</span>((emitter == _dso) || (!m_avcount)) { 
+<a name="l00457"></a>00457                 <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; length; i++) {
+<a name="l00458"></a>00458                         m_waveSum[i] += m_dsoWave[pos + i];
+<a name="l00459"></a>00459                 }
+<a name="l00460"></a>00460                 m_avcount++;
+<a name="l00461"></a>00461                 <span class="keywordflow">if</span>(*exAvgIncr()) {
+<a name="l00462"></a>00462                         extraAvg()-&gt;value(m_avcount);
+<a name="l00463"></a>00463                 }
+<a name="l00464"></a>00464         }
+<a name="l00465"></a>00465         <span class="keywordtype">double</span> normalize = 1.0 / m_avcount;
+<a name="l00466"></a>00466         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; length; i++) {
+<a name="l00467"></a>00467                 m_wave[i] = m_waveSum[i] * normalize;
+<a name="l00468"></a>00468         }
+<a name="l00469"></a>00469 
+<a name="l00470"></a>00470         <span class="keywordtype">int</span> ftpos = lrint(*fftPos() * 1e-3 / interval + _dso-&gt;trigPosRecorded() - pos);
+<a name="l00471"></a>00471         <span class="comment">//      if((windowfunc != &amp;windowFuncRect) &amp;&amp; (abs(ftpos - length/2) &gt; length*0.1))</span>
+<a name="l00472"></a>00472         <span class="comment">//              m_statusPrinter-&gt;printWarning(KAME::i18n("FFTPos is off-centered for window func."));  </span>
+<a name="l00473"></a>00473         <span class="keywordtype">double</span> ph = *phaseAdv() * PI / 180;
+<a name="l00474"></a>00474         m_waveFTPos = ftpos;
+<a name="l00475"></a>00475         <span class="keywordtype">int</span> fftlen = <a class="code" href="class_f_f_t.html#9c61d42ac208b72144399bacb225cf4c">FFT::fitLength</a>(*fftLen());
+<a name="l00476"></a>00476         m_ftWave.resize(fftlen);
+<a name="l00477"></a>00477         rotNFFT(ftpos, ph, m_wave, m_ftWave, lrint(*difFreq() * 1000.0 / dFreq()) );
+<a name="l00478"></a>00478         <span class="comment">//[Hz]</span>
+<a name="l00479"></a>00479         m_dFreq = 1.0 / fftlen / interval;
+<a name="l00480"></a>00480         
+<a name="l00481"></a>00481         entryCosAv()-&gt;value(std::real(m_ftWave[fftlen / 2]));
+<a name="l00482"></a>00482         entrySinAv()-&gt;value(std::imag(m_ftWave[fftlen / 2]));
+<a name="l00483"></a>00483 
+<a name="l00484"></a>00484         <span class="keywordflow">if</span>(picenabled &amp;&amp; (m_avcount % 2 == 1) &amp;&amp; (emitter == _dso)) {
+<a name="l00485"></a>00485                 ASSERT( _pulser-&gt;time() );
+<a name="l00486"></a>00486                 unlockConnection(_pulser);
+<a name="l00487"></a>00487                 _pulser-&gt;invertPhase()-&gt;value(!inverted);
+<a name="l00488"></a>00488         }
+<a name="l00489"></a>00489         <span class="keywordflow">if</span>(*exAvgIncr() || (avgnum != m_avcount))
+<a name="l00490"></a>00490                 <span class="keywordflow">throw</span> XSkippedRecordError(__FILE__, __LINE__);
+<a name="l00491"></a>00491 }
+<a name="l00492"></a><a class="code" href="class_x_n_m_r_pulse_analyzer.html#cb36f94c49398713f9d2c7e9be592d3d">00492</a> <span class="keywordtype">void</span> <a class="code" href="class_x_n_m_r_pulse_analyzer.html#cb36f94c49398713f9d2c7e9be592d3d">XNMRPulseAnalyzer::visualize</a>() {
+<a name="l00493"></a>00493         <span class="keywordflow">if</span> (!<a class="code" href="class_x_driver.html#e2bb087696137545e44bde8eb06389b4">time</a>() || !<a class="code" href="class_x_n_m_r_pulse_analyzer.html#e05a6500bed27c13f259452f290d907a">m_avcount</a>) {
+<a name="l00494"></a>00494                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#9409cdb3b749c080dfc0f2b0b54f68a4">ftWaveGraph</a>()-&gt;clear();
+<a name="l00495"></a>00495                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#77cd8299d7b19373091dff7257f5ba1d">waveGraph</a>()-&gt;clear();
+<a name="l00496"></a>00496                 <span class="keywordflow">return</span>;
+<a name="l00497"></a>00497         }
+<a name="l00498"></a>00498 
+<a name="l00499"></a>00499         <span class="keywordtype">int</span> ftsize = <a class="code" href="class_x_n_m_r_pulse_analyzer.html#4af0c0002b42c55a01645d7809c129d4">m_ftWave</a>.size();
+<a name="l00500"></a>00500         {
+<a name="l00501"></a>00501                 <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XWaveNGraph&gt;</a> lock(*<a class="code" href="class_x_n_m_r_pulse_analyzer.html#9409cdb3b749c080dfc0f2b0b54f68a4">ftWaveGraph</a>());
+<a name="l00502"></a>00502                 <a class="code" href="class_x_n_m_r_pulse_analyzer.html#9409cdb3b749c080dfc0f2b0b54f68a4">ftWaveGraph</a>()-&gt;setRowCount(ftsize);
+<a name="l00503"></a>00503                 <span class="keywordflow">for</span> (<span class="keywordtype">int</span> i = 0; i &lt; ftsize; i++) {
+<a name="l00504"></a>00504                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#9409cdb3b749c080dfc0f2b0b54f68a4">ftWaveGraph</a>()-&gt;cols(0)[i] = 0.001 * (i - ftsize/2) / (<span class="keywordtype">double</span>)ftsize / <a class="code" href="class_x_n_m_r_pulse_analyzer.html#55e0184bac36ef8f28b3916dfce200c4">m_interval</a>;
+<a name="l00505"></a>00505                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#9409cdb3b749c080dfc0f2b0b54f68a4">ftWaveGraph</a>()-&gt;cols(1)[i] = std::real(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#4af0c0002b42c55a01645d7809c129d4">m_ftWave</a>[i]);
+<a name="l00506"></a>00506                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#9409cdb3b749c080dfc0f2b0b54f68a4">ftWaveGraph</a>()-&gt;cols(2)[i] = std::imag(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#4af0c0002b42c55a01645d7809c129d4">m_ftWave</a>[i]);
+<a name="l00507"></a>00507                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#9409cdb3b749c080dfc0f2b0b54f68a4">ftWaveGraph</a>()-&gt;cols(3)[i] = std::abs(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#4af0c0002b42c55a01645d7809c129d4">m_ftWave</a>[i]);
+<a name="l00508"></a>00508                         <a class="code" href="class_x_n_m_r_pulse_analyzer.html#9409cdb3b749c080dfc0f2b0b54f68a4">ftWaveGraph</a>()-&gt;cols(4)[i] = std::arg(<a class="code" href="class_x_n_m_r_pulse_analyzer.html#4af0c0002b42c55a01645d7809c129d4">m_ftWave</a>[i]) / PI * 180;
+<a name="l00509"></a>00509                 }
+<a name="l00510"></a>00510         }
+<a name="l00511"></a>00511         {
+<a name="l00512"></a>00512                 <span class="keywordtype">int</span> length = m_dsoWave.size();
+<a name="l00513"></a>00513                 <a class="code" href="struct_x_scoped_write_lock.html">XScopedWriteLock&lt;XWaveNGraph&gt;</a> lock(*waveGraph());
+<a name="l00514"></a>00514                 waveGraph()-&gt;setRowCount(length);
+<a name="l00515"></a>00515                 <span class="keywordflow">for</span> (<span class="keywordtype">int</span> i = 0; i &lt; length; i++) {
+<a name="l00516"></a>00516                         <span class="keywordtype">int</span> j = i - m_dsoWaveStartPos;
+<a name="l00517"></a>00517                         waveGraph()-&gt;cols(0)[i] = (startTime() + j * m_interval) * 1e3;
+<a name="l00518"></a>00518                         <span class="keywordflow">if</span>(abs(j) &lt; ftsize / 2) {
+<a name="l00519"></a>00519                                 j = (j - m_waveFTPos + ftsize) % ftsize;
+<a name="l00520"></a>00520                                 waveGraph()-&gt;cols(1)[i] = std::real(m_ifftWave[j]);
+<a name="l00521"></a>00521                                 waveGraph()-&gt;cols(2)[i] = std::imag(m_ifftWave[j]);
+<a name="l00522"></a>00522                         }
+<a name="l00523"></a>00523                         <span class="keywordflow">else</span> {
+<a name="l00524"></a>00524                                 waveGraph()-&gt;cols(1)[i] = 0.0;
+<a name="l00525"></a>00525                                 waveGraph()-&gt;cols(2)[i] = 0.0;                          
+<a name="l00526"></a>00526                         }
+<a name="l00527"></a>00527                         waveGraph()-&gt;cols(3)[i] = m_dsoWave[i].real();
+<a name="l00528"></a>00528                         waveGraph()-&gt;cols(4)[i] = m_dsoWave[i].imag();                          
+<a name="l00529"></a>00529                 }
+<a name="l00530"></a>00530         }
+<a name="l00531"></a>00531 }
+<a name="l00532"></a>00532 
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Jan 14 03:59:42 2008に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
 </html>

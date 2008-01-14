@@ -1,7 +1,8 @@
 base referer
-rect $class_x_alias_list_node.html 332,266 526,293
-rect $class_x_list_node_base.html 373,189 485,216
-rect $class_x_node.html 258,98 320,125
-rect $class_x_talker.html 8,8 224,34
-rect $class_x_talker.html 344,98 610,125
-rect $class_x_talker.html 634,98 789,125
+rect $class_x_alias_list_node.html 284,378 481,405
+rect $class_x_list_node_base.html 306,210 421,237
+rect $class_x_alias_list_node.html 376,288 530,314
+rect $class_x_node.html 188,117 252,144
+rect $class_x_talker.html 8,8 226,34
+rect $class_x_talker.html 276,117 548,144
+rect $class_x_talker.html 572,117 732,144

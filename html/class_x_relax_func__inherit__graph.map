@@ -1,4 +1,4 @@
 base referer
-rect $class_x_relax_func_poly.html 8,157 130,184
-rect $class_x_relax_func_sqrt.html 154,157 274,184
-rect $class_x_node.html 110,8 172,34
+rect $class_x_relax_func_poly.html 7,157 130,184
+rect $class_x_relax_func_pow_exp.html 154,157 301,184
+rect $class_x_node.html 115,8 179,34

@@ -1,0 +1,5 @@
+base referer
+rect $class_x_thread_local.html 7,98 247,125
+rect $class_x_thread_local.html 271,98 471,125
+rect $class_x_thread_local.html 495,98 693,125
+rect $class_x_thread_local.html 717,98 901,125

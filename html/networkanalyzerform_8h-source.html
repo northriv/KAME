@@ -1,0 +1,99 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: /Users/northriv/Documents/Projects/KAME/macosx/modules/networkanalyzer/forms/networkanalyzerform.h ソースファイル</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
+<div class="nav">
+<a class="el" href="dir_267cfcb898ce0973ecee1ed2b0a886dd.html">macosx</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_14157fc29c1cfb094be318b2880657b1.html">modules</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_e7ce616b5e73c1ee16b477f25aa0beba.html">networkanalyzer</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_43f4bc70203b4ae8b2c573dd49eb6abe.html">forms</a></div>
+<h1>networkanalyzerform.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/****************************************************************************</span>
+<a name="l00002"></a>00002 <span class="comment">** Form interface generated from reading ui file '/Users/northriv/Documents/Projects/KAME/2.2/modules/networkanalyzer/forms/networkanalyzerform.ui'</span>
+<a name="l00003"></a>00003 <span class="comment">**</span>
+<a name="l00004"></a>00004 <span class="comment">** Created: 羂�  1 2 01:28:38 2008</span>
+<a name="l00005"></a>00005 <span class="comment">**      by: The User Interface Compiler ($Id: networkanalyzerform_8h-source.html,v 1.1 2008/01/14 09:42:31 northriv Exp $)</span>
+<a name="l00006"></a>00006 <span class="comment">**</span>
+<a name="l00007"></a>00007 <span class="comment">** WARNING! All changes made in this file will be lost!</span>
+<a name="l00008"></a>00008 <span class="comment">****************************************************************************/</span>
+<a name="l00009"></a>00009 
+<a name="l00010"></a>00010 <span class="preprocessor">#ifndef FRMNETWORKANALYZER_H</span>
+<a name="l00011"></a>00011 <span class="preprocessor"></span><span class="preprocessor">#define FRMNETWORKANALYZER_H</span>
+<a name="l00012"></a>00012 <span class="preprocessor"></span>
+<a name="l00013"></a>00013 <span class="preprocessor">#include &lt;qvariant.h&gt;</span>
+<a name="l00014"></a>00014 <span class="preprocessor">#include &lt;qpixmap.h&gt;</span>
+<a name="l00015"></a>00015 <span class="preprocessor">#include &lt;qmainwindow.h&gt;</span>
+<a name="l00016"></a>00016 
+<a name="l00017"></a>00017 <span class="keyword">class </span>QVBoxLayout;
+<a name="l00018"></a>00018 <span class="keyword">class </span>QHBoxLayout;
+<a name="l00019"></a>00019 <span class="keyword">class </span>QGridLayout;
+<a name="l00020"></a>00020 <span class="keyword">class </span>QSpacerItem;
+<a name="l00021"></a>00021 <span class="keyword">class </span>QAction;
+<a name="l00022"></a>00022 <span class="keyword">class </span>QActionGroup;
+<a name="l00023"></a>00023 <span class="keyword">class </span>QToolBar;
+<a name="l00024"></a>00024 <span class="keyword">class </span>QPopupMenu;
+<a name="l00025"></a>00025 <span class="keyword">class </span><a class="code" href="class_x_q_graph.html">XQGraph</a>;
+<a name="l00026"></a>00026 <span class="keyword">class </span>KURLRequester;
+<a name="l00027"></a>00027 <span class="keyword">class </span>QPushButton;
+<a name="l00028"></a>00028 <span class="keyword">class </span>QGroupBox;
+<a name="l00029"></a>00029 <span class="keyword">class </span>QLabel;
+<a name="l00030"></a>00030 <span class="keyword">class </span>QLineEdit;
+<a name="l00031"></a>00031 <span class="keyword">class </span>QComboBox;
+<a name="l00032"></a>00032 
+<a name="l00033"></a><a class="code" href="class_frm_network_analyzer.html">00033</a> <span class="keyword">class </span><a class="code" href="class_frm_network_analyzer.html">FrmNetworkAnalyzer</a> : <span class="keyword">public</span> QMainWindow
+<a name="l00034"></a>00034 {
+<a name="l00035"></a>00035     Q_OBJECT
+<a name="l00036"></a>00036 
+<a name="l00037"></a>00037 <span class="keyword">public</span>:
+<a name="l00038"></a>00038     <a class="code" href="class_frm_network_analyzer.html#5964531684a9127f747abb4aa0b0c94f">FrmNetworkAnalyzer</a>( QWidget* parent = 0, <span class="keyword">const</span> <span class="keywordtype">char</span>* name = 0, WFlags fl = WType_TopLevel );
+<a name="l00039"></a>00039     <a class="code" href="class_frm_network_analyzer.html#44905c5b0b58f39c2eadbd79dc22a12b">~FrmNetworkAnalyzer</a>();
+<a name="l00040"></a>00040 
+<a name="l00041"></a><a class="code" href="class_frm_network_analyzer.html#6d1bf0e198f115c1299a977153a38719">00041</a>     KURLRequester* <a class="code" href="class_frm_network_analyzer.html#6d1bf0e198f115c1299a977153a38719">m_urlDump</a>;
+<a name="l00042"></a><a class="code" href="class_frm_network_analyzer.html#f9b21a99313adf8ade21a240f0d1693f">00042</a>     QPushButton* <a class="code" href="class_frm_network_analyzer.html#f9b21a99313adf8ade21a240f0d1693f">m_btnDump</a>;
+<a name="l00043"></a><a class="code" href="class_frm_network_analyzer.html#888b585e246fbe4afcbb0d4e35c058f2">00043</a>     <a class="code" href="class_x_q_graph.html">XQGraph</a>* <a class="code" href="class_frm_network_analyzer.html#888b585e246fbe4afcbb0d4e35c058f2">m_graphwidget</a>;
+<a name="l00044"></a><a class="code" href="class_frm_network_analyzer.html#0a22ea4f669ba9a5ebdb13f731e82d15">00044</a>     QGroupBox* <a class="code" href="class_frm_network_analyzer.html#0a22ea4f669ba9a5ebdb13f731e82d15">groupBox1</a>;
+<a name="l00045"></a><a class="code" href="class_frm_network_analyzer.html#d40690c0fbd1b1328c4463ed53973ddd">00045</a>     QLabel* <a class="code" href="class_frm_network_analyzer.html#d40690c0fbd1b1328c4463ed53973ddd">textLabel1_2_5_3</a>;
+<a name="l00046"></a><a class="code" href="class_frm_network_analyzer.html#221ba17cf68348fd85fdf7cdb239ddca">00046</a>     QLineEdit* <a class="code" href="class_frm_network_analyzer.html#221ba17cf68348fd85fdf7cdb239ddca">m_edStart</a>;
+<a name="l00047"></a><a class="code" href="class_frm_network_analyzer.html#bd6595937bbda85949d33974eeda210c">00047</a>     QLabel* <a class="code" href="class_frm_network_analyzer.html#bd6595937bbda85949d33974eeda210c">textLabel1_2_2_4_3</a>;
+<a name="l00048"></a><a class="code" href="class_frm_network_analyzer.html#31be0a8f70cdb218d952f0783f1e2388">00048</a>     QLabel* <a class="code" href="class_frm_network_analyzer.html#31be0a8f70cdb218d952f0783f1e2388">textLabel1_2_5_3_3</a>;
+<a name="l00049"></a><a class="code" href="class_frm_network_analyzer.html#e267fed204bfd33bff1f8a7c51ff3771">00049</a>     QLineEdit* <a class="code" href="class_frm_network_analyzer.html#e267fed204bfd33bff1f8a7c51ff3771">m_edStop</a>;
+<a name="l00050"></a><a class="code" href="class_frm_network_analyzer.html#786690541b6e24dda7b9b2349f4a10d3">00050</a>     QLabel* <a class="code" href="class_frm_network_analyzer.html#786690541b6e24dda7b9b2349f4a10d3">textLabel1_2_2_4_3_2</a>;
+<a name="l00051"></a><a class="code" href="class_frm_network_analyzer.html#052977c98c0cbeed25ed622259af73bb">00051</a>     QLabel* <a class="code" href="class_frm_network_analyzer.html#052977c98c0cbeed25ed622259af73bb">textLabel1</a>;
+<a name="l00052"></a><a class="code" href="class_frm_network_analyzer.html#8d054dc8046623931aefbdc548418c44">00052</a>     QComboBox* <a class="code" href="class_frm_network_analyzer.html#8d054dc8046623931aefbdc548418c44">m_cmbPoints</a>;
+<a name="l00053"></a><a class="code" href="class_frm_network_analyzer.html#9f56ccad8266e77ab811e42091e9aac8">00053</a>     QLabel* <a class="code" href="class_frm_network_analyzer.html#9f56ccad8266e77ab811e42091e9aac8">textLabel1_2_5_3_3_2</a>;
+<a name="l00054"></a><a class="code" href="class_frm_network_analyzer.html#47698a1c2dfcbce567ee43b0c5f7d82a">00054</a>     QLineEdit* <a class="code" href="class_frm_network_analyzer.html#47698a1c2dfcbce567ee43b0c5f7d82a">m_edAverage</a>;
+<a name="l00055"></a>00055 
+<a name="l00056"></a>00056 <span class="keyword">protected</span>:
+<a name="l00057"></a><a class="code" href="class_frm_network_analyzer.html#bf1b384f87b4a5d0505aa42e00dd7bc6">00057</a>     QGridLayout* <a class="code" href="class_frm_network_analyzer.html#bf1b384f87b4a5d0505aa42e00dd7bc6">FrmNetworkAnalyzerLayout</a>;
+<a name="l00058"></a><a class="code" href="class_frm_network_analyzer.html#5639ec5588e4b8d7e257c9aca0ee5b8b">00058</a>     QHBoxLayout* <a class="code" href="class_frm_network_analyzer.html#5639ec5588e4b8d7e257c9aca0ee5b8b">layout61</a>;
+<a name="l00059"></a><a class="code" href="class_frm_network_analyzer.html#3105ebb8809c9c781b6ace1313942ea9">00059</a>     QVBoxLayout* <a class="code" href="class_frm_network_analyzer.html#3105ebb8809c9c781b6ace1313942ea9">layout18</a>;
+<a name="l00060"></a><a class="code" href="class_frm_network_analyzer.html#a9490c59bb0341edc34ca9e8a844b84e">00060</a>     QHBoxLayout* <a class="code" href="class_frm_network_analyzer.html#a9490c59bb0341edc34ca9e8a844b84e">layout15</a>;
+<a name="l00061"></a><a class="code" href="class_frm_network_analyzer.html#80f6b7ce39a2c1ce47769416c713dafc">00061</a>     QGridLayout* <a class="code" href="class_frm_network_analyzer.html#80f6b7ce39a2c1ce47769416c713dafc">groupBox1Layout</a>;
+<a name="l00062"></a><a class="code" href="class_frm_network_analyzer.html#004c48c1d5e88c8c335b54fe807ab0f1">00062</a>     QHBoxLayout* <a class="code" href="class_frm_network_analyzer.html#004c48c1d5e88c8c335b54fe807ab0f1">layout19</a>;
+<a name="l00063"></a><a class="code" href="class_frm_network_analyzer.html#e76cb5161a824dc97ccc1542b88f9d2b">00063</a>     QHBoxLayout* <a class="code" href="class_frm_network_analyzer.html#e76cb5161a824dc97ccc1542b88f9d2b">layout5_4_3</a>;
+<a name="l00064"></a><a class="code" href="class_frm_network_analyzer.html#aaf0086117876ca79308031f9ae2be19">00064</a>     QHBoxLayout* <a class="code" href="class_frm_network_analyzer.html#aaf0086117876ca79308031f9ae2be19">layout5_4_3_3</a>;
+<a name="l00065"></a><a class="code" href="class_frm_network_analyzer.html#2bf81fd38967ff822cd059a12d648910">00065</a>     QHBoxLayout* <a class="code" href="class_frm_network_analyzer.html#2bf81fd38967ff822cd059a12d648910">layout7</a>;
+<a name="l00066"></a><a class="code" href="class_frm_network_analyzer.html#903a2c11161c4a6f56ac272e4efb094d">00066</a>     QHBoxLayout* <a class="code" href="class_frm_network_analyzer.html#903a2c11161c4a6f56ac272e4efb094d">layout8</a>;
+<a name="l00067"></a>00067 
+<a name="l00068"></a>00068 <span class="keyword">protected</span> slots:
+<a name="l00069"></a>00069     <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_frm_network_analyzer.html#dc3d93fff840f5effdbab494c5f8d1f1">languageChange</a>();
+<a name="l00070"></a>00070 
+<a name="l00071"></a>00071 <span class="keyword">private</span>:
+<a name="l00072"></a><a class="code" href="class_frm_network_analyzer.html#a066291af0b3db88a7baa0d66c3207fa">00072</a>     QPixmap <a class="code" href="class_frm_network_analyzer.html#a066291af0b3db88a7baa0d66c3207fa">image0</a>;
+<a name="l00073"></a>00073 
+<a name="l00074"></a>00074 };
+<a name="l00075"></a>00075 
+<a name="l00076"></a>00076 <span class="preprocessor">#endif // FRMNETWORKANALYZER_H</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri Jan 4 16:08:22 2008に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
+</body>
+</html>

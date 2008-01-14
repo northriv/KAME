@@ -71,14 +71,16 @@
 <attribute key="ctagslocation" value=""/>
 <attribute key="ctagsindexincludes" value="false"/>
 <attribute key="ctagfiletype" value="ctags_internal"/>
-<attribute key="ctagslocationtype" value="ctags_path_default"/>
 <attribute key="ctagfilelocation" value=""/>
+<attribute key="ctagslocationtype" value="ctags_path_default"/>
 </extension>
 <extension id="org.eclipse.cdt.core.MachO" point="org.eclipse.cdt.core.BinaryParser">
 <attribute key="c++filt" value="c++filt"/>
 </extension>
 </extensions>
 </storageModule>
+<storageModule moduleId="org.eclipse.cdt.core.language.mapping"/>
+<storageModule moduleId="org.eclipse.cdt.core.externalSettings"/>
 </cconfiguration>
 </storageModule>
 </cproject>

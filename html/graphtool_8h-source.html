@@ -1,0 +1,67 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: /Users/northriv/Documents/Projects/KAME/macosx/kame/forms/graphtool.h ソースファイル</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
+<div class="nav">
+<a class="el" href="dir_267cfcb898ce0973ecee1ed2b0a886dd.html">macosx</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_4e9c37e873543013a976ff9253a8401e.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_37ccecfbfa402c2bbe97b2d9435b9224.html">forms</a></div>
+<h1>graphtool.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/****************************************************************************</span>
+<a name="l00002"></a>00002 <span class="comment">** Form interface generated from reading ui file '/Users/northriv/Documents/Projects/KAME/2.2/kame/forms/graphtool.ui'</span>
+<a name="l00003"></a>00003 <span class="comment">**</span>
+<a name="l00004"></a>00004 <span class="comment">** Created: 羂�  1 2 01:28:37 2008</span>
+<a name="l00005"></a>00005 <span class="comment">**      by: The User Interface Compiler ($Id: graphtool_8h-source.html,v 1.1 2008/01/14 09:42:30 northriv Exp $)</span>
+<a name="l00006"></a>00006 <span class="comment">**</span>
+<a name="l00007"></a>00007 <span class="comment">** WARNING! All changes made in this file will be lost!</span>
+<a name="l00008"></a>00008 <span class="comment">****************************************************************************/</span>
+<a name="l00009"></a>00009 
+<a name="l00010"></a>00010 <span class="preprocessor">#ifndef FRMGRAPHLIST_H</span>
+<a name="l00011"></a>00011 <span class="preprocessor"></span><span class="preprocessor">#define FRMGRAPHLIST_H</span>
+<a name="l00012"></a>00012 <span class="preprocessor"></span>
+<a name="l00013"></a>00013 <span class="preprocessor">#include &lt;qvariant.h&gt;</span>
+<a name="l00014"></a>00014 <span class="preprocessor">#include &lt;qwidget.h&gt;</span>
+<a name="l00015"></a>00015 
+<a name="l00016"></a>00016 <span class="keyword">class </span>QVBoxLayout;
+<a name="l00017"></a>00017 <span class="keyword">class </span>QHBoxLayout;
+<a name="l00018"></a>00018 <span class="keyword">class </span>QGridLayout;
+<a name="l00019"></a>00019 <span class="keyword">class </span>QSpacerItem;
+<a name="l00020"></a>00020 <span class="keyword">class </span>QPushButton;
+<a name="l00021"></a>00021 <span class="keyword">class </span>QTable;
+<a name="l00022"></a>00022 
+<a name="l00023"></a><a class="code" href="class_frm_graph_list.html">00023</a> <span class="keyword">class </span><a class="code" href="class_frm_graph_list.html">FrmGraphList</a> : <span class="keyword">public</span> QWidget
+<a name="l00024"></a>00024 {
+<a name="l00025"></a>00025     Q_OBJECT
+<a name="l00026"></a>00026 
+<a name="l00027"></a>00027 <span class="keyword">public</span>:
+<a name="l00028"></a>00028     <a class="code" href="class_frm_graph_list.html#6e2f507613a03541fd78923a77ba38ce">FrmGraphList</a>( QWidget* parent = 0, <span class="keyword">const</span> <span class="keywordtype">char</span>* name = 0, WFlags fl = 0 );
+<a name="l00029"></a>00029     <a class="code" href="class_frm_graph_list.html#de1cd9bc52891be0994f328ddaa3ff08">~FrmGraphList</a>();
+<a name="l00030"></a>00030 
+<a name="l00031"></a><a class="code" href="class_frm_graph_list.html#f297aaef4e235480967c90d855477b90">00031</a>     QPushButton* <a class="code" href="class_frm_graph_list.html#f297aaef4e235480967c90d855477b90">btnNewGraph</a>;
+<a name="l00032"></a><a class="code" href="class_frm_graph_list.html#a6d446e753680126b11977942547d4eb">00032</a>     QPushButton* <a class="code" href="class_frm_graph_list.html#a6d446e753680126b11977942547d4eb">btnDeleteGraph</a>;
+<a name="l00033"></a><a class="code" href="class_frm_graph_list.html#26f7115bd128ad13dfd179ec6a7486d4">00033</a>     QTable* <a class="code" href="class_frm_graph_list.html#26f7115bd128ad13dfd179ec6a7486d4">tblGraphs</a>;
+<a name="l00034"></a>00034 
+<a name="l00035"></a>00035 <span class="keyword">protected</span>:
+<a name="l00036"></a><a class="code" href="class_frm_graph_list.html#9d92e1bd65cfbb21c00283bea944ab02">00036</a>     QGridLayout* <a class="code" href="class_frm_graph_list.html#9d92e1bd65cfbb21c00283bea944ab02">FrmGraphListLayout</a>;
+<a name="l00037"></a><a class="code" href="class_frm_graph_list.html#aabcf580e78d9b1edb4d57e3406fb074">00037</a>     QSpacerItem* <a class="code" href="class_frm_graph_list.html#aabcf580e78d9b1edb4d57e3406fb074">spacer3</a>;
+<a name="l00038"></a>00038 
+<a name="l00039"></a>00039 <span class="keyword">protected</span> slots:
+<a name="l00040"></a>00040     <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_frm_graph_list.html#17a659af65b60674b10a44e70be57bb1">languageChange</a>();
+<a name="l00041"></a>00041 
+<a name="l00042"></a>00042 };
+<a name="l00043"></a>00043 
+<a name="l00044"></a>00044 <span class="preprocessor">#endif // FRMGRAPHLIST_H</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri Jan 4 16:08:21 2008に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
+</body>
+</html>

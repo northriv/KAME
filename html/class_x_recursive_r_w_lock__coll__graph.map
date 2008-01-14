@@ -1,2 +1,3 @@
 base referer
-rect $class_x_thread_local.html 7,7 205,34
+rect $class_x_thread_local.html 8,98 205,125
+rect $class_x_thread_local.html 37,8 176,34

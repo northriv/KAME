@@ -2,14 +2,23 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/xscheduler.cpp ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a></div>
+<a class="el" href="dir_322056169d9dd04bc6751323c3d87b79.html">kame</a></div>
 <h1>xscheduler.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
-<a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
+<a name="l00003"></a>00003 <span class="comment">                                   kitag@issp.u-tokyo.ac.jp</span>
 <a name="l00004"></a>00004 <span class="comment">                </span>
 <a name="l00005"></a>00005 <span class="comment">                This program is free software; you can redistribute it and/or</span>
 <a name="l00006"></a>00006 <span class="comment">                modify it under the terms of the GNU Library General Public</span>
@@ -30,59 +39,59 @@
 <a name="l00021"></a>00021         g_signalBuffer-&gt;registerTransactionList(transaction);
 <a name="l00022"></a>00022 }
 <a name="l00023"></a>00023 
-<a name="l00024"></a><a class="code" href="class_x_signal_buffer.html#a0">00024</a> <a class="code" href="class_x_signal_buffer.html#a0">XSignalBuffer::XSignalBuffer</a>()
+<a name="l00024"></a><a class="code" href="class_x_signal_buffer.html#c5bebe8ba742155d29579cb413d0ed9b">00024</a> <a class="code" href="class_x_signal_buffer.html#c5bebe8ba742155d29579cb413d0ed9b">XSignalBuffer::XSignalBuffer</a>()
 <a name="l00025"></a>00025         : m_oldest_timestamp(timeStamp()) {
 <a name="l00026"></a>00026 }
-<a name="l00027"></a><a class="code" href="class_x_signal_buffer.html#a1">00027</a> <a class="code" href="class_x_signal_buffer.html#a1">XSignalBuffer::~XSignalBuffer</a>() {
+<a name="l00027"></a><a class="code" href="class_x_signal_buffer.html#65a4a326317ca5ff767e2df21dc99b04">00027</a> <a class="code" href="class_x_signal_buffer.html#65a4a326317ca5ff767e2df21dc99b04">XSignalBuffer::~XSignalBuffer</a>() {
 <a name="l00028"></a>00028 }
 <a name="l00029"></a>00029 <a class="code" href="struct___x_transaction.html">_XTransaction</a> *
-<a name="l00030"></a><a class="code" href="class_x_signal_buffer.html#d0">00030</a> <a class="code" href="class_x_signal_buffer.html#d0">XSignalBuffer::popOldest</a>() {
+<a name="l00030"></a><a class="code" href="class_x_signal_buffer.html#c6a5835836d422bccb23fc51c3487d14">00030</a> <a class="code" href="class_x_signal_buffer.html#c6a5835836d422bccb23fc51c3487d14">XSignalBuffer::popOldest</a>() {
 <a name="l00031"></a>00031         <a class="code" href="struct___x_transaction.html">_XTransaction</a> *item = 0L, *skipped_item = 0L;
-<a name="l00032"></a>00032         <span class="keywordflow">if</span>(<a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.<a class="code" href="classatomic__nonzero__value__queue.html#a5">size</a>()) {
-<a name="l00033"></a>00033                 item = <a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.<a class="code" href="classatomic__nonzero__value__queue.html#a3">front</a>();
-<a name="l00034"></a>00034                 <span class="keywordflow">if</span>(<a class="code" href="class_x_signal_buffer.html#r1">m_skippedQueue</a>.size()) {
-<a name="l00035"></a>00035                         <span class="keywordflow">if</span>((long)(<a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.<a class="code" href="classatomic__nonzero__value__queue.html#a3">front</a>()-&gt;<a class="code" href="struct___x_transaction.html#o0">registered_time</a> - <a class="code" href="class_x_signal_buffer.html#r1">m_skippedQueue</a>.front().second) &gt; 0) {
-<a name="l00036"></a>00036                                 skipped_item = <a class="code" href="class_x_signal_buffer.html#r1">m_skippedQueue</a>.front().first;
+<a name="l00032"></a>00032         <span class="keywordflow">if</span>(<a class="code" href="class_x_signal_buffer.html#57eb1aabb7927d0c18e7f90cdf9790c6">m_queue</a>.<a class="code" href="classatomic__nonzero__pod__queue.html#3275a155067e54614dbcc296c384a2dc">size</a>()) {
+<a name="l00033"></a>00033                 item = <a class="code" href="class_x_signal_buffer.html#57eb1aabb7927d0c18e7f90cdf9790c6">m_queue</a>.<a class="code" href="classatomic__nonzero__pod__queue.html#149adc436cb90ba3bb95bf6ecc9d2821">front</a>();
+<a name="l00034"></a>00034                 <span class="keywordflow">if</span>(<a class="code" href="class_x_signal_buffer.html#4188ece7045cd793c77e20c9ea23ff90">m_skippedQueue</a>.size()) {
+<a name="l00035"></a>00035                         <span class="keywordflow">if</span>((<span class="keywordtype">long</span>)(<a class="code" href="class_x_signal_buffer.html#57eb1aabb7927d0c18e7f90cdf9790c6">m_queue</a>.<a class="code" href="classatomic__nonzero__pod__queue.html#149adc436cb90ba3bb95bf6ecc9d2821">front</a>()-&gt;registered_time - <a class="code" href="class_x_signal_buffer.html#4188ece7045cd793c77e20c9ea23ff90">m_skippedQueue</a>.front().second) &gt; 0) {
+<a name="l00036"></a>00036                                 skipped_item = <a class="code" href="class_x_signal_buffer.html#4188ece7045cd793c77e20c9ea23ff90">m_skippedQueue</a>.front().first;
 <a name="l00037"></a>00037                                 item = 0L;
 <a name="l00038"></a>00038                         }
 <a name="l00039"></a>00039                 }
 <a name="l00040"></a>00040         }
 <a name="l00041"></a>00041         <span class="keywordflow">else</span> {
-<a name="l00042"></a>00042                 <span class="keywordflow">if</span>(<a class="code" href="class_x_signal_buffer.html#r1">m_skippedQueue</a>.size())
-<a name="l00043"></a>00043                         skipped_item = <a class="code" href="class_x_signal_buffer.html#r1">m_skippedQueue</a>.front().first;
+<a name="l00042"></a>00042                 <span class="keywordflow">if</span>(m_skippedQueue.size())
+<a name="l00043"></a>00043                         skipped_item = m_skippedQueue.front().first;
 <a name="l00044"></a>00044         }
 <a name="l00045"></a>00045         <span class="keywordflow">if</span>(item)
-<a name="l00046"></a>00046                 <a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.<a class="code" href="classatomic__nonzero__value__queue.html#a2">pop</a>();
+<a name="l00046"></a>00046                 m_queue.pop();
 <a name="l00047"></a>00047         <span class="keywordflow">if</span>(skipped_item)        
-<a name="l00048"></a>00048                 <a class="code" href="class_x_signal_buffer.html#r1">m_skippedQueue</a>.pop_front();
-<a name="l00049"></a>00049         <span class="keywordflow">if</span>(<a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.<a class="code" href="classatomic__nonzero__value__queue.html#a5">size</a>()) {
-<a name="l00050"></a>00050                 <span class="keywordflow">if</span>(<a class="code" href="class_x_signal_buffer.html#r1">m_skippedQueue</a>.size()) {
-<a name="l00051"></a>00051                         <span class="keywordflow">if</span>((long)(<a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.<a class="code" href="classatomic__nonzero__value__queue.html#a3">front</a>()-&gt;<a class="code" href="struct___x_transaction.html#o0">registered_time</a> - <a class="code" href="class_x_signal_buffer.html#r1">m_skippedQueue</a>.front().second) &gt; 0)
-<a name="l00052"></a>00052                                 <a class="code" href="class_x_signal_buffer.html#r2">m_oldest_timestamp</a> = <a class="code" href="class_x_signal_buffer.html#r1">m_skippedQueue</a>.front().second;
+<a name="l00048"></a>00048                 m_skippedQueue.pop_front();
+<a name="l00049"></a>00049         <span class="keywordflow">if</span>(m_queue.size()) {
+<a name="l00050"></a>00050                 <span class="keywordflow">if</span>(m_skippedQueue.size()) {
+<a name="l00051"></a>00051                         <span class="keywordflow">if</span>((<span class="keywordtype">long</span>)(m_queue.front()-&gt;registered_time - m_skippedQueue.front().second) &gt; 0)
+<a name="l00052"></a>00052                                 m_oldest_timestamp = m_skippedQueue.front().second;
 <a name="l00053"></a>00053                         <span class="keywordflow">else</span>
-<a name="l00054"></a>00054                                 <a class="code" href="class_x_signal_buffer.html#r2">m_oldest_timestamp</a> = <a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.<a class="code" href="classatomic__nonzero__value__queue.html#a3">front</a>()-&gt;<a class="code" href="struct___x_transaction.html#o0">registered_time</a>;
+<a name="l00054"></a>00054                                 m_oldest_timestamp = m_queue.front()-&gt;<a class="code" href="struct___x_transaction.html#c088409f5f3c0120a6344ef2f156a49b">registered_time</a>;
 <a name="l00055"></a>00055                 }
 <a name="l00056"></a>00056                 <span class="keywordflow">else</span>
-<a name="l00057"></a>00057                         <a class="code" href="class_x_signal_buffer.html#r2">m_oldest_timestamp</a> = <a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.<a class="code" href="classatomic__nonzero__value__queue.html#a3">front</a>()-&gt;<a class="code" href="struct___x_transaction.html#o0">registered_time</a>;
+<a name="l00057"></a>00057                         m_oldest_timestamp = m_queue.front()-&gt;registered_time;
 <a name="l00058"></a>00058         }
 <a name="l00059"></a>00059         <span class="keywordflow">else</span> {
-<a name="l00060"></a>00060                 <span class="keywordflow">if</span>(<a class="code" href="class_x_signal_buffer.html#r1">m_skippedQueue</a>.size())
-<a name="l00061"></a>00061                         <a class="code" href="class_x_signal_buffer.html#r2">m_oldest_timestamp</a> = <a class="code" href="class_x_signal_buffer.html#r1">m_skippedQueue</a>.front().second;
+<a name="l00060"></a>00060                 <span class="keywordflow">if</span>(m_skippedQueue.size())
+<a name="l00061"></a>00061                         m_oldest_timestamp = m_skippedQueue.front().second;
 <a name="l00062"></a>00062         }
 <a name="l00063"></a>00063         <span class="keywordflow">if</span>(item)
 <a name="l00064"></a>00064                 <span class="keywordflow">return</span> item;
 <a name="l00065"></a>00065         <span class="keywordflow">return</span> skipped_item;
 <a name="l00066"></a>00066 }
 <a name="l00067"></a>00067 <span class="keywordtype">void</span> 
-<a name="l00068"></a><a class="code" href="class_x_signal_buffer.html#a2">00068</a> <a class="code" href="class_x_signal_buffer.html#a2">XSignalBuffer::registerTransactionList</a>(<a class="code" href="struct___x_transaction.html">_XTransaction</a> *transaction)
+<a name="l00068"></a><a class="code" href="class_x_signal_buffer.html#42c236d360a7c6af723384fe11e58b99">00068</a> <a class="code" href="class_x_signal_buffer.html#42c236d360a7c6af723384fe11e58b99">XSignalBuffer::registerTransactionList</a>(<a class="code" href="struct___x_transaction.html">_XTransaction</a> *transaction)
 <a name="l00069"></a>00069 {
-<a name="l00070"></a>00070     <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> time(transaction-&gt;<a class="code" href="struct___x_transaction.html#o0">registered_time</a>);
+<a name="l00070"></a>00070     <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> time(transaction-&gt;<a class="code" href="struct___x_transaction.html#c088409f5f3c0120a6344ef2f156a49b">registered_time</a>);
 <a name="l00071"></a>00071     ASSERT(!isMainThread());
 <a name="l00072"></a>00072     <span class="keywordflow">for</span>(;;) {
 <a name="l00073"></a>00073         <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; 20; i++) {
 <a name="l00074"></a>00074                         <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> cost = 0;
-<a name="l00075"></a>00075                         <span class="keywordflow">if</span>(!<a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.<a class="code" href="classatomic__nonzero__value__queue.html#a4">empty</a>()) {
-<a name="l00076"></a>00076                                 cost += time - <a class="code" href="class_x_signal_buffer.html#r2">m_oldest_timestamp</a>;
+<a name="l00075"></a>00075                         <span class="keywordflow">if</span>(!<a class="code" href="class_x_signal_buffer.html#57eb1aabb7927d0c18e7f90cdf9790c6">m_queue</a>.<a class="code" href="classatomic__nonzero__pod__queue.html#7174abe13621464bc00d834351c8902a">empty</a>()) {
+<a name="l00076"></a>00076                                 cost += time - <a class="code" href="class_x_signal_buffer.html#31d77ebdebfe9647190058f4a0560271">m_oldest_timestamp</a>;
 <a name="l00077"></a>00077                         }
 <a name="l00078"></a>00078                         <span class="keywordflow">if</span>(cost &gt; 100000uL) {
 <a name="l00079"></a>00079                                 <span class="keywordflow">if</span>(g_adaptiveDelay &lt; 300) {
@@ -105,9 +114,9 @@
 <a name="l00096"></a>00096                         time = timeStamp();
 <a name="l00097"></a>00097         }
 <a name="l00098"></a>00098         <span class="keywordflow">try</span> {
-<a name="l00099"></a>00099             <span class="keywordtype">bool</span> empty = <a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.<a class="code" href="classatomic__nonzero__value__queue.html#a4">empty</a>();
-<a name="l00100"></a>00100             <a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.<a class="code" href="classatomic__nonzero__value__queue.html#a1">push</a>(transaction);
-<a name="l00101"></a>00101             <span class="keywordflow">if</span>(empty) <a class="code" href="class_x_signal_buffer.html#r2">m_oldest_timestamp</a> = transaction-&gt;<a class="code" href="struct___x_transaction.html#o0">registered_time</a>;
+<a name="l00099"></a>00099             <span class="keywordtype">bool</span> empty = m_queue.empty();
+<a name="l00100"></a>00100             m_queue.push(transaction);
+<a name="l00101"></a>00101             <span class="keywordflow">if</span>(empty) m_oldest_timestamp = transaction-&gt;registered_time;
 <a name="l00102"></a>00102             <span class="keywordflow">break</span>;
 <a name="l00103"></a>00103         }
 <a name="l00104"></a>00104         <span class="keywordflow">catch</span> (Queue::nospace_error &amp;) {
@@ -116,36 +125,36 @@
 <a name="l00107"></a>00107     }
 <a name="l00108"></a>00108 }
 <a name="l00109"></a>00109 <span class="keywordtype">bool</span>
-<a name="l00110"></a><a class="code" href="class_x_signal_buffer.html#a3">00110</a> <a class="code" href="class_x_signal_buffer.html#a3">XSignalBuffer::synchronize</a>()
+<a name="l00110"></a><a class="code" href="class_x_signal_buffer.html#df85a72ec52a81b7d744810b7fec4689">00110</a> <a class="code" href="class_x_signal_buffer.html#df85a72ec52a81b7d744810b7fec4689">XSignalBuffer::synchronize</a>()
 <a name="l00111"></a>00111 {
 <a name="l00112"></a>00112         <span class="keywordtype">bool</span> dotalk = <span class="keyword">true</span>;
-<a name="l00113"></a>00113         <a class="code" href="class_x_time.html">XTime</a> time_start(<a class="code" href="class_x_time.html#e0">XTime::now</a>());
+<a name="l00113"></a>00113         <a class="code" href="class_x_time.html">XTime</a> time_start(<a class="code" href="class_x_time.html#c379a0eebc8202c724609985cf7782ac">XTime::now</a>());
 <a name="l00114"></a>00114         <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> time_stamp_start(timeStamp());
 <a name="l00115"></a>00115         <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> clock_in_ms = 1000;
 <a name="l00116"></a>00116         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> skipped_cnt = 0;
 <a name="l00117"></a>00117   
 <a name="l00118"></a>00118         <span class="keywordflow">for</span>(;;) {
-<a name="l00119"></a>00119                 <span class="keywordflow">if</span>(<a class="code" href="class_x_signal_buffer.html#r0">m_queue</a>.<a class="code" href="classatomic__nonzero__value__queue.html#a4">empty</a>() &amp;&amp; (<a class="code" href="class_x_signal_buffer.html#r1">m_skippedQueue</a>.size() &lt;= skipped_cnt)) {
-<a name="l00120"></a>00120                         dotalk = !<a class="code" href="class_x_signal_buffer.html#r1">m_skippedQueue</a>.empty();
+<a name="l00119"></a>00119                 <span class="keywordflow">if</span>(<a class="code" href="class_x_signal_buffer.html#57eb1aabb7927d0c18e7f90cdf9790c6">m_queue</a>.<a class="code" href="classatomic__nonzero__pod__queue.html#7174abe13621464bc00d834351c8902a">empty</a>() &amp;&amp; (<a class="code" href="class_x_signal_buffer.html#4188ece7045cd793c77e20c9ea23ff90">m_skippedQueue</a>.size() &lt;= skipped_cnt)) {
+<a name="l00120"></a>00120                         dotalk = !<a class="code" href="class_x_signal_buffer.html#4188ece7045cd793c77e20c9ea23ff90">m_skippedQueue</a>.empty();
 <a name="l00121"></a>00121                         <span class="keywordflow">break</span>;
 <a name="l00122"></a>00122                 }
-<a name="l00123"></a>00123                 <a class="code" href="struct___x_transaction.html">_XTransaction</a> *transaction = <a class="code" href="class_x_signal_buffer.html#d0">popOldest</a>();
+<a name="l00123"></a>00123                 <a class="code" href="struct___x_transaction.html">_XTransaction</a> *transaction = <a class="code" href="class_x_signal_buffer.html#c6a5835836d422bccb23fc51c3487d14">popOldest</a>();
 <a name="l00124"></a>00124                 <span class="keywordflow">if</span>(!transaction) {
 <a name="l00125"></a>00125                         dotalk = <span class="keyword">false</span>;
 <a name="l00126"></a>00126                         <span class="keywordflow">break</span>;
 <a name="l00127"></a>00127                 }
 <a name="l00128"></a>00128                 <span class="keywordtype">bool</span> skip = <span class="keyword">false</span>;
 <a name="l00129"></a>00129                 <span class="keywordflow">try</span> {
-<a name="l00130"></a>00130                         skip = transaction-&gt;<a class="code" href="struct___x_transaction.html#a2">talkBuffered</a>();  
+<a name="l00130"></a>00130                         skip = transaction-&gt;<a class="code" href="struct___x_transaction.html#053382edf84821aeaa1c29f74827a22c">talkBuffered</a>();  
 <a name="l00131"></a>00131                 }
 <a name="l00132"></a>00132                 <span class="keywordflow">catch</span> (<a class="code" href="struct_x_kame_error.html">XKameError</a> &amp;e) {
-<a name="l00133"></a>00133                         e.<a class="code" href="struct_x_kame_error.html#a1">print</a>();
+<a name="l00133"></a>00133                         e.<a class="code" href="struct_x_kame_error.html#9a84ebcb9d45b52654fd1d071450a5ee">print</a>();
 <a name="l00134"></a>00134                 }
 <a name="l00135"></a>00135                 <span class="keywordflow">catch</span> (std::bad_alloc &amp;) {
 <a name="l00136"></a>00136                         gErrPrint(<span class="stringliteral">"Memory Allocation Failed!"</span>);
 <a name="l00137"></a>00137                 }
 <a name="l00138"></a>00138                 <span class="keywordflow">if</span>(skip) {
-<a name="l00139"></a>00139                         <a class="code" href="class_x_signal_buffer.html#r1">m_skippedQueue</a>.push_back(std::pair&lt;_XTransaction*, unsigned long&gt;(transaction, timeStamp()));
+<a name="l00139"></a>00139                         <a class="code" href="class_x_signal_buffer.html#4188ece7045cd793c77e20c9ea23ff90">m_skippedQueue</a>.push_back(std::pair&lt;_XTransaction*, unsigned long&gt;(transaction, timeStamp()));
 <a name="l00140"></a>00140                         skipped_cnt++;
 <a name="l00141"></a>00141                 }
 <a name="l00142"></a>00142                 <span class="keywordflow">else</span> {
@@ -153,14 +162,14 @@
 <a name="l00144"></a>00144                 }
 <a name="l00145"></a>00145                 <span class="keywordflow">if</span>((timeStamp() - time_stamp_start) / clock_in_ms &gt; 30uL) <span class="keywordflow">break</span>;
 <a name="l00146"></a>00146         }
-<a name="l00147"></a>00147         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> msec = <a class="code" href="class_x_time.html#e0">XTime::now</a>().<a class="code" href="class_x_time.html#a5">diff_msec</a>(time_start);
+<a name="l00147"></a>00147         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> msec = <a class="code" href="class_x_time.html#c379a0eebc8202c724609985cf7782ac">XTime::now</a>().<a class="code" href="class_x_time.html#166ea1f367b16750cd04f9ce28b2475f">diff_msec</a>(time_start);
 <a name="l00148"></a>00148         <span class="keywordflow">if</span>(msec &gt; 10)
 <a name="l00149"></a>00149                 clock_in_ms = (timeStamp() - time_stamp_start) / msec;
 <a name="l00150"></a>00150         <span class="keywordflow">return</span> !dotalk;
 <a name="l00151"></a>00151 }
 <a name="l00152"></a>00152 
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:19 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Jan 14 03:59:41 2008に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
 </html>

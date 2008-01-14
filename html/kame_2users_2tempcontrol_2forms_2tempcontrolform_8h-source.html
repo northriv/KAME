@@ -1,0 +1,111 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: /Users/northriv/Documents/Projects/KAME/macosx/kame/users/tempcontrol/forms/tempcontrolform.h ソースファイル</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
+<div class="nav">
+<a class="el" href="dir_267cfcb898ce0973ecee1ed2b0a886dd.html">macosx</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_4e9c37e873543013a976ff9253a8401e.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_a3f4e184995b5539b8e69c3951d1f0f2.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_23ff0a4b1d63143dd042aaacd0e85e20.html">tempcontrol</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_79195a0a713ae04e641c40491cc237f1.html">forms</a></div>
+<h1>tempcontrolform.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/****************************************************************************</span>
+<a name="l00002"></a>00002 <span class="comment">** Form interface generated from reading ui file '../../../../../2.1/kame/users/tempcontrol/forms/tempcontrolform.ui'</span>
+<a name="l00003"></a>00003 <span class="comment">**</span>
+<a name="l00004"></a>00004 <span class="comment">** Created: 羂�  3 14 02:59:03 2007</span>
+<a name="l00005"></a>00005 <span class="comment">**      by: The User Interface Compiler ($Id: kame_2users_2tempcontrol_2forms_2tempcontrolform_8h-source.html,v 1.1 2008/01/14 09:42:13 northriv Exp $)</span>
+<a name="l00006"></a>00006 <span class="comment">**</span>
+<a name="l00007"></a>00007 <span class="comment">** WARNING! All changes made in this file will be lost!</span>
+<a name="l00008"></a>00008 <span class="comment">****************************************************************************/</span>
+<a name="l00009"></a>00009 
+<a name="l00010"></a>00010 <span class="preprocessor">#ifndef FRMTEMPCONTROL_H</span>
+<a name="l00011"></a>00011 <span class="preprocessor"></span><span class="preprocessor">#define FRMTEMPCONTROL_H</span>
+<a name="l00012"></a>00012 <span class="preprocessor"></span>
+<a name="l00013"></a>00013 <span class="preprocessor">#include &lt;qvariant.h&gt;</span>
+<a name="l00014"></a>00014 <span class="preprocessor">#include &lt;qmainwindow.h&gt;</span>
+<a name="l00015"></a>00015 
+<a name="l00016"></a>00016 <span class="keyword">class </span>QVBoxLayout;
+<a name="l00017"></a>00017 <span class="keyword">class </span>QHBoxLayout;
+<a name="l00018"></a>00018 <span class="keyword">class </span>QGridLayout;
+<a name="l00019"></a>00019 <span class="keyword">class </span>QSpacerItem;
+<a name="l00020"></a>00020 <span class="keyword">class </span>QAction;
+<a name="l00021"></a>00021 <span class="keyword">class </span>QActionGroup;
+<a name="l00022"></a>00022 <span class="keyword">class </span>QToolBar;
+<a name="l00023"></a>00023 <span class="keyword">class </span>QPopupMenu;
+<a name="l00024"></a>00024 <span class="keyword">class </span>QLabel;
+<a name="l00025"></a>00025 <span class="keyword">class </span>QLCDNumber;
+<a name="l00026"></a>00026 <span class="keyword">class </span>QComboBox;
+<a name="l00027"></a>00027 <span class="keyword">class </span>QGroupBox;
+<a name="l00028"></a>00028 <span class="keyword">class </span>QLineEdit;
+<a name="l00029"></a>00029 
+<a name="l00030"></a><a class="code" href="class_frm_temp_control.html">00030</a> <span class="keyword">class </span><a class="code" href="class_frm_temp_control.html">FrmTempControl</a> : <span class="keyword">public</span> QMainWindow
+<a name="l00031"></a>00031 {
+<a name="l00032"></a>00032     Q_OBJECT
+<a name="l00033"></a>00033 
+<a name="l00034"></a>00034 <span class="keyword">public</span>:
+<a name="l00035"></a>00035     <a class="code" href="class_frm_temp_control.html#2358574561834d34a999f4d470040ee3">FrmTempControl</a>( QWidget* parent = 0, <span class="keyword">const</span> <span class="keywordtype">char</span>* name = 0, WFlags fl = WType_TopLevel );
+<a name="l00036"></a>00036     <a class="code" href="class_frm_temp_control.html#08b90380491c4143985b1883cab5c65f">~FrmTempControl</a>();
+<a name="l00037"></a>00037 
+<a name="l00038"></a><a class="code" href="class_frm_temp_control.html#e250af6979dd318c857a3276be53414c">00038</a>     QLabel* <a class="code" href="class_frm_temp_control.html#e250af6979dd318c857a3276be53414c">textLabel5_2</a>;
+<a name="l00039"></a><a class="code" href="class_frm_temp_control.html#ee0242957c75dbb09f8eec5e430af3df">00039</a>     QLCDNumber* <a class="code" href="class_frm_temp_control.html#ee0242957c75dbb09f8eec5e430af3df">m_lcdSourceTemp</a>;
+<a name="l00040"></a><a class="code" href="class_frm_temp_control.html#06b017de8a92e68f24390e43cd06cec6">00040</a>     QLabel* <a class="code" href="class_frm_temp_control.html#06b017de8a92e68f24390e43cd06cec6">textLabel9_2</a>;
+<a name="l00041"></a><a class="code" href="class_frm_temp_control.html#0ef77172b11df9b61507d3cf4a0159d5">00041</a>     QLabel* <a class="code" href="class_frm_temp_control.html#0ef77172b11df9b61507d3cf4a0159d5">textLabel17</a>;
+<a name="l00042"></a><a class="code" href="class_frm_temp_control.html#0ca9d529cbd3676ac57e90fe0239cfc4">00042</a>     QComboBox* <a class="code" href="class_frm_temp_control.html#0ca9d529cbd3676ac57e90fe0239cfc4">m_cmbHeaterMode</a>;
+<a name="l00043"></a><a class="code" href="class_frm_temp_control.html#c67a75554e317ecd6dbe74454862e2ac">00043</a>     QGroupBox* <a class="code" href="class_frm_temp_control.html#c67a75554e317ecd6dbe74454862e2ac">groupBox1</a>;
+<a name="l00044"></a><a class="code" href="class_frm_temp_control.html#3027309b398b801a704d15106e9075e9">00044</a>     QLabel* <a class="code" href="class_frm_temp_control.html#3027309b398b801a704d15106e9075e9">textLabel19</a>;
+<a name="l00045"></a><a class="code" href="class_frm_temp_control.html#780591ccbd2cab69461416c5ba8f0ba5">00045</a>     QComboBox* <a class="code" href="class_frm_temp_control.html#780591ccbd2cab69461416c5ba8f0ba5">m_cmbSetupChannel</a>;
+<a name="l00046"></a><a class="code" href="class_frm_temp_control.html#28467de3e2e39e342227d5a99df68612">00046</a>     QLabel* <a class="code" href="class_frm_temp_control.html#28467de3e2e39e342227d5a99df68612">textLabel20</a>;
+<a name="l00047"></a><a class="code" href="class_frm_temp_control.html#f4739edfeca9199bb2909402a3d7fca4">00047</a>     QComboBox* <a class="code" href="class_frm_temp_control.html#f4739edfeca9199bb2909402a3d7fca4">m_cmbExcitation</a>;
+<a name="l00048"></a><a class="code" href="class_frm_temp_control.html#7048fd3bebcf543facb217027319e1f7">00048</a>     QLabel* <a class="code" href="class_frm_temp_control.html#7048fd3bebcf543facb217027319e1f7">textLabel21</a>;
+<a name="l00049"></a><a class="code" href="class_frm_temp_control.html#4ee7cbdf1dfd2422a7913e4fc3064700">00049</a>     QComboBox* <a class="code" href="class_frm_temp_control.html#4ee7cbdf1dfd2422a7913e4fc3064700">m_cmbThermometer</a>;
+<a name="l00050"></a><a class="code" href="class_frm_temp_control.html#568d7e47c48e195e82b318dff5fb71c2">00050</a>     QLabel* <a class="code" href="class_frm_temp_control.html#568d7e47c48e195e82b318dff5fb71c2">textLabel18_2_2</a>;
+<a name="l00051"></a><a class="code" href="class_frm_temp_control.html#bfca54590963c035ae182bd83a6c704b">00051</a>     QLineEdit* <a class="code" href="class_frm_temp_control.html#bfca54590963c035ae182bd83a6c704b">m_edP</a>;
+<a name="l00052"></a><a class="code" href="class_frm_temp_control.html#a70116ee1f35994ef0b6d98e7a297f5f">00052</a>     QLabel* <a class="code" href="class_frm_temp_control.html#a70116ee1f35994ef0b6d98e7a297f5f">textLabel18_2_2_2</a>;
+<a name="l00053"></a><a class="code" href="class_frm_temp_control.html#073fdf134f12f1a37d3defe758aa76b2">00053</a>     QLineEdit* <a class="code" href="class_frm_temp_control.html#073fdf134f12f1a37d3defe758aa76b2">m_edI</a>;
+<a name="l00054"></a><a class="code" href="class_frm_temp_control.html#05b1ce50c671be29e8fb9dea66884362">00054</a>     QLabel* <a class="code" href="class_frm_temp_control.html#05b1ce50c671be29e8fb9dea66884362">textLabel18_2_2_3</a>;
+<a name="l00055"></a><a class="code" href="class_frm_temp_control.html#fb7530c22bcbef75b8157dd5705c4fe7">00055</a>     QLineEdit* <a class="code" href="class_frm_temp_control.html#fb7530c22bcbef75b8157dd5705c4fe7">m_edD</a>;
+<a name="l00056"></a><a class="code" href="class_frm_temp_control.html#3674ae51eb700bd825010c0bc1c44002">00056</a>     QLabel* <a class="code" href="class_frm_temp_control.html#3674ae51eb700bd825010c0bc1c44002">textLabel16</a>;
+<a name="l00057"></a><a class="code" href="class_frm_temp_control.html#d35ef0ab44414db0585e932388a1decb">00057</a>     QComboBox* <a class="code" href="class_frm_temp_control.html#d35ef0ab44414db0585e932388a1decb">m_cmbSourceChannel</a>;
+<a name="l00058"></a><a class="code" href="class_frm_temp_control.html#35b72caa40938a09aea2f2f008b2aed0">00058</a>     QLabel* <a class="code" href="class_frm_temp_control.html#35b72caa40938a09aea2f2f008b2aed0">textLabel5</a>;
+<a name="l00059"></a><a class="code" href="class_frm_temp_control.html#a4e5d1cf38586e78e45750e7bd27d5e4">00059</a>     QLCDNumber* <a class="code" href="class_frm_temp_control.html#a4e5d1cf38586e78e45750e7bd27d5e4">m_lcdHeater</a>;
+<a name="l00060"></a><a class="code" href="class_frm_temp_control.html#8dac9a2af8d3dd256ed1bcd0a8385064">00060</a>     QLabel* <a class="code" href="class_frm_temp_control.html#8dac9a2af8d3dd256ed1bcd0a8385064">textLabel18</a>;
+<a name="l00061"></a><a class="code" href="class_frm_temp_control.html#5a5fad8db49f7aef8a90e8ebd2560354">00061</a>     QLineEdit* <a class="code" href="class_frm_temp_control.html#5a5fad8db49f7aef8a90e8ebd2560354">m_edTargetTemp</a>;
+<a name="l00062"></a><a class="code" href="class_frm_temp_control.html#ba99bb0c3b8e5f72379f5ef6b04653a9">00062</a>     QLabel* <a class="code" href="class_frm_temp_control.html#ba99bb0c3b8e5f72379f5ef6b04653a9">textLabel9_2_2</a>;
+<a name="l00063"></a><a class="code" href="class_frm_temp_control.html#860220df1007c5be5b528051b3a6bd5f">00063</a>     QLabel* <a class="code" href="class_frm_temp_control.html#860220df1007c5be5b528051b3a6bd5f">textLabel18_2</a>;
+<a name="l00064"></a><a class="code" href="class_frm_temp_control.html#c984518425de64793ab71782ee07233f">00064</a>     QLineEdit* <a class="code" href="class_frm_temp_control.html#c984518425de64793ab71782ee07233f">m_edManHeater</a>;
+<a name="l00065"></a><a class="code" href="class_frm_temp_control.html#290b53161640d9f9e459492801b374ca">00065</a>     QLabel* <a class="code" href="class_frm_temp_control.html#290b53161640d9f9e459492801b374ca">textLabel22</a>;
+<a name="l00066"></a><a class="code" href="class_frm_temp_control.html#796b78cafacdc51258c28d2d71dd8f87">00066</a>     QComboBox* <a class="code" href="class_frm_temp_control.html#796b78cafacdc51258c28d2d71dd8f87">m_cmbPowerRange</a>;
+<a name="l00067"></a>00067 
+<a name="l00068"></a>00068 <span class="keyword">protected</span>:
+<a name="l00069"></a><a class="code" href="class_frm_temp_control.html#01ad46916c2f88e988e6858936057a91">00069</a>     QGridLayout* <a class="code" href="class_frm_temp_control.html#01ad46916c2f88e988e6858936057a91">FrmTempControlLayout</a>;
+<a name="l00070"></a><a class="code" href="class_frm_temp_control.html#428465d19f10095881b5a8447bdd9edd">00070</a>     QHBoxLayout* <a class="code" href="class_frm_temp_control.html#428465d19f10095881b5a8447bdd9edd">layout7_2</a>;
+<a name="l00071"></a><a class="code" href="class_frm_temp_control.html#6713871cd8280fbca8253be3d7010f64">00071</a>     QHBoxLayout* <a class="code" href="class_frm_temp_control.html#6713871cd8280fbca8253be3d7010f64">layout21</a>;
+<a name="l00072"></a><a class="code" href="class_frm_temp_control.html#c9ab0fadf9b24a009e25c4ca816f7c8f">00072</a>     QGridLayout* <a class="code" href="class_frm_temp_control.html#c9ab0fadf9b24a009e25c4ca816f7c8f">groupBox1Layout</a>;
+<a name="l00073"></a><a class="code" href="class_frm_temp_control.html#7f4f4264fa04f6c8355c3fa88b38c5d3">00073</a>     QVBoxLayout* <a class="code" href="class_frm_temp_control.html#7f4f4264fa04f6c8355c3fa88b38c5d3">layout29</a>;
+<a name="l00074"></a><a class="code" href="class_frm_temp_control.html#ceec3c32b28822a13b9ce2003318db56">00074</a>     QHBoxLayout* <a class="code" href="class_frm_temp_control.html#ceec3c32b28822a13b9ce2003318db56">layout30</a>;
+<a name="l00075"></a><a class="code" href="class_frm_temp_control.html#14d24aaebcc31f6a5b6d9dc0acc9d310">00075</a>     QVBoxLayout* <a class="code" href="class_frm_temp_control.html#14d24aaebcc31f6a5b6d9dc0acc9d310">layout31</a>;
+<a name="l00076"></a><a class="code" href="class_frm_temp_control.html#aebd37cce3a1a07f0b293bfe7260fd7a">00076</a>     QHBoxLayout* <a class="code" href="class_frm_temp_control.html#aebd37cce3a1a07f0b293bfe7260fd7a">layout33</a>;
+<a name="l00077"></a><a class="code" href="class_frm_temp_control.html#1078c08b89d41536f74652eb73819e6d">00077</a>     QHBoxLayout* <a class="code" href="class_frm_temp_control.html#1078c08b89d41536f74652eb73819e6d">layout20</a>;
+<a name="l00078"></a><a class="code" href="class_frm_temp_control.html#b51c1636f1b3b6df053410e11f3393f0">00078</a>     QHBoxLayout* <a class="code" href="class_frm_temp_control.html#b51c1636f1b3b6df053410e11f3393f0">layout7</a>;
+<a name="l00079"></a><a class="code" href="class_frm_temp_control.html#c56208c958525a59b0a1c6dc8c76b1f6">00079</a>     QHBoxLayout* <a class="code" href="class_frm_temp_control.html#c56208c958525a59b0a1c6dc8c76b1f6">layout22</a>;
+<a name="l00080"></a><a class="code" href="class_frm_temp_control.html#ada9ead722c65e2bbcf09fe62c014c98">00080</a>     QHBoxLayout* <a class="code" href="class_frm_temp_control.html#ada9ead722c65e2bbcf09fe62c014c98">layout22_2</a>;
+<a name="l00081"></a><a class="code" href="class_frm_temp_control.html#5d90e64d4b8dbc0ac0272d0b662eb337">00081</a>     QHBoxLayout* <a class="code" href="class_frm_temp_control.html#5d90e64d4b8dbc0ac0272d0b662eb337">layout34</a>;
+<a name="l00082"></a>00082 
+<a name="l00083"></a>00083 <span class="keyword">protected</span> slots:
+<a name="l00084"></a>00084     <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_frm_temp_control.html#e0c803bfe0d52a90c877eca208396c80">languageChange</a>();
+<a name="l00085"></a>00085 
+<a name="l00086"></a>00086 };
+<a name="l00087"></a>00087 
+<a name="l00088"></a>00088 <span class="preprocessor">#endif // FRMTEMPCONTROL_H</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri Jan 4 16:08:22 2008に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
+</body>
+</html>

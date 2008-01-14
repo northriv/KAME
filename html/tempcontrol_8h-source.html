@@ -1,15 +1,24 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
-<title>KAME2: kame/users/tempcontrol/tempcontrol.h ソースファイル</title>
+<title>KAME2: modules/tempcontrol/tempcontrol.h ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000012.html">users</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000029.html">tempcontrol</a></div>
+<a class="el" href="dir_c17a6312adb6ef1af4037d741e35ac41.html">modules</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_2e60d6e4828e1e8332f5e3758445ba27.html">tempcontrol</a></div>
 <h1>tempcontrol.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
-<a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
+<a name="l00003"></a>00003 <span class="comment">                                   kitag@issp.u-tokyo.ac.jp</span>
 <a name="l00004"></a>00004 <span class="comment">                </span>
 <a name="l00005"></a>00005 <span class="comment">                This program is free software; you can redistribute it and/or</span>
 <a name="l00006"></a>00006 <span class="comment">                modify it under the terms of the GNU Library General Public</span>
@@ -23,119 +32,140 @@
 <a name="l00014"></a>00014 <span class="preprocessor">#ifndef tempcontrolH</span>
 <a name="l00015"></a>00015 <span class="preprocessor"></span><span class="preprocessor">#define tempcontrolH</span>
 <a name="l00016"></a>00016 <span class="preprocessor"></span><span class="comment">//---------------------------------------------------------------------------</span>
-<a name="l00017"></a>00017 <span class="preprocessor">#include "thermometer/thermometer.h"</span>
-<a name="l00018"></a>00018 <span class="preprocessor">#include "primarydriver.h"</span>
-<a name="l00019"></a>00019 <span class="preprocessor">#include "xnodeconnector.h"</span>
-<a name="l00020"></a>00020 
-<a name="l00021"></a>00021 <span class="keyword">class </span><a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>;
-<a name="l00022"></a>00022 <span class="keyword">class </span>FrmTempControl;
-<a name="l00023"></a>00023 
-<a name="l00024"></a><a class="code" href="class_x_temp_control.html">00024</a> <span class="keyword">class </span><a class="code" href="class_x_temp_control.html">XTempControl</a> : <span class="keyword">public</span> <a class="code" href="class_x_primary_driver.html">XPrimaryDriver</a>
-<a name="l00025"></a>00025 {
-<a name="l00026"></a>00026         XNODE_OBJECT
-<a name="l00027"></a>00027 <span class="keyword">protected</span>:
-<a name="l00028"></a>00028         <a class="code" href="class_x_temp_control.html#b0">XTempControl</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
-<a name="l00029"></a>00029                                  <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
-<a name="l00030"></a>00030                                  <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
-<a name="l00031"></a>00031                                  <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
-<a name="l00032"></a>00032                                  <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers);
-<a name="l00033"></a>00033 <span class="keyword">public</span>:
-<a name="l00035"></a><a class="code" href="class_x_temp_control.html#a0">00035</a>         <span class="keyword">virtual</span> <a class="code" href="class_x_temp_control.html#a0">~XTempControl</a>() {}
-<a name="l00037"></a>00037         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_temp_control.html#a1">showForms</a>();
-<a name="l00038"></a>00038   
-<a name="l00039"></a><a class="code" href="class_x_temp_control_1_1_x_channel.html">00039</a>         <span class="keyword">class </span><a class="code" href="class_x_temp_control_1_1_x_channel.html">XChannel</a> : <span class="keyword">public</span> <a class="code" href="class_x_node.html">XNode</a>
-<a name="l00040"></a>00040         {
-<a name="l00041"></a>00041                 XNODE_OBJECT
-<a name="l00042"></a>00042         <span class="keyword">protected</span>:
-<a name="l00043"></a>00043                 <a class="code" href="class_x_temp_control_1_1_x_channel.html#b0">XChannel</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;list);
-<a name="l00044"></a>00044         <span class="keyword">public</span>:
-<a name="l00045"></a><a class="code" href="class_x_temp_control_1_1_x_channel.html#a0">00045</a>                 shared_ptr&lt;XItemNode&lt;XThermometerList, XThermometer&gt; &gt; &amp;<a class="code" href="class_x_temp_control_1_1_x_channel.html#a0">thermometer</a>() 
-<a name="l00046"></a>00046             {<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control_1_1_x_channel.html#r0">m_thermometer</a>;}
-<a name="l00047"></a><a class="code" href="class_x_temp_control_1_1_x_channel.html#a1">00047</a>                 <span class="keyword">const</span>   shared_ptr&lt;XComboNode&gt; &amp;<a class="code" href="class_x_temp_control_1_1_x_channel.html#a1">excitation</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control_1_1_x_channel.html#r1">m_excitation</a>;}
-<a name="l00048"></a>00048         <span class="keyword">private</span>:
-<a name="l00049"></a><a class="code" href="class_x_temp_control_1_1_x_channel.html#r0">00049</a>                 shared_ptr&lt;XItemNode&lt;XThermometerList, XThermometer&gt; &gt; <a class="code" href="class_x_temp_control_1_1_x_channel.html#r0">m_thermometer</a>;
-<a name="l00050"></a><a class="code" href="class_x_temp_control_1_1_x_channel.html#r1">00050</a>                 shared_ptr&lt;XComboNode&gt; <a class="code" href="class_x_temp_control_1_1_x_channel.html#r1">m_excitation</a>;
-<a name="l00051"></a>00051         };
-<a name="l00052"></a>00052   
-<a name="l00053"></a><a class="code" href="class_x_temp_control.html#w0">00053</a>         <span class="keyword">typedef</span>  <a class="code" href="class_x_alias_list_node.html">XAliasListNode&lt;XChannel&gt;</a> <a class="code" href="class_x_alias_list_node.html">XChannelList</a>;
-<a name="l00054"></a>00054   
-<a name="l00055"></a><a class="code" href="class_x_temp_control.html#a2">00055</a>         <span class="keyword">const</span> shared_ptr&lt;XChannelList&gt; &amp;<a class="code" href="class_x_temp_control.html#a2">channels</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#r0">m_channels</a>;}
-<a name="l00057"></a><a class="code" href="class_x_temp_control.html#a3">00057</a>         <span class="keyword">const</span> shared_ptr&lt;XItemNode&lt;XChannelList, XChannel&gt; &gt; &amp;<a class="code" href="class_x_temp_control.html#a3">currentChannel</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#r1">m_currentChannel</a>;}
-<a name="l00058"></a><a class="code" href="class_x_temp_control.html#a4">00058</a>         <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_temp_control.html#a4">targetTemp</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#r3">m_targetTemp</a>;}
-<a name="l00059"></a><a class="code" href="class_x_temp_control.html#a5">00059</a>         <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_temp_control.html#a5">manualPower</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#r4">m_manualPower</a>;}
-<a name="l00060"></a><a class="code" href="class_x_temp_control.html#a6">00060</a>         <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_temp_control.html#a6">prop</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#r5">m_prop</a>;}
-<a name="l00061"></a><a class="code" href="class_x_temp_control.html#a7">00061</a>         <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_temp_control.html#a7">interval</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#r6">m_int</a>;}
-<a name="l00062"></a><a class="code" href="class_x_temp_control.html#a8">00062</a>         <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_temp_control.html#a8">deriv</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#r7">m_deriv</a>;}
-<a name="l00063"></a><a class="code" href="class_x_temp_control.html#a9">00063</a>         <span class="keyword">const</span> shared_ptr&lt;XComboNode&gt; &amp;<a class="code" href="class_x_temp_control.html#a9">heaterMode</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#r8">m_heaterMode</a>;}
-<a name="l00064"></a><a class="code" href="class_x_temp_control.html#a10">00064</a>         <span class="keyword">const</span> shared_ptr&lt;XComboNode&gt; &amp;<a class="code" href="class_x_temp_control.html#a10">powerRange</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#r9">m_powerRange</a>;}
-<a name="l00065"></a><a class="code" href="class_x_temp_control.html#a11">00065</a>         <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_temp_control.html#a11">heaterPower</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#r10">m_heaterPower</a>;}
-<a name="l00066"></a><a class="code" href="class_x_temp_control.html#a12">00066</a>         <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_temp_control.html#a12">sourceTemp</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#r11">m_sourceTemp</a>;}
-<a name="l00068"></a><a class="code" href="class_x_temp_control.html#a13">00068</a>         <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_temp_control.html#a13">stabilized</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#r12">m_stabilized</a>;}
-<a name="l00069"></a>00069 <span class="keyword">protected</span>:
-<a name="l00071"></a>00071         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_temp_control.html#b1">start</a>();
-<a name="l00074"></a>00074         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_temp_control.html#b2">stop</a>();
-<a name="l00075"></a>00075   
-<a name="l00079"></a>00079         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_temp_control.html#b3">analyzeRaw</a>() throw (XRecordError&amp;);
-<a name="l00082"></a>00082         virtual <span class="keywordtype">void</span> <a class="code" href="class_x_temp_control.html#b4">visualize</a>();
-<a name="l00083"></a>00083   
-<a name="l00087"></a>00087         <span class="keywordtype">void</span> <a class="code" href="class_x_temp_control.html#b5">createChannels</a>(const shared_ptr&lt;<a class="code" href="class_x_scalar_entry_list.html">XScalarEntryList</a>&gt; &amp;scalarentries,
-<a name="l00088"></a>00088                                                 const shared_ptr&lt;<a class="code" href="class_x_thermometer_list.html">XThermometerList</a>&gt; &amp;thermometers, 
-<a name="l00089"></a>00089                                                 <span class="keywordtype">bool</span> multiread, const <span class="keywordtype">char</span> **channel_names, const <span class="keywordtype">char</span> **excitations);
-<a name="l00090"></a>00090   
-<a name="l00092"></a>00092         virtual <span class="keywordtype">double</span> <a class="code" href="class_x_temp_control.html#b6">getRaw</a>(shared_ptr&lt;XChannel&gt; &amp;channel) = 0;
-<a name="l00095"></a>00095         virtual <span class="keywordtype">double</span> <a class="code" href="class_x_temp_control.html#b7">getHeater</a>() = 0;
-<a name="l00097"></a>00097         virtual const <span class="keywordtype">char</span> *<a class="code" href="class_x_temp_control.html#b8">m_heaterPowerUnit</a>() = 0;
-<a name="l00098"></a>00098   
-<a name="l00099"></a>00099         virtual <span class="keywordtype">void</span> onPChanged(const shared_ptr&lt;<a class="code" href="class_x_value_node_base.html">XValueNodeBase</a>&gt; &amp;) = 0;
-<a name="l00100"></a>00100         virtual <span class="keywordtype">void</span> onIChanged(const shared_ptr&lt;XValueNodeBase&gt; &amp;) = 0;
-<a name="l00101"></a>00101         virtual <span class="keywordtype">void</span> onDChanged(const shared_ptr&lt;XValueNodeBase&gt; &amp;) = 0;
-<a name="l00102"></a>00102         virtual <span class="keywordtype">void</span> onTargetTempChanged(const shared_ptr&lt;XValueNodeBase&gt; &amp;) = 0;
-<a name="l00103"></a>00103         virtual <span class="keywordtype">void</span> onManualPowerChanged(const shared_ptr&lt;XValueNodeBase&gt; &amp;) = 0;
-<a name="l00104"></a>00104         virtual <span class="keywordtype">void</span> onHeaterModeChanged(const shared_ptr&lt;XValueNodeBase&gt; &amp;) = 0;
-<a name="l00105"></a>00105         virtual <span class="keywordtype">void</span> onPowerRangeChanged(const shared_ptr&lt;XValueNodeBase&gt; &amp;) = 0;
-<a name="l00106"></a>00106         virtual <span class="keywordtype">void</span> onCurrentChannelChanged(const shared_ptr&lt;XValueNodeBase&gt; &amp;) = 0;
-<a name="l00107"></a>00107         virtual <span class="keywordtype">void</span> onExcitationChanged(const shared_ptr&lt;XValueNodeBase&gt; &amp;) = 0;
-<a name="l00108"></a>00108 
-<a name="l00109"></a>00109 private:
-<a name="l00110"></a><a class="code" href="class_x_temp_control.html#r0">00110</a>         const shared_ptr&lt;<a class="code" href="class_x_alias_list_node.html">XChannelList</a>&gt; <a class="code" href="class_x_temp_control.html#r0">m_channels</a>;
-<a name="l00111"></a><a class="code" href="class_x_temp_control.html#r1">00111</a>         const shared_ptr&lt;<a class="code" href="class_x_item_node.html">XItemNode</a>&lt;<a class="code" href="class_x_alias_list_node.html">XChannelList</a>, <a class="code" href="class_x_temp_control_1_1_x_channel.html">XChannel</a>&gt; &gt; <a class="code" href="class_x_temp_control.html#r1">m_currentChannel</a>;
-<a name="l00112"></a><a class="code" href="class_x_temp_control.html#r2">00112</a>         const shared_ptr&lt;<a class="code" href="class_x_item_node.html">XItemNode</a>&lt;XChannelList, <a class="code" href="class_x_temp_control_1_1_x_channel.html">XChannel</a>&gt; &gt; <a class="code" href="class_x_temp_control.html#r2">m_setupChannel</a>;
-<a name="l00113"></a><a class="code" href="class_x_temp_control.html#r3">00113</a>         const shared_ptr&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt; <a class="code" href="class_x_temp_control.html#r3">m_targetTemp</a>;
-<a name="l00114"></a><a class="code" href="class_x_temp_control.html#r4">00114</a>         const shared_ptr&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt; <a class="code" href="class_x_temp_control.html#r4">m_manualPower</a>;
-<a name="l00115"></a><a class="code" href="class_x_temp_control.html#r5">00115</a>         const shared_ptr&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt; <a class="code" href="class_x_temp_control.html#r5">m_prop</a>, <a class="code" href="class_x_temp_control.html#r6">m_int</a>, <a class="code" href="class_x_temp_control.html#r7">m_deriv</a>;
-<a name="l00116"></a><a class="code" href="class_x_temp_control.html#r8">00116</a>         const shared_ptr&lt;<a class="code" href="class_x_combo_node.html">XComboNode</a>&gt; <a class="code" href="class_x_temp_control.html#r8">m_heaterMode</a>;
-<a name="l00117"></a><a class="code" href="class_x_temp_control.html#r9">00117</a>         const shared_ptr&lt;<a class="code" href="class_x_combo_node.html">XComboNode</a>&gt; <a class="code" href="class_x_temp_control.html#r9">m_powerRange</a>;
-<a name="l00118"></a><a class="code" href="class_x_temp_control.html#r11">00118</a>         const shared_ptr&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt; <a class="code" href="class_x_temp_control.html#r10">m_heaterPower</a>, <a class="code" href="class_x_temp_control.html#r11">m_sourceTemp</a>;
-<a name="l00120"></a><a class="code" href="class_x_temp_control.html#r12">00120</a>         const shared_ptr&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt; <a class="code" href="class_x_temp_control.html#r12">m_stabilized</a>;
-<a name="l00121"></a>00121   
-<a name="l00122"></a><a class="code" href="class_x_temp_control.html#r16">00122</a>         shared_ptr&lt;<a class="code" href="class_x_listener.html">XListener</a>&gt; <a class="code" href="class_x_temp_control.html#r13">m_lsnOnPChanged</a>, <a class="code" href="class_x_temp_control.html#r14">m_lsnOnIChanged</a>, <a class="code" href="class_x_temp_control.html#r15">m_lsnOnDChanged</a>,
-<a name="l00123"></a>00123                 <a class="code" href="class_x_temp_control.html#r16">m_lsnOnTargetTempChanged</a>, <a class="code" href="class_x_temp_control.html#r17">m_lsnOnManualPowerChanged</a>, <a class="code" href="class_x_temp_control.html#r18">m_lsnOnHeaterModeChanged</a>,
-<a name="l00124"></a>00124                 <a class="code" href="class_x_temp_control.html#r19">m_lsnOnPowerRangeChanged</a>, <a class="code" href="class_x_temp_control.html#r20">m_lsnOnCurrentChannelChanged</a>,
-<a name="l00125"></a>00125                 <a class="code" href="class_x_temp_control.html#r21">m_lsnOnSetupChannelChanged</a>, <a class="code" href="class_x_temp_control.html#r22">m_lsnOnExcitationChanged</a>;
-<a name="l00126"></a>00126 
-<a name="l00127"></a>00127         <span class="keywordtype">void</span> <a class="code" href="class_x_temp_control.html#d0">onSetupChannelChanged</a>(const shared_ptr&lt;XValueNodeBase&gt; &amp;);
-<a name="l00128"></a>00128 
-<a name="l00129"></a><a class="code" href="class_x_temp_control.html#r23">00129</a>         std::deque&lt;shared_ptr&lt;<a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>&gt; &gt; <a class="code" href="class_x_temp_control.html#r23">m_entry_temps</a>;
-<a name="l00130"></a><a class="code" href="class_x_temp_control.html#r24">00130</a>         std::deque&lt;shared_ptr&lt;<a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>&gt; &gt; <a class="code" href="class_x_temp_control.html#r24">m_entry_raws</a>;
-<a name="l00131"></a>00131  
-<a name="l00132"></a><a class="code" href="class_x_temp_control.html#r25">00132</a>         shared_ptr&lt;<a class="code" href="class_x_thread.html">XThread</a>&lt;<a class="code" href="class_x_temp_control.html">XTempControl</a>&gt; &gt; <a class="code" href="class_x_temp_control.html#r25">m_thread</a>;
-<a name="l00133"></a><a class="code" href="class_x_temp_control.html#r26">00133</a>         const <a class="code" href="classqshared__ptr.html">qshared_ptr</a>&lt;FrmTempControl&gt; <a class="code" href="class_x_temp_control.html#r26">m_form</a>;
-<a name="l00134"></a><a class="code" href="class_x_temp_control.html#r27">00134</a>         <span class="keywordtype">bool</span> <a class="code" href="class_x_temp_control.html#r27">m_multiread</a>;
-<a name="l00135"></a>00135 
-<a name="l00136"></a><a class="code" href="class_x_temp_control.html#r33">00136</a>         <a class="code" href="classqshared__ptr.html">xqcon_ptr</a> <a class="code" href="class_x_temp_control.html#r28">m_conCurrentChannel</a>, <a class="code" href="class_x_temp_control.html#r29">m_conSetupChannel</a>,
-<a name="l00137"></a>00137                 <a class="code" href="class_x_temp_control.html#r30">m_conHeaterMode</a>, <a class="code" href="class_x_temp_control.html#r31">m_conPowerRange</a>,
-<a name="l00138"></a>00138                 <a class="code" href="class_x_temp_control.html#r32">m_conExcitation</a>, <a class="code" href="class_x_temp_control.html#r33">m_conThermometer</a>;
-<a name="l00139"></a><a class="code" href="class_x_temp_control.html#r34">00139</a>         <a class="code" href="classqshared__ptr.html">xqcon_ptr</a> <a class="code" href="class_x_temp_control.html#r34">m_conTargetTemp</a>, <a class="code" href="class_x_temp_control.html#r35">m_conManualPower</a>, <a class="code" href="class_x_temp_control.html#r36">m_conP</a>, <a class="code" href="class_x_temp_control.html#r37">m_conI</a>, <a class="code" href="class_x_temp_control.html#r38">m_conD</a>;
-<a name="l00140"></a><a class="code" href="class_x_temp_control.html#r39">00140</a>         <a class="code" href="classqshared__ptr.html">xqcon_ptr</a> <a class="code" href="class_x_temp_control.html#r39">m_conHeater</a>;
-<a name="l00141"></a><a class="code" href="class_x_temp_control.html#r40">00141</a>         <a class="code" href="classqshared__ptr.html">xqcon_ptr</a> <a class="code" href="class_x_temp_control.html#r40">m_conTemp</a>;
-<a name="l00142"></a>00142    
-<a name="l00143"></a>00143         <span class="keywordtype">void</span> *<a class="code" href="class_x_temp_control.html#d1">execute</a>(const <a class="code" href="classatomic.html">atomic</a>&lt;<span class="keywordtype">bool</span>&gt; &amp;);
-<a name="l00144"></a>00144   
-<a name="l00145"></a>00145 };
-<a name="l00146"></a>00146 
-<a name="l00147"></a>00147 #endif
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:18 2007に生成されました。&nbsp;
+<a name="l00017"></a>00017 <span class="preprocessor">#include &lt;thermometer.h&gt;</span>
+<a name="l00018"></a>00018 <span class="preprocessor">#include &lt;dcsource.h&gt;</span>
+<a name="l00019"></a>00019 <span class="preprocessor">#include &lt;primarydriver.h&gt;</span>
+<a name="l00020"></a>00020 <span class="preprocessor">#include &lt;xnodeconnector.h&gt;</span>
+<a name="l00021"></a>00021 
+<a name="l00022"></a>00022 <span class="keyword">class </span><a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>;
+<a name="l00023"></a>00023 <span class="keyword">class </span>FrmTempControl;
+<a name="l00024"></a>00024 
+<a name="l00025"></a><a class="code" href="class_x_temp_control.html">00025</a> <span class="keyword">class </span><a class="code" href="class_x_temp_control.html">XTempControl</a> : <span class="keyword">public</span> <a class="code" href="class_x_primary_driver.html">XPrimaryDriver</a>
+<a name="l00026"></a>00026 {
+<a name="l00027"></a>00027         XNODE_OBJECT
+<a name="l00028"></a>00028 <span class="keyword">protected</span>:
+<a name="l00029"></a>00029         <a class="code" href="class_x_temp_control.html#ab5db244180a35c136899ed2390a17b9">XTempControl</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime,
+<a name="l00030"></a>00030                                  <span class="keyword">const</span> shared_ptr&lt;XScalarEntryList&gt; &amp;scalarentries,
+<a name="l00031"></a>00031                                  <span class="keyword">const</span> shared_ptr&lt;XInterfaceList&gt; &amp;interfaces,
+<a name="l00032"></a>00032                                  <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;thermometers,
+<a name="l00033"></a>00033                                  <span class="keyword">const</span> shared_ptr&lt;XDriverList&gt; &amp;drivers);
+<a name="l00034"></a>00034 <span class="keyword">public</span>:
+<a name="l00036"></a><a class="code" href="class_x_temp_control.html#cc4dda25ddf2dfb9eab5416ea3846cd5">00036</a>         <span class="keyword">virtual</span> <a class="code" href="class_x_temp_control.html#cc4dda25ddf2dfb9eab5416ea3846cd5">~XTempControl</a>() {}
+<a name="l00038"></a>00038         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_temp_control.html#5400ff51e9d5d95e4d66456073288fe3">showForms</a>();
+<a name="l00039"></a>00039   
+<a name="l00040"></a><a class="code" href="class_x_temp_control_1_1_x_channel.html">00040</a>         <span class="keyword">class </span><a class="code" href="class_x_temp_control_1_1_x_channel.html">XChannel</a> : <span class="keyword">public</span> <a class="code" href="class_x_node.html">XNode</a>
+<a name="l00041"></a>00041         {
+<a name="l00042"></a>00042                 XNODE_OBJECT
+<a name="l00043"></a>00043         <span class="keyword">protected</span>:
+<a name="l00044"></a>00044                 <a class="code" href="class_x_temp_control_1_1_x_channel.html#8f6e49e23b8c64ceaa87a2f50e7a3a36">XChannel</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *name, <span class="keywordtype">bool</span> runtime, <span class="keyword">const</span> shared_ptr&lt;XThermometerList&gt; &amp;list);
+<a name="l00045"></a>00045         <span class="keyword">public</span>:
+<a name="l00046"></a><a class="code" href="class_x_temp_control_1_1_x_channel.html#f784ac1d4b2906bcd77f1510e227b148">00046</a>                 shared_ptr&lt;XItemNode&lt;XThermometerList, XThermometer&gt; &gt; &amp;<a class="code" href="class_x_temp_control_1_1_x_channel.html#f784ac1d4b2906bcd77f1510e227b148">thermometer</a>() 
+<a name="l00047"></a>00047                 {<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control_1_1_x_channel.html#4d0ceffd289ea1a5f2ebb0188e63d5de">m_thermometer</a>;}
+<a name="l00048"></a><a class="code" href="class_x_temp_control_1_1_x_channel.html#a86913845ccc4bf82d8e758ff0a9dbee">00048</a>                 <span class="keyword">const</span>   shared_ptr&lt;XComboNode&gt; &amp;<a class="code" href="class_x_temp_control_1_1_x_channel.html#a86913845ccc4bf82d8e758ff0a9dbee">excitation</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control_1_1_x_channel.html#0d2ec75ef4a81b5cae301ae9e5a0dc14">m_excitation</a>;}
+<a name="l00049"></a>00049         <span class="keyword">private</span>:
+<a name="l00050"></a><a class="code" href="class_x_temp_control_1_1_x_channel.html#4d0ceffd289ea1a5f2ebb0188e63d5de">00050</a>                 shared_ptr&lt;XItemNode&lt;XThermometerList, XThermometer&gt; &gt; <a class="code" href="class_x_temp_control_1_1_x_channel.html#4d0ceffd289ea1a5f2ebb0188e63d5de">m_thermometer</a>;
+<a name="l00051"></a><a class="code" href="class_x_temp_control_1_1_x_channel.html#0d2ec75ef4a81b5cae301ae9e5a0dc14">00051</a>                 shared_ptr&lt;XComboNode&gt; <a class="code" href="class_x_temp_control_1_1_x_channel.html#0d2ec75ef4a81b5cae301ae9e5a0dc14">m_excitation</a>;
+<a name="l00052"></a>00052         };
+<a name="l00053"></a>00053   
+<a name="l00054"></a><a class="code" href="class_x_temp_control.html#a4ee4b721458275b5e263e6085496e6f">00054</a>         <span class="keyword">typedef</span>  <a class="code" href="class_x_alias_list_node.html">XAliasListNode&lt;XChannel&gt;</a> <a class="code" href="class_x_alias_list_node.html">XChannelList</a>;
+<a name="l00055"></a>00055   
+<a name="l00056"></a><a class="code" href="class_x_temp_control.html#427e6cc31b9a2407bbd92995e4568aa5">00056</a>         <span class="keyword">const</span> shared_ptr&lt;XChannelList&gt; &amp;<a class="code" href="class_x_temp_control.html#427e6cc31b9a2407bbd92995e4568aa5">channels</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#1be5103895d8d824e03f7ff6ef408653">m_channels</a>;}
+<a name="l00058"></a><a class="code" href="class_x_temp_control.html#e54045478ab2acf524b972c17e2cc2ad">00058</a>         <span class="keyword">const</span> shared_ptr&lt;XItemNode&lt;XChannelList, XChannel&gt; &gt; &amp;<a class="code" href="class_x_temp_control.html#e54045478ab2acf524b972c17e2cc2ad">currentChannel</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#2a84d477e3104dfe6e00d676dd5b2d52">m_currentChannel</a>;}
+<a name="l00059"></a><a class="code" href="class_x_temp_control.html#dc278aaf1abd51d2339930796369781d">00059</a>         <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_temp_control.html#dc278aaf1abd51d2339930796369781d">targetTemp</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#1e7bb1bcd50e70cef2eb9567116fa945">m_targetTemp</a>;}
+<a name="l00060"></a><a class="code" href="class_x_temp_control.html#d33460fbb14f5ee9b9baa07752fa2b1e">00060</a>         <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_temp_control.html#d33460fbb14f5ee9b9baa07752fa2b1e">manualPower</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#8c201c76a17ed11a088cbbb4031d3c9e">m_manualPower</a>;}
+<a name="l00061"></a><a class="code" href="class_x_temp_control.html#b9c0e88b529175fc63dcc08acc6d9f06">00061</a>         <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_temp_control.html#b9c0e88b529175fc63dcc08acc6d9f06">prop</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#127c269df0e644d98bb4ec6b30f9cf34">m_prop</a>;}
+<a name="l00062"></a><a class="code" href="class_x_temp_control.html#942ad6d2f6fc7d1e02298ff6cc35d8b8">00062</a>         <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_temp_control.html#942ad6d2f6fc7d1e02298ff6cc35d8b8">interval</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#32a3dcd8897c6403c78f5b67f2d68c90">m_int</a>;}
+<a name="l00063"></a><a class="code" href="class_x_temp_control.html#c664323041be34bc15aa4747a8d4f629">00063</a>         <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_temp_control.html#c664323041be34bc15aa4747a8d4f629">deriv</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#574477603d72e3c17ca7ee669cb245c5">m_deriv</a>;}
+<a name="l00064"></a><a class="code" href="class_x_temp_control.html#e368d1fc019c9b093c245997a5a7228b">00064</a>         <span class="keyword">const</span> shared_ptr&lt;XComboNode&gt; &amp;<a class="code" href="class_x_temp_control.html#e368d1fc019c9b093c245997a5a7228b">heaterMode</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#a1db52207d178b0aaf7b5f37f896afac">m_heaterMode</a>;}
+<a name="l00065"></a><a class="code" href="class_x_temp_control.html#2f90b95638b1fb0645899c1d04b296bf">00065</a>         <span class="keyword">const</span> shared_ptr&lt;XComboNode&gt; &amp;<a class="code" href="class_x_temp_control.html#2f90b95638b1fb0645899c1d04b296bf">powerRange</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#98a3f9484f7d8b598ea7c044d86f4054">m_powerRange</a>;}
+<a name="l00066"></a><a class="code" href="class_x_temp_control.html#2886547f8ada755e72a1ef2b08254a8e">00066</a>         <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_temp_control.html#2886547f8ada755e72a1ef2b08254a8e">heaterPower</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#3a7d0dee8e33dd3b722b1c1441ccd5cd">m_heaterPower</a>;}
+<a name="l00067"></a><a class="code" href="class_x_temp_control.html#04e4dc2efad600adc4644d9bb4a16a2d">00067</a>         <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_temp_control.html#04e4dc2efad600adc4644d9bb4a16a2d">sourceTemp</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#f41e5348f63e7f43d9bc105f518d7398">m_sourceTemp</a>;}
+<a name="l00068"></a><a class="code" href="class_x_temp_control.html#8a69d295b0d3a9da7577f48b1de16ae6">00068</a>         <span class="keyword">const</span> shared_ptr&lt;XItemNode&lt;XDriverList, XDCSource&gt; &gt; &amp;<a class="code" href="class_x_temp_control.html#8a69d295b0d3a9da7577f48b1de16ae6">extDCSource</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#9235e48dcf7e656096669b49c247cc27">m_extDCSource</a>;}
+<a name="l00069"></a><a class="code" href="class_x_temp_control.html#fb9df3f0ac5133fc53050ef44f4d72f0">00069</a>         <span class="keyword">const</span> shared_ptr&lt;XComboNode&gt; &amp;<a class="code" href="class_x_temp_control.html#fb9df3f0ac5133fc53050ef44f4d72f0">extDCSourceChannel</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#2d1bc84f5a1aaef92af5baa1cf6d6587">m_extDCSourceChannel</a>;}
+<a name="l00071"></a><a class="code" href="class_x_temp_control.html#6aba896a0856a9a5280ed484b3a6adcf">00071</a>         <span class="keyword">const</span> shared_ptr&lt;XDoubleNode&gt; &amp;<a class="code" href="class_x_temp_control.html#6aba896a0856a9a5280ed484b3a6adcf">stabilized</a>()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <a class="code" href="class_x_temp_control.html#597e01fdda0e30dd02329ed117513ad4">m_stabilized</a>;}
+<a name="l00072"></a>00072 <span class="keyword">protected</span>:
+<a name="l00074"></a>00074         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_temp_control.html#39cc7f602a016fb4ed02aaf5d9e7a7aa">start</a>();
+<a name="l00077"></a>00077         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_temp_control.html#5ea4891b4bf20c57e9b8a0ac3d5d86e6">stop</a>();
+<a name="l00078"></a>00078   
+<a name="l00082"></a>00082         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_temp_control.html#29eeb9a77856872c36745b54d2c35f44">analyzeRaw</a>() throw (XRecordError&amp;);
+<a name="l00085"></a>00085         virtual <span class="keywordtype">void</span> <a class="code" href="class_x_temp_control.html#3810bd0ec979d9927e5b4d842d6f3e0a">visualize</a>();
+<a name="l00086"></a>00086   
+<a name="l00090"></a>00090         <span class="keywordtype">void</span> <a class="code" href="class_x_temp_control.html#fb19442df234cdf601c2f93abde8f778">createChannels</a>(const shared_ptr&lt;<a class="code" href="class_x_scalar_entry_list.html">XScalarEntryList</a>&gt; &amp;scalarentries,
+<a name="l00091"></a>00091                                                 const shared_ptr&lt;<a class="code" href="class_x_thermometer_list.html">XThermometerList</a>&gt; &amp;thermometers, 
+<a name="l00092"></a>00092                                                 <span class="keywordtype">bool</span> multiread, const <span class="keywordtype">char</span> **channel_names, const <span class="keywordtype">char</span> **excitations);
+<a name="l00093"></a>00093   
+<a name="l00095"></a>00095         virtual <span class="keywordtype">double</span> <a class="code" href="class_x_temp_control.html#f47367b4754d7963d02315fa45ed5af6">getRaw</a>(shared_ptr&lt;XChannel&gt; &amp;channel) = 0;
+<a name="l00098"></a>00098         virtual <span class="keywordtype">double</span> <a class="code" href="class_x_temp_control.html#1402a6dc5d42ae3ef6140ce0edf5d53d">getHeater</a>() = 0;
+<a name="l00100"></a>00100         virtual const <span class="keywordtype">char</span> *<a class="code" href="class_x_temp_control.html#12863b9c06572bc2261823d9ab2e6399">m_heaterPowerUnit</a>() = 0;
+<a name="l00101"></a>00101   
+<a name="l00102"></a>00102         virtual <span class="keywordtype">void</span> onPChanged(<span class="keywordtype">double</span> p) = 0;
+<a name="l00103"></a>00103         virtual <span class="keywordtype">void</span> onIChanged(<span class="keywordtype">double</span> i) = 0;
+<a name="l00104"></a>00104         virtual <span class="keywordtype">void</span> onDChanged(<span class="keywordtype">double</span> d) = 0;
+<a name="l00105"></a>00105         virtual <span class="keywordtype">void</span> onTargetTempChanged(<span class="keywordtype">double</span> temp) = 0;
+<a name="l00106"></a>00106         virtual <span class="keywordtype">void</span> onManualPowerChanged(<span class="keywordtype">double</span> pow) = 0;
+<a name="l00107"></a>00107         virtual <span class="keywordtype">void</span> onHeaterModeChanged(<span class="keywordtype">int</span> mode) = 0;
+<a name="l00108"></a>00108         virtual <span class="keywordtype">void</span> onPowerRangeChanged(<span class="keywordtype">int</span> range) = 0;
+<a name="l00109"></a>00109         virtual <span class="keywordtype">void</span> onCurrentChannelChanged(const shared_ptr&lt;XChannel&gt; &amp;ch) = 0;
+<a name="l00110"></a>00110         virtual <span class="keywordtype">void</span> onExcitationChanged(const shared_ptr&lt;XChannel&gt; &amp;ch, <span class="keywordtype">int</span> exc) = 0;
+<a name="l00111"></a>00111 private:
+<a name="l00112"></a>00112         <span class="keywordtype">void</span> onPChanged(const shared_ptr&lt;<a class="code" href="class_x_value_node_base.html">XValueNodeBase</a>&gt; &amp;);
+<a name="l00113"></a>00113         <span class="keywordtype">void</span> onIChanged(const shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00114"></a>00114         <span class="keywordtype">void</span> onDChanged(const shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00115"></a>00115         <span class="keywordtype">void</span> onTargetTempChanged(const shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00116"></a>00116         <span class="keywordtype">void</span> onManualPowerChanged(const shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00117"></a>00117         <span class="keywordtype">void</span> onHeaterModeChanged(const shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00118"></a>00118         <span class="keywordtype">void</span> onPowerRangeChanged(const shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00119"></a>00119         <span class="keywordtype">void</span> onCurrentChannelChanged(const shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00120"></a>00120         <span class="keywordtype">void</span> onExcitationChanged(const shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00121"></a>00121         <span class="keywordtype">void</span> <a class="code" href="class_x_temp_control.html#d95c6b4b51a26d4a27e1b93bcc3bde5f">onExtDCSourceChanged</a>(const shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00122"></a>00122 
+<a name="l00123"></a><a class="code" href="class_x_temp_control.html#1be5103895d8d824e03f7ff6ef408653">00123</a>         const shared_ptr&lt;<a class="code" href="class_x_alias_list_node.html">XChannelList</a>&gt; <a class="code" href="class_x_temp_control.html#1be5103895d8d824e03f7ff6ef408653">m_channels</a>;
+<a name="l00124"></a><a class="code" href="class_x_temp_control.html#2a84d477e3104dfe6e00d676dd5b2d52">00124</a>         const shared_ptr&lt;<a class="code" href="class_x_item_node.html">XItemNode</a>&lt;<a class="code" href="class_x_alias_list_node.html">XChannelList</a>, <a class="code" href="class_x_temp_control_1_1_x_channel.html">XChannel</a>&gt; &gt; <a class="code" href="class_x_temp_control.html#2a84d477e3104dfe6e00d676dd5b2d52">m_currentChannel</a>;
+<a name="l00125"></a><a class="code" href="class_x_temp_control.html#e84782978ea097b0f85b2db3af1e162c">00125</a>         const shared_ptr&lt;<a class="code" href="class_x_item_node.html">XItemNode</a>&lt;XChannelList, <a class="code" href="class_x_temp_control_1_1_x_channel.html">XChannel</a>&gt; &gt; <a class="code" href="class_x_temp_control.html#e84782978ea097b0f85b2db3af1e162c">m_setupChannel</a>;
+<a name="l00126"></a><a class="code" href="class_x_temp_control.html#1e7bb1bcd50e70cef2eb9567116fa945">00126</a>         const shared_ptr&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt; <a class="code" href="class_x_temp_control.html#1e7bb1bcd50e70cef2eb9567116fa945">m_targetTemp</a>;
+<a name="l00127"></a><a class="code" href="class_x_temp_control.html#8c201c76a17ed11a088cbbb4031d3c9e">00127</a>         const shared_ptr&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt; <a class="code" href="class_x_temp_control.html#8c201c76a17ed11a088cbbb4031d3c9e">m_manualPower</a>;
+<a name="l00128"></a><a class="code" href="class_x_temp_control.html#127c269df0e644d98bb4ec6b30f9cf34">00128</a>         const shared_ptr&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt; <a class="code" href="class_x_temp_control.html#127c269df0e644d98bb4ec6b30f9cf34">m_prop</a>, <a class="code" href="class_x_temp_control.html#32a3dcd8897c6403c78f5b67f2d68c90">m_int</a>, <a class="code" href="class_x_temp_control.html#574477603d72e3c17ca7ee669cb245c5">m_deriv</a>;
+<a name="l00129"></a><a class="code" href="class_x_temp_control.html#a1db52207d178b0aaf7b5f37f896afac">00129</a>         const shared_ptr&lt;<a class="code" href="class_x_combo_node.html">XComboNode</a>&gt; <a class="code" href="class_x_temp_control.html#a1db52207d178b0aaf7b5f37f896afac">m_heaterMode</a>;
+<a name="l00130"></a><a class="code" href="class_x_temp_control.html#98a3f9484f7d8b598ea7c044d86f4054">00130</a>         const shared_ptr&lt;<a class="code" href="class_x_combo_node.html">XComboNode</a>&gt; <a class="code" href="class_x_temp_control.html#98a3f9484f7d8b598ea7c044d86f4054">m_powerRange</a>;
+<a name="l00131"></a><a class="code" href="class_x_temp_control.html#f41e5348f63e7f43d9bc105f518d7398">00131</a>         const shared_ptr&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt; <a class="code" href="class_x_temp_control.html#3a7d0dee8e33dd3b722b1c1441ccd5cd">m_heaterPower</a>, <a class="code" href="class_x_temp_control.html#f41e5348f63e7f43d9bc105f518d7398">m_sourceTemp</a>;
+<a name="l00132"></a><a class="code" href="class_x_temp_control.html#9235e48dcf7e656096669b49c247cc27">00132</a>         const shared_ptr&lt;<a class="code" href="class_x_item_node.html">XItemNode</a>&lt;<a class="code" href="class_x_driver_list.html">XDriverList</a>, <a class="code" href="class_x_d_c_source.html">XDCSource</a>&gt; &gt; <a class="code" href="class_x_temp_control.html#9235e48dcf7e656096669b49c247cc27">m_extDCSource</a>;
+<a name="l00133"></a><a class="code" href="class_x_temp_control.html#2d1bc84f5a1aaef92af5baa1cf6d6587">00133</a>         const shared_ptr&lt;<a class="code" href="class_x_combo_node.html">XComboNode</a>&gt; <a class="code" href="class_x_temp_control.html#2d1bc84f5a1aaef92af5baa1cf6d6587">m_extDCSourceChannel</a>;
+<a name="l00135"></a><a class="code" href="class_x_temp_control.html#597e01fdda0e30dd02329ed117513ad4">00135</a>         const shared_ptr&lt;<a class="code" href="class_x_double_node.html">XDoubleNode</a>&gt; <a class="code" href="class_x_temp_control.html#597e01fdda0e30dd02329ed117513ad4">m_stabilized</a>;
+<a name="l00136"></a>00136   
+<a name="l00137"></a><a class="code" href="class_x_temp_control.html#7507ae1260f11dea2e86fb174e15915f">00137</a>         shared_ptr&lt;<a class="code" href="class_x_listener.html">XListener</a>&gt; <a class="code" href="class_x_temp_control.html#2535cb5bc8934e9b7dc98f657fbb561d">m_lsnOnPChanged</a>, <a class="code" href="class_x_temp_control.html#39b8f9211a221f9679848922a8197c5f">m_lsnOnIChanged</a>, <a class="code" href="class_x_temp_control.html#c9636b79cbb717fe771e05ba41e3a2cc">m_lsnOnDChanged</a>,
+<a name="l00138"></a>00138                 <a class="code" href="class_x_temp_control.html#7507ae1260f11dea2e86fb174e15915f">m_lsnOnTargetTempChanged</a>, <a class="code" href="class_x_temp_control.html#4c1a0906265ff076d28649f2a3b73d12">m_lsnOnManualPowerChanged</a>, <a class="code" href="class_x_temp_control.html#c846d45093604da66e36f0c44a4b18a1">m_lsnOnHeaterModeChanged</a>,
+<a name="l00139"></a>00139                 <a class="code" href="class_x_temp_control.html#9ef4cf3ba0daede8f1e4efa2e30ce84d">m_lsnOnPowerRangeChanged</a>, <a class="code" href="class_x_temp_control.html#c01b834a7c22025d1feb8a7776978f3b">m_lsnOnCurrentChannelChanged</a>,
+<a name="l00140"></a>00140                 <a class="code" href="class_x_temp_control.html#e8ac2d80c816c05cca2c7c21d12a9eac">m_lsnOnSetupChannelChanged</a>, <a class="code" href="class_x_temp_control.html#3dbd4e525a3d66ffda6e06283796c9f1">m_lsnOnExcitationChanged</a>, <a class="code" href="class_x_temp_control.html#3aba5fb0049e40fbc4edf883ab9e78b6">m_lsnOnExtDCSourceChanged</a>;
+<a name="l00141"></a>00141 
+<a name="l00142"></a>00142         <span class="keywordtype">void</span> <a class="code" href="class_x_temp_control.html#9550b533f63182b6a341bb49d9cd79ec">onSetupChannelChanged</a>(const shared_ptr&lt;XValueNodeBase&gt; &amp;);
+<a name="l00143"></a>00143 
+<a name="l00144"></a><a class="code" href="class_x_temp_control.html#9dedff569d7d680018b1275b5cee157f">00144</a>         std::deque&lt;shared_ptr&lt;<a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>&gt; &gt; <a class="code" href="class_x_temp_control.html#9dedff569d7d680018b1275b5cee157f">m_entry_temps</a>;
+<a name="l00145"></a><a class="code" href="class_x_temp_control.html#ecd4c9e0bfc96b81947c483ae6990c34">00145</a>         std::deque&lt;shared_ptr&lt;<a class="code" href="class_x_scalar_entry.html">XScalarEntry</a>&gt; &gt; <a class="code" href="class_x_temp_control.html#ecd4c9e0bfc96b81947c483ae6990c34">m_entry_raws</a>;
+<a name="l00146"></a>00146  
+<a name="l00147"></a><a class="code" href="class_x_temp_control.html#898fbc2501152362c0aa40ac44f0c307">00147</a>         shared_ptr&lt;<a class="code" href="class_x_thread.html">XThread</a>&lt;<a class="code" href="class_x_temp_control.html">XTempControl</a>&gt; &gt; <a class="code" href="class_x_temp_control.html#898fbc2501152362c0aa40ac44f0c307">m_thread</a>;
+<a name="l00148"></a><a class="code" href="class_x_temp_control.html#0259473d762fa33d90a852275700f2d9">00148</a>         const <a class="code" href="classqshared__ptr.html">qshared_ptr</a>&lt;FrmTempControl&gt; <a class="code" href="class_x_temp_control.html#0259473d762fa33d90a852275700f2d9">m_form</a>;
+<a name="l00149"></a><a class="code" href="class_x_temp_control.html#c1fef6615dd74876ebfed668dc2026c7">00149</a>         <span class="keywordtype">bool</span> <a class="code" href="class_x_temp_control.html#c1fef6615dd74876ebfed668dc2026c7">m_multiread</a>;
+<a name="l00150"></a>00150 
+<a name="l00151"></a><a class="code" href="class_x_temp_control.html#21b7eb3475c4a9fac68dd3e86116e2d9">00151</a>         <a class="code" href="classqshared__ptr.html">xqcon_ptr</a> <a class="code" href="class_x_temp_control.html#849ecd88edbc01cdca9bbb5d4e43c981">m_conCurrentChannel</a>, <a class="code" href="class_x_temp_control.html#060ff92d3f69e007df0f7678f7d89219">m_conSetupChannel</a>,
+<a name="l00152"></a>00152                 <a class="code" href="class_x_temp_control.html#2003522da82f47d9d6ca220b7abcd0b2">m_conHeaterMode</a>, <a class="code" href="class_x_temp_control.html#6033d3a10d3daac3b21c2267fa43dfcb">m_conPowerRange</a>,
+<a name="l00153"></a>00153                 <a class="code" href="class_x_temp_control.html#b5e3f54075477c7debfcf510510a4f79">m_conExcitation</a>, <a class="code" href="class_x_temp_control.html#21b7eb3475c4a9fac68dd3e86116e2d9">m_conThermometer</a>;
+<a name="l00154"></a><a class="code" href="class_x_temp_control.html#397f352974f42a7210775a60bfa8f47d">00154</a>         <a class="code" href="classqshared__ptr.html">xqcon_ptr</a> <a class="code" href="class_x_temp_control.html#397f352974f42a7210775a60bfa8f47d">m_conTargetTemp</a>, <a class="code" href="class_x_temp_control.html#f74623c555422a7e7e10c31f46f9ee70">m_conManualPower</a>, <a class="code" href="class_x_temp_control.html#14b7ac6c44618780ff2e163d77fb8e5a">m_conP</a>, <a class="code" href="class_x_temp_control.html#98aa07950b7075c828376e94f3c2bfd0">m_conI</a>, <a class="code" href="class_x_temp_control.html#1f74a83d6554e0d12b8c457412094321">m_conD</a>;
+<a name="l00155"></a><a class="code" href="class_x_temp_control.html#fe17f60bba31c589e9881c85d78b0b9e">00155</a>         <a class="code" href="classqshared__ptr.html">xqcon_ptr</a> <a class="code" href="class_x_temp_control.html#fe17f60bba31c589e9881c85d78b0b9e">m_conHeater</a>;
+<a name="l00156"></a><a class="code" href="class_x_temp_control.html#ef77043cb68c0f9cb310a2f53567d062">00156</a>         <a class="code" href="classqshared__ptr.html">xqcon_ptr</a> <a class="code" href="class_x_temp_control.html#ef77043cb68c0f9cb310a2f53567d062">m_conTemp</a>;
+<a name="l00157"></a><a class="code" href="class_x_temp_control.html#143aa4bc0e62b77120fe3963213fad71">00157</a>         <a class="code" href="classqshared__ptr.html">xqcon_ptr</a> <a class="code" href="class_x_temp_control.html#2916f90693c8ec340ca9d24a144140e8">m_conExtDCSource</a>, <a class="code" href="class_x_temp_control.html#143aa4bc0e62b77120fe3963213fad71">m_conExtDCSourceChannel</a>;
+<a name="l00158"></a>00158         
+<a name="l00159"></a>00159         <span class="keywordtype">double</span> <a class="code" href="class_x_temp_control.html#d3b792f606c83f8a08971d6ac3736862">pid</a>(<a class="code" href="class_x_time.html">XTime</a> <a class="code" href="class_x_driver.html#e2bb087696137545e44bde8eb06389b4">time</a>, <span class="keywordtype">double</span> temp);
+<a name="l00160"></a><a class="code" href="class_x_temp_control.html#8e6b6a98a8b93aa01bba75b3ee263c37">00160</a>         <span class="keywordtype">double</span> <a class="code" href="class_x_temp_control.html#8e6b6a98a8b93aa01bba75b3ee263c37">m_pidAccum</a>;
+<a name="l00161"></a><a class="code" href="class_x_temp_control.html#72214a56fa51e1627570455111e2838f">00161</a>         <span class="keywordtype">double</span> <a class="code" href="class_x_temp_control.html#72214a56fa51e1627570455111e2838f">m_pidLastTemp</a>;
+<a name="l00162"></a><a class="code" href="class_x_temp_control.html#aaf86269faaaadcc78507b7341e8bd72">00162</a>         <a class="code" href="class_x_time.html">XTime</a> <a class="code" href="class_x_temp_control.html#aaf86269faaaadcc78507b7341e8bd72">m_pidLastTime</a>;
+<a name="l00163"></a>00163         
+<a name="l00164"></a>00164         <span class="keywordtype">void</span> *<a class="code" href="class_x_temp_control.html#ab42086d7b81f14813bb1633e453d777">execute</a>(const <a class="code" href="classatomic.html">atomic</a>&lt;<span class="keywordtype">bool</span>&gt; &amp;);
+<a name="l00165"></a>00165   
+<a name="l00166"></a>00166 };
+<a name="l00167"></a>00167 
+<a name="l00168"></a>00168 <span class="preprocessor">#endif</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Jan 14 03:59:43 2008に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
 </html>

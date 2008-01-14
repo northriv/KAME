@@ -1,0 +1,96 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: クラス XSpinLock</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li id="current"><a href="classes.html"><span>クラス</span></a></li>
+    <li><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
+<div class="tabs">
+  <ul>
+    <li><a href="classes.html"><span>アルファベット順一覧</span></a></li>
+    <li><a href="annotated.html"><span>構成</span></a></li>
+    <li><a href="hierarchy.html"><span>クラス階層</span></a></li>
+    <li><a href="functions.html"><span>構成メンバ</span></a></li>
+  </ul></div>
+<h1>クラス XSpinLock</h1><!-- doxytag: class="XSpinLock" -->XSpinLockに対する継承グラフ<p><center><img src="class_x_spin_lock__inherit__graph.png" border="0" usemap="#_x_spin_lock__inherit__map" alt="Inheritance graph"></center>
+<map name="_x_spin_lock__inherit__map">
+<area href="class_x_adaptive_spin_lock.html" shape="rect" coords="8,82,146,109" alt="">
+</map>
+<center><font size="2">[<a target="top" href="graph_legend.html">凡例</a>]</font></center><a href="class_x_spin_lock-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
+<tr><td></td></tr>
+<tr><td colspan="2"><br><h2>Public メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="481194c396394e2bc1534c2c017f942f"></a><!-- doxytag: member="XSpinLock::XSpinLock" ref="481194c396394e2bc1534c2c017f942f" args="()" -->
+&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_spin_lock.html#481194c396394e2bc1534c2c017f942f">XSpinLock</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="8a9025a6669023d2a503b6f4fcc20255"></a><!-- doxytag: member="XSpinLock::~XSpinLock" ref="8a9025a6669023d2a503b6f4fcc20255" args="()" -->
+&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_spin_lock.html#8a9025a6669023d2a503b6f4fcc20255">~XSpinLock</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="ab1feaaaf93019a546b736a6171c2c0f"></a><!-- doxytag: member="XSpinLock::unlock" ref="ab1feaaaf93019a546b736a6171c2c0f" args="()" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_spin_lock.html#ab1feaaaf93019a546b736a6171c2c0f">unlock</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top">bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_spin_lock.html#9d70b22843bfcabaf28aa6be1356e745">trylock</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="485ce02333051dbf557d5fe345059d5a"></a><!-- doxytag: member="XSpinLock::lock" ref="485ce02333051dbf557d5fe345059d5a" args="()" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_spin_lock.html#485ce02333051dbf557d5fe345059d5a">lock</a> ()</td></tr>
+
+<tr><td colspan="2"><br><h2>Protected 変数</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="ec913a5530e84a7fed8e2659661c75cc"></a><!-- doxytag: member="XSpinLock::m_flag" ref="ec913a5530e84a7fed8e2659661c75cc" args="" -->
+int&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_x_spin_lock.html#ec913a5530e84a7fed8e2659661c75cc">m_flag</a></td></tr>
+
+</table>
+<hr><a name="_details"></a><h2>説明</h2>
+
+<p>
+
+<p>
+ <a class="el" href="spinlock_8h-source.html">spinlock.h</a> の <a class="el" href="spinlock_8h-source.html#l00020">20</a> 行で定義されています。<hr><h2>関数</h2>
+<a class="anchor" name="9d70b22843bfcabaf28aa6be1356e745"></a><!-- doxytag: member="XSpinLock::trylock" ref="9d70b22843bfcabaf28aa6be1356e745" args="()" --><p>
+<table class="mdTable" cellpadding="2" cellspacing="0">
+  <tr>
+    <td class="mdRow">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="md" nowrap valign="top">bool XSpinLock::trylock           </td>
+          <td class="md" valign="top">(&nbsp;</td>
+          <td class="mdname1" valign="top" nowrap>          </td>
+          <td class="md" valign="top">&nbsp;)&nbsp;</td>
+          <td class="md" nowrap><code> [inline]</code></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table cellspacing="5" cellpadding="0" border="0">
+  <tr>
+    <td>
+      &nbsp;
+    </td>
+    <td>
+
+<p>
+<dl compact><dt><b>戻り値:</b></dt><dd>true if locked. </dd></dl>
+
+<p>
+ <a class="el" href="spinlock_8h-source.html">spinlock.h</a> の <a class="el" href="spinlock_8h-source.html#l00037">37</a> 行で定義されています。
+<p>
+参照先 <a class="el" href="spinlock_8h-source.html#l00056">m_flag</a>.
+<p>
+参照元 <a class="el" href="spinlock_8h-source.html#l00064">XAdaptiveSpinLock::lock()</a>・<a class="el" href="spinlock_8h-source.html#l00046">lock()</a>.    </td>
+  </tr>
+</table>
+<hr>このクラスの説明は次のファイルから生成されました:<ul>
+<li>kame/<a class="el" href="spinlock_8h-source.html">spinlock.h</a></ul>
+<hr size="1"><address style="align: right;"><small>KAME2に対してMon Jan 14 03:59:57 2008に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
+</body>
+</html>

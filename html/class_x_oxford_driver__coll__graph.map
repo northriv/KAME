@@ -1,2 +1,3 @@
 base referer
-rect $class_x_char_device_driver.html 8,82 314,109
+rect $class_x_char_device_driver.html 7,98 319,125
+rect $class_x_char_device_driver.html 125,8 391,34

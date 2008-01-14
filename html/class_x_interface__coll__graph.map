@@ -1,13 +1,4 @@
 base referer
-rect $class_x_node.html 569,381 630,407
-rect $class_x_talker.html 7,290 223,317
-rect $class___x_talker_base.html 113,189 217,215
-rect $class_x_talker.html 247,290 485,317
-rect $classatomic.html 110,98 219,125
-rect $classatomic__shared__ptr.html 270,189 494,215
-rect $structatomic__shared__ptr_1_1___ref_local.html 310,98 539,125
-rect $classatomic__shared__ptr.html 591,189 799,215
-rect $unionatomic__shared__ptr_1_1_refcnt_n_serial.html 298,7 551,34
-rect $class_x_mutex.html 662,98 729,125
-rect $class_x_recursive_mutex.html 777,239 905,266
-rect $class_x_thread_local.html 509,290 690,317
+rect $class_x_node.html 8,7 72,34
+rect $class_x_talker.html 96,7 336,34
+rect $class_x_recursive_mutex.html 360,7 490,34

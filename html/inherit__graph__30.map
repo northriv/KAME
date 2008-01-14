@@ -1,2 +1,9 @@
 base referer
-rect $class_x_dot_writer.html 8,8 96,34
+rect $class_spectrum_solver.html 9,33 126,60
+rect $class_f_f_t_solver.html 175,8 261,34
+rect $class_m_e_m_strict.html 175,58 261,85
+rect $class_yule_walker_cousin.html 339,8 542,34
+rect $class_yule_walker_cousin.html 330,58 551,85
+rect $class_yule_walker_cousin.html 309,109 573,136
+rect $class_yule_walker_a_r.html 622,58 731,85
+rect $class_m_e_m_burg.html 637,109 717,136

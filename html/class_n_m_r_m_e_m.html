@@ -1,0 +1,89 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: クラス NMRMEM</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li id="current"><a href="classes.html"><span>クラス</span></a></li>
+    <li><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
+<div class="tabs">
+  <ul>
+    <li><a href="classes.html"><span>アルファベット順一覧</span></a></li>
+    <li><a href="annotated.html"><span>構成</span></a></li>
+    <li><a href="hierarchy.html"><span>クラス階層</span></a></li>
+    <li><a href="functions.html"><span>構成メンバ</span></a></li>
+  </ul></div>
+<h1>クラス NMRMEM</h1><!-- doxytag: class="NMRMEM" --><a href="class_n_m_r_m_e_m-members.html">すべてのメンバ一覧</a><table border="0" cellpadding="0" cellspacing="0">
+<tr><td></td></tr>
+<tr><td colspan="2"><br><h2>Public メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="937a72335ab859a8a07ead0b95f40dc4"></a><!-- doxytag: member="NMRMEM::~NMRMEM" ref="937a72335ab859a8a07ead0b95f40dc4" args="()" -->
+&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_n_m_r_m_e_m.html#937a72335ab859a8a07ead0b95f40dc4">~NMRMEM</a> ()</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="23dcf6c6d67ae426eb08454ea3055a7b"></a><!-- doxytag: member="NMRMEM::exec" ref="23dcf6c6d67ae426eb08454ea3055a7b" args="(const std::vector&lt; fftw_complex &gt; &amp;memin, std::vector&lt; fftw_complex &gt; &amp;memout, int t0, double torr)" -->
+bool&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_n_m_r_m_e_m.html#23dcf6c6d67ae426eb08454ea3055a7b">exec</a> (const std::vector&lt; fftw_complex &gt; &amp;memin, std::vector&lt; fftw_complex &gt; &amp;memout, int t0, double torr)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d6f20e932ceb2a667db963b121206ac1"></a><!-- doxytag: member="NMRMEM::ifft" ref="d6f20e932ceb2a667db963b121206ac1" args="() const " -->
+const std::vector&lt; fftw_complex &gt; &amp;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_n_m_r_m_e_m.html#d6f20e932ceb2a667db963b121206ac1">ifft</a> () const </td></tr>
+
+<tr><td colspan="2"><br><h2>Private メソッド</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="a0b86fbf5eb01f5f5ad3485a87f6b9f8"></a><!-- doxytag: member="NMRMEM::setup" ref="a0b86fbf5eb01f5f5ad3485a87f6b9f8" args="(unsigned int t, unsigned int n)" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_n_m_r_m_e_m.html#a0b86fbf5eb01f5f5ad3485a87f6b9f8">setup</a> (unsigned int t, unsigned int n)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="00723d17fbea927ed557a0b33cf32194"></a><!-- doxytag: member="NMRMEM::clearFTBuf" ref="00723d17fbea927ed557a0b33cf32194" args="(std::vector&lt; fftw_complex &gt; &amp;buf)" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_n_m_r_m_e_m.html#00723d17fbea927ed557a0b33cf32194">clearFTBuf</a> (std::vector&lt; fftw_complex &gt; &amp;buf)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="c9f97372b0d2046ce902592152d329a6"></a><!-- doxytag: member="NMRMEM::stepMEM" ref="c9f97372b0d2046ce902592152d329a6" args="(const std::vector&lt; fftw_complex &gt; &amp;memin, std::vector&lt; fftw_complex &gt; &amp;memout, double alpha, double sigma, int t0, double torr)" -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_n_m_r_m_e_m.html#c9f97372b0d2046ce902592152d329a6">stepMEM</a> (const std::vector&lt; fftw_complex &gt; &amp;memin, std::vector&lt; fftw_complex &gt; &amp;memout, double alpha, double sigma, int t0, double torr)</td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="31a666e5ec7b556f7688e81474c97187"></a><!-- doxytag: member="NMRMEM::solveZ" ref="31a666e5ec7b556f7688e81474c97187" args="(double torr)" -->
+void&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_n_m_r_m_e_m.html#31a666e5ec7b556f7688e81474c97187">solveZ</a> (double torr)</td></tr>
+
+<tr><td colspan="2"><br><h2>Private 変数</h2></td></tr>
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="cc0b53f8d0079b17959de48aa7745594"></a><!-- doxytag: member="NMRMEM::m_lambda" ref="cc0b53f8d0079b17959de48aa7745594" args="" -->
+std::vector&lt; fftw_complex &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_n_m_r_m_e_m.html#cc0b53f8d0079b17959de48aa7745594">m_lambda</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="f9f90448245c472f164ff13e1862d415"></a><!-- doxytag: member="NMRMEM::m_ifft" ref="f9f90448245c472f164ff13e1862d415" args="" -->
+std::vector&lt; fftw_complex &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_n_m_r_m_e_m.html#f9f90448245c472f164ff13e1862d415">m_ifft</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="467b146f3c416cd3125ee42936e53037"></a><!-- doxytag: member="NMRMEM::m_accumDY" ref="467b146f3c416cd3125ee42936e53037" args="" -->
+std::vector&lt; fftw_complex &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_n_m_r_m_e_m.html#467b146f3c416cd3125ee42936e53037">m_accumDY</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="515dcc97b11419e0e8284cae0237f1ef"></a><!-- doxytag: member="NMRMEM::m_accumDYFT" ref="515dcc97b11419e0e8284cae0237f1ef" args="" -->
+std::vector&lt; fftw_complex &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_n_m_r_m_e_m.html#515dcc97b11419e0e8284cae0237f1ef">m_accumDYFT</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="d4784fa5e8ab54220c148eb3afc57e1c"></a><!-- doxytag: member="NMRMEM::m_ifftplanN" ref="d4784fa5e8ab54220c148eb3afc57e1c" args="" -->
+fftw_plan&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_n_m_r_m_e_m.html#d4784fa5e8ab54220c148eb3afc57e1c">m_ifftplanN</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="634d7bed08a2d95afa4c1deb45eb4132"></a><!-- doxytag: member="NMRMEM::m_fftplanN" ref="634d7bed08a2d95afa4c1deb45eb4132" args="" -->
+fftw_plan&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_n_m_r_m_e_m.html#634d7bed08a2d95afa4c1deb45eb4132">m_fftplanN</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="720d4f97f8dc07005e2823c1487bda52"></a><!-- doxytag: member="NMRMEM::m_fftplanT" ref="720d4f97f8dc07005e2823c1487bda52" args="" -->
+fftw_plan&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_n_m_r_m_e_m.html#720d4f97f8dc07005e2823c1487bda52">m_fftplanT</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="91e2bc53feadc0e5d17229ecac7c0329"></a><!-- doxytag: member="NMRMEM::m_accumG2" ref="91e2bc53feadc0e5d17229ecac7c0329" args="" -->
+std::vector&lt; double &gt;&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_n_m_r_m_e_m.html#91e2bc53feadc0e5d17229ecac7c0329">m_accumG2</a></td></tr>
+
+<tr><td class="memItemLeft" nowrap align="right" valign="top"><a class="anchor" name="1be906099fb184f49426e91be2f4f6ef"></a><!-- doxytag: member="NMRMEM::m_accumZ" ref="1be906099fb184f49426e91be2f4f6ef" args="" -->
+double&nbsp;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_n_m_r_m_e_m.html#1be906099fb184f49426e91be2f4f6ef">m_accumZ</a></td></tr>
+
+</table>
+<hr><a name="_details"></a><h2>説明</h2>
+
+<p>
+
+<p>
+ <a class="el" href="tools_2tests_2nmrmem_8h-source.html">nmrmem.h</a> の <a class="el" href="tools_2tests_2nmrmem_8h-source.html#l00023">23</a> 行で定義されています。<hr>このクラスの説明は次のファイルから生成されました:<ul>
+<li>tools/tests/<a class="el" href="tools_2tests_2nmrmem_8h-source.html">nmrmem.h</a><li>tools/tests/<a class="el" href="tools_2tests_2nmrmem_8cpp-source.html">nmrmem.cpp</a></ul>
+<hr size="1"><address style="align: right;"><small>KAME2に対してFri Jan 4 16:11:31 2008に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
+</body>
+</html>

@@ -1,15 +1,24 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
-<title>KAME2: kame/driver/dummyport.h ソースファイル</title>
+<title>KAME2: modules/charinterface/dummyport.h ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000003.html">driver</a></div>
+<a class="el" href="dir_c17a6312adb6ef1af4037d741e35ac41.html">modules</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_a0d70bd1df9cefc80caa0c65868289f2.html">charinterface</a></div>
 <h1>dummyport.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
-<a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
+<a name="l00003"></a>00003 <span class="comment">                                   kitag@issp.u-tokyo.ac.jp</span>
 <a name="l00004"></a>00004 <span class="comment">                </span>
 <a name="l00005"></a>00005 <span class="comment">                This program is free software; you can redistribute it and/or</span>
 <a name="l00006"></a>00006 <span class="comment">                modify it under the terms of the GNU Library General Public</span>
@@ -28,20 +37,20 @@
 <a name="l00019"></a>00019 
 <a name="l00020"></a><a class="code" href="class_x_dummy_port.html">00020</a> <span class="keyword">class </span><a class="code" href="class_x_dummy_port.html">XDummyPort</a> : <span class="keyword">public</span> <a class="code" href="class_x_port.html">XPort</a> {
 <a name="l00021"></a>00021 <span class="keyword">public</span>:
-<a name="l00022"></a>00022         <a class="code" href="class_x_dummy_port.html#a0">XDummyPort</a>(<a class="code" href="class_x_char_interface.html">XCharInterface</a> *interface);
-<a name="l00023"></a>00023         <span class="keyword">virtual</span> <a class="code" href="class_x_dummy_port.html#a1">~XDummyPort</a>();
-<a name="l00024"></a>00024         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_dummy_port.html#a2">open</a>() <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
-<a name="l00025"></a>00025         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_dummy_port.html#a3">send</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *str) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
-<a name="l00026"></a>00026         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_dummy_port.html#a4">write</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *sendbuf, <span class="keywordtype">int</span> size) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
-<a name="l00027"></a>00027         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_dummy_port.html#a5">receive</a>() <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
-<a name="l00028"></a>00028         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_dummy_port.html#a5">receive</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> length) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
+<a name="l00022"></a>00022         <a class="code" href="class_x_dummy_port.html#4b4b475c8e036b86728717ab1206c1f0">XDummyPort</a>(<a class="code" href="class_x_char_interface.html">XCharInterface</a> *interface);
+<a name="l00023"></a>00023         <span class="keyword">virtual</span> <a class="code" href="class_x_dummy_port.html#cb2209295c1d2cc7230310fe053ee645">~XDummyPort</a>();
+<a name="l00024"></a>00024         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_dummy_port.html#2853716a2027461b9d81e881c0fbf5d0">open</a>() <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
+<a name="l00025"></a>00025         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_dummy_port.html#5be8dedd517c6608ba0e81ea9f2d93a3">send</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *str) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
+<a name="l00026"></a>00026         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_dummy_port.html#87c1e48dd8ce2be9fecddec4b3d54978">write</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *sendbuf, <span class="keywordtype">int</span> size) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
+<a name="l00027"></a>00027         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_dummy_port.html#3f86f21e1af5d609692044baf23a0785">receive</a>() <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
+<a name="l00028"></a>00028         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_dummy_port.html#3f86f21e1af5d609692044baf23a0785">receive</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> length) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
 <a name="l00029"></a>00029 <span class="keyword">private</span>:
-<a name="l00030"></a><a class="code" href="class_x_dummy_port.html#r0">00030</a>     std::ofstream <a class="code" href="class_x_dummy_port.html#r0">m_stream</a>;
+<a name="l00030"></a><a class="code" href="class_x_dummy_port.html#1924e3a01c82ce98a3cb80effbe84218">00030</a>     std::ofstream <a class="code" href="class_x_dummy_port.html#1924e3a01c82ce98a3cb80effbe84218">m_stream</a>;
 <a name="l00031"></a>00031 };
 <a name="l00032"></a>00032 
 <a name="l00033"></a>00033 <span class="preprocessor">#endif </span><span class="comment">/*DUMMYPORT_H_*/</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:13 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Jan 14 03:59:41 2008に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
 </html>

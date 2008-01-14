@@ -1,0 +1,128 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: /Users/northriv/Documents/Projects/KAME/macosx/kame/forms/drivercreate.cpp ソースファイル</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
+<div class="nav">
+<a class="el" href="dir_267cfcb898ce0973ecee1ed2b0a886dd.html">macosx</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_4e9c37e873543013a976ff9253a8401e.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_37ccecfbfa402c2bbe97b2d9435b9224.html">forms</a></div>
+<h1>drivercreate.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#include &lt;kdialog.h&gt;</span>
+<a name="l00002"></a>00002 <span class="preprocessor">#include &lt;klocale.h&gt;</span>
+<a name="l00003"></a>00003 <span class="comment">/****************************************************************************</span>
+<a name="l00004"></a>00004 <span class="comment">** Form implementation generated from reading ui file '/Users/northriv/Documents/Projects/KAME/2.2/kame/forms/drivercreate.ui'</span>
+<a name="l00005"></a>00005 <span class="comment">**</span>
+<a name="l00006"></a>00006 <span class="comment">** Created: 羂�  1 2 01:28:40 2008</span>
+<a name="l00007"></a>00007 <span class="comment">**      by: The User Interface Compiler ($Id: drivercreate_8cpp-source.html,v 1.1 2008/01/14 09:42:17 northriv Exp $)</span>
+<a name="l00008"></a>00008 <span class="comment">**</span>
+<a name="l00009"></a>00009 <span class="comment">** WARNING! All changes made in this file will be lost!</span>
+<a name="l00010"></a>00010 <span class="comment">****************************************************************************/</span>
+<a name="l00011"></a>00011 
+<a name="l00012"></a>00012 <span class="preprocessor">#include "drivercreate.h"</span>
+<a name="l00013"></a>00013 
+<a name="l00014"></a>00014 <span class="preprocessor">#include &lt;qvariant.h&gt;</span>
+<a name="l00015"></a>00015 <span class="preprocessor">#include &lt;qpushbutton.h&gt;</span>
+<a name="l00016"></a>00016 <span class="preprocessor">#include &lt;qlistbox.h&gt;</span>
+<a name="l00017"></a>00017 <span class="preprocessor">#include &lt;qlabel.h&gt;</span>
+<a name="l00018"></a>00018 <span class="preprocessor">#include &lt;qlineedit.h&gt;</span>
+<a name="l00019"></a>00019 <span class="preprocessor">#include &lt;qlayout.h&gt;</span>
+<a name="l00020"></a>00020 <span class="preprocessor">#include &lt;qtooltip.h&gt;</span>
+<a name="l00021"></a>00021 <span class="preprocessor">#include &lt;qwhatsthis.h&gt;</span>
+<a name="l00022"></a>00022 
+<a name="l00023"></a>00023 <span class="comment">/*</span>
+<a name="l00024"></a>00024 <span class="comment"> *  Constructs a DlgCreateDriver as a child of 'parent', with the</span>
+<a name="l00025"></a>00025 <span class="comment"> *  name 'name' and widget flags set to 'f'.</span>
+<a name="l00026"></a>00026 <span class="comment"> *</span>
+<a name="l00027"></a>00027 <span class="comment"> *  The dialog will by default be modeless, unless you set 'modal' to</span>
+<a name="l00028"></a>00028 <span class="comment"> *  TRUE to construct a modal dialog.</span>
+<a name="l00029"></a>00029 <span class="comment"> */</span>
+<a name="l00030"></a><a class="code" href="class_dlg_create_driver.html#6f364cebf14df9aa7b659fe8586d1176">00030</a> <a class="code" href="class_dlg_create_driver.html#6f364cebf14df9aa7b659fe8586d1176">DlgCreateDriver::DlgCreateDriver</a>( QWidget* parent, <span class="keyword">const</span> <span class="keywordtype">char</span>* name, <span class="keywordtype">bool</span> modal, WFlags fl )
+<a name="l00031"></a>00031     : QDialog( parent, name, modal, fl )
+<a name="l00032"></a>00032 {
+<a name="l00033"></a>00033     <span class="keywordflow">if</span> ( !name )
+<a name="l00034"></a>00034         setName( <span class="stringliteral">"DlgCreateDriver"</span> );
+<a name="l00035"></a>00035     setSizeGripEnabled( TRUE );
+<a name="l00036"></a>00036     <a class="code" href="class_dlg_create_driver.html#d47a5b74852155fc0eb215b633866617">DlgCreateDriverLayout</a> = <span class="keyword">new</span> QGridLayout( <span class="keyword">this</span>, 1, 1, 2, 6, <span class="stringliteral">"DlgCreateDriverLayout"</span>); 
+<a name="l00037"></a>00037 
+<a name="l00038"></a>00038     <a class="code" href="class_dlg_create_driver.html#ea10919045a255f7d8ab9b441b67f7ae">Layout1</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"Layout1"</span>); 
+<a name="l00039"></a>00039     <a class="code" href="class_dlg_create_driver.html#3080f4381eb5d490f0c8862c7bb998aa">Horizontal_Spacing2</a> = <span class="keyword">new</span> QSpacerItem( 20, 20, QSizePolicy::Expanding, QSizePolicy::Minimum );
+<a name="l00040"></a>00040     <a class="code" href="class_dlg_create_driver.html#ea10919045a255f7d8ab9b441b67f7ae">Layout1</a>-&gt;addItem( <a class="code" href="class_dlg_create_driver.html#3080f4381eb5d490f0c8862c7bb998aa">Horizontal_Spacing2</a> );
+<a name="l00041"></a>00041 
+<a name="l00042"></a>00042     <a class="code" href="class_dlg_create_driver.html#966401f79b3dbc455f4cdfe96ff7bb40">m_buttonOk</a> = <span class="keyword">new</span> QPushButton( <span class="keyword">this</span>, <span class="stringliteral">"m_buttonOk"</span> );
+<a name="l00043"></a>00043     <a class="code" href="class_dlg_create_driver.html#966401f79b3dbc455f4cdfe96ff7bb40">m_buttonOk</a>-&gt;setAutoDefault( TRUE );
+<a name="l00044"></a>00044     <a class="code" href="class_dlg_create_driver.html#966401f79b3dbc455f4cdfe96ff7bb40">m_buttonOk</a>-&gt;setDefault( TRUE );
+<a name="l00045"></a>00045     <a class="code" href="class_dlg_create_driver.html#ea10919045a255f7d8ab9b441b67f7ae">Layout1</a>-&gt;addWidget( <a class="code" href="class_dlg_create_driver.html#966401f79b3dbc455f4cdfe96ff7bb40">m_buttonOk</a> );
+<a name="l00046"></a>00046 
+<a name="l00047"></a>00047     <a class="code" href="class_dlg_create_driver.html#dab68429cc9786d8a6c47b3190b9dc89">m_buttonCancel</a> = <span class="keyword">new</span> QPushButton( <span class="keyword">this</span>, <span class="stringliteral">"m_buttonCancel"</span> );
+<a name="l00048"></a>00048     <a class="code" href="class_dlg_create_driver.html#dab68429cc9786d8a6c47b3190b9dc89">m_buttonCancel</a>-&gt;setAutoDefault( TRUE );
+<a name="l00049"></a>00049     <a class="code" href="class_dlg_create_driver.html#ea10919045a255f7d8ab9b441b67f7ae">Layout1</a>-&gt;addWidget( <a class="code" href="class_dlg_create_driver.html#dab68429cc9786d8a6c47b3190b9dc89">m_buttonCancel</a> );
+<a name="l00050"></a>00050 
+<a name="l00051"></a>00051     <a class="code" href="class_dlg_create_driver.html#d47a5b74852155fc0eb215b633866617">DlgCreateDriverLayout</a>-&gt;addLayout( <a class="code" href="class_dlg_create_driver.html#ea10919045a255f7d8ab9b441b67f7ae">Layout1</a>, 2, 0 );
+<a name="l00052"></a>00052 
+<a name="l00053"></a>00053     <a class="code" href="class_dlg_create_driver.html#9d7ecc7356de848421b16b096c355a8e">m_lstType</a> = <span class="keyword">new</span> QListBox( <span class="keyword">this</span>, <span class="stringliteral">"m_lstType"</span> );
+<a name="l00054"></a>00054     <a class="code" href="class_dlg_create_driver.html#9d7ecc7356de848421b16b096c355a8e">m_lstType</a>-&gt;setResizePolicy( QListBox::AutoOneFit );
+<a name="l00055"></a>00055 
+<a name="l00056"></a>00056     <a class="code" href="class_dlg_create_driver.html#d47a5b74852155fc0eb215b633866617">DlgCreateDriverLayout</a>-&gt;addWidget( <a class="code" href="class_dlg_create_driver.html#9d7ecc7356de848421b16b096c355a8e">m_lstType</a>, 0, 0 );
+<a name="l00057"></a>00057 
+<a name="l00058"></a>00058     <a class="code" href="class_dlg_create_driver.html#d8917f7f82c9fb31cd9d33e844efca05">layout3</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout3"</span>); 
+<a name="l00059"></a>00059 
+<a name="l00060"></a>00060     <a class="code" href="class_dlg_create_driver.html#0090a8c7a8437dbdc1c5a2ed4001d08e">textLabel1</a> = <span class="keyword">new</span> QLabel( <span class="keyword">this</span>, <span class="stringliteral">"textLabel1"</span> );
+<a name="l00061"></a>00061     <a class="code" href="class_dlg_create_driver.html#d8917f7f82c9fb31cd9d33e844efca05">layout3</a>-&gt;addWidget( <a class="code" href="class_dlg_create_driver.html#0090a8c7a8437dbdc1c5a2ed4001d08e">textLabel1</a> );
+<a name="l00062"></a>00062 
+<a name="l00063"></a>00063     <a class="code" href="class_dlg_create_driver.html#3538fff8e9a03c5be598ba5d20f2b9e7">m_edName</a> = <span class="keyword">new</span> QLineEdit( <span class="keyword">this</span>, <span class="stringliteral">"m_edName"</span> );
+<a name="l00064"></a>00064     <a class="code" href="class_dlg_create_driver.html#d8917f7f82c9fb31cd9d33e844efca05">layout3</a>-&gt;addWidget( <a class="code" href="class_dlg_create_driver.html#3538fff8e9a03c5be598ba5d20f2b9e7">m_edName</a> );
+<a name="l00065"></a>00065 
+<a name="l00066"></a>00066     <a class="code" href="class_dlg_create_driver.html#d47a5b74852155fc0eb215b633866617">DlgCreateDriverLayout</a>-&gt;addLayout( <a class="code" href="class_dlg_create_driver.html#d8917f7f82c9fb31cd9d33e844efca05">layout3</a>, 1, 0 );
+<a name="l00067"></a>00067     <a class="code" href="class_dlg_create_driver.html#00c56b631c4aaac0582cf0938ba8f403">languageChange</a>();
+<a name="l00068"></a>00068     resize( QSize(433, 373).expandedTo(minimumSizeHint()) );
+<a name="l00069"></a>00069     clearWState( WState_Polished );
+<a name="l00070"></a>00070 
+<a name="l00071"></a>00071     <span class="comment">// signals and slots connections</span>
+<a name="l00072"></a>00072     connect( <a class="code" href="class_dlg_create_driver.html#966401f79b3dbc455f4cdfe96ff7bb40">m_buttonOk</a>, SIGNAL( clicked() ), <span class="keyword">this</span>, SLOT( accept() ) );
+<a name="l00073"></a>00073     connect( <a class="code" href="class_dlg_create_driver.html#dab68429cc9786d8a6c47b3190b9dc89">m_buttonCancel</a>, SIGNAL( clicked() ), <span class="keyword">this</span>, SLOT( reject() ) );
+<a name="l00074"></a>00074 
+<a name="l00075"></a>00075     <span class="comment">// tab order</span>
+<a name="l00076"></a>00076     setTabOrder( <a class="code" href="class_dlg_create_driver.html#9d7ecc7356de848421b16b096c355a8e">m_lstType</a>, <a class="code" href="class_dlg_create_driver.html#3538fff8e9a03c5be598ba5d20f2b9e7">m_edName</a> );
+<a name="l00077"></a>00077     setTabOrder( <a class="code" href="class_dlg_create_driver.html#3538fff8e9a03c5be598ba5d20f2b9e7">m_edName</a>, <a class="code" href="class_dlg_create_driver.html#966401f79b3dbc455f4cdfe96ff7bb40">m_buttonOk</a> );
+<a name="l00078"></a>00078     setTabOrder( <a class="code" href="class_dlg_create_driver.html#966401f79b3dbc455f4cdfe96ff7bb40">m_buttonOk</a>, <a class="code" href="class_dlg_create_driver.html#dab68429cc9786d8a6c47b3190b9dc89">m_buttonCancel</a> );
+<a name="l00079"></a>00079 }
+<a name="l00080"></a>00080 
+<a name="l00081"></a>00081 <span class="comment">/*</span>
+<a name="l00082"></a>00082 <span class="comment"> *  Destroys the object and frees any allocated resources</span>
+<a name="l00083"></a>00083 <span class="comment"> */</span>
+<a name="l00084"></a><a class="code" href="class_dlg_create_driver.html#6b52be27a25d071d267600ceebd57ab0">00084</a> <a class="code" href="class_dlg_create_driver.html#6b52be27a25d071d267600ceebd57ab0">DlgCreateDriver::~DlgCreateDriver</a>()
+<a name="l00085"></a>00085 {
+<a name="l00086"></a>00086     <span class="comment">// no need to delete child widgets, Qt does it all for us</span>
+<a name="l00087"></a>00087 }
+<a name="l00088"></a>00088 
+<a name="l00089"></a>00089 <span class="comment">/*</span>
+<a name="l00090"></a>00090 <span class="comment"> *  Sets the strings of the subwidgets using the current</span>
+<a name="l00091"></a>00091 <span class="comment"> *  language.</span>
+<a name="l00092"></a>00092 <span class="comment"> */</span>
+<a name="l00093"></a><a class="code" href="class_dlg_create_driver.html#00c56b631c4aaac0582cf0938ba8f403">00093</a> <span class="keywordtype">void</span> <a class="code" href="class_dlg_create_driver.html#00c56b631c4aaac0582cf0938ba8f403">DlgCreateDriver::languageChange</a>()
+<a name="l00094"></a>00094 {
+<a name="l00095"></a>00095     setCaption( tr2i18n( <span class="stringliteral">"Create New Driver"</span> ) );
+<a name="l00096"></a>00096     <a class="code" href="class_dlg_create_driver.html#966401f79b3dbc455f4cdfe96ff7bb40">m_buttonOk</a>-&gt;setText( tr2i18n( <span class="stringliteral">"&amp;OK"</span> ) );
+<a name="l00097"></a>00097     <a class="code" href="class_dlg_create_driver.html#966401f79b3dbc455f4cdfe96ff7bb40">m_buttonOk</a>-&gt;setAccel( QKeySequence( QString::null ) );
+<a name="l00098"></a>00098     <a class="code" href="class_dlg_create_driver.html#dab68429cc9786d8a6c47b3190b9dc89">m_buttonCancel</a>-&gt;setText( tr2i18n( <span class="stringliteral">"&amp;Cancel"</span> ) );
+<a name="l00099"></a>00099     <a class="code" href="class_dlg_create_driver.html#dab68429cc9786d8a6c47b3190b9dc89">m_buttonCancel</a>-&gt;setAccel( QKeySequence( QString::null ) );
+<a name="l00100"></a>00100     <a class="code" href="class_dlg_create_driver.html#9d7ecc7356de848421b16b096c355a8e">m_lstType</a>-&gt;clear();
+<a name="l00101"></a>00101     <a class="code" href="class_dlg_create_driver.html#9d7ecc7356de848421b16b096c355a8e">m_lstType</a>-&gt;insertItem( tr2i18n( <span class="stringliteral">"New Item"</span> ) );
+<a name="l00102"></a>00102     <a class="code" href="class_dlg_create_driver.html#0090a8c7a8437dbdc1c5a2ed4001d08e">textLabel1</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Name"</span> ) );
+<a name="l00103"></a>00103 }
+<a name="l00104"></a>00104 
+<a name="l00105"></a>00105 <span class="preprocessor">#include "drivercreate.moc"</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri Jan 4 16:08:21 2008に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
+</body>
+</html>

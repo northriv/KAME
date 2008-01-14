@@ -1,0 +1,240 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: tools/tests/nmrmem.cpp ソースファイル</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
+<div class="nav">
+<a class="el" href="dir_612ecf7d1c6cd3e650eba8b0182f8a9b.html">tools</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_5f61ec521a8bf0e3befdb6a14ab40baa.html">tests</a></div>
+<h1>nmrmem.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
+<a name="l00002"></a>00002 <span class="comment"> Copyright (C) 2002-2007 Kentaro Kitagawa</span>
+<a name="l00003"></a>00003 <span class="comment"> kitag@issp.u-tokyo.ac.jp</span>
+<a name="l00004"></a>00004 <span class="comment"></span>
+<a name="l00005"></a>00005 <span class="comment"> This program is free software; you can redistribute it and/or</span>
+<a name="l00006"></a>00006 <span class="comment"> modify it under the terms of the GNU Library General Public</span>
+<a name="l00007"></a>00007 <span class="comment"> License as published by the Free Software Foundation; either</span>
+<a name="l00008"></a>00008 <span class="comment"> version 2 of the License, or (at your option) any later version.</span>
+<a name="l00009"></a>00009 <span class="comment"></span>
+<a name="l00010"></a>00010 <span class="comment"> You should have received a copy of the GNU Library General </span>
+<a name="l00011"></a>00011 <span class="comment"> Public License and a list of authors along with this program; </span>
+<a name="l00012"></a>00012 <span class="comment"> see the files COPYING and AUTHORS.</span>
+<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
+<a name="l00014"></a>00014 <span class="preprocessor">#include "nmrmem.h"</span>
+<a name="l00015"></a>00015 
+<a name="l00016"></a>00016 <span class="preprocessor">#include &lt;gsl/gsl_sf.h&gt;</span>
+<a name="l00017"></a>00017 <span class="preprocessor">#define lambertW0 gsl_sf_lambert_W0</span>
+<a name="l00018"></a>00018 <span class="preprocessor"></span>
+<a name="l00019"></a><a class="code" href="class_n_m_r_m_e_m.html#937a72335ab859a8a07ead0b95f40dc4">00019</a> <a class="code" href="class_n_m_r_m_e_m.html#937a72335ab859a8a07ead0b95f40dc4">NMRMEM::~NMRMEM</a>() {
+<a name="l00020"></a>00020         <span class="keywordflow">if</span>(<a class="code" href="class_n_m_r_m_e_m.html#f9f90448245c472f164ff13e1862d415">m_ifft</a>.size()) {
+<a name="l00021"></a>00021                 fftw_destroy_plan(<a class="code" href="class_n_m_r_m_e_m.html#634d7bed08a2d95afa4c1deb45eb4132">m_fftplanN</a>);
+<a name="l00022"></a>00022                 fftw_destroy_plan(<a class="code" href="class_n_m_r_m_e_m.html#d4784fa5e8ab54220c148eb3afc57e1c">m_ifftplanN</a>);
+<a name="l00023"></a>00023         }
+<a name="l00024"></a>00024         <span class="keywordflow">if</span>(m_lambda.size())
+<a name="l00025"></a>00025                 fftw_destroy_plan(m_fftplanT);
+<a name="l00026"></a>00026 }
+<a name="l00027"></a>00027 <span class="keywordtype">void</span>
+<a name="l00028"></a><a class="code" href="class_n_m_r_m_e_m.html#00723d17fbea927ed557a0b33cf32194">00028</a> <a class="code" href="class_n_m_r_m_e_m.html#00723d17fbea927ed557a0b33cf32194">NMRMEM::clearFTBuf</a>(std::vector&lt;fftw_complex&gt; &amp;buf) {
+<a name="l00029"></a>00029         <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; buf.size(); i++) {
+<a name="l00030"></a>00030                 buf[i].re = 0.0;
+<a name="l00031"></a>00031                 buf[i].im = 0.0;
+<a name="l00032"></a>00032         }
+<a name="l00033"></a>00033 }
+<a name="l00034"></a>00034 <span class="keywordtype">void</span>
+<a name="l00035"></a><a class="code" href="class_n_m_r_m_e_m.html#a0b86fbf5eb01f5f5ad3485a87f6b9f8">00035</a> <a class="code" href="class_n_m_r_m_e_m.html#a0b86fbf5eb01f5f5ad3485a87f6b9f8">NMRMEM::setup</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> t, <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> n) {
+<a name="l00036"></a>00036         <span class="keywordflow">if</span> (<a class="code" href="class_n_m_r_m_e_m.html#f9f90448245c472f164ff13e1862d415">m_ifft</a>.size() != n) {
+<a name="l00037"></a>00037                 <span class="keywordflow">if</span>(<a class="code" href="class_n_m_r_m_e_m.html#f9f90448245c472f164ff13e1862d415">m_ifft</a>.size()) {
+<a name="l00038"></a>00038                         fftw_destroy_plan(<a class="code" href="class_n_m_r_m_e_m.html#634d7bed08a2d95afa4c1deb45eb4132">m_fftplanN</a>);
+<a name="l00039"></a>00039                         fftw_destroy_plan(<a class="code" href="class_n_m_r_m_e_m.html#d4784fa5e8ab54220c148eb3afc57e1c">m_ifftplanN</a>);
+<a name="l00040"></a>00040                 }
+<a name="l00041"></a>00041                 m_fftplanN = fftw_create_plan(n, FFTW_FORWARD, FFTW_ESTIMATE);          
+<a name="l00042"></a>00042                 m_ifftplanN = fftw_create_plan(n, FFTW_BACKWARD, FFTW_ESTIMATE);                
+<a name="l00043"></a>00043                 m_ifft.resize(n);
+<a name="l00044"></a>00044         }
+<a name="l00045"></a>00045         <span class="keywordflow">if</span> (m_lambda.size() != t) {
+<a name="l00046"></a>00046                 <span class="keywordflow">if</span>(m_lambda.size())
+<a name="l00047"></a>00047                         fftw_destroy_plan(m_fftplanT);
+<a name="l00048"></a>00048                 m_fftplanT = fftw_create_plan(t, FFTW_FORWARD, FFTW_ESTIMATE);
+<a name="l00049"></a>00049                 m_accumDY.resize(t);
+<a name="l00050"></a>00050                 m_accumDYFT.resize(t);
+<a name="l00051"></a>00051                 m_lambda.resize(t);
+<a name="l00052"></a>00052                 m_accumG2.resize(t);
+<a name="l00053"></a>00053         }
+<a name="l00054"></a>00054 }
+<a name="l00055"></a>00055 <span class="keywordtype">void</span>
+<a name="l00056"></a><a class="code" href="class_n_m_r_m_e_m.html#31a666e5ec7b556f7688e81474c97187">00056</a> <a class="code" href="class_n_m_r_m_e_m.html#31a666e5ec7b556f7688e81474c97187">NMRMEM::solveZ</a>(<span class="keywordtype">double</span> torr) {
+<a name="l00057"></a>00057         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> size = <a class="code" href="class_n_m_r_m_e_m.html#515dcc97b11419e0e8284cae0237f1ef">m_accumDYFT</a>.size();
+<a name="l00058"></a>00058         std::vector&lt;double&gt; dy2(size);
+<a name="l00059"></a>00059         std::vector&lt;double&gt; &amp;g2(<a class="code" href="class_n_m_r_m_e_m.html#91e2bc53feadc0e5d17229ecac7c0329">m_accumG2</a>);
+<a name="l00060"></a>00060 
+<a name="l00061"></a>00061         <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; size; i++) {
+<a name="l00062"></a>00062                 dy2[i] = <a class="code" href="class_n_m_r_m_e_m.html#515dcc97b11419e0e8284cae0237f1ef">m_accumDYFT</a>[i].re*<a class="code" href="class_n_m_r_m_e_m.html#515dcc97b11419e0e8284cae0237f1ef">m_accumDYFT</a>[i].re + <a class="code" href="class_n_m_r_m_e_m.html#515dcc97b11419e0e8284cae0237f1ef">m_accumDYFT</a>[i].im*<a class="code" href="class_n_m_r_m_e_m.html#515dcc97b11419e0e8284cae0237f1ef">m_accumDYFT</a>[i].im;
+<a name="l00063"></a>00063         }
+<a name="l00064"></a>00064         <span class="keywordtype">double</span> nsumz;
+<a name="l00065"></a>00065         <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> it = 0; it &lt; lrint(log(size) + 2); it++) {
+<a name="l00066"></a>00066                 <span class="keywordtype">double</span> k = 2 * m_accumZ * m_accumZ;
+<a name="l00067"></a>00067                 <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; size; i++) {
+<a name="l00068"></a>00068                         g2[i] = lambertW0(k * dy2[i]) * 0.5;
+<a name="l00069"></a>00069                 }
+<a name="l00070"></a>00070                 nsumz = 0.0;
+<a name="l00071"></a>00071                 <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; size; i++) {
+<a name="l00072"></a>00072                         nsumz += exp(g2[i]);
+<a name="l00073"></a>00073                 }
+<a name="l00074"></a>00074                 <span class="keywordtype">double</span> err = fabs(nsumz - m_accumZ) / nsumz;
+<a name="l00075"></a>00075                 m_accumZ = nsumz;
+<a name="l00076"></a>00076                 <span class="keywordflow">if</span>(err &lt; torr) {
+<a name="l00077"></a>00077 <span class="comment">//                      fprintf(stderr, "MEM: Z solved w/ it=%u,err=%g\n", it, err);</span>
+<a name="l00078"></a>00078                         <span class="keywordflow">break</span>;
+<a name="l00079"></a>00079                 }
+<a name="l00080"></a>00080         }
+<a name="l00081"></a>00081 }
+<a name="l00082"></a>00082 
+<a name="l00083"></a>00083 <span class="keywordtype">bool</span>
+<a name="l00084"></a><a class="code" href="class_n_m_r_m_e_m.html#23dcf6c6d67ae426eb08454ea3055a7b">00084</a> <a class="code" href="class_n_m_r_m_e_m.html#23dcf6c6d67ae426eb08454ea3055a7b">NMRMEM::exec</a>(<span class="keyword">const</span> std::vector&lt;fftw_complex&gt;&amp; memin, std::vector&lt;fftw_complex&gt;&amp; memout,
+<a name="l00085"></a>00085         <span class="keywordtype">int</span> t0, <span class="keywordtype">double</span> torr) {
+<a name="l00086"></a>00086         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> t = memin.size();
+<a name="l00087"></a>00087         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> n = memout.size();
+<a name="l00088"></a>00088         <span class="keywordflow">if</span>(t0 &lt; 0)
+<a name="l00089"></a>00089                 t0 += (-t0 / n + 1) * n;
+<a name="l00090"></a>00090         <a class="code" href="class_n_m_r_m_e_m.html#a0b86fbf5eb01f5f5ad3485a87f6b9f8">setup</a>(t, n);
+<a name="l00091"></a>00091         <span class="keywordtype">double</span> sqrtpow = 0.0;
+<a name="l00092"></a>00092         <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; memin.size(); i++)
+<a name="l00093"></a>00093                 sqrtpow += memin[i].re*memin[i].re + memin[i].im*memin[i].im;
+<a name="l00094"></a>00094         sqrtpow = sqrt(sqrtpow);
+<a name="l00095"></a>00095         <span class="keywordtype">double</span> sigma = sqrtpow * 0.5;
+<a name="l00096"></a>00096         fprintf(stderr, <span class="stringliteral">"MEM: Using T=%u,N=%u,sigma=%g\n"</span>, t,n,sigma);
+<a name="l00097"></a>00097         <span class="keywordtype">double</span> err;
+<a name="l00098"></a>00098         <span class="keywordflow">for</span>(<span class="keywordtype">double</span> alpha = 0.3; alpha &gt; 0.1; alpha -= 0.1) {
+<a name="l00099"></a>00099                 <a class="code" href="class_n_m_r_m_e_m.html#00723d17fbea927ed557a0b33cf32194">clearFTBuf</a>(<a class="code" href="class_n_m_r_m_e_m.html#515dcc97b11419e0e8284cae0237f1ef">m_accumDYFT</a>);
+<a name="l00100"></a>00100                 <a class="code" href="class_n_m_r_m_e_m.html#00723d17fbea927ed557a0b33cf32194">clearFTBuf</a>(<a class="code" href="class_n_m_r_m_e_m.html#f9f90448245c472f164ff13e1862d415">m_ifft</a>);
+<a name="l00101"></a>00101                 <a class="code" href="class_n_m_r_m_e_m.html#00723d17fbea927ed557a0b33cf32194">clearFTBuf</a>(memout);
+<a name="l00102"></a>00102                 <a class="code" href="class_n_m_r_m_e_m.html#00723d17fbea927ed557a0b33cf32194">clearFTBuf</a>(<a class="code" href="class_n_m_r_m_e_m.html#cc0b53f8d0079b17959de48aa7745594">m_lambda</a>);
+<a name="l00103"></a>00103                 <a class="code" href="class_n_m_r_m_e_m.html#00723d17fbea927ed557a0b33cf32194">clearFTBuf</a>(<a class="code" href="class_n_m_r_m_e_m.html#467b146f3c416cd3125ee42936e53037">m_accumDY</a>);
+<a name="l00104"></a>00104                 std::fill(<a class="code" href="class_n_m_r_m_e_m.html#91e2bc53feadc0e5d17229ecac7c0329">m_accumG2</a>.begin(), <a class="code" href="class_n_m_r_m_e_m.html#91e2bc53feadc0e5d17229ecac7c0329">m_accumG2</a>.end(), 0.0);
+<a name="l00105"></a>00105                 <a class="code" href="class_n_m_r_m_e_m.html#1be906099fb184f49426e91be2f4f6ef">m_accumZ</a> = t;
+<a name="l00106"></a>00106                 <span class="keywordtype">double</span> oerr = sqrtpow;
+<a name="l00107"></a>00107                 <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> it = 0; it &lt; 50; it++) {
+<a name="l00108"></a>00108                         err = <a class="code" href="class_n_m_r_m_e_m.html#c9f97372b0d2046ce902592152d329a6">stepMEM</a>(memin, memout, alpha, sigma, t0, torr);
+<a name="l00109"></a>00109                         <span class="keywordflow">if</span>(err &lt; torr * sqrtpow) {
+<a name="l00110"></a>00110                                 <span class="keywordflow">break</span>;
+<a name="l00111"></a>00111                         }
+<a name="l00112"></a>00112                         <span class="keywordflow">if</span>(err &gt; sqrtpow * 1.1) {
+<a name="l00113"></a>00113                                 <span class="keywordflow">break</span>;
+<a name="l00114"></a>00114                         }
+<a name="l00115"></a>00115                         <span class="keywordflow">if</span>(err &gt; oerr * 1.5) {
+<a name="l00116"></a>00116                                 <span class="keywordflow">break</span>;
+<a name="l00117"></a>00117                         }
+<a name="l00118"></a>00118                         oerr = err;
+<a name="l00119"></a>00119                 }
+<a name="l00120"></a>00120                 <span class="keywordflow">if</span>(err &lt; torr * sqrtpow) {
+<a name="l00121"></a>00121                         fprintf(stderr, <span class="stringliteral">"MEM: Converged w/ alpha=%g, err=%g\n"</span>, alpha, err);
+<a name="l00122"></a>00122                         <span class="keywordtype">double</span> osqrtpow = 0.0;
+<a name="l00123"></a>00123                         <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; memout.size(); i++)
+<a name="l00124"></a>00124                                 osqrtpow += memout[i].re*memout[i].re + memout[i].im*memout[i].im;
+<a name="l00125"></a>00125                         osqrtpow = sqrt(osqrtpow / n);
+<a name="l00126"></a>00126                         fprintf(stderr, <span class="stringliteral">"MEM: Pout/Pin=%g\n"</span>, osqrtpow/sqrtpow);
+<a name="l00127"></a>00127                         <span class="keywordflow">return</span> <span class="keyword">true</span>;
+<a name="l00128"></a>00128                 }
+<a name="l00129"></a>00129                 <span class="keywordflow">else</span> {
+<a name="l00130"></a>00130                         fprintf(stderr, <span class="stringliteral">"MEM: Failed w/ alpha=%g, err=%g\n"</span>, alpha, err);
+<a name="l00131"></a>00131                 }
+<a name="l00132"></a>00132         }
+<a name="l00133"></a>00133         fprintf(stderr, <span class="stringliteral">"MEM: Use ZF-FFT instead.\n"</span>);
+<a name="l00134"></a>00134         clearFTBuf(m_ifft);
+<a name="l00135"></a>00135         <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; t; i++) {
+<a name="l00136"></a>00136                 fftw_complex *pout = &amp;m_ifft[(t0 + i) % n];
+<a name="l00137"></a>00137                 pout-&gt;re = memin[i].re;
+<a name="l00138"></a>00138                 pout-&gt;im = memin[i].im;
+<a name="l00139"></a>00139         }
+<a name="l00140"></a>00140         clearFTBuf(memout);
+<a name="l00141"></a>00141         fftw_one(m_fftplanN, &amp;m_ifft[0], &amp;memout[0]);                   
+<a name="l00142"></a>00142         <span class="keywordflow">return</span> <span class="keyword">false</span>;
+<a name="l00143"></a>00143 }
+<a name="l00144"></a>00144 <span class="keywordtype">double</span>
+<a name="l00145"></a><a class="code" href="class_n_m_r_m_e_m.html#c9f97372b0d2046ce902592152d329a6">00145</a> <a class="code" href="class_n_m_r_m_e_m.html#c9f97372b0d2046ce902592152d329a6">NMRMEM::stepMEM</a>(<span class="keyword">const</span> std::vector&lt;fftw_complex&gt;&amp; memin, std::vector&lt;fftw_complex&gt;&amp; memout, 
+<a name="l00146"></a>00146         <span class="keywordtype">double</span> alpha, <span class="keywordtype">double</span> sigma, <span class="keywordtype">int</span> t0, <span class="keywordtype">double</span> torr) {
+<a name="l00147"></a>00147         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> n = <a class="code" href="class_n_m_r_m_e_m.html#f9f90448245c472f164ff13e1862d415">m_ifft</a>.size();
+<a name="l00148"></a>00148         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> t = memin.size();
+<a name="l00149"></a>00149         <span class="keywordtype">double</span> isigma = 1.0 / sigma;
+<a name="l00150"></a>00150         std::vector&lt;fftw_complex&gt; &amp;lambdaZF(<a class="code" href="class_n_m_r_m_e_m.html#f9f90448245c472f164ff13e1862d415">m_ifft</a>);
+<a name="l00151"></a>00151         <a class="code" href="class_n_m_r_m_e_m.html#00723d17fbea927ed557a0b33cf32194">clearFTBuf</a>(lambdaZF);
+<a name="l00152"></a>00152         fftw_complex *plambda = &amp;<a class="code" href="class_n_m_r_m_e_m.html#cc0b53f8d0079b17959de48aa7745594">m_lambda</a>[0];
+<a name="l00153"></a>00153         <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; t; i++) {
+<a name="l00154"></a>00154                 fftw_complex *pout = &amp;lambdaZF[(t0 + i) % n];
+<a name="l00155"></a>00155                 pout-&gt;re = plambda-&gt;re * isigma;
+<a name="l00156"></a>00156                 pout-&gt;im = plambda-&gt;im * isigma;
+<a name="l00157"></a>00157                 plambda++;
+<a name="l00158"></a>00158         }
+<a name="l00159"></a>00159         fftw_one(m_ifftplanN, &amp;lambdaZF[0], &amp;memout[0]);
+<a name="l00160"></a>00160         std::vector&lt;double&gt; pfz(n);
+<a name="l00161"></a>00161         <span class="keywordtype">double</span> sumz = 0.0;
+<a name="l00162"></a>00162         <span class="keywordtype">double</span> *ppfz = &amp;pfz[0];
+<a name="l00163"></a>00163         fftw_complex *pmemout = &amp;memout[0];
+<a name="l00164"></a>00164         <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; n; i++) {
+<a name="l00165"></a>00165                 *ppfz = exp(pmemout-&gt;re*pmemout-&gt;re + pmemout-&gt;im*pmemout-&gt;im);
+<a name="l00166"></a>00166                 sumz += *ppfz++;
+<a name="l00167"></a>00167                 pmemout++;
+<a name="l00168"></a>00168         }
+<a name="l00169"></a>00169         <span class="keywordtype">double</span> k = 2.0 * sigma / sumz * n;
+<a name="l00170"></a>00170         ppfz = &amp;pfz[0];
+<a name="l00171"></a>00171         pmemout = &amp;memout[0];
+<a name="l00172"></a>00172         <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; n; i++) {
+<a name="l00173"></a>00173                 <span class="keywordtype">double</span> p = k * *ppfz++;
+<a name="l00174"></a>00174                 pmemout-&gt;re *= p;
+<a name="l00175"></a>00175                 pmemout-&gt;im *= -p;
+<a name="l00176"></a>00176                 pmemout++;
+<a name="l00177"></a>00177         }
+<a name="l00178"></a>00178         fftw_one(m_ifftplanN, &amp;memout[0], &amp;m_ifft[0]);
+<a name="l00179"></a>00179         k = 1.0 / n;
+<a name="l00180"></a>00180         fftw_complex *pifft = &amp;m_ifft[0];
+<a name="l00181"></a>00181         <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; n; i++) {
+<a name="l00182"></a>00182                 pifft-&gt;re *= k; 
+<a name="l00183"></a>00183                 pifft-&gt;im *= k;
+<a name="l00184"></a>00184                 pifft++;
+<a name="l00185"></a>00185         }
+<a name="l00186"></a>00186         
+<a name="l00187"></a>00187         k = alpha / t / sigma / 2;
+<a name="l00188"></a>00188         <span class="keywordtype">double</span> err = 0.0;
+<a name="l00189"></a>00189         <span class="keyword">const</span> fftw_complex *pmemin = &amp;memin[0];
+<a name="l00190"></a>00190         fftw_complex *pout = &amp;m_accumDY[0];
+<a name="l00191"></a>00191         <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; t; i++) {
+<a name="l00192"></a>00192                 fftw_complex *pifft = &amp;m_ifft[(t0 + i) % n];
+<a name="l00193"></a>00193                 fftw_complex dy;
+<a name="l00194"></a>00194                 dy.re = pmemin-&gt;re - pifft-&gt;re;
+<a name="l00195"></a>00195                 dy.im = pmemin-&gt;im - pifft-&gt;im;
+<a name="l00196"></a>00196                 pmemin++;
+<a name="l00197"></a>00197                 err += dy.re*dy.re + dy.im*dy.im;
+<a name="l00198"></a>00198                 pout-&gt;re += dy.re * k;
+<a name="l00199"></a>00199                 pout-&gt;im += dy.im * k;
+<a name="l00200"></a>00200                 pout++;
+<a name="l00201"></a>00201         }
+<a name="l00202"></a>00202         err = sqrt(err);
+<a name="l00203"></a>00203         
+<a name="l00204"></a>00204         fftw_one(m_fftplanT, &amp;m_accumDY[0], &amp;m_accumDYFT[0]);
+<a name="l00205"></a>00205         solveZ(torr);
+<a name="l00206"></a>00206         k = sigma / t;
+<a name="l00207"></a>00207         pout = &amp;m_accumDYFT[0];
+<a name="l00208"></a>00208         <span class="keywordflow">for</span>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> i = 0; i &lt; t; i++) {
+<a name="l00209"></a>00209                 fftw_complex z1 = *pout;
+<a name="l00210"></a>00210                 <span class="keywordtype">double</span> p = k * sqrt(m_accumG2[i] / (z1.re*z1.re + z1.im*z1.im));
+<a name="l00211"></a>00211                 pout-&gt;re *= p;
+<a name="l00212"></a>00212                 pout-&gt;im *= -p;
+<a name="l00213"></a>00213                 pout++;
+<a name="l00214"></a>00214         }
+<a name="l00215"></a>00215         fftw_one(m_fftplanT, &amp;m_accumDYFT[0], &amp;m_lambda[0]);
+<a name="l00216"></a>00216         <span class="keywordflow">return</span> err;
+<a name="l00217"></a>00217 }
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri Jan 4 16:11:28 2008に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
+</body>
+</html>

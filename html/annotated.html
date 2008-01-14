@@ -2,10 +2,27 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: 構成</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindexHL" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li id="current"><a href="classes.html"><span>クラス</span></a></li>
+    <li><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
+<div class="tabs">
+  <ul>
+    <li><a href="classes.html"><span>アルファベット順一覧</span></a></li>
+    <li id="current"><a href="annotated.html"><span>構成</span></a></li>
+    <li><a href="hierarchy.html"><span>クラス階層</span></a></li>
+    <li><a href="functions.html"><span>構成メンバ</span></a></li>
+  </ul></div>
 <h1>KAME2 構成</h1>クラス、構造体、共用体、インタフェースの説明です。<table>
+  <tr><td class="indexkey"><a class="el" href="class___x_item_node.html">_XItemNode&lt; TL, T1 &gt;</a></td><td class="indexvalue">A pointer to a <a class="el" href="class_x_list_node.html">XListNode</a> TL, T is value type </td></tr>
   <tr><td class="indexkey"><a class="el" href="class___x_listener_impl.html">_XListenerImpl&lt; Arg &gt;</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class___x_listener_shared.html">_XListenerShared&lt; tClass, Arg &gt;</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class___x_listener_static.html">_XListenerStatic&lt; Arg &gt;</a></td><td class="indexvalue"></td></tr>
@@ -13,20 +30,48 @@
   <tr><td class="indexkey"><a class="el" href="class___x_q_connector_holder.html">_XQConnectorHolder</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class___x_talker_base.html">_XTalkerBase</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="struct___x_transaction.html">_XTransaction</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="class_x_a_h2500_a.html">XAH2500A</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="class_x_alias_list_node.html">XAliasListNode&lt; NT &gt;</a></td><td class="indexvalue">Creation by UI is not allowed </td></tr>
-  <tr><td class="indexkey"><a class="el" href="class_x_approx_thermometer.html">XApproxThermometer</a></td><td class="indexvalue">Cubic (natural) spline approximation </td></tr>
-  <tr><td class="indexkey"><a class="el" href="classatomic.html">atomic&lt; T &gt;</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="classatomic__nonzero__value__queue.html">atomic_nonzero_value_queue&lt; T, SIZE, const_ref &gt;</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="structatomic__nonzero__value__queue_1_1nospace__error.html">atomic_nonzero_value_queue&lt; T, SIZE, const_ref &gt;::nospace_error</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="struct_a_r_context.html">ARContext</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="classatomic.html">atomic&lt; T, Enable &gt;</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="classatomic_1_1type.html">atomic&lt; T, Enable &gt;::type&lt; T &gt;</a></td><td class="indexvalue">Atomic access to POD type capable of CAS </td></tr>
+  <tr><td class="indexkey"><a class="el" href="classatomic_3_01_t_00_01typename_01boost_1_1enable__if__c_3(sizeof(int__cas2__both)==sizeof(_t))fbc9d7d7f53bff7e869d35aa51eade7d.html">atomic&lt; T, typename boost::enable_if_c&lt;(sizeof(int_cas2_both)==sizeof(T))&amp;&amp;boost::is_pod&lt; T &gt;::value &gt;::type &gt;</a></td><td class="indexvalue">Atomic access to POD type capable of CAS2 </td></tr>
+  <tr><td class="indexkey"><a class="el" href="classatomic__nonzero__pod__queue.html">atomic_nonzero_pod_queue&lt; T, SIZE, const_ref &gt;</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="structatomic__nonzero__pod__queue_1_1nospace__error.html">atomic_nonzero_pod_queue&lt; T, SIZE, const_ref &gt;::nospace_error</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="classatomic__pod__cas.html">atomic_pod_cas&lt; T &gt;</a></td><td class="indexvalue">Atomic access to POD type capable of CAS </td></tr>
+  <tr><td class="indexkey"><a class="el" href="classatomic__pod__cas2.html">atomic_pod_cas2&lt; T &gt;</a></td><td class="indexvalue">Atomic access to POD type capable of CAS2 </td></tr>
   <tr><td class="indexkey"><a class="el" href="classatomic__pointer__queue.html">atomic_pointer_queue&lt; T, SIZE &gt;</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="classatomic__queue.html">atomic_queue&lt; T, SIZE &gt;</a></td><td class="indexvalue">Atomic FIFO for copy-constructable class </td></tr>
   <tr><td class="indexkey"><a class="el" href="classatomic__queue__reserved.html">atomic_queue_reserved&lt; T, SIZE &gt;</a></td><td class="indexvalue">Atomic FIFO for copieable class </td></tr>
   <tr><td class="indexkey"><a class="el" href="classatomic__scoped__ptr.html">atomic_scoped_ptr&lt; T &gt;</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt; T &gt;</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="structatomic__shared__ptr_1_1___ref_local.html">atomic_shared_ptr&lt; T &gt;::_RefLocal</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="unionatomic__shared__ptr_1_1_refcnt_n_serial.html">atomic_shared_ptr&lt; T &gt;::RefcntNSerial</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="structatomic__shared__ptr__ref.html">atomic_shared_ptr_ref&lt; T &gt;</a></td><td class="indexvalue">Instance of Ref is only one per one object </td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_c_spline_approx.html">CSplineApprox</a></td><td class="indexvalue">Cubic (natural) spline approximation </td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_f_f_t.html">FFT</a></td><td class="indexvalue">Wrapper class for FFTW </td></tr>
+  <tr><td class="indexkey"><a class="el" href="struct_f_f_t_axis.html">FFTAxis</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_f_f_t_solver.html">FFTSolver</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_f_i_r_m_d_f_t.html">FIRMDFT</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_frm_kame_main.html">FrmKameMain</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="classkame__gc.html">kame_gc</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_m_e_m_burg.html">MEMBurg</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="struct_m_e_m_burg_context.html">MEMBurgContext</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_m_e_m_strict.html">MEMStrict</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_monte_carlo.html">MonteCarlo</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="struct_monte_carlo_1_1_field_real_array.html">MonteCarlo::FieldRealArray</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="struct_monte_carlo_1_1_packed_spin.html">MonteCarlo::PackedSpin</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="struct_monte_carlo_1_1_quartet.html">MonteCarlo::Quartet</a></td><td class="indexvalue">[mu_B/site] </td></tr>
+  <tr><td class="indexkey"><a class="el" href="struct_monte_carlo_1_1_vector3.html">MonteCarlo::Vector3&lt; T &gt;</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="classqshared__ptr.html">qshared_ptr&lt; T &gt;</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_spectrum_solver.html">SpectrumSolver</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_spectrum_solver_wrapper.html">SpectrumSolverWrapper</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="classtpat.html">tpat</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="struct_vector4.html">Vector4&lt; T &gt;</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="struct_x86_c_p_u_spec.html">X86CPUSpec</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_adaptive_spin_lock.html">XAdaptiveSpinLock</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_agilent_e5061.html">XAgilentE5061</a></td><td class="indexvalue">Agilent E5061A/5062A Network Analyzer </td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_agilent_network_analyzer.html">XAgilentNetworkAnalyzer</a></td><td class="indexvalue">Base class for HP/Agilent Network Analyzer </td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_a_h2500_a.html">XAH2500A</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_alias_list_node.html">XAliasListNode&lt; NT &gt;</a></td><td class="indexvalue">Creation by UI is not allowed </td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_approx_thermometer.html">XApproxThermometer</a></td><td class="indexvalue">Cubic (natural) spline approximation </td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_a_v_s47_i_b.html">XAVS47IB</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_axis.html">XAxis</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_char_device_driver.html">XCharDeviceDriver&lt; tDriver, tInterface &gt;</a></td><td class="indexvalue"></td></tr>
@@ -34,15 +79,13 @@
   <tr><td class="indexkey"><a class="el" href="class_x_chart_list.html">XChartList</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_combo_node.html">XComboNode</a></td><td class="indexvalue">Contain strings, value is one of strings </td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_con_cal_table.html">XConCalTable</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="class_x_condition.html">XCondition</a></td><td class="indexvalue">Condition class </td></tr>
-  <tr><td class="indexkey"><a class="el" href="class_x_cryocon.html">XCryocon</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="class_x_cryocon_m32.html">XCryoconM32</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="class_x_cryocon_m62.html">XCryoconM62</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="class_c_spline_approx.html">CSplineApprox</a></td><td class="indexvalue">Cubic (natural) spline approximation </td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_cryocon.html">XCryocon</a></td><td class="indexvalue">Cryo-con base class </td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_cryocon_m32.html">XCryoconM32</a></td><td class="indexvalue">Cryo-con Model 32 Cryogenic Inst </td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_cryocon_m62.html">XCryoconM62</a></td><td class="indexvalue">Cryo-con Model 62 Cryogenic Inst </td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_custom_type_list_node.html">XCustomTypeListNode&lt; NT &gt;</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_d_c_source.html">XDCSource</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_d_m_m.html">XDMM</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="class_x_d_m_m_s_c_p_i.html">XDMMSCPI</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_d_m_m_s_c_p_i.html">XDMMSCPI</a></td><td class="indexvalue">Base class for SCPI DMMs </td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_dot_writer.html">XDotWriter</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_double_node.html">XDoubleNode</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_driver.html">XDriver</a></td><td class="indexvalue">Base class for all instrument drivers </td></tr>
@@ -60,9 +103,6 @@
   <tr><td class="indexkey"><a class="el" href="class_x_entry_list_connector.html">XEntryListConnector</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="struct_x_entry_list_connector_1_1tcons.html">XEntryListConnector::tcons</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="struct_x_entry_list_connector_1_1tcons_1_1tlisttext.html">XEntryListConnector::tcons::tlisttext</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="struct_f_f_t_axis.html">FFTAxis</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="class_f_i_r.html">FIR</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="class_frm_kame_main.html">FrmKameMain</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_func_plot.html">XFuncPlot</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_func_synth.html">XFuncSynth</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_graph.html">XGraph</a></td><td class="indexvalue"></td></tr>
@@ -71,9 +111,14 @@
   <tr><td class="indexkey"><a class="el" href="struct_x_graph_list_connector_1_1tcons.html">XGraphListConnector::tcons</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_h8_pulser.html">XH8Pulser</a></td><td class="indexvalue">My pulser driver </td></tr>
   <tr><td class="indexkey"><a class="el" href="struct_x_h8_pulser_1_1h8ushort.html">XH8Pulser::h8ushort</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="class_x_h_p34420_a.html">XHP34420A</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_h_p34420_a.html">XHP34420A</a></td><td class="indexvalue">Agilent(Hewlett-Packard) 34420A nanovolt meter </td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_h_p3458_a.html">XHP3458A</a></td><td class="indexvalue">Agilent(Hewlett-Packard) 3458A DMM </td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_h_p3478_a.html">XHP3478A</a></td><td class="indexvalue">Agilent(Hewlett-Packard) 3478A DMM </td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_h_p8643.html">XHP8643</a></td><td class="indexvalue">Agilent 8643A, 8644A </td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_h_p8648.html">XHP8648</a></td><td class="indexvalue">Agilent 8648 </td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_h_p8664.html">XHP8664</a></td><td class="indexvalue">Agilent 8664A, 8665A </td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_h_p8711.html">XHP8711</a></td><td class="indexvalue">HP/Agilent 8711C/8712C/8713C/8714C Network Analyzer </td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_i_l_m.html">XILM</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_interface.html">XInterface</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="struct_x_interface_1_1_x_conv_error.html">XInterface::XConvError</a></td><td class="indexvalue"></td></tr>
@@ -83,12 +128,11 @@
   <tr><td class="indexkey"><a class="el" href="class_x_interface_list_connector.html">XInterfaceListConnector</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="struct_x_interface_list_connector_1_1tcons.html">XInterfaceListConnector::tcons</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_i_p_s120.html">XIPS120</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="class_x_i_t_c503.html">XITC503</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="class_x_item_node.html">XItemNode&lt; TL, T &gt;</a></td><td class="indexvalue">A pointer to a <a class="el" href="class_x_list_node.html">XListNode</a> TL, T is value type </td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_i_t_c503.html">XITC503</a></td><td class="indexvalue">ITC503 Oxford </td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_item_node.html">XItemNode&lt; TL, T1, T2 &gt;</a></td><td class="indexvalue">A pointer to a <a class="el" href="class_x_list_node.html">XListNode</a> TL, T is value type </td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_item_node_base.html">XItemNodeBase</a></td><td class="indexvalue">Posses a pointer to a member of a list </td></tr>
   <tr><td class="indexkey"><a class="el" href="struct_x_item_node_base_1_1_item.html">XItemNodeBase::Item</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_item_q_connector.html">XItemQConnector</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="classkame__gc.html">kame_gc</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="struct_x_kame_error.html">XKameError</a></td><td class="indexvalue">Base of exception </td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_k_color_button_connector.html">XKColorButtonConnector</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_k_color_combo_connector.html">XKColorComboConnector</a></td><td class="indexvalue"></td></tr>
@@ -100,22 +144,21 @@
   <tr><td class="indexkey"><a class="el" href="class_x_k_led_connector.html">XKLedConnector</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_k_u_r_l_req_connector.html">XKURLReqConnector</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_lake_shore.html">XLakeShore</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="class_x_lake_shore340.html">XLakeShore340</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_lake_shore340.html">XLakeShore340</a></td><td class="indexvalue">LakeShore 340 </td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_level_meter.html">XLevelMeter</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_l_i_a.html">XLIA</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_listener.html">XListener</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_list_node.html">XListNode&lt; NT &gt;</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_list_node_base.html">XListNodeBase</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="struct_x_list_node_base_1_1_move_event.html">XListNodeBase::MoveEvent</a></td><td class="indexvalue">Called after moving </td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_list_q_connector.html">XListQConnector</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_l_m500.html">XLM500</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_magnet_p_s.html">XMagnetPS</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_measure.html">XMeasure</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="class_monte_carlo.html">MonteCarlo</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="struct_monte_carlo_1_1_field_real_array.html">MonteCarlo::FieldRealArray</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="struct_monte_carlo_1_1_packed_spin.html">MonteCarlo::PackedSpin</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="struct_monte_carlo_1_1_quartet.html">MonteCarlo::Quartet</a></td><td class="indexvalue">[mu_B/site] </td></tr>
-  <tr><td class="indexkey"><a class="el" href="struct_monte_carlo_1_1_vector3.html">MonteCarlo::Vector3&lt; T &gt;</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_micro_task_t_c_s.html">XMicroTaskTCS</a></td><td class="indexvalue">MicroTask/Leiden Triple Current Source </td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_monte_carlo_driver.html">XMonteCarloDriver</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="class_x_mutex.html">XMutex</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_neocera_l_t_c21.html">XNeoceraLTC21</a></td><td class="indexvalue">Neocera LTC-21 </td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_network_analyzer.html">XNetworkAnalyzer</a></td><td class="indexvalue">Base class for digital storage oscilloscope </td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_n_i_d_a_q_a_o_d_o_pulser.html">XNIDAQAODOPulser</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_n_i_d_a_q_d_o_pulser.html">XNIDAQDOPulser</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_n_i_d_a_q_m_series_with_s_series_pulser.html">XNIDAQMSeriesWithSSeriesPulser</a></td><td class="indexvalue"></td></tr>
@@ -133,11 +176,14 @@
   <tr><td class="indexkey"><a class="el" href="class_x_n_m_r_f_spectrum.html">XNMRFSpectrum</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_n_m_r_pulse_analyzer.html">XNMRPulseAnalyzer</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_n_m_r_spectrum.html">XNMRSpectrum</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_n_m_r_spectrum_base.html">XNMRSpectrumBase&lt; FRM &gt;</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_n_m_r_t1.html">XNMRT1</a></td><td class="indexvalue">Measure Relaxation Curve </td></tr>
+  <tr><td class="indexkey"><a class="el" href="struct_x_n_m_r_t1_1_1_convolution_cache.html">XNMRT1::ConvolutionCache</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="struct_x_n_m_r_t1_1_1_n_l_l_s.html">XNMRT1::NLLS</a></td><td class="indexvalue">For Non-Lenear-Least-Square fitting </td></tr>
   <tr><td class="indexkey"><a class="el" href="struct_x_n_m_r_t1_1_1_pt.html">XNMRT1::Pt</a></td><td class="indexvalue">For fitting and display </td></tr>
   <tr><td class="indexkey"><a class="el" href="struct_x_n_m_r_t1_1_1_raw_pt.html">XNMRT1::RawPt</a></td><td class="indexvalue">Raw measured points </td></tr>
-  <tr><td class="indexkey"><a class="el" href="class_x_node.html">XNode</a></td><td class="indexvalue">XNode supports loading/saveing to XML, GUI framework, basic signaling among threads </td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_node.html">XNode</a></td><td class="indexvalue"><a class="el" href="class_x_node.html">XNode</a> supports loading/saveing to XML, GUI framework, basic signaling among threads </td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_node_browser.html">XNodeBrowser</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_oxford_driver.html">XOxfordDriver&lt; tDriver &gt;</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_oxford_interface.html">XOxfordInterface</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_plot.html">XPlot</a></td><td class="indexvalue"></td></tr>
@@ -147,6 +193,8 @@
   <tr><td class="indexkey"><a class="el" href="class_x_posix_serial_port.html">XPosixSerialPort</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_primary_driver.html">XPrimaryDriver</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_p_s120.html">XPS120</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_pthread_condition.html">XPthreadCondition</a></td><td class="indexvalue">Condition class </td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_pthread_mutex.html">XPthreadMutex</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_pulser.html">XPulser</a></td><td class="indexvalue">Base class of NMR Pulsers </td></tr>
   <tr><td class="indexkey"><a class="el" href="struct_x_pulser_1_1_rel_pat.html">XPulser::RelPat</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_q_button_connector.html">XQButtonConnector</a></td><td class="indexvalue"></td></tr>
@@ -160,7 +208,6 @@
   <tr><td class="indexkey"><a class="el" href="class_x_q_line_edit_connector.html">XQLineEditConnector</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_q_list_box_connector.html">XQListBoxConnector</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_q_pulser_driver_connector.html">XQPulserDriverConnector</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="classqshared__ptr.html">qshared_ptr&lt; T &gt;</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_q_spin_box_connector.html">XQSpinBoxConnector</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_q_text_browser_connector.html">XQTextBrowserConnector</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_q_toggle_button_connector.html">XQToggleButtonConnector</a></td><td class="indexvalue"></td></tr>
@@ -183,14 +230,14 @@
   <tr><td class="indexkey"><a class="el" href="class_x_relax_func_plot.html">XRelaxFuncPlot</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_relax_func_poly.html">XRelaxFuncPoly</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="struct_x_relax_func_poly_1_1_term.html">XRelaxFuncPoly::Term</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="class_x_relax_func_sqrt.html">XRelaxFuncSqrt</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_relax_func_pow_exp.html">XRelaxFuncPowExp</a></td><td class="indexvalue">Power exponential </td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_ruby.html">XRuby</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="struct_x_ruby_1_1rnode__ptr.html">XRuby::rnode_ptr</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="struct_x_ruby_1_1t_create_child.html">XRuby::tCreateChild</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_ruby_thread.html">XRubyThread</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_ruby_thread_connector.html">XRubyThreadConnector</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_ruby_writer.html">XRubyWriter</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="class_x_r_w_lock.html">XRWLock</a></td><td class="indexvalue">Recursive (<a class="el" href="class_x_r_w_lock.html#a2">readLock()</a> only) read-write lock </td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_r_w_lock.html">XRWLock</a></td><td class="indexvalue">Recursive (<a class="el" href="class_x_r_w_lock.html#a22a87cee680cb721e12eadf3abc68f9">readLock()</a> only) read-write lock </td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_scalar_entry.html">XScalarEntry</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_scalar_entry_list.html">XScalarEntryList</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_scientific_instruments.html">XScientificInstruments</a></td><td class="indexvalue"></td></tr>
@@ -204,6 +251,7 @@
   <tr><td class="indexkey"><a class="el" href="class_x_s_g7200.html">XSG7200</a></td><td class="indexvalue">KENWOOD SG-7200 </td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_s_h_pulser.html">XSHPulser</a></td><td class="indexvalue">My pulser driver </td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_signal_buffer.html">XSignalBuffer</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_spin_lock.html">XSpinLock</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_s_r830.html">XSR830</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_status_printer.html">XStatusPrinter</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="struct_x_status_printer_1_1tstatus.html">XStatusPrinter::tstatus</a></td><td class="indexvalue"></td></tr>
@@ -225,7 +273,6 @@
   <tr><td class="indexkey"><a class="el" href="class_x_thread_local.html">XThreadLocal&lt; T &gt;</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_thread_local_p_o_d.html">XThreadLocalPOD&lt; T &gt;</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_time.html">XTime</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="classtpat.html">tpat</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="struct_x_type_holder.html">XTypeHolder&lt; tFunc &gt;</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="struct_x_type_holder_1_1_creator.html">XTypeHolder&lt; tFunc &gt;::Creator&lt; tChild &gt;</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_val_chart.html">XValChart</a></td><td class="indexvalue"></td></tr>
@@ -233,14 +280,16 @@
   <tr><td class="indexkey"><a class="el" href="class_x_value_node.html">XValueNode&lt; T, base &gt;</a></td><td class="indexvalue">Base class for atomic reading value node </td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_value_node_base.html">XValueNodeBase</a></td><td class="indexvalue">Base class containing values </td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_value_q_connector.html">XValueQConnector</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="struct_vector4.html">Vector4&lt; T &gt;</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_w_a_v_e_f_a_c_t_o_r_y.html">XWAVEFACTORY</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_wave_n_graph.html">XWaveNGraph</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="struct_x_wave_n_graph_1_1_plot.html">XWaveNGraph::Plot</a></td><td class="indexvalue"></td></tr>
   <tr><td class="indexkey"><a class="el" href="class_x_x_y_plot.html">XXYPlot</a></td><td class="indexvalue"></td></tr>
-  <tr><td class="indexkey"><a class="el" href="class_x_y_k7651.html">XYK7651</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_x_y_k7651.html">XYK7651</a></td><td class="indexvalue">YOKOGAWA 7551 DC V/DC A source </td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_yule_walker_a_r.html">YuleWalkerAR</a></td><td class="indexvalue"></td></tr>
+  <tr><td class="indexkey"><a class="el" href="class_yule_walker_cousin.html">YuleWalkerCousin&lt; Context &gt;</a></td><td class="indexvalue"></td></tr>
 </table>
-<hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:19 2007に生成されました。&nbsp;
+<hr size="1"><address style="align: right;"><small>KAME2に対してMon Jan 14 03:59:43 2008に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
 </html>

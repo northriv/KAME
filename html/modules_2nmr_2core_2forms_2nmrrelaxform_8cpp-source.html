@@ -1,0 +1,418 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: /Users/northriv/Documents/Projects/KAME/macosx/modules/nmr/core/forms/nmrrelaxform.cpp ソースファイル</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
+<div class="nav">
+<a class="el" href="dir_267cfcb898ce0973ecee1ed2b0a886dd.html">macosx</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_14157fc29c1cfb094be318b2880657b1.html">modules</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_3ff4ce1d6c55cf61c179f19af6f54927.html">nmr</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_ab56e74c5e6f796e8ce39a072284ade5.html">core</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_b93e6311fed345cdc01eac8a0f48750e.html">forms</a></div>
+<h1>nmrrelaxform.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="preprocessor">#include &lt;kdialog.h&gt;</span>
+<a name="l00002"></a>00002 <span class="preprocessor">#include &lt;klocale.h&gt;</span>
+<a name="l00003"></a>00003 <span class="comment">/****************************************************************************</span>
+<a name="l00004"></a>00004 <span class="comment">** Form implementation generated from reading ui file '/Users/northriv/Documents/Projects/KAME/2.2/modules/nmr/core/forms/nmrrelaxform.ui'</span>
+<a name="l00005"></a>00005 <span class="comment">**</span>
+<a name="l00006"></a>00006 <span class="comment">** Created: 羂�  1 2 01:28:43 2008</span>
+<a name="l00007"></a>00007 <span class="comment">**      by: The User Interface Compiler ($Id: modules_2nmr_2core_2forms_2nmrrelaxform_8cpp-source.html,v 1.1 2008/01/14 09:42:38 northriv Exp $)</span>
+<a name="l00008"></a>00008 <span class="comment">**</span>
+<a name="l00009"></a>00009 <span class="comment">** WARNING! All changes made in this file will be lost!</span>
+<a name="l00010"></a>00010 <span class="comment">****************************************************************************/</span>
+<a name="l00011"></a>00011 
+<a name="l00012"></a>00012 <span class="preprocessor">#include "nmrrelaxform.h"</span>
+<a name="l00013"></a>00013 
+<a name="l00014"></a>00014 <span class="preprocessor">#include &lt;qvariant.h&gt;</span>
+<a name="l00015"></a>00015 <span class="preprocessor">#include &lt;qpushbutton.h&gt;</span>
+<a name="l00016"></a>00016 <span class="preprocessor">#include &lt;qsplitter.h&gt;</span>
+<a name="l00017"></a>00017 <span class="preprocessor">#include &lt;qlabel.h&gt;</span>
+<a name="l00018"></a>00018 <span class="preprocessor">#include &lt;qcombobox.h&gt;</span>
+<a name="l00019"></a>00019 <span class="preprocessor">#include &lt;qgroupbox.h&gt;</span>
+<a name="l00020"></a>00020 <span class="preprocessor">#include &lt;qlineedit.h&gt;</span>
+<a name="l00021"></a>00021 <span class="preprocessor">#include &lt;qtextbrowser.h&gt;</span>
+<a name="l00022"></a>00022 <span class="preprocessor">#include &lt;knuminput.h&gt;</span>
+<a name="l00023"></a>00023 <span class="preprocessor">#include &lt;qcheckbox.h&gt;</span>
+<a name="l00024"></a>00024 <span class="preprocessor">#include &lt;kurlrequester.h&gt;</span>
+<a name="l00025"></a>00025 <span class="preprocessor">#include &lt;qlayout.h&gt;</span>
+<a name="l00026"></a>00026 <span class="preprocessor">#include &lt;qtooltip.h&gt;</span>
+<a name="l00027"></a>00027 <span class="preprocessor">#include &lt;qwhatsthis.h&gt;</span>
+<a name="l00028"></a>00028 <span class="preprocessor">#include &lt;qaction.h&gt;</span>
+<a name="l00029"></a>00029 <span class="preprocessor">#include &lt;qmenubar.h&gt;</span>
+<a name="l00030"></a>00030 <span class="preprocessor">#include &lt;qpopupmenu.h&gt;</span>
+<a name="l00031"></a>00031 <span class="preprocessor">#include &lt;qtoolbar.h&gt;</span>
+<a name="l00032"></a>00032 <span class="preprocessor">#include "knuminput.h"</span>
+<a name="l00033"></a>00033 <span class="preprocessor">#include "graphwidget.h"</span>
+<a name="l00034"></a>00034 <span class="preprocessor">#include "kurlrequester.h"</span>
+<a name="l00035"></a>00035 <span class="preprocessor">#include "klineedit.h"</span>
+<a name="l00036"></a>00036 <span class="preprocessor">#include "kpushbutton.h"</span>
+<a name="l00037"></a>00037 
+<a name="l00038"></a>00038 <span class="comment">/*</span>
+<a name="l00039"></a>00039 <span class="comment"> *  Constructs a FrmNMRT1 as a child of 'parent', with the</span>
+<a name="l00040"></a>00040 <span class="comment"> *  name 'name' and widget flags set to 'f'.</span>
+<a name="l00041"></a>00041 <span class="comment"> *</span>
+<a name="l00042"></a>00042 <span class="comment"> */</span>
+<a name="l00043"></a>00043 <a class="code" href="class_frm_n_m_r_t1.html#648c677aeb81350c88696df793a6afa1">FrmNMRT1::FrmNMRT1</a>( QWidget* parent, <span class="keyword">const</span> <span class="keywordtype">char</span>* name, WFlags fl )
+<a name="l00044"></a>00044     : QMainWindow( parent, name, fl )
+<a name="l00045"></a>00045 {
+<a name="l00046"></a>00046     (void)statusBar();
+<a name="l00047"></a>00047     <span class="keywordflow">if</span> ( !name )
+<a name="l00048"></a>00048         setName( <span class="stringliteral">"FrmNMRT1"</span> );
+<a name="l00049"></a>00049     setCentralWidget( <span class="keyword">new</span> QWidget( <span class="keyword">this</span>, <span class="stringliteral">"qt_central_widget"</span> ) );
+<a name="l00050"></a>00050     <a class="code" href="class_frm_n_m_r_t1.html#39945f47042046570d5f0a75a413346d">FrmNMRT1Layout</a> = <span class="keyword">new</span> QGridLayout( centralWidget(), 1, 1, 2, 6, <span class="stringliteral">"FrmNMRT1Layout"</span>); 
+<a name="l00051"></a>00051 
+<a name="l00052"></a>00052     <a class="code" href="class_frm_n_m_r_t1.html#c4ce730bb7c6da3de80a2c5da49d5ff0">splitter1</a> = <span class="keyword">new</span> QSplitter( centralWidget(), <span class="stringliteral">"splitter1"</span> );
+<a name="l00053"></a>00053     <a class="code" href="class_frm_n_m_r_t1.html#c4ce730bb7c6da3de80a2c5da49d5ff0">splitter1</a>-&gt;setOrientation( QSplitter::Horizontal );
+<a name="l00054"></a>00054 
+<a name="l00055"></a>00055     QWidget* privateLayoutWidget = <span class="keyword">new</span> QWidget( <a class="code" href="class_frm_n_m_r_t1.html#c4ce730bb7c6da3de80a2c5da49d5ff0">splitter1</a>, <span class="stringliteral">"layout19"</span> );
+<a name="l00056"></a>00056     <a class="code" href="class_frm_n_m_r_t1.html#0a5cf76bbbba824a8544efaf61d8c199">layout19</a> = <span class="keyword">new</span> QVBoxLayout( privateLayoutWidget, 0, 0, <span class="stringliteral">"layout19"</span>); 
+<a name="l00057"></a>00057 
+<a name="l00058"></a>00058     <a class="code" href="class_frm_n_m_r_t1.html#f5cae1e7608a9b4390f61d0db12eeb96">layout23</a> = <span class="keyword">new</span> QVBoxLayout( 0, 0, 6, <span class="stringliteral">"layout23"</span>); 
+<a name="l00059"></a>00059 
+<a name="l00060"></a>00060     <a class="code" href="class_frm_n_m_r_t1.html#14ba1af8bcbdde94d1e98f2cff70c406">layout18_2_2</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout18_2_2"</span>); 
+<a name="l00061"></a>00061 
+<a name="l00062"></a>00062     <a class="code" href="class_frm_n_m_r_t1.html#4a92e984a837360ebe9ed19e35567a7f">textLabel1_3_2_2</a> = <span class="keyword">new</span> QLabel( privateLayoutWidget, <span class="stringliteral">"textLabel1_3_2_2"</span> );
+<a name="l00063"></a>00063     <a class="code" href="class_frm_n_m_r_t1.html#4a92e984a837360ebe9ed19e35567a7f">textLabel1_3_2_2</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#4a92e984a837360ebe9ed19e35567a7f">textLabel1_3_2_2</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00064"></a>00064     <a class="code" href="class_frm_n_m_r_t1.html#14ba1af8bcbdde94d1e98f2cff70c406">layout18_2_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#4a92e984a837360ebe9ed19e35567a7f">textLabel1_3_2_2</a> );
+<a name="l00065"></a>00065 
+<a name="l00066"></a>00066     <a class="code" href="class_frm_n_m_r_t1.html#130473fd4fa7a239f17f60de66c23baa">m_cmbPulse1</a> = <span class="keyword">new</span> QComboBox( FALSE, privateLayoutWidget, <span class="stringliteral">"m_cmbPulse1"</span> );
+<a name="l00067"></a>00067     <a class="code" href="class_frm_n_m_r_t1.html#130473fd4fa7a239f17f60de66c23baa">m_cmbPulse1</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)1, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#130473fd4fa7a239f17f60de66c23baa">m_cmbPulse1</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00068"></a>00068     <a class="code" href="class_frm_n_m_r_t1.html#14ba1af8bcbdde94d1e98f2cff70c406">layout18_2_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#130473fd4fa7a239f17f60de66c23baa">m_cmbPulse1</a> );
+<a name="l00069"></a>00069     <a class="code" href="class_frm_n_m_r_t1.html#f5cae1e7608a9b4390f61d0db12eeb96">layout23</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_t1.html#14ba1af8bcbdde94d1e98f2cff70c406">layout18_2_2</a> );
+<a name="l00070"></a>00070 
+<a name="l00071"></a>00071     <a class="code" href="class_frm_n_m_r_t1.html#e478a4065449536a63f009c1ca5c314a">layout18_2</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout18_2"</span>); 
+<a name="l00072"></a>00072 
+<a name="l00073"></a>00073     <a class="code" href="class_frm_n_m_r_t1.html#0b3f6f9df8194fa8fa1a5f6a7bf913c9">textLabel1_3_2</a> = <span class="keyword">new</span> QLabel( privateLayoutWidget, <span class="stringliteral">"textLabel1_3_2"</span> );
+<a name="l00074"></a>00074     <a class="code" href="class_frm_n_m_r_t1.html#0b3f6f9df8194fa8fa1a5f6a7bf913c9">textLabel1_3_2</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#0b3f6f9df8194fa8fa1a5f6a7bf913c9">textLabel1_3_2</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00075"></a>00075     <a class="code" href="class_frm_n_m_r_t1.html#e478a4065449536a63f009c1ca5c314a">layout18_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#0b3f6f9df8194fa8fa1a5f6a7bf913c9">textLabel1_3_2</a> );
+<a name="l00076"></a>00076 
+<a name="l00077"></a>00077     <a class="code" href="class_frm_n_m_r_t1.html#5743180d81fd52f7980ac0a0e4e226b8">m_cmbPulse2</a> = <span class="keyword">new</span> QComboBox( FALSE, privateLayoutWidget, <span class="stringliteral">"m_cmbPulse2"</span> );
+<a name="l00078"></a>00078     <a class="code" href="class_frm_n_m_r_t1.html#5743180d81fd52f7980ac0a0e4e226b8">m_cmbPulse2</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)1, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#5743180d81fd52f7980ac0a0e4e226b8">m_cmbPulse2</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00079"></a>00079     <a class="code" href="class_frm_n_m_r_t1.html#e478a4065449536a63f009c1ca5c314a">layout18_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#5743180d81fd52f7980ac0a0e4e226b8">m_cmbPulse2</a> );
+<a name="l00080"></a>00080     <a class="code" href="class_frm_n_m_r_t1.html#f5cae1e7608a9b4390f61d0db12eeb96">layout23</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_t1.html#e478a4065449536a63f009c1ca5c314a">layout18_2</a> );
+<a name="l00081"></a>00081 
+<a name="l00082"></a>00082     <a class="code" href="class_frm_n_m_r_t1.html#03d9a3cc4809307850af3ab1b32e9ae3">layout18</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout18"</span>); 
+<a name="l00083"></a>00083 
+<a name="l00084"></a>00084     <a class="code" href="class_frm_n_m_r_t1.html#9af8ed4d03efc5c8298c7a665d384328">textLabel1_3</a> = <span class="keyword">new</span> QLabel( privateLayoutWidget, <span class="stringliteral">"textLabel1_3"</span> );
+<a name="l00085"></a>00085     <a class="code" href="class_frm_n_m_r_t1.html#9af8ed4d03efc5c8298c7a665d384328">textLabel1_3</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#9af8ed4d03efc5c8298c7a665d384328">textLabel1_3</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00086"></a>00086     <a class="code" href="class_frm_n_m_r_t1.html#03d9a3cc4809307850af3ab1b32e9ae3">layout18</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#9af8ed4d03efc5c8298c7a665d384328">textLabel1_3</a> );
+<a name="l00087"></a>00087 
+<a name="l00088"></a>00088     <a class="code" href="class_frm_n_m_r_t1.html#dfac6ef6c16bfced145ca27375182af4">m_cmbPulser</a> = <span class="keyword">new</span> QComboBox( FALSE, privateLayoutWidget, <span class="stringliteral">"m_cmbPulser"</span> );
+<a name="l00089"></a>00089     <a class="code" href="class_frm_n_m_r_t1.html#dfac6ef6c16bfced145ca27375182af4">m_cmbPulser</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)1, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#dfac6ef6c16bfced145ca27375182af4">m_cmbPulser</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00090"></a>00090     <a class="code" href="class_frm_n_m_r_t1.html#03d9a3cc4809307850af3ab1b32e9ae3">layout18</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#dfac6ef6c16bfced145ca27375182af4">m_cmbPulser</a> );
+<a name="l00091"></a>00091     <a class="code" href="class_frm_n_m_r_t1.html#f5cae1e7608a9b4390f61d0db12eeb96">layout23</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_t1.html#03d9a3cc4809307850af3ab1b32e9ae3">layout18</a> );
+<a name="l00092"></a>00092     <a class="code" href="class_frm_n_m_r_t1.html#0a5cf76bbbba824a8544efaf61d8c199">layout19</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_t1.html#f5cae1e7608a9b4390f61d0db12eeb96">layout23</a> );
+<a name="l00093"></a>00093 
+<a name="l00094"></a>00094     <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a> = <span class="keyword">new</span> QGroupBox( privateLayoutWidget, <span class="stringliteral">"groupBox5"</span> );
+<a name="l00095"></a>00095     <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>-&gt;setFrameShape( QGroupBox::GroupBoxPanel );
+<a name="l00096"></a>00096     <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>-&gt;setMargin( 0 );
+<a name="l00097"></a>00097     <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>-&gt;setColumnLayout(0, Qt::Vertical );
+<a name="l00098"></a>00098     <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>-&gt;layout()-&gt;setSpacing( 1 );
+<a name="l00099"></a>00099     <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>-&gt;layout()-&gt;setMargin( 4 );
+<a name="l00100"></a>00100     <a class="code" href="class_frm_n_m_r_t1.html#19a25c3a0dff75f7ae3e710ff060be4a">groupBox5Layout</a> = <span class="keyword">new</span> QGridLayout( <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>-&gt;layout() );
+<a name="l00101"></a>00101     <a class="code" href="class_frm_n_m_r_t1.html#19a25c3a0dff75f7ae3e710ff060be4a">groupBox5Layout</a>-&gt;setAlignment( Qt::AlignTop );
+<a name="l00102"></a>00102 
+<a name="l00103"></a>00103     <a class="code" href="class_frm_n_m_r_t1.html#6958836fd8625f353a01f407f94a0436">textLabel4_2</a> = <span class="keyword">new</span> QLabel( <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>, <span class="stringliteral">"textLabel4_2"</span> );
+<a name="l00104"></a>00104     <a class="code" href="class_frm_n_m_r_t1.html#6958836fd8625f353a01f407f94a0436">textLabel4_2</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#6958836fd8625f353a01f407f94a0436">textLabel4_2</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00105"></a>00105 
+<a name="l00106"></a>00106     <a class="code" href="class_frm_n_m_r_t1.html#19a25c3a0dff75f7ae3e710ff060be4a">groupBox5Layout</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#6958836fd8625f353a01f407f94a0436">textLabel4_2</a>, 7, 0 );
+<a name="l00107"></a>00107 
+<a name="l00108"></a>00108     <a class="code" href="class_frm_n_m_r_t1.html#6a7fcf9f288146853d55c768df015f14">layout25</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout25"</span>); 
+<a name="l00109"></a>00109 
+<a name="l00110"></a>00110     <a class="code" href="class_frm_n_m_r_t1.html#8fe9a93bd6f44c439b8999460366c488">textLabel5</a> = <span class="keyword">new</span> QLabel( <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>, <span class="stringliteral">"textLabel5"</span> );
+<a name="l00111"></a>00111     <a class="code" href="class_frm_n_m_r_t1.html#8fe9a93bd6f44c439b8999460366c488">textLabel5</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#8fe9a93bd6f44c439b8999460366c488">textLabel5</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00112"></a>00112     <a class="code" href="class_frm_n_m_r_t1.html#6a7fcf9f288146853d55c768df015f14">layout25</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#8fe9a93bd6f44c439b8999460366c488">textLabel5</a> );
+<a name="l00113"></a>00113 
+<a name="l00114"></a>00114     <a class="code" href="class_frm_n_m_r_t1.html#93d84b59449dcb8c4f22b46e76aa52f0">m_cmbFunction</a> = <span class="keyword">new</span> QComboBox( FALSE, <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>, <span class="stringliteral">"m_cmbFunction"</span> );
+<a name="l00115"></a>00115     <a class="code" href="class_frm_n_m_r_t1.html#93d84b59449dcb8c4f22b46e76aa52f0">m_cmbFunction</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#93d84b59449dcb8c4f22b46e76aa52f0">m_cmbFunction</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00116"></a>00116     <a class="code" href="class_frm_n_m_r_t1.html#6a7fcf9f288146853d55c768df015f14">layout25</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#93d84b59449dcb8c4f22b46e76aa52f0">m_cmbFunction</a> );
+<a name="l00117"></a>00117 
+<a name="l00118"></a>00118     <a class="code" href="class_frm_n_m_r_t1.html#19a25c3a0dff75f7ae3e710ff060be4a">groupBox5Layout</a>-&gt;addMultiCellLayout( <a class="code" href="class_frm_n_m_r_t1.html#6a7fcf9f288146853d55c768df015f14">layout25</a>, 6, 6, 0, 1 );
+<a name="l00119"></a>00119 
+<a name="l00120"></a>00120     <a class="code" href="class_frm_n_m_r_t1.html#702f063cc846e6d5508604a07baec659">layout61</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout61"</span>); 
+<a name="l00121"></a>00121 
+<a name="l00122"></a>00122     <a class="code" href="class_frm_n_m_r_t1.html#685b3aa17145d5dd1255a8d8fd6b0c89">textLabel3_2</a> = <span class="keyword">new</span> QLabel( <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>, <span class="stringliteral">"textLabel3_2"</span> );
+<a name="l00123"></a>00123     <a class="code" href="class_frm_n_m_r_t1.html#685b3aa17145d5dd1255a8d8fd6b0c89">textLabel3_2</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#685b3aa17145d5dd1255a8d8fd6b0c89">textLabel3_2</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00124"></a>00124     <a class="code" href="class_frm_n_m_r_t1.html#702f063cc846e6d5508604a07baec659">layout61</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#685b3aa17145d5dd1255a8d8fd6b0c89">textLabel3_2</a> );
+<a name="l00125"></a>00125 
+<a name="l00126"></a>00126     <a class="code" href="class_frm_n_m_r_t1.html#4b9d64922c1335e167f26335715ad230">m_edSmoothSamples</a> = <span class="keyword">new</span> QLineEdit( <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>, <span class="stringliteral">"m_edSmoothSamples"</span> );
+<a name="l00127"></a>00127     <a class="code" href="class_frm_n_m_r_t1.html#4b9d64922c1335e167f26335715ad230">m_edSmoothSamples</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#4b9d64922c1335e167f26335715ad230">m_edSmoothSamples</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00128"></a>00128     <a class="code" href="class_frm_n_m_r_t1.html#4b9d64922c1335e167f26335715ad230">m_edSmoothSamples</a>-&gt;setMaximumSize( QSize( 80, 32767 ) );
+<a name="l00129"></a>00129     <a class="code" href="class_frm_n_m_r_t1.html#702f063cc846e6d5508604a07baec659">layout61</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#4b9d64922c1335e167f26335715ad230">m_edSmoothSamples</a> );
+<a name="l00130"></a>00130 
+<a name="l00131"></a>00131     <a class="code" href="class_frm_n_m_r_t1.html#19a25c3a0dff75f7ae3e710ff060be4a">groupBox5Layout</a>-&gt;addMultiCellLayout( <a class="code" href="class_frm_n_m_r_t1.html#702f063cc846e6d5508604a07baec659">layout61</a>, 5, 5, 0, 1 );
+<a name="l00132"></a>00132 
+<a name="l00133"></a>00133     <a class="code" href="class_frm_n_m_r_t1.html#0536e9e0ba9f1bdb587c0b48d5bfff4b">layout56_2</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout56_2"</span>); 
+<a name="l00134"></a>00134 
+<a name="l00135"></a>00135     <a class="code" href="class_frm_n_m_r_t1.html#07ffe706cb98d1b028eb7095434ce7fb">textLabel3_3</a> = <span class="keyword">new</span> QLabel( <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>, <span class="stringliteral">"textLabel3_3"</span> );
+<a name="l00136"></a>00136     <a class="code" href="class_frm_n_m_r_t1.html#07ffe706cb98d1b028eb7095434ce7fb">textLabel3_3</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#07ffe706cb98d1b028eb7095434ce7fb">textLabel3_3</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00137"></a>00137     <a class="code" href="class_frm_n_m_r_t1.html#0536e9e0ba9f1bdb587c0b48d5bfff4b">layout56_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#07ffe706cb98d1b028eb7095434ce7fb">textLabel3_3</a> );
+<a name="l00138"></a>00138 
+<a name="l00139"></a>00139     <a class="code" href="class_frm_n_m_r_t1.html#c192a0436469e97a2fd84652c5046117">layout1_3_2</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout1_3_2"</span>); 
+<a name="l00140"></a>00140 
+<a name="l00141"></a>00141     <a class="code" href="class_frm_n_m_r_t1.html#6b77667587be93f3ee2f94ce92331632">m_edBW</a> = <span class="keyword">new</span> QLineEdit( <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>, <span class="stringliteral">"m_edBW"</span> );
+<a name="l00142"></a>00142     <a class="code" href="class_frm_n_m_r_t1.html#6b77667587be93f3ee2f94ce92331632">m_edBW</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#6b77667587be93f3ee2f94ce92331632">m_edBW</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00143"></a>00143     <a class="code" href="class_frm_n_m_r_t1.html#6b77667587be93f3ee2f94ce92331632">m_edBW</a>-&gt;setMaximumSize( QSize( 80, 32767 ) );
+<a name="l00144"></a>00144     <a class="code" href="class_frm_n_m_r_t1.html#c192a0436469e97a2fd84652c5046117">layout1_3_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#6b77667587be93f3ee2f94ce92331632">m_edBW</a> );
+<a name="l00145"></a>00145 
+<a name="l00146"></a>00146     <a class="code" href="class_frm_n_m_r_t1.html#65b8750ed3bc053481031dd55eaa4dab">textLabel2_3_2_2</a> = <span class="keyword">new</span> QLabel( <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>, <span class="stringliteral">"textLabel2_3_2_2"</span> );
+<a name="l00147"></a>00147     <a class="code" href="class_frm_n_m_r_t1.html#65b8750ed3bc053481031dd55eaa4dab">textLabel2_3_2_2</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#65b8750ed3bc053481031dd55eaa4dab">textLabel2_3_2_2</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00148"></a>00148     <a class="code" href="class_frm_n_m_r_t1.html#c192a0436469e97a2fd84652c5046117">layout1_3_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#65b8750ed3bc053481031dd55eaa4dab">textLabel2_3_2_2</a> );
+<a name="l00149"></a>00149     <a class="code" href="class_frm_n_m_r_t1.html#0536e9e0ba9f1bdb587c0b48d5bfff4b">layout56_2</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_t1.html#c192a0436469e97a2fd84652c5046117">layout1_3_2</a> );
+<a name="l00150"></a>00150 
+<a name="l00151"></a>00151     <a class="code" href="class_frm_n_m_r_t1.html#19a25c3a0dff75f7ae3e710ff060be4a">groupBox5Layout</a>-&gt;addMultiCellLayout( <a class="code" href="class_frm_n_m_r_t1.html#0536e9e0ba9f1bdb587c0b48d5bfff4b">layout56_2</a>, 4, 4, 0, 1 );
+<a name="l00152"></a>00152 
+<a name="l00153"></a>00153     <a class="code" href="class_frm_n_m_r_t1.html#7feb44c0802444ba33e2969dba6a7380">m_txtFitStatus</a> = <span class="keyword">new</span> QTextBrowser( <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>, <span class="stringliteral">"m_txtFitStatus"</span> );
+<a name="l00154"></a>00154     <a class="code" href="class_frm_n_m_r_t1.html#7feb44c0802444ba33e2969dba6a7380">m_txtFitStatus</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)7, (QSizePolicy::SizeType)3, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#7feb44c0802444ba33e2969dba6a7380">m_txtFitStatus</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00155"></a>00155     <a class="code" href="class_frm_n_m_r_t1.html#7feb44c0802444ba33e2969dba6a7380">m_txtFitStatus</a>-&gt;setMinimumSize( QSize( 200, 0 ) );
+<a name="l00156"></a>00156     <a class="code" href="class_frm_n_m_r_t1.html#7feb44c0802444ba33e2969dba6a7380">m_txtFitStatus</a>-&gt;setFrameShape( QTextBrowser::Box );
+<a name="l00157"></a>00157     <a class="code" href="class_frm_n_m_r_t1.html#7feb44c0802444ba33e2969dba6a7380">m_txtFitStatus</a>-&gt;setFrameShadow( QTextBrowser::Raised );
+<a name="l00158"></a>00158     <a class="code" href="class_frm_n_m_r_t1.html#7feb44c0802444ba33e2969dba6a7380">m_txtFitStatus</a>-&gt;setTextFormat( QTextBrowser::PlainText );
+<a name="l00159"></a>00159 
+<a name="l00160"></a>00160     <a class="code" href="class_frm_n_m_r_t1.html#19a25c3a0dff75f7ae3e710ff060be4a">groupBox5Layout</a>-&gt;addMultiCellWidget( <a class="code" href="class_frm_n_m_r_t1.html#7feb44c0802444ba33e2969dba6a7380">m_txtFitStatus</a>, 8, 8, 0, 1 );
+<a name="l00161"></a>00161 
+<a name="l00162"></a>00162     <a class="code" href="class_frm_n_m_r_t1.html#02d034560fa4890011bbc2ece67091e6">m_btnClear</a> = <span class="keyword">new</span> QPushButton( <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>, <span class="stringliteral">"m_btnClear"</span> );
+<a name="l00163"></a>00163     <a class="code" href="class_frm_n_m_r_t1.html#02d034560fa4890011bbc2ece67091e6">m_btnClear</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#02d034560fa4890011bbc2ece67091e6">m_btnClear</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00164"></a>00164     <a class="code" href="class_frm_n_m_r_t1.html#02d034560fa4890011bbc2ece67091e6">m_btnClear</a>-&gt;setAutoDefault( FALSE );
+<a name="l00165"></a>00165 
+<a name="l00166"></a>00166     <a class="code" href="class_frm_n_m_r_t1.html#19a25c3a0dff75f7ae3e710ff060be4a">groupBox5Layout</a>-&gt;addMultiCellWidget( <a class="code" href="class_frm_n_m_r_t1.html#02d034560fa4890011bbc2ece67091e6">m_btnClear</a>, 10, 10, 0, 1 );
+<a name="l00167"></a>00167 
+<a name="l00168"></a>00168     <a class="code" href="class_frm_n_m_r_t1.html#cfbf2f95346014d58f18260e7ade5755">m_btnResetFit</a> = <span class="keyword">new</span> QPushButton( <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>, <span class="stringliteral">"m_btnResetFit"</span> );
+<a name="l00169"></a>00169     <a class="code" href="class_frm_n_m_r_t1.html#cfbf2f95346014d58f18260e7ade5755">m_btnResetFit</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#cfbf2f95346014d58f18260e7ade5755">m_btnResetFit</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00170"></a>00170 
+<a name="l00171"></a>00171     <a class="code" href="class_frm_n_m_r_t1.html#19a25c3a0dff75f7ae3e710ff060be4a">groupBox5Layout</a>-&gt;addMultiCellWidget( <a class="code" href="class_frm_n_m_r_t1.html#cfbf2f95346014d58f18260e7ade5755">m_btnResetFit</a>, 9, 9, 0, 1 );
+<a name="l00172"></a>00172 
+<a name="l00173"></a>00173     <a class="code" href="class_frm_n_m_r_t1.html#8ab51c42a18d53fa2c08de0fc132571b">layout56</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout56"</span>); 
+<a name="l00174"></a>00174 
+<a name="l00175"></a>00175     <a class="code" href="class_frm_n_m_r_t1.html#426c1a619825e91e121f317608d0c797">textLabel3</a> = <span class="keyword">new</span> QLabel( <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>, <span class="stringliteral">"textLabel3"</span> );
+<a name="l00176"></a>00176     <a class="code" href="class_frm_n_m_r_t1.html#426c1a619825e91e121f317608d0c797">textLabel3</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#426c1a619825e91e121f317608d0c797">textLabel3</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00177"></a>00177     <a class="code" href="class_frm_n_m_r_t1.html#8ab51c42a18d53fa2c08de0fc132571b">layout56</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#426c1a619825e91e121f317608d0c797">textLabel3</a> );
+<a name="l00178"></a>00178 
+<a name="l00179"></a>00179     <a class="code" href="class_frm_n_m_r_t1.html#79da1d25c5b2fbe0d296152dab79709b">layout1_3</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout1_3"</span>); 
+<a name="l00180"></a>00180 
+<a name="l00181"></a>00181     <a class="code" href="class_frm_n_m_r_t1.html#aadca6dd3ab475bf22071424e22a8365">m_edFreq</a> = <span class="keyword">new</span> QLineEdit( <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>, <span class="stringliteral">"m_edFreq"</span> );
+<a name="l00182"></a>00182     <a class="code" href="class_frm_n_m_r_t1.html#aadca6dd3ab475bf22071424e22a8365">m_edFreq</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#aadca6dd3ab475bf22071424e22a8365">m_edFreq</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00183"></a>00183     <a class="code" href="class_frm_n_m_r_t1.html#aadca6dd3ab475bf22071424e22a8365">m_edFreq</a>-&gt;setMaximumSize( QSize( 80, 32767 ) );
+<a name="l00184"></a>00184     <a class="code" href="class_frm_n_m_r_t1.html#79da1d25c5b2fbe0d296152dab79709b">layout1_3</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#aadca6dd3ab475bf22071424e22a8365">m_edFreq</a> );
+<a name="l00185"></a>00185 
+<a name="l00186"></a>00186     <a class="code" href="class_frm_n_m_r_t1.html#522436c52944a6505b809782634ae0c4">textLabel2_3_2</a> = <span class="keyword">new</span> QLabel( <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>, <span class="stringliteral">"textLabel2_3_2"</span> );
+<a name="l00187"></a>00187     <a class="code" href="class_frm_n_m_r_t1.html#522436c52944a6505b809782634ae0c4">textLabel2_3_2</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#522436c52944a6505b809782634ae0c4">textLabel2_3_2</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00188"></a>00188     <a class="code" href="class_frm_n_m_r_t1.html#79da1d25c5b2fbe0d296152dab79709b">layout1_3</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#522436c52944a6505b809782634ae0c4">textLabel2_3_2</a> );
+<a name="l00189"></a>00189     <a class="code" href="class_frm_n_m_r_t1.html#8ab51c42a18d53fa2c08de0fc132571b">layout56</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_t1.html#79da1d25c5b2fbe0d296152dab79709b">layout1_3</a> );
+<a name="l00190"></a>00190 
+<a name="l00191"></a>00191     <a class="code" href="class_frm_n_m_r_t1.html#19a25c3a0dff75f7ae3e710ff060be4a">groupBox5Layout</a>-&gt;addMultiCellLayout( <a class="code" href="class_frm_n_m_r_t1.html#8ab51c42a18d53fa2c08de0fc132571b">layout56</a>, 3, 3, 0, 1 );
+<a name="l00192"></a>00192 
+<a name="l00193"></a>00193     <a class="code" href="class_frm_n_m_r_t1.html#0bb4f3281ea473f6809c742c7e252360">layout9</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout9"</span>); 
+<a name="l00194"></a>00194 
+<a name="l00195"></a>00195     <a class="code" href="class_frm_n_m_r_t1.html#3318eacf47c7bcf69d2f9e21948d8b42">textLabel4</a> = <span class="keyword">new</span> QLabel( <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>, <span class="stringliteral">"textLabel4"</span> );
+<a name="l00196"></a>00196     <a class="code" href="class_frm_n_m_r_t1.html#3318eacf47c7bcf69d2f9e21948d8b42">textLabel4</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#3318eacf47c7bcf69d2f9e21948d8b42">textLabel4</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00197"></a>00197     <a class="code" href="class_frm_n_m_r_t1.html#0bb4f3281ea473f6809c742c7e252360">layout9</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#3318eacf47c7bcf69d2f9e21948d8b42">textLabel4</a> );
+<a name="l00198"></a>00198 
+<a name="l00199"></a>00199     <a class="code" href="class_frm_n_m_r_t1.html#df4039883e23f616791efcef4b70a52d">m_numPhase</a> = <span class="keyword">new</span> KDoubleNumInput( <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>, <span class="stringliteral">"m_numPhase"</span> );
+<a name="l00200"></a>00200     <a class="code" href="class_frm_n_m_r_t1.html#df4039883e23f616791efcef4b70a52d">m_numPhase</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)1, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#df4039883e23f616791efcef4b70a52d">m_numPhase</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00201"></a>00201     <a class="code" href="class_frm_n_m_r_t1.html#df4039883e23f616791efcef4b70a52d">m_numPhase</a>-&gt;setMinValue( -360 );
+<a name="l00202"></a>00202     <a class="code" href="class_frm_n_m_r_t1.html#df4039883e23f616791efcef4b70a52d">m_numPhase</a>-&gt;setMaxValue( 360 );
+<a name="l00203"></a>00203     <a class="code" href="class_frm_n_m_r_t1.html#0bb4f3281ea473f6809c742c7e252360">layout9</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#df4039883e23f616791efcef4b70a52d">m_numPhase</a> );
+<a name="l00204"></a>00204 
+<a name="l00205"></a>00205     <a class="code" href="class_frm_n_m_r_t1.html#19a25c3a0dff75f7ae3e710ff060be4a">groupBox5Layout</a>-&gt;addMultiCellLayout( <a class="code" href="class_frm_n_m_r_t1.html#0bb4f3281ea473f6809c742c7e252360">layout9</a>, 2, 2, 0, 1 );
+<a name="l00206"></a>00206     <a class="code" href="class_frm_n_m_r_t1.html#af14c331336f647452286d006e288df7">spacer1</a> = <span class="keyword">new</span> QSpacerItem( 30, 20, QSizePolicy::Expanding, QSizePolicy::Minimum );
+<a name="l00207"></a>00207     <a class="code" href="class_frm_n_m_r_t1.html#19a25c3a0dff75f7ae3e710ff060be4a">groupBox5Layout</a>-&gt;addItem( <a class="code" href="class_frm_n_m_r_t1.html#af14c331336f647452286d006e288df7">spacer1</a>, 1, 1 );
+<a name="l00208"></a>00208 
+<a name="l00209"></a>00209     <a class="code" href="class_frm_n_m_r_t1.html#0da93a9d283d38791536aeee4982f870">m_ckbAutoPhase</a> = <span class="keyword">new</span> QCheckBox( <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>, <span class="stringliteral">"m_ckbAutoPhase"</span> );
+<a name="l00210"></a>00210     <a class="code" href="class_frm_n_m_r_t1.html#0da93a9d283d38791536aeee4982f870">m_ckbAutoPhase</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#0da93a9d283d38791536aeee4982f870">m_ckbAutoPhase</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00211"></a>00211 
+<a name="l00212"></a>00212     <a class="code" href="class_frm_n_m_r_t1.html#19a25c3a0dff75f7ae3e710ff060be4a">groupBox5Layout</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#0da93a9d283d38791536aeee4982f870">m_ckbAutoPhase</a>, 1, 0 );
+<a name="l00213"></a>00213 
+<a name="l00214"></a>00214     <a class="code" href="class_frm_n_m_r_t1.html#e7409d52a83625bf1fdcd80e0dd55ce7">m_ckbMInftyFit</a> = <span class="keyword">new</span> QCheckBox( <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>, <span class="stringliteral">"m_ckbMInftyFit"</span> );
+<a name="l00215"></a>00215     <a class="code" href="class_frm_n_m_r_t1.html#e7409d52a83625bf1fdcd80e0dd55ce7">m_ckbMInftyFit</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#e7409d52a83625bf1fdcd80e0dd55ce7">m_ckbMInftyFit</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00216"></a>00216 
+<a name="l00217"></a>00217     <a class="code" href="class_frm_n_m_r_t1.html#19a25c3a0dff75f7ae3e710ff060be4a">groupBox5Layout</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#e7409d52a83625bf1fdcd80e0dd55ce7">m_ckbMInftyFit</a>, 0, 0 );
+<a name="l00218"></a>00218 
+<a name="l00219"></a>00219     <a class="code" href="class_frm_n_m_r_t1.html#ddc4aea310103bfc5909767b2cf7700c">m_ckbAbsFit</a> = <span class="keyword">new</span> QCheckBox( <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>, <span class="stringliteral">"m_ckbAbsFit"</span> );
+<a name="l00220"></a>00220     <a class="code" href="class_frm_n_m_r_t1.html#ddc4aea310103bfc5909767b2cf7700c">m_ckbAbsFit</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#ddc4aea310103bfc5909767b2cf7700c">m_ckbAbsFit</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00221"></a>00221 
+<a name="l00222"></a>00222     <a class="code" href="class_frm_n_m_r_t1.html#19a25c3a0dff75f7ae3e710ff060be4a">groupBox5Layout</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#ddc4aea310103bfc5909767b2cf7700c">m_ckbAbsFit</a>, 0, 1 );
+<a name="l00223"></a>00223     <a class="code" href="class_frm_n_m_r_t1.html#0a5cf76bbbba824a8544efaf61d8c199">layout19</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a> );
+<a name="l00224"></a>00224 
+<a name="l00225"></a>00225     QWidget* privateLayoutWidget_2 = <span class="keyword">new</span> QWidget( <a class="code" href="class_frm_n_m_r_t1.html#c4ce730bb7c6da3de80a2c5da49d5ff0">splitter1</a>, <span class="stringliteral">"layout19"</span> );
+<a name="l00226"></a>00226     <a class="code" href="class_frm_n_m_r_t1.html#3e51d29713d83e488714e9c876183091">layout19_2</a> = <span class="keyword">new</span> QVBoxLayout( privateLayoutWidget_2, 0, 0, <span class="stringliteral">"layout19_2"</span>); 
+<a name="l00227"></a>00227 
+<a name="l00228"></a>00228     <a class="code" href="class_frm_n_m_r_t1.html#0efc8692ecc6638dd331e3070f47568b">m_graph</a> = <span class="keyword">new</span> <a class="code" href="class_x_q_graph.html">XQGraph</a>( privateLayoutWidget_2, <span class="stringliteral">"m_graph"</span> );
+<a name="l00229"></a>00229     <a class="code" href="class_frm_n_m_r_t1.html#0efc8692ecc6638dd331e3070f47568b">m_graph</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)7, (QSizePolicy::SizeType)7, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#0efc8692ecc6638dd331e3070f47568b">m_graph</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00230"></a>00230     <a class="code" href="class_frm_n_m_r_t1.html#0efc8692ecc6638dd331e3070f47568b">m_graph</a>-&gt;setMinimumSize( QSize( 300, 0 ) );
+<a name="l00231"></a>00231     <a class="code" href="class_frm_n_m_r_t1.html#3e51d29713d83e488714e9c876183091">layout19_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#0efc8692ecc6638dd331e3070f47568b">m_graph</a> );
+<a name="l00232"></a>00232 
+<a name="l00233"></a>00233     <a class="code" href="class_frm_n_m_r_t1.html#7258342a93d257349984742a00c8e2ea">layout15</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout15"</span>); 
+<a name="l00234"></a>00234 
+<a name="l00235"></a>00235     <a class="code" href="class_frm_n_m_r_t1.html#0bbf803596d6563c57a03a9d5ce5df07">m_urlDump</a> = <span class="keyword">new</span> KURLRequester( privateLayoutWidget_2, <span class="stringliteral">"m_urlDump"</span> );
+<a name="l00236"></a>00236     <a class="code" href="class_frm_n_m_r_t1.html#0bbf803596d6563c57a03a9d5ce5df07">m_urlDump</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)7, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#0bbf803596d6563c57a03a9d5ce5df07">m_urlDump</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00237"></a>00237     <a class="code" href="class_frm_n_m_r_t1.html#0bbf803596d6563c57a03a9d5ce5df07">m_urlDump</a>-&gt;setCursor( QCursor( 0 ) );
+<a name="l00238"></a>00238     <a class="code" href="class_frm_n_m_r_t1.html#0bbf803596d6563c57a03a9d5ce5df07">m_urlDump</a>-&gt;setFocusPolicy( KURLRequester::StrongFocus );
+<a name="l00239"></a>00239     <a class="code" href="class_frm_n_m_r_t1.html#7258342a93d257349984742a00c8e2ea">layout15</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#0bbf803596d6563c57a03a9d5ce5df07">m_urlDump</a> );
+<a name="l00240"></a>00240 
+<a name="l00241"></a>00241     <a class="code" href="class_frm_n_m_r_t1.html#fb038e189bbd1025f2f51a4aaf2ecdc7">m_btnDump</a> = <span class="keyword">new</span> QPushButton( privateLayoutWidget_2, <span class="stringliteral">"m_btnDump"</span> );
+<a name="l00242"></a>00242     <a class="code" href="class_frm_n_m_r_t1.html#fb038e189bbd1025f2f51a4aaf2ecdc7">m_btnDump</a>-&gt;setAutoDefault( FALSE );
+<a name="l00243"></a>00243     <a class="code" href="class_frm_n_m_r_t1.html#7258342a93d257349984742a00c8e2ea">layout15</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#fb038e189bbd1025f2f51a4aaf2ecdc7">m_btnDump</a> );
+<a name="l00244"></a>00244     <a class="code" href="class_frm_n_m_r_t1.html#3e51d29713d83e488714e9c876183091">layout19_2</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_t1.html#7258342a93d257349984742a00c8e2ea">layout15</a> );
+<a name="l00245"></a>00245 
+<a name="l00246"></a>00246     <a class="code" href="class_frm_n_m_r_t1.html#39945f47042046570d5f0a75a413346d">FrmNMRT1Layout</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#c4ce730bb7c6da3de80a2c5da49d5ff0">splitter1</a>, 1, 0 );
+<a name="l00247"></a>00247 
+<a name="l00248"></a>00248     <a class="code" href="class_frm_n_m_r_t1.html#46c54918bf2ac8b6da67a2c728360bd3">groupBox4</a> = <span class="keyword">new</span> QGroupBox( centralWidget(), <span class="stringliteral">"groupBox4"</span> );
+<a name="l00249"></a>00249     <a class="code" href="class_frm_n_m_r_t1.html#46c54918bf2ac8b6da67a2c728360bd3">groupBox4</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#46c54918bf2ac8b6da67a2c728360bd3">groupBox4</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00250"></a>00250     <a class="code" href="class_frm_n_m_r_t1.html#46c54918bf2ac8b6da67a2c728360bd3">groupBox4</a>-&gt;setMargin( 0 );
+<a name="l00251"></a>00251     <a class="code" href="class_frm_n_m_r_t1.html#46c54918bf2ac8b6da67a2c728360bd3">groupBox4</a>-&gt;setMidLineWidth( 0 );
+<a name="l00252"></a>00252     <a class="code" href="class_frm_n_m_r_t1.html#46c54918bf2ac8b6da67a2c728360bd3">groupBox4</a>-&gt;setAlignment( <span class="keywordtype">int</span>( QGroupBox::AlignTop ) );
+<a name="l00253"></a>00253     <a class="code" href="class_frm_n_m_r_t1.html#46c54918bf2ac8b6da67a2c728360bd3">groupBox4</a>-&gt;setColumnLayout(0, Qt::Vertical );
+<a name="l00254"></a>00254     <a class="code" href="class_frm_n_m_r_t1.html#46c54918bf2ac8b6da67a2c728360bd3">groupBox4</a>-&gt;layout()-&gt;setSpacing( 0 );
+<a name="l00255"></a>00255     <a class="code" href="class_frm_n_m_r_t1.html#46c54918bf2ac8b6da67a2c728360bd3">groupBox4</a>-&gt;layout()-&gt;setMargin( 2 );
+<a name="l00256"></a>00256     <a class="code" href="class_frm_n_m_r_t1.html#edc03ac39ad38a5be08fa73eb47f682c">groupBox4Layout</a> = <span class="keyword">new</span> QGridLayout( <a class="code" href="class_frm_n_m_r_t1.html#46c54918bf2ac8b6da67a2c728360bd3">groupBox4</a>-&gt;layout() );
+<a name="l00257"></a>00257     <a class="code" href="class_frm_n_m_r_t1.html#edc03ac39ad38a5be08fa73eb47f682c">groupBox4Layout</a>-&gt;setAlignment( Qt::AlignTop );
+<a name="l00258"></a>00258 
+<a name="l00259"></a>00259     <a class="code" href="class_frm_n_m_r_t1.html#57dbaba40345d19c213863ed162d54b8">m_ckbActive</a> = <span class="keyword">new</span> QCheckBox( <a class="code" href="class_frm_n_m_r_t1.html#46c54918bf2ac8b6da67a2c728360bd3">groupBox4</a>, <span class="stringliteral">"m_ckbActive"</span> );
+<a name="l00260"></a>00260     <a class="code" href="class_frm_n_m_r_t1.html#57dbaba40345d19c213863ed162d54b8">m_ckbActive</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#57dbaba40345d19c213863ed162d54b8">m_ckbActive</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00261"></a>00261 
+<a name="l00262"></a>00262     <a class="code" href="class_frm_n_m_r_t1.html#edc03ac39ad38a5be08fa73eb47f682c">groupBox4Layout</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#57dbaba40345d19c213863ed162d54b8">m_ckbActive</a>, 0, 0 );
+<a name="l00263"></a>00263 
+<a name="l00264"></a>00264     <a class="code" href="class_frm_n_m_r_t1.html#00dc718ffd120706ee617625a93abb40">m_cmbMode</a> = <span class="keyword">new</span> QComboBox( FALSE, <a class="code" href="class_frm_n_m_r_t1.html#46c54918bf2ac8b6da67a2c728360bd3">groupBox4</a>, <span class="stringliteral">"m_cmbMode"</span> );
+<a name="l00265"></a>00265     <a class="code" href="class_frm_n_m_r_t1.html#00dc718ffd120706ee617625a93abb40">m_cmbMode</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#00dc718ffd120706ee617625a93abb40">m_cmbMode</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00266"></a>00266     <a class="code" href="class_frm_n_m_r_t1.html#00dc718ffd120706ee617625a93abb40">m_cmbMode</a>-&gt;setMinimumSize( QSize( 200, 0 ) );
+<a name="l00267"></a>00267 
+<a name="l00268"></a>00268     <a class="code" href="class_frm_n_m_r_t1.html#edc03ac39ad38a5be08fa73eb47f682c">groupBox4Layout</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#00dc718ffd120706ee617625a93abb40">m_cmbMode</a>, 0, 1 );
+<a name="l00269"></a>00269 
+<a name="l00270"></a>00270     <a class="code" href="class_frm_n_m_r_t1.html#5ae0fcb89f885847c907fbcd9bd10f30">layout23_2</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout23_2"</span>); 
+<a name="l00271"></a>00271 
+<a name="l00272"></a>00272     <a class="code" href="class_frm_n_m_r_t1.html#9a5dabbec78c943cd6d4d560e58889d8">textLabel1_2</a> = <span class="keyword">new</span> QLabel( <a class="code" href="class_frm_n_m_r_t1.html#46c54918bf2ac8b6da67a2c728360bd3">groupBox4</a>, <span class="stringliteral">"textLabel1_2"</span> );
+<a name="l00273"></a>00273     <a class="code" href="class_frm_n_m_r_t1.html#9a5dabbec78c943cd6d4d560e58889d8">textLabel1_2</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#9a5dabbec78c943cd6d4d560e58889d8">textLabel1_2</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00274"></a>00274     <a class="code" href="class_frm_n_m_r_t1.html#9a5dabbec78c943cd6d4d560e58889d8">textLabel1_2</a>-&gt;setAlignment( <span class="keywordtype">int</span>( QLabel::WordBreak | QLabel::AlignCenter ) );
+<a name="l00275"></a>00275     <a class="code" href="class_frm_n_m_r_t1.html#5ae0fcb89f885847c907fbcd9bd10f30">layout23_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#9a5dabbec78c943cd6d4d560e58889d8">textLabel1_2</a> );
+<a name="l00276"></a>00276 
+<a name="l00277"></a>00277     <a class="code" href="class_frm_n_m_r_t1.html#a8ad53ab95affa89c3a186de0f27f53b">layout13</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout13"</span>); 
+<a name="l00278"></a>00278 
+<a name="l00279"></a>00279     <a class="code" href="class_frm_n_m_r_t1.html#03b1770388c9cd2907f2df675169f7c0">layout9_2</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout9_2"</span>); 
+<a name="l00280"></a>00280 
+<a name="l00281"></a>00281     <a class="code" href="class_frm_n_m_r_t1.html#5e99f445a7039d06a52a0db2e0666b87">textLabel2_2_3</a> = <span class="keyword">new</span> QLabel( <a class="code" href="class_frm_n_m_r_t1.html#46c54918bf2ac8b6da67a2c728360bd3">groupBox4</a>, <span class="stringliteral">"textLabel2_2_3"</span> );
+<a name="l00282"></a>00282     <a class="code" href="class_frm_n_m_r_t1.html#5e99f445a7039d06a52a0db2e0666b87">textLabel2_2_3</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#5e99f445a7039d06a52a0db2e0666b87">textLabel2_2_3</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00283"></a>00283     <a class="code" href="class_frm_n_m_r_t1.html#03b1770388c9cd2907f2df675169f7c0">layout9_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#5e99f445a7039d06a52a0db2e0666b87">textLabel2_2_3</a> );
+<a name="l00284"></a>00284 
+<a name="l00285"></a>00285     <a class="code" href="class_frm_n_m_r_t1.html#51b293f12835a1851b7c1ac17ad0c10e">m_edP1Min</a> = <span class="keyword">new</span> QLineEdit( <a class="code" href="class_frm_n_m_r_t1.html#46c54918bf2ac8b6da67a2c728360bd3">groupBox4</a>, <span class="stringliteral">"m_edP1Min"</span> );
+<a name="l00286"></a>00286     <a class="code" href="class_frm_n_m_r_t1.html#51b293f12835a1851b7c1ac17ad0c10e">m_edP1Min</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#51b293f12835a1851b7c1ac17ad0c10e">m_edP1Min</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00287"></a>00287     <a class="code" href="class_frm_n_m_r_t1.html#51b293f12835a1851b7c1ac17ad0c10e">m_edP1Min</a>-&gt;setMinimumSize( QSize( 50, 0 ) );
+<a name="l00288"></a>00288     <a class="code" href="class_frm_n_m_r_t1.html#51b293f12835a1851b7c1ac17ad0c10e">m_edP1Min</a>-&gt;setMaximumSize( QSize( 80, 32767 ) );
+<a name="l00289"></a>00289     <a class="code" href="class_frm_n_m_r_t1.html#03b1770388c9cd2907f2df675169f7c0">layout9_2</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#51b293f12835a1851b7c1ac17ad0c10e">m_edP1Min</a> );
+<a name="l00290"></a>00290     <a class="code" href="class_frm_n_m_r_t1.html#a8ad53ab95affa89c3a186de0f27f53b">layout13</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_t1.html#03b1770388c9cd2907f2df675169f7c0">layout9_2</a> );
+<a name="l00291"></a>00291 
+<a name="l00292"></a>00292     <a class="code" href="class_frm_n_m_r_t1.html#e3077dd98e1aa3d5d4e74d1c3997883e">layout10</a> = <span class="keyword">new</span> QHBoxLayout( 0, 0, 6, <span class="stringliteral">"layout10"</span>); 
+<a name="l00293"></a>00293 
+<a name="l00294"></a>00294     <a class="code" href="class_frm_n_m_r_t1.html#a22d4344f28ed3e6fe332da6fbcd5839">textLabel2_2_2</a> = <span class="keyword">new</span> QLabel( <a class="code" href="class_frm_n_m_r_t1.html#46c54918bf2ac8b6da67a2c728360bd3">groupBox4</a>, <span class="stringliteral">"textLabel2_2_2"</span> );
+<a name="l00295"></a>00295     <a class="code" href="class_frm_n_m_r_t1.html#a22d4344f28ed3e6fe332da6fbcd5839">textLabel2_2_2</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)0, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#a22d4344f28ed3e6fe332da6fbcd5839">textLabel2_2_2</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00296"></a>00296     <a class="code" href="class_frm_n_m_r_t1.html#e3077dd98e1aa3d5d4e74d1c3997883e">layout10</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#a22d4344f28ed3e6fe332da6fbcd5839">textLabel2_2_2</a> );
+<a name="l00297"></a>00297 
+<a name="l00298"></a>00298     <a class="code" href="class_frm_n_m_r_t1.html#cf2a43fea314f1437a6c923038dc8761">m_edP1Max</a> = <span class="keyword">new</span> QLineEdit( <a class="code" href="class_frm_n_m_r_t1.html#46c54918bf2ac8b6da67a2c728360bd3">groupBox4</a>, <span class="stringliteral">"m_edP1Max"</span> );
+<a name="l00299"></a>00299     <a class="code" href="class_frm_n_m_r_t1.html#cf2a43fea314f1437a6c923038dc8761">m_edP1Max</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#cf2a43fea314f1437a6c923038dc8761">m_edP1Max</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00300"></a>00300     <a class="code" href="class_frm_n_m_r_t1.html#cf2a43fea314f1437a6c923038dc8761">m_edP1Max</a>-&gt;setMinimumSize( QSize( 50, 0 ) );
+<a name="l00301"></a>00301     <a class="code" href="class_frm_n_m_r_t1.html#cf2a43fea314f1437a6c923038dc8761">m_edP1Max</a>-&gt;setMaximumSize( QSize( 80, 32767 ) );
+<a name="l00302"></a>00302     <a class="code" href="class_frm_n_m_r_t1.html#e3077dd98e1aa3d5d4e74d1c3997883e">layout10</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#cf2a43fea314f1437a6c923038dc8761">m_edP1Max</a> );
+<a name="l00303"></a>00303     <a class="code" href="class_frm_n_m_r_t1.html#a8ad53ab95affa89c3a186de0f27f53b">layout13</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_t1.html#e3077dd98e1aa3d5d4e74d1c3997883e">layout10</a> );
+<a name="l00304"></a>00304     <a class="code" href="class_frm_n_m_r_t1.html#5ae0fcb89f885847c907fbcd9bd10f30">layout23_2</a>-&gt;addLayout( <a class="code" href="class_frm_n_m_r_t1.html#a8ad53ab95affa89c3a186de0f27f53b">layout13</a> );
+<a name="l00305"></a>00305 
+<a name="l00306"></a>00306     <a class="code" href="class_frm_n_m_r_t1.html#edc03ac39ad38a5be08fa73eb47f682c">groupBox4Layout</a>-&gt;addMultiCellLayout( <a class="code" href="class_frm_n_m_r_t1.html#5ae0fcb89f885847c907fbcd9bd10f30">layout23_2</a>, 1, 1, 0, 2 );
+<a name="l00307"></a>00307     <a class="code" href="class_frm_n_m_r_t1.html#d5e8b17ce2d7c4f3263ae457b36cf2f9">spacer2</a> = <span class="keyword">new</span> QSpacerItem( 20, 20, QSizePolicy::Preferred, QSizePolicy::Minimum );
+<a name="l00308"></a>00308     <a class="code" href="class_frm_n_m_r_t1.html#edc03ac39ad38a5be08fa73eb47f682c">groupBox4Layout</a>-&gt;addItem( <a class="code" href="class_frm_n_m_r_t1.html#d5e8b17ce2d7c4f3263ae457b36cf2f9">spacer2</a>, 0, 2 );
+<a name="l00309"></a>00309 
+<a name="l00310"></a>00310     <a class="code" href="class_frm_n_m_r_t1.html#1e759a3cb88729f508c3be0386e7457f">layout20</a> = <span class="keyword">new</span> QVBoxLayout( 0, 0, 6, <span class="stringliteral">"layout20"</span>); 
+<a name="l00311"></a>00311 
+<a name="l00312"></a>00312     <a class="code" href="class_frm_n_m_r_t1.html#af456000bb01cf68a1517c65948cecd9">textLabel1</a> = <span class="keyword">new</span> QLabel( <a class="code" href="class_frm_n_m_r_t1.html#46c54918bf2ac8b6da67a2c728360bd3">groupBox4</a>, <span class="stringliteral">"textLabel1"</span> );
+<a name="l00313"></a>00313     <a class="code" href="class_frm_n_m_r_t1.html#af456000bb01cf68a1517c65948cecd9">textLabel1</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)5, (QSizePolicy::SizeType)5, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#af456000bb01cf68a1517c65948cecd9">textLabel1</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00314"></a>00314     <a class="code" href="class_frm_n_m_r_t1.html#1e759a3cb88729f508c3be0386e7457f">layout20</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#af456000bb01cf68a1517c65948cecd9">textLabel1</a> );
+<a name="l00315"></a>00315 
+<a name="l00316"></a>00316     <a class="code" href="class_frm_n_m_r_t1.html#63f96f6ca20585ca3be69d1f1e5d1860">m_cmbP1Dist</a> = <span class="keyword">new</span> QComboBox( FALSE, <a class="code" href="class_frm_n_m_r_t1.html#46c54918bf2ac8b6da67a2c728360bd3">groupBox4</a>, <span class="stringliteral">"m_cmbP1Dist"</span> );
+<a name="l00317"></a>00317     <a class="code" href="class_frm_n_m_r_t1.html#63f96f6ca20585ca3be69d1f1e5d1860">m_cmbP1Dist</a>-&gt;setSizePolicy( QSizePolicy( (QSizePolicy::SizeType)1, (QSizePolicy::SizeType)0, 0, 0, <a class="code" href="class_frm_n_m_r_t1.html#63f96f6ca20585ca3be69d1f1e5d1860">m_cmbP1Dist</a>-&gt;sizePolicy().hasHeightForWidth() ) );
+<a name="l00318"></a>00318     <a class="code" href="class_frm_n_m_r_t1.html#1e759a3cb88729f508c3be0386e7457f">layout20</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#63f96f6ca20585ca3be69d1f1e5d1860">m_cmbP1Dist</a> );
+<a name="l00319"></a>00319 
+<a name="l00320"></a>00320     <a class="code" href="class_frm_n_m_r_t1.html#edc03ac39ad38a5be08fa73eb47f682c">groupBox4Layout</a>-&gt;addMultiCellLayout( <a class="code" href="class_frm_n_m_r_t1.html#1e759a3cb88729f508c3be0386e7457f">layout20</a>, 0, 1, 3, 3 );
+<a name="l00321"></a>00321 
+<a name="l00322"></a>00322     <a class="code" href="class_frm_n_m_r_t1.html#39945f47042046570d5f0a75a413346d">FrmNMRT1Layout</a>-&gt;addWidget( <a class="code" href="class_frm_n_m_r_t1.html#46c54918bf2ac8b6da67a2c728360bd3">groupBox4</a>, 0, 0 );
+<a name="l00323"></a>00323 
+<a name="l00324"></a>00324     <span class="comment">// toolbars</span>
+<a name="l00325"></a>00325 
+<a name="l00326"></a>00326     <a class="code" href="class_frm_n_m_r_t1.html#5118cea318d26ec7765eeb9944a54f5e">languageChange</a>();
+<a name="l00327"></a>00327     resize( QSize(545, 579).expandedTo(minimumSizeHint()) );
+<a name="l00328"></a>00328     clearWState( WState_Polished );
+<a name="l00329"></a>00329 
+<a name="l00330"></a>00330     <span class="comment">// tab order</span>
+<a name="l00331"></a>00331     setTabOrder( <a class="code" href="class_frm_n_m_r_t1.html#57dbaba40345d19c213863ed162d54b8">m_ckbActive</a>, <a class="code" href="class_frm_n_m_r_t1.html#00dc718ffd120706ee617625a93abb40">m_cmbMode</a> );
+<a name="l00332"></a>00332     setTabOrder( <a class="code" href="class_frm_n_m_r_t1.html#00dc718ffd120706ee617625a93abb40">m_cmbMode</a>, <a class="code" href="class_frm_n_m_r_t1.html#51b293f12835a1851b7c1ac17ad0c10e">m_edP1Min</a> );
+<a name="l00333"></a>00333     setTabOrder( <a class="code" href="class_frm_n_m_r_t1.html#51b293f12835a1851b7c1ac17ad0c10e">m_edP1Min</a>, <a class="code" href="class_frm_n_m_r_t1.html#cf2a43fea314f1437a6c923038dc8761">m_edP1Max</a> );
+<a name="l00334"></a>00334     setTabOrder( <a class="code" href="class_frm_n_m_r_t1.html#cf2a43fea314f1437a6c923038dc8761">m_edP1Max</a>, <a class="code" href="class_frm_n_m_r_t1.html#63f96f6ca20585ca3be69d1f1e5d1860">m_cmbP1Dist</a> );
+<a name="l00335"></a>00335     setTabOrder( <a class="code" href="class_frm_n_m_r_t1.html#63f96f6ca20585ca3be69d1f1e5d1860">m_cmbP1Dist</a>, <a class="code" href="class_frm_n_m_r_t1.html#130473fd4fa7a239f17f60de66c23baa">m_cmbPulse1</a> );
+<a name="l00336"></a>00336     setTabOrder( <a class="code" href="class_frm_n_m_r_t1.html#130473fd4fa7a239f17f60de66c23baa">m_cmbPulse1</a>, <a class="code" href="class_frm_n_m_r_t1.html#5743180d81fd52f7980ac0a0e4e226b8">m_cmbPulse2</a> );
+<a name="l00337"></a>00337     setTabOrder( <a class="code" href="class_frm_n_m_r_t1.html#5743180d81fd52f7980ac0a0e4e226b8">m_cmbPulse2</a>, <a class="code" href="class_frm_n_m_r_t1.html#dfac6ef6c16bfced145ca27375182af4">m_cmbPulser</a> );
+<a name="l00338"></a>00338     setTabOrder( <a class="code" href="class_frm_n_m_r_t1.html#dfac6ef6c16bfced145ca27375182af4">m_cmbPulser</a>, <a class="code" href="class_frm_n_m_r_t1.html#e7409d52a83625bf1fdcd80e0dd55ce7">m_ckbMInftyFit</a> );
+<a name="l00339"></a>00339     setTabOrder( <a class="code" href="class_frm_n_m_r_t1.html#e7409d52a83625bf1fdcd80e0dd55ce7">m_ckbMInftyFit</a>, <a class="code" href="class_frm_n_m_r_t1.html#ddc4aea310103bfc5909767b2cf7700c">m_ckbAbsFit</a> );
+<a name="l00340"></a>00340     setTabOrder( <a class="code" href="class_frm_n_m_r_t1.html#ddc4aea310103bfc5909767b2cf7700c">m_ckbAbsFit</a>, <a class="code" href="class_frm_n_m_r_t1.html#0da93a9d283d38791536aeee4982f870">m_ckbAutoPhase</a> );
+<a name="l00341"></a>00341     setTabOrder( <a class="code" href="class_frm_n_m_r_t1.html#0da93a9d283d38791536aeee4982f870">m_ckbAutoPhase</a>, <a class="code" href="class_frm_n_m_r_t1.html#df4039883e23f616791efcef4b70a52d">m_numPhase</a> );
+<a name="l00342"></a>00342     setTabOrder( <a class="code" href="class_frm_n_m_r_t1.html#df4039883e23f616791efcef4b70a52d">m_numPhase</a>, <a class="code" href="class_frm_n_m_r_t1.html#aadca6dd3ab475bf22071424e22a8365">m_edFreq</a> );
+<a name="l00343"></a>00343     setTabOrder( <a class="code" href="class_frm_n_m_r_t1.html#aadca6dd3ab475bf22071424e22a8365">m_edFreq</a>, <a class="code" href="class_frm_n_m_r_t1.html#6b77667587be93f3ee2f94ce92331632">m_edBW</a> );
+<a name="l00344"></a>00344     setTabOrder( <a class="code" href="class_frm_n_m_r_t1.html#6b77667587be93f3ee2f94ce92331632">m_edBW</a>, <a class="code" href="class_frm_n_m_r_t1.html#4b9d64922c1335e167f26335715ad230">m_edSmoothSamples</a> );
+<a name="l00345"></a>00345     setTabOrder( <a class="code" href="class_frm_n_m_r_t1.html#4b9d64922c1335e167f26335715ad230">m_edSmoothSamples</a>, <a class="code" href="class_frm_n_m_r_t1.html#93d84b59449dcb8c4f22b46e76aa52f0">m_cmbFunction</a> );
+<a name="l00346"></a>00346     setTabOrder( <a class="code" href="class_frm_n_m_r_t1.html#93d84b59449dcb8c4f22b46e76aa52f0">m_cmbFunction</a>, <a class="code" href="class_frm_n_m_r_t1.html#7feb44c0802444ba33e2969dba6a7380">m_txtFitStatus</a> );
+<a name="l00347"></a>00347     setTabOrder( <a class="code" href="class_frm_n_m_r_t1.html#7feb44c0802444ba33e2969dba6a7380">m_txtFitStatus</a>, <a class="code" href="class_frm_n_m_r_t1.html#cfbf2f95346014d58f18260e7ade5755">m_btnResetFit</a> );
+<a name="l00348"></a>00348     setTabOrder( <a class="code" href="class_frm_n_m_r_t1.html#cfbf2f95346014d58f18260e7ade5755">m_btnResetFit</a>, <a class="code" href="class_frm_n_m_r_t1.html#02d034560fa4890011bbc2ece67091e6">m_btnClear</a> );
+<a name="l00349"></a>00349     setTabOrder( <a class="code" href="class_frm_n_m_r_t1.html#02d034560fa4890011bbc2ece67091e6">m_btnClear</a>, <a class="code" href="class_frm_n_m_r_t1.html#0bbf803596d6563c57a03a9d5ce5df07">m_urlDump</a> );
+<a name="l00350"></a>00350     setTabOrder( <a class="code" href="class_frm_n_m_r_t1.html#0bbf803596d6563c57a03a9d5ce5df07">m_urlDump</a>, <a class="code" href="class_frm_n_m_r_t1.html#fb038e189bbd1025f2f51a4aaf2ecdc7">m_btnDump</a> );
+<a name="l00351"></a>00351 }
+<a name="l00352"></a>00352 
+<a name="l00353"></a>00353 <span class="comment">/*</span>
+<a name="l00354"></a>00354 <span class="comment"> *  Destroys the object and frees any allocated resources</span>
+<a name="l00355"></a>00355 <span class="comment"> */</span>
+<a name="l00356"></a>00356 <a class="code" href="class_frm_n_m_r_t1.html#da85631d38e9bf542b84af0ebfadaaa3">FrmNMRT1::~FrmNMRT1</a>()
+<a name="l00357"></a>00357 {
+<a name="l00358"></a>00358     <span class="comment">// no need to delete child widgets, Qt does it all for us</span>
+<a name="l00359"></a>00359 }
+<a name="l00360"></a>00360 
+<a name="l00361"></a>00361 <span class="comment">/*</span>
+<a name="l00362"></a>00362 <span class="comment"> *  Sets the strings of the subwidgets using the current</span>
+<a name="l00363"></a>00363 <span class="comment"> *  language.</span>
+<a name="l00364"></a>00364 <span class="comment"> */</span>
+<a name="l00365"></a>00365 <span class="keywordtype">void</span> <a class="code" href="class_frm_n_m_r_t1.html#5118cea318d26ec7765eeb9944a54f5e">FrmNMRT1::languageChange</a>()
+<a name="l00366"></a>00366 {
+<a name="l00367"></a>00367     setCaption( tr2i18n( <span class="stringliteral">"NMR/NQR Relax(T1) Measurement"</span> ) );
+<a name="l00368"></a>00368     <a class="code" href="class_frm_n_m_r_t1.html#4a92e984a837360ebe9ed19e35567a7f">textLabel1_3_2_2</a>-&gt;setText( tr2i18n( <span class="stringliteral">"PulseAnalyzer 1"</span> ) );
+<a name="l00369"></a>00369     <a class="code" href="class_frm_n_m_r_t1.html#0b3f6f9df8194fa8fa1a5f6a7bf913c9">textLabel1_3_2</a>-&gt;setText( tr2i18n( <span class="stringliteral">"PulseAnalyzer 2"</span> ) );
+<a name="l00370"></a>00370     <a class="code" href="class_frm_n_m_r_t1.html#9af8ed4d03efc5c8298c7a665d384328">textLabel1_3</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Pulser"</span> ) );
+<a name="l00371"></a>00371     <a class="code" href="class_frm_n_m_r_t1.html#9b668eb4f236666a1024f61305c13c02">groupBox5</a>-&gt;setTitle( tr2i18n( <span class="stringliteral">"Data Processing"</span> ) );
+<a name="l00372"></a>00372     <a class="code" href="class_frm_n_m_r_t1.html#6958836fd8625f353a01f407f94a0436">textLabel4_2</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Fitting Status"</span> ) );
+<a name="l00373"></a>00373     <a class="code" href="class_frm_n_m_r_t1.html#8fe9a93bd6f44c439b8999460366c488">textLabel5</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Relax Func"</span> ) );
+<a name="l00374"></a>00374     <a class="code" href="class_frm_n_m_r_t1.html#685b3aa17145d5dd1255a8d8fd6b0c89">textLabel3_2</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Smooth Samples"</span> ) );
+<a name="l00375"></a>00375     <a class="code" href="class_frm_n_m_r_t1.html#07ffe706cb98d1b028eb7095434ce7fb">textLabel3_3</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Band Width"</span> ) );
+<a name="l00376"></a>00376     <a class="code" href="class_frm_n_m_r_t1.html#65b8750ed3bc053481031dd55eaa4dab">textLabel2_3_2_2</a>-&gt;setText( tr2i18n( <span class="stringliteral">"kHz"</span> ) );
+<a name="l00377"></a>00377     <a class="code" href="class_frm_n_m_r_t1.html#02d034560fa4890011bbc2ece67091e6">m_btnClear</a>-&gt;setText( tr2i18n( <span class="stringliteral">"CLEAR CURVE"</span> ) );
+<a name="l00378"></a>00378     <a class="code" href="class_frm_n_m_r_t1.html#cfbf2f95346014d58f18260e7ade5755">m_btnResetFit</a>-&gt;setText( tr2i18n( <span class="stringliteral">"RESET FITTING"</span> ) );
+<a name="l00379"></a>00379     <a class="code" href="class_frm_n_m_r_t1.html#426c1a619825e91e121f317608d0c797">textLabel3</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Frequency"</span> ) );
+<a name="l00380"></a>00380     <a class="code" href="class_frm_n_m_r_t1.html#522436c52944a6505b809782634ae0c4">textLabel2_3_2</a>-&gt;setText( tr2i18n( <span class="stringliteral">"kHz"</span> ) );
+<a name="l00381"></a>00381     <a class="code" href="class_frm_n_m_r_t1.html#3318eacf47c7bcf69d2f9e21948d8b42">textLabel4</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Phase"</span> ) );
+<a name="l00382"></a>00382     <a class="code" href="class_frm_n_m_r_t1.html#df4039883e23f616791efcef4b70a52d">m_numPhase</a>-&gt;setSuffix( tr2i18n( <span class="stringliteral">" deg"</span> ) );
+<a name="l00383"></a>00383     <a class="code" href="class_frm_n_m_r_t1.html#0da93a9d283d38791536aeee4982f870">m_ckbAutoPhase</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Auto Phase"</span> ) );
+<a name="l00384"></a>00384     <a class="code" href="class_frm_n_m_r_t1.html#e7409d52a83625bf1fdcd80e0dd55ce7">m_ckbMInftyFit</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Fit M(infinity)"</span> ) );
+<a name="l00385"></a>00385     <a class="code" href="class_frm_n_m_r_t1.html#ddc4aea310103bfc5909767b2cf7700c">m_ckbAbsFit</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Abs Value Fit"</span> ) );
+<a name="l00386"></a>00386     <a class="code" href="class_frm_n_m_r_t1.html#fb038e189bbd1025f2f51a4aaf2ecdc7">m_btnDump</a>-&gt;setText( tr2i18n( <span class="stringliteral">"DUMP"</span> ) );
+<a name="l00387"></a>00387     <a class="code" href="class_frm_n_m_r_t1.html#46c54918bf2ac8b6da67a2c728360bd3">groupBox4</a>-&gt;setTitle( tr2i18n( <span class="stringliteral">"Acquision Control"</span> ) );
+<a name="l00388"></a>00388     <a class="code" href="class_frm_n_m_r_t1.html#57dbaba40345d19c213863ed162d54b8">m_ckbActive</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Control Pulser"</span> ) );
+<a name="l00389"></a>00389     <a class="code" href="class_frm_n_m_r_t1.html#9a5dabbec78c943cd6d4d560e58889d8">textLabel1_2</a>-&gt;setText( tr2i18n( <span class="stringliteral">"&lt;i&gt;P&lt;/i&gt;&lt;font size=\"-1\"&gt;1&lt;/font&gt;(ms) / 2Tau (us)"</span> ) );
+<a name="l00390"></a>00390     <a class="code" href="class_frm_n_m_r_t1.html#5e99f445a7039d06a52a0db2e0666b87">textLabel2_2_3</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Min"</span> ) );
+<a name="l00391"></a>00391     <a class="code" href="class_frm_n_m_r_t1.html#a22d4344f28ed3e6fe332da6fbcd5839">textLabel2_2_2</a>-&gt;setText( tr2i18n( <span class="stringliteral">"Max"</span> ) );
+<a name="l00392"></a>00392     <a class="code" href="class_frm_n_m_r_t1.html#af456000bb01cf68a1517c65948cecd9">textLabel1</a>-&gt;setText( tr2i18n( <span class="stringliteral">"&lt;i&gt;P&lt;/i&gt;&lt;font size=\"-1\"&gt;1&lt;/font&gt; Dist"</span> ) );
+<a name="l00393"></a>00393 }
+<a name="l00394"></a>00394 
+<a name="l00395"></a>00395 <span class="preprocessor">#include "nmrrelaxform.moc"</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri Jan 4 16:08:22 2008に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
+</body>
+</html>

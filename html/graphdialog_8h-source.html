@@ -1,0 +1,154 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
+<title>KAME2: /Users/northriv/Documents/Projects/KAME/macosx/kame/graph/graphdialog.h ソースファイル</title>
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
+</head><body>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
+<div class="nav">
+<a class="el" href="dir_267cfcb898ce0973ecee1ed2b0a886dd.html">macosx</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_4e9c37e873543013a976ff9253a8401e.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_dc5314039bb72869907da0c63d769948.html">graph</a></div>
+<h1>graphdialog.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/****************************************************************************</span>
+<a name="l00002"></a>00002 <span class="comment">** Form interface generated from reading ui file '/Users/northriv/Documents/Projects/KAME/2.2/kame/graph/graphdialog.ui'</span>
+<a name="l00003"></a>00003 <span class="comment">**</span>
+<a name="l00004"></a>00004 <span class="comment">** Created: 羂�  1 2 01:28:38 2008</span>
+<a name="l00005"></a>00005 <span class="comment">**      by: The User Interface Compiler ($Id: graphdialog_8h-source.html,v 1.1 2008/01/14 09:41:16 northriv Exp $)</span>
+<a name="l00006"></a>00006 <span class="comment">**</span>
+<a name="l00007"></a>00007 <span class="comment">** WARNING! All changes made in this file will be lost!</span>
+<a name="l00008"></a>00008 <span class="comment">****************************************************************************/</span>
+<a name="l00009"></a>00009 
+<a name="l00010"></a>00010 <span class="preprocessor">#ifndef DLGGRAPHSETUP_H</span>
+<a name="l00011"></a>00011 <span class="preprocessor"></span><span class="preprocessor">#define DLGGRAPHSETUP_H</span>
+<a name="l00012"></a>00012 <span class="preprocessor"></span>
+<a name="l00013"></a>00013 <span class="preprocessor">#include &lt;qvariant.h&gt;</span>
+<a name="l00014"></a>00014 <span class="preprocessor">#include &lt;qpixmap.h&gt;</span>
+<a name="l00015"></a>00015 <span class="preprocessor">#include &lt;qdialog.h&gt;</span>
+<a name="l00016"></a>00016 
+<a name="l00017"></a>00017 <span class="keyword">class </span>QVBoxLayout;
+<a name="l00018"></a>00018 <span class="keyword">class </span>QHBoxLayout;
+<a name="l00019"></a>00019 <span class="keyword">class </span>QGridLayout;
+<a name="l00020"></a>00020 <span class="keyword">class </span>QSpacerItem;
+<a name="l00021"></a>00021 <span class="keyword">class </span>QPushButton;
+<a name="l00022"></a>00022 <span class="keyword">class </span>QTabWidget;
+<a name="l00023"></a>00023 <span class="keyword">class </span>QWidget;
+<a name="l00024"></a>00024 <span class="keyword">class </span>QCheckBox;
+<a name="l00025"></a>00025 <span class="keyword">class </span>KColorCombo;
+<a name="l00026"></a>00026 <span class="keyword">class </span>QListBox;
+<a name="l00027"></a>00027 <span class="keyword">class </span>QListBoxItem;
+<a name="l00028"></a>00028 <span class="keyword">class </span>QLabel;
+<a name="l00029"></a>00029 <span class="keyword">class </span>QLineEdit;
+<a name="l00030"></a>00030 <span class="keyword">class </span>KDoubleNumInput;
+<a name="l00031"></a>00031 
+<a name="l00032"></a><a class="code" href="class_dlg_graph_setup.html">00032</a> <span class="keyword">class </span><a class="code" href="class_dlg_graph_setup.html">DlgGraphSetup</a> : <span class="keyword">public</span> QDialog
+<a name="l00033"></a>00033 {
+<a name="l00034"></a>00034     Q_OBJECT
+<a name="l00035"></a>00035 
+<a name="l00036"></a>00036 <span class="keyword">public</span>:
+<a name="l00037"></a>00037     <a class="code" href="class_dlg_graph_setup.html#44310768effca17e2d27036419aaa0d0">DlgGraphSetup</a>( QWidget* parent = 0, <span class="keyword">const</span> <span class="keywordtype">char</span>* name = 0, <span class="keywordtype">bool</span> modal = FALSE, WFlags fl = 0 );
+<a name="l00038"></a>00038     <a class="code" href="class_dlg_graph_setup.html#e68cc5d0cadc59a1f4d8c3094d461469">~DlgGraphSetup</a>();
+<a name="l00039"></a>00039 
+<a name="l00040"></a><a class="code" href="class_dlg_graph_setup.html#1359d38582fde977290c394830afd7f5">00040</a>     QPushButton* <a class="code" href="class_dlg_graph_setup.html#1359d38582fde977290c394830afd7f5">buttonHelp</a>;
+<a name="l00041"></a><a class="code" href="class_dlg_graph_setup.html#a12aa3d3288222b3b9eeb97ecc5f5639">00041</a>     QPushButton* <a class="code" href="class_dlg_graph_setup.html#a12aa3d3288222b3b9eeb97ecc5f5639">buttonOk</a>;
+<a name="l00042"></a><a class="code" href="class_dlg_graph_setup.html#a8df23c32fab1f11764b5f01f2819edc">00042</a>     QTabWidget* <a class="code" href="class_dlg_graph_setup.html#a8df23c32fab1f11764b5f01f2819edc">tab1</a>;
+<a name="l00043"></a><a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">00043</a>     QWidget* <a class="code" href="class_dlg_graph_setup.html#c9e9aa6919851293d8be597e8deb8ad9">tab</a>;
+<a name="l00044"></a><a class="code" href="class_dlg_graph_setup.html#f3e0237f0b8a6ac9a2c9f91caffa14b9">00044</a>     QCheckBox* <a class="code" href="class_dlg_graph_setup.html#f3e0237f0b8a6ac9a2c9f91caffa14b9">ckbDrawBars</a>;
+<a name="l00045"></a><a class="code" href="class_dlg_graph_setup.html#5e9f03b6b1f922aa3efa4ca9f3828964">00045</a>     KColorCombo* <a class="code" href="class_dlg_graph_setup.html#5e9f03b6b1f922aa3efa4ca9f3828964">clrBarColor</a>;
+<a name="l00046"></a><a class="code" href="class_dlg_graph_setup.html#0cdd0f294f8e80d236db89170ba6a8fd">00046</a>     QCheckBox* <a class="code" href="class_dlg_graph_setup.html#0cdd0f294f8e80d236db89170ba6a8fd">ckbDrawLines</a>;
+<a name="l00047"></a><a class="code" href="class_dlg_graph_setup.html#e2954494de82abf82bfa9978fb502438">00047</a>     KColorCombo* <a class="code" href="class_dlg_graph_setup.html#e2954494de82abf82bfa9978fb502438">clrLineColor</a>;
+<a name="l00048"></a><a class="code" href="class_dlg_graph_setup.html#cce7b12e1b2b4b34dc5a2b9be41b655a">00048</a>     QCheckBox* <a class="code" href="class_dlg_graph_setup.html#cce7b12e1b2b4b34dc5a2b9be41b655a">ckbDrawPoints</a>;
+<a name="l00049"></a><a class="code" href="class_dlg_graph_setup.html#85d9838985ae10d73e173a79414b348c">00049</a>     KColorCombo* <a class="code" href="class_dlg_graph_setup.html#85d9838985ae10d73e173a79414b348c">clrPointColor</a>;
+<a name="l00050"></a><a class="code" href="class_dlg_graph_setup.html#7422b081ef91e8db8f18abe495b23e7e">00050</a>     QCheckBox* <a class="code" href="class_dlg_graph_setup.html#7422b081ef91e8db8f18abe495b23e7e">ckbDisplayMajorGrids</a>;
+<a name="l00051"></a><a class="code" href="class_dlg_graph_setup.html#4b0168c9182721e46d151bbf1fc9fb9c">00051</a>     KColorCombo* <a class="code" href="class_dlg_graph_setup.html#4b0168c9182721e46d151bbf1fc9fb9c">clrMajorGridColor</a>;
+<a name="l00052"></a><a class="code" href="class_dlg_graph_setup.html#045337406728d64b85addbdb6d99a4b9">00052</a>     QCheckBox* <a class="code" href="class_dlg_graph_setup.html#045337406728d64b85addbdb6d99a4b9">ckbDisplayMinorGrids</a>;
+<a name="l00053"></a><a class="code" href="class_dlg_graph_setup.html#d5bfdcd1cf098b2c4da7ff0906183372">00053</a>     KColorCombo* <a class="code" href="class_dlg_graph_setup.html#d5bfdcd1cf098b2c4da7ff0906183372">clrMinorGridColor</a>;
+<a name="l00054"></a><a class="code" href="class_dlg_graph_setup.html#cf7701eafc75e92ddea5edb5afb0e0e7">00054</a>     QListBox* <a class="code" href="class_dlg_graph_setup.html#cf7701eafc75e92ddea5edb5afb0e0e7">lbPlots</a>;
+<a name="l00055"></a><a class="code" href="class_dlg_graph_setup.html#54303b11e65bc040071e6cab8e7a7d52">00055</a>     QLabel* <a class="code" href="class_dlg_graph_setup.html#54303b11e65bc040071e6cab8e7a7d52">textLabel3</a>;
+<a name="l00056"></a><a class="code" href="class_dlg_graph_setup.html#fb2a941ca5f4c6c2f339b677845a970b">00056</a>     QLineEdit* <a class="code" href="class_dlg_graph_setup.html#fb2a941ca5f4c6c2f339b677845a970b">edMaxCount</a>;
+<a name="l00057"></a><a class="code" href="class_dlg_graph_setup.html#8d21cdea731eebbb8b17bb12175391f7">00057</a>     QPushButton* <a class="code" href="class_dlg_graph_setup.html#8d21cdea731eebbb8b17bb12175391f7">btnClearPoints</a>;
+<a name="l00058"></a><a class="code" href="class_dlg_graph_setup.html#798fd5c1475e9a2a81ec41ab6510a130">00058</a>     QLabel* <a class="code" href="class_dlg_graph_setup.html#798fd5c1475e9a2a81ec41ab6510a130">textLabel1_4</a>;
+<a name="l00059"></a><a class="code" href="class_dlg_graph_setup.html#12ccb434076e250814363f9a73848045">00059</a>     KDoubleNumInput* <a class="code" href="class_dlg_graph_setup.html#12ccb434076e250814363f9a73848045">dblIntensity</a>;
+<a name="l00060"></a><a class="code" href="class_dlg_graph_setup.html#2e01eca45034dedb0a84e40a6100f7f1">00060</a>     QCheckBox* <a class="code" href="class_dlg_graph_setup.html#2e01eca45034dedb0a84e40a6100f7f1">ckbColorPlot</a>;
+<a name="l00061"></a><a class="code" href="class_dlg_graph_setup.html#e31b55fc0dba932ec7e930142d3e3788">00061</a>     KColorCombo* <a class="code" href="class_dlg_graph_setup.html#e31b55fc0dba932ec7e930142d3e3788">clrColorPlotLow</a>;
+<a name="l00062"></a><a class="code" href="class_dlg_graph_setup.html#09ce49b80b8d1281a6fe56ec4a553c5a">00062</a>     KColorCombo* <a class="code" href="class_dlg_graph_setup.html#09ce49b80b8d1281a6fe56ec4a553c5a">clrColorPlotHigh</a>;
+<a name="l00063"></a><a class="code" href="class_dlg_graph_setup.html#5269aa9ef27c588ce2cb6798ae042168">00063</a>     QWidget* <a class="code" href="class_dlg_graph_setup.html#5269aa9ef27c588ce2cb6798ae042168">tab_2</a>;
+<a name="l00064"></a><a class="code" href="class_dlg_graph_setup.html#ea73ecefa95c26dc70840d7ae6b2528c">00064</a>     QLabel* <a class="code" href="class_dlg_graph_setup.html#ea73ecefa95c26dc70840d7ae6b2528c">textLabel1_3</a>;
+<a name="l00065"></a><a class="code" href="class_dlg_graph_setup.html#f46018cf09d09a2861dfa00591fb1c7b">00065</a>     QLineEdit* <a class="code" href="class_dlg_graph_setup.html#f46018cf09d09a2861dfa00591fb1c7b">edTicLabelFormat</a>;
+<a name="l00066"></a><a class="code" href="class_dlg_graph_setup.html#07513986d087c1cfa0c09e36944b1343">00066</a>     QCheckBox* <a class="code" href="class_dlg_graph_setup.html#07513986d087c1cfa0c09e36944b1343">ckbDisplayTicLabels</a>;
+<a name="l00067"></a><a class="code" href="class_dlg_graph_setup.html#6e42520cb4232c99aecfb99236521af2">00067</a>     QCheckBox* <a class="code" href="class_dlg_graph_setup.html#6e42520cb4232c99aecfb99236521af2">ckbDisplayMajorTics</a>;
+<a name="l00068"></a><a class="code" href="class_dlg_graph_setup.html#b859701df8d170a9ae7a6e6b15e62868">00068</a>     QCheckBox* <a class="code" href="class_dlg_graph_setup.html#b859701df8d170a9ae7a6e6b15e62868">ckbDisplayMinorTics</a>;
+<a name="l00069"></a><a class="code" href="class_dlg_graph_setup.html#fcb5e06be887c8c80a2da8f1ecbd7e76">00069</a>     QListBox* <a class="code" href="class_dlg_graph_setup.html#fcb5e06be887c8c80a2da8f1ecbd7e76">lbAxes</a>;
+<a name="l00070"></a><a class="code" href="class_dlg_graph_setup.html#b409edf9e01e0046011145fabb781d86">00070</a>     QCheckBox* <a class="code" href="class_dlg_graph_setup.html#b409edf9e01e0046011145fabb781d86">ckbAutoScale</a>;
+<a name="l00071"></a><a class="code" href="class_dlg_graph_setup.html#fbd827ff206c321403b5712a5eff1c18">00071</a>     QLabel* <a class="code" href="class_dlg_graph_setup.html#fbd827ff206c321403b5712a5eff1c18">textLabel1</a>;
+<a name="l00072"></a><a class="code" href="class_dlg_graph_setup.html#44bb1b62601b9aeef440058f6c9e7638">00072</a>     QLineEdit* <a class="code" href="class_dlg_graph_setup.html#44bb1b62601b9aeef440058f6c9e7638">edAxisMax</a>;
+<a name="l00073"></a><a class="code" href="class_dlg_graph_setup.html#4211bb9ed1766d5eca7a5242fd283595">00073</a>     QLabel* <a class="code" href="class_dlg_graph_setup.html#4211bb9ed1766d5eca7a5242fd283595">textLabel1_2</a>;
+<a name="l00074"></a><a class="code" href="class_dlg_graph_setup.html#78f3f24d11ea4b4ae66157bb84c51999">00074</a>     QLineEdit* <a class="code" href="class_dlg_graph_setup.html#78f3f24d11ea4b4ae66157bb84c51999">edAxisMin</a>;
+<a name="l00075"></a><a class="code" href="class_dlg_graph_setup.html#acdf08c1e22568417e241828553fbf06">00075</a>     QCheckBox* <a class="code" href="class_dlg_graph_setup.html#acdf08c1e22568417e241828553fbf06">ckbLogScale</a>;
+<a name="l00076"></a><a class="code" href="class_dlg_graph_setup.html#262527adbbfa4d46a0eeb5cd04ca269e">00076</a>     QWidget* <a class="code" href="class_dlg_graph_setup.html#262527adbbfa4d46a0eeb5cd04ca269e">tab_3</a>;
+<a name="l00077"></a><a class="code" href="class_dlg_graph_setup.html#3def4bc3095347be12a486dcb1614916">00077</a>     QLabel* <a class="code" href="class_dlg_graph_setup.html#3def4bc3095347be12a486dcb1614916">textLabel4</a>;
+<a name="l00078"></a><a class="code" href="class_dlg_graph_setup.html#3f323451508e14bfe872556c7e87a789">00078</a>     KColorCombo* <a class="code" href="class_dlg_graph_setup.html#3f323451508e14bfe872556c7e87a789">m_clrBackGroundColor</a>;
+<a name="l00079"></a><a class="code" href="class_dlg_graph_setup.html#82d413163b83e71f32446726c873052b">00079</a>     QLabel* <a class="code" href="class_dlg_graph_setup.html#82d413163b83e71f32446726c873052b">textLabel1_4_2</a>;
+<a name="l00080"></a><a class="code" href="class_dlg_graph_setup.html#1f89c8964fca74cbe24db8a10ef48459">00080</a>     KDoubleNumInput* <a class="code" href="class_dlg_graph_setup.html#1f89c8964fca74cbe24db8a10ef48459">m_dblPersistence</a>;
+<a name="l00081"></a><a class="code" href="class_dlg_graph_setup.html#a8dfba92875f4ba38cecb15c6da3a9a3">00081</a>     QCheckBox* <a class="code" href="class_dlg_graph_setup.html#a8dfba92875f4ba38cecb15c6da3a9a3">m_ckbDrawLegends</a>;
+<a name="l00082"></a>00082 
+<a name="l00083"></a>00083 <span class="keyword">protected</span>:
+<a name="l00084"></a><a class="code" href="class_dlg_graph_setup.html#41badf74a6c427ad0c96fd63b27f6588">00084</a>     QGridLayout* <a class="code" href="class_dlg_graph_setup.html#41badf74a6c427ad0c96fd63b27f6588">DlgGraphSetupLayout</a>;
+<a name="l00085"></a><a class="code" href="class_dlg_graph_setup.html#7fcbb88193f92b471dfd6e6bd881eaee">00085</a>     QHBoxLayout* <a class="code" href="class_dlg_graph_setup.html#7fcbb88193f92b471dfd6e6bd881eaee">Layout1</a>;
+<a name="l00086"></a><a class="code" href="class_dlg_graph_setup.html#5af1c715ebfa21cd399338f4c5d69df4">00086</a>     QSpacerItem* <a class="code" href="class_dlg_graph_setup.html#5af1c715ebfa21cd399338f4c5d69df4">Horizontal_Spacing2</a>;
+<a name="l00087"></a><a class="code" href="class_dlg_graph_setup.html#7150d9c9df5fa57c68be0b020256d056">00087</a>     QGridLayout* <a class="code" href="class_dlg_graph_setup.html#7150d9c9df5fa57c68be0b020256d056">tabLayout</a>;
+<a name="l00088"></a><a class="code" href="class_dlg_graph_setup.html#be104417d855f924b31a42d6aac1b51b">00088</a>     QHBoxLayout* <a class="code" href="class_dlg_graph_setup.html#be104417d855f924b31a42d6aac1b51b">layout20_2_2</a>;
+<a name="l00089"></a><a class="code" href="class_dlg_graph_setup.html#7f528d3a2a0b26a172c4690c159d6471">00089</a>     QSpacerItem* <a class="code" href="class_dlg_graph_setup.html#7f528d3a2a0b26a172c4690c159d6471">spacer2_2_2</a>;
+<a name="l00090"></a><a class="code" href="class_dlg_graph_setup.html#f53b3e4b6d97d8e681ce3b29bcd56e46">00090</a>     QHBoxLayout* <a class="code" href="class_dlg_graph_setup.html#f53b3e4b6d97d8e681ce3b29bcd56e46">layout18_2_2</a>;
+<a name="l00091"></a><a class="code" href="class_dlg_graph_setup.html#4a24bf6d6ee1e096d67b5262a91efb21">00091</a>     QHBoxLayout* <a class="code" href="class_dlg_graph_setup.html#4a24bf6d6ee1e096d67b5262a91efb21">layout20_2</a>;
+<a name="l00092"></a><a class="code" href="class_dlg_graph_setup.html#2423c44d2b324c5c9260ac328ac8ba13">00092</a>     QSpacerItem* <a class="code" href="class_dlg_graph_setup.html#2423c44d2b324c5c9260ac328ac8ba13">spacer2_2</a>;
+<a name="l00093"></a><a class="code" href="class_dlg_graph_setup.html#525414ed50bd0213efa7e83913d0ce07">00093</a>     QHBoxLayout* <a class="code" href="class_dlg_graph_setup.html#525414ed50bd0213efa7e83913d0ce07">layout18_2</a>;
+<a name="l00094"></a><a class="code" href="class_dlg_graph_setup.html#ea40a31a3fc5980f200fc8717738b369">00094</a>     QHBoxLayout* <a class="code" href="class_dlg_graph_setup.html#ea40a31a3fc5980f200fc8717738b369">layout20</a>;
+<a name="l00095"></a><a class="code" href="class_dlg_graph_setup.html#4996d01581dd7be1bdda22cd1675180b">00095</a>     QSpacerItem* <a class="code" href="class_dlg_graph_setup.html#4996d01581dd7be1bdda22cd1675180b">spacer2</a>;
+<a name="l00096"></a><a class="code" href="class_dlg_graph_setup.html#a4824f7f0f47179ccc6b28b06c03a435">00096</a>     QHBoxLayout* <a class="code" href="class_dlg_graph_setup.html#a4824f7f0f47179ccc6b28b06c03a435">layout18</a>;
+<a name="l00097"></a><a class="code" href="class_dlg_graph_setup.html#eced333f887095aa9226412d941236e8">00097</a>     QHBoxLayout* <a class="code" href="class_dlg_graph_setup.html#eced333f887095aa9226412d941236e8">layout28</a>;
+<a name="l00098"></a><a class="code" href="class_dlg_graph_setup.html#cea7213e1b07763b14fe4f2754a9e137">00098</a>     QSpacerItem* <a class="code" href="class_dlg_graph_setup.html#cea7213e1b07763b14fe4f2754a9e137">spacer7</a>;
+<a name="l00099"></a><a class="code" href="class_dlg_graph_setup.html#7cf5237b7c5733adafdc84b0c2513927">00099</a>     QHBoxLayout* <a class="code" href="class_dlg_graph_setup.html#7cf5237b7c5733adafdc84b0c2513927">layout29</a>;
+<a name="l00100"></a><a class="code" href="class_dlg_graph_setup.html#24cb3be551990aeede58b23bf9606110">00100</a>     QSpacerItem* <a class="code" href="class_dlg_graph_setup.html#24cb3be551990aeede58b23bf9606110">spacer8</a>;
+<a name="l00101"></a><a class="code" href="class_dlg_graph_setup.html#5b8175561a360f5f50b05e774d8735eb">00101</a>     QHBoxLayout* <a class="code" href="class_dlg_graph_setup.html#5b8175561a360f5f50b05e774d8735eb">layout21</a>;
+<a name="l00102"></a><a class="code" href="class_dlg_graph_setup.html#4c64ac3f8ed6a4982486375cc3b88be2">00102</a>     QVBoxLayout* <a class="code" href="class_dlg_graph_setup.html#4c64ac3f8ed6a4982486375cc3b88be2">layout19</a>;
+<a name="l00103"></a><a class="code" href="class_dlg_graph_setup.html#7651dffec81a601744b24b1a74867057">00103</a>     QVBoxLayout* <a class="code" href="class_dlg_graph_setup.html#7651dffec81a601744b24b1a74867057">layout16</a>;
+<a name="l00104"></a><a class="code" href="class_dlg_graph_setup.html#2212d6e897d600991b66383f263386c4">00104</a>     QHBoxLayout* <a class="code" href="class_dlg_graph_setup.html#2212d6e897d600991b66383f263386c4">layout22</a>;
+<a name="l00105"></a><a class="code" href="class_dlg_graph_setup.html#bb3b5311aae4b5fd23886f9769c6adf5">00105</a>     QVBoxLayout* <a class="code" href="class_dlg_graph_setup.html#bb3b5311aae4b5fd23886f9769c6adf5">layout26</a>;
+<a name="l00106"></a><a class="code" href="class_dlg_graph_setup.html#5b0b6f8716ef0bb1ebf872fca340cb6b">00106</a>     QHBoxLayout* <a class="code" href="class_dlg_graph_setup.html#5b0b6f8716ef0bb1ebf872fca340cb6b">layout25</a>;
+<a name="l00107"></a><a class="code" href="class_dlg_graph_setup.html#33486a5567459bb403b75430509f2450">00107</a>     QGridLayout* <a class="code" href="class_dlg_graph_setup.html#33486a5567459bb403b75430509f2450">tabLayout_2</a>;
+<a name="l00108"></a><a class="code" href="class_dlg_graph_setup.html#7b15aae641bdef4f52107a5612f7e209">00108</a>     QHBoxLayout* <a class="code" href="class_dlg_graph_setup.html#7b15aae641bdef4f52107a5612f7e209">layout14</a>;
+<a name="l00109"></a><a class="code" href="class_dlg_graph_setup.html#2cda74bded03d0c28cf0464d1f9de46f">00109</a>     QVBoxLayout* <a class="code" href="class_dlg_graph_setup.html#2cda74bded03d0c28cf0464d1f9de46f">layout15</a>;
+<a name="l00110"></a><a class="code" href="class_dlg_graph_setup.html#1ea3e157f43ce3f14e3d4017cfd66813">00110</a>     QHBoxLayout* <a class="code" href="class_dlg_graph_setup.html#1ea3e157f43ce3f14e3d4017cfd66813">layout22_2</a>;
+<a name="l00111"></a><a class="code" href="class_dlg_graph_setup.html#9fe5ec47b7db297f9b255d3826519cd1">00111</a>     QVBoxLayout* <a class="code" href="class_dlg_graph_setup.html#9fe5ec47b7db297f9b255d3826519cd1">layout16_2</a>;
+<a name="l00112"></a><a class="code" href="class_dlg_graph_setup.html#672b8a3df24387444592411751b6e148">00112</a>     QVBoxLayout* <a class="code" href="class_dlg_graph_setup.html#672b8a3df24387444592411751b6e148">layout11</a>;
+<a name="l00113"></a><a class="code" href="class_dlg_graph_setup.html#3bc3fe4d943f6a69a58bc97224a4426c">00113</a>     QVBoxLayout* <a class="code" href="class_dlg_graph_setup.html#3bc3fe4d943f6a69a58bc97224a4426c">layout10</a>;
+<a name="l00114"></a><a class="code" href="class_dlg_graph_setup.html#fb522ad2cf1c5a5854f6f4d4a37108fd">00114</a>     QHBoxLayout* <a class="code" href="class_dlg_graph_setup.html#fb522ad2cf1c5a5854f6f4d4a37108fd">layout2</a>;
+<a name="l00115"></a><a class="code" href="class_dlg_graph_setup.html#765647f1a8e0ada31efecc049a5b208c">00115</a>     QHBoxLayout* <a class="code" href="class_dlg_graph_setup.html#765647f1a8e0ada31efecc049a5b208c">layout2_2</a>;
+<a name="l00116"></a><a class="code" href="class_dlg_graph_setup.html#87dce95b68ba6d9f52e2fb32a13945f3">00116</a>     QGridLayout* <a class="code" href="class_dlg_graph_setup.html#87dce95b68ba6d9f52e2fb32a13945f3">tabLayout_3</a>;
+<a name="l00117"></a><a class="code" href="class_dlg_graph_setup.html#90fa3beeb37ab000790a688fe1db861b">00117</a>     QSpacerItem* <a class="code" href="class_dlg_graph_setup.html#90fa3beeb37ab000790a688fe1db861b">spacer11</a>;
+<a name="l00118"></a><a class="code" href="class_dlg_graph_setup.html#532e6ae3286a2fb18581f398c53f6c87">00118</a>     QSpacerItem* <a class="code" href="class_dlg_graph_setup.html#532e6ae3286a2fb18581f398c53f6c87">spacer12</a>;
+<a name="l00119"></a><a class="code" href="class_dlg_graph_setup.html#ea919934bbfce95e28d1ded786c14d1a">00119</a>     QSpacerItem* <a class="code" href="class_dlg_graph_setup.html#ea919934bbfce95e28d1ded786c14d1a">spacer12_2</a>;
+<a name="l00120"></a><a class="code" href="class_dlg_graph_setup.html#97b20b113921c169a2f26cc2cab8b21b">00120</a>     QVBoxLayout* <a class="code" href="class_dlg_graph_setup.html#97b20b113921c169a2f26cc2cab8b21b">layout18_3</a>;
+<a name="l00121"></a><a class="code" href="class_dlg_graph_setup.html#fe85b356ab0ffe988a306ada8cb79075">00121</a>     QHBoxLayout* <a class="code" href="class_dlg_graph_setup.html#fe85b356ab0ffe988a306ada8cb79075">layout26_2</a>;
+<a name="l00122"></a>00122 
+<a name="l00123"></a>00123 <span class="keyword">protected</span> slots:
+<a name="l00124"></a>00124     <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_dlg_graph_setup.html#424d3ef8560840417a9120d35622c9d6">languageChange</a>();
+<a name="l00125"></a>00125 
+<a name="l00126"></a>00126 <span class="keyword">private</span>:
+<a name="l00127"></a><a class="code" href="class_dlg_graph_setup.html#3b946237234cf14c39f42a0b7c9eec3f">00127</a>     QPixmap <a class="code" href="class_dlg_graph_setup.html#3b946237234cf14c39f42a0b7c9eec3f">image0</a>;
+<a name="l00128"></a>00128 
+<a name="l00129"></a>00129 };
+<a name="l00130"></a>00130 
+<a name="l00131"></a>00131 <span class="preprocessor">#endif // DLGGRAPHSETUP_H</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri Jan 4 16:08:21 2008に生成されました。&nbsp;
+<a href="http://www.doxygen.org/index.html">
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
+</body>
+</html>

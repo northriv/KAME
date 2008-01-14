@@ -1,15 +1,24 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
-<title>KAME2: kame/driver/serial.h ソースファイル</title>
+<title>KAME2: modules/charinterface/serial.h ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000003.html">driver</a></div>
+<a class="el" href="dir_c17a6312adb6ef1af4037d741e35ac41.html">modules</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_a0d70bd1df9cefc80caa0c65868289f2.html">charinterface</a></div>
 <h1>serial.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
-<a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
+<a name="l00003"></a>00003 <span class="comment">                                   kitag@issp.u-tokyo.ac.jp</span>
 <a name="l00004"></a>00004 <span class="comment">                </span>
 <a name="l00005"></a>00005 <span class="comment">                This program is free software; you can redistribute it and/or</span>
 <a name="l00006"></a>00006 <span class="comment">                modify it under the terms of the GNU Library General Public</span>
@@ -42,16 +51,16 @@
 <a name="l00033"></a><a class="code" href="class_x_posix_serial_port.html">00033</a> <span class="keyword">class </span><a class="code" href="class_x_posix_serial_port.html">XPosixSerialPort</a> : <span class="keyword">public</span> <a class="code" href="class_x_port.html">XPort</a>
 <a name="l00034"></a>00034 {
 <a name="l00035"></a>00035 <span class="keyword">public</span>:
-<a name="l00036"></a>00036         <a class="code" href="class_x_posix_serial_port.html#a0">XPosixSerialPort</a>(<a class="code" href="class_x_char_interface.html">XCharInterface</a> *interface);
-<a name="l00037"></a>00037         <span class="keyword">virtual</span> <a class="code" href="class_x_posix_serial_port.html#a1">~XPosixSerialPort</a>();
+<a name="l00036"></a>00036         <a class="code" href="class_x_posix_serial_port.html#952a84a4797065ad53d0906ddd5c2138">XPosixSerialPort</a>(<a class="code" href="class_x_char_interface.html">XCharInterface</a> *interface);
+<a name="l00037"></a>00037         <span class="keyword">virtual</span> <a class="code" href="class_x_posix_serial_port.html#f1d1c286a1169af223bcb3a5166a8d17">~XPosixSerialPort</a>();
 <a name="l00038"></a>00038  
-<a name="l00039"></a>00039         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_posix_serial_port.html#a2">open</a>() <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
-<a name="l00040"></a>00040         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_posix_serial_port.html#a3">send</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *str) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
-<a name="l00041"></a>00041         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_posix_serial_port.html#a4">write</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *sendbuf, <span class="keywordtype">int</span> size) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
-<a name="l00042"></a>00042         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_posix_serial_port.html#a5">receive</a>() <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
-<a name="l00043"></a>00043         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_posix_serial_port.html#a5">receive</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> length) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);  
+<a name="l00039"></a>00039         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_posix_serial_port.html#f913b0b76aa0f933a3608d9050f3bea7">open</a>() <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
+<a name="l00040"></a>00040         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_posix_serial_port.html#816d838558ae0fe3401bd0281b5d2898">send</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *str) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
+<a name="l00041"></a>00041         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_posix_serial_port.html#0851f8c4c22f50a2b59870d608d6f4cd">write</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *sendbuf, <span class="keywordtype">int</span> size) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
+<a name="l00042"></a>00042         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_posix_serial_port.html#4350c550955628637ffe1e8f445212e2">receive</a>() <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);
+<a name="l00043"></a>00043         <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="class_x_posix_serial_port.html#4350c550955628637ffe1e8f445212e2">receive</a>(<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> length) <span class="keywordflow">throw</span> (<a class="code" href="struct_x_interface_1_1_x_comm_error.html">XInterface::XCommError</a> &amp;);  
 <a name="l00044"></a>00044 <span class="keyword">private</span>:
-<a name="l00045"></a><a class="code" href="class_x_posix_serial_port.html#r0">00045</a>         <span class="keywordtype">int</span> <a class="code" href="class_x_posix_serial_port.html#r0">m_scifd</a>;
+<a name="l00045"></a><a class="code" href="class_x_posix_serial_port.html#3de57be1b2cbe21da5d0fc3924106546">00045</a>         <span class="keywordtype">int</span> <a class="code" href="class_x_posix_serial_port.html#3de57be1b2cbe21da5d0fc3924106546">m_scifd</a>;
 <a name="l00046"></a>00046 };
 <a name="l00047"></a>00047 
 <a name="l00048"></a>00048 <span class="keyword">typedef</span> <a class="code" href="class_x_posix_serial_port.html">XPosixSerialPort</a> <a class="code" href="class_x_posix_serial_port.html">XSerialPort</a>;
@@ -59,8 +68,8 @@
 <a name="l00050"></a>00050 <span class="preprocessor">#endif </span><span class="comment">/*SERIAL_POSIX*/</span>
 <a name="l00051"></a>00051 
 <a name="l00052"></a>00052 <span class="preprocessor">#endif </span><span class="comment">/*SERIAL_H_*/</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:13 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Jan 14 03:59:42 2008に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
 </html>

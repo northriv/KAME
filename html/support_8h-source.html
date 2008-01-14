@@ -2,24 +2,33 @@
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
 <title>KAME2: kame/support.h ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a></div>
+<a class="el" href="dir_322056169d9dd04bc6751323c3d87b79.html">kame</a></div>
 <h1>support.h</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
-<a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
-<a name="l00004"></a>00004 <span class="comment">                </span>
+<a name="l00003"></a>00003 <span class="comment">                                   kitag@issp.u-tokyo.ac.jp</span>
+<a name="l00004"></a>00004 <span class="comment"></span>
 <a name="l00005"></a>00005 <span class="comment">                This program is free software; you can redistribute it and/or</span>
 <a name="l00006"></a>00006 <span class="comment">                modify it under the terms of the GNU Library General Public</span>
 <a name="l00007"></a>00007 <span class="comment">                License as published by the Free Software Foundation; either</span>
 <a name="l00008"></a>00008 <span class="comment">                version 2 of the License, or (at your option) any later version.</span>
-<a name="l00009"></a>00009 <span class="comment">                </span>
+<a name="l00009"></a>00009 <span class="comment"></span>
 <a name="l00010"></a>00010 <span class="comment">                You should have received a copy of the GNU Library General </span>
 <a name="l00011"></a>00011 <span class="comment">                Public License and a list of authors along with this program; </span>
 <a name="l00012"></a>00012 <span class="comment">                see the files COPYING and AUTHORS.</span>
-<a name="l00013"></a>00013 <span class="comment">***************************************************************************/</span>
+<a name="l00013"></a>00013 <span class="comment"> ***************************************************************************/</span>
 <a name="l00014"></a>00014 <span class="comment">//Every KAME source must include this header</span>
 <a name="l00015"></a>00015 <span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00016"></a>00016 
@@ -27,7 +36,7 @@
 <a name="l00018"></a>00018 <span class="preprocessor"></span><span class="preprocessor">#define supportH</span>
 <a name="l00019"></a>00019 <span class="preprocessor"></span>
 <a name="l00020"></a>00020 <span class="preprocessor">#ifdef HAVE_CONFIG_H</span>
-<a name="l00021"></a>00021 <span class="preprocessor"></span><span class="preprocessor">#include "config.h"</span>
+<a name="l00021"></a>00021 <span class="preprocessor"></span><span class="preprocessor">#include &lt;config.h&gt;</span>
 <a name="l00022"></a>00022 <span class="preprocessor">#endif</span>
 <a name="l00023"></a>00023 <span class="preprocessor"></span>
 <a name="l00024"></a>00024 <span class="preprocessor">#ifdef WORDS_BIGENDIAN</span>
@@ -57,7 +66,7 @@
 <a name="l00048"></a>00048 <span class="comment">  #error Could not define 32bit integer.</span>
 <a name="l00049"></a>00049 <span class="comment">  #endif</span>
 <a name="l00050"></a>00050 <span class="comment">  #endif</span>
-<a name="l00051"></a>00051 <span class="comment">*/</span>
+<a name="l00051"></a>00051 <span class="comment"> */</span>
 <a name="l00052"></a>00052 
 <a name="l00053"></a>00053 <span class="preprocessor">#ifdef HAVE_LIBGCCPP</span>
 <a name="l00054"></a>00054 <span class="preprocessor"></span><span class="comment">//Boehm GC stuff</span>
@@ -79,8 +88,8 @@
 <a name="l00070"></a>00070 <span class="preprocessor"></span><span class="preprocessor">#endif</span>
 <a name="l00071"></a><a class="code" href="classkame__gc.html">00071</a> <span class="preprocessor"></span><span class="keyword">class </span><a class="code" href="classkame__gc.html">kame_gc</a> : <span class="keyword">public</span> gc {
 <a name="l00072"></a>00072 <span class="keyword">public</span>:
-<a name="l00073"></a>00073         <span class="keywordtype">void</span> *<a class="code" href="classkame__gc.html#a0">operator new</a>(size_t size);
-<a name="l00074"></a>00074         <span class="keywordtype">void</span> <a class="code" href="classkame__gc.html#a1">operator delete</a>(<span class="keywordtype">void</span> *obj);
+<a name="l00073"></a>00073         <span class="keywordtype">void</span> *<a class="code" href="classkame__gc.html#6b43611520a3977dbd70c9bfc2a7c964">operator new</a>(size_t size);
+<a name="l00074"></a>00074         <span class="keywordtype">void</span> <a class="code" href="classkame__gc.html#14bc2c1a48724ac886c3d520f5282b0c">operator delete</a>(<span class="keywordtype">void</span> *obj);
 <a name="l00075"></a>00075 };
 <a name="l00076"></a>00076 <span class="preprocessor">#else</span>
 <a name="l00077"></a>00077 <span class="preprocessor"></span><span class="preprocessor">#if defined __WIN32__ || defined WINDOWS</span>
@@ -104,7 +113,7 @@
 <a name="l00095"></a>00095 <span class="preprocessor"></span><span class="preprocessor">#define C_ASSERT(expr) _my_cassert(sizeof(char [ ( expr ) ? 1 : -1 ]))</span>
 <a name="l00096"></a>00096 <span class="preprocessor"></span><span class="keywordtype">void</span> my_assert(<span class="keyword">const</span> <span class="keywordtype">char</span> *file, <span class="keywordtype">int</span> line);
 <a name="l00097"></a>00097 <span class="keyword">inline</span> <span class="keywordtype">void</span> _my_assert(<span class="keywordtype">bool</span> var, <span class="keyword">const</span> <span class="keywordtype">char</span> *file, <span class="keywordtype">int</span> line) {
-<a name="l00098"></a>00098     <span class="keywordflow">if</span> (!var) my_assert(file, line);
+<a name="l00098"></a>00098         <span class="keywordflow">if</span> (!var) my_assert(file, line);
 <a name="l00099"></a>00099 }
 <a name="l00100"></a>00100 <span class="keyword">inline</span> <span class="keywordtype">void</span> _my_cassert(size_t ) {}
 <a name="l00101"></a>00101 <span class="preprocessor">#endif</span>
@@ -137,16 +146,16 @@
 <a name="l00130"></a>00130 _gWarnPrint(<span class="keyword">const</span> QString &amp;str, <span class="keyword">const</span> <span class="keywordtype">char</span> *file, <span class="keywordtype">int</span> line);
 <a name="l00131"></a>00131 
 <a name="l00133"></a><a class="code" href="struct_x_kame_error.html">00133</a> <span class="keyword">struct </span><a class="code" href="struct_x_kame_error.html">XKameError</a> {
-<a name="l00135"></a>00135     <a class="code" href="struct_x_kame_error.html#a0">XKameError</a>(<span class="keyword">const</span> QString &amp;s, <span class="keyword">const</span> <span class="keywordtype">char</span> *file, <span class="keywordtype">int</span> line);
-<a name="l00136"></a>00136     <span class="keywordtype">void</span> <a class="code" href="struct_x_kame_error.html#a1">print</a>();
-<a name="l00137"></a>00137     <span class="keywordtype">void</span> <a class="code" href="struct_x_kame_error.html#a1">print</a>(<span class="keyword">const</span> QString &amp;header);
-<a name="l00138"></a>00138     <span class="keyword">static</span> <span class="keywordtype">void</span> <a class="code" href="struct_x_kame_error.html#a1">print</a>(<span class="keyword">const</span> QString &amp;<a class="code" href="struct_x_kame_error.html#a3">msg</a>, <span class="keyword">const</span> <span class="keywordtype">char</span> *file, <span class="keywordtype">int</span> line, <span class="keywordtype">int</span> _errno);
-<a name="l00139"></a>00139     <span class="keyword">const</span> QString &amp;<a class="code" href="struct_x_kame_error.html#a3">msg</a>() <span class="keyword">const</span>;
+<a name="l00135"></a>00135         <a class="code" href="struct_x_kame_error.html#21e83cb328456ee809a67214a10beb70">XKameError</a>(<span class="keyword">const</span> QString &amp;s, <span class="keyword">const</span> <span class="keywordtype">char</span> *file, <span class="keywordtype">int</span> line);
+<a name="l00136"></a>00136         <span class="keywordtype">void</span> <a class="code" href="struct_x_kame_error.html#9a84ebcb9d45b52654fd1d071450a5ee">print</a>();
+<a name="l00137"></a>00137         <span class="keywordtype">void</span> <a class="code" href="struct_x_kame_error.html#9a84ebcb9d45b52654fd1d071450a5ee">print</a>(<span class="keyword">const</span> QString &amp;header);
+<a name="l00138"></a>00138         <span class="keyword">static</span> <span class="keywordtype">void</span> <a class="code" href="struct_x_kame_error.html#9a84ebcb9d45b52654fd1d071450a5ee">print</a>(<span class="keyword">const</span> QString &amp;<a class="code" href="struct_x_kame_error.html#3414b50e288297ba18a61ddd61c8e666">msg</a>, <span class="keyword">const</span> <span class="keywordtype">char</span> *file, <span class="keywordtype">int</span> line, <span class="keywordtype">int</span> _errno);
+<a name="l00139"></a>00139         <span class="keyword">const</span> QString &amp;<a class="code" href="struct_x_kame_error.html#3414b50e288297ba18a61ddd61c8e666">msg</a>() <span class="keyword">const</span>;
 <a name="l00140"></a>00140 <span class="keyword">private</span>:
-<a name="l00141"></a><a class="code" href="struct_x_kame_error.html#r0">00141</a>     <span class="keyword">const</span> QString <a class="code" href="struct_x_kame_error.html#r0">m_msg</a>;
-<a name="l00142"></a><a class="code" href="struct_x_kame_error.html#r1">00142</a>     <span class="keyword">const</span> <span class="keywordtype">char</span> *<span class="keyword">const</span> <a class="code" href="struct_x_kame_error.html#r1">m_file</a>;
-<a name="l00143"></a><a class="code" href="struct_x_kame_error.html#r2">00143</a>     <span class="keyword">const</span> <span class="keywordtype">int</span> <a class="code" href="struct_x_kame_error.html#r2">m_line</a>;
-<a name="l00144"></a><a class="code" href="struct_x_kame_error.html#r3">00144</a>     <span class="keyword">const</span> <span class="keywordtype">int</span> <a class="code" href="struct_x_kame_error.html#r3">m_errno</a>;
+<a name="l00141"></a><a class="code" href="struct_x_kame_error.html#3ddac1960a3ee5e59a8324d35ac15773">00141</a>         <span class="keyword">const</span> QString <a class="code" href="struct_x_kame_error.html#3ddac1960a3ee5e59a8324d35ac15773">m_msg</a>;
+<a name="l00142"></a><a class="code" href="struct_x_kame_error.html#c22ad8b86f572be2d0d64d738b5f8b3b">00142</a>         <span class="keyword">const</span> <span class="keywordtype">char</span> *<span class="keyword">const</span> <a class="code" href="struct_x_kame_error.html#c22ad8b86f572be2d0d64d738b5f8b3b">m_file</a>;
+<a name="l00143"></a><a class="code" href="struct_x_kame_error.html#58b26c041415c07f16d999883ccf2153">00143</a>         <span class="keyword">const</span> <span class="keywordtype">int</span> <a class="code" href="struct_x_kame_error.html#58b26c041415c07f16d999883ccf2153">m_line</a>;
+<a name="l00144"></a><a class="code" href="struct_x_kame_error.html#f5299610672e87d61c02590e97f17539">00144</a>         <span class="keyword">const</span> <span class="keywordtype">int</span> <a class="code" href="struct_x_kame_error.html#f5299610672e87d61c02590e97f17539">m_errno</a>;
 <a name="l00145"></a>00145 };
 <a name="l00146"></a>00146 
 <a name="l00148"></a>00148 <span class="keyword">extern</span> <span class="keywordtype">bool</span> g_bLogDbgPrint;
@@ -158,20 +167,31 @@
 <a name="l00160"></a>00160 std::string dumpCString(<span class="keyword">const</span> <span class="keywordtype">char</span> *cstr);
 <a name="l00161"></a>00161 
 <a name="l00163"></a>00163 std::string formatString(<span class="keyword">const</span> <span class="keywordtype">char</span> *format, ...)
-<a name="l00164"></a>00164         __attribute__ ((format(printf,1,2)));
+<a name="l00164"></a>00164 __attribute__ ((format(printf,1,2)));
 <a name="l00165"></a>00165 
 <a name="l00166"></a>00166 std::string formatDouble(const <span class="keywordtype">char</span> *fmt, <span class="keywordtype">double</span> val);
 <a name="l00170"></a>00170 <span class="keywordtype">void</span> formatDoubleValidator(std::string &amp;fmt);
 <a name="l00171"></a>00171 
 <a name="l00172"></a>00172 namespace KAME {
-<a name="l00173"></a>00173     <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> rand();
-<a name="l00176"></a>00176     QString i18n(<span class="keyword">const</span> <span class="keywordtype">char</span>* eng);    
+<a name="l00173"></a>00173 <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> rand();
+<a name="l00176"></a>00176 QString i18n(<span class="keyword">const</span> <span class="keywordtype">char</span>* eng);    
 <a name="l00177"></a>00177 }
 <a name="l00178"></a>00178 
-<a name="l00179"></a>00179 <span class="comment">//---------------------------------------------------------------------------</span>
-<a name="l00180"></a>00180 <span class="preprocessor">#endif</span>
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:15 2007に生成されました。&nbsp;
+<a name="l00179"></a>00179 <span class="preprocessor">#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__</span>
+<a name="l00180"></a><a class="code" href="struct_x86_c_p_u_spec.html">00180</a> <span class="preprocessor"></span><span class="keyword">struct </span><a class="code" href="struct_x86_c_p_u_spec.html">X86CPUSpec</a> {
+<a name="l00181"></a>00181         <a class="code" href="struct_x86_c_p_u_spec.html#d4a4f97d918e498486f84c60d5084d43">X86CPUSpec</a>();
+<a name="l00182"></a><a class="code" href="struct_x86_c_p_u_spec.html#3e0878c28cba810fcf8ab12f9acfe2dd">00182</a>         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <a class="code" href="struct_x86_c_p_u_spec.html#3e0878c28cba810fcf8ab12f9acfe2dd">verSSE</a>;
+<a name="l00183"></a><a class="code" href="struct_x86_c_p_u_spec.html#dd8e18c4ca1f230d9574b51f1a1bcd07">00183</a>         <span class="keywordtype">bool</span> <a class="code" href="struct_x86_c_p_u_spec.html#dd8e18c4ca1f230d9574b51f1a1bcd07">hasMonitor</a>;
+<a name="l00184"></a><a class="code" href="struct_x86_c_p_u_spec.html#b586c7dc4c1e90185062350a822e88fc">00184</a>         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <a class="code" href="struct_x86_c_p_u_spec.html#b586c7dc4c1e90185062350a822e88fc">monitorSizeSmallest</a>;
+<a name="l00185"></a><a class="code" href="struct_x86_c_p_u_spec.html#4446a40843268da10bf555703637ec30">00185</a>         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <a class="code" href="struct_x86_c_p_u_spec.html#4446a40843268da10bf555703637ec30">monitorSizeLargest</a>;
+<a name="l00186"></a>00186 };
+<a name="l00187"></a>00187 <span class="keyword">extern</span> <span class="keyword">const</span> <a class="code" href="struct_x86_c_p_u_spec.html">X86CPUSpec</a> cg_cpuSpec;
+<a name="l00188"></a>00188 <span class="preprocessor">#endif</span>
+<a name="l00189"></a>00189 <span class="preprocessor"></span>
+<a name="l00190"></a>00190 <span class="comment">//---------------------------------------------------------------------------</span>
+<a name="l00191"></a>00191 <span class="preprocessor">#endif</span>
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Jan 14 03:59:41 2008に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
 </html>

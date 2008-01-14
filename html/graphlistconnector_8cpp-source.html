@@ -1,15 +1,24 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html><head><meta http-equiv="Content-Type" content="text/html;charset=euc-jp">
-<title>KAME2: kame/analyzer/graphlistconnector.cpp ソースファイル</title>
+<title>KAME2: kame/forms/graphlistconnector.cpp ソースファイル</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css">
+<link href="tabs.css" rel="stylesheet" type="text/css">
 </head><body>
-<!-- 作成： Doxygen 1.4.3 -->
-<div class="qindex"><a class="qindex" href="main.html">メインページ</a> | <a class="qindex" href="namespaces.html">ネームスペース一覧</a> | <a class="qindex" href="hierarchy.html">クラス階層</a> | <a class="qindex" href="classes.html">アルファベット順一覧</a> | <a class="qindex" href="annotated.html">構成</a> | <a class="qindex" href="dirs.html">Directories</a> | <a class="qindex" href="files.html">ファイル一覧</a> | <a class="qindex" href="namespacemembers.html">ネームスペースメンバ</a> | <a class="qindex" href="functions.html">構成メンバ</a> | <a class="qindex" href="pages.html">関連ページ</a></div>
+<!-- 作成： Doxygen 1.4.6 -->
+<div class="tabs">
+  <ul>
+    <li><a href="main.html"><span>メインページ</span></a></li>
+    <li><a href="namespaces.html"><span>ネームスペース</span></a></li>
+    <li><a href="classes.html"><span>クラス</span></a></li>
+    <li id="current"><a href="files.html"><span>ファイル</span></a></li>
+    <li><a href="dirs.html"><span>ディレクトリ</span></a></li>
+    <li><a href="pages.html"><span>関連ページ</span></a></li>
+  </ul></div>
 <div class="nav">
-<a class="el" href="dir_000000.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_000001.html">analyzer</a></div>
+<a class="el" href="dir_322056169d9dd04bc6751323c3d87b79.html">kame</a>&nbsp;&raquo&nbsp;<a class="el" href="dir_55790a002ea52a1476ea502798d97dd4.html">forms</a></div>
 <h1>graphlistconnector.cpp</h1><div class="fragment"><pre class="fragment"><a name="l00001"></a>00001 <span class="comment">/***************************************************************************</span>
 <a name="l00002"></a>00002 <span class="comment">                Copyright (C) 2002-2007 Kentaro Kitagawa</span>
-<a name="l00003"></a>00003 <span class="comment">                                   kitagawa@scphys.kyoto-u.ac.jp</span>
+<a name="l00003"></a>00003 <span class="comment">                                   kitag@issp.u-tokyo.ac.jp</span>
 <a name="l00004"></a>00004 <span class="comment">                </span>
 <a name="l00005"></a>00005 <span class="comment">                This program is free software; you can redistribute it and/or</span>
 <a name="l00006"></a>00006 <span class="comment">                modify it under the terms of the GNU Library General Public</span>
@@ -36,7 +45,7 @@
 <a name="l00027"></a>00027 
 <a name="l00028"></a>00028 <span class="comment">//---------------------------------------------------------------------------</span>
 <a name="l00029"></a>00029 
-<a name="l00030"></a><a class="code" href="class_x_graph_list_connector.html#b0">00030</a> <a class="code" href="class_x_graph_list_connector.html#b0">XGraphListConnector::XGraphListConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XGraphList&gt; &amp;node, QTable *item,
+<a name="l00030"></a><a class="code" href="class_x_graph_list_connector.html#eac1c4108a800862655d2d30b81d80a5">00030</a> <a class="code" href="class_x_graph_list_connector.html#eac1c4108a800862655d2d30b81d80a5">XGraphListConnector::XGraphListConnector</a>(<span class="keyword">const</span> shared_ptr&lt;XGraphList&gt; &amp;node, QTable *item,
 <a name="l00031"></a>00031                                                                                  QPushButton *btnnew, QPushButton *btndelete) :
 <a name="l00032"></a>00032     <a class="code" href="class_x_list_q_connector.html">XListQConnector</a>(node, item),
 <a name="l00033"></a>00033     m_graphlist(node),
@@ -50,58 +59,58 @@
 <a name="l00041"></a>00041         btndelete-&gt;setIconSet( KApplication::kApplication()-&gt;iconLoader()-&gt;loadIconSet(<span class="stringliteral">"fileclose"</span>, 
 <a name="l00042"></a>00042                                                                                                                                                                    KIcon::Toolbar, KIcon::SizeSmall, <span class="keyword">true</span> ) ); 
 <a name="l00043"></a>00043                
-<a name="l00044"></a>00044         connect(item, SIGNAL( <a class="code" href="class_x_graph_list_connector.html#j0">clicked</a>( <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keyword">const</span> QPoint&amp; )),
-<a name="l00045"></a>00045                         <span class="keyword">this</span>, SLOT(<a class="code" href="class_x_graph_list_connector.html#j0">clicked</a>( <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keyword">const</span> QPoint&amp; )) );
-<a name="l00046"></a>00046         <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;setNumCols(4);
+<a name="l00044"></a>00044         connect(item, SIGNAL( <a class="code" href="class_x_graph_list_connector.html#34fac96dcf5f5cc4c81968d08417b7a3">clicked</a>( <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keyword">const</span> QPoint&amp; )),
+<a name="l00045"></a>00045                         <span class="keyword">this</span>, SLOT(<a class="code" href="class_x_graph_list_connector.html#34fac96dcf5f5cc4c81968d08417b7a3">clicked</a>( <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keywordtype">int</span>, <span class="keyword">const</span> QPoint&amp; )) );
+<a name="l00046"></a>00046         <a class="code" href="class_x_list_q_connector.html#165a813e67b600918b6201afbf755d1b">m_pItem</a>-&gt;setNumCols(4);
 <a name="l00047"></a>00047         <span class="keyword">const</span> <span class="keywordtype">double</span> def = 50;
-<a name="l00048"></a>00048         <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;setColumnWidth(0, (<span class="keywordtype">int</span>)(def * 2.0));
-<a name="l00049"></a>00049         <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;setColumnWidth(1, (<span class="keywordtype">int</span>)(def * 2.0));
-<a name="l00050"></a>00050         <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;setColumnWidth(2, (<span class="keywordtype">int</span>)(def * 2.0));
-<a name="l00051"></a>00051         <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;setColumnWidth(3, (<span class="keywordtype">int</span>)(def * 2.0));
+<a name="l00048"></a>00048         <a class="code" href="class_x_list_q_connector.html#165a813e67b600918b6201afbf755d1b">m_pItem</a>-&gt;setColumnWidth(0, (<span class="keywordtype">int</span>)(def * 2.0));
+<a name="l00049"></a>00049         <a class="code" href="class_x_list_q_connector.html#165a813e67b600918b6201afbf755d1b">m_pItem</a>-&gt;setColumnWidth(1, (<span class="keywordtype">int</span>)(def * 2.0));
+<a name="l00050"></a>00050         <a class="code" href="class_x_list_q_connector.html#165a813e67b600918b6201afbf755d1b">m_pItem</a>-&gt;setColumnWidth(2, (<span class="keywordtype">int</span>)(def * 2.0));
+<a name="l00051"></a>00051         <a class="code" href="class_x_list_q_connector.html#165a813e67b600918b6201afbf755d1b">m_pItem</a>-&gt;setColumnWidth(3, (<span class="keywordtype">int</span>)(def * 2.0));
 <a name="l00052"></a>00052         QStringList labels;
-<a name="l00053"></a>00053         labels += <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Name"</span>);
-<a name="l00054"></a>00054         labels += <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Axis X"</span>);
-<a name="l00055"></a>00055         labels += <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Axis Y"</span>);
-<a name="l00056"></a>00056         labels += <a class="code" href="namespace_k_a_m_e.html#a3">KAME::i18n</a>(<span class="stringliteral">"Axis Z"</span>);
-<a name="l00057"></a>00057         <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;setColumnLabels(labels);
+<a name="l00053"></a>00053         labels += <a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Name"</span>);
+<a name="l00054"></a>00054         labels += <a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Axis X"</span>);
+<a name="l00055"></a>00055         labels += <a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Axis Y"</span>);
+<a name="l00056"></a>00056         labels += <a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">KAME::i18n</a>(<span class="stringliteral">"Axis Z"</span>);
+<a name="l00057"></a>00057         <a class="code" href="class_x_list_q_connector.html#165a813e67b600918b6201afbf755d1b">m_pItem</a>-&gt;setColumnLabels(labels);
 <a name="l00058"></a>00058 
 <a name="l00059"></a>00059         <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> list(node-&gt;children());
 <a name="l00060"></a>00060         <span class="keywordflow">if</span>(list) {  
 <a name="l00061"></a>00061                 <span class="keywordflow">for</span>(XNode::NodeList::const_iterator it = list-&gt;begin(); it != list-&gt;end(); it++)
-<a name="l00062"></a>00062                         <a class="code" href="class_x_graph_list_connector.html#b1">onCatch</a>(*it);
+<a name="l00062"></a>00062                         <a class="code" href="class_x_graph_list_connector.html#4ced60aa4bf6450e721ac585be82bbf1">onCatch</a>(*it);
 <a name="l00063"></a>00063         }
 <a name="l00064"></a>00064 
 <a name="l00065"></a>00065   
-<a name="l00066"></a>00066         <a class="code" href="class_x_graph_list_connector.html#r6">m_lsnNewGraph</a> = <a class="code" href="class_x_graph_list_connector.html#r1">m_newGraph</a>-&gt;onTouch().connectWeak(
-<a name="l00067"></a>00067         shared_from_this(), &amp;<a class="code" href="class_x_graph_list_connector.html#d0">XGraphListConnector::onNewGraph</a>, XListener::FLAG_MAIN_THREAD_CALL);
-<a name="l00068"></a>00068         <a class="code" href="class_x_graph_list_connector.html#r7">m_lsnDeleteGraph</a> = <a class="code" href="class_x_graph_list_connector.html#r2">m_deleteGraph</a>-&gt;onTouch().connectWeak(
-<a name="l00069"></a>00069         shared_from_this(), &amp;<a class="code" href="class_x_graph_list_connector.html#d1">XGraphListConnector::onDeleteGraph</a>, XListener::FLAG_MAIN_THREAD_CALL);
+<a name="l00066"></a>00066         <a class="code" href="class_x_graph_list_connector.html#c5700befa6aa2d6c9a978f1fc4c113ae">m_lsnNewGraph</a> = <a class="code" href="class_x_graph_list_connector.html#76320155a178cfc95f7af6c900927d8c">m_newGraph</a>-&gt;onTouch().connectWeak(
+<a name="l00067"></a>00067         shared_from_this(), &amp;<a class="code" href="class_x_graph_list_connector.html#ad1bd2bb4ade7b5ec1fb912ae3f27f3d">XGraphListConnector::onNewGraph</a>, XListener::FLAG_MAIN_THREAD_CALL);
+<a name="l00068"></a>00068         <a class="code" href="class_x_graph_list_connector.html#44e41fd2db40a9123cdcb1503dc9af2b">m_lsnDeleteGraph</a> = <a class="code" href="class_x_graph_list_connector.html#ce33af48ec62c52081c0f0e348e5af52">m_deleteGraph</a>-&gt;onTouch().connectWeak(
+<a name="l00069"></a>00069         shared_from_this(), &amp;<a class="code" href="class_x_graph_list_connector.html#4e8e9a4227f2d697e31d19b4c867651d">XGraphListConnector::onDeleteGraph</a>, XListener::FLAG_MAIN_THREAD_CALL);
 <a name="l00070"></a>00070 }
 <a name="l00071"></a>00071 
 <a name="l00072"></a>00072 <span class="keywordtype">void</span>
-<a name="l00073"></a><a class="code" href="class_x_graph_list_connector.html#d0">00073</a> <a class="code" href="class_x_graph_list_connector.html#d0">XGraphListConnector::onNewGraph</a> (<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;) {
+<a name="l00073"></a><a class="code" href="class_x_graph_list_connector.html#ad1bd2bb4ade7b5ec1fb912ae3f27f3d">00073</a> <a class="code" href="class_x_graph_list_connector.html#ad1bd2bb4ade7b5ec1fb912ae3f27f3d">XGraphListConnector::onNewGraph</a> (<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;) {
 <a name="l00074"></a>00074         <span class="keyword">static</span> <span class="keywordtype">int</span> graphidx = 1;
-<a name="l00075"></a>00075     <a class="code" href="class_x_graph_list_connector.html#r0">m_graphlist</a>-&gt;createByTypename(<span class="stringliteral">""</span>, std::string(QString().sprintf(<span class="stringliteral">"Graph-%d"</span>, graphidx++).utf8()));
+<a name="l00075"></a>00075     <a class="code" href="class_x_graph_list_connector.html#2ff68f5e40bfb24616d3e56e299d799a">m_graphlist</a>-&gt;createByTypename(<span class="stringliteral">""</span>, std::string(QString().sprintf(<span class="stringliteral">"Graph-%d"</span>, graphidx++).utf8()));
 <a name="l00076"></a>00076 }
 <a name="l00077"></a>00077 <span class="keywordtype">void</span>
-<a name="l00078"></a><a class="code" href="class_x_graph_list_connector.html#d1">00078</a> <a class="code" href="class_x_graph_list_connector.html#d1">XGraphListConnector::onDeleteGraph</a> (<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;) {
-<a name="l00079"></a>00079         <span class="keywordtype">int</span> n = <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;currentRow();
-<a name="l00080"></a>00080         <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> list(<a class="code" href="class_x_graph_list_connector.html#r0">m_graphlist</a>-&gt;children());
+<a name="l00078"></a><a class="code" href="class_x_graph_list_connector.html#4e8e9a4227f2d697e31d19b4c867651d">00078</a> <a class="code" href="class_x_graph_list_connector.html#4e8e9a4227f2d697e31d19b4c867651d">XGraphListConnector::onDeleteGraph</a> (<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;) {
+<a name="l00079"></a>00079         <span class="keywordtype">int</span> n = <a class="code" href="class_x_list_q_connector.html#165a813e67b600918b6201afbf755d1b">m_pItem</a>-&gt;currentRow();
+<a name="l00080"></a>00080         <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> list(<a class="code" href="class_x_graph_list_connector.html#2ff68f5e40bfb24616d3e56e299d799a">m_graphlist</a>-&gt;children());
 <a name="l00081"></a>00081         <span class="keywordflow">if</span>(list) {    
-<a name="l00082"></a>00082                 <span class="keywordflow">if</span>((n &gt;= 0) &amp;&amp; (n &lt; (int)list-&gt;size())) {
+<a name="l00082"></a>00082                 <span class="keywordflow">if</span>((n &gt;= 0) &amp;&amp; (n &lt; (<span class="keywordtype">int</span>)list-&gt;size())) {
 <a name="l00083"></a>00083                         shared_ptr&lt;XNode&gt; node = list-&gt;at(n);
-<a name="l00084"></a>00084                         <a class="code" href="class_x_graph_list_connector.html#r0">m_graphlist</a>-&gt;releaseChild(node);
+<a name="l00084"></a>00084                         <a class="code" href="class_x_graph_list_connector.html#2ff68f5e40bfb24616d3e56e299d799a">m_graphlist</a>-&gt;releaseChild(node);
 <a name="l00085"></a>00085                 }
 <a name="l00086"></a>00086         }
 <a name="l00087"></a>00087 }
 <a name="l00088"></a>00088 <span class="keywordtype">void</span>
-<a name="l00089"></a><a class="code" href="class_x_graph_list_connector.html#j0">00089</a> <a class="code" href="class_x_graph_list_connector.html#j0">XGraphListConnector::clicked</a> ( <span class="keywordtype">int</span> row, <span class="keywordtype">int</span> col, <span class="keywordtype">int</span>, <span class="keyword">const</span> QPoint&amp; ) {
+<a name="l00089"></a><a class="code" href="class_x_graph_list_connector.html#34fac96dcf5f5cc4c81968d08417b7a3">00089</a> <a class="code" href="class_x_graph_list_connector.html#34fac96dcf5f5cc4c81968d08417b7a3">XGraphListConnector::clicked</a> ( <span class="keywordtype">int</span> row, <span class="keywordtype">int</span> col, <span class="keywordtype">int</span>, <span class="keyword">const</span> QPoint&amp; ) {
 <a name="l00090"></a>00090         <span class="keywordflow">switch</span>(col) {
 <a name="l00091"></a>00091         <span class="keywordflow">case</span> 0:
 <a name="l00092"></a>00092         {
-<a name="l00093"></a>00093                 <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> list(<a class="code" href="class_x_graph_list_connector.html#r0">m_graphlist</a>-&gt;children());
+<a name="l00093"></a>00093                 <a class="code" href="classatomic__shared__ptr.html">atomic_shared_ptr&lt;const XNode::NodeList&gt;</a> list(<a class="code" href="class_x_graph_list_connector.html#2ff68f5e40bfb24616d3e56e299d799a">m_graphlist</a>-&gt;children());
 <a name="l00094"></a>00094                 <span class="keywordflow">if</span>(list) { 
-<a name="l00095"></a>00095                         <span class="keywordflow">if</span>((row &gt;= 0) &amp;&amp; (row &lt; (int)list-&gt;size())) {
+<a name="l00095"></a>00095                         <span class="keywordflow">if</span>((row &gt;= 0) &amp;&amp; (row &lt; (<span class="keywordtype">int</span>)list-&gt;size())) {
 <a name="l00096"></a>00096                                 dynamic_pointer_cast&lt;XValGraph&gt;(list-&gt;at(row))-&gt;showGraph();
 <a name="l00097"></a>00097                         }
 <a name="l00098"></a>00098                 }
@@ -112,49 +121,49 @@
 <a name="l00103"></a>00103         }
 <a name="l00104"></a>00104 }
 <a name="l00105"></a>00105 <span class="keywordtype">void</span>
-<a name="l00106"></a><a class="code" href="class_x_graph_list_connector.html#b2">00106</a> <a class="code" href="class_x_graph_list_connector.html#b2">XGraphListConnector::onRelease</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node)
+<a name="l00106"></a><a class="code" href="class_x_graph_list_connector.html#43194b7a77350b6b1013d21d970acd32">00106</a> <a class="code" href="class_x_graph_list_connector.html#43194b7a77350b6b1013d21d970acd32">XGraphListConnector::onRelease</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node)
 <a name="l00107"></a>00107 {
-<a name="l00108"></a>00108         <span class="keywordflow">for</span>(tconslist::iterator it = <a class="code" href="class_x_graph_list_connector.html#r3">m_cons</a>.begin(); it != <a class="code" href="class_x_graph_list_connector.html#r3">m_cons</a>.end();)
-<a name="l00109"></a>00109     {
+<a name="l00108"></a>00108         <span class="keywordflow">for</span>(tconslist::iterator it = <a class="code" href="class_x_graph_list_connector.html#e28978a5a51034b35bd1cb9db992b7f3">m_cons</a>.begin(); it != <a class="code" href="class_x_graph_list_connector.html#e28978a5a51034b35bd1cb9db992b7f3">m_cons</a>.end();)
+<a name="l00109"></a>00109         {
 <a name="l00110"></a>00110                 <span class="keywordflow">if</span>(it-&gt;node == node)
 <a name="l00111"></a>00111                 {
-<a name="l00112"></a>00112                         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;numRows(); i++)
+<a name="l00112"></a>00112                         <span class="keywordflow">for</span>(<span class="keywordtype">int</span> i = 0; i &lt; <a class="code" href="class_x_list_q_connector.html#165a813e67b600918b6201afbf755d1b">m_pItem</a>-&gt;numRows(); i++)
 <a name="l00113"></a>00113                         {
-<a name="l00114"></a>00114                                 <span class="keywordflow">if</span>(<a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;cellWidget(i, 1) == it-&gt;widget) <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;removeRow(i);
+<a name="l00114"></a>00114                                 <span class="keywordflow">if</span>(<a class="code" href="class_x_list_q_connector.html#165a813e67b600918b6201afbf755d1b">m_pItem</a>-&gt;cellWidget(i, 1) == it-&gt;widget) <a class="code" href="class_x_list_q_connector.html#165a813e67b600918b6201afbf755d1b">m_pItem</a>-&gt;removeRow(i);
 <a name="l00115"></a>00115                         }
-<a name="l00116"></a>00116                         it = <a class="code" href="class_x_graph_list_connector.html#r3">m_cons</a>.erase(it);
+<a name="l00116"></a>00116                         it = <a class="code" href="class_x_graph_list_connector.html#e28978a5a51034b35bd1cb9db992b7f3">m_cons</a>.erase(it);
 <a name="l00117"></a>00117                 }
 <a name="l00118"></a>00118                 <span class="keywordflow">else</span>
 <a name="l00119"></a>00119                 {
 <a name="l00120"></a>00120                         it++;
 <a name="l00121"></a>00121                 }
-<a name="l00122"></a>00122     }
+<a name="l00122"></a>00122         }
 <a name="l00123"></a>00123 }
 <a name="l00124"></a>00124 <span class="keywordtype">void</span>
-<a name="l00125"></a><a class="code" href="class_x_graph_list_connector.html#b1">00125</a> <a class="code" href="class_x_graph_list_connector.html#b1">XGraphListConnector::onCatch</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node)
+<a name="l00125"></a><a class="code" href="class_x_graph_list_connector.html#4ced60aa4bf6450e721ac585be82bbf1">00125</a> <a class="code" href="class_x_graph_list_connector.html#4ced60aa4bf6450e721ac585be82bbf1">XGraphListConnector::onCatch</a>(<span class="keyword">const</span> shared_ptr&lt;XNode&gt; &amp;node)
 <a name="l00126"></a>00126 {
 <a name="l00127"></a>00127         shared_ptr&lt;XValGraph&gt; graph = dynamic_pointer_cast&lt;XValGraph&gt;(node);
-<a name="l00128"></a>00128         <span class="keywordtype">int</span> i = <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;numRows();
-<a name="l00129"></a>00129         <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;insertRows(i);
-<a name="l00130"></a>00130         <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;setText(i, 0, graph-&gt;getLabel());
+<a name="l00128"></a>00128         <span class="keywordtype">int</span> i = <a class="code" href="class_x_list_q_connector.html#165a813e67b600918b6201afbf755d1b">m_pItem</a>-&gt;numRows();
+<a name="l00129"></a>00129         <a class="code" href="class_x_list_q_connector.html#165a813e67b600918b6201afbf755d1b">m_pItem</a>-&gt;insertRows(i);
+<a name="l00130"></a>00130         <a class="code" href="class_x_list_q_connector.html#165a813e67b600918b6201afbf755d1b">m_pItem</a>-&gt;setText(i, 0, graph-&gt;getLabel());
 <a name="l00131"></a>00131 
 <a name="l00132"></a>00132         <span class="keyword">struct </span><a class="code" href="struct_x_graph_list_connector_1_1tcons.html">tcons</a> con;
-<a name="l00133"></a>00133         con.<a class="code" href="struct_x_graph_list_connector_1_1tcons.html#o3">node</a> = node;
-<a name="l00134"></a>00134         QComboBox *cmbX = <span class="keyword">new</span> QComboBox(<a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>);
-<a name="l00135"></a>00135         con.<a class="code" href="struct_x_graph_list_connector_1_1tcons.html#o0">conx</a> = xqcon_create&lt;XQComboBoxConnector&gt;(graph-&gt;axisX(), cmbX);
-<a name="l00136"></a>00136         <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;setCellWidget(i, 1, cmbX);
-<a name="l00137"></a>00137         QComboBox *cmbY1 = <span class="keyword">new</span> QComboBox(<a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>);
-<a name="l00138"></a>00138         con.<a class="code" href="struct_x_graph_list_connector_1_1tcons.html#o1">cony1</a> = xqcon_create&lt;XQComboBoxConnector&gt;(graph-&gt;axisY1(), cmbY1);
-<a name="l00139"></a>00139         <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;setCellWidget(i, 2, cmbY1);
-<a name="l00140"></a>00140         QComboBox *cmbZ = <span class="keyword">new</span> QComboBox(<a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>);
-<a name="l00141"></a>00141         con.<a class="code" href="struct_x_graph_list_connector_1_1tcons.html#o2">conz</a> = xqcon_create&lt;XQComboBoxConnector&gt;(graph-&gt;axisZ(), cmbZ);
-<a name="l00142"></a>00142         <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;setCellWidget(i, 3, cmbZ);
+<a name="l00133"></a>00133         con.<a class="code" href="struct_x_graph_list_connector_1_1tcons.html#3b1c2c797ec13aa35ba525a5917ba1b9">node</a> = node;
+<a name="l00134"></a>00134         QComboBox *cmbX = <span class="keyword">new</span> QComboBox(<a class="code" href="class_x_list_q_connector.html#165a813e67b600918b6201afbf755d1b">m_pItem</a>);
+<a name="l00135"></a>00135         con.<a class="code" href="struct_x_graph_list_connector_1_1tcons.html#3b8217fed44eabc2fbd7bc41755e31f0">conx</a> = xqcon_create&lt;XQComboBoxConnector&gt;(graph-&gt;axisX(), cmbX);
+<a name="l00136"></a>00136         <a class="code" href="class_x_list_q_connector.html#165a813e67b600918b6201afbf755d1b">m_pItem</a>-&gt;setCellWidget(i, 1, cmbX);
+<a name="l00137"></a>00137         QComboBox *cmbY1 = <span class="keyword">new</span> QComboBox(<a class="code" href="class_x_list_q_connector.html#165a813e67b600918b6201afbf755d1b">m_pItem</a>);
+<a name="l00138"></a>00138         con.<a class="code" href="struct_x_graph_list_connector_1_1tcons.html#f30c9c49324faf72f64645a677df6d0d">cony1</a> = xqcon_create&lt;XQComboBoxConnector&gt;(graph-&gt;axisY1(), cmbY1);
+<a name="l00139"></a>00139         <a class="code" href="class_x_list_q_connector.html#165a813e67b600918b6201afbf755d1b">m_pItem</a>-&gt;setCellWidget(i, 2, cmbY1);
+<a name="l00140"></a>00140         QComboBox *cmbZ = <span class="keyword">new</span> QComboBox(<a class="code" href="class_x_list_q_connector.html#165a813e67b600918b6201afbf755d1b">m_pItem</a>);
+<a name="l00141"></a>00141         con.<a class="code" href="struct_x_graph_list_connector_1_1tcons.html#c04c6b1ee2f32b0103b10f51fef72cef">conz</a> = xqcon_create&lt;XQComboBoxConnector&gt;(graph-&gt;axisZ(), cmbZ);
+<a name="l00142"></a>00142         <a class="code" href="class_x_list_q_connector.html#165a813e67b600918b6201afbf755d1b">m_pItem</a>-&gt;setCellWidget(i, 3, cmbZ);
 <a name="l00143"></a>00143 
-<a name="l00144"></a>00144         con.<a class="code" href="struct_x_graph_list_connector_1_1tcons.html#o4">widget</a> = <a class="code" href="class_x_list_q_connector.html#p3">m_pItem</a>-&gt;cellWidget(i, 1);
-<a name="l00145"></a>00145         <a class="code" href="class_x_graph_list_connector.html#r3">m_cons</a>.push_back(con);
+<a name="l00144"></a>00144         con.<a class="code" href="struct_x_graph_list_connector_1_1tcons.html#4bfb301aee46cb5eb52cf01e1369a9ba">widget</a> = <a class="code" href="class_x_list_q_connector.html#165a813e67b600918b6201afbf755d1b">m_pItem</a>-&gt;cellWidget(i, 1);
+<a name="l00145"></a>00145         <a class="code" href="class_x_graph_list_connector.html#e28978a5a51034b35bd1cb9db992b7f3">m_cons</a>.push_back(con);
 <a name="l00146"></a>00146 }
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してTue Mar 13 03:57:12 2007に生成されました。&nbsp;
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Jan 14 03:59:41 2008に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
-<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.3 </small></address>
+<img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
 </html>
