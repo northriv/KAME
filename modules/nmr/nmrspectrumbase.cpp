@@ -164,6 +164,9 @@ XNMRSpectrumBase<FRM>::analyze(const shared_ptr<XDriver> &emitter) throw (XRecor
 		throw XSkippedRecordError(KAME::i18n("Too small resolution."), __FILE__, __LINE__);
 	}
 
+	if(fabs(log(resRecorded() / res)) < log(2.0))
+		res = resRecorded();
+	
 	if((resRecorded() != res) || clear) {
 		m_resRecorded = res;
 		m_accum.clear();
