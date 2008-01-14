@@ -819,7 +819,7 @@
                         </sizepolicy>
                     </property>
                     <property name="text">
-                        <string>Resolution</string>
+                        <string>Resolution (Approx.)</string>
                     </property>
                 </widget>
                 <widget class="QLineEdit">
