@@ -15,11 +15,12 @@
 #include "nmrrelaxfit.h"
 #include "nmrrelaxform.h"
 #include "nmrpulse.h"
-#include <pulserdriver.h>
-#include <analyzer.h>
-#include <graph.h>
-#include <graphwidget.h>
-#include <xwavengraph.h>
+#include "pulserdriver.h"
+#include "analyzer.h"
+#include "graph.h"
+#include "graphwidget.h"
+#include "xwavengraph.h"
+#include "rand.h"
 
 REGISTER_TYPE(XDriverList, NMRT1, "NMR relaxation measurement");
 
@@ -252,7 +253,7 @@ XNMRT1::onClearAll(const shared_ptr<XNode> &)
 void
 XNMRT1::onResetFit(const shared_ptr<XNode> &)
 {
-	const double x = ((double)KAME::rand())/RAND_MAX;
+	const double x = randMT19937();
 	const double p1min = *p1Min();
 	const double p1max = *p1Max();
 	if((p1min <= 0) || (p1min >= p1max)) {
@@ -453,7 +454,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 		//set new P1s
 		if(_active) {
 			unlockConnection(_pulser);
-			double x = ((double)KAME::rand())/RAND_MAX;
+			double x = randMT19937();
 			double np1, np2;
 			np1 = f(x);
 			np2 = f(1-x);
@@ -529,7 +530,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 	
 	bool _absfit = *absFit();
 	
-	std::deque<double> phase_by_cond(corr.size(), *phase() / 180.0 * PI);
+	std::deque<double> phase_by_cond(corr.size(), *phase() / 180.0 * M_PI);
 	int cond = -1;
 	double maxsn2 = 0.0;
 	for(unsigned int i = 0; i < corr.size(); i++) {
@@ -561,7 +562,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 	}
 	double ph = phase_by_cond[cond];
 	if(*autoPhase()) {
-		phase()->value(ph / PI * 180);
+		phase()->value(ph / M_PI * 180);
     }
 	if(*autoWindow()) {
 		for(unsigned int i = 0; i < m_windowWidthList.size(); i++) {

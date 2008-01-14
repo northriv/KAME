@@ -205,11 +205,11 @@ XNMRSpectrumBase<FRM>::analyze(const shared_ptr<XDriver> &emitter) throw (XRecor
 		for(unsigned int i = 0; i < wave().size(); i++) {
 			csum += wave()[i];
 		}
-		double ph = 180.0 / PI * atan2(std::imag(csum), std::real(csum));
+		double ph = 180.0 / M_PI * atan2(std::imag(csum), std::real(csum));
 		if(fabs(ph) < 180.0)
 			phase()->value(ph);
 	}
-	double ph = *phase() / 180.0 * PI;
+	double ph = *phase() / 180.0 * M_PI;
 	std::complex<double> cph(cos(ph), -sin(ph));
 	for(unsigned int i = 0; i < wave().size(); i++) {
 		m_wave[i] *= cph;

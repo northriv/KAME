@@ -470,7 +470,7 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	int ftpos = lrint(*fftPos() * 1e-3 / interval + _dso->trigPosRecorded() - pos);
 	//	if((windowfunc != &windowFuncRect) && (abs(ftpos - length/2) > length*0.1))
 	//		m_statusPrinter->printWarning(KAME::i18n("FFTPos is off-centered for window func."));  
-	double ph = *phaseAdv() * PI / 180;
+	double ph = *phaseAdv() * M_PI / 180;
 	m_waveFTPos = ftpos;
 	int fftlen = FFT::fitLength(*fftLen());
 	m_ftWave.resize(fftlen);
@@ -505,7 +505,7 @@ void XNMRPulseAnalyzer::visualize() {
 			ftWaveGraph()->cols(1)[i] = std::real(m_ftWave[i]);
 			ftWaveGraph()->cols(2)[i] = std::imag(m_ftWave[i]);
 			ftWaveGraph()->cols(3)[i] = std::abs(m_ftWave[i]);
-			ftWaveGraph()->cols(4)[i] = std::arg(m_ftWave[i]) / PI * 180;
+			ftWaveGraph()->cols(4)[i] = std::arg(m_ftWave[i]) / M_PI * 180;
 		}
 	}
 	{

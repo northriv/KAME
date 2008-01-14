@@ -304,11 +304,8 @@ std::string dumpCString(const char *cstr)
 #include <qdeepcopy.h>
 
 namespace KAME {
-	static XThreadLocal<unsigned int> stl_random_seed;
 	static XMutex i18n_mutex;
-	unsigned int rand() {
-		return rand_r(&(*stl_random_seed));
-	}
+
 //! thread-safe version of i18n().
 //! this is not needed in QT4 or later.
 	QString i18n(const char* eng)

@@ -6,6 +6,7 @@ libmontecarlo_la_LDFLAGS = -module
 INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/kame/analyzer \
 	-I$(top_srcdir)/kame/graph \
+	-I$(top_srcdir)/kame/math \
 	-I$(top_builddir)/kame/graph \
 	-I$(top_srcdir)/kame/driver \
 	-Iforms \

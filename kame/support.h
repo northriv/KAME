@@ -111,8 +111,6 @@ using boost::weak_ptr;
 using boost::enable_shared_from_this;
 using boost::dynamic_pointer_cast;
 
-#define PI 3.14159265358979
-
 #include <math.h>
 
 #include <qstring.h>
@@ -170,9 +168,8 @@ std::string formatDouble(const char *fmt, double val);
 void formatDoubleValidator(std::string &fmt);
 
 namespace KAME {
-unsigned int rand();
 //! thread-safe version of i18n().
-//! this is not needed in QT4 or later.
+//! this will be obsoleted w/ QT4 or later.
 QString i18n(const char* eng);    
 }
 

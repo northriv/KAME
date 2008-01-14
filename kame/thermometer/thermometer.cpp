@@ -17,6 +17,7 @@
 
 #include "thermometer.h"
 #include "cspline.h"
+#include "rand.h"
 //---------------------------------------------------------------------------
 XThermometerList::XThermometerList(const char *name, bool runtime)
  : XCustomTypeListNode<XThermometer>(name, runtime) {
@@ -60,7 +61,7 @@ XLakeShore::getRawValue(double temp) const
   for(double dy = 0.0001;;dy *= 2)
     {
       if(dy > 1.0) return *resMin();
-      double t = (double)KAME::rand() / (RAND_MAX - 1);
+      double t = randMT19937();
       x = (log10(*resMax()) * t + log10(*resMin()) * (1 - t));
       for(int i = 0; i < 100; i++)
 	{
@@ -74,7 +75,7 @@ XLakeShore::getRawValue(double temp) const
 	  if(dypdx != 0) x -= y / dypdx;
 	  if((x > log10(*resMax())) || (x < log10(*resMin())) || (dypdx == 0))
 	    {
-	      double t = (double)KAME::rand() / (RAND_MAX - 1);
+	      double t = randMT19937();
 	      x = (log10(*resMax()) * t + log10(*resMin()) * (1 - t));
 	    }
 	}
@@ -138,7 +139,7 @@ XScientificInstruments
   for(double dy = 0.0001;;dy *= 2)
     {
       if(dy > 1.0) return *resMin();
-      double t = (double)KAME::rand() / (RAND_MAX - 1);
+      double t = randMT19937();
       x = (log10(*resMax()) * t + log10(*resMin()) * (1 - t));
       for(int i = 0; i < 100; i++)
 	{
@@ -152,7 +153,7 @@ XScientificInstruments
 	  if(dypdx != 0) x -= y / dypdx;
 	  if((x > log10(*resMax())) || (x < log10(*resMin())) || (dypdx == 0))
 	    {
-	      double t = (double)KAME::rand() / (RAND_MAX - 1);
+	      double t = randMT19937();
 	      x = (log10(*resMax()) * t + log10(*resMin()) * (1 - t));
 	    }
 	}

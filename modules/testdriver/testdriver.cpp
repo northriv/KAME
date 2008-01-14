@@ -16,6 +16,7 @@
 #include "analyzer.h"
 #include "xnodeconnector.h"
 #include <qstatusbar.h>
+#include "rand.h"
 
 REGISTER_TYPE(XDriverList, TestDriver, "Test driver: random number generation");
 
@@ -72,8 +73,8 @@ XTestDriver::execute(const atomic<bool> &terminated)
 	while(!terminated)
 	{
 		msecsleep(10);
-		double x = (double)KAME::rand() / RAND_MAX - 0.2;
-		double y = (double)KAME::rand() / RAND_MAX - 0.2;
+		double x = randMT19937() - 0.2;
+		double y = randMT19937()- 0.2;
 		clearRaw();
 		push(x);
 		push(y);

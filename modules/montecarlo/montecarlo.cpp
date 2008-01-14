@@ -11,25 +11,10 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-//#define _drand() ((double)random() / (0x7fffffffuL))
-//#define _drand() (drand48())
-
-//#include <boost/random/lagged_fibonacci.hpp>
-//typedef boost::lagged_fibonacci23209 trandom_generator;
-#include <boost/random/mersenne_twister.hpp>
-typedef boost::mt19937 trandom_generator;
-#include <boost/random/uniform_01.hpp>
-extern boost::uniform_01<trandom_generator> g_float_random_dist;
-extern trandom_generator g_float_random_generator;
-#define _drand() (g_float_random_dist())
-
 #include "montecarlo.h"
+#include "rand.h"
 
 #include <pthread.h>
-
-trandom_generator g_float_random_generator;
-//trandom_generator g_float_random_generator(static_cast<unsigned int>(std::time(0)));
-boost::uniform_01<trandom_generator> g_float_random_dist(g_float_random_generator);
 
 MonteCarlo::Vector3<double> MonteCarlo::s_ASiteIsingVector[16];
 volatile bool MonteCarlo::s_bAborting = false;
@@ -216,7 +201,7 @@ MonteCarlo::randomize()
 			for(int j1 = 0; j1 < s_L; j1++) {
                 for(int i1 = 0; i1 < s_L; i1++) {
                     int sidx = spins_real_index(i1,j1,k1);
-                    int val = (_drand() < 0.5) ? 1 : -1;
+                    int val = (randMT19937() < 0.5) ? 1 : -1;
                     writeSpin(val, site1, sidx);
                 }
 			}
@@ -369,13 +354,13 @@ MonteCarlo::accelFlipping()
     double p_av = sum_p / s_num_spins;
     if(p_av <= 0.0) return -1;
     // counts to next flip.
-    long double cnt_d = ceill(log2l(1.0-_drand()) / log2l((long double)1.0 - p_av));
+    long double cnt_d = ceill(log2l(1.0 - randMT19937()) / log2l((long double)1.0 - p_av));
     if(cnt_d <= 0.0) return -1;
 //    if(cnt_d > 1e4 * m_spins.size()) return -1;
 //    long long int cnt = llrintl(cnt_d);
 //    if(cnt == 0) return 0;
     // choose target site
-    double p = _drand()*sum_p;
+    double p = randMT19937()*sum_p;
     int lidx = s_num_spins/16 - 1;
     int site1 = 16;
     double pit = 0.0;
@@ -444,7 +429,7 @@ MonteCarlo::accelFlipping()
 }
 double
 MonteCarlo::internalEnergy() {
-    bool abondon_cache = (_drand() < 0.05);
+    bool abondon_cache = (randMT19937() < 0.05);
     if(abondon_cache) {
         fprintf(stderr, "Abondon cache.\n");
         fill(m_field_pri_cached_sane.begin(), m_field_pri_cached_sane.end(), 0);
@@ -506,7 +491,7 @@ MonteCarlo::doTests(int *flips, long double tests)
         }
         
         // pick-up target spin.
-        int idx = (int)floor(_drand() * s_num_spins);
+        int idx = (int)floor(randMT19937() * s_num_spins);
 
         int site = idx % 16;
         int lidx = idx / 16;
@@ -519,7 +504,7 @@ MonteCarlo::doTests(int *flips, long double tests)
         tested++;
         tests_after_check++;
         
-        if((probability >= 1) || (_drand() < probability)) {
+        if((probability >= 1) || (randMT19937() < probability)) {
             flipSpin(site, lidx, du, tests_after_check);
             tests_after_check = 0;
             flipped++;

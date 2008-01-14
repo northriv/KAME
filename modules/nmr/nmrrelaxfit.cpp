@@ -13,6 +13,7 @@
 ***************************************************************************/
 #include "nmrrelax.h"
 #include "nmrrelaxfit.h"
+#include "rand.h"
 
 #include <klocale.h>
 
@@ -409,8 +410,8 @@ XNMRT1::iterate(shared_ptr<XRelaxFunc> &func,
 		if(XTime::now() - firsttime > 0.05) break;
 		double p1max = *p1Max();
 		double p1min = *p1Min();
-		m_params[0] = 1.0 / exp(log(p1max/p1min) * (((double)KAME::rand())/RAND_MAX) + log(p1min));
-		m_params[1] = 1.0*(((double)KAME::rand())/RAND_MAX - 0.5);
+		m_params[0] = 1.0 / exp(log(p1max/p1min) * randMT19937() + log(p1min));
+		m_params[1] = 1.0*(randMT19937() - 0.5);
 		m_params[2] = 0.0;
 		status = do_nlls(n, p, m_params, m_errors, &norm,
 						 &nlls, &XRelaxFunc::relax_f, &XRelaxFunc::relax_df, &XRelaxFunc::relax_fdf, itercnt);

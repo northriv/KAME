@@ -7,7 +7,8 @@ libmath_a_SOURCES = \
 	cspline.cpp cspline.h \
 	fir.cpp fir.h \
 	fft.cpp fft.h \
-	mem.cpp mem.h
+	mem.cpp mem.h \
+	rand.cpp rand.h
 
 SUBDIRS =
 METASOURCES = AUTO

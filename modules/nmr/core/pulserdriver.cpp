@@ -1087,14 +1087,14 @@ XPulser::rawToRelPat() throw (XRecordError&)
 		double _dif_freq = m_difFreqRecorded;
 	
 		bool _induce_emission = *induceEmission();
-		double _induce_emission_phase = *induceEmissionPhase() / 180.0 * PI;
+		double _induce_emission_phase = *induceEmissionPhase() / 180.0 * M_PI;
 
 		makeWaveForm(PAT_QAM_PULSE_IDX_P1/PAT_QAM_PULSE_IDX - 1, m_pw1Recorded*1e-3,
 					 _pw1/2, pulseFunc(p1Func()->to_str() ),
-					 *p1Level(), _dif_freq * 1e3, -2 * PI * _dif_freq * 2 * _tau);
+					 *p1Level(), _dif_freq * 1e3, -2 * M_PI * _dif_freq * 2 * _tau);
 		makeWaveForm(PAT_QAM_PULSE_IDX_P2/PAT_QAM_PULSE_IDX - 1, m_pw2Recorded*1e-3, 
 					 _pw2/2, pulseFunc(p2Func()->to_str() ),
-					 *p2Level(), _dif_freq * 1e3, -2 * PI * _dif_freq * 2 * _tau);
+					 *p2Level(), _dif_freq * 1e3, -2 * M_PI * _dif_freq * 2 * _tau);
 		makeWaveForm(PAT_QAM_PULSE_IDX_PCOMB/PAT_QAM_PULSE_IDX - 1, m_combPWRecorded*1e-3,
 					 _comb_pw/2, pulseFunc(combFunc()->to_str() ),
 					 *combLevel(), *combOffRes() + _dif_freq *1000.0);
@@ -1117,13 +1117,13 @@ XPulser::makeWaveForm(unsigned int pnum_minus_1,
 	double delay1 = *qamDelay1() * 1e-3 / dma_ao_period;
 	double delay2 = *qamDelay2() * 1e-3 / dma_ao_period;
 	double dx = dma_ao_period / pw;
-	double dp = 2*PI*freq*dma_ao_period;
+	double dp = 2*M_PI*freq*dma_ao_period;
 	double z = pow(10.0, dB/20.0);
 	for(int i = 0; i < (int)to_center*2; i++) {
 		double i1 = i - (int)to_center + 0.5 - delay1;
 		double i2 = i - (int)to_center + 0.5 - delay2;
-		double x = z * func(i1 * dx) * cos(i1 * dp + PI/4 + phase);
-		double y = z * func(i2 * dx) * sin(i2 * dp + PI/4 + phase);
+		double x = z * func(i1 * dx) * cos(i1 * dp + M_PI/4 + phase);
+		double y = z * func(i2 * dx) * sin(i2 * dp + M_PI/4 + phase);
 		p.push_back(std::complex<double>(x, y));
 	}
 }

@@ -75,32 +75,32 @@ double FFT::windowFuncTri(double x) {
 double FFT::windowFuncHanning(double x) {
 	if (fabs(x) >= 0.5)
 		return 0.0;
-	return 0.5 + 0.5*cos(2*PI*x);
+	return 0.5 + 0.5*cos(2*M_PI*x);
 }
 double FFT::windowFuncHamming(double x) {
 	if (fabs(x) >= 0.5)
 		return 0.0;
-	return 0.54 + 0.46*cos(2*PI*x);
+	return 0.54 + 0.46*cos(2*M_PI*x);
 }
 double FFT::windowFuncBlackman(double x) {
 	if (fabs(x) >= 0.5)
 		return 0.0;
-	return 0.42323+0.49755*cos(2*PI*x)+0.07922*cos(4*PI*x);
+	return 0.42323+0.49755*cos(2*M_PI*x)+0.07922*cos(4*M_PI*x);
 }
 double FFT::windowFuncBlackmanHarris(double x) {
 	if (fabs(x) >= 0.5)
 		return 0.0;
-	return 0.35875+0.48829*cos(2*PI*x)+0.14128*cos(4*PI*x)+0.01168*cos(6*PI*x);
+	return 0.35875+0.48829*cos(2*M_PI*x)+0.14128*cos(4*M_PI*x)+0.01168*cos(6*M_PI*x);
 }
 double FFT::windowFuncFlatTop(double x) {
-	return windowFuncHamming(x)*((fabs(x) < 1e-4) ? 1 : sin(4*PI*x)/(4*PI*x));
+	return windowFuncHamming(x)*((fabs(x) < 1e-4) ? 1 : sin(4*M_PI*x)/(4*M_PI*x));
 }
 double FFT::windowFuncKaiser(double x, double alpha) {
 	if (fabs(x) >= 0.5)
 		return 0.0;
 	x *= 2;
 	x = sqrt(std::max(1 - x*x, 0.0));
-	return bessel_i0(PI*alpha*x) / bessel_i0(PI*alpha);
+	return bessel_i0(M_PI*alpha*x) / bessel_i0(M_PI*alpha);
 }
 double FFT::windowFuncKaiser1(double x) {
 	return windowFuncKaiser(x, 3.0);
@@ -113,13 +113,13 @@ double FFT::windowFuncKaiser3(double x) {
 }
 
 double FFT::windowFuncFlatTopLong(double x) {
-	return windowFuncHamming(x)*((fabs(x) < 1e-4) ? 1 : sin(6*PI*x)/(6*PI*x));
+	return windowFuncHamming(x)*((fabs(x) < 1e-4) ? 1 : sin(6*M_PI*x)/(6*M_PI*x));
 }
 double FFT::windowFuncFlatTopLongLong(double x) {
-	return windowFuncHamming(x)*((fabs(x) < 1e-4) ? 1 : sin(8*PI*x)/(8*PI*x));
+	return windowFuncHamming(x)*((fabs(x) < 1e-4) ? 1 : sin(8*M_PI*x)/(8*M_PI*x));
 }
 double FFT::windowFuncHalfSin(double x) {
 	if (fabs(x) >= 0.5)
 		return 0.0;
-    return cos(PI*x);
+    return cos(M_PI*x);
 }
