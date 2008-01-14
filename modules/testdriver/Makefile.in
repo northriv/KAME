@@ -46,6 +46,7 @@ __um_includes_analyzer.h = testdriver.cpp
 __um_includes_dummydriver.h = testdriver.cpp
 __um_includes_primarydriver.h = testdriver.cpp
 __um_includes_qstatusbar.h = testdriver.cpp
+__um_includes_rand.h = testdriver.cpp
 __um_includes_testdriver.h = testdriver.cpp
 __um_includes_xnodeconnector.h = testdriver.cpp
 .PHONY: all final

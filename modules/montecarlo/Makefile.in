@@ -41,7 +41,7 @@ all: $(top_builddir)/modules/montecarlo/Makefile
 final: 
 	/sw/share/unsermake/unsermake -C $(top_builddir)/modules/montecarlo UNSERMAKE_FORCE_FINAL=1 libmontecarlo.la
 
-INCLUDES = -I$(top_srcdir)/kame -I$(top_srcdir)/kame/analyzer -I$(top_srcdir)/kame/graph -I$(top_builddir)/kame/graph -I$(top_srcdir)/kame/driver -I$(top_builddir)/modules/montecarlo/forms $(all_includes)
+INCLUDES = -I$(top_srcdir)/kame -I$(top_srcdir)/kame/analyzer -I$(top_srcdir)/kame/graph -I$(top_srcdir)/kame/math -I$(top_builddir)/kame/graph -I$(top_srcdir)/kame/driver -I$(top_builddir)/modules/montecarlo/forms $(all_includes)
 METASOURCES = 
 __um_includes_analyzer.h = kamemontecarlo.cpp
 __um_includes_atomic.h = montecarlo.cpp interaction.cpp kamemontecarlo.cpp
@@ -61,6 +61,7 @@ __um_includes_primarydriver.h = kamemontecarlo.cpp
 __um_includes_pthread.h = montecarlo.cpp interaction.cpp
 __um_includes_qpushbutton.h = kamemontecarlo.cpp
 __um_includes_qstatusbar.h = kamemontecarlo.cpp
+__um_includes_rand.h = montecarlo.cpp
 __um_includes_support.h = montecarlo.cpp interaction.cpp kamemontecarlo.cpp
 __um_includes_thread.h = montecarlo.cpp interaction.cpp kamemontecarlo.cpp
 __um_includes_vector = montecarlo.cpp interaction.cpp kamemontecarlo.cpp

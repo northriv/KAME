@@ -43,14 +43,15 @@ final:
 
 METASOURCES = 
 __um_includes_algorithm = fir.cpp
-__um_includes_complex = fft.cpp mem.cpp
+__um_includes_complex = fir.cpp fft.cpp mem.cpp
 __um_includes_cspline.h = cspline.cpp
 __um_includes_deque = mem.cpp
-__um_includes_fft.h = fft.cpp mem.cpp
-__um_includes_fftw3.h = fft.cpp mem.cpp
+__um_includes_fft.h = fir.cpp fft.cpp mem.cpp
+__um_includes_fftw3.h = fir.cpp fft.cpp mem.cpp
 __um_includes_fir.h = fir.cpp
 __um_includes_map = cspline.cpp
 __um_includes_mem.h = mem.cpp
+__um_includes_rand.h = rand.cpp
 __um_includes_support.h = fir.cpp cspline.cpp fft.cpp mem.cpp
 __um_includes_vector = fir.cpp cspline.cpp fft.cpp mem.cpp
 .PHONY: all final
