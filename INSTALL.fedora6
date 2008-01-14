@@ -1,8 +1,7 @@
 #HOW-TO for building KAME manually.
 
 #Use pirut or sudo yum -y install
-fftw2-devel, gsl-devel, fftw-devel
-compat-gcc-34-c++
+gsl-devel, fftw-devel
 rpmdevtools
 (ccache)
 and so on.
