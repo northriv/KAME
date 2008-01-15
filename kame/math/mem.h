@@ -30,13 +30,11 @@ public:
 	bool exec(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
 		int t0, double torr, FFT::twindowfunc windowfunc, double windowlength);
 	const std::vector<std::complex<double> >& ifft() const {return m_ifft;}
-	const std::vector<std::pair<double, double> >& poles() const {return m_poles;}
 protected:
 	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin,
 		std::vector<std::complex<double> >& memout,
 		int t0, double torr, FFT::twindowfunc windowfunc, double windowlength) = 0;
 	std::vector<std::complex<double> > m_ifft;
-	std::vector<std::pair<double, double> > m_poles;
 	void genIFFT(std::vector<std::complex<double> >& wavein);
 
 	shared_ptr<FFT> m_fftN, m_ifftN;

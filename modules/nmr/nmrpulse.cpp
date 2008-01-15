@@ -175,21 +175,6 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		ftWaveGraph()->plot(1)->label()->value(KAME::i18n("phase"));
 		ftWaveGraph()->plot(1)->drawPoints()->value(false);
 		ftWaveGraph()->clear();
-		{
-			shared_ptr<XXYPlot> plot = ftWaveGraph()->graph()->plots()->create<XXYPlot>(
-				"Poles", true, ftWaveGraph()->graph());
-			m_polePlot = plot;
-			plot->label()->value(KAME::i18n("Poles"));
-			plot->axisX()->value(ftWaveGraph()->axisx());
-			plot->axisY()->value(ftWaveGraph()->axisy());
-			plot->drawPoints()->value(false);
-			plot->drawLines()->value(false);
-			plot->drawBars()->value(true);
-			plot->displayMajorGrid()->value(false);
-			plot->barColor()->value(QColor(0x40, 0x40, 0xa0).rgb());
-			plot->clearPoints()->setUIEnabled(false);
-			plot->maxCount()->setUIEnabled(false);
-		}
 	}
 
 	m_lsnOnAvgClear = m_avgClear->onTouch().connectWeak(shared_from_this(), &XNMRPulseAnalyzer::onAvgClear);
@@ -274,8 +259,10 @@ void XNMRPulseAnalyzer::rotNFFT(int ftpos, double ph,
 	//fft
 	std::vector<std::complex<double> > fftout(fftlen);
 	double fftout_normalize = 1.0 / length;
-	m_solverRecored = m_solver->solver();
-	m_solverRecored->exec(wave, fftout, -ftpos, 0.5e-2, m_solver->windowFunc(), *windowWidth() / 100.0);
+	shared_ptr<SpectrumSolver> solver = m_solver->solver();
+	solver->exec(wave, fftout, -ftpos, 0.5e-2, m_solver->windowFunc(), *windowWidth() / 100.0);
+	m_ifftWave.resize(fftlen);
+	std::copy(solver->ifft().begin(), solver->ifft().end(), m_ifftWave.begin());
 
 	for (int i = 0; i < fftlen; i++) {
 		int k = i + diffreq;
@@ -520,13 +507,6 @@ void XNMRPulseAnalyzer::visualize() {
 			ftWaveGraph()->cols(3)[i] = std::abs(m_ftWave[i]);
 			ftWaveGraph()->cols(4)[i] = std::arg(m_ftWave[i]) / M_PI * 180;
 		}
-		m_polePlot->maxCount()->value(m_solverRecored->poles().size());
-		std::deque<XGraph::ValPoint> &points(m_polePlot->points());
-		points.resize(m_solverRecored->poles().size());
-		for(int i = 0; i < m_solverRecored->poles().size(); i++) {
-			points[i] = XGraph::ValPoint(0.001 * m_solverRecored->poles()[i].first / (double)ftsize / m_interval,
-				m_solverRecored->poles()[i].second / m_wave.size());
-		}
 	}
 	{
 		int length = m_dsoWave.size();
@@ -537,8 +517,8 @@ void XNMRPulseAnalyzer::visualize() {
 			waveGraph()->cols(0)[i] = (startTime() + j * m_interval) * 1e3;
 			if(abs(j) < ftsize / 2) {
 				j = (j - m_waveFTPos + ftsize) % ftsize;
-				waveGraph()->cols(1)[i] = std::real(m_solverRecored->ifft()[j]);
-				waveGraph()->cols(2)[i] = std::imag(m_solverRecored->ifft()[j]);
+				waveGraph()->cols(1)[i] = std::real(m_ifftWave[j]);
+				waveGraph()->cols(2)[i] = std::imag(m_ifftWave[j]);
 			}
 			else {
 				waveGraph()->cols(1)[i] = 0.0;
