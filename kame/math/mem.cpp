@@ -13,6 +13,7 @@
  ***************************************************************************/
 #include "mem.h"
 
+#include "roots.h"
 #include <gsl/gsl_sf.h>
 #define lambertW0 gsl_sf_lambert_W0
 
@@ -41,6 +42,7 @@ SpectrumSolver::exec(const std::vector<std::complex<double> >& memin, std::vecto
 		m_ifftN.reset(new FFT(1, n));		
 		m_ifft.resize(n);
 	}
+	m_poles.clear();
 	return genSpectrum(memin, memout, t0, torr, windowfunc, windowlength);
 }
 
@@ -152,14 +154,12 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 		step(context);
 		context->p++;		
 	}
-	dbgPrint(formatString("MEM/AR: t=%d, taps=%d, IC_min=%g, IC=%g\n", t, taps, ic, m_funcARIC(context->sigma2, context->p, t)));
+	dbgPrint(formatString("MEM/AR: t=%d, taps=%d, IC_min=%g, IC=%g", t, taps, ic, m_funcARIC(context->sigma2, context->p, t)));
 
 	std::vector<std::complex<double> > zfbuf(n), fftbuf(n);
 	std::fill(zfbuf.begin(), zfbuf.end(), 0.0);
-	std::complex<double> *pout = &zfbuf[0];
 	for(int i = 0; i < taps + 1; i++) {
-		*pout = context->a[i];
-		pout++;
+		zfbuf[i] = context->a[i];
 	}
 	m_fftN->exec(zfbuf, fftbuf);
 	
@@ -171,6 +171,27 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 		pin++;
 	}
 	genIFFT(memout);
+
+	std::vector<std::complex<double> > polynominal(taps + 1), roots(taps);
+	for(int i = 0; i < taps + 1; i++) {
+		polynominal[i] = context->a[i] / context->a[taps];
+	}
+	for(int i = 0; i < taps; i++) {
+		roots[i] = std::polar(1.0, 2 * M_PI * i / (double)taps);
+	}
+	double roots_torr = 2 * M_PI / (double)n / 10;
+	double roots_err = rootsDKA(polynominal, roots, roots_torr, std::max(40u, taps));
+	for(int i = 0; i < taps; i++) {
+		double t = std::arg(roots[i]) * n / 2.0 / M_PI;
+		std::complex<double> z = 0.0, xn = 1.0, x = std::polar(1.0, -2 * M_PI * t / (double)n);
+		for(int i = 0; i < taps + 1; i++) {
+			z += context->a[i] * xn;
+			xn *= x;
+		}
+		double r = sqrt(std::max(context->sigma2 / std::norm(z), 0.0));
+		m_poles.push_back(std::pair<double, double>(t, r));
+	}
+	
 	return true;
 }
 
@@ -320,16 +341,16 @@ MEMStrict::genSpectrum(const std::vector<std::complex<double> >& memin0, std::ve
 			oerr = err;
 		}
 		if(err < torr * sqrtpow) {
-			dbgPrint(formatString("MEM: Converged w/ sigma=%g, alpha=%g, err=%g, it=%u\n", sigma, alpha, err, it));
+			dbgPrint(formatString("MEM: Converged w/ sigma=%g, alpha=%g, err=%g, it=%u", sigma, alpha, err, it));
 			double osqrtpow = 0.0;
 			for(unsigned int i = 0; i < memout.size(); i++)
 				osqrtpow += std::norm(memout[i]);
 			osqrtpow = sqrt(osqrtpow / n);
-			dbgPrint(formatString("MEM: Pout/Pin=%g\n", osqrtpow/sqrtpow));
+			dbgPrint(formatString("MEM: Pout/Pin=%g", osqrtpow/sqrtpow));
 			return true;
 		}
 		else {
-			dbgPrint(formatString("MEM: Failed w/ sigma=%g, alpha=%g, err=%g, it=%u\n", sigma, alpha, err, it));
+			dbgPrint(formatString("MEM: Failed w/ sigma=%g, alpha=%g, err=%g, it=%u", sigma, alpha, err, it));
 		}
 	}
 	dbgPrint(formatString("MEM: Use ZF-FFT instead.\n"));
