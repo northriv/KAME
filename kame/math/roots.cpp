@@ -13,11 +13,11 @@
  ***************************************************************************/
 #include "roots.h"
 
-double rootsDKA(const std::vector<std::complex<double> > &polynominal, std::vector<std::complex<double> > &roots,
+double rootsDKA(const std::vector<std::complex<double> > &polynomial, std::vector<std::complex<double> > &roots,
 	double eps, int max_it) {
-	int n = polynominal.size() - 1;
-	ASSERT(abs(polynominal[n] - 1.0) < 0.01);
-	ASSERT(polynominal.size() == roots.size() + 1);
+	int n = polynomial.size() - 1;
+	ASSERT(abs(polynomial[n] - 1.0) < 0.01);
+	ASSERT(polynomial.size() == roots.size() + 1);
 	std::vector<bool> conv(n, false);
 	std::vector<std::complex<double> > roots_next(n);
 	double err;	
@@ -32,7 +32,7 @@ double rootsDKA(const std::vector<std::complex<double> > &polynominal, std::vect
 			std::complex<double> x = roots[i];
 			std::complex<double> xn = 1.0;
 			for(int j = 0; j <= n; j++) {
-				f += polynominal[j] * xn;
+				f += polynomial[j] * xn;
 				xn *= x;
 			}
 			std::complex<double> deno = 1.0;

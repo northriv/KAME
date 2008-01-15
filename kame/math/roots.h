@@ -19,12 +19,12 @@
 #include <complex>
 
 //! Durand-Kerner-Aberth method.
-//! \arg polynominal coeff. a_i, where a_n has to be 1. f(x) = a_n x^n + a_n-1 x^n-1 + ... + a^0.
+//! \arg polynomial coeff. a_i, where a_n has to be 1. f(x) = a_n x^n + a_n-1 x^n-1 + ... + a^0.
 //! \arg roots Pass initial values. The roots will be returned.
 //! \arg eps Errors.
 //! \arg max_it Max. num. of iterations.
 //! \return Error.
-double rootsDKA(const std::vector<std::complex<double> > &polynominal, std::vector<std::complex<double> > &roots,
+double rootsDKA(const std::vector<std::complex<double> > &polynomial, std::vector<std::complex<double> > &roots,
 	double eps, int max_it);
 
 #endif /*ROOTS_H_*/
