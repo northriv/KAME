@@ -8,7 +8,8 @@ libmath_a_SOURCES = \
 	fir.cpp fir.h \
 	fft.cpp fft.h \
 	mem.cpp mem.h \
-	rand.cpp rand.h
+	rand.cpp rand.h \
+	roots.cpp roots.h
 
 SUBDIRS =
 METASOURCES = AUTO
