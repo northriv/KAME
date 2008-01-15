@@ -39,7 +39,7 @@ libnmr_la_LIBADD = core/forms/libnmrforms.la \
 	../dmm/core/libdmmcore.la \
 	../dso/core/libdsocore.la \
 	../sg/core/libsgcore.la \
-	../magnetps/core/libmagnetpscore.la \
+	../magnetps/core/libmagnetpscore.la
 
 #AM_CXXFLAGS = $(CXXFLAGS) \
 #	-O6  \
