@@ -21,6 +21,7 @@
 
 class XNMRPulseAnalyzer;
 class XWaveNGraph;
+class XXYPlot;
 
 template <class FRM>
 class XNMRSpectrumBase : public XSecondaryDriver
@@ -121,6 +122,8 @@ private:
 
 	shared_ptr<FFT> m_ift;
 	shared_ptr<SpectrumSolverWrapper> m_solver;
+	shared_ptr<XXYPlot> m_peakPlot;
+	std::vector<std::pair<double, double> > m_peaks;
 	FFTSolver m_preFFT;
 
 	void analyzeIFT();

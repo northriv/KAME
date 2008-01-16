@@ -20,7 +20,7 @@
 #include "xnodeconnector.h"
 
 class XScalarEntry;
-class FIRMDFT;
+class FIR;
 
 class FrmDSO;
 class XWaveNGraph;
@@ -200,7 +200,7 @@ private:
 	shared_ptr<XThread<XDSO> > m_thread;
 	const shared_ptr<XStatusPrinter> m_statusPrinter;
 
-	shared_ptr<FIRMDFT> m_fir;
+	shared_ptr<FIR> m_fir;
   
 	void *execute(const atomic<bool> &);
   

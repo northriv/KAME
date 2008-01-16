@@ -17,24 +17,23 @@
 
 #include "fft.h"
 
-FIRMDFT::FIRMDFT(int taps, double bandwidth, double center) :
+FIR::FIR(int taps, double bandwidth, double center) :
 	m_taps(taps), m_bandWidth(bandwidth), m_centerFreq(center) {
 	if(taps < 3) taps = 2;
 	taps = taps/2;
 
 	int taplen = 2 * taps + 1;
 	m_tapLen = taplen;
-	int mdctlen = std::max(32, (int)lrint(pow(2.0, ceil(log(taplen * 8) / log(2.0)))));
-	m_mdctLen = mdctlen;
-	m_pBufR = (double*)fftw_malloc(sizeof(double) * mdctlen);
-	m_pBufC = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * (mdctlen / 2 + 1));
-	m_firWnd.resize(mdctlen / 2 + 1);
-	m_mdctWnd.resize(mdctlen - 2 * taplen);
-	m_rdftplan = fftw_plan_dft_r2c_1d(mdctlen, m_pBufR, m_pBufC, FFTW_ESTIMATE);
-	m_ridftplan = fftw_plan_dft_c2r_1d(mdctlen, m_pBufC, m_pBufR, FFTW_ESTIMATE);
+	int fftlen = std::max(32, (int)lrint(pow(2.0, ceil(log(taplen * 5) / log(2.0)))));
+	m_fftLen = fftlen;
+	m_pBufR = (double*)fftw_malloc(sizeof(double) * fftlen);
+	m_pBufC = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * (fftlen / 2 + 1));
+	m_firWnd.resize(fftlen / 2 + 1);
+	m_rdftplan = fftw_plan_dft_r2c_1d(fftlen, m_pBufR, m_pBufC, FFTW_ESTIMATE);
+	m_ridftplan = fftw_plan_dft_c2r_1d(fftlen, m_pBufC, m_pBufR, FFTW_ESTIMATE);
 	
 	double omega = M_PI * bandwidth;
-	for(int i = 0; i < mdctlen; i++)
+	for(int i = 0; i < fftlen; i++)
 		m_pBufR[i] = 0.0;
 	double z = 0.0;
 	for(int i = -taps; i <= taps; i++) {
@@ -42,14 +41,14 @@ FIRMDFT::FIRMDFT(int taps, double bandwidth, double center) :
 		//sinc(x) * Hamming window
 		double y = (i == 0) ? 1.0 : (sin(x)/x);
 		y *= 0.54 + 0.46*cos(M_PI*(double)i/taps);
-		m_pBufR[(mdctlen + i) % mdctlen] = y;
+		m_pBufR[(fftlen + i) % fftlen] = y;
 		z += y;
 	}
 	//scaling sum into unity
 	//shift center freq
 	double omega_c = 2 * M_PI * center;
 	for(int i = -taps; i <= taps; i++) {
-		m_pBufR[(mdctlen + i) % mdctlen] *= cos(omega_c * i) / (z * (double)(mdctlen));
+		m_pBufR[(fftlen + i) % fftlen] *= cos(omega_c * i) / (z * (double)(fftlen));
 	}
 	
 	fftw_execute(m_rdftplan);
@@ -57,32 +56,23 @@ FIRMDFT::FIRMDFT(int taps, double bandwidth, double center) :
 	for(int i = 0; i < (int)m_firWnd.size(); i++) {
 		m_firWnd[i] = m_pBufC[i][0];
 	}
-	for(int i = 0; i < (int)m_mdctWnd.size(); i++) {
-		m_mdctWnd[i] = sin(M_PI * (i + 0.5) / (double)m_mdctWnd.size());
-	}
 }
-FIRMDFT::~FIRMDFT() {
+FIR::~FIR() {
 	fftw_destroy_plan(m_rdftplan);
 	fftw_destroy_plan(m_ridftplan);
 	fftw_free(m_pBufR);
 	fftw_free(m_pBufC);
 }
 void
-FIRMDFT::exec(const double *src, double *dst, int len) {
-	for(int i = 0; i < len; i++) {
-		dst[i] = 0.0;
-	}
-	for(int ss = -(int)m_mdctWnd.size() / 2; ss < len; ss += (int)m_mdctWnd.size() / 2) {
-		for(int i = 0; i < m_tapLen; i++)
-			m_pBufR[i] = 0.0;
-		for(int i = m_mdctLen - m_tapLen; i < m_mdctLen; i++)
-			m_pBufR[i] = 0.0;
-		for(int i = m_tapLen; i < m_mdctLen - m_tapLen; i++) {
+FIR::exec(const double *src, double *dst, int len) {
+	for(int ss = 0; ss < len; ss += (int)m_fftLen - m_tapLen * 2) {
+		for(int i = 0; i < m_fftLen; i++) {
 			int j = ss + i - m_tapLen;
-			if((j < 0) || (j >= len))
-				m_pBufR[i] = 0.0;
-			else
-				m_pBufR[i] = m_mdctWnd[i - m_tapLen] * src[j];
+			if(j < 0)
+				j = -j - 1;
+			if(j >= len)
+				j = 2 * len - 1 - j;
+			m_pBufR[i] = src[j];
 		}
 		fftw_execute(m_rdftplan);
 		for(int i = 0; i < (int)m_firWnd.size(); i++) {
@@ -90,12 +80,12 @@ FIRMDFT::exec(const double *src, double *dst, int len) {
 			m_pBufC[i][1] = m_pBufC[i][1] * m_firWnd[i];
 		}
 		fftw_execute(m_ridftplan);
-		for(int i = m_tapLen; i < m_mdctLen - m_tapLen; i++) {
+		for(int i = m_tapLen; i < m_fftLen - m_tapLen; i++) {
 			int j = ss + i - m_tapLen;
 			if((j < 0) || (j >= len))
 				continue;
 			else
-				dst[j] += m_mdctWnd[i - m_tapLen] * m_pBufR[i];
+				dst[j] = m_pBufR[i];
 		}
 	}
 }

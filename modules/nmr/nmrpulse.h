@@ -24,6 +24,7 @@
 
 class FrmNMRPulse;
 class XWaveNGraph;
+class XXYPlot;
 class FrmGraphNURL;
 
 class XNMRPulseAnalyzer : public XSecondaryDriver
@@ -103,10 +104,6 @@ public:
 
 	/// Time-domain Wave.
 	const std::vector<std::complex<double> > &wave() const {return m_wave;}
-	/// FFT Wave starting with -fmax/2.
-	const std::vector<std::complex<double> > &ftWave() const {return m_ftWave;}
-	/// Time-domain Wave. IFFT of ftWave().
-	const std::vector<std::complex<double> > &ifftWave() const {return m_ifftWave;}
 	//! freq. resolution [Hz]
 	double dFreq() const {return m_dFreq;}
 	//! time resolution [sec.]
@@ -117,6 +114,8 @@ public:
 	int waveWidth() const {return m_waveWidth;}
 	//! Position of the origin of FT.
 	int waveFTPos() const {return m_waveFTPos;}
+	//! Length of FT.
+	int ftWidth() const {return m_ftWave.size();}
 	
 private:
 	/// Stored Wave for display.
@@ -158,8 +157,9 @@ private:
   
 	//! Records
 	std::vector<std::complex<double> > m_wave;
+	/// FFT Wave starting with -fmax/2.
+	const std::vector<std::complex<double> > &ftWave() const {return m_ftWave;}
 	std::vector<std::complex<double> > m_ftWave;
-	std::vector<std::complex<double> > m_ifftWave;
 	std::vector<std::complex<double> > m_dsoWave;
 	int m_dsoWaveStartPos, m_waveFTPos, m_waveWidth;
 	double m_dFreq;  ///< Hz per point
@@ -198,6 +198,8 @@ private:
   
 	//for FFT/MEM.
 	shared_ptr<SpectrumSolverWrapper> m_solver;
+	shared_ptr<SpectrumSolver> m_solverRecored;
+	shared_ptr<XXYPlot> m_peakPlot;
 	MEMStrict m_memDNR;
 	
 	void rotNFFT(int ftpos, double ph, 

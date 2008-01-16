@@ -414,7 +414,7 @@ XDSO::convertRawToDisp() throw (XRecordError&) {
 		int taps = std::min((int)lrint(2 * fir_sharpness / bandwidth), 5000);
 		double center = *firCenterFreq() * 1000.0 * timeIntervalDisp();
 		if(!m_fir || (taps != m_fir->taps()) || (bandwidth != m_fir->bandWidth()) || (center != m_fir->centerFreq()))
-			m_fir.reset(new FIRMDFT(taps, bandwidth, center));
+			m_fir.reset(new FIR(taps, bandwidth, center));
 		unsigned int length = lengthDisp();
 		std::vector<double> buf(length);
 		for(unsigned int i = 0; i < num_channels; i++) {

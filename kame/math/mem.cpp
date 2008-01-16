@@ -41,6 +41,7 @@ SpectrumSolver::exec(const std::vector<std::complex<double> >& memin, std::vecto
 		m_ifftN.reset(new FFT(1, n));		
 		m_ifft.resize(n);
 	}
+	m_peaks.clear();
 	return genSpectrum(memin, memout, t0, torr, windowfunc, windowlength);
 }
 
@@ -161,14 +162,36 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 	}
 	m_fftN->exec(zfbuf, fftbuf);
 
-	std::complex<double> *pin = &fftbuf[0];
-	for(unsigned int i = 0; i < n; i++) {
-		double z = context->sigma2 / (std::norm(*pin));
+	for(int i = 0; i < n; i++) {
+		double z = context->sigma2 / (std::norm(fftbuf[i]));
 		z = sqrt(std::max(z, 0.0) / std::norm(memphaseout[i]));
 		memout[i] = memphaseout[i] * z;
-		pin++;
 	}
 	genIFFT(memout);
+
+	// Derivative of denominator.
+	std::fill(zfbuf.begin(), zfbuf.end(), 0.0);
+	for(int i = 0; i < taps + 1; i++) {
+		zfbuf[i] = context->a[i] * (double)i * std::complex<double>(0, -1);
+	}
+	std::vector<std::complex<double> > fftbuf2(n);
+	m_fftN->exec(zfbuf, fftbuf2);
+	double dy_old = 0.0;
+	for(int i = 0; i < n; i++) {
+		double dy = std::real(fftbuf2[i] * std::conj(fftbuf[i]));
+		if((dy_old < 0) && (dy > 0)) {
+			double t = i - 1 - dy_old / (dy - dy_old);
+			std::complex<double> z = 0.0, xn = 1.0,
+				x = std::polar(1.0, -2 * M_PI * t / (double)n);
+			for(int i = 0; i < taps + 1; i++) {
+				z += context->a[i] * xn;
+				xn *= x;
+			}
+			double r = sqrt(std::max(context->sigma2 / std::norm(z), 0.0));
+			m_peaks.push_back(std::pair<double, double>(t, r));
+		}
+		dy_old = dy;
+	}
 	return true;
 }
 

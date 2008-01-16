@@ -74,6 +74,22 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 		m_spectrum->plot(0)->lineColor()->value(QColor(0x60, 0x60, 0xc0).rgb());
 		m_spectrum->plot(0)->intensity()->value(0.5);
 		m_spectrum->clear();
+		{
+			shared_ptr<XXYPlot> plot = m_spectrum->graph()->plots()->create<XXYPlot>(
+				"Peaks", true, m_spectrum->graph());
+			m_peakPlot = plot;
+			plot->label()->value(KAME::i18n("Peaks"));
+			plot->axisX()->value(m_spectrum->axisx());
+			plot->axisY()->value(m_spectrum->axisy());
+			plot->drawPoints()->value(true);
+			plot->drawLines()->value(false);
+			plot->drawBars()->value(true);
+			plot->displayMajorGrid()->value(false);
+			plot->pointColor()->value(QColor(0xa0, 0x00, 0xa0).rgb());
+			plot->barColor()->value(QColor(0xa0, 0x00, 0xa0).rgb());
+			plot->clearPoints()->setUIEnabled(false);
+			plot->maxCount()->setUIEnabled(false);
+		}
 	}
   
 	bandWidth()->value(50);
@@ -232,14 +248,25 @@ XNMRSpectrumBase<FRM>::visualize()
 	getValues(values);
 	ASSERT(values.size() == length);
 	{   XScopedWriteLock<XWaveNGraph> lock(*m_spectrum);
-	m_spectrum->setRowCount(length);
-	for(int i = 0; i < length; i++) {
-		m_spectrum->cols(0)[i] = values[i];
-		m_spectrum->cols(1)[i] = std::real(wave()[i]);
-		m_spectrum->cols(2)[i] = std::imag(wave()[i]);
-		m_spectrum->cols(3)[i] = weights()[i];
-		m_spectrum->cols(4)[i] = std::abs(wave()[i]);
-	}
+		m_spectrum->setRowCount(length);
+		for(int i = 0; i < length; i++) {
+			m_spectrum->cols(0)[i] = values[i];
+			m_spectrum->cols(1)[i] = std::real(wave()[i]);
+			m_spectrum->cols(2)[i] = std::imag(wave()[i]);
+			m_spectrum->cols(3)[i] = weights()[i];
+			m_spectrum->cols(4)[i] = std::abs(wave()[i]);
+		}
+		m_peakPlot->maxCount()->value(m_peaks.size());
+		std::deque<XGraph::ValPoint> &points(m_peakPlot->points());
+		points.resize(m_peaks.size());
+		for(int i = 0; i < m_peaks.size(); i++) {
+			double x = m_peaks[i].first;
+			int j = lrint(x - 0.5);
+			if((j < 0) || (j >= length - 1))
+				continue;
+			double a = values[j] + (values[j + 1] - values[j]) * (x - j);
+			points[i] = XGraph::ValPoint(a, m_peaks[i].second);
+		}
 	}
 }
 
@@ -249,7 +276,7 @@ XNMRSpectrumBase<FRM>::fssum()
 {
 	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
 
-	int len = _pulse->ftWave().size();
+	int len = _pulse->ftWidth();
 	double df = _pulse->dFreq();
 	if((len == 0) || (df == 0)) {
 		throw XRecordError(KAME::i18n("Invalid waveform."), __FILE__, __LINE__);  
@@ -327,6 +354,14 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	for(int i = min_idx; i <= max_idx; i++) {
 		int k = (i - (max_idx + min_idx) / 2 + iftlen) % iftlen;
 		m_wave[i] = fftwave[k] / (double)iftlen;
+	}
+	m_peaks.clear();
+	for(int i = 0; i < solver->peaks().size(); i++) {
+		double k = solver->peaks()[i].first;
+		double j = (k > iftlen/2) ? (k - iftlen) : k;
+		j += (max_idx + min_idx) / 2;
+		m_peaks.push_back(std::pair<double, double>(j,
+			solver->peaks()[i].second / (double)iftlen));
 	}
 	th = FFT::windowFuncHamming(0.1);
 	for(int i = 0; i < m_accum.size(); i++) {

@@ -24,16 +24,16 @@
 #include <fftw3.h>
 
 //! FIR (Finite Impulse Response) Digital Filter.
-//! Accelerated by the MDFT (Modified Discrete Fourier Transformation).
-class FIRMDFT
+//! Accelerated by FFT.
+class FIR
 {
 public:
 	//! makes coeff. for BPF. Window func. method.
 	//! \param taps odd num. a number of taps
 	//! \param bandwidth 0 to 1.0. the unit is sampling freq.
 	//! \param center 0.0 to 1.0. the unit is sampling freq.
-	FIRMDFT(int taps, double bandwidth, double center);
-	~FIRMDFT();
+	FIR(int taps, double bandwidth, double center);
+	~FIR();
 	void exec(const double *src, double *dst, int len);
 	int taps() const {return m_taps;}
 	double bandWidth() const {return m_bandWidth;}
@@ -42,8 +42,8 @@ private:
 	fftw_plan m_rdftplan, m_ridftplan;
 	double *m_pBufR;
 	fftw_complex *m_pBufC;
-	std::vector<double> m_mdctWnd, m_firWnd;
-	int m_mdctLen, m_tapLen;
+	std::vector<double> m_firWnd;
+	int m_fftLen, m_tapLen;
 	const int m_taps;
 	const double m_bandWidth;
 	const double m_centerFreq;

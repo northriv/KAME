@@ -243,7 +243,7 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 		break;
 	}
 	if(state == SelFinish) {
-	    if((abs(x - m_selStartPos[0]) < 3) && (abs(y == m_selStartPos[1]) < 3)) {
+	    if((abs(x - m_selStartPos[0]) < 3) && (abs(y - m_selStartPos[1]) < 3)) {
 			switch(mode) {
 			case SelPlane:
 				break;

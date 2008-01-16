@@ -175,6 +175,22 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		ftWaveGraph()->plot(1)->label()->value(KAME::i18n("phase"));
 		ftWaveGraph()->plot(1)->drawPoints()->value(false);
 		ftWaveGraph()->clear();
+		{
+			shared_ptr<XXYPlot> plot = ftWaveGraph()->graph()->plots()->create<XXYPlot>(
+				"Peaks", true, ftWaveGraph()->graph());
+			m_peakPlot = plot;
+			plot->label()->value(KAME::i18n("Peaks"));
+			plot->axisX()->value(ftWaveGraph()->axisx());
+			plot->axisY()->value(ftWaveGraph()->axisy());
+			plot->drawPoints()->value(true);
+			plot->drawLines()->value(false);
+			plot->drawBars()->value(true);
+			plot->displayMajorGrid()->value(false);
+			plot->pointColor()->value(QColor(0x40, 0x40, 0xa0).rgb());
+			plot->barColor()->value(QColor(0x40, 0x40, 0xa0).rgb());
+			plot->clearPoints()->setUIEnabled(false);
+			plot->maxCount()->setUIEnabled(false);
+		}
 	}
 
 	m_lsnOnAvgClear = m_avgClear->onTouch().connectWeak(shared_from_this(), &XNMRPulseAnalyzer::onAvgClear);
@@ -258,23 +274,10 @@ void XNMRPulseAnalyzer::rotNFFT(int ftpos, double ph,
 	int fftlen = ftwave.size();
 	//fft
 	std::vector<std::complex<double> > fftout(fftlen);
-	double fftout_normalize = 1.0 / length;
-	shared_ptr<SpectrumSolver> solver = m_solver->solver();
-	solver->exec(wave, fftout, -ftpos, 0.5e-2, m_solver->windowFunc(), *windowWidth() / 100.0);
-	m_ifftWave.resize(fftlen);
-	std::copy(solver->ifft().begin(), solver->ifft().end(), m_ifftWave.begin());
+	m_solverRecored = m_solver->solver();
+	m_solverRecored->exec(wave, fftout, -ftpos, 0.5e-2, m_solver->windowFunc(), *windowWidth() / 100.0);
 
-	for (int i = 0; i < fftlen; i++) {
-		int k = i + diffreq;
-		if ((k >= 0) && (k < fftlen)) {
-			int j = (k < fftlen / 2) ? (fftlen / 2 + k)
-				: (k - fftlen / 2);
-			ftwave[i] = fftout[j] * fftout_normalize;
-		}
-		else {
-			ftwave[i] = 0;
-		}
-	}
+	std::copy(fftout.begin(), fftout.end(), ftwave.begin());
 }
 void XNMRPulseAnalyzer::onAvgClear(const shared_ptr<XNode> &) {
 	m_timeClearRequested = XTime::now();
@@ -478,8 +481,8 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	//[Hz]
 	m_dFreq = 1.0 / fftlen / interval;
 	
-	entryCosAv()->value(std::real(m_ftWave[fftlen / 2]));
-	entrySinAv()->value(std::imag(m_ftWave[fftlen / 2]));
+	entryCosAv()->value(std::real(m_ftWave[0]));
+	entrySinAv()->value(std::imag(m_ftWave[0]));
 
 	if(picenabled && (m_avcount % 2 == 1) && (emitter == _dso)) {
 		ASSERT( _pulser->time() );
@@ -500,12 +503,24 @@ void XNMRPulseAnalyzer::visualize() {
 	{
 		XScopedWriteLock<XWaveNGraph> lock(*ftWaveGraph());
 		ftWaveGraph()->setRowCount(ftsize);
+		double normalize = 1.0 / m_wave.size();
 		for (int i = 0; i < ftsize; i++) {
+			int j = (i - ftsize/2 + ftsize) % ftsize;
 			ftWaveGraph()->cols(0)[i] = 0.001 * (i - ftsize/2) / (double)ftsize / m_interval;
-			ftWaveGraph()->cols(1)[i] = std::real(m_ftWave[i]);
-			ftWaveGraph()->cols(2)[i] = std::imag(m_ftWave[i]);
-			ftWaveGraph()->cols(3)[i] = std::abs(m_ftWave[i]);
-			ftWaveGraph()->cols(4)[i] = std::arg(m_ftWave[i]) / M_PI * 180;
+			std::complex<double> z = m_ftWave[j] * normalize;
+			ftWaveGraph()->cols(1)[i] = std::real(z);
+			ftWaveGraph()->cols(2)[i] = std::imag(z);
+			ftWaveGraph()->cols(3)[i] = std::abs(z);
+			ftWaveGraph()->cols(4)[i] = std::arg(z) / M_PI * 180;
+		}
+		m_peakPlot->maxCount()->value(m_solverRecored->peaks().size());
+		std::deque<XGraph::ValPoint> &points(m_peakPlot->points());
+		points.resize(m_solverRecored->peaks().size());
+		for(int i = 0; i < m_solverRecored->peaks().size(); i++) {
+			double x = m_solverRecored->peaks()[i].first;
+			x = (x > ftsize / 2) ? (x - ftsize) : x;
+			points[i] = XGraph::ValPoint(0.001 * x / (double)ftsize / m_interval,
+				m_solverRecored->peaks()[i].second * normalize);
 		}
 	}
 	{
@@ -517,8 +532,8 @@ void XNMRPulseAnalyzer::visualize() {
 			waveGraph()->cols(0)[i] = (startTime() + j * m_interval) * 1e3;
 			if(abs(j) < ftsize / 2) {
 				j = (j - m_waveFTPos + ftsize) % ftsize;
-				waveGraph()->cols(1)[i] = std::real(m_ifftWave[j]);
-				waveGraph()->cols(2)[i] = std::imag(m_ifftWave[j]);
+				waveGraph()->cols(1)[i] = std::real(m_solverRecored->ifft()[j]);
+				waveGraph()->cols(2)[i] = std::imag(m_solverRecored->ifft()[j]);
 			}
 			else {
 				waveGraph()->cols(1)[i] = 0.0;
