@@ -24,7 +24,8 @@ FIR::FIR(int taps, double bandwidth, double center) :
 
 	int taplen = 2 * taps + 1;
 	m_tapLen = taplen;
-	int fftlen = std::max(32, (int)lrint(pow(2.0, ceil(log(taplen * 5) / log(2.0)))));
+	int fftlen = lrint(pow(2.0, ceil(log(taplen * 5) / log(2.0))));
+	fftlen = std::max(64, fftlen);
 	m_fftLen = fftlen;
 	m_pBufR = (double*)fftw_malloc(sizeof(double) * fftlen);
 	m_pBufC = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * (fftlen / 2 + 1));
@@ -69,9 +70,9 @@ FIR::exec(const double *src, double *dst, int len) {
 		for(int i = 0; i < m_fftLen; i++) {
 			int j = ss + i - m_tapLen;
 			if(j < 0)
-				j = -j - 1;
+				j = std::min(-j - 1, len - 1);
 			if(j >= len)
-				j = 2 * len - 1 - j;
+				j = std::max(2 * len - 1 - j, 0);
 			m_pBufR[i] = src[j];
 		}
 		fftw_execute(m_rdftplan);
