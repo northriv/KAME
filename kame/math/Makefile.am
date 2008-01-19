@@ -7,9 +7,11 @@ libmath_a_SOURCES = \
 	cspline.cpp cspline.h \
 	fir.cpp fir.h \
 	fft.cpp fft.h \
-	mem.cpp mem.h \
+	ar.cpp ar.h \
+	freqest.cpp freqest.h \
+	spectrumsolver.cpp spectrumsolver.h \
 	rand.cpp rand.h \
-	roots.cpp roots.h
+	matrix.cpp matrix.h
 
 SUBDIRS =
 METASOURCES = AUTO

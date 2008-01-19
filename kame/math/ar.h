@@ -11,68 +11,10 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-#ifndef memH
-#define memH
-//---------------------------------------------------------------------------
-#include "support.h"
+#ifndef AR_H_
+#define AR_H_
 
-#include <vector>
-#include <complex>
-#include <deque>
-
-#include <fft.h>
-
-class SpectrumSolver {
-public:
-	SpectrumSolver();
-	virtual ~SpectrumSolver();
-	
-	bool exec(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
-		int t0, double torr, FFT::twindowfunc windowfunc, double windowlength);
-	const std::vector<std::complex<double> >& ifft() const {return m_ifft;}
-	const std::vector<std::pair<double, double> >& peaks() const {return m_peaks;}
-protected:
-	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin,
-		std::vector<std::complex<double> >& memout,
-		int t0, double torr, FFT::twindowfunc windowfunc, double windowlength) = 0;
-	std::vector<std::complex<double> > m_ifft;
-	std::vector<std::pair<double, double> > m_peaks;
-	void genIFFT(std::vector<std::complex<double> >& wavein);
-
-	shared_ptr<FFT> m_fftN, m_ifftN;
-	int fftlen() const {return m_ifftN->length();}
-};
-
-class FFTSolver : public SpectrumSolver {
-public:
-	FFTSolver() : SpectrumSolver()  {}
-	virtual ~FFTSolver() {}
-	
-	static double windowLength(int tdlen, int t0, double windowlength);
-protected:
-	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin,
-		std::vector<std::complex<double> >& memout,
-		int t0, double torr, FFT::twindowfunc windowfunc, double windowlength);
-};
-
-class MEMStrict : public SpectrumSolver {
-public:
-	virtual ~MEMStrict();
-protected:
-	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin,
-		std::vector<std::complex<double> >& memout,
-		int t0, double torr, FFT::twindowfunc windowfunc, double windowlength);
-private:
-	void setup(unsigned int t, unsigned int n);
-	double stepMEM(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
-		double alpha, double sigma, int t0, double torr);
-	void solveZ(double torr);
-
-	std::vector<std::complex<double> > m_lambda, m_accumDY, m_accumDYFT;
-	shared_ptr<FFT> m_fftT;
-	std::vector<double> m_accumG2;
-	double m_accumZ;
-};
+#include "spectrumsolver.h"
 
 template <class Context>
 class YuleWalkerCousin : public MEMStrict {
@@ -94,7 +36,7 @@ public:
 	static double arMDL(double sigma2, int p, int t);
 protected:
 	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
-		int t0, double torr, FFT::twindowfunc windowfunc, double windowlength);
+		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength);
 
 	virtual void first(
 		const std::vector<std::complex<double> >& memin, const shared_ptr<Context> &context, FFT::twindowfunc windowfunc) = 0;
@@ -142,4 +84,4 @@ private:
 	std::vector<std::complex<double> > m_rx;
 };
 
-#endif
+#endif /*AR_H_*/

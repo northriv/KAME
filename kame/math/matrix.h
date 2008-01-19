@@ -11,20 +11,25 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-#ifndef ROOTS_H_
-#define ROOTS_H_
-
+#ifndef MATRIX_H_
+#define MATRIX_H_
+//---------------------------------------------------------------------------
 #include "support.h"
+
 #include <vector>
 #include <complex>
+#include <boost/numeric/ublas/matrix.hpp>
+#include <boost/numeric/ublas/triangular.hpp>
+#include <boost/numeric/ublas/symmetric.hpp>
+using namespace boost::numeric::ublas;
 
-//! Durand-Kerner-Aberth method.
-//! \arg polynomial coeff. a_i, where a_n has to be 1. f(x) = a_n x^n + a_n-1 x^n-1 + ... + a^0.
-//! \arg roots Pass initial values. The roots will be returned.
-//! \arg eps Errors.
-//! \arg max_it Max. num. of iterations.
-//! \return Error.
-double rootsDKA(const std::vector<std::complex<double> > &polynomial, std::vector<std::complex<double> > &roots,
-	double eps, int max_it);
+void householderQR(const symmetric_matrix<double> &a,
+	matrix<double> &q, triangular_matrix<double, upper> &r);
+void modifiedGramSchmidt(const matrix<std::complex<double> > &a,
+	matrix<std::complex<double> > &q, triangular_matrix<std::complex<double>, upper> &r);
 
-#endif /*ROOTS_H_*/
+void eigHermiteRRR(const matrix<std::complex<double> > &a,
+	vector<double> &lambda, matrix<std::complex<double> > &v,
+	double tol);
+
+#endif /*MATRIX_H_*/
