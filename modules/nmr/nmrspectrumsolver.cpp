@@ -19,6 +19,8 @@ const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_BURG_AICc[] = "Burg's MEM 
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_BURG_MDL[] = "Burg's MEM MDL";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_AR_YW_AICc[] = "Yule-Walker AR AICc";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_AR_YW_MDL[] = "Yule-Walker AR MDL";
+const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MUSIC[] = "MUSIC";
+const char SpectrumSolverWrapper::SPECTRUM_SOLVER_EIGENVALUE[] = "Eigenvalue";
 
 const char SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT[] = "Rect";
 const char SpectrumSolverWrapper::WINDOW_FUNC_HANNING[] = "Hanning";
@@ -52,6 +54,8 @@ SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
 		selector->add(SPECTRUM_SOLVER_MEM_BURG_MDL);
 		selector->add(SPECTRUM_SOLVER_AR_YW_AICc);
 		selector->add(SPECTRUM_SOLVER_AR_YW_MDL);
+		selector->add(SPECTRUM_SOLVER_MUSIC);
+		selector->add(SPECTRUM_SOLVER_EIGENVALUE);
 		m_lsnOnChanged = selector->onValueChanged().connectWeak(shared_from_this(), &SpectrumSolverWrapper::onSolverChanged);
 	}
 	onSolverChanged(selector);
@@ -109,6 +113,12 @@ SpectrumSolverWrapper::onSolverChanged(const shared_ptr<XValueNodeBase> &) {
 		}
 		if(m_selector->to_str() == SPECTRUM_SOLVER_AR_YW_MDL) {
 			solver.reset(new YuleWalkerAR(&YuleWalkerAR::arMDL));
+		}
+		if(m_selector->to_str() == SPECTRUM_SOLVER_MUSIC) {
+			solver.reset(new MUSIC);
+		}
+		if(m_selector->to_str() == SPECTRUM_SOLVER_EIGENVALUE) {
+			solver.reset(new EigFreqEstimation);
 		}
 		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_STRICT) {
 			solver.reset(new MEMStrict);
