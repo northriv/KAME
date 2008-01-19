@@ -50,12 +50,12 @@ SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
 	if(selector) {
 		selector->add(SPECTRUM_SOLVER_ZF_FFT);
 		selector->add(SPECTRUM_SOLVER_MEM_STRICT);
+		selector->add(SPECTRUM_SOLVER_EIGENVALUE);
+		selector->add(SPECTRUM_SOLVER_MUSIC);
 		selector->add(SPECTRUM_SOLVER_MEM_BURG_AICc);
 		selector->add(SPECTRUM_SOLVER_MEM_BURG_MDL);
 		selector->add(SPECTRUM_SOLVER_AR_YW_AICc);
 		selector->add(SPECTRUM_SOLVER_AR_YW_MDL);
-		selector->add(SPECTRUM_SOLVER_MUSIC);
-		selector->add(SPECTRUM_SOLVER_EIGENVALUE);
 		m_lsnOnChanged = selector->onValueChanged().connectWeak(shared_from_this(), &SpectrumSolverWrapper::onSolverChanged);
 	}
 	onSolverChanged(selector);

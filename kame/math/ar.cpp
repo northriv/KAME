@@ -126,7 +126,9 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 	for(int i = 0; i < n; i++) {
 		double dy = std::real(fftbuf2[i] * std::conj(fftbuf[i]));
 		if((dy_old < 0) && (dy > 0)) {
-			double t = i - 1 - dy_old / (dy - dy_old);
+			double t = - dy_old / (dy - dy_old);
+			t = std::max(0.0, std::min(t, 1.0));
+			t += i - 1;
 			std::complex<double> z = 0.0, xn = 1.0,
 				x = std::polar(1.0, -2 * M_PI * t / (double)n);
 			for(int i = 0; i < taps + 1; i++) {

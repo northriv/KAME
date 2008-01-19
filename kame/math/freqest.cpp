@@ -25,6 +25,11 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 	int t = memin.size();
 	int n = memout.size();
 	
+	double tpoworg = 0.0;
+	for(int i = 0; i < t; i++) {
+		tpoworg += std::norm(memin[i]);
+	}
+
 	if(t0 < 0)
 		t0 += (-t0 / n + 1) * n;	
 	std::vector<std::complex<double> > memphaseout(n);	
@@ -48,8 +53,7 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 	vector<double> lambda;
 	eigHermiteRRR(r, lambda, eigv, tol * std::abs(rx[0]));
 	int p;
-	double av = std::accumulate(lambda.begin(), lambda.end(), 0.0) / t;
-	double thres = lambda[0] + (av - lambda[0]) * windowlength;
+	double thres = lambda[0] + (lambda[t-1] - lambda[0]) * windowlength / 2;
 	for(int i = t - 1; i >= 0; i--) {
 		if(lambda[i] < thres) {
 			p = t - 1 - i;
@@ -64,9 +68,10 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 	for(int i = 0; i < t - p; i++) {
 		matrix_column<matrix<std::complex<double> > > eigvcol(eigv, i);
 		double z = (m_eigenvalue_method) ? (sqrt(1.0 / lambda[i])) : 1.0;
+		ASSERT(fabs(norm_2(eigvcol) - 1.0) < 0.1);
 		for(int j = 0; j < t; j++) {
-			fftin[j] = eigvcol[j] * z;
-			fftin2[j] = eigvcol[j] * (double)j * std::complex<double>(0, 1);
+			fftin[j] = eigvcol(j) * z;
+			fftin2[j] = eigvcol(j) * (double)j * std::complex<double>(0, z);
 		}
 		m_ifftN->exec(fftin, fftout);
 		m_ifftN->exec(fftin2, fftout2);
@@ -75,17 +80,23 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 			dy[k] += std::real(fftout2[k] * std::conj(fftout[k]));
 		}
 	}
+	double tpow = 0.0;
 	for(int i = 0; i < n; i++) {
+		tpow += 1.0 / ip[i];
 		memout[i] = memphaseout[i] * sqrt(1.0 / (ip[i] * std::norm(memphaseout[i])));
 	}
-	double dy_old = 0.0;
+	double normalize = sqrt(n * tpoworg / tpow);
 	for(int i = 0; i < n; i++) {
-		if((dy_old < 0) && (dy[i] > 0)) {
-			double t = i - 1 - dy_old / (dy[i] - dy_old);
-			double r = std::abs(memout[i - 1]) * (i - t) + std::abs(memout[i]) * (t - (i - 1));
-			m_peaks.push_back(std::pair<double, double>(t, r));
+		memout[i] *= normalize;
+	}
+	
+	for(int i = 1; i < n; i++) {
+		if((dy[i - 1] < 0) && (dy[i] > 0)) {
+			double t = - dy[i - 1] / (dy[i] - dy[i - 1]);
+			t = std::max(0.0, std::min(t, 1.0));
+			double r = std::abs(memout[i - 1]) * (1 - t) + std::abs(memout[i]) * t;
+			m_peaks.push_back(std::pair<double, double>(t + i - 1, r));
 		}
-		dy_old = dy[i];
 	}
 	return true;
 }
