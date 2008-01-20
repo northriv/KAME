@@ -60,6 +60,16 @@ AC_CHECK_LIB(gpib, main,
 	  AC_MSG_WARN([linux-gpib is not installed - gpib is disabled]), -lgpib)
 LINUXGPIB_LIBS="$gpib_libs"
 
+ac_save_LIBS="$LIBS"
+AC_CHECK_LIB(clapack, main, 
+clapack_libs="-lclapack -lcblas -latlas"
+clapack_cflags=""
+AC_DEFINE([HAVE_CLAPACK], 1, [Define if you have 'CLAPACK' library]),
+AC_MSG_WARN([CLAPACK is not installed - CLAPACK is disabled]), -lclapack -lcblas -latlas)
+CLAPACK_LIBS="$clapack_libs"
+CLAPACK_CFLAGS="$clapack_cflags"
+LIBS="$ac_save_LIBS"
+
 AC_ARG_WITH(gc, 
 [  --with-gc		use garbage collector],
 if test "$with_gc" = "yes"; then
@@ -100,6 +110,8 @@ AC_SUBST(FFTW_LIBS)
 AC_SUBST(NIDAQMX_LIBS)
 AC_SUBST(NIDAQMX_CFLAGS)
 AC_SUBST(LINUXGPIB_LIBS)
+AC_SUBST(CLAPACK_LIBS)
+AC_SUBST(CLAPACK_CFLAGS)
 AC_SUBST(RUBY_LIBS)
 AC_SUBST(RUBY_CFLAGS)
 AC_SUBST(FREETYPE2_LIBS)

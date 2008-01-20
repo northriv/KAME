@@ -35,8 +35,10 @@ public:
 	static const char SPECTRUM_SOLVER_MEM_BURG_MDL[];
 	static const char SPECTRUM_SOLVER_AR_YW_AICc[];
 	static const char SPECTRUM_SOLVER_AR_YW_MDL[];
-	static const char SPECTRUM_SOLVER_MUSIC[];
-	static const char SPECTRUM_SOLVER_EIGENVALUE[];
+	static const char SPECTRUM_SOLVER_MUSIC_AIC[];
+	static const char SPECTRUM_SOLVER_MUSIC_MDL[];
+	static const char SPECTRUM_SOLVER_EV_AIC[];
+	static const char SPECTRUM_SOLVER_EV_MDL[];
 
 	static const char WINDOW_FUNC_DEFAULT[];
 	static const char WINDOW_FUNC_HANNING[];

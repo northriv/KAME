@@ -19,8 +19,10 @@ const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_BURG_AICc[] = "Burg's MEM 
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_BURG_MDL[] = "Burg's MEM MDL";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_AR_YW_AICc[] = "Yule-Walker AR AICc";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_AR_YW_MDL[] = "Yule-Walker AR MDL";
-const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MUSIC[] = "MUSIC";
-const char SpectrumSolverWrapper::SPECTRUM_SOLVER_EIGENVALUE[] = "Eigenvalue";
+const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MUSIC_AIC[] = "MUSIC AIC";
+const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MUSIC_MDL[] = "MUSIC MDL";
+const char SpectrumSolverWrapper::SPECTRUM_SOLVER_EV_AIC[] = "EigVec AIC";
+const char SpectrumSolverWrapper::SPECTRUM_SOLVER_EV_MDL[] = "EigVec MDL";
 
 const char SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT[] = "Rect";
 const char SpectrumSolverWrapper::WINDOW_FUNC_HANNING[] = "Hanning";
@@ -50,10 +52,12 @@ SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
 	if(selector) {
 		selector->add(SPECTRUM_SOLVER_ZF_FFT);
 		selector->add(SPECTRUM_SOLVER_MEM_STRICT);
-		selector->add(SPECTRUM_SOLVER_EIGENVALUE);
-		selector->add(SPECTRUM_SOLVER_MUSIC);
+		selector->add(SPECTRUM_SOLVER_EV_AIC);
+		selector->add(SPECTRUM_SOLVER_EV_MDL);
 		selector->add(SPECTRUM_SOLVER_MEM_BURG_AICc);
 		selector->add(SPECTRUM_SOLVER_MEM_BURG_MDL);
+		selector->add(SPECTRUM_SOLVER_MUSIC_AIC);
+		selector->add(SPECTRUM_SOLVER_MUSIC_MDL);
 		selector->add(SPECTRUM_SOLVER_AR_YW_AICc);
 		selector->add(SPECTRUM_SOLVER_AR_YW_MDL);
 		m_lsnOnChanged = selector->onValueChanged().connectWeak(shared_from_this(), &SpectrumSolverWrapper::onSolverChanged);
@@ -103,22 +107,28 @@ SpectrumSolverWrapper::onSolverChanged(const shared_ptr<XValueNodeBase> &) {
 	bool has_window = false;
 	if(m_selector) {
 		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_BURG_AICc) {
-			solver.reset(new MEMBurg(&MEMBurg::arAICc));
+			solver.reset(new MEMBurg(&SpectrumSolver::icAICc));
 		}
 		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_BURG_MDL) {
-			solver.reset(new MEMBurg(&MEMBurg::arMDL));
+			solver.reset(new MEMBurg(&SpectrumSolver::icMDL));
 		}
 		if(m_selector->to_str() == SPECTRUM_SOLVER_AR_YW_AICc) {
-			solver.reset(new YuleWalkerAR(&YuleWalkerAR::arAICc));
+			solver.reset(new YuleWalkerAR(&SpectrumSolver::icAICc));
 		}
 		if(m_selector->to_str() == SPECTRUM_SOLVER_AR_YW_MDL) {
-			solver.reset(new YuleWalkerAR(&YuleWalkerAR::arMDL));
+			solver.reset(new YuleWalkerAR(&SpectrumSolver::icMDL));
 		}
-		if(m_selector->to_str() == SPECTRUM_SOLVER_MUSIC) {
-			solver.reset(new MUSIC);
+		if(m_selector->to_str() == SPECTRUM_SOLVER_MUSIC_AIC) {
+			solver.reset(new MUSIC(&SpectrumSolver::icAIC));
 		}
-		if(m_selector->to_str() == SPECTRUM_SOLVER_EIGENVALUE) {
-			solver.reset(new EigFreqEstimation);
+		if(m_selector->to_str() == SPECTRUM_SOLVER_MUSIC_MDL) {
+			solver.reset(new MUSIC(&SpectrumSolver::icMDL));
+		}
+		if(m_selector->to_str() == SPECTRUM_SOLVER_EV_AIC) {
+			solver.reset(new EigFreqEstimation(&SpectrumSolver::icAIC));
+		}
+		if(m_selector->to_str() == SPECTRUM_SOLVER_EV_MDL) {
+			solver.reset(new EigFreqEstimation(&SpectrumSolver::icMDL));
 		}
 		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_STRICT) {
 			solver.reset(new MEMStrict);
