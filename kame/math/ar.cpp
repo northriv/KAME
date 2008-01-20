@@ -47,9 +47,7 @@ YuleWalkerCousin<Context>::arMDL(double sigma2, int p, int t) {
 template <class Context>
 bool
 YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
-	int t0, double torr, FFT::twindowfunc windowfunc, double windowlength) {
-	windowfunc = &FFT::windowFuncTri;
-	
+	int t0, double torr, FFT::twindowfunc /*windowfunc*/, double windowlength) {
 	unsigned int t = memin.size();
 	unsigned int n = memout.size();
 
@@ -67,12 +65,11 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 	context->t = t;
 	context->sigma2 = 0.0;
 	for(unsigned int i = 0; i < t; i++) {
-		context->sigma2 += std::norm(memin[i]);
+		context->sigma2 += std::norm(memin[i]) / (double)t;
 	}
 	context->p = 0;
-	first(memin, context, windowfunc);
+	first(memin, context);
 	unsigned int taps = 0;
-//	sigma2 /= t;
 	double ic = 1e99;
 	for(unsigned int p = 0; p < t - 2; p++) {
 		if(p % taps_div == 0) {
@@ -109,7 +106,7 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 	m_fftN->exec(zfbuf, fftbuf);
 
 	for(int i = 0; i < n; i++) {
-		double z = context->sigma2 / (std::norm(fftbuf[i]));
+		double z = t * context->sigma2 / (std::norm(fftbuf[i]));
 		z = sqrt(std::max(z, 0.0) / std::norm(memphaseout[i]));
 		memout[i] = memphaseout[i] * z;
 	}
@@ -126,17 +123,16 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 	for(int i = 0; i < n; i++) {
 		double dy = std::real(fftbuf2[i] * std::conj(fftbuf[i]));
 		if((dy_old < 0) && (dy > 0)) {
-			double t = - dy_old / (dy - dy_old);
-			t = std::max(0.0, std::min(t, 1.0));
-			t += i - 1;
+			double dx = - dy_old / (dy - dy_old);
+			dx = std::max(0.0, std::min(dx, 1.0));
 			std::complex<double> z = 0.0, xn = 1.0,
-				x = std::polar(1.0, -2 * M_PI * t / (double)n);
+				x = std::polar(1.0, -2 * M_PI * (dx + i - 1) / (double)n);
 			for(int i = 0; i < taps + 1; i++) {
 				z += context->a[i] * xn;
 				xn *= x;
 			}
-			double r = sqrt(std::max(context->sigma2 / std::norm(z), 0.0));
-			m_peaks.push_back(std::pair<double, double>(t, r));
+			double r = sqrt(std::max(t * context->sigma2 / std::norm(z), 0.0));
+			m_peaks.push_back(std::pair<double, double>(dx + i - 1, r));
 		}
 		dy_old = dy;
 	}
@@ -148,7 +144,7 @@ template class YuleWalkerCousin<MEMBurgContext>;
 
 void
 MEMBurg::first(
-	const std::vector<std::complex<double> >& memin, const shared_ptr<MEMBurgContext> &context, FFT::twindowfunc /*windowfunc*/) {
+	const std::vector<std::complex<double> >& memin, const shared_ptr<MEMBurgContext> &context) {
 	unsigned int t = context->t;
 	context->epsilon.resize(t);
 	context->eta.resize(t);
@@ -179,16 +175,10 @@ MEMBurg::step(const shared_ptr<MEMBurgContext> &context) {
 }
 void
 YuleWalkerAR::first(
-	const std::vector<std::complex<double> >& memin, const shared_ptr<ARContext> &context, FFT::twindowfunc windowfunc) {
+	const std::vector<std::complex<double> >& memin, const shared_ptr<ARContext> &context) {
 	unsigned int t = context->t;
 	m_rx.resize(t);
-	std::fill(m_rx.begin(), m_rx.end(), 0.0);
-	for(unsigned int p = 0; p <= t - 1; p++) {
-		for(unsigned int i = 0; i < t - p; i++) {
-			m_rx[p] += std::conj(memin[i]) * memin[i+p];
-		}
-		m_rx[p] *= windowfunc(0.5*p/(double)t) * t / (t - p);
-	}		
+	autoCorrelation(memin, m_rx);
 }
 void
 YuleWalkerAR::step(const shared_ptr<ARContext> &context) {

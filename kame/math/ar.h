@@ -39,7 +39,7 @@ protected:
 		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength);
 
 	virtual void first(
-		const std::vector<std::complex<double> >& memin, const shared_ptr<Context> &context, FFT::twindowfunc windowfunc) = 0;
+		const std::vector<std::complex<double> >& memin, const shared_ptr<Context> &context) = 0;
 	virtual void step(const shared_ptr<Context> &context) = 0;
 	std::deque<shared_ptr<Context> > m_contexts;
 private:
@@ -66,7 +66,7 @@ public:
 	virtual ~MEMBurg() {}
 protected:
 	virtual void first(
-		const std::vector<std::complex<double> >& memin, const shared_ptr<MEMBurgContext> &context, FFT::twindowfunc windowfunc);
+		const std::vector<std::complex<double> >& memin, const shared_ptr<MEMBurgContext> &context);
 	virtual void step(const shared_ptr<MEMBurgContext> &context);
 private:
 
@@ -78,7 +78,7 @@ public:
 	virtual ~YuleWalkerAR() {}
 protected:
 	virtual void first(
-		const std::vector<std::complex<double> >& memin, const shared_ptr<ARContext> &context, FFT::twindowfunc windowfunc);
+		const std::vector<std::complex<double> >& memin, const shared_ptr<ARContext> &context);
 	virtual void step(const shared_ptr<ARContext> &context);
 private:
 	std::vector<std::complex<double> > m_rx;

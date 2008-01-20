@@ -41,6 +41,11 @@ protected:
 
 	shared_ptr<FFT> m_fftN, m_ifftN;
 	int fftlen() const {return m_ifftN->length();}
+	
+	//! For autocorrelation.
+	shared_ptr<FFT> m_fftRX, m_ifftRX;
+	void autoCorrelation(const std::vector<std::complex<double> >&wave,
+		std::vector<std::complex<double> >&corr);
 };
 
 class FFTSolver : public SpectrumSolver {

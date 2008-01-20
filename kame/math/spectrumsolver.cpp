@@ -45,6 +45,27 @@ SpectrumSolver::exec(const std::vector<std::complex<double> >& memin, std::vecto
 	return genSpectrum(memin, memout, t0, torr, windowfunc, windowlength);
 }
 
+void
+SpectrumSolver::autoCorrelation(const std::vector<std::complex<double> >&wave,
+	std::vector<std::complex<double> >&corr) {
+	if(!m_fftRX || (m_fftRX->length() != wave.size())) {
+		int len = FFT::fitLength(wave.size() * 2);
+		m_fftRX.reset(new FFT(-1, len));
+		m_ifftRX.reset(new FFT(1, len));
+	}
+	std::vector<std::complex<double> > wavezf(m_fftRX->length(), 0.0), corrzf(m_fftRX->length());
+	std::copy(wave.begin(), wave.end(), wavezf.begin());
+	m_fftRX->exec(wavezf, corrzf);
+	for(int i = 0; i < corrzf.size(); i++)
+		wavezf[i] = std::norm(corrzf[i]);
+	m_ifftRX->exec(wavezf, corrzf);
+	corr.resize(wave.size());
+	double normalize = 1.0 / (corr.size() * m_fftRX->length());
+	for(int i = 0; i < corr.size(); i++) {
+		corr[i] = corrzf[i] * normalize;
+	}
+}
+
 double
 FFTSolver::windowLength(int t, int t0, double windowlength) {
 	return 2.0 * (std::max(-t0, (int)t + t0) * windowlength);
