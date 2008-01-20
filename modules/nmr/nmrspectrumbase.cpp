@@ -262,8 +262,7 @@ XNMRSpectrumBase<FRM>::visualize()
 		for(int i = 0; i < m_peaks.size(); i++) {
 			double x = m_peaks[i].first;
 			int j = lrint(x - 0.5);
-			if((j < 0) || (j >= length - 1))
-				continue;
+			j = std::min(std::max(0, j), length - 2);
 			double a = values[j] + (values[j + 1] - values[j]) * (x - j);
 			points[i] = XGraph::ValPoint(a, m_peaks[i].second);
 		}
