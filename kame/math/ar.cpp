@@ -13,37 +13,10 @@
 ***************************************************************************/
 #include "ar.h"
 
-
 template <class Context>
-YuleWalkerCousin<Context>::YuleWalkerCousin(tfuncARIC ic) : MEMStrict(), m_funcARIC(ic) {	
+YuleWalkerCousin<Context>::YuleWalkerCousin(tfuncIC ic) : MEMStrict(), m_funcARIC(ic) {	
 }
 
-template <class Context>
-double
-YuleWalkerCousin<Context>::arAIC(double sigma2, int p, int t) {
-	return log(sigma2) + 2 * (p + 1) / (double)t;
-}
-template <class Context>
-double
-YuleWalkerCousin<Context>::arAICc(double sigma2, int p, int t) {
-	return log(sigma2) + 2 * (p + 2) / (double)(t - p - 3);
-}
-template <class Context>
-double
-YuleWalkerCousin<Context>::arHQ(double sigma2, int p, int t) {
-	return log(sigma2) + 2.0 * (p + 1) * log(log(t) / log(2.0)) / (double)t;
-}
-template <class Context>
-double
-YuleWalkerCousin<Context>::arFPE(double sigma2, int p, int t) {
-	return sigma2 * (t + p + 1) / (t - p - 1);
-	
-}
-template <class Context>
-double
-YuleWalkerCousin<Context>::arMDL(double sigma2, int p, int t) {
-	return t * log(sigma2) + (p + 1) * log(t);
-}
 template <class Context>
 bool
 YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
@@ -81,7 +54,7 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 		context->p++;
 		if(context->sigma2 < 0)
 			break;
-		double new_ic = m_funcARIC(context->sigma2, context->p, t);
+		double new_ic = arIC(context->sigma2, context->p, t);
 		if(new_ic < ic) {
 			taps = p + 1;
 			ic = new_ic;

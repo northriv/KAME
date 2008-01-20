@@ -19,6 +19,23 @@
 SpectrumSolver::SpectrumSolver() {} 
 SpectrumSolver::~SpectrumSolver() {}
 
+double
+SpectrumSolver::icAIC(double loglikelifood, int k, int /*n*/) {
+	return -2 * loglikelifood + 2 * k;
+}
+double
+SpectrumSolver::icAICc(double loglikelifood, int k, int n) {
+	return -2 * loglikelifood + 2 * (k + 1) * n / (double)(n - k - 2);
+}
+double
+SpectrumSolver::icHQ(double loglikelifood, int k, int n) {
+	return -2 * loglikelifood + 2 * k * log(log(n) / log(2.0));
+}
+double
+SpectrumSolver::icMDL(double loglikelifood, int k, int n) {
+	return -loglikelifood + k * log(n) / 2.0;
+}
+
 void
 SpectrumSolver::genIFFT(std::vector<std::complex<double> >& wavein) {
 	m_ifftN->exec(wavein, m_ifft);

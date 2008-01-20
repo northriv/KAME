@@ -36,11 +36,14 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 	
 	std::vector<std::complex<double> > rx(t);
 	autoCorrelation(memin, rx);
-	
-	matrix<std::complex<double> > r(t, t);
-	for(int i = 0; i < t; i++) {
+	//# of signal space.
+	int p = t / 2 - 1;
+	rx.resize(p);
+	// Correlation matrix.
+	matrix<std::complex<double> > r(p, p);
+	for(int i = 0; i < p; i++) {
 		matrix_row<matrix<std::complex<double> > > rrow(r, i);
-		for(int j = i; j < t; j++) {
+		for(int j = i; j < p; j++) {
 			rrow(j) = rx[j - i];
 		}
 	}
@@ -48,29 +51,40 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 	vector<double> lambda;
 	double tol_lambda = tol * std::abs(rx[0]) * 0.1;
 	eigHermiteRRR(r, lambda, eigv, tol_lambda);
-	int p;
-	double thres = lambda[0] + (lambda[t-1] - lambda[0]) * windowlength / 2;
-	for(int i = t - 1; i >= 0; i--) {
-		if(lambda[i] < thres) {
-			p = t - 1 - i;
-			break;
+
+	//# of signals.
+	int numsig = 1;
+	//Minimum IC.
+	double minic = 1e99;
+	double sumlambda = 0.0, sumloglambda = 1.0;
+	for(int i = 0; i < p; i++) {
+		sumlambda += lambda[i];
+		sumloglambda += log(lambda[i]);
+		int q = p - 1 - i;
+		double logl = t * (p - q) * (sumloglambda / (double)(p - q) - log(sumlambda / (double)(p - q)));
+		double ic = m_funcIC(logl, q * (2*p - q), t);
+		if(ic < minic) {
+			minic = ic;
+			numsig = q;
 		}
 	}
-	p = std::max(p, 1);
+	numsig *= windowlength * 0.25;
+	numsig = std::max(std::min(numsig, p - 1), 0);
+//	std::cout << ic << std::endl;
 //	std::cout << lambda << std::endl;
 //	std::cout << eigv << std::endl;
-	std::vector<std::complex<double> > fftin(t), fftout(t), acsum(t, 0.0);
-	for(int i = 0; i < t - p; i++) {
+	std::vector<std::complex<double> > fftin(t, 0.0), fftout(t), acsum(t, 0.0);
+	for(int i = 0; i < p - numsig; i++) {
 		matrix_column<matrix<std::complex<double> > > eigvcol(eigv, i);
 		ASSERT(fabs(norm_2(eigvcol) - 1.0) < 0.1);
-		for(int j = 0; j < t; j++) {
+		for(int j = 0; j < p; j++) {
 			fftin[j] = eigvcol(j);
 		}
 		autoCorrelation(fftin, fftout);
 		double z = lambda[i];
 		z = std::max(z, tol_lambda);
 		z = (m_eigenvalue_method) ? (1.0 / z) : 1.0;
-		for(int k = 0; k < t; k++) {
+		for(int k = 0; k < p; k++) {
 			acsum[k] += fftout[k] * z;
 		}
 	}
@@ -81,7 +95,7 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 	m_ifftN->exec(zffftin, zffftout);
 	for(int i = 0; i < n; i++)
 		ip[i] = std::real(zffftout[i]);
-	for(int i = 0; i < t; i++)
+	for(int i = 0; i < p; i++)
 		zffftin[i] = (double)i * acsum[i] * std::complex<double>(0, 1);
 	m_ifftN->exec(zffftin, zffftout);
 	for(int i = 0; i < n; i++)
@@ -103,7 +117,7 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 			dx = std::max(0.0, std::min(dx, 1.0));
 			std::complex<double> z = 0.0, xn = 1.0,
 				x = std::polar(1.0, 2 * M_PI * (dx + i - 1) / (double)n);
-			for(int j = 0; j < t; j++) {
+			for(int j = 0; j < p; j++) {
 				z += acsum[j] * xn;
 				xn *= x;
 			}

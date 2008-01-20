@@ -19,31 +19,23 @@
 template <class Context>
 class YuleWalkerCousin : public MEMStrict {
 public:
-	typedef double (*tfuncARIC)(double sigma2, int p, int t);
-
-	YuleWalkerCousin(tfuncARIC ic);
+	YuleWalkerCousin(tfuncIC ic);
 	virtual ~YuleWalkerCousin() {}
-
-	//! Akachi's information criterion.
-	static double arAIC(double sigma2, int p, int t);
-	//! Corrected Akachi's information criterion.
-	static double arAICc(double sigma2, int p, int t);
-	//! Hannan-Quinn information criterion.
-	static double arHQ(double sigma2, int p, int t);	
-	//! Final Prediction Error criterion.
-	static double arFPE(double sigma2, int p, int t);
-	//! Minimum Description Length.
-	static double arMDL(double sigma2, int p, int t);
 protected:
 	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
 		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength);
 
+	//! Infomation Criterion for AR.
+	double arIC(double sigma2, int p, int t) {
+		return m_funcARIC(-0.5 * t * log(sigma2), p + 1, t);
+	}
+	
 	virtual void first(
 		const std::vector<std::complex<double> >& memin, const shared_ptr<Context> &context) = 0;
 	virtual void step(const shared_ptr<Context> &context) = 0;
 	std::deque<shared_ptr<Context> > m_contexts;
 private:
-	const tfuncARIC m_funcARIC;
+	const tfuncIC m_funcARIC;
 };
 
 struct ARContext {
@@ -62,7 +54,7 @@ struct MEMBurgContext : public ARContext {
 
 class MEMBurg : public YuleWalkerCousin<MEMBurgContext> {
 public:
-	MEMBurg(tfuncARIC ic) : YuleWalkerCousin<MEMBurgContext>(ic) {}
+	MEMBurg(tfuncIC ic) : YuleWalkerCousin<MEMBurgContext>(ic) {}
 	virtual ~MEMBurg() {}
 protected:
 	virtual void first(
@@ -74,7 +66,7 @@ private:
 
 class YuleWalkerAR : public YuleWalkerCousin<ARContext> {
 public:
-	YuleWalkerAR(tfuncARIC ic) : YuleWalkerCousin<ARContext>(ic) {}
+	YuleWalkerAR(tfuncIC ic) : YuleWalkerCousin<ARContext>(ic) {}
 	virtual ~YuleWalkerAR() {}
 protected:
 	virtual void first(

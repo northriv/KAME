@@ -31,6 +31,23 @@ public:
 		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength);
 	const std::vector<std::complex<double> >& ifft() const {return m_ifft;}
 	const std::vector<std::pair<double, double> >& peaks() const {return m_peaks;}
+	
+	typedef double (*tfuncIC)(double sigma2, int p, int t);
+
+	//! Akachi's information criterion.
+	//! \arg loglikelifood ln(L).
+	//! \arg k # of parameters.
+	//! \arg n # of samples.
+	static double icAIC(double loglikelifood, int k, int n);
+	//! Corrected Akachi's information criterion.
+	//! \sa icAIC
+	static double icAICc(double loglikelifood, int k, int n);
+	//! Hannan-Quinn information criterion.
+	//! \sa icAIC
+	static double icHQ(double loglikelifood, int k, int n);	
+	//! Minimum Description Length.
+	//! \sa icAIC
+	static double icMDL(double loglikelifood, int k, int n);	
 protected:
 	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin,
 		std::vector<std::complex<double> >& memout,
