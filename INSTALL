@@ -6,6 +6,7 @@ boost
 ruby
 gsl
 fftw (ver.3)
+lapack/atlas/blas
 linux-gpib (optional)
 National Instruments DAQmx library (optional)
 FTGL (included in source tree)
