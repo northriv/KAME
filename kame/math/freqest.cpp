@@ -110,6 +110,7 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 	for(int i = 0; i < n; i++) {
 		memout[i] *= normalize;
 	}
+	genIFFT(memout);
 	
 	for(int i = 1; i < n; i++) {
 		if((dy[i - 1] < 0) && (dy[i] > 0)) {
