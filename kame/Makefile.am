@@ -42,7 +42,7 @@ kame_LDADD = $(top_builddir)/kame/forms/libforms.a \
 	$(top_srcdir)/FTGL/unix/src/.libs/libftgl.a \
 	-lGLU -lm\
 	$(LIB_KFILE) $(LIB_KDEUI) $(LIB_KDECORE) $(LIB_QT) $(LIBSOCKET) -lkmdi @RUBY_LIBS@\
-	@GC_LIBS@ @MALLOC_DEBUG_LIBS@ @FREETYPE2_LIBS@ @GSL_LIBS@ @FFTW_LIBS@ @LTDL_LIBS@
+	@GC_LIBS@ @MALLOC_DEBUG_LIBS@ @FREETYPE2_LIBS@ @GSL_LIBS@ @FFTW_LIBS@ @LAPACK_LIBS@ @LTDL_LIBS@
 
 kame_LDFLAGS = $(all_libraries) -dlpreopen self -export-dynamic
 # $(KDE_RPATH)

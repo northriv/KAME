@@ -21,15 +21,10 @@
 #include <boost/numeric/ublas/matrix.hpp>
 #include <boost/numeric/ublas/triangular.hpp>
 #include <boost/numeric/ublas/symmetric.hpp>
-using namespace boost::numeric::ublas;
+using namespace boost::numeric;
 
-void householderQR(const symmetric_matrix<double> &a,
-	matrix<double> &q, triangular_matrix<double, upper> &r);
-void modifiedGramSchmidt(const matrix<std::complex<double> > &a,
-	matrix<std::complex<double> > &q, triangular_matrix<std::complex<double>, upper> &r);
-
-void eigHermiteRRR(const matrix<std::complex<double> > &a,
-	vector<double> &lambda, matrix<std::complex<double> > &v,
+void eigHermiteRRR(const ublas::matrix<std::complex<double> > &a,
+	ublas::vector<double> &lambda, ublas::matrix<std::complex<double> > &v,
 	double tol);
 
 #endif /*MATRIX_H_*/

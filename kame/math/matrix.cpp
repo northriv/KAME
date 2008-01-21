@@ -14,14 +14,18 @@
 #include "matrix.h"
 #include <boost/numeric/ublas/io.hpp>
 #include <boost/numeric/ublas/matrix_proxy.hpp>
-#include <cblas.h>
-#include <clapack.h>
 
-typedef __CLPK_integer LPKint;
-typedef __CLPK_doublereal LPKdoublereal;
-typedef __CLPK_doublecomplex LPKdoublecomplex;
+typedef int LPKint;
+typedef double LPKdoublereal;
+typedef struct {double r, i;} LPKdoublecomplex;
+extern "C" int zheevr_(char *jobz, char *range, char *uplo, LPKint *n, 
+	LPKdoublecomplex *a, LPKint *lda, LPKdoublereal *vl, LPKdoublereal *vu, 
+	LPKint *il, LPKint *iu, LPKdoublereal *abstol, LPKint *m, LPKdoublereal *
+	w, LPKdoublecomplex *z__, LPKint *ldz, LPKint *isuppz, LPKdoublecomplex *
+	work, LPKint *lwork, LPKdoublereal *rwork, LPKint *lrwork, LPKint *
+	iwork, LPKint *liwork, LPKint *info);
 
-template <class T, class A>
+template <typename T, typename A>
 inline void
 subst(T &y, const A &x) {
 	y = x;
@@ -36,28 +40,28 @@ subst(std::complex<double> &y, const LPKdoublecomplex &x) {
 	y = std::complex<double>(x.r, x.i);
 }
 	
-template <class T, class LPKT>
-void cmat2lpk(matrix<T> &a, vector<LPKT>& lpk) {
+template <typename T, typename LPKT>
+void cmat2lpk(ublas::matrix<T> &a, ublas::vector<LPKT>& lpk) {
 	lpk.resize(a.size1() * a.size2());
 	LPKT *plpk = &lpk[0];
 	for(int i = 0; i < a.size2(); i++) {
-		matrix_column<matrix<T> > acol(a, i);
+		ublas::matrix_column<ublas::matrix<T> > acol(a, i);
 		for(int j = 0; j < acol.size(); j++)
 			subst(*plpk++, acol(j));
 	}
 }
-template <class T, class LPKT>
-void lpk2cmat(const vector<LPKT>& lpk, matrix<T> &a) {
+template <typename T, typename LPKT>
+void lpk2cmat(const ublas::vector<LPKT>& lpk, ublas::matrix<T> &a) {
 	ASSERT(a.size1() * a.size2() == lpk.size());
 	const LPKT *plpk = &lpk[0];
 	for(int i = 0; i < a.size2(); i++) {
-		matrix_column<matrix<std::complex<double> > > acol(a, i);
+		ublas::matrix_column<ublas::matrix<std::complex<double> > > acol(a, i);
 		for(int j = 0; j < acol.size(); j++)
 			subst(acol(j), *plpk++);
 	}
 }
-template <class T, class LPKT>
-void lpk2cvec(const vector<LPKT>& lpk, vector<T> &a) {
+template <typename T, typename LPKT>
+void lpk2cvec(const ublas::vector<LPKT>& lpk, ublas::vector<T> &a) {
 	a.resize(lpk.size());
 	const LPKT *plpk = &lpk[0];
 	for(int i = 0; i < a.size(); i++) {
@@ -65,24 +69,24 @@ void lpk2cvec(const vector<LPKT>& lpk, vector<T> &a) {
 	}
 }
 
-void eigHermiteRRR(const matrix<std::complex<double> > &a_corg,
-	vector<double> &lambda, matrix<std::complex<double> > &v,
+void eigHermiteRRR(const ublas::matrix<std::complex<double> > &a_corg,
+	ublas::vector<double> &lambda, ublas::matrix<std::complex<double> > &v,
 	double tol) {
-	matrix<std::complex<double> > a_org(a_corg);
+	ublas::matrix<std::complex<double> > a_org(a_corg);
 	LPKint n = a_org.size2();
 	LPKint lda = a_org.size1();
 	ASSERT(lda >= n);
 	LPKint ldz = n;
-	vector<LPKdoublecomplex> a(n*lda), z(n*ldz);
-	vector<LPKdoublereal> w(n);
-	vector<LPKint> isuppz(2*n);
+	ublas::vector<LPKdoublecomplex> a(n*lda), z(n*ldz);
+	ublas::vector<LPKdoublereal> w(n);
+	ublas::vector<LPKint> isuppz(2*n);
 	
 	cmat2lpk(a_org, a);
 	
 	LPKint lwork = -1, liwork = -1, lrwork = -1;
-	vector<LPKdoublecomplex> work(1);
-	vector<LPKdoublereal> rwork(1);
-	vector<LPKint> iwork(1);
+	ublas::vector<LPKdoublecomplex> work(1);
+	ublas::vector<LPKdoublereal> rwork(1);
+	ublas::vector<LPKint> iwork(1);
 	
 	LPKint info = 0, numret;
 	LPKint il, iu;
@@ -108,52 +112,3 @@ void eigHermiteRRR(const matrix<std::complex<double> > &a_corg,
 	lpk2cmat(z, v);
 }
 
-void householderQR(const symmetric_matrix<double> &a_org,
-	matrix<double> &q, triangular_matrix<double, upper> &r) {
-	symmetric_matrix<double> a(a_org);
-	int n = a.size1();
-	ASSERT(n == (int)a.size2());
-	r.resize(n, n);
-	q = identity_matrix<double>(n);
-	for(int i = 0; i < n - 1; i++) {
-		matrix_vector_range<symmetric_matrix<double> > aran(a, range(i, n - 1), range(i, i) );
-		double normaran = norm_2(aran);
-		double alpha = -((aran(0) > 0) ? 1 : -1) * normaran;
-		aran(0) -= alpha;
-		matrix<double> v(n - i, 1);
-		matrix_column<matrix<double> > vcol(v, 0); 
-		vcol = aran;
-		v /= normaran;
-		matrix<double> V = identity_matrix<double>(n - i);
-		V -= 2 * prod(v, trans(v));
-		matrix_range<symmetric_matrix<double> > aran2(a, range(i, n - 1), range(i, n - 1) );
-		aran2 = prod(V, aran2);
-		matrix_range<matrix<double> > qran(q, range(i, n - 1), range(0, n - 1));
-		qran = prod(V, qran);
-	}
-	q = trans(q);
-	r = a;
-}
-
-void modifiedGramSchmidt(const matrix<std::complex<double> > &a_org,
-	matrix<std::complex<double> > &q, triangular_matrix<std::complex<double>, upper> &r) {
-	matrix<std::complex<double> > a(a_org);
-	int n = a.size1();
-	ASSERT(n == (int)a.size2());
-	r.resize(n, n);
-	q.resize(n, n);
-	for(int i = 0; i < n; i++) {
-		matrix_column<matrix<std::complex<double> > > acol(a, i);
-		matrix_column<matrix<std::complex<double> > > qcol(q, i);
-		for(int j = 0; j < i; j++) {
-			r(i, j) = 0;
-		}
-		r(i, i) = norm_2(acol);
-		qcol = acol / r(i, i);
-		for(int j = i + 1; j < n; j++) {
-			matrix_column<matrix<std::complex<double> > > acol(a, j);
-			r(i, j) = inner_prod(qcol, acol);
-			acol -= r(i, j) * qcol;
-		}
-	}
-}

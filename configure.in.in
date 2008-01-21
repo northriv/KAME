@@ -61,13 +61,13 @@ AC_CHECK_LIB(gpib, main,
 LINUXGPIB_LIBS="$gpib_libs"
 
 ac_save_LIBS="$LIBS"
-AC_CHECK_LIB(clapack, main, 
-clapack_libs="-lclapack -lcblas -latlas"
-clapack_cflags=""
-AC_DEFINE([HAVE_CLAPACK], 1, [Define if you have 'CLAPACK' library]),
-AC_MSG_WARN([CLAPACK is not installed - CLAPACK is disabled]), -lclapack -lcblas -latlas)
-CLAPACK_LIBS="$clapack_libs"
-CLAPACK_CFLAGS="$clapack_cflags"
+AC_CHECK_LIB(lapack, main, 
+lapack_libs="-llapack -lblas -lgfortran"
+lapack_cflags=""
+AC_DEFINE([HAVE_LAPACK], 1, [Define if you have 'LAPACK' library]),
+AC_MSG_ERROR([LAPACK is not installed]), -llapack -lblas -lgfortran)
+LAPACK_LIBS="$lapack_libs"
+LAPACK_CFLAGS="$lapack_cflags"
 LIBS="$ac_save_LIBS"
 
 AC_ARG_WITH(gc, 
@@ -110,8 +110,8 @@ AC_SUBST(FFTW_LIBS)
 AC_SUBST(NIDAQMX_LIBS)
 AC_SUBST(NIDAQMX_CFLAGS)
 AC_SUBST(LINUXGPIB_LIBS)
-AC_SUBST(CLAPACK_LIBS)
-AC_SUBST(CLAPACK_CFLAGS)
+AC_SUBST(LAPACK_LIBS)
+AC_SUBST(LAPACK_CFLAGS)
 AC_SUBST(RUBY_LIBS)
 AC_SUBST(RUBY_CFLAGS)
 AC_SUBST(FREETYPE2_LIBS)
@@ -119,4 +119,4 @@ AC_SUBST(FREETYPE2_CFLAGS)
 AC_SUBST(GC_LIBS)
 AC_SUBST(MALLOC_DEBUG_LIBS)
 
-CPPFLAGS="$CPPFLAGS $RUBY_CFLAGS $FREETYPE2_CFLAGS $NIDAQMX_CFLAGS"
+CPPFLAGS="$CPPFLAGS $RUBY_CFLAGS $FREETYPE2_CFLAGS $NIDAQMX_CFLAGS $LAPACK_CFLAGS"

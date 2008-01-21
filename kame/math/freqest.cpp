@@ -41,15 +41,15 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 	int p = t; // / 2 - 1;
 	rx.resize(p);
 	// Correlation matrix.
-	matrix<std::complex<double> > r(p, p);
+	ublas::matrix<std::complex<double> > r(p, p);
 	for(int i = 0; i < p; i++) {
-		matrix_row<matrix<std::complex<double> > > rrow(r, i);
+		ublas::matrix_row<ublas::matrix<std::complex<double> > > rrow(r, i);
 		for(int j = i; j < p; j++) {
 			rrow(j) = rx[j - i];
 		}
 	}
-	matrix<std::complex<double> > eigv;
-	vector<double> lambda;
+	ublas::matrix<std::complex<double> > eigv;
+	ublas::vector<double> lambda;
 	double tol_lambda = tol * std::abs(rx[0]) * 0.1;
 	eigHermiteRRR(r, lambda, eigv, tol_lambda);
 
@@ -78,7 +78,7 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 	}
 	std::vector<std::complex<double> > fftin(t, 0.0), fftout(t), acsum(t, 0.0);
 	for(int i = 0; i < p - numsig; i++) {
-		matrix_column<matrix<std::complex<double> > > eigvcol(eigv, i);
+		ublas::matrix_column<ublas::matrix<std::complex<double> > > eigvcol(eigv, i);
 		ASSERT(fabs(norm_2(eigvcol) - 1.0) < 0.1);
 		for(int j = 0; j < p; j++) {
 			fftin[j] = eigvcol(j);
