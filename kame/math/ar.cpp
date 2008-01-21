@@ -21,13 +21,14 @@ template <class Context>
 bool
 YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
 	int t0, double torr, FFT::twindowfunc /*windowfunc*/, double windowlength) {
-	unsigned int t = memin.size();
-	unsigned int n = memout.size();
+	int t = memin.size();
+	int n = memout.size();
 
 	if(t0 < 0)
 		t0 += (-t0 / n + 1) * n;	
 	std::vector<std::complex<double> > memphaseout(n);	
 	MEMStrict::genSpectrum(memin, memphaseout, t0, torr, &FFT::windowFuncRect, 1.0);	
+	m_peaks.clear();
 	
 	int taps_div = t - 1;
 	taps_div = std::max(taps_div / 10, 1);
@@ -88,7 +89,7 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 	// Derivative of denominator.
 	std::fill(zfbuf.begin(), zfbuf.end(), 0.0);
 	for(int i = 0; i < taps + 1; i++) {
-		zfbuf[i] = context->a[i] * (double)i * std::complex<double>(0, -1);
+		zfbuf[i] = context->a[i] * (double)((i >= n/2) ? (i - n) : i) * std::complex<double>(0, -1);
 	}
 	std::vector<std::complex<double> > fftbuf2(n);
 	m_fftN->exec(zfbuf, fftbuf2);
@@ -97,7 +98,8 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 		double dy = std::real(fftbuf2[i] * std::conj(fftbuf[i]));
 		if((dy_old < 0) && (dy > 0)) {
 			double dx = - dy_old / (dy - dy_old);
-			dx = std::max(0.0, std::min(dx, 1.0));
+			if((dx < 0) || (dx > 1.0))
+				continue;
 			std::complex<double> z = 0.0, xn = 1.0,
 				x = std::polar(1.0, -2 * M_PI * (dx + i - 1) / (double)n);
 			for(int i = 0; i < taps + 1; i++) {
@@ -105,7 +107,7 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 				xn *= x;
 			}
 			double r = sqrt(std::max(t * context->sigma2 / std::norm(z), 0.0));
-			m_peaks.push_back(std::pair<double, double>(dx + i - 1, r));
+			m_peaks.push_back(std::pair<double, double>(r, dx + i - 1));
 		}
 		dy_old = dy;
 	}

@@ -39,6 +39,7 @@ public:
 	static const char SPECTRUM_SOLVER_MUSIC_MDL[];
 	static const char SPECTRUM_SOLVER_EV_AIC[];
 	static const char SPECTRUM_SOLVER_EV_MDL[];
+	static const char SPECTRUM_SOLVER_MVDL[];
 
 	static const char WINDOW_FUNC_DEFAULT[];
 	static const char WINDOW_FUNC_HANNING[];

@@ -23,6 +23,7 @@ const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MUSIC_AIC[] = "MUSIC AIC";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MUSIC_MDL[] = "MUSIC MDL";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_EV_AIC[] = "EigVec AIC";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_EV_MDL[] = "EigVec MDL";
+const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MVDL[] = "EigVec(MVDL)";
 
 const char SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT[] = "Rect";
 const char SpectrumSolverWrapper::WINDOW_FUNC_HANNING[] = "Hanning";
@@ -52,12 +53,11 @@ SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
 	if(selector) {
 		selector->add(SPECTRUM_SOLVER_ZF_FFT);
 		selector->add(SPECTRUM_SOLVER_MEM_STRICT);
-		selector->add(SPECTRUM_SOLVER_EV_AIC);
+		selector->add(SPECTRUM_SOLVER_MVDL);
 		selector->add(SPECTRUM_SOLVER_EV_MDL);
+		selector->add(SPECTRUM_SOLVER_MUSIC_MDL);
 		selector->add(SPECTRUM_SOLVER_MEM_BURG_AICc);
 		selector->add(SPECTRUM_SOLVER_MEM_BURG_MDL);
-		selector->add(SPECTRUM_SOLVER_MUSIC_AIC);
-		selector->add(SPECTRUM_SOLVER_MUSIC_MDL);
 		selector->add(SPECTRUM_SOLVER_AR_YW_AICc);
 		selector->add(SPECTRUM_SOLVER_AR_YW_MDL);
 		m_lsnOnChanged = selector->onValueChanged().connectWeak(shared_from_this(), &SpectrumSolverWrapper::onSolverChanged);
@@ -125,10 +125,13 @@ SpectrumSolverWrapper::onSolverChanged(const shared_ptr<XValueNodeBase> &) {
 			solver.reset(new MUSIC(&SpectrumSolver::icMDL));
 		}
 		if(m_selector->to_str() == SPECTRUM_SOLVER_EV_AIC) {
-			solver.reset(new EigFreqEstimation(&SpectrumSolver::icAIC));
+			solver.reset(new EigenVectorMethod(&SpectrumSolver::icAIC));
 		}
 		if(m_selector->to_str() == SPECTRUM_SOLVER_EV_MDL) {
-			solver.reset(new EigFreqEstimation(&SpectrumSolver::icMDL));
+			solver.reset(new EigenVectorMethod(&SpectrumSolver::icMDL));
+		}
+		if(m_selector->to_str() == SPECTRUM_SOLVER_MVDL) {
+			solver.reset(new MVDL);
 		}
 		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_STRICT) {
 			solver.reset(new MEMStrict);

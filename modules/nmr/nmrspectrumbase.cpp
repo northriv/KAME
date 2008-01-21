@@ -81,9 +81,10 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 			plot->label()->value(KAME::i18n("Peaks"));
 			plot->axisX()->value(m_spectrum->axisx());
 			plot->axisY()->value(m_spectrum->axisy());
-			plot->drawPoints()->value(true);
+			plot->drawPoints()->value(false);
 			plot->drawLines()->value(false);
 			plot->drawBars()->value(true);
+			plot->intensity()->value(2.0);
 			plot->displayMajorGrid()->value(false);
 			plot->pointColor()->value(QColor(0xa0, 0x00, 0xa0).rgb());
 			plot->barColor()->value(QColor(0xa0, 0x00, 0xa0).rgb());
@@ -260,11 +261,11 @@ XNMRSpectrumBase<FRM>::visualize()
 		std::deque<XGraph::ValPoint> &points(m_peakPlot->points());
 		points.resize(m_peaks.size());
 		for(int i = 0; i < m_peaks.size(); i++) {
-			double x = m_peaks[i].first;
+			double x = m_peaks[i].second;
 			int j = lrint(x - 0.5);
 			j = std::min(std::max(0, j), length - 2);
 			double a = values[j] + (values[j + 1] - values[j]) * (x - j);
-			points[i] = XGraph::ValPoint(a, m_peaks[i].second);
+			points[i] = XGraph::ValPoint(a, m_peaks[i].first);
 		}
 	}
 }
@@ -356,11 +357,10 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	}
 	m_peaks.clear();
 	for(int i = 0; i < solver->peaks().size(); i++) {
-		double k = solver->peaks()[i].first;
+		double k = solver->peaks()[i].second;
 		double j = (k > iftlen/2) ? (k - iftlen) : k;
 		j += (max_idx + min_idx) / 2;
-		m_peaks.push_back(std::pair<double, double>(j,
-			solver->peaks()[i].second / (double)iftlen));
+		m_peaks.push_back(std::pair<double, double>(solver->peaks()[i].first / (double)iftlen, j));
 	}
 	th = FFT::windowFuncHamming(0.1);
 	for(int i = 0; i < m_accum.size(); i++) {

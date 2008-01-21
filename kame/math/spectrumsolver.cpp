@@ -12,7 +12,7 @@
  see the files COPYING and AUTHORS.
  ***************************************************************************/
 #include "spectrumsolver.h"
-
+#include <algorithm>
 #include <gsl/gsl_sf.h>
 #define lambertW0 gsl_sf_lambert_W0
 
@@ -37,7 +37,7 @@ SpectrumSolver::icMDL(double loglikelifood, int k, int n) {
 }
 
 void
-SpectrumSolver::genIFFT(std::vector<std::complex<double> >& wavein) {
+SpectrumSolver::genIFFT(const std::vector<std::complex<double> >& wavein) {
 	m_ifftN->exec(wavein, m_ifft);
 	int n = wavein.size();
 	double k = 1.0 / n;
@@ -47,6 +47,9 @@ SpectrumSolver::genIFFT(std::vector<std::complex<double> >& wavein) {
 		pifft++;
 	}	
 }
+void searchPeaks(const std::vector<std::complex<double> >& ftwave,
+	const std::vector<std::complex<double> >& iftwave, bool recalcpow);
+
 
 bool
 SpectrumSolver::exec(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
@@ -59,7 +62,10 @@ SpectrumSolver::exec(const std::vector<std::complex<double> >& memin, std::vecto
 		m_ifft.resize(n);
 	}
 	m_peaks.clear();
-	return genSpectrum(memin, memout, t0, torr, windowfunc, windowlength);
+	bool ret = genSpectrum(memin, memout, t0, torr, windowfunc, windowlength);
+	std::sort(m_peaks.begin(), m_peaks.end(), std::greater<std::pair<double, double> >());
+//	std::reverse(m_peaks.begin(), m_peaks.end());
+	return ret;
 }
 
 void
@@ -98,11 +104,38 @@ FFTSolver::genSpectrum(const std::vector<std::complex<double> >& fftin, std::vec
 
 	double wk = 1.0 / windowLength(t, t0, windowlength);
 	std::fill(m_ifft.begin(), m_ifft.end(), 0.0);
+	std::vector<std::complex<double> > zffftin(n, 0.0), fftout2(n);
 	for(int i = 0; i < t; i++) {
 		double w = windowfunc((i + t0) * wk);
-		m_ifft[(t0a + i) % n] = fftin[i] * w;
+		int j = (t0a + i) % n;
+		m_ifft[j] = fftin[i] * w;
+		zffftin[j] = m_ifft[j] * (double)(t0 + i) * std::complex<double>(0, -1);
 	}
 	m_fftN->exec(m_ifft, fftout);
+	m_fftN->exec(zffftin, fftout2);
+	std::vector<double> dy(n);
+	for(int i = 0; i < n; i++) {
+		dy[i] = std::real(fftout2[i] * std::conj(fftout[i]));
+	}
+	for(int i = 1; i < n; i++) {
+		if((dy[i - 1] > 0) && (dy[i] < 0)) {
+			double dx = - dy[i - 1] / (dy[i] - dy[i - 1]);
+//			dx = std::max(0.0, std::min(dx, 1.0));
+			if((dx < 0) || (dx > 1.0))
+				continue;
+/*
+			std::complex<double> z = 0.0, xn = 1.0,
+				x = std::polar(1.0, -2 * M_PI * (dx + i - 1) / (double)n);
+			for(int j = 0; j < t; j++) {
+				z += fftin[j] * w * xn;
+				xn *= x;
+			}
+			double r = std::abs(z);
+*/
+			double r = std::abs(fftout[i - 1] * (1 - dx) + fftout[i] * dx);
+			m_peaks.push_back(std::pair<double, double>(r, dx + i - 1));
+		}
+	}
 	return true;
 }
 
@@ -155,8 +188,8 @@ MEMStrict::genSpectrum(const std::vector<std::complex<double> >& memin0, std::ve
 	for(unsigned int i = 0; i < memin.size(); i++)
 		memin[i] = memin0[i + tshift];
 	t0 += (int)tshift;
-	unsigned int t = memin.size();
-	unsigned int n = memout.size();
+	int t = memin.size();
+	int n = memout.size();
 	if(t0 < 0)
 		t0 += (-t0 / n + 1) * n;
 	setup(t, n);
@@ -196,19 +229,42 @@ MEMStrict::genSpectrum(const std::vector<std::complex<double> >& memin0, std::ve
 				osqrtpow += std::norm(memout[i]);
 			osqrtpow = sqrt(osqrtpow / n);
 			dbgPrint(formatString("MEM: Pout/Pin=%g\n", osqrtpow/sqrtpow));
-			return true;
+			break;
 		}
 		else {
 			dbgPrint(formatString("MEM: Failed w/ sigma=%g, alpha=%g, err=%g, it=%u\n", sigma, alpha, err, it));
 		}
 	}
-	dbgPrint(formatString("MEM: Use ZF-FFT instead.\n"));
-	std::fill(m_ifft.begin(), m_ifft.end(), 0.0);
-	for(unsigned int i = 0; i < t; i++) {
-		m_ifft[(t0 + i) % n] = memin[i];
+	if(err >= torr * sqrtpow) {
+		dbgPrint(formatString("MEM: Use ZF-FFT instead.\n"));
+		std::fill(m_ifft.begin(), m_ifft.end(), 0.0);
+		for(unsigned int i = 0; i < t; i++) {
+			m_ifft[(t0 + i) % n] = memin[i];
+		}
+		m_fftN->exec(m_ifft, memout);			
 	}
-	m_fftN->exec(m_ifft, memout);			
-	return false;
+
+	std::vector<std::complex<double> > zffftin(n), fftout2(n);
+	for(int i = 0; i < n; i++) {
+		zffftin[i] = m_ifft[i] * (double)((i >= n/2) ? (i - n) : i) * std::complex<double>(0, -1);
+	}
+	
+	m_fftN->exec(zffftin, fftout2);
+	std::vector<double> dy(n);
+	for(int i = 0; i < n; i++) {
+		dy[i] = std::real(fftout2[i] * std::conj(memout[i]));
+	}
+	for(int i = 1; i < n; i++) {
+		if((dy[i - 1] > 0) && (dy[i] < 0)) {
+			double dx = - dy[i - 1] / (dy[i] - dy[i - 1]);
+			if((dx < 0) || (dx > 1.0))
+				continue;
+			double r = std::abs(memout[i - 1] * (1 - dx) + memout[i] * dx);
+			m_peaks.push_back(std::pair<double, double>(r, dx + i - 1));
+		}
+	}	
+	
+	return true;
 }
 double
 MEMStrict::stepMEM(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout, 

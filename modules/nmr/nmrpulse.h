@@ -57,8 +57,10 @@ protected:
 public:
 	//! driver specific part below 
   
-	const shared_ptr<XScalarEntry> &entryCosAv() const {return m_entryCosAv;}    ///< Entry storing dc
-	const shared_ptr<XScalarEntry> &entrySinAv() const {return m_entrySinAv;}    ///< Entry storing dc
+	//! Entry storing the power of the strogest peak.
+	const shared_ptr<XScalarEntry> &entryPeakPow() const {return m_entryPeakPow;}
+	//! Entry storing the freq. of the strongest peak.
+	const shared_ptr<XScalarEntry> &entryPeakFreq() const {return m_entryPeakFreq;}
 
 	const shared_ptr<XItemNode<XDriverList, XDSO> > &dso() const {return m_dso;}
 	const shared_ptr<XItemNode<XDriverList, XPulser> > &pulser() const {return m_pulser;}
@@ -123,8 +125,8 @@ private:
 	/// Stored FFT Wave for display.
 	const shared_ptr<XWaveNGraph> &ftWaveGraph() const {return m_ftWaveGraph;}
 
-	const shared_ptr<XScalarEntry> m_entryCosAv;    ///< Entry storing dc
-	const shared_ptr<XScalarEntry> m_entrySinAv;    ///< Entry storing dc
+	const shared_ptr<XScalarEntry> m_entryPeakPow; 
+	const shared_ptr<XScalarEntry> m_entryPeakFreq; 
 
 	const shared_ptr<XItemNode<XDriverList, XDSO> > m_dso;
  
@@ -198,7 +200,7 @@ private:
   
 	//for FFT/MEM.
 	shared_ptr<SpectrumSolverWrapper> m_solver;
-	shared_ptr<SpectrumSolver> m_solverRecored;
+	shared_ptr<SpectrumSolver> m_solverRecorded;
 	shared_ptr<XXYPlot> m_peakPlot;
 	MEMStrict m_memDNR;
 	

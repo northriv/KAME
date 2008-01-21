@@ -38,9 +38,9 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 	const shared_ptr<XThermometerList> &thermometers,
 	const shared_ptr<XDriverList> &drivers) :
 	XSecondaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
-		m_entryCosAv(create<XScalarEntry>("CosAv", false,
+		m_entryPeakPow(create<XScalarEntry>("PeakPow", false,
 			dynamic_pointer_cast<XDriver>(shared_from_this()))),
-		m_entrySinAv(create<XScalarEntry>("SinAv", false,
+		m_entryPeakFreq(create<XScalarEntry>("PeakFreq", false,
 			dynamic_pointer_cast<XDriver>(shared_from_this()))), 
 		m_dso(create<XItemNode<XDriverList, XDSO> >("DSO", false, drivers, true)),
 		m_fromTrig(create<XDoubleNode>("FromTrig", false)),
@@ -75,8 +75,8 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 	connect(dso());
 	connect(pulser(), false);
 
-	scalarentries->insert(entryCosAv());
-	scalarentries->insert(entrySinAv());
+	scalarentries->insert(entryPeakPow());
+	scalarentries->insert(entryPeakFreq());
 
 	fromTrig()->value(-0.005);
 	width()->value(0.02);
@@ -182,9 +182,10 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 			plot->label()->value(KAME::i18n("Peaks"));
 			plot->axisX()->value(ftWaveGraph()->axisx());
 			plot->axisY()->value(ftWaveGraph()->axisy());
-			plot->drawPoints()->value(true);
+			plot->drawPoints()->value(false);
 			plot->drawLines()->value(false);
 			plot->drawBars()->value(true);
+			plot->intensity()->value(2.0);
 			plot->displayMajorGrid()->value(false);
 			plot->pointColor()->value(QColor(0x40, 0x40, 0xa0).rgb());
 			plot->barColor()->value(QColor(0x40, 0x40, 0xa0).rgb());
@@ -274,8 +275,8 @@ void XNMRPulseAnalyzer::rotNFFT(int ftpos, double ph,
 	int fftlen = ftwave.size();
 	//fft
 	std::vector<std::complex<double> > fftout(fftlen);
-	m_solverRecored = m_solver->solver();
-	m_solverRecored->exec(wave, fftout, -ftpos, 0.5e-2, m_solver->windowFunc(), *windowWidth() / 100.0);
+	m_solverRecorded = m_solver->solver();
+	m_solverRecorded->exec(wave, fftout, -ftpos, 0.5e-2, m_solver->windowFunc(), *windowWidth() / 100.0);
 
 	std::copy(fftout.begin(), fftout.end(), ftwave.begin());
 }
@@ -476,14 +477,18 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	double ph = *phaseAdv() * M_PI / 180;
 	m_waveFTPos = ftpos;
 	int fftlen = FFT::fitLength(*fftLen());
-	m_ftWave.resize(fftlen);
-	rotNFFT(ftpos, ph, m_wave, m_ftWave, lrint(*difFreq() * 1000.0 / dFreq()) );
 	//[Hz]
 	m_dFreq = 1.0 / fftlen / interval;
+	m_ftWave.resize(fftlen);
+	rotNFFT(ftpos, ph, m_wave, m_ftWave, lrint(*difFreq() * 1000.0 / dFreq()) );
 	
-	entryCosAv()->value(std::real(m_ftWave[0]));
-	entrySinAv()->value(std::imag(m_ftWave[0]));
-
+	if(m_solverRecorded->peaks().size()) {
+		entryPeakPow()->value(m_solverRecorded->peaks()[0].first / (double)m_wave.size());
+		double x = m_solverRecorded->peaks()[0].second;
+		x = (x > fftlen / 2) ? (x - fftlen) : x;
+		entryPeakFreq()->value(0.001 * x * m_dFreq);
+	}
+	
 	if(picenabled && (m_avcount % 2 == 1) && (emitter == _dso)) {
 		ASSERT( _pulser->time() );
 		unlockConnection(_pulser);
@@ -506,21 +511,21 @@ void XNMRPulseAnalyzer::visualize() {
 		double normalize = 1.0 / m_wave.size();
 		for (int i = 0; i < ftsize; i++) {
 			int j = (i - ftsize/2 + ftsize) % ftsize;
-			ftWaveGraph()->cols(0)[i] = 0.001 * (i - ftsize/2) / (double)ftsize / m_interval;
+			ftWaveGraph()->cols(0)[i] = 0.001 * (i - ftsize/2) * m_dFreq;
 			std::complex<double> z = m_ftWave[j] * normalize;
 			ftWaveGraph()->cols(1)[i] = std::real(z);
 			ftWaveGraph()->cols(2)[i] = std::imag(z);
 			ftWaveGraph()->cols(3)[i] = std::abs(z);
 			ftWaveGraph()->cols(4)[i] = std::arg(z) / M_PI * 180;
 		}
-		m_peakPlot->maxCount()->value(m_solverRecored->peaks().size());
+		m_peakPlot->maxCount()->value(m_solverRecorded->peaks().size());
 		std::deque<XGraph::ValPoint> &points(m_peakPlot->points());
-		points.resize(m_solverRecored->peaks().size());
-		for(int i = 0; i < m_solverRecored->peaks().size(); i++) {
-			double x = m_solverRecored->peaks()[i].first;
+		points.resize(m_solverRecorded->peaks().size());
+		for(int i = 0; i < m_solverRecorded->peaks().size(); i++) {
+			double x = m_solverRecorded->peaks()[i].second;
 			x = (x > ftsize / 2) ? (x - ftsize) : x;
-			points[i] = XGraph::ValPoint(0.001 * x / (double)ftsize / m_interval,
-				m_solverRecored->peaks()[i].second * normalize);
+			points[i] = XGraph::ValPoint(0.001 * x * m_dFreq,
+				m_solverRecorded->peaks()[i].first * normalize);
 		}
 	}
 	{
@@ -532,8 +537,8 @@ void XNMRPulseAnalyzer::visualize() {
 			waveGraph()->cols(0)[i] = (startTime() + j * m_interval) * 1e3;
 			if(abs(j) < ftsize / 2) {
 				j = (j - m_waveFTPos + ftsize) % ftsize;
-				waveGraph()->cols(1)[i] = std::real(m_solverRecored->ifft()[j]);
-				waveGraph()->cols(2)[i] = std::imag(m_solverRecored->ifft()[j]);
+				waveGraph()->cols(1)[i] = std::real(m_solverRecorded->ifft()[j]);
+				waveGraph()->cols(2)[i] = std::imag(m_solverRecorded->ifft()[j]);
 			}
 			else {
 				waveGraph()->cols(1)[i] = 0.0;

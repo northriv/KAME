@@ -19,26 +19,34 @@
 //! Base class for MUSIC and EIG.
 class FreqEstimation : public MEMStrict {
 public:
-	FreqEstimation(tfuncIC ic, bool eigenvalue_method) : 
-		MEMStrict(), m_eigenvalue_method(eigenvalue_method), m_funcIC(ic) {}
+	FreqEstimation(tfuncIC ic, bool eigenvalue_method, bool mvdl) : 
+		MEMStrict(), m_eigenvalue_method(eigenvalue_method), m_mvdl_method(mvdl), m_funcIC(ic) {}
 protected:
 	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin,
 		std::vector<std::complex<double> >& memout,
 		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength);
 	const bool m_eigenvalue_method;
+	const bool m_mvdl_method;
 	const tfuncIC m_funcIC;
 };
 
 //! MUltiple SIgnal Classification.
 class MUSIC : public FreqEstimation {
 public:
-	MUSIC(tfuncIC ic) : FreqEstimation(ic, false) {}
+	MUSIC(tfuncIC ic) : FreqEstimation(ic, false, false) {}
 protected:
 };
 
-class EigFreqEstimation : public FreqEstimation {
+class EigenVectorMethod : public FreqEstimation {
 public:
-	EigFreqEstimation(tfuncIC ic) : FreqEstimation(ic, true) {}
+	EigenVectorMethod(tfuncIC ic) : FreqEstimation(ic, true, false) {}
+protected:
+};
+
+//! Capon MLM / MVDL.
+class MVDL : public FreqEstimation {
+public:
+	MVDL() : FreqEstimation(&SpectrumSolver::icAIC, true, true) {}
 protected:
 };
 

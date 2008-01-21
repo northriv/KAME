@@ -30,6 +30,7 @@ public:
 	bool exec(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
 		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength);
 	const std::vector<std::complex<double> >& ifft() const {return m_ifft;}
+	//! \return (power, index) in descending order.
 	const std::vector<std::pair<double, double> >& peaks() const {return m_peaks;}
 	
 	typedef double (*tfuncIC)(double sigma2, int p, int t);
@@ -54,7 +55,7 @@ protected:
 		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength) = 0;
 	std::vector<std::complex<double> > m_ifft;
 	std::vector<std::pair<double, double> > m_peaks;
-	void genIFFT(std::vector<std::complex<double> >& wavein);
+	void genIFFT(const std::vector<std::complex<double> >& wavein);
 
 	shared_ptr<FFT> m_fftN, m_ifftN;
 	int fftlen() const {return m_ifftN->length();}
