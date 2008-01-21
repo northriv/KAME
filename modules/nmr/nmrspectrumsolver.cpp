@@ -23,7 +23,7 @@ const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MUSIC_AIC[] = "MUSIC AIC";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MUSIC_MDL[] = "MUSIC MDL";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_EV_AIC[] = "Eigenvector AIC";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_EV_MDL[] = "Eigenvector MDL";
-const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MVDL[] = "Eigenvector(MVDL)";
+const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MVDL[] = "Eigenvector(Capon's MLM)";
 
 const char SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT[] = "Rect";
 const char SpectrumSolverWrapper::WINDOW_FUNC_HANNING[] = "Hanning";
