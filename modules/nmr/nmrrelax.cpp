@@ -398,6 +398,11 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 		ASSERT( _pulser->time() );
 		ASSERT( emitter != _pulser );
         
+		if(*_pulse1->exAvgIncr()) {
+			m_statusPrinter->printWarning(KAME::i18n("Do NOT use incremental avg. Skipping."));
+			throw XSkippedRecordError(__FILE__, __LINE__);
+		}
+		
 		bool _active = *active();
       
 		std::deque<std::complex<double> > cmp1, cmp2;

@@ -163,7 +163,7 @@ XNMRSpectrumBase<FRM>::analyze(const shared_ptr<XDriver> &emitter) throw (XRecor
 	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
 	ASSERT( _pulse );
  
-	if(*_pulse1->exAvgIncr()) {
+	if(*_pulse->exAvgIncr()) {
 		m_statusPrinter->printWarning(KAME::i18n("Do NOT use incremental avg. Skipping."));
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}

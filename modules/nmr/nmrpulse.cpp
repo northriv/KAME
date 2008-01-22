@@ -494,7 +494,7 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 		unlockConnection(_pulser);
 		_pulser->invertPhase()->value(!inverted);
 	}
-	if(*exAvgIncr() || (avgnum != m_avcount))
+	if(!*exAvgIncr() && (avgnum != m_avcount))
 		throw XSkippedRecordError(__FILE__, __LINE__);
 }
 void XNMRPulseAnalyzer::visualize() {
