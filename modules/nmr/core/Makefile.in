@@ -49,6 +49,7 @@ INCLUDES = -I$(top_srcdir)/kame -I$(top_srcdir)/modules/charinterface -I$(top_sr
 METASOURCES = pulserdriverconnector=./pulserdriverconnector.h
 __um_includes_analyzer.h = pulserdriverconnector.cpp pulserdriver.cpp
 __um_includes_complex = pulserdriverconnector.cpp pulserdriver.cpp
+__um_includes_fft.h = pulserdriverconnector.cpp pulserdriver.cpp
 __um_includes_graph.h = pulserdriverconnector.cpp
 __um_includes_graphwidget.h = pulserdriverconnector.cpp
 __um_includes_interface.h = pulserdriver.cpp

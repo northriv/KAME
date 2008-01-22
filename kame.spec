@@ -8,15 +8,15 @@ Name: kame
 %{!?build_nidaqmx: %define build_nidaqmx 1}
 
 Version: 2.3.3
-Release: 2
+Release: 3
 License: GPL
 Group: Applications/Engineering
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Requires: qt >= %{qtver}, kdelibs >= %{kdever}
 Requires: libart_lgpl, gsl, zlib, ruby, libtool-ltdl, fftw
-Requires: libgfortran, atlas
+Requires: libgfortran, atlas-sse2
 BuildPreReq: ruby-devel, gsl-devel, boost-devel, libtool-ltdl-devel, fftw-devel
-BuildPreReq: libgfortran, atlas-devel
+BuildPreReq: libgfortran, atlas-sse2-devel
 BuildPreReq: libidn-devel
 BuildPreReq: qt-devel >= %{qtver}, kdelibs-devel >= %{kdever}
 BuildPreReq: libart_lgpl-devel, zlib-devel, libpng-devel, libjpeg-devel

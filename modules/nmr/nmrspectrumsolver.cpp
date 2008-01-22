@@ -105,6 +105,7 @@ void
 SpectrumSolverWrapper::onSolverChanged(const shared_ptr<XValueNodeBase> &) {
 	shared_ptr<SpectrumSolver> solver;
 	bool has_window = false;
+	bool has_length = true;
 	if(m_selector) {
 		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_BURG_AICc) {
 			solver.reset(new MEMBurg(&SpectrumSolver::icAICc));
@@ -132,6 +133,7 @@ SpectrumSolverWrapper::onSolverChanged(const shared_ptr<XValueNodeBase> &) {
 		}
 		if(m_selector->to_str() == SPECTRUM_SOLVER_MVDL) {
 			solver.reset(new MVDL);
+			has_length = false;
 		}
 		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_STRICT) {
 			solver.reset(new MEMStrict);
@@ -143,5 +145,7 @@ SpectrumSolverWrapper::onSolverChanged(const shared_ptr<XValueNodeBase> &) {
 	}
 	if(m_windowfunc)
 		m_windowfunc->setUIEnabled(has_window);
+	if(m_windowlength)
+		m_windowlength->setUIEnabled(has_length);
 	m_solver = solver;	
 }

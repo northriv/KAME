@@ -21,7 +21,7 @@ typedef struct {double r, i;} LPKdoublecomplex;
 extern "C" int zheevr_(char *jobz, char *range, char *uplo, LPKint *n, 
 	LPKdoublecomplex *a, LPKint *lda, LPKdoublereal *vl, LPKdoublereal *vu, 
 	LPKint *il, LPKint *iu, LPKdoublereal *abstol, LPKint *m, LPKdoublereal *
-	w, LPKdoublecomplex *z__, LPKint *ldz, LPKint *isuppz, LPKdoublecomplex *
+	w, LPKdoublecomplex *z, LPKint *ldz, LPKint *isuppz, LPKdoublecomplex *
 	work, LPKint *lwork, LPKdoublereal *rwork, LPKint *lrwork, LPKint *
 	iwork, LPKint *liwork, LPKint *info);
 
@@ -41,11 +41,11 @@ subst(std::complex<double> &y, const LPKdoublecomplex &x) {
 }
 	
 template <typename T, typename LPKT>
-void cmat2lpk(ublas::matrix<T> &a, ublas::vector<LPKT>& lpk) {
+void cmat2lpk(const ublas::matrix<T> &a, ublas::vector<LPKT>& lpk) {
 	lpk.resize(a.size1() * a.size2());
 	LPKT *plpk = &lpk[0];
 	for(int i = 0; i < a.size2(); i++) {
-		ublas::matrix_column<ublas::matrix<T> > acol(a, i);
+		ublas::matrix_column<const ublas::matrix<T> > acol(a, i);
 		for(int j = 0; j < acol.size(); j++)
 			subst(*plpk++, acol(j));
 	}
@@ -69,10 +69,9 @@ void lpk2cvec(const ublas::vector<LPKT>& lpk, ublas::vector<T> &a) {
 	}
 }
 
-void eigHermiteRRR(const ublas::matrix<std::complex<double> > &a_corg,
+void eigHermiteRRR(const ublas::matrix<std::complex<double> > &a_org,
 	ublas::vector<double> &lambda, ublas::matrix<std::complex<double> > &v,
 	double tol) {
-	ublas::matrix<std::complex<double> > a_org(a_corg);
 	LPKint n = a_org.size2();
 	LPKint lda = a_org.size1();
 	ASSERT(lda >= n);

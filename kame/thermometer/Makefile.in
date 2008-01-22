@@ -57,6 +57,7 @@ __um_includes_klocale.h = thermometer.cpp caltable.cpp
 __um_includes_math.h = thermometer.cpp
 __um_includes_measure.h = caltable.cpp
 __um_includes_qpushbutton.h = caltable.cpp
+__um_includes_rand.h = thermometer.cpp
 __um_includes_thermometer.h = thermometer.cpp caltable.cpp
 __um_includes_xlistnode.h = thermometer.cpp caltable.cpp
 __um_includes_xnode.h = thermometer.cpp caltable.cpp
