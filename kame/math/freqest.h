@@ -17,10 +17,10 @@
 #include "spectrumsolver.h"
 
 //! Base class for MUSIC and EIG.
-class FreqEstimation : public MEMStrict {
+class FreqEstimation : public SpectrumSolver {
 public:
 	FreqEstimation(tfuncIC ic, bool eigenvalue_method, bool mvdl) : 
-		MEMStrict(), m_eigenvalue_method(eigenvalue_method), m_mvdl_method(mvdl), m_funcIC(ic) {}
+		SpectrumSolver(), m_eigenvalue_method(eigenvalue_method), m_mvdl_method(mvdl), m_funcIC(ic) {}
 protected:
 	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin,
 		std::vector<std::complex<double> >& memout,

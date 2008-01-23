@@ -88,6 +88,63 @@ SpectrumSolver::autoCorrelation(const std::vector<std::complex<double> >&wave,
 		corr[i] = corrzf[i] * normalize;
 	}
 }
+void
+SpectrumSolver::lspe(const std::vector<std::complex<double> >& wavein, int origin,
+	const std::vector<double>& psd, std::vector<std::complex<double> >& waveout, double tol) {
+	int t = wavein.size();
+	int n = waveout.size();
+	int t0a = origin;
+	if(t0a < 0)
+		t0a += (-t0a / n + 1) * n;
+	
+	std::vector<std::complex<double> > wavezf(n, 0.0);
+	for(int i = 0; i < t; i++) {
+		int j = (t0a + i) % n;
+		wavezf[j] = wavein[i];
+	}
+	m_fftN->exec(wavezf, waveout);
+	
+	for(int i = 0; i < n; i++) {
+		std::complex<double> z = waveout[i];
+		waveout[i] = z * sqrt(psd[i] / std::norm(z));
+	}
+	double sigma20 = 0.0, sigma2 = 0.0;
+	for(int it = 0; it < 20; it++) {
+		double ns2 = stepLSPE(wavein, origin, psd, waveout);
+		if(it == 0)
+			sigma20 = ns2;
+		dbgPrint(formatString("LSPE: err=%g, it=%u\n", ns2, it));
+		genIFFT(waveout);
+		if((it > 3) && (sigma2 - ns2  < sigma20 * tol)) {
+			break;
+		}
+		sigma2 = ns2;
+	}
+}
+double
+SpectrumSolver::stepLSPE(const std::vector<std::complex<double> >& wavein, int origin,
+	const std::vector<double>& psd, std::vector<std::complex<double> >& waveout) {
+	int t = wavein.size();
+	int n = waveout.size();
+	int t0a = origin;
+	if(t0a < 0)
+		t0a += (-t0a / n + 1) * n;
+	
+	std::vector<std::complex<double> > zfin(n, 0.0), zfout(n);
+	double sigma2 = 0.0;
+	for(int i = 0; i < t; i++) {
+		int j = (t0a + i) % n;
+		std::complex<double> z = m_ifft[j] - wavein[i];
+		zfin[j] = z;
+		sigma2 += std::norm(z);
+	}
+	m_fftN->exec(zfin, zfout);
+	for(int i = 0; i < n; i++) {
+		std::complex<double> z = - (zfout[i] - waveout[i] * (double)t);
+		waveout[i] = z * sqrt(psd[i] / std::norm(z));
+	}
+	return sigma2;
+}
 
 double
 FFTSolver::windowLength(int t, int t0, double windowlength) {
@@ -153,7 +210,7 @@ MEMStrict::setup(unsigned int t, unsigned int n) {
 	}
 }
 void
-MEMStrict::solveZ(double torr) {
+MEMStrict::solveZ(double tol) {
 	unsigned int size = m_accumDYFT.size();
 	std::vector<double> dy2(size);
 	std::vector<double> &g2(m_accumG2);
@@ -161,19 +218,18 @@ MEMStrict::solveZ(double torr) {
 	for(unsigned int i = 0; i < size; i++) {
 		dy2[i] = std::norm(m_accumDYFT[i]);
 	}
-	double nsumz;
 	for(unsigned int it = 0; it < lrint(log(size) + 2); it++) {
 		double k = 2 * m_accumZ * m_accumZ;
 		for(unsigned int i = 0; i < size; i++) {
 			g2[i] = lambertW0(k * dy2[i]) * 0.5;
 		}
-		nsumz = 0.0;
+		double nsumz = 0.0;
 		for(unsigned int i = 0; i < size; i++) {
 			nsumz += exp(g2[i]);
 		}
 		double err = fabs(nsumz - m_accumZ) / nsumz;
 		m_accumZ = nsumz;
-		if(err < torr) {
+		if(err < tol) {
 //			fprintf(stderr, "MEM: Z solved w/ it=%u,err=%g\n", it, err);
 			break;
 		}
@@ -182,7 +238,7 @@ MEMStrict::solveZ(double torr) {
 
 bool
 MEMStrict::genSpectrum(const std::vector<std::complex<double> >& memin0, std::vector<std::complex<double> >& memout,
-	int t0, double torr, FFT::twindowfunc /*windowfunc*/, double windowlength) {
+	int t0, double tol, FFT::twindowfunc /*windowfunc*/, double windowlength) {
 	std::vector<std::complex<double> > memin(std::min((int)lrint(windowlength * memin0.size()), (int)memin0.size()));
 	unsigned int tshift = (memin0.size() - memin.size()) / 2;
 	for(unsigned int i = 0; i < memin.size(); i++)
@@ -197,7 +253,7 @@ MEMStrict::genSpectrum(const std::vector<std::complex<double> >& memin0, std::ve
 	for(unsigned int i = 0; i < memin.size(); i++)
 		sqrtpow += std::norm(memin[i]);
 	sqrtpow = sqrt(sqrtpow);
-	double err;
+	double err = sqrtpow;
 	double alpha = 0.3;
 	for(double sigma = sqrtpow / 4.0; sigma < sqrtpow; sigma *= 1.2) {
 		//	fprintf(stderr, "MEM: Using T=%u,N=%u,sigma=%g\n", t,n,sigma);
@@ -210,8 +266,8 @@ MEMStrict::genSpectrum(const std::vector<std::complex<double> >& memin0, std::ve
 		double oerr = sqrtpow;
 		unsigned int it;
 		for(it = 0; it < 50; it++) {
-			err = stepMEM(memin, memout, alpha, sigma, t0, torr);
-			if(err < torr * sqrtpow) {
+			err = stepMEM(memin, memout, alpha, sigma, t0, tol);
+			if(err < tol * sqrtpow) {
 				break;
 			}
 			if(err > sqrtpow * 1.1) {
@@ -222,7 +278,7 @@ MEMStrict::genSpectrum(const std::vector<std::complex<double> >& memin0, std::ve
 			}
 			oerr = err;
 		}
-		if(err < torr * sqrtpow) {
+		if(err < tol * sqrtpow) {
 			dbgPrint(formatString("MEM: Converged w/ sigma=%g, alpha=%g, err=%g, it=%u\n", sigma, alpha, err, it));
 			double osqrtpow = 0.0;
 			for(unsigned int i = 0; i < memout.size(); i++)
@@ -235,7 +291,7 @@ MEMStrict::genSpectrum(const std::vector<std::complex<double> >& memin0, std::ve
 			dbgPrint(formatString("MEM: Failed w/ sigma=%g, alpha=%g, err=%g, it=%u\n", sigma, alpha, err, it));
 		}
 	}
-	if(err >= torr * sqrtpow) {
+	if(err >= tol * sqrtpow) {
 		dbgPrint(formatString("MEM: Use ZF-FFT instead.\n"));
 		std::fill(m_ifft.begin(), m_ifft.end(), 0.0);
 		for(unsigned int i = 0; i < t; i++) {
@@ -268,7 +324,7 @@ MEMStrict::genSpectrum(const std::vector<std::complex<double> >& memin0, std::ve
 }
 double
 MEMStrict::stepMEM(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout, 
-	double alpha, double sigma, int t0, double torr) {
+	double alpha, double sigma, int t0, double tol) {
 	unsigned int n = m_ifft.size();
 	unsigned int t = memin.size();
 	double isigma = 1.0 / sigma;
@@ -314,7 +370,7 @@ MEMStrict::stepMEM(const std::vector<std::complex<double> >& memin, std::vector<
 	err = sqrt(err);
 	
 	m_fftT->exec(m_accumDY, m_accumDYFT);
-	solveZ(torr);
+	solveZ(tol);
 	k = sigma / t;
 	pout = &m_accumDYFT[0];
 	for(unsigned int i = 0; i < t; i++) {

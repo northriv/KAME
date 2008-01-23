@@ -29,12 +29,6 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 		tpoworg += std::norm(memin[i]);
 	}
 
-	if(t0 < 0)
-		t0 += (-t0 / n + 1) * n;	
-	std::vector<std::complex<double> > memphaseout(n);	
-	MEMStrict::genSpectrum(memin, memphaseout, t0, tol, &FFT::windowFuncRect, 1.0);	
-	m_peaks.clear();
-	
 	std::vector<std::complex<double> > rx(t);
 	autoCorrelation(memin, rx);
 	//# of signal space.
@@ -104,16 +98,20 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 	for(int i = 0; i < n; i++)
 		dy[i] = std::real(zffftout[i]);
 	
+	//Power spectrum density.
+	std::vector<double> psd(n);
 	double tpow = 0.0;
 	for(int i = 0; i < n; i++) {
-		tpow += 1.0 / ip[i];
-		memout[i] = memphaseout[i] * sqrt(1.0 / (ip[i] * std::norm(memphaseout[i])));
+		double z = 1.0 / ip[i];
+		tpow += z;
+		psd[i] = z;
 	}
-	double normalize = sqrt(n * tpoworg / tpow);
+	double normalize = n * tpoworg / tpow;
 	for(int i = 0; i < n; i++) {
-		memout[i] *= normalize;
+		psd[i] *= normalize;
 	}
-	genIFFT(memout);
+	//Least-Square Phase Estimation.
+	lspe(memin, t0, psd, memout, tol);	
 	
 	for(int i = 1; i < n; i++) {
 		if((dy[i - 1] < 0) && (dy[i] > 0)) {
@@ -126,7 +124,7 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 				z += acsum[j] * xn;
 				xn *= x;
 			}
-			double r = normalize * sqrt(std::max(1.0 / std::real(z), 0.0));
+			double r = sqrt(normalize * std::max(1.0 / std::real(z), 0.0));
 			m_peaks.push_back(std::pair<double, double>(r, dx + i - 1));
 		}
 	}

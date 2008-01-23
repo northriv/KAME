@@ -17,7 +17,7 @@
 #include "spectrumsolver.h"
 
 template <class Context>
-class YuleWalkerCousin : public MEMStrict {
+class YuleWalkerCousin : public SpectrumSolver {
 public:
 	YuleWalkerCousin(tfuncIC ic);
 	virtual ~YuleWalkerCousin() {}

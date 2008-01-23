@@ -14,21 +14,15 @@
 #include "ar.h"
 
 template <class Context>
-YuleWalkerCousin<Context>::YuleWalkerCousin(tfuncIC ic) : MEMStrict(), m_funcARIC(ic) {	
+YuleWalkerCousin<Context>::YuleWalkerCousin(tfuncIC ic) : SpectrumSolver(), m_funcARIC(ic) {	
 }
 
 template <class Context>
 bool
 YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
-	int t0, double torr, FFT::twindowfunc /*windowfunc*/, double windowlength) {
+	int t0, double tol, FFT::twindowfunc /*windowfunc*/, double windowlength) {
 	int t = memin.size();
 	int n = memout.size();
-
-	if(t0 < 0)
-		t0 += (-t0 / n + 1) * n;	
-	std::vector<std::complex<double> > memphaseout(n);	
-	MEMStrict::genSpectrum(memin, memphaseout, t0, torr, &FFT::windowFuncRect, 1.0);	
-	m_peaks.clear();
 	
 	int taps_div = t - 1;
 	taps_div = std::max(taps_div / 10, 1);
@@ -79,12 +73,14 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 	}
 	m_fftN->exec(zfbuf, fftbuf);
 
+	//Power spectrum density.
+	std::vector<double> psd(n);
 	for(int i = 0; i < n; i++) {
 		double z = t * context->sigma2 / (std::norm(fftbuf[i]));
-		z = sqrt(std::max(z, 0.0) / std::norm(memphaseout[i]));
-		memout[i] = memphaseout[i] * z;
+		psd[i] = std::max(z, 0.0);
 	}
-	genIFFT(memout);
+	//Least-Square Phase Estimation.
+	lspe(memin, t0, psd, memout, tol);
 
 	// Derivative of denominator.
 	std::fill(zfbuf.begin(), zfbuf.end(), 0.0);
