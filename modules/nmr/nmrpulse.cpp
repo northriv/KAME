@@ -15,6 +15,7 @@
 #include "nmrpulse.h"
 #include "nmrpulseform.h"
 #include "ar.h"
+#include "freqest.h"
 
 #include <graph.h>
 #include <graphwidget.h>
@@ -70,6 +71,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 			m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)),
 		m_ftWaveGraph(create<XWaveNGraph>("Spectrum", true, m_spectrumForm.get())),
 		m_solver(create<SpectrumSolverWrapper>("SpectrumSolver", true, m_solverList, m_windowFunc, m_windowWidth)),
+//		m_solverDNR(new CompositeSpectrumSolver<MEMStrict, EigenVectorMethod, true>) {
 		m_solverDNR(new MEMStrict) {
 //		m_solverDNR(new MEMBurg(&SpectrumSolver::icAICc)) {
 	m_form->m_btnAvgClear->setIconSet(KApplication::kApplication()->iconLoader()->loadIconSet("editdelete", KIcon::Toolbar, KIcon::SizeSmall, true) );
