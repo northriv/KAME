@@ -80,7 +80,7 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 		psd[i] = std::max(z, 0.0);
 	}
 	//Least-Square Phase Estimation.
-	lspe(memin, t0, psd, memout, tol);
+	double coeff = lspe(memin, t0, psd, memout, tol, true);
 
 	// Derivative of denominator.
 	std::fill(zfbuf.begin(), zfbuf.end(), 0.0);
@@ -102,7 +102,7 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 				z += context->a[i] * xn;
 				xn *= x;
 			}
-			double r = sqrt(std::max(t * context->sigma2 / std::norm(z), 0.0));
+			double r = coeff * sqrt(std::max(t * context->sigma2 / std::norm(z), 0.0));
 			m_peaks.push_back(std::pair<double, double>(r, dx + i - 1));
 		}
 		dy_old = dy;

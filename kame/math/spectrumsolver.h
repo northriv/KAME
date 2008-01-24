@@ -58,11 +58,13 @@ protected:
 
 	void genIFFT(const std::vector<std::complex<double> >& wavein);
 	//! Least-square phase estimation.
-	void lspe(const std::vector<std::complex<double> >& wavein, int origin,
-		const std::vector<double>& psd, std::vector<std::complex<double> >& waveout, double tol);
+	//! \return coeff.
+	double lspe(const std::vector<std::complex<double> >& wavein, int origin,
+		const std::vector<double>& psd, std::vector<std::complex<double> >& waveout,
+		double tol, bool powfit);
 	//! \return err.
 	double stepLSPE(const std::vector<std::complex<double> >& wavein, int origin,
-		const std::vector<double>& psd, std::vector<std::complex<double> >& waveout);
+		const std::vector<double>& psd, std::vector<std::complex<double> >& waveout, bool powfit, double &coeff);
 
 	shared_ptr<FFT> m_fftN, m_ifftN;
 	int fftlen() const {return m_ifftN->length();}

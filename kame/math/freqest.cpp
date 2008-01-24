@@ -111,7 +111,8 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 		psd[i] *= normalize;
 	}
 	//Least-Square Phase Estimation.
-	lspe(memin, t0, psd, memout, tol);	
+	double coeff = lspe(memin, t0, psd, memout, tol, true);	
+	normalize *= coeff * coeff;
 	
 	for(int i = 1; i < n; i++) {
 		if((dy[i - 1] < 0) && (dy[i] > 0)) {

@@ -16,8 +16,6 @@
 //---------------------------------------------------------------------------
 #include "support.h"
 #include "spectrumsolver.h"
-#include "ar.h"
-#include "freqest.h"
 #include "xitemnode.h"
 
 class SpectrumSolverWrapper : public XNode {

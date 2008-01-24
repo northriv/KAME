@@ -216,6 +216,7 @@ XNMRSpectrumBase<FRM>::analyze(const shared_ptr<XDriver> &emitter) throw (XRecor
 
 	if(clear) {
 		m_spectrum->clear();
+		m_peaks.clear();
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
 
@@ -246,6 +247,7 @@ XNMRSpectrumBase<FRM>::visualize()
 {
 	if(!time()) {
 		m_spectrum->clear();
+		m_peakPlot->maxCount()->value(0);
 		return;
 	}
 

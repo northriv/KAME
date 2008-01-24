@@ -88,9 +88,10 @@ SpectrumSolver::autoCorrelation(const std::vector<std::complex<double> >&wave,
 		corr[i] = corrzf[i] * normalize;
 	}
 }
-void
+double
 SpectrumSolver::lspe(const std::vector<std::complex<double> >& wavein, int origin,
-	const std::vector<double>& psd, std::vector<std::complex<double> >& waveout, double tol) {
+	const std::vector<double>& psd, std::vector<std::complex<double> >& waveout,
+	double tol, bool powfit) {
 	int t = wavein.size();
 	int n = waveout.size();
 	int t0a = origin;
@@ -108,40 +109,55 @@ SpectrumSolver::lspe(const std::vector<std::complex<double> >& wavein, int origi
 		std::complex<double> z = waveout[i];
 		waveout[i] = z * sqrt(psd[i] / std::norm(z));
 	}
-	double sigma20 = 0.0, sigma2 = 0.0;
+	genIFFT(waveout);
+	double sigma20 = 0.0, sigma2 = 0.0, coeff = 1.0;
 	for(int it = 0; it < 20; it++) {
-		double ns2 = stepLSPE(wavein, origin, psd, waveout);
+		double ns2 = stepLSPE(wavein, origin, psd, waveout, powfit, coeff);
 		if(it == 0)
 			sigma20 = ns2;
-		dbgPrint(formatString("LSPE: err=%g, it=%u\n", ns2, it));
+		dbgPrint(formatString("LSPE: err=%g, coeff=%g, it=%u\n", ns2, coeff, it));
 		genIFFT(waveout);
 		if((it > 3) && (sigma2 - ns2  < sigma20 * tol)) {
 			break;
 		}
 		sigma2 = ns2;
 	}
+	return coeff;
 }
 double
 SpectrumSolver::stepLSPE(const std::vector<std::complex<double> >& wavein, int origin,
-	const std::vector<double>& psd, std::vector<std::complex<double> >& waveout) {
+	const std::vector<double>& psd, std::vector<std::complex<double> >& waveout,
+	bool powfit, double &coeff) {
 	int t = wavein.size();
 	int n = waveout.size();
 	int t0a = origin;
 	if(t0a < 0)
 		t0a += (-t0a / n + 1) * n;
-	
+	double dcoeff = 1.0;
+	if(powfit) {
+		double den = 0.0;
+		double sump = 0.0;
+		for(int i = 0; i < t; i++) {
+			int j = (t0a + i) % n;
+			std::complex<double> z = wavein[i];
+			sump += std::norm(z);
+			den += std::real(std::conj(z) * m_ifft[j]);
+		}
+		dcoeff = sump / den;
+		coeff *= dcoeff;
+	}
 	std::vector<std::complex<double> > zfin(n, 0.0), zfout(n);
 	double sigma2 = 0.0;
 	for(int i = 0; i < t; i++) {
 		int j = (t0a + i) % n;
-		std::complex<double> z = m_ifft[j] - wavein[i];
+		std::complex<double> z = dcoeff * m_ifft[j] - wavein[i];
 		zfin[j] = z;
 		sigma2 += std::norm(z);
 	}
 	m_fftN->exec(zfin, zfout);
 	for(int i = 0; i < n; i++) {
-		std::complex<double> z = - (zfout[i] - waveout[i] * (double)t);
-		waveout[i] = z * sqrt(psd[i] / std::norm(z));
+		std::complex<double> z = - (zfout[i] - waveout[i]);
+		waveout[i] = coeff * z * sqrt(psd[i] / std::norm(z));
 	}
 	return sigma2;
 }

@@ -12,6 +12,8 @@
  see the files COPYING and AUTHORS.
  ***************************************************************************/
 #include "nmrspectrumsolver.h"
+#include "ar.h"
+#include "freqest.h"
 
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_ZF_FFT[] = "ZF-FFT";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_STRICT[] = "Strict MEM";

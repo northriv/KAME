@@ -14,6 +14,7 @@
 //---------------------------------------------------------------------------
 #include "nmrpulse.h"
 #include "nmrpulseform.h"
+#include "ar.h"
 
 #include <graph.h>
 #include <graphwidget.h>
@@ -38,7 +39,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 	const shared_ptr<XThermometerList> &thermometers,
 	const shared_ptr<XDriverList> &drivers) :
 	XSecondaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
-		m_entryPeakPow(create<XScalarEntry>("PeakPow", false,
+		m_entryPeakAbs(create<XScalarEntry>("PeakAbs", false,
 			dynamic_pointer_cast<XDriver>(shared_from_this()))),
 		m_entryPeakFreq(create<XScalarEntry>("PeakFreq", false,
 			dynamic_pointer_cast<XDriver>(shared_from_this()))), 
@@ -68,14 +69,16 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		m_spectrumForm(new FrmGraphNURL(g_pFrmMain)), m_waveGraph(create<XWaveNGraph>("Wave", true,
 			m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)),
 		m_ftWaveGraph(create<XWaveNGraph>("Spectrum", true, m_spectrumForm.get())),
-		m_solver(create<SpectrumSolverWrapper>("SpectrumSolver", true, m_solverList, m_windowFunc, m_windowWidth)) {
+		m_solver(create<SpectrumSolverWrapper>("SpectrumSolver", true, m_solverList, m_windowFunc, m_windowWidth)),
+		m_solverDNR(new MEMStrict) {
+//		m_solverDNR(new MEMBurg(&SpectrumSolver::icAICc)) {
 	m_form->m_btnAvgClear->setIconSet(KApplication::kApplication()->iconLoader()->loadIconSet("editdelete", KIcon::Toolbar, KIcon::SizeSmall, true) );
 	m_form->m_btnSpectrum->setIconSet(KApplication::kApplication()->iconLoader()->loadIconSet("graph", KIcon::Toolbar, KIcon::SizeSmall, true) );
 
 	connect(dso());
 	connect(pulser(), false);
 
-	scalarentries->insert(entryPeakPow());
+	scalarentries->insert(entryPeakAbs());
 	scalarentries->insert(entryPeakFreq());
 
 	fromTrig()->value(-0.005);
@@ -255,9 +258,9 @@ void XNMRPulseAnalyzer::backgroundSub(std::vector<std::complex<double> > &wave,
 		for(unsigned int i = 0; i < bglength; i++) {
 			memin[i] = wave[pos + i + bgpos];
 		}
-		m_memDNR.exec(memin, memout, bgpos, 2e-2, &FFT::windowFuncRect, 1.0);
+		m_solverDNR->exec(memin, memout, bgpos, 2e-2, &FFT::windowFuncRect, 2.0);
 		for(unsigned int i = 0; i < std::min((int)wave.size() - pos, (int)memout.size()); i++) {
-			wave[i + pos] -= m_memDNR.ifft()[i];
+			wave[i + pos] -= m_solverDNR->ifft()[i];
 		}
 	}
 }
@@ -483,7 +486,7 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	rotNFFT(ftpos, ph, m_wave, m_ftWave, lrint(*difFreq() * 1000.0 / dFreq()) );
 	
 	if(m_solverRecorded->peaks().size()) {
-		entryPeakPow()->value(m_solverRecorded->peaks()[0].first / (double)m_wave.size());
+		entryPeakAbs()->value(m_solverRecorded->peaks()[0].first / (double)m_wave.size());
 		double x = m_solverRecorded->peaks()[0].second;
 		x = (x > fftlen / 2) ? (x - fftlen) : x;
 		entryPeakFreq()->value(0.001 * x * m_dFreq);
@@ -501,6 +504,7 @@ void XNMRPulseAnalyzer::visualize() {
 	if (!time() || !m_avcount) {
 		ftWaveGraph()->clear();
 		waveGraph()->clear();
+		m_peakPlot->maxCount()->value(0);
 		return;
 	}
 

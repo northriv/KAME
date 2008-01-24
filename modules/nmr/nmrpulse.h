@@ -58,7 +58,7 @@ public:
 	//! driver specific part below 
   
 	//! Entry storing the power of the strogest peak.
-	const shared_ptr<XScalarEntry> &entryPeakPow() const {return m_entryPeakPow;}
+	const shared_ptr<XScalarEntry> &entryPeakAbs() const {return m_entryPeakAbs;}
 	//! Entry storing the freq. of the strongest peak.
 	const shared_ptr<XScalarEntry> &entryPeakFreq() const {return m_entryPeakFreq;}
 
@@ -125,7 +125,7 @@ private:
 	/// Stored FFT Wave for display.
 	const shared_ptr<XWaveNGraph> &ftWaveGraph() const {return m_ftWaveGraph;}
 
-	const shared_ptr<XScalarEntry> m_entryPeakPow; 
+	const shared_ptr<XScalarEntry> m_entryPeakAbs; 
 	const shared_ptr<XScalarEntry> m_entryPeakFreq; 
 
 	const shared_ptr<XItemNode<XDriverList, XDSO> > m_dso;
@@ -202,7 +202,7 @@ private:
 	shared_ptr<SpectrumSolverWrapper> m_solver;
 	shared_ptr<SpectrumSolver> m_solverRecorded;
 	shared_ptr<XXYPlot> m_peakPlot;
-	MEMStrict m_memDNR;
+	shared_ptr<SpectrumSolver> m_solverDNR;
 	
 	void rotNFFT(int ftpos, double ph, 
 				 std::vector<std::complex<double> > &wave, std::vector<std::complex<double> > &ftwave, int diffreq);
