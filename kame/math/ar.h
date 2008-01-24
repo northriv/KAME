@@ -54,7 +54,7 @@ struct MEMBurgContext : public ARContext {
 
 class MEMBurg : public YuleWalkerCousin<MEMBurgContext> {
 public:
-	MEMBurg(tfuncIC ic) : YuleWalkerCousin<MEMBurgContext>(ic) {}
+	MEMBurg(tfuncIC ic = &icAICc) : YuleWalkerCousin<MEMBurgContext>(ic) {}
 	virtual ~MEMBurg() {}
 protected:
 	virtual void first(
@@ -66,7 +66,7 @@ private:
 
 class YuleWalkerAR : public YuleWalkerCousin<ARContext> {
 public:
-	YuleWalkerAR(tfuncIC ic) : YuleWalkerCousin<ARContext>(ic) {}
+	YuleWalkerAR(tfuncIC ic = &icAICc) : YuleWalkerCousin<ARContext>(ic) {}
 	virtual ~YuleWalkerAR() {}
 protected:
 	virtual void first(

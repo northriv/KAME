@@ -106,4 +106,31 @@ private:
 	double m_accumZ;
 };
 
+template <class T, class X, bool IsXConfigurable = false>
+class CompositeSpectrumSolver : public T {
+public:
+protected:
+	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin,
+		std::vector<std::complex<double> >& memout,
+		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength) {
+		m_preprocessor.exec(memin, memout, t0, tol,
+			IsXConfigurable ? windowfunc : &FFT::windowFuncRect,
+			IsXConfigurable ? windowlength : 1.0);
+		int t = memin.size();
+		int n = memout.size();
+		int t0a = t0;
+		if(t0a < 0)
+			t0a += (-t0a / n + 1) * n;
+		std::vector<std::complex<double> > nsin(t);
+		for(int i = 0; i < t; i++) {
+			int j = (t0a + i) % n;
+			nsin[i] = m_preprocessor.ifft()[j];
+		}
+		return T::genSpectrum(nsin, memout, t0, tol,
+			!IsXConfigurable ? windowfunc : &FFT::windowFuncRect,
+			!IsXConfigurable ? windowlength : 1.0);
+	}
+	X m_preprocessor;
+};
+
 #endif

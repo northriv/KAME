@@ -17,6 +17,8 @@
 
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_ZF_FFT[] = "ZF-FFT";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_STRICT[] = "Strict MEM";
+const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_STRICT_EV[] = "EV+Strict MEM";
+const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_STRICT_BURG[] = "Burg+Strict MEM";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_BURG_AICc[] = "Burg's MEM AICc";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_BURG_MDL[] = "Burg's MEM MDL";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_AR_YW_AICc[] = "Yule-Walker AR AICc";
@@ -55,6 +57,7 @@ SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
 	if(selector) {
 		selector->add(SPECTRUM_SOLVER_ZF_FFT);
 		selector->add(SPECTRUM_SOLVER_MEM_STRICT);
+		selector->add(SPECTRUM_SOLVER_MEM_STRICT_EV);
 		selector->add(SPECTRUM_SOLVER_MVDL);
 		selector->add(SPECTRUM_SOLVER_EV_MDL);
 		selector->add(SPECTRUM_SOLVER_MUSIC_MDL);
@@ -62,6 +65,7 @@ SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
 		selector->add(SPECTRUM_SOLVER_MEM_BURG_MDL);
 		selector->add(SPECTRUM_SOLVER_AR_YW_AICc);
 		selector->add(SPECTRUM_SOLVER_AR_YW_MDL);
+//		selector->add(SPECTRUM_SOLVER_MEM_STRICT_BURG);
 		m_lsnOnChanged = selector->onValueChanged().connectWeak(shared_from_this(), &SpectrumSolverWrapper::onSolverChanged);
 	}
 	onSolverChanged(selector);
@@ -139,6 +143,13 @@ SpectrumSolverWrapper::onSolverChanged(const shared_ptr<XValueNodeBase> &) {
 		}
 		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_STRICT) {
 			solver.reset(new MEMStrict);
+			has_length = false;
+		}
+		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_STRICT_EV) {
+			solver.reset(new CompositeSpectrumSolver<MEMStrict, EigenVectorMethod, true>());
+		}
+		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_STRICT_BURG) {
+			solver.reset(new CompositeSpectrumSolver<MEMStrict, MEMBurg, true>());
 		}
 	}
 	if(!solver) {

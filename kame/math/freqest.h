@@ -33,13 +33,13 @@ protected:
 //! MUltiple SIgnal Classification.
 class MUSIC : public FreqEstimation {
 public:
-	MUSIC(tfuncIC ic) : FreqEstimation(ic, false, false) {}
+	MUSIC(tfuncIC ic = &icMDL) : FreqEstimation(ic, false, false) {}
 protected:
 };
 
 class EigenVectorMethod : public FreqEstimation {
 public:
-	EigenVectorMethod(tfuncIC ic) : FreqEstimation(ic, true, false) {}
+	EigenVectorMethod(tfuncIC ic = &icMDL) : FreqEstimation(ic, true, false) {}
 protected:
 };
 
