@@ -253,13 +253,13 @@ MEMStrict::solveZ(double tol) {
 }
 
 bool
-MEMStrict::genSpectrum(const std::vector<std::complex<double> >& memin0, std::vector<std::complex<double> >& memout,
-	int t0, double tol, FFT::twindowfunc /*windowfunc*/, double windowlength) {
-	std::vector<std::complex<double> > memin(std::min((int)lrint(windowlength * memin0.size()), (int)memin0.size()));
-	unsigned int tshift = (memin0.size() - memin.size()) / 2;
-	for(unsigned int i = 0; i < memin.size(); i++)
-		memin[i] = memin0[i + tshift];
-	t0 += (int)tshift;
+MEMStrict::genSpectrum(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
+	int t0, double tol, FFT::twindowfunc /*windowfunc*/, double /*windowlength*/) {
+//	std::vector<std::complex<double> > memin(std::min((int)lrint(windowlength * memin0.size()), (int)memin0.size()));
+//	unsigned int tshift = (memin0.size() - memin.size()) / 2;
+//	for(unsigned int i = 0; i < memin.size(); i++)
+//		memin[i] = memin0[i + tshift];
+//	t0 += (int)tshift;
 	int t = memin.size();
 	int n = memout.size();
 	if(t0 < 0)
