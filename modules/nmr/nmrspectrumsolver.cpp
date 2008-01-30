@@ -110,7 +110,7 @@ SpectrumSolverWrapper::windowFuncs(std::deque<FFT::twindowfunc> &funcs) const {
 void
 SpectrumSolverWrapper::onSolverChanged(const shared_ptr<XValueNodeBase> &) {
 	shared_ptr<SpectrumSolver> solver;
-	bool has_window = false;
+	bool has_window = true;
 	bool has_length = true;
 	if(m_selector) {
 		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_BURG_AICc) {
@@ -144,6 +144,7 @@ SpectrumSolverWrapper::onSolverChanged(const shared_ptr<XValueNodeBase> &) {
 		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_STRICT) {
 			solver.reset(new MEMStrict);
 			has_length = false;
+			has_window = false;
 		}
 		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_STRICT_EV) {
 			solver.reset(new CompositeSpectrumSolver<MEMStrict, EigenVectorMethod, true>());
@@ -153,7 +154,6 @@ SpectrumSolverWrapper::onSolverChanged(const shared_ptr<XValueNodeBase> &) {
 		}
 	}
 	if(!solver) {
-		has_window = true;
 		solver.reset(new FFTSolver);
 	}
 	if(m_windowfunc)

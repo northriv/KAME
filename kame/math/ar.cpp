@@ -20,7 +20,7 @@ YuleWalkerCousin<Context>::YuleWalkerCousin(tfuncIC ic) : SpectrumSolver(), m_fu
 template <class Context>
 bool
 YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
-	int t0, double tol, FFT::twindowfunc /*windowfunc*/, double windowlength) {
+	int t0, double tol, FFT::twindowfunc windowfunc, double windowlength) {
 	int t = memin.size();
 	int n = memout.size();
 	
@@ -80,7 +80,7 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 		psd[i] = std::max(z, 0.0);
 	}
 	//Least-Square Phase Estimation.
-	double coeff = lspe(memin, t0, psd, memout, tol, true);
+	double coeff = lspe(memin, t0, psd, memout, tol, true, windowfunc);
 
 	// Derivative of denominator.
 	std::fill(zfbuf.begin(), zfbuf.end(), 0.0);

@@ -49,6 +49,8 @@ public:
 	//! Minimum Description Length.
 	//! \sa icAIC
 	static double icMDL(double loglikelifood, int k, int n);	
+	
+	static double windowLength(int tdlen, int t0, double windowlength);
 protected:
 	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin,
 		std::vector<std::complex<double> >& memout,
@@ -61,10 +63,11 @@ protected:
 	//! \return coeff.
 	double lspe(const std::vector<std::complex<double> >& wavein, int origin,
 		const std::vector<double>& psd, std::vector<std::complex<double> >& waveout,
-		double tol, bool powfit);
+		double tol, bool powfit, FFT::twindowfunc windowfunc);
 	//! \return err.
 	double stepLSPE(const std::vector<std::complex<double> >& wavein, int origin,
-		const std::vector<double>& psd, std::vector<std::complex<double> >& waveout, bool powfit, double &coeff);
+		const std::vector<double>& psd, std::vector<std::complex<double> >& waveout,
+		bool powfit, double &coeff, FFT::twindowfunc windowfunc);
 
 	shared_ptr<FFT> m_fftN, m_ifftN;
 	int fftlen() const {return m_ifftN->length();}
@@ -79,8 +82,6 @@ class FFTSolver : public SpectrumSolver {
 public:
 	FFTSolver() : SpectrumSolver()  {}
 	virtual ~FFTSolver() {}
-	
-	static double windowLength(int tdlen, int t0, double windowlength);
 protected:
 	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin,
 		std::vector<std::complex<double> >& memout,

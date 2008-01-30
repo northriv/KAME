@@ -91,7 +91,7 @@ SpectrumSolver::autoCorrelation(const std::vector<std::complex<double> >&wave,
 double
 SpectrumSolver::lspe(const std::vector<std::complex<double> >& wavein, int origin,
 	const std::vector<double>& psd, std::vector<std::complex<double> >& waveout,
-	double tol, bool powfit) {
+	double tol, bool powfit, FFT::twindowfunc windowfunc) {
 	int t = wavein.size();
 	int n = waveout.size();
 	int t0a = origin;
@@ -112,7 +112,7 @@ SpectrumSolver::lspe(const std::vector<std::complex<double> >& wavein, int origi
 	genIFFT(waveout);
 	double sigma20 = 0.0, sigma2 = 0.0, coeff = 1.0;
 	for(int it = 0; it < 20; it++) {
-		double ns2 = stepLSPE(wavein, origin, psd, waveout, powfit, coeff);
+		double ns2 = stepLSPE(wavein, origin, psd, waveout, powfit, coeff, windowfunc);
 		if(it == 0)
 			sigma20 = ns2;
 		dbgPrint(formatString("LSPE: err=%g, coeff=%g, it=%u\n", ns2, coeff, it));
@@ -127,43 +127,52 @@ SpectrumSolver::lspe(const std::vector<std::complex<double> >& wavein, int origi
 double
 SpectrumSolver::stepLSPE(const std::vector<std::complex<double> >& wavein, int origin,
 	const std::vector<double>& psd, std::vector<std::complex<double> >& waveout,
-	bool powfit, double &coeff) {
+	bool powfit, double &coeff, FFT::twindowfunc windowfunc) {
 	int t = wavein.size();
 	int n = waveout.size();
 	int t0a = origin;
 	if(t0a < 0)
 		t0a += (-t0a / n + 1) * n;
+	double wk = 1.0 / windowLength(t, origin, 1.0);
 	double dcoeff = 1.0;
 	if(powfit) {
 		double den = 0.0;
-		double sump = 0.0;
+		double nom = 0.0;
 		for(int i = 0; i < t; i++) {
+			double w = windowfunc((i + origin) * wk);
+			w *= w;
 			int j = (t0a + i) % n;
-			std::complex<double> z = wavein[i];
-			sump += std::norm(z);
-			den += std::real(std::conj(z) * m_ifft[j]);
+			std::complex<double> z = m_ifft[j];
+			den += std::norm(z) * w;
+			nom += std::real(std::conj(wavein[i]) * z) * w;
 		}
-		dcoeff = sump / den;
+		dcoeff = nom / den;
 		coeff *= dcoeff;
 	}
 	std::vector<std::complex<double> > zfin(n, 0.0), zfout(n);
 	double sigma2 = 0.0;
+	double sumw = 0.0;
 	for(int i = 0; i < t; i++) {
+		double w = windowfunc((i + origin) * wk);
+		w *= w;
+		sumw += w;
 		int j = (t0a + i) % n;
 		std::complex<double> z = dcoeff * m_ifft[j] - wavein[i];
-		zfin[j] = z;
-		sigma2 += std::norm(z);
+		zfin[j] = z * w;
+		sigma2 += std::norm(z) * w;
 	}
 	m_fftN->exec(zfin, zfout);
+	double sor = 1.0 / sumw;
+	double wdiag = dcoeff * sor * sumw;
 	for(int i = 0; i < n; i++) {
-		std::complex<double> z = - (zfout[i] - waveout[i]);
+		std::complex<double> z = - (zfout[i] - waveout[i] * wdiag);
 		waveout[i] = coeff * z * sqrt(psd[i] / std::norm(z));
 	}
 	return sigma2;
 }
 
 double
-FFTSolver::windowLength(int t, int t0, double windowlength) {
+SpectrumSolver::windowLength(int t, int t0, double windowlength) {
 	return 2.0 * (std::max(-t0, (int)t + t0) * windowlength);
 }
 bool

@@ -20,7 +20,7 @@
 bool
 FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 		std::vector<std::complex<double> >& memout,
-		int t0, double tol, FFT::twindowfunc /*windowfunc*/, double windowlength) {
+		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength) {
 	int t = memin.size();
 	int n = memout.size();
 	
@@ -111,7 +111,7 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 		psd[i] *= normalize;
 	}
 	//Least-Square Phase Estimation.
-	double coeff = lspe(memin, t0, psd, memout, tol, true);	
+	double coeff = lspe(memin, t0, psd, memout, tol, true, windowfunc);	
 	normalize *= coeff * coeff;
 	
 	for(int i = 1; i < n; i++) {
