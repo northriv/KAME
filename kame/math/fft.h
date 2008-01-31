@@ -66,6 +66,7 @@ private:
 	fftw_complex *m_pBufin, *m_pBufout;
 };
 
+//! Read Data FFT(DFT).
 class RFFT : public FFTBase {
 public:
 	//! Create real data FFT plan.
@@ -80,6 +81,7 @@ private:
 	fftw_complex *m_pBufout;
 };
 
+//! Read Data IFFT(IDFT).
 class RIFFT : public FFTBase {
 public:
 	//! Create real data IFFT plan.
