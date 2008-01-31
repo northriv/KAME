@@ -20,19 +20,15 @@
 #include <complex>
 
 #include <fftw3.h>
+
 //! Wrapper class for FFTW.
-class FFT {
+class FFTBase {
 public:
-	//! Create FFT plan.
-	//! \arg sign -1:FFT, 1:IFFT.
-	//! \arg length FFT length.
-	FFT(int sign, int length);
-	~FFT();
+	FFTBase(int length);
+	virtual ~FFTBase();
 	//! Expand to appropriate length for better O(n log n) computation.
 	static int fitLength(int length); 
 	int length() const {return m_fftlen;}
-	void exec(const std::vector<std::complex<double> >& wavein,
-		std::vector<std::complex<double> >& waveout);
 
 	//for Window Func.
 	typedef double (*twindowfunc)(double x);
@@ -50,10 +46,51 @@ public:
 	static double windowFuncFlatTopLong(double x);
 	static double windowFuncFlatTopLongLong(double x);
 	static double windowFuncHalfSin(double x);
-private:
+protected:
 	int m_fftlen;
 	shared_ptr<fftw_plan> m_fftplan;
+};
+
+//! Wrapper class for FFTW.
+class FFT : public FFTBase {
+public:
+	//! Create FFT plan.
+	//! \arg sign -1:FFT, 1:IFFT.
+	//! \arg length FFT length.
+	FFT(int sign, int length);
+	virtual ~FFT();
+
+	void exec(const std::vector<std::complex<double> >& wavein,
+		std::vector<std::complex<double> >& waveout);
+private:
 	fftw_complex *m_pBufin, *m_pBufout;
 };
 
+class RFFT : public FFTBase {
+public:
+	//! Create real data FFT plan.
+	//! \arg length FFT length.
+	RFFT(int length);
+	virtual ~RFFT();
+
+	void exec(const std::vector<double>& wavein,
+		std::vector<std::complex<double> >& waveout);
+private:
+	double *m_pBufin;
+	fftw_complex *m_pBufout;
+};
+
+class RIFFT : public FFTBase {
+public:
+	//! Create real data IFFT plan.
+	//! \arg length FFT length.
+	RIFFT(int length);
+	virtual ~RIFFT();
+
+	void exec(const std::vector<std::complex<double> >& wavein,
+		std::vector<double>& waveout);
+private:
+	double *m_pBufout;
+	fftw_complex *m_pBufin;
+};
 #endif
