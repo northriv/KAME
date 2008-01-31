@@ -47,9 +47,16 @@ SpectrumSolver::genIFFT(const std::vector<std::complex<double> >& wavein) {
 		pifft++;
 	}	
 }
-void searchPeaks(const std::vector<std::complex<double> >& ftwave,
-	const std::vector<std::complex<double> >& iftwave, bool recalcpow);
 
+void
+SpectrumSolver::window(int t, int t0, FFT::twindowfunc windowfunc,
+	double windowlength, std::vector<double> &window) {
+	double wk = 1.0 / windowLength(t, t0, windowlength);
+	window.resize(t);
+	for(int i = 0; i < t; i++) {
+		window[i] = windowfunc((i + t0) * wk);
+	}
+}
 
 bool
 SpectrumSolver::exec(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
@@ -105,14 +112,22 @@ SpectrumSolver::lspe(const std::vector<std::complex<double> >& wavein, int origi
 	}
 	m_fftN->exec(wavezf, waveout);
 	
+	// Initial values.
 	for(int i = 0; i < n; i++) {
 		std::complex<double> z = waveout[i];
 		waveout[i] = z * sqrt(psd[i] / std::norm(z));
 	}
 	genIFFT(waveout);
+	
+	std::vector<double> weight;
+	window(t, origin, windowfunc, 1.0, weight);
+	for(int i = 0; i < t; i++) {
+		weight[i] = weight[i] * weight[i];
+	}
+	
 	double sigma20 = 0.0, sigma2 = 0.0, coeff = 1.0;
 	for(int it = 0; it < 20; it++) {
-		double ns2 = stepLSPE(wavein, origin, psd, waveout, powfit, coeff, windowfunc);
+		double ns2 = stepLSPE(wavein, origin, psd, waveout, powfit, coeff, weight);
 		if(it == 0)
 			sigma20 = ns2;
 		dbgPrint(formatString("LSPE: err=%g, coeff=%g, it=%u\n", ns2, coeff, it));
@@ -127,20 +142,18 @@ SpectrumSolver::lspe(const std::vector<std::complex<double> >& wavein, int origi
 double
 SpectrumSolver::stepLSPE(const std::vector<std::complex<double> >& wavein, int origin,
 	const std::vector<double>& psd, std::vector<std::complex<double> >& waveout,
-	bool powfit, double &coeff, FFT::twindowfunc windowfunc) {
+	bool powfit, double &coeff, const std::vector<double> &weight) {
 	int t = wavein.size();
 	int n = waveout.size();
 	int t0a = origin;
 	if(t0a < 0)
 		t0a += (-t0a / n + 1) * n;
-	double wk = 1.0 / windowLength(t, origin, 1.0);
 	double dcoeff = 1.0;
 	if(powfit) {
 		double den = 0.0;
 		double nom = 0.0;
 		for(int i = 0; i < t; i++) {
-			double w = windowfunc((i + origin) * wk);
-			w *= w;
+			double w = weight[i];
 			int j = (t0a + i) % n;
 			std::complex<double> z = m_ifft[j];
 			den += std::norm(z) * w;
@@ -153,8 +166,7 @@ SpectrumSolver::stepLSPE(const std::vector<std::complex<double> >& wavein, int o
 	double sigma2 = 0.0;
 	double sumw = 0.0;
 	for(int i = 0; i < t; i++) {
-		double w = windowfunc((i + origin) * wk);
-		w *= w;
+		double w = weight[i];
 		sumw += w;
 		int j = (t0a + i) % n;
 		std::complex<double> z = dcoeff * m_ifft[j] - wavein[i];
@@ -184,13 +196,13 @@ FFTSolver::genSpectrum(const std::vector<std::complex<double> >& fftin, std::vec
 	if(t0a < 0)
 		t0a += (-t0a / n + 1) * n;
 
-	double wk = 1.0 / windowLength(t, t0, windowlength);
+	std::vector<double> weight;
+	window(t, t0, windowfunc, windowlength, weight);
 	std::fill(m_ifft.begin(), m_ifft.end(), 0.0);
 	std::vector<std::complex<double> > zffftin(n, 0.0), fftout2(n);
 	for(int i = 0; i < t; i++) {
-		double w = windowfunc((i + t0) * wk);
 		int j = (t0a + i) % n;
-		m_ifft[j] = fftin[i] * w;
+		m_ifft[j] = fftin[i] * weight[i];
 		zffftin[j] = m_ifft[j] * (double)(t0 + i) * std::complex<double>(0, -1);
 	}
 	m_fftN->exec(m_ifft, fftout);

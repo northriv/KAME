@@ -57,7 +57,10 @@ protected:
 		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength) = 0;
 	std::vector<std::complex<double> > m_ifft;
 	std::vector<std::pair<double, double> > m_peaks;
-
+	
+	void window(int t, int t0, FFT::twindowfunc windowfunc,
+		double windowlength, std::vector<double> &window);
+	
 	void genIFFT(const std::vector<std::complex<double> >& wavein);
 	//! Least-square phase estimation.
 	//! \return coeff.
@@ -67,7 +70,7 @@ protected:
 	//! \return err.
 	double stepLSPE(const std::vector<std::complex<double> >& wavein, int origin,
 		const std::vector<double>& psd, std::vector<std::complex<double> >& waveout,
-		bool powfit, double &coeff, FFT::twindowfunc windowfunc);
+		bool powfit, double &coeff, const std::vector<double> &weight);
 
 	shared_ptr<FFT> m_fftN, m_ifftN;
 	int fftlen() const {return m_ifftN->length();}
