@@ -14,7 +14,6 @@
 #include "graphpainter.h"
 #include "measure.h"
 #include "graphwidget.h"
-#include <klocale.h>
 
 #define SELECT_WIDTH 0.08
 #define SELECT_DEPTH 0.05

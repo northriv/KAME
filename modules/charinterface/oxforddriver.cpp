@@ -12,7 +12,6 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "oxforddriver.h"
-#include <klocale.h>
 
 XOxfordInterface::XOxfordInterface
 (const char *name, bool runtime, const shared_ptr<XDriver> &driver)

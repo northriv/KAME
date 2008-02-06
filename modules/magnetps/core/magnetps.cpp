@@ -19,7 +19,6 @@
 #include <qstatusbar.h>
 #include <qcheckbox.h>
 #include <qpushbutton.h>
-#include <klocale.h>
 
 XMagnetPS::XMagnetPS(const char *name, bool runtime, 
 					 const shared_ptr<XScalarEntryList> &scalarentries,

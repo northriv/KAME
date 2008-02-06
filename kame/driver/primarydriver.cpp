@@ -12,7 +12,6 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "primarydriver.h"
-#include <klocale.h>
 
 XThreadLocal<std::vector<char> > XPrimaryDriver::s_tlRawData;
 XThreadLocal<XPrimaryDriver::RawData_it> XPrimaryDriver::s_tl_pop_it;

@@ -21,7 +21,6 @@
 #include "gpib.h"
 #include "serial.h"
 #include "dummyport.h"
-#include "klocale.h"
 
 //---------------------------------------------------------------------------
 #define SNPRINT_BUF_SIZE 128

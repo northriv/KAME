@@ -24,7 +24,6 @@
 #include <qlabel.h>
 #include <kiconloader.h>
 #include <kapplication.h>
-#include <klocale.h>
 
 XDriverListConnector::XDriverListConnector
 (const shared_ptr<XDriverList> &node, FrmDriver *item)

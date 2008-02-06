@@ -14,7 +14,6 @@
 #include "userfuncsynth.h"
 #include "charinterface.h"
 #include "analyzer.h"
-#include <klocale.h>
 
 REGISTER_TYPE(XDriverList, WAVEFACTORY, "NF WAVE-FACTORY pulse generator");
 

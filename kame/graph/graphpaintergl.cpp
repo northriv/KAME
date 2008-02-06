@@ -26,7 +26,6 @@ using std::max;
 #include <kapplication.h>
 #include <kconfig.h>
 #include <kconfigbase.h>
-#include <klocale.h>
 #include <locale.h>
 #include <errno.h>
 
@@ -186,11 +185,7 @@ XQGraphPainter::string2wstring(const std::string &str)
     int insize = qstr.length() * sizeof(unsigned short);
 #endif //USE_ICONV_SRC_UCS2
     size_t ret = iconv(s_iconv_cd,
-				   #ifdef __linux__
-					   // Linux iconv needs char** instead of const char**
-					   const_cast<char**>
-				   #endif
-					   (&inbuf), (size_t*)&insize,
+					   const_cast<char**>(&inbuf), (size_t*)&insize,
 					   &outp, (size_t*)&outsize);
 	if(ret == (size_t)(-1)) {
 		XKameError::print(

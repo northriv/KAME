@@ -18,7 +18,6 @@
 #include <string.h>
 
 #include "support.h"
-#include <klocale.h>
 
 #ifdef GPIB_WIN32_NI
 #include "Decl-32.h"

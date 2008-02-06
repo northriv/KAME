@@ -18,7 +18,6 @@
 #include <qimage.h>
 #include "graphpainter.h"
 #include <qlayout.h>
-#include <klocale.h>
 #include "measure.h"
 #include "graphdialogconnector.h"
 #include "graphdialog.h"

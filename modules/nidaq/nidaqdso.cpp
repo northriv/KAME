@@ -25,7 +25,6 @@
 #include <qmessagebox.h>
 #include <kmessagebox.h>
 #include "xwavengraph.h"
-#include <klocale.h>
 
 REGISTER_TYPE(XDriverList, NIDAQmxDSO, "National Instruments DAQ as DSO");
 

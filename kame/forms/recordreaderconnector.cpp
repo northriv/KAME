@@ -18,7 +18,6 @@
 #include <qpushbutton.h>
 #include <kiconloader.h>
 #include <kapplication.h>
-#include <klocale.h>
 
 XRawStreamRecordReaderConnector::XRawStreamRecordReaderConnector(
     const shared_ptr<XRawStreamRecordReader> &reader, FrmRecordReader *form) :

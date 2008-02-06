@@ -17,7 +17,6 @@
 #include "xnodeconnector.h"
 #include <string>
 #include "driver.h"
-#include "klocale.h"
 
 //---------------------------------------------------------------------------
 

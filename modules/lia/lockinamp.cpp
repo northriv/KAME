@@ -20,7 +20,6 @@
 #include <qstatusbar.h>
 #include <qpushbutton.h>
 #include <qcheckbox.h>
-#include <klocale.h>
 
 XLIA::XLIA(const char *name, bool runtime, 
 		   const shared_ptr<XScalarEntryList> &scalarentries,

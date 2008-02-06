@@ -131,30 +131,8 @@ protected:
 	QTextBrowser *const m_pItem;
 };
 
-class KIntNumInput;
-
-class XKIntNumInputConnector : public XValueQConnector
-{
-	Q_OBJECT
-	XQCON_OBJECT
-protected:
-	XKIntNumInputConnector(const shared_ptr<XIntNode> &node,
-		KIntNumInput *item);
-	XKIntNumInputConnector(const shared_ptr<XUIntNode> &node,
-		KIntNumInput *item);
-public:
-	virtual ~XKIntNumInputConnector() {}
-protected slots:
-void onChange(int val);
-protected:
-	virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
-	virtual void onValueChanged(const shared_ptr<XValueNodeBase> &node);
-	const shared_ptr<XIntNode> m_iNode;
-	const shared_ptr<XUIntNode> m_uINode;
-	KIntNumInput *const m_pItem;
-};
-
 class QSpinBox;
+class QSlider;
 
 class XQSpinBoxConnector : public XValueQConnector
 {
@@ -162,9 +140,9 @@ class XQSpinBoxConnector : public XValueQConnector
 	XQCON_OBJECT
 protected:
 	XQSpinBoxConnector(const shared_ptr<XIntNode> &node,
-		QSpinBox *item);
+		QSpinBox *item, QSlider *slider = 0L);
 	XQSpinBoxConnector(const shared_ptr<XUIntNode> &node,
-		QSpinBox *item);
+		QSpinBox *item, QSlider *slider = 0L);
 public:
 	virtual ~XQSpinBoxConnector() {}
 protected slots:
@@ -175,6 +153,7 @@ protected:
 	const shared_ptr<XIntNode> m_iNode;
 	const shared_ptr<XUIntNode> m_uINode;
 	QSpinBox *const m_pItem;
+	QSpinBox *const m_pSlider;
 };
 
 class KDoubleNumInput;

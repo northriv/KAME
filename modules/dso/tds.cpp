@@ -14,7 +14,6 @@
 #include "tds.h"
 #include "charinterface.h"
 #include "xwavengraph.h"
-#include <klocale.h>
 
 REGISTER_TYPE(XDriverList, TDS, "Tektronix DSO");
 

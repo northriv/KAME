@@ -20,7 +20,6 @@
 #include "interface.h"
 #include "analyzer.h"
 #include "xnodeconnector.h"
-#include <klocale.h>
 #include <kapplication.h>
 
 XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,

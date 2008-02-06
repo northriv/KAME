@@ -19,7 +19,6 @@
 #include <graphwidget.h>
 #include <xwavengraph.h>
 
-#include <klocale.h>
 #include <qpushbutton.h>
 #include <qcombobox.h>
 #include <qcheckbox.h>

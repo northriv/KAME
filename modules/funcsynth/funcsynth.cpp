@@ -19,7 +19,6 @@
 #include <qpushbutton.h>
 #include <qstatusbar.h>
 #include <qcheckbox.h>
-#include <klocale.h>
 
 XFuncSynth::XFuncSynth(const char *name, bool runtime, 
 					   const shared_ptr<XScalarEntryList> &scalarentries,

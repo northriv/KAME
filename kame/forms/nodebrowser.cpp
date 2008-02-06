@@ -20,7 +20,6 @@
 #include <qtimer.h>
 #include <qtextbrowser.h>
 #include <kapp.h>
-#include <klocale.h>
 
 XNodeBrowser::XNodeBrowser
 (const shared_ptr<XNode> &root, FrmNodeBrowser *form)

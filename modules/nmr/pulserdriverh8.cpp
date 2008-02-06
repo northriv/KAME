@@ -13,7 +13,6 @@
 ***************************************************************************/
 #include "pulserdriverh8.h"
 #include <charinterface.h>
-#include <klocale.h>
 
 REGISTER_TYPE(XDriverList, H8Pulser, "NMR pulser handmade-H8");
 

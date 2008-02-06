@@ -28,7 +28,6 @@ bool g_bUseMLock;
 static std::ofstream g_debugofs(KAME_LOG_FILENAME, std::ios::out);
 static XMutex g_debug_mutex;
 
-#include <klocale.h>
 #include "support.h"
 #include "xtime.h"
 #include "measure.h"
@@ -299,20 +298,6 @@ std::string dumpCString(const char *cstr)
 		}
 	}
 	return buf;
-}
-
-#include <qdeepcopy.h>
-
-namespace KAME {
-	static XMutex i18n_mutex;
-
-//! thread-safe version of i18n().
-//! this is not needed in QT4 or later.
-	QString i18n(const char* eng)
-	{
-		XScopedLock<XMutex> lock(i18n_mutex);
-		return QDeepCopy<QString>(::i18n(eng));
-	}
 }
 
 #if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__

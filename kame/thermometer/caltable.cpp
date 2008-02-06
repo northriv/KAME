@@ -16,7 +16,6 @@
 #include "measure.h"
 #include <qpushbutton.h>
 #include <fstream>
-#include <klocale.h>
 #include "graph.h"
 #include "graphwidget.h"
 #include "graphnurlform.h"

@@ -34,7 +34,6 @@
 #include <qtoolbar.h>
 #include <qimage.h>
 #include <kiconloader.h>
-#include <klocale.h>
 #include <kapplication.h>
 #include <kstandarddirs.h>
 
@@ -56,6 +55,20 @@
 #include "drivertool.h"
 #include "scalarentrytool.h"
 #include "icon.h"
+
+#include <qdeepcopy.h>
+
+namespace KAME {
+	static XMutex i18n_mutex;
+
+//! thread-safe version of i18n().
+//! this is not needed in QT4 or later.
+	QString i18n(const char* eng)
+	{
+		XScopedLock<XMutex> lock(i18n_mutex);
+		return QDeepCopy<QString>(qApp->translate("KAME", eng, ""));
+	}
+}
 
 QWidget *g_pFrmMain = 0L;
 

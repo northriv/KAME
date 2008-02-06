@@ -12,7 +12,6 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "xitemnode.h"
-#include <klocale.h>
 
 XItemNodeBase::XItemNodeBase(const char *name, bool runtime, bool auto_set_any) : 
     XValueNodeBase(name, runtime)

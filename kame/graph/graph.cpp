@@ -16,7 +16,6 @@
 
 #include "graphpainter.h"
 #include <qgl.h>
-#include <klocale.h>
 
 using std::min;
 using std::max;

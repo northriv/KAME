@@ -25,7 +25,6 @@
 #include <qstatusbar.h>
 #include <kapplication.h>
 #include <kiconloader.h>
-#include <klocale.h>
 
 #include <gsl/gsl_sf.h>
 #define bessel_i0 gsl_sf_bessel_I0

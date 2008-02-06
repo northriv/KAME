@@ -12,7 +12,6 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "serial.h"
-#include <klocale.h>
 
 #if defined WINDOWS || defined __WIN32__
 #include <windows.h>

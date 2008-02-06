@@ -15,7 +15,6 @@
 #include "nmrrelaxfit.h"
 #include "rand.h"
 
-#include <klocale.h>
 
 #include <gsl/gsl_multifit_nlin.h>
 

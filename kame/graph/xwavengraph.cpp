@@ -22,7 +22,6 @@
 #include <kiconloader.h>
 #include <kapplication.h>
 #include <qstatusbar.h>
-#include <klocale.h>
 
 #define OFSMODE std::ios::out | std::ios::app | std::ios::ate
 

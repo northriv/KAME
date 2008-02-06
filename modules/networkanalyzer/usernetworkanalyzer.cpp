@@ -14,7 +14,6 @@
 #include "usernetworkanalyzer.h"
 #include "charinterface.h"
 #include "xwavengraph.h"
-#include <klocale.h>
 
 REGISTER_TYPE(XDriverList, HP8711, "HP/Agilent 8711/8712/8713/8714 Network Analyzer");
 REGISTER_TYPE(XDriverList, AgilentE5061, "Agilent E5061/E5062 Network Analyzer");

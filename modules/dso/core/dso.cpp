@@ -25,7 +25,6 @@
 #include "analyzer.h"
 #include "xnodeconnector.h"
 #include <qstatusbar.h>
-#include <klocale.h>
 #include <kiconloader.h>
 #include <kapplication.h>
 

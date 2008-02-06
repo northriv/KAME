@@ -15,7 +15,6 @@
 #include "pulserdriver.h"
 #include "analyzer.h"
 #include <qtable.h>
-#include <klocale.h>
 #include "graph.h"
 #include "graphwidget.h"
 

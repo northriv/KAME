@@ -20,7 +20,6 @@
 #include <qtabwidget.h>
 #include <qimage.h>
 #include <qlayout.h>
-#include <klocale.h>
 #include <knuminput.h>
 #include <qcheckbox.h>
 

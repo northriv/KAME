@@ -12,7 +12,6 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "xnode.h"
-#include <klocale.h>
 #include <typeinfo>
 
 XThreadLocal<std::deque<shared_ptr<XNode> > > XNode::stl_thisCreating;

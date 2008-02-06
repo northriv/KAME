@@ -19,7 +19,6 @@
 
 #include <zlib.h>
 #include <vector>
-#include <klocale.h>
 
 #define IFSMODE std::ios::in
 #define SPEED_FASTEST "Fastest"

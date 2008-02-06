@@ -12,7 +12,6 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "secondarydriver.h"
-#include <klocale.h>
 
 static XThreadLocal<std::vector<std::pair<shared_ptr<const XDriver>, XSecondaryDriver* > > > stl_locked_connections;
 

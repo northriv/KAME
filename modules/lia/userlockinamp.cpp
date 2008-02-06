@@ -12,7 +12,6 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "userlockinamp.h"
-#include <klocale.h>
 #include "charinterface.h"
 
 REGISTER_TYPE(XDriverList, SR830, "Stanford Research SR830 lock-in amp.");

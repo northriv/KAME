@@ -19,7 +19,6 @@ static const unsigned int PAUSING_BLANK_BEFORE = 1;
 static const unsigned int PAUSING_BLANK_AFTER = 1;
 
 #include "interface.h"
-#include <klocale.h>
 
 static const TaskHandle TASK_UNDEF = ((TaskHandle)-1);
 static const double RESOLUTION_UNDEF = 1e-5;

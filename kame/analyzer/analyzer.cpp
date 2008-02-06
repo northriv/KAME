@@ -19,7 +19,6 @@
 #include "driver.h"
 #include "measure.h"
 
-#include <klocale.h>
 #include <qstatusbar.h>
 
 //---------------------------------------------------------------------------

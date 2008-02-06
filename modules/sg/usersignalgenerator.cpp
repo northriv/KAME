@@ -11,8 +11,6 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-#include <klocale.h>
-
 #include "analyzer.h"
 #include "charinterface.h"
 #include "usersignalgenerator.h"

@@ -22,7 +22,6 @@
 #include <qspinbox.h>
 #include <kiconloader.h>
 #include <kapplication.h>
-#include <klocale.h>
 
 XInterfaceListConnector::XInterfaceListConnector(
     const shared_ptr<XInterfaceList> &node, QTable *item)

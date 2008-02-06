@@ -27,6 +27,7 @@
 #include <kled.h>
 #include <knuminput.h>
 #include <qspinbox.h>
+#include <qslider.h>
 #include <qlcdnumber.h>
 #include <qtextbrowser.h>
 #include <qtooltip.h>
@@ -34,7 +35,6 @@
 #include <kpassivepopup.h>
 #include <qmainwindow.h>
 #include <kfiledialog.h>
-#include <klocale.h>
 #include <map>
 #include "measure.h"
 
@@ -216,7 +216,7 @@ XQLineEditConnector::onExit() {
 	    m_pItem->setText(m_node->to_str());
 	    m_pItem->blockSignals(false);
 		shared_ptr<XStatusPrinter> statusprinter = g_statusPrinter;
-		if(statusprinter) statusprinter->printMessage(i18n("Input cancelled."));
+		if(statusprinter) statusprinter->printMessage(KAME::i18n("Input cancelled."));
 	}
 }
 void
@@ -226,22 +226,31 @@ XQLineEditConnector::onValueChanged(const shared_ptr<XValueNodeBase> &node) {
 	m_pItem->blockSignals(false);
 }
   
-XQSpinBoxConnector::XQSpinBoxConnector(const shared_ptr<XIntNode> &node, QSpinBox *item)
+XQSpinBoxConnector::XQSpinBoxConnector(const shared_ptr<XIntNode> &node,
+	QSpinBox *item, QSlider *slider)
 	: XValueQConnector(node, item),
 	  m_iNode(node),
 	  m_uINode(),
-	  m_pItem(item)
+	  m_pItem(item),
+	  m_pSlider(slider)
 {
     connect(item, SIGNAL( valueChanged(int) ), this, SLOT( onChange(int) ) );
     onValueChanged(node);
 }
-XQSpinBoxConnector::XQSpinBoxConnector(const shared_ptr<XUIntNode> &node, QSpinBox *item)
+XQSpinBoxConnector::XQSpinBoxConnector(const shared_ptr<XUIntNode> &node,
+	QSpinBox *item, QSlider *slider)
 	: XValueQConnector(node, item),
 	  m_iNode(),
 	  m_uINode(node),
-	  m_pItem(item)
+	  m_pItem(item),
+	  m_pSlider(slider)
 {
     connect(item, SIGNAL( valueChanged(int) ), this, SLOT( onChange(int) ) );
+    if(slider) {
+        connect(slider, SIGNAL( valueChanged(int) ), this, SLOT( onChange(int) ) );
+        slider->setRange(item->min(), item->max());
+        slider->setSingleStep(item->singleStep());
+    }
     onValueChanged(node);
 }
 void
@@ -260,42 +269,11 @@ XQSpinBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &node) {
 	m_pItem->blockSignals(true);
 	m_pItem->setValue(QString(node->to_str()).toInt());
 	m_pItem->blockSignals(false);
-}
-    
-XKIntNumInputConnector::XKIntNumInputConnector(const shared_ptr<XIntNode> &node, KIntNumInput *item)
-	: XValueQConnector(node, item),
-	  m_iNode(node),
-	  m_uINode(),
-	  m_pItem(item)
-{
-    connect(item, SIGNAL( valueChanged(int) ), this, SLOT( onChange(int) ) );
-    onValueChanged(node);
-}
-XKIntNumInputConnector::XKIntNumInputConnector(const shared_ptr<XUIntNode> &node, KIntNumInput *item)
-	: XValueQConnector(node, item),
-	  m_iNode(),
-	  m_uINode(node),
-	  m_pItem(item)
-{
-    connect(item, SIGNAL( valueChanged(int) ), this, SLOT( onChange(int) ) );
-    onValueChanged(node);
-}
-void
-XKIntNumInputConnector::onChange(int val) {
-    m_lsnValueChanged->mask();
-    if(m_iNode) {
-		m_iNode->value(val);
-    }
-    if(m_uINode) {
-		m_uINode->value(val);
-    }
-    m_lsnValueChanged->unmask();
-}
-void
-XKIntNumInputConnector::onValueChanged(const shared_ptr<XValueNodeBase> &node) {
-	m_pItem->blockSignals(true);
-	m_pItem->setValue(QString(node->to_str()).toInt());
-	m_pItem->blockSignals(false);
+	if(m_pSlider) {
+		m_pSlider->blockSignals(true);
+		m_pSlider->setValue(QString(node->to_str()).toInt());
+		m_pSlider->blockSignals(false);
+	}
 }
 
 XKDoubleNumInputConnector::XKDoubleNumInputConnector(const shared_ptr<XDoubleNode> &node, KDoubleNumInput *item)
@@ -329,7 +307,7 @@ XKDoubleSpinBoxConnector::XKDoubleSpinBoxConnector(const shared_ptr<XDoubleNode>
     onValueChanged(node);
 }
 void
-XKDoubleSpinBoxConnector::onChange(double val) {
+XQDoubleSpinBoxConnector::onChange(double val) {
     m_lsnValueChanged->mask();
 	m_node->value(val);
     m_lsnValueChanged->unmask();

@@ -14,7 +14,6 @@
 #include "levelmeter.h"
 #include "interface.h"
 #include "analyzer.h"
-#include <klocale.h>
 
 XLevelMeter::XLevelMeter(const char *name, bool runtime, 
 					 const shared_ptr<XScalarEntryList> &scalarentries,

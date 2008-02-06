@@ -13,7 +13,6 @@
 ***************************************************************************/
 #include "driver.h"
 #include "interface.h"
-#include <klocale.h>
 
 DECLARE_TYPE_HOLDER(XDriverList)
 

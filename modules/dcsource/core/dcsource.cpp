@@ -17,7 +17,6 @@
 #include <qstatusbar.h>
 #include <qpushbutton.h>
 #include <qcheckbox.h>
-#include <klocale.h>
 
 XDCSource::XDCSource(const char *name, bool runtime, 
    const shared_ptr<XScalarEntryList> &scalarentries,

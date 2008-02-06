@@ -20,7 +20,6 @@
 #include <qpushbutton.h>
 #include <kiconloader.h>
 #include <kapplication.h>
-#include <klocale.h>
 
 #include "recorder.h"
 #include "analyzer.h"

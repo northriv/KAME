@@ -25,7 +25,6 @@
 #include <xnodeconnector.h>
 
 #include <knuminput.h>
-#include <klocale.h>
 #include <qpushbutton.h>
 #include <qcheckbox.h>
 #include <kapplication.h>

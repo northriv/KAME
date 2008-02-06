@@ -14,7 +14,6 @@
 #include "pulserdrivernidaq.h"
 
 #include "interface.h"
-#include <klocale.h>
 
 REGISTER_TYPE(XDriverList, NIDAQAODOPulser, "NMR pulser NI-DAQ analog/digital output");
 REGISTER_TYPE(XDriverList, NIDAQDOPulser, "NMR pulser NI-DAQ digital output only");

@@ -17,7 +17,6 @@
 #include <analyzer.h>
 #include <xnodeconnector.h>
 #include <qstatusbar.h>
-#include <klocale.h>
 
 XTempControl::XChannel::XChannel(const char *name, bool runtime,
     const shared_ptr<XThermometerList> &list)

@@ -19,7 +19,6 @@
 #include <qpushbutton.h>
 #include <qcheckbox.h>
 #include <knuminput.h>
-#include <klocale.h>
 
 //---------------------------------------------------------------------------
 
