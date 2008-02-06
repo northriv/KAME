@@ -1,2 +1,3 @@
 base referer
-rect $struct_x_driver_list_connector_1_1tcons.html 8,8 200,34
+rect $class_x_char_device_driver.html 121,8 433,34
+rect $class_x_oxford_driver.html 484,8 654,34

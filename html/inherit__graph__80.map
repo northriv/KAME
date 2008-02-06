@@ -1,2 +1,2 @@
 base referer
-rect $struct_x_scoped_write_lock.html 8,8 218,34
+rect $struct_x_scoped_read_lock.html 9,8 219,34

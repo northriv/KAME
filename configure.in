@@ -125,6 +125,16 @@ AC_CHECK_LIB(gpib, main,
 	  AC_MSG_WARN([linux-gpib is not installed - gpib is disabled]), -lgpib)
 LINUXGPIB_LIBS="$gpib_libs"
 
+ac_save_LIBS="$LIBS"
+AC_CHECK_LIB(lapack, main, 
+lapack_libs="-L/usr/lib/atlas -llapack -lf77blas -lcblas -lgfortran"
+lapack_cflags=""
+AC_DEFINE([HAVE_LAPACK], 1, [Define if you have 'LAPACK' library]),
+AC_MSG_ERROR([LAPACK w/ ATLAS is not installed]), -L/usr/lib/atlas -llapack -lf77blas -lcblas -lgfortran)
+LAPACK_LIBS="$lapack_libs"
+LAPACK_CFLAGS="$lapack_cflags"
+LIBS="$ac_save_LIBS"
+
 AC_ARG_WITH(gc, 
 [  --with-gc		use garbage collector],
 if test "$with_gc" = "yes"; then
@@ -165,6 +175,8 @@ AC_SUBST(FFTW_LIBS)
 AC_SUBST(NIDAQMX_LIBS)
 AC_SUBST(NIDAQMX_CFLAGS)
 AC_SUBST(LINUXGPIB_LIBS)
+AC_SUBST(LAPACK_LIBS)
+AC_SUBST(LAPACK_CFLAGS)
 AC_SUBST(RUBY_LIBS)
 AC_SUBST(RUBY_CFLAGS)
 AC_SUBST(FREETYPE2_LIBS)
@@ -172,7 +184,7 @@ AC_SUBST(FREETYPE2_CFLAGS)
 AC_SUBST(GC_LIBS)
 AC_SUBST(MALLOC_DEBUG_LIBS)
 
-CPPFLAGS="$CPPFLAGS $RUBY_CFLAGS $FREETYPE2_CFLAGS $NIDAQMX_CFLAGS"
+CPPFLAGS="$CPPFLAGS $RUBY_CFLAGS $FREETYPE2_CFLAGS $NIDAQMX_CFLAGS $LAPACK_CFLAGS"
 KDE_CREATE_SUBDIRSLIST
 AC_CONFIG_FILES([ Makefile ])
 AC_CONFIG_FILES([ doc/Makefile ])

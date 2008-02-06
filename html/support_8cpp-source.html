@@ -322,52 +322,49 @@
 <a name="l00304"></a>00304 <span class="preprocessor">#include &lt;qdeepcopy.h&gt;</span>
 <a name="l00305"></a>00305 
 <a name="l00306"></a><a class="code" href="namespace_k_a_m_e.html">00306</a> <span class="keyword">namespace </span>KAME {
-<a name="l00307"></a><a class="code" href="namespace_k_a_m_e.html#359af647f882ad0291f0f322b22faafb">00307</a>         <span class="keyword">static</span> <a class="code" href="class_x_thread_local.html">XThreadLocal&lt;unsigned int&gt;</a> <a class="code" href="namespace_k_a_m_e.html#359af647f882ad0291f0f322b22faafb">stl_random_seed</a>;
-<a name="l00308"></a><a class="code" href="namespace_k_a_m_e.html#7697561325e68d5e246a7883222bbffc">00308</a>         <span class="keyword">static</span> <a class="code" href="class_x_pthread_mutex.html">XMutex</a> <a class="code" href="namespace_k_a_m_e.html#7697561325e68d5e246a7883222bbffc">i18n_mutex</a>;
-<a name="l00309"></a><a class="code" href="namespace_k_a_m_e.html#b72beb0913da4976d289f6374ebeff8d">00309</a>         <span class="keywordtype">unsigned</span> <span class="keywordtype">int</span> <a class="code" href="namespace_k_a_m_e.html#b72beb0913da4976d289f6374ebeff8d">rand</a>() {
-<a name="l00310"></a>00310                 <span class="keywordflow">return</span> rand_r(&amp;(*<a class="code" href="namespace_k_a_m_e.html#359af647f882ad0291f0f322b22faafb">stl_random_seed</a>));
-<a name="l00311"></a>00311         }
-<a name="l00314"></a><a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">00314</a>         QString <a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">i18n</a>(<span class="keyword">const</span> <span class="keywordtype">char</span>* eng)
-<a name="l00315"></a>00315         {
-<a name="l00316"></a>00316                 <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> lock(<a class="code" href="namespace_k_a_m_e.html#7697561325e68d5e246a7883222bbffc">i18n_mutex</a>);
-<a name="l00317"></a>00317                 <span class="keywordflow">return</span> QDeepCopy&lt;QString&gt;(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">::i18n</a>(eng));
-<a name="l00318"></a>00318         }
-<a name="l00319"></a>00319 }
-<a name="l00320"></a>00320 
-<a name="l00321"></a>00321 <span class="preprocessor">#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__</span>
-<a name="l00322"></a><a class="code" href="struct_x86_c_p_u_spec.html#d4a4f97d918e498486f84c60d5084d43">00322</a> <span class="preprocessor"></span><a class="code" href="struct_x86_c_p_u_spec.html#d4a4f97d918e498486f84c60d5084d43">X86CPUSpec::X86CPUSpec</a>() {
-<a name="l00323"></a>00323         uint32_t stepinfo, features_ext, features;
-<a name="l00324"></a>00324         <span class="keyword">asm</span> <span class="keyword">volatile</span>(<span class="stringliteral">"push %%ebx; cpuid; pop %%ebx"</span>
-<a name="l00325"></a>00325         : <span class="stringliteral">"=a"</span> (stepinfo), <span class="stringliteral">"=c"</span> (features_ext), <span class="stringliteral">"=d"</span> (features) : <span class="stringliteral">"a"</span> (0x1));
-<a name="l00326"></a>00326         <a class="code" href="struct_x86_c_p_u_spec.html#3e0878c28cba810fcf8ab12f9acfe2dd">verSSE</a> = (features &amp; (1uL &lt;&lt; 25)) ? 1 : 0;
-<a name="l00327"></a>00327         <span class="keywordflow">if</span>(<a class="code" href="struct_x86_c_p_u_spec.html#3e0878c28cba810fcf8ab12f9acfe2dd">verSSE</a> &amp;&amp; (features &amp; (1uL &lt;&lt; 26)))
-<a name="l00328"></a>00328                 <a class="code" href="struct_x86_c_p_u_spec.html#3e0878c28cba810fcf8ab12f9acfe2dd">verSSE</a> = 2;
-<a name="l00329"></a>00329         <span class="keywordflow">if</span>((<a class="code" href="struct_x86_c_p_u_spec.html#3e0878c28cba810fcf8ab12f9acfe2dd">verSSE</a> == 2) &amp;&amp; (features_ext &amp; (1uL &lt;&lt; 0)))
-<a name="l00330"></a>00330                 <a class="code" href="struct_x86_c_p_u_spec.html#3e0878c28cba810fcf8ab12f9acfe2dd">verSSE</a> = 3;
-<a name="l00331"></a>00331 <span class="preprocessor">#ifdef MACOSX</span>
-<a name="l00332"></a>00332 <span class="preprocessor"></span>        <a class="code" href="struct_x86_c_p_u_spec.html#dd8e18c4ca1f230d9574b51f1a1bcd07">hasMonitor</a> = <span class="keyword">false</span>;
-<a name="l00333"></a>00333 <span class="preprocessor">#else </span>
-<a name="l00334"></a>00334 <span class="preprocessor"></span>        <a class="code" href="struct_x86_c_p_u_spec.html#dd8e18c4ca1f230d9574b51f1a1bcd07">hasMonitor</a> = (<a class="code" href="struct_x86_c_p_u_spec.html#3e0878c28cba810fcf8ab12f9acfe2dd">verSSE</a> == 3) &amp;&amp; (features_ext &amp; (1uL &lt;&lt; 3));
-<a name="l00335"></a>00335 <span class="preprocessor">#endif</span>
-<a name="l00336"></a>00336 <span class="preprocessor"></span>        <a class="code" href="struct_x86_c_p_u_spec.html#b586c7dc4c1e90185062350a822e88fc">monitorSizeSmallest</a> = 0L;
-<a name="l00337"></a>00337         <a class="code" href="struct_x86_c_p_u_spec.html#4446a40843268da10bf555703637ec30">monitorSizeLargest</a> = 0L;
-<a name="l00338"></a>00338         <span class="keywordflow">if</span>(<a class="code" href="struct_x86_c_p_u_spec.html#dd8e18c4ca1f230d9574b51f1a1bcd07">hasMonitor</a>) {
-<a name="l00339"></a>00339                 uint32_t monsize_s, monsize_l;
-<a name="l00340"></a>00340                 <span class="keyword">asm</span> <span class="keyword">volatile</span>(<span class="stringliteral">"push %%ebx; cpuid; mov %%ebx, %%ecx; pop %%ebx"</span>
-<a name="l00341"></a>00341                 : <span class="stringliteral">"=a"</span> (monsize_s), <span class="stringliteral">"=c"</span> (monsize_l) : <span class="stringliteral">"a"</span> (0x5) : <span class="stringliteral">"%edx"</span>);
-<a name="l00342"></a>00342                 <a class="code" href="struct_x86_c_p_u_spec.html#b586c7dc4c1e90185062350a822e88fc">monitorSizeSmallest</a> = monsize_s;
-<a name="l00343"></a>00343                 <a class="code" href="struct_x86_c_p_u_spec.html#4446a40843268da10bf555703637ec30">monitorSizeLargest</a> = monsize_l;
-<a name="l00344"></a>00344         }
-<a name="l00345"></a>00345         fprintf(stderr, <span class="stringliteral">"SSE%u, monitor=%u, mon_smallest=%u, mon_larget=%u\n"</span>
-<a name="l00346"></a>00346                 , <a class="code" href="struct_x86_c_p_u_spec.html#3e0878c28cba810fcf8ab12f9acfe2dd">verSSE</a>, (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)<a class="code" href="struct_x86_c_p_u_spec.html#dd8e18c4ca1f230d9574b51f1a1bcd07">hasMonitor</a>, <a class="code" href="struct_x86_c_p_u_spec.html#b586c7dc4c1e90185062350a822e88fc">monitorSizeSmallest</a>, <a class="code" href="struct_x86_c_p_u_spec.html#4446a40843268da10bf555703637ec30">monitorSizeLargest</a>);
-<a name="l00347"></a>00347 }
-<a name="l00348"></a>00348 <span class="keyword">const</span> <a class="code" href="struct_x86_c_p_u_spec.html">X86CPUSpec</a> cg_cpuSpec;
-<a name="l00349"></a>00349 <span class="preprocessor">#endif</span>
-<a name="l00350"></a>00350 <span class="preprocessor"></span>
-<a name="l00351"></a>00351         
-<a name="l00352"></a>00352         
-<a name="l00353"></a>00353         
-</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してMon Jan 14 03:59:41 2008に生成されました。&nbsp;
+<a name="l00307"></a><a class="code" href="namespace_k_a_m_e.html#7697561325e68d5e246a7883222bbffc">00307</a>         <span class="keyword">static</span> <a class="code" href="class_x_pthread_mutex.html">XMutex</a> <a class="code" href="namespace_k_a_m_e.html#7697561325e68d5e246a7883222bbffc">i18n_mutex</a>;
+<a name="l00308"></a>00308 
+<a name="l00311"></a><a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">00311</a>         QString <a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">i18n</a>(<span class="keyword">const</span> <span class="keywordtype">char</span>* eng)
+<a name="l00312"></a>00312         {
+<a name="l00313"></a>00313                 <a class="code" href="struct_x_scoped_lock.html">XScopedLock&lt;XMutex&gt;</a> lock(<a class="code" href="namespace_k_a_m_e.html#7697561325e68d5e246a7883222bbffc">i18n_mutex</a>);
+<a name="l00314"></a>00314                 <span class="keywordflow">return</span> QDeepCopy&lt;QString&gt;(<a class="code" href="namespace_k_a_m_e.html#2773169baae29cb1a051baaef534fb63">::i18n</a>(eng));
+<a name="l00315"></a>00315         }
+<a name="l00316"></a>00316 }
+<a name="l00317"></a>00317 
+<a name="l00318"></a>00318 <span class="preprocessor">#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__</span>
+<a name="l00319"></a><a class="code" href="struct_x86_c_p_u_spec.html#d4a4f97d918e498486f84c60d5084d43">00319</a> <span class="preprocessor"></span><a class="code" href="struct_x86_c_p_u_spec.html#d4a4f97d918e498486f84c60d5084d43">X86CPUSpec::X86CPUSpec</a>() {
+<a name="l00320"></a>00320         uint32_t stepinfo, features_ext, features;
+<a name="l00321"></a>00321         <span class="keyword">asm</span> <span class="keyword">volatile</span>(<span class="stringliteral">"push %%ebx; cpuid; pop %%ebx"</span>
+<a name="l00322"></a>00322         : <span class="stringliteral">"=a"</span> (stepinfo), <span class="stringliteral">"=c"</span> (features_ext), <span class="stringliteral">"=d"</span> (features) : <span class="stringliteral">"a"</span> (0x1));
+<a name="l00323"></a>00323         <a class="code" href="struct_x86_c_p_u_spec.html#3e0878c28cba810fcf8ab12f9acfe2dd">verSSE</a> = (features &amp; (1uL &lt;&lt; 25)) ? 1 : 0;
+<a name="l00324"></a>00324         <span class="keywordflow">if</span>(<a class="code" href="struct_x86_c_p_u_spec.html#3e0878c28cba810fcf8ab12f9acfe2dd">verSSE</a> &amp;&amp; (features &amp; (1uL &lt;&lt; 26)))
+<a name="l00325"></a>00325                 <a class="code" href="struct_x86_c_p_u_spec.html#3e0878c28cba810fcf8ab12f9acfe2dd">verSSE</a> = 2;
+<a name="l00326"></a>00326         <span class="keywordflow">if</span>((<a class="code" href="struct_x86_c_p_u_spec.html#3e0878c28cba810fcf8ab12f9acfe2dd">verSSE</a> == 2) &amp;&amp; (features_ext &amp; (1uL &lt;&lt; 0)))
+<a name="l00327"></a>00327                 <a class="code" href="struct_x86_c_p_u_spec.html#3e0878c28cba810fcf8ab12f9acfe2dd">verSSE</a> = 3;
+<a name="l00328"></a>00328 <span class="preprocessor">#ifdef MACOSX</span>
+<a name="l00329"></a>00329 <span class="preprocessor"></span>        <a class="code" href="struct_x86_c_p_u_spec.html#dd8e18c4ca1f230d9574b51f1a1bcd07">hasMonitor</a> = <span class="keyword">false</span>;
+<a name="l00330"></a>00330 <span class="preprocessor">#else </span>
+<a name="l00331"></a>00331 <span class="preprocessor"></span>        <a class="code" href="struct_x86_c_p_u_spec.html#dd8e18c4ca1f230d9574b51f1a1bcd07">hasMonitor</a> = (<a class="code" href="struct_x86_c_p_u_spec.html#3e0878c28cba810fcf8ab12f9acfe2dd">verSSE</a> == 3) &amp;&amp; (features_ext &amp; (1uL &lt;&lt; 3));
+<a name="l00332"></a>00332 <span class="preprocessor">#endif</span>
+<a name="l00333"></a>00333 <span class="preprocessor"></span>        <a class="code" href="struct_x86_c_p_u_spec.html#b586c7dc4c1e90185062350a822e88fc">monitorSizeSmallest</a> = 0L;
+<a name="l00334"></a>00334         <a class="code" href="struct_x86_c_p_u_spec.html#4446a40843268da10bf555703637ec30">monitorSizeLargest</a> = 0L;
+<a name="l00335"></a>00335         <span class="keywordflow">if</span>(<a class="code" href="struct_x86_c_p_u_spec.html#dd8e18c4ca1f230d9574b51f1a1bcd07">hasMonitor</a>) {
+<a name="l00336"></a>00336                 uint32_t monsize_s, monsize_l;
+<a name="l00337"></a>00337                 <span class="keyword">asm</span> <span class="keyword">volatile</span>(<span class="stringliteral">"push %%ebx; cpuid; mov %%ebx, %%ecx; pop %%ebx"</span>
+<a name="l00338"></a>00338                 : <span class="stringliteral">"=a"</span> (monsize_s), <span class="stringliteral">"=c"</span> (monsize_l) : <span class="stringliteral">"a"</span> (0x5) : <span class="stringliteral">"%edx"</span>);
+<a name="l00339"></a>00339                 <a class="code" href="struct_x86_c_p_u_spec.html#b586c7dc4c1e90185062350a822e88fc">monitorSizeSmallest</a> = monsize_s;
+<a name="l00340"></a>00340                 <a class="code" href="struct_x86_c_p_u_spec.html#4446a40843268da10bf555703637ec30">monitorSizeLargest</a> = monsize_l;
+<a name="l00341"></a>00341         }
+<a name="l00342"></a>00342         fprintf(stderr, <span class="stringliteral">"SSE%u, monitor=%u, mon_smallest=%u, mon_larget=%u\n"</span>
+<a name="l00343"></a>00343                 , <a class="code" href="struct_x86_c_p_u_spec.html#3e0878c28cba810fcf8ab12f9acfe2dd">verSSE</a>, (<span class="keywordtype">unsigned</span> <span class="keywordtype">int</span>)<a class="code" href="struct_x86_c_p_u_spec.html#dd8e18c4ca1f230d9574b51f1a1bcd07">hasMonitor</a>, <a class="code" href="struct_x86_c_p_u_spec.html#b586c7dc4c1e90185062350a822e88fc">monitorSizeSmallest</a>, <a class="code" href="struct_x86_c_p_u_spec.html#4446a40843268da10bf555703637ec30">monitorSizeLargest</a>);
+<a name="l00344"></a>00344 }
+<a name="l00345"></a>00345 <span class="keyword">const</span> <a class="code" href="struct_x86_c_p_u_spec.html">X86CPUSpec</a> cg_cpuSpec;
+<a name="l00346"></a>00346 <span class="preprocessor">#endif</span>
+<a name="l00347"></a>00347 <span class="preprocessor"></span>
+<a name="l00348"></a>00348         
+<a name="l00349"></a>00349         
+<a name="l00350"></a>00350         
+</pre></div><hr size="1"><address style="align: right;"><small>KAME2に対してFri Jan 25 00:34:29 2008に生成されました。&nbsp;
 <a href="http://www.doxygen.org/index.html">
 <img src="doxygen.png" alt="doxygen" align="middle" border="0"></a> 1.4.6 </small></address>
 </body>
