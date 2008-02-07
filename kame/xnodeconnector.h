@@ -153,7 +153,7 @@ protected:
 	const shared_ptr<XIntNode> m_iNode;
 	const shared_ptr<XUIntNode> m_uINode;
 	QSpinBox *const m_pItem;
-	QSpinBox *const m_pSlider;
+	QSlider *const m_pSlider;
 };
 
 class KDoubleNumInput;
