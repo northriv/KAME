@@ -143,7 +143,6 @@ XSanwaPC500::XSanwaPC500(const char *name, bool runtime,
 	for(const char **func = funcs; strlen(*func); func++) {
 		function()->add(*func);
 	}
-	function()->setUIEnabled(false);
 }
 void
 XSanwaPC500::changeFunction() {
@@ -163,7 +162,7 @@ XSanwaPC500::fetch() {
 		0x180, 0x201, 0x202, 0x203, 0x400, 0x800, 0x802, 0x2000
 	};
 	int f = (int)interface()->buffer()[4] + (int)interface()->buffer()[5] * 256u;
-	for(int i = 0; i < sizeof(funcs)/sizeof(int); i++) {
+	for(int i = 0; i < (int)sizeof(funcs)/(int)sizeof(int); i++) {
 		if(funcs[i] == f) {
 			function()->value(i);
 		}
@@ -171,8 +170,8 @@ XSanwaPC500::fetch() {
 
 	int dlen = interface()->buffer()[3] - 1;
 	interface()->receive(dlen);
-	std::vector<char> buf[dlen];
-	std::copy(interface()->buffer().begin(), interface()->buffer().end, buf);
+	std::vector<char> buf(dlen);
+	memcpy(&buf[0], &interface()->buffer()[0], dlen);
 	buf[dlen - 3] = '\0';
 	if(std::string(&buf[0]) == "+OL") {
 		return 1e99;
@@ -180,11 +179,17 @@ XSanwaPC500::fetch() {
 	if(std::string(&buf[0]) == "-OL") {
 		return -1e99;
 	}
+	if(buf.size() < 15)
+		throw XInterface::XInterfaceError(KAME::i18n("Format Error!"), __FILE__, __LINE__);
 	double x;
-	if(sscanf(&buf[0], "%lf", &x) != 1) {
+	if(sscanf(&buf[0], "%8lf", &x) != 1) {
 		throw XInterface::XInterfaceError(KAME::i18n("Format Error!"), __FILE__, __LINE__);
 	}
-	return x;
+	double e;
+	if(sscanf(&buf[8], "E%2lf", &e) != 1) {
+		throw XInterface::XInterfaceError(KAME::i18n("Format Error!"), __FILE__, __LINE__);
+	}
+	return x * pow(10.0, e);
 }
 double
 XSanwaPC500::oneShotRead() {
@@ -195,6 +200,15 @@ XSanwaPC500::requestData() {
 	char bytes[8] = {0x10, 0x02, 0x42, 0x00, 0x00, 0x00, 0x10, 0x03};
 	interface()->write(bytes, sizeof(bytes));
 }
+XSanwaPC5000::XSanwaPC5000(const char *name, bool runtime,
+		 const shared_ptr<XScalarEntryList> &scalarentries,
+		 const shared_ptr<XInterfaceList> &interfaces,
+		 const shared_ptr<XThermometerList> &thermometers,
+		 const shared_ptr<XDriverList> &drivers) :
+		 XSanwaPC500(name, runtime, scalarentries, interfaces, thermometers, drivers) {
+	
+}
+
 void
 XSanwaPC5000::requestData() {
 	char bytes[8] = {0x10, 0x02, 0x00, 0x00, 0x00, 0x00, 0x10, 0x03};
