@@ -152,4 +152,45 @@ protected:
 	//! called when m_function is changed
 	virtual void changeFunction();
 };
+
+
+//! SANWA PC500/510/520M DMM.
+class XSanwaPC500 : public XCharDeviceDriver<XDMM>
+{
+	XNODE_OBJECT
+protected:
+	XSanwaPC500(const char *name, bool runtime,
+			 const shared_ptr<XScalarEntryList> &scalarentries,
+			 const shared_ptr<XInterfaceList> &interfaces,
+			 const shared_ptr<XThermometerList> &thermometers,
+			 const shared_ptr<XDriverList> &drivers);
+public:
+	virtual ~XSanwaPC500() {}
+
+	//requests the latest reading
+	virtual double fetch();
+	//one-shot reading
+	virtual double oneShotRead();
+protected:
+	//! called when m_function is changed
+	virtual void changeFunction();
+	//! send command.
+	virtual void requestData();
+};
+//! SANWA PC5000 DMM.
+class XSanwaPC5000 : public XSanwaPC500
+{
+	XNODE_OBJECT
+protected:
+	XSanwaPC5000(const char *name, bool runtime,
+			 const shared_ptr<XScalarEntryList> &scalarentries,
+			 const shared_ptr<XInterfaceList> &interfaces,
+			 const shared_ptr<XThermometerList> &thermometers,
+			 const shared_ptr<XDriverList> &drivers);
+public:
+protected:
+	//! send command.
+	virtual void requestData();
+};
+
 #endif
