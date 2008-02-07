@@ -248,8 +248,8 @@ XQSpinBoxConnector::XQSpinBoxConnector(const shared_ptr<XUIntNode> &node,
     connect(item, SIGNAL( valueChanged(int) ), this, SLOT( onChange(int) ) );
     if(slider) {
         connect(slider, SIGNAL( valueChanged(int) ), this, SLOT( onChange(int) ) );
-        slider->setRange(item->min(), item->max());
-        slider->setSingleStep(item->singleStep());
+        slider->setRange(item->minValue(), item->maxValue());
+        slider->setLineStep(item->lineStep());
     }
     onValueChanged(node);
 }
@@ -307,7 +307,7 @@ XKDoubleSpinBoxConnector::XKDoubleSpinBoxConnector(const shared_ptr<XDoubleNode>
     onValueChanged(node);
 }
 void
-XQDoubleSpinBoxConnector::onChange(double val) {
+XKDoubleSpinBoxConnector::onChange(double val) {
     m_lsnValueChanged->mask();
 	m_node->value(val);
     m_lsnValueChanged->unmask();
