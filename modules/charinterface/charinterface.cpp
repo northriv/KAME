@@ -36,6 +36,8 @@ XCharInterface::XCharInterface(const char *name, bool runtime, const shared_ptr<
     m_gpibWaitBeforeRead(2),
     m_gpibWaitBeforeSPoll(1),
     m_gpibMAVbit(0x10),
+    m_serialBaudRate(9600),
+    m_serialStopBits(2),
     m_script_send(create<XStringNode>("Send", true)),
     m_script_query(create<XStringNode>("Query", true))
 {
@@ -44,7 +46,6 @@ XCharInterface::XCharInterface(const char *name, bool runtime, const shared_ptr<
 #endif
 	device()->add("SERIAL");
 	device()->add("DUMMY");
-	baudrate()->value(9600);
   
 	m_lsnOnSendRequested = m_script_send->onValueChanged().connectWeak(
 		shared_from_this(), &XCharInterface::onSendRequested);

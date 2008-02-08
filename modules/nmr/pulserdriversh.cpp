@@ -96,7 +96,8 @@ XSHPulser::XSHPulser(const char *name, bool runtime,
     XCharDeviceDriver<XPulser>(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
     interface()->setEOS("\n");
-    interface()->baudrate()->value(115200);
+	interface()->setSerialBaudRate(115200);
+	interface()->setSerialStopBits(2);
 
     const int ports[] = {
     	PORTSEL_GATE, PORTSEL_PREGATE, PORTSEL_TRIG1, PORTSEL_TRIG2,

@@ -110,7 +110,8 @@ XMicroTaskTCS::XMicroTaskTCS(const char *name, bool runtime,
    : XCharDeviceDriver<XDCSource>(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
 	interface()->setEOS("\n");
-	interface()->baudrate()->value(9600);
+	interface()->setSerialBaudRate(9600);
+	interface()->setSerialStopBits(2);
 	channel()->add("1");
 	channel()->add("2");
 	channel()->add("3");

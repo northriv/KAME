@@ -136,21 +136,25 @@ XSanwaPC500::XSanwaPC500(const char *name, bool runtime,
 		 const shared_ptr<XDriverList> &drivers) :
 	XCharDeviceDriver<XDMM>(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
+	interface()->setSerialBaudRate(9600);
+	interface()->setSerialStopBits(2);
+	
 	const char *funcs[] = {
-		"AcV", "DcV", "Ac+DcV", "Cx", "Dx", "TC", "TF", "Ohm",
-		"Conti", "AcA", "DcA", "Ac+DcA", "Hz", "Duty%", "%mA", "dB", ""
+		"AcV", "DcV", "Ac+DcV", "Cx", "Dx", "Dx", "TC", "TC", "TF", "Ohm",
+		"Conti", "AcA", "DcA", "Ac+DcA", "Hz", "Duty%", "%mA", "dB", "?", ""
 	};
 	for(const char **func = funcs; strlen(*func); func++) {
 		function()->add(*func);
 	}
+	function()->str(std::string("?"));
 }
 void
 XSanwaPC500::changeFunction() {
 }
 double
 XSanwaPC500::fetch() {
-	requestData();
 	msecsleep(200);
+	requestData();
 	interface()->receive(8);
 	if((interface()->buffer()[0] != 0x10) ||
 		(interface()->buffer()[1] != 0x02))
@@ -172,14 +176,17 @@ XSanwaPC500::fetch() {
 	interface()->receive(dlen);
 	std::vector<char> buf(dlen);
 	memcpy(&buf[0], &interface()->buffer()[0], dlen);
+	dbgPrint(std::string(&buf[0]));
+	if(buf.size() < 6)
+		throw XInterface::XInterfaceError(KAME::i18n("Format Error!"), __FILE__, __LINE__);
 	buf[dlen - 3] = '\0';
-	if(std::string(&buf[0]) == "+OL") {
+	if((std::string(&buf[0]) == "+OL") || (std::string(&buf[0]) == " OL")) {
 		return 1e99;
 	}
 	if(std::string(&buf[0]) == "-OL") {
 		return -1e99;
 	}
-	if(buf.size() < 15)
+	if(buf.size() < 14)
 		throw XInterface::XInterfaceError(KAME::i18n("Format Error!"), __FILE__, __LINE__);
 	double x;
 	if(sscanf(&buf[0], "%8lf", &x) != 1) {
@@ -193,7 +200,7 @@ XSanwaPC500::fetch() {
 }
 double
 XSanwaPC500::oneShotRead() {
-	fetch();
+	return fetch();
 }
 void
 XSanwaPC500::requestData() {

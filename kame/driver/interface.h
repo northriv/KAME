@@ -53,8 +53,6 @@ public:
 	const shared_ptr<XStringNode> &port() const {return m_port;}
 	//! e.g. GPIB address.
 	const shared_ptr<XUIntNode> &address() const {return m_address;}
-	//! e.g. Serial port baud rate.
-	const shared_ptr<XUIntNode> &baudrate() const {return m_baudrate;}
 	//! True if interface is opened. Start/stop interface.
 	const shared_ptr<XBoolNode> &control() const {return m_control;}
 
@@ -82,7 +80,6 @@ private:
 	const shared_ptr<XComboNode> m_device;
 	const shared_ptr<XStringNode> m_port;
 	const shared_ptr<XUIntNode> m_address;
-	const shared_ptr<XUIntNode> m_baudrate;
 	const shared_ptr<XBoolNode> m_control;
 
 	shared_ptr<XListener> lsnOnControlChanged;

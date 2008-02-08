@@ -36,7 +36,6 @@ XInterface::XInterface(const char *name, bool runtime, const shared_ptr<XDriver>
     m_device(create<XComboNode>("Device", false, true)),
     m_port(create<XStringNode>("Port", false)),
     m_address(create<XUIntNode>("Address", false)),
-    m_baudrate(create<XUIntNode>("BaudRate", false)),
     m_control(create<XBoolNode>("Control", true))
 {
 	lsnOnControlChanged = control()->onValueChanged().connectWeak(
@@ -87,7 +86,6 @@ XInterface::start()
 	device()->setUIEnabled(false);
 	port()->setUIEnabled(false);
 	address()->setUIEnabled(false);
-	baudrate()->setUIEnabled(false);
 
 	lsnOnControlChanged->mask();
 	control()->value(true);
@@ -110,7 +108,6 @@ XInterface::stop()
 	device()->setUIEnabled(true);
 	port()->setUIEnabled(true);
 	address()->setUIEnabled(true);
-	baudrate()->setUIEnabled(true);
 
 	lsnOnControlChanged->mask();
 	control()->value(false);

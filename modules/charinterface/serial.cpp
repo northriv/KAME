@@ -41,17 +41,17 @@ XPosixSerialPort::open() throw (XInterface::XCommError &)
 	struct termios ttyios;
 	speed_t baudrate;
 	if((m_scifd = ::open(QString(m_pInterface->port()->to_str()).local8Bit(),
-						 O_RDWR | O_NOCTTY | O_SYNC)) == -1)
+						 O_RDWR | O_NOCTTY | O_SYNC | O_NONBLOCK)) == -1)
 	{
 		throw XInterface::XCommError(KAME::i18n("tty open failed"), __FILE__, __LINE__);
 	}
-      
+    
 	tcsetpgrp(m_scifd, getpgrp());
       
 	bzero(&ttyios, sizeof(ttyios));
 //      tcgetattr(m_scifd, &ttyios);
 
-	switch(static_cast<int>(*m_pInterface->baudrate()))
+	switch(static_cast<int>(m_pInterface->serialBaudRate()))
 	{
 	case 2400: baudrate = B2400; break;
 	case 4800: baudrate = B4800; break;
@@ -69,13 +69,20 @@ XPosixSerialPort::open() throw (XInterface::XCommError &)
 	cfsetospeed(&ttyios, baudrate);
 	cfmakeraw(&ttyios);
 	ttyios.c_cflag &= ~(PARENB | CSIZE);
-	ttyios.c_cflag |= HUPCL | CLOCAL | CSTOPB | CS8 | CREAD;
+	ttyios.c_cflag |= HUPCL | CLOCAL | CS8 | CREAD;
+	if(m_pInterface->serialStopBits() == 2)
+		ttyios.c_cflag |= CSTOPB;
 	ttyios.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG); //non-canonical mode
 	ttyios.c_iflag |= IGNBRK | IGNPAR;
 	ttyios.c_cc[VMIN] = 0; //no min. size
 	ttyios.c_cc[VTIME] = 30; //3sec time-out
 	if(tcsetattr(m_scifd, TCSAFLUSH, &ttyios ) < 0)
 		throw XInterface::XCommError(KAME::i18n("stty failed"), __FILE__, __LINE__);
+	
+    if(fcntl(m_scifd, F_SETFL, (~O_NONBLOCK) & fcntl(m_scifd, F_GETFL)) == - 1)
+	{
+		throw XInterface::XCommError(KAME::i18n("tty open failed"), __FILE__, __LINE__);
+	}
 }
 void
 XPosixSerialPort::send(const char *str) throw (XInterface::XCommError &)

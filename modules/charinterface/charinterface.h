@@ -70,7 +70,13 @@ public:
 	int gpibWaitBeforeRead() const {return m_gpibWaitBeforeRead;}
 	int gpibWaitBeforeSPoll() const {return m_gpibWaitBeforeSPoll;}
 	unsigned char gpibMAVbit() const {return m_gpibMAVbit;}
+	
+	void setSerialBaudRate(unsigned int rate) {m_serialBaudRate = rate;}
+	void setSerialStopBits(unsigned int bits) {m_serialStopBits = bits;}
   
+	unsigned int serialBaudRate() const {return m_serialBaudRate;}
+	unsigned int serialStopBits() const {return m_serialStopBits;}
+
 	virtual bool isOpened() const {return m_xport;}
 protected:
 	virtual void open() throw (XInterfaceError &);
@@ -85,6 +91,9 @@ private:
 	int m_gpibWaitBeforeSPoll;
 	unsigned char m_gpibMAVbit; //! don't check if zero
   
+	unsigned int m_serialBaudRate;
+	unsigned int m_serialStopBits;
+	
 	shared_ptr<XPort> m_xport;
 
 	//! for scripting
