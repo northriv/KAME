@@ -36,7 +36,7 @@ XLecroyDSO::XLecroyDSO(const char *name, bool runtime,
 		vFullScale1()->add(sc[i]);
 		vFullScale2()->add(sc[i]);
 	}
-	const char* tr[] = {"EXT", "EXT10", "CH1", "CH2", "CH3", "CH4", "LINE", 0L};
+	const char* tr[] = {"C1", "C2", "C3", "C4", "LINE", "EX", "EX10", "PA", "ETM10", 0L};
 	for(int i = 0; tr[i]; i++)
 	{
 		trigSource()->add(tr[i]);
@@ -167,7 +167,7 @@ XLecroyDSO::onRecordLengthChanged(const shared_ptr<XValueNodeBase> &) {
 void
 XLecroyDSO::onForceTriggerTouched(const shared_ptr<XNode> &) {
 	bool sseq = *singleSequence();
-	if(sseq && (*average <= 1))
+	if(sseq && (*average() <= 1))
 		interface()->send("ARM");
 	else
 		interface()->send("TRIG_MODE NORM");
@@ -176,7 +176,7 @@ XLecroyDSO::onForceTriggerTouched(const shared_ptr<XNode> &) {
 
 void
 XLecroyDSO::startSequence() {
-	if(*average <= 1)
+	if(*average() <= 1)
 		interface()->send("ARM");
 	else
 		interface()->send("TRIG_MODE NORM");
