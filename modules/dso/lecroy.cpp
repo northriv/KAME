@@ -55,7 +55,7 @@ XLecroyDSO::open() throw (XInterface::XInterfaceError &)
 	interface()->send("COMM_HEADER OFF");
 	interface()->send("COMM_FORMAT DEF9,WORD,BIN");
 	interface()->send("COMM_ORDER HI");
-	onAverageChanged();
+	onAverageChanged(average());
 
 	start();
 }
@@ -66,11 +66,11 @@ XLecroyDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
 	const char *atype = *singleSequence() ? "SUMMED" : "CONTINUOUS";
     std::string ch = trace1()->to_str();
     if(!ch.empty())
-		interface()->send("F1:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
+		interface()->sendf("F1:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
 			ch.c_str(), atype, avg);
     ch = trace2()->to_str();
     if(!ch.empty())
-		interface()->send("F2:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
+		interface()->sendf("F2:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
 			ch.c_str(), atype, avg);
 }
 
@@ -93,7 +93,7 @@ XLecroyDSO::onTrigLevelChanged(const shared_ptr<XValueNodeBase> &) {
 }
 void
 XLecroyDSO::onTrigFallingChanged(const shared_ptr<XValueNodeBase> &) {
-	interface()->sendf("%s:TRIG_SLOPE %s", (*trigFalling() ? "NEG" : "POS"));
+	interface()->sendf("%s:TRIG_SLOPE %s", trigSource()->to_str().c_str(), (*trigFalling() ? "NEG" : "POS"));
 }
 void
 XLecroyDSO::onTimeWidthChanged(const shared_ptr<XValueNodeBase> &) {
@@ -140,22 +140,22 @@ XLecroyDSO::startSequence() {
 
 int
 XLecroyDSO::acqCount(bool *seq_busy) {
-	int n = lrint(inspectDouble("SWEEPS_PER_ACQ", "F1"));
+	unsigned int n = lrint(inspectDouble("SWEEPS_PER_ACQ", "F1"));
 	*seq_busy = (n < *average());
 	return n;
 }
 
 double
 XLecroyDSO::inspectDouble(const char *req, const std::string &trace) {
-	interface()->query("%s:INSPECT?'%s'", trace.c_str(), req);
+	interface()->queryf("%s:INSPECT?'%s'", trace.c_str(), req);
 	double x;
-	interface()->sscanf("%lf", &x);
+	interface()->scanf("%lf", &x);
 	return x;
 }
 
 double
 XLecroyDSO::getTimeInterval() {
-	return inspectDouble(trace1()->to_str());
+	return inspectDouble("HORIZ_INTERVAL", trace1()->to_str());
 }
 
 void
@@ -168,7 +168,7 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 		rawData().insert(rawData().end(), 
 						 interface()->buffer().begin(), interface()->buffer().end());
 		int blks;
-		interface()->sscanf("#9%8u", &blks);
+		interface()->scanf("#9%8u", &blks);
 		interface()->receive(blks + 1);
 		rawData().insert(rawData().end(), 
 						 interface()->buffer().begin(), interface()->buffer().end());
