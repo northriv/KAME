@@ -11,7 +11,8 @@ INCLUDES = -I$(top_srcdir)/kame \
 	-I$(top_srcdir)/modules/dso/core \
 	$(all_includes)
 
-libdso_la_SOURCES = tds.cpp tds.h
+libdso_la_SOURCES = tds.cpp tds.h \
+	lecroy.cpp lecroy.h
 
 libdso_la_LIBADD = core/libdsocore.la \
 	../charinterface/libcharinterface.la
