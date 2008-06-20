@@ -61,24 +61,53 @@ XLecroyDSO::open() throw (XInterface::XInterfaceError &)
 	start();
 }
 void 
-XLecroyDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
-	int avg = *average();
-	avg = std::max(1, avg);
-	const char *atype = *singleSequence() ? "SUMMED" : "CONTINUOUS";
+XLecroyDSO::onTrace1Changed(const shared_ptr<XValueNodeBase> &) {
     std::string ch = trace1()->to_str();
     if(!ch.empty()) {
 		interface()->sendf("%s:TRACE ON", ch.c_str());
-		interface()->sendf("F1:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
-			ch.c_str(), atype, avg);
-		interface()->send("F1:TRACE ON");
     }
-    ch = trace2()->to_str();
+    onAverageChanged(average());
+}
+void 
+XLecroyDSO::onTrace2Changed(const shared_ptr<XValueNodeBase> &) {
+    std::string ch = trace2()->to_str();
     if(!ch.empty()) {
 		interface()->sendf("%s:TRACE ON", ch.c_str());
-		interface()->sendf("F2:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
-			ch.c_str(), atype, avg);
-		interface()->send("F1:TRACE ON");
     }
+    onAverageChanged(average());
+}
+void 
+XLecroyDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
+//	interface()->send("TRIG_MODE STOP");
+	int avg = *average();
+	avg = std::max(1, avg);
+	bool sseq = *singleSequence();
+	if(avg == 1) {
+		interface()->send("F1:TRACE OFF");
+		interface()->send("F2:TRACE OFF");
+		if(sseq) {
+			interface()->send("ARM");
+		}
+		else {
+			interface()->send("TRIG_MODE NORM");			
+		}
+	}
+	else {
+		const char *atype = sseq ? "SUMMED" : "CONTINUOUS";
+	    std::string ch = trace1()->to_str();
+	    if(!ch.empty()) {
+			interface()->sendf("F1:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
+				ch.c_str(), atype, avg);
+			interface()->send("F1:TRACE ON");
+	    }
+	    ch = trace2()->to_str();
+	    if(!ch.empty()) {
+			interface()->sendf("F2:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
+				ch.c_str(), atype, avg);
+			interface()->send("F2:TRACE ON");
+	    }
+		interface()->send("TRIG_MODE NORM");			
+	}
 }
 
 void
@@ -137,18 +166,43 @@ XLecroyDSO::onRecordLengthChanged(const shared_ptr<XValueNodeBase> &) {
 }
 void
 XLecroyDSO::onForceTriggerTouched(const shared_ptr<XNode> &) {
-	interface()->send("ARM:FORCE_TRIGER");
+	bool sseq = *singleSequence();
+	if(sseq && (*average <= 1))
+		interface()->send("ARM");
+	else
+		interface()->send("TRIG_MODE NORM");
+	interface()->send("FORCE_TRIGER");
 }
 
 void
 XLecroyDSO::startSequence() {
-	interface()->send("ARM:CLEAR_SWEEPS");
+	if(*average <= 1)
+		interface()->send("ARM");
+	else
+		interface()->send("TRIG_MODE NORM");
+	interface()->send("CLEAR_SWEEPS");
 }
 
 int
 XLecroyDSO::acqCount(bool *seq_busy) {
-	unsigned int n = lrint(inspectDouble("SWEEPS_PER_ACQ", "F1"));
-	*seq_busy = (n < *average());
+	bool sseq = *singleSequence();
+	interface()->queryf("%s:TRACE?", trace1()->to_str().c_str());
+	unsigned int n = 0;
+	int avg = *average();
+	if(std::string(&interface()->buffer()[0]) == "ON") {
+		std::string ch = (avg > 1) ? std::string("F1") : trace1()->to_str();
+		n = lrint(inspectDouble("SWEEPS_PER_ACQ", ch));
+	}
+	if(!sseq) {
+		interface()->query("INR?");
+		if(interface()->toInt() & 1)
+			m_totalCount++;
+		if(n < m_totalCount)
+			m_totalCount = n;
+		else
+			n = m_totalCount;
+	}
+	*seq_busy = (n < avg);
 	return n;
 }
 
@@ -169,9 +223,13 @@ void
 XLecroyDSO::getWave(std::deque<std::string> &channels)
 {
 	XScopedLock<XInterface> lock(*interface());
+	bool sseq = *singleSequence();
 	push<unsigned int32_t>(channels.size());
 	for(unsigned int i = 0; i < channels.size(); i++) {
-		interface()->sendf("F%u:WAVEFORM? ALL", i);
+		if(sseq)
+			interface()->sendf("%s:WAVEFORM? ALL", channels[i].c_str());
+		else
+			interface()->sendf("F%u:WAVEFORM? ALL", i);
 		interface()->receive(10);
 		rawData().insert(rawData().end(), 
 						 interface()->buffer().begin(), interface()->buffer().end());

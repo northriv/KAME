@@ -32,8 +32,8 @@ protected:
 	//! convert raw to record
 	virtual void convertRaw() throw (XRecordError&);
 protected:
-	virtual void onTrace1Changed(const shared_ptr<XValueNodeBase> &) {}
-	virtual void onTrace2Changed(const shared_ptr<XValueNodeBase> &) {}
+	virtual void onTrace1Changed(const shared_ptr<XValueNodeBase> &);
+	virtual void onTrace2Changed(const shared_ptr<XValueNodeBase> &);
 	virtual void onAverageChanged(const shared_ptr<XValueNodeBase> &);
 	virtual void onSingleChanged(const shared_ptr<XValueNodeBase> &);
 	virtual void onTrigSourceChanged(const shared_ptr<XValueNodeBase> &);
@@ -60,6 +60,7 @@ protected:
 	virtual void getWave(std::deque<std::string> &channels);
 private:
 	double inspectDouble(const char *req, const std::string &trace);
+	int m_totalCount;
 };
 
 #endif
