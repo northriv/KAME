@@ -147,9 +147,9 @@ XLecroyDSO::acqCount(bool *seq_busy) {
 
 double
 XLecroyDSO::inspectDouble(const char *req, const std::string &trace) {
-	interface()->queryf("%s:INSPECT?'%s'", trace.c_str(), req);
+	interface()->queryf("%s:INSPECT? '%s'", trace.c_str(), req);
 	double x;
-	interface()->scanf("%lf", &x);
+	interface()->scanf("\"%*s : %lf", &x);
 	return x;
 }
 
