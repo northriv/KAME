@@ -118,7 +118,7 @@ XTDS::onTrigPosChanged(const shared_ptr<XValueNodeBase> &)
 void
 XTDS::onTrigLevelChanged(const shared_ptr<XValueNodeBase> &)
 {
-	interface()->send("TRIG:A:EDG:LEV " + trigSource()->to_str());
+	interface()->sendf("TRIG:A:EDG:LEV %g", *trigLevel());
 }
 void
 XTDS::onTrigFallingChanged(const shared_ptr<XValueNodeBase> &)
