@@ -102,12 +102,14 @@ private:
 	XTime m_awaredTime;
 };
 
+//! When a record depends on other records, multiple delegations may cause a confilct of time stamps. This class can detect it.
 class XRecordDependency
 {
 public:
     XRecordDependency();
     XRecordDependency(const shared_ptr<XRecordDependency> &);
-    //! ret true if conflicted
+    //! \return true if conflicted.
+    //! Search for entry which has the same driver and different times.
     bool merge(const shared_ptr<const XDriver> &driver);
     void clear();
     

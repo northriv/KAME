@@ -21,6 +21,8 @@ class XQGraphPainter;
 #include "xnodeconnector.h"
 #include <qgl.h>
 
+//! Graph widget with a dialog which is initially hidden.
+//! \sa XGraph, XQGraphPainter
 class XQGraph : public QGLWidget
 {
 	Q_OBJECT

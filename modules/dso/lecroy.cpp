@@ -54,7 +54,8 @@ XLecroyDSO::open() throw (XInterface::XInterfaceError &)
 {
 	interface()->send("COMM_HEADER OFF");
 	interface()->send("COMM_FORMAT DEF9,WORD,BIN");
-	interface()->send("COMM_ORDER HI");
+    //LSB first for litte endian.
+	interface()->send("COMM_ORDER LO");
 	onAverageChanged(average());
 
 	start();
@@ -65,13 +66,19 @@ XLecroyDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
 	avg = std::max(1, avg);
 	const char *atype = *singleSequence() ? "SUMMED" : "CONTINUOUS";
     std::string ch = trace1()->to_str();
-    if(!ch.empty())
+    if(!ch.empty()) {
+		interface()->sendf("%s:TRACE ON", ch.c_str());
 		interface()->sendf("F1:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
 			ch.c_str(), atype, avg);
+		interface()->send("F1:TRACE ON");
+    }
     ch = trace2()->to_str();
-    if(!ch.empty())
+    if(!ch.empty()) {
+		interface()->sendf("%s:TRACE ON", ch.c_str());
 		interface()->sendf("F2:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
 			ch.c_str(), atype, avg);
+		interface()->send("F1:TRACE ON");
+    }
 }
 
 void
@@ -162,6 +169,7 @@ void
 XLecroyDSO::getWave(std::deque<std::string> &channels)
 {
 	XScopedLock<XInterface> lock(*interface());
+	push<unsigned int32_t>(channels.size());
 	for(unsigned int i = 0; i < channels.size(); i++) {
 		interface()->sendf("F%u:WAVEFORM? ALL", i);
 		interface()->receive(10);
@@ -176,49 +184,45 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 }
 void
 XLecroyDSO::convertRaw() throw (XRecordError&) {
+#define WAVEDESC_WAVE_ARRAY_COUNT 116
+#define DATA_BLOCK 346
 	
-    //MSB first
-
-    /*
-    unsigned char *buf = new unsigned char[256];
-    unsigned char *s;
-
-    for(;;)
-    {
-        n = (m + 40 < width) ? 40 : (width - m);
-        Send("CFMT IND0,WORD,BIN");
-        Send((AnsiString)"WFSU SP,0,NP," +
-                n + ",FP," + (pos + m) + ",SN,0");
-        Lock();
-        Send(Channel + ":WF? DAT1");
-        Receive(buf, 255);
-        Unlock();
-        s = buf;
-        for(int i = 0; i < 100; i++)
-        {
-            if(buf[i] == '#')
-            {
-                s = buf + i + 2;
-                break;
-            }
-        }
-
-        for(int i = 0; i < n; i++)
-        {
-             val = (int)*s * 0x100 +
-                ((*s >= 0x80) ? -0x10000 : 0);
-             val += *(s + 1);
-             if(VGain * val > 0.3)
-                val = val + 1;
-             (*wbuf)[m + i] = VGain * val - VOffset;
-             s += 2;
-        }
-
-        m += n;
-        if(m >= width) break;
-    }
-    delete buf;
-   }
-    return 0;
-    */	
+	unsigned int ch_cnt = pop<unsigned int32_t>();
+	for(unsigned int ch = 0; ch < ch_cnt; ch++) {
+		std::vector<char>::iterator dit = rawDataPopIterator();
+		dit += DATA_BLOCK + 10;
+		rawDataPopIterator() += WAVEDESC_WAVE_ARRAY_COUNT + 10;
+		long count = pop<int32_t>();
+		pop<int32_t>();
+		long first_valid = pop<int32_t>();
+		long last_valid = pop<int32_t>();
+		long first = pop<int32_t>();
+		pop<int32_t>();
+		pop<int32_t>();
+		pop<int32_t>();
+		long acqcount = pop<int32_t>();
+		pop<short>();
+		pop<short>();
+		float vgain = pop<float>();
+		float voffset = pop<float>();
+		pop<float>();
+		pop<float>();
+		pop<short>();
+		pop<short>();
+		float interval = pop<float>();
+		double hoffset = pop<double>();
+		
+		if(ch == 0) {
+			setParameters(ch_cnt, hoffset, interval, count);
+		}
+		
+		double *wave = waveDisp(ch);
+		rawDataPopIterator() = dit;
+		for(int i = 0; i < count; i++) {
+			short x = pop<short>();
+			float v = voffset + vgain * x;
+			*wave++ = v;
+		}
+		pop<char>();
+	}
 }

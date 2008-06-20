@@ -16,9 +16,11 @@
 
 #include <atomic.h>
 
-//! This is an improved version of boost::scoped_ptr<>.
+//! This is an atomic variant of boost::scoped_ptr<>.
 //! atomic_scoped_ptr<> can be shared among threads by the use of swap() as the argument.
 //! That is, a destructive read. Use atomic_shared_ptr<> for non-destructive reading.
+//! The implementation relies on an atimic-swap machine code, e.g. lock xchg.
+//! \sa atomic_shared_ptr
 template <typename T>
 class atomic_scoped_ptr
 {
@@ -41,6 +43,7 @@ public:
 	}
 	//! \param x \p x is atomically swapped.
 	//! Nevertheless, this object is not atomically replaced. 
+	//! That is, the object pointed by "this" must not be shared among threads.
 	void swap(atomic_scoped_ptr &x) {
 		writeBarrier();
 		m_ptr = atomicSwap(m_ptr, &x.m_ptr);
@@ -74,8 +77,10 @@ struct atomic_shared_ptr_ref {
 };
 
 
-//! This is an improved version of boost::shared_ptr<>.
+//! This is an atomic variant of boost::shared_ptr<>.
 //! atomic_shared_ptr<> can be shared among threads by the use of operator=(), swap() as the argument.
+//! The implementation relies on a DCAS (Double Compare and Set) machine code, e.g. cmpxchg8b.
+//! \sa atomic_scoped_ptr
 template <typename T>
 class atomic_shared_ptr
 {
@@ -125,6 +130,7 @@ public:
 
 	//! \param x \p x is atomically swapped.
 	//! Nevertheless, this object is not atomically replaced. 
+	//! That is, the object pointed by "this" must not be shared among threads.
 	void swap(atomic_shared_ptr &);
 
 	//! \return true if succeeded.

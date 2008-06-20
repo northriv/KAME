@@ -29,6 +29,8 @@ class QPushButton;
 class XAxis;
 class XXYPlot;
 
+//! Graph widget with internal data sets. The data can be saved as a text file.
+//! \sa XQGraph, XGraph
 class XWaveNGraph : public XNode
 {
 	XNODE_OBJECT

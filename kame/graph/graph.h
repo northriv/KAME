@@ -96,6 +96,8 @@ class XQGraphPainter;
 typedef XAliasListNode<XAxis> XAxisList;
 typedef XAliasListNode<XPlot> XPlotList;
 
+//! XGraph object can have one or more plots and two or more axes.
+//! \sa XPlot, XAxis, XQGraphPainter
 class XGraph : public XNode
 {
 	XNODE_OBJECT

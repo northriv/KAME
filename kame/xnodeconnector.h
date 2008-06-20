@@ -22,25 +22,26 @@
 #include <xitemnode.h>
 #include <xnodeconnector_prv.h>
 
-//! need for making new forms
+//! Needed for making new forms.
 extern QWidget *g_pFrmMain;
 
-//! Associate QWidget to XNode
+//! Associate QWidget to XNode.
 //! use connectWeak() to make XListener.
-//! use xqcon_create<T>() to make instances
+//! use xqcon_create<T>() to make instances.
+//! \sa xqcon_create()
 class XQConnector : public QObject,
 public enable_shared_from_this<XQConnector>
 {
-	//! don't forget this
+	//! Don't forget this macro for XQConnector objects.
 	Q_OBJECT
 	//! needed for XQConnector and cousins
 	XQCON_OBJECT
 protected:
-	//! don't use this, use xqcon_create() instead
+	//! Don't use this stuff directly, use xqcon_create() instead
 	//! \sa xqcon_create()
 	XQConnector(const shared_ptr<XNode> &node, QWidget *item);
 public:
-	//! Here, disconnect all signals & slots
+	//! Disconnect all signals & slots
 	virtual ~XQConnector();
 
 	static shared_ptr<XNode> connectedNode(const QWidget *item);

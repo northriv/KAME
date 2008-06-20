@@ -22,7 +22,9 @@
 
 class XMeasure;
 
-//ruby running thread
+//! Ruby scripting support, containing a thread running Ruby monitor program.
+//! The monitor program synchronize Ruby threads and XRubyThread objects.
+//! \sa XRubyThread
 class XRuby : public XAliasListNode<XRubyThread>
 {
 	XNODE_OBJECT

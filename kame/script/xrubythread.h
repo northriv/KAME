@@ -31,6 +31,8 @@ extern "C" {
 #define RUBY_THREAD_STATUS_STARTING "starting"
 #define RUBY_THREAD_STATUS_N_A ""
 //---------------------------------------------------------------------------
+//! XRubyThread object is a communicator for Ruby thread.
+//! \sa XRubySupport
 class XRubyThread : public XNode
 {
 	XNODE_OBJECT

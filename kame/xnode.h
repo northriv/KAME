@@ -40,13 +40,14 @@ shared_ptr<T> createOrphan(const char *name, bool runtime, X x, Y y, Z z, ZZ z);
 	template <class _T, typename _X, typename _Y, typename _Z, typename _ZZ> \
 	friend shared_ptr<_T> createOrphan(const char *name, bool runtime, _X x, _Y y, _Z z, _ZZ zz);
 
-//! XNode supports loading/saveing to XML, GUI framework, basic signaling among threads
+//! XNode supports load/save for scripts/GUI, and signaling among threads.
+//! \sa create(), createOrphan()
 class XNode : public enable_shared_from_this<XNode>
 #ifdef HAVE_LIBGCCPP
 , public kame_gc
 #endif
 {
-	//! use XNODE_OBJECT in sub-classes
+	//! Use XNODE_OBJECT macro in sub-classes.
 	XNODE_OBJECT
 protected:
 	explicit XNode(const char *name, bool runtime = false);
@@ -186,7 +187,7 @@ private:
 	XRecursiveMutex m_valuemutex;
 };
 
-//! Base class for atomic reading value node.
+//! Base class for value node.
 template <typename T, int base = 10>
 class XValueNode : public XValueNodeBase
 {

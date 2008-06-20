@@ -69,17 +69,24 @@ protected:
 	//! \sa timeAwared()
 	//! \sa time()
 	void finishWritingRaw(const XTime &time_awared, const XTime &time_recorded);
-	//! raw data. Thread-Local storaged.
+	//! Raw data. Thread-Local storaged.
+	//! \sa rawDataPopIterator(), push(), pop()
 	std::vector<char> &rawData() {return *s_tlRawData;}
 
 	//! These are FIFO (fast in fast out)
-	//! push raw data to raw record
+	//! Push raw data to raw record
+	//! Use signed/unsigned char, short(16bit), and int32_t for integers.
+	//! IEEE 754 float and double for floting point numbers.
+	//! Little endian bytes will be stored into thread-local \sa rawData().
+	//! \sa pop(), rawData()
 	template <typename tVar>
 	inline void push(tVar);
 	//! read raw record
+	//! \sa push(), rawData()
 	template <typename tVar>
 	inline tVar pop() throw (XBufferUnderflowRecordError&);
-
+	//! Iterator for \a rawData().
+	//! \sa rawData(), push(), pop()
 	std::vector<char>::iterator& rawDataPopIterator() {return *s_tl_pop_it;}
 private:
 	friend class XRawStreamRecordReader;
