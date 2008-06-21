@@ -44,7 +44,7 @@ XLecroyDSO::XLecroyDSO(const char *name, bool runtime,
 
 	interface()->setGPIBWaitBeforeWrite(20); //20msec
 	interface()->setGPIBWaitBeforeSPoll(10); //10msec
-	interface()->setEOS("");
+	interface()->setEOS("\n");
 
 	recordLength()->value(10000);
 }
@@ -186,12 +186,15 @@ XLecroyDSO::startSequence() {
 int
 XLecroyDSO::acqCount(bool *seq_busy) {
 	bool sseq = *singleSequence();
-	interface()->queryf("%s:TRACE?", trace1()->to_str().c_str());
 	unsigned int n = 0;
 	int avg = *average();
-	if(std::string(&interface()->buffer()[0]) == "ON") {
-		std::string ch = (avg > 1) ? std::string("F1") : trace1()->to_str();
-		n = lrint(inspectDouble("SWEEPS_PER_ACQ", ch));
+	if(!trace1()->to_str().empty()) {
+		interface()->queryf("%s:TRACE?", trace1()->to_str().c_str());
+		if(!strncmp(&interface()->buffer()[0], "ON", 2)) {
+			//trace1 is displayed.
+			std::string ch = (avg > 1) ? std::string("F1") : trace1()->to_str();
+			n = lrint(inspectDouble("SWEEPS_PER_ACQ", ch));
+		}
 	}
 	if(!sseq) {
 		interface()->query("INR?");
