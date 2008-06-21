@@ -1,11 +1,11 @@
-#HOW-TO for building KAME manually.
+#HOW-TO build KAME manually.
 
 #Use pirut or sudo yum -y install
 gsl-devel, fftw-devel, and so on.
 rpmdevtools
 (ccache)
 
-#Construct a setting for rpmbuild.
+#Construct settings for rpmbuild.
 rpmdev-setuptree
 
 #For linux-gpib

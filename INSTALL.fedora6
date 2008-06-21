@@ -1,4 +1,4 @@
-#HOW-TO for building KAME manually.
+#HOW-TO build KAME manually.
 
 #Use pirut or sudo yum -y install
 gsl-devel, fftw-devel
@@ -6,8 +6,8 @@ rpmdevtools
 (ccache)
 and so on.
 
-#Construct a setting for rpmbuild.
-fedora-buildrpmtree
+#Construct settings for rpmbuild.
+rpmdev-setuptree
 
 #For linux-gpib
 rpmbuild --define='kversion `uname -r`' --define='kvariants ""' --target=`uname -m` --rebuild linux-gpib-kmod-{ver}.src.rpm

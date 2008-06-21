@@ -1,3 +1,8 @@
+* Sat Jun 21 2008 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.3.7-1)
+- Lecroy/Iwatsu X-Stream DSO.
+- tds.cpp: Fix trigger source.
+
 * Fri Feb 8 2008 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.3.6-1)
 - Sanwa PC500/5000.
