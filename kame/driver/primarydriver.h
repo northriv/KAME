@@ -200,37 +200,37 @@ inline double
 
 template <>
 	inline char XPrimaryDriver::pop() throw (XBufferUnderflowRecordError&) {
-	if(*s_tl_pop_it == rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+	if(*s_tl_pop_it + sizeof(char) > rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	return _pop_char(*s_tl_pop_it);
 }
 template <>
 	inline unsigned char XPrimaryDriver::pop() throw (XBufferUnderflowRecordError&) {
-	if(*s_tl_pop_it == rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+	if(*s_tl_pop_it + sizeof(char) > rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	return static_cast<unsigned char>(_pop_char(*s_tl_pop_it));
 }
 template <>
 	inline short XPrimaryDriver::pop() throw (XBufferUnderflowRecordError&) {
-	if(*s_tl_pop_it == rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+	if(*s_tl_pop_it + sizeof(short) > rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	return _pop_short(*s_tl_pop_it);
 }
 template <>
 	inline unsigned short XPrimaryDriver::pop() throw (XBufferUnderflowRecordError&) {
-	if(*s_tl_pop_it == rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+	if(*s_tl_pop_it + sizeof(short) > rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	return static_cast<unsigned short>(_pop_short(*s_tl_pop_it));
 }
 template <>
 	inline int32_t XPrimaryDriver::pop() throw (XBufferUnderflowRecordError&) {
-	if(*s_tl_pop_it == rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+	if(*s_tl_pop_it + sizeof(int32_t) > rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	return _pop_int32(*s_tl_pop_it);
 }
 template <>
 	inline uint32_t XPrimaryDriver::pop() throw (XBufferUnderflowRecordError&) {
-	if(*s_tl_pop_it == rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+	if(*s_tl_pop_it + sizeof(int32_t) > rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	return static_cast<uint32_t>(_pop_int32(*s_tl_pop_it));
 }
 template <>
 	inline float XPrimaryDriver::pop() throw (XBufferUnderflowRecordError&) {
-	if(*s_tl_pop_it == rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+	if(*s_tl_pop_it + sizeof(float) > rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	union {
 		int32_t x;
 		float y;
@@ -241,7 +241,7 @@ template <>
 }
 template <>
 	inline double XPrimaryDriver::pop() throw (XBufferUnderflowRecordError&) {
-	if(*s_tl_pop_it == rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+	if(*s_tl_pop_it + sizeof(double) > rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	C_ASSERT(sizeof(double) == 8);
 	return _pop_double(*s_tl_pop_it);
 }
