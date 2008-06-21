@@ -83,8 +83,8 @@ XLecroyDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
 	avg = std::max(1, avg);
 	bool sseq = *singleSequence();
 	if(avg == 1) {
-		interface()->send("F1:TRACE OFF");
-		interface()->send("F2:TRACE OFF");
+//		interface()->send("F1:TRACE OFF");
+//		interface()->send("F2:TRACE OFF");
 		if(sseq) {
 			interface()->send("ARM");
 		}
@@ -226,21 +226,30 @@ void
 XLecroyDSO::getWave(std::deque<std::string> &channels)
 {
 	XScopedLock<XInterface> lock(*interface());
-	bool sseq = *singleSequence();
-	push<unsigned int32_t>(channels.size());
-	for(unsigned int i = 0; i < channels.size(); i++) {
-		if(sseq)
-			interface()->sendf("%s:WAVEFORM? ALL", channels[i].c_str());
-		else
-			interface()->sendf("F%u:WAVEFORM? ALL", i);
-		interface()->receive(10);
-		rawData().insert(rawData().end(), 
-						 interface()->buffer().begin(), interface()->buffer().end());
-		int blks;
-		interface()->scanf("#9%8u", &blks);
-		interface()->receive(blks + 1);
-		rawData().insert(rawData().end(), 
-						 interface()->buffer().begin(), interface()->buffer().end());
+	try {
+		bool sseq = *singleSequence();
+		push<unsigned int32_t>(channels.size());
+		for(unsigned int i = 0; i < channels.size(); i++) {
+			if(sseq)
+				interface()->sendf("%s:WAVEFORM? ALL", channels[i].c_str());
+			else
+				interface()->sendf("F%u:WAVEFORM? ALL", i);
+			interface()->receive(4); //For "ALL,"
+			interface()->setGPIBUseSerialPollOnRead(false);
+			interface()->receive(14);
+			rawData().insert(rawData().end(), 
+							 interface()->buffer().begin(), interface()->buffer().end());
+			int blks;
+			interface()->scanf("#9%8u", &blks);
+			interface()->receive(blks + 1);
+			rawData().insert(rawData().end(), 
+							 interface()->buffer().begin(), interface()->buffer().end());
+			interface()->setGPIBUseSerialPollOnRead(true);
+		}
+	}
+	catch (XInterface::XInterfaceError &e) {
+		interface()->setGPIBUseSerialPollOnRead(true);
+		throw e;
 	}
 }
 void
