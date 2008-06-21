@@ -275,8 +275,11 @@ XNIGPIBPort::gpib_receive(unsigned int est_length, unsigned int max_length)
 			break;
 		}
 		if(ret & CMPL) {
+			if(len == max_length)
+				break;
 			dbgPrint("ibrd terminated without END");
 			continue;
+			break;
 		}
 		gErrPrint(gpibStatus(KAME::i18n("ibrd terminated without CMPL")));
 	}
