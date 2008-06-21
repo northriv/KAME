@@ -973,7 +973,7 @@
                                 <cstring>m_btnDump</cstring>
                             </property>
                             <property name="text">
-                                <string>&amp;DUMP</string>
+                                <string>DUMP</string>
                             </property>
                             <property name="autoDefault">
                                 <bool>false</bool>
