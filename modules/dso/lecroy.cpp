@@ -96,15 +96,15 @@ XLecroyDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
 		const char *atype = sseq ? "SUMMED" : "CONTINUOUS";
 	    std::string ch = trace1()->to_str();
 	    if(!ch.empty()) {
-			interface()->sendf("F1:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
+			interface()->sendf("TA:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
 				ch.c_str(), atype, avg);
-			interface()->send("F1:TRACE ON");
+			interface()->send("TA:TRACE ON");
 	    }
 	    ch = trace2()->to_str();
 	    if(!ch.empty()) {
-			interface()->sendf("F2:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
+			interface()->sendf("TB:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
 				ch.c_str(), atype, avg);
-			interface()->send("F2:TRACE ON");
+			interface()->send("TB:TRACE ON");
 	    }
 		interface()->send("TRIG_MODE NORM");			
 	}
@@ -227,13 +227,14 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 {
 	XScopedLock<XInterface> lock(*interface());
 	try {
-		bool sseq = *singleSequence();
 		push<unsigned int32_t>(channels.size());
-		for(unsigned int i = 0; i < channels.size(); i++) {
-			if(sseq)
-				interface()->sendf("%s:WAVEFORM? ALL", channels[i].c_str());
-			else
-				interface()->sendf("F%u:WAVEFORM? ALL", i);
+		for(unsigned int i = 0; i < std::min((unsigned int)channels.size(), 4u); i++) {
+			std::string ch = channels[i];
+			if(*average() > 1) {
+				const char *fch[] = {"TA", "TB", "TC", "TD"};
+				ch = fch[i];
+			}
+			interface()->sendf("%s:WAVEFORM? ALL", ch.c_str());
 			interface()->receive(4); //For "ALL,"
 			interface()->setGPIBUseSerialPollOnRead(false);
 			interface()->receive(10);
