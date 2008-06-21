@@ -235,6 +235,7 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 				ch = fch[i];
 			}
 			interface()->sendf("%s:WAVEFORM? ALL", ch.c_str());
+			msecsleep(50);
 			interface()->receive(4); //For "ALL,"
 			interface()->setGPIBUseSerialPollOnRead(false);
 			interface()->receive(2); //For "#9"
