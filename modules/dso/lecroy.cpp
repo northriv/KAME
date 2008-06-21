@@ -237,18 +237,18 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 			interface()->sendf("%s:WAVEFORM? ALL", ch.c_str());
 			interface()->receive(4); //For "ALL,"
 			if(rawData().size() != 4)
-				throw XInterface::XInterfaceError(__FILE__, __LINE__);
+				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
 			interface()->setGPIBUseSerialPollOnRead(false);
 			interface()->receive(2); //For "#9"
 			if(rawData().size() != 2)
-				throw XInterface::XInterfaceError(__FILE__, __LINE__);
+				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
 			rawData().insert(rawData().end(), 
 							 interface()->buffer().begin(), interface()->buffer().end());
 			unsigned int n;
 			interface()->scanf("#%1u", &n);
 			interface()->receive(n);
 			if(rawData().size() != n)
-				throw XInterface::XInterfaceError(__FILE__, __LINE__);
+				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
 			rawData().insert(rawData().end(), 
 							 interface()->buffer().begin(), interface()->buffer().end());
 			rawData().push_back('\0');
@@ -264,7 +264,7 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 				msecsleep(10);
 			}
 			if(blks != 0)
-				throw XInterface::XInterfaceError(__FILE__, __LINE__);
+				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
 			interface()->setGPIBUseSerialPollOnRead(true);
 		}
 	}

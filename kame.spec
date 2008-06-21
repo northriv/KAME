@@ -24,7 +24,6 @@ BuildPreReq: gcc-c++ >= 4.0
 
 Source0: %{name}-%{version}.tar.bz2
 Source1: ftgl-%{ftglver}.tar.gz
-Source2: mikachanfont-%{mikachanver}.tar.bz2
 
 Summary: KAME, K's adaptive measurement engine.
 
@@ -62,9 +61,7 @@ NMR drivers.
 %endif
 
 %prep
-%setup -q -a 1 -a 2
-mv mikachanfont-%{mikachanver}/fonts/* kame/mikachanfont
-mv mikachanfont-%{mikachanver}/* kame/mikachanfont
+%setup -q -a 1
 
 %build
 # build static FTGL
