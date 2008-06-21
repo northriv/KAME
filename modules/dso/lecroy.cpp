@@ -192,7 +192,7 @@ XLecroyDSO::acqCount(bool *seq_busy) {
 		interface()->queryf("%s:TRACE?", trace1()->to_str().c_str());
 		if(!strncmp(&interface()->buffer()[0], "ON", 2)) {
 			//trace1 is displayed.
-			std::string ch = (avg > 1) ? std::string("F1") : trace1()->to_str();
+			std::string ch = (avg > 1) ? std::string("TA") : trace1()->to_str();
 			n = lrint(inspectDouble("SWEEPS_PER_ACQ", ch));
 		}
 	}
@@ -237,7 +237,7 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 			interface()->sendf("%s:WAVEFORM? ALL", ch.c_str());
 			interface()->receive(4); //For "ALL,"
 			interface()->setGPIBUseSerialPollOnRead(false);
-			interface()->receive(10);
+			interface()->receive(11);
 			rawData().insert(rawData().end(), 
 							 interface()->buffer().begin(), interface()->buffer().end());
 			int blks;
