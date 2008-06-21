@@ -241,7 +241,7 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 			rawData().insert(rawData().end(), 
 							 interface()->buffer().begin(), interface()->buffer().end());
 			int blks;
-			interface()->scanf("#9%8u", &blks);
+			interface()->scanf("#9%u", &blks);
 			interface()->receive(blks + 1);
 			rawData().insert(rawData().end(), 
 							 interface()->buffer().begin(), interface()->buffer().end());
@@ -284,6 +284,9 @@ XLecroyDSO::convertRaw() throw (XRecordError&) {
 		double hoffset = pop<double>();
 		
 		if(ch == 0) {
+			if((count < 0) || 
+				(rawData().size() < (count * 2 + DATA_BLOCK) * ch_cnt))
+				throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 			setParameters(ch_cnt, hoffset, interval, count);
 		}
 		
