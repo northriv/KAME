@@ -15,7 +15,7 @@
 #include "charinterface.h"
 #include "xwavengraph.h"
 
-REGISTER_TYPE(XDriverList, LecroyDSO, "Lecroy/Iwatsu X-Stream DSO");
+REGISTER_TYPE(XDriverList, LecroyDSO, "Lecroy/Iwatsu DSO");
 
 //---------------------------------------------------------------------------
 XLecroyDSO::XLecroyDSO(const char *name, bool runtime,
