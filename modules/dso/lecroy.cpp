@@ -235,21 +235,34 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 				ch = fch[i];
 			}
 			interface()->sendf("%s:WAVEFORM? ALL", ch.c_str());
-			msecsleep(50);
 			interface()->receive(4); //For "ALL,"
+			if(rawData().size() != 4)
+				throw XInterface::XInterfaceError(__FILE__, __LINE__);
 			interface()->setGPIBUseSerialPollOnRead(false);
 			interface()->receive(2); //For "#9"
+			if(rawData().size() != 2)
+				throw XInterface::XInterfaceError(__FILE__, __LINE__);
 			rawData().insert(rawData().end(), 
 							 interface()->buffer().begin(), interface()->buffer().end());
 			unsigned int n;
-			interface()->scanf("#%u", &n);
+			interface()->scanf("#%1u", &n);
 			interface()->receive(n);
+			if(rawData().size() != n)
+				throw XInterface::XInterfaceError(__FILE__, __LINE__);
 			rawData().insert(rawData().end(), 
 							 interface()->buffer().begin(), interface()->buffer().end());
+			rawData().push_back('\0');
 			unsigned int blks = interface()->toUInt();
-			interface()->receive(blks + 1); //Binary blocks and 0x0a.
-			rawData().insert(rawData().end(), 
-							 interface()->buffer().begin(), interface()->buffer().end());
+			blks += 1; //Binary blocks and 0x0a.
+			for(int retry = 0; retry < 5; retry++) {
+				interface()->receive(blks);
+				blks -= rawData().size();
+				rawData().insert(rawData().end(), 
+								 interface()->buffer().begin(), interface()->buffer().end());
+				if(blks < 0)
+					break;
+				msecsleep(10);
+			}
 			interface()->setGPIBUseSerialPollOnRead(true);
 		}
 	}
