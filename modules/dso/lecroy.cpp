@@ -62,6 +62,7 @@ XLecroyDSO::open() throw (XInterface::XInterfaceError &)
 }
 void 
 XLecroyDSO::onTrace1Changed(const shared_ptr<XValueNodeBase> &) {
+	XScopedLock<XInterface> lock(*interface());
     std::string ch = trace1()->to_str();
     if(!ch.empty()) {
 		interface()->sendf("%s:TRACE ON", ch.c_str());
@@ -70,6 +71,7 @@ XLecroyDSO::onTrace1Changed(const shared_ptr<XValueNodeBase> &) {
 }
 void 
 XLecroyDSO::onTrace2Changed(const shared_ptr<XValueNodeBase> &) {
+	XScopedLock<XInterface> lock(*interface());
     std::string ch = trace2()->to_str();
     if(!ch.empty()) {
 		interface()->sendf("%s:TRACE ON", ch.c_str());
@@ -78,7 +80,8 @@ XLecroyDSO::onTrace2Changed(const shared_ptr<XValueNodeBase> &) {
 }
 void 
 XLecroyDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
-//	interface()->send("TRIG_MODE STOP");
+	XScopedLock<XInterface> lock(*interface());
+	interface()->send("TRIG_MODE STOP");
 	int avg = *average();
 	avg = std::max(1, avg);
 	bool sseq = *singleSequence();
@@ -106,7 +109,7 @@ XLecroyDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
 				ch.c_str(), atype, avg);
 			interface()->send("TB:TRACE ON");
 	    }
-		interface()->send("TRIG_MODE NORM");			
+		interface()->send("TRIG_MODE NORM");
 	}
 }
 
@@ -121,7 +124,7 @@ XLecroyDSO::onTrigSourceChanged(const shared_ptr<XValueNodeBase> &)
 }
 void
 XLecroyDSO::onTrigPosChanged(const shared_ptr<XValueNodeBase> &) {
-	interface()->sendf("%s:TRIG_DELAY %f PCT", trigSource()->to_str().c_str(), (double)*trigPos());
+	interface()->sendf("TRIG_DELAY %f PCT", (double)*trigPos());
 }
 void
 XLecroyDSO::onTrigLevelChanged(const shared_ptr<XValueNodeBase> &) {
@@ -166,16 +169,20 @@ XLecroyDSO::onRecordLengthChanged(const shared_ptr<XValueNodeBase> &) {
 }
 void
 XLecroyDSO::onForceTriggerTouched(const shared_ptr<XNode> &) {
+	XScopedLock<XInterface> lock(*interface());
+	//	interface()->send("FORCE_TRIGER");
+	interface()->send("ARM");
+	interface()->send("TRIG_MODE SINGLE");
 	bool sseq = *singleSequence();
 	if(sseq && (*average() <= 1))
 		interface()->send("ARM");
 	else
 		interface()->send("TRIG_MODE NORM");
-	interface()->send("FORCE_TRIGER");
 }
 
 void
 XLecroyDSO::startSequence() {
+	XScopedLock<XInterface> lock(*interface());
 	if(*average() <= 1)
 		interface()->send("ARM");
 	else
@@ -200,7 +207,7 @@ XLecroyDSO::acqCount(bool *seq_busy) {
 		interface()->query("INR?");
 		if(interface()->toInt() & 1)
 			m_totalCount++;
-		if(n < m_totalCount)
+		if(n < avg)
 			m_totalCount = n;
 		else
 			n = m_totalCount;
@@ -261,7 +268,7 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 								 interface()->buffer().begin(), interface()->buffer().end());
 				if(blks <= 0)
 					break;
-				msecsleep(10);
+				msecsleep(10 + retry * 10);
 			}
 			if(blks != 0)
 				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
@@ -281,8 +288,10 @@ XLecroyDSO::convertRaw() throw (XRecordError&) {
 	unsigned int ch_cnt = pop<unsigned int32_t>();
 	for(unsigned int ch = 0; ch < ch_cnt; ch++) {
 		std::vector<char>::iterator dit = rawDataPopIterator();
-		dit += DATA_BLOCK + 10;
-		rawDataPopIterator() += WAVEDESC_WAVE_ARRAY_COUNT + 10;
+		unsigned int n;
+		sscanf(&*dit, "#%1u", &n);
+		dit += DATA_BLOCK + n + 2;
+		rawDataPopIterator() += WAVEDESC_WAVE_ARRAY_COUNT + n + 2;
 		long count = pop<int32_t>();
 		pop<int32_t>();
 		long first_valid = pop<int32_t>();
@@ -305,18 +314,18 @@ XLecroyDSO::convertRaw() throw (XRecordError&) {
 		
 		if(ch == 0) {
 			if((count < 0) || 
-				(rawData().size() < (count * 2 + DATA_BLOCK) * ch_cnt))
+				(rawData().size() < (count * 2 + DATA_BLOCK + n + 2) * ch_cnt))
 				throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 			setParameters(ch_cnt, hoffset, interval, count);
 		}
 		
 		double *wave = waveDisp(ch);
 		rawDataPopIterator() = dit;
-		for(int i = 0; i < count; i++) {
+		for(int i = 0; i < std::min(count, (long)lengthDisp()); i++) {
 			short x = pop<short>();
 			float v = voffset + vgain * x;
 			*wave++ = v;
 		}
-		pop<char>();
+		pop<char>(); //For \0x0a.
 	}
 }
