@@ -252,17 +252,19 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 			rawData().insert(rawData().end(), 
 							 interface()->buffer().begin(), interface()->buffer().end());
 			rawData().push_back('\0');
-			unsigned int blks = interface()->toUInt();
+			int blks = interface()->toUInt();
 			blks += 1; //Binary blocks and 0x0a.
 			for(int retry = 0; retry < 5; retry++) {
 				interface()->receive(blks);
 				blks -= rawData().size();
 				rawData().insert(rawData().end(), 
 								 interface()->buffer().begin(), interface()->buffer().end());
-				if(blks < 0)
+				if(blks <= 0)
 					break;
 				msecsleep(10);
 			}
+			if(blks != 0)
+				throw XInterface::XInterfaceError(__FILE__, __LINE__);
 			interface()->setGPIBUseSerialPollOnRead(true);
 		}
 	}
