@@ -226,8 +226,7 @@ XNIGPIBPort::receive() throw (XInterface::XCommError &) {
     buffer()[len] = '\0';
 }
 void
-XNIGPIBPort::receive(unsigned int length) throw (XInterface::XCommError &)
-{
+XNIGPIBPort::receive(unsigned int length) throw (XInterface::XCommError &) {
     unsigned int len = gpib_receive(length, length);
     buffer().resize(len);
 }
@@ -239,15 +238,13 @@ XNIGPIBPort::gpib_receive(unsigned int est_length, unsigned int max_length)
 
 	gpib_spoll_before_read();
 	int len = 0;
-	for(int i = 0; ; i++)
-	{
+	for(int i = 0; ; i++) {
 		unsigned int buf_size = std::min(max_length, len + est_length);
 		if(buffer().size() < buf_size)
 			buffer().resize(buf_size);
 		msecsleep(m_pInterface->gpibWaitBeforeRead());
 		int ret = ibrd(m_ud, &buffer()[len], buf_size - len);
-		if(ret & ERR)
-		{
+		if(ret & ERR) {
 			switch(ThreadIberr()) {
 			case EDVR:
 			case EFSO:
@@ -270,8 +267,7 @@ XNIGPIBPort::gpib_receive(unsigned int est_length, unsigned int max_length)
 		if(ThreadIbcntl() > buf_size - len)
 			throw XInterface::XCommError(gpibStatus(KAME::i18n("libgpib error.")), __FILE__, __LINE__);
 		len += ThreadIbcntl();
-		if((ret & END) && (ret & CMPL))
-		{
+		if((ret & END) && (ret & CMPL)) {
 			break;
 		}
 		if(ret & CMPL) {
@@ -279,7 +275,6 @@ XNIGPIBPort::gpib_receive(unsigned int est_length, unsigned int max_length)
 				break;
 			dbgPrint("ibrd terminated without END");
 			continue;
-			break;
 		}
 		gErrPrint(gpibStatus(KAME::i18n("ibrd terminated without CMPL")));
 	}

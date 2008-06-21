@@ -204,7 +204,7 @@ XCharInterface::receive(unsigned int length) throw (XCommError &)
 	try {
 		dbgPrint(driver()->getLabel() + QString(" Receiving %1 bytes...").arg(length));
 		m_xport->receive(length);
-		dbgPrint(driver()->getLabel() + QString("%1 bytes Received.").arg(buffer().size())); 
+		dbgPrint(driver()->getLabel() + QString(" %1 bytes Received.").arg(buffer().size())); 
 	}
 	catch (XCommError &e) {
 		e.print(driver()->getLabel() + KAME::i18n(" ReceiveError, because "));
