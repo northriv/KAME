@@ -237,12 +237,16 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 			interface()->sendf("%s:WAVEFORM? ALL", ch.c_str());
 			interface()->receive(4); //For "ALL,"
 			interface()->setGPIBUseSerialPollOnRead(false);
-			interface()->receive(11);
+			interface()->receive(2); //For "#9"
 			rawData().insert(rawData().end(), 
 							 interface()->buffer().begin(), interface()->buffer().end());
-			int blks;
-			interface()->scanf("#9%u", &blks);
-			interface()->receive(blks + 1);
+			unsigned int n;
+			interface()->scanf("#%u", &n);
+			interface()->receive(n);
+			rawData().insert(rawData().end(), 
+							 interface()->buffer().begin(), interface()->buffer().end());
+			unsigned int blks = interface()->toUInt();
+			interface()->receive(blks + 1); //Binary blocks and 0x0a.
 			rawData().insert(rawData().end(), 
 							 interface()->buffer().begin(), interface()->buffer().end());
 			interface()->setGPIBUseSerialPollOnRead(true);
