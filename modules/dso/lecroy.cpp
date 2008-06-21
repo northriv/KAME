@@ -236,18 +236,18 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 			}
 			interface()->sendf("%s:WAVEFORM? ALL", ch.c_str());
 			interface()->receive(4); //For "ALL,"
-			if(rawData().size() != 4)
+			if(interface()->buffer().size() != 4)
 				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
 			interface()->setGPIBUseSerialPollOnRead(false);
 			interface()->receive(2); //For "#9"
-			if(rawData().size() != 2)
+			if(interface()->buffer().size() != 2)
 				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
 			rawData().insert(rawData().end(), 
 							 interface()->buffer().begin(), interface()->buffer().end());
 			unsigned int n;
 			interface()->scanf("#%1u", &n);
 			interface()->receive(n);
-			if(rawData().size() != n)
+			if(interface()->buffer().size() != n)
 				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
 			rawData().insert(rawData().end(), 
 							 interface()->buffer().begin(), interface()->buffer().end());
@@ -256,7 +256,7 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 			blks += 1; //Binary blocks and 0x0a.
 			for(int retry = 0; retry < 5; retry++) {
 				interface()->receive(blks);
-				blks -= rawData().size();
+				blks -= interface()->buffer().size();
 				rawData().insert(rawData().end(), 
 								 interface()->buffer().begin(), interface()->buffer().end());
 				if(blks <= 0)
