@@ -91,8 +91,14 @@ XCharInterface::close() throw (XInterfaceError &)
 }
 int
 XCharInterface::scanf(const char *fmt, ...) const {
-	if(!buffer().size() || !isspace(*buffer().rbegin()))
+	if(!buffer().size())
 		throw XConvError(__FILE__, __LINE__);
+	bool addednull = false;
+	if(buffer().back() != '\0') {
+		m_xport->buffer().push_back('\0');
+		addednull = true;
+	}
+
 	int ret;
 	va_list ap;
 
@@ -101,33 +107,33 @@ XCharInterface::scanf(const char *fmt, ...) const {
 	ret = vsscanf(&buffer()[0], fmt, ap);
 
 	va_end(ap);
+
+	if(addednull)
+		m_xport->buffer().pop_back();
 	return ret;    
 }
 double
 XCharInterface::toDouble() const throw (XConvError &) {
-	if(!buffer().size() || !isspace(*buffer().rbegin()))
-		throw XConvError(__FILE__, __LINE__);
     double x;
-    int ret = sscanf(&buffer()[0], "%lf", &x);
-    if(ret != 1) throw XConvError(__FILE__, __LINE__);
+    int ret = this->scanf("%lf", &x);
+    if(ret != 1)
+		throw XConvError(__FILE__, __LINE__);
     return x;
 }
 int
 XCharInterface::toInt() const throw (XConvError &) {
-	if(!buffer().size() || !isspace(*buffer().rbegin()))
-		throw XConvError(__FILE__, __LINE__);
     int x;
-    int ret = sscanf(&buffer()[0], "%d", &x);
-    if(ret != 1) throw XConvError(__FILE__, __LINE__);
+    int ret = this->scanf("%d", &x);
+    if(ret != 1)
+		throw XConvError(__FILE__, __LINE__);
     return x;
 }
 unsigned int
 XCharInterface::toUInt() const throw (XConvError &) {
-	if(!buffer().size() || !isspace(*buffer().rbegin()))
-		throw XConvError(__FILE__, __LINE__);
     unsigned int x;
-    int ret = sscanf(&buffer()[0], "%u", &x);
-    if(ret != 1) throw XConvError(__FILE__, __LINE__);
+    int ret = this->scanf("%u", &x);
+    if(ret != 1)
+		throw XConvError(__FILE__, __LINE__);
     return x;
 }
 
