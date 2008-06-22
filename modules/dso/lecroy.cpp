@@ -100,17 +100,13 @@ XLecroyDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
 		const char *atype = sseq ? "SUMMED" : "CONTINUOUS";
 	    std::string ch = trace1()->to_str();
 	    if(!ch.empty()) {
-//			interface()->sendf("TA:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
-//				ch.c_str(), atype, avg);
-			interface()->sendf("TA:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,MAXSWEEPS,%d",
+			interface()->sendf("TA:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
 				ch.c_str(), atype, avg);
 			interface()->send("TA:TRACE ON");
 	    }
 	    ch = trace2()->to_str();
 	    if(!ch.empty()) {
-//			interface()->sendf("TB:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
-//				ch.c_str(), atype, avg);
-			interface()->sendf("TB:DEFINE EQN,'AVG(%s)',SWEEPS,%d",
+			interface()->sendf("TB:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
 				ch.c_str(), atype, avg);
 			interface()->send("TB:TRACE ON");
 	    }
@@ -176,10 +172,9 @@ void
 XLecroyDSO::onForceTriggerTouched(const shared_ptr<XNode> &) {
 	XScopedLock<XInterface> lock(*interface());
 	//	interface()->send("FORCE_TRIGER");
-	interface()->send("ARM");
-	interface()->send("TRIG_MODE SINGLE");
-	bool sseq = *singleSequence();
-	if(sseq && (*average() <= 1))
+//	interface()->send("ARM");
+//	interface()->send("TRIG_MODE SINGLE");
+	if((*average() <= 1) && *singleSequence())
 		interface()->send("ARM");
 	else
 		interface()->send("TRIG_MODE NORM");
@@ -188,7 +183,7 @@ XLecroyDSO::onForceTriggerTouched(const shared_ptr<XNode> &) {
 void
 XLecroyDSO::startSequence() {
 	XScopedLock<XInterface> lock(*interface());
-	if(*average() <= 1)
+	if((*average() <= 1) && *singleSequence())
 		interface()->send("ARM");
 	else
 		interface()->send("TRIG_MODE NORM");
@@ -238,6 +233,7 @@ void
 XLecroyDSO::getWave(std::deque<std::string> &channels)
 {
 	XScopedLock<XInterface> lock(*interface());
+	interface()->send("TRIG_MODE STOP");
 	try {
 		push<unsigned int32_t>(channels.size());
 		for(unsigned int i = 0; i < std::min((unsigned int)channels.size(), 4u); i++) {
@@ -283,6 +279,8 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 		interface()->setGPIBUseSerialPollOnRead(true);
 		throw e;
 	}
+	if(!*signleSequence())
+		interface()->send("TRIG_MODE NORMAL");
 }
 void
 XLecroyDSO::convertRaw() throw (XRecordError&) {
