@@ -209,9 +209,9 @@ XLecroyDSO::acqCount(bool *seq_busy) {
 		interface()->query("INR?");
 		if(interface()->toInt() & 1)
 			m_totalCount++;
-		if(n < avg)
-			m_totalCount = n;
-		else
+//		if(n < avg)
+//			m_totalCount = n;
+//		else
 			n = m_totalCount;
 	}
 	*seq_busy = (n < avg);
@@ -235,7 +235,7 @@ void
 XLecroyDSO::getWave(std::deque<std::string> &channels)
 {
 	XScopedLock<XInterface> lock(*interface());
-	interface()->send("TRIG_MODE STOP");
+//	interface()->send("TRIG_MODE STOP");
 	try {
 		push<unsigned int32_t>(channels.size());
 		for(unsigned int i = 0; i < std::min((unsigned int)channels.size(), 4u); i++) {
@@ -263,14 +263,14 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 			rawData().insert(rawData().end(), 
 							 interface()->buffer().begin(), interface()->buffer().end());
 			int blks = interface()->toUInt();
-			for(int retry = 0; retry < 10; retry++) {
+			for(int retry = 0; retry < 100; retry++) {
 				interface()->receive(blks);
 				blks -= interface()->buffer().size();
 				rawData().insert(rawData().end(), 
 								 interface()->buffer().begin(), interface()->buffer().end());
 				if(blks <= 0)
 					break;
-				msecsleep(10 + retry * 200);
+				msecsleep(retry * 20);
 			}
 			if(blks != 0)
 				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
@@ -282,8 +282,8 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 		interface()->setGPIBUseSerialPollOnRead(true);
 		throw e;
 	}
-	if(!*singleSequence())
-		interface()->send("TRIG_MODE NORM");
+//	if(!*singleSequence())
+//		interface()->send("TRIG_MODE NORM");
 }
 void
 XLecroyDSO::convertRaw() throw (XRecordError&) {
@@ -297,7 +297,6 @@ XLecroyDSO::convertRaw() throw (XRecordError&) {
 		sscanf(&*dit, "#%1u", &n);
 		dit += n + 2;
 		if(strncmp(&*dit, "WAVEDESC", 8)) {
-			fprintf(stderr, "%d, %19s\n", n, (const char*)&*dit);
 			throw XRecordError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
 		}
 		dit += DATA_BLOCK;
