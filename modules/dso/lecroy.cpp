@@ -264,18 +264,21 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 			rawData().insert(rawData().end(), 
 							 interface()->buffer().begin(), interface()->buffer().end());
 			int blks = interface()->toUInt();
-			for(int retry = 0; retry < 100; retry++) {
+			XTime tstart = XTime::now();
+			for(int retry = 0;; retry++) {
 				interface()->receive(blks);
 				blks -= interface()->buffer().size();
 				rawData().insert(rawData().end(), 
 								 interface()->buffer().begin(), interface()->buffer().end());
 				if(blks <= 0)
 					break;
+				if(XTime::now() - tstart > 3.0)
+					break; //timeout.
 				msecsleep(retry * 20);
 			}
 			if(blks != 0)
 				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
-			interface()->receive(1); //For LF.
+			interface()->receive(); //For LF.
 			interface()->setGPIBUseSerialPollOnRead(true);
 		}
 	}
