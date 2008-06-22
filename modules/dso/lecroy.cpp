@@ -253,8 +253,8 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 							 interface()->buffer().begin(), interface()->buffer().end());
 			unsigned int n;
 			interface()->scanf("#%1u", &n);
-			interface()->receive(n + 1);
-			if(interface()->buffer().size() != n + 1)
+			interface()->receive(n);
+			if(interface()->buffer().size() != n)
 				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
 			rawData().insert(rawData().end(), 
 							 interface()->buffer().begin(), interface()->buffer().end());
@@ -270,6 +270,9 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 			}
 			if(blks != 0)
 				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
+			if(strncmp(&interface()->buffer()[0], "WAVEDESC", 8))
+				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
+			interface()->receive(1); //For LF.
 			interface()->setGPIBUseSerialPollOnRead(true);
 		}
 	}
