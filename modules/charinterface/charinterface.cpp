@@ -114,9 +114,8 @@ XCharInterface::toDouble() const throw (XConvError &) {
 }
 int
 XCharInterface::toInt() const throw (XConvError &) {
-	if(!buffer().size())
+	if(!buffer().size() || !isspace(*buffer().rbegin()))
 		throw XConvError(__FILE__, __LINE__);
-	!isspace(*buffer().rbegin())
     int x;
     int ret = sscanf(&buffer()[0], "%d", &x);
     if(ret != 1) throw XConvError(__FILE__, __LINE__);
