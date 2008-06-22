@@ -52,7 +52,6 @@ XLecroyDSO::XLecroyDSO(const char *name, bool runtime,
 void
 XLecroyDSO::open() throw (XInterface::XInterfaceError &)
 {
-	msecsleep(500);
 	interface()->send("COMM_HEADER OFF");
 	interface()->send("COMM_FORMAT DEF9,WORD,BIN");
     //LSB first for litte endian.
@@ -284,7 +283,7 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 		throw e;
 	}
 	if(!*singleSequence())
-		interface()->send("TRIG_MODE NORMAL");
+		interface()->send("TRIG_MODE NORM");
 }
 void
 XLecroyDSO::convertRaw() throw (XRecordError&) {
