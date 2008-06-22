@@ -253,12 +253,11 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 							 interface()->buffer().begin(), interface()->buffer().end());
 			unsigned int n;
 			interface()->scanf("#%1u", &n);
-			interface()->receive(n);
-			if(interface()->buffer().size() != n)
+			interface()->receive(n + 1);
+			if(interface()->buffer().size() != n + 1)
 				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
 			rawData().insert(rawData().end(), 
 							 interface()->buffer().begin(), interface()->buffer().end());
-			rawData().push_back('\0');
 			int blks = interface()->toUInt();
 			blks += 1; //Binary blocks and 0x0a.
 			for(int retry = 0; retry < 5; retry++) {
@@ -290,8 +289,8 @@ XLecroyDSO::convertRaw() throw (XRecordError&) {
 		std::vector<char>::iterator dit = rawDataPopIterator();
 		unsigned int n;
 		sscanf(&*dit, "#%1u", &n);
-		dit += DATA_BLOCK + n + 2;
-		rawDataPopIterator() += WAVEDESC_WAVE_ARRAY_COUNT + n + 2;
+		dit += DATA_BLOCK + n + 3;
+		rawDataPopIterator() += WAVEDESC_WAVE_ARRAY_COUNT + n + 3;
 		long count = pop<int32_t>();
 		pop<int32_t>();
 		long first_valid = pop<int32_t>();
