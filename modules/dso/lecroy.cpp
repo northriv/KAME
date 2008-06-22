@@ -263,7 +263,11 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
 			rawData().insert(rawData().end(), 
 							 interface()->buffer().begin(), interface()->buffer().end());
-			int blks = interface()->toUInt();
+			std::vector<char> tbuf(interface()->buffer());
+			tbuf.push_back('\0');
+			int blks;
+			if(sscanf(&tbuf[0], "%d", &blks) != 1)
+				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
 			for(int retry = 0; retry < 100; retry++) {
 				interface()->receive(blks);
 				blks -= interface()->buffer().size();
