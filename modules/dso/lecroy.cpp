@@ -270,8 +270,6 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 			}
 			if(blks != 0)
 				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
-			if(strncmp(&interface()->buffer()[0], "WAVEDESC", 8))
-				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
 			interface()->receive(1); //For LF.
 			interface()->setGPIBUseSerialPollOnRead(true);
 		}
@@ -291,8 +289,13 @@ XLecroyDSO::convertRaw() throw (XRecordError&) {
 		std::vector<char>::iterator dit = rawDataPopIterator();
 		unsigned int n;
 		sscanf(&*dit, "#%1u", &n);
-		dit += DATA_BLOCK + n + 3;
-		rawDataPopIterator() += WAVEDESC_WAVE_ARRAY_COUNT + n + 3;
+		dit += n + 2;
+		if(strncmp(&*dit, "WAVEDESC", 8)) {
+			fprintf(stderr, "%d, %19s\n", n, (const char*)&*dit);
+			throw XRecordError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
+		}
+		dit += DATA_BLOCK;
+		rawDataPopIterator() += WAVEDESC_WAVE_ARRAY_COUNT + n + 2;
 		long count = pop<int32_t>();
 		pop<int32_t>();
 		long first_valid = pop<int32_t>();
@@ -317,6 +320,7 @@ XLecroyDSO::convertRaw() throw (XRecordError&) {
 			if((count < 0) || 
 				(rawData().size() < (count * 2 + DATA_BLOCK + n + 2) * ch_cnt))
 				throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+				dbgPrint(formatString("%d %g %g %d",(int)ch_cnt, (double)hoffset, (double)interval, (int)count));
 			setParameters(ch_cnt, hoffset, interval, count);
 		}
 		
@@ -327,6 +331,5 @@ XLecroyDSO::convertRaw() throw (XRecordError&) {
 			float v = voffset + vgain * x;
 			*wave++ = v;
 		}
-		pop<char>(); //For \0x0a.
 	}
 }
