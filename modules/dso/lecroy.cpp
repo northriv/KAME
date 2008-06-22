@@ -259,7 +259,6 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 			rawData().insert(rawData().end(), 
 							 interface()->buffer().begin(), interface()->buffer().end());
 			int blks = interface()->toUInt();
-			blks += 1; //Binary blocks and 0x0a.
 			for(int retry = 0; retry < 5; retry++) {
 				interface()->receive(blks);
 				blks -= interface()->buffer().size();
