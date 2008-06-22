@@ -52,6 +52,7 @@ XLecroyDSO::XLecroyDSO(const char *name, bool runtime,
 void
 XLecroyDSO::open() throw (XInterface::XInterfaceError &)
 {
+	msecsleep(100);
 	interface()->send("COMM_HEADER OFF");
 	interface()->send("COMM_FORMAT DEF9,WORD,BIN");
     //LSB first for litte endian.
@@ -99,13 +100,17 @@ XLecroyDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
 		const char *atype = sseq ? "SUMMED" : "CONTINUOUS";
 	    std::string ch = trace1()->to_str();
 	    if(!ch.empty()) {
-			interface()->sendf("TA:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
+//			interface()->sendf("TA:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
+//				ch.c_str(), atype, avg);
+			interface()->sendf("TA:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,MAXSWEEPS,%d",
 				ch.c_str(), atype, avg);
 			interface()->send("TA:TRACE ON");
 	    }
 	    ch = trace2()->to_str();
 	    if(!ch.empty()) {
-			interface()->sendf("TB:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
+//			interface()->sendf("TB:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
+//				ch.c_str(), atype, avg);
+			interface()->sendf("TB:DEFINE EQN,'AVG(%s)',SWEEPS,%d",
 				ch.c_str(), atype, avg);
 			interface()->send("TB:TRACE ON");
 	    }
@@ -259,8 +264,8 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 			rawData().insert(rawData().end(), 
 							 interface()->buffer().begin(), interface()->buffer().end());
 			int blks = interface()->toUInt();
-			for(int retry = 0; retry < 5; retry++) {
-				msecsleep(10 + retry * 10);
+			for(int retry = 0; retry < 10; retry++) {
+				msecsleep(10 + retry * retry * 30);
 				interface()->receive(blks);
 				blks -= interface()->buffer().size();
 				rawData().insert(rawData().end(), 
