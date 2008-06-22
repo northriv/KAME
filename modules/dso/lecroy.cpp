@@ -120,15 +120,15 @@ XLecroyDSO::onSingleChanged(const shared_ptr<XValueNodeBase> &node) {
 void
 XLecroyDSO::onTrigSourceChanged(const shared_ptr<XValueNodeBase> &)
 {
-	interface()->sendf("TRIG_SELECT ,,%s", trigSource()->to_str().c_str());
+	interface()->sendf("TRIG_SELECT EDGE,SR,%s", trigSource()->to_str().c_str());
 }
 void
 XLecroyDSO::onTrigPosChanged(const shared_ptr<XValueNodeBase> &) {
-	interface()->sendf("TRIG_DELAY %f PCT", (double)*trigPos());
+	interface()->sendf("TRIG_DELAY %fPCT", (double)*trigPos());
 }
 void
 XLecroyDSO::onTrigLevelChanged(const shared_ptr<XValueNodeBase> &) {
-	interface()->sendf("%s:TRIG_LEVEL %g V", trigSource()->to_str().c_str(), (double)*trigLevel());
+	interface()->sendf("%s:TRIG_LEVEL %gV", trigSource()->to_str().c_str(), (double)*trigLevel());
 }
 void
 XLecroyDSO::onTrigFallingChanged(const shared_ptr<XValueNodeBase> &) {
@@ -260,13 +260,13 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 							 interface()->buffer().begin(), interface()->buffer().end());
 			int blks = interface()->toUInt();
 			for(int retry = 0; retry < 5; retry++) {
+				msecsleep(10 + retry * 10);
 				interface()->receive(blks);
 				blks -= interface()->buffer().size();
 				rawData().insert(rawData().end(), 
 								 interface()->buffer().begin(), interface()->buffer().end());
 				if(blks <= 0)
 					break;
-				msecsleep(10 + retry * 10);
 			}
 			if(blks != 0)
 				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
@@ -320,7 +320,6 @@ XLecroyDSO::convertRaw() throw (XRecordError&) {
 			if((count < 0) || 
 				(rawData().size() < (count * 2 + DATA_BLOCK + n + 2) * ch_cnt))
 				throw XBufferUnderflowRecordError(__FILE__, __LINE__);
-				dbgPrint(formatString("%d %g %g %d",(int)ch_cnt, (double)hoffset, (double)interval, (int)count));
 			setParameters(ch_cnt, hoffset, interval, count);
 		}
 		
