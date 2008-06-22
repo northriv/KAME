@@ -97,7 +97,7 @@ XLecroyDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
 	}
 	else {
 //		const char *atype = sseq ? "SUMMED" : "CONTINUOUS";
-		const char *atype = sseq ? "AVGC" : "AVGS";
+		const char *atype = sseq ? "AVGS" : "AVGC";
 	    std::string ch = trace1()->to_str();
 	    if(!ch.empty()) {
 //			interface()->sendf("TA:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
