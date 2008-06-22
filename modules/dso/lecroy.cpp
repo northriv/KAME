@@ -52,10 +52,12 @@ XLecroyDSO::XLecroyDSO(const char *name, bool runtime,
 void
 XLecroyDSO::open() throw (XInterface::XInterfaceError &)
 {
+	interface()->setGPIBUseSerialPollOnWrite(false);
 	interface()->send("COMM_HEADER OFF");
 	interface()->send("COMM_FORMAT DEF9,WORD,BIN");
     //LSB first for litte endian.
 	interface()->send("COMM_ORDER LO");
+	interface()->setGPIBUseSerialPollOnWrite(true);
 	onAverageChanged(average());
 
 	start();
@@ -178,7 +180,7 @@ XLecroyDSO::onForceTriggerTouched(const shared_ptr<XNode> &) {
 		interface()->send("ARM");
 	}
 	else {
-		interface()->send("ARM;TRIG_MODE NORM");
+		interface()->send("TRIG_MODE NORM");
 	}
 }
 
@@ -197,6 +199,7 @@ XLecroyDSO::acqCount(bool *seq_busy) {
 	bool sseq = *singleSequence();
 	unsigned int n = 0;
 	int avg = *average();
+	avg = std::max(1, avg);
 	if(!trace1()->to_str().empty()) {
 		interface()->queryf("%s:TRACE?", trace1()->to_str().c_str());
 		if(!strncmp(&interface()->buffer()[0], "ON", 2)) {
