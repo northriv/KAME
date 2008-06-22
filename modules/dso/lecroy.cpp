@@ -52,7 +52,7 @@ XLecroyDSO::XLecroyDSO(const char *name, bool runtime,
 void
 XLecroyDSO::open() throw (XInterface::XInterfaceError &)
 {
-	msecsleep(100);
+	msecsleep(500);
 	interface()->send("COMM_HEADER OFF");
 	interface()->send("COMM_FORMAT DEF9,WORD,BIN");
     //LSB first for litte endian.
@@ -97,17 +97,20 @@ XLecroyDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
 		}
 	}
 	else {
-		const char *atype = sseq ? "SUMMED" : "CONTINUOUS";
+//		const char *atype = sseq ? "SUMMED" : "CONTINUOUS";
+		const char *atype = sseq ? "AVGC" : "AVGS";
 	    std::string ch = trace1()->to_str();
 	    if(!ch.empty()) {
-			interface()->sendf("TA:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
-				ch.c_str(), atype, avg);
+//			interface()->sendf("TA:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
+//				ch.c_str(), atype, avg);
+			interface()->sendf("TA:DEFINE EQN,'%s(%s)',SWEEPS,%d",
+				atype, ch.c_str(), avg);
 			interface()->send("TA:TRACE ON");
 	    }
 	    ch = trace2()->to_str();
 	    if(!ch.empty()) {
-			interface()->sendf("TB:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
-				ch.c_str(), atype, avg);
+			interface()->sendf("TB:DEFINE EQN,'%s(%s)',SWEEPS,%d",
+				atype, ch.c_str(), avg);
 			interface()->send("TB:TRACE ON");
 	    }
 		interface()->send("TRIG_MODE NORM");
@@ -172,12 +175,12 @@ void
 XLecroyDSO::onForceTriggerTouched(const shared_ptr<XNode> &) {
 	XScopedLock<XInterface> lock(*interface());
 	//	interface()->send("FORCE_TRIGER");
-//	interface()->send("ARM");
-//	interface()->send("TRIG_MODE SINGLE");
-	if((*average() <= 1) && *singleSequence())
+	if((*average() <= 1) && *singleSequence()) {
 		interface()->send("ARM");
-	else
-		interface()->send("TRIG_MODE NORM");
+	}
+	else {
+		interface()->send("ARM;TRIG_MODE NORM");
+	}
 }
 
 void
@@ -243,6 +246,7 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 				ch = fch[i];
 			}
 			interface()->sendf("%s:WAVEFORM? ALL", ch.c_str());
+			msecsleep(50);
 			interface()->receive(4); //For "ALL,"
 			if(interface()->buffer().size() != 4)
 				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
@@ -261,13 +265,13 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 							 interface()->buffer().begin(), interface()->buffer().end());
 			int blks = interface()->toUInt();
 			for(int retry = 0; retry < 10; retry++) {
-				msecsleep(10 + retry * retry * 30);
 				interface()->receive(blks);
 				blks -= interface()->buffer().size();
 				rawData().insert(rawData().end(), 
 								 interface()->buffer().begin(), interface()->buffer().end());
 				if(blks <= 0)
 					break;
+				msecsleep(10 + retry * 200);
 			}
 			if(blks != 0)
 				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
