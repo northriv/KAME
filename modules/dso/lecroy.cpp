@@ -279,7 +279,7 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 		interface()->setGPIBUseSerialPollOnRead(true);
 		throw e;
 	}
-	if(!*signleSequence())
+	if(!*singleSequence())
 		interface()->send("TRIG_MODE NORMAL");
 }
 void
