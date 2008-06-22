@@ -52,12 +52,10 @@ XLecroyDSO::XLecroyDSO(const char *name, bool runtime,
 void
 XLecroyDSO::open() throw (XInterface::XInterfaceError &)
 {
-	interface()->setGPIBUseSerialPollOnWrite(false);
 	interface()->send("COMM_HEADER OFF");
 	interface()->send("COMM_FORMAT DEF9,WORD,BIN");
     //LSB first for litte endian.
 	interface()->send("COMM_ORDER LO");
-	interface()->setGPIBUseSerialPollOnWrite(true);
 	onAverageChanged(average());
 
 	start();

@@ -348,7 +348,7 @@ XDSO::execute(const atomic<bool> &terminated)
 		finishWritingRaw(time_awared, XTime::now());
 	      
 		if(*singleSequence() && !seq_busy) {
-			lastcount = 0;
+			last_count = 0;
 			time_awared = XTime::now();
 			// try/catch exception of communication errors
 			try {
