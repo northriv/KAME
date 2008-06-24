@@ -42,10 +42,10 @@ final:
 	/sw/share/unsermake/unsermake -C $(top_builddir)/modules/dso UNSERMAKE_FORCE_FINAL=1 libdso.la
 
 METASOURCES = 
-__um_includes_chardevicedriver.h = tds.cpp
-__um_includes_charinterface.h = tds.cpp
-__um_includes_dso.h = tds.cpp
-__um_includes_klocale.h = tds.cpp
+__um_includes_chardevicedriver.h = tds.cpp lecroy.cpp
+__um_includes_charinterface.h = tds.cpp lecroy.cpp
+__um_includes_dso.h = tds.cpp lecroy.cpp
+__um_includes_lecroy.h = lecroy.cpp
 __um_includes_tds.h = tds.cpp
-__um_includes_xwavengraph.h = tds.cpp
+__um_includes_xwavengraph.h = tds.cpp lecroy.cpp
 .PHONY: all final

@@ -44,7 +44,6 @@ final:
 METASOURCES = 
 __um_includes_driver.h = primarydriver.cpp driver.cpp secondarydriver.cpp dummydriver.h interface.cpp
 __um_includes_interface.h = primarydriver.cpp driver.cpp dummydriver.h interface.cpp
-__um_includes_klocale.h = primarydriver.cpp driver.cpp secondarydriver.cpp interface.cpp
 __um_includes_measure.h = interface.cpp
 __um_includes_primarydriver.h = primarydriver.cpp
 __um_includes_secondarydriver.h = secondarydriver.cpp

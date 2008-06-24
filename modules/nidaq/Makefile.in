@@ -48,7 +48,6 @@ __um_includes_config.h = nidaqmxdriver.cpp pulserdrivernidaqmx.cpp nidaqdso.cpp 
 __um_includes_driver.h = nidaqmxdriver.cpp pulserdrivernidaqmx.cpp nidaqdso.cpp pulserdrivernidaq.cpp
 __um_includes_dso.h = nidaqdso.cpp
 __um_includes_interface.h = nidaqmxdriver.cpp pulserdrivernidaqmx.cpp nidaqdso.cpp pulserdrivernidaq.cpp
-__um_includes_klocale.h = pulserdrivernidaqmx.cpp nidaqdso.cpp pulserdrivernidaq.cpp
 __um_includes_kmessagebox.h = nidaqdso.cpp
 __um_includes_nidaqdso.h = nidaqdso.cpp
 __um_includes_nidaqmxdriver.h = nidaqmxdriver.cpp pulserdrivernidaqmx.cpp nidaqdso.cpp pulserdrivernidaq.cpp

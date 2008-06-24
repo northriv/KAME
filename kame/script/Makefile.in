@@ -50,7 +50,6 @@ __um_includes_config.h = xdotwriter.cpp xrubywriter.cpp
 __um_includes_fstream = xdotwriter.cpp xrubywriter.cpp
 __um_includes_kapplication.h = xrubythreadconnector.cpp
 __um_includes_kiconloader.h = xrubythreadconnector.cpp
-__um_includes_klocale.h = xrubysupport.cpp
 __um_includes_kstandarddirs.h = xrubysupport.cpp
 __um_includes_math.h = xrubysupport.cpp
 __um_includes_measure.h = xrubysupport.cpp

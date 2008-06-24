@@ -53,7 +53,6 @@ __um_includes_fstream = caltable.cpp
 __um_includes_graph.h = caltable.cpp
 __um_includes_graphnurlform.h = caltable.cpp
 __um_includes_graphwidget.h = caltable.cpp
-__um_includes_klocale.h = thermometer.cpp caltable.cpp
 __um_includes_math.h = thermometer.cpp
 __um_includes_measure.h = caltable.cpp
 __um_includes_qpushbutton.h = caltable.cpp

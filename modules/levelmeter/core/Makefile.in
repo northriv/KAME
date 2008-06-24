@@ -44,7 +44,6 @@ final:
 METASOURCES = 
 __um_includes_analyzer.h = levelmeter.cpp
 __um_includes_interface.h = levelmeter.cpp
-__um_includes_klocale.h = levelmeter.cpp
 __um_includes_levelmeter.h = levelmeter.cpp
 __um_includes_primarydriver.h = levelmeter.cpp
 __um_includes_xnodeconnector.h = levelmeter.cpp

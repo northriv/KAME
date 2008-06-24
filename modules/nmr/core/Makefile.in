@@ -55,7 +55,6 @@ __um_includes_graphwidget.h = pulserdriverconnector.cpp
 __um_includes_interface.h = pulserdriver.cpp
 __um_includes_kapplication.h = pulserdriver.cpp
 __um_includes_kiconloader.h = pulserdriver.cpp
-__um_includes_klocale.h = pulserdriverconnector.cpp pulserdriver.cpp
 __um_includes_knuminput.h = pulserdriver.cpp
 __um_includes_primarydriver.h = pulserdriverconnector.cpp pulserdriver.cpp
 __um_includes_pulserdriver.h = pulserdriverconnector.cpp pulserdriver.cpp

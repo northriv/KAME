@@ -44,7 +44,6 @@ final:
 INCLUDES = -I$(top_srcdir)/kame -I$(top_srcdir)/kame/driver -I$(top_srcdir)/kame/analyzer -I$(top_builddir)/modules/sg/core/forms $(all_includes)
 METASOURCES = 
 __um_includes_analyzer.h = signalgenerator.cpp
-__um_includes_klocale.h = signalgenerator.cpp
 __um_includes_primarydriver.h = signalgenerator.cpp
 __um_includes_qcheckbox.h = signalgenerator.cpp
 __um_includes_qstatusbar.h = signalgenerator.cpp

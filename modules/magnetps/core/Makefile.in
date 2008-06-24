@@ -45,7 +45,6 @@ INCLUDES = -I$(top_srcdir)/kame -I$(top_srcdir)/kame/driver -I$(top_srcdir)/kame
 METASOURCES = 
 __um_includes_analyzer.h = magnetps.cpp
 __um_includes_interface.h = magnetps.cpp
-__um_includes_klocale.h = magnetps.cpp
 __um_includes_magnetps.h = magnetps.cpp
 __um_includes_primarydriver.h = magnetps.cpp
 __um_includes_qcheckbox.h = magnetps.cpp

@@ -51,7 +51,6 @@ __um_includes_graphwidget.h = dso.cpp
 __um_includes_interface.h = dso.cpp
 __um_includes_kapplication.h = dso.cpp
 __um_includes_kiconloader.h = dso.cpp
-__um_includes_klocale.h = dso.cpp
 __um_includes_knuminput.h = dso.cpp
 __um_includes_primarydriver.h = dso.cpp
 __um_includes_qcheckbox.h = dso.cpp

@@ -48,7 +48,6 @@ __um_includes_chardevicedriver.h = userfuncsynth.cpp
 __um_includes_charinterface.h = userfuncsynth.cpp
 __um_includes_funcsynth.h = userfuncsynth.cpp funcsynth.cpp
 __um_includes_interface.h = funcsynth.cpp
-__um_includes_klocale.h = userfuncsynth.cpp funcsynth.cpp
 __um_includes_primarydriver.h = userfuncsynth.cpp funcsynth.cpp
 __um_includes_qcheckbox.h = funcsynth.cpp
 __um_includes_qpushbutton.h = funcsynth.cpp

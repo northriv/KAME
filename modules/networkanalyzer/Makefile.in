@@ -50,7 +50,6 @@ __um_includes_graph.h = networkanalyzer.cpp
 __um_includes_graphwidget.h = networkanalyzer.cpp
 __um_includes_interface.h = networkanalyzer.cpp
 __um_includes_kapplication.h = networkanalyzer.cpp
-__um_includes_klocale.h = usernetworkanalyzer.cpp networkanalyzer.cpp
 __um_includes_networkanalyzer.h = usernetworkanalyzer.cpp networkanalyzer.cpp
 __um_includes_primarydriver.h = usernetworkanalyzer.cpp networkanalyzer.cpp
 __um_includes_usernetworkanalyzer.h = usernetworkanalyzer.cpp

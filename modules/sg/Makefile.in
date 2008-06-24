@@ -46,7 +46,6 @@ METASOURCES =
 __um_includes_analyzer.h = usersignalgenerator.cpp
 __um_includes_chardevicedriver.h = usersignalgenerator.cpp
 __um_includes_charinterface.h = usersignalgenerator.cpp
-__um_includes_klocale.h = usersignalgenerator.cpp
 __um_includes_signalgenerator.h = usersignalgenerator.cpp
 __um_includes_usersignalgenerator.h = usersignalgenerator.cpp
 .PHONY: all final

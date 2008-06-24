@@ -45,7 +45,6 @@ INCLUDES = -I$(top_srcdir)/kame -I$(top_srcdir)/kame/analyzer -I$(top_srcdir)/ka
 METASOURCES = 
 __um_includes_dcsource.h = dcsource.cpp
 __um_includes_dcsourceform.h = dcsource.cpp
-__um_includes_klocale.h = dcsource.cpp
 __um_includes_primarydriver.h = dcsource.cpp
 __um_includes_qcheckbox.h = dcsource.cpp
 __um_includes_qpushbutton.h = dcsource.cpp

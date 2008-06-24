@@ -48,7 +48,6 @@ __um_includes_chardevicedriver.h = usertempcontrol.cpp
 __um_includes_charinterface.h = usertempcontrol.cpp
 __um_includes_dcsource.h = usertempcontrol.cpp tempcontrol.cpp
 __um_includes_interface.h = tempcontrol.cpp
-__um_includes_klocale.h = tempcontrol.cpp
 __um_includes_oxforddriver.h = usertempcontrol.cpp
 __um_includes_primarydriver.h = usertempcontrol.cpp tempcontrol.cpp
 __um_includes_qstatusbar.h = tempcontrol.cpp

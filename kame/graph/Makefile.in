@@ -67,7 +67,6 @@ __um_includes_kapplication.h = graphpaintergl.cpp xwavengraph.cpp
 __um_includes_kconfig.h = graphpaintergl.cpp
 __um_includes_kconfigbase.h = graphpaintergl.cpp
 __um_includes_kiconloader.h = xwavengraph.cpp
-__um_includes_klocale.h = graphpainter.cpp graphwidget.cpp graph.cpp graphpaintergl.cpp graphdialogconnector.cpp xwavengraph.cpp
 __um_includes_knuminput.h = graphdialogconnector.cpp
 __um_includes_kstandarddirs.h = graphpaintergl.cpp
 __um_includes_kurlrequester.h = xwavengraph.cpp

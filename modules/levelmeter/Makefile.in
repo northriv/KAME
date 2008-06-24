@@ -42,7 +42,6 @@ final:
 	/sw/share/unsermake/unsermake -C $(top_builddir)/modules/levelmeter UNSERMAKE_FORCE_FINAL=1 liblevelmeter.la
 
 METASOURCES = 
-__um_includes_klocale.h = userlevelmeter.cpp
 __um_includes_levelmeter.h = userlevelmeter.cpp
 __um_includes_oxforddriver.h = userlevelmeter.cpp
 __um_includes_userlevelmeter.h = userlevelmeter.cpp

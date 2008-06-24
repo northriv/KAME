@@ -47,7 +47,6 @@ __um_includes_analyzer.h = lockinamp.cpp
 __um_includes_chardevicedriver.h = userlockinamp.cpp
 __um_includes_charinterface.h = userlockinamp.cpp
 __um_includes_interface.h = lockinamp.cpp
-__um_includes_klocale.h = lockinamp.cpp userlockinamp.cpp
 __um_includes_lockinamp.h = lockinamp.cpp userlockinamp.cpp
 __um_includes_primarydriver.h = lockinamp.cpp userlockinamp.cpp
 __um_includes_qcheckbox.h = lockinamp.cpp

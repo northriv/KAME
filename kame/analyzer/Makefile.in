@@ -48,7 +48,6 @@ __um_includes_fstream = recorder.cpp recordreader.cpp
 __um_includes_graph.h = analyzer.cpp
 __um_includes_graphform.h = analyzer.cpp
 __um_includes_graphwidget.h = analyzer.cpp
-__um_includes_klocale.h = analyzer.cpp recordreader.cpp
 __um_includes_measure.h = analyzer.cpp recordreader.cpp
 __um_includes_primarydriver.h = recorder.cpp recordreader.cpp
 __um_includes_qstatusbar.h = analyzer.cpp

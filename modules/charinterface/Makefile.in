@@ -53,7 +53,6 @@ __um_includes_fcntl.h = serial.cpp
 __um_includes_fstream = dummyport.cpp charinterface.cpp
 __um_includes_gpib.h = charinterface.cpp gpib.cpp
 __um_includes_interface.h = dummyport.cpp charinterface.cpp gpib.cpp oxforddriver.cpp serial.cpp
-__um_includes_klocale.h = charinterface.cpp gpib.cpp oxforddriver.cpp serial.cpp
 __um_includes_measure.h = charinterface.cpp
 __um_includes_oxforddriver.h = oxforddriver.cpp
 __um_includes_primarydriver.h = oxforddriver.cpp

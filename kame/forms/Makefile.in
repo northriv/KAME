@@ -79,7 +79,6 @@ __um_includes_interfacelistconnector.h = interfacelistconnector.cpp
 __um_includes_kapp.h = nodebrowser.cpp
 __um_includes_kapplication.h = driverlistconnector.cpp graphlistconnector.cpp interfacelistconnector.cpp recordreaderconnector.cpp
 __um_includes_kiconloader.h = driverlistconnector.cpp graphlistconnector.cpp interfacelistconnector.cpp recordreaderconnector.cpp
-__um_includes_klocale.h = driverlistconnector.cpp entrylistconnector.cpp graphlistconnector.cpp interfacelistconnector.cpp nodebrowser.cpp recordreaderconnector.cpp
 __um_includes_knuminput.h = entrylistconnector.cpp
 __um_includes_measure.h = driverlistconnector.cpp nodebrowser.cpp
 __um_includes_nodebrowser.h = nodebrowser.cpp

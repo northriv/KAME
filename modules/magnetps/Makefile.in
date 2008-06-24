@@ -42,7 +42,6 @@ final:
 	/sw/share/unsermake/unsermake -C $(top_builddir)/modules/magnetps UNSERMAKE_FORCE_FINAL=1 libmagnetps.la
 
 METASOURCES = 
-__um_includes_klocale.h = usermagnetps.cpp
 __um_includes_magnetps.h = usermagnetps.cpp
 __um_includes_oxforddriver.h = usermagnetps.cpp
 __um_includes_usermagnetps.h = usermagnetps.cpp

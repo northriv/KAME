@@ -46,7 +46,6 @@ METASOURCES =
 __um_includes_analyzer.h = dmm.cpp
 __um_includes_dmm.h = dmm.cpp
 __um_includes_interface.h = dmm.cpp
-__um_includes_klocale.h = dmm.cpp
 __um_includes_primarydriver.h = dmm.cpp
 __um_includes_qstatusbar.h = dmm.cpp
 __um_includes_xnodeconnector.h = dmm.cpp
