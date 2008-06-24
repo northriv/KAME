@@ -206,13 +206,15 @@ XLecroyDSO::acqCount(bool *seq_busy) {
 			n = lrint(inspectDouble("SWEEPS_PER_ACQ", ch));
 		}
 	}
-	if(!sseq) {
+	if(!sseq || (avg < 2)) {
 		interface()->query("INR?");
-		if(interface()->toInt() & 1)
-			m_totalCount++;
-//		if(n < avg)
-//			m_totalCount = n;
-//		else
+		if(interface()->toInt() & 1) {
+			if(!sseq)
+				m_totalCount++;
+			else
+				n = 1;
+		}
+		if(!sseq)
 			n = m_totalCount;
 	}
 	*seq_busy = (n < avg);
