@@ -6,7 +6,7 @@ greeting=[\
 "How many fails(0-15)?\n",\
 "We are Borg. You will be assimilated.\nResistance is futile.\n",\
 "404 Research Not Funded.\n",\
-"Your instruments are ready, Commander.\nAwaiting your orders.\n"]
+"403 Forbidden Experiment.\n"]
 print greeting[Integer(rand()**2*greeting.size())]
 
 lineno = 1
