@@ -13,7 +13,7 @@ rsync --exclude "linux686" \
 	 --exclude "*.dat" \
 	 --exclude "attic" \
 	 --exclude "*.o" --exclude "*.a" --exclude "*.la"  \
-	 --exclude "*.cache" --exclude ".*"\
+	 --exclude "*.cache" --exclude ".*" --exclude "*.log"\
 	 --exclude ".libs" \
 	 --exclude "/html" \
 	 --exclude "CVS" \
