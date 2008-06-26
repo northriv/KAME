@@ -12,13 +12,13 @@ rsync --exclude "linux686" \
 	 --exclude "*.bin" \
 	 --exclude "*.dat" \
 	 --exclude "attic" \
-	 --exclude "*.o" \
-	 --exclude "*.a" \
-	 --exclude "*.la"  \
+	 --exclude "*.o" --exclude "*.a" --exclude "*.la"  \
+	 --exclude "*.cache" --exclude ".*"\
 	 --exclude ".libs" \
 	 --exclude "/html" \
 	 --exclude "CVS" \
-	 . $dir/$file -av --delete
+	 . $dir/$file -avC --delete
+(cd $dir/$file/tools/tests; make clean)
 (cd $dir/$file; cat ChangeLog >> kame.spec)
 (cd $dir; tar jcvf $file.tar.bz2 $file)
 rm -fR $dir/$file
