@@ -17,7 +17,7 @@ rsync --exclude "linux686" \
 	 --exclude ".libs" \
 	 --exclude "/html" \
 	 --exclude "CVS" \
-	 . $dir/$file -avC --delete
+	 . $dir/$file -av --delete
 (cd $dir/$file/tools/tests; make clean)
 (cd $dir/$file; cat ChangeLog >> kame.spec)
 (cd $dir; tar jcvf $file.tar.bz2 $file)
