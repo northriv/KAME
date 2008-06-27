@@ -13,7 +13,7 @@ rpmbuild --define='kversion `uname -r`' --define='kvariants ""' --target=i686 -b
 
 #exec. the following.
 su
-cd /usr/src/kernels/`uname -r`
+cd /usr/src/kernels/`uname -r`-`uname -m`
 sed -e 's/fatal("parse error in symbol dump file\\n");/return;/' scripts/mod/modpost.c > tmp
 mv -f tmp scripts/mod/modpost.c 
 make scripts
