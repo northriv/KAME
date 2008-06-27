@@ -81,10 +81,10 @@ rm -rf $RPM_BUILD_ROOT
 #	mv $RPM_BUILD_ROOT/%{_bindir}/*-kame $RPM_BUILD_ROOT/%{_bindir}/kame
 #fi
 %if !0%{build_nidaqmx}
-	rm -f $RPM_BUILD_ROOT/%{_libdir}/kame/modules/libnidaq*
+	rm -f $RPM_BUILD_ROOT%{_libdir}/kame/modules/libnidaq*
 %endif
 
-cat <<EOF > $RPM_BUILD_ROOT/%{_sysconfdir}/udev/rules.d/kame.rules
+cat <<EOF > $RPM_BUILD_ROOT%{_sysconfdir}/udev/rules.d/kame.rules
 BUS="usb", KERNEL="ttyUSB*", MODE="0666"
 KERNEL="ttyS*", MODE="0666"
 EOF
