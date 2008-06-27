@@ -35,7 +35,7 @@ cd (NIKAL-1.7 directory)
 #(memory protection) allow execheap		
 
 #(Optional) To restore the original kernel headers.
-cd /usr/src/kernels/`uname -r`-`uname -m`
+cd /usr/src/kernels/`uname -r`
 rpm -e kernel-devel
 rm -fR include
 yum -y install kernel-devel
