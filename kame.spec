@@ -86,8 +86,8 @@ rm -rf $RPM_BUILD_ROOT
 
 mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/udev/rules.d
 cat <<EOF > $RPM_BUILD_ROOT%{_sysconfdir}/udev/rules.d/10-kame.rules
-BUS="usb", KERNEL="ttyUSB*", MODE="0666"
-KERNEL="ttyS*", MODE="0666"
+KERNEL=="ttyUSB*", GROUP="uucp", MODE="0666"
+KERNEL=="ttyS*", GROUP="uucp", MODE="0666"
 EOF
 
 %clean
