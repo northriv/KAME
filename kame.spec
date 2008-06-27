@@ -8,7 +8,7 @@ Name: kame
 %{!?build_nidaqmx: %define build_nidaqmx 1}
 
 Version: 2.3.7
-Release: 1
+Release: 2
 License: GPL
 Group: Applications/Engineering
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
@@ -96,6 +96,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/kame/modules/libmontecarlo*
 
 %files modules-standard
+%{_sysconfdir}/udev/rules.d/kame.rules
 %{_libdir}/kame/libcharinterface*
 %{_libdir}/kame/libdsocore*
 %{_libdir}/kame/libdmmcore*

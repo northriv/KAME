@@ -1,7 +1,13 @@
+* Fri Jun 27 2008 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.3.7-2)
+- kame.rules: For udev, ttyUSB*, ttyS*.
+- charinterface.cpp: Fox for scanf().
+
 * Sat Jun 21 2008 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.3.7-1)
 - Lecroy/Iwatsu X-Stream DSO.
-- tds.cpp: Fix trigger source.
+- tds.cpp: Fix for trigger source.
+- gpib.cpp: Fix for partial reading.
 
 * Fri Feb 8 2008 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.3.6-1)
