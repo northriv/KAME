@@ -85,7 +85,7 @@ rm -rf $RPM_BUILD_ROOT
 %endif
 
 mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/udev/rules.d
-cat <<EOF > $RPM_BUILD_ROOT%{_sysconfdir}/udev/rules.d/kame.rules
+cat <<EOF > $RPM_BUILD_ROOT%{_sysconfdir}/udev/rules.d/10-kame.rules
 BUS="usb", KERNEL="ttyUSB*", MODE="0666"
 KERNEL="ttyS*", MODE="0666"
 EOF
@@ -105,7 +105,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/kame/modules/libmontecarlo*
 
 %files modules-standard
-%{_sysconfdir}/udev/rules.d/kame.rules
+%{_sysconfdir}/udev/rules.d/10-kame.rules
 %{_libdir}/kame/libcharinterface*
 %{_libdir}/kame/libdsocore*
 %{_libdir}/kame/libdmmcore*
