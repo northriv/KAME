@@ -84,6 +84,11 @@ rm -rf $RPM_BUILD_ROOT
 	rm -f $RPM_BUILD_ROOT/%{_libdir}/kame/modules/libnidaq*
 %endif
 
+cat <<EOF > $RPM_BUILD_ROOT/%{_sysconfdir}/udev/rules.d/kame.rules
+BUS="usb", KERNEL="ttyUSB*", MODE="0666"
+KERNEL="ttyS*", MODE="0666"
+EOF
+
 %clean
 rm -rf $RPM_BUILD_ROOT
 
