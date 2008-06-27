@@ -80,6 +80,9 @@ rm -rf $RPM_BUILD_ROOT
 #then
 #	mv $RPM_BUILD_ROOT/%{_bindir}/*-kame $RPM_BUILD_ROOT/%{_bindir}/kame
 #fi
+%if !0%{build_nidaqmx}
+	rm -f $RPM_BUILD_ROOT/%{_libdir}/kame/modules/libnidaq*
+%endif
 
 %clean
 rm -rf $RPM_BUILD_ROOT

@@ -27,7 +27,7 @@ shared_ptr<T> createOrphan(const char *name, bool runtime, X x, Y y);
 template <class T, typename X, typename Y, typename Z>
 shared_ptr<T> createOrphan(const char *name, bool runtime, X x, Y y, Z z);
 template <class T, typename X, typename Y, typename Z, typename ZZ>
-shared_ptr<T> createOrphan(const char *name, bool runtime, X x, Y y, Z z, ZZ z);
+shared_ptr<T> createOrphan(const char *name, bool runtime, X x, Y y, Z z, ZZ zz);
 
 #define XNODE_OBJECT  template <class _T> \
 	friend shared_ptr<_T> createOrphan(const char *name, bool runtime); \
@@ -63,7 +63,7 @@ public:
 	template <class T, typename X, typename Y, typename Z>
 	shared_ptr<T> create(const char *name, bool runtime, X x, Y y, Z z);
 	template <class T, typename X, typename Y, typename Z, typename ZZ>
-	shared_ptr<T> create(const char *name, bool runtime, X x, Y y, Z z, ZZ z);
+	shared_ptr<T> create(const char *name, bool runtime, X x, Y y, Z z, ZZ zz);
 
 	//! \return internal/script name. Use latin1 chars.
 	std::string getName() const;

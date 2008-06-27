@@ -62,10 +62,10 @@ LINUXGPIB_LIBS="$gpib_libs"
 
 ac_save_LIBS="$LIBS"
 AC_CHECK_LIB(lapack, main, 
-lapack_libs="-L/usr/lib/sse2 -llapack -lf77blas -lcblas -lgfortran"
+lapack_libs="-L/usr/lib/sse2 -lblas -latlas -llapack -lf77blas -lcblas -lgfortran"
 lapack_cflags=""
 AC_DEFINE([HAVE_LAPACK], 1, [Define if you have 'LAPACK' library]),
-AC_MSG_ERROR([LAPACK w/ ATLAS is not installed]), -L/usr/lib/sse2 -llapack -lf77blas -lcblas -lgfortran)
+AC_MSG_ERROR([LAPACK w/ ATLAS is not installed]), -L/usr/lib/sse2 -lblas -latlas  -llapack -lf77blas -lcblas -lgfortran)
 LAPACK_LIBS="$lapack_libs"
 LAPACK_CFLAGS="$lapack_cflags"
 LIBS="$ac_save_LIBS"
