@@ -1,3 +1,8 @@
+* Tue Jul 1 2008 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.3.8-1)
+- math: Fix peak detections in spectrum solvers.
+- nmr: Impliment digital IF. Catch errors of spectrum solvers.
+
 * Fri Jun 27 2008 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.3.7-2)
 - kame.rules: For udev, ttyUSB*, ttyS*.
