@@ -259,7 +259,12 @@ void XNMRPulseAnalyzer::backgroundSub(std::vector<std::complex<double> > &wave,
 		for(unsigned int i = 0; i < bglength; i++) {
 			memin[i] = wave[pos + i + bgpos];
 		}
-		m_solverDNR->exec(memin, memout, bgpos, 2e-2, &FFT::windowFuncRect, 2.0);
+		try {
+			m_solverDNR->exec(memin, memout, bgpos, 2e-2, &FFT::windowFuncRect, 2.0);
+		}
+		catch (XKameError &e) {
+			throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
+		}
 		for(unsigned int i = 0; i < std::min((int)wave.size() - pos, (int)memout.size()); i++) {
 			wave[i + pos] -= m_solverDNR->ifft()[i];
 		}
@@ -267,8 +272,7 @@ void XNMRPulseAnalyzer::backgroundSub(std::vector<std::complex<double> > &wave,
 }
 void XNMRPulseAnalyzer::rotNFFT(int ftpos, double ph,
 	std::vector<std::complex<double> > &wave,
-	std::vector<std::complex<double> > &ftwave,
-	int diffreq) {
+	std::vector<std::complex<double> > &ftwave) {
 	int length = wave.size();
 	//phase advance
 	std::complex<double> cph(cos(ph), sin(ph));
@@ -280,7 +284,12 @@ void XNMRPulseAnalyzer::rotNFFT(int ftpos, double ph,
 	//fft
 	std::vector<std::complex<double> > fftout(fftlen);
 	m_solverRecorded = m_solver->solver();
-	m_solverRecorded->exec(wave, fftout, -ftpos, 0.5e-2, m_solver->windowFunc(), *windowWidth() / 100.0);
+	try {
+		m_solverRecorded->exec(wave, fftout, -ftpos, 0.5e-2, m_solver->windowFunc(), *windowWidth() / 100.0);
+	}
+	catch (XKameError &e) {
+		throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
+	}
 
 	std::copy(fftout.begin(), fftout.end(), ftwave.begin());
 }
@@ -474,8 +483,16 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	for(int i = 0; i < length; i++) {
 		m_wave[i] = m_waveSum[i] * normalize;
 	}
-
 	int ftpos = lrint(*fftPos() * 1e-3 / interval + _dso->trigPosRecorded() - pos);
+
+	if(*difFreq() != 0.0) {
+		//Digital IF.
+		double omega = -2.0 * M_PI * *difFreq() * 1e3 * interval;
+		for(int i = 0; i < length; i++) {
+			m_wave[i] *= std::polar(1.0, omega * (i - ftpos));
+		}
+	}
+
 	//	if((windowfunc != &windowFuncRect) && (abs(ftpos - length/2) > length*0.1))
 	//		m_statusPrinter->printWarning(KAME::i18n("FFTPos is off-centered for window func."));  
 	double ph = *phaseAdv() * M_PI / 180;
@@ -484,7 +501,7 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	//[Hz]
 	m_dFreq = 1.0 / fftlen / interval;
 	m_ftWave.resize(fftlen);
-	rotNFFT(ftpos, ph, m_wave, m_ftWave, lrint(*difFreq() * 1000.0 / dFreq()) );
+	rotNFFT(ftpos, ph, m_wave, m_ftWave);
 	
 	if(m_solverRecorded->peaks().size()) {
 		entryPeakAbs()->value(m_solverRecorded->peaks()[0].first / (double)m_wave.size());

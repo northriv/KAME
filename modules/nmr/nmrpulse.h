@@ -205,7 +205,7 @@ private:
 	shared_ptr<SpectrumSolver> m_solverDNR;
 	
 	void rotNFFT(int ftpos, double ph, 
-				 std::vector<std::complex<double> > &wave, std::vector<std::complex<double> > &ftwave, int diffreq);
+				 std::vector<std::complex<double> > &wave, std::vector<std::complex<double> > &ftwave);
     
 	XTime m_timeClearRequested;
 };

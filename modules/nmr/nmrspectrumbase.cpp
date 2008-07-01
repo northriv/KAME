@@ -355,7 +355,12 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 		solverin[i] = iftwave[k];
 	}
 	shared_ptr<SpectrumSolver> solver = m_solver->solver();
-	solver->exec(solverin, fftwave, -iftorigin, 0.1e-2, m_solver->windowFunc(), *windowWidth() / 100.0);
+	try {
+		solver->exec(solverin, fftwave, -iftorigin, 0.1e-2, m_solver->windowFunc(), *windowWidth() / 100.0);
+	}
+	catch (XKameError &e) {
+		throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
+	}
 
 	for(int i = min_idx; i <= max_idx; i++) {
 		int k = (i - (max_idx + min_idx) / 2 + iftlen) % iftlen;
