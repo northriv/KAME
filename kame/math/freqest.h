@@ -22,7 +22,7 @@ public:
 	FreqEstimation(tfuncIC ic, bool eigenvalue_method, bool mvdl) : 
 		SpectrumSolver(), m_eigenvalue_method(eigenvalue_method), m_mvdl_method(mvdl), m_funcIC(ic) {}
 protected:
-	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin,
+	virtual void genSpectrum(const std::vector<std::complex<double> >& memin,
 		std::vector<std::complex<double> >& memout,
 		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength);
 	const bool m_eigenvalue_method;

@@ -22,13 +22,16 @@
 
 #include <fft.h>
 
+//! Base class for spectrum solvers.
+//! \sa FFTSolver, MEMStrict, CompositeSpectrumSolver, FreqEstimation, MemBurg, YuleWalkerAR
 class SpectrumSolver {
 public:
 	SpectrumSolver();
 	virtual ~SpectrumSolver();
 	
-	bool exec(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
-		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength);
+	//! Perform spectrum analysis.
+	void exec(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
+		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength) throw (XKameError&);
 	const std::vector<std::complex<double> >& ifft() const {return m_ifft;}
 	//! \return (power, index) in descending order.
 	const std::vector<std::pair<double, double> >& peaks() const {return m_peaks;}
@@ -52,7 +55,7 @@ public:
 	
 	static double windowLength(int tdlen, int t0, double windowlength);
 protected:
-	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin,
+	virtual void genSpectrum(const std::vector<std::complex<double> >& memin,
 		std::vector<std::complex<double> >& memout,
 		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength) = 0;
 	std::vector<std::complex<double> > m_ifft;
@@ -86,7 +89,7 @@ public:
 	FFTSolver() : SpectrumSolver()  {}
 	virtual ~FFTSolver() {}
 protected:
-	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin,
+	virtual void genSpectrum(const std::vector<std::complex<double> >& memin,
 		std::vector<std::complex<double> >& memout,
 		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength);
 };
@@ -95,7 +98,7 @@ class MEMStrict : public SpectrumSolver {
 public:
 	virtual ~MEMStrict();
 protected:
-	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin,
+	virtual void genSpectrum(const std::vector<std::complex<double> >& memin,
 		std::vector<std::complex<double> >& memout,
 		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength);
 private:
@@ -114,7 +117,7 @@ template <class T, class X, bool IsXConfigurable = false>
 class CompositeSpectrumSolver : public T {
 public:
 protected:
-	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin,
+	virtual void genSpectrum(const std::vector<std::complex<double> >& memin,
 		std::vector<std::complex<double> >& memout,
 		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength) {
 		m_preprocessor.exec(memin, memout, t0, tol,
@@ -130,7 +133,7 @@ protected:
 			int j = (t0a + i) % n;
 			nsin[i] = m_preprocessor.ifft()[j];
 		}
-		return T::genSpectrum(nsin, memout, t0, tol,
+		T::genSpectrum(nsin, memout, t0, tol,
 			!IsXConfigurable ? windowfunc : &FFT::windowFuncRect,
 			!IsXConfigurable ? windowlength : 1.0);
 	}

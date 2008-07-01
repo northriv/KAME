@@ -22,7 +22,7 @@ public:
 	YuleWalkerCousin(tfuncIC ic);
 	virtual ~YuleWalkerCousin() {}
 protected:
-	virtual bool genSpectrum(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
+	virtual void genSpectrum(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
 		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength);
 
 	//! Infomation Criterion for AR.

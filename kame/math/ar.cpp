@@ -18,7 +18,7 @@ YuleWalkerCousin<Context>::YuleWalkerCousin(tfuncIC ic) : SpectrumSolver(), m_fu
 }
 
 template <class Context>
-bool
+void
 YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
 	int t0, double tol, FFT::twindowfunc windowfunc, double windowlength) {
 	int t = memin.size();
@@ -89,13 +89,15 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 	}
 	std::vector<std::complex<double> > fftbuf2(n);
 	m_fftN->exec(zfbuf, fftbuf2);
+	//Peak detection. Sub-resolution detection for smooth curves.
 	double dy_old = 0.0;
 	for(int i = 0; i < n; i++) {
 		double dy = std::real(fftbuf2[i] * std::conj(fftbuf[i]));
 		if((dy_old < 0) && (dy > 0)) {
 			double dx = - dy_old / (dy - dy_old);
-			if((dx < 0) || (dx > 1.0))
+			if((dx < 0) || (dx > 1.0)) {
 				continue;
+			}
 			std::complex<double> z = 0.0, xn = 1.0,
 				x = std::polar(1.0, -2 * M_PI * (dx + i - 1) / (double)n);
 			for(int i = 0; i < taps + 1; i++) {
@@ -107,7 +109,6 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 		}
 		dy_old = dy;
 	}
-	return true;
 }
 
 template class YuleWalkerCousin<ARContext>;

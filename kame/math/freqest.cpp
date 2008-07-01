@@ -17,12 +17,15 @@
 #include <boost/numeric/ublas/matrix_proxy.hpp>
 #include <boost/numeric/ublas/io.hpp>
 
-bool
+void
 FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 		std::vector<std::complex<double> >& memout,
 		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength) {
 	int t = memin.size();
 	int n = memout.size();
+	
+	if(t > 2048)
+		throw XKameError(KAME::i18n("Too large size to allocate a matrix."), __FILE__, __LINE__);
 	
 	double tpoworg = 0.0;
 	for(int i = 0; i < t; i++) {
@@ -114,11 +117,20 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 	double coeff = lspe(memin, t0, psd, memout, tol, true, windowfunc);	
 	normalize *= coeff * coeff;
 	
+	//Peak detection. Sub-resolution detection for smooth curves.
 	for(int i = 1; i < n; i++) {
 		if((dy[i - 1] < 0) && (dy[i] > 0)) {
 			double dx = - dy[i - 1] / (dy[i] - dy[i - 1]);
-			if((dx < 0) || (dx > 1.0))
+			if((dx < 0) || (dx > 1.0)) {
+				//Try to do an ordinal peak detection.
+				double r = psd[i];
+				if((i < n - 1) && 
+					(psd[i - 1] < r) && (psd[i + 1] < r)) {
+					fprintf(stderr, "Cheak Peak Detection!\n");
+					m_peaks.push_back(std::pair<double, double>((double)i, r));
+				}
 				continue;
+			}
 			std::complex<double> z = 0.0, xn = 1.0,
 				x = std::polar(1.0, 2 * M_PI * (dx + i - 1) / (double)n);
 			for(int j = 0; j < p; j++) {
@@ -129,5 +141,4 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 			m_peaks.push_back(std::pair<double, double>(r, dx + i - 1));
 		}
 	}
-	return true;
 }

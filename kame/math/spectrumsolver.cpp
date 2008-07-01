@@ -58,9 +58,9 @@ SpectrumSolver::window(int t, int t0, FFT::twindowfunc windowfunc,
 	}
 }
 
-bool
+void
 SpectrumSolver::exec(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
-	int t0, double torr, FFT::twindowfunc windowfunc, double windowlength) {
+	int t0, double torr, FFT::twindowfunc windowfunc, double windowlength) throw (XKameError&) {
 	unsigned int t = memin.size();
 	unsigned int n = memout.size();
 	if (m_ifft.size() != n) {
@@ -69,10 +69,9 @@ SpectrumSolver::exec(const std::vector<std::complex<double> >& memin, std::vecto
 		m_ifft.resize(n);
 	}
 	m_peaks.clear();
-	bool ret = genSpectrum(memin, memout, t0, torr, windowfunc, windowlength);
+	genSpectrum(memin, memout, t0, torr, windowfunc, windowlength);
 	std::sort(m_peaks.begin(), m_peaks.end(), std::greater<std::pair<double, double> >());
 //	std::reverse(m_peaks.begin(), m_peaks.end());
-	return ret;
 }
 
 void
@@ -187,7 +186,7 @@ double
 SpectrumSolver::windowLength(int t, int t0, double windowlength) {
 	return 2.0 * (std::max(-t0, (int)t + t0) * windowlength);
 }
-bool
+void
 FFTSolver::genSpectrum(const std::vector<std::complex<double> >& fftin, std::vector<std::complex<double> >& fftout,
 	int t0, double /*torr*/, FFT::twindowfunc windowfunc, double windowlength) {
 	unsigned int t = fftin.size();
@@ -207,7 +206,9 @@ FFTSolver::genSpectrum(const std::vector<std::complex<double> >& fftin, std::vec
 	}
 	m_fftN->exec(m_ifft, fftout);
 	m_fftN->exec(zffftin, fftout2);
-	std::vector<double> dy(n);
+
+	//Peak detection. Sub-resolution detection for smooth curves.
+	std::vector<double> dy(n); //Derivative.
 	for(int i = 0; i < n; i++) {
 		dy[i] = std::real(fftout2[i] * std::conj(fftout[i]));
 	}
@@ -215,8 +216,17 @@ FFTSolver::genSpectrum(const std::vector<std::complex<double> >& fftin, std::vec
 		if((dy[i - 1] > 0) && (dy[i] < 0)) {
 			double dx = - dy[i - 1] / (dy[i] - dy[i - 1]);
 //			dx = std::max(0.0, std::min(dx, 1.0));
-			if((dx < 0) || (dx > 1.0))
+			if((dx < 0) || (dx > 1.0)) {
+				//Try to do an ordinal peak detection.
+				double r = std::abs(fftout[i]);
+				if((i < n - 1) && 
+					(std::abs(fftout[i - 1]) < r) &&
+					(std::abs(fftout[i + 1]) < r)) {
+					m_peaks.push_back(std::pair<double, double>((double)i, r));
+					fprintf(stderr, "Cheak Peak Detection!\n");
+				}
 				continue;
+			}
 /*
 			std::complex<double> z = 0.0, xn = 1.0,
 				x = std::polar(1.0, -2 * M_PI * (dx + i - 1) / (double)n);
@@ -230,7 +240,6 @@ FFTSolver::genSpectrum(const std::vector<std::complex<double> >& fftin, std::vec
 			m_peaks.push_back(std::pair<double, double>(r, dx + i - 1));
 		}
 	}
-	return true;
 }
 
 MEMStrict::~MEMStrict() {
@@ -273,7 +282,7 @@ MEMStrict::solveZ(double tol) {
 	}
 }
 
-bool
+void
 MEMStrict::genSpectrum(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
 	int t0, double tol, FFT::twindowfunc /*windowfunc*/, double /*windowlength*/) {
 //	std::vector<std::complex<double> > memin(std::min((int)lrint(windowlength * memin0.size()), (int)memin0.size()));
@@ -342,22 +351,30 @@ MEMStrict::genSpectrum(const std::vector<std::complex<double> >& memin, std::vec
 		zffftin[i] = m_ifft[i] * (double)((i >= n/2) ? (i - n) : i) * std::complex<double>(0, -1);
 	}
 	
+	//Peak detection. Sub-resolution detection for smooth curves.
 	m_fftN->exec(zffftin, fftout2);
 	std::vector<double> dy(n);
 	for(int i = 0; i < n; i++) {
-		dy[i] = std::real(fftout2[i] * std::conj(memout[i]));
+		dy[i] = std::real(fftout2[i] * std::conj(memout[i])); //Derivative.
 	}
 	for(int i = 1; i < n; i++) {
 		if((dy[i - 1] > 0) && (dy[i] < 0)) {
 			double dx = - dy[i - 1] / (dy[i] - dy[i - 1]);
-			if((dx < 0) || (dx > 1.0))
+			if((dx < 0) || (dx > 1.0)) {
+				//Try to do an ordinal peak detection.
+				double r = std::abs(memout[i]);
+				if((i < n - 1) && 
+					(std::abs(memout[i - 1]) < r) &&
+					(std::abs(memout[i + 1]) < r)) {
+					m_peaks.push_back(std::pair<double, double>((double)i, r));
+					fprintf(stderr, "Cheak Peak Detection!\n");
+				}
 				continue;
+			}
 			double r = std::abs(memout[i - 1] * (1 - dx) + memout[i] * dx);
 			m_peaks.push_back(std::pair<double, double>(r, dx + i - 1));
 		}
 	}	
-	
-	return true;
 }
 double
 MEMStrict::stepMEM(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout, 
