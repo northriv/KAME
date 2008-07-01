@@ -90,22 +90,22 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 	std::vector<std::complex<double> > fftbuf2(n);
 	m_fftN->exec(zfbuf, fftbuf2);
 	//Peak detection. Sub-resolution detection for smooth curves.
-	double dy_old = 0.0;
-	for(int i = 0; i < n; i++) {
-		double dy = std::real(fftbuf2[i] * std::conj(fftbuf[i]));
+	double dy_old = std::real(fftbuf2[0] * std::conj(fftbuf[0]));
+	for(int ip = 0; ip < n; ip++) {
+		int in = (ip + 1) % n;
+		double dy = std::real(fftbuf2[in] * std::conj(fftbuf[in]));
 		if((dy_old < 0) && (dy > 0)) {
 			double dx = - dy_old / (dy - dy_old);
-			if((dx < 0) || (dx > 1.0)) {
-				continue;
+			if((dx >= 0) && (dx <= 1.0)) {
+				std::complex<double> z = 0.0, xn = 1.0,
+					x = std::polar(1.0, -2 * M_PI * (dx + ip) / (double)n);
+				for(int i = 0; i < taps + 1; i++) {
+					z += context->a[i] * xn;
+					xn *= x;
+				}
+				double r = coeff * sqrt(std::max(t * context->sigma2 / std::norm(z), 0.0));
+				m_peaks.push_back(std::pair<double, double>(r, dx + ip));
 			}
-			std::complex<double> z = 0.0, xn = 1.0,
-				x = std::polar(1.0, -2 * M_PI * (dx + i - 1) / (double)n);
-			for(int i = 0; i < taps + 1; i++) {
-				z += context->a[i] * xn;
-				xn *= x;
-			}
-			double r = coeff * sqrt(std::max(t * context->sigma2 / std::norm(z), 0.0));
-			m_peaks.push_back(std::pair<double, double>(r, dx + i - 1));
 		}
 		dy_old = dy;
 	}

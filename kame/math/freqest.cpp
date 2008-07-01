@@ -118,27 +118,20 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 	normalize *= coeff * coeff;
 	
 	//Peak detection. Sub-resolution detection for smooth curves.
-	for(int i = 1; i < n; i++) {
-		if((dy[i - 1] < 0) && (dy[i] > 0)) {
-			double dx = - dy[i - 1] / (dy[i] - dy[i - 1]);
-			if((dx < 0) || (dx > 1.0)) {
-				//Try to do an ordinal peak detection.
-				double r = psd[i];
-				if((i < n - 1) && 
-					(psd[i - 1] < r) && (psd[i + 1] < r)) {
-					fprintf(stderr, "Cheak Peak Detection!\n");
-					m_peaks.push_back(std::pair<double, double>((double)i, r));
+	for(int ip = 0; ip < n; ip++) {
+		int in = (ip + 1) % n;
+		if((dy[ip] < 0) && (dy[in] > 0)) {
+			double dx = - dy[ip] / (dy[in] - dy[ip]);
+			if((dx >= 0) && (dx <= 1.0)) {
+				std::complex<double> z = 0.0, xn = 1.0,
+					x = std::polar(1.0, 2 * M_PI * (dx + ip) / (double)n);
+				for(int j = 0; j < p; j++) {
+					z += acsum[j] * xn;
+					xn *= x;
 				}
-				continue;
+				double r = sqrt(normalize * std::max(1.0 / std::real(z), 0.0));
+				m_peaks.push_back(std::pair<double, double>(r, dx + ip));
 			}
-			std::complex<double> z = 0.0, xn = 1.0,
-				x = std::polar(1.0, 2 * M_PI * (dx + i - 1) / (double)n);
-			for(int j = 0; j < p; j++) {
-				z += acsum[j] * xn;
-				xn *= x;
-			}
-			double r = sqrt(normalize * std::max(1.0 / std::real(z), 0.0));
-			m_peaks.push_back(std::pair<double, double>(r, dx + i - 1));
 		}
 	}
 }

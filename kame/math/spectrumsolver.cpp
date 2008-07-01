@@ -212,21 +212,12 @@ FFTSolver::genSpectrum(const std::vector<std::complex<double> >& fftin, std::vec
 	for(int i = 0; i < n; i++) {
 		dy[i] = std::real(fftout2[i] * std::conj(fftout[i]));
 	}
-	for(int i = 1; i < n; i++) {
-		if((dy[i - 1] > 0) && (dy[i] < 0)) {
-			double dx = - dy[i - 1] / (dy[i] - dy[i - 1]);
+	for(int ip = 0; ip < n; ip++) {
+		int in = (ip + 1) % n;
+		if((dy[ip] > 0) && (dy[in] < 0)) {
+			double dx = - dy[ip] / (dy[in] - dy[ip]);
 //			dx = std::max(0.0, std::min(dx, 1.0));
-			if((dx < 0) || (dx > 1.0)) {
-				//Try to do an ordinal peak detection.
-				double r = std::abs(fftout[i]);
-				if((i < n - 1) && 
-					(std::abs(fftout[i - 1]) < r) &&
-					(std::abs(fftout[i + 1]) < r)) {
-					m_peaks.push_back(std::pair<double, double>((double)i, r));
-					fprintf(stderr, "Cheak Peak Detection!\n");
-				}
-				continue;
-			}
+			if((dx >= 0) && (dx <= 1.0)) {
 /*
 			std::complex<double> z = 0.0, xn = 1.0,
 				x = std::polar(1.0, -2 * M_PI * (dx + i - 1) / (double)n);
@@ -236,8 +227,9 @@ FFTSolver::genSpectrum(const std::vector<std::complex<double> >& fftin, std::vec
 			}
 			double r = std::abs(z);
 */
-			double r = std::abs(fftout[i - 1] * (1 - dx) + fftout[i] * dx);
-			m_peaks.push_back(std::pair<double, double>(r, dx + i - 1));
+				double r = std::abs(fftout[ip] * (1 - dx) + fftout[in] * dx);
+				m_peaks.push_back(std::pair<double, double>(r, dx + ip));
+			}
 		}
 	}
 }
@@ -357,22 +349,14 @@ MEMStrict::genSpectrum(const std::vector<std::complex<double> >& memin, std::vec
 	for(int i = 0; i < n; i++) {
 		dy[i] = std::real(fftout2[i] * std::conj(memout[i])); //Derivative.
 	}
-	for(int i = 1; i < n; i++) {
-		if((dy[i - 1] > 0) && (dy[i] < 0)) {
-			double dx = - dy[i - 1] / (dy[i] - dy[i - 1]);
-			if((dx < 0) || (dx > 1.0)) {
-				//Try to do an ordinal peak detection.
-				double r = std::abs(memout[i]);
-				if((i < n - 1) && 
-					(std::abs(memout[i - 1]) < r) &&
-					(std::abs(memout[i + 1]) < r)) {
-					m_peaks.push_back(std::pair<double, double>((double)i, r));
-					fprintf(stderr, "Cheak Peak Detection!\n");
-				}
-				continue;
+	for(int ip = 0; ip < n; ip++) {
+		int in = (ip + 1) % n;
+		if((dy[ip] > 0) && (dy[in] < 0)) {
+			double dx = - dy[ip] / (dy[in] - dy[ip]);
+			if((dx >= 0) && (dx <= 1.0)) {
+				double r = std::abs(memout[ip] * (1 - dx) + memout[in] * dx);
+				m_peaks.push_back(std::pair<double, double>(r, dx + ip));
 			}
-			double r = std::abs(memout[i - 1] * (1 - dx) + memout[i] * dx);
-			m_peaks.push_back(std::pair<double, double>(r, dx + i - 1));
 		}
 	}	
 }
