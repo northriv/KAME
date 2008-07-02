@@ -20,7 +20,7 @@
 #include <gsl/gsl_interp.h>
 #include <gsl/gsl_spline.h>
 
-//! Cubic (natural) spline approximation.
+//! Wrapper class for cubic (natural) spline approximation.
 class CSplineApprox
 {
 public:

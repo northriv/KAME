@@ -16,7 +16,8 @@
 
 #include "spectrumsolver.h"
 
-//! Base class for MUSIC and EIG.
+//! Frequency estimation. Base class for MUSIC and EIG.
+//! \sa MUSIC, EigenVectorMethod
 class FreqEstimation : public SpectrumSolver {
 public:
 	FreqEstimation(tfuncIC ic, bool eigenvalue_method, bool mvdl) : 
@@ -37,6 +38,8 @@ public:
 protected:
 };
 
+//! Eigen vector method.
+//! \sa MUSIC, MVDL
 class EigenVectorMethod : public FreqEstimation {
 public:
 	EigenVectorMethod(tfuncIC ic = &icMDL) : FreqEstimation(ic, true, false) {}

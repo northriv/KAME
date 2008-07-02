@@ -23,6 +23,7 @@
 #include <boost/numeric/ublas/symmetric.hpp>
 using namespace boost::numeric;
 
+//! RRR (Relative Robast Representation) eigenvalue driver for Hermite matrix.
 void eigHermiteRRR(const ublas::matrix<std::complex<double> > &a,
 	ublas::vector<double> &lambda, ublas::matrix<std::complex<double> > &v,
 	double tol);

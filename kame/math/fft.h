@@ -21,7 +21,7 @@
 
 #include <fftw3.h>
 
-//! Wrapper class for FFTW.
+//! Wrapper class for fast Fourier transformation by FFTW.
 class FFTBase {
 public:
 	FFTBase(int length);

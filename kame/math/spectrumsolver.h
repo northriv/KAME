@@ -84,6 +84,7 @@ protected:
 		std::vector<std::complex<double> >&corr);
 };
 
+//! Zero-filled FFT spectrum solver.
 class FFTSolver : public SpectrumSolver {
 public:
 	FFTSolver() : SpectrumSolver()  {}
@@ -94,6 +95,7 @@ protected:
 		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength);
 };
 
+//! Extra-polation of data using MEM (Maximum Entropy Method) by assuming gaussian distribution.
 class MEMStrict : public SpectrumSolver {
 public:
 	virtual ~MEMStrict();
@@ -113,6 +115,9 @@ private:
 	double m_accumZ;
 };
 
+//! Perform two spectrum solvers.
+//! The preprocessor class \a T and postprocessor class \a X.
+//! \a T is for an extra-polation of data and/or rejection of noises.   
 template <class T, class X, bool IsXConfigurable = false>
 class CompositeSpectrumSolver : public T {
 public:

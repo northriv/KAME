@@ -16,6 +16,9 @@
 
 #include "spectrumsolver.h"
 
+//! Base class for YuleWalker AR and Burg's MEM.
+//! The object holds a list of \a Context in order to search for the minimum of the information criteria.
+//! \sa YuleWalkerAR, BurgMEM
 template <class Context>
 class YuleWalkerCousin : public SpectrumSolver {
 public:
@@ -32,6 +35,7 @@ protected:
 	
 	virtual void first(
 		const std::vector<std::complex<double> >& memin, const shared_ptr<Context> &context) = 0;
+	//! Steps Levinson recursion.
 	virtual void step(const shared_ptr<Context> &context) = 0;
 	std::deque<shared_ptr<Context> > m_contexts;
 private:
@@ -52,6 +56,8 @@ struct MEMBurgContext : public ARContext {
 	std::vector<std::complex<double> > eta, epsilon;
 };
 
+//! Burg's MEM (Maximum Entropy Method).
+//! \sa YuleWalkerAR
 class MEMBurg : public YuleWalkerCousin<MEMBurgContext> {
 public:
 	MEMBurg(tfuncIC ic = &icAICc) : YuleWalkerCousin<MEMBurgContext>(ic) {}
@@ -64,6 +70,8 @@ private:
 
 };
 
+//! Yule-Walker AR (Auto-Regressive model) by Levinson-Durbin algorithm.
+//! \sa MEMBurg
 class YuleWalkerAR : public YuleWalkerCousin<ARContext> {
 public:
 	YuleWalkerAR(tfuncIC ic = &icAICc) : YuleWalkerCousin<ARContext>(ic) {}
@@ -73,6 +81,7 @@ protected:
 		const std::vector<std::complex<double> >& memin, const shared_ptr<ARContext> &context);
 	virtual void step(const shared_ptr<ARContext> &context);
 private:
+	//! Auto-regression.
 	std::vector<std::complex<double> > m_rx;
 };
 
