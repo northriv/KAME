@@ -5,5 +5,7 @@ file=kame-$version
 echo $file
 ./tools/maketarball.sh $file
 export PATH=/usr/libexec/ccache:/usr/lib/ccache:$PATH 
-rpmbuild --target=i686 $1 -ta ../2.1-backups/$file.tar.bz2 2>&1 | tee mkrpm.log
+cmd="rpmbuild $1 --target=i686 -ta ../2.1-backups/$file.tar.bz2"
+echo $cmd
+`$cmd` 2>&1 | tee mkrpm.log
 #rm -f /tmp/$file.tar.bz2
