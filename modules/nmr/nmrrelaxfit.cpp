@@ -240,14 +240,6 @@ static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr9s3[] = {
 static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr9s4[] = {
 	{45,0.0010284}, {36,0.011189}, {28,0.05375}, {21,0.14848}, {15,0.25641}, {10,0.27972}, {6,0.18275}, {3,0.060606}, {1,0.0060606}, {0, 0}
 };
-//Dy2Ti2O7 47Ti-NQR spinice at 4.4MHz
-static const struct XRelaxFuncPoly::Term  s_relaxdata_nqrspinice44[] = {
-	{10.0, 0.9142}, {3.0, 0.0578}, {1.4, 0.0280}, {0, 0}
-};
-//Dy2Ti2O7 47Ti-NQR spinice at 8.8MHz
-static const struct XRelaxFuncPoly::Term  s_relaxdata_nqrspinice88[] = {
-	{10.0, 0.3573}, {7.7, 0.334}, {3.0, 0.264}, {1.4, 0.0447}, {0, 0}
-};
 
 XRelaxFuncList::XRelaxFuncList(const char *name, bool runtime)
 	: XAliasListNode<XRelaxFunc>(name, runtime)
@@ -428,21 +420,21 @@ XNMRT1::iterate(shared_ptr<XRelaxFunc> &func,
 	switch (*mode()) {
 	case MEAS_ST_E:
 	case MEAS_T1:
-		buf += QString().sprintf("1/T1[1/s] = %.5f +/- %.5f (%.2f%%)\n",
+		buf += QString().sprintf("1/T1[1/s] = %.5g +- %.3g(%.2f%%)\n",
 								 1000.0 * m_params[0], 1000.0 * m_errors[0], fabs(100.0 * m_errors[0]/m_params[0]));
-		buf += QString().sprintf("T1[s] = %.7f +/- %.7f (%.2f%%)\n",
+		buf += QString().sprintf("T1[s] = %.5g +- %.3g(%.2f%%)\n",
 								 t1, t1err, fabs(100.0 * t1err/t1));
 		break;
 	case MEAS_T2:
-		buf += QString().sprintf("1/T2[1/ms] = %.5f +/- %.5f (%.2f%%)\n",
+		buf += QString().sprintf("1/T2[1/ms] = %.5g +- %.3g(%.2f%%)\n",
 								 1000.0 * m_params[0], 1000.0 * m_errors[0], fabs(100.0 * m_errors[0]/m_params[0]));
-		buf += QString().sprintf("T2[ms] = %.6f +/- %.6f (%.2f%%)\n",
+		buf += QString().sprintf("T2[ms] = %.5g +- %.3g(%.2f%%)\n",
 								 t1, t1err, fabs(100.0 * t1err/t1));
 		break;
 	}
-	buf += QString().sprintf("c[V] = %.5g +/- %.5g (%.3f%%)\n",
+	buf += QString().sprintf("c[V] = %.5g +- %.3g(%.3f%%)\n",
 							 m_params[1], m_errors[1], fabs(100.0 * m_errors[1]/m_params[1]));
-	buf += QString().sprintf("a[V] = %.5g +/- %.5g (%.3f%%)\n",
+	buf += QString().sprintf("a[V] = %.5g +- %.3g(%.3f%%)\n",
 							 m_params[2], m_errors[2], fabs(100.0 * m_errors[2]/m_params[2]));
 	buf += QString().sprintf("status = %s\n", gsl_strerror (status));
 	buf += QString().sprintf("rms of residuals = %.3g\n", norm / sqrt((double)n));
