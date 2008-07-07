@@ -345,7 +345,8 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	std::fill(fftwave.begin(), fftwave.end(), 0.0);
 	for(int i = min_idx; i <= max_idx; i++) {
 		int k = (i - (max_idx + min_idx) / 2 + iftlen) % iftlen;
-		fftwave[k] = m_accum[i] / m_weights[i];
+		if(weights()[i] > th)
+			fftwave[k] = m_accum[i] / m_weights[i];
 	}
 	m_ift->exec(fftwave, iftwave);
 	
