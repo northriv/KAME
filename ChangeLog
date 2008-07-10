@@ -1,3 +1,8 @@
+* Thu Jul 10 2008 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.3.10-1)
+- nmr/spectrumbase: Fix for sparse acquision.
+- dcsource: No serial poll for YK7651.
+
 * Mon Jul 7 2008 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.3.9-1)
 - nmr/spectrumbase: Fix for sparse acquision.
