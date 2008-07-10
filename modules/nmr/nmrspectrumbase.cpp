@@ -328,10 +328,10 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
 	double res = resRecorded();
 	int iftlen = max_idx - min_idx + 1;
-	if(iftlen < 8)
-		throw XSkippedRecordError(__FILE__, __LINE__);
 	int npad = lrint(3.0 / (res * _pulse->waveWidth() * _pulse->interval()) + 0.5);
 	int trunc2 = lrint(pow(2.0, ceil(log(iftlen * 0.03) / log(2.0))));
+	if(trunc2 < 1)
+		throw XSkippedRecordError(__FILE__, __LINE__);
 	iftlen = ((iftlen + npad) / trunc2 + 1) * trunc2;
 	int tdsize = lrint(_pulse->waveWidth() * _pulse->interval() * res * iftlen);
 	int iftorigin = lrint(_pulse->waveFTPos() * _pulse->interval() * res * iftlen);
