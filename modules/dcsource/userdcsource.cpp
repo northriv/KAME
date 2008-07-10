@@ -27,6 +27,8 @@ XYK7651::XYK7651(const char *name, bool runtime,
   function()->add("F1");
   function()->add("F5");
   channel()->disable();
+  interface()->setGPIBUseSerialPollOnRead(false);
+  interface()->setGPIBUseSerialPollOnWrite(false);
 }
 void
 XYK7651::changeFunction(int /*ch*/, int )
