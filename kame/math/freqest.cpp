@@ -24,7 +24,7 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 	int t = memin.size();
 	int n = memout.size();
 	
-	if(t > 2048)
+	if(t > 1024)
 		throw XKameError(KAME::i18n("Too large size to allocate a matrix."), __FILE__, __LINE__);
 	
 	double tpoworg = 0.0;

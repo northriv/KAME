@@ -57,10 +57,10 @@ SpectrumSolver::window(int t, int t0, FFT::twindowfunc windowfunc,
 		window[i] = windowfunc((i + t0) * wk);
 	}
 }
-
 void
 SpectrumSolver::exec(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
 	int t0, double torr, FFT::twindowfunc windowfunc, double windowlength) throw (XKameError&) {
+	windowlength = std::max(0.0, windowlength);
 	unsigned int t = memin.size();
 	unsigned int n = memout.size();
 	if (m_ifft.size() != n) {
@@ -69,7 +69,22 @@ SpectrumSolver::exec(const std::vector<std::complex<double> >& memin, std::vecto
 		m_ifft.resize(n);
 	}
 	m_peaks.clear();
-	genSpectrum(memin, memout, t0, torr, windowfunc, windowlength);
+
+	if(hasWeighting()) {
+		genSpectrum(memin, memout, t0, torr, windowfunc, windowlength);		
+	}
+	else {
+	//Rectangular window.	
+		double wlen = windowLength(t, t0, windowlength);
+		int idx0 = std::max(0, -t0 - (int)lrint(wlen / 2.0));
+		int idx1 = std::min((int)memin.size() - 1, -t0 + (int)lrint(wlen / 2.0));
+		std::vector<std::complex<double> > memin1(idx1 + 1 - idx0);
+		for(unsigned int i = 0; i < memin1.size(); i++)
+			memin1[i] = memin[i + idx0];
+		t0 += idx0;
+		genSpectrum(memin1, memout, t0, torr, windowfunc, 1.0);		
+	}
+	
 	std::sort(m_peaks.begin(), m_peaks.end(), std::greater<std::pair<double, double> >());
 //	std::reverse(m_peaks.begin(), m_peaks.end());
 }
@@ -277,11 +292,6 @@ MEMStrict::solveZ(double tol) {
 void
 MEMStrict::genSpectrum(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
 	int t0, double tol, FFT::twindowfunc /*windowfunc*/, double /*windowlength*/) {
-//	std::vector<std::complex<double> > memin(std::min((int)lrint(windowlength * memin0.size()), (int)memin0.size()));
-//	unsigned int tshift = (memin0.size() - memin.size()) / 2;
-//	for(unsigned int i = 0; i < memin.size(); i++)
-//		memin[i] = memin0[i + tshift];
-//	t0 += (int)tshift;
 	int t = memin.size();
 	int n = memout.size();
 	if(t0 < 0)

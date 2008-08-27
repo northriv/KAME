@@ -139,18 +139,15 @@ SpectrumSolverWrapper::onSolverChanged(const shared_ptr<XValueNodeBase> &) {
 		}
 		if(m_selector->to_str() == SPECTRUM_SOLVER_MVDL) {
 			solver.reset(new MVDL);
-			has_length = false;
 		}
 		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_STRICT) {
 			solver.reset(new MEMStrict);
-			has_length = false;
-			has_window = false;
 		}
 		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_STRICT_EV) {
-			solver.reset(new CompositeSpectrumSolver<MEMStrict, EigenVectorMethod, true>());
+			solver.reset(new CompositeSpectrumSolver<MEMStrict, EigenVectorMethod>());
 		}
 		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_STRICT_BURG) {
-			solver.reset(new CompositeSpectrumSolver<MEMStrict, MEMBurg, true>());
+			solver.reset(new CompositeSpectrumSolver<MEMStrict, MEMBurg>());
 		}
 	}
 	if(!solver) {

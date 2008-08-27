@@ -61,9 +61,13 @@ protected:
 	std::vector<std::complex<double> > m_ifft;
 	std::vector<std::pair<double, double> > m_peaks;
 	
+	//! Create a window waveform.
 	void window(int t, int t0, FFT::twindowfunc windowfunc,
 		double windowlength, std::vector<double> &window);
 	
+	//! If false, perform rectangular windowing before solver process.
+	virtual bool hasWeighting() const {return false;}
+
 	void genIFFT(const std::vector<std::complex<double> >& wavein);
 	//! Least-square phase estimation.
 	//! \return coeff.
@@ -93,6 +97,7 @@ protected:
 	virtual void genSpectrum(const std::vector<std::complex<double> >& memin,
 		std::vector<std::complex<double> >& memout,
 		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength);
+	virtual bool hasWeighting() const {return true;}
 };
 
 //! Extra-polation of data using MEM (Maximum Entropy Method) by assuming gaussian distribution.
@@ -118,16 +123,14 @@ private:
 //! Perform two spectrum solvers.
 //! The preprocessor class \a T and postprocessor class \a X.
 //! \a T is for an extra-polation of data and/or rejection of noises.   
-template <class T, class X, bool IsXConfigurable = false>
+template <class T, class X>
 class CompositeSpectrumSolver : public T {
 public:
 protected:
 	virtual void genSpectrum(const std::vector<std::complex<double> >& memin,
 		std::vector<std::complex<double> >& memout,
 		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength) {
-		m_preprocessor.exec(memin, memout, t0, tol,
-			IsXConfigurable ? windowfunc : &FFT::windowFuncRect,
-			IsXConfigurable ? windowlength : 1.0);
+		m_preprocessor.exec(memin, memout, t0, tol, windowfunc, windowlength);
 		int t = memin.size();
 		int n = memout.size();
 		int t0a = t0;
@@ -138,9 +141,7 @@ protected:
 			int j = (t0a + i) % n;
 			nsin[i] = m_preprocessor.ifft()[j];
 		}
-		T::genSpectrum(nsin, memout, t0, tol,
-			!IsXConfigurable ? windowfunc : &FFT::windowFuncRect,
-			!IsXConfigurable ? windowlength : 1.0);
+		T::genSpectrum(nsin, memout, t0, tol, windowfunc, windowlength);
 	}
 	X m_preprocessor;
 };

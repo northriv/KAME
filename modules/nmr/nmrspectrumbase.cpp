@@ -328,13 +328,18 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
 	double res = resRecorded();
 	int iftlen = max_idx - min_idx + 1;
-	int npad = lrint(3.0 / (res * _pulse->waveWidth() * _pulse->interval()) + 0.5);
+	int npad = lrint(3.0 / (res * _pulse->waveWidth() * _pulse->interval()) + 0.5); //# of pads in frequency domain.
+	//Truncation factor for IFFT.
 	int trunc2 = lrint(pow(2.0, ceil(log(iftlen * 0.03) / log(2.0))));
 	if(trunc2 < 1)
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	iftlen = ((iftlen + npad) / trunc2 + 1) * trunc2;
-	int tdsize = lrint(_pulse->waveWidth() * _pulse->interval() * res * iftlen);
-	int iftorigin = lrint(_pulse->waveFTPos() * _pulse->interval() * res * iftlen);
+	double tdsize_org = _pulse->waveWidth() * _pulse->interval() * res * iftlen;
+	double iftorigin_org = _pulse->waveFTPos() * _pulse->interval() * res * iftlen;
+	//Factor for pads in time domain.
+	double tdpad = 3.0;
+	int tdsize = std::min(iftlen, (int)lrint(tdsize_org * tdpad));
+	int iftorigin = lrint(iftorigin_org * tdsize / tdsize_org);
 	dbgPrint(formatString("IFT: len=%d, org=%d, size=%d, npad=%d\n", iftlen, iftorigin, tdsize, npad));
 	
 	if(!m_ift || (m_ift->length() != iftlen)) {
@@ -357,7 +362,8 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	}
 	shared_ptr<SpectrumSolver> solver = m_solver->solver();
 	try {
-		solver->exec(solverin, fftwave, -iftorigin, 0.1e-2, m_solver->windowFunc(), *windowWidth() / 100.0);
+		double windowwidth = (*windowWidth() / 100.0) / tdpad;
+		solver->exec(solverin, fftwave, -iftorigin, 0.1e-2, m_solver->windowFunc(), windowwidth);
 	}
 	catch (XKameError &e) {
 		throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
