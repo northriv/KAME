@@ -64,6 +64,7 @@ XHP8643::XHP8643(const char *name, bool runtime,
 				 const shared_ptr<XDriverList> &drivers)
     : XCharDeviceDriver<XSG>(name, runtime, scalarentries, interfaces, thermometers, drivers)
 {
+	interface()->setGPIBUseSerialPollOnWrite(false);
 }
 void
 XHP8643::changeFreq(double mhz) {
