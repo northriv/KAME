@@ -1,3 +1,9 @@
+* Wed Aug 27 2008 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.3.11-1)
+- nmr/spectrumbase: IFT, padding for time domain.
+- math/spectrumsolver: rectangular windowing for freq. estimation/MEM.
+- sg: No serial poll before writing for HP.
+
 * Thu Jul 10 2008 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.3.10-1)
 - nmr/spectrumbase: Fix for sparse acquision.
