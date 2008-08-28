@@ -54,6 +54,8 @@ public:
 	static double icMDL(double loglikelifood, int k, int n);	
 	
 	static double windowLength(int tdlen, int t0, double windowlength);
+
+	virtual bool isFT() const {return false;}
 protected:
 	virtual void genSpectrum(const std::vector<std::complex<double> >& memin,
 		std::vector<std::complex<double> >& memout,
@@ -98,6 +100,7 @@ protected:
 		std::vector<std::complex<double> >& memout,
 		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength);
 	virtual bool hasWeighting() const {return true;}
+	virtual bool isFT() const {return true;}
 };
 
 //! Extra-polation of data using MEM (Maximum Entropy Method) by assuming gaussian distribution.

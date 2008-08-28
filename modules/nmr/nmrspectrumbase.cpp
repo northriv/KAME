@@ -288,8 +288,9 @@ XNMRSpectrumBase<FRM>::fssum()
 		throw XRecordError(KAME::i18n("Invalid waveform."), __FILE__, __LINE__);  
 	}
 	int bw = abs(lrint(*bandWidth() * 1000.0 / df));
-	bw *= 1.8; // for Hamming.
+	//bw *= 1.8; // for Hamming.
 	//	bw *= 3.6; // for FlatTop.
+	bw *= 2.2; // for Kaiser3.
 	if(bw >= len) {
 		throw XRecordError(KAME::i18n("BW beyond Nyquist freq."), __FILE__, __LINE__);  
 	}
@@ -304,7 +305,7 @@ XNMRSpectrumBase<FRM>::fssum()
 		int idx = lrint((cfreq + freq - minRecorded()) / resRecorded());
 		if((idx >= (int)m_accum.size()) || (idx < 0))
 			continue;
-		double w = FFT::windowFuncHamming((double)i / bw);
+		double w = FFT::windowFuncKaiser1((double)i / bw);
 		m_accum[idx] += ftwave[(i + len) % len] * w / (double)_pulse->wave().size();
 		m_weights[idx] += w;
 	}
@@ -312,7 +313,7 @@ XNMRSpectrumBase<FRM>::fssum()
 template <class FRM>
 void
 XNMRSpectrumBase<FRM>::analyzeIFT() {
-	double th = FFT::windowFuncHamming(0.5);
+	double th = FFT::windowFuncHamming(0.49);
 	int max_idx = 0;
 	int min_idx = m_accum.size() - 1;
 	int taps_max = 0; 
@@ -328,18 +329,15 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
 	double res = resRecorded();
 	int iftlen = max_idx - min_idx + 1;
-	int npad = lrint(3.0 / (res * _pulse->waveWidth() * _pulse->interval()) + 0.5); //# of pads in frequency domain.
+	int npad = lrint(6.0 / (res * _pulse->waveWidth() * _pulse->interval()) + 0.5); //# of pads in frequency domain.
 	//Truncation factor for IFFT.
 	int trunc2 = lrint(pow(2.0, ceil(log(iftlen * 0.03) / log(2.0))));
 	if(trunc2 < 1)
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	iftlen = ((iftlen + npad) / trunc2 + 1) * trunc2;
-	double tdsize_org = _pulse->waveWidth() * _pulse->interval() * res * iftlen;
-	double iftorigin_org = _pulse->waveFTPos() * _pulse->interval() * res * iftlen;
-	//Factor for pads in time domain.
-	double tdpad = 3.0;
-	int tdsize = std::min(iftlen, (int)lrint(tdsize_org * tdpad));
-	int iftorigin = lrint(iftorigin_org * tdsize / tdsize_org);
+	int tdsize = lrint(_pulse->waveWidth() * _pulse->interval() * res * iftlen);
+	int iftorigin = lrint(_pulse->waveFTPos() * _pulse->interval() * res * iftlen);
+	int bwinv = abs(lrint(1.0/(*bandWidth() * 1000.0 * _pulse->interval() * res * iftlen)));
 	dbgPrint(formatString("IFT: len=%d, org=%d, size=%d, npad=%d\n", iftlen, iftorigin, tdsize, npad));
 	
 	if(!m_ift || (m_ift->length() != iftlen)) {
@@ -355,14 +353,31 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	}
 	m_ift->exec(fftwave, iftwave);
 	
-	std::vector<std::complex<double> > solverin(tdsize);
-	for(unsigned int i = 0; i < solverin.size(); i++) {
-		int k = (-iftorigin + i + iftlen) % iftlen;
-		solverin[i] = iftwave[k];
-	}
 	shared_ptr<SpectrumSolver> solver = m_solver->solver();
+	std::vector<std::complex<double> > solverin;
+	double windowwidth = *windowWidth() / 100.0;
+	if(solver->isFT()) {
+//		if((m_solver->windowFunc() == &FFT::windowFuncRect) && (windowwidth > 0.999))
+//			windowwidth = 40.0;
+		int wlen = lrint(SpectrumSolver::windowLength(tdsize, -iftorigin, windowwidth));
+		wlen += bwinv * 2; //effect of convolution.
+		solverin.resize(std::max(wlen , tdsize));
+		windowwidth = (double)wlen / solverin.size();
+
+		iftorigin = solverin.size()/2;
+		for(int i = 0; i < (int)solverin.size(); i++) {
+			int k = (-iftorigin + i + iftlen) % iftlen;
+			solverin[i] = iftwave[k];
+		}
+	}
+	else {
+		solverin.resize(tdsize);
+		for(int i = 0; i < (int)solverin.size(); i++) {
+			int k = (-iftorigin + i + iftlen) % iftlen;
+			solverin[i] = iftwave[k];
+		}
+	}
 	try {
-		double windowwidth = (*windowWidth() / 100.0) / tdpad;
 		solver->exec(solverin, fftwave, -iftorigin, 0.1e-2, m_solver->windowFunc(), windowwidth);
 	}
 	catch (XKameError &e) {
