@@ -9,6 +9,7 @@ libmath_a_SOURCES = \
 	fft.cpp fft.h \
 	ar.cpp ar.h \
 	freqest.cpp freqest.h \
+	freqestleastsquare.cpp freqestleastsquare.h \
 	spectrumsolver.cpp spectrumsolver.h \
 	rand.cpp rand.h \
 	matrix.cpp matrix.h

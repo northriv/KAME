@@ -14,8 +14,7 @@
 //---------------------------------------------------------------------------
 #include "nmrpulse.h"
 #include "nmrpulseform.h"
-#include "ar.h"
-#include "freqest.h"
+#include "freqestleastsquare.h"
 
 #include <graph.h>
 #include <graphwidget.h>
@@ -70,9 +69,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 			m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)),
 		m_ftWaveGraph(create<XWaveNGraph>("Spectrum", true, m_spectrumForm.get())),
 		m_solver(create<SpectrumSolverWrapper>("SpectrumSolver", true, m_solverList, m_windowFunc, m_windowWidth)),
-//		m_solverDNR(new CompositeSpectrumSolver<MEMStrict, EigenVectorMethod, true>) {
-		m_solverDNR(new MEMStrict) {
-//		m_solverDNR(new MEMBurg(&SpectrumSolver::icAICc)) {
+		m_solverDNR(new FreqEstLeastSquare(&SpectrumSolver::icMDL)) {
 	m_form->m_btnAvgClear->setIconSet(KApplication::kApplication()->iconLoader()->loadIconSet("editdelete", KIcon::Toolbar, KIcon::SizeSmall, true) );
 	m_form->m_btnSpectrum->setIconSet(KApplication::kApplication()->iconLoader()->loadIconSet("graph", KIcon::Toolbar, KIcon::SizeSmall, true) );
 
@@ -260,7 +257,7 @@ void XNMRPulseAnalyzer::backgroundSub(std::vector<std::complex<double> > &wave,
 			memin[i] = wave[pos + i + bgpos];
 		}
 		try {
-			m_solverDNR->exec(memin, memout, bgpos, 2e-2, &FFT::windowFuncRect, 2.0);
+			m_solverDNR->exec(memin, memout, bgpos, 2e-2, &FFT::windowFuncRect, 1.0);
 		}
 		catch (XKameError &e) {
 			throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);

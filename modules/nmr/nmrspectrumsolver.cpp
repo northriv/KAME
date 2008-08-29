@@ -14,6 +14,7 @@
 #include "nmrspectrumsolver.h"
 #include "ar.h"
 #include "freqest.h"
+#include "freqestleastsquare.h"
 
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_ZF_FFT[] = "ZF-FFT";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_STRICT[] = "Strict MEM";
@@ -28,6 +29,8 @@ const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MUSIC_MDL[] = "MUSIC MDL";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_EV_AIC[] = "Eigenvector AIC";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_EV_MDL[] = "Eigenvector MDL";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MVDL[] = "Capon's MVDL(MLM)";
+const char SpectrumSolverWrapper::SPECTRUM_SOLVER_LS_AICc[] = "LeastSquare AICc";
+const char SpectrumSolverWrapper::SPECTRUM_SOLVER_LS_MDL[] = "LeastSquare MDL";
 
 const char SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT[] = "Rect";
 const char SpectrumSolverWrapper::WINDOW_FUNC_HANNING[] = "Hanning";
@@ -57,7 +60,9 @@ SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
 	if(selector) {
 		selector->add(SPECTRUM_SOLVER_ZF_FFT);
 		selector->add(SPECTRUM_SOLVER_MEM_STRICT);
-		selector->add(SPECTRUM_SOLVER_MEM_STRICT_EV);
+//		selector->add(SPECTRUM_SOLVER_MEM_STRICT_EV);
+		selector->add(SPECTRUM_SOLVER_LS_AICc);
+		selector->add(SPECTRUM_SOLVER_LS_MDL);
 		selector->add(SPECTRUM_SOLVER_MVDL);
 		selector->add(SPECTRUM_SOLVER_EV_MDL);
 		selector->add(SPECTRUM_SOLVER_MUSIC_MDL);
@@ -148,6 +153,12 @@ SpectrumSolverWrapper::onSolverChanged(const shared_ptr<XValueNodeBase> &) {
 		}
 		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_STRICT_BURG) {
 			solver.reset(new CompositeSpectrumSolver<MEMStrict, MEMBurg>());
+		}
+		if(m_selector->to_str() == SPECTRUM_SOLVER_LS_AICc) {
+			solver.reset(new FreqEstLeastSquare(&SpectrumSolver::icAICc));
+		}
+		if(m_selector->to_str() == SPECTRUM_SOLVER_LS_MDL) {
+			solver.reset(new FreqEstLeastSquare(&SpectrumSolver::icMDL));
 		}
 	}
 	if(!solver) {

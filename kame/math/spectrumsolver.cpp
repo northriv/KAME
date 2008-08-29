@@ -76,8 +76,8 @@ SpectrumSolver::exec(const std::vector<std::complex<double> >& memin, std::vecto
 	else {
 	//Rectangular window.	
 		double wlen = windowLength(t, t0, windowlength);
-		int idx0 = std::max(0, -t0 - (int)lrint(wlen / 2.0));
-		int idx1 = std::min((int)memin.size() - 1, -t0 + (int)lrint(wlen / 2.0));
+		int idx1 = std::max(0, std::min((int)memin.size() - 1, -t0 + (int)lrint(wlen / 2.0)));
+		int idx0 = std::min(std::max(0, -t0 - (int)lrint(wlen / 2.0)), idx1);
 		std::vector<std::complex<double> > memin1(idx1 + 1 - idx0);
 		for(unsigned int i = 0; i < memin1.size(); i++)
 			memin1[i] = memin[i + idx0];
