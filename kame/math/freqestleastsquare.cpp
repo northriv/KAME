@@ -40,12 +40,28 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 	}
 	sigma2 /= wsum;
 	
-	// For peak search by ZF-FFT;
+	// Peak search by ZF-FFT;
 	std::fill(m_ifft.begin(), m_ifft.end(), 0.0);
+	std::vector<std::complex<double> > convwnd(m_ifft);
+	for(int i = 0; i < t; i++) {
+		m_ifft[(t0a + i) % n] = memin[i] * sqrt(weight[i]);
+	}
+	m_fftN->exec(m_ifft, memout);
+	for(int i = 0; i < n; i++) {
+		memout[i] /= wsqrtsum;
+	}
+	// Prepare convolution.
+	for(int i = 0; i < t; i++) {
+		m_ifft[(t0a + i) % n] = sqrt(weight[i]);
+	}
+	m_fftN->exec(m_ifft, convwnd);
+	for(int i = 0; i < n; i++) {
+		convwnd[i] /= wsqrtsum;
+	}
 	
 	std::vector<std::complex<double> > wave(memin);
-
 	std::deque<std::complex<double> > zlist;
+	
 	double ic = 1e99;
 	for(int npeaks = 0; npeaks < 32; npeaks++) {
 		double loglikelifood = -wpoints * (log(2*M_PI) + 1.0 + log(sigma2));
@@ -62,11 +78,6 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 		
 		double freq = 0.0;
 		std::complex<double> z(0.0);
-		// Peak search by ZF-FFT;
-		for(int i = 0; i < t; i++) {
-			m_ifft[(t0a + i) % n] = wave[i] * sqrt(weight[i]);
-		}
-		m_fftN->exec(m_ifft, memout);
 		for(int i = 0; i < n; i++) {
 			if(std::norm(z) < std::norm(memout[i])) {
 				freq = i;
@@ -74,12 +85,11 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 			}
 		}
 		freq *= t / (double)n;
-		z /= wsqrtsum;
 
 		std::vector<std::complex<double> > coeff(t);
+		double p = -2.0 * M_PI / (double)t * freq;
 		for(int i = 0; i < t; i++) {
-			double k = 2.0 * M_PI / (double)t * (i + t0);
-			coeff[i] = std::polar(1.0, - freq * k);
+			coeff[i] = std::polar(1.0, (i + t0) * p);
 		}
 		sigma2 = 0.0;
 		for(int i = 0; i < t; i++) {
@@ -87,15 +97,17 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 		}
 		sigma2 /= wsum;
 		
-//		fprintf(stderr, "NPeak = %d, sigma2 = %g, freq = %g, z = %g, ph = %g, ic = %g\n", 
-//			npeaks, sigma2, freq, std::abs(z), std::arg(z), ic);
+		fprintf(stderr, "NPeak = %d, sigma2 = %g, freq = %g, z = %g, ph = %g, ic = %g\n", 
+			npeaks, sigma2, freq, std::abs(z), std::arg(z), ic);
 		
 		bool it_success = true;
 		// Newton's method for non-linear least square fit.
 		for(int it = 0; it < 4; it++) {
+			// Derivertive.
 			double ds2df = 0.0;
 			double ds2dx = 0.0;
 			double ds2dy = 0.0;
+			// Jacobian.
 			double d2s2df2 = 0.0;
 //			double d2s2dx2 = 1.0;
 //			double d2s2dy2 = 1.0;
@@ -107,11 +119,13 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 				std::complex<double> yew = wave[i] * coeff[i] * weight[i];
 				std::complex<double> yewzk = std::conj(z) * yew * k; 
 				ds2df -= std::imag(yewzk);
-				ds2dx += std::real(-yew + z * weight[i]);
-				ds2dy += std::imag(-yew + z * weight[i]);
+				std::complex<double> a = -yew + z * weight[i];
+				ds2dx += std::real(a);
+				ds2dy += std::imag(a);
 				d2s2df2 += std::real(yewzk * k);
-				d2s2dfx -= std::imag(yew * k);
-				d2s2dfy += std::real(yew * k);
+				a = yew * k;
+				d2s2dfx -= std::imag(a);
+				d2s2dfy += std::real(a);
 			}
 			ds2df /= wsum;
 			ds2dx /= wsum;
@@ -135,9 +149,9 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 			}
 			freq += df;
 			z += std::complex<double>(dx, dy);
+			double p = -2.0 * M_PI / (double)t * freq;
 			for(int i = 0; i < t; i++) {
-				double k = 2.0 * M_PI / (double)t * (i + t0);
-				coeff[i] = std::polar(1.0, - freq * k);
+				coeff[i] = std::polar(1.0, (i + t0) * p);
 			}
 			double sigma2_new = 0.0;
 			for(int i = 0; i < t; i++) {
@@ -145,8 +159,8 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 			}
 			sigma2_new /= wsum;
 
-//			fprintf(stderr, "It = %d, sigma2 = %g, freq = %g, z = %g, ph = %g\n",
-//				it, sigma2_new, freq, std::abs(z), std::arg(z));
+			fprintf(stderr, "It = %d, sigma2 = %g, freq = %g, z = %g, ph = %g\n",
+				it, sigma2_new, freq, std::abs(z), std::arg(z));
 			
 			if(sigma2 < sigma2_new) {
 				it_success = false;
@@ -165,19 +179,32 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 		m_peaks.push_back(std::pair<double, double>(std::abs(z) * n, freq / t * n));
 		zlist.push_back(z);
 		
+		//Subtract the wave.
 		for(int i = 0; i < t; i++) {
 			wave[i] -= z * std::conj(coeff[i]);
 		}
-		
+		double freqn = freq / t * n;
+		for(int df = -8; df <= 8; df++) {
+			int f = lrint(freqn) + df;
+			std::complex<double> convz(0.0);
+			double p = 2.0 * M_PI / (double)n * (freqn - f);
+			for(int i = 0; i < n; i++) {
+				convz += std::polar(1.0, p * (i + n/2 - n));
+			}
+			convz *= z / (double)n;
+			for(int i = 0; i < n; i++) {
+				memout[i] -= convz * convwnd[(i - f + n) % n];
+			}
+		}
 	}
 	std::fill(m_ifft.begin(), m_ifft.end(), 0.0);
 	for(int i = 0; i < m_peaks.size(); i++) {
 		double freq = m_peaks[i].second;
 		std::complex<double> z(zlist[i]);
-		double p = 2.0*M_PI/n;
+		double p = 2.0 * M_PI / (double)n * freq;
 		for(int i = 0; i < n; i++) {
 			int j = (i + n/2) % n;
-			m_ifft[j] += z * std::polar(1.0, p*freq*(i + n/2 - n));
+			m_ifft[j] += z * std::polar(1.0, p * (i + n/2 - n));
 		}
 	}
 	m_fftN->exec(m_ifft, memout);
