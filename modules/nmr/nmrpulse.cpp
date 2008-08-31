@@ -257,7 +257,7 @@ void XNMRPulseAnalyzer::backgroundSub(std::vector<std::complex<double> > &wave,
 			memin[i] = wave[pos + i + bgpos];
 		}
 		try {
-			m_solverDNR->exec(memin, memout, bgpos, 2e-2, &FFT::windowFuncRect, 1.0);
+			m_solverDNR->exec(memin, memout, bgpos, 0.5e-2, &FFT::windowFuncRect, 1.0);
 		}
 		catch (XKameError &e) {
 			throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
@@ -282,7 +282,7 @@ void XNMRPulseAnalyzer::rotNFFT(int ftpos, double ph,
 	std::vector<std::complex<double> > fftout(fftlen);
 	m_solverRecorded = m_solver->solver();
 	try {
-		m_solverRecorded->exec(wave, fftout, -ftpos, 0.5e-2, m_solver->windowFunc(), *windowWidth() / 100.0);
+		m_solverRecorded->exec(wave, fftout, -ftpos, 0.3e-2, m_solver->windowFunc(), *windowWidth() / 100.0);
 	}
 	catch (XKameError &e) {
 		throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
