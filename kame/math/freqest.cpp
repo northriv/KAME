@@ -27,6 +27,10 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 	if(t > 1024)
 		throw XKameError(KAME::i18n("Too large size to allocate a matrix."), __FILE__, __LINE__);
 	
+	int wpoints = lrint(numberOfNoises(memin)); //# of fittable data in freq. domain.
+	wpoints = std::min(std::max(wpoints, t/100 + 1), t);
+//	fprintf(stderr, "# of data points = %d\n", wpoints);
+	
 	double tpoworg = 0.0;
 	for(int i = 0; i < t; i++) {
 		tpoworg += std::norm(memin[i]);
@@ -61,17 +65,19 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 			sumloglambda += log(lambda[i]);
 			int q = p - 1 - i;
 			double logl = t * (p - q) * (sumloglambda / (double)(p - q) - log(sumlambda / (double)(p - q)));
-			double ic = m_funcIC(logl, q * (2*p - q), t);
+			double ic = m_funcIC(logl, q * (2*p - q), wpoints);
 			if(ic < minic) {
 				minic = ic;
 				numsig = q;
 			}
 		}
-		numsig *= windowlength * 0.25;
+		numsig *= windowlength;
 		numsig = std::max(std::min(numsig, p - 1), 0);
-		//	std::cout << ic << std::endl;
-		//	std::cout << lambda << std::endl;
-		//	std::cout << eigv << std::endl;
+		
+//		fprintf(stderr, "MinIC=%g, # of signal=%d, p=%d\n", minic, numsig, p);
+
+//		std::cout << lambda << std::endl;
+//		std::cout << eigv << std::endl;
 	}
 	std::vector<std::complex<double> > fftin(t, 0.0), fftout(t), acsum(t, 0.0);
 	for(int i = 0; i < p - numsig; i++) {

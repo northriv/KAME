@@ -69,6 +69,9 @@ protected:
 	
 	//! If false, perform rectangular windowing before solver process.
 	virtual bool hasWeighting() const {return false;}
+	
+	//! \return estimated number of effective (noisy) data points.
+	double numberOfNoises(const std::vector<std::complex<double> >& memin);
 
 	void genIFFT(const std::vector<std::complex<double> >& wavein);
 	//! Least-square phase estimation.

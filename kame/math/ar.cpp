@@ -24,6 +24,10 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 	int t = memin.size();
 	int n = memout.size();
 	
+	int wpoints = lrint(numberOfNoises(memin)); //# of fittable data in freq. domain.
+	wpoints = std::min(std::max(wpoints, t/100 + 1), t);
+//	fprintf(stderr, "# of data points = %d\n", wpoints);
+	
 	int taps_div = t - 1;
 	taps_div = std::max(taps_div / 10, 1);
 	shared_ptr<Context> context(new Context);
@@ -49,7 +53,7 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 		context->p++;
 		if(context->sigma2 < 0)
 			break;
-		double new_ic = arIC(context->sigma2, context->p, t);
+		double new_ic = arIC(context->sigma2, context->p, wpoints);
 		if(new_ic < ic) {
 			taps = p + 1;
 			ic = new_ic;

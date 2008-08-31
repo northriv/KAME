@@ -135,9 +135,6 @@ SpectrumSolver::lspe(const std::vector<std::complex<double> >& wavein, int origi
 	
 	std::vector<double> weight;
 	window(t, origin, windowfunc, 1.0, weight);
-	for(int i = 0; i < t; i++) {
-		weight[i] = weight[i] * weight[i];
-	}
 	
 	double sigma20 = 0.0, sigma2 = 0.0, coeff = 1.0;
 	for(int it = 0; it < 20; it++) {
@@ -201,6 +198,30 @@ double
 SpectrumSolver::windowLength(int t, int t0, double windowlength) {
 	return 2.0 * (std::max(-t0, (int)t + t0) * windowlength);
 }
+
+double
+SpectrumSolver::numberOfNoises(const std::vector<std::complex<double> >& memin) {
+	int t = memin.size();
+	int n = fftlen();
+	
+	std::vector<std::complex<double> > zfin(n), zfft(n);
+	std::fill(zfin.begin(), zfin.end(), 0.0);
+	for(int i = 0; i < t; i++) {
+		zfin[i % n] = memin[i];
+	}
+	m_fftN->exec(zfin, zfft);
+
+	double ssum = 0.0, s2sum = 0.0;
+	for(int i = 0; i < n; i++) {
+		double s = std::abs(zfft[i]);
+		ssum += s;
+		s2sum += s*s;
+	}
+	double num = ssum*ssum/s2sum/n*t;
+//	fprintf(stderr, "# of noises = %g, ratio=%f\n", num, num/t);
+	return num;
+}
+
 void
 FFTSolver::genSpectrum(const std::vector<std::complex<double> >& fftin, std::vector<std::complex<double> >& fftout,
 	int t0, double /*torr*/, FFT::twindowfunc windowfunc, double windowlength) {
