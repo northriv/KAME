@@ -23,6 +23,7 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 	if(t0a < 0)
 		t0a += (-t0a / n + 1) * n;
 	
+	//Fitting with weights.
 	std::vector<double> weight;
 	window(t, t0, windowfunc, windowlength, weight);
 	double wsum = 0.0, w2sum = 0.0;
@@ -35,6 +36,7 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 	wpoints = std::min(std::max(wpoints, t/100 + 1), t);
 //	fprintf(stderr, "# of data points = %d\n", wpoints);
 
+	//Standard error.
 	double sigma2 = 0.0;
 	for(int i = 0; i < t; i++) {
 		sigma2 += std::norm(memin[i]) * weight[i];
@@ -71,19 +73,29 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 		
 		double freq = 0.0;
 		std::complex<double> z(0.0);
+		double normz = 0;
 		for(int i = 0; i < n; i++) {
-			if(std::norm(z) < std::norm(memout[i])) {
+			if(normz < std::norm(memout[i])) {
 				freq = i;
 				z = memout[i];
+				normz = std::norm(z);
 			}
 		}
 		freq *= t / (double)n;
 
+		//Prepare exp(-omega t)
 		std::vector<std::complex<double> > coeff(t);
 		double p = -2.0 * M_PI / (double)t * freq;
-		for(int i = 0; i < t; i++) {
-			coeff[i] = std::polar(1.0, (i + t0) * p);
+		for(int i = 0; i < t;) {
+			std::complex<double> x = std::polar(1.0, (i + t0) * p);
+			std::complex<double> y = std::polar(1.0, p);
+			for(int j = 0; (j < 256) && (i < t); j++) {
+				coeff[i] = x;
+				x *= y;
+				i++;
+			}
 		}
+		//Standard error.
 		sigma2 = 0.0;
 		for(int i = 0; i < t; i++) {
 			sigma2 += std::norm(wave[i] - z * std::conj(coeff[i])) * weight[i];
@@ -106,8 +118,10 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 			double d2s2dfx = 0.0;
 			double d2s2dfy = 0.0;
 //			double d2s2dxy = 0.0;
+			double kstep = 2.0 * M_PI / (double)t;
+			double k = kstep * t0;
 			for(int i = 0; i < t; i++) {
-				double k = 2.0 * M_PI / (double)t * (i + t0);
+				k += kstep;
 				std::complex<double> yew = wave[i] * coeff[i] * weight[i];
 				std::complex<double> yewzk = std::conj(z) * yew * k; 
 				ds2df -= std::imag(yewzk);
@@ -144,9 +158,16 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 			dy *= sor;
 			freq += df;
 			z += std::complex<double>(dx, dy);
+			//Prepare exp(-omega t)
 			double p = -2.0 * M_PI / (double)t * freq;
-			for(int i = 0; i < t; i++) {
-				coeff[i] = std::polar(1.0, (i + t0) * p);
+			for(int i = 0; i < t;) {
+				std::complex<double> x = std::polar(1.0, (i + t0) * p);
+				std::complex<double> y = std::polar(1.0, p);
+				for(int j = 0; (j < 1024) && (i < t); j++) {
+					coeff[i] = x;
+					x *= y;
+					i++;
+				}
 			}
 
 //			fprintf(stderr, "It = %d, freq = %g, z = %g, ph = %g\n",
@@ -157,6 +178,7 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 			}
 		}
 
+		//Standard error.
 		double sigma2 = 0.0;
 		for(int i = 0; i < t; i++) {
 			sigma2 += std::norm(wave[i] - z * std::conj(coeff[i])) * weight[i];
@@ -186,8 +208,14 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 		std::complex<double> z(zlist[i]);
 		double p = 2.0 * M_PI / (double)n * freq;
 		for(int i = 0; i < n; i++) {
-			int j = (i + n/2) % n;
-			m_ifft[j] += z * std::polar(1.0, p * (i + n/2 - n));
+			std::complex<double> x = std::polar(1.0, (i + n/2 - n) * p);
+			std::complex<double> y = std::polar(1.0, p);
+			x *= z;
+			for(int j = 0; (j < 1024) && (i < n); j++) {
+				m_ifft[(i + n/2) % n] += x;
+				x *= y;
+				i++;
+			}
 		}
 	}
 	m_fftN->exec(m_ifft, memout);
