@@ -89,7 +89,7 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 		for(int i = 0; i < t;) {
 			std::complex<double> x = std::polar(1.0, (i + t0) * p);
 			std::complex<double> y = std::polar(1.0, p);
-			for(int j = 0; (j < 256) && (i < t); j++) {
+			for(int j = 0; (j < 1024) && (i < t); j++) {
 				coeff[i] = x;
 				x *= y;
 				i++;
@@ -207,7 +207,7 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 		double freq = m_peaks[i].second;
 		std::complex<double> z(zlist[i]);
 		double p = 2.0 * M_PI / (double)n * freq;
-		for(int i = 0; i < n; i++) {
+		for(int i = 0; i < n;) {
 			std::complex<double> x = std::polar(1.0, (i + n/2 - n) * p);
 			std::complex<double> y = std::polar(1.0, p);
 			x *= z;
