@@ -262,7 +262,8 @@ void XNMRPulseAnalyzer::backgroundSub(std::vector<std::complex<double> > &wave,
 		catch (XKameError &e) {
 			throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
 		}
-		for(unsigned int i = 0; i < std::min((int)wave.size() - pos, (int)memout.size()); i++) {
+		int imax = std::min((int)wave.size() - pos, (int)memout.size());
+		for(unsigned int i = 0; i < imax; i++) {
 			wave[i + pos] -= m_solverDNR->ifft()[i];
 		}
 	}
@@ -272,7 +273,7 @@ void XNMRPulseAnalyzer::rotNFFT(int ftpos, double ph,
 	std::vector<std::complex<double> > &ftwave) {
 	int length = wave.size();
 	//phase advance
-	std::complex<double> cph(cos(ph), sin(ph));
+	std::complex<double> cph(std::polar(1.0, ph));
 	for (int i = 0; i < length; i++) {
 		wave[i] *= cph;
 	}
