@@ -643,10 +643,7 @@
                         </sizepolicy>
                     </property>
                     <property name="text">
-                        <string>&amp;Dynamic Noise Reduction</string>
-                    </property>
-                    <property name="accel">
-                        <string>Alt+D</string>
+                        <string>Subtract Periodic Noises</string>
                     </property>
                 </widget>
                 <widget class="QLayoutWidget">
