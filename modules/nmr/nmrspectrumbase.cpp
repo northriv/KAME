@@ -339,6 +339,8 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	int iftorigin = lrint(_pulse->waveFTPos() * _pulse->interval() * res * iftlen);
 	int bwinv = abs(lrint(1.0/(*bandWidth() * 1000.0 * _pulse->interval() * res * iftlen)));
 	dbgPrint(formatString("IFT: len=%d, org=%d, size=%d, npad=%d\n", iftlen, iftorigin, tdsize, npad));
+	if(abs(iftorigin) > iftlen/2)
+		throw XSkippedRecordError(__FILE__, __LINE__);
 	
 	if(!m_ift || (m_ift->length() != iftlen)) {
 		m_ift.reset(new FFT(1, iftlen));
@@ -357,25 +359,18 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	std::vector<std::complex<double> > solverin;
 	double windowwidth = *windowWidth() / 100.0;
 	if(solver->isFT()) {
-//		if((m_solver->windowFunc() == &FFT::windowFuncRect) && (windowwidth > 0.999))
-//			windowwidth = 40.0;
-		int wlen = lrint(SpectrumSolver::windowLength(tdsize, -iftorigin, windowwidth));
+		solverin.resize(iftlen);
+		double wlen = SpectrumSolver::windowLength(tdsize, -iftorigin, windowwidth);
 		wlen += bwinv * 2; //effect of convolution.
-		solverin.resize(std::max(wlen , tdsize));
-		windowwidth = (double)wlen / solverin.size();
-
+		windowwidth = wlen / solverin.size();
 		iftorigin = solverin.size()/2;
-		for(int i = 0; i < (int)solverin.size(); i++) {
-			int k = (-iftorigin + i + iftlen) % iftlen;
-			solverin[i] = iftwave[k];
-		}
 	}
-	else {
-		solverin.resize(tdsize);
-		for(int i = 0; i < (int)solverin.size(); i++) {
-			int k = (-iftorigin + i + iftlen) % iftlen;
-			solverin[i] = iftwave[k];
-		}
+	else
+		solverin.resize(tdsize);		
+	for(int i = 0; i < (int)solverin.size(); i++) {
+		int k = (-iftorigin + i + iftlen) % iftlen;
+		ASSERT(k >= 0);
+		solverin[i] = iftwave[k];
 	}
 	try {
 		solver->exec(solverin, fftwave, -iftorigin, 0.1e-2, m_solver->windowFunc(), windowwidth);
