@@ -1,4 +1,8 @@
 * Wed Sep 10 2008 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.3.15-1)
+- nmrfspectrum.cpp: Burst mode.
+
+* Wed Sep 10 2008 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.3.14-1)
 - nmrspectrumbase.cpp: Fix bugs.
 
