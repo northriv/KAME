@@ -287,10 +287,10 @@ XNMRSpectrumBase<FRM>::fssum()
 	if((len == 0) || (df == 0)) {
 		throw XRecordError(KAME::i18n("Invalid waveform."), __FILE__, __LINE__);  
 	}
-	int bw = abs(lrint(*bandWidth() * 1000.0 / df));
 	//bw *= 1.8; // for Hamming.
 	//	bw *= 3.6; // for FlatTop.
-	bw *= 2.2; // for Kaiser3.
+	//bw *= 2.2; // for Kaiser3.
+	int bw = abs(lrint(*bandWidth() * 1000.0 / df * 2.2));
 	if(bw >= len) {
 		throw XRecordError(KAME::i18n("BW beyond Nyquist freq."), __FILE__, __LINE__);  
 	}
