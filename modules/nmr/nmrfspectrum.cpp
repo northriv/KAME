@@ -134,18 +134,20 @@ XNMRFSpectrum::afterFSSum() {
 		if(_sg1) unlockConnection(_sg1);
 		
 		int burstcnt = *burstCount();
-		burstcnt = std::max(burstcnt, 1);
 		double newf = freq; //MHz
 		m_burstFreqCycleCount++;
-		if(m_burstFreqCycleCount >= burstcnt) {
-			m_burstFreqCycleCount = 0;
-			m_burstPhaseCycleCount++;
-			if(m_burstPhaseCycleCount >= 4) {
-				m_burstPhaseCycleCount = 0;
-				newf += freq_step;
+		if(burstcnt) {
+			newf += freq_span / burstcnt;
+			if(m_burstFreqCycleCount >= burstcnt) {
+				m_burstFreqCycleCount = 0;
+				newf -= freq_span;
+				m_burstPhaseCycleCount++;
 			}
 		}
-		newf += m_burstFreqCycleCount * freq_span / burstcnt;
+		if(!burstcnt || (m_burstPhaseCycleCount >= 4)) {
+			m_burstPhaseCycleCount = 0;
+			newf += freq_step;
+		}
 		
 		if(_sg1) _sg1->freq()->value(newf + *sg1FreqOffset());
 		if(newf >= getMaxFreq() * 1e-6)
