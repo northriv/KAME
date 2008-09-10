@@ -45,12 +45,9 @@ protected:
 public:
 	//! driver specific part below 
 	const shared_ptr<XItemNode<XDriverList, XSG> > &sg1() const {return m_sg1;}
-	const shared_ptr<XItemNode<XDriverList, XSG> > &sg2() const {return m_sg2;}
-
-	//! [MHz]
+ 
+	//! Offset for IF [MHz]
 	const shared_ptr<XDoubleNode> &sg1FreqOffset() const {return m_sg1FreqOffset;}
-	//! [MHz]
-	const shared_ptr<XDoubleNode> &sg2FreqOffset() const {return m_sg2FreqOffset;}
 	//! [MHz]
 	const shared_ptr<XDoubleNode> &centerFreq() const {return m_centerFreq;}
 	//! [kHz]
@@ -59,24 +56,30 @@ public:
 	const shared_ptr<XDoubleNode> &freqStep() const {return m_freqStep;}
 	const shared_ptr<XBoolNode> &active() const {return m_active;}
 
+	//! Burst mode stuff.
+	//! Burst count.
+	const shared_ptr<XUIntNode> &burstCount() const {return m_burstCount;}
+	
 private:
-	const shared_ptr<XItemNode<XDriverList, XSG> > m_sg1, m_sg2;
- 
+	const shared_ptr<XItemNode<XDriverList, XSG> > m_sg1;
 	const shared_ptr<XDoubleNode> m_sg1FreqOffset;
-	const shared_ptr<XDoubleNode> m_sg2FreqOffset;
+
 	const shared_ptr<XDoubleNode> m_centerFreq;
 	const shared_ptr<XDoubleNode> m_freqSpan;
 	const shared_ptr<XDoubleNode> m_freqStep;
 	const shared_ptr<XBoolNode> m_active;
 	const shared_ptr<XNode> m_clear;
   
+	const shared_ptr<XUIntNode> m_burstCount;
+	
+	unsigned int m_burstFreqCycleCount;
+	unsigned int m_burstPhaseCycleCount;
+
 	shared_ptr<XListener> m_lsnOnActiveChanged;
     
 	xqcon_ptr m_conCenterFreq,
 		m_conFreqSpan, m_conFreqStep;
-	xqcon_ptr m_conSG1FreqOffset, m_conSG2FreqOffset;
-	xqcon_ptr m_conActive;
-	xqcon_ptr m_conSG1, m_conSG2;
+	xqcon_ptr m_conActive, m_conSG1, m_conSG1FreqOffset, m_conBurstCount, m_conBurstFreqStep;
 
 	void onActiveChanged(const shared_ptr<XValueNodeBase> &);
 };
