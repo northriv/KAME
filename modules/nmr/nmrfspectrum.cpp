@@ -150,7 +150,7 @@ XNMRFSpectrum::afterFSSum() {
 		}
 		
 		if(_sg1) _sg1->freq()->value(newf + *sg1FreqOffset());
-		if(newf >= getMaxFreq() * 1e-6)
+		if(newf >= getMaxFreq() * 1e-6 - freq_step)
 			active()->value(false);
 	}	
 }
