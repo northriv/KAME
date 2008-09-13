@@ -33,6 +33,8 @@ public:
 	virtual void changeRange(int, int);
 	virtual double max(int ch, bool autorange) const;
 	virtual void queryStatus(int) {}
+protected:
+	virtual void open() throw (XInterface::XInterfaceError &);
 };
 
 //!MicroTask/Leiden Triple Current Source.

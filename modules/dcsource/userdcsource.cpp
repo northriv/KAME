@@ -31,6 +31,12 @@ XYK7651::XYK7651(const char *name, bool runtime,
   interface()->setGPIBUseSerialPollOnWrite(false);
 }
 void
+XYK7651::open() throw (XInterface::XInterfaceError &)
+{
+	this->start();
+	msecsleep(3000); // wait for instrumental reset.
+}
+void
 XYK7651::changeFunction(int /*ch*/, int )
 {
 	XScopedLock<XInterface> lock(*interface());
