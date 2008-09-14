@@ -334,11 +334,10 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	int trunc2 = lrint(pow(2.0, ceil(log(iftlen * 0.03) / log(2.0))));
 	if(trunc2 < 1)
 		throw XSkippedRecordError(__FILE__, __LINE__);
-	iftlen = ((iftlen + npad) / trunc2 + 1) * trunc2;
+	iftlen = ((iftlen * 3 / 2 + npad) / trunc2 + 1) * trunc2;
 	int tdsize = lrint(_pulse->waveWidth() * _pulse->interval() * res * iftlen);
 	int iftorigin = lrint(_pulse->waveFTPos() * _pulse->interval() * res * iftlen);
 	int bwinv = abs(lrint(1.0/(*bandWidth() * 1000.0 * _pulse->interval() * res * iftlen)));
-	dbgPrint(formatString("IFT: len=%d, org=%d, size=%d, npad=%d\n", iftlen, iftorigin, tdsize, npad));
 	if(abs(iftorigin) > iftlen/2)
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	
@@ -383,17 +382,20 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 		int k = (i - (max_idx + min_idx) / 2 + iftlen) % iftlen;
 		m_wave[i] = fftwave[k] / (double)iftlen;
 	}
-	m_peaks.clear();
-	for(int i = 0; i < solver->peaks().size(); i++) {
-		double k = solver->peaks()[i].second;
-		double j = (k > iftlen/2) ? (k - iftlen) : k;
-		j += (max_idx + min_idx) / 2;
-		m_peaks.push_back(std::pair<double, double>(solver->peaks()[i].first / (double)iftlen, j));
-	}
 	th = FFT::windowFuncHamming(0.1);
 	for(int i = 0; i < m_accum.size(); i++) {
 		if(weights()[i] < th) {
 			m_weights[i] = 0.0;
 		}
+	}
+	m_peaks.clear();
+	for(int i = 0; i < solver->peaks().size(); i++) {
+		double k = solver->peaks()[i].second;
+		double j = (k > iftlen/2) ? (k - iftlen) : k;
+		j += (max_idx + min_idx) / 2;
+		int l = lrint(j);
+		if((l >= 0) && (l < m_accum.size()) && (weights()[l]))
+			m_peaks.push_back(std::pair<double, double>(
+				solver->peaks()[i].first / (double)iftlen, j));
 	}
 }
