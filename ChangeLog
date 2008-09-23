@@ -1,3 +1,8 @@
+* Tue Sep 23 2008 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.3.17-1)
+- nmrspectrumbase.cpp: Get rid of noisy parts.
+- nmrpulse.cpp: Improve multiecho.
+
 * Fri Sep 12 2008 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.3.16-1)
 - nmrspectrumbase.cpp: Improve autophasing.
