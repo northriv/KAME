@@ -455,6 +455,9 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	}
 	m_dsoWaveStartPos = pos;
 
+	//background subtraction or dynamic noise reduction
+	if(bg_after_last_echo)
+		backgroundSub(m_dsoWave, pos, length, bgpos, bglength);
 	for(int i = 1; i < numechoes; i++) {
 		int rpos = pos + i * echoperiod;
 		for(int j = 0;
@@ -467,7 +470,9 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 		}
 	}
 	//background subtraction or dynamic noise reduction
-	backgroundSub(m_dsoWave, pos, length, bgpos, bglength);
+	if(!bg_after_last_echo)
+		backgroundSub(m_dsoWave, pos, length, bgpos, bglength);
+
 	if((emitter == _dso) || (!m_avcount)) {	
 		for(int i = 0; i < length; i++) {
 			m_waveSum[i] += m_dsoWave[pos + i];
