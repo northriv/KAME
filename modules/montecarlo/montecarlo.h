@@ -373,7 +373,7 @@ static const int cg_BSitePositions[16][3] = {
 //! unit is 1/8 lattice const.
 static const int cg_8aSitePositions[8][3] = {
     {1,1,1}, {5,5,1}, {1,5,5}, {5,1,5},
-    {7,3,3}, {3,7,3}, {7,7,7}, {3,7,7}
+    {7,3,3}, {3,7,3}, {7,7,7}, {3,3,7}
 };
 #define OX (0.4201*8)
 //! unit is 1/8 lattice const.
