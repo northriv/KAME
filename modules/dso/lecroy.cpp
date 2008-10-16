@@ -274,7 +274,7 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 								 interface()->buffer().begin(), interface()->buffer().end());
 				if(blks <= 0)
 					break;
-				if(XTime::now() - tstart > 3.0)
+				if(XTime::now() - tstart > 5.0)
 					break; //timeout.
 				msecsleep(retry * 20);
 			}
@@ -327,6 +327,8 @@ XLecroyDSO::convertRaw() throw (XRecordError&) {
 		float interval = pop<float>();
 		double hoffset = pop<double>();
 		
+		fprintf(stderr, "first_valid=%d,last_valid=%d,first=%d,acqcount=%d,count=%d\n",
+			first_valid, last_valid, first, acqcount, count);
 		if(ch == 0) {
 			if((count < 0) || 
 				(rawData().size() < (count * 2 + DATA_BLOCK + n + 2) * ch_cnt))
