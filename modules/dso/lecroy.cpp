@@ -274,9 +274,9 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 								 interface()->buffer().begin(), interface()->buffer().end());
 				if(blks <= 0)
 					break;
-				if(XTime::now() - tstart > 5.0)
+				if(XTime::now() - tstart > 3.0)
 					break; //timeout.
-				msecsleep(retry * 20);
+				msecsleep(20);
 			}
 			if(blks != 0)
 				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
