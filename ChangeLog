@@ -1,3 +1,8 @@
+* Thu Oct 17 2008 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.3.18-1)
+- dso.cpp: Fix for reading errors.
+- lecroy.cpp: Increase timeout.
+
 * Tue Sep 23 2008 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.3.17-1)
 - nmrspectrumbase.cpp: Get rid of noisy parts.
