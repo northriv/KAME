@@ -303,6 +303,7 @@ XDSO::execute(const atomic<bool> &terminated)
 				continue;
 			}
 			if(count == last_count) {
+			//Nothing happened after the last reading.
 				msecsleep(10);
 				continue;
 			}
@@ -312,7 +313,6 @@ XDSO::execute(const atomic<bool> &terminated)
 					continue;
 				}
 			}
-			last_count =  count;
 		}
 		catch (XKameError& e) {
 			e.print(getLabel());
@@ -347,6 +347,8 @@ XDSO::execute(const atomic<bool> &terminated)
 
 		finishWritingRaw(time_awared, XTime::now());
 	      
+		last_count =  count;
+		
 		if(*singleSequence() && !seq_busy) {
 			last_count = 0;
 			time_awared = XTime::now();
