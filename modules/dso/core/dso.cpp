@@ -294,8 +294,9 @@ XDSO::execute(const atomic<bool> &terminated)
 			continue;
 		}
 		bool seq_busy = false;
+		int count;
 		try {
-			int count = acqCount(&seq_busy);
+			count = acqCount(&seq_busy);
 			if(!count) {
 				time_awared = XTime::now();
 				last_count = 0;
