@@ -49,6 +49,7 @@ static const FFTAxis c_fftaxes[] = {
 #define GRAPH_REAL_H_B_SITE "H-at-B-site"
 #define GRAPH_REAL_H_8a_SITE "H-at-8a-site"
 #define GRAPH_REAL_H_48f_SITE "H-at-48f-site"
+#define GRAPH_FLIPS "Flip History"
 
 XMonteCarloDriver::XMonteCarloDriver(const char *name, bool runtime, 
 									 const shared_ptr<XScalarEntryList> &scalarentries,
@@ -131,6 +132,7 @@ XMonteCarloDriver::XMonteCarloDriver(const char *name, bool runtime,
 	m_graph3D->add(GRAPH_REAL_H_B_SITE);
 	m_graph3D->add(GRAPH_REAL_H_8a_SITE);
 	m_graph3D->add(GRAPH_REAL_H_48f_SITE);
+	m_graph3D->add(GRAPH_FLIPS);
   
 	m_conLength = xqcon_create<XQLineEditConnector>(m_L, m_form->m_edLength);
 	m_conCutoffReal = xqcon_create<XQLineEditConnector>(m_cutoffReal, m_form->m_edCutoffReal);
@@ -332,6 +334,7 @@ XMonteCarloDriver::visualize()
 	bool calcbsite = false;
 	bool calc8asite = false;
 	bool calc48fsite = false;
+	bool writeflips = false;
 	if(m_graph3D->to_str() == GRAPH_3D_FFT_INTENS_ABS) {
 		fftx = true;
 		ffty = true;
@@ -374,6 +377,9 @@ XMonteCarloDriver::visualize()
 	}
 	if(m_graph3D->to_str() == GRAPH_REAL_H_48f_SITE) {
 		calc48fsite = true;
+	}
+	if(m_graph3D->to_str() == GRAPH_FLIPS) {
+		writeflips = true;
 	}
 
     int size = m_store->length();
@@ -587,6 +593,35 @@ XMonteCarloDriver::visualize()
 			}
 		}
 	}
+	if(writeflips) {
+		std::deque<MonteCarlo::FlipHistory> flips;
+		m_loop->write_flips(flips);
+
+		XScopedWriteLock<XWaveNGraph> lock(*m_wave3D);
+		m_wave3D->setRowCount(flips.size());
+		for(int idx = 0; idx < (int)flips.size(); idx++) {
+			int lidx = flips[idx].lidx;
+			int site = flips[idx].site;
+			int i = lidx % size;
+			lidx /= size;
+			int j = lidx % size;
+			lidx /= size;
+			int k = lidx % size;
+
+			const int *pos = cg_ASitePositions[site];
+			double x = i + pos[0] * 0.25;
+			double y = j + pos[1] * 0.25;
+			double z = k + pos[2] * 0.25;
+			m_wave3D->cols(0)[idx] = x;
+			m_wave3D->cols(1)[idx] = y;
+			m_wave3D->cols(2)[idx] = z;
+			m_wave3D->cols(3)[idx] = (flips[idx].delta > 0.0) ? 2.0 : 1.0;
+			m_wave3D->cols(4)[idx] = flips[idx].delta;
+			m_wave3D->cols(5)[idx] = flips[idx].tests;
+			m_wave3D->cols(6)[idx] = 0;
+			m_wave3D->cols(7)[idx] = site;
+		}
+	}
 }
 void
 XMonteCarloDriver::onGraphChanged(const shared_ptr<XValueNodeBase> &)
@@ -614,6 +649,7 @@ void
 XMonteCarloDriver::execute(int flips, long double tests)
 {
     unsigned int size = m_loop->length();
+    int spin_size = size*size*size*4*4;
     MonteCarlo::Vector3<double> field_dir(*m_hdirx,*m_hdiry,*m_hdirz);
     field_dir.normalize();
     MonteCarlo::Vector3<double> field(field_dir);
@@ -622,6 +658,8 @@ XMonteCarloDriver::execute(int flips, long double tests)
     m_dU = m_loop->exec(*m_targetTemp, field, &flips, &tests, &m_DUav, &m) * N_A;
     m_testsTotal += tests;
     m_flippedTotal += flips;
+    fprintf(stderr, "Total flips = %g (%g per spin).\n",
+    	((double)m_flippedTotal), ((double)m_flippedTotal / spin_size));
     m_Mav = m.innerProduct(field_dir);
     rawData().resize(size*size*size*16);
     m_loop->write((char*)&rawData()[0]);

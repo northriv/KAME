@@ -280,6 +280,9 @@ MonteCarlo::exec(double temp, Vector3<double> field, int *flips,
         m_SumSpin[site] = 0.0;
     }
     m_SumTests = 0.0;
+    m_SumTestsAtLastFlip = 0.0;
+    
+    m_flipHistory.clear();
 
     doTests(flips, *tests);
 
@@ -655,6 +658,14 @@ MonteCarlo::flipSpin(int site1, int lidx, double du, long double tests_after_che
     writeSpin(-oldv, site1, sidx);
     ASSERT(spins_real_index(i,j,k) == sidx);
     
+    FlipHistory hist;
+    hist.lidx = lidx;
+    hist.site = site1;
+    hist.delta = -2*oldv;
+    hist.tests = (m_SumTests - m_SumTestsAtLastFlip);
+    m_flipHistory.push_back(hist);
+    m_SumTestsAtLastFlip = m_SumTests;
+    
     //set dirty flags to caches.
     fill(m_field_pri_cached_sane.begin(), m_field_pri_cached_sane.end(), 0);
     if(m_sec_cache_enabled) {
@@ -761,6 +772,11 @@ MonteCarlo::write_48fsite(Vector3<double> *fields)
             }
         }
     }
+}
+void
+MonteCarlo::write_flips(std::deque<FlipHistory> &buf) {
+	buf.resize(m_flipHistory.size());
+	std::copy(m_flipHistory.begin(), m_flipHistory.end(), buf.begin());
 }
 
 void

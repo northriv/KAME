@@ -114,13 +114,15 @@ MonteCarlo::setupField(int size, double dfactor,
     alpha /= LATTICE_CONST;
     s_alpha = alpha;
     double mag_cutoff = _erfc(alpha*LATTICE_CONST*radius);
-    fprintf(stderr, "Magnitude at the cutoff boundary = %g%%\n", 100.0*mag_cutoff);
+    fprintf(stderr, "Magnitude at the cutoff boundary for real = %g%%\n", 100.0*mag_cutoff);
     s_cutoff_real = cutoff_real;
     s_cutoff_real_radius = radius;
 //    double radius_rec = sqrt(-log(mag_cutoff)) * 2.0 * alpha / (2.0*M_PI / (LATTICE_CONST * s_L));
     int cutoff_rec = (int)ceil(radius_rec);
     s_cutoff_rec = cutoff_rec;
     s_cutoff_rec_radius = radius_rec;
+    double mag_cutoff_rec = exp(-pow(radius_rec / (2.0 * alpha) * (2.0 * M_PI / (LATTICE_CONST * s_L)), 2.0)); 
+    fprintf(stderr, "Magnitude at the cutoff boundary for rec = %g%%\n", 100.0*mag_cutoff_rec);
 
     for(int site2 = 0; site2 < 16; site2++) {
 	#ifdef PACK_4FLOAT

@@ -177,6 +177,8 @@ public:
     void write_bsite(Vector3<double> *fields);
     void write_8asite(Vector3<double> *fields);
     void write_48fsite(Vector3<double> *fields);
+    struct FlipHistory {int lidx; int site; float delta; double tests;};
+    void write_flips(std::deque<FlipHistory> &buf);
     
     static int length() {
         return s_L;
@@ -346,6 +348,7 @@ private:
     //! Sum Spin Polarization
     long double m_SumSpin[16];
     long double m_SumTests;
+    long double m_SumTestsAtLastFlip;
     //! 4*r^2 to nth neighbor.
     static std::vector<int> s_4r2_neighbor;
     
@@ -353,6 +356,8 @@ private:
     static void * xthread_start_routine(void *);
     
     static Vector3<double> s_ASiteIsingVector[16];
+    
+    std::deque<FlipHistory> m_flipHistory;
 };
 
 //inline functions.
