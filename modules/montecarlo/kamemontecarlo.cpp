@@ -661,6 +661,8 @@ XMonteCarloDriver::execute(int flips, long double tests)
     fprintf(stderr, "Total flips = %g (%g per spin).\n",
     	((double)m_flippedTotal), ((double)m_flippedTotal / spin_size));
     m_Mav = m.innerProduct(field_dir);
+    fprintf(stderr, "Total tests = %g (%g per spin).\n",
+    	((double)m_testsTotal), ((double)m_testsTotal / spin_size));
     rawData().resize(size*size*size*16);
     m_loop->write((char*)&rawData()[0]);
     finishWritingRaw(XTime::now(), XTime::now());
