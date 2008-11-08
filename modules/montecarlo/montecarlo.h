@@ -55,6 +55,10 @@
 //! Nearest neighbor exchange interaction [K]
 #define J_NN -1.24
 
+//! Hyperfine coupling constant between O(1) and the nearest Dy. [T/mu_B]
+#define AHF_DY_O1_DIPOLE (MU_B*1e-7/pow(sqrt(3.0)/8.0*LATTICE_CONST, 3.0)*2.0)
+//! w/ correction determined by 17O-NMR in the spin-ice state.
+#define AHF_DY_O1 (AHF_DY_O1_DIPOLE + (-25.06e6+19.64e6)/5.7719e6/A_MOMENT/(4.0/sqrt(3.0)))
 
 class MonteCarlo
 {

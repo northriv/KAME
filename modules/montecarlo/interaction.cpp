@@ -261,6 +261,11 @@ MonteCarlo::setupField(int size, double dfactor,
 						Vector3<double> hdip;
 						if(!dipoleFieldReal(v, site2, &hdip))
 							continue;
+						double r2int = v.x*v.x + v.y*v.y + v.z*v.z;
+						//Nearest Neighbor.
+						if(r2int < 0.7501) {
+							hdip *= AHF_DY_O1 / AHF_DY_O1_DIPOLE;
+						}
 						addFieldsReal(hdip.x, s_fields_real_8a[site1][site2][0], di, dj, dk);
 						addFieldsReal(hdip.y, s_fields_real_8a[site1][site2][1], di, dj, dk);
 						addFieldsReal(hdip.z, s_fields_real_8a[site1][site2][2], di, dj, dk);
