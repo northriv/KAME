@@ -67,7 +67,6 @@ public:
 	//! Changing width of time-domain image [%]
 	const shared_ptr<XDoubleNode> &windowWidth() const {return m_windowWidth;}
 	
-
 	//! records below.
 	const std::deque<std::complex<double> > &wave() const {return m_wave;}
 	//! averaged weights

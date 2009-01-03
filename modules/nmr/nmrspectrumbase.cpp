@@ -255,12 +255,13 @@ XNMRSpectrumBase<FRM>::visualize()
 	getValues(values);
 	ASSERT(values.size() == length);
 	{   XScopedWriteLock<XWaveNGraph> lock(*m_spectrum);
+		double th = FFT::windowFuncHamming(0.1);
 		m_spectrum->setRowCount(length);
 		for(int i = 0; i < length; i++) {
 			m_spectrum->cols(0)[i] = values[i];
 			m_spectrum->cols(1)[i] = std::real(wave()[i]);
 			m_spectrum->cols(2)[i] = std::imag(wave()[i]);
-			m_spectrum->cols(3)[i] = weights()[i];
+			m_spectrum->cols(3)[i] = (weights()[i] > th) ? weights()[i] : 0.0;
 			m_spectrum->cols(4)[i] = std::abs(wave()[i]);
 		}
 		m_peakPlot->maxCount()->value(m_peaks.size());
@@ -383,18 +384,13 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 		m_wave[i] = fftwave[k] / (double)iftlen;
 	}
 	th = FFT::windowFuncHamming(0.1);
-	for(int i = 0; i < m_accum.size(); i++) {
-		if(weights()[i] < th) {
-			m_weights[i] = 0.0;
-		}
-	}
 	m_peaks.clear();
 	for(int i = 0; i < solver->peaks().size(); i++) {
 		double k = solver->peaks()[i].second;
 		double j = (k > iftlen/2) ? (k - iftlen) : k;
 		j += (max_idx + min_idx) / 2;
 		int l = lrint(j);
-		if((l >= 0) && (l < m_accum.size()) && (weights()[l]))
+		if((l >= 0) && (l < m_accum.size()) && (weights()[l] > th))
 			m_peaks.push_back(std::pair<double, double>(
 				solver->peaks()[i].first / (double)iftlen, j));
 	}
