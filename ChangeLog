@@ -1,3 +1,7 @@
+* Sat Jan 3 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.3.19-1)
+- nmrspectrumbase.cpp: Fix weighting.
+
 * Thu Oct 17 2008 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.3.18-1)
 - dso.cpp: Fix for reading errors.
