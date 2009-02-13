@@ -1,3 +1,7 @@
+* Sat Feb 14 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.3.20-1)
+- pulserdriver.cpp: phase cycle, now 4-cycle available for multiple/stimulated echo sequence.
+
 * Sat Jan 3 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.3.19-1)
 - nmrspectrumbase.cpp: Fix weighting.
