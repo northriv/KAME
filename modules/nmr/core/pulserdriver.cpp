@@ -794,34 +794,26 @@ XPulser::rawToRelPat() throw (XRecordError&)
 	};
 
 	//pi/2 pulse phases
-	const uint32_t p1single[MAX_NUM_PHASE_CYCLE] = {
+	const uint32_t p1[MAX_NUM_PHASE_CYCLE] = {
 		0, 0, 2, 2, 0, 0, 2, 2, 0, 0, 2, 2, 0, 0, 2, 2
 	};
 	//pi pulse phases
-	const uint32_t p2single[MAX_NUM_PHASE_CYCLE] = {
+	const uint32_t p2[MAX_NUM_PHASE_CYCLE] = {
 		0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3
 	};
 
-	//pi/2 pulse phases for multiple echoes
-	const uint32_t p1multi[MAX_NUM_PHASE_CYCLE] = {
-		2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
-	};
-	//pi pulse phases for multiple echoes or for st.e.
+	//subsequent pi pulse phases for multiple echoes or for st.e.
 	const uint32_t p2multi[MAX_NUM_PHASE_CYCLE] = {
 		1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3
 	};
 	//stimulated echo pulse phases
 	const uint32_t ste_p1[MAX_NUM_PHASE_CYCLE] = {
-		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+		0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2
 	};
 	const uint32_t ste_p2[MAX_NUM_PHASE_CYCLE] = {
-		1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3
+		0, 2, 2, 0, 0, 2, 2, 0, 0, 2, 2, 0, 0, 2, 2, 0
 	};
   
-	const uint32_t _qpsk_driven_equilibrium[4] = {2, 1, 0, 3};
-#define qpsk_driven_equilibrium(phase) qpsk[_qpsk_driven_equilibrium[(phase) % 4]]
-#define qpsk_driven_equilibrium_inv(phase) (qpsk_driven_equilibrium(((phase) + 2) % 4))
-
 	typedef std::multiset<tpat, std::less<tpat> > tpatset;
 	tpatset patterns;  // patterns
 	tpatset patterns_cheap; //Low priority patterns
@@ -832,8 +824,6 @@ XPulser::rawToRelPat() throw (XRecordError&)
 	uint64_t pos = 0;
             
 	int echonum = _echo_num;
-	const uint32_t *p1 = ((echonum > 1) || _conserve_ste_phase) ? p1multi : p1single;
-	const uint32_t *p2 = ((echonum > 1) || _conserve_ste_phase) ? p2multi : p2single;
   
 	bool former_of_alt = !_invert_phase;
 	for(int i = 0; i < _num_phase_cycle * (comb_mode_alt ? 2 : 1); i++)
@@ -956,7 +946,7 @@ XPulser::rawToRelPat() throw (XRecordError&)
 				patterns.insert(tpat(pos - _pw2/2, 0, trig2mask));
 				//on
 				if(!_g2_kept_p1p2) {
-					patterns_cheap.insert(tpat(pos - _pw2/2 - _g2_setup, qpsk[p2[j]], qpskmask));
+					patterns_cheap.insert(tpat(pos - _pw2/2 - _g2_setup, qpsk[(k == 0) ? p2[j] : p2multi[j]], qpskmask));
 					patterns_cheap.insert(tpat(pos - _pw2/2 - _g2_setup, ~(uint32_t)0, g2mask));
 				}
 
@@ -993,7 +983,7 @@ XPulser::rawToRelPat() throw (XRecordError&)
 			pos += 2*_tau;
 			//pi pulse 
 			//on
-			patterns_cheap.insert(tpat(pos - _pw2/2 - _g2_setup, qpsk_driven_equilibrium(p2[j]), qpskmask));
+			patterns_cheap.insert(tpat(pos - _pw2/2 - _g2_setup, qpskinv[p2[j]], qpskmask));
 			patterns_cheap.insert(tpat(pos - _pw2/2 - _g2_setup, ~(uint32_t)0, g2mask));
 			patterns_cheap.insert(tpat(pos - _pw2/2 - _g2_setup, ~(uint32_t)0, pulse2mask));
 			patterns.insert(tpat(pos - _pw2/2, PAT_QAM_PULSE_IDX_P2, PAT_QAM_PULSE_IDX_MASK));
