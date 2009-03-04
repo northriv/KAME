@@ -366,6 +366,8 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	if((bgpos < length) && (bgpos + bglength > 0))
 		m_statusPrinter->printWarning(KAME::i18n("Maybe, position for BG. sub. is overrapped against echoes"), true);
 
+	shared_ptr<XPulser> _pulser(*pulser());
+	
 	int echoperiod = lrint(*echoPeriod() / 1000 /interval);
 	int numechoes = *numEcho();
 	bool bg_after_last_echo = (echoperiod < bgpos + bglength);
@@ -382,6 +384,12 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 			}
 			if(pos + echoperiod * (numechoes - 1) + bgpos + bglength >= (int)_dso->lengthRecorded()) {
 				throw XSkippedRecordError(KAME::i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
+			}
+		}
+		if(_pulser) {
+			if((numechoes > *_pulser->echoNum()) ||
+				(fabs(*echoPeriod() / (*_pulser->tau()*2.0) - 1.0) > 1e-4)) {
+				m_statusPrinter->printWarning(KAME::i18n("Invalid Multiecho settings."), true);				
 			}
 		}
 	}
@@ -416,7 +424,6 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 
 	// Phase Inversion Cycling
 	bool picenabled = *m_picEnabled;
-	shared_ptr<XPulser> _pulser(*pulser());
 	bool inverted = false;
 	if (picenabled && (!_pulser || !_pulser->time())) {
 		picenabled = false;
