@@ -422,7 +422,7 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 		picenabled = false;
 		gErrPrint(getLabel() + ": " + KAME::i18n("No active pulser!"));
 	}
-	if (picenabled) {
+	if (_pulser) {
 		inverted = _pulser->invertPhaseRecorded();
 	}
 
