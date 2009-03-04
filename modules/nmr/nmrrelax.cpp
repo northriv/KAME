@@ -367,7 +367,8 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 	}
 
 	int _mode = *mode();
-	const shared_ptr<XNMRPulseAnalyzer> _pulse1 = *pulse1();
+	shared_ptr<XNMRPulseAnalyzer> _pulse1 = *pulse1();
+	shared_ptr<XNMRPulseAnalyzer> _pulse2 = *pulse2();
     
 	shared_ptr<XPulser> _pulser = *pulser();
 	ASSERT( _pulser );
@@ -393,7 +394,6 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 	if( emitter != shared_from_this() ) {
 		ASSERT( _pulse1 );
 		ASSERT( _pulse1->time() );
-		shared_ptr<XNMRPulseAnalyzer> _pulse2 = *pulse2();
 		ASSERT( _pulser->time() );
 		ASSERT( emitter != _pulser );
         
@@ -483,6 +483,9 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 		m_pts.clear();
 		m_wave->clear();
 		m_fitStatus->value("");
+		_pulse1->avgClear()->touch();
+		if(_pulse2)
+			_pulse2->avgClear()->touch();
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
   

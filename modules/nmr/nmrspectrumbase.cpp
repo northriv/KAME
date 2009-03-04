@@ -216,6 +216,7 @@ XNMRSpectrumBase<FRM>::analyze(const shared_ptr<XDriver> &emitter) throw (XRecor
 	if(clear) {
 		m_spectrum->clear();
 		m_peaks.clear();
+		_pulse->avgClear()->touch();
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
 

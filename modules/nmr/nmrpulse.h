@@ -96,6 +96,8 @@ public:
 	const shared_ptr<XBoolNode> &exAvgIncr() const {return m_exAvgIncr;}
 	/// Extra Average Steps
 	const shared_ptr<XUIntNode> &extraAvg() const {return m_extraAvg;}
+	/// Clear averaging results
+	const shared_ptr<XNode> &avgClear() const {return m_avgClear;}
 
 	/// # of echoes
 	const shared_ptr<XUIntNode> &numEcho() const {return m_numEcho;}
