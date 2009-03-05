@@ -148,18 +148,18 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		waveGraph()->axisy()->label()->value(KAME::i18n("Intens. [V]"));
 		waveGraph()->plot(0)->label()->value(KAME::i18n("IFFT Re."));
 		waveGraph()->plot(0)->drawPoints()->value(false);
-		waveGraph()->plot(0)->intensity()->value(1.5);
+		waveGraph()->plot(0)->intensity()->value(2.0);
 		waveGraph()->plot(1)->label()->value(KAME::i18n("IFFT Im."));
 		waveGraph()->plot(1)->drawPoints()->value(false);
-		waveGraph()->plot(1)->intensity()->value(1.5);
+		waveGraph()->plot(1)->intensity()->value(2.0);
 		waveGraph()->plot(2)->label()->value(KAME::i18n("DSO CH1"));
 		waveGraph()->plot(2)->drawPoints()->value(false);
 		waveGraph()->plot(2)->lineColor()->value(QColor(0xff, 0xa0, 0x00).rgb());
-		waveGraph()->plot(2)->intensity()->value(0.6);
+		waveGraph()->plot(2)->intensity()->value(0.3);
 		waveGraph()->plot(3)->label()->value(KAME::i18n("DSO CH2"));
 		waveGraph()->plot(3)->drawPoints()->value(false);
 		waveGraph()->plot(3)->lineColor()->value(QColor(0x00, 0xa0, 0xff).rgb());
-		waveGraph()->plot(3)->intensity()->value(0.6);
+		waveGraph()->plot(3)->intensity()->value(0.3);
 		waveGraph()->clear();
 	}
 	{
