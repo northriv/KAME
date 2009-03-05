@@ -73,13 +73,15 @@ public:
 	const shared_ptr<XDoubleNode> &width() const {return m_width;}
 
 	const shared_ptr<XDoubleNode> &phaseAdv() const {return m_phaseAdv;}   ///< [deg]
-	/// Dynamic Noise Reduction
-	const shared_ptr<XBoolNode> &useDNR() const {return m_useDNR;}
+	/// Periodic-Noise Reduction
+	const shared_ptr<XBoolNode> &usePNR() const {return m_usePNR;}
+	/// Select spectrum solver.
+	const shared_ptr<XComboNode> &pnrSolverList() const {return m_pnrSolverList;}
 	/// Select spectrum solver. FFT/AR/MEM.
 	const shared_ptr<XComboNode> &solverList() const {return m_solverList;}
-	/// Position from trigger, for background subtraction or DNR [ms]
+	/// Position from trigger, for background subtraction or PNR [ms]
 	const shared_ptr<XDoubleNode> &bgPos() const {return m_bgPos;}
-	/// length for background subtraction or DNR [ms]  
+	/// length for background subtraction or PNR [ms]  
 	const shared_ptr<XDoubleNode> &bgWidth() const {return m_bgWidth;}
 	/// Phase 0 deg. position of FT component from trigger [ms]
 	const shared_ptr<XDoubleNode> &fftPos() const {return m_fftPos;}
@@ -136,7 +138,8 @@ private:
 	const shared_ptr<XDoubleNode> m_width;
 
 	const shared_ptr<XDoubleNode> m_phaseAdv;   ///< [deg]
-	const shared_ptr<XBoolNode> m_useDNR;
+	const shared_ptr<XBoolNode> m_usePNR;
+	const shared_ptr<XComboNode> m_pnrSolverList;
 	const shared_ptr<XComboNode> m_solverList;
 	const shared_ptr<XDoubleNode> m_bgPos;
 	const shared_ptr<XDoubleNode> m_bgWidth;
@@ -176,7 +179,8 @@ private:
 	//! time diff. of the first point from trigger
 	double m_startTime;
   
-	xqcon_ptr m_conFromTrig, m_conWidth, m_conPhaseAdv, m_conBGPos, m_conUseDNR, m_conSolverList, 
+	xqcon_ptr m_conFromTrig, m_conWidth, m_conPhaseAdv, m_conBGPos,
+		m_conUsePNR, m_conPNRSolverList, m_conSolverList, 
 		m_conBGWidth, m_conFFTPos, m_conFFTLen, m_conExtraAv;
 	xqcon_ptr m_conExAvgIncr;
 	xqcon_ptr m_conAvgClear, m_conSpectrumShow, m_conWindowFunc, m_conWindowWidth, m_conDIFFreq;
@@ -204,7 +208,7 @@ private:
 	shared_ptr<SpectrumSolverWrapper> m_solver;
 	shared_ptr<SpectrumSolver> m_solverRecorded;
 	shared_ptr<XXYPlot> m_peakPlot;
-	shared_ptr<SpectrumSolver> m_solverDNR;
+	shared_ptr<SpectrumSolverWrapper> m_solverPNR;
 	
 	void rotNFFT(int ftpos, double ph, 
 				 std::vector<std::complex<double> > &wave, std::vector<std::complex<double> > &ftwave);

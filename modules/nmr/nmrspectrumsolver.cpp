@@ -29,6 +29,7 @@ const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MUSIC_MDL[] = "MUSIC MDL";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_EV_AIC[] = "Eigenvector AIC";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_EV_MDL[] = "Eigenvector MDL";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MVDL[] = "Capon's MVDL(MLM)";
+const char SpectrumSolverWrapper::SPECTRUM_SOLVER_LS_AIC[] = "LeastSquare AIC";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_LS_AICc[] = "LeastSquare AICc";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_LS_MDL[] = "LeastSquare MDL";
 
@@ -44,7 +45,7 @@ const char SpectrumSolverWrapper::WINDOW_FUNC_KAISER_3[] = "Kaiser a=15";
 
 SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
 	const shared_ptr<XComboNode> selector, const shared_ptr<XComboNode> windowfunc,
-	const shared_ptr<XDoubleNode> windowlength)
+	const shared_ptr<XDoubleNode> windowlength, bool leastsquareonly)
 	: XNode(name, runtime), m_selector(selector), m_windowfunc(windowfunc), m_windowlength(windowlength) {
 	if(windowfunc) {
 		windowfunc->add(WINDOW_FUNC_DEFAULT);
@@ -58,22 +59,25 @@ SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
 		windowfunc->add(WINDOW_FUNC_KAISER_3);
 	}
 	if(selector) {
-		selector->add(SPECTRUM_SOLVER_ZF_FFT);
-		selector->add(SPECTRUM_SOLVER_MEM_STRICT);
-//		selector->add(SPECTRUM_SOLVER_MEM_STRICT_EV);
+		if(!leastsquareonly) {
+			selector->add(SPECTRUM_SOLVER_ZF_FFT);
+			selector->add(SPECTRUM_SOLVER_MEM_STRICT);
+	//		selector->add(SPECTRUM_SOLVER_MEM_STRICT_EV);
+			selector->add(SPECTRUM_SOLVER_MVDL);
+			selector->add(SPECTRUM_SOLVER_EV_MDL);
+			selector->add(SPECTRUM_SOLVER_MUSIC_MDL);
+			selector->add(SPECTRUM_SOLVER_MEM_BURG_AICc);
+			selector->add(SPECTRUM_SOLVER_MEM_BURG_MDL);
+			selector->add(SPECTRUM_SOLVER_AR_YW_AICc);
+			selector->add(SPECTRUM_SOLVER_AR_YW_MDL);
+	//		selector->add(SPECTRUM_SOLVER_MEM_STRICT_BURG);
+		}
+		selector->add(SPECTRUM_SOLVER_LS_AIC);
 		selector->add(SPECTRUM_SOLVER_LS_AICc);
 		selector->add(SPECTRUM_SOLVER_LS_MDL);
-		selector->add(SPECTRUM_SOLVER_MVDL);
-		selector->add(SPECTRUM_SOLVER_EV_MDL);
-		selector->add(SPECTRUM_SOLVER_MUSIC_MDL);
-		selector->add(SPECTRUM_SOLVER_MEM_BURG_AICc);
-		selector->add(SPECTRUM_SOLVER_MEM_BURG_MDL);
-		selector->add(SPECTRUM_SOLVER_AR_YW_AICc);
-		selector->add(SPECTRUM_SOLVER_AR_YW_MDL);
-//		selector->add(SPECTRUM_SOLVER_MEM_STRICT_BURG);
 		m_lsnOnChanged = selector->onValueChanged().connectWeak(shared_from_this(), &SpectrumSolverWrapper::onSolverChanged);
+		onSolverChanged(selector);
 	}
-	onSolverChanged(selector);
 }
 SpectrumSolverWrapper::~SpectrumSolverWrapper() {
 	if(m_windowfunc) {
@@ -153,6 +157,9 @@ SpectrumSolverWrapper::onSolverChanged(const shared_ptr<XValueNodeBase> &) {
 		}
 		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_STRICT_BURG) {
 			solver.reset(new CompositeSpectrumSolver<MEMStrict, MEMBurg>());
+		}
+		if(m_selector->to_str() == SPECTRUM_SOLVER_LS_AIC) {
+			solver.reset(new FreqEstLeastSquare(&SpectrumSolver::icAIC));
 		}
 		if(m_selector->to_str() == SPECTRUM_SOLVER_LS_AICc) {
 			solver.reset(new FreqEstLeastSquare(&SpectrumSolver::icAICc));

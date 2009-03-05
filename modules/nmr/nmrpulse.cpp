@@ -46,7 +46,8 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		m_fromTrig(create<XDoubleNode>("FromTrig", false)),
 		m_width(create<XDoubleNode>("Width", false)),
 		m_phaseAdv(create<XDoubleNode>("PhaseAdv", false)),
-		m_useDNR(create<XBoolNode>("UseDNR", false)),
+		m_usePNR(create<XBoolNode>("UsePNR", false)),
+		m_pnrSolverList(create<XComboNode>("PNRSpectrumSolver", false, true)),
 		m_solverList(create<XComboNode>("SpectrumSolver", false, true)),
 		m_bgPos(create<XDoubleNode>("BGPos", false)),
 		m_bgWidth(create<XDoubleNode>("BGWidth", false)),
@@ -68,10 +69,12 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		m_spectrumForm(new FrmGraphNURL(g_pFrmMain)), m_waveGraph(create<XWaveNGraph>("Wave", true,
 			m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)),
 		m_ftWaveGraph(create<XWaveNGraph>("Spectrum", true, m_spectrumForm.get())),
-		m_solver(create<SpectrumSolverWrapper>("SpectrumSolver", true, m_solverList, m_windowFunc, m_windowWidth)),
-		m_solverDNR(new FreqEstLeastSquare(&SpectrumSolver::icMDL)) {
+		m_solver(create<SpectrumSolverWrapper>("SpectrumSolverWrapper", true, m_solverList, m_windowFunc, m_windowWidth)),
+		m_solverPNR(create<SpectrumSolverWrapper>("PNRSpectrumSolverWrapper", true, m_pnrSolverList, shared_ptr<XComboNode>(), shared_ptr<XDoubleNode>(), true)) {
 	m_form->m_btnAvgClear->setIconSet(KApplication::kApplication()->iconLoader()->loadIconSet("editdelete", KIcon::Toolbar, KIcon::SizeSmall, true) );
 	m_form->m_btnSpectrum->setIconSet(KApplication::kApplication()->iconLoader()->loadIconSet("graph", KIcon::Toolbar, KIcon::SizeSmall, true) );
+	
+	m_pnrSolverList->str(std::string(SpectrumSolverWrapper::SPECTRUM_SOLVER_LS_MDL));
 
 	connect(dso());
 	connect(pulser(), false);
@@ -103,8 +106,10 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 	m_form->m_numPhaseAdv->setRange(-180.0, 180.0, 1.0, true);
 	m_conPhaseAdv = xqcon_create<XKDoubleNumInputConnector>(phaseAdv(),
 		m_form->m_numPhaseAdv);
-	m_conUseDNR = xqcon_create<XQToggleButtonConnector>(useDNR(),
-		m_form->m_ckbDNR);
+	m_conUsePNR = xqcon_create<XQToggleButtonConnector>(usePNR(),
+		m_form->m_ckbPNR);
+	m_conPNRSolverList = xqcon_create<XQComboBoxConnector>(pnrSolverList(),
+		m_form->m_cmbPNRSolver);
 	m_conSolverList = xqcon_create<XQComboBoxConnector>(solverList(),
 		m_form->m_cmbSolver);
 	m_conBGPos = xqcon_create<XQLineEditConnector>(bgPos(), m_form->m_edBGPos);
@@ -202,7 +207,8 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 	m_lsnOnCondChanged = fromTrig()->onValueChanged().connectWeak(shared_from_this(), &XNMRPulseAnalyzer::onCondChanged);
 	width()->onValueChanged().connect(m_lsnOnCondChanged);
 	phaseAdv()->onValueChanged().connect(m_lsnOnCondChanged);
-	useDNR()->onValueChanged().connect(m_lsnOnCondChanged);
+	usePNR()->onValueChanged().connect(m_lsnOnCondChanged);
+	pnrSolverList()->onValueChanged().connect(m_lsnOnCondChanged);
 	solverList()->onValueChanged().connect(m_lsnOnCondChanged);
 	bgPos()->onValueChanged().connect(m_lsnOnCondChanged);
 	bgWidth()->onValueChanged().connect(m_lsnOnCondChanged);
@@ -238,7 +244,7 @@ void XNMRPulseAnalyzer::backgroundSub(std::vector<std::complex<double> > &wave,
 		double normalize = 0.0;
 		for (int i = 0; i < bglength; i++) {
 			double z = 1.0;
-			if(!*useDNR())
+			if(!*usePNR())
 				z = FFT::windowFuncHamming( (double)i / bglength - 0.5);
 			bg += z * wave[pos + i + bgpos];
 			normalize += z;
@@ -250,21 +256,22 @@ void XNMRPulseAnalyzer::backgroundSub(std::vector<std::complex<double> > &wave,
 		wave[i] -= bg;
 	}
 
-	if (bglength && *useDNR()) {
+	shared_ptr<SpectrumSolver> solverPNR = m_solverPNR->solver();
+	if (bglength && *usePNR() && solverPNR) {
 		int dnrlength = FFT::fitLength((bglength + bgpos) * 4);
 		std::vector<std::complex<double> > memin(bglength), memout(dnrlength);
 		for(unsigned int i = 0; i < bglength; i++) {
 			memin[i] = wave[pos + i + bgpos];
 		}
 		try {
-			m_solverDNR->exec(memin, memout, bgpos, 0.5e-2, &FFT::windowFuncRect, 1.0);
+			solverPNR->exec(memin, memout, bgpos, 0.5e-2, &FFT::windowFuncRect, 1.0);
 		}
 		catch (XKameError &e) {
 			throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
 		}
 		int imax = std::min((int)wave.size() - pos, (int)memout.size());
 		for(unsigned int i = 0; i < imax; i++) {
-			wave[i + pos] -= m_solverDNR->ifft()[i];
+			wave[i + pos] -= solverPNR->ifft()[i];
 		}
 	}
 }

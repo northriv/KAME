@@ -679,7 +679,8 @@ XNMRT1::onActiveChanged(const shared_ptr<XValueNodeBase> &)
 				*_pulse1->fftPos() + *_pulser->altSep());
 			_pulse2->fftLen()->value(*_pulse1->fftLen());
 			_pulse2->windowFunc()->value(*_pulse1->windowFunc());
-			_pulse2->useDNR()->value(*_pulse1->useDNR());
+			_pulse2->usePNR()->value(*_pulse1->usePNR());
+			_pulse2->pnrSolverList()->value(*_pulse1->pnrSolverList());
 			_pulse2->solverList()->value(*_pulse1->solverList());
 			_pulse2->numEcho()->value(*_pulse1->numEcho());
 			_pulse2->echoPeriod()->value(*_pulse1->echoPeriod());

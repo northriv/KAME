@@ -23,7 +23,7 @@ class SpectrumSolverWrapper : public XNode {
 public:
 	SpectrumSolverWrapper(const char *name, bool runtime,
 		const shared_ptr<XComboNode> selector, const shared_ptr<XComboNode> windowfunc,
-		const shared_ptr<XDoubleNode> windowlength);
+		const shared_ptr<XDoubleNode> windowlength, bool leastsqureonly = false);
 	~SpectrumSolverWrapper();
 	shared_ptr<SpectrumSolver> solver() {return m_solver;}
 	  
@@ -40,6 +40,7 @@ public:
 	static const char SPECTRUM_SOLVER_EV_AIC[];
 	static const char SPECTRUM_SOLVER_EV_MDL[];
 	static const char SPECTRUM_SOLVER_MVDL[];
+	static const char SPECTRUM_SOLVER_LS_AIC[];
 	static const char SPECTRUM_SOLVER_LS_AICc[];
 	static const char SPECTRUM_SOLVER_LS_MDL[];
 
