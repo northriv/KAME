@@ -29,7 +29,7 @@ const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MUSIC_MDL[] = "MUSIC MDL";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_EV_AIC[] = "Eigenvector AIC";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_EV_MDL[] = "Eigenvector MDL";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MVDL[] = "Capon's MVDL(MLM)";
-const char SpectrumSolverWrapper::SPECTRUM_SOLVER_LS_AIC[] = "LeastSquare AIC";
+const char SpectrumSolverWrapper::SPECTRUM_SOLVER_LS_HQ[] = "LeastSquare HQ";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_LS_AICc[] = "LeastSquare AICc";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_LS_MDL[] = "LeastSquare MDL";
 
@@ -158,8 +158,8 @@ SpectrumSolverWrapper::onSolverChanged(const shared_ptr<XValueNodeBase> &) {
 		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_STRICT_BURG) {
 			solver.reset(new CompositeSpectrumSolver<MEMStrict, MEMBurg>());
 		}
-		if(m_selector->to_str() == SPECTRUM_SOLVER_LS_AIC) {
-			solver.reset(new FreqEstLeastSquare(&SpectrumSolver::icAIC));
+		if(m_selector->to_str() == SPECTRUM_SOLVER_LS_HQ) {
+			solver.reset(new FreqEstLeastSquare(&SpectrumSolver::icHQ));
 		}
 		if(m_selector->to_str() == SPECTRUM_SOLVER_LS_AICc) {
 			solver.reset(new FreqEstLeastSquare(&SpectrumSolver::icAICc));
