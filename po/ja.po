@@ -1913,11 +1913,11 @@ msgstr "DSO"
 
 #: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:449
 msgid "Background Subtraction"
-msgstr ""
+msgstr "バックグラウンド(BG)減算"
 
 #: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:450
 msgid "Pos for Sub."
-msgstr "背景補正位置"
+msgstr "BG測定位置"
 
 #: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:454
 msgid "Perio&dic Noise Reduction"
@@ -2054,7 +2054,7 @@ msgstr "窓関数"
 
 #: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:402
 msgid "A&uto Window"
-msgstr "ウィンドウ(&U)"
+msgstr "オートウィンドウ(&U)"
 
 #: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:403
 msgid "Alt+U"
