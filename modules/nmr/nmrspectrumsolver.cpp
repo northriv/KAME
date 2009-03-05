@@ -72,7 +72,7 @@ SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
 			selector->add(SPECTRUM_SOLVER_AR_YW_MDL);
 	//		selector->add(SPECTRUM_SOLVER_MEM_STRICT_BURG);
 		}
-		selector->add(SPECTRUM_SOLVER_LS_AIC);
+		selector->add(SPECTRUM_SOLVER_LS_HQ);
 		selector->add(SPECTRUM_SOLVER_LS_AICc);
 		selector->add(SPECTRUM_SOLVER_LS_MDL);
 		m_lsnOnChanged = selector->onValueChanged().connectWeak(shared_from_this(), &SpectrumSolverWrapper::onSolverChanged);
