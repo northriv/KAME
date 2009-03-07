@@ -8,8 +8,8 @@
         <rect>
             <x>0</x>
             <y>0</y>
-            <width>715</width>
-            <height>330</height>
+            <width>808</width>
+            <height>382</height>
         </rect>
     </property>
     <property name="caption">
@@ -22,57 +22,6 @@
         <property name="margin">
             <number>2</number>
         </property>
-        <widget class="QLayoutWidget" row="10" column="1">
-            <property name="name">
-                <cstring>layout15</cstring>
-            </property>
-            <hbox>
-                <property name="name">
-                    <cstring>unnamed</cstring>
-                </property>
-                <widget class="KURLRequester">
-                    <property name="name">
-                        <cstring>m_urlDump</cstring>
-                    </property>
-                    <property name="sizePolicy">
-                        <sizepolicy>
-                            <hsizetype>7</hsizetype>
-                            <vsizetype>5</vsizetype>
-                            <horstretch>0</horstretch>
-                            <verstretch>0</verstretch>
-                        </sizepolicy>
-                    </property>
-                    <property name="cursor">
-                        <cursor>0</cursor>
-                    </property>
-                    <property name="focusPolicy">
-                        <enum>StrongFocus</enum>
-                    </property>
-                </widget>
-                <widget class="QPushButton">
-                    <property name="name">
-                        <cstring>m_btnDump</cstring>
-                    </property>
-                    <property name="text">
-                        <string>D&amp;UMP</string>
-                    </property>
-                    <property name="autoDefault">
-                        <bool>false</bool>
-                    </property>
-                </widget>
-            </hbox>
-        </widget>
-        <widget class="QPushButton" row="10" column="0">
-            <property name="name">
-                <cstring>m_btnClear</cstring>
-            </property>
-            <property name="text">
-                <string>&amp;CLEAR SPECTRUM</string>
-            </property>
-            <property name="autoDefault">
-                <bool>false</bool>
-            </property>
-        </widget>
         <widget class="QCheckBox" row="0" column="0">
             <property name="name">
                 <cstring>m_ckbActive</cstring>
@@ -88,172 +37,9 @@
             <property name="text">
                 <string>Acti&amp;vate Freq. Sweep</string>
             </property>
-        </widget>
-        <widget class="XQGraph" row="0" column="1" rowspan="10" colspan="1">
-            <property name="name">
-                <cstring>m_graph</cstring>
+            <property name="accel">
+                <string>Alt+V</string>
             </property>
-            <property name="sizePolicy">
-                <sizepolicy>
-                    <hsizetype>7</hsizetype>
-                    <vsizetype>7</vsizetype>
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                </sizepolicy>
-            </property>
-        </widget>
-        <widget class="QLayoutWidget" row="6" column="0">
-            <property name="name">
-                <cstring>layout24</cstring>
-            </property>
-            <hbox>
-                <property name="name">
-                    <cstring>unnamed</cstring>
-                </property>
-                <property name="spacing">
-                    <number>2</number>
-                </property>
-                <widget class="QLabel">
-                    <property name="name">
-                        <cstring>textLabel1_2_2_3</cstring>
-                    </property>
-                    <property name="sizePolicy">
-                        <sizepolicy>
-                            <hsizetype>0</hsizetype>
-                            <vsizetype>0</vsizetype>
-                            <horstretch>0</horstretch>
-                            <verstretch>0</verstretch>
-                        </sizepolicy>
-                    </property>
-                    <property name="text">
-                        <string>Phase</string>
-                    </property>
-                </widget>
-                <widget class="KDoubleNumInput">
-                    <property name="name">
-                        <cstring>m_numPhase</cstring>
-                    </property>
-                    <property name="sizePolicy">
-                        <sizepolicy>
-                            <hsizetype>1</hsizetype>
-                            <vsizetype>0</vsizetype>
-                            <horstretch>0</horstretch>
-                            <verstretch>0</verstretch>
-                        </sizepolicy>
-                    </property>
-                    <property name="minValue">
-                        <number>-360</number>
-                    </property>
-                    <property name="maxValue">
-                        <number>360</number>
-                    </property>
-                    <property name="suffix">
-                        <string>deg.</string>
-                    </property>
-                </widget>
-            </hbox>
-        </widget>
-        <widget class="QCheckBox" row="5" column="0">
-            <property name="name">
-                <cstring>m_ckbAutoPhase</cstring>
-            </property>
-            <property name="sizePolicy">
-                <sizepolicy>
-                    <hsizetype>0</hsizetype>
-                    <vsizetype>0</vsizetype>
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                </sizepolicy>
-            </property>
-            <property name="text">
-                <string>&amp;Auto Phase</string>
-            </property>
-        </widget>
-        <widget class="QLayoutWidget" row="8" column="0">
-            <property name="name">
-                <cstring>layout124</cstring>
-            </property>
-            <hbox>
-                <property name="name">
-                    <cstring>unnamed</cstring>
-                </property>
-                <property name="spacing">
-                    <number>2</number>
-                </property>
-                <widget class="QLabel">
-                    <property name="name">
-                        <cstring>textLabel1_2_2_3</cstring>
-                    </property>
-                    <property name="sizePolicy">
-                        <sizepolicy>
-                            <hsizetype>0</hsizetype>
-                            <vsizetype>0</vsizetype>
-                            <horstretch>0</horstretch>
-                            <verstretch>0</verstretch>
-                        </sizepolicy>
-                    </property>
-                    <property name="text">
-                        <string>Window Width</string>
-                    </property>
-                </widget>
-                <widget class="KDoubleNumInput">
-                    <property name="name">
-                        <cstring>m_numWindowWidth</cstring>
-                    </property>
-                    <property name="sizePolicy">
-                        <sizepolicy>
-                            <hsizetype>1</hsizetype>
-                            <vsizetype>0</vsizetype>
-                            <horstretch>0</horstretch>
-                            <verstretch>0</verstretch>
-                        </sizepolicy>
-                    </property>
-                    <property name="minValue">
-                        <number>10</number>
-                    </property>
-                    <property name="maxValue">
-                        <number>200</number>
-                    </property>
-                    <property name="suffix">
-                        <string>%</string>
-                    </property>
-                    <property name="precision">
-                        <number>2</number>
-                    </property>
-                    <property name="referencePoint">
-                        <number>10</number>
-                    </property>
-                    <property name="relativeValue">
-                        <number>1</number>
-                    </property>
-                </widget>
-            </hbox>
-        </widget>
-        <widget class="QLayoutWidget" row="9" column="0">
-            <property name="name">
-                <cstring>layout149</cstring>
-            </property>
-            <hbox>
-                <property name="name">
-                    <cstring>unnamed</cstring>
-                </property>
-                <property name="spacing">
-                    <number>2</number>
-                </property>
-                <widget class="QLabel">
-                    <property name="name">
-                        <cstring>textLabel11_4</cstring>
-                    </property>
-                    <property name="text">
-                        <string>Window Func.</string>
-                    </property>
-                </widget>
-                <widget class="QComboBox">
-                    <property name="name">
-                        <cstring>m_cmbWindowFunc</cstring>
-                    </property>
-                </widget>
-            </hbox>
         </widget>
         <widget class="QLayoutWidget" row="1" column="0">
             <property name="name">
@@ -511,44 +297,19 @@
                 </widget>
             </hbox>
         </widget>
-        <widget class="QLayoutWidget" row="7" column="0">
+        <widget class="QPushButton" row="7" column="0">
             <property name="name">
-                <cstring>layout52</cstring>
+                <cstring>m_btnClear</cstring>
             </property>
-            <hbox>
-                <property name="name">
-                    <cstring>unnamed</cstring>
-                </property>
-                <widget class="QLabel">
-                    <property name="name">
-                        <cstring>textLabel1_2_2_3_2</cstring>
-                    </property>
-                    <property name="sizePolicy">
-                        <sizepolicy>
-                            <hsizetype>0</hsizetype>
-                            <vsizetype>0</vsizetype>
-                            <horstretch>0</horstretch>
-                            <verstretch>0</verstretch>
-                        </sizepolicy>
-                    </property>
-                    <property name="text">
-                        <string>Solver</string>
-                    </property>
-                </widget>
-                <widget class="QComboBox">
-                    <property name="name">
-                        <cstring>m_cmbSolver</cstring>
-                    </property>
-                    <property name="sizePolicy">
-                        <sizepolicy>
-                            <hsizetype>1</hsizetype>
-                            <vsizetype>0</vsizetype>
-                            <horstretch>0</horstretch>
-                            <verstretch>0</verstretch>
-                        </sizepolicy>
-                    </property>
-                </widget>
-            </hbox>
+            <property name="text">
+                <string>&amp;CLEAR SPECTRUM</string>
+            </property>
+            <property name="accel">
+                <string>Alt+C</string>
+            </property>
+            <property name="autoDefault">
+                <bool>false</bool>
+            </property>
         </widget>
         <widget class="QLayoutWidget" row="0" column="2" rowspan="2" colspan="1">
             <property name="name">
@@ -580,6 +341,113 @@
                     </property>
                 </widget>
             </vbox>
+        </widget>
+        <widget class="QLayoutWidget" row="0" column="1" rowspan="8" colspan="1">
+            <property name="name">
+                <cstring>layout22</cstring>
+            </property>
+            <vbox>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <widget class="XQGraph">
+                    <property name="name">
+                        <cstring>m_graph</cstring>
+                    </property>
+                    <property name="sizePolicy">
+                        <sizepolicy>
+                            <hsizetype>7</hsizetype>
+                            <vsizetype>7</vsizetype>
+                            <horstretch>0</horstretch>
+                            <verstretch>0</verstretch>
+                        </sizepolicy>
+                    </property>
+                </widget>
+                <widget class="QLayoutWidget">
+                    <property name="name">
+                        <cstring>layout15</cstring>
+                    </property>
+                    <hbox>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <widget class="KURLRequester">
+                            <property name="name">
+                                <cstring>m_urlDump</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>7</hsizetype>
+                                    <vsizetype>5</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                            <property name="cursor">
+                                <cursor>0</cursor>
+                            </property>
+                            <property name="focusPolicy">
+                                <enum>StrongFocus</enum>
+                            </property>
+                        </widget>
+                        <widget class="QPushButton">
+                            <property name="name">
+                                <cstring>m_btnDump</cstring>
+                            </property>
+                            <property name="text">
+                                <string>D&amp;UMP</string>
+                            </property>
+                            <property name="autoDefault">
+                                <bool>false</bool>
+                            </property>
+                        </widget>
+                    </hbox>
+                </widget>
+            </vbox>
+        </widget>
+        <widget class="QGroupBox" row="6" column="2" rowspan="2" colspan="1">
+            <property name="name">
+                <cstring>groupBox1_3</cstring>
+            </property>
+            <property name="title">
+                <string>Burst Mode</string>
+            </property>
+            <grid>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <widget class="QLayoutWidget" row="0" column="0">
+                    <property name="name">
+                        <cstring>layout38</cstring>
+                    </property>
+                    <vbox>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <widget class="QLabel">
+                            <property name="name">
+                                <cstring>textLabel1_3_3_2_3</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>5</hsizetype>
+                                    <vsizetype>0</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                            <property name="text">
+                                <string>Burst Count</string>
+                            </property>
+                        </widget>
+                        <widget class="QSpinBox">
+                            <property name="name">
+                                <cstring>m_numBurstCount</cstring>
+                            </property>
+                        </widget>
+                    </vbox>
+                </widget>
+            </grid>
         </widget>
         <widget class="QGroupBox" row="2" column="2" rowspan="4" colspan="1">
             <property name="name">
@@ -666,20 +534,165 @@
                 </widget>
             </grid>
         </widget>
-        <widget class="QGroupBox" row="6" column="2" rowspan="5" colspan="1">
+        <widget class="QGroupBox" row="5" column="0" rowspan="2" colspan="1">
             <property name="name">
-                <cstring>groupBox1_3</cstring>
+                <cstring>groupBox3</cstring>
             </property>
             <property name="title">
-                <string>Burst Mode</string>
+                <string>Post Processing</string>
             </property>
             <grid>
                 <property name="name">
                     <cstring>unnamed</cstring>
                 </property>
+                <widget class="QLayoutWidget" row="4" column="0">
+                    <property name="name">
+                        <cstring>layout149</cstring>
+                    </property>
+                    <hbox>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <property name="spacing">
+                            <number>2</number>
+                        </property>
+                        <widget class="QLabel">
+                            <property name="name">
+                                <cstring>textLabel11_4_2</cstring>
+                            </property>
+                            <property name="text">
+                                <string>Window Func.</string>
+                            </property>
+                        </widget>
+                        <widget class="QComboBox">
+                            <property name="name">
+                                <cstring>m_cmbWindowFunc</cstring>
+                            </property>
+                        </widget>
+                    </hbox>
+                </widget>
+                <widget class="QLayoutWidget" row="3" column="0">
+                    <property name="name">
+                        <cstring>layout52</cstring>
+                    </property>
+                    <hbox>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <widget class="QLabel">
+                            <property name="name">
+                                <cstring>textLabel1_2_2_3_2_2</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>0</hsizetype>
+                                    <vsizetype>0</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                            <property name="text">
+                                <string>Solver</string>
+                            </property>
+                        </widget>
+                        <widget class="QComboBox">
+                            <property name="name">
+                                <cstring>m_cmbSolver</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>1</hsizetype>
+                                    <vsizetype>0</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                        </widget>
+                    </hbox>
+                </widget>
                 <widget class="QLayoutWidget" row="0" column="0">
                     <property name="name">
-                        <cstring>layout38</cstring>
+                        <cstring>layout52_2</cstring>
+                    </property>
+                    <hbox>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <widget class="QLabel">
+                            <property name="name">
+                                <cstring>textLabel1_2_2_3_2_2_2</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>0</hsizetype>
+                                    <vsizetype>0</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                            <property name="text">
+                                <string>Band Width</string>
+                            </property>
+                        </widget>
+                        <widget class="QComboBox">
+                            <property name="name">
+                                <cstring>m_cmbBWList</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>1</hsizetype>
+                                    <vsizetype>0</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                        </widget>
+                    </hbox>
+                </widget>
+                <widget class="QCheckBox" row="1" column="0">
+                    <property name="name">
+                        <cstring>m_ckbAutoPhase</cstring>
+                    </property>
+                    <property name="sizePolicy">
+                        <sizepolicy>
+                            <hsizetype>0</hsizetype>
+                            <vsizetype>0</vsizetype>
+                            <horstretch>0</horstretch>
+                            <verstretch>0</verstretch>
+                        </sizepolicy>
+                    </property>
+                    <property name="text">
+                        <string>&amp;Auto Phase</string>
+                    </property>
+                    <property name="accel">
+                        <string>Alt+A</string>
+                    </property>
+                </widget>
+                <widget class="KDoubleNumInput" row="2" column="0">
+                    <property name="name">
+                        <cstring>m_numPhase</cstring>
+                    </property>
+                    <property name="sizePolicy">
+                        <sizepolicy>
+                            <hsizetype>1</hsizetype>
+                            <vsizetype>0</vsizetype>
+                            <horstretch>0</horstretch>
+                            <verstretch>0</verstretch>
+                        </sizepolicy>
+                    </property>
+                    <property name="minValue">
+                        <number>-360</number>
+                    </property>
+                    <property name="maxValue">
+                        <number>360</number>
+                    </property>
+                    <property name="suffix">
+                        <string>deg.</string>
+                    </property>
+                </widget>
+                <widget class="QLayoutWidget" row="5" column="0">
+                    <property name="name">
+                        <cstring>layout15</cstring>
                     </property>
                     <vbox>
                         <property name="name">
@@ -687,23 +700,55 @@
                         </property>
                         <widget class="QLabel">
                             <property name="name">
-                                <cstring>textLabel1_3_3_2_3</cstring>
+                                <cstring>textLabel1_2_2_3_5</cstring>
                             </property>
                             <property name="sizePolicy">
                                 <sizepolicy>
-                                    <hsizetype>5</hsizetype>
+                                    <hsizetype>0</hsizetype>
                                     <vsizetype>0</vsizetype>
                                     <horstretch>0</horstretch>
                                     <verstretch>0</verstretch>
                                 </sizepolicy>
                             </property>
                             <property name="text">
-                                <string>Burst Count</string>
+                                <string>Window Width</string>
                             </property>
                         </widget>
-                        <widget class="QSpinBox">
+                        <widget class="KDoubleNumInput">
                             <property name="name">
-                                <cstring>m_numBurstCount</cstring>
+                                <cstring>m_numWindowWidth</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>1</hsizetype>
+                                    <vsizetype>0</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>0</height>
+                                </size>
+                            </property>
+                            <property name="minValue">
+                                <number>10</number>
+                            </property>
+                            <property name="maxValue">
+                                <number>200</number>
+                            </property>
+                            <property name="suffix">
+                                <string>%</string>
+                            </property>
+                            <property name="precision">
+                                <number>2</number>
+                            </property>
+                            <property name="referencePoint">
+                                <number>10</number>
+                            </property>
+                            <property name="relativeValue">
+                                <number>1</number>
                             </property>
                         </widget>
                     </vbox>
@@ -743,23 +788,28 @@
     <tabstop>m_edFreqStep</tabstop>
     <tabstop>m_edFreqSpan</tabstop>
     <tabstop>m_edBW</tabstop>
+    <tabstop>m_cmbBWList</tabstop>
     <tabstop>m_ckbAutoPhase</tabstop>
     <tabstop>m_numPhase</tabstop>
     <tabstop>m_cmbSolver</tabstop>
-    <tabstop>m_numWindowWidth</tabstop>
     <tabstop>m_cmbWindowFunc</tabstop>
+    <tabstop>m_numWindowWidth</tabstop>
     <tabstop>m_btnClear</tabstop>
+    <tabstop>m_urlDump</tabstop>
     <tabstop>m_btnDump</tabstop>
     <tabstop>m_cmbPulse</tabstop>
     <tabstop>m_cmbSG1</tabstop>
     <tabstop>m_edSG1FreqOffset</tabstop>
-    <tabstop>m_urlDump</tabstop>
+    <tabstop>m_numBurstCount</tabstop>
 </tabstops>
 <layoutdefaults spacing="4" margin="2"/>
 <includehints>
     <includehint>kurlrequester.h</includehint>
     <includehint>klineedit.h</includehint>
     <includehint>kpushbutton.h</includehint>
+    <includehint>knuminput.h</includehint>
+    <includehint>knuminput.h</includehint>
+    <includehint>knuminput.h</includehint>
     <includehint>knuminput.h</includehint>
 </includehints>
 </UI>

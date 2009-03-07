@@ -1,3 +1,7 @@
+* Sat Mar 7 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.3.22-1)
+- nmrspectrumbase: selectable bandwidth.
+
 * Thu Mar 5 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.3.21-1)
 - nmr: clear averaging buffers on starting secondary measurement.
