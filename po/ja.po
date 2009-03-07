@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: ja\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2009-03-05 15:03+0900\n"
+"POT-Creation-Date: 2009-03-07 18:08+0900\n"
 "PO-Revision-Date: 2006-01-03 08:09+0900\n"
 "Last-Translator: Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>\n"
 "Language-Team: Japanese <ja@li.org>\n"
@@ -345,7 +345,7 @@ msgstr "停止(&S)"
 
 #: kame/kame.cpp:245
 msgid "Run"
-msgstr ""
+msgstr "開始"
 
 #: kame/kame.cpp:246
 msgid "&Run..."
@@ -353,11 +353,11 @@ msgstr "開始(&R)"
 
 #: kame/kame.cpp:247
 msgid "New Line Shell"
-msgstr ""
+msgstr "新規ラインシェル"
 
 #: kame/kame.cpp:248
 msgid "&New Line Shell"
-msgstr ""
+msgstr "新規ラインシェル(&N)"
 
 #: kame/kame.cpp:249
 msgid "Graphviz Save .dot"
@@ -859,9 +859,9 @@ msgstr "NMRスペクトラムアベレージャ (周波数掃引) - "
 
 #: modules/nmr/nmrfspectrum.cpp:44
 msgid "Freq [MHz]"
-msgstr ""
+msgstr "周波数 [MHz]"
 
-#: modules/nmr/nmrfspectrum.cpp:128 modules/nmr/nmrspectrumbase.cpp:301
+#: modules/nmr/nmrfspectrum.cpp:128 modules/nmr/nmrspectrumbase.cpp:316
 msgid "Invalid center freq."
 msgstr "中心周波数があかんわ"
 
@@ -877,7 +877,7 @@ msgstr "NMRパルス - "
 msgid "NMR-Spectrum - "
 msgstr "NMRスペクトル - "
 
-#: modules/nmr/nmrpulse.cpp:153 modules/nmr/nmrspectrumbase.cpp:61
+#: modules/nmr/nmrpulse.cpp:153 modules/nmr/nmrspectrumbase.cpp:62
 msgid "Intens. [V]"
 msgstr ""
 
@@ -897,7 +897,7 @@ msgstr ""
 msgid "DSO CH2"
 msgstr ""
 
-#: modules/nmr/nmrpulse.cpp:176 modules/nmr/nmrspectrumbase.cpp:68
+#: modules/nmr/nmrpulse.cpp:176 modules/nmr/nmrspectrumbase.cpp:69
 msgid "abs."
 msgstr "絶対値"
 
@@ -905,9 +905,9 @@ msgstr "絶対値"
 msgid "phase"
 msgstr "位相"
 
-#: modules/nmr/nmrpulse.cpp:188 modules/nmr/nmrspectrumbase.cpp:80
+#: modules/nmr/nmrpulse.cpp:188 modules/nmr/nmrspectrumbase.cpp:81
 msgid "Peaks"
-msgstr ""
+msgstr "ピーク"
 
 #: modules/nmr/nmrpulse.cpp:240
 msgid "Maybe, length for BG. sub. is too short."
@@ -991,7 +991,7 @@ msgstr "サンプル数でかすきや"
 msgid "Strange St.E. settings."
 msgstr ""
 
-#: modules/nmr/nmrrelax.cpp:401 modules/nmr/nmrspectrumbase.cpp:166
+#: modules/nmr/nmrrelax.cpp:401 modules/nmr/nmrspectrumbase.cpp:173
 msgid "Do NOT use incremental avg. Skipping."
 msgstr "インクリメンタルアベレージ使わんといて、はしょるわ"
 
@@ -1035,27 +1035,27 @@ msgstr "NMRスペクトルアベレージャ - "
 msgid "Field [T]"
 msgstr "磁場 [T]"
 
-#: modules/nmr/nmrspectrumbase.cpp:62
+#: modules/nmr/nmrspectrumbase.cpp:63
 msgid "real part"
 msgstr "実部"
 
-#: modules/nmr/nmrspectrumbase.cpp:65
+#: modules/nmr/nmrspectrumbase.cpp:66
 msgid "imag. part"
 msgstr "虚部"
 
-#: modules/nmr/nmrspectrumbase.cpp:182
+#: modules/nmr/nmrspectrumbase.cpp:189
 msgid "Invalid min. and max."
 msgstr "あかん最小／最大値"
 
-#: modules/nmr/nmrspectrumbase.cpp:185
+#: modules/nmr/nmrspectrumbase.cpp:192
 msgid "Too small resolution."
 msgstr "精度が小さすぎですわ"
 
-#: modules/nmr/nmrspectrumbase.cpp:290
+#: modules/nmr/nmrspectrumbase.cpp:305
 msgid "Invalid waveform."
 msgstr "ウェーブフォームがあかんわ"
 
-#: modules/nmr/nmrspectrumbase.cpp:297
+#: modules/nmr/nmrspectrumbase.cpp:312
 msgid "BW beyond Nyquist freq."
 msgstr ""
 
@@ -1359,7 +1359,6 @@ msgstr "凡例を表示"
 #: ../macosx/modules/montecarlo/forms/montecarloform.cpp:262
 #: ../macosx/modules/networkanalyzer/forms/networkanalyzerform.cpp:168
 #: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:404
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:334
 msgid "DUMP"
 msgstr "書き出し"
 
@@ -1505,9 +1504,9 @@ msgid "Pos."
 msgstr "位置"
 
 #: ../macosx/modules/dso/core/forms/dsoform.cpp:428
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:314
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:353
 #: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:447
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:355
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:379
 msgid "%"
 msgstr "%"
 
@@ -1536,19 +1535,21 @@ msgid "FIR filter"
 msgstr "FIRフィルタ"
 
 #: ../macosx/modules/dso/core/forms/dsoform.cpp:437
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:322
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:340
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:334
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:348
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:351
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:372
 msgid "Band Width"
 msgstr "バンド幅"
 
 #: ../macosx/modules/dso/core/forms/dsoform.cpp:438
 #: ../macosx/modules/dso/core/forms/dsoform.cpp:441
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:319
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:321
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:323
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:331
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:333
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:335
 #: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:464
 #: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:392
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:341
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:352
 #: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:474
 msgid "kHz"
 msgstr "kHz"
@@ -1558,8 +1559,8 @@ msgid "Sharpness"
 msgstr "シャープネス"
 
 #: ../macosx/modules/dso/core/forms/dsoform.cpp:440
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:316
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:342
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:328
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:353
 msgid "Center Freq"
 msgstr "中心周波数"
 
@@ -1593,8 +1594,8 @@ msgid "Init. Phase"
 msgstr "初期位相"
 
 #: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:179
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:311
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:346
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:351
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:377
 msgid "deg."
 msgstr "度"
 
@@ -1640,10 +1641,10 @@ msgstr "マグネット磁場"
 #: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:230
 #: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:239
 #: ../macosx/modules/montecarlo/forms/montecarloform.cpp:269
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:337
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:339
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:352
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:357
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:364
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:366
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:368
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:370
 msgid "T"
 msgstr "T"
 
@@ -1774,9 +1775,9 @@ msgstr "開始周波数"
 
 #: ../macosx/modules/networkanalyzer/forms/networkanalyzerform.cpp:171
 #: ../macosx/modules/networkanalyzer/forms/networkanalyzerform.cpp:173
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:317
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:327
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:343
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:329
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:343
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:354
 #: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:723
 #: ../macosx/modules/sg/core/forms/signalgeneratorform.cpp:127
 msgid "MHz"
@@ -1790,85 +1791,98 @@ msgstr "停止周波数"
 msgid "Points"
 msgstr "ポイント"
 
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:306
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:325
 msgid "NMR Spectrum Averager (Frequency Sweep)"
 msgstr "NMRスペクトラムアベレージャ (周波数掃引)"
 
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:307
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:326
+msgid "Acti&vate Freq. Sweep"
+msgstr "周波数掃引開始(&A)"
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:327
+msgid "Alt+V"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:330
+msgid "Step"
+msgstr "ステップ"
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:332
+msgid "Span"
+msgstr "スパン"
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:336
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:358
+msgid "&CLEAR SPECTRUM"
+msgstr "スペクトラム消去(&C)"
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:337
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:359
+msgid "Alt+C"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:338
+msgid "Pulse Analyzer"
+msgstr "パルスアナライザ"
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:339
 #: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:465
 msgid "D&UMP"
 msgstr "書き出し(&D)"
 
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:308
-msgid "&CLEAR SPECTRUM"
-msgstr "スペクトラム消去(&C)"
-
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:309
-msgid "Acti&vate Freq. Sweep"
-msgstr "周波数掃引開始(&A)"
-
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:310
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:444
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:389
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:345
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:684
-msgid "Phase"
-msgstr "位相"
-
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:312
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:397
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:344
-msgid "&Auto Phase"
-msgstr "オートフェーズ(&A)"
-
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:313
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:446
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:400
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:354
-msgid "Window Width"
-msgstr "ウィンドウ幅"
-
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:315
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:467
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:348
-msgid "Window Func."
-msgstr "窓関数"
-
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:318
-msgid "Step"
-msgstr "ステップ"
-
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:320
-msgid "Span"
-msgstr "スパン"
-
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:324
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:347
-msgid "Solver"
-msgstr ""
-
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:325
-msgid "Pulse Analyzer"
-msgstr "パルスアナライザ"
-
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:326
-msgid "Signal Generator"
-msgstr "シグナル発生器"
-
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:328
-msgid "Offset Freq."
-msgstr "オフセット周波数"
-
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:329
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:340
 msgid "Burst Mode"
 msgstr ""
 
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:330
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:341
 msgid "Burst Count"
 msgstr ""
 
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:342
+msgid "Signal Generator"
+msgstr "シグナル発生器"
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:344
+msgid "Offset Freq."
+msgstr "オフセット周波数"
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:345
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:371
+msgid "Post Processing"
+msgstr "データ収集後処理"
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:346
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:467
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:373
+msgid "Window Func."
+msgstr "窓関数"
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:347
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:374
+msgid "Solver"
+msgstr "ソルバー"
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:349
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:397
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:375
+msgid "&Auto Phase"
+msgstr "オートフェーズ(&A)"
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:350
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:398
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:376
+msgid "Alt+A"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:352
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:446
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:400
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:378
+msgid "Window Width"
+msgstr "ウィンドウ幅"
+
 #: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:435
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:335
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:360
 msgid "NMR Pulse Analyzer"
 msgstr "NMRパルスアナライザ"
 
@@ -1903,6 +1917,12 @@ msgstr "FFT数"
 msgid "pts"
 msgstr "pts"
 
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:444
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:389
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:684
+msgid "Phase"
+msgstr "位相"
+
 #: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:445
 msgid "deg"
 msgstr "度"
@@ -1924,6 +1944,7 @@ msgid "Perio&dic Noise Reduction"
 msgstr "周期性ノイズ除去(&D)"
 
 #: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:455
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:356
 msgid "Alt+D"
 msgstr ""
 
@@ -2040,10 +2061,6 @@ msgstr "カーブの消去(&C)"
 msgid "Fitting Status"
 msgstr "フィッティングステータス"
 
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:398
-msgid "Alt+A"
-msgstr ""
-
 #: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:399
 msgid "Relax Func"
 msgstr "緩和関数"
@@ -2060,41 +2077,41 @@ msgstr "オートウィンドウ(&U)"
 msgid "Alt+U"
 msgstr ""
 
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:332
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:350
 msgid "NMR Spectrum Averager"
 msgstr "NMRスペクトルアベレージャ"
 
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:333
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:355
+msgid "&DUMP"
+msgstr "書き出し(&D)"
+
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:357
 msgid "Magnet PS"
 msgstr "マグネット電源"
 
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:336
-msgid "Field Max"
-msgstr "最大磁場"
-
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:338
-msgid "Field Min"
-msgstr "最低磁場"
-
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:349
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:361
 msgid "Field Factor"
 msgstr "磁場係数"
 
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:350
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:362
 msgid "T/?"
 msgstr "T/?"
 
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:351
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:363
 msgid "Residual Field"
 msgstr "残留磁場"
 
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:353
-msgid "CLEAR SPECTRUM"
-msgstr "スペクトラム消去"
-
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:356
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:365
 msgid "Resolution (Approx.)"
 msgstr "精度(Approx.)"
+
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:367
+msgid "Field Min"
+msgstr "最低磁場"
+
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:369
+msgid "Field Max"
+msgstr "最大磁場"
 
 #: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:469
 msgid "Comb Pulse"
@@ -2432,6 +2449,9 @@ msgstr "エキサイテーション"
 #: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:278
 msgid "External DC Source"
 msgstr ""
+
+#~ msgid "CLEAR SPECTRUM"
+#~ msgstr "スペクトラム消去"
 
 #~ msgid "SG Error."
 #~ msgstr "SGエラー"
