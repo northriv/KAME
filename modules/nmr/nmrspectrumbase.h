@@ -56,6 +56,8 @@ public:
 	const shared_ptr<XItemNode<XDriverList, XNMRPulseAnalyzer> > &pulse() const {return m_pulse;}
 
 	const shared_ptr<XDoubleNode> &bandWidth() const {return m_bandWidth;}
+	//! Tune bandwidth to 50%/100%/200%.
+	const shared_ptr<XComboNode> &bwList() const {return m_bwList;}
 	//! Deduce phase from data
 	const shared_ptr<XBoolNode> &autoPhase() const {return m_autoPhase;}
 	//! (Deduced) phase of echoes [deg.]
@@ -77,8 +79,8 @@ public:
 	double minRecorded() const {return m_minRecorded;}
 protected:
 	//! Records
-	std::deque<double> m_weights;
-	std::deque<std::complex<double> > m_accum;
+	std::deque<double> m_accum_weights[3];
+	std::deque<std::complex<double> > m_accum[3];
 
 	shared_ptr<XListener> m_lsnOnClear, m_lsnOnCondChanged;
     
@@ -101,10 +103,12 @@ private:
 
 	//! Records
 	std::deque<std::complex<double> > m_wave;
+	std::deque<double> m_weights;
 
 	const shared_ptr<XItemNode<XDriverList, XNMRPulseAnalyzer> > m_pulse;
  
 	const shared_ptr<XDoubleNode> m_bandWidth;
+	const shared_ptr<XComboNode> m_bwList;
 	const shared_ptr<XBoolNode> m_autoPhase;
 	const shared_ptr<XDoubleNode> m_phase;
 	const shared_ptr<XNode> m_clear;
@@ -114,7 +118,7 @@ private:
 	
 	double m_resRecorded, m_minRecorded;
   
-	xqcon_ptr m_conBandWidth;
+	xqcon_ptr m_conBandWidth, m_conBWList;
 	xqcon_ptr m_conPulse;
 	xqcon_ptr m_conPhase, m_conAutoPhase;
 	xqcon_ptr m_conClear, m_conSolverList, m_conWindowWidth, m_conWindowFunc;

@@ -35,6 +35,7 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 	: XSecondaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
 	  m_pulse(create<XItemNode<XDriverList, XNMRPulseAnalyzer> >("PulseAnalyzer", false, drivers, true)),
 	  m_bandWidth(create<XDoubleNode>("BandWidth", false)),
+	  m_bwList(create<XComboNode>("BandWidthList", false, true)),
 	  m_autoPhase(create<XBoolNode>("AutoPhase", false)),
 	  m_phase(create<XDoubleNode>("Phase", false, "%.2f")),
 	  m_clear(create<XNode>("Clear", true)),
@@ -93,6 +94,10 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 	}
   
 	bandWidth()->value(50);
+	bwList()->add("50%");
+	bwList()->add("100%");
+	bwList()->add("200%");
+	bwList()->value(1);
 	autoPhase()->value(true);
 	
 	windowFunc()->str(std::string(SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT));
@@ -107,8 +112,10 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 	solverList()->onValueChanged().connect(m_lsnOnCondChanged);
 	windowWidth()->onValueChanged().connect(m_lsnOnCondChanged);
 	windowFunc()->onValueChanged().connect(m_lsnOnCondChanged);
+	bwList()->onValueChanged().connect(m_lsnOnCondChanged);
 
 	m_conBandWidth = xqcon_create<XQLineEditConnector>(m_bandWidth, m_form->m_edBW);
+	m_conBWList = xqcon_create<XQComboBoxConnector>(m_bwList, m_form->m_cmbBWList);
 	m_conPhase = xqcon_create<XKDoubleNumInputConnector>(m_phase, m_form->m_numPhase);
 	m_form->m_numPhase->setRange(-360.0, 360.0, 1.0, true);
 	m_conAutoPhase = xqcon_create<XQToggleButtonConnector>(m_autoPhase, m_form->m_ckbAutoPhase);
@@ -190,28 +197,36 @@ XNMRSpectrumBase<FRM>::analyze(const shared_ptr<XDriver> &emitter) throw (XRecor
 	
 	if((resRecorded() != res) || clear) {
 		m_resRecorded = res;
-		m_accum.clear();
-		m_weights.clear();
+		for(int bank = 0; bank < 3; bank++) {
+			m_accum[bank].clear();
+			m_accum_weights[bank].clear();
+		}
 	}
 	else {
 		int diff = lrint(minRecorded() / res) - lrint(_min / res);
-		for(int i = 0; i < diff; i++) {
-			m_accum.push_front(0.0);
-			m_weights.push_front(0);
-		}
-		for(int i = 0; i < -diff; i++) {
-			if(!m_accum.empty()) {
-				m_accum.pop_front();
-				m_weights.pop_front();
+		for(int bank = 0; bank < 3; bank++) {
+			for(int i = 0; i < diff; i++) {
+				m_accum[bank].push_front(0.0);
+				m_accum_weights[bank].push_front(0);
+			}
+			for(int i = 0; i < -diff; i++) {
+				if(!m_accum[bank].empty()) {
+					m_accum[bank].pop_front();
+					m_accum_weights[bank].pop_front();
+				}
 			}
 		}
 	}
 	m_minRecorded = _min;
 	int length = lrint((_max - _min) / res);
-	m_accum.resize(length, 0.0);
-	m_weights.resize(length, 0);
+	for(int bank = 0; bank < 3; bank++) {
+		m_accum[bank].resize(length, 0.0);
+		m_accum_weights[bank].resize(length, 0);
+	}
 	m_wave.resize(length);
 	std::fill(m_wave.begin(), m_wave.end(), 0.0);
+	m_weights.resize(length);
+	std::fill(m_weights.begin(), m_weights.end(), 0.0);
 
 	if(clear) {
 		m_spectrum->clear();
@@ -302,25 +317,34 @@ XNMRSpectrumBase<FRM>::fssum()
 	}
 	std::vector<std::complex<double> > ftwave(len);
 	m_preFFT.exec(_pulse->wave(), ftwave, -_pulse->waveFTPos(), 0.0, &FFT::windowFuncRect, 1.0);
-	for(int i = -bw / 2; i <= bw / 2; i++) {
-		double freq = i * df;
-		int idx = lrint((cfreq + freq - minRecorded()) / resRecorded());
-		if((idx >= (int)m_accum.size()) || (idx < 0))
-			continue;
-		double w = FFT::windowFuncKaiser1((double)i / bw);
-		m_accum[idx] += ftwave[(i + len) % len] * w / (double)_pulse->wave().size();
-		m_weights[idx] += w;
+	bw /= 2.0;
+	for(int bank = 0; bank < 3; bank++) {
+		for(int i = -bw / 2; i <= bw / 2; i++) {
+			double freq = i * df;
+			int idx = lrint((cfreq + freq - minRecorded()) / resRecorded());
+			if((idx >= (int)m_accum[bank].size()) || (idx < 0))
+				continue;
+			double w = FFT::windowFuncKaiser1((double)i / bw);
+			m_accum[bank][idx] += ftwave[(i + len) % len] * w / (double)_pulse->wave().size();
+			m_accum_weights[bank][idx] += w;
+		}
+		bw *= 2.0;
 	}
 }
 template <class FRM>
 void
 XNMRSpectrumBase<FRM>::analyzeIFT() {
+	int bank = *bwList();
+	if((bank < 0) || (bank >= 3))
+		throw XSkippedRecordError(__FILE__, __LINE__);
+	double bw_coeff = 0.5*pow(2.0, (double)bank);
+	
 	double th = FFT::windowFuncHamming(0.49);
 	int max_idx = 0;
-	int min_idx = m_accum.size() - 1;
+	int min_idx = m_accum[bank].size() - 1;
 	int taps_max = 0; 
-	for(int i = 0; i < m_accum.size(); i++) {
-		if(weights()[i] > th) {
+	for(int i = 0; i < m_accum[bank].size(); i++) {
+		if(m_accum_weights[bank][i] > th) {
 			min_idx = std::min(min_idx, i);
 			max_idx = std::max(max_idx, i);
 			taps_max++;
@@ -339,7 +363,7 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	iftlen = ((iftlen * 3 / 2 + npad) / trunc2 + 1) * trunc2;
 	int tdsize = lrint(_pulse->waveWidth() * _pulse->interval() * res * iftlen);
 	int iftorigin = lrint(_pulse->waveFTPos() * _pulse->interval() * res * iftlen);
-	int bwinv = abs(lrint(1.0/(*bandWidth() * 1000.0 * _pulse->interval() * res * iftlen)));
+	int bwinv = abs(lrint(1.0/(*bandWidth() * bw_coeff * 1000.0 * _pulse->interval() * res * iftlen)));
 	if(abs(iftorigin) > iftlen/2)
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	
@@ -351,8 +375,8 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	std::fill(fftwave.begin(), fftwave.end(), 0.0);
 	for(int i = min_idx; i <= max_idx; i++) {
 		int k = (i - (max_idx + min_idx) / 2 + iftlen) % iftlen;
-		if(weights()[i] > th)
-			fftwave[k] = m_accum[i] / m_weights[i];
+		if(m_accum_weights[bank][i] > th)
+			fftwave[k] = m_accum[bank][i] / m_accum_weights[bank][i];
 	}
 	m_ift->exec(fftwave, iftwave);
 	
@@ -383,6 +407,7 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	for(int i = min_idx; i <= max_idx; i++) {
 		int k = (i - (max_idx + min_idx) / 2 + iftlen) % iftlen;
 		m_wave[i] = fftwave[k] / (double)iftlen;
+		m_weights[i] = m_accum_weights[bank][i];
 	}
 	th = FFT::windowFuncHamming(0.1);
 	m_peaks.clear();
@@ -391,7 +416,7 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 		double j = (k > iftlen/2) ? (k - iftlen) : k;
 		j += (max_idx + min_idx) / 2;
 		int l = lrint(j);
-		if((l >= 0) && (l < m_accum.size()) && (weights()[l] > th))
+		if((l >= 0) && (l < weights().size()) && (weights()[l] > th))
 			m_peaks.push_back(std::pair<double, double>(
 				solver->peaks()[i].first / (double)iftlen, j));
 	}
