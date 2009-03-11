@@ -385,7 +385,12 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 		if(echoperiod < length) {
 			throw XSkippedRecordError(KAME::i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
 		}
-		if(!bg_after_last_echo) {
+		if(bg_after_last_echo) {
+			if(bgpos < echoperiod * (numechoes - 1) + length) {
+				m_statusPrinter->printWarning(KAME::i18n("Maybe, position for BG. sub. is overrapped against echoes"), true);
+			}
+		}
+		else {
 			if(bgpos + bglength > echoperiod) {
 				throw XSkippedRecordError(KAME::i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
 			}
