@@ -73,7 +73,7 @@ public:
 	const std::deque<std::complex<double> > &wave() const {return m_wave;}
 	//! averaged weights
 	const std::deque<double> &weights() const {return m_weights;}
-	//! power spectrum density of dark.
+	//! power spectrum density of dark. [V].
 	const std::deque<double> &darkPSD() const {return m_darkPSD;}
 	//! resolution [Hz]
 	double resRecorded() const {return m_resRecorded;}
@@ -84,7 +84,7 @@ protected:
 	enum {ACCUM_BANKS = 3};
 	std::deque<double> m_accum_weights[ACCUM_BANKS];
 	std::deque<std::complex<double> > m_accum[ACCUM_BANKS];
-	std::deque<double> m_accum_dark[ACCUM_BANKS];
+	std::deque<double> m_accum_dark[ACCUM_BANKS]; //[V^2/Hz].
 
 	shared_ptr<XListener> m_lsnOnClear, m_lsnOnCondChanged;
     

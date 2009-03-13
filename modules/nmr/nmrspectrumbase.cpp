@@ -150,7 +150,7 @@ void
 XNMRSpectrumBase<FRM>::onCondChanged(const shared_ptr<XValueNodeBase> &node)
 {
     if((node == phase()) && *autoPhase()) return;
-	if(onCondChangedImpl(node))
+	if((node == bandWidth()) || onCondChangedImpl(node))
         m_timeClearRequested = XTime::now();
     requestAnalysis();
 }
@@ -334,7 +334,7 @@ XNMRSpectrumBase<FRM>::fssum()
 		m_preFFT.reset(new FFT(-1, len));
 	}
 	int wlen = std::min(len, (int)_pulse->wave().size());
-	int woff = -_pulse->waveFTPos() + (_pulse->waveFTPos() > 0) ? ((int)_pulse->waveFTPos() / len + 1) : 0;
+	int woff = -_pulse->waveFTPos() + len * ((_pulse->waveFTPos() > 0) ? ((int)_pulse->waveFTPos() / len + 1) : 0);
 	for(int i = 0; i < wlen; i++) {
 		int j = (i + woff) % len;
 		ftwavein[j] = _pulse->wave()[i];
@@ -342,6 +342,7 @@ XNMRSpectrumBase<FRM>::fssum()
 	m_preFFT->exec(ftwavein, ftwaveout);
 	bw /= 2.0;
 	double normalize = 1.0 / (double)_pulse->wave().size();
+	double darknormalize = resRecorded() / df;
 	for(int bank = 0; bank < ACCUM_BANKS; bank++) {
 		for(int i = -bw / 2; i <= bw / 2; i++) {
 			double freq = i * df;
@@ -352,7 +353,7 @@ XNMRSpectrumBase<FRM>::fssum()
 			int j = (i + len) % len;
 			m_accum[bank][idx] += ftwaveout[j] * w * normalize;
 			m_accum_weights[bank][idx] += w;
-			m_accum_dark[bank][idx] += _pulse->darkPSD()[j] * w * w * normalize;
+			m_accum_dark[bank][idx] += _pulse->darkPSD()[j] * w * w * darknormalize;
 		}
 		bw *= 2.0;
 	}
@@ -424,7 +425,7 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 		double w = 0;
 		for(int i = 0; i < iftlen; i++)
 			w += weight[i] * weight[i];
-		psdcoeff = w/(double)iftlen;		
+		psdcoeff = w/(double)tdsize;		
 	}
 	else {
 		solverin.resize(tdsize);
@@ -441,6 +442,7 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 		throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
 	}
 
+	psdcoeff /= _pulse->waveWidth() * _pulse->interval();
 	for(int i = min_idx; i <= max_idx; i++) {
 		int k = (i - (max_idx + min_idx) / 2 + iftlen) % iftlen;
 		m_wave[i] = fftwave[k] / (double)iftlen;

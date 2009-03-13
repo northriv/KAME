@@ -314,10 +314,10 @@ void XNMRPulseAnalyzer::rotNFFT(int ftpos, double ph,
 		double w = 0;
 		for(int i = 0; i < length; i++)
 			w += weight[i] * weight[i];
-		m_ftWavePSDCoeff = w/(double)(length * length);
+		m_ftWavePSDCoeff = w/(double)length;
 	}
 	else {
-		m_ftWavePSDCoeff = 1.0/(double)length;
+		m_ftWavePSDCoeff = 1.0;
 	}
 }
 void XNMRPulseAnalyzer::onAvgClear(const shared_ptr<XNode> &) {
@@ -541,10 +541,10 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 				darkin[i] = m_dsoWave[pos + i + bgpos] * tw;
 				normalize += tw * tw;
 			}
-			normalize = 1.0 / normalize;
+			normalize = 1.0 / normalize * interval;
 			m_ftDark->exec(darkin, darkout);
 			for(int i = 0; i < fftlen; i++) {
-				m_darkPSDSum[i] += std::norm(darkout[i]) * normalize;
+				m_darkPSDSum[i] += std::norm(darkout[i]) * normalize; //[V^2/Hz]
 			}
 		}
 		m_avcount++;
@@ -610,6 +610,7 @@ void XNMRPulseAnalyzer::visualize() {
 		XScopedWriteLock<XWaveNGraph> lock(*ftWaveGraph());
 		ftWaveGraph()->setRowCount(ftsize);
 		double normalize = 1.0 / m_wave.size();
+		double darknormalize = m_ftWavePSDCoeff / (m_wave.size() * interval());
 		for (int i = 0; i < ftsize; i++) {
 			int j = (i - ftsize/2 + ftsize) % ftsize;
 			ftWaveGraph()->cols(0)[i] = 0.001 * (i - ftsize/2) * m_dFreq;
@@ -618,7 +619,7 @@ void XNMRPulseAnalyzer::visualize() {
 			ftWaveGraph()->cols(2)[i] = std::imag(z);
 			ftWaveGraph()->cols(3)[i] = std::abs(z);
 			ftWaveGraph()->cols(4)[i] = std::arg(z) / M_PI * 180;
-			ftWaveGraph()->cols(5)[i] = sqrt(m_darkPSD[j] * m_ftWavePSDCoeff);
+			ftWaveGraph()->cols(5)[i] = sqrt(m_darkPSD[j] * darknormalize);
 		}
 		m_peakPlot->maxCount()->value(m_solverRecorded->peaks().size());
 		std::deque<XGraph::ValPoint> &points(m_peakPlot->points());

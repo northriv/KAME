@@ -110,7 +110,7 @@ public:
 
 	//! Time-domain Wave.
 	const std::vector<std::complex<double> > &wave() const {return m_wave;}
-	//! Power spectrum of the noise estimated from the background.
+	//! Power spectrum of the noise estimated from the background. [V^2/Hz].
 	const std::vector<double> &darkPSD() const {return m_darkPSD;}
 	//! freq. resolution [Hz]
 	double dFreq() const {return m_dFreq;}
