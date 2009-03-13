@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: ja\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2009-03-07 18:08+0900\n"
+"POT-Creation-Date: 2009-03-13 14:56+0900\n"
 "PO-Revision-Date: 2006-01-03 08:09+0900\n"
 "Last-Translator: Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>\n"
 "Language-Team: Japanese <ja@li.org>\n"
@@ -861,7 +861,7 @@ msgstr "NMRスペクトラムアベレージャ (周波数掃引) - "
 msgid "Freq [MHz]"
 msgstr "周波数 [MHz]"
 
-#: modules/nmr/nmrfspectrum.cpp:128 modules/nmr/nmrspectrumbase.cpp:316
+#: modules/nmr/nmrfspectrum.cpp:128 modules/nmr/nmrspectrumbase.cpp:330
 msgid "Invalid center freq."
 msgstr "中心周波数があかんわ"
 
@@ -877,7 +877,7 @@ msgstr "NMRパルス - "
 msgid "NMR-Spectrum - "
 msgstr "NMRスペクトル - "
 
-#: modules/nmr/nmrpulse.cpp:153 modules/nmr/nmrspectrumbase.cpp:62
+#: modules/nmr/nmrpulse.cpp:153 modules/nmr/nmrspectrumbase.cpp:63
 msgid "Intens. [V]"
 msgstr ""
 
@@ -897,61 +897,65 @@ msgstr ""
 msgid "DSO CH2"
 msgstr ""
 
-#: modules/nmr/nmrpulse.cpp:176 modules/nmr/nmrspectrumbase.cpp:69
+#: modules/nmr/nmrpulse.cpp:177 modules/nmr/nmrspectrumbase.cpp:70
 msgid "abs."
 msgstr "絶対値"
 
-#: modules/nmr/nmrpulse.cpp:181
+#: modules/nmr/nmrpulse.cpp:182
 msgid "phase"
 msgstr "位相"
 
-#: modules/nmr/nmrpulse.cpp:188 modules/nmr/nmrspectrumbase.cpp:81
+#: modules/nmr/nmrpulse.cpp:184 modules/nmr/nmrspectrumbase.cpp:77
+msgid "dark"
+msgstr "ダーク"
+
+#: modules/nmr/nmrpulse.cpp:195 modules/nmr/nmrspectrumbase.cpp:88
 msgid "Peaks"
 msgstr "ピーク"
 
-#: modules/nmr/nmrpulse.cpp:240
+#: modules/nmr/nmrpulse.cpp:247
 msgid "Maybe, length for BG. sub. is too short."
 msgstr "多分、BG用の長さがしょぼいわ"
 
-#: modules/nmr/nmrpulse.cpp:333
+#: modules/nmr/nmrpulse.cpp:355
 msgid "No record in DSO"
 msgstr "DSOのレコードが無効"
 
-#: modules/nmr/nmrpulse.cpp:336
+#: modules/nmr/nmrpulse.cpp:358
 msgid "Two channels needed in DSO"
 msgstr ""
 
-#: modules/nmr/nmrpulse.cpp:341
+#: modules/nmr/nmrpulse.cpp:363
 msgid "Invalid time interval in waveforms."
 msgstr "波形の時間間隔、あきまへん"
 
-#: modules/nmr/nmrpulse.cpp:346 modules/nmr/nmrpulse.cpp:349
+#: modules/nmr/nmrpulse.cpp:368 modules/nmr/nmrpulse.cpp:371
 msgid "Position beyond waveforms."
 msgstr "ウェーブフォームのレンジを越えてるで"
 
-#: modules/nmr/nmrpulse.cpp:353 modules/nmr/nmrpulse.cpp:356
+#: modules/nmr/nmrpulse.cpp:375 modules/nmr/nmrpulse.cpp:378
 msgid "Invalid length."
 msgstr "長さが無効ですわ"
 
-#: modules/nmr/nmrpulse.cpp:361 modules/nmr/nmrpulse.cpp:364
+#: modules/nmr/nmrpulse.cpp:383 modules/nmr/nmrpulse.cpp:386
 msgid "Position for BG. sub. beyond waveforms."
 msgstr "BGポジションがウェーブフォームのレンジを越えてるで"
 
-#: modules/nmr/nmrpulse.cpp:368 modules/nmr/nmrpulse.cpp:371
+#: modules/nmr/nmrpulse.cpp:390 modules/nmr/nmrpulse.cpp:393
 msgid "Invalid Length for BG. sub."
 msgstr "BG用の長さがあかんわ"
 
-#: modules/nmr/nmrpulse.cpp:374
+#: modules/nmr/nmrpulse.cpp:396 modules/nmr/nmrpulse.cpp:413
 msgid "Maybe, position for BG. sub. is overrapped against echoes"
 msgstr "BGの計算がエコーとかぶってるで、どうすんの"
 
-#: modules/nmr/nmrpulse.cpp:383 modules/nmr/nmrpulse.cpp:386
-#: modules/nmr/nmrpulse.cpp:390 modules/nmr/nmrpulse.cpp:393
-#: modules/nmr/nmrpulse.cpp:399
+#: modules/nmr/nmrpulse.cpp:406 modules/nmr/nmrpulse.cpp:409
+#: modules/nmr/nmrpulse.cpp:418 modules/nmr/nmrpulse.cpp:421
+#: modules/nmr/nmrpulse.cpp:427
 msgid "Invalid Multiecho settings."
 msgstr "マルチエコーの設定があかんわ"
 
-#: modules/nmr/nmrpulse.cpp:437
+#: modules/nmr/nmrpulse.cpp:471
 msgid "No active pulser!"
 msgstr "パルサーないで!"
 
@@ -991,7 +995,7 @@ msgstr "サンプル数でかすきや"
 msgid "Strange St.E. settings."
 msgstr ""
 
-#: modules/nmr/nmrrelax.cpp:401 modules/nmr/nmrspectrumbase.cpp:173
+#: modules/nmr/nmrrelax.cpp:401 modules/nmr/nmrspectrumbase.cpp:180
 msgid "Do NOT use incremental avg. Skipping."
 msgstr "インクリメンタルアベレージ使わんといて、はしょるわ"
 
@@ -1035,27 +1039,27 @@ msgstr "NMRスペクトルアベレージャ - "
 msgid "Field [T]"
 msgstr "磁場 [T]"
 
-#: modules/nmr/nmrspectrumbase.cpp:63
+#: modules/nmr/nmrspectrumbase.cpp:64
 msgid "real part"
 msgstr "実部"
 
-#: modules/nmr/nmrspectrumbase.cpp:66
+#: modules/nmr/nmrspectrumbase.cpp:67
 msgid "imag. part"
 msgstr "虚部"
 
-#: modules/nmr/nmrspectrumbase.cpp:189
+#: modules/nmr/nmrspectrumbase.cpp:196
 msgid "Invalid min. and max."
 msgstr "あかん最小／最大値"
 
-#: modules/nmr/nmrspectrumbase.cpp:192
+#: modules/nmr/nmrspectrumbase.cpp:199
 msgid "Too small resolution."
 msgstr "精度が小さすぎですわ"
 
-#: modules/nmr/nmrspectrumbase.cpp:305
+#: modules/nmr/nmrspectrumbase.cpp:319
 msgid "Invalid waveform."
 msgstr "ウェーブフォームがあかんわ"
 
-#: modules/nmr/nmrspectrumbase.cpp:312
+#: modules/nmr/nmrspectrumbase.cpp:326
 msgid "BW beyond Nyquist freq."
 msgstr ""
 
