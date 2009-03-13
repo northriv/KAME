@@ -558,7 +558,7 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	}
 	double darknormalize = normalize * normalize;
 	if(bg_after_last_echo)
-		darknormalize /= (double)numechoes*numechoes;
+		darknormalize /= (double)numechoes;
 	for(int i = 0; i < fftlen; i++) {
 		m_darkPSD[i] = m_darkPSDSum[i] * darknormalize;
 	}
