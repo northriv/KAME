@@ -73,14 +73,18 @@ public:
 	const std::deque<std::complex<double> > &wave() const {return m_wave;}
 	//! averaged weights
 	const std::deque<double> &weights() const {return m_weights;}
+	//! power spectrum density of dark.
+	const std::deque<double> &darkPSD() const {return m_darkPSD;}
 	//! resolution [Hz]
 	double resRecorded() const {return m_resRecorded;}
 	//! value of the first point [Hz]
 	double minRecorded() const {return m_minRecorded;}
 protected:
 	//! Records
-	std::deque<double> m_accum_weights[3];
-	std::deque<std::complex<double> > m_accum[3];
+	enum {ACCUM_BANKS = 3};
+	std::deque<double> m_accum_weights[ACCUM_BANKS];
+	std::deque<std::complex<double> > m_accum[ACCUM_BANKS];
+	std::deque<double> m_accum_dark[ACCUM_BANKS];
 
 	shared_ptr<XListener> m_lsnOnClear, m_lsnOnCondChanged;
     
@@ -104,6 +108,7 @@ private:
 	//! Records
 	std::deque<std::complex<double> > m_wave;
 	std::deque<double> m_weights;
+	std::deque<double> m_darkPSD;
 
 	const shared_ptr<XItemNode<XDriverList, XNMRPulseAnalyzer> > m_pulse;
  
@@ -123,11 +128,10 @@ private:
 	xqcon_ptr m_conPhase, m_conAutoPhase;
 	xqcon_ptr m_conClear, m_conSolverList, m_conWindowWidth, m_conWindowFunc;
 
-	shared_ptr<FFT> m_ift;
+	shared_ptr<FFT> m_ift, m_preFFT;
 	shared_ptr<SpectrumSolverWrapper> m_solver;
 	shared_ptr<XXYPlot> m_peakPlot;
 	std::vector<std::pair<double, double> > m_peaks;
-	FFTSolver m_preFFT;
 
 	void analyzeIFT();
 	

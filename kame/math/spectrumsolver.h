@@ -55,6 +55,10 @@ public:
 	
 	static double windowLength(int tdlen, int t0, double windowlength);
 
+	//! Create a window waveform.
+	static void window(int t, int t0, FFT::twindowfunc windowfunc,
+		double windowlength, std::vector<double> &window);
+
 	virtual bool isFT() const {return false;}
 protected:
 	virtual void genSpectrum(const std::vector<std::complex<double> >& memin,
@@ -62,11 +66,7 @@ protected:
 		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength) = 0;
 	std::vector<std::complex<double> > m_ifft;
 	std::vector<std::pair<double, double> > m_peaks;
-	
-	//! Create a window waveform.
-	void window(int t, int t0, FFT::twindowfunc windowfunc,
-		double windowlength, std::vector<double> &window);
-	
+		
 	//! If false, perform rectangular windowing before solver process.
 	virtual bool hasWeighting() const {return false;}
 	

@@ -169,10 +169,11 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 	}
 	{
 		const char *labels[] = { "Freq. [kHz]", "Re. [V]", "Im. [V]",
-			"Abs. [V]", "Phase [deg]" };
-		ftWaveGraph()->setColCount(5, labels);
+			"Abs. [V]", "Phase [deg]", "Dark. [V]" };
+		ftWaveGraph()->setColCount(6, labels);
 		ftWaveGraph()->insertPlot(labels[3], 0, 3);
 		ftWaveGraph()->insertPlot(labels[4], 0, -1, 4);
+		ftWaveGraph()->insertPlot(labels[5], 0, 5);
 		ftWaveGraph()->plot(0)->label()->value(KAME::i18n("abs."));
 		ftWaveGraph()->plot(0)->drawBars()->value(true);
 		ftWaveGraph()->plot(0)->drawLines()->value(true);
@@ -180,6 +181,12 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		ftWaveGraph()->plot(0)->intensity()->value(0.5);
 		ftWaveGraph()->plot(1)->label()->value(KAME::i18n("phase"));
 		ftWaveGraph()->plot(1)->drawPoints()->value(false);
+		ftWaveGraph()->plot(2)->label()->value(KAME::i18n("dark"));
+		ftWaveGraph()->plot(2)->drawBars()->value(false);
+		ftWaveGraph()->plot(2)->drawLines()->value(true);
+		ftWaveGraph()->plot(2)->lineColor()->value(QColor(0xa0, 0xa0, 0x00).rgb());
+		ftWaveGraph()->plot(2)->drawPoints()->value(false);
+		ftWaveGraph()->plot(2)->intensity()->value(0.5);
 		ftWaveGraph()->clear();
 		{
 			shared_ptr<XXYPlot> plot = ftWaveGraph()->graph()->plots()->create<XXYPlot>(
@@ -257,21 +264,23 @@ void XNMRPulseAnalyzer::backgroundSub(std::vector<std::complex<double> > &wave,
 	}
 
 	shared_ptr<SpectrumSolver> solverPNR = m_solverPNR->solver();
-	if (bglength && *usePNR() && solverPNR) {
-		int dnrlength = FFT::fitLength((bglength + bgpos) * 4);
-		std::vector<std::complex<double> > memin(bglength), memout(dnrlength);
-		for(unsigned int i = 0; i < bglength; i++) {
-			memin[i] = wave[pos + i + bgpos];
-		}
-		try {
-			solverPNR->exec(memin, memout, bgpos, 0.5e-2, &FFT::windowFuncRect, 1.0);
-		}
-		catch (XKameError &e) {
-			throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
-		}
-		int imax = std::min((int)wave.size() - pos, (int)memout.size());
-		for(unsigned int i = 0; i < imax; i++) {
-			wave[i + pos] -= solverPNR->ifft()[i];
+	if (bglength) {
+		if(*usePNR() && solverPNR) {
+			int dnrlength = FFT::fitLength((bglength + bgpos) * 4);
+			std::vector<std::complex<double> > memin(bglength), memout(dnrlength);
+			for(unsigned int i = 0; i < bglength; i++) {
+				memin[i] = wave[pos + i + bgpos];
+			}
+			try {
+				solverPNR->exec(memin, memout, bgpos, 0.5e-2, &FFT::windowFuncRect, 1.0);
+			}
+			catch (XKameError &e) {
+				throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
+			}
+			int imax = std::min((int)wave.size() - pos, (int)memout.size());
+			for(unsigned int i = 0; i < imax; i++) {
+				wave[i + pos] -= solverPNR->ifft()[i];
+			}
 		}
 	}
 }
@@ -288,15 +297,28 @@ void XNMRPulseAnalyzer::rotNFFT(int ftpos, double ph,
 	int fftlen = ftwave.size();
 	//fft
 	std::vector<std::complex<double> > fftout(fftlen);
-	m_solverRecorded = m_solver->solver();
+	FFT::twindowfunc wndfunc = m_solver->windowFunc();
+	double wndwidth = *windowWidth() / 100.0;
 	try {
-		m_solverRecorded->exec(wave, fftout, -ftpos, 0.3e-2, m_solver->windowFunc(), *windowWidth() / 100.0);
+		m_solverRecorded->exec(wave, fftout, -ftpos, 0.3e-2, wndfunc, wndwidth);
 	}
 	catch (XKameError &e) {
 		throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
 	}
 
 	std::copy(fftout.begin(), fftout.end(), ftwave.begin());
+	
+	if(m_solverRecorded->isFT()) {
+		std::vector<double> weight;
+		SpectrumSolver::window(length, -ftpos, wndfunc, wndwidth, weight);
+		double w = 0;
+		for(int i = 0; i < length; i++)
+			w += weight[i] * weight[i];
+		m_ftWavePSDCoeff = w/(double)(length * length);
+	}
+	else {
+		m_ftWavePSDCoeff = 1.0/(double)length;
+	}
 }
 void XNMRPulseAnalyzer::onAvgClear(const shared_ptr<XNode> &) {
 	m_timeClearRequested = XTime::now();
@@ -377,6 +399,7 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	
 	int echoperiod = lrint(*echoPeriod() / 1000 /interval);
 	int numechoes = *numEcho();
+	numechoes = std::max(1, numechoes);
 	bool bg_after_last_echo = (echoperiod < bgpos + bglength);
 	if(numechoes > 1) {
 		if(pos + echoperiod * (numechoes - 1) + length >= (int)_dso->lengthRecorded()) {
@@ -432,6 +455,12 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	}
 	m_wave.resize(length);
 	m_waveSum.resize(length);
+	int fftlen = FFT::fitLength(*fftLen());
+	if(fftlen != m_darkPSD.size()) {
+		avgclear = true;		
+	}
+	m_darkPSD.resize(fftlen);
+	m_darkPSDSum.resize(fftlen);
 	std::fill(m_wave.begin(), m_wave.end(), 0.0);
 
 	// Phase Inversion Cycling
@@ -452,6 +481,7 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	}
 	if (avgclear) {
 		std::fill(m_waveSum.begin(), m_waveSum.end(), 0.0);
+		std::fill(m_darkPSDSum.begin(), m_darkPSDSum.end(), 0.0);
 		m_avcount = 0;
 		if(*exAvgIncr()) {
 			extraAvg()->value(0);
@@ -492,9 +522,30 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	if(!bg_after_last_echo)
 		backgroundSub(m_dsoWave, pos, length, bgpos, bglength);
 
+	//summation
 	if((emitter == _dso) || (!m_avcount)) {	
 		for(int i = 0; i < length; i++) {
 			m_waveSum[i] += m_dsoWave[pos + i];
+		}
+		{
+			//Estimate dark power spectral density.
+			if(!m_ftDark || (m_ftDark->length() != m_darkPSD.size())) {
+				m_ftDark.reset(new FFT(-1, *fftLen()));
+			}
+			std::vector<std::complex<double> > darkin(fftlen, 0.0), darkout(fftlen);
+			int bginplen = std::min(bglength, fftlen);
+			double normalize = 0.0;
+			//Twist background not to be affected by the dc subtraction.
+			for(int i = 0; i < bginplen; i++) {
+				double tw = sin(2.0*M_PI*i/(double)bginplen);
+				darkin[i] = m_dsoWave[pos + i + bgpos] * tw;
+				normalize += tw * tw;
+			}
+			normalize = 1.0 / normalize;
+			m_ftDark->exec(darkin, darkout);
+			for(int i = 0; i < fftlen; i++) {
+				m_darkPSDSum[i] += std::norm(darkout[i]) * normalize;
+			}
 		}
 		m_avcount++;
 		if(*exAvgIncr()) {
@@ -504,6 +555,12 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	double normalize = 1.0 / m_avcount;
 	for(int i = 0; i < length; i++) {
 		m_wave[i] = m_waveSum[i] * normalize;
+	}
+	double darknormalize = normalize * normalize;
+	if(bg_after_last_echo)
+		darknormalize /= (double)numechoes*numechoes;
+	for(int i = 0; i < fftlen; i++) {
+		m_darkPSD[i] = m_darkPSDSum[i] * darknormalize;
 	}
 	int ftpos = lrint(*fftPos() * 1e-3 / interval + _dso->trigPosRecorded() - pos);
 
@@ -519,12 +576,12 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	//		m_statusPrinter->printWarning(KAME::i18n("FFTPos is off-centered for window func."));  
 	double ph = *phaseAdv() * M_PI / 180;
 	m_waveFTPos = ftpos;
-	int fftlen = FFT::fitLength(*fftLen());
 	//[Hz]
 	m_dFreq = 1.0 / fftlen / interval;
 	m_ftWave.resize(fftlen);
-	rotNFFT(ftpos, ph, m_wave, m_ftWave);
-	
+	m_solverRecorded = m_solver->solver();
+
+	rotNFFT(ftpos, ph, m_wave, m_ftWave);	
 	if(m_solverRecorded->peaks().size()) {
 		entryPeakAbs()->value(m_solverRecorded->peaks()[0].first / (double)m_wave.size());
 		double x = m_solverRecorded->peaks()[0].second;
@@ -561,6 +618,7 @@ void XNMRPulseAnalyzer::visualize() {
 			ftWaveGraph()->cols(2)[i] = std::imag(z);
 			ftWaveGraph()->cols(3)[i] = std::abs(z);
 			ftWaveGraph()->cols(4)[i] = std::arg(z) / M_PI * 180;
+			ftWaveGraph()->cols(5)[i] = sqrt(m_darkPSD[j] * m_ftWavePSDCoeff);
 		}
 		m_peakPlot->maxCount()->value(m_solverRecorded->peaks().size());
 		std::deque<XGraph::ValPoint> &points(m_peakPlot->points());

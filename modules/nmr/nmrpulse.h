@@ -108,8 +108,10 @@ public:
 
 	//! records below.
 
-	/// Time-domain Wave.
+	//! Time-domain Wave.
 	const std::vector<std::complex<double> > &wave() const {return m_wave;}
+	//! Power spectrum of the noise estimated from the background.
+	const std::vector<double> &darkPSD() const {return m_darkPSD;}
 	//! freq. resolution [Hz]
 	double dFreq() const {return m_dFreq;}
 	//! time resolution [sec.]
@@ -164,8 +166,10 @@ private:
   
 	//! Records
 	std::vector<std::complex<double> > m_wave;
-	/// FFT Wave starting with -fmax/2.
+	std::vector<double> m_darkPSD;
+	/// FFT Wave
 	const std::vector<std::complex<double> > &ftWave() const {return m_ftWave;}
+	double m_ftWavePSDCoeff;
 	std::vector<std::complex<double> > m_ftWave;
 	std::vector<std::complex<double> > m_dsoWave;
 	int m_dsoWaveStartPos, m_waveFTPos, m_waveWidth;
@@ -174,6 +178,7 @@ private:
 	int m_avcount;
 	//! Stored Waves for avg.
 	std::vector<std::complex<double> > m_waveSum;
+	std::vector<double> m_darkPSDSum;
 	//! time resolution
 	double m_interval;
 	//! time diff. of the first point from trigger
@@ -209,6 +214,7 @@ private:
 	shared_ptr<SpectrumSolver> m_solverRecorded;
 	shared_ptr<XXYPlot> m_peakPlot;
 	shared_ptr<SpectrumSolverWrapper> m_solverPNR;
+	shared_ptr<FFT> m_ftDark;
 	
 	void rotNFFT(int ftpos, double ph, 
 				 std::vector<std::complex<double> > &wave, std::vector<std::complex<double> > &ftwave);

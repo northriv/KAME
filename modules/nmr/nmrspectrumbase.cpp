@@ -54,11 +54,12 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 	connect(pulse());
 
 	{
-		const char *labels[] = {"X", "Re [V]", "Im [V]", "Weights", "Abs [V]"};
-		m_spectrum->setColCount(5, labels);
+		const char *labels[] = {"X", "Re [V]", "Im [V]", "Weights", "Abs [V]", "Dark [V]"};
+		m_spectrum->setColCount(6, labels);
 		m_spectrum->insertPlot(labels[4], 0, 4, -1, 3);
 		m_spectrum->insertPlot(labels[1], 0, 1, -1, 3);
 		m_spectrum->insertPlot(labels[2], 0, 2, -1, 3);
+		m_spectrum->insertPlot(labels[5], 0, 5, -1, 3);
 		m_spectrum->axisy()->label()->value(KAME::i18n("Intens. [V]"));
 		m_spectrum->plot(1)->label()->value(KAME::i18n("real part"));
 		m_spectrum->plot(1)->drawPoints()->value(false);
@@ -73,6 +74,12 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 		m_spectrum->plot(0)->barColor()->value(QColor(0x60, 0x60, 0xc0).rgb());
 		m_spectrum->plot(0)->lineColor()->value(QColor(0x60, 0x60, 0xc0).rgb());
 		m_spectrum->plot(0)->intensity()->value(0.5);
+		m_spectrum->plot(3)->label()->value(KAME::i18n("dark"));
+		m_spectrum->plot(3)->drawBars()->value(false);
+		m_spectrum->plot(3)->drawLines()->value(true);
+		m_spectrum->plot(3)->lineColor()->value(QColor(0xa0, 0xa0, 0x00).rgb());
+		m_spectrum->plot(3)->drawPoints()->value(false);
+		m_spectrum->plot(3)->intensity()->value(0.5);
 		m_spectrum->clear();
 		{
 			shared_ptr<XXYPlot> plot = m_spectrum->graph()->plots()->create<XXYPlot>(
@@ -197,36 +204,42 @@ XNMRSpectrumBase<FRM>::analyze(const shared_ptr<XDriver> &emitter) throw (XRecor
 	
 	if((resRecorded() != res) || clear) {
 		m_resRecorded = res;
-		for(int bank = 0; bank < 3; bank++) {
+		for(int bank = 0; bank < ACCUM_BANKS; bank++) {
 			m_accum[bank].clear();
 			m_accum_weights[bank].clear();
+			m_accum_dark[bank].clear();
 		}
 	}
 	else {
 		int diff = lrint(minRecorded() / res) - lrint(_min / res);
-		for(int bank = 0; bank < 3; bank++) {
+		for(int bank = 0; bank < ACCUM_BANKS; bank++) {
 			for(int i = 0; i < diff; i++) {
 				m_accum[bank].push_front(0.0);
 				m_accum_weights[bank].push_front(0);
+				m_accum_dark[bank].push_front(0.0);
 			}
 			for(int i = 0; i < -diff; i++) {
 				if(!m_accum[bank].empty()) {
 					m_accum[bank].pop_front();
 					m_accum_weights[bank].pop_front();
+					m_accum_dark[bank].pop_front();
 				}
 			}
 		}
 	}
 	m_minRecorded = _min;
 	int length = lrint((_max - _min) / res);
-	for(int bank = 0; bank < 3; bank++) {
+	for(int bank = 0; bank < ACCUM_BANKS; bank++) {
 		m_accum[bank].resize(length, 0.0);
 		m_accum_weights[bank].resize(length, 0);
+		m_accum_dark[bank].resize(length, 0.0);
 	}
 	m_wave.resize(length);
 	std::fill(m_wave.begin(), m_wave.end(), 0.0);
 	m_weights.resize(length);
 	std::fill(m_weights.begin(), m_weights.end(), 0.0);
+	m_darkPSD.resize(length);
+	std::fill(m_darkPSD.begin(), m_darkPSD.end(), 0.0);
 
 	if(clear) {
 		m_spectrum->clear();
@@ -279,6 +292,7 @@ XNMRSpectrumBase<FRM>::visualize()
 			m_spectrum->cols(2)[i] = std::imag(wave()[i]);
 			m_spectrum->cols(3)[i] = (weights()[i] > th) ? weights()[i] : 0.0;
 			m_spectrum->cols(4)[i] = std::abs(wave()[i]);
+			m_spectrum->cols(5)[i] = sqrt(darkPSD()[i]);
 		}
 		m_peakPlot->maxCount()->value(m_peaks.size());
 		std::deque<XGraph::ValPoint> &points(m_peakPlot->points());
@@ -315,18 +329,30 @@ XNMRSpectrumBase<FRM>::fssum()
 	if(cfreq == 0) {
 		throw XRecordError(KAME::i18n("Invalid center freq."), __FILE__, __LINE__);  
 	}
-	std::vector<std::complex<double> > ftwave(len);
-	m_preFFT.exec(_pulse->wave(), ftwave, -_pulse->waveFTPos(), 0.0, &FFT::windowFuncRect, 1.0);
+	std::vector<std::complex<double> > ftwavein(len, 0.0), ftwaveout(len);
+	if(!m_preFFT || (m_preFFT->length() != len)) {
+		m_preFFT.reset(new FFT(-1, len));
+	}
+	int wlen = std::min(len, (int)_pulse->wave().size());
+	int woff = -_pulse->waveFTPos() + (_pulse->waveFTPos() > 0) ? ((int)_pulse->waveFTPos() / len + 1) : 0;
+	for(int i = 0; i < wlen; i++) {
+		int j = (i + woff) % len;
+		ftwavein[j] = _pulse->wave()[i];
+	}
+	m_preFFT->exec(ftwavein, ftwaveout);
 	bw /= 2.0;
-	for(int bank = 0; bank < 3; bank++) {
+	double normalize = 1.0 / (double)_pulse->wave().size();
+	for(int bank = 0; bank < ACCUM_BANKS; bank++) {
 		for(int i = -bw / 2; i <= bw / 2; i++) {
 			double freq = i * df;
 			int idx = lrint((cfreq + freq - minRecorded()) / resRecorded());
 			if((idx >= (int)m_accum[bank].size()) || (idx < 0))
 				continue;
 			double w = FFT::windowFuncKaiser1((double)i / bw);
-			m_accum[bank][idx] += ftwave[(i + len) % len] * w / (double)_pulse->wave().size();
+			int j = (i + len) % len;
+			m_accum[bank][idx] += ftwaveout[j] * w * normalize;
 			m_accum_weights[bank][idx] += w;
+			m_accum_dark[bank][idx] += _pulse->darkPSD()[j] * w * w * normalize;
 		}
 		bw *= 2.0;
 	}
@@ -335,7 +361,7 @@ template <class FRM>
 void
 XNMRSpectrumBase<FRM>::analyzeIFT() {
 	int bank = *bwList();
-	if((bank < 0) || (bank >= 3))
+	if((bank < 0) || (bank >= ACCUM_BANKS))
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	double bw_coeff = 0.5*pow(2.0, (double)bank);
 	
@@ -382,23 +408,33 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	
 	shared_ptr<SpectrumSolver> solver = m_solver->solver();
 	std::vector<std::complex<double> > solverin;
-	double windowwidth = *windowWidth() / 100.0;
+	FFT::twindowfunc wndfunc = m_solver->windowFunc();
+	double wndwidth = *windowWidth() / 100.0;
+	double psdcoeff = 1.0;
 	if(solver->isFT()) {
 		solverin.resize(iftlen);
-		double wlen = SpectrumSolver::windowLength(tdsize, -iftorigin, windowwidth);
+		double wlen = SpectrumSolver::windowLength(tdsize, -iftorigin, wndwidth);
 		wlen += bwinv * 2; //effect of convolution.
-		windowwidth = wlen / solverin.size();
+		wndwidth = wlen / solverin.size();
 		iftorigin = solverin.size()/2;
+		
+		std::vector<double> weight;
+		SpectrumSolver::window(iftlen, -iftorigin, wndfunc, wndwidth, weight);
+		double w = 0;
+		for(int i = 0; i < iftlen; i++)
+			w += weight[i] * weight[i];
+		psdcoeff = w/(double)iftlen;
 	}
-	else
-		solverin.resize(tdsize);		
+	else {
+		solverin.resize(tdsize);
+	}
 	for(int i = 0; i < (int)solverin.size(); i++) {
 		int k = (-iftorigin + i + iftlen) % iftlen;
 		ASSERT(k >= 0);
 		solverin[i] = iftwave[k];
 	}
 	try {
-		solver->exec(solverin, fftwave, -iftorigin, 0.1e-2, m_solver->windowFunc(), windowwidth);
+		solver->exec(solverin, fftwave, -iftorigin, 0.1e-2, wndfunc, wndwidth);
 	}
 	catch (XKameError &e) {
 		throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
@@ -407,7 +443,9 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	for(int i = min_idx; i <= max_idx; i++) {
 		int k = (i - (max_idx + min_idx) / 2 + iftlen) % iftlen;
 		m_wave[i] = fftwave[k] / (double)iftlen;
-		m_weights[i] = m_accum_weights[bank][i];
+		double w = m_accum_weights[bank][i];
+		m_weights[i] = w;
+		m_darkPSD[i] = m_accum_dark[bank][i] / (w*w) * psdcoeff;
 	}
 	th = FFT::windowFuncHamming(0.1);
 	m_peaks.clear();
