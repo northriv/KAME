@@ -1,3 +1,7 @@
+* Fri Mar 13 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.3.23-1)
+- nmr: calculate dark side.
+
 * Sat Mar 7 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.3.22-1)
 - nmrspectrumbase: selectable bandwidth.
