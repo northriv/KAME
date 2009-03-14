@@ -1,6 +1,10 @@
+* Sat Mar 14 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.3.24-1)
+- nmr: convolute dark PSD by rect window.
+
 * Fri Mar 13 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.3.23-1)
-- nmr: calculate dark side.
+- nmr: calculate dark side (PSD of noise inferred from background).
 
 * Sat Mar 7 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.3.22-1)
