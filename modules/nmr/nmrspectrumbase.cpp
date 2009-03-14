@@ -413,19 +413,18 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	double wndwidth = *windowWidth() / 100.0;
 	double psdcoeff = 1.0;
 	if(solver->isFT()) {
+		std::vector<double> weight;
+		SpectrumSolver::window(tdsize, -iftorigin, wndfunc, wndwidth, weight);
+		double w = 0;
+		for(int i = 0; i < tdsize; i++)
+			w += weight[i] * weight[i];
+		psdcoeff = w/(double)tdsize;
 		//Compensate broadening due to convolution.
 		solverin.resize(iftlen);
 		double wlen = SpectrumSolver::windowLength(tdsize, -iftorigin, wndwidth);
 		wlen += bwinv * 2; //effect of convolution.
 		wndwidth = wlen / solverin.size();
 		iftorigin = solverin.size()/2;	
-
-		std::vector<double> weight;
-		SpectrumSolver::window(iftlen, -iftorigin, wndfunc, wndwidth, weight);
-		double w = 0;
-		for(int i = 0; i < iftlen; i++)
-			w += weight[i] * weight[i];
-		psdcoeff = w/(double)tdsize;		
 	}
 	else {
 		solverin.resize(tdsize);

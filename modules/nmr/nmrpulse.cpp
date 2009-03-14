@@ -174,6 +174,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		ftWaveGraph()->insertPlot(labels[3], 0, 3);
 		ftWaveGraph()->insertPlot(labels[4], 0, -1, 4);
 		ftWaveGraph()->insertPlot(labels[5], 0, 5);
+		ftWaveGraph()->axisy()->label()->value(KAME::i18n("Intens. [V]"));
 		ftWaveGraph()->plot(0)->label()->value(KAME::i18n("abs."));
 		ftWaveGraph()->plot(0)->drawBars()->value(true);
 		ftWaveGraph()->plot(0)->drawLines()->value(true);
@@ -181,6 +182,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		ftWaveGraph()->plot(0)->intensity()->value(0.5);
 		ftWaveGraph()->plot(1)->label()->value(KAME::i18n("phase"));
 		ftWaveGraph()->plot(1)->drawPoints()->value(false);
+		ftWaveGraph()->plot(1)->intensity()->value(0.3);
 		ftWaveGraph()->plot(2)->label()->value(KAME::i18n("dark"));
 		ftWaveGraph()->plot(2)->drawBars()->value(false);
 		ftWaveGraph()->plot(2)->drawLines()->value(true);
@@ -198,7 +200,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 			plot->drawPoints()->value(false);
 			plot->drawLines()->value(false);
 			plot->drawBars()->value(true);
-			plot->intensity()->value(2.0);
+			plot->intensity()->value(0.5);
 			plot->displayMajorGrid()->value(false);
 			plot->pointColor()->value(QColor(0x40, 0x40, 0xa0).rgb());
 			plot->barColor()->value(QColor(0x40, 0x40, 0xa0).rgb());
@@ -242,10 +244,6 @@ void XNMRPulseAnalyzer::showForms() {
 
 void XNMRPulseAnalyzer::backgroundSub(std::vector<std::complex<double> > &wave, 
 	int pos, int length, int bgpos, int bglength) {
-
-	if(bglength < length*2)
-		m_statusPrinter->printWarning(KAME::i18n("Maybe, length for BG. sub. is too short."));
-	
 	std::complex<double> bg = 0;
 	if (bglength) {
 		double normalize = 0.0;
@@ -392,8 +390,6 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	if(bglength < 0) {
 		throw XSkippedRecordError(KAME::i18n("Invalid Length for BG. sub."), __FILE__, __LINE__);
 	}
-	if((bgpos < length) && (bgpos + bglength > 0))
-		m_statusPrinter->printWarning(KAME::i18n("Maybe, position for BG. sub. is overrapped against echoes"), true);
 
 	shared_ptr<XPulser> _pulser(*pulser());
 	
@@ -401,6 +397,14 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	int numechoes = *numEcho();
 	numechoes = std::max(1, numechoes);
 	bool bg_after_last_echo = (echoperiod < bgpos + bglength);
+
+	if(bglength && (bglength < length * (bg_after_last_echo ? numechoes : 1) * 3))
+		m_statusPrinter->printWarning(KAME::i18n("Maybe, length for BG. sub. is too short."));
+	
+	if((bgpos < length + (bg_after_last_echo ? (echoperiod * (numechoes - 1)) : 0)) 
+		&& (bgpos + bglength > 0))
+		m_statusPrinter->printWarning(KAME::i18n("Maybe, position for BG. sub. is overrapped against echoes"), true);
+
 	if(numechoes > 1) {
 		if(pos + echoperiod * (numechoes - 1) + length >= (int)_dso->lengthRecorded()) {
 			throw XSkippedRecordError(KAME::i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
@@ -408,12 +412,7 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 		if(echoperiod < length) {
 			throw XSkippedRecordError(KAME::i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
 		}
-		if(bg_after_last_echo) {
-			if(bgpos < echoperiod * (numechoes - 1) + length) {
-				m_statusPrinter->printWarning(KAME::i18n("Maybe, position for BG. sub. is overrapped against echoes"), true);
-			}
-		}
-		else {
+		if(!bg_after_last_echo) {
 			if(bgpos + bglength > echoperiod) {
 				throw XSkippedRecordError(KAME::i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
 			}
@@ -522,13 +521,13 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	if(!bg_after_last_echo)
 		backgroundSub(m_dsoWave, pos, length, bgpos, bglength);
 
-	//summation
+	//Incremental/Sequential average.
 	if((emitter == _dso) || (!m_avcount)) {	
 		for(int i = 0; i < length; i++) {
 			m_waveSum[i] += m_dsoWave[pos + i];
 		}
 		{
-			//Estimate dark power spectral density.
+			//Estimate power spectral density of dark side.
 			if(!m_ftDark || (m_ftDark->length() != m_darkPSD.size())) {
 				m_ftDark.reset(new FFT(-1, *fftLen()));
 			}
@@ -543,8 +542,29 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 			}
 			normalize = 1.0 / normalize * interval;
 			m_ftDark->exec(darkin, darkout);
+			//Convolution for the rectangular window.
 			for(int i = 0; i < fftlen; i++) {
-				m_darkPSDSum[i] += std::norm(darkout[i]) * normalize; //[V^2/Hz]
+				darkin[i] = std::norm(darkout[i]) * normalize;
+			}
+			m_ftDark->exec(darkin, darkout); //FT of PSD.
+			std::vector<std::complex<double> > sigma2(darkout);
+			std::fill(darkin.begin(), darkin.end(), 0.0);
+			double x = sqrt(1.0 / length / fftlen);
+			for(int i = 0; i < length; i++) {
+				darkin[i] = x;
+			}
+			m_ftDark->exec(darkin, darkout); //FT of rect. window.
+			for(int i = 0; i < fftlen; i++) {
+				darkin[i] = std::norm(darkout[i]);
+			}
+			m_ftDark->exec(darkin, darkout); //FT of norm of (FT of rect. window). 
+			for(int i = 0; i < fftlen; i++) {
+				darkin[i] = std::conj(darkout[i] * sigma2[i]);
+			}
+			m_ftDark->exec(darkin, darkout); //Convolution.
+			normalize = 1.0 / fftlen;
+			for(int i = 0; i < fftlen; i++) {
+				m_darkPSDSum[i] += std::real(darkout[i]) * normalize; //[V^2/Hz]
 			}
 		}
 		m_avcount++;
