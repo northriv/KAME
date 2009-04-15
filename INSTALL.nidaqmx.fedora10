@@ -1,0 +1,34 @@
+#HOW-TO setup National Instruments DAQmx drivers.
+
+#Install yum-utils and rpmdevtools.
+rpmdev-setuptree
+
+#NIDAQmx does not support stack size of 4KB in the kernel.
+#Firstly, make kernel package with the standard stack size (8KB).
+yumdownloader --source kernel
+#Modify the corresponding config file (rpmbuild/SOURCES/config-x86-generic) as,
+CONFIG_4KSTACKS = n
+#Make kernel packages.
+rpmbuild --with baseonly --without debuginfo --target=i686 rpmbuild/SPECS/kernel.spec
+#Install the kernel and kernel-devel and reboot.
+
+#If you need to make extra kernel-module packages
+rpmbuild --define='kversion `uname -r`' --define='kvariants ""' --target=i686 -ba ~/rpmbuild/SPECS/something-kmod.spec 
+
+#Modify SELinux policy.
+#(memory protection) allow textshlib...
+#(memory protection) allow execheap		
+
+cd (NIDAQ801 directory)
+./INSTALL --accept-license
+
+#(Optionally) configure your RTSI cable.
+#see http://zone.ni.com/devzone/cda/tut/p/id/4620
+nidaqmxconfig --export daq.config
+cat << EOF >> daq.config
+[DAQmxRTSICable RTSICable0]
+RTSI.ConnDevs=Dev1,Dev2
+EOF
+nidaqmxconfig --import daq.config
+
+

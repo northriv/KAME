@@ -12,13 +12,13 @@ Release: 1
 License: GPL
 Group: Applications/Engineering
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
-Requires: qt >= %{qtver}, kdelibs >= %{kdever}
+Requires: qt3 >= %{qtver}, kdelibs3 >= %{kdever}
 Requires: libart_lgpl, gsl, zlib, ruby, libtool-ltdl, fftw
 Requires: libgfortran, atlas-sse2
 BuildPreReq: ruby-devel, gsl-devel, boost-devel, libtool-ltdl-devel, fftw-devel
 BuildPreReq: libgfortran, atlas-sse2-devel
 BuildPreReq: libidn-devel
-BuildPreReq: qt-devel >= %{qtver}, kdelibs-devel >= %{kdever}
+BuildPreReq: qt3-devel >= %{qtver}, kdelibs3 >= %{kdever}, kdelibs3-devel >= %{kdever}
 BuildPreReq: libart_lgpl-devel, zlib-devel, libpng-devel, libjpeg-devel
 BuildPreReq: gcc-c++ >= 4.0
 
