@@ -16,8 +16,8 @@ rpmbuild --with baseonly --without debuginfo --target=i686 rpmbuild/SPECS/kernel
 rpmbuild --define='kversion `uname -r`' --define='kvariants ""' --target=i686 -ba ~/rpmbuild/SPECS/something-kmod.spec 
 
 #Modify SELinux policy.
-#(memory protection) allow textshlib...
-#(memory protection) allow execheap		
+#(memory protection) allow_execheap		
+#(memory protection) allow_execmod	
 
 cd (NIDAQ801 directory)
 ./INSTALL --accept-license
