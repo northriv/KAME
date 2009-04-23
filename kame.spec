@@ -60,7 +60,7 @@ NMR drivers.
 %endif
 
 %prep
-%setup -q -a 1
+%setup -q
 
 %build
 CXXFLAGS="-g3 -mfpmath=sse -msse -msse2 -mmmx -march=pentium4 -D__sse2__" %configure
