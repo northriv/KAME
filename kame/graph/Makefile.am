@@ -1,7 +1,6 @@
 noinst_LIBRARIES = libgraph.a
 
 INCLUDES = -I$(top_srcdir)/. -I$(top_srcdir)/kame \
-	-I$(top_srcdir)/FTGL/include \
 	-I$(top_builddir)/kame/graph $(all_includes)
 
 libgraph_a_SOURCES = graph.cpp graph.h \
