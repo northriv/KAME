@@ -3,7 +3,7 @@
 #Use pirut or sudo yum -y install
 gsl-devel, fftw-devel, atlas-sse2-devel, libgfortran,
  ruby-devel, kdelibs3-devel, kernel-devel,
- libtool-ltdl-devel, libart_lgpl and so on.
+ libtool-ltdl-devel, libart_lgpl, ftgl-devel and so on.
 rpmdevtools
 (ccache)
 
@@ -13,8 +13,11 @@ rpmdev-setuptree
 #For linux-gpib
 rpmbuild --define="kversion `uname -r`" --define='kvariants ""' --target=`uname -m` --rebuild linux-gpib-kmod-{ver}.src.rpm
 rpmbuild --rebuild linux-gpib-{ver}.src.rpm
-#install the rpms: linux-gpib-{ver}.*.rpm, kmod-linux-gpib-{ver}-*.*.rpm
-#see /usr/share/doc/linux-gpib/INSTALL
+#Install the rpms: linux-gpib-{ver}.*.rpm, kmod-linux-gpib-{ver}-*.*.rpm
+#For PCI(e) device(s), edit /etc/modprobe.d/modprobe.conf.local like the following.
+alias char-major-160 gpib_common
+alias gpib0 tnt4882
+install tnt4882 PATH=/sbin:/usr/sbin:/usr/local/sbin:$PATH;modprobe --ignore-install tnt4882;sleep 3;gpib_config --minor 0
 
 #see INSTALL.nidaqmx.fedora10 if you need National Instruments DAQmx support.
 

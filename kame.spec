@@ -7,23 +7,22 @@ Name: kame
 
 %{!?build_nidaqmx: %define build_nidaqmx 1}
 
-Version: 2.3.24
+Version: 2.3.25
 Release: 1
 License: GPL
 Group: Applications/Engineering
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Requires: qt3 >= %{qtver}, kdelibs3 >= %{kdever}
 Requires: libart_lgpl, gsl, zlib, ruby, libtool-ltdl, fftw
-Requires: libgfortran, atlas-sse2
+Requires: libgfortran, atlas-sse2, ftgl >= %{ftglver}
 BuildPreReq: ruby-devel, gsl-devel, boost-devel, libtool-ltdl-devel, fftw-devel
 BuildPreReq: libgfortran, atlas-sse2-devel
-BuildPreReq: libidn-devel
+BuildPreReq: libidn-devel, ftgl-devel >= %{ftglver}
 BuildPreReq: qt3-devel >= %{qtver}, kdelibs3 >= %{kdever}, kdelibs3-devel >= %{kdever}
 BuildPreReq: libart_lgpl-devel, zlib-devel, libpng-devel, libjpeg-devel
 BuildPreReq: gcc-c++ >= 4.0
 
 Source0: %{name}-%{version}.tar.bz2
-Source1: ftgl-%{ftglver}.tar.gz
 
 Summary: KAME, K's adaptive measurement engine.
 
@@ -64,12 +63,6 @@ NMR drivers.
 %setup -q -a 1
 
 %build
-# build static FTGL
-pushd FTGL/unix
-CXXFLAGS="-fpermissive -g -O2" ./configure --disable-shared --enable-static
-make ##%%{?_smp_mflags}
-popd
-
 CXXFLAGS="-g3 -mfpmath=sse -msse -msse2 -mmmx -march=pentium4 -D__sse2__" %configure
 make ##%%{?_smp_mflags}
 
