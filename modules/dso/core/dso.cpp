@@ -290,9 +290,21 @@ XDSO::execute(const atomic<bool> &terminated)
 	while(!terminated) {
 		const int fetch_mode = *fetchMode();
 		if(!fetch_mode || (fetch_mode == FETCHMODE_NEVER)) {
-			msecsleep(50);
+			msecsleep(100);
 			continue;
 		}
+		std::deque<std::string> channels;
+		channels.push_back(trace1()->to_str());
+		if(channels.front().empty()) {
+            statusPrinter()->printMessage(getLabel() + " " + KAME::i18n("Select traces!."));
+            msecsleep(500);
+            continue;
+		}
+		channels.push_back(trace2()->to_str());
+		if(channels.back().empty()) {
+            channels.pop_back();
+		}
+		
 		bool seq_busy = false;
 		int count;
 		try {
@@ -318,17 +330,6 @@ XDSO::execute(const atomic<bool> &terminated)
 		catch (XKameError& e) {
 			e.print(getLabel());
 			continue;
-		}
-
-		std::deque<std::string> channels;
-		channels.push_back(trace1()->to_str());
-		if(channels.front().empty()) {
-            statusPrinter()->printMessage(getLabel() + " " + KAME::i18n("Select traces!."));
-            continue;
-		}
-		channels.push_back(trace2()->to_str());
-		if(channels.back().empty()) {
-            channels.pop_back();
 		}
       
 		clearRaw();
