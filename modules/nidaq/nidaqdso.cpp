@@ -336,7 +336,7 @@ XNIDAQmxDSO::setupTiming()
 	for(unsigned int i = 0; i < 2; i++) {
 		DSORawRecord &rec = m_dsoRawRecordBanks[i];
 		rec.record.resize(len * num_ch);
-		rec.numCh = num_ch;
+		ASSERT(rec.numCh == num_ch);
 		if(g_bUseMLock) {
 			mlock(&rec.record[0], rec.record.size() * sizeof(int32_t));
 		}
@@ -440,6 +440,15 @@ XNIDAQmxDSO::createChannels()
 
 	uInt32 num_ch;
 	CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));	
+
+	//accumlation buffer.
+	for(unsigned int i = 0; i < 2; i++) {
+		DSORawRecord &rec(m_dsoRawRecordBanks[i]);
+		rec.acqCount = 0;
+		rec.accumCount = 0;
+		rec.numCh = num_ch;
+	}
+	
 	if(num_ch == 0)  {
 		return;
 	}
