@@ -28,7 +28,7 @@ XSecondaryDriver::~XSecondaryDriver() {
 	
     for(std::vector<std::pair<shared_ptr<const XDriver>, XSecondaryDriver* > >::iterator
     	it = stl_locked_connections->begin(); it != stl_locked_connections->end(); it++)
-    	if(it->second != this);
+    	if(it->second != this) {}
 }
 
 

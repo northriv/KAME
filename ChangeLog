@@ -1,3 +1,8 @@
+* Sat Apr 25 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.3.25-1)
+- The first release for Fedora 10.
+- dso.cpp, nidaqdso.cpp: Fix for the case where no trace is selected.
+
 * Sat Mar 14 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.3.24-1)
 - nmr: convolute dark PSD by rect window.
