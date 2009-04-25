@@ -1,0 +1,4 @@
+base referer
+rect $d7/d79/class_x_spin_lock.html 8,85 96,112
+rect $dc/d42/class_x_pthread_condition.html 120,85 256,112
+rect $d1/d2b/class_x_pthread_mutex.html 129,8 246,34

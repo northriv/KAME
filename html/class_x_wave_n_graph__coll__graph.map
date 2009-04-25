@@ -1,6 +1,0 @@
-base referer
-rect $class_x_node.html 8,7 72,34
-rect $classqshared__ptr.html 96,7 221,34
-rect $class_x_talker.html 245,7 362,34
-rect $class_x_pthread_mutex.html 425,7 542,34
-rect $class_x_recursive_r_w_lock.html 566,7 708,34

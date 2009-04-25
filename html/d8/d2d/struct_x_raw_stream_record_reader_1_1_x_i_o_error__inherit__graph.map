@@ -1,0 +1,4 @@
+base referer
+rect $d4/d83/struct_x_raw_stream_record_reader_1_1_x_buffer_overflow_error.html 7,232 333,258
+rect $d7/dea/struct_x_raw_stream_record_reader_1_1_x_record_error.html 31,82 309,109
+rect $d7/d19/struct_x_kame_error.html 122,8 218,34

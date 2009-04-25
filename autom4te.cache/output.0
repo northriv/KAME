@@ -995,6 +995,7 @@ LIB_KFM
 LTDL_LIBS
 GSL_LIBS
 FFTW_LIBS
+FTGL_LIBS
 NIDAQMX_LIBS
 NIDAQMX_CFLAGS
 LINUXGPIB_LIBS
@@ -35438,6 +35439,89 @@ fi
 GSL_LIBS="`gsl-config --libs`"
 
 ac_save_LIBS="$LIBS"
+{ echo "$as_me:$LINENO: checking for main in -lftgl" >&5
+echo $ECHO_N "checking for main in -lftgl... $ECHO_C" >&6; }
+if test "${ac_cv_lib_ftgl_main+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lftgl  $LIBS"
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+int
+main ()
+{
+return main ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_cxx_werror_flag" || test ! -s conftest.err'
+  { (case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_try") 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest$ac_exeext'
+  { (case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_try") 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  ac_cv_lib_ftgl_main=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_lib_ftgl_main=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext \
+      conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_lib_ftgl_main" >&5
+echo "${ECHO_T}$ac_cv_lib_ftgl_main" >&6; }
+if test $ac_cv_lib_ftgl_main = yes; then
+  ftgl_libs="-lftgl"
+else
+  { { echo "$as_me:$LINENO: error: FTGL not installed - please install first" >&5
+echo "$as_me: error: FTGL not installed - please install first" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+
+FTGL_LIBS="$FTGL_LIBS $ftgl_libs"
+LIBS="$ac_save_LIBS"
+
+ac_save_LIBS="$LIBS"
 RUBY_INCLUDE_PATH="`find /usr/lib/ruby/ -name 'ruby.h'`"
 RUBY_INCLUDES="`if test -n "$RUBY_INCLUDE_PATH"; then echo -I$RUBY_INCLUDE_PATH; fi |sed -e 's/ruby.h//'`"
 { echo "$as_me:$LINENO: checking for main in -lruby" >&5
@@ -35704,7 +35788,7 @@ if test "${ac_cv_lib_lapack_main+set}" = set; then
   echo $ECHO_N "(cached) $ECHO_C" >&6
 else
   ac_check_lib_save_LIBS=$LIBS
-LIBS="-llapack -L/usr/lib/atlas -llapack -lf77blas -lcblas -lgfortran $LIBS"
+LIBS="-llapack -L/usr/lib/sse2 -llapack -lblas -latlas -lf77blas -lcblas -lgfortran $LIBS"
 cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
@@ -35770,7 +35854,7 @@ fi
 { echo "$as_me:$LINENO: result: $ac_cv_lib_lapack_main" >&5
 echo "${ECHO_T}$ac_cv_lib_lapack_main" >&6; }
 if test $ac_cv_lib_lapack_main = yes; then
-  lapack_libs="-L/usr/lib/atlas -llapack -lf77blas -lcblas -lgfortran"
+  lapack_libs="-L/usr/lib/sse2 -llapack -lblas -latlas -lf77blas -lcblas -lgfortran"
 lapack_cflags=""
 
 cat >>confdefs.h <<\_ACEOF
@@ -39279,6 +39363,7 @@ _ACEOF
 
 
 
+
 CPPFLAGS="$CPPFLAGS $RUBY_CFLAGS $FREETYPE2_CFLAGS $NIDAQMX_CFLAGS $LAPACK_CFLAGS"
 
 
@@ -40458,6 +40543,7 @@ LIB_KFM!$LIB_KFM$ac_delim
 LTDL_LIBS!$LTDL_LIBS$ac_delim
 GSL_LIBS!$GSL_LIBS$ac_delim
 FFTW_LIBS!$FFTW_LIBS$ac_delim
+FTGL_LIBS!$FTGL_LIBS$ac_delim
 NIDAQMX_LIBS!$NIDAQMX_LIBS$ac_delim
 NIDAQMX_CFLAGS!$NIDAQMX_CFLAGS$ac_delim
 LINUXGPIB_LIBS!$LINUXGPIB_LIBS$ac_delim
@@ -40474,7 +40560,7 @@ LIB@&t@OBJS!$LIB@&t@OBJS$ac_delim
 LTLIBOBJS!$LTLIBOBJS$ac_delim
 _ACEOF
 
-  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 62; then
+  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 63; then
     break
   elif $ac_last_try; then
     { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5

@@ -1,4 +1,0 @@
-base referer
-rect $class_x_node.html 8,7 72,34
-rect $class_x_talker.html 96,7 336,34
-rect $class_x_recursive_mutex.html 360,7 490,34

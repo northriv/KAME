@@ -51,7 +51,6 @@ final:
 
 METASOURCES = graphdialogconnector=./graphdialogconnector.h graphwidget=./graphwidget.h graphdialog=graphdialog.h=graphdialog.cpp graphform=graphform.h=graphform.cpp graphnurlform=graphnurlform.h=graphnurlform.cpp
 QT3_UIFILES = graphdialog graphform graphnurlform
-__um_includes_FTGLPixmapFont.h = graphpaintergl.cpp
 __um_includes_deque = graphpainter.cpp graphwidget.cpp graph.cpp graphpaintergl.cpp graphdialogconnector.cpp xwavengraph.cpp
 __um_includes_errno.h = graphpaintergl.cpp
 __um_includes_float.h = graph.cpp

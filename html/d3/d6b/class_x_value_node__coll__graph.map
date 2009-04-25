@@ -1,0 +1,14 @@
+base referer
+rect $d1/d8a/class_x_value_node_base.html 438,391 566,418
+rect $dd/d83/class_x_node.html 474,298 538,325
+rect $d6/dbd/class_x_talker.html 546,189 765,215
+rect $d7/d25/class___x_talker_base.html 386,7 493,34
+rect $d6/dbd/class_x_talker.html 382,98 497,125
+rect $d6/dbd/class_x_talker.html 8,189 290,215
+rect $da/dad/classatomic__shared__ptr.html 572,7 798,34
+rect $da/dad/classatomic__shared__ptr.html 314,189 522,215
+rect $d6/d9b/class_x_thread_local.html 789,189 973,215
+rect $dc/db7/classatomic.html 590,391 681,418
+rect $dc/db7/classatomic.html 564,298 705,325
+rect $d2/db1/class_x_recursive_mutex.html 714,391 845,418
+rect $d1/d2b/class_x_pthread_mutex.html 729,298 846,325

@@ -1,0 +1,4 @@
+base referer
+rect $d2/d48/struct_x_driver_1_1_x_record_error.html 8,82 165,109
+rect $de/d67/struct_x_interface_1_1_x_interface_error.html 189,82 373,109
+rect $d7/dea/struct_x_raw_stream_record_reader_1_1_x_record_error.html 397,82 674,109

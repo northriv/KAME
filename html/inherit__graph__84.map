@@ -1,3 +1,0 @@
-base referer
-rect $class_x_spin_lock.html 7,8 95,34
-rect $class_x_adaptive_spin_lock.html 145,8 283,34

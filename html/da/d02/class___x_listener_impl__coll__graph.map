@@ -1,0 +1,10 @@
+base referer
+rect $d9/d45/class_x_listener.html 220,551 300,578
+rect $dc/db7/classatomic.html 189,461 317,487
+rect $da/dad/classatomic__shared__ptr.html 8,370 208,397
+rect $d0/d70/structatomic__shared__ptr_1_1___ref_local.html 12,189 244,215
+rect $da/dad/classatomic__shared__ptr.html 137,279 300,306
+rect $d1/d85/structatomic__shared__ptr__ref.html 34,98 221,125
+rect $dc/db7/classatomic.html 232,370 373,397
+rect $dc/df9/classatomic__scoped__ptr.html 332,551 510,578
+rect $dc/df9/classatomic__scoped__ptr.html 341,461 506,487

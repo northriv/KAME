@@ -1,0 +1,14 @@
+base referer
+rect $d7/d19/struct_x_kame_error.html 9,159 105,186
+rect $d2/d48/struct_x_driver_1_1_x_record_error.html 216,58 373,85
+rect $de/d67/struct_x_interface_1_1_x_interface_error.html 202,159 386,186
+rect $d7/dea/struct_x_raw_stream_record_reader_1_1_x_record_error.html 156,286 433,313
+rect $d1/da1/struct_x_driver_1_1_x_buffer_underflow_record_error.html 517,7 770,34
+rect $d5/ddc/struct_x_driver_1_1_x_skipped_record_error.html 541,58 746,85
+rect $dd/d68/struct_x_interface_1_1_x_comm_error.html 558,109 729,135
+rect $d7/d11/struct_x_interface_1_1_x_conv_error.html 562,159 725,186
+rect $d6/d67/struct_x_interface_1_1_x_open_interface_error.html 534,210 753,237
+rect $d1/d63/struct_x_raw_stream_record_reader_1_1_x_broken_record_error.html 484,261 804,287
+rect $d2/d8e/struct_x_raw_stream_record_reader_1_1_x_i_o_error.html 520,311 768,338
+rect $d1/d17/struct_x_raw_stream_record_reader_1_1_x_no_driver_error.html 500,362 788,389
+rect $d4/d83/struct_x_raw_stream_record_reader_1_1_x_buffer_overflow_error.html 853,311 1178,338

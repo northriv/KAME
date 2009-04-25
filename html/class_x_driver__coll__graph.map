@@ -1,5 +1,0 @@
-base referer
-rect $class_x_node.html 7,7 71,34
-rect $class_x_talker.html 95,7 319,34
-rect $class_x_time.html 343,7 405,34
-rect $class_x_recursive_r_w_lock.html 437,7 578,34

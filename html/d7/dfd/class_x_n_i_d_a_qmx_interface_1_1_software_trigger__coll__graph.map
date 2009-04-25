@@ -1,0 +1,6 @@
+base referer
+rect $d6/dbd/class_x_talker.html 8,26 282,53
+rect $d1/d2b/class_x_pthread_mutex.html 86,90 204,117
+rect $d4/d7a/classatomic__queue__reserved.html 28,154 262,181
+rect $dc/db7/classatomic.html 66,218 224,245
+rect $da/dad/classatomic__shared__ptr.html 9,282 281,309

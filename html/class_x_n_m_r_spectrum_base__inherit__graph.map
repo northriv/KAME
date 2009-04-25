@@ -1,8 +1,0 @@
-base referer
-rect $class_x_n_m_r_spectrum_base.html 8,330 301,357
-rect $class_x_n_m_r_spectrum_base.html 325,330 610,357
-rect $class_x_secondary_driver.html 214,162 348,189
-rect $class_x_driver.html 246,85 316,112
-rect $class_x_node.html 249,8 313,34
-rect $class_x_n_m_r_f_spectrum.html 90,408 218,434
-rect $class_x_n_m_r_spectrum.html 408,408 528,434

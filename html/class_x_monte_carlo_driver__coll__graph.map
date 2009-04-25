@@ -1,9 +1,0 @@
-base referer
-rect $class_x_dummy_driver.html 257,280 486,306
-rect $class_x_primary_driver.html 144,98 258,125
-rect $class_x_driver.html 8,8 77,34
-rect $class_x_thread_local.html 101,8 301,34
-rect $class_x_thread_local.html 325,8 565,34
-rect $class_x_dummy_driver.html 282,98 461,125
-rect $classqshared__ptr.html 537,280 748,306
-rect $classqshared__ptr.html 756,98 881,125

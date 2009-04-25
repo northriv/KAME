@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2007-07-06 21:49+0900\n"
+"POT-Creation-Date: 2009-03-13 14:56+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -16,61 +16,61 @@ msgstr ""
 "Content-Type: text/plain; charset=CHARSET\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: kame/analyzer/analyzer.cpp:115
+#: kame/analyzer/analyzer.cpp:114
 msgid "Chart - "
 msgstr ""
 
-#: kame/analyzer/analyzer.cpp:275
+#: kame/analyzer/analyzer.cpp:274
 msgid "Graph - "
 msgstr ""
 
-#: kame/analyzer/recordreader.cpp:34
+#: kame/analyzer/recordreader.cpp:33
 msgid "IO Error"
 msgstr ""
 
-#: kame/analyzer/recordreader.cpp:38
+#: kame/analyzer/recordreader.cpp:37
 msgid "Buffer Overflow Error"
 msgstr ""
 
-#: kame/analyzer/recordreader.cpp:40
+#: kame/analyzer/recordreader.cpp:39
 msgid "Broken Record Error"
 msgstr ""
 
-#: kame/analyzer/recordreader.cpp:43
+#: kame/analyzer/recordreader.cpp:42
 msgid "No Driver Error: "
 msgstr ""
 
-#: kame/analyzer/recordreader.cpp:148
+#: kame/analyzer/recordreader.cpp:147
 #, c-format
 msgid "Typemismatch: %s"
 msgstr ""
 
-#: kame/analyzer/recordreader.cpp:251
+#: kame/analyzer/recordreader.cpp:250
 msgid "Stopped"
 msgstr ""
 
-#: kame/analyzer/recordreader.cpp:268
+#: kame/analyzer/recordreader.cpp:267
 msgid "First"
 msgstr ""
 
-#: kame/analyzer/recordreader.cpp:272 kame/analyzer/recordreader.cpp:288
-#: kame/analyzer/recordreader.cpp:306 kame/analyzer/recordreader.cpp:345
+#: kame/analyzer/recordreader.cpp:271 kame/analyzer/recordreader.cpp:287
+#: kame/analyzer/recordreader.cpp:305 kame/analyzer/recordreader.cpp:344
 msgid "No Record, because "
 msgstr ""
 
-#: kame/analyzer/recordreader.cpp:284
+#: kame/analyzer/recordreader.cpp:283
 msgid "Next"
 msgstr ""
 
-#: kame/analyzer/recordreader.cpp:302
+#: kame/analyzer/recordreader.cpp:301
 msgid "Previous"
 msgstr ""
 
-#: kame/analyzer/recordreader.cpp:334
+#: kame/analyzer/recordreader.cpp:333
 msgid "No such driver :"
 msgstr ""
 
-#: kame/driver/driver.cpp:30
+#: kame/driver/driver.cpp:29
 msgid "Buffer Underflow."
 msgstr ""
 
@@ -83,371 +83,405 @@ msgstr ""
 msgid ": Stopping driver failed, because "
 msgstr ""
 
-#: kame/driver/interface.cpp:27
+#: kame/driver/interface.cpp:26
 msgid "Conversion Error"
 msgstr ""
 
-#: kame/driver/interface.cpp:29
+#: kame/driver/interface.cpp:28
 msgid "Communication Error"
 msgstr ""
 
-#: kame/driver/interface.cpp:31
+#: kame/driver/interface.cpp:30
 msgid "Open Interface Error"
 msgstr ""
 
-#: kame/driver/interface.cpp:60
+#: kame/driver/interface.cpp:58
 msgid ": Starting..."
 msgstr ""
 
-#: kame/driver/interface.cpp:75
+#: kame/driver/interface.cpp:73
 msgid "Port has already opened"
 msgstr ""
 
-#: kame/driver/interface.cpp:81 modules/charinterface/chardevicedriver.h:73
+#: kame/driver/interface.cpp:79 modules/charinterface/chardevicedriver.h:73
 #: modules/nidaq/nidaqmxdriver.h:242
 msgid ": Opening interface failed, because "
 msgstr ""
 
-#: kame/driver/interface.cpp:108
+#: kame/driver/interface.cpp:105
 msgid ": Closing port failed, because"
 msgstr ""
 
-#: kame/driver/primarydriver.cpp:50 kame/driver/secondarydriver.cpp:91
+#: kame/driver/primarydriver.cpp:40 kame/driver/secondarydriver.cpp:109
+#, c-format
+msgid ""
+"Dead lock deteceted on %s. Operation canceled.\n"
+"Report this bug to author(s)."
+msgstr ""
+
+#: kame/driver/primarydriver.cpp:53 kame/driver/secondarydriver.cpp:122
+msgid "Skipped, because "
+msgstr ""
+
+#: kame/driver/primarydriver.cpp:57 kame/driver/secondarydriver.cpp:126
 msgid "Record Error, because "
 msgstr ""
 
-#: kame/forms/driverlistconnector.cpp:51
-#: kame/forms/interfacelistconnector.cpp:41
+#: kame/forms/driverlistconnector.cpp:50
+#: kame/forms/interfacelistconnector.cpp:40
 msgid "Driver"
 msgstr ""
 
-#: kame/forms/driverlistconnector.cpp:52
+#: kame/forms/driverlistconnector.cpp:51
 msgid "Type"
 msgstr ""
 
-#: kame/forms/driverlistconnector.cpp:53
+#: kame/forms/driverlistconnector.cpp:52
 msgid "Recorded Time"
 msgstr ""
 
-#: kame/forms/driverlistconnector.cpp:165
+#: kame/forms/driverlistconnector.cpp:164
 msgid "Duplicated name."
 msgstr ""
 
-#: kame/forms/driverlistconnector.cpp:173
+#: kame/forms/driverlistconnector.cpp:172
 msgid "Driver creation failed."
 msgstr ""
 
-#: kame/forms/entrylistconnector.cpp:40
+#: kame/forms/entrylistconnector.cpp:39
 msgid "Entry"
 msgstr ""
 
-#: kame/forms/entrylistconnector.cpp:41
-#: ../macosx/kame/thermometer/forms/caltableform.cpp:115
-#: ../macosx/kame/users/dcsource/forms/dcsourceform.cpp:94
-#: ../macosx/modules/dcsource/core/forms/dcsourceform.cpp:117
-#: ../macosx/modules/dcsource/forms/dcsourceform.cpp:94
+#: kame/forms/entrylistconnector.cpp:40
+#: ../macosx/kame/forms/nodebrowserform.cpp:85
+#: ../macosx/kame/thermometer/forms/caltableform.cpp:116
+#: ../macosx/modules/dcsource/core/forms/dcsourceform.cpp:118
 msgid "Value"
 msgstr ""
 
-#: kame/forms/entrylistconnector.cpp:42
+#: kame/forms/entrylistconnector.cpp:41
 msgid "Store"
 msgstr ""
 
-#: kame/forms/entrylistconnector.cpp:43
+#: kame/forms/entrylistconnector.cpp:42
 msgid "Delta"
 msgstr ""
 
-#: kame/forms/graphlistconnector.cpp:53
-#: ../macosx/kame/forms/drivercreate.cpp:101
+#: kame/forms/graphlistconnector.cpp:52
+#: ../macosx/kame/forms/drivercreate.cpp:102
 msgid "Name"
 msgstr ""
 
-#: kame/forms/graphlistconnector.cpp:54
+#: kame/forms/graphlistconnector.cpp:53
 msgid "Axis X"
 msgstr ""
 
-#: kame/forms/graphlistconnector.cpp:55
+#: kame/forms/graphlistconnector.cpp:54
 msgid "Axis Y"
 msgstr ""
 
-#: kame/forms/graphlistconnector.cpp:56
+#: kame/forms/graphlistconnector.cpp:55
 msgid "Axis Z"
 msgstr ""
 
-#: kame/forms/interfacelistconnector.cpp:42
+#: kame/forms/interfacelistconnector.cpp:41
 msgid "Control"
 msgstr ""
 
-#: kame/forms/interfacelistconnector.cpp:43
+#: kame/forms/interfacelistconnector.cpp:42
 msgid "Device"
 msgstr ""
 
-#: kame/forms/interfacelistconnector.cpp:44
+#: kame/forms/interfacelistconnector.cpp:43
 msgid "Port"
 msgstr ""
 
-#: kame/forms/interfacelistconnector.cpp:45
+#: kame/forms/interfacelistconnector.cpp:44
 msgid "Addr"
 msgstr ""
 
-#: kame/forms/interfacelistconnector.cpp:66
+#: kame/forms/interfacelistconnector.cpp:65
 msgid "&STOP"
 msgstr ""
 
-#: kame/forms/interfacelistconnector.cpp:71
+#: kame/forms/interfacelistconnector.cpp:70
 msgid "&RUN"
 msgstr ""
 
-#: kame/graph/graph.cpp:87
+#: kame/graph/graph.cpp:86
 msgid "X Axis"
 msgstr ""
 
-#: kame/graph/graph.cpp:90
+#: kame/graph/graph.cpp:89
 msgid "Y Axis"
 msgstr ""
 
-#: kame/graph/graphpainter.cpp:390
+#: kame/graph/graphpainter.cpp:389
 msgid "R-DBL-CLICK TO SHOW HELP"
 msgstr ""
 
-#: kame/graph/graphpainter.cpp:593
+#: kame/graph/graphpainter.cpp:592
 msgid "QUICK HELP!"
 msgstr ""
 
-#: kame/graph/graphpainter.cpp:598 kame/graph/graphpainter.cpp:604
+#: kame/graph/graphpainter.cpp:597 kame/graph/graphpainter.cpp:603
 msgid "Single Click Right Button on Axis : Auto-scale"
 msgstr ""
 
-#: kame/graph/graphpainter.cpp:600
+#: kame/graph/graphpainter.cpp:599
 msgid "Press Left Button on Plot : Manual Scale"
 msgstr ""
 
-#: kame/graph/graphpainter.cpp:602
+#: kame/graph/graphpainter.cpp:601
 msgid "Press Right Button along Axis: Manual Scale"
 msgstr ""
 
-#: kame/graph/graphpainter.cpp:606
+#: kame/graph/graphpainter.cpp:605
 msgid "Single Click Right Button elsewhere : Auto-scale all"
 msgstr ""
 
-#: kame/graph/graphpainter.cpp:608
+#: kame/graph/graphpainter.cpp:607
 msgid "Press Middle Button : Tilt plots"
 msgstr ""
 
-#: kame/graph/graphpainter.cpp:610
+#: kame/graph/graphpainter.cpp:609
 msgid "Single Click Middle Button : Reset tilting"
 msgstr ""
 
-#: kame/graph/graphpainter.cpp:612
+#: kame/graph/graphpainter.cpp:611
 msgid "Wheel around Center : (Un)Zoom all Plots"
 msgstr ""
 
-#: kame/graph/graphpainter.cpp:614
+#: kame/graph/graphpainter.cpp:613
 msgid "Wheel at Side : Tilt by 30deg."
 msgstr ""
 
-#: kame/graph/graphpainter.cpp:616
+#: kame/graph/graphpainter.cpp:615
 msgid "Double Click Left Button : Show Dialog"
 msgstr ""
 
-#: kame/graph/graphpainter.cpp:618
+#: kame/graph/graphpainter.cpp:617
 msgid "Double Click Right Button : This Help"
 msgstr ""
 
-#: kame/graph/graphpaintergl.cpp:94
+#: kame/graph/graphpaintergl.cpp:93
 msgid "No Fontfile!!"
 msgstr ""
 
-#: kame/graph/graphpaintergl.cpp:197
+#: kame/graph/graphpaintergl.cpp:192
 msgid "iconv error, probably locale is not correct."
 msgstr ""
 
-#: kame/graph/graphpaintergl.cpp:380
+#: kame/graph/graphpaintergl.cpp:375
 msgid "GL Font Error."
 msgstr ""
 
-#: kame/kame.cpp:188
+#: kame/kame.cpp:223
 msgid "Open"
 msgstr ""
 
-#: kame/kame.cpp:189
+#: kame/kame.cpp:224
 msgid "&Open..."
 msgstr ""
 
-#: kame/kame.cpp:190
+#: kame/kame.cpp:225
 msgid "Ctrl+O"
 msgstr ""
 
-#: kame/kame.cpp:191
+#: kame/kame.cpp:226
 msgid "Save"
 msgstr ""
 
-#: kame/kame.cpp:193
+#: kame/kame.cpp:228
 msgid "Ctrl+S"
 msgstr ""
 
-#: kame/kame.cpp:194
+#: kame/kame.cpp:229
 msgid "Exit"
 msgstr ""
 
-#: kame/kame.cpp:195
+#: kame/kame.cpp:230
 msgid "E&xit"
 msgstr ""
 
-#: kame/kame.cpp:197
+#: kame/kame.cpp:232
 msgid "Contents"
 msgstr ""
 
-#: kame/kame.cpp:198
+#: kame/kame.cpp:233
 msgid "&Contents..."
 msgstr ""
 
-#: kame/kame.cpp:200
+#: kame/kame.cpp:235
 msgid "Index"
 msgstr ""
 
-#: kame/kame.cpp:201
+#: kame/kame.cpp:236
 msgid "&Index..."
 msgstr ""
 
-#: kame/kame.cpp:203
+#: kame/kame.cpp:238
 msgid "About"
 msgstr ""
 
-#: kame/kame.cpp:204
+#: kame/kame.cpp:239
 msgid "&About"
 msgstr ""
 
-#: kame/kame.cpp:206
+#: kame/kame.cpp:241
 msgid "&Log Debugging Info"
 msgstr ""
 
-#: kame/kame.cpp:208
+#: kame/kame.cpp:243
+msgid "Stop"
+msgstr ""
+
+#: kame/kame.cpp:244
 msgid "&Stop"
 msgstr ""
 
-#: kame/kame.cpp:209
+#: kame/kame.cpp:245
+msgid "Run"
+msgstr ""
+
+#: kame/kame.cpp:246
 msgid "&Run..."
 msgstr ""
 
-#: kame/kame.cpp:210
+#: kame/kame.cpp:247
+msgid "New Line Shell"
+msgstr ""
+
+#: kame/kame.cpp:248
+msgid "&New Line Shell"
+msgstr ""
+
+#: kame/kame.cpp:249
+msgid "Graphviz Save .dot"
+msgstr ""
+
+#: kame/kame.cpp:250
 msgid "&Graphviz Save .dot..."
 msgstr ""
 
-#: kame/kame.cpp:211
+#: kame/kame.cpp:251
 msgid "Close"
 msgstr ""
 
-#: kame/kame.cpp:212
+#: kame/kame.cpp:252
 msgid "&Close"
 msgstr ""
 
-#: kame/kame.cpp:215
+#: kame/kame.cpp:255
 msgid "&File"
 msgstr ""
 
-#: kame/kame.cpp:217
+#: kame/kame.cpp:257
 msgid "&Measure"
 msgstr ""
 
-#: kame/kame.cpp:219
+#: kame/kame.cpp:259
 msgid "&Script"
 msgstr ""
 
-#: kame/kame.cpp:221
+#: kame/kame.cpp:261
 msgid "&View"
 msgstr ""
 
-#: kame/kame.cpp:223
+#: kame/kame.cpp:263
 msgid "&Window"
 msgstr ""
 
-#: kame/kame.cpp:225 ../macosx/kame/graph/graphdialog.cpp:548
+#: kame/kame.cpp:265 ../macosx/kame/graph/graphdialog.cpp:549
 msgid "&Help"
 msgstr ""
 
-#: kame/kame.cpp:292
+#: kame/kame.cpp:335
 msgid "Stop running first."
 msgstr ""
 
-#: kame/kame.cpp:353
+#: kame/kame.cpp:368
 msgid "Open Measurement File"
 msgstr ""
 
-#: kame/kame.cpp:366
+#: kame/kame.cpp:381
 msgid "Save Measurement File"
 msgstr ""
 
-#: kame/kame.cpp:381
+#: kame/kame.cpp:396
 msgid "K's Adaptive Measurement Engine."
 msgstr ""
 
-#: kame/kame.cpp:423
+#: kame/kame.cpp:473
 msgid "Open Script File"
 msgstr ""
 
-#: kame/kame.cpp:454
+#: kame/kame.cpp:501
 msgid "Save Graphviz dot File"
 msgstr ""
 
-#: kame/main.cpp:34 kame/main.cpp:65
+#: kame/main.cpp:33 kame/main.cpp:64
 msgid "KAME"
 msgstr ""
 
-#: kame/main.cpp:40
+#: kame/main.cpp:39
 msgid "log debuging info."
 msgstr ""
 
-#: kame/main.cpp:41
+#: kame/main.cpp:40
 msgid "never cause swapping, perhaps you need 'ulimit -l <MB>'"
 msgstr ""
 
-#: kame/main.cpp:42
+#: kame/main.cpp:41
 msgid "never use mlock"
 msgstr ""
 
-#: kame/main.cpp:44
+#: kame/main.cpp:43
 msgid "do not use direct rendering"
 msgstr ""
 
-#: kame/main.cpp:45
+#: kame/main.cpp:44
 msgid "load a specified module"
 msgstr ""
 
-#: kame/main.cpp:46
+#: kame/main.cpp:45
 msgid "measurement file to open"
 msgstr ""
 
-#: kame/support.cpp:219
+#: kame/math/freqest.cpp:28
+msgid "Too large size to allocate a matrix."
+msgstr ""
+
+#: kame/support.cpp:228
 msgid "Mal-format conversion."
 msgstr ""
 
-#: kame/support.cpp:263
+#: kame/support.cpp:272
 #, c-format
 msgid "Illegal Format, too many %s."
 msgstr ""
 
-#: kame/support.cpp:270
+#: kame/support.cpp:279
 msgid "Illegal Format."
 msgstr ""
 
-#: kame/support.cpp:273
+#: kame/support.cpp:282
 msgid "Illegal Format, no float conversion."
 msgstr ""
 
-#: kame/support.cpp:276
+#: kame/support.cpp:285
 msgid "Illegal Format, no %."
 msgstr ""
 
-#: kame/thermometer/caltable.cpp:53
+#: kame/thermometer/caltable.cpp:52
 msgid "Thermometer Calibration"
 msgstr ""
 
-#: kame/thermometer/caltable.cpp:59
+#: kame/thermometer/caltable.cpp:58
 msgid "Curve"
 msgstr ""
 
-#: kame/thermometer/caltable.cpp:61
+#: kame/thermometer/caltable.cpp:60
 msgid "Error"
 msgstr ""
 
@@ -455,199 +489,205 @@ msgstr ""
 msgid "XApproxThermometer, Too small number of points"
 msgstr ""
 
-#: kame/xitemnode.cpp:39
+#: kame/xitemnode.cpp:38
 msgid "No item."
 msgstr ""
 
-#: kame/xnode.cpp:164
+#: kame/xnode.cpp:170
 msgid "Ill string conversion to integer."
 msgstr ""
 
-#: kame/xnode.cpp:173
+#: kame/xnode.cpp:179
 msgid "Ill string conversion to unsigned integer."
 msgstr ""
 
-#: kame/xnode.cpp:182
+#: kame/xnode.cpp:188
 msgid "Ill string conversion to hex."
 msgstr ""
 
-#: kame/xnode.cpp:200
+#: kame/xnode.cpp:206
 msgid "Ill string conversion to boolean."
 msgstr ""
 
-#: kame/xnode.cpp:273
+#: kame/xnode.cpp:279
 msgid "Ill string conversion to double float."
 msgstr ""
 
-#: kame/xnodeconnector.cpp:198
+#: kame/xnodeconnector.cpp:219
 msgid "Input cancelled."
 msgstr ""
 
-#: kame/xnodeconnector.cpp:435
+#: kame/xnodeconnector.cpp:434
 msgid "Use drag-n-drop with ctrl pressed to reorder."
 msgstr ""
 
-#: kame/xnodeconnector.cpp:451
+#: kame/xnodeconnector.cpp:450
 msgid "Invalid range of selections."
 msgstr ""
 
-#: kame/xnodeconnector.cpp:522 kame/xnodeconnector.cpp:530
-#: kame/xnodeconnector.cpp:532 kame/xnodeconnector.cpp:535
-#: kame/xnodeconnector.cpp:558
+#: kame/xnodeconnector.cpp:521 kame/xnodeconnector.cpp:529
+#: kame/xnodeconnector.cpp:531 kame/xnodeconnector.cpp:534
+#: kame/xnodeconnector.cpp:557
 msgid "(UNSEL)"
 msgstr ""
 
-#: kame/xnodeconnector.cpp:550
+#: kame/xnodeconnector.cpp:549
 msgid "(NO NAME)"
 msgstr ""
 
-#: kame/xnodeconnector.cpp:671
+#: kame/xnodeconnector.cpp:670
 msgid "Warning: "
 msgstr ""
 
-#: kame/xnodeconnector.cpp:680
+#: kame/xnodeconnector.cpp:679
 msgid "Error: "
 msgstr ""
 
-#: modules/charinterface/charinterface.cpp:143
-#: modules/charinterface/charinterface.cpp:180
+#: modules/charinterface/charinterface.cpp:157
+#: modules/charinterface/charinterface.cpp:194
 msgid " SendError, because "
 msgstr ""
 
-#: modules/charinterface/charinterface.cpp:196
 #: modules/charinterface/charinterface.cpp:210
+#: modules/charinterface/charinterface.cpp:224
 msgid " ReceiveError, because "
 msgstr ""
 
-#: modules/charinterface/charinterface.cpp:255
-#: modules/charinterface/charinterface.cpp:263
+#: modules/charinterface/charinterface.cpp:269
+#: modules/charinterface/charinterface.cpp:277
 msgid "Port is not opened."
 msgstr ""
 
-#: modules/charinterface/gpib.cpp:126
+#: modules/charinterface/gpib.cpp:125
 msgid "GPIB: Sending IFC"
 msgstr ""
 
-#: modules/charinterface/gpib.cpp:142
+#: modules/charinterface/gpib.cpp:141
 msgid "opening gpib device faild"
 msgstr ""
 
-#: modules/charinterface/gpib.cpp:200 modules/charinterface/gpib.cpp:261
+#: modules/charinterface/gpib.cpp:199 modules/charinterface/gpib.cpp:257
 msgid "too many EDVR/EFSO"
 msgstr ""
 
-#: modules/charinterface/gpib.cpp:202
+#: modules/charinterface/gpib.cpp:201
 msgid "ibwrt err"
 msgstr ""
 
-#: modules/charinterface/gpib.cpp:205 modules/charinterface/gpib.cpp:266
+#: modules/charinterface/gpib.cpp:204 modules/charinterface/gpib.cpp:262
 #: modules/nmr/pulserdriverh8.cpp:152 modules/nmr/pulserdriversh.cpp:367
 msgid "try to continue"
 msgstr ""
 
-#: modules/charinterface/gpib.cpp:220
+#: modules/charinterface/gpib.cpp:219
 msgid "ibwrt terminated without CMPL"
 msgstr ""
 
-#: modules/charinterface/gpib.cpp:263
+#: modules/charinterface/gpib.cpp:259
 msgid "ibrd err"
 msgstr ""
 
-#: modules/charinterface/gpib.cpp:272
+#: modules/charinterface/gpib.cpp:268
 msgid "libgpib error."
 msgstr ""
 
-#: modules/charinterface/gpib.cpp:282
+#: modules/charinterface/gpib.cpp:279
 msgid "ibrd terminated without CMPL"
 msgstr ""
 
-#: modules/charinterface/gpib.cpp:296 modules/charinterface/gpib.cpp:335
+#: modules/charinterface/gpib.cpp:293 modules/charinterface/gpib.cpp:332
 msgid "too many spoll timeouts"
 msgstr ""
 
-#: modules/charinterface/gpib.cpp:310 modules/charinterface/gpib.cpp:349
+#: modules/charinterface/gpib.cpp:307 modules/charinterface/gpib.cpp:346
 msgid "ibrsp err"
 msgstr ""
 
-#: modules/charinterface/gpib.cpp:312 modules/charinterface/gpib.cpp:351
+#: modules/charinterface/gpib.cpp:309 modules/charinterface/gpib.cpp:348
 msgid "ibrsp failed"
 msgstr ""
 
-#: modules/charinterface/gpib.cpp:360
+#: modules/charinterface/gpib.cpp:357
 msgid "ibrd before ibwrt asserted"
 msgstr ""
 
-#: modules/charinterface/oxforddriver.cpp:67
+#: modules/charinterface/oxforddriver.cpp:66
 msgid "Oxford Query Error, Initial doesn't match"
 msgstr ""
 
-#: modules/charinterface/serial.cpp:47
+#: modules/charinterface/serial.cpp:46 modules/charinterface/serial.cpp:84
 msgid "tty open failed"
 msgstr ""
 
-#: modules/charinterface/serial.cpp:66
+#: modules/charinterface/serial.cpp:65
 msgid "Invalid Baudrate"
 msgstr ""
 
-#: modules/charinterface/serial.cpp:79
+#: modules/charinterface/serial.cpp:80
 msgid "stty failed"
 msgstr ""
 
-#: modules/charinterface/serial.cpp:100
+#: modules/charinterface/serial.cpp:106
 msgid "tciflush error."
 msgstr ""
 
-#: modules/charinterface/serial.cpp:117
+#: modules/charinterface/serial.cpp:123
 msgid "write error"
 msgstr ""
 
-#: modules/charinterface/serial.cpp:151
+#: modules/charinterface/serial.cpp:157
 msgid "read time-out, buf=;"
 msgstr ""
 
-#: modules/charinterface/serial.cpp:159 modules/charinterface/serial.cpp:202
+#: modules/charinterface/serial.cpp:165 modules/charinterface/serial.cpp:208
 msgid "read error"
 msgstr ""
 
-#: modules/charinterface/serial.cpp:195
+#: modules/charinterface/serial.cpp:201
 msgid "read time-out"
 msgstr ""
 
-#: modules/dcsource/core/dcsource.cpp:36
+#: modules/dcsource/core/dcsource.cpp:35
 msgid "DC Source - "
 msgstr ""
 
-#: modules/dcsource/core/dcsource.cpp:115
+#: modules/dcsource/core/dcsource.cpp:114
 msgid ": Error while changing output, "
 msgstr ""
 
-#: modules/dcsource/core/dcsource.cpp:127
+#: modules/dcsource/core/dcsource.cpp:126
 msgid ": Error while changing function, "
 msgstr ""
 
-#: modules/dcsource/core/dcsource.cpp:139
-#: modules/dcsource/core/dcsource.cpp:151
-#: modules/dcsource/core/dcsource.cpp:171
+#: modules/dcsource/core/dcsource.cpp:138
+#: modules/dcsource/core/dcsource.cpp:150
+#: modules/dcsource/core/dcsource.cpp:170
 msgid ": Error while changing value, "
 msgstr ""
 
-#: modules/dcsource/userdcsource.cpp:172
+#: modules/dcsource/userdcsource.cpp:181
 msgid "Value is out of range."
 msgstr ""
 
-#: modules/dmm/core/dmm.cpp:38
+#: modules/dmm/core/dmm.cpp:37
 msgid "DMM - "
 msgstr ""
 
-#: modules/dmm/core/dmm.cpp:95 modules/dmm/core/dmm.cpp:106
+#: modules/dmm/core/dmm.cpp:94 modules/dmm/core/dmm.cpp:105
 msgid "DMM Error"
 msgstr ""
 
-#: modules/dmm/core/dmm.cpp:126
+#: modules/dmm/core/dmm.cpp:125
 msgid "DMM Read Error"
 msgstr ""
 
-#: modules/dso/core/dso.cpp:232
+#: modules/dmm/userdmm.cpp:161 modules/dmm/userdmm.cpp:164
+#: modules/dmm/userdmm.cpp:181 modules/dmm/userdmm.cpp:190
+#: modules/dmm/userdmm.cpp:193 modules/dmm/userdmm.cpp:197
+msgid "Format Error!"
+msgstr ""
+
+#: modules/dso/core/dso.cpp:231
 msgid "Traces [V]"
 msgstr ""
 
@@ -655,71 +695,85 @@ msgstr ""
 msgid "Select traces!."
 msgstr ""
 
-#: modules/dso/core/dso.cpp:409
+#: modules/dso/core/dso.cpp:416
 msgid "Too small number of taps for FIR filter."
 msgstr ""
 
-#: modules/funcsynth/funcsynth.cpp:41
+#: modules/dso/lecroy.cpp:254 modules/dso/lecroy.cpp:258
+#: modules/dso/lecroy.cpp:265 modules/dso/lecroy.cpp:282
+#: modules/dso/lecroy.cpp:306
+msgid "Invalid waveform"
+msgstr ""
+
+#: modules/funcsynth/funcsynth.cpp:40
 msgid "Func. Synth. - "
 msgstr ""
 
-#: modules/lia/lockinamp.cpp:50
+#: modules/lia/lockinamp.cpp:49
 msgid "Lock-in-Amp - "
 msgstr ""
 
-#: modules/lia/lockinamp.cpp:129
+#: modules/lia/lockinamp.cpp:128
 msgid "Error while changing output, "
 msgstr ""
 
-#: modules/lia/lockinamp.cpp:140
+#: modules/lia/lockinamp.cpp:139
 msgid "Error while changing frequency, "
 msgstr ""
 
-#: modules/lia/lockinamp.cpp:151
+#: modules/lia/lockinamp.cpp:150
 msgid "Error while changing sensitivity, "
 msgstr ""
 
-#: modules/lia/lockinamp.cpp:162
+#: modules/lia/lockinamp.cpp:161
 msgid "Error while changing time const., "
 msgstr ""
 
-#: modules/lia/lockinamp.cpp:197
+#: modules/lia/lockinamp.cpp:196
 msgid "Read Error, "
 msgstr ""
 
-#: modules/lia/userlockinamp.cpp:214 modules/lia/userlockinamp.cpp:218
+#: modules/lia/userlockinamp.cpp:213 modules/lia/userlockinamp.cpp:217
 msgid "Operation not supported."
 msgstr ""
 
-#: modules/magnetps/core/magnetps.cpp:238
+#: modules/magnetps/core/magnetps.cpp:237
 msgid "Turning on Perisistent mode."
 msgstr ""
 
-#: modules/magnetps/core/magnetps.cpp:252
+#: modules/magnetps/core/magnetps.cpp:251
 msgid "Non-Perisistent mode."
 msgstr ""
 
-#: modules/magnetps/core/magnetps.cpp:256
+#: modules/magnetps/core/magnetps.cpp:255
 msgid "Huh? Magnet field confusing."
 msgstr ""
 
-#: modules/magnetps/usermagnetps.cpp:116
+#: modules/magnetps/usermagnetps.cpp:115
 msgid "Cannot enter non-persistent mode. Output is busy."
 msgstr ""
 
-#: modules/magnetps/usermagnetps.cpp:292
+#: modules/magnetps/usermagnetps.cpp:291
 msgid "Persistent Switch Heater not responding"
 msgstr ""
 
-#: modules/nidaq/nidaqdso.cpp:563
+#: modules/networkanalyzer/networkanalyzer.cpp:86
+msgid "Markers"
+msgstr ""
+
+#: modules/networkanalyzer/usernetworkanalyzer.cpp:155
+msgid "Select scalar plot."
+msgstr ""
+
+#: modules/nidaq/nidaqdso.cpp:567
 msgid "Inconsistent channel number."
 msgstr ""
 
-#: modules/nidaq/nidaqdso.cpp:581
+#: modules/nidaq/nidaqdso.cpp:585
 msgid "Buffer Overflow."
 msgstr ""
 
-#: modules/nidaq/nidaqdso.cpp:761
+#: modules/nidaq/nidaqdso.cpp:765
 msgid "Restart the software-trigger source."
 msgstr ""
 
@@ -731,261 +785,279 @@ msgstr ""
 msgid "No device info. for product [%1]."
 msgstr ""
 
-#: modules/nidaq/pulserdrivernidaq.cpp:53
-#: modules/nidaq/pulserdrivernidaq.cpp:60
+#: modules/nidaq/pulserdrivernidaq.cpp:52
+#: modules/nidaq/pulserdrivernidaq.cpp:59
 msgid "Product-type mismatch."
 msgstr ""
 
-#: modules/nidaq/pulserdrivernidaq.cpp:57
+#: modules/nidaq/pulserdrivernidaq.cpp:56
 msgid "Opening M series device failed."
 msgstr ""
 
-#: modules/nidaq/pulserdrivernidaqmx.cpp:78
-#: modules/nidaq/pulserdrivernidaqmx.cpp:97
-#: modules/nidaq/pulserdrivernidaqmx.cpp:99
+#: modules/nidaq/pulserdrivernidaqmx.cpp:77
+#: modules/nidaq/pulserdrivernidaqmx.cpp:96
+#: modules/nidaq/pulserdrivernidaqmx.cpp:98
 msgid "HW-timed transfer needed."
 msgstr ""
 
-#: modules/nidaq/pulserdrivernidaqmx.cpp:462
-#: modules/nidaq/pulserdrivernidaqmx.cpp:470
+#: modules/nidaq/pulserdrivernidaqmx.cpp:466
+#: modules/nidaq/pulserdrivernidaqmx.cpp:474
 msgid "Use the pausing feature for a cheap DAQmx board.\n"
 msgstr ""
 
-#: modules/nidaq/pulserdrivernidaqmx.cpp:463
-#: modules/nidaq/pulserdrivernidaqmx.cpp:471
+#: modules/nidaq/pulserdrivernidaqmx.cpp:467
+#: modules/nidaq/pulserdrivernidaqmx.cpp:475
 msgid "Look at the port-selection table."
 msgstr ""
 
-#: modules/nidaq/pulserdrivernidaqmx.cpp:897
+#: modules/nidaq/pulserdrivernidaqmx.cpp:901
 msgid "Invalid pulse patterns."
 msgstr ""
 
-#: modules/nidaq/pulserdrivernidaqmx.cpp:977
+#: modules/nidaq/pulserdrivernidaqmx.cpp:981
 #: modules/nmr/pulserdriverh8.cpp:121 modules/nmr/pulserdriversh.cpp:335
 msgid "Pulser Invalid pattern"
 msgstr ""
 
-#: modules/nmr/core/pulserdriver.cpp:301
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:454
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:639
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:467
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:662
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:454
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:639
+#: modules/nmr/core/pulserdriver.cpp:237
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:468
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:669
 msgid "Pulser Control"
 msgstr ""
 
-#: modules/nmr/core/pulserdriver.cpp:302
+#: modules/nmr/core/pulserdriver.cpp:238
 msgid "Pulser Control More Config."
 msgstr ""
 
-#: modules/nmr/core/pulserdriver.cpp:680
+#: modules/nmr/core/pulserdriver.cpp:621
 msgid "Pulser Turn-Off Failed, because"
 msgstr ""
 
-#: modules/nmr/core/pulserdriver.cpp:729
+#: modules/nmr/core/pulserdriver.cpp:670
 msgid "Pulser Turn-On Failed, because"
 msgstr ""
 
-#: modules/nmr/core/pulserdriverconnector.cpp:80
+#: modules/nmr/core/pulserdriverconnector.cpp:79
 #, c-format
 msgid "Port%d"
 msgstr ""
 
-#: modules/nmr/core/pulserdriverconnector.cpp:91
+#: modules/nmr/core/pulserdriverconnector.cpp:90
 msgid "Bars"
 msgstr ""
 
-#: modules/nmr/core/pulserdriverconnector.cpp:107
+#: modules/nmr/core/pulserdriverconnector.cpp:106
 msgid "Pulse Patterns"
 msgstr ""
 
-#: modules/nmr/core/signalgenerator.cpp:41
-msgid "Signal Gen. Control - "
-msgstr ""
-
-#: modules/nmr/core/signalgenerator.cpp:109
-msgid "Positive Value Needed."
-msgstr ""
-
-#: modules/nmr/core/signalgenerator.cpp:119
-msgid "SG Error."
-msgstr ""
-
-#: modules/nmr/nmrfspectrum.cpp:63
+#: modules/nmr/nmrfspectrum.cpp:41
 msgid "NMR Spectrum (Freq. Sweep) - "
 msgstr ""
 
-#: modules/nmr/nmrfspectrum.cpp:70 modules/nmr/nmrpulse.cpp:188
-#: modules/nmr/nmrspectrum.cpp:68
-msgid "Intens. [V]"
+#: modules/nmr/nmrfspectrum.cpp:44
+msgid "Freq [MHz]"
 msgstr ""
 
-#: modules/nmr/nmrfspectrum.cpp:71 modules/nmr/nmrpulse.cpp:189
-#: modules/nmr/nmrspectrum.cpp:69
-msgid "real part"
-msgstr ""
-
-#: modules/nmr/nmrfspectrum.cpp:73 modules/nmr/nmrpulse.cpp:191
-#: modules/nmr/nmrspectrum.cpp:71
-msgid "imag. part"
-msgstr ""
-
-#: modules/nmr/nmrfspectrum.cpp:160
-msgid "Conflicting freqs of 2 SGs."
-msgstr ""
-
-#: modules/nmr/nmrfspectrum.cpp:172 modules/nmr/nmrspectrum.cpp:205
+#: modules/nmr/nmrfspectrum.cpp:128 modules/nmr/nmrspectrumbase.cpp:330
 msgid "Invalid center freq."
 msgstr ""
 
-#: modules/nmr/nmrfspectrum.cpp:175
+#: modules/nmr/nmrfspectrum.cpp:131
 msgid "Too large freq. step."
 msgstr ""
 
-#: modules/nmr/nmrfspectrum.cpp:183 modules/nmr/nmrspectrum.cpp:200
-msgid "Invalid waveform."
-msgstr ""
-
-#: modules/nmr/nmrpulse.cpp:155
+#: modules/nmr/nmrpulse.cpp:95
 msgid "NMR Pulse - "
 msgstr ""
 
-#: modules/nmr/nmrpulse.cpp:157
-msgid "NMR-FFT - "
+#: modules/nmr/nmrpulse.cpp:97
+msgid "NMR-Spectrum - "
 msgstr ""
 
-#: modules/nmr/nmrpulse.cpp:200
+#: modules/nmr/nmrpulse.cpp:153 modules/nmr/nmrspectrumbase.cpp:63
+msgid "Intens. [V]"
+msgstr ""
+
+#: modules/nmr/nmrpulse.cpp:154
+msgid "IFFT Re."
+msgstr ""
+
+#: modules/nmr/nmrpulse.cpp:157
+msgid "IFFT Im."
+msgstr ""
+
+#: modules/nmr/nmrpulse.cpp:160
+msgid "DSO CH1"
+msgstr ""
+
+#: modules/nmr/nmrpulse.cpp:164
+msgid "DSO CH2"
+msgstr ""
+
+#: modules/nmr/nmrpulse.cpp:177 modules/nmr/nmrspectrumbase.cpp:70
 msgid "abs."
 msgstr ""
 
-#: modules/nmr/nmrpulse.cpp:204
+#: modules/nmr/nmrpulse.cpp:182
 msgid "phase"
 msgstr ""
 
-#: modules/nmr/nmrpulse.cpp:444
-msgid "No record in DSO"
+#: modules/nmr/nmrpulse.cpp:184 modules/nmr/nmrspectrumbase.cpp:77
+msgid "dark"
 msgstr ""
 
-#: modules/nmr/nmrpulse.cpp:447
-msgid "Two channels needed in DSO"
+#: modules/nmr/nmrpulse.cpp:195 modules/nmr/nmrspectrumbase.cpp:88
+msgid "Peaks"
 msgstr ""
 
-#: modules/nmr/nmrpulse.cpp:453
-msgid "Invalid time interval in waveforms."
-msgstr ""
-
-#: modules/nmr/nmrpulse.cpp:464 modules/nmr/nmrpulse.cpp:467
-msgid "Position beyond waveforms."
-msgstr ""
-
-#: modules/nmr/nmrpulse.cpp:471 modules/nmr/nmrpulse.cpp:474
-msgid "Invalid length."
-msgstr ""
-
-#: modules/nmr/nmrpulse.cpp:486
-msgid "FFT length is not a power of 2."
-msgstr ""
-
-#: modules/nmr/nmrpulse.cpp:519
-msgid "No active pulser!"
-msgstr ""
-
-#: modules/nmr/nmrpulse.cpp:533 modules/nmr/nmrpulse.cpp:536
-msgid "Position for BG. sub. beyond waveforms."
-msgstr ""
-
-#: modules/nmr/nmrpulse.cpp:540 modules/nmr/nmrpulse.cpp:543
-msgid "Invalid Length for BG. sub."
-msgstr ""
-
-#: modules/nmr/nmrpulse.cpp:547
+#: modules/nmr/nmrpulse.cpp:247
 msgid "Maybe, length for BG. sub. is too short."
 msgstr ""
 
-#: modules/nmr/nmrpulse.cpp:549
+#: modules/nmr/nmrpulse.cpp:355
+msgid "No record in DSO"
+msgstr ""
+
+#: modules/nmr/nmrpulse.cpp:358
+msgid "Two channels needed in DSO"
+msgstr ""
+
+#: modules/nmr/nmrpulse.cpp:363
+msgid "Invalid time interval in waveforms."
+msgstr ""
+
+#: modules/nmr/nmrpulse.cpp:368 modules/nmr/nmrpulse.cpp:371
+msgid "Position beyond waveforms."
+msgstr ""
+
+#: modules/nmr/nmrpulse.cpp:375 modules/nmr/nmrpulse.cpp:378
+msgid "Invalid length."
+msgstr ""
+
+#: modules/nmr/nmrpulse.cpp:383 modules/nmr/nmrpulse.cpp:386
+msgid "Position for BG. sub. beyond waveforms."
+msgstr ""
+
+#: modules/nmr/nmrpulse.cpp:390 modules/nmr/nmrpulse.cpp:393
+msgid "Invalid Length for BG. sub."
+msgstr ""
+
+#: modules/nmr/nmrpulse.cpp:396 modules/nmr/nmrpulse.cpp:413
 msgid "Maybe, position for BG. sub. is overrapped against echoes"
 msgstr ""
 
-#: modules/nmr/nmrpulse.cpp:557 modules/nmr/nmrpulse.cpp:560
-#: modules/nmr/nmrpulse.cpp:565 modules/nmr/nmrpulse.cpp:568
+#: modules/nmr/nmrpulse.cpp:406 modules/nmr/nmrpulse.cpp:409
+#: modules/nmr/nmrpulse.cpp:418 modules/nmr/nmrpulse.cpp:421
+#: modules/nmr/nmrpulse.cpp:427
 msgid "Invalid Multiecho settings."
 msgstr ""
 
-#: modules/nmr/nmrpulse.cpp:644
-msgid "FFTPos is off-centered for window func."
+#: modules/nmr/nmrpulse.cpp:471
+msgid "No active pulser!"
 msgstr ""
 
-#: modules/nmr/nmrrelax.cpp:112
+#: modules/nmr/nmrrelax.cpp:117
 msgid "NMR Relax. Meas. - "
 msgstr ""
 
-#: modules/nmr/nmrrelax.cpp:125
-msgid "Measured"
-msgstr ""
-
-#: modules/nmr/nmrrelax.cpp:129
+#: modules/nmr/nmrrelax.cpp:146 modules/nmr/nmrrelax.cpp:151
 msgid "Relaxation"
 msgstr ""
 
-#: modules/nmr/nmrrelax.cpp:135
+#: modules/nmr/nmrrelax.cpp:147
+msgid "Out-of-Phase"
+msgstr ""
+
+#: modules/nmr/nmrrelax.cpp:159
 msgid "Fitted Curve"
 msgstr ""
 
-#: modules/nmr/nmrrelax.cpp:223 modules/nmr/nmrrelax.cpp:292
+#: modules/nmr/nmrrelax.cpp:259 modules/nmr/nmrrelax.cpp:358
 msgid "Invalid P1Min or P1Max."
 msgstr ""
 
-#: modules/nmr/nmrrelax.cpp:277
+#: modules/nmr/nmrrelax.cpp:342
 msgid "2 Pulse Analyzers needed."
 msgstr ""
 
-#: modules/nmr/nmrrelax.cpp:297
+#: modules/nmr/nmrrelax.cpp:363
 msgid "Invalid # of Samples."
 msgstr ""
 
-#: modules/nmr/nmrrelax.cpp:300
+#: modules/nmr/nmrrelax.cpp:366
 msgid "Too many Samples."
 msgstr ""
 
-#: modules/nmr/nmrrelax.cpp:326
+#: modules/nmr/nmrrelax.cpp:388
+msgid "Strange St.E. settings."
+msgstr ""
+
+#: modules/nmr/nmrrelax.cpp:401 modules/nmr/nmrspectrumbase.cpp:180
+msgid "Do NOT use incremental avg. Skipping."
+msgstr ""
+
+#: modules/nmr/nmrrelax.cpp:418
 msgid "Unknown Comb Mode!"
 msgstr ""
 
-#: modules/nmr/nmrrelax.cpp:328 modules/nmr/nmrrelax.cpp:337
+#: modules/nmr/nmrrelax.cpp:420
+msgid "Use T1 mode!"
+msgstr ""
+
+#: modules/nmr/nmrrelax.cpp:429
 msgid "Do not use T2 mode!"
 msgstr ""
 
-#: modules/nmr/nmrrelax.cpp:356
+#: modules/nmr/nmrrelax.cpp:445
 msgid "T2 mode with comb pulse!"
 msgstr ""
 
-#: modules/nmr/nmrrelax.cpp:359
+#: modules/nmr/nmrrelax.cpp:448
 msgid "Do not use T1 mode! Skipping."
 msgstr ""
 
-#: modules/nmr/nmrrelax.cpp:399
+#: modules/nmr/nmrrelax.cpp:494
 msgid "Please select relaxation func."
 msgstr ""
 
-#: modules/nmr/nmrrelax.cpp:519
+#: modules/nmr/nmrrelax.cpp:664
 msgid "No pulser or No NMR Pulse Analyzer."
 msgstr ""
 
-#: modules/nmr/nmrrelaxfit.cpp:388
+#: modules/nmr/nmrrelaxfit.cpp:391
 msgid " points, more points needed."
 msgstr ""
 
-#: modules/nmr/nmrspectrum.cpp:61
+#: modules/nmr/nmrspectrum.cpp:40
 msgid "NMR Spectrum - "
 msgstr ""
 
-#: modules/nmr/nmrspectrum.cpp:159
+#: modules/nmr/nmrspectrum.cpp:42
+msgid "Field [T]"
+msgstr ""
+
+#: modules/nmr/nmrspectrumbase.cpp:64
+msgid "real part"
+msgstr ""
+
+#: modules/nmr/nmrspectrumbase.cpp:67
+msgid "imag. part"
+msgstr ""
+
+#: modules/nmr/nmrspectrumbase.cpp:196
 msgid "Invalid min. and max."
 msgstr ""
 
-#: modules/nmr/nmrspectrum.cpp:163
+#: modules/nmr/nmrspectrumbase.cpp:199
 msgid "Too small resolution."
+msgstr ""
+
+#: modules/nmr/nmrspectrumbase.cpp:319
+msgid "Invalid waveform."
+msgstr ""
+
+#: modules/nmr/nmrspectrumbase.cpp:326
+msgid "BW beyond Nyquist freq."
 msgstr ""
 
 #: modules/nmr/pulserdriverh8.cpp:148 modules/nmr/pulserdriversh.cpp:359
@@ -1000,1829 +1072,1381 @@ msgstr ""
 msgid "No waveform."
 msgstr ""
 
-#: modules/tempcontrol/tempcontrol.cpp:103
+#: modules/sg/core/signalgenerator.cpp:34
+msgid "Signal Gen. Control - "
+msgstr ""
+
+#: modules/sg/core/signalgenerator.cpp:102
+msgid "Positive Value Needed."
+msgstr ""
+
+#: modules/tempcontrol/tempcontrol.cpp:102
 msgid "TempControl - "
 msgstr ""
 
-#: ../macosx/kame/forms/drivercreate.cpp:94
+#: ../macosx/kame/forms/drivercreate.cpp:95
 msgid "Create New Driver"
 msgstr ""
 
-#: ../macosx/kame/forms/drivercreate.cpp:95
-#: ../macosx/kame/graph/graphdialog.cpp:550
+#: ../macosx/kame/forms/drivercreate.cpp:96
+#: ../macosx/kame/graph/graphdialog.cpp:551
 msgid "&OK"
 msgstr ""
 
-#: ../macosx/kame/forms/drivercreate.cpp:97
+#: ../macosx/kame/forms/drivercreate.cpp:98
 msgid "&Cancel"
 msgstr ""
 
-#: ../macosx/kame/forms/drivercreate.cpp:100
-#: ../macosx/kame/graph/graphdialog.cpp:558
-#: ../macosx/kame/graph/graphdialog.cpp:569
+#: ../macosx/kame/forms/drivercreate.cpp:101
+#: ../macosx/kame/graph/graphdialog.cpp:559
+#: ../macosx/kame/graph/graphdialog.cpp:570
 msgid "New Item"
 msgstr ""
 
-#: ../macosx/kame/forms/drivertool.cpp:101
+#: ../macosx/kame/forms/drivertool.cpp:102
 msgid "Drivers"
 msgstr ""
 
-#: ../macosx/kame/forms/drivertool.cpp:102
+#: ../macosx/kame/forms/drivertool.cpp:103
 msgid "Raw Stream Recorder"
 msgstr ""
 
-#: ../macosx/kame/forms/drivertool.cpp:103
-#: ../macosx/kame/forms/scalarentrytool.cpp:121
+#: ../macosx/kame/forms/drivertool.cpp:104
+#: ../macosx/kame/forms/scalarentrytool.cpp:122
 msgid "Write"
 msgstr ""
 
-#: ../macosx/kame/forms/drivertool.cpp:104
+#: ../macosx/kame/forms/drivertool.cpp:105
 msgid "New Driver"
 msgstr ""
 
-#: ../macosx/kame/forms/drivertool.cpp:105
+#: ../macosx/kame/forms/drivertool.cpp:106
 msgid "Delete Driver"
 msgstr ""
 
-#: ../macosx/kame/forms/graphtool.cpp:72
-#: ../macosx/kame/graph/graphdialog.cpp:580
-#: ../macosx/kame/graph/graphform.cpp:227
-#: ../macosx/kame/graph/graphnurlform.cpp:247
+#: ../macosx/kame/forms/graphtool.cpp:73
+#: ../macosx/kame/graph/graphdialog.cpp:581
+#: ../macosx/kame/graph/graphform.cpp:228
+#: ../macosx/kame/graph/graphnurlform.cpp:248
 msgid "Graph"
 msgstr ""
 
-#: ../macosx/kame/forms/graphtool.cpp:73
+#: ../macosx/kame/forms/graphtool.cpp:74
 msgid "New Graph"
 msgstr ""
 
-#: ../macosx/kame/forms/graphtool.cpp:74
+#: ../macosx/kame/forms/graphtool.cpp:75
 msgid "Delete Graph"
 msgstr ""
 
-#: ../macosx/kame/forms/interfacetool.cpp:59
+#: ../macosx/kame/forms/interfacetool.cpp:60
 msgid "Interfaces"
 msgstr ""
 
-#: ../macosx/kame/forms/recordreaderform.cpp:161
-msgid "Raw Stream Reader"
+#: ../macosx/kame/forms/nodebrowserform.cpp:84
+msgid "Node Browser"
+msgstr ""
+
+#: ../macosx/kame/forms/nodebrowserform.cpp:86
+msgid ""
+"test................................................ <i>hjkhk</"
+"i>hmmm....................................................."
+msgstr ""
+
+#: ../macosx/kame/forms/nodebrowserform.cpp:87
+msgid "Description"
 msgstr ""
 
 #: ../macosx/kame/forms/recordreaderform.cpp:162
-msgid "Raw Stream Binary"
+msgid "Raw Stream Reader"
 msgstr ""
 
 #: ../macosx/kame/forms/recordreaderform.cpp:163
-msgid "Position"
+msgid "Raw Stream Binary"
 msgstr ""
 
 #: ../macosx/kame/forms/recordreaderform.cpp:164
-msgid "RW"
+msgid "Position"
 msgstr ""
 
 #: ../macosx/kame/forms/recordreaderform.cpp:165
-msgid "STOP"
+msgid "RW"
 msgstr ""
 
 #: ../macosx/kame/forms/recordreaderform.cpp:166
-msgid "FF"
+msgid "STOP"
 msgstr ""
 
 #: ../macosx/kame/forms/recordreaderform.cpp:167
-msgid "FIRST"
+msgid "FF"
 msgstr ""
 
 #: ../macosx/kame/forms/recordreaderform.cpp:168
-msgid "BACK"
+msgid "FIRST"
 msgstr ""
 
 #: ../macosx/kame/forms/recordreaderform.cpp:169
-msgid "NEXT"
+msgid "BACK"
 msgstr ""
 
 #: ../macosx/kame/forms/recordreaderform.cpp:170
+msgid "NEXT"
+msgstr ""
+
+#: ../macosx/kame/forms/recordreaderform.cpp:171
 msgid "Speed"
 msgstr ""
 
-#: ../macosx/kame/forms/recordreaderform.cpp:172
+#: ../macosx/kame/forms/recordreaderform.cpp:173
 msgid "Fastest"
 msgstr ""
 
-#: ../macosx/kame/forms/recordreaderform.cpp:173
+#: ../macosx/kame/forms/recordreaderform.cpp:174
 msgid "Fast"
 msgstr ""
 
-#: ../macosx/kame/forms/recordreaderform.cpp:174
+#: ../macosx/kame/forms/recordreaderform.cpp:175
 msgid "Normal"
 msgstr ""
 
-#: ../macosx/kame/forms/recordreaderform.cpp:175
+#: ../macosx/kame/forms/recordreaderform.cpp:176
 msgid "Slow"
 msgstr ""
 
-#: ../macosx/kame/forms/recordreaderform.cpp:176
+#: ../macosx/kame/forms/recordreaderform.cpp:177
 msgid "Slowest"
 msgstr ""
 
-#: ../macosx/kame/forms/rubythreadtool.cpp:94
-#: ../macosx/kame/script/forms/rubythreadtool.cpp:94
+#: ../macosx/kame/forms/rubythreadtool.cpp:116
 msgid "Script"
 msgstr ""
 
-#: ../macosx/kame/forms/rubythreadtool.cpp:95
-#: ../macosx/kame/script/forms/rubythreadtool.cpp:95
+#: ../macosx/kame/forms/rubythreadtool.cpp:117
 msgid "KILL"
 msgstr ""
 
-#: ../macosx/kame/forms/rubythreadtool.cpp:96
-#: ../macosx/kame/script/forms/rubythreadtool.cpp:96
+#: ../macosx/kame/forms/rubythreadtool.cpp:118
 msgid "RESUME"
 msgstr ""
 
-#: ../macosx/kame/forms/rubythreadtool.cpp:97
-#: ../macosx/kame/script/forms/rubythreadtool.cpp:97
+#: ../macosx/kame/forms/rubythreadtool.cpp:119
+msgid "Interact"
+msgstr ""
+
+#: ../macosx/kame/forms/rubythreadtool.cpp:120
 msgid "tesssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssst"
 msgstr ""
 
-#: ../macosx/kame/forms/rubythreadtool.cpp:99
-#: ../macosx/kame/script/forms/rubythreadtool.cpp:99
+#: ../macosx/kame/forms/rubythreadtool.cpp:122
 msgid "Status:"
 msgstr ""
 
-#: ../macosx/kame/forms/scalarentrytool.cpp:119
+#: ../macosx/kame/forms/scalarentrytool.cpp:120
 msgid "Scalar Entries"
 msgstr ""
 
-#: ../macosx/kame/forms/scalarentrytool.cpp:120
+#: ../macosx/kame/forms/scalarentrytool.cpp:121
 msgid "Text Writer"
 msgstr ""
 
-#: ../macosx/kame/forms/scalarentrytool.cpp:122
+#: ../macosx/kame/forms/scalarentrytool.cpp:123
 msgid "LastLine"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:547
+#: ../macosx/kame/graph/graphdialog.cpp:548
 msgid "Graph Setup"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:549
+#: ../macosx/kame/graph/graphdialog.cpp:550
 msgid "F1"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:552
+#: ../macosx/kame/graph/graphdialog.cpp:553
 msgid "Draw Bars"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:553
+#: ../macosx/kame/graph/graphdialog.cpp:554
 msgid "Draw Lines"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:554
+#: ../macosx/kame/graph/graphdialog.cpp:555
 msgid "Draw Points"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:555
+#: ../macosx/kame/graph/graphdialog.cpp:556
 msgid "Display Major Grids"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:556
+#: ../macosx/kame/graph/graphdialog.cpp:557
 msgid "Display Minor Grids"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:559
+#: ../macosx/kame/graph/graphdialog.cpp:560
 msgid "Max Counts"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:560
+#: ../macosx/kame/graph/graphdialog.cpp:561
 msgid "Clear Points"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:561
+#: ../macosx/kame/graph/graphdialog.cpp:562
 msgid "Intensity"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:562
+#: ../macosx/kame/graph/graphdialog.cpp:563
 msgid "ColorPlot"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:563
+#: ../macosx/kame/graph/graphdialog.cpp:564
 msgid "Plots"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:564
+#: ../macosx/kame/graph/graphdialog.cpp:565
 msgid "Tic Label Format"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:565
+#: ../macosx/kame/graph/graphdialog.cpp:566
 msgid "Display Tic Labels"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:566
+#: ../macosx/kame/graph/graphdialog.cpp:567
 msgid "Display Major Tics"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:567
+#: ../macosx/kame/graph/graphdialog.cpp:568
 msgid "Display Minor Tics"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:570
+#: ../macosx/kame/graph/graphdialog.cpp:571
 msgid "AutoScale"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:571
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:350
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:374
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:350
+#: ../macosx/kame/graph/graphdialog.cpp:572
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:380
 msgid "Max"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:572
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:349
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:373
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:349
+#: ../macosx/kame/graph/graphdialog.cpp:573
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:379
 msgid "Min"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:573
+#: ../macosx/kame/graph/graphdialog.cpp:574
 msgid "LogScale"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:574
+#: ../macosx/kame/graph/graphdialog.cpp:575
 msgid "Axes"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:575
+#: ../macosx/kame/graph/graphdialog.cpp:576
 msgid "Back Ground Color"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:576
+#: ../macosx/kame/graph/graphdialog.cpp:577
 msgid "Ghost Persistence"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:578
+#: ../macosx/kame/graph/graphdialog.cpp:579
 msgid " sec"
 msgstr ""
 
-#: ../macosx/kame/graph/graphdialog.cpp:579
+#: ../macosx/kame/graph/graphdialog.cpp:580
 msgid "Draw Legends"
 msgstr ""
 
-#: ../macosx/kame/graph/graphnurlform.cpp:248
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:399
-#: ../macosx/kame/users/montecarlo/forms/montecarloform.cpp:261
-#: ../macosx/kame/users/nmr/forms/nmrfspectrumform.cpp:275
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:424
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:345
-#: ../macosx/kame/users/nmr/forms/nmrspectrumform.cpp:272
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:432
-#: ../macosx/modules/dso/forms/dsoform.cpp:399
-#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:261
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:275
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:436
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:394
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:272
-#: ../macosx/modules/nmr/forms/nmrfspectrumform.cpp:275
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:424
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:345
-#: ../macosx/modules/nmr/forms/nmrspectrumform.cpp:272
+#: ../macosx/kame/graph/graphnurlform.cpp:249
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:433
+#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:262
+#: ../macosx/modules/networkanalyzer/forms/networkanalyzerform.cpp:168
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:404
 msgid "DUMP"
 msgstr ""
 
-#: ../macosx/kame/thermometer/forms/caltableform.cpp:112
+#: ../macosx/kame/thermometer/forms/caltableform.cpp:113
 msgid "Calibration Table"
 msgstr ""
 
-#: ../macosx/kame/thermometer/forms/caltableform.cpp:113
+#: ../macosx/kame/thermometer/forms/caltableform.cpp:114
 msgid "Display"
 msgstr ""
 
-#: ../macosx/kame/thermometer/forms/caltableform.cpp:114
-#: ../macosx/kame/users/tempcontrol/forms/tempcontrolform.cpp:244
-#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:276
+#: ../macosx/kame/thermometer/forms/caltableform.cpp:115
+#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:277
 msgid "Thermometer"
 msgstr ""
 
-#: ../macosx/kame/thermometer/forms/caltableform.cpp:116
-#: ../macosx/kame/users/tempcontrol/forms/tempcontrolform.cpp:238
-#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:261
+#: ../macosx/kame/thermometer/forms/caltableform.cpp:117
+#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:262
 msgid "Temp."
 msgstr ""
 
-#: ../macosx/kame/thermometer/forms/caltableform.cpp:117
-#: ../macosx/kame/users/montecarlo/forms/montecarloform.cpp:272
-#: ../macosx/kame/users/tempcontrol/forms/tempcontrolform.cpp:239
-#: ../macosx/kame/users/tempcontrol/forms/tempcontrolform.cpp:251
-#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:272
-#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:262
-#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:270
+#: ../macosx/kame/thermometer/forms/caltableform.cpp:118
+#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:273
+#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:263
+#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:271
 msgid "K"
 msgstr ""
 
-#: ../macosx/kame/users/dcsource/forms/dcsourceform.cpp:91
-#: ../macosx/modules/dcsource/core/forms/dcsourceform.cpp:115
-#: ../macosx/modules/dcsource/forms/dcsourceform.cpp:91
+#: ../macosx/modules/dcsource/core/forms/dcsourceform.cpp:116
 msgid "DC Source Settings"
 msgstr ""
 
-#: ../macosx/kame/users/dcsource/forms/dcsourceform.cpp:92
-#: ../macosx/kame/users/dmm/forms/dmmform.cpp:87
-#: ../macosx/kame/users/funcsynth/forms/funcsynthform.cpp:172
-#: ../macosx/modules/dcsource/core/forms/dcsourceform.cpp:118
-#: ../macosx/modules/dcsource/forms/dcsourceform.cpp:92
-#: ../macosx/modules/dmm/core/forms/dmmform.cpp:87
-#: ../macosx/modules/dmm/forms/dmmform.cpp:87
-#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:172
-msgid "Function"
-msgstr ""
-
-#: ../macosx/kame/users/dcsource/forms/dcsourceform.cpp:93
-#: ../macosx/kame/users/funcsynth/forms/funcsynthform.cpp:169
-#: ../macosx/kame/users/lia/forms/lockinampform.cpp:134
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:455
-#: ../macosx/modules/dcsource/core/forms/dcsourceform.cpp:120
-#: ../macosx/modules/dcsource/forms/dcsourceform.cpp:93
-#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:169
-#: ../macosx/modules/lia/forms/lockinampform.cpp:134
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:487
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:455
-msgid "Output"
-msgstr ""
-
-#: ../macosx/kame/users/dmm/forms/dmmform.cpp:86
-#: ../macosx/modules/dmm/core/forms/dmmform.cpp:86
-#: ../macosx/modules/dmm/forms/dmmform.cpp:86
-msgid "DMM Settings"
-msgstr ""
-
-#: ../macosx/kame/users/dmm/forms/dmmform.cpp:88
-#: ../macosx/modules/dmm/core/forms/dmmform.cpp:88
-#: ../macosx/modules/dmm/forms/dmmform.cpp:88
-msgid "Wait"
-msgstr ""
-
-#: ../macosx/kame/users/dmm/forms/dmmform.cpp:89
-#: ../macosx/modules/dmm/core/forms/dmmform.cpp:89
-#: ../macosx/modules/dmm/forms/dmmform.cpp:89
-msgid " ms"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:398
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:407
-#: ../macosx/modules/dso/forms/dsoform.cpp:398
-msgid "DSO Control"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:400
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:433
-#: ../macosx/modules/dso/forms/dsoform.cpp:400
-msgid "Display Strategy"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:401
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:434
-#: ../macosx/modules/dso/forms/dsoform.cpp:401
-msgid "Digital Filter"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:402
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:435
-#: ../macosx/modules/dso/forms/dsoform.cpp:402
-msgid "FIR filter"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:403
-#: ../macosx/kame/users/nmr/forms/nmrfspectrumform.cpp:265
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:362
-#: ../macosx/kame/users/nmr/forms/nmrspectrumform.cpp:284
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:436
-#: ../macosx/modules/dso/forms/dsoform.cpp:403
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:265
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:385
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:284
-#: ../macosx/modules/nmr/forms/nmrfspectrumform.cpp:265
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:362
-#: ../macosx/modules/nmr/forms/nmrspectrumform.cpp:284
-msgid "Band Width"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:404
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:407
-#: ../macosx/kame/users/nmr/forms/nmrfspectrumform.cpp:262
-#: ../macosx/kame/users/nmr/forms/nmrfspectrumform.cpp:264
-#: ../macosx/kame/users/nmr/forms/nmrfspectrumform.cpp:266
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:409
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:363
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:367
-#: ../macosx/kame/users/nmr/forms/nmrspectrumform.cpp:285
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:487
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:437
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:440
-#: ../macosx/modules/dso/forms/dsoform.cpp:404
-#: ../macosx/modules/dso/forms/dsoform.cpp:407
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:262
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:264
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:266
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:414
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:386
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:390
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:285
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:473
-#: ../macosx/modules/nmr/forms/nmrfspectrumform.cpp:262
-#: ../macosx/modules/nmr/forms/nmrfspectrumform.cpp:264
-#: ../macosx/modules/nmr/forms/nmrfspectrumform.cpp:266
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:409
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:363
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:367
-#: ../macosx/modules/nmr/forms/nmrspectrumform.cpp:285
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:487
-msgid "kHz"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:405
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:438
-#: ../macosx/modules/dso/forms/dsoform.cpp:405
-msgid "Sharpness"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:406
-#: ../macosx/kame/users/nmr/forms/nmrfspectrumform.cpp:259
-#: ../macosx/kame/users/nmr/forms/nmrspectrumform.cpp:282
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:439
-#: ../macosx/modules/dso/forms/dsoform.cpp:406
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:259
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:282
-#: ../macosx/modules/nmr/forms/nmrfspectrumform.cpp:259
-#: ../macosx/modules/nmr/forms/nmrspectrumform.cpp:282
-msgid "Center Freq"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:408
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:408
-#: ../macosx/modules/dso/forms/dsoform.cpp:408
-msgid "Single Sequence"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:409
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:409
-#: ../macosx/modules/dso/forms/dsoform.cpp:409
-msgid "Average"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:410
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:410
-#: ../macosx/modules/dso/forms/dsoform.cpp:410
-msgid "Horizontal Setup"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:411
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:413
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:421
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:692
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:411
-#: ../macosx/modules/dso/forms/dsoform.cpp:411
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:411
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:430
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:698
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:413
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:421
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:692
-msgid "Width"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:412
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:412
-#: ../macosx/modules/dso/forms/dsoform.cpp:412
-msgid "s"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:413
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:413
-#: ../macosx/modules/dso/forms/dsoform.cpp:413
-msgid "Record Length"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:414
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:414
-#: ../macosx/modules/dso/forms/dsoform.cpp:414
-msgid "Trace1"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:415
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:420
-#: ../macosx/kame/users/funcsynth/forms/funcsynthform.cpp:179
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:415
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:420
-#: ../macosx/modules/dso/forms/dsoform.cpp:415
-#: ../macosx/modules/dso/forms/dsoform.cpp:420
-#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:179
-msgid "Offset"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:416
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:421
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:431
-#: ../macosx/kame/users/funcsynth/forms/funcsynthform.cpp:180
-#: ../macosx/kame/users/lia/forms/lockinampform.cpp:135
-#: ../macosx/kame/users/magnetps/forms/magnetpsform.cpp:233
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:416
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:421
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:430
-#: ../macosx/modules/dso/forms/dsoform.cpp:416
-#: ../macosx/modules/dso/forms/dsoform.cpp:421
-#: ../macosx/modules/dso/forms/dsoform.cpp:431
-#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:180
-#: ../macosx/modules/lia/forms/lockinampform.cpp:135
-#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:233
-#: ../macosx/modules/magnetps/forms/magnetpsform.cpp:233
-msgid "V"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:417
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:422
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:417
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:422
-#: ../macosx/modules/dso/forms/dsoform.cpp:417
-#: ../macosx/modules/dso/forms/dsoform.cpp:422
-msgid "F.S."
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:418
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:423
-#: ../macosx/kame/users/funcsynth/forms/funcsynthform.cpp:176
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:418
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:423
-#: ../macosx/modules/dso/forms/dsoform.cpp:418
-#: ../macosx/modules/dso/forms/dsoform.cpp:423
-#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:176
-msgid "Vp-p"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:419
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:419
-#: ../macosx/modules/dso/forms/dsoform.cpp:419
-msgid "Trace2"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:424
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:424
-#: ../macosx/modules/dso/forms/dsoform.cpp:424
-msgid "Trigger Setup"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:425
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:425
-#: ../macosx/modules/dso/forms/dsoform.cpp:425
-msgid "Source"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:426
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:426
-#: ../macosx/modules/dso/forms/dsoform.cpp:426
-msgid "Pos."
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:427
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:427
-#: ../macosx/modules/dso/forms/dsoform.cpp:427
-msgid "%"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:428
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:428
-#: ../macosx/modules/dso/forms/dsoform.cpp:428
-msgid "Force Trigger"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:429
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:431
-#: ../macosx/modules/dso/forms/dsoform.cpp:429
-msgid "FallingEdge"
-msgstr ""
-
-#: ../macosx/kame/users/dso/forms/dsoform.cpp:430
-#: ../macosx/modules/dso/core/forms/dsoform.cpp:429
-#: ../macosx/modules/dso/forms/dsoform.cpp:430
-msgid "Level"
-msgstr ""
-
-#: ../macosx/kame/users/funcsynth/forms/funcsynthform.cpp:168
-#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:168
-msgid "Function Synthesizer Control"
-msgstr ""
-
-#: ../macosx/kame/users/funcsynth/forms/funcsynthform.cpp:170
-#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:170
-msgid "Trigger Burst"
-msgstr ""
-
-#: ../macosx/kame/users/funcsynth/forms/funcsynthform.cpp:171
-#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:171
-msgid "Modulation"
-msgstr ""
-
-#: ../macosx/kame/users/funcsynth/forms/funcsynthform.cpp:173
-#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:173
-msgid "Freq"
-msgstr ""
-
-#: ../macosx/kame/users/funcsynth/forms/funcsynthform.cpp:174
-#: ../macosx/kame/users/lia/forms/lockinampform.cpp:137
-#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:174
-#: ../macosx/modules/lia/forms/lockinampform.cpp:137
-msgid "Hz"
-msgstr ""
-
-#: ../macosx/kame/users/funcsynth/forms/funcsynthform.cpp:175
-#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:175
-msgid "Amp"
-msgstr ""
-
-#: ../macosx/kame/users/funcsynth/forms/funcsynthform.cpp:177
-#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:177
-msgid "Init. Phase"
-msgstr ""
-
-#: ../macosx/kame/users/funcsynth/forms/funcsynthform.cpp:178
-#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:178
-msgid "deg."
-msgstr ""
-
-#: ../macosx/kame/users/lia/forms/lockinampform.cpp:128
-#: ../macosx/modules/lia/forms/lockinampform.cpp:128
-msgid "LIA Control"
-msgstr ""
-
-#: ../macosx/kame/users/lia/forms/lockinampform.cpp:129
-#: ../macosx/modules/lia/forms/lockinampform.cpp:129
-msgid "Autoscale for Y"
-msgstr ""
-
-#: ../macosx/kame/users/lia/forms/lockinampform.cpp:130
-#: ../macosx/modules/lia/forms/lockinampform.cpp:130
-msgid "Fetch Freq."
-msgstr ""
-
-#: ../macosx/kame/users/lia/forms/lockinampform.cpp:131
-#: ../macosx/modules/lia/forms/lockinampform.cpp:131
-msgid "Autoscale for X"
-msgstr ""
-
-#: ../macosx/kame/users/lia/forms/lockinampform.cpp:132
-#: ../macosx/modules/lia/forms/lockinampform.cpp:132
-msgid "Sensitibity"
-msgstr ""
-
-#: ../macosx/kame/users/lia/forms/lockinampform.cpp:133
-#: ../macosx/modules/lia/forms/lockinampform.cpp:133
-msgid "Time Const."
-msgstr ""
-
-#: ../macosx/kame/users/lia/forms/lockinampform.cpp:136
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:366
-#: ../macosx/kame/users/nmr/forms/signalgeneratorform.cpp:125
-#: ../macosx/modules/lia/forms/lockinampform.cpp:136
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:389
-#: ../macosx/modules/nmr/core/forms/signalgeneratorform.cpp:125
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:366
-#: ../macosx/modules/nmr/forms/signalgeneratorform.cpp:125
-msgid "Frequency"
-msgstr ""
-
-#: ../macosx/kame/users/magnetps/forms/magnetpsform.cpp:225
-#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:225
-#: ../macosx/modules/magnetps/forms/magnetpsform.cpp:225
-msgid "Magnet Power Supply Settings"
-msgstr ""
-
-#: ../macosx/kame/users/magnetps/forms/magnetpsform.cpp:226
-#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:226
-#: ../macosx/modules/magnetps/forms/magnetpsform.cpp:226
-msgid "Magnet Field"
-msgstr ""
-
-#: ../macosx/kame/users/magnetps/forms/magnetpsform.cpp:227
-#: ../macosx/kame/users/magnetps/forms/magnetpsform.cpp:229
-#: ../macosx/kame/users/magnetps/forms/magnetpsform.cpp:238
-#: ../macosx/kame/users/montecarlo/forms/montecarloform.cpp:268
-#: ../macosx/kame/users/nmr/forms/nmrspectrumform.cpp:276
-#: ../macosx/kame/users/nmr/forms/nmrspectrumform.cpp:279
-#: ../macosx/kame/users/nmr/forms/nmrspectrumform.cpp:281
-#: ../macosx/kame/users/nmr/forms/nmrspectrumform.cpp:287
-#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:227
-#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:229
-#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:238
-#: ../macosx/modules/magnetps/forms/magnetpsform.cpp:227
-#: ../macosx/modules/magnetps/forms/magnetpsform.cpp:229
-#: ../macosx/modules/magnetps/forms/magnetpsform.cpp:238
-#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:268
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:276
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:279
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:281
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:287
-#: ../macosx/modules/nmr/forms/nmrspectrumform.cpp:276
-#: ../macosx/modules/nmr/forms/nmrspectrumform.cpp:279
-#: ../macosx/modules/nmr/forms/nmrspectrumform.cpp:281
-#: ../macosx/modules/nmr/forms/nmrspectrumform.cpp:287
-msgid "T"
-msgstr ""
-
-#: ../macosx/kame/users/magnetps/forms/magnetpsform.cpp:228
-#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:228
-#: ../macosx/modules/magnetps/forms/magnetpsform.cpp:228
-msgid "Output Field"
-msgstr ""
-
-#: ../macosx/kame/users/magnetps/forms/magnetpsform.cpp:230
-#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:230
-#: ../macosx/modules/magnetps/forms/magnetpsform.cpp:230
-msgid "Output Current"
-msgstr ""
-
-#: ../macosx/kame/users/magnetps/forms/magnetpsform.cpp:231
-#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:231
-#: ../macosx/modules/magnetps/forms/magnetpsform.cpp:231
-msgid "A"
-msgstr ""
-
-#: ../macosx/kame/users/magnetps/forms/magnetpsform.cpp:232
-#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:232
-#: ../macosx/modules/magnetps/forms/magnetpsform.cpp:232
-msgid "Output Voltage"
-msgstr ""
-
-#: ../macosx/kame/users/magnetps/forms/magnetpsform.cpp:234
-#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:234
-#: ../macosx/modules/magnetps/forms/magnetpsform.cpp:234
-msgid "Switch Heater"
-msgstr ""
-
-#: ../macosx/kame/users/magnetps/forms/magnetpsform.cpp:235
-#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:235
-#: ../macosx/modules/magnetps/forms/magnetpsform.cpp:235
-msgid "Persistent"
-msgstr ""
-
-#: ../macosx/kame/users/magnetps/forms/magnetpsform.cpp:236
-#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:236
-#: ../macosx/modules/magnetps/forms/magnetpsform.cpp:236
-msgid "Allow Persistent"
-msgstr ""
-
-#: ../macosx/kame/users/magnetps/forms/magnetpsform.cpp:237
-#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:237
-#: ../macosx/modules/magnetps/forms/magnetpsform.cpp:237
-msgid "Field"
-msgstr ""
-
-#: ../macosx/kame/users/magnetps/forms/magnetpsform.cpp:239
-#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:239
-#: ../macosx/modules/magnetps/forms/magnetpsform.cpp:239
-msgid "Sweep Rate"
-msgstr ""
-
-#: ../macosx/kame/users/magnetps/forms/magnetpsform.cpp:240
-#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:240
-#: ../macosx/modules/magnetps/forms/magnetpsform.cpp:240
-msgid "T/min"
-msgstr ""
-
-#: ../macosx/kame/users/montecarlo/forms/montecarloform.cpp:251
-#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:251
-msgid "MonteCarlo control"
-msgstr ""
-
-#: ../macosx/kame/users/montecarlo/forms/montecarloform.cpp:252
-#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:252
-msgid "Length"
-msgstr ""
-
-#: ../macosx/kame/users/montecarlo/forms/montecarloform.cpp:253
-#: ../macosx/kame/users/montecarlo/forms/montecarloform.cpp:255
-#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:253
-#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:255
-msgid "Lattices"
-msgstr ""
-
-#: ../macosx/kame/users/montecarlo/forms/montecarloform.cpp:254
-#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:254
-msgid "Cutoff-Real"
-msgstr ""
-
-#: ../macosx/kame/users/montecarlo/forms/montecarloform.cpp:256
-#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:256
-msgid "Graph-3D"
-msgstr ""
-
-#: ../macosx/kame/users/montecarlo/forms/montecarloform.cpp:257
-#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:257
-msgid "Cutoff-Rec."
-msgstr ""
-
-#: ../macosx/kame/users/montecarlo/forms/montecarloform.cpp:258
-#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:258
-msgid "2pi/L"
-msgstr ""
-
-#: ../macosx/kame/users/montecarlo/forms/montecarloform.cpp:259
-#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:259
-msgid "Ewald conv. (Alpha)"
-msgstr ""
-
-#: ../macosx/kame/users/montecarlo/forms/montecarloform.cpp:260
-#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:260
-msgid "1/L"
-msgstr ""
-
-#: ../macosx/kame/users/montecarlo/forms/montecarloform.cpp:262
-#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:262
-msgid "Exec"
-msgstr ""
-
-#: ../macosx/kame/users/montecarlo/forms/montecarloform.cpp:263
-#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:263
-msgid "Min. Tests"
-msgstr ""
-
-#: ../macosx/kame/users/montecarlo/forms/montecarloform.cpp:264
-#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:264
-msgid "STEP"
-msgstr ""
-
-#: ../macosx/kame/users/montecarlo/forms/montecarloform.cpp:265
-#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:265
-msgid "Field Direction, x="
-msgstr ""
-
-#: ../macosx/kame/users/montecarlo/forms/montecarloform.cpp:266
-#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:266
-msgid "Field Direction, z="
-msgstr ""
-
-#: ../macosx/kame/users/montecarlo/forms/montecarloform.cpp:267
-#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:267
-msgid "Target Field"
-msgstr ""
-
-#: ../macosx/kame/users/montecarlo/forms/montecarloform.cpp:269
-#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:269
-msgid "Min. Flips"
-msgstr ""
-
-#: ../macosx/kame/users/montecarlo/forms/montecarloform.cpp:270
-#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:270
-msgid "Field Direction, y="
-msgstr ""
-
-#: ../macosx/kame/users/montecarlo/forms/montecarloform.cpp:271
-#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:271
-msgid "Target Temp."
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrfspectrumform.cpp:257
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:257
-#: ../macosx/modules/nmr/forms/nmrfspectrumform.cpp:257
-msgid "NMR Spectrum Averager (Frequency Sweep)"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrfspectrumform.cpp:258
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:258
-#: ../macosx/modules/nmr/forms/nmrfspectrumform.cpp:258
-msgid "Activate Freq. Sweep"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrfspectrumform.cpp:260
-#: ../macosx/kame/users/nmr/forms/nmrfspectrumform.cpp:270
-#: ../macosx/kame/users/nmr/forms/nmrfspectrumform.cpp:273
-#: ../macosx/kame/users/nmr/forms/nmrspectrumform.cpp:283
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:664
-#: ../macosx/kame/users/nmr/forms/signalgeneratorform.cpp:126
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:260
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:270
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:273
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:283
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:670
-#: ../macosx/modules/nmr/core/forms/signalgeneratorform.cpp:126
-#: ../macosx/modules/nmr/forms/nmrfspectrumform.cpp:260
-#: ../macosx/modules/nmr/forms/nmrfspectrumform.cpp:270
-#: ../macosx/modules/nmr/forms/nmrfspectrumform.cpp:273
-#: ../macosx/modules/nmr/forms/nmrspectrumform.cpp:283
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:664
-#: ../macosx/modules/nmr/forms/signalgeneratorform.cpp:126
-msgid "MHz"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrfspectrumform.cpp:261
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:261
-#: ../macosx/modules/nmr/forms/nmrfspectrumform.cpp:261
-msgid "Step"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrfspectrumform.cpp:263
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:263
-#: ../macosx/modules/nmr/forms/nmrfspectrumform.cpp:263
-msgid "Span"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrfspectrumform.cpp:267
-#: ../macosx/kame/users/nmr/forms/nmrspectrumform.cpp:277
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:267
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:277
-#: ../macosx/modules/nmr/forms/nmrfspectrumform.cpp:267
-#: ../macosx/modules/nmr/forms/nmrspectrumform.cpp:277
-msgid "CLEAR SPECTRUM"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrfspectrumform.cpp:268
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:268
-#: ../macosx/modules/nmr/forms/nmrfspectrumform.cpp:268
-msgid "Pulse Analyzer"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrfspectrumform.cpp:269
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:269
-#: ../macosx/modules/nmr/forms/nmrfspectrumform.cpp:269
-msgid "Signal Generator 1"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrfspectrumform.cpp:271
-#: ../macosx/kame/users/nmr/forms/nmrfspectrumform.cpp:274
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:271
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:274
-#: ../macosx/modules/nmr/forms/nmrfspectrumform.cpp:271
-#: ../macosx/modules/nmr/forms/nmrfspectrumform.cpp:274
-msgid "Offset Freq."
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrfspectrumform.cpp:272
-#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:272
-#: ../macosx/modules/nmr/forms/nmrfspectrumform.cpp:272
-msgid "Signal Generator 2"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:399
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:408
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:399
-msgid "NMR Pulse Settings"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:400
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:415
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:400
-msgid "Multiple Echoes"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:401
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:416
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:401
-msgid "Period (=2Tau)"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:402
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:405
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:412
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:414
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:420
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:422
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:458
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:480
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:482
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:667
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:669
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:671
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:410
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:412
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:417
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:420
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:429
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:431
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:480
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:482
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:490
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:673
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:675
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:677
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:402
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:405
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:412
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:414
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:420
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:422
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:458
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:480
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:482
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:667
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:669
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:671
-msgid "ms"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:403
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:418
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:403
-msgid "# of Echoes"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:404
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:419
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:404
-msgid "FFT Origin"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:406
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:421
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:406
-msgid "FFT Length"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:407
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:422
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:407
-msgid "pts"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:408
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:413
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:408
-msgid "Digital IF Freq"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:410
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:427
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:410
-msgid "Dynamic Noise Reduction (DNR)"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:411
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:428
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:411
-msgid "Pos for Sub."
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:415
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:423
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:415
-msgid "SHOW FFT"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:416
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:432
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:416
-msgid "Window Func."
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:417
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:364
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:685
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:425
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:387
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:691
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:417
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:364
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:685
-msgid "Phase"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:418
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:426
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:418
-msgid "deg"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:419
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:409
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:419
-msgid "Origin from Trig"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:423
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:424
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:423
-msgid "DSO"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:425
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:437
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:425
-msgid "Incremental/Moving Average"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:426
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:438
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:426
-msgid "Incremental"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:427
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:439
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:427
-msgid "CLEAR"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:428
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:433
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:428
-msgid "Phase Inversion Cycling"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:429
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:355
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:434
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:379
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:429
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:355
-msgid "Pulser"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrpulseform.cpp:430
-#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:435
-#: ../macosx/modules/nmr/forms/nmrpulseform.cpp:430
-msgid "Enable"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:344
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:369
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:344
-msgid "NMR/NQR Relax(T1) Measurement"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:346
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:370
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:346
-msgid "Acquision Control"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:347
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:371
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:347
-msgid "Control Pulser"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:348
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:372
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:348
-msgid "<i>P</i><font size=\"-1\">1</font>(ms) / 2Tau (us)"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:351
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:375
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:351
-msgid "T2 Measurement"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:352
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:376
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:352
-msgid "<i>P</i><font size=\"-1\">1</font> Dist"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:353
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:377
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:353
-msgid "PulseAnalyzer 1"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:354
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:378
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:354
-msgid "PulseAnalyzer 2"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:356
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:380
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:356
-msgid "Data Processing"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:357
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:381
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:357
-msgid "Auto Phase"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:358
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:393
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:358
-msgid "Abs Value Fit"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:359
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:382
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:359
-msgid "Fitting Status"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:360
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:383
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:360
-msgid "Relax Func"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:361
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:384
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:361
-msgid "Smooth Samples"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:365
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:388
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:365
-msgid " deg"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:368
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:391
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:368
-msgid "CLEAR CURVE"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrrelaxform.cpp:369
-#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:392
-#: ../macosx/modules/nmr/forms/nmrrelaxform.cpp:369
-msgid "RESET FITTING"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrspectrumform.cpp:271
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:271
-#: ../macosx/modules/nmr/forms/nmrspectrumform.cpp:271
-msgid "NMR Spectrum Averager"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrspectrumform.cpp:273
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:273
-#: ../macosx/modules/nmr/forms/nmrspectrumform.cpp:273
-msgid "Field Factor"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrspectrumform.cpp:274
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:274
-#: ../macosx/modules/nmr/forms/nmrspectrumform.cpp:274
-msgid "T/?"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrspectrumform.cpp:275
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:275
-#: ../macosx/modules/nmr/forms/nmrspectrumform.cpp:275
-msgid "Residual Field"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrspectrumform.cpp:278
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:278
-#: ../macosx/modules/nmr/forms/nmrspectrumform.cpp:278
-msgid "Field Min"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrspectrumform.cpp:280
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:280
-#: ../macosx/modules/nmr/forms/nmrspectrumform.cpp:280
-msgid "Field Max"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrspectrumform.cpp:286
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:286
-#: ../macosx/modules/nmr/forms/nmrspectrumform.cpp:286
-msgid "Resolution"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrspectrumform.cpp:288
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:288
-#: ../macosx/modules/nmr/forms/nmrspectrumform.cpp:288
-msgid "Magnet PS"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/nmrspectrumform.cpp:289
-#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:289
-#: ../macosx/modules/nmr/forms/nmrspectrumform.cpp:289
-msgid "NMR Pulse Analyzer"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:456
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:488
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:456
-msgid "RT Mode"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:457
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:457
-msgid "Rep/Rest Time"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:459
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:491
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:459
-msgid "Tau"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:460
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:463
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:469
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:484
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:489
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:662
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:682
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:684
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:691
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:693
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:470
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:475
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:492
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:495
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:501
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:668
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:688
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:690
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:697
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:699
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:701
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:460
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:463
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:469
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:484
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:489
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:662
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:682
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:684
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:691
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:693
-msgid "us"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:461
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:493
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:461
-msgid "Pi/2 Pulse"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:462
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:468
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:488
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:474
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:494
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:500
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:462
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:468
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:488
-msgid "Pulse Width"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:464
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:472
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:490
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:476
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:496
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:504
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:464
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:472
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:490
-msgid "Waveform"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:465
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:470
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:491
-#: ../macosx/kame/users/nmr/forms/signalgeneratorform.cpp:122
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:477
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:497
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:502
-#: ../macosx/modules/nmr/core/forms/signalgeneratorform.cpp:122
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:465
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:470
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:491
-#: ../macosx/modules/nmr/forms/signalgeneratorform.cpp:122
-msgid "Output Level"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:466
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:471
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:476
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:492
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:478
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:483
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:498
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:503
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:466
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:471
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:476
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:492
-msgid " dB"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:467
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:499
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:467
-msgid "Pi Pulse"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:473
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:505
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:473
-msgid "Pulse Table (Select Region to Visualize)"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:474
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:486
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:474
-msgid "More Config."
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:475
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:484
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:475
-msgid "Master Level"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:477
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:485
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:477
-msgid "Comb Mode"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:478
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:468
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:478
-msgid "Comb Pulse"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:479
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:481
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:479
-msgid "<i>P</i><font size=\"-1\">1</font> (ALT)"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:481
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:479
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:481
-msgid "<i>P</i><font size=\"-1\">1</font>"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:483
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:469
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:483
-msgid "Periodic Term"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:485
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:471
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:485
-msgid "# of Pulses"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdriverform.cpp:486
-#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:472
-#: ../macosx/modules/nmr/forms/pulserdriverform.cpp:486
-msgid "Off-Resonance"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:640
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:703
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:640
-msgid "Port Selector"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:641
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:704
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:641
-msgid "Port0"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:642
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:705
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:642
-msgid "Port1"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:643
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:706
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:643
-msgid "Port2"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:644
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:707
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:644
-msgid "Port3"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:645
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:708
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:645
-msgid "Port4"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:646
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:709
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:646
-msgid "Port5"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:647
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:710
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:647
-msgid "Port6"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:648
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:711
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:648
-msgid "Port7"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:649
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:712
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:649
-msgid "Port8"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:650
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:713
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:650
-msgid "Port9"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:651
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:714
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:651
-msgid "Port10"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:652
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:715
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:652
-msgid "Port11"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:653
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:716
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:653
-msgid "Port12"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:654
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:717
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:654
-msgid "Port13"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:655
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:718
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:655
-msgid "Port14"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:656
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:719
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:656
-msgid "Port15"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:657
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:663
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:657
-msgid "# in Phase Cycle"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:658
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:664
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:658
-msgid "Echo Phase Inversion"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:659
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:665
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:659
-msgid "Multi-echo (Meiboom-Gill)"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:660
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:666
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:660
-msgid "Driven Equilibrium"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:661
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:667
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:661
-msgid "Pre-Gate Setup Time"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:663
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:669
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:663
-msgid "Digital IF Freq."
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:665
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:671
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:665
-msgid "Analog Switch"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:666
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:672
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:666
-msgid "ASW Hold"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:668
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:674
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:668
-msgid "ASW Setup"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:670
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:676
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:670
-msgid "ALT Separation"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:672
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:678
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:672
-msgid "QAM DC Offset"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:673
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:678
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:681
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:679
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:684
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:687
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:673
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:678
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:681
-msgid "Port I"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:674
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:676
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:680
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:682
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:674
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:676
-msgid "%<font size=\"-1\">F.S.</font>"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:675
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:679
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:683
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:681
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:685
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:689
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:675
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:679
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:683
-msgid "Port Q"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:677
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:683
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:677
-msgid "QAM Level Tuning"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:680
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:686
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:680
-msgid "QAM Delay Tuning"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:687
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:693
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:687
-msgid " deg."
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:688
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:694
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:688
-msgid "Induce Emission (Preliminary)"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:689
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:695
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:689
-msgid "Q-Switch"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:690
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:696
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:690
-msgid "Delay"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/pulserdrivermoreform.cpp:694
-#: ../macosx/modules/nmr/forms/pulserdrivermoreform.cpp:694
-msgid "Only for pi pulses"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/signalgeneratorform.cpp:120
-#: ../macosx/modules/nmr/core/forms/signalgeneratorform.cpp:120
-#: ../macosx/modules/nmr/forms/signalgeneratorform.cpp:120
-msgid "Signal Generator Control"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/signalgeneratorform.cpp:121
-#: ../macosx/modules/nmr/core/forms/signalgeneratorform.cpp:121
-#: ../macosx/modules/nmr/forms/signalgeneratorform.cpp:121
-msgid "AM ON"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/signalgeneratorform.cpp:123
-#: ../macosx/modules/nmr/core/forms/signalgeneratorform.cpp:123
-#: ../macosx/modules/nmr/forms/signalgeneratorform.cpp:123
-msgid "dBm"
-msgstr ""
-
-#: ../macosx/kame/users/nmr/forms/signalgeneratorform.cpp:124
-#: ../macosx/modules/nmr/core/forms/signalgeneratorform.cpp:124
-#: ../macosx/modules/nmr/forms/signalgeneratorform.cpp:124
-msgid "FM ON"
-msgstr ""
-
-#: ../macosx/kame/users/tempcontrol/forms/tempcontrolform.cpp:237
-#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:260
-msgid "Temperature Control"
-msgstr ""
-
-#: ../macosx/kame/users/tempcontrol/forms/tempcontrolform.cpp:240
-#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:263
-msgid "Heater Mode"
-msgstr ""
-
-#: ../macosx/kame/users/tempcontrol/forms/tempcontrolform.cpp:241
-#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:273
-msgid "Channel Setup"
-msgstr ""
-
-#: ../macosx/kame/users/tempcontrol/forms/tempcontrolform.cpp:242
-#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:274
-msgid "Setup Channel"
-msgstr ""
-
-#: ../macosx/kame/users/tempcontrol/forms/tempcontrolform.cpp:243
-#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:275
-msgid "Excitation"
-msgstr ""
-
-#: ../macosx/kame/users/tempcontrol/forms/tempcontrolform.cpp:245
-#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:264
-msgid "P"
-msgstr ""
-
-#: ../macosx/kame/users/tempcontrol/forms/tempcontrolform.cpp:246
-#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:265
-msgid "I"
-msgstr ""
-
-#: ../macosx/kame/users/tempcontrol/forms/tempcontrolform.cpp:247
-#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:266
-msgid "D"
-msgstr ""
-
-#: ../macosx/kame/users/tempcontrol/forms/tempcontrolform.cpp:248
-#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:267
-msgid "Source CH"
-msgstr ""
-
-#: ../macosx/kame/users/tempcontrol/forms/tempcontrolform.cpp:249
-#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:268
-msgid "Heater Power"
-msgstr ""
-
-#: ../macosx/kame/users/tempcontrol/forms/tempcontrolform.cpp:250
-#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:269
-msgid "Target Temp"
-msgstr ""
-
-#: ../macosx/kame/users/tempcontrol/forms/tempcontrolform.cpp:252
-#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:271
-msgid "Manual Heater"
-msgstr ""
-
-#: ../macosx/kame/users/tempcontrol/forms/tempcontrolform.cpp:253
-#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:272
-msgid "Power Range"
-msgstr ""
-
-#: ../macosx/modules/dcsource/core/forms/dcsourceform.cpp:116
-#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:278
+#: ../macosx/modules/dcsource/core/forms/dcsourceform.cpp:117
+#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:279
 msgid "Channel"
 msgstr ""
 
 #: ../macosx/modules/dcsource/core/forms/dcsourceform.cpp:119
+#: ../macosx/modules/dmm/core/forms/dmmform.cpp:88
+#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:173
+msgid "Function"
+msgstr ""
+
+#: ../macosx/modules/dcsource/core/forms/dcsourceform.cpp:120
 msgid "Range"
 msgstr ""
 
+#: ../macosx/modules/dcsource/core/forms/dcsourceform.cpp:121
+#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:170
+#: ../macosx/modules/lia/forms/lockinampform.cpp:135
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:488
+msgid "Output"
+msgstr ""
+
+#: ../macosx/modules/dmm/core/forms/dmmform.cpp:87
+msgid "DMM Settings"
+msgstr ""
+
+#: ../macosx/modules/dmm/core/forms/dmmform.cpp:89
+msgid "Wait"
+msgstr ""
+
+#: ../macosx/modules/dmm/core/forms/dmmform.cpp:90
+msgid " ms"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:408
+msgid "DSO Control"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:409
+msgid "Single Sequence"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:410
+#: ../macosx/modules/networkanalyzer/forms/networkanalyzerform.cpp:175
+msgid "Average"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:411
+msgid "Horizontal Setup"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:412
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:438
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:452
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:690
+msgid "Width"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:413
+msgid "s"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:414
+msgid "Record Length"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:415
+msgid "Trace1"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:416
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:421
+#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:180
+msgid "Offset"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:417
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:422
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:431
+#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:181
+#: ../macosx/modules/lia/forms/lockinampform.cpp:136
+#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:234
+msgid "V"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:418
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:423
+msgid "F.S."
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:419
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:424
+#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:177
+msgid "Vp-p"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:420
+msgid "Trace2"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:425
+msgid "Trigger Setup"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:426
+msgid "Source"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:427
+msgid "Pos."
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:428
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:353
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:447
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:379
+msgid "%"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:429
+msgid "Force Trigger"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:430
+msgid "Level"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:432
+msgid "FallingEdge"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:434
+msgid "Display Strategy"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:435
+msgid "Digital Filter"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:436
+msgid "FIR filter"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:437
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:334
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:348
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:351
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:372
+msgid "Band Width"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:438
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:441
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:331
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:333
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:335
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:464
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:392
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:352
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:474
+msgid "kHz"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:439
+msgid "Sharpness"
+msgstr ""
+
+#: ../macosx/modules/dso/core/forms/dsoform.cpp:440
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:328
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:353
+msgid "Center Freq"
+msgstr ""
+
+#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:169
+msgid "Function Synthesizer Control"
+msgstr ""
+
+#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:171
+msgid "Trigger Burst"
+msgstr ""
+
+#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:172
+msgid "Modulation"
+msgstr ""
+
+#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:174
+msgid "Freq"
+msgstr ""
+
+#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:175
+#: ../macosx/modules/lia/forms/lockinampform.cpp:138
+msgid "Hz"
+msgstr ""
+
+#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:176
+msgid "Amp"
+msgstr ""
+
+#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:178
+msgid "Init. Phase"
+msgstr ""
+
+#: ../macosx/modules/funcsynth/forms/funcsynthform.cpp:179
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:351
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:377
+msgid "deg."
+msgstr ""
+
+#: ../macosx/modules/lia/forms/lockinampform.cpp:129
+msgid "LIA Control"
+msgstr ""
+
+#: ../macosx/modules/lia/forms/lockinampform.cpp:130
+msgid "Autoscale for Y"
+msgstr ""
+
+#: ../macosx/modules/lia/forms/lockinampform.cpp:131
+msgid "Fetch Freq."
+msgstr ""
+
+#: ../macosx/modules/lia/forms/lockinampform.cpp:132
+msgid "Autoscale for X"
+msgstr ""
+
+#: ../macosx/modules/lia/forms/lockinampform.cpp:133
+msgid "Sensitibity"
+msgstr ""
+
+#: ../macosx/modules/lia/forms/lockinampform.cpp:134
+msgid "Time Const."
+msgstr ""
+
+#: ../macosx/modules/lia/forms/lockinampform.cpp:137
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:391
+#: ../macosx/modules/sg/core/forms/signalgeneratorform.cpp:126
+msgid "Frequency"
+msgstr ""
+
+#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:226
+msgid "Magnet Power Supply Settings"
+msgstr ""
+
+#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:227
+msgid "Magnet Field"
+msgstr ""
+
+#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:228
+#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:230
+#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:239
+#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:269
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:364
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:366
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:368
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:370
+msgid "T"
+msgstr ""
+
+#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:229
+msgid "Output Field"
+msgstr ""
+
+#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:231
+msgid "Output Current"
+msgstr ""
+
+#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:232
+msgid "A"
+msgstr ""
+
+#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:233
+msgid "Output Voltage"
+msgstr ""
+
+#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:235
+msgid "Switch Heater"
+msgstr ""
+
+#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:236
+msgid "Persistent"
+msgstr ""
+
+#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:237
+msgid "Allow Persistent"
+msgstr ""
+
+#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:238
+msgid "Field"
+msgstr ""
+
+#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:240
+msgid "Sweep Rate"
+msgstr ""
+
+#: ../macosx/modules/magnetps/core/forms/magnetpsform.cpp:241
+msgid "T/min"
+msgstr ""
+
+#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:252
+msgid "MonteCarlo control"
+msgstr ""
+
+#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:253
+msgid "Length"
+msgstr ""
+
+#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:254
+#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:256
+msgid "Lattices"
+msgstr ""
+
+#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:255
+msgid "Cutoff-Real"
+msgstr ""
+
+#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:257
+msgid "Graph-3D"
+msgstr ""
+
+#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:258
+msgid "Cutoff-Rec."
+msgstr ""
+
+#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:259
+msgid "2pi/L"
+msgstr ""
+
+#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:260
+msgid "Ewald conv. (Alpha)"
+msgstr ""
+
+#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:261
+msgid "1/L"
+msgstr ""
+
+#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:263
+msgid "Exec"
+msgstr ""
+
+#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:264
+msgid "Min. Tests"
+msgstr ""
+
+#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:265
+msgid "STEP"
+msgstr ""
+
+#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:266
+msgid "Field Direction, x="
+msgstr ""
+
+#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:267
+msgid "Field Direction, z="
+msgstr ""
+
+#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:268
+msgid "Target Field"
+msgstr ""
+
+#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:270
+msgid "Min. Flips"
+msgstr ""
+
+#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:271
+msgid "Field Direction, y="
+msgstr ""
+
+#: ../macosx/modules/montecarlo/forms/montecarloform.cpp:272
+msgid "Target Temp."
+msgstr ""
+
+#: ../macosx/modules/networkanalyzer/forms/networkanalyzerform.cpp:167
+msgid "Network Analyzer Control"
+msgstr ""
+
+#: ../macosx/modules/networkanalyzer/forms/networkanalyzerform.cpp:169
+msgid "Sense"
+msgstr ""
+
+#: ../macosx/modules/networkanalyzer/forms/networkanalyzerform.cpp:170
+msgid "Start Freq."
+msgstr ""
+
+#: ../macosx/modules/networkanalyzer/forms/networkanalyzerform.cpp:171
+#: ../macosx/modules/networkanalyzer/forms/networkanalyzerform.cpp:173
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:329
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:343
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:354
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:723
+#: ../macosx/modules/sg/core/forms/signalgeneratorform.cpp:127
+msgid "MHz"
+msgstr ""
+
+#: ../macosx/modules/networkanalyzer/forms/networkanalyzerform.cpp:172
+msgid "Stop Freq."
+msgstr ""
+
+#: ../macosx/modules/networkanalyzer/forms/networkanalyzerform.cpp:174
+msgid "Points"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:325
+msgid "NMR Spectrum Averager (Frequency Sweep)"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:326
+msgid "Acti&vate Freq. Sweep"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:327
+msgid "Alt+V"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:330
+msgid "Step"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:332
+msgid "Span"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:336
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:358
+msgid "&CLEAR SPECTRUM"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:337
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:359
+msgid "Alt+C"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:338
+msgid "Pulse Analyzer"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:339
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:465
+msgid "D&UMP"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:340
+msgid "Burst Mode"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:341
+msgid "Burst Count"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:342
+msgid "Signal Generator"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:344
+msgid "Offset Freq."
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:345
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:371
+msgid "Post Processing"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:346
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:467
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:373
+msgid "Window Func."
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:347
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:374
+msgid "Solver"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:349
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:397
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:375
+msgid "&Auto Phase"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:350
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:398
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:376
+msgid "Alt+A"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrfspectrumform.cpp:352
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:446
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:400
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:378
+msgid "Window Width"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:435
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:360
+msgid "NMR Pulse Analyzer"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:436
+msgid "Origin from Trig"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:437
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:439
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:441
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:451
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:453
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:458
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:481
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:483
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:491
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:715
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:717
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:719
+msgid "ms"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:440
+msgid "FFT Origin"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:442
+msgid "FFT Length"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:443
+msgid "pts"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:444
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:389
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:684
+msgid "Phase"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:445
+msgid "deg"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:448
+msgid "DSO"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:449
+msgid "Background Subtraction"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:450
+msgid "Pos for Sub."
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:454
+msgid "Perio&dic Noise Reduction"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:455
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:356
+msgid "Alt+D"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:456
+msgid "Multiple Echo"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:457
+msgid "Period (=2Tau)"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:459
+msgid "# of Echoes"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:460
+msgid "Phase Inversion Cycling"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:461
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:384
+msgid "Pulser"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:462
+msgid "E&nable"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:463
+msgid "Digital IF Freq"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:466
+msgid "SHOW SPECTRUM"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:468
+msgid "Incremental/Sequential Average"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:469
+msgid "&Incremental"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrpulseform.cpp:470
+msgid "&CLEAR"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:374
+msgid "NMR/NQR Relax(T1) Measurement"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:375
+msgid "Acquision Control"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:376
+msgid "Co&ntrol Pulser"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:377
+msgid "Alt+N"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:378
+msgid "<i>P</i><font size=\"-1\">1</font>(ms) / 2Tau (us)"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:381
+msgid "<i>P</i><font size=\"-1\">1</font> Dist"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:382
+msgid "PulseAnalyzer 1"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:383
+msgid "PulseAnalyzer 2"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:385
+msgid "Data Processing"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:386
+msgid "Fit M(&infinity)"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:387
+msgid "Alt+I"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:388
+msgid "Abs &Value Fit"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:390
+msgid " deg"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:393
+msgid "Smooth Samples"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:394
+msgid "RESET FITTING"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:395
+msgid "&CLEAR CURVE"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:396
+msgid "Fitting Status"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:399
+msgid "Relax Func"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:401
+msgid "Window Func"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:402
+msgid "A&uto Window"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrrelaxform.cpp:403
+msgid "Alt+U"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:350
+msgid "NMR Spectrum Averager"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:355
+msgid "&DUMP"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:357
+msgid "Magnet PS"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:361
+msgid "Field Factor"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:362
+msgid "T/?"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:363
+msgid "Residual Field"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:365
+msgid "Resolution (Approx.)"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:367
+msgid "Field Min"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/nmrspectrumform.cpp:369
+msgid "Field Max"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:469
+msgid "Comb Pulse"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:470
+msgid "Periodic Term"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:471
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:476
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:493
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:496
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:502
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:681
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:683
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:689
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:691
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:693
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:725
+msgid "us"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:472
+msgid "# of Pulses"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:473
+msgid "Off-Resonance"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:475
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:495
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:501
+msgid "Pulse Width"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:477
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:497
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:505
+msgid "Waveform"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:478
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:498
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:503
+#: ../macosx/modules/sg/core/forms/signalgeneratorform.cpp:123
+msgid "Output Level"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:479
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:484
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:499
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:504
+msgid " dB"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:480
+msgid "<i>P</i><font size=\"-1\">1</font>"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:482
+msgid "<i>P</i><font size=\"-1\">1</font> (ALT)"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:485
+msgid "Master Level"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:486
+msgid "Comb Mode"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:487
+msgid "More Config."
+msgstr ""
+
 #: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:489
+msgid "RT Mode"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:490
 msgid "Rep/Rest"
 msgstr ""
 
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:700
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:492
+msgid "Tau"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:494
+msgid "Pi/2 Pulse"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:500
+msgid "Pi Pulse"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdriverform.cpp:506
+msgid "Pulse Table (Select Region to Visualize)"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:670
+msgid "# in Phase Cycle"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:671
+msgid "QAM DC Offset"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:672
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:677
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:680
+msgid "Port I"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:673
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:675
+msgid "%<font size=\"-1\">F.S.</font>"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:674
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:678
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:682
+msgid "Port Q"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:676
+msgid "QAM Level Tuning"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:679
+msgid "QAM Delay Tuning"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:686
+msgid " deg."
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:687
+msgid "Q-Switch"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:688
+msgid "Delay"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:692
 msgid "Soft SW Off"
 msgstr ""
 
-#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:702
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:694
 msgid "Only for pi Pulses"
 msgstr ""
 
-#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:277
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:695
+msgid "Port Selector"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:696
+msgid "Port0"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:697
+msgid "Port1"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:698
+msgid "Port2"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:699
+msgid "Port3"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:700
+msgid "Port4"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:701
+msgid "Port5"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:702
+msgid "Port6"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:703
+msgid "Port7"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:704
+msgid "Port8"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:705
+msgid "Port9"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:706
+msgid "Port10"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:707
+msgid "Port11"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:708
+msgid "Port12"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:709
+msgid "Port13"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:710
+msgid "Port14"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:711
+msgid "Port15"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:712
+msgid "Induce Emission (Preliminary)"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:713
+msgid "Analog Switch"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:714
+msgid "ASW Hold"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:716
+msgid "ASW Setup"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:718
+msgid "ALT Separation"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:720
+msgid "Driven Equilibrium"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:721
+msgid "Multi-echo (Meiboom-Gill)"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:722
+msgid "Digital IF Freq."
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:724
+msgid "Pre-Gate Setup Time"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:726
+msgid "Echo Phase Inversion"
+msgstr ""
+
+#: ../macosx/modules/nmr/core/forms/pulserdrivermoreform.cpp:727
+msgid "Conserve St.E. Phase"
+msgstr ""
+
+#: ../macosx/modules/sg/core/forms/signalgeneratorform.cpp:121
+msgid "Signal Generator Control"
+msgstr ""
+
+#: ../macosx/modules/sg/core/forms/signalgeneratorform.cpp:122
+msgid "AM ON"
+msgstr ""
+
+#: ../macosx/modules/sg/core/forms/signalgeneratorform.cpp:124
+msgid "dBm"
+msgstr ""
+
+#: ../macosx/modules/sg/core/forms/signalgeneratorform.cpp:125
+msgid "FM ON"
+msgstr ""
+
+#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:261
+msgid "Temperature Control"
+msgstr ""
+
+#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:264
+msgid "Heater Mode"
+msgstr ""
+
+#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:265
+msgid "P"
+msgstr ""
+
+#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:266
+msgid "I"
+msgstr ""
+
+#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:267
+msgid "D"
+msgstr ""
+
+#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:268
+msgid "Source CH"
+msgstr ""
+
+#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:269
+msgid "Heater Power"
+msgstr ""
+
+#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:270
+msgid "Target Temp"
+msgstr ""
+
+#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:272
+msgid "Manual Heater"
+msgstr ""
+
+#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:273
+msgid "Power Range"
+msgstr ""
+
+#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:274
+msgid "Channel Setup"
+msgstr ""
+
+#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:275
+msgid "Setup Channel"
+msgstr ""
+
+#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:276
+msgid "Excitation"
+msgstr ""
+
+#: ../macosx/modules/tempcontrol/forms/tempcontrolform.cpp:278
 msgid "External DC Source"
 msgstr ""

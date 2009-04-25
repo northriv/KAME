@@ -1,0 +1,3 @@
+base referer
+rect $d7/d79/class_x_spin_lock.html 7,8 95,34
+rect $d1/d96/class_x_adaptive_spin_lock.html 145,8 283,34

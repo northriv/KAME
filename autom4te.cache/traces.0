@@ -273,7 +273,7 @@ m4trace:configure.in:45: -1- AC_SUBST([CONF_FILES])
 m4trace:configure.in:45: -1- AC_SUBST_TRACE([CONF_FILES])
 m4trace:configure.in:45: -1- m4_pattern_allow([^CONF_FILES$])
 m4trace:configure.in:48: -1- _m4_warn([obsolete], [The macro `AM_CONFIG_HEADER' is obsolete.
-You should run autoupdate.], [aclocal.m4:13570: AM_CONFIG_HEADER is expanded from...
+You should run autoupdate.], [aclocal.m4:13568: AM_CONFIG_HEADER is expanded from...
 configure.in:48: the top level])
 m4trace:configure.in:48: -1- AC_CONFIG_HEADERS([config.h])
 m4trace:configure.in:51: -2- _m4_warn([obsolete], [The macro `AC_HELP_STRING' is obsolete.
@@ -3652,14 +3652,17 @@ echo "$as_me: error: libtool-ltdl not installed - please install first" >&2;}
 m4trace:configure.in:90: -1- AC_CHECK_LIB([fftw3], [main], [fftw_libs="-lfftw3"], [{ { echo "$as_me:$LINENO: error: FFTW3 not installed - please install first" >&5
 echo "$as_me: error: FFTW3 not installed - please install first" >&2;}
    { (exit 1); exit 1; }; }])
-m4trace:configure.in:106: -1- AC_CHECK_LIB([ruby], [main], [ruby_libs="-lruby" ruby_cflags=$RUBY_INCLUDES], [{ { echo "$as_me:$LINENO: error: ruby not installed - please install first" >&5
+m4trace:configure.in:104: -1- AC_CHECK_LIB([ftgl], [main], [ftgl_libs="-lftgl"], [{ { echo "$as_me:$LINENO: error: FTGL not installed - please install first" >&5
+echo "$as_me: error: FTGL not installed - please install first" >&2;}
+   { (exit 1); exit 1; }; }])
+m4trace:configure.in:112: -1- AC_CHECK_LIB([ruby], [main], [ruby_libs="-lruby" ruby_cflags=$RUBY_INCLUDES], [{ { echo "$as_me:$LINENO: error: ruby not installed - please install first" >&5
 echo "$as_me: error: ruby not installed - please install first" >&2;}
    { (exit 1); exit 1; }; }])
-m4trace:configure.in:116: -2- AC_DEFINE_TRACE_LITERAL([HAVE_NI_DAQMX])
-m4trace:configure.in:116: -2- m4_pattern_allow([^HAVE_NI_DAQMX$])
-m4trace:configure.in:116: -2- AH_OUTPUT([HAVE_NI_DAQMX], [/* Define if you have \'NI-DAQmx\' library */
+m4trace:configure.in:122: -2- AC_DEFINE_TRACE_LITERAL([HAVE_NI_DAQMX])
+m4trace:configure.in:122: -2- m4_pattern_allow([^HAVE_NI_DAQMX$])
+m4trace:configure.in:122: -2- AH_OUTPUT([HAVE_NI_DAQMX], [/* Define if you have \'NI-DAQmx\' library */
 #undef HAVE_NI_DAQMX])
-m4trace:configure.in:113: -1- AC_CHECK_LIB([nidaqmx], [main], [nidaqmx_libs="-L/usr/local/lib -lnidaqmx"
+m4trace:configure.in:119: -1- AC_CHECK_LIB([nidaqmx], [main], [nidaqmx_libs="-L/usr/local/lib -lnidaqmx"
 nidaqmx_cflags="-I/usr/local/include"
 
 cat >>confdefs.h <<\_ACEOF
@@ -3667,22 +3670,22 @@ cat >>confdefs.h <<\_ACEOF
 _ACEOF
 ], [{ echo "$as_me:$LINENO: WARNING: NIDAQmx is not installed - NIDAQmx is disabled" >&5
 echo "$as_me: WARNING: NIDAQmx is not installed - NIDAQmx is disabled" >&2;}], [-L/usr/local/lib -lnidaqmx])
-m4trace:configure.in:124: -2- AC_DEFINE_TRACE_LITERAL([HAVE_LINUX_GPIB])
-m4trace:configure.in:124: -2- m4_pattern_allow([^HAVE_LINUX_GPIB$])
-m4trace:configure.in:124: -2- AH_OUTPUT([HAVE_LINUX_GPIB], [/* Define if you have \'linux-gpib\' library */
+m4trace:configure.in:130: -2- AC_DEFINE_TRACE_LITERAL([HAVE_LINUX_GPIB])
+m4trace:configure.in:130: -2- m4_pattern_allow([^HAVE_LINUX_GPIB$])
+m4trace:configure.in:130: -2- AH_OUTPUT([HAVE_LINUX_GPIB], [/* Define if you have \'linux-gpib\' library */
 #undef HAVE_LINUX_GPIB])
-m4trace:configure.in:122: -1- AC_CHECK_LIB([gpib], [main], [gpib_libs="-lgpib"\
+m4trace:configure.in:128: -1- AC_CHECK_LIB([gpib], [main], [gpib_libs="-lgpib"\
 	  
 cat >>confdefs.h <<\_ACEOF
 @%:@define HAVE_LINUX_GPIB 1
 _ACEOF
 ], [{ echo "$as_me:$LINENO: WARNING: linux-gpib is not installed - gpib is disabled" >&5
 echo "$as_me: WARNING: linux-gpib is not installed - gpib is disabled" >&2;}], [-lgpib])
-m4trace:configure.in:132: -2- AC_DEFINE_TRACE_LITERAL([HAVE_LAPACK])
-m4trace:configure.in:132: -2- m4_pattern_allow([^HAVE_LAPACK$])
-m4trace:configure.in:132: -2- AH_OUTPUT([HAVE_LAPACK], [/* Define if you have \'LAPACK\' library */
+m4trace:configure.in:138: -2- AC_DEFINE_TRACE_LITERAL([HAVE_LAPACK])
+m4trace:configure.in:138: -2- m4_pattern_allow([^HAVE_LAPACK$])
+m4trace:configure.in:138: -2- AH_OUTPUT([HAVE_LAPACK], [/* Define if you have \'LAPACK\' library */
 #undef HAVE_LAPACK])
-m4trace:configure.in:129: -1- AC_CHECK_LIB([lapack], [main], [lapack_libs="-L/usr/lib/atlas -llapack -lf77blas -lcblas -lgfortran"
+m4trace:configure.in:135: -1- AC_CHECK_LIB([lapack], [main], [lapack_libs="-L/usr/lib/sse2 -llapack -lblas -latlas -lf77blas -lcblas -lgfortran"
 lapack_cflags=""
 
 cat >>confdefs.h <<\_ACEOF
@@ -3690,166 +3693,169 @@ cat >>confdefs.h <<\_ACEOF
 _ACEOF
 ], [{ { echo "$as_me:$LINENO: error: LAPACK w/ ATLAS is not installed" >&5
 echo "$as_me: error: LAPACK w/ ATLAS is not installed" >&2;}
-   { (exit 1); exit 1; }; }], [-L/usr/lib/atlas -llapack -lf77blas -lcblas -lgfortran])
-m4trace:configure.in:144: -3- AC_DEFINE_TRACE_LITERAL([HAVE_LIBGCCPP])
-m4trace:configure.in:144: -3- m4_pattern_allow([^HAVE_LIBGCCPP$])
-m4trace:configure.in:144: -3- AH_OUTPUT([HAVE_LIBGCCPP], [/* Define if you want to use \'gc, gccpp\' library to detect memory leaks */
+   { (exit 1); exit 1; }; }], [-L/usr/lib/sse2 -llapack -lblas -latlas -lf77blas -lcblas -lgfortran])
+m4trace:configure.in:150: -3- AC_DEFINE_TRACE_LITERAL([HAVE_LIBGCCPP])
+m4trace:configure.in:150: -3- m4_pattern_allow([^HAVE_LIBGCCPP$])
+m4trace:configure.in:150: -3- AH_OUTPUT([HAVE_LIBGCCPP], [/* Define if you want to use \'gc, gccpp\' library to detect memory leaks */
 #undef HAVE_LIBGCCPP])
-m4trace:configure.in:142: -2- AC_CHECK_LIB([gccpp], [main], [gc_libs="-lgccpp -lgc" \
+m4trace:configure.in:148: -2- AC_CHECK_LIB([gccpp], [main], [gc_libs="-lgccpp -lgc" \
 	  
 cat >>confdefs.h <<\_ACEOF
 @%:@define HAVE_LIBGCCPP 1
 _ACEOF
 ], [{ echo "$as_me:$LINENO: WARNING: gc or gccpp is not installed - gc is disabled" >&5
 echo "$as_me: WARNING: gc or gccpp is not installed - gc is disabled" >&2;}], [-lgc])
-m4trace:configure.in:157: -3- AC_DEFINE_TRACE_LITERAL([HAVE_LIBMALLOCDEBUG])
-m4trace:configure.in:157: -3- m4_pattern_allow([^HAVE_LIBMALLOCDEBUG$])
-m4trace:configure.in:157: -3- AH_OUTPUT([HAVE_LIBMALLOCDEBUG], [/* Define if you want to use \'MallocDebug.app\' */
+m4trace:configure.in:163: -3- AC_DEFINE_TRACE_LITERAL([HAVE_LIBMALLOCDEBUG])
+m4trace:configure.in:163: -3- m4_pattern_allow([^HAVE_LIBMALLOCDEBUG$])
+m4trace:configure.in:163: -3- AH_OUTPUT([HAVE_LIBMALLOCDEBUG], [/* Define if you want to use \'MallocDebug.app\' */
 #undef HAVE_LIBMALLOCDEBUG])
-m4trace:configure.in:155: -2- AC_CHECK_LIB([MallocDebug], [main], [malloc_debug_libs="-lMallocDebug" \
+m4trace:configure.in:161: -2- AC_CHECK_LIB([MallocDebug], [main], [malloc_debug_libs="-lMallocDebug" \
 	  
 cat >>confdefs.h <<\_ACEOF
 @%:@define HAVE_LIBMALLOCDEBUG 1
 _ACEOF
 ], [{ echo "$as_me:$LINENO: WARNING: libMallocDebug.a is not installed - MallocDebug is disabled" >&5
 echo "$as_me: WARNING: libMallocDebug.a is not installed - MallocDebug is disabled" >&2;}], [-lMallocDebug])
-m4trace:configure.in:164: -1- AC_DEFINE_TRACE_LITERAL([WORDS_BIGENDIAN])
-m4trace:configure.in:164: -1- m4_pattern_allow([^WORDS_BIGENDIAN$])
-m4trace:configure.in:164: -1- AH_OUTPUT([WORDS_BIGENDIAN], [/* Define to 1 if your processor stores words with the most significant byte
+m4trace:configure.in:170: -1- AC_DEFINE_TRACE_LITERAL([WORDS_BIGENDIAN])
+m4trace:configure.in:170: -1- m4_pattern_allow([^WORDS_BIGENDIAN$])
+m4trace:configure.in:170: -1- AH_OUTPUT([WORDS_BIGENDIAN], [/* Define to 1 if your processor stores words with the most significant byte
    first (like Motorola and SPARC, unlike Intel and VAX). */
 #undef WORDS_BIGENDIAN])
-m4trace:configure.in:165: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_FLOAT])
-m4trace:configure.in:165: -1- m4_pattern_allow([^SIZEOF_FLOAT$])
-m4trace:configure.in:165: -1- AH_OUTPUT([SIZEOF_FLOAT], [/* The size of `float\', as computed by sizeof. */
+m4trace:configure.in:171: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_FLOAT])
+m4trace:configure.in:171: -1- m4_pattern_allow([^SIZEOF_FLOAT$])
+m4trace:configure.in:171: -1- AH_OUTPUT([SIZEOF_FLOAT], [/* The size of `float\', as computed by sizeof. */
 #undef SIZEOF_FLOAT])
-m4trace:configure.in:166: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_DOUBLE])
-m4trace:configure.in:166: -1- m4_pattern_allow([^SIZEOF_DOUBLE$])
-m4trace:configure.in:166: -1- AH_OUTPUT([SIZEOF_DOUBLE], [/* The size of `double\', as computed by sizeof. */
+m4trace:configure.in:172: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_DOUBLE])
+m4trace:configure.in:172: -1- m4_pattern_allow([^SIZEOF_DOUBLE$])
+m4trace:configure.in:172: -1- AH_OUTPUT([SIZEOF_DOUBLE], [/* The size of `double\', as computed by sizeof. */
 #undef SIZEOF_DOUBLE])
-m4trace:configure.in:167: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_SHORT])
-m4trace:configure.in:167: -1- m4_pattern_allow([^SIZEOF_SHORT$])
-m4trace:configure.in:167: -1- AH_OUTPUT([SIZEOF_SHORT], [/* The size of `short\', as computed by sizeof. */
+m4trace:configure.in:173: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_SHORT])
+m4trace:configure.in:173: -1- m4_pattern_allow([^SIZEOF_SHORT$])
+m4trace:configure.in:173: -1- AH_OUTPUT([SIZEOF_SHORT], [/* The size of `short\', as computed by sizeof. */
 #undef SIZEOF_SHORT])
-m4trace:configure.in:168: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_INT])
-m4trace:configure.in:168: -1- m4_pattern_allow([^SIZEOF_INT$])
-m4trace:configure.in:168: -1- AH_OUTPUT([SIZEOF_INT], [/* The size of `int\', as computed by sizeof. */
+m4trace:configure.in:174: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_INT])
+m4trace:configure.in:174: -1- m4_pattern_allow([^SIZEOF_INT$])
+m4trace:configure.in:174: -1- AH_OUTPUT([SIZEOF_INT], [/* The size of `int\', as computed by sizeof. */
 #undef SIZEOF_INT])
-m4trace:configure.in:169: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_LONG])
-m4trace:configure.in:169: -1- m4_pattern_allow([^SIZEOF_LONG$])
-m4trace:configure.in:169: -1- AH_OUTPUT([SIZEOF_LONG], [/* The size of `long\', as computed by sizeof. */
+m4trace:configure.in:175: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_LONG])
+m4trace:configure.in:175: -1- m4_pattern_allow([^SIZEOF_LONG$])
+m4trace:configure.in:175: -1- AH_OUTPUT([SIZEOF_LONG], [/* The size of `long\', as computed by sizeof. */
 #undef SIZEOF_LONG])
-m4trace:configure.in:170: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_VOID_P])
-m4trace:configure.in:170: -1- m4_pattern_allow([^SIZEOF_VOID_P$])
-m4trace:configure.in:170: -1- AH_OUTPUT([SIZEOF_VOID_P], [/* The size of `void *\', as computed by sizeof. */
+m4trace:configure.in:176: -1- AC_DEFINE_TRACE_LITERAL([SIZEOF_VOID_P])
+m4trace:configure.in:176: -1- m4_pattern_allow([^SIZEOF_VOID_P$])
+m4trace:configure.in:176: -1- AH_OUTPUT([SIZEOF_VOID_P], [/* The size of `void *\', as computed by sizeof. */
 #undef SIZEOF_VOID_P])
-m4trace:configure.in:172: -1- AC_SUBST([LTDL_LIBS])
-m4trace:configure.in:172: -1- AC_SUBST_TRACE([LTDL_LIBS])
-m4trace:configure.in:172: -1- m4_pattern_allow([^LTDL_LIBS$])
-m4trace:configure.in:173: -1- AC_SUBST([GSL_LIBS])
-m4trace:configure.in:173: -1- AC_SUBST_TRACE([GSL_LIBS])
-m4trace:configure.in:173: -1- m4_pattern_allow([^GSL_LIBS$])
-m4trace:configure.in:174: -1- AC_SUBST([FFTW_LIBS])
-m4trace:configure.in:174: -1- AC_SUBST_TRACE([FFTW_LIBS])
-m4trace:configure.in:174: -1- m4_pattern_allow([^FFTW_LIBS$])
-m4trace:configure.in:175: -1- AC_SUBST([NIDAQMX_LIBS])
-m4trace:configure.in:175: -1- AC_SUBST_TRACE([NIDAQMX_LIBS])
-m4trace:configure.in:175: -1- m4_pattern_allow([^NIDAQMX_LIBS$])
-m4trace:configure.in:176: -1- AC_SUBST([NIDAQMX_CFLAGS])
-m4trace:configure.in:176: -1- AC_SUBST_TRACE([NIDAQMX_CFLAGS])
-m4trace:configure.in:176: -1- m4_pattern_allow([^NIDAQMX_CFLAGS$])
-m4trace:configure.in:177: -1- AC_SUBST([LINUXGPIB_LIBS])
-m4trace:configure.in:177: -1- AC_SUBST_TRACE([LINUXGPIB_LIBS])
-m4trace:configure.in:177: -1- m4_pattern_allow([^LINUXGPIB_LIBS$])
-m4trace:configure.in:178: -1- AC_SUBST([LAPACK_LIBS])
-m4trace:configure.in:178: -1- AC_SUBST_TRACE([LAPACK_LIBS])
-m4trace:configure.in:178: -1- m4_pattern_allow([^LAPACK_LIBS$])
-m4trace:configure.in:179: -1- AC_SUBST([LAPACK_CFLAGS])
-m4trace:configure.in:179: -1- AC_SUBST_TRACE([LAPACK_CFLAGS])
-m4trace:configure.in:179: -1- m4_pattern_allow([^LAPACK_CFLAGS$])
-m4trace:configure.in:180: -1- AC_SUBST([RUBY_LIBS])
-m4trace:configure.in:180: -1- AC_SUBST_TRACE([RUBY_LIBS])
-m4trace:configure.in:180: -1- m4_pattern_allow([^RUBY_LIBS$])
-m4trace:configure.in:181: -1- AC_SUBST([RUBY_CFLAGS])
-m4trace:configure.in:181: -1- AC_SUBST_TRACE([RUBY_CFLAGS])
-m4trace:configure.in:181: -1- m4_pattern_allow([^RUBY_CFLAGS$])
-m4trace:configure.in:182: -1- AC_SUBST([FREETYPE2_LIBS])
-m4trace:configure.in:182: -1- AC_SUBST_TRACE([FREETYPE2_LIBS])
-m4trace:configure.in:182: -1- m4_pattern_allow([^FREETYPE2_LIBS$])
-m4trace:configure.in:183: -1- AC_SUBST([FREETYPE2_CFLAGS])
-m4trace:configure.in:183: -1- AC_SUBST_TRACE([FREETYPE2_CFLAGS])
-m4trace:configure.in:183: -1- m4_pattern_allow([^FREETYPE2_CFLAGS$])
-m4trace:configure.in:184: -1- AC_SUBST([GC_LIBS])
-m4trace:configure.in:184: -1- AC_SUBST_TRACE([GC_LIBS])
-m4trace:configure.in:184: -1- m4_pattern_allow([^GC_LIBS$])
-m4trace:configure.in:185: -1- AC_SUBST([MALLOC_DEBUG_LIBS])
-m4trace:configure.in:185: -1- AC_SUBST_TRACE([MALLOC_DEBUG_LIBS])
-m4trace:configure.in:185: -1- m4_pattern_allow([^MALLOC_DEBUG_LIBS$])
-m4trace:configure.in:188: -1- AC_SUBST([TOPSUBDIRS])
-m4trace:configure.in:188: -1- AC_SUBST_TRACE([TOPSUBDIRS])
-m4trace:configure.in:188: -1- m4_pattern_allow([^TOPSUBDIRS$])
-m4trace:configure.in:189: -1- AC_CONFIG_FILES([ Makefile ])
-m4trace:configure.in:190: -1- AC_CONFIG_FILES([ doc/Makefile ])
-m4trace:configure.in:191: -1- AC_CONFIG_FILES([ doc/en/Makefile ])
-m4trace:configure.in:192: -1- AC_CONFIG_FILES([ kame/Makefile ])
-m4trace:configure.in:193: -1- AC_CONFIG_FILES([ kame/Measurements/Makefile ])
-m4trace:configure.in:194: -1- AC_CONFIG_FILES([ kame/Scripts/Makefile ])
-m4trace:configure.in:195: -1- AC_CONFIG_FILES([ kame/analyzer/Makefile ])
-m4trace:configure.in:196: -1- AC_CONFIG_FILES([ kame/driver/Makefile ])
-m4trace:configure.in:197: -1- AC_CONFIG_FILES([ kame/forms/Makefile ])
-m4trace:configure.in:198: -1- AC_CONFIG_FILES([ kame/graph/Makefile ])
-m4trace:configure.in:199: -1- AC_CONFIG_FILES([ kame/icons/Makefile ])
-m4trace:configure.in:200: -1- AC_CONFIG_FILES([ kame/math/Makefile ])
-m4trace:configure.in:201: -1- AC_CONFIG_FILES([ kame/mikachanfont/Makefile ])
-m4trace:configure.in:202: -1- AC_CONFIG_FILES([ kame/script/Makefile ])
-m4trace:configure.in:203: -1- AC_CONFIG_FILES([ kame/thermometer/Makefile ])
-m4trace:configure.in:204: -1- AC_CONFIG_FILES([ kame/thermometer/forms/Makefile ])
-m4trace:configure.in:205: -1- AC_CONFIG_FILES([ modules/Makefile ])
-m4trace:configure.in:206: -1- AC_CONFIG_FILES([ modules/charinterface/Makefile ])
-m4trace:configure.in:207: -1- AC_CONFIG_FILES([ modules/dcsource/Makefile ])
-m4trace:configure.in:208: -1- AC_CONFIG_FILES([ modules/dcsource/core/Makefile ])
-m4trace:configure.in:209: -1- AC_CONFIG_FILES([ modules/dcsource/core/forms/Makefile ])
-m4trace:configure.in:210: -1- AC_CONFIG_FILES([ modules/dmm/Makefile ])
-m4trace:configure.in:211: -1- AC_CONFIG_FILES([ modules/dmm/core/Makefile ])
-m4trace:configure.in:212: -1- AC_CONFIG_FILES([ modules/dmm/core/forms/Makefile ])
-m4trace:configure.in:213: -1- AC_CONFIG_FILES([ modules/dso/Makefile ])
-m4trace:configure.in:214: -1- AC_CONFIG_FILES([ modules/dso/core/Makefile ])
-m4trace:configure.in:215: -1- AC_CONFIG_FILES([ modules/dso/core/forms/Makefile ])
-m4trace:configure.in:216: -1- AC_CONFIG_FILES([ modules/funcsynth/Makefile ])
-m4trace:configure.in:217: -1- AC_CONFIG_FILES([ modules/funcsynth/forms/Makefile ])
-m4trace:configure.in:218: -1- AC_CONFIG_FILES([ modules/levelmeter/Makefile ])
-m4trace:configure.in:219: -1- AC_CONFIG_FILES([ modules/levelmeter/core/Makefile ])
-m4trace:configure.in:220: -1- AC_CONFIG_FILES([ modules/lia/Makefile ])
-m4trace:configure.in:221: -1- AC_CONFIG_FILES([ modules/lia/forms/Makefile ])
-m4trace:configure.in:222: -1- AC_CONFIG_FILES([ modules/magnetps/Makefile ])
-m4trace:configure.in:223: -1- AC_CONFIG_FILES([ modules/magnetps/core/Makefile ])
-m4trace:configure.in:224: -1- AC_CONFIG_FILES([ modules/magnetps/core/forms/Makefile ])
-m4trace:configure.in:225: -1- AC_CONFIG_FILES([ modules/montecarlo/Makefile ])
-m4trace:configure.in:226: -1- AC_CONFIG_FILES([ modules/montecarlo/forms/Makefile ])
-m4trace:configure.in:227: -1- AC_CONFIG_FILES([ modules/networkanalyzer/Makefile ])
-m4trace:configure.in:228: -1- AC_CONFIG_FILES([ modules/networkanalyzer/forms/Makefile ])
-m4trace:configure.in:229: -1- AC_CONFIG_FILES([ modules/nidaq/Makefile ])
-m4trace:configure.in:230: -1- AC_CONFIG_FILES([ modules/nmr/Makefile ])
-m4trace:configure.in:231: -1- AC_CONFIG_FILES([ modules/nmr/core/Makefile ])
-m4trace:configure.in:232: -1- AC_CONFIG_FILES([ modules/nmr/core/forms/Makefile ])
-m4trace:configure.in:233: -1- AC_CONFIG_FILES([ modules/sg/Makefile ])
-m4trace:configure.in:234: -1- AC_CONFIG_FILES([ modules/sg/core/Makefile ])
-m4trace:configure.in:235: -1- AC_CONFIG_FILES([ modules/sg/core/forms/Makefile ])
-m4trace:configure.in:236: -1- AC_CONFIG_FILES([ modules/tempcontrol/Makefile ])
-m4trace:configure.in:237: -1- AC_CONFIG_FILES([ modules/tempcontrol/forms/Makefile ])
-m4trace:configure.in:238: -1- AC_CONFIG_FILES([ modules/testdriver/Makefile ])
-m4trace:configure.in:239: -1- AC_CONFIG_FILES([ po/Makefile ])
-m4trace:configure.in:240: -1- AC_SUBST([LIB@&t@OBJS], [$ac_libobjs])
-m4trace:configure.in:240: -1- AC_SUBST_TRACE([LIB@&t@OBJS])
-m4trace:configure.in:240: -1- m4_pattern_allow([^LIB@&t@OBJS$])
-m4trace:configure.in:240: -1- AC_SUBST([LTLIBOBJS], [$ac_ltlibobjs])
-m4trace:configure.in:240: -1- AC_SUBST_TRACE([LTLIBOBJS])
-m4trace:configure.in:240: -1- m4_pattern_allow([^LTLIBOBJS$])
-m4trace:configure.in:240: -1- AC_SUBST_TRACE([top_builddir])
-m4trace:configure.in:240: -1- AC_SUBST_TRACE([srcdir])
-m4trace:configure.in:240: -1- AC_SUBST_TRACE([abs_srcdir])
-m4trace:configure.in:240: -1- AC_SUBST_TRACE([top_srcdir])
-m4trace:configure.in:240: -1- AC_SUBST_TRACE([abs_top_srcdir])
-m4trace:configure.in:240: -1- AC_SUBST_TRACE([builddir])
-m4trace:configure.in:240: -1- AC_SUBST_TRACE([abs_builddir])
-m4trace:configure.in:240: -1- AC_SUBST_TRACE([abs_top_builddir])
-m4trace:configure.in:240: -1- AC_SUBST_TRACE([INSTALL])
+m4trace:configure.in:178: -1- AC_SUBST([LTDL_LIBS])
+m4trace:configure.in:178: -1- AC_SUBST_TRACE([LTDL_LIBS])
+m4trace:configure.in:178: -1- m4_pattern_allow([^LTDL_LIBS$])
+m4trace:configure.in:179: -1- AC_SUBST([GSL_LIBS])
+m4trace:configure.in:179: -1- AC_SUBST_TRACE([GSL_LIBS])
+m4trace:configure.in:179: -1- m4_pattern_allow([^GSL_LIBS$])
+m4trace:configure.in:180: -1- AC_SUBST([FFTW_LIBS])
+m4trace:configure.in:180: -1- AC_SUBST_TRACE([FFTW_LIBS])
+m4trace:configure.in:180: -1- m4_pattern_allow([^FFTW_LIBS$])
+m4trace:configure.in:181: -1- AC_SUBST([FTGL_LIBS])
+m4trace:configure.in:181: -1- AC_SUBST_TRACE([FTGL_LIBS])
+m4trace:configure.in:181: -1- m4_pattern_allow([^FTGL_LIBS$])
+m4trace:configure.in:182: -1- AC_SUBST([NIDAQMX_LIBS])
+m4trace:configure.in:182: -1- AC_SUBST_TRACE([NIDAQMX_LIBS])
+m4trace:configure.in:182: -1- m4_pattern_allow([^NIDAQMX_LIBS$])
+m4trace:configure.in:183: -1- AC_SUBST([NIDAQMX_CFLAGS])
+m4trace:configure.in:183: -1- AC_SUBST_TRACE([NIDAQMX_CFLAGS])
+m4trace:configure.in:183: -1- m4_pattern_allow([^NIDAQMX_CFLAGS$])
+m4trace:configure.in:184: -1- AC_SUBST([LINUXGPIB_LIBS])
+m4trace:configure.in:184: -1- AC_SUBST_TRACE([LINUXGPIB_LIBS])
+m4trace:configure.in:184: -1- m4_pattern_allow([^LINUXGPIB_LIBS$])
+m4trace:configure.in:185: -1- AC_SUBST([LAPACK_LIBS])
+m4trace:configure.in:185: -1- AC_SUBST_TRACE([LAPACK_LIBS])
+m4trace:configure.in:185: -1- m4_pattern_allow([^LAPACK_LIBS$])
+m4trace:configure.in:186: -1- AC_SUBST([LAPACK_CFLAGS])
+m4trace:configure.in:186: -1- AC_SUBST_TRACE([LAPACK_CFLAGS])
+m4trace:configure.in:186: -1- m4_pattern_allow([^LAPACK_CFLAGS$])
+m4trace:configure.in:187: -1- AC_SUBST([RUBY_LIBS])
+m4trace:configure.in:187: -1- AC_SUBST_TRACE([RUBY_LIBS])
+m4trace:configure.in:187: -1- m4_pattern_allow([^RUBY_LIBS$])
+m4trace:configure.in:188: -1- AC_SUBST([RUBY_CFLAGS])
+m4trace:configure.in:188: -1- AC_SUBST_TRACE([RUBY_CFLAGS])
+m4trace:configure.in:188: -1- m4_pattern_allow([^RUBY_CFLAGS$])
+m4trace:configure.in:189: -1- AC_SUBST([FREETYPE2_LIBS])
+m4trace:configure.in:189: -1- AC_SUBST_TRACE([FREETYPE2_LIBS])
+m4trace:configure.in:189: -1- m4_pattern_allow([^FREETYPE2_LIBS$])
+m4trace:configure.in:190: -1- AC_SUBST([FREETYPE2_CFLAGS])
+m4trace:configure.in:190: -1- AC_SUBST_TRACE([FREETYPE2_CFLAGS])
+m4trace:configure.in:190: -1- m4_pattern_allow([^FREETYPE2_CFLAGS$])
+m4trace:configure.in:191: -1- AC_SUBST([GC_LIBS])
+m4trace:configure.in:191: -1- AC_SUBST_TRACE([GC_LIBS])
+m4trace:configure.in:191: -1- m4_pattern_allow([^GC_LIBS$])
+m4trace:configure.in:192: -1- AC_SUBST([MALLOC_DEBUG_LIBS])
+m4trace:configure.in:192: -1- AC_SUBST_TRACE([MALLOC_DEBUG_LIBS])
+m4trace:configure.in:192: -1- m4_pattern_allow([^MALLOC_DEBUG_LIBS$])
+m4trace:configure.in:195: -1- AC_SUBST([TOPSUBDIRS])
+m4trace:configure.in:195: -1- AC_SUBST_TRACE([TOPSUBDIRS])
+m4trace:configure.in:195: -1- m4_pattern_allow([^TOPSUBDIRS$])
+m4trace:configure.in:196: -1- AC_CONFIG_FILES([ Makefile ])
+m4trace:configure.in:197: -1- AC_CONFIG_FILES([ doc/Makefile ])
+m4trace:configure.in:198: -1- AC_CONFIG_FILES([ doc/en/Makefile ])
+m4trace:configure.in:199: -1- AC_CONFIG_FILES([ kame/Makefile ])
+m4trace:configure.in:200: -1- AC_CONFIG_FILES([ kame/Measurements/Makefile ])
+m4trace:configure.in:201: -1- AC_CONFIG_FILES([ kame/Scripts/Makefile ])
+m4trace:configure.in:202: -1- AC_CONFIG_FILES([ kame/analyzer/Makefile ])
+m4trace:configure.in:203: -1- AC_CONFIG_FILES([ kame/driver/Makefile ])
+m4trace:configure.in:204: -1- AC_CONFIG_FILES([ kame/forms/Makefile ])
+m4trace:configure.in:205: -1- AC_CONFIG_FILES([ kame/graph/Makefile ])
+m4trace:configure.in:206: -1- AC_CONFIG_FILES([ kame/icons/Makefile ])
+m4trace:configure.in:207: -1- AC_CONFIG_FILES([ kame/math/Makefile ])
+m4trace:configure.in:208: -1- AC_CONFIG_FILES([ kame/mikachanfont/Makefile ])
+m4trace:configure.in:209: -1- AC_CONFIG_FILES([ kame/script/Makefile ])
+m4trace:configure.in:210: -1- AC_CONFIG_FILES([ kame/thermometer/Makefile ])
+m4trace:configure.in:211: -1- AC_CONFIG_FILES([ kame/thermometer/forms/Makefile ])
+m4trace:configure.in:212: -1- AC_CONFIG_FILES([ modules/Makefile ])
+m4trace:configure.in:213: -1- AC_CONFIG_FILES([ modules/charinterface/Makefile ])
+m4trace:configure.in:214: -1- AC_CONFIG_FILES([ modules/dcsource/Makefile ])
+m4trace:configure.in:215: -1- AC_CONFIG_FILES([ modules/dcsource/core/Makefile ])
+m4trace:configure.in:216: -1- AC_CONFIG_FILES([ modules/dcsource/core/forms/Makefile ])
+m4trace:configure.in:217: -1- AC_CONFIG_FILES([ modules/dmm/Makefile ])
+m4trace:configure.in:218: -1- AC_CONFIG_FILES([ modules/dmm/core/Makefile ])
+m4trace:configure.in:219: -1- AC_CONFIG_FILES([ modules/dmm/core/forms/Makefile ])
+m4trace:configure.in:220: -1- AC_CONFIG_FILES([ modules/dso/Makefile ])
+m4trace:configure.in:221: -1- AC_CONFIG_FILES([ modules/dso/core/Makefile ])
+m4trace:configure.in:222: -1- AC_CONFIG_FILES([ modules/dso/core/forms/Makefile ])
+m4trace:configure.in:223: -1- AC_CONFIG_FILES([ modules/funcsynth/Makefile ])
+m4trace:configure.in:224: -1- AC_CONFIG_FILES([ modules/funcsynth/forms/Makefile ])
+m4trace:configure.in:225: -1- AC_CONFIG_FILES([ modules/levelmeter/Makefile ])
+m4trace:configure.in:226: -1- AC_CONFIG_FILES([ modules/levelmeter/core/Makefile ])
+m4trace:configure.in:227: -1- AC_CONFIG_FILES([ modules/lia/Makefile ])
+m4trace:configure.in:228: -1- AC_CONFIG_FILES([ modules/lia/forms/Makefile ])
+m4trace:configure.in:229: -1- AC_CONFIG_FILES([ modules/magnetps/Makefile ])
+m4trace:configure.in:230: -1- AC_CONFIG_FILES([ modules/magnetps/core/Makefile ])
+m4trace:configure.in:231: -1- AC_CONFIG_FILES([ modules/magnetps/core/forms/Makefile ])
+m4trace:configure.in:232: -1- AC_CONFIG_FILES([ modules/montecarlo/Makefile ])
+m4trace:configure.in:233: -1- AC_CONFIG_FILES([ modules/montecarlo/forms/Makefile ])
+m4trace:configure.in:234: -1- AC_CONFIG_FILES([ modules/networkanalyzer/Makefile ])
+m4trace:configure.in:235: -1- AC_CONFIG_FILES([ modules/networkanalyzer/forms/Makefile ])
+m4trace:configure.in:236: -1- AC_CONFIG_FILES([ modules/nidaq/Makefile ])
+m4trace:configure.in:237: -1- AC_CONFIG_FILES([ modules/nmr/Makefile ])
+m4trace:configure.in:238: -1- AC_CONFIG_FILES([ modules/nmr/core/Makefile ])
+m4trace:configure.in:239: -1- AC_CONFIG_FILES([ modules/nmr/core/forms/Makefile ])
+m4trace:configure.in:240: -1- AC_CONFIG_FILES([ modules/sg/Makefile ])
+m4trace:configure.in:241: -1- AC_CONFIG_FILES([ modules/sg/core/Makefile ])
+m4trace:configure.in:242: -1- AC_CONFIG_FILES([ modules/sg/core/forms/Makefile ])
+m4trace:configure.in:243: -1- AC_CONFIG_FILES([ modules/tempcontrol/Makefile ])
+m4trace:configure.in:244: -1- AC_CONFIG_FILES([ modules/tempcontrol/forms/Makefile ])
+m4trace:configure.in:245: -1- AC_CONFIG_FILES([ modules/testdriver/Makefile ])
+m4trace:configure.in:246: -1- AC_CONFIG_FILES([ po/Makefile ])
+m4trace:configure.in:247: -1- AC_SUBST([LIB@&t@OBJS], [$ac_libobjs])
+m4trace:configure.in:247: -1- AC_SUBST_TRACE([LIB@&t@OBJS])
+m4trace:configure.in:247: -1- m4_pattern_allow([^LIB@&t@OBJS$])
+m4trace:configure.in:247: -1- AC_SUBST([LTLIBOBJS], [$ac_ltlibobjs])
+m4trace:configure.in:247: -1- AC_SUBST_TRACE([LTLIBOBJS])
+m4trace:configure.in:247: -1- m4_pattern_allow([^LTLIBOBJS$])
+m4trace:configure.in:247: -1- AC_SUBST_TRACE([top_builddir])
+m4trace:configure.in:247: -1- AC_SUBST_TRACE([srcdir])
+m4trace:configure.in:247: -1- AC_SUBST_TRACE([abs_srcdir])
+m4trace:configure.in:247: -1- AC_SUBST_TRACE([top_srcdir])
+m4trace:configure.in:247: -1- AC_SUBST_TRACE([abs_top_srcdir])
+m4trace:configure.in:247: -1- AC_SUBST_TRACE([builddir])
+m4trace:configure.in:247: -1- AC_SUBST_TRACE([abs_builddir])
+m4trace:configure.in:247: -1- AC_SUBST_TRACE([abs_top_builddir])
+m4trace:configure.in:247: -1- AC_SUBST_TRACE([INSTALL])

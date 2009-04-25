@@ -101,6 +101,12 @@ fi
 GSL_LIBS="`gsl-config --libs`"
 
 ac_save_LIBS="$LIBS"
+AC_CHECK_LIB(ftgl, main, ftgl_libs="-lftgl",
+  AC_MSG_ERROR([FTGL not installed - please install first]))
+FTGL_LIBS="$FTGL_LIBS $ftgl_libs"
+LIBS="$ac_save_LIBS"
+
+ac_save_LIBS="$LIBS"
 RUBY_INCLUDE_PATH="`find /usr/lib/ruby/ -name 'ruby.h'`"
 RUBY_INCLUDES="`if test -n "$RUBY_INCLUDE_PATH"; then echo -I$RUBY_INCLUDE_PATH; fi |sed -e 's/ruby.h//'`"
 AC_CHECK_LIB(ruby, main, ruby_libs="-lruby" ruby_cflags=$RUBY_INCLUDES,
@@ -127,10 +133,10 @@ LINUXGPIB_LIBS="$gpib_libs"
 
 ac_save_LIBS="$LIBS"
 AC_CHECK_LIB(lapack, main, 
-lapack_libs="-L/usr/lib/atlas -llapack -lf77blas -lcblas -lgfortran"
+lapack_libs="-L/usr/lib/sse2 -llapack -lblas -latlas -lf77blas -lcblas -lgfortran"
 lapack_cflags=""
 AC_DEFINE([HAVE_LAPACK], 1, [Define if you have 'LAPACK' library]),
-AC_MSG_ERROR([LAPACK w/ ATLAS is not installed]), -L/usr/lib/atlas -llapack -lf77blas -lcblas -lgfortran)
+AC_MSG_ERROR([LAPACK w/ ATLAS is not installed]), -L/usr/lib/sse2 -llapack -lblas -latlas -lf77blas -lcblas -lgfortran)
 LAPACK_LIBS="$lapack_libs"
 LAPACK_CFLAGS="$lapack_cflags"
 LIBS="$ac_save_LIBS"
@@ -172,6 +178,7 @@ AC_CHECK_SIZEOF(void *)
 AC_SUBST(LTDL_LIBS)
 AC_SUBST(GSL_LIBS)
 AC_SUBST(FFTW_LIBS)
+AC_SUBST(FTGL_LIBS)
 AC_SUBST(NIDAQMX_LIBS)
 AC_SUBST(NIDAQMX_CFLAGS)
 AC_SUBST(LINUXGPIB_LIBS)

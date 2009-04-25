@@ -1,0 +1,4 @@
+base referer
+rect $da/d92/struct_x_talker_1_1_transaction.html 174,82 366,109
+rect $df/d2e/struct_x_talker_1_1_transaction_allow_dup.html 7,157 258,184
+rect $db/dce/struct_x_talker_1_1_transaction_avoid_dup.html 282,157 533,184

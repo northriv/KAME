@@ -1,4 +1,0 @@
-base referer
-rect $struct_x_talker_1_1_transaction.html 172,82 364,109
-rect $struct_x_talker_1_1_transaction_allow_dup.html 8,157 256,184
-rect $struct_x_talker_1_1_transaction_avoid_dup.html 280,157 528,184

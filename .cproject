@@ -47,12 +47,7 @@
 </scannerInfoProvider>
 </profile>
 </storageModule>
-<storageModule moduleId="org.eclipse.cdt.core.pathentry">
-<pathentry base-path="KAME2.1" include="kame" kind="inc" path="" system="true"/>
-<pathentry include="/sw/include" kind="inc" path="" system="true"/>
-<pathentry kind="out" path=""/>
-<pathentry kind="con" path="org.eclipse.cdt.make.core.DISCOVERED_SCANNER_INFO"/>
-</storageModule>
+
 <storageModule moduleId="org.eclipse.cdt.make.core.buildtargets">
 <buildTargets>
 <target name="all" path="macosx" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
@@ -71,8 +66,8 @@
 <attribute key="ctagslocation" value=""/>
 <attribute key="ctagsindexincludes" value="false"/>
 <attribute key="ctagfiletype" value="ctags_internal"/>
-<attribute key="ctagfilelocation" value=""/>
 <attribute key="ctagslocationtype" value="ctags_path_default"/>
+<attribute key="ctagfilelocation" value=""/>
 </extension>
 <extension id="org.eclipse.cdt.core.MachO" point="org.eclipse.cdt.core.BinaryParser">
 <attribute key="c++filt" value="c++filt"/>
@@ -81,6 +76,13 @@
 </storageModule>
 <storageModule moduleId="org.eclipse.cdt.core.language.mapping"/>
 <storageModule moduleId="org.eclipse.cdt.core.externalSettings"/>
+<storageModule moduleId="org.eclipse.cdt.core.pathentry">
+<pathentry kind="out" path=""/>
+<pathentry kind="con" path="org.eclipse.cdt.make.core.DISCOVERED_SCANNER_INFO"/>
+<pathentry kind="src" path=""/>
+<pathentry base-path="KAME2.1" include="kame" kind="inc" path="" system="true"/>
+<pathentry include="/sw/include" kind="inc" path="" system="true"/>
+</storageModule>
 </cconfiguration>
 </storageModule>
 </cproject>

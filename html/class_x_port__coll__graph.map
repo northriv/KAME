@@ -1,8 +1,0 @@
-base referer
-rect $class_x_thread_local.html 8,205 248,232
-rect $class_x_thread_local.html 58,114 197,141
-rect $class_x_char_interface.html 272,205 386,232
-rect $class_x_interface.html 286,114 372,141
-rect $class_x_node.html 121,8 185,34
-rect $class_x_talker.html 209,8 449,34
-rect $class_x_recursive_mutex.html 473,8 604,34

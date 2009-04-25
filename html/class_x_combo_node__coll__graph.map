@@ -1,5 +1,0 @@
-base referer
-rect $class_x_item_node_base.html 8,7 128,34
-rect $classatomic__shared__ptr.html 152,7 458,34
-rect $class_x_recursive_mutex.html 482,7 613,34
-rect $classatomic__shared__ptr.html 637,7 938,34

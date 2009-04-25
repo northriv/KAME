@@ -1,0 +1,5 @@
+base referer
+rect $db/da8/class_x_interface.html 173,114 258,141
+rect $dd/d83/class_x_node.html 8,8 72,34
+rect $d6/dbd/class_x_talker.html 96,8 336,34
+rect $d2/db1/class_x_recursive_mutex.html 360,8 490,34

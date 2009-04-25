@@ -1,0 +1,5 @@
+base referer
+rect $d2/df8/class___x_listener_shared.html 8,157 181,184
+rect $d7/db0/class___x_listener_static.html 205,157 370,184
+rect $d4/d57/class___x_listener_weak.html 394,157 560,184
+rect $d9/d45/class_x_listener.html 248,8 328,34

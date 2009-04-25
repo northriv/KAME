@@ -1,0 +1,15 @@
+base referer
+rect $de/d8d/class_x_item_q_connector.html 386,8 517,34
+rect $dc/d63/class_x_k_color_button_connector.html 365,58 538,85
+rect $d3/d0c/class_x_k_color_combo_connector.html 362,109 541,136
+rect $d4/dfa/class_x_k_double_num_input_connector.html 349,160 554,186
+rect $d0/df4/class_x_k_double_spin_box_connector.html 354,210 549,237
+rect $d3/dbb/class_x_k_led_connector.html 389,261 514,288
+rect $da/dd9/class_x_k_u_r_l_req_connector.html 374,312 529,338
+rect $d8/d0d/class_x_q_label_connector.html 382,362 521,389
+rect $d3/dd5/class_x_q_l_c_d_number_connector.html 362,413 541,440
+rect $dc/d9b/class_x_q_line_edit_connector.html 374,464 529,490
+rect $d4/d80/class_x_q_spin_box_connector.html 374,514 529,541
+rect $da/d15/class_x_q_text_browser_connector.html 362,565 541,592
+rect $df/de2/class_x_q_toggle_button_connector.html 360,616 544,642
+rect $d2/dd5/class_x_q_connector.html 9,312 113,338

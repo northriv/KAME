@@ -1,0 +1,8 @@
+base referer
+rect $d6/d9b/class_x_thread_local.html 8,205 248,232
+rect $d6/d9b/class_x_thread_local.html 58,114 197,141
+rect $da/d08/class_x_char_interface.html 272,205 386,232
+rect $db/da8/class_x_interface.html 286,114 372,141
+rect $dd/d83/class_x_node.html 121,8 185,34
+rect $d6/dbd/class_x_talker.html 209,8 449,34
+rect $d2/db1/class_x_recursive_mutex.html 473,8 604,34

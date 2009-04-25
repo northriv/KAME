@@ -1,0 +1,6 @@
+base referer
+rect $d1/d63/struct_x_raw_stream_record_reader_1_1_x_broken_record_error.html 8,157 328,184
+rect $d2/d8e/struct_x_raw_stream_record_reader_1_1_x_i_o_error.html 352,157 600,184
+rect $d1/d17/struct_x_raw_stream_record_reader_1_1_x_no_driver_error.html 624,157 912,184
+rect $d7/d19/struct_x_kame_error.html 428,8 524,34
+rect $d4/d83/struct_x_raw_stream_record_reader_1_1_x_buffer_overflow_error.html 313,232 638,258

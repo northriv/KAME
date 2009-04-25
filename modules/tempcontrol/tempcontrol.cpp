@@ -353,6 +353,7 @@ XTempControl::execute(const atomic<bool> &terminated)
           double terr = src_temp - *targetTemp();
           tempAvg = (tempAvg - temp) * exp(-dt / tau) + temp;
           tempErrAvg = (tempErrAvg - terr * terr) * exp(-dt / tau) + terr * terr;
+          tempErrAvg = std::min(tempErrAvg, src_temp * src_temp);
           stabilized()->value(sqrt(tempErrAvg)); //stderr
           
           double power = 0.0;

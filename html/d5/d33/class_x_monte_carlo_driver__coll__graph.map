@@ -1,0 +1,9 @@
+base referer
+rect $d8/d95/class_x_dummy_driver.html 254,280 484,306
+rect $d6/d66/class_x_primary_driver.html 141,98 256,125
+rect $d1/d87/class_x_driver.html 8,8 74,34
+rect $d6/d9b/class_x_thread_local.html 98,8 298,34
+rect $d6/d9b/class_x_thread_local.html 322,8 562,34
+rect $d8/d95/class_x_dummy_driver.html 280,98 458,125
+rect $d7/deb/classqshared__ptr.html 534,280 745,306
+rect $d7/deb/classqshared__ptr.html 753,98 876,125

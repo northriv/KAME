@@ -1,6 +1,0 @@
-base referer
-rect $class_x_dummy_driver.html 78,253 308,279
-rect $class_x_primary_driver.html 8,162 122,189
-rect $class_x_driver.html 30,85 100,111
-rect $class_x_node.html 33,7 97,34
-rect $class_x_dummy_driver.html 146,162 325,189

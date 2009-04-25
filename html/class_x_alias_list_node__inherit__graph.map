@@ -1,7 +1,0 @@
-base referer
-rect $class_x_alias_list_node.html 501,10 701,37
-rect $class_x_alias_list_node.html 496,74 706,101
-rect $class_x_alias_list_node.html 502,138 700,165
-rect $class_x_alias_list_node.html 493,202 709,229
-rect $class_x_alias_list_node.html 490,266 712,293
-rect $class_x_list_node_base.html 9,138 124,165

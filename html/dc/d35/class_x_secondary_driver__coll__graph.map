@@ -1,0 +1,7 @@
+base referer
+rect $d1/d87/class_x_driver.html 253,114 319,141
+rect $dd/d83/class_x_node.html 7,8 71,34
+rect $d6/dbd/class_x_talker.html 95,8 319,34
+rect $df/d6b/class_x_time.html 343,8 405,34
+rect $d6/df8/class_x_recursive_r_w_lock.html 437,8 578,34
+rect $db/d03/class_x_r_w_lock.html 343,114 426,141
