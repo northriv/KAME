@@ -1,14 +1,14 @@
 /***************************************************************************
 		Copyright (C) 2002-2008 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
-		
+
 		This program is free software; you can redistribute it and/or
 		modify it under the terms of the GNU Library General Public
 		License as published by the Free Software Foundation; either
 		version 2 of the License, or (at your option) any later version.
-		
-		You should have received a copy of the GNU Library General 
-		Public License and a list of authors along with this program; 
+
+		You should have received a copy of the GNU Library General
+		Public License and a list of authors along with this program;
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #ifndef ATOMIC_QUEUE_H_
@@ -22,7 +22,7 @@ class atomic_nonzero_pod_queue
 {
 public:
     struct nospace_error {};
-    
+
     atomic_nonzero_pod_queue() : m_pFirst(m_ptrs), m_pLast(m_ptrs), m_count(0) {
     	memset(m_ptrs, 0, SIZE * sizeof(T));
     }
@@ -160,12 +160,12 @@ class atomic_queue
 {
 public:
     typedef typename atomic_pointer_queue<T, SIZE>::nospace_error nospace_error;
-    
+
     atomic_queue() {}
     ~atomic_queue() {
         while(!empty()) pop();
     }
-    
+
     void push(const T&t) {
         T *obj = new T(t);
         try {
@@ -203,9 +203,9 @@ class atomic_queue_reserved
 public:
     typedef typename atomic_pointer_queue<T, SIZE>::nospace_error nospace_error;
     typedef uint_cas_max key;
-    
+
     atomic_queue_reserved() {
-    	C_ASSERT(SIZE < (1 << (sizeof(key) * 8 - 8)));
+    	C_ASSERT(SIZE < (1uL << (sizeof(key) * 8 - 8)));
     	for(unsigned int i = 0; i < SIZE; i++) {
 			m_reservoir.push(key_index_serial(i, 0));
     	}
@@ -214,9 +214,9 @@ public:
         while(!empty()) pop();
         ASSERT(m_reservoir.size() == SIZE);
     }
-    
+
     void push(const T&t) {
-    	key pack = m_reservoir.atomicPopAny(); 
+    	key pack = m_reservoir.atomicPopAny();
     	if(!pack)
     		throw nospace_error();
     	int idx = key2index(pack);
@@ -258,7 +258,7 @@ public:
     unsigned int size() const {
         return m_queue.size();
     }
-    
+
 	//! Try to pop the front item.
 	//! \arg item to be released.
 	//! \return true if succeeded.

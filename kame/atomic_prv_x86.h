@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -7,8 +7,8 @@
 		License as published by the Free Software Foundation; either
 		version 2 of the License, or (at your option) any later version.
 
-		You should have received a copy of the GNU Library General 
-		Public License and a list of authors along with this program; 
+		You should have received a copy of the GNU Library General
+		Public License and a list of authors along with this program;
 		see the files COPYING and AUTHORS.
  ***************************************************************************/
 #ifndef ATOMIC_PRV_X86_H_
@@ -18,7 +18,7 @@
 #include <boost/type_traits/is_pod.hpp>
 #include <boost/type_traits/is_integral.hpp>
 
-//! memory barriers. 
+//! memory barriers.
 inline void readBarrier() {
 	asm volatile( "lfence" ::: "memory" );
 	//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
@@ -36,27 +36,21 @@ inline void pause4spin() {
 	asm volatile( "pause" ::: "memory" );
 }
 
-#if SIZEOF_VOID_P == 4
-typedef int32_t int_cas2_each;
-typedef int64_t int_cas2_both;
-typedef int_cas2_each int_cas_max;
-typedef uint32_t uint_cas2_each;
-typedef uint64_t uint_cas2_both;
-typedef uint_cas2_each uint_cas_max;
 #define HAVE_CAS_2
-#ifdef __sse2__
-	#define HAVE_ATOMIC_RW64
-#endif
-#endif
+typedef intptr_t int_cas2;
+typedef uintptr_t uint_cas2;
+typedef int_cas2 int_cas_max;
+typedef uint_cas2 uint_cas_max;
 
-#if SIZEOF_VOID_P == 8
-typedef int64_t int_cas2_each;
-typedef int128_t int_cas2_both;
-typedef int_cas2_each int_cas_max;
-typedef uint64_t uint_cas2_each;
-typedef uint128_t uint_cas2_both;
-typedef uint_cas2_each uint_cas_max;
-#define HAVE_CAS_2
+#if defined __LP64__ || defined __LLP64__
+	typedef int32_t half_int_cas2;
+	typedef uint32_t half_uint_cas2;
+#else
+	typedef int16_t half_int_cas2;
+	typedef uint16_t half_uint_cas2;
+	#ifdef __sse2__
+		#define HAVE_ATOMIC_RW64
+	#endif
 #endif
 
 #ifdef HAVE_ATOMIC_RW64
@@ -68,7 +62,7 @@ void atomicWrite64(const T &x, T *target) {
 		" movq %%xmm0, %1;"
 		:
 		: "m" (x), "m" (*target)
-		: "memory", "%xmm0");	
+		: "memory", "%xmm0");
 }
 
 template <typename T>
@@ -79,7 +73,7 @@ void atomicRead64(T *x, const T &target) {
 		" movq %%xmm0, %1;"
 		:
 		: "m" (target), "m" (*x)
-		: "memory", "%xmm0");	
+		: "memory", "%xmm0");
 }
 #endif
 
@@ -93,6 +87,16 @@ bool atomicCompareAndSet2(
 	T oldv0, T oldv1,
 	T newv0, T newv1, T *target ) {
 	unsigned char ret;
+#if defined __LP64__ || defined __LLP64__
+	asm volatile (
+		" lock; cmpxchg16b (%%rsi);"
+		" sete %0;" // ret = zflag ? 1 : 0
+		: "=q" (ret), "=d" (oldv1), "=a" (oldv0)
+		: "1" (oldv1), "2" (oldv0),
+		"c" (newv1), "b" (newv0),
+		"S" (target)
+		: "memory");
+#else
 	asm volatile (
 		//gcc with -fPIC cannot handle EBX correctly.
 		" push %%ebx;"
@@ -105,23 +109,24 @@ bool atomicCompareAndSet2(
 		"c" (newv1), "D" (newv0),
 		"S" (target)
 		: "memory");
+#endif
 	return ret;
 }
 template <typename T, typename X>
 typename boost::enable_if_c<
-boost::is_pod<T>::value && (sizeof(T) == sizeof(int_cas2_both)) && (sizeof(X) >= sizeof(int_cas2_each)), bool>::type
+boost::is_pod<T>::value && (sizeof(T) == sizeof(int_cas2) * 2) && (sizeof(X) >= sizeof(int_cas2)), bool>::type
 atomicCompareAndSet(
 	T oldv,
 	T newv, X *target ) {
 	union {
 		T x;
-		uint_cas2_each w[2];
+		uint_cas2 w[2];
 	} _newv, _oldv;
 	_newv.x = newv;
 	_oldv.x = oldv;
 
 	return atomicCompareAndSet2(_oldv.w[0], _oldv.w[1], _newv.w[0], _newv.w[1],
-		reinterpret_cast<uint_cas2_each*>(target));
+		reinterpret_cast<uint_cas2*>(target));
 }
 
 //! \return true if old == *target and new value is assigned
@@ -131,7 +136,7 @@ boost::is_pod<T>::value && (sizeof(T) <= sizeof(int_cas_max)), bool>::type
 atomicCompareAndSet(T oldv, T newv, T *target ) {
 	unsigned char ret;
 	asm volatile (
-		"  lock; cmpxchg%z2 %2,%3;"
+		"  lock; cmpxchg %2,%3;"
 		" sete %0" // ret = zflag ? 1 : 0
 		: "=q" (ret), "=a" (oldv)
 		: "r" (newv), "m" (*target), "1" (oldv)
@@ -141,7 +146,7 @@ atomicCompareAndSet(T oldv, T newv, T *target ) {
 template <typename T>
 inline T atomicSwap(T v, T *target ) {
 	asm volatile (
-		"xchg%z0 %0,%1" //lock prefix is not needed.
+		"xchg %0,%1" //lock prefix is not needed.
 		: "=r" (v)
 		: "m" (*target), "0" (v)
 		: "memory" );
@@ -150,7 +155,7 @@ inline T atomicSwap(T v, T *target ) {
 template <typename T>
 inline void atomicAdd(T *target, T x ) {
 	asm volatile (
-		"lock; add%z0 %1,%0"
+		"lock; add %1,%0"
 		:
 		: "m" (*target), "ir" (x)
 		: "memory" );
@@ -160,7 +165,7 @@ template <typename T>
 inline bool atomicAddAndTest(T *target, T x ) {
 	register unsigned char ret;
 	asm volatile (
-		"lock; add%z1 %2,%1;"
+		"lock; add %2,%1;"
 		" sete %0" // ret = zflag ? 1 : 0
 		: "=q" (ret)
 		: "m" (*target), "ir" (x)
@@ -168,7 +173,9 @@ inline bool atomicAddAndTest(T *target, T x ) {
 	return ret;
 }
 template <typename T>
-inline void atomicInc(T *target ) {
+inline
+typename boost::enable_if_c<(8 > sizeof(T)), void>::type
+atomicInc(T *target ) {
 	asm volatile (
 		"lock; inc%z0 %0"
 		:
@@ -176,19 +183,56 @@ inline void atomicInc(T *target ) {
 		: "memory" );
 }
 template <typename T>
-inline void atomicDec(T *target ) {
+inline
+typename boost::enable_if_c<(8 == sizeof(T)), void>::type //hack for buggy %z.
+atomicInc(T *target ) {
+	asm volatile (
+		"lock; incq %0"
+		:
+		: "m" (*target)
+		: "memory" );
+}
+template <typename T>
+inline
+typename boost::enable_if_c<(8 > sizeof(T)), void>::type
+atomicDec(T *target ) {
 	asm volatile (
 		"lock; dec%z0 %0"
 		:
 		: "m" (*target)
 		: "memory" );
 }
+template <typename T>
+inline
+typename boost::enable_if_c<(8 == sizeof(T)), void>::type //hack for buggy %z.
+atomicDec(T *target ) {
+	asm volatile (
+		"lock; decq %0"
+		:
+		: "m" (*target)
+		: "memory" );
+}
 //! \return zero flag.
 template <typename T>
-inline bool atomicDecAndTest(T *target ) {
+inline
+typename boost::enable_if_c<(8 > sizeof(T)), bool>::type
+atomicDecAndTest(T *target ) {
 	register unsigned char ret;
 	asm volatile (
 		"lock; dec%z1 %1;"
+		" sete %0" // ret = zflag ? 1 : 0
+		: "=q" (ret)
+		: "m" (*target)
+		: "memory" );
+	return ret;
+}
+template <typename T>
+inline
+typename boost::enable_if_c<(8 == sizeof(T)), bool>::type //hack for buggy %z.
+atomicDecAndTest(T *target ) {
+	register unsigned char ret;
+	asm volatile (
+		"lock; decq %1;"
 		" sete %0" // ret = zflag ? 1 : 0
 		: "=q" (ret)
 		: "m" (*target)

@@ -1,14 +1,14 @@
 /***************************************************************************
 		Copyright (C) 2002-2008 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
-		
+
 		This program is free software; you can redistribute it and/or
 		modify it under the terms of the GNU Library General Public
 		License as published by the Free Software Foundation; either
 		version 2 of the License, or (at your option) any later version.
-		
-		You should have received a copy of the GNU Library General 
-		Public License and a list of authors along with this program; 
+
+		You should have received a copy of the GNU Library General
+		Public License and a list of authors along with this program;
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "xtime.h"
@@ -25,7 +25,7 @@ void msecsleep(unsigned int ms)
 }
 
 unsigned long timeStamp() {
-#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__
+#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
     uint64_t r;
     asm volatile("rdtsc" : "=A" (r));
     return (unsigned int)(r / 256u);
@@ -49,7 +49,7 @@ unsigned long timeStamp() {
 }
 
 
-XTime 
+XTime
 XTime::now() {
     timeval tv;
     gettimeofday(&tv, NULL);

@@ -7,8 +7,8 @@
 		License as published by the Free Software Foundation; either
 		version 2 of the License, or (at your option) any later version.
 
-		You should have received a copy of the GNU Library General 
-		Public License and a list of authors along with this program; 
+		You should have received a copy of the GNU Library General
+		Public License and a list of authors along with this program;
 		see the files COPYING and AUTHORS.
  ***************************************************************************/
 //Every KAME source must include this header
@@ -170,10 +170,10 @@ void formatDoubleValidator(std::string &fmt);
 namespace KAME {
 //! thread-safe version of i18n().
 //! this will be obsoleted w/ QT4 or later.
-QString i18n(const char* eng);    
+QString i18n(const char* eng);
 }
 
-#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__
+#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
 struct X86CPUSpec {
 	X86CPUSpec();
 	unsigned int verSSE;

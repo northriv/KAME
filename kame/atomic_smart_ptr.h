@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -7,14 +7,15 @@
 		License as published by the Free Software Foundation; either
 		version 2 of the License, or (at your option) any later version.
 
-		You should have received a copy of the GNU Library General 
-		Public License and a list of authors along with this program; 
+		You should have received a copy of the GNU Library General
+		Public License and a list of authors along with this program;
 		see the files COPYING and AUTHORS.
  ***************************************************************************/
 #ifndef ATOMIC_SMART_PTR_H_
 #define ATOMIC_SMART_PTR_H_
 
 #include <atomic.h>
+
 
 //! This is an atomic variant of boost::scoped_ptr<>.
 //! atomic_scoped_ptr<> can be shared among threads by the use of swap() as the argument.
@@ -42,7 +43,7 @@ public:
 		delete old;
 	}
 	//! \param x \p x is atomically swapped.
-	//! Nevertheless, this object is not atomically replaced. 
+	//! Nevertheless, this object is not atomically replaced.
 	//! That is, the object pointed by "this" must not be shared among threads.
 	void swap(atomic_scoped_ptr &x) {
 		writeBarrier();
@@ -65,7 +66,7 @@ private:
 	t_ptr m_ptr;
 };
 
-//! Instance of Ref is only one per one object.
+//! This class holds a global reference counter and a pointer to the object.
 template <typename T>
 struct atomic_shared_ptr_ref {
 	template <class Y>
@@ -73,13 +74,13 @@ struct atomic_shared_ptr_ref {
 	~atomic_shared_ptr_ref() { ASSERT(refcnt == 0); delete ptr; }
 	T *ptr;
 	//! Global reference counter.
-	unsigned int refcnt;
+	uint_cas2 refcnt;
 };
 
 
 //! This is an atomic variant of boost::shared_ptr<>.
 //! atomic_shared_ptr<> can be shared among threads by the use of operator=(), swap() as the argument.
-//! The implementation relies on a DCAS (Double Compare and Set) machine code, e.g. cmpxchg8b.
+//! The implementation relies on a DCAS (Double Compare and Set) machine code, e.g. cmpxchg8b/cmpxchg16b.
 //! \sa atomic_scoped_ptr
 template <typename T>
 class atomic_shared_ptr
@@ -90,6 +91,7 @@ public:
 	atomic_shared_ptr() {
 		m_ref.pref = 0;
 		m_ref.refcnt_n_serial = 0;
+		writeBarrier();
 	}
 
 	template<typename Y> explicit atomic_shared_ptr(Y *y) {
@@ -101,10 +103,12 @@ public:
 	atomic_shared_ptr(const atomic_shared_ptr &t) {
 		m_ref.pref = t._scan_();
 		m_ref.refcnt_n_serial = 0;
+		writeBarrier();
 	}
 	template<typename Y> atomic_shared_ptr(const atomic_shared_ptr<Y> &y) {
 		m_ref.pref = (typename atomic_shared_ptr::Ref*)y._scan_();
 		m_ref.refcnt_n_serial = 0;
+		writeBarrier();
 	}
 
 	~atomic_shared_ptr();
@@ -129,7 +133,7 @@ public:
 	}
 
 	//! \param x \p x is atomically swapped.
-	//! Nevertheless, this object is not atomically replaced. 
+	//! Nevertheless, this object is not atomically replaced.
 	//! That is, the object pointed by "this" must not be shared among threads.
 	void swap(atomic_shared_ptr &);
 
@@ -144,56 +148,50 @@ public:
 	T *operator->() const { ASSERT(*this); return get();}
 
 	bool operator!() const {return !m_ref.pref;}
-	operator bool() const {return m_ref.pref;}    
+	operator bool() const {return m_ref.pref;}
 
 private:
-	typedef uint16_t Serial;
-	typedef uint_cas2_each RefcntNSerial;
-	static inline uint_cas2_each _refcnt(RefcntNSerial x) {return x / (1uL << 8 * sizeof(uint16_t));}
-	static inline Serial _serial(RefcntNSerial x) {return x % (1uL << 8 * sizeof(uint16_t));}
-	static inline RefcntNSerial _combine(uint_cas2_each ref, Serial serial) {
-		return ref * (1uL << 8 * sizeof(uint16_t)) + (serial % (1uL << 8 * sizeof(uint16_t)));
+	typedef half_uint_cas2 Serial;
+	typedef uint_cas2 RefcntNSerial;
+	//! extracting a local (temporary) reference counter.
+	static inline uint_cas2 _refcnt(RefcntNSerial x) {return x / (1uL << 8 * sizeof(half_uint_cas2));}
+	//! extracting a serial counter.
+	static inline Serial _serial(RefcntNSerial x) {return x % (1uL << 8 * sizeof(half_uint_cas2));}
+	//! making one dword/qword from the counters.
+	static inline RefcntNSerial _combine(uint_cas2 ref, Serial serial) {
+		return ref * (1uL << 8 * sizeof(half_uint_cas2)) + (serial % (1uL << 8 * sizeof(half_uint_cas2)));
 	}
 public:
 	//! internal functions below.
-	//! atomically scan \a Ref and increase global reference counter.
+	//! atomically scan \a m_ref and increase global reference counter.
 	Ref *_scan_() const;
-	//! atomically scan \a Ref and increase local reference counter.
-	Ref *_reserve_scan_(RefcntNSerial *) const;    
-	//! try to decrease local reference counter.
-	void _leave_scan_(Ref *, Serial serial) const;    
+	//! atomically scan \a m_ref and increase local (temporary) reference counter.
+	Ref *_reserve_scan_(RefcntNSerial *) const;
+	//! try to decrease local (temporary) reference counter.
+	void _leave_scan_(Ref *, Serial serial) const;
 private:
 	struct _RefLocal {
 		//! A pointer to global reference struct.
 		Ref* pref;
-		//! Local reference counter w/ serial number for ABA problem.
+		//! Local (temporary) reference counter w/ serial number against ABA problem.
 		RefcntNSerial refcnt_n_serial;
 	};
-	mutable _RefLocal m_ref;
+	_RefLocal m_ref;
 };
 
 template <typename T>
 atomic_shared_ptr<T>::~atomic_shared_ptr() {
+	C_ASSERT(sizeof(Serial)*2 == sizeof(RefcntNSerial));
 	readBarrier();
 	ASSERT(_refcnt(m_ref.refcnt_n_serial) == 0);
 	Ref *pref = m_ref.pref;
 	if(!pref) return;
+	// decrease global reference counter.
 	if(atomicDecAndTest(&pref->refcnt)) {
 		readBarrier();
 		delete pref;
 	}
 }
-
-template <typename T>
-typename atomic_shared_ptr<T>::Ref *atomic_shared_ptr<T>::_scan_() const {
-	RefcntNSerial rs;
-	Ref *pref = _reserve_scan_(&rs);
-	if(!pref) return 0;
-	atomicInc(&pref->refcnt);
-	_leave_scan_(pref, _serial(rs));
-	return pref;
-}
-
 template <typename T>
 typename atomic_shared_ptr<T>::Ref *
 atomic_shared_ptr<T>::_reserve_scan_(RefcntNSerial *rs) const {
@@ -208,29 +206,39 @@ atomic_shared_ptr<T>::_reserve_scan_(RefcntNSerial *rs) const {
 			*rs = rs_old;
 			return 0;
 		}
-		rs_new = _combine(_refcnt(rs_old) + 1, _serial(rs_old));
+		rs_new = _combine(_refcnt(rs_old) + 1uL, _serial(rs_old));
 		// try to increase local reference counter w/ same serial.
 		if(atomicCompareAndSet2(
-			(unsigned int)pref, rs_old,
-			(unsigned int)pref, rs_new,
-			(unsigned int*)&m_ref))
+			(uint_cas2)pref, rs_old,
+			(uint_cas2)pref, rs_new,
+			(uint_cas2*)&m_ref))
 			break;
 	}
 	*rs = rs_new;
 	return pref;
 }
 template <typename T>
+typename atomic_shared_ptr<T>::Ref *atomic_shared_ptr<T>::_scan_() const {
+	RefcntNSerial rs;
+	Ref *pref = _reserve_scan_(&rs);
+	if(!pref) return 0;
+	atomicInc(&pref->refcnt);
+	_leave_scan_(pref, _serial(rs));
+	return pref;
+}
+
+template <typename T>
 void
 atomic_shared_ptr<T>::_leave_scan_(Ref *pref, Serial serial) const {
 	for(;;) {
 		RefcntNSerial rs_old;
 		rs_old = _combine(_refcnt(m_ref.refcnt_n_serial), serial);
-		RefcntNSerial rs_new = _combine(_refcnt(rs_old) - 1, _serial(rs_old));
+		RefcntNSerial rs_new = _combine(_refcnt(rs_old) - 1uL, _serial(rs_old));
 		// try to dec. reference counter and change serial if stored pointer is unchanged.
 		if(atomicCompareAndSet2(
-			(unsigned int)pref, rs_old,
-			(unsigned int)pref, rs_new,
-			(unsigned int*)&m_ref))
+			(uint_cas2)pref, rs_old,
+			(uint_cas2)pref, rs_new,
+			(uint_cas2*)&m_ref))
 			break;
 		if((pref != m_ref.pref) || (serial != _serial(m_ref.refcnt_n_serial))) {
 			// local reference of this context has released by other processes.
@@ -250,7 +258,7 @@ atomic_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
 	T *oldptr = 0;
 	if(m_ref.pref) {
 		// Release local reference.
-		unsigned int refcnt = _refcnt(m_ref.refcnt_n_serial);
+		uint_cas2 refcnt = _refcnt(m_ref.refcnt_n_serial);
 		if(refcnt)
 			atomicAdd(&m_ref.pref->refcnt, refcnt);
 		m_ref.refcnt_n_serial = _combine(0, _serial(m_ref.refcnt_n_serial) + 1);
@@ -264,17 +272,18 @@ atomic_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
 		pref = r._reserve_scan_(&rs_old);
 		if(pref) {
 			ASSERT(_refcnt(rs_old));
-			atomicAdd(&pref->refcnt, (unsigned int)(_refcnt(rs_old) - 1));
+			atomicAdd(&pref->refcnt, (uint_cas2)(_refcnt(rs_old) - 1uL));
 		}
-		rs_new = _combine(0, _refcnt(rs_old) + 1);
+		readBarrier();
+		rs_new = _combine(0, _serial(rs_old) + 1uL);
 		if(atomicCompareAndSet2(
-			(unsigned int)pref, rs_old,
-			(unsigned int)m_ref.pref, rs_new,
-			(unsigned int*)&r.m_ref))
+			(uint_cas2)pref, rs_old,
+			(uint_cas2)m_ref.pref, rs_new,
+			(uint_cas2*)&r.m_ref))
 			break;
 		if(pref) {
 			ASSERT(_refcnt(rs_old));
-			atomicAdd((int*)&pref->refcnt, - (int)(_refcnt(rs_old) - 1));
+			atomicAdd((int_cas2*)&pref->refcnt, - (int_cas2)(_refcnt(rs_old) - 1uL));
 			r._leave_scan_(pref, _serial(rs_old));
 		}
 	}
@@ -286,8 +295,9 @@ bool
 atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_shared_ptr<T> &r) {
 	Ref *pref;
 	T *oldptr = 0;
+	readBarrier();
 	if(m_ref.pref) {
-		unsigned int refcnt = _refcnt(m_ref.refcnt_n_serial);
+		uint_cas2 refcnt = _refcnt(m_ref.refcnt_n_serial);
 		// Release local reference.
 		if(refcnt)
 			atomicAdd(&m_ref.pref->refcnt, refcnt);
@@ -307,21 +317,22 @@ atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_sh
 		}
 		if(pref) {
 			ASSERT(_refcnt(rs_old));
-			atomicAdd(&pref->refcnt, (unsigned int)(_refcnt(rs_old)- 1));
+			atomicAdd(&pref->refcnt, (uint_cas2)(_refcnt(rs_old)- 1uL));
 		}
-		rs_new = _combine(0, _refcnt(rs_old) + 1);
+		rs_new = _combine(0, _serial(rs_old) + 1uL);
 		if(atomicCompareAndSet2(
-			(unsigned int)pref, rs_old,
-			(unsigned int)m_ref.pref, rs_new,
-			(unsigned int*)&r.m_ref))
+			(uint_cas2)pref, rs_old,
+			(uint_cas2)m_ref.pref, rs_new,
+			(uint_cas2*)&r.m_ref))
 			break;
 		if(pref) {
 			ASSERT(_refcnt(rs_old));
-			atomicAdd((int*)&pref->refcnt, - (int)(_refcnt(rs_old)- 1));
+			atomicAdd((int_cas2*)&pref->refcnt, - (int_cas2)(_refcnt(rs_old)- 1uL));
 			r._leave_scan_(pref, _serial(rs_old));
 		}
 	}
 	m_ref.pref = pref;
+	writeBarrier();
 	return true;
 }
 
