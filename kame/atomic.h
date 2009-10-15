@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -7,8 +7,8 @@
 		License as published by the Free Software Foundation; either
 		version 2 of the License, or (at your option) any later version.
 
-		You should have received a copy of the GNU Library General 
-		Public License and a list of authors along with this program; 
+		You should have received a copy of the GNU Library General
+		Public License and a list of authors along with this program;
 		see the files COPYING and AUTHORS.
  ***************************************************************************/
 #ifndef ATOMIC_H_
@@ -21,7 +21,7 @@
 
 //! Lock-free synchronizations.
 
-#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__
+#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
 #include <atomic_prv_x86.h>
 #else
 #if defined __ppc__ || defined __POWERPC__ || defined __powerpc__
@@ -113,17 +113,13 @@ public:
 		return ret;
 	}
 protected:
-#ifdef HAVE_ATOMIC_RW64
-	T m_var __attribute__((aligned(8)));
-#else
-	mutable T m_var;
-#endif
+	T m_var __attribute__((aligned(sizeof(int_cas2)*2)));
 };
 
 //! atomic access to POD type capable of CAS2.
 template <typename T>
 class atomic<T, typename boost::enable_if_c<
-(sizeof(int_cas2_both) == sizeof(T)) && boost::is_pod<T>::value>::type>
+(sizeof(int_cas2) * 2 == sizeof(T)) && boost::is_pod<T>::value>::type>
 : public atomic_pod_cas2<T>
 {
 public:
@@ -135,7 +131,7 @@ public:
 //! atomic access to POD type capable of CAS.
 template <typename T>
 class atomic<T, typename boost::enable_if_c<
-(sizeof(int_cas_max) >= sizeof(T)) && boost::is_pod<T>::value && 
+(sizeof(int_cas_max) >= sizeof(T)) && boost::is_pod<T>::value &&
 !boost::is_integral<T>::value>::type>
 : public atomic_pod_cas<T>
 {

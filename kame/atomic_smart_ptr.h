@@ -274,7 +274,6 @@ atomic_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
 			ASSERT(_refcnt(rs_old));
 			atomicAdd(&pref->refcnt, (uint_cas2)(_refcnt(rs_old) - 1uL));
 		}
-		readBarrier();
 		rs_new = _combine(0, _serial(rs_old) + 1uL);
 		if(atomicCompareAndSet2(
 			(uint_cas2)pref, rs_old,
