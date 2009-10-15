@@ -1,3 +1,7 @@
+* Fri Oct 16 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.3.26-1)
+- Fix bug in atomic operations.
+
 * Sat Apr 25 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.3.25-1)
 - The first release for Fedora 10.
