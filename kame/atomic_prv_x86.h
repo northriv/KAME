@@ -121,7 +121,7 @@ atomicCompareAndSet(
 	_oldv.x = oldv;
 
 	return atomicCompareAndSet2(_oldv.w[0], _oldv.w[1], _newv.w[0], _newv.w[1],
-		reinterpret_cast<uint_cas2*>(target));
+		(uint_cas2*)(target));
 }
 
 //! \return true if old == *target and new value is assigned
