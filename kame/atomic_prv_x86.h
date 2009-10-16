@@ -43,11 +43,6 @@ typedef int_cas2 int_cas_max;
 typedef uint_cas2 uint_cas_max;
 
 #if defined __LP64__ || defined __LLP64__
-	typedef int32_t half_int_cas2;
-	typedef uint32_t half_uint_cas2;
-#else
-	typedef int16_t half_int_cas2;
-	typedef uint16_t half_uint_cas2;
 	#ifdef __sse2__
 		#define HAVE_ATOMIC_RW64
 	#endif
@@ -157,7 +152,7 @@ inline void atomicAdd(T *target, T x ) {
 	asm volatile (
 		"lock; add %1,%0"
 		:
-		: "m" (*target), "ir" (x)
+		: "m" (*target), "r" (x)
 		: "memory" );
 }
 //! \return true if new value is zero.
@@ -168,7 +163,7 @@ inline bool atomicAddAndTest(T *target, T x ) {
 		"lock; add %2,%1;"
 		" sete %0" // ret = zflag ? 1 : 0
 		: "=q" (ret)
-		: "m" (*target), "ir" (x)
+		: "m" (*target), "r" (x)
 		: "memory" );
 	return ret;
 }

@@ -90,19 +90,19 @@ public:
 
 	atomic_shared_ptr() {
 		m_ref.pref = 0;
-		m_ref.refcnt_n_serial = 0;
+		m_ref.refcnt = 0;
 		writeBarrier();
 	}
 
 	template<typename Y> explicit atomic_shared_ptr(Y *y) {
 		m_ref.pref = new Ref(y);
-		m_ref.refcnt_n_serial = 0;
+		m_ref.refcnt = 0;
 		writeBarrier();
 	}
 
 	atomic_shared_ptr(const atomic_shared_ptr &t) {
 		m_ref.pref = t._scan_();
-		m_ref.refcnt_n_serial = 0;
+		m_ref.refcnt = 0;
 		writeBarrier();
 	}
 	template<typename Y> atomic_shared_ptr(const atomic_shared_ptr<Y> &y) {
@@ -151,103 +151,101 @@ public:
 	operator bool() const {return m_ref.pref;}
 
 private:
-	typedef half_uint_cas2 Serial;
-	typedef uint_cas2 RefcntNSerial;
-	//! extracting a local (temporary) reference counter.
-	static inline uint_cas2 _refcnt(RefcntNSerial x) {return x / (1uL << 8 * sizeof(half_uint_cas2));}
-	//! extracting a serial counter.
-	static inline Serial _serial(RefcntNSerial x) {return x % (1uL << 8 * sizeof(half_uint_cas2));}
-	//! making one dword/qword from the counters.
-	static inline RefcntNSerial _combine(uint_cas2 ref, Serial serial) {
-		return ref * (1uL << 8 * sizeof(half_uint_cas2)) + (serial % (1uL << 8 * sizeof(half_uint_cas2)));
-	}
+	typedef uint_cas2 Refcnt;
 public:
 	//! internal functions below.
 	//! atomically scan \a m_ref and increase global reference counter.
+	//! \a _scan_ is used for atomically coping the pointer.
 	Ref *_scan_() const;
 	//! atomically scan \a m_ref and increase local (temporary) reference counter.
-	Ref *_reserve_scan_(RefcntNSerial *) const;
+	//! use \a _leave_scan_ to release the temporary reference.
+	Ref *_reserve_scan_(Refcnt *) const;
 	//! try to decrease local (temporary) reference counter.
-	void _leave_scan_(Ref *, Serial serial) const;
+	//! In case the reference is lost, \a _leave_scan_ releases the global reference counter instead.
+	void _leave_scan_(Ref *) const;
 private:
 	struct _RefLocal {
 		//! A pointer to global reference struct.
 		Ref* pref;
-		//! Local (temporary) reference counter w/ serial number against ABA problem.
-		RefcntNSerial refcnt_n_serial;
+		//! Local (temporary) reference counter.
+		//! Local reference counter is a trick to tell the observation to other threads.
+		Refcnt refcnt;
 	};
 	_RefLocal m_ref;
 };
 
 template <typename T>
 atomic_shared_ptr<T>::~atomic_shared_ptr() {
-	C_ASSERT(sizeof(Serial)*2 == sizeof(RefcntNSerial));
 	readBarrier();
-	ASSERT(_refcnt(m_ref.refcnt_n_serial) == 0);
+	ASSERT(m_ref.refcnt == 0);
 	Ref *pref = m_ref.pref;
 	if(!pref) return;
 	// decrease global reference counter.
+	readBarrier();
 	if(atomicDecAndTest(&pref->refcnt)) {
-		readBarrier();
 		delete pref;
 	}
 }
 template <typename T>
 typename atomic_shared_ptr<T>::Ref *
-atomic_shared_ptr<T>::_reserve_scan_(RefcntNSerial *rs) const {
+atomic_shared_ptr<T>::_reserve_scan_(Refcnt *rcnt) const {
 	Ref *pref;
-	RefcntNSerial rs_new;
+	Refcnt rcnt_new;
 	for(;;) {
 		pref = m_ref.pref;
-		RefcntNSerial rs_old;
-		rs_old = m_ref.refcnt_n_serial;
+		Refcnt rcnt_old;
+		rcnt_old = m_ref.refcnt;
 		if(!pref) {
 			// target is null.
-			*rs = rs_old;
+			*rcnt = rcnt_old;
 			return 0;
 		}
-		rs_new = _combine(_refcnt(rs_old) + 1uL, _serial(rs_old));
+		rcnt_new = rcnt_old + 1u;
 		// try to increase local reference counter w/ same serial.
 		if(atomicCompareAndSet2(
-			(uint_cas2)pref, rs_old,
-			(uint_cas2)pref, rs_new,
+			(uint_cas2)pref, rcnt_old,
+			(uint_cas2)pref, rcnt_new,
 			(uint_cas2*)&m_ref))
 			break;
 	}
-	*rs = rs_new;
+	ASSERT(rcnt_new);
+	*rcnt = rcnt_new;
 	return pref;
 }
 template <typename T>
 typename atomic_shared_ptr<T>::Ref *atomic_shared_ptr<T>::_scan_() const {
-	RefcntNSerial rs;
-	Ref *pref = _reserve_scan_(&rs);
+	Refcnt rcnt;
+	Ref *pref = _reserve_scan_(&rcnt);
 	if(!pref) return 0;
 	atomicInc(&pref->refcnt);
-	_leave_scan_(pref, _serial(rs));
+	writeBarrier();
+	_leave_scan_(pref);
 	return pref;
 }
 
 template <typename T>
 void
-atomic_shared_ptr<T>::_leave_scan_(Ref *pref, Serial serial) const {
+atomic_shared_ptr<T>::_leave_scan_(Ref *pref) const {
 	for(;;) {
-		RefcntNSerial rs_old;
-		rs_old = _combine(_refcnt(m_ref.refcnt_n_serial), serial);
-		RefcntNSerial rs_new = _combine(_refcnt(rs_old) - 1uL, _serial(rs_old));
-		// try to dec. reference counter and change serial if stored pointer is unchanged.
-		if(atomicCompareAndSet2(
-			(uint_cas2)pref, rs_old,
-			(uint_cas2)pref, rs_new,
-			(uint_cas2*)&m_ref))
-			break;
-		if((pref != m_ref.pref) || (serial != _serial(m_ref.refcnt_n_serial))) {
-			// local reference of this context has released by other processes.
-			if(atomicDecAndTest((int*)&pref->refcnt)) {
-				readBarrier();
-				delete pref;
-			}
-			break;
+		Refcnt rcnt_old;
+		rcnt_old = m_ref.refcnt;
+		if(rcnt_old) {
+			Refcnt rcnt_new = rcnt_old - 1;
+			// try to dec. reference counter if stored pointer is unchanged.
+			if(atomicCompareAndSet2(
+				(uint_cas2)pref, rcnt_old,
+				(uint_cas2)pref, rcnt_new,
+				(uint_cas2*)&m_ref))
+				break;
+			if((pref == m_ref.pref))
+				continue; // try again.
 		}
+		// local reference of this context has released by other processes.
+		readBarrier();
+		if(atomicDecAndTest((int_cas2*)&pref->refcnt)) {
+			delete pref;
+		}
+		break;
 	}
 }
 
@@ -255,35 +253,24 @@ template <typename T>
 void
 atomic_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
 	Ref *pref;
-	T *oldptr = 0;
-	if(m_ref.pref) {
-		// Release local reference.
-		uint_cas2 refcnt = _refcnt(m_ref.refcnt_n_serial);
-		if(refcnt)
-			atomicAdd(&m_ref.pref->refcnt, refcnt);
-		m_ref.refcnt_n_serial = _combine(0, _serial(m_ref.refcnt_n_serial) + 1);
-		oldptr = m_ref.pref->ptr;
-	}
-	else
-		m_ref.refcnt_n_serial = _combine(0, _serial(m_ref.refcnt_n_serial));
-	writeBarrier();
+	ASSERT(m_ref.refcnt == 0);
 	for(;;) {
-		RefcntNSerial rs_old, rs_new;
-		pref = r._reserve_scan_(&rs_old);
+		Refcnt rcnt_old, rcnt_new;
+		pref = r._reserve_scan_(&rcnt_old);
 		if(pref) {
-			ASSERT(_refcnt(rs_old));
-			atomicAdd(&pref->refcnt, (uint_cas2)(_refcnt(rs_old) - 1uL));
+			atomicAdd(&pref->refcnt, rcnt_old - 1u);
+			writeBarrier();
 		}
-		rs_new = _combine(0, _serial(rs_old) + 1uL);
+		rcnt_new = 0;
 		if(atomicCompareAndSet2(
-			(uint_cas2)pref, rs_old,
-			(uint_cas2)m_ref.pref, rs_new,
+			(uint_cas2)pref, rcnt_old,
+			(uint_cas2)m_ref.pref, rcnt_new,
 			(uint_cas2*)&r.m_ref))
 			break;
 		if(pref) {
-			ASSERT(_refcnt(rs_old));
-			atomicAdd((int_cas2*)&pref->refcnt, - (int_cas2)(_refcnt(rs_old) - 1uL));
-			r._leave_scan_(pref, _serial(rs_old));
+			ASSERT(rcnt_old);
+			atomicAdd((int_cas2*)&pref->refcnt, - (int_cas2)(rcnt_old - 1u));
+			r._leave_scan_(pref);
 		}
 	}
 	m_ref.pref = pref;
@@ -293,45 +280,32 @@ template <typename T>
 bool
 atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_shared_ptr<T> &r) {
 	Ref *pref;
-	T *oldptr = 0;
-	readBarrier();
-	if(m_ref.pref) {
-		uint_cas2 refcnt = _refcnt(m_ref.refcnt_n_serial);
-		// Release local reference.
-		if(refcnt)
-			atomicAdd(&m_ref.pref->refcnt, refcnt);
-		m_ref.refcnt_n_serial = _combine(0, _serial(m_ref.refcnt_n_serial) + 1);
-		oldptr = m_ref.pref->ptr;
-	}
-	else
-		m_ref.refcnt_n_serial = _combine(0, _serial(m_ref.refcnt_n_serial));
-	writeBarrier();
+	ASSERT(m_ref.refcnt == 0);
 	for(;;) {
-		RefcntNSerial rs_old, rs_new;
-		pref = r._reserve_scan_(&rs_old);
+		Refcnt rcnt_old, rcnt_new;
+		pref = r._reserve_scan_(&rcnt_old);
 		if(pref != oldr.m_ref.pref) {
 			if(pref)
-				r._leave_scan_(pref, _serial(rs_old));
+				r._leave_scan_(pref);
 			return false;
 		}
 		if(pref) {
-			ASSERT(_refcnt(rs_old));
-			atomicAdd(&pref->refcnt, (uint_cas2)(_refcnt(rs_old)- 1uL));
+			atomicAdd(&pref->refcnt, rcnt_old - 1u);
+			writeBarrier();
 		}
-		rs_new = _combine(0, _serial(rs_old) + 1uL);
+		rcnt_new = 0;
 		if(atomicCompareAndSet2(
-			(uint_cas2)pref, rs_old,
-			(uint_cas2)m_ref.pref, rs_new,
+			(uint_cas2)pref, rcnt_old,
+			(uint_cas2)m_ref.pref, rcnt_new,
 			(uint_cas2*)&r.m_ref))
 			break;
 		if(pref) {
-			ASSERT(_refcnt(rs_old));
-			atomicAdd((int_cas2*)&pref->refcnt, - (int_cas2)(_refcnt(rs_old)- 1uL));
-			r._leave_scan_(pref, _serial(rs_old));
+			ASSERT(rcnt_old);
+			atomicAdd((int_cas2*)&pref->refcnt, - (int_cas2)(rcnt_old - 1u));
+			r._leave_scan_(pref);
 		}
 	}
 	m_ref.pref = pref;
-	writeBarrier();
 	return true;
 }
 
