@@ -6,22 +6,14 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>746</width>
-    <height>495</height>
+    <width>702</width>
+    <height>564</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Pulser Control</string>
   </property>
   <widget class="QWidget" name="widget">
-   <property name="geometry">
-    <rect>
-     <x>0</x>
-     <y>0</y>
-     <width>746</width>
-     <height>495</height>
-    </rect>
-   </property>
    <layout class="QGridLayout">
     <property name="margin">
      <number>2</number>
@@ -93,7 +85,7 @@
                <item>
                 <widget class="QLabel" name="textLabel2_3_2_2_3_2">
                  <property name="sizePolicy">
-                  <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                  <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                    <horstretch>0</horstretch>
                    <verstretch>0</verstretch>
                   </sizepolicy>
@@ -179,7 +171,7 @@
                <item>
                 <widget class="QLabel" name="textLabel2_3_2_2_3_2_3_4">
                  <property name="sizePolicy">
-                  <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                  <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                    <horstretch>0</horstretch>
                    <verstretch>0</verstretch>
                   </sizepolicy>
@@ -256,6 +248,12 @@
             <layout class="QHBoxLayout">
              <item>
               <widget class="QLabel" name="textLabel2_3_4_2_2">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
                <property name="text">
                 <string>Waveform</string>
                </property>
@@ -295,21 +293,21 @@
               </widget>
              </item>
              <item>
-              <widget class="KDoubleNumInput" name="m_dblCombLevel" native="true">
+              <widget class="KDoubleNumInput" name="m_dblCombLevel">
                <property name="acceptDrops">
                 <bool>false</bool>
                </property>
-               <property name="value" stdset="0">
-                <number>0</number>
+               <property name="value">
+                <double>0.000000000000000</double>
+               </property>
+               <property name="suffix">
+                <string> dB</string>
                </property>
                <property name="minValue" stdset="0">
                 <number>0</number>
                </property>
                <property name="maxValue" stdset="0">
                 <number>0</number>
-               </property>
-               <property name="suffix" stdset="0">
-                <string> dB</string>
                </property>
                <property name="precision" stdset="0">
                 <number>1</number>
@@ -361,7 +359,7 @@
              <item>
               <widget class="QLabel" name="textLabel2_3_2_2_3_2_2">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -422,7 +420,7 @@
              <item>
               <widget class="QLabel" name="textLabel2_3_2_2_3_2_3">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -441,7 +439,7 @@
          </widget>
         </item>
         <item row="1" column="1">
-         <widget class="KDoubleNumInput" name="m_dblMasterLevel" native="true">
+         <widget class="KDoubleNumInput" name="m_dblMasterLevel">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -451,17 +449,17 @@
           <property name="acceptDrops">
            <bool>false</bool>
           </property>
-          <property name="value" stdset="0">
-           <number>0</number>
+          <property name="value">
+           <double>0.000000000000000</double>
+          </property>
+          <property name="suffix">
+           <string> dB</string>
           </property>
           <property name="minValue" stdset="0">
            <number>0</number>
           </property>
           <property name="maxValue" stdset="0">
            <number>0</number>
-          </property>
-          <property name="suffix" stdset="0">
-           <string> dB</string>
           </property>
           <property name="precision" stdset="0">
            <number>1</number>
@@ -488,6 +486,12 @@
          <layout class="QHBoxLayout">
           <item>
            <widget class="QLabel" name="textLabel2_3">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="text">
              <string>Comb Mode</string>
             </property>
@@ -540,6 +544,12 @@
            <layout class="QHBoxLayout">
             <item>
              <widget class="QLabel" name="textLabel2_2">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
               <property name="text">
                <string>RT Mode</string>
               </property>
@@ -605,7 +615,7 @@
               <item>
                <widget class="QLabel" name="textLabel2_3_2_3">
                 <property name="sizePolicy">
-                 <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                 <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                   <horstretch>0</horstretch>
                   <verstretch>0</verstretch>
                  </sizepolicy>
@@ -667,7 +677,7 @@
               <item>
                <widget class="QLabel" name="textLabel2_3_2">
                 <property name="sizePolicy">
-                 <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                 <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                   <horstretch>0</horstretch>
                   <verstretch>0</verstretch>
                  </sizepolicy>
@@ -735,7 +745,7 @@
                  <item>
                   <widget class="QLabel" name="textLabel2_3_2_2">
                    <property name="sizePolicy">
-                    <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                    <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                      <horstretch>0</horstretch>
                      <verstretch>0</verstretch>
                     </sizepolicy>
@@ -756,6 +766,12 @@
               <layout class="QHBoxLayout">
                <item>
                 <widget class="QLabel" name="textLabel2_3_4">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
                  <property name="text">
                   <string>Waveform</string>
                  </property>
@@ -795,21 +811,21 @@
                 </widget>
                </item>
                <item>
-                <widget class="KDoubleNumInput" name="m_dblP1Level" native="true">
+                <widget class="KDoubleNumInput" name="m_dblP1Level">
                  <property name="acceptDrops">
                   <bool>false</bool>
                  </property>
-                 <property name="value" stdset="0">
-                  <number>0</number>
+                 <property name="value">
+                  <double>0.000000000000000</double>
+                 </property>
+                 <property name="suffix">
+                  <string> dB</string>
                  </property>
                  <property name="minValue" stdset="0">
                   <number>0</number>
                  </property>
                  <property name="maxValue" stdset="0">
                   <number>0</number>
-                 </property>
-                 <property name="suffix" stdset="0">
-                  <string> dB</string>
                  </property>
                  <property name="precision" stdset="0">
                   <number>1</number>
@@ -908,21 +924,21 @@
                 </widget>
                </item>
                <item>
-                <widget class="KDoubleNumInput" name="m_dblP2Level" native="true">
+                <widget class="KDoubleNumInput" name="m_dblP2Level">
                  <property name="acceptDrops">
                   <bool>false</bool>
                  </property>
-                 <property name="value" stdset="0">
-                  <number>0</number>
+                 <property name="value">
+                  <double>0.000000000000000</double>
+                 </property>
+                 <property name="suffix">
+                  <string> dB</string>
                  </property>
                  <property name="minValue" stdset="0">
                   <number>0</number>
                  </property>
                  <property name="maxValue" stdset="0">
                   <number>0</number>
-                 </property>
-                 <property name="suffix" stdset="0">
-                  <string> dB</string>
                  </property>
                  <property name="precision" stdset="0">
                   <number>1</number>
@@ -935,6 +951,12 @@
               <layout class="QHBoxLayout">
                <item>
                 <widget class="QLabel" name="textLabel2_3_4_2">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
                  <property name="text">
                   <string>Waveform</string>
                  </property>
@@ -1031,12 +1053,6 @@
  <layoutdefault spacing="6" margin="11"/>
  <customwidgets>
   <customwidget>
-   <class>QGroupBox</class>
-   <extends>QGroupBox</extends>
-   <header>Qt3Support/QGroupBox</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
    <class>Q3Frame</class>
    <extends>QFrame</extends>
    <header>Qt3Support/Q3Frame</header>
@@ -1048,14 +1064,14 @@
    <header>q3table.h</header>
   </customwidget>
   <customwidget>
-   <class>XQGraph</class>
-   <extends>QWidget</extends>
-   <header>graphwidget.h</header>
-  </customwidget>
-  <customwidget>
    <class>KDoubleNumInput</class>
    <extends>QWidget</extends>
    <header>knuminput.h</header>
+  </customwidget>
+  <customwidget>
+   <class>XQGraph</class>
+   <extends>QWidget</extends>
+   <header>graphwidget.h</header>
   </customwidget>
  </customwidgets>
  <tabstops>
