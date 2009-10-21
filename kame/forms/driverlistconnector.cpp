@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -14,16 +14,17 @@
 //---------------------------------------------------------------------------
 #include "driverlistconnector.h"
 #include "driver.h"
-#include "drivercreate.h"
-#include "drivertool.h"
 #include "measure.h"
 #include <qlineedit.h>
 #include <qpushbutton.h>
-#include <qtable.h>
-#include <qlistbox.h>
+#include <q3table.h>
+#include <q3listbox.h>
 #include <qlabel.h>
 #include <kiconloader.h>
-#include <kapplication.h>
+#include "ui_drivertool.h"
+#include "ui_drivercreate.h"
+
+typedef QForm<QDialog, Ui_DlgCreateDriver> DlgCreateDriver;
 
 XDriverListConnector::XDriverListConnector
 (const shared_ptr<XDriverList> &node, FrmDriver *item)
@@ -33,10 +34,11 @@ XDriverListConnector::XDriverListConnector
 	  m_conCreate(xqcon_create<XQButtonConnector>(m_create, item->m_btnNew)),
 	  m_conRelease(xqcon_create<XQButtonConnector>(m_release, item->m_btnDelete))  
 {
-	item->m_btnNew->setIconSet( KApplication::kApplication()->iconLoader()->loadIconSet("filenew", 
-																						KIcon::Toolbar, KIcon::SizeSmall, true ) );  
-	item->m_btnDelete->setIconSet( KApplication::kApplication()->iconLoader()->loadIconSet("fileclose", 
-																						   KIcon::Toolbar, KIcon::SizeSmall, true ) );  
+    KIconLoader *loader = KIconLoader::global();
+	item->m_btnNew->setIcon( loader->loadIcon("filenew",
+					KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+	item->m_btnDelete->setIcon( loader->loadIcon("fileclose",
+					KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
     
 	connect(m_pItem, SIGNAL( clicked( int, int, int, const QPoint& )),
 			this, SLOT(clicked( int, int, int, const QPoint& )) );
@@ -47,9 +49,9 @@ XDriverListConnector::XDriverListConnector
 	m_pItem->setColumnWidth(1, (int)(def * 1.0));
 	m_pItem->setColumnWidth(2, (int)(def * 4.5));
 	QStringList labels;
-	labels += KAME::i18n("Driver");
-	labels += KAME::i18n("Type");
-	labels += KAME::i18n("Recorded Time");
+	labels += i18n("Driver");
+	labels += i18n("Type");
+	labels += i18n("Recorded Time");
 	m_pItem->setColumnLabels(labels);
 
 	atomic_shared_ptr<const XNode::NodeList> list(node->children());
@@ -75,7 +77,7 @@ XDriverListConnector::onCatch(const shared_ptr<XNode> &node) {
   
 	int i = m_pItem->numRows();
 	m_pItem->insertRows(i);
-	m_pItem->setText(i, 0, driver->getLabel());
+	m_pItem->setText(i, 0, driver->getLabel().c_str());
 	// typename is not set at this moment
 	m_pItem->setText(i, 1, driver->getTypename().c_str());
 
@@ -129,7 +131,7 @@ XDriverListConnector::onRecord(const shared_ptr<XDriver> &driver)
 		{
 			tcons::tlisttext text;
 			text.label = (*it)->label;
-			text.str.reset(new std::string((*it)->driver->time().getTimeStr()));
+			text.str.reset(new XString((*it)->driver->time().getTimeStr()));
 			(*it)->tlkOnRecordRedirected->talk(text);
 		}
 	}
@@ -137,13 +139,13 @@ XDriverListConnector::onRecord(const shared_ptr<XDriver> &driver)
 void
 XDriverListConnector::tcons::onRecordRedirected(const tlisttext &text)
 {
-    text.label->setText(*text.str);
+    text.label->setText(text.str->c_str());
 }
 void
 XDriverListConnector::onCreateTouched(const shared_ptr<XNode> &)
 {
-    //! modal dialog
-	qshared_ptr<DlgCreateDriver> dlg(new DlgCreateDriver(g_pFrmMain, "Create Driver", true));
+	qshared_ptr<DlgCreateDriver> dlg(new DlgCreateDriver(g_pFrmMain));
+	dlg->setModal(true);
 	static int num = 0;
 	num++;
 	dlg->m_edName->setText(QString("NewDriver%1").arg(num));
@@ -160,16 +162,16 @@ XDriverListConnector::onCreateTouched(const shared_ptr<XNode> &)
 	int idx = dlg->m_lstType->currentItem();
 	shared_ptr<XNode> driver;
 	if((idx >= 0) && (idx < (int)XDriverList::typenames().size())) {
-		if(m_list->getChild(dlg->m_edName->text())) {
-	        gErrPrint(KAME::i18n("Duplicated name."));
+		if(m_list->getChild(dlg->m_edName->text().toUtf8().data())) {
+	        gErrPrint(i18n("Duplicated name."));
 		}
 		else {
 	       driver = m_list->createByTypename(XDriverList::typenames()[idx],
-											  dlg->m_edName->text());
+											  dlg->m_edName->text().toUtf8().data());
 		}
 	}
 	if(!driver)
-        gErrPrint(KAME::i18n("Driver creation failed."));
+        gErrPrint(i18n("Driver creation failed."));
 }
 void
 XDriverListConnector::onReleaseTouched(const shared_ptr<XNode> &)

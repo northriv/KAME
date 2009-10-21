@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -11,12 +11,10 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-#include <qcheckbox.h>
-#include <qstatusbar.h>
-
 #include "analyzer.h"
 #include "signalgenerator.h"
-#include "forms/signalgeneratorform.h"
+#include "ui_signalgeneratorform.h"
+#include <QStatusBar>
 
 XSG::XSG(const char *name, bool runtime,
 		 const shared_ptr<XScalarEntryList> &scalarentries,
@@ -31,7 +29,7 @@ XSG::XSG(const char *name, bool runtime,
 	  m_form(new FrmSG(g_pFrmMain))
 {
 	m_form->statusBar()->hide();
-	m_form->setCaption(KAME::i18n("Signal Gen. Control - ") + getLabel() );
+	m_form->setWindowTitle(i18n("Signal Gen. Control - ") + getLabel() );
 
 	m_conOLevel = xqcon_create<XQLineEditConnector>(m_oLevel, m_form->m_edOLevel);
 	m_conFreq = xqcon_create<XQLineEditConnector>(m_freq, m_form->m_edFreq);
@@ -99,7 +97,7 @@ XSG::onFreqChanged(const shared_ptr<XValueNodeBase> &)
 {
     double _freq = *freq();
     if(_freq <= 0) {
-        gErrPrint(getLabel() + " " + KAME::i18n("Positive Value Needed."));
+        gErrPrint(getLabel() + " " + i18n("Positive Value Needed."));
         return;
     }
     XTime time_awared(XTime::now());

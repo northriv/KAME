@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -11,14 +11,12 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-#include "forms/magnetpsform.h"
+#include "ui_magnetpsform.h"
 #include "magnetps.h"
 #include "interface.h"
 #include "analyzer.h"
 #include "xnodeconnector.h"
-#include <qstatusbar.h>
-#include <qcheckbox.h>
-#include <qpushbutton.h>
+#include <QStatusBar>
 
 XMagnetPS::XMagnetPS(const char *name, bool runtime, 
 					 const shared_ptr<XScalarEntryList> &scalarentries,
@@ -46,7 +44,7 @@ XMagnetPS::XMagnetPS(const char *name, bool runtime,
 	scalarentries->insert(m_field);
 	scalarentries->insert(m_current);
 	m_form->statusBar()->hide();
-	m_form->setCaption("Magnet Power Supply - " + getLabel() );
+	m_form->setWindowTitle(XString("Magnet Power Supply - " + getLabel() ));
   
 	m_conAllowPersistent = xqcon_create<XQToggleButtonConnector>(
 		allowPersistent(), m_form->m_ckbAllowPersistent);
@@ -234,7 +232,7 @@ XMagnetPS::execute(const atomic<bool> &terminated)
 						{
 							//field is not sweeping, and persistent is allowed
 							m_statusPrinter->printMessage(getLabel() + " " + 
-														  KAME::i18n("Turning on Perisistent mode."));
+														  i18n("Turning on Perisistent mode."));
 							pcsh_time = XTime::now();
 							toPersistent();
 						}
@@ -248,11 +246,11 @@ XMagnetPS::execute(const atomic<bool> &terminated)
 							if(fabs(target_field  - magnet_field) < field_resolution) {
 								//ready to go non-persistent.
 								m_statusPrinter->printMessage(getLabel() + " " + 
-															  KAME::i18n("Non-Perisistent mode."));
+															  i18n("Non-Perisistent mode."));
 								double h = getPersistentField();
 								if(fabs(h - output_field) > field_resolution)
 									throw XInterface::XInterfaceError(getLabel() + 
-																	  KAME::i18n("Huh? Magnet field confusing."), __FILE__, __LINE__);
+																	  i18n("Huh? Magnet field confusing."), __FILE__, __LINE__);
 								pcsh_time = XTime::now();
 								toNonPersistent();
 							}

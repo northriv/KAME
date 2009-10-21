@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -11,10 +11,8 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-#include <qpushbutton.h>
-#include <qcheckbox.h>
+#include <kiconloader.h>
 #include <knuminput.h>
-#include "forms/dsoform.h"
 #include "dso.h"
 #include "graph.h"
 #include "graphwidget.h"
@@ -24,9 +22,8 @@
 #include "interface.h"
 #include "analyzer.h"
 #include "xnodeconnector.h"
-#include <qstatusbar.h>
-#include <kiconloader.h>
-#include <kapplication.h>
+
+#include "ui_dsoform.h"
 
 const char *XDSO::s_trace_names[] = {
 	"Time [sec]", "Trace1 [V]", "Trace2 [V]"
@@ -85,9 +82,9 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_conFIRCenterFreq(xqcon_create<XQLineEditConnector>(m_firCenterFreq, m_form->m_edFIRCenterFreq)),
 	m_statusPrinter(XStatusPrinter::create(m_form.get()))
 {
-	m_form->m_btnForceTrigger->setIconSet(
-		KApplication::kApplication()->iconLoader()->loadIconSet("apply", 
-																KIcon::Toolbar, KIcon::SizeSmall, true ) );  
+	m_form->m_btnForceTrigger->setIcon(
+		KIconLoader::global()->loadIcon("apply",
+																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
 	m_form->m_numTrigPos->setRange(0.0, 100.0, 1.0, true);
     
 	singleSequence()->value(true);
@@ -228,7 +225,7 @@ XDSO::visualize()
 		for(unsigned int i = 0; i < num_channels; i++) {
 			m_waveForm->insertPlot(s_trace_names[i + 1], 0, i + 1);
 		}
-		m_waveForm->axisy()->label()->value(KAME::i18n("Traces [V]"));
+		m_waveForm->axisy()->label()->value(i18n("Traces [V]"));
 	}
 	for(unsigned int i = 0; i < num_channels; i++) {
 		m_waveForm->plot(i)->drawPoints()->value(false);
@@ -293,10 +290,10 @@ XDSO::execute(const atomic<bool> &terminated)
 			msecsleep(100);
 			continue;
 		}
-		std::deque<std::string> channels;
+		std::deque<XString> channels;
 		channels.push_back(trace1()->to_str());
 		if(channels.front().empty()) {
-            statusPrinter()->printMessage(getLabel() + " " + KAME::i18n("Select traces!."));
+            statusPrinter()->printMessage(getLabel() + " " + i18n("Select traces!."));
             msecsleep(500);
             continue;
 		}
@@ -414,7 +411,7 @@ XDSO::convertRawToDisp() throw (XRecordError&) {
 		double  bandwidth = *firBandWidth()*1000.0*timeIntervalDisp();
 		double fir_sharpness = *firSharpness();
 		if(fir_sharpness < 4.0)
-			m_statusPrinter->printWarning(KAME::i18n("Too small number of taps for FIR filter."));
+			m_statusPrinter->printWarning(i18n("Too small number of taps for FIR filter."));
 		int taps = std::min((int)lrint(2 * fir_sharpness / bandwidth), 5000);
 		double center = *firCenterFreq() * 1000.0 * timeIntervalDisp();
 		if(!m_fir || (taps != m_fir->taps()) || (bandwidth != m_fir->bandWidth()) || (center != m_fir->centerFreq()))

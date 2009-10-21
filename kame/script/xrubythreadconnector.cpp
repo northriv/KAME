@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -18,7 +18,7 @@
 #include <qlabel.h>
 #include <qtextbrowser.h>
 #include <qlineedit.h>
-#include "rubythreadtool.h"
+#include "ui_rubythreadtool.h"
 #include "icons/icon.h"
 #include <kapplication.h>
 #include <kiconloader.h>
@@ -43,12 +43,11 @@ XRubyThreadConnector::XRubyThreadConnector(
 	m_conLineinput(xqcon_create<XQLineEditConnector>(
 				  rbthread->lineinput(), form->m_edLineinput))
 {
-    form->m_pbtnResume->setIconSet(
-		KApplication::kApplication()->iconLoader()->loadIconSet("exec", 
-																KIcon::Toolbar, KIcon::SizeSmall, true ) );  
-    form->m_pbtnKill->setIconSet(
-		KApplication::kApplication()->iconLoader()->loadIconSet("stop", 
-																KIcon::Toolbar, KIcon::SizeSmall, true ) );  
+    KIconLoader *loader = KIconLoader::global();
+    form->m_pbtnResume->setIcon(loader->loadIcon("exec",
+																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );  
+    form->m_pbtnKill->setIcon(loader->loadIcon("stop",
+																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );  
             
     m_pForm->m_ptxtDefout->setMaxLogLines(10000);
     m_pForm->m_ptxtDefout->setTextFormat(Qt::LogText);    
@@ -62,8 +61,8 @@ XRubyThreadConnector::XRubyThreadConnector(
     m_lsnOnStatusChanged = rbthread->status()->onValueChanged().connectWeak(
         shared_from_this(), &XRubyThreadConnector::onStatusChanged);
         
-    form->setIcon(*g_pIconScript);
-    form->setCaption(rbthread->getLabel());
+    form->setWindowIcon(*g_pIconScript);
+    form->setWindowTitle(rbthread->getLabel());
     
     onStatusChanged(rbthread->status());    
 }
@@ -91,6 +90,6 @@ XRubyThreadConnector::onKillTouched(const shared_ptr<XNode> &) {
     m_rubyThread->kill();
 }
 void
-XRubyThreadConnector::onDefout(const shared_ptr<std::string> &str) {
+XRubyThreadConnector::onDefout(const shared_ptr<XString> &str) {
     m_pForm->m_ptxtDefout->append(*str);
 }

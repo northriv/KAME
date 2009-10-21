@@ -28,7 +28,7 @@ REGISTER_TYPE(XDriverList, SanwaPC5000, "SANWA PC5000 DMM");
 void
 XDMMSCPI::changeFunction()
 {
-    std::string func = function()->to_str();
+    XString func = function()->to_str();
     if(!func.empty())
         interface()->sendf(":CONF:%s", func.c_str());
 }
@@ -46,7 +46,7 @@ XDMMSCPI::oneShotRead()
 }
 /*
 double
-XDMMSCPI::measure(const std::string &func)
+XDMMSCPI::measure(const XString &func)
 {
     interface()->queryf(":MEAS:%s?", func.c_str());
     return interface()->toDouble();
@@ -72,7 +72,7 @@ XHP3458A::XHP3458A(const char *name, bool runtime,
 void
 XHP3458A::changeFunction()
 {
-    std::string func = function()->to_str();
+    XString func = function()->to_str();
     if(!func.empty())
         interface()->sendf("FUNC %s;ARANGE ON", func.c_str());
 }
@@ -113,7 +113,7 @@ XHP3478A::changeFunction()
     int func = *function();
     if(func < 0)
 		return;
-//    		throw XInterface::XInterfaceError(KAME::i18n("Select function!"), __FILE__, __LINE__);
+//    		throw XInterface::XInterfaceError(i18n("Select function!"), __FILE__, __LINE__);
     interface()->sendf("F%dRAZ1", func + 1);
 }
 double
@@ -146,7 +146,7 @@ XSanwaPC500::XSanwaPC500(const char *name, bool runtime,
 	for(const char **func = funcs; strlen(*func); func++) {
 		function()->add(*func);
 	}
-	function()->str(std::string("?"));
+	function()->str(XString("?"));
 }
 void
 XSanwaPC500::changeFunction() {
@@ -158,10 +158,10 @@ XSanwaPC500::fetch() {
 	interface()->receive(8);
 	if((interface()->buffer()[0] != 0x10) ||
 		(interface()->buffer()[1] != 0x02))
-		throw XInterface::XInterfaceError(KAME::i18n("Format Error!"), __FILE__, __LINE__);
+		throw XInterface::XInterfaceError(i18n("Format Error!"), __FILE__, __LINE__);
 	if((interface()->buffer()[6] != 0x00) ||
 		(interface()->buffer()[7] != 0x00))
-		throw XInterface::XInterfaceError(KAME::i18n("Format Error!"), __FILE__, __LINE__);
+		throw XInterface::XInterfaceError(i18n("Format Error!"), __FILE__, __LINE__);
 	const int funcs[] = {0x05, 0x06, 0x07, 0x08, 0x04, 0x14, 0x00, 0x20, 0x40, 0x80,
 		0x180, 0x201, 0x202, 0x203, 0x400, 0x800, 0x802, 0x2000
 	};
@@ -176,25 +176,25 @@ XSanwaPC500::fetch() {
 	interface()->receive(dlen);
 	std::vector<char> buf(dlen);
 	memcpy(&buf[0], &interface()->buffer()[0], dlen);
-	dbgPrint(std::string(&buf[0]));
+	dbgPrint(XString(&buf[0]));
 	if(buf.size() < 6)
-		throw XInterface::XInterfaceError(KAME::i18n("Format Error!"), __FILE__, __LINE__);
+		throw XInterface::XInterfaceError(i18n("Format Error!"), __FILE__, __LINE__);
 	buf[dlen - 3] = '\0';
-	if((std::string(&buf[0]) == "+OL") || (std::string(&buf[0]) == " OL")) {
+	if((XString(&buf[0]) == "+OL") || (XString(&buf[0]) == " OL")) {
 		return 1e99;
 	}
-	if(std::string(&buf[0]) == "-OL") {
+	if(XString(&buf[0]) == "-OL") {
 		return -1e99;
 	}
 	if(buf.size() < 14)
-		throw XInterface::XInterfaceError(KAME::i18n("Format Error!"), __FILE__, __LINE__);
+		throw XInterface::XInterfaceError(i18n("Format Error!"), __FILE__, __LINE__);
 	double x;
 	if(sscanf(&buf[0], "%8lf", &x) != 1) {
-		throw XInterface::XInterfaceError(KAME::i18n("Format Error!"), __FILE__, __LINE__);
+		throw XInterface::XInterfaceError(i18n("Format Error!"), __FILE__, __LINE__);
 	}
 	double e;
 	if(sscanf(&buf[8], "E%2lf", &e) != 1) {
-		throw XInterface::XInterfaceError(KAME::i18n("Format Error!"), __FILE__, __LINE__);
+		throw XInterface::XInterfaceError(i18n("Format Error!"), __FILE__, __LINE__);
 	}
 	return x * pow(10.0, e);
 }

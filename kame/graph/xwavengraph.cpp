@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -13,7 +13,7 @@
  ***************************************************************************/
 #include "xwavengraph.h"
 
-#include "graphnurlform.h"
+#include "ui_graphnurlform.h"
 #include "graphwidget.h"
 #include "graph.h"
 
@@ -35,14 +35,13 @@ XWaveNGraph::XWaveNGraph(const char *name, bool runtime, FrmGraphNURL *item)
   m_filename(create<XStringNode>("FileName", true))
 {
   item->m_graphwidget->setGraph(m_graph);
-  item->statusBar()->hide();
   m_conFilename = xqcon_create<XKURLReqConnector>(m_filename, item->m_url,
                       "*.dat|Data files (*.dat)\n*.*|All files (*.*)", true);
   m_conDump = xqcon_create<XQButtonConnector>(m_dump, item->m_btnDump);
   init();
 }
 XWaveNGraph::XWaveNGraph(const char *name, bool runtime, 
-        XQGraph *graphwidget, KURLRequester *urlreq, QPushButton *btndump)
+        XQGraph *graphwidget, KUrlRequester *urlreq, QPushButton *btndump)
   : XNode(name, runtime),
   m_btnDump(btndump),
   m_graph(create<XGraph>(name, false)),
@@ -96,7 +95,7 @@ XWaveNGraph::clearPlots()
   }
 }
 void
-XWaveNGraph::insertPlot(const std::string &label, int x, int y1, int y2, int weight, int z)
+XWaveNGraph::insertPlot(const XString &label, int x, int y1, int y2, int weight, int z)
 {
 	ASSERT( (y1 < 0) || (y2 < 0) );
   XScopedWriteLock<XRecursiveRWLock> lock(m_mutex);
@@ -121,7 +120,7 @@ XWaveNGraph::insertPlot(const std::string &label, int x, int y1, int y2, int wei
       m_graph->label()->value(getLabel());
     
       unsigned int plotnum = m_plots.size() + 1;
-      plot.xyplot = m_graph->plots()->create<XXYPlot>(formatString("Plot%d", plotnum).c_str(),
+      plot.xyplot = m_graph->plots()->create<XXYPlot>(formatString("Plot%u", plotnum).c_str(),
       	 true, m_graph);
       plot.xyplot->label()->value(label);
     
@@ -230,12 +229,13 @@ XWaveNGraph::writeUnlock(bool updategraph)
 void
 XWaveNGraph::onIconChanged(const bool &v)
 {
+    KIconLoader *loader = KIconLoader::global();
 	if(!v)
-		m_btnDump->setIconSet( KApplication::kApplication()->iconLoader()->loadIconSet("filesave", 
-	            KIcon::Toolbar, KIcon::SizeSmall, true ) );
+		m_btnDump->setIcon( loader->loadIcon("filesave",
+	            KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
 	else
-	    m_btnDump->setIconSet( KApplication::kApplication()->iconLoader()->loadIconSet("redo", 
-	            KIcon::Toolbar, KIcon::SizeSmall, true ) );
+	    m_btnDump->setIcon( loader->loadIcon("redo",
+	            KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
 }
 void
 XWaveNGraph::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
@@ -244,7 +244,7 @@ XWaveNGraph::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
       
       if(m_stream.is_open()) m_stream.close();
       m_stream.clear();
-      m_stream.open((const char*)QString(filename()->to_str()).local8Bit(), OFSMODE);
+      m_stream.open((const char*)QString(filename()->to_str().c_str()).toLocal8Bit().data(), OFSMODE);
     
       if(m_stream.good()) {
           m_lsnOnDumpTouched = dump()->onTouch().connectWeak(

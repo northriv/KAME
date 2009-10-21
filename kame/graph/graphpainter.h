@@ -19,6 +19,7 @@
 class FTFont;
 class XQGraph;
 
+#include <Qt>
 #include <qgl.h>
 
 //! A painter which holds off-screen pixmap
@@ -69,16 +70,8 @@ public:
  
  void beginQuad(bool fill = false);
  void endQuad();
- 
- enum TextFlags {
-	 AlignLeft = 0x0,
-	 AlignHCenter = 0x1,
-	 AlignRight = 0x2,
-	 AlignBottom = 0x0,
-	 AlignVCenter = 0x10,
-	 AlignTop = 0x20
- };
- void drawText(const XGraph::ScrPoint &p, const std::string &str);
+
+ void drawText(const XGraph::ScrPoint &p, const XString &str);
  
  //! make point outer perpendicular to \a dir by offset
  //! \param offset > 0 for outer, < 0 for inner. unit is of screen coord.
@@ -88,7 +81,7 @@ public:
  //! \param dir a direction where text be aligned
  //! \param width perp. to \a dir, restricting font size
  //! \return return 0 if succeeded
- int selectFont(const std::string &str, const XGraph::ScrPoint &start, 
+ int selectFont(const XString &str, const XGraph::ScrPoint &start,
 				const XGraph::ScrPoint &dir, const XGraph::ScrPoint &width, int sizehint = 0);
  
  //! minimum resolution of screen coordinate.
@@ -152,7 +145,7 @@ private:
  SelectionMode m_selectionModeNow;
  XGraph::ScrPoint m_startScrPos, m_startScrDX, m_startScrDY;
  XGraph::ScrPoint m_finishScrPos, m_finishScrDX, m_finishScrDY;
- std::string m_onScreenMsg;
+ XString m_onScreenMsg;
  int m_selStartPos[2];
  int m_tiltLastPos[2];
  int m_pointerLastPos[2];
@@ -182,7 +175,7 @@ private:
 	int m_curAlign;
 	static void openFont();
 	static void closeFont();
-	static std::wstring string2wstring(const std::string &str);
+	static std::wstring string2wstring(const XString &str);
 	static int s_fontRefCount;
 	static FTFont *s_pFont;  
 };

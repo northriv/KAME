@@ -57,7 +57,7 @@ protected:
 	virtual int acqCount(bool *seq_busy);
 
 	//! load waveform and settings from instrument
-	virtual void getWave(std::deque<std::string> &channels);
+	virtual void getWave(std::deque<XString> &channels);
 private:
 };
 

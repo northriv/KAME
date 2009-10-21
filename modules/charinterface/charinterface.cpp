@@ -141,7 +141,7 @@ const std::vector<char> &
 XCharInterface::buffer() const {return m_xport->buffer();}
 
 void
-XCharInterface::send(const std::string &str) throw (XCommError &)
+XCharInterface::send(const XString &str) throw (XCommError &)
 {
     this->send(str.c_str());
 }
@@ -154,7 +154,7 @@ XCharInterface::send(const char *str) throw (XCommError &)
 		m_xport->send(str);
 	}
 	catch (XCommError &e) {
-		e.print(driver()->getLabel() + KAME::i18n(" SendError, because "));
+		e.print(driver()->getLabel() + i18n(" SendError, because "));
 		throw e;
 	}
 }
@@ -187,11 +187,11 @@ XCharInterface::write(const char *sendbuf, int size) throw (XCommError &)
 {
 	XScopedLock<XCharInterface> lock(*this);
 	try {
-		dbgPrint(driver()->getLabel() + QString().sprintf(" Sending %d bytes", size));
+		dbgPrint(driver()->getLabel() + formatString(" Sending %d bytes", size));
 		m_xport->write(sendbuf, size);
 	}
 	catch (XCommError &e) {
-		e.print(driver()->getLabel() + KAME::i18n(" SendError, because "));
+		e.print(driver()->getLabel() + i18n(" SendError, because "));
 		throw e;
 	}
 }
@@ -207,7 +207,7 @@ XCharInterface::receive() throw (XCommError &)
 				 dumpCString((const char*)&buffer()[0]) + "\"");
 	}
 	catch (XCommError &e) {
-        e.print(driver()->getLabel() + KAME::i18n(" ReceiveError, because "));
+        e.print(driver()->getLabel() + i18n(" ReceiveError, because "));
         throw e;
 	}
 }
@@ -221,12 +221,12 @@ XCharInterface::receive(unsigned int length) throw (XCommError &)
 		dbgPrint(driver()->getLabel() + QString(" %1 bytes Received.").arg(buffer().size())); 
 	}
 	catch (XCommError &e) {
-		e.print(driver()->getLabel() + KAME::i18n(" ReceiveError, because "));
+		e.print(driver()->getLabel() + i18n(" ReceiveError, because "));
 		throw e;
 	}
 }
 void
-XCharInterface::query(const std::string &str) throw (XCommError &)
+XCharInterface::query(const XString &str) throw (XCommError &)
 {
     query(str.c_str());
 }
@@ -266,7 +266,7 @@ XCharInterface::onSendRequested(const shared_ptr<XValueNodeBase> &)
 {
 	shared_ptr<XPort> port = m_xport;
     if(!port)
-		throw XInterfaceError(KAME::i18n("Port is not opened."), __FILE__, __LINE__);
+		throw XInterfaceError(i18n("Port is not opened."), __FILE__, __LINE__);
     port->send(m_script_send->to_str().c_str());
 }
 void
@@ -274,12 +274,12 @@ XCharInterface::onQueryRequested(const shared_ptr<XValueNodeBase> &)
 {
 	shared_ptr<XPort> port = m_xport;    
     if(!port)
-		throw XInterfaceError(KAME::i18n("Port is not opened."), __FILE__, __LINE__);
+		throw XInterfaceError(i18n("Port is not opened."), __FILE__, __LINE__);
     XScopedLock<XCharInterface> lock(*this);
     port->send(m_script_query->to_str().c_str());
     port->receive();
     m_lsnOnQueryRequested->mask();
-    m_script_query->value(std::string(&port->buffer()[0]));
+    m_script_query->value(XString(&port->buffer()[0]));
     m_lsnOnQueryRequested->unmask();
 }
 

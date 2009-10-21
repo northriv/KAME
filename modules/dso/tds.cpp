@@ -133,28 +133,28 @@ XTDS::onTimeWidthChanged(const shared_ptr<XValueNodeBase> &)
 void
 XTDS::onVFullScale1Changed(const shared_ptr<XValueNodeBase> &)
 {
-    std::string ch = trace1()->to_str();
+    XString ch = trace1()->to_str();
 	if(ch.empty()) return;
 	interface()->sendf("%s:SCALE %.1g", ch.c_str(), atof(vFullScale1()->to_str().c_str())/10.0);
 }
 void
 XTDS::onVFullScale2Changed(const shared_ptr<XValueNodeBase> &)
 {
-    std::string ch = trace2()->to_str();
+    XString ch = trace2()->to_str();
     if(ch.empty()) return;
     interface()->sendf("%s:SCALE %.1g", ch.c_str(), atof(vFullScale2()->to_str().c_str())/10.0);
 }
 void
 XTDS::onVOffset1Changed(const shared_ptr<XValueNodeBase> &)
 {
-    std::string ch = trace1()->to_str();
+    XString ch = trace1()->to_str();
     if(ch.empty()) return;
     interface()->sendf("%s:OFFSET %.8g", ch.c_str(), (double)*vOffset1());
 }
 void
 XTDS::onVOffset2Changed(const shared_ptr<XValueNodeBase> &)
 {
-    std::string ch = trace2()->to_str();
+    XString ch = trace2()->to_str();
     if(ch.empty()) return;
     interface()->sendf("%s:OFFSET %.8g", ch.c_str(), (double)*vOffset2());
 }
@@ -202,12 +202,12 @@ XTDS::getTimeInterval()
 }
 
 void
-XTDS::getWave(std::deque<std::string> &channels)
+XTDS::getWave(std::deque<XString> &channels)
 {
 	XScopedLock<XInterface> lock(*interface());
 	int pos = 1;
 	int width = 20000;
-	for(std::deque<std::string>::iterator it = channels.begin();
+	for(std::deque<XString>::iterator it = channels.begin();
 		it != channels.end(); it++)
 	{
 		int rsize = (2 * width + 1024);

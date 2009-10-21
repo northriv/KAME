@@ -172,7 +172,7 @@ XThread<T>::resume()
 	int ret =
 		pthread_create((pthread_t*)&m_threadid, NULL,
 					   &XThread<T>::xthread_start_routine , m_startarg.get());
-	dbgPrint(QString("New Thread 0x%1.").arg((unsigned int)m_threadid, 0, 16));
+	dbgPrint(QString("New Thread 0x%1.").arg((uintptr_t)m_threadid, 0, 16));
 	ASSERT(!ret);
 }
 template <class T>
@@ -185,7 +185,7 @@ XThread<T>::xthread_start_routine(void *x)
 			dbgPrint("MLOCKALL succeeded.");
 		}
 		else{
-			dbgPrint(formatString("MLOCKALL failed."));
+			dbgPrint("MLOCKALL failed.");
 		}
 	}
 	if(g_bUseMLock)

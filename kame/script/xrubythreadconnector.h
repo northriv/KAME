@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -18,7 +18,8 @@
 
 class XRubyThread;
 class XRuby;
-class FrmRubyThread;
+class Ui_FrmRubyThread;
+typedef QForm<QWidget, Ui_FrmRubyThread> FrmRubyThread;
 
 class XRubyThreadConnector : public XQConnector
 {
@@ -41,7 +42,7 @@ private:
     shared_ptr<XListener> m_lsnOnStatusChanged;
     void onResumeTouched(const shared_ptr<XNode> &node);
     void onKillTouched(const shared_ptr<XNode> &node);
-    void onDefout(const shared_ptr<std::string> &str);
+    void onDefout(const shared_ptr<XString> &str);
     void onStatusChanged(const shared_ptr<XValueNodeBase> &node);
     FrmRubyThread *const m_pForm;
     const shared_ptr<XRubyThread> m_rubyThread;

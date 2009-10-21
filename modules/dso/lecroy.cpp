@@ -63,7 +63,7 @@ XLecroyDSO::open() throw (XInterface::XInterfaceError &)
 void 
 XLecroyDSO::onTrace1Changed(const shared_ptr<XValueNodeBase> &) {
 	XScopedLock<XInterface> lock(*interface());
-    std::string ch = trace1()->to_str();
+    XString ch = trace1()->to_str();
     if(!ch.empty()) {
 		interface()->sendf("%s:TRACE ON", ch.c_str());
     }
@@ -72,7 +72,7 @@ XLecroyDSO::onTrace1Changed(const shared_ptr<XValueNodeBase> &) {
 void 
 XLecroyDSO::onTrace2Changed(const shared_ptr<XValueNodeBase> &) {
 	XScopedLock<XInterface> lock(*interface());
-    std::string ch = trace2()->to_str();
+    XString ch = trace2()->to_str();
     if(!ch.empty()) {
 		interface()->sendf("%s:TRACE ON", ch.c_str());
     }
@@ -98,7 +98,7 @@ XLecroyDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
 	else {
 //		const char *atype = sseq ? "SUMMED" : "CONTINUOUS";
 		const char *atype = sseq ? "AVGS" : "AVGC";
-	    std::string ch = trace1()->to_str();
+	    XString ch = trace1()->to_str();
 	    if(!ch.empty()) {
 //			interface()->sendf("TA:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
 //				ch.c_str(), atype, avg);
@@ -143,25 +143,25 @@ XLecroyDSO::onTimeWidthChanged(const shared_ptr<XValueNodeBase> &) {
 }
 void
 XLecroyDSO::onVFullScale1Changed(const shared_ptr<XValueNodeBase> &) {
-    std::string ch = trace1()->to_str();
+    XString ch = trace1()->to_str();
 	if(ch.empty()) return;
 	interface()->sendf("%s:VOLT_DIV %.1g", ch.c_str(), atof(vFullScale1()->to_str().c_str())/10.0);
 }
 void
 XLecroyDSO::onVFullScale2Changed(const shared_ptr<XValueNodeBase> &) {
-    std::string ch = trace2()->to_str();
+    XString ch = trace2()->to_str();
     if(ch.empty()) return;
     interface()->sendf("%s:VOLT_DIV %.1g", ch.c_str(), atof(vFullScale2()->to_str().c_str())/10.0);
 }
 void
 XLecroyDSO::onVOffset1Changed(const shared_ptr<XValueNodeBase> &) {
-    std::string ch = trace1()->to_str();
+    XString ch = trace1()->to_str();
     if(ch.empty()) return;
     interface()->sendf("%s:OFFSET %.8g V", ch.c_str(), (double)*vOffset1());
 }
 void
 XLecroyDSO::onVOffset2Changed(const shared_ptr<XValueNodeBase> &) {
-    std::string ch = trace2()->to_str();
+    XString ch = trace2()->to_str();
     if(ch.empty()) return;
     interface()->sendf("%s:OFFSET %.8g V", ch.c_str(), (double)*vOffset2());
 }
@@ -202,7 +202,7 @@ XLecroyDSO::acqCount(bool *seq_busy) {
 		interface()->queryf("%s:TRACE?", trace1()->to_str().c_str());
 		if(!strncmp(&interface()->buffer()[0], "ON", 2)) {
 			//trace1 is displayed.
-			std::string ch = (avg > 1) ? std::string("TA") : trace1()->to_str();
+			XString ch = (avg > 1) ? XString("TA") : trace1()->to_str();
 			n = lrint(inspectDouble("SWEEPS_PER_ACQ", ch));
 		}
 	}
@@ -222,7 +222,7 @@ XLecroyDSO::acqCount(bool *seq_busy) {
 }
 
 double
-XLecroyDSO::inspectDouble(const char *req, const std::string &trace) {
+XLecroyDSO::inspectDouble(const char *req, const XString &trace) {
 	interface()->queryf("%s:INSPECT? '%s'", trace.c_str(), req);
 	double x;
 	interface()->scanf("\"%*s : %lf", &x);
@@ -235,14 +235,14 @@ XLecroyDSO::getTimeInterval() {
 }
 
 void
-XLecroyDSO::getWave(std::deque<std::string> &channels)
+XLecroyDSO::getWave(std::deque<XString> &channels)
 {
 	XScopedLock<XInterface> lock(*interface());
 //	interface()->send("TRIG_MODE STOP");
 	try {
 		push<unsigned int32_t>(channels.size());
 		for(unsigned int i = 0; i < std::min((unsigned int)channels.size(), 4u); i++) {
-			std::string ch = channels[i];
+			XString ch = channels[i];
 			if(*average() > 1) {
 				const char *fch[] = {"TA", "TB", "TC", "TD"};
 				ch = fch[i];
@@ -251,18 +251,18 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 			msecsleep(50);
 			interface()->receive(4); //For "ALL,"
 			if(interface()->buffer().size() != 4)
-				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
+				throw XInterface::XCommError(i18n("Invalid waveform"), __FILE__, __LINE__);
 			interface()->setGPIBUseSerialPollOnRead(false);
 			interface()->receive(2); //For "#9"
 			if(interface()->buffer().size() != 2)
-				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
+				throw XInterface::XCommError(i18n("Invalid waveform"), __FILE__, __LINE__);
 			rawData().insert(rawData().end(), 
 							 interface()->buffer().begin(), interface()->buffer().end());
 			unsigned int n;
 			interface()->scanf("#%1u", &n);
 			interface()->receive(n);
 			if(interface()->buffer().size() != n)
-				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
+				throw XInterface::XCommError(i18n("Invalid waveform"), __FILE__, __LINE__);
 			rawData().insert(rawData().end(), 
 							 interface()->buffer().begin(), interface()->buffer().end());
 			int blks = interface()->toUInt();
@@ -279,7 +279,7 @@ XLecroyDSO::getWave(std::deque<std::string> &channels)
 				msecsleep(20);
 			}
 			if(blks != 0)
-				throw XInterface::XCommError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
+				throw XInterface::XCommError(i18n("Invalid waveform"), __FILE__, __LINE__);
 			interface()->receive(); //For LF.
 			interface()->setGPIBUseSerialPollOnRead(true);
 		}
@@ -303,19 +303,19 @@ XLecroyDSO::convertRaw() throw (XRecordError&) {
 		sscanf(&*dit, "#%1u", &n);
 		dit += n + 2;
 		if(strncmp(&*dit, "WAVEDESC", 8)) {
-			throw XRecordError(KAME::i18n("Invalid waveform"), __FILE__, __LINE__);
+			throw XRecordError(i18n("Invalid waveform"), __FILE__, __LINE__);
 		}
 		dit += DATA_BLOCK;
 		rawDataPopIterator() += WAVEDESC_WAVE_ARRAY_COUNT + n + 2;
-		long count = pop<int32_t>();
+		int32_t count = pop<int32_t>();
 		pop<int32_t>();
-		long first_valid = pop<int32_t>();
-		long last_valid = pop<int32_t>();
-		long first = pop<int32_t>();
+		int32_t first_valid = pop<int32_t>();
+		int32_t last_valid = pop<int32_t>();
+		int32_t first = pop<int32_t>();
 		pop<int32_t>();
 		pop<int32_t>();
 		pop<int32_t>();
-		long acqcount = pop<int32_t>();
+		int32_t acqcount = pop<int32_t>();
 		pop<short>();
 		pop<short>();
 		float vgain = pop<float>();
@@ -328,7 +328,7 @@ XLecroyDSO::convertRaw() throw (XRecordError&) {
 		double hoffset = pop<double>();
 		
 		fprintf(stderr, "first_valid=%d,last_valid=%d,first=%d,acqcount=%d,count=%d\n",
-			first_valid, last_valid, first, acqcount, count);
+			(int)first_valid, (int)last_valid, (int)first, (int)acqcount, (int)count);
 		if(ch == 0) {
 			if((count < 0) || 
 				(rawData().size() < (count * 2 + DATA_BLOCK + n + 2) * ch_cnt))
@@ -338,7 +338,7 @@ XLecroyDSO::convertRaw() throw (XRecordError&) {
 		
 		double *wave = waveDisp(ch);
 		rawDataPopIterator() = dit;
-		for(int i = 0; i < std::min(count, (long)lengthDisp()); i++) {
+		for(int i = 0; i < std::min(count, (int32_t)lengthDisp()); i++) {
 			short x = pop<short>();
 			float v = voffset + vgain * x;
 			*wave++ = v;

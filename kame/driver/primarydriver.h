@@ -137,6 +137,7 @@ inline void
 }
 inline void
 	XPrimaryDriver::_push_double(double x, std::vector<char> &buf) {
+	C_ASSERT(sizeof(double) == 8); // for compatibility.
 	double y = x;
 	char *p = reinterpret_cast<char *>(&y);
 #ifdef __BIG_ENDIAN__

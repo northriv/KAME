@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -11,12 +11,12 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
  ***************************************************************************/
-#include "dcsourceform.h"
+#include "ui_dcsourceform.h"
 #include "dcsource.h"
 #include "xnodeconnector.h"
-#include <qstatusbar.h>
-#include <qpushbutton.h>
-#include <qcheckbox.h>
+#include <QStatusBar>
+#include <QPushButton>
+#include <QCheckBox>
 
 XDCSource::XDCSource(const char *name, bool runtime, 
    const shared_ptr<XScalarEntryList> &scalarentries,
@@ -32,7 +32,7 @@ XDCSource::XDCSource(const char *name, bool runtime,
     m_form(new FrmDCSource(g_pFrmMain))
 {
   m_form->statusBar()->hide();
-  m_form->setCaption(KAME::i18n("DC Source - ") + getLabel() );
+  m_form->setWindowTitle(i18n("DC Source - ") + getLabel() );
 
   m_output->setUIEnabled(false);
   m_function->setUIEnabled(false);
@@ -111,7 +111,7 @@ XDCSource::onOutputChanged(const shared_ptr<XValueNodeBase> &)
         changeOutput(ch, *output());
     }
     catch (XKameError& e) {
-        e.print(getLabel() + KAME::i18n(": Error while changing output, "));
+        e.print(getLabel() + i18n(": Error while changing output, "));
         return;
     }
 }
@@ -123,7 +123,7 @@ XDCSource::onFunctionChanged(const shared_ptr<XValueNodeBase> &)
         changeFunction(ch, *function());
     }
     catch (XKameError& e) {
-        e.print(getLabel() + KAME::i18n(": Error while changing function, "));
+        e.print(getLabel() + i18n(": Error while changing function, "));
         return;
     }
 }
@@ -135,7 +135,7 @@ XDCSource::onValueChanged(const shared_ptr<XValueNodeBase> &)
         changeValue(ch, *value(), true);
     }
     catch (XKameError& e) {
-        e.print(getLabel() + KAME::i18n(": Error while changing value, "));
+        e.print(getLabel() + i18n(": Error while changing value, "));
         return;
     }
 }
@@ -147,7 +147,7 @@ XDCSource::onRangeChanged(const shared_ptr<XValueNodeBase> &)
         changeRange(ch, *range());
     }
     catch (XKameError& e) {
-        e.print(getLabel() + KAME::i18n(": Error while changing value, "));
+        e.print(getLabel() + i18n(": Error while changing value, "));
         return;
     }
 }
@@ -167,7 +167,7 @@ XDCSource::onChannelChanged(const shared_ptr<XValueNodeBase> &)
     	m_lsnRange->unmask();
     }
     catch (XKameError& e) {
-        e.print(getLabel() + KAME::i18n(": Error while changing value, "));
+        e.print(getLabel() + i18n(": Error while changing value, "));
         return;
     }
 }

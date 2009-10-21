@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -15,16 +15,16 @@
 
 #include <kcmdlineargs.h>
 #include <kaboutdata.h>
-#include <kapp.h>
+#include <kapplication.h>
 
 #include "kame.h"
 #include "xsignal.h"
 #include "icons/icon.h"
 #include <kiconloader.h>
 #include <kstandarddirs.h>
-#include <qgl.h>
-#include <qfile.h>
-#include <qtextcodec.h>
+#include <QGLFormat>
+#include <QFile>
+#include <QTextCodec>
 #include <errno.h>
 
 #include <ltdl.h>
@@ -32,20 +32,6 @@
 static const char *description =
 I18N_NOOP("KAME");
 // INSERT A DESCRIPTION FOR YOUR APPLICATION HERE
-	
-	
-static KCmdLineOptions options[] =
-{
-    { "logging", I18N_NOOP("log debuging info."), 0 },
-    { "mlockall", I18N_NOOP("never cause swapping, perhaps you need 'ulimit -l <MB>'"), 0 },
-    { "nomlock", I18N_NOOP("never use mlock"), 0 },
-    { "nodr", 0, 0 },
-    { "nodirectrender", I18N_NOOP("do not use direct rendering"), 0 },
-    { "module <path>", I18N_NOOP("load a specified module"), "" },
-    { "+[File]", I18N_NOOP("measurement file to open"), 0 },
-    KCmdLineLastOption
-    // INSERT YOUR COMMANDLINE OPTIONS HERE
-};
 
 int load_module(const char *filename, lt_ptr data) {
 	reinterpret_cast<std::deque<std::string> *>(data)->push_back(filename);
@@ -61,20 +47,29 @@ int main(int argc, char *argv[])
 	//GC_dont_gc
 #endif  
    
-	KAboutData aboutData( PACKAGE, I18N_NOOP("KAME"),
-						  VERSION, description, KAboutData::License_GPL,
-						  "(c) 2003-2006, ", 0, 0, "");
-	aboutData.addAuthor("Kentaro Kitagawa",0, "kitag@issp.u-tokyo.ac.jp");
+	KAboutData aboutData( "kame", "", ki18n("KAME"),
+						  VERSION, ki18n(description), KAboutData::License_GPL,
+						  ki18n("(c) 2003-2009"), ki18n(""), "", "kitag@issp.u-tokyo.ac.jp");
 	KCmdLineArgs::init( argc, argv, &aboutData );
+
+	KCmdLineOptions options;
+	options.add("logging", ki18n("log debuging info."));
+	options.add("mlockall", ki18n("never cause swapping, perhaps you need 'ulimit -l <MB>'"));
+	options.add("nomlock", ki18n("never use mlock"));
+	options.add("nodr");
+	options.add("nodirectrender", ki18n("do not use direct rendering"));
+	options.add("module <path>", ki18n("load a specified module"));
+	options.add("+[File]", ki18n("measurement file to open"));
+
 	KCmdLineArgs::addCmdLineOptions( options ); // Add our own options.
 
 	KApplication *app;
 	app = new KApplication;
   
-	std::deque<std::string> modules;
+	std::deque<XString> modules;
 	{
 		KGlobal::dirs()->addPrefix(".");
-		makeIcons(app->iconLoader());
+		makeIcons( KIconLoader::global());
 		{
 			KCmdLineArgs *args = KCmdLineArgs::parsedArgs();
                     
@@ -102,12 +97,12 @@ int main(int argc, char *argv[])
 			// Use UTF8 conversion from std::string to QString.
 			QTextCodec::setCodecForCStrings(QTextCodec::codecForName("utf8") );
             
-			QCStringList module_path = args->getOptionList("module");
-			for(QCStringList::iterator it = module_path.begin(); it != module_path.end(); it++) {
-				modules.push_back((const char*)*it);
+			QStringList module_path = args->getOptionList("module");
+			for(QStringList::const_iterator it = module_path.begin(); it != module_path.end(); it++) {
+				modules.push_back(it->toLatin1().data());
 			}
         
-#ifdef __sse2__
+#ifdef __SSE2__
 			// Check CPU specs.
 			if(cg_cpuSpec.verSSE < 2) {
 				fprintf(stderr, "SSE2 is needed. Aborting.");
@@ -120,7 +115,7 @@ int main(int argc, char *argv[])
             
 			if (args->count())
 			{
-				form->openMes( QFile::decodeName( args->arg(0)));    
+				form->openMes( args->arg(0) );
 			}
 			else
 			{
@@ -136,19 +131,24 @@ int main(int argc, char *argv[])
 	  }
 	  return 0;
 	*/
+	fprintf(stderr, "Start processing events.\n");
+
 	app->processEvents();
 
+	fprintf(stderr, "Initializing LTDL.\n");
 	lt_dlinit();
+#ifdef __linux__
 	LTDL_SET_PRELOADED_SYMBOLS();
-	QStringList libdirs = KGlobal::instance()->dirs()->resourceDirs("lib");
+#endif
+	QStringList libdirs = KGlobal::dirs()->resourceDirs("lib");
 	for(QStringList::iterator it = libdirs.begin(); it != libdirs.end(); it++) {
 		QString path = *it + "kame/modules";
-		lt_dladdsearchdir(path);
-		fprintf(stderr, "search in %s\n", (const char*)path);
-		lt_dlforeachfile(path, &load_module, &modules);
+		fprintf(stderr, "search in %s\n", (const char*)path.toLocal8Bit().data());
+		lt_dladdsearchdir(path.toLocal8Bit().data());
+		lt_dlforeachfile(path.toLocal8Bit().data(), &load_module, &modules);
 	}
-	
-	for(std::deque<std::string>::iterator it = modules.begin(); it != modules.end(); it++) {
+
+	for(std::deque<XString>::iterator it = modules.begin(); it != modules.end(); it++) {
 		lt_dlhandle handle = lt_dlopenext(it->c_str());
 		if(handle) {
 			fprintf(stderr, "Module %s loaded\n", it->c_str());

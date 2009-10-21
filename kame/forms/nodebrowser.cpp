@@ -13,13 +13,14 @@
  ***************************************************************************/
 //---------------------------------------------------------------------------
 #include "nodebrowser.h"
-#include "nodebrowserform.h"
 #include "measure.h"
 #include <qlineedit.h>
 #include <qcursor.h>
 #include <qtimer.h>
-#include <qtextbrowser.h>
-#include <kapp.h>
+#include <q3textbrowser.h>
+#include <kapplication.h>
+
+#include "ui_nodebrowserform.h"
 
 XNodeBrowser::XNodeBrowser
 (const shared_ptr<XNode> &root, FrmNodeBrowser *form)
@@ -55,7 +56,7 @@ XNodeBrowser::process() {
 	//	widget = KApplication::kApplication()->focusWidget();
 	//		node = connectedNode(widget);
 	if(!node) {
-		widget = KApplication::widgetAt(QCursor::pos(), true);
+		widget = KApplication::widgetAt(QCursor::pos());
 		node = connectedNode(widget);
 		if(!node && widget) {
 			widget = widget->parentWidget();
@@ -78,21 +79,22 @@ XNodeBrowser::process() {
 			m_conValue = xqcon_create<XQLineEditConnector>(valuenode, m_pForm->m_edValue);
 		QString str;
 		str += "<font color=#005500>Label:</font> ";
-		str += node->getLabel();
+		str += node->getLabel().c_str();
 		//		str += "\nName: ";
 		//		str += node->getName();
 		str += "<br>";
 		if(!node->isUIEnabled()) str+= "UI/scripting disabled.<br>";
 		if(node->isRunTime()) str+= "For run-time only.<br>";
 		str += "<font color=#005500>Type:</font> ";
-		str += node->getTypename();
+		str += node->getTypename().c_str();
 		str += "<br>";
-		std::string rbpath;
+		XString rbpath;
 		shared_ptr<XNode> cnode = node;
 		while(cnode) {
 			if((rbpath.length() > 64) ||
 				(cnode == m_root.lock())) {
-				str += "<font color=#550000>Ruby object:</font><br> Measurement" + rbpath;
+				str += "<font color=#550000>Ruby object:</font><br> Measurement";
+				str += rbpath.c_str();
 				str += "<br><font color=#550000>Supported Ruby methods:</font>"
 					" name() touch() child(<font color=#000088><i>name/idx</i></font>)"
 					" [](<font color=#000088><i>name/idx</i></font>) count() each() to_ary()";
@@ -115,10 +117,10 @@ XNodeBrowser::process() {
 		}
 		atomic_shared_ptr<const XNode::NodeList> list(node->children());
 		if(list) { 
-			str += formatString("<font color=#005500>%u Child(ren):</font> <br>", (unsigned int)list->size());
+			str += formatString("<font color=#005500>%u Child(ren):</font> <br>", (unsigned int)list->size()).c_str();
 			for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
 				str += " ";
-				str += (*it)->getName();
+				str += (*it)->getName().c_str();
 			}
 			str += "<br>";
 		}

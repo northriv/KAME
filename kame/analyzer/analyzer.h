@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -51,7 +51,7 @@ public:
 
 	shared_ptr<XDriver> driver() const {return m_driver.lock();}
   
-	virtual std::string getLabel() const;
+	virtual XString getLabel() const;
   
 	virtual void value(double val);
 protected:
@@ -75,7 +75,9 @@ protected:
     XScalarEntryList(const char *name, bool runtime) : XAliasListNode<XScalarEntry>(name, runtime) {}
 };
 
-class FrmGraph;
+class Ui_FrmGraph;
+class QMainWindow;
+typedef QForm<QMainWindow, Ui_FrmGraph> FrmGraph;
 class XGraph;
 class XXYPlot;
 
@@ -156,7 +158,7 @@ protected:
 public:
 	virtual ~XGraphList() {}
 
-	virtual shared_ptr<XNode> createByTypename(const std::string &, const std::string& name)  {
+	virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name)  {
 		return XNode::create<XValGraph>(name.c_str(), false, m_entries);
 	}
 private:

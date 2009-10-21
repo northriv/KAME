@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -20,11 +20,14 @@
 #include <qlayout.h>
 #include "measure.h"
 #include "graphdialogconnector.h"
-#include "graphdialog.h"
+#include "ui_graphdialog.h"
+#include "QMouseEvent"
 
-XQGraph::XQGraph( QWidget* parent, const char* name, WFlags fl ) :
-    QGLWidget( QGLFormat(AlphaChannel | DoubleBuffer | Rgba | DepthBuffer | AccumBuffer )
-			   , parent, name, 0, fl)
+typedef QForm<QDialog, Ui_DlgGraphSetup> DlgGraphSetup;
+
+XQGraph::XQGraph( QWidget* parent, Qt::WFlags fl ) :
+    QGLWidget( QGLFormat(QGL::AlphaChannel | QGL::DoubleBuffer | QGL::Rgba | QGL::DepthBuffer | QGL::AccumBuffer )
+			   , parent, 0, fl)
 {
     if(!format().directRendering()) dbgPrint("direct rendering disabled");
 //      if(!layout() ) new QHBoxLayout(this);
@@ -40,7 +43,7 @@ XQGraph::setGraph(const shared_ptr<XGraph> &graph)
     m_conDialog.reset();
     m_painter.reset();
     m_graph = graph;
-    if(graph && isVisible() && isShown()) {
+    if(graph && !isHidden()) {
 		showEvent(NULL);
     } 
 }
@@ -50,13 +53,13 @@ XQGraph::mousePressEvent ( QMouseEvent* e)
 	if(!m_painter ) return;
 	XQGraphPainter::SelectionMode mode;
 	switch (e->button()) {
-	case RightButton:
+	case Qt::RightButton:
 		mode = XQGraphPainter::SelAxis;
 		break;
-	case LeftButton:
+	case Qt::LeftButton:
 		mode = XQGraphPainter::SelPlane;
 		break;
-	case MidButton:
+	case Qt::MidButton:
 		mode = XQGraphPainter::TiltTracking;
 		break;
 	default:
@@ -86,14 +89,14 @@ XQGraph::mouseDoubleClickEvent ( QMouseEvent* e)
 	if(!m_painter ) return;
 	if(m_graph) { 
 		switch (e->button()) {
-		case RightButton:
+		case Qt::RightButton:
 			m_painter->showHelp();
 			break;
-		case LeftButton:
+		case Qt::LeftButton:
 			m_conDialog = xqcon_create<XQGraphDialogConnector>(m_graph,
-															   new DlgGraphSetup(this, "GraphDialog", false, Qt::WDestructiveClose));
+															   new DlgGraphSetup(this, Qt::WDestructiveClose));
 			break;
-		case MidButton:
+		case Qt::MidButton:
 			break;
 		default:
 			break;

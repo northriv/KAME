@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -17,7 +17,9 @@
 #include "xnodeconnector.h"
 #include "graph.h"
 
-class DlgGraphSetup;
+class QDialog;
+class Ui_DlgGraphSetup;
+typedef QForm<QDialog, Ui_DlgGraphSetup> DlgGraphSetup;
 
 class XQGraphDialogConnector : public XQConnector
 {

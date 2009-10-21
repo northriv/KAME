@@ -88,9 +88,9 @@ private:
 	unsigned int m_pausingBit;
 	unsigned int m_aswBit;
 	unsigned int m_pausingCount;
-	std::string m_pausingCh;
-	std::string m_pausingSrcTerm;
-	std::string m_pausingGateTerm;
+	XString m_pausingCh;
+	XString m_pausingSrcTerm;
+	XString m_pausingGateTerm;
 	unsigned int m_bufSizeHintDO;
 	unsigned int m_bufSizeHintAO;
 	unsigned int m_transferSizeHintDO;

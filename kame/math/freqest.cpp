@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -25,7 +25,7 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 	int n = memout.size();
 	
 	if(t > 1024)
-		throw XKameError(KAME::i18n("Too large size to allocate a matrix."), __FILE__, __LINE__);
+		throw XKameError(i18n("Too large size to allocate a matrix."), __FILE__, __LINE__);
 	
 	int wpoints = lrint(numberOfNoises(memin)); //# of fittable data in freq. domain.
 	wpoints = std::min(std::max(wpoints, t/100 + 1), t);

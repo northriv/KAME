@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -17,7 +17,8 @@
 #include "primarydriver.h"
 #include "xnodeconnector.h"
 
-class FrmSG;
+class Ui_FrmSG;
+typedef QForm<QMainWindow, Ui_FrmSG> FrmSG;
 
 class XSG : public XPrimaryDriver
 {

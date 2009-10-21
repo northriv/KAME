@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -17,6 +17,7 @@
 #include "thermometer.h"
 #include "cspline.h"
 #include "rand.h"
+
 //---------------------------------------------------------------------------
 XThermometerList::XThermometerList(const char *name, bool runtime)
  : XCustomTypeListNode<XThermometer>(name, runtime) {
@@ -222,7 +223,7 @@ XApproxThermometer
         }
         if(pts.size() < 4)
             throw XKameError(
-                KAME::i18n("XApproxThermometer, Too small number of points"), __FILE__, __LINE__);
+                i18n("XApproxThermometer, Too small number of points"), __FILE__, __LINE__);
         approx.reset(new CSplineApprox(pts));
         m_approx = approx;
     }
@@ -246,7 +247,7 @@ XApproxThermometer
         }
         if(pts.size() < 4)
             throw XKameError(
-                KAME::i18n("XApproxThermometer, Too small number of points"), __FILE__, __LINE__);
+                i18n("XApproxThermometer, Too small number of points"), __FILE__, __LINE__);
         approx.reset(new CSplineApprox(pts));
         m_approx_inv = approx;
     }

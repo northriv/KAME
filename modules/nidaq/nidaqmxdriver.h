@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -13,10 +13,6 @@
 ***************************************************************************/
 #ifndef NIDAQMXDRIVER_H_
 #define NIDAQMXDRIVER_H_
-
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif /*HAVE_CONFIG_H*/
 
 #include "interface.h"
 #include "driver.h"
@@ -56,8 +52,8 @@ protected:
 public:
 	virtual ~XNIDAQmxInterface() {}
  
-	static QString getNIDAQmxErrMessage();
-	static QString getNIDAQmxErrMessage(int status);
+	static XString getNIDAQmxErrMessage();
+	static XString getNIDAQmxErrMessage(int status);
 	static int checkDAQmxError(int ret, const char*file, int line);
 
 	virtual bool isOpened() const {return m_devname.length();}
@@ -65,7 +61,7 @@ public:
 	//! e.g. "Dev1".
 	const char*devName() const {return m_devname.c_str();}
 	//! Split camma-separated strings.
-	static void parseList(const char *list, std::deque<std::string> &buf);
+	static void parseList(const char *list, std::deque<XString> &buf);
   
 	//! Each task must call this to tell the reference frequency.
 	void synchronizeClock(TaskHandle task);
@@ -75,7 +71,7 @@ public:
 	  	XNIDAQmxRoute(const char*src, const char*dst, int *ret = NULL);
 	  	~XNIDAQmxRoute();
 	private:
-	  	std::string m_src, m_dst;
+	  	XString m_src, m_dst;
 	};
 	
 	//! e.g. "PCI-6111".
@@ -151,8 +147,8 @@ public:
 		}
 	private:
 		void _clear();
-		const std::string m_label;
-		std::string m_armTerm;
+		const XString m_label;
+		XString m_armTerm;
 		unsigned int m_bits;
 		uint32_t m_risingEdgeMask, m_fallingEdgeMask;
 		uint64_t m_blankTerm, m_endOfBlank;
@@ -183,7 +179,7 @@ private:
 	  	unsigned long do_max_rate; //!< [kHz]
 	};
 	friend class SoftwareTrigger;
-	std::string m_devname;
+	XString m_devname;
 	const ProductInfo* m_productInfo;
 	static const ProductInfo sc_productInfoList[];
 };
@@ -239,7 +235,7 @@ XNIDAQmxDriver<tDriver>::onOpen(const shared_ptr<XInterface> &)
 		open();
 	}
 	catch (XInterface::XInterfaceError& e) {
-		e.print(this->getLabel() + KAME::i18n(": Opening interface failed, because "));
+		e.print(this->getLabel() + i18n(": Opening interface failed, because "));
 		close();
 	}
 }
@@ -251,7 +247,7 @@ XNIDAQmxDriver<tDriver>::onClose(const shared_ptr<XInterface> &)
 		this->stop();
 	}
 	catch (XInterface::XInterfaceError& e) {
-		e.print(this->getLabel() + KAME::i18n(": Stopping driver failed, because "));
+		e.print(this->getLabel() + i18n(": Stopping driver failed, because "));
 	}
 }
 template<class tDriver>

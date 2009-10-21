@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -15,18 +15,18 @@
 
 #include "graphlistconnector.h"
 
-#include <qtable.h>
+#include <q3table.h>
 #include <qcombobox.h>
 #include <qpushbutton.h>
 #include <kiconloader.h>
-#include <kapplication.h>
+
 
 #include "recorder.h"
 #include "analyzer.h"
 
 //---------------------------------------------------------------------------
 
-XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, QTable *item,
+XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, Q3Table *item,
 										 QPushButton *btnnew, QPushButton *btndelete) :
     XListQConnector(node, item),
     m_graphlist(node),
@@ -35,10 +35,11 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, QTa
     m_conNewGraph(xqcon_create<XQButtonConnector>(m_newGraph, btnnew)),
     m_conDeleteGraph(xqcon_create<XQButtonConnector>(m_deleteGraph, btndelete))
 {
-	btnnew->setIconSet( KApplication::kApplication()->iconLoader()->loadIconSet("filenew", 
-																				KIcon::Toolbar, KIcon::SizeSmall, true ) );  
-	btndelete->setIconSet( KApplication::kApplication()->iconLoader()->loadIconSet("fileclose", 
-																				   KIcon::Toolbar, KIcon::SizeSmall, true ) ); 
+    KIconLoader *loader = KIconLoader::global();
+	btnnew->setIcon( loader->loadIcon("filenew",
+																				KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );  
+	btndelete->setIcon( loader->loadIcon("fileclose",
+																				   KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) ); 
                
 	connect(item, SIGNAL( clicked( int, int, int, const QPoint& )),
 			this, SLOT(clicked( int, int, int, const QPoint& )) );
@@ -49,10 +50,10 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, QTa
 	m_pItem->setColumnWidth(2, (int)(def * 2.0));
 	m_pItem->setColumnWidth(3, (int)(def * 2.0));
 	QStringList labels;
-	labels += KAME::i18n("Name");
-	labels += KAME::i18n("Axis X");
-	labels += KAME::i18n("Axis Y");
-	labels += KAME::i18n("Axis Z");
+	labels += i18n("Name");
+	labels += i18n("Axis X");
+	labels += i18n("Axis Y");
+	labels += i18n("Axis Z");
 	m_pItem->setColumnLabels(labels);
 
 	atomic_shared_ptr<const XNode::NodeList> list(node->children());
@@ -71,7 +72,7 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, QTa
 void
 XGraphListConnector::onNewGraph (const shared_ptr<XNode> &) {
 	static int graphidx = 1;
-    m_graphlist->createByTypename("", std::string(QString().sprintf("Graph-%d", graphidx++).utf8()));
+    m_graphlist->createByTypename("", formatString("Graph-%d", graphidx++));
 }
 void
 XGraphListConnector::onDeleteGraph (const shared_ptr<XNode> &) {
@@ -126,7 +127,7 @@ XGraphListConnector::onCatch(const shared_ptr<XNode> &node)
 	shared_ptr<XValGraph> graph = dynamic_pointer_cast<XValGraph>(node);
 	int i = m_pItem->numRows();
 	m_pItem->insertRows(i);
-	m_pItem->setText(i, 0, graph->getLabel());
+	m_pItem->setText(i, 0, graph->getLabel().c_str());
 
 	struct tcons con;
 	con.node = node;

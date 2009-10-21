@@ -24,12 +24,15 @@
 
 class XNMRPulseAnalyzer;
 class XPulser;
-class FrmNMRT1;
-class XWaveNGraph;
 class XRelaxFunc;
 class XRelaxFuncList;
 class XRelaxFuncPlot;
 class XScalarEntry;
+
+#include "xwavengraph.h"
+
+class Ui_FrmNMRT1;
+typedef QForm<QMainWindow, Ui_FrmNMRT1> FrmNMRT1;
 
 //! Measure Relaxation Curve
 class XNMRT1 : public XSecondaryDriver
@@ -208,7 +211,7 @@ private:
 	//! \param relax a pointer to a realaxation function
 	//! \param itercnt counts 
 	//! \param buf a message will be passed
-	std::string iterate(shared_ptr<XRelaxFunc> &relax, int itercnt);
+	XString iterate(shared_ptr<XRelaxFunc> &relax, int itercnt);
  		      
 	XTime m_timeClearRequested;
 };

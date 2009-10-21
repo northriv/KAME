@@ -17,7 +17,7 @@
 #include "interface.h"
 #include "xnodeconnector.h"
 
-class QTable;
+class Q3Table;
 class QPushButton;
 
 class XInterfaceListConnector : public XListQConnector
@@ -25,7 +25,7 @@ class XInterfaceListConnector : public XListQConnector
 	Q_OBJECT
 	XQCON_OBJECT
 protected:
-	XInterfaceListConnector(const shared_ptr<XInterfaceList> &node, QTable *item);
+	XInterfaceListConnector(const shared_ptr<XInterfaceList> &node, Q3Table *item);
 public:
 	virtual ~XInterfaceListConnector() {}
 protected:

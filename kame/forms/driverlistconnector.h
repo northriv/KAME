@@ -18,8 +18,10 @@
 #include "xnodeconnector.h"
 //---------------------------------------------------------------------------
 
-class FrmDriver;
-class QTable;
+class Ui_FrmDriver;
+typedef QForm<QWidget, Ui_FrmDriver> FrmDriver;
+
+class Q3Table;
 class QLabel;
 
 class XDriverListConnector : public XListQConnector
@@ -42,7 +44,7 @@ private:
 	struct tcons {
 		struct tlisttext {
 			QLabel *label;
-			shared_ptr<std::string> str;
+			shared_ptr<XString> str;
 		};
 		QLabel *label;
 		shared_ptr<XDriver> driver;

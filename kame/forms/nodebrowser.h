@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -18,7 +18,8 @@
 //---------------------------------------------------------------------------
 #include "xnodeconnector.h"
 
-class FrmNodeBrowser;
+class Ui_FrmNodeBrowser;
+typedef QForm<QWidget, Ui_FrmNodeBrowser> FrmNodeBrowser;
 
 class XNodeBrowser : public XQConnector
 {

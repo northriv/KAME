@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -22,9 +22,10 @@
 class XScalarEntry;
 class FIR;
 
-class FrmDSO;
-class XWaveNGraph;
-class FrmGraphNURL;
+class QMainWindow;
+class Ui_FrmDSO;
+typedef QForm<QMainWindow, Ui_FrmDSO> FrmDSO;
+#include "xwavengraph.h"
 
 //! Base class for digital storage oscilloscope.
 class XDSO : public XPrimaryDriver
@@ -110,7 +111,7 @@ protected:
 	virtual int acqCount(bool *seq_busy) = 0;
 
 	//! load waveform and settings from instrument
-	virtual void getWave(std::deque<std::string> &channels) = 0;
+	virtual void getWave(std::deque<XString> &channels) = 0;
 	//! convert raw to dispaly-able
 	virtual void convertRaw() throw (XRecordError&) = 0;
 	void setParameters(unsigned int channels, double startpos, double interval, unsigned int length);

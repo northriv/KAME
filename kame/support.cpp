@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <string.h>
+
 
 bool g_bLogDbgPrint;
 bool g_bMLockAlways;
@@ -33,7 +34,7 @@ static XMutex g_debug_mutex;
 #include "measure.h"
 #include "threadlocal.h"
 
-#if defined __linux__ || defined MACOSX
+#if defined __linux__ || defined __APPLE__
 #undef TRAP_FPE
 #if defined TRAP_FPE && defined __linux__
 #include <fpu_control.h>
@@ -73,7 +74,7 @@ void kame_gc::operator delete(void *obj) {
 void my_assert(const char *file, int line)
 {
 	XScopedLock<XMutex> lock(g_debug_mutex);
-	std::string msg = formatString("assertion failed %s:%d\n",file,line);
+	XString msg = formatString("assertion failed %s:%d\n",file,line);
 	g_debugofs << msg;
 	fprintf(stderr, "%s",msg.c_str());
 	g_debugofs.flush();
@@ -91,12 +92,12 @@ void my_assert(const char *file, int line)
 #endif // NDEBUG
 
 
-XKameError::XKameError(const QString &s, const char *file, int line)
+XKameError::XKameError(const XString &s, const char *file, int line)
 	: m_msg(s), m_file(file), m_line(line), m_errno(errno) {
 	errno = 0;
 }
 void
-XKameError::print(const QString &header) {
+XKameError::print(const XString &header) {
 	print(header + m_msg, m_file, m_line, m_errno);
 }
 void
@@ -104,7 +105,7 @@ XKameError::print() {
 	print("");
 }
 void
-XKameError::print(const QString &msg, const char *file, int line, int _errno) {
+XKameError::print(const XString &msg, const char *file, int line, int _errno) {
 	if(_errno) {
 		errno = 0;
 		char buf[256];
@@ -125,7 +126,7 @@ XKameError::print(const QString &msg, const char *file, int line, int _errno) {
 	}
 }
 
-const QString &
+const XString &
 XKameError::msg() const
 {
 	return m_msg;
@@ -153,54 +154,51 @@ double setprec(double val, double prec)
 
 
 void
-_dbgPrint(const QString &str, const char *file, int line)
+_dbgPrint(const XString &str, const char *file, int line)
 {
 	if(!g_bLogDbgPrint) return;
 	XScopedLock<XMutex> lock(g_debug_mutex);
 	g_debugofs
-		<< (const char*)(QString("0x%1:%2:%3:%4 %5")
-						 .arg((unsigned int)threadID(), 0, 16)
+		<< (QString("0x%1:%2:%3:%4 %5")
+						 .arg((uintptr_t)threadID(), 0, 16)
 						 .arg(XTime::now().getTimeStr())
 						 .arg(file)
 						 .arg(line)
-						 .arg(str))
-		.local8Bit()
+						 .arg(str)).toUtf8().data()
 		<< std::endl;
 }
 void
-_gErrPrint(const QString &str, const char *file, int line)
+_gErrPrint(const XString &str, const char *file, int line)
 {
 	{
 		XScopedLock<XMutex> lock(g_debug_mutex);
 		g_debugofs
 			<< (const char*)(QString("Err:0x%1:%2:%3:%4 %5")
-							 .arg((unsigned int)threadID(), 0, 16)
+							 .arg((uintptr_t)threadID(), 0, 16)
 							 .arg(XTime::now().getTimeStr())
 							 .arg(file)
 							 .arg(line)
-							 .arg(str))
-			.local8Bit()
+							 .arg(str)).toUtf8().data()
 			<< std::endl;
-		fprintf(stderr, "err:%s:%d %s\n", file, line, (const char*)str.local8Bit());
+		fprintf(stderr, "err:%s:%d %s\n", file, line, (const char*)str.c_str());
 	}
 	shared_ptr<XStatusPrinter> statusprinter = g_statusPrinter;
 	if(statusprinter) statusprinter->printError(str);
 }
 void
-_gWarnPrint(const QString &str, const char *file, int line)
+_gWarnPrint(const XString &str, const char *file, int line)
 {
 	{
 		XScopedLock<XMutex> lock(g_debug_mutex);
 		g_debugofs
 			<< (const char*)(QString("Warn:0x%1:%2:%3:%4 %5")
-							 .arg((unsigned int)threadID(), 0, 16)
+							 .arg((uintptr_t)threadID(), 0, 16)
 							 .arg(XTime::now().getTimeStr())
 							 .arg(file)
 							 .arg(line)
-							 .arg(str))
-			.local8Bit()
+							 .arg(str)).toUtf8().data()
 			<< std::endl;
-		fprintf(stderr, "warn:%s:%d %s\n", file, line, (const char*)str.local8Bit());
+		fprintf(stderr, "warn:%s:%d %s\n", file, line, (const char*)str.c_str());
 	}
 	shared_ptr<XStatusPrinter> statusprinter = g_statusPrinter;
 	if(statusprinter) statusprinter->printWarning(str);
@@ -210,35 +208,49 @@ _gWarnPrint(const QString &str, const char *file, int line)
 #include <stdarg.h>
 #include <vector>
 
-std::string
-formatString(const char *fmt, ...)
-{
-	va_list ap;
+static XString
+v_formatString(const char *fmt, va_list ap) {
 	int buf_size = SNPRINT_BUF_SIZE;
 	std::vector<char> buf;
 	for(;;) {
 		buf.resize(buf_size);
 		int ret;
 
-		va_start(ap, fmt);
-
 		ret = vsnprintf(&buf[0], buf_size, fmt, ap);
-		va_end(ap);
 
-		if(ret < 0) throw XKameError(KAME::i18n("Mal-format conversion."), __FILE__, __LINE__);
+		if(ret < 0) throw XKameError(i18n("Mal-format conversion."), __FILE__, __LINE__);
 		if(ret < buf_size) break;
 
 		buf_size *= 2;
 	}
-	return std::string((char*)&buf[0]);
+	return XString((char*)&buf[0]);
 }
 
-std::string formatDouble(const char *fmt, double var)
+XString
+formatString_tr(const char *fmt, ...) {
+	va_list ap;
+	va_start(ap, fmt);
+	XString str = v_formatString(i18n(fmt).toUtf8().data(), ap);
+	va_end(ap);
+	return str;
+}
+
+XString
+formatString(const char *fmt, ...)
+{
+	va_list ap;
+	va_start(ap, fmt);
+	XString str = v_formatString(fmt, ap);
+	va_end(ap);
+	return str;
+}
+
+XString formatDouble(const char *fmt, double var)
 {
 	char cbuf[SNPRINT_BUF_SIZE];
 	if(strlen(fmt) == 0) {
 		snprintf(cbuf, sizeof(cbuf), "%.12g", var);
-		return std::string(cbuf);
+		return XString(cbuf);
 	}
 
 	if(!strncmp(fmt, "TIME:", 5)) {
@@ -250,17 +262,17 @@ std::string formatDouble(const char *fmt, double var)
 			return time.getTimeStr(false);
 	}
 	snprintf(cbuf, sizeof(cbuf), fmt, var);
-	return std::string(cbuf);
+	return XString(cbuf);
 }
-void formatDoubleValidator(std::string &fmt) {
+void formatDoubleValidator(XString &fmt) {
 	if(fmt.empty()) return;
 
-	std::string buf(QString(fmt).latin1());
+	XString buf(fmt);
 
 	if(!strncmp(buf.c_str(), "TIME:", 5)) return;
 
 	int arg_cnt = 0;
-	for(unsigned int pos = 0;;) {
+	for(int pos = 0;;) {
 		pos = buf.find('%', pos);
 		if(pos == std::string::npos) break;
 		pos++;
@@ -269,25 +281,25 @@ void formatDoubleValidator(std::string &fmt) {
 		}
 		arg_cnt++;
 		if(arg_cnt > 1) {
-			throw XKameError(KAME::i18n("Illegal Format, too many %s."), __FILE__, __LINE__);
+			throw XKameError(i18n("Illegal Format, too many %s."), __FILE__, __LINE__);
 		}
 		char conv;
 		if((sscanf(buf.c_str() + pos, "%*[+-'0# ]%*f%c", &conv) != 1) &&
 		   (sscanf(buf.c_str() + pos, "%*[+-'0# ]%c", &conv) != 1) &&
 		   (sscanf(buf.c_str() + pos, "%*f%c", &conv) != 1) &&
 		   (sscanf(buf.c_str() + pos, "%c", &conv) != 1)) {
-			throw XKameError(KAME::i18n("Illegal Format."), __FILE__, __LINE__);
+			throw XKameError(i18n("Illegal Format."), __FILE__, __LINE__);
 		}
 		if(std::string("eEgGf").find(conv) == std::string::npos)
-			throw XKameError(KAME::i18n("Illegal Format, no float conversion."), __FILE__, __LINE__);
+			throw XKameError(i18n("Illegal Format, no float conversion."), __FILE__, __LINE__);
 	}
 	if(arg_cnt == 0)
-		throw XKameError(KAME::i18n("Illegal Format, no %."), __FILE__, __LINE__);
+		throw XKameError(i18n("Illegal Format, no %."), __FILE__, __LINE__);
 }
 
-std::string dumpCString(const char *cstr)
+XString dumpCString(const char *cstr)
 {
-	std::string buf;
+	XString buf;
 	for(; *cstr; cstr++) {
 		if(isprint(*cstr))
 			buf.append(1, *cstr);
@@ -314,7 +326,7 @@ X86CPUSpec::X86CPUSpec() {
 		verSSE = 2;
 	if((verSSE == 2) && (features_ext & (1uL << 0)))
 		verSSE = 3;
-#ifdef MACOSX
+#ifdef __APPLE__
 	hasMonitor = false;
 #else
 	hasMonitor = (verSSE == 3) && (features_ext & (1uL << 3));
@@ -332,18 +344,20 @@ X86CPUSpec::X86CPUSpec() {
 		monitorSizeSmallest = monsize_s;
 		monitorSizeLargest = monsize_l;
 	}
-	fprintf(stderr,
+	fprintf(stderr, "Target: "
 #if defined __LP64__
-		"x86-64, LP64 + "
+		"x86-64, LP64"
 #else
 	#if defined __LLP64__
-			"x86-64, LLP64 + "
+			"x86-64, LLP64"
 	#else
-			"x86-32 + "
+			"x86-32"
+	#endif
+	#if defined __SSE2__
+		", SSE2"
 	#endif
 #endif
-		"SSE%u, monitor=%u, mon_smallest=%u, mon_larget=%u\n"
-		, verSSE, (unsigned int)hasMonitor, monitorSizeSmallest, monitorSizeLargest);
+		"; Detected: SSE%u\n", verSSE);
 }
 const X86CPUSpec cg_cpuSpec;
 #endif

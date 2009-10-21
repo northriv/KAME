@@ -50,7 +50,7 @@ public:
 	//! Create a object, whose class is determined from \a type.
 	//! Scripting only. Use XNode::create for coding instead.
 	virtual shared_ptr<XNode> createByTypename(
-        const std::string &type, const std::string &name) = 0;        
+        const XString &type, const XString &name) = 0;
 protected:    
 	XTalker<shared_ptr<XListNodeBase> > m_tlkOnListChanged;
 	XTalker<MoveEvent> m_tlkOnMove;
@@ -68,7 +68,7 @@ public:
 	virtual ~XListNode() {}
 
 	virtual shared_ptr<XNode> createByTypename(
-        const std::string &, const std::string &name) {
+        const XString &, const XString &name) {
 		return this->create<NT>(name.c_str(), false);
 	}
 };
@@ -85,7 +85,7 @@ public:
 	virtual ~XAliasListNode() {}
 
 	virtual shared_ptr<XNode> createByTypename(
-        const std::string &, const std::string &) {
+        const XString &, const XString &) {
 		return shared_ptr<XNode>();
 	}
 };
@@ -101,7 +101,7 @@ public:
 	virtual ~XCustomTypeListNode() {}
 
 	virtual shared_ptr<XNode> createByTypename(
-        const std::string &type, const std::string &name) = 0;
+        const XString &type, const XString &name) = 0;
 };  
 
 shared_ptr<XNode> empty_creator(const char *, bool = false);
@@ -160,32 +160,32 @@ struct XTypeHolder
 			tFunc create_typed = _creator<tChild>;
 			if(!label)
 				label = name;
-			if(std::find(holder.names.begin(), holder.names.end(), std::string(name)) != holder.names.end()) {
+			if(std::find(holder.names.begin(), holder.names.end(), XString(name)) != holder.names.end()) {
 				fprintf(stderr, "Duplicated name!\n");
 				return;
 			}
 			holder.creators.push_back(create_typed);
-			holder.names.push_back(std::string(name));
-			holder.labels.push_back(std::string(label));
+			holder.names.push_back(XString(name));
+			holder.labels.push_back(XString(label));
 			fprintf(stderr, "%s %s\n", name, label);
 		}
 	};
-	tFunc creator(const std::string &tp) {
+	tFunc creator(const XString &tp) {
 		for(unsigned int i = 0; i < names.size(); i++) {
             if(names[i] == tp) return creators[i];
 		}
 		return empty_creator;
 	}
 	std::deque<tFunc> creators;
-	std::deque<std::string> names, labels;
+	std::deque<XString> names, labels;
 };
 
 #define DEFINE_TYPE_HOLDER_W_FUNC(func) \
   typedef XTypeHolder<func> TypeHolder; \
   static TypeHolder s_types; \
-  static tCreateFunc creator(const std::string &tp) {return s_types.creator(tp);} \
-  static std::deque<std::string> &typenames() {return s_types.names;} \
-  static std::deque<std::string> &typelabels() {return s_types.labels;}
+  static tCreateFunc creator(const XString &tp) {return s_types.creator(tp);} \
+  static std::deque<XString> &typenames() {return s_types.names;} \
+  static std::deque<XString> &typelabels() {return s_types.labels;}
 
 #define DEFINE_TYPE_HOLDER \
   typedef shared_ptr<XNode>(*tCreateFunc)(const char *, bool); \

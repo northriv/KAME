@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -12,13 +12,11 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 //---------------------------------------------------------------------------
-#include "nmrfspectrumform.h"
+#include "ui_nmrfspectrumform.h"
 #include "nmrfspectrum.h"
-
 #include "signalgenerator.h"
-#include <qspinbox.h>
+#include "nmrspectrumbase_impl.h"
 
-#include "nmrspectrumbase.cpp"
 REGISTER_TYPE(XDriverList, NMRFSpectrum, "NMR frequency-swept spectrum measurement");
 
 //---------------------------------------------------------------------------
@@ -38,21 +36,15 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 {
 	connect(sg1(), true);
 
-	m_form->setCaption(KAME::i18n("NMR Spectrum (Freq. Sweep) - ") + getLabel() );
+	m_form->setWindowTitle(i18n("NMR Spectrum (Freq. Sweep) - ") + getLabel() );
 
 	m_spectrum->setLabel(0, "Freq [MHz]");
-	m_spectrum->axisx()->label()->value(KAME::i18n("Freq [MHz]"));
+	m_spectrum->axisx()->label()->value(i18n("Freq [MHz]"));
   
 	centerFreq()->value(20);
 	sg1FreqOffset()->value(700);
 	freqSpan()->value(200);
 	freqStep()->value(1);
-
-	m_lsnOnActiveChanged = active()->onValueChanged().connectWeak(  
-		shared_from_this(), &XNMRFSpectrum::onActiveChanged);
-	centerFreq()->onValueChanged().connect(m_lsnOnCondChanged);
-	freqSpan()->onValueChanged().connect(m_lsnOnCondChanged);
-	freqStep()->onValueChanged().connect(m_lsnOnCondChanged);
 
 	m_conSG1FreqOffset = xqcon_create<XQLineEditConnector>(m_sg1FreqOffset, m_form->m_edSG1FreqOffset);
 	m_conCenterFreq = xqcon_create<XQLineEditConnector>(m_centerFreq, m_form->m_edCenterFreq);
@@ -62,6 +54,12 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 	m_form->m_numBurstCount->setRange(0, 15);
 	m_conBurstCount = xqcon_create<XQSpinBoxConnector>(m_burstCount, m_form->m_numBurstCount);
 	m_conActive = xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive);
+
+	m_lsnOnActiveChanged = active()->onValueChanged().connectWeak(
+		shared_from_this(), &XNMRFSpectrum::onActiveChanged);
+	centerFreq()->onValueChanged().connect(m_lsnOnCondChanged);
+	freqSpan()->onValueChanged().connect(m_lsnOnCondChanged);
+	freqStep()->onValueChanged().connect(m_lsnOnCondChanged);
 }
 
 void
@@ -125,10 +123,10 @@ XNMRFSpectrum::afterFSSum() {
 		double freq_span = *freqSpan() * 1e-3; //MHz
 		double freq_step = *freqStep() * 1e-3; //MHz
 		if(cfreq <= freq_span/2) {
-			throw XRecordError(KAME::i18n("Invalid center freq."), __FILE__, __LINE__);
+			throw XRecordError(i18n("Invalid center freq."), __FILE__, __LINE__);
 		}
 		if(freq_span <= freq_step*2) {
-			throw XRecordError(KAME::i18n("Too large freq. step."), __FILE__, __LINE__);
+			throw XRecordError(i18n("Too large freq. step."), __FILE__, __LINE__);
 		}
 	  
 		if(_sg1) unlockConnection(_sg1);

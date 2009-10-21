@@ -39,7 +39,7 @@ public:
 	int toInt() const throw (XConvError &);
 	unsigned int toUInt() const throw (XConvError &);
   
-	void send(const std::string &str) throw (XCommError &);
+	void send(const XString &str) throw (XCommError &);
 	virtual void send(const char *str) throw (XCommError &);
 	//! format version of send()
 	//! \sa printf()
@@ -48,7 +48,7 @@ public:
 	virtual void write(const char *sendbuf, int size) throw (XCommError &);
 	virtual void receive() throw (XCommError &);
 	virtual void receive(unsigned int length) throw (XCommError &);
-	void query(const std::string &str) throw (XCommError &);
+	void query(const XString &str) throw (XCommError &);
 	virtual void query(const char *str) throw (XCommError &);
 	//! format version of query()
 	//! \sa printf()
@@ -63,7 +63,7 @@ public:
 	void setGPIBWaitBeforeSPoll(int msec) {m_gpibWaitBeforeSPoll = msec;}
 	void setGPIBMAVbit(unsigned char x) {m_gpibMAVbit = x;}
   
-	const std::string &eos() const {return m_eos;}
+	const XString &eos() const {return m_eos;}
 	bool gpibUseSerialPollOnWrite() const {return m_bGPIBUseSerialPollOnWrite;}
 	bool gpibUseSerialPollOnRead() const {return m_bGPIBUseSerialPollOnRead;}
 	int gpibWaitBeforeWrite() const {return m_gpibWaitBeforeWrite;}
@@ -83,7 +83,7 @@ protected:
 	//! This can be called even if has already closed.
 	virtual void close() throw (XInterfaceError &);
 private:
-	std::string m_eos;
+	XString m_eos;
 	bool m_bGPIBUseSerialPollOnWrite;
 	bool m_bGPIBUseSerialPollOnRead;
 	int m_gpibWaitBeforeWrite;

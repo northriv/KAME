@@ -178,7 +178,7 @@ XMicroTaskTCS::changeValue(int ch, double x, bool autorange)
 		XScopedLock<XInterface> lock(*interface());
 		if(!interface()->isOpened()) return;
 		if((x >= 0.099) || (x < 0))
-			throw XInterface::XInterfaceError(KAME::i18n("Value is out of range."), __FILE__, __LINE__);
+			throw XInterface::XInterfaceError(i18n("Value is out of range."), __FILE__, __LINE__);
 		if(autorange) {
 			interface()->sendf("SETDAC %u 0 %u", (unsigned int)(ch + 1), (unsigned int)lrint(x * 1e6));
 			interface()->receive(1);

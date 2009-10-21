@@ -47,7 +47,7 @@ public:
 	DEFINE_TYPE_HOLDER
 protected:
 	virtual shared_ptr<XNode> createByTypename(
-        const std::string &type, const std::string &name) {
+        const XString &type, const XString &name) {
 		shared_ptr<XNode> ptr = (*creator(type))(name.c_str(), false);
 		if(ptr) insert(ptr);
 		return ptr;

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -71,7 +71,7 @@ void
 XRawStreamRecorder::onOpen(const shared_ptr<XValueNodeBase> &)
 {
 	if(m_pGFD) gzclose(m_pGFD);
-	m_pGFD = gzopen(QString(filename()->to_str()).local8Bit(), "wb");
+	m_pGFD = gzopen(QString(filename()->to_str()).toLocal8Bit().data(), "wb");
 }
 void
 XRawStreamRecorder::onFlush(const shared_ptr<XValueNodeBase> &)
@@ -201,7 +201,7 @@ XTextWriter::onRecord(const shared_ptr<XDriver> &driver)
 					if(dep.isConflict()) break;
 				}
 				if(!dep.isConflict()) {
-					std::string buf;
+					XString buf;
 					for(std::deque<shared_ptr<XScalarEntry> >::iterator it = locked_entries.begin();
 						it != locked_entries.end(); it++) {
 						if(!*(*it)->store()) continue;
@@ -228,7 +228,7 @@ XTextWriter::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
 	XScopedLock<XRecursiveMutex> lock(m_filemutex);  
 	if(m_stream.is_open()) m_stream.close();
 	m_stream.clear();
-	m_stream.open((const char*)QString(filename()->to_str()).local8Bit(), OFSMODE);
+	m_stream.open((const char*)QString(filename()->to_str()).toLocal8Bit().data(), OFSMODE);
 
 	if(m_stream.good()) {
 		m_lsnOnFlush = recording()->onValueChanged().connectWeak(
@@ -237,7 +237,7 @@ XTextWriter::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
 			shared_from_this(), &XTextWriter::onLastLineChanged);
 		lastLine()->setUIEnabled(true);
 
-		std::string buf;
+		XString buf;
 		buf = "#";
 		atomic_shared_ptr<const XNode::NodeList> list(m_entries->children());
 		if(list) { 

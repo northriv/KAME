@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -73,8 +73,8 @@ private:
 
 	struct tCreateChild
 	{
-		std::string type;
-		std::string name;
+		XString type;
+		XString name;
 		shared_ptr<XListNodeBase> lnode;
 		XCondition cond;
 		shared_ptr<XNode> child;

@@ -70,7 +70,7 @@ XCharDeviceDriver<tDriver, tInterface>::onOpen(const shared_ptr<XInterface> &)
 		open();
 	}
 	catch (XInterface::XInterfaceError& e) {
-		e.print(this->getLabel() + KAME::i18n(": Opening interface failed, because "));
+		e.print(this->getLabel() + i18n(": Opening interface failed, because "));
 		close();
 	}
 }
@@ -82,7 +82,7 @@ XCharDeviceDriver<tDriver, tInterface>::onClose(const shared_ptr<XInterface> &)
 		this->stop();
 	}
 	catch (XInterface::XInterfaceError& e) {
-		e.print(this->getLabel() + KAME::i18n(": Stopping driver failed, because "));
+		e.print(this->getLabel() + i18n(": Stopping driver failed, because "));
 	}
 }
 #endif /*CHARDEVICEDRIVER_H_*/

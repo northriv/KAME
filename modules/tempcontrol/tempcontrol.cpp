@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -11,12 +11,12 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
  ***************************************************************************/
-#include <tempcontrol.h>
-#include <forms/tempcontrolform.h>
-#include <interface.h>
-#include <analyzer.h>
-#include <xnodeconnector.h>
-#include <qstatusbar.h>
+#include "tempcontrol.h"
+#include "ui_tempcontrolform.h"
+#include "interface.h"
+#include "analyzer.h"
+#include "xnodeconnector.h"
+#include <QStatusBar>
 
 XTempControl::XChannel::XChannel(const char *name, bool runtime,
     const shared_ptr<XThermometerList> &list)
@@ -26,7 +26,7 @@ XTempControl::XChannel::XChannel(const char *name, bool runtime,
    m_excitation(create<XComboNode>("Excitation", false))
 {
     try {
-        m_thermometer->str(std::string("Raw"));
+        m_thermometer->str(XString("Raw"));
     }
     catch (XKameError &e) {
         e.print();
@@ -99,7 +99,7 @@ XTempControl::XTempControl(const char *name, bool runtime,
                   shared_from_this(), &XTempControl::onSetupChannelChanged);
 
   m_form->statusBar()->hide();
-  m_form->setCaption(KAME::i18n("TempControl - ") + getLabel() );
+  m_form->setWindowTitle(i18n("TempControl - ") + getLabel() );
 }
 
 void
@@ -218,12 +218,12 @@ XTempControl::createChannels(const shared_ptr<XScalarEntryList> &scalarentries,
           for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
             shared_ptr<XChannel> channel = dynamic_pointer_cast<XChannel>(*it);
             shared_ptr<XScalarEntry> entry_temp(create<XScalarEntry>(
-    		  QString("Ch.%1").arg(channel->getName()).latin1()
+    		  QString("Ch.%1").arg(channel->getName()).toLatin1().data()
     		  , false,
                dynamic_pointer_cast<XDriver>(shared_from_this())
               , "%.5g"));
             shared_ptr<XScalarEntry> entry_raw(create<XScalarEntry>(
-              QString("Ch.%1.raw").arg(channel->getName()).latin1()
+              QString("Ch.%1.raw").arg(channel->getName()).toLatin1().data()
               , false,
                dynamic_pointer_cast<XDriver>(shared_from_this())
               , "%.5g"));

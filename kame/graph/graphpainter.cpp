@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -14,6 +14,7 @@
 #include "graphpainter.h"
 #include "measure.h"
 #include "graphwidget.h"
+
 
 #define SELECT_WIDTH 0.08
 #define SELECT_DEPTH 0.05
@@ -382,11 +383,11 @@ XQGraphPainter::drawOnScreenObj()
 			dst1 = setprec(dst1, sqrt(dst1dx*dst1dx + dst1dy*dst1dy));
 			dst2 = setprec(dst2, sqrt(dst2dx*dst2dx + dst2dy*dst2dy));
 			msg += QString("(%1, %2)")
-				.arg(m_foundPlaneAxis1->valToString(dst1))
-				.arg(m_foundPlaneAxis2->valToString(dst2));
+				.arg(m_foundPlaneAxis1->valToString(dst1).c_str())
+				.arg(m_foundPlaneAxis2->valToString(dst2).c_str());
 		}
 		else {
-			msg = KAME::i18n("R-DBL-CLICK TO SHOW HELP");
+			msg = i18n("R-DBL-CLICK TO SHOW HELP").toUtf8().data();
 		}
 		break;
 	case SelPlane:
@@ -409,10 +410,10 @@ XQGraphPainter::drawOnScreenObj()
 			dst1 = setprec(dst1, sqrt(dst1dx*dst1dx + dst1dy*dst1dy));
 			dst2 = setprec(dst2, sqrt(dst2dx*dst2dx + dst2dy*dst2dy));
 			msg += QString("(%1, %2) - (%3, %4)")
-				.arg(m_foundPlaneAxis1->valToString(src1))
-				.arg(m_foundPlaneAxis2->valToString(src2))
-				.arg(m_foundPlaneAxis1->valToString(dst1))
-				.arg(m_foundPlaneAxis2->valToString(dst2));
+				.arg(m_foundPlaneAxis1->valToString(src1).c_str())
+				.arg(m_foundPlaneAxis2->valToString(src2).c_str())
+				.arg(m_foundPlaneAxis1->valToString(dst1).c_str())
+				.arg(m_foundPlaneAxis2->valToString(dst2).c_str());
 		
 			XGraph::ScrPoint sd1, sd2;
 			m_foundPlaneAxis1->valToScreen(dst1, &sd1);
@@ -447,8 +448,8 @@ XQGraphPainter::drawOnScreenObj()
 			dst = setprec(dst, sqrt(dstdx*dstdx + dstdy*dstdy));
 		
 			msg += QString("%1 - %2")
-				.arg(m_foundAxis->valToString(src))
-				.arg(m_foundAxis->valToString(dst));
+				.arg(m_foundAxis->valToString(src).c_str())
+				.arg(m_foundAxis->valToString(dst).c_str());
 		
 			XGraph::GFloat src1 = m_foundAxis->valToAxis(src);
 			XGraph::GFloat dst1 = m_foundAxis->valToAxis(dst);		
@@ -490,7 +491,7 @@ XQGraphPainter::drawOnScreenObj()
 	default:
 		break;
 	}
-	m_onScreenMsg = msg.utf8();
+	m_onScreenMsg = msg.toUtf8().data();
 }
 void
 XQGraphPainter::showHelp()
@@ -504,13 +505,13 @@ XQGraphPainter::drawOnScreenViewObj()
 	//Draw Title
 	setColor(*m_graph->titleColor());
 	defaultFont();
-	m_curAlign = AlignTop | AlignHCenter;
+	m_curAlign = Qt::AlignTop | Qt::AlignHCenter;
 	drawText(XGraph::ScrPoint(0.5, 0.99, 0.01), *m_graph->label());
   
 	if(m_onScreenMsg.length() ) {
 		selectFont(m_onScreenMsg, XGraph::ScrPoint(0.6, 0.05, 0.01), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, 0.05, 0), 0);
 	 	setColor(*m_graph->titleColor());
-		m_curAlign = AlignBottom | AlignLeft;
+		m_curAlign = Qt::AlignBottom | Qt::AlignLeft;
   		drawText(XGraph::ScrPoint(0.01, 0.01, 0.01), m_onScreenMsg);
 	}
 	//Legends
@@ -529,7 +530,7 @@ XQGraphPainter::drawOnScreenViewObj()
 			float x2 = x1 - 0.01;
 			float x3 = x1 + 0.08;
 			defaultFont();
-			m_curAlign = AlignVCenter | AlignRight;
+			m_curAlign = Qt::AlignVCenter | Qt::AlignRight;
 			float y2 = y1;
 			for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
 			{
@@ -551,7 +552,7 @@ XQGraphPainter::drawOnScreenViewObj()
 			setVertex(XGraph::ScrPoint(x3, y2 + dy/2, z));
 			setVertex(XGraph::ScrPoint(x3, y1 + dy/2, z));
 			endQuad();
-			m_curAlign = AlignVCenter | AlignRight;
+			m_curAlign = Qt::AlignVCenter | Qt::AlignRight;
 			float y = y1;
 			for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
 			{
@@ -588,33 +589,33 @@ XQGraphPainter::drawOnScreenHelp()
 	y -= 0.02;
 	setColor(*m_graph->backGround(), 1.0);
 	defaultFont();
-	m_curAlign = AlignTop | AlignHCenter;
-	drawText(XGraph::ScrPoint(0.5, y, z), KAME::i18n("QUICK HELP!"));
-	m_curAlign = AlignVCenter | AlignLeft;
+	m_curAlign = Qt::AlignTop | Qt::AlignHCenter;
+	drawText(XGraph::ScrPoint(0.5, y, z), i18n("QUICK HELP!").toUtf8().data());
+	m_curAlign = Qt::AlignVCenter | Qt::AlignLeft;
 	y -= 0.1;
 	double x = 0.1;
 	double dy = -y/10;
-	selectFont(KAME::i18n("Single Click Right Button on Axis : Auto-scale"), XGraph::ScrPoint(x,y,z), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, dy, 0), 0);
+	selectFont(i18n("Single Click Right Button on Axis : Auto-scale").toUtf8().data(), XGraph::ScrPoint(x,y,z), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, dy, 0), 0);
 	
-	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Press Left Button on Plot : Manual Scale"));
+	drawText(XGraph::ScrPoint(x, y, z), i18n("Press Left Button on Plot : Manual Scale").toUtf8().data());
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Press Right Button along Axis: Manual Scale"));
+	drawText(XGraph::ScrPoint(x, y, z), i18n("Press Right Button along Axis: Manual Scale").toUtf8().data());
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Single Click Right Button on Axis : Auto-scale"));
+	drawText(XGraph::ScrPoint(x, y, z), i18n("Single Click Right Button on Axis : Auto-scale").toUtf8().data());
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Single Click Right Button elsewhere : Auto-scale all"));
+	drawText(XGraph::ScrPoint(x, y, z), i18n("Single Click Right Button elsewhere : Auto-scale all").toUtf8().data());
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Press Middle Button : Tilt plots"));
+	drawText(XGraph::ScrPoint(x, y, z), i18n("Press Middle Button : Tilt plots").toUtf8().data());
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Single Click Middle Button : Reset tilting"));
+	drawText(XGraph::ScrPoint(x, y, z), i18n("Single Click Middle Button : Reset tilting").toUtf8().data());
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Wheel around Center : (Un)Zoom all Plots"));
+	drawText(XGraph::ScrPoint(x, y, z), i18n("Wheel around Center : (Un)Zoom all Plots").toUtf8().data());
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Wheel at Side : Tilt by 30deg."));
+	drawText(XGraph::ScrPoint(x, y, z), i18n("Wheel at Side : Tilt by 30deg.").toUtf8().data());
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Double Click Left Button : Show Dialog"));
+	drawText(XGraph::ScrPoint(x, y, z), i18n("Double Click Left Button : Show Dialog").toUtf8().data());
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), KAME::i18n("Double Click Right Button : This Help"));
+	drawText(XGraph::ScrPoint(x, y, z), i18n("Double Click Right Button : This Help").toUtf8().data());
 }
 
 void

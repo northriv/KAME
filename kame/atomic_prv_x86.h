@@ -42,8 +42,8 @@ typedef uintptr_t uint_cas2;
 typedef int_cas2 int_cas_max;
 typedef uint_cas2 uint_cas_max;
 
-#if defined __LP64__ || defined __LLP64__
-	#ifdef __sse2__
+#if !defined __LP64__ && !defined __LLP64__
+	#ifdef __SSE2__
 		#define HAVE_ATOMIC_RW64
 	#endif
 #endif
@@ -109,7 +109,7 @@ bool atomicCompareAndSet2(
 }
 template <typename T, typename X>
 typename boost::enable_if_c<
-boost::is_pod<T>::value && (sizeof(T) == sizeof(int_cas2) * 2) && (sizeof(X) >= sizeof(int_cas2)), bool>::type
+boost::is_pod<T>::value && (sizeof(T) == sizeof(int_cas2) * 2) && (sizeof(X) == sizeof(int_cas2) * 2), bool>::type
 atomicCompareAndSet(
 	T oldv,
 	T newv, X *target ) {

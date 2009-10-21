@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -81,13 +81,12 @@ T &XThreadLocal<T>::operator*() const {
 #else
 									new T);
 #endif
-	ASSERT(!ret);
-}
-return *reinterpret_cast<T*>(p);
+		ASSERT(!ret);
+	}
+    return *reinterpret_cast<T*>(p);
 }
 template <typename T>
-T *
-XThreadLocal<T>::operator->() const {
+T *XThreadLocal<T>::operator->() const {
 	return &(**this);
 }
         

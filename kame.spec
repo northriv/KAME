@@ -1,5 +1,5 @@
-%global qtver 3.3
-%global kdever 3.3
+%global qtver 4.4
+%global kdever 4.3
 %global ftglver 2.1.2
 %global mikachanver 8.9
 
@@ -7,18 +7,18 @@ Name: kame
 
 %{!?build_nidaqmx: %define build_nidaqmx 1}
 
-Version: 2.3.26
+Version: 2.9.0
 Release: 1
 License: GPL
 Group: Applications/Engineering
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
-Requires: qt3 >= %{qtver}, kdelibs3 >= %{kdever}
+Requires: qt >= %{qtver}, kdelibs >= %{kdever}
 Requires: libart_lgpl, gsl, zlib, ruby, libtool-ltdl, fftw
 Requires: libgfortran, atlas-sse2, ftgl >= %{ftglver}
 BuildPreReq: ruby-devel, gsl-devel, boost-devel, libtool-ltdl-devel, fftw-devel
 BuildPreReq: libgfortran, atlas-sse2-devel
 BuildPreReq: libidn-devel, ftgl-devel >= %{ftglver}
-BuildPreReq: qt3-devel >= %{qtver}, kdelibs3 >= %{kdever}, kdelibs3-devel >= %{kdever}
+BuildPreReq: qt-devel >= %{qtver}, kdelibs >= %{kdever}, kdelibs-devel >= %{kdever}
 BuildPreReq: libart_lgpl-devel, zlib-devel, libpng-devel, libjpeg-devel
 BuildPreReq: gcc-c++ >= 4.0
 
@@ -60,15 +60,17 @@ NMR drivers.
 %endif
 
 %prep
+
 %setup -q
+export CXXFLAGS="-g3 -mfpmath=sse -msse -msse2 -mmmx -march=pentium4"
+%cmake -DCMAKE_BUILD_TYPE=Debug
 
 %build
-CXXFLAGS="-g3 -mfpmath=sse -msse -msse2 -mmmx -march=pentium4 -D__sse2__" %configure
-make ##%%{?_smp_mflags}
+make
 
 %install
 rm -rf $RPM_BUILD_ROOT
-%makeinstall
+make install DESTDIR=$RPM_BUILD_ROOT
 #if [ -f $RPM_BUILD_ROOT/%{_bindir}/*-kame ]
 #then
 #	mv $RPM_BUILD_ROOT/%{_bindir}/*-kame $RPM_BUILD_ROOT/%{_bindir}/kame
@@ -89,8 +91,8 @@ rm -rf $RPM_BUILD_ROOT
 %files
 %defattr(-,root,root)
 %{_bindir}/kame
-%{_datadir}/applications/kde/*.desktop
-%{_datadir}/apps/kame
+%{_datadir}/applications/kde4/*.desktop
+%{_datadir}/kde4/apps/kame
 %{_datadir}/icons/*/*/apps/*.png
 %{_datadir}/locale/*/LC_MESSAGES/*.mo
 %{_datadir}/doc/HTML/*/kame
@@ -99,12 +101,6 @@ rm -rf $RPM_BUILD_ROOT
 
 %files modules-standard
 %{_sysconfdir}/udev/rules.d/10-kame.rules
-%{_libdir}/kame/libcharinterface*
-%{_libdir}/kame/libdsocore*
-%{_libdir}/kame/libdmmcore*
-%{_libdir}/kame/libmagnetpscore*
-%{_libdir}/kame/libdcsourcecore*
-%{_libdir}/kame/liblevelmetercore*
 %{_libdir}/kame/modules/libdcsource*
 %{_libdir}/kame/modules/libdmm*
 %{_libdir}/kame/modules/libdso*
@@ -116,8 +112,6 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/kame/modules/libnetworkanalyzer*
 
 %files modules-nmr
-%{_libdir}/kame/libnmrpulsercore*
-%{_libdir}/kame/libsgcore*
 %{_libdir}/kame/modules/libnmr*
 %{_libdir}/kame/modules/libsg*
 
@@ -126,4 +120,5 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/kame/modules/libnidaq*
 %endif
 
+#the following will be copied from the separated file ChangeLog.
 %changelog

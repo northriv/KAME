@@ -12,7 +12,6 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "graphdialogconnector.h"
-#include "graphdialog.h"
 #include <qpixmap.h>
 #include <qpushbutton.h>
 #include <qpainter.h>
@@ -22,6 +21,7 @@
 #include <qlayout.h>
 #include <knuminput.h>
 #include <qcheckbox.h>
+#include "ui_graphdialog.h"
 
 XQGraphDialogConnector::XQGraphDialogConnector
 (const shared_ptr<XGraph> &graph, DlgGraphSetup* item) :

@@ -49,7 +49,7 @@ XNIDAQmxInterface::sc_productInfoList[] = {
 };
 
 //for synchronization.
-static std::string g_pciClockMaster;
+static XString g_pciClockMaster;
 static float64 g_pciClockMasterRate = 0.0;
 static int g_daqmx_open_cnt;
 static XMutex g_daqmx_mutex;
@@ -144,7 +144,7 @@ XNIDAQmxInterface::SoftwareTrigger::connect(uint32_t rising_edge_mask,
 	_clear();
 	if(m_risingEdgeMask || m_fallingEdgeMask)
 		throw XInterface::XInterfaceError(
-			KAME::i18n("Duplicated connection to virtual trigger is not supported."), __FILE__, __LINE__);
+			i18n("Duplicated connection to virtual trigger is not supported."), __FILE__, __LINE__);
 	m_risingEdgeMask = rising_edge_mask;
 	m_fallingEdgeMask = falling_edge_mask;
 }
@@ -255,52 +255,52 @@ XNIDAQmxInterface::synchronizeClock(TaskHandle task)
 		return;
 	}
 	const float64 rate = g_pciClockMasterRate;
-	const std::string src = formatString("/%s/RTSI7", devName());
+	const XString src = formatString("/%s/RTSI7", devName());
 	
-	if(productSeries() == std::string("M")) {
-		if(busArchType() == std::string("PCI")) {
+	if(productSeries() == XString("M")) {
+		if(busArchType() == XString("PCI")) {
 			CHECK_DAQMX_RET(DAQmxSetRefClkSrc(task, src.c_str()));
 			CHECK_DAQMX_RET(DAQmxSetRefClkRate(task, rate));
 		}
-		if(busArchType() == std::string("PXI")) {
+		if(busArchType() == XString("PXI")) {
 			CHECK_DAQMX_RET(DAQmxSetRefClkSrc(task,"PXI_Clk10"));
 			CHECK_DAQMX_RET(DAQmxSetRefClkRate(task, 10e6));
 		}
 	}
-	if(productSeries() == std::string("S")) {
-		if(busArchType() == std::string("PCI")) {
+	if(productSeries() == XString("S")) {
+		if(busArchType() == XString("PCI")) {
 			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(task, src.c_str()));
 			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseRate(task, rate));
 		}
-		if(busArchType() == std::string("PXI")) {
+		if(busArchType() == XString("PXI")) {
 			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(task,"PXI_Clk10"));
 			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseRate(task, 10e6));
 		}
 	}
 }
 
-QString
+XString
 XNIDAQmxInterface::getNIDAQmxErrMessage()
 {
 #ifdef HAVE_NI_DAQMX
 	char str[2048];
 	DAQmxGetExtendedErrorInfo(str, sizeof(str));
 	errno = 0;
-	return QString(str);
+	return XString(str);
 #else
-	return QString();
+	return XString();
 #endif //HAVE_NI_DAQMX
 }
-QString
+XString
 XNIDAQmxInterface::getNIDAQmxErrMessage(int status)
 {
 #ifdef HAVE_NI_DAQMX
 	char str[2048];
 	DAQmxGetErrorString(status, str, sizeof(str));
 	errno = 0;
-	return QString(str);
+	return XString(str);
 #else
-	return QString();
+	return XString();
 #endif //HAVE_NI_DAQMX
 }
 int
@@ -312,10 +312,10 @@ XNIDAQmxInterface::checkDAQmxError(int ret, const char*file, int line) {
 }
 
 void
-XNIDAQmxInterface::parseList(const char *str, std::deque<std::string> &list)
+XNIDAQmxInterface::parseList(const char *str, std::deque<XString> &list)
 {
 	list.clear();
-	std::string org(str);
+	XString org(str);
 	const char *del = ", \t";
 	for(unsigned int pos = 0; pos != std::string::npos; ) {
 		unsigned int spos = org.find_first_not_of(del, pos);
@@ -335,9 +335,9 @@ XNIDAQmxInterface::XNIDAQmxInterface(const char *name, bool runtime, const share
 {
 	char buf[2048];
 	CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
-	std::deque<std::string> list;
+	std::deque<XString> list;
 	parseList(buf, list);
-	for(std::deque<std::string>::iterator it = list.begin(); it != list.end(); it++) {
+	for(std::deque<XString>::iterator it = list.begin(); it != list.end(); it++) {
 		CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
 		device()->add(*it + " [" + buf + "]");
 	}
@@ -390,10 +390,10 @@ XNIDAQmxInterface::open() throw (XInterfaceError &)
 //	    CHECK_DAQMX_RET(DAQmxCreateTask("", &g_task_sync_master));
 		char buf[2048];		
 		CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
-		std::deque<std::string> list;
+		std::deque<XString> list;
 		XNIDAQmxInterface::parseList(buf, list);
-		std::deque<std::string> pcidevs;
-		for(std::deque<std::string>::iterator it = list.begin(); it != list.end(); it++) {
+		std::deque<XString> pcidevs;
+		for(std::deque<XString>::iterator it = list.begin(); it != list.end(); it++) {
 			// Device reset.
 			DAQmxResetDevice(it->c_str());
 			// Search for master clock among PCI(e) devices.
@@ -404,11 +404,11 @@ XNIDAQmxInterface::open() throw (XInterfaceError &)
 			}
 		}
 		if(pcidevs.size() > 1) {
-			for(std::deque<std::string>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
+			for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
 				CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
-				std::string type = buf;
+				XString type = buf;
 				for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
-					if((pit->type == type) && (pit->series == std::string("S"))) {
+					if((pit->type == type) && (pit->series == XString("S"))) {
 						//M series device cannot export 20MHzTimebase freely.
 						//RTSI synchronizations.
 						shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
@@ -427,12 +427,12 @@ XNIDAQmxInterface::open() throw (XInterfaceError &)
 					break;
 			}
 			if(!g_pciClockMaster.length()) {
-				for(std::deque<std::string>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
+				for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
 					//Assuming M series only.
 					CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
-					std::string type = buf;
+					XString type = buf;
 					for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
-						if((pit->type == type) && (pit->series == std::string("M"))) {
+						if((pit->type == type) && (pit->series == XString("M"))) {
 							//RTSI synchronizations.
 							shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
 							float64 freq = 10.0e6;
@@ -452,9 +452,9 @@ XNIDAQmxInterface::open() throw (XInterfaceError &)
 	}
 	g_daqmx_open_cnt++;
 
-	std::string devname = buf;
+	XString devname = buf;
 	CHECK_DAQMX_RET(DAQmxGetDevProductType(devname.c_str(), buf, sizeof(buf)));
-	std::string type = buf;
+	XString type = buf;
 	
 	m_productInfo = NULL;
 	for(const ProductInfo *it = sc_productInfoList; it->type; it++) {
@@ -464,7 +464,7 @@ XNIDAQmxInterface::open() throw (XInterfaceError &)
 			return;
 		}
 	}
-	throw XInterfaceError(KAME::i18n("No device info. for product [%1].").arg(type), __FILE__, __LINE__);
+	throw XInterfaceError(i18n("No device info. for product [%1].").arg(type), __FILE__, __LINE__);
 #endif //HAVE_NI_DAQMX
 }
 void

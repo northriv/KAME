@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -22,12 +22,13 @@
 #include "graph.h"
 #include <fstream>
 
-class FrmGraphNURL;
 class XQGraph;
-class KURLRequester;
+class KUrlRequester;
 class QPushButton;
 class XAxis;
 class XXYPlot;
+class Ui_FrmGraphNURL;
+typedef QForm<QMainWindow, Ui_FrmGraphNURL> FrmGraphNURL;
 
 //! Graph widget with internal data sets. The data can be saved as a text file.
 //! \sa XQGraph, XGraph
@@ -37,14 +38,14 @@ class XWaveNGraph : public XNode
 protected:
  XWaveNGraph(const char *name, bool runtime, FrmGraphNURL *item);
  XWaveNGraph(const char *name, bool runtime, 
-			 XQGraph *graphwidget, KURLRequester *urlreq, QPushButton *btndump);
+			 XQGraph *graphwidget, KUrlRequester *urlreq, QPushButton *btndump);
 public:
  virtual ~XWaveNGraph();
  
  void setRowCount(unsigned int rowcnt);
  void setColCount(unsigned int colcnt, const char **lables);
  void setLabel(unsigned int col, const char *label);
- void insertPlot(const std::string &label,
+ void insertPlot(const XString &label,
 	int colx = 0, int coly1 = 1, int coly2 = -1, int colweight = -1, int colz = -1);
  void clearPlots();
  unsigned int numPlots() const {return m_plots.size();}
@@ -87,7 +88,7 @@ public:
 private:
  XRecursiveRWLock m_mutex;
  unsigned int m_colcnt;
- std::vector<std::string> m_labels;
+ std::vector<XString> m_labels;
  std::vector<double> m_cols;
  
  void init();

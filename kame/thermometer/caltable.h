@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -16,13 +16,14 @@
 #define caltableH
 //----------------------------------------------------------------------------
 
-#include "caltableform.h"
 #include "thermometer.h"
 #include "xnodeconnector.h"
 //----------------------------------------------------------------------------
 
-class FrmCalTable;
-class FrmGraphNURL;
+class Ui_FrmCalTable;
+typedef QForm<QWidget, Ui_FrmCalTable> FrmCalTable;
+class Ui_FrmGraphNURL;
+typedef QForm<QMainWindow, Ui_FrmGraphNURL> FrmGraphNURL;
 class XWaveNGraph;
 
 class XConCalTable : public XQConnector

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -12,12 +12,11 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 //---------------------------------------------------------------------------
-#include "recordreaderform.h"
 #include "recordreaderconnector.h"
 #include "recordreader.h"
 #include <qpushbutton.h>
 #include <kiconloader.h>
-#include <kapplication.h>
+#include "ui_recordreaderform.h"
 
 XRawStreamRecordReaderConnector::XRawStreamRecordReaderConnector(
     const shared_ptr<XRawStreamRecordReader> &reader, FrmRecordReader *form) :
@@ -36,17 +35,17 @@ XRawStreamRecordReaderConnector::XRawStreamRecordReaderConnector(
 	m_conPosString(xqcon_create<XQLineEditConnector>(reader->posString(), form->edTime)),
 	m_conSpeed(xqcon_create<XQComboBoxConnector>(reader->speed(), form->cmbSpeed))
 {
-    KApplication *app = KApplication::kApplication();
-    form->btnNext->setIconSet( app->iconLoader()->loadIconSet("forward", 
-															  KIcon::Toolbar, KIcon::SizeSmall, true ) );
-    form->btnBack->setIconSet( app->iconLoader()->loadIconSet("previous", 
-															  KIcon::Toolbar, KIcon::SizeSmall, true ) );
-    form->btnFF->setIconSet( app->iconLoader()->loadIconSet("player_fwd", 
-															KIcon::Toolbar, KIcon::SizeSmall, true ) );
-    form->btnRW->setIconSet( app->iconLoader()->loadIconSet("player_rew", 
-															KIcon::Toolbar, KIcon::SizeSmall, true ) );
-    form->btnFirst->setIconSet( app->iconLoader()->loadIconSet("player_start", 
-															   KIcon::Toolbar, KIcon::SizeSmall, true ) );
-    form->btnStop->setIconSet( app->iconLoader()->loadIconSet("player_stop", 
-															  KIcon::Toolbar, KIcon::SizeSmall, true ) );
+    KIconLoader *loader = KIconLoader::global();
+    form->btnNext->setIcon( loader->loadIcon("forward",
+															  KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+    form->btnBack->setIcon( loader->loadIcon("previous",
+															  KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+    form->btnFF->setIcon( loader->loadIcon("player_fwd",
+															KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+    form->btnRW->setIcon( loader->loadIcon("player_rew",
+															KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+    form->btnFirst->setIcon( loader->loadIcon("player_start",
+															   KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+    form->btnStop->setIcon( loader->loadIcon("player_stop",
+															  KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
 }

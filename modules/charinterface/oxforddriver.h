@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -27,15 +27,15 @@ public:
 	virtual void open() throw (XInterfaceError &);
 	virtual void close() throw (XInterfaceError &);
   
-	void send(const std::string &str) throw (XCommError &);
+	void send(const XString &str) throw (XCommError &);
 	virtual void send(const char *str) throw (XCommError &);
 	//! don't use me
 	virtual void write(const char *, int) throw (XCommError &) {
 		ASSERT(false);
 	}
 	virtual void receive() throw (XCommError &);
-	virtual void receive(int length) throw (XCommError &);
-	void query(const std::string &str) throw (XCommError &);
+	virtual void receive(unsigned int length) throw (XCommError &);
+	void query(const XString &str) throw (XCommError &);
 	virtual void query(const char *str) throw (XCommError &);
 };
 

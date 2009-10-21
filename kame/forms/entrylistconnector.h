@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -17,8 +17,7 @@
 #include "xnodeconnector.h"
 //---------------------------------------------------------------------------
 
-class QTable;
-
+class Q3Table;
 class XScalarEntry;
 class XChartList;
 class XScalarEntryList;
@@ -30,7 +29,7 @@ class XEntryListConnector : public XListQConnector
 	XQCON_OBJECT
 protected:
 	XEntryListConnector
-	(const shared_ptr<XScalarEntryList> &node, QTable *item, const shared_ptr<XChartList> &chartlist);
+	(const shared_ptr<XScalarEntryList> &node, Q3Table *item, const shared_ptr<XChartList> &chartlist);
 public:
 	virtual ~XEntryListConnector() {}
 protected:
@@ -44,7 +43,7 @@ private:
 	struct tcons {
 		struct tlisttext {
 			QLabel *label;
-			shared_ptr<std::string> str;
+			shared_ptr<XString> str;
 		};
 		xqcon_ptr constore, condelta;
 		QLabel *label;

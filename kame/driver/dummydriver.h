@@ -84,7 +84,7 @@ XDummyDriver<tDriver>::onOpen(const shared_ptr<XInterface> &)
 		this->start();
 	}
 	catch (XInterface::XInterfaceError& e) {
-		e.print(this->getLabel() + KAME::i18n(": Starting driver failed, because "));
+		e.print(this->getLabel() + i18n(": Starting driver failed, because "));
 		interface()->stop();
 	}
 }
@@ -96,7 +96,7 @@ XDummyDriver<tDriver>::onClose(const shared_ptr<XInterface> &)
 		this->stop();
 	}
 	catch (XInterface::XInterfaceError& e) {
-		e.print(this->getLabel() + KAME::i18n(": Stopping driver failed, because "));
+		e.print(this->getLabel() + i18n(": Stopping driver failed, because "));
 	}
 }
 

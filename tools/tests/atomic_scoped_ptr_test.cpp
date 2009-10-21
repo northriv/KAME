@@ -37,8 +37,8 @@ public:
 //		fprintf(stdout, "d", m_x);
         atomicDec(&objcnt);
 	}
-    virtual int x() const {return m_x;} 
-	
+    virtual int x() const {return m_x;}
+
 int m_x;
 };
 class B : public A {
@@ -49,8 +49,8 @@ public:
     ~B() {
 //        fprintf(stdout, "D");
     }
-    virtual int x() const {return -m_x;} 
-    virtual int xorg() const {return m_x;} 
+    virtual int x() const {return -m_x;}
+    virtual int xorg() const {return m_x;}
 };
 
 
@@ -58,25 +58,25 @@ atomic_scoped_ptr<A> gp1, gp2, gp3;
 
 void *
 start_routine(void *) {
-	for(int i = 0; i < 10000; i++) {
+	for(int i = 0; i < 100000; i++) {
     	atomic_scoped_ptr<A> p1(new A(1));
     	atomic_scoped_ptr<A> p2(new B(2));
     	atomic_scoped_ptr<A> p3;
-    	
-    	
+
+
     	p2.swap(gp1);
     	gp2.reset(new A(51));
     	gp3.reset(new A(3));
-    	
+
     	gp3.reset();
     	p2.swap(p3);
-    	
+
         usleep(10);
 	}
     return 0;
 }
 
-#define NUM_THREADS 8
+#define NUM_THREADS 4
 
 int
 main(int argc, char **argv)

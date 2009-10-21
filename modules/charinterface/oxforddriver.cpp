@@ -20,7 +20,7 @@ XOxfordInterface::XOxfordInterface
     setGPIBWaitBeforeSPoll(10);
 }
 void
-XOxfordInterface::send(const std::string &str) throw (XCommError &)
+XOxfordInterface::send(const XString &str) throw (XCommError &)
 {
     this->send(str.c_str());
 }
@@ -37,7 +37,7 @@ XOxfordInterface::send(const char *str) throw (XInterface::XCommError &)
 	}
 }
 void
-XOxfordInterface::query(const std::string &str) throw (XCommError &)
+XOxfordInterface::query(const XString &str) throw (XCommError &)
 {
     query(str.c_str());
 }
@@ -63,7 +63,7 @@ XOxfordInterface::query(const char *str) throw (XInterface::XCommError &)
 		throw e;
 	}
 	unlock();
-	throw XCommError(KAME::i18n("Oxford Query Error, Initial doesn't match"), __FILE__, __LINE__);
+	throw XCommError(i18n("Oxford Query Error, Initial doesn't match"), __FILE__, __LINE__);
 }
 
 void
@@ -89,7 +89,7 @@ XOxfordInterface::receive() throw (XCommError &) {
     XCharInterface::receive();
 }
 void
-XOxfordInterface::receive(int length) throw (XCommError &) {
+XOxfordInterface::receive(unsigned int length) throw (XCommError &) {
     XCharInterface::receive(length);
 }
 

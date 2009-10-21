@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -14,45 +14,49 @@
 #ifndef KAME_H
 #define KAME_H
 
+#include <kmainwindow.h>
 #include <support.h>
-#include <qvariant.h>
-#include <qpixmap.h>
-#include <kmdimainfrm.h>
 #include <xnodeconnector.h>
 
-class FrmRecordReader;
-class FrmGraphList;
-class FrmCalTable;
-class FrmInterface;
-class FrmDriver;
-class FrmEntry;
-class FrmSequence;
-class FrmNodeBrowser;
+class Ui_FrmRecordReader;
+typedef QForm<QWidget, Ui_FrmRecordReader> FrmRecordReader;
+class Ui_FrmGraphList;
+typedef QForm<QWidget, Ui_FrmGraphList> FrmGraphList;
+class Ui_FrmCalTable;
+typedef QForm<QWidget, Ui_FrmCalTable> FrmCalTable;
+class Ui_FrmInterface;
+typedef QForm<QWidget, Ui_FrmInterface> FrmInterface;
+class Ui_FrmDriver;
+typedef QForm<QWidget, Ui_FrmDriver> FrmDriver;
+class Ui_FrmEntry;
+typedef QForm<QWidget, Ui_FrmEntry> FrmEntry;
+class Ui_FrmSequence;
+typedef QForm<QWidget, Ui_FrmSequence> FrmSequence;
+class Ui_FrmNodeBrowser;
+typedef QForm<QWidget, Ui_FrmNodeBrowser> FrmNodeBrowser;
 class QTimer;
 class QAction;
-class QPopupMenu;
-class QMenuBar;
-class QToolBar;
+class QMenu;
 class XMeasure;
 class XRubyThread;
+class QMdiArea;
+class QMdiSubWindow;
 
-/*! Main form widget of KAME.
+/*! Main window widget of KAME.
  * use \a g_pFrmMain to access this.
  * \sa g_pFrmMain
  */
-class FrmKameMain : public KMdiMainFrm
-{
+class FrmKameMain : public KMainWindow {
 	Q_OBJECT
 public:
 	FrmKameMain();
 	~FrmKameMain();
 
-	QMenuBar *m_pMenubar;
-	QPopupMenu *m_pFileMenu;
-	QPopupMenu *m_pMeasureMenu;
-	QPopupMenu *m_pScriptMenu;
-	QPopupMenu *m_pHelpMenu;
-	QToolBar *m_pToolbar;
+	QMenu *m_pFileMenu;
+	QMenu *m_pMeasureMenu;
+	QMenu *m_pScriptMenu;
+	QMenu *m_pViewMenu;
+	QMenu *m_pHelpMenu;
 	QAction* m_pFileOpenAction;
 	QAction* m_pFileSaveAction;
 	QAction* m_pFileExitAction;
@@ -75,7 +79,7 @@ public:
 	FrmEntry *m_pFrmScalarEntry;
 	FrmNodeBrowser *m_pFrmNodeBrowser;
 
-	int openMes(const QString &filename);
+	int openMes(const XString &filename);
 public slots:
 virtual void fileCloseAction_activated();
 virtual void fileExitAction_activated();
@@ -94,8 +98,12 @@ protected slots:
 virtual void aboutToQuit();
 virtual void processSignals();
 private:
+	void createActions();
+	void createMenus();
+	QMdiSubWindow* addDockableWindow(QMdiArea *area, QWidget *widget, bool closable);
+	QMdiArea *m_pMdiCentral, *m_pMdiLeft, *m_pMdiRight;
 	void closeEvent( QCloseEvent* ce );
-	shared_ptr<XRubyThread> runNewScript(const QString &label, const QString &filename);
+	shared_ptr<XRubyThread> runNewScript(const XString &label, const XString &filename);
 	QTimer *m_pTimer;
 	shared_ptr<XMeasure> m_measure;
 	xqcon_ptr m_conMeasRubyThread;

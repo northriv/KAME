@@ -152,7 +152,7 @@ XHP8711::convertRawBlock(unsigned int len) throw (XRecordError&) {
 	if(len / sizeof(float) < samples)
 		throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	if(len / sizeof(float) > samples)
-		throw XRecordError(KAME::i18n("Select scalar plot."), __FILE__, __LINE__);
+		throw XRecordError(i18n("Select scalar plot."), __FILE__, __LINE__);
 	for(unsigned int i = 0; i < samples; i++) {
 		m_traceRecorded[i] = pop<float>();
 	}

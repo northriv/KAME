@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -13,39 +13,40 @@
 ***************************************************************************/
 #include "xnodeconnector.h"
 #include <deque>
-#include <kapp.h>
-#include <qbutton.h>
-#include <qlineedit.h>
+#include <kapplication.h>
+#include <QPushButton>
+#include <QLineEdit>
 #include <kurlrequester.h>
-#include <qcheckbox.h>
-#include <qlistbox.h>
-#include <qcombobox.h>
+#include <QCheckBox>
+#include <q3listbox.h>
+#include <QComboBox>
 #include <kcolorbutton.h>
 #include <kcolorcombo.h>
-#include <qlabel.h>
-#include <qtable.h>
+#include <QLabel>
+#include <q3table.h>
 #include <kled.h>
 #include <knuminput.h>
-#include <qspinbox.h>
-#include <qslider.h>
-#include <qlcdnumber.h>
-#include <qtextbrowser.h>
-#include <qtooltip.h>
-#include <qstatusbar.h>
+#include <QDoubleSpinBox>
+#include <QSlider>
+#include <QLCDNumber>
+#include <q3textbrowser.h>
+#include <QToolTip>
+#include <QStatusBar>
 #include <kpassivepopup.h>
-#include <qmainwindow.h>
 #include <kfiledialog.h>
+
+#include <QMainWindow>
+
 #include <map>
 #include "measure.h"
-
 #include "icons/icon.h"
-
-static std::deque<shared_ptr<XQConnector> > s_conCreating;
-static std::deque<shared_ptr<XStatusPrinter> > s_statusPrinterCreating;
-static std::map<const QWidget*, weak_ptr<XNode> > s_widgetMap;
 
 //ms
 #define UI_DISP_DELAY 10
+
+static std::deque<shared_ptr<XStatusPrinter> > s_statusPrinterCreating;
+static std::deque<shared_ptr<XQConnector> > s_conCreating;
+static std::map<const QWidget*, weak_ptr<XNode> > s_widgetMap;
 
 void _sharedPtrQDeleter(QObject *obj) {
     if(isMainThread())
@@ -55,7 +56,7 @@ void _sharedPtrQDeleter(QObject *obj) {
 }
 
 _XQConnectorHolder::_XQConnectorHolder(XQConnector *con) :
-    QObject(0L, "connector_holder") {
+    QObject(0L) {
     m_connector = s_conCreating.back();
     s_conCreating.pop_back();
     connect(con->m_pWidget, SIGNAL( destroyed() ), this, SLOT( destroyed() ) );
@@ -80,9 +81,8 @@ _XQConnectorHolder::destroyed () {
 	m_connector.reset();
 }
 
-
 XQConnector::XQConnector(const shared_ptr<XNode> &node, QWidget *item)
-	: QObject(0L, QString("connector node:%1 widget:%2").arg(node->getName()).arg(item->name())), 
+	: QObject(),
 	  m_pWidget(item) 
 {
     ASSERT(node);
@@ -93,12 +93,12 @@ XQConnector::XQConnector(const shared_ptr<XNode> &node, QWidget *item)
 		 XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
     onUIEnabled(node);
     dbgPrint(QString("connector %1 created., addr=0x%2, size=0x%3")
-			 .arg(name())
-			 .arg((unsigned int)this, 0, 16)
-			 .arg((unsigned int)sizeof(XQConnector), 0, 16));
+			 .arg(node->getName())
+			 .arg((uintptr_t)this, 0, 16)
+			 .arg((uintptr_t)sizeof(XQConnector), 0, 16));
     
     std::pair<std::map<const QWidget*, weak_ptr<XNode> >::iterator, bool> ret = 
-    		s_widgetMap.insert(std::pair<const QWidget*, weak_ptr<XNode> >(item, node));
+    	s_widgetMap.insert(std::pair<const QWidget*, weak_ptr<XNode> >(item, node));
     if(!ret.second)
     	gErrPrint("Connection to Widget Duplicated!");
 #ifdef HAVE_LIBGCCPP
@@ -108,13 +108,13 @@ XQConnector::XQConnector(const shared_ptr<XNode> &node, QWidget *item)
 XQConnector::~XQConnector() {
     if(isItemAlive()) {
         m_pWidget->setEnabled(false);
-        dbgPrint(QString("connector %1 released., addr=0x%2").arg(name()).arg((unsigned int)this, 0, 16));
+        dbgPrint(QString("connector %1 released., addr=0x%2").arg(objectName()).arg((uintptr_t)this, 0, 16));
     	std::map<const QWidget*, weak_ptr<XNode> >::iterator it = s_widgetMap.find(m_pWidget);
     	ASSERT(it != s_widgetMap.end());
     	s_widgetMap.erase(it);
     }
     else {
-        dbgPrint(QString("connector %1 & widget released., addr=0x%2").arg(name()).arg((unsigned int)this, 0, 16));
+        dbgPrint(QString("connector %1 & widget released., addr=0x%2").arg(objectName()).arg((uintptr_t)this, 0, 16));
     }
 
 #ifdef HAVE_LIBGCCPP
@@ -134,7 +134,7 @@ XQConnector::onUIEnabled(const shared_ptr<XNode> &node) {
     m_pWidget->setEnabled(node->isUIEnabled());
 }
 
-XQButtonConnector::XQButtonConnector(const shared_ptr<XNode> &node, QButton *item)
+XQButtonConnector::XQButtonConnector(const shared_ptr<XNode> &node, QAbstractButton *item)
 	: XQConnector(node, item),
 	  m_node(node), m_pItem(item) 
 {
@@ -182,41 +182,48 @@ XQLineEditConnector::XQLineEditConnector(
 }
 void
 XQLineEditConnector::onTextChanged(const QString &text) {
-	m_pItem->setPaletteForegroundColor(Qt::blue);
+	QPalette palette(m_pItem->palette());
+	palette.setColor(QPalette::Text, Qt::blue);
+	m_pItem->setPalette(palette);
 }
 void
 XQLineEditConnector::onTextChanged2(const QString &text) {
-	m_pItem->setPaletteForegroundColor(Qt::blue);
+	QPalette palette(m_pItem->palette());
     m_lsnValueChanged->mask();
     try {
 		m_node->str(text);
-		m_pItem->setPaletteForegroundColor(Qt::black);
+		palette.setColor(QPalette::Text, Qt::black);
     }
     catch (XKameError &e) {
-		m_pItem->setPaletteForegroundColor(Qt::red);
+    	palette.setColor(QPalette::Text, Qt::red);
     }
     m_lsnValueChanged->unmask();
+	m_pItem->setPalette(palette);
 }
 void
 XQLineEditConnector::onReturnPressed() {
+	QPalette palette(m_pItem->palette());
     try {
 		m_node->str(m_pItem->text());
-		m_pItem->setPaletteForegroundColor(Qt::black);
+		palette.setColor(QPalette::Text, Qt::black);
     }
     catch (XKameError &e) {
         e.print();
-		m_pItem->setPaletteForegroundColor(Qt::red);
+    	palette.setColor(QPalette::Text, Qt::red);
     }
+	m_pItem->setPalette(palette);
 }
 void
 XQLineEditConnector::onExit() {
-	m_pItem->setPaletteForegroundColor(Qt::black);
-	if(m_node->to_str() != m_pItem->text()) {
+	QPalette palette(m_pItem->palette());
+	palette.setColor(QPalette::Text, Qt::black);
+	m_pItem->setPalette(palette);
+	if(QString(m_node->to_str()) != m_pItem->text()) {
 	    m_pItem->blockSignals(true);
 	    m_pItem->setText(m_node->to_str());
 	    m_pItem->blockSignals(false);
 		shared_ptr<XStatusPrinter> statusprinter = g_statusPrinter;
-		if(statusprinter) statusprinter->printMessage(KAME::i18n("Input cancelled."));
+		if(statusprinter) statusprinter->printMessage(i18n("Input canceled."));
 	}
 }
 void
@@ -248,8 +255,8 @@ XQSpinBoxConnector::XQSpinBoxConnector(const shared_ptr<XUIntNode> &node,
     connect(item, SIGNAL( valueChanged(int) ), this, SLOT( onChange(int) ) );
     if(slider) {
         connect(slider, SIGNAL( valueChanged(int) ), this, SLOT( onChange(int) ) );
-        slider->setRange(item->minValue(), item->maxValue());
-        slider->setLineStep(item->lineStep());
+        slider->setRange(item->minimum(), item->maximum());
+        slider->setSingleStep(item->singleStep());
     }
     onValueChanged(node);
 }
@@ -298,7 +305,7 @@ XKDoubleNumInputConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
 }
 
 
-XKDoubleSpinBoxConnector::XKDoubleSpinBoxConnector(const shared_ptr<XDoubleNode> &node, KDoubleSpinBox *item)
+XQDoubleSpinBoxConnector::XQDoubleSpinBoxConnector(const shared_ptr<XDoubleNode> &node, QDoubleSpinBox *item)
 	: XValueQConnector(node, item),
 	  m_node(node),
 	  m_pItem(item)
@@ -307,35 +314,37 @@ XKDoubleSpinBoxConnector::XKDoubleSpinBoxConnector(const shared_ptr<XDoubleNode>
     onValueChanged(node);
 }
 void
-XKDoubleSpinBoxConnector::onChange(double val) {
+XQDoubleSpinBoxConnector::onChange(double val) {
     m_lsnValueChanged->mask();
 	m_node->value(val);
     m_lsnValueChanged->unmask();
 }
 void
-XKDoubleSpinBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
+XQDoubleSpinBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
 	m_pItem->blockSignals(true);
 	m_pItem->setValue((double)*m_node);
 	m_pItem->blockSignals(false);
 }
       
 XKURLReqConnector::XKURLReqConnector(const shared_ptr<XStringNode> &node,
-									 KURLRequester *item, const char *filter, bool saving)
+									 KUrlRequester *item, const char *filter, bool saving)
 	: XValueQConnector(node, item),
 	  m_node(node),
 	  m_pItem(item)
 {
-    connect(item, SIGNAL( urlSelected ( const QString& ) ),
-			this, SLOT( onSelect( const QString& ) ) );
+    connect(item, SIGNAL( urlSelected ( const KUrl & ) ),
+			this, SLOT( onSelect( const KUrl & ) ) );
     m_pItem->button()->setAutoDefault(false);
     m_pItem->setFilter(filter);
-    if(saving) m_pItem->fileDialog()->setOperationMode( KFileDialog::Saving );
-    onValueChanged(node);
+    m_pItem->setMode( saving ?
+			(KFile::File | KFile::LocalOnly)
+			: (KFile::File | KFile::LocalOnly | KFile::ExistingOnly ));
+//    onValueChanged(node);
 }
 void
-XKURLReqConnector::onSelect( const QString& str) {
+XKURLReqConnector::onSelect( const KUrl &l) {
     try {
-		m_node->str(str);
+		m_node->str(m_pItem->text());
     }
     catch (XKameError &e) {
         e.print();
@@ -344,7 +353,7 @@ XKURLReqConnector::onSelect( const QString& str) {
 
 void
 XKURLReqConnector::onValueChanged(const shared_ptr<XValueNodeBase> &node) {
-	m_pItem->setURL(node->to_str());
+	m_pItem->setUrl(KUrl(node->to_str()));
 }
 
 XQLabelConnector::XQLabelConnector(const shared_ptr<XValueNodeBase> &node, QLabel *item)
@@ -359,7 +368,7 @@ XQLabelConnector::onValueChanged(const shared_ptr<XValueNodeBase> &node) {
 	m_pItem->setText(node->to_str());
 }
 
-XQTextBrowserConnector::XQTextBrowserConnector(const shared_ptr<XValueNodeBase> &node, QTextBrowser *item)
+XQTextBrowserConnector::XQTextBrowserConnector(const shared_ptr<XValueNodeBase> &node, Q3TextBrowser *item)
 	: XValueQConnector(node, item),
 	  m_node(node), m_pItem(item) {
     onValueChanged(node);
@@ -394,7 +403,7 @@ XKLedConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
 	if(*m_node) m_pItem->on(); else m_pItem->off();
 }
 
-XQToggleButtonConnector::XQToggleButtonConnector(const shared_ptr<XBoolNode> &node, QButton *item)
+XQToggleButtonConnector::XQToggleButtonConnector(const shared_ptr<XBoolNode> &node, QAbstractButton *item)
 	: XValueQConnector(node, item),
 	  m_node(node), m_pItem(item) {
     connect(item, SIGNAL( clicked() ), this, SLOT( onClick() ) );
@@ -403,15 +412,15 @@ XQToggleButtonConnector::XQToggleButtonConnector(const shared_ptr<XBoolNode> &no
 
 void
 XQToggleButtonConnector::onClick() {
-    m_node->value(m_pItem->isOn());
+    m_node->value(m_pItem->isChecked());
 }
 
 void
 XQToggleButtonConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
-	if(((bool)*m_node) ^ m_pItem->isOn()) m_pItem->toggle();
+	if(((bool)*m_node) ^ m_pItem->isChecked()) m_pItem->toggle();
 }
 
-XListQConnector::XListQConnector(const shared_ptr<XListNodeBase> &node, QTable *item)
+XListQConnector::XListQConnector(const shared_ptr<XListNodeBase> &node, Q3Table *item)
 	: XQConnector(node, item),
 	  m_pItem(item), m_list(node) {
     m_lsnMove = node->onMove().connectWeak
@@ -423,15 +432,15 @@ XListQConnector::XListQConnector(const shared_ptr<XListNodeBase> &node, QTable *
 		(shared_from_this(), &XListQConnector::onRelease, XListener::FLAG_MAIN_THREAD_CALL);
     m_pItem->setReadOnly(true);
 
-    m_pItem->setSelectionMode(QTable::SingleRow);
+    m_pItem->setSelectionMode(Q3Table::SingleRow);
 
     m_pItem->setRowMovingEnabled(true);
-    QHeader *header = m_pItem->verticalHeader();
+    Q3Header *header = m_pItem->verticalHeader();
     header->setResizeEnabled(false);
     header->setMovingEnabled(true);
     connect(header, SIGNAL( indexChange(int, int, int)),
 			this, SLOT( indexChange(int, int, int)));    
-    QToolTip::add(header, KAME::i18n("Use drag-n-drop with ctrl pressed to reorder."));
+    header->setToolTip(i18n("Use drag-n-drop with ctrl pressed to reorder."));
 }
 XListQConnector::~XListQConnector() {
     if(isItemAlive()) {
@@ -447,7 +456,7 @@ XListQConnector::indexChange ( int section, int fromIndex, int toIndex )
     
     atomic_shared_ptr<const XNode::NodeList> list(m_list->children());
     if(!list || src > list->size() || (dst > list->size())) {
-        throw XKameError(KAME::i18n("Invalid range of selections."), __FILE__, __LINE__);
+        throw XKameError(i18n("Invalid range of selections."), __FILE__, __LINE__);
     }
     m_lsnMove->mask();
     m_list->move(src, dst);
@@ -483,7 +492,7 @@ void
 XQComboBoxConnector::onSelect(int idx) {
     try {
         if(!m_itemStrings || (idx >= m_itemStrings->size()) || (idx < 0))
-            m_node->str(std::string());
+            m_node->str(XString());
         else
             m_node->str(m_itemStrings->at(idx).name);
     }
@@ -495,7 +504,7 @@ XQComboBoxConnector::onSelect(int idx) {
 int
 XQComboBoxConnector::findItem(const QString &text) {
 	for(int i = 0; i < m_pItem->count(); i++) {
-        if(text == m_pItem->text(i)) {
+        if(text == m_pItem->itemText(i)) {
             return i;
         }
 	}
@@ -516,9 +525,9 @@ XQComboBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
         i++;
 	}
 	if(idx >= 0) {
-		m_pItem->setCurrentItem(idx);
+		m_pItem->setCurrentIndex(idx);
 		if(m_node->autoSetAny()) {
-			int idx1 = findItem(KAME::i18n("(UNSEL)"));
+			int idx1 = findItem(i18n("(UNSEL)"));
 			if(idx1 >= 0) {
 	            m_pItem->removeItem(idx1);
 			}
@@ -526,14 +535,14 @@ XQComboBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
 	}
 	else {
 		if(m_node->autoSetAny()) {
-			int idx = findItem(KAME::i18n("(UNSEL)"));
+			int idx = findItem(i18n("(UNSEL)"));
 			if(idx < 0) {
-	            m_pItem->insertItem(KAME::i18n("(UNSEL)"));
+	            m_pItem->addItem(i18n("(UNSEL)"));
 			}
 		}
-		int idx = findItem(KAME::i18n("(UNSEL)"));
+		int idx = findItem(i18n("(UNSEL)"));
 		ASSERT(idx >= 0);
-		m_pItem->setCurrentItem(idx);
+		m_pItem->setCurrentIndex(idx);
 	}
 	m_pItem->blockSignals(false);
 }
@@ -546,19 +555,19 @@ XQComboBoxConnector::onListChanged(const shared_ptr<XItemNodeBase> &)
 	for(std::deque<XItemNodeBase::Item>::const_iterator it = m_itemStrings->begin(); 
 		it != m_itemStrings->end(); it++) {
         if(it->label.empty()) {
-            m_pItem->insertItem(KAME::i18n("(NO NAME)"));
+            m_pItem->addItem(i18n("(NO NAME)"));
         }
         else {
-            m_pItem->insertItem(QString(it->label));
+            m_pItem->addItem(QString(it->label));
             exist = true;
         }
 	}
 	if(!m_node->autoSetAny())
-		m_pItem->insertItem(KAME::i18n("(UNSEL)"));
+		m_pItem->addItem(i18n("(UNSEL)"));
 	onValueChanged(m_node);
 }
 
-XQListBoxConnector::XQListBoxConnector(const shared_ptr<XItemNodeBase> &node, QListBox *item)
+XQListBoxConnector::XQListBoxConnector(const shared_ptr<XItemNodeBase> &node, Q3ListBox *item)
 	: XItemQConnector(node, item),
 	  m_node(node), m_pItem(item) {
     connect(item, SIGNAL(highlighted(int) ), this, SLOT( onSelect(int) ) );
@@ -569,7 +578,7 @@ void
 XQListBoxConnector::onSelect(int idx) {
     try {
         if(!m_itemStrings || (idx >= m_itemStrings->size()) || (idx < 0))
-            m_node->str(std::string());
+            m_node->str(XString());
         else
             m_node->str(m_itemStrings->at(idx).name);
     }
@@ -632,7 +641,7 @@ XKColorComboConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
 	m_pItem->setColor(QColor((QRgb)(unsigned int)*m_node));
 }
 
-XStatusPrinter::XStatusPrinter(QMainWindow *window) 
+XStatusPrinter::XStatusPrinter(QMainWindow *window)
 {
     if(!window) window = dynamic_cast<QMainWindow*>(g_pFrmMain);
     m_pWindow = (window);
@@ -655,28 +664,28 @@ XStatusPrinter::create(QMainWindow *window)
     return ptr;
 }
 void
-XStatusPrinter::printMessage(const QString &str, bool popup) {
+XStatusPrinter::printMessage(const XString &str, bool popup) {
 	tstatus status;
 	status.ms = 3000;
-	status.str = str.utf8();
+	status.str = str;
 	status.popup = popup;
 	status.type = tstatus::Normal;
 	m_tlkTalker.talk(status);
 }
 void
-XStatusPrinter::printWarning(const QString &str, bool popup) {
+XStatusPrinter::printWarning(const XString &str, bool popup) {
 	tstatus status;
 	status.ms = 3000;
-	status.str = (KAME::i18n("Warning: ") + str).utf8();
+	status.str = XString(i18n("Warning: ")) + str;
 	status.popup = popup;
 	status.type = tstatus::Warning;
     m_tlkTalker.talk(status);
 }
 void
-XStatusPrinter::printError(const QString &str, bool popup) {
+XStatusPrinter::printError(const XString &str, bool popup) {
 	tstatus status;
 	status.ms = 5000;
-	status.str = (KAME::i18n("Error: ") + str).utf8();
+	status.str = XString(i18n("Error: ")) + str;
 	status.popup = popup;
 	status.type = tstatus::Error;
     m_tlkTalker.talk(status);
@@ -695,11 +704,11 @@ XStatusPrinter::print(const tstatus &status) {
 	QString str = status.str;
 	if(status.ms) {
 		m_pBar->show();
-		m_pBar->message(str, status.ms);
+		m_pBar->showMessage(str, status.ms);
 	}
 	else {
 		m_pBar->hide();
-		m_pBar->clear();
+		m_pBar->clearMessage();
 	}
 	if(status.ms && popup) {
 		m_pPopup->hide();
@@ -716,7 +725,7 @@ XStatusPrinter::print(const tstatus &status) {
 			icon = g_pIconError;
 			break;
 		}
-		m_pPopup->setView(m_pWindow->caption(), str, *icon );
+		m_pPopup->setView(m_pWindow->windowTitle(), str, *icon );
 		m_pPopup->show();
 	}
 	else {

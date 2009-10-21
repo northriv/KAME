@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -14,7 +14,7 @@
 #include "entrylistconnector.h"
 #include "analyzer.h"
 #include "driver.h"
-#include <qtable.h>
+#include <q3table.h>
 #include <qlabel.h>
 #include <qpushbutton.h>
 #include <qcheckbox.h>
@@ -23,7 +23,7 @@
 //---------------------------------------------------------------------------
 
 XEntryListConnector::XEntryListConnector
-(const shared_ptr<XScalarEntryList> &node, QTable *item, const shared_ptr<XChartList> &chartlist)
+(const shared_ptr<XScalarEntryList> &node, Q3Table *item, const shared_ptr<XChartList> &chartlist)
 	: XListQConnector(node, item),
 	  m_chartList(chartlist)
 {
@@ -36,10 +36,10 @@ XEntryListConnector::XEntryListConnector
 	m_pItem->setColumnWidth(2, (int)(def * 0.8));
 	m_pItem->setColumnWidth(3, (int)(def * 2.5));
 	QStringList labels;
-	labels += KAME::i18n("Entry");
-	labels += KAME::i18n("Value");
-	labels += KAME::i18n("Store");
-	labels += KAME::i18n("Delta");
+	labels += i18n("Entry");
+	labels += i18n("Value");
+	labels += i18n("Store");
+	labels += i18n("Delta");
 	m_pItem->setColumnLabels(labels);
   
 	atomic_shared_ptr<const XNode::NodeList> list(node->children());
@@ -57,7 +57,7 @@ XEntryListConnector::onRecord(const shared_ptr<XDriver> &driver)
 		{
 			tcons::tlisttext text;
 			text.label = (*it)->label;
-			text.str.reset(new std::string((*it)->entry->value()->to_str()));
+			text.str.reset(new XString((*it)->entry->value()->to_str()));
 			(*it)->tlkOnRecordRedirected->talk(text);
 		}
 	}
@@ -65,7 +65,7 @@ XEntryListConnector::onRecord(const shared_ptr<XDriver> &driver)
 void
 XEntryListConnector::tcons::onRecordRedirected(const tlisttext &text)
 {
-    text.label->setText(*text.str);
+    text.label->setText(text.str->c_str());
 }
 
 void
@@ -113,7 +113,7 @@ XEntryListConnector::onCatch(const shared_ptr<XNode> &node)
 	shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(node);
 	int i = m_pItem->numRows();
 	m_pItem->insertRows(i);
-	m_pItem->setText(i, 0, entry->getLabel());
+	m_pItem->setText(i, 0, entry->getLabel().c_str());
 
 	shared_ptr<XDriver> driver = entry->driver();
 	if(m_lsnOnRecord)
@@ -129,8 +129,12 @@ XEntryListConnector::onCatch(const shared_ptr<XNode> &node)
 	QCheckBox *ckbStore = new QCheckBox(m_pItem);
 	m_cons.back()->constore = xqcon_create<XQToggleButtonConnector>(entry->store(), ckbStore);
 	m_pItem->setCellWidget(i, 2, ckbStore);
-	KDoubleSpinBox *numDelta = new KDoubleSpinBox(-1, 1e4, 1, 0, 5, m_pItem);
-	m_cons.back()->condelta = xqcon_create<XKDoubleSpinBoxConnector>(entry->delta(), numDelta);
+	QDoubleSpinBox *numDelta = new QDoubleSpinBox(m_pItem);
+	numDelta->setRange(-1, 1e4);
+	numDelta->setSingleStep(1);
+	numDelta->setValue(0);
+	numDelta->setDecimals(5);
+	m_cons.back()->condelta = xqcon_create<XQDoubleSpinBoxConnector>(entry->delta(), numDelta);
 	m_pItem->setCellWidget(i, 3, numDelta);
 	m_cons.back()->driver = driver;
 	m_cons.back()->tlkOnRecordRedirected.reset(new XTalker<tcons::tlisttext>);

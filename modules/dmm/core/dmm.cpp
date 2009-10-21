@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -12,12 +12,12 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 //---------------------------------------------------------------------------
-#include "forms/dmmform.h"
+#include "ui_dmmform.h"
+#include <QStatusBar>
 #include "dmm.h"
 #include "interface.h"
 #include "analyzer.h"
 #include "xnodeconnector.h"
-#include <qstatusbar.h>
 
 XDMM::XDMM(const char *name, bool runtime, 
 		   const shared_ptr<XScalarEntryList> &scalarentries,
@@ -34,7 +34,7 @@ XDMM::XDMM(const char *name, bool runtime,
 	scalarentries->insert(m_entry);
 	m_waitInms->value(100);
 	m_form->statusBar()->hide();
-	m_form->setCaption(KAME::i18n("DMM - ") + getLabel() );
+	m_form->setWindowTitle(i18n("DMM - ") + getLabel() );
 	m_function->setUIEnabled(false);
 	m_waitInms->setUIEnabled(false);
 	m_conFunction = xqcon_create<XQComboBoxConnector>(m_function, m_form->m_cmbFunction);
@@ -91,7 +91,7 @@ XDMM::onFunctionChanged(const shared_ptr<XValueNodeBase> &node)
         changeFunction();
     }
     catch (XKameError &e) {
-		e.print(getLabel() + " " + KAME::i18n("DMM Error"));
+		e.print(getLabel() + " " + i18n("DMM Error"));
     }
 }
 
@@ -102,7 +102,7 @@ XDMM::execute(const atomic<bool> &terminated)
         changeFunction();
     }
     catch (XKameError &e) {
-		e.print(getLabel() + " " + KAME::i18n("DMM Error"));
+		e.print(getLabel() + " " + i18n("DMM Error"));
 		afterStop();
 		return NULL;
     }
@@ -122,7 +122,7 @@ XDMM::execute(const atomic<bool> &terminated)
 			x = oneShotRead();
 		}
 		catch (XKameError &e) {
-			e.print(getLabel() + " " + KAME::i18n("DMM Read Error"));
+			e.print(getLabel() + " " + i18n("DMM Read Error"));
 			continue;
 		}
 		clearRaw();

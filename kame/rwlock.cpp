@@ -62,7 +62,7 @@ XRecursiveRWLock::XRecursiveRWLock() :
 XRecursiveRWLock::~XRecursiveRWLock()
 {
 	if(DEBUG_XTHREAD) ASSERT(m_wrlockwaitingcnt == 0);
-	if(DEBUG_XTHREAD) ASSERT((int)m_wrlockingthread == -1);
+	if(DEBUG_XTHREAD) ASSERT((intptr_t)m_wrlockingthread == -1);
 	if(DEBUG_XTHREAD) ASSERT(m_rdlockingcnt == 0);
 	int ret = pthread_cond_destroy(&m_cond);
 	if(DEBUG_XTHREAD) ASSERT(!ret);

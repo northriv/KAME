@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -36,12 +36,12 @@ public:
 	const shared_ptr<XStringNode> &posString() const {return m_posString;}
 private:
 	struct XRecordError : public XKameError {
-        XRecordError(const QString &msg, const char *file, int line)
+        XRecordError(const XString &msg, const char *file, int line)
 			: XKameError(msg, file, line) {}
 	};
 	struct XIOError : public XRecordError {
         XIOError(const char *file, int line);
-        XIOError(const QString &msg, const char *file, int line);
+        XIOError(const XString &msg, const char *file, int line);
 	};
 	struct XBufferOverflowError : public XIOError {
         XBufferOverflowError(const char *file, int line);
@@ -50,8 +50,8 @@ private:
         XBrokenRecordError(const char *file, int line);
 	};
 	struct XNoDriverError : public XRecordError {
-		XNoDriverError(const char *driver_name, const char *file, int line);
-		QString name;
+		XNoDriverError(const XString &driver_name, const char *file, int line);
+		XString name;
 	};
  
 	const shared_ptr<XComboNode> m_speed;

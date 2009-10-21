@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -25,7 +25,7 @@ extern "C" {
 
 #define XRUBYSUPPORT_RB "xrubysupport.rb"
 
-static inline VALUE string2RSTRING(const std::string &str) {
+static inline VALUE string2RSTRING(const XString &str) {
 	if(str.empty()) return rb_str_new2("");
 	return rb_str_new2(str.c_str());
 }
@@ -117,11 +117,11 @@ XRuby::rnode_child(VALUE self, VALUE var)
 			}
 		}
 		else {
-			throw std::string("Node no longer exists\n");
+			throw XString("Node no longer exists\n");
 		}
 		return rnode_create(child, st->xruby );
 	}
-	catch (std::string &s) {
+	catch (XString &s) {
 		snprintf(errmsg, 256, "%s", s.c_str());
 	}
 	rb_raise(rb_eRuntimeError, "%s", errmsg);
@@ -183,11 +183,11 @@ XRuby::rlistnode_create_child(VALUE self, VALUE rbtype, VALUE rbname)
 			}
 		}
 		else {
-			throw std::string("Node no longer exists\n");
+			throw XString("Node no longer exists\n");
 		}
 		return rnode_create(child, st->xruby );
 	}
-	catch (std::string &s) {
+	catch (XString &s) {
 		snprintf(errmsg, 256, "%s", s.c_str());
 	}
 	rb_raise(rb_eRuntimeError, "%s", errmsg);
@@ -227,15 +227,15 @@ XRuby::rlistnode_release_child(VALUE self, VALUE rbchild)
 				return Qnil;  
 			}
 			else {
-				throw std::string("Node no longer exists\n");
+				throw XString("Node no longer exists\n");
 			}
 		}
 		else {
-			throw std::string("Node no longer exists\n");
+			throw XString("Node no longer exists\n");
 		}
 		return self;
 	}
-	catch (std::string &s) {
+	catch (XString &s) {
 		snprintf(errmsg, 256, "%s", s.c_str());
 	}
 	rb_raise(rb_eRuntimeError, "%s", errmsg);
@@ -253,10 +253,10 @@ XRuby::rnode_name(VALUE self)
 			return string2RSTRING(node->getName());
 		}
 		else {
-			throw std::string("Node no longer exists\n");
+			throw XString("Node no longer exists\n");
 		}
 	}
-	catch (std::string &s) {
+	catch (XString &s) {
 		snprintf(errmsg, 256, "%s", s.c_str());
 	}
 	rb_raise(rb_eRuntimeError, "%s", errmsg);
@@ -275,10 +275,10 @@ XRuby::rnode_count(VALUE self)
 			return count;
 		}
 		else {
-			throw std::string("Node no longer exists\n");
+			throw XString("Node no longer exists\n");
 		}
 	}
-	catch (std::string &s) {
+	catch (XString &s) {
 		snprintf(errmsg, 256, "%s", s.c_str());
 	}
 	rb_raise(rb_eRuntimeError, "%s", errmsg);
@@ -300,10 +300,10 @@ XRuby::rnode_touch(VALUE self)
 			return Qnil;  
 		}
 		else {
-			throw std::string("Node no longer exists\n");
+			throw XString("Node no longer exists\n");
 		}
 	}
-	catch (std::string &s) {
+	catch (XString &s) {
 		snprintf(errmsg, 256, "%s", s.c_str());
 	}
 	rb_raise(rb_eRuntimeError, "%s", errmsg);
@@ -335,10 +335,10 @@ XRuby::rvaluenode_set(VALUE self, VALUE var)
 			}
 		}
 		else {
-			throw std::string("Node no longer exists\n");
+			throw XString("Node no longer exists\n");
 		}
 	}
-	catch (std::string &s) {
+	catch (XString &s) {
 		snprintf(errmsg, 256, "%s", s.c_str());
 	}
 	rb_raise(rb_eRuntimeError, "%s", errmsg);
@@ -370,10 +370,10 @@ XRuby::rvaluenode_load(VALUE self, VALUE var)
 			}
 		}
 		else {
-			throw std::string("Node no longer exists\n");
+			throw XString("Node no longer exists\n");
 		}
 	}
-	catch (std::string &s) {
+	catch (XString &s) {
 		snprintf(errmsg, 256, "%s", s.c_str());
 	}
 	rb_raise(rb_eRuntimeError, "%s", errmsg);
@@ -393,10 +393,10 @@ XRuby::rvaluenode_get(VALUE self)
 			return XRuby::getValueOfNode(vnode);
 		}
 		else {
-			throw std::string("Node no longer exists\n");
+			throw XString("Node no longer exists\n");
 		}
 	}
-	catch (std::string &s) {
+	catch (XString &s) {
 		snprintf(errmsg, 256, "%s", s.c_str());
 	}
 	rb_raise(rb_eRuntimeError, "%s", errmsg);
@@ -415,10 +415,10 @@ XRuby::rvaluenode_to_str(VALUE self)
 			return string2RSTRING(vnode->to_str());
 		}
 		else {
-			throw std::string("Node no longer exists\n");
+			throw XString("Node no longer exists\n");
 		}
 	}
-	catch (std::string &s) {
+	catch (XString &s) {
 		snprintf(errmsg, 256, "%s", s.c_str());
 	}
 	rb_raise(rb_eRuntimeError, "%s", errmsg);
@@ -468,11 +468,11 @@ XRuby::strOnNode(const shared_ptr<XValueNodeBase> &node, VALUE value)
 		//    if(inode && (dbl <= INT_MAX)) {inode->value(integer); return 0;}
 	case T_STRING:
 		try {
-			node->str(std::string(RSTRING(value)->ptr));
+			node->str(XString(RSTRING(value)->ptr));
 		}
 		catch (XKameError &e) {
 			throw formatString("Validation error %s on %s\n"
-				, (const char*)e.msg().utf8(), node->getName().c_str());
+				, (const char*)e.msg().c_str(), node->getName().c_str());
 		}
 		return 0;
 	case T_TRUE:
@@ -526,7 +526,7 @@ XRuby::findRubyThread(VALUE self, VALUE threadid)
 VALUE
 XRuby::my_rbdefout(VALUE self, VALUE str, VALUE threadid)
 {
-	shared_ptr<std::string> sstr(new std::string(RSTRING(str)->ptr));
+	shared_ptr<XString> sstr(new XString(RSTRING(str)->ptr));
 	shared_ptr<XRubyThread> rubythread(findRubyThread(self, threadid));
 	if(rubythread) {
 		rubythread->onMessageOut().talk(sstr);
@@ -544,16 +544,16 @@ XRuby::my_rbdefin(VALUE self, VALUE threadid)
 	char errmsg[256];
 	try {
 		if(rubythread) {
-			std::string line = rubythread->gets();
+			XString line = rubythread->gets();
 			if(line.length())
 				return string2RSTRING(line);
 			return Qnil;  
 		}
 		else {
-			throw std::string("UNKNOWN Ruby thread\n");
+			throw XString("UNKNOWN Ruby thread\n");
 		}
 	}
-	catch (std::string &s) {
+	catch (XString &s) {
 		snprintf(errmsg, 256, "%s", s.c_str());
 	}
 	rb_raise(rb_eRuntimeError, "%s", errmsg);
@@ -599,7 +599,7 @@ XRuby::execute(const atomic<bool> &terminated)
 		{
 			shared_ptr<XMeasure> measure = m_measure.lock();
 			ASSERT(measure);
-			std::string name = measure->getName();
+			XString name = measure->getName();
 			name[0] = toupper(name[0]);
 			VALUE rbRootNode = rnode_create(measure, this);
 			rb_define_global_const(name.c_str(), rbRootNode);
@@ -615,7 +615,7 @@ XRuby::execute(const atomic<bool> &terminated)
 
 		{
 			int state;
-			QString filename = ::locate("appdata", XRUBYSUPPORT_RB);
+			QString filename = KStandardDirs::locate("appdata", XRUBYSUPPORT_RB);
 			if(filename.isEmpty()) {
 				g_statusPrinter->printError("No KAME ruby support file installed.");
 			}

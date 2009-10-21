@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -27,29 +27,6 @@
 #endif
 #endif
 
-#if SIZEOF_SHORT != 2
-#error sizeof short is not 2.
-#endif
-#if SIZEOF_FLOAT != 4
-#error sizeof float is not 4.
-#endif
-#if SIZEOF_DOUBLE != 8
-#error sizeof double is not 8.
-#endif
-/*
-  #if SIZEOF_LONG == 4
-  typedef long int int32_t;
-  typedef unsigned long int uint32_t;
-  #else
-  #if SIZEOF_INT == 4
-  typedef int int32_t;
-  typedef unsigned int uint32_t;
-  #else
-  #error Could not define 32bit integer.
-  #endif
-  #endif
- */
-
 #ifdef HAVE_LIBGCCPP
 //Boehm GC stuff
 #define GC_OPERATOR_NEW_ARRAY
@@ -63,7 +40,7 @@
 #define GC_DEBUG
 #include <gc_cpp.h>
 #include <gc_allocator.h>
-#if defined MACOSX
+#if defined __APPLE__
 // for buggy pthread library of GC
 #define BUGGY_PTHRAD_COND_WAIT_USEC 10000
 #define BUGGY_PTHRAD_COND
@@ -112,31 +89,41 @@ using boost::enable_shared_from_this;
 using boost::dynamic_pointer_cast;
 
 #include <math.h>
+#include <string>
+#include <QString>
+#include <klocale.h>
 
-#include <qstring.h>
+struct XString : public std::string {
+	XString() : std::string() {}
+	XString(const char *str) : std::string(str) {}
+	XString(const QString &str) : std::string(str.toUtf8().data()) {}
+	XString(const std::string &str) : std::string(str) {}
+	operator QString() const {return QString::fromUtf8(c_str());}
+	XString operator+(const char *s) {return *this + XString(s);}
+};
 
 //! Debug printing.
 #define dbgPrint(msg) _dbgPrint(msg, __FILE__, __LINE__)
 void
-_dbgPrint(const QString &str, const char *file, int line);
+_dbgPrint(const XString &str, const char *file, int line);
 //! Global Error Message/Printing.
 #define gErrPrint(msg) _gErrPrint(msg, __FILE__, __LINE__)
 #define gWarnPrint(msg) _gWarnPrint(msg, __FILE__, __LINE__)
 void
-_gErrPrint(const QString &str, const char *file, int line);
+_gErrPrint(const XString &str, const char *file, int line);
 void
-_gWarnPrint(const QString &str, const char *file, int line);
+_gWarnPrint(const XString &str, const char *file, int line);
 
 //! Base of exception
 struct XKameError {
 	//! errno is read and cleared after a construction
-	XKameError(const QString &s, const char *file, int line);
+	XKameError(const XString &s, const char *file, int line);
 	void print();
-	void print(const QString &header);
-	static void print(const QString &msg, const char *file, int line, int _errno);
-	const QString &msg() const;
+	void print(const XString &header);
+	static void print(const XString &msg, const char *file, int line, int _errno);
+	const XString &msg() const;
 private:
-	const QString m_msg;
+	const XString m_msg;
 	const char *const m_file;
 	const int m_line;
 	const int m_errno;
@@ -155,23 +142,19 @@ double roundlog10(double val);
 double setprec(double val, double prec);
 
 //! convert control characters to visible (ex. \xx).
-std::string dumpCString(const char *cstr);
+XString dumpCString(const char *cstr);
 
 //! \sa printf()
-std::string formatString(const char *format, ...)
+XString formatString(const char *format, ...)
+__attribute__ ((format(printf,1,2)));
+XString formatString_tr(const char *format_i18n_noop, ...)
 __attribute__ ((format(printf,1,2)));
 
-std::string formatDouble(const char *fmt, double val);
+XString formatDouble(const char *fmt, double val);
 //! validator
 //! throw XKameError
 //! \sa XValueNode
-void formatDoubleValidator(std::string &fmt);
-
-namespace KAME {
-//! thread-safe version of i18n().
-//! this will be obsoleted w/ QT4 or later.
-QString i18n(const char* eng);
-}
+void formatDoubleValidator(XString &fmt);
 
 #if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
 struct X86CPUSpec {

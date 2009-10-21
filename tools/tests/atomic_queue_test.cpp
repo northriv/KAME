@@ -27,7 +27,7 @@
 
 
 #define SIZE 100000
-#define NUM_THREADS 16
+#define NUM_THREADS 4
 
 atomic_queue<int, (SIZE + 100) * NUM_THREADS> queue1;
 atomic_pointer_queue<int, NUM_THREADS - 1> queue2;
@@ -46,7 +46,7 @@ start_routine(void *) {
 	    	i = g_cnt;
 	    	if(g_cnt.compareAndSet(i, i+1)) break;
     	}
-    	
+
         try {
 	        queue1.push(i);
 	        g_queue1_total += i;
@@ -144,9 +144,9 @@ main(int argc, char **argv)
         }
 	}
 
-    if(!queue1.empty() || !queue2.empty() || !queue3.empty() || 
+    if(!queue1.empty() || !queue2.empty() || !queue3.empty() ||
     	(g_queue1_total != 0) || (g_queue3_total != 0) || (g_queue2_total != 0)) {
-    	printf("failed queue1size=%d, queue1total=%d, queue2size=%d, queue2total=%d, queue3size=%d, queue3total=%d\n", 
+    	printf("failed queue1size=%d, queue1total=%d, queue2size=%d, queue2total=%d, queue3size=%d, queue3total=%d\n",
 			queue1.size(), (int)g_queue1_total,
 			queue2.size(), (int)g_queue2_total,
 		   queue3.size(), (int)g_queue3_total);
@@ -167,7 +167,7 @@ pthread_t threads[NUM_THREADS];
 
 	for(int i = 0; i < NUM_THREADS; i++) {
 		pthread_join(threads[i], NULL);
-	}    
+	}
 
     for(;;) {
     	 if(queue1.empty()) break;
@@ -175,7 +175,7 @@ pthread_t threads[NUM_THREADS];
         g_queue1_total -= x;
         queue1.pop();
     }
-    	
+
     for(;;) {
     	 if(queue2.empty()) break;
         int *x = queue2.front();
@@ -189,13 +189,14 @@ pthread_t threads[NUM_THREADS];
         queue3.pop();
     }
 
-       
-    if(!queue1.empty() || !queue2.empty() || !queue3.empty() || 
+
+    if(!queue1.empty() || !queue2.empty() || !queue3.empty() ||
     	(g_queue1_total != 0) || (g_queue3_total != 0) || (g_queue2_total != 0)) {
-    	printf("failed queue1size=%d, queue1total=%d, queue2size=%d, queue2total=%d, queue3size=%d, queue3total=%d\n", 
+    	printf("failed queue1size=%d, queue1total=%d, queue2size=%d, queue2total=%d, queue3size=%d, queue3total=%d\n",
 			queue1.size(), (int)g_queue1_total,
 			queue2.size(), (int)g_queue2_total,
 		   queue3.size(), (int)g_queue3_total);
+    	return -1;
     }
     else
 		printf("succeeded\n");

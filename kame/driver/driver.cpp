@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -17,7 +17,7 @@
 DECLARE_TYPE_HOLDER(XDriverList)
 
 shared_ptr<XNode>
-XDriverList::createByTypename(const std::string &type, const std::string& name) {
+XDriverList::createByTypename(const XString &type, const XString& name) {
     shared_ptr<XNode> ptr = (*creator(type))
         (name.c_str(), false, m_scalarentries, m_interfaces, m_thermometers,
 		 dynamic_pointer_cast<XDriverList>(shared_from_this()));
@@ -26,7 +26,7 @@ XDriverList::createByTypename(const std::string &type, const std::string& name) 
 }
 
 XDriver::XBufferUnderflowRecordError::XBufferUnderflowRecordError(const char *file, int line) : 
-    XRecordError(KAME::i18n("Buffer Underflow."), file, line) {}
+    XRecordError(i18n("Buffer Underflow."), file, line) {}
 
 XDriverList::XDriverList(const char *name, bool runtime,
 						 const shared_ptr<XScalarEntryList> &scalarentries,

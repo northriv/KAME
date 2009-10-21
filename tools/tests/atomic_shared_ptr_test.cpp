@@ -10,34 +10,41 @@
 #include "thread.cpp"
 
 atomic<int> objcnt = 0;
-atomic<int> total = 0;
+atomic<long> total = 0;
 
 class A {
 public:
-	A(int x) : m_x(x) {
+	A(long x) : m_x(x) {
 //		fprintf(stdout, "c", x);
        ++objcnt;
        total += x;
+       if(x < 0)
+       		fprintf(stderr, " ??%d", (int)m_x);
 	}
 	virtual ~A() {
 //		fprintf(stdout, "d", m_x);
 		--objcnt;
        total -= m_x;
+       ASSERT(objcnt >= 0);
+       if(total < 0)
+       		fprintf(stderr, " ?%d,%d", (int)m_x, (int)total);
 	}
-    virtual int x() const {return m_x;} 
-	
-int m_x;
+    virtual long x() const {return m_x;}
+
+long m_x;
 };
 class B : public A {
 public:
-    B(int x) : A(x) {
+    B(long x) : A(x) {
+        ++objcnt;
 //        fprintf(stdout, "C");
     }
     ~B() {
+		--objcnt;
 //        fprintf(stdout, "D");
     }
-    virtual int x() const {return -m_x;} 
-    virtual int xorg() const {return m_x;} 
+    virtual long x() const {return -m_x;}
+    virtual long xorg() const {return m_x;}
 };
 
 
@@ -46,24 +53,26 @@ atomic_shared_ptr<A> gp1, gp2, gp3;
 void *
 start_routine(void *) {
 	printf("start\n");
-	for(int i = 0; i < 100000; i++) {
-    	atomic_shared_ptr<A> p1(new A(1));
-    	atomic_shared_ptr<A> p2(new B(2));
+	for(int i = 0; i < 1000000; i++) {
+    	atomic_shared_ptr<A> p1(new A(4));
+    	ASSERT(p1);
+    	atomic_shared_ptr<A> p2(new B(9));
     	atomic_shared_ptr<A> p3;
-    	
-    	
+    	ASSERT(!p3);
+
     	p2.swap(gp1);
-    	gp2.reset(new A(51));
-    	gp3.reset(new A(3));
-    	
+    	gp2.reset(new A(32));
+    	gp3.reset(new A(1001));
+
     	gp3.reset();
-    	p2.swap(p3);
     	gp1 = p2;
-    	
+    	p2.swap(p3);
+
     	for(;;) {
     		atomic_shared_ptr<A> p(gp1);
-	    	if(p1.compareAndSwap(p, gp1))
+	    	if(p1.compareAndSwap(p, gp1)) {
 	    		break;
+	    	}
     		printf("f");
     	}
 	}
@@ -71,7 +80,7 @@ start_routine(void *) {
     return 0;
 }
 
-#define NUM_THREADS 8
+#define NUM_THREADS 4
 
 int
 main(int argc, char **argv)

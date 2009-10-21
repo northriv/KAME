@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -31,20 +31,20 @@ public:
 	virtual ~XInterface() {}
  
 	struct XInterfaceError : public XKameError {
-		XInterfaceError(const QString &msg, const char *file, int line);
+		XInterfaceError(const XString &msg, const char *file, int line);
 	};
 	struct XConvError : public XInterfaceError {
 		XConvError(const char *file, int line);
 	};
 	struct XCommError : public XInterfaceError {
-		XCommError(const QString &, const char *file, int line);
+		XCommError(const XString &, const char *file, int line);
 	};
 	struct XOpenInterfaceError : public XInterfaceError {
 		XOpenInterfaceError(const char *file, int line);
 	};
  
-	void setLabel(const std::string& str) {m_label = str;}
-	virtual std::string getLabel() const;
+	void setLabel(const XString& str) {m_label = str;}
+	virtual XString getLabel() const;
  
 	shared_ptr<XDriver> driver() const {return m_driver.lock();}
 	//! type of interface or driver.
@@ -87,7 +87,7 @@ private:
       
 	XRecursiveMutex m_mutex;
   
-	std::string m_label;
+	XString m_label;
 };
 
 class XInterfaceList : public XAliasListNode<XInterface>

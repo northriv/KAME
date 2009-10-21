@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -64,11 +64,11 @@ protected:
 	//! throwing this exception will cause reset of record time
 	//! And, print error message
 	struct XRecordError : public XKameError {
-		XRecordError(const QString &s, const char *file, int line) : XKameError(s, file, line) {}
+		XRecordError(const XString &s, const char *file, int line) : XKameError(s, file, line) {}
 	};
 	//! throwing this exception will skip signal emission, assuming record is kept valid.
 	struct XSkippedRecordError : public XRecordError {
-		XSkippedRecordError(const QString &s, const char *file, int line) : XRecordError(s, file, line) {}
+		XSkippedRecordError(const XString &s, const char *file, int line) : XRecordError(s, file, line) {}
 		XSkippedRecordError(const char *file, int line) : XRecordError("", file, line) {}
 	};
 	//! size of raw record is not enough to continue analyzing 
@@ -144,7 +144,7 @@ public:
 		const shared_ptr<XThermometerList> &,
 		const shared_ptr<XDriverList> &
 		)
-		virtual shared_ptr<XNode> createByTypename(const std::string &type, const std::string& name);
+		virtual shared_ptr<XNode> createByTypename(const XString &type, const XString& name);
 private:
 	const shared_ptr<XScalarEntryList> m_scalarentries;
 	const shared_ptr<XInterfaceList> m_interfaces;

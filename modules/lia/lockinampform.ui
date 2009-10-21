@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>FrmLIA</class>
+ <widget class="QMainWindow" name="FrmLIA">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>204</width>
+    <height>218</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>LIA Control</string>
+  </property>
+  <widget class="QWidget" name="widget">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>204</width>
+     <height>218</height>
+    </rect>
+   </property>
+   <layout class="QGridLayout">
+    <property name="margin">
+     <number>2</number>
+    </property>
+    <item row="6" column="0">
+     <widget class="QCheckBox" name="m_ckbAutoScaleY">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="text">
+       <string>Autoscale for Y</string>
+      </property>
+     </widget>
+    </item>
+    <item row="4" column="0">
+     <layout class="QHBoxLayout">
+      <item>
+       <widget class="QLabel" name="textLabel2_2">
+        <property name="text">
+         <string>Fetch Freq.</string>
+        </property>
+        <property name="wordWrap">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="m_edFetchFreq"/>
+      </item>
+     </layout>
+    </item>
+    <item row="5" column="0">
+     <widget class="QCheckBox" name="m_ckbAutoScaleX">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="text">
+       <string>Autoscale for X</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="0">
+     <layout class="QHBoxLayout">
+      <item>
+       <widget class="QLabel" name="textLabel1">
+        <property name="text">
+         <string>Sensitibity</string>
+        </property>
+        <property name="wordWrap">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QComboBox" name="m_cmbSens"/>
+      </item>
+     </layout>
+    </item>
+    <item row="3" column="0">
+     <layout class="QHBoxLayout">
+      <item>
+       <widget class="QLabel" name="textLabel4">
+        <property name="text">
+         <string>Time Const.</string>
+        </property>
+        <property name="wordWrap">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QComboBox" name="m_cmbTimeConst"/>
+      </item>
+     </layout>
+    </item>
+    <item row="0" column="0">
+     <layout class="QHBoxLayout">
+      <item>
+       <widget class="QLabel" name="textLabel2">
+        <property name="text">
+         <string>Output</string>
+        </property>
+        <property name="wordWrap">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="m_edOutput"/>
+      </item>
+      <item>
+       <widget class="QLabel" name="textLabel3">
+        <property name="text">
+         <string>V</string>
+        </property>
+        <property name="wordWrap">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item row="1" column="0">
+     <layout class="QHBoxLayout">
+      <item>
+       <widget class="QLabel" name="textLabel2_3">
+        <property name="text">
+         <string>Frequency</string>
+        </property>
+        <property name="wordWrap">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="m_edFreq"/>
+      </item>
+      <item>
+       <widget class="QLabel" name="textLabel3_2">
+        <property name="text">
+         <string>Hz</string>
+        </property>
+        <property name="wordWrap">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+ <layoutdefault spacing="6" margin="11"/>
+ <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
+ <customwidgets>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

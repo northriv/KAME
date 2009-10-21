@@ -74,7 +74,7 @@ XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XInterface::XInterfaceError &)
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
 
 	if(intfDO()->maxDORate(1) == 0)
-		throw XInterface::XInterfaceError(KAME::i18n("HW-timed transfer needed."), __FILE__, __LINE__);
+		throw XInterface::XInterfaceError(i18n("HW-timed transfer needed."), __FILE__, __LINE__);
 	
 	if(m_resolutionDO == RESOLUTION_UNDEF)
 		m_resolutionDO = 1.0 / intfDO()->maxDORate(1);
@@ -93,9 +93,9 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
 	
 	if(intfDO()->maxDORate(1) == 0)
-		throw XInterface::XInterfaceError(KAME::i18n("HW-timed transfer needed."), __FILE__, __LINE__);
+		throw XInterface::XInterfaceError(i18n("HW-timed transfer needed."), __FILE__, __LINE__);
 	if(intfAO()->maxAORate(2) == 0)
-		throw XInterface::XInterfaceError(KAME::i18n("HW-timed transfer needed."), __FILE__, __LINE__);
+		throw XInterface::XInterfaceError(i18n("HW-timed transfer needed."), __FILE__, __LINE__);
 	
 	if((m_resolutionDO == RESOLUTION_UNDEF) || (m_resolutionAO == RESOLUTION_UNDEF))
 	{
@@ -190,7 +190,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 									  "", DAQmx_Val_ChanForAllLines));
 	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskDO, 0, &XNIDAQmxPulser::_onTaskDone, this));
 
-	std::string do_clk_src;
+	XString do_clk_src;
 	
 	if(use_ao_clock) {
 		do_clk_src = formatString("/%s/ao/SampleClock", intfAO()->devName());
@@ -198,7 +198,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	}
 	else {
 		do_clk_src = formatString("/%s/Ctr0InternalOutput", intfCtr()->devName());
-		std::string ctrdev = formatString("%s/ctr0", intfCtr()->devName());
+		XString ctrdev = formatString("%s/ctr0", intfCtr()->devName());
 		//Continuous pulse train generation. Duty = 50%.
 	    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDOCtr));
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskDOCtr, 
@@ -400,7 +400,7 @@ XNIDAQmxPulser::_onTaskDone(TaskHandle task, int32 status, void *data) {
 void
 XNIDAQmxPulser::onTaskDone(TaskHandle task, int32 status) {
 	if(status) {
-		std::string str;
+		XString str;
 		if(task == m_taskDO) { str = "DO"; }
 		if(task == m_taskDOCtr) { str = "DOCtr"; }
 		if(task == m_taskAO) { str = "AO"; }
@@ -463,16 +463,16 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 			CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &bufsize));
 			if(!m_pausingBit & (bufsize < 2047uL))
 				throw XInterface::XInterfaceError(
-					KAME::i18n("Use the pausing feature for a cheap DAQmx board.\n"
-							   + KAME::i18n("Look at the port-selection table.")), __FILE__, __LINE__);
+					i18n("Use the pausing feature for a cheap DAQmx board.") + "\n"
+							   + i18n("Look at the port-selection table."), __FILE__, __LINE__);
 		}
 		if(m_taskAO != TASK_UNDEF) {
 			uInt32 bufsize;
 			CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &bufsize));
 			if(!m_pausingBit & (bufsize < 8192uL))
 				throw XInterface::XInterfaceError(
-					KAME::i18n("Use the pausing feature for a cheap DAQmx board.\n"
-							   + KAME::i18n("Look at the port-selection table.")), __FILE__, __LINE__);
+					i18n("Use the pausing feature for a cheap DAQmx board.") + "\n"
+							   + i18n("Look at the port-selection table."), __FILE__, __LINE__);
 		}
 
 		//swap generated pattern lists to new ones.
@@ -610,7 +610,7 @@ XNIDAQmxPulser::stopPulseGen()
 			CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
 			uInt32 num_lines;
 			CHECK_DAQMX_RET(DAQmxGetDONumLines(m_taskDO, ch, &num_lines));
-			std::string chtri;
+			XString chtri;
 			for(unsigned int i = 0; i < num_lines; i++) {
 				if(m_pausingBit &&
 					(lrint(log(m_pausingBit)/log(2.0)) == (int)i))
@@ -898,7 +898,7 @@ XNIDAQmxPulser::genBankAO()
 			ASSERT(pnum < PAT_QAM_PULSE_IDX_MASK / PAT_QAM_PULSE_IDX);
 			if(!m_genPulseWaveAO[pnum].get() ||
 			   (m_genPulseWaveAO[pnum]->size() < gen_cnt + aoidx))
-				throw XInterface::XInterfaceError(KAME::i18n("Invalid pulse patterns."), __FILE__, __LINE__);
+				throw XInterface::XInterfaceError(i18n("Invalid pulse patterns."), __FILE__, __LINE__);
 			tRawAOSet *pGenAO = &m_genPulseWaveAO[pnum]->at(aoidx);
 /*			for(unsigned int cnt = 0; cnt < gen_cnt; cnt++)
  *pAO++ = *pGenAO++;*/
@@ -978,7 +978,7 @@ XNIDAQmxPulser::changeOutput(bool output, unsigned int /*blankpattern*/)
 	if(output)
 	{
 		if(!m_genPatternListNext || m_genPatternListNext->empty() )
-			throw XInterface::XInterfaceError(KAME::i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
+			throw XInterface::XInterfaceError(i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
 		startPulseGen();
 	}
 	else

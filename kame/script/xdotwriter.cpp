@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -13,7 +13,6 @@
 ***************************************************************************/
 #include "xdotwriter.h"
 #include <fstream>
-#include "config.h"
 #include "xitemnode.h"
 #include "xlistnode.h"
 
@@ -47,7 +46,7 @@ void
 XDotWriter::write(const shared_ptr<XNode> &node)
 {
     if(std::find(m_nodes.begin(), m_nodes.end(), node) == m_nodes.end()) {
-        m_ofs << "obj_" << (int)node.get()
+        m_ofs << "obj_" << (uintptr_t)node.get()
               << " [label=\"" << node->getName()
               << "\"]" << std::endl;
         m_nodes.push_back(node);
@@ -65,9 +64,9 @@ XDotWriter::write(const shared_ptr<XNode> &node)
 				unnamed++;
 			}
 			else {
-				m_ofs << "obj_" << (int)child.get()
+				m_ofs << "obj_" << (uintptr_t)child.get()
 					  << " -> "
-					  << "obj_" << (int)node.get()
+					  << "obj_" << (uintptr_t)node.get()
 					  << std::endl;
 				write(child);
 			}
@@ -76,11 +75,11 @@ XDotWriter::write(const shared_ptr<XNode> &node)
     if(unnamed) {
         m_unnamedcnt++;
         m_ofs << "unnamedobj_" << (int)m_unnamedcnt
-              << " [label=\"" << (const char*)QString("%1 obj.").arg(unnamed).utf8()
+              << " [label=\"" << (const char*)QString("%1 obj.").arg(unnamed).toUtf8().data()
               << "\"]" << std::endl;
         m_ofs << "unnamedobj_" << (int)m_unnamedcnt
               << " -> "
-              << "obj_" << (int)node.get()
+              << "obj_" << (uintptr_t)node.get()
               << std::endl;
     }
 }

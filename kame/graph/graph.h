@@ -22,13 +22,13 @@
 #include <deque>
 
 #include <qcolor.h>
-#define clWhite (unsigned int)Qt::white.rgb()
-#define clRed (unsigned int)Qt::red.rgb()
-#define clLime (unsigned int)Qt::darkYellow.rgb()
-#define clAqua (unsigned int)Qt::cyan.rgb()
-#define clBlack (unsigned int)Qt::black.rgb()
-#define clGreen (unsigned int)Qt::green.rgb()
-#define clBlue (unsigned int)Qt::blue.rgb()
+#define clWhite (unsigned int)QColor(Qt::white).rgb()
+#define clRed (unsigned int)QColor(Qt::red).rgb()
+#define clLime (unsigned int)QColor(Qt::darkYellow).rgb()
+#define clAqua (unsigned int)QColor(Qt::cyan).rgb()
+#define clBlack (unsigned int)QColor(Qt::black).rgb()
+#define clGreen (unsigned int)QColor(Qt::green).rgb()
+#define clBlue (unsigned int)QColor(Qt::blue).rgb()
 
 template <typename T>
 struct Vector4 {
@@ -104,7 +104,7 @@ class XGraph : public XNode
 protected:
 	XGraph(const char *name, bool runtime);
 public:
-	virtual std::string getLabel() const {return *label();}
+	virtual XString getLabel() const {return *label();}
 
 	typedef float SFloat;
 	static const SFloat SFLOAT_MAX;
@@ -171,7 +171,7 @@ class XPlot : public XNode
 protected:
 	XPlot(const char *name, bool runtime, const shared_ptr<XGraph> &graph);
 public:  
-	virtual std::string getLabel() const {return *label();}
+	virtual XString getLabel() const {return *label();}
 
 	virtual int clearAllPoints(void) = 0;
 
@@ -307,7 +307,7 @@ protected:
 public:
 	virtual ~XAxis() {}
 
-	virtual std::string getLabel() const {return *label();}
+	virtual XString getLabel() const {return *label();}
   
 	int drawAxis(XQGraphPainter *painter);
 	//! obtains axis pos from value
@@ -324,7 +324,7 @@ public:
 	void valToScreen(XGraph::VFloat val, XGraph::ScrPoint *scr);
 	XGraph::VFloat screenToVal(const XGraph::ScrPoint &scr);
   
-	std::string valToString(XGraph::VFloat val); 
+	XString valToString(XGraph::VFloat val);
 
 	const shared_ptr<XStringNode> &label() const {return m_label;}
     

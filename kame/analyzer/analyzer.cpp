@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -12,14 +12,14 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 //---------------------------------------------------------------------------
-#include "graphform.h"
+#include "ui_graphform.h"
 #include "graphwidget.h"
 #include "analyzer.h"
 #include "graph.h"
 #include "driver.h"
 #include "measure.h"
 
-#include <qstatusbar.h>
+#include <QStatusBar>
 
 //---------------------------------------------------------------------------
 XScalarEntry::XScalarEntry(const char *name, bool runtime, const shared_ptr<XDriver> &driver,
@@ -49,7 +49,7 @@ XScalarEntry::storeValue()
     m_bTriggered = false;
 }
 
-std::string
+XString
 XScalarEntry::getLabel() const
 {
 	return driver()->getLabel() + "-" + XNode::getLabel();
@@ -71,7 +71,6 @@ XValChart::XValChart(const char *name, bool runtime, const shared_ptr<XScalarEnt
 	  m_graph(create<XGraph>(name, false)),
 	  m_graphForm(new FrmGraph(g_pFrmMain))
 {
-    m_graphForm->statusBar()->hide();
     m_graphForm->m_graphwidget->setGraph(m_graph);
     
     m_chart= m_graph->plots()->create<XXYPlot>(entry->getName().c_str(), true, m_graph);
@@ -111,7 +110,7 @@ XValChart::onRecord(const shared_ptr<XDriver> &driver)
 void
 XValChart::showChart(void)
 {
-	m_graphForm->setCaption(KAME::i18n("Chart - ") + getLabel() );
+	m_graphForm->setWindowTitle(i18n("Chart - ") + getLabel() );
 	m_graphForm->show();
 }
 
@@ -172,7 +171,6 @@ XValGraph::onAxisChanged(const shared_ptr<XValueNodeBase> &)
 	if(m_graph) releaseChild(m_graph);
 	m_graph = create<XGraph>(getName().c_str(), false);
 	m_graphForm.reset(new FrmGraph(g_pFrmMain));
-	m_graphForm->statusBar()->hide();
 	m_graphForm->m_graphwidget->setGraph(m_graph);
 
 	if(!entryx || !entryy1) return;
@@ -271,7 +269,7 @@ void
 XValGraph::showGraph()
 {
 	if(m_graphForm) {
-		m_graphForm->setCaption(KAME::i18n("Graph - ") + getLabel() );
+		m_graphForm->setWindowTitle(i18n("Graph - ") + getLabel() );
 		m_graphForm->show();
 	}
 }

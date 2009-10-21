@@ -16,7 +16,7 @@
 
 #include "charinterface.h"
 
-#if  defined __linux__ || defined MACOSX
+#if  defined __linux__ || defined __APPLE__
 #define SERIAL_POSIX
 #endif //__linux__ || LINUX
 

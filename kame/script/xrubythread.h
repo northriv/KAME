@@ -37,7 +37,7 @@ class XRubyThread : public XNode
 {
 	XNODE_OBJECT
 protected:
-	XRubyThread(const char *name, bool runtime, const QString &filename);
+	XRubyThread(const char *name, bool runtime, const XString &filename);
 public:
 	virtual ~XRubyThread() {}
 
@@ -46,9 +46,9 @@ public:
 	void kill();
 	void resume();
   
-	XTalker<shared_ptr<std::string> > &onMessageOut() {return m_tlkOnMessageOut;}
+	XTalker<shared_ptr<XString> > &onMessageOut() {return m_tlkOnMessageOut;}
 	//! def. input gets(). Return "" if the buffer is empty.
-	std::string gets();
+	XString gets();
 	const shared_ptr<XStringNode> &lineinput() const {return m_lineinput;}
 
 	const shared_ptr<XStringNode> &status() const {return m_status;}
@@ -56,7 +56,7 @@ public:
 //  shared_ptr<XStringNode> &action() const {return m_action;}
 	const shared_ptr<XIntNode> &threadID() const {return m_threadID;}
 private:
-	XTalker<shared_ptr<std::string> > m_tlkOnMessageOut;
+	XTalker<shared_ptr<XString> > m_tlkOnMessageOut;
 	const shared_ptr<XStringNode> m_filename;
 	shared_ptr<XStringNode> m_status;
 	shared_ptr<XStringNode> m_action;
@@ -64,7 +64,7 @@ private:
 	shared_ptr<XIntNode> m_threadID;
 	shared_ptr<XListener> m_lsnOnLineChanged;
 	void onLineChanged(const shared_ptr<XValueNodeBase> &);
-	std::deque<std::string> m_lineBuffer;
+	std::deque<XString> m_lineBuffer;
 	XMutex m_lineBufferMutex;
 };
 

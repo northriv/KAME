@@ -70,14 +70,14 @@ XNIDAQmxDSO::~XNIDAQmxDSO()
 void
 XNIDAQmxDSO::onSoftTrigChanged(const shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &) {
 	trigSource()->clear();
-	std::string series = interface()->productSeries();
+	XString series = interface()->productSeries();
 	{
 		char buf[2048];
 		{
 			CHECK_DAQMX_RET(DAQmxGetDevAIPhysicalChans(interface()->devName(), buf, sizeof(buf)));
-			std::deque<std::string> chans;
+			std::deque<XString> chans;
 			XNIDAQmxInterface::parseList(buf, chans);
-			for(std::deque<std::string>::iterator it = chans.begin(); it != chans.end(); it++) {
+			for(std::deque<XString>::iterator it = chans.begin(); it != chans.end(); it++) {
 				trigSource()->add(it->c_str());
 			}
 		}
@@ -105,7 +105,7 @@ XNIDAQmxDSO::onSoftTrigChanged(const shared_ptr<XNIDAQmxInterface::SoftwareTrigg
 		if(series == "S")
 			sc = sc_s;
 		for(const char**it = sc; *it; it++) {
-			std::string str(formatString("/%s/%s", interface()->devName(), *it));
+			XString str(formatString("/%s/%s", interface()->devName(), *it));
 			trigSource()->add(str);
 		}
 		atomic_shared_ptr<XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList>
@@ -127,9 +127,9 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 	char buf[2048];
 	{
 		CHECK_DAQMX_RET(DAQmxGetDevAIPhysicalChans(interface()->devName(), buf, sizeof(buf)));
-		std::deque<std::string> chans;
+		std::deque<XString> chans;
 		XNIDAQmxInterface::parseList(buf, chans);
-		for(std::deque<std::string>::iterator it = chans.begin(); it != chans.end(); it++) {
+		for(std::deque<XString>::iterator it = chans.begin(); it != chans.end(); it++) {
 			trace1()->add(it->c_str());
 			trace2()->add(it->c_str());
 		}
@@ -226,16 +226,16 @@ XNIDAQmxDSO::setupTrigger()
 	unsigned int pretrig = lrint(*trigPos() / 100.0 * *recordLength());
 	m_preTriggerPos = pretrig;
 
-	std::string atrig;
-	std::string dtrig;
-	std::string src = trigSource()->to_str();
+	XString atrig;
+	XString dtrig;
+	XString src = trigSource()->to_str();
 
 	char buf[2048];
 	{
 		CHECK_DAQMX_RET(DAQmxGetDevAIPhysicalChans(interface()->devName(), buf, sizeof(buf)));
-		std::deque<std::string> chans;
+		std::deque<XString> chans;
 		XNIDAQmxInterface::parseList(buf, chans);
-		for(std::deque<std::string>::iterator it = chans.begin(); it != chans.end(); it++) {
+		for(std::deque<XString>::iterator it = chans.begin(); it != chans.end(); it++) {
 			if(src == *it)
 				atrig = *it;
 		}
@@ -301,7 +301,7 @@ XNIDAQmxDSO::setupTrigger()
 void
 XNIDAQmxDSO::setupSoftwareTrigger()
 {
-	std::string src = trigSource()->to_str();
+	XString src = trigSource()->to_str();
 	//setup virtual trigger.
 	atomic_shared_ptr<XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList>
 		list(XNIDAQmxInterface::SoftwareTrigger::virtualTrigList());
@@ -577,7 +577,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 
 		const DSORawRecord &old_rec(m_dsoRawRecordBanks[m_dsoRawRecordBankLatest]);
 		if(num_ch != old_rec.numCh)
-			throw XInterface::XInterfaceError(KAME::i18n("Inconsistent channel number."), __FILE__, __LINE__);
+			throw XInterface::XInterfaceError(i18n("Inconsistent channel number."), __FILE__, __LINE__);
 
 		const unsigned int size = m_recordBuf.size() / num_ch;
 		const float64 freq = 1.0 / m_interval;
@@ -595,7 +595,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 					uInt32 bufsize;
 					CHECK_DAQMX_RET(DAQmxGetBufInputBufSize(m_task, &bufsize));
 					if(total_samps - lastcnt + m_preTriggerPos > bufsize * 4 / 5) {
-						gWarnPrint(KAME::i18n("Buffer Overflow."));
+						gWarnPrint(i18n("Buffer Overflow."));
 						continue;
 					}
 					//set read pos.
@@ -775,7 +775,7 @@ XNIDAQmxDSO::startSequence()
 		}
 		else {
 			CHECK_DAQMX_RET(DAQmxTaskControl(m_task, DAQmx_Val_Task_Commit));
-			statusPrinter()->printMessage(KAME::i18n("Restart the software-trigger source."));
+			statusPrinter()->printMessage(i18n("Restart the software-trigger source."));
 		}
 	}
 	else {
@@ -822,7 +822,7 @@ XNIDAQmxDSO::aiRawToVolt(const float64 *pcoeff, float64 raw)
 }
 
 void
-XNIDAQmxDSO::getWave(std::deque<std::string> &)
+XNIDAQmxDSO::getWave(std::deque<XString> &)
 {
 	XScopedLock<XInterface> lock(*interface());
 
@@ -864,7 +864,7 @@ XNIDAQmxDSO::getWave(std::deque<std::string> &)
 	const unsigned int size = len * num_ch;
 	for(unsigned int i = 0; i < size; i++)
 		push(*p++, raw_data);
-	std::string str(buf);
+	XString str(buf);
 	rawData().insert(rawData().end(), str.begin(), str.end());
 	str = ""; //reserved/
 	rawData().insert(rawData().end(), str.begin(), str.end());

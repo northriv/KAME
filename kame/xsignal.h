@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -274,8 +274,7 @@ XTalker<tArg>::talk(const tArg &arg) {
 	if(empty()) return;
 	atomic_shared_ptr<ListenerList> list(m_listeners);
 	if(!list) return;
-	for(ListenerList_it it = list->begin(); it != list->end(); it++)
-	{
+	for(ListenerList_it it = list->begin(); it != list->end(); it++) {
 		if(shared_ptr<Listener> listener = it->lock()) {
 			if((listener->m_flags & XListener::FLAG_MASKED) == 0) {
 				if(isMainThread() || ((listener->m_flags & XListener::FLAG_MAIN_THREAD_CALL) == 0)) {

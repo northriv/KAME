@@ -118,7 +118,7 @@ XH8Pulser::changeOutput(bool output, unsigned int blankpattern)
 	{
 		if(m_zippedPatterns.empty() |
 		   (m_zippedPatterns.size() >= MAX_PATTERN_SIZE ))
-			throw XInterface::XInterfaceError(KAME::i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
+			throw XInterface::XInterfaceError(i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
 		for(unsigned int retry = 0; ; retry++) {
 			try {
 				interface()->sendf("$poff %x", blankpattern);
@@ -145,11 +145,11 @@ XH8Pulser::changeOutput(bool output, unsigned int blankpattern)
 				if(interface()->scanf("%x", &ret) != 1)
 					throw XInterface::XConvError(__FILE__, __LINE__);
 				if(ret != size)
-					throw XInterface::XInterfaceError(KAME::i18n("Pulser Check Sum Error"), __FILE__, __LINE__);
+					throw XInterface::XInterfaceError(i18n("Pulser Check Sum Error"), __FILE__, __LINE__);
 			}
 			catch (XKameError &e) {
 				if(retry > 0) throw e;
-				e.print(getLabel() + ": " + KAME::i18n("try to continue") + ", ");
+				e.print(getLabel() + ": " + i18n("try to continue") + ", ");
 				continue;
 			}
 			break;

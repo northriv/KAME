@@ -40,23 +40,23 @@ XNIDAQAODOPulser::open() throw (XInterface::XInterfaceError &)
 void
 XNIDAQDOPulser::open() throw (XInterface::XInterfaceError &)
 {
-//	if(std::string(interface()->productSeries()) != "M")
-//		throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
+//	if(XString(interface()->productSeries()) != "M")
+//		throw XInterface::XInterfaceError(i18n("Product-type mismatch."), __FILE__, __LINE__);
  	openDO();
 	this->start();	
 }
 void
 XNIDAQMSeriesWithSSeriesPulser::open() throw (XInterface::XInterfaceError &)
 {
-	if(std::string(interface()->productSeries()) != "M")
-		throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
+	if(XString(interface()->productSeries()) != "M")
+		throw XInterface::XInterfaceError(i18n("Product-type mismatch."), __FILE__, __LINE__);
 
 	intfAO()->start();
 	if(!intfAO()->isOpened())
-		throw XInterface::XInterfaceError(KAME::i18n("Opening M series device failed."), __FILE__, __LINE__);
+		throw XInterface::XInterfaceError(i18n("Opening M series device failed."), __FILE__, __LINE__);
 
-	if(std::string(intfAO()->productSeries()) != "S")
-		throw XInterface::XInterfaceError(KAME::i18n("Product-type mismatch."), __FILE__, __LINE__);
+	if(XString(intfAO()->productSeries()) != "S")
+		throw XInterface::XInterfaceError(i18n("Product-type mismatch."), __FILE__, __LINE__);
  	openAODO();
 	this->start();	
 }

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -28,7 +28,7 @@ class XQGraph : public QGLWidget
 	Q_OBJECT
 
 public:
-	XQGraph( QWidget* parent = 0, const char* name = 0, WFlags fl = 0 );
+	XQGraph( QWidget* parent = 0, Qt::WFlags fl = 0 );
 	virtual ~XQGraph();
 	//! register XGraph instance just after creating
 	void setGraph(const shared_ptr<XGraph> &);
@@ -51,5 +51,8 @@ private:
 	shared_ptr<XQGraphPainter> m_painter;
 	xqcon_ptr m_conDialog;
 };
+
+class Ui_FrmGraph;
+typedef QForm<QMainWindow, Ui_FrmGraph> FrmGraph;
 
 #endif // GRAPHWIDGET_H

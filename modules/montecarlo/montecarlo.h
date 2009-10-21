@@ -14,7 +14,6 @@
 #ifndef MONTECARLO_H_
 #define MONTECARLO_H_
 
-#include "config.h"
 #include "thread.h"
 
 #include "support.h"

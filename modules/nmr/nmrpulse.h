@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -21,11 +21,10 @@
 #include <complex>
 //---------------------------------------------------------------------------
 #include "nmrspectrumsolver.h"
+#include "xwavengraph.h"
 
-class FrmNMRPulse;
-class XWaveNGraph;
-class XXYPlot;
-class FrmGraphNURL;
+class Ui_FrmNMRPulse;
+typedef QForm<QMainWindow, Ui_FrmNMRPulse> FrmNMRPulse;
 
 class XNMRPulseAnalyzer : public XSecondaryDriver
 {

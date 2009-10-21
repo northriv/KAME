@@ -36,7 +36,7 @@ XPrimaryDriver::finishWritingRaw(
     		break;
     	msecsleep(i*10);
     	if(i > 20) {
-    		gErrPrint(formatString(KAME::i18n(
+    		gErrPrint(formatString_tr(I18N_NOOP(
     				"Dead lock deteceted on %s. Operation canceled.\nReport this bug to author(s)."),
     				getName().c_str()));
     		return;
@@ -50,11 +50,11 @@ XPrimaryDriver::finishWritingRaw(
 	    catch (XSkippedRecordError& e) {
 	    	skipped = true;
 	    	if(e.msg().length())
-	    		e.print(getLabel() + ": " + KAME::i18n("Skipped, because "));
+	    		e.print(getLabel() + ": " + i18n("Skipped, because "));
 	    }
 	    catch (XRecordError& e) {
 			time_recorded = XTime(); //record is invalid
-			e.print(getLabel() + ": " + KAME::i18n("Record Error, because "));
+			e.print(getLabel() + ": " + i18n("Record Error, because "));
 	    }
     }
     if(skipped)

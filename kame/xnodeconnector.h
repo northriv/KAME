@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -17,13 +17,79 @@
 #define xnodeconnectorH
 
 #include <support.h>
+#include <QObject>
+
+#include <xsignal.h>
+
+class QWidget;
+
+void _sharedPtrQDeleter(QObject *);
+
+template <class T>
+class qshared_ptr : public shared_ptr<T>
+{
+public:
+    qshared_ptr() : shared_ptr<T>() {}
+    template <class Y>
+    qshared_ptr(const qshared_ptr<Y> &p)
+        : shared_ptr<T>(static_cast<const shared_ptr<Y> &>(p) ) {}
+    template <class Y>
+    explicit qshared_ptr(Y * p)
+        : shared_ptr<T>(p, _sharedPtrQDeleter) {
+		ASSERT(isMainThread());
+	}
+    template <class Y>
+    qshared_ptr<T> &operator=(const qshared_ptr<Y> &p) {
+        shared_ptr<T>::operator=(p);
+        return *this;
+    }
+};
+
+class XQConnector;
+
+class _XQConnectorHolder : public QObject
+{
+	Q_OBJECT
+public:
+	_XQConnectorHolder(XQConnector *con);
+	~_XQConnectorHolder();
+	bool isAlive() const;
+private slots:
+		protected slots:
+void destroyed ();
+protected:
+	shared_ptr<XQConnector> m_connector;
+public:
+};
+
+typedef qshared_ptr<_XQConnectorHolder> xqcon_ptr;
+
+#include <xnodeconnector_prv.h>
+
 #include <xnode.h>
 #include <xlistnode.h>
 #include <xitemnode.h>
-#include <xnodeconnector_prv.h>
+
+#include <fstream>
+
+#include <QColor>
+#include <QPoint>
+#include <QTimer>
 
 //! Needed for making new forms.
 extern QWidget *g_pFrmMain;
+
+//! Providing an easy access to make a new form with UIs designed by Qt designer.
+template <class FRM, class UI>
+struct QForm : public FRM, public UI {
+	QForm() : FRM(), UI() {this->setupUi(this);}
+	template <typename A>
+	explicit QForm(A a) : FRM(a), UI() {this->setupUi(this);}
+	template <typename A, typename B>
+	QForm(A a, B b) : FRM(a, b), UI() {this->setupUi(this);}
+	template <typename A, typename B, typename C>
+	QForm(A a, B b, C c) : FRM(a, b, c), UI() {this->setupUi(this);}
+};
 
 //! Associate QWidget to XNode.
 //! use connectWeak() to make XListener.
@@ -54,14 +120,14 @@ protected:
 	QWidget *m_pWidget;
 };
 
-class QButton;
+class QAbstractButton;
 
 class XQButtonConnector : public XQConnector
 {
 	Q_OBJECT
 	XQCON_OBJECT
 protected:
-	XQButtonConnector(const shared_ptr<XNode> &node, QButton *item);
+	XQButtonConnector(const shared_ptr<XNode> &node, QAbstractButton *item);
 public:
 	virtual ~XQButtonConnector();
 private slots:
@@ -71,7 +137,7 @@ protected:
 	virtual void onTouch(const shared_ptr<XNode> &node);
 	shared_ptr<XListener> m_lsnTouch;
 	const shared_ptr<XNode> m_node;
-	QButton *const m_pItem;
+	QAbstractButton *const m_pItem;
 };
 
 class XValueQConnector : public XQConnector
@@ -113,7 +179,7 @@ protected:
 	QLineEdit *const m_pItem;
 };
 
-class QTextBrowser;
+class Q3TextBrowser;
 
 class XQTextBrowserConnector : public XValueQConnector
 {
@@ -121,7 +187,7 @@ class XQTextBrowserConnector : public XValueQConnector
 	XQCON_OBJECT
 protected:
 	XQTextBrowserConnector(const shared_ptr<XValueNodeBase> &node,
-		QTextBrowser *item);
+		Q3TextBrowser *item);
 public:
 	virtual ~XQTextBrowserConnector() {}
 protected slots:
@@ -129,7 +195,7 @@ protected:
 	virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
 	virtual void onValueChanged(const shared_ptr<XValueNodeBase> &);
 	const shared_ptr<XValueNodeBase> m_node;
-	QTextBrowser *const m_pItem;
+	Q3TextBrowser *const m_pItem;
 };
 
 class QSpinBox;
@@ -177,44 +243,44 @@ protected:
 	KDoubleNumInput *const m_pItem;
 };
 
-class KDoubleSpinBox;
+class QDoubleSpinBox;
 
-class XKDoubleSpinBoxConnector : public XValueQConnector
+class XQDoubleSpinBoxConnector : public XValueQConnector
 {
 	Q_OBJECT
 	XQCON_OBJECT
 protected:
-	XKDoubleSpinBoxConnector(const shared_ptr<XDoubleNode> &node,
-		KDoubleSpinBox *item);
+	XQDoubleSpinBoxConnector(const shared_ptr<XDoubleNode> &node,
+		QDoubleSpinBox *item);
 public:
-	virtual ~XKDoubleSpinBoxConnector() {}
+	virtual ~XQDoubleSpinBoxConnector() {}
 protected slots:
 void onChange(double val);
 protected:
 	virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
 	virtual void onValueChanged(const shared_ptr<XValueNodeBase> &node);
 	const shared_ptr<XDoubleNode> m_node;
-	KDoubleSpinBox *const m_pItem;
+	QDoubleSpinBox *const m_pItem;
 };
 
-class KURLRequester;
-
+class KUrlRequester;
+class KUrl;
 class XKURLReqConnector : public XValueQConnector
 {
 	Q_OBJECT
 	XQCON_OBJECT
 protected:
 	XKURLReqConnector(const shared_ptr<XStringNode> &node, 
-		KURLRequester *item, const char *filter, bool saving);
+		KUrlRequester *item, const char *filter, bool saving);
 public:
 	virtual ~XKURLReqConnector() {}
 protected slots:
-void onSelect( const QString& );
+void onSelect( const KUrl& );
 protected:
 	virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
 	virtual void onValueChanged(const shared_ptr<XValueNodeBase> &node);
 	const shared_ptr<XStringNode> m_node;
-	KURLRequester *const m_pItem;
+	KUrlRequester *const m_pItem;
 };
 
 class QLabel;
@@ -279,7 +345,7 @@ class XQToggleButtonConnector : public XValueQConnector
 	XQCON_OBJECT
 protected:
 	XQToggleButtonConnector(const shared_ptr<XBoolNode> &node,
-		QButton *item);
+		QAbstractButton *item);
 public:
 	virtual ~XQToggleButtonConnector() {}
 protected slots:
@@ -288,16 +354,16 @@ protected:
 	virtual void beforeValueChanged(const shared_ptr<XValueNodeBase> &) {}
 	virtual void onValueChanged(const shared_ptr<XValueNodeBase> &node);
 	const shared_ptr<XBoolNode> m_node;
-	QButton *const m_pItem;
+	QAbstractButton *const m_pItem;
 };
 
-class QTable;
+class Q3Table;
 class XListQConnector : public XQConnector
 {
 	Q_OBJECT
 	XQCON_OBJECT
 protected:
-	XListQConnector(const shared_ptr<XListNodeBase> &node, QTable *item);
+	XListQConnector(const shared_ptr<XListNodeBase> &node, Q3Table *item);
 public:
 	virtual ~XListQConnector();
 private slots:
@@ -310,7 +376,7 @@ protected:
 	shared_ptr<XListener> m_lsnRelease;
 	virtual void onCatch(const shared_ptr<XNode> &node) = 0;
 	virtual void onRelease(const shared_ptr<XNode> &node) = 0;
-	QTable *const m_pItem;
+	Q3Table *const m_pItem;
 	const shared_ptr<XListNodeBase> m_list;
 };
 
@@ -353,7 +419,7 @@ protected:
 	int findItem(const QString &);
 };
 
-class QListBox;
+class Q3ListBox;
 
 class XQListBoxConnector : public XItemQConnector
 {
@@ -361,7 +427,7 @@ class XQListBoxConnector : public XItemQConnector
 	XQCON_OBJECT
 protected:
 	XQListBoxConnector(const shared_ptr<XItemNodeBase> &node,
-		QListBox *item);
+		Q3ListBox *item);
 public:
 	virtual ~XQListBoxConnector() {}
 protected slots:
@@ -371,7 +437,7 @@ protected:
 	virtual void onValueChanged(const shared_ptr<XValueNodeBase> &);
 	virtual void onListChanged(const shared_ptr<XItemNodeBase> &);
 	const shared_ptr<XItemNodeBase> m_node;
-	QListBox *const m_pItem;
+	Q3ListBox *const m_pItem;
 };
 
 class KColorButton;
@@ -425,12 +491,12 @@ protected:
 public:
 	static shared_ptr<XStatusPrinter> create(QMainWindow *window = NULL);
 	~XStatusPrinter();
-	void printMessage(const QString &str, bool popup = true);
-	void printWarning(const QString &str, bool popup = false);
-	void printError(const QString &str, bool popup = true);
+	void printMessage(const XString &str, bool popup = true);
+	void printWarning(const XString &str, bool popup = false);
+	void printError(const XString &str, bool popup = true);
 	void clear();
 private:
-	struct tstatus {std::string str; int ms; bool popup; enum {Normal, Warning, Error} type;};
+	struct tstatus {XString str; int ms; bool popup; enum {Normal, Warning, Error} type;};
 	XTalker<tstatus> m_tlkTalker;
 	shared_ptr<XListener> m_lsn;
 	QMainWindow *m_pWindow;

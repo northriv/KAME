@@ -1,4 +1,4 @@
-KAME instllation
+KAME instllation notes
 
 KAME needs following libraries:
 kdelibs and others depending on kdelibs
@@ -6,21 +6,15 @@ boost
 ruby
 gsl
 fftw (ver.3)
+ftgl
 lapack/atlas/blas
 linux-gpib (optional)
 National Instruments DAQmx library (optional)
-FTGL (included in source tree)
 mikachanfont (included in source tree)
 
-ftgl has to be expanded to KAME root source directory.
 The document files and the font file of mikachanfont has to be copied to (root-source)/kame/mikachanfont
 
-To build FTGL
-in directory FTGL/unix
-./configure --enable-static --disable-shared
-make # perhaps -fpermissive option is needed in CFLAGS for gcc-4.
-
 To build KAME
-./configure (options)
+cmake (options) (path_to_source_dir)
 make
-make install
+su -c 'make install'

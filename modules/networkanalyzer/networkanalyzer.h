@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -18,13 +18,12 @@
 //---------------------------------------------------------------------------
 #include "primarydriver.h"
 #include "xnodeconnector.h"
+#include "xwavengraph.h"
 
 class XScalarEntry;
-class FrmNetworkAnalyzer;
-class XWaveNGraph;
-class FrmGraphNURL;
-class XGraph;
-class XXYPlot;
+class QMainWindow;
+class Ui_FrmNetworkAnalyzer;
+typedef QForm<QMainWindow, Ui_FrmNetworkAnalyzer> FrmNetworkAnalyzer;
 
 //! Base class for digital storage oscilloscope.
 class XNetworkAnalyzer : public XPrimaryDriver

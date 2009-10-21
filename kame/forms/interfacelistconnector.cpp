@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -15,16 +15,16 @@
 #include "interfacelistconnector.h"
 #include "driver.h"
 
-#include <qtable.h>
+#include <q3table.h>
 #include <qlineedit.h>
 #include <qcombobox.h>
 #include <qpushbutton.h>
 #include <qspinbox.h>
 #include <kiconloader.h>
-#include <kapplication.h>
+
 
 XInterfaceListConnector::XInterfaceListConnector(
-    const shared_ptr<XInterfaceList> &node, QTable *item)
+    const shared_ptr<XInterfaceList> &node, Q3Table *item)
 	: XListQConnector(node, item), m_interfaceList(node)
 {
 	connect(m_pItem, SIGNAL( clicked( int, int, int, const QPoint& )),
@@ -37,11 +37,11 @@ XInterfaceListConnector::XInterfaceListConnector(
 	item->setColumnWidth(3, (int)(def * 1));
 	item->setColumnWidth(4, (int)(def * 1));
 	QStringList labels;
-	labels += KAME::i18n("Driver");
-	labels += KAME::i18n("Control");
-	labels += KAME::i18n("Device");
-	labels += KAME::i18n("Port");
-	labels += KAME::i18n("Addr");
+	labels += i18n("Driver");
+	labels += i18n("Control");
+	labels += i18n("Device");
+	labels += i18n("Port");
+	labels += i18n("Addr");
 	item->setColumnLabels(labels);
 
 	atomic_shared_ptr<const XNode::NodeList> list(node->children());
@@ -58,16 +58,16 @@ XInterfaceListConnector::onControlChanged(const shared_ptr<XValueNodeBase> &node
 	{
 		if(it->interface->control() == node)
 		{
-			KApplication *app = KApplication::kApplication();
+		    KIconLoader *loader = KIconLoader::global();
 			if(*it->interface->control()) {
-				it->btn->setIconSet( app->iconLoader()->loadIconSet("stop", 
-																	KIcon::Toolbar, KIcon::SizeSmall, true ) );
-				it->btn->setText(KAME::i18n("&STOP"));
+				it->btn->setIcon( loader->loadIcon("stop",
+																	KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+				it->btn->setText(i18n("&STOP"));
 			}
 			else {
-				it->btn->setIconSet( app->iconLoader()->loadIconSet("run", 
-																	KIcon::Toolbar, KIcon::SizeSmall, true ) );
-				it->btn->setText(KAME::i18n("&RUN"));
+				it->btn->setIcon( loader->loadIcon("run",
+																	KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+				it->btn->setText(i18n("&RUN"));
 			}
 		}
 	}
@@ -77,11 +77,11 @@ XInterfaceListConnector::onCatch(const shared_ptr<XNode> &node) {
 	shared_ptr<XInterface> interface = dynamic_pointer_cast<XInterface>(node);
 	int i = m_pItem->numRows();
 	m_pItem->insertRows(i);
-	m_pItem->setText(i, 0, interface->getLabel());
+	m_pItem->setText(i, 0, interface->getLabel().c_str());
 	struct tcons con;
 	con.interface = interface;
 	con.btn = new QPushButton(m_pItem);
-	con.btn->setToggleButton(true);
+	con.btn->setCheckable(true);
 	con.btn->setAutoDefault(false);
 	con.btn->setFlat(true);
 	con.concontrol = xqcon_create<XQToggleButtonConnector>(interface->control(), con.btn);    
@@ -92,7 +92,9 @@ XInterfaceListConnector::onCatch(const shared_ptr<XNode> &node) {
 	QLineEdit *edPort(new QLineEdit(m_pItem) );
 	con.conport = xqcon_create<XQLineEditConnector>(interface->port(), edPort, false);
 	m_pItem->setCellWidget(i, 3, edPort);
-	QSpinBox *numAddr(new QSpinBox(0, 32, 1, m_pItem) );
+	QSpinBox *numAddr(new QSpinBox(m_pItem) );
+	numAddr->setRange(0, 32);
+	numAddr->setSingleStep(1);
 	con.conaddr = xqcon_create<XQSpinBoxConnector>(interface->address(), numAddr);
 	m_pItem->setCellWidget(i, 4, numAddr);
 	con.lsnOnControlChanged = interface->control()->onValueChanged().connectWeak(

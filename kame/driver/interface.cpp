@@ -20,14 +20,14 @@
 
 //---------------------------------------------------------------------------
 
-XInterface::XInterfaceError::XInterfaceError(const QString &msg, const char *file, int line)
+XInterface::XInterfaceError::XInterfaceError(const XString &msg, const char *file, int line)
 	: XKameError(msg, file, line) {}
 XInterface::XConvError::XConvError(const char *file, int line)
-	: XInterfaceError(KAME::i18n("Conversion Error"), file, line) {}
-XInterface::XCommError::XCommError(const QString &msg, const char *file, int line)
-	:  XInterfaceError(KAME::i18n("Communication Error") + ", " + msg, file, line) {}
+	: XInterfaceError(i18n("Conversion Error"), file, line) {}
+XInterface::XCommError::XCommError(const XString &msg, const char *file, int line)
+	:  XInterfaceError(i18n("Communication Error") + ", " + msg, file, line) {}
 XInterface::XOpenInterfaceError::XOpenInterfaceError(const char *file, int line)
-	:  XInterfaceError(KAME::i18n("Open Interface Error"), file, line) {}
+	:  XInterfaceError(i18n("Open Interface Error"), file, line) {}
 
 
 XInterface::XInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) : 
@@ -42,7 +42,7 @@ XInterface::XInterface(const char *name, bool runtime, const shared_ptr<XDriver>
         shared_from_this(), &XInterface::onControlChanged);
 }
 
-std::string
+XString
 XInterface::getLabel() const
 {
 	if(m_label.empty())
@@ -55,7 +55,7 @@ void
 XInterface::onControlChanged(const shared_ptr<XValueNodeBase> &)
 {
 	if(*control()) {
-	    g_statusPrinter->printMessage(driver()->getLabel() + KAME::i18n(": Starting..."));
+	    g_statusPrinter->printMessage(driver()->getLabel() + i18n(": Starting..."));
 		start();
 	}
 	else {
@@ -70,13 +70,13 @@ XInterface::start()
 	XScopedLock<XInterface> lock(*this);
 	try {
 		if(isOpened()) {
-			gErrPrint(getLabel() + KAME::i18n("Port has already opened"));
+			gErrPrint(getLabel() + i18n("Port has already opened"));
 			return;
 		}
 		open();
 	}
 	catch (XInterfaceError &e) {
-        e.print(getLabel() + KAME::i18n(": Opening interface failed, because "));
+        e.print(getLabel() + i18n(": Opening interface failed, because "));
 		lsnOnControlChanged->mask();
 		control()->value(false);
 		lsnOnControlChanged->unmask();
@@ -102,7 +102,7 @@ XInterface::stop()
 		close();
 	}
 	catch (XInterfaceError &e) {
-        e.print(getLabel() + KAME::i18n(": Closing port failed, because"));
+        e.print(getLabel() + i18n(": Closing port failed, because"));
 	}
 
 	device()->setUIEnabled(true);

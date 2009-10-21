@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -16,11 +16,8 @@
 
 #include "charinterface.h"
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
 #ifdef HAVE_LINUX_GPIB
 #define GPIB_LINUX_NI
-#endif
 #endif
 
 #if defined WINDOWS || defined __WIN32__
@@ -57,7 +54,7 @@ private:
 	void gpib_reset() throw (XInterface::XCommError &);
 	void gpib_spoll_before_write() throw (XInterface::XCommError &);
 	void gpib_spoll_before_read() throw (XInterface::XCommError &);
-	QString gpibStatus(const QString &msg);
+	XString gpibStatus(const XString &msg);
 	unsigned int gpib_receive(unsigned int est_length, unsigned int max_length)
 		throw (XInterface::XCommError &);
 	static int s_cntOpened;

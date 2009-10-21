@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -38,39 +38,39 @@ void makeIcons(KIconLoader *loader)
 	g_pIconKame24x24->loadFromData( icon_kame_24x24_png, sizeof( icon_kame_24x24_png ), "PNG" );
 	
 	g_pIconKame48x48 = new QPixmap(
-		loader->loadIcon("kame", KIcon::Toolbar, 0, KIcon::DefaultState, 0, true ));
+		loader->loadIcon("kame", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, true ));
 	if(g_pIconKame48x48->isNull() ) g_pIconKame48x48 = g_pIconKame24x24;
 
 	g_pIconInfo = new QPixmap(
-		loader->loadIcon("messagebox_info", KIcon::Toolbar, 0, KIcon::DefaultState, 0, false ));
+		loader->loadIcon("messagebox_info", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
 	
 	g_pIconWarn = new QPixmap(
-		loader->loadIcon("messagebox_warning", KIcon::Toolbar, 0, KIcon::DefaultState, 0, false ));
+		loader->loadIcon("messagebox_warning", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
 	
 	g_pIconError = new QPixmap(
-		loader->loadIcon("messagebox_critical", KIcon::Toolbar, 0, KIcon::DefaultState, 0, false ));
+		loader->loadIcon("messagebox_critical", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
 	
 	g_pIconStop = new QPixmap(
-		loader->loadIcon("stop", KIcon::Toolbar, 0, KIcon::DefaultState, 0, false ));
+		loader->loadIcon("stop", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
 	
 	g_pIconClose = new QPixmap(
-		loader->loadIcon("fileclose", KIcon::Toolbar, 0, KIcon::DefaultState, 0, false ));
+		loader->loadIcon("fileclose", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
 	
 	g_pIconDriver = new QPixmap(
-		loader->loadIcon("exec", KIcon::Toolbar, 0, KIcon::DefaultState, 0, false ));
+		loader->loadIcon("exec", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
 	
 	g_pIconInterface = new QPixmap(
-		loader->loadIcon("mouse", KIcon::Toolbar, 0, KIcon::DefaultState, 0, false ));
+		loader->loadIcon("mouse", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
 	
 	g_pIconReader = new QPixmap(
-		loader->loadIcon("player_play", KIcon::Toolbar, 0, KIcon::DefaultState, 0, false ));
+		loader->loadIcon("player_play", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
 	
 	g_pIconScalar = new QPixmap(
-		loader->loadIcon("math_abs", KIcon::Toolbar, 0, KIcon::DefaultState, 0, false ));
+		loader->loadIcon("math_abs", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
 	
 	g_pIconGraph = new QPixmap(
-		loader->loadIcon("graph", KIcon::Toolbar, 0, KIcon::DefaultState, 0, false ));
+		loader->loadIcon("graph", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
 	
 	g_pIconScript = new QPixmap(
-		loader->loadIcon("ruby", KIcon::Toolbar, 0, KIcon::DefaultState, 0, false ));
+		loader->loadIcon("ruby", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
 }

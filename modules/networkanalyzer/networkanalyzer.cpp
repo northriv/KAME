@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -12,15 +12,13 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "networkanalyzer.h"
-#include "forms/networkanalyzerform.h"
+#include "ui_networkanalyzerform.h"
 #include "graph.h"
 #include "graphwidget.h"
-#include "xwavengraph.h"
 
 #include "interface.h"
 #include "analyzer.h"
 #include "xnodeconnector.h"
-#include <kapplication.h>
 
 XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 		   const shared_ptr<XScalarEntryList> &scalarentries,
@@ -83,7 +81,7 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	shared_ptr<XXYPlot> plot = m_graph->plots()->create<XXYPlot>(
 		"Markers", true, m_graph);
 	m_markerPlot = plot;
-	plot->label()->value(KAME::i18n("Markers"));
+	plot->label()->value(i18n("Markers"));
 	plot->axisX()->value(axisx);
 	plot->axisY()->value(axisy);
 	plot->drawLines()->value(false);

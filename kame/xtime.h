@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -21,7 +21,7 @@
 void msecsleep(unsigned int ms);
 
 //! fetch CPU counter.
-unsigned long timeStamp();
+unsigned int timeStamp();
 
 class XTime
 {
@@ -96,8 +96,8 @@ public:
     long sec() const {return tv_sec;}
     long usec() const {return tv_usec;}
     static XTime now();
-    std::string getTimeStr(bool subsecond = true) const;
-    std::string getTimeFmtStr(const char *fmt, bool subsecond = true) const
+    XString getTimeStr(bool subsecond = true) const;
+    XString getTimeFmtStr(const char *fmt, bool subsecond = true) const
 		__attribute__ ((format(strftime,2, 0)));
 private:
     long tv_sec;

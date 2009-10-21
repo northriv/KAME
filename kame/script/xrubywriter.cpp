@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -33,7 +33,7 @@ XRubyWriter::~XRubyWriter()
 void 
 XRubyWriter::write()
 {
-    std::string name = m_root->getName();
+    XString name = m_root->getName();
     name[0] = toupper(name[0]);
     m_ofs << "x << " 
 		  << name
@@ -65,7 +65,7 @@ XRubyWriter::write(
         s.replace( QChar('\r'), "\\r");
         s.replace( QChar('\t'), "\\t");
         m_ofs << ".load(\"" 
-			  << (const char *)s.utf8()
+			  << (const char *)s.toUtf8().data()
 			  << "\")" 
 			  << std::endl;
     }

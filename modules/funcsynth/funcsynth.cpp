@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -12,7 +12,7 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "funcsynth.h"
-#include "forms/funcsynthform.h"
+#include "ui_funcsynthform.h"
 #include "interface.h"
 #include "analyzer.h"
 #include "xnodeconnector.h"
@@ -37,7 +37,7 @@ XFuncSynth::XFuncSynth(const char *name, bool runtime,
     m_form(new FrmFuncSynth(g_pFrmMain))
 {
 	m_form->statusBar()->hide();
-	m_form->setCaption(KAME::i18n("Func. Synth. - ") + getLabel() );
+	m_form->setWindowTitle(i18n("Func. Synth. - ") + getLabel() );
 
 	m_conOutput = xqcon_create<XQToggleButtonConnector>(m_output, m_form->m_ckbOutput);
 	m_conTrig = xqcon_create<XQButtonConnector>(m_trig, m_form->m_btnTrig);

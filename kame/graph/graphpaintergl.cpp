@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -15,18 +15,17 @@
 #include "FTGL/FTGLPixmapFont.h"
 #include "graphwidget.h"
 #include <iconv.h>
-#include <qtimer.h>
+#include <QTimer>
 
 using std::min;
 using std::max;
 
 #include<stdio.h>
-#include <qstring.h>
+#include <QString>
 #include <kstandarddirs.h>
 #include <kapplication.h>
 #include <kconfig.h>
 #include <kconfigbase.h>
-#include <locale.h>
 #include <errno.h>
 
 #define checkGLError() \
@@ -66,7 +65,7 @@ using std::max;
 #define USE_ICONV_SRC_UCS2
 
 #undef USE_ICONV_WCHART // this is portable, however, it likely depends on the current locale.
-#if defined MACOSX
+#if defined __APPLE__
 #define USE_ICONV_UCS4_AS_WCHART
 //    #define USE_ICONV_WCHART
 #endif
@@ -87,16 +86,16 @@ void
 XQGraphPainter::openFont()
 {
 	if(s_fontRefCount == 0) {
-		QString filename = ::locate("appdata", FONT_FILE);
-		if(!filename)
+		QString filename = KStandardDirs::locate("appdata", FONT_FILE);
+		if(filename.isEmpty())
 		{
-			gErrPrint(KAME::i18n("No Fontfile!!"));
+			gErrPrint(i18n("No Fontfile!!"));
 		}
-		s_pFont = new FTGLPixmapFont(filename.ascii() );
+		s_pFont = new FTGLPixmapFont(filename.toLocal8Bit().data() );
 		ASSERT(s_pFont->Error() == 0);
 		s_pFont->CharMap(ft_encoding_unicode);
 		
-        setlocale(LC_CTYPE, KApplication::kApplication()->config()->locale().latin1());
+        setlocale(LC_CTYPE, KGlobal::locale()->languageCodeToName	(KGlobal::locale()->language()).toLatin1().data());
 	#ifdef USE_ICONV_SRC_UTF8
 	#define ICONV_SRC "UTF-8"
 	#endif
@@ -137,11 +136,11 @@ XQGraphPainter::openFont()
         /*
 		  int arg = 1;
 		  if(iconvctl(s_iconv_cd, ICONV_SET_TRANSLITERATE, &arg)) {
-		  XKameError::print(KAME::i18n("iconv error"), __FILE__, __LINE__, errno);
+		  XKameError::print(i18n("iconv error"), __FILE__, __LINE__, errno);
 		  }
 		  int arg = 1;
 		  if(iconvctl(s_utf8toWCHART, ICONV_SET_DISCARD_ILSEQ, &arg)) {
-		  XKameError::print(KAME::i18n("iconv error"), __FILE__, __LINE__, errno);
+		  XKameError::print(i18n("iconv error"), __FILE__, __LINE__, errno);
 		  }
         */
 	}
@@ -169,7 +168,7 @@ XQGraphPainter::~XQGraphPainter()
     closeFont();
 }
 std::wstring
-XQGraphPainter::string2wstring(const std::string &str)
+XQGraphPainter::string2wstring(const XString &str)
 {
     wchar_t buf[256];
     int outsize = sizeof(buf);
@@ -181,7 +180,7 @@ XQGraphPainter::string2wstring(const std::string &str)
 #endif //USE_ICONV_SRC_UTF8
 #ifdef USE_ICONV_SRC_UCS2
     QString qstr(str);
-    const char *inbuf = reinterpret_cast<const char*>(qstr.ucs2());
+    const char *inbuf = reinterpret_cast<const char*>(qstr.utf16());
     int insize = qstr.length() * sizeof(unsigned short);
 #endif //USE_ICONV_SRC_UCS2
     size_t ret = iconv(s_iconv_cd,
@@ -189,7 +188,7 @@ XQGraphPainter::string2wstring(const std::string &str)
 					   &outp, (size_t*)&outsize);
 	if(ret == (size_t)(-1)) {
 		XKameError::print(
-			KAME::i18n("iconv error, probably locale is not correct."),
+			i18n("iconv error, probably locale is not correct."),
 			__FILE__, __LINE__, errno);
 		iconv(s_iconv_cd, NULL, NULL, NULL, NULL); //reset 
 		return std::wstring(L"iconv-err"); 
@@ -280,7 +279,7 @@ XQGraphPainter::defaultFont()
 	m_curFontSize = DEFAULT_FONT_SIZE;
 }
 int
-XQGraphPainter::selectFont(const std::string &str, const XGraph::ScrPoint &start, const XGraph::ScrPoint &dir, const XGraph::ScrPoint &swidth, int sizehint)
+XQGraphPainter::selectFont(const XString &str, const XGraph::ScrPoint &start, const XGraph::ScrPoint &dir, const XGraph::ScrPoint &swidth, int sizehint)
 {
 	XGraph::ScrPoint d = dir;
 	d.normalize();
@@ -307,27 +306,27 @@ XQGraphPainter::selectFont(const std::string &str, const XGraph::ScrPoint &start
 	double w = fabs(x3 - x2), h = fabs(y3 - y2);	
 	if( fabs(x - x1) > fabs( y - y1) ) {
 		//dir is horizontal
-		align |= AlignVCenter;
+		align |= Qt::AlignVCenter;
 		h = min(h, 2 * min(y, m_pItem->height() - y));
 		if( x > x1 ) {
-			align |= AlignRight;
+			align |= Qt::AlignRight;
 			w = x;
 		}
 		else {
-			align |= AlignLeft;
+			align |= Qt::AlignLeft;
 			w = m_pItem->width() - x;
 		}
 	}
 	else {
 		//dir is vertical
-		align |= AlignHCenter;
+		align |= Qt::AlignHCenter;
 		w = min(w, 2 * min(x, m_pItem->width() - x));
 		if( y < y1 ) {
-			align |= AlignTop;
+			align |= Qt::AlignTop;
 			h = m_pItem->height() - y;
 		}
 		else {
-			align |= AlignBottom;
+			align |= Qt::AlignBottom;
 			h = y;
 		}
 	}
@@ -347,7 +346,7 @@ XQGraphPainter::selectFont(const std::string &str, const XGraph::ScrPoint &start
     
 	return 0;
 }void
-XQGraphPainter::drawText(const XGraph::ScrPoint &p, const std::string &str)
+XQGraphPainter::drawText(const XGraph::ScrPoint &p, const XString &str)
 {
 	float llx, lly, llz, urx, ury, urz;
 	std::wstring wstr = string2wstring(str);
@@ -361,10 +360,10 @@ XQGraphPainter::drawText(const XGraph::ScrPoint &p, const std::string &str)
 	int h = lrintf(ury);
 	
 	float x = 0.0f, y = 0.0f;
-	if( (m_curAlign & AlignVCenter) ) y -= h / 2;
-	if( (m_curAlign & AlignTop) ) y -= h;
-	if( (m_curAlign & AlignHCenter) ) x -= w / 2;
-	if( (m_curAlign & AlignRight) ) x -= w;
+	if( (m_curAlign & Qt::AlignVCenter) ) y -= h / 2;
+	if( (m_curAlign & Qt::AlignTop) ) y -= h;
+	if( (m_curAlign & Qt::AlignHCenter) ) x -= w / 2;
+	if( (m_curAlign & Qt::AlignRight) ) x -= w;
     // Move raster position
     if((x != 0.0f) || (y != 0.0f))
     	glBitmap( 0, 0, 0.0f, 0.0f, x, y, (const GLubyte*)0);
@@ -372,7 +371,7 @@ XQGraphPainter::drawText(const XGraph::ScrPoint &p, const std::string &str)
  	s_pFont->Render(wstr.c_str());
 	checkGLError();
 	if(s_pFont->Error())
-		gWarnPrint(KAME::i18n("GL Font Error."));
+		gWarnPrint(i18n("GL Font Error."));
 } 
 
 #define VIEW_NEAR -1.5

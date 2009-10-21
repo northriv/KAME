@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -37,10 +37,10 @@ XNIGPIBPort::s_cntOpened = 0;
 XMutex
 XNIGPIBPort::s_lock;
 
-QString
-XNIGPIBPort::gpibStatus(const QString &msg)
+XString
+XNIGPIBPort::gpibStatus(const XString &msg)
 {
-	QString sta, err, cntl;
+	XString sta, err, cntl;
 	if(ThreadIbsta() & DCAS) sta += "DCAS ";
 	if(ThreadIbsta() & DTAS) sta += "DTAS ";
 	if(ThreadIbsta() & LACS) sta += "LACS ";
@@ -122,7 +122,7 @@ XNIGPIBPort::open() throw (XInterface::XCommError &)
 	{
 		XScopedLock<XMutex> lock(s_lock);
 		if(s_cntOpened == 0) {
-			dbgPrint(KAME::i18n("GPIB: Sending IFC"));
+			dbgPrint(i18n("GPIB: Sending IFC"));
 			SendIFC (port);
 			msecsleep(100);
 		}
@@ -138,7 +138,7 @@ XNIGPIBPort::open() throw (XInterface::XCommError &)
 				 *m_pInterface->address(), 0, T3s, 1, eos);
 	if(m_ud < 0) {
 		throw XInterface::XCommError(
-			gpibStatus(KAME::i18n("opening gpib device faild")), __FILE__, __LINE__);
+			gpibStatus(i18n("opening gpib device faild")), __FILE__, __LINE__);
 	}
 	ibclr(m_ud);
 	ibeos(m_ud, eos);
@@ -169,7 +169,7 @@ XNIGPIBPort::send(const char *str) throw (XInterface::XCommError &)
 {
 	ASSERT(m_pInterface->isOpened());
   
-	std::string buf(str);
+	XString buf(str);
 	buf += m_pInterface->eos();
 	ASSERT(buf.length() == strlen(str) + m_pInterface->eos().length());
 	this->write(buf.c_str(), buf.length());
@@ -196,12 +196,12 @@ XNIGPIBPort::write(const char *sendbuf, int size) throw (XInterface::XCommError 
 					continue;
 				}
 				throw XInterface::XCommError(
-					gpibStatus(KAME::i18n("too many EDVR/EFSO")), __FILE__, __LINE__);
+					gpibStatus(i18n("too many EDVR/EFSO")), __FILE__, __LINE__);
 			}
-			gErrPrint(gpibStatus(KAME::i18n("ibwrt err")));
+			gErrPrint(gpibStatus(i18n("ibwrt err")));
 			gpib_reset();
 			if(i < 2) {
-				gErrPrint(KAME::i18n("try to continue"));
+				gErrPrint(i18n("try to continue"));
 				continue;
 			}
 			throw XInterface::XCommError(gpibStatus(""), __FILE__, __LINE__);
@@ -216,7 +216,7 @@ XNIGPIBPort::write(const char *sendbuf, int size) throw (XInterface::XCommError 
 			dbgPrint("ibwrt terminated without END");
 			continue;
 		}
-		gErrPrint(gpibStatus(KAME::i18n("ibwrt terminated without CMPL")));
+		gErrPrint(gpibStatus(i18n("ibwrt terminated without CMPL")));
 	}
 }
 void
@@ -254,18 +254,18 @@ XNIGPIBPort::gpib_receive(unsigned int est_length, unsigned int max_length)
 					continue;
 				}
 				throw XInterface::XCommError(
-					gpibStatus(KAME::i18n("too many EDVR/EFSO")), __FILE__, __LINE__);
+					gpibStatus(i18n("too many EDVR/EFSO")), __FILE__, __LINE__);
 			}
-			gErrPrint(gpibStatus(KAME::i18n("ibrd err")));
+			gErrPrint(gpibStatus(i18n("ibrd err")));
 //              gpib_reset();
 			if(i < 2) {
-				gErrPrint(KAME::i18n("try to continue"));
+				gErrPrint(i18n("try to continue"));
 				continue;
 			}
 			throw XInterface::XCommError(gpibStatus(""), __FILE__, __LINE__);
 		}
 		if(ThreadIbcntl() > buf_size - len)
-			throw XInterface::XCommError(gpibStatus(KAME::i18n("libgpib error.")), __FILE__, __LINE__);
+			throw XInterface::XCommError(gpibStatus(i18n("libgpib error.")), __FILE__, __LINE__);
 		len += ThreadIbcntl();
 		if((ret & END) && (ret & CMPL)) {
 			break;
@@ -276,7 +276,7 @@ XNIGPIBPort::gpib_receive(unsigned int est_length, unsigned int max_length)
 			dbgPrint("ibrd terminated without END");
 			continue;
 		}
-		gErrPrint(gpibStatus(KAME::i18n("ibrd terminated without CMPL")));
+		gErrPrint(gpibStatus(i18n("ibrd terminated without CMPL")));
 	}
 	return len;
 }
@@ -290,7 +290,7 @@ XNIGPIBPort::gpib_spoll_before_read() throw (XInterface::XCommError &)
 			if(i > 30)
 			{
 				throw XInterface::XCommError(
-					gpibStatus(KAME::i18n("too many spoll timeouts")), __FILE__, __LINE__);
+					gpibStatus(i18n("too many spoll timeouts")), __FILE__, __LINE__);
 			}
 			msecsleep(m_pInterface->gpibWaitBeforeSPoll());
 			unsigned char spr;
@@ -304,9 +304,9 @@ XNIGPIBPort::gpib_spoll_before_read() throw (XInterface::XCommError &)
 					msecsleep(10 * i + 10);
 					continue;
 				}
-				gErrPrint(gpibStatus(KAME::i18n("ibrsp err")));
+				gErrPrint(gpibStatus(i18n("ibrsp err")));
 				gpib_reset();
-				throw XInterface::XCommError(gpibStatus(KAME::i18n("ibrsp failed")), __FILE__, __LINE__);
+				throw XInterface::XCommError(gpibStatus(i18n("ibrsp failed")), __FILE__, __LINE__);
 			}
 			if((spr & m_pInterface->gpibMAVbit()) == 0)
 			{
@@ -329,7 +329,7 @@ XNIGPIBPort::gpib_spoll_before_write() throw (XInterface::XCommError &)
 			if(i > 10)
 			{
 				throw XInterface::XCommError(
-					gpibStatus(KAME::i18n("too many spoll timeouts")), __FILE__, __LINE__);
+					gpibStatus(i18n("too many spoll timeouts")), __FILE__, __LINE__);
 			}
 			msecsleep(m_pInterface->gpibWaitBeforeSPoll());
 			unsigned char spr;
@@ -343,9 +343,9 @@ XNIGPIBPort::gpib_spoll_before_write() throw (XInterface::XCommError &)
 					msecsleep(10 * i + 10);
 					continue;
 				}
-				gErrPrint(gpibStatus(KAME::i18n("ibrsp err")));
+				gErrPrint(gpibStatus(i18n("ibrsp err")));
 				gpib_reset();
-				throw XInterface::XCommError(gpibStatus(KAME::i18n("ibrsp failed")), __FILE__, __LINE__);
+				throw XInterface::XCommError(gpibStatus(i18n("ibrsp failed")), __FILE__, __LINE__);
 			}
 			if((spr & m_pInterface->gpibMAVbit()))
 			{
@@ -354,7 +354,7 @@ XNIGPIBPort::gpib_spoll_before_write() throw (XInterface::XCommError &)
 					msecsleep(5*i + 5);
 					continue;
 				}
-				gErrPrint(gpibStatus(KAME::i18n("ibrd before ibwrt asserted")));
+				gErrPrint(gpibStatus(i18n("ibrd before ibwrt asserted")));
           
 				// clear device's buffer
 				gpib_receive(MIN_BUF_SIZE, 1000000uL);

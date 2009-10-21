@@ -66,12 +66,12 @@ public:
 	shared_ptr<T> create(const char *name, bool runtime, X x, Y y, Z z, ZZ zz);
 
 	//! \return internal/script name. Use latin1 chars.
-	std::string getName() const;
+	XString getName() const;
 	//! \return i18n name for UI.
-	virtual std::string getLabel() const {return getName();}
-	std::string getTypename() const;
+	virtual XString getLabel() const {return getName();}
+	XString getTypename() const;
 
-	shared_ptr<XNode> getChild(const std::string &var) const;
+	shared_ptr<XNode> getChild(const XString &var) const;
 	shared_ptr<XNode> getParent() const;
 
 	typedef std::deque<shared_ptr<XNode> > NodeList;
@@ -110,7 +110,7 @@ protected:
 	XTalker<shared_ptr<XNode> > m_tlkOnTouch;
 	XTalker<shared_ptr<XNode> > m_tlkOnUIEnabled;
 private:
-	const std::string m_name;
+	const XString m_name;
 	enum {FLAG_RUNTIME = 0x1, FLAG_ENABLED = 0x2, FLAG_UI_ENABLED = 0x4};
 	int m_flags;
 
@@ -126,13 +126,12 @@ protected:
 	explicit XValueNodeBase(const char *name, bool runtime = false);
 public:
 	//! Get value as a string, which is used as XML meta data.
-	virtual std::string to_str() const = 0;
+	virtual XString to_str() const = 0;
 	//! Set value as a string, which is used as XML meta data.
 	//! throw exception when validator throws.
-	void str(const QString &str) throw (XKameError &);
-	void str(const std::string &str) throw (XKameError &);
+	void str(const XString &str) throw (XKameError &);
 
-	typedef void (*Validator)(std::string &);
+	typedef void (*Validator)(XString &);
 	//! validator can throw \a XKameError, if it detects conversion errors.
 	//! never insert when str() may be called.
 	void setValidator(Validator);
@@ -142,7 +141,7 @@ public:
 	XTalker<shared_ptr<XValueNodeBase> > &onValueChanged() 
 	{return m_tlkOnValueChanged;}
 protected:
-	virtual void _str(const std::string &str) throw (XKameError &) = 0;
+	virtual void _str(const XString &str) throw (XKameError &) = 0;
 
 	XTalker<shared_ptr<XValueNodeBase> > m_tlkBeforeValueChanged;
 	XTalker<shared_ptr<XValueNodeBase> > m_tlkOnValueChanged;
@@ -156,16 +155,16 @@ protected:
 	explicit XDoubleNode(const char *name, bool runtime = false, const char *format = 0L);
 public:
 	virtual ~XDoubleNode() {}
-	virtual std::string to_str() const;
+	virtual XString to_str() const;
 	virtual void value(const double &t);
 	virtual operator double() const;
 	const char *format() const;
 	void setFormat(const char* format);
 protected:
-	virtual void _str(const std::string &str) throw (XKameError &);
+	virtual void _str(const XString &str) throw (XKameError &);
 private:
 	atomic<double> m_var;
-	std::string m_format;
+	XString m_format;
 	XRecursiveMutex m_valuemutex;
 };
 
@@ -176,14 +175,13 @@ protected:
 	explicit XStringNode(const char *name, bool runtime = false);
 public:
 	virtual ~XStringNode() {}
-	virtual std::string to_str() const;
-	virtual operator std::string() const;
-	void operator=(const std::string &str);
-	virtual void value(const std::string &t);
+	virtual XString to_str() const;
+	virtual operator XString() const;
+	virtual void value(const XString &t);
 protected:
-	virtual void _str(const std::string &str) throw (XKameError &);
+	virtual void _str(const XString &str) throw (XKameError &);
 private:
-	atomic<std::string> m_var;
+	atomic<XString> m_var;
 	XRecursiveMutex m_valuemutex;
 };
 
@@ -198,10 +196,10 @@ protected:
 public:
 	virtual ~XValueNode() {}
 	virtual operator T() const {return m_var;}
-	virtual std::string to_str() const;
+	virtual XString to_str() const;
 	virtual void value(const T &t);
 protected:
-	virtual void _str(const std::string &str) throw (XKameError &);
+	virtual void _str(const XString &str) throw (XKameError &);
 	atomic<T> m_var;
 	XRecursiveMutex m_valuemutex;
 private:

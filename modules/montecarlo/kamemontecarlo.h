@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -16,12 +16,13 @@
 
 #include "primarydriver.h"
 #include "dummydriver.h"
+#include "xwavengraph.h"
 #include <fftw3.h>
 
 class XScalarEntry;
 class MonteCarlo;
-class FrmMonteCarlo;
-class XWaveNGraph;
+class Ui_FrmMonteCarlo;
+typedef QForm<QMainWindow, Ui_FrmMonteCarlo> FrmMonteCarlo;
 
 class XMonteCarloDriver : public XDummyDriver<XPrimaryDriver>
 {

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -24,11 +24,11 @@ void msecsleep(unsigned int ms)
 	return;
 }
 
-unsigned long timeStamp() {
+unsigned int timeStamp() {
 #if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
     uint64_t r;
     asm volatile("rdtsc" : "=A" (r));
-    return (unsigned int)(r / 256u);
+    return (unsigned long)(r / (uint64_t)256);
 #elif defined __powerpc__ || defined __POWERPC__ || defined __ppc__
     uint32_t rx, ry, rz;
     asm volatile("1: \n"
@@ -56,7 +56,7 @@ XTime::now() {
     return XTime(tv.tv_sec, tv.tv_usec);
 };
 
-std::string
+XString
 XTime::getTimeStr(bool subsecond) const
 {
     if(*this) {
@@ -65,13 +65,13 @@ XTime::getTimeStr(bool subsecond) const
 		str[strlen(str) - 1] = '\0';
 		if(subsecond)
 			sprintf(str + strlen(str), " +%.3dms", (int)tv_usec/1000);
-		return std::string(str);
+		return str;
     }
     else {
-        return std::string();
+        return XString();
     }
 }
-std::string
+XString
 XTime::getTimeFmtStr(const char *fmt, bool subsecond) const
 {
     if(*this) {
@@ -81,10 +81,10 @@ XTime::getTimeFmtStr(const char *fmt, bool subsecond) const
 		strftime(str, 100, fmt, &time);
 		if(subsecond)
 			sprintf(str + strlen(str), " +%.3f", 1e-6 * tv_usec);
-		return std::string(str);
+		return str;
     }
     else {
-        return std::string();
+        return XString();
     }
 }
 

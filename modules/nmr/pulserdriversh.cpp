@@ -293,14 +293,14 @@ XSHPulser::pulseAdd(uint64_t term, uint32_t pattern, bool firsttime, bool dryrun
 	m_dmaTerm += mtu_term;
 	unsigned long pos_l = m_dmaTerm / llrint(resolution() / MTU_PERIOD);
 	if(pos_l >= 0x7000u)
-		throw XInterface::XInterfaceError(KAME::i18n("Too long DMA."), __FILE__, __LINE__);
+		throw XInterface::XInterfaceError(i18n("Too long DMA."), __FILE__, __LINE__);
 	unsigned short pos = (unsigned short)pos_l;
 	unsigned short len = mtu_term / llrint(resolution() / MTU_PERIOD);
 	if( ((m_lastPattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX == 0) && ((pattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX > 0) ) {
 		unsigned short qam_pos = m_waveformPos[(pattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX - 1];
 		if(!dryrun) {
 			if(!qam_pos || (m_zippedPatterns[qam_pos] != PATTERN_ZIPPED_COMMAND_DMA_HBURST))
-				throw XInterface::XInterfaceError(KAME::i18n("No waveform."), __FILE__, __LINE__);
+				throw XInterface::XInterfaceError(i18n("No waveform."), __FILE__, __LINE__);
 			unsigned short word = m_zippedPatterns.size() - qam_pos;
 			m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_COPY_HBURST);
 			m_zippedPatterns.push_back((unsigned char)((pattern & PAT_QAM_PHASE_MASK)/PAT_QAM_PHASE));
@@ -332,7 +332,7 @@ XSHPulser::changeOutput(bool output, unsigned int /*blankpattern*/)
 	if(output)
 	{
 		if(m_zippedPatterns.empty() )
-			throw XInterface::XInterfaceError(KAME::i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
+			throw XInterface::XInterfaceError(i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
 		for(unsigned int retry = 0; ; retry++) {
 			try {
 				interface()->write("!", 1); //poff
@@ -356,7 +356,7 @@ XSHPulser::changeOutput(bool output, unsigned int /*blankpattern*/)
 				if(interface()->scanf("%x", &ret) != 1)
 					throw XInterface::XConvError(__FILE__, __LINE__);
 				if(ret != sum)
-					throw XInterface::XInterfaceError(KAME::i18n("Pulser Check Sum Error"), __FILE__, __LINE__);
+					throw XInterface::XInterfaceError(i18n("Pulser Check Sum Error"), __FILE__, __LINE__);
 				interface()->send("$pon");
 				interface()->receive();
 				if((interface()->scanf("Pulse %2s", buf) != 1) || strncmp(buf, "On", 2))
@@ -364,7 +364,7 @@ XSHPulser::changeOutput(bool output, unsigned int /*blankpattern*/)
 			}
 			catch (XKameError &e) {
 				if(retry > 1) throw e;
-				e.print(getLabel() + ": " + KAME::i18n("try to continue") + ", ");
+				e.print(getLabel() + ": " + i18n("try to continue") + ", ");
 				continue;
 			}
 			break;

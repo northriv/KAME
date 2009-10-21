@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -343,24 +343,24 @@ XCryocon::open() throw (XInterface::XInterfaceError &)
 	shared_ptr<XChannel> ch0 = dynamic_pointer_cast<XChannel>(list->at(0));
 	shared_ptr<XChannel> ch1 = dynamic_pointer_cast<XChannel>(list->at(1));
 	interface()->query("INPUT A:VBIAS?");
-	ch0->excitation()->str(QString(&interface()->buffer()[0]).stripWhiteSpace());
+	ch0->excitation()->str(QString(&interface()->buffer()[0]).simplified());
 	interface()->query("INPUT B:VBIAS?");
-	ch1->excitation()->str(QString(&interface()->buffer()[0]).stripWhiteSpace());
+	ch1->excitation()->str(QString(&interface()->buffer()[0]).simplified());
 
 	powerRange()->clear();
 	interface()->query("HEATER:RANGE?");
-	powerRange()->str(QString(&interface()->buffer()[0]).stripWhiteSpace());
+	powerRange()->str(QString(&interface()->buffer()[0]).simplified());
 
 	if(!shared_ptr<XDCSource>(*extDCSource())) {
 		getChannel();
 		interface()->query("HEATER:PMAN?");
-		manualPower()->str(std::string(&interface()->buffer()[0]));
+		manualPower()->str(XString(&interface()->buffer()[0]));
 		interface()->query("HEATER:PGAIN?");
-		prop()->str(std::string(&interface()->buffer()[0]));
+		prop()->str(XString(&interface()->buffer()[0]));
 		interface()->query("HEATER:IGAIN?");
-		interval()->str(std::string(&interface()->buffer()[0]));
+		interval()->str(XString(&interface()->buffer()[0]));
 		interface()->query("HEATER:DGAIN?");
-		deriv()->str(std::string(&interface()->buffer()[0]));
+		deriv()->str(XString(&interface()->buffer()[0]));
 
 		if(!shared_ptr<XDCSource>(*extDCSource())) {
 		  	heaterMode()->clear();
@@ -370,7 +370,7 @@ XCryocon::open() throw (XInterface::XInterfaceError &)
 		}
 		interface()->query("HEATER:TYPE?");
 		QString s(&interface()->buffer()[0]);
-		heaterMode()->str(s.stripWhiteSpace());
+		heaterMode()->str(s.simplified());
 	}
 
 	start();
@@ -471,7 +471,7 @@ XCryocon::getChannel()
 	interface()->query("HEATER:SOURCE?");
 	char s[3];
 	if(interface()->scanf("CH%s", s) != 1) return;
-	currentChannel()->str(std::string(s));
+	currentChannel()->str(XString(s));
 }
 void
 XCryocon::setHeaterMode(void)
@@ -770,14 +770,14 @@ XLakeShore340::open() throw (XInterface::XInterfaceError &)
 
 	powerRange()->clear();
 	for(int i = 1; i < 6; i++) {
-		powerRange()->add(QString().sprintf("%.1f W", 
+		powerRange()->add(formatString("%.1f W",
 											(double)pow(10.0, i - 5.0)  * pow(maxcurr, 2.0) * res));
 	}
 	if(!shared_ptr<XDCSource>(*extDCSource())) {
 		interface()->query("CSET? 1");
 		char ch[2];
 		if(interface()->scanf("%1s", ch) == 1)
-			currentChannel()->str(std::string(ch));
+			currentChannel()->str(XString(ch));
 		
 		heaterMode()->clear();
 		heaterMode()->add("Off");
@@ -787,10 +787,10 @@ XLakeShore340::open() throw (XInterface::XInterfaceError &)
 		interface()->query("CMODE? 1");
 		switch(interface()->toInt()) {
 		case 1:
-			heaterMode()->str(std::string("PID"));
+			heaterMode()->str(XString("PID"));
 			break;
 		case 3:
-			heaterMode()->str(std::string("Man"));
+			heaterMode()->str(XString("Man"));
 			break;
 		default:
 			break;
@@ -798,7 +798,7 @@ XLakeShore340::open() throw (XInterface::XInterfaceError &)
 		interface()->query("RANGE?");
 		int range = interface()->toInt();
 		if(range == 0)
-			heaterMode()->str(std::string("Off"));
+			heaterMode()->str(XString("Off"));
 		else
 			powerRange()->value(range - 1);
 	

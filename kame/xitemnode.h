@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -27,7 +27,7 @@ public:
 	virtual ~XItemNodeBase() {}
   
 	struct Item {
-		std::string name, label;
+		XString name, label;
 	};
 	virtual shared_ptr<const std::deque<Item> > itemStrings() const = 0;
 	XTalker<shared_ptr<XItemNodeBase> >  &onListChanged() {return m_tlkOnListChanged;}
@@ -59,17 +59,17 @@ protected:
 public:
 	virtual ~XPointerItemNode() {}
 
-	virtual std::string to_str() const {
+	virtual XString to_str() const {
 		shared_ptr<XNode> node(*this);
 		if(node)
 			return node->getName();
 		else
-			return std::string();
+			return XString();
 	}
 	operator shared_ptr<XNode>() const {return m_var->lock();}
 	virtual void value(const shared_ptr<XNode> &t) = 0;
 protected:
-	virtual void _str(const std::string &var) throw (XKameError &)
+	virtual void _str(const XString &var) throw (XKameError &)
 	{
 		if(var.empty()) {
 			value(shared_ptr<XNode>());
@@ -166,18 +166,18 @@ protected:
 public:
 	virtual ~XComboNode() {}
   
-	virtual std::string to_str() const;
-	virtual void add(const std::string &str);
+	virtual XString to_str() const;
+	virtual void add(const XString &str);
 	virtual void clear();
 	virtual operator int() const;
 	virtual void value(int t);
-	virtual void value(const std::string &);
+	virtual void value(const XString &);
 	virtual shared_ptr<const std::deque<XItemNodeBase::Item> > itemStrings() const;
 protected:
-	virtual void _str(const std::string &value) throw (XKameError &);
+	virtual void _str(const XString &value) throw (XKameError &);
 private:
-	atomic_shared_ptr<std::deque<std::string> > m_strings;
-	atomic_shared_ptr<std::pair<std::string, int> > m_var;
+	atomic_shared_ptr<std::deque<XString> > m_strings;
+	atomic_shared_ptr<std::pair<XString, int> > m_var;
 	XRecursiveMutex m_write_mutex;
 };
 

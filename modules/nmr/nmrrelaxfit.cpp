@@ -370,7 +370,7 @@ XRelaxFunc::relax_fdf (const gsl_vector * x, void *params,
     }
 	return GSL_SUCCESS;
 }
-std::string
+XString
 XNMRT1::iterate(shared_ptr<XRelaxFunc> &func,
 				int itercnt)
 {
@@ -388,7 +388,7 @@ XNMRT1::iterate(shared_ptr<XRelaxFunc> &func,
 	};
 	//# of indep. params.
 	int p = nlls.is_minftyfit ? 3 : 2;
-	if(n <= p) return formatString("%d",n) + KAME::i18n(" points, more points needed.");
+	if(n <= p) return formatString("%d",n) + i18n(" points, more points needed.");
 	int status;
 	double norm = 0;
 	XTime firsttime = XTime::now();
@@ -416,29 +416,29 @@ XNMRT1::iterate(shared_ptr<XRelaxFunc> &func,
 
 	double t1 = 0.001 / m_params[0];
 	double t1err = 0.001 / pow(m_params[0], 2.0) * m_errors[0];
-	QString buf = "";
+	XString buf = "";
 	switch (*mode()) {
 	case MEAS_ST_E:
 	case MEAS_T1:
-		buf += QString().sprintf("1/T1[1/s] = %.5g +- %.3g(%.2f%%)\n",
+		buf += formatString("1/T1[1/s] = %.5g +- %.3g(%.2f%%)\n",
 								 1000.0 * m_params[0], 1000.0 * m_errors[0], fabs(100.0 * m_errors[0]/m_params[0]));
-		buf += QString().sprintf("T1[s] = %.5g +- %.3g(%.2f%%)\n",
+		buf += formatString("T1[s] = %.5g +- %.3g(%.2f%%)\n",
 								 t1, t1err, fabs(100.0 * t1err/t1));
 		break;
 	case MEAS_T2:
-		buf += QString().sprintf("1/T2[1/ms] = %.5g +- %.3g(%.2f%%)\n",
+		buf += formatString("1/T2[1/ms] = %.5g +- %.3g(%.2f%%)\n",
 								 1000.0 * m_params[0], 1000.0 * m_errors[0], fabs(100.0 * m_errors[0]/m_params[0]));
-		buf += QString().sprintf("T2[ms] = %.5g +- %.3g(%.2f%%)\n",
+		buf += formatString("T2[ms] = %.5g +- %.3g(%.2f%%)\n",
 								 t1, t1err, fabs(100.0 * t1err/t1));
 		break;
 	}
-	buf += QString().sprintf("c[V] = %.5g +- %.3g(%.3f%%)\n",
+	buf += formatString("c[V] = %.5g +- %.3g(%.3f%%)\n",
 							 m_params[1], m_errors[1], fabs(100.0 * m_errors[1]/m_params[1]));
-	buf += QString().sprintf("a[V] = %.5g +- %.3g(%.3f%%)\n",
+	buf += formatString("a[V] = %.5g +- %.3g(%.3f%%)\n",
 							 m_params[2], m_errors[2], fabs(100.0 * m_errors[2]/m_params[2]));
-	buf += QString().sprintf("status = %s\n", gsl_strerror (status));
-	buf += QString().sprintf("rms of residuals = %.3g\n", norm / sqrt((double)n));
-	buf += QString().sprintf("elapsed time = %.2f ms\n", 1000.0 * (XTime::now() - firsttime));
+	buf += formatString("status = %s\n", gsl_strerror (status));
+	buf += formatString("rms of residuals = %.3g\n", norm / sqrt((double)n));
+	buf += formatString("elapsed time = %.2f ms\n", 1000.0 * (XTime::now() - firsttime));
 	return buf;
 }
 

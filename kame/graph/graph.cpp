@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -16,6 +16,7 @@
 
 #include "graphpainter.h"
 #include <qgl.h>
+
 
 using std::min;
 using std::max;
@@ -83,10 +84,10 @@ XGraph::XGraph(const char *name, bool runtime) :
     label()->value(name);
     (axes()->create<XAxis>("XAxis", true, XAxis::DirAxisX
 						   , false, dynamic_pointer_cast<XGraph>(shared_from_this())))
-        ->label()->value(KAME::i18n("X Axis"));
+        ->label()->value(i18n("X Axis").toUtf8().data());
     (axes()->create<XAxis>("YAxis", true, XAxis::DirAxisY
 						   , false, dynamic_pointer_cast<XGraph>(shared_from_this())))
-        ->label()->value(KAME::i18n("Y Axis"));    
+        ->label()->value(i18n("Y Axis").toUtf8().data());
 }
 
 void
@@ -1068,7 +1069,7 @@ XAxis::valToScreen(XGraph::VFloat val, XGraph::ScrPoint *scr)
 {
     axisToScreen(valToAxis(val), scr);
 }
-std::string
+XString
 XAxis::valToString(XGraph::VFloat val)
 {
     return formatDouble(ticLabelFormat()->to_str().c_str(), val);

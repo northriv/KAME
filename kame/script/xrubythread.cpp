@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -13,7 +13,7 @@
 ***************************************************************************/
 #include "xrubythread.h"
 
-XRubyThread::XRubyThread(const char *name, bool runtime, const QString &filename)
+XRubyThread::XRubyThread(const char *name, bool runtime, const XString &filename)
 	: XNode(name, runtime),
 	  m_filename(create<XStringNode>("Filename", true)),
 	  m_status(create<XStringNode>("Status", true)),
@@ -33,12 +33,12 @@ XRubyThread::XRubyThread(const char *name, bool runtime, const QString &filename
 bool
 XRubyThread::isRunning() const
 {
-    return (std::string(*m_status) == RUBY_THREAD_STATUS_RUN);
+    return (XString(*m_status) == RUBY_THREAD_STATUS_RUN);
 }
 bool
 XRubyThread::isAlive() const
 {
-    return (std::string(*m_status) != RUBY_THREAD_STATUS_N_A);
+    return (XString(*m_status) != RUBY_THREAD_STATUS_N_A);
 }
 void
 XRubyThread::kill()
@@ -54,7 +54,7 @@ XRubyThread::resume()
 void
 XRubyThread::onLineChanged(const shared_ptr<XValueNodeBase> &)
 {
-	std::string line = *lineinput();
+	XString line = *lineinput();
 	XScopedLock<XMutex> lock(m_lineBufferMutex);
 	m_lineBuffer.push_back(line);
 	lineinput()->onValueChanged().mask();
@@ -62,14 +62,14 @@ XRubyThread::onLineChanged(const shared_ptr<XValueNodeBase> &)
 	lineinput()->onValueChanged().unmask();
 }
 
-std::string
+XString
 XRubyThread::gets() {	
 	XScopedLock<XMutex> lock(m_lineBufferMutex);
 	if(!m_lineBuffer.size()) {
 		lineinput()->setUIEnabled(true);
-		return std::string();
+		return XString();
 	}
-	std::string line = m_lineBuffer.front();
+	XString line = m_lineBuffer.front();
 	m_lineBuffer.pop_front();
 //	lineinput()->setUIEnabled(false);
 	return line + "\n";

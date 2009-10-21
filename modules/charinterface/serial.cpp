@@ -40,10 +40,10 @@ XPosixSerialPort::open() throw (XInterface::XCommError &)
 {
 	struct termios ttyios;
 	speed_t baudrate;
-	if((m_scifd = ::open(QString(m_pInterface->port()->to_str()).local8Bit(),
+	if((m_scifd = ::open(QString(m_pInterface->port()->to_str()).toLocal8Bit().data(),
 						 O_RDWR | O_NOCTTY | O_SYNC | O_NONBLOCK)) == -1)
 	{
-		throw XInterface::XCommError(KAME::i18n("tty open failed"), __FILE__, __LINE__);
+		throw XInterface::XCommError(i18n("tty open failed"), __FILE__, __LINE__);
 	}
     
 	tcsetpgrp(m_scifd, getpgrp());
@@ -62,7 +62,7 @@ XPosixSerialPort::open() throw (XInterface::XCommError &)
 	case 115200: baudrate = B115200; break;
 	case 230400: baudrate = B230400; break;
 	default:
-		throw XInterface::XCommError(KAME::i18n("Invalid Baudrate"), __FILE__, __LINE__);
+		throw XInterface::XCommError(i18n("Invalid Baudrate"), __FILE__, __LINE__);
 	}
 
 	cfsetispeed(&ttyios, baudrate);
@@ -77,17 +77,17 @@ XPosixSerialPort::open() throw (XInterface::XCommError &)
 	ttyios.c_cc[VMIN] = 0; //no min. size
 	ttyios.c_cc[VTIME] = 30; //3sec time-out
 	if(tcsetattr(m_scifd, TCSAFLUSH, &ttyios ) < 0)
-		throw XInterface::XCommError(KAME::i18n("stty failed"), __FILE__, __LINE__);
+		throw XInterface::XCommError(i18n("stty failed"), __FILE__, __LINE__);
 	
     if(fcntl(m_scifd, F_SETFL, (~O_NONBLOCK) & fcntl(m_scifd, F_GETFL)) == - 1)
 	{
-		throw XInterface::XCommError(KAME::i18n("tty open failed"), __FILE__, __LINE__);
+		throw XInterface::XCommError(i18n("tty open failed"), __FILE__, __LINE__);
 	}
 }
 void
 XPosixSerialPort::send(const char *str) throw (XInterface::XCommError &)
 {
-    std::string buf(str);
+    XString buf(str);
     buf += m_pInterface->eos();
     this->write(buf.c_str(), buf.length());
 }
@@ -103,7 +103,7 @@ XPosixSerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommE
                 dbgPrint("Serial, EINTR, try to continue.");
                 continue;
             }
-			throw XInterface::XCommError(KAME::i18n("tciflush error."), __FILE__, __LINE__);
+			throw XInterface::XCommError(i18n("tciflush error."), __FILE__, __LINE__);
 		}
 		break;
 	}
@@ -120,7 +120,7 @@ XPosixSerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommE
             }
             else
 			{
-				throw XInterface::XCommError(KAME::i18n("write error"), __FILE__, __LINE__);
+				throw XInterface::XCommError(i18n("write error"), __FILE__, __LINE__);
 			}
         }
         wlen += ret;
@@ -154,7 +154,7 @@ XPosixSerialPort::receive() throw (XInterface::XCommError &)
 		int rlen = ::read(m_scifd, &buffer().at(len), 1);
 		if(rlen == 0) {
 			buffer().at(len) = '\0';
-			throw XInterface::XCommError(KAME::i18n("read time-out, buf=;") + &buffer().at(0), __FILE__, __LINE__);
+			throw XInterface::XCommError(i18n("read time-out, buf=;") + &buffer().at(0), __FILE__, __LINE__);
 		}
 		if(rlen < 0) {
 			if(errno == EINTR) {
@@ -162,7 +162,7 @@ XPosixSerialPort::receive() throw (XInterface::XCommError &)
 				continue;
 			}
 			else
-				throw XInterface::XCommError(KAME::i18n("read error"), __FILE__, __LINE__);
+				throw XInterface::XCommError(i18n("read error"), __FILE__, __LINE__);
 		}
 		len += rlen;
 		if(len >= eos_len) {
@@ -198,14 +198,14 @@ XPosixSerialPort::receive(unsigned int length) throw (XInterface::XCommError &)
 	{
 		int rlen = ::read(m_scifd, &buffer().at(len), 1);
 		if(rlen == 0)
-			throw XInterface::XCommError(KAME::i18n("read time-out"), __FILE__, __LINE__);
+			throw XInterface::XCommError(i18n("read time-out"), __FILE__, __LINE__);
 		if(rlen < 0) {
 			if(errno == EINTR) {
 				dbgPrint("Serial, EINTR, try to continue.");
 				continue;
 			}
 			else
-				throw XInterface::XCommError(KAME::i18n("read error"), __FILE__, __LINE__);
+				throw XInterface::XCommError(i18n("read error"), __FILE__, __LINE__);
 		}
 		len += rlen;
 	}
