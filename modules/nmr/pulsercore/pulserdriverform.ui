@@ -43,7 +43,7 @@
          <number>0</number>
         </property>
         <item row="3" column="1">
-         <widget class="Q3GroupBox" name="groupBox4">
+         <widget class="QGroupBox" name="groupBox4">
           <property name="title">
            <string>Comb Pulse</string>
           </property>
@@ -685,7 +685,7 @@
            </layout>
           </item>
           <item>
-           <widget class="Q3GroupBox" name="groupBox3">
+           <widget class="QGroupBox" name="groupBox3">
             <property name="title">
              <string>Pi/2 Pulse</string>
             </property>
@@ -822,7 +822,7 @@
            </widget>
           </item>
           <item>
-           <widget class="Q3GroupBox" name="groupBox3_3">
+           <widget class="QGroupBox" name="groupBox3_3">
             <property name="title">
              <string>Pi Pulse</string>
             </property>
@@ -961,7 +961,7 @@
          </layout>
         </item>
         <item row="5" column="0" colspan="2">
-         <widget class="Q3GroupBox" name="groupBox3_2">
+         <widget class="QGroupBox" name="groupBox3_2">
           <property name="title">
            <string>Pulse Table (Select Region to Visualize)</string>
           </property>
@@ -1031,9 +1031,9 @@
  <layoutdefault spacing="6" margin="11"/>
  <customwidgets>
   <customwidget>
-   <class>Q3GroupBox</class>
+   <class>QGroupBox</class>
    <extends>QGroupBox</extends>
-   <header>Qt3Support/Q3GroupBox</header>
+   <header>Qt3Support/QGroupBox</header>
    <container>1</container>
   </customwidget>
   <customwidget>

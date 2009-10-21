@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>353</width>
-    <height>205</height>
+    <width>354</width>
+    <height>211</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -24,6 +24,12 @@
        <layout class="QHBoxLayout">
         <item>
          <widget class="QLabel" name="textLabel5">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
           <property name="frameShape">
            <enum>QFrame::NoFrame</enum>
           </property>
@@ -69,7 +75,7 @@
         <item>
          <widget class="QLabel" name="textLabel9">
           <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
@@ -88,6 +94,12 @@
        <layout class="QHBoxLayout">
         <item>
          <widget class="QLabel" name="textLabel7">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
           <property name="text">
            <string>Output Field</string>
           </property>
@@ -127,7 +139,7 @@
         <item>
          <widget class="QLabel" name="textLabel10">
           <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
@@ -146,6 +158,12 @@
        <layout class="QHBoxLayout">
         <item>
          <widget class="QLabel" name="textLabel6">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
           <property name="text">
            <string>Output Current</string>
           </property>
@@ -185,7 +203,7 @@
         <item>
          <widget class="QLabel" name="textLabel11">
           <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
@@ -204,6 +222,12 @@
        <layout class="QHBoxLayout">
         <item>
          <widget class="QLabel" name="textLabel8">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
           <property name="text">
            <string>Output Voltage</string>
           </property>
@@ -243,7 +267,7 @@
         <item>
          <widget class="QLabel" name="textLabel12">
           <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
@@ -263,10 +287,16 @@
     <item row="0" column="1">
      <layout class="QHBoxLayout">
       <item>
-       <widget class="KLed" name="m_ledSwitchHeater" native="true"/>
+       <widget class="KLed" name="m_ledSwitchHeater"/>
       </item>
       <item>
        <widget class="QLabel" name="textLabel15">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
         <property name="text">
          <string>Switch Heater</string>
         </property>
@@ -280,10 +310,16 @@
     <item row="1" column="1">
      <layout class="QHBoxLayout">
       <item>
-       <widget class="KLed" name="m_ledPersistent" native="true"/>
+       <widget class="KLed" name="m_ledPersistent"/>
       </item>
       <item>
        <widget class="QLabel" name="textLabel15_2">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
         <property name="text">
          <string>Persistent</string>
         </property>
@@ -328,7 +364,7 @@
       <item>
        <widget class="QLabel" name="textLabel13">
         <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
@@ -354,7 +390,7 @@
       <item>
        <widget class="QLabel" name="textLabel14">
         <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
@@ -373,6 +409,12 @@
      <layout class="QHBoxLayout">
       <item>
        <widget class="QLabel" name="textLabel13_2">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
         <property name="text">
          <string>Sweep Rate</string>
         </property>
@@ -394,7 +436,7 @@
       <item>
        <widget class="QLabel" name="textLabel14_2">
         <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>

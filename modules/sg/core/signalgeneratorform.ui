@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>200</width>
+    <width>165</width>
     <height>132</height>
    </rect>
   </property>
@@ -14,14 +14,6 @@
    <string>Signal Generator Control</string>
   </property>
   <widget class="QWidget" name="widget">
-   <property name="geometry">
-    <rect>
-     <x>0</x>
-     <y>0</y>
-     <width>200</width>
-     <height>132</height>
-    </rect>
-   </property>
    <layout class="QGridLayout">
     <property name="margin">
      <number>2</number>
@@ -86,7 +78,7 @@
           <item>
            <widget class="QLabel" name="textLabel2_3_2_3">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -155,7 +147,7 @@
           <item>
            <widget class="QLabel" name="textLabel2_3_2_3_2">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -211,8 +203,6 @@
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
- <customwidgets>
- </customwidgets>
  <resources/>
  <connections/>
 </ui>

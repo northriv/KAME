@@ -6,22 +6,14 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>141</width>
-    <height>145</height>
+    <width>143</width>
+    <height>122</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>DMM Settings</string>
   </property>
   <widget class="QWidget" name="widget">
-   <property name="geometry">
-    <rect>
-     <x>0</x>
-     <y>0</y>
-     <width>141</width>
-     <height>145</height>
-    </rect>
-   </property>
    <layout class="QGridLayout">
     <property name="margin">
      <number>2</number>
@@ -104,14 +96,6 @@
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
- <customwidgets>
-  <customwidget>
-   <class>Q3MainWindow</class>
-   <extends>QWidget</extends>
-   <header>q3mainwindow.h</header>
-   <container>1</container>
-  </customwidget>
- </customwidgets>
  <resources/>
  <connections/>
 </ui>

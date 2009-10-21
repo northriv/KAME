@@ -6,27 +6,25 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>221</width>
-    <height>570</height>
+    <width>218</width>
+    <height>544</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Temperature Control</string>
   </property>
   <widget class="QWidget" name="widget">
-   <property name="geometry">
-    <rect>
-     <x>0</x>
-     <y>0</y>
-     <width>221</width>
-     <height>570</height>
-    </rect>
-   </property>
    <layout class="QGridLayout">
     <item row="3" column="0">
      <layout class="QHBoxLayout">
       <item>
        <widget class="QLabel" name="textLabel5_2">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
         <property name="text">
          <string>Temp.</string>
         </property>
@@ -85,6 +83,12 @@
      <layout class="QHBoxLayout">
       <item>
        <widget class="QLabel" name="textLabel17">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
         <property name="text">
          <string>Heater Mode</string>
         </property>
@@ -102,6 +106,12 @@
      <layout class="QHBoxLayout">
       <item>
        <widget class="QLabel" name="textLabel18_2_2">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
         <property name="text">
          <string>P</string>
         </property>
@@ -122,6 +132,12 @@
       </item>
       <item>
        <widget class="QLabel" name="textLabel18_2_2_2">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
         <property name="text">
          <string>I</string>
         </property>
@@ -142,6 +158,12 @@
       </item>
       <item>
        <widget class="QLabel" name="textLabel18_2_2_3">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
         <property name="text">
          <string>D</string>
         </property>
@@ -166,6 +188,12 @@
      <layout class="QHBoxLayout">
       <item>
        <widget class="QLabel" name="textLabel16">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
         <property name="text">
          <string>Source CH</string>
         </property>
@@ -183,6 +211,12 @@
      <layout class="QHBoxLayout">
       <item>
        <widget class="QLabel" name="textLabel5">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
         <property name="text">
          <string>Heater Power</string>
         </property>
@@ -225,6 +259,12 @@
      <layout class="QHBoxLayout">
       <item>
        <widget class="QLabel" name="textLabel18">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
         <property name="text">
          <string>Target Temp</string>
         </property>
@@ -258,6 +298,12 @@
      <layout class="QHBoxLayout">
       <item>
        <widget class="QLabel" name="textLabel18_2">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
         <property name="text">
          <string>Manual Heater</string>
         </property>
@@ -275,6 +321,12 @@
      <layout class="QHBoxLayout">
       <item>
        <widget class="QLabel" name="textLabel22">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
         <property name="text">
          <string>Power Range</string>
         </property>
@@ -289,7 +341,7 @@
      </layout>
     </item>
     <item row="8" column="0">
-     <widget class="Q3GroupBox" name="groupBox1">
+     <widget class="QGroupBox" name="groupBox1">
       <property name="title">
        <string>Channel Setup</string>
       </property>
@@ -301,6 +353,12 @@
         <layout class="QVBoxLayout">
          <item>
           <widget class="QLabel" name="textLabel19">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
            <property name="text">
             <string>Setup Channel</string>
            </property>
@@ -318,6 +376,12 @@
         <layout class="QHBoxLayout">
          <item>
           <widget class="QLabel" name="textLabel20">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
            <property name="text">
             <string>Excitation</string>
            </property>
@@ -342,6 +406,12 @@
         <layout class="QVBoxLayout">
          <item>
           <widget class="QLabel" name="textLabel21">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
            <property name="text">
             <string>Thermometer</string>
            </property>
@@ -359,7 +429,7 @@
      </widget>
     </item>
     <item row="9" column="0">
-     <widget class="Q3GroupBox" name="groupBox2">
+     <widget class="QGroupBox" name="groupBox2">
       <property name="title">
        <string>External DC Source</string>
       </property>
@@ -379,6 +449,12 @@
        </item>
        <item row="1" column="0">
         <widget class="QLabel" name="textLabel1">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
          <property name="text">
           <string>Channel</string>
          </property>
@@ -395,14 +471,6 @@
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
- <customwidgets>
-  <customwidget>
-   <class>Q3GroupBox</class>
-   <extends>QGroupBox</extends>
-   <header>Qt3Support/Q3GroupBox</header>
-   <container>1</container>
-  </customwidget>
- </customwidgets>
  <tabstops>
   <tabstop>m_cmbHeaterMode</tabstop>
   <tabstop>m_cmbSourceChannel</tabstop>

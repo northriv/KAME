@@ -6,22 +6,14 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>665</width>
-    <height>472</height>
+    <width>648</width>
+    <height>481</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>MonteCarlo control</string>
   </property>
   <widget class="QWidget" name="widget">
-   <property name="geometry">
-    <rect>
-     <x>0</x>
-     <y>0</y>
-     <width>665</width>
-     <height>472</height>
-    </rect>
-   </property>
    <layout class="QGridLayout">
     <property name="margin">
      <number>2</number>
@@ -250,7 +242,7 @@
        </widget>
       </item>
       <item row="1" column="0">
-       <widget class="KUrlRequester" name="m_urlDump" native="true">
+       <widget class="KUrlRequester" name="m_urlDump">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
           <horstretch>0</horstretch>
@@ -272,7 +264,7 @@
      </layout>
     </item>
     <item row="4" column="0">
-     <widget class="Q3GroupBox" name="groupBox1">
+     <widget class="QGroupBox" name="groupBox1">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
         <horstretch>0</horstretch>
@@ -438,20 +430,14 @@
  <layoutdefault spacing="6" margin="11"/>
  <customwidgets>
   <customwidget>
-   <class>Q3GroupBox</class>
-   <extends>QGroupBox</extends>
-   <header>Qt3Support/Q3GroupBox</header>
-   <container>1</container>
+   <class>KUrlRequester</class>
+   <extends>QFrame</extends>
+   <header>kurlrequester.h</header>
   </customwidget>
   <customwidget>
    <class>XQGraph</class>
    <extends>QWidget</extends>
    <header>graphwidget.h</header>
-  </customwidget>
-  <customwidget>
-   <class>KUrlRequester</class>
-   <extends>QWidget</extends>
-   <header>kurlrequester.h</header>
   </customwidget>
  </customwidgets>
  <includes>

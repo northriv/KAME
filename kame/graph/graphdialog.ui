@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>314</width>
-    <height>447</height>
+    <width>274</width>
+    <height>425</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -74,6 +74,9 @@
    </item>
    <item row="0" column="0">
     <widget class="QTabWidget" name="tab1">
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
      <widget class="QWidget" name="tab">
       <attribute name="title">
        <string>Plots</string>
@@ -113,7 +116,7 @@
          <item>
           <layout class="QHBoxLayout">
            <item>
-            <widget class="KColorCombo" name="clrBarColor" native="true">
+            <widget class="KColorCombo" name="clrBarColor">
              <property name="enabled">
               <bool>false</bool>
              </property>
@@ -154,7 +157,7 @@
          <item>
           <layout class="QHBoxLayout">
            <item>
-            <widget class="KColorCombo" name="clrLineColor" native="true">
+            <widget class="KColorCombo" name="clrLineColor">
              <property name="enabled">
               <bool>false</bool>
              </property>
@@ -195,7 +198,7 @@
          <item>
           <layout class="QHBoxLayout">
            <item>
-            <widget class="KColorCombo" name="clrPointColor" native="true">
+            <widget class="KColorCombo" name="clrPointColor">
              <property name="enabled">
               <bool>false</bool>
              </property>
@@ -234,7 +237,7 @@
           </spacer>
          </item>
          <item>
-          <widget class="KColorCombo" name="clrMajorGridColor" native="true">
+          <widget class="KColorCombo" name="clrMajorGridColor">
            <property name="enabled">
             <bool>false</bool>
            </property>
@@ -271,7 +274,7 @@
           </spacer>
          </item>
          <item>
-          <widget class="KColorCombo" name="clrMinorGridColor" native="true">
+          <widget class="KColorCombo" name="clrMinorGridColor">
            <property name="enabled">
             <bool>false</bool>
            </property>
@@ -343,7 +346,7 @@
           </widget>
          </item>
          <item>
-          <widget class="KDoubleNumInput" name="dblIntensity" native="true">
+          <widget class="KDoubleNumInput" name="dblIntensity">
            <property name="enabled">
             <bool>false</bool>
            </property>
@@ -372,14 +375,14 @@
          <item>
           <layout class="QHBoxLayout">
            <item>
-            <widget class="KColorCombo" name="clrColorPlotLow" native="true">
+            <widget class="KColorCombo" name="clrColorPlotLow">
              <property name="enabled">
               <bool>false</bool>
              </property>
             </widget>
            </item>
            <item>
-            <widget class="KColorCombo" name="clrColorPlotHigh" native="true">
+            <widget class="KColorCombo" name="clrColorPlotHigh">
              <property name="enabled">
               <bool>false</bool>
              </property>
@@ -594,7 +597,7 @@
           </widget>
          </item>
          <item>
-          <widget class="KColorCombo" name="m_clrBackGroundColor" native="true">
+          <widget class="KColorCombo" name="m_clrBackGroundColor">
            <property name="enabled">
             <bool>false</bool>
            </property>
@@ -631,21 +634,21 @@
           </widget>
          </item>
          <item>
-          <widget class="KDoubleNumInput" name="m_dblPersistence" native="true">
+          <widget class="KDoubleNumInput" name="m_dblPersistence">
            <property name="enabled">
             <bool>false</bool>
            </property>
-           <property name="label" stdset="0">
+           <property name="label">
             <string/>
            </property>
-           <property name="value" stdset="0">
-            <number>0</number>
+           <property name="value">
+            <double>0.000000000000000</double>
+           </property>
+           <property name="suffix">
+            <string> sec</string>
            </property>
            <property name="maxValue" stdset="0">
             <number>1</number>
-           </property>
-           <property name="suffix" stdset="0">
-            <string> sec</string>
            </property>
            <property name="precision" stdset="0">
             <number>2</number>
@@ -716,14 +719,14 @@
    <header>q3listbox.h</header>
   </customwidget>
   <customwidget>
-   <class>KColorCombo</class>
-   <extends>QWidget</extends>
-   <header>kcolorcombo.h</header>
-  </customwidget>
-  <customwidget>
    <class>KDoubleNumInput</class>
    <extends>QWidget</extends>
    <header>knuminput.h</header>
+  </customwidget>
+  <customwidget>
+   <class>KColorCombo</class>
+   <extends>QComboBox</extends>
+   <header>kcolorcombo.h</header>
   </customwidget>
  </customwidgets>
  <tabstops>

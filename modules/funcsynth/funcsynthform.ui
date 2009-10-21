@@ -6,22 +6,14 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>177</width>
-    <height>313</height>
+    <width>174</width>
+    <height>306</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Function Synthesizer Control</string>
   </property>
   <widget class="QWidget" name="widget">
-   <property name="geometry">
-    <rect>
-     <x>0</x>
-     <y>0</y>
-     <width>177</width>
-     <height>313</height>
-    </rect>
-   </property>
    <layout class="QGridLayout">
     <property name="margin">
      <number>2</number>
@@ -304,8 +296,6 @@
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
- <customwidgets>
- </customwidgets>
  <resources/>
  <connections/>
 </ui>

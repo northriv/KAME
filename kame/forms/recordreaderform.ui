@@ -9,8 +9,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>300</width>
-    <height>203</height>
+    <width>226</width>
+    <height>200</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -89,7 +89,7 @@
         </widget>
        </item>
        <item>
-        <widget class="KUrlRequester" name="urlBinRec" native="true">
+        <widget class="KUrlRequester" name="urlBinRec">
          <property name="enabled">
           <bool>false</bool>
          </property>
@@ -308,7 +308,7 @@
  <customwidgets>
   <customwidget>
    <class>KUrlRequester</class>
-   <extends>QWidget</extends>
+   <extends>QFrame</extends>
    <header>kurlrequester.h</header>
   </customwidget>
  </customwidgets>

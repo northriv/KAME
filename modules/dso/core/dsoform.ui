@@ -6,22 +6,14 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>783</width>
-    <height>570</height>
+    <width>636</width>
+    <height>621</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>DSO Control</string>
   </property>
   <widget class="QWidget" name="widget">
-   <property name="geometry">
-    <rect>
-     <x>0</x>
-     <y>0</y>
-     <width>783</width>
-     <height>570</height>
-    </rect>
-   </property>
    <layout class="QGridLayout">
     <property name="margin">
      <number>2</number>
@@ -54,7 +46,7 @@
           <item>
            <widget class="QLabel" name="textLabel1">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -86,7 +78,7 @@
          </layout>
         </item>
         <item>
-         <widget class="Q3GroupBox" name="groupBox1_2_2">
+         <widget class="QGroupBox" name="groupBox1_2_2">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
             <horstretch>0</horstretch>
@@ -105,7 +97,7 @@
              <item>
               <widget class="QLabel" name="textLabel1_2_5">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -131,7 +123,7 @@
              <item>
               <widget class="QLabel" name="textLabel1_2_2_4">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -151,7 +143,7 @@
              <item>
               <widget class="QLabel" name="textLabel2_2_2">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -186,7 +178,7 @@
          </widget>
         </item>
         <item>
-         <widget class="Q3GroupBox" name="groupBox4">
+         <widget class="QGroupBox" name="groupBox4">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
             <horstretch>0</horstretch>
@@ -205,7 +197,7 @@
              <item>
               <widget class="QLabel" name="textLabel1_2_3">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -231,7 +223,7 @@
              <item>
               <widget class="QLabel" name="textLabel1_2_2_2">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -261,7 +253,7 @@
              <item>
               <widget class="QLabel" name="textLabel1_2">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -287,7 +279,7 @@
              <item>
               <widget class="QLabel" name="textLabel1_2_2">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -306,7 +298,7 @@
          </widget>
         </item>
         <item>
-         <widget class="Q3GroupBox" name="groupBox4_3">
+         <widget class="QGroupBox" name="groupBox4_3">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
             <horstretch>0</horstretch>
@@ -325,7 +317,7 @@
              <item>
               <widget class="QLabel" name="textLabel1_2_3_2">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -351,7 +343,7 @@
              <item>
               <widget class="QLabel" name="textLabel1_2_2_2_2">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -381,7 +373,7 @@
              <item>
               <widget class="QLabel" name="textLabel1_2_4">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -407,7 +399,7 @@
              <item>
               <widget class="QLabel" name="textLabel1_2_2_3">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -426,7 +418,7 @@
          </widget>
         </item>
         <item>
-         <widget class="Q3GroupBox" name="groupBox1_2">
+         <widget class="QGroupBox" name="groupBox1_2">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -445,7 +437,7 @@
              <item>
               <widget class="QLabel" name="textLabel1_2_5_2_2">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -481,7 +473,7 @@
              <item>
               <widget class="QLabel" name="textLabel1_2_5_2">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -495,7 +487,7 @@
               </widget>
              </item>
              <item>
-              <widget class="KDoubleNumInput" name="m_numTrigPos" native="true">
+              <widget class="KDoubleNumInput" name="m_numTrigPos">
                <property name="sizePolicy">
                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
                  <horstretch>0</horstretch>
@@ -508,14 +500,14 @@
                  <height>0</height>
                 </size>
                </property>
+               <property name="suffix">
+                <string>%</string>
+               </property>
                <property name="minValue" stdset="0">
                 <number>0</number>
                </property>
                <property name="maxValue" stdset="0">
                 <number>100</number>
-               </property>
-               <property name="suffix" stdset="0">
-                <string>%</string>
                </property>
                <property name="precision" stdset="0">
                 <number>2</number>
@@ -542,7 +534,7 @@
              <item>
               <widget class="QLabel" name="textLabel1_2_5_2_4">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -574,7 +566,7 @@
              <item>
               <widget class="QLabel" name="textLabel1_2_5_2_4_2">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -631,7 +623,7 @@
         <item>
          <layout class="QHBoxLayout">
           <item>
-           <widget class="KUrlRequester" name="m_urlDump" native="true">
+           <widget class="KUrlRequester" name="m_urlDump">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
               <horstretch>0</horstretch>
@@ -663,7 +655,7 @@
           <item>
            <widget class="QLabel" name="textLabel1_2_5_4">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -699,7 +691,7 @@
          </widget>
         </item>
         <item>
-         <widget class="Q3GroupBox" name="groupBox1">
+         <widget class="QGroupBox" name="groupBox1">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -731,7 +723,7 @@
              <item>
               <widget class="QLabel" name="textLabel1_2_5_3">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -763,7 +755,7 @@
              <item>
               <widget class="QLabel" name="textLabel1_2_2_4_3">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -783,7 +775,7 @@
              <item>
               <widget class="QLabel" name="textLabel1_2_5_3_2">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -819,7 +811,7 @@
              <item>
               <widget class="QLabel" name="textLabel1_2_5_3_3">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -851,7 +843,7 @@
              <item>
               <widget class="QLabel" name="textLabel1_2_2_4_3_2">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -879,10 +871,9 @@
  <layoutdefault spacing="6" margin="11"/>
  <customwidgets>
   <customwidget>
-   <class>Q3GroupBox</class>
-   <extends>QGroupBox</extends>
-   <header>Qt3Support/Q3GroupBox</header>
-   <container>1</container>
+   <class>KUrlRequester</class>
+   <extends>QFrame</extends>
+   <header>kurlrequester.h</header>
   </customwidget>
   <customwidget>
    <class>KDoubleNumInput</class>
@@ -893,11 +884,6 @@
    <class>XQGraph</class>
    <extends>QWidget</extends>
    <header>graphwidget.h</header>
-  </customwidget>
-  <customwidget>
-   <class>KUrlRequester</class>
-   <extends>QWidget</extends>
-   <header>kurlrequester.h</header>
   </customwidget>
  </customwidgets>
  <tabstops>

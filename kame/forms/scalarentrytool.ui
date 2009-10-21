@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>397</width>
-    <height>415</height>
+    <width>354</width>
+    <height>414</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -49,7 +49,7 @@
     </widget>
    </item>
    <item row="0" column="0">
-    <widget class="Q3GroupBox" name="groupBox1">
+    <widget class="QGroupBox" name="groupBox1">
      <property name="sizePolicy">
       <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
        <horstretch>0</horstretch>
@@ -65,15 +65,9 @@
      <property name="title">
       <string>Text Writer</string>
      </property>
-     <property name="frameShape">
-      <enum>Q3GroupBox::GroupBoxPanel</enum>
-     </property>
-     <property name="frameShadow">
-      <enum>Q3GroupBox::Sunken</enum>
-     </property>
      <layout class="QGridLayout">
       <item row="0" column="0">
-       <widget class="KUrlRequester" name="m_urlTextWriter" native="true">
+       <widget class="KUrlRequester" name="m_urlTextWriter">
         <property name="enabled">
          <bool>false</bool>
         </property>
@@ -115,6 +109,12 @@
        <layout class="QHBoxLayout">
         <item>
          <widget class="QLabel" name="textLabel1">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
           <property name="font">
            <font>
             <family>Helvetica</family>
@@ -156,12 +156,6 @@
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
  <customwidgets>
   <customwidget>
-   <class>Q3GroupBox</class>
-   <extends>QGroupBox</extends>
-   <header>Qt3Support/Q3GroupBox</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
    <class>Q3Frame</class>
    <extends>QFrame</extends>
    <header>Qt3Support/Q3Frame</header>
@@ -174,7 +168,7 @@
   </customwidget>
   <customwidget>
    <class>KUrlRequester</class>
-   <extends>QWidget</extends>
+   <extends>QFrame</extends>
    <header>kurlrequester.h</header>
   </customwidget>
  </customwidgets>
