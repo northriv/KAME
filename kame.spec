@@ -101,12 +101,12 @@ rm -rf $RPM_BUILD_ROOT
 
 %files modules-standard
 %{_sysconfdir}/udev/rules.d/10-kame.rules
-%{_libdir}/kame/modules/core/libcharinterface*
-%{_libdir}/kame/modules/core/libdcsourcecore*
-%{_libdir}/kame/modules/core/libdmmcore*
-%{_libdir}/kame/modules/core/libdsocore*
-%{_libdir}/kame/modules/core/libmagnetpscore*
-%{_libdir}/kame/modules/core/liblevelmetercore*
+%{_libdir}/kame/core_modules/libcharinterface*
+%{_libdir}/kame/core_modules/libdcsourcecore*
+%{_libdir}/kame/core_modules/libdmmcore*
+%{_libdir}/kame/core_modules/libdsocore*
+%{_libdir}/kame/core_modules/libmagnetpscore*
+%{_libdir}/kame/core_modules/liblevelmetercore*
 %{_libdir}/kame/modules/libdcsource*
 %{_libdir}/kame/modules/libdmm*
 %{_libdir}/kame/modules/libdso*
@@ -118,8 +118,8 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/kame/modules/libnetworkanalyzer*
 
 %files modules-nmr
-%{_libdir}/kame/modules/core/libnmrpulsercore*
-%{_libdir}/kame/modules/core/libsgcore*
+%{_libdir}/kame/core_modules/libnmrpulsercore*
+%{_libdir}/kame/core_modules/libsgcore*
 %{_libdir}/kame/modules/libnmr*
 %{_libdir}/kame/modules/libsg*
 
