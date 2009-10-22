@@ -101,6 +101,7 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_form->tabifyDockWidget(m_form->m_dockTrace1, m_form->m_dockTrace2);
 	m_form->tabifyDockWidget(m_form->m_dockTrace2, m_form->m_dockTrace3);
 	m_form->tabifyDockWidget(m_form->m_dockTrace3, m_form->m_dockTrace4);
+	m_form->resize( QSize(m_form->width(), 400) );
 
 	singleSequence()->value(true);
 	firBandWidth()->value(1000.0);
