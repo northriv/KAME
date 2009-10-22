@@ -1,7 +1,6 @@
-Code refactoring:
-	- reducing object size.
-	- profiling.
-Atomic 2.0
-	- atomic_rcu_deque
-	- enable_if_c
-	- CAS-64.
+Toward 2.9:
+- UI, appearence, relax, pulse, sweep.
+- modules/core
+- rbtoolform, drivercreate, larger.
+- short -> int16_t
+- char -> int8_t

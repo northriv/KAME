@@ -55,5 +55,57 @@ private:
 	std::vector<unsigned char> m_zippedPatterns;
   
 	int m_waveformPos[PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX];
-  
+
+	//dma time commands
+	static const unsigned char PATTERN_ZIPPED_COMMAND_DMA_END;
+	//+1: a phase by 90deg.
+	//+2,3: from DMA start
+	//+4,5: src neg. offset from here
+	static const unsigned char PATTERN_ZIPPED_COMMAND_DMA_COPY_HBURST;
+	//+1,2: time to appear
+	//+2,3: pattern to appear
+	static const unsigned char PATTERN_ZIPPED_COMMAND_DMA_LSET_LONG;
+	//+0: time to appear + START
+	//+1,2: pattern to appear
+	static const unsigned char PATTERN_ZIPPED_COMMAND_DMA_LSET_START;
+	static const unsigned char PATTERN_ZIPPED_COMMAND_DMA_LSET_END;
+
+	//off-dma time commands
+	static const unsigned char PATTERN_ZIPPED_COMMAND_END;
+	//+1,2 : TimerL
+	static const unsigned char PATTERN_ZIPPED_COMMAND_WAIT;
+	//+1,2 : TimerL
+	//+3,4: LSW of TimerU
+	static const unsigned char PATTERN_ZIPPED_COMMAND_WAIT_LONG;
+	//+1,2 : TimerL
+	//+3,4: MSW of TimerU
+	//+5,6: LSW of TimerU
+	static const unsigned char PATTERN_ZIPPED_COMMAND_WAIT_LONG_LONG;
+	//+1: byte
+	static const unsigned char PATTERN_ZIPPED_COMMAND_AUX1;
+	//+1: byte
+	static const unsigned char PATTERN_ZIPPED_COMMAND_AUX3;
+	//+1: address
+	//+2,3: value
+	static const unsigned char PATTERN_ZIPPED_COMMAND_AUX2_DA;
+	//+1,2: loops
+	static const unsigned char PATTERN_ZIPPED_COMMAND_DO;
+	static const unsigned char PATTERN_ZIPPED_COMMAND_LOOP;
+	static const unsigned char PATTERN_ZIPPED_COMMAND_LOOP_INF;
+	static const unsigned char PATTERN_ZIPPED_COMMAND_BREAKPOINT;
+	static const unsigned char PATTERN_ZIPPED_COMMAND_PULSEON;
+	//+1,2: last pattern
+	static const unsigned char PATTERN_ZIPPED_COMMAND_DMA_SET;
+	//+1,2: size
+	//+2n: patterns
+	static const unsigned char PATTERN_ZIPPED_COMMAND_DMA_HBURST;
+	//+1 (signed char): QAM1 offset
+	//+2 (signed char): QAM2 offset
+	static const unsigned char PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_OFFSET;
+	//+1 (signed char): QAM1 level
+	//+2 (signed char): QAM2 level
+	static const unsigned char PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_LEVEL;
+	//+1 (signed char): QAM1 delay
+	//+2 (signed char): QAM2 delay
+	static const unsigned char PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_DELAY;
 };

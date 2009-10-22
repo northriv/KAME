@@ -316,4 +316,30 @@ private:
 	inline uint64_t rintSampsMilliSec(double ms) const;
 };
 
+inline double
+XPulser::rintTermMilliSec(double msec) const {
+	double res = resolution();
+	return rint(msec / res) * res;
+}
+inline double
+XPulser::rintTermMicroSec(double usec) const {
+	double res = resolution() * 1e3;
+	return rint(usec / res) * res;
+}
+inline uint64_t
+XPulser::ceilSampsMicroSec(double usec) const {
+	double res = resolution() * 1e3;
+	return llrint(usec / res + 0.499);
+}
+inline uint64_t
+XPulser::rintSampsMicroSec(double usec) const {
+	double res = resolution() * 1e3;
+	return llrint(usec / res);
+}
+inline uint64_t
+XPulser::rintSampsMilliSec(double msec) const {
+	double res = resolution();
+	return llrint(msec / res);
+}
+
 #endif

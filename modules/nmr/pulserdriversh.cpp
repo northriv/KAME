@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -12,7 +12,7 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "pulserdriversh.h"
-#include <charinterface.h>
+#include "charinterface.h"
 
 REGISTER_TYPE(XDriverList, SHPulser, "NMR pulser handmade-SH2");
 
@@ -20,73 +20,73 @@ using std::max;
 using std::min;
 
 //[ms]
-static const double DMA_PERIOD = (1.0/(28.64e3/2));
+#define DMA_PERIOD (1.0/(28.64e3/2))
 
 double XSHPulser::resolution() const {
 	return DMA_PERIOD;
 }
 
 //[ms]
-static const double MIN_MTU_LEN = 50e-3;
+#define MIN_MTU_LEN 50e-3
 //[ms]
-static const double MTU_PERIOD = (1.0/(28.64e3/1));
+#define MTU_PERIOD (1.0/(28.64e3/1))
 
 
-static const unsigned int NUM_BANK = 2;
-static const unsigned int PATTERNS_ZIPPED_MAX = 40000;
+#define NUM_BANK 2u
+#define PATTERNS_ZIPPED_MAX 40000u
 
 //dma time commands
-static const unsigned char PATTERN_ZIPPED_COMMAND_DMA_END = 0;
+const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_DMA_END = 0;
 //+1: a phase by 90deg.
 //+2,3: from DMA start 
 //+4,5: src neg. offset from here
-static const unsigned char PATTERN_ZIPPED_COMMAND_DMA_COPY_HBURST = 1;
+const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_DMA_COPY_HBURST = 1;
 //+1,2: time to appear
 //+2,3: pattern to appear
-static const unsigned char PATTERN_ZIPPED_COMMAND_DMA_LSET_LONG = 2;
+const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_DMA_LSET_LONG = 2;
 //+0: time to appear + START
 //+1,2: pattern to appear
-static const unsigned char PATTERN_ZIPPED_COMMAND_DMA_LSET_START = 0x10;
-static const unsigned char PATTERN_ZIPPED_COMMAND_DMA_LSET_END = 0xffu;
+const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_DMA_LSET_START = 0x10;
+const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_DMA_LSET_END = 0xffu;
 
 //off-dma time commands
-static const unsigned char PATTERN_ZIPPED_COMMAND_END = 0;
+const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_END = 0;
 //+1,2 : TimerL
-static const unsigned char PATTERN_ZIPPED_COMMAND_WAIT = 1;
+const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_WAIT = 1;
 //+1,2 : TimerL
 //+3,4: LSW of TimerU
-static const unsigned char PATTERN_ZIPPED_COMMAND_WAIT_LONG = 2;
+const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_WAIT_LONG = 2;
 //+1,2 : TimerL
 //+3,4: MSW of TimerU
 //+5,6: LSW of TimerU
-static const unsigned char PATTERN_ZIPPED_COMMAND_WAIT_LONG_LONG = 3;
+const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_WAIT_LONG_LONG = 3;
 //+1: byte
-static const unsigned char PATTERN_ZIPPED_COMMAND_AUX1 = 4;
+const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_AUX1 = 4;
 //+1: byte
-static const unsigned char PATTERN_ZIPPED_COMMAND_AUX3 = 5;
+const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_AUX3 = 5;
 //+1: address
 //+2,3: value
-static const unsigned char PATTERN_ZIPPED_COMMAND_AUX2_DA = 6;
+const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_AUX2_DA = 6;
 //+1,2: loops
-static const unsigned char PATTERN_ZIPPED_COMMAND_DO = 7;
-static const unsigned char PATTERN_ZIPPED_COMMAND_LOOP = 8;
-static const unsigned char PATTERN_ZIPPED_COMMAND_LOOP_INF = 9;
-static const unsigned char PATTERN_ZIPPED_COMMAND_BREAKPOINT = 0xa; 
-static const unsigned char PATTERN_ZIPPED_COMMAND_PULSEON = 0xb;
+const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_DO = 7;
+const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_LOOP = 8;
+const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_LOOP_INF = 9;
+const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_BREAKPOINT = 0xa;
+const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_PULSEON = 0xb;
 //+1,2: last pattern
-static const unsigned char PATTERN_ZIPPED_COMMAND_DMA_SET = 0xc;
+const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_DMA_SET = 0xc;
 //+1,2: size
 //+2n: patterns
-static const unsigned char PATTERN_ZIPPED_COMMAND_DMA_HBURST = 0xd;
+const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_DMA_HBURST = 0xd;
 //+1 (signed char): QAM1 offset
 //+2 (signed char): QAM2 offset
-static const unsigned char PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_OFFSET = 0xe;
+const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_OFFSET = 0xe;
 //+1 (signed char): QAM1 level
 //+2 (signed char): QAM2 level
-static const unsigned char PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_LEVEL = 0xf;
+const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_LEVEL = 0xf;
 //+1 (signed char): QAM1 delay
 //+2 (signed char): QAM2 delay
-static const unsigned char PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_DELAY = 0x10;
+const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_DELAY = 0x10;
 
 XSHPulser::XSHPulser(const char *name, bool runtime,
 					 const shared_ptr<XScalarEntryList> &scalarentries,

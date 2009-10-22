@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -12,16 +12,15 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "pulserdriverh8.h"
-#include <charinterface.h>
+#include "charinterface.h"
 
 REGISTER_TYPE(XDriverList, H8Pulser, "NMR pulser handmade-H8");
 
-static const unsigned int MAX_PATTERN_SIZE = 2048;
-
+#define MAX_PATTERN_SIZE 2048u
 //[ms]
-static const double TIMER_PERIOD = (1.0/(25.0e3));
+#define TIMER_PERIOD (1.0/(25.0e3))
 //[ms]
-static const double MIN_PULSE_WIDTH = 0.001;
+#define MIN_PULSE_WIDTH 0.001
 
 double XH8Pulser::resolution() const {
 	return TIMER_PERIOD;
@@ -70,6 +69,8 @@ XH8Pulser::createNativePatterns()
 int
 XH8Pulser::pulseAdd(uint64_t term, unsigned short pattern)
 {
+	C_ASSERT(sizeof(long long) == 8);
+
 	term = std::max(term, (uint64_t)lrint(MIN_PULSE_WIDTH / TIMER_PERIOD));
 
 	uint32_t ulen = (uint32_t)((term - 1) / 0x8000uLL);

@@ -330,14 +330,14 @@ XPulser::XPulser(const char *name, bool runtime,
 	qswPiPulseOnly()->setUIEnabled(false);
 	invertPhase()->setUIEnabled(false);
 	conserveStEPhase()->setUIEnabled(false);
-  
+
 	m_conPulserDriver = xqcon_create<XQPulserDriverConnector>(
-        dynamic_pointer_cast<XPulser>(shared_from_this()), m_form->m_tblPulse, m_form->m_graph);
+		dynamic_pointer_cast<XPulser>(shared_from_this()), m_form->m_tblPulse, m_form->m_graph);
 }
 
 void
 XPulser::showForms() {
-//! impliment form->show() here
+	//! impliment form->show() here
     m_form->show();
     m_form->raise();
 }
@@ -507,31 +507,6 @@ XPulser::stop()
 //  thread must do interface()->close() at the end
 }
 
-inline double
-XPulser::rintTermMilliSec(double msec) const {
-	double res = resolution();
-	return rint(msec / res) * res;
-}
-inline double
-XPulser::rintTermMicroSec(double usec) const {
-	double res = resolution() * 1e3;
-	return rint(usec / res) * res;
-}
-inline uint64_t
-XPulser::ceilSampsMicroSec(double usec) const {
-	double res = resolution() * 1e3;
-	return llrint(usec / res + 0.499);
-}
-inline uint64_t
-XPulser::rintSampsMicroSec(double usec) const {
-	double res = resolution() * 1e3;
-	return llrint(usec / res);
-}
-inline uint64_t
-XPulser::rintSampsMilliSec(double msec) const {
-	double res = resolution();
-	return llrint(msec / res);
-}
 void
 XPulser::analyzeRaw() throw (XRecordError&)
 {

@@ -13,15 +13,15 @@
 ***************************************************************************/
 #include "pulserdrivernidaqmx.h"
 
-static const unsigned int CLEAR_TASKS_EVERYTIME = 0;
+#define CLEAR_TASKS_EVERYTIME 0u
 
-static const unsigned int PAUSING_BLANK_BEFORE = 1;
-static const unsigned int PAUSING_BLANK_AFTER = 1;
+#define PAUSING_BLANK_BEFORE 1u
+#define PAUSING_BLANK_AFTER 1u
 
 #include "interface.h"
 
-static const TaskHandle TASK_UNDEF = ((TaskHandle)-1);
-static const double RESOLUTION_UNDEF = 1e-5;
+#define TASK_UNDEF ((TaskHandle)-1)
+#define RESOLUTION_UNDEF 1e-5
 
 template <typename T>
 inline T *fastFill(T* p, T x, unsigned int cnt);

@@ -29,10 +29,6 @@
 
 #include <ltdl.h>
 
-static const char *description =
-I18N_NOOP("KAME");
-// INSERT A DESCRIPTION FOR YOUR APPLICATION HERE
-
 int load_module(const char *filename, lt_ptr data) {
 	reinterpret_cast<std::deque<std::string> *>(data)->push_back(filename);
 	return 0;
@@ -46,6 +42,9 @@ int main(int argc, char *argv[])
 	// GC_find_leak = 1;
 	//GC_dont_gc
 #endif  
+	const char *description =
+	I18N_NOOP("KAME");
+	// INSERT A DESCRIPTION FOR YOUR APPLICATION HERE
    
 	KAboutData aboutData( "kame", "", ki18n("KAME"),
 						  VERSION, ki18n(description), KAboutData::License_GPL,
