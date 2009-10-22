@@ -86,7 +86,8 @@ XDSO::XDSO(const char *name, bool runtime,
 		KIconLoader::global()->loadIcon("apply",
 																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
 	m_form->m_numTrigPos->setRange(0.0, 100.0, 1.0, true);
-    
+	tabifyDockWidget(m_form->m_dockTrace2, m_form->m_dockTrace1);
+
 	singleSequence()->value(true);
 	firBandWidth()->value(1000.0);
 	firCenterFreq()->value(.0);

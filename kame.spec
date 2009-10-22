@@ -7,7 +7,7 @@ Name: kame
 
 %{!?build_nidaqmx: %define build_nidaqmx 1}
 
-Version: 2.9.0
+Version: 2.9.1
 Release: 1
 License: GPL
 Group: Applications/Engineering
@@ -62,8 +62,9 @@ NMR drivers.
 %prep
 
 %setup -q
-export CXXFLAGS="-g3 -mfpmath=sse -msse -msse2 -mmmx -march=pentium4 -D__sse2__"
+export CXX="g++ -g3 -O2 -mfpmath=sse -msse -msse2 -mmmx -march=pentium4 -D__sse2__"
 %cmake -DCMAKE_BUILD_TYPE=Debug
+
 
 %build
 make

@@ -458,7 +458,7 @@
        <property name="sizeHint" stdset="0">
         <size>
          <width>20</width>
-         <height>1</height>
+         <height>129</height>
         </size>
        </property>
       </spacer>
@@ -477,7 +477,7 @@
     <string>Trace 2</string>
    </property>
    <attribute name="dockWidgetArea">
-    <number>2</number>
+    <number>1</number>
    </attribute>
    <widget class="QWidget" name="dockWidgetContents_6">
     <layout class="QVBoxLayout" name="verticalLayout_6">
@@ -597,7 +597,7 @@
        <property name="sizeHint" stdset="0">
         <size>
          <width>20</width>
-         <height>191</height>
+         <height>59</height>
         </size>
        </property>
       </spacer>
@@ -616,7 +616,7 @@
     <string>Trace 1</string>
    </property>
    <attribute name="dockWidgetArea">
-    <number>1</number>
+    <number>2</number>
    </attribute>
    <widget class="QWidget" name="dockWidgetContents_3">
     <layout class="QVBoxLayout" name="verticalLayout_5">
@@ -736,7 +736,7 @@
        <property name="sizeHint" stdset="0">
         <size>
          <width>20</width>
-         <height>1</height>
+         <height>191</height>
         </size>
        </property>
       </spacer>
