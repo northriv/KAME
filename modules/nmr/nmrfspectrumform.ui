@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>637</width>
-    <height>438</height>
+    <width>641</width>
+    <height>440</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -392,6 +392,19 @@
         </layout>
        </widget>
       </item>
+      <item>
+       <spacer name="verticalSpacer">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>40</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
      </layout>
     </item>
     <item>
@@ -660,15 +673,6 @@
      </layout>
     </item>
    </layout>
-   <zorder>m_ckbActive</zorder>
-   <zorder>groupBox1_3</zorder>
-   <zorder>groupBox1</zorder>
-   <zorder>groupBox3</zorder>
-   <zorder>textLabel1_4</zorder>
-   <zorder>groupBox3</zorder>
-   <zorder>m_edFreqStep</zorder>
-   <zorder>groupBox1</zorder>
-   <zorder>groupBox1_3</zorder>
   </widget>
  </widget>
  <layoutdefault spacing="4" margin="2"/>

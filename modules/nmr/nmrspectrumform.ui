@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>652</width>
-    <height>431</height>
+    <width>642</width>
+    <height>437</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -436,7 +436,8 @@ Field</string>
            </sizepolicy>
           </property>
           <property name="text">
-           <string>NMR Pulse Analyzer</string>
+           <string>NMR Pulse 
+Analyzer</string>
           </property>
           <property name="wordWrap">
            <bool>false</bool>
@@ -447,6 +448,19 @@ Field</string>
          <widget class="QComboBox" name="m_cmbPulse"/>
         </item>
        </layout>
+      </item>
+      <item>
+       <spacer name="verticalSpacer">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>40</height>
+         </size>
+        </property>
+       </spacer>
       </item>
      </layout>
     </item>
@@ -703,10 +717,6 @@ Field</string>
           </layout>
          </item>
         </layout>
-        <zorder>m_ckbAutoPhase</zorder>
-        <zorder>m_numPhase</zorder>
-        <zorder>textLabel11_4</zorder>
-        <zorder>m_btnClear</zorder>
        </widget>
       </item>
      </layout>
