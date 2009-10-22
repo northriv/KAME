@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
 	KApplication *app;
 	app = new KApplication;
   
-	std::deque<XString> modules;
+	std::deque<XString> modules_core, modules;
 	{
 		KGlobal::dirs()->addPrefix(".");
 		makeIcons( KIconLoader::global());
@@ -98,9 +98,9 @@ int main(int argc, char *argv[])
             
 			QStringList module_path = args->getOptionList("module");
 			for(QStringList::const_iterator it = module_path.begin(); it != module_path.end(); it++) {
-				modules.push_back(it->toLatin1().data());
+				modules_core.push_back(it->toLatin1().data());
 			}
-        
+
 #ifdef __SSE2__
 			// Check CPU specs.
 			if(cg_cpuSpec.verSSE < 2) {
@@ -141,13 +141,19 @@ int main(int argc, char *argv[])
 #endif
 	QStringList libdirs = KGlobal::dirs()->resourceDirs("lib");
 	for(QStringList::iterator it = libdirs.begin(); it != libdirs.end(); it++) {
-		QString path = *it + "kame/modules";
-		fprintf(stderr, "search in %s\n", (const char*)path.toLocal8Bit().data());
+		QString path;
+		path = *it + "kame/modules/core";
 		lt_dladdsearchdir(path.toLocal8Bit().data());
+		fprintf(stderr, "searching for core libraries in %s\n", (const char*)path.toLocal8Bit().data());
+		lt_dlforeachfile(path.toLocal8Bit().data(), &load_module, &modules_core);
+		path = *it + "kame/modules";
+		lt_dladdsearchdir(path.toLocal8Bit().data());
+		fprintf(stderr, "searching for libraries in %s\n", (const char*)path.toLocal8Bit().data());
 		lt_dlforeachfile(path.toLocal8Bit().data(), &load_module, &modules);
 	}
 
-	for(std::deque<XString>::iterator it = modules.begin(); it != modules.end(); it++) {
+	modules_core.insert(modules_core.end(), modules.begin(), modules.end());
+	for(std::deque<XString>::iterator it = modules_core.begin(); it != modules_core.end(); it++) {
 		lt_dlhandle handle = lt_dlopenext(it->c_str());
 		if(handle) {
 			fprintf(stderr, "Module %s loaded\n", it->c_str());

@@ -10,7 +10,6 @@ set(dcsource_SRCS
  )
 
 add_library(dcsource MODULE ${dcsource_SRCS})
-target_link_libraries(dcsource dcsourcecore charinterface)
 ########### install files ###############
 install(TARGETS dcsource LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules)
 

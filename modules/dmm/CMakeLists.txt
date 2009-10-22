@@ -10,6 +10,4 @@ set(dmm_SRCS
  )
 
 add_library(dmm MODULE ${dmm_SRCS})
-target_link_libraries(dmm dmmcore charinterface)
 ########### install files ###############
-install(TARGETS dmm LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules)

@@ -10,7 +10,6 @@ set(magnetps_SRCS
  )
 
 add_library(magnetps MODULE ${magnetps_SRCS})
-target_link_libraries(magnetps magnetpscore charinterface)
 ########### install files ###############
 install(TARGETS magnetps LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules)
 

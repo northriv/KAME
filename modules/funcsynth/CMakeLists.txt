@@ -11,8 +11,6 @@ kde4_add_ui_files(funcsynth_SRCS
   funcsynthform.ui  )
 
 kde4_add_library(funcsynth MODULE ${funcsynth_SRCS})
-
-target_link_libraries(funcsynth charinterface)
 ########### install files ###############
 install(TARGETS funcsynth LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules)
 

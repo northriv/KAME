@@ -33,8 +33,6 @@ kde4_add_ui_files(nmr_SRCS
 )
  
 kde4_add_library(nmr MODULE ${nmr_SRCS} ${nmrpulser_SRCS})
-target_link_libraries(nmr charinterface 
-     dmmcore dsocore sgcore magnetpscore nmrpulsercore)
 ########### install files ###############
 install(TARGETS nmr LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules)
 

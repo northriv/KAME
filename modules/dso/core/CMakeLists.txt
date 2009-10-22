@@ -9,8 +9,9 @@ set(dsocore_SRCS
 kde4_add_ui_files(dsocore_SRCS
   dsoform.ui  )
 
-kde4_add_library(dsocore STATIC ${dsocore_SRCS})
+kde4_add_library(dsocore MODULE ${dsocore_SRCS})
 ########### install files ###############
+install(TARGETS dsocore LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules/core)
 
 
 ##AM_CXXFLAGS = $(CXXFLAGS) \

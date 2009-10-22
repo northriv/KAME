@@ -10,6 +10,5 @@ set(sg_SRCS
  )
 
 add_library(sg MODULE ${sg_SRCS})
-target_link_libraries(sg sgcore charinterface)
 ########### install files ###############
 install(TARGETS sg LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules)

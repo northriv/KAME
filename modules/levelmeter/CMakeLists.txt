@@ -11,6 +11,5 @@ set(levelmeter_SRCS
  )
 
 add_library(levelmeter MODULE ${levelmeter_SRCS})
-target_link_libraries(levelmeter levelmetercore charinterface)
 ########### install files ###############
 install(TARGETS levelmeter LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules)

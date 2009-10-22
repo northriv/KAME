@@ -12,6 +12,5 @@ kde4_add_ui_files(networkanalyzer_SRCS
   networkanalyzerform.ui  )
 
 kde4_add_library(networkanalyzer MODULE ${networkanalyzer_SRCS})
-target_link_libraries(networkanalyzer charinterface)
 ########### install files ###############
 install(TARGETS networkanalyzer LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules)

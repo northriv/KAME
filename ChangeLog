@@ -1,6 +1,11 @@
 * Thu Oct 22 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.9.1-1)
+- Core modules are moved to modules/core.
+- Rearranged UIs.
+
+* Thu Oct 22 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.9.0-1)
-- The first version with Qt4/Kde4.
+- The first working version with Qt4/Kde4.
 
 * Fri Oct 16 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.3.26-1)
