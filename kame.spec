@@ -62,7 +62,7 @@ NMR drivers.
 %prep
 
 %setup -q
-export CXXFLAGS="-g3 -mfpmath=sse -msse -msse2 -mmmx -march=pentium4"
+export CXXFLAGS="-g3 -mfpmath=sse -msse -msse2 -mmmx -march=pentium4 -D__sse2__"
 %cmake -DCMAKE_BUILD_TYPE=Debug
 
 %build
