@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 						   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -49,9 +49,13 @@ XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
 	{
 		vFullScale1()->add(sc[i]);
 		vFullScale2()->add(sc[i]);
+		vFullScale3()->add(sc[i]);
+		vFullScale4()->add(sc[i]);
 	}
 	vFullScale1()->value("20");
 	vFullScale2()->value("20");
+	vFullScale3()->value("20");
+	vFullScale4()->value("20");
 
 	if(g_bUseMLock) {
 		const void *FIRST_OF_MLOCK_MEMBER = &m_recordBuf;
@@ -62,6 +66,8 @@ XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
 
 	vOffset1()->disable();
 	vOffset2()->disable();
+	vOffset3()->disable();
+	vOffset4()->disable();
 }
 XNIDAQmxDSO::~XNIDAQmxDSO()
 {
@@ -132,6 +138,8 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 		for(std::deque<XString>::iterator it = chans.begin(); it != chans.end(); it++) {
 			trace1()->add(it->c_str());
 			trace2()->add(it->c_str());
+			trace3()->add(it->c_str());
+			trace4()->add(it->c_str());
 		}
 	}
 	onSoftTrigChanged(shared_ptr<XNIDAQmxInterface::SoftwareTrigger>());
@@ -163,6 +171,8 @@ XNIDAQmxDSO::close() throw (XInterface::XInterfaceError &)
 
 	trace1()->clear();
 	trace2()->clear();
+	trace3()->clear();
+	trace4()->clear();
 
 	m_recordBuf.clear();
 	m_record_av.clear();
@@ -439,6 +449,42 @@ XNIDAQmxDSO::createChannels()
 			m_coeffAI[1][i] = 0.0;
 		CHECK_DAQMX_RET(DAQmxGetAIDevScalingCoeff(m_task,
 												  trace2()->to_str().c_str(),
+												  m_coeffAI[1], CAL_POLY_ORDER));
+	}
+	if(*trace3() >= 0) {
+		CHECK_DAQMX_RET(
+			DAQmxCreateAIVoltageChan(m_task,
+									 trace3()->to_str().c_str(),
+									 "",
+									 DAQmx_Val_Cfg_Default,
+									 -atof(vFullScale3()->to_str().c_str()) / 2.0,
+									 atof(vFullScale3()->to_str().c_str()) / 2.0,
+									 DAQmx_Val_Volts,
+									 NULL
+									 ));
+		//obtain range info.
+		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++)
+			m_coeffAI[1][i] = 0.0;
+		CHECK_DAQMX_RET(DAQmxGetAIDevScalingCoeff(m_task,
+												  trace3()->to_str().c_str(),
+												  m_coeffAI[1], CAL_POLY_ORDER));
+	}
+	if(*trace4() >= 0) {
+		CHECK_DAQMX_RET(
+			DAQmxCreateAIVoltageChan(m_task,
+									 trace4()->to_str().c_str(),
+									 "",
+									 DAQmx_Val_Cfg_Default,
+									 -atof(vFullScale4()->to_str().c_str()) / 2.0,
+									 atof(vFullScale4()->to_str().c_str()) / 2.0,
+									 DAQmx_Val_Volts,
+									 NULL
+									 ));
+		//obtain range info.
+		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++)
+			m_coeffAI[1][i] = 0.0;
+		CHECK_DAQMX_RET(DAQmxGetAIDevScalingCoeff(m_task,
+												  trace4()->to_str().c_str(),
 												  m_coeffAI[1], CAL_POLY_ORDER));
 	}
 
@@ -938,6 +984,14 @@ XNIDAQmxDSO::onTrace2Changed(const shared_ptr<XValueNodeBase> &) {
 	createChannels();
 }
 void
+XNIDAQmxDSO::onTrace3Changed(const shared_ptr<XValueNodeBase> &) {
+	createChannels();
+}
+void
+XNIDAQmxDSO::onTrace4Changed(const shared_ptr<XValueNodeBase> &) {
+	createChannels();
+}
+void
 XNIDAQmxDSO::onVFullScale1Changed(const shared_ptr<XValueNodeBase> &) {
 	createChannels();
 }
@@ -946,11 +1000,27 @@ XNIDAQmxDSO::onVFullScale2Changed(const shared_ptr<XValueNodeBase> &) {
 	createChannels();
 }
 void
+XNIDAQmxDSO::onVFullScale3Changed(const shared_ptr<XValueNodeBase> &) {
+	createChannels();
+}
+void
+XNIDAQmxDSO::onVFullScale4Changed(const shared_ptr<XValueNodeBase> &) {
+	createChannels();
+}
+void
 XNIDAQmxDSO::onVOffset1Changed(const shared_ptr<XValueNodeBase> &) {
 	createChannels();
 }
 void
 XNIDAQmxDSO::onVOffset2Changed(const shared_ptr<XValueNodeBase> &) {
+	createChannels();
+}
+void
+XNIDAQmxDSO::onVOffset3Changed(const shared_ptr<XValueNodeBase> &) {
+	createChannels();
+}
+void
+XNIDAQmxDSO::onVOffset4Changed(const shared_ptr<XValueNodeBase> &) {
 	createChannels();
 }
 void

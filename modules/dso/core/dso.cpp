@@ -26,7 +26,7 @@
 #include "ui_dsoform.h"
 
 const char *XDSO::s_trace_names[] = {
-	"Time [sec]", "Trace1 [V]", "Trace2 [V]"
+	"Time [sec]", "Trace1 [V]", "Trace2 [V]", "Trace3 [V]", "Trace4 [V]"
 };
     
 XDSO::XDSO(const char *name, bool runtime,
@@ -44,12 +44,18 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_timeWidth(create<XDoubleNode>("TimeWidth", false)),
 	m_vFullScale1(create<XComboNode>("VFullScale1", false, true)),
 	m_vFullScale2(create<XComboNode>("VFullScale2", false, true)),
+	m_vFullScale3(create<XComboNode>("VFullScale3", false, true)),
+	m_vFullScale4(create<XComboNode>("VFullScale4", false, true)),
 	m_vOffset1(create<XDoubleNode>("VOffset1", false)),
 	m_vOffset2(create<XDoubleNode>("VOffset2", false)),
+	m_vOffset3(create<XDoubleNode>("VOffset3", false)),
+	m_vOffset4(create<XDoubleNode>("VOffset4", false)),
 	m_recordLength(create<XUIntNode>("RecordLength", false)),
 	m_forceTrigger(create<XNode>("ForceTrigger", true)),  
 	m_trace1(create<XComboNode>("Trace1", false)),
 	m_trace2(create<XComboNode>("Trace2", false)),
+	m_trace3(create<XComboNode>("Trace3", false)),
+	m_trace4(create<XComboNode>("Trace4", false)),
 	m_fetchMode(create<XComboNode>("FetchMode", false, true)),
 	m_firEnabled(create<XBoolNode>("FIREnabled", false)),
 	m_firBandWidth(create<XDoubleNode>("FIRBandWidth", false)),
@@ -64,6 +70,8 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_conSingle(xqcon_create<XQToggleButtonConnector>(m_singleSequence, m_form->m_ckbSingleSeq)),
 	m_conTrace1(xqcon_create<XQComboBoxConnector>(m_trace1, m_form->m_cmbTrace1)),
 	m_conTrace2(xqcon_create<XQComboBoxConnector>(m_trace2, m_form->m_cmbTrace2)),
+	m_conTrace3(xqcon_create<XQComboBoxConnector>(m_trace3, m_form->m_cmbTrace3)),
+	m_conTrace4(xqcon_create<XQComboBoxConnector>(m_trace4, m_form->m_cmbTrace4)),
 	m_conTrigSource(xqcon_create<XQComboBoxConnector>(m_trigSource, m_form->m_cmbTrigSource)),
 	m_conTrigPos(xqcon_create<XKDoubleNumInputConnector>(m_trigPos, m_form->m_numTrigPos)),
 	m_conTrigLevel(xqcon_create<XQLineEditConnector>(m_trigLevel, m_form->m_edTrigLevel)),
@@ -72,8 +80,12 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_conTimeWidth(xqcon_create<XQLineEditConnector>(m_timeWidth, m_form->m_edTimeWidth)),
 	m_conVFullScale1(xqcon_create<XQComboBoxConnector>(m_vFullScale1, m_form->m_cmbVFS1)),
 	m_conVFullScale2(xqcon_create<XQComboBoxConnector>(m_vFullScale2, m_form->m_cmbVFS2)),
+	m_conVFullScale3(xqcon_create<XQComboBoxConnector>(m_vFullScale3, m_form->m_cmbVFS3)),
+	m_conVFullScale4(xqcon_create<XQComboBoxConnector>(m_vFullScale4, m_form->m_cmbVFS4)),
 	m_conVOffset1(xqcon_create<XQLineEditConnector>(m_vOffset1, m_form->m_edVOffset1)),
 	m_conVOffset2(xqcon_create<XQLineEditConnector>(m_vOffset2, m_form->m_edVOffset2)),
+	m_conVOffset3(xqcon_create<XQLineEditConnector>(m_vOffset3, m_form->m_edVOffset3)),
+	m_conVOffset4(xqcon_create<XQLineEditConnector>(m_vOffset4, m_form->m_edVOffset4)),
 	m_conForceTrigger(xqcon_create<XQButtonConnector>(m_forceTrigger, m_form->m_btnForceTrigger)),
 	m_conRecordLength(xqcon_create<XQLineEditConnector>(m_recordLength, m_form->m_edRecordLength)),
 	m_conFIREnabled(xqcon_create<XQToggleButtonConnector>(m_firEnabled, m_form->m_ckbFIREnabled)),
@@ -86,7 +98,9 @@ XDSO::XDSO(const char *name, bool runtime,
 		KIconLoader::global()->loadIcon("apply",
 																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
 	m_form->m_numTrigPos->setRange(0.0, 100.0, 1.0, true);
-	tabifyDockWidget(m_form->m_dockTrace2, m_form->m_dockTrace1);
+	m_form->tabifyDockWidget(m_form->m_dockTrace1, m_form->m_dockTrace2);
+	m_form->tabifyDockWidget(m_form->m_dockTrace2, m_form->m_dockTrace3);
+	m_form->tabifyDockWidget(m_form->m_dockTrace3, m_form->m_dockTrace4);
 
 	singleSequence()->value(true);
 	firBandWidth()->value(1000.0);
@@ -116,12 +130,16 @@ XDSO::XDSO(const char *name, bool runtime,
 	trigFalling()->setUIEnabled(false);
 	vFullScale1()->setUIEnabled(false);
 	vFullScale2()->setUIEnabled(false);
+	vFullScale3()->setUIEnabled(false);
+	vFullScale4()->setUIEnabled(false);
 	vOffset1()->setUIEnabled(false);
 	vOffset2()->setUIEnabled(false);
+	vOffset3()->setUIEnabled(false);
+	vOffset4()->setUIEnabled(false);
 	forceTrigger()->setUIEnabled(false);
 	recordLength()->setUIEnabled(false);
   
-	m_waveForm->setColCount(2, s_trace_names); 
+	m_waveForm->setColCount(4, s_trace_names);
 	m_waveForm->graph()->persistence()->value(0);
 	m_waveForm->clear();
 }
@@ -140,6 +158,8 @@ XDSO::start()
   
 //  trace1()->setUIEnabled(false);
 //  trace2()->setUIEnabled(false);
+//  trace3()->setUIEnabled(false);
+//  trace4()->setUIEnabled(false);
   
 	average()->setUIEnabled(true);
 	singleSequence()->setUIEnabled(true);
@@ -150,8 +170,12 @@ XDSO::start()
 	trigFalling()->setUIEnabled(true);
 	vFullScale1()->setUIEnabled(true);
 	vFullScale2()->setUIEnabled(true);
+	vFullScale3()->setUIEnabled(true);
+	vFullScale4()->setUIEnabled(true);
 	vOffset1()->setUIEnabled(true);
 	vOffset2()->setUIEnabled(true);
+	vOffset3()->setUIEnabled(true);
+	vOffset4()->setUIEnabled(true);
 	forceTrigger()->setUIEnabled(true);
 	recordLength()->setUIEnabled(true);
 }
@@ -170,8 +194,12 @@ XDSO::stop()
 	trigFalling()->setUIEnabled(false);
 	vFullScale1()->setUIEnabled(false);
 	vFullScale2()->setUIEnabled(false);
+	vFullScale3()->setUIEnabled(false);
+	vFullScale4()->setUIEnabled(false);
 	vOffset1()->setUIEnabled(false);
 	vOffset2()->setUIEnabled(false);
+	vOffset3()->setUIEnabled(false);
+	vOffset4()->setUIEnabled(false);
 	forceTrigger()->setUIEnabled(false);
 	recordLength()->setUIEnabled(false);  
   	
@@ -272,14 +300,26 @@ XDSO::execute(const atomic<bool> &terminated)
 		shared_from_this(), &XDSO::onTrace1Changed);
 	m_lsnOnTrace2Changed = trace2()->onValueChanged().connectWeak(
 		shared_from_this(), &XDSO::onTrace2Changed);
+	m_lsnOnTrace3Changed = trace3()->onValueChanged().connectWeak(
+		shared_from_this(), &XDSO::onTrace3Changed);
+	m_lsnOnTrace4Changed = trace4()->onValueChanged().connectWeak(
+		shared_from_this(), &XDSO::onTrace4Changed);
 	m_lsnOnVFullScale1Changed = vFullScale1()->onValueChanged().connectWeak(
 		shared_from_this(), &XDSO::onVFullScale1Changed);
 	m_lsnOnVFullScale2Changed = vFullScale2()->onValueChanged().connectWeak(
 		shared_from_this(), &XDSO::onVFullScale2Changed);
+	m_lsnOnVFullScale3Changed = vFullScale3()->onValueChanged().connectWeak(
+		shared_from_this(), &XDSO::onVFullScale3Changed);
+	m_lsnOnVFullScale4Changed = vFullScale4()->onValueChanged().connectWeak(
+		shared_from_this(), &XDSO::onVFullScale4Changed);
 	m_lsnOnVOffset1Changed = vOffset1()->onValueChanged().connectWeak(
 		shared_from_this(), &XDSO::onVOffset1Changed);
 	m_lsnOnVOffset2Changed = vOffset2()->onValueChanged().connectWeak(
 		shared_from_this(), &XDSO::onVOffset2Changed);
+	m_lsnOnVOffset3Changed = vOffset3()->onValueChanged().connectWeak(
+		shared_from_this(), &XDSO::onVOffset3Changed);
+	m_lsnOnVOffset4Changed = vOffset4()->onValueChanged().connectWeak(
+		shared_from_this(), &XDSO::onVOffset4Changed);
 	m_lsnOnForceTriggerTouched = forceTrigger()->onTouch().connectWeak(
 		shared_from_this(), &XDSO::onForceTriggerTouched);
 	m_lsnOnRecordLengthChanged = recordLength()->onValueChanged().connectWeak(
@@ -301,6 +341,18 @@ XDSO::execute(const atomic<bool> &terminated)
 		channels.push_back(trace2()->to_str());
 		if(channels.back().empty()) {
             channels.pop_back();
+		}
+		if(channels.size() == 2) {
+			channels.push_back(trace3()->to_str());
+			if(channels.back().empty()) {
+				channels.pop_back();
+			}
+			if(channels.size() == 3) {
+				channels.push_back(trace4()->to_str());
+				if(channels.back().empty()) {
+					channels.pop_back();
+				}
+			}
 		}
 		
 		bool seq_busy = false;
@@ -373,10 +425,16 @@ XDSO::execute(const atomic<bool> &terminated)
 	m_lsnOnTrigFallingChanged.reset();
 	m_lsnOnVFullScale1Changed.reset();
 	m_lsnOnVFullScale2Changed.reset();
+	m_lsnOnVFullScale3Changed.reset();
+	m_lsnOnVFullScale4Changed.reset();
 	m_lsnOnTrace1Changed.reset();
 	m_lsnOnTrace2Changed.reset();
+	m_lsnOnTrace3Changed.reset();
+	m_lsnOnTrace4Changed.reset();
 	m_lsnOnVOffset1Changed.reset();
 	m_lsnOnVOffset2Changed.reset();
+	m_lsnOnVOffset3Changed.reset();
+	m_lsnOnVOffset4Changed.reset();
 	m_lsnOnForceTriggerTouched.reset();
 	m_lsnOnRecordLengthChanged.reset();
                             

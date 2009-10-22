@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -28,6 +28,8 @@ XLecroyDSO::XLecroyDSO(const char *name, bool runtime,
 	for(int i = 0; ch[i]; i++) {
 		trace1()->add(ch[i]);
 		trace2()->add(ch[i]);
+		trace3()->add(ch[i]);
+		trace4()->add(ch[i]);
 	}
 	const char* sc[] = {"0.02", "0.05", "0.1", "0.2", "0.5", "1", "2", "5", "10",
 						"20", "50", "100", 0L};
@@ -35,6 +37,8 @@ XLecroyDSO::XLecroyDSO(const char *name, bool runtime,
 	{
 		vFullScale1()->add(sc[i]);
 		vFullScale2()->add(sc[i]);
+		vFullScale3()->add(sc[i]);
+		vFullScale4()->add(sc[i]);
 	}
 	const char* tr[] = {"C1", "C2", "C3", "C4", "LINE", "EX", "EX10", "PA", "ETM10", 0L};
 	for(int i = 0; tr[i]; i++)
@@ -79,6 +83,42 @@ XLecroyDSO::onTrace2Changed(const shared_ptr<XValueNodeBase> &) {
     onAverageChanged(average());
 }
 void 
+XLecroyDSO::onTrace1Changed(const shared_ptr<XValueNodeBase> &) {
+	XScopedLock<XInterface> lock(*interface());
+    XString ch = trace1()->to_str();
+    if(!ch.empty()) {
+		interface()->sendf("%s:TRACE ON", ch.c_str());
+    }
+    onAverageChanged(average());
+}
+void
+XLecroyDSO::onTrace2Changed(const shared_ptr<XValueNodeBase> &) {
+	XScopedLock<XInterface> lock(*interface());
+    XString ch = trace2()->to_str();
+    if(!ch.empty()) {
+		interface()->sendf("%s:TRACE ON", ch.c_str());
+    }
+    onAverageChanged(average());
+}
+void
+XLecroyDSO::onTrace3Changed(const shared_ptr<XValueNodeBase> &) {
+	XScopedLock<XInterface> lock(*interface());
+    XString ch = trace3()->to_str();
+    if(!ch.empty()) {
+		interface()->sendf("%s:TRACE ON", ch.c_str());
+    }
+    onAverageChanged(average());
+}
+void
+XLecroyDSO::onTrace4Changed(const shared_ptr<XValueNodeBase> &) {
+	XScopedLock<XInterface> lock(*interface());
+    XString ch = trace4()->to_str();
+    if(!ch.empty()) {
+		interface()->sendf("%s:TRACE ON", ch.c_str());
+    }
+    onAverageChanged(average());
+}
+void
 XLecroyDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
 	XScopedLock<XInterface> lock(*interface());
 	interface()->send("TRIG_MODE STOP");
@@ -107,6 +147,20 @@ XLecroyDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
 			interface()->send("TA:TRACE ON");
 	    }
 	    ch = trace2()->to_str();
+	    if(!ch.empty()) {
+			interface()->sendf("TB:DEFINE EQN,'%s(%s)',SWEEPS,%d",
+				atype, ch.c_str(), avg);
+			interface()->send("TB:TRACE ON");
+	    }
+		interface()->send("TRIG_MODE NORM");
+	    ch = trace3()->to_str();
+	    if(!ch.empty()) {
+			interface()->sendf("TB:DEFINE EQN,'%s(%s)',SWEEPS,%d",
+				atype, ch.c_str(), avg);
+			interface()->send("TB:TRACE ON");
+	    }
+		interface()->send("TRIG_MODE NORM");
+	    ch = trace4()->to_str();
 	    if(!ch.empty()) {
 			interface()->sendf("TB:DEFINE EQN,'%s(%s)',SWEEPS,%d",
 				atype, ch.c_str(), avg);
@@ -154,6 +208,18 @@ XLecroyDSO::onVFullScale2Changed(const shared_ptr<XValueNodeBase> &) {
     interface()->sendf("%s:VOLT_DIV %.1g", ch.c_str(), atof(vFullScale2()->to_str().c_str())/10.0);
 }
 void
+XLecroyDSO::onVFullScale3Changed(const shared_ptr<XValueNodeBase> &) {
+    XString ch = trace3()->to_str();
+	if(ch.empty()) return;
+	interface()->sendf("%s:VOLT_DIV %.1g", ch.c_str(), atof(vFullScale3()->to_str().c_str())/10.0);
+}
+void
+XLecroyDSO::onVFullScale4Changed(const shared_ptr<XValueNodeBase> &) {
+    XString ch = trace4()->to_str();
+    if(ch.empty()) return;
+    interface()->sendf("%s:VOLT_DIV %.1g", ch.c_str(), atof(vFullScale4()->to_str().c_str())/10.0);
+}
+void
 XLecroyDSO::onVOffset1Changed(const shared_ptr<XValueNodeBase> &) {
     XString ch = trace1()->to_str();
     if(ch.empty()) return;
@@ -164,6 +230,18 @@ XLecroyDSO::onVOffset2Changed(const shared_ptr<XValueNodeBase> &) {
     XString ch = trace2()->to_str();
     if(ch.empty()) return;
     interface()->sendf("%s:OFFSET %.8g V", ch.c_str(), (double)*vOffset2());
+}
+void
+XLecroyDSO::onVOffset3Changed(const shared_ptr<XValueNodeBase> &) {
+    XString ch = trace3()->to_str();
+    if(ch.empty()) return;
+    interface()->sendf("%s:OFFSET %.8g V", ch.c_str(), (double)*vOffset3());
+}
+void
+XLecroyDSO::onVOffset4Changed(const shared_ptr<XValueNodeBase> &) {
+    XString ch = trace4()->to_str();
+    if(ch.empty()) return;
+    interface()->sendf("%s:OFFSET %.8g V", ch.c_str(), (double)*vOffset4());
 }
 void
 XLecroyDSO::onRecordLengthChanged(const shared_ptr<XValueNodeBase> &) {

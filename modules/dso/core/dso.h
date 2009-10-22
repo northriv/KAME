@@ -65,13 +65,19 @@ public:
 	const shared_ptr<XDoubleNode> &timeWidth() const {return m_timeWidth;}
 	const shared_ptr<XComboNode> &vFullScale1() const {return m_vFullScale1;}
 	const shared_ptr<XComboNode> &vFullScale2() const {return m_vFullScale2;}
+	const shared_ptr<XComboNode> &vFullScale3() const {return m_vFullScale3;}
+	const shared_ptr<XComboNode> &vFullScale4() const {return m_vFullScale4;}
 	const shared_ptr<XDoubleNode> &vOffset1() const {return m_vOffset1;}
 	const shared_ptr<XDoubleNode> &vOffset2() const {return m_vOffset2;}
+	const shared_ptr<XDoubleNode> &vOffset3() const {return m_vOffset3;}
+	const shared_ptr<XDoubleNode> &vOffset4() const {return m_vOffset4;}
 	const shared_ptr<XUIntNode> &recordLength() const {return m_recordLength;}
 	const shared_ptr<XNode> &forceTrigger() const {return m_forceTrigger;}  
 
 	const shared_ptr<XComboNode> &trace1() const {return m_trace1;}
 	const shared_ptr<XComboNode> &trace2() const {return m_trace2;}
+	const shared_ptr<XComboNode> &trace3() const {return m_trace3;}
+	const shared_ptr<XComboNode> &trace4() const {return m_trace4;}
   
 	const shared_ptr<XComboNode> &fetchMode() const {return m_fetchMode;}
   
@@ -90,6 +96,8 @@ public:
 protected:
 	virtual void onTrace1Changed(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void onTrace2Changed(const shared_ptr<XValueNodeBase> &) = 0;
+	virtual void onTrace3Changed(const shared_ptr<XValueNodeBase> &) = 0;
+	virtual void onTrace4Changed(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void onAverageChanged(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void onSingleChanged(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void onTrigSourceChanged(const shared_ptr<XValueNodeBase> &) = 0;
@@ -99,8 +107,12 @@ protected:
 	virtual void onTimeWidthChanged(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void onVFullScale1Changed(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void onVFullScale2Changed(const shared_ptr<XValueNodeBase> &) = 0;
+	virtual void onVFullScale3Changed(const shared_ptr<XValueNodeBase> &) = 0;
+	virtual void onVFullScale4Changed(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void onVOffset1Changed(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void onVOffset2Changed(const shared_ptr<XValueNodeBase> &) = 0;
+	virtual void onVOffset3Changed(const shared_ptr<XValueNodeBase> &) = 0;
+	virtual void onVOffset4Changed(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void onRecordLengthChanged(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void onForceTriggerTouched(const shared_ptr<XNode> &) = 0;
 
@@ -143,12 +155,18 @@ private:
 	const shared_ptr<XDoubleNode> m_timeWidth;
 	const shared_ptr<XComboNode> m_vFullScale1;
 	const shared_ptr<XComboNode> m_vFullScale2;
+	const shared_ptr<XComboNode> m_vFullScale3;
+	const shared_ptr<XComboNode> m_vFullScale4;
 	const shared_ptr<XDoubleNode> m_vOffset1;
 	const shared_ptr<XDoubleNode> m_vOffset2;
+	const shared_ptr<XDoubleNode> m_vOffset3;
+	const shared_ptr<XDoubleNode> m_vOffset4;
 	const shared_ptr<XUIntNode> m_recordLength;
 	const shared_ptr<XNode> m_forceTrigger;  
 	const shared_ptr<XComboNode> m_trace1;
 	const shared_ptr<XComboNode> m_trace2;
+	const shared_ptr<XComboNode> m_trace3;
+	const shared_ptr<XComboNode> m_trace4;
 	const shared_ptr<XComboNode> m_fetchMode;
 	const shared_ptr<XBoolNode> m_firEnabled;
 	const shared_ptr<XDoubleNode> m_firBandWidth; ///< [kHz]
@@ -182,20 +200,29 @@ private:
 	shared_ptr<XListener> m_lsnOnTimeWidthChanged;
 	shared_ptr<XListener> m_lsnOnTrace1Changed;
 	shared_ptr<XListener> m_lsnOnTrace2Changed;
+	shared_ptr<XListener> m_lsnOnTrace3Changed;
+	shared_ptr<XListener> m_lsnOnTrace4Changed;
 	shared_ptr<XListener> m_lsnOnVFullScale1Changed;
 	shared_ptr<XListener> m_lsnOnVFullScale2Changed;
+	shared_ptr<XListener> m_lsnOnVFullScale3Changed;
+	shared_ptr<XListener> m_lsnOnVFullScale4Changed;
 	shared_ptr<XListener> m_lsnOnVOffset1Changed;
 	shared_ptr<XListener> m_lsnOnVOffset2Changed;
+	shared_ptr<XListener> m_lsnOnVOffset3Changed;
+	shared_ptr<XListener> m_lsnOnVOffset4Changed;
 	shared_ptr<XListener> m_lsnOnRecordLengthChanged;
 	shared_ptr<XListener> m_lsnOnForceTriggerTouched;
 	shared_ptr<XListener> m_lsnOnCondChanged;
   
 	void onCondChanged(const shared_ptr<XValueNodeBase> &);
   
-	const xqcon_ptr m_conAverage, m_conSingle, m_conTrace1, m_conTrace2;
-	const xqcon_ptr m_conFetchMode, m_conTimeWidth, m_conVFullScale1, m_conVFullScale2;
+	const xqcon_ptr m_conAverage, m_conSingle,
+		m_conTrace1, m_conTrace2, m_conTrace3, m_conTrace4;
+	const xqcon_ptr m_conFetchMode, m_conTimeWidth,
+		m_conVFullScale1, m_conVFullScale2, m_conVFullScale3, m_conVFullScale4;
 	const xqcon_ptr m_conTrigSource, m_conTrigPos, m_conTrigLevel, m_conTrigFalling;
-	const xqcon_ptr m_conVOffset1, m_conVOffset2, m_conForceTrigger, m_conRecordLength;
+	const xqcon_ptr m_conVOffset1, m_conVOffset2, m_conVOffset3, m_conVOffset4,
+		m_conForceTrigger, m_conRecordLength;
 	const xqcon_ptr m_conFIREnabled, m_conFIRBandWidth, m_conFIRSharpness, m_conFIRCenterFreq;
  
 	shared_ptr<XThread<XDSO> > m_thread;

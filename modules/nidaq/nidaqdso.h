@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -39,6 +39,8 @@ protected:
 
 	virtual void onTrace1Changed(const shared_ptr<XValueNodeBase> &);
 	virtual void onTrace2Changed(const shared_ptr<XValueNodeBase> &);
+	virtual void onTrace3Changed(const shared_ptr<XValueNodeBase> &);
+	virtual void onTrace4Changed(const shared_ptr<XValueNodeBase> &);
 	virtual void onAverageChanged(const shared_ptr<XValueNodeBase> &);
 	virtual void onSingleChanged(const shared_ptr<XValueNodeBase> &);
 	virtual void onTrigSourceChanged(const shared_ptr<XValueNodeBase> &);
@@ -48,8 +50,12 @@ protected:
 	virtual void onTimeWidthChanged(const shared_ptr<XValueNodeBase> &);
 	virtual void onVFullScale1Changed(const shared_ptr<XValueNodeBase> &);
 	virtual void onVFullScale2Changed(const shared_ptr<XValueNodeBase> &);
+	virtual void onVFullScale3Changed(const shared_ptr<XValueNodeBase> &);
+	virtual void onVFullScale4Changed(const shared_ptr<XValueNodeBase> &);
 	virtual void onVOffset1Changed(const shared_ptr<XValueNodeBase> &);
 	virtual void onVOffset2Changed(const shared_ptr<XValueNodeBase> &);
+	virtual void onVOffset3Changed(const shared_ptr<XValueNodeBase> &);
+	virtual void onVOffset4Changed(const shared_ptr<XValueNodeBase> &);
 	virtual void onRecordLengthChanged(const shared_ptr<XValueNodeBase> &);
 	virtual void onForceTriggerTouched(const shared_ptr<XNode> &);
 

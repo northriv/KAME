@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -29,6 +29,8 @@ XTDS::XTDS(const char *name, bool runtime,
 	{
 		trace1()->add(ch[i]);
 		trace2()->add(ch[i]);
+		trace3()->add(ch[i]);
+		trace4()->add(ch[i]);
 	}
 	const char* sc[] = {"0.02", "0.05", "0.1", "0.2", "0.5", "1", "2", "5", "10",
 						"20", "50", "100", 0L};
@@ -36,6 +38,8 @@ XTDS::XTDS(const char *name, bool runtime,
 	{
 		vFullScale1()->add(sc[i]);
 		vFullScale2()->add(sc[i]);
+		vFullScale3()->add(sc[i]);
+		vFullScale4()->add(sc[i]);
 	}
 	const char* tr[] = {"EXT", "EXT10", "CH1", "CH2", "CH3", "CH4", "LINE", 0L};
 	for(int i = 0; tr[i]; i++)
@@ -145,6 +149,20 @@ XTDS::onVFullScale2Changed(const shared_ptr<XValueNodeBase> &)
     interface()->sendf("%s:SCALE %.1g", ch.c_str(), atof(vFullScale2()->to_str().c_str())/10.0);
 }
 void
+XTDS::onVFullScale3Changed(const shared_ptr<XValueNodeBase> &)
+{
+    XString ch = trace3()->to_str();
+	if(ch.empty()) return;
+	interface()->sendf("%s:SCALE %.1g", ch.c_str(), atof(vFullScale3()->to_str().c_str())/10.0);
+}
+void
+XTDS::onVFullScale4Changed(const shared_ptr<XValueNodeBase> &)
+{
+    XString ch = trace4()->to_str();
+    if(ch.empty()) return;
+    interface()->sendf("%s:SCALE %.1g", ch.c_str(), atof(vFullScale4()->to_str().c_str())/10.0);
+}
+void
 XTDS::onVOffset1Changed(const shared_ptr<XValueNodeBase> &)
 {
     XString ch = trace1()->to_str();
@@ -157,6 +175,20 @@ XTDS::onVOffset2Changed(const shared_ptr<XValueNodeBase> &)
     XString ch = trace2()->to_str();
     if(ch.empty()) return;
     interface()->sendf("%s:OFFSET %.8g", ch.c_str(), (double)*vOffset2());
+}
+void
+XTDS::onVOffset3Changed(const shared_ptr<XValueNodeBase> &)
+{
+    XString ch = trace3()->to_str();
+    if(ch.empty()) return;
+    interface()->sendf("%s:OFFSET %.8g", ch.c_str(), (double)*vOffset3());
+}
+void
+XTDS::onVOffset4Changed(const shared_ptr<XValueNodeBase> &)
+{
+    XString ch = trace4()->to_str();
+    if(ch.empty()) return;
+    interface()->sendf("%s:OFFSET %.8g", ch.c_str(), (double)*vOffset4());
 }
 void
 XTDS::onRecordLengthChanged(const shared_ptr<XValueNodeBase> &)
