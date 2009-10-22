@@ -142,7 +142,7 @@ int main(int argc, char *argv[])
 	QStringList libdirs = KGlobal::dirs()->resourceDirs("lib");
 	for(QStringList::iterator it = libdirs.begin(); it != libdirs.end(); it++) {
 		QString path;
-		path = *it + "kame/modules/core";
+		path = *it + "kame/core_modules";
 		lt_dladdsearchdir(path.toLocal8Bit().data());
 		fprintf(stderr, "searching for core libraries in %s\n", (const char*)path.toLocal8Bit().data());
 		lt_dlforeachfile(path.toLocal8Bit().data(), &load_module, &modules_core);

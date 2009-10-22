@@ -8,4 +8,4 @@ kde4_add_ui_files(sgcore_SRCS
   
 kde4_add_library(sgcore MODULE ${sgcore_SRCS})
 ########### install files ###############
-install(TARGETS sgcore LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules/core)
+install(TARGETS sgcore LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/core_modules)

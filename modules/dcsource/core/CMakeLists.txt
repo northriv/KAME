@@ -8,4 +8,4 @@ kde4_add_ui_files(dcsourcecore_SRCS
 
 kde4_add_library(dcsourcecore MODULE ${dcsourcecore_SRCS})
 ########### install files ###############
-install(TARGETS dcsourcecore LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules/core)
+install(TARGETS dcsourcecore LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/core_modules)

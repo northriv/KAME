@@ -13,4 +13,4 @@ set(charinterface_SRCS
 add_library(charinterface MODULE ${charinterface_SRCS})
 target_link_libraries(charinterface ${LINUXGPIB_LIBRARY})
 ########### install files ###############
-install(TARGETS charinterface LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules/core)
+install(TARGETS charinterface LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/core_modules)

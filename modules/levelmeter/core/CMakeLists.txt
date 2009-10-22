@@ -4,4 +4,4 @@ set(levelmetercore_SRCS
  )
 add_library(levelmetercore MODULE ${levelmetercore_SRCS})
 ########### install files ###############
-install(TARGETS levelmetercore LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules/core)
+install(TARGETS levelmetercore LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/core_modules)
