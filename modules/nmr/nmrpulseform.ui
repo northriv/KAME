@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>590</width>
+    <width>546</width>
     <height>502</height>
    </rect>
   </property>
@@ -14,7 +14,7 @@
    <string>NMR Pulse Analyzer</string>
   </property>
   <widget class="QWidget" name="widget">
-   <layout class="QHBoxLayout" name="horizontalLayout_4">
+   <layout class="QHBoxLayout" name="horizontalLayout_6">
     <item>
      <layout class="QVBoxLayout" name="verticalLayout_2">
       <item>
@@ -651,8 +651,8 @@
        </widget>
       </item>
       <item>
-       <layout class="QGridLayout" name="gridLayout">
-        <item row="0" column="0">
+       <layout class="QHBoxLayout" name="horizontalLayout_5">
+        <item>
          <widget class="QPushButton" name="m_btnSpectrum">
           <property name="text">
            <string>SHOW SPECTRUM</string>
@@ -662,7 +662,7 @@
           </property>
          </widget>
         </item>
-        <item row="0" column="1">
+        <item>
          <widget class="QComboBox" name="m_cmbSolver">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -672,7 +672,7 @@
           </property>
          </widget>
         </item>
-        <item row="0" column="2">
+        <item>
          <layout class="QHBoxLayout">
           <item>
            <widget class="QLabel" name="textLabel1_3">
@@ -698,12 +698,16 @@
           </item>
          </layout>
         </item>
-        <item row="1" column="0">
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_4">
+        <item>
          <layout class="QHBoxLayout">
           <item>
            <widget class="QLabel" name="textLabel4">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -721,6 +725,18 @@
           </item>
           <item>
            <widget class="KDoubleNumInput" name="m_numPhaseAdv">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="minimumSize">
+             <size>
+              <width>120</width>
+              <height>0</height>
+             </size>
+            </property>
             <property name="suffix">
              <string>deg</string>
             </property>
@@ -737,12 +753,12 @@
           </item>
          </layout>
         </item>
-        <item row="1" column="1" colspan="2">
+        <item>
          <layout class="QHBoxLayout">
           <item>
            <widget class="QLabel" name="textLabel4_2">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -760,6 +776,18 @@
           </item>
           <item>
            <widget class="KDoubleNumInput" name="m_numWindowWidth">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="minimumSize">
+             <size>
+              <width>120</width>
+              <height>0</height>
+             </size>
+            </property>
             <property name="suffix">
              <string>%</string>
             </property>
@@ -785,7 +813,7 @@
           <item>
            <widget class="QLabel" name="textLabel1_5_2">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -847,7 +875,7 @@
           <item>
            <widget class="QLabel" name="textLabel1_4">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
