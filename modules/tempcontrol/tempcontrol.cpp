@@ -161,8 +161,8 @@ XTempControl::analyzeRaw() throw (XRecordError&)
     try {
         for(;;) {
             //! Since raw buffer is Fast-in Fast-out, use the same sequence of push()es for pop()s
-            unsigned short chno = pop<unsigned short>();
-            pop<unsigned short>(); //reserve
+            uint16_t chno = pop<uint16_t>();
+            pop<uint16_t>(); //reserve
             float raw = pop<float>();
             float temp = pop<float>();
             if(!m_multiread) chno = 0;
@@ -336,8 +336,8 @@ XTempControl::execute(const atomic<bool> &terminated)
                       raw = getRaw(ch);
                       temp = (!thermo) ? raw : thermo->getTemp(raw);
                     }
-                  push((unsigned short)idx);
-                  push((unsigned short)0); // reserve
+                  push((uint16_t)idx);
+                  push((uint16_t)0); // reserve
                   push(float(raw));
                   push(float(temp));
                   idx++;

@@ -106,7 +106,7 @@ public:
     }
     
     //! ver 1 records.
-    short combModeRecorded() const {return m_combModeRecorded;}
+    int16_t combModeRecorded() const {return m_combModeRecorded;}
     double rtimeRecorded() const {return m_rtimeRecorded;}
     double tauRecorded() const {return m_tauRecorded;}
     double pw1Recorded() const {return m_pw1Recorded;}
@@ -120,10 +120,10 @@ public:
     double difFreqRecorded() const {return m_difFreqRecorded;}
     double combPWRecorded() const {return m_combPWRecorded;}
     double combPTRecorded() const {return m_combPTRecorded;}
-    unsigned short echoNumRecorded() const {return m_echoNumRecorded;}
-    unsigned short combNumRecorded() const {return m_combNumRecorded;}
-    short rtModeRecorded() const {return m_rtModeRecorded;}
-    unsigned short numPhaseCycleRecorded() const {return m_numPhaseCycleRecorded;}
+    uint16_t echoNumRecorded() const {return m_echoNumRecorded;}
+    uint16_t combNumRecorded() const {return m_combNumRecorded;}
+    int16_t rtModeRecorded() const {return m_rtModeRecorded;}
+    uint16_t numPhaseCycleRecorded() const {return m_numPhaseCycleRecorded;}
     //! ver 3 records [experimental].
     bool invertPhaseRecorded() const {return m_invertPhaseRecorded;}
     
@@ -173,7 +173,7 @@ protected:
 	friend class XQPulserDriverConnector;
   
     //! ver 1 records
-    short m_combModeRecorded;
+    int16_t m_combModeRecorded;
     double m_rtimeRecorded;
     double m_tauRecorded;
     double m_pw1Recorded;
@@ -187,10 +187,10 @@ protected:
     double m_difFreqRecorded;
     double m_combPWRecorded;
     double m_combPTRecorded;
-    unsigned short m_echoNumRecorded;
-    unsigned short m_combNumRecorded;
-    short m_rtModeRecorded;
-    unsigned short m_numPhaseCycleRecorded;        
+    uint16_t m_echoNumRecorded;
+    uint16_t m_combNumRecorded;
+    int16_t m_rtModeRecorded;
+    uint16_t m_numPhaseCycleRecorded;        
     //! ver 3 records
     bool m_invertPhaseRecorded;
 

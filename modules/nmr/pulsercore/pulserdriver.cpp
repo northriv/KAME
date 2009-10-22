@@ -510,8 +510,8 @@ XPulser::stop()
 void
 XPulser::analyzeRaw() throw (XRecordError&)
 {
-    m_combModeRecorded = pop<short>();
-    pop<short>(); //reserve
+    m_combModeRecorded = pop<int16_t>();
+    pop<int16_t>(); //reserve
     m_rtimeRecorded = pop<double>();
     m_tauRecorded = pop<double>();
     m_pw1Recorded = pop<double>();
@@ -526,12 +526,12 @@ XPulser::analyzeRaw() throw (XRecordError&)
         m_difFreqRecorded = pop<double>();
         m_combPWRecorded = pop<double>();
         m_combPTRecorded = pop<double>();
-        m_echoNumRecorded = pop<unsigned short>();
-        m_combNumRecorded = pop<unsigned short>();
-        m_rtModeRecorded = pop<short>();
-        m_numPhaseCycleRecorded = pop<unsigned short>();
+        m_echoNumRecorded = pop<uint16_t>();
+        m_combNumRecorded = pop<uint16_t>();
+        m_rtModeRecorded = pop<int16_t>();
+        m_numPhaseCycleRecorded = pop<uint16_t>();
         //! ver 3 records
-        m_invertPhaseRecorded = pop<unsigned short>();
+        m_invertPhaseRecorded = pop<uint16_t>();
     }
     catch (XRecordError &) {
         m_difFreqRecorded = *difFreq();
@@ -603,8 +603,8 @@ XPulser::onPulseChanged(const shared_ptr<XValueNodeBase> &node)
 	}
 */    
 //! ver 1 records below
-    push((short)*combMode());
-    push((short)0); //reserve
+    push((int16_t)*combMode());
+    push((int16_t)0); //reserve
     push((double)rintTermMilliSec(*rtime()));
     push((double)_tau);
     push((double)*pw1());
@@ -618,18 +618,18 @@ XPulser::onPulseChanged(const shared_ptr<XValueNodeBase> &node)
     push((double)*difFreq());
     push((double)*combPW());
     push((double)rintTermMicroSec(*combPT()));
-    push((unsigned short)*echoNum());
-    push((unsigned short)*combNum());
-    push((short)*rtMode());
+    push((uint16_t)*echoNum());
+    push((uint16_t)*combNum());
+    push((int16_t)*rtMode());
 	int npat = 16;
 	if(numPhaseCycle()->to_str() == NUM_PHASE_CYCLE_1) npat = 1;
 	if(numPhaseCycle()->to_str() == NUM_PHASE_CYCLE_2) npat = 2;
 	if(numPhaseCycle()->to_str() == NUM_PHASE_CYCLE_4) npat = 4;
 	if(numPhaseCycle()->to_str() == NUM_PHASE_CYCLE_8) npat = 8;
 	if(numPhaseCycle()->to_str() == NUM_PHASE_CYCLE_16) npat = 16;
-	push((unsigned short)npat);
+	push((uint16_t)npat);
 //! ver 3 records below
-    push((unsigned short)*invertPhase());
+    push((uint16_t)*invertPhase());
 
 	finishWritingRaw(time_awared, XTime::now());
   

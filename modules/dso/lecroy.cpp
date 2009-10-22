@@ -82,24 +82,6 @@ XLecroyDSO::onTrace2Changed(const shared_ptr<XValueNodeBase> &) {
     }
     onAverageChanged(average());
 }
-void 
-XLecroyDSO::onTrace1Changed(const shared_ptr<XValueNodeBase> &) {
-	XScopedLock<XInterface> lock(*interface());
-    XString ch = trace1()->to_str();
-    if(!ch.empty()) {
-		interface()->sendf("%s:TRACE ON", ch.c_str());
-    }
-    onAverageChanged(average());
-}
-void
-XLecroyDSO::onTrace2Changed(const shared_ptr<XValueNodeBase> &) {
-	XScopedLock<XInterface> lock(*interface());
-    XString ch = trace2()->to_str();
-    if(!ch.empty()) {
-		interface()->sendf("%s:TRACE ON", ch.c_str());
-    }
-    onAverageChanged(average());
-}
 void
 XLecroyDSO::onTrace3Changed(const shared_ptr<XValueNodeBase> &) {
 	XScopedLock<XInterface> lock(*interface());
@@ -394,14 +376,14 @@ XLecroyDSO::convertRaw() throw (XRecordError&) {
 		pop<int32_t>();
 		pop<int32_t>();
 		int32_t acqcount = pop<int32_t>();
-		pop<short>();
-		pop<short>();
+		pop<int16_t>();
+		pop<int16_t>();
 		float vgain = pop<float>();
 		float voffset = pop<float>();
 		pop<float>();
 		pop<float>();
-		pop<short>();
-		pop<short>();
+		pop<int16_t>();
+		pop<int16_t>();
 		float interval = pop<float>();
 		double hoffset = pop<double>();
 		
@@ -417,7 +399,7 @@ XLecroyDSO::convertRaw() throw (XRecordError&) {
 		double *wave = waveDisp(ch);
 		rawDataPopIterator() = dit;
 		for(int i = 0; i < std::min(count, (int32_t)lengthDisp()); i++) {
-			short x = pop<short>();
+			int16_t x = pop<int16_t>();
 			float v = voffset + vgain * x;
 			*wave++ = v;
 		}

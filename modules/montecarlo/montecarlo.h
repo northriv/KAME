@@ -227,15 +227,15 @@ private:
     //! cached interaction energy.
     std::vector<double> m_field_pri_cached[16];
     //! true if cached data is valid.
-    std::vector<unsigned short> m_field_pri_cached_sane;
+    std::vector<uint16_t> m_field_pri_cached_sane;
     //! cached interaction energy.
     std::vector<double> m_field_sec_cached[16][16];
     //! true if cached data is valid.
-    std::vector<unsigned short> m_field_sec_cached_sane[16];
+    std::vector<uint16_t> m_field_sec_cached_sane[16];
     //! cached interaction energy.
     std::vector<double> m_field_third_cached[16][16];
     //! true if cached data is valid.
-    std::vector<unsigned short> m_field_third_cached_sane[16];
+    std::vector<uint16_t> m_field_third_cached_sane[16];
 
     //! many tests until fixed number of flipping is performed.
     //! \sa exec()

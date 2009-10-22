@@ -63,11 +63,11 @@ XH8Pulser::createNativePatterns()
 	m_zippedPatterns.clear();
 	for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++)
 	{
-		pulseAdd(it->toappear, (unsigned short)(it->pattern & PAT_DO_MASK));
+		pulseAdd(it->toappear, (uint16_t)(it->pattern & PAT_DO_MASK));
 	}
 }
 int
-XH8Pulser::pulseAdd(uint64_t term, unsigned short pattern)
+XH8Pulser::pulseAdd(uint64_t term, uint16_t pattern)
 {
 	C_ASSERT(sizeof(long long) == 8);
 
@@ -104,9 +104,9 @@ XH8Pulser::pulseAdd(uint64_t term, unsigned short pattern)
 	}
 	return 0;
 }
-static unsigned short makesum(unsigned char *start, uint32_t bytes)
+static uint16_t makesum(unsigned char *start, uint32_t bytes)
 {
-	unsigned short sum = 0;
+	uint16_t sum = 0;
 
 	for(; bytes > 0; bytes--)
 		sum += *start++;
@@ -134,7 +134,7 @@ XH8Pulser::changeOutput(bool output, unsigned int blankpattern)
 				{
 					interface()->write(
 						(char *)&m_zippedPatterns[j], pincr * 2);
-					unsigned short sum = 
+					uint16_t sum = 
 						makesum((unsigned char *)&m_zippedPatterns[j], pincr * 2);
 					h8ushort nsum;
 					nsum.lsb = sum % 0x100; nsum.msb = sum / 0x100;

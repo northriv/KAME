@@ -75,7 +75,7 @@ protected:
 
 	//! These are FIFO (fast in fast out)
 	//! Push raw data to raw record
-	//! Use signed/unsigned char, short(16bit), and int32_t for integers.
+	//! Use signed/unsigned char, int16_t(16bit), and int32_t for integers.
 	//! IEEE 754 float and double for floting point numbers.
 	//! Little endian bytes will be stored into thread-local \sa rawData().
 	//! \sa pop(), rawData()
@@ -98,12 +98,12 @@ private:
 	static XThreadLocal<RawData_it> s_tl_pop_it;
   
 	inline static void _push_char(char, std::vector<char> &buf);
-	inline static void _push_short(short, std::vector<char> &buf);
-	inline static void _push_int32(int32_t, std::vector<char> &buf);
+	inline static void _push_int16_t(int16_t, std::vector<char> &buf);
+	inline static void _push_int32_t(int32_t, std::vector<char> &buf);
 	inline static void _push_double(double, std::vector<char> &buf);
 	inline static char _pop_char(std::vector<char>::iterator &it);
-	inline static short _pop_short(std::vector<char>::iterator &it);
-	inline static int32_t _pop_int32(std::vector<char>::iterator &it);
+	inline static int16_t _pop_int16_t(std::vector<char>::iterator &it);
+	inline static int32_t _pop_int32_t(std::vector<char>::iterator &it);
 	inline static double _pop_double(std::vector<char>::iterator &it);
 };
 
@@ -112,8 +112,8 @@ XPrimaryDriver::_push_char(char x, std::vector<char> &buf) {
     buf.push_back(x);
 }
 inline void
-XPrimaryDriver::_push_short(short x, std::vector<char> &buf) {
-    short y = x;
+XPrimaryDriver::_push_int16_t(int16_t x, std::vector<char> &buf) {
+    int16_t y = x;
     char *p = reinterpret_cast<char *>(&y);
 #ifdef __BIG_ENDIAN__
     for(char *z = p + sizeof(x) - 1; z >= p; z--) {
@@ -124,7 +124,7 @@ XPrimaryDriver::_push_short(short x, std::vector<char> &buf) {
 	}
 }
 inline void
-	XPrimaryDriver::_push_int32(int32_t x, std::vector<char> &buf) {
+	XPrimaryDriver::_push_int32_t(int32_t x, std::vector<char> &buf) {
 	int32_t y = x;
 	char *p = reinterpret_cast<char *>(&y);
 #ifdef __BIG_ENDIAN__
@@ -153,11 +153,11 @@ inline char
 	char c = *(it++);
 	return c;
 }
-inline short
-	XPrimaryDriver::_pop_short(std::vector<char>::iterator &it) {
+inline int16_t
+	XPrimaryDriver::_pop_int16_t(std::vector<char>::iterator &it) {
 	union {
-		short x;
-		char p[sizeof(short)];
+		int16_t x;
+		char p[sizeof(int16_t)];
 	} uni;
 #ifdef __BIG_ENDIAN__
 	for(char *z = uni.p + sizeof(uni) - 1; z >= uni.p; z--) {
@@ -169,7 +169,7 @@ inline short
 	return uni.x;
 }
 inline int32_t
-XPrimaryDriver::_pop_int32(std::vector<char>::iterator &it) {
+XPrimaryDriver::_pop_int32_t(std::vector<char>::iterator &it) {
 	union {
 		int32_t x;
 		char p[sizeof(int32_t)];
@@ -210,24 +210,24 @@ template <>
 	return static_cast<unsigned char>(_pop_char(*s_tl_pop_it));
 }
 template <>
-	inline short XPrimaryDriver::pop() throw (XBufferUnderflowRecordError&) {
-	if(*s_tl_pop_it + sizeof(short) > rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
-	return _pop_short(*s_tl_pop_it);
+	inline int16_t XPrimaryDriver::pop() throw (XBufferUnderflowRecordError&) {
+	if(*s_tl_pop_it + sizeof(int16_t) > rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+	return _pop_int16_t(*s_tl_pop_it);
 }
 template <>
-	inline unsigned short XPrimaryDriver::pop() throw (XBufferUnderflowRecordError&) {
-	if(*s_tl_pop_it + sizeof(short) > rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
-	return static_cast<unsigned short>(_pop_short(*s_tl_pop_it));
+	inline uint16_t XPrimaryDriver::pop() throw (XBufferUnderflowRecordError&) {
+	if(*s_tl_pop_it + sizeof(int16_t) > rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+	return static_cast<uint16_t>(_pop_int16_t(*s_tl_pop_it));
 }
 template <>
 	inline int32_t XPrimaryDriver::pop() throw (XBufferUnderflowRecordError&) {
 	if(*s_tl_pop_it + sizeof(int32_t) > rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
-	return _pop_int32(*s_tl_pop_it);
+	return _pop_int32_t(*s_tl_pop_it);
 }
 template <>
 	inline uint32_t XPrimaryDriver::pop() throw (XBufferUnderflowRecordError&) {
 	if(*s_tl_pop_it + sizeof(int32_t) > rawData().end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
-	return static_cast<uint32_t>(_pop_int32(*s_tl_pop_it));
+	return static_cast<uint32_t>(_pop_int32_t(*s_tl_pop_it));
 }
 template <>
 	inline float XPrimaryDriver::pop() throw (XBufferUnderflowRecordError&) {
@@ -237,7 +237,7 @@ template <>
 		float y;
 	} uni;
 	C_ASSERT(sizeof(uni.x) == sizeof(uni.y));
-	uni.x = _pop_int32(*s_tl_pop_it);
+	uni.x = _pop_int32_t(*s_tl_pop_it);
 	return uni.y;
 }
 template <>
@@ -256,20 +256,20 @@ template <>
 	return static_cast<unsigned char>(_pop_char(it));
 }
 template <>
-	inline short XPrimaryDriver::pop(std::vector<char>::iterator &it) {
-	return _pop_short(it);
+	inline int16_t XPrimaryDriver::pop(std::vector<char>::iterator &it) {
+	return _pop_int16_t(it);
 }
 template <>
-	inline unsigned short XPrimaryDriver::pop(std::vector<char>::iterator &it) {
-	return static_cast<unsigned short>(_pop_short(it));
+	inline uint16_t XPrimaryDriver::pop(std::vector<char>::iterator &it) {
+	return static_cast<uint16_t>(_pop_int16_t(it));
 }
 template <>
 	inline int32_t XPrimaryDriver::pop(std::vector<char>::iterator &it) {
-	return _pop_int32(it);
+	return _pop_int32_t(it);
 }
 template <>
 	inline uint32_t XPrimaryDriver::pop(std::vector<char>::iterator &it) {
-	return static_cast<uint32_t>(_pop_int32(it));
+	return static_cast<uint32_t>(_pop_int32_t(it));
 }
 template <>
 	inline float XPrimaryDriver::pop(std::vector<char>::iterator &it) {
@@ -278,7 +278,7 @@ template <>
 		float y;
 	} uni;
 	C_ASSERT(sizeof(uni.x) == sizeof(uni.y));
-	uni.x = _pop_int32(it);
+	uni.x = _pop_int32_t(it);
 	return uni.y;
 }
 template <>
@@ -294,20 +294,20 @@ template <>
 	_push_char(static_cast<char>(x), rawData());
 }
 template <>
-	inline void XPrimaryDriver::push(short x) {
-	_push_short(x, rawData());
+	inline void XPrimaryDriver::push(int16_t x) {
+	_push_int16_t(x, rawData());
 }
 template <>
-	inline void XPrimaryDriver::push(unsigned short x) {
-	_push_short(static_cast<short>(x), rawData());
+	inline void XPrimaryDriver::push(uint16_t x) {
+	_push_int16_t(static_cast<int16_t>(x), rawData());
 }
 template <>
 	inline void XPrimaryDriver::push(int32_t x) {
-	_push_int32(x, rawData());
+	_push_int32_t(x, rawData());
 }
 template <>
 	inline void XPrimaryDriver::push(uint32_t x) {
-	_push_int32(static_cast<int32_t>(x), rawData());
+	_push_int32_t(static_cast<int32_t>(x), rawData());
 }
 template <>
 	inline void XPrimaryDriver::push(float f) {
@@ -317,7 +317,7 @@ template <>
 	} uni;
 	C_ASSERT(sizeof(uni.x) == sizeof(uni.y));
 	uni.y = f;
-	_push_int32(uni.x, rawData());
+	_push_int32_t(uni.x, rawData());
 }
 template <>
 	inline void XPrimaryDriver::push(double x) {
@@ -333,20 +333,20 @@ template <>
 	_push_char(static_cast<char>(x), buf);
 }
 template <>
-	inline void XPrimaryDriver::push(short x, std::vector<char> &buf) {
-	_push_short(x, buf);
+	inline void XPrimaryDriver::push(int16_t x, std::vector<char> &buf) {
+	_push_int16_t(x, buf);
 }
 template <>
-	inline void XPrimaryDriver::push(unsigned short x, std::vector<char> &buf) {
-	_push_short(static_cast<short>(x), buf);
+	inline void XPrimaryDriver::push(uint16_t x, std::vector<char> &buf) {
+	_push_int16_t(static_cast<int16_t>(x), buf);
 }
 template <>
 	inline void XPrimaryDriver::push(int32_t x, std::vector<char> &buf) {
-	_push_int32(x, buf);
+	_push_int32_t(x, buf);
 }
 template <>
 	inline void XPrimaryDriver::push(uint32_t x, std::vector<char> &buf) {
-	_push_int32(static_cast<int32_t>(x), buf);
+	_push_int32_t(static_cast<int32_t>(x), buf);
 }
 template <>
 	inline void XPrimaryDriver::push(float f, std::vector<char> &buf) {
@@ -356,7 +356,7 @@ template <>
 	} uni;
 	C_ASSERT(sizeof(uni.x) == sizeof(uni.y));
 	uni.y =  f;
-	_push_int32(uni.x, buf);
+	_push_int32_t(uni.x, buf);
 }
 template <>
 	inline void XPrimaryDriver::push(double x, std::vector<char> &buf) {

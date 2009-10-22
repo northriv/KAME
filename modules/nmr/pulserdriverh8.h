@@ -46,7 +46,7 @@ private:
 	//! Add 1 pulse pattern
 	//! \param term a period to next pattern
 	//! \param pattern a pattern for digital, to appear
-	int pulseAdd(uint64_t term, unsigned short pattern);
+	int pulseAdd(uint64_t term, uint16_t pattern);
 
 	struct h8ushort {unsigned char msb; unsigned char lsb;};
 	std::vector<h8ushort> m_zippedPatterns;

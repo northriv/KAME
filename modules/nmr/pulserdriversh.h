@@ -43,7 +43,7 @@ protected:
 
 private:
 	int setAUX2DA(double volt, int addr);
-	int insertPreamble(unsigned short startpattern);
+	int insertPreamble(uint16_t startpattern);
 	int finishPulse();
 	//! Add 1 pulse pattern
 	//! \param term a period to next pattern

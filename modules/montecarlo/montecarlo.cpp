@@ -675,15 +675,15 @@ MonteCarlo::flipSpin(int site1, int lidx, double du, long double tests_after_che
         int size = s_L;
         int dist = s_cutoff_real;
         int r2bound = dist*dist;
-        unsigned short *p0 = &m_field_third_cached_sane[site1][0];
+        uint16_t *p0 = &m_field_third_cached_sane[site1][0];
         for(int dk = -dist; dk <= dist; dk++) {
             int dk2 = abs(dk) - 1;
             dk2 = dk2*dk2;
-            unsigned short *p_k = p0 + lattice_index(0, 0, (k + dk + size) % size);
+            uint16_t *p_k = p0 + lattice_index(0, 0, (k + dk + size) % size);
             for(int dj = -dist; dj <= dist; dj++) {
                 int dj2 = abs(dj) - 1;
                 dj2 = dk2 + dj2*dj2;
-                unsigned short *p_j = p_k + lattice_index(0, (j + dj + size) % size, 0);
+                uint16_t *p_j = p_k + lattice_index(0, (j + dj + size) % size, 0);
                 for(int di = -dist; di <= dist; di++) {
                     int di2 = abs(di) - 1;
                     int r2 = dj2 + di2*di2;

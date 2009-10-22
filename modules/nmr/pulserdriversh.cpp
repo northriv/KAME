@@ -116,17 +116,17 @@ XSHPulser::createNativePatterns()
 	m_dmaTerm = 0;
 	m_lastPattern = 0;
 	uint32_t pat = 0;
-	insertPreamble((unsigned short)pat);
+	insertPreamble((uint16_t)pat);
 	for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++)
 	{
 		pulseAdd(it->toappear, it->pattern, (it == m_relPatList.begin() ), true );
 		pat = it->pattern;
 	}
   
-	insertPreamble((unsigned short)pat);
+	insertPreamble((uint16_t)pat);
 
 	for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX; i++) {
-	  	const unsigned short word = qamWaveForm(i).size();
+	  	const uint16_t word = qamWaveForm(i).size();
 		if(!word) continue;
 		m_waveformPos[i] = m_zippedPatterns.size();
 		m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_HBURST);
@@ -160,14 +160,14 @@ XSHPulser::setAUX2DA(double volt, int addr)
 	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_AUX2_DA);
 	m_zippedPatterns.push_back((unsigned char) addr);
 	volt = max(volt, 0.0);
-	unsigned short word = (unsigned short)rint(4096u * volt / 2 / 2.5);
-	word = min(word, (unsigned short)4095u);
+	uint16_t word = (uint16_t)rint(4096u * volt / 2 / 2.5);
+	word = min(word, (uint16_t)4095u);
 	m_zippedPatterns.push_back((unsigned char)(word / 0x100) );
 	m_zippedPatterns.push_back((unsigned char)(word % 0x100) );
 	return 0;
 }
 int
-XSHPulser::insertPreamble(unsigned short startpattern)
+XSHPulser::insertPreamble(uint16_t startpattern)
 {
 	const double masterlevel = pow(10.0, *masterLevel() / 20.0);
 	const double qamlevel1 = *qamLevel1();
@@ -258,9 +258,9 @@ XSHPulser::pulseAdd(uint64_t term, uint32_t pattern, bool firsttime, bool dryrun
 		}
 		mtu_term += m_dmaTerm;
 		uint32_t ulen = (uint32_t)(mtu_term / 0x10000uLL);
-		unsigned short ulenh = (unsigned short)(ulen / 0x10000uL);
-		unsigned short ulenl = (unsigned short)(ulen % 0x10000uL);	
-		unsigned short dlen = (uint32_t)(mtu_term % 0x10000uLL);
+		uint16_t ulenh = (uint16_t)(ulen / 0x10000uL);
+		uint16_t ulenl = (uint16_t)(ulen % 0x10000uL);	
+		uint16_t dlen = (uint32_t)(mtu_term % 0x10000uLL);
 		if(ulenh) {
 			m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_WAIT_LONG_LONG);
 			m_zippedPatterns.push_back((unsigned char)(dlen / 0x100) );
@@ -294,14 +294,14 @@ XSHPulser::pulseAdd(uint64_t term, uint32_t pattern, bool firsttime, bool dryrun
 	unsigned long pos_l = m_dmaTerm / llrint(resolution() / MTU_PERIOD);
 	if(pos_l >= 0x7000u)
 		throw XInterface::XInterfaceError(i18n("Too long DMA."), __FILE__, __LINE__);
-	unsigned short pos = (unsigned short)pos_l;
-	unsigned short len = mtu_term / llrint(resolution() / MTU_PERIOD);
+	uint16_t pos = (uint16_t)pos_l;
+	uint16_t len = mtu_term / llrint(resolution() / MTU_PERIOD);
 	if( ((m_lastPattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX == 0) && ((pattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX > 0) ) {
-		unsigned short qam_pos = m_waveformPos[(pattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX - 1];
+		uint16_t qam_pos = m_waveformPos[(pattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX - 1];
 		if(!dryrun) {
 			if(!qam_pos || (m_zippedPatterns[qam_pos] != PATTERN_ZIPPED_COMMAND_DMA_HBURST))
 				throw XInterface::XInterfaceError(i18n("No waveform."), __FILE__, __LINE__);
-			unsigned short word = m_zippedPatterns.size() - qam_pos;
+			uint16_t word = m_zippedPatterns.size() - qam_pos;
 			m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_COPY_HBURST);
 			m_zippedPatterns.push_back((unsigned char)((pattern & PAT_QAM_PHASE_MASK)/PAT_QAM_PHASE));
 			m_zippedPatterns.push_back((unsigned char)(pos / 0x100) );
@@ -344,7 +344,7 @@ XSHPulser::changeOutput(bool output, unsigned int /*blankpattern*/)
 				interface()->sendf("$pload %x", size );
 				interface()->receive();
 				interface()->write(">", 1);
-				unsigned short sum = 0;
+				uint16_t sum = 0;
 				for(unsigned int i = 0; i < m_zippedPatterns.size(); i++) {
 					sum += m_zippedPatterns[i];
 				} 

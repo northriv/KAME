@@ -181,7 +181,7 @@ XQGraphPainter::string2wstring(const XString &str)
 #ifdef USE_ICONV_SRC_UCS2
     QString qstr(str);
     const char *inbuf = reinterpret_cast<const char*>(qstr.utf16());
-    int insize = qstr.length() * sizeof(unsigned short);
+    int insize = qstr.length() * sizeof(uint16_t);
 #endif //USE_ICONV_SRC_UCS2
     size_t ret = iconv(s_iconv_cd,
 					   const_cast<char**>(&inbuf), (size_t*)&insize,
