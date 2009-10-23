@@ -1,6 +1,2 @@
-Toward 2.9:
-- UI, appearence, relax, pulse, sweep.
-- modules/core
-- rbtoolform, drivercreate, larger.
-- short -> int16_t
-- char -> int8_t
+Toward 3.0:
+Q3TextBrowser!

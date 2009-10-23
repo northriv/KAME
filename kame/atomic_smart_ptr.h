@@ -19,7 +19,7 @@
 
 //! This is an atomic variant of \a boost::scoped_ptr<>.
 //! atomic_scoped_ptr<> can be shared among threads by the use of \a swap(_shared_target_).
-//! Namely, a destructive read. Use atomic_shared_ptr<> for non-destructive reading.
+//! Namely, a destructive read. Use atomic_shared_ptr<> for non-destructive reading.\n
 //! The implementation relies on an atomic-swap machine code, e.g. lock xchg.
 //! \sa atomic_shared_ptr
 template <typename T>
@@ -83,17 +83,18 @@ struct _atomic_shared_ptr_gref {
 } __attribute__((aligned(ATOMIC_SHARED_REF_ALIGNMENT)));;
 
 
-//! This is an atomic variant of \a boost::shared_ptr<>.
-//! \a atomic_shared_ptr<> can be shared among threads by the use of \a operator=(_target_), \a swap(_target_).
-//! An instance of \a atomic_shared_ptr<T> holds:
-//! 	a) a pointer to \a _atomic_shared_ptr_gref<T>, which is a struct consisting of a pointer to the T-type object, and a global reference counter.
-//! 	b) a local (temporary) reference counter, which is embedded in the above pointer by using the least significant bits that should be usually zero.
-//! The values of a) and b), \a m_ref, are atomically handled with CAS machine codes.
-//! The purpose of b) the local reference counter is to tell the "observation" to the shared target before increasing the global reference counter.
-//! This process is implemented in \a _reserve_scan_().
-//! A function \a _leave_scan_() tries to decrease the local counter first. When it fails, the global counter is decreased.
-//! To swap the pointer and local reference counter (which will be reset to zero), the setter must adds the local counting to the global counter before swapping.
-//! \sa atomic_scoped_ptr
+/*! This is an atomic variant of \a boost::shared_ptr<>.\n
+* \a atomic_shared_ptr<> can be shared among threads by the use of \a operator=(_target_), \a swap(_target_).
+* An instance of \a atomic_shared_ptr<T> holds:\n
+* 	a) a pointer to \a _atomic_shared_ptr_gref<T>, which is a struct consisting of a pointer to the T-type object, and a global reference counter.\n
+* 	b) a local (temporary) reference counter, which is embedded in the above pointer by using the least significant bits that should be usually zero.\n
+* The values of a) and b), \a m_ref, are atomically handled with CAS machine codes.
+* The purpose of b) the local reference counter is to tell the "observation" to the shared target before increasing the global reference counter.
+* This process is implemented in \a _reserve_scan_().\n
+* A function \a _leave_scan_() tries to decrease the local counter first. When it fails, the global counter is decreased.\n
+* To swap the pointer and local reference counter (which will be reset to zero), the setter must adds the local counting to the global counter before swapping.
+* \sa atomic_scoped_ptr
+ */
 template <typename T>
 class atomic_shared_ptr
 {
@@ -165,7 +166,7 @@ public:
 
 public:
 	typedef uintptr_t Refcnt;
-	//! internal functions below.
+	//internal functions below.
 	//! atomically scans \a m_ref and increases the global reference counter.
 	//! \a _scan_ is used for atomically coping the pointer.
 	Ref *_scan_() const;

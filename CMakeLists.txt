@@ -184,6 +184,7 @@ add_subdirectory(kame)
 add_subdirectory(modules)
 add_subdirectory(po)
 add_subdirectory(doc)
+add_subdirectory(tests)
 
 ########### install files ###############
 
