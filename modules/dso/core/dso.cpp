@@ -333,27 +333,24 @@ XDSO::execute(const atomic<bool> &terminated)
 			continue;
 		}
 		std::deque<XString> channels;
-		channels.push_back(trace1()->to_str());
-		if(channels.front().empty()) {
+		{
+			XString chstr = trace1()->to_str();
+			if(!chstr.empty())
+				channels.push_back(chstr);
+			chstr = trace2()->to_str();
+			if(!chstr.empty())
+				channels.push_back(chstr);
+			chstr = trace3()->to_str();
+			if(!chstr.empty())
+				channels.push_back(chstr);
+			chstr = trace4()->to_str();
+			if(!chstr.empty())
+				channels.push_back(chstr);
+		}
+		if(!channels.size()) {
             statusPrinter()->printMessage(getLabel() + " " + i18n("Select traces!."));
             msecsleep(500);
             continue;
-		}
-		channels.push_back(trace2()->to_str());
-		if(channels.back().empty()) {
-            channels.pop_back();
-		}
-		if(channels.size() == 2) {
-			channels.push_back(trace3()->to_str());
-			if(channels.back().empty()) {
-				channels.pop_back();
-			}
-			if(channels.size() == 3) {
-				channels.push_back(trace4()->to_str());
-				if(channels.back().empty()) {
-					channels.pop_back();
-				}
-			}
 		}
 		
 		bool seq_busy = false;
