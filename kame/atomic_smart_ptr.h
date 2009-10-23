@@ -75,9 +75,10 @@ struct _atomic_shared_ptr_gref {
 	template <class Y>
 	_atomic_shared_ptr_gref(Y *p) : ptr(p), refcnt(1) {}
 	~_atomic_shared_ptr_gref() { ASSERT(refcnt == 0); delete ptr; }
+	//! The pointer to the object.
 	T *ptr;
-	//! Global reference counter.
 	typedef uintptr_t Refcnt;
+	//! Global reference counter.
 	Refcnt refcnt;
 } __attribute__((aligned(ATOMIC_SHARED_REF_ALIGNMENT)));;
 
