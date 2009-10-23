@@ -17,10 +17,10 @@
 #include <atomic.h>
 
 
-//! This is an atomic variant of boost::scoped_ptr<>.
-//! atomic_scoped_ptr<> can be shared among threads by the use of swap() as the argument.
-//! That is, a destructive read. Use atomic_shared_ptr<> for non-destructive reading.
-//! The implementation relies on an atimic-swap machine code, e.g. lock xchg.
+//! This is an atomic variant of \a boost::scoped_ptr<>.
+//! atomic_scoped_ptr<> can be shared among threads by the use of \a swap(_shared_target_).
+//! Namely, a destructive read. Use atomic_shared_ptr<> for non-destructive reading.
+//! The implementation relies on an atomic-swap machine code, e.g. lock xchg.
 //! \sa atomic_shared_ptr
 template <typename T>
 class atomic_scoped_ptr
@@ -68,12 +68,13 @@ private:
 
 #define ATOMIC_SHARED_REF_ALIGNMENT 8
 
-//! This class holds a global reference counter and a pointer to the object.
+//! This is an internal class holding a global reference counter and a pointer to the object.
+//! \sa atomic_shared_ptr
 template <typename T>
-struct atomic_shared_ptr_ref {
+struct _atomic_shared_ptr_gref {
 	template <class Y>
-	atomic_shared_ptr_ref(Y *p) : ptr(p), refcnt(1) {}
-	~atomic_shared_ptr_ref() { ASSERT(refcnt == 0); delete ptr; }
+	_atomic_shared_ptr_gref(Y *p) : ptr(p), refcnt(1) {}
+	~_atomic_shared_ptr_gref() { ASSERT(refcnt == 0); delete ptr; }
 	T *ptr;
 	//! Global reference counter.
 	typedef uintptr_t Refcnt;
@@ -81,14 +82,22 @@ struct atomic_shared_ptr_ref {
 } __attribute__((aligned(ATOMIC_SHARED_REF_ALIGNMENT)));;
 
 
-//! This is an atomic variant of boost::shared_ptr<>.
-//! atomic_shared_ptr<> can be shared among threads by the use of operator=(), swap() as the argument.
+//! This is an atomic variant of \a boost::shared_ptr<>.
+//! \a atomic_shared_ptr<> can be shared among threads by the use of \a operator=(_target_), \a swap(_target_).
+//! An instance of \a atomic_shared_ptr<T> holds:
+//! 	a) a pointer to \a _atomic_shared_ptr_gref<T>, which is a struct consisting of a pointer to the T-type object, and a global reference counter.
+//! 	b) a local (temporary) reference counter, which is embedded in the above pointer by using the least significant bits that should be usually zero.
+//! The values of a) and b), \a m_ref, are atomically handled with CAS machine codes.
+//! The purpose of b) the local reference counter is to tell the "observation" to the shared target before increasing the global reference counter.
+//! This process is implemented in \a _reserve_scan_().
+//! A function \a _leave_scan_() tries to decrease the local counter first. When it fails, the global counter is decreased.
+//! To swap the pointer and local reference counter (which will be reset to zero), the setter must adds the local counting to the global counter before swapping.
 //! \sa atomic_scoped_ptr
 template <typename T>
 class atomic_shared_ptr
 {
 public:
-	typedef atomic_shared_ptr_ref<T> Ref;
+	typedef _atomic_shared_ptr_gref<T> Ref;
 
 	atomic_shared_ptr() {
 		m_ref = 0;
@@ -111,53 +120,58 @@ public:
 
 	~atomic_shared_ptr();
 
-	//! \param t This object is atomically replaced with \a t.
+	//! \param t This instance is atomically replaced with \a t.
 	atomic_shared_ptr &operator=(const atomic_shared_ptr &t) {
 		atomic_shared_ptr(t).swap(*this);
 		return *this;
 	}
-	//! \param y This object is atomically replaced with \a t.
+	//! \param y This instance is atomically replaced with \a t.
 	template<typename Y> atomic_shared_ptr &operator=(const atomic_shared_ptr<Y> &y) {
 		atomic_shared_ptr(y).swap(*this);
 		return *this;
 	}
-	//! This object is atomically reset.
+	//! This instance is atomically reset to null pointer.
 	void reset() {
 		atomic_shared_ptr().swap(*this);
 	}
-	//! \param y This object is atomically reset with a pointer \a y.
+	//! \param y This instance is atomically reset with a pointer \a y.
 	template<typename Y> void reset(Y *y) {
 		atomic_shared_ptr(y).swap(*this);
 	}
 
-	//! \param x \p x is atomically swapped.
-	//! Nevertheless, this object is not atomically replaced.
-	//! That is, the object pointed by "this" must not be shared among threads.
-	void swap(atomic_shared_ptr &);
+	//! \param x \p x is atomically swapped with this instance.
+	//! Nevertheless, this instance is not atomically replaced.
+	//! That is, "this" must not be shared among threads.
+	void swap(atomic_shared_ptr &x);
 
 	//! \return true if succeeded.
-	bool compareAndSwap(const atomic_shared_ptr &oldr, atomic_shared_ptr &r);
+	//! \sa swap()
+	bool compareAndSwap(const atomic_shared_ptr &oldvalue, atomic_shared_ptr &target);
 
-	//! These functions must be called while writing is blocked.
+	//! The return value is apparently not valid for a shared instance.
 	T *get() const { Ref *pref = _pref(); return pref ? pref->ptr : 0L; }
 
+	//! The return value is apparently not valid for a shared instance.
 	T &operator*() const { ASSERT(*this); return *get();}
 
+	//! The return value is apparently not valid for a shared instance.
 	T *operator->() const { ASSERT(*this); return get();}
 
+	//! The return value is apparently not valid for a shared instance.
 	bool operator!() const {return !m_ref;}
+	//! The return value is apparently not valid for a shared instance.
 	operator bool() const {return m_ref;}
 
 public:
 	typedef uintptr_t Refcnt;
 	//! internal functions below.
-	//! atomically scan \a m_ref and increase global reference counter.
+	//! atomically scans \a m_ref and increases the global reference counter.
 	//! \a _scan_ is used for atomically coping the pointer.
 	Ref *_scan_() const;
-	//! atomically scan \a m_ref and increase local (temporary) reference counter.
+	//! atomically scans \a m_ref and increases the  local (temporary) reference counter.
 	//! use \a _leave_scan_ to release the temporary reference.
 	Ref *_reserve_scan_(Refcnt *) const;
-	//! try to decrease local (temporary) reference counter.
+	//! tries to decrease local (temporary) reference counter.
 	//! In case the reference is lost, \a _leave_scan_ releases the global reference counter instead.
 	void _leave_scan_(Ref *) const;
 private:
@@ -176,7 +190,7 @@ atomic_shared_ptr<T>::~atomic_shared_ptr() {
 	ASSERT(_refcnt() == 0);
 	Ref *pref = _pref();
 	if(!pref) return;
-	// decrease global reference counter.
+	// decreasing global reference counter.
 	readBarrier();
 	if(atomicDecAndTest(&pref->refcnt)) {
 		delete pref;
@@ -205,10 +219,11 @@ atomic_shared_ptr<T>::_reserve_scan_(Refcnt *rcnt) const {
 		}
 		*/
 		if(rcnt_new >= ATOMIC_SHARED_REF_ALIGNMENT) {
+			// This would be never happen.
 			usleep(1);
 			continue;
 		}
-		// try to increase local reference counter w/ same serial.
+		// trying to increase local reference counter w/ same serial.
 		if(atomicCompareAndSet(
 			_RefLocal((uintptr_t)pref + rcnt_old),
 			_RefLocal((uintptr_t)pref + rcnt_new),
@@ -238,7 +253,7 @@ atomic_shared_ptr<T>::_leave_scan_(Ref *pref) const {
 		rcnt_old = _refcnt();
 		if(rcnt_old) {
 			Refcnt rcnt_new = rcnt_old - 1;
-			// try to dec. reference counter if stored pointer is unchanged.
+			// trying to dec. reference counter if stored pointer is unchanged.
 			if(atomicCompareAndSet(
 				_RefLocal((uintptr_t)pref + rcnt_old),
 				_RefLocal((uintptr_t)pref + rcnt_new),
@@ -247,7 +262,7 @@ atomic_shared_ptr<T>::_leave_scan_(Ref *pref) const {
 			if((pref == _pref()))
 				continue; // try again.
 		}
-		// local reference of this context has released by other processes.
+		// local reference has released by other processes.
 		readBarrier();
 		if(atomicDecAndTest(&pref->refcnt)) {
 			delete pref;
