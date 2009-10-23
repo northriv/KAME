@@ -6,9 +6,13 @@ set(support_SRCS
  )
 
 add_executable(atomic_shared_ptr_test atomic_shared_ptr_test.cpp ${support_SRCS})
+target_link_libraries(atomic_shared_ptr_test pthread)
 add_executable(atomic_scoped_ptr_test atomic_scoped_ptr_test.cpp ${support_SRCS})
+target_link_libraries(atomic_scoped_ptr_test pthread)
 add_executable(atomic_queue_test atomic_queue_test.cpp ${support_SRCS})
+target_link_libraries(atomic_queue_test pthread)
 add_executable(mutex_test mutex_test.cpp ${support_SRCS})
+target_link_libraries(mutex_test pthread)
 
 add_test(atomic_shared_ptr_test atomic_shared_ptr_test)
 add_test(atomic_scoped_ptr_test atomic_scoped_ptr_test)
