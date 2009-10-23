@@ -1,10 +1,3 @@
-base referer
-rect $df/d28/class_x_h_p34420_a.html 46,485 142,512
-rect $d9/d8b/class_x_k_e2000.html 166,485 246,512
-rect $d6/d6d/class_x_k_e2182.html 270,485 350,512
-rect $db/db8/class_x_char_device_driver.html 105,330 308,357
-rect $d1/d1a/class_x_d_m_m.html 33,240 97,266
-rect $d6/d66/class_x_primary_driver.html 8,162 122,189
-rect $d1/d87/class_x_driver.html 32,85 98,112
-rect $dd/d83/class_x_node.html 33,8 97,34
-rect $db/db8/class_x_char_device_driver.html 121,240 388,266
+<area shape="rect" id="node7" href="$df/d28/class_x_h_p34420_a.html" title="Agilent(Hewlett&#45;Packard) 34420A nanovolt meter." alt="" coords="5,237,104,267">
+<area shape="rect" id="node9" href="$d9/d8b/class_x_k_e2000.html" title="XKE2000" alt="" coords="128,237,208,267">
+<area shape="rect" id="node11" href="$d6/d6d/class_x_k_e2182.html" title="XKE2182" alt="" coords="232,237,312,267">

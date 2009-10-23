@@ -1,4 +1,3 @@
-base referer
-rect $dd/d00/class_yule_walker_cousin.html 8,176 269,202
-rect $d7/de4/class_spectrum_solver.html 96,8 213,34
-rect $dd/d00/class_yule_walker_cousin.html 145,85 348,112
+<area shape="rect" id="node2" href="$dd/d00/class_yule_walker_cousin.html" title="YuleWalkerCousin\&lt; MEMBurgContext \&gt;" alt="" coords="5,181,277,211">
+<area shape="rect" id="node4" href="$d7/de4/class_spectrum_solver.html" title="SpectrumSolver" alt="" coords="103,5,225,35">
+<area shape="rect" id="node6" href="$dd/d00/class_yule_walker_cousin.html" title="YuleWalkerCousin\&lt; Context \&gt;" alt="" coords="157,85,368,115">

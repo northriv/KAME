@@ -1,10 +1,6 @@
-base referer
-rect $d8/d17/class_x_double_node.html 8,157 114,184
-rect $df/da6/class_x_item_node_base.html 138,157 258,184
-rect $d4/d60/class_x_string_node.html 282,157 381,184
-rect $d0/db8/class_x_value_node.html 405,157 568,184
-rect $dd/d83/class_x_node.html 233,8 297,34
-rect $d9/d21/class_x_combo_node.html 64,232 170,258
-rect $d8/d9a/class_x_pointer_item_node.html 194,232 365,258
-rect $d4/daf/class___x_item_node.html 212,306 348,333
-rect $d8/db2/class_x_item_node.html 204,381 356,408
+<area shape="rect" id="node7" href="$df/da6/class_x_item_node_base.html" title="Posses a pointer to a member of a list." alt="" coords="139,160,264,189">
+<area shape="rect" id="node19" href="$d0/db8/class_x_value_node.html" title="Base class for value node." alt="" coords="416,160,592,189">
+<area shape="rect" id="node2" href="$dd/d83/class_x_node.html" title="XNode" alt="" coords="239,5,303,35">
+<area shape="rect" id="node9" href="$d9/d21/class_x_combo_node.html" title="Contain strings, value is one of strings." alt="" coords="59,237,171,267">
+<area shape="rect" id="node13" href="$d4/daf/class___x_item_node.html" title="A pointer to a XListNode TL, T is value type." alt="" coords="215,315,359,344">
+<area shape="rect" id="node15" href="$d8/db2/class_x_item_node.html" title="A pointer to a XListNode TL, T is value type." alt="" coords="207,392,367,421">

@@ -14,47 +14,43 @@
 #ifndef TRANSACTION_H
 #define TRANSACTION_H
 
-//! \todo metamonitor.
-//! \todo wrapper.
+//! Example 1\n
+//! shared_ptr<Subscriber> ss1 = monitor1->monitorData();\n
+//! sleep(1);\n
+//! if(Snapshot<MonitorA> shot1(monitor1)) { // checking consistency (i.e. requiring at least one transaction).\n
+//! double x = shot1[node1]; //implicit conversion defined in Node1::Passage.\n
+//! double y = shot1[node1]->y(); }\n
+//!\n
+//! Example 2\n
+//! double x = *node1; // for an immediate access, same as (double)(const Node1::Passage&)(*node1)\n
+//!\n
+//! Example 3\n
+//! { Transaction<MonitorA> tr1(monitor1);\n
+//! tr1[node1] = tr1[node1] * 2.0; }\n
+//! \n
+//! Example 4\n
+//! node1->value(1.0); // for an immediate access.\n
+//! \n
+//! Example 5\n
+//! //Obsolete, for backward compatibility.\n
+//! monitor1.readLock(); // or use lock(), a snapshot will be copied to TLS.\n
+//! double x = node1->y();\n
+//! monitor1.readUnock(); // or use unlock()\n
+//! \n
+//! Example 6\n
+//! //Obsolete, for backward compatibility.\n
+//! monitor1.writeLock(); // a transaction will be prepared in TLS.\n
+//! node1->value(1.0);\n
+//! monitor1.writeUnock(); // commit the transaction.\n
 
-
-//! Example 1
-//! shared_ptr<Subscriber> ss1 = monitor1->monitorData();
-//! sleep(1);
-//! if(Snapshot<MonitorA> shot1(monitor1)) { // checking consistency (i.e. requiring at least one transaction).
-//! double x = shot1[node1]; //implicit conversion defined in Node1::Passage.
-//! double y = shot1[node1]->y(); }
-//!
-//! Example 2
-//! double x = *node1; // for an immediate access, same as (double)(const Node1::Passage&)(*node1)
-//!
-//! Example 3
-//! { Transaction<MonitorA> tr1(monitor1);
-//! tr1[node1] = tr1[node1] * 2.0; }
-//! 
-//! Example 4
-//! node1->value(1.0); // for an immediate access.
-//! 
-//! Example 5
-//! //Obsolete, for backward compatibility.
-//! monitor1.readLock(); // or use lock(), a snapshot will be copied to TLS.
-//! double x = node1->y();
-//! monitor1.readUnock(); // or use unlock()
-//! 
-//! Example 6
-//! //Obsolete, for backward compatibility.
-//! monitor1.writeLock(); // a transaction will be prepared in TLS.
-//! node1->value(1.0);
-//! monitor1.writeUnock(); // commit the transaction.
-
-//! Watch point for transactional memeory access.
+//! Watch point for transactional memory access.\n
 //! The list of the pointers to data is atomically read/written.
 class Monitor {
 public:
 	Monitor() {}
 	virtual ~Monitor() {}
 
-	//! Data holder/accessor.
+	//! Data holder and accessor.
 	struct Passage {
 		virtual ~Passage();
 	protected:
@@ -65,6 +61,8 @@ public:
 	operator T::Passage&() {return dynamic_cast<T::Passage&>(*m_passage);}
 
 	Passage &resolve(const shared_ptr<Snapshot> &) const;
+
+	atomic_shared_ptr<Passage> _passage() const {return m_passage;}
 private:
 	typedef std::deque<weak_ptr<Monitor> > SubscriberList;
 	atomic_shared_ptr<SubscriberList> m_subscribers;
@@ -87,11 +85,12 @@ private:
 };
 
 
-//! Take a snapshot for a monitored data set.
+//! This class takes a snapshot for a monitored data set.
+template <class M>
 class Snapshot {
 public:
-	Sanpshot(const Snapshot&x);
-	Sanpshot(const shared_ptr<Monitor>&mon);
+	Snapshot(const Snapshot&x) : m_monitor(x.m_monitor), m_passage(x.m_passage) {}
+	Snapshot(const shared_ptr<M>&mon) : m_monitor(mon), m_passage(mon->_passage()) {}
 	~Snapshot() {}
 
 	template <class T>
@@ -99,8 +98,8 @@ public:
 		return dynamic_cast<const T::Passage&>(monitor->resolve(shared_from_this()));}
 private:
 	//! The snapshot.
+	const shared_ptr<M> m_monitor;
 	const shared_ptr<Passage> m_passage;
-	const shared_ptr<Monitor> m_monitor;
 };
 
 //! Transactional writing for a monitored data set.

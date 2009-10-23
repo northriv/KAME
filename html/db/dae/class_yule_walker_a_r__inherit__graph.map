@@ -1,4 +1,3 @@
-base referer
-rect $dd/d00/class_yule_walker_cousin.html 8,176 229,202
-rect $d7/de4/class_spectrum_solver.html 76,8 193,34
-rect $dd/d00/class_yule_walker_cousin.html 125,85 328,112
+<area shape="rect" id="node2" href="$dd/d00/class_yule_walker_cousin.html" title="YuleWalkerCousin\&lt; ARContext \&gt;" alt="" coords="5,181,232,211">
+<area shape="rect" id="node4" href="$d7/de4/class_spectrum_solver.html" title="SpectrumSolver" alt="" coords="80,5,203,35">
+<area shape="rect" id="node6" href="$dd/d00/class_yule_walker_cousin.html" title="YuleWalkerCousin\&lt; Context \&gt;" alt="" coords="135,85,345,115">

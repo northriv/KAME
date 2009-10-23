@@ -1,9 +1,1 @@
-base referer
-rect $dc/dc1/class_x_cryocon.html 380,570 462,597
-rect $db/db8/class_x_char_device_driver.html 297,493 545,520
-rect $d1/d0f/class_x_temp_control.html 208,402 317,429
-rect $d6/d66/class_x_primary_driver.html 8,205 122,232
-rect $d7/deb/classqshared__ptr.html 368,205 584,232
-rect $d7/deb/classqshared__ptr.html 200,8 322,34
-rect $df/d6b/class_x_time.html 608,205 669,232
-rect $db/db8/class_x_char_device_driver.html 341,402 608,429
+<area shape="rect" id="node2" href="$dc/dc1/class_x_cryocon.html" title="Cryo&#45;con base class." alt="" coords="143,293,225,323">

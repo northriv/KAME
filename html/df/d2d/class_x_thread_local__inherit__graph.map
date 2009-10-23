@@ -1,5 +1,4 @@
-base referer
-rect $d6/d9b/class_x_thread_local.html 7,98 247,125
-rect $d6/d9b/class_x_thread_local.html 271,98 471,125
-rect $d6/d9b/class_x_thread_local.html 495,98 693,125
-rect $d6/d9b/class_x_thread_local.html 717,98 901,125
+<area shape="rect" id="node3" href="$d6/d9b/class_x_thread_local.html" title="XThreadLocal\&lt; std::vector\&lt; char \&gt; \&gt;" alt="" coords="569,5,833,35">
+<area shape="rect" id="node5" href="$d6/d9b/class_x_thread_local.html" title="XThreadLocal\&lt; std::deque\&lt; const XRecursiveRWLock * \&gt; \&gt;" alt="" coords="499,59,904,88">
+<area shape="rect" id="node7" href="$d6/d9b/class_x_thread_local.html" title="XThreadLocal\&lt; std::deque\&lt; shared_ptr\&lt; XNode \&gt; \&gt; \&gt;" alt="" coords="512,112,891,141">
+<area shape="rect" id="node9" href="$d6/d9b/class_x_thread_local.html" title="XThreadLocal\&lt; std::vector\&lt; char \&gt;::iterator \&gt;" alt="" coords="541,165,861,195">

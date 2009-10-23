@@ -1,11 +1,1 @@
-base referer
-rect $d9/d20/class_x_h_p8643.html 694,394 774,421
-rect $db/db8/class_x_char_device_driver.html 639,317 829,344
-rect $d8/d7b/class_x_s_g.html 573,226 623,253
-rect $d6/d66/class_x_primary_driver.html 263,117 378,144
-rect $d1/d87/class_x_driver.html 7,8 74,34
-rect $d6/d9b/class_x_thread_local.html 98,8 298,34
-rect $d6/d9b/class_x_thread_local.html 322,8 562,34
-rect $d7/deb/classqshared__ptr.html 586,8 709,34
-rect $d7/deb/classqshared__ptr.html 706,117 866,144
-rect $db/db8/class_x_char_device_driver.html 647,226 914,253
+<area shape="rect" id="node2" href="$d9/d20/class_x_h_p8643.html" title="Agilent 8643A, 8644A." alt="" coords="144,293,224,323">

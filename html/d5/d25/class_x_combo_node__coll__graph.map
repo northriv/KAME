@@ -1,5 +1,14 @@
-base referer
-rect $df/da6/class_x_item_node_base.html 8,7 128,34
-rect $da/dad/classatomic__shared__ptr.html 152,7 458,34
-rect $d2/db1/class_x_recursive_mutex.html 482,7 613,34
-rect $da/dad/classatomic__shared__ptr.html 637,7 936,34
+<area shape="rect" id="node2" href="$df/da6/class_x_item_node_base.html" title="Posses a pointer to a member of a list." alt="" coords="3428,289,3553,318">
+<area shape="rect" id="node4" href="$d1/d8a/class_x_value_node_base.html" title="Base class containing values." alt="" coords="3111,266,3241,295">
+<area shape="rect" id="node6" href="$dd/d83/class_x_node.html" title="XNode" alt="" coords="2787,266,2851,295">
+<area shape="rect" id="node8" href="$d6/dbd/class_x_talker.html" title="XTalker\&lt; shared_ptr\&lt; XNode \&gt; \&gt;" alt="" coords="2293,287,2533,317">
+<area shape="rect" id="node23" href="$d6/dbd/class_x_talker.html" title="XTalker\&lt; tArg \&gt;" alt="" coords="1845,150,1971,179">
+<area shape="rect" id="node33" href="$d6/dbd/class_x_talker.html" title="XTalker\&lt; shared_ptr\&lt; XValueNodeBase \&gt; \&gt;" alt="" coords="2260,165,2567,194">
+<area shape="rect" id="node42" href="$d6/dbd/class_x_talker.html" title="XTalker\&lt; shared_ptr\&lt; XItemNodeBase \&gt; \&gt;" alt="" coords="2263,79,2564,109">
+<area shape="rect" id="node14" href="$da/dad/classatomic__shared__ptr.html" title="atomic_shared_ptr\&lt; bool \&gt;" alt="" coords="417,197,615,226">
+<area shape="rect" id="node16" href="$da/dad/classatomic__shared__ptr.html" title="atomic_shared_ptr\&lt; T \&gt;" alt="" coords="5,291,184,321">
+<area shape="rect" id="node20" href="$da/dad/classatomic__shared__ptr.html" title="atomic_shared_ptr\&lt; ListenerList \&gt;" alt="" coords="1479,227,1721,257">
+<area shape="rect" id="node47" href="$da/dad/classatomic__shared__ptr.html" title="atomic_shared_ptr\&lt; std::pair\&lt; XString, int \&gt; \&gt;" alt="" coords="640,403,965,433">
+<area shape="rect" id="node50" href="$da/dad/classatomic__shared__ptr.html" title="atomic_shared_ptr\&lt; std::deque\&lt; XString \&gt; \&gt;" alt="" coords="1136,493,1453,522">
+<area shape="rect" id="node53" href="$d2/db1/class_x_recursive_mutex.html" title="recursive mutex." alt="" coords="3425,550,3556,579">
+<area shape="rect" id="node55" href="$d1/d2b/class_x_pthread_mutex.html" title="XPthreadMutex" alt="" coords="3116,550,3236,579">

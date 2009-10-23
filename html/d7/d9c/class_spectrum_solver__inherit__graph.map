@@ -1,8 +1,12 @@
-base referer
-rect $d3/dbe/class_f_f_t_solver.html 8,85 93,112
-rect $d2/d65/class_freq_estimation.html 117,85 229,112
-rect $d7/d7b/class_freq_est_least_square.html 253,85 397,112
-rect $dc/dc9/class_m_e_m_strict.html 421,85 504,112
-rect $dd/d00/class_yule_walker_cousin.html 578,85 781,112
-rect $dd/d00/class_yule_walker_cousin.html 461,176 682,202
-rect $dd/d00/class_yule_walker_cousin.html 741,176 1002,202
+<area shape="rect" id="node3" href="$d3/dbe/class_f_f_t_solver.html" title="Zero&#45;filled FFT spectrum solver." alt="" coords="247,5,329,35">
+<area shape="rect" id="node5" href="$d2/d65/class_freq_estimation.html" title="FreqEstimation" alt="" coords="229,59,347,88">
+<area shape="rect" id="node13" href="$d7/d7b/class_freq_est_least_square.html" title="FreqEstLeastSquare" alt="" coords="213,112,363,141">
+<area shape="rect" id="node15" href="$dc/dc9/class_m_e_m_strict.html" title="Extra&#45;polation of data using MEM (Maximum Entropy Method) by assuming gaussian distribution..." alt="" coords="245,165,331,195">
+<area shape="rect" id="node17" href="$dd/d00/class_yule_walker_cousin.html" title="YuleWalkerCousin\&lt; Context \&gt;" alt="" coords="183,269,393,299">
+<area shape="rect" id="node19" href="$dd/d00/class_yule_walker_cousin.html" title="YuleWalkerCousin\&lt; ARContext \&gt;" alt="" coords="607,325,833,355">
+<area shape="rect" id="node23" href="$dd/d00/class_yule_walker_cousin.html" title="YuleWalkerCousin\&lt; MEMBurgContext \&gt;" alt="" coords="584,252,856,281">
+<area shape="rect" id="node7" href="$da/d93/class_eigen_vector_method.html" title="EigenVectorMethod" alt="" coords="648,59,792,88">
+<area shape="rect" id="node9" href="$dd/d83/class_m_u_s_i_c.html" title="MUltiple SIgnal Classification." alt="" coords="688,112,752,141">
+<area shape="rect" id="node11" href="$dd/d39/class_m_v_d_l.html" title="Capon MLM / MVDL." alt="" coords="691,5,749,35">
+<area shape="rect" id="node21" href="$d0/d13/class_yule_walker_a_r.html" title="YuleWalkerAR" alt="" coords="908,325,1012,355">
+<area shape="rect" id="node25" href="$d0/d38/class_m_e_m_burg.html" title="MEMBurg" alt="" coords="920,252,1000,281">

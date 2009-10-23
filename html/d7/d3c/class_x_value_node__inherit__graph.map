@@ -1,3 +1,2 @@
-base referer
-rect $d1/d8a/class_x_value_node_base.html 25,82 153,109
-rect $dd/d83/class_x_node.html 57,8 121,34
+<area shape="rect" id="node2" href="$d1/d8a/class_x_value_node_base.html" title="Base class containing values." alt="" coords="28,83,159,112">
+<area shape="rect" id="node4" href="$dd/d83/class_x_node.html" title="XNode" alt="" coords="61,5,125,35">

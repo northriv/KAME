@@ -1,16 +1,7 @@
-base referer
-rect $dd/d83/class_x_node.html 241,842 305,869
-rect $d6/dbd/class_x_talker.html 277,733 496,759
-rect $d7/d25/class___x_talker_base.html 468,551 574,578
-rect $d6/dbd/class_x_talker.html 468,642 582,669
-rect $d6/dbd/class_x_talker.html 604,733 886,759
-rect $dc/db7/classatomic.html 466,461 576,487
-rect $da/dad/classatomic__shared__ptr.html 430,370 612,397
-rect $d0/d70/structatomic__shared__ptr_1_1___ref_local.html 296,189 528,215
-rect $da/dad/classatomic__shared__ptr.html 438,279 601,306
-rect $da/dad/classatomic__shared__ptr.html 665,551 892,578
-rect $da/dad/classatomic__shared__ptr.html 33,370 241,397
-rect $d1/d85/structatomic__shared__ptr__ref.html 318,98 505,125
-rect $dc/db7/classatomic.html 265,370 406,397
-rect $d6/d9b/class_x_thread_local.html 69,733 253,759
-rect $d6/d9b/class_x_thread_local.html 80,642 218,669
+<area shape="rect" id="node2" href="$dd/d83/class_x_node.html" title="XNode" alt="" coords="2200,139,2264,168">
+<area shape="rect" id="node4" href="$d6/dbd/class_x_talker.html" title="XTalker\&lt; shared_ptr\&lt; XNode \&gt; \&gt;" alt="" coords="1707,121,1947,151">
+<area shape="rect" id="node19" href="$d6/dbd/class_x_talker.html" title="XTalker\&lt; tArg \&gt;" alt="" coords="1259,240,1384,269">
+<area shape="rect" id="node29" href="$d6/dbd/class_x_talker.html" title="XTalker\&lt; shared_ptr\&lt; XValueNodeBase \&gt; \&gt;" alt="" coords="1673,235,1980,264">
+<area shape="rect" id="node10" href="$da/dad/classatomic__shared__ptr.html" title="atomic_shared_ptr\&lt; bool \&gt;" alt="" coords="292,183,489,212">
+<area shape="rect" id="node12" href="$da/dad/classatomic__shared__ptr.html" title="atomic_shared_ptr\&lt; T \&gt;" alt="" coords="5,153,184,183">
+<area shape="rect" id="node16" href="$da/dad/classatomic__shared__ptr.html" title="atomic_shared_ptr\&lt; ListenerList \&gt;" alt="" coords="892,128,1135,157">

@@ -1,16 +1,14 @@
-base referer
-rect $d4/daf/class___x_item_node.html 741,736 901,762
-rect $d8/d9a/class_x_pointer_item_node.html 736,658 906,685
-rect $df/da6/class_x_item_node_base.html 585,568 705,594
-rect $d1/d8a/class_x_value_node_base.html 361,477 489,504
-rect $dd/d83/class_x_node.html 393,370 457,397
-rect $d6/dbd/class_x_talker.html 8,370 290,397
-rect $d7/d25/class___x_talker_base.html 553,189 660,216
-rect $d6/dbd/class_x_talker.html 352,280 466,306
-rect $d6/dbd/class_x_talker.html 506,370 784,397
-rect $da/dad/classatomic__shared__ptr.html 302,189 529,216
-rect $d0/d70/structatomic__shared__ptr_1_1___ref_local.html 486,8 718,34
-rect $da/dad/classatomic__shared__ptr.html 521,98 684,125
-rect $da/dad/classatomic__shared__ptr.html 684,189 958,216
-rect $d2/db1/class_x_recursive_mutex.html 858,568 989,594
-rect $d1/d2b/class_x_pthread_mutex.html 865,477 982,504
+<area shape="rect" id="node2" href="$d4/daf/class___x_item_node.html" title="A pointer to a XListNode TL, T is value type." alt="" coords="3693,392,3861,421">
+<area shape="rect" id="node6" href="$df/da6/class_x_item_node_base.html" title="Posses a pointer to a member of a list." alt="" coords="3177,249,3303,279">
+<area shape="rect" id="node8" href="$d1/d8a/class_x_value_node_base.html" title="Base class containing values." alt="" coords="2828,245,2959,275">
+<area shape="rect" id="node10" href="$dd/d83/class_x_node.html" title="XNode" alt="" coords="2504,273,2568,303">
+<area shape="rect" id="node12" href="$d6/dbd/class_x_talker.html" title="XTalker\&lt; shared_ptr\&lt; XNode \&gt; \&gt;" alt="" coords="2011,284,2251,313">
+<area shape="rect" id="node27" href="$d6/dbd/class_x_talker.html" title="XTalker\&lt; tArg \&gt;" alt="" coords="1563,156,1688,185">
+<area shape="rect" id="node37" href="$d6/dbd/class_x_talker.html" title="XTalker\&lt; shared_ptr\&lt; XValueNodeBase \&gt; \&gt;" alt="" coords="1977,148,2284,177">
+<area shape="rect" id="node46" href="$d6/dbd/class_x_talker.html" title="XTalker\&lt; shared_ptr\&lt; XItemNodeBase \&gt; \&gt;" alt="" coords="1980,41,2281,71">
+<area shape="rect" id="node18" href="$da/dad/classatomic__shared__ptr.html" title="atomic_shared_ptr\&lt; bool \&gt;" alt="" coords="396,177,593,207">
+<area shape="rect" id="node20" href="$da/dad/classatomic__shared__ptr.html" title="atomic_shared_ptr\&lt; T \&gt;" alt="" coords="5,229,184,259">
+<area shape="rect" id="node24" href="$da/dad/classatomic__shared__ptr.html" title="atomic_shared_ptr\&lt; ListenerList \&gt;" alt="" coords="1196,223,1439,252">
+<area shape="rect" id="node51" href="$da/dad/classatomic__shared__ptr.html" title="atomic_shared_ptr\&lt; weak_ptr\&lt; XNode \&gt; \&gt;" alt="" coords="620,409,921,439">
+<area shape="rect" id="node55" href="$d2/db1/class_x_recursive_mutex.html" title="recursive mutex." alt="" coords="3175,505,3305,535">
+<area shape="rect" id="node57" href="$d1/d2b/class_x_pthread_mutex.html" title="XPthreadMutex" alt="" coords="2833,505,2953,535">

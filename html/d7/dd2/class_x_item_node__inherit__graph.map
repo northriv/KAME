@@ -1,6 +1,4 @@
-base referer
-rect $d4/daf/class___x_item_node.html 16,306 176,333
-rect $d8/d9a/class_x_pointer_item_node.html 10,232 181,258
-rect $df/da6/class_x_item_node_base.html 36,157 156,184
-rect $d1/d8a/class_x_value_node_base.html 32,82 160,109
-rect $dd/d83/class_x_node.html 64,8 128,34
+<area shape="rect" id="node2" href="$d4/daf/class___x_item_node.html" title="A pointer to a XListNode TL, T is value type." alt="" coords="13,315,181,344">
+<area shape="rect" id="node6" href="$df/da6/class_x_item_node_base.html" title="Posses a pointer to a member of a list." alt="" coords="35,160,160,189">
+<area shape="rect" id="node8" href="$d1/d8a/class_x_value_node_base.html" title="Base class containing values." alt="" coords="32,83,163,112">
+<area shape="rect" id="node10" href="$dd/d83/class_x_node.html" title="XNode" alt="" coords="65,5,129,35">

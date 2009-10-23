@@ -1,17 +1,8 @@
-base referer
-rect $dd/d83/class_x_node.html 260,839 324,866
-rect $d6/dbd/class_x_talker.html 296,733 514,759
-rect $d7/d25/class___x_talker_base.html 445,551 552,578
-rect $d6/dbd/class_x_talker.html 474,642 589,669
-rect $d6/dbd/class_x_talker.html 605,733 842,759
-rect $dc/db7/classatomic.html 441,461 550,487
-rect $da/dad/classatomic__shared__ptr.html 405,370 586,397
-rect $d0/d70/structatomic__shared__ptr_1_1___ref_local.html 270,189 502,215
-rect $da/dad/classatomic__shared__ptr.html 413,279 576,306
-rect $da/dad/classatomic__shared__ptr.html 637,551 864,578
-rect $da/dad/classatomic__shared__ptr.html 8,370 216,397
-rect $d1/d85/structatomic__shared__ptr__ref.html 293,98 480,125
-rect $dc/db7/classatomic.html 240,370 381,397
-rect $d6/d9b/class_x_thread_local.html 88,733 272,759
-rect $d6/d9b/class_x_thread_local.html 98,642 237,669
-rect $d1/d2b/class_x_pthread_mutex.html 757,839 874,866
+<area shape="rect" id="node2" href="$dd/d83/class_x_node.html" title="XNode" alt="" coords="2091,71,2155,100">
+<area shape="rect" id="node4" href="$d6/dbd/class_x_talker.html" title="XTalker\&lt; shared_ptr\&lt; XNode \&gt; \&gt;" alt="" coords="1613,125,1853,155">
+<area shape="rect" id="node19" href="$d6/dbd/class_x_talker.html" title="XTalker\&lt; tArg \&gt;" alt="" coords="1259,243,1384,272">
+<area shape="rect" id="node38" href="$d6/dbd/class_x_talker.html" title="XTalker\&lt; shared_ptr\&lt; XString \&gt; \&gt;" alt="" coords="1611,228,1856,257">
+<area shape="rect" id="node10" href="$da/dad/classatomic__shared__ptr.html" title="atomic_shared_ptr\&lt; bool \&gt;" alt="" coords="292,240,489,269">
+<area shape="rect" id="node12" href="$da/dad/classatomic__shared__ptr.html" title="atomic_shared_ptr\&lt; T \&gt;" alt="" coords="5,169,184,199">
+<area shape="rect" id="node16" href="$da/dad/classatomic__shared__ptr.html" title="atomic_shared_ptr\&lt; ListenerList \&gt;" alt="" coords="892,131,1135,160">
+<area shape="rect" id="node29" href="$d1/d2b/class_x_pthread_mutex.html" title="XPthreadMutex" alt="" coords="2063,133,2183,163">

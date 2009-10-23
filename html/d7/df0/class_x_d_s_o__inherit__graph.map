@@ -1,9 +1,2 @@
-base referer
-rect $db/db8/class_x_char_device_driver.html 10,306 210,333
-rect $d4/da7/class_x_n_i_d_a_qmx_driver.html 234,306 424,333
-rect $d6/d66/class_x_primary_driver.html 162,157 277,184
-rect $d1/d87/class_x_driver.html 186,82 253,109
-rect $dd/d83/class_x_node.html 188,8 252,34
-rect $d5/dd3/class_x_lecroy_d_s_o.html 8,381 109,408
-rect $db/d3e/class_x_t_d_s.html 133,381 192,408
-rect $d3/dd6/class_x_n_i_d_a_qmx_d_s_o.html 269,381 389,408
+<area shape="rect" id="node4" href="$d1/d87/class_x_driver.html" title="Base class for all instrument drivers." alt="" coords="191,83,260,112">
+<area shape="rect" id="node6" href="$dd/d83/class_x_node.html" title="XNode" alt="" coords="193,5,257,35">

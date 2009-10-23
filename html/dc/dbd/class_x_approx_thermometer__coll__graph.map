@@ -1,14 +1,7 @@
-base referer
-rect $d4/db4/class_x_thermometer.html 556,554 670,581
-rect $dd/d83/class_x_node.html 478,477 542,504
-rect $d6/dbd/class_x_talker.html 74,370 293,397
-rect $d7/d25/class___x_talker_base.html 9,189 116,216
-rect $d6/dbd/class_x_talker.html 100,280 214,306
-rect $dc/db7/classatomic.html 8,98 117,125
-rect $da/dad/classatomic__shared__ptr.html 140,189 366,216
-rect $d0/d70/structatomic__shared__ptr_1_1___ref_local.html 513,8 745,34
-rect $da/dad/classatomic__shared__ptr.html 406,98 569,125
-rect $da/dad/classatomic__shared__ptr.html 390,189 598,216
-rect $da/dad/classatomic__shared__ptr.html 626,189 872,216
-rect $d6/d9b/class_x_thread_local.html 528,370 712,397
-rect $d6/d9b/class_x_thread_local.html 550,280 689,306
+<area shape="rect" id="node4" href="$dd/d83/class_x_node.html" title="XNode" alt="" coords="321,624,385,653">
+<area shape="rect" id="node6" href="$d6/dbd/class_x_talker.html" title="XTalker\&lt; shared_ptr\&lt; XNode \&gt; \&gt;" alt="" coords="24,512,264,541">
+<area shape="rect" id="node21" href="$d6/dbd/class_x_talker.html" title="XTalker\&lt; tArg \&gt;" alt="" coords="137,400,263,429">
+<area shape="rect" id="node12" href="$da/dad/classatomic__shared__ptr.html" title="atomic_shared_ptr\&lt; bool \&gt;" alt="" coords="5,101,203,131">
+<area shape="rect" id="node14" href="$da/dad/classatomic__shared__ptr.html" title="atomic_shared_ptr\&lt; T \&gt;" alt="" coords="327,5,505,35">
+<area shape="rect" id="node18" href="$da/dad/classatomic__shared__ptr.html" title="atomic_shared_ptr\&lt; ListenerList \&gt;" alt="" coords="216,304,459,333">
+<area shape="rect" id="node35" href="$da/dad/classatomic__shared__ptr.html" title="atomic_shared_ptr\&lt; CSplineApprox \&gt;" alt="" coords="539,155,803,184">

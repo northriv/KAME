@@ -1,3 +1,1 @@
-base referer
-rect $db/d99/classatomic__nonzero__pod__queue.html 9,8 339,34
-rect $dc/df1/classatomic__pointer__queue.html 389,8 613,34
+<area shape="rect" id="node1" href="$dc/df9/classatomic__scoped__ptr.html" title="atomic_scoped_ptr\&lt; T \&gt;" alt="" coords="7,5,185,35">

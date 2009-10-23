@@ -1,2 +1,13 @@
-base referer
-rect $dc/dae/struct_f_f_t_axis.html 9,8 78,34
+<area shape="rect" id="node1" href="$d7/de4/class_spectrum_solver.html" title="SpectrumSolver" alt="" coords="7,165,129,195">
+<area shape="rect" id="node3" href="$d3/dbe/class_f_f_t_solver.html" title="Zero&#45;filled FFT spectrum solver." alt="" coords="273,5,356,35">
+<area shape="rect" id="node5" href="$d2/d65/class_freq_estimation.html" title="FreqEstimation" alt="" coords="256,59,373,88">
+<area shape="rect" id="node13" href="$d7/d7b/class_freq_est_least_square.html" title="FreqEstLeastSquare" alt="" coords="240,112,389,141">
+<area shape="rect" id="node15" href="$dc/dc9/class_m_e_m_strict.html" title="Extra&#45;polation of data using MEM (Maximum Entropy Method) by assuming gaussian distribution..." alt="" coords="272,165,357,195">
+<area shape="rect" id="node17" href="$dd/d00/class_yule_walker_cousin.html" title="YuleWalkerCousin\&lt; Context \&gt;" alt="" coords="209,219,420,248">
+<area shape="rect" id="node19" href="$dd/d00/class_yule_walker_cousin.html" title="YuleWalkerCousin\&lt; ARContext \&gt;" alt="" coords="201,272,428,301">
+<area shape="rect" id="node23" href="$dd/d00/class_yule_walker_cousin.html" title="YuleWalkerCousin\&lt; MEMBurgContext \&gt;" alt="" coords="179,325,451,355">
+<area shape="rect" id="node7" href="$da/d93/class_eigen_vector_method.html" title="EigenVectorMethod" alt="" coords="500,5,644,35">
+<area shape="rect" id="node9" href="$dd/d83/class_m_u_s_i_c.html" title="MUltiple SIgnal Classification." alt="" coords="540,59,604,88">
+<area shape="rect" id="node11" href="$dd/d39/class_m_v_d_l.html" title="Capon MLM / MVDL." alt="" coords="543,112,601,141">
+<area shape="rect" id="node21" href="$d0/d13/class_yule_walker_a_r.html" title="YuleWalkerAR" alt="" coords="520,272,624,301">
+<area shape="rect" id="node25" href="$d0/d38/class_m_e_m_burg.html" title="MEMBurg" alt="" coords="532,325,612,355">

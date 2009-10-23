@@ -1,5 +1,2 @@
-base referer
-rect $d1/d14/struct___x_transaction.html 7,33 117,59
-rect $da/d92/struct_x_talker_1_1_transaction.html 166,33 358,59
-rect $df/d2e/struct_x_talker_1_1_transaction_allow_dup.html 409,7 659,34
-rect $db/dce/struct_x_talker_1_1_transaction_avoid_dup.html 409,58 659,85
+<area shape="rect" id="node1" href="$df/db3/classatomic__pod__cas.html" title="atomic access to POD type capable of CAS." alt="" coords="5,5,168,35">
+<area shape="rect" id="node3" href="$d4/d3e/classatomic_1_1type.html" title="atomic access to POD type capable of CAS." alt="" coords="216,5,443,35">
