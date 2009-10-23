@@ -12,8 +12,6 @@ linux-gpib (optional)
 National Instruments DAQmx library (optional)
 mikachanfont (included in source tree)
 
-The document files and the font file of mikachanfont has to be copied to (root-source)/kame/mikachanfont
-
 To build KAME
 cmake (options) (path_to_source_dir)
 make
