@@ -19,17 +19,7 @@
 #include <boost/type_traits/is_pod.hpp>
 #include <boost/type_traits/is_integral.hpp>
 
-//! Lock-free synchronizations.
-
-#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
-#include <atomic_prv_x86.h>
-#else
-#if defined __ppc__ || defined __POWERPC__ || defined __powerpc__
-#include <atomic_prv_ppc.h>
-#else
-#error Unsupported processor
-#endif // __ppc__
-#endif // __i386__
+#include "atomic_smart_ptr.h"
 
 template <typename T, class Enable = void > class atomic;
 
@@ -168,5 +158,27 @@ public:
 	}
 };
 
+//! Atomic access for a copy-able class which does not require transactional writings.
+//! \sa transactional
+template <typename T, class Enable>
+class atomic
+{
+public:
+	atomic() : m_var(new T) {}
+	atomic(T t) : m_var(new T(t)) {}
+	atomic(const atomic &t) : m_var(t) {}
+	~atomic() {}
+	operator T() const {
+		atomic_shared_ptr<T> x = m_var;
+		return *x;
+	}
+	atomic &operator=(T t) {
+		m_var.reset(new T(t));
+		return *this;
+	}
+
+protected:
+	atomic_shared_ptr<T> m_var;
+};
 
 #endif /*ATOMIC_H_*/

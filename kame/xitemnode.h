@@ -75,7 +75,7 @@ protected:
 			value(shared_ptr<XNode>());
 			return;
 		}
-		atomic_shared_ptr<const XNode::NodeList> children(m_list->children());
+		NodeList::reader children(m_list->children());
 		if(children) { 
 			for(NodeList::const_iterator it = children->begin(); it != children->end(); it++) {
 				if((*it)->getName() == var) {
@@ -142,7 +142,7 @@ public:
 	virtual shared_ptr<const std::deque<XItemNodeBase::Item> > itemStrings() const
 	{
 		shared_ptr<std::deque<XItemNodeBase::Item> > items(new std::deque<XItemNodeBase::Item>());
-		atomic_shared_ptr<const XNode::NodeList> children(this->m_list->children());
+		XNode::NodeList::reader children(this->m_list->children());
 		if(children) {
 			for(XNode::NodeList::const_iterator it = children->begin(); it != children->end(); it++) {
 				if(dynamic_pointer_cast<T1>(*it) || dynamic_pointer_cast<T2>(*it)) {
@@ -176,7 +176,7 @@ public:
 protected:
 	virtual void _str(const XString &value) throw (XKameError &);
 private:
-	atomic_shared_ptr<std::deque<XString> > m_strings;
+	atomic_list<XString> m_strings;
 	atomic_shared_ptr<std::pair<XString, int> > m_var;
 	XRecursiveMutex m_write_mutex;
 };

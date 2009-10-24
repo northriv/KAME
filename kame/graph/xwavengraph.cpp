@@ -124,7 +124,7 @@ XWaveNGraph::insertPlot(const XString &label, int x, int y1, int y2, int weight,
       	 true, m_graph);
       plot.xyplot->label()->value(label);
     
-      atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+      XNode::NodeList::reader axes_list(m_graph->axes()->children());
       m_axisx = dynamic_pointer_cast<XAxis>(axes_list->at(0));
       m_axisy = dynamic_pointer_cast<XAxis>(axes_list->at(1));
       plot.xyplot->axisX()->value(m_axisx);

@@ -20,7 +20,7 @@ XListNodeBase::XListNodeBase(const char *name, bool runtime) :
 void
 XListNodeBase::clearChildren()
 {
-	atomic_shared_ptr<NodeList> old_list;
+	NodeList old_list;
 	old_list.swap(m_children);
 
 	if(!old_list) return;
@@ -54,18 +54,18 @@ void
 XListNodeBase::move(unsigned int src_idx, unsigned int dst_idx)
 {
     for(;;) {
-        atomic_shared_ptr<NodeList> old_list(m_children);
-        if(!old_list) return;
-        atomic_shared_ptr<NodeList> new_list(new NodeList(*old_list));
-        if(src_idx >= new_list->size()) return;
-        shared_ptr<XNode> snode = new_list->at(src_idx);
-        new_list->at(src_idx).reset();
-        if(dst_idx > new_list->size()) return;
-        XNode::NodeList::iterator dit = new_list->begin();
+        NodeList::writer tr(m_children);
+        if(src_idx >= tr->size())
+        	return;
+        shared_ptr<XNode> snode = tr->at(src_idx);
+        tr->at(src_idx).reset();
+        if(dst_idx > tr->size()) return;
+        XNode::NodeList::iterator dit = tr->begin();
         dit += dst_idx;
-        new_list->insert(dit, snode);
-        new_list->erase(std::find(new_list->begin(), new_list->end(), shared_ptr<XNode>()));
-        if(new_list.compareAndSwap(old_list, m_children)) break;
+        tr->insert(dit, snode);
+        tr->erase(std::find(tr->begin(), tr->end(), shared_ptr<XNode>()));
+        if(tr.commit())
+        	break;
     }
     MoveEvent e;
     e.src_idx = src_idx;

@@ -454,7 +454,7 @@ XListQConnector::indexChange ( int section, int fromIndex, int toIndex )
     unsigned int src = fromIndex;
     unsigned int dst = toIndex;
     
-    atomic_shared_ptr<const XNode::NodeList> list(m_list->children());
+    XNode::NodeList::reader list(m_list->children());
     if(!list || src > list->size() || (dst > list->size())) {
         throw XKameError(i18n("Invalid range of selections."), __FILE__, __LINE__);
     }

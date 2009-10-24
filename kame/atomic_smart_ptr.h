@@ -14,8 +14,15 @@
 #ifndef ATOMIC_SMART_PTR_H_
 #define ATOMIC_SMART_PTR_H_
 
-#include <atomic.h>
-
+#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
+#include "atomic_prv_x86.h"
+#else
+#if defined __ppc__ || defined __POWERPC__ || defined __powerpc__
+#include "atomic_prv_ppc.h"
+#else
+#error Unsupported processor
+#endif // __ppc__
+#endif // __i386__
 
 //! This is an atomic variant of \a boost::scoped_ptr<>.
 //! atomic_scoped_ptr<> can be shared among threads by the use of \a swap(_shared_target_).
@@ -148,7 +155,7 @@ public:
 
 	//! \return true if succeeded.
 	//! \sa swap()
-	bool compareAndSwap(const atomic_shared_ptr &oldvalue, atomic_shared_ptr &target);
+	bool compareAndSwap(const atomic_shared_ptr &oldvalue, atomic_shared_ptr &target) const;
 
 	//! The return value is apparently not valid for a shared instance.
 	T *get() const { Ref *pref = _pref(); return pref ? pref->ptr : 0L; }
@@ -302,7 +309,7 @@ atomic_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
 
 template <typename T>
 bool
-atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_shared_ptr<T> &r) {
+atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_shared_ptr<T> &r) const {
 	Ref *pref;
 	ASSERT(_refcnt() == 0);
 	for(;;) {
@@ -332,30 +339,5 @@ atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_sh
 	m_ref = (_RefLocal)pref;
 	return true;
 }
-
-template <typename T, class Enable>
-class atomic
-{
-public:
-	atomic() : m_var(new T) {}
-	atomic(T t) : m_var(new T(t)) {}
-	atomic(const atomic &t) : m_var(t) {}
-	~atomic() {}
-	operator T() const {
-		atomic_shared_ptr<T> x = m_var;
-		return *x;
-	}
-	atomic &operator=(T t) {
-		m_var.reset(new T(t));
-		return *this;
-	}
-	T swap(T newv) {
-		atomic_shared_ptr<T> x(newv);
-		x.swap(m_var);
-		return *x;
-	}
-protected:
-	atomic_shared_ptr<T> m_var;
-};
 
 #endif /*ATOMIC_SMART_PTR_H_*/

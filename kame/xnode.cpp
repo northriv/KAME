@@ -51,12 +51,7 @@ XNode::insert(const shared_ptr<XNode> &ptr)
     ASSERT(ptr);
     if(!ptr->m_parent.lock())
     	ptr->m_parent = shared_from_this();
-    for(;;) {
-        atomic_shared_ptr<NodeList> old_list(m_children);
-        atomic_shared_ptr<NodeList> new_list(old_list ? (new NodeList(*old_list)) : (new NodeList));        
-        new_list->push_back(ptr);
-        if(new_list.compareAndSwap(old_list, m_children)) break;
-    }
+    m_children.push_back(ptr);
 }
 void
 XNode::disable() {
@@ -92,15 +87,15 @@ XNode::releaseChild(const shared_ptr<XNode> &node)
 {
 //	node->m_parent.reset();
     for(;;) {
-        atomic_shared_ptr<NodeList> old_list(m_children);
-        if(!old_list) return -1;
-        atomic_shared_ptr<NodeList> new_list(new NodeList(*old_list));
-        NodeList::iterator it = find(new_list->begin(), new_list->end(), node);
-        if(it == new_list->end()) return -1;
-        new_list->erase(it);
-        if(new_list->empty())
-            new_list.reset();
-        if(new_list.compareAndSwap(old_list, m_children)) break;
+    	NodeList::writer tr(m_children);
+        NodeList::iterator it = find(tr->begin(), tr->end(), node);
+        if(it == tr->end())
+        	return -1;
+        tr->erase(it);
+        if(tr->empty())
+            tr.reset();
+        if(tr.commit())
+			break;
     }
     return 0;
 }
@@ -109,9 +104,9 @@ shared_ptr<XNode>
 XNode::getChild(const XString &var) const
 {
 	shared_ptr<XNode> node;
-	atomic_shared_ptr<const XNode::NodeList> list(children());
+	NodeList::reader list(children());
 	if(list) { 
-		for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+		for(NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
 			if((*it)->getName() == var) {
                 node = *it;
                 break;
@@ -220,12 +215,13 @@ template class XValueNode<unsigned int, 16>;
 template class XValueNode<bool, 10>;
 
 XStringNode::XStringNode(const char *name, bool runtime)
-	: XValueNodeBase(name, runtime), m_var(XString()) {}
+	: XValueNodeBase(name, runtime) {}
 
 XString
 XStringNode::to_str() const
 {
-    return m_var;
+	atomic_shared_ptr<XString> var(m_var);
+    return var ? (*var) : XString();
 }
 void
 XStringNode::_str(const XString &var) throw (XKameError &)
@@ -239,12 +235,12 @@ XStringNode::operator XString() const {
 void
 XStringNode::value(const XString &t) {
     if(beforeValueChanged().empty() && onValueChanged().empty()) {
-        m_var = t;
+        m_var.reset(new XString(t));
     }
     else {
         XScopedLock<XRecursiveMutex> lock(m_valuemutex);
         beforeValueChanged().talk(dynamic_pointer_cast<XValueNodeBase>(shared_from_this()));
-        m_var = t;
+        m_var.reset(new XString(t));
         onValueChanged().talk(dynamic_pointer_cast<XValueNodeBase>(shared_from_this()));
     }
 }

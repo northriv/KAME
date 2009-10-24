@@ -54,7 +54,7 @@ XDriverListConnector::XDriverListConnector
 	labels += i18n("Recorded Time");
 	m_pItem->setColumnLabels(labels);
 
-	atomic_shared_ptr<const XNode::NodeList> list(node->children());
+	XNode::NodeList::reader list(node->children());
 	if(list) { 
 		for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++)
 			onCatch(*it);

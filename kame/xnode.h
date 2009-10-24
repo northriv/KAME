@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -14,9 +14,10 @@
 #ifndef xnodeH
 #define xnodeH
 
-#include <support.h>
-#include <xsignal.h>
-#include <rwlock.h>
+#include "support.h"
+#include "xsignal.h"
+#include "rwlock.h"
+#include "atomic_list.h"
 
 template <class T>
 shared_ptr<T> createOrphan(const char *name, bool runtime = false);
@@ -74,9 +75,9 @@ public:
 	shared_ptr<XNode> getChild(const XString &var) const;
 	shared_ptr<XNode> getParent() const;
 
-	typedef std::deque<shared_ptr<XNode> > NodeList;
-	//! \return null if node has no child.
-	atomic_shared_ptr<const NodeList> children() const {return m_children;}
+	typedef atomic_list<shared_ptr<XNode> > NodeList;
+
+	NodeList::reader children() const {return NodeList::reader(m_children);}
 
 	void clearChildren();
 	int releaseChild(const shared_ptr<XNode> &node);
@@ -105,7 +106,7 @@ protected:
 	//! If false, all operations have to be disabled. 
 	bool isEnabled() const {return m_flags & FLAG_ENABLED;}
 
-	atomic_shared_ptr<NodeList> m_children;
+	NodeList m_children;
 
 	XTalker<shared_ptr<XNode> > m_tlkOnTouch;
 	XTalker<shared_ptr<XNode> > m_tlkOnUIEnabled;
@@ -114,7 +115,7 @@ private:
 	enum {FLAG_RUNTIME = 0x1, FLAG_ENABLED = 0x2, FLAG_UI_ENABLED = 0x4};
 	int m_flags;
 
-	static XThreadLocal<NodeList> stl_thisCreating;
+	static XThreadLocal<std::deque<shared_ptr<XNode> > > stl_thisCreating;
 	weak_ptr<XNode> m_parent;
 };
 
@@ -181,7 +182,7 @@ public:
 protected:
 	virtual void _str(const XString &str) throw (XKameError &);
 private:
-	atomic<XString> m_var;
+	atomic_shared_ptr<XString> m_var;
 	XRecursiveMutex m_valuemutex;
 };
 

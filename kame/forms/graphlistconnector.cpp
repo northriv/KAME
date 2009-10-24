@@ -16,10 +16,9 @@
 #include "graphlistconnector.h"
 
 #include <q3table.h>
-#include <qcombobox.h>
-#include <qpushbutton.h>
+#include <QComboBox>
+#include <QPushButton>
 #include <kiconloader.h>
-
 
 #include "recorder.h"
 #include "analyzer.h"
@@ -56,7 +55,7 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, Q3T
 	labels += i18n("Axis Z");
 	m_pItem->setColumnLabels(labels);
 
-	atomic_shared_ptr<const XNode::NodeList> list(node->children());
+	XNode::NodeList::reader list(node->children());
 	if(list) {  
 		for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++)
 			onCatch(*it);
@@ -77,7 +76,7 @@ XGraphListConnector::onNewGraph (const shared_ptr<XNode> &) {
 void
 XGraphListConnector::onDeleteGraph (const shared_ptr<XNode> &) {
 	int n = m_pItem->currentRow();
-	atomic_shared_ptr<const XNode::NodeList> list(m_graphlist->children());
+	XNode::NodeList::reader list(m_graphlist->children());
 	if(list) {    
 		if((n >= 0) && (n < (int)list->size())) {
 			shared_ptr<XNode> node = list->at(n);
@@ -90,7 +89,7 @@ XGraphListConnector::clicked ( int row, int col, int, const QPoint& ) {
 	switch(col) {
 	case 0:
 	{
-		atomic_shared_ptr<const XNode::NodeList> list(m_graphlist->children());
+		XNode::NodeList::reader list(m_graphlist->children());
 		if(list) { 
 			if((row >= 0) && (row < (int)list->size())) {
 				dynamic_pointer_cast<XValGraph>(list->at(row))->showGraph();

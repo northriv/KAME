@@ -52,7 +52,7 @@ XQPulserDriverConnector::XQPulserDriverConnector(
 
     qgraph->setGraph(m_graph);
     
-    atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+    XNode::NodeList::reader axes_list(m_graph->axes()->children());
     shared_ptr<XAxis> axisx = dynamic_pointer_cast<XAxis>(axes_list->at(0));
     shared_ptr<XAxis> axisy = dynamic_pointer_cast<XAxis>(axes_list->at(1));
 

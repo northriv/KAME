@@ -179,7 +179,7 @@ XTextWriter::onRecord(const shared_ptr<XDriver> &driver)
 			XTime triggered_time;
 			std::deque<shared_ptr<XScalarEntry> > locked_entries;
 
-			atomic_shared_ptr<const XNode::NodeList> list(m_entries->children());
+			XNode::NodeList::reader list(m_entries->children());
 			if(list) { 
 				for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
 					shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(*it);
@@ -239,7 +239,7 @@ XTextWriter::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
 
 		XString buf;
 		buf = "#";
-		atomic_shared_ptr<const XNode::NodeList> list(m_entries->children());
+		XNode::NodeList::reader list(m_entries->children());
 		if(list) { 
 			for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
 				shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(*it);

@@ -24,7 +24,7 @@ public:
     void write();
 private:
     void write(const shared_ptr<XNode> &node,
-			   const atomic_shared_ptr<const XNode::NodeList> &list, bool ghost, int level);
+			   const XNode::NodeList::reader &list, bool ghost, int level);
     shared_ptr<XNode> m_root;
     std::ofstream &m_ofs;    
 };

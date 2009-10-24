@@ -91,7 +91,7 @@ XRuby::rnode_child(VALUE self, VALUE var)
 			int idx;
 			case T_FIXNUM:
 				idx = NUM2INT(var);
-				{ atomic_shared_ptr<const NodeList> list = node->children();
+				{ XNode::NodeList::reader list = node->children();
 				if(list) { 
 					if ((idx >= 0) && (idx < (int)list->size()))
 						child = list->at(idx);
@@ -270,7 +270,7 @@ XRuby::rnode_count(VALUE self)
 	char errmsg[256];
 	try {
 		if(shared_ptr<XNode> node = st->ptr.lock()) {
-			atomic_shared_ptr<const NodeList> list = node->children();
+			XNode::NodeList::reader list = node->children();
 			VALUE count = INT2NUM(list ? list->size() : 0);
 			return count;
 		}
@@ -512,7 +512,7 @@ XRuby::findRubyThread(VALUE self, VALUE threadid)
 	struct rnode_ptr *st;
 	Data_Get_Struct(self, struct rnode_ptr, st);
 	shared_ptr<XRubyThread> rubythread;
-	atomic_shared_ptr<const NodeList> list = st->xruby->children();
+	XNode::NodeList::reader list = st->xruby->children();
 	if(list) { 
 		for(unsigned int i = 0; i < list->size(); i++) {
 			shared_ptr<XRubyThread> th = dynamic_pointer_cast<XRubyThread>(list->at(i));

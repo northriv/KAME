@@ -311,7 +311,7 @@ void
 FrmKameMain::closeEvent( QCloseEvent* ce )
 {
 	bool opened = false;
-	atomic_shared_ptr<const XNode::NodeList> list(m_measure->interfaceList()->children());
+	XNode::NodeList::reader list(m_measure->interfaceList()->children());
 	if(list) { 
 		for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
 			shared_ptr<XInterface> _interface = dynamic_pointer_cast<XInterface>(*it);

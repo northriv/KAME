@@ -115,7 +115,7 @@ XNodeBrowser::process() {
 			//			str += rbpath;
 			str += "Inaccessible from the root.<br>";		
 		}
-		atomic_shared_ptr<const XNode::NodeList> list(node->children());
+		XNode::NodeList::reader list(node->children());
 		if(list) { 
 			str += formatString("<font color=#005500>%u Child(ren):</font> <br>", (unsigned int)list->size()).c_str();
 			for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {

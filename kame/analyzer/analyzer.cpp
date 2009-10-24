@@ -76,7 +76,7 @@ XValChart::XValChart(const char *name, bool runtime, const shared_ptr<XScalarEnt
     m_chart= m_graph->plots()->create<XXYPlot>(entry->getName().c_str(), true, m_graph);
 	m_graph->persistence()->value(0.0);
     m_chart->label()->value(entry->getLabel());
-    atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+    XNode::NodeList::reader axes_list(m_graph->axes()->children());
     shared_ptr<XAxis> axisx = dynamic_pointer_cast<XAxis>(axes_list->at(0));
     shared_ptr<XAxis> axisy = dynamic_pointer_cast<XAxis>(axes_list->at(1));
       
@@ -136,7 +136,7 @@ XChartList::onReleaseEntry(const shared_ptr<XNode> &node)
 	shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(node);
 
 	shared_ptr<XValChart> valchart;
-	atomic_shared_ptr<const XNode::NodeList> list(children());
+	XNode::NodeList::reader list(children());
 	if(list) {
 		for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
 			shared_ptr<XValChart> chart = dynamic_pointer_cast<XValChart>(*it);
@@ -182,7 +182,7 @@ XValGraph::onAxisChanged(const shared_ptr<XValueNodeBase> &)
 		m_graph->plots()->create<XXYPlot>((m_graph->getName() + "-Stored").c_str(), false, m_graph);
 	m_storePlot->label()->value(m_graph->getLabel() + " Stored");
 
-	atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+	XNode::NodeList::reader axes_list(m_graph->axes()->children());
 	shared_ptr<XAxis> axisx = dynamic_pointer_cast<XAxis>(axes_list->at(0));
 	shared_ptr<XAxis> axisy = dynamic_pointer_cast<XAxis>(axes_list->at(1));
   

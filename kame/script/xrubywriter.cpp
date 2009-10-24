@@ -38,12 +38,12 @@ XRubyWriter::write()
     m_ofs << "x << " 
 		  << name
 		  << std::endl;
-    atomic_shared_ptr<const XNode::NodeList> list = m_root->children();
+    XNode::NodeList::reader list = m_root->children();
     write(m_root, list, false, 0);
 }
 void 
 XRubyWriter::write(
-    const shared_ptr<XNode> &node, const atomic_shared_ptr<const XNode::NodeList> &list,
+    const shared_ptr<XNode> &node, const XNode::NodeList::reader &list,
     bool ghost, int level)
 {
     ghost = ghost || node->isRunTime();
@@ -87,7 +87,7 @@ XRubyWriter::write(
             for(int j = 0; j < level; j++) m_ofs << "\t";
             if(ghost)
                 m_ofs << "# ";
-            atomic_shared_ptr<const XNode::NodeList> child_list = child->children();
+            XNode::NodeList::reader child_list = child->children();
             if(child_list) {
                 m_ofs << "x << ";
             }

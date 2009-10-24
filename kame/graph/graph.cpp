@@ -126,14 +126,14 @@ XGraph::setupRedraw(float resolution)
   
 	m_bUpdateScheduled = false;
   
-	atomic_shared_ptr<const XNode::NodeList> axes_list(axes()->children());
+	XNode::NodeList::reader axes_list(axes()->children());
 	if(axes_list) { 
 		for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++) {
 			shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
 			axis->startAutoscale(resolution, *axis->autoScale() );
 		}
 	}
-	atomic_shared_ptr<const XNode::NodeList> plots_list(plots()->children());
+	XNode::NodeList::reader plots_list(plots()->children());
 	if(plots_list) { 
 		for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++) {
 			shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
@@ -159,7 +159,7 @@ void
 XGraph::zoomAxes(float resolution, 
 				 XGraph::GFloat scale, const XGraph::ScrPoint &center)
 {
-	atomic_shared_ptr<const XNode::NodeList> axes_list(axes()->children());
+	XNode::NodeList::reader axes_list(axes()->children());
 	if(axes_list) { 
 		for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
 		{

@@ -14,6 +14,8 @@
 #ifndef TRANSACTION_H
 #define TRANSACTION_H
 
+#include "atomic_smart_ptr.h"
+
 //! Example 1\n
 //! shared_ptr<Subscriber> ss1 = monitor1->monitorData();\n
 //! sleep(1);\n
@@ -45,6 +47,7 @@
 
 //! Watch point for transactional memory access.\n
 //! The list of the pointers to data is atomically read/written.
+//! \sa Metamonitor, Snapshot, Transaction, XNode
 class Monitor {
 public:
 	Monitor() {}
@@ -60,9 +63,13 @@ public:
 	template <class T>
 	operator T::Passage&() {return dynamic_cast<T::Passage&>(*m_passage);}
 
-	Passage &resolve(const shared_ptr<Snapshot> &) const;
+	Passage &resolve(const Snapshot &) const;
 
 	atomic_shared_ptr<Passage> _passage() const {return m_passage;}
+
+	void subscribe(const shared_ptr<Monitor> &mon) {
+
+	}
 private:
 	typedef std::deque<weak_ptr<Monitor> > SubscriberList;
 	atomic_shared_ptr<SubscriberList> m_subscribers;
@@ -95,11 +102,11 @@ public:
 
 	template <class T>
 	const T::Passage &operator[](const shared_ptr<T> &monitor) const {
-		return dynamic_cast<const T::Passage&>(monitor->resolve(shared_from_this()));}
+		return dynamic_cast<const T::Passage&>(monitor->resolve(*this));}
 private:
 	//! The snapshot.
 	const shared_ptr<M> m_monitor;
-	const shared_ptr<Passage> m_passage;
+	const atomic_shared_ptr<Passage> m_passage;
 };
 
 //! Transactional writing for a monitored data set.

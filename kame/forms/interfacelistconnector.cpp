@@ -16,12 +16,11 @@
 #include "driver.h"
 
 #include <q3table.h>
-#include <qlineedit.h>
-#include <qcombobox.h>
-#include <qpushbutton.h>
-#include <qspinbox.h>
+#include <QLineEdit>
+#include <QComboBox>
+#include <QPushButton>
+#include <QSpinBox>
 #include <kiconloader.h>
-
 
 XInterfaceListConnector::XInterfaceListConnector(
     const shared_ptr<XInterfaceList> &node, Q3Table *item)
@@ -44,7 +43,7 @@ XInterfaceListConnector::XInterfaceListConnector(
 	labels += i18n("Addr");
 	item->setColumnLabels(labels);
 
-	atomic_shared_ptr<const XNode::NodeList> list(node->children());
+	XNode::NodeList::reader list(node->children());
 	if(list) { 
 		for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++)
 			onCatch(*it);

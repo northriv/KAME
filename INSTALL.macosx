@@ -2,9 +2,9 @@ KAME instllation notes on Mac OS X.
 
 See INSTALL for general information.
 I have checked with fink, but MacPorts would work with similar way.
-At the moment, file dialogs of KDE4/mac are insane in my environment, while kdelibs4-x11 cannot be built in Snow Leopard. 
+At the moment, file dialogs of KDE4/mac are insane in my environment, and kdelibs4 cannot be built in Snow Leopard. 
 
-First, install the required packages (kde4-buildenv, kdelibs4-mac, ftgl, fftw3, gsl) with fink. XCode is of course necessary.
+First, install the required packages (kde4-buildenv, kdelibs4-mac, boost, ftgl, fftw3, gsl) with fink. XCode is of course necessary.
 Unpack the source tar ball, make a directory for building, and there run the script attached below.
 If everything goes well, do something like this:
 	make VERBOSE=1; make install DESTDIR=(path_to_install_dir).

@@ -339,7 +339,7 @@ XCryoconM32::XCryoconM32(const char *name, bool runtime,
 void
 XCryocon::open() throw (XInterface::XInterfaceError &)
 {
-	atomic_shared_ptr<const XNode::NodeList> list(channels()->children());
+	XNode::NodeList::reader list(channels()->children());
 	shared_ptr<XChannel> ch0 = dynamic_pointer_cast<XChannel>(list->at(0));
 	shared_ptr<XChannel> ch1 = dynamic_pointer_cast<XChannel>(list->at(1));
 	interface()->query("INPUT A:VBIAS?");

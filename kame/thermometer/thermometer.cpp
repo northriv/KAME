@@ -91,9 +91,9 @@ XLakeShore::getTemp(double res) const
   if(res < *resMin()) return *tempMax();
   z = log10(res);
   unsigned int n;
-  atomic_shared_ptr<const XNode::NodeList> zu_list(zu()->children());
+  XNode::NodeList::reader zu_list(zu()->children());
   if(!zu_list) return 0;
-  atomic_shared_ptr<const XNode::NodeList> zl_list(zl()->children());
+  XNode::NodeList::reader zl_list(zl()->children());
   if(!zl_list) return 0;
   for(n = 0; n < zu_list->size(); n++)
     {
@@ -104,9 +104,9 @@ XLakeShore::getTemp(double res) const
     }
   if(n >= zu_list->size())
     return 0;
-  atomic_shared_ptr<const XNode::NodeList> ai_list(ai()->children());
+  XNode::NodeList::reader ai_list(ai()->children());
   if(!ai_list) return 0;
-  atomic_shared_ptr<const XNode::NodeList> ai_n_list(ai_list->at(n)->children());
+  XNode::NodeList::reader ai_n_list(ai_list->at(n)->children());
   if(!ai_n_list) return 0;
   for(unsigned int i = 0; i < ai_n_list->size(); i++)
     {
@@ -171,7 +171,7 @@ XScientificInstruments
   double lx = log(res);
   if(res > *rCrossover())
     { 
-      atomic_shared_ptr<const XNode::NodeList> abcde_list(abcde()->children());
+      XNode::NodeList::reader abcde_list(abcde()->children());
       if(!abcde_list) return 0;
       if(abcde_list->size() >= 5) {
         double a = *dynamic_pointer_cast<XDoubleNode>(abcde_list->at(0));
@@ -186,7 +186,7 @@ XScientificInstruments
     }
   else
     {
-        atomic_shared_ptr<const XNode::NodeList> abc_list(abc()->children());
+        XNode::NodeList::reader abc_list(abc()->children());
         if(!abc_list) return 0;
         if(abc_list->size() >= 3) {
             double a = *dynamic_pointer_cast<XDoubleNode>(abc_list->at(0));
@@ -212,9 +212,9 @@ XApproxThermometer
     atomic_shared_ptr<CSplineApprox> approx(m_approx);
     if(!approx) {
         std::map<double, double> pts;
-      atomic_shared_ptr<const XNode::NodeList> res_list(m_resList->children());
+      XNode::NodeList::reader res_list(m_resList->children());
       if(!res_list) return 0;
-      atomic_shared_ptr<const XNode::NodeList> temp_list(m_tempList->children());
+      XNode::NodeList::reader temp_list(m_tempList->children());
       if(!temp_list) return 0;
         for(unsigned int i = 0; i < std::min(res_list->size(), temp_list->size()); i++) {
             double res = *dynamic_pointer_cast<XDoubleNode>(res_list->at(i));
@@ -236,9 +236,9 @@ XApproxThermometer
     atomic_shared_ptr<CSplineApprox> approx(m_approx_inv);
     if(!approx) {
         std::map<double, double> pts;
-      atomic_shared_ptr<const XNode::NodeList> res_list(m_resList->children());
+      XNode::NodeList::reader res_list(m_resList->children());
       if(!res_list) return 0;
-      atomic_shared_ptr<const XNode::NodeList> temp_list(m_tempList->children());
+      XNode::NodeList::reader temp_list(m_tempList->children());
       if(!temp_list) return 0;
         for(unsigned int i = 0; i < std::min(res_list->size(), temp_list->size()); i++) {
             double res = *dynamic_pointer_cast<XDoubleNode>(res_list->at(i));

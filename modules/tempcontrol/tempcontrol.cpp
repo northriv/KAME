@@ -213,7 +213,7 @@ XTempControl::createChannels(const shared_ptr<XScalarEntryList> &scalarentries,
   }
   if(multiread)
     {
-      atomic_shared_ptr<const XNode::NodeList> list(m_channels->children());
+	  XNode::NodeList::reader list(m_channels->children());
       if(list) { 
           for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
             shared_ptr<XChannel> channel = dynamic_pointer_cast<XChannel>(*it);
@@ -319,7 +319,7 @@ XTempControl::execute(const atomic<bool> &terminated)
               src_temp = (!thermo) ? src_raw : thermo->getTemp(src_raw);
               m_sourceTemp->value(src_temp);
             }
-          atomic_shared_ptr<const XNode::NodeList> list(m_channels->children());
+          XNode::NodeList::reader list(m_channels->children());
           if(list) { 
               unsigned int idx = 0;
               for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
@@ -507,7 +507,7 @@ XTempControl::onExcitationChanged(const shared_ptr<XValueNodeBase> &node)
 {
 	try {
 		shared_ptr<XChannel> ch;
-		atomic_shared_ptr<const XNode::NodeList> list(channels()->children());
+		XNode::NodeList::reader list(channels()->children());
 		if(list) { 
 			for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
 				shared_ptr<XChannel> _ch = dynamic_pointer_cast<XChannel>(*it);

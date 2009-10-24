@@ -87,7 +87,7 @@ XQGraphPainter::findAxis(const XGraph::ScrPoint &s1)
 {
     shared_ptr<XAxis> found_axis;
     double zmin = 0.1;
-    atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+    XNode::NodeList::reader axes_list(m_graph->axes()->children());
     if(axes_list) { 
         for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
 		{
@@ -110,7 +110,7 @@ XQGraphPainter::findPlane(const XGraph::ScrPoint &s1,
 {
 	double zmin = 0.1;
 	shared_ptr<XPlot> plot_found;
-	atomic_shared_ptr<const XNode::NodeList> plots_list(m_graph->plots()->children());
+	XNode::NodeList::reader plots_list(m_graph->plots()->children());
 	if(plots_list) { 
 		for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
 		{
@@ -252,7 +252,7 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
                 XScopedLock<XGraph> lock(*m_graph);
 				if(!m_foundAxis) {
 					//if no axis, autoscale all axes
-                    atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+                    XNode::NodeList::reader axes_list(m_graph->axes()->children());
                     if(axes_list) { 
                         for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
 						{
@@ -347,7 +347,7 @@ XQGraphPainter::zoom(double zoomscale, int , int )
 	XGraph::ScrPoint s1(0.5, 0.5, 0.5);
   
 	XScopedLock<XGraph> lock(*m_graph);
-	atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+	XNode::NodeList::reader axes_list(m_graph->axes()->children());
 	if(axes_list) { 
 		for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
 		{
@@ -517,7 +517,7 @@ XQGraphPainter::drawOnScreenViewObj()
 	//Legends
 	if(*m_graph->drawLegends() &&
 			(m_selectionModeNow == SelNone)) {
-		atomic_shared_ptr<const XNode::NodeList> plots_list(m_graph->plots()->children());
+		XNode::NodeList::reader plots_list(m_graph->plots()->children());
 		if(plots_list && plots_list->size()) {
 			float z = 0.98;
 			float dy = 0.04;
@@ -627,7 +627,7 @@ void
 XQGraphPainter::drawOffScreenPlanes()
 {
 	setColor((QRgb)*m_graph->backGround(), 0.3);
-	atomic_shared_ptr<const XNode::NodeList> plots_list(m_graph->plots()->children());
+	XNode::NodeList::reader plots_list(m_graph->plots()->children());
 	if(plots_list) { 
 		for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
 		{
@@ -673,7 +673,7 @@ XQGraphPainter::drawOffScreenPlanes()
 void
 XQGraphPainter::drawOffScreenGrids()
 {
-	atomic_shared_ptr<const XNode::NodeList> plots_list(m_graph->plots()->children());
+	XNode::NodeList::reader plots_list(m_graph->plots()->children());
 	if(plots_list) { 
 		for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
 		{
@@ -685,7 +685,7 @@ XQGraphPainter::drawOffScreenGrids()
 void
 XQGraphPainter::drawOffScreenPoints()
 {
-	atomic_shared_ptr<const XNode::NodeList> plots_list(m_graph->plots()->children());
+	XNode::NodeList::reader plots_list(m_graph->plots()->children());
 	if(plots_list) { 
 		for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
 		{
@@ -697,7 +697,7 @@ XQGraphPainter::drawOffScreenPoints()
 void
 XQGraphPainter::drawOffScreenAxes()
 {
-	atomic_shared_ptr<const XNode::NodeList> axes_list(m_graph->axes()->children());
+	XNode::NodeList::reader axes_list(m_graph->axes()->children());
 	if(axes_list) { 
 		for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
 		{

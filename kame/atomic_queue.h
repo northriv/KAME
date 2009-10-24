@@ -17,6 +17,8 @@
 #include <atomic.h>
 #include <memory>
 
+//! Atomic FIFO with a pre-defined size for POD-type data of non-zero values (e.g. pointers).
+//! \sa atomic_queue, atomic_pointer_queue
 template <typename T, unsigned int SIZE, typename const_ref = T>
 class atomic_nonzero_pod_queue
 {
@@ -151,10 +153,11 @@ private:
     unsigned int m_count;
 };
 
+//! Atomic FIFO with a pre-defined size for pointers.
 template <typename T, unsigned int SIZE>
 class atomic_pointer_queue : public atomic_nonzero_pod_queue<T*, SIZE, const T*> {};
 
-//! Atomic FIFO for copy-constructable class.
+//! Atomic FIFO with a pre-defined size for copy-constructable class.
 template <typename T, unsigned int SIZE>
 class atomic_queue
 {
@@ -196,7 +199,7 @@ private:
     atomic_pointer_queue<T, SIZE> m_queue;
 };
 
-//! Atomic FIFO for copieable class.
+//! Atomic FIFO of a pre-defined size for copy-able class.
 template <typename T, unsigned int SIZE>
 class atomic_queue_reserved
 {
