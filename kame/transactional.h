@@ -17,7 +17,6 @@
 #include "atomic_smart_ptr.h"
 
 //! Transactional memory access on \a atomic_shared_ptr.
-//! \sa atomic_shared_ptr, atomic_list
 //! Examples:\n
 /*!
  * for(;;) {\n
@@ -36,6 +35,7 @@
  *		b = snapshot->y;\n
  *	}\n
  */
+//! \sa atomic_shared_ptr, atomic_list
 template <typename X>
 class transactional : public atomic_shared_ptr<X> {
 public:
@@ -49,7 +49,7 @@ public:
 			atomic_shared_ptr<X>(),
 			m_target(x),
 			m_old_var(x) {
-			reset(m_old_var ? (new X(*m_old_var)) : (new X()));
+			reset_unsafe(m_old_var ? (new X(*m_old_var)) : (new X()));
 		}
 		~writer() {}
 		bool commit() {

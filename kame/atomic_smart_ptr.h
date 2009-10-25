@@ -34,12 +34,9 @@ class atomic_scoped_ptr
 {
 	typedef T* t_ptr;
 public:
-	atomic_scoped_ptr() : m_ptr(0) {
-	}
+	atomic_scoped_ptr() : m_ptr(0) {}
 
-	explicit atomic_scoped_ptr(t_ptr t) : m_ptr(t) {
-		writeBarrier();
-	}
+	explicit atomic_scoped_ptr(t_ptr t) : m_ptr(t) {}
 
 	~atomic_scoped_ptr() { readBarrier(); delete m_ptr;}
 
@@ -110,21 +107,17 @@ public:
 
 	atomic_shared_ptr() {
 		m_ref = 0;
-		writeBarrier();
 	}
 
 	template<typename Y> explicit atomic_shared_ptr(Y *y) {
-		m_ref = (_RefLocal)new Ref(y);
-		writeBarrier();
+		reset_unsafe(y);
 	}
 
 	atomic_shared_ptr(const atomic_shared_ptr &t) {
 		m_ref = (_RefLocal)t._scan_();
-		writeBarrier();
 	}
 	template<typename Y> atomic_shared_ptr(const atomic_shared_ptr<Y> &y) {
 		m_ref = (_RefLocal)(typename atomic_shared_ptr::Ref*)y._scan_();
-		writeBarrier();
 	}
 
 	~atomic_shared_ptr();
@@ -143,9 +136,15 @@ public:
 	void reset() {
 		atomic_shared_ptr().swap(*this);
 	}
-	//! \param y This instance is atomically reset with a pointer \a y.
+	//! This instance is atomically reset with a pointer \a y.
 	template<typename Y> void reset(Y *y) {
 		atomic_shared_ptr(y).swap(*this);
+	}
+	//! Non-atomic access to the internal pointer.
+	//! Never use this function for a shared instance.
+	//! \sa reset()
+	template<typename Y> void reset_unsafe(Y *y) {
+		m_ref = (_RefLocal)new Ref(y);
 	}
 
 	//! \param x \p x is atomically swapped with this instance.
