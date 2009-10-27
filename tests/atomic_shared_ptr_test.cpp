@@ -70,7 +70,7 @@ start_routine(void *) {
 
     	for(;;) {
     		atomic_shared_ptr<A> p(gp1);
-	    	if(p1.compareAndSwap(p, gp1)) {
+	    	if(p1.compareAndSet(p, gp1)) {
 	    		break;
 	    	}
     		printf("f");

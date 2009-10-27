@@ -11,8 +11,8 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
  ***************************************************************************/
-#ifndef TRANSACTION_H
-#define TRANSACTION_H
+#ifndef MONITOR_H
+#define MONITOR_H
 
 #include "atomic_smart_ptr.h"
 
@@ -20,11 +20,11 @@
 //! shared_ptr<Subscriber> ss1 = monitor1->monitorData();\n
 //! sleep(1);\n
 //! if(Snapshot<MonitorA> shot1(monitor1)) { // checking consistency (i.e. requiring at least one transaction).\n
-//! double x = shot1[node1]; //implicit conversion defined in Node1::Passage.\n
+//! double x = shot1[node1]; //implicit conversion defined in Node1::Baggage.\n
 //! double y = shot1[node1]->y(); }\n
 //!\n
 //! Example 2\n
-//! double x = *node1; // for an immediate access, same as (double)(const Node1::Passage&)(*node1)\n
+//! double x = *node1; // for an immediate access, same as (double)(const Node1::Baggage&)(*node1)\n
 //!\n
 //! Example 3\n
 //! { Transaction<MonitorA> tr1(monitor1);\n
@@ -47,33 +47,82 @@
 
 //! Watch point for transactional memory access.\n
 //! The list of the pointers to data is atomically read/written.
+/*!
+ * Criteria during the transaction:\n
+ * 	a) When a conflicting writing to the same node is detected, the \a commit() will fail.
+ * 	b) Writing to listed nodes not by the this context but by another thread will be included in the final result.
+ */
 //! \sa Metamonitor, Snapshot, Transaction, XNode
 class Monitor {
 public:
 	Monitor() {}
 	virtual ~Monitor() {}
 
-	//! Data holder and accessor.
-	struct Passage {
-		virtual ~Passage();
+	//! Data holder.
+	struct Baggage {
+		virtual ~Baggage();
 	protected:
 	private:
+		shared_ptr<NodeData> m_data;
+		shared_ptr<NodeList> m_children;
+		shared_ptr<BaggageList> m_subBaggages;
+		int m_tag;
+		int m_flags;
+		int m_serial;
+		enum FLAG {BAGGAGE_MODIFIED = 1, BAGGAGE_RESERVED = 2, BAGGAGE_DEPEND = 4, BAGGAGE_SUB = 8};
+		weak_ptr<XNode> m_parent;
 	};
 
+	class writer {
+	public:
+		writer(XNode &node) : m_node(node), m_old_baggage(node.m_baggage),
+			m_new_baggage(m_old_baggage ? (new Baggage(*m_old_baggage)) : new Baggage()) {
+		}
+		Baggage &operator[](const shared_ptr<XNode> &x) {
+			return resolve(x);
+		}
+		Baggage &resolve(const shared_ptr<XNode>&);
+		bool checkConflict(const Baggage &stored_baggage) {
+			if(m_new_baggage->m_serial != m_old_baggage->m_serial) {
+				if(m_old_baggage->m_serial != stored_baggage->m_serial)
+					return false;
+			}
+			else {
+				m_new_baggage->m_data = stored_baggage->m_data;
+				m_new_baggage->m_children = stored_baggage->m_children;
+			}
+			if(children()) {
+				for(unsigned int i = 0; i < children().size(); i++) {
+					if(m_subBaggages[i]) {
+						if(!checkConflict(stored_baggage))
+							return false;
+					}
+				}
+			}
+			return true;
+		}
+		bool commit() {
+			for(;;) {
+				if(m_new_baggage.compareAndSet(m_old_baggage, m_root.m_baggage))
+					return true;
+				atomic_shared_ptr<Baggage> stored_baggage(m_root.m_baggage);
+				if(!checkConflict(stored_baggage))
+					return false;
+				m_old_baggage = stored_baggage;
+			}
+		}
+	private:
+		XNode &m_root;
+		atomic_shared_ptr<Baggage> m_old_baggage, m_new_baggage;
+	};
+	typedef typename transactional<Baggage>::reader reader;
 	template <class T>
-	operator T::Passage&() {return dynamic_cast<T::Passage&>(*m_passage);}
+	operator T::Baggage&() {return dynamic_cast<T::Baggage&>(*m_baggage);}
 
-	Passage &resolve(const Snapshot &) const;
+	reader _baggage() const {return m_baggage;}
 
-	atomic_shared_ptr<Passage> _passage() const {return m_passage;}
-
-	void subscribe(const shared_ptr<Monitor> &mon) {
-
-	}
 private:
-	typedef std::deque<weak_ptr<Monitor> > SubscriberList;
-	atomic_shared_ptr<SubscriberList> m_subscribers;
-	atomic_shared_ptr<Passage> m_passage;
+	transactional<Baggage> m_baggage;
 };
 
 class Metamonitor : public Monitor {
@@ -83,8 +132,8 @@ public:
 		virtual Packet &resolve(const Monitor &monitor) {
 			return dataMap()->find(monitor).second;
 		}
-		typedef std::deque<Passage> PassageList;
-		PassageList m_passages;
+		typedef std::deque<Baggage> BaggageList;
+		BaggageList m_baggages;
 		shared_ptr<MonitorList> m_monitorList;
 		shared_ptr<DataMap> m_dataMap;
 	};
@@ -96,17 +145,17 @@ private:
 template <class M>
 class Snapshot {
 public:
-	Snapshot(const Snapshot&x) : m_monitor(x.m_monitor), m_passage(x.m_passage) {}
-	Snapshot(const shared_ptr<M>&mon) : m_monitor(mon), m_passage(mon->_passage()) {}
+	Snapshot(const Snapshot&x) : m_monitor(x.m_monitor), m_baggage(x.m_baggage) {}
+	Snapshot(const shared_ptr<M>&mon) : m_monitor(mon), m_baggage(mon->_baggage()) {}
 	~Snapshot() {}
 
 	template <class T>
-	const T::Passage &operator[](const shared_ptr<T> &monitor) const {
-		return dynamic_cast<const T::Passage&>(monitor->resolve(*this));}
+	const T::Baggage &operator[](const shared_ptr<T> &monitor) const {
+		return dynamic_cast<const T::Baggage&>(monitor->resolve(*this));}
 private:
 	//! The snapshot.
 	const shared_ptr<M> m_monitor;
-	const atomic_shared_ptr<Passage> m_passage;
+	const atomic_shared_ptr<Baggage> m_baggage;
 };
 
 //! Transactional writing for a monitored data set.
@@ -216,4 +265,4 @@ class XNode {
 	Transactional<Property> m_property;
 };
 
-#endif /*TRANSACTION_H*/
+#endif /*MONITOR_H*/

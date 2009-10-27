@@ -53,7 +53,7 @@ public:
 		}
 		~writer() {}
 		bool commit() {
-			return (compareAndSwap(m_old_var, m_target));
+			return (compareAndSet(m_old_var, m_target));
 		}
 	protected:
 		writer();

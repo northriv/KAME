@@ -69,7 +69,7 @@ XNIDAQmxInterface::SoftwareTrigger::create(const char *label, unsigned int bits)
         atomic_shared_ptr<SoftwareTriggerList> old_list(s_virtualTrigList);
         atomic_shared_ptr<SoftwareTriggerList> new_list(new SoftwareTriggerList(*old_list));
         new_list->push_back(p);
-        if(new_list.compareAndSwap(old_list, s_virtualTrigList)) break;
+        if(new_list.compareAndSet(old_list, s_virtualTrigList)) break;
     }
     onChange().talk(p);
     return p;
@@ -87,7 +87,7 @@ XNIDAQmxInterface::SoftwareTrigger::unregister(const shared_ptr<SoftwareTrigger>
 		atomic_shared_ptr<SoftwareTriggerList> old_list(s_virtualTrigList);
 		atomic_shared_ptr<SoftwareTriggerList> new_list(new SoftwareTriggerList(*old_list));
 		new_list->erase(std::find(new_list->begin(), new_list->end(), p));
-		if(new_list.compareAndSwap(old_list, s_virtualTrigList)) break;
+		if(new_list.compareAndSet(old_list, s_virtualTrigList)) break;
 	}
 	onChange().talk(p);
 }

@@ -154,7 +154,7 @@ public:
 
 	//! \return true if succeeded.
 	//! \sa swap()
-	bool compareAndSwap(const atomic_shared_ptr &oldvalue, atomic_shared_ptr &target) const;
+	bool compareAndSet(const atomic_shared_ptr &oldvalue, atomic_shared_ptr &target) const;
 
 	//! The return value is apparently not valid for a shared instance.
 	T *get() const { Ref *pref = _pref(); return pref ? pref->ptr : 0L; }
@@ -308,7 +308,7 @@ atomic_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
 
 template <typename T>
 bool
-atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_shared_ptr<T> &r) const {
+atomic_shared_ptr<T>::compareAndSet(const atomic_shared_ptr<T> &oldr, atomic_shared_ptr<T> &r) const {
 	Ref *pref;
 	ASSERT(_refcnt() == 0);
 	for(;;) {

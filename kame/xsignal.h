@@ -242,7 +242,7 @@ XTalker<tArg>::connect(const shared_ptr<Listener> &lx) {
 				it++;
 		}
 		new_list->push_back(lx);
-		if(new_list.compareAndSwap(old_list, m_listeners)) break;
+		if(new_list.compareAndSet(old_list, m_listeners)) break;
 	}
 }
 template <class tArg>
@@ -263,7 +263,7 @@ XTalker<tArg>::disconnect(const shared_ptr<XListener> &lx) {
 			it++;
 		}
 		if(new_list->empty()) new_list.reset();
-		if(new_list.compareAndSwap(old_list, m_listeners)) break;
+		if(new_list.compareAndSet(old_list, m_listeners)) break;
 	}
 }
 
