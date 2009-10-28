@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>572</width>
-    <height>524</height>
+    <width>574</width>
+    <height>575</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -190,7 +190,7 @@
          <item>
           <widget class="QLineEdit" name="m_edTimeWidth">
            <property name="sizePolicy">
-            <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
              <horstretch>0</horstretch>
              <verstretch>0</verstretch>
             </sizepolicy>
@@ -314,7 +314,7 @@
          </property>
          <property name="minimumSize">
           <size>
-           <width>150</width>
+           <width>120</width>
            <height>0</height>
           </size>
          </property>
@@ -568,7 +568,7 @@
        <item>
         <widget class="QLineEdit" name="m_edVOffset2">
          <property name="sizePolicy">
-          <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
            <horstretch>0</horstretch>
            <verstretch>0</verstretch>
           </sizepolicy>
@@ -707,7 +707,7 @@
        <item>
         <widget class="QLineEdit" name="m_edVOffset1">
          <property name="sizePolicy">
-          <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
            <horstretch>0</horstretch>
            <verstretch>0</verstretch>
           </sizepolicy>
@@ -1060,7 +1060,7 @@
        <item>
         <widget class="QLineEdit" name="m_edVOffset3">
          <property name="sizePolicy">
-          <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
            <horstretch>0</horstretch>
            <verstretch>0</verstretch>
           </sizepolicy>
@@ -1199,7 +1199,7 @@
        <item>
         <widget class="QLineEdit" name="m_edVOffset4">
          <property name="sizePolicy">
-          <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
            <horstretch>0</horstretch>
            <verstretch>0</verstretch>
           </sizepolicy>
