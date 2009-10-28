@@ -154,7 +154,7 @@ FrmKameMain::FrmKameMain()
    
 	m_pTimer = new QTimer(this);
 	connect(m_pTimer, SIGNAL (timeout() ), this, SLOT(processSignals()));
-	m_pTimer->start(1);
+	m_pTimer->start(0);
 	
 	scriptLineShellAction_activated();
 }
@@ -297,6 +297,7 @@ void
 FrmKameMain::processSignals() {
 	bool idle = g_signalBuffer->synchronize();
 	if(idle) {
+		usleep(5000);
 	#ifdef HAVE_LIBGCCPP
 		static XTime last = XTime::now();
 		if(XTime::now() - last > 3) {
@@ -305,6 +306,7 @@ FrmKameMain::processSignals() {
 		}
 	#endif    
 	}
+	usleep(500);
 }
 
 void
