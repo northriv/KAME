@@ -1,3 +1,7 @@
+* Thu Oct 29 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.9.3-1)
+- Rearrange UI designs.
+
 * Wed Oct 28 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.9.1-1)
 - No more interval in QTimer's event during processing the main-thread envents.
