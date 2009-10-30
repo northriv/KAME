@@ -92,9 +92,11 @@ protected:
 						const shared_ptr<XThermometerList> &thermometers, 
 						bool multiread, const char **channel_names, const char **excitations);
   
-	//! read raw value from the instrument
+	//! reads sensor value from the instrument
 	virtual double getRaw(shared_ptr<XChannel> &channel) = 0;
-	//! obtain current heater power
+	//! reads a value in Kelvin from the instrument
+	virtual double getTemp(shared_ptr<XChannel> &channel) = 0;
+	//! obtains current heater power
 	//! \sa m_heaterPowerUnit()
 	virtual double getHeater() = 0;
 	//! ex. "W", "dB", or so

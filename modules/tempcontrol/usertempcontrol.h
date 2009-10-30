@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -34,8 +34,11 @@ public:
 	~XITC503() {}
 
 protected:
+	//! reads sensor value from the instrument
 	virtual double getRaw(shared_ptr<XChannel> &channel);
-	//! obtain current heater power
+	//! reads a value in Kelvin from the instrument
+	virtual double getTemp(shared_ptr<XChannel> &channel);
+	//! obtains current heater power
 	//! \sa m_heaterPowerUnit()
 	virtual double getHeater();
 	//! ex. "W", "dB", or so
@@ -71,8 +74,11 @@ public:
 	~XAVS47IB() {}
 
 protected:
+	//! reads sensor value from the instrument
 	virtual double getRaw(shared_ptr<XChannel> &channel);
-	//! obtain current heater power
+	//! reads a value in Kelvin from the instrument
+	virtual double getTemp(shared_ptr<XChannel> &channel);
+	//! obtains current heater power
 	//! \sa m_heaterPowerUnit()
 	virtual double getHeater();
 	//! ex. "W", "dB", or so
@@ -123,8 +129,11 @@ public:
 	virtual ~XCryocon() {}
 
 protected:
+	//! reads sensor value from the instrument
 	virtual double getRaw(shared_ptr<XChannel> &channel);
-	//! obtain current heater power
+	//! reads a value in Kelvin from the instrument
+	virtual double getTemp(shared_ptr<XChannel> &channel);
+	//! obtains current heater power
 	//! \sa m_heaterPowerUnit()
 	virtual double getHeater();
 	//! ex. "W", "dB", or so
@@ -203,8 +212,11 @@ public:
 	~XNeoceraLTC21() {}
 
 protected:
+	//! reads sensor value from the instrument
 	virtual double getRaw(shared_ptr<XChannel> &channel);
-	//! obtain current heater power
+	//! reads a value in Kelvin from the instrument
+	virtual double getTemp(shared_ptr<XChannel> &channel);
+	//! obtains current heater power
 	//! \sa m_heaterPowerUnit()
 	virtual double getHeater();
 	//! ex. "W", "dB", or so
@@ -245,8 +257,11 @@ public:
 	~XLakeShore340() {}
 
 protected:
+	//! reads sensor value from the instrument
 	virtual double getRaw(shared_ptr<XChannel> &channel);
-	//! obtain current heater power
+	//! reads a value in Kelvin from the instrument
+	virtual double getTemp(shared_ptr<XChannel> &channel);
+	//! obtains current heater power
 	//! \sa m_heaterPowerUnit()
 	virtual double getHeater();
 	//! ex. "W", "dB", or so

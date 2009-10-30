@@ -1,3 +1,7 @@
+* Sat Oct 31 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.9.4-1)
+- Lakeshore340: reading of raw sensor values.
+
 * Thu Oct 29 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.9.3-1)
 - Rearrange UI designs.

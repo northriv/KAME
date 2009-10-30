@@ -46,8 +46,12 @@ XITC503::open() throw (XInterface::XInterfaceError &)
 	powerRange()->setUIEnabled(false);
 }
 double
-XITC503::getRaw(shared_ptr<XChannel> &channel)
-{
+XITC503::getRaw(shared_ptr<XChannel> &channel) {
+	interface()->send("X");
+	return read(QString(channel->getName()).toInt());
+}
+double
+XITC503::getTemp(shared_ptr<XChannel> &channel) {
 	interface()->send("X");
 	return read(QString(channel->getName()).toInt());
 }
@@ -187,10 +191,12 @@ XAVS47IB::onExcitationChanged(const shared_ptr<XChannel> &ch, int exc) {
 	powerRange()->add("100mW");
 	powerRange()->add("1W");
 }
-
 double
-XAVS47IB::getRaw(shared_ptr<XChannel> &)
-{
+XAVS47IB::getRaw(shared_ptr<XChannel> &) {
+	return getRes();
+}
+double
+XAVS47IB::getTemp(shared_ptr<XChannel> &) {
 	return getRes();
 }
 void
@@ -459,8 +465,13 @@ XCryocon::setTemp(double temp)
 		setHeaterSetPoint(temp);
 }
 double
-XCryocon::getRaw(shared_ptr<XChannel> &channel)
-{
+XCryocon::getRaw(shared_ptr<XChannel> &channel) {
+	double x;
+	x = getInput(channel);
+	return x;
+}
+double
+XCryocon::getTemp(shared_ptr<XChannel> &channel) {
 	double x;
 	x = getInput(channel);
 	return x;
@@ -548,8 +559,15 @@ XNeoceraLTC21::monitor()
 }
 
 double
-XNeoceraLTC21::getRaw(shared_ptr<XChannel> &channel)
-{
+XNeoceraLTC21::getRaw(shared_ptr<XChannel> &channel) {
+	interface()->query("QSAMP?" + channel->getName() + ";");
+	double x;
+	if(interface()->scanf("%7lf", &x) != 1)
+		return 0.0;
+	return x;
+}
+double
+XNeoceraLTC21::getTemp(shared_ptr<XChannel> &channel) {
 	interface()->query("QSAMP?" + channel->getName() + ";");
 	double x;
 	if(interface()->scanf("%7lf", &x) != 1)
@@ -677,13 +695,13 @@ XLakeShore340::XLakeShore340(const char *name, bool runtime,
 }
 
 double
-XLakeShore340::getRaw(shared_ptr<XChannel> &channel)
-{
-	shared_ptr<XThermometer> thermo = *channel->thermometer();
-	if(thermo && !dynamic_pointer_cast<XRawThermometer>(thermo))
-		interface()->query("SRDG? " + channel->getName());
-	else
-		interface()->query("KRDG? " + channel->getName());
+XLakeShore340::getRaw(shared_ptr<XChannel> &channel) {
+	interface()->query("SRDG? " + channel->getName());
+	return interface()->toDouble();
+}
+double
+XLakeShore340::getTemp(shared_ptr<XChannel> &channel) {
+	interface()->query("KRDG? " + channel->getName());
 	return interface()->toDouble();
 }
 double

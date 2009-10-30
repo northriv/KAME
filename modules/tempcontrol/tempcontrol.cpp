@@ -316,7 +316,7 @@ XTempControl::execute(const atomic<bool> &terminated)
             {
               shared_ptr<XThermometer> thermo = *src_ch->thermometer();
               src_raw = getRaw(src_ch);
-              src_temp = (!thermo) ? src_raw : thermo->getTemp(src_raw);
+              src_temp = (!thermo) ? getTemp(src_ch) : thermo->getTemp(src_raw);
               m_sourceTemp->value(src_temp);
             }
           XNode::NodeList::reader list(m_channels->children());
@@ -334,7 +334,7 @@ XTempControl::execute(const atomic<bool> &terminated)
                       if(!m_multiread) continue;
                       shared_ptr<XThermometer> thermo = *ch->thermometer();
                       raw = getRaw(ch);
-                      temp = (!thermo) ? raw : thermo->getTemp(raw);
+                      temp = (!thermo) ? getTemp(ch) : thermo->getTemp(raw);
                     }
                   push((uint16_t)idx);
                   push((uint16_t)0); // reserve
