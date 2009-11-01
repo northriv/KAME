@@ -97,7 +97,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 	m_conFromTrig = xqcon_create<XQLineEditConnector>(fromTrig(),
 		m_form->m_edPos);
 	m_conWidth = xqcon_create<XQLineEditConnector>(width(), m_form->m_edWidth);
-	m_form->m_numPhaseAdv->setRange(-180.0, 180.0, 1.0, true);
+	m_form->m_numPhaseAdv->setRange(-180.0, 180.0, 10.0, true);
 	m_conPhaseAdv = xqcon_create<XKDoubleNumInputConnector>(phaseAdv(),
 		m_form->m_numPhaseAdv);
 	m_conUsePNR = xqcon_create<XQToggleButtonConnector>(usePNR(),

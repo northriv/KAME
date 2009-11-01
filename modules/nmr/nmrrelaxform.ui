@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>633</width>
-    <height>556</height>
+    <width>711</width>
+    <height>542</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -114,9 +114,6 @@
             </property>
             <property name="suffix">
              <string> deg</string>
-            </property>
-            <property name="sliderEnabled">
-             <bool>true</bool>
             </property>
             <property name="minValue" stdset="0">
              <number>-360</number>
@@ -419,7 +416,7 @@
         </item>
        </layout>
       </widget>
-      <widget class="QWidget" name="">
+      <widget class="QWidget" name="layoutWidget">
        <layout class="QVBoxLayout" name="verticalLayout_4">
         <item>
          <layout class="QHBoxLayout" name="horizontalLayout_2">

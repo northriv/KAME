@@ -185,6 +185,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	p1Min()->value(1.0);
 	p1Max()->value(100.0);
 	autoPhase()->value(true);
+	m_numPhase->setRange(-360.0, 360.0, 10.0, true);
 	autoWindow()->value(true);
 	mInftyFit()->value(true);
 	smoothSamples()->value(200);
