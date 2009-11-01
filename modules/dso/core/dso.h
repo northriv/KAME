@@ -233,7 +233,7 @@ private:
 	void *execute(const atomic<bool> &);
   
 	static const char *s_trace_names[];
-	static const unsigned int *s_trace_colors[];
+	static const unsigned int s_trace_colors[];
 };
 
 //---------------------------------------------------------------------------
