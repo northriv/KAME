@@ -28,6 +28,9 @@
 const char *XDSO::s_trace_names[] = {
 	"Time [sec]", "Trace1 [V]", "Trace2 [V]", "Trace3 [V]", "Trace4 [V]"
 };
+const char *XDSO::s_trace_colors[] = {
+	clRed, clGreen, clLime, clAqua
+};
     
 XDSO::XDSO(const char *name, bool runtime,
 		   const shared_ptr<XScalarEntryList> &scalarentries,
@@ -261,6 +264,9 @@ XDSO::visualize()
 	}
 	for(unsigned int i = 0; i < num_channels; i++) {
 		m_waveForm->plot(i)->drawPoints()->value(false);
+		m_waveForm->plot(i)->lineColor()->value(s_trace_colors[i]);
+		m_waveForm->plot(i)->pointColor()->value(s_trace_colors[i]);
+		m_waveForm->plot(i)->barColor()->value(s_trace_colors[i]);
 	}
           
 	m_waveForm->setRowCount(length);
