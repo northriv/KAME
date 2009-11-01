@@ -1,14 +1,14 @@
 /***************************************************************************
 		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
-		
+
 		This program is free software; you can redistribute it and/or
 		modify it under the terms of the GNU Library General Public
 		License as published by the Free Software Foundation; either
 		version 2 of the License, or (at your option) any later version.
-		
-		You should have received a copy of the GNU Library General 
-		Public License and a list of authors along with this program; 
+
+		You should have received a copy of the GNU Library General
+		Public License and a list of authors along with this program;
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "nmrrelax.h"
@@ -38,14 +38,14 @@ REGISTER_TYPE(XDriverList, NMRT1, "NMR relaxation measurement");
 #define f(x) ((p1Dist()->to_str() == P1DIST_LINEAR) ? (1-(x)) * p1min + (x) * p1max : \
 	      ((p1Dist()->to_str() == P1DIST_LOG) ? p1min * exp((x) * log(p1max/p1min)) : \
 	       1/((1-(x))/p1min + (x)/p1max)))
-         
+
 class XRelaxFuncPlot : public XFuncPlot
 {
 	XNODE_OBJECT
 protected:
 	XRelaxFuncPlot(const char *name, bool runtime, const shared_ptr<XGraph> &graph
 				   , const shared_ptr<XItemNode < XRelaxFuncList, XRelaxFunc > >  &item,
-				   const shared_ptr<XNMRT1> &owner) 
+				   const shared_ptr<XNMRT1> &owner)
 		: XFuncPlot(name, runtime, graph), m_item(item), m_owner(owner)
 	{}
 public:
@@ -67,7 +67,7 @@ private:
 	shared_ptr<XItemNode < XRelaxFuncList, XRelaxFunc > > m_item;
 	weak_ptr<XNMRT1> m_owner;
 };
-	       
+
 XNMRT1::XNMRT1(const char *name, bool runtime,
 			   const shared_ptr<XScalarEntryList> &scalarentries,
 			   const shared_ptr<XInterfaceList> &interfaces,
@@ -77,7 +77,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	  m_relaxFuncs(create<XRelaxFuncList>("RelaxFuncs", true)),
 	  m_t1inv(create<XScalarEntry>("T1inv", false,
 								   dynamic_pointer_cast<XDriver>(shared_from_this()))),
-	  m_t1invErr(create<XScalarEntry>("T1invErr", false, 
+	  m_t1invErr(create<XScalarEntry>("T1invErr", false,
 									  dynamic_pointer_cast<XDriver>(shared_from_this()))),
 	  m_pulser(create<XItemNode < XDriverList, XPulser > >("Pulser", false, drivers, true)),
 	  m_pulse1(create<XItemNode < XDriverList, XNMRPulseAnalyzer > >("NMRPulseAnalyzer1", false, drivers, true)),
@@ -111,12 +111,12 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
     m_form->m_btnResetFit->setIcon(
     	KIconLoader::global()->loadIcon("reload",
 																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
-    
+
     m_form->setWindowTitle(i18n("NMR Relax. Meas. - ") + getLabel() );
-  
+
     scalarentries->insert(t1inv());
     scalarentries->insert(t1invErr());
-    
+
     connect(pulser(), true);
     connect(pulse1(), false);
     connect(pulse2(), false);
@@ -170,7 +170,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	mode()->add("T2 Measurement");
 	mode()->add("St.E. Measurement");
 	mode()->value(MEAS_T1);
-	
+
 	p1Dist()->add(P1DIST_LINEAR);
 	p1Dist()->add(P1DIST_LOG);
 	p1Dist()->add(P1DIST_RECIPROCAL);
@@ -185,7 +185,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	p1Min()->value(1.0);
 	p1Max()->value(100.0);
 	autoPhase()->value(true);
-	m_numPhase->setRange(-360.0, 360.0, 10.0, true);
+	m_form->m_numPhase->setRange(-360.0, 360.0, 10.0, true);
 	autoWindow()->value(true);
 	mInftyFit()->value(true);
 	smoothSamples()->value(200);
@@ -212,7 +212,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	m_conPulser = xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser);
 	m_conPulse1 = xqcon_create<XQComboBoxConnector>(m_pulse1, m_form->m_cmbPulse1);
 	m_conPulse2 = xqcon_create<XQComboBoxConnector>(m_pulse2, m_form->m_cmbPulse2);
-        
+
 	m_lsnOnActiveChanged = active()->onValueChanged().connectWeak(
 		shared_from_this(), &XNMRT1::onActiveChanged);
 	m_lsnOnCondChanged = p1Max()->onValueChanged().connectWeak(
@@ -229,7 +229,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	windowFunc()->onValueChanged().connect(m_lsnOnCondChanged);
 	windowWidth()->onValueChanged().connect(m_lsnOnCondChanged);
 	mode()->onValueChanged().connect(m_lsnOnCondChanged);
-  
+
 	m_lsnOnClearAll = m_clearAll->onTouch().connectWeak(
 		shared_from_this(), &XNMRT1::onClearAll);
 	m_lsnOnResetFit = m_resetFit->onTouch().connectWeak(
@@ -306,12 +306,12 @@ XNMRT1::analyzeSpectrum(
 					cache->power += w*w;
 				}
 			}
-			
+
 			std::complex<double> z(0.0);
 			for(int i = 0; i < (int)cache->wave.size(); i++) {
 				z += wave[i] * cache->wave[i];
 			}
-			
+
 //			m_solver->solver()->exec(wave, fftout, -origin, 0.0, *fit, *wit);
 //			value_by_cond.push_back(fftout[(cf + fftlen) % fftlen]);
 			value_by_cond.push_back(z);
@@ -328,10 +328,10 @@ XNMRT1::checkDependency(const shared_ptr<XDriver> &emitter) const {
     if(emitter == shared_from_this()) return true;
     if(emitter == _pulser) return false;
     if(_pulser->time() > _pulse1->time()) return false;
-    
+
 //	if (_pulser->time() > _pulse1->time())
 //		return false;
-		
+
 	switch(_pulser->combModeRecorded()) {
 	default:
 		return true;
@@ -343,7 +343,7 @@ XNMRT1::checkDependency(const shared_ptr<XDriver> &emitter) const {
 		}
 		if(_pulse1->time() != _pulse2->time()) return false;
 		return true;
-	}    
+	}
 //    return (_pulser->time() < _pulse1->timeAwared()) && (_pulser->time() < _pulse1->time());
 }
 
@@ -352,7 +352,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 {
 	const double p1min = *p1Min();
 	const double p1max = *p1Max();
-    
+
 	if((p1min <= 0) || (p1min >= p1max)) {
 		throw XRecordError(i18n("Invalid P1Min or P1Max."), __FILE__, __LINE__);
 	}
@@ -368,7 +368,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 	int _mode = *mode();
 	shared_ptr<XNMRPulseAnalyzer> _pulse1 = *pulse1();
 	shared_ptr<XNMRPulseAnalyzer> _pulse2 = *pulse2();
-    
+
 	shared_ptr<XPulser> _pulser = *pulser();
 	ASSERT( _pulser );
 	if(_pulser->time()) {
@@ -388,21 +388,21 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 			break;
 		}
 	}
-	
+
 	// read spectra from NMRPulseAnalyzers
 	if( emitter != shared_from_this() ) {
 		ASSERT( _pulse1 );
 		ASSERT( _pulse1->time() );
 		ASSERT( _pulser->time() );
 		ASSERT( emitter != _pulser );
-        
+
 		if(*_pulse1->exAvgIncr()) {
 			m_statusPrinter->printWarning(i18n("Do NOT use incremental avg. Skipping."));
 			throw XSkippedRecordError(__FILE__, __LINE__);
 		}
-		
+
 		bool _active = *active();
-      
+
 		std::deque<std::complex<double> > cmp1, cmp2;
 		double cfreq = *freq() * 1e3 * _pulse1->interval();
 		analyzeSpectrum(_pulse1->wave(), _pulse1->waveFTPos(), cfreq, cmp1);
@@ -424,7 +424,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
             m_pts.push_back(pt1);
             break;
         case XPulser::N_COMB_MODE_P1_ALT:
-			if(_mode == MEAS_T2) 
+			if(_mode == MEAS_T2)
                 throw XRecordError(i18n("Do not use T2 mode!"), __FILE__, __LINE__);
 			ASSERT(_pulse2);
             pt1.p1 = _pulser->combP1Recorded();
@@ -475,9 +475,9 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 			_pulser->output()->value(true);
         }
     }
-  
+
 	m_sumpts.clear();
-  
+
 	if(m_timeClearRequested > _pulse1->timeAwared()) {
 		m_pts.clear();
 		m_wave->clear();
@@ -487,12 +487,12 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 			_pulse2->avgClear()->touch();
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
-  
+
 	shared_ptr<XRelaxFunc> func = *relaxFunc();
 	if(!func) {
 		throw XRecordError(i18n("Please select relaxation func."), __FILE__, __LINE__);
 	}
-  
+
 	m_sumpts.resize(samples);
 
 	Pt dummy;
@@ -504,7 +504,7 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 		int idx = lrint(log(it->p1 / p1min) * k);
 		if((idx < 0) || (idx >= (int)m_sumpts.size())) continue;
 		double p1 = it->p1;
-		//For St.E., T+tau = P1+3*tau. 
+		//For St.E., T+tau = P1+3*tau.
 		if(_mode == MEAS_ST_E)
 			p1 += 3 * _pulser->tauRecorded() * 1e-3;
 		m_sumpts[idx].isigma += 1.0;
@@ -528,14 +528,14 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 	}
 	if(n == 0)
 		throw XSkippedRecordError(__FILE__, __LINE__);
-	
+
 	for(unsigned int i = 0; i < corr.size(); i++) {
 		corr[i] -= sum_c[i]*sum_t/(double)n;
 		corr[i] *= ((_mode == MEAS_T1) ? 1 : -1);
 	}
-	
+
 	bool _absfit = *absFit();
-	
+
 	std::deque<double> phase_by_cond(corr.size(), *phase() / 180.0 * M_PI);
 	int cond = -1;
 	double maxsn2 = 0.0;
@@ -648,7 +648,7 @@ XNMRT1::visualize()
 	}
 	}
 }
-  
+
 void
 XNMRT1::onActiveChanged(const shared_ptr<XValueNodeBase> &)
 {
@@ -663,8 +663,8 @@ XNMRT1::onActiveChanged(const shared_ptr<XValueNodeBase> &)
 			gErrPrint(getLabel() + ": " + i18n("No pulser or No NMR Pulse Analyzer."));
 			return;
 		}
-      
-		if(_pulse2 && 
+
+		if(_pulse2 &&
 		   ((*_pulser->combMode() == XPulser::N_COMB_MODE_COMB_ALT) ||
 			(*_pulser->combMode() == XPulser::N_COMB_MODE_P1_ALT))) {
 			_pulse2->fromTrig()->value(
