@@ -28,7 +28,7 @@
 const char *XDSO::s_trace_names[] = {
 	"Time [sec]", "Trace1 [V]", "Trace2 [V]", "Trace3 [V]", "Trace4 [V]"
 };
-const char *XDSO::s_trace_colors[] = {
+const unsigned int *XDSO::s_trace_colors[] = {
 	clRed, clGreen, clLime, clAqua
 };
     
