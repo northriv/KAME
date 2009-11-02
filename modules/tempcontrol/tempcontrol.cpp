@@ -25,12 +25,6 @@ XTempControl::XChannel::XChannel(const char *name, bool runtime,
         "Thermometer", false, list)),
    m_excitation(create<XComboNode>("Excitation", false))
 {
-    try {
-        m_thermometer->str(XString("Raw"));
-    }
-    catch (XKameError &e) {
-        e.print();
-    }
 }
 
 XTempControl::XTempControl(const char *name, bool runtime, 

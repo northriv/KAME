@@ -729,7 +729,7 @@ void
 XLakeShore340::onTargetTempChanged(double temp)
 {
 	shared_ptr<XThermometer> thermo = *(shared_ptr<XChannel>(*currentChannel()))->thermometer();
-	if(thermo && !dynamic_pointer_cast<XRawThermometer>(thermo)) {
+	if(thermo) {
 		interface()->sendf("CSET 1,%s,3,1", (const char*)currentChannel()->to_str().c_str());
 		temp = thermo->getRawValue(temp);
 	}
