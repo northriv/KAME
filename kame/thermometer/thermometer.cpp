@@ -25,7 +25,6 @@ XThermometerList::XThermometerList(const char *name, bool runtime)
 
 DECLARE_TYPE_HOLDER(XThermometerList)
 
-REGISTER_TYPE(XThermometerList, RawThermometer, "Raw Values");
 REGISTER_TYPE(XThermometerList, LakeShore, "LakeShore");
 REGISTER_TYPE(XThermometerList, ScientificInstruments, "Scientific Instruments");
 REGISTER_TYPE(XThermometerList, ApproxThermometer, "Cubic-spline");

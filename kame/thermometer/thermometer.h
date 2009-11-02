@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2009 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -52,18 +52,6 @@ protected:
 		if(ptr) insert(ptr);
 		return ptr;
 	}
-};
-
-class XRawThermometer : public XThermometer
-{
-	XNODE_OBJECT
-protected:
-	XRawThermometer(const char *name, bool runtime) : XThermometer(name, runtime) {}
-public:
-	virtual ~XRawThermometer() {}
-
-	virtual double getTemp(double res) const {return res;}
-	virtual double getRawValue(double temp) const {return temp;}
 };
 
 //chebichev polynominal
