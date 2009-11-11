@@ -27,7 +27,7 @@
 #define SPEED_SLOW "Slow"
 
 #define RECORDREADER_DELAY 20
-#define RECORD_READER_NUM_THREADS 2
+#define RECORD_READER_NUM_THREADS 1
 
 XRawStreamRecordReader::XIOError::XIOError(const char *file, int line)
 	: XRecordError(i18n("IO Error"), file, line) {}

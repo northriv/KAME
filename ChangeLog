@@ -1,3 +1,7 @@
+* Wed Nov 11 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.9.6-1)
+- recordreader.cpp: changes # of threads to 1 for reading records.
+
 * Mon Nov 2 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.9.5-1)
 - Gets rid of XRawThermometer.
