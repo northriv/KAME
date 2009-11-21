@@ -23,9 +23,13 @@
 #include "Decl-32.h"
 #endif
 
-#ifdef GPIB_LINUX_NI
+#ifdef HAVE_LINUX_GPIB
 #define __inline__  __inline
 #include <gpib/ib.h>
+#endif
+
+#ifdef HAVE_NI488
+#include <ni488.h>
 #endif
 
 #define MIN_BUF_SIZE 1024
@@ -50,8 +54,10 @@ XNIGPIBPort::gpibStatus(const XString &msg)
 	if(ThreadIbsta() & REM) sta += "REM ";
 	if(ThreadIbsta() & LOK) sta += "LOK ";
 	if(ThreadIbsta() & CMPL) sta += "CMPL ";
+#ifdef HAVE_LINUX_GPIB
 	if(ThreadIbsta() & EVENT) sta += "EVENT ";
 	if(ThreadIbsta() & SPOLL) sta += "SPOLL ";
+#endif //HAVE_LINUX_GPIB
 	if(ThreadIbsta() & RQS) sta += "RQSE ";
 	if(ThreadIbsta() & SRQI) sta += "SRQI ";
 	if(ThreadIbsta() & END) sta += "END ";
@@ -181,10 +187,9 @@ XNIGPIBPort::write(const char *sendbuf, int size) throw (XInterface::XCommError 
   
 	gpib_spoll_before_write();
   
-	for(int i = 0; ; i++)
-	{
+	for(int i = 0; ; i++) {
 		msecsleep(m_pInterface->gpibWaitBeforeWrite());
-		int ret = ibwrt(m_ud, sendbuf, size);
+		int ret = ibwrt(m_ud, const_cast<char*>(sendbuf), size);
 		if(ret & ERR)
 		{
 			switch(ThreadIberr()) {

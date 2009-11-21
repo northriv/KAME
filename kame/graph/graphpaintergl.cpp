@@ -61,8 +61,8 @@ using std::max;
 	
 #define DEFAULT_FONT_SIZE 12
 
-#undef USE_ICONV_SRC_UTF8
-#define USE_ICONV_SRC_UCS2
+#define USE_ICONV_SRC_UTF8
+#undef USE_ICONV_SRC_UCS2
 
 #undef USE_ICONV_WCHART // this is portable, however, it likely depends on the current locale.
 #if defined __APPLE__

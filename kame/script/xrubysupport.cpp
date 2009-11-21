@@ -620,6 +620,7 @@ XRuby::execute(const atomic<bool> &terminated)
 				g_statusPrinter->printError("No KAME ruby support file installed.");
 			}
 			else {
+				fprintf(stderr, "Loading ruby scripting monitor:%s\n", filename.toLatin1().data());
 				rb_load_protect (string2RSTRING(filename), 0, &state);
 			}
 		}
