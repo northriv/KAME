@@ -329,9 +329,6 @@ XNMRT1::checkDependency(const shared_ptr<XDriver> &emitter) const {
     if(emitter == _pulser) return false;
     if(_pulser->time() > _pulse1->time()) return false;
 
-//	if (_pulser->time() > _pulse1->time())
-//		return false;
-
 	switch(_pulser->combModeRecorded()) {
 	default:
 		return true;

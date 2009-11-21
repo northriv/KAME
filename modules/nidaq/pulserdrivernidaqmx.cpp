@@ -414,7 +414,7 @@ template <typename T>
 inline T *
 fastFill(T* p, T x, unsigned int cnt) {
 	if(cnt > 100) {
-		for(;(int)p % (sizeof(uint64_t) / sizeof(T)); cnt--)
+		for(;(intptr_t)p % (sizeof(uint64_t) / sizeof(T)); cnt--)
 			*p++ = x;
 		uint64_t *pp = (uint64_t *)p;
 		union {

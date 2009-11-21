@@ -1,5 +1,5 @@
 include_directories(
-    ${LINUXGPIB_INCLUDE_DIR})
+    ${GPIB_INCLUDE_DIR})
 
 ########### next target ###############
 set(charinterface_SRCS
@@ -11,6 +11,6 @@ set(charinterface_SRCS
  )
 
 add_library(charinterface MODULE ${charinterface_SRCS})
-target_link_libraries(charinterface ${LINUXGPIB_LIBRARY})
+target_link_libraries(charinterface ${GPIB_LIBRARY})
 ########### install files ###############
 install(TARGETS charinterface LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/core_modules)
