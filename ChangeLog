@@ -1,3 +1,9 @@
+* Sat Nov 21 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.9.6-2)
+- Portfile for MacPorts.
+- now NI488 can be also used as a GPIB driver.
+- Running on x86_64.
+
 * Wed Nov 11 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.9.6-1)
 - recordreader.cpp: changes # of threads to 1 for reading records.
