@@ -7,10 +7,15 @@ Make your own port tree, see http://guide.macports.org/#development.local-reposi
 Put kame's Portfile in (your port tree)/kde/kame/.
 And,
 	sudo port -v install kame  
+Strart dbus:
+	launchctl load /Library/LaunchAgents/org.freedesktop.dbus-session.plist
+Have fun!,
+	open /Applications/MacPorts/KDE4/kame.app
+
 
 For Fink users:
 
-At the moment (Nov. 2009.), file dialogs of KDE4/mac are insane in my environment, and kdelibs4 cannot be built in Snow Leopard.
+At the moment (Nov. 2009.), kdelibs4 cannot be built in Snow Leopard.
 
 First, install the required packages (kde4-buildenv, kdelibs4-mac, boost, ftgl, fftw3, gsl) with fink. XCode is of course necessary.
 Unpack the source tar ball, make a directory for building, and there run the script attached below.
