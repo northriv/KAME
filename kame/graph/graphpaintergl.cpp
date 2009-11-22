@@ -12,7 +12,7 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "graphpainter.h"
-#include "FTGL/ftgl.h"
+#include "FTGL/FTGL.h"
 #include "graphwidget.h"
 #include <QTimer>
 
