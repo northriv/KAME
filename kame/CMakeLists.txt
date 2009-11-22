@@ -46,7 +46,7 @@ target_link_libraries(kame thermometer forms kamemath script analyzer driver ico
     ${GLU_LIBRARY} ${FTGL_LIBRARY} ${FREETYPE_LIBRARIES}
     ${RUBY_LIBRARY} ${GSL_LIBRARY} ${FFTW3_LIBRARY}
     ${LAPACK_LIBRARIES}
-    ${ICONV_LIBRARY} ${ZLIB_LIBRARIES}
+    ${ZLIB_LIBRARIES}
     ${LTDL_LIBRARY}
     ${KDE4_KDEUI_LIBS} ${KDE4_KIO_LIBS} ${QT_QT3SUPPORT_LIBRARY} ${QT_QTOPENGL_LIBRARY})
  

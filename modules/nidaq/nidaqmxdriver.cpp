@@ -64,7 +64,7 @@ XNIDAQmxInterface::SoftwareTrigger::create(const char *label, unsigned int bits)
 {
 	shared_ptr<SoftwareTrigger> p(new SoftwareTrigger(label, bits));
 	
-	//atomically register.
+	//inserting the new trigger source to the list atomically.
 	for(;;) {
         atomic_shared_ptr<SoftwareTriggerList> old_list(s_virtualTrigList);
         atomic_shared_ptr<SoftwareTriggerList> new_list(new SoftwareTriggerList(*old_list));
@@ -82,7 +82,7 @@ XNIDAQmxInterface::SoftwareTrigger::SoftwareTrigger(const char *label, unsigned 
 }
 void
 XNIDAQmxInterface::SoftwareTrigger::unregister(const shared_ptr<SoftwareTrigger> &p) {
-	//atomically unregister.
+	//performing it atomically.
 	for(;;) {
 		atomic_shared_ptr<SoftwareTriggerList> old_list(s_virtualTrigList);
 		atomic_shared_ptr<SoftwareTriggerList> new_list(new SoftwareTriggerList(*old_list));

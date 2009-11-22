@@ -208,8 +208,10 @@ private:
 
 typedef XValueNode<int> XIntNode;
 typedef XValueNode<unsigned int> XUIntNode;
+typedef XValueNode<long> XLongNode;
+typedef XValueNode<unsigned long> XULongNode;
 typedef XValueNode<bool> XBoolNode;
-typedef XValueNode<unsigned int, 16> XHexNode;
+typedef XValueNode<unsigned long, 16> XHexNode;
 
 template <class T>
 shared_ptr<T>

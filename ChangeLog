@@ -1,8 +1,9 @@
-* Sat Nov 21 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
-- (2.9.6-2)
+* Sun Nov 22 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.9.7-1)
 - Portfile for MacPorts.
 - now NI488 can be also used as a GPIB driver.
 - Running on x86_64.
+- graphpaintergl.cpp: uses QString::toWCharArray instead of the complex iconv().
 
 * Wed Nov 11 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.9.6-1)

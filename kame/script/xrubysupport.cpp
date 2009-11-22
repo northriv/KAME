@@ -15,10 +15,7 @@
 
 #include "xrubysupport.h"
 #include "measure.h"
-extern "C" {
 #include <ruby.h>
-}
-//---------------------------------------------------------------------------
 
 #include <math.h>
 #include <kstandarddirs.h>
@@ -88,9 +85,9 @@ XRuby::rnode_child(VALUE self, VALUE var)
 
 		if(shared_ptr<XNode> node = st->ptr.lock()) {
 			switch (TYPE(var)) {
-			int idx;
+			long idx;
 			case T_FIXNUM:
-				idx = NUM2INT(var);
+				idx = NUM2LONG(var);
 				{ XNode::NodeList::reader list = node->children();
 				if(list) { 
 					if ((idx >= 0) && (idx < (int)list->size()))
@@ -98,7 +95,7 @@ XRuby::rnode_child(VALUE self, VALUE var)
 				}
 				}
 				if(! child ) {
-					throw formatString("No such node idx:%d on %s\n",
+					throw formatString("No such node idx:%ld on %s\n",
 						idx, node->getName().c_str());
 				}
 				break;
@@ -429,27 +426,27 @@ int
 XRuby::strOnNode(const shared_ptr<XValueNodeBase> &node, VALUE value)
 {
 	double dbl = 0;
-	int integer = 0;
+	long integer = 0;
 
 	shared_ptr<XDoubleNode> dnode = dynamic_pointer_cast<XDoubleNode>(node);
 	shared_ptr<XIntNode> inode = dynamic_pointer_cast<XIntNode>(node);
 	shared_ptr<XUIntNode> uinode = dynamic_pointer_cast<XUIntNode>(node);
+	shared_ptr<XLongNode> lnode = dynamic_pointer_cast<XLongNode>(node);
+	shared_ptr<XULongNode> ulnode = dynamic_pointer_cast<XULongNode>(node);
 	shared_ptr<XBoolNode> bnode = dynamic_pointer_cast<XBoolNode>(node);
 
 	switch (TYPE(value)) {
 	case T_FIXNUM:
-		integer = NUM2INT(value);
-		if(uinode) {
-			if(integer >= 0) {
-				uinode->value(integer); return 0;
-			}
-			else {
+		integer = FIX2LONG(value);
+		if(uinode || ulnode) {
+			if(integer < 0) {
 				throw formatString("Negative FIXNUM on %s\n", node->getName().c_str());
 			}
 		}
-		if(inode) {
-			inode->value(integer); return 0;
-		}
+		if(inode) { inode->value(integer); return 0; }
+		if(lnode) { lnode->value(integer); return 0; }
+		if(uinode) { uinode->value(integer); return 0; }
+		if(ulnode) { ulnode->value(integer); return 0; }
 		dbl = integer;
 		if(dnode) {dnode->value(dbl); return 0;}
 		throw formatString("FIXNUM is not appropreate on %s\n"
@@ -495,11 +492,15 @@ XRuby::getValueOfNode(const shared_ptr<XValueNodeBase> &node)
 	shared_ptr<XDoubleNode> dnode = dynamic_pointer_cast<XDoubleNode>(node);
 	shared_ptr<XIntNode> inode = dynamic_pointer_cast<XIntNode>(node);
 	shared_ptr<XUIntNode> uinode = dynamic_pointer_cast<XUIntNode>(node);
+	shared_ptr<XLongNode> lnode = dynamic_pointer_cast<XLongNode>(node);
+	shared_ptr<XULongNode> ulnode = dynamic_pointer_cast<XULongNode>(node);
 	shared_ptr<XBoolNode> bnode = dynamic_pointer_cast<XBoolNode>(node);
 	shared_ptr<XStringNode> snode = dynamic_pointer_cast<XStringNode>(node);
 	if(dnode) {return rb_float_new((double)*dnode);}
 	if(inode) {return INT2NUM(*inode);}
 	if(uinode) {return UINT2NUM(*uinode);}
+	if(lnode) {return LONG2NUM(*lnode);}
+	if(ulnode) {return ULONG2NUM(*ulnode);}
 	if(bnode) {return (*bnode) ? Qtrue : Qfalse;}
 	if(snode) {return string2RSTRING(*snode);}
 	return Qnil;
@@ -508,7 +509,7 @@ XRuby::getValueOfNode(const shared_ptr<XValueNodeBase> &node)
 shared_ptr<XRubyThread>
 XRuby::findRubyThread(VALUE self, VALUE threadid)
 {
-	int id = NUM2INT(threadid);
+	long id = NUM2LONG(threadid);
 	struct rnode_ptr *st;
 	Data_Get_Struct(self, struct rnode_ptr, st);
 	shared_ptr<XRubyThread> rubythread;
@@ -614,7 +615,7 @@ XRuby::execute(const atomic<bool> &terminated)
 		}
 
 		{
-			int state;
+			int state = 0;
 			QString filename = KStandardDirs::locate("appdata", XRUBYSUPPORT_RB);
 			if(filename.isEmpty()) {
 				g_statusPrinter->printError("No KAME ruby support file installed.");
@@ -622,6 +623,9 @@ XRuby::execute(const atomic<bool> &terminated)
 			else {
 				fprintf(stderr, "Loading ruby scripting monitor:%s\n", filename.toLatin1().data());
 				rb_load_protect (string2RSTRING(filename), 0, &state);
+				if(state) {
+					fprintf(stderr, "Ruby, exception(s) occurred\n");
+				}
 			}
 		}
 		ruby_finalize();

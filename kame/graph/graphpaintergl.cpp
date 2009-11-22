@@ -12,9 +12,8 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "graphpainter.h"
-#include "FTGL/FTGLPixmapFont.h"
+#include "FTGL/ftgl.h"
 #include "graphwidget.h"
-#include <iconv.h>
 #include <QTimer>
 
 using std::min;
@@ -61,24 +60,6 @@ using std::max;
 	
 #define DEFAULT_FONT_SIZE 12
 
-#define USE_ICONV_SRC_UTF8
-#undef USE_ICONV_SRC_UCS2
-
-#undef USE_ICONV_WCHART // this is portable, however, it likely depends on the current locale.
-#if defined __APPLE__
-#define USE_ICONV_UCS4_AS_WCHART
-//    #define USE_ICONV_WCHART
-#endif
-#if defined __linux__
-//    #define USE_ICONV_WCHART
-#define USE_ICONV_UCS4_AS_WCHART
-#endif
-#if defined WINDOWS
-#define USE_ICONV_UCS2_AS_WCHART
-#endif
-
-static iconv_t s_iconv_cd = (iconv_t)-1;
-
 int XQGraphPainter::s_fontRefCount = 0;
 FTFont *XQGraphPainter::s_pFont = NULL;
 
@@ -94,56 +75,8 @@ XQGraphPainter::openFont()
 		s_pFont = new FTGLPixmapFont(filename.toLocal8Bit().data() );
 		ASSERT(s_pFont->Error() == 0);
 		s_pFont->CharMap(ft_encoding_unicode);
-		
-        setlocale(LC_CTYPE, KGlobal::locale()->languageCodeToName	(KGlobal::locale()->language()).toLatin1().data());
-	#ifdef USE_ICONV_SRC_UTF8
-	#define ICONV_SRC "UTF-8"
-	#endif
-	#ifdef USE_ICONV_SRC_UCS2
-	#ifdef __BIG_ENDIAN__
-	#define ICONV_SRC "UCS-2BE"
-	#else
-	#define ICONV_SRC "UCS-2LE"
-	#endif
-	#endif
-	#ifndef ICONV_SRC
-	#error
-	#endif
-	#ifdef USE_ICONV_WCHART
-	#define ICONV_DST "WCHAR_T"
-	#endif
-	#ifdef USE_ICONV_UCS4_AS_WCHART
-		C_ASSERT(sizeof(wchar_t) == 4);
-	#ifdef __BIG_ENDIAN__
-	#define ICONV_DST "UCS-4BE"
-	#else
-	#define ICONV_DST "UCS-4LE"
-	#endif
-	#endif
-	#ifdef USE_ICONV_UCS2_AS_WCHART
-		C_ASSERT(sizeof(wchar_t) == 2);
-	#ifdef __BIG_ENDIAN__
-	#define ICONV_DST "UCS-2BE"
-	#else
-	#define ICONV_DST "UCS-2LE"
-	#endif
-	#endif
-	#ifndef ICONV_DST
-	#error
-	#endif
-        s_iconv_cd = iconv_open(ICONV_DST, ICONV_SRC);
-		ASSERT(s_iconv_cd != (iconv_t)(-1));
-        /*
-		  int arg = 1;
-		  if(iconvctl(s_iconv_cd, ICONV_SET_TRANSLITERATE, &arg)) {
-		  XKameError::print(i18n("iconv error"), __FILE__, __LINE__, errno);
-		  }
-		  int arg = 1;
-		  if(iconvctl(s_utf8toWCHART, ICONV_SET_DISCARD_ILSEQ, &arg)) {
-		  XKameError::print(i18n("iconv error"), __FILE__, __LINE__, errno);
-		  }
-        */
 	}
+
 	s_fontRefCount++;
 }
 
@@ -154,7 +87,6 @@ XQGraphPainter::closeFont()
 	if(s_fontRefCount == 0) {
 		delete s_pFont;
 		s_pFont = NULL;
-		iconv_close(s_iconv_cd);
 	}
 }
 XQGraphPainter::~XQGraphPainter()
@@ -170,32 +102,10 @@ XQGraphPainter::~XQGraphPainter()
 std::wstring
 XQGraphPainter::string2wstring(const XString &str)
 {
-    wchar_t buf[256];
-    int outsize = sizeof(buf);
-    char *outp = (char*)buf;
-    errno = 0;
-#ifdef USE_ICONV_SRC_UTF8
-    const char *inbuf = str.c_str();
-    int insize = strlen(inbuf);
-#endif //USE_ICONV_SRC_UTF8
-#ifdef USE_ICONV_SRC_UCS2
-    QString qstr(str);
-    const char *inbuf = reinterpret_cast<const char*>(qstr.utf16());
-    int insize = qstr.length() * sizeof(uint16_t);
-#endif //USE_ICONV_SRC_UCS2
-    size_t ret = iconv(s_iconv_cd,
-					   const_cast<char**>(&inbuf), (size_t*)&insize,
-					   &outp, (size_t*)&outsize);
-	if(ret == (size_t)(-1)) {
-		XKameError::print(
-			i18n("iconv error, probably locale is not correct."),
-			__FILE__, __LINE__, errno);
-		iconv(s_iconv_cd, NULL, NULL, NULL, NULL); //reset 
-		return std::wstring(L"iconv-err"); 
-    }
-    ASSERT(outp <= (char*)&buf[sizeof(buf)/sizeof(wchar_t) - 1]);
-	*((wchar_t *)outp) = L'\0';
-    return std::wstring(buf); 
+	QString qstr(str);
+    std::vector<wchar_t> buf(qstr.length() + 1);
+    qstr.toWCharArray(&buf[0]);
+    return &buf[0];
 }
 
 int

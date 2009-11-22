@@ -16,9 +16,7 @@
 //---------------------------------------------------------------------------
 #include "xnode.h"
 
-extern "C" {
 #include <ruby.h>
-}
 
 #define RUBY_THREAD_ACTION_KILL "kill"
 #define RUBY_THREAD_ACTION_WAKEUP "wakeup"
@@ -54,14 +52,14 @@ public:
 	const shared_ptr<XStringNode> &status() const {return m_status;}
 	const shared_ptr<XStringNode> &filename() const {return m_filename;}
 //  shared_ptr<XStringNode> &action() const {return m_action;}
-	const shared_ptr<XIntNode> &threadID() const {return m_threadID;}
+	const shared_ptr<XLongNode> &threadID() const {return m_threadID;}
 private:
 	XTalker<shared_ptr<XString> > m_tlkOnMessageOut;
 	const shared_ptr<XStringNode> m_filename;
 	shared_ptr<XStringNode> m_status;
 	shared_ptr<XStringNode> m_action;
 	shared_ptr<XStringNode> m_lineinput;
-	shared_ptr<XIntNode> m_threadID;
+	shared_ptr<XLongNode> m_threadID;
 	shared_ptr<XListener> m_lsnOnLineChanged;
 	void onLineChanged(const shared_ptr<XValueNodeBase> &);
 	std::deque<XString> m_lineBuffer;

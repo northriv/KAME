@@ -173,9 +173,27 @@ XValueNode<unsigned int, 10>::_str(const XString &str) throw (XKameError &) {
 }
 template <>
 void
-XValueNode<unsigned int, 16>::_str(const XString &str) throw (XKameError &) {
+XValueNode<long, 10>::_str(const XString &str) throw (XKameError &) {
     bool ok;
-    unsigned int var = QString(str).toUInt(&ok, 16);
+    long var = QString(str).toLong(&ok, 10);
+    if(!ok)
+		throw XKameError(i18n("Ill string conversion to integer."), __FILE__, __LINE__);
+    value(var);
+}
+template <>
+void
+XValueNode<unsigned long, 10>::_str(const XString &str) throw (XKameError &) {
+    bool ok;
+    unsigned long var = QString(str).toULong(&ok);
+    if(!ok)
+		throw XKameError(i18n("Ill string conversion to unsigned integer."), __FILE__, __LINE__);
+    value(var);
+}
+template <>
+void
+XValueNode<unsigned long, 16>::_str(const XString &str) throw (XKameError &) {
+    bool ok;
+    unsigned int var = QString(str).toULong(&ok, 16);
     if(!ok)
 		throw XKameError(i18n("Ill string conversion to hex."), __FILE__, __LINE__);
     value(var);
@@ -211,7 +229,9 @@ XValueNode<bool, 10>::to_str() const {
 
 template class XValueNode<int, 10>;
 template class XValueNode<unsigned int, 10>;
-template class XValueNode<unsigned int, 16>;
+template class XValueNode<long, 10>;
+template class XValueNode<unsigned long, 10>;
+template class XValueNode<unsigned long, 16>;
 template class XValueNode<bool, 10>;
 
 XStringNode::XStringNode(const char *name, bool runtime)

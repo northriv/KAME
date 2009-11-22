@@ -80,14 +80,6 @@ else(1)
     message(FATAL_ERROR "LTDL not found: ${LTDL_INCLUDE_DIR} ${LTDL_LIBRARY}")
 endif( LTDL_INCLUDE_DIR AND LTDL_LIBRARY )
 
-find_library( ICONV_LIBRARY NAMES iconv PATHS /usr/lib /usr/local/lib /sw/lib /opt/local/lib)
-if( ICONV_LIBRARY )
-    message(STATUS "iconv found: ${ICONV_LIBRARY}")
-else(1)
-    message(STATUS "iconv not found, use system iconv() instead")
-    set(ICONV_LIBRARY "")
-endif( ICONV_LIBRARY )
-
 find_path( FTGL_INCLUDE_DIR
 	FTGL/FTGL.h /usr/include /usr/local/include /sw/include /opt/local/include)
 find_library( FTGL_LIBRARY ftgl /usr/lib /usr/local/lib /sw/lib /opt/local/lib)
