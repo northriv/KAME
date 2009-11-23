@@ -59,6 +59,7 @@ atomic_shared_ptr<XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList>
 XNIDAQmxInterface::SoftwareTrigger::s_virtualTrigList(new XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList);
 XTalker<shared_ptr<XNIDAQmxInterface::SoftwareTrigger> >
 XNIDAQmxInterface::SoftwareTrigger::s_onChange;
+
 shared_ptr<XNIDAQmxInterface::SoftwareTrigger>
 XNIDAQmxInterface::SoftwareTrigger::create(const char *label, unsigned int bits)
 {

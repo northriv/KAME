@@ -6,12 +6,13 @@ For MacPorts users:
 Make your own port tree, see http://guide.macports.org/#development.local-repositories
 Put kame's Portfile in (your port tree)/kde/kame/.
 And,
-	sudo port -v install kame  
-Strart dbus:
+	sudo port -v install kame 
+("+universal" variant is recommended for 10.6, since the current NI-488.2 has no x86_64 libraries)
+Strart dbus if needed:
 	launchctl load /Library/LaunchAgents/org.freedesktop.dbus-session.plist
 Have fun!,
 	open /Applications/MacPorts/KDE4/kame.app
-
+(Specify LSArchitecturePriority=i386 or arch -i386 for a univeral binary.)
 
 For Fink users:
 

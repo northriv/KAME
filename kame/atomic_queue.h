@@ -208,7 +208,7 @@ public:
     typedef uint_cas_max key;
 
     atomic_queue_reserved() {
-    	C_ASSERT(SIZE < (1uL << (sizeof(key) * 8 - 8)));
+    	C_ASSERT(SIZE < (1uLL << (sizeof(key) * 8 - 8)));
     	for(unsigned int i = 0; i < SIZE; i++) {
 			m_reservoir.push(key_index_serial(i, 0));
     	}
