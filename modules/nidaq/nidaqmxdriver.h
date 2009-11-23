@@ -129,7 +129,7 @@ public:
 		void disconnect();
 		//! \arg blankterm in seconds.
 		void setBlankTerm(float64 blankterm) {
-			m_blankTerm = lrint(blankterm * freq());
+			m_blankTerm = llrint(blankterm * freq());
 			memoryBarrier();
 		}
 		//! for restarting connected task.

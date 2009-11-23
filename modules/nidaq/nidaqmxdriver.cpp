@@ -334,6 +334,7 @@ XNIDAQmxInterface::XNIDAQmxInterface(const char *name, bool runtime, const share
     XInterface(name, runtime, driver),
     m_productInfo(0L)
 {
+#ifdef HAVE_NI_DAQMX
 	char buf[2048];
 	CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
 	std::deque<XString> list;
@@ -342,6 +343,7 @@ XNIDAQmxInterface::XNIDAQmxInterface(const char *name, bool runtime, const share
 		CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
 		device()->add(*it + " [" + buf + "]");
 	}
+#endif //HAVE_NI_DAQMX
 }
 XNIDAQmxInterface::XNIDAQmxRoute::XNIDAQmxRoute(const char*src, const char*dst, int *pret)
 	: m_src(src), m_dst(dst)
