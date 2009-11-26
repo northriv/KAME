@@ -1,3 +1,7 @@
+* Fri Nov 27 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.9.7-2)
+- graphpaintergl.cpp: Fix drawing strategy for mac.
+
 * Sun Nov 22 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.9.7-1)
 - Portfile for MacPorts.

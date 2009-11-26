@@ -2,18 +2,23 @@ KAME instllation notes on Mac OS X.
 
 See INSTALL for general information.
 
+###################################################################
 For MacPorts users:
 Make your own port tree, see http://guide.macports.org/#development.local-repositories
 Put kame's Portfile in (your port tree)/kde/kame/.
 And,
 	sudo port -v install kame 
-("+universal" variant is recommended for 10.6, since the current NI-488.2 has no x86_64 libraries)
-Strart dbus if needed:
+("+universal" variant is recommended for 10.6, since x86_64 target has several problems:
+	 (i) The current NI-488.2 driver lacks x86_64 libraries.
+	 (ii) KDE programs show strange behaviors concerning keyboard focus)
+
+Start dbus if needed:
 	launchctl load /Library/LaunchAgents/org.freedesktop.dbus-session.plist
 Have fun!,
 	open /Applications/MacPorts/KDE4/kame.app
-(Specify LSArchitecturePriority=i386 or arch -i386 for a univeral binary.)
+(Specify LSArchitecturePriority=i386 or arch -i386 (binary file) for a univeral binary.)
 
+###################################################################
 For Fink users:
 
 At the moment (Nov. 2009.), kdelibs4 cannot be built in Snow Leopard.

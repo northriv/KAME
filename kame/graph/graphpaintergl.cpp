@@ -517,7 +517,7 @@ XQGraphPainter::paintGL ()
         glCallList(m_listpoints);
 // //       glDisable(GL_DEPTH_TEST);
 #ifdef __APPLE__
-        if(1) {
+        if(1) { //On mac, FTGL fonts have to be drawn every time.
 #else
         if(m_bIsAxisRedrawNeeded) {
 #endif // __APPLE__
