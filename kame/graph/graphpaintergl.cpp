@@ -516,7 +516,11 @@ XQGraphPainter::paintGL ()
         glCallList(m_listgrids);
         glCallList(m_listpoints);
 // //       glDisable(GL_DEPTH_TEST);
+#ifdef __APPLE__
+        if(1) {
+#else
         if(m_bIsAxisRedrawNeeded) {
+#endif // __APPLE__
             glNewList(m_listaxes, GL_COMPILE_AND_EXECUTE);
             drawOffScreenAxes();
             glEndList();
