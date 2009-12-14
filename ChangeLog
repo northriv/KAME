@@ -1,3 +1,7 @@
+* Mon Dec 14 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (2.9.8-1)
+- gpib.cpp: Fix for NI488.2.
+
 * Fri Nov 27 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.9.7-2)
 - graphpaintergl.cpp: Fix drawing strategy for mac.

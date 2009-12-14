@@ -211,14 +211,14 @@ XNIGPIBPort::write(const char *sendbuf, int size) throw (XInterface::XCommError 
 			}
 			throw XInterface::XCommError(gpibStatus(""), __FILE__, __LINE__);
 		}
-		if((ret & END) && (ret & CMPL))
-		{
+		size -= ThreadIbcntl();
+		if((size == 0) && (ret & CMPL)) {
+			//NI's ibwrt() terminates w/o END.
 			break;
 		}
 		sendbuf += ThreadIbcntl();
-		size -= ThreadIbcntl();        
 		if(ret & CMPL) {
-			dbgPrint("ibwrt terminated without END");
+			dbgPrint("ibwrt interrupted.");
 			continue;
 		}
 		gErrPrint(gpibStatus(i18n("ibwrt terminated without CMPL")));
