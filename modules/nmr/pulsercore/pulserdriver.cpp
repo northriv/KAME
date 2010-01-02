@@ -889,7 +889,7 @@ XPulser::rawToRelPat() throw (XRecordError&)
 			}
 		}
 		//for pi pulses
-		patterns.insert(tpat(pos + _pw1/2, qpsk[p2[j]], qpskmask));
+		patterns.insert(tpat(pos + _pw1/2, qpsk[_conserve_ste_phase ? p1[j] : p2[j]], qpskmask));
 		patterns.insert(tpat(pos + _pw1/2, ~(uint32_t)0, pulse2mask));
      
 		//2tau
