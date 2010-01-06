@@ -1,3 +1,9 @@
+* Wed Jan 6 2010 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (3.0.0-1)
+- dso.cpp, nmrpulse.cpp: Averaging restarts when a clear button is invoked.
+- pulserdriver.cpp: Fix phase cycling for a stimulated echo. 
+- The first stable release for 3.0.
+
 * Mon Dec 14 2009 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (2.9.8-1)
 - gpib.cpp: Fix for NI488.2.

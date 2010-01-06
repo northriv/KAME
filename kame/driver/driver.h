@@ -38,58 +38,58 @@ protected:
 public:
 	virtual ~XDriver() {}
 
-	//! show all forms belonging to driver
+	//! Shows all forms belonging to the driver.
 	virtual void showForms() = 0;
  
-	//! called during parsing
+	//! Be called during parsing.
 	XTalker<shared_ptr<XDriver> > &onRecord() {return m_tlkRecord;}
-	//! lock analysed members and entries
+	//! Locks the analyzed members and entries
 	void readLockRecord() const;
 	void readUnlockRecord() const;
   
-	//! recorded time.
-	//! time when phenomenon finished and recorded.
-	//! analyses must be based on this time.
-	//! zero if record is invalid.
+	//! Recorded time.
+	//! It is a time stamp when a phenomenon occurred and recorded.
+	//! Following analyses have to be based on this time.
+	//! It is undefined if record is invalid.
 	const XTime &time() const {return m_recordTime;}
-	//! time when an operator (you) can see a phenomenon. 
-	//! manual operations (ex. pushing clear button) must be based on this time.
-	//! time when a phenomenon starts if measuement is on real-time.
-	//! time when record is read if measuement is *not* on real-time.
-	//! unknown if record is invalid.
+	//! A time stamp when an operator (you) can see outputs.
+	//! Manual operations (e.g. pushing a clear button) have to be based on this time.
+	//! It is a time when a phenomenon starts if measurement is going on.
+	//! It is a time when a record was read for a non-real-time analysis.
+	//! It is undefined if record is invalid.
 	const XTime &timeAwared() const {return m_awaredTime;}
   
 	virtual const shared_ptr<XRecordDependency> dependency() const = 0;
 protected:
-	//! throwing this exception will cause reset of record time
-	//! And, print error message
+	//! Throwing this exception will cause a reset of record time.
+	//! And, prints error message.
 	struct XRecordError : public XKameError {
 		XRecordError(const XString &s, const char *file, int line) : XKameError(s, file, line) {}
 	};
-	//! throwing this exception will skip signal emission, assuming record is kept valid.
+	//! Throwing this exception will skip signal emission, assuming record is kept valid.
 	struct XSkippedRecordError : public XRecordError {
 		XSkippedRecordError(const XString &s, const char *file, int line) : XRecordError(s, file, line) {}
 		XSkippedRecordError(const char *file, int line) : XRecordError("", file, line) {}
 	};
-	//! size of raw record is not enough to continue analyzing 
+	//! The size of the raw record is not enough to continue analyzing.
 	struct XBufferUnderflowRecordError : public XRecordError {
 		XBufferUnderflowRecordError(const char *file, int line);
 	};
  
-	//! this is called after analyze() or analyzeRaw()
-	//! record is readLocked
+	//! This is called after analyze() or analyzeRaw()
+	//! The record will be read-locked.
 	//! This might be called even if the record is broken (time() == false).
 	virtual void visualize() = 0;
   
-	//! writeLock record and readLock all dependent drivers
+	//! Write-locks a record and read-locks all dependent drivers.
 	//! \return true if locked.
 	bool tryStartRecording();
 	//! m_tlkRecord is invoked after unlocking
 	//! \sa time(), timeAwared()
 	void finishRecordingNReadLock(const XTime &time_awared, const XTime &time_recorded);
-	//! leave existing record.
+	//! leaves the existing record.
 	void abortRecording();
-	//! leave existing record.
+	//! leaves the existing record.
 	void abortRecordingNReadLock();
 	//! Lock this record and dependent drivers
 private:

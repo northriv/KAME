@@ -55,6 +55,7 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_vOffset4(create<XDoubleNode>("VOffset4", false)),
 	m_recordLength(create<XUIntNode>("RecordLength", false)),
 	m_forceTrigger(create<XNode>("ForceTrigger", true)),  
+	m_restart(create<XNode>("Restart", true)),
 	m_trace1(create<XComboNode>("Trace1", false)),
 	m_trace2(create<XComboNode>("Trace2", false)),
 	m_trace3(create<XComboNode>("Trace3", false)),
@@ -331,6 +332,8 @@ XDSO::execute(const atomic<bool> &terminated)
 		shared_from_this(), &XDSO::onVOffset4Changed);
 	m_lsnOnForceTriggerTouched = forceTrigger()->onTouch().connectWeak(
 		shared_from_this(), &XDSO::onForceTriggerTouched);
+	m_lsnOnRestartTouched = restart()->onTouch().connectWeak(
+		shared_from_this(), &XDSO::onRestartTouched);
 	m_lsnOnRecordLengthChanged = recordLength()->onValueChanged().connectWeak(
 		shared_from_this(), &XDSO::onRecordLengthChanged);
 
@@ -366,7 +369,6 @@ XDSO::execute(const atomic<bool> &terminated)
 		try {
 			count = acqCount(&seq_busy);
 			if(!count) {
-				time_awared = XTime::now();
 				last_count = 0;
 				msecsleep(10);
 				continue;
@@ -442,6 +444,7 @@ XDSO::execute(const atomic<bool> &terminated)
 	m_lsnOnVOffset3Changed.reset();
 	m_lsnOnVOffset4Changed.reset();
 	m_lsnOnForceTriggerTouched.reset();
+	m_lsnOnRestartTouched.reset();
 	m_lsnOnRecordLengthChanged.reset();
                             
 	afterStop();

@@ -40,7 +40,7 @@ protected:
 public:
 	//! usually nothing to do.
 	virtual ~XDSO() {}
-	//! show all forms belonging to driver.
+	//! Shows all forms belonging to driver.
 	virtual void showForms();
 protected:
 	//! Start up your threads, connect GUI, and activate signals
@@ -49,14 +49,15 @@ protected:
 	//! this may be called even if driver has already stopped.
 	virtual void stop();
   
-	//! this is called after analyze() or analyzeRaw()
-	//! record is readLocked
+	//! This is called after analyze() or analyzeRaw()
+	//! The record will be read-locked.
+	//! This might be called even if the record is broken (time() == false).
 	virtual void visualize();
   
 	//! driver specific part below
 public:
 	const shared_ptr<XUIntNode> &average() const {return m_average;}
-	//! If true, pause acquision after averaging count
+	//! If true, an acquisition will be paused with a averaging count.
 	const shared_ptr<XBoolNode> &singleSequence() const {return m_singleSequence;}
 	const shared_ptr<XComboNode> &trigSource() const {return m_trigSource;}
 	const shared_ptr<XDoubleNode> &trigPos() const {return m_trigPos;}
@@ -73,6 +74,7 @@ public:
 	const shared_ptr<XDoubleNode> &vOffset4() const {return m_vOffset4;}
 	const shared_ptr<XUIntNode> &recordLength() const {return m_recordLength;}
 	const shared_ptr<XNode> &forceTrigger() const {return m_forceTrigger;}  
+	const shared_ptr<XNode> &restart() const {return m_restart;}
 
 	const shared_ptr<XComboNode> &trace1() const {return m_trace1;}
 	const shared_ptr<XComboNode> &trace2() const {return m_trace2;}
@@ -115,27 +117,32 @@ protected:
 	virtual void onVOffset4Changed(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void onRecordLengthChanged(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void onForceTriggerTouched(const shared_ptr<XNode> &) = 0;
+	virtual void onRestartTouched(const shared_ptr<XNode> &) {
+		startSequence();
+	}
 
 	virtual double getTimeInterval() = 0;
-	//! clear count or start sequence measurement
+
+	//! Clears the count or starts a sequence measurement
 	virtual void startSequence() = 0;
-	//! \arg seq_busy true if sequence is not finished
+
+	//! \arg seq_busy true if the sequence is not finished.
 	virtual int acqCount(bool *seq_busy) = 0;
 
-	//! load waveform and settings from instrument
+	//! Loads the waveform and settings from the instrument.
 	virtual void getWave(std::deque<XString> &channels) = 0;
-	//! convert raw to dispaly-able
+	//! Converts the raw to a display-able style.
 	virtual void convertRaw() throw (XRecordError&) = 0;
 	void setParameters(unsigned int channels, double startpos, double interval, unsigned int length);
-	//! for displaying.
+	//! For displaying.
 	unsigned int lengthDisp() const;
 	double *waveDisp(unsigned int ch);
 	double trigPosDisp() const {return m_trigPosDisp;} ///< unit is interval
 	unsigned int numChannelsDisp() const {return m_numChannelsDisp;}
 	double timeIntervalDisp() const {return m_timeIntervalDisp;} //! [sec]
   
-	//! this is called when raw is written 
-	//! unless dependency is broken
+	//! This is called when the raw data is written.
+	//! unless dependency is broken.
 	//! convert raw to record
 	virtual void analyzeRaw() throw (XRecordError&);
   
@@ -163,6 +170,7 @@ private:
 	const shared_ptr<XDoubleNode> m_vOffset4;
 	const shared_ptr<XUIntNode> m_recordLength;
 	const shared_ptr<XNode> m_forceTrigger;  
+	const shared_ptr<XNode> m_restart;
 	const shared_ptr<XComboNode> m_trace1;
 	const shared_ptr<XComboNode> m_trace2;
 	const shared_ptr<XComboNode> m_trace3;
@@ -176,7 +184,7 @@ private:
 	const qshared_ptr<FrmDSO> m_form;
 	const shared_ptr<XWaveNGraph> m_waveForm;
   
-	//! these are record
+	//! These are parts of a record.
 	double m_trigPosRecorded; ///< unit is interval
 	unsigned int m_numChannelsRecorded;
 	double m_timeIntervalRecorded; //! [sec]
@@ -188,7 +196,7 @@ private:
 	double m_timeIntervalDisp; //! [sec]
 	std::vector<double> m_wavesDisp;
 	XRecursiveMutex m_dispMutex;
-	//! convert raw to dispaly-able and perform extra digital processing.
+	//! Convert the raw to a display-able style and performs extra digital processing.
 	void convertRawToDisp() throw (XRecordError&);
   
 	shared_ptr<XListener> m_lsnOnSingleChanged;
@@ -212,6 +220,7 @@ private:
 	shared_ptr<XListener> m_lsnOnVOffset4Changed;
 	shared_ptr<XListener> m_lsnOnRecordLengthChanged;
 	shared_ptr<XListener> m_lsnOnForceTriggerTouched;
+	shared_ptr<XListener> m_lsnOnRestartTouched;
 	shared_ptr<XListener> m_lsnOnCondChanged;
   
 	void onCondChanged(const shared_ptr<XValueNodeBase> &);
