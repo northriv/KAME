@@ -318,8 +318,8 @@ XNIDAQmxInterface::parseList(const char *str, std::deque<XString> &list)
 	list.clear();
 	XString org(str);
 	const char *del = ", \t";
-	for(unsigned int pos = 0; pos != std::string::npos; ) {
-		unsigned int spos = org.find_first_not_of(del, pos);
+	for(int pos = 0; pos != std::string::npos; ) {
+		int spos = org.find_first_not_of(del, pos);
 		if(spos == std::string::npos) break;
 		pos = org.find_first_of(del, spos);
 		if(pos == std::string::npos)

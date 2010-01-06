@@ -418,8 +418,8 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 			}
 		}
 		if(_pulser) {
-			if((numechoes > *_pulser->echoNumRecorded()) ||
-				(fabs(*echoPeriod()*1e3 / (*_pulser->tauRecorded()*2.0) - 1.0) > 1e-4)) {
+			if((numechoes > _pulser->echoNumRecorded()) ||
+				(fabs(*echoPeriod()*1e3 / (_pulser->tauRecorded()*2.0) - 1.0) > 1e-4)) {
 				m_statusPrinter->printWarning(i18n("Invalid Multiecho settings."), true);
 			}
 		}
