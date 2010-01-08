@@ -285,11 +285,15 @@ XDSO::visualize()
 	}
 	}
 }
-
+void
+XDSO::onRestartTouched(const shared_ptr<XNode> &) {
+	m_timeSequenceStarted = XTime::now();
+	startSequence();
+}
 void *
 XDSO::execute(const atomic<bool> &terminated)
 {
-	XTime time_awared = XTime::now();
+	m_timeSequenceStarted = XTime::now();
 	int last_count = 0;
   
 	m_lsnOnAverageChanged = average()->onValueChanged().connectWeak(
@@ -405,13 +409,13 @@ XDSO::execute(const atomic<bool> &terminated)
       
 		m_rawDisplayOnly = (*singleSequence() && seq_busy);
 
-		finishWritingRaw(time_awared, XTime::now());
+		finishWritingRaw(m_timeSequenceStarted, XTime::now());
 	      
 		last_count =  count;
 		
 		if(*singleSequence() && !seq_busy) {
 			last_count = 0;
-			time_awared = XTime::now();
+			m_timeSequenceStarted = XTime::now();
 			// try/catch exception of communication errors
 			try {
 				startSequence();

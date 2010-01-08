@@ -117,9 +117,7 @@ protected:
 	virtual void onVOffset4Changed(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void onRecordLengthChanged(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void onForceTriggerTouched(const shared_ptr<XNode> &) = 0;
-	virtual void onRestartTouched(const shared_ptr<XNode> &) {
-		startSequence();
-	}
+	virtual void onRestartTouched(const shared_ptr<XNode> &);
 
 	virtual double getTimeInterval() = 0;
 
@@ -243,6 +241,8 @@ private:
   
 	static const char *s_trace_names[];
 	static const unsigned int s_trace_colors[];
+
+	atomic<XTime> m_timeSequenceStarted;
 };
 
 //---------------------------------------------------------------------------
