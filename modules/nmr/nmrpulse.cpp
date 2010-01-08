@@ -313,20 +313,20 @@ void XNMRPulseAnalyzer::rotNFFT(int ftpos, double ph,
 	}
 }
 void XNMRPulseAnalyzer::onAvgClear(const shared_ptr<XNode> &) {
-	const shared_ptr<XDSO> _dso = *dso();
-	if(_dso)
-		_dso->restart()->touch();
 	m_timeClearRequested = XTime::now();
 	requestAnalysis();
+
+	const shared_ptr<XDSO> _dso = *dso();
+	if(_dso)
+		_dso->restart()->touch(); //Restart averaging in DSO.
 }
 void XNMRPulseAnalyzer::onCondChanged(const shared_ptr<XValueNodeBase> &node) {
-	if ((node == numEcho()) || (node == difFreq()))
-		m_timeClearRequested = XTime::now();
-	if (node == exAvgIncr())
-		m_timeClearRequested = XTime::now();
 	if (node == exAvgIncr())
 		extraAvg()->value(0);
-	requestAnalysis();
+	if ((node == numEcho()) || (node == difFreq()) || (node == exAvgIncr()))
+		onAvgClear(node);
+	else
+		requestAnalysis();
 }
 bool XNMRPulseAnalyzer::checkDependency(const shared_ptr<XDriver> &emitter) const {
 	const shared_ptr<XPulser> _pulser = *pulser();
@@ -351,6 +351,9 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 	}
 	if (_dso->numChannelsRecorded() < 2) {
 		throw XSkippedRecordError(i18n("Two channels needed in DSO"), __FILE__, __LINE__);
+	}
+	if (!*_dso->singleSequence()) {
+		m_statusPrinter->printWarning(i18n("Use sequential average in DSO."));
 	}
 
 	double interval = _dso->timeIntervalRecorded();
