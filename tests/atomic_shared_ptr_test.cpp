@@ -1,4 +1,4 @@
-#define msecsleep(x) (x)
+//#define msecsleep(x) (x)
 
 //#include "xtime.h"
 
@@ -66,11 +66,20 @@ start_routine(void *) {
 
     	gp3.reset();
     	gp1 = p2;
+    	gp1 = gp1;
     	p2.swap(p3);
 
     	for(;;) {
     		atomic_shared_ptr<A> p(gp1);
 	    	if(p1.compareAndSet(p, gp1)) {
+	    		break;
+	    	}
+    		printf("f");
+    	}
+    	for(;;) {
+    		atomic_shared_ptr<A> p(gp2);
+	    	if(p1.compareAndSwap(p, gp2)) {
+	    		ASSERT(p == p1);
 	    		break;
 	    	}
     		printf("f");

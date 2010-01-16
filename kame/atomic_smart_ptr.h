@@ -99,6 +99,7 @@ struct _atomic_shared_ptr_gref {
 * To swap the pointer and local reference counter (which will be reset to zero), the setter must adds the local counting to the global counter before swapping.
 * \sa atomic_scoped_ptr
  */
+//! \todo local_shared_ptr, local_scoped_ptr
 template <typename T>
 class atomic_shared_ptr
 {
@@ -153,8 +154,11 @@ public:
 	void swap(atomic_shared_ptr &x);
 
 	//! \return true if succeeded.
-	//! \sa swap()
+	//! \sa compareAndSwap()
 	bool compareAndSet(const atomic_shared_ptr &oldvalue, atomic_shared_ptr &target) const;
+	//! \return true if succeeded.
+	//! \sa swap(), compareAndSet()
+	bool compareAndSwap(const atomic_shared_ptr &oldvalue, atomic_shared_ptr &target);
 
 	//! The return value is apparently not valid for a shared instance.
 	T *get() const { Ref *pref = _pref(); return pref ? pref->ptr : 0L; }
@@ -170,6 +174,7 @@ public:
 	//! The return value is apparently not valid for a shared instance.
 	operator bool() const {return m_ref;}
 
+	bool operator==(const atomic_shared_ptr &x) const {readBarrier(); return (get() == x.get());}
 public:
 	typedef uintptr_t Refcnt;
 	//internal functions below.
@@ -308,7 +313,7 @@ atomic_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
 
 template <typename T>
 bool
-atomic_shared_ptr<T>::compareAndSet(const atomic_shared_ptr<T> &oldr, atomic_shared_ptr<T> &r) const {
+atomic_shared_ptr<T>::compareAndSwap(const atomic_shared_ptr<T> &oldr, atomic_shared_ptr<T> &r) {
 	Ref *pref;
 	ASSERT(_refcnt() == 0);
 	for(;;) {
@@ -338,5 +343,44 @@ atomic_shared_ptr<T>::compareAndSet(const atomic_shared_ptr<T> &oldr, atomic_sha
 	m_ref = (_RefLocal)pref;
 	return true;
 }
-
+template <typename T>
+bool
+atomic_shared_ptr<T>::compareAndSet(const atomic_shared_ptr<T> &oldr, atomic_shared_ptr<T> &r) const {
+	Ref *pref;
+	ASSERT(_refcnt() == 0);
+	atomicInc(&_pref()->refcnt);
+	for(;;) {
+		Refcnt rcnt_old, rcnt_new;
+		pref = r._reserve_scan_(&rcnt_old);
+		if(pref != oldr._pref()) {
+			if(pref)
+				r._leave_scan_(pref);
+			atomicDec(&_pref()->refcnt);
+			return false;
+		}
+		if(pref) {
+			atomicAdd(&pref->refcnt, rcnt_old - 1u);
+			writeBarrier();
+		}
+		rcnt_new = 0;
+		if(atomicCompareAndSet(
+			_RefLocal((uintptr_t)pref + rcnt_old),
+			_RefLocal((uintptr_t)_pref() + rcnt_new),
+			&r.m_ref))
+			break;
+		if(pref) {
+			ASSERT(rcnt_old);
+			atomicAdd(&pref->refcnt, (Refcnt)( -(int)(rcnt_old - 1u)));
+			r._leave_scan_(pref);
+		}
+	}
+	if(pref) {
+		// decreasing global reference counter.
+		readBarrier();
+		if(atomicDecAndTest(&pref->refcnt)) {
+			delete pref;
+		}
+	}
+	return true;
+}
 #endif /*ATOMIC_SMART_PTR_H_*/

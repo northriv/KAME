@@ -142,9 +142,13 @@ public:
 	atomic(T t) : atomic_pod_cas<T>(t) {}
 	atomic(const atomic &t) : atomic_pod_cas<T>(t) {}
 	~atomic() {}
+	//! Note that the return value is not of atomic.
 	atomic &operator++() {atomicInc(&this->m_var); writeBarrier(); return *this;}
+	//! Note that the return value is not of atomic.
 	atomic &operator--() {atomicDecAndTest(&this->m_var); writeBarrier(); return *this;}
+	//! Note that the return value is not of atomic.
 	atomic &operator+=(T t) {atomicAdd(&this->m_var, t); writeBarrier(); return *this;}
+	//! Note that the return value is not of atomic.
 	atomic &operator-=(T t) {atomicAdd(&this->m_var, -t); writeBarrier(); return *this;}
 	bool decAndTest() {
 		bool ret = atomicDecAndTest(&this->m_var);
