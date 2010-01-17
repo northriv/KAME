@@ -76,7 +76,7 @@ start_routine(void *) {
     return 0;
 }
 
-#define NUM_THREADS 5
+#define NUM_THREADS 4
 
 int
 main(int argc, char **argv)
@@ -90,8 +90,32 @@ main(int argc, char **argv)
 		gn2.reset(new DoubleNode);
 		gn3.reset(new DoubleNode);
 
+		{
+			Snapshot shot1(*gn1);
+			shot1.print();
+		}
 		gn1->insert(gn2);
+		{
+			Snapshot shot1(*gn1);
+			shot1.print();
+		}
 		gn2->insert(gn3);
+		{
+			Snapshot shot1(*gn1);
+			shot1.print();
+			long x = shot1[*gn3];
+			printf("%ld\n", x);
+		}
+
+		for(Transaction tr1(*gn1); ; ++tr1){
+			Snapshot &ctr1(tr1); // For reading.
+			tr1[gn1] = ctr1[gn1] + 1;
+			Snapshot str1(tr1);
+			tr1[gn1] = str1[gn1] + 1;
+			tr1[gn3] = str1[gn3] + 1;
+			if(tr1.commit()) break;
+			printf("f");
+		}
 
 	pthread_t threads[NUM_THREADS];
 		for(int i = 0; i < NUM_THREADS; i++) {

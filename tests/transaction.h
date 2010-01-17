@@ -85,7 +85,7 @@ public:
 		//! finds packet for this.
 		//! \arg copy_branch If true, all packets between the root and this will be copy-constructed unless the serial numbers are the same.
 		//! \sa Node::reverseLookup().
-		void reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial);
+		local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial);
 	private:
 	};
 	struct PacketList : public std::deque<local_shared_ptr<Packet> > {
@@ -189,10 +189,13 @@ private:
 	//! A clue for reverseLookup().
 	atomic_shared_ptr<LookupHint> m_lookupHint;
 	//! finds the packet for this node in the (un)bundled \a packet.
-	//! \arg packet The bundled packet. Also the result will be returned.
+	//! \arg packet The bundled packet.
 	//! \arg copy_branch If ture, new packets and packet lists will be copy-created for writing.
 	//! \arg tr_serial The serial number associated with the transaction.
-	void reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch = false, int tr_serial = 0);
+	local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial = 0);
+	const local_shared_ptr<Packet> &reverseLookup(const local_shared_ptr<Packet> &packet) const {
+		return const_cast<Node*>(this)->reverseLookup(const_cast<local_shared_ptr<Packet> &>(packet), false);
+	}
 	//! finds this node in the (un)bundled \a packet.
 	//! \arg hint The information for reverseLookup() will be returned.
 	bool forwardLookup(const local_shared_ptr<Packet> &packet, local_shared_ptr<LookupHint> &hint) const;
@@ -209,7 +212,6 @@ public:
 	explicit Snapshot(const T&node) {
 		node.snapshot(m_packet);
 		ASSERT(m_packet->isBundled());
-//		m_packet->print();
 	}
 	virtual ~Snapshot() {}
 
@@ -221,15 +223,16 @@ public:
 	const typename T::Payload &operator[](const T &node) const {
 		if(&node == &m_packet->node())
 			return dynamic_cast<typename T::Payload&>(*m_packet->payload());
-		local_shared_ptr<Node::Packet> packet(m_packet);
-		const_cast<T&>(node).reverseLookup(packet);
-		return dynamic_cast<const typename T::Payload&>(*packet->payload());
+		return dynamic_cast<const typename T::Payload&>(*node.reverseLookup(m_packet)->payload());
 	}
 	int size() const {return m_packet->size();}
 	//! Check \a size() in advance.
 	const shared_ptr<Node::NodeList> &subnodes() const {
 		ASSERT(size());
 		return m_packet->subnodes();
+	}
+	void print() {
+		m_packet->print();
 	}
 protected:
 	//! The snapshot.
@@ -294,9 +297,7 @@ public:
 		if(&node == &m_packet->node())
 			payload = &m_packet->payload();
 		else {
-			local_shared_ptr<Node::Packet> packet(m_packet);
-			node.reverseLookup(packet, true, m_serial);
-			payload =&packet->payload();
+			payload = &node.reverseLookup(m_packet, true, m_serial)->payload();
 		}
 		if((*payload)->m_serial != m_serial) {
 			typename T::Payload *newpayload =
