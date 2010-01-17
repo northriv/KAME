@@ -54,10 +54,10 @@ void *
 start_routine(void *) {
 	printf("start\n");
 	for(int i = 0; i < 1000000; i++) {
-    	atomic_shared_ptr<A> p1(new A(4));
+    	local_shared_ptr<A> p1(new A(4));
     	ASSERT(p1);
-    	atomic_shared_ptr<A> p2(new B(9));
-    	atomic_shared_ptr<A> p3;
+    	local_shared_ptr<A> p2(new B(9));
+    	local_shared_ptr<A> p3;
     	ASSERT(!p3);
 
     	p2.swap(gp1);
@@ -70,16 +70,14 @@ start_routine(void *) {
     	p2.swap(p3);
 
     	for(;;) {
-    		atomic_shared_ptr<A> p(gp1);
-	    	if(p1.compareAndSet(p, gp1)) {
+    		local_shared_ptr<A> p(gp1);
+	    	if(gp1.compareAndSet(p, p1)) {
 	    		break;
 	    	}
     		printf("f");
     	}
-    	for(;;) {
-    		atomic_shared_ptr<A> p(gp2);
-	    	if(p1.compareAndSwap(p, gp2)) {
-	    		ASSERT(p == p1);
+    	for(local_shared_ptr<A> p(gp2);;) {
+	    	if(gp2.compareAndSwap(p, p1)) {
 	    		break;
 	    	}
     		printf("f");
