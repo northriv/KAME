@@ -85,12 +85,12 @@ public:
 		//! finds packet for this.
 		//! \arg copy_branch If true, all packets between the root and this will be copy-constructed unless the serial numbers are the same.
 		//! \sa Node::reverseLookup().
-		void reverseLookup(atomic_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial);
+		void reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial);
 	private:
 	};
-	struct PacketList : public std::deque<atomic_shared_ptr<Packet> > {
+	struct PacketList : public std::deque<local_shared_ptr<Packet> > {
 		shared_ptr<NodeList> m_subnodes;
-		PacketList() : std::deque<atomic_shared_ptr<Packet> >(), m_serial(-1) {}
+		PacketList() : std::deque<local_shared_ptr<Packet> >(), m_serial(-1) {}
 		//! Serial number of the transaction.
 		int64_t m_serial;
 	};
@@ -108,6 +108,7 @@ public:
 		friend class Transaction;
 		int m_flags;
 		Node &node() {return *m_node;}
+		const Node &node() const {return *m_node;}
 		Node *m_node;
 		int64_t m_serial;
 	};
@@ -139,6 +140,8 @@ public:
 		Node &bundler() {return *m_bundler;}
 		//! points to the node.
 		Node &node() {return payload()->node();}
+		//! points to the node.
+		const Node &node() const {return payload()->node();}
 
 		void print();
 	protected:
@@ -168,11 +171,14 @@ public:
 private:
 	friend class Snapshot;
 	friend class Transaction;
-	void snapshot(atomic_shared_ptr<Packet> &target) const;
-	bool trySnapshotSuper(atomic_shared_ptr<Packet> &target) const;
-	bool commit(const atomic_shared_ptr<Packet> &oldpacket, atomic_shared_ptr<Packet> &newpacket);
-	bool bundle(atomic_shared_ptr<Packet> &target);
-	bool unbundle(Node &subnode, const atomic_shared_ptr<Packet> *oldsubpacket = NULL, atomic_shared_ptr<Packet> *newpacket = NULL);
+	void snapshot(local_shared_ptr<Packet> &target) const;
+	bool trySnapshotSuper(local_shared_ptr<Packet> &target) const;
+	bool commit(const local_shared_ptr<Packet> &oldpacket, local_shared_ptr<Packet> &newpacket);
+	bool bundle(local_shared_ptr<Packet> &target);
+	enum UnbundledStatus {UNBUNDLE_W_NEWVALUE, UNBUNLE_OLDVALUE_HAS_CHANGED,
+		UNBUNDLE_SUCCESS, UNBUNDLE_DISTURBED};
+	UnbundledStatus unbundle(Node &subnode, const local_shared_ptr<Packet> &nullpacket,
+		const local_shared_ptr<Packet> *oldsubpacket = NULL, local_shared_ptr<Packet> *newpacket = NULL);
 	atomic_shared_ptr<Packet> m_packet;
 
 	struct LookupHint {
@@ -186,12 +192,12 @@ private:
 	//! \arg packet The bundled packet. Also the result will be returned.
 	//! \arg copy_branch If ture, new packets and packet lists will be copy-created for writing.
 	//! \arg tr_serial The serial number associated with the transaction.
-	void reverseLookup(atomic_shared_ptr<Packet> &packet, bool copy_branch = false, int tr_serial = 0);
+	void reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch = false, int tr_serial = 0);
 	//! finds this node in the (un)bundled \a packet.
 	//! \arg hint The information for reverseLookup() will be returned.
-	bool forwardLookup(const atomic_shared_ptr<Packet> &packet, atomic_shared_ptr<LookupHint> &hint) const;
+	bool forwardLookup(const local_shared_ptr<Packet> &packet, local_shared_ptr<LookupHint> &hint) const;
 protected:
-	shared_ptr<Payload> &payload() {return m_packet->payload();}
+	void initPayload(Payload *payload);
 };
 
 //! This class takes a snapshot for a monitored data set.
@@ -215,7 +221,7 @@ public:
 	const typename T::Payload &operator[](const T &node) const {
 		if(&node == &m_packet->node())
 			return dynamic_cast<typename T::Payload&>(*m_packet->payload());
-		atomic_shared_ptr<Node::Packet> packet(m_packet);
+		local_shared_ptr<Node::Packet> packet(m_packet);
 		const_cast<T&>(node).reverseLookup(packet);
 		return dynamic_cast<const typename T::Payload&>(*packet->payload());
 	}
@@ -227,7 +233,7 @@ public:
 	}
 protected:
 	//! The snapshot.
-	atomic_shared_ptr<Node::Packet> m_packet;
+	local_shared_ptr<Node::Packet> m_packet;
 };
 
 template <class T>
@@ -288,7 +294,7 @@ public:
 		if(&node == &m_packet->node())
 			payload = &m_packet->payload();
 		else {
-			atomic_shared_ptr<Node::Packet> packet(m_packet);
+			local_shared_ptr<Node::Packet> packet(m_packet);
 			node.reverseLookup(packet, true, m_serial);
 			payload =&packet->payload();
 		}
@@ -317,7 +323,7 @@ private:
 	friend class Node;
 	shared_ptr<Node::PacketList> &subpackets() {return m_packet->subpackets();}
 	const shared_ptr<Node::PacketList> &subpackets() const {return m_packet->subpackets();}
-	atomic_shared_ptr<Node::Packet> m_oldpacket;
+	local_shared_ptr<Node::Packet> m_oldpacket;
 	int64_t m_serial;
 	static atomic<int> s_serial;
 };

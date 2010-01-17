@@ -21,7 +21,7 @@ atomic<long> total = 0;
 class DoubleNode : public Node {
 public:
 	DoubleNode() {
-		payload().reset(new Payload(*this));
+		initPayload(new Payload(*this));
 		++objcnt;
 	}
 	virtual ~DoubleNode() {
@@ -76,7 +76,7 @@ start_routine(void *) {
     return 0;
 }
 
-#define NUM_THREADS 3
+#define NUM_THREADS 5
 
 int
 main(int argc, char **argv)
@@ -85,7 +85,7 @@ main(int argc, char **argv)
     gettimeofday(&tv, 0);
     srand(tv.tv_usec);
 
-    for(int k = 0; k < 1000; k++) {
+    for(int k = 0; k < 100; k++) {
 		gn1.reset(new DoubleNode);
 		gn2.reset(new DoubleNode);
 		gn3.reset(new DoubleNode);

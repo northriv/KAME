@@ -126,8 +126,9 @@ public:
 	}
 	//! \param y This instance is atomically replaced with \a t.
 	template<typename Y> local_shared_ptr &operator=(const atomic_shared_ptr<Y> &y) {
-		atomic_shared_ptr<T>(y).swap(*this);
-		return *this;
+		reset();
+		m_ref = (_RefLocal)(typename local_shared_ptr::Ref*)y._scan_();
+		readBarrier();
 	}
 	void reset() {
 		local_shared_ptr().swap(*this);
