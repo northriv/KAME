@@ -56,20 +56,51 @@ void
 Node::initPayload(Payload *payload) {
 	local_shared_ptr<Packet>(m_packet)->payload().reset(payload);
 }
-
+void
+Node::recreateNodeTree(local_shared_ptr<Packet> &packet, Node *orphan) const {
+	unsigned int idx = 0;
+	packet.reset(new Packet(*packet));
+	packet->subpackets().reset(packet->size() ? (new PacketList(*packet->subpackets())) : (new PacketList));
+	packet->subnodes().reset(packet->size() ? (new NodeList(*packet->subnodes())) : (new NodeList));
+	NodeList::iterator nit = packet->subnodes()->begin();
+	for(PacketList::iterator pit = packet->subpackets()->begin(); pit != packet->subpackets()->end();) {
+		if((*pit)->size() || (nit->get() == orphan)) {
+			pit->reset(new Packet(**pit));
+		}
+		if((*pit)->size()) {
+			(*pit)->subpackets().reset(new PacketList(*(*pit)->subpackets()));
+			(*pit)->subnodes().reset(new NodeList(*(*pit)->subnodes()));
+			(*pit)->subnodes()->m_superNodeList = packet->subnodes();
+			ASSERT((*pit)->subnodes()->m_index == idx);
+			ASSERT(&(*pit)->node() == nit->get());
+			if(nit->get() == orphan) {
+				(*pit)->subnodes()->m_superNodeList.reset();
+			}
+			(*nit)->recreateNodeTree(*pit);
+		}
+		if(nit->get() == orphan) {
+			(*pit)->m_bundler = NULL;
+			pit = packet->subpackets()->erase(pit);
+			nit = packet->subnodes()->erase(nit);
+		}
+		else {
+			++nit;
+			++pit;
+		}
+		++idx;
+	}
+}
 void
 Node::insert(const shared_ptr<Node> &var) {
 	for(;;) {
 		local_shared_ptr<Packet> oldpacket;
 		snapshot(oldpacket);
-		local_shared_ptr<Packet> packet(new Packet(*oldpacket));
-		packet->subpackets().reset(packet->size() ? (new PacketList(*packet->subpackets())) : (new PacketList));
-		packet->subnodes().reset(packet->size() ? (new NodeList(*packet->subnodes())) : (new NodeList));
+		local_shared_ptr<Packet> packet(oldpacket);
+		recreateNodeTree(packet);
 		packet->subpackets()->resize(packet->size() + 1);
 		ASSERT(packet->subnodes());
 		packet->subnodes()->push_back(var);
 		ASSERT(packet->subpackets()->size() == packet->subnodes()->size());
-
 		packet->setBundled(false);
 		if(commit(oldpacket, packet)) {
 			local_shared_ptr<LookupHint> hint(new LookupHint);
@@ -80,15 +111,38 @@ Node::insert(const shared_ptr<Node> &var) {
 		}
 	}
 }
-local_shared_ptr<Node::Packet>&
+void
+Node::release(const shared_ptr<Node> &var) {
+	for(;;) {
+		local_shared_ptr<Packet> oldpacket;
+		snapshot(oldpacket);
+		local_shared_ptr<Packet> packet(oldpacket);
+		recreateNodeTree(packet, var.get());
+		if(!packet->size()) {
+			packet->subpackets().reset();
+		}
+//		packet->setBundled(false);
+		if(commit(oldpacket, packet)) {
+			var->m_lookupHint.reset();
+			break;
+		}
+	}
+}
+local_shared_ptr<Node::Packet>*
 Node::NodeList::reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial) {
 	local_shared_ptr<Node::Packet> *foundpacket;
-	if(packet->subnodes().get() == this)
+	if(packet->subnodes().get() == this) {
 		foundpacket = &packet;
+	}
 	else {
-		ASSERT(m_superNodeList);
+		shared_ptr<NodeList> superlist = m_superNodeList.lock();
+		if(!superlist)
+			return NULL;
 		foundpacket =
-			&m_superNodeList->reverseLookup(packet, copy_branch, tr_serial)->subpackets()->at(m_index);
+			superlist->reverseLookup(packet, copy_branch, tr_serial);
+		if(!foundpacket)
+			return NULL;
+		foundpacket = &(*foundpacket)->subpackets()->at(m_index);
 		ASSERT((*foundpacket)->isBundled());
 	}
 	if(copy_branch) {
@@ -102,7 +156,7 @@ Node::NodeList::reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch
 		}
 		ASSERT((*foundpacket)->m_serial == tr_serial);
 	}
-	return *foundpacket;
+	return foundpacket;
 }
 local_shared_ptr<Node::Packet>&
 Node::reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial) {
@@ -115,15 +169,17 @@ Node::reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_s
 			if(supernodelist &&
 				((hint->m_index < supernodelist->size()) &&
 					(supernodelist->at(hint->m_index).get() == this))) {
-				local_shared_ptr<Node::Packet>& foundpacket(
-					supernodelist->reverseLookup(packet, copy_branch, tr_serial)->subpackets()->at(hint->m_index));
-				if(copy_branch && (foundpacket->m_serial != tr_serial)) {
-					foundpacket.reset(new Packet(*foundpacket));
-					foundpacket->m_serial = tr_serial;
+				local_shared_ptr<Node::Packet>* superpacket = supernodelist->reverseLookup(packet, copy_branch, tr_serial);
+				if(superpacket) {
+					local_shared_ptr<Node::Packet> &foundpacket((*superpacket)->subpackets()->at(hint->m_index));
+					if(copy_branch && (foundpacket->m_serial != tr_serial)) {
+						foundpacket.reset(new Packet(*foundpacket));
+						foundpacket->m_serial = tr_serial;
+					}
+					ASSERT(foundpacket->isBundled());
+					ASSERT(&foundpacket->node() == this);
+					return foundpacket;
 				}
-				ASSERT(foundpacket->isBundled());
-				ASSERT(&foundpacket->node() == this);
-				return foundpacket;
 			}
 		}
 		printf("!");
@@ -217,12 +273,12 @@ Node::bundle(local_shared_ptr<Packet> &target) {
 				packets->at(i)->m_bundler = this;
 			}
 			if(packets->at(i)->size()) {
-				if((packets->at(i)->subnodes()->m_superNodeList != prebundled->subnodes().get()) ||
+				if((packets->at(i)->subnodes()->m_superNodeList.lock() != prebundled->subnodes()) ||
 					(packets->at(i)->subnodes()->m_index != i)) {
 					packets->at(i).reset(new Packet(*packets->at(i)));
 					packets->at(i)->subpackets().reset(new PacketList(*packets->at(i)->subpackets()));
 					packets->at(i)->subnodes().reset(new NodeList(*packets->at(i)->subnodes()));
-					packets->at(i)->subnodes()->m_superNodeList = prebundled->subnodes().get();
+					packets->at(i)->subnodes()->m_superNodeList = prebundled->subnodes();
 					packets->at(i)->subnodes()->m_index = i;
 				}
 			}
@@ -232,7 +288,7 @@ Node::bundle(local_shared_ptr<Packet> &target) {
 		ASSERT(packets->at(i));
 		ASSERT(packets->at(i)->isBundled());
 		if(packets->at(i)->size()) {
-			ASSERT(packets->at(i)->subnodes()->m_superNodeList == prebundled->subnodes().get());
+			ASSERT(packets->at(i)->subnodes()->m_superNodeList.lock() == prebundled->subnodes());
 			ASSERT(packets->at(i)->subnodes()->m_index == i);
 		}
 	}

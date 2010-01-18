@@ -75,17 +75,18 @@ public:
 	virtual ~Node();
 
 	class Packet;
+	struct PacketList;
 	struct NodeList : public std::deque<shared_ptr<Node> > {
-		NodeList() : std::deque<shared_ptr<Node> >(), m_superNodeList(NULL), m_index(0), m_serial(-1) {}
+		NodeList() : std::deque<shared_ptr<Node> >(), m_superNodeList(), m_index(0), m_serial(-1) {}
 		//! Reverse address to the super nodes in the bundle.
-		NodeList *m_superNodeList;
+		weak_ptr<NodeList> m_superNodeList;
 		int m_index;
 		//! Serial number of the transaction.
 		int64_t m_serial;
 		//! finds packet for this.
 		//! \arg copy_branch If true, all packets between the root and this will be copy-constructed unless the serial numbers are the same.
 		//! \sa Node::reverseLookup().
-		local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial);
+		local_shared_ptr<Packet> *reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial);
 	private:
 	};
 	struct PacketList : public std::deque<local_shared_ptr<Packet> > {
@@ -167,7 +168,7 @@ public:
 		NullPacket();
 	};
 	void insert(const shared_ptr<Node> &var);
-
+	void release(const shared_ptr<Node> &var);
 private:
 	friend class Snapshot;
 	friend class Transaction;
@@ -199,6 +200,8 @@ private:
 	//! finds this node in the (un)bundled \a packet.
 	//! \arg hint The information for reverseLookup() will be returned.
 	bool forwardLookup(const local_shared_ptr<Packet> &packet, local_shared_ptr<LookupHint> &hint) const;
+
+	void recreateNodeTree(local_shared_ptr<Packet> &packet, Node *orphan = NULL) const;
 protected:
 	void initPayload(Payload *payload);
 };

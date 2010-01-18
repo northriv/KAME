@@ -66,6 +66,7 @@ start_routine(void *) {
 
     	gp3.reset();
     	gp1 = p2;
+    	p2 = gp1;
     	gp1 = gp1;
     	p2.swap(p3);
 

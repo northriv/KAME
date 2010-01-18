@@ -18,13 +18,13 @@ atomic<int> objcnt = 0;
 atomic<long> total = 0;
 
 
-class DoubleNode : public Node {
+class LongNode : public Node {
 public:
-	DoubleNode() {
+	LongNode() {
 		initPayload(new Payload(*this));
 		++objcnt;
 	}
-	virtual ~DoubleNode() {
+	virtual ~LongNode() {
 		--objcnt;
 	}
 
@@ -47,13 +47,15 @@ public:
 	};
 };
 
-shared_ptr<DoubleNode> gn1;
-shared_ptr<DoubleNode> gn2;
-shared_ptr<DoubleNode> gn3;
+shared_ptr<LongNode> gn1;
+shared_ptr<LongNode> gn2;
+shared_ptr<LongNode> gn3;
 
 void *
 start_routine(void *) {
 	printf("start\n");
+	shared_ptr<LongNode> p1(new LongNode);
+	gn1->insert(p1);
 	for(int i = 0; i < 1000; i++) {
 		for(Transaction tr1(*gn1); ; ++tr1){
 			Snapshot &ctr1(tr1); // For reading.
@@ -71,6 +73,7 @@ start_routine(void *) {
 			printf("f");
 		}
 	}
+	gn1->release(p1);
 	long y = **gn1;
 	printf("finish\n");
     return 0;
@@ -86,19 +89,11 @@ main(int argc, char **argv)
     srand(tv.tv_usec);
 
     for(int k = 0; k < 100; k++) {
-		gn1.reset(new DoubleNode);
-		gn2.reset(new DoubleNode);
-		gn3.reset(new DoubleNode);
+		gn1.reset(new LongNode);
+		gn2.reset(new LongNode);
+		gn3.reset(new LongNode);
 
-		{
-			Snapshot shot1(*gn1);
-			shot1.print();
-		}
 		gn1->insert(gn2);
-		{
-			Snapshot shot1(*gn1);
-			shot1.print();
-		}
 		gn2->insert(gn3);
 		{
 			Snapshot shot1(*gn1);
@@ -107,6 +102,8 @@ main(int argc, char **argv)
 			printf("%ld\n", x);
 		}
 
+		shared_ptr<LongNode> p1(new LongNode);
+		gn1->insert(p1);
 		for(Transaction tr1(*gn1); ; ++tr1){
 			Snapshot &ctr1(tr1); // For reading.
 			tr1[gn1] = ctr1[gn1] + 1;
@@ -116,6 +113,7 @@ main(int argc, char **argv)
 			if(tr1.commit()) break;
 			printf("f");
 		}
+		gn1->release(p1);
 
 	pthread_t threads[NUM_THREADS];
 		for(int i = 0; i < NUM_THREADS; i++) {
@@ -128,6 +126,7 @@ main(int argc, char **argv)
 		gn1.reset();
 		gn2.reset();
 		gn3.reset();
+		p1.reset();
 
 		if(objcnt != 0) {
 			printf("failed1\n");
