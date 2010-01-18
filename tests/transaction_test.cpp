@@ -47,9 +47,7 @@ public:
 	};
 };
 
-shared_ptr<LongNode> gn1;
-shared_ptr<LongNode> gn2;
-shared_ptr<LongNode> gn3;
+shared_ptr<LongNode> gn1, gn2, gn3, gn4;
 
 void *
 start_routine(void *) {
@@ -62,7 +60,7 @@ start_routine(void *) {
 			tr1[gn1] = ctr1[gn1] + 1;
 			Snapshot str1(tr1);
 			tr1[gn1] = str1[gn1] + 1;
-//			tr1[gn3] = str1[gn3] + 1;
+			tr1[gn3] = str1[gn3] + 1;
 			if(tr1.commit()) break;
 			printf("f");
 		}
@@ -92,6 +90,7 @@ main(int argc, char **argv)
 		gn1.reset(new LongNode);
 		gn2.reset(new LongNode);
 		gn3.reset(new LongNode);
+		gn4.reset(new LongNode);
 
 		gn1->insert(gn2);
 		gn2->insert(gn3);
@@ -119,6 +118,12 @@ main(int argc, char **argv)
 		for(int i = 0; i < NUM_THREADS; i++) {
 			pthread_create(&threads[i], NULL, start_routine, NULL);
 		}
+		{
+			usleep(1000);
+			gn3->insert(gn4);
+			usleep(1000);
+			gn3->release(gn4);
+		}
 		for(int i = 0; i < NUM_THREADS; i++) {
 			pthread_join(threads[i], NULL);
 		}
@@ -126,6 +131,7 @@ main(int argc, char **argv)
 		gn1.reset();
 		gn2.reset();
 		gn3.reset();
+		gn4.reset();
 		p1.reset();
 
 		if(objcnt != 0) {

@@ -57,14 +57,13 @@ Node::initPayload(Payload *payload) {
 	local_shared_ptr<Packet>(m_packet)->payload().reset(payload);
 }
 void
-Node::recreateNodeTree(local_shared_ptr<Packet> &packet, Node *orphan) const {
+Node::recreateNodeTree(local_shared_ptr<Packet> &packet) {
 	unsigned int idx = 0;
 	packet.reset(new Packet(*packet));
 	packet->subpackets().reset(packet->size() ? (new PacketList(*packet->subpackets())) : (new PacketList));
 	packet->subnodes().reset(packet->size() ? (new NodeList(*packet->subnodes())) : (new NodeList));
-	NodeList::iterator nit = packet->subnodes()->begin();
 	for(PacketList::iterator pit = packet->subpackets()->begin(); pit != packet->subpackets()->end();) {
-		if((*pit)->size() || (nit->get() == orphan)) {
+		if((*pit)->size()) {
 			pit->reset(new Packet(**pit));
 		}
 		if((*pit)->size()) {
@@ -72,21 +71,9 @@ Node::recreateNodeTree(local_shared_ptr<Packet> &packet, Node *orphan) const {
 			(*pit)->subnodes().reset(new NodeList(*(*pit)->subnodes()));
 			(*pit)->subnodes()->m_superNodeList = packet->subnodes();
 			ASSERT((*pit)->subnodes()->m_index == idx);
-			ASSERT(&(*pit)->node() == nit->get());
-			if(nit->get() == orphan) {
-				(*pit)->subnodes()->m_superNodeList.reset();
-			}
-			(*nit)->recreateNodeTree(*pit);
+			recreateNodeTree(*pit);
 		}
-		if(nit->get() == orphan) {
-			(*pit)->m_bundler = NULL;
-			pit = packet->subpackets()->erase(pit);
-			nit = packet->subnodes()->erase(nit);
-		}
-		else {
-			++nit;
-			++pit;
-		}
+		++pit;
 		++idx;
 	}
 }
@@ -117,12 +104,41 @@ Node::release(const shared_ptr<Node> &var) {
 		local_shared_ptr<Packet> oldpacket;
 		snapshot(oldpacket);
 		local_shared_ptr<Packet> packet(oldpacket);
-		recreateNodeTree(packet, var.get());
+		local_shared_ptr<Node::Packet> oldsubpacket(
+			var->reverseLookup(packet));
+		recreateNodeTree(packet);
+		local_shared_ptr<Node::Packet> newsubpacket;
+
+		NodeList::iterator nit = packet->subnodes()->begin();
+		for(PacketList::iterator pit = packet->subpackets()->begin(); pit != packet->subpackets()->end();) {
+			if(nit->get() == &*var) {
+				if((*pit)->size()) {
+					(*pit)->subnodes()->m_superNodeList.reset();
+				}
+				else
+					pit->reset(new Packet(**pit));
+				newsubpacket = *pit;
+				(*pit)->m_bundler = NULL;
+				(*pit)->setBundled(true);
+				pit = packet->subpackets()->erase(pit);
+				nit = packet->subnodes()->erase(nit);
+			}
+			else {
+				++nit;
+				++pit;
+			}
+		}
+		ASSERT(newsubpacket);
+		ASSERT(!newsubpacket->m_bundler);
+
 		if(!packet->size()) {
 			packet->subpackets().reset();
 		}
-//		packet->setBundled(false);
-		if(commit(oldpacket, packet)) {
+		local_shared_ptr<Packet> nullpacket(var->m_packet);
+		if(nullpacket->isHere())
+			continue;
+		Node::UnbundledStatus ret = unbundle(*var, nullpacket, &oldsubpacket, &newsubpacket, &oldpacket, &packet);
+		if(ret == UNBUNDLE_W_NEW_VALUES) {
 			var->m_lookupHint.reset();
 			break;
 		}
@@ -159,7 +175,7 @@ Node::NodeList::reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch
 	return foundpacket;
 }
 local_shared_ptr<Node::Packet>&
-Node::reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial) {
+Node::reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial) const {
 	ASSERT(packet->size());
 	local_shared_ptr<LookupHint> hint(m_lookupHint);
 	for(int i = 0;; ++i) {
@@ -214,7 +230,7 @@ Node::snapshot(local_shared_ptr<Packet> &target) const {
 		target = m_packet;
 		if(target->isBundled())
 			return;
-		if(!target->isHere()) {
+		if( ! target->isHere()) {
 			if(trySnapshotSuper(target)) {
 				target = const_cast<Node*>(this)->reverseLookup(target);
 				ASSERT(target->isBundled());
@@ -245,7 +261,7 @@ Node::trySnapshotSuper(local_shared_ptr<Packet> &target) const {
 
 bool
 Node::bundle(local_shared_ptr<Packet> &target) {
-	ASSERT(!target->isBundled() && target->isHere());
+	ASSERT( ! target->isBundled() && target->isHere());
 	ASSERT(target->size());
 	local_shared_ptr<Packet> prebundled(new Packet(*target));
 	//copying all sub-packets from nodes to the new packet.
@@ -262,7 +278,7 @@ Node::bundle(local_shared_ptr<Packet> &target) {
 			}
 			packets_onnode[i] = packetonnode;
 			if(packetonnode->isHere()) {
-				if(!packetonnode->isBundled()) {
+				if( ! packetonnode->isBundled()) {
 					if(!child->bundle(packetonnode))
 						continue;
 				}
@@ -293,7 +309,7 @@ Node::bundle(local_shared_ptr<Packet> &target) {
 		}
 	}
 	//First checkpoint.
-	if(!m_packet.compareAndSet(target, prebundled)) {
+	if( ! m_packet.compareAndSet(target, prebundled)) {
 		return false;
 	}
 	//clearing all packets on sub-nodes if not modified.
@@ -326,9 +342,10 @@ Node::commit(const local_shared_ptr<Packet> &oldpacket, local_shared_ptr<Packet>
 		Node &bundler(newpacket->bundler());
 		UnbundledStatus ret = bundler.unbundle(*this, packet, &oldpacket, &newpacket);
 		switch(ret) {
-		case UNBUNDLE_W_NEWVALUE:
+		case UNBUNDLE_W_NEW_SUBVALUE:
+		case UNBUNDLE_W_NEW_VALUES:
 			return true;
-		case UNBUNLE_OLDVALUE_HAS_CHANGED:
+		case UNBUNDLE_SUBVALUE_HAS_CHANGED:
 			return false;
 		case UNBUNDLE_SUCCESS:
 		case UNBUNDLE_DISTURBED:
@@ -341,54 +358,77 @@ Node::commit(const local_shared_ptr<Packet> &oldpacket, local_shared_ptr<Packet>
 
 Node::UnbundledStatus
 Node::unbundle(Node &subnode, const local_shared_ptr<Packet> &nullpacket,
-	const local_shared_ptr<Packet> *oldsubpacket, local_shared_ptr<Packet> *newsubpacket) {
-	ASSERT(!nullpacket->isHere());
+	const local_shared_ptr<Packet> *oldsubpacket, const local_shared_ptr<Packet> *newsubpacket,
+	const local_shared_ptr<Packet> *oldsuperpacket, const local_shared_ptr<Packet> *newsuperpacket) {
+	ASSERT( ! nullpacket->isHere());
 	local_shared_ptr<Packet> packet(m_packet);
-	//Unbundle all supernodes.
-	if(!packet->isHere()) {
+	local_shared_ptr<Packet> copied;
+	if( ! packet->isHere()) {
+		//Unbundle all supernodes.
 		Node *bundler = packet->m_bundler;
-		UnbundledStatus ret = bundler->unbundle(*this, packet);
-//		if(ret == UNBUNDLE_DISTURBED)
-//			return ret;
-		packet = m_packet;
-		if(!packet->isHere())
+		UnbundledStatus ret = bundler->unbundle(*this, packet,
+			oldsuperpacket ? oldsuperpacket : NULL, NULL);
+		if((ret != UNBUNDLE_W_NEW_SUBVALUE) || (ret != UNBUNDLE_W_NEW_VALUES))
 			return UNBUNDLE_DISTURBED;
+		if(oldsuperpacket)
+			copied = *oldsuperpacket;
 	}
-	unsigned int idx;
-	if(newsubpacket) {
-		for(unsigned int i = 0; ; i++) {
-			ASSERT(i < packet->subnodes()->size());
-			shared_ptr<Node> child(packet->subnodes()->at(i));
-			if(child.get() == &subnode) {
-				if(packet->subpackets()->at(i) != *oldsubpacket) {
-					if(nullpacket == subnode.m_packet)
-						return UNBUNLE_OLDVALUE_HAS_CHANGED;
-					return UNBUNDLE_DISTURBED;
-				}
-				idx = i;
-				break;
-			}
+	else {
+		copied.reset(new Packet(*packet));
+		copied->setBundled(false);
+		if(newsuperpacket)
+			if(packet != *oldsuperpacket)
+				return UNBUNDLE_DISTURBED;
+		//Tagging as unbundled.
+		if(!m_packet.compareAndSet(packet, copied)) {
+			return UNBUNDLE_DISTURBED;
 		}
 	}
-	local_shared_ptr<Packet> copied(new Packet(*packet));
-	copied->setBundled(false);
-	//Tagging as unbundled.
-	if(!m_packet.compareAndSet(packet, copied)) {
-		return UNBUNDLE_DISTURBED;
+
+	const local_shared_ptr<Packet> &subpacket(subnode.reverseLookup(copied));
+	if(oldsubpacket) {
+		if(subpacket != *oldsubpacket) {
+			if(nullpacket == subnode.m_packet)
+				return UNBUNDLE_SUBVALUE_HAS_CHANGED;
+			return UNBUNDLE_DISTURBED;
+		}
 	}
-	if(!newsubpacket)
-		return UNBUNDLE_SUCCESS;
-	if(!subnode.m_packet.compareAndSet(nullpacket, *newsubpacket)) {
-		copied = subnode.m_packet;
-		if(!copied->isHere())
-			return UNBUNLE_OLDVALUE_HAS_CHANGED;
+	local_shared_ptr<Packet> newsubpacket_copied;
+	if( newsubpacket ) {
+		newsubpacket_copied = *newsubpacket;
+	}
+	else {
+		newsubpacket_copied = subpacket;
+		newsubpacket_copied.reset(new Packet(*newsubpacket_copied));
+		newsubpacket_copied->setBundled(false);
+	}
+
+	if( ! subnode.m_packet.compareAndSet(nullpacket, newsubpacket_copied)) {
+		if( ! local_shared_ptr<Packet>(subnode.m_packet)->isHere())
+			return UNBUNDLE_SUBVALUE_HAS_CHANGED;
 		return UNBUNDLE_SUCCESS;
 	}
-	//Erasing the old packet on the useless old bundle.
-	packet.reset(new Packet(*copied));
-	packet->subpackets().reset(new PacketList(*packet->subpackets()));
-	packet->subpackets()->at(idx).reset();
-	m_packet.compareAndSet(copied, packet);
-	return UNBUNDLE_W_NEWVALUE;
+	if(newsuperpacket) {
+		packet = *newsuperpacket;
+	}
+	else {
+		if( ! copied->isHere()) {
+//			local_shared_ptr<Packet> newrootpacket(new Packet(*rootpacket));
+//			subnode.reverseLookup(newrootpacket, true, tr_serial).reset();
+//			rootpacket->node().compareAndSet(rootpacket, newrootpacket);
+			return UNBUNDLE_W_NEW_SUBVALUE;
+		}
+		else {
+//			//Erasing the old packet on the useless old bundle.
+//			packet.reset(new Packet(*copied));
+//			packet->subpackets().reset(new PacketList(*packet->subpackets()));
+//			const_cast<local_shared_ptr<Packet>&>(subnode.reverseLookup(packet)).reset();
+			return UNBUNDLE_W_NEW_SUBVALUE;
+		}
+	}
+	if(m_packet.compareAndSet(copied, packet))
+		return UNBUNDLE_W_NEW_VALUES;
+	else
+		return UNBUNDLE_W_NEW_SUBVALUE;
 }
 

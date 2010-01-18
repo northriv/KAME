@@ -176,10 +176,12 @@ private:
 	bool trySnapshotSuper(local_shared_ptr<Packet> &target) const;
 	bool commit(const local_shared_ptr<Packet> &oldpacket, local_shared_ptr<Packet> &newpacket);
 	bool bundle(local_shared_ptr<Packet> &target);
-	enum UnbundledStatus {UNBUNDLE_W_NEWVALUE, UNBUNLE_OLDVALUE_HAS_CHANGED,
+	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE, UNBUNDLE_W_NEW_VALUES,
+		UNBUNDLE_SUBVALUE_HAS_CHANGED,
 		UNBUNDLE_SUCCESS, UNBUNDLE_DISTURBED};
 	UnbundledStatus unbundle(Node &subnode, const local_shared_ptr<Packet> &nullpacket,
-		const local_shared_ptr<Packet> *oldsubpacket = NULL, local_shared_ptr<Packet> *newpacket = NULL);
+		const local_shared_ptr<Packet> *oldsubpacket = NULL, const local_shared_ptr<Packet> *newsubpacket = NULL,
+		const local_shared_ptr<Packet> *oldsuperpacket = NULL, const local_shared_ptr<Packet> *newsuperpacket = NULL);
 	atomic_shared_ptr<Packet> m_packet;
 
 	struct LookupHint {
@@ -188,20 +190,19 @@ private:
 		int m_index;
 	};
 	//! A clue for reverseLookup().
-	atomic_shared_ptr<LookupHint> m_lookupHint;
+	mutable atomic_shared_ptr<LookupHint> m_lookupHint;
 	//! finds the packet for this node in the (un)bundled \a packet.
 	//! \arg packet The bundled packet.
 	//! \arg copy_branch If ture, new packets and packet lists will be copy-created for writing.
 	//! \arg tr_serial The serial number associated with the transaction.
-	local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial = 0);
+	local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial = 0) const;
 	const local_shared_ptr<Packet> &reverseLookup(const local_shared_ptr<Packet> &packet) const {
-		return const_cast<Node*>(this)->reverseLookup(const_cast<local_shared_ptr<Packet> &>(packet), false);
+		reverseLookup(const_cast<local_shared_ptr<Packet> &>(packet), false);
 	}
 	//! finds this node in the (un)bundled \a packet.
 	//! \arg hint The information for reverseLookup() will be returned.
 	bool forwardLookup(const local_shared_ptr<Packet> &packet, local_shared_ptr<LookupHint> &hint) const;
-
-	void recreateNodeTree(local_shared_ptr<Packet> &packet, Node *orphan = NULL) const;
+	static void recreateNodeTree(local_shared_ptr<Packet> &packet);
 protected:
 	void initPayload(Payload *payload);
 };
