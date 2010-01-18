@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -109,6 +109,10 @@ public:
 		if(_pref())
 			atomicInc(&_pref()->refcnt);
 	}
+	explicit local_shared_ptr(const atomic_shared_ptr<T> &t) {
+		m_ref = (_RefLocal)(typename local_shared_ptr::Ref*)t._scan_();
+		readBarrier();
+	}
 	template<typename Y> explicit local_shared_ptr(const atomic_shared_ptr<Y> &y) {
 		m_ref = (_RefLocal)(typename local_shared_ptr::Ref*)y._scan_();
 		readBarrier();
@@ -123,6 +127,12 @@ public:
 	template<typename Y> local_shared_ptr &operator=(const local_shared_ptr<Y> &y) {
 		local_shared_ptr(y).swap(*this);
 		return *this;
+	}
+	//! \param y This instance is atomically replaced with \a t.
+	local_shared_ptr &operator=(const atomic_shared_ptr<T> &t) {
+		reset();
+		m_ref = (_RefLocal)(typename local_shared_ptr::Ref*)t._scan_();
+		readBarrier();
 	}
 	//! \param y This instance is atomically replaced with \a t.
 	template<typename Y> local_shared_ptr &operator=(const atomic_shared_ptr<Y> &y) {
