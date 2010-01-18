@@ -173,7 +173,7 @@ public:
 	atomic(const atomic &t) : m_var(t) {}
 	~atomic() {}
 	operator T() const {
-		atomic_shared_ptr<T> x = m_var;
+		local_shared_ptr<T> x = m_var;
 		return *x;
 	}
 	atomic &operator=(T t) {
