@@ -110,7 +110,7 @@ public:
 	};
 
 	struct Packet {
-		Packet(Node *bundler);
+		Packet(Node *supernode);
 		~Packet();
 	private:
 		Packet();
@@ -133,7 +133,7 @@ public:
 		const shared_ptr<NodeList> &subnodes() const {return subpackets()->m_subnodes;}
 		const shared_ptr<PacketList> &subpackets() const {return m_subpackets;}
 		//! points to the supernode, i.e. parent.
-		Node &bundler() {return *m_bundler;}
+		Node &supernode() {return *m_supernode;}
 		//! points to the node.
 		Node &node() {return payload()->node();}
 		//! points to the node.
@@ -151,12 +151,12 @@ public:
 			PACKET_UNBUNDLED = 0x1, PACKET_BUNDLED = 0x2, PACKET_NOT_HERE = 0x3};
 		shared_ptr<Payload> m_payload;
 		shared_ptr<PacketList> m_subpackets;
-		Node *m_bundler;
+		Node *m_supernode;
 		//! Serial number of the transaction.
 		int64_t m_serial;
 	};
 	struct NullPacket : public Packet {
-		NullPacket(Node *bundler) : Packet(bundler) {
+		NullPacket(Node *supernode) : Packet(supernode) {
 			m_state = PACKET_NOT_HERE;
 		}
 	private:

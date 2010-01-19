@@ -16,8 +16,8 @@
 
 atomic<int> Transaction::s_serial = 0;
 
-Node::Packet::Packet(Node *bundler) : m_state(PACKET_BUNDLED), m_payload(),
-	m_bundler(bundler), m_serial(-1) {
+Node::Packet::Packet(Node *supernode) : m_state(PACKET_BUNDLED), m_payload(),
+	m_supernode(supernode), m_serial(-1) {
 }
 Node::Packet::~Packet() {
 
@@ -25,7 +25,7 @@ Node::Packet::~Packet() {
 void
 Node::Packet::print() {
 	printf("Packet: ");
-	printf("Bundler:%llx, ", (uintptr_t)&bundler());
+	printf("Super:%llx, ", (uintptr_t)&supernode());
 	if( ! isHere())
 		printf("Not here, ");
 	else {
@@ -119,7 +119,7 @@ Node::release(const shared_ptr<Node> &var) {
 					pit->reset(new Packet(**pit));
 				}
 				newsubpacket = *pit;
-				(*pit)->m_bundler = NULL;
+				(*pit)->m_supernode = NULL;
 				pit = packet->subpackets()->erase(pit);
 				nit = packet->subnodes()->erase(nit);
 			}
@@ -129,7 +129,7 @@ Node::release(const shared_ptr<Node> &var) {
 			}
 		}
 		ASSERT(newsubpacket);
-		ASSERT( ! newsubpacket->m_bundler);
+		ASSERT( ! newsubpacket->m_supernode);
 
 		if( ! packet->size()) {
 			packet->subpackets().reset();
@@ -249,12 +249,12 @@ bool
 Node::trySnapshotSuper(local_shared_ptr<Packet> &target) const {
 	local_shared_ptr<Packet> oldpacket(target);
 	ASSERT( ! target->isHere());
-	Node& bundler(target->bundler());
-	target = bundler.m_packet;
+	Node& supernode(target->supernode());
+	target = supernode.m_packet;
 	if(target->isBundled())
 		return true;
 	if( ! target->isHere()) {
-		if( ! bundler.trySnapshotSuper(target))
+		if( ! supernode.trySnapshotSuper(target))
 			return false;
 	}
 	ASSERT(target->size());
@@ -290,9 +290,9 @@ Node::bundle(local_shared_ptr<Packet> &target) {
 				}
 				packets->at(i) = packetonnode;
 			}
-			if(packets->at(i)->m_bundler != this) {
+			if(packets->at(i)->m_supernode != this) {
 				packets->at(i).reset(new Packet(*packets->at(i)));
-				packets->at(i)->m_bundler = this;
+				packets->at(i)->m_supernode = this;
 			}
 			if(packets->at(i)->size()) {
 				if((packets->at(i)->subnodes()->m_superNodeList.lock() != prebundled->subnodes()) ||
@@ -345,8 +345,8 @@ Node::commit(const local_shared_ptr<Packet> &oldpacket, local_shared_ptr<Packet>
 				return true;
 			continue;
 		}
-		Node &bundler(newpacket->bundler());
-		UnbundledStatus ret = bundler.unbundle(*this, packet, &oldpacket, &newpacket);
+		Node &supernode(newpacket->supernode());
+		UnbundledStatus ret = supernode.unbundle(*this, packet, &oldpacket, &newpacket);
 		switch(ret) {
 		case UNBUNDLE_W_NEW_SUBVALUE:
 		case UNBUNDLE_W_NEW_VALUES:
@@ -370,12 +370,12 @@ Node::unbundle(Node &subnode, const local_shared_ptr<Packet> &nullpacket,
 	local_shared_ptr<Packet> copied;
 	if( ! packet->isHere()) {
 		//Unbundle all supernodes.
-		Node *bundler = packet->m_bundler;
+		Node *supernode = packet->m_supernode;
 		if(oldsuperpacket) {
 			copied.reset(new Packet(**oldsuperpacket));
 			copied->setBundled(false);
 		}
-		UnbundledStatus ret = bundler->unbundle(*this, packet,
+		UnbundledStatus ret = supernode->unbundle(*this, packet,
 			oldsuperpacket ? oldsuperpacket : NULL, &copied);
 		if((ret != UNBUNDLE_W_NEW_SUBVALUE) || (ret != UNBUNDLE_W_NEW_VALUES))
 			return UNBUNDLE_DISTURBED;
