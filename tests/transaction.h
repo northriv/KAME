@@ -110,7 +110,7 @@ public:
 	};
 
 	struct Packet {
-		Packet(Node *supernode);
+		Packet(const shared_ptr<atomic_shared_ptr<Packet> > &bundlepoint);
 		~Packet();
 	private:
 		Packet();
@@ -132,8 +132,8 @@ public:
 		shared_ptr<PacketList> &subpackets() {return m_subpackets;}
 		const shared_ptr<NodeList> &subnodes() const {return subpackets()->m_subnodes;}
 		const shared_ptr<PacketList> &subpackets() const {return m_subpackets;}
-		//! points to the supernode, i.e. parent.
-		Node &supernode() {return *m_supernode;}
+
+		shared_ptr<atomic_shared_ptr<Packet> > bundlepoint() {return m_bundlepoint.lock();}
 		//! points to the node.
 		Node &node() {return payload()->node();}
 		//! points to the node.
@@ -151,12 +151,12 @@ public:
 			PACKET_UNBUNDLED = 0x1, PACKET_BUNDLED = 0x2, PACKET_NOT_HERE = 0x3};
 		shared_ptr<Payload> m_payload;
 		shared_ptr<PacketList> m_subpackets;
-		Node *m_supernode;
+		weak_ptr<atomic_shared_ptr<Packet> > m_bundlepoint;
 		//! Serial number of the transaction.
 		int64_t m_serial;
 	};
 	struct NullPacket : public Packet {
-		NullPacket(Node *supernode) : Packet(supernode) {
+		NullPacket(const shared_ptr<atomic_shared_ptr<Packet> > &bundlepoint) : Packet(bundlepoint) {
 			m_state = PACKET_NOT_HERE;
 		}
 	private:
@@ -168,17 +168,18 @@ private:
 	friend class Snapshot;
 	friend class Transaction;
 	void snapshot(local_shared_ptr<Packet> &target) const;
-	bool trySnapshotSuper(local_shared_ptr<Packet> &target) const;
+	static bool trySnapshotSuper(atomic_shared_ptr<Packet> &bundlepoint, local_shared_ptr<Packet> &target);
 	bool commit(const local_shared_ptr<Packet> &oldpacket, local_shared_ptr<Packet> &newpacket);
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
 	BundledStatus bundle(local_shared_ptr<Packet> &target);
 	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE, UNBUNDLE_W_NEW_VALUES,
 		UNBUNDLE_SUBVALUE_HAS_CHANGED,
 		UNBUNDLE_SUCCESS, UNBUNDLE_DISTURBED};
-	UnbundledStatus unbundle(Node &subnode, const local_shared_ptr<Packet> &nullpacket,
+	static UnbundledStatus unbundle(atomic_shared_ptr<Packet> &bundlepoint,
+		atomic_shared_ptr<Packet> &subbundlepoint, const local_shared_ptr<Packet> &nullpacket,
 		const local_shared_ptr<Packet> *oldsubpacket = NULL, local_shared_ptr<Packet> *newsubpacket = NULL,
 		const local_shared_ptr<Packet> *oldsuperpacket = NULL, const local_shared_ptr<Packet> *newsuperpacket = NULL);
-	atomic_shared_ptr<Packet> m_packet;
+	shared_ptr<atomic_shared_ptr<Packet> > m_packet;
 
 	struct LookupHint {
 		weak_ptr<NodeList> m_superNodeList;

@@ -54,14 +54,17 @@ start_routine(void *) {
 	printf("start\n");
 	shared_ptr<LongNode> p1(new LongNode);
 	shared_ptr<LongNode> p2(new LongNode);
-//	gn1->insert(p2);
 	for(int i = 0; i < 1000; i++) {
+		if((i % 10) == 0)
+			gn2->insert(p2);
 		for(Transaction tr1(*gn1); ; ++tr1){
 			Snapshot &ctr1(tr1); // For reading.
 			tr1[gn1] = ctr1[gn1] + 1;
 			Snapshot str1(tr1);
 			tr1[gn1] = str1[gn1] + 1;
 			tr1[gn3] = str1[gn3] + 1;
+			if((i % 10) == 0)
+				tr1[p2] = str1[p2] + 1;
 			if(tr1.commit()) break;
 			printf("f");
 		}
@@ -71,8 +74,15 @@ start_routine(void *) {
 			if(tr1.commit()) break;
 			printf("f");
 		}
+		if((i % 10) == 0)
+			gn2->release(p2);
+		for(Transaction tr1(*gn4); ; ++tr1){
+			Snapshot str1(tr1);
+			tr1[gn4] = str1[gn4] + 1;
+			if(tr1.commit()) break;
+			printf("f");
+		}
 	}
-//	gn1->release(p2);
 	long y = **gn1;
 	printf("finish\n");
     return 0;
@@ -113,7 +123,7 @@ main(int argc, char **argv)
 			if(tr1.commit()) break;
 			printf("f");
 		}
-//		gn1->release(p1);
+		gn1->release(p1);
 
 	pthread_t threads[NUM_THREADS];
 		for(int i = 0; i < NUM_THREADS; i++) {
@@ -121,9 +131,9 @@ main(int argc, char **argv)
 		}
 		{
 			usleep(1000);
-//			gn3->insert(gn4);
+			gn3->insert(gn4);
 			usleep(1000);
-//			gn3->release(gn4);
+			gn3->release(gn4);
 		}
 		for(int i = 0; i < NUM_THREADS; i++) {
 			pthread_join(threads[i], NULL);
