@@ -53,8 +53,9 @@ void *
 start_routine(void *) {
 	printf("start\n");
 	shared_ptr<LongNode> p1(new LongNode);
-	gn1->insert(p1);
 	for(int i = 0; i < 1000; i++) {
+		shared_ptr<LongNode> p2(new LongNode);
+		gn1->insert(p2);
 		for(Transaction tr1(*gn1); ; ++tr1){
 			Snapshot &ctr1(tr1); // For reading.
 			tr1[gn1] = ctr1[gn1] + 1;
@@ -70,8 +71,8 @@ start_routine(void *) {
 			if(tr1.commit()) break;
 			printf("f");
 		}
+		gn1->release(p2);
 	}
-	gn1->release(p1);
 	long y = **gn1;
 	printf("finish\n");
     return 0;

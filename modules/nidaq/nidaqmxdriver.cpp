@@ -66,11 +66,10 @@ XNIDAQmxInterface::SoftwareTrigger::create(const char *label, unsigned int bits)
 	shared_ptr<SoftwareTrigger> p(new SoftwareTrigger(label, bits));
 	
 	//inserting the new trigger source to the list atomically.
-	for(;;) {
-        atomic_shared_ptr<SoftwareTriggerList> old_list(s_virtualTrigList);
-        atomic_shared_ptr<SoftwareTriggerList> new_list(new SoftwareTriggerList(*old_list));
+	for(local_shared_ptr<SoftwareTriggerList> old_list(s_virtualTrigList);;) {
+        local_shared_ptr<SoftwareTriggerList> new_list(new SoftwareTriggerList(*old_list));
         new_list->push_back(p);
-        if(new_list.compareAndSet(old_list, s_virtualTrigList)) break;
+        if(s_virtualTrigList.compareAndSwap(old_list, new_list)) break;
     }
     onChange().talk(p);
     return p;
@@ -84,11 +83,10 @@ XNIDAQmxInterface::SoftwareTrigger::SoftwareTrigger(const char *label, unsigned 
 void
 XNIDAQmxInterface::SoftwareTrigger::unregister(const shared_ptr<SoftwareTrigger> &p) {
 	//performing it atomically.
-	for(;;) {
-		atomic_shared_ptr<SoftwareTriggerList> old_list(s_virtualTrigList);
-		atomic_shared_ptr<SoftwareTriggerList> new_list(new SoftwareTriggerList(*old_list));
+	for(local_shared_ptr<SoftwareTriggerList> old_list(s_virtualTrigList);;) {
+		local_shared_ptr<SoftwareTriggerList> new_list(new SoftwareTriggerList(*old_list));
 		new_list->erase(std::find(new_list->begin(), new_list->end(), p));
-		if(new_list.compareAndSet(old_list, s_virtualTrigList)) break;
+		if(s_virtualTrigList.compareAndSwap(old_list, new_list)) break;
 	}
 	onChange().talk(p);
 }

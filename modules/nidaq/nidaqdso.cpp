@@ -114,7 +114,7 @@ XNIDAQmxDSO::onSoftTrigChanged(const shared_ptr<XNIDAQmxInterface::SoftwareTrigg
 			XString str(formatString("/%s/%s", interface()->devName(), *it));
 			trigSource()->add(str);
 		}
-		atomic_shared_ptr<XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList>
+		local_shared_ptr<XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList>
 			list(XNIDAQmxInterface::SoftwareTrigger::virtualTrigList());
 		for(XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList_it
 				it = list->begin(); it != list->end(); it++) {
@@ -313,7 +313,7 @@ XNIDAQmxDSO::setupSoftwareTrigger()
 {
 	XString src = trigSource()->to_str();
 	//setup virtual trigger.
-	atomic_shared_ptr<XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList>
+	local_shared_ptr<XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList>
 		list(XNIDAQmxInterface::SoftwareTrigger::virtualTrigList());
 	for(XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList_it
 			it = list->begin(); it != list->end(); it++) {

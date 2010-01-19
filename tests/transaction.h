@@ -17,11 +17,6 @@
 #include "support.h"
 #include "atomic_smart_ptr.h"
 
-//! \todo
-//! Pbm.1: tr1[node1] takes o(n log n) or even o(n).\n
-//! Sol.1: cache or algorithm for o(log n).\n
-//! 	Submonitor should have a (cached) key for rapid access.\n
-
 //! Example 1\n
 //! shared_ptr<Subscriber> ss1 = monitor1->monitorData();\n
 //! sleep(1);\n
@@ -180,7 +175,7 @@ private:
 		UNBUNDLE_SUBVALUE_HAS_CHANGED,
 		UNBUNDLE_SUCCESS, UNBUNDLE_DISTURBED};
 	UnbundledStatus unbundle(Node &subnode, const local_shared_ptr<Packet> &nullpacket,
-		const local_shared_ptr<Packet> *oldsubpacket = NULL, const local_shared_ptr<Packet> *newsubpacket = NULL,
+		const local_shared_ptr<Packet> *oldsubpacket = NULL, local_shared_ptr<Packet> *newsubpacket = NULL,
 		const local_shared_ptr<Packet> *oldsuperpacket = NULL, const local_shared_ptr<Packet> *newsuperpacket = NULL);
 	atomic_shared_ptr<Packet> m_packet;
 

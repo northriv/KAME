@@ -209,7 +209,6 @@ Node::reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_s
 }
 bool
 Node::forwardLookup(const local_shared_ptr<Packet> &packet, local_shared_ptr<LookupHint> &hint) const {
-	ASSERT(packet->isBundled());
 	if( ! packet->subpackets())
 		return false;
 	for(unsigned int i = 0; i < packet->subnodes()->size(); i++) {

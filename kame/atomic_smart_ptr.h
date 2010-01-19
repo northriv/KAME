@@ -165,8 +165,8 @@ public:
 	//! \sa compareAndSet()
 	bool compareAndSwap(local_shared_ptr<T> &oldvalue, const local_shared_ptr<T> &newvalue, bool noswap = false);
 
-	bool operator!() const {return !m_ref;}
-	operator bool() const {return m_ref;}
+	bool operator!() const {readBarrier(); return !m_ref;}
+	operator bool() const {readBarrier(); return m_ref;}
 
 	template<typename Y> bool operator==(const local_shared_ptr<Y> &x) const {readBarrier(); return (_pref() == x._pref());}
 	template<typename Y> bool operator==(const atomic_shared_ptr<Y> &x) const {readBarrier(); return (_pref() == x._pref());}
@@ -205,7 +205,7 @@ protected:
 };
 
 template <typename T>
-class local_shared_ptr : public atomic_shared_ptr<T> {
+class local_shared_ptr : protected atomic_shared_ptr<T> {
 public:
 	local_shared_ptr() : atomic_shared_ptr<T>() {}
 
@@ -243,6 +243,15 @@ public:
 	//! \param x \p x is atomically swapped with this instance.
 	void swap(atomic_shared_ptr<T> &x);
 
+	//! This instance is atomically reset to null pointer.
+	void reset() {
+		atomic_shared_ptr<T>::reset();
+	}
+	//! This instance is atomically reset with a pointer \a y.
+	template<typename Y> void reset(Y *y) {
+		atomic_shared_ptr<T>::reset(y);
+	}
+
 	T *get() { return this->m_ref ? ((Ref*)this->m_ref)->ptr : NULL; }
 	const T *get() const { return this->m_ref ? ((Ref*)this->m_ref)->ptr : NULL; }
 
@@ -252,6 +261,9 @@ public:
 	T *operator->() { ASSERT(*this); return get();}
 	const T *operator->() const { ASSERT(*this); return get();}
 
+	bool operator!() const {return !this->m_ref;}
+	operator bool() const {return this->m_ref;}
+
 	template<typename Y> bool operator==(const local_shared_ptr<Y> &x) const {readBarrier(); return (this->_pref() == x._pref());}
 	template<typename Y> bool operator==(const atomic_shared_ptr<Y> &x) const {readBarrier(); return (this->_pref() == x._pref());}
 	template<typename Y> bool operator!=(const local_shared_ptr<Y> &x) const {readBarrier(); return (this->_pref() != x._pref());}
@@ -259,15 +271,12 @@ public:
 protected:
 	template <typename Y> friend class local_shared_ptr;
 	template <typename Y> friend class atomic_shared_ptr;
-	bool compareAndSet(const local_shared_ptr<T> &oldvalue, const local_shared_ptr<T> &newvalue);
-	bool compareAndSwap(local_shared_ptr<T> &oldvalue, const local_shared_ptr<T> &newvalue, bool noswap = false);
 
 	typedef typename local_shared_ptr<T>::_RefLocal _RefLocal;
 	typedef typename local_shared_ptr<T>::Refcnt Refcnt;
 	typedef typename local_shared_ptr<T>::Ref Ref;
 	//! A pointer to global reference struct.
 	Ref* _pref() const {return (Ref*)(this->m_ref);}
-	Refcnt _refcnt() const {return atomic_shared_ptr<T>::_refcnt();}
 };
 
 template <typename T>
